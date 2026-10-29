@@ -178,6 +178,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- iPod demo: signing in to Last.fm works when the API account has a callback URL: the browser comes back to the app once you allow it, shows "Connected as …" and the app signs in by itself (no Finish button).
 - Scroll snap: a trackpad swipe released in a `snap-x` or `snap-y` container now glides straight to its snap point, animated, instead of gliding on and then jumping back to settle.
 - iPod demo: a transfer's steps take the height of their lines (at most 200 px) instead of a tall empty box.
 - iPod demo: the Last.fm card keeps a Sign in again button after a failed Finish, so a sign-in that was not approved can start over without restarting the app.

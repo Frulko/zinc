@@ -114,6 +114,9 @@ export async function lastfmToken(key: string, secret: string): Promise<string> 
   return t.token as string;
 }
 
+/** The web flow's approval page: once approved, Last.fm sends the browser to `cb` with `?token=` (approved: lastfmSession takes it). */
+export function lastfmWebAuthUrl(key: string, cb: string): string { return `${LASTFM_AUTH_URL}?api_key=${encodeURIComponent(key)}&cb=${encodeURIComponent(cb)}`; }
+
 /** Step 2: the page where the user approves the token. */
 export function lastfmAuthUrl(key: string, token: string): string { return `${LASTFM_AUTH_URL}?api_key=${encodeURIComponent(key)}&token=${encodeURIComponent(token)}`; }
 

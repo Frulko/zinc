@@ -9,7 +9,9 @@ import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import { current, isPlaying, position } from './player';
 import { openUrl } from 'zinc:system/opener';
-import { Scrobbler, Scrobble, Accounts, lastfmToken, lastfmAuthUrl, lastfmSessionIfApproved, lastfmCheck, listenbrainzCheck, appendHistory, isoLocal } from './scrobble';
+import * as net from 'zinc:net';
+import * as sys from 'zinc:sys';
+import { Scrobbler, Scrobble, Accounts, lastfmToken, lastfmWebAuthUrl, lastfmSession, lastfmCheck, listenbrainzCheck, appendHistory, isoLocal } from './scrobble';
 import { output } from './sonos';
 import { loadConfig, saveConfig, AppConfig } from './config';
 import { log, backupPlace } from './log';
@@ -145,47 +147,68 @@ export async function flush(): Promise<void> { report(true); seen = null; }
 
 // ---- the accounts (the Settings page)
 
-let lastfmPendingToken = '';
-const LASTFM_POLL_MS: i32 = 3000;      // how often the approval is asked for
-const LASTFM_WAIT_MS: number = 300000;  // and for how long
+// The sign-in is Last.fm's web flow: the browser's approval page is given a callback on this computer (a free port, a random path);
+// Last.fm sends the browser back to it with an approved token, which this server trades for the session at once and says so in
+// the browser. (The desktop flow, a token approved then asked for, broke when the API account has a callback URL of its own.)
+const LASTFM_WAIT_MS: number = 300000;   // how long the approval is waited for
+let cbPort: i32 = 0, cbPath = '', cbName = '', cbError = '';
 
-/** Saves the key and secret and opens Last.fm's approval page in the browser; finishLastfm() then takes the session. */
+function stopCallback(): void { if (cbPort !== 0) net.stop(cbPort); cbPort = 0; }
+
+function page(title: string, text: string): net.Reply {
+  const esc = (t: string): string => t.split('&').join('&amp;').split('<').join('&lt;');
+  return { status: 200, contentType: 'text/html; charset=utf-8', body: `<!doctype html><meta charset="utf-8"><title>${esc(title)}</title>` +
+    `<body style="font:16px -apple-system,sans-serif;margin:15vh auto;max-width:460px;text-align:center"><h2>${esc(title)}</h2><p>${esc(text)}</p></body>` };
+}
+
+/** Saves the key and secret, starts the callback and opens Last.fm's approval page in the browser; awaitLastfm() waits for it. */
 export async function startLastfm(key: string, secret: string): Promise<void> {
   const c = loadConfig();
   c.lastfmKey = key.trim(); c.lastfmSecret = secret.trim(); c.lastfmSession = ''; c.lastfmUser = '';
+  if (c.lastfmKey === '' || c.lastfmSecret === '') throw new Error('Last.fm: paste the API key and the shared secret first');
   saveConfig(c);
   useAccounts(c);
-  lastfmPendingToken = await lastfmToken(c.lastfmKey, c.lastfmSecret);
-  await openUrl(lastfmAuthUrl(c.lastfmKey, lastfmPendingToken));
+  stopCallback();
+  let path = '/lastfm-';
+  for (const b of sys.randomBytes(12)) path += (b < 16 ? '0' : '') + (b as i32).toString(16);
+  cbPath = path; cbName = ''; cbError = '';
+  cbPort = net.serveAsync(0, async (req: net.Request): Promise<net.Reply> => {
+    const q = req.path.indexOf('?');
+    if ((q < 0 ? req.path : req.path.slice(0, q)) !== path) return { status: 404, body: 'not found', contentType: 'text/plain' };
+    const params = new URLSearchParams(q < 0 ? '' : req.path.slice(q + 1));
+    const token = params.get('token') ?? '';
+    if (token === '') return page('Last.fm did not approve', 'No token came back. Go back to the iPod app and press Sign in again.');
+    try {
+      const s = await lastfmSession(c.lastfmKey, c.lastfmSecret, token);
+      cbName = signedIn(s.key, s.name);
+      return page(`Connected as ${s.name}`, 'Your listens now go to Last.fm. You can close this tab and go back to the iPod app.');
+    } catch (e) {
+      cbError = (e as Error).message;
+      return page('Last.fm sign-in failed', `${cbError}. Go back to the iPod app and press Sign in again.`);
+    }
+  });
+  await openUrl(lastfmWebAuthUrl(c.lastfmKey, `http://127.0.0.1:${cbPort}${path}`));
 }
 
-/** After the approval in the browser: the session is kept and Last.fm is on; resolves with the user's name. Throws while the
- *  approval is not done. */
-export async function finishLastfm(): Promise<string> {
-  if (lastfmPendingToken === '') throw new Error('Sign in first: the browser asks you to approve this app on Last.fm');
-  const c = loadConfig();
-  const s = await lastfmSessionIfApproved(c.lastfmKey, c.lastfmSecret, lastfmPendingToken);
-  if (s === null) throw new Error('Last.fm: the approval is not done yet: press "Yes, allow access" on the page the browser opened');
-  return signedIn(s.key, s.name);
-}
-
-/** Waits for the approval in the browser (asks Last.fm every few seconds, for a few minutes): resolves with the user's name, or ''
- *  when another sign-in started meanwhile; throws when the time is up or Last.fm refuses. */
+/** Waits for the approval in the browser: resolves with the user's name, or '' when another sign-in started meanwhile; throws when
+ *  the time is up or Last.fm refused the session. */
 export async function awaitLastfm(): Promise<string> {
-  const token = lastfmPendingToken;
+  const path = cbPath;
   const until = Date.now() + LASTFM_WAIT_MS;
   while (Date.now() < until) {
-    await new Promise<void>((r: () => void) => { setTimeout(r, LASTFM_POLL_MS); });
-    if (lastfmPendingToken !== token || token === '') return '';
-    const c = loadConfig();
-    const s = await lastfmSessionIfApproved(c.lastfmKey, c.lastfmSecret, token);
-    if (s !== null) return signedIn(s.key, s.name);
+    await new Promise<void>((r: () => void) => { setTimeout(r, 300); });
+    if (cbPath !== path) return '';
+    if (cbName !== '' || cbError !== '') {
+      setTimeout(stopCallback, 2000);   // the browser's page is sent first
+      if (cbError !== '') throw new Error(cbError);
+      return cbName;
+    }
   }
+  stopCallback();
   throw new Error('Last.fm: not approved within 5 minutes: press Sign in again');
 }
 
 function signedIn(key: string, name: string): string {
-  lastfmPendingToken = '';
   const c = loadConfig();
   c.lastfmSession = key; c.lastfmUser = name;
   saveConfig(c);
