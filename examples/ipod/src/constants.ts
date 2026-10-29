@@ -69,6 +69,8 @@ export const TOAST_SHOWN: i32 = 3;          // toasts shown at once; the others 
 export const QUEUE_WIDTH: i32 = 360;        // the queue panel, at the right under the bar
 export const QUEUE_ROW_HEIGHT: i32 = 46;    // one of its rows: a drag moves by this much per place
 export const QUEUE_FROM_SHOWN: i32 = 100;   // rows of "Next from" shown (the rest is counted)
+export const SHELF_CARD_SIZE: i32 = 150;    // a card's picture on the For you page's shelves
+export const YEAR_CHART_HEIGHT: i32 = 120;  // the month chart of Your year
 
 // ---- timings
 export const SCAN_EVERY_MS: i32 = 3000;     // detect() again: an iPod mounted, unmounted or pulled shows within this time
@@ -79,7 +81,7 @@ export const TOAST_MS: i32 = 5000;          // an ended toast fades after this (
 export const PAGE_OVERVIEW = 'overview', PAGE_ALBUMS = 'albums', PAGE_SONGS = 'songs', PAGE_PODCASTS = 'podcasts', PAGE_AUDIOBOOKS = 'audiobooks',
   PAGE_VIDEOS = 'videos', PAGE_PHOTOS = 'photos', PAGE_PLAYLISTS = 'playlists', PAGE_FILES = 'files', PAGE_SPECS = 'specs', PAGE_ADD = 'add',
   PAGE_BACKUPS = 'backups', PAGE_OPTIMISE = 'optimise', PAGE_TRANSFERS = 'transfers', PAGE_LOGS = 'logs', PAGE_SETTINGS = 'settings',
-  PAGE_ARTISTS = 'artists';
+  PAGE_ARTISTS = 'artists', PAGE_FOR_YOU = 'foryou', PAGE_YEAR = 'year';
 
 // ---- adding: the kinds a file can be added as (TrackInput.mediaType) and the files a folder gives
 export const ADD_KINDS: string[] = ['audio', 'podcast', 'audiobook', 'video'];

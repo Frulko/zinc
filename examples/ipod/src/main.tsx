@@ -22,7 +22,7 @@ import { library, page, rescan, closeDevice, loadRemote, openRemoteDevice, start
 import { addFiles } from './actions';
 import { PodLibrary } from './services/ipod';
 import { bg, fg, BACKGROUND, TEXT, CLEAR_COLOR, PAGE_ALBUMS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS,
-  PAGE_FILES, PAGE_SPECS, PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS, PAGE_SETTINGS, PAGE_ARTISTS } from './constants';
+  PAGE_FILES, PAGE_SPECS, PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS, PAGE_SETTINGS, PAGE_ARTISTS, PAGE_FOR_YOU, PAGE_YEAR } from './constants';
 import { Sidebar } from './components/Sidebar';
 import { NowPlaying } from './components/NowPlaying';
 import { OutputMenu } from './components/OutputPicker';
@@ -36,6 +36,8 @@ import { Toasts } from './components/Toasts';
 import { HistoryBar } from './components/HistoryBar';
 import { QuickSearch, quickOpen, openQuickSearch } from './components/QuickSearch';
 import { ArtistsPage } from './pages/artists/ArtistsPage';
+import { ForYouPage } from './pages/foryou/ForYouPage';
+import { YearPage } from './pages/foryou/YearPage';
 import { DevicesPage } from './pages/devices/DevicesPage';
 import { OverviewPage } from './pages/overview/OverviewPage';
 import { AlbumsPage } from './pages/albums/AlbumsPage';
@@ -55,6 +57,8 @@ import { resumeSharing, stopSharing } from './services/share';
 
 function Content(props: { lib: PodLibrary; page: string }): i32 {
   const p = props.page;
+  if (p === PAGE_FOR_YOU) return <ForYouPage />;
+  if (p === PAGE_YEAR) return <YearPage />;
   if (p === PAGE_ALBUMS) return <AlbumsPage />;
   if (p === PAGE_ARTISTS) return <ArtistsPage />;
   if (p === PAGE_SONGS) return <MediaPage title="Songs" one="song" many="songs" />;

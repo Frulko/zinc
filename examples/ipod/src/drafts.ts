@@ -43,7 +43,7 @@ let modelVersion: i32 = -1;
 let askedArtists = '';
 
 /** The model of the open iPod: built again when its library or the history changed. */
-function currentModel(): Model | null {
+export function currentModel(): Model | null {
   const lib = library();
   const version = historyVersion();
   if (lib === null) return null;
@@ -114,11 +114,23 @@ export function mixDrafts(): Draft[] {
   return out;
 }
 
-/** The draft of `id` (a Genius list or a mix), null for an iPod playlist. */
+/** Drafts made elsewhere (the For you page's cards, forYou.ts), by id. */
+const others = new Map<string, Draft>();
+
+/** The draft of `id` (a Genius list, a mix or a For you card), null for an iPod playlist. */
 export function draftOf(id: string): Draft | null {
   if (id === GENIUS_ID) return geniusDraft();
   if (id.startsWith(MIX_PREFIX)) for (const d of mixDrafts()) if (d.id === id) return d;
-  return null;
+  const kept = others.get(id);
+  return kept !== undefined ? kept as Draft : null;
+}
+
+/** Replaces the drafts whose id starts with `prefix` by `list`. */
+export function keepDrafts(prefix: string, list: Draft[]): void {
+  const old: string[] = [];
+  others.forEach((d: Draft, id: string) => { if (id.startsWith(prefix)) old.push(id); });
+  for (const id of old) others.delete(id);
+  for (const d of list) others.set(d.id, d);
 }
 export function isDraft(id: string): boolean { return id.startsWith('draft:'); }
 

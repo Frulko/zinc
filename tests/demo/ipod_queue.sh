@@ -42,7 +42,7 @@ cp -R examples/ipod "$app" && cp -R examples/ipod-web "$tmp/ipod-web" && rm -rf 
 # Songs (61), a double-click on the first song (101), a right click on Delta (161: Play next), repeat (201), the queue button (231),
 # the window closed (340)
 cat > "$tmp/first.input" <<'IN'
-61 move 60 333
+61 move 60 363
 62 down
 63 up
 101 move 500 212

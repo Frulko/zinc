@@ -400,6 +400,28 @@ export class History {
     return this.ranked('SELECT track_key AS k, artist, title, 0 AS plays, 0 AS skips, ts AS last FROM loved ORDER BY ts DESC LIMIT ?', [limit]);
   }
 
+  /** The iPod `guid`'s tracks whose song is loved (their ids). */
+  lovedOn(guid: string): string[] {
+    const out: string[] = [];
+    for (const r of this.db.prepare("SELECT DISTINCT m.track_id AS id FROM loved v JOIN matches m ON m.guid = ? AND m.track_key = v.track_key AND m.track_id <> ''").all([guid])) out.push(str(r, 'id'));
+    return out;
+  }
+
+  /** When each listen (not skipped) between `from` and `to` started, oldest first. */
+  times(from: number, to: number): number[] {
+    const out: number[] = [];
+    for (const r of this.db.prepare('SELECT ts FROM listens WHERE ts >= ? AND ts < ? AND skipped = 0 ORDER BY ts').all([from, to])) out.push(r.number('ts'));
+    return out;
+  }
+
+  /** Changes whenever a listen, a love or a match of the iPod `guid` is added or removed (the For you page keeps its shelves under it). */
+  version(guid: string): string {
+    const a = this.db.prepare('SELECT count(*) AS n, max(ts) AS t FROM listens').get([]) as Row;
+    const b = this.db.prepare('SELECT count(*) AS n FROM loved').get([]) as Row;
+    const c = this.db.prepare("SELECT count(*) AS n FROM matches WHERE guid = ? AND track_id <> ''").get([guid]) as Row;
+    return `${a.number('n')}:${a.isNull('t') ? 0 : a.number('t')}:${b.number('n')}:${c.number('n')}:${this.get(`match.${guid}.signature`)}`;
+  }
+
   /** A service's top list as it gave it. */
   top(source: string, kind: string, period: string): Ranked[] {
     return this.ranked("SELECT '' AS k, artist, title, plays, 0 AS skips, 0 AS last FROM top WHERE source = ? AND kind = ? AND period = ? ORDER BY rank", [source, kind, period]);

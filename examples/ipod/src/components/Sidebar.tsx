@@ -1,5 +1,5 @@
-// The sidebar, as Music and the Finder show a device: the iPod open (name, model, how full, and its eject button) and the Allow changes switch, its
-// library's pages, the pages that manage it (add, backups, optimise, transfers with what runs, logs), the other iPods plugged in (one seen
+// The sidebar, as Music and the Finder show a device: the iPod open (name, model, how full, and its eject button) and the Allow changes switch, For
+// you, its library's pages, the pages that manage it (add, backups, optimise, transfers with what runs, logs), the other iPods plugged in (one seen
 // over USB only can be mounted), the remote iPod (an iPod daemon's, with a network mark and an x that disconnects it), and Rescan at the bottom. Everything above Rescan scrolls when the window is short.
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
@@ -9,7 +9,7 @@ import { library, page, showPage, pods, openDevice, opening, rescan, scanning, a
 import { PodLibrary } from '../services/ipod';
 import { bg, bd, fg, color, SIDEBAR, BORDER, HOVER, SELECTED, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK, SIDEBAR_WIDTH,
   PAGE_OVERVIEW, PAGE_ALBUMS, PAGE_ARTISTS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS, PAGE_FILES, PAGE_SPECS,
-  PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS, PAGE_SETTINGS } from '../constants';
+  PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS, PAGE_SETTINGS, PAGE_FOR_YOU } from '../constants';
 import { PodDrawing } from './PodDrawing';
 import { AllowChanges } from './AllowChanges';
 import { pending, overallFraction, unseenFailed } from '../services/transfers';
@@ -103,6 +103,7 @@ export function Sidebar(): i32 {
     {library() !== null ? <AllowChanges /> : <View />}
     {library() !== null ? <View className="flex-col">
       <Section label="iPod" />
+      <NavRow icon="heart" label="For you" to={PAGE_FOR_YOU} count={-1} />
       <NavRow icon="hard-drive" label="Overview" to={PAGE_OVERVIEW} count={-1} />
       <NavRow icon="info" label="Specs" to={PAGE_SPECS} count={-1} />
       <Section label="Library" />

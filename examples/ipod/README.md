@@ -59,6 +59,17 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   artist into `history/similar-artists.json`), genre and decade, and each song's plays, rating and skips. The weights are
   `history/genius.json`. The Playlists page also lists **mixes**: the taste clusters of the history (by genre when nothing was heard),
   named by their artists and genre, played and saved the same way.
+- **For you.** The first page under the iPod, as Spotify's home: shelves of cards from the listening history, Genius and the
+  taste mixes (`services/forYou.ts` works them out, without UI): Jump back in (the albums and playlists of the last sessions, the
+  drafts played from the page), Daily Mix 1-6 (each taste cluster, 70% songs you know drawn by affinity and 30% close songs heard at
+  most once, the same all day and others the next), On Repeat (the last 30 days), Repeat Rewind (played a lot 6 to 24 months ago,
+  not since), Rediscover (on the iPod, rarely or never played, close to what you love), Time Capsule (your busiest year 2 to 12 years
+  ago), Because you listened to X (Genius from your 3 recent favourites, and its albums), your top songs and artists of the month
+  and year, and Your year (listens, minutes, top artists, songs, genres, a month chart). A draft card opens on the Playlists page
+  (Play, Save to iPod) and its play button plays it at once; the shelves scroll sideways with the trackpad or their ‹ ›. What was
+  worked out is kept per iPod (`cache/<GUID>/foryou.json`), so the page opens at once; it is worked out again off the first frame
+  when the history or the library changed, the daily mixes only on a new day. Without a history the page invites to import one,
+  and says how many listens are of songs on this iPod when few are. `IPOD_DEMO_NOW` (Unix seconds) sets its clock.
 - **The queue.** As Spotify's: a double-click plays a song and the ones under it ("Next from" the album, playlist or page); a
   right click on a song, a selection, an album or a playlist offers Play, Play next and Add to queue (the system's own menu), which
   go to "Next in queue", before the rest. The list button of the bar opens the queue panel: Now playing, Next in queue (Clear queue)
@@ -152,11 +163,13 @@ src/
 ├── services/listening.ts # follows the player: each listen to the scrobbler, the iPod's play counts, the history
 ├── services/history.ts   # the listening history (SQLite): listens, loved, matches to each iPod, the queries
 ├── services/genius.ts    # similarity (co-listening, artists, genre, decade, plays), Genius, the mixes; no UI (the daemon can use it)
+├── services/forYou.ts    # the For you shelves: signals, affinity, daily mixes, On Repeat, Rewind, Rediscover, Time Capsule, tops, the year
 ├── drafts.ts             # Genius lists and mixes as drafts: played first, Refresh, Save to iPod
+├── forYou.ts             # the For you page's shelves: kept per iPod and history version, worked out off the first frame, as drafts
 ├── menus.ts              # the right-click menu: Play, Play next, Add to queue, Genius from this song
 ├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, DownloadMark, Toasts, NowPlaying, OutputPicker,
 │                         # QueuePanel, HistoryBar (‹ › and the magnifier), SearchField, QuickSearch (Cmd+F / Cmd+K)
-└── pages/                # devices, overview, albums, artists, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs, settings
+└── pages/                # devices, foryou (and Your year), overview, albums, artists, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs, settings
 ```
 
 ## Test
@@ -166,6 +179,9 @@ a podcast, a playlist and three duplicates, then drives the app headless through
 frame hash per page, checks the overview on QuickJS and that nothing is painted while the app is left alone; then it checks the
 iPod's health, drops two files on the window, downloads an album, shows the transfers and the log, analyses the iPod on the Optimise page and merges its duplicates, and unmounts and mounts the
 disk image while the app runs (it closes the iPod, then opens it again).
+
+`tests/t1/ipod_foryou.sh` checks the For you shelves on a fake iPod with three years of generated history (each shelf's songs
+known), the daily refresh rule with the clock set, the empty and partial states, and a golden frame of the page and of Your year.
 
 `tests/t1/ipod_sonos.sh` plays on a made-up Sonos speaker (`tests/data/sonos/stub_speaker.py`): the songs queued and served, Play
 next and Add to queue from the right-click menu, shuffle and repeat, a drag and a removal in the queue panel, a change made by

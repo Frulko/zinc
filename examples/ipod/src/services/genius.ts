@@ -292,7 +292,7 @@ function jitter(id: string, round: i32): number {
 
 /** Orders `pool` (scored, best first) into a list after `first`: each next song is the best by `score` minus the step from the one
  *  before, its artist not among the last artistSpread - 1 songs (when no song passes, the one whose artist was heard longest ago). */
-function path(m: Model, first: i32, pool: i32[], score: number[], n: i32): i32[] {
+export function path(m: Model, first: i32, pool: i32[], score: number[], n: i32): i32[] {
   const out: i32[] = [first];
   const used = new Set<i32>(); used.add(first);
   const spread = m.w.artistSpread;
