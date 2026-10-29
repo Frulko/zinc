@@ -84,11 +84,14 @@ struct Buf {
   Cmd initial[ZRT_MAX_DRAW_CMDS];
   Cmd* cmds = initial;
   uint32_t capacity = ZRT_MAX_DRAW_CMDS;
-  ~Buf() { if (cmds != initial) hal_free(cmds); }
+  char initial_text[ZRT_TEXT_POOL];   // the text of a frame grows with its commands: a long list or log outgrows 32 KB on a desktop
+  char* text = initial_text;
+  uint32_t text_capacity = ZRT_TEXT_POOL;
+  ~Buf() { if (cmds != initial) hal_free(cmds); if (text != initial_text) hal_free(text); }
 #else
   Cmd cmds[ZRT_MAX_DRAW_CMDS];
-#endif
   char text[ZRT_TEXT_POOL];
+#endif
   float pts[ZRT_POINT_POOL];
   uint32_t ncmd, ntext, npts;
 };
@@ -1509,8 +1512,8 @@ static void pool_full(int32_t which) {
   if (warned & (1 << which)) return;
   warned |= (uint8_t)(1 << which);
   static const char* const msg[] = {
-    "zinc:gfx: the draw command pool is full (ZRT_MAX_DRAW_CMDS): extra commands are dropped this frame; raise it with -DZRT_MAX_DRAW_CMDS=<n>\n",
-    "zinc:gfx: the text pool is full (ZRT_TEXT_POOL bytes): extra text is dropped this frame; raise it with -DZRT_TEXT_POOL=<n>\n",
+    "zinc:gfx: the draw command pool is full (ZRT_MAX_DRAW_CMDS): extra commands are dropped this frame; let it grow with \"growDrawCommands\": true in the target of zinc.json, or raise it with -DZRT_MAX_DRAW_CMDS=<n>\n",
+    "zinc:gfx: the text pool is full (ZRT_TEXT_POOL bytes): extra text is dropped this frame; let it grow with \"growDrawCommands\": true in the target of zinc.json, or raise it with -DZRT_TEXT_POOL=<n>\n",
     "zinc:gfx: the point pool is full (ZRT_POINT_POOL floats): extra shapes are dropped this frame; raise it with -DZRT_POINT_POOL=<n>\n"};
   uint32_t n = 0;
   while (msg[which][n]) n++;
@@ -1826,7 +1829,21 @@ void drawText(int32_t f, double x, double y, const String& s, uint32_t color, in
   f = raster::text_font(f, s.ptr(), s.bytes());   // a character the baked font lacks: its twin from the TrueType file
   Buf& b = bufs[cur];
   uint32_t n = s.bytes();
+#ifdef ZRT_GROW_DRAW_CMDS
+  if (!grow_enabled && b.ntext + n > ZRT_TEXT_POOL) { pool_full(1); return; }
+  if (b.ntext + n > b.text_capacity) {
+    size_t capacity = b.text_capacity;
+    while (capacity < (size_t)b.ntext + n) capacity *= 2;
+    if (capacity > 0x7fffffffU) panic("text pool capacity overflow");
+    char* text = (char*)hal_alloc(capacity);
+    if (!text) panic("out of memory growing the text pool");
+    __builtin_memcpy(text, b.text, b.ntext);
+    if (b.text != b.initial_text) hal_free(b.text);
+    b.text = text; b.text_capacity = (uint32_t)capacity;
+  }
+#else
   if (b.ntext + n > ZRT_TEXT_POOL) { pool_full(1); return; }
+#endif
   Cmd* c = push(raster::TEXT, color, alpha);
   if (!c) return;
   __builtin_memcpy(b.text + b.ntext, s.ptr(), n);

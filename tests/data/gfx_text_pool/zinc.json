@@ -1,0 +1,1 @@
+{ "name": "gfx_text_pool", "entry": "main.ts", "targets": { "macos": { "width": 120, "height": 40, "growDrawCommands": true }, "linux": { "width": 120, "height": 40, "growDrawCommands": true } } }

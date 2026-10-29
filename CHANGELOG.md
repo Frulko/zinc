@@ -113,6 +113,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `ipod.mount('')` mounts an iPod that was ejected and is still plugged in: it resets it on USB, as unplugging it does, instead of saying there is no iPod disk.
 - A row whose child grows from `basis-0` (or a small basis) and holds content that wraps is as tall as that content once wrapped at the child's real width: a page with wrapping cards beside a picture scrolls to its end instead of stopping early.
 - The same holds when the wrapping content sits deeper, in a column inside the growing child (a sidebar beside a page whose cards wrap), and a `flex-wrap` row in such a page wraps at the page's width instead of running past it.
+- `"growDrawCommands": true` in a target of zinc.json now lets a frame's text grow too: a long list or log no longer loses its text past 32 KB ("the text pool is full"), and that warning says how to fix it.
 - `c ? xs : []` compiles: the empty array takes the type of the other branch, as in TypeScript (it stopped on Z0109 "empty array literal").
 - zinc:ipod prints libgpod's messages as one short line each (`zinc:ipod: libgpod: ...`) instead of blank lines and assertions at every read and save; a smart playlist rule libgpod does not know is kept as it was.
 - On a Raspberry Pi, apps no longer stall for up to 170 ms once a second: the screen's driver stopped reopening every keyboard, mouse and HDMI input each second to look for new ones, and now looks only when one is plugged in.
