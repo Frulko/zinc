@@ -17,9 +17,9 @@ import * as sys from 'zinc:sys';
 import { subtle } from 'zinc:subtle';
 import { toHex } from 'zinc:web';
 
-const LASTFM_URL = sys.env('IPOD_LASTFM_URL') !== '' ? sys.env('IPOD_LASTFM_URL') : 'https://ws.audioscrobbler.com/2.0/';
+export const LASTFM_URL = sys.env('IPOD_LASTFM_URL') !== '' ? sys.env('IPOD_LASTFM_URL') : 'https://ws.audioscrobbler.com/2.0/';
 const LASTFM_AUTH_URL = 'https://www.last.fm/api/auth/';
-const LISTENBRAINZ_URL = sys.env('IPOD_LISTENBRAINZ_URL') !== '' ? sys.env('IPOD_LISTENBRAINZ_URL') : 'https://api.listenbrainz.org';
+export const LISTENBRAINZ_URL = sys.env('IPOD_LISTENBRAINZ_URL') !== '' ? sys.env('IPOD_LISTENBRAINZ_URL') : 'https://api.listenbrainz.org';
 const CLIENT = 'Zinc iPod';
 const BATCH: i32 = 50;                  // Last.fm takes at most 50 scrobbles a request
 const MIN_TRACK_MS: number = 30000;     // shorter tracks never count

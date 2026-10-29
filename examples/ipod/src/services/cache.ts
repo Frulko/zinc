@@ -32,6 +32,8 @@ export function keyOf(d: ipod.Device): string {
 
 /** The iPod the calls below are about (set when one is opened). */
 export function useIpod(d: ipod.Device): void { current = keyOf(d); }
+/** Its key ('' before an iPod is opened). */
+export function podKey(): string { return current; }
 
 /** The cache folder of the iPod in use (`sub`: a folder in it), made when missing. */
 export function cacheDir(sub: string = ''): string {

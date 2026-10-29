@@ -1,10 +1,14 @@
 // Settings: the scrobbling accounts (Last.fm signed in through the browser, ListenBrainz by its token), what waits to be sent or
-// written, and the size of the remote iPod's song cache. Saved in config.json at once.
+// written, the listening history (imported from Last.fm and ListenBrainz, matched to this iPod, what it misses) and the size of the
+// remote iPod's song cache. Saved in config.json at once.
 import { createSignal } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import { loadConfig } from '../../services/config';
 import { scrobbler, playsWaiting, startLastfm, finishLastfm, signOutLastfm, setListenbrainz, setAudioCacheMb } from '../../services/listening';
 import { cacheDir } from '../../services/cache';
+import { historyVersion, syncHistory, importing, importLastfmNow, importListenbrainzNow, importListenbrainzExport, lastfmLeft, listenbrainzLeft,
+  historyCounts, unmatchedArtists, unmatchedTracks } from '../../services/historyJobs';
+import { Ranked } from '../../services/history';
 import { Button } from '../../components/Button';
 import { bg, bd, fg, color, CARD, BORDER, TEXT, MUTED, FAINT, ACCENT, ERROR } from '../../constants';
 
@@ -26,6 +30,23 @@ export function SettingsPage(): i32 {
   const [user, setUser] = createSignal<string>(c.lastfmSession !== '' ? c.lastfmUser : '');
   const [lbToken, setLbToken] = createSignal<string>(c.listenbrainzToken);
   const [cacheMb, setCacheMb] = createSignal<string>(`${c.audioCacheMb}`);
+  const [fmUser, setFmUser] = createSignal<string>(c.historyLastfmUser !== '' ? c.historyLastfmUser : c.lastfmUser);
+  const [lbUser, setLbUser] = createSignal<string>(c.historyListenbrainzUser);
+  syncHistory();
+  const n = (x: number): string => `${Math.round(x)}`;
+  const countsLine = (): string => {
+    historyVersion();
+    const k = historyCounts();
+    if (k.listens === 0) return 'No listens yet: import your history, or play songs here.';
+    return `${n(k.listens)} listens of ${n(k.songs)} songs · ${Math.round(k.matchedListens * 100 / k.listens)}% of the listens are songs of this iPod` +
+      ` · unmatched: ${n(k.unmatchedSongs)} songs (${n(k.unmatchedListens)} listens)`;
+  };
+  const list = (rs: Ranked[]): string => rs.map((r: Ranked) => `${r.title !== '' ? `${r.artist} – ${r.title}` : r.artist} (${n(r.plays)})`).join(' · ');
+  const missing = (): string => {
+    historyVersion();
+    const a = unmatchedArtists(5);
+    return a.length === 0 ? '' : `Artists: ${list(a)}\nSongs: ${list(unmatchedTracks(8))}`;
+  };
   const [said, setSaid] = createSignal<string>('');
   const [waiting, setWaiting] = createSignal<boolean>(false);   // the browser was opened: Finish takes the session
   const field = `h-[30] px-2.5 rounded-[7] border text-[13px] ${bg(CARD)} ${bd(BORDER)} ${fg(TEXT)}`;
@@ -55,6 +76,23 @@ export function SettingsPage(): i32 {
           <Button icon="check" label="Save" accent={true} onPress={() => setListenbrainz(lbToken())} />
           <Text className={`grow basis-0 text-[11px] ${fg(FAINT)}`}>{c.listenbrainzToken !== '' ? status(scrobbler.listenbrainzError, scrobbler.waitingListenbrainz()) : 'Off'}</Text>
         </View>
+      </Card>
+      <Card icon="list-music" title="Listening history" note="Your history on Last.fm and ListenBrainz, imported to this Mac (~/.zinc/ipod/history) for the For you page and matched to this iPod's songs. Last.fm needs the API key of its card and a user name; ListenBrainz a user name, or the export zip of listenbrainz.org/settings/export. Nothing is sent. An import can be stopped in Transfers: Resume goes on where it was.">
+        <View className="flex-row items-center gap-2">
+          <Input className={`${field} grow basis-0`} value={fmUser()} onInput={(v: string) => setFmUser(v)} placeholder="Last.fm user name" />
+          <Button icon="download" label={importing() ? 'Importing…' : lastfmLeft() ? 'Resume' : 'Import now'} accent={true}
+            onPress={() => { if (key().trim() === '') setSaid('Last.fm: paste the API key in the Last.fm card first'); else { setSaid(''); importLastfmNow(key(), fmUser()); } }} />
+        </View>
+        <View className="flex-row items-center gap-2">
+          <Input className={`${field} grow basis-0`} value={lbUser()} onInput={(v: string) => setLbUser(v)} placeholder="ListenBrainz user name" />
+          <Button icon="download" label={listenbrainzLeft() ? 'Resume' : 'Import'} onPress={() => importListenbrainzNow(lbUser())} />
+          <Button icon="file-plus" label="Import zip" onPress={() => { importListenbrainzExport(); }} />
+        </View>
+        <Text className={`text-[12px] ${fg(MUTED)}`}>{countsLine()}</Text>
+        {missing() !== '' ? <View className="flex-col gap-1">
+          <Text className={`text-[11px] font-semibold ${fg(FAINT)}`}>Not on this iPod, most played first</Text>
+          <Text className={`text-[11px] ${fg(MUTED)}`}>{missing()}</Text>
+        </View> : <View />}
       </Card>
       <Card icon="hard-drive" title="The iPod's cache" note={`Covers, the library and a remote iPod's songs played are kept in ${cacheDir()}. The songs take at most this many MB (0: no limit); the least recently played go first.`}>
         <View className="flex-row items-center gap-2">

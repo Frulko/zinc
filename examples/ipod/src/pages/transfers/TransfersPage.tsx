@@ -37,7 +37,7 @@ function JobRow(props: { job: Job }): i32 {
       </View> : <View />}
       <Text className={`text-[12px] ${state() === FAILED ? fg(ERROR) : fg(MUTED)}`} numberOfLines={2}>{j.summary()}</Text>
     </View>
-    {state() === WAITING ? <Button icon="x" label="Cancel" onPress={() => cancel(j)} />
+    {state() === WAITING || (state() === RUNNING && j.stop !== null) ? <Button icon="x" label="Cancel" onPress={() => cancel(j)} />
       : <Text className={`text-[11px] font-semibold ${state() === FAILED ? fg(ERROR) : state() === DONE ? fg(MUTED) : fg(FAINT)}`}>{state()}</Text>}
   </View>
   {open() && j.lines().length > 0 ? <View className="flex-col gap-1.5 pl-[62] pr-4 pb-3">{j.lines().map((l: JobLine) => <Line l={l} />)}</View> : <View />}

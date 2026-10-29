@@ -50,7 +50,7 @@ function Toast(props: { job: Job }): i32 {
       </View> : <View />}
       <Text className={`text-[12px] ${failed() ? fg(ERROR) : fg(MUTED)}`} numberOfLines={3}>{short(j.summary())}</Text>
       <View className="flex-row">
-        {j.status() === WAITING ? <Link label="Cancel" onPress={() => cancel(j)} /> : <View />}
+        {j.status() === WAITING || (j.status() === RUNNING && j.stop !== null) ? <Link label="Cancel" onPress={() => cancel(j)} /> : <View />}
         {!j.active() && !failed() && j.reveal !== '' ? <Link label="Reveal in Finder" onPress={() => { reveal(j.reveal); }} /> : <View />}
         {j.queued ? <Link label={failed() ? 'Show details' : 'Show'} onPress={() => showPage(PAGE_TRANSFERS)} /> : <View />}
       </View>

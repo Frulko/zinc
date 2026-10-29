@@ -27,6 +27,8 @@ export class Job {
   reveal: string = '';
   /** False for a message that is only a toast (an eject): it has no row in Transfers. */
   queued: boolean = true;
+  /** Asks a running job to stop (a history import: it stops after the page it reads and resumes later); null when it cannot. */
+  stop: (() => void) | null = null;
   /** Does the job; resolves with the line its result shows ("3 added, 1 refused"). */
   work: () => Promise<string>;
   status: () => string; setStatus: (s: string) => void;
@@ -81,7 +83,7 @@ export class Job {
 }
 
 const KIND_ICONS: string[] = ['add', 'plus', 'download', 'download', 'backup', 'archive', 'restore', 'rotate-ccw', 'delete', 'x', 'check', 'shield-check', 'repair', 'wrench',
-  'analyse', 'sparkles', 'merge', 'copy', 'eject', 'eject', 'mount', 'usb'];
+  'analyse', 'sparkles', 'merge', 'copy', 'eject', 'eject', 'mount', 'usb', 'history', 'radio'];
 /** The icon of a kind of job. */
 export function iconOf(kind: string): string { for (let i = 0; i < KIND_ICONS.length; i += 2) if (KIND_ICONS[i] === kind) return KIND_ICONS[i + 1]; return 'arrow-down-up'; }
 
@@ -155,6 +157,7 @@ export function enqueue(kind: string, label: string, work: () => Promise<string>
 }
 
 export function cancel(job: Job): void {
+  if (job.status() === RUNNING && job.stop !== null) { job.note('stop asked'); (job.stop as () => void)(); return; }
   if (job.status() !== WAITING) return;
   batch(() => { job.setStatus(CANCELLED); job.setResult('Cancelled before it started'); });
   log(job.label, 'cancelled before it started', true);
@@ -170,14 +173,18 @@ export function clearFinished(): void {
   setJobs(keep);
 }
 
-async function pump(): Promise<void> {
-  if (runningJob() !== null) return;
-  let next: Job | null = null;
-  for (const j of jobs()) if (j.status() === WAITING) { next = j; break; }
-  if (next === null) return;
-  const job = next as Job;
-  batch(() => { setRunningJob(job); job.setStatus(RUNNING); });
+/** Starts a job at once beside the queue: one that does not use the iPod (a history import), so the iPod's jobs do not wait for it.
+ *  `stop` (Cancel while it runs) asks it to stop. */
+export function runBeside(kind: string, label: string, work: () => Promise<string>, stop: () => void): Job {
+  const job = new Job(nextId++, kind, label, work);
+  job.stop = stop;
+  batch(() => { setJobs([...jobs(), job]); setToasts([...toasts(), job]); job.setStatus(RUNNING); });
   job.note(`started: ${job.label}`);
+  finish(job);
+  return job;
+}
+
+async function finish(job: Job): Promise<void> {
   try {
     const line = await job.work();
     job.note(`done: ${line}`);
@@ -189,6 +196,17 @@ async function pump(): Promise<void> {
     batch(() => { job.setStatus(FAILED); job.setResult(why); setUnseenFailed(unseenFailed() + 1); });
     log(job.label, why, false);
   }
+}
+
+async function pump(): Promise<void> {
+  if (runningJob() !== null) return;
+  let next: Job | null = null;
+  for (const j of jobs()) if (j.status() === WAITING) { next = j; break; }
+  if (next === null) return;
+  const job = next as Job;
+  batch(() => { setRunningJob(job); job.setStatus(RUNNING); });
+  job.note(`started: ${job.label}`);
+  await finish(job);
   setRunningJob(null);
   pump();
 }
