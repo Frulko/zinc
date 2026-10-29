@@ -3,6 +3,9 @@
 package dev.zinc.sidecar;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.BatteryManager;
 import android.graphics.Color;
 import android.media.AudioFormat;
 import android.media.AudioManager;
@@ -33,6 +36,7 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
     static native boolean connected();
     static native void videoSurface(android.view.Surface s, int w, int h);
     static native void input(int kind, int type, int id, int a, int b, int c);
+    static native void battery(int milliC);
 
     private static Screen self;
     private SurfaceView video;   // the Mac's video (H.264, decoded by MediaCodec into it) over its place, GONE without one
@@ -79,6 +83,9 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
         nsd.registerService(si, NsdManager.PROTOCOL_DNS_SD, registered);
         handler.post(new Runnable() { public void run() {
             waiting.setVisibility(connected() ? View.GONE : View.VISIBLE);
+            // the device's temperature for the Mac's details: the battery's (SELinux keeps an app from the CPU's sensors)
+            Intent b = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if (b != null) battery(b.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -10000) * 100);
             handler.postDelayed(this, 500);
         } });
     }

@@ -167,6 +167,7 @@ static void present(uint32_t lastByte, uint32_t decodeUs) {
 static void beginPicture(int *inPicture) { if (!*inPicture) { pthread_mutex_lock(&picLock); *inPicture = 1; } }
 static void endPicture(int *inPicture, uint32_t decodeUs) { present(now_us(), decodeUs); pthread_mutex_unlock(&picLock); *inPicture = 0; }
 
+static volatile int batteryMilliC = -1000000;
 // HOST (kind 10), every 2 s: type 0 [temperature m°C, CPU permille of all cores, free MB], 1 [MHz now, MHz max, -1], 2 [MB, uptime s, 0]
 static long long cpuBusy0, cpuAll0;
 static long readLong(const char *path) { FILE *f = fopen(path, "r"); long v = -1; if (f) { if (fscanf(f, "%ld", &v) != 1) v = -1; fclose(f); } return v; }
@@ -181,6 +182,7 @@ static void sendHost(void) {
     if (f) fclose(f);
     long t = readLong("/sys/class/thermal/thermal_zone0/temp");   // m°C, or °C on some kernels
     if (t >= 0 && t < 200) t *= 1000;
+    if (t < 0 && batteryMilliC > -1000000) t = batteryMilliC;   // unreadable (SELinux): the battery's, from Java
     struct sysinfo si; sysinfo(&si);
     send16(10, 0, (int32_t)t, load, (int32_t)((si.freeram + si.bufferram) * si.mem_unit >> 20), 0);
     long cur = readLong("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"), max = readLong("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq");
@@ -425,3 +427,4 @@ JNIEXPORT void JNICALL Java_dev_zinc_sidecar_Screen_input(JNIEnv *env, jclass cl
     (void)env; (void)cls;
     send16id((uint8_t)kind, (uint8_t)type, id, a, b, c, 0);
 }
+JNIEXPORT void JNICALL Java_dev_zinc_sidecar_Screen_battery(JNIEnv *env, jclass cls, jint milliC) { (void)env; (void)cls; batteryMilliC = milliC; }
