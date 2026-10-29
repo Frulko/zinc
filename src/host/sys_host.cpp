@@ -1059,7 +1059,25 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostFsSymlink: if (denyByPermission("fs:write", s(1))) break; if (symlink(s(0).c_str(), s(1).c_str()) != 0) fail("symlink", s(0) + " -> " + s(1)); break;
     case Rt::HostFsReadlink: { if (denyByPermission("fs:read", s(0))) { ret(r, ""); break; } char b[4096]; ssize_t k = readlink(s(0).c_str(), b, sizeof b - 1); if (k >= 0) { b[k] = 0; ret(r, b); } else { fail("readlink", s(0)); ret(r, ""); } break; }
     case Rt::HostFsChmod: if (denyByPermission("fs:write", s(0))) break; if (chmod(s(0).c_str(), static_cast<mode_t>(n(1))) != 0) fail("chmod", s(0)); break;
-    case Rt::HostFsCopyFile: { std::vector<unsigned char> b; if (readAll(s(0), b, "copyfile")) writeAll(s(1), reinterpret_cast<const char*>(b.data()), b.size(), false, "copyfile"); break; }
+    case Rt::HostFsCopyFile: {   // the copy keeps the source's modification time and mode (a photo moved between disks keeps its date)
+      std::vector<unsigned char> b;
+      if (readAll(s(0), b, "copyfile") && writeAll(s(1), reinterpret_cast<const char*>(b.data()), b.size(), false, "copyfile")) {
+#ifndef _WIN32
+        struct stat st;
+        if (stat(s(0).c_str(), &st) == 0) {
+#if defined(__APPLE__)
+          const struct timespec a = st.st_atimespec, m = st.st_mtimespec;
+#else
+          const struct timespec a = st.st_atim, m = st.st_mtim;
+#endif
+          const struct timeval tv[2] = {{a.tv_sec, static_cast<suseconds_t>(a.tv_nsec / 1000)}, {m.tv_sec, static_cast<suseconds_t>(m.tv_nsec / 1000)}};
+          utimes(s(1).c_str(), tv);
+          chmod(s(1).c_str(), st.st_mode & 07777);
+        }
+#endif
+      }
+      break;
+    }
     case Rt::HostFsRealpath: { if (denyByPermission("fs:read", s(0))) { ret(r, ""); break; } char b[4096]; if (realpath(s(0).c_str(), b)) ret(r, b); else { fail("realpath", s(0)); ret(r, ""); } break; }
     case Rt::HostFsTmpdir: ret(r, tmpdirPath()); break;
     case Rt::HostFsMkdtemp: {

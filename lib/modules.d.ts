@@ -85,7 +85,8 @@ declare module 'zinc:fs' {
   export function readDir(dir: string): DirEntry[];
   /** @throws */
   export function rename(from: string, to: string): void;
-  /** @throws */
+  /** Copies a file; the copy keeps the source's modification time and mode (`rename` across disks throws EXDEV: copy, then `unlink`).
+   *  @throws */
   export function copyFile(from: string, to: string): void;
   /** Absolute path with symbolic links resolved. @throws */
   export function realpath(path: string): string;

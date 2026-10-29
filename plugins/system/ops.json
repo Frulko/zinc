@@ -592,6 +592,15 @@
    "sim": "{}"
   },
   {
+   "op": "opener.trash",
+   "permission": "opener",
+   "params": {
+    "path": "string"
+   },
+   "returns": "{ok: boolean}",
+   "sim": "{\"ok\":false}"
+  },
+  {
    "op": "opener.last",
    "permission": "opener",
    "params": {},

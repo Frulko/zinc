@@ -51,6 +51,7 @@ const ops = {
   },
   'clipboard.readRich': () => ok({ text: Z.input ? Z.input.clip || lastClip.text : lastClip.text, html: lastClip.html }),
   'opener.open': (a) => { g.open(a.target, '_blank', 'noopener,noreferrer'); return ok(); },
+  'opener.trash': () => ok({ ok: false }),
   'opener.last': () => ok({ text: '' }),
   'share.share': (a) => {
     if (!g.navigator.share) return ok({ shared: false });

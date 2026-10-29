@@ -311,6 +311,10 @@ static int dockCall(const char* op, NSDictionary* a, char* out, int cap) {
     if (!del) { gOwnDelegate = [ZnAppDelegate new]; NSApp.delegate = gOwnDelegate; del = gOwnDelegate; }
     if (![del respondsToSelector:@selector(applicationDockMenu:)]) class_addMethod([del class], @selector(applicationDockMenu:), (IMP)dockMenuIMP, "@@:@");   // SDL owns the delegate: the method is added to its class
     result = @"{}";
+  } else if (!strcmp(op, "opener.trash")) {   // the Finder's Trash, where Put Back finds the file's place again
+    NSString* p = a[@"path"] ?: @"";
+    BOOL ok = p.length && [[NSFileManager defaultManager] trashItemAtURL:[NSURL fileURLWithPath:p] resultingItemURL:nil error:nil];
+    result = ok ? @"{\"ok\":true}" : @"{\"ok\":false}";
   }
   if (!result) return 0;
   snprintf(out, (size_t)cap, "%s", result.UTF8String);
@@ -847,7 +851,7 @@ int zn_sys_live_call(const char* op, const char* args, char* out, int cap) {
     if (!strncmp(op, "power.", 6)) { @try { return powerCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
     if (!strncmp(op, "clipboard.", 10)) { @try { return clipboardCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
     if (!strncmp(op, "shortcut.", 9)) return shortcutCall(op, a, out, cap);
-    if (!strcmp(op, "deep-link.getCurrent") || !strcmp(op, "opener.open") || !strcmp(op, "opener.reveal")) { @try { return linkCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
+    if (!strcmp(op, "deep-link.getCurrent") || !strcmp(op, "opener.open") || !strcmp(op, "opener.reveal") || !strcmp(op, "opener.trash")) { @try { return linkCall(op, a, out, cap); } @catch (NSException* e) { return 0; } }
     if (!strncmp(op, "window.", 7) && strcmp(op, "window.confirmClose")) {
       @try { return windowCall(op, a, out, cap); }
       @catch (NSException* e) { snprintf(out, (size_t)cap, "{\"error\":{\"code\":\"failed\",\"message\":\"%s\"}}", [e.reason stringByReplacingOccurrencesOfString:@"\"" withString:@"'"].UTF8String); return 1; }

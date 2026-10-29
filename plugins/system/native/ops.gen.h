@@ -66,6 +66,7 @@ static const ZnSystemOp kSystemOps[] = {
   {"window.dump", "window", "{\"text\":\"\"}"},
   {"shortcut.fire", "shortcut", "{\"ok\":false}"},
   {"opener.reveal", "opener", "{}"},
+  {"opener.trash", "opener", "{\"ok\":false}"},
   {"opener.last", "opener", "{\"text\":\"\"}"},
   {"power.battery", "power", "{\"present\":false,\"percent\":100,\"charging\":true}"},
   {"power.idleSeconds", "power", "{\"seconds\":0}"},

@@ -9,7 +9,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <errno.h>
+#include <time.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -25,6 +27,7 @@
 #endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
+#include <TargetConditionals.h>
 #endif
 
 extern "C" void hal_set_close_handler(int (*)(void)) __attribute__((weak));   // the desktop HAL has them (runtime/include/hal_window.h); headless HALs do not
@@ -247,6 +250,7 @@ struct Sim : NativeSystem, zrt::Poller {
       if (live) { static char big[65536]; if (zn_sys_live_call(name, args, big, sizeof big)) return reply(big); }
 #endif
       if (!strcmp(name, "deep-link.register")) return registerScheme(args);
+      if (!strcmp(name, "opener.trash")) return trashFile(args);
       if (!strcmp(name, "instance.lock")) return lockInstance(args);
       if (!strcmp(name, "autostart.set") || !strcmp(name, "autostart.get")) return autostart(name, args);
       if (!strcmp(name, "shortcut.register")) {
@@ -461,15 +465,70 @@ struct Sim : NativeSystem, zrt::Poller {
   }
   zrt::String opener(const char* name, const char* args) {
     char target[400] = "";
-    jsonString(args, !strcmp(name, "opener.reveal") ? "path" : "target", target, sizeof target);
+    const bool onPath = !strcmp(name, "opener.reveal") || !strcmp(name, "opener.trash");
+    jsonString(args, onPath ? "path" : "target", target, sizeof target);
     if (!strcmp(name, "opener.open") && !openerAllows(target)) {
       char buf[600];
       snprintf(buf, sizeof buf, "{\"error\":{\"code\":\"denied\",\"message\":\"%s is outside scopes.opener.allow\"}}", target);
       log("[system] denied opener.open ", target);
       return reply(buf);
     }
-    snprintf(lastOpen, sizeof lastOpen, "%s %s", !strcmp(name, "opener.reveal") ? "reveal" : "open", target);
+    snprintf(lastOpen, sizeof lastOpen, "%s %s", onPath ? name + 7 : "open", target);
     return reply("{}");
+  }
+
+  /** opener.trash where the system has no trash of its own to call (Linux and the BSDs, and the simulator: a deterministic or headless run):
+   *  the freedesktop.org trash, $XDG_DATA_HOME/Trash (~/.local/share/Trash): the file moves to files/ under a free name and info/<name>.trashinfo
+   *  says where it came from and when, so the file manager can put it back. A file on another volume is refused (ok false), not copied.
+   *  Phones and Windows answer ok false. */
+  zrt::String trashFile(const char* args) {
+#if defined(_WIN32) || defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
+    (void)args;
+    return reply("{\"ok\":false}");
+#else
+    // ponytail: the home trash only; a file on another disk needs that disk's $topdir/.Trash-$uid (the spec's second case), not done
+    char path[1024] = "", abs[1200], dir[1100], files[1100], info[1100], name[300], dst[1500], meta[1500], when[32];
+    jsonString(args, "path", path, sizeof path);
+    struct stat st;
+    if (!path[0] || lstat(path, &st) != 0) return reply("{\"ok\":false}");
+    const char* slash = strrchr(path, '/');
+    const char* base = slash ? slash + 1 : path;
+    char parent[1024];
+    snprintf(parent, sizeof parent, "%.*s", slash ? (int)(slash - path) : 1, slash ? (slash == path ? "/" : path) : ".");
+    char real[1024];
+    if (!*base || !realpath(parent, real)) return reply("{\"ok\":false}");
+    snprintf(abs, sizeof abs, "%s/%s", strcmp(real, "/") ? real : "", base);
+    const char* xdg = getenv("XDG_DATA_HOME");
+    if (xdg && *xdg) snprintf(dir, sizeof dir, "%s/Trash", xdg);
+    else snprintf(dir, sizeof dir, "%s/.local/share/Trash", getenv("HOME") ? getenv("HOME") : "/tmp");
+    for (char* q = dir + 1; *q; q++) if (*q == '/') { *q = 0; zn_mkdir(dir); *q = '/'; }
+    zn_mkdir(dir);
+    snprintf(files, sizeof files, "%s/files", dir); zn_mkdir(files);
+    snprintf(info, sizeof info, "%s/info", dir); zn_mkdir(info);
+    time_t now = time(nullptr);
+    struct tm lt;
+    localtime_r(&now, &lt);
+    strftime(when, sizeof when, "%Y-%m-%dT%H:%M:%S", &lt);
+    for (int i = 1; i < 10000; i++) {
+      if (i == 1) snprintf(name, sizeof name, "%s", base); else snprintf(name, sizeof name, "%s.%d", base, i);
+      snprintf(meta, sizeof meta, "%s/%s.trashinfo", info, name);
+      int fd = open(meta, O_WRONLY | O_CREAT | O_EXCL, 0600);   // the info file reserves the name (the spec's atomic step)
+      if (fd < 0) { if (errno == EEXIST) continue; break; }
+      snprintf(dst, sizeof dst, "%s/%s", files, name);
+      if (lstat(dst, &st) == 0) { close(fd); unlink(meta); continue; }
+      char body[4000];
+      int n = snprintf(body, sizeof body, "[Trash Info]\nPath=");
+      for (const unsigned char* p = (const unsigned char*)abs; *p && n < (int)sizeof body - 80; p++)
+        n += isalnum(*p) || strchr("/-._~", *p) ? snprintf(body + n, sizeof body - n, "%c", *p) : snprintf(body + n, sizeof body - n, "%%%02X", *p);
+      n += snprintf(body + n, sizeof body - n, "\nDeletionDate=%s\n", when);
+      const bool wrote = write(fd, body, (size_t)n) == n;
+      close(fd);
+      if (wrote && rename(abs, dst) == 0) return reply("{\"ok\":true}");
+      unlink(meta);
+      break;
+    }
+    return reply("{\"ok\":false}");
+#endif
   }
 
   /** deep-link.register: a .desktop entry with the scheme as its MimeType and xdg-mime default (Linux, XDG_DATA_HOME or ~/.local/share); macOS takes schemes from the bundle's Info.plist. */

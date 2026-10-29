@@ -66,6 +66,7 @@ export interface OpArgs {
   'window.dump': {  };
   'shortcut.fire': { accelerator: string };
   'opener.reveal': { path: string };
+  'opener.trash': { path: string };
   'opener.last': {  };
   'power.battery': {  };
   'power.idleSeconds': {  };
@@ -153,6 +154,7 @@ export interface OpResult {
   'window.dump': {text: string};
   'shortcut.fire': {ok: boolean};
   'opener.reveal': {};
+  'opener.trash': {ok: boolean};
   'opener.last': {text: string};
   'power.battery': {present: boolean; percent: number; charging: boolean};
   'power.idleSeconds': {seconds: number};
