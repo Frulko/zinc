@@ -22,6 +22,7 @@ extension Tune {
         guard var d = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(Tune())) as? [String: Any],
               let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         d.merge(saved) { _, new in new }
+        if saved["invert"] == nil { d["dither"] = 3 }   // saved before "pictures only": its grid or noise dotted every grey line of the interface
         return (try? JSONSerialization.data(withJSONObject: d)).flatMap { try? JSONDecoder().decode(Tune.self, from: $0) }
     }
 }
@@ -36,7 +37,7 @@ let presets: [Preset] = {
     var text = Tune()
     text.framesHz = 30
     var speed = Tune()
-    speed.framesHz = 60; speed.pointerHz = 20; speed.idle = 3000; speed.trail = 1000; speed.typing = 1500; speed.mouse = 1000; speed.gentle = false; speed.dither = 1
+    speed.framesHz = 60; speed.pointerHz = 20; speed.idle = 3000; speed.trail = 1000; speed.typing = 1500; speed.mouse = 1000; speed.gentle = false
     var video = Tune()
     video.black = 40; video.white = 220; video.gamma = 1.0; video.edges = 0; video.framesHz = 20; video.idle = 0; video.blink = false; video.invert = 0; video.dither = 2
     var reading = Tune()

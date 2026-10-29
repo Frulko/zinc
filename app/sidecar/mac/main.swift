@@ -284,21 +284,35 @@ var tone = makeTone()
         }
         dy += 8
     }
-    let turn = invertMode == 2 || (invertMode == 1 && n > 84)
+    var turn = invertMode == 2 || (invertMode == 1 && n > 84)
+    if turn && invertMode == 1 { turn = darkNear(src, bpr, fw, fh, x, y) }
     return (turn, (turn ? midTurned : mid) >= 42)
+}
+// and only a pixel with something dark within 6 pixels turns (25 samples every 3): a light window, a picture or a menu in a dark area keeps
+// its paper where the vote said dark (its corners, a band along its border came out as black steps). The letters of a dark area always have
+// their field next to them; a stroke wider than 12 pixels would turn only along its sides (ponytail: a flood of the light field would lift
+// that, at a cost per pixel the GPU does not have)
+@inline(__always) func darkNear(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ x: Int, _ y: Int) -> Bool {
+    var dy = -6
+    while dy <= 6 {
+        let row = src + min(max(y + dy, 0), fh - 1) * bpr
+        var dx = -6
+        while dx <= 6 { if row[min(max(x + dx, 0), fw - 1)] < 128 { return true }; dx += 3 }
+        dy += 3
+    }
+    return false
 }
 var minBuf = [UInt8](repeating: 0, count: 0)
 // and the edges: a pixel darker than the lightest of its 5x5 neighbours by more than 4 loses --edges (10) levels per level of difference, so
 // a hairline of light grey on white (a window's border, a separator, 220 or 240 on 255) comes out black or dotted instead of white, and
 // text gets a little bolder; the light side of an edge, and smooth gradients, keep the curve's value
 var maxBuf = [UInt8](repeating: 255, count: 0)
-/** A pixel's grey after the edges: `rise` is how much lighter its lightest neighbour is. A line found that way and darker than 200 is ink,
- *  not a grey: dithered it came out dotted (a button's border, a separator, a dark mode's faint borders once turned). The shader's twin */
+/** A pixel's grey after the edges: `rise` is how much lighter its lightest neighbour is. A line found that way is ink or paper, never a
+ *  grey: dithered it came out dotted (a button's border, a separator, a dark mode's faint borders once turned). The shader's twin */
 @inline(__always) func line(_ v: Int, _ rise: Int) -> UInt8 {
     let e = rise - edgeFloor
     if e <= 0 { return UInt8(v) }
-    let g = max(0, v - e * edges)
-    return g < 200 ? 0 : UInt8(g)
+    return v - e * edges < 228 ? 0 : 255
 }
 /** The frame's luma over box b (frame pixels) -> grey, at its place on the panel. */
 func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (Int, Int, Int, Int)) {
@@ -843,6 +857,12 @@ kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant in
           mid += a > 8 && a < 247 ? 1 : 0; midTurned += b > 8 && b < 247 ? 1 : 0;
         }
         turn = p[14] == 2 || (p[14] == 1 && n > 84);
+        if (turn && p[14] == 1) {   // darkNear() on the CPU
+          bool near = false;
+          for (int dy = -6; dy <= 6 && !near; dy += 3) for (int dx = -6; dx <= 6; dx += 3)
+            if (int(round(src.read(uint2(clamp(fx + dx, 0, fw - 1), clamp(fy + dy, 0, fh - 1))).r * 255.0)) < 128) { near = true; break; }
+          turn = near;
+        }
         picture = (turn ? midTurned : mid) >= 42;
       }
       if (turn) l = 255 - l;
@@ -854,7 +874,7 @@ kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant in
           m = max(m, k); n = min(n, k);
         }
         const int e = (turn ? 255 - n : m) - l - floor_;
-        if (e > 0) { v = max(0, v - e * edges); if (v < 200) v = 0; }   // line() on the CPU: a line is ink, never dotted
+        if (e > 0) v = v - e * edges < 228 ? 0 : 255;   // line() on the CPU: a line is ink or paper, never dotted
       }
       if (p[15] == 3 && !picture) v = v < 128 ? 0 : 255;
       grey[py * W + px] = uchar(v);

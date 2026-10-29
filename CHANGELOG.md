@@ -118,6 +118,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - `zinc:net` servers and fetches work on QuickJS (`--engine quickjs`): its functions were missing there, and a program that only listened ended at once.
+- reMarkable: Sidecar no longer blackens the corners and borders of a light window or picture inside a dark area (black steps, a black bar), and draws thin lines solid in every grey pattern instead of dotted. A tune saved by an older Sidecar switches to "Pictures only" greys.
 - `zinc:ipod`: `detect()` no longer opens the iPods over USB at every scan: it reads the system's USB list, so nothing is sent to an iPod while it is mounted, being ejected or ejected ("OK to disconnect"). An iPod not mounted shows the model its disk gave earlier in the session, else "iPod".
 - iPod demo: the album grid has four columns, so a fifth album no longer runs past the window, and a page with a long line of text wraps it instead of growing wider than the window.
 - `ipod.mount('')` mounts an iPod that was ejected and is still plugged in: it resets it on USB, as unplugging it does, instead of saying there is no iPod disk.
