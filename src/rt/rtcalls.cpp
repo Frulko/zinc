@@ -70,12 +70,36 @@ std::string toUtf8(const char16_t* p, std::size_t n) {
 }
 
 
+// No byte of the eight at `d` is one JSON escapes in a string (below 32, '"' or '\\'): the quoter and the parser skip them at once.
+inline bool jsonPlain8(const char* d) {
+  std::uint64_t x;
+  std::memcpy(&x, d, 8);
+  constexpr std::uint64_t k1 = 0x0101010101010101ULL, k80 = 0x8080808080808080ULL;
+  auto zero = [](std::uint64_t y) { return (y - k1) & ~y & k80; };
+  return !(((x - k1 * 32) & ~x & k80) | zero(x ^ (k1 * '"')) | zero(x ^ (k1 * '\\')));
+}
+
+// The text JSON.stringify builds: appends inline (std::string's push_back and append are calls into libc++ on Apple), grows by doubling.
+struct JsonText {
+  std::string s;
+  std::size_t n = 0;
+  void need(std::size_t k) { if (n + k > s.size()) s.resize(std::max(s.size() * 2, n + k + 256)); }
+  void append(const char* p, std::size_t k) { need(k); std::memcpy(s.data() + n, p, k); n += k; }
+  JsonText& operator+=(char c) { need(1); s[n++] = c; return *this; }
+  JsonText& operator+=(const char* p) { append(p, std::strlen(p)); return *this; }
+  const char* data() const { return s.data(); }
+  std::size_t size() const { return n; }
+};
+
 // JSON text of a Dyn value, appended to `out`. False for what the native walker does not know (a typed object seen as a Dyn, a very deep tree).
-void jsonQuote(std::string& out, const StrObj* s) {
+void jsonQuote(JsonText& out, const StrObj* s) {
   out += '"';
   const char* d = s->data();
   std::uint32_t start = 0;
   for (std::uint32_t i = 0; i < s->len; ++i) {
+    // eight bytes at a time while none needs escaping (below 32, '"' or '\\'): the bytes of a long text are copied in one append
+    while (i + 8 <= s->len && jsonPlain8(d + i)) i += 8;
+    if (i >= s->len) break;
     unsigned char c = static_cast<unsigned char>(d[i]);
     if (c >= 32 && c != '"' && c != '\\') continue;
     out.append(d + start, i - start);
@@ -94,10 +118,16 @@ void jsonQuote(std::string& out, const StrObj* s) {
   out.append(d + start, s->len - start);
   out += '"';
 }
-bool jsonOut(Machine& m, Obj* o, std::string& out, int depth) {
+bool jsonOut(Machine& m, Obj* o, JsonText& out, int depth) {
   if (depth > 1000) return false;
   const ClassRT* c = o->cls;
-  if (c == m.dynNum) { double v = std::bit_cast<double>(o->fields()[0]); out += v - v == 0 ? numberToString(v) : "null"; return true; }
+  if (c == m.dynNum) {
+    double v = std::bit_cast<double>(o->fields()[0]);
+    if (v - v != 0) { out += "null"; return true; }
+    char b[kNumberChars];
+    out.append(b, numberChars(b, v));
+    return true;
+  }
   if (c == m.dynStr) { jsonQuote(out, reinterpret_cast<const StrObj*>(o->fields()[0])); return true; }
   if (c == m.dynBool) { out += o->fields()[0] ? "true" : "false"; return true; }
   if (c == m.dynNull || c == m.dynUndef) { out += "null"; return true; }
@@ -396,7 +426,10 @@ std::uint64_t Table::hash(Slot k) const {
 bool Table::same(Slot a, Slot b) const { return elemEq(kk, a, b, true); }
 
 std::int32_t Table::findSlow(Slot k) const {
-  if (index.empty()) return -1;
+  if (index.empty()) {
+    for (std::size_t e = 0; e < keys.size(); ++e) if (!dead[e] && same(keys[e], k)) return static_cast<std::int32_t>(e);
+    return -1;
+  }
   std::size_t mask = index.size() - 1, h = hash(k) & mask;
   for (;; h = (h + 1) & mask) {
     std::int32_t e = index[h];
@@ -432,10 +465,12 @@ void Table::put(Slot k, Slot v) {
   putNew(k, v);
 }
 void Table::putNew(Slot k, Slot v) {
-  if ((keys.size() + 1) * 2 > index.size()) rehash();
-  std::size_t h = hash(k) & (index.size() - 1);
-  while (index[h] >= 0) h = (h + 1) & (index.size() - 1);
-  index[h] = static_cast<std::int32_t>(keys.size());
+  if (index.empty() ? keys.size() >= kLinear : (keys.size() + 1) * 2 > index.size()) rehash();
+  if (!index.empty()) {
+    std::size_t h = hash(k) & (index.size() - 1);
+    while (index[h] >= 0) h = (h + 1) & (index.size() - 1);
+    index[h] = static_cast<std::int32_t>(keys.size());
+  }
   keys.push_back(k);
   if (hasVals) vals.push_back(v);
   dead.push_back(0);
@@ -455,6 +490,8 @@ void Table::clear() { keys.clear(); vals.clear(); dead.clear(); index.clear(); l
 
 // JSON.parse into the Dyn classes of the prelude (src/frontend/dyn.cpp): objects, arrays, numbers, strings and booleans are
 // built directly, `null` is the singleton the caller passes. Returns an owned reference, or 0 when the text is not JSON.
+// Cost is allocations: keys and short strings are looked up by their text before anything is allocated (one string object per
+// distinct key for the whole document, so an object's keys compare by pointer), and numbers skip strtod when they are exact.
 struct JsonBuild {
   Machine& m;
   const char* p;
@@ -462,14 +499,54 @@ struct JsonBuild {
   Slot nullv;
   JsonBuild(Machine& mm, const char* begin, const char* stop, Slot nul) : m(mm), p(begin), end(stop), nullv(nul) {}
   const ClassRT *num = nullptr, *str = nullptr, *boo = nullptr, *arr = nullptr, *obj = nullptr, *items = nullptr, *map = nullptr;
-  // Immutable values that repeat in a document are made once and shared: keys, short strings, small integers, true and false.
-  std::unordered_map<std::string_view, StrObj*> keyCache;  // views into the cached strings themselves
-  std::unordered_map<std::string_view, Slot> strCache;
+  // Immutable values that repeat in a document are made once and shared: keys (string objects), short strings (DynStr nodes),
+  // small integers, true and false. An open-addressing table keyed by the text; `text` points into the cached string itself.
+  struct Interned { std::uint64_t h; const char* text; std::uint32_t len; Slot v; };
+  struct Intern {
+    std::vector<Interned> e;
+    std::size_t used = 0;
+    Interned& find(std::string_view s, std::uint64_t h) {  // the entry of `s`, or an empty one (v 0) to fill: set v and text, ++used
+      if ((used + 1) * 2 > e.size()) grow();
+      for (std::size_t i = h & (e.size() - 1);; i = (i + 1) & (e.size() - 1)) {
+        Interned& x = e[i];
+        if (!x.v) { x.h = h; x.len = static_cast<std::uint32_t>(s.size()); return x; }
+        if (x.h == h && x.len == s.size() && same(x.text, s.data(), s.size())) return x;
+      }
+    }
+    void grow() {
+      std::vector<Interned> old(e.empty() ? 64 : e.size() * 2, Interned{0, nullptr, 0, 0});
+      old.swap(e);
+      for (const Interned& x : old) {
+        if (!x.v) continue;
+        std::size_t i = x.h & (e.size() - 1);
+        while (e[i].v) i = (i + 1) & (e.size() - 1);
+        e[i] = x;
+      }
+    }
+  };
+  static bool same(const char* a, const char* b, std::size_t n) {  // keys are short: two overlapping words, no call
+    if (n < 8 || n > 16) return std::memcmp(a, b, n) == 0;
+    std::uint64_t a0, b0, a1, b1;
+    std::memcpy(&a0, a, 8); std::memcpy(&b0, b, 8); std::memcpy(&a1, a + n - 8, 8); std::memcpy(&b1, b + n - 8, 8);
+    return a0 == b0 && a1 == b1;
+  }
+  static std::uint64_t hashText(std::string_view s) {  // a word at a time
+    constexpr std::uint64_t kMul = 0xff51afd7ed558ccdULL;
+    std::uint64_t h = s.size() * 0x9E3779B97F4A7C15ULL, w;
+    const char* d = s.data();
+    std::size_t n = s.size();
+    for (; n >= 8; d += 8, n -= 8) { std::memcpy(&w, d, 8); h = (h ^ w) * kMul; h ^= h >> 32; }
+    if (n) { w = 0; std::memcpy(&w, d, n); h = (h ^ w) * kMul; h ^= h >> 32; }
+    h ^= h >> 33; h *= 0xc4ceb9fe1a85ec53ULL; h ^= h >> 33;   // murmur's finalizer: the slot is the low bits
+    return h;
+  }
+  Intern keys, shortStrs;
+  std::string buf;   // the text of a string with escapes
   Slot smallInts[256] = {};
   Slot trueNode = 0, falseNode = 0;
   void dropCaches() {
-    for (auto& [k, v] : keyCache) m.release(v);
-    for (auto& [k, v] : strCache) m.releaseSlot(v);
+    for (const Interned& x : keys.e) if (x.v) m.releaseSlot(x.v);
+    for (const Interned& x : shortStrs.e) if (x.v) m.releaseSlot(x.v);
     for (Slot v : smallInts) if (v) m.releaseSlot(v);
     if (trueNode) m.releaseSlot(trueNode);
     if (falseNode) m.releaseSlot(falseNode);
@@ -510,53 +587,98 @@ struct JsonBuild {
     else if (c < 0x10000) { o += static_cast<char>(0xE0 | c >> 12); o += static_cast<char>(0x80 | ((c >> 6) & 0x3F)); o += static_cast<char>(0x80 | (c & 0x3F)); }
     else { o += static_cast<char>(0xF0 | c >> 18); o += static_cast<char>(0x80 | ((c >> 12) & 0x3F)); o += static_cast<char>(0x80 | ((c >> 6) & 0x3F)); o += static_cast<char>(0x80 | (c & 0x3F)); }
   }
-  // A string literal at p (after the opening quote) into a new string object, or null.
-  StrObj* string() {
-    std::string out;
+  // A string literal at p (after the opening quote): its text in `s`, a view of the document, or of `buf` when it has escapes.
+  bool string(std::string_view& s) {
     const char* start = p;
-    bool plain = true;
+    for (;; ++p) {
+      while (end - p >= 8 && jsonPlain8(p)) p += 8;
+      if (p >= end) return false;
+      auto c = static_cast<unsigned char>(*p);
+      if (c == '"') { s = std::string_view(start, static_cast<std::size_t>(p - start)); ++p; return true; }
+      if (c == '\\') break;
+      if (c < 32) return false;
+    }
+    buf.assign(start, p);
     while (p < end && *p != '"') {
       auto c = static_cast<unsigned char>(*p);
-      if (c < 32) return nullptr;
-      if (c == '\\') {
-        if (plain) { out.assign(start, p); plain = false; }
-        ++p;
-        if (p >= end) return nullptr;
-        char e = *p++;
-        switch (e) {
-          case 'n': out += '\n'; break;
-          case 't': out += '\t'; break;
-          case 'r': out += '\r'; break;
-          case 'b': out += '\b'; break;
-          case 'f': out += '\f'; break;
-          case '/': out += '/'; break;
-          case '\\': out += '\\'; break;
-          case '"': out += '"'; break;
-          case 'u': {
-            unsigned u;
-            if (!hex4(u)) return nullptr;
-            if (u >= 0xD800 && u < 0xDC00 && end - p >= 6 && p[0] == '\\' && p[1] == 'u') {
-              const char* save = p;
-              p += 2;
-              unsigned lo;
-              if (hex4(lo) && lo >= 0xDC00 && lo < 0xE000) u = 0x10000 + ((u - 0xD800) << 10) + (lo - 0xDC00); else p = save;
-            }
-            utf8(out, u >= 0xD800 && u < 0xE000 ? 0xFFFD : u);
-            break;
+      if (c < 32) return false;
+      if (c != '\\') { buf += static_cast<char>(c); ++p; continue; }
+      ++p;
+      if (p >= end) return false;
+      char e = *p++;
+      switch (e) {
+        case 'n': buf += '\n'; break;
+        case 't': buf += '\t'; break;
+        case 'r': buf += '\r'; break;
+        case 'b': buf += '\b'; break;
+        case 'f': buf += '\f'; break;
+        case '/': buf += '/'; break;
+        case '\\': buf += '\\'; break;
+        case '"': buf += '"'; break;
+        case 'u': {
+          unsigned u;
+          if (!hex4(u)) return false;
+          if (u >= 0xD800 && u < 0xDC00 && end - p >= 6 && p[0] == '\\' && p[1] == 'u') {
+            const char* save = p;
+            p += 2;
+            unsigned lo;
+            if (hex4(lo) && lo >= 0xDC00 && lo < 0xE000) u = 0x10000 + ((u - 0xD800) << 10) + (lo - 0xDC00); else p = save;
           }
-          default: return nullptr;
+          utf8(buf, u >= 0xD800 && u < 0xE000 ? 0xFFFD : u);
+          break;
         }
-      } else {
-        if (!plain) out += static_cast<char>(c);
-        ++p;
+        default: return false;
       }
     }
-    if (p >= end) return nullptr;
-    StrObj* r = plain ? m.newStr(start, static_cast<std::size_t>(p - start)) : m.newStr(out.data(), out.size());
+    if (p >= end) return false;
     ++p;  // the closing quote
-    return r;
+    s = buf;
+    return true;
+  }
+  // The key's string object, shared by every object of the document that has it (an owned reference).
+  StrObj* key(std::string_view s) {
+    Interned& x = keys.find(s, hashText(s));
+    if (!x.v) { StrObj* k = m.newStr(s.data(), s.size()); x.v = reinterpret_cast<Slot>(k); x.text = k->data(); ++keys.used; }
+    m.retain(reinterpret_cast<Obj*>(x.v));
+    return reinterpret_cast<StrObj*>(x.v);
   }
   bool lit(const char* w, std::size_t n) { if (static_cast<std::size_t>(end - p) < n || std::memcmp(p, w, n) != 0) return false; p += n; return true; }
+
+  // A number at p, checked against the grammar as its digits are read: mantissa and power of ten in integers, exact in a double when the
+  // mantissa has at most 15 digits and the power is within 10^±22 (Clinger's fast path, the same result as strtod); strtod otherwise.
+  bool number(double& out) {
+    static constexpr double kPow10[] = {1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22};
+    auto digit = [&]() { return p < end && *p >= '0' && *p <= '9'; };
+    const char* st = p;
+    const bool neg = p < end && *p == '-';
+    if (neg) ++p;
+    std::uint64_t mant = 0;   // wraps past 19 digits: then strtod reads it
+    int digits = 0, exp10 = 0;
+    if (p < end && *p == '0') ++p;
+    else if (p < end && *p >= '1' && *p <= '9') for (; digit(); ++p) { mant = mant * 10 + static_cast<unsigned>(*p - '0'); ++digits; }
+    else return false;
+    if (p < end && *p == '.') {
+      const char* d = ++p;
+      for (; digit(); ++p) { const unsigned v = static_cast<unsigned>(*p - '0'); if (mant || v) { mant = mant * 10 + v; ++digits; } --exp10; }
+      if (p == d) return false;
+    }
+    if (p < end && (*p == 'e' || *p == 'E')) {
+      ++p;
+      bool en = false;
+      if (p < end && (*p == '+' || *p == '-')) en = *p++ == '-';
+      const char* d = p;
+      int e = 0;
+      for (; digit(); ++p) if (e < 100000) e = e * 10 + (*p - '0');
+      if (p == d) return false;
+      exp10 += en ? -e : e;
+    }
+    if (digits > 15 || exp10 < -22 || exp10 > 22) { out = std::strtod(st, nullptr); return true; }  // the text is NUL-terminated: strtod stops where the number ends
+    double v = static_cast<double>(mant);
+    v = exp10 < 0 ? v / kPow10[-exp10] : v * kPow10[exp10];
+    out = neg ? -v : v;
+    return true;
+  }
+  std::vector<Slot> stack;   // the items of the arrays being read: each array is allocated once, at its size
 
   Slot value(int depth) {
     if (depth > 1000) return 0;
@@ -574,30 +696,26 @@ struct JsonBuild {
       auto fail = [&]() { m.release(mo); return Slot{0}; };
       ws();
       if (p < end && *p == '}') { ++p; return node(obj, mapv); }
+      std::string_view ks;
       for (;;) {
         ws();
         if (p >= end || *p != '"') return fail();
         ++p;
-        const char* keyStart = p;
-        StrObj* k = string();
-        if (!k) return fail();
-        {  // the same key text is one string object for the whole document
-          auto it = keyCache.find(std::string_view(k->data(), k->len));
-          if (it == keyCache.end()) { m.retain(k); keyCache.emplace(std::string_view(k->data(), k->len), k); }
-          else { m.release(k); k = it->second; m.retain(k); }
-        }
-        (void)keyStart;
+        if (!string(ks)) return fail();
+        StrObj* k = key(ks);
         ws();
         if (p >= end || *p != ':') { m.release(k); return fail(); }
         ++p;
         Slot v = value(depth + 1);
         if (!v) { m.release(k); return fail(); }
-        std::int32_t e = mo->t.find(reinterpret_cast<Slot>(k));
+        std::int32_t e = -1;  // keys are shared objects: a small object finds a repeated key by pointer
+        if (mo->t.keys.size() <= 16) { for (std::size_t i = 0; i < mo->t.keys.size(); ++i) if (mo->t.keys[i] == reinterpret_cast<Slot>(k)) { e = static_cast<std::int32_t>(i); break; } }
+        else e = mo->t.find(reinterpret_cast<Slot>(k));
         if (e >= 0) {  // a repeated key: the last value wins
           m.releaseSlot(mo->t.vals[static_cast<std::size_t>(e)]);
           mo->t.vals[static_cast<std::size_t>(e)] = v;
           m.release(k);
-        } else mo->t.put(reinterpret_cast<Slot>(k), v);
+        } else mo->t.putNew(reinterpret_cast<Slot>(k), v);
         ws();
         if (p < end && *p == ',') { ++p; continue; }
         if (p < end && *p == '}') { ++p; return node(obj, mapv); }
@@ -606,45 +724,46 @@ struct JsonBuild {
     }
     if (c == '[') {
       ++p;
-      ArrObj* a = m.newArr(items);
-      a->v.reserve(4);
-      auto fail = [&]() { m.release(a); return Slot{0}; };
+      const std::size_t base = stack.size();
+      auto done = [&]() {
+        ArrObj* a = m.newArr(items);
+        a->v.assign(stack.begin() + static_cast<std::ptrdiff_t>(base), stack.end());
+        stack.resize(base);
+        return node(arr, reinterpret_cast<Slot>(a));
+      };
+      auto fail = [&]() { for (std::size_t i = base; i < stack.size(); ++i) m.releaseSlot(stack[i]); stack.resize(base); return Slot{0}; };
       ws();
-      if (p < end && *p == ']') { ++p; return node(arr, reinterpret_cast<Slot>(a)); }
+      if (p < end && *p == ']') { ++p; return done(); }
       for (;;) {
         Slot v = value(depth + 1);
         if (!v) return fail();
-        a->v.push_back(v);
+        stack.push_back(v);
         ws();
         if (p < end && *p == ',') { ++p; continue; }
-        if (p < end && *p == ']') { ++p; return node(arr, reinterpret_cast<Slot>(a)); }
+        if (p < end && *p == ']') { ++p; return done(); }
         return fail();
       }
     }
     if (c == '"') {
       ++p;
-      StrObj* sv = string();
-      if (!sv) return 0;
-      if (sv->len <= 16) {  // short strings repeat (tags, enum-like values): share the node
-        auto it = strCache.find(std::string_view(sv->data(), sv->len));
-        if (it != strCache.end()) { m.release(sv); m.retain(reinterpret_cast<Obj*>(it->second)); return it->second; }
+      std::string_view s;
+      if (!string(s)) return 0;
+      if (s.size() > 16) return node(str, reinterpret_cast<Slot>(m.newStr(s.data(), s.size())));
+      Interned& x = shortStrs.find(s, hashText(s));  // short strings repeat (tags, enum-like values): share the node
+      if (!x.v) {
+        StrObj* sv = m.newStr(s.data(), s.size());
         Slot nd = node(str, reinterpret_cast<Slot>(sv));
-        if (nd) { m.retain(reinterpret_cast<Obj*>(nd)); strCache.emplace(std::string_view(sv->data(), sv->len), nd); }
-        return nd;
+        if (!nd) { m.release(sv); return 0; }
+        x.v = nd; x.text = sv->data(); ++shortStrs.used;
       }
-      return node(str, reinterpret_cast<Slot>(sv));
+      m.retain(reinterpret_cast<Obj*>(x.v));
+      return x.v;
     }
     if (c == 't') return lit("true", 4) ? shared(trueNode, boo, 1) : 0;
     if (c == 'f') return lit("false", 5) ? shared(falseNode, boo, 0) : 0;
     if (c == 'n') { if (!lit("null", 4)) return 0; m.retain(reinterpret_cast<Obj*>(nullv)); return nullv; }
-    const char* st = p;
-    if (p < end && *p == '-') ++p;
-    if (p < end && *p == '0') ++p;
-    else if (p < end && *p >= '1' && *p <= '9') while (p < end && *p >= '0' && *p <= '9') ++p;
-    else return 0;
-    if (p < end && *p == '.') { ++p; const char* d = p; while (p < end && *p >= '0' && *p <= '9') ++p; if (p == d) return 0; }
-    if (p < end && (*p == 'e' || *p == 'E')) { ++p; if (p < end && (*p == '+' || *p == '-')) ++p; const char* d = p; while (p < end && *p >= '0' && *p <= '9') ++p; if (p == d) return 0; }
-    double d = std::strtod(st, nullptr);  // the text is NUL-terminated and the grammar was checked: strtod stops where the number ends
+    double d;
+    if (!number(d)) return 0;
     if (d >= 0 && d < 256 && d == static_cast<double>(static_cast<int>(d)) && !std::signbit(d)) return shared(smallInts[static_cast<int>(d)], num, std::bit_cast<Slot>(d));
     return node(num, std::bit_cast<Slot>(d));
   }
@@ -1458,7 +1577,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
     case Rt::JsonOut: {  // JSON.stringify of a Dyn tree without the interpreter: numbers as ECMAScript prints them, strings escaped like JSON.stringify, undefined skipped in objects
       Obj* root = reinterpret_cast<Obj*>(a[0]);
       NN(root);
-      std::string out;
+      JsonText out;
       bool ok = m.resolveDyn() && m.dynUndef && m.dynNull && jsonOut(m, root, out, 0);
       a[0] = P(m.newStr(ok ? out.data() : "", ok ? out.size() : 0));
       return nullptr;
@@ -1466,8 +1585,8 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
     case Rt::StrJsonQuote: {
       StrObj* s = S(a[0]);
       NN(s);
-      std::string out;
-      out.reserve(s->len + 2);
+      JsonText out;
+      out.need(s->len + 2);
       jsonQuote(out, s);
       a[0] = P(m.newStr(out.data(), out.size()));
       return nullptr;

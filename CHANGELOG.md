@@ -172,6 +172,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Changed
 - Sidecar's "Whole screen as video" plays the screen as video only while it moves: once it is quiet the screen is sent again pixel-exact, small changes such as a caret stay exact, and the video starts again at once on the next movement. On a fast link (the iPad's cable, Ethernet, Thunderbolt) the video is sharper and about 4 ms quicker to encode.
 - iPod demo: the similar artists of the first versions (`history/similar-artists.json`) are moved once into `history/similar-artists.jsonl` and the old file is deleted, so Genius reads one file instead of two.
+- `JSON.parse` is about twice as fast and `JSON.stringify` a quarter faster on large documents (a 4.5 MB array of 96,000 objects: 30 to 15 ms, 24 to 17 ms), and a `Map` or `Set` of up to 8 entries no longer allocates a hash index.
 - Sidecar keeps two pictures on the way to a screen that answers within two refreshes, instead of one: smoother on slower screens (a Nexus 7 goes from 50 to 60 frames/s while you work).
 - `zinc:net`: a program can serve several ports at once, each with its own handler (`serve`/`serveAsync` again on another port no longer replaces the first server), and `stop(port)` stops one; `stop()` still stops them all. The Spotify login now stops only its own callback server.
 - `zinc:ipod`: `ZINC_IPOD_ROOTS` (for tests) now replaces the folders `detect()` looks in instead of adding one, so a test never reads a real iPod that is plugged in.

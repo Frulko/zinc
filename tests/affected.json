@@ -110,6 +110,7 @@
     {"paths": ["tools/museum-probe", "tools/resource-probe", "tools/scenarios/", "tools/cdp-probe", "examples/museum-table/src/probe.ts"], "tests": ["resource_probe", "museum_probe", "devtools_port"]},
     {"paths": ["src/rt/rt.h"], "tests": ["cross_linux"]},
     {"paths": ["src/rt/rtcalls.cpp", "tests/t0/str_invalid_utf8.sh"], "tests": ["str_invalid_utf8"]},
+    {"paths": ["src/rt/rtcalls.cpp", "src/rt/machine.cpp", "src/host/sys_host.cpp", "bench/json_large.ts", "tests/t0/json_large.sh"], "tests": ["json_large"]},
     {"paths": ["tools/windows-cross", "tests/t2/cross_windows.sh", "src/tc/tc.cpp"], "tests": ["cross_windows", "release_workflow"]},
     {"paths": ["tools/build-linux", "tools/linux-sysroot", "cmake/zig-linux.cmake"], "tests": ["tc", "release_workflow"]},
     {"paths": ["tests/t1/first_run.sh", "tests/golden/first-run/", "templates/", "src/frontend/diagnostics", "include/zn/diagnostics.h", "docs/guide/01-getting-started.md"], "tests": ["first_run"]},

@@ -47,31 +47,51 @@ void Machine::flushErrLine() {
   std::fwrite(line.data(), 1, line.size(), stderr);
 }
 
-std::string numberToString(double v) {
-  if (v != v) return "NaN";
-  if (v == 0) return "0";
-  if (std::isinf(v)) return v > 0 ? "Infinity" : "-Infinity";
-  std::string sign = v < 0 ? "-" : "";
-  v = std::fabs(v);
-  if (v < 9007199254740992.0 && v == std::floor(v)) return sign + std::to_string(static_cast<std::uint64_t>(v));  // an integer: its digits
-  char buf[48];
-  *zn::shortestDouble(buf, buf + sizeof buf - 1, v, true) = 0;   // the shortest digits that round-trip
-  std::string s = buf;  // d.ddde[+-]XX
-  std::size_t e = s.find('e');
-  int exp10 = std::atoi(s.c_str() + e + 1);
-  std::string digits;
-  for (std::size_t i = 0; i < e; ++i) if (s[i] != '.') digits += s[i];
-  while (digits.size() > 1 && digits.back() == '0') digits.pop_back();
-  int k = static_cast<int>(digits.size()), n = exp10 + 1;
-  std::string out;
-  if (k <= n && n <= 21) out = digits + std::string(static_cast<std::size_t>(n - k), '0');
-  else if (0 < n && n <= 21) out = digits.substr(0, static_cast<std::size_t>(n)) + "." + digits.substr(static_cast<std::size_t>(n));
-  else if (-6 < n && n <= 0) out = "0." + std::string(static_cast<std::size_t>(-n), '0') + digits;
-  else {
-    int ex = n - 1;
-    out = digits.substr(0, 1) + (k > 1 ? "." + digits.substr(1) : "") + "e" + (ex < 0 ? "-" : "+") + std::to_string(std::abs(ex));
+std::size_t numberChars(char* o, double v) {
+  auto put = [&](const char* t) { std::size_t n = std::strlen(t); std::memcpy(o, t, n); return n; };
+  if (v != v) return put("NaN");
+  if (v == 0) return put("0");
+  if (std::isinf(v)) return put(v > 0 ? "Infinity" : "-Infinity");
+  char* w = o;
+  if (v < 0) { *w++ = '-'; v = -v; }
+  if (v < 9007199254740992.0 && v == std::floor(v)) {  // an integer: its digits
+    char d[20]; int k = 0;
+    for (auto u = static_cast<std::uint64_t>(v); u; u /= 10) d[k++] = static_cast<char>('0' + u % 10);
+    while (k) *w++ = d[--k];
+    return static_cast<std::size_t>(w - o);
   }
-  return sign + out;
+  char buf[48];
+  const char* be = zn::shortestDouble(buf, buf + sizeof buf - 1, v, true);   // the shortest digits that round-trip: d.ddde[+-]XX
+  char digits[24]; int k = 0;
+  const char* q = buf;
+  for (; q < be && *q != 'e'; ++q) if (*q != '.' && k < 24) digits[k++] = *q;
+  int exp10 = 0; bool eneg = false;
+  if (q < be) ++q;
+  if (q < be && (*q == '+' || *q == '-')) eneg = *q++ == '-';
+  for (; q < be; ++q) exp10 = exp10 * 10 + (*q - '0');
+  if (eneg) exp10 = -exp10;
+  while (k > 1 && digits[k - 1] == '0') --k;
+  const int n = exp10 + 1;
+  auto copy = [&](const char* from, int count) { std::memcpy(w, from, static_cast<std::size_t>(count)); w += count; };
+  if (k <= n && n <= 21) { copy(digits, k); for (int i = k; i < n; ++i) *w++ = '0'; }
+  else if (0 < n && n <= 21) { copy(digits, n); *w++ = '.'; copy(digits + n, k - n); }
+  else if (-6 < n && n <= 0) { *w++ = '0'; *w++ = '.'; for (int i = 0; i < -n; ++i) *w++ = '0'; copy(digits, k); }
+  else {
+    *w++ = digits[0];
+    if (k > 1) { *w++ = '.'; copy(digits + 1, k - 1); }
+    int ex = n - 1;
+    *w++ = 'e'; *w++ = ex < 0 ? '-' : '+';
+    if (ex < 0) ex = -ex;
+    char d[4]; int j = 0;
+    do { d[j++] = static_cast<char>('0' + ex % 10); ex /= 10; } while (ex);
+    while (j) *w++ = d[--j];
+  }
+  return static_cast<std::size_t>(w - o);
+}
+
+std::string numberToString(double v) {
+  char b[kNumberChars];
+  return std::string(b, numberChars(b, v));
 }
 
 

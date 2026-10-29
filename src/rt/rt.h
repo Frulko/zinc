@@ -60,6 +60,8 @@ template <class T> using ObjVec = std::vector<T, ObjAlloc<T>>;
 
 // ECMAScript Number::toString for a double (shortest round-trip digits, JS exponent thresholds).
 std::string numberToString(double v);
+constexpr std::size_t kNumberChars = 40;
+std::size_t numberChars(char* out, double v);   // numberToString into a buffer of kNumberChars, without allocating; returns the length
 // The inspector's console (ZN-373.01): set by the host while plugins/devtools listens, it gets each line the program prints (console.log, and
 // console.error with err) as Machine::flushOut / flushErrLine write it, out of the interpreter's loop.
 extern void (*gConsoleTap)(const char* p, std::size_t n, bool err);
@@ -137,7 +139,8 @@ struct Table {
   bool hasVals = false;
   ObjVec<Slot> keys, vals;
   ObjVec<std::uint8_t> dead;
-  ObjVec<std::int32_t> index;  // entry numbers, -1 empty; a power-of-two size
+  ObjVec<std::int32_t> index;  // entry numbers, -1 empty; a power-of-two size. Empty up to kLinear entries: find scans the keys
+  static constexpr std::size_t kLinear = 8;   // (most objects of a JSON document: no index to allocate, no key to hash)
   std::uint32_t live = 0;
 
   std::uint64_t hash(Slot k) const;
@@ -146,7 +149,10 @@ struct Table {
    *  (ZN-602); floats and strings go through hash() and same(). */
   std::int32_t find(Slot k) const {
     if (kk != KeyKind::Int && kk != KeyKind::Ref) return findSlow(k);
-    if (index.empty()) return -1;
+    if (index.empty()) {
+      for (std::size_t e = 0; e < keys.size(); ++e) if (keys[e] == k && !dead[e]) return static_cast<std::int32_t>(e);
+      return -1;
+    }
     const std::size_t mask = index.size() - 1;
     const bool anyDead = live != keys.size();   // without erased entries the dead flags are not read: one cache miss less per hit
     for (std::size_t h = mix(k) & mask;; h = (h + 1) & mask) {
