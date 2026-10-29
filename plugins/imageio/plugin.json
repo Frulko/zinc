@@ -1,0 +1,14 @@
+{
+  "name": "imageio",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:imageio",
+  "entry": "index.ts",
+  "description": "Image files on disk: size, orientation and EXIF (date taken, camera, lens, exposure, GPS) from the header alone; thumbnails and downscaled pictures decoded off the program's thread, turned upright, newest request first, with an on-disk thumbnail cache. ImageIO on macOS and iOS (JPEG, PNG, HEIC, WebP, GIF, TIFF, RAW), stb_image, libwebp and TinyEXIF elsewhere",
+  "targets": {
+    "macos": { "frameworks": ["ImageIO", "CoreGraphics", "CoreFoundation"] },
+    "linux": { "linkFlags": ["-pthread"] },
+    "windows": {},
+    "ios": { "frameworks": ["ImageIO", "CoreGraphics", "CoreFoundation"] }
+  }
+}

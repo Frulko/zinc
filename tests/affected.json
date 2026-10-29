@@ -376,6 +376,8 @@
     {"paths": ["tests/data/audio-music/", "tests/golden/audio-music.out", "tests/t1/audio_music.sh"], "tests": ["audio_music"]},
     {"paths": ["plugins/midi/", "examples/midi/", "tests/data/midi/"], "tests": ["midi"]},
     {"paths": ["plugins/photos/", "examples/photos/", "tests/golden/host/photos_session.ts", "tests/t1/photos.sh"], "tests": ["photos"]},
+    {"paths": ["plugins/imageio/", "tests/golden/host/imageio_session.ts", "tests/data/imageio/", "tests/t1/imageio.sh"], "tests": ["imageio"]},
+    {"paths": ["plugins/system/opener.ts", "plugins/system/native/system.host.cpp", "plugins/system/native/system.macos.mm", "src/host/sys_host.cpp", "tests/t1/file_trash.sh"], "tests": ["file_trash"]},
     {"paths": ["plugins/camera/", "tests/golden/host/webcam_session.ts", "tests/golden/host/webcam_session.out", "tests/golden/host/webcam_draw.ts", "tests/data/bmp_pixel.py"], "tests": ["webcam_sim", "webcam"]},
     {"paths": ["plugins/webrtc/", "tests/golden/host/webrtc_loopback.ts", "tests/golden/host/webrtc_loopback.out", "tests/data/webrtc_globals.ts", "examples/webrtc-chat/"], "tests": ["webrtc", "webrtc_chat"]},
     {"paths": ["plugins/webrtc/", "tests/golden/host/webrtc_media.ts", "tests/golden/host/webrtc_media.out"], "tests": ["webrtc_media"]},

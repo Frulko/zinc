@@ -1,0 +1,7 @@
+TinyEXIF 1.2.0 (tag 1.2.0 of cdcseacave/TinyEXIF, commit 5445d04007d9d0f5296f12aa4fc637ea68b8368f, 2026-10-01), https://github.com/cdcseacave/TinyEXIF
+kept, unmodified:
+  TinyEXIF.cpp      sha256 4a12e1ba8748620b9a277152ac53717cfe1dfc43657c1bb820d7630b37dc8937
+  TinyEXIF.h        sha256 5ad2fd2fde322d8dc3567514c6583767264737b08cfec4cbd05e795964e1cae2
+  LICENSE           sha256 4518ea91e188b15148d5955dd6c17e29940d847c631e3e14229e462e581aed74  (MIT)
+  LICENSE.easyexif  sha256 7d8ae2570bc8e0bc653a92e3003f2b1500e846a131055af4d133b00e073fb27a  (BSD-2-Clause, the easyexif parts)
+built with TINYEXIF_NO_XMP_SUPPORT (no tinyxml2): native/imageio.host.cpp includes TinyEXIF.cpp, the plugin's one translation unit
