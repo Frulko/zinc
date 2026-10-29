@@ -17,7 +17,7 @@ fi
 codecs="-Xcc -I$root/third_party/zstd -Xcc -I$root/third_party/lz4 -Xcc -I$here -import-objc-header $here/bridge.h"
 swiftc -O $codecs "$here/main.swift" "$here/tune.swift" "$obj"/*.o -framework ScreenCaptureKit -framework CoreMedia -o "$out"
 mkdir -p "$obj/screen" && ln -sf "$here/screen.swift" "$obj/screen/main.swift"   # with other files, top-level code needs the name main.swift
-swiftc -O $codecs "$obj/screen/main.swift" "$here/h264.swift" "$obj"/*.o -framework ScreenCaptureKit -framework CoreMedia -framework VideoToolbox -o "$dir/sidecar-screen"
+swiftc -O $codecs "$obj/screen/main.swift" "$here/h264.swift" "$here/sound.swift" "$obj"/*.o -framework ScreenCaptureKit -framework CoreMedia -framework VideoToolbox -o "$dir/sidecar-screen"
 swiftc -O $codecs "$here/receiver.swift" "$obj"/*.o -framework VideoToolbox -framework CoreMedia -framework IOSurface -o "$dir/sidecar-receiver"
 app=$dir/Sidecar.app/Contents
 rm -rf "$dir/Sidecar.app"
@@ -38,6 +38,7 @@ cat > "$app/Info.plist" <<PLIST
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
+<key>NSAudioCaptureUsageDescription</key><string>Sidecar plays the Mac's sound on the screen it streams to, and mutes the Mac meanwhile.</string>
 </dict></plist>
 PLIST
 # a stable signature keeps the Screen Recording and Accessibility permissions across builds (an ad-hoc one is a new app to macOS each

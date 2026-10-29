@@ -8,7 +8,7 @@
 // again exact once it has rested 300 ms.
 // A part of the screen that changes at nearly every picture (a film, a game) goes as H.264 when the receiver has a hardware decoder
 // (+h264): VideoToolbox here, the decoder and a display plane there; the rest stays exact tiles.
-//   sidecar-screen --host <address> [--port 7710] [--mirror <display>] [--hidpi] [--lz4] [--exact] [--no-video] [--seconds n] [--synthetic <percent>]
+//   sidecar-screen --host <address> [--port 7710] [--mirror <display>] [--hidpi] [--lz4] [--exact] [--no-video] [--audio] [--seconds n] [--synthetic <percent>]
 import Foundation
 import ScreenCaptureKit
 import CoreMedia
@@ -17,7 +17,7 @@ import SystemConfiguration
 setvbuf(stdout, nil, _IOLBF, 0)
 func die(_ s: String) -> Never { print("sidecar-screen: \(s)"); exit(1) }
 var host = "", port: UInt16 = 7710, mirror = -1, hidpi = false, forceLz4 = false, seconds = 0.0, exact = false, synthetic = 0
-var h264Dump = "", noVideo = false
+var h264Dump = "", noVideo = false, audio = false
 var argv = Array(CommandLine.arguments.dropFirst())
 while !argv.isEmpty {
     let a = argv.removeFirst()
@@ -30,6 +30,7 @@ while !argv.isEmpty {
     case "--seconds": seconds = Double(argv.removeFirst())!
     case "--exact": exact = true      // never rough: every picture exact, whatever it costs
     case "--no-video": noVideo = true // no H.264 region, even when the receiver decodes it: every pixel exact or rough tiles
+    case "--audio": audio = true      // the Mac's sound on the screen when it can play it (sound.swift), the Mac muted meanwhile
     case "--h264-dump": h264Dump = argv.removeFirst()   // no screen: the synthetic load as H.264 into this file for --seconds (Annex B; the
                                                            // receiver's decoder is proved on it, tools/v4l2dec-probe.cpp)
     case "--synthetic": synthetic = Int(argv.removeFirst())!   // no capture: a still page with a moving "video" over this percent of it, 60 a second (a
@@ -135,6 +136,56 @@ let W = words.count >= 4 ? Int(words[1]) ?? 0 : 0, H = words.count >= 4 ? Int(wo
 if W <= 0 || H <= 0 || !caps.contains("rgb") { die("not a colour screen: \(words.joined(separator: " "))") }
 let zstd = caps.contains("zstd") && !forceLz4, sub = caps.contains("sub")
 print("screen: \(words[3...].filter { !$0.hasPrefix("+") }.joined(separator: " ")) \(W)x\(H), \(zstd ? "zstd" : "lz4")\(sub ? " + Sub" : "")")
+
+// --- the sound (sound.swift): the screen's app answers on the next port "OK" when it has a sound output, so the tray offers the option
+// ("sound: available"); with --audio the Mac's sound goes there as 16-bit PCM (1.5 Mbit/s at 48 kHz) on that connection of its own
+var soundState = "off", soundSock: Int32 = -1
+let tapper = SoundTap()
+do {
+    var sa = sockaddr_in(), n = socklen_t(MemoryLayout<sockaddr_in>.size)
+    _ = withUnsafeMutablePointer(to: &sa) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getpeername(sock, $0, &n) } }
+    sa.sin_port = (port + 1).bigEndian
+    let s = socket(AF_INET, SOCK_STREAM, 0)
+    var tv = timeval(tv_sec: 1, tv_usec: 0)
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+    var answer = [UInt8]()
+    if withUnsafePointer(to: &sa, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(s, $0, n) } }) == 0 {
+        var c: UInt8 = 0
+        while answer.count < 200 && read(s, &c, 1) == 1 && c != 10 { answer.append(c) }
+    }
+    let a = String(decoding: answer, as: UTF8.self)
+    if a == "OK" {
+        print("sound: available")
+        if audio {
+            soundSock = s
+            setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, socklen_t(MemoryLayout<Int32>.size))
+            let sq = DispatchQueue(label: "sound")
+            var queued = 0   // bytes handed to sq and not written yet: past 100 ms of sound (a stalled link) a buffer is dropped
+            let lock = NSLock()
+            if let why = tapper.start({ b in
+                let d = Data(buffer: b), most = Int(tapper.rate) * tapper.channels * 2 / 10
+                lock.lock(); let skip = queued > most; if !skip { queued += d.count }; lock.unlock()
+                if skip { return }
+                sq.async {
+                    d.withUnsafeBytes { p in var put = 0; while put < d.count { let r = write(s, p.baseAddress! + put, d.count - put); if r <= 0 { break }; put += r } }
+                    lock.lock(); queued -= d.count; lock.unlock()
+                }
+            }) {
+                soundState = "off: " + why; print("sound: none (\(why))")
+            } else {
+                let head = "PCM \(Int(tapper.rate)) \(tapper.channels)\n"
+                _ = head.withCString { write(s, $0, strlen($0)) }
+                soundState = "on, \(Int(tapper.rate)) Hz \(tapper.channels == 2 ? "stereo" : "mono"), 16-bit (\(Int(tapper.rate) * tapper.channels * 16 / 1000) kbit/s); the Mac's own output is muted meanwhile"
+                print("sound: on")
+            }
+        } else { close(s); soundState = "off (the screen can play it: Sound in Sidecar's settings)" }
+    } else {
+        close(s)
+        let why = a.hasPrefix("NO ") ? String(a.dropFirst(3)) : "this screen's app is too old for sound: update it"
+        soundState = "none: " + why; print("sound: none (\(why))")
+    }
+}
 
 func header(_ type: UInt8, _ depth: UInt8, _ x: Int, _ y: Int, _ w: Int, _ h: Int, _ codec: UInt8, _ more: Bool, _ len: Int) -> [UInt8] {
     var b = [UInt8](repeating: 0, count: 16)
@@ -541,6 +592,7 @@ func info(_ seconds: Double) {
             return String(format: "H.264 %d × %d at %d, %d: %.0f pictures/s, %.1f Mbit/s, encode %.1f ms, the screen's hardware decoder %.1f ms (median)",
                           r.w, r.h, r.x, r.y, Double(videoStats.frames) / seconds, Double(videoStats.bytes) * 8 / seconds / 1e6, videoStats.encode / Double(n),
                           d.isEmpty ? 0 : Double(d[d.count / 2]) / 1000) } ?? "none now (H.264 when a part of the screen moves like a film)"],
+        ["Picture", "Sound", soundState],
         ["Latency", "Encode (Mac)", stats.raw == 0 ? "– (no tile sent)" : "\(ms(stats.encode / Double(f))) average, \(ms(more.encodeMax)) slowest, \(workers) cores"],
         ["Latency", "Shown (screen)", shownUs.isEmpty ? "–" : { let v = shownUs.sorted(); return String(format: "commit %.1f ms after the last byte (median, %.1f p95), on screen at the next refresh (≤ 16.7 ms)", Double(v[v.count / 2]) / 1000, Double(v[min(v.count - 1, v.count * 95 / 100)]) / 1000) }()],
         ["Latency", "Decode (screen)", more.decodeUs == 0 && pictureUs.isEmpty ? "– (no tile sent)" : (pictureUs.isEmpty ? "" : { let v = pictureUs.sorted(); return String(format: "%.1f ms a picture (median, %.1f p95), ", Double(v[v.count / 2]) / 1000, Double(v[min(v.count - 1, v.count * 95 / 100)]) / 1000) }())

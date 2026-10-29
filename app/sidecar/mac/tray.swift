@@ -99,6 +99,11 @@ final class Engine: ObservableObject {
     }
     var outputs: [Output] { [Output.remarkable] + screens }
     var current: Output { outputs.first { $0.id == outputId } ?? .remarkable }
+    // the screens whose app said it plays sound (sidecar-screen's "sound: available"), and the ones it goes to (--audio); kept beside
+    // `screens` so a saved list from before still decodes
+    @Published var soundAvail = Set(UserDefaults.standard.stringArray(forKey: "soundAvail") ?? []) { didSet { UserDefaults.standard.set(Array(soundAvail), forKey: "soundAvail") } }
+    func audioOn(_ id: String) -> Bool { UserDefaults.standard.bool(forKey: "audio." + id) }
+    func setAudio(_ id: String, _ on: Bool) { UserDefaults.standard.set(on, forKey: "audio." + id); objectWillChange.send(); restartIfRunning() }
     func update(_ o: Output) {
         guard let i = screens.firstIndex(where: { $0.id == o.id }), screens[i] != o else { return }
         screens[i] = o; restartIfRunning()
@@ -188,7 +193,7 @@ final class Engine: ObservableObject {
         let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent().appendingPathComponent(eink ? "sidecar-engine" : "sidecar-screen")
         let p = Process()
         p.executableURL = exe
-        var args = eink ? ["--no-ui", "--control", "--wait"] : ["--host", out.host] + (out.hidpi ? ["--hidpi"] : []) + (out.lz4 ? ["--lz4"] : [])
+        var args = eink ? ["--no-ui", "--control", "--wait"] : ["--host", out.host] + (out.hidpi ? ["--hidpi"] : []) + (out.lz4 ? ["--lz4"] : []) + (audioOn(out.id) ? ["--audio"] : [])
         if mode != .extend { args += ["--mirror", String(display)] }
         p.arguments = args
         let i = Pipe(), o = Pipe()
@@ -230,6 +235,7 @@ final class Engine: ObservableObject {
             }
             else if line.hasPrefix("tablet: ") { state = .connected(String(line.dropFirst(8))) }
             else if line.hasPrefix("screen: ") { state = .connected(String(line.dropFirst(8))) }
+            else if line.hasPrefix("sound: ") { if line.hasPrefix("sound: none") { soundAvail.remove(current.id) } else { soundAvail.insert(current.id) } }
             else if line.hasPrefix("sidecar-screen: ") { problem = String(line.dropFirst(16)) }
             else if line.hasPrefix("speedtest: ") { testing = line == "speedtest: running" }
             else if line.hasPrefix("info "), let d = try? JSONDecoder().decode([[String]].self, from: Data(line.dropFirst(5).utf8)) { details = d }
@@ -405,6 +411,10 @@ struct PopoverView: View {
                 }
             } else {
                 Toggle("Retina: twice the pixels per point (bigger text)", isOn: Binding(get: { o.hidpi }, set: { v in var c = o; c.hidpi = v; e.update(c) }))
+                if e.soundAvail.contains(o.id) {   // only once the screen said it plays sound
+                    Toggle("Sound: the Mac's sound plays on this screen", isOn: Binding(get: { e.audioOn(o.id) }, set: { e.setAudio(o.id, $0) }))
+                        .help("The Mac goes quiet while it streams; macOS asks once to let Sidecar record the system's audio")
+                }
                 Picker("Compression", selection: Binding(get: { o.lz4 }, set: { v in var c = o; c.lz4 = v; e.update(c) })) {
                     Text("zstd: fewest bytes").tag(false); Text("lz4: lightest for the screen").tag(true)
                 }

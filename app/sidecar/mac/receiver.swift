@@ -14,6 +14,7 @@ import IOSurface
 import ImageIO
 import UniformTypeIdentifiers
 import SystemConfiguration
+import AVFoundation
 
 setvbuf(stdout, nil, _IOLBF, 0)
 signal(SIGPIPE, SIG_IGN)
@@ -473,6 +474,60 @@ Thread {
         close(c)
     }
 }.start()
+// --- the sender's sound, on the next port (sidecar-screen --audio, sound.swift): "OK", then "PCM <rate> <channels>" and 16-bit samples,
+// played by AVAudioEngine from a ring that starts once 60 ms are in and keeps under 160 ms (what runs ahead goes), as zinc:audio's stream
+final class Ring {
+    let lock = NSLock(); var buf = [Float](repeating: 0, count: 48000 * 2), head = 0, count = 0, primed = false, ch = 2, rate = 48000
+    func put(_ v: UnsafeBufferPointer<Int16>) {
+        lock.lock(); defer { lock.unlock() }
+        for x in v { if count == buf.count { head = (head + 1) % buf.count; count -= 1 }; buf[(head + count) % buf.count] = Float(x) / 32768; count += 1 }
+        let most = rate * ch * 16 / 100, prime = rate * ch * 6 / 100
+        if count > most { let d = (count - prime) / ch * ch; head = (head + d) % buf.count; count -= d }
+    }
+    func take(_ frames: Int, _ out: UnsafeMutableAudioBufferListPointer) {
+        lock.lock(); defer { lock.unlock() }
+        if !primed && count >= rate * ch * 6 / 100 { primed = true }
+        for f in 0..<frames {
+            for c in 0..<min(out.count, ch) {
+                let p = out[c].mData!.assumingMemoryBound(to: Float.self)
+                p[f] = primed && count > 0 ? buf[(head + c) % buf.count] : 0
+            }
+            if primed && count >= ch { head = (head + ch) % buf.count; count -= ch } else if primed { primed = false }
+        }
+    }
+}
+let soundPort = socket(AF_INET, SOCK_STREAM, 0)
+setsockopt(soundPort, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
+var soundAddr = addr; soundAddr.sin_port = (port + 1).bigEndian
+if withUnsafePointer(to: &soundAddr, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(soundPort, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }) == 0 && listen(soundPort, 1) == 0 {
+    Thread {
+        while true {
+            let c = accept(soundPort, nil, nil)
+            if c < 0 { continue }
+            _ = "OK\n".withCString { write(c, $0, 3) }
+            var line = [UInt8](), b: UInt8 = 0
+            while line.count < 100 && read(c, &b, 1) == 1 && b != 10 { line.append(b) }
+            let w = String(decoding: line, as: UTF8.self).split(separator: " ")
+            guard w.count == 3, w[0] == "PCM", let rate = Int(w[1]), let ch = Int(w[2]), rate >= 8000, rate <= 192000, ch == 1 || ch == 2 else { close(c); continue }
+            let ring = Ring(); ring.rate = rate; ring.ch = ch; ring.buf = [Float](repeating: 0, count: rate * ch)
+            let engine = AVAudioEngine()
+            let fmt = AVAudioFormat(standardFormatWithSampleRate: Double(rate), channels: AVAudioChannelCount(ch))!
+            let node = AVAudioSourceNode(format: fmt) { _, _, frames, list in ring.take(Int(frames), UnsafeMutableAudioBufferListPointer(list)); return noErr }
+            engine.attach(node); engine.connect(node, to: engine.mainMixerNode, format: fmt)
+            do { try engine.start() } catch { print("sidecar-receiver: no sound output: \(error.localizedDescription)"); close(c); continue }
+            print("sidecar-receiver: sound \(rate) Hz, \(ch) channel(s)")
+            var raw = [UInt8](repeating: 0, count: 8192), keep = 0
+            while true {
+                let n = read(c, &raw[keep], raw.count - keep)
+                if n <= 0 { break }
+                let all = keep + n, whole = all / 2 * 2
+                raw.withUnsafeBytes { p in ring.put(UnsafeBufferPointer(start: p.baseAddress!.assumingMemoryBound(to: Int16.self), count: whole / 2)) }
+                keep = all - whole; if keep > 0 { raw[0] = raw[whole] }
+            }
+            engine.stop(); close(c)
+        }
+    }.start()
+}
 Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
     if pictures + videoFrames > 0 { print(String(format: "shown: %.0f pictures/s, %.0f video pictures/s", Double(pictures) / 2, Double(videoFrames) / 2)) }
     pictures = 0; videoFrames = 0
