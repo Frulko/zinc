@@ -90,7 +90,12 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   their mood and genre scores) with tier 1: 0.65 / 0.35 (`deep` and `deepStep` in `history/genius.json`); a song it did not analyse
   keeps tier 1. For you adds **Sounds like X** (your two recent favourites and three of their closest songs) with a smooth path
   between them (`find_path`), and **Mood mixes** (danceable, aggressive, happy, party, relaxed, sad). When AudioMuse does not answer
-  the cached results are used and the page says "Deep analysis offline"; songs added since are "not analysed yet".
+  the cached results are used and the page says "Deep analysis offline"; songs added since are "not analysed yet". Once set up (a
+  token, or synced before), the app asks AudioMuse's last task every minute (`IPOD_MUSE_POLL_MS`) and syncs by itself an analysis
+  that ended since the last sync, whoever started it; it stops asking while AudioMuse is offline or refuses the token.
+- **Recommendations.** Settings › Recommendations › Prepare recommendations starts, each as its Transfers job, the Last.fm history
+  import (resumed when left), the similar artists from Last.fm (asked again even when they were this launch) and the AudioMuse sync;
+  one line per source says where it stands ("Last.fm history: 38,882 listens, imported 2 days ago", `services/prepare.ts`).
 - **The queue.** As Spotify's: a double-click plays a song and the ones under it ("Next from" the album, playlist or page); a
   right click on a song, a selection, an album or a playlist offers Play, Play next and Add to queue (the system's own menu), which
   go to "Next in queue", before the rest. The list button of the bar opens the queue panel: Now playing, Next in queue (Clear queue)
@@ -187,7 +192,8 @@ src/
 ├── services/forYou.ts    # the For you shelves: signals, affinity, daily mixes, On Repeat, Rewind, Rediscover, Time Capsule, tops, the year
 ├── drafts.ts             # Genius lists and mixes as drafts: played first, Refresh, Save to iPod
 ├── services/audiomuse.ts # AudioMuse-AI's client: reach, analyse, cancel, sync, near lists, paths, the deep.v1 cache; no UI
-├── deep.ts               # the deep analysis in the app: its cache per iPod, the Settings card's jobs, near lists before Genius
+├── deep.ts               # the deep analysis in the app: its cache per iPod, the Settings card's jobs, near lists before Genius, auto sync
+├── services/prepare.ts   # the lines of Settings › Recommendations: the Last.fm history, the similar artists, AudioMuse's results
 ├── smart.ts              # the smart playlist editor's state: fields and conditions, rows, templates, preview, save, duplicate
 ├── menus.ts              # the right-click menu: Play, Play next, Add to queue, Add to playlist, Genius, Smart playlist like this
 ├── forYou.ts             # the For you page's shelves: kept per iPod and history version, worked out off the first frame, as drafts

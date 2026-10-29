@@ -15,6 +15,7 @@ import { History, Listen, LibTrack } from '../../../examples/ipod/src/services/h
 import { loadWeights, readArtistGraph, buildModel, attachDeep, genius, Model } from '../../../examples/ipod/src/services/genius';
 import * as fy from '../../../examples/ipod/src/services/forYou';
 import * as muse from '../../../examples/ipod/src/services/audiomuse';
+import * as prep from '../../../examples/ipod/src/services/prepare';
 
 const GUID = '000A27001234ABCD';
 const NOW: number = 1781524800;
@@ -171,6 +172,15 @@ async function main(): Promise<void> {
   }
   attachDeep(m, null);
   console.log('tier 1 again', letters(genius(m, alpha, 12)) === letters(t1), 'shelves', fy.extraShelves(fy.signals(h, GUID, m, NOW)).length);
+  // Settings › Recommendations: one line per source, from disk (the clock: three days after the similar artists' file was written)
+  fs.writeText(`${dir}/similar-artists.jsonl`, '{"artist":"alpha one","at":1,"similar":[]}\n{"artist":"bravo one","at":1,"similar":[]}\n');
+  const at = fs.stat(`${dir}/similar-artists.jsonl`).mtimeMs / 1000 + 3 * DAY;
+  h.set('lastfm.newest', `${at - 2 * DAY}`);
+  d.syncedAt = at - 3600;
+  console.log(prep.historyLine(h, at));
+  console.log(prep.similarLine(dir, at));
+  console.log(prep.museLine(d, tracks, true, at));
+  console.log(prep.thousands(38882), prep.thousands(999), prep.thousands(1234567));
   h.close();
 }
 

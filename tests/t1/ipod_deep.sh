@@ -5,10 +5,12 @@
 #   1. the client (interpreter, then QuickJS): reach, a bad token (401), an analysis polled to its end ("Albums 3/3"), one cancelled
 #      through /api/cancel, the sync paged into deep.v1.json (ids tr-<id>, one matched by its names, one not on the iPod), Genius
 #      merged differs from tier 1 as planted (A sounds like B: more B), a song not analysed still picked, near lists asked once, a
-#      path, the Sounds like and Mood mixes shelves; the stub down: offline, the cache read back, Genius as merged;
-#   2. the app (stub up), AudioMuse's last task asked every 0.2 s of the virtual clock (IPOD_MUSE_POLL_MS): an analysis running, then finished, is synced
-#      by itself once (deep.v1.json says its task); For you shows the deep shelves and "Deep analysis of"; the stub down and the near lists dropped: "Deep
-#      analysis offline". A free port; the stub is stopped at the end.
+#      path, the Sounds like and Mood mixes shelves, the lines of Settings › Recommendations; the stub down: offline, the cache read
+#      back, Genius as merged;
+#   2. the app (stub up): For you shows the deep shelves and "Deep analysis of"; the stub down and the near lists dropped: "Deep
+#      analysis offline";
+#   3. the app, AudioMuse's last task asked every 0.2 s of the virtual clock (IPOD_MUSE_POLL_MS): an analysis running, then finished,
+#      is synced by itself once (deep.v1.json says its task). A free port; the stub is stopped at the end.
 # Skips (77) without the system libraries of zinc:ipod. KEEP=dir keeps the output.
 cd "$(dirname "$0")/../.." || exit 2
 pkg-config --exists glib-2.0 gobject-2.0 libplist-2.0 taglib libusb-1.0 2>/dev/null || { echo "skipped: the libraries of zinc:ipod are not installed"; exit 77; }
@@ -38,6 +40,10 @@ shelf Sounds like Charlie One Song 1 | draft Sounds like Charlie One Song 1 CCCC
 shelf Sounds like Bravo One Song 1 | draft Sounds like Bravo One Song 1 AAAAAAAABBBBBBBB / draft Sounds like Bravo Two Song 1 AAAAAAAABBBBBBBB / draft Sounds like Bravo Three Song 1 AAAAAAAABBBBBBBB / draft Sounds like Bravo Four Song 2 AAAAAAAABBBBBBBB
 shelf Mood mixes | draft Aggressive AAAAAAAABBBBBBBB / draft Danceable CCCCCC
 tier 1 again true shelves 0
+Last.fm history: 720 listens, imported 2 days ago
+Similar artists: 2 known, updated 3 days ago
+AudioMuse: 23 of 26 songs analysed, synced 1 hour ago
+38,882 999 1,234,567
 OUT
 cat > "$tmp/want-offline" <<'OUT'
 reach offline true
@@ -69,18 +75,31 @@ PY
 done
 # ---- 2. the app: For you with the deep shelves, then offline
 cd "$tmp" || exit 2
-app() {   # app <name>: For you from the sidebar, the scene of frame 160 (the near lists of the last sync asked first)
+app() {   # app <name>: For you from the sidebar, the scene of frame 60
   printf '31 move 60 176\n32 down\n33 up\n' > "$1.input"
-  IPOD_DEMO_NOW=1781524800 IPOD_DEMO_MOUNT=$pod ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1180x760 ZINC_FRAMES=162 ZINC_INPUT="$tmp/$1.input" \
-    ZINC_SHOT="$tmp/$1.png" ZINC_SHOT_FRAMES=160 ZINC_SCENE_DUMP="$tmp/$1-scene" timeout 120 "$Z" run "$root/examples/ipod" --interp > "$1.out" 2>&1 \
+  IPOD_DEMO_NOW=1781524800 IPOD_DEMO_MOUNT=$pod ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1180x760 ZINC_FRAMES=62 ZINC_INPUT="$tmp/$1.input" \
+    ZINC_SHOT="$tmp/$1.png" ZINC_SHOT_FRAMES=60 ZINC_SCENE_DUMP="$tmp/$1-scene" timeout 120 "$Z" run "$root/examples/ipod" --interp > "$1.out" 2>&1 \
     || { echo "ipod_deep: the $1 session failed: $(tail -5 "$1.out")"; fail=1; }
 }
-says() { python3 "$root/tools/scene-texts" "$tmp/$1-scene-160" | grep -q "$2" || { echo "ipod_deep: $1 does not show \"$2\": $(python3 "$root/tools/scene-texts" "$tmp/$1-scene-160" | head -40 | tr '\n' '|')"; fail=1; }; }
-start
-printf '{"museUrl": "http://127.0.0.1:%s", "museToken": "muse-token"}\n' "$(cat port)" > backups/config.json
-: > requests.jsonl; : > auto
+says() { python3 "$root/tools/scene-texts" "$tmp/$1-scene-60" | grep -q "$2" || { echo "ipod_deep: $1 does not show \"$2\": $(python3 "$root/tools/scene-texts" "$tmp/$1-scene-60" | head -40 | tr '\n' '|')"; fail=1; }; }
+config() { printf '{"museUrl": "http://127.0.0.1:%s", "museToken": "muse-token"}\n' "$(cat port)" > backups/config.json; }
+deep=backups/cache/000A27001234ABCD/deep.v1.json
+start; config
+python3 -c "import json, sys; f = sys.argv[1]; d = json.load(open(f)); d['task'] = 'task-0'; json.dump(d, open(f, 'w'))" $deep   # synced after the stub's last analysis
+rm -f backups/cache/000A27001234ABCD/foryou.json
+app online
+for t in 'Deep analysis of' 'Sounds like' 'Mood mixes' 'Aggressive'; do says online "$t"; done
+stop
+python3 -c "import json, sys; f = sys.argv[1]; d = json.load(open(f)); d['near'] = []; json.dump(d, open(f, 'w'))" $deep
+rm -f backups/cache/000A27001234ABCD/foryou.json
+app offline
+says offline 'Deep analysis offline'
+says offline 'Mood mixes'
+# ---- 3. the app while AudioMuse analyses (task-auto running, then finished): one sync, by itself
+start; config; : > requests.jsonl; : > auto
 IPOD_MUSE_POLL_MS=200 IPOD_DEMO_MOUNT=$pod ZINC_FRAMES=900 timeout 120 "$Z" run "$root/examples/ipod" --interp > auto.out 2>&1 || { echo "ipod_deep: the auto session failed: $(tail -5 auto.out)"; fail=1; }
-python3 - requests.jsonl backups/cache/000A27001234ABCD/deep.v1.json > calls.out <<'PY' || { echo "ipod_deep (auto sync): $(cat calls.out)"; fail=1; }
+stop
+python3 - requests.jsonl $deep > calls.out <<'PY' || { echo "ipod_deep (auto sync): $(cat calls.out)"; fail=1; }
 import json, sys
 calls = [json.loads(l) for l in open(sys.argv[1])]
 looks = sum(1 for c in calls if c['path'] == '/api/last_task')
@@ -88,14 +107,5 @@ syncs = sum(1 for c in calls if c['path'] == '/api/sync' and c['query'].get('pag
 task = json.load(open(sys.argv[2]))['task']
 assert looks >= 5 and syncs == 1 and task == 'task-auto', 'looks %d, syncs %d, task %r' % (looks, syncs, task)
 PY
-rm -f backups/cache/000A27001234ABCD/foryou.json
-app online
-for t in 'Deep analysis of' 'Sounds like' 'Mood mixes' 'Aggressive'; do says online "$t"; done
-stop
-python3 -c "import json, sys; f = sys.argv[1]; d = json.load(open(f)); d['near'] = []; json.dump(d, open(f, 'w'))" backups/cache/000A27001234ABCD/deep.v1.json
-rm -f backups/cache/000A27001234ABCD/foryou.json
-app offline
-says offline 'Deep analysis offline'
-says offline 'Mood mixes'
 [ $fail -eq 0 ] && echo "ipod_deep: ok"
 exit $fail

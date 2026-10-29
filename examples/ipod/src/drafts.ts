@@ -105,6 +105,15 @@ export function currentModel(): Model | null {
   return model as Model;
 }
 
+/** Settings › Recommendations: the similar artists of the iPod's artists not fetched yet (in the last 90 days), now, even when they
+ *  were asked since the app started. Nothing without an iPod or a Last.fm API key. */
+export function fetchArtistsNow(): void {
+  const lib = library(), key = loadConfig().lastfmKey;
+  if (lib === null || key === '') return;
+  askedArtists = '';
+  fetchArtists(lib as PodLibrary, key);
+}
+
 /** With a Last.fm API key: the similar artists of the iPod's artists not fetched yet, once per library, in the background. */
 function fetchArtists(lib: PodLibrary, key: string): void {
   const marker = `${cache.podKey()}:${lib.tracks.length}`;

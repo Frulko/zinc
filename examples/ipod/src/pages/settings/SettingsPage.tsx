@@ -1,6 +1,7 @@
 // Settings: the scrobbling accounts (Last.fm signed in through the browser, ListenBrainz by its token), what waits to be sent or
 // written, the listening history (imported from Last.fm and ListenBrainz, matched to this iPod, what it misses) and the size of the
-// remote iPod's song cache, sharing the iPod with AudioMuse-AI and AudioMuse's deep analysis. Saved in config.json at once.
+// remote iPod's song cache, what the recommendations are made from (Prepare recommendations), sharing the iPod with AudioMuse-AI and
+// AudioMuse's deep analysis. Saved in config.json at once.
 import { createSignal } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import { loadConfig } from '../../services/config';
@@ -15,6 +16,7 @@ import { Ranked } from '../../services/history';
 import { Button } from '../../components/Button';
 import { ShareFields, SHARE_NOTE } from './ShareFields';
 import { DeepFields, DEEP_NOTE } from './DeepFields';
+import { PrepareFields, PREPARE_NOTE } from './PrepareFields';
 import { bg, bd, fg, color, CARD, BORDER, TEXT, MUTED, FAINT, ACCENT, ERROR } from '../../constants';
 
 function Card(props: { icon: string; title: string; note: string; children: () => i32 }): i32 {
@@ -123,6 +125,7 @@ export function SettingsPage(): i32 {
           <Text className={`text-[11px] ${fg(MUTED)}`}>{missing()}</Text>
         </View> : <View />}
       </Card>
+      <Card icon="sparkles" title="Recommendations" note={PREPARE_NOTE}><PrepareFields /></Card>
       <Card icon="heart" title="For you" note="How the shelves of For you scroll sideways.">
         <Switch checked={shelfSnap} onChange={setShelfSnap} label="Cards snap into place when a scroll ends" />
         <Switch checked={shelfScrollbar} onChange={setShelfScrollbar} label="Show the shelves' scroll bars" />

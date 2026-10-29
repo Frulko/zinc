@@ -135,13 +135,15 @@ export function watchMuse(): void {
   tick();
 }
 
+/** AudioMuse was set up: a token, or results synced before (the default address alone is not asked: it may be another program). */
+export function museSetUp(): boolean { return loadConfig().museToken !== '' || currentDeep() !== null; }
+
 /** One look at AudioMuse's last task; true when no iPod is open yet (looked at again soon). Never throws. */
 async function checkMuse(): Promise<boolean> {
   if (library() === null) return true;
   const st = museState();
-  // asked only once set up (a token, or synced before: the default address alone is not AudioMuse), and not after it was offline
-  // or refused (Test connection, a sync or Genius reaching it again starts the looks again)
-  if ((loadConfig().museToken === '' && currentDeep() === null) || (st !== '' && st !== 'online') || busy('deep')) return false;
+  // not after it was offline or refused (Test connection, a sync or Genius reaching it again starts the looks again)
+  if (!museSetUp() || (st !== '' && st !== 'online') || busy('deep')) return false;
   try {
     const t = await muse.lastTask(conn());
     if (st !== 'online') setMuseState('online');
