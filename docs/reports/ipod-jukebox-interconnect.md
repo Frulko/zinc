@@ -200,3 +200,25 @@ Risks: AudioMuse is AGPL, always a separate process (already how the Zinc app us
 6. **Item 5**: AudioMuse client in jukebox (TODO 5.7) with the captured endpoints; Subsonic playlist-write routes; the Zinc candidate-provider last.
 
 What I did not prove: that `net.fetch`/`zinc:fs` can append or write-at (needed for sliced resume); that `ipod.update` can clear a field; that jukebox's `getAlbum` handles names with spaces; how `rating` is scaled in jukebox's Subsonic `setRating` (stars 1-5 in the protocol, 0..5 stored); whether the real `POST /tracks/:id/play` needs auth when the server is claimed (yes: bearer from the middleware, `GUEST_WRITES` allows the `play` capability). These are the first checks of the matching steps.
+
+## 7. Status (2026-10-30)
+
+- **Item 2 done** (`examples/ipod/src/services/jukebox.ts`, `jukeboxAdd.ts`, `pages/add/JukeboxSource.tsx`, Settings › jukebox;
+  `tests/t1/ipod_jukebox.sh` against `tests/data/ipod-jukebox/stub.py`): jukebox `/api/v1` first, Subsonic `/rest` when there is no
+  `/api/v1` (token `user:password` or an OpenSubsonic API key). A song in no iPod format gets one `POST /transcode {ids, format:
+  "aac"}` for the whole add, the job is polled (`GET /jobs/:id`), then the new rendition is fetched with `Range`; a song still
+  without one (no ffmpeg, a read-only source, a non-admin token) is converted while sent (`stream?format=aac`, no resume). Files come
+  in 8 MB `Range` slices into `<cache>/jukebox/<id>.<ext>.part/` and resume from the last slice. Remote iPods: `/api/add`, then
+  `/api/update` for the tags (the cover is the file's own). Checked: the `getAlbum` split bug of section 0 is not one, the separator is a NUL
+  (`subsonic.ts` `albumId`), not a space.
+- **Item 1, read-only half done** (`examples/ipod-web/src/services/satellite.ts`, `tests/t1/ipod_satellite.sh`): `/satellite`,
+  `/devices`, `/devices/:id`, `/devices/:id/tracks` (paged), and `--jukebox` announces the iPod (`POST /devices`, `PUT
+  /devices/:id/tracks`). `format` is the file's extension like the reference satellite, because `acquire.ts` names an imported file
+  `<name>.<format>` (a codec name `aac` would give `song.aac` for an MP4 file).
+- **Item 3b (plays to jukebox) not started**; the next step, exactly: in jukebox add `POST /api/v1/devices/:id/plays` taking
+  `{items: [{deviceLocalId, count, at}]}` (the shape of `ipod.played`), resolving `deviceLocalId` through `device_tracks.trackId`
+  and calling a variant of `recordPlay` (`apps/server/src/plays.ts`) that adds `count` to `playCount`, sets `lastPlayed = max(at)`
+  and does not call `events.emitPlay` (no plugin scrobble). Then in the daemon (`services/satellite.ts` `announce()`): keep
+  `<cache>/<GUID>/jukebox-plays.json` with each track's `playCount` last reported, send the positive deltas with `at = lastPlayed`
+  after the `PUT .../tracks`, and store the new counts only on a 2xx. Plays made in the Zinc app reach the iPod as counts too and
+  are sent the same way: jukebox counts them but does not scrobble them, so nothing is scrobbled twice (the app scrobbles its own).
