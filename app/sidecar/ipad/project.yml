@@ -1,0 +1,37 @@
+# The iPad's Sidecar screen: app/sidecar/mac/receiver.swift (main.swift here) as an iPadOS app, reached on the USB cable through usbmux
+# (sidecar-screen --host usb). build.sh generates the Xcode project from this file (xcodegen) and builds it.
+name: SidecarScreen
+options:
+  deploymentTarget: { iOS: "15.0" }
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: dev.zinc.sidecar.screen
+    SWIFT_OBJC_BRIDGING_HEADER: bridge.h
+    HEADER_SEARCH_PATHS: ["$(SRCROOT)/../../../third_party/lz4", "$(SRCROOT)/../../../third_party/zstd"]
+    GCC_PREPROCESSOR_DEFINITIONS: ["ZSTD_DISABLE_ASM=1", "ZSTD_MULTITHREAD=0"]
+    GCC_WARN_INHIBIT_ALL_WARNINGS: YES
+    TARGETED_DEVICE_FAMILY: "2"
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+targets:
+  SidecarScreen:
+    type: application
+    platform: iOS
+    sources:
+      - main.swift
+      - bridge.h
+      - path: ../../../third_party/lz4/lz4.c
+      - path: ../../../third_party/zstd/common
+        includes: ["*.c"]
+      - path: ../../../third_party/zstd/decompress
+        includes: ["*.c"]
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Sidecar
+        CFBundleShortVersionString: "0.1"
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSLocalNetworkUsageDescription: The Mac sends its screen to Sidecar on the USB cable or the network.

@@ -82,3 +82,12 @@ screen's answers, so a slow link drops pictures instead of lagging. A picture wh
 comes while the link is busy, goes rough (colours cut to 5-6-5 bits: half the bytes) and each of its tiles goes again exact once it has
 rested 300 ms (`--exact`: never rough). Every 2 s it prints the frames, the wire rate, the ratio and the round
 trip. `mac/codecbench.swift` measures the codecs on the Mac's own screen.
+
+**Another Mac** (`mac/build/sidecar-receiver`, an iMac 5K for instance): it shows the stream full screen at its display's native pixels
+(Esc quits); `sidecar-screen --host <that Mac>.local`. A direct cable (Ethernet, or a Thunderbolt bridge) is used before Wi-Fi when both
+reach it: the sender tries the 169.254 addresses first.
+
+**An iPad or an iPhone on the USB cable** (`ipad/`): the same receiver as an iPadOS app (iPadOS 15 and later; an iPad Pro 12.9" of 2015
+runs it on 16.7). `ipad/build.sh` builds it signed with the Apple Development team (xcodegen, Xcode), `ipad/install.sh` puts it on the
+device on the cable (ios-deploy); tap Sidecar on it, then `sidecar-screen --host usb` (or the tray's "iPad or iPhone on the USB cable"). The
+stream and the sound go through macOS's usbmuxd (`mac/usbmux.swift`), on the cable that charges the device: no network, no Wi-Fi.

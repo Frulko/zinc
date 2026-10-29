@@ -8,7 +8,8 @@
 // again exact once it has rested 300 ms.
 // A part of the screen that changes at nearly every picture (a film, a game) goes as H.264 when the receiver has a hardware decoder
 // (+h264): VideoToolbox here, the decoder and a display plane there; the rest stays exact tiles.
-//   sidecar-screen --host <address> [--port 7710] [--mirror <display>] [--hidpi] [--lz4] [--exact] [--no-video] [--audio] [--seconds n] [--synthetic <percent>]
+// --host usb[:<udid>]: an iPad or iPhone on the USB cable, through usbmuxd (usbmux.swift), the cable charging it meanwhile.
+//   sidecar-screen --host <address>|usb[:<udid>] [--port 7710] [--mirror <display>] [--hidpi] [--lz4] [--exact] [--no-video] [--audio] [--seconds n] [--synthetic <percent>]
 import Foundation
 import ScreenCaptureKit
 import CoreMedia
@@ -80,7 +81,9 @@ if !h264Dump.isEmpty {
                  frames, w, h, Double(total) * 8 / Double(frames) * 60 / 1e6, keys, ms[ms.count / 2], ms.last!, enc.lowLatency ? "on" : "off"))
     exit(0)
 }
-if host.isEmpty { die("--host <the screen's address> is needed (app/sidecar-screen shows it)") }
+if host.isEmpty { die("--host <the screen's address> is needed (app/sidecar-screen shows it), or usb for an iPad on the cable") }
+// an iPad or iPhone on the USB cable: its UDID after "usb:", else the first one there
+let usb: String? = host == "usb" ? "" : host.hasPrefix("usb:") ? String(host.dropFirst(4)) : nil
 
 // --- the connection: the receiver says "RMPP <w> <h> <model> +caps..."
 var sock: Int32 = -1
@@ -88,6 +91,11 @@ var tried = [String]()   // each address of the screen and whether it answered (
 /** A connected socket to one of the name's IPv4 addresses, each tried for 0.8 s: a Pi on a USB cable announces both of its links
  *  (usb0, usb1) and only the one the Mac's active NCM function reaches answers, so the first address may never connect. */
 func dial() -> Int32 {
+    if let usb {
+        let s = usbmuxConnect(port, serial: usb)
+        tried.append("USB \(usb.isEmpty ? "device" : usb)" + (s >= 0 ? " answers" : usbmuxDevices().isEmpty ? ": none on the cable" : ": no Sidecar app open on it"))
+        return s
+    }
     var addrs = [in_addr]()
     var one = in_addr()
     if inet_pton(AF_INET, host, &one) == 1 { addrs = [one] } else {
@@ -147,12 +155,12 @@ do {
     var sa = sockaddr_in(), n = socklen_t(MemoryLayout<sockaddr_in>.size)
     _ = withUnsafeMutablePointer(to: &sa) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getpeername(sock, $0, &n) } }
     sa.sin_port = (port + 1).bigEndian
-    let s = socket(AF_INET, SOCK_STREAM, 0)
+    let s = usb.map { usbmuxConnect(port + 1, serial: $0) } ?? socket(AF_INET, SOCK_STREAM, 0)
     var tv = timeval(tv_sec: 1, tv_usec: 0)
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
     setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
     var answer = [UInt8]()
-    if withUnsafePointer(to: &sa, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(s, $0, n) } }) == 0 {
+    if usb != nil ? s >= 0 : withUnsafePointer(to: &sa, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(s, $0, n) } }) == 0 {
         var c: UInt8 = 0
         while answer.count < 200 && read(s, &c, 1) == 1 && c != 10 { answer.append(c) }
     }
@@ -550,6 +558,7 @@ Thread {
 // --- the details panel (the tray's "Details"): one line "info" of [section, name, value] every 2 s
 /** The Mac's interface the connection leaves by: its BSD name, what it is (Wi-Fi, Ethernet, USB...) and its rate in bit/s. */
 func link() -> (name: String, kind: String, local: String, bps: Int) {
+    if usb != nil { return ("usbmux", "USB cable (usbmux, charging)", "–", 480_000_000) }   // ponytail: USB 2's rate; a 12.9" iPad Pro's USB 3 is not read
     var sa = sockaddr_in(), n = socklen_t(MemoryLayout<sockaddr_in>.size)
     _ = withUnsafeMutablePointer(to: &sa) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(sock, $0, &n) } }
     var ip = [CChar](repeating: 0, count: 64); inet_ntop(AF_INET, &sa.sin_addr, &ip, 64)
@@ -582,6 +591,7 @@ func link() -> (name: String, kind: String, local: String, bps: Int) {
     return (name, kind, local, bps)
 }
 let peer: String = {
+    if let usb { return "USB \(usb.isEmpty ? usbmuxDevices().first?.serial ?? "device" : usb), port \(port)" }
     var sa = sockaddr_in(), n = socklen_t(MemoryLayout<sockaddr_in>.size)
     _ = withUnsafeMutablePointer(to: &sa) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getpeername(sock, $0, &n) } }
     var ip = [CChar](repeating: 0, count: 64); inet_ntop(AF_INET, &sa.sin_addr, &ip, 64)

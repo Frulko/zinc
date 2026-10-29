@@ -5,7 +5,13 @@
 // Core Animation commit: a whole picture at once, never half of one, no copy through the GPU. A video: VideoToolbox decodes the H.264
 // units in hardware into IOSurface-backed pixel buffers, set as the contents of a layer over the video's region (no CPU copy); the tiles
 // under it are never seen while it plays. Its end hides that layer with the next picture, the one that paints its place.
+// The same file is the iPad's app (app/sidecar/ipad, its main.swift): reached on the USB cable through usbmux (sidecar-screen --host usb).
+#if os(macOS)
 import AppKit
+import SystemConfiguration
+#else
+import UIKit
+#endif
 import QuartzCore
 import VideoToolbox
 import CoreMedia
@@ -13,7 +19,6 @@ import CoreImage
 import IOSurface
 import ImageIO
 import UniformTypeIdentifiers
-import SystemConfiguration
 import AVFoundation
 
 setvbuf(stdout, nil, _IOLBF, 0)
@@ -49,12 +54,17 @@ while !argv.isEmpty {
 
 /** The main display's native pixels: its mode marked native, else its largest 1x mode, else what it shows now. */
 func nativeSize() -> (Int, Int) {
+    #if os(iOS)
+    let b = UIScreen.main.nativeBounds   // portrait pixels; the app runs in landscape
+    return (Int(max(b.width, b.height)), Int(min(b.width, b.height)))
+    #else
     let id = CGMainDisplayID()
     let modes = (CGDisplayCopyAllDisplayModes(id, [kCGDisplayShowDuplicateLowResolutionModes: true] as CFDictionary) as? [CGDisplayMode]) ?? []
     if let m = modes.first(where: { $0.ioFlags & 0x0200_0000 != 0 }) { return (m.pixelWidth, m.pixelHeight) }   // kDisplayModeNativeFlag
     if let m = modes.filter({ $0.width == $0.pixelWidth }).max(by: { $0.pixelWidth < $1.pixelWidth }) { return (m.pixelWidth, m.pixelHeight) }
     let m = CGDisplayCopyDisplayMode(id)
     return (m?.pixelWidth ?? 1920, m?.pixelHeight ?? 1080)
+    #endif
 }
 let (W, H) = size ?? nativeSize()
 func now_us() -> UInt32 { UInt32(truncatingIfNeeded: clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1000) }
@@ -235,7 +245,11 @@ final class VideoDecoder {
         guard let format, !avcc.isEmpty else { return fail() }
         if session == nil {
             let attrs = [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary] as CFDictionary
-            let spec = [kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder: true] as CFDictionary
+            #if os(macOS)
+            let spec: CFDictionary? = [kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder: true] as CFDictionary
+            #else
+            let spec: CFDictionary? = nil   // always the hardware's on iOS
+            #endif
             VTDecompressionSessionCreate(allocator: nil, formatDescription: format, decoderSpecification: spec, imageBufferAttributes: attrs, outputCallback: nil, decompressionSessionOut: &session)
             if let s = session { VTSessionSetProperty(s, key: kVTDecompressionPropertyKey_RealTime, value: kCFBooleanTrue) }
         }
@@ -262,6 +276,7 @@ final class VideoDecoder {
 let video = VideoDecoder()
 
 // --- the window
+#if os(macOS)
 final class Window: NSWindow { override var canBecomeKey: Bool { true }; override var canBecomeMain: Bool { true } }
 final class View: NSView {
     let blank = NSCursor(image: NSImage(size: NSSize(width: 1, height: 1)), hotSpot: .zero)
@@ -275,12 +290,13 @@ final class View: NSView {
         CATransaction.commit()
     }
 }
+#endif
 let picture = CALayer(), videoLayer = CALayer()
 var videoShown: CVPixelBuffer?   // kept alive while its surface is the layer's contents
 picture.bounds = CGRect(x: 0, y: 0, width: W, height: H)
 picture.contentsGravity = .resize
 picture.contents = surf[0]
-picture.backgroundColor = .black
+picture.backgroundColor = CGColor(gray: 0, alpha: 1)
 videoLayer.isHidden = true
 picture.addSublayer(videoLayer)
 
@@ -293,13 +309,20 @@ func present(_ i: Int, _ lastByte: UInt32, _ decodeUs: Int32) {
     shownLock.lock(); displayed = i; shownLock.unlock()
     send16(12, 0, Int32(bitPattern: now_us() &- lastByte), decodeUs, 0)
     pictures += 1
+    #if os(iOS)
+    waiting.isHidden = true
+    #endif
 }
 func showVideo(_ pb: CVPixelBuffer, _ x: Int, _ y: Int, _ w: Int, _ h: Int, _ gen: Int) {
     vLock.lock(); defer { vLock.unlock() }
     guard gen == vgen, let s = CVPixelBufferGetIOSurface(pb)?.takeUnretainedValue() else { return }
     vhide = false
     CATransaction.begin(); CATransaction.setDisableActions(true)
+    #if os(macOS)
     videoLayer.frame = CGRect(x: x, y: H - y - h, width: w, height: h)   // the layer's y goes up, the stream's down
+    #else
+    videoLayer.frame = CGRect(x: x, y: y, width: w, height: h)           // UIKit's layers go down, as the stream
+    #endif
     videoLayer.contents = s
     videoLayer.isHidden = false
     CATransaction.commit()
@@ -309,6 +332,7 @@ func showVideo(_ pb: CVPixelBuffer, _ x: Int, _ y: Int, _ w: Int, _ h: Int, _ ge
 }
 var pictures = 0, videoFrames = 0
 
+#if os(macOS)
 let app = NSApplication.shared
 app.setActivationPolicy(background ? .accessory : .regular)
 let screen = NSScreen.main!
@@ -349,6 +373,44 @@ if background { window.orderFront(nil) } else {
     if !windowed { app.presentationOptions = [.hideDock, .hideMenuBar]; NSCursor.hide() }
 }
 print("window \(window.windowNumber)")
+#else
+// the iPad: the picture fills the screen in landscape; until the Mac sends one, how to start it
+final class Root: UIViewController {
+    override var prefersStatusBarHidden: Bool { true }
+    override var prefersHomeIndicatorAutoHidden: Bool { true }
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        view.layer.addSublayer(picture)
+        waiting.text = "Sidecar\n\nPlug this iPad into the Mac with its cable,\nthen choose it in Sidecar on the Mac (iPad on USB)."
+        waiting.numberOfLines = 0; waiting.textAlignment = .center; waiting.textColor = .lightGray; waiting.font = .systemFont(ofSize: 22)
+        waiting.frame = view.bounds; waiting.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(waiting)
+    }
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        let b = view.bounds
+        let s = min(b.width / CGFloat(W), b.height / CGFloat(H))   // points per picture pixel: 1:1 on the screen's pixels at its size
+        picture.position = CGPoint(x: b.midX, y: b.midY)
+        picture.setAffineTransform(CGAffineTransform(scaleX: s, y: s))
+        CATransaction.commit()
+    }
+}
+let waiting = UILabel()
+final class Delegate: UIResponder, UIApplicationDelegate {
+    var window: UIWindow?
+    func application(_ a: UIApplication, didFinishLaunchingWithOptions o: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        window = UIWindow(frame: UIScreen.main.bounds)
+        window!.rootViewController = Root()
+        window!.makeKeyAndVisible()
+        a.isIdleTimerDisabled = true   // the screen stays on while it is the Mac's
+        try? AVAudioSession.sharedInstance().setCategory(.playback)
+        return true
+    }
+}
+#endif
 
 // --- the shot: the newest picture with the video over it, as a PNG
 func writeShot() {
@@ -390,7 +452,11 @@ do {
         }
         freeifaddrs(list)
     }
+    #if os(macOS)
     let local = (SCDynamicStoreCopyLocalHostName(nil) as String?).map { "\($0).local" } ?? "<this Mac>.local"
+    #else
+    let local = "usb"
+    #endif
     print("sidecar-receiver: \(W)x\(H), listening on port \(port): \(local), \(names.joined(separator: ", "))")
     print("on the sending Mac: sidecar-screen --host \(local)\(port == 7710 ? "" : " --port \(port)") [--hidpi]")
 }
@@ -465,15 +531,6 @@ func serve(_ c: Int32) {
     print(String(format: "sidecar-receiver: the sender left after %.0f s, %d rectangles, %d video units%@", Date().timeIntervalSince(t0), rects, units,
                  d.isEmpty ? "" : String(format: ", video decode %.1f ms median (last byte to picture)", Double(d[d.count / 2]) / 1000)))
 }
-Thread {
-    while true {
-        let c = accept(ls, nil, nil)
-        if c < 0 { continue }
-        print("sidecar-receiver: a sender connected")
-        serve(c)
-        close(c)
-    }
-}.start()
 // --- the sender's sound, on the next port (sidecar-screen --audio, sound.swift): "OK", then "PCM <rate> <channels>" and 16-bit samples,
 // played by AVAudioEngine from a ring that starts once 60 ms are in and keeps under 160 ms (what runs ahead goes), as zinc:audio's stream
 final class Ring {
@@ -528,8 +585,22 @@ if withUnsafePointer(to: &soundAddr, { $0.withMemoryRebound(to: sockaddr.self, c
         }
     }.start()
 }
+// senders are taken once the sound's port listens too: a sender that came between the two would find no sound
+Thread {
+    while true {
+        let c = accept(ls, nil, nil)
+        if c < 0 { continue }
+        print("sidecar-receiver: a sender connected")
+        serve(c)
+        close(c)
+    }
+}.start()
 Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
     if pictures + videoFrames > 0 { print(String(format: "shown: %.0f pictures/s, %.0f video pictures/s", Double(pictures) / 2, Double(videoFrames) / 2)) }
     pictures = 0; videoFrames = 0
 }
+#if os(macOS)
 app.run()
+#else
+UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(Delegate.self))
+#endif
