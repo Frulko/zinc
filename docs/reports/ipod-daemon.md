@@ -29,6 +29,7 @@ iPod ──USB── Pi / C.H.I.P.: examples/ipod-web (one Zinc program, compile
 ```
 zinc run examples/ipod-web -- [--port 8686] [--token T] [--user U --password P] [--api-key K] [--allow-changes] [--mount PATH]
     [--log-requests] [--lastfm-key K --lastfm-secret S --lastfm-session SK] [--listenbrainz-token T]
+    [--jukebox URL --jukebox-token T] [--url URL]
 ```
 
 - `--token`: the API's bearer token (`Authorization: Bearer T` or `?token=T`); without it `/api` answers 401 except from 127.0.0.1.
@@ -61,6 +62,28 @@ zinc run examples/ipod-web -- [--port 8686] [--token T] [--user U --password P] 
 | `POST /api/played` | body `{"plays": [{"id", "count", "at"}]}` (`at`: seconds since 1970): adds them to the iPod's play counts (`ipod.played`), `200 {"counted": n}`; read only, they wait in `<backups>/cache/<GUID>/plays.json` and the answer is `202 {"pending": n}` (the plays waiting); a later run with `--allow-changes` writes them after its scan. Only the iPod: the app sends its listens to Last.fm and ListenBrainz itself |
 
 Errors: `{"error": "<sentence>"}` with 400, 401, 403, 404 or 500.
+
+## jukebox's satellite contract (read only)
+
+`--jukebox <address> --jukebox-token <a jukebox API token>` makes the iPod show in jukebox (music-lib-manager); `--url` is the address
+jukebox reaches the daemon at. The read-only routes of its device satellite contract (`docs/architecture.md` "Satellites" there,
+shapes of `apps/satellite/src/serve.ts`, `services/satellite.ts` here; tested by `tests/t1/ipod_satellite.sh`):
+
+| Route | Answer |
+|---|---|
+| `GET /satellite` | `{"id": "sat-ipod-web-<host>", "api": "1.0", "families": ["device"], "url"}` (`url`: `--url`, else the request's `Host`) |
+| `GET /devices` | `{"items": [device]}`, empty while no iPod is open |
+| `GET /devices/ipod-<GUID>` | the device: `id`, `name`, `kind` (`ipod-classic`, `ipod-nano`, `ipod-shuffle`), `model`, `serial`, `firmware`, `capacity` and `free` (bytes), `used` (`audio`, `video` bytes), `battery` (null), `charging`, `acceptedFormats` (`mp3`, `aac`, `alac`, `wav`, `aiff`) |
+| `GET /devices/ipod-<GUID>/tracks?limit=500&cursor=0` | `{"items": [...], "next": "<cursor>" or null}`: `deviceLocalId` (the iPod's track id), `name`, `artist`, `album`, `duration` (s), `size`, `format` (the file's extension, `m4a`, `mp3`, `wav`..., as the reference satellite: jukebox names the imported file with it), `sourceUrl` (`<url>/api/file/<id>?token=<token>`: jukebox fetches it with no header), and `albumArtist`, `trackNumber`, `discNumber`, `year`, `genre`, `rating`, `playCount`, `lastPlayed` |
+
+Same token as `/api`. Errors in jukebox's shape: `{"error": {"code", "message"}}` (401 `unauthorized`, 404 `not_found`, 405 `read_only`
+for anything but GET: no jobs yet). With `--jukebox` the daemon also announces the iPod as jukebox's reference satellite does:
+`POST <jukebox>/api/v1/devices` (the device and `satelliteId`) then `PUT <jukebox>/api/v1/devices/<id>/tracks` (every track), when
+it opens an iPod and after each change of its database (a failure is said once and tried again at the next scan); jukebox then
+shows the iPod, which of its songs are on it, and imports the others (`POST /api/v1/devices/<id>/import`, by their `sourceUrl`).
+
+Not there yet: `POST /devices/:id/jobs` (jukebox's sync), `GET .../jobs/:job`, `DELETE`, the item list and events; `fingerprint` in the
+track list. jukebox's own side lacks the rest (docs/reports/ipod-jukebox-interconnect.md, item 1).
 
 ## /rest (Subsonic 1.16.1)
 

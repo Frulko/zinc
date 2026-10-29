@@ -25,6 +25,8 @@ zinc build examples/ipod-web -o ipod-web    # one program to copy to the Pi
   from this machine (127.0.0.1) need none.
 - `--user U --password P`: the Subsonic account; without them `/rest` answers error 40.
 - `--allow-changes`: allows add, remove and eject; without it they answer 403 with a sentence.
+- `--jukebox URL --jukebox-token T --url URL`: report the iPod to jukebox (music-lib-manager) as a satellite (below); `--url` is
+  the address jukebox reaches this daemon at (the songs' `sourceUrl`).
 
 ## /api (JSON)
 
@@ -44,6 +46,24 @@ zinc build examples/ipod-web -o ipod-web    # one program to copy to the Pi
 
 Errors are `{"error": "<sentence>"}` with 400, 401, 403, 404, 405 or 500.
 
+## jukebox's satellite contract (read only)
+
+The read-only half of the device satellite of jukebox (music-lib-manager `docs/architecture.md` "Satellites", its reference
+`apps/satellite/src/serve.ts`), in `services/satellite.ts`:
+
+| Route | Answer |
+|---|---|
+| `GET /satellite` | `{"id": "sat-ipod-web-<host>", "api": "1.0", "families": ["device"], "url"}` (`url`: `--url`, else the request's `Host`) |
+| `GET /devices` | `{"items": [device]}`, empty while no iPod is open |
+| `GET /devices/ipod-<GUID>` | the device: `id`, `name`, `kind` (`ipod-classic`, `ipod-nano`, `ipod-shuffle`), `model`, `serial`, `firmware`, `capacity` and `free` (bytes), `used` (`audio`, `video` bytes), `battery` (null), `charging`, `acceptedFormats` (`mp3`, `aac`, `alac`, `wav`, `aiff`) |
+| `GET /devices/ipod-<GUID>/tracks?limit=500&cursor=0` | `{"items": [...], "next": "<cursor>" or null}`: `deviceLocalId` (the iPod's track id), `name`, `artist`, `album`, `duration` (s), `size`, `format` (the file's extension, `m4a`, `mp3`, `wav`..., as the reference satellite: jukebox names the imported file with it), `sourceUrl` (`<url>/api/file/<id>?token=<token>`: jukebox fetches it with no header), and `albumArtist`, `trackNumber`, `discNumber`, `year`, `genre`, `rating`, `playCount`, `lastPlayed` |
+
+Same token as `/api`. Errors in jukebox's shape: `{"error": {"code", "message"}}` (401 `unauthorized`, 404 `not_found`, 405 `read_only`
+for anything but GET: no jobs yet). With `--jukebox` the daemon also announces the iPod as jukebox's reference satellite does:
+`POST <jukebox>/api/v1/devices` (the device and `satelliteId`) then `PUT <jukebox>/api/v1/devices/<id>/tracks` (every track), when
+it opens an iPod and after each change of its database (a failure is said once and tried again at the next scan); jukebox then
+shows the iPod, which of its songs are on it, and imports the others (`POST /api/v1/devices/<id>/import`, by their `sourceUrl`).
+
 ## /rest (Subsonic)
 
 `ping`, `getLicense`, `getMusicFolders`, `getIndexes`, `getArtists`, `getArtist`, `getAlbum`, `getAlbumList`, `getAlbumList2`,
@@ -62,7 +82,7 @@ numbered in the order of their names. Files are sent as they are on the iPod (no
 - `query.ts`: a request's path and parameters.
 - `services/options.ts`: the command line. `services/library.ts`: opening the iPod, its albums and artists.
   `services/files.ts`: track files and the covers' cache. `services/web.ts`: the routes. `services/api.ts`: `/api`.
-  `services/subsonic.ts`: `/rest`.
+  `services/subsonic.ts`: `/rest`. `services/satellite.ts`: `/satellite` and `/devices`, and the announce to jukebox.
 - `constants.ts`: the port, the timings (the page asks `/api/status` every `PAGE_REFRESH_S`), the Subsonic version.
 
 ## Notes

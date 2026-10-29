@@ -54,7 +54,7 @@ function statusEl(): El {
   return e;
 }
 
-function authorized(req: net.Request, q: Query): boolean {
+export function authorized(req: net.Request, q: Query): boolean {
   if (req.headers.get('authorization') === 'Bearer ' + options.token || q.get('token') === options.token) return true;
   return !options.tokenGiven && req.remoteAddress === '127.0.0.1';
 }

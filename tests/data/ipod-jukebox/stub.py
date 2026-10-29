@@ -7,6 +7,7 @@ playlists/:id/tracks, transcode (a job; when it ends the FLAC track holds an AAC
 stream/:id (rendition=, format= converted while sent: no Range; Range answered 206 with Content-Range), artwork/:name.
 A file <dir>/cut-<track id> holding an offset: the first ranged request of that track at or past the offset is cut halfway
 (the file is removed).
+POST /api/v1/devices and PUT /api/v1/devices/:id/tracks take what a satellite reports (tests/t1/ipod_satellite.sh).
 /navi is a Subsonic-only server (its /api/v1/health is a 404) over the same library: /navi/rest/{ping, getArtists, getArtist,
 getAlbum, getPlaylists, getPlaylist, search3, download, stream, getCoverArt}.view, user ann, password sesame (p=enc:)."""
 import base64, http.server, json, os, sys, urllib.parse
@@ -88,6 +89,9 @@ class H(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         self.do_GET()
 
+    def do_PUT(self):
+        self.do_GET()
+
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
@@ -106,9 +110,22 @@ class H(http.server.BaseHTTPRequestHandler):
         if auth != 'Bearer ' + TOKEN and q.get('token') != TOKEN:
             log(entry)
             return self.fail(401, 'unauthorized', 'a bearer token is required')
-        if self.command == 'POST':
+        if self.command in ('POST', 'PUT'):
             entry['body'] = self.body()
+            entry['auth'] = auth
         log(entry)
+        if p == '/devices' and self.command == 'POST':   # a satellite registers its device (app.ts api.post('/devices'))
+            b = entry['body']
+            if not b.get('id') or not b.get('name') or not b.get('kind'):
+                return self.fail(400, 'bad_body', 'expected { id, name, kind }')
+            return self.send(201, dict(b, connected=1))
+        if p.startswith('/devices/') and p.endswith('/tracks') and self.command == 'PUT':   # what is on it, matched as jukebox does
+            items = entry['body'].get('items')
+            if not isinstance(items, list):
+                return self.fail(400, 'bad_body', 'expected { items: [] }')
+            matched = sum(1 for it in items if any(t['artist'].lower() == (it.get('artist') or '').lower() and t['name'].lower() == (it.get('name') or '').lower()
+                                                   and abs(t['duration'] - (it.get('duration') or 0)) <= 3 for t in TRACKS))
+            return self.send(200, {'received': len(items), 'matched': matched, 'orphans': len(items) - matched})
         if p == '/tracks/count':
             return self.send(200, {'count': len(TRACKS)})
         if p == '/facets':

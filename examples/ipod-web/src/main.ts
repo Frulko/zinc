@@ -8,6 +8,7 @@ import { options } from './services/options';
 import { access } from './services/subsonic';
 import { scrobbleFromSubsonic } from './services/plays';
 import { SCAN_EVERY_MS } from './constants';
+import { announce } from './services/satellite';
 
 access.user = options.user;
 access.password = options.password;
@@ -18,7 +19,9 @@ access.scrobble = scrobbleFromSubsonic;
 start(options.port);
 console.log(`ipod-web: http://localhost:${options.port} (Ctrl+C to stop)`);
 if (!options.tokenGiven) console.log(`ipod-web: /api token ${options.token} (none needed from this machine)`);
+if (options.jukebox !== '') console.log(`ipod-web: the iPod is reported to jukebox ${options.jukebox}`);
 if (options.user === '' && options.apiKey === '') console.log('ipod-web: /rest is off: give --user and --password (or --api-key) for Subsonic clients');
 console.log(options.allowChanges ? 'ipod-web: changes allowed (add, remove, eject, playlists)' : 'ipod-web: read only (--allow-changes to add, remove, eject, change playlists)');
-scan();
-setInterval(() => { scan(); }, SCAN_EVERY_MS);
+async function tick(): Promise<void> { await scan(); await announce(); }
+tick();
+setInterval(() => { tick(); }, SCAN_EVERY_MS);

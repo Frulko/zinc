@@ -1,10 +1,12 @@
-// The web server: `/` the page, `/pod.json` the same data for a program, `/api/...` the iPod API, `/rest/...` Subsonic, else a 404.
+// The web server: `/` the page, `/pod.json` the same data for a program, `/api/...` the iPod API, `/rest/...` Subsonic, `/satellite`
+// and `/devices/...` jukebox's satellite contract (services/satellite.ts), else a 404.
 import * as net from 'zinc:net';
 import { last } from '../state';
 import { page, json } from '../web/page';
 import { api } from './api';
 import { rest } from './subsonic';
 import { options } from './options';
+import { satellite } from './satellite';
 
 /** The path with the secrets of its query masked, as --log-requests prints it. */
 export function masked(path: string): string { return path.replace(/([?&](?:p|t|s|apiKey|token|password)=)[^&]*/gi, '$1***'); }
@@ -21,6 +23,7 @@ async function handle(req: net.Request): Promise<net.Reply> {
   const path = req.path.split('?')[0];
   if (path.startsWith('/api/')) return api(req);
   if (path.startsWith('/rest/')) return rest(req);
+  if (path === '/satellite' || path === '/devices' || path.startsWith('/devices/')) return satellite(req);
   if (req.method !== 'GET') return { status: 405, body: 'GET only\n', contentType: 'text/plain' };
   if (path === '/' || path === '/index.html') return { status: 200, body: page(last), contentType: 'text/html; charset=utf-8' };
   if (path === '/pod.json') return { status: 200, body: json(last), contentType: 'application/json' };

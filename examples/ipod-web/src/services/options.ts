@@ -1,5 +1,5 @@
 // The command line: zinc run examples/ipod-web -- [--port N] [--token T] [--user U --password P] [--api-key K] [--allow-changes]
-//   [--mount PATH] [--log-requests]
+//   [--mount PATH] [--log-requests] [--jukebox URL --jukebox-token T] [--url URL]   (jukebox: the iPod reported to it as a satellite)
 //   [--lastfm-key K --lastfm-secret S --lastfm-session SK] [--listenbrainz-token T]   (the Subsonic clients' plays scrobbled)
 import { args, randomBytes } from 'zinc:sys';
 import { toHex } from 'zinc:web';
@@ -25,6 +25,11 @@ export class Options {
   lastfmSession: string = '';
   /** ListenBrainz: the user token. */
   listenbrainzToken: string = '';
+  /** jukebox (music-lib-manager) to report the iPod to, its address and a token of it; '' = none. */
+  jukebox: string = '';
+  jukeboxToken: string = '';
+  /** The address others reach this daemon at (the songs' sourceUrl given to jukebox); '' = the request's Host. */
+  url: string = '';
 }
 
 export function parseOptions(): Options {
@@ -44,6 +49,9 @@ export function parseOptions(): Options {
     else if (a === '--lastfm-secret') o.lastfmSecret = next;
     else if (a === '--lastfm-session') o.lastfmSession = next;
     else if (a === '--listenbrainz-token') o.listenbrainzToken = next;
+    else if (a === '--jukebox') o.jukebox = next.replace(/\/+$/, '');
+    else if (a === '--jukebox-token') o.jukeboxToken = next;
+    else if (a === '--url') o.url = next.replace(/\/+$/, '');
     else if (a === '--mount') o.mount = next.endsWith('/') && next.length > 1 ? next.slice(0, next.length - 1) : next;
     else continue;
     i++;
