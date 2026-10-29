@@ -442,6 +442,8 @@ On Android (`ui.platformStyle()` 'android', `ZINC_PLATFORM=android` on the deskt
 
 `tests/t1/scroll_platform.sh` runs one script of fingers under each platform and keeps every frame's offset and stretch.
 
+`dragToScroll` on a scroll container lets a mouse drag it too (a carousel; fingers and pens always drag): a drag is never a click, a click without a drag still is. `ui.scrollTo(h, x, y, true)` eases to the offset instead of jumping, as React Native's `scrollTo({ animated: true })`.
+
 `<ScrollView stickToBottom>` follows its end (a chat, a log): while it shows the end, it keeps showing it as the content grows or the view is resized;
 once the user scrolls up it stays where it is, and it follows again when brought back to the end (`ui.scrollTo(h, 0, 1e9)` from code).
 

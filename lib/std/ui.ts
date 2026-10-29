@@ -83,6 +83,7 @@ export class Handlers {
   dragThreshold: number = 8;    // px before a drag takes the pointer (the scroll slop is 8 px too)
   keep: boolean = false;        // grab="keep": an ancestor's drag or scroll never steals the pointer
   keepX: boolean = false;       // grab="keep-x": only horizontal-ish gestures stay (a mostly vertical drag still scrolls)
+  dragToScroll: boolean = false;   // a mouse drag scrolls this container too (a carousel), not only fingers and pens
   tabIndex: i32 = 0;            // > 0 first in the Tab order, < 0 out of it (still focusable by click)
   noPress: boolean = false;     // pressFeedback={0}: no default dim while it is pressed (it shows its pressed state itself)
   disabled: boolean = false;    // no events, no focus, for the node and its subtree
@@ -627,9 +628,16 @@ export function draw(h: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void 
 /** Scroll offset of a scroll container (pixels from the top / left). */
 export function scrollTop(h: i32): number { return node(h).sy; }
 export function scrollLeft(h: i32): number { return node(h).sx; }
-/** Scrolls a container to an offset (clamped). */
-export function scrollTo(h: i32, x: number, y: number): void {
+/** Scrolls a container to an offset (clamped); `animated` eases there with the wheel's spring, as React Native's scrollTo({ animated }). */
+export function scrollTo(h: i32, x: number, y: number, animated: boolean = false): void {
   const n = node(h);
+  if (animated && !reduceMotion) {
+    if ((n.scroll & 2) !== 0) { const a = axisX(n); a.target = Math.max(0, Math.min(maxScrollX(n), x)); a.mode = WHEEL; }
+    if ((n.scroll & 1) !== 0) { const a = axisY(n); a.target = Math.max(0, Math.min(maxScrollY(n), y)); a.mode = WHEEL; }
+    n.scrolledAt = clock; paintDirty = true;
+    wakeScroll(h);
+    return;
+  }
   n.sx = x; n.sy = y; n.vx = 0; n.vy = 0; n.ax = null; n.ay = null; n.live = false;
   clampScroll(n);
   n.scrolledAt = clock;
@@ -5642,7 +5650,8 @@ function pressAt(px: number, py: number, button: i32): void {
       else if (focus >= 0 && nodes[focus].ed !== null) setFocusTo(-1);
     }
   }
-  dragScroller = selecting >= 0 || keepsGrab(capture) || !dragScrolls() ? -1 : scrollerTop(px, py, 3);
+  const under = selecting >= 0 || keepsGrab(capture) ? -1 : scrollerTop(px, py, 3);
+  dragScroller = under >= 0 && (dragScrolls() || mouseDrags(under)) ? under : -1;   // a mouse drags only a dragToScroll container
   // a scroll area under something else that takes the pointer at this point (a splash screen with its own handlers over the page) is not
   // what the finger is on: its drags stay with what it touches (hero's home screen follows the finger instead of scrolling the page hidden
   // under it). What takes the pointer inside the scroll area, or around it (an ancestor), leaves the area its drags; so does a node that
@@ -6387,6 +6396,7 @@ function applyInteraction(n: UiNode, key: string, iv: i32, v: number): boolean {
   if (key === 'ariaHidden') { n.ariaHidden = iv !== 0; return true; }
   if (key === 'pressFeedback') { hsOf(n).noPress = iv === 0; return true; }
   if (key === 'stickToBottom') { n.stick = iv !== 0; layoutDirty = true; return true; }
+  if (key === 'dragToScroll') { hsOf(n).dragToScroll = iv !== 0; return true; }
   return false;
 }
 /** The node or an ancestor has `disabled`: no pointer events, no activation, no focus. */
@@ -6395,6 +6405,7 @@ export function isDisabled(h: i32): boolean {
   return false;
 }
 function keepsX(h: i32): boolean { if (h < 0) return false; const s = nodes[h].hs; return s !== null && (s as Handlers).keepX; }
+function mouseDrags(h: i32): boolean { const s = nodes[h].hs; return s !== null && (s as Handlers).dragToScroll; }
 function keepsGrab(h: i32): boolean { if (h < 0) return false; const s = nodes[h].hs; return s !== null && (s as Handlers).keep; }
 
 // ---- gesture arbitration (Qt pointer handlers): the press goes to the raw onPointerDown node (capture) and, passively,
