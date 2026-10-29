@@ -332,6 +332,7 @@ export class UiNode {
   scroll: i32 = 0;
   sx: number = 0; sy: number = 0; contentW: number = 0; contentH: number = 0;
   natW: number = 0;   // the width measure() gave when the whole row was offered, before flex-basis (classic layout)
+  basisCut: boolean = false;   // a box below it was given less than its content by a flex-basis: its size depends on the width it gets
   vx: number = 0; vy: number = 0; scrolledAt: number = -100000;
   stick: boolean = false; endY: number = 0;   // stickToBottom: follows the end while it shows it; endY is the end the last layout saw
   // scroll physics (ScrollAxis, stepScroll), created on the first user scroll; `live` while a gesture or an
@@ -3099,6 +3100,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
   } else {
     const kids = pooled(mKids, mDepth);
     mDepth++;
+    n.basisCut = false;
     flat(n, kids, false);
     orderKids(kids);
     const inner: number = (ownW >= 0 ? ownW : maxW) - n.pl - n.pr;
@@ -3126,6 +3128,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
       measure(c, n.row ? inner : inner - c.ml - c.mr, innerH);
       c.natW = c.lw;
       applyBasis(c, n.row, mainAvail);
+      if (c.basisCut || (n.row && c.lw < c.natW - 0.5)) n.basisCut = true;
       if (aspects && c.aspect > 0 && c.h < 0 && c.hFrac === 0 && !c.fullH) {
         const g: number = c.grow > 0 ? c.grow : c.fullW ? 1 : 0;
         const fw: number = n.row ? c.lw + (growSum > 0 ? growFree * g / growSum : 0) : (c.w < 0 && c.wFrac === 0 && (n.align === 3 || c.fullW) ? inner - c.ml - c.mr : c.lw);
@@ -3161,7 +3164,8 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
       }
     }
     // a row with room left: the children that grow get it, and one that gets less than the width it was measured at (a flex-basis below
-    // its content) is measured again at that width, so that what wraps in it wraps there and the row takes the height that gives
+    // its content, here or in a box inside it) is measured again at that width, so that what wraps in it wraps there and the row takes
+    // the height that gives
     if (n.row && !n.wrap && !aspects && main < inner - 0.5) {
       let gs: number = 0;
       for (const c of kids) if (c.grow > 0) gs += c.grow;
@@ -3171,7 +3175,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
         for (const c of kids) {
           if (c.grow <= 0) continue;
           const fw: number = c.lw + free * c.grow / gs;
-          if (c.natW > fw + 0.5) { measure(c, fw, innerH); applyBasis(c, true, mainAvail); again = true; }
+          if (c.natW > fw + 0.5 || c.basisCut) { measure(c, fw, innerH); applyBasis(c, true, mainAvail); again = true; }
         }
         if (again) { cross = 0; for (const c of kids) if (outerH(c) > cross) cross = outerH(c); }
       }

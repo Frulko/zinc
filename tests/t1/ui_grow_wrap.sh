@@ -3,7 +3,7 @@
 # frame hash is the golden's on the interpreter, QuickJS and the compiled program.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-export ZINC_DETERMINISTIC=1 ZINC_FRAMES=60 ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=200x150 ZINC_FRAMEHASH=last
+export ZINC_DETERMINISTIC=1 ZINC_FRAMES=60 ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=300x80 ZINC_FRAMEHASH=last
 p=tests/data/ui-grow-wrap want=$(cat $p/frame.hash) fail=0
 h=$("$ZINC" run --interp $p 2>&1 | grep framehash); [ "$h" = "$want" ] || { echo "interpreter: $h"; fail=1; }
 h=$("$ZINC" run $p --engine quickjs 2>&1 | grep framehash); [ "$h" = "$want" ] || { echo "QuickJS: $h"; fail=1; }

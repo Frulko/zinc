@@ -1,5 +1,7 @@
 // A row whose second child grows from flex-basis 0 and holds cards that wrap: the row is as tall as the cards wrapped at the width that
-// child ends with (one per line here), so the text under the row starts below the last card instead of over the cards.
+// child ends with (one per line here), so the text under the row starts below the last card instead of over the cards. The whole sits
+// in a scroll view, in a column that grows from basis 0 beside a side panel, as an app's content beside its sidebar: the content is
+// measured again at that column's width, so the text stays under the cards and the scroll reaches it.
 import { render } from 'zinc:ui/solid';
 
 function Card(props: { label: string }): i32 {
@@ -7,7 +9,8 @@ function Card(props: { label: string }): i32 {
 }
 
 function App(): i32 {
-  return <View className="flex-col h-full p-2 bg-white">
+  return <View className="flex-row h-full bg-white"><View className="w-[100] h-full bg-gray-300" />
+  <View className="grow basis-0 min-w-0 min-h-0 flex-col"><ScrollView className="grow"><View className="flex-col p-2">
     <View className="flex-row gap-2 items-start">
       <View className="w-[40] h-[30] bg-gray-400" />
       <View className="grow basis-0 min-w-0 flex-col">
@@ -15,7 +18,7 @@ function App(): i32 {
       </View>
     </View>
     <Text className="text-[12px] text-red-600">under the row</Text>
-  </View>;
+  </View></ScrollView></View></View>;
 }
 
 render(App, 0xffffff, null);
