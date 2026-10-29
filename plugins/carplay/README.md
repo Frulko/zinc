@@ -6,6 +6,8 @@ The adapter uses pinned PlayPort for wireless and a separate DiPlay-derived
 macOS USB overlay, including software accessory authentication with a local identity.
 No physical MFi coprocessor is required by this backend.
 
+See the [mode and operations guide](../../docs/plugins/carplay-modes.md) for USB/wireless support, classic/Ultra selection, Pi service commands and reboot diagnostics.
+
 ## Offline native demo
 
 `examples/carplay/run` generates local H.264 video and a short PCM tone, then
@@ -58,7 +60,7 @@ capture, mode transition and utun configuration are explicit privileged actions.
 See [the wired backend instructions](backend/usb/README.md) for exact commands,
 phone selection, Trust, cleanup and physical verification limits. The viewer's
 loopback URL and native media/input APIs are the same in either transport.
-No physical USB session has been verified.
+A physical USB session has been verified on macOS with an iPhone; USB on Linux is not supported by the current launcher.
 
 ## API
 
