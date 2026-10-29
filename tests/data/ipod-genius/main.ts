@@ -97,6 +97,8 @@ async function main(): Promise<void> {
   console.log('refresh', r1[0].id === seedId, ids(r1) === ids(genius(plain, seedId, 25, 1)), 'Alpha songs', alpha, 'spread', spreadOk(r1.slice(0, 23), w.artistSpread));
 
   // Last.fm's similar artists (the stub): fetched once, then from the cache
+  let told = '';   // the progress, and a stop after two artists (Cancel in Transfers)
+  console.log('stopped after', await fetchSimilarArtists(dir, 'apikey', names, 200, (done: i32, total: i32, artist: string): boolean => { told += `${done}/${total} `; return done < 2; }), told);
   console.log('fetched', await fetchSimilarArtists(dir, 'apikey', names), 'again', await fetchSimilarArtists(dir, 'apikey', names));
   const graph = readArtistGraph(dir);
   const g1 = genius(buildModel(h, GUID, tracks, graph, w), seedId, 25);

@@ -16,7 +16,7 @@ import { history, historyStarted, historyVersion, setHistoryVersion } from './se
 import { Model, Mix, buildModel, attachDeep, genius, mixes, loadWeights, readArtistGraph, fetchSimilarArtists, savePlaylist } from './services/genius';
 import { currentDeep, deepVersion, prepareNear } from './deep';
 import { playList } from './services/player';
-import { enqueue, runBeside, busy } from './services/transfers';
+import { enqueue, runBeside, busy, Job } from './services/transfers';
 import { allowed, localOnly, refresh } from './actions';
 import { loadConfig } from './services/config';
 import { backupPlace } from './services/log';
@@ -111,11 +111,20 @@ function fetchArtists(lib: PodLibrary, key: string): void {
   const names: string[] = [];
   for (const t of lib.tracks) if (t.mediaType === 'audio' && t.artist !== '' && names.indexOf(t.artist) < 0) names.push(t.artist);
   let stopped = false;
-  runBeside('genius', 'Similar artists from Last.fm', async (): Promise<string> => {
-    const n = await fetchSimilarArtists(historyDir(), key, names);
-    if (stopped) return 'stopped';
+  let job: Job | null = null;
+  const step = (done: i32, total: i32, artist: string): boolean => {
+    if (job === null || stopped) return !stopped;
+    const j = job as Job;
+    j.setDone(done); j.setTotal(total); j.setDetail(artist);
+    if (done === 0) j.note(`${count(total, 'artist', 'artists')} to ask (the others were asked in the last 90 days)`);
+    else if (done % 50 === 0) j.note(`${done}/${total} artists asked`);
+    return true;
+  };
+  job = runBeside('genius', 'Similar artists from Last.fm', async (): Promise<string> => {
+    await Promise.resolve();   // `job` is set: runBeside starts the work before it returns
+    const n = await fetchSimilarArtists(historyDir(), key, names, names.length, step);   // all of them: Cancel keeps what was fetched
     if (n > 0) { model = null; setHistoryVersion(historyVersion() + 1); }   // built again with them
-    return n > 0 ? `${count(n, 'artist', 'artists')} fetched` : 'all known already';
+    return `${n > 0 ? `${count(n, 'artist', 'artists')} fetched` : 'all known already'}${stopped ? ' (stopped)' : ''}`;
   }, () => { stopped = true; });
 }
 

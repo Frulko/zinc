@@ -107,8 +107,10 @@ export function readArtistGraph(dir: string): ArtistGraph {
 
 /** Fetches Last.fm's similar artists of each of `artists` not fetched in the last 90 days (at most `max`, in the order given) into
  *  `<dir>/similar-artists.json`; the number fetched. Nothing without a `key`. An artist Last.fm does not know is kept with no
- *  neighbours (not asked again); any other error stops the run (what was fetched is kept) and is thrown. */
-export async function fetchSimilarArtists(dir: string, key: string, artists: string[], max: i32 = 200): Promise<i32> {
+ *  neighbours (not asked again); any other error stops the run (what was fetched is kept) and is thrown. `step` is told each artist
+ *  before it is asked (done of total); false stops the run there. */
+export async function fetchSimilarArtists(dir: string, key: string, artists: string[], max: i32 = 200,
+  step: (done: i32, total: i32, artist: string) => boolean = (done: i32, total: i32, artist: string): boolean => true): Promise<i32> {
   if (key.trim() === '') return 0;
   const file = `${dir}/${SIMILAR_FILE}`;
   const list = readSimilar(dir);
@@ -118,6 +120,11 @@ export async function fetchSimilarArtists(dir: string, key: string, artists: str
   let n: i32 = 0;
   const save = (): void => { fs.mkdir(dir, true); fs.writeText(`${file}.part`, JSON.stringify(list)); fs.rename(`${file}.part`, file); };
   const seen = new Set<string>();
+  const due = new Set<string>();   // the artists this run asks, for the progress
+  for (const name of artists) {
+    const k = normArtist(name), old = known.get(k);
+    if (k !== '' && due.size < max && (old === undefined || now - (old as SimilarEntry).at >= SIMILAR_TTL_S)) due.add(k);
+  }
   try {
     for (const name of artists) {
       const k = normArtist(name);
@@ -125,7 +132,7 @@ export async function fetchSimilarArtists(dir: string, key: string, artists: str
       seen.add(k);
       const old = known.get(k);
       if (old !== undefined && now - (old as SimilarEntry).at < SIMILAR_TTL_S) continue;
-      if (n >= max) break;
+      if (n >= max || !step(n, due.size, name)) break;
       const entry: SimilarEntry = { artist: k, at: now, similar: [] };
       try {
         const j = await lastfm(`method=artist.getsimilar&artist=${encodeURIComponent(name)}&autocorrect=1&limit=100`, key);

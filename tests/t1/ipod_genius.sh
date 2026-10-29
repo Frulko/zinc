@@ -27,7 +27,8 @@ fetched without a key 0
 genius 25 AAAAAAACCCCCCCCBBBBBBBBLL seed first true spread true
 one star picked false same again true
 refresh true true Alpha songs 7 spread true
-fetched 13 again 0
+stopped after 2 0/13 1/13 2/13 
+fetched 11 again 0
 genius with similar artists AAAAAAALBBBLBBBBCCCCCCCCB spread true
 ten 10 AAAAAAACCC
 mixes 3
