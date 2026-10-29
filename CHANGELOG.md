@@ -213,6 +213,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - JSX: `{props.render(item)}`, a variable that holds an element and `{cond ? row(x) : null}` are mounted as nodes; they showed a number.
 - QuickJS: TypeScript as libraries write it now loads: `export { a, type B }`, `async`, generator, generic and quoted methods in an object literal, and `xs[i]!++` (also on the typed engines).
 - `--engine quickjs`: `zinc:platform` has the capability constants (`POWER`, `NET`, `CAMERA`...) the Zinc engines give; importing one was a SyntaxError.
+- `zinc:net` `fetch`: a `User-Agent` header the program sets is now the only one sent; zinc's own `zinc/0.1` went out before it, so services that ask each app to name itself (MusicBrainz) saw zinc.
 - `zinc:fs`: `writeText`, `appendText`, `writeBytes`, `readText` and `copyFile` read and write a file in one go: writing 3 MB took 40 ms or more on macOS, now about 1 ms.
 - iPod demo: the queue panel follows the queue while it is open (it showed the queue as it was when opened), and on a Sonos group the bar shows the song the group moved to right after Next or Previous, not up to 15 seconds later.
 - Sidecar: a screen no longer stops with "capture stopped: Stream was stopped by the system" when another screen comes or goes or the displays change; the capture starts again.

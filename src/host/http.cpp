@@ -212,7 +212,8 @@ void parseEof(Fetch* f) {
   if (!f->finished && !f->restart) finish(f, false, e == HPE_OK ? "fetch failed: empty response" : "fetch failed: ECONNRESET");
 }
 std::string buildRequest(Fetch* k) {
-  std::string req = k->method + " " + k->path + " HTTP/1.1\r\nHost: " + k->host + (k->port == (k->secure ? 443 : 80) ? "" : ":" + std::to_string(k->port)) + "\r\nConnection: close\r\nUser-Agent: zinc/0.1\r\n";
+  std::string req = k->method + " " + k->path + " HTTP/1.1\r\nHost: " + k->host + (k->port == (k->secure ? 443 : 80) ? "" : ":" + std::to_string(k->port)) + "\r\nConnection: close\r\n";
+  if (headerOf(k->headers, "user-agent") == "") req += "User-Agent: zinc/0.1\r\n";   // the program's own wins (MusicBrainz asks each app to name itself)
   if (headerOf(k->headers, "accept") == "") req += "Accept: */*\r\n";
   for (size_t i = 0; i < k->headers.size();) {
     size_t e = k->headers.find('\n', i);
