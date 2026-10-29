@@ -49,7 +49,7 @@ export interface UltraStatus {
   phoneOffersVehicleState: boolean; phoneOffersUiSync: boolean;
   vehicleStateEnabled: boolean; uiSyncEnabled: boolean;
 }
-export interface UltraVehicleSnapshot { rpm: i32; fuelPct: i32; climateOn: boolean; targetCelsius: number; }
+export interface UltraVehicleSnapshot { rpm: i32; fuelPct: i32; climateOn: boolean; targetCelsius: number; radioStation?: string; radioTitle?: string; radioPlaying?: boolean; }
 export interface UltraUiChoice { command: number; layoutId?: string; paletteId?: string; preference?: i32; }
 export interface PairedDevice {
   id: string; bluetooth: boolean; airPlay: boolean; name?: string | null;
@@ -319,6 +319,10 @@ export class Session {
     if (this.ultra === null || !this.ultra.vehicleStateEnabled || !Number.isFinite(targetCelsius) || targetCelsius < 16 || targetCelsius > 30) return false;
     return this.send(JSON.stringify({ type: 'ultraGauge', gaugeId: 514, gaugeBool: on })) &&
       this.send(JSON.stringify({ type: 'ultraGauge', gaugeId: 520, gaugeNumber: targetCelsius }));
+  }
+  setUltraRadio(stationId: string): boolean {
+    return this.ultra !== null && this.ultra.vehicleStateEnabled && (stationId === 'inter' || stationId === 'fip' || stationId === 'info') &&
+      this.send(JSON.stringify({ type: 'ultraRadio', stationId: stationId }));
   }
   debugGps(latitude: number, longitude: number, speed: number = 0, course: number = 0): boolean {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 || !Number.isFinite(speed) || speed < 0 || !Number.isFinite(course) || course < 0 || course >= 360) return false;

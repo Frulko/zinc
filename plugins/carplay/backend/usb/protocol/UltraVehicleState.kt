@@ -7,21 +7,24 @@ class UltraVehicleState {
     private data class Characteristic(
         val iid: Long, val type: Long, val format: Long, val initial: Any,
         val writable: Boolean = false, val units: Long? = null, val maximum: Long? = null,
+        val mutable: Boolean = true, val large: Boolean = false,
     ) {
         fun plist(): Map<String, Any?> = linkedMapOf<String, Any?>(
             "iid" to iid, "type" to type, "format" to format,
-            "mutable" to true, "writable" to writable, "oemWritable" to true,
+            "mutable" to mutable, "writable" to writable, "oemWritable" to true,
             "priority" to 1L, "initialValue" to initial,
         ).apply {
             units?.let { this["units"] = it }
             maximum?.let { this["minimumValue"] = 0L; this["maximumValue"] = it; this["stepValue"] = 1L }
+            if (format in 10L..13L) this["maximumLength"] = if (large) 2_147_483_647L else 65_535L
+            if (large) this["largePayload"] = true
         }
     }
 
-    private data class Service(val iid: Long, val type: Long, val characteristics: List<Characteristic>) {
-        fun plist(): Map<String, Any?> = mapOf(
+    private data class Service(val iid: Long, val type: Long, val characteristics: List<Characteristic>, val controls: List<Map<String, Any?>> = emptyList()) {
+        fun plist(): Map<String, Any?> = linkedMapOf<String, Any?>(
             "iid" to iid, "type" to type, "characteristics" to characteristics.map { it.plist() },
-        )
+        ).apply { if (controls.isNotEmpty()) this["controls"] = controls }
     }
 
     private data class Accessory(val iid: Long, val type: Long, val services: List<Service>) {
@@ -41,7 +44,43 @@ class UltraVehicleState {
             Service(513, 0x11000001, listOf(Characteristic(514, 0x31000002, 0, true, writable = true))),
             Service(518, 0x11000002, listOf(Characteristic(520, 0x31000017, 9, 21.0, writable = true, units = 1082))),
         )),
+        Accessory(4096, 0x03000001, listOf(Service(4097, 0x14000006, listOf(
+            Characteristic(4098, 0x30000019, 10, "DAB", mutable = false),
+            Characteristic(4099, 0x32000025, 1, 6L, mutable = false),
+            Characteristic(4100, 0x32000011, 0, false),
+            Characteristic(4101, 0x30000001, 10, "Radio simulée"),
+            Characteristic(4102, 0x32000026, 10, "inter"),
+            Characteristic(4103, 0x32000012, 13, listOf(
+                radioItem("inter", "France Inter"), radioItem("fip", "FIP"), radioItem("info", "France Info"),
+            ), large = true),
+            Characteristic(4104, 0x32000031, 13, emptyList<Any>(), large = true),
+        )))),
+        Accessory(4352, 0x0F000001, listOf(Service(4353, 0x14000001, listOf(
+            Characteristic(4354, 0x32000023, 10, "DAB"),
+            Characteristic(4355, 0x32000003, 10, "France Inter"),
+            Characteristic(4356, 0x32000004, 10, "Radio simulée"),
+            Characteristic(4357, 0x32000005, 10, ""),
+            Characteristic(4358, 0x32000020, 11, byteArrayOf(), large = true),
+            Characteristic(4359, 0x32000034, 1, 0L),
+        ), radioControls()))),
     )
+
+    private fun radioItem(id: String, name: String): Map<String, Any> = mapOf(
+        "identifier" to id, "mediaItemName" to name, "mediaItemShortName" to name,
+        "mediaItemType" to "dab", "ensemble" to "Zinc demo", "mediaItemCategory" to 0L,
+    )
+
+    private fun radioControls(): List<Map<String, Any?>> = listOf(
+        4360L to 0x0F000032L, 4361L to 0x0F000033L, 4362L to 0x0F000035L,
+        4363L to 0x0F000036L, 4364L to 0x0F00004BL, 4365L to 0x0F00004CL,
+        4366L to 0x0F00004DL,
+    ).map { (iid, type) -> linkedMapOf<String, Any?>("iid" to iid, "type" to type, "sender" to 0L, "hasResponse" to true).apply {
+        if (iid == 4364L || iid == 4365L || iid == 4366L) this["requestParameters"] = when (iid) {
+            4364L -> listOf(mapOf("name" to "identifier", "format" to 10L), mapOf("name" to "sourceIdentifier", "format" to 10L))
+            4365L -> listOf(mapOf("name" to "frequency", "format" to 3L), mapOf("name" to "sourceIdentifier", "format" to 10L))
+            else -> listOf(mapOf("name" to "identifier", "format" to 10L))
+        }
+    } }
     private val characteristics = accessories.flatMap { it.services }.flatMap { it.characteristics }.associateBy { it.iid }
     private val values = characteristics.mapValuesTo(LinkedHashMap()) { it.value.initial }
     private val followed = HashSet<Long>()
@@ -60,6 +99,7 @@ class UltraVehicleState {
         val body = outer["pluginData"] as? ByteArray ?: return emptyList()
         val request = runCatching { AppleOpack.decode(body) as? Map<*, *> }.getOrNull() ?: return emptyList()
         val transaction = request["transactionID"]
+        val before = values.toMap()
         val result = when (request["command"]) {
             "configRequest" -> mapOf("command" to "configResponse", "transactionID" to transaction,
                 "values" to mapOf("accessories" to accessories.map { it.plist() }))
@@ -89,12 +129,32 @@ class UltraVehicleState {
             }
             "controlRequest" -> {
                 val controls = request["values"] as? Map<*, *> ?: emptyMap<Any, Any>()
-                mapOf("command" to "controlResponse", "transactionID" to transaction,
-                    "errors" to controls.keys.filterIsInstance<Long>().associateWith { -6735L })
+                val accepted = linkedMapOf<Long, Any?>()
+                val errors = linkedMapOf<Long, Long>()
+                for ((key, parameter) in controls) {
+                    val iid = key as? Long ?: continue
+                    val data = parameter as? Map<*, *> ?: emptyMap<Any, Any>()
+                    val source = data["sourceIdentifier"] as? String
+                    val station = data["identifier"] as? String
+                    val ok = when (iid) {
+                        4360L -> { values[4359L] = 1L; true }
+                        4361L -> { values[4359L] = 0L; true }
+                        4362L, 4363L -> { selectRadio(if (iid == 4362L) nextRadio(1) else nextRadio(-1)); true }
+                        4364L -> if ((source == null || source == "DAB") && station != null && station in radioNames) { selectRadio(station); true } else false
+                        4366L -> if (station == "DAB") { values[4359L] = 1L; true } else false
+                        else -> false
+                    }
+                    if (ok) accepted[iid] = null else errors[iid] = -6735L
+                }
+                linkedMapOf<String, Any?>("command" to "controlResponse", "transactionID" to transaction).apply {
+                    if (accepted.isNotEmpty()) this["values"] = accepted
+                    if (errors.isNotEmpty()) this["errors"] = errors
+                }
             }
             else -> return emptyList()
         }
-        return listOf(wrap(result))
+        val changed = values.filter { (iid, value) -> iid in followed && before[iid] != value }
+        return listOf(wrap(result)) + if (changed.isEmpty()) emptyList() else listOf(wrap(mapOf("command" to "updateNotify", "values" to changed)))
     }
 
     @Synchronized fun setGauge(iid: Long, value: Any): ByteArray? {
@@ -109,6 +169,29 @@ class UltraVehicleState {
         if (values[iid] == value) return null
         values[iid] = value
         return if (iid in followed) wrap(mapOf("command" to "updateNotify", "values" to mapOf(iid to value))) else null
+    }
+
+    private val radioNames = mapOf("inter" to "France Inter", "fip" to "FIP", "info" to "France Info")
+
+    private fun nextRadio(step: Int): String {
+        val ids = radioNames.keys.toList()
+        val current = ids.indexOf(values[4102L] as? String)
+        return ids[(current + step + ids.size) % ids.size]
+    }
+
+    private fun selectRadio(id: String) {
+        values[4102L] = id
+        values[4355L] = radioNames.getValue(id)
+        values[4359L] = 1L
+    }
+
+    @Synchronized fun setRadio(id: String): ByteArray? {
+        require(id in radioNames) { "Unknown simulated radio station" }
+        if (values[4102L] == id && values[4359L] == 1L) return null
+        selectRadio(id)
+        val changed = mapOf(4102L to values.getValue(4102L), 4355L to values.getValue(4355L), 4359L to values.getValue(4359L))
+        val subscribed = changed.filterKeys { it in followed }
+        return if (subscribed.isEmpty()) null else wrap(mapOf("command" to "updateNotify", "values" to subscribed))
     }
 
     @Synchronized fun snapshot(): Map<Long, Any> = values.toMap()

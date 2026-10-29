@@ -148,6 +148,10 @@ t=t.replace('                "cluster" -> session.setClusterUiShown(true)', ''' 
                     }
                     media.setUltraGauge(iid, value)
                 }
+                "ultraRadio" -> {
+                    require(session.ultraVehicleEnabled) { "Ultra Vehicle State is inactive" }
+                    media.setUltraRadio(requireNotNull(message.stationId))
+                }
                 "cluster" -> session.setClusterUiShown(true)''')
 t=t.replace('            bridge.endMicrophone()', '            debugTelemetry.ended()\n            hub.clearArtwork()\n            bridge.endMicrophone()')
 
@@ -332,7 +336,8 @@ data class UltraStatus(
 )
 
 @Serializable
-data class UltraVehicleSnapshot(val rpm: Int, val fuelPct: Int, val climateOn: Boolean, val targetCelsius: Double)
+data class UltraVehicleSnapshot(val rpm: Int, val fuelPct: Int, val climateOn: Boolean, val targetCelsius: Double,
+    val radioStation: String, val radioTitle: String, val radioPlaying: Boolean)
 
 @Serializable
 data class UltraUiChoice(val command: Long, val layoutId: String? = null, val paletteId: String? = null, val preference: Int? = null)
@@ -368,6 +373,8 @@ t=t.replace('    fun setSessionState(active: Boolean, name: String?) {', '''    
         val report = UltraVehicleSnapshot(
             rpm = (values[2562L] as Number).toInt(), fuelPct = (values[1538L] as Number).toInt(),
             climateOn = values[514L] as Boolean, targetCelsius = (values[520L] as Number).toDouble(),
+            radioStation = values[4102L] as String, radioTitle = values[4355L] as String,
+            radioPlaying = (values[4359L] as Number).toInt() == 1,
         )
         latestUltraVehicle = report
         broadcastJson(ServerMessage(type = "ultraVehicle", ultraVehicle = report))
@@ -382,6 +389,7 @@ t=t.replace('    val contacts: List<TouchContactMessage> = emptyList(),', '''   
     val gpx: String? = null, val seekSeconds: Double? = null, val playing: Boolean? = null,
     val playbackRate: Double? = null,
     val gaugeId: Int? = null, val gaugeValue: Int? = null, val gaugeBool: Boolean? = null, val gaugeNumber: Double? = null,
+    val stationId: String? = null,
     val contacts: List<TouchContactMessage> = emptyList(),''')
 t=t.replace('    val micActive: Boolean? = null,', '    val clusterEnabled: Boolean? = null,\n    val gps: DebugGpsSnapshot? = null,\n    val micActive: Boolean? = null,')
 t=t.replace('        application.install(WebSockets)', '        application.install(WebSockets) { maxFrameSize = 2L * 1024 * 1024 }')
@@ -571,6 +579,16 @@ t=t.replace('    private val streams = ConcurrentHashMap<StreamKey, Closeable>()
         val update = ultraVehicle.setGauge(iid, value)
         val after = ultraVehicle.snapshot()
         if (after != before) onUltraVehicleState?.invoke(after)
+        if (update == null) return true
+        val target = ultraStreams.entries.firstOrNull { it.key.second == ULTRA_VEHICLE_HIGH_UUID }?.value
+            ?: ultraStreams.entries.firstOrNull { it.key.second == ULTRA_VEHICLE_NORMAL_UUID }?.value ?: return false
+        target.sendCommand(update)
+        return true
+    }
+
+    fun setUltraRadio(stationId: String): Boolean {
+        val update = ultraVehicle.setRadio(stationId)
+        onUltraVehicleState?.invoke(ultraVehicle.snapshot())
         if (update == null) return true
         val target = ultraStreams.entries.firstOrNull { it.key.second == ULTRA_VEHICLE_HIGH_UUID }?.value
             ?: ultraStreams.entries.firstOrNull { it.key.second == ULTRA_VEHICLE_NORMAL_UUID }?.value ?: return false

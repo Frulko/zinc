@@ -7,7 +7,8 @@ let live: Session | null = null;
 let lastPhoneChoice = '';
 const [theme, setTheme] = createSignal<i32>(3);
 const [page, setPage] = createSignal<i32>(0);
-const [station, setStation] = createSignal<string>('France Inter · 87.8 FM');
+const [station, setStation] = createSignal<string>('France Inter · DAB simulé');
+let lastRadioId = '';
 const [fan, setFan] = createSignal<i32>(2);
 const [tire, setTire] = createSignal<number>(2.4);
 const contour: number[] = [];
@@ -39,6 +40,10 @@ export function tickVehicle(session: Session): void {
     }
   } else lastPhoneChoice = '';
   const incoming = session.ultraVehicle;
+  if (incoming !== null && incoming.radioTitle !== undefined && incoming.radioStation !== undefined && incoming.radioStation !== lastRadioId) {
+    lastRadioId = incoming.radioStation;
+    setStation(incoming.radioTitle + ' · DAB simulé');
+  }
   const current = vehicle();
   if (incoming !== null && (incoming.rpm !== current.rpm || incoming.fuelPct !== current.fuelPct || incoming.climateOn !== current.climateOn || incoming.targetCelsius !== current.targetCelsius))
     setVehicle({ speedKph: current.speedKph, rpm: incoming.rpm, gear: current.gear, fuelPct: incoming.fuelPct, climateOn: incoming.climateOn, targetCelsius: incoming.targetCelsius });
@@ -91,12 +96,17 @@ function VehicleControls(): i32 {
     <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setTire(Math.min(3.0, tire() + 0.1))}><Text className="text-white text-xs">+</Text></Button>
   </View>;
 }
+function chooseRadio(id: string, title: string): void {
+  lastRadioId = id;
+  setStation(title + ' · DAB simulé');
+  if (live !== null) live.setUltraRadio(id);
+}
 function RadioControls(): i32 {
   return <View className="flex-row items-center gap-3">
     <Text className="text-slate-300 text-xs">Radio simulée</Text><Text className="text-white">{station()}</Text>
-    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setStation('France Inter · 87.8 FM')}><Text className="text-white text-xs">Inter</Text></Button>
-    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setStation('FIP · 105.1 FM')}><Text className="text-white text-xs">FIP</Text></Button>
-    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setStation('France Info · 105.5 FM')}><Text className="text-white text-xs">Info</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => chooseRadio('inter', 'France Inter')}><Text className="text-white text-xs">Inter</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => chooseRadio('fip', 'FIP')}><Text className="text-white text-xs">FIP</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => chooseRadio('info', 'France Info')}><Text className="text-white text-xs">Info</Text></Button>
   </View>;
 }
 function ClimateControls(): i32 {

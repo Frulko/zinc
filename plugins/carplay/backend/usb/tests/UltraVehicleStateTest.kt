@@ -28,7 +28,7 @@ class UltraVehicleStateTest {
         val config = response(state.handle(request("configRequest"))[0])
         assertEquals("configResponse", config["command"])
         assertEquals(7L, config["transactionID"])
-        assertEquals(3, ((config["values"] as Map<*, *>)["accessories"] as List<*>).size)
+        assertEquals(5, ((config["values"] as Map<*, *>)["accessories"] as List<*>).size)
 
         val registered = response(state.handle(request("registerRequest", listOf(2562L, 1538L, 9999L)))[0])
         assertEquals(mapOf(2562L to 1800L, 1538L to 50L), registered["values"])
@@ -59,5 +59,35 @@ class UltraVehicleStateTest {
         assertEquals(mapOf(514L to false), response(state.setGauge(514, false)!!)["values"])
         assertEquals(mapOf(520L to 22.5), response(state.setGauge(520, 22.5)!!)["values"])
         assertTrue(runCatching { state.setGauge(520, 55.0) }.isFailure)
+    }
+
+    @Test fun simulatedRadioDescribesStationsAndHandlesPhoneSelection() {
+        val state = UltraVehicleState()
+        val accessories = state.infoEntry()["pluginConfigs"].let { it as List<*> }.first().let { (it as Map<*, *>)["accessories"] as List<*> }
+        val radio = accessories.map { it as Map<*, *> }.first { it["iid"] == 4096L }
+        val source = (radio["services"] as List<*>).first() as Map<*, *>
+        assertEquals(0x14000006L, source["type"])
+        val stations = state.snapshot()[4103L] as List<*>
+        assertEquals(listOf("inter", "fip", "info"), stations.map { (it as Map<*, *>)["identifier"] })
+        val nowPlaying = accessories.map { it as Map<*, *> }.first { it["iid"] == 4352L }
+        val controls = ((nowPlaying["services"] as List<*>).first() as Map<*, *>)["controls"] as List<*>
+        assertEquals(7, controls.size)
+        val selected = response(state.handle(request("controlRequest", mapOf(4364L to mapOf(
+            "identifier" to "fip", "sourceIdentifier" to "DAB"))))[0])
+        assertEquals("controlResponse", selected["command"])
+        assertEquals("fip", state.snapshot()[4102L])
+        assertEquals("FIP", state.snapshot()[4355L])
+        assertEquals(1L, state.snapshot()[4359L])
+        state.handle(request("registerRequest", listOf(4102L, 4355L, 4359L)))
+        val update = response(state.setRadio("info")!!)
+        assertEquals("updateNotify", update["command"])
+        assertEquals("info", (update["values"] as Map<*, *>)[4102L])
+        val phoneChange = state.handle(request("controlRequest", mapOf(4362L to emptyMap<String, Any>())))
+        assertEquals(2, phoneChange.size)
+        assertEquals("updateNotify", response(phoneChange[1])["command"])
+        val rejected = response(state.handle(request("controlRequest", mapOf(4364L to mapOf(
+            "identifier" to "unknown", "sourceIdentifier" to "DAB"))))[0])
+        assertEquals(mapOf(4364L to -6735L), rejected["errors"])
+        assertTrue(runCatching { state.setRadio("unknown") }.isFailure)
     }
 }
