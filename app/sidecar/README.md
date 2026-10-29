@@ -76,7 +76,7 @@ Test: `tests/run --only sidecar_stream` (the tablet's half against the AppLoad s
 
 **Any screen with a network** (`app/sidecar-screen`): the same stream in colour. Run the app on the screen's machine (a Raspberry Pi on
 HDMI: `zinc device <pi> deploy app/sidecar-screen --target rpi`); its page shows its address. On the Mac, `mac/build/sidecar-screen --host
-<address>` makes a virtual display of the screen's size (`--mirror <n>` mirrors display n, `--hidpi` draws it at twice its points). The
+<address>` makes a virtual display of the screen's size (`--mirror <n>` mirrors display n, `--hidpi` draws it at twice its points, `--scale f` at f pixels per point: 1.33 or 1.6 is macOS's "more space", a backing drawn larger and scaled down to the screen). The
 tiles that changed are joined in runs, filtered (PNG's Sub) and compressed with zstd on every core; at most two pictures wait for the
 screen's answers, so a slow link drops pictures instead of lagging. A picture where a sixth of the screen or more changed, or one that
 comes while the link is busy, goes rough (colours cut to 5-6-5 bits: half the bytes) and each of its tiles goes again exact once it has

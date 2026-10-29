@@ -12,6 +12,8 @@ struct Output: Codable, Identifiable, Hashable {
     enum Kind: String, Codable { case remarkable, screen }
     var id: String, kind: Kind, name: String, host: String
     var hidpi = false, lz4 = false   // a screen's: drawn at twice its points (Retina), lz4 for a screen whose CPU is short
+    var scale: Double? = nil         // the screen's pixels per point (sidecar-screen --scale); none saved yet: 2 with hidpi, else 1
+    var pixelsPerPoint: Double { scale ?? (hidpi ? 2 : 1) }
     var icon: String { kind == .remarkable ? "ipad.landscape" : "display" }
     var modes: [Mode] { kind == .remarkable ? Mode.allCases : [.extend, .mirror] }
     static let remarkable = Output(id: "rmpp", kind: .remarkable, name: "reMarkable Paper Pro", host: "10.11.99.1")
@@ -144,7 +146,8 @@ final class Engine: ObservableObject {
         screens[i] = o; objectWillChange.send(); restart(o.id)
     }
     func add(name: String, host: String) {
-        let o = Output(id: UUID().uuidString, kind: .screen, name: name.isEmpty ? host : name, host: host)
+        var o = Output(id: UUID().uuidString, kind: .screen, name: name.isEmpty ? host : name, host: host)
+        if host.hasPrefix("usb") { o.scale = 2 }   // an iPad or iPhone: a Retina screen, its text as on the device
         screens.append(o); outputId = o.id
     }
     func remove(_ o: Output) { if outputId == o.id { outputId = Output.remarkable.id }; screens.removeAll { $0.id == o.id } }
@@ -236,7 +239,7 @@ final class Engine: ObservableObject {
         let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent().appendingPathComponent(eink ? "sidecar-engine" : "sidecar-screen")
         let p = Process()
         p.executableURL = exe
-        var args = eink ? ["--no-ui", "--control", "--wait"] : ["--host", out.host] + (out.hidpi ? ["--hidpi"] : []) + (out.lz4 ? ["--lz4"] : []) + (audioOn(id) ? ["--audio"] : []) + (UserDefaults.standard.bool(forKey: "videoAll." + id) ? ["--video-all"] : [])
+        var args = eink ? ["--no-ui", "--control", "--wait"] : ["--host", out.host, "--scale", String(out.pixelsPerPoint)] + (out.lz4 ? ["--lz4"] : []) + (audioOn(id) ? ["--audio"] : []) + (UserDefaults.standard.bool(forKey: "videoAll." + id) ? ["--video-all"] : [])
         if mode != .extend { args += ["--mirror", String(display(id))] }
         p.arguments = args
         let i = Pipe(), o = Pipe()
@@ -490,7 +493,12 @@ struct PopoverView: View {
                         .help("Ends the app on the reMarkable: its own screen comes back")
                 }
             } else {
-                Toggle("Retina: twice the pixels per point (bigger text)", isOn: Binding(get: { o.hidpi }, set: { v in var c = o; c.hidpi = v; e.update(c) }))
+                // the text's size, as macOS's Displays offers on a Retina panel: the screen's pixels per point
+                Picker("Text size", selection: Binding(get: { o.pixelsPerPoint }, set: { v in var c = o; c.scale = v; e.update(c) })) {
+                    Text("Larger").tag(2.0); Text("Default").tag(1.6); Text("More space").tag(1.33); Text("Native pixels").tag(1.0)
+                }
+                .pickerStyle(.segmented)
+                .help("Larger: Retina, twice the pixels per point. Native pixels: one pixel per point, small text on a dense screen.")
                 if e.soundAvail.contains(o.id) {   // only once the screen said it plays sound
                     Toggle("Sound: the Mac's sound plays on this screen", isOn: Binding(get: { e.audioOn(o.id) }, set: { e.setAudio(o.id, $0) }))
                         .help("The Mac goes quiet while it streams; macOS asks once to let Sidecar record the system's audio")

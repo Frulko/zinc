@@ -9,7 +9,7 @@
 // A part of the screen that changes at nearly every picture (a film, a game) goes as H.264 when the receiver has a hardware decoder
 // (+h264): VideoToolbox here, the decoder and a display plane there; the rest stays exact tiles.
 // --host usb[:<udid>]: an iPad or iPhone on the USB cable, through usbmuxd (usbmux.swift), the cable charging it meanwhile.
-//   sidecar-screen --host <address>|usb[:<udid>] [--port 7710] [--mirror <display>] [--hidpi] [--lz4] [--exact] [--no-video] [--audio] [--seconds n] [--synthetic <percent>]
+//   sidecar-screen --host <address>|usb[:<udid>] [--port 7710] [--mirror <display>] [--hidpi | --scale f] [--lz4] [--exact] [--no-video] [--audio] [--seconds n] [--synthetic <percent>]
 import Foundation
 import ScreenCaptureKit
 import CoreMedia
@@ -18,7 +18,7 @@ import SystemConfiguration
 setvbuf(stdout, nil, _IOLBF, 0)
 func die(_ s: String) -> Never { print("sidecar-screen: \(s)"); exit(1) }
 var videoAll = false
-var host = "", port: UInt16 = 7710, mirror = -1, hidpi = false, forceLz4 = false, seconds = 0.0, exact = false, synthetic = 0
+var host = "", port: UInt16 = 7710, mirror = -1, scale = 1.0, forceLz4 = false, seconds = 0.0, exact = false, synthetic = 0
 var h264Dump = "", noVideo = false, audio = false
 var argv = Array(CommandLine.arguments.dropFirst())
 while !argv.isEmpty {
@@ -27,7 +27,8 @@ while !argv.isEmpty {
     case "--host": host = argv.removeFirst()
     case "--port": port = UInt16(argv.removeFirst())!
     case "--mirror": mirror = Int(argv.removeFirst())!
-    case "--hidpi": hidpi = true      // the virtual display at half the receiver's size in points, drawn at twice (Retina): bigger text
+    case "--hidpi": scale = 2         // the virtual display at half the receiver's size in points, drawn at twice (Retina): bigger text
+    case "--scale": scale = min(3, max(1, Double(argv.removeFirst()) ?? 1))   // the receiver's pixels per point: 1 native, 2 Retina, between
     case "--lz4": forceLz4 = true     // lz4 even when the receiver reads zstd: less ratio, less of its CPU
     case "--seconds": seconds = Double(argv.removeFirst())!
     case "--exact": exact = true      // never rough: every picture exact, whatever it costs
@@ -143,6 +144,10 @@ while true { var c: UInt8 = 0; readFull(&c, 1); if c == 10 { break }; line.appen
 let words = String(decoding: line, as: UTF8.self).split(separator: " ").map(String.init)
 let caps = Set(words.filter { $0.hasPrefix("+") }.map { String($0.dropFirst()) })
 let W = words.count >= 4 ? Int(words[1]) ?? 0 : 0, H = words.count >= 4 ? Int(words[2]) ?? 0 : 0
+// the virtual display: (PW, PH) points, drawn at twice them when the scale is above 1 (Retina) and captured at the receiver's pixels; a
+// scale between 1 and 2 is macOS's "more space" on a Retina panel: a backing larger than the screen, scaled down to it
+let hidpi = scale > 1
+let PW = Int((Double(W) / scale).rounded()) & ~1, PH = Int((Double(H) / scale).rounded()) & ~1
 if W <= 0 || H <= 0 || !caps.contains("rgb") { die("not a colour screen: \(words.joined(separator: " "))") }
 let zstd = caps.contains("zstd") && !forceLz4, sub = caps.contains("sub")
 print("screen: \(words[3...].filter { !$0.hasPrefix("+") }.joined(separator: " ")) \(W)x\(H), \(zstd ? "zstd" : "lz4")\(sub ? " + Sub" : "")")
@@ -219,15 +224,14 @@ if synthetic > 0 {   // nothing captured, nothing to show on the Mac
     let d = CGVirtualDisplayDescriptor()
     d.queue = DispatchQueue.main
     d.name = "Sidecar Screen"
-    d.maxPixelsWide = UInt32(W); d.maxPixelsHigh = UInt32(H)
+    d.maxPixelsWide = UInt32(hidpi ? 2 * PW : W); d.maxPixelsHigh = UInt32(hidpi ? 2 * PH : H)
     d.sizeInMillimeters = CGSize(width: Double(W) / 92 * 25.4, height: Double(H) / 92 * 25.4)   // a 24" 1080p monitor's density
     d.vendorID = 0x5A4E; d.productID = 0x5343; d.serialNum = 1
     d.terminationHandler = { _, _ in }
     guard let vd = CGVirtualDisplay(descriptor: d) else { die("no virtual display (macOS refused it)") }
     virtualDisplay = vd; target = vd.displayID
     let s = CGVirtualDisplaySettings(); s.hiDPI = hidpi ? 1 : 0
-    let (pw, ph) = hidpi ? (W / 2, H / 2) : (W, H)
-    s.modes = [CGVirtualDisplayMode(width: UInt(pw), height: UInt(ph), refreshRate: 60)]
+    s.modes = [CGVirtualDisplayMode(width: UInt(PW), height: UInt(PH), refreshRate: 60)]
     if !vd.apply(s) { die("the virtual display refused its mode") }
 }
 
@@ -284,7 +288,7 @@ func setRefresh(_ hz: Int) {
     refresh = hz; switchedAt = now()
     DispatchQueue.main.async {
         let s = CGVirtualDisplaySettings(); s.hiDPI = hidpi ? 1 : 0
-        s.modes = [CGVirtualDisplayMode(width: UInt(hidpi ? W / 2 : W), height: UInt(hidpi ? H / 2 : H), refreshRate: Double(hz))]
+        s.modes = [CGVirtualDisplayMode(width: UInt(PW), height: UInt(PH), refreshRate: Double(hz))]
         if !vd.apply(s) { print("refresh: the virtual display refused \(hz) Hz") }
     }
     wire.lock(); writeFull(header(7, 0, 7, hz == 60 ? 0 : hz, 0, 0, 0, false, 0), 16); wire.unlock()
@@ -619,7 +623,7 @@ func info(_ seconds: Double) {
         ["Link", "Mac", linkNow.local],
         ["Link", "Screen", "\(host) (\(peer))"],
         ["Picture", "Receiver", "\(words[3...].filter { !$0.hasPrefix("+") }.joined(separator: " ")), \(W) × \(H)"],
-        ["Picture", "Mac display", mirror >= 0 ? "mirror of display \(mirror)" : hidpi ? "virtual, \(W / 2) × \(H / 2) points at 2x (Retina)" : "virtual, \(W) × \(H) at 1x"],
+        ["Picture", "Mac display", mirror >= 0 ? "mirror of display \(mirror)" : hidpi ? "virtual, \(PW) × \(PH) points (\(String(format: "%g", scale)) pixels per point)" : "virtual, \(W) × \(H) at 1x"],
         ["Picture", "Codec", "\(zstd ? "zstd 1" : "lz4")\(sub ? " + Sub filter" : ""), 64 px tiles\(exact ? ", always exact" : ", 5-6-5 colour while much moves")"],
         ["Picture", "Receiver reads", caps.sorted().joined(separator: " ")],
         ["Rate", "Captured", String(format: "%.0f frames/s, %.0f unchanged (macOS, at most 60 in all: a film at 25 shows here as 25 and 35)", Double(more.captured) / seconds, Double(more.idle) / seconds)],
