@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- CarPlay Ultra's experimental Vehicle State profile now advertises automaker settings data with simulated fuel and tire values, plus an interior style resource. The iPhone's native Vehicle app still stays on its loading screen in the current live test.
 - The CarPlay player can fit its Mac window to the full Ultra video without changing the iPhone display; a separate button restores the theme's 1920 × 720 format. Smaller negotiated videos clipped the current Ultra theme.
 - CarPlay Ultra's experimental Vehicle State profile now describes driver and passenger climate zones, fan and seat controls, plus simulated fuel range, odometer and tire sensors. The Zinc player can change fan level and tire pressure; actual iPhone Car and Climate screens still need device verification.
 - CarPlay Ultra's experimental Vehicle State profile now advertises a simulated DAB source with three stations and handles basic radio controls. The Mac player's Radio choices can update that source; no broadcast audio is supplied.

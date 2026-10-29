@@ -28,7 +28,7 @@ class UltraVehicleStateTest {
         val config = response(state.handle(request("configRequest"))[0])
         assertEquals("configResponse", config["command"])
         assertEquals(7L, config["transactionID"])
-        assertEquals(8, ((config["values"] as Map<*, *>)["accessories"] as List<*>).size)
+        assertEquals(10, ((config["values"] as Map<*, *>)["accessories"] as List<*>).size)
 
         val registered = response(state.handle(request("registerRequest", listOf(2562L, 1538L, 9999L)))[0])
         assertEquals(mapOf(2562L to 1800L, 1538L to 68L), registered["values"])
@@ -92,6 +92,23 @@ class UltraVehicleStateTest {
         assertEquals(mapOf(1541L to 400L), response(state.setGauge(1541L, 400L)!!)["values"])
         assertEquals(mapOf(2050L to -6727L), response(state.handle(request("writeRequest", mapOf(2050L to 300L)))[0])["errors"])
         assertTrue(runCatching { state.setGauge(2065L, 1001L) }.isFailure)
+    }
+
+    @Test fun automakerSettingsDescribeSubscribedFuelAndTireValues() {
+        val state = UltraVehicleState()
+        val accessories = (state.infoEntry()["pluginConfigs"] as List<*>).first().let { (it as Map<*, *>)["accessories"] as List<*> }
+        val settings = accessories.map { it as Map<*, *> }.first { it["iid"] == 1280L }
+        val cabin = accessories.map { it as Map<*, *> }.first { it["iid"] == 768L }
+        assertEquals(0x01200002L, cabin["type"])
+        val lines = (settings["services"] as List<*>).map { it as Map<*, *> }
+        assertEquals(listOf(0x16000015L, 0x16000015L, 0x16000020L), lines.map { it["type"] })
+        assertEquals("Carburant", ((lines[0]["characteristics"] as List<*>)[1] as Map<*, *>)["initialValue"])
+        assertEquals("Pneu avant gauche", ((lines[1]["characteristics"] as List<*>)[1] as Map<*, *>)["initialValue"])
+        val registered = response(state.handle(request("registerRequest", listOf(1284L, 1292L)))[0])
+        assertEquals(mapOf(1284L to "68 %", 1292L to "2,4 bar"), registered["values"])
+        assertEquals(mapOf(1284L to "61 %"), response(state.setGauge(1538, 61L)!!)["values"])
+        assertEquals(mapOf(1292L to "2,55 bar"), response(state.setGauge(2050, 255L)!!)["values"])
+        assertEquals(mapOf(1284L to -6727L), response(state.handle(request("writeRequest", mapOf(1284L to "99 %")))[0])["errors"])
     }
 
     @Test fun simulatedRadioDescribesStationsAndHandlesPhoneSelection() {

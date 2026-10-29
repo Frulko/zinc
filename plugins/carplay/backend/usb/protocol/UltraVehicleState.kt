@@ -38,7 +38,30 @@ class UltraVehicleState {
         )
     }
 
+    private fun settingsLine(iid: Long, id: String, label: String, value: String, symbol: String, order: Long) =
+        Service(iid, 0x16000015, listOf(
+            Characteristic(iid + 1, 0x30000019, 10, id, mutable = false),
+            Characteristic(iid + 2, 0x30000001, 10, label, mutable = false),
+            Characteristic(iid + 3, 0x30000017, 10, value),
+            Characteristic(iid + 4, 0x36000006, 1, 0L, maximum = 15, mutable = false),
+            Characteristic(iid + 5, 0x3000005e, 10, symbol, mutable = false),
+            Characteristic(iid + 6, 0x30000003, 1, order, maximum = 100, mutable = false),
+            Characteristic(iid + 7, 0x36000028, 10, "Zinc", mutable = false),
+        ))
+
     private val accessories = listOf(
+        Accessory(1280, 0x05000001, listOf(
+            settingsLine(1281, "zinc.fuel", "Carburant", "68 %", "fuelpump.fill", 0),
+            settingsLine(1289, "zinc.tire.front.left", "Pneu avant gauche", "2,4 bar", "car.side", 1),
+            Service(1297, 0x16000020, listOf(
+                Characteristic(1298, 0x30000019, 10, "Zinc", mutable = false),
+                Characteristic(1299, 0x30000003, 1, 0L, maximum = 100, mutable = false),
+                Characteristic(1300, 0x36000004, 10, "Zinc", mutable = false),
+            )),
+        )),
+        Accessory(768, 0x01200002, listOf(Service(769, 0x20000001, listOf(
+            Characteristic(770, 0x48000004, 10, "5Seater", mutable = false),
+        )))),
         Accessory(2560, 0x09000005, listOf(Service(2561, 0x1a00000f, listOf(
             Characteristic(2562, 0x30000024, 3, 0L, units = 981, maximum = 8000),
         )))),
@@ -254,10 +277,12 @@ class UltraVehicleState {
         val before = values.toMap()
         values[iid] = value
         if (iid == 1538L) {
+            values[1284L] = "$value %"
             val kilometers = ((value as Long) * 620 + 50) / 100
             values[1541L] = kilometers
             values[1542L] = (kilometers * 1000 + 804) / 1609
         }
+        if (iid == 2050L) values[1292L] = "${(value as Long) / 100},${(value % 100).toString().padStart(2, '0')} bar"
         val changed = values.filter { (key, current) -> key in followed && before[key] != current }
         return if (changed.isEmpty()) null else wrap(mapOf("command" to "updateNotify", "values" to changed))
     }
