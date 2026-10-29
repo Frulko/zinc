@@ -2,6 +2,8 @@
 // the activity's Surface. The Mac reaches it on the USB cable through adb (sidecar-screen --host adb), or on the network. The picture is
 // kept here in RGBA; each RECT is decoded into it (lz4 or zstd, PNG's Sub, B G R to R G B A), and at a picture's last message it is
 // copied whole into the window's next buffer and posted by the presenter thread, so the stream never waits for the display's vsync.
+// A video (VIDEO, +h264 when the device has an H.264 decoder) is decoded in hardware (MediaCodec) straight into a second Surface laid
+// over its place.
 #include <jni.h>
 #include <android/native_window_jni.h>
 #include <android/log.h>
@@ -16,6 +18,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/sysinfo.h>
+#include <media/NdkMediaCodec.h>
 #include "lz4.h"
 #include "zstd.h"
 
@@ -36,6 +39,7 @@ static int32_t acked;
 static char name[256] = "Android";   // the device's name, percent-encoded (the hello's +name:, the Mac's name for the screen)
 
 static uint32_t now_us(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint32_t)(t.tv_sec * 1000000ull + t.tv_nsec / 1000); }
+static void callPlace(int x, int y, int w, int h); static volatile int hideVideo;   // the video, below
 
 // the screen's answers: 16 bytes [u8 kind][u8 type][u16 id][i32 a][i32 b][i32 c], little-endian as this CPU
 static void send16(uint8_t kind, uint8_t type, int32_t a, int32_t b, int32_t c, int ack) {
@@ -148,6 +152,7 @@ static void *presenter(void *unused) {
         pending = 0; uint32_t last = pendingLast, dec = pendingDecode;
         pthread_mutex_unlock(&picLock);
         show();
+        if (hideVideo) { hideVideo = 0; callPlace(0, 0, 0, 0); }
         send16(12, 0, (int32_t)(now_us() - last), (int32_t)dec, 0, 0);
         pictures++;
     }
@@ -182,11 +187,107 @@ static void sendHost(void) {
     send16(10, 2, (int32_t)(si.totalram * si.mem_unit >> 20), (int32_t)si.uptime, 0, 0);
 }
 
+// --- the video (VIDEO, type 10): Annex B H.264 units, MediaCodec in hardware, into the Java side's video Surface laid over (x, y, w, h)
+static JavaVM *jvm; static jclass screenClass; static jmethodID placeMethod;
+static int h264;   // the device decodes H.264 (the hello's +h264)
+typedef struct Unit { struct Unit *next; uint8_t *data; size_t len; int x, y, w, h; uint32_t t; } Unit;
+static Unit *units, **unitsTail = &units;
+static pthread_mutex_t unitLock = PTHREAD_MUTEX_INITIALIZER, vLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t unitReady = PTHREAD_COND_INITIALIZER, vSurfaceCame = PTHREAD_COND_INITIALIZER;
+static AMediaCodec *codec; static ANativeWindow *vwin; static int vw, vh;   // under vLock
+static int place[4];
+/** The video Surface over (x, y, w, h), w 0: none (Screen.place, on the UI thread; the Surface comes to Screen.videoSurface). */
+static void callPlace(int x, int y, int w, int h) {
+    JNIEnv *env; int attached = 0;
+    if ((*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION_1_6) != JNI_OK) { (*jvm)->AttachCurrentThread(jvm, &env, NULL); attached = 1; }
+    (*env)->CallStaticVoidMethod(env, screenClass, placeMethod, x, y, w, h);
+    if (attached) (*jvm)->DetachCurrentThread(jvm);
+}
+static void stopCodec(void) { if (codec) { AMediaCodec_stop(codec); AMediaCodec_delete(codec); codec = NULL; } }   // vLock held
+/** The SPS (7) or PPS (8) of an Annex B unit, with its start code (MediaCodec's csd-0, csd-1). */
+static const uint8_t *paramSet(const uint8_t *d, size_t n, int type, size_t *len) {
+    for (size_t i = 0; i + 3 < n; i++) {
+        if (d[i] || d[i + 1] || d[i + 2] != 1 || (d[i + 3] & 31) != type) continue;
+        size_t s = i > 0 && d[i - 1] == 0 ? i - 1 : i, e = i + 3;
+        while (e + 2 < n && !(d[e] == 0 && d[e + 1] == 0 && d[e + 2] == 1)) e++;
+        if (e + 2 >= n) e = n; else if (d[e - 1] == 0) e--;
+        *len = e - s; return d + s;
+    }
+    return NULL;
+}
+static int startCodec(const Unit *u) {   // vLock held, vwin the place's size
+    size_t sl, pl; const uint8_t *sps = paramSet(u->data, u->len, 7, &sl), *pps = paramSet(u->data, u->len, 8, &pl);
+    if (!sps || !pps) return 0;   // not a key picture: the next one is (a new place starts with one)
+    AMediaFormat *f = AMediaFormat_new();
+    AMediaFormat_setString(f, AMEDIAFORMAT_KEY_MIME, "video/avc");
+    AMediaFormat_setInt32(f, AMEDIAFORMAT_KEY_WIDTH, u->w); AMediaFormat_setInt32(f, AMEDIAFORMAT_KEY_HEIGHT, u->h);
+    AMediaFormat_setBuffer(f, "csd-0", (void *)sps, sl); AMediaFormat_setBuffer(f, "csd-1", (void *)pps, pl);
+    codec = AMediaCodec_createDecoderByType("video/avc");
+    int ok = codec && AMediaCodec_configure(codec, f, vwin, NULL, 0) == AMEDIA_OK && AMediaCodec_start(codec) == AMEDIA_OK;
+    AMediaFormat_delete(f);
+    if (!ok && codec) { AMediaCodec_delete(codec); codec = NULL; }
+    if (!ok) LOG("MediaCodec refused the %dx%d video", u->w, u->h);
+    return ok;
+}
+/** One unit decoded and rendered to the video Surface; the µs from its last byte to the decoder's picture, -1 when none came out. */
+static int decodeUnit(const Unit *u) {
+    if (!codec || memcmp(place, (int[]){u->x, u->y, u->w, u->h}, sizeof place)) {   // a new place or size: a new Surface and decoder
+        stopCodec();
+        place[0] = u->x; place[1] = u->y; place[2] = u->w; place[3] = u->h; hideVideo = 0;
+        if (!vwin || vw != u->w || vh != u->h) {
+            if (vwin) { ANativeWindow_release(vwin); vwin = NULL; }
+            pthread_mutex_unlock(&vLock); callPlace(u->x, u->y, u->w, u->h); pthread_mutex_lock(&vLock);
+            struct timespec until; clock_gettime(CLOCK_REALTIME, &until); until.tv_sec += 1;
+            while (!(vwin && vw == u->w && vh == u->h)) if (pthread_cond_timedwait(&vSurfaceCame, &vLock, &until)) return -1;
+        } else { pthread_mutex_unlock(&vLock); callPlace(u->x, u->y, u->w, u->h); pthread_mutex_lock(&vLock); }
+        if (!startCodec(u)) { place[2] = 0; return -1; }
+    }
+    ssize_t in = AMediaCodec_dequeueInputBuffer(codec, 100000);
+    if (in < 0) return -1;
+    size_t cap; uint8_t *b = AMediaCodec_getInputBuffer(codec, (size_t)in, &cap);
+    if (!b || cap < u->len) { AMediaCodec_queueInputBuffer(codec, (size_t)in, 0, 0, 0, 0); return -1; }
+    memcpy(b, u->data, u->len);
+    AMediaCodec_queueInputBuffer(codec, (size_t)in, 0, u->len, (uint64_t)u->t, 0);
+    // the picture of this unit (no reordering in the stream: it comes out of the decoder at once, or the decoder holds one back)
+    int us = -1;
+    for (int tries = 0; tries < 20; tries++) {
+        AMediaCodecBufferInfo info;
+        ssize_t out = AMediaCodec_dequeueOutputBuffer(codec, &info, us < 0 ? 10000 : 0);
+        if (out >= 0) { AMediaCodec_releaseOutputBuffer(codec, (size_t)out, 1); us = (int)(now_us() - u->t); }
+        else if (out == AMEDIACODEC_INFO_TRY_AGAIN_LATER && us >= 0) break;
+    }
+    return us;
+}
+static void *videoThread(void *unused) {
+    (void)unused;
+    for (;;) {
+        pthread_mutex_lock(&unitLock);
+        while (!units) pthread_cond_wait(&unitReady, &unitLock);
+        Unit *u = units; units = u->next; if (!units) unitsTail = &units;
+        pthread_mutex_unlock(&unitLock);
+        int us = 0;
+        pthread_mutex_lock(&vLock);
+        if (u->len == 0) { stopCodec(); place[2] = 0; hideVideo = u->x >= 0; }   // the video ends: hidden once the RECTs that follow are shown
+        else us = decodeUnit(u);
+        pthread_mutex_unlock(&vLock);
+        if (u->x < 0) callPlace(0, 0, 0, 0);   // the sender left
+        else send16(1, 10, 0, us < 0 ? 0 : us, 0, 1);   // always answered, or the sender waits for ever
+        free(u->data); free(u);
+    }
+    return NULL;
+}
+static void queueUnit(Unit *u) {
+    pthread_mutex_lock(&unitLock);
+    u->next = NULL; *unitsTail = u; unitsTail = &u->next;
+    pthread_cond_signal(&unitReady);
+    pthread_mutex_unlock(&unitLock);
+}
+
 static void serve(int c) {
     int one = 1;
     setsockopt(c, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
     char hello[384];
-    int n = snprintf(hello, sizeof hello, "RMPP %d %d Android +lz4 +copy +zstd +sub +sink +rgb +name:%s\n", W, H, name);
+    int n = snprintf(hello, sizeof hello, "RMPP %d %d Android +lz4 +copy +zstd +sub +sink +rgb%s +name:%s\n", W, H, h264 ? " +h264" : "", name);
     if (write(c, hello, (size_t)n) != n) return;
     pthread_mutex_lock(&wire); client = c; acked = 0; pthread_mutex_unlock(&wire);
     uint8_t h[16];
@@ -217,13 +318,21 @@ static void serve(int c) {
         } else if (type == 9) {   // SINK: read, dropped, ECHO
             if (!skip(c, len)) break;
             send16(11, 0, (int32_t)len, x | y << 16, 0, 0);
-        } else {   // MODE, FULL, CURSOR, POINTER, SET, QUIT, VIDEO: nothing for this screen (no +h264 in its hello)
+        } else if (type == 10 && h264) {   // VIDEO
+            if (x + w > W || y + hh > H || len > 8u << 20) break;
+            Unit *u = malloc(sizeof *u);
+            u->data = malloc(len ? len : 1); u->len = len; u->x = x; u->y = y; u->w = w; u->h = hh;
+            if (!readFull(c, u->data, len)) { free(u->data); free(u); break; }
+            u->t = now_us();
+            queueUnit(u);
+        } else {   // MODE, FULL, CURSOR, POINTER, SET, QUIT: nothing for this screen
             if (!skip(c, len)) break;
             if ((type == 4 || type == 5) && !more && inPicture) { if (!drain()) break; endPicture(&inPicture, takeDecoded()); }
         }
         if (now_us() - hostAt > 2000000) { hostAt = now_us(); sendHost(); }
     }
     drain(); takeDecoded();   // no worker writes the picture once the stream has left
+    if (h264) { Unit *u = calloc(1, sizeof *u); u->x = -1; queueUnit(u); }   // and its video goes, at once (no picture follows)
     if (inPicture) pthread_mutex_unlock(&picLock);   // half a picture: shown with the next one
     pthread_mutex_lock(&wire); client = -1; pthread_mutex_unlock(&wire);
     LOG("the sender left");
@@ -254,7 +363,6 @@ static void *listener(void *unused) {
 
 // --- Java (dev.zinc.sidecar.Screen)
 JNIEXPORT void JNICALL Java_dev_zinc_sidecar_Screen_start(JNIEnv *env, jclass cls, jobject surface, jint w, jint h, jstring device) {
-    (void)cls;
     const char *d = (*env)->GetStringUTFChars(env, device, NULL);
     size_t k = 0;
     for (const unsigned char *p = (const unsigned char *)d; *p && k + 4 < sizeof name; p++) {   // percent-encoded: one word
@@ -277,6 +385,11 @@ JNIEXPORT void JNICALL Java_dev_zinc_sidecar_Screen_start(JNIEnv *env, jclass cl
         static int listening;
         if (!listening) {
             listening = 1;
+            (*env)->GetJavaVM(env, &jvm);
+            screenClass = (*env)->NewGlobalRef(env, cls);
+            placeMethod = (*env)->GetStaticMethodID(env, cls, "place", "(IIII)V");
+            AMediaCodec *test = AMediaCodec_createDecoderByType("video/avc");   // the hello's +h264
+            if (test) { AMediaCodec_delete(test); h264 = 1; pthread_t v; pthread_create(&v, NULL, videoThread, NULL); pthread_detach(v); }
             pthread_t t; pthread_create(&t, NULL, listener, NULL); pthread_detach(t);
             pthread_create(&t, NULL, presenter, NULL); pthread_detach(t);
             for (int i = 0; i < WORKERS; i++) { pthread_create(&t, NULL, worker, NULL); pthread_detach(t); }
@@ -296,4 +409,13 @@ JNIEXPORT void JNICALL Java_dev_zinc_sidecar_Screen_stop(JNIEnv *env, jclass cls
 JNIEXPORT jboolean JNICALL Java_dev_zinc_sidecar_Screen_connected(JNIEnv *env, jclass cls) {
     (void)env; (void)cls;
     return client >= 0 && pictures > 1;
+}
+/** The video Surface came (its size) or went (null): the decoder renders into it alone. */
+JNIEXPORT void JNICALL Java_dev_zinc_sidecar_Screen_videoSurface(JNIEnv *env, jclass cls, jobject surface, jint w, jint h) {
+    (void)cls;
+    pthread_mutex_lock(&vLock);
+    if (!surface) { stopCodec(); place[2] = 0; }
+    if (vwin) { ANativeWindow_release(vwin); vwin = NULL; }
+    if (surface) { vwin = ANativeWindow_fromSurface(env, surface); vw = w; vh = h; pthread_cond_broadcast(&vSurfaceCame); }
+    pthread_mutex_unlock(&vLock);
 }

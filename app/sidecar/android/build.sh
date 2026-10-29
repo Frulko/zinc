@@ -15,7 +15,7 @@ src="$here/jni/receiver.c $root/third_party/lz4/lz4.c $(ls "$root"/third_party/z
 for abi in armeabi-v7a:armv7a-linux-androideabi21 arm64-v8a:aarch64-linux-android21; do
   mkdir -p "$out/apk/lib/${abi%%:*}"
   "$cc/${abi#*:}-clang" -O2 -shared -fPIC -w -DZSTD_DISABLE_ASM -DZSTD_MULTITHREAD=0 -I"$root/third_party/lz4" -I"$root/third_party/zstd" \
-    $src -landroid -llog -Wl,-z,max-page-size=16384 -o "$out/apk/lib/${abi%%:*}/libsidecar.so"
+    $src -landroid -lmediandk -llog -Wl,-z,max-page-size=16384 -o "$out/apk/lib/${abi%%:*}/libsidecar.so"
 done
 javac -nowarn -Xlint:-options --release 11 -cp "$jar" -d "$out/classes" "$here"/src/dev/zinc/sidecar/*.java
 "$bt/d8" --min-api 21 --lib "$jar" --output "$out/apk" $(find "$out/classes" -name '*.class')

@@ -96,7 +96,9 @@ stream and the sound go through macOS's usbmuxd (`mac/usbmux.swift`), on the cab
 APK with the SDK's tools alone (NDK, javac, d8, aapt2, apksigner: no Gradle), `android/install.sh` installs and opens it (USB debugging on);
 then `sidecar-screen --host adb` (or the tray's "Android on the USB cable", which opens the app itself). The stream and the sound go
 through the Mac's adb server (`mac/adb.swift`: `host:transport` then `tcp:7710`, no port to forward), on the cable that charges it. Its
-native half (`android/jni/receiver.c`) decodes the RECTs with the vendored lz4 and zstd into the Surface; it reads no H.264 yet.
+native half (`android/jni/receiver.c`) decodes the RECTs with the vendored lz4 and zstd on three cores into the Surface, and the video
+(`+h264` when the device has an H.264 decoder) with MediaCodec straight into a second Surface over its place: on a Nexus 7, a whole
+screen in motion goes from 22 frames/s as tiles to 60 as video, a quarter of the CPU.
 
 Each screen says its name in its hello (`+name:`, percent-encoded): the Mac's Displays show the screen as the device ("iPad de Guillaume",
 "Nexus 7"), not as Sidecar Screen.

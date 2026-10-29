@@ -28,6 +28,10 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
     static native void start(android.view.Surface s, int w, int h, String name);
     static native void stop();
     static native boolean connected();
+    static native void videoSurface(android.view.Surface s, int w, int h);
+
+    private static Screen self;
+    private SurfaceView video;   // the Mac's video (H.264, decoded by MediaCodec into it) over its place, GONE without one
 
     private TextView waiting;
     private final Handler handler = new Handler();
@@ -39,6 +43,16 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
         SurfaceView view = new SurfaceView(this);
         view.getHolder().addCallback(this);
         root.addView(view);
+        video = new SurfaceView(this);
+        video.setZOrderMediaOverlay(true);   // over the picture's Surface
+        video.setVisibility(View.GONE);
+        video.getHolder().addCallback(new SurfaceHolder.Callback() {
+            public void surfaceCreated(SurfaceHolder h) {}
+            public void surfaceChanged(SurfaceHolder h, int format, int w, int hh) { videoSurface(h.getSurface(), w, hh); }
+            public void surfaceDestroyed(SurfaceHolder h) { videoSurface(null, 0, 0); }
+        });
+        root.addView(video, new FrameLayout.LayoutParams(1, 1, Gravity.TOP | Gravity.LEFT));
+        self = this;
         waiting = new TextView(this);
         waiting.setText("Sidecar\n\nPlug this device into the Mac with its USB cable (USB debugging on),\nthen choose it in Sidecar on the Mac (Android on USB).");
         waiting.setTextColor(Color.LTGRAY); waiting.setTextSize(20); waiting.setGravity(Gravity.CENTER); waiting.setBackgroundColor(Color.BLACK);
@@ -54,6 +68,18 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
         super.onWindowFocusChanged(focus);
         if (focus) getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN
             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+    }
+    /** The video Surface over the picture's (x, y, w, h), in pixels of the stream (the picture's Surface fills the screen); w 0: none. From the native side. */
+    static void place(final int x, final int y, final int w, final int h) {
+        final Screen s = self;
+        if (s != null) s.handler.post(new Runnable() { public void run() {
+            if (w == 0) { s.video.setVisibility(View.GONE); return; }
+            FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(w, h, Gravity.TOP | Gravity.LEFT);
+            p.leftMargin = x; p.topMargin = y;
+            s.video.getHolder().setFixedSize(w, h);
+            s.video.setLayoutParams(p);
+            s.video.setVisibility(View.VISIBLE);
+        } });
     }
     /** The name the owner gave the device (Settings › About), else its model: the Mac names the screen with it. */
     private String deviceName() {
