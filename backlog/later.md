@@ -607,6 +607,9 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod demo: ipod_demo uses a fixed /tmp/zinc-ipod-demo disk image, so two trees running it at once collide; use a per-run path.
 - iPod demo: AudioMuse auto-sync only follows analysis tasks; a clustering run that ends after one does not sync again.
 
+- iPod demo: the Info window cannot send a cover to a remote iPod (the daemon needs a cover upload route); an album grid on screen keeps the old cover until shown again.
+- tests/t1/ipod_web.sh: a curl -d with nested braces inside "$(...)" reached the daemon cut; bodies go from a file now, the cause was not looked at.
+
 ## Cross-platform pass
 - iPod AudioMuse over the LAN from the Pi daemon, with the same client.
 - iPod: run ipod_smart on Linux.
