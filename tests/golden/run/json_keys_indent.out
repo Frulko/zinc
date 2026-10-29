@@ -1,0 +1,47 @@
+1|2|b|a| x 0|1 0
+1 null
+2 true
+b 1
+a {"x":[1,2]}
+ "e"
+{
+  "a": 0.5,
+  "name": "x, y: \"z\" {[]}",
+  "list": [
+    1,
+    2
+  ],
+  "empty": [],
+  "nested": {
+    "on": true,
+    "tags": [
+      "a\\b",
+      "\"q\""
+    ]
+  }
+}
+{
+	"a": 0.5,
+	"name": "x, y: \"z\" {[]}",
+	"list": [
+		1,
+		2
+	],
+	"empty": [],
+	"nested": {
+		"on": true,
+		"tags": [
+			"a\\b",
+			"\"q\""
+		]
+	}
+}
+{"a":0.5,"name":"x, y: \"z\" {[]}","list":[1,2],"empty":[],"nested":{"on":true,"tags":["a\\b","\"q\""]}}
+{"a":0.5,"name":"x, y: \"z\" {[]}","list":[1,2],"empty":[],"nested":{"on":true,"tags":["a\\b","\"q\""]}}
+[] [
+ "{",
+ "}"
+]
+16
+4 1,10,20,30
+2 2 abc

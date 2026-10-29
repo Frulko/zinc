@@ -436,7 +436,7 @@ struct Checker {
     declare(SymKind::Builtin, "__recDecode", func({arrayOf(num(Num::u8)), tStr, tDyn}, tDyn, 3), kNone, true, 0);  // a native record's bytes as a Dyn tree (ZN-850, include/zn/rec.h)
     declare(SymKind::Builtin, "__recEncode", func({tDyn, tStr}, arrayOf(num(Num::u8)), 2), kNone, true, 0);       // a Dyn value as a native record's bytes
     declare(SymKind::Builtin, "__toNumber", func({tStr}, num(gNumber), 1), kNone, true, 0);  // Number(string), for generated code
-    for (const char* nm : {"Boolean", "JSON", "Array"}) {  // namespaces whose calls the checker rewrites
+    for (const char* nm : {"Boolean", "JSON", "Array", "Object"}) {  // namespaces whose calls the checker rewrites
       ObjInfo o;
       o.name = nm;
       out.objs.push_back(o);
@@ -1639,6 +1639,27 @@ struct Checker {
         return out.nodeType[i];
       }
     }
+    if (cn.kind == N::Member && cn.text == "push" && args.size() > 1 && n(cn.kids[0]).kind != N::Super &&
+        std::none_of(args.begin(), args.end(), [&](std::uint32_t g) { return n(g).kind == N::Spread; })) {  // a.push(x, y): every argument read, then pushed in order
+      const TypeId rt = expr(cn.kids[0]);
+      if (!bad(rt) && ty(rt).k == TK::Array) {
+        const TypeId et = ty(rt).elem;
+        for (std::uint32_t g : args) { const TypeId at = expr(g, et); if (bad(at) || !require(at, et, g)) return tError; }
+        const std::string A = inspectAliasName(rt), E = inspectAliasName(et), k = std::to_string(args.size());
+        std::string ps, body;
+        for (std::size_t j = 0; j < args.size(); ++j) { ps += ", x" + std::to_string(j) + ": " + E; body += "  a.push(x" + std::to_string(j) + ");\n"; }
+        const std::uint32_t sym = helper("pushN," + k + "," + std::to_string(rt), "function $F(a: " + A + ps + "): i32 {\n" + body + "  return a.length;\n}\n", {rt, et}, i);
+        const std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+        out.nodeSym[id] = sym;
+        out.nodeType[id] = out.syms[sym].type;
+        std::vector<std::uint32_t> ks{id, cn.kids[0]};
+        ks.insert(ks.end(), args.begin(), args.end());
+        a.nodes[i].kids = ks;
+        rewritten.insert(i);
+        out.nodeType[i] = num(Num::i32);
+        return out.nodeType[i];
+      }
+    }
     if (cn.kind == N::Member && cn.text == "sort" && args.empty() && n(cn.kids[0]).kind != N::Super) {  // a.sort(): as JavaScript, by the elements' text
       const TypeId rt = expr(cn.kids[0]);
       if (!bad(rt) && ty(rt).k == TK::Array) {
@@ -1678,8 +1699,55 @@ struct Checker {
           return tBool;
         }
       }
+      if (on == "Object" && isBuiltin(cn.kids[0], "Object") && m == "keys" && args.size() == 1) {  // the keys of a JSON value, as for...in lists them
+        TypeId at = expr(args[0]);
+        if (bad(at)) return tError;
+        if (isDyn(at) && !rawDyn()) return rewrite("__dynKeys(__H0)", {{args[0]}});
+        diag(kZUnsupported, args[0], "Object.keys of '" + name(at) + "' (its fields are known from its type; a Map lists its keys with keys())");
+        return tError;
+      }
+      if (on == "JSON" && isBuiltin(cn.kids[0], "JSON") && m == "stringify" && (args.size() == 2 || args.size() == 3) &&
+          ((n(args[1]).kind == N::Literal && n(args[1]).text == "null") || (n(args[1]).kind == N::Ident && n(args[1]).text == "undefined"))) {
+        if (args.size() == 2) { a.nodes[i].kids.pop_back(); return libraryCall(i); }   // no replacer, no indent
+        // the indent: JSON.stringify's compact text laid out again (strings copied as they are), as JavaScript lays it out
+        TypeId gt = expr(args[2]);
+        if (bad(gt)) return tError;
+        const bool numGap = ty(gt).k == TK::Num;
+        if (!numGap && gt != tStr) { diag(kZUnsupported, args[2], "a JSON.stringify indent of type '" + name(gt) + "'"); return tError; }
+        std::uint32_t sym = helper(numGap ? "jsonIndentN" : "jsonIndentS", std::string("function $F(s: string, g: ") + (numGap ? "number" : "string") + "): string {\n" +
+          (numGap ? "  let gap = '';\n  for (let k: i32 = 0; k < Math.min(10, Math.floor(g)); k++) gap += ' ';\n" : "  const gap = g.length > 10 ? g.slice(0, 10) : g;\n") + R"ZN(  if (gap === '') return s;
+  const out: string[] = [];
+  let ind = '';
+  let inStr = false;
+  for (let i: i32 = 0; i < s.length; i++) {
+    const c = s.charAt(i);
+    if (inStr) {
+      out.push(c);
+      if (c === '\\') { i++; out.push(s.charAt(i)); } else if (c === '"') inStr = false;
+    } else if (c === '"') { inStr = true; out.push(c); }
+    else if (c === '{' || c === '[') {
+      const close = c === '{' ? '}' : ']';
+      if (s.charAt(i + 1) === close) { out.push(c + close); i++; } else { ind += gap; out.push(c + '\n' + ind); }
+    } else if (c === '}' || c === ']') { ind = ind.slice(0, ind.length - gap.length); out.push('\n' + ind + c); }
+    else if (c === ',') out.push(',\n' + ind);
+    else if (c === ':') out.push(': ');
+    else out.push(c);
+  }
+  return out.join('');
+}
+)ZN", {}, i);
+        std::uint32_t inner = newNode(N::Call, {}, {kids[0], args[0]}, i);
+        std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+        out.nodeSym[id] = sym;
+        out.nodeType[id] = out.syms[sym].type;
+        a.nodes[i].kids = {id, inner, args[2]};
+        if (bad(expr(inner))) return tError;
+        rewritten.insert(i);
+        out.nodeType[i] = tStr;
+        return tStr;
+      }
       if (on == "JSON" && isBuiltin(cn.kids[0], "JSON") && m == "stringify") {
-        if (args.size() != 1) { diag(kZUnsupported, i, "JSON.stringify with a replacer or an indent"); for (std::uint32_t arg : args) expr(arg); return tError; }
+        if (args.size() != 1) { diag(kZUnsupported, i, "JSON.stringify with a replacer (an indent is supported: JSON.stringify(value, null, 2))"); for (std::uint32_t arg : args) expr(arg); return tError; }
         TypeId at = expr(args[0]);
         if (bad(at)) return tError;
         if (at == tNull) return rewrite("'null'", {});
