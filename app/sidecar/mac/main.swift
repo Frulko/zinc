@@ -283,7 +283,7 @@ var zones = [UInt8](), zw = 0, zh = 0   // per block of the frame: 1 turned, 2 o
 /** The blocks of the frame; the frame box whose blocks changed since the last frame (nil: none). */
 func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> (Int, Int, Int, Int)? {
     let w = (fw + 7) / 8, h = (fh + 7) / 8, n = w * h
-    var dark = [Bool](repeating: false, count: n), pic = [UInt8](repeating: 0, count: n), some = [Bool](repeating: false, count: n)
+    var dark = [Bool](repeating: false, count: n), pic = [UInt8](repeating: 0, count: n), some = [Bool](repeating: false, count: n), inked = [Int](repeating: 0, count: n)
     tone.withUnsafeBufferPointer { t in
         for by in 0..<h { for bx in 0..<w {
             var c = 0, d = 0, grain = 0, y = by * 8
@@ -299,7 +299,7 @@ func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> 
             let i = by * w + bx
             // a picture has grain: a pixel and the next differ a little (1 to 24). The interface is flat fields (the same value) and the
             // steep edges of letters and lines; its greys, a dark mode's included, say nothing (a mid-grey test made a dark chat a photo)
-            dark[i] = d * 2 >= c; pic[i] = grain * 2 >= c ? 1 : 0; some[i] = grain * 4 >= c
+            dark[i] = d * 2 >= c; pic[i] = grain * 2 >= c ? 1 : 0; some[i] = grain * 4 >= c; inked[i] = d * 16 / max(1, c)
         } }
     }
     // a block is a picture when most of the 3 x 3 around it are: no lone block in a page of text, no hole in a face's dark hair
@@ -338,7 +338,12 @@ func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> 
                 }
             }
             let (a, b) = size(m)
-            if max(a, b) < 12 { if anyTurned { for i in m { turn[i] = true } } }
+            // a light area beside a turned one turns with it when it is small, or when it is letters: a line of white words on a dark
+            // bar (Discord's new-messages bar) is a long light strip, but a quarter of it is the bar between the letters. A light field
+            // (a search box, a page) has none, and keeps its paper
+            var ink = 0
+            for i in m { ink += inked[i] }
+            if max(a, b) < 12 || ink * 4 >= m.count * 16 { if anyTurned { for i in m { turn[i] = true } } }
             else if allTurned { for i in m { island[i] = true } }
         }
     }
@@ -437,7 +442,9 @@ var maxBuf = [UInt8](repeating: 255, count: 0)
 // picture becomes a light grey, from 175 (the darkest tints) to 235: a few dots in every pattern. Paler fields (a window's 236 to 255 grey)
 // stay paper, so the interface does not fill with dots; in a turned area up to 195 only (a dark mode's field, 30 to 59, turns to paper;
 // its lighter panels and hovered rows, 60 and up, to a tint). The shader's twin
-@inline(__always) func tint(_ v: Int) -> Int { 175 + (v - 150) * 60 / 85 }
+// A turned area's coloured fields reach lower, 100 (a dark mode's 155: Discord's blue new-messages bar, a selected tab): turned they were
+// ink, and their light text turned to ink on them. Its 100 to 195 become the same 175 to 235
+@inline(__always) func tint(_ v: Int, _ turn: Bool) -> Int { turn ? 175 + (v - 100) * 60 / 95 : 175 + (v - 150) * 60 / 85 }
 /** The frame's luma over box b (frame pixels) -> grey, at its place on the panel. */
 func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (Int, Int, Int, Int)) {
     let bw = b.2 - b.0, bh = b.3 - b.1
@@ -471,7 +478,7 @@ func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (
                 var o = Int(t[v])
                 var flat = false
                 if edges > 0 { let rise = (turn ? 255 - Int(mn![x]) : Int(mx[x])) - v; flat = rise <= edgeFloor; o = Int(line(o, rise, floor)) }
-                if flat && !picture && v >= 150 && v <= (turn ? 195 : gr ? 215 : 235) { o = tint(v) }   // a graphic's page is a little grey through JPEG
+                if flat && !picture && v >= (turn ? 100 : 150) && v <= (turn ? 195 : gr ? 215 : 235) { o = tint(v, turn) }   // a graphic's page is a little grey through JPEG
                 else if ditherKind == 3 && !picture { o = o < 128 ? 0 : 255 }
                 d[x * step] = UInt8(o)
             }
@@ -969,7 +976,7 @@ kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant in
         if (e > 0) v = v - e * edges < 228 ? 0 : 255;   // line() on the CPU: a line is ink or paper, never dotted
         flat = r <= floor_;
       }
-      if (flat && !picture && l >= 150 && l <= (turn ? 195 : (k & 8) != 0 ? 215 : 235)) v = 175 + (l - 150) * 60 / 85;   // tint() on the CPU
+      if (flat && !picture && l >= (turn ? 100 : 150) && l <= (turn ? 195 : (k & 8) != 0 ? 215 : 235)) v = turn ? 175 + (l - 100) * 60 / 95 : 175 + (l - 150) * 60 / 85;   // tint() on the CPU
       else if (p[15] == 3 && !picture) v = v < 128 ? 0 : 255;
       grey[py * W + px] = uchar(v);
     }
