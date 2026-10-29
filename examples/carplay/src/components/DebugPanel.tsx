@@ -14,6 +14,8 @@ const [cluster, setCluster] = createSignal<string>('Waiting for receiver status'
 const [contacts, setContacts] = createSignal<string>('Native contacts: 0 · peak 0');
 const [twoContacts, setTwoContacts] = createSignal<boolean>(false);
 const [logs, setLogs] = createSignal<string[]>([]);
+type VehicleState = { speedKph: number; rpm: number; gear: string; fuelPct: number };
+const [vehicle, setVehicle] = createSignal<VehicleState>({ speedKph: 0, rpm: 0, gear: 'P', fuelPct: 68 });
 let live: Session | null = null;
 let pollElapsed = 0;
 const [duration, setDuration] = createSignal<number>(1);
@@ -93,7 +95,19 @@ export function DebugPanel(): i32 {
       </View>
       <Text className="text-amber-200 text-xs">{message()}</Text>
       <Text className="text-slate-200">Secondary display · stream 111</Text>
+      <Text className="text-slate-400 text-xs">Tableau de bord local simulé · aucune donnée véhicule envoyée à l’iPhone</Text>
+      <View className="bg-slate-950 rounded p-3 flex-row items-center gap-3">
+        <View className="w-16 flex-col items-center"><Text className="text-cyan-200 text-xl font-bold">{`${vehicle().speedKph}`}</Text><Text className="text-slate-400 text-xs">km/h</Text></View>
+        <View className="w-16 flex-col items-center"><Text className="text-white text-lg">{`${vehicle().rpm}`}</Text><Text className="text-slate-400 text-xs">tr/min</Text></View>
+        <View className="w-10 flex-col items-center"><Text className="text-amber-200 text-lg">{vehicle().gear}</Text><Text className="text-slate-400 text-xs">rapport</Text></View>
+        <View className="grow flex-col items-center"><Text className="text-white text-lg">{`${vehicle().fuelPct}%`}</Text><Text className="text-slate-400 text-xs">carburant</Text></View>
+      </View>
       <Canvas className="h-28 bg-slate-950" onDraw={Cluster}></Canvas>
+      <View className="flex-row gap-2">
+        <Button className="bg-slate-700 rounded p-2" onClick={() => setVehicle({ speedKph: 0, rpm: 0, gear: 'P', fuelPct: 68 })}><Text className="text-white">Arrêt</Text></Button>
+        <Button className="bg-slate-700 rounded p-2" onClick={() => setVehicle({ speedKph: 50, rpm: 1800, gear: 'D', fuelPct: 67 })}><Text className="text-white">Ville</Text></Button>
+        <Button className="bg-slate-700 rounded p-2" onClick={() => setVehicle({ speedKph: 110, rpm: 2600, gear: 'D', fuelPct: 61 })}><Text className="text-white">Autoroute</Text></Button>
+      </View>
       <Button className="bg-slate-700 rounded p-2" onClick={() => { const s = live; if (s !== null) s.showCluster(); }}><Text className="text-white">Request cluster map</Text></Button>
       <Text className="text-slate-400 text-xs">Enable ZINC_CARPLAY_CLUSTER=1 before receiver startup; navigation must be active.</Text>
       <Text className="text-slate-200 text-xs">{contacts()}</Text>

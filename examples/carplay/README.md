@@ -98,6 +98,11 @@ For wireless launch options on Mac and Pi, see
 For a Pi with a local screen, the [performance and two-service plan](../../docs/reports/zinc-next-carplay-pi-performance.md)
 keeps the receiver and Zinc player as separately supervised programs. The
 player's existing reconnect loop handles receiver startup and restarts.
+For instrument clusters and synthetic vehicle data, see the
+[CarPlay Ultra feasibility report](../../docs/reports/zinc-next-carplay-ultra-feasibility.md):
+the current stream 111 is a classic auxiliary video stream. The debug dashboard
+has local vehicle-state presets, but does not send them to the iPhone. The Ultra
+vehicle-state and UI-sync path still needs live negotiation evidence.
 
 The HUD button shows/hides navigation and media beneath the main video. It retains
 incremental iAP2 metadata: title, artist, album, playback app, state and reported

@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- The CarPlay debug player previews a locally simulated vehicle dashboard beside the cluster map, with parked, city and motorway speed, RPM, gear and fuel presets. It does not send vehicle state to the iPhone.
 - CarPlay’s native iAP2 inspector lists known RX/TX messages, advertised capabilities and observed counts, with decoded live traces, recording/export and a validated TLV sender for advertised commands. Telemetry subscriptions request additional music, call, network and guidance fields, including lane capacity.
 - CarPlay’s HUD can receive real album covers over iAP2 and releases them when replaced or disconnected; GPS diagnostics show the phone’s requested sentence types and filter output accordingly.
 - CarPlay’s HUD displays incremental navigation and music metadata; the cluster resolution is configurable with `ZINC_CARPLAY_CLUSTER_WIDTH` / `HEIGHT`, and its preview preserves the received ratio. Debug GPS adds a bundled GPX button and actual iAP2 write counts.
