@@ -5,6 +5,7 @@ import argparse
 import os
 import re
 import select
+import socket
 import subprocess
 import sys
 
@@ -43,6 +44,19 @@ def local_address():
     return address(match.group(1))
 
 
+def open_rfcomm(peer, port):
+    sock = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM,
+                         socket.BTPROTO_RFCOMM)
+    try:
+        sock.settimeout(15)
+        sock.connect((peer, port))
+        sock.settimeout(None)
+        return sock
+    except OSError:
+        sock.close()
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -68,11 +82,8 @@ def main():
     service = next((s for s in services if s.get('protocol') == 'RFCOMM' and isinstance(s.get('port'), int) and 1 <= s['port'] <= 30), None)
     if service is None:
         parser.exit(1, 'No iAP2 RFCOMM service found; pair/trust the iPhone with bluetoothctl first\n')
-    sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
+    sock = open_rfcomm(args.address, service['port'])
     try:
-        sock.settimeout(15)
-        sock.connect((args.address, service['port']))
-        sock.settimeout(None)
         print('bt-bridge: BlueZ iAP2 RFCOMM connected', file=sys.stderr)
         pump(sock)
     finally:

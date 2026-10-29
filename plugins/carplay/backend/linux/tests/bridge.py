@@ -23,6 +23,24 @@ class BridgeTest(unittest.TestCase):
             self.assertEqual('B8:27:EB:2E:AA:28', bridge['local_address']())
             self.assertEqual(['bluetoothctl', 'show'], run.call_args.args[0])
 
+    def test_rfcomm_uses_standard_socket_and_connects_once(self):
+        with patch.dict(socket.__dict__, {'AF_BLUETOOTH': 31, 'BTPROTO_RFCOMM': 3}):
+            with patch.object(socket, 'socket') as create:
+                self.assertIs(create.return_value,
+                              bridge['open_rfcomm']('AA:BB:CC:DD:EE:FF', 1))
+                create.assert_called_once_with(31, socket.SOCK_STREAM, 3)
+                create.return_value.connect.assert_called_once_with(('AA:BB:CC:DD:EE:FF', 1))
+                self.assertEqual([15, None],
+                                 [call.args[0] for call in create.return_value.settimeout.call_args_list])
+
+    def test_rfcomm_closes_socket_when_connect_fails(self):
+        with patch.dict(socket.__dict__, {'AF_BLUETOOTH': 31, 'BTPROTO_RFCOMM': 3}):
+            with patch.object(socket, 'socket') as create:
+                create.return_value.connect.side_effect = OSError(77, 'bad socket state')
+                with self.assertRaises(OSError):
+                    bridge['open_rfcomm']('AA:BB:CC:DD:EE:FF', 1)
+                create.return_value.close.assert_called_once()
+
     def test_bidirectional_binary_stdio_and_eof(self):
         peer, local = socket.socketpair()
         input_read, input_write = os.pipe()

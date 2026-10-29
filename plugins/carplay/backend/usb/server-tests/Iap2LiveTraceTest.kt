@@ -16,8 +16,9 @@ class Iap2LiveTraceTest {
         trace.tracing(true)
         trace.accept("IAP2 RX [wired] 0x5001 NowPlayingUpdate\n title")
         trace.accept("IAP2 TX [wired] 0x5703 AccessoryWiFiConfigurationInformation\nSECRET-WIFI")
+        trace.accept("IAP2 TX [wireless] 0x4301 CarPlayStartSession\nSECRET-START-WIFI")
         trace.accept("IAP2 TX [wired] 0xaa03 AuthenticationResponse\nSECRET-SIGNATURE")
-        assertEquals(3, lines.size)
+        assertEquals(4, lines.size)
         assertFalse(lines.joinToString().contains("SECRET"))
         val snapshot = trace.snapshot()
         assertFalse(snapshot.connected); assertTrue(snapshot.tracing)
@@ -29,6 +30,7 @@ class Iap2LiveTraceTest {
         trace.accept("IAP2 TX [wired] 0x5002 StopNowPlayingUpdates")
         assertTrue(trace.snapshot().subscriptions.isEmpty())
         assertThrows(IllegalArgumentException::class.java) { trace.send(0xaa03, "") }
+        assertThrows(IllegalArgumentException::class.java) { trace.send(0x4301, "") }
     }
     @Test fun catalogSubscriptionPayloadRequestsAllKnownMediaFields() {
         val catalog = Iap2LiveTrace(false) { }.snapshot().catalog

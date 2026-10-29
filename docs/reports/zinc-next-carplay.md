@@ -647,3 +647,39 @@ Wi-Fi Interworking and Device information elements described in the same PDF.
 It remains possible that iOS will not discover or select it until those
 elements are implemented and tested on the phone. Mac and Pi real-phone tests are next;
 do not call the no-chip wireless path accepted from these smoke tests alone.
+
+## 29 October: live Pi iAP2, cluster appearance and phone-state inventory
+
+The owner's Pi launch exposed a BlueZ RFCOMM failure before iAP2. A `strace`
+showed PyBluez repeating `connect` after `EINPROGRESS`, and Linux returned
+`EBADFD` (`Errno 77`). The standard Python Bluetooth socket completed one
+timed `connect`; the bridge now uses it. The updated helper is deployed to the
+Pi. The live inspector then reported an authenticated iAP2 link and five
+subscriptions, with power, network, call and media updates. The iPhone joined
+the Pi AP at 10.77.0.162. No TCP client reached RTSP port 17000 and no AirPlay
+session was active when checked. The JVM receiver running on Pi was left alone.
+The inspector counted two outgoing `0x5703` Wi-Fi configurations and incoming
+`0x4E0D`/`0x4E0E`, but no `0x4300` availability or outgoing `0x4301`. The
+wireless control loop only sends `0x4301` in response to `0x4300`, so the next
+proof is Bonjour/CarPlay Control discovery on the AP rather than assuming a
+Bluetooth payload will start projection.
+An on-AP PTR query for `_airplay._tcp.local` received a `PlayPort Pi` answer
+from 10.77.0.1, so the local Bonjour responder is active; this does not prove
+that iOS accepted or acted on the advertisement.
+A short packet capture observed mDNS from the AP station but no RTSP traffic;
+in a separate 10-second sample there was no `_airplay` browse query. These
+samples narrow the next diagnostic, but cannot establish that iOS never
+browses the service.
+
+The owner's main display responded to day/night but stream111 stayed in dark
+mode. The appearance command builder previously addressed only the main UUID;
+it now addresses both UUIDs when a cluster is configured. Plist round-trip
+tests pass for day and night, with and without a cluster. This needs a receiver
+restart with `ZINC_CARPLAY_CLUSTER=1` and a phone test before calling it fixed
+in hardware.
+
+Waze provided `0x5201` with `state=0`, `sourceName=Waze` and
+`sourceSupportsGuidance=0`, which identifies the app but not turn guidance.
+The HUD now reports that state explicitly, while a metadata-only update cannot
+reactivate a stopped route. The [iAP2 capability recap](zinc-next-carplay-iap2-capabilities.md)
+separates observed RX, advertised TX, and unproven catalog functions.

@@ -244,7 +244,7 @@ old = '''        val sent = sendCommandLocked(
         )
         if (sent) pendingNightMode = null
         return sent'''
-new = '''        for (command in com.shilapi.xcertplay.transport.AirPlayAppearance.commands(night)) {
+new = '''        for (command in com.shilapi.xcertplay.transport.AirPlayAppearance.commands(night, config.cluster != null)) {
             if (!sendCommandLocked(command)) return false
         }
         pendingNightMode = null

@@ -19,7 +19,10 @@ function state(): string {
 function distance(): string { const h = data(); return h === null || !h.active ? '—' : hudDistance(h.distance, h.distanceKnown); }
 function direction(): string { const h = data(); return h === null || !h.active ? '·' : maneuverGlyph(h.maneuver); }
 function instruction(): string {
-  const h = data(); return h === null || h.routePackets === 0 ? 'En attente de guidage' : !h.active ? 'Aucun itinéraire actif' : h.instruction || 'Instruction non fournie';
+  const h = data();
+  if (h === null || h.routePackets === 0) return 'En attente de guidage';
+  if (h.sourceSupportsGuidance === false) return 'Guidage non transmis par ' + (h.source || 'cette app');
+  return !h.active ? 'Aucun itinéraire actif' : h.instruction || 'Instruction non fournie';
 }
 function road(): string { const h = data(); return h === null || !h.active ? '' : h.road || h.destination || 'Route non fournie'; }
 function trip(): string {

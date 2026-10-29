@@ -27,6 +27,15 @@ class DebugTelemetryTest {
         assertEquals("", latest.instruction); assertFalse(latest.distanceKnown)
         assertTrue(latest.remainingKnown); assertEquals(1000L, latest.remaining)
     }
+    @Test fun wazeSourceWithoutGuidanceRemainsVisibleAfterRouteEnds() {
+        var latest = HudSnapshot()
+        val state = DebugTelemetry { _, hud -> latest = hud }
+        state.accept(Iap2BodyBuilder.opaque(0x5201).u16(0, 42).u8(1, 0).build())
+        state.accept(Iap2BodyBuilder.opaque(0x5201).u16(0, 42).string(19, "Waze").u8(20, 0).build())
+        assertEquals("Waze", latest.source)
+        assertEquals(false, latest.sourceSupportsGuidance)
+        assertFalse(latest.active)
+    }
     @Test fun partialGuidanceUpdatesResolveManeuverAndClearOnArrival() {
         var latest = HudSnapshot()
         val events = mutableListOf<String>()

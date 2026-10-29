@@ -27,7 +27,8 @@ class Finger {
 export interface HudSnapshot {
   active: boolean; road: string; instruction: string; distance: number; remaining: number;
   distanceKnown: boolean; remainingKnown: boolean; remainingSeconds?: number;
-  destination: string; source: string; routePackets: number; mediaPackets: number;
+  destination: string; source: string; sourceSupportsGuidance?: boolean;
+  routePackets: number; mediaPackets: number;
   maneuver: i32; title: string; artist: string; album?: string; mediaApp?: string;
   artworkId?: i32; durationMs?: number; elapsedMs?: number; playbackStatus?: i32; stale: boolean;
 }

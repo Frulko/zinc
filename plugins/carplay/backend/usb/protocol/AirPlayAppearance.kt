@@ -5,16 +5,19 @@ import com.shilapi.xcertplay.airplay.AirPlayInfoPlist
 
 /** Newer phones also accept UI/map appearance updates addressed to the projected display. */
 object AirPlayAppearance {
-    fun commands(night: Boolean): List<Map<String, Any?>> = listOf(
-        linkedMapOf("type" to "setNightMode", "params" to linkedMapOf("nightMode" to night)),
-        update("uiAppearanceUpdate", night),
-        update("mapAppearanceUpdate", night),
-    )
+    fun commands(night: Boolean, cluster: Boolean): List<Map<String, Any?>> = buildList {
+        add(linkedMapOf("type" to "setNightMode", "params" to linkedMapOf("nightMode" to night)))
+        for (uuid in if (cluster) listOf(AirPlayInfoPlist.MAIN_UUID, AirPlayInfoPlist.ALT_UUID)
+                     else listOf(AirPlayInfoPlist.MAIN_UUID)) {
+            add(update("uiAppearanceUpdate", night, uuid))
+            add(update("mapAppearanceUpdate", night, uuid))
+        }
+    }
 
-    private fun update(type: String, night: Boolean): Map<String, Any?> = linkedMapOf(
+    private fun update(type: String, night: Boolean, uuid: String): Map<String, Any?> = linkedMapOf(
         "type" to type,
         "params" to linkedMapOf(
-            "uuid" to AirPlayInfoPlist.MAIN_UUID,
+            "uuid" to uuid,
             "appearanceMode" to if (night) 1 else 0,
             "appearanceSetting" to 0,
         ),

@@ -10,7 +10,8 @@ data class HudSnapshot(
     val active: Boolean = false, val road: String = "", val instruction: String = "",
     val distance: Long = 0, val remaining: Long = 0, val maneuver: Int = -1,
     val distanceKnown: Boolean = false, val remainingKnown: Boolean = false,
-    val destination: String = "", val source: String = "", val remainingSeconds: Long? = null,
+    val destination: String = "", val source: String = "", val sourceSupportsGuidance: Boolean? = null,
+    val remainingSeconds: Long? = null,
     val routePackets: Long = 0, val mediaPackets: Long = 0,
     val title: String = "", val artist: String = "", val album: String = "", val mediaApp: String = "",
     val durationMs: Long? = null, val elapsedMs: Long? = null, val playbackStatus: Int? = null,
@@ -44,19 +45,21 @@ class DebugTelemetry(private val publish: (String, HudSnapshot) -> Unit) {
                 0x5201 -> {
                     hud = hud.copy(routePackets = hud.routePackets + 1)
                     val source = body.optionalString(19)?.take(80)
-                    if (source != null && hud.source.isNotEmpty() && source != hud.source) {
+                    if (source != null && source != hud.source) {
                         currentIndex = -1; maneuvers.clear()
-                        hud = hud.copy(source = source, road = "", instruction = "", destination = "",
+                        hud = hud.copy(source = source, active = false, road = "", instruction = "", destination = "",
                             maneuver = -1, distance = 0, remaining = 0, distanceKnown = false,
-                            remainingKnown = false, remainingSeconds = null)
+                            remainingKnown = false, remainingSeconds = null, sourceSupportsGuidance = null)
                     }
+                    body.optionalU8(20)?.let { hud = hud.copy(sourceSupportsGuidance = it != 0) }
                     val state = body.optionalU8(1)
                     if (state == 0 || state == 2) {
                         hud = hud.copy(active = false, road = "", instruction = "", distance = 0, remaining = 0, distanceKnown = false, remainingKnown = false, remainingSeconds = null, destination = "", maneuver = -1, stale = false)
                         currentIndex = -1; maneuvers.clear()
                     } else {
                         body.optionalU16List(13)?.let { currentIndex = it.firstOrNull() ?: -1 }
-                        hud = hud.copy(active = true, road = body.optionalString(3)?.take(160) ?: hud.road,
+                        hud = hud.copy(active = hud.active || state == 1 || body.has(7) || body.has(10) || body.has(13),
+                            road = body.optionalString(3)?.take(160) ?: hud.road,
                             distance = body.optionalU32(10) ?: hud.distance,
                             distanceKnown = body.has(10) || hud.distanceKnown,
                             remainingKnown = body.has(7) || hud.remainingKnown,

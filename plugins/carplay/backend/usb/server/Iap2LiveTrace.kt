@@ -76,7 +76,7 @@ class Iap2LiveTrace(
         channel.send(Iap2Frame(id, payload), 1000)
     }
     companion object {
-        fun sensitive(id: Int): Boolean = id ushr 8 in setOf(0xaa, 0x1d, 0x57)
+        fun sensitive(id: Int): Boolean = id == 0x4301 || id ushr 8 in setOf(0xaa, 0x1d, 0x57)
         fun payload(hex: String): ByteArray {
             require(hex.length <= 12288) { "Payload exceeds 4096 bytes" }
             val clean = hex.filterNot { it.isWhitespace() }
