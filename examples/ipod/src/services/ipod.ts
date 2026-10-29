@@ -158,6 +158,15 @@ export async function addTracks(items: ipod.TrackInput[], playlist: string): Pro
 /** Removes the tracks and their files from the iPod. */
 export async function removeTracks(ids: string[]): Promise<void> { if (isRemote()) await remote.remove(ids); else await ipod.remove(ids); }
 
+/** A new normal playlist `name` of the tracks `ids` in that order, saved on the iPod (a remote one through its daemon); its id. */
+export async function createPlaylistOf(name: string, ids: string[]): Promise<string> {
+  if (isRemote()) return await remote.createPlaylist(name, ids);
+  const id = await ipod.createPlaylist(name);
+  await ipod.setPlaylistTracks(id, ids);
+  await ipod.save();
+  return id;
+}
+
 /** A name safe for a file or folder, as zinc:ipod's download makes it. */
 function safeName(name: string, fallback: string): string {
   let s = '';

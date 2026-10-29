@@ -10,6 +10,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - Sidecar: an iPad, an Android device or another Mac used as a screen now drives the Mac: a finger (or the mouse) is the pointer, a tap a click, two quick taps a double click, two fingers scroll, and the Apple Pencil draws with its pressure and tilt. macOS asks once for the Accessibility permission.
+- iPod demo: Save to iPod works on an iPod opened through the iPod daemon: the Genius list or mix is saved as a playlist there (Allow changes, and the daemon started with `--allow-changes`; otherwise its refusal shows on the page). The daemon has a new route for it, `POST /api/playlist` with `{"name", "ids"}`.
 - iPod demo: a Genius list on the Playlists page says why each song was picked, in a Why column: often played with the seed, same artist, similar artist (Last.fm), sounds close (AudioMuse), or the same genre and decade.
 - iPod: every Genius list asked is kept for each iPod: For you shows them on a shelf, Your Genius lists, and the Playlists page lists them all, not only the last one.
 - Sidecar: an Android device on the USB cable as the Mac's screen, charging meanwhile: the Sidecar app for Android (`app/sidecar/android`, Android 5 and later), `sidecar-screen --host adb`, and "Android on the USB cable" in the menu, which opens the app on the device. What moves plays as video, decoded by the device's hardware (60 frames/s on a Nexus 7). Each screen now shows in the Mac's Displays and on its card in the menu under the device's own name, and several screens run at once.

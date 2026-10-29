@@ -4,7 +4,8 @@
 # start (IPOD_DEMO_REMOTE). Checked: the remote iPod opens (the log), the songs page lists its two songs (a frame hash), a double-click
 # plays the first one (its file fetched into the cache), the second is deleted (Allow changes, the question answered) and a file dropped
 # is uploaded: the daemon ends with 2 songs, Alpha and the new one. The iPod's cache (by its FireWire GUID) holds the song played, the
-# covers shown and the library.
+# covers shown and the library. A Genius list kept in the cache is opened on the Playlists page and saved through the daemon
+# (POST /api/playlist): the daemon has the playlist after.
 # Port 8688 (a fixed port: run alone). Skipped (77) without the plugin's libraries. KEEP=dir keeps the shots. UPDATE=1 rewrites the golden.
 cd "$(dirname "$0")/../.." || exit 2
 pkg-config --exists glib-2.0 gobject-2.0 libplist-2.0 taglib libusb-1.0 2>/dev/null || { echo "skipped: the libraries of zinc:ipod are not installed"; exit 77; }
@@ -71,11 +72,25 @@ cat > "$tmp/session.input" <<'IN'
 131 move 818 122
 132 down
 133 up
+151 move 60 513
+152 down
+153 up
+171 move 350 237
+172 down
+173 up
+191 move 1089 131
+192 down
+193 up
 IN
+# a Genius list asked earlier (drafts.ts keeps them in genius.json): opened on the Playlists page (170) and saved to the iPod (190)
+alpha=$(curl -s -H 'Authorization: Bearer secret' "$B/api/tracks" | python3 -c 'import json,sys; print([t["id"] for t in json.load(sys.stdin)["tracks"] if t["title"] == "Alpha"][0])')
+mkdir -p "$tmp/backups/cache/000A27001234ABCD"
+printf '[{"kind": "draft", "id": "draft:genius:%s:25", "title": "Genius Alpha", "subtitle": "", "tracks": ["%s"], "at": 0, "why": ["the song it starts from"]}]' \
+  "$alpha" "$alpha" > "$tmp/backups/cache/000A27001234ABCD/genius.json"
 printf '0 dialog-answer 0\n1000 drop %s\n' "$tmp/new-song.wav" > "$tmp/system.script"   # the answer: Delete, to Delete's question
 cd "$tmp" || exit 2
 IPOD_DEMO_REMOTE=$B IPOD_DEMO_REMOTE_TOKEN=secret IPOD_DEMO_MOUNT="$tmp/none" ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1180x760 TZ=UTC \
-  ZINC_SYSTEM_SCRIPT="$tmp/system.script" ZINC_INPUT="$tmp/session.input" ZINC_FRAMES=400 ZINC_FRAMEHASH=all ZINC_SHOT="$tmp/page.png" ZINC_SHOT_FRAMES=30,95,140,390 \
+  ZINC_SYSTEM_SCRIPT="$tmp/system.script" ZINC_INPUT="$tmp/session.input" ZINC_FRAMES=400 ZINC_FRAMEHASH=all ZINC_SHOT="$tmp/page.png" ZINC_SHOT_FRAMES=30,95,140,170,190,390 \
   timeout 60 "$Z" run --interp "$root/examples/ipod" > app.out 2>&1 || { echo "ipod_remote: the app failed: $(tail -5 app.out)"; exit 1; }
 hash_at() { awk -v f="$1" '$2 == "framehash" && $3 + 0 <= f + 0 { h = $5 } END { print f, h }' "$2"; }
 hash_at 95 app.out > remote.txt
@@ -93,6 +108,9 @@ curl -s -H 'Authorization: Bearer secret' "$B/api/status" | grep -q '"firewireGu
 titles=$(curl -s -H 'Authorization: Bearer secret' "$B/api/tracks" | grep -o '"title":"[^"]*"' | tr '\n' ' ')
 case $titles in *Alpha*Beta*|*Beta*) echo "ipod_remote: Beta was not deleted: $titles"; fail=1 ;; esac
 curl -s "$B/" | grep -q ': 2 songs' || { echo "ipod_remote: the delete and the add did not leave 2 songs: $titles"; fail=1; }
+saved=$(curl -s -H 'Authorization: Bearer secret' "$B/api/playlists" | python3 -c 'import json,sys; print([p["trackIds"] for p in json.load(sys.stdin)["playlists"] if p["name"] == "Genius Alpha" and not p["smart"]])')
+[ "$saved" = "[['$alpha']]" ] || { echo "ipod_remote: the Genius list was not saved through the daemon: $saved $(grep -i genius "$log" | tail -3)"; fail=1; }
+grep -q '1 song in the playlist “Genius Alpha”' "$log" || { echo "ipod_remote: no save in the log: $(tail -3 "$log")"; fail=1; }
 kill $pid 2>/dev/null; wait $pid 2>/dev/null; pid=''
 [ $fail -eq 0 ] && echo "ipod_remote: ok"
 exit $fail

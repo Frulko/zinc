@@ -38,6 +38,7 @@ zinc build examples/ipod-web -o ipod-web    # one program to copy to the Pi
 | `GET /api/cover/<trackId>` | the cover as PNG, 404 when the track has none |
 | `POST /api/add?name=song.mp3&playlist=Mix` | body: the file; `{"results": [{"file", "id", "error"}]}` |
 | `POST /api/remove` | body `{"ids": [...]}`; `{"removed": n}` |
+| `POST /api/playlist` | body `{"name": "...", "ids": [...]}`: a new normal playlist of those tracks, in order; `{"id": "<playlist id>"}` |
 | `POST /api/eject` | closes the library and ejects the iPod |
 
 Errors are `{"error": "<sentence>"}` with 400, 401, 403, 404, 405 or 500.

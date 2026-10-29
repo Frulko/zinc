@@ -1,5 +1,5 @@
 // A remote iPod: the /api of an iPod daemon (examples/ipod-web, docs/reports/ipod-daemon.md) over zinc:net. The library, the
-// covers and the track files come from it; add, remove and eject are asked of it (it refuses them, 403 and a sentence, unless
+// covers and the track files come from it; add, remove, eject and new playlists are asked of it (it refuses them, 403 and a sentence, unless
 // started with --allow-changes). Only services/ipod.ts calls this file.
 import * as net from 'zinc:net';
 import * as fs from 'zinc:fs';
@@ -20,6 +20,8 @@ interface ErrorReply { error: string; }
 interface StatusReply { marker?: string; }
 interface PlayedReply { counted?: i32; pending?: i32; }
 interface PlayedBody { plays: ipod.Play[]; }
+interface PlaylistBody { name: string; ids: string[]; }
+interface PlaylistReply { id: string; }
 
 let address = '';
 let token = '';
@@ -124,6 +126,13 @@ export async function remove(ids: string[]): Promise<void> {
   const quoted: string[] = [];
   for (const id of ids) quoted.push(JSON.stringify(id));
   await call('POST', '/api/remove', { body: `{"ids": [${quoted.join(', ')}]}`, contentType: 'application/json' });
+}
+
+/** A new normal playlist `name` of the tracks `ids`, in that order (POST /api/playlist); its id. */
+export async function createPlaylist(name: string, ids: string[]): Promise<string> {
+  const body: PlaylistBody = { name: name, ids: ids };
+  const r: PlaylistReply = JSON.parse(await (await call('POST', '/api/playlist', { body: JSON.stringify(body), contentType: 'application/json' })).text());
+  return r.id;
 }
 
 /** Hands plays to the daemon (POST /api/played): it counts them on the iPod, or keeps them until it may; its answer as a sentence. */

@@ -4,8 +4,8 @@
 # tracks, a file with a byte range, Subsonic ping (password and token auth, a bad password), getArtists and getAlbum in JSON and XML,
 # search3, stream with a range, getCoverArt, a write refused (403). AudioMuse-AI's Subsonic calls as its navidrome.py (3.6.4) makes them
 # (apiKey or u + p=enc:, f=json, POST with the parameters in the query): search3 with an empty query paged by songOffset, the song
-# fields it reads, getLyricsBySongId, the apiKey errors, playlists refused read only (50). Then with --allow-changes and
-# --log-requests: an add by POST and a remove, AudioMuse's playlist calls (createPlaylist, updatePlaylist public / songIndexToRemove /
+# fields it reads, getLyricsBySongId, the apiKey errors, playlists refused read only (50, and /api/playlist 403). Then with
+# --allow-changes and --log-requests: an add by POST and a remove, a playlist made by /api/playlist (its songs in order), AudioMuse's playlist calls (createPlaylist, updatePlaylist public / songIndexToRemove /
 # songIdToAdd, createPlaylist on a playlistId, deletePlaylist), a smart playlist refused, the request log masked, and the
 # management page in headless Chrome (tools/cdp.py; skipped without Chrome): the token form, the songs from /api, the search, a
 # click that plays the file, an upload through the page's own code, a delete confirmed in the page.
@@ -107,6 +107,7 @@ want 'getLyricsBySongId' '*"status":"ok"*"lyricsList":{"structuredLyrics":\[\]}*
 want 'apiKey errors' '*"code":44,"message":"Invalid API key."*"code":43*"code":10*' "$(curl -s "$R/ping.view?apiKey=nope&$AM")$(curl -s "$R/ping.view?$K&u=ann")$(curl -s "$R/ping.view?$AM")"
 want 'createPlaylist, read only' '*"status":"failed"*"code":50,"message":"Changes are off: start the iPod daemon with --allow-changes*' "$(curl -s -X POST "$R/createPlaylist.view?$K&name=Mix_instant&songId=tr-$a")"
 want 'remove, read only' '403 {"error": "This daemon is read only*' "$(curl -s -H "$A" -d '{"ids": ["x"]}' -w '%{http_code} ' -o "$tmp/body" $B/api/remove)$(cat "$tmp/body")"
+want 'playlist, read only' '403 {"error": "This daemon is read only*' "$(curl -s -H "$A" -d "{\"name\": \"Saved\", \"ids\": [\"$a\"]}" -w '%{http_code} ' -o "$tmp/body" $B/api/playlist)$(cat "$tmp/body")"
 stop
 
 start --allow-changes --log-requests
@@ -116,6 +117,11 @@ want 'added' '*3 songs*' "$(curl -s $B/)"
 new=$(echo "$added" | sed 's/.*"id":"\([^"]*\)".*/\1/')
 want 'remove' '{"removed": 1}' "$(curl -s -H "$A" -d "{\"ids\": [\"$new\"]}" $B/api/remove)"
 want 'removed' '*2 songs*' "$(curl -s $B/)"
+# a Genius list saved from the app (POST /api/playlist): a normal playlist, its songs in the order given
+saved=$(curl -s -H "$A" -d "{\"name\": \"Genius Beta\", \"ids\": [\"$b\", \"$a\"]}" $B/api/playlist)
+want '/api/playlist' '{"id": "*"}' "$saved"
+want 'the playlist saved' "*\"id\":\"$(echo "$saved" | cut -d'"' -f4)\",\"name\":\"Genius Beta\",\"master\":false,\"podcasts\":false,\"smart\":false,\"trackIds\":[[]\"$b\",\"$a\"[]]*" "$(curl -s -H "$A" $B/api/playlists)"
+want '/api/playlist, bad' '404 400' "$(code -H "$A" -d '{"name": "X", "ids": ["nope"]}' $B/api/playlist) $(code -H "$A" -d '{"name": "", "ids": []}' $B/api/playlist)"
 made=$(curl -s -X POST "$R/createPlaylist.view?$K&name=Mix_instant&songId=tr-$a&songId=tr-$b")
 want 'createPlaylist' "*\"playlist\":{\"id\":\"pl-*\",\"name\":\"Mix_instant\",\"songCount\":2*\"entry\":\\[{\"id\":\"tr-$a\"*{\"id\":\"tr-$b\"*" "$made"
 pl=$(echo "$made" | sed 's/.*"playlist":{"id":"\([^"]*\)".*/\1/')

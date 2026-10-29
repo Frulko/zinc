@@ -1,5 +1,5 @@
 // Genius and the mixes in the app (services/genius.ts picks them): a draft is a list heard first, through the queue on the output
-// chosen (this Mac or a Sonos group); Save to iPod writes it as a normal playlist (Allow changes, an iPod plugged into this computer),
+// chosen (this Mac or a Sonos group); Save to iPod writes it as a normal playlist (Allow changes; a remote iPod through its daemon),
 // Refresh picks again. The model is built when first needed and again when the library or the listening history changed; with a
 // Last.fm API key, the similar artists of the iPod's artists are fetched once in the background (a Transfers job, cached under the
 // history folder), then the model is built again. When AudioMuse-AI analysed the iPod (deep.ts), its results are attached to the
@@ -10,14 +10,14 @@ import * as fs from 'zinc:fs';
 import * as ipod from 'zinc:ipod';
 import { Card } from './services/forYou';
 import { library, openPlaylist } from './state';
-import { PodLibrary } from './services/ipod';
+import { PodLibrary, createPlaylistOf } from './services/ipod';
 import { History } from './services/history';
 import { history, historyStarted, historyVersion, setHistoryVersion } from './services/historyJobs';
-import { Model, Mix, buildModel, attachDeep, genius, reasons, mixes, loadWeights, readArtistGraph, fetchSimilarArtists, savePlaylist } from './services/genius';
+import { Model, Mix, buildModel, attachDeep, genius, reasons, mixes, loadWeights, readArtistGraph, fetchSimilarArtists } from './services/genius';
 import { currentDeep, deepVersion, prepareNear } from './deep';
 import { playList } from './services/player';
 import { enqueue, runBeside, busy, Job } from './services/transfers';
-import { allowed, localOnly, refresh } from './actions';
+import { allowed, refresh, setNotice } from './actions';
 import { loadConfig } from './services/config';
 import { backupPlace } from './services/log';
 import * as cache from './services/cache';
@@ -227,13 +227,14 @@ export function refreshDraft(d: Draft): void {
   if (pick(next)) play(next);
 }
 
-/** Save to iPod: the draft as a new normal playlist (Allow changes; an iPod plugged into this computer). */
+/** Save to iPod: the draft as a new normal playlist (Allow changes; a remote iPod through its daemon, which may refuse it). */
 export function saveDraft(d: Draft): void {
   const lib = library();
-  if (lib === null || d.tracks.length === 0 || !localOnly('Save to iPod') || !allowed('Save to iPod')) return;
+  if (lib === null || d.tracks.length === 0 || !allowed('Save to iPod')) return;
   const tracks = d.tracks.slice(), name = d.name;
   enqueue('playlist', `Save “${name}” to the iPod`, async (): Promise<string> => {
-    await savePlaylist(name, tracks);
+    try { await createPlaylistOf(name, tracks.map((t: ipod.Track) => t.id)); }
+    catch (e) { setNotice((e as Error).message); throw e; }   // the daemon's sentence (read only) on the page too
     await refresh();
     return `${count(tracks.length, 'song', 'songs')} in the playlist “${name}”`;
   });

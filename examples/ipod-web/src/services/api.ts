@@ -1,5 +1,5 @@
 // /api: the iPod API in JSON for the Mac app's "remote iPod" (docs/reports/ipod-daemon.md). A bearer token (header or ?token=);
-// without --token, 127.0.0.1 needs none. Writes need --allow-changes. Errors are {"error": "<sentence>"}.
+// without --token, 127.0.0.1 needs none. Writes (add, remove, eject, playlist) need --allow-changes. Errors are {"error": "<sentence>"}.
 import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import * as net from 'zinc:net';
@@ -12,6 +12,7 @@ import { last } from '../state';
 import { count } from './plays';
 
 interface PlayedBody { plays: ipod.Play[]; }
+interface PlaylistBody { name: string; ids: string[]; }
 
 function fail(status: i32, sentence: string): net.Reply { return jsonReply(status, `{"error": ${quote(sentence)}}`); }
 
@@ -86,7 +87,7 @@ async function add(req: net.Request, q: Query): Promise<net.Reply> {
 }
 
 async function write(req: net.Request, q: Query, what: string): Promise<net.Reply> {
-  if (!options.allowChanges) return fail(403, 'This daemon is read only: start it with --allow-changes to add, remove or eject.');
+  if (!options.allowChanges) return fail(403, 'This daemon is read only: start it with --allow-changes to add, remove, eject or make playlists.');
   if (req.method !== 'POST') return fail(405, `Use POST for /api/${what}.`);
   if (lib.mountpoint === '') return fail(404, 'No iPod is open.');
   if (what === 'add') return add(req, q);
@@ -98,10 +99,25 @@ async function write(req: net.Request, q: Query, what: string): Promise<net.Repl
     await load();
     return jsonReply(200, `{"removed": ${ids.length}}`);
   }
+  if (what === 'playlist') return playlist(req);
   const mp = lib.mountpoint;   // eject
   await close();
   await ipod.eject(mp);
   return jsonReply(200, `{"ejected": ${quote(mp)}}`);
+}
+
+/** POST /api/playlist {"name": "...", "ids": [...]}: a new normal playlist of those tracks in that order, saved ({"id": "<its id>"}). */
+async function playlist(req: net.Request): Promise<net.Reply> {
+  const usage = 'The body must be {"name": "<playlist name>", "ids": ["<track id>", ...]}.';
+  let body: PlaylistBody;
+  try { body = JSON.parse(req.body); } catch (e) { return fail(400, usage); }
+  if (typeof body.name !== 'string' || body.name.trim() === '' || !Array.isArray(body.ids) || body.ids.length === 0) return fail(400, usage);
+  for (const id of body.ids) if (!lib.trackById.has(id)) return fail(404, `No track has the id ${id}.`);
+  const id = await ipod.createPlaylist(body.name.trim());
+  await ipod.setPlaylistTracks(id, body.ids);
+  await ipod.save();
+  await load();
+  return jsonReply(200, `{"id": ${quote(id)}}`);
 }
 
 /** POST /api/played {"plays": [{"id", "count", "at"}]}: counted on the iPod ({"counted": n}), or kept until the daemon may write
@@ -120,7 +136,7 @@ async function route(req: net.Request, q: Query): Promise<net.Reply> {
   const what = parts.length > 2 ? parts[2] : '';
   const id = parts.length > 3 ? decodeURIComponent(parts[3]) : '';
   if (what === 'played') return played(req);
-  if (what === 'add' || what === 'remove' || what === 'eject') return write(req, q, what);
+  if (what === 'add' || what === 'remove' || what === 'eject' || what === 'playlist') return write(req, q, what);
   if (req.method !== 'GET') return fail(405, 'Use GET for this route.');
   if (what === 'devices') {
     const root = new El('root').list('devices').s('open', lib.mountpoint);
