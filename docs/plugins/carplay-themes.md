@@ -9,9 +9,9 @@ This guide covers the receiver's display geometry, the Mac player's dashboard, a
 | Main CarPlay projection (stream 110) | `--width`, `--height`, `--fps`, `--ui-scale` on the receiver | Negotiated at the next CarPlay connection. The player preserves the decoded video ratio. |
 | Cluster map (stream 111) | `ZINC_CARPLAY_CLUSTER=1`, then `ZINC_CARPLAY_CLUSTER_WIDTH` and `ZINC_CARPLAY_CLUSTER_HEIGHT` | The iPhone chooses what to project; navigation must be active. Even dimensions from 64 to 4096. |
 | Day and night | Player **Day/Night** button | Sends an appearance command to the iPhone; app and map support varies. The local simulated dashboard follows it. |
-| Local Zinc dashboard and HUD | `examples/carplay/src/components/VehicleDashboard.tsx` and `HudPanel.tsx` | Freely editable Zinc UI. Gauges use simulated or received data as labelled. |
+| Local Zinc dashboard and HUD | **Tableau de bord** in the player, implemented in `VehicleDashboard.tsx` and `HudPanel.tsx` | Four live local compositions with projected map, simulated gauges and controls. These do not replace the iPhone's theme package. |
 | iPhone CarPlay wallpaper | iPhone CarPlay Settings | Standard CarPlay wallpaper is selected on the phone, not by a Zinc theme file. |
-| Experimental Ultra catalog profile | `ZINC_CARPLAY_ULTRA_THEME=44C9FA31EC:985` with cluster and UI Sync enabled | Fixed asset and layout identifier; no theme picker or artwork composition yet. |
+| Experimental Ultra catalog profile | `ZINC_CARPLAY_ULTRA_THEME=44C9FA31EC:985` with cluster and UI Sync enabled | Advertises the catalog asset. The receiver does not force its fixed test layout by default. |
 
 For a classic cluster, set the environment **before starting the receiver**:
 
@@ -54,16 +54,24 @@ A future local theme manifest could use this shape; it is a **design proposal**,
 
 These zones mirror the experimental Cobranded package's geometry. A real manifest loader would need validation of bounds, asset loading, safe areas, text scaling, fallback content and persistence before the player could offer a theme switcher.
 
-## Four proposed themes
+## Four local themes you can try
+
+Start the receiver and the player as usual, open **Tableau de bord**, then choose **Halo cyan**, **Strates**, **Bronze** or **Topographie**. The latter is the default and uses a dark contour background and orange instruments inspired by the layout in the supplied Apple screenshots. These are original Zinc drawings, not copied Apple artwork. **Day/Night** changes the local background as well as sending the appearance command to the phone.
+
+The player receives UI Sync layout and palette choices. A live phone selection with palette `orange` selects **Topographie** automatically; recognized `blue` or `cyan` palettes select **Halo cyan**. Other palette/layout identifiers remain visible beside the dashboard heading, and the local style can be picked manually. The receiver no longer sends its fixed `Cobranded/custom` layout request by default, because that request could replace the iPhone's selected theme. Set `ZINC_CARPLAY_ULTRA_FORCE_LAYOUT=1` on the receiver only when testing that old forced layout. In the first live reconnect after this change, the phone opened UI Sync but sent no new layout choice; its CarPlay home wallpaper was plain. Reselect the theme on the iPhone to test propagation. This is still an approximate visualization: the player does not decode the catalog's Core Animation assets, compose its wallpapers, or reproduce its instrument geometry pixel for pixel. In an earlier session the phone sent layout `1B0484EC-1933-524D-80F8-2FC1FC7B4B2D` and palette `orange`.
+
+The **Voiture**, **Radio** and **Climat** tabs under the local cluster are an interactive vehicle simulator. Voiture changes stopped/city/motorway presets and a local tire pressure. Radio selects three fake FM stations; there is no RF tuner or radio service yet. Climat changes power, target temperature and a local fan level. RPM, fuel, climate power and target temperature are forwarded to the experimental Ultra Vehicle State channel when the iPhone subscribes. Speed, gear, tire pressure, fan level and station remain local. The phone's own Voiture, Radio and Climat apps still need their complete vehicle service descriptions and authenticated theme assets; the simulator cannot unlock those apps by itself.
+
+## Visual directions
 
 | Theme | Visual direction | Suggested layout | Best use |
 | --- | --- | --- | --- |
-| **Route claire** | Warm white, graphite labels, cyan route accent | Large center map, restrained speed and fuel | Day driving and legible navigation |
-| **Instrument nuit** | Near-black, cool blue needles, low-glare amber alerts | Two circular gauges around a compact map | Dark roads and detailed vehicle telemetry |
-| **Cartographie panoramique** | Dark topographic texture, translucent information cards | Wide map with small media and next-turn cards | Route overview on the Mac display |
-| **Studio média** | Album-art color wash, large track and artist, small navigation strip | Media focus with persistent speed and maneuver | Music testing and passenger display |
+| **Halo cyan** | Dark teal, cyan circular instruments | Two gauges around the projected cluster map | Cool instrument style |
+| **Strates** | Near-black, rose instruments | Two gauges around the projected cluster map | High contrast variation |
+| **Bronze** | Warm dark brown, amber instruments | Two gauges around the projected cluster map | Warm instrument style |
+| **Topographie** | Dark green contours, orange instruments | Two gauges around the projected cluster map | Approximation of the phone's orange selection |
 
-These are designs for the **Zinc player**. They do not change the iPhone's built-in CarPlay icons, Voiture/Radio/Climat apps, or the phone's cluster renderer. The latter apps need their corresponding vehicle and radio services; their current presence in the app grid does not mean those services are implemented.
+These are the four working player compositions. The player does not change the iPhone's built-in CarPlay icons, Voiture/Radio/Climat apps, or the phone's cluster renderer. The latter apps need their corresponding vehicle and radio services; their current presence in the app grid does not mean those services are implemented.
 
 ## CarPlay Ultra package boundary
 

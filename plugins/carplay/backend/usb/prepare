@@ -587,7 +587,7 @@ t=t.replace(needle, '''        if (uuid == ULTRA_VEHICLE_HIGH_UUID || uuid == UL
             val incoming = AirPlayCrypto.hkdfSha512(shared, salt, DATASTREAM_OUTPUT_KEY.toByteArray(Charsets.US_ASCII), 32)
             val outgoing = AirPlayCrypto.hkdfSha512(shared, salt, DATASTREAM_INPUT_KEY.toByteArray(Charsets.US_ASCII), 32)
             val tunnel = IapTunnel(incoming, session.localAddress ?: InetAddress.getByName("0.0.0.0"), outgoing)
-            val uiState = if (uiSync) UltraUiSync(themedLayout = true).also { it.setNightMode(ultraNight) } else null
+            val uiState = if (uiSync) UltraUiSync(themedLayout = System.getenv("ZINC_CARPLAY_ULTRA_FORCE_LAYOUT") == "1").also { it.setNightMode(ultraNight) } else null
             val port = tunnel.listen(object : IapTunnel.Listener {
                 override fun onOpen(remoteAddress: String?) {
                     session.logDebug("Ultra peer opened uuid=$uuid from=$remoteAddress")

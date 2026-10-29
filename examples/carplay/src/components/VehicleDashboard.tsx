@@ -1,9 +1,43 @@
+import { createSignal } from 'zinc:ui/solid';
+import { stroke } from 'zinc:gfx';
 import { Session } from 'zinc:carplay';
 import { vehicle, setVehicle, applyVehicle } from '../services/vehicle';
 
 let live: Session | null = null;
+let lastPhoneChoice = '';
+const [theme, setTheme] = createSignal<i32>(3);
+const [page, setPage] = createSignal<i32>(0);
+const [station, setStation] = createSignal<string>('France Inter · 87.8 FM');
+const [fan, setFan] = createSignal<i32>(2);
+const [tire, setTire] = createSignal<number>(2.4);
+const contour: number[] = [];
+for (let point = 0; point < 50; point++) contour.push(0);
+
+function Topography(x: i32, y: i32, w: i32, h: i32): void {
+  if (theme() !== 3) return;
+  for (let ringIndex = 0; ringIndex < 9; ringIndex++) {
+    const radius = 0.14 + ringIndex * 0.035;
+    for (let point = 0; point < 25; point++) {
+      const angle = point * Math.PI * 2 / 24;
+      const ripple = 1 + 0.06 * Math.sin(angle * 5 + ringIndex);
+      contour[point * 2] = x + w * (0.48 + Math.cos(angle) * radius * ripple);
+      contour[point * 2 + 1] = y + h * (0.52 + Math.sin(angle) * radius * ripple);
+    }
+    stroke(contour, 1, 0x394538, 115, false);
+  }
+}
+
 export function tickVehicle(session: Session): void {
   live = session;
+  const choice = session.uiChoice;
+  if (choice !== null) {
+    const key = (choice.layoutId !== undefined ? choice.layoutId : '') + '/' + (choice.paletteId !== undefined ? choice.paletteId : '');
+    if (key !== lastPhoneChoice) {
+      lastPhoneChoice = key;
+      if (choice.paletteId === 'orange') setTheme(3);
+      else if (choice.paletteId === 'blue' || choice.paletteId === 'cyan') setTheme(0);
+    }
+  } else lastPhoneChoice = '';
   const incoming = session.ultraVehicle;
   const current = vehicle();
   if (incoming !== null && (incoming.rpm !== current.rpm || incoming.fuelPct !== current.fuelPct || incoming.climateOn !== current.climateOn || incoming.targetCelsius !== current.targetCelsius))
@@ -12,46 +46,88 @@ export function tickVehicle(session: Session): void {
 function Cluster(x: i32, y: i32, w: i32, h: i32): void {
   const s = live;
   if (s === null) return;
-  // The selected Cobranded cluster layout places projected navigation in Zone1.
   if (s.ultra !== null && s.ultra.uiSyncEnabled && s.secondary.width === 1920 && s.secondary.height === 720)
     s.secondary.viewRegion(x, y, w, h, 660, 120, 600, 480);
   else s.secondary.view(x, y, w, h);
-}
-function clusterStatus(): string {
-  const s = live;
-  if (s === null || s.secondary.frames === 0) return 'Carte cluster en attente';
-  return `${s.secondary.width} × ${s.secondary.height} · ${s.secondary.frames} images`;
 }
 function layoutStatus(): string {
   const s = live;
   if (s === null || s.ultra === null || !s.ultra.uiSyncEnabled) return 'UI Sync en attente';
   const c = s.uiChoice;
-  if (c === null) return 'UI Sync actif · disposition demandée';
-  return `UI Sync actif · ${c.layoutId !== undefined ? c.layoutId.slice(0, 8) : 'choix reçu'}${c.paletteId !== undefined ? ' · ' + c.paletteId : ''}`;
+  if (c === null) return 'UI Sync actif · choix iPhone en attente';
+  return `Choix iPhone ${c.layoutId !== undefined ? c.layoutId.slice(0, 8) : 'reçu'}${c.paletteId !== undefined ? ' · ' + c.paletteId : ''}`;
+}
+function name(): string { return theme() === 0 ? 'Halo cyan' : theme() === 1 ? 'Strates' : theme() === 2 ? 'Bronze' : 'Topographie'; }
+function background(night: boolean): string {
+  if (!night) return theme() === 0 ? 'grow flex-col bg-[#194453] p-4 gap-3' : theme() === 1 ? 'grow flex-col bg-[#343546] p-4 gap-3' : theme() === 2 ? 'grow flex-col bg-[#55412e] p-4 gap-3' : 'grow flex-col bg-[#303e35] p-4 gap-3';
+  return theme() === 0 ? 'grow flex-col bg-[#061d25] p-4 gap-3' : theme() === 1 ? 'grow flex-col bg-[#0d1018] p-4 gap-3' : theme() === 2 ? 'grow flex-col bg-[#251911] p-4 gap-3' : 'grow flex-col bg-[#10130f] p-4 gap-3';
+}
+function accent(): string { return theme() === 0 ? 'text-cyan-300' : theme() === 1 ? 'text-rose-400' : theme() === 2 ? 'text-amber-300' : 'text-orange-400'; }
+function ring(): string {
+  return theme() === 0 ? 'w-48 h-48 rounded-full border-8 border-cyan-500 flex-col items-center justify-center bg-[#0a2530]' : theme() === 1 ? 'w-48 h-48 rounded-full border-8 border-rose-500 flex-col items-center justify-center bg-[#15131c]' : theme() === 2 ? 'w-48 h-48 rounded-full border-8 border-amber-500 flex-col items-center justify-center bg-[#302217]' : 'w-48 h-48 rounded-full border-8 border-orange-500 flex-col items-center justify-center bg-[#171b15]';
+}
+function themeButton(index: i32, title: string): i32 {
+  return <Button className={theme() === index ? 'bg-amber-200 rounded px-3 py-2' : 'bg-slate-700 rounded px-3 py-2'} onClick={() => setTheme(index)}><Text className={theme() === index ? 'text-slate-950 text-xs' : 'text-white text-xs'}>{title}</Text></Button>;
+}
+function pageButton(index: i32, title: string): i32 {
+  return <Button className={page() === index ? 'bg-cyan-900 rounded px-3 py-2' : 'bg-slate-700 rounded px-3 py-2'} onClick={() => setPage(index)}><Text className="text-white text-xs">{title}</Text></Button>;
+}
+function VehicleControls(): i32 {
+  return <View className="flex-row items-center gap-3">
+    <Text className="text-slate-300 text-xs">Scénario simulé</Text>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => applyVehicle(live, { ...vehicle(), speedKph: 0, rpm: 0, gear: 'P', fuelPct: 68 })}><Text className="text-white text-xs">Arrêt</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => applyVehicle(live, { ...vehicle(), speedKph: 50, rpm: 1800, gear: 'D', fuelPct: 67 })}><Text className="text-white text-xs">Ville</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => applyVehicle(live, { ...vehicle(), speedKph: 110, rpm: 2600, gear: 'D', fuelPct: 61 })}><Text className="text-white text-xs">Autoroute</Text></Button>
+    <Text className="text-slate-300 text-xs">{`Pneus ${Math.round(tire() * 10) / 10} bar · local`}</Text>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setTire(Math.max(1.8, tire() - 0.1))}><Text className="text-white text-xs">−</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setTire(Math.min(3.0, tire() + 0.1))}><Text className="text-white text-xs">+</Text></Button>
+  </View>;
+}
+function RadioControls(): i32 {
+  return <View className="flex-row items-center gap-3">
+    <Text className="text-slate-300 text-xs">Radio simulée</Text><Text className="text-white">{station()}</Text>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setStation('France Inter · 87.8 FM')}><Text className="text-white text-xs">Inter</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setStation('FIP · 105.1 FM')}><Text className="text-white text-xs">FIP</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setStation('France Info · 105.5 FM')}><Text className="text-white text-xs">Info</Text></Button>
+  </View>;
+}
+function ClimateControls(): i32 {
+  return <View className="flex-row items-center gap-3">
+    <Text className="text-slate-300 text-xs">Climat simulé</Text>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => applyVehicle(live, { ...vehicle(), climateOn: !vehicle().climateOn })}><Text className="text-white text-xs">{vehicle().climateOn ? 'ON' : 'OFF'}</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => applyVehicle(live, { ...vehicle(), targetCelsius: Math.max(16, vehicle().targetCelsius - 1) })}><Text className="text-white text-xs">−</Text></Button>
+    <Text className="text-white">{`${vehicle().targetCelsius} °C`}</Text>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => applyVehicle(live, { ...vehicle(), targetCelsius: Math.min(30, vehicle().targetCelsius + 1) })}><Text className="text-white text-xs">+</Text></Button>
+    <Text className="text-slate-300 text-xs">{`Ventilation ${fan()}`}</Text>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setFan(Math.max(0, fan() - 1))}><Text className="text-white text-xs">−</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setFan(Math.min(5, fan() + 1))}><Text className="text-white text-xs">+</Text></Button>
+  </View>;
 }
 export function VehicleDashboard(props: { nightMode: boolean }): i32 {
-  // shortcut: Cobranded uses a solid dynamicColor wallpaper; load verified assets before supporting other layouts.
-  const ink = props.nightMode ? 'text-white' : 'text-[#0b1b17]';
-  const muted = props.nightMode ? 'text-[#d7e3db]' : 'text-slate-600';
-  return <View className={props.nightMode ? 'grow flex-col bg-black p-6 gap-4' : 'grow flex-col bg-[#f2f2f2] p-6 gap-4'}>
-    <View className="flex-row items-center gap-4">
-      <View className="flex-col"><Text className={props.nightMode ? 'text-amber-200 text-xl' : 'text-amber-800 text-xl'}>TABLEAU DE BORD · COMPOSITION LOCALE</Text><Text className={props.nightMode ? 'text-slate-400 text-xs' : 'text-slate-600 text-xs'}>{layoutStatus()}</Text></View>
-      <View className="grow"></View><Text className={props.nightMode ? 'text-slate-400 text-xs' : 'text-slate-600 text-xs'}>{clusterStatus()}</Text>
+  return <View className={background(props.nightMode)}>
+    <View className="flex-row items-center gap-2">
+      <View className="flex-col"><Text className="text-amber-200 text-sm">TABLEAU DE BORD · COMPOSITION LOCALE</Text><Text className="text-slate-400 text-xs">{layoutStatus()}</Text></View>
+      <View className="grow"></View>
+      {themeButton(0, 'Halo cyan')}{themeButton(1, 'Strates')}{themeButton(2, 'Bronze')}{themeButton(3, 'Topographie')}
     </View>
-    <View className="grow h-0 flex-row items-center gap-4">
-      <View className="grow w-0 h-full flex-col items-center justify-center gap-3 p-5"><Text className={`text-5xl font-bold ${ink}`}>{`${vehicle().speedKph}`}</Text><Text className={muted}>km/h</Text><Text className={muted}>Vitesse · zone gauche</Text></View>
-      <View className="grow w-0 h-full flex-col justify-center gap-2 py-10"><Canvas className="grow h-0 bg-black" onDraw={Cluster}></Canvas><Text className={props.nightMode ? 'text-[#d7e3db] text-xs' : 'text-slate-600 text-xs'}>Navigation projetée · zone centrale</Text></View>
-      <View className="grow w-0 h-full flex-col items-center justify-center gap-3 p-5"><Text className={`text-5xl font-bold ${ink}`}>{`${vehicle().rpm}`}</Text><Text className={muted}>tr/min</Text><Text className="text-amber-500 text-2xl">{vehicle().gear}</Text><Text className={muted}>{`Carburant ${vehicle().fuelPct}%`}</Text></View>
+    <View className="grow h-0 flex-row items-center justify-center gap-5 rounded bg-[#080b0d]">
+      <Canvas className="absolute inset-0" onDraw={Topography}></Canvas>
+      <View className="grow w-0 flex-col items-center justify-center gap-2">
+        <View className={ring()}><Text className="text-white text-5xl font-bold">{`${vehicle().speedKph}`}</Text><Text className={accent()}>km/h</Text></View>
+        <Text className="text-slate-400 text-xs">VITESSE · SIMULÉE</Text>
+      </View>
+      <View className="w-[320] h-full flex-col justify-center gap-2 py-5">
+        <Canvas className="grow h-0 bg-black" onDraw={Cluster}></Canvas>
+        <Text className="text-slate-300 text-xs">{`CARTE PROJETÉE · ${name()}`}</Text>
+      </View>
+      <View className="grow w-0 flex-col items-center justify-center gap-2">
+        <View className={ring()}><Text className="text-white text-4xl font-bold">{`${vehicle().rpm}`}</Text><Text className={accent()}>tr/min</Text></View>
+        <Text className="text-white text-sm">{`${vehicle().gear}  ·  ${vehicle().fuelPct}% carburant`}</Text>
+      </View>
     </View>
-    <View className="flex-row items-center gap-3">
-      <Button className="bg-slate-700 rounded px-4 py-2" onClick={() => applyVehicle(live, { speedKph: 0, rpm: 0, gear: 'P', fuelPct: 68, climateOn: vehicle().climateOn, targetCelsius: vehicle().targetCelsius })}><Text className="text-white">Arrêt</Text></Button>
-      <Button className="bg-slate-700 rounded px-4 py-2" onClick={() => applyVehicle(live, { speedKph: 50, rpm: 1800, gear: 'D', fuelPct: 67, climateOn: vehicle().climateOn, targetCelsius: vehicle().targetCelsius })}><Text className="text-white">Ville</Text></Button>
-      <Button className="bg-slate-700 rounded px-4 py-2" onClick={() => applyVehicle(live, { speedKph: 110, rpm: 2600, gear: 'D', fuelPct: 61, climateOn: vehicle().climateOn, targetCelsius: vehicle().targetCelsius })}><Text className="text-white">Autoroute</Text></Button>
-      <Button className="bg-slate-700 rounded px-4 py-2" onClick={() => applyVehicle(live, { ...vehicle(), climateOn: !vehicle().climateOn })}><Text className="text-white">{vehicle().climateOn ? 'Clim ON' : 'Clim OFF'}</Text></Button>
-      <Button className="bg-slate-700 rounded px-4 py-2" onClick={() => applyVehicle(live, { ...vehicle(), targetCelsius: Math.max(16, vehicle().targetCelsius - 1) })}><Text className="text-white">−</Text></Button>
-      <Text className={props.nightMode ? 'text-white' : 'text-slate-900'}>{`${vehicle().targetCelsius} °C`}</Text>
-      <Button className="bg-slate-700 rounded px-4 py-2" onClick={() => applyVehicle(live, { ...vehicle(), targetCelsius: Math.min(30, vehicle().targetCelsius + 1) })}><Text className="text-white">+</Text></Button>
-      <View className="grow"></View><Text className={props.nightMode ? 'text-slate-400 text-xs' : 'text-slate-600 text-xs'}>RPM/carburant transmis si Ultra s’abonne ; vitesse locale</Text>
+    <View className="h-28 flex-col justify-center gap-3 border-t border-slate-700">
+      <View className="flex-row items-center gap-2">{pageButton(0, 'Voiture')}{pageButton(1, 'Radio')}{pageButton(2, 'Climat')}<View className="grow"></View><Text className="text-slate-400 text-xs">RPM, carburant et climatisation transmis si Ultra s’abonne · autres données locales</Text></View>
+      {page() === 0 ? <VehicleControls /> : page() === 1 ? <RadioControls /> : <ClimateControls />}
     </View>
   </View>;
 }
