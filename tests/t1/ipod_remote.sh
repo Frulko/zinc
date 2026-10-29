@@ -78,7 +78,7 @@ cat > "$tmp/session.input" <<'IN'
 171 move 350 237
 172 down
 173 up
-191 move 1089 131
+191 move 1089 148
 192 down
 193 up
 IN
