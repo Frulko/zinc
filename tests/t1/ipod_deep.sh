@@ -30,6 +30,7 @@ sync 23 unknown 1 pages 4/24 8/24 12/24 16/24 20/24 24/24 by name true kept true
 genius tier 1 AAAAAAAACCCC merged AAAAAAAABBBB more B true
 not analysed still picked 2
 seeds BC near asked 2 again 0 path AAAAABBBBBBC
+a seed it never analysed 1 0
 genius with near AAAAAAAABBBB
 extra shelves 3
 shelf Sounds like Charlie One Song 1 | draft Sounds like Charlie One Song 1 CCCCCC / draft Sounds like Charlie Two Song 1 CCCCCC / draft Sounds like Charlie Three Song 1 CCCCCC / draft From Charlie One Song 1 to Bravo One Song 1 AAAAABBBBBBC

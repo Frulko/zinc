@@ -180,6 +180,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- iPod: Genius and the near-song suggestions no longer stop at the first song AudioMuse has not analysed ("needs version 3.6 or later"): such a song is skipped until the next sync.
 - A `VirtualList` whose rows are components scrolls again: the rows in view were stacked at the top, out of sight, once the list scrolled (an empty list that seemed stuck); rows also keep their side margins (`mx-3`).
 - A text field whose value comes from its component's props keeps the focus, the caret and the selection while you type: the component rendering again at each character no longer drops the focus after the first one.
 - Sidecar: a screen no longer stays taken by a Mac whose connection died without closing (a cable pulled, a sender killed): the next Mac that connects takes it over. A tablet or phone added on the USB cable starts at twice the size (Retina).

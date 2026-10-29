@@ -29,6 +29,10 @@ export class Muse {
   constructor(url: string, token: string) { this.url = url.trim() !== '' ? url.trim().replace(/\/+$/, '') : DEFAULT_URL; this.token = token.trim(); }
 }
 
+const NOT_FOUND = 'AudioMuse does not know this song';
+/** True when `e` says AudioMuse does not know the song asked about (not analysed yet, or not in its index until the analysis ends). */
+export function isNotFound(e: Error): boolean { return e.message.startsWith(NOT_FOUND); }
+
 /** True when `e` says AudioMuse did not answer (not running, wrong address): its cached results are used meanwhile. */
 export function isOffline(e: Error): boolean { return e.message.startsWith(OFFLINE); }
 
@@ -42,9 +46,13 @@ async function call(c: Muse, method: string, path: string, body: string = ''): P
   catch (e) { throw new Error(`${OFFLINE}: ${c.url} does not answer (${(e as Error).message})`); }
   const text = await r.text();
   if (r.status === 401 || r.status === 403) throw new Error(`AudioMuse refused the API token (${r.status}): copy API_TOKEN from its .env`);
-  if (r.status === 404 && path.indexOf('/api/status/') < 0) throw new Error(`AudioMuse has no ${path.split('?')[0]} (404): it needs version 3.6 or later`);
   let j: any = null;
-  try { j = JSON.parse(text); } catch (e) { throw new Error(`${c.url}${path.split('?')[0]} answered ${r.status}, not JSON: is it AudioMuse-AI?`); }
+  try { j = JSON.parse(text); } catch (e) {
+    // a route it lacks is Flask's HTML page; its own 404 (a song it has not analysed: "Track not found.") is JSON, below
+    if (r.status === 404) throw new Error(`AudioMuse has no ${path.split('?')[0]} (404): it needs version 3.6 or later`);
+    throw new Error(`${c.url}${path.split('?')[0]} answered ${r.status}, not JSON: is it AudioMuse-AI?`);
+  }
+  if (r.status === 404 && path.indexOf('/api/status/') < 0) throw new Error(`${NOT_FOUND}: ${j.error !== undefined ? '' + j.error : path.split('?')[0]}`);
   if (r.status >= 400) throw new Error(`AudioMuse: ${j.error !== undefined ? '' + j.error : `${path.split('?')[0]} answered ${r.status}`}`);
   return j;
 }
@@ -226,7 +234,10 @@ export async function fetchNear(c: Muse, dir: string, d: Deep, tracks: ipod.Trac
     for (const id of ids) {
       const old = nearOf(d, id);
       if (old !== null && (old as Near).at >= d.syncedAt) continue;
-      const j = await call(c, 'GET', `/api/similar_tracks?item_id=${encodeURIComponent('tr-' + id)}&n=${n}&eliminate_duplicates=true`);
+      let j: any = [];
+      // a song it has not analysed (or not indexed yet, while an analysis runs): no near list until the next sync, the others go on
+      try { j = await call(c, 'GET', `/api/similar_tracks?item_id=${encodeURIComponent('tr-' + id)}&n=${n}&eliminate_duplicates=true`); }
+      catch (e) { if (!isNotFound(e as Error)) throw e; }
       const near: Near = { id: id, at: Math.floor(Date.now() / 1000), ids: [], dist: [] };
       const list = Array.isArray(j) ? j : [];
       for (let i = 0; i < list.length; i++) {

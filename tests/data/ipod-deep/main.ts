@@ -157,6 +157,9 @@ async function main(): Promise<void> {
   const again = await muse.fetchNear(c, cacheDir, d, tracks, seeds, 50);
   const p = seeds.length >= 2 ? await muse.fetchPath(c, cacheDir, d, tracks, seeds[0], seeds[1]) : [];
   console.log('seeds', lettersOf(seeds, tracks), 'near asked', asked, 'again', again, 'path', lettersOf(p, tracks));
+  let four = '';
+  for (const t of tracks) if (t.artist === 'Charlie Four') four = t.id;
+  console.log('a seed it never analysed', await muse.fetchNear(c, cacheDir, d, tracks, [four], 50), (muse.nearOf(d, four) as muse.Near).ids.length);
   attachDeep(m, d);
   console.log('genius with near', letters(genius(m, alpha, 12)));
   const shelves = fy.extraShelves(fy.signals(h, GUID, m, NOW));
