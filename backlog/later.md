@@ -539,7 +539,11 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:sonos: let a speaker's address carry a port, so tests no longer patch :1400 (SoCo parity batch 1, docs/reports/sonos-soco-parity.md).
 - zinc:sonos: docs/plugins/sonos.md says the plugin needs the process permission, plugin.json asks only for net: check and fix.
 
+- TypeScript: `arr.sort()` without a comparator is refused (Z0104 "expected 1, got 0"); the default order compares elements as strings. Fix in the engine with a test.
+- zinc:sonos events: no ContentDirectory (queue, favorites) or AlarmClock subscription yet; `subscribe` accepts them, `apply` ignores them (queue and alarms batches of docs/reports/sonos-soco-parity.md).
+
 ## Cross-platform pass
+- zinc:sonos events on webOS, the Pi and Android: the firewall must let the app's server port in (the webOS helper opens only the SSDP port today).
 - D178: the Mac app's remote iPod against an ipod-web daemon on a Raspberry Pi over a real network (large files, timeouts, Wi-Fi).
 - D178: the iPod daemon (examples/ipod-web) on a Raspberry Pi and a C.H.I.P.: build zinc:ipod's dependencies (glib, libplist, taglib, libusb) for armv6/armv7 with the pinned zig, serve a real iPod (an HFS+ one mounts read only: browse and stream only), stream to a Subsonic client on the LAN, and measure a hard-disk iPod's USB power on the C.H.I.P.'s host port (a powered hub if it browns out); it matters because that is what the daemon is for.
 
