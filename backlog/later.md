@@ -566,7 +566,12 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod Genius batch B: setSmartRules cannot write back a rule it has no name for (album rating, loved); the editor keeps those playlists read-only or keeps the raw rule.
 - zinc:ipod: expose Track.checked, grouping and compilation so smart previews cover those fields.
 
+- TypeScript: Number.prototype.toLocaleString is missing; the iPod Settings shows plain numbers.
+- zinc: no zip or inflate API; the iPod's ListenBrainz zip import uses the system unzip (Windows lacks it).
+- iPod history: matching by MBID needs MUSICBRAINZ_TRACKID read from the files (the iPod database has none).
+
 ## Cross-platform pass
+- iPod history import and its timings on the Pi daemon.
 - zinc:ui scrollKey on the web target (DOM render): the browser owns the scroller there; verify the restore.
 - zinc:sonos events on webOS, the Pi and Android: the firewall must let the app's server port in (the webOS helper opens only the SSDP port today).
 - D178: the Mac app's remote iPod against an ipod-web daemon on a Raspberry Pi over a real network (large files, timeouts, Wi-Fi).
