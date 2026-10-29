@@ -136,6 +136,9 @@ static void serve(int c) {
     pthread_mutex_lock(&wire); client = -1; pthread_mutex_unlock(&wire);
     LOG("the sender left");
 }
+static void *serving(void *arg) { int c = (int)(intptr_t)arg; serve(c); close(c); return NULL; }
+/** One Mac at a time, the newest: a connection that died without closing (a cable pulled, a sender killed) would hold the screen for
+ *  ever, so a new sender takes over and the old connection is shut. */
 static void *listener(void *unused) {
     (void)unused;
     int ls = socket(AF_INET, SOCK_STREAM, 0), one = 1;
@@ -143,12 +146,17 @@ static void *listener(void *unused) {
     struct sockaddr_in a = {0}; a.sin_family = AF_INET; a.sin_port = htons(PORT); a.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(ls, (struct sockaddr *)&a, sizeof a) != 0 || listen(ls, 1) != 0) { LOG("cannot listen on %d", PORT); return NULL; }
     LOG("%dx%d, listening on port %d", W, H, PORT);
+    pthread_t current; int busy = 0;
     for (;;) {
         int c = accept(ls, NULL, NULL);
         if (c < 0) continue;
         LOG("a sender connected");
-        serve(c);
-        close(c);
+        if (busy) {
+            pthread_mutex_lock(&wire); if (client >= 0) shutdown(client, SHUT_RDWR); pthread_mutex_unlock(&wire);
+            pthread_join(current, NULL);
+        }
+        busy = pthread_create(&current, NULL, serving, (void *)(intptr_t)c) == 0;
+        if (!busy) close(c);
     }
 }
 

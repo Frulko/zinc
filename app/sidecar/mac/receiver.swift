@@ -592,13 +592,17 @@ if withUnsafePointer(to: &soundAddr, { $0.withMemoryRebound(to: sockaddr.self, c
     }.start()
 }
 // senders are taken once the sound's port listens too: a sender that came between the two would find no sound
+// one sender at a time, the newest: a connection that died without closing (a cable pulled, a sender killed) would hold the screen for
+// ever, so a new sender takes over and the old connection is shut
+let free = DispatchSemaphore(value: 1)
 Thread {
     while true {
         let c = accept(ls, nil, nil)
         if c < 0 { continue }
         print("sidecar-receiver: a sender connected")
-        serve(c)
-        close(c)
+        wire.lock(); if client >= 0 { shutdown(client, SHUT_RDWR) }; wire.unlock()
+        free.wait()
+        Thread { serve(c); close(c); free.signal() }.start()
     }
 }.start()
 Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in

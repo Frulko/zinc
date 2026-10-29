@@ -147,7 +147,7 @@ final class Engine: ObservableObject {
     }
     func add(name: String, host: String) {
         var o = Output(id: UUID().uuidString, kind: .screen, name: name.isEmpty ? host : name, host: host)
-        if host.hasPrefix("usb") { o.scale = 2 }   // an iPad or iPhone: a Retina screen, its text as on the device
+        if host.hasPrefix("usb") || host.hasPrefix("adb") { o.scale = 2 }   // a tablet or a phone: a dense screen, its text twice as large
         screens.append(o); outputId = o.id
     }
     func remove(_ o: Output) { if outputId == o.id { outputId = Output.remarkable.id }; screens.removeAll { $0.id == o.id } }
