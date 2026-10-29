@@ -43,7 +43,7 @@ function JobRow(props: { job: Job }): i32 {
   {open() && j.lines().length > 0 ? <View className="flex-col gap-1.5 pl-[62] pr-4 pb-3">{j.lines().map((l: JobLine) => <Line l={l} />)}</View> : <View />}
   {open() && j.events() !== '' ? <View className="flex-col gap-1 pl-[62] pr-4 pb-3">
     <Text className={`text-[11px] font-semibold ${fg(FAINT)}`}>STEPS</Text>
-    <ScrollView stickToBottom className={`h-[200] rounded-[6] border px-3 py-2 ${bg(LOG_BG)} ${bd(BORDER)}`}>
+    <ScrollView stickToBottom className={`max-h-[200] rounded-[6] border px-3 py-2 ${bg(LOG_BG)} ${bd(BORDER)}`}>
       <Text className={`font-mono text-[11px] whitespace-pre-wrap ${fg(MUTED)}`}>{j.events()}</Text>
     </ScrollView>
   </View> : <View />}
