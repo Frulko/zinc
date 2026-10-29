@@ -6,4 +6,4 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 command -v ios-deploy >/dev/null || { echo "ipad/install.sh: needs ios-deploy (brew install ios-deploy)" >&2; exit 1; }
-ios-deploy --bundle "$here/build/SidecarScreen.app" --no-wifi | grep -v "^\[ *[0-9]*%\]"
+ios-deploy --bundle "$here/build/SidecarScreen.app" --no-wifi | grep -v "^\[ *[0-9]*%\] [A-Za-z]*$"

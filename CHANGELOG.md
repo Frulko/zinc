@@ -11,7 +11,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Added
 - iPod: every Genius list asked is kept for each iPod: For you shows them on a shelf, Your Genius lists, and the Playlists page lists them all, not only the last one.
 - Sidecar: an Android device on the USB cable as the Mac's screen, charging meanwhile: the Sidecar app for Android (`app/sidecar/android`, Android 5 and later), `sidecar-screen --host adb`, and "Android on the USB cable" in the menu, which opens the app on the device. What moves plays as video, decoded by the device's hardware (60 frames/s on a Nexus 7). Each screen now shows in the Mac's Displays and on its card in the menu under the device's own name, and several screens run at once.
-- Sidecar: a colour screen's size is chosen in the menu ("Looks like") among the sizes of its shape: Retina, HiDPI sizes in between (drawn at twice and scaled down, text still sharp) and native pixels; an iPad starts at Retina.
+- Sidecar: a colour screen's size is chosen in the menu ("Looks like") among the sizes of its shape, an iPad's too: Retina and HiDPI sizes (drawn at twice and scaled down, sharp text), low resolution below 800 × 560 points where macOS draws nothing at twice (larger, softer text), and native pixels. The size chosen is the one macOS uses, and Details says which it is.
 - Sidecar: an iPad or iPhone on the USB cable as the Mac's screen, charging meanwhile: the Sidecar app for iPadOS (`app/sidecar/ipad`, iPadOS 15 and later), `sidecar-screen --host usb`, and "iPad or iPhone on the USB cable" in the menu's Add a screen.
 - iPod demo: the Last.fm key and secret are kept as you type them; Test connection is always there (before signing in it checks the key and secret); a Last.fm import lists its steps in Transfers: where it resumes, each page and how far back it reached, each retry after a rate limit.
 - iPod demo: a For you shelf can be dragged with the mouse (a drag no longer opens the card under it), and its arrows glide to the next cards.
@@ -182,6 +182,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- Sidecar: a film's rectangle no longer stays on the screen in its video colours once the Mac's screen goes still; its place is sent again exact.
 - iPod: scrolling no longer stutters while the similar artists are fetched from Last.fm: each artist is added to the file instead of rewriting it all.
 - iPod: the Similar artists from Last.fm job shows how many artists it asked of how many, and Cancel stops it (what was fetched is kept); it now fetches every artist in one run instead of 200 per launch.
 - iPod: Genius and the near-song suggestions no longer stop at the first song AudioMuse has not analysed ("needs version 3.6 or later"): such a song is skipped until the next sync.

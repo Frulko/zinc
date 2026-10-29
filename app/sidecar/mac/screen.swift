@@ -19,7 +19,7 @@ import SystemConfiguration
 setvbuf(stdout, nil, _IOLBF, 0)
 func die(_ s: String) -> Never { print("sidecar-screen: \(s)"); exit(1) }
 var videoAll = false
-var host = "", port: UInt16 = 7710, mirror = -1, scale = 1.0, forceLz4 = false, seconds = 0.0, exact = false, synthetic = 0
+var host = "", port: UInt16 = 7710, mirror = -1, scale = 1.0, size: (Int, Int)? = nil, forceLz4 = false, seconds = 0.0, exact = false, synthetic = 0
 var h264Dump = "", noVideo = false, audio = false
 var argv = Array(CommandLine.arguments.dropFirst())
 while !argv.isEmpty {
@@ -30,6 +30,8 @@ while !argv.isEmpty {
     case "--mirror": mirror = Int(argv.removeFirst())!
     case "--hidpi": scale = 2         // the virtual display at half the receiver's size in points, drawn at twice (Retina): bigger text
     case "--scale": scale = min(3, max(1, Double(argv.removeFirst()) ?? 1))   // the receiver's pixels per point: 1 native, 2 Retina, between
+    case "--size":                    // the virtual display's points, WxH (the tray's "Looks like"): the receiver's shape, rounded
+        let p = argv.removeFirst().split(separator: "x").compactMap { Int($0) }; if p.count == 2 { size = (p[0], p[1]) }
     case "--lz4": forceLz4 = true     // lz4 even when the receiver reads zstd: less ratio, less of its CPU
     case "--seconds": seconds = Double(argv.removeFirst())!
     case "--exact": exact = true      // never rough: every picture exact, whatever it costs
@@ -150,11 +152,12 @@ let words = String(decoding: line, as: UTF8.self).split(separator: " ").map(Stri
 let caps = Set(words.filter { $0.hasPrefix("+") }.map { String($0.dropFirst()) })
 let W = words.count >= 4 ? Int(words[1]) ?? 0 : 0, H = words.count >= 4 ? Int(words[2]) ?? 0 : 0
 // the virtual display: (PW, PH) points, drawn at twice them when the scale is above 1 (Retina) and captured at the receiver's pixels; a
-// scale between 1 and 2 is macOS's "more space" on a Retina panel: a backing larger than the screen, scaled down to it
-let hidpi = scale > 1
+// scale between 1 and 2 is macOS's "more space" on a Retina panel: a backing larger than the screen, scaled down to it. macOS draws no
+// display under 800 x 560 points at twice (measured, macOS 15): one smaller is drawn at 1x and the capture scales it up (soft text)
 // the screen's name for macOS's Displays: the device's own (its hello's +name:, percent-encoded), else Sidecar Screen
 let screenName = words.first { $0.hasPrefix("+name:") }.flatMap { String($0.dropFirst(6)).removingPercentEncoding }.flatMap { $0.isEmpty ? nil : $0 } ?? "Sidecar Screen"
-let PW = Int((Double(W) / scale).rounded()) & ~1, PH = Int((Double(H) / scale).rounded()) & ~1
+let PW = size?.0 ?? Int((Double(W) / scale).rounded()) & ~1, PH = size?.1 ?? Int((Double(H) / scale).rounded()) & ~1
+let hidpi = PW < W && PW >= 800 && PH >= 560
 if W <= 0 || H <= 0 || !caps.contains("rgb") { die("not a colour screen: \(words.joined(separator: " "))") }
 let zstd = caps.contains("zstd") && !forceLz4, sub = caps.contains("sub")
 let kindName = words[3...].filter { !$0.hasPrefix("+") }.joined(separator: " ")
@@ -245,6 +248,21 @@ if synthetic > 0 {   // nothing captured, nothing to show on the Mac
     let s = CGVirtualDisplaySettings(); s.hiDPI = hidpi ? 1 : 0
     s.modes = [CGVirtualDisplayMode(width: UInt(PW), height: UInt(PH), refreshRate: 60)]
     if !vd.apply(s) { die("the virtual display refused its mode") }
+    if !setMode(vd.displayID) { print("display: macOS kept its own mode") }
+}
+/** macOS picks a mode of its own for a new display (often the 1x one twice as large): ours is set by hand, once it is listed. */
+func setMode(_ id: CGDirectDisplayID) -> Bool {
+    for _ in 0..<30 {
+        let all = CGDisplayCopyAllDisplayModes(id, [kCGDisplayShowDuplicateLowResolutionModes: true] as CFDictionary) as? [CGDisplayMode] ?? []
+        if let m = all.first(where: { $0.width == PW && $0.height == PH && $0.pixelWidth == (hidpi ? 2 * PW : PW) }) {
+            if let cur = CGDisplayCopyDisplayMode(id), cur.width == PW, cur.height == PH, cur.pixelWidth == m.pixelWidth { return true }
+            var c: CGDisplayConfigRef?
+            CGBeginDisplayConfiguration(&c); CGConfigureDisplayWithDisplayMode(c, id, m, nil)
+            if CGCompleteDisplayConfiguration(c, .forSession) == .success { return true }
+        }
+        RunLoop.current.run(until: Date() + 0.1)
+    }
+    return false
 }
 
 // --- what the receiver shows (BGRA, as captured): a tile is sent when it differs from it
@@ -289,6 +307,7 @@ if h264 { DispatchQueue.global(qos: .userInitiated).async {
 } }
 var video: Area?, encoder: VideoEncoder?
 var candidate: Area?, steady = 0, still = 0, starting = false, making = false
+var capturedAt = 0.0   // the last capture: macOS sends none while the screen is still
 var videoStats = (frames: 0, bytes: 0, encode: 0.0)
 // the refresh: a film at 25 a second on 60 Hz shows its pictures 2, 3, 2, 3 refreshes (a judder). Its pictures counted every 2 s; at 25 (or
 // 24) for 4 s, the virtual display and the screen go to twice that when the screen takes it (+hz:50,60), and back to 60 six seconds after
@@ -301,7 +320,7 @@ func setRefresh(_ hz: Int) {
     DispatchQueue.main.async {
         let s = CGVirtualDisplaySettings(); s.hiDPI = hidpi ? 1 : 0
         s.modes = [CGVirtualDisplayMode(width: UInt(PW), height: UInt(PH), refreshRate: Double(hz))]
-        if !vd.apply(s) { print("refresh: the virtual display refused \(hz) Hz") }
+        if !vd.apply(s) { print("refresh: the virtual display refused \(hz) Hz") } else { _ = setMode(vd.displayID) }
     }
     wire.lock(); writeFull(header(7, 0, 7, hz == 60 ? 0 : hz, 0, 0, 0, false, 0), 16); wire.unlock()
     print("refresh: \(hz) Hz" + (hz == 60 ? "" : " (a film at \(hz / 2) a second)"))
@@ -491,7 +510,7 @@ final class Out: NSObject, SCStreamOutput, SCStreamDelegate {
               let raw = info.first?[.status] as? Int else { return }
         if SCFrameStatus(rawValue: raw) == .idle { q.async { more.idle += 1 } }   // macOS composed nothing new on the display
         guard SCFrameStatus(rawValue: raw) == .complete, let pb = sb.imageBuffer else { return }
-        q.async { more.captured += 1; if waiting != nil { more.dropped += 1 }; waiting = pb; last = pb; pump() }
+        q.async { more.captured += 1; capturedAt = now(); if waiting != nil { more.dropped += 1 }; waiting = pb; last = pb; pump() }
     }
     func stream(_ s: SCStream, didStopWithError e: Error) {
         // a display that changed its refresh may end the capture: it starts again
@@ -532,7 +551,7 @@ func startSynthetic() {
         guard let pool, CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb) == kCVReturnSuccess, let pb else { return }
         drawSynthetic(pb, n, W, H, synthetic)
         n += 1
-        q.async { more.captured += 1; if waiting != nil { more.dropped += 1 }; waiting = pb; last = pb; pump() }
+        q.async { more.captured += 1; capturedAt = now(); if waiting != nil { more.dropped += 1 }; waiting = pb; last = pb; pump() }
     }
 }
 if synthetic > 0 { startSynthetic() } else { startCapture(0) }
@@ -636,7 +655,8 @@ func info(_ seconds: Double) {
         ["Link", "Mac", linkNow.local],
         ["Link", "Screen", "\(host) (\(peer))"],
         ["Picture", "Receiver", "\(receiverName), \(W) × \(H)"],
-        ["Picture", "Mac display", mirror >= 0 ? "mirror of display \(mirror)" : hidpi ? "virtual, \(PW) × \(PH) points (\(String(format: "%g", scale)) pixels per point)" : "virtual, \(W) × \(H) at 1x"],
+        ["Picture", "Mac display", mirror >= 0 ? "mirror of display \(mirror)" : CGDisplayCopyDisplayMode(target).map { m in   // as macOS has it
+            "virtual, looks like \(m.width) × \(m.height)" + (m.pixelWidth > m.width ? ", HiDPI (drawn at \(m.pixelWidth) × \(m.pixelHeight))" : m.width < W ? ", low resolution (scaled up to \(W) × \(H))" : ", native pixels") } ?? "virtual"],
         ["Picture", "Codec", "\(zstd ? "zstd 1" : "lz4")\(sub ? " + Sub filter" : ""), 64 px tiles\(exact ? ", always exact" : ", 5-6-5 colour while much moves")"],
         ["Picture", "Receiver reads", caps.sorted().joined(separator: " ")],
         ["Rate", "Captured", String(format: "%.0f frames/s, %.0f unchanged (macOS, at most 60 in all: a film at 25 shows here as 25 and 35)", Double(more.captured) / seconds, Double(more.idle) / seconds)],
@@ -692,9 +712,14 @@ Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
         stats = (0, 0, 0, 0, [], 0, 0)
     }
 }
-// rough tiles that rested go again exact, even when nothing new comes from the capture
+// rough tiles that rested go again exact, and a film whose screen went still ends (its place sent again exact), even when nothing new
+// comes from the capture: macOS sends no picture of a still screen, and the video's lossy colours would stay there
 Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-    q.async { if waiting == nil, let pb = last, frameEnds.isEmpty, roughAt.contains(where: { $0 > 0 && now() - $0 > 0.3 }) { send(pb) } }
+    q.async {
+        guard waiting == nil, let pb = last, frameEnds.isEmpty else { return }
+        if video != nil && now() - capturedAt > 0.5 { still = 61; send(pb) }
+        else if roughAt.contains(where: { $0 > 0 && now() - $0 > 0.3 }) { send(pb) }
+    }
 }
 if seconds > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { exit(0) } }
 signal(SIGINT) { _ in exit(0) }
