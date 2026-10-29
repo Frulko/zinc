@@ -15,7 +15,7 @@ export class SecondaryScreen {
       const h = b[7] + b[8] * 256 + b[9] * 65536 + b[10] * 16777216;
       if (w <= 0 || h <= 0 || w > 4096 || h > 4096) return false;
       this.close();
-      this.decoder = C.open(b[2], b.slice(11, b.length - 1));
+      this.decoder = C.open(b[2], w, h, b.slice(11, b.length - 1));
       if (this.decoder < 0) return false;
       this.width = w; this.height = h; return true;
     }

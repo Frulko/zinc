@@ -95,6 +95,9 @@ retained on locked, transient, TLS and transport failures.
 
 For wireless launch options on Mac and Pi, see
 [the wireless backend guide](../../plugins/carplay/backend/linux/README.md).
+For a Pi with a local screen, the [performance and two-service plan](../../docs/reports/zinc-next-carplay-pi-performance.md)
+keeps the receiver and Zinc player as separately supervised programs. The
+player's existing reconnect loop handles receiver startup and restarts.
 
 The HUD button shows/hides navigation and media beneath the main video. It retains
 incremental iAP2 metadata: title, artist, album, playback app, state and reported

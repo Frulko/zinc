@@ -225,7 +225,7 @@ export class Session {
       if (w <= 0 || h <= 0 || w > 4096 || h > 4096) return false;
       this.release();
       // Upstream Wire.kt leaves one trailing zero in VIDEO_CONFIG's allocated buffer.
-      this.decoder = C.open(b[2], b.slice(11, b.length - 1));
+      this.decoder = C.open(b[2], w, h, b.slice(11, b.length - 1));
       if (this.decoder < 0) { this.error = C.error(); return false; }
       this.width = w; this.height = h; this.status = 'waiting for video';
       return true;
