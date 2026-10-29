@@ -422,6 +422,43 @@ export function genius(m: Model, seedId: string, n: i32, round: i32 = 0): ipod.T
   return out;
 }
 
+/** Why each of `tracks` (a list of genius() from `seedId`) was picked: the term of pair() that weighs most for it, in words ("often
+ *  played with …", "same artist", "similar artist (Last.fm)", "sounds close (AudioMuse)", "same genre · 1990s"), else "you play it often"; ''
+ *  when nothing stands out. Worked out apart from genius(), only for the songs picked. */
+export function reasons(m: Model, seedId: string, tracks: ipod.Track[]): string[] {
+  const out: string[] = [];
+  const at = m.index.get(seedId);
+  if (at === undefined) { for (const t of tracks) out.push(''); return out; }
+  const s = at as i32, w = m.w, seed = m.tracks[s];
+  for (const t of tracks) {
+    const ix = m.index.get(t.id);
+    if (ix === undefined) { out.push(''); continue; }
+    const i = ix as i32;
+    if (i === s) { out.push('the song it starts from'); continue; }
+    const d = m.sounds(s, i);
+    const k = d >= 0 ? 1 - w.deep : 1;   // pair(): tier 1's share when both were analysed
+    let best = '', bestV = 0;
+    const take = (v: number, why: string): void => { if (v > bestV) { best = why; bestV = v; } };
+    const c = m.co[s].get(i);
+    if (c !== undefined) take(k * w.colisten * (c as number), `often played with ${seed.title !== '' ? seed.title : 'it'}`);
+    if (m.artist[s] === m.artist[i] && m.artist[i] !== '') take(k * w.artist, 'same artist');
+    else take(k * w.artist * m.artistSim(m.artist[s], m.artist[i]), 'similar artist (Last.fm)');
+    // ponytail: two vectors at random are 0.5 apart, so only the closeness above that counts as a reason
+    if (d >= 0) take(w.deep * Math.max(0, 2 * d - 1) * (w.colisten + w.artist + w.genre + w.decade), 'sounds close (AudioMuse)');
+    const genre = m.genre[i] !== '' && m.genre[i] === m.genre[s];
+    const ya = seed.year, yb = t.year;
+    const decade = ya > 0 && yb > 0 && Math.floor(ya / 10) === Math.floor(yb / 10);
+    const meta = (genre ? w.genre : 0) + (ya > 0 && yb > 0 ? w.decade * Math.max(0, 1 - Math.abs(ya - yb) / 20) : 0);
+    const parts: string[] = [];
+    if (genre) parts.push('same genre');
+    if (decade) parts.push(`${Math.floor(yb / 10) * 10}s`);
+    if (parts.length > 0) take(k * meta, parts.join(' · '));
+    if (best === '' && m.plays[i] > 0) best = 'you play it often';
+    out.push(best);
+  }
+  return out;
+}
+
 // ---- taste clusters (the mixes)
 
 export class Mix {

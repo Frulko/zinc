@@ -13,7 +13,7 @@ import { library, openPlaylist } from './state';
 import { PodLibrary } from './services/ipod';
 import { History } from './services/history';
 import { history, historyStarted, historyVersion, setHistoryVersion } from './services/historyJobs';
-import { Model, Mix, buildModel, attachDeep, genius, mixes, loadWeights, readArtistGraph, fetchSimilarArtists, savePlaylist } from './services/genius';
+import { Model, Mix, buildModel, attachDeep, genius, reasons, mixes, loadWeights, readArtistGraph, fetchSimilarArtists, savePlaylist } from './services/genius';
 import { currentDeep, deepVersion, prepareNear } from './deep';
 import { playList } from './services/player';
 import { enqueue, runBeside, busy, Job } from './services/transfers';
@@ -37,6 +37,8 @@ export class Draft {
   seedId: string = '';
   size: i32 = 25;
   round: i32 = 0;
+  /** Genius: why each song was picked, beside `tracks` (services/genius.ts reasons). */
+  why: string[] = [];
 }
 
 /** The Genius list picked last (Refresh picks another one). */
@@ -59,7 +61,7 @@ export function geniusCards(): Card[] {
 function keepGenius(d: Draft): void {
   const seed = d.tracks[0];
   const c: Card = { kind: 'draft', id: d.id, title: d.name, subtitle: `${count(d.tracks.length, 'song', 'songs')}${seed.artist !== '' ? ` · from ${seed.artist}` : ''}`,
-    tracks: d.tracks.map((t: ipod.Track) => t.id), at: Date.now() / 1000 };
+    tracks: d.tracks.map((t: ipod.Track) => t.id), at: Date.now() / 1000, why: d.why };
   const list: Card[] = [c];
   for (const x of geniusCards()) if (x.id !== c.id && list.length < GENIUS_MAX) list.push(x);
   geniusList = list;
@@ -146,6 +148,7 @@ function pick(d: Draft): boolean {
   if (m === null) return false;
   d.tracks = genius(m as Model, d.seedId, d.size, d.round);
   if (d.tracks.length === 0) return false;
+  d.why = reasons(m as Model, d.seedId, d.tracks);
   lastGenius = d;
   keepGenius(d);
   return true;
@@ -185,7 +188,11 @@ export function draftOf(id: string): Draft | null {
       d.id = id; d.name = c.title; d.seedId = id.substring(GENIUS_PREFIX.length, k); d.size = parseInt(id.substring(k + 1));
       const byId = new Map<string, ipod.Track>();
       for (const t of (lib as PodLibrary).tracks) byId.set(t.id, t);
-      for (const tid of c.tracks) { const t = byId.get(tid); if (t !== undefined) d.tracks.push(t as ipod.Track); }
+      const why = c.why !== undefined ? c.why as string[] : [];
+      for (let x = 0; x < c.tracks.length; x++) {
+        const t = byId.get(c.tracks[x]);
+        if (t !== undefined) { d.tracks.push(t as ipod.Track); d.why.push(x < why.length ? why[x] : ''); }
+      }
       return d.tracks.length > 0 ? d : null;
     }
     return null;

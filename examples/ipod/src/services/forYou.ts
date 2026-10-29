@@ -33,6 +33,8 @@ export interface Card {
   tracks: string[];
   /** When it was last heard (Unix seconds; Jump back in orders by it), 0 for the others. */
   at: number;
+  /** A Genius list: why each song was picked, beside `tracks` (drafts.ts). */
+  why?: string[];
 }
 export interface Shelf { id: string; title: string; cards: Card[]; }
 export interface Named { name: string; detail: string; count: i32; }

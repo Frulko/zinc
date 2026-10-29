@@ -74,6 +74,8 @@ function NoPlaylist(props: { none: boolean; noMatch: boolean }): i32 {
 function DraftView(props: { d: Draft }): i32 {
   const d = props.d;
   const tracks = (): ipod.Track[] => filterTracks(d.tracks, words(trackSearch()));
+  const why = new Map<string, string>();   // a Genius list: why each song was picked, in a column beside the artist
+  for (let i = 0; i < d.why.length && i < d.tracks.length; i++) if (d.why[i] !== '') why.set(d.tracks[i].id, d.why[i]);
   return <View className="grow flex-col min-h-0 min-w-0">
     <View className="flex-row items-end gap-3 px-8 pt-8 pb-4">
       <View className="grow basis-0 flex-col min-w-0">
@@ -84,7 +86,8 @@ function DraftView(props: { d: Draft }): i32 {
       {isGenius(d) ? <Button icon="refresh-cw" label="Refresh" onPress={() => refreshDraft(d)} /> : <View />}
       <Button icon="list-plus" label="Save to iPod" busy={busy(`Save “${d.name}” to the iPod`)} onPress={() => saveDraft(d)} />
     </View>
-    <TrackTable tracks={tracks} numbered={false} sortable={false} showAlbum={true} from={d.name} scrollKey={scrollKey('playlist')} />
+    {why.size > 0 ? <TrackTable tracks={tracks} numbered={false} sortable={false} showAlbum={false} from={d.name} scrollKey={scrollKey('playlist')} why={why} />
+      : <TrackTable tracks={tracks} numbered={false} sortable={false} showAlbum={true} from={d.name} scrollKey={scrollKey('playlist')} />}
   </View>;
 }
 

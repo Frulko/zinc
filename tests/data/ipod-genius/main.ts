@@ -8,7 +8,7 @@ import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import { env } from 'zinc:sys';
 import { History, Listen, LibTrack } from '../../../examples/ipod/src/services/history';
-import { loadWeights, readArtistGraph, fetchSimilarArtists, buildModel, genius, mixes, savePlaylist, Model, Mix } from '../../../examples/ipod/src/services/genius';
+import { loadWeights, readArtistGraph, fetchSimilarArtists, buildModel, genius, reasons, mixes, savePlaylist, Model, Mix } from '../../../examples/ipod/src/services/genius';
 
 const GUID = '000A27001234ABCD';
 const GROUPS: string[] = ['Alpha', 'Bravo', 'Charlie'];
@@ -101,8 +101,17 @@ async function main(): Promise<void> {
   console.log('stopped after', await fetchSimilarArtists(dir, 'apikey', names, 200, (done: i32, total: i32, artist: string): boolean => { told += `${done}/${total} `; return done < 2; }), told);
   console.log('fetched', await fetchSimilarArtists(dir, 'apikey', names), 'again', await fetchSimilarArtists(dir, 'apikey', names));
   const graph = readArtistGraph(dir);
-  const g1 = genius(buildModel(h, GUID, tracks, graph, w), seedId, 25);
+  const m1 = buildModel(h, GUID, tracks, graph, w);
+  const g1 = genius(m1, seedId, 25);
   console.log('genius with similar artists', letters(g1), 'spread', spreadOk(g1, w.artistSpread));
+  // why each was picked: the reasons met per group, in the order of the list
+  const why = reasons(m1, seedId, g1);
+  const per = new Map<string, string[]>();
+  for (let i = 0; i < g1.length; i++) {
+    const k = g1[i].artist[0], l = per.get(k);
+    if (l === undefined) per.set(k, [why[i]]); else if ((l as string[]).indexOf(why[i]) < 0) (l as string[]).push(why[i]);
+  }
+  per.forEach((l: string[], k: string) => { console.log('why', k, l.join(' | ')); });
   // the first versions' file, one JSON array, is moved once into the lines (an older entry of an artist loses), then deleted
   const alphaOne = (graph.get('alpha one') as Map<string, number>).size;
   fs.writeText(`${dir}/similar-artists.json`, JSON.stringify([{ artist: 'old band', at: 1, similar: [{ artist: 'alpha one', match: 0.5 }] },
@@ -125,7 +134,11 @@ async function main(): Promise<void> {
   }
   // no history: metadata and the iPod's counters only
   const bare = mixes(buildModel(null, GUID, tracks, new Map<string, Map<string, number>>(), w));
-  console.log('mixes without history', bare.length, genius(buildModel(null, GUID, tracks, new Map<string, Map<string, number>>(), w), seedId, 8).length);
+  const m0 = buildModel(null, GUID, tracks, new Map<string, Map<string, number>>(), w);
+  const g8 = genius(m0, seedId, 8);
+  const why0: string[] = [];
+  for (const r of reasons(m0, seedId, g8)) if (why0.indexOf(r) < 0) why0.push(r);
+  console.log('mixes without history', bare.length, g8.length, 'why', why0.join(' | '));
 
   // saved to the iPod as a normal playlist, read back after closing it
   const id = await savePlaylist('Genius · Alpha One Song 1', g0);

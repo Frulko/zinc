@@ -1,7 +1,7 @@
 #!/bin/sh
 # Genius of the iPod app (examples/ipod/src/services/genius.ts) on a fake iPod (a folder with SysInfo, as ipod_plugin) filled by
 # tests/data/ipod-genius with 26 songs and a generated history whose neighbours are known: the picks from a seed and their order, the
-# artists spread, a 1-star song never picked, the same list twice, Refresh, Last.fm's similar artists fetched once from the stand-in of
+# artists spread, a 1-star song never picked, the same list twice, Refresh, why each song was picked, Last.fm's similar artists fetched once from the stand-in of
 # tests/data/ipod-scrobble/stub.py (never the real service) and cached, the taste clusters (the three planted groups, named by their
 # artists and genre), the fallback without a history (the genres), and the list saved to the iPod as a normal playlist and read back.
 # The interpreter, then QuickJS on a fresh iPod (the same lines; the app runs AOT: ipod_demo builds it).
@@ -30,13 +30,17 @@ refresh true true Alpha songs 7 spread true
 stopped after 2 0/13 1/13 2/13 
 fetched 11 again 0
 genius with similar artists AAAAAAALBBBLBBBBCCCCCCCCB spread true
+why A the song it starts from | often played with Alpha One Song 1
+why L similar artist (Last.fm)
+why B you play it often
+why C you play it often
 old file moved true true newer kept true gone true once true true
 ten 10 AAAAAAACCC
 mixes 3
 mix Alpha One, Alpha Two · Rock | 8 7 A spread true
 mix Bravo One, Bravo Three · Jazz | 8 8 B spread true
 mix Charlie One, Charlie Three · Electronic | 8 8 C spread true
-mixes without history 3 8
+mixes without history 3 8 why the song it starts from | same genre · 1990s | same artist |  | 1990s
 saved Genius · Alpha One Song 1 false true
 OUT
 fail=0
