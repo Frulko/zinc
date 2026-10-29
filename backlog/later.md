@@ -20,6 +20,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-853: libgpod reads an iPod Classic's TV-out photo size (I420, interlaced by iTunes) as stripes and asserts on its size; zinc:ipod reads the RGB sizes instead. A fix upstream would deinterlace it.
 - ZN-853: VirtualList rows resolve a percentage width (`w-[22%]`) against another base than the row (about 51 px off in the iPod demo's table); the demo uses fixed widths until it is fixed.
 - ZN-853: libgpod prints GLib warnings (an unknown smart-playlist action) on stderr; route them to the plugin's log, and keep unknown smart rules intact (checked on a real iPod written by iOpenPod/Finder).
+- ZN-853: in headless deterministic runs a `ZINC_SYSTEM_SCRIPT` event tick is one pass of the event loop (about 3 to 3.5 per frame), so a drop at a given frame is found by trial (ipod_demo drops at tick 1330 for frame 372); a `frame` unit for the script would make these tests readable.
+- ZN-853: zinc:ipod backups record the wall time, so a backup taken in a deterministic test makes its frame non-reproducible; a way to pin the plugin's clock in tests would allow a golden of the Backups list with rows.
 - ZN-851: the loader's memo of a failed plugin build lives for the process; a long-lived compiler (zinc dev, the LSP) that must retry a fixed plugin clears it per compile.
 - ZN-850: records decoded straight into the class (no Dyn tree) and a typed encoder instead of the generic one; and the plugins' hand-made worker threads moved to runtime/zrt_jobs.h (gphoto2, video, sqlite...).
 - ZN-851: plugin_manifest fails since 3d3b59dc: zinc:carplay is not in tests/data/plugins-added-table.txt.
@@ -513,6 +515,8 @@ The next backlog review turns lines into tasks or deletes them.
 - consoles: `console host: host.assetsStat is not available on n3ds` (n3ds-platformer).
 
 ## Cross-platform pass
+
+- ZN-853: `ipod.mount('')` finds iPod partitions by media name with diskutil (macOS only); on Linux it needs a partition name (`udisksctl`) and a way to find iPod partitions by themselves.
 - zinc:video on a Pi 4 and a Pi 5: HEVC goes through the stateless V4L2 interface (rpi-hevc-dec). Measure with tools/h264dec-bench.cpp (extended to HEVC) FFmpeg of Pi OS (the Raspberry Pi fork has v4l2-request) against GStreamer's upstream v4l2slh265dec, and that the Pi 5 (no H.264 chip) takes libavcodec's software H.264; GStreamer becomes a way of the plugin only where it is the one door to the chip (docs/reports/video-zero-copy.md section 10).
 - ZN-851: zinc:ipod on Linux and the Pi (apt packages of docs/plugins/ipod.md; TagLib 1 reads no embedded cover, udisksctl eject, an HFS+ iPod read-only), then Windows (glib, libplist, TagLib from MSYS2; the eject through DeviceIoControl).
 - ZN-850: records over the phone glue (Android JNI, iOS) and rec.h checked on a 32-bit ARM (unaligned little-endian reads).
