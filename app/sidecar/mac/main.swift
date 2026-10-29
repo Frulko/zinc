@@ -371,6 +371,11 @@ var maxBuf = [UInt8](repeating: 255, count: 0)
     if e <= 0 { return UInt8(v) }
     return v - e * edges < 228 ? 0 : 255
 }
+// a tint: a flat light colour of the interface (a selection, a highlighted row, a pale button) is near white in luma (a browser's
+// selection blue is 210) and the curve made it paper: it went unseen. A flat area (no edge within 2 pixels) of 150 to 235 that is not a
+// picture becomes a light grey, from 175 (the darkest tints) to 235: a few dots in every pattern. Paler fields (a window's 236 to 255 grey)
+// stay paper, so the interface does not fill with dots. The shader's twin
+@inline(__always) func tint(_ v: Int) -> Int { 175 + (v - 150) * 60 / 85 }
 /** The frame's luma over box b (frame pixels) -> grey, at its place on the panel. */
 func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (Int, Int, Int, Int)) {
     let bw = b.2 - b.0, bh = b.3 - b.1
@@ -393,18 +398,16 @@ func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (
         for y in 0..<bh {
             let (px, py) = toPanel(b.0, b.1 + y)
             let s = src + (b.1 + y) * bpr + b.0, d = g.baseAddress! + py * W + px, mx = m.baseAddress! + y * bw
-            if invertMode == 0 && ditherKind != 3 {
-                if edges == 0 { for x in 0..<bw { d[x * step] = t[Int(s[x])] }; continue }
-                for x in 0..<bw { let v = Int(s[x]); d[x * step] = line(Int(t[v]), Int(mx[x]) - v) }
-                continue
-            }
+            if invertMode == 0 && ditherKind != 3 && edges == 0 { for x in 0..<bw { d[x * step] = t[Int(s[x])] }; continue }
             let mn = edges > 0 && invertMode != 0 ? n.baseAddress! + y * bw : nil
             for x in 0..<bw {
                 let (turn, picture) = around(src, bpr, fw, fh, b.0 + x, b.1 + y)
                 let v = turn ? 255 - Int(s[x]) : Int(s[x])
                 var o = Int(t[v])
-                if edges > 0 { o = Int(line(o, (turn ? 255 - Int(mn![x]) : Int(mx[x])) - v)) }
-                if ditherKind == 3 && !picture { o = o < 128 ? 0 : 255 }
+                var flat = false
+                if edges > 0 { let rise = (turn ? 255 - Int(mn![x]) : Int(mx[x])) - v; flat = rise <= edgeFloor; o = Int(line(o, rise)) }
+                if flat && !picture && v >= 150 && v <= 235 { o = tint(v) }
+                else if ditherKind == 3 && !picture { o = o < 128 ? 0 : 255 }
                 d[x * step] = UInt8(o)
             }
         }
@@ -915,6 +918,7 @@ kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant in
       }
       if (turn) l = 255 - l;
       v = tone[l];
+      bool flat = false;
       if (edges > 0) {
         int m = 0, n = 255;
         for (int dy = -2; dy <= 2; dy++) for (int dx = -2; dx <= 2; dx++) {
@@ -923,8 +927,10 @@ kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant in
         }
         const int e = (turn ? 255 - n : m) - l - floor_;
         if (e > 0) v = v - e * edges < 228 ? 0 : 255;   // line() on the CPU: a line is ink or paper, never dotted
+        flat = e <= 0;
       }
-      if (p[15] == 3 && !picture) v = v < 128 ? 0 : 255;
+      if (flat && !picture && l >= 150 && l <= 235) v = 175 + (l - 150) * 60 / 85;   // tint() on the CPU
+      else if (p[15] == 3 && !picture) v = v < 128 ? 0 : 255;
       grey[py * W + px] = uchar(v);
     }
     if (v < int(thr[(py & 63) * 64 + (px & 63)])) out |= uchar(0x80 >> i);
