@@ -171,6 +171,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `c ? x : []` type-checks when `x` is `any` (the `[]` is `any` too) and when the other branch awaits an array (`c ? await names() : []`); both were refused with Z0109.
 - `for (let i = 0; i < ns.list.length; i++)` with `ns` an `import * as` namespace no longer fails with "'list.length' is not exported"; and a function that returns something (an `async` handler) is accepted where a callback returning `void` is expected, as in TypeScript.
 - `--engine quickjs`: a `zinc:process` child started once a `fetch` has settled reports its output and its end; the program ended silently with status 0 before it.
 - TypeScript the compiled engines refused now runs: `Object.keys(value)` of a JSON value (`any`), `JSON.stringify(value, null, indent)` with a number of spaces or a string, and `array.push(a, b, c)` with several values.

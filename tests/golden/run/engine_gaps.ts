@@ -28,6 +28,7 @@ const ws: C[] = wrap({ xs: [], n: 0 });
 console.log(ws.length, ws[0].xs.length);
 // Promise<void> made by generic code
 async function main(): Promise<void> {
+  console.log('awaited', await awaited(true), await awaited(false));
   const c = await b();
   console.log(c.xs.length, c.n);
   const p = await pic(3);
@@ -46,4 +47,10 @@ let joined = '';
 for (const l of linesOf(true).length > 1 ? linesOf(true) : []) joined += l.text;
 const none = linesOf(false).length === 0 ? [] : linesOf(true);
 console.log(joined, none.length);
+// ... the type of `any` when the other branch is any, and the array a promise holds when the other branch awaits it
+const loose: any = JSON.parse('{"list":[1,2]}');
+const got = loose.list !== undefined ? loose.list : [], missing = loose.none !== undefined ? loose.none : [];
+console.log(got.length, missing.length);
+async function names(): Promise<string[]> { return ['x', 'y']; }
+async function awaited(on: boolean): Promise<i32> { const xs = on ? await names() : []; return xs.length as i32; }
 main();

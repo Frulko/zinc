@@ -1977,6 +1977,11 @@ struct Checker {
           packed = true;
         }
         std::uint32_t typedFirst = kNone;   // an argument already typed against the type wanted
+        if (cn.text == "__resolved" && argNodes.size() == 1 && !a.targs.count(i) && n(argNodes[0]).kind == N::Array && n(argNodes[0]).kids.empty() && myExpected != kNoType
+            && !bad(myExpected) && promiseKind(myExpected) == 1 && !out.objs[ty(myExpected).obj].typeArgs.empty()) {   // `c ? await xs() : []`: the [] is the array the promise holds
+          const TypeId want = out.objs[ty(myExpected).obj].typeArgs[0];
+          if (ty(want).k == TK::Array) { expr(argNodes[0], want); out.nodeType[argNodes[0]] = want; typedFirst = argNodes[0]; }
+        }
         if (cn.text == "__resolved" && argNodes.size() == 1 && !a.targs.count(i) && !recordLiteral(argNodes[0]) && n(argNodes[0]).kind != N::Array && n(argNodes[0]).kind != N::FuncExpr) {  // Promise.resolve(p) is p itself (a literal waits for the type the call is expected to give)
           TypeId at0 = expr(argNodes[0]);
           if (!bad(at0) && promiseKind(at0) == 1 && replaceWith(i, "__H0", {{argNodes[0]}})) return expr0(i, kNoType);
@@ -2428,7 +2433,8 @@ struct Checker {
         std::vector<Fact> ft, ff;
         factsOf(x.kids[0], true, ft); factsOf(x.kids[0], false, ff);
         std::size_t mark = narrowing.size();
-        // `c ? xs : []`: an empty array literal in one branch takes the array type of the other (TypeScript's never[] joins to it)
+        // `c ? xs : []`: an empty array literal in one branch takes the array type of the other (TypeScript's never[] joins to it), or
+        // `any` when the other is (`j.list !== undefined ? j.list : []`)
         auto emptyArr = [&](std::uint32_t k) { return n(k).kind == N::Array && n(k).kids.empty(); };
         const int emptyAt = expected == kNoType && emptyArr(x.kids[1]) != emptyArr(x.kids[2]) ? (emptyArr(x.kids[1]) ? 1 : 2) : 0;
         // `c ? await p : 0` (desugared to `await (c ? p : __resolved(0))`): the plain branch takes the promise type of the other one
@@ -2443,10 +2449,10 @@ struct Checker {
           pushFacts(ff); q = expr(x.kids[2], !bad(p) && promiseKind(p) == 1 ? p : expected); narrowing.resize(mark);
         } else if (emptyAt == 1) {
           pushFacts(ff); q = expr(x.kids[2], expected); narrowing.resize(mark);
-          pushFacts(ft); p = expr(x.kids[1], !bad(q) && ty(q).k == TK::Array ? q : expected); narrowing.resize(mark);
+          pushFacts(ft); p = expr(x.kids[1], !bad(q) && (ty(q).k == TK::Array || isDyn(q)) ? q : expected); narrowing.resize(mark);
         } else {
           pushFacts(ft); p = expr(x.kids[1], expected); narrowing.resize(mark);
-          pushFacts(ff); q = expr(x.kids[2], emptyAt == 2 && !bad(p) && ty(p).k == TK::Array ? p : expected); narrowing.resize(mark);
+          pushFacts(ff); q = expr(x.kids[2], emptyAt == 2 && !bad(p) && (ty(p).k == TK::Array || isDyn(p)) ? p : expected); narrowing.resize(mark);
         }
         if (bad(p)) return q;
         if (bad(q)) return p;
