@@ -1340,3 +1340,8 @@ commands, raw paths and limits in zinc-next-pinball-physics.md.
 2026-10-29, iPod demo Genius (tier 1, examples/ipod/src/services/genius.ts), Apple M1 Pro, AOT; synthetic 10,000 songs and 100,000
 listens in 10,000 sessions: filling and matching the history 3.1 s, building the model 0.64 s, a 100-song Genius 16 ms, the taste mixes
 1.1 s. The interpreter: 0.67 s / 17 ms / 1.04 s. Measured once by the batch D agent, not a gate.
+
+2026-10-29, iPod demo For you page (examples/ipod/src/services/forYou.ts), interpreter, Apple M1 Pro, synthetic 10,000 songs and
+100,000 listens: a full recompute about 3 s (Genius model 1.10 s, signals 345 ms, daily mixes 1.43 s, made for you 107 ms, because you
+listened 46 ms, the rest under 40 ms), run after the first frame; the daily-mix step blocks the UI about 1.4 s. A cached open is a JSON
+read (not timed). Measured once by the batch E agent.

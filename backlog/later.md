@@ -583,6 +583,11 @@ The next backlog review turns lines into tasks or deletes them.
 - TypeScript: a Dyn JSON.stringify writes integer-like keys in insertion order; JavaScript writes them first, ascending.
 - TypeScript: JSON.stringify with a replacer function is refused.
 
+- iPod For you: the daily mixes block the UI about 1.4 s at 10k songs (genius.mixes); split them into chunks or run them in a worker.
+- iPod For you: time a cached open and a full recompute on AOT on the owner's real library; log both.
+- iPod For you: the "For this time of day" and "Loved but not on this iPod" shelves of the Genius study are not built.
+- iPod tests: the folder-based fixture iPods (ipod_nav, ipod_foryou) show the host disk's fullness in the sidebar storage bar, so their golden hashes depend on the machine's free space; pin the reported capacity in the fixture.
+
 ## Cross-platform pass
 - iPod Genius timings on the Pi 3B+ and 4, and a Linux AAC/ALAC decoder for the daemon.
 - iPod history import and its timings on the Pi daemon.
