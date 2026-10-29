@@ -163,6 +163,7 @@ final class Engine: ObservableObject {
     }
     // a reMarkable on the USB cable (its address answers): shown, and Sidecar starts on it when asked to, whatever output the popover shows
     @Published var plugged = false { didSet { if plugged && !oldValue && autoStart && !tablet.running { start(Output.remarkable.id) } } }
+    @Published var networkBlocked = false
     @Published var autoStart: Bool { didSet { UserDefaults.standard.set(autoStart, forKey: "autoStart") } }
     private var probe: Timer?
     // a screen's receiver app: when the Mac waits for it (the screen shows the player or another app), the tray opens it there through the
@@ -208,7 +209,13 @@ final class Engine: ObservableObject {
         // ssh's port: open on a reMarkable in developer mode as soon as its USB network is up. Not Sidecar's own (a probe there
         // would open a session); the engine waits for that one itself
         probe = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            DispatchQueue.global().async { let up = reachable("10.11.99.1", 22); DispatchQueue.main.async { self?.plugged = up } }
+            DispatchQueue.global().async {
+                let up = reachable("10.11.99.1", 22), e = errno
+                // refused at once with no route to the host while the USB link is there: macOS's Local Network privacy, set to off for
+                // Sidecar (it asks again after a new build); the tablet looks unplugged and the engine cannot reach it either
+                let blocked = !up && e == EHOSTUNREACH && linkUp("10.11.99.")
+                DispatchQueue.main.async { self?.plugged = up; self?.networkBlocked = blocked }
+            }
         }
         probe?.fire()
         Caret.restore()   // left set by a run that did not end cleanly
@@ -287,7 +294,23 @@ final class Engine: ObservableObject {
     }
 }
 
-/** host:port accepts a TCP connection within 0.8 s. */
+/** This Mac has an address starting with prefix (the reMarkable's USB link gives it 10.11.99.2 to 6). */
+func linkUp(_ prefix: String) -> Bool {
+    var list: UnsafeMutablePointer<ifaddrs>?
+    guard getifaddrs(&list) == 0 else { return false }
+    defer { freeifaddrs(list) }
+    var p = list
+    while let a = p {
+        if let s = a.pointee.ifa_addr, s.pointee.sa_family == sa_family_t(AF_INET) {
+            var h = [CChar](repeating: 0, count: 64)
+            s.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { var ad = $0.pointee.sin_addr; _ = inet_ntop(AF_INET, &ad, &h, 64) }
+            if String(cString: h).hasPrefix(prefix) { return true }
+        }
+        p = a.pointee.ifa_next
+    }
+    return false
+}
+/** host:port accepts a TCP connection within 0.8 s; errno says why not. */
 func reachable(_ host: String, _ port: UInt16) -> Bool {
     let s = socket(AF_INET, SOCK_STREAM, 0); defer { close(s) }
     var a = sockaddr_in(); a.sin_family = sa_family_t(AF_INET); a.sin_port = port.bigEndian; inet_pton(AF_INET, host, &a.sin_addr)
@@ -299,6 +322,7 @@ func reachable(_ host: String, _ port: UInt16) -> Bool {
     guard poll(&p, 1, 800) == 1 else { return false }
     var err: Int32 = 0, n = socklen_t(MemoryLayout<Int32>.size)
     getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &n)
+    errno = err   // why it failed, for the caller (a privacy block: EHOSTUNREACH)
     return err == 0
 }
 
@@ -409,6 +433,13 @@ struct PopoverView: View {
                 Spacer()
                 Button(e.running ? "Stop" : "Start") { e.running ? e.stop() : e.start() }
                     .buttonStyle(.borderedProminent).tint(e.running ? .red : .accentColor).controlSize(.large)
+            }
+            if e.networkBlocked && eink {
+                HStack {
+                    Text("The reMarkable is plugged in, but macOS blocks the local network for Zinc Sidecar.").font(.caption).foregroundStyle(.red)
+                    Spacer()
+                    Button("Open Settings") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")!) }.controlSize(.small)
+                }
             }
             if !e.problem.isEmpty {
                 if e.problem.contains("TCC") || e.problem.contains("Screen Recording") {
