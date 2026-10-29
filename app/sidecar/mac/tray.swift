@@ -4,6 +4,7 @@
 // output as a child (main.swift's sidecar-engine: JSON lines on its stdin; screen.swift's sidecar-screen: arguments), its state read from
 // its stdout.
 import AppKit
+import Combine
 import SwiftUI
 
 /** Where the picture goes: the reMarkable (e-ink, USB, sidecar-engine) or a colour screen on the network (sidecar-screen). */
@@ -64,16 +65,49 @@ enum Caret {
     }
 }
 
-final class Engine: ObservableObject {
-    enum State: Equatable { case stopped, starting, waiting, connected(String) }
-    @Published var state = State.stopped
+/** One output's engine (a child process) and what it says: every output runs its own, so the reMarkable and screens stream at once. */
+final class Run: ObservableObject {
+    let id: String
+    @Published var state = Engine.State.stopped
     @Published var stats = ""
     @Published var details = [[String]]()   // [section, name, value] from a screen's engine, every 2 s
     @Published var testing = false          // a speed test runs (the pictures wait for it)
     @Published var problem = ""
-    // the profile: the engine's lines (the Mac's work, the capture, the tablet's panel), and a file they go to while recording
+    // the profile: the engine's lines (the Mac's work, the capture, the tablet's panel)
     @Published var lines = ["frames": "", "capture": "", "panel": ""]
-    @Published var profile = false { didSet { send(profile ? "profile on" : "profile off") } }
+    @Published var light = -1               // the tablet's frontlight, permille (-1: not told yet); it says it when Sidecar connects
+    @Published var launchNote = ""
+    var process: Process?, input: FileHandle?, buffer = Data(), launched = false, restarting = false
+    var running: Bool { process != nil }
+    init(_ id: String) { self.id = id }
+    func send(_ line: String) { try? input?.write(contentsOf: Data((line + "\n").utf8)) }
+}
+
+final class Engine: ObservableObject {
+    enum State: Equatable { case stopped, starting, waiting, connected(String) }
+    // the engines, by output; the popover shows and drives the chosen output's
+    private var runs: [String: Run] = [:], watch: [String: Any] = [:]
+    func run(_ id: String) -> Run {
+        if let r = runs[id] { return r }
+        let r = Run(id); runs[id] = r
+        watch[id] = r.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
+        return r
+    }
+    var cur: Run { run(outputId) }
+    var tablet: Run { run(Output.remarkable.id) }
+    var state: State { cur.state }
+    var stats: String { cur.stats }
+    var details: [[String]] { cur.details }
+    var testing: Bool { get { cur.testing } set { cur.testing = newValue } }
+    var problem: String { cur.problem }
+    var lines: [String: String] { tablet.lines }
+    var launchNote: String { cur.launchNote }
+    var light: Int { get { tablet.light } set { if newValue != tablet.light && newValue >= 0 { tablet.light = newValue; tablet.send("light \(newValue)") } } }
+    var running: Bool { cur.running }
+    var anyRunning: Bool { runs.values.contains { $0.running } }
+    func running(_ id: String) -> State { runs[id]?.state ?? .stopped }
+
+    @Published var profile = false { didSet { tablet.send(profile ? "profile on" : "profile off") } }
     @Published var recording: URL? = nil
     private var record: FileHandle?
     func toggleRecord() {
@@ -86,7 +120,8 @@ final class Engine: ObservableObject {
         record = try? FileHandle(forWritingTo: url); record?.seekToEndOfFile(); recording = url
         if !profile { profile = true }
     }
-    @Published var tune: Tune { didSet { if tune != oldValue { save(); if !echo { send("tune " + json(tune)) } } } }
+    private var echo = false
+    @Published var tune: Tune { didSet { if tune != oldValue { save(); if !echo { tablet.send("tune " + json(tune)) } } } }
     // the outputs: the reMarkable, then the screens added by hand; each one keeps its mode
     @Published var screens: [Output] { didSet { UserDefaults.standard.set(try? JSONEncoder().encode(screens), forKey: "screens") } }
     @Published var outputId: String {
@@ -94,19 +129,19 @@ final class Engine: ObservableObject {
             guard outputId != oldValue else { return }
             UserDefaults.standard.set(outputId, forKey: "output")
             echoMode = true; mode = Engine.savedMode(current); echoMode = false
-            restartIfRunning()
         }
     }
     var outputs: [Output] { [Output.remarkable] + screens }
-    var current: Output { outputs.first { $0.id == outputId } ?? .remarkable }
+    var current: Output { output(outputId) }
+    func output(_ id: String) -> Output { outputs.first { $0.id == id } ?? .remarkable }
     // the screens whose app said it plays sound (sidecar-screen's "sound: available"), and the ones it goes to (--audio); kept beside
     // `screens` so a saved list from before still decodes
     @Published var soundAvail = Set(UserDefaults.standard.stringArray(forKey: "soundAvail") ?? []) { didSet { UserDefaults.standard.set(Array(soundAvail), forKey: "soundAvail") } }
     func audioOn(_ id: String) -> Bool { UserDefaults.standard.bool(forKey: "audio." + id) }
-    func setAudio(_ id: String, _ on: Bool) { UserDefaults.standard.set(on, forKey: "audio." + id); objectWillChange.send(); restartIfRunning() }
+    func setAudio(_ id: String, _ on: Bool) { UserDefaults.standard.set(on, forKey: "audio." + id); objectWillChange.send(); restart(id) }
     func update(_ o: Output) {
         guard let i = screens.firstIndex(where: { $0.id == o.id }), screens[i] != o else { return }
-        screens[i] = o; restartIfRunning()
+        screens[i] = o; restart(o.id)
     }
     func add(name: String, host: String) {
         let o = Output(id: UUID().uuidString, kind: .screen, name: name.isEmpty ? host : name, host: host)
@@ -118,25 +153,26 @@ final class Engine: ObservableObject {
         return o.modes.contains(m) ? m : .extend
     }
     private var echoMode = false
-    @Published var mode: Mode { didSet { if mode != oldValue && !echoMode { UserDefaults.standard.set(mode.rawValue, forKey: "mode." + outputId); restartIfRunning() } } }
-    @Published var steadyCaret: Bool { didSet { UserDefaults.standard.set(steadyCaret, forKey: "steadyCaret"); if running { steadyCaret ? Caret.steady() : Caret.restore() } } }
-    @Published var display: Int { didSet { if display != oldValue { UserDefaults.standard.set(display, forKey: "display"); if mode != .extend { restartIfRunning() } } } }
-    private var process: Process?, input: FileHandle?, buffer = Data(), echo = false, restarting = false
-    // the tablet's frontlight, permille (-1: not told yet); it says it when Sidecar connects
-    @Published var light = -1 { didSet { if light != oldValue && !echo && light >= 0 { send("light \(light)") } } }
-    // a reMarkable on the USB cable (its address answers): shown, and Sidecar starts on it when asked to
-    @Published var plugged = false { didSet { if plugged && !oldValue && autoStart && !running && current.kind == .remarkable { start() } } }
+    @Published var mode: Mode { didSet { if mode != oldValue && !echoMode { UserDefaults.standard.set(mode.rawValue, forKey: "mode." + outputId); restart(outputId) } } }
+    @Published var steadyCaret: Bool { didSet { UserDefaults.standard.set(steadyCaret, forKey: "steadyCaret"); if tablet.running { steadyCaret ? Caret.steady() : Caret.restore() } } }
+    // the Mac's display a mirror copies; kept per output, so the tablet and a screen can each show a different one
+    func display(_ id: String) -> Int { UserDefaults.standard.integer(forKey: "display." + id) }
+    var display: Int {
+        get { display(outputId) }
+        set { if newValue != display { UserDefaults.standard.set(newValue, forKey: "display." + outputId); objectWillChange.send(); if mode != .extend { restart(outputId) } } }
+    }
+    // a reMarkable on the USB cable (its address answers): shown, and Sidecar starts on it when asked to, whatever output the popover shows
+    @Published var plugged = false { didSet { if plugged && !oldValue && autoStart && !tablet.running { start(Output.remarkable.id) } } }
     @Published var autoStart: Bool { didSet { UserDefaults.standard.set(autoStart, forKey: "autoStart") } }
     private var probe: Timer?
     // a screen's receiver app: when the Mac waits for it (the screen shows the player or another app), the tray opens it there through the
     // Zinc agent (zinc device <name> run sidecar-screen), once per start; the button does it by hand
-    @Published var launchNote = ""
-    private var launched = false
-    func openOnScreen() {
-        let o = current
-        guard o.kind == .screen, let zinc = Engine.zinc() else { launchNote = "No zinc command found to reach the screen's agent."; return }
+    func openOnScreen() { openOnScreen(outputId) }
+    func openOnScreen(_ id: String) {
+        let o = output(id), r = run(id)
+        guard o.kind == .screen, let zinc = Engine.zinc() else { r.launchNote = "No zinc command found to reach the screen's agent."; return }
         let dev = o.host.hasSuffix(".local") ? String(o.host.dropLast(6)) : o.host   // the agent's paired name is its host name
-        launchNote = "Opening Sidecar Screen on \(o.name)…"
+        r.launchNote = "Opening Sidecar Screen on \(o.name)…"
         DispatchQueue.global().async {
             let p = Process(), pipe = Pipe()
             p.executableURL = URL(fileURLWithPath: zinc); p.arguments = ["device", dev, "run", "sidecar-screen"]
@@ -145,7 +181,7 @@ final class Engine: ObservableObject {
             if (try? p.run()) != nil { out = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self); p.waitUntilExit() }
             let ok = p.terminationStatus == 0
             DispatchQueue.main.async {
-                self.launchNote = ok ? "Sidecar Screen opened on \(o.name)." :
+                r.launchNote = ok ? "Sidecar Screen opened on \(o.name)." :
                     "Could not open it: \(out.split(separator: "\n").last ?? "zinc device failed"). Install it once: zinc device \(dev) deploy app/sidecar-screen"
             }
         }
@@ -167,7 +203,6 @@ final class Engine: ObservableObject {
         let id = d.string(forKey: "output") ?? Output.remarkable.id
         outputId = saved.contains { $0.id == id } ? id : Output.remarkable.id
         mode = Engine.savedMode(saved.first { $0.id == id } ?? .remarkable)
-        display = d.integer(forKey: "display")
         steadyCaret = d.object(forKey: "steadyCaret") as? Bool ?? true
         autoStart = d.bool(forKey: "autoStart")
         // ssh's port: open on a reMarkable in developer mode as soon as its USB network is up. Not Sidecar's own (a probe there
@@ -178,73 +213,76 @@ final class Engine: ObservableObject {
         probe?.fire()
         Caret.restore()   // left set by a run that did not end cleanly
     }
-    var running: Bool { process != nil }
     var preset: String? {
         presets.first { p in var a = p.tune, b = tune; a.tabletPen = b.tabletPen; a.rotationLock = b.rotationLock; a.cursor = b.cursor; return a == b }?.id
     }
     func choose(_ p: Preset) { var t = p.tune; t.tabletPen = tune.tabletPen; t.rotationLock = tune.rotationLock; t.cursor = tune.cursor; tune = t }
     private func json(_ t: Tune) -> String { String(decoding: (try? JSONEncoder().encode(t)) ?? Data(), as: UTF8.self) }
     private func save() { UserDefaults.standard.set(try? JSONEncoder().encode(tune), forKey: "tune") }
-    func send(_ line: String) { try? input?.write(contentsOf: Data((line + "\n").utf8)) }
+    func send(_ line: String) { cur.send(line) }
 
-    func start() {
-        guard process == nil else { return }
-        let out = current, eink = out.kind == .remarkable
+    func start() { start(outputId) }
+    func start(_ id: String) {
+        let r = run(id), out = output(id), eink = out.kind == .remarkable, mode = Engine.savedMode(out)
+        guard r.process == nil else { return }
         let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent().appendingPathComponent(eink ? "sidecar-engine" : "sidecar-screen")
         let p = Process()
         p.executableURL = exe
-        var args = eink ? ["--no-ui", "--control", "--wait"] : ["--host", out.host] + (out.hidpi ? ["--hidpi"] : []) + (out.lz4 ? ["--lz4"] : []) + (audioOn(out.id) ? ["--audio"] : [])
-        if mode != .extend { args += ["--mirror", String(display)] }
+        var args = eink ? ["--no-ui", "--control", "--wait"] : ["--host", out.host] + (out.hidpi ? ["--hidpi"] : []) + (out.lz4 ? ["--lz4"] : []) + (audioOn(id) ? ["--audio"] : [])
+        if mode != .extend { args += ["--mirror", String(display(id))] }
         p.arguments = args
         let i = Pipe(), o = Pipe()
         p.standardInput = i; p.standardOutput = o; p.standardError = o
         o.fileHandleForReading.readabilityHandler = { [weak self] h in
             let d = h.availableData
-            DispatchQueue.main.async { self?.take(d) }
+            DispatchQueue.main.async { self?.take(r, d) }
         }
-        p.terminationHandler = { [weak self] _ in DispatchQueue.main.async { self?.ended() } }
-        do { try p.run() } catch { problem = "Cannot start the engine: \(error.localizedDescription)"; return }
-        process = p; input = i.fileHandleForWriting
-        problem = ""; state = .starting; launched = false; launchNote = ""
+        p.terminationHandler = { [weak self] _ in DispatchQueue.main.async { self?.ended(r) } }
+        do { try p.run() } catch { r.problem = "Cannot start the engine: \(error.localizedDescription)"; return }
+        r.process = p; r.input = i.fileHandleForWriting
+        r.problem = ""; r.state = .starting; r.launched = false; r.launchNote = ""
         guard eink else { return }   // a screen's engine takes its settings as arguments, and an LCD has no ghosts to spare
         if steadyCaret { Caret.steady() }
-        if profile { send("profile on") }
+        if profile { r.send("profile on") }
         var t = tune; if mode == .pen { t.tabletPen = true }
-        send("tune " + json(t))
+        r.send("tune " + json(t))
     }
-    func stop() {
-        if current.kind == .screen && input != nil { process?.interrupt(); input = nil; return }
-        send("quit"); input = nil; DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.process?.terminate() }
+    func stop() { stop(outputId) }
+    func stop(_ id: String) {
+        let r = run(id)
+        if output(id).kind == .screen && r.input != nil { r.process?.interrupt(); r.input = nil; return }
+        r.send("quit"); r.input = nil; DispatchQueue.main.asyncAfter(deadline: .now() + 2) { r.process?.terminate() }
     }
-    private func restartIfRunning() { if running { restarting = true; stop() } }
-    private func ended() {
-        process = nil; input = nil; state = .stopped; stats = ""; details = []; echo = true; light = -1; echo = false
-        if restarting { restarting = false; start() } else { Caret.restore() }
+    func stopAll() { for (id, r) in runs where r.running { stop(id) } }
+    private func restart(_ id: String) { let r = run(id); if r.running { r.restarting = true; stop(id) } }
+    private func ended(_ r: Run) {
+        r.process = nil; r.input = nil; r.state = .stopped; r.stats = ""; r.details = []; r.light = -1
+        if r.restarting { r.restarting = false; start(r.id) } else if r.id == Output.remarkable.id { Caret.restore() }
     }
-    private func keep(_ k: String, _ l: String) {
-        lines[k] = l.trimmingCharacters(in: .whitespaces)
-        if let r = record { let t = String(format: "%.3f ", Date().timeIntervalSince1970); try? r.write(contentsOf: Data((t + k + " " + lines[k]! + "\n").utf8)) }
+    private func keep(_ r: Run, _ k: String, _ l: String) {
+        r.lines[k] = l.trimmingCharacters(in: .whitespaces)
+        if let f = record { let t = String(format: "%.3f ", Date().timeIntervalSince1970); try? f.write(contentsOf: Data((t + k + " " + r.lines[k]! + "\n").utf8)) }
     }
-    private func take(_ d: Data) {
-        buffer.append(d)
-        while let n = buffer.firstIndex(of: 10) {
-            let line = String(decoding: buffer[buffer.startIndex..<n], as: UTF8.self); buffer.removeSubrange(buffer.startIndex...n)
+    private func take(_ r: Run, _ d: Data) {
+        r.buffer.append(d)
+        while let n = r.buffer.firstIndex(of: 10) {
+            let line = String(decoding: r.buffer[r.buffer.startIndex..<n], as: UTF8.self); r.buffer.removeSubrange(r.buffer.startIndex...n)
             if line.hasPrefix("waiting for the tablet") || line.hasPrefix("waiting for the screen") {
-                state = .waiting
-                if line.hasPrefix("waiting for the screen") && !launched { launched = true; openOnScreen() }
+                r.state = .waiting
+                if line.hasPrefix("waiting for the screen") && !r.launched { r.launched = true; openOnScreen(r.id) }
             }
-            else if line.hasPrefix("tablet: ") { state = .connected(String(line.dropFirst(8))) }
-            else if line.hasPrefix("screen: ") { state = .connected(String(line.dropFirst(8))) }
-            else if line.hasPrefix("sound: ") { if line.hasPrefix("sound: none") { soundAvail.remove(current.id) } else { soundAvail.insert(current.id) } }
-            else if line.hasPrefix("sidecar-screen: ") { problem = String(line.dropFirst(16)) }
-            else if line.hasPrefix("speedtest: ") { testing = line == "speedtest: running" }
-            else if line.hasPrefix("info "), let d = try? JSONDecoder().decode([[String]].self, from: Data(line.dropFirst(5).utf8)) { details = d }
+            else if line.hasPrefix("tablet: ") { r.state = .connected(String(line.dropFirst(8))) }
+            else if line.hasPrefix("screen: ") { r.state = .connected(String(line.dropFirst(8))) }
+            else if line.hasPrefix("sound: ") { if line.hasPrefix("sound: none") { soundAvail.remove(r.id) } else { soundAvail.insert(r.id) } }
+            else if line.hasPrefix("sidecar-screen: ") { r.problem = String(line.dropFirst(16)) }
+            else if line.hasPrefix("speedtest: ") { r.testing = line == "speedtest: running" }
+            else if line.hasPrefix("info "), let d = try? JSONDecoder().decode([[String]].self, from: Data(line.dropFirst(5).utf8)) { r.details = d }
             else if line.hasPrefix("tune "), let t = Tune.from(Data(line.dropFirst(5).utf8)) { echo = true; tune = t; echo = false }
-            else if line.contains("frames/s") { stats = line.trimmingCharacters(in: .whitespaces); keep("frames", line) }
-            else if line.hasPrefix("capture age") { keep("capture", line) }
-            else if line.hasPrefix("panel: ") { keep("panel", String(line.dropFirst(7))) }
-            else if line.hasPrefix("light "), let l = Int(line.dropFirst(6)) { echo = true; light = l; echo = false }
-            else if line.hasPrefix("sidecar: ") { problem = String(line.dropFirst(9)) }
+            else if line.contains("frames/s") { r.stats = line.trimmingCharacters(in: .whitespaces); keep(r, "frames", line) }
+            else if line.hasPrefix("capture age") { keep(r, "capture", line) }
+            else if line.hasPrefix("panel: ") { keep(r, "panel", String(line.dropFirst(7))) }
+            else if line.hasPrefix("light "), let l = Int(line.dropFirst(6)) { r.light = l }
+            else if line.hasPrefix("sidecar: ") { r.problem = String(line.dropFirst(9)) }
         }
     }
 }
@@ -309,7 +347,16 @@ struct OutputRow: View {
                     let on = o.id == e.outputId
                     Button { e.outputId = o.id } label: {
                         VStack(alignment: .leading, spacing: 3) {
-                            Image(systemName: o.icon).font(.title3)
+                            HStack {
+                                Image(systemName: o.icon).font(.title3)
+                                Spacer()
+                                // each output streams on its own: the dot says which ones run now
+                                switch e.running(o.id) {
+                                case .stopped: EmptyView()
+                                case .connected: Circle().fill(.green).frame(width: 7, height: 7)
+                                default: Circle().fill(.orange).frame(width: 7, height: 7)
+                                }
+                            }
                             Text(o.name).font(.subheadline.bold()).lineLimit(1)
                             Text(o.kind == .remarkable ? (e.plugged ? "USB · plugged in" : "USB · not plugged") : o.host).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                         }
@@ -358,7 +405,7 @@ struct PopoverView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center) {
                 Image(systemName: "rectangle.portrait.on.rectangle.portrait.angled").font(.title2).foregroundStyle(.tint)
-                VStack(alignment: .leading, spacing: 2) { Text("Zinc Sidecar").font(.title3.bold()); StatusDot(state: e.state, output: o, plugged: e.plugged) }
+                VStack(alignment: .leading, spacing: 2) { Text(o.name).font(.title3.bold()).lineLimit(1); StatusDot(state: e.state, output: o, plugged: e.plugged) }
                 Spacer()
                 Button(e.running ? "Stop" : "Start") { e.running ? e.stop() : e.start() }
                     .buttonStyle(.borderedProminent).tint(e.running ? .red : .accentColor).controlSize(.large)
@@ -373,7 +420,7 @@ struct PopoverView: View {
                 } else { Text(e.problem).font(.caption).foregroundStyle(.red).lineLimit(3) }
             }
 
-            Text("Output").font(.subheadline.bold())
+            Text("Outputs: each one starts and stops on its own, several at once").font(.subheadline.bold())
             OutputRow(e: e, adding: $adding)
             if adding { AddScreen(e: e, adding: $adding) }
 
@@ -439,7 +486,7 @@ struct PopoverView: View {
                 if eink { Button("reMarkable settings…", action: settings) }
                 else { Button { showDetails() } label: { Label("Details…", systemImage: "info.circle") } }
                 Spacer()
-                Button("Quit") { if e.running { e.stop() }; DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) } }
+                Button("Quit") { e.stopAll(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) } }
             }
         }
         .padding(16).frame(width: 400)
@@ -528,7 +575,7 @@ struct SettingsView: View {
                         Switch(name: "Hold a blinking caret", help: "For the apps that still blink: the caret stays shown on paper instead of flipping (every flip leaves a little ghost).", on: $e.tune.blink)
                     }
                     Section {
-                        HStack { Button("Full refresh") { e.send("full") }; Button("Clean ghosts now") { e.send("clean") }; Spacer(); Button("Back to the preset's values") { e.choose(presets.first { $0.id == e.preset } ?? presets[0]) } }
+                        HStack { Button("Full refresh") { e.tablet.send("full") }; Button("Clean ghosts now") { e.tablet.send("clean") }; Spacer(); Button("Back to the preset's values") { e.choose(presets.first { $0.id == e.preset } ?? presets[0]) } }
                     }
                 }
                 .formStyle(.grouped).tabItem { Label("Refresh", systemImage: "arrow.clockwise") }
@@ -670,7 +717,7 @@ final class App: NSObject, NSApplicationDelegate {
         }
         NSApp.activate(ignoringOtherApps: true); detailsWindow?.makeKeyAndOrderFront(nil)
     }
-    func applicationWillTerminate(_ n: Notification) { if engine.running { engine.send("quit") }; Caret.restore() }
+    func applicationWillTerminate(_ n: Notification) { engine.stopAll(); Caret.restore() }
 }
 
 @main enum Main {
