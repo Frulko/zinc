@@ -50,6 +50,10 @@ db.close();
 
 ## Notes
 
+- **Statements.** `prepare(sql)` returns the same `Statement` for the same SQL text, so preparing in a loop costs one native
+  statement. SQLite statements are native objects (1024 at most) that the garbage collector does not free: when they run out,
+  the one prepared longest ago gives its slot back and is prepared again at its next use. `finalize()` frees one at once.
+
 - **Threads.** SQLite runs on the calling thread: a long query blocks the event loop. Keep queries short, or batch
   them in a transaction.
 - **Library version.** The sim reports Node's SQLite version (3.51.2 with Node 24.14). Results are the same for

@@ -280,7 +280,7 @@
     {"paths": ["src/qjs/qjs.cpp", "tests/t0/qjs_symlinks.sh"], "tests": ["qjs_symlinks"]},
     {"paths": ["src/frontend/resolve.cpp", "src/frontend/resolve.h", "src/frontend/modules.cpp", "src/qjs/qjs.cpp", "src/cli_mqjs.cpp", "tests/t0/module_resolution.sh", "tests/data/resolve/"], "tests": ["module_resolution"]},
     {"paths": ["src/frontend/resolve.cpp", "src/frontend/resolve.h"], "tests": ["modules", "platform_files", "tsconfig", "qjs", "qjs_symlinks", "qjs_bundle"]},
-    {"paths": ["plugins/sqlite/", "tests/data/sqlite/", "tests/t0/sqlite_fts.sh"], "tests": ["sqlite_fts"]},
+    {"paths": ["plugins/sqlite/", "tests/data/sqlite/", "tests/t0/sqlite_fts.sh", "tests/t0/sqlite_statements.sh"], "tests": ["sqlite_fts", "sqlite_statements"]},
     {"paths": ["lib/std/webenv.js", "src/qjs/webenv.cpp", "tests/golden/webenv/", "tools/test-lib", "third_party/pixi/", "third_party/three/"], "tests": ["example_js_spline", "webenv", "webenv_canvas", "webenv_p5", "webenv_three", "webenv_pixi", "webenv_image", "webenv_phaser", "webenv_canvas2d", "webenv_canvas2d_libs", "webenv_gamepad", "webenv_audio"]},
     {"paths": ["runtime/include/hal.h", "targets/macos/hal_sdl.cpp", "src/host/hal_dispatch.cpp", "src/host/gfx_host.cpp", "tests/t1/webenv_gamepad.sh"], "tests": ["webenv_gamepad"]},
     {"paths": ["src/qjs/canvas2d.cpp", "third_party/canvas_ity/", "src/text/layout.cpp", "tools/canvas2d-ref", "third_party/phaser/"], "tests": ["webenv_canvas2d", "webenv_canvas2d_libs", "webenv_canvas2d_full"]},

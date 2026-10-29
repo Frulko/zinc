@@ -164,6 +164,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Fixed
 - Plugins: a module that a plugin's stand-in (`native/x.sim.ts`) imports can import the records of `x.spec.ts` itself; it was refused as a circular import under `ZINC_NATIVE=sim`.
 - `--engine quickjs`: `Date.now()` gives the time of day (Unix milliseconds), as on the other engines; it counted from 0 as in a deterministic test run.
+- `zinc:sqlite`: `db.prepare(sql).get()` in a loop no longer fails with "too many prepared statements" after 1024 calls: `prepare` gives the same statement for the same SQL, and when the native statements run out the oldest is prepared again at its next use.
 - reMarkable (AppLoad): an app window could stay hidden behind xochitl after a docked window closed while a menu or the sidebar was open; nothing launched until xochitl restarted. A tile now shows the press, and a new window shows the app's name until its first frame.
 - A `const` checked against `null` stays narrowed inside an arrow function written after the check (`if (i === null) return; later(() => i.name)`), as in TypeScript; it was refused with Z0107.
 - `--engine quickjs`: `zinc:subtle` works (`digest`, HMAC, AES, ECDSA...) instead of failing with `__host_crypto is not defined`, and its results keep every byte.

@@ -35,12 +35,20 @@ export class Row {
   bytes(name: string): u8[] { const v = this.get(name); return v instanceof Blob ? v.data.slice() : []; }
 }
 
+const EVICTED: i32 = -2;
+
 export class Statement {
   private h: i32;
   private db: Database;
   readonly sql: string;
   constructor(db: Database, h: i32, sql: string) { this.db = db; this.h = h; this.sql = sql; }
-  private live(): i32 { if (this.h < 0) throw new SqliteError('statement is finalized'); return this.h; }
+  private live(): i32 {
+    if (this.h === EVICTED) this.h = this.db.slot(this.sql);   // its slot was given back: prepared again
+    if (this.h < 0) throw new SqliteError('statement is finalized');
+    return this.h;
+  }
+  /** Gives its native slot back while it rests (the slots ran out); the next call prepares it again. False when it has none. */
+  evict(): boolean { if (this.h < 0) return false; S.finalize(this.h); this.h = EVICTED; return true; }
   private bind(params: unknown[], named: Map<string, unknown> | null): void {
     const h = this.live();
     S.reset(h);
@@ -110,13 +118,17 @@ export class Statement {
     this.bind(params, named);
     return this.rows(-1);
   }
-  finalize(): void { if (this.h >= 0) { S.finalize(this.h); this.h = -1; } }
+  finalize(): void { if (this.h >= 0) S.finalize(this.h); this.h = -1; this.db.forget(this); }
 }
 
 export interface DatabaseOptions { readOnly?: boolean; create?: boolean }
 export class Database {
   private h: i32;
   readonly path: string;
+  /** The statements by SQL text: prepare() gives the same one again, so `db.prepare(sql).get()` in a loop holds one native statement,
+   *  not one per call (statements are never collected). When the native slots run out, the statement prepared longest ago gives its
+   *  slot back and is prepared again at its next use. */
+  private statements: Map<string, Statement> = new Map<string, Statement>();
   /** Opens (and creates, unless create: false) a database file; ':memory:' for a private in-memory one.
    *  @throws SqliteError */
   constructor(path: string = ':memory:', options: DatabaseOptions = {}) {
@@ -133,10 +145,31 @@ export class Database {
   exec(sql: string): void { if (!S.exec(this.handle(), sql)) throw fail(); }
   /** @throws SqliteError on a syntax error */
   prepare(sql: string): Statement {
-    const st = S.prepare(this.handle(), sql);
-    if (st < 0) throw fail();
-    return new Statement(this, st, sql);
+    const known = this.statements.get(sql);
+    if (known !== undefined) return known as Statement;
+    const st = new Statement(this, this.slot(sql), sql);
+    this.statements.set(sql, st);
+    return st;
   }
+  /** A native statement for `sql`, giving back the slots of statements at rest when there are none left. @throws SqliteError */
+  slot(sql: string): i32 {
+    for (;;) {
+      const h = S.prepare(this.handle(), sql);
+      if (h >= 0) return h;
+      const e = fail();
+      if (e.message !== 'too many prepared statements') throw e;
+      let freed = false;
+      for (const k of Array.from(this.statements.keys())) {
+        const st = this.statements.get(k) as Statement;
+        this.statements.delete(k);   // to the end of the order: the next eviction takes another
+        this.statements.set(k, st);
+        if (st.evict()) { freed = true; break; }
+      }
+      if (!freed) throw e;
+    }
+  }
+  /** A finalized statement leaves the cache. */
+  forget(st: Statement): void { if (this.statements.get(st.sql) === st) this.statements.delete(st.sql); }
   /** BEGIN, fn, COMMIT; ROLLBACK (and rethrow) when fn throws. */
   transaction(fn: () => void): void {
     this.exec('BEGIN');
@@ -148,7 +181,12 @@ export class Database {
       throw e;
     }
   }
-  close(): void { if (this.h >= 0) { S.close(this.h); this.h = -1; } }
+  close(): void {
+    if (this.h < 0) return;
+    for (const st of Array.from(this.statements.values())) st.finalize();
+    S.close(this.h);
+    this.h = -1;
+  }
   /** Version of the SQLite library (the bundled amalgamation natively, Node's on the sim). */
   static version(): string { return S.version(); }
 }
