@@ -542,6 +542,10 @@ The next backlog review turns lines into tasks or deletes them.
 - TypeScript: `arr.sort()` without a comparator is refused (Z0104 "expected 1, got 0"); the default order compares elements as strings. Fix in the engine with a test.
 - zinc:sonos events: no ContentDirectory (queue, favorites) or AlarmClock subscription yet; `subscribe` accepts them, `apply` ignores them (queue and alarms batches of docs/reports/sonos-soco-parity.md).
 
+- iPod demo: the arrows of an album's or playlist's rows show progress during a whole-album download (needs per-track progress from ipod.onProgress).
+- iPod demo: "Show details" on a failed toast opens the failed job's row on Transfers, not just the page.
+- kit: toast() and addToast return a handle that can be updated (title, progress, actions), so apps do not each rebuild a live toast like the iPod demo's.
+
 ## Cross-platform pass
 - zinc:sonos events on webOS, the Pi and Android: the firewall must let the app's server port in (the webOS helper opens only the SSDP port today).
 - D178: the Mac app's remote iPod against an ipod-web daemon on a Raspberry Pi over a real network (large files, timeouts, Wi-Fi).

@@ -3581,6 +3581,8 @@ struct Checker {
     bool savedImmediate = immediate;
     auto savedNarrowing = std::move(narrowing);
     narrowing.clear();
+    // a const narrowed where the closure is written stays narrowed inside it, as in TypeScript: nothing can assign it afterwards
+    for (const Fact& f : savedNarrowing) if (out.syms[f.first].kind == SymKind::Var && out.syms[f.first].isConst) narrowing.push_back(f);
     curRet = ret == kNoType ? kInferRet : ret;
     inferredRet = kNoType;
     loops = 0;
