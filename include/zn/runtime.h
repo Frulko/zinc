@@ -368,7 +368,10 @@
   /* zinc:net Reply.file: a file as the body, sent in blocks, with the request's Range (src/host/http.cpp replyFile); system row, appended */ \
   X(HostHttpReplyFile, "host.httpReplyFile", "iisss>n", 2) \
   /* zinc:net fetch with RequestInit.bodyBytes: the body as bytes, sent as they are (a string would be UTF-8 decoded); system row, appended */ \
-  X(HostHttpFetchBytes, "host.httpFetchBytes", "sssBii>i", 2)
+  X(HostHttpFetchBytes, "host.httpFetchBytes", "sssBii>i", 2) \
+  /* zinc:fs writeTextAsync / readTextAsync: the file written or read on libuv's thread pool, the request's id back; an event of the loop settles */ \
+  /* it (kind 60 written, 61 read with the text as the payload, 62 failed with the error as the data); system rows, appended */ \
+  X(HostFsWriteAsync, "host.fsWriteAsync", "ss>i", 2) X(HostFsReadAsync, "host.fsReadAsync", "s>i", 2)
 
 namespace zn {
 
@@ -408,7 +411,8 @@ inline constexpr bool isSysTailRow(Rt r) {
          r == Rt::HostSigWatch || r == Rt::HostSigSend ||   // sys.onSignal, sys.kill
          (r >= Rt::HostFsSymlink && r <= Rt::HostOsNetField) ||   // zinc:fs symlink, readlink, chmod and zinc:os uid, gid, shell, cpus, networkInterfaces
          r == Rt::HostCrypto || r == Rt::HostCryptoError ||   // zinc:subtle
-         (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes;   // zinc:net, its server too
+         (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes ||   // zinc:net, its server too
+         r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync;
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
 inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::RecDecode || r == Rt::RecEncode; }

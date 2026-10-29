@@ -108,8 +108,8 @@ the `macos` list, on Linux and for the Linux targets the `linux` list.
 
 | Module | Call | Needs |
 | --- | --- | --- |
-| `zinc:fs` | `readText`, `readBytes`, `readDir`, `list`, `stat`, `lstat`, `readlink`, `realpath`, the source of `copyFile`; `watch` of a directory (it lists it); `exists` (false when refused) | `fs:read` covering the path |
-| `zinc:fs` | `writeText`, `appendText`, `writeBytes`, `mkdir`, `mkdtemp`, `remove`, `rename` (both paths), `symlink` (the link), `chmod`, the destination of `copyFile` | `fs:write` covering the path |
+| `zinc:fs` | `readText`, `readTextAsync`, `readBytes`, `readDir`, `list`, `stat`, `lstat`, `readlink`, `realpath`, the source of `copyFile`; `watch` of a directory (it lists it); `exists` (false when refused) | `fs:read` covering the path |
+| `zinc:fs` | `writeText`, `writeTextAsync`, `appendText`, `writeBytes`, `mkdir`, `mkdtemp`, `remove`, `rename` (both paths), `symlink` (the link), `chmod`, the destination of `copyFile` | `fs:write` covering the path |
 | `zinc:fs` | `tmpdir`; `watch` of a file | not checked (see the gap below) |
 | `zinc:assets` | reading the app's own assets | nothing (a path that leaves `assets/` with `..` is checked as any file); writing there through `zinc:fs` needs `fs:write` |
 | `zinc:storage` | the app's own key-value file | nothing |

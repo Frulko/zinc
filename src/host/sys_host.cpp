@@ -72,6 +72,7 @@
 #include "zn/host.h"
 #include "zn/hostsys.h"
 #include "zn/loop.h"
+#include <uv.h>
 #include "mqtt.h"
 #include "netlog.h"
 #include "http.h"
@@ -683,23 +684,73 @@ bool denyByScope(const char* op, const std::string& path) {
   return true;
 }
 
+// The I/O of readAll and writeAll, without the checks or the shared error: 0, or the errno (the async rows run them on libuv's thread pool).
+// One fread/fwrite of the whole buffer: std::fstream went through 4 KiB writes and a byte iterator on read, 40 ms for 3 MB on macOS.
+template <class Buf> int readFile(const std::string& path, Buf& out) {
+  struct stat st;
+  if (stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) return EISDIR;
+  std::FILE* f = std::fopen(path.c_str(), "rb");
+  if (!f) return errno;
+  out.clear();
+  if (S_ISREG(st.st_mode) && st.st_size > 0) out.reserve(static_cast<size_t>(st.st_size));
+  char buf[65536];
+  for (size_t got; (got = std::fread(buf, 1, sizeof buf, f)) > 0;) out.insert(out.end(), buf, buf + got);
+  const int e = std::ferror(f) ? (errno ? errno : EIO) : 0;
+  std::fclose(f);
+  return e;
+}
+int writeFile(const std::string& path, const char* p, size_t n, bool append) {
+  std::FILE* f = std::fopen(path.c_str(), append ? "ab" : "wb");
+  if (!f) return errno;
+  const bool ok = std::fwrite(p, 1, n, f) == n;
+  int e = ok ? 0 : (errno ? errno : EIO);
+  if (std::fclose(f) != 0 && !e) e = errno ? errno : EIO;
+  return e;
+}
+
 bool readAll(const std::string& path, std::vector<unsigned char>& out, const char* op) {
   if (denyByPermission("fs:read", path) || denyByScope(op, path)) return false;
-  std::ifstream in(path, std::ios::binary);
-  struct stat st;
-  if (stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) { fail(op, path, EISDIR); return false; }
-  if (!in) { fail(op, path); return false; }
-  out.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  if (int e = readFile(path, out)) { fail(op, path, e); return false; }
   return true;
 }
 
 bool writeAll(const std::string& path, const char* p, size_t n, bool append, const char* op) {
   if (denyByPermission("fs:write", path) || denyByScope(op, path)) return false;
-  std::ofstream out(path, std::ios::binary | (append ? std::ios::app : std::ios::trunc));
-  if (!out) { fail(op, path); return false; }
-  out.write(p, static_cast<std::streamsize>(n));
-  if (!out) { fail(op, path); return false; }
+  if (int e = writeFile(path, p, n, append)) { fail(op, path, e); return false; }
   return true;
+}
+
+// fs.writeTextAsync / readTextAsync: the checks here, the I/O on libuv's thread pool, and the loop thread queues the event that settles the
+// promise (kind 60 written, 61 read: the text as the payload, 62 failed: the error as the data). A pending job keeps the program alive.
+struct FsJob { uv_work_t work; int id; bool write; std::string path, data; int err = 0; };
+int gFsJobId = 0;
+void fsJobWork(uv_work_t* w) {
+  auto* j = static_cast<FsJob*>(w->data);
+  if (j->write) { j->err = writeFile(j->path, j->data.data(), j->data.size(), false); std::string().swap(j->data); }
+  else j->err = readFile(j->path, j->data);
+}
+void fsJobAfter(uv_work_t* w, int) {
+  auto* j = static_cast<FsJob*>(w->data);
+  zn::loop::addActive(-1);
+  if (j->err) zn::loop::pushEvent(j->id, 62, std::string(codeOf(j->err)) + ": " + (j->write ? "open " : "cannot open ") + j->path);
+  else zn::loop::pushEvent(j->id, j->write ? 60 : 61, std::string(), std::move(j->data));
+  delete j;
+}
+int fsJob(const std::string& path, const char* p, size_t n, bool write) {
+  const char* op = write ? "open" : "cannot open";
+  if (denyByPermission(write ? "fs:write" : "fs:read", path) || denyByScope(op, path)) return 0;
+  auto* j = new FsJob{};
+  j->id = ++gFsJobId; j->write = write; j->path = path;
+  if (write) j->data.assign(p, n);   // the program's string may go before the thread writes it
+  j->work.data = j;
+  zn::loop::addActive(1);
+  if (uv_queue_work(static_cast<uv_loop_t*>(zn::loop::uvLoop()), &j->work, fsJobWork, fsJobAfter) != 0) {
+    zn::loop::addActive(-1);
+    delete j;
+    fail(op, path, EIO);
+    return 0;
+  }
+  return j->id;
 }
 
 bool removeTree(const std::string& path) {
@@ -938,6 +989,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostFsReadText: { std::vector<unsigned char> b; if (readAll(s(0), b, "cannot open")) ret(r, std::string(b.begin(), b.end())); else ret(r, ""); break; }
     case Rt::HostFsWriteText: writeAll(s(0), static_cast<const char*>(a[1].p), a[1].n, false, "open"); break;
     case Rt::HostFsAppendText: writeAll(s(0), static_cast<const char*>(a[1].p), a[1].n, true, "open"); break;
+    case Rt::HostFsWriteAsync: r->i = fsJob(s(0), static_cast<const char*>(a[1].p), a[1].n, true); break;   // 0: refused (fsError says why)
+    case Rt::HostFsReadAsync: r->i = fsJob(s(0), nullptr, 0, false); break;
     case Rt::HostFsExists: { struct stat st; r->i = !denyByPermission("fs:read", s(0)) && stat(s(0).c_str(), &st) == 0; break; }   // what exists is read too (ZN-327)
     case Rt::HostFsListCount: {
       gNames.clear(); gKinds.clear();

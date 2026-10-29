@@ -313,6 +313,39 @@ function check(): void { if (__host_fsFailed()) throw new Error(__host_fsError()
 export function readText(path: string): string { const s = __host_fsReadText(path); check(); return s; }
 export function writeText(path: string, data: string): void { __host_fsWriteText(path, data); check(); }
 export function appendText(path: string, data: string): void { __host_fsAppendText(path, data); check(); }
+// writeTextAsync / readTextAsync: the file is written or read on a worker thread; the host's event (kind 60 written, 61 read with the text as
+// the payload, 62 failed) settles the promise of the request with that id.
+class __FsCall {
+  id: i32;
+  ok: (text: string) => void;
+  ko: (e: Error) => void;
+  constructor(id: i32, ok: (text: string) => void, ko: (e: Error) => void) { this.id = id; this.ok = ok; this.ko = ko; }
+}
+const __fsCalls: __FsCall[] = [];
+let __fsHooked: boolean = false;
+function __fsAsync(id: i32, ok: (text: string) => void, ko: (e: Error) => void): void {
+  if (id === 0) { __host_fsFailed(); ko(new Error(__host_fsError())); return; }
+  if (!__fsHooked) {
+    __fsHooked = true;
+    __addEvHandler((h: i32, kind: i32, data: string) => {
+      if (kind < 60 || kind > 62) return;
+      for (let i: i32 = 0; i < __fsCalls.length; i++) {
+        const c = __fsCalls[i];
+        if (c.id !== h) continue;
+        __fsCalls.splice(i, 1);
+        if (kind === 62) c.ko(new Error(data)); else c.ok(kind === 61 ? __host_evPayload() : '');
+        return;
+      }
+    });
+  }
+  __fsCalls.push(new __FsCall(id, ok, ko));
+}
+export function writeTextAsync(path: string, data: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => { __fsAsync(__host_fsWriteAsync(path, data), (t: string) => resolve(), (e: Error) => reject(e)); });
+}
+export function readTextAsync(path: string): Promise<string> {
+  return new Promise<string>((resolve: (v: string) => void, reject: (e: Error) => void) => { __fsAsync(__host_fsReadAsync(path), (t: string) => resolve(t), (e: Error) => reject(e)); });
+}
 export function exists(path: string): boolean { return __host_fsExists(path); }
 export function list(dir: string): string[] {
   const n = __host_fsListCount(dir);

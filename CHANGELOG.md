@@ -16,6 +16,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - iPod demo: a Last.fm history import that fails because the network or Last.fm is down (or busy) tries again by itself after 2, 5 and 15 minutes, from where it stopped, then says it gave up; a refused key or an unknown user is not tried again.
 - iPod demo: Settings › Recommendations › Prepare recommendations brings up to date, each as a Transfers job, what Genius and For you learn from: the Last.fm history import (resumed when it stopped), the similar artists from Last.fm and the AudioMuse sync; one line per source says where it stands ("Last.fm history: 38,882 listens, imported 2 days ago").
 - iPod demo: an AudioMuse analysis that ends is synced by itself, whoever started it: while the app runs it asks AudioMuse every minute (once a token is set or results were synced), and at start it syncs an analysis newer than the results kept; Genius and For you follow.
+- `zinc:fs`: `writeTextAsync(path, text)` and `readTextAsync(path)` write and read a file on a worker thread and return a promise, so an app's frame goes on while a large file is saved or loaded (on the interpreter, compiled programs and QuickJS).
 - iPod: every Genius list asked is kept for each iPod: For you shows them on a shelf, Your Genius lists, and the Playlists page lists them all, not only the last one.
 - Sidecar: an Android device on the USB cable as the Mac's screen, charging meanwhile: the Sidecar app for Android (`app/sidecar/android`, Android 5 and later), `sidecar-screen --host adb`, and "Android on the USB cable" in the menu, which opens the app on the device. What moves plays as video, decoded by the device's hardware (60 frames/s on a Nexus 7). Each screen now shows in the Mac's Displays and on its card in the menu under the device's own name, and several screens run at once.
 - Sidecar: a colour screen's size is chosen in the menu ("Looks like") among the sizes of its shape, an iPad's too: Retina and HiDPI sizes (drawn at twice and scaled down, sharp text), low resolution below 800 × 560 points where macOS draws nothing at twice (larger, softer text), and native pixels. The size chosen is the one macOS uses, and Details says which it is.
@@ -191,6 +192,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `zinc:fs`: `writeText`, `appendText`, `writeBytes`, `readText` and `copyFile` read and write a file in one go: writing 3 MB took 40 ms or more on macOS, now about 1 ms.
 - Sidecar: a screen no longer stops with "capture stopped: Stream was stopped by the system" when another screen comes or goes or the displays change; the capture starts again.
 - Sidecar: a film's rectangle no longer stays on the screen in its video colours once the Mac's screen goes still; its place is sent again exact.
 - iPod: scrolling no longer stutters while the similar artists are fetched from Last.fm: each artist is added to the file instead of rewriting it all.

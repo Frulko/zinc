@@ -60,6 +60,10 @@ declare module 'zinc:fs' {
   export function writeText(path: string, data: string): void;
   /** @throws when the file cannot be written */
   export function appendText(path: string, data: string): void;
+  /** writeText on a worker thread: the frame goes on while a large file is written. Rejects with the same `CODE: op path` error. */
+  export function writeTextAsync(path: string, data: string): Promise<void>;
+  /** readText on a worker thread. Rejects with the same `CODE: op path` error. */
+  export function readTextAsync(path: string): Promise<string>;
   export function exists(path: string): boolean;
   /** Names in a directory, sorted. @throws when the directory cannot be read */
   export function list(dir: string): string[];
