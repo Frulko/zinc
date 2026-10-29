@@ -111,6 +111,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- `zinc:ipod`: `detect()` no longer opens the iPods over USB at every scan: it reads the system's USB list, so nothing is sent to an iPod while it is mounted, being ejected or ejected ("OK to disconnect"). An iPod not mounted shows the model its disk gave earlier in the session, else "iPod".
 - iPod demo: the album grid has four columns, so a fifth album no longer runs past the window, and a page with a long line of text wraps it instead of growing wider than the window.
 - `ipod.mount('')` mounts an iPod that was ejected and is still plugged in: it resets it on USB, as unplugging it does, instead of saying there is no iPod disk.
 - A row whose child grows from `basis-0` (or a small basis) and holds content that wraps is as tall as that content once wrapped at the child's real width: a page with wrapping cards beside a picture scrolls to its end instead of stopping early.

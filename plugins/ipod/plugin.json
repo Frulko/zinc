@@ -97,7 +97,8 @@
       ],
       "frameworks": [
         "AudioToolbox",
-        "CoreFoundation"
+        "CoreFoundation",
+        "IOKit"
       ]
     },
     "linux": {

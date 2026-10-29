@@ -28,7 +28,10 @@
 #include <sys/time.h>
 #ifdef __APPLE__
 #include <sys/mount.h>
+#include <CoreFoundation/CoreFoundation.h>
+#include <IOKit/IOKitLib.h>
 #endif
+#include <mutex>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -502,6 +505,68 @@ std::vector<UsbIpod> usbIpods(bool withXml) {
   return out;
 }
 
+/** The iPods on the USB bus as the system lists them (IORegistry on macOS, sysfs on Linux): product and serial, read without opening
+ *  the device, so a scan sends nothing to an iPod, mounted, being ejected or ejected. */
+std::vector<UsbIpod> listedIpods() {
+  std::vector<UsbIpod> out;
+#ifdef __APPLE__
+  io_iterator_t it = 0;
+  if (IOServiceGetMatchingServices(0, IOServiceMatching("IOUSBHostDevice"), &it) != KERN_SUCCESS) return out;
+  while (io_object_t dev = IOIteratorNext(it)) {
+    auto number = [&](const char* key) {
+      int v = 0;
+      CFStringRef k = CFStringCreateWithCString(nullptr, key, kCFStringEncodingUTF8);
+      if (CFTypeRef r = IORegistryEntryCreateCFProperty(dev, k, nullptr, 0)) {
+        if (CFGetTypeID(r) == CFNumberGetTypeID()) CFNumberGetValue((CFNumberRef)r, kCFNumberIntType, &v);
+        CFRelease(r);
+      }
+      CFRelease(k);
+      return v;
+    };
+    auto text = [&](const char* key) {
+      std::string v;
+      CFStringRef k = CFStringCreateWithCString(nullptr, key, kCFStringEncodingUTF8);
+      if (CFTypeRef r = IORegistryEntryCreateCFProperty(dev, k, nullptr, 0)) {
+        char b[256];
+        if (CFGetTypeID(r) == CFStringGetTypeID() && CFStringGetCString((CFStringRef)r, b, sizeof b, kCFStringEncodingUTF8)) v = b;
+        CFRelease(r);
+      }
+      CFRelease(k);
+      return v;
+    };
+    const int product = number("idProduct");
+    if (number("idVendor") == 0x05ac && diskModeIpod((uint16_t)product)) {
+      UsbIpod u;
+      u.product = (uint16_t)product;
+      u.serial = text("USB Serial Number");
+      if (u.serial.empty()) u.serial = text("kUSBSerialNumberString");
+      out.push_back(u);
+    }
+    IOObjectRelease(dev);
+  }
+  IOObjectRelease(it);
+#else
+  std::error_code ec;
+  for (auto& e : fs::directory_iterator("/sys/bus/usb/devices", ec)) {
+    auto field = [&](const char* name) {
+      std::string v;
+      if (FILE* f = fopen((e.path() / name).c_str(), "r")) { char b[256]; if (fgets(b, sizeof b, f)) v = b; fclose(f); }
+      while (!v.empty() && (v.back() == '\n' || v.back() == ' ')) v.pop_back();
+      return v;
+    };
+    const std::string vendor = field("idVendor");
+    if (vendor != "05ac") continue;
+    const uint16_t product = (uint16_t)strtoul(field("idProduct").c_str(), nullptr, 16);
+    if (!diskModeIpod(product)) continue;
+    UsbIpod u;
+    u.product = product;
+    u.serial = field("serial");
+    out.push_back(u);
+  }
+#endif
+  return out;
+}
+
 /** Resets every iPod on the USB bus, as unplugging and plugging it back does: an iPod ejected ("OK to disconnect") offers its disk
  *  again. Only for iPods whose disk is not mounted (mount() calls it when it finds no iPod disk). How many were reset. */
 int resetUsbIpods() {
@@ -611,32 +676,38 @@ std::vector<Device> detect() {
     }
   }
   if (getenv("ZINC_IPOD_NO_USB")) return out;
-  // USB: the product of the mounted ones, and the iPods plugged in but not mounted (ejected, or a disk the system could not read)
-  std::vector<UsbIpod> usb = usbIpods(false);
+  // USB, from the system's list (nothing is sent to the iPods): the product of the mounted ones, and the iPods plugged in but not
+  // mounted (ejected, or a disk the system could not read), described from what their disk said while mounted in this session
+  static std::mutex knownLock;
+  static std::map<std::string, Device> known;   // FireWire GUID (upper case) -> the iPod as its mounted disk described it
+  auto guidKey = [](const std::string& g) { std::string k = g; for (char& c : k) c = (char)toupper((unsigned char)c); return k; };
+  {
+    std::lock_guard<std::mutex> hold(knownLock);
+    for (const Device& d : out) if (!d.firewireGuid.empty()) known[guidKey(d.firewireGuid)] = d;
+  }
+  std::vector<UsbIpod> usb = listedIpods();
   std::vector<bool> matched(usb.size(), false);
   for (Device& d : out)
     for (size_t k = 0; k < usb.size(); k++)
       if (!matched[k] && ((!d.firewireGuid.empty() && g_ascii_strcasecmp(usb[k].serial.c_str(), d.firewireGuid.c_str()) == 0) ||
                           (d.firewireGuid.empty() && usb.size() == 1 && out.size() == 1))) { d.usbProduct = usb[k].product; matched[k] = true; }
   if (std::find(matched.begin(), matched.end(), false) == matched.end()) return out;
-  for (const UsbIpod& u : usbIpods(true)) {
-    bool mounted = false;
-    for (const Device& d : out) mounted |= d.usbProduct != 0 && g_ascii_strcasecmp(u.serial.c_str(), d.firewireGuid.c_str()) == 0;
-    if (mounted) continue;
+  for (size_t k = 0; k < usb.size(); k++) {
+    if (matched[k]) continue;
+    const UsbIpod& u = usb[k];
     Device d;
+    {
+      std::lock_guard<std::mutex> hold(knownLock);
+      auto hit = known.find(guidKey(u.serial));
+      if (hit != known.end()) {
+        const Device& m = hit->second;
+        d.serial = m.serial; d.firmware = m.firmware; d.model = m.model; d.generation = m.generation; d.modelNumber = m.modelNumber;
+        d.capacityGb = m.capacityGb; d.name = m.name;
+      }
+    }
     d.connection = "usb";
     d.usbProduct = u.product;
     d.firewireGuid = u.serial;   // an iPod's USB serial is its FireWire GUID
-    plist_t x = plistFromXml(u.xml);
-    d.serial = plistKey(x, "SerialNumber");
-    d.firmware = plistKey(x, "VisibleBuildID");
-    if (x) plist_free(x);
-    if (const Itdb_IpodInfo* info = d.serial.size() >= 3 ? itdb_ipod_info_from_serial(d.serial.c_str()) : nullptr) {
-      d.model = s(itdb_info_get_ipod_model_name_string(info->ipod_model));
-      d.generation = s(itdb_info_get_ipod_generation_string(info->ipod_generation));
-      d.modelNumber = s(info->model_number);
-      d.capacityGb = info->capacity;
-    }
     if (d.model.empty()) d.model = "iPod";
     out.push_back(d);
   }

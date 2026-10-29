@@ -9,7 +9,7 @@ pkg-config --exists $deps 2>/dev/null || { echo "skipped: needs $deps (brew inst
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 P=plugins/ipod
 "${ZINC:-build/zinc}" native-gen $P/native/ipod.spec.ts "$tmp" >/dev/null   # the record structs the core uses
-if [ "$(uname -s)" = Darwin ]; then xml="-iwithsysroot /usr/include/libxml2"; xlibs="-lxml2 -lsqlite3 -lz -framework AudioToolbox -framework CoreFoundation"
+if [ "$(uname -s)" = Darwin ]; then xml="-iwithsysroot /usr/include/libxml2"; xlibs="-lxml2 -lsqlite3 -lz -framework AudioToolbox -framework CoreFoundation -framework IOKit"
 else deps="$deps libxml-2.0 sqlite3 zlib"; xml=; xlibs=; fi
 cp=$P/vendor/chromaprint/src
 inc="-I$P/vendor/libgpod -I$P/vendor/shim -I$P/vendor/hashab -I$P/native -Ithird_party/stb -Ithird_party/xxhash -I$cp -I$cp/3rdparty/kissfft -DHAVE_CONFIG_H $xml $(pkg-config --cflags $deps)"
