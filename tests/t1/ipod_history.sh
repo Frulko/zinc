@@ -4,9 +4,8 @@
 # import of 2,500 generated scrobbles stopped after 3 pages and resumed (an error 29 on the way), an incremental import that finds the
 # scrobble made meanwhile, ListenBrainz by its API (rate-limit headers) and by an export zip, the matching to the fixture iPod
 # (accents, feat., remaster, live, & and "and", one fuzzy, one MBID, a cover and a near-duplicate that must not match) and the queries
-# (top songs, sessions, plays per iPod track, skips, last played, unmatched). On the interpreter (the app runs AOT: ipod_demo builds
-# it). Not on QuickJS yet: there a zinc:process child started after a net.fetch never reports its end (the program exits early,
-# silently), an engine defect reported with this test.
+# (top songs, sessions, plays per iPod track, skips, last played, unmatched). On the interpreter and on QuickJS, the stub reset between
+# them (the app runs AOT: ipod_demo builds it).
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null && command -v unzip >/dev/null || exit 77
 tmp=$(mktemp -d); stub=''
@@ -17,12 +16,14 @@ S=http://127.0.0.1:$(cat "$tmp/port")
 export IPOD_LASTFM_URL=$S/2.0/ IPOD_LISTENBRAINZ_URL=$S IPOD_HISTORY_PACE_MS=1 ZINC_HEADLESS=1
 unset ZINC_DETERMINISTIC   # the importers bound their pages by the wall clock (Date.now), as against the real services
 fail=0
-w="$tmp/w"; mkdir -p "$w"; cp "$tmp/history-data.json" "$w/"
-python3 tests/data/ipod-history/check.py setup "$w" || exit 1
-HISTORY_DIR=$w "$ZINC" run --interp tests/data/ipod-history/main.ts > "$w/out.json" 2>"$w/err"
-python3 tests/data/ipod-history/check.py check "$w" "$w/out.json" > "$w/why" 2>&1 || { echo "ipod_history: $(head -20 "$w/why") $(tail -3 "$w/err")"; fail=1; }
-# the Last.fm calls: every one with the key, 200 a page and extended; the bound only goes down; two incremental runs
-python3 - "$tmp/requests.jsonl" <<'PY' || fail=1
+for eng in interp quickjs; do
+  if [ $eng = interp ]; then flags=--interp; else flags='--engine quickjs'; fi
+  w="$tmp/w$eng"; mkdir -p "$w"; : > "$tmp/requests.jsonl"; curl -s "$S/reset" >/dev/null; cp "$tmp/history-data.json" "$w/"
+  python3 tests/data/ipod-history/check.py setup "$w" || exit 1
+  HISTORY_DIR=$w "$ZINC" run tests/data/ipod-history/main.ts $flags > "$w/out.json" 2>"$w/err"
+  python3 tests/data/ipod-history/check.py check "$w" "$w/out.json" > "$w/why" 2>&1 || { echo "ipod_history ($eng): $(head -20 "$w/why") $(tail -3 "$w/err")"; fail=1; }
+  # the Last.fm calls: every one with the key, 200 a page and extended; the bound only goes down; two incremental runs
+  python3 - "$tmp/requests.jsonl" <<'PY' || fail=1
 import json, sys
 rs = [json.loads(l) for l in open(sys.argv[1])]
 recent = [r['params'] for r in rs if r['service'] == 'lastfm-read' and r['method'] == 'user.getrecenttracks']
@@ -34,5 +35,6 @@ assert sum(1 for p in run if 'from' in p) == 2, 'incremental runs: %s' % [p for 
 lb = [r for r in rs if r['service'] == 'listenbrainz-read' and r['path'].endswith('/listens')]
 assert lb and all(r['params']['count'] == '1000' for r in lb), lb[:1]
 PY
+done
 [ $fail -eq 0 ] && echo "ipod_history: ok"
 exit $fail

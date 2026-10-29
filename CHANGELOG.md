@@ -163,6 +163,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `--engine quickjs`: a `zinc:process` child started once a `fetch` has settled reports its output and its end; the program ended silently with status 0 before it.
 - Plugins: a module that a plugin's stand-in (`native/x.sim.ts`) imports can import the records of `x.spec.ts` itself; it was refused as a circular import under `ZINC_NATIVE=sim`.
 - `--engine quickjs`: `Date.now()` gives the time of day (Unix milliseconds), as on the other engines; it counted from 0 as in a deterministic test run.
 - `zinc:sqlite`: `db.prepare(sql).get()` in a loop no longer fails with "too many prepared statements" after 1024 calls: `prepare` gives the same statement for the same SQL, and when the native statements run out the oldest is prepared again at its next use.

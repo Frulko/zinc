@@ -43,4 +43,21 @@ ZINC_HEADLESS=1 timeout 30 "$ZINC" run "$tmp/osc.js" --engine quickjs 2>&1 | gre
 # zinc:os rows appended after the host block (networkInterfaces, uid, shell) are installed on quickjs (zinc:sonos finds its callback address so)
 printf "import { networkInterfaces, userInfo, cpus } from 'zinc:os';\nconst lo = networkInterfaces().filter((n) => n.address === '127.0.0.1');\nconsole.log('os', lo.length, lo.length > 0 ? lo[0].internal : '', userInfo().uid >= 0, cpus()[0].model !== '');\n" > "$tmp/os.js"
 [ "$("$ZINC" run "$tmp/os.js" --engine quickjs 2>/dev/null)" = "os 1 true true true" ] || { echo "zinc:os networkInterfaces does not run on quickjs: $("$ZINC" run "$tmp/os.js" --engine quickjs 2>&1 | tail -1)"; fail=1; }
+# a zinc:process child started once a net.fetch settled reports its end (QuickJS polled the native modules before the host events that
+# spawned it, and ended the program silently with status 0), on the three engines
+closed=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
+cat > "$tmp/pf.ts" <<EOF
+import * as net from 'zinc:net';
+import * as proc from 'zinc:process';
+async function main(): Promise<void> {
+  try { await net.fetch('http://127.0.0.1:$closed/'); } catch (e) { console.log('fetch failed'); }
+  const r = await proc.run('echo', ['hi'], {});
+  console.log('done', r.code, r.stdout.trim());
+}
+main();
+EOF
+for eng in --interp --native "--engine quickjs"; do
+  # shellcheck disable=SC2086
+  [ "$(ZINC_HEADLESS=1 timeout 30 "$ZINC" run "$tmp/pf.ts" $eng 2>/dev/null | tail -1)" = "done 0 hi" ] || { echo "a process started after a fetch does not report its end ($eng)"; fail=1; }
+done
 exit $fail

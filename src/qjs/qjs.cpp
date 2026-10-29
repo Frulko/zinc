@@ -451,14 +451,16 @@ bool callFn(Engine& e, JSValueConst f, JSValueConst arg, bool hasArg) {
   return drain(e);
 }
 
-// the native modules' pollers and what they queued, then the host loop's events (zinc:osc) through the prelude's __pollHost
+// the host loop's events (zinc:osc, a fetch's answer) through the prelude's __pollHost, then the native modules' pollers and what they
+// queued. The pollers come last: a native operation the host events started (a child spawned once a fetch settled) takes its loop
+// reference in this same turn, so the run loop sees it pending instead of ending the program
 bool nativeTurn(Engine& e) {
-  zn_native_poll(0);
-  if (zn_native_drain() != 0 && !drain(e)) return false;
   JSValue poll = global(e, "__pollHost");
   const bool ok = callFn(e, poll, JS_UNDEFINED, false);
   JS_FreeValue(e.ctx, poll);
-  return ok;
+  if (!ok) return false;
+  zn_native_poll(0);
+  return zn_native_drain() == 0 || drain(e);
 }
 
 bool wantsFrames(Engine& e) { JSValue cb = global(e, "__zincFrameCb"); const bool yes = JS_IsFunction(e.ctx, cb); JS_FreeValue(e.ctx, cb); return yes; }
