@@ -8,6 +8,7 @@ import { KeyboardCapture, installKeyboardCapture } from './services/keyboard';
 import { TouchOverlay } from './components/TouchOverlay';
 import { Iap2Panel, tickIap2 } from './components/Iap2Panel';
 import { HudPanel, tickHud } from './components/HudPanel';
+import { VehicleDashboard, tickVehicle } from './components/VehicleDashboard';
 const session = new Session();
 const url = env('ZINC_CARPLAY_URL');
 const media = env('ZINC_CARPLAY_MEDIA');
@@ -16,6 +17,7 @@ const [status, setStatus] = createSignal<string>(offline !== null ? 'OFFLINE MED
 const [debug, setDebug] = createSignal<boolean>(env('ZINC_CARPLAY_DEBUG') === '1');
 const [inspector, setInspector] = createSignal<boolean>(false);
 const [hudShown, setHudShown] = createSignal<boolean>(true);
+const [dashboard, setDashboard] = createSignal<boolean>(false);
 const [night, setNight] = createSignal<boolean>(false);
 const [detail, setDetail] = createSignal<string>('');
 const [trackpad, setTrackpad] = createSignal<boolean>(true);
@@ -42,11 +44,12 @@ function App(): i32 {
       {offline === null ? <Button className="px-3 py-3 rounded bg-slate-700" onClick={() => keyboard.set(!keyboard.active)}><Text className="text-amber-200">{captured() ? 'F6 · Clavier CarPlay' : 'F6 · Clavier Zinc'}</Text></Button> : null}
       {offline === null ? <Button className="px-3 py-3 rounded bg-cyan-900" onClick={() => { const on = !inspector(); setInspector(on); keyboard.set(!on); if (on) { session.pollIap2(); session.traceIap2(true); } }}><Text className="text-cyan-100">{inspector() ? 'Vidéo' : 'iAP2'}</Text></Button> : null}
       {offline === null ? <Button className="px-3 py-3 rounded bg-slate-800" onClick={() => setHudShown(!hudShown())}><Text className="text-white">HUD</Text></Button> : null}
+      {offline === null ? <Button className="px-3 py-3 rounded bg-slate-800" onClick={() => setDashboard(!dashboard())}><Text className="text-white">{dashboard() ? 'Vidéo' : 'Tableau de bord'}</Text></Button> : null}
       {offline === null ? <Button className="px-4 py-3 rounded bg-slate-800" onClick={() => setDebug(!debug())}><Text className="text-white">Debug</Text></Button> : null}
       {offline === null ? <Button className="px-5 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={connect}><Text className="text-white">Connect</Text></Button> : <Text className="text-slate-400">Local H.264 + PCM test media</Text>}
       {offline === null ? <Button className="px-5 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={() => { session.close(); }}><Text className="text-white">Disconnect</Text></Button> : null}
     </View>
-    {inspector() ? <Iap2Panel /> : <View className="flex-row grow h-0">
+    {inspector() ? <Iap2Panel /> : dashboard() ? <VehicleDashboard /> : <View className="flex-row grow h-0">
       <View className="grow flex-col w-0">
         <Canvas className="grow h-0" onDraw={Screen} onPointerDown={() => { keyboard.set(true); }}></Canvas>
         {offline === null && hudShown() ? <HudPanel /> : null}
@@ -73,7 +76,7 @@ render(App, 0x0c0a09, (dt: number) => {
   if (elapsed < 0.25) return;
   const debugDt = elapsed;
   elapsed = 0;
-  if (offline === null) { tickDebug(session, debugDt); tickHud(session); tickIap2(session, debugDt, inspector()); }
+  if (offline === null) { tickDebug(session, debugDt); tickHud(session); tickIap2(session, debugDt, inspector()); tickVehicle(session); }
   if (offline === null && url !== '') setStatus(session.status);
   setDetail(session.error !== '' ? session.error : offline !== null ? `${session.width} × ${session.height} / ${session.frames} packets / Local four-second loop · 440 Hz tone` : `${session.width} × ${session.height} / ${session.frames} packets / Arrows · Tab · Enter · Esc · Home · S / F6: keyboard capture`);
 });

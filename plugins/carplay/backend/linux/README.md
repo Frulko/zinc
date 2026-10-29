@@ -100,20 +100,23 @@ ZINC_CARPLAY_URL="ws://192.168.2.33:18080/ws?token=$PI_TOKEN" \
   ZINC="$PWD/build/zinc" ZINC_BACKGROUND=0 examples/carplay/run --live
 ```
 
-For the current direct Ethernet test, the Mac's `en12` has `169.254.133.75`
-and the Pi's `eth0` has `169.254.23.158`; the Pi has a temporary host route
-back to the Mac. The same SSH key works on both addresses. `wlan0` is
+For the current direct Ethernet test, the Mac's `en12` gets a `169.254.*.*`
+address that can change after reconnecting; the Pi's `eth0` was last seen at
+`169.254.23.158`. Check `ifconfig en12` for `status: active` before SSH. The same
+SSH key works on both addresses. `wlan0` is
 disconnected from `Potatoes`, while `ap0` remains the 5 GHz CarPlay AP. The
 receiver is already running with private iAP2 traces in
 `~/zinc-carplay/logs/wireless.log`. Use two Mac terminals:
 
 ```sh
+MAC_IP=$(ipconfig getifaddr en12)
 # Terminal 1: live Pi log
-ssh -t -b 169.254.133.75 spark@169.254.23.158 \
+ssh -t -b "$MAC_IP" spark@169.254.23.158 \
   'tail -F ~/zinc-carplay/logs/wireless.log'
 
 # Terminal 2, from this Zinc worktree: native viewer over Ethernet
-PI_TOKEN=$(ssh -b 169.254.133.75 spark@169.254.23.158 \
+MAC_IP=$(ipconfig getifaddr en12)
+PI_TOKEN=$(ssh -b "$MAC_IP" spark@169.254.23.158 \
   'cat ~/.config/zinc-carplay/token')
 ZINC="$PWD/build/zinc" ZINC_BACKGROUND=0 ZINC_CARPLAY_DEBUG=1 \
   ZINC_CARPLAY_URL="ws://169.254.23.158:18080/ws?token=$PI_TOKEN" \
@@ -127,7 +130,8 @@ shutting down the board, run the following; its launcher removes the AP and
 Bluetooth advertisement:
 
 ```sh
-ssh -b 169.254.133.75 spark@169.254.23.158 \
+MAC_IP=$(ipconfig getifaddr en12)
+ssh -b "$MAC_IP" spark@169.254.23.158 \
   'kill "$(cat ~/zinc-carplay/logs/wireless.pid)"'
 ```
 

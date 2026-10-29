@@ -56,9 +56,9 @@ the prompt with a working Ultra session.
    `vehicleStateProtocol` as candidate feature names, then confirm their
    actual presence and channel behavior from a live trace. Keep pairing keys,
    Wi-Fi credentials, location and call bodies out of the shared report.
-2. **Build a local dashboard simulator in the Zinc player.** The debug panel
-   now has a typed local state and parked, city and motorway presets for
-   speed, RPM, gear and fuel, displayed with the stream-111 map. This
+2. **Build a local dashboard simulator in the Zinc player.** A dedicated
+   full-width view and the debug panel now share typed local state and parked,
+   city and motorway presets for speed, RPM, gear and fuel, displayed with the stream-111 map. This
    exercises the display layout without claiming Ultra negotiation. Extend
    it with charge, temperature and telltales once the active vehicle profile
    is known. A synthetic state source is enough; fabricated CAN frames would

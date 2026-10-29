@@ -4,6 +4,7 @@ import { Session } from 'zinc:carplay';
 import * as dialog from 'zinc:system/dialog';
 import * as fs from 'zinc:fs';
 import { env } from 'zinc:sys';
+import { vehicle, setVehicle } from '../services/vehicle';
 
 const [latitude, setLatitude] = createSignal<string>('48.8566');
 const [longitude, setLongitude] = createSignal<string>('2.3522');
@@ -14,8 +15,6 @@ const [cluster, setCluster] = createSignal<string>('Waiting for receiver status'
 const [contacts, setContacts] = createSignal<string>('Native contacts: 0 · peak 0');
 const [twoContacts, setTwoContacts] = createSignal<boolean>(false);
 const [logs, setLogs] = createSignal<string[]>([]);
-type VehicleState = { speedKph: number; rpm: number; gear: string; fuelPct: number };
-const [vehicle, setVehicle] = createSignal<VehicleState>({ speedKph: 0, rpm: 0, gear: 'P', fuelPct: 68 });
 let live: Session | null = null;
 let pollElapsed = 0;
 const [duration, setDuration] = createSignal<number>(1);

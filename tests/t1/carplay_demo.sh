@@ -10,6 +10,9 @@ ZINC_HEADLESS=1 ZINC_FRAMES=2 "$Z" run -q tests/golden/carplay/player-input.tsx
 ZINC="$Z" ZINC_CARPLAY_URL=ws://127.0.0.1:9 ZINC_HEADLESS=1 ZINC_FRAMES=24 ZINC_SHOT="${TMPDIR:-/tmp}/zinc-carplay-live-disconnected.png" examples/carplay/run --live
 ZINC="$Z" ZINC_HEADLESS=1 ZINC_FRAMES=120 ZINC_SHOT="${TMPDIR:-/tmp}/zinc-carplay-offline.png" examples/carplay/run --offline
 ZINC="$Z" ZINC_CARPLAY_DEBUG=1 ZINC_CARPLAY_URL=ws://127.0.0.1:9 ZINC_HEADLESS=1 ZINC_FRAMES=24 ZINC_SHOT="${TMPDIR:-/tmp}/zinc-carplay-debug.png" examples/carplay/run --live
+ZINC="$Z" ZINC_CARPLAY_URL=ws://127.0.0.1:9 ZINC_HEADLESS=1 ZINC_SIZE=1280x800 ZINC_FRAMES=24 ZINC_INPUT="$PWD/tests/golden/carplay/dashboard.input" ZINC_SCENE_DUMP="${TMPDIR:-/tmp}/zinc-carplay-dashboard.scn" examples/carplay/run --live
+python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-dashboard.scn" | rg -q '^TABLEAU DE BORD · SIMULATION LOCALE$'
+python3 tools/scene-texts "${TMPDIR:-/tmp}/zinc-carplay-dashboard.scn" | rg -q '^1800$'
 ZINC="$Z" ZINC_INPUT="$PWD/tests/golden/carplay/player-touch.input" ZINC_CARPLAY_DEBUG=1 ZINC_CARPLAY_URL=ws://127.0.0.1:9 ZINC_HEADLESS=1 ZINC_FRAMES=24 ZINC_SHOT="${TMPDIR:-/tmp}/zinc-carplay-contacts.png" examples/carplay/run --live
 ZINC_CARPLAY_MEDIA="$PWD/build/carplay/demo-media" ZINC_HEADLESS=1 "$Z" run -q tests/golden/carplay/offline.ts
 # Live mode must fail usefully before opening a window when no URL is supplied.
