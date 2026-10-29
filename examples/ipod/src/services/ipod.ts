@@ -147,12 +147,21 @@ export async function playableFile(lib: PodLibrary, t: ipod.Track): Promise<stri
 }
 
 /** Copies the files (each with its kind) to the iPod, into `playlist` ('' = none); one result per file. A remote iPod takes the
- *  kind from the file's tags (the daemon's /api/add has no kind). */
+ *  kind from the file's tags (the daemon's /api/add has no kind); the tags given (an item with a title) are written after the upload
+ *  by /api/update, the cover is the file's own. */
 export async function addTracks(items: ipod.TrackInput[], playlist: string): Promise<ipod.AddResult[]> {
   if (!isRemote()) return await ipod.addWith(items, playlist);
   const files: string[] = [];
   for (const it of items) files.push(it.file);
-  return await remote.add(files, playlist);
+  const res = await remote.add(files, playlist);
+  for (let i = 0; i < res.length && i < items.length; i++) {
+    if (res[i].error !== '' || items[i].title === undefined) continue;
+    const patch: ipod.TrackInput = { ...items[i], file: '' };
+    patch.artworkFile = undefined;
+    patch.mediaType = undefined;
+    try { await remote.update([res[i].id], patch); } catch (e) { res[i].error = `added, but its tags were not written: ${(e as Error).message}`; }
+  }
+  return res;
 }
 
 /** Removes the tracks and their files from the iPod. */

@@ -8,6 +8,8 @@ import { allowChanges, playlists } from '../../state';
 import { addKind, setAddKind, addPlaylist, setAddPlaylist, addResults, notice, pickAndAdd } from '../../actions';
 import { busy } from '../../services/transfers';
 import { Button } from '../../components/Button';
+import { createSignal } from 'zinc:ui/solid';
+import { JukeboxSource } from './JukeboxSource';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, SELECTED, TEXT, MUTED, FAINT, ACCENT, ACCENT_SOFT, ERROR, ADD_KINDS, ADD_KIND_NAMES } from '../../constants';
 
 function KindChip(props: { kind: string; label: string }): i32 {
@@ -23,6 +25,17 @@ function PlaylistChip(props: { name: string; label: string }): i32 {
   return <View className={`px-3 h-[26] justify-center rounded-[6] cursor-pointer ${on() ? bg(SELECTED) : `hover:${bg(HOVER)}`}`}
     onPointerDown={(e: ui.PointerEvent) => setAddPlaylist(props.name)}>
     <Text className={`text-[12px] ${fg(TEXT)} ${on() ? 'font-semibold' : ''}`}>{props.label}</Text>
+  </View>;
+}
+
+/** Where the songs come from: 'files' (this computer) or 'jukebox' (the library server of Settings). */
+const [source, setSource] = createSignal<string>('files');
+
+function SourceChip(props: { id: string; label: string }): i32 {
+  const on = (): boolean => source() === props.id;
+  return <View className={`px-3 h-[28] justify-center rounded-full border cursor-pointer ${on() ? `${bg(ACCENT_SOFT)} ${bd(ACCENT)}` : `${bd(BORDER)} hover:${bg(HOVER)}`}`}
+    onPointerDown={(e: ui.PointerEvent) => setSource(props.id)}>
+    <Text className={`text-[12px] font-semibold ${on() ? fg(ACCENT) : fg(TEXT)}`}>{props.label}</Text>
   </View>;
 }
 
@@ -49,6 +62,11 @@ export function AddPage(): i32 {
         <Text className={`text-[13px] ${fg(ERROR)}`}>Turn on Allow changes in the sidebar to add to the iPod</Text>
       </View> : <View />}
       <View className="flex-col gap-2">
+        <Text className={`text-[11px] font-semibold ${fg(FAINT)}`}>FROM</Text>
+        <View className="flex-row gap-2"><SourceChip id="files" label="This computer" /><SourceChip id="jukebox" label="jukebox" /></View>
+      </View>
+      {source() === 'jukebox' ? <JukeboxSource /> : <View className="flex-col gap-6">
+      <View className="flex-col gap-2">
         <Text className={`text-[11px] font-semibold ${fg(FAINT)}`}>ADD AS</Text>
         <View className="flex-row gap-2">{ADD_KINDS.map((k: string, i: i32) => <KindChip kind={k} label={ADD_KIND_NAMES[i]} />)}</View>
       </View>
@@ -68,6 +86,7 @@ export function AddPage(): i32 {
         </View>
         {notice() !== '' ? <Text className={`text-[12px] ${fg(ERROR)}`}>{notice()}</Text> : <View />}
       </View>
+      </View>}
       {addResults().length > 0 ? <View className={`flex-col rounded-[10] border overflow-hidden ${bg(CARD)} ${bd(BORDER)}`}>
         <Text className={`text-[12px] font-semibold px-4 py-2 ${fg(MUTED)}`}>The last add</Text>
         {addResults().map((r: ipod.AddResult) => <ResultRow r={r} />)}

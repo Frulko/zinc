@@ -17,6 +17,7 @@ import { Button } from '../../components/Button';
 import { ShareFields, SHARE_NOTE } from './ShareFields';
 import { DeepFields, DEEP_NOTE } from './DeepFields';
 import { PrepareFields, PREPARE_NOTE } from './PrepareFields';
+import { JukeboxFields, JUKEBOX_NOTE } from './JukeboxFields';
 import { bg, bd, fg, color, CARD, BORDER, TEXT, MUTED, FAINT, ACCENT, ERROR } from '../../constants';
 
 function Card(props: { icon: string; title: string; note: string; children: () => i32 }): i32 {
@@ -136,6 +137,7 @@ export function SettingsPage(): i32 {
           <Button icon="check" label="Save" onPress={() => { const n = parseFloat(cacheMb()); if (Number.isNaN(n) || n < 0) setSaid('The size is a number of MB'); else { setAudioCacheMb(n); setSaid(''); } }} />
         </View>
       </Card>
+      <Card icon="library" title="jukebox" note={JUKEBOX_NOTE}><JukeboxFields /></Card>
       <Card icon="wifi" title="Share with AudioMuse" note={SHARE_NOTE}><ShareFields /></Card>
       <Card icon="audio-waveform" title="AudioMuse (deep analysis)" note={DEEP_NOTE}><DeepFields /></Card>
     </View>

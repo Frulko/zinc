@@ -33,6 +33,9 @@ export class AppConfig {
   /** AudioMuse-AI, the deep analysis (services/audiomuse.ts): its address and its API_TOKEN. */
   museUrl: string = 'http://127.0.0.1:8000';
   museToken: string = '';
+  /** jukebox (or another Subsonic server), the Add page's source of songs (services/jukebox.ts): its address and token. */
+  jukeboxUrl: string = '';
+  jukeboxToken: string = '';
   /** The For you shelves: the cards snap to the shelf's start when a scroll ends, and the shelf shows its scroll bar. */
   shelfSnap: boolean = true;
   shelfScrollbar: boolean = false;
@@ -63,6 +66,8 @@ export function loadConfig(): AppConfig {
     if (stored.shareApiKey !== undefined) config.shareApiKey = '' + stored.shareApiKey;
     if (stored.museUrl !== undefined) config.museUrl = '' + stored.museUrl;
     if (stored.museToken !== undefined) config.museToken = '' + stored.museToken;
+    if (stored.jukeboxUrl !== undefined) config.jukeboxUrl = '' + stored.jukeboxUrl;
+    if (stored.jukeboxToken !== undefined) config.jukeboxToken = '' + stored.jukeboxToken;
     if (stored.shelfSnap !== undefined) config.shelfSnap = stored.shelfSnap === true;
     if (stored.shelfScrollbar !== undefined) config.shelfScrollbar = stored.shelfScrollbar === true;
   } catch (e) { /* unreadable: the defaults */ }
@@ -91,6 +96,8 @@ export function saveConfig(config: AppConfig): void {
     stored.shareApiKey = config.shareApiKey;
     stored.museUrl = config.museUrl;
     stored.museToken = config.museToken;
+    stored.jukeboxUrl = config.jukeboxUrl;
+    stored.jukeboxToken = config.jukeboxToken;
     stored.shelfSnap = config.shelfSnap;
     stored.shelfScrollbar = config.shelfScrollbar;
     fs.mkdir(backupPlace(), true);

@@ -23,6 +23,15 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   `/api`; a song played is fetched once into the iPod's cache (below), then played as a file; Add uploads each file, Delete
   and Eject ask the daemon, which refuses them with a sentence (shown) unless started with `--allow-changes`. Backups, check, repair
   and Optimise stay for an iPod plugged into this computer. `services/ipod.ts` is the one place that chooses local or remote.
+- **From jukebox.** Settings › jukebox keeps the address and token of jukebox (the music library server, music-lib-manager,
+  `/api/v1`) or of any Subsonic server (Navidrome: the token is `user:password`), with Test connection. The Add page's source
+  "jukebox" browses its artists (then albums), its playlists, or searches it; Add on an album, an artist, a song or a playlist is
+  one Transfers job: songs already on the iPod (same artist and title, length within 3 s) are kept, a song in no iPod format is
+  converted by jukebox once (one `transcode` job, kept as a second rendition there) and fetched as that AAC, else converted while
+  sent; each file comes in 8 MB `Range` slices into the iPod's cache (`jukebox/<id>.<ext>.part/`), so a download cut short goes on
+  from its last slice when added again; then one add with jukebox's tags (composer, grouping, disc, BPM, rating...) and cover. A
+  playlist becomes an iPod playlist in its order once every song is there. A remote iPod gets the files through `/api/add` and the
+  tags through `/api/update` (the cover is then the file's own). `services/jukebox.ts` is the client.
 - **Finding an iPod.** `ipod.detect()` runs at start and every three seconds while no iPod is shown (Rescan in the sidebar looks
   at once). One mounted iPod is opened by itself; with several, pick one. An iPod plugged in but not mounted is shown with what
   USB tells (model, serial, firmware) and a note to put it in disk mode.
@@ -199,6 +208,8 @@ src/
 ├── services/genius.ts    # similarity (co-listening, artists, genre, decade, plays), Genius, the mixes; no UI (the daemon can use it)
 ├── services/forYou.ts    # the For you shelves: signals, affinity, daily mixes, On Repeat, Rewind, Rediscover, Time Capsule, tops, the year
 ├── drafts.ts             # Genius lists and mixes as drafts: played first, Refresh, Save to iPod
+├── services/jukebox.ts   # jukebox's (or a Subsonic server's) client: browse, search, conversion, Range slices, the add
+├── jukeboxAdd.ts         # the Transfers job of an add from jukebox
 ├── services/audiomuse.ts # AudioMuse-AI's client: reach, analyse, cancel, sync, near lists, paths, the deep.v1 cache; no UI
 ├── deep.ts               # the deep analysis in the app: its cache per iPod, the Settings card's jobs, near lists before Genius, auto sync
 ├── services/prepare.ts   # the lines of Settings › Recommendations: the Last.fm history, the similar artists, AudioMuse's results
@@ -227,6 +238,10 @@ again, then reads the iPod's database: the rules and the songs as written.
 grouping (its box ticks) and writes it: the iPod's database has the grouping on the two songs and nothing else changed.
 `tests/t1/ipod_foryou.sh` checks the For you shelves on a fake iPod with three years of generated history (each shelf's songs
 known), the daily refresh rule with the clock set, the empty and partial states, and a golden frame of the page and of Your year.
+
+`tests/t1/ipod_jukebox.sh` adds from a stand-in of jukebox (`tests/data/ipod-jukebox/stub.py`): an album with its tags and cover
+(one song converted by a jukebox job), a playlist whose download is cut then resumed from its last slice, a Subsonic server, and the
+same album to a remote iPod through the daemon.
 
 `tests/t1/ipod_sonos.sh` plays on a made-up Sonos speaker (`tests/data/sonos/stub_speaker.py`): the songs queued and served, Play
 next and Add to queue from the right-click menu, shuffle and repeat, a drag and a removal in the queue panel, a change made by
