@@ -1921,8 +1921,10 @@ struct Loader {
             A.generated.push_back(alias + "$" + prop);
             nd.kind = N::Ident; nd.text = A.generated.back(); nd.kids.clear();
           } else if (nd.kind == N::TypeRef && nd.text.size() > alias.size() + 1 && nd.text.compare(0, alias.size() + 1, alias + ".") == 0) {
-            prop = std::string(nd.text.substr(alias.size() + 1));
-            A.generated.push_back(alias + "$" + prop);
+            // `ns.A.b` (`typeof ns.A.b`, or a type the parser tried and dropped in `i < ns.A.length; i++`) imports `A` only
+            const std::string rest = std::string(nd.text.substr(alias.size() + 1));
+            prop = rest.substr(0, rest.find('.'));
+            A.generated.push_back(alias + "$" + rest);
             nd.text = A.generated.back();
           } else continue;
           if (from == kNone || !added.insert(prop).second) continue;

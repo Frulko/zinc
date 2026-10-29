@@ -260,7 +260,10 @@ struct Checker {
     bool differs = false;
     auto kinds = [&](TypeId x, TypeId y) { if (x == y) return true; if (ty(x).k == TK::Num && ty(y).k == TK::Num && ty(x).obj == 0 && ty(y).obj == 0) { differs = true; return true; } return false; };
     for (std::size_t k = 0; k < f.params.size(); ++k) if (!kinds(t.params[k], f.params[k])) return false;
-    if (!(f.elem == t.elem || kinds(f.elem, t.elem))) return false;
+    if (!(f.elem == t.elem || kinds(f.elem, t.elem))) {
+      if (t.elem != tVoid) return false;
+      differs = true;   // as TypeScript: a function returning something (an async handler's Promise) where one returning void is expected; the result is dropped
+    }
     return differs;
   }
   // `DynFunction` (the alias of the Dyn prelude): a typed function passed where it is expected, e.g. `(r: i32, name: string) => void`, gets an adapter that converts each
@@ -334,7 +337,7 @@ struct Checker {
         aliases.push_back(t.params[k]); aliases.push_back(f.params[k]);
       }
       std::string R = inspectAliasName(t.elem);
-      std::string body = t.elem == tVoid ? "f(" + call + ")" : f.elem == t.elem ? "f(" + call + ")" : "f(" + call + ") as " + R;
+      std::string body = t.elem == tVoid ? "{ f(" + call + "); }" : f.elem == t.elem ? "f(" + call + ")" : "f(" + call + ") as " + R;
       aliases.push_back(t.elem);
       std::uint32_t sym = helper("thunk," + std::to_string(from) + "," + std::to_string(to), "function $F(f: " + inspectAliasName(from) + "): " + inspectAliasName(to) + " {\n  return (" + ps + "): " + R + " => " + body + ";\n}\n", aliases, node);
       wrapNode(node, sym);
