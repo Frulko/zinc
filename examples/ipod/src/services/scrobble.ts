@@ -7,7 +7,7 @@
 // (<dir>/lastfm.json, <dir>/listenbrainz.json), sent by batches of 50 and kept when the service cannot be reached, or refuses
 // the account, until a later flush() sends them. A service is off until its credentials are given.
 //
-// Last.fm: API 2.0, every call signed (md5 of the parameters sorted by name, then the secret: zinc:subtle's MD5). The session key
+// Last.fm: API 2.0, every call signed (the sign-in and the account's reads as GETs, the writes as POSTs) (md5 of the parameters sorted by name, then the secret: zinc:subtle's MD5). The session key
 // comes once from the browser: lastfmToken(), the user approves lastfmAuthUrl() in the browser, lastfmSession() gives it.
 // ListenBrainz: POST /1/submit-listens with the user token, "single" or "import" for the listens, "playing_now" for now playing.
 // IPOD_LASTFM_URL and IPOD_LISTENBRAINZ_URL replace the services' addresses (the tests point them at a local stub).
@@ -94,6 +94,18 @@ async function lastfmCall(params: Map<string, string>, secret: string): Promise<
   return await post(LASTFM_URL, await signedBody(params, secret), 'application/x-www-form-urlencoded', '');
 }
 
+/** A signed Last.fm read, as a GET: auth.getSession sent as a POST is refused once the token is approved ("This token has not been
+ *  issued", error 4; seen 2026-10-29), as a GET it gives the session. */
+async function lastfmRead(params: Map<string, string>, secret: string): Promise<CallResult> {
+  const r = new CallResult();
+  try {
+    const res = await net.fetch(`${LASTFM_URL}?${await signedBody(params, secret)}`, { timeoutMs: TIMEOUT_MS });
+    r.status = res.status;
+    r.body = await res.text();
+  } catch (e) { r.error = (e as Error).message; }
+  return r;
+}
+
 /** Last.fm's error code in a reply, 0 when none. */
 function lastfmCode(r: CallResult): i32 {
   try { const e: LastfmError = JSON.parse(r.body); return e.error !== undefined ? e.error as i32 : 0; } catch (e) { return r.status >= 400 ? -1 : 0; }
@@ -107,7 +119,7 @@ function lastfmMessage(r: CallResult): string {
 export async function lastfmToken(key: string, secret: string): Promise<string> {
   const p = new Map<string, string>();
   p.set('method', 'auth.getToken'); p.set('api_key', key);
-  const r = await lastfmCall(p, secret);
+  const r = await lastfmRead(p, secret);
   if (r.error !== '') throw new Error(`Last.fm cannot be reached (${r.error})`);
   const t: LastfmTokenReply = JSON.parse(r.body);
   if (t.token === undefined) throw new Error(`Last.fm: ${lastfmMessage(r)}`);
@@ -131,7 +143,7 @@ export async function lastfmSession(key: string, secret: string, token: string):
 export async function lastfmSessionIfApproved(key: string, secret: string, token: string): Promise<LastfmSessionInfo | null> {
   const p = new Map<string, string>();
   p.set('method', 'auth.getSession'); p.set('api_key', key); p.set('token', token);
-  const r = await lastfmCall(p, secret);
+  const r = await lastfmRead(p, secret);
   if (r.error !== '') throw new Error(`Last.fm cannot be reached (${r.error})`);
   if (lastfmCode(r) === 14) return null;
   const s: LastfmSessionReply = JSON.parse(r.body);
@@ -146,7 +158,7 @@ interface LastfmUserInfo { name: string; playcount: string; }
 export async function lastfmCheck(a: Accounts): Promise<string> {
   const p = new Map<string, string>();
   p.set('method', 'user.getInfo'); p.set('api_key', a.lastfmKey); p.set('sk', a.lastfmSession);
-  const r = await lastfmCall(p, a.lastfmSecret);
+  const r = await lastfmRead(p, a.lastfmSecret);
   if (r.error !== '') throw new Error(`Last.fm cannot be reached (${r.error})`);
   const u: LastfmUserReply = JSON.parse(r.body);
   if (u.user === undefined) throw new Error(`Last.fm: ${lastfmMessage(r)}`);

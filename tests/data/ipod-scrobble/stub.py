@@ -99,6 +99,8 @@ class H(http.server.BaseHTTPRequestHandler):
             state['recent'] = 0
             state['added'] = []
             return self.reply(200, {})
+        if u.path.startswith('/2.0') and 'api_sig' in p:   # the signed reads (the sign-in, user.getInfo): as POSTs, but refused as POSTs (below)
+            return self.lastfm_signed(p, False, get=True)
         if u.path.startswith('/2.0'):
             m = p.get('method', '')
             log({'service': 'lastfm-read', 'method': m, 'params': p})
@@ -169,15 +171,20 @@ class H(http.server.BaseHTTPRequestHandler):
         raw = self.rfile.read(int(self.headers.get('Content-Length', '0'))).decode()
         offline = os.path.exists(os.path.join(d, 'offline'))
         if self.path.startswith('/2.0'):
-            p = dict(urllib.parse.parse_qsl(raw, keep_blank_values=True))
+            return self.lastfm_signed(dict(urllib.parse.parse_qsl(raw, keep_blank_values=True)), offline)
+        self.listenbrainz_post(raw, offline)
+
+    def lastfm_signed(self, p, offline, get=False):
             base = ''.join(k + p[k] for k in sorted(p) if k not in ('format', 'callback', 'api_sig'))
             good = hashlib.md5((base + SECRET).encode()).hexdigest() == p.get('api_sig')
-            log({'service': 'lastfm', 'method': p.get('method'), 'signed': good, 'offline': offline, 'params': p})
+            log({'service': 'lastfm', 'method': p.get('method'), 'signed': good, 'offline': offline, 'get': get, 'params': p})
             if offline:
                 return self.reply(503, {'error': 16, 'message': 'The service is temporarily unavailable'})
             if not good or p.get('api_key') != KEY:
                 return self.reply(403, {'error': 13, 'message': 'Invalid method signature supplied'})
             m = p.get('method')
+            if m == 'auth.getSession' and not get and p.get('token') == TOKEN:   # as Last.fm does: an approved token is refused to a POST
+                return self.reply(403, {'error': 4, 'message': 'Unauthorized Token - This token has not been issued'})
             if m == 'auth.getToken':
                 return self.reply(200, {'token': TOKEN})
             if m == 'auth.getSession':
@@ -192,6 +199,8 @@ class H(http.server.BaseHTTPRequestHandler):
                 n = sum(1 for k in p if k.startswith('timestamp['))
                 return self.reply(200, {'scrobbles': {'@attr': {'accepted': n, 'ignored': 0}}})
             return self.reply(400, {'error': 3, 'message': 'Invalid method'})
+
+    def listenbrainz_post(self, raw, offline):
         if self.path == '/1/submit-listens':
             auth = self.headers.get('Authorization', '')
             try:

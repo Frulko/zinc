@@ -179,6 +179,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- iPod demo: the Last.fm sign-in no longer fails with "This token has not been issued": Last.fm refuses the session to a POST, the app now asks for it with a GET.
 - iPod demo: signing in to Last.fm works when the API account has a callback URL: the browser comes back to the app once you allow it, shows "Connected as …" and the app signs in by itself (no Finish button).
 - Scroll snap: a trackpad swipe released in a `snap-x` or `snap-y` container now glides straight to its snap point, animated, instead of gliding on and then jumping back to settle.
 - iPod demo: a transfer's steps take the height of their lines (at most 200 px) instead of a tall empty box.
