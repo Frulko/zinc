@@ -59,7 +59,7 @@ function asList(v: any): any { return v === undefined || v === null ? [] : Array
 // ---- Last.fm
 
 /** A Last.fm GET (api_key and format added): the reply's JSON. Throws with Last.fm's message on an error that will not pass. */
-async function lastfm(params: string, key: string): Promise<any> {
+export async function lastfm(params: string, key: string): Promise<any> {
   let why = '';
   for (let attempt: i32 = 0; attempt < TRIES; attempt++) {
     const r = await get(`${LASTFM_URL}?${params}&api_key=${encodeURIComponent(key)}&format=json`);

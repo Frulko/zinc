@@ -154,6 +154,7 @@ export class Ranked { key: string = ''; artist: string = ''; title: string = '';
 export class PodPlays { trackId: string = ''; plays: i32 = 0; skips: i32 = 0; last: number = 0; }
 export class Session { start: number = 0; end: number = 0; listens: i32 = 0; }
 export class MatchResult { trackId: string = ''; score: number = 0; method: string = ''; }
+export class PodListen { ts: number = 0; trackId: string = ''; skipped: boolean = false; }
 
 function str(r: Row, name: string): string { return r.isNull(name) ? '' : r.text(name); }
 
@@ -360,6 +361,18 @@ export class History {
     return out;
   }
 
+  /** Every listen of a track matched on the iPod `guid`, oldest first (services/genius.ts reads the sessions from it). */
+  podListens(guid: string): PodListen[] {
+    const out: PodListen[] = [];
+    for (const r of this.db.prepare('SELECT l.ts AS ts, m.track_id AS id, l.skipped AS skipped FROM listens l ' +
+      "JOIN matches m ON m.guid = ? AND m.track_key = l.track_key AND m.track_id <> '' ORDER BY l.ts").all([guid])) {
+      const p = new PodListen();
+      p.ts = r.number('ts'); p.trackId = str(r, 'id'); p.skipped = r.number('skipped') !== 0;
+      out.push(p);
+    }
+    return out;
+  }
+
   /** When the song was last heard (not skipped), 0 when never. */
   lastPlayed(artist: string, title: string): number {
     const r = this.db.prepare('SELECT max(ts) AS t FROM listens WHERE track_key = ? AND skipped = 0').get([trackKey(artist, title)]);
@@ -433,13 +446,14 @@ function matchOne(artist: string, title: string, album: string, mbid: string, by
 function normAlbum(album: string): string { return normTitle(album); }
 
 /** The listen history.jsonl and the library.json of each iPod in `cacheDir` (services/cache.ts: one folder per GUID): the new lines
- *  imported, then the songs matched to that iPod's library. */
-export function syncPods(h: History, cacheDir: string): void {
-  if (!fs.exists(cacheDir)) return;
+ *  imported, then the songs matched to that iPod's library. The lines read and songs looked at (0: nothing changed). */
+export function syncPods(h: History, cacheDir: string): i32 {
+  let n: i32 = 0;
+  if (!fs.exists(cacheDir)) return n;
   for (const e of fs.readDir(cacheDir)) {
     if (!e.isDirectory) continue;
     const dir = `${cacheDir}/${e.name}`;
-    try { h.importLocal(e.name, `${dir}/history.jsonl`); } catch (x) { console.error(`history: ${dir}/history.jsonl: ${(x as Error).message}`); }
+    try { n += h.importLocal(e.name, `${dir}/history.jsonl`); } catch (x) { console.error(`history: ${dir}/history.jsonl: ${(x as Error).message}`); }
     try {
       if (!fs.exists(`${dir}/library.json`)) continue;
       const snap = JSON.parse(fs.readText(`${dir}/library.json`));
@@ -450,7 +464,8 @@ export function syncPods(h: History, cacheDir: string): void {
         tracks.push({ id: '' + t.id, artist: '' + t.artist, albumArtist: t.albumArtist !== undefined ? '' + t.albumArtist : '', title: '' + t.title,
           album: t.album !== undefined ? '' + t.album : '', mbid: t.mbid !== undefined ? '' + t.mbid : '' });
       }
-      h.match(e.name, tracks, '' + snap.marker);
+      n += h.match(e.name, tracks, '' + snap.marker);
     } catch (x) { console.error(`history: ${dir}/library.json: ${(x as Error).message}`); }
   }
+  return n;
 }

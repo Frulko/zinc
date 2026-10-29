@@ -5,7 +5,10 @@ answer as unavailable (Last.fm error 16 with HTTP 503, ListenBrainz 503). Usage:
 For tests/t1/ipod_history.sh it also serves the reading side, from a generated history (written to <dir>/history-data.json for the
 checks): Last.fm GET user.getrecenttracks (paged, from/to honoured, a now-playing row first, error 29 once at the 4th call, a new
 scrobble arriving at the 6th), getlovedtracks, gettoptracks, gettopartists; ListenBrainz GET /1/user/ann/listen-count and /listens
-(max_ts, count; X-RateLimit headers). GET /reset starts the history calls over."""
+(max_ts, count; X-RateLimit headers). GET /reset starts the history calls over.
+
+For tests/t1/ipod_genius.sh: Last.fm GET artist.getsimilar from SIMILAR (an artist it does not list has no neighbours; UNKNOWN_ARTIST
+answers error 6, as Last.fm does for a name it does not know)."""
 import hashlib, http.server, json, os, random, sys, time, urllib.parse
 
 SECRET, KEY, TOKEN, LB_TOKEN = 'sekrit', 'apikey', 'tok123', 'lbtoken'
@@ -60,6 +63,8 @@ LF, LB = generate()
 with open(os.path.join(d, 'history-data.json'), 'w') as f:
     json.dump({'lastfm': LF, 'listenbrainz': LB, 'catalog': CATALOG, 'loved': LOVED}, f)
 state = {'recent': 0, 'added': []}
+SIMILAR = {'Alpha One': [('Lonely Star', '0.9'), ('Someone Else', '0.5')], 'Lonely Star': [('Alpha One', '0.9')]}
+UNKNOWN_ARTIST = 'Charlie Four'
 
 
 def lf_track(x, extended):
@@ -99,6 +104,12 @@ class H(http.server.BaseHTTPRequestHandler):
             log({'service': 'lastfm-read', 'method': m, 'params': p})
             if p.get('api_key') != KEY or p.get('format') != 'json':
                 return self.reply(403, {'error': 10, 'message': 'Invalid API key'})
+            if m == 'artist.getsimilar':
+                a = p.get('artist', '')
+                if a == UNKNOWN_ARTIST:
+                    return self.reply(200, {'error': 6, 'message': 'The artist you supplied could not be found'})
+                rows = [{'name': n, 'match': x, 'mbid': '', 'url': ''} for n, x in SIMILAR.get(a, [])]
+                return self.reply(200, {'similarartists': {'artist': rows, '@attr': {'artist': a}}})
             if p.get('user') != 'ann':
                 return self.reply(404, {'error': 6, 'message': 'User not found'})
             limit, page = int(p.get('limit', '50')), int(p.get('page', '1'))
