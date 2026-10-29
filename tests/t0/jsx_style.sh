@@ -29,4 +29,23 @@ want '_class(__n2, "flex-col");'
 want '/* font-size: 14px */'
 want '"heightPercent"'
 want 'const __zsheet0'
+# A style computed by a function or held in a constant of the file: its object literal is lowered where it is written, on every engine
+cat > "$tmp/f.tsx" <<'TSX'
+import * as ui from 'zinc:ui'
+import { createNodeRef } from 'zinc:ui/solid'
+const card = { backgroundColor: '#123456', opacity: 0.5 }
+const seg = (on: boolean) => ({ backgroundColor: on ? 0x00ff00 : 0x0000ff })
+function pad(n: number): ui.Style { return { paddingLeft: n * 2 } }
+const a = createNodeRef(), b = createNodeRef(), c = createNodeRef()
+const root = <View>
+  <View ref={a} style={card} />
+  <View ref={b} style={seg(true)} />
+  <View ref={c} style={[seg(false), pad(3)]} />
+</View>
+console.log(ui.getNumber(a.node, 'backgroundColor'), ui.getNumber(a.node, 'opacity'), ui.getNumber(b.node, 'backgroundColor'), ui.getNumber(c.node, 'backgroundColor'), ui.getNumber(c.node, 'paddingLeft'), root >= 0)
+TSX
+for e in "" "--engine quickjs"; do
+  got=$(ZINC_HEADLESS=1 "$ZINC" run "$tmp/f.tsx" $e 2>&1 | grep -v '^ ' | tail -1)
+  [ "$got" = "1193046 0.5 65280 255 6 true" ] || { echo "computed style ($e): $got"; fail=1; }
+done
 exit $fail

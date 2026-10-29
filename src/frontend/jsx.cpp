@@ -573,6 +573,10 @@ struct Lowering {
         out += mark(pos, 'C') + std::string(s.substr(pos, t[i].start - pos)) + lower(*e);
         pos = t[e->end - 1].end;
         i = e->end - 1;
+      } else if (styleObjs.count(i) && match(i) < b) {
+        out += mark(pos, 'C') + std::string(s.substr(pos, t[i].start - pos)) + styleObject(i + 1, match(i));
+        pos = t[match(i)].end;
+        i = match(i);
       }
     }
     return out + mark(pos, 'C') + std::string(s.substr(pos, t[b - 1].end - pos)) + mark(t[b - 1].end, 'G');
@@ -841,6 +845,49 @@ struct Lowering {
     return true;
   }
   std::vector<std::string> staticStyles;
+  // Styles computed by a function or held in a constant of this file (`style={seg(on)}`, `style={card}`): the names a style attribute reads,
+  // gathered by a first pass, and the object literals those declarations give, lowered to a Style where they are written.
+  std::set<std::string> styleNames;
+  std::set<std::size_t> styleObjs;   // the `{` of each object literal to lower
+  void collectStyleNames(std::size_t a, std::size_t b) {
+    for (std::size_t k = a; k < b; ++k) {
+      if (isP(k, "{")) { k = match(k); continue; }   // an object written in place is lowered already
+      if (t[k].kind != Tok::Ident || (k > a && isP(k - 1, "."))) continue;
+      if (isP(k + 1, "(")) { styleNames.insert(tx(k)); k = match(k + 1); continue; }
+      if (k + 1 >= b || isP(k + 1, ",") || isP(k + 1, "]") || isP(k + 1, ":") || isP(k + 1, ")")) styleNames.insert(tx(k));
+    }
+  }
+  void returnedObjects(std::size_t open, std::size_t close) {   // `return {...}` and `return ({...})` in a block
+    for (std::size_t k = open + 1; k < close; ++k) {
+      if (!isK(k, "return")) continue;
+      std::size_t r = k + 1;
+      while (isP(r, "(")) ++r;
+      if (isP(r, "{")) styleObjs.insert(r);
+    }
+  }
+  void findStyleObjects() {
+    for (std::size_t i = 0; i + 3 < t.size(); ++i) {
+      if (isK(i, "function") && t[i + 1].kind == Tok::Ident && styleNames.count(tx(i + 1))) {
+        std::size_t p = i + 2;
+        while (p < t.size() && !isP(p, "(") && !isP(p, "{") && !isP(p, ";")) ++p;
+        if (!isP(p, "(")) continue;
+        std::size_t q = match(p) + 1;
+        while (q < t.size() && !isP(q, "{") && !isP(q, ";") && !isP(q, "=>")) ++q;
+        if (isP(q, "{")) returnedObjects(q, match(q));
+      } else if ((isK(i, "const") || isK(i, "let")) && t[i + 1].kind == Tok::Ident && styleNames.count(tx(i + 1))) {
+        std::size_t q = i + 2;
+        if (isP(q, ":")) { while (q < t.size() && !isP(q, "=") && !isP(q, ";")) { if (isP(q, "(") || isP(q, "[") || isP(q, "{")) q = match(q); ++q; } }
+        if (!isP(q, "=")) continue;
+        if (isP(q + 1, "{")) { styleObjs.insert(q + 1); continue; }   // const card = { ... }
+        std::size_t arrow = q + 1;   // const seg = (on) => ({ ... }) or => { return { ... }; }
+        while (arrow < t.size() && !isP(arrow, "=>") && !isP(arrow, ";") && !isP(arrow, ",")) { if (isP(arrow, "(") || isP(arrow, "[") || isP(arrow, "<")) arrow = isP(arrow, "<") ? arrow : match(arrow); ++arrow; }
+        if (!isP(arrow, "=>")) continue;
+        std::size_t r = arrow + 1;
+        if (isP(r, "{")) returnedObjects(r, match(r));
+        else { while (isP(r, "(")) ++r; if (isP(r, "{")) styleObjs.insert(r); }
+      }
+    }
+  }
   std::string styleExpr(std::size_t a, std::size_t b) {
     strip(a, b);
     if (b == a + 1 && (isK(a, "null") || isK(a, "false") || (t[a].kind == Tok::Ident && tx(a) == "undefined"))) return "new __ZStyle([], [])";
@@ -1063,6 +1110,7 @@ struct Lowering {
       else if (name == "onScroll") push("_scroll(" + v + ", " + expr + ");");
       else if (name == "style") {
         if (a.kind != 2) fail(a.tok, "style expects an object, a StyleSheet entry or an array of styles");
+        collectStyleNames(a.eb, a.ee);
         std::string layers = styleLayers(a.eb, a.ee);
         if (constantStyle(a.eb, a.ee)) { std::string id = "__zsheet" + std::to_string(staticStyles.size()); staticStyles.push_back("const " + id + " = " + layers + ";"); layers = id; }
         push(react ? "_styles(" + v + ", " + layers + ");" : "_dynStyles(" + v + ", () => " + layers + ");");
@@ -1546,10 +1594,24 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
       while (b < src.size() && !std::isspace(static_cast<unsigned char>(src[b]))) ++b;
       L.lib = std::string(src.substr(a, b - a));
     }
-    // replace the top-level JSX elements
+    // a style computed elsewhere in the file (`style={seg(on)}`): a first pass finds the names the style attributes read
+    if (std::regex_search(src.begin(), src.end(), std::regex(R"(style=\{\s*[\[(]*\s*[A-Za-z_$])"))) {
+      Lowering D;
+      D.s = src; D.t = L.t; D.react = L.react; D.imported = L.imported; D.classTags = L.classTags; D.lib = L.lib;
+      for (std::size_t i = 0; i < D.t.size(); ++i) if (D.jsxStart(i)) { auto e = D.parseElem(i); D.lower(*e); i = e->end - 1; }
+      L.styleNames = D.styleNames;
+      L.findStyleObjects();
+    }
+    // replace the top-level JSX elements, and the style objects found above
     std::string out;
     std::size_t pos = 0;
     for (std::size_t i = 0; i < L.t.size(); ++i) {
+      if (L.styleObjs.count(i)) {
+        out += L.mark(pos, 'C') + std::string(src.substr(pos, L.t[i].start - pos)) + L.styleObject(i + 1, L.match(i));
+        pos = L.t[L.match(i)].end;
+        i = L.match(i);
+        continue;
+      }
       if (!L.jsxStart(i)) continue;
       auto e = L.parseElem(i);
       out += L.mark(pos, 'C') + std::string(src.substr(pos, L.t[i].start - pos)) + L.lower(*e);
