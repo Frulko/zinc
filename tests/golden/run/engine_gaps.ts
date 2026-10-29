@@ -29,6 +29,7 @@ console.log(ws.length, ws[0].xs.length);
 // Promise<void> made by generic code
 async function main(): Promise<void> {
   console.log('awaited', await awaited(true), await awaited(false));
+  console.log('empty', (await emptyAfter()).length, (await emptyCaught()).length);
   const c = await b();
   console.log(c.xs.length, c.n);
   const p = await pic(3);
@@ -53,4 +54,7 @@ const got = loose.list !== undefined ? loose.list : [], missing = loose.none !==
 console.log(got.length, missing.length);
 async function names(): Promise<string[]> { return ['x', 'y']; }
 async function awaited(on: boolean): Promise<i32> { const xs = on ? await names() : []; return xs.length as i32; }
+// `return []` in an async function takes the array the promise holds, after an await and in a catch
+async function emptyAfter(): Promise<string[]> { await names(); return []; }
+async function emptyCaught(): Promise<string[]> { try { await names(); throw new Error('no'); } catch (e) { return []; } }
 main();

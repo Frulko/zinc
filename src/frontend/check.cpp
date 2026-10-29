@@ -1835,7 +1835,8 @@ struct Checker {
       TypeId r;
       if (optionalCall(i, kNoType, r)) return r;
     }
-    if (!isNew && x.kids.size() == 2 && n(x.kids[0]).kind == N::Member && n(x.kids[0]).text == "resolveWith" && n(n(x.kids[0]).kids[0]).kind == N::Ident && n(n(x.kids[0]).kids[0]).text == "__p" && lookup("__adopt") != kNone) {   // `return p` in an async function (the desugared `__p.resolveWith(p)`): settles as p does
+    if (!isNew && x.kids.size() == 2 && n(x.kids[0]).kind == N::Member && n(x.kids[0]).text == "resolveWith" && n(n(x.kids[0]).kids[0]).kind == N::Ident && n(n(x.kids[0]).kids[0]).text == "__p" && lookup("__adopt") != kNone
+        && n(x.kids[1]).kind != N::Array && n(x.kids[1]).kind != N::ObjectLit) {   // `return p` in an async function (the desugared `__p.resolveWith(p)`): settles as p does (a literal is no promise: it waits for T, `return []`)
       const std::uint32_t self = n(x.kids[0]).kids[0], arg = x.kids[1];
       const TypeId pt = expr(self), at = expr(arg);
       if (!bad(at) && promiseKind(at) == 1 && at == pt && replaceWith(i, "__adopt(__H0, __H1)", {{self}, {arg}})) return expr0(i, kNoType);
