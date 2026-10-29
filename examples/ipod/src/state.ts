@@ -257,9 +257,16 @@ export function canGoForward(): boolean { const h = nav; return h !== null && (h
 /** The scrollKey of the view `name` in the entry shown: back and forward give its offset back, a new entry starts at the top. */
 export function scrollKey(name: string): string { const h = nav; return h !== null ? (h as History<Shown>).scrollKey(name) : name; }
 
+let selectedFrom: ipod.Track[] = [];
+/** The table the selection was made in (its rows in their order). */
+export function selectionList(): ipod.Track[] { return selectedFrom; }
+/** The selected tracks, in the order of their table. */
+export function selectedTracks(): ipod.Track[] { const sel = selected(); return selectedFrom.filter((t: ipod.Track) => sel.indexOf(t.id) >= 0); }
+
 /** A click on row `i` of `list`: alone selects it, with Cmd or Ctrl adds or removes it, with Shift selects from the anchor to it. */
 export function selectRow(list: ipod.Track[], i: i32, toggle: boolean, range: boolean): void {
   if (i < 0 || i >= list.length) return;
+  selectedFrom = list;
   const id = list[i].id, now = selected();
   if (range && selectAnchor() >= 0) {
     const a = Math.min(selectAnchor(), i), b = Math.max(selectAnchor(), i);

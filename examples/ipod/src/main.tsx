@@ -8,7 +8,7 @@
 // is turned on. An iPod mounted, unmounted or pulled shows within seconds. This file mounts the app, routes the pages and the
 // files dropped on the window; what it does is in state.ts, actions.ts, the services and the pages. What is shown is a history (back and
 // forward: ‹ ›, Cmd+[ and Cmd+], the mouse's side buttons, a two-finger swipe); every page has a search, and Cmd+F or Cmd+K searches the
-// whole iPod.
+// whole iPod. Cmd+I (or Get Info in a song's menu) opens the Info window on the songs selected, to edit their tags (editor.ts).
 //
 //   zinc run examples/ipod
 //   IPOD_DEMO_MOUNT=/Volumes/MYPOD zinc run examples/ipod     show only the iPod mounted there
@@ -35,6 +35,9 @@ import { pickerOpen, unfollow, stopServer } from './services/sonos';
 import { Toasts } from './components/Toasts';
 import { HistoryBar } from './components/HistoryBar';
 import { QuickSearch, quickOpen, openQuickSearch } from './components/QuickSearch';
+import { InfoSheet } from './components/InfoSheet';
+import { infoOpen, openInfo, closeInfo } from './editor';
+import { selectedTracks, selectionList } from './state';
 import { ArtistsPage } from './pages/artists/ArtistsPage';
 import { ForYouPage } from './pages/foryou/ForYouPage';
 import { YearPage } from './pages/foryou/YearPage';
@@ -89,6 +92,7 @@ function App(): i32 {
       {library() !== null && queueOpen() ? <QueuePanel /> : <View />}
       {library() !== null && pickerOpen() ? <OutputMenu /> : <View />}
       {library() !== null && quickOpen() ? <QuickSearch /> : <View />}
+      {library() !== null && infoOpen() ? <InfoSheet /> : <View />}
     </View>
   </View>;
 }
@@ -115,6 +119,11 @@ sys.onSignal('SIGTERM', () => { quitNow(); });
 
 // the global search, from any page (a field typing leaves Cmd+F and Cmd+K to it)
 ui.onKey((e: ui.KeyEvent) => { if (e.primary && !e.shift && (e.key === 'f' || e.key === 'k') && library() !== null) { openQuickSearch(); e.handled = true; } });
+// Get Info on the songs selected (the Info window: editor.ts)
+ui.onKey((e: ui.KeyEvent) => {
+  if (infoOpen() && e.key === 'Escape') { closeInfo(); e.handled = true; }
+  else if (e.primary && !e.shift && e.key === 'i' && library() !== null && !infoOpen() && selectedTracks().length > 0) { openInfo(selectionList(), selectedTracks()); e.handled = true; }
+});
 
 ui.setScheme('auto');
 prepareSession();

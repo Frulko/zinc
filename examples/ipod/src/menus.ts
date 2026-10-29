@@ -1,5 +1,5 @@
 // The right-click menu of a song, a selection of songs, an album, an artist or a playlist, as Spotify's: Play, Play next, Add to queue,
-// Add to playlist (a normal playlist of the iPod), for one song "Genius from this song" (25, 50 or 100 songs, drafts.ts), and "Smart
+// Add to playlist (a normal playlist of the iPod), Get Info (editor.ts), for one song "Genius from this song" (25, 50 or 100 songs, drafts.ts), and "Smart
 // playlist like this" on the artist, album artist, album or genre the songs share (smart.ts). It is the system's own menu (zinc:system/menu popup: an NSMenu on macOS), opened where the pointer is.
 import * as ui from 'zinc:ui';
 import * as menu from 'zinc:system/menu';
@@ -10,6 +10,7 @@ import { playList, playNext, addToQueue } from './services/player';
 import { geniusFrom, GENIUS_SIZES } from './drafts';
 import { smartLike } from './smart';
 import { addToPlaylist } from './actions';
+import { openInfo } from './editor';
 import { playlists } from './state';
 
 const LIKE_FIELDS: string[] = ['artist', 'albumArtist', 'album', 'genre'];
@@ -33,7 +34,8 @@ export async function choose(e: ui.PointerEvent, ids: string[], labels: string[]
 export async function openTrackMenu(e: ui.PointerEvent, list: ipod.Track[], start: i32, tracks: ipod.Track[], name: string): Promise<void> {
   const lib = library();
   if (lib === null || tracks.length === 0) return;
-  const items = [menu.item('play', 'Play'), menu.separator(), menu.item('play-next', 'Play next'), menu.item('add-to-queue', 'Add to queue')];
+  const items = [menu.item('play', 'Play'), menu.separator(), menu.item('play-next', 'Play next'), menu.item('add-to-queue', 'Add to queue'),
+    menu.separator(), menu.item('info', 'Get Info')];
   if (tracks.length === 1 && tracks[0].mediaType === 'audio') {
     const sizes: menu.Item[] = [];
     for (const n of GENIUS_SIZES) sizes.push(menu.item(`genius-${n}`, `${n} songs`));
@@ -52,6 +54,7 @@ export async function openTrackMenu(e: ui.PointerEvent, list: ipod.Track[], star
   if (picked.startsWith('like:')) { const rest = picked.slice(5), k = rest.indexOf(':'); smartLike(rest.slice(0, k), rest.slice(k + 1)); }
   else if (picked.startsWith('add-to:')) addToPlaylist(picked.slice(7), tracks);
   else if (picked.startsWith('genius-')) geniusFrom(tracks[0], Number(picked.slice(7)) as i32);
+  else if (picked === 'info') openInfo(list, tracks);
   else if (picked === 'play') playList(lib as PodLibrary, list, start, name);
   else if (picked === 'play-next') playNext(lib as PodLibrary, tracks, name);
   else if (picked === 'add-to-queue') addToQueue(lib as PodLibrary, tracks, name);

@@ -1,6 +1,6 @@
 // The iPod, plugged in (zinc:ipod) or remote (an iPod daemon's /api, services/remote.ts): find the iPods, open one and read its
 // library (tracks, playlists, specs, photos, notes and other files), read it again after a change, close it, and the few calls
-// that differ between the two: a cover, a track's file, add, remove, download and eject. This file is the one place that decides
+// that differ between the two: a cover, a track's file, add, remove, tag edits, download and eject. This file is the one place that decides
 // local or remote; the pages and the actions call it the same way for both. Nothing here writes to the iPod by itself: the
 // changes are the jobs of the actions, behind the Allow changes switch. What was read is kept per iPod (services/cache.ts): the
 // library shows at once from it, the covers come from it.
@@ -157,6 +157,18 @@ export async function addTracks(items: ipod.TrackInput[], playlist: string): Pro
 
 /** Removes the tracks and their files from the iPod. */
 export async function removeTracks(ids: string[]): Promise<void> { if (isRemote()) await remote.remove(ids); else await ipod.remove(ids); }
+
+/** Writes the fields of `patch` (those given; '' and 0 clear one) to the tracks `ids`, then saves the iPod once. A remote iPod's daemon
+ *  takes no cover (`artworkFile`): it is refused. */
+export async function updateTracks(ids: string[], patch: ipod.TrackInput): Promise<void> {
+  if (isRemote()) {
+    if (patch.artworkFile !== undefined) throw new Error(`a cover cannot be sent to a remote iPod yet`);
+    await remote.update(ids, patch);
+    return;
+  }
+  for (const id of ids) await ipod.update(id, patch);
+  await ipod.save();
+}
 
 /** A new normal playlist `name` of the tracks `ids` in that order, saved on the iPod (a remote one through its daemon); its id. */
 export async function createPlaylistOf(name: string, ids: string[]): Promise<string> {

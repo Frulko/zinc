@@ -83,7 +83,7 @@ export class Job {
 }
 
 const KIND_ICONS: string[] = ['add', 'plus', 'download', 'download', 'backup', 'archive', 'restore', 'rotate-ccw', 'delete', 'x', 'check', 'shield-check', 'repair', 'wrench',
-  'analyse', 'sparkles', 'merge', 'copy', 'eject', 'eject', 'mount', 'usb', 'history', 'radio'];
+  'analyse', 'sparkles', 'merge', 'copy', 'eject', 'eject', 'mount', 'usb', 'history', 'radio', 'info', 'info'];
 /** The icon of a kind of job. */
 export function iconOf(kind: string): string { for (let i = 0; i < KIND_ICONS.length; i += 2) if (KIND_ICONS[i] === kind) return KIND_ICONS[i + 1]; return 'arrow-down-up'; }
 

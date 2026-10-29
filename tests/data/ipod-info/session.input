@@ -1,0 +1,25 @@
+21 move 196 107
+22 down
+23 up
+31 move 60 363
+32 down
+33 up
+51 move 500 213
+52 down
+53 up
+61 key i meta
+101 key Escape
+105 move 500 213
+106 down
+107 up
+109 move 500 247
+110 down meta
+111 up meta
+113 key i meta
+125 move 776 339
+126 down
+127 up
+129 text Live
+151 move 965 674
+152 down
+153 up

@@ -59,6 +59,14 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   artist into `history/similar-artists.jsonl`), genre and decade, and each song's plays, rating and skips. The weights are
   `history/genius.json`. The Playlists page also lists **mixes**: the taste clusters of the history (by genre when nothing was heard),
   named by their artists and genre, played and saved the same way.
+- **Get Info, one song or many.** Cmd+I, a song's right-click menu › Get Info, or the Get Info button of the Songs page opens the
+  Info window on the songs selected (Cmd-click adds one, Shift-click a range), on the Songs, Albums and Playlists pages. Its tabs are
+  iTunes': Details (name, artist, album artist, album, grouping, composer, genre, year, BPM, track and disc numbers, compilation,
+  comments), Artwork (one cover for every song), Options (media kind, rating, volume adjustment, start and stop, remember position,
+  skip when shuffling, lyrics, reset plays, description), Sorting (the sort names) and File (kind, where, size, bit rate, sample
+  rate, dates, plays, skips; read only). Several songs: a value they do not share shows as an empty field saying Mixed, each field
+  has a box an edit ticks, and only the ticked fields are written, so nothing else is blanked. One song: Previous and Next. OK writes
+  them as one Transfers job and one save of the iPod (Allow changes); a remote iPod is written by its daemon (`POST /api/update`).
 - **Smart playlists, as iTunes made them.** The + of the Playlists page makes a playlist (empty, filled from a song's right-click
   menu › Add to playlist) or a smart playlist; right-click a song, an album or an artist › Smart playlist like this… starts one on
   the artist, album artist, album or genre they share. The editor is iTunes' dialog: a name, Match all or any of the rules, one row
@@ -194,11 +202,12 @@ src/
 ├── services/audiomuse.ts # AudioMuse-AI's client: reach, analyse, cancel, sync, near lists, paths, the deep.v1 cache; no UI
 ├── deep.ts               # the deep analysis in the app: its cache per iPod, the Settings card's jobs, near lists before Genius, auto sync
 ├── services/prepare.ts   # the lines of Settings › Recommendations: the Last.fm history, the similar artists, AudioMuse's results
+├── editor.ts             # the Info window's fields, Mixed values, apply boxes, the patch and its job (Get Info)
 ├── smart.ts              # the smart playlist editor's state: fields and conditions, rows, templates, preview, save, duplicate
-├── menus.ts              # the right-click menu: Play, Play next, Add to queue, Add to playlist, Genius, Smart playlist like this
+├── menus.ts              # the right-click menu: Play, Play next, Add to queue, Get Info, Add to playlist, Genius, Smart playlist like this
 ├── forYou.ts             # the For you page's shelves: kept per iPod and history version, worked out off the first frame, as drafts
 ├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, DownloadMark, Toasts, NowPlaying, OutputPicker,
-│                         # QueuePanel, HistoryBar (‹ › and the magnifier), SearchField, QuickSearch (Cmd+F / Cmd+K)
+│                         # QueuePanel, HistoryBar (‹ › and the magnifier), SearchField, QuickSearch (Cmd+F / Cmd+K), InfoSheet (Cmd+I)
 └── pages/                # devices, foryou (and Your year), overview, albums, artists, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs, settings
 ```
 
@@ -214,6 +223,8 @@ disk image while the app runs (it closes the iPod, then opens it again).
 library's menu, stars, the limit, the name), checks the preview against `evaluateSmart` and the editor's frame against its golden,
 saves it, plays a template's preview and saves it, refuses to edit a playlist on grouping and duplicates it, edits the first one
 again, then reads the iPod's database: the rules and the songs as written.
+`tests/t1/ipod_info.sh` opens the Info window on one song, then on two (Cmd-click, Cmd+I: Mixed comments and years), types a
+grouping (its box ticks) and writes it: the iPod's database has the grouping on the two songs and nothing else changed.
 `tests/t1/ipod_foryou.sh` checks the For you shelves on a fake iPod with three years of generated history (each shelf's songs
 known), the daily refresh rule with the clock set, the empty and partial states, and a golden frame of the page and of Your year.
 

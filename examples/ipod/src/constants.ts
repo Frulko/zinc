@@ -71,6 +71,10 @@ export const QUEUE_ROW_HEIGHT: i32 = 46;    // one of its rows: a drag moves by 
 export const QUEUE_FROM_SHOWN: i32 = 100;   // rows of "Next from" shown (the rest is counted)
 export const SHELF_CARD_SIZE: i32 = 150;    // a card's picture on the For you page's shelves
 export const YEAR_CHART_HEIGHT: i32 = 120;  // the month chart of Your year
+export const INFO_WIDTH: i32 = 620;         // the Info window (Get Info)
+export const INFO_HEIGHT: i32 = 640;
+export const INFO_LABEL_WIDTH: i32 = 110;   // its fields' labels
+export const INFO_COVER_SIZE: i32 = 240;    // the cover on its Artwork tab
 
 // ---- timings
 export const SCAN_EVERY_MS: i32 = 3000;     // detect() again: an iPod mounted, unmounted or pulled shows within this time

@@ -1,10 +1,11 @@
 // The tracks of one kind (songs, podcasts, audiobooks, videos), searchable by title, artist and album, sorted by a click on a
 // column's header. Download copies the selected tracks to the computer, or all of them (the shown ones, after a search) when none is
-// selected; Delete removes the selected ones from the iPod (Allow changes, a question).
+// selected; Get Info edits the selected ones (editor.ts); Delete removes the selected ones from the iPod (Allow changes, a question).
 import { Show } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
 import { songs, search, setSearch, page, countOf, selected, allowChanges, scrollKey } from '../../state';
 import { download, deleteTracks, notice } from '../../actions';
+import { openInfo } from '../../editor';
 import { busy } from '../../services/transfers';
 import { Button } from '../../components/Button';
 import { TrackTable } from '../../components/TrackTable';
@@ -27,6 +28,7 @@ export function MediaPage(props: { title: string; one: string; many: string }): 
           for (const t of songs()) if (selected().length === 0 || selected().indexOf(t.id) >= 0) pick.push(t);
           download(selected().length > 0 ? `${count(pick.length, props.one, props.many)}` : `all ${props.many}`, pick);
         }} /> : <View />}
+      <Show when={selected().length > 0}><Button icon="info" label="Get Info" onPress={() => openInfo(songs(), songs().filter((t: ipod.Track) => selected().indexOf(t.id) >= 0))} /></Show>
       <Show when={selected().length > 0}><Button icon="trash" label={`Delete ${selected().length}`} danger={true} disabled={!allowChanges()} busy={busy('delete')}
         onPress={() => {
           const pick: ipod.Track[] = [];
