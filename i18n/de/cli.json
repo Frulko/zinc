@@ -54,6 +54,7 @@
   "cli.cmd.device": "ein gekoppeltes Gerät: was adb tut, über das Netzwerk",
   "cli.cmd.tsconfig": "Editor-Konfiguration",
   "cli.cmd.lint": "ein Programm vor dem Kompilieren für seine Ziele prüfen",
+  "cli.cmd.doc": "die Dokumentation erzeugen: Anleitungen, API und Plugins, bereitgestellt oder exportiert",
   "cli.cmd.migrate": "ein Projekt nach einer Änderung der Sprache oder einer API umschreiben",
   "cli.cmd.infer": "wo die schrittweise Typisierung nichts ableiten konnte",
   "cli.cmd.dev": "es ausführen und jedes Speichern sofort zeigen",

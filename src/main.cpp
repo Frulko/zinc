@@ -28,6 +28,7 @@
 #ifdef ZN_AGENT
 #include "agent/agent.h"
 #endif
+#include "doc/doc.h"
 #include "lint/lint.h"
 #include "lsp/lsp.h"
 #include "frontend/capabilities.h"
@@ -1855,6 +1856,7 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !std::strcmp(argv[1], "infer")) return zn::cli::infer(cl);
     if (argc >= 2 && !std::strcmp(argv[1], "lint")) { zn::i18n::use("en"); return zn::lint::lint(cl, gRoot); }   // its rules and --json are English (D160)
     if (argc >= 2 && !std::strcmp(argv[1], "migrate")) return zn::lint::migrate(cl);
+    if (argc >= 2 && !std::strcmp(argv[1], "doc")) return zn::doc::run(cl, gRoot);
     // the commands a person types get the closing line; `check --check|--types|--json <file>` and the stage commands keep one line per diagnostic for the tools that read them
     gHint = argc >= 2 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "build") || (!std::strcmp(argv[1], "check") && (argc == 2 || argv[2][0] != '-')));
     std::string derr;

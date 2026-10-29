@@ -3438,6 +3438,12 @@ std::string_view compatModuleFile(std::string_view spec) {
   return it == kCompat.end() ? std::string_view() : std::string_view(it->second);
 }
 
+std::vector<std::string_view> stdModuleSpecs() {
+  std::vector<std::string_view> v;
+  for (const StdModule& m : kStdModules) v.push_back(m.spec);
+  return v;
+}
+
 std::string_view stdModuleFile(std::string_view spec) {
   const Profile* browser = currentProfile();   // the web target: the page has these APIs, so zinc:web re-exports its own
   const bool onWeb = browser && std::string_view(browser->name) == "web";

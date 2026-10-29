@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc doc` makes the documentation of a project, a plugin or the engine (`--std`) as a static site, as `cargo doc` does: the API from the code and its doc comments, the Markdown and MDX pages of `docs/` and of each plugin's `docs/` (steps, tabs, callouts, commands with a copy button, screenshots, examples), search, light and dark themes and your own `docs/theme.css`. `--out` exports the folder, `--serve` serves it on this machine and reloads the pages when you save; nothing is downloaded (docs/guide/13-doc.md).
 - `n.toString(radix)` prints a number in any base from 2 to 36, with the same digits as JavaScript (`(255).toString(16)` is `ff`).
 - Generic arrow functions: `const id = <T>(v: T): T => v`.
 - A stand-in `x.sim.ts` can `import type { ... } from './x.spec'` to use its spec's records instead of copying them, and the plugin still imports them from the spec.

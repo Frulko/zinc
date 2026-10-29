@@ -36,6 +36,8 @@ below needs a maintainer decision first, not a silent exception.
   app/atelier/    Zinc Atelier (ZN-050), the desktop app: Zinc source run by the engine, talks to the CLI through zinc:process; not part of the engine build
   src/app/        the engine as a library for an app shell (ZN-620, include/zn/app.h, docs/reports/zinc-next-mobile-core.md): the embedder contract over rt (app.cpp,
                   in the CMake target zn_app with its own copies of rt and the host compiled with ZN_APP_LIBRARY) and the SDL3 main-callbacks shell (shell_sdl.cpp, built into the app)
+  src/doc/        zinc doc (ZN-856, docs/guide/13-doc.md): the documentation site of a project, a plugin or the engine: the API read with the frontend's
+                  lexer, Markdown and MDX pages through md4c (third_party/md4c), the theme compiled in, --serve; includes frontend, res (codec), tc, platform; only main includes it
   src/main.cpp    CLI wiring only, no logic
   tests/<tier>/   one executable <name>.sh per test, see TESTING.md
 ```

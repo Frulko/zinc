@@ -54,6 +54,7 @@
   "cli.cmd.device": "un dispositivo emparejado: lo que hace adb, por la red",
   "cli.cmd.tsconfig": "configuración del editor",
   "cli.cmd.lint": "revisar un programa para sus destinos antes de compilar",
+  "cli.cmd.doc": "generar la documentación: guías, API y plugins, servida o exportada",
   "cli.cmd.migrate": "reescribir un proyecto tras un cambio del lenguaje o de una API",
   "cli.cmd.infer": "dónde el tipado gradual no pudo inferir",
   "cli.cmd.dev": "ejecutarlo y mostrar cada guardado al instante",

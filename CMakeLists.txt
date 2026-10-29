@@ -557,6 +557,13 @@ target_include_directories(zn_qjs PUBLIC include src)
 # zinc lint and zinc migrate (docs/reports/zinc-lint-migrate.md): rules and codemods on the frontend's lexer and loader
 add_library(zn_lint STATIC src/lint/lint.cpp src/lint/migrate.cpp)
 target_link_libraries(zn_lint PUBLIC zn_frontend zn_platform)
+# zinc doc (ZN-856, docs/guide/13-doc.md): the documentation site; md4c (third_party/md4c, MIT) parses its Markdown
+add_library(zn_md4c STATIC third_party/md4c/md4c.c)
+target_include_directories(zn_md4c PUBLIC third_party/md4c)
+set_target_properties(zn_md4c PROPERTIES C_STANDARD 99)
+target_compile_options(zn_md4c PRIVATE -w)
+add_library(zn_doc STATIC src/doc/doc.cpp src/doc/api.cpp src/doc/md.cpp src/doc/highlight.cpp src/doc/theme.cpp)
+target_link_libraries(zn_doc PUBLIC zn_frontend zn_platform zn_codec zn_tc PRIVATE zn_md4c zn_yyjson)
 add_executable(zinc src/main.cpp src/test_cmd.cpp src/cli_core.cpp src/cli_tour.cpp src/cli_web.cpp src/cli_web_deps.cpp src/cli_pm.cpp src/cli_mqjs.cpp src/lsp/lsp.cpp src/dev/hot.cpp src/dev/hot_swap.cpp)   # dev/hot*.cpp: zinc dev's Fast Refresh, in the command line only (ZN-742); hot_swap.cpp also in the player (ZN-631)
 option(ZN_NATIVE_FIXTURE "register the C test module 'Fixture' (tests/native/fixture.c) in zinc, for the native-call tests" ON)
 if(ZN_NATIVE_FIXTURE)
@@ -598,7 +605,7 @@ if(APPLE)   # but not zinc's own C++ (zn::), harfbuzz's or the libc++ templates 
   target_link_options(zinc PRIVATE "LINKER:-unexported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/tools/zinc-unexported.txt")
   set_property(TARGET zinc APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/zinc-unexported.txt)
 endif()
-target_link_libraries(zinc PRIVATE zn_lint zn_sim zn_script zn_qjs zn_assets zn_res zn_dev zn_tc zn_prof zn_dbg zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend zn_qrcodegen zn_i18n)
+target_link_libraries(zinc PRIVATE zn_lint zn_doc zn_sim zn_script zn_qjs zn_assets zn_res zn_dev zn_tc zn_prof zn_dbg zn_vm zn_aot zn_rt zn_zbc zn_ir zn_frontend zn_qrcodegen zn_i18n)
 if(TARGET zn_rt_new)
   add_dependencies(zinc zn_rt_new)   # not linked into zinc (ZN-592): `zinc build` links it into the programs that have a heap budget
 endif()

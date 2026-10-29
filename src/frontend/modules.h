@@ -62,6 +62,8 @@ std::string platformModule(const std::string& capsFile);
 std::string lucideModule(const std::string& entry, const std::string& nodesFile);
 // The file under lib/std of a standard module written in Zinc ('zinc:ui' is "ui.ts"); empty for any other spec.
 std::string_view stdModuleFile(std::string_view spec);
+// Every standard module written in Zinc ('zinc:ui', 'zinc:path'...), in the table's order (zinc doc lists their API).
+std::vector<std::string_view> stdModuleSpecs();
 // The source of a module generated for the program (zinc:telemetry, zinc:system/permissions, zinc:system/app from zinc.json); "" for any other spec.
 std::string generatedModuleSource(std::string_view spec);
 // The file (relative to lib/std) of a compat package the engine maps by itself ('inferno', '@pocketjs/framework/solid'...); empty for any other spec.
