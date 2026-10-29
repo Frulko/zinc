@@ -636,6 +636,7 @@ import { createHistory } from 'zinc:ui/history';
 const history = createHistory<Shown>(initial, () => shownNow() /* capture */, (s: Shown) => show(s) /* apply */);
 history.push(next);                       // a new entry after the current one (the entries ahead are dropped) and shown
 history.back(); history.forward();        // false when there is nothing that way
+history.reset(first);                     // one entry left, shown (another document opened)
 history.canBack(); history.canForward();  // reactive: the ‹ › buttons
 <VirtualList scrollKey={history.scrollKey('albums')} ... />   // this entry's offset, given back by back and forward
 ```

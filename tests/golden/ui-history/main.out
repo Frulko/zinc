@@ -7,3 +7,4 @@ new a page a filter '' key 2 sy 0 back true forward false
 back again page a filter 'ab' key 0 sy 1200 back false forward true
 forward button page a filter '' key 2 sy 0 back true forward false
 nothing ahead page a filter '' key 2 sy 0 back true forward false
+reset page b filter '' key 3 sy -1 back false forward false

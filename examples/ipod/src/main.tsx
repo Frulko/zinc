@@ -50,7 +50,7 @@ import { OptimisePage } from './pages/optimise/OptimisePage';
 import { TransfersPage } from './pages/transfers/TransfersPage';
 import { LogsPage } from './pages/logs/LogsPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
-import { startListening } from './services/listening';
+import { startListening, flush as flushListening } from './services/listening';
 
 function Content(props: { lib: PodLibrary; page: string }): i32 {
   const p = props.page;
@@ -87,9 +87,10 @@ function App(): i32 {
   </View>;
 }
 
-// the quit, in order (services/quit.ts): the session saved, a speaker fed by this app paused before its server stops, the events
+// the quit, in order (services/quit.ts): the session saved, the listen under way counted, a speaker fed by this app paused before its server stops, the events
 // unsubscribed, the server stopped, the iPod closed (nothing is written to it that was not already)
 onQuit('session', async (): Promise<void> => { saveSession(); });
+onQuit('scrobble', flushListening);   // the song playing counts for the time heard (services/listening.ts)
 onQuit('speaker', (): Promise<void> => release(releaseMode()));
 onQuit('events', unfollow);
 onQuit('server', async (): Promise<void> => { stopServer(); });

@@ -239,6 +239,11 @@ function fresh(p: string): Shown {
   return s;
 }
 export function showPage(p: string): void { go(fresh(p)); }
+/** Another iPod opened: its overview is the only entry (back does not lead to the pages of the one before). */
+function showOpened(): void {
+  const s = new Shown(), h = nav;
+  if (h !== null) (h as History<Shown>).reset(s); else show(s);
+}
 export function openAlbum(a: Album): void { const s = fresh(PAGE_ALBUMS); s.album = a.key; go(s); }
 export function openArtist(name: string): void { const s = fresh(PAGE_ARTISTS); s.artist = name; if (page() === PAGE_ARTISTS) s.search = search(); go(s); }
 export function openPlaylist(id: string): void { const s = fresh(PAGE_PLAYLISTS); s.playlist = id; if (page() === PAGE_PLAYLISTS) s.search = search(); go(s); }
@@ -349,7 +354,7 @@ export async function openDevice(mountpoint: string): Promise<void> {
     dropCovers();
     setLibrary(null);
     const opened = await openPod(mountpoint);
-    batch(() => { setLibrary(opened); setError(''); setPlaylistShown(''); setPhotoAlbumShown(''); setExtraShown(''); showPage(PAGE_OVERVIEW); });
+    batch(() => { setLibrary(opened); setError(''); showOpened(); });
     resumeSession(opened);
     log(`Opened ${opened.device.name !== '' ? opened.device.name : 'the iPod'}`, `${mountpoint}: ${opened.tracks.length} tracks, ${opened.playlists.length} playlists`, true);
     refreshInBackground(opened);
@@ -391,7 +396,7 @@ export async function openRemoteDevice(address: string, token: string): Promise<
     dropCovers();
     setLibrary(null);
     const opened = await openRemote(at, token);
-    batch(() => { setLibrary(opened); setError(''); setPlaylistShown(''); setPhotoAlbumShown(''); setExtraShown(''); showPage(PAGE_OVERVIEW); });
+    batch(() => { setLibrary(opened); setError(''); showOpened(); });
     resumeSession(opened);
     log(`Opened ${opened.device.name !== '' ? opened.device.name : 'the iPod'} (remote)`, `${opened.remote}: ${opened.tracks.length} tracks, ${opened.playlists.length} playlists`, true);
     refreshInBackground(opened);

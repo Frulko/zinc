@@ -37,6 +37,8 @@ export class History<T> {
     this.at = this.entries.length - 1;
     this.show();
   }
+  /** Forgets every entry: `state` is the only one left (another document opened: back has nothing to go to) and is shown. */
+  reset(state: T): void { this.entries = [state]; this.keys = [this.nextKey++]; this.at = 0; this.show(); }
   /** The current entry becomes `state` (no new entry) and is shown. */
   replace(state: T): void { this.entries[this.at] = state; this.show(); }
   /** Back one entry; false when there is none. */

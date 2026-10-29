@@ -1,6 +1,6 @@
 // zinc:ui/history: a page and a filter as the view state. Cmd+[ and Cmd+] move back and forward, the mouse's side buttons too; leaving an
 // entry captures the filter typed since; the list of an entry comes back at its offset (scrollKey from the history), a new entry starts at
-// the top; a push after back drops the entries ahead.
+// the top; a push after back drops the entries ahead; reset leaves one entry.
 import * as ui from 'zinc:ui';
 import { render, createSignal, createNodeRef } from 'zinc:ui/solid';
 import { createHistory } from 'zinc:ui/history';
@@ -38,5 +38,6 @@ render(App, 0xffffff, (dt: number) => {
   if (f === 13) { show('new a'); ui.pointerAt(10, 200, true, 3); ui.pointerAt(10, 200, false, 3); }
   if (f === 15) { show('back again'); ui.pointerAt(10, 200, true, 4); ui.pointerAt(10, 200, false, 4); }
   if (f === 17) { show('forward button'); ui.keyDown(-1, ']', ui.META); }
-  if (f === 19) { show('nothing ahead'); quit(); }
+  if (f === 19) { show('nothing ahead'); history.reset(new Shown('b', '')); }
+  if (f === 21) { show('reset'); quit(); }
 });
