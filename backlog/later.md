@@ -5,6 +5,8 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- D178: QuickJS turns binary bodies of zinc:net (`Response.bytes()`, `Request.rawBody`, and `fs.writeText` of them) into U+FFFD past 0x7f, because strings cross into QuickJS as UTF-8: binary downloads and uploads served under `--engine quickjs` break (the iPod app's remote covers and songs); a host row that returns bytes on QuickJS fixes it.
+- D178: a typed `JSON.parse` with a missing field gives `undefined` on QuickJS where the interpreter and compiled program throw "cannot convert Dyn (undefined)"; the three engines should agree.
 - D178: `?:` with `await` in one branch and `null` in the other, or an await inside a larger expression of a branch, is still Z0005; it needs the branch types in the desugar, and the plain branch's extra microtask should go too.
 - D178: in an async `Promise<void>` function, `return voidPromise()` resolves at once instead of waiting for that promise (`src/frontend/desugar.cpp` `fix()`, the `vp` path).
 - qjs_demos: rn-showcase on QuickJS ignores the prefs (language, notes) saved by earlier runs that the interpreter reads (French and 2 notes against English and 3 on 2026-10-29): zinc:storage seems keyed per engine, and the test runs in the user's ZINC_HOME; give the test its own ZINC_HOME and make the store the same on every engine.
@@ -387,6 +389,7 @@ The next backlog review turns lines into tasks or deletes them.
 - Sidecar on a Pi 3B+: the H.264 decoder takes 25 ms a 1080p picture at gpu_freq=300 (tools/v4l2dec-probe.cpp); gpu_freq=450 with over_voltage=2 in the Pi image's config.txt should cut it to ~17 ms, to measure with a good power supply (the rig reports under-voltage) before the image takes it. And a 25 or 24 fps film on a 60 Hz HDMI screen shows each picture 2 or 3 refreshes: switching the mode to 50 Hz (or 48) while a VIDEO region plays at that rate, as Kodi does, removes the judder (some TVs blank 1-2 s).
 
 ## Demos
+- D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
 - D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - D178: ipod-web honours `size` for covers (scale or a cache per size), and a test of `/api/eject` on a fake disk image; the Subsonic methods getArtist, getSong, getPlaylist, search2, getAlbumList, getUser, getStarred and scrobble have no test yet.
@@ -531,6 +534,7 @@ The next backlog review turns lines into tasks or deletes them.
 - consoles: `console host: host.assetsStat is not available on n3ds` (n3ds-platformer).
 
 ## Cross-platform pass
+- D178: the Mac app's remote iPod against an ipod-web daemon on a Raspberry Pi over a real network (large files, timeouts, Wi-Fi).
 - D178: the iPod daemon (examples/ipod-web) on a Raspberry Pi and a C.H.I.P.: build zinc:ipod's dependencies (glib, libplist, taglib, libusb) for armv6/armv7 with the pinned zig, serve a real iPod (an HFS+ one mounts read only: browse and stream only), stream to a Subsonic client on the LAN, and measure a hard-disk iPod's USB power on the C.H.I.P.'s host port (a powered hub if it browns out); it matters because that is what the daemon is for.
 
 - ZN-857: iPod audio fingerprints on Linux need a decoder (miniaudio of plugins/audio covers WAV, MP3, FLAC; AAC and ALAC need another); until then `analyze()` on Linux matches by tags and files only.
