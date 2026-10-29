@@ -1,7 +1,7 @@
 # sonos plugin (`zinc:sonos`)
 
 Sonos speakers on the local network, through the UPnP API they serve on port 1400: discovery, rooms and groups, what
-plays, transport, volume, grouping, favorites and internet radio streams. No Sonos account and no cloud.
+plays, transport, volume, grouping, favorites, internet radio streams and events (what changed, the moment it changes). No Sonos account and no cloud.
 
 - **No native code.** It is written in Zinc on [`zinc:socket`](socket.md) (SSDP discovery), `fetch` (the SOAP calls) and
   `zinc:xml` (the element tree of `lib/std/xml.ts`, which reads the answers): `plugins/sonos/index.ts`. It needs the `net` and `process` permissions
@@ -77,6 +77,23 @@ Free functions:
 | `favorites(): Promise<Favorite[]>` | The Sonos favorites (as saved in the Sonos app). |
 | `playFavorite(g, favorite)` | A stream is played directly; a container (playlist, album) is queued, then played. |
 
+`Events` (UPnP GENA, SoCo's `events.py`):
+
+| API | |
+|---|---|
+| `new Events(sys, port)` | `port`: the program's HTTP server (`serveAsync`), which hands requests to `handleNotify`; `path` (`'/sonos-events'`) is the CALLBACK's path. |
+| `watch(g, timeoutSec = 1800)` | Ends the subscriptions it held and subscribes the group: AVTransport and GroupRenderingControl of the coordinator, RenderingControl of each room, ZoneGroupTopology. The speakers send their whole state at once. |
+| `subscribe(speaker, service, timeoutSec = 1800): Promise<Subscription>` | One service: `AVTransport`, `RenderingControl`, `GroupRenderingControl`, `ZoneGroupTopology`, `ContentDirectory`, `AlarmClock`, `DeviceProperties`. Throws `UpnpError` when refused. Renewed by itself; a renewal refused (a speaker restarted) subscribes again. |
+| `renew(sub)`, `unsubscribe(sub)`, `close()` | By hand; `close` ends them all. `subs` lists the live ones (`service`, `speaker`, `sid`, `timeout`, `active`). |
+| `handleNotify(req): Reply \| null` | A `NOTIFY` under `path`: applied, then answered 200 (412 for an unknown SID; an event older than one applied is dropped); any other request gives null. |
+| `onChange((g, e) => void)` | Called after each event, with the group it changed (null for a room's volume or the topology) and the `Event`. |
+| `apply(sub, e)` | What `handleNotify` does with an event: state, play mode, actions, `media`, the track (its position kept for the same track) from AVTransport; `volume`, `muted` from GroupRenderingControl and RenderingControl; `sys.applyTopology` from ZoneGroupTopology. |
+
+`parseEvent(service, body): Event` reads a `NOTIFY` body (`Event`: `service`, `sid`, `seq`, `get(name)`, `has(name)`; a LastChange's
+variables by name, a channel other than Master after a slash: `Volume/LF`). `localAddressFor(ip)` is this computer's address on the
+network of `ip` (SoCo's `get_listen_ip`): the one a speaker can reach for a CALLBACK or a song's URL. `sys.applyTopology(state)`
+takes a ZoneGroupState document.
+
 Data classes:
 
 | class | fields |
@@ -91,8 +108,24 @@ Data classes:
 ## Notes
 
 - **Port 1400.** Every call is an HTTP POST (SOAP) to `http://<speaker>:1400` (the port comes from the topology's
-  `Location`, so a stand-in speaker of a test can sit on any port). There is no eventing yet: a program polls `update` to
-  follow a group.
+  `Location`, so a stand-in speaker of a test can sit on any port).
+- **Events instead of polling.** `Events` subscribes the speakers (UPnP GENA: `SUBSCRIBE` with a `CALLBACK` to this
+  computer, renewed at 85% of the time granted, `UNSUBSCRIBE` at the end); each `NOTIFY` updates the `Group` and `Speaker`
+  objects. The program serves HTTP once, on any port, and passes each request to `handleNotify`; the speakers must reach that
+  port (a firewall that drops it leaves the program on its poll, which stays as a slow fallback). An event carries no
+  position: count it locally while `playing()`, and read `update` now and then.
+
+  ```ts
+  import { serveAsync } from 'zinc:net';
+  let events: Events | null = null;
+  const port = serveAsync(0, async (req) => {
+    const r = events !== null ? (events as Events).handleNotify(req) : null;
+    return r !== null ? r as Reply : myOwnRoutes(req);
+  });
+  events = new Events(sys, port);
+  events.onChange((g, e) => { if (g !== null) show(g.state, g.track.title, g.volume); });
+  await events.watch(group);              // AVTransport, GroupRenderingControl, RenderingControl per room, ZoneGroupTopology
+  ```
 - **Commands go to the group coordinator.** Transport, play mode and group volume use `group.coordinator`; a member of a
   group refuses them. Volume and mute of one room go to that room's own address.
 - **Discovery and firewalls.** The SSDP search leaves from a UDP port and the speakers answer to that port. On a device

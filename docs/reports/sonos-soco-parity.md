@@ -25,7 +25,7 @@ Services: AVT = AVTransport, RC = RenderingControl, GRC = GroupRenderingControl,
 | SoCo | UPnP | today | proposed | notes |
 |---|---|---|---|---|
 | `all_groups`, `all_zones`, `visible_zones`, `group` (property) | ZGT.GetZoneGroupState | has | `sys.groups`, `sys.speakers`, `groupOf` | |
-| `zone_group_state` (cached, event-updated) | ZGT subscription | partial | `sys.refresh()` | poll only; with events (batch 6) refresh on `ZoneGroupState` |
+| `zone_group_state` (cached, event-updated) | ZGT subscription | done (batch 6: `Events.watch` applies it) | `sys.refresh()` | poll only; with events (batch 6) refresh on `ZoneGroupState` |
 | `ZoneGroup.members/coordinator/uid/label/short_label` | ZGT | has | `Group.name()` | `Group.id` kept |
 | `ZoneGroup.volume` (get/set) | GRC.GetGroupVolume / SetGroupVolume (after SnapshotGroupVolume) | has | `setGroupVolume`; read in `update` | |
 | `ZoneGroup.mute` (get/set) | GRC.GetGroupMute / SetGroupMute | done (batch 1) | `getGroupMute(g)`, `setGroupMute(g, m)` | |
@@ -211,13 +211,13 @@ Note: SMAPI is a third-party SOAP API. It is only needed to browse/search a serv
 
 | SoCo | protocol | today | proposed | notes |
 |---|---|---|---|---|
-| `service.subscribe(requested_timeout, auto_renew, event_queue)` | HTTP `SUBSCRIBE /<service>/Event` with headers `CALLBACK: <http://ip:port>`, `NT: upnp:event`, `TIMEOUT: Second-N`; answer header `SID`, `TIMEOUT` | missing | `subscribe(s, service, handler, timeoutSec)` | |
-| `Subscription.renew()` (auto-renew at 85% of timeout) | `SUBSCRIBE` with `SID` and `TIMEOUT` headers, no CALLBACK/NT | missing | internal timer | |
-| `Subscription.unsubscribe()` | `UNSUBSCRIBE` with `SID` | missing | `unsubscribe(sub)` | |
-| `Subscription.send_event`, `events` queue, `time_left`, `is_subscribed` | NOTIFY dispatch by `SID`, `SEQ` | missing | handler callback | |
-| `EventNotifyHandler`, `EventListener` (HTTP server on 1400+, `get_listen_ip(ip)` = UDP-connect trick to find the interface that reaches the speaker) | `NOTIFY` with `SID`, `NT: upnp:event`, `NTS: upnp:propchange`, body `e:propertyset` | missing | `serveAsync` handler | |
-| `parse_event_xml` (LastChange nested XML: `AVTransport` `<Event><InstanceID><TransportState val=.../>`; `RenderingControl` volume per channel; `ZoneGroupTopology` `ZoneGroupState`; `AlarmClock`; `ContentDirectory` `ContainerUpdateIDs`/`FavoritesUpdateID`/`SavedQueuesUpdateID`; `DeviceProperties`; `GroupRenderingControl` `GroupVolume`, `GroupMute`) | | missing | `parseEvent(service, xml)` -> typed event | `Event` has `sid`, `seq`, `service`, `timestamp`, `variables` |
-| `ZoneGroupState` event-driven cache | ZGT subscription | missing | `sys.watch()` | replaces polling `update`/`refresh` |
+| `service.subscribe(requested_timeout, auto_renew, event_queue)` | HTTP `SUBSCRIBE /<service>/Event` with headers `CALLBACK: <http://ip:port>`, `NT: upnp:event`, `TIMEOUT: Second-N`; answer header `SID`, `TIMEOUT` | done (batch 6, as `Events`) | `subscribe(s, service, handler, timeoutSec)` | |
+| `Subscription.renew()` (auto-renew at 85% of timeout) | `SUBSCRIBE` with `SID` and `TIMEOUT` headers, no CALLBACK/NT | done (batch 6, as `Events`) | internal timer | |
+| `Subscription.unsubscribe()` | `UNSUBSCRIBE` with `SID` | done (batch 6, as `Events`) | `unsubscribe(sub)` | |
+| `Subscription.send_event`, `events` queue, `time_left`, `is_subscribed` | NOTIFY dispatch by `SID`, `SEQ` | done (batch 6, as `Events`) | handler callback | |
+| `EventNotifyHandler`, `EventListener` (HTTP server on 1400+, `get_listen_ip(ip)` = UDP-connect trick to find the interface that reaches the speaker) | `NOTIFY` with `SID`, `NT: upnp:event`, `NTS: upnp:propchange`, body `e:propertyset` | done (batch 6, as `Events`) | `serveAsync` handler | |
+| `parse_event_xml` (LastChange nested XML: `AVTransport` `<Event><InstanceID><TransportState val=.../>`; `RenderingControl` volume per channel; `ZoneGroupTopology` `ZoneGroupState`; `AlarmClock`; `ContentDirectory` `ContainerUpdateIDs`/`FavoritesUpdateID`/`SavedQueuesUpdateID`; `DeviceProperties`; `GroupRenderingControl` `GroupVolume`, `GroupMute`) | | missing | done (batch 6, as `Events`) | `Event` has `sid`, `seq`, `service`, `timestamp`, `variables` |
+| `ZoneGroupState` event-driven cache | ZGT subscription | done (batch 6: `Events.watch` applies it) | `sys.watch()` | replaces polling `update`/`refresh` |
 | Services used for events | AVTransport, RenderingControl, GroupRenderingControl, ZoneGroupTopology, ContentDirectory, AlarmClock, DeviceProperties, SystemProperties, AudioIn, MusicServices, GroupManagement, ConnectionManager, Queue, QPlay | | | iPod needs: AVT, RC, GRC, ZGT, CD (queue/favorites changed), AC |
 | `Service.iter_actions`, `actions`, `event_vars` (SCPD introspection from `/xml/<service>1.xml`) | HTTP GET SCPD | missing | skip | not needed with hard-coded actions |
 
@@ -229,7 +229,7 @@ Checked in `lib/modules.d.ts`, `src/host/http.cpp`.
 
 | Need | State | Verdict |
 |---|---|---|
-| SUBSCRIBE / UNSUBSCRIBE / NOTIFY verbs | `RequestInit.method` is a free string; `http.cpp:215` writes `k->method + " " + k->path + " HTTP/1.1"` verbatim, headers array is passed through (`Content-Length` only added for POST/PUT/PATCH, correct for SUBSCRIBE which has no body). Server side: `http.cpp:422` pushes `llhttp_method_name(...)`, and llhttp knows `NOTIFY`, `SUBSCRIBE`, `UNSUBSCRIBE`, so `Request.method` will be `'NOTIFY'`. | Probably works with no engine change; prove it in the batch-6 test (stub speaker accepting SUBSCRIBE). Note `modules.d.ts` says "libcurl on hosts"; if a libcurl path serves some hosts, check it passes a custom method with no body. Likely fine (customrequest), unverified. |
+| SUBSCRIBE / UNSUBSCRIBE / NOTIFY verbs (proven 2026-10-29 by `tests/t1/sonos_plugin.sh` on the interpreter and QuickJS, and by hand with `--native`; QuickJS lacked `zinc:os networkInterfaces`, fixed) | `RequestInit.method` is a free string; `http.cpp:215` writes `k->method + " " + k->path + " HTTP/1.1"` verbatim, headers array is passed through (`Content-Length` only added for POST/PUT/PATCH, correct for SUBSCRIBE which has no body). Server side: `http.cpp:422` pushes `llhttp_method_name(...)`, and llhttp knows `NOTIFY`, `SUBSCRIBE`, `UNSUBSCRIBE`, so `Request.method` will be `'NOTIFY'`. | Probably works with no engine change; prove it in the batch-6 test (stub speaker accepting SUBSCRIBE). Note `modules.d.ts` says "libcurl on hosts"; if a libcurl path serves some hosts, check it passes a custom method with no body. Likely fine (customrequest), unverified. |
 | Response headers (`SID`, `TIMEOUT`) | `Response.headers.get('sid')` exists (case-insensitive lowercase keys) | OK |
 | HTTP server for NOTIFY | `zinc:net serveAsync(port, handler)`; `Request.headers` (SID, SEQ, NT, NTS), `Request.body`, `remoteAddress`. Handler must answer `200` with empty body quickly | OK. Gap: `serve*` has a single global server (`stop()` takes no argument). If the iPod daemon (`examples/ipod-web`) already serves its own HTTP, the NOTIFY listener must share it: either the plugin exposes `handleNotify(req): Reply` for the app's own handler to call (recommended: no second port, no conflict), or a second port needs multi-server support. Check `ipod-web` before batch 6. |
 | Local LAN address as the speaker sees it | `zinc:os networkInterfaces()` returns `address`, `netmask`, `internal`, `family`. | OK: choose the IPv4 non-internal interface whose subnet (address & netmask) contains the speaker IP; this is exactly what SoCo's `get_listen_ip` does with a UDP connect. Add helper `localAddressFor(ip)`. Fallback: UDP connect trick via `zinc:socket udp` if it exposes the bound local address (not checked). Multi-homed or VPN hosts: allow override `Events.listenIp`. |

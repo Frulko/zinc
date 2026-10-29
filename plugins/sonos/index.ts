@@ -1,10 +1,13 @@
 // zinc:sonos — Sonos speakers on the local network, through their UPnP API on port 1400 (docs/plugins/sonos.md,
-// docs/reports/sonos-upnp-api.md): discovery, rooms and groups, what plays, transport, volume, grouping, favorites and radio streams.
+// docs/reports/sonos-upnp-api.md): discovery, rooms and groups, what plays, transport, volume, grouping, favorites, radio streams and
+// events.
 // Written in Zinc on zinc:socket (SSDP), fetch and zinc:xml. No Sonos account, no cloud. The names follow SoCo
 // (github.com/SoCo/SoCo) in camelCase; docs/reports/sonos-soco-parity.md maps the two.
 import { udp } from 'zinc:socket';
 import { utf8Decode } from 'zinc:sys';
 import { El, parse, escapeXml as escape } from 'zinc:xml';
+import { networkInterfaces } from 'zinc:os';
+import { Request, Reply } from 'zinc:net';
 
 const TIMEOUT_MS = 4000;
 const QUEUE_MS = 20000;   // AddURIToQueue of a list: the speaker fetches all its songs from the service first (a playlist of Spotify: over 4 s)
@@ -552,4 +555,245 @@ export async function discover(known: string = '', waitMs: i32 = 2000, port: i32
   const sys = new System(found);
   await sys.refresh();
   return sys;
+}
+
+// ---- Events (UPnP GENA, as SoCo's events.py): a speaker tells what changed the moment it changes, instead of being polled.
+// The program serves HTTP once (zinc:net serveAsync, any port) and hands each request to Events.handleNotify; the plugin subscribes the
+// speakers with that server's address as CALLBACK and renews before the timeout runs out.
+
+const EVENT_PATHS: string[] = ['AVTransport', '/MediaRenderer/AVTransport/Event', 'RenderingControl', '/MediaRenderer/RenderingControl/Event',
+  'GroupRenderingControl', '/MediaRenderer/GroupRenderingControl/Event', 'ZoneGroupTopology', '/ZoneGroupTopology/Event',
+  'ContentDirectory', '/MediaServer/ContentDirectory/Event', 'AlarmClock', '/AlarmClock/Event', 'DeviceProperties', '/DeviceProperties/Event'];
+
+/** The four bytes of an IPv4 address, [] when it is not one. */
+function octets(a: string): i32[] {
+  const out: i32[] = [];
+  for (const x of a.split('.')) { const v = parseInt(x); if (isNaN(v) || v < 0 || v > 255) return []; out.push(v as i32); }
+  return out.length === 4 ? out : [];
+}
+/** This computer's IPv4 address on the network of `ip` (the interface whose subnet holds it, as SoCo's get_listen_ip), else its first LAN
+ *  address: what a speaker can reach (a song's URL, the events' CALLBACK). */
+export function localAddressFor(ip: string): string {
+  const target = octets(ip);
+  let first = '';
+  for (const nic of networkInterfaces()) {
+    if (nic.family !== 'IPv4') continue;
+    const a = octets(nic.address), m = octets(nic.netmask);
+    let same = a.length === 4 && m.length === 4 && target.length === 4;
+    for (let i = 0; same && i < 4; i++) same = (a[i] & m[i]) === (target[i] & m[i]);
+    if (same) return nic.address;
+    if (first === '' && !nic.internal) first = nic.address;
+  }
+  return first !== '' ? first : '127.0.0.1';
+}
+
+/** One NOTIFY: the service, the subscription's SID, its sequence number and the variables. AVTransport and RenderingControl send theirs
+ *  in a LastChange: each becomes a variable by its name (`TransportState`, `CurrentTrackMetaData`...), a channel other than Master after
+ *  a slash (`Volume/LF`). */
+export class Event {
+  service: string = '';
+  sid: string = '';
+  seq: i32 = 0;
+  names: string[] = [];
+  values: string[] = [];
+  /** A variable's value, '' when the event does not carry it. */
+  get(name: string): string { const i = this.names.indexOf(name); return i < 0 ? '' : this.values[i]; }
+  has(name: string): boolean { return this.names.indexOf(name) >= 0; }
+}
+
+/** The variables of a NOTIFY body (an e:propertyset). */
+export function parseEvent(service: string, body: string): Event {
+  const ev = new Event();
+  ev.service = service;
+  for (const p of parse(body).all('property')) {
+    for (const v of p.children) {
+      if (v.name !== 'LastChange') { ev.names.push(v.name); ev.values.push(v.text); continue; }
+      const inner = parse(v.text).child('InstanceID');
+      if (inner === null) continue;
+      for (const c of (inner as El).children) {
+        const ch = c.attr('channel');
+        ev.names.push(ch !== '' && ch !== 'Master' ? c.name + '/' + ch : c.name);
+        ev.values.push(c.attr('val'));
+      }
+    }
+  }
+  return ev;
+}
+
+/** A subscription to one service of one speaker. */
+export class Subscription {
+  service: string = '';
+  speaker: Speaker = new Speaker();
+  sid: string = '';
+  /** The seconds the speaker granted. */
+  timeout: i32 = 0;
+  /** False once unsubscribed, or when a renewal failed (the program then polls). */
+  active: boolean = false;
+  timer: i32 = -1;
+  /** The SEQ of the last event applied: an older one arriving late is dropped. */
+  seq: i32 = -1;
+}
+
+/** The events of a household: `watch(g)` subscribes a group (what plays, its volume, its rooms' volumes, the topology); each NOTIFY
+ *  updates the Group and Speaker objects, then calls the listeners given to onChange. */
+export class Events {
+  sys: System;
+  /** The port of the program's HTTP server, which passes the requests to handleNotify. */
+  port: i32;
+  /** The path of the CALLBACK: handleNotify answers only the NOTIFY requests under it. */
+  path: string = '/sonos-events';
+  subs: Subscription[] = [];
+  listeners: ((g: Group | null, e: Event) => void)[] = [];
+
+  constructor(sys: System, port: i32) { this.sys = sys; this.port = port; }
+
+  /** Calls `f` after each event, with the group it changed (null for a room's volume or the topology). */
+  onChange(f: (g: Group | null, e: Event) => void): void { this.listeners.push(f); }
+
+  /** Subscribes a speaker's service ('AVTransport', 'RenderingControl', 'GroupRenderingControl', 'ZoneGroupTopology', 'ContentDirectory',
+   *  'AlarmClock', 'DeviceProperties'); the subscription is renewed at 85% of the time the speaker grants. The speaker sends the whole
+   *  state at once. @throws UpnpError when the speaker refuses (status 412, or no SID) */
+  async subscribe(s: Speaker, service: string, timeoutSec: i32 = 1800): Promise<Subscription> {
+    const i = EVENT_PATHS.indexOf(service);
+    if (i < 0 || i % 2 !== 0) throw new Error(`no events for ${service}`);
+    const r = await fetch(`http://${s.address()}${EVENT_PATHS[i + 1]}`, {
+      method: 'SUBSCRIBE', timeoutMs: TIMEOUT_MS,
+      headers: [['CALLBACK', `<http://${localAddressFor(s.ip)}:${this.port}${this.path}>`], ['NT', 'upnp:event'], ['TIMEOUT', `Second-${timeoutSec}`]],
+    });
+    const sid = r.headers.get('sid') ?? '';
+    if (r.status !== 200 || sid === '') throw new UpnpError('SUBSCRIBE', 0, r.status, `${service} of ${s.name}`);
+    const sub = new Subscription();
+    sub.service = service; sub.speaker = s; sub.sid = sid; sub.active = true;
+    sub.timeout = granted(r.headers.get('timeout') ?? '', timeoutSec);
+    this.subs.push(sub);
+    this.schedule(sub);
+    return sub;
+  }
+
+  /** Renews a subscription now (done by itself before it runs out). @throws UpnpError when the speaker no longer knows it */
+  async renew(sub: Subscription): Promise<void> {
+    const i = EVENT_PATHS.indexOf(sub.service);
+    const r = await fetch(`http://${sub.speaker.address()}${EVENT_PATHS[i + 1]}`, {
+      method: 'SUBSCRIBE', timeoutMs: TIMEOUT_MS, headers: [['SID', sub.sid], ['TIMEOUT', `Second-${sub.timeout}`]],
+    });
+    if (!sub.active) return;   // ended while the renewal was on its way
+    if (r.status !== 200) throw new UpnpError('SUBSCRIBE', 0, r.status, `renewal of ${sub.service}`);
+    sub.timeout = granted(r.headers.get('timeout') ?? '', sub.timeout);
+    this.schedule(sub);
+  }
+
+  /** Ends a subscription. */
+  async unsubscribe(sub: Subscription): Promise<void> {
+    if (sub.timer >= 0) clearTimeout(sub.timer);
+    sub.timer = -1;
+    const wasActive = sub.active;
+    sub.active = false;
+    const k = this.subs.indexOf(sub);
+    if (k >= 0) this.subs.splice(k, 1);
+    if (!wasActive) return;
+    const i = EVENT_PATHS.indexOf(sub.service);
+    await fetch(`http://${sub.speaker.address()}${EVENT_PATHS[i + 1]}`, { method: 'UNSUBSCRIBE', timeoutMs: TIMEOUT_MS, headers: [['SID', sub.sid]] });
+  }
+
+  /** Ends every subscription (a speaker that does not answer is skipped). */
+  async close(): Promise<void> {
+    const all = this.subs.slice();
+    for (let i = 0; i < all.length; i++) { try { await this.unsubscribe(all[i]); } catch (e) { /* gone: nothing to end */ } }
+  }
+
+  /** Follows a group: what it plays (AVTransport) and its volume (GroupRenderingControl) on the coordinator, each room's volume
+   *  (RenderingControl), and the rooms and groups (ZoneGroupTopology, once per household). The subscriptions of the group followed
+   *  before are ended. */
+  async watch(g: Group, timeoutSec: i32 = 1800): Promise<void> {
+    await this.close();
+    const c = g.coordinator;
+    await this.subscribe(c, 'ZoneGroupTopology', timeoutSec);
+    await this.subscribe(c, 'AVTransport', timeoutSec);
+    await this.subscribe(c, 'GroupRenderingControl', timeoutSec);
+    for (let i = 0; i < g.members.length; i++) await this.subscribe(g.members[i], 'RenderingControl', timeoutSec);
+  }
+
+  /** The program's HTTP handler calls this with each request: a NOTIFY under `path` is answered (200, or 412 for an unknown SID) and
+   *  applied; any other request gives null, for the program to answer. */
+  handleNotify(req: Request): Reply | null {
+    if (req.method !== 'NOTIFY' || !req.path.startsWith(this.path)) return null;
+    const sid = req.headers.get('sid');
+    let sub: Subscription | null = null;
+    for (const s of this.subs) if (s.sid === sid) sub = s;
+    if (sub === null) return { status: 412, body: '', contentType: 'text/plain' };
+    const one = sub as Subscription;
+    const seq = (parseInt(req.headers.get('seq')) || 0) as i32;
+    if (seq <= one.seq && seq !== 0) return { status: 200, body: '', contentType: 'text/plain' };   // late: a newer state is already applied
+    one.seq = seq;
+    const ev = parseEvent(one.service, req.body);
+    ev.sid = sid; ev.seq = seq;
+    const g = this.apply(one, ev);
+    for (const f of this.listeners) f(g, ev);
+    return { status: 200, body: '', contentType: 'text/plain' };
+  }
+
+  /** Writes an event into the household's objects; the group it changed, or null. */
+  apply(sub: Subscription, ev: Event): Group | null {
+    const sys = this.sys;
+    if (ev.service === 'ZoneGroupTopology') { if (ev.has('ZoneGroupState')) sys.applyTopology(ev.get('ZoneGroupState')); return null; }
+    if (ev.service === 'RenderingControl') {
+      const s = sys.speaker(sub.speaker.uuid);
+      if (s === null) return null;
+      const sp = s as Speaker;
+      if (ev.has('Volume')) sp.volume = (parseInt(ev.get('Volume')) || 0) as i32;
+      if (ev.has('Mute')) sp.muted = ev.get('Mute') === '1';
+      return null;
+    }
+    let g: Group | null = null;
+    for (const x of sys.groups) if (x.coordinator.uuid === sub.speaker.uuid) g = x;
+    if (g === null) return null;
+    const grp = g as Group;
+    if (ev.service === 'GroupRenderingControl') {
+      if (ev.has('GroupVolume')) grp.volume = (parseInt(ev.get('GroupVolume')) || 0) as i32;
+      if (ev.has('GroupMute')) grp.muted = ev.get('GroupMute') === '1';
+      return grp;
+    }
+    if (ev.service !== 'AVTransport') return grp;
+    if (ev.has('TransportState')) grp.state = ev.get('TransportState');
+    if (ev.has('CurrentPlayMode')) grp.playMode = ev.get('CurrentPlayMode');
+    if (ev.has('CurrentTransportActions')) grp.actions = ev.get('CurrentTransportActions');
+    if (ev.has('AVTransportURI')) {
+      const m = new Media();
+      m.uri = ev.get('AVTransportURI'); m.meta = ev.get('AVTransportURIMetaData');
+      m.nrTracks = (parseInt(ev.get('NumberOfTracks')) || 0) as i32;
+      grp.media = m;
+    } else if (ev.has('NumberOfTracks')) grp.media.nrTracks = (parseInt(ev.get('NumberOfTracks')) || 0) as i32;
+    if (ev.has('CurrentTrackURI') || ev.has('CurrentTrackMetaData')) {
+      const before = grp.track;
+      const t = sys.trackOf(grp, ev.has('CurrentTrackURI') ? ev.get('CurrentTrackURI') : before.uri, ev.has('CurrentTrackMetaData') ? ev.get('CurrentTrackMetaData') : before.metadata,
+        ev.has('CurrentTrackDuration') ? ev.get('CurrentTrackDuration') : hms(before.duration), ev.has('CurrentTrack') ? (parseInt(ev.get('CurrentTrack')) || 0) as i32 : before.number);
+      t.position = t.uri === before.uri && t.number === before.number ? before.position : 0;   // an event carries no position: kept for the same track
+      grp.track = t;
+    }
+    return grp;
+  }
+
+  schedule(sub: Subscription): void {
+    if (sub.timer >= 0) clearTimeout(sub.timer);
+    sub.timer = setTimeout(() => {
+      sub.timer = -1;
+      if (!sub.active) return;
+      this.renew(sub).catch((e: Error) => {   // a speaker restarted forgets its subscriptions: subscribe again
+        if (sub.active) this.resubscribe(sub);
+      });
+    }, Math.max(1000, Math.floor(sub.timeout * 850)) as i32);
+  }
+
+  async resubscribe(sub: Subscription): Promise<void> {
+    sub.active = false;
+    const k = this.subs.indexOf(sub);
+    if (k >= 0) this.subs.splice(k, 1);
+    try { await this.subscribe(sub.speaker, sub.service, sub.timeout); } catch (e) { /* the program polls (watch's callers keep a slow poll) */ }
+  }
+}
+
+/** The seconds of a TIMEOUT header ('Second-1800'), `asked` when it has none. */
+function granted(header: string, asked: i32): i32 {
+  const v = parseInt(header.slice(header.indexOf('-') + 1));
+  return isNaN(v) || v <= 0 ? asked : v as i32;
 }

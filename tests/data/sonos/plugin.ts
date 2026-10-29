@@ -1,7 +1,8 @@
 // tests/t1/sonos_plugin.sh: zinc:sonos against tests/data/sonos/stub_speaker.py (SONOS_STUB=127.0.0.1:<port>). Prints one line per check;
 // the test compares them with plugin.expected and reads the speaker's log for the SOAP arguments sent.
-import { discover, Group, Speaker, Song, UpnpError, musicTrackMeta } from 'zinc:sonos';
-import { parse, toXml } from 'zinc:xml';
+import { discover, Group, Speaker, Song, UpnpError, musicTrackMeta, Events, Event, Subscription, soap, localAddressFor } from 'zinc:sonos';
+import { serveAsync, stop, Request, Reply } from 'zinc:net';
+import { parse, toXml, escapeXml } from 'zinc:xml';
 import { env } from 'zinc:sys';
 
 function song(n: i32): Song {
@@ -47,7 +48,56 @@ async function batch1(): Promise<void> {
   await sys.partyMode(salon);
 }
 
+function sleep(ms: i32): Promise<boolean> { return new Promise<boolean>((done) => { setTimeout(() => done(true), ms); }); }
+async function until(f: () => boolean, ms: i32 = 4000): Promise<boolean> {
+  for (let waited = 0; waited < ms; waited += 50) { if (f()) return true; await sleep(50); }
+  return f();
+}
+
+// Events: the program's own server hands each request to handleNotify; the stub speaker sends the state at once, then each change.
+async function batch2(): Promise<void> {
+  const stub = env('SONOS_STUB');
+  const sys = await discover(stub);
+  const g = sys.groupOf(sys.speakerByName('Salon') as Speaker) as Group;
+  let events: Events | null = null;
+  const port = serveAsync(0, async (req: Request): Promise<Reply> => {
+    const r = (events as Events).handleNotify(req);
+    return r !== null ? r as Reply : { status: 404, body: 'not an event', contentType: 'text/plain' };
+  });
+  const ev = new Events(sys, port);
+  events = ev;
+  const seen: string[] = [];
+  let changes = 0;
+  ev.onChange((grp: Group | null, e: Event) => { changes++; if (seen.indexOf(e.service) < 0) seen.push(e.service); });
+  sys.allSpeakers = [];   // the topology event fills it again
+  console.log(`callback address ${localAddressFor('127.0.0.1')}`);
+  await ev.watch(g, 2);   // two seconds: renewed after 1.7 s
+  await until(() => seen.length >= 4);
+  const services = ['AVTransport', 'GroupRenderingControl', 'RenderingControl', 'ZoneGroupTopology'].filter((s: string) => seen.indexOf(s) >= 0);
+  console.log(`subscribed ${ev.subs.map((s: Subscription) => s.service).join(',')} events ${services.join(',')} rooms ${sys.allSpeakers.length}`);
+  // changes made by another app reach the objects with no poll
+  const a = (sys.speakerByName('Salon') as Speaker).address();
+  await soap(a, 'GroupRenderingControl', '/MediaRenderer/GroupRenderingControl/Control', 'SetGroupVolume', '<InstanceID>0</InstanceID><DesiredVolume>44</DesiredVolume>');
+  await soap(a, 'RenderingControl', '/MediaRenderer/RenderingControl/Control', 'SetVolume', '<InstanceID>0</InstanceID><Channel>Master</Channel><DesiredVolume>12</DesiredVolume>');
+  await soap(a, 'AVTransport', '/MediaRenderer/AVTransport/Control', 'RemoveAllTracksFromQueue', '<InstanceID>0</InstanceID>');
+  await soap(a, 'AVTransport', '/MediaRenderer/AVTransport/Control', 'AddURIToQueue', `<InstanceID>0</InstanceID><EnqueuedURI>${song(3).url}</EnqueuedURI><EnqueuedURIMetaData>${escapeXml(musicTrackMeta(song(3)))}</EnqueuedURIMetaData><DesiredFirstTrackNumberEnqueued>0</DesiredFirstTrackNumberEnqueued><EnqueueAsNext>0</EnqueueAsNext>`);
+  await soap(a, 'AVTransport', '/MediaRenderer/AVTransport/Control', 'SetAVTransportURI', '<InstanceID>0</InstanceID><CurrentURI>x-rincon-queue:RINCON_A#0</CurrentURI><CurrentURIMetaData></CurrentURIMetaData>');
+  await soap(a, 'AVTransport', '/MediaRenderer/AVTransport/Control', 'Pause', '<InstanceID>0</InstanceID>');
+  const ok = await until(() => g.volume === 44 && (sys.speakerByName('Salon') as Speaker).volume === 12 && g.state === 'PAUSED_PLAYBACK' && g.track.title === 'Song 3');
+  console.log(`events ${ok} group ${g.volume} room ${(sys.speakerByName('Salon') as Speaker).volume} ${g.state} ${g.track.number}/${g.track.count} ${g.track.title} - ${g.track.artist} ${g.track.duration} ${g.track.source} ${g.playMode} ${g.can('Seek')}`);
+  // a NOTIFY the program did not subscribe to is refused; another request is left to the program
+  const bad = await fetch(`http://127.0.0.1:${port}/sonos-events`, { method: 'NOTIFY', body: '<e:propertyset/>', headers: [['SID', 'uuid:nobody'], ['NT', 'upnp:event'], ['NTS', 'upnp:propchange']] });
+  const other = await fetch(`http://127.0.0.1:${port}/song`);
+  console.log(`unknown sid ${bad.status} other ${other.status}`);
+  await sleep(2000);   // the renewals
+  const before = ev.subs.length;
+  await ev.close();
+  console.log(`closed ${before} -> ${ev.subs.length} changes>0 ${changes > 0}`);
+  stop();
+}
+
 async function main(): Promise<void> {
   await batch1();
+  await batch2();
 }
 main().catch((e: Error) => console.log('error ' + e.message));

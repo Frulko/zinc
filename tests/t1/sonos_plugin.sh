@@ -35,6 +35,14 @@ want '^SetRelativeGroupVolume 5$' 'relative group volume'
 want '^EndDirectControlSession' 'EndDirectControlSession'
 want '^SetAVTransportURI x-rincon-mp3radio://radio\.example/live\.mp3 <DIDL-Lite.*<dc:title>Radio X</dc:title>.*audioBroadcast' 'forced radio with its title'
 want '^SetAVTransportURI x-rincon:RINCON_A$' 'Bureau joining in party mode'
+for svc in /ZoneGroupTopology/Event /MediaRenderer/AVTransport/Event /MediaRenderer/GroupRenderingControl/Event /MediaRenderer/RenderingControl/Event; do
+  want "^SUBSCRIBE $svc <http://127\.0\.0\.1:[0-9]+/sonos-events> Second-2\$" "subscription to $svc"
+  want "^RENEW $svc uuid:RINCON_A_sub[0-9]+ Second-2\$" "renewal of $svc"
+  want "^UNSUBSCRIBE $svc uuid:RINCON_A_sub[0-9]+\$" "end of $svc"
+  want "^NOTIFY $svc 0 200\$" "first event of $svc answered"
+done
+grep -E '^NOTIFY ' "$log" | grep -qv ' 200$' && { echo "sonos_plugin: a NOTIFY was not answered 200: $(grep -E '^NOTIFY ' "$log" | grep -v ' 200$' | head -3 | tr '\n' ';')"; fail=1; }
+grep -q 'refused' "$log" && { echo "sonos_plugin: the speaker refused a subscription: $(grep refused "$log" | head -3 | tr '\n' ';')"; fail=1; }
 run quickjs --engine quickjs
 [ $fail = 0 ] && echo "sonos_plugin: ok"
 exit $fail
