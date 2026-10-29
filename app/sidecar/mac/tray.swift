@@ -493,12 +493,13 @@ struct PopoverView: View {
                         .help("Ends the app on the reMarkable: its own screen comes back")
                 }
             } else {
-                // the text's size, as macOS's Displays offers on a Retina panel: the screen's pixels per point
-                Picker("Text size", selection: Binding(get: { o.pixelsPerPoint }, set: { v in var c = o; c.scale = v; e.update(c) })) {
-                    Text("Larger").tag(2.0); Text("Default").tag(1.6); Text("More space").tag(1.33); Text("Native pixels").tag(1.0)
+                // Apple's Sidecar's two: Retina (an iPad Pro 12.9" is 1366 x 1024 points on its 2732 x 2048 pixels), or every pixel a point.
+                // ponytail: scales between them render a backing larger than the screen, then shrink it: more to encode, softer text
+                Picker("Size", selection: Binding(get: { o.pixelsPerPoint }, set: { v in var c = o; c.scale = v; e.update(c) })) {
+                    Text("Retina").tag(2.0); Text("Native pixels").tag(1.0)
                 }
                 .pickerStyle(.segmented)
-                .help("Larger: Retina, twice the pixels per point. Native pixels: one pixel per point, small text on a dense screen.")
+                .help("Retina: twice the pixels per point, the screen's own text size (an iPad Pro 12.9\": 1366 × 1024). Native pixels: one pixel per point, small text on a dense screen.")
                 if e.soundAvail.contains(o.id) {   // only once the screen said it plays sound
                     Toggle("Sound: the Mac's sound plays on this screen", isOn: Binding(get: { e.audioOn(o.id) }, set: { e.setAudio(o.id, $0) }))
                         .help("The Mac goes quiet while it streams; macOS asks once to let Sidecar record the system's audio")
