@@ -3,10 +3,10 @@ id: ZN-853
 title: >-
   zinc:ipod: detection, specs, host backups, real write test, and examples/ipod
   viewer
-status: Review
+status: In Progress
 assignee: []
 created_date: '2026-10-28 22:38'
-updated_date: '2026-10-29 00:03'
+updated_date: '2026-10-29 00:10'
 labels:
   - size-L
   - plugin
@@ -30,6 +30,11 @@ Owner 2026-10-28: better detection and backups, the write test on the real iPod 
 - [x] #5 examples/ipod: the iPod's info and specs, albums with their covers, tracks of an album, playlists; follows examples/GUIDELINES.md; runs on the fake iPod in a test
 - [x] #6 examples/ipod also shows the podcasts, audiobooks, videos, photos (zinc:ipod photoAlbums/photo) and the notes, contacts, calendars and recordings (extras) of the iPod (owner 2026-10-29)
 - [x] #7 examples/ipod plays a track from the iPod, iTunes-like: double-click, play/pause, previous/next, progress with seek; zinc:audio streams a file (openMusic) and reads AAC/ALAC on macOS (owner 2026-10-29)
+- [ ] #8 Every page of examples/ipod scrolls when its content is taller than the window (the overview cut at the bottom on a 1000 px window), through an engine-level means a page gets almost for free (e.g. Tailwind's overflow-auto on a View), not per-page workarounds (owner 2026-10-29)
+- [ ] #9 Download: an album, a playlist, the podcasts or chosen songs are copied from the iPod to a folder of the computer, named Artist/Album/NN Title.ext from the tags, with progress; files already there are skipped (owner 2026-10-29)
+- [ ] #10 Add: files or a folder (a file picker and drag and drop) are added as music, podcasts, audiobooks or videos, with progress, the space check and a result per file (owner 2026-10-29)
+- [ ] #11 Backups page: list, take (with or without the music), restore with a confirmation, delete; every write is behind an Allow changes switch, off by default, and the automatic backup runs before the first change (owner 2026-10-29)
+- [ ] #12 A transfers panel (the queue of adds, downloads, backups and restores with progress) and a Logs page (every operation with its time and result, also appended to a file) (owner 2026-10-29)
 <!-- AC:END -->
 
 ## Implementation Notes
