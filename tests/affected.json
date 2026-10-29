@@ -177,6 +177,7 @@
     {"paths": ["src/frontend/modules.cpp", "src/frontend/tsconfig.cpp", "include/zn/platform.h", "tests/t0/platform_files.sh", "tests/golden/platform-files/"], "tests": ["platform_files"]},
     {"paths": ["include/zn/platform.h", "src/host/sys_host.cpp", "tests/golden/platform-identity/"], "tests": ["platform_identity"]},
     {"paths": ["src/host/sys_host.cpp", "src/host/apple_models.inc", "lib/std/device-info.ts", "lib/std/react-native.tsx", "tests/golden/device-info/"], "tests": ["device_info"]},
+    {"paths": ["src/host/hal_dispatch.cpp", "tests/t0/input_click_mods.sh"], "tests": ["input_click_mods"]},
     {"paths": ["src/host/hal_dispatch.cpp", "lib/std/haptics.ts", "lib/std/react-native.tsx", "tests/golden/system-signals/", "targets/macos/hal_sdl.cpp"], "tests": ["system_signals"]},
     {"paths": ["src/host/hal_dispatch.cpp", "src/host/window_module.cpp", "tests/t0/headless_close.sh"], "tests": ["headless_close"]},
     {"paths": ["src/app/android/", "src/app/android_glue.cpp", "src/cli_core.cpp"], "tests": ["export_android"]},

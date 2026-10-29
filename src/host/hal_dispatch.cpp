@@ -171,23 +171,26 @@ bool applyEvent(const Event& e, HalInput* in, float& x, float& y, uint32_t& held
     if (in->nbtn < HAL_MAX_BUTTON_EVENTS) in->btn[in->nbtn++] = HalButtonEvent{x, y, which, down};
     in->pdown = held & 1; in->pbuttons = held;
   };
-  if (e.kind == "move") { x = static_cast<float>(atof(e.a.c_str())); y = static_cast<float>(atof(e.b.c_str())); in->px = x; in->py = y; }
-  else if (e.kind == "down") button(0, 1);
-  else if (e.kind == "up") button(0, 0);
-  else if (e.kind == "right-down") button(2, 1);
-  else if (e.kind == "right-up") button(2, 0);
-  else if (e.kind == "wheel") { in->wheel_x += static_cast<float>(atof(e.a.c_str())); in->wheel += static_cast<float>(atof(e.b.c_str())); }
-  else if (e.kind == "scroll") { in->scroll_dx += static_cast<float>(atof(e.a.c_str())); in->scroll_dy += static_cast<float>(atof(e.b.c_str())); in->scroll_phase = atoi(e.c.c_str()); }
-  else if (e.kind == "key" && in->nkeys < HAL_MAX_KEYS) {
+  auto modsOf = [](const std::string& s) {   // "shift", or several joined with '+': "shift+meta"
     uint32_t mods = 0;
-    for (size_t at = 0; at <= e.b.size();) {   // "shift", or several joined with '+': "shift+meta"
-      size_t end = e.b.find('+', at);
-      if (end == std::string::npos) end = e.b.size();
-      const std::string m = e.b.substr(at, end - at);
+    for (size_t at = 0; at <= s.size();) {
+      size_t end = s.find('+', at);
+      if (end == std::string::npos) end = s.size();
+      const std::string m = s.substr(at, end - at);
       mods |= m == "shift" ? HAL_MOD_SHIFT : m == "ctrl" ? HAL_MOD_CTRL : m == "alt" ? HAL_MOD_ALT : m == "meta" ? HAL_MOD_META : 0;
       at = end + 1;
     }
-    in->keys[in->nkeys++] = HalKey{keyCode(e.a), mods, HAL_KEY_DOWN, 0, 0};
+    return mods;
+  };
+  if (e.kind == "move") { x = static_cast<float>(atof(e.a.c_str())); y = static_cast<float>(atof(e.b.c_str())); in->px = x; in->py = y; }
+  else if (e.kind == "down" || e.kind == "up" || e.kind == "right-down" || e.kind == "right-up") {   // "down meta": a Cmd-click
+    in->mods = modsOf(e.a);
+    button(e.kind[0] == 'r' ? 2 : 0, e.kind == "down" || e.kind == "right-down" ? 1 : 0);
+  }
+  else if (e.kind == "wheel") { in->wheel_x += static_cast<float>(atof(e.a.c_str())); in->wheel += static_cast<float>(atof(e.b.c_str())); }
+  else if (e.kind == "scroll") { in->scroll_dx += static_cast<float>(atof(e.a.c_str())); in->scroll_dy += static_cast<float>(atof(e.b.c_str())); in->scroll_phase = atoi(e.c.c_str()); }
+  else if (e.kind == "key" && in->nkeys < HAL_MAX_KEYS) {
+    in->keys[in->nkeys++] = HalKey{keyCode(e.a), modsOf(e.b), HAL_KEY_DOWN, 0, 0};
   } else if (e.kind == "text" && in->nkeys < HAL_MAX_KEYS) {
     size_t n = e.a.size();
     if (static_cast<size_t>(in->ntext) + n < HAL_TEXT_BYTES) {

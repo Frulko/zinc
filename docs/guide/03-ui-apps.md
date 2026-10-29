@@ -314,7 +314,7 @@ const preview = openWindow('Preview', 640, 360, (dt) => {
   their own renderer. The arrow-key pad and smooth trackpad scrolling stay the main window's (other windows scroll by wheel
   steps). `zinc:gl` draws in the main window only. The QuickJS engine (`--engine quickjs`) opens windows like the others.
 - **Tests.** In headless runs the windows draw too. `ZINC_SHOT=frame.png` also writes `frame-w1.png` for window 1, and so on.
-  A `ZINC_INPUT` script (one `<frame> <event>` per line: `move X Y`, `down`, `up`, `key NAME`, `text STRING`...) sends the
+  A `ZINC_INPUT` script (one `<frame> <event>` per line: `move X Y`, `down`, `up`, `key NAME`, `text STRING`...; `down meta`, `key a meta` or `shift+meta` add the modifiers held) sends the
   events after `window N` in a frame to window N, and `close` closes that window, as the user would.
 
 ## The device
