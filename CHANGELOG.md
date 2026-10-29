@@ -107,6 +107,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- `ipod.mount('')` mounts an iPod that was ejected and is still plugged in: it resets it on USB, as unplugging it does, instead of saying there is no iPod disk.
 - A row whose child grows from `basis-0` (or a small basis) and holds content that wraps is as tall as that content once wrapped at the child's real width: a page with wrapping cards beside a picture scrolls to its end instead of stopping early.
 - `c ? xs : []` compiles: the empty array takes the type of the other branch, as in TypeScript (it stopped on Z0109 "empty array literal").
 - zinc:ipod prints libgpod's messages as one short line each (`zinc:ipod: libgpod: ...`) instead of blank lines and assertions at every read and save; a smart playlist rule libgpod does not know is kept as it was.

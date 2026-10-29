@@ -37,7 +37,7 @@ await ipod.eject(pod.mountpoint);
 | **Covers** | `artwork(id, size)` gives a track's cover in RGBA pixels; `cover(id, size)` makes it a runtime image for `<Image image={...} />`. |
 | **Check and repair** | `check()` lists tracks whose file is gone and files no track uses; `repair()` fixes both. |
 | **Detection** | `detect()` lists the mounted iPods (`connection` `disk`) and those plugged in by USB but not mounted (`usb`: model, serial and firmware from the USB description). iPhones, iPads and iPod touch are not listed: they have no disk mode. |
-| **Mount** | `mount(device)` mounts an iPod seen over USB but not mounted: `''` mounts every external disk whose media name says iPod (`diskutil mountDisk` on macOS), or a disk name (`disk4`, `sdb2` with `udisksctl` on Linux). It writes nothing. |
+| **Mount** | `mount(device)` mounts an iPod seen over USB but not mounted: `''` mounts every external disk whose media name says iPod (`diskutil mountDisk` on macOS), or a disk name (`disk4`, `sdb2` with `udisksctl` on Linux). An iPod ejected on macOS keeps no disk ("OK to disconnect"): `mount('')` then resets it on USB, as plugging it in again does, and mounts the disk it offers. It writes nothing. |
 | **Eject** | `eject()` flushes and ejects (`diskutil` on macOS, `udisksctl` then `umount` on Linux) so the iPod shows "OK to disconnect". |
 | **Read-only volumes** | A Mac-formatted (HFS+) iPod mounts read-only on Linux: every write is refused with that reason instead of failing halfway. |
 

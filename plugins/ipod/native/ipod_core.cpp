@@ -499,6 +499,28 @@ std::vector<UsbIpod> usbIpods(bool withXml) {
   return out;
 }
 
+/** Resets every iPod on the USB bus, as unplugging and plugging it back does: an iPod ejected ("OK to disconnect") offers its disk
+ *  again. Only for iPods whose disk is not mounted (mount() calls it when it finds no iPod disk). How many were reset. */
+int resetUsbIpods() {
+  int done = 0;
+  libusb_context* ctx = nullptr;
+  if (libusb_init(&ctx) != 0) return 0;
+  libusb_device** list = nullptr;
+  ssize_t n = libusb_get_device_list(ctx, &list);
+  for (ssize_t i = 0; i < n; i++) {
+    libusb_device_descriptor d;
+    if (libusb_get_device_descriptor(list[i], &d) != 0 || d.idVendor != 0x05ac || !diskModeIpod(d.idProduct)) continue;
+    libusb_device_handle* h = nullptr;
+    if (libusb_open(list[i], &h) != 0) continue;
+    int r = libusb_reset_device(h);   // NOT_FOUND: it re-enumerated, which is what is asked
+    if (r == 0 || r == LIBUSB_ERROR_NOT_FOUND) done++;
+    libusb_close(h);
+  }
+  if (list) libusb_free_device_list(list, 1);
+  libusb_exit(ctx);
+  return done;
+}
+
 /** The USB iPod that is this volume: the one whose serial is its FireWire GUID, or the only one plugged in. */
 const UsbIpod* matchUsb(const std::vector<UsbIpod>& all, const std::string& guid) {
   for (const UsbIpod& u : all) if (!guid.empty() && g_ascii_strcasecmp(u.serial.c_str(), guid.c_str()) == 0) return &u;
@@ -1382,21 +1404,27 @@ bool mount(const std::string& device, std::string& err) {
     if (FILE* p = popen(cmd.c_str(), "r")) { char b[4096]; size_t n; while ((n = fread(b, 1, sizeof b, p)) > 0) out.append(b, n); pclose(p); }
     return out;
   };
-  plist_t list = plistFromXml(capture("diskutil list -plist external physical"));
-  plist_t disks = list ? plist_dict_get_item(list, "WholeDisks") : nullptr;
   bool found = false, ok = true;
-  for (uint32_t i = 0; disks && i < plist_array_get_size(disks); i++) {
-    std::string d = plistText(plist_array_get_item(disks, i));
-    if (d.empty() || d.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789") != std::string::npos) continue;
-    plist_t info = plistFromXml(capture("diskutil info -plist " + d));
-    bool pod = (plistKey(info, "MediaName") + " " + plistKey(info, "IORegistryEntryName")).find("iPod") != std::string::npos;
-    if (info) plist_free(info);
-    if (!pod) continue;
-    found = true;
-    ok = run({"diskutil", "mountDisk", d}, err) && ok;
-  }
-  if (list) plist_free(list);
-  if (!found) { err = "no iPod disk to mount (put the iPod in disk mode, or enable disk use in iTunes or Finder)"; return false; }
+  auto scan = [&]() {   // mounts every whole external disk whose media is an iPod
+    plist_t list = plistFromXml(capture("diskutil list -plist external physical"));
+    plist_t disks = list ? plist_dict_get_item(list, "WholeDisks") : nullptr;
+    for (uint32_t i = 0; disks && i < plist_array_get_size(disks); i++) {
+      std::string d = plistText(plist_array_get_item(disks, i));
+      if (d.empty() || d.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789") != std::string::npos) continue;
+      plist_t info = plistFromXml(capture("diskutil info -plist " + d));
+      bool pod = (plistKey(info, "MediaName") + " " + plistKey(info, "IORegistryEntryName")).find("iPod") != std::string::npos;
+      if (info) plist_free(info);
+      if (!pod) continue;
+      found = true;
+      ok = run({"diskutil", "mountDisk", d}, err) && ok;
+    }
+    if (list) plist_free(list);
+  };
+  scan();
+  // an iPod ejected here stays on USB without a disk ("OK to disconnect"): a USB reset brings the disk back, as plugging it in again does
+  if (!found && resetUsbIpods() > 0)
+    for (int k = 0; k < 30 && !found; k++) { usleep(500000); scan(); }
+  if (!found) { err = "no iPod disk to mount: unplug the iPod and plug it in again (an ejected iPod offers its disk again then), or put it in disk mode"; return false; }
   return ok;
 #else
   if (device.empty()) { err = "name the iPod's partition (e.g. sdb2), or mount it with the file manager"; return false; }
