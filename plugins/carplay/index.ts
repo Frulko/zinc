@@ -283,6 +283,11 @@ export class Session {
   setUltraGauge(iid: i32, value: i32): boolean {
     return this.ultra !== null && this.ultra.vehicleStateEnabled && this.send(JSON.stringify({ type: 'ultraGauge', gaugeId: iid, gaugeValue: value }));
   }
+  setUltraClimate(on: boolean, targetCelsius: number): boolean {
+    if (this.ultra === null || !this.ultra.vehicleStateEnabled || !Number.isFinite(targetCelsius) || targetCelsius < 16 || targetCelsius > 30) return false;
+    return this.send(JSON.stringify({ type: 'ultraGauge', gaugeId: 514, gaugeBool: on })) &&
+      this.send(JSON.stringify({ type: 'ultraGauge', gaugeId: 520, gaugeNumber: targetCelsius }));
+  }
   debugGps(latitude: number, longitude: number, speed: number = 0, course: number = 0): boolean {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 || !Number.isFinite(speed) || speed < 0 || !Number.isFinite(course) || course < 0 || course >= 360) return false;
     return this.send(JSON.stringify({ type: 'debugGps', lat: latitude, lon: longitude, speed: speed, course: course, gpsEnabled: true }));

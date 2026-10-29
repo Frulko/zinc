@@ -108,9 +108,9 @@ export function DebugPanel(): i32 {
       </View>
       <Canvas className="h-28 bg-slate-950" onDraw={Cluster}></Canvas>
       <View className="flex-row gap-2">
-        <Button className="bg-slate-700 rounded p-2" onClick={() => applyVehicle(live, { speedKph: 0, rpm: 0, gear: 'P', fuelPct: 68 })}><Text className="text-white">Arrêt</Text></Button>
-        <Button className="bg-slate-700 rounded p-2" onClick={() => applyVehicle(live, { speedKph: 50, rpm: 1800, gear: 'D', fuelPct: 67 })}><Text className="text-white">Ville</Text></Button>
-        <Button className="bg-slate-700 rounded p-2" onClick={() => applyVehicle(live, { speedKph: 110, rpm: 2600, gear: 'D', fuelPct: 61 })}><Text className="text-white">Autoroute</Text></Button>
+        <Button className="bg-slate-700 rounded p-2" onClick={() => applyVehicle(live, { speedKph: 0, rpm: 0, gear: 'P', fuelPct: 68, climateOn: vehicle().climateOn, targetCelsius: vehicle().targetCelsius })}><Text className="text-white">Arrêt</Text></Button>
+        <Button className="bg-slate-700 rounded p-2" onClick={() => applyVehicle(live, { speedKph: 50, rpm: 1800, gear: 'D', fuelPct: 67, climateOn: vehicle().climateOn, targetCelsius: vehicle().targetCelsius })}><Text className="text-white">Ville</Text></Button>
+        <Button className="bg-slate-700 rounded p-2" onClick={() => applyVehicle(live, { speedKph: 110, rpm: 2600, gear: 'D', fuelPct: 61, climateOn: vehicle().climateOn, targetCelsius: vehicle().targetCelsius })}><Text className="text-white">Autoroute</Text></Button>
       </View>
       <Button className="bg-slate-700 rounded p-2" onClick={() => { const s = live; if (s !== null) s.showCluster(); }}><Text className="text-white">Request cluster map</Text></Button>
       <Text className="text-slate-400 text-xs">Enable ZINC_CARPLAY_CLUSTER=1 before receiver startup; navigation must be active.</Text>

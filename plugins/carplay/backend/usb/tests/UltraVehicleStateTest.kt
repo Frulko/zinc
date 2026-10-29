@@ -52,4 +52,12 @@ class UltraVehicleStateTest {
         assertTrue(state.handle(request("unknownRequest")).isEmpty())
         assertFalse(state.handle(request("controlRequest", mapOf(99L to null))).isEmpty())
     }
+
+    @Test fun climateChangesPublishTypedValuesOnlyToSubscribers() {
+        val state = UltraVehicleState()
+        state.handle(request("registerRequest", listOf(514L, 520L)))
+        assertEquals(mapOf(514L to false), response(state.setGauge(514, false)!!)["values"])
+        assertEquals(mapOf(520L to 22.5), response(state.setGauge(520, 22.5)!!)["values"])
+        assertTrue(runCatching { state.setGauge(520, 55.0) }.isFailure)
+    }
 }

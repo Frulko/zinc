@@ -90,7 +90,13 @@ t=t.replace('            rightHandDrive = config.rightHandDrive,', '''          
 t=t.replace('                "siri" -> session.invokeSiri()', '                "cluster" -> session.setClusterUiShown(true)\n                "siri" -> session.invokeSiri()')
 t=t.replace('                "cluster" -> session.setClusterUiShown(true)', '''                "ultraGauge" -> {
                     require(session.ultraVehicleEnabled) { "Ultra Vehicle State is inactive" }
-                    media.setUltraGauge(requireNotNull(message.gaugeId).toLong(), requireNotNull(message.gaugeValue).toLong())
+                    val iid = requireNotNull(message.gaugeId).toLong()
+                    val value: Any = when (iid) {
+                        514L -> requireNotNull(message.gaugeBool)
+                        520L -> requireNotNull(message.gaugeNumber)
+                        else -> requireNotNull(message.gaugeValue).toLong()
+                    }
+                    media.setUltraGauge(iid, value)
                 }
                 "cluster" -> session.setClusterUiShown(true)''')
 t=t.replace('            bridge.endMicrophone()', '            debugTelemetry.ended()\n            hub.clearArtwork()\n            bridge.endMicrophone()')
@@ -240,7 +246,7 @@ t=t.replace('    val contacts: List<TouchContactMessage> = emptyList(),', '''   
     val course: Double? = null, val altitude: Double? = null, val gpsEnabled: Boolean? = null,
     val gpx: String? = null, val seekSeconds: Double? = null, val playing: Boolean? = null,
     val playbackRate: Double? = null,
-    val gaugeId: Int? = null, val gaugeValue: Int? = null,
+    val gaugeId: Int? = null, val gaugeValue: Int? = null, val gaugeBool: Boolean? = null, val gaugeNumber: Double? = null,
     val contacts: List<TouchContactMessage> = emptyList(),''')
 t=t.replace('    val micActive: Boolean? = null,', '    val clusterEnabled: Boolean? = null,\n    val gps: DebugGpsSnapshot? = null,\n    val micActive: Boolean? = null,')
 t=t.replace('        application.install(WebSockets)', '        application.install(WebSockets) { maxFrameSize = 2L * 1024 * 1024 }')
@@ -386,7 +392,7 @@ t=t.replace('    private val streams = ConcurrentHashMap<StreamKey, Closeable>()
 
     override fun ultraVehicleInfo(): Map<String, Any?> = ultraVehicle.infoEntry()
 
-    fun setUltraGauge(iid: Long, value: Long): Boolean {
+    fun setUltraGauge(iid: Long, value: Any): Boolean {
         val before = ultraVehicle.snapshot()
         val update = ultraVehicle.setGauge(iid, value)
         val after = ultraVehicle.snapshot()
