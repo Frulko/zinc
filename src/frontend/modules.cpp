@@ -899,12 +899,13 @@ export function payload(): string { return __host_evPayload(); }
 
 // zinc:__crypto: the PSA operations of src/host/crypto.cpp for crypto.subtle (lib/std/web.ts); bytes in and out as u8[].
 const char* kHostCryptoModule = R"ZN(
-import { utf8Encode } from 'zinc:sys';
 export function op(name: string, a: u8[], b: u8[], c: u8[], d: u8[], n: i32, m: i32): u8[] {
-  const r = __host_crypto(name, a, b, c, d, n, m);
+  const r = __host_crypto(name, a, b, c, d, n, m);   // the result's bytes in hex
   const e = __host_cryptoError();
   if (e.length > 0) throw new Error(e);
-  return utf8Encode(r);
+  const out: u8[] = [];
+  for (let i: i32 = 0; i + 1 < r.length; i += 2) out.push(parseInt(r.slice(i, i + 2), 16) as u8);
+  return out;
 }
 )ZN";
 

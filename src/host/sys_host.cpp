@@ -1196,7 +1196,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostOscClose: zn::loop::oscClose(); break;
     case Rt::HostMqttOpen: r->i = refused("net", s(0)) ? -2 : zn::mqtt::open(s(0), n(1), s(2)); break;   // -2: refused by the permissions (sockError says why)
     case Rt::HostMqttOpenTls: r->i = refused("net", s(0)) ? -2 : zn::mqtt::open(s(0), n(1), s(2), n(3) != 0); break;
-    case Rt::HostCrypto: { std::string e; std::string o = zn::crypto::run(s(0), rawBytes(a[1]), rawBytes(a[2]), rawBytes(a[3]), rawBytes(a[4]), n(5), n(6), e); gCryptoError = e; ret(r, o); break; }
+    case Rt::HostCrypto: { std::string e; std::string o = zn::crypto::run(s(0), rawBytes(a[1]), rawBytes(a[2]), rawBytes(a[3]), rawBytes(a[4]), n(5), n(6), e); gCryptoError = e; static const char* kHex = "0123456789abcdef"; std::string h; h.reserve(o.size() * 2); for (unsigned char c : o) { h += kHex[c >> 4]; h += kHex[c & 15]; } ret(r, h); break; }   // hex: text on every engine (QuickJS strings are UTF-8)
     case Rt::HostCryptoError: ret(r, gCryptoError); break;
     case Rt::HostReCompile: r->i = zn::re::compile(s(0), s(1)); break;
     case Rt::HostReError: ret(r, zn::re::error()); break;

@@ -149,6 +149,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - A `const` checked against `null` stays narrowed inside an arrow function written after the check (`if (i === null) return; later(() => i.name)`), as in TypeScript; it was refused with Z0107.
+- `--engine quickjs`: `zinc:subtle` works (`digest`, HMAC, AES, ECDSA...) instead of failing with `__host_crypto is not defined`, and its results keep every byte.
 - `array.sort()` without a comparator (strings, numbers, booleans) orders by the elements' text as JavaScript does, instead of asking for one (Z0104).
 - `Number(x)` of an `any` or `unknown` value (a field read from `JSON.parse`) converts it as JavaScript does instead of being refused (Z0005).
 - `--engine quickjs`: `zinc:os` `networkInterfaces`, `userInfo`, `cpus` and `zinc:fs` `symlink`, `readlink`, `chmod` no longer fail with `__host_os... is not defined`.
