@@ -3,9 +3,12 @@
 // Refresh picks again. The model is built when first needed and again when the library or the listening history changed; with a
 // Last.fm API key, the similar artists of the iPod's artists are fetched once in the background (a Transfers job, cached under the
 // history folder), then the model is built again. When AudioMuse-AI analysed the iPod (deep.ts), its results are attached to the
-// model (again when they change, without building it again) and Genius first asks it the songs closest to the seed.
+// model (again when they change, without building it again) and Genius first asks it the songs closest to the seed. Every Genius list
+// asked is kept per iPod (<cache>/<GUID>/genius.json, newest first): For you shows them on a shelf, the Playlists page lists them.
 import { createSignal } from 'zinc:ui/solid';
+import * as fs from 'zinc:fs';
 import * as ipod from 'zinc:ipod';
+import { Card } from './services/forYou';
 import { library, openPlaylist } from './state';
 import { PodLibrary } from './services/ipod';
 import { History } from './services/history';
@@ -21,7 +24,8 @@ import * as cache from './services/cache';
 import { count } from './format';
 
 export const GENIUS_SIZES: i32[] = [25, 50, 100];
-const GENIUS_ID = 'draft:genius';
+const GENIUS_PREFIX = 'draft:genius:';
+const GENIUS_MAX: i32 = 12;
 const MIX_PREFIX = 'draft:mix:';
 
 /** A list not on the iPod: a Genius list or a mix. */
@@ -35,7 +39,40 @@ export class Draft {
   round: i32 = 0;
 }
 
-export const [geniusDraft, setGeniusDraft] = createSignal<Draft | null>(null);
+/** The Genius list picked last (Refresh picks another one). */
+let lastGenius: Draft | null = null;
+const [geniusVersion, setGeniusVersion] = createSignal<i32>(0);
+let geniusFile = '';
+let geniusList: Card[] = [];
+
+/** The Genius lists asked on the open iPod, newest first (draft cards: their id is the draft's). */
+export function geniusCards(): Card[] {
+  geniusVersion();
+  const f = `${cache.cacheDir()}/genius.json`;
+  if (f !== geniusFile) {   // another iPod: its own lists
+    geniusFile = f; geniusList = []; lastGenius = null;
+    try { if (fs.exists(f)) { const l: Card[] = JSON.parse(fs.readText(f)); geniusList = l; } } catch (e) { /* damaged: none kept */ }
+  }
+  return geniusList;
+}
+
+function keepGenius(d: Draft): void {
+  const seed = d.tracks[0];
+  const c: Card = { kind: 'draft', id: d.id, title: d.name, subtitle: `${count(d.tracks.length, 'song', 'songs')}${seed.artist !== '' ? ` · from ${seed.artist}` : ''}`,
+    tracks: d.tracks.map((t: ipod.Track) => t.id), at: Date.now() / 1000 };
+  const list: Card[] = [c];
+  for (const x of geniusCards()) if (x.id !== c.id && list.length < GENIUS_MAX) list.push(x);
+  geniusList = list;
+  try { fs.writeText(`${geniusFile}.part`, JSON.stringify(list)); fs.rename(`${geniusFile}.part`, geniusFile); } catch (e) { /* kept for this run only */ }
+  setGeniusVersion(geniusVersion() + 1);
+}
+
+/** The Genius lists kept, as drafts (songs no longer on the iPod left out). */
+export function geniusDrafts(): Draft[] {
+  const out: Draft[] = [];
+  for (const c of geniusCards()) { const d = draftOf(c.id); if (d !== null) out.push(d as Draft); }
+  return out;
+}
 
 function historyDir(): string { return `${backupPlace()}/history`; }
 
@@ -85,12 +122,12 @@ function fetchArtists(lib: PodLibrary, key: string): void {
 /** "Genius from this song": a draft of `size` songs, the seed first, shown on the Playlists page and played now. */
 export function geniusFrom(seed: ipod.Track, size: i32): void {
   const d = new Draft();
-  d.id = GENIUS_ID; d.seedId = seed.id; d.size = size;
+  d.id = `${GENIUS_PREFIX}${seed.id}:${size}`; d.seedId = seed.id; d.size = size;
   d.name = `Genius · ${seed.title !== '' ? seed.title : 'Untitled'}`;
   prepareNear([seed.id]).then(() => {   // returns at once without AudioMuse
     if (!pick(d)) return;
     play(d);
-    openPlaylist(GENIUS_ID);
+    openPlaylist(d.id);
   });
 }
 
@@ -100,7 +137,8 @@ function pick(d: Draft): boolean {
   if (m === null) return false;
   d.tracks = genius(m as Model, d.seedId, d.size, d.round);
   if (d.tracks.length === 0) return false;
-  setGeniusDraft(d);
+  lastGenius = d;
+  keepGenius(d);
   return true;
 }
 
@@ -129,7 +167,20 @@ const others = new Map<string, Draft>();
 
 /** The draft of `id` (a Genius list, a mix or a For you card), null for an iPod playlist. */
 export function draftOf(id: string): Draft | null {
-  if (id === GENIUS_ID) return geniusDraft();
+  if (id.startsWith(GENIUS_PREFIX)) {
+    const lib = library();
+    if (lastGenius !== null && (lastGenius as Draft).id === id) return lastGenius;
+    for (const c of geniusCards()) if (c.id === id && lib !== null) {
+      const d = new Draft();
+      const k = id.lastIndexOf(':');
+      d.id = id; d.name = c.title; d.seedId = id.substring(GENIUS_PREFIX.length, k); d.size = parseInt(id.substring(k + 1));
+      const byId = new Map<string, ipod.Track>();
+      for (const t of (lib as PodLibrary).tracks) byId.set(t.id, t);
+      for (const tid of c.tracks) { const t = byId.get(tid); if (t !== undefined) d.tracks.push(t as ipod.Track); }
+      return d.tracks.length > 0 ? d : null;
+    }
+    return null;
+  }
   if (id.startsWith(MIX_PREFIX)) for (const d of mixDrafts()) if (d.id === id) return d;
   const kept = others.get(id);
   return kept !== undefined ? kept as Draft : null;
@@ -150,7 +201,7 @@ export function play(d: Draft): void {
   if (lib !== null && d.tracks.length > 0) playList(lib as PodLibrary, d.tracks, 0, d.name);
 }
 
-export function isGenius(d: Draft): boolean { return d.id === GENIUS_ID; }
+export function isGenius(d: Draft): boolean { return d.id.startsWith(GENIUS_PREFIX); }
 
 /** Refresh: Genius picks another list from the same song, with the history as it is now, and plays it. */
 export function refreshDraft(d: Draft): void {

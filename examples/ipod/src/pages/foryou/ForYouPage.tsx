@@ -11,6 +11,7 @@ import { historyVersion } from '../../services/historyJobs';
 import { Card, Shelf } from '../../services/forYou';
 import { ForYouData, forYou, working, refreshForYou, jumpCards, openCard, playCard, albumOf, artistOf, shelfSnap, shelfScrollbar } from '../../forYou';
 import { deepNote } from '../../deep';
+import { geniusCards } from '../../drafts';
 import { AlbumCover } from '../../components/AlbumCover';
 import { Button } from '../../components/Button';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, ACCENT, TRACK, SHELF_CARD_SIZE, PAGE_SETTINGS, PAGE_YEAR } from '../../constants';
@@ -134,14 +135,18 @@ function subtitle(d: ForYouData | null): string {
 
 function Shelves(props: { d: ForYouData }): i32 {
   const d = props.d;
-  const shown: i32[] = [];
-  for (let i = 0; i < d.shelves.length; i++) if ((d.shelves[i].id === 'jump' ? jumpCards(d) : d.shelves[i].cards).length > 0) shown.push(i);
+  const rows: Shelf[] = [];
+  for (const sh of d.shelves) {
+    const cards = sh.id === 'jump' ? jumpCards(d) : sh.cards;
+    if (cards.length > 0) rows.push({ id: sh.id, title: sh.title, cards: cards });
+    if (sh.id === 'jump' && geniusCards().length > 0) rows.push({ id: 'genius', title: 'Your Genius lists', cards: geniusCards() });
+  }
   return <View className="flex-col">
     {d.listens === 0 ? <Banner text="No listening history yet. Import your Last.fm or ListenBrainz history in Settings: the shelves will follow what you really play, not only the iPod's play counts." button="Import in Settings" />
       : d.matched * 2 < d.listens ? <Banner text={`Only ${d.matched} of your ${d.listens} listens are of songs on this iPod: the shelves use those. Settings lists the songs not found.`} button="See in Settings" />
       : <View />}
-    {shown.length === 0 ? <Text className={`text-[13px] px-10 ${fg(MUTED)}`}>Nothing to suggest yet: put some music on this iPod.</Text> : <View />}
-    {shown.map((i: i32) => <ShelfRow shelf={d.shelves[i]} cards={d.shelves[i].id === 'jump' ? jumpCards(d) : d.shelves[i].cards} />)}
+    {rows.length === 0 ? <Text className={`text-[13px] px-10 ${fg(MUTED)}`}>Nothing to suggest yet: put some music on this iPod.</Text> : <View />}
+    {rows.map((sh: Shelf) => <ShelfRow shelf={sh} cards={sh.cards} />)}
   </View>;
 }
 

@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- iPod: every Genius list asked is kept for each iPod: For you shows them on a shelf, Your Genius lists, and the Playlists page lists them all, not only the last one.
 - Sidecar: an Android device on the USB cable as the Mac's screen, charging meanwhile: the Sidecar app for Android (`app/sidecar/android`, Android 5 and later), `sidecar-screen --host adb`, and "Android on the USB cable" in the menu, which opens the app on the device. Each screen now shows in the Mac's Displays under the device's own name.
 - Sidecar: a colour screen is Retina or Native pixels, chosen in the menu; an iPad starts at Retina, its own text size (1366 × 1024 points on an iPad Pro 12.9", as Apple's Sidecar). `sidecar-screen --scale f` sets the screen's pixels per point.
 - Sidecar: an iPad or iPhone on the USB cable as the Mac's screen, charging meanwhile: the Sidecar app for iPadOS (`app/sidecar/ipad`, iPadOS 15 and later), `sidecar-screen --host usb`, and "iPad or iPhone on the USB cable" in the menu's Add a screen.

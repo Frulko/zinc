@@ -10,7 +10,8 @@
 #      draft on the Playlists page) and back (380: the page where it was scrolled); QuickJS draws the same frame 40;
 #   4. the refresh rule: listens added, the same day (the clock IPOD_DEMO_NOW two hours later): the shelves follow (On Repeat has the new
 #      song), the daily mixes are kept; the next day they are worked out again;
-#   5. 3,000 listens of songs not on the iPod: the page says how many listens matched.
+#   5. 3,000 listens of songs not on the iPod: the page says how many listens matched;
+#   6. a Genius list asked earlier: the shelf Your Genius lists shows it.
 # Skips (77) without the system libraries of zinc:ipod. KEEP=dir keeps the shots. UPDATE=1 rewrites the golden.
 cd "$(dirname "$0")/../.." || exit 2
 pkg-config --exists glib-2.0 gobject-2.0 libplist-2.0 taglib libusb-1.0 2>/dev/null || { echo "skipped: the libraries of zinc:ipod are not installed"; exit 77; }
@@ -124,5 +125,10 @@ app next 40 "$open" 1781611200
 fixture add ghost > /dev/null
 app few 40 "$open"
 says few 40 'Only 2251 of your 5256 listens are of songs on this iPod'
+# ---- 6. the Genius lists asked (drafts.ts keeps them in genius.json): a shelf of their own, after Jump back in
+day "json.dumps([{'kind': 'draft', 'id': 'draft:genius:' + s['daily']['cards'][0]['tracks'][0] + ':25', 'title': 'Genius · Seed Song', 'subtitle': '25 songs', 'tracks': s['daily']['cards'][0]['tracks'], 'at': 1781520000}])" > "$tmp/backups/cache/000A27001234ABCD/genius.json"
+app genius 40 "$open"
+says genius 40 'Your Genius lists'
+says genius 40 'Genius · Seed Song'
 [ $fail -eq 0 ] && echo "ipod_foryou: ok"
 exit $fail

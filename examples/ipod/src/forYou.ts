@@ -202,7 +202,7 @@ export function artistOf(name: string): Artist | null {
 
 /** A click on a card: a draft opens on the Playlists page, an album, a playlist or an artist on theirs, the year its view. */
 export function openCard(c: fy.Card): void {
-  if (c.kind === 'draft') openPlaylist(PREFIX + c.id);
+  if (c.kind === 'draft') openPlaylist(c.id.startsWith('draft:') ? c.id : PREFIX + c.id);   // a Genius list is a draft of its own
   else if (c.kind === 'album') { const a = albumOf(c.id); if (a !== null) openAlbum(a as Album); }
   else if (c.kind === 'playlist') openPlaylist(c.id);
   else if (c.kind === 'artist') { const a = artistOf(c.id); if (a !== null) openArtist((a as Artist).name); }
