@@ -65,6 +65,10 @@ const boxAs = box as Box;
 console.log('setter', boxAs.level);
 box!.level = 4;
 console.log('setter', boxAs.level);
+// '' + any is a string
+const year: any = JSON.parse('{"a":1998}');
+const yr = year.a !== undefined ? '' + year.a : '';
+console.log('concat', yr.slice(0, 2), 'x' + year.a, year.a + 'y', ('' + year.a).length);
 // await in a nested ?:, and in a single-level one beside a number
 async function one(): Promise<i32> { return 1; }
 async function two(): Promise<i32> { return 2; }

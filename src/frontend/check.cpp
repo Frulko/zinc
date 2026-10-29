@@ -877,6 +877,9 @@ struct Checker {
       bool lo = valueOfObj(l), ro = valueOfObj(r);
       if ((lo || ro) && replaceWith(i, std::string(lo ? "__H0.valueOf()" : "__H0") + " " + op + " " + (ro ? "__H1.valueOf()" : "__H1"), {{le}, {re}})) return expr0(i, kNoType);
     }
+    if (!rawDyn() && op == "+" && ((l == tStr && isDyn(r)) || (isDyn(l) && r == tStr))) {   // '' + any is a string, as in TypeScript (the Dyn helper's own concatenation)
+      if (replaceWith(i, l == tStr ? "__H0 + __dynString(__dynPrim(__H1))" : "__dynString(__dynPrim(__H0)) + __H1", {{le}, {re}})) return expr0(i, expected0);
+    }
     if (!rawDyn() && (isDyn(l) || isDyn(r)) && !bad(l) && !bad(r)) {  // an operand is any or unknown: the operation is a call of the Dyn helper
       auto isLit = [&](std::uint32_t k, const char* text) { return n(k).kind == N::Literal && n(k).text == text; };
       auto isUndef = [&](std::uint32_t k) { return n(k).kind == N::Ident && n(k).text == "__undef"; };
