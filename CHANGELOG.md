@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:ui/kit` has `ProgressRing`: a job's progress as a small ring filling clockwise, for a sidebar row or a table cell.
 - iPod demo: on a Sonos group the bar follows the speakers' events (a song changed, paused or turned up from the Sonos app shows at once) instead of reading the group every second; it falls back to reading it each second when the events do not reach the computer.
 - `zinc:sonos`: events. `Events` subscribes a group's speakers (`watch(g)`), renews the subscriptions and keeps the `Group` and `Speaker` objects up to date from each NOTIFY, so a program follows what plays, the volumes and the rooms without polling; the program passes its server's requests to `handleNotify`. `localAddressFor(ip)` gives this computer's address on a speaker's network.
 - `zinc:xml`: `parse(text)` reads XML into an element tree (`El` with `attr`, `child`, `all`, `find`, `findAll`, `textOf`), and `toXml` / `toJson` write one; for UPnP, SOAP, RSS and device descriptions.

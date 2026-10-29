@@ -71,6 +71,7 @@ Conventions, identical in both UI models:
 | `Tabs` | `items: string[]`, `selected: () => i32`, `onSelect`, `className?` | segmented control; switch the panels yourself: `{tab() === 0 ? <A/> : <B/>}` |
 | `Switch` | `checked: () => boolean`, `onChange`, `label?` | never flips itself: `onChange` decides |
 | `Progress` | `value: () => number` (0–100), `accent?`, `className?` | |
+| `ProgressRing` | `value: () => number` (0–100), `size`, `color: () => i32`, `track: () => i32`, `strokeWidth?` (2.5 of 24) | a ring filling clockwise from the top, for a row or a cell; an idle ring paints nothing |
 | `Spinner` | `size: number`, `color: () => i32`, `active: () => boolean` | mount while active; engine-driven ring, still with reduced motion; list `loader-circle` in the project's icons |
 | `Slider` | `value: () => number`, `onChange`, `min?`, `max?`, `step?`, `className?` | tap the rail or drag sideways to set the value (never at the press: a swipe over it scrolls); keeps horizontal drags inside scroll views (`grab="keep-x"`) |
 | `Avatar` | `name`, `size?` (`sm` `default` `lg`) | initials of the first two words |

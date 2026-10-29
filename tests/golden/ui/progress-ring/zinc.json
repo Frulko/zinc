@@ -1,0 +1,1 @@
+{"name":"progress-ring","entry":"main.tsx","targets":{"macos":{"width":200,"height":60},"sim":{"width":200,"height":60},"linux":{"width":200,"height":60}}}
