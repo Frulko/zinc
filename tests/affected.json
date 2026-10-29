@@ -185,6 +185,7 @@
     {"paths": ["src/frontend/jsx.cpp", "src/frontend/jsx", "tests/golden/jsx/"], "tests": ["jsx", "jsx_banned", "jsx_style", "react_class", "ui_tokens"], "canary": true},
     {"paths": ["tests/golden/jsx/errors/", "tests/t0/jsx_banned.sh", "include/zn/diagnostics.h"], "tests": ["jsx_banned", "migrate"]},
     {"paths": ["src/frontend/jsx.cpp", "lib/std/solid.ts", "lib/std/kit/host.ts", "lib/std/nuxt/host.ts", "lib/std/nuxt/navigation.tsx", "tests/data/solid_props/", "tests/t1/solid_props.sh"], "tests": ["solid_props", "solid_cleanup"]},
+    {"paths": ["src/doc/", "third_party/md4c/", "tests/t0/doc.sh", "tests/data/doc/"], "tests": ["doc"]},
     {"paths": ["src/lint/", "tests/t0/lint.sh", "tests/t0/migrate.sh", "tests/golden/lint/", "tests/golden/migrate/", "targets/capabilities.json", "src/frontend/capabilities.cpp"], "tests": ["lint", "migrate"]},
     {"paths": ["lib/std/kit/theme.ts", "lib/std/palette.ts", "tools/contrast-check"], "tests": ["contrast", "ui_theme"]},
     {"paths": ["lib/std/kit/zoomview.tsx", "tests/golden/ui/zoomview/", "tests/t1/kit_zoomview.sh"], "tests": ["kit_zoomview"]},

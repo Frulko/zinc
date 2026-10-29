@@ -1,0 +1,6 @@
+{
+  "name": "starfield",
+  "description": "A small game with a scoreboard, documented by zinc doc.",
+  "entry": "src/main.ts",
+  "doc": { "title": "Starfield", "theme": "docs/theme.css" }
+}

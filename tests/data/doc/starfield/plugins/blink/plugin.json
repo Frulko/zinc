@@ -1,0 +1,7 @@
+{
+  "name": "blink",
+  "kind": "module",
+  "module": "zinc:blink",
+  "entry": "index.ts",
+  "description": "Blinks an LED on a board's pin, for the first wiring lesson"
+}

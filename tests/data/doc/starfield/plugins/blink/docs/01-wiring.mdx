@@ -1,0 +1,26 @@
+---
+title: Wiring the LED
+order: 1
+---
+
+<Callout type="warning">
+  Always put a resistor in series with the LED.
+</Callout>
+
+<Steps>
+  <Step title="Connect the LED">
+    The long leg to pin 13, the short one to the ground through a 220 Ω resistor.
+  </Step>
+  <Step title="Run the example">
+    <Command>zinc run --target esp32</Command>
+  </Step>
+</Steps>
+
+<Example title="Blink twice a second" screenshot="img/board.png">
+```ts
+import { blink } from 'zinc:blink';
+blink(13, 2);
+```
+</Example>
+
+See <ApiRef name="Blinker" /> and <ApiRef name="blink" />.

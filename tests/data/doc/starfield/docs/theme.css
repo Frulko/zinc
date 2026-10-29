@@ -1,0 +1,4 @@
+/* The project's theme: only the variables it changes. */
+:root { --accent: #7c5cff; --accent-ink: #5b3fd6; --accent-soft: #efeaff; }
+:root[data-theme="dark"] { --accent: #a48bff; --accent-ink: #b9a6ff; --accent-soft: #1d1733; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --accent: #a48bff; --accent-ink: #b9a6ff; --accent-soft: #1d1733; } }

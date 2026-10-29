@@ -1,0 +1,49 @@
+---
+title: Getting started
+description: From nothing to a running game.
+---
+
+The game is one <ApiRef name="World" /> that moves on every frame.
+
+<Steps>
+  <Step title="Install Zinc">
+    One line, then check it:
+
+    <Command>zinc doctor</Command>
+  </Step>
+  <Step title="Run the game">
+    ```sh
+    $ zinc run
+    ```
+  </Step>
+  <Step title="Change a star">
+    Open `src/world.ts` and change `STARS`.
+  </Step>
+</Steps>
+
+<Tabs>
+  <Tab label="macOS">
+    Press <kbd>Cmd</kbd>+<kbd>Q</kbd> to quit.
+  </Tab>
+  <Tab label="Linux">
+    Press <kbd>Ctrl</kbd>+<kbd>Q</kbd> to quit.
+  </Tab>
+</Tabs>
+
+<Callout type="tip" title="Fast refresh">
+  `zinc dev` swaps a saved file into the running game.
+</Callout>
+
+<Screenshot src="img/game.png" alt="The game running" title="Starfield" caption="The first level." />
+
+## The world
+
+```ts title="src/main.ts"
+import { World } from './world';
+const world = new World(320, 240);
+world.step(1 / 60);
+```
+
+## Next
+
+Read the [notes](02-notes.md#limits).
