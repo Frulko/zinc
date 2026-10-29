@@ -1684,7 +1684,9 @@ struct Loader {
         }
         if (!isSim && haveSpec && mode == "auto" && gNativeLive && !requireNativeName(specText0).empty() && gNativeLive(requireNativeName(specText0)) && nativeProvided(requireNativeName(specText0), whyNot)) break;   // a live plugin: real code, not its deterministic stand-in
         if (isSim && haveSpec && mode == "auto" && read(simPath, text) && (!gNativePreferred || gNativePreferred(requireNativeName(specText0))) && !requireNativeName(specText0).empty() && nativeProvided(requireNativeName(specText0), whyNot)) break;
-        if (prog.files[fromFile].path == simPath) {   // the stand-in imports its own spec (its records): the spec's declarations, without the native module it binds
+        // the stand-in imports its own spec (its records), or a module the stand-in imports does while it loads (the plugin's helpers
+        // share its records): the spec's declarations, without the native module it binds
+        if (prog.files[fromFile].path == simPath || visiting.count(simPath)) {
           const std::string specPath = base + ".ts";
           if (done.count(specPath)) return done[specPath];
           if (!haveSpec) break;
