@@ -1,5 +1,5 @@
 #pragma once
-// zinc doc (ZN-856, docs/guide/13-doc.md): the documentation of a project, a plugin or the engine as a static site, as cargo doc and godoc
+// zinc doc (ZN-856, docs/guide/14-doc.md): the documentation of a project, a plugin or the engine as a static site, as cargo doc and godoc
 // make theirs. The API comes from the code (exported declarations and their doc comments, a plugin's native spec), the guides from Markdown
 // and MDX pages (a project's docs/, a plugin's docs/), with search, light and dark themes and a theme.css a project overrides. Offline: md4c,
 // the frontend's lexer and a theme compiled into zinc; nothing is fetched. --serve serves it on a local port and rebuilds it on change.

@@ -557,7 +557,7 @@ target_include_directories(zn_qjs PUBLIC include src)
 # zinc lint and zinc migrate (docs/reports/zinc-lint-migrate.md): rules and codemods on the frontend's lexer and loader
 add_library(zn_lint STATIC src/lint/lint.cpp src/lint/migrate.cpp)
 target_link_libraries(zn_lint PUBLIC zn_frontend zn_platform)
-# zinc doc (ZN-856, docs/guide/13-doc.md): the documentation site; md4c (third_party/md4c, MIT) parses its Markdown
+# zinc doc (ZN-856, docs/guide/14-doc.md): the documentation site; md4c (third_party/md4c, MIT) parses its Markdown
 add_library(zn_md4c STATIC third_party/md4c/md4c.c)
 target_include_directories(zn_md4c PUBLIC third_party/md4c)
 set_target_properties(zn_md4c PROPERTIES C_STANDARD 99)

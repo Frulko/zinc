@@ -207,6 +207,12 @@ the Zinc stand-in, and both must pass (the template's README shows it). Native p
 board or the simulated device (`zinc run --simulate <device>`); see how the display drivers do it in
 [docs/plugins/displays.md](../plugins/displays.md).
 
+## Documenting a plugin
+
+A plugin's pages go in its own `docs/` folder: `index.md` (the overview), then guides, tutorials and notes as `.md` or `.mdx` files with
+their images. `zinc doc` shows them next to the API it reads from the plugin's entry and native spec, in the plugin's site (`zinc doc` in
+its folder) and in the site of every project that uses it: [Documentation](14-doc.md), "A plugin's pages".
+
 ## Publishing / sharing
 
 A plugin is just a directory. Share it by:

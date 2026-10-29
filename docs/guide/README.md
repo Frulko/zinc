@@ -43,6 +43,7 @@ mistake. Not sure which kind of program to write? [Choose your kind of program](
 11. [Bundling for QuickJS](11-quickjs-bundle.md) — `--engine quickjs` runs TS and TSX, `zinc bundle` makes one optimised JavaScript file (tree shaking, defines, minify, source map, bytecode) with the pinned esbuild, `zinc check --engine quickjs`.
 12. [JavaScript engines](12-js-engines.md) — one program on QuickJS, JavaScriptCore, V8 or Hermes (`--engine`, `"engine"` in zinc.json), all bound through Node-API; engine packs downloaded and checked on first use, which one to pick, `--inspect`, bytecode at `zinc build`.
 13. npm packages and the web — [the web target](../targets/web.md#npm-packages): `zinc add npm:<pkg>` and `zinc install` call your package manager (npm, pnpm, yarn, bun), `zinc dev --target web` pre-bundles packages like Vite, `@zinc/vite` builds a Zinc app with Vite; [the libraries run](../targets/web-libraries.md).
+14. [Documentation](14-doc.md) — `zinc doc`: the site of a project, a plugin or the engine from its code and its Markdown and MDX pages (steps, tabs, commands, screenshots, examples), search, themes; `--out` exports it, `--serve` serves it and reloads on save.
 
 ## The one-minute tour
 
