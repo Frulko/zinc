@@ -387,6 +387,8 @@ The next backlog review turns lines into tasks or deletes them.
 - Sidecar on a Pi 3B+: the H.264 decoder takes 25 ms a 1080p picture at gpu_freq=300 (tools/v4l2dec-probe.cpp); gpu_freq=450 with over_voltage=2 in the Pi image's config.txt should cut it to ~17 ms, to measure with a good power supply (the rig reports under-voltage) before the image takes it. And a 25 or 24 fps film on a 60 Hz HDMI screen shows each picture 2 or 3 refreshes: switching the mode to 50 Hz (or 48) while a VIDEO region plays at that rate, as Kodi does, removes the judder (some TVs blank 1-2 s).
 
 ## Demos
+- D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
+- D178: ipod-web's management page on a Raspberry Pi with thousands of songs (paging, search speed, lazy covers) and in phone browsers; one more Chrome step for a real drag and drop and for eject from the page.
 - D178: ipod-web honours `size` for covers (scale or a cache per size), and a test of `/api/eject` on a fake disk image; the Subsonic methods getArtist, getSong, getPlaylist, search2, getAlbumList, getUser, getStarred and scrobble have no test yet.
 - ZN-857: the iPod demo's album grid should take its column count from the window width (fixed at 4 now); a wider window wastes space.
 - ZN-857: the Optimise page could offer one-click fixes for its other findings (fill missing tags or covers from a duplicate or online, delete empty playlists).
