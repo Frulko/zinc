@@ -9,7 +9,7 @@ import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import { current, isPlaying, position } from './player';
 import { openUrl } from 'zinc:system/opener';
-import { Scrobbler, Scrobble, Accounts, lastfmToken, lastfmAuthUrl, lastfmSession, appendHistory, isoLocal } from './scrobble';
+import { Scrobbler, Scrobble, Accounts, lastfmToken, lastfmAuthUrl, lastfmSessionIfApproved, lastfmCheck, listenbrainzCheck, appendHistory, isoLocal } from './scrobble';
 import { output } from './sonos';
 import { loadConfig, saveConfig, AppConfig } from './config';
 import { log, backupPlace } from './log';
@@ -146,6 +146,8 @@ export async function flush(): Promise<void> { report(true); seen = null; }
 // ---- the accounts (the Settings page)
 
 let lastfmPendingToken = '';
+const LASTFM_POLL_MS: i32 = 3000;      // how often the approval is asked for
+const LASTFM_WAIT_MS: number = 300000;  // and for how long
 
 /** Saves the key and secret and opens Last.fm's approval page in the browser; finishLastfm() then takes the session. */
 export async function startLastfm(key: string, secret: string): Promise<void> {
@@ -157,18 +159,55 @@ export async function startLastfm(key: string, secret: string): Promise<void> {
   await openUrl(lastfmAuthUrl(c.lastfmKey, lastfmPendingToken));
 }
 
-/** After the approval in the browser: the session is kept and Last.fm is on; resolves with the user's name. */
+/** After the approval in the browser: the session is kept and Last.fm is on; resolves with the user's name. Throws while the
+ *  approval is not done. */
 export async function finishLastfm(): Promise<string> {
   if (lastfmPendingToken === '') throw new Error('Sign in first: the browser asks you to approve this app on Last.fm');
   const c = loadConfig();
-  const s = await lastfmSession(c.lastfmKey, c.lastfmSecret, lastfmPendingToken);
+  const s = await lastfmSessionIfApproved(c.lastfmKey, c.lastfmSecret, lastfmPendingToken);
+  if (s === null) throw new Error('Last.fm: the approval is not done yet: press "Yes, allow access" on the page the browser opened');
+  return signedIn(s.key, s.name);
+}
+
+/** Waits for the approval in the browser (asks Last.fm every few seconds, for a few minutes): resolves with the user's name, or ''
+ *  when another sign-in started meanwhile; throws when the time is up or Last.fm refuses. */
+export async function awaitLastfm(): Promise<string> {
+  const token = lastfmPendingToken;
+  const until = Date.now() + LASTFM_WAIT_MS;
+  while (Date.now() < until) {
+    await new Promise<void>((r: () => void) => { setTimeout(r, LASTFM_POLL_MS); });
+    if (lastfmPendingToken !== token || token === '') return '';
+    const c = loadConfig();
+    const s = await lastfmSessionIfApproved(c.lastfmKey, c.lastfmSecret, token);
+    if (s !== null) return signedIn(s.key, s.name);
+  }
+  throw new Error('Last.fm: not approved within 5 minutes: press Sign in again');
+}
+
+function signedIn(key: string, name: string): string {
   lastfmPendingToken = '';
-  c.lastfmSession = s.key; c.lastfmUser = s.name;
+  const c = loadConfig();
+  c.lastfmSession = key; c.lastfmUser = name;
   saveConfig(c);
   useAccounts(c);
-  log('Last.fm', `signed in as ${s.name}`, true);
+  log('Last.fm', `signed in as ${name}`, true);
   scrobbler.flush();
-  return s.name;
+  return name;
+}
+
+/** Asks Last.fm which account the saved session opens: "ann · 1234 scrobbles". */
+export async function testLastfm(): Promise<string> {
+  const c = loadConfig();
+  if (c.lastfmSession === '') throw new Error('Last.fm: not signed in');
+  const a = new Accounts();
+  a.lastfmKey = c.lastfmKey; a.lastfmSecret = c.lastfmSecret; a.lastfmSession = c.lastfmSession;
+  return await lastfmCheck(a);
+}
+
+/** Asks ListenBrainz whose `token` is: the user name. */
+export async function testListenbrainz(token: string): Promise<string> {
+  if (token.trim() === '') throw new Error('ListenBrainz: paste the user token first');
+  return await listenbrainzCheck(token.trim());
 }
 
 export function signOutLastfm(): void {

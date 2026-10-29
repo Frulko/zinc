@@ -23,6 +23,9 @@ rule false true false true false
 off true 0 0
 auth url https://www.last.fm/api/auth/?api_key=apikey&token=tok123
 session ann sk-ann
+not approved yet true
+check ann · 2500 scrobbles ann
+refused ListenBrainz: Token invalid.
 now playing errors true
 heard false true false
 open listen l2|beta|1 true

@@ -119,13 +119,52 @@ export function lastfmAuthUrl(key: string, token: string): string { return `${LA
 
 /** Step 3, once approved: the session key and the user's name. Throws until the token is approved. */
 export async function lastfmSession(key: string, secret: string, token: string): Promise<LastfmSessionInfo> {
+  const s = await lastfmSessionIfApproved(key, secret, token);
+  if (s === null) throw new Error('Last.fm: the browser approval is not done yet (press "Yes, allow access" on last.fm)');
+  return s;
+}
+
+/** Step 3 asked again and again while the user approves: null while the token waits for the approval (Last.fm error 14). */
+export async function lastfmSessionIfApproved(key: string, secret: string, token: string): Promise<LastfmSessionInfo | null> {
   const p = new Map<string, string>();
   p.set('method', 'auth.getSession'); p.set('api_key', key); p.set('token', token);
   const r = await lastfmCall(p, secret);
   if (r.error !== '') throw new Error(`Last.fm cannot be reached (${r.error})`);
+  if (lastfmCode(r) === 14) return null;
   const s: LastfmSessionReply = JSON.parse(r.body);
   if (s.session === undefined) throw new Error(`Last.fm: ${lastfmMessage(r)}`);
   return s.session as LastfmSessionInfo;
+}
+
+interface LastfmUserReply { user?: LastfmUserInfo; error?: i32; message?: string; }
+interface LastfmUserInfo { name: string; playcount: string; }
+
+/** The account a session key opens (user.getInfo signed with it): "ann · 1234 scrobbles". Throws what Last.fm refuses. */
+export async function lastfmCheck(a: Accounts): Promise<string> {
+  const p = new Map<string, string>();
+  p.set('method', 'user.getInfo'); p.set('api_key', a.lastfmKey); p.set('sk', a.lastfmSession);
+  const r = await lastfmCall(p, a.lastfmSecret);
+  if (r.error !== '') throw new Error(`Last.fm cannot be reached (${r.error})`);
+  const u: LastfmUserReply = JSON.parse(r.body);
+  if (u.user === undefined) throw new Error(`Last.fm: ${lastfmMessage(r)}`);
+  const info = u.user as LastfmUserInfo;
+  return `${info.name} · ${info.playcount} scrobbles`;
+}
+
+interface TokenCheckReply { valid?: boolean; user_name?: string; message?: string; }
+
+/** The account a ListenBrainz token belongs to (GET /1/validate-token): its user name. Throws when the token is refused. */
+export async function listenbrainzCheck(token: string): Promise<string> {
+  const h = new net.Headers();
+  h.set('Authorization', `Token ${token}`);
+  let body = '';
+  try {
+    const res = await net.fetch(`${LISTENBRAINZ_URL}/1/validate-token`, { headers: h, timeoutMs: TIMEOUT_MS });
+    body = await res.text();
+  } catch (e) { throw new Error(`ListenBrainz cannot be reached (${(e as Error).message})`); }
+  const v: TokenCheckReply = JSON.parse(body);
+  if (v.valid !== true) throw new Error(`ListenBrainz: ${v.message !== undefined ? v.message as string : 'the token is refused'}`);
+  return v.user_name as string;
 }
 
 /** What a failed send means for the listens it carried. */

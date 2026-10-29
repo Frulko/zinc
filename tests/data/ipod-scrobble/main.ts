@@ -3,7 +3,7 @@
 // disk and sent once the services answer, by batches of 50. tests/t1/ipod_scrobble.sh checks what the stub received.
 import * as fs from 'zinc:fs';
 import { env } from 'zinc:sys';
-import { Scrobbler, Scrobble, Accounts, counts, lastfmToken, lastfmAuthUrl, lastfmSession } from '../../../examples/ipod/src/services/scrobble';
+import { Scrobbler, Scrobble, Accounts, counts, lastfmToken, lastfmAuthUrl, lastfmSession, lastfmSessionIfApproved, lastfmCheck, listenbrainzCheck } from '../../../examples/ipod/src/services/scrobble';
 
 function song(title: string, durationS: i32, at: number): Scrobble {
   return { artist: 'Band', track: title, album: 'First', albumArtist: 'Band', durationS: durationS, at: at };
@@ -23,11 +23,16 @@ async function main(): Promise<void> {
   console.log('auth url', lastfmAuthUrl('apikey', token));
   const session = await lastfmSession('apikey', 'sekrit', token);
   console.log('session', session.name, session.key);
+  console.log('not approved yet', await lastfmSessionIfApproved('apikey', 'sekrit', 'other') === null);
 
   const s = new Scrobbler(`${dir}/q`);
   const a = new Accounts();
   a.lastfmKey = 'apikey'; a.lastfmSecret = 'sekrit'; a.lastfmSession = session.key; a.listenbrainzToken = 'lbtoken';
   s.accounts = a;
+  console.log('check', await lastfmCheck(a), await listenbrainzCheck('lbtoken'));
+  let refused = '';
+  try { await listenbrainzCheck('nope'); } catch (e) { refused = (e as Error).message; }
+  console.log('refused', refused);
   await s.nowPlaying(song('Alpha', 200, 1700000000));
   console.log('now playing errors', s.lastfmError === '' && s.listenbrainzError === '');
 

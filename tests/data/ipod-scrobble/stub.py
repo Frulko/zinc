@@ -140,6 +140,9 @@ class H(http.server.BaseHTTPRequestHandler):
                     return self.reply(200, {'toptracks': {'track': [{'name': k[1], 'playcount': str(n), 'artist': {'name': k[0]}, '@attr': {'rank': str(i + 1)}} for i, (k, n) in enumerate(ranked)]}})
                 return self.reply(200, {'topartists': {'artist': [{'name': k, 'playcount': str(n), '@attr': {'rank': str(i + 1)}} for i, (k, n) in enumerate(ranked)]}})
             return self.reply(400, {'error': 3, 'message': 'Invalid method'})
+        if u.path == '/1/validate-token':
+            ok = self.headers.get('Authorization', '') == 'Token ' + LB_TOKEN
+            return self.reply(200, {'code': 200, 'valid': True, 'user_name': 'ann', 'message': 'Token valid.'} if ok else {'code': 200, 'valid': False, 'message': 'Token invalid.'})
         if u.path.startswith('/1/user/'):
             log({'service': 'listenbrainz-read', 'path': u.path, 'params': p})
             if u.path == '/1/user/ann/listen-count':
@@ -181,6 +184,8 @@ class H(http.server.BaseHTTPRequestHandler):
                 return self.reply(200, {'session': {'name': 'ann', 'key': 'sk-ann', 'subscriber': 0}}) if p.get('token') == TOKEN else self.reply(403, {'error': 14, 'message': 'Unauthorized Token'})
             if p.get('sk') != 'sk-ann':
                 return self.reply(403, {'error': 9, 'message': 'Invalid session key'})
+            if m == 'user.getInfo':
+                return self.reply(200, {'user': {'name': 'ann', 'playcount': '2500'}})
             if m == 'track.updateNowPlaying':
                 return self.reply(200, {'nowplaying': {}})
             if m == 'track.scrobble':
