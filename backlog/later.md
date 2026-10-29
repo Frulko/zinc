@@ -5,6 +5,13 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- ZN-856: fill `plugins/<name>/docs/` for every plugin (overview, a tutorial with `<Steps>`, a screenshot, notes), following docs/reports/plugin-docs-audit/; most engine plugins fall back to `docs/plugins/<name>.md` or the `plugin.json` description.
+- ZN-856: MDX components written in Zinc and rendered at build time, so a plugin can add its own (an unknown component keeps its text with a warning).
+- ZN-856: an API reader over the parser if the token-based reader (an ASI rule of thumb) misreads real code.
+- ZN-856: links from docs to source files (`.ts`, `.tsx`) lose their link; point them at the repository when zinc.json names one.
+- ZN-856: the engine site's search index is 1.2 MB; measure it on a Pi or an old tablet, then split it per section or vendor minisearch.
+- ZN-856: translate the doc theme's interface strings (Search, On this page, Copy, Previous/Next) into the five languages.
+- ZN-856: decide whether `site/` (Astro) keeps publishing the docs or uses `zinc doc --std`.
 - ZN-852: `n.toString(r)` with r outside 2..36 throws no RangeError as in JavaScript (it returns digits).
 - ZN-852: `p.then(onFulfilled, onRejected)` with two arguments is refused (Z0104); JavaScript allows it.
 - ZN-852: a generic Promise<void> converted to PromiseV settles one microtask later than Node; and `await fail<void>()` used as a value has the type `__Void`, which can show in messages. Merging Promise and PromiseV would remove both.
@@ -516,6 +523,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-856: `zinc doc --serve` on Windows (the Winsock path is built, never run) and on Linux.
 - ZN-853: `ipod.mount('')` finds iPod partitions by media name with diskutil (macOS only); on Linux it needs a partition name (`udisksctl`) and a way to find iPod partitions by themselves.
 - zinc:video on a Pi 4 and a Pi 5: HEVC goes through the stateless V4L2 interface (rpi-hevc-dec). Measure with tools/h264dec-bench.cpp (extended to HEVC) FFmpeg of Pi OS (the Raspberry Pi fork has v4l2-request) against GStreamer's upstream v4l2slh265dec, and that the Pi 5 (no H.264 chip) takes libavcodec's software H.264; GStreamer becomes a way of the plugin only where it is the one door to the chip (docs/reports/video-zero-copy.md section 10).
 - ZN-851: zinc:ipod on Linux and the Pi (apt packages of docs/plugins/ipod.md; TagLib 1 reads no embedded cover, udisksctl eject, an HFS+ iPod read-only), then Windows (glib, libplist, TagLib from MSYS2; the eject through DeviceIoControl).
