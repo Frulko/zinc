@@ -10,6 +10,7 @@ import { Album, albums, library, showPage, scrollKey } from '../../state';
 import { historyVersion } from '../../services/historyJobs';
 import { Card, Shelf } from '../../services/forYou';
 import { ForYouData, forYou, working, refreshForYou, jumpCards, openCard, playCard, albumOf, artistOf } from '../../forYou';
+import { deepNote } from '../../deep';
 import { AlbumCover } from '../../components/AlbumCover';
 import { Button } from '../../components/Button';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, ACCENT, TRACK, SHELF_CARD_SIZE, PAGE_SETTINGS, PAGE_YEAR } from '../../constants';
@@ -123,7 +124,8 @@ function Banner(props: { text: string; button: string }): i32 {
 function subtitle(d: ForYouData | null): string {
   if (d === null) return working() ? 'Working out your shelves…' : '';
   const data = d as ForYouData;
-  const from = data.listens === 0 ? 'From the play counts of this iPod' : `From ${data.listens} listens, ${data.matched} of them songs of this iPod`;
+  const deep = deepNote();
+  const from = (data.listens === 0 ? 'From the play counts of this iPod' : `From ${data.listens} listens, ${data.matched} of them songs of this iPod`) + (deep !== '' ? ` · ${deep}` : '');
   return working() ? `${from} · updating…` : from;
 }
 

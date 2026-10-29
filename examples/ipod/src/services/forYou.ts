@@ -12,9 +12,11 @@
 //   Time Capsule   the busiest year 2 to 12 years ago: its songs most heard, not heard for a year
 //   Because you listened to X   the 3 most played songs of the last 30 days (different artists): Genius from each, and its albums
 //   Top songs and artists of this month and year, and the year in review (Your year)
+//   Sounds like X, Mood mixes   tier 2, only when AudioMuse-AI analysed the iPod (extraShelves)
 import * as ipod from 'zinc:ipod';
 import { History, SESSION_GAP_S } from './history';
 import { Model, Mix, genius, mixes, path } from './genius';
+import { Deep, DeepPath, moodsOf, pathOf } from './audiomuse';
 
 const DAY_S: number = 86400;
 export const MONTHS: string[] = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -444,5 +446,111 @@ export function yearReview(h: History | null, s: Signals, now: number): YearRevi
   return y;
 }
 
-/** Tier 2: the "sounds like" shelves of the AudioMuse-AI client (docs/reports/ipod-genius.md 0b, batch G) go here; none yet. */
-export function extraShelves(s: Signals): Shelf[] { return []; }
+// ---- tier 2: AudioMuse-AI's deep analysis (services/audiomuse.ts, attached to the model by genius.attachDeep)
+
+/** The seeds of "Sounds like X": the songs heard most lately (30 days, then 90, then by affinity), of different artists, that
+ *  AudioMuse analysed. The app asks AudioMuse their near lists (and the path between the first two) before extraShelves. */
+export function soundsLikeSeeds(s: Signals, max: i32 = 2): string[] {
+  const m = s.m;
+  const v = zeros(m.tracks.length);
+  for (let i = 0; i < v.length; i++) {
+    if (m.sound.length <= i || m.sound[i].length === 0 || !m.pickable(i as i32)) continue;
+    v[i] = s.count(i as i32, s.now - 30 * DAY_S, s.now + 1) + s.count(i as i32, s.now - 90 * DAY_S, s.now + 1) / 10 + s.aff[i] / 100;
+  }
+  const out: string[] = [];
+  const artists = new Set<string>();
+  for (const i of topBy(s, all(s), v, m.tracks.length as i32)) {
+    if (out.length >= max) break;
+    if (artists.has(m.artist[i])) continue;
+    artists.add(m.artist[i]); out.push(m.tracks[i].id);
+  }
+  return out;
+}
+
+/** Up to `n` songs that sound like `seed` (its near list first, then the sound vectors), the seed first, in Genius' path order. */
+function soundsLike(s: Signals, seed: i32, n: i32): i32[] {
+  const m = s.m;
+  const score = zeros(m.tracks.length), pool: i32[] = [];
+  for (let i: i32 = 0; i < m.tracks.length; i++) {
+    if (i === seed || !m.pickable(i)) continue;
+    const d = m.sounds(seed, i);
+    if (d > 0.5) { score[i] = d; pool.push(i); }   // above 0.5: closer than the library's average song
+  }
+  return path(m, seed, topBy(s, pool, score, 4 * n), score, n);
+}
+
+const MOOD_MIN: i32 = 5;
+
+/** Mood mixes: each analysed song goes to the mood it has most above the library's mean (AudioMuse's danceable, aggressive, happy,
+ *  party, relaxed, sad); the moods with at least 5 songs, the largest first (at most `max`), each its songs most in that mood. */
+function moodMixes(s: Signals, d: Deep, max: i32 = 6, size: i32 = 50): Card[] {
+  const m = s.m;
+  const moods: Map<string, number>[] = [];
+  const mean = new Map<string, number>();
+  const at: i32[] = [];
+  for (const t of d.tracks) {
+    const i = m.index.get(t.id);
+    if (i === undefined || !m.pickable(i as i32)) continue;
+    const x = moodsOf(t);
+    x.forEach((v: number, k: string) => { mean.set(k, (mean.has(k) ? mean.get(k) as number : 0) + v); });
+    moods.push(x); at.push(i as i32);
+  }
+  mean.forEach((v: number, k: string) => { mean.set(k, v / moods.length); });
+  const groups = new Map<string, i32[]>();
+  const lift = zeros(m.tracks.length);
+  for (let k = 0; k < moods.length; k++) {
+    let best = '', bestV = 0;
+    moods[k].forEach((v: number, name: string) => { const l = v - (mean.get(name) as number); if (l > bestV || (l === bestV && best !== '' && name < best)) { best = name; bestV = l; } });
+    if (best === '') continue;
+    lift[at[k]] = bestV + 1e-6;
+    const g = groups.get(best); if (g === undefined) groups.set(best, [at[k]]); else (g as i32[]).push(at[k]);
+  }
+  const names: string[] = [];
+  groups.forEach((g: i32[], name: string) => { if (g.length >= MOOD_MIN) names.push(name); });
+  names.sort((a: string, b: string) => (groups.get(b) as i32[]).length - (groups.get(a) as i32[]).length !== 0 ? (groups.get(b) as i32[]).length - (groups.get(a) as i32[]).length : a < b ? -1 : 1);
+  const out: Card[] = [];
+  for (const name of names.slice(0, max)) {
+    const list = topBy(s, groups.get(name) as i32[], lift, size);
+    const shown = name.charAt(0).toUpperCase() + name.slice(1);
+    out.push(card('draft', `mood:${name}`, shown, `${list.length} songs that feel ${name}`, ids(s, ordered(s, list))));
+  }
+  return out;
+}
+
+/** Tier 2 shelves, when AudioMuse analysed this iPod: "Sounds like X" for the two seeds of soundsLikeSeeds (X's list, then lists from
+ *  three of its closest songs by other artists; the first shelf also has AudioMuse's smooth path from one seed to the other when the
+ *  app fetched it), and the Mood mixes. [] without deep results. */
+export function extraShelves(s: Signals): Shelf[] {
+  const m = s.m;
+  if (m.deep === null) return [];
+  const d = m.deep as Deep;
+  const out: Shelf[] = [];
+  const seeds = soundsLikeSeeds(s);
+  for (let k = 0; k < seeds.length; k++) {
+    const seed = m.index.get(seeds[k]) as i32, t = m.tracks[seed];
+    const list = soundsLike(s, seed, 25);
+    if (list.length < 5) continue;
+    const cards: Card[] = [card('draft', `sounds:${k}`, `Sounds like ${t.title}`, `${t.artist} · close in sound (deep analysis)`, ids(s, list))];
+    const used = new Set<string>();
+    used.add(m.artist[seed]);
+    for (const i of list) {
+      if (cards.length >= 4) break;
+      if (used.has(m.artist[i])) continue;
+      used.add(m.artist[i]);
+      const more = soundsLike(s, i, 25);
+      if (more.length >= 5) cards.push(card('draft', `sounds:${k}:${cards.length}`, `Sounds like ${m.tracks[i].title}`, `${m.tracks[i].artist} · close in sound`, ids(s, more)));
+    }
+    if (k === 0 && seeds.length >= 2) {
+      const p = pathOf(d, seeds[0], seeds[1]);
+      if (p !== null && (p as DeepPath).ids.length >= 3) {
+        const to = m.index.get(seeds[1]);
+        const name = to !== undefined ? m.tracks[to as i32].title : '';
+        cards.push(card('draft', 'sounds:path', `From ${t.title} to ${name}`, 'A smooth path in sound (deep analysis)', (p as DeepPath).ids.filter((id: string) => m.index.has(id))));
+      }
+    }
+    out.push({ id: `sounds:${k}`, title: `Sounds like ${t.title}`, cards: cards });
+  }
+  const moods = moodMixes(s, d);
+  if (moods.length > 0) out.push({ id: 'moods', title: 'Mood mixes', cards: moods });
+  return out;
+}

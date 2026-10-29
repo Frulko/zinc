@@ -9,6 +9,9 @@
 //   genre, decade the iPod's tags.
 //   the song's own plays, rating and skips (the iPod's counters and the history), a bonus or a malus; 1-2 stars are never picked.
 //   transitions   from one song to the next: tempo (the iPod's BPM field, octave folded) and year.
+//   deep (tier 2) when AudioMuse-AI analysed both songs (services/audiomuse.ts, attachDeep): how close they sound, from its near list
+//                 (similar_tracks, 1 / (1 + distance)) or the cosine of their sound vectors; pair = deep · sound + (1 - deep) · tier 1
+//                 (0.65 / 0.35), a song it did not analyse keeps tier 1 alone; the path also pays deepStep for a jump in sound.
 // The weights are one JSON file, <history>/genius.json (written with the defaults the first time). Loudness is not a term: no program
 // can get the PCM of an iPod's AAC/ALAC file yet (only the plugin's native fingerprint pass decodes them), see the report.
 import * as ipod from 'zinc:ipod';
@@ -16,6 +19,7 @@ import * as fs from 'zinc:fs';
 import { History, SESSION_GAP_S, normArtist } from './history';
 import { lastfm } from './historyImport';
 import { fold } from '../search';
+import { Deep, soundVectors } from './audiomuse';
 
 export class Weights {
   colisten: number = 0.45;
@@ -34,9 +38,12 @@ export class Weights {
   shrink: number = 2;
   /** The same artist at most once in this many songs. */
   artistSpread: i32 = 4;
+  /** Tier 2: the share of AudioMuse's sound in the closeness of two songs it analysed, and what a jump in sound costs the path. */
+  deep: number = 0.65;
+  deepStep: number = 0.15;
 }
 
-const WEIGHT_KEYS: string[] = ['colisten', 'artist', 'genre', 'decade', 'plays', 'rating', 'skips', 'tempoStep', 'yearStep', 'halfLifeDays', 'shrink', 'artistSpread'];
+const WEIGHT_KEYS: string[] = ['colisten', 'artist', 'genre', 'decade', 'plays', 'rating', 'skips', 'tempoStep', 'yearStep', 'halfLifeDays', 'shrink', 'artistSpread', 'deep', 'deepStep'];
 
 /** The weights of `<dir>/genius.json`; the file is written with the defaults when it is missing. Unknown keys are ignored. */
 export function loadWeights(dir: string): Weights {
@@ -48,6 +55,7 @@ export function loadWeights(dir: string): Weights {
       const o = JSON.parse('{}');
       o.colisten = w.colisten; o.artist = w.artist; o.genre = w.genre; o.decade = w.decade; o.plays = w.plays; o.rating = w.rating; o.skips = w.skips;
       o.tempoStep = w.tempoStep; o.yearStep = w.yearStep; o.halfLifeDays = w.halfLifeDays; o.shrink = w.shrink; o.artistSpread = w.artistSpread;
+      o.deep = w.deep; o.deepStep = w.deepStep;
       fs.writeText(file, JSON.stringify(o, null, 2) + '\n');
       return w;
     }
@@ -59,7 +67,8 @@ export function loadWeights(dir: string): Weights {
       if (k === 'colisten') w.colisten = n; else if (k === 'artist') w.artist = n; else if (k === 'genre') w.genre = n;
       else if (k === 'decade') w.decade = n; else if (k === 'plays') w.plays = n; else if (k === 'rating') w.rating = n;
       else if (k === 'skips') w.skips = n; else if (k === 'tempoStep') w.tempoStep = n; else if (k === 'yearStep') w.yearStep = n;
-      else if (k === 'halfLifeDays') w.halfLifeDays = n; else if (k === 'shrink') w.shrink = n; else w.artistSpread = Math.max(1, Math.floor(n)) as i32;
+      else if (k === 'halfLifeDays') w.halfLifeDays = n; else if (k === 'shrink') w.shrink = n; else if (k === 'deep') w.deep = Math.min(1, Math.max(0, n));
+      else if (k === 'deepStep') w.deepStep = n; else w.artistSpread = Math.max(1, Math.floor(n)) as i32;
     }
   } catch (e) { /* unreadable: the defaults */ }
   return w;
@@ -161,10 +170,38 @@ export class Model {
   /** Co-listening of i with its neighbours, 0..1. */
   co: Map<i32, number>[] = [];
   graph: ArtistGraph;
+  /** Tier 2 (attachDeep): each song's sound vector ([] when AudioMuse did not analyse it) and the near lists AudioMuse gave. */
+  sound: number[][] = [];
+  near: Map<i32, Map<i32, number>> = new Map<i32, Map<i32, number>>();
+  /** The deep results attached (null: tier 1 only). */
+  deep: Deep | null = null;
   constructor(w: Weights, tracks: ipod.Track[], graph: ArtistGraph) { this.w = w; this.tracks = tracks; this.graph = graph; }
 
-  /** How close two songs are (0..sum of the weights), whatever their order. */
+  /** How close two songs are (0..sum of the weights), whatever their order: tier 1, merged with the sound when both were analysed. */
   pair(i: i32, j: i32): number {
+    const t1 = this.light(i, j);
+    const d = this.sounds(i, j);
+    if (d < 0) return t1;
+    const w = this.w;
+    return w.deep * d * (w.colisten + w.artist + w.genre + w.decade) + (1 - w.deep) * t1;
+  }
+
+  /** How alike two songs sound to AudioMuse, 0..1; -1 when it did not analyse both. */
+  sounds(i: i32, j: i32): number {
+    if (this.deep === null) return -1;
+    const a = this.near.get(i);
+    if (a !== undefined) { const v = (a as Map<i32, number>).get(j); if (v !== undefined) return v as number; }
+    const b = this.near.get(j);
+    if (b !== undefined) { const v = (b as Map<i32, number>).get(i); if (v !== undefined) return v as number; }
+    const x = this.sound[i], y = this.sound[j];
+    if (x.length === 0 || y.length === 0) return -1;
+    let c = 0;
+    for (let k = 0; k < x.length; k++) c += x[k] * y[k];
+    return (c + 1) / 2;
+  }
+
+  /** Tier 1: how close two songs are from what is on this computer (0..sum of the weights). */
+  light(i: i32, j: i32): number {
     const w = this.w;
     let s = 0;
     const c = this.co[i].get(j);
@@ -189,6 +226,8 @@ export class Model {
     const a = this.tracks[i], b = this.tracks[j];
     let s = this.w.tempoStep * tempoGap(a.bpm, b.bpm);
     if (a.year > 0 && b.year > 0) s += this.w.yearStep * Math.min(30, Math.abs(a.year - b.year)) / 10;
+    const d = this.sounds(i, j);
+    if (d >= 0) s += this.w.deepStep * (1 - d);
     return s;
   }
 
@@ -210,6 +249,7 @@ export function buildModel(h: History | null, guid: string, tracks: ipod.Track[]
     m.co.push(new Map<i32, number>());
   }
   if (h !== null) addHistory(m, h as History, guid);
+  attachDeep(m, null);
   let most = 1;
   for (const p of m.plays) if (p > most) most = p;
   for (let i: i32 = 0; i < music.length; i++) {
@@ -220,6 +260,23 @@ export function buildModel(h: History | null, guid: string, tracks: ipod.Track[]
     m.prior.push(p);
   }
   return m;
+}
+
+/** Attaches AudioMuse's results `d` to the model (null: tier 1 only again): the sound vectors and the near lists. Cheap: called
+ *  again when the cache changed, without building the model again. */
+export function attachDeep(m: Model, d: Deep | null): void {
+  m.deep = d; m.sound = []; m.near = new Map<i32, Map<i32, number>>();
+  const none: number[] = [];
+  if (d === null) { for (let i = 0; i < m.tracks.length; i++) m.sound.push(none); return; }
+  const vectors = soundVectors(d as Deep);
+  for (const t of m.tracks) { const v = vectors.get(t.id); m.sound.push(v !== undefined ? v as number[] : none); }
+  for (const n of (d as Deep).near) {
+    const at = m.index.get(n.id);
+    if (at === undefined) continue;
+    const row = new Map<i32, number>();
+    for (let k = 0; k < n.ids.length; k++) { const j = m.index.get(n.ids[k]); if (j !== undefined) row.set(j as i32, 1 / (1 + Math.max(0, n.dist[k]))); }
+    m.near.set(at as i32, row);
+  }
 }
 
 /** The history's plays and skips per track (the larger of them and the iPod's own counters: they overlap), and co-listening. */

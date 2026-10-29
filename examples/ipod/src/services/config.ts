@@ -1,7 +1,7 @@
 // The app's settings, in <backups>/config.json (beside the logs: ~/.zinc/ipod/config.json by default): the remote iPod, an iPod
 // daemon (examples/ipod-web) the app connects to, the Sonos speaker found last, the size of the remote iPod's audio cache, the
-// scrobbling accounts (Last.fm, ListenBrainz), whose listening history is imported, and Share with AudioMuse (services/share.ts). Saving
-// keeps the keys this version does not know.
+// scrobbling accounts (Last.fm, ListenBrainz), whose listening history is imported, Share with AudioMuse (services/share.ts) and
+// where AudioMuse itself is (services/audiomuse.ts). Saving keeps the keys this version does not know.
 import * as fs from 'zinc:fs';
 import { backupPlace } from './log';
 
@@ -30,6 +30,9 @@ export class AppConfig {
   shareUser: string = 'audiomuse';
   sharePassword: string = '';
   shareApiKey: string = '';
+  /** AudioMuse-AI, the deep analysis (services/audiomuse.ts): its address and its API_TOKEN. */
+  museUrl: string = 'http://127.0.0.1:8000';
+  museToken: string = '';
 }
 
 function configFile(): string { return `${backupPlace()}/config.json`; }
@@ -55,6 +58,8 @@ export function loadConfig(): AppConfig {
     if (stored.shareUser !== undefined) config.shareUser = '' + stored.shareUser;
     if (stored.sharePassword !== undefined) config.sharePassword = '' + stored.sharePassword;
     if (stored.shareApiKey !== undefined) config.shareApiKey = '' + stored.shareApiKey;
+    if (stored.museUrl !== undefined) config.museUrl = '' + stored.museUrl;
+    if (stored.museToken !== undefined) config.museToken = '' + stored.museToken;
   } catch (e) { /* unreadable: the defaults */ }
   return config;
 }
@@ -79,6 +84,8 @@ export function saveConfig(config: AppConfig): void {
     stored.shareUser = config.shareUser;
     stored.sharePassword = config.sharePassword;
     stored.shareApiKey = config.shareApiKey;
+    stored.museUrl = config.museUrl;
+    stored.museToken = config.museToken;
     fs.mkdir(backupPlace(), true);
     fs.writeText(configFile(), JSON.stringify(stored) + '\n');
   } catch (e) { console.error(`ipod: ${configFile()}: ${(e as Error).message}`); }

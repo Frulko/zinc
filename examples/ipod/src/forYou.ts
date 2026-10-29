@@ -1,6 +1,6 @@
 // The For you page's shelves in the app (services/forYou.ts works them out). Opening the page shows at once what was kept on disk for
 // this iPod (<cache>/<GUID>/foryou.json), then, off the first frame and a step at a time, checks the history's version and the
-// library's: when one changed the shelves are worked out again and kept, but the daily mixes stay those of the day until the next day.
+// library's (and the deep analysis'): when one changed the shelves are worked out again and kept, but the daily mixes stay those of the day until the next day.
 // Every draft card is a draft (drafts.ts: heard through the queue on the output chosen, saved to the iPod as a playlist); a draft played
 // from the page is kept for Jump back in (<cache>/<GUID>/foryou-recent.json). IPOD_DEMO_NOW (Unix seconds or an ISO date) sets the clock.
 import { createSignal } from 'zinc:ui/solid';
@@ -14,6 +14,7 @@ import { history, historyStarted, syncHistory, historyCounts } from './services/
 import * as fy from './services/forYou';
 import { Draft, keepDrafts, currentModel, play } from './drafts';
 import { log } from './services/log';
+import { deepKey, prepareNear } from './deep';
 import * as cache from './services/cache';
 import { PAGE_YEAR } from './constants';
 
@@ -128,7 +129,7 @@ async function work(lib: PodLibrary): Promise<void> {
   syncHistory();
   const h: History | null = historyStarted() ? history() : null;
   const t = now(), today = fy.dayOf(t);
-  const key = `${h !== null ? (h as History).version(guid) : 'none'}|${libKey(lib)}`;
+  const key = `${h !== null ? (h as History).version(guid) : 'none'}|${libKey(lib)}|${deepKey()}`;
   const old = page;
   if (old !== null && (old as ForYouData).key === key && (old as ForYouData).day === today) return;
   const m = currentModel();
@@ -163,6 +164,11 @@ async function work(lib: PodLibrary): Promise<void> {
   shelves.push({ id: 'top', title: 'Your top songs', cards: tops });
   shelves.push({ id: 'artists-month', title: `Top artists · ${month}`, cards: fy.topArtists(h, fy.monthStart(t), t + 1, 12) });
   shelves.push({ id: 'artists-year', title: `Top artists · ${year.year}`, cards: fy.topArtists(h, fy.yearStart(t), t + 1, 12) });
+  if (s.m.deep !== null) {   // tier 2: AudioMuse's near lists of the seeds, then the model with them
+    await prepareNear(fy.soundsLikeSeeds(s), true);
+    if (library() !== lib) return;
+    currentModel();   // attaches them to the same model
+  }
   for (const x of fy.extraShelves(s)) shelves.push(x);
   const counts = historyCounts();
   const data: ForYouData = { format: FORMAT, guid: guid, key: key, day: today, listens: counts.listens, matched: counts.matchedListens, shelves: shelves, year: year };

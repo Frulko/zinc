@@ -2,14 +2,16 @@
 // chosen (this Mac or a Sonos group); Save to iPod writes it as a normal playlist (Allow changes, an iPod plugged into this computer),
 // Refresh picks again. The model is built when first needed and again when the library or the listening history changed; with a
 // Last.fm API key, the similar artists of the iPod's artists are fetched once in the background (a Transfers job, cached under the
-// history folder), then the model is built again.
+// history folder), then the model is built again. When AudioMuse-AI analysed the iPod (deep.ts), its results are attached to the
+// model (again when they change, without building it again) and Genius first asks it the songs closest to the seed.
 import { createSignal } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
 import { library, openPlaylist } from './state';
 import { PodLibrary } from './services/ipod';
 import { History } from './services/history';
 import { history, historyStarted, historyVersion, setHistoryVersion } from './services/historyJobs';
-import { Model, Mix, buildModel, genius, mixes, loadWeights, readArtistGraph, fetchSimilarArtists, savePlaylist } from './services/genius';
+import { Model, Mix, buildModel, attachDeep, genius, mixes, loadWeights, readArtistGraph, fetchSimilarArtists, savePlaylist } from './services/genius';
+import { currentDeep, deepVersion, prepareNear } from './deep';
 import { playList } from './services/player';
 import { enqueue, runBeside, busy } from './services/transfers';
 import { allowed, localOnly, refresh } from './actions';
@@ -40,6 +42,7 @@ function historyDir(): string { return `${backupPlace()}/history`; }
 let model: Model | null = null;
 let modelOf: PodLibrary | null = null;
 let modelVersion: i32 = -1;
+let modelDeep: i32 = -1;
 let askedArtists = '';
 
 /** The model of the open iPod: built again when its library or the history changed. */
@@ -47,12 +50,17 @@ export function currentModel(): Model | null {
   const lib = library();
   const version = historyVersion();
   if (lib === null) return null;
-  if (model !== null && modelOf === lib && modelVersion === version) return model as Model;
+  const deepNow = deepVersion();
+  if (model !== null && modelOf === lib && modelVersion === version) {
+    if (modelDeep !== deepNow || (model as Model).deep !== currentDeep()) { attachDeep(model as Model, currentDeep()); modelDeep = deepNow; }
+    return model as Model;
+  }
   let h: History | null = null;
   try { if (historyStarted()) h = history(); } catch (e) { /* no history: metadata and the iPod's counters */ }
   const dir = historyDir();
   model = buildModel(h, cache.podKey(), (lib as PodLibrary).tracks, readArtistGraph(dir), loadWeights(dir));
-  modelOf = lib; modelVersion = version;
+  attachDeep(model as Model, currentDeep());
+  modelOf = lib; modelVersion = version; modelDeep = deepNow;
   const key = loadConfig().lastfmKey;
   if (key !== '') setTimeout(() => fetchArtists(lib as PodLibrary, key), 0);   // not from inside a computation: it starts a job
   return model as Model;
@@ -79,9 +87,11 @@ export function geniusFrom(seed: ipod.Track, size: i32): void {
   const d = new Draft();
   d.id = GENIUS_ID; d.seedId = seed.id; d.size = size;
   d.name = `Genius · ${seed.title !== '' ? seed.title : 'Untitled'}`;
-  if (!pick(d)) return;
-  play(d);
-  openPlaylist(GENIUS_ID);
+  prepareNear([seed.id]).then(() => {   // returns at once without AudioMuse
+    if (!pick(d)) return;
+    play(d);
+    openPlaylist(GENIUS_ID);
+  });
 }
 
 /** Picks the draft's songs again (with the history as it is now); false when the seed cannot seed a list (not music). */
