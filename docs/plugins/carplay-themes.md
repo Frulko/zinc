@@ -1,5 +1,10 @@
 # CarPlay displays and themes
 
+New evidence: the catalog also contains an accessory-side Lua/image package.
+The [original-script Local UI POC](../reports/carplay-local-ui-poc.md) executes
+selected geometry/speed functions and renders a Zinc preview. Earlier Core Animation
+observations below describe phone assets, not the whole accessory runtime.
+
 This guide covers the receiver's display geometry, the Mac player's dashboard, and the experimental CarPlay Ultra theme probe. It also proposes a format for locally composed themes. The current receiver does **not** install arbitrary themes on an iPhone.
 
 ## Who draws the Ultra dashboard

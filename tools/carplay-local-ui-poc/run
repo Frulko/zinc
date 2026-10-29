@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""Inspect a user-supplied CarDDP archive and run a limited original-Lua probe."""
+import argparse
+import collections
+import hashlib
+import io
+import json
+import math
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import subprocess
+import tempfile
+import zipfile
+
+HERE = Path(__file__).resolve().parent
+MAX_TOTAL = 256 * 1024 * 1024
+MODULES = ['r/PackageData', 'r/ThemeData', 'r/Cluster_Display/AssetManifestData',
+           'APL/json', 'APL/MathUtils', 'AngleConfiguration', 'DigiBarRadialStyle',
+           'DigiBarRadialLayout', 'Units', 'UnitUtils', 'SpeedometerUtils']
+
+
+def checked_zip(data):
+    archive = zipfile.ZipFile(io.BytesIO(data))
+    seen, total = set(), 0
+    for entry in archive.infolist():
+        name = PurePosixPath(entry.filename)
+        if name.is_absolute() or '..' in name.parts or '\\' in entry.filename:
+            raise ValueError('Unsafe archive member')
+        if entry.filename in seen:
+            raise ValueError('Duplicate archive member')
+        seen.add(entry.filename)
+        total += entry.file_size
+        if total > MAX_TOTAL or entry.file_size > 64 * 1024 * 1024:
+            raise ValueError('Archive expansion limit exceeded')
+    return archive
+
+
+def arc_points(arc, progress):
+    # Original path angles are negated by getBarLayout; map their Y-up convention
+    # to SVG's Y-down coordinates. Sweep comes from original AngleConfiguration.
+    start, delta = arc['startAngle'], arc['sweep']
+    count = max(1, math.ceil(abs(delta * progress) * 60))
+    return ' '.join(f'{arc["x"] + arc["radius"] * math.cos(start + delta * progress * i / count):.4f},'
+                    f'{arc["y"] - arc["radius"] * math.sin(start + delta * progress * i / count):.4f}'
+                    for i in range(count + 1))
+
+
+def write_preview(out, probe):
+    size = probe['size']
+    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{size*3}" height="{size}" viewBox="0 0 {size*3} {size}">']
+    for i, sample in enumerate(probe['samples']):
+        parts.append(f'<g transform="translate({size*i},0)">')
+        for progress, color in [(1, '#34454b'), (sample['progress'], '#ff7840')]:
+            if progress > 0:
+                parts.append(f'<polyline points="{arc_points(probe["arc"],progress)}" fill="none" stroke="{color}" stroke-width="{probe["width"]}"/>')
+        parts.append('</g>')
+    parts.append('</svg>')
+    svg = ''.join(parts)
+    (out/'gauge.svg').write_text(svg)
+    # Generated assets remain outside version control; the repository contains no Apple code.
+    (out/'src').mkdir()
+    gallery=''.join('<Image className="w-32 h-32" src="'+identifier+'.png" />'
+        for identifier,entry in sorted(probe['images'].items()) if 'decorative_speedometer' in entry['path'])
+    source = '''import { render } from 'zinc:ui/solid';
+import { Svg } from 'zinc:svg';
+const gauge = new Svg(SVG_SOURCE);
+function App(): i32 {
+  return <View className="flex-col h-full p-6 gap-4 bg-slate-950">
+    <Text className="text-2xl text-white">Ultra Local UI · original Lua geometry probe</Text>
+    <Text className="text-slate-300">0 / 65 / 130 km/h · simulated input · diagnostic colors</Text>
+    <Canvas className="grow" onDraw={(x: i32,y: i32,w: i32,h: i32) => gauge.draw(x,y,w,h,255)} />
+    <Text className="text-slate-300">Original packaged images (separate resource preview)</Text>
+    <View className="flex-row gap-6">GALLERY</View>
+    <Text className="text-slate-300">Original speed normalization + radial layout. No live UI Sync or full theme composition.</Text>
+  </View>;
+}
+render(App, 0x020617, () => {});
+'''.replace('SVG_SOURCE', json.dumps(svg)).replace('GALLERY',gallery)
+    (out/'src/main.tsx').write_text(source)
+    (out/'zinc.json').write_text(json.dumps({'name':'carplay-local-ui-probe','entry':'src/main.tsx',
+        'targets':{'macos':{'width':1200,'height':720}}},indent=2))
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('archive',type=Path)
+    parser.add_argument('--out',type=Path,required=True,help='New output directory (never overwritten)')
+    args=parser.parse_args()
+    if args.out.exists():
+        parser.error('Output directory already exists; choose a new one')
+    if args.archive.stat().st_size > MAX_TOTAL:
+        parser.error('Input archive too large')
+    lua=shutil.which('lua')
+    if not lua:
+        parser.error('Lua 5.3+ is required for this offline probe')
+    outer_data=args.archive.read_bytes()
+    outer=checked_zip(outer_data)
+    nested=outer.read('AssetData/CarPlayAccessory.assets.zip')
+    digest=hashlib.sha256(nested).hexdigest()
+    # Despite the filename, this is a binary signature-shaped object, not a hex digest.
+    signature=outer.read('AssetData/CarPlayAccessory.assets.sha256')
+    archive=checked_zip(nested)
+    symbols=set()
+    for name in archive.namelist():
+        if name.endswith('.lua'):
+            symbols.update(re.findall(r'\bCP\.[\w.]+',archive.read(name).decode()))
+    inventory={'provenance':'user-supplied archive; not evidence of an iPhone transfer',
+        'archiveSha256':hashlib.sha256(outer_data).hexdigest(), 'accessorySha256':digest,
+        'signatureVerified':False, 'signatureBytes':len(signature), 'entries':len(archive.infolist()),
+        'extensions':dict(collections.Counter(PurePosixPath(n).suffix for n in archive.namelist())),
+        'nativeBridgeSymbols':sorted(symbols), 'executedModules':MODULES}
+    with tempfile.TemporaryDirectory(prefix='zinc-local-ui-') as tmp:
+        root=Path(tmp)
+        for name in MODULES:
+            path=root/(name+'.lua')
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes(archive.read(name+'.lua'))
+        result=subprocess.run([lua,str(HERE/'probe.lua'),str(root)],capture_output=True,text=True,timeout=15)
+        if result.returncode:
+            raise RuntimeError('Original Lua probe failed:\n'+result.stderr)
+        probe=json.loads(result.stdout)
+    # Create output only after the original-script probe has succeeded.
+    args.out.mkdir(parents=True)
+    (args.out/'inventory.json').write_text(json.dumps(inventory,indent=2))
+    (args.out/'probe.json').write_text(json.dumps(probe,indent=2))
+    image_dir=args.out/'assets'
+    image_dir.mkdir()
+    for identifier, entry in probe['images'].items():
+        if not re.fullmatch(r'[0-9a-f]{40}',identifier):
+            raise ValueError('Invalid image identifier')
+        name='r/Cluster_Display/'+entry['path']
+        if name.endswith('.png'):
+            (image_dir/(identifier+'.png')).write_bytes(archive.read(name))
+    write_preview(args.out,probe)
+    print(json.dumps({'output':str(args.out.resolve()),'inventory':inventory['extensions'],
+        'geometryScript':'DigiBarRadialLayout.lua','speedScript':'SpeedometerUtils.lua',
+        'maximum':probe['maximum'],'samples':probe['samples'],'images':len(list(image_dir.iterdir()))},indent=2))
+
+
+if __name__=='__main__':
+    main()

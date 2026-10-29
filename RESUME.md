@@ -1,3 +1,7 @@
+# Latest: Local UI proof (29 October 2026)
+
+Discovered CarPlayAccessory.assets.zip inside catalog 44C9FA31EC:985: 193 plaintext Lua modules and 2875 PNGs. tools/carplay-local-ui-poc runs selected original speed/radial-layout modules and generates a native Zinc preview. Last generated app: build/carplay/local-ui-probe-4; complete interpreter screenshot /private/tmp/carplay-local-ui-interp.png. Probe tests passed; final AOT rendering loses text/images while interpreter renders them. ZN-861 is the next engine blocker to investigate. Full CP bridge, live theme reception and signature verification remain open; see docs/reports/carplay-local-ui-poc.md. No Pi restart or pairing changes in this offline investigation.
+
 # CarPlay worktree handover — 2026-10-29
 
 Worktree `/Users/mowmow/orca/workspaces/zinc/carplay-finish`, branch `Frulko/carplay-finish`. Do not push. ZN-858 remains In Progress; criterion #2 is complete, #1 and #3–#5 are open. Keep the player on the Mac and the Pi screen with ZincPlayer/Sidecar as chosen by the owner.

@@ -1,5 +1,10 @@
 # CarPlay Ultra feasibility on the Pi
 
+Update: [the Local UI POC](carplay-local-ui-poc.md) found 193 plaintext Lua modules
+and 2875 PNGs in the nested accessory archive. Selected original behavior/geometry
+functions now run offline and produce a Zinc preview. This corrects the incomplete
+earlier inspection of phone-side Core Animation assets; full runtime remains open.
+
 Research and receiver probes on 29 October 2026. Vehicle State and UI Sync
 have both exchanged messages with a real iPhone. An Apple catalog theme was
 identified and advertised, but its signature chain and a synchronized Ultra
