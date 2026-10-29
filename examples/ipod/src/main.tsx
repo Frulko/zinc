@@ -24,7 +24,12 @@ import { bg, fg, BACKGROUND, TEXT, CLEAR_COLOR, PAGE_ALBUMS, PAGE_SONGS, PAGE_PO
 import { Sidebar } from './components/Sidebar';
 import { NowPlaying } from './components/NowPlaying';
 import { OutputMenu } from './components/OutputPicker';
-import { pickerOpen } from './services/sonos';
+import { QueuePanel, queueOpen } from './components/QueuePanel';
+import { prepare as prepareSession, startSaving, save as saveSession } from './services/session';
+import { install as installBackground, releaseMode } from './services/background';
+import { onQuit, quitNow } from './services/quit';
+import { release } from './services/player';
+import { pickerOpen, unfollow, stopServer } from './services/sonos';
 import { Toasts } from './components/Toasts';
 import { DevicesPage } from './pages/devices/DevicesPage';
 import { OverviewPage } from './pages/overview/OverviewPage';
@@ -69,16 +74,19 @@ function App(): i32 {
       {library() !== null ? <NowPlaying /> : <View />}
       {library() !== null ? <Content lib={library() as PodLibrary} page={page()} /> : <DevicesPage />}
       {page() !== PAGE_TRANSFERS || library() === null ? <Toasts /> : <View />}
+      {library() !== null && queueOpen() ? <QueuePanel /> : <View />}
       {library() !== null && pickerOpen() ? <OutputMenu /> : <View />}
     </View>
   </View>;
 }
 
-// close the iPod before the process ends on a signal (the plugin closes it too when the process exits)
-async function quit(): Promise<void> {
-  try { await closeDevice(); } catch (e) { /* closing a pulled iPod fails: quit anyway */ }
-  sys.exit(0);
-}
+// the quit, in order (services/quit.ts): the session saved, a speaker fed by this app paused before its server stops, the events
+// unsubscribed, the server stopped, the iPod closed (nothing is written to it that was not already)
+onQuit('session', async (): Promise<void> => { saveSession(); });
+onQuit('speaker', (): Promise<void> => release(releaseMode()));
+onQuit('events', unfollow);
+onQuit('server', async (): Promise<void> => { stopServer(); });
+onQuit('ipod', closeDevice);
 // files dropped on the window arrive one event per file: those of one drop are added together
 let dropped: string[] = [];
 on('drop', (args: string[]) => {
@@ -87,10 +95,13 @@ on('drop', (args: string[]) => {
   dropped.push(args[0]);
 });
 
-sys.onSignal('SIGINT', () => { quit(); });
-sys.onSignal('SIGTERM', () => { quit(); });
+installBackground();   // closing the window while Sonos plays from this iPod keeps the app in the menu bar; Cmd+Q asks then
+sys.onSignal('SIGINT', () => { quitNow(); });
+sys.onSignal('SIGTERM', () => { quitNow(); });
 
 ui.setScheme('auto');
+prepareSession();
+startSaving();
 loadRemote();
 const remoteAtStart = sys.env('IPOD_DEMO_REMOTE');
 if (remoteAtStart !== '') openRemoteDevice(remoteAtStart, sys.env('IPOD_DEMO_REMOTE_TOKEN'));

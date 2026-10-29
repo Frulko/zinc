@@ -1,20 +1,22 @@
 // The bar at the top, as iTunes shows it: previous, play or pause and next on the left, and in the middle the "LCD": the track's cover,
 // title, artist and album, the time played and left, and a progress bar a click seeks in; on the right, where it plays (this computer
-// or a Sonos group, with its volume).
+// or a Sonos group, with its volume). Shuffle and repeat (off, all, one) beside the transport, and the queue panel's button (QueuePanel).
 import * as ui from 'zinc:ui';
 import { createSignal, onCleanup } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
-import { current, isPlaying, position, length, playError, toggle, next, previous, seek } from '../services/player';
+import { current, isPlaying, position, length, playError, toggle, next, previous, seek, setShuffle, cycleRepeat } from '../services/player';
+import { shuffle, repeat } from '../services/queue';
+import { queueOpen, setQueueOpen } from './QueuePanel';
 import { useCover, releaseCover } from '../services/covers';
 import { OutputButton } from './OutputPicker';
 import { duration } from '../format';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK, STRIPE, LCD_WIDTH, PROGRESS_WIDTH } from '../constants';
 
-function Transport(props: { icon: string; size: i32; onPress: () => void }): i32 {
+function Transport(props: { icon: string; size: i32; onPress: () => void; on?: boolean }): i32 {
   return <View className={`items-center justify-center w-[34] h-[34] rounded-full cursor-pointer hover:${bg(HOVER)}`}
     onPointerDown={(e: ui.PointerEvent) => props.onPress()}>
-    <Icon name={props.icon} size={props.size} color={() => color(TEXT)} strokeWidth={2} />
+    <Icon name={props.icon} size={props.size} color={() => color(props.on === undefined ? TEXT : props.on ? ACCENT : MUTED)} strokeWidth={2} />
   </View>;
 }
 
@@ -52,9 +54,11 @@ function Lcd(props: { t: ipod.Track }): i32 {
 export function NowPlaying(): i32 {
   return <View className={`flex-row items-center gap-4 h-[64] px-5 border-b shrink-0 ${bg(CARD)} ${bd(BORDER)}`}>
     <View className="flex-row items-center gap-1">
+      <Transport icon="shuffle" size={15} on={shuffle()} onPress={() => setShuffle(!shuffle())} />
       <Transport icon="skip-back" size={18} onPress={previous} />
       <Transport icon={isPlaying() ? 'pause' : 'play'} size={22} onPress={toggle} />
       <Transport icon="skip-forward" size={18} onPress={next} />
+      <Transport icon={repeat() === 'one' ? 'repeat-1' : 'repeat'} size={15} on={repeat() !== 'off'} onPress={cycleRepeat} />
     </View>
     <View className="grow items-center">
       {current() !== null ? <Lcd t={current() as ipod.Track} />
@@ -62,6 +66,7 @@ export function NowPlaying(): i32 {
           <Text className={`text-[12px] ${fg(FAINT)}`}>Double-click a track to play it</Text>
         </View>}
     </View>
+    <Transport icon="list-music" size={17} on={queueOpen()} onPress={() => setQueueOpen(!queueOpen())} />
     <OutputButton />
   </View>;
 }

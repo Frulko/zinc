@@ -28,9 +28,9 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   USB tells (model, serial, firmware) and a note to put it in disk mode.
 - **Sonos.** The button at the right of the bar picks where the music plays: this computer or a Sonos group (`zinc:sonos` finds
   them: the speaker that answered last, kept in `config.json`, else an SSDP search; `IPOD_DEMO_SONOS=<address>` asks that speaker
-  first). On a group, a double-click queues the song and the ones after it (up to 200) on the group, which fetches them over HTTP
-  and goes through them by itself; play, pause, next, previous, seek and the group's volume (the bar under the button) go to the
-  group, and the bar follows what it plays (read once a second). Changing the output starts the track shown again there. A plugged
+  first). On a group, the app's queue is put on the group, which fetches the songs over HTTP and goes through them by itself; play,
+  pause, next, previous, seek and the group's volume (the bar under the button) go to the group, and the bar follows what it plays
+  (its events, else read once a second). Changing the output goes on with the track shown there, from the same moment. A plugged
   iPod's songs and covers are served by the app on the LAN (`zinc:net`, a free port, a random token in each path, only the open
   iPod's tracks by their id); a remote iPod's come straight from its daemon (`/api/file/<id>?token=`), so the daemon must be
   addressed by a name or address the speakers reach (not `127.0.0.1`), and started with `--token`.
@@ -50,6 +50,28 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
 - **Settings.** Last.fm: create an API account (last.fm/api/account/create), paste its key and secret, Sign in (the browser asks
   to approve the app), then Finish. ListenBrainz: paste the user token of listenbrainz.org/settings. And the size of the songs'
   cache. Kept in `config.json`.
+- **The queue.** As Spotify's: a double-click plays a song and the ones under it ("Next from" the album, playlist or page); a
+  right click on a song, a selection, an album or a playlist offers Play, Play next and Add to queue (the system's own menu), which
+  go to "Next in queue", before the rest. The list button of the bar opens the queue panel: Now playing, Next in queue (Clear queue)
+  and Next from; a row is dragged to another place, its x removes it, a double-click plays it. Shuffle mixes only what follows the
+  current song and the hand-added ones, and off brings the list back in its order; repeat goes off, all, one. On Sonos the group's
+  queue is the app's from the song it started on (1,000 at most): each change is made there too (AddMultipleURIsToQueue,
+  RemoveTrackRangeFromQueue, ReorderTracksInQueue), repeat is the group's play mode, and a change made in the Sonos app comes back
+  through the events (the queue read again; replaced by other music, the app's queue stays, paused).
+- **The session.** The queue, the song and the moment in it, shuffle, repeat, the output and its volume are kept in
+  `session.json` beside `config.json` (on each change, and every 5 s while playing). At the next start the same iPod opens on it,
+  paused at that moment; Play resumes there, on the same output. A Sonos group that still plays it is followed as it is (the app
+  serves the songs again on the same port and token); one whose queue was replaced is left alone. Another iPod, or none: the file
+  waits for that iPod.
+- **In the background.** Closing the window while a Sonos group plays from the iPod plugged into this computer keeps the app in
+  the menu bar (the track, Play or Pause, Next, Show iPod, Quit iPod): it goes on serving the songs. Cmd+Q then asks first
+  ("Sonos is playing from this iPod: quitting stops the music": Keep playing in background, Quit, Quit and clear the Sonos queue,
+  Cancel); with transfers not finished it asks too (the one under way always ends: cut halfway, the iPod would keep a file its
+  database does not know).
+- **Quitting.** Every way out (Cmd+Q, Quit in the menu bar, the window closed, `kill`, Ctrl+C) runs the same steps, in order and
+  within 3 s (`services/quit.ts`, `onQuit(name, step)`): the session saved; a Sonos group fed by this app paused (or stopped with
+  its queue cleared) while the songs are still served, a group fed by the iPod daemon left playing; the speakers' events
+  unsubscribed; the server stopped; the local sound stopped and the iPod closed (nothing written to it).
 - **Covers.** Each album's cover is taken from the cache (read from the iPod or the daemon the first time) when its row of the grid
   comes on screen, kept by album while shown and freed with `destroyImage` when the row is dropped.
 - **Long lists.** The album grid and every track table are `VirtualList`s: 2,500 songs cost the rows on screen.
@@ -97,13 +119,18 @@ src/
 ├── services/cache.ts     # the iPod's cache by FireWire GUID: covers, library, a remote iPod's songs (least recently used out)
 ├── services/config.ts    # config.json: the remote iPod's address and token, the Sonos speaker found last, the cache's size
 ├── services/covers.ts    # covers by album, read when shown, freed when dropped; the albums' covers read ahead into the cache
-├── services/player.ts    # playing from the iPod, here or on a Sonos group
+├── services/player.ts    # playing the queue from the iPod, here or on a Sonos group (kept in step)
+├── services/queue.ts     # the queue: now playing, next in queue, next from; shuffle and repeat
+├── services/session.ts   # session.json: the queue and where it was, resumed at the next start
+├── services/background.ts # the menu bar item, and what closing or quitting asks first
+├── services/quit.ts      # the quit: its steps in order, within 3 s
 ├── services/sonos.ts     # the Sonos groups, the output chosen, the songs' URLs and the server of a plugged iPod's files
 ├── services/transfers.ts # the queue of jobs, one at a time, with their progress
 ├── services/log.ts       # the operations, on the Logs page and in the log file
 ├── services/scrobble.ts  # the rule, Last.fm (signed calls, sign-in) and ListenBrainz, their offline queues, the history (shared with ipod-web)
 ├── services/listening.ts # follows the player: each listen to the scrobbler, the iPod's play counts, the history
-├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, DownloadMark, Toasts, NowPlaying, OutputPicker
+├── menus.ts              # the right-click menu: Play, Play next, Add to queue
+├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, DownloadMark, Toasts, NowPlaying, OutputPicker, QueuePanel
 └── pages/                # devices, overview, albums, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs, settings
 ```
 
@@ -114,6 +141,13 @@ a podcast, a playlist and three duplicates, then drives the app headless through
 frame hash per page, checks the overview on QuickJS and that nothing is painted while the app is left alone; then it checks the
 iPod's health, drops two files on the window, downloads an album, shows the transfers and the log, analyses the iPod on the Optimise page and merges its duplicates, and unmounts and mounts the
 disk image while the app runs (it closes the iPod, then opens it again).
+
+`tests/t1/ipod_sonos.sh` plays on a made-up Sonos speaker (`tests/data/sonos/stub_speaker.py`): the songs queued and served, Play
+next and Add to queue from the right-click menu, shuffle and repeat, a drag and a removal in the queue panel, a change made by
+another app followed, the window closed (the app stays in the menu bar), the quit (Pause, then the events unsubscribed, within the
+limit), then the app started again attaching to the group, and left alone by a group whose queue was replaced.
+`tests/demo/ipod_queue.sh` does the queue on the Mac output: Play next, repeat, the panel, the window closed (the app quits and saves
+`session.json`), and the session shown paused at the next start.
 
 `tests/t1/ipod_remote.sh` serves a fake iPod with `examples/ipod-web --allow-changes` and runs the app headless connected to it: the
 remote iPod opens, its songs page is compared to a frame hash, a song is played (its file fetched into the cache), one is deleted and a

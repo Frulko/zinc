@@ -89,7 +89,20 @@ async function serve(req: net.Request): Promise<net.Reply> {
   if (e !== null) { const r = (e as sonos.Events).handleNotify(req); if (r !== null) return r as net.Reply; }
   return serveSong(req);
 }
-function startServer(): void { if (port === 0) { token = hex(sys.randomBytes(16)); port = net.serveAsync(0, serve); } }
+function startServer(): void {
+  if (port !== 0) return;
+  // the port and token of the last run (services/session.ts) when they are free: a Sonos queue made then still plays from them
+  if (wantedToken !== '') { try { port = net.serveAsync(wantedPort, serve); token = wantedToken; } catch (e) { port = 0; } }
+  if (port <= 0) { token = hex(sys.randomBytes(16)); port = net.serveAsync(0, serve); }
+}
+let wantedPort: i32 = 0, wantedToken = '';
+/** Serve on this port with this token again (the session's), if the port is free when the server starts. */
+export function reuseServer(p: i32, t: string): void { wantedPort = p; wantedToken = t; }
+/** The port and token the songs are served with now (0 and '' before the first song was asked). */
+export function serverPort(): i32 { return port; }
+export function serverToken(): string { return token; }
+/** Stops the server (the app quits): the speakers' events and the songs end with it. */
+export function stopServer(): void { if (port !== 0) net.stop(); port = 0; }
 
 /** Serves the open iPod's tracks (started the first time, the tracks replaced when another iPod is open). */
 function share(lib: PodLibrary): void {
@@ -98,6 +111,14 @@ function share(lib: PodLibrary): void {
   shared = new Map<string, ipod.Track>();
   for (const t of lib.tracks) shared.set(t.id, t);
   sharedMount = lib.device.mountpoint;
+}
+
+/** The id of the track a song URL of songsOf names ('' for another URL): `/file/<id>` in both kinds. */
+export function trackIdOf(url: string): string {
+  const i = url.indexOf('/file/');
+  if (i < 0) return '';
+  const end = url.indexOf('?', i);
+  return decodeURIComponent(url.slice(i + 6, end < 0 ? url.length : end));
 }
 
 /** The tracks as songs the group fetches: from the daemon for a remote iPod, else from this app's server. */

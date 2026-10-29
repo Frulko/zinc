@@ -41,6 +41,6 @@ export function MediaPage(props: { title: string; one: string; many: string }): 
     <Show when={notice() !== ''}><Text className={`text-[12px] px-10 pb-2 ${fg(ERROR)}`}>{notice()}</Text></Show>
     {total() === 0
       ? <Text className={`text-[13px] px-10 ${fg(MUTED)}`}>{`No ${props.many} on this iPod`}</Text>
-      : <TrackTable tracks={songs} numbered={false} sortable={true} showAlbum={true} />}
+      : <TrackTable tracks={songs} numbered={false} sortable={true} showAlbum={true} from={props.title} />}
   </View>;
 }

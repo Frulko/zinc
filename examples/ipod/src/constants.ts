@@ -62,6 +62,9 @@ export const PROGRESS_WIDTH: i32 = 300;     // its progress bar
 export const VOLUME_WIDTH: i32 = 90;        // the Sonos group's volume bar, under the output
 export const TOAST_WIDTH: i32 = 340;        // a transfer's toast, at the bottom right
 export const TOAST_SHOWN: i32 = 3;          // toasts shown at once; the others are "+N more"
+export const QUEUE_WIDTH: i32 = 360;        // the queue panel, at the right under the bar
+export const QUEUE_ROW_HEIGHT: i32 = 46;    // one of its rows: a drag moves by this much per place
+export const QUEUE_FROM_SHOWN: i32 = 100;   // rows of "Next from" shown (the rest is counted)
 
 // ---- timings
 export const SCAN_EVERY_MS: i32 = 3000;     // detect() again: an iPod mounted, unmounted or pulled shows within this time

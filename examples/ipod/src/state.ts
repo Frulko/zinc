@@ -10,6 +10,7 @@ import { cancelWaiting } from './services/transfers';
 import { log } from './services/log';
 import { dropCovers, prefetchCovers } from './services/covers';
 import { stop as stopPlaying } from './services/player';
+import { resume as resumeSession } from './services/session';
 import { PAGE_OVERVIEW, SCAN_EVERY_MS, kindsOf } from './constants';
 
 /** An album: the tracks that share an album name and album artist, in disc and track order. */
@@ -246,6 +247,7 @@ export async function openDevice(mountpoint: string): Promise<void> {
     setLibrary(null);
     const opened = await openPod(mountpoint);
     batch(() => { setLibrary(opened); setError(''); setPlaylistShown(''); setPhotoAlbumShown(''); setExtraShown(''); showPage(PAGE_OVERVIEW); });
+    resumeSession(opened);
     log(`Opened ${opened.device.name !== '' ? opened.device.name : 'the iPod'}`, `${mountpoint}: ${opened.tracks.length} tracks, ${opened.playlists.length} playlists`, true);
     refreshInBackground(opened);
   } catch (e) {
@@ -287,6 +289,7 @@ export async function openRemoteDevice(address: string, token: string): Promise<
     setLibrary(null);
     const opened = await openRemote(at, token);
     batch(() => { setLibrary(opened); setError(''); setPlaylistShown(''); setPhotoAlbumShown(''); setExtraShown(''); showPage(PAGE_OVERVIEW); });
+    resumeSession(opened);
     log(`Opened ${opened.device.name !== '' ? opened.device.name : 'the iPod'} (remote)`, `${opened.remote}: ${opened.tracks.length} tracks, ${opened.playlists.length} playlists`, true);
     refreshInBackground(opened);
   } catch (e) {

@@ -1,5 +1,5 @@
 // The albums as a grid of covers, a VirtualList of rows: only the rows on screen exist, and only their covers are read from the
-// iPod and kept (components/AlbumCover). An album opens its tracks.
+// iPod and kept (components/AlbumCover). An album opens its tracks; a right click plays it or queues it (menus.ts).
 import * as ui from 'zinc:ui';
 import { VirtualList } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
@@ -9,13 +9,15 @@ import { Button } from '../../components/Button';
 import { download } from '../../actions';
 import { busy } from '../../services/transfers';
 import { TrackTable } from '../../components/TrackTable';
+import { openTrackMenu } from '../../menus';
 import { count, longDuration } from '../../format';
 import { fg, color, TEXT, MUTED, ACCENT, GRID_COLUMNS, COVER_SIZE, GRID_ROW_HEIGHT, HEADER_COVER_SIZE } from '../../constants';
 
 function AlbumTile(props: { album: Album }): i32 {
   const a = props.album;
   return <View className="flex-col gap-1.5 cursor-pointer" style={{ width: COVER_SIZE }}
-    onPointerDown={(e: ui.PointerEvent) => setAlbumShown(a)}>
+    onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) setAlbumShown(a); }}
+    onContextMenu={(e: ui.PointerEvent) => { openTrackMenu(e, a.tracks, 0, a.tracks, a.title); }}>
     <AlbumCover album={a} size={COVER_SIZE} />
     <View className="flex-col pt-0.5">
       <Text className={`text-[13px] font-semibold ${fg(TEXT)}`} numberOfLines={1}>{a.title}</Text>
@@ -60,7 +62,7 @@ function AlbumView(props: { album: Album }): i32 {
         <View className="flex-row pt-2"><Button icon="download" label="Download" busy={busy(`Download “${a.title}”`)} onPress={() => download(`“${a.title}”`, a.tracks)} /></View>
       </View>
     </View>
-    <TrackTable tracks={() => a.tracks} numbered={true} sortable={false} showAlbum={false} />
+    <TrackTable tracks={() => a.tracks} numbered={true} sortable={false} showAlbum={false} from={a.title} />
   </View>;
 }
 

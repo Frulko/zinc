@@ -2,6 +2,7 @@
 // rows on screen only. `numbered` shows the track number (an album) instead of the position. A click selects a row (Cmd or Ctrl
 // adds one, Shift a range: what Download selected copies), a double-click plays the track, then the ones under it; the track playing
 // shows a speaker instead of its number. The arrow at the end of a row downloads that track (and shows its progress: DownloadMark).
+// A right click opens Play, Play next and Add to queue (menus.ts) for the row, or for the selection when the row is in it.
 import * as ui from 'zinc:ui';
 import { VirtualList } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
@@ -11,6 +12,7 @@ import { download } from '../actions';
 import { DownloadMark } from './DownloadMark';
 import { PodLibrary } from '../services/ipod';
 import { current, isPlaying, playList } from '../services/player';
+import { openTrackMenu } from '../menus';
 import { duration } from '../format';
 import { bd, bg, fg, color, BORDER, HOVER, SELECTED, STRIPE, MUTED, TEXT, FAINT, ACCENT, ROW_HEIGHT } from '../constants';
 
@@ -32,7 +34,14 @@ function isSelected(t: ipod.Track): boolean { return t.id !== '' && selected().i
 
 function nowOn(t: ipod.Track): boolean { const c = current(); return c !== null && t.id !== '' && (c as ipod.Track).id === t.id; }
 
-export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolean; sortable: boolean; showAlbum: boolean }): i32 {
+/** The tracks the right-click menu of row `i` acts on: the selection when the row is in it, else the row. */
+function menuTracks(list: ipod.Track[], i: i32): ipod.Track[] {
+  const sel = selected();
+  if (sel.indexOf(list[i].id) < 0 || sel.length < 2) return [list[i]];
+  return list.filter((t: ipod.Track) => sel.indexOf(t.id) >= 0);
+}
+
+export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolean; sortable: boolean; showAlbum: boolean; from: string }): i32 {
   const list = props.tracks;
   const at = (i: i32): ipod.Track => { const l = list(); return i < l.length ? l[i] : NO_TRACK; };
   return <View className="grow flex-col min-h-0">
@@ -47,9 +56,14 @@ export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolea
     <VirtualList count={list().length} itemHeight={ROW_HEIGHT} className="grow min-h-0">
       {(i: i32) => <View className={`flex-row items-center px-6 gap-4 ${isSelected(at(i)) ? bg(SELECTED) : `hover:${bg(HOVER)} ${i % 2 === 1 ? bg(STRIPE) : ''}`}`} style={{ height: ROW_HEIGHT }}
         onPointerDown={(e: ui.PointerEvent) => {
-          if (at(i).id === '') return;
-          if (e.clicks === 2) playList(library() as PodLibrary, list(), i);
+          if (at(i).id === '' || e.button !== 0) return;
+          if (e.clicks === 2) playList(library() as PodLibrary, list(), i, props.from);
           else selectRow(list(), i, e.meta || e.ctrl, e.shift);
+        }}
+        onContextMenu={(e: ui.PointerEvent) => {
+          if (at(i).id === '') return;
+          if (selected().indexOf(at(i).id) < 0) selectRow(list(), i, false, false);
+          openTrackMenu(e, list(), i, menuTracks(list(), i), props.from);
         }}>
         {nowOn(at(i))
           ? <View className="w-[32] items-end"><Icon name={isPlaying() ? 'volume-2' : 'volume'} size={14} color={() => color(ACCENT)} strokeWidth={2} /></View>
