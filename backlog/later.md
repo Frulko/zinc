@@ -526,6 +526,7 @@ The next backlog review turns lines into tasks or deletes them.
 - consoles: `console host: host.assetsStat is not available on n3ds` (n3ds-platformer).
 
 ## Cross-platform pass
+- D178: the iPod daemon (examples/ipod-web) on a Raspberry Pi and a C.H.I.P.: build zinc:ipod's dependencies (glib, libplist, taglib, libusb) for armv6/armv7 with the pinned zig, serve a real iPod (an HFS+ one mounts read only: browse and stream only), stream to a Subsonic client on the LAN, and measure a hard-disk iPod's USB power on the C.H.I.P.'s host port (a powered hub if it browns out); it matters because that is what the daemon is for.
 
 - ZN-857: iPod audio fingerprints on Linux need a decoder (miniaudio of plugins/audio covers WAV, MP3, FLAC; AAC and ALAC need another); until then `analyze()` on Linux matches by tags and files only.
 - ZN-856: `zinc doc --serve` on Windows (the Winsock path is built, never run) and on Linux.
