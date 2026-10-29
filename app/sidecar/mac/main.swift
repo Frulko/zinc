@@ -283,7 +283,7 @@ var zones = [UInt8](), zw = 0, zh = 0   // per block of the frame: 1 turned, 2 o
 /** The blocks of the frame; the frame box whose blocks changed since the last frame (nil: none). */
 func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> (Int, Int, Int, Int)? {
     let w = (fw + 7) / 8, h = (fh + 7) / 8, n = w * h
-    var dark = [Bool](repeating: false, count: n), pic = [UInt8](repeating: 0, count: n)
+    var dark = [Bool](repeating: false, count: n), pic = [UInt8](repeating: 0, count: n), some = [Bool](repeating: false, count: n)
     tone.withUnsafeBufferPointer { t in
         for by in 0..<h { for bx in 0..<w {
             var c = 0, d = 0, grain = 0, y = by * 8
@@ -299,7 +299,7 @@ func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> 
             let i = by * w + bx
             // a picture has grain: a pixel and the next differ a little (1 to 24). The interface is flat fields (the same value) and the
             // steep edges of letters and lines; its greys, a dark mode's included, say nothing (a mid-grey test made a dark chat a photo)
-            dark[i] = d * 2 >= c; pic[i] = grain * 2 >= c ? 1 : 0
+            dark[i] = d * 2 >= c; pic[i] = grain * 2 >= c ? 1 : 0; some[i] = grain * 4 >= c
         } }
     }
     // a block is a picture when most of the 3 x 3 around it are: no lone block in a page of text, no hole in a face's dark hair
@@ -342,16 +342,49 @@ func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> 
             else if allTurned { for i in m { island[i] = true } }
         }
     }
+    // a picture's area is a photo or a graphic (a screenshot in a chat, a logo): most of a graphic is one flat value (its page, a field), and
+    // drawn as a photo its small letters came out half dotted, half ink, block by block. A graphic is drawn as the interface, a photo as one
+    var cand = (0..<n).map { photo[$0] || island[$0] }, seen = [Bool](repeating: false, count: n), stack: [Int] = [], graphic = [Bool](repeating: false, count: n)
+    for s in 0..<n where cand[s] && !seen[s] {
+        var m: [Int] = [], bins = [Int](repeating: 0, count: 33), total = 0, x0 = w, x1 = 0, y0 = h, y1 = 0
+        seen[s] = true; stack.append(s)
+        while let i = stack.popLast() {
+            m.append(i)
+            let x = i % w, y = i / w
+            x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y)
+            for dy in -1...1 { for dx in -1...1 where x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h {
+                let j = (y + dy) * w + x + dx
+                if cand[j] && !seen[j] { seen[j] = true; stack.append(j) }
+            } }
+        }
+        // over the component's whole box: the page between a screenshot's lines of text counts, the corners around a round avatar too
+        var yy = y0 * 8
+        while yy < min(fh, y1 * 8 + 8) { var xx = x0 * 8; while xx < min(fw, x1 * 8 + 8) { bins[Int(src[yy * bpr + xx]) >> 3] += 1; total += 1; xx += 2 }; yy += 2 }
+        var flat = 0
+        for b in 0..<32 { flat = max(flat, bins[b] + bins[b + 1]) }
+        // and a photo is at least 4 blocks both ways: a blurred word in a screenshot (its letters' soft edges are grain) is 2 or 3 high
+        let big = min(x1 - x0, y1 - y0) >= 3
+        for i in m { photo[i] = big && flat * 2 < total; graphic[i] = !photo[i] }
+    }
+    // the blocks around a photo that have some grain of their own are the photo's too (its rim: the blocks cut a round avatar into steps)
+    cand = photo
+    for i in 0..<n where !cand[i] && some[i] {
+        let x = i % w, y = i / w
+        for dy in -1...1 { for dx in -1...1 where x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h && cand[(y + dy) * w + x + dx] { photo[i] = true } }
+    }
     // a picture is never turned (a photo turned is its negative), whatever the area around it does
-    for i in 0..<n where photo[i] || island[i] { turn[i] = false; photo[i] = true }
     var z = [UInt8](repeating: 0, count: n)
     for i in 0..<n {
         let x = i % w, y = i / w
-        var edge = false
-        if invertMode == 1 && !photo[i] {
-            for dy in -1...1 { for dx in -1...1 where x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h && turn[(y + dy) * w + x + dx] != turn[i] { edge = true } }
-        }
-        z[i] = (turn[i] ? 1 : 0) | (edge ? 2 : 0) | (photo[i] ? 4 : 0)
+        var edge = false, turned = false, near = false   // near a graphic: its letters' ringing reaches a block further
+        for dy in -1...1 { for dx in -1...1 where x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h {
+            let j = (y + dy) * w + x + dx
+            near = near || graphic[j]
+            if photo[i] { if !photo[j] { edge = true; turned = turned || turn[j] } }
+            else if invertMode == 1 && turn[j] != turn[i] { edge = true }
+        } }
+        // a photo's border block: its flat pixels are the field around the photo, drawn as that field (turned when it is), see around()
+        z[i] = photo[i] ? 4 | (edge ? 2 : 0) | (turned ? 1 : 0) : (turn[i] ? 1 : 0) | (edge ? 2 : 0) | (near ? 8 : 0)
     }
     defer { zones = z; zw = w; zh = h }
     if w != zw || h != zh { return (0, 0, fw, fh) }
@@ -363,11 +396,17 @@ func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> 
 // a picture's own curve: the interface's (black and white points close together, gamma 1.6: bold letters) crushed a photo into blobs of
 // ink, and the edge pass drew black outlines inside it. A picture gets a gentle stretch (24 to 232 to the full range, its middle a little
 // lighter: the panel's dots read darker than their share) and no edges; the dither does the rest
+let graphicFloor = 28
 let photoTone: [UInt8] = (0..<256).map { v in UInt8((pow(max(0, min(1, (Double(v) - 24) / 208)), 0.85) * 255).rounded()) }
 /** How the pixel at (x, y) is drawn: turned (a dark area), and whether its area is a picture. */
 @inline(__always) func around(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ x: Int, _ y: Int) -> (turn: Bool, picture: Bool) {
     let k = zones[(y >> 3) * zw + (x >> 3)]
     var turn = k & 1 != 0
+    if k & 6 == 6 {   // a photo's border: a pixel flat over its 3 x 3 is the field around, not the photo
+        var lo = 255, hi = 0
+        for dy in -1...1 { let row = src + min(max(y + dy, 0), fh - 1) * bpr; for dx in -1...1 { let v = Int(row[min(max(x + dx, 0), fw - 1)]); lo = min(lo, v); hi = max(hi, v) } }
+        return hi - lo <= 3 ? (turn && src[y * bpr + x] < 128, false) : (false, true)
+    }
     if k & 2 != 0 {
         let l = src[y * bpr + x]
         var found = false, dy = -4   // something dark near a light pixel of a turned block, something light near a dark one of a kept block
@@ -388,8 +427,8 @@ var minBuf = [UInt8](repeating: 0, count: 0)
 var maxBuf = [UInt8](repeating: 255, count: 0)
 /** A pixel's grey after the edges: `rise` is how much lighter its lightest neighbour is. A line found that way is ink or paper, never a
  *  grey: dithered it came out dotted (a button's border, a separator, a dark mode's faint borders once turned). The shader's twin */
-@inline(__always) func line(_ v: Int, _ rise: Int) -> UInt8 {
-    let e = rise - edgeFloor
+@inline(__always) func line(_ v: Int, _ rise: Int, _ floor: Int) -> UInt8 {
+    let e = rise - floor
     if e <= 0 { return UInt8(v) }
     return v - e * edges < 228 ? 0 : 255
 }
@@ -425,12 +464,14 @@ func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (
             let mn = edges > 0 && invertMode != 0 ? n.baseAddress! + y * bw : nil
             for x in 0..<bw {
                 let (turn, picture) = around(src, bpr, fw, fh, b.0 + x, b.1 + y)
+                // a graphic (a screenshot, through JPEG): its ringing, a few levels around every letter, is not a line
+                let gr = zones[((b.1 + y) >> 3) * zw + ((b.0 + x) >> 3)] & 8 != 0, floor = gr ? max(edgeFloor, graphicFloor) : edgeFloor
                 if picture { d[x * step] = photoTone[Int(s[x])]; continue }
                 let v = turn ? 255 - Int(s[x]) : Int(s[x])
                 var o = Int(t[v])
                 var flat = false
-                if edges > 0 { let rise = (turn ? 255 - Int(mn![x]) : Int(mx[x])) - v; flat = rise <= edgeFloor; o = Int(line(o, rise)) }
-                if flat && !picture && v >= 150 && v <= (turn ? 195 : 235) { o = tint(v) }
+                if edges > 0 { let rise = (turn ? 255 - Int(mn![x]) : Int(mx[x])) - v; flat = rise <= edgeFloor; o = Int(line(o, rise, floor)) }
+                if flat && !picture && v >= 150 && v <= (turn ? 195 : gr ? 215 : 235) { o = tint(v) }   // a graphic's page is a little grey through JPEG
                 else if ditherKind == 3 && !picture { o = o < 128 ? 0 : 255 }
                 d[x * step] = UInt8(o)
             }
@@ -900,8 +941,16 @@ kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant in
       int l = int(round(src.read(uint2(fx, fy)).r * 255.0));
       const int k = zones[(fy >> 3) * p[16] + (fx >> 3)];   // around() on the CPU
       bool turn = (k & 1) != 0, picture = (k & 4) != 0;
+      if ((k & 6) == 6) {   // around() on the CPU: a photo's border, its flat pixels are the field around
+        int lo = 255, hi = 0;
+        for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+          const int q = int(round(src.read(uint2(clamp(fx + dx, 0, fw - 1), clamp(fy + dy, 0, fh - 1))).r * 255.0));
+          lo = min(lo, q); hi = max(hi, q);
+        }
+        picture = hi - lo > 3; turn = !picture && turn && l < 128;
+      }
       if (picture) { v = tone[256 + l]; grey[py * W + px] = uchar(v); if (v < int(thr[(py & 63) * 64 + (px & 63)])) out |= uchar(0x80 >> i); continue; }   // photoTone
-      if ((k & 2) != 0) {
+      else if ((k & 6) == 2) {
         bool found = false;
         for (int dy = -4; dy <= 4 && !found; dy += 2) for (int dx = -4; dx <= 4; dx += 2)
           if ((int(round(src.read(uint2(clamp(fx + dx, 0, fw - 1), clamp(fy + dy, 0, fh - 1))).r * 255.0)) < 128) == turn) { found = true; break; }
@@ -916,11 +965,11 @@ kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant in
           const int k = int(round(src.read(uint2(clamp(fx + dx, 0, fw - 1), clamp(fy + dy, 0, fh - 1))).r * 255.0));
           m = max(m, k); n = min(n, k);
         }
-        const int e = (turn ? 255 - n : m) - l - floor_;
+        const int r = (turn ? 255 - n : m) - l, e = r - ((k & 8) != 0 ? max(floor_, p[17]) : floor_);
         if (e > 0) v = v - e * edges < 228 ? 0 : 255;   // line() on the CPU: a line is ink or paper, never dotted
-        flat = e <= 0;
+        flat = r <= floor_;
       }
-      if (flat && !picture && l >= 150 && l <= (turn ? 195 : 235)) v = 175 + (l - 150) * 60 / 85;   // tint() on the CPU
+      if (flat && !picture && l >= 150 && l <= (turn ? 195 : (k & 8) != 0 ? 215 : 235)) v = 175 + (l - 150) * 60 / 85;   // tint() on the CPU
       else if (p[15] == 3 && !picture) v = v < 128 ? 0 : 255;
       grey[py * W + px] = uchar(v);
     }
@@ -951,7 +1000,7 @@ final class GPU {
         photoTone.withUnsafeBytes { (toneB.contents() + 256).copyMemory(from: $0.baseAddress!, byteCount: 256) }
         thr.withUnsafeBytes { thrB.contents().copyMemory(from: $0.baseAddress!, byteCount: 4096) }
         let r = region
-        var p: [Int32] = [W, H, stride, r.ox, r.oy, fw, fh, rotate, b.0 / 8, b.1, (b.2 + 7) / 8, b.3, edges, edgeFloor, invertMode, ditherKind, zw].map { Int32($0) }
+        var p: [Int32] = [W, H, stride, r.ox, r.oy, fw, fh, rotate, b.0 / 8, b.1, (b.2 + 7) / 8, b.3, edges, edgeFloor, invertMode, ditherKind, zw, graphicFloor].map { Int32($0) }
         guard let zb = zones.withUnsafeBytes({ q.device.makeBuffer(bytes: $0.baseAddress!, length: max(1, $0.count), options: .storageModeShared) }) else { return false }
         e.setComputePipelineState(pipe); e.setTexture(t, index: 0)
         e.setBytes(&p, length: p.count * 4, index: 0); e.setBuffer(toneB, offset: 0, index: 1); e.setBuffer(thrB, offset: 0, index: 2)
@@ -1111,9 +1160,12 @@ func gpuSelftest() -> Never {
 /** --render in.png out.png: the picture (fitted to the panel, upright) as the panel shows it while things move, through the CPU's path. */
 func renderPNG() -> Never {
     guard let s = CGImageSourceCreateWithURL(URL(fileURLWithPath: renderIO.0) as CFURL, nil), let im = CGImageSourceCreateImageAtIndex(s, 0, nil) else { print("render: cannot read \(renderIO.0)"); exit(1) }
-    let k = min(1, min(Double(W) / Double(im.width), Double(H) / Double(im.height)))
+    rotate = (im.width > im.height) != (W > H) ? 90 : 0   // a landscape frame on the portrait panel, turned as a live run does: 1:1, not shrunk
+    let (pw, ph) = rotate == 90 ? (H, W) : (W, H)
+    let k = min(1, min(Double(pw) / Double(im.width), Double(ph) / Double(im.height)))
     let fw = Int(Double(im.width) * k), fh = Int(Double(im.height) * k)
-    rotate = 0; region = ((W - fw) / 2 / 8 * 8, (H - fh) / 2, fw, fh)
+    let (qw, qh) = rotate == 90 ? (fh, fw) : (fw, fh)
+    region = ((W - qw) / 2 / 8 * 8, (H - qh) / 2, fw, fh)
     let c = CGContext(data: nil, width: fw, height: fh, bitsPerComponent: 8, bytesPerRow: fw, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
     c.interpolationQuality = .high; c.draw(im, in: CGRect(x: 0, y: 0, width: fw, height: fh))
     let src = c.data!.assumingMemoryBound(to: UInt8.self)
