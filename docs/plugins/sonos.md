@@ -8,7 +8,7 @@ plays, transport, volume, grouping, favorites, internet radio streams and events
   and adds nothing to a program that does not import it.
 - **Tests.** `tests/t1/sonos_plugin.sh` (every call below, on the interpreter and QuickJS), `tests/t1/music_tree_sonos.sh` and
   `tests/t1/ipod_sonos.sh`, against made-up speakers (`tests/data/sonos/stub_speaker.py`). **Examples.** `examples/music` (a wall
-  remote for Sonos and Spotify), `examples/ipod` (plays an iPod's songs on a Sonos group).
+  remote for Sonos and Spotify), `examples/ipod` (plays an iPod's songs on a Sonos group and follows it through `Events`, its song server taking the NOTIFY requests).
 - **Reference.** The names follow [SoCo](https://github.com/SoCo/SoCo) (`play_uri`, `add_uri_to_queue`...), in camelCase; what is
   done and what is left is the table of `docs/reports/sonos-soco-parity.md`.
 - **Reference.** The protocol side (services, actions, URI shapes) is in `docs/reports/sonos-upnp-api.md`.

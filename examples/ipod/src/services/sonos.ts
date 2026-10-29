@@ -1,11 +1,11 @@
 // Sonos as an output (zinc:sonos): the groups of the house, the one chosen, and the URLs a speaker fetches the iPod's songs from. A
 // local iPod's files are served by a small zinc:net server of this app on the LAN (a free port, a random token in every path, only the
 // tracks of the open iPod by their id: no path from the request reaches the disk); a remote iPod's files come straight from its daemon
-// (/api/file/<id>?token=). Only services/player.ts and the output picker call this file.
+// (/api/file/<id>?token=). The same server takes the speakers' events (zinc:sonos Events): the bar follows the group the moment it
+// changes, and polls only when the events do not come. Only services/player.ts and the output picker call this file.
 import { createSignal, batch } from 'zinc:ui/solid';
 import * as sonos from 'zinc:sonos';
 import * as net from 'zinc:net';
-import * as os from 'zinc:os';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import * as ipod from 'zinc:ipod';
@@ -37,6 +37,7 @@ export async function findSpeakers(): Promise<void> {
   const known = sys.env('IPOD_DEMO_SONOS') !== '' ? sys.env('IPOD_DEMO_SONOS') : config.sonosSeed;
   try {
     const found = await sonos.discover(known, 2000);
+    await unfollow();   // the events of the household found before
     house = found;
     const list: OutputChoice[] = [];
     for (const g of found.groups) list.push(new OutputChoice(g.id, g.name()));
@@ -72,27 +73,6 @@ let sharedMount = '';
 
 function hex(bytes: u8[]): string { let s = ''; for (const b of bytes) s += (b < 16 ? '0' : '') + (b as i32).toString(16); return s; }
 
-/** The four bytes of an IPv4 address, [] when it is not one. */
-function octets(a: string): i32[] {
-  const out: i32[] = [];
-  for (const x of a.split('.')) { const v = parseInt(x); if (isNaN(v) || v < 0 || v > 255) return []; out.push(v as i32); }
-  return out.length === 4 ? out : [];
-}
-/** This computer's address on the speaker's network (the interface whose subnet holds `speaker`), else its first LAN address. */
-export function addressFor(speaker: string): string {
-  const target = octets(speaker);
-  let first = '';
-  for (const nic of os.networkInterfaces()) {
-    if (nic.family !== 'IPv4') continue;
-    const a = octets(nic.address), m = octets(nic.netmask);
-    let same = a.length === 4 && m.length === 4 && target.length === 4;
-    for (let i = 0; same && i < 4; i++) same = (a[i] & m[i]) === (target[i] & m[i]);
-    if (same) return nic.address;
-    if (first === '' && !nic.internal) first = nic.address;
-  }
-  return first !== '' ? first : '127.0.0.1';
-}
-
 async function serveSong(req: net.Request): Promise<net.Reply> {
   const parts = req.path.split('?')[0].split('/');   // '', token, 'file' | 'cover', id
   const t = parts.length === 4 && parts[1] === token ? shared.get(decodeURIComponent(parts[3])) : undefined;
@@ -106,9 +86,17 @@ async function serveSong(req: net.Request): Promise<net.Reply> {
   return { status: 200, body: '', contentType: 'image/png', file: png };
 }
 
+/** The app's server for the speakers: the events first, then the songs. */
+async function serve(req: net.Request): Promise<net.Reply> {
+  const e = events;
+  if (e !== null) { const r = (e as sonos.Events).handleNotify(req); if (r !== null) return r as net.Reply; }
+  return serveSong(req);
+}
+function startServer(): void { if (port === 0) { token = hex(sys.randomBytes(16)); port = net.serveAsync(0, serve); } }
+
 /** Serves the open iPod's tracks (started the first time, the tracks replaced when another iPod is open). */
 function share(lib: PodLibrary): void {
-  if (port === 0) { token = hex(sys.randomBytes(16)); port = net.serveAsync(0, serveSong); }
+  startServer();
   if (sharedMount === lib.device.mountpoint && shared.size === lib.tracks.length) return;
   shared = new Map<string, ipod.Track>();
   for (const t of lib.tracks) shared.set(t.id, t);
@@ -118,7 +106,7 @@ function share(lib: PodLibrary): void {
 /** The tracks as songs the group fetches: from the daemon for a remote iPod, else from this app's server. */
 export function songsOf(lib: PodLibrary, g: sonos.Group, tracks: ipod.Track[]): sonos.Song[] {
   let base = '';
-  if (lib.remote === '') { share(lib); base = `http://${addressFor(g.coordinator.ip.split(':')[0])}:${port}/${token}`; }
+  if (lib.remote === '') { share(lib); base = `http://${sonos.localAddressFor(g.coordinator.ip)}:${port}/${token}`; }
   const out: sonos.Song[] = [];
   for (const t of tracks) {
     const s = new sonos.Song();
@@ -130,4 +118,36 @@ export function songsOf(lib: PodLibrary, g: sonos.Group, tracks: ipod.Track[]): 
     out.push(s);
   }
   return out;
+}
+
+// ---- the speakers' events
+
+let events: sonos.Events | null = null;
+let heard: i32 = 0;   // events received since follow
+
+/** Follows a group through its speakers' events, `changed` called with it after each one. False when the speakers refused. */
+export async function follow(g: sonos.Group, changed: (g: sonos.Group) => void): Promise<boolean> {
+  if (house === null) return false;
+  startServer();
+  if (events === null) {
+    const e = new sonos.Events(house as sonos.System, port);
+    e.onChange((grp: sonos.Group | null, ev: sonos.Event) => {
+      heard++;
+      const c = chosenGroup();
+      if (c !== null && (grp === null || grp === c)) changed(c as sonos.Group);
+    });
+    events = e;
+  }
+  heard = 0;
+  try { await (events as sonos.Events).watch(g); } catch (e) { await unfollow(); return false; }
+  return true;
+}
+/** True once an event of the group followed came in: until then (a firewall drops them) the player polls. */
+export function eventsHeard(): boolean { return events !== null && heard > 0; }
+
+/** Ends the subscriptions (another output, or another household). */
+export async function unfollow(): Promise<void> {
+  const e = events;
+  events = null;
+  if (e !== null) await (e as sonos.Events).close();
 }

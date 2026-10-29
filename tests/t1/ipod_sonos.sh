@@ -5,7 +5,7 @@
 # song. Checked in the speaker's log: the queue cleared, the song queued with the URL of the app's own server (a token in the path) and a
 # musicTrack DIDL carrying its title, artist and album, the queue played from its first entry; then, as a real speaker would, a GET of
 # that URL with a byte range answers 206 with the file's first bytes, the cover is a PNG, and a path out of the iPod or without the
-# token is a 404. No real speaker is contacted. Skipped (77) without the plugin's libraries. KEEP=dir keeps the shots and the logs.
+# token is a 404. The app subscribes the group's events on its own server and answers each NOTIFY. No real speaker is contacted. Skipped (77) without the plugin's libraries. KEEP=dir keeps the shots and the logs.
 cd "$(dirname "$0")/../.." || exit 2
 pkg-config --exists glib-2.0 gobject-2.0 libplist-2.0 taglib libusb-1.0 2>/dev/null || { echo "skipped: the libraries of zinc:ipod are not installed"; exit 77; }
 command -v python3 >/dev/null || exit 77
@@ -85,5 +85,7 @@ want '^fetch 206 bytes 0-3/32044 52494646$' 'ranged GET of the song (206, RIFF)'
 want '^cover 200 image/png [0-9]+' 'cover'
 want '^traversal 404$' '404 for a path out of the iPod'
 want '^no token 404$' '404 without the token'
+want '^SUBSCRIBE /MediaRenderer/AVTransport/Event <http://127\.0\.0\.1:[0-9]+/sonos-events> Second-1800$' 'subscription to the events'
+want '^NOTIFY /MediaRenderer/AVTransport/Event [1-9][0-9]* 200$' 'event of a change answered by the app'
 [ $fail = 0 ] && echo "ipod_sonos: ok"
 exit $fail

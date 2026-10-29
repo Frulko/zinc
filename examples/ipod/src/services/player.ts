@@ -1,7 +1,8 @@
 // Plays the tracks of the open iPod, on this computer or on a Sonos group (services/sonos.ts). Here: zinc:audio's Music, each file
 // read from the iPod as it plays, never copied (a remote iPod's file is first fetched into a cache, services/remote.ts). On Sonos: the
 // group's queue becomes the list from the track asked for, the speakers fetch the files over HTTP and go through the queue by
-// themselves; the bar follows the group, read once a second. A queue (the list a track was double-clicked in), play and pause,
+// themselves; the bar follows the group through the speakers' events (the position counted here between them, the group read every
+// 15 s), or reads it once a second when no event comes. A queue (the list a track was double-clicked in), play and pause,
 // previous and next, a position the bar shows and seeks in, and the Sonos group's volume. Read only: playing changes nothing on the
 // iPod (no play count is written).
 import { createSignal, batch } from 'zinc:ui/solid';
@@ -9,7 +10,7 @@ import { openMusic, Music } from 'zinc:audio';
 import * as ipod from 'zinc:ipod';
 import * as sonos from 'zinc:sonos';
 import { PodLibrary, playableFile } from './ipod';
-import { chosenGroup, system, songsOf, output, setOutput } from './sonos';
+import { chosenGroup, system, songsOf, output, setOutput, follow, unfollow, eventsHeard } from './sonos';
 
 export const [current, setCurrent] = createSignal<ipod.Track | null>(null);
 export const [isPlaying, setIsPlaying] = createSignal<boolean>(false);
@@ -20,7 +21,8 @@ export const [playError, setPlayError] = createSignal<string>('');
 export const [volume, setVolumeShown] = createSignal<i32>(-1);
 
 const TICK_MS = 250;          // how often the position is read while a track plays (nothing ticks when paused)
-const SONOS_POLL_MS = 1000;   // how often the Sonos group is read while it is the output
+const SONOS_POLL_MS = 1000;   // how often the Sonos group is read while it is the output and no event comes
+const SONOS_RESYNC_S = 15;    // with events: the group is still read this often, for the position (an event carries none)
 const SONOS_QUEUE_MAX = 200;  // songs queued on the group from the one asked for
 const RESTART_AFTER = 3;      // seconds: previous() past this restarts the track, as iTunes does
 
@@ -73,6 +75,7 @@ let sonosFrom: i32 = 0;            // the index in `queue` of the group's first 
 let sonosUrls: string[] = [];      // the URLs queued, to know the group still plays our queue
 let polling = false;
 let pollTimer: i32 = -1;
+let sinceRead = 0;     // seconds since the group was read
 
 async function loadOnSonos(i: i32): Promise<void> {
   const g = chosenGroup() as sonos.Group, house = system();
@@ -105,22 +108,39 @@ async function poll(): Promise<void> {
   try {
     const group = g as sonos.Group;
     await system().update(group);
-    const n = group.track.number - 1;
-    const ours = n >= 0 && n < sonosUrls.length && group.track.uri === sonosUrls[n];
-    batch(() => {
-      setVolumeShown(group.volume);
-      if (!ours) { if (current() !== null && !group.playing()) setIsPlaying(false); return; }
-      at = sonosFrom + n;
-      if (current() !== queue[at]) setCurrent(queue[at]);
-      setIsPlaying(group.playing());
-      setPosition(group.track.position);
-      setLength(group.track.duration > 0 ? group.track.duration : queue[at].durationMs / 1000);
-    });
+    sinceRead = 0;
+    show(group, true);
   } catch (e) { setPlayError((e as Error).message); }
   polling = false;
 }
-function startPolling(): void { if (pollTimer < 0) pollTimer = setInterval(() => { poll(); }, SONOS_POLL_MS); }
+/** Shows what the group plays; `withPosition` false (an event) keeps the position counted here unless the song changed. */
+function show(group: sonos.Group, withPosition: boolean): void {
+  const n = group.track.number - 1;
+  const ours = n >= 0 && n < sonosUrls.length && group.track.uri === sonosUrls[n];
+  batch(() => {
+    setVolumeShown(group.volume);
+    if (!ours) { if (current() !== null && !group.playing()) setIsPlaying(false); return; }
+    const moved = at !== sonosFrom + n;
+    at = sonosFrom + n;
+    if (current() !== queue[at]) setCurrent(queue[at]);
+    setIsPlaying(group.playing());
+    if (withPosition || moved) setPosition(group.track.position);
+    setLength(group.track.duration > 0 ? group.track.duration : queue[at].durationMs / 1000);
+  });
+}
+/** Once a second: with events, the position moves on here and the group is read every SONOS_RESYNC_S; without, it is read now. */
+function sonosTick(): void {
+  sinceRead++;
+  if (!eventsHeard() || sinceRead >= SONOS_RESYNC_S) { poll(); return; }
+  if (isPlaying() && current() !== null && position() + 1 <= length()) setPosition(position() + 1);
+}
+function startPolling(): void { if (pollTimer < 0) pollTimer = setInterval(sonosTick, SONOS_POLL_MS); }
 function stopPolling(): void { if (pollTimer >= 0) clearInterval(pollTimer); pollTimer = -1; }
+/** Subscribes the chosen group's events (sonosTick polls once a second until one comes). */
+async function followGroup(): Promise<void> {
+  const g = chosenGroup();
+  if (g !== null) await follow(g as sonos.Group, (grp: sonos.Group) => show(grp, false));
+}
 
 async function onGroup(what: (g: sonos.Group) => Promise<void>): Promise<void> {
   const g = chosenGroup();
@@ -139,7 +159,7 @@ export async function chooseOutput(id: string): Promise<void> {
   if (before !== null && isPlaying()) { try { await system().pause(before as sonos.Group); } catch (e) { /* gone: nothing to stop */ } }
   setOutput(id);
   setVolumeShown(-1);
-  if (id === '') stopPolling(); else { startPolling(); poll(); }
+  if (id === '') { stopPolling(); unfollow(); } else { startPolling(); poll(); followGroup(); }
   if (resume >= 0) await load(resume);
 }
 
