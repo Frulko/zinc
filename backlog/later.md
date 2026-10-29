@@ -8,6 +8,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-852: `n.toString(r)` with r outside 2..36 throws no RangeError as in JavaScript (it returns digits).
 - ZN-852: `p.then(onFulfilled, onRejected)` with two arguments is refused (Z0104); JavaScript allows it.
 - ZN-852: a generic Promise<void> converted to PromiseV settles one microtask later than Node; and `await fail<void>()` used as a value has the type `__Void`, which can show in messages. Merging Promise and PromiseV would remove both.
+- ZN-853: zinc:audio's Music position counts the frames the mixer pulled (up to a block ahead); read the sound's own cursor for an exact one if a karaoke or a lyrics view needs it.
+- ZN-853: zinc:audio's Music on the web environment (an audio element) and in the Zinc stand-in beyond a fixed 180 s; zinc:video plays no sound yet (its follow-up in docs/plugins/video.md).
 - ZN-853: libgpod prints GLib warnings (an unknown smart-playlist action) on stderr; route them to the plugin's log, and keep unknown smart rules intact (checked on a real iPod written by iOpenPod/Finder).
 - ZN-851: the loader's memo of a failed plugin build lives for the process; a long-lived compiler (zinc dev, the LSP) that must retry a fixed plugin clears it per compile.
 - ZN-850: records decoded straight into the class (no Dyn tree) and a typed encoder instead of the generic one; and the plugins' hand-made worker threads moved to runtime/zrt_jobs.h (gphoto2, video, sqlite...).

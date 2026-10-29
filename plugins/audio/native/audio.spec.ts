@@ -63,6 +63,20 @@ export interface Spec extends NativeModule {
   streamInfo(stream: i32): f64[];
   streamSetVolume(stream: i32, volume: f64): void;
   streamClose(stream: i32): void;
+  /** A music: the file at `path` played as it is read (a song, an audiobook), never decoded whole. AAC, ALAC, MP3, WAV and AIFF on
+   *  Apple systems (AudioToolbox), WAV, FLAC, MP3 and Ogg Vorbis elsewhere. The file opens in the background: musicInfo() says when.
+   *  A music handle, or -1 (see error()). */
+  musicOpen(path: string): i32;
+  /** Plays (true) or pauses (false); asked while the file opens, it starts once it is open; at the end, it plays again from the start. */
+  musicPlay(music: i32, on: boolean): void;
+  /** Moves to `seconds` into the file. */
+  musicSeek(music: i32, seconds: f64): void;
+  /** [position in seconds, duration in seconds, 1 while it plays, status: 0 opening, 1 open, 2 ended, -1 failed (musicError())]. */
+  musicInfo(music: i32): f64[];
+  musicError(music: i32): string;
+  musicSetVolume(music: i32, volume: f64): void;
+  /** Stops it and closes the file. */
+  musicClose(music: i32): void;
   /** Volume of the whole mix. */
   setMasterVolume(volume: f64): void;
   /** Null backend only: renders the next `frames` frames of the mix (stereo, interleaved, 1 = full scale) and moves

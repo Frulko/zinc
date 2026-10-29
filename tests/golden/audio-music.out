@@ -1,0 +1,7 @@
+ready true duration 2.00 error ''
+played: sound true position true playing true
+paused: silent true position kept true playing false
+seek: sound true position true
+end: ended true playing false position 2.00
+again: position true playing true
+missing: ready false error true

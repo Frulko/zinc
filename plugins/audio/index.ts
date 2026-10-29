@@ -120,6 +120,39 @@ export function stream(channels: i32 = 1, rate: i32 = 48000): AudioStream {
   return new AudioStream(h, channels, rate);
 }
 
+/** A file played as it is read (a song, an audiobook), never decoded whole: see openMusic(). */
+export class Music {
+  private h: i32;
+  private vol: number = 1;
+  readonly path: string;
+  constructor(h: i32, path: string) { this.h = h; this.path = path; }
+  /** Plays from where it is (from the start once it ended); asked while the file opens, it starts once it is open. */
+  play(): void { if (this.h >= 0) A.musicPlay(this.h, true); }
+  pause(): void { if (this.h >= 0) A.musicPlay(this.h, false); }
+  /** Moves to `seconds` into the file. */
+  seek(seconds: number): void { if (this.h >= 0) A.musicSeek(this.h, seconds); }
+  /** Seconds played, and the length of the file (0 until it is open). */
+  get position(): number { return this.h < 0 ? 0 : A.musicInfo(this.h)[0]; }
+  get duration(): number { return this.h < 0 ? 0 : A.musicInfo(this.h)[1]; }
+  get playing(): boolean { return this.h >= 0 && A.musicInfo(this.h)[2] === 1; }
+  /** Played to its end. */
+  get ended(): boolean { return this.h >= 0 && A.musicInfo(this.h)[3] === 2; }
+  /** False while the file opens; also false when it could not be opened (error says why). */
+  get ready(): boolean { return this.h >= 0 && A.musicInfo(this.h)[3] >= 1; }
+  /** Why it is silent: '' while all is well. */
+  get error(): string {
+    if (this.h < 0) return `${this.path}: ${A.error()}`;
+    return A.musicInfo(this.h)[3] === -1 ? A.musicError(this.h) : '';
+  }
+  get volume(): number { return this.vol; }
+  set volume(v: number) { this.vol = level(v); if (this.h >= 0) A.musicSetVolume(this.h, this.vol); }
+  /** Stops it and closes the file. */
+  close(): void { if (this.h >= 0) { A.musicClose(this.h); this.h = -1; } }
+}
+/** The file at `path` (a path on disk, not an asset) as a Music, paused: AAC, ALAC, MP3, WAV and AIFF on macOS and iOS (AudioToolbox),
+ *  WAV, FLAC, MP3 and Ogg Vorbis elsewhere. It is read a few seconds ahead as it plays; four are open at most. */
+export function openMusic(path: string): Music { return new Music(A.musicOpen(path), path); }
+
 let master: number = 1;
 /** Volume of everything that plays: 1 by default, 0 mutes. */
 export function setVolume(v: number): void { master = level(v); A.setMasterVolume(master); }

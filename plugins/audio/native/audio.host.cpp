@@ -4,6 +4,9 @@
 // run is silent, starts no thread and renders the same samples every time.
 #include "zinc_native_audio.h"
 #include "../vendor/miniaudio.h"
+#ifdef __APPLE__
+#include <AudioToolbox/ExtendedAudioFile.h>
+#endif
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -98,6 +101,156 @@ ma_result ds_length(ma_data_source*, ma_uint64* l) { if (l) *l = 0; return MA_NO
 ma_data_source_vtable stream_vtable = {ds_read, ds_seek, ds_format, ds_cursor, ds_length, nullptr, 0};
 Stream* stream_at(int32_t h) { return h >= 0 && h < MAXSTREAM && streams[h].used ? &streams[h] : nullptr; }
 
+// Music: a file played as it is read (ZN-440's streaming, for a song or an audiobook: never decoded whole). A thread per music
+// decodes the file into a ring of RING seconds at the mixer's format (48 kHz stereo float); the mixer reads the ring through a
+// data source, and plays silence when the thread falls behind (a disk waking up) instead of waiting. On Apple systems the file
+// is read by AudioToolbox's ExtAudioFile (AAC, ALAC, MP3, WAV, AIFF: what an iPod or iTunes holds), elsewhere by miniaudio's
+// decoders (WAV, FLAC, MP3, Ogg Vorbis). The file is opened on that thread too: a sleeping iPod disk takes a second to answer.
+const int MAXMUSIC = 4;
+const double RING = 2.0;
+struct Music {
+  ma_data_source_base base;   // first: miniaudio sees the music as a data source
+  ma_sound sound;
+  bool used, soundOn;
+  char path[1024];
+  pthread_t th;
+  pthread_mutex_t mu;
+  pthread_cond_t cv;
+  float* buf;                 // a ring of cap frames (stereo)
+  size_t cap, head, count;
+  volatile int status;        // 0 opening, 1 open, -1 failed (why: err)
+  volatile bool quit, eof, wantPlay;
+  double seekTo;              // -1: none asked
+  double duration, startAt;   // startAt: where the ring starts in the file, in seconds
+  uint64_t played;            // frames read by the mixer since base
+  char err[200];
+#ifdef __APPLE__
+  ExtAudioFileRef xf;
+  double fileRate;
+#else
+  ma_decoder dec;
+#endif
+};
+Music musics[MAXMUSIC];
+Music* music_at(int32_t h) { return h >= 0 && h < MAXMUSIC && musics[h].used ? &musics[h] : nullptr; }
+
+ma_result music_read(ma_data_source* ds, void* out, ma_uint64 frames, ma_uint64* read) {
+  Music* m = (Music*)ds;
+  float* o = (float*)out;
+  size_t n = 0;
+  bool end = false;
+  if (pthread_mutex_trylock(&m->mu) == 0) {   // the mixer never waits: a busy ring plays silence for this block
+    n = frames < m->count ? (size_t)frames : m->count;
+    for (size_t i = 0; i < n; i++) { const size_t k = (m->head + i) % m->cap; o[i * 2] = m->buf[k * 2]; o[i * 2 + 1] = m->buf[k * 2 + 1]; }
+    m->head = (m->head + n) % m->cap; m->count -= n; m->played += n;
+    end = m->eof && m->count == 0 && m->seekTo < 0;
+    pthread_mutex_unlock(&m->mu);
+    pthread_cond_signal(&m->cv);
+  }
+  memset(o + n * 2, 0, (size_t)(frames - n) * 2 * sizeof(float));
+  if (read) *read = end && n == 0 ? 0 : frames;
+  return end && n == 0 ? MA_AT_END : MA_SUCCESS;
+}
+ma_result music_seek(ma_data_source*, ma_uint64) { return MA_SUCCESS; }
+ma_result music_format(ma_data_source*, ma_format* f, ma_uint32* ch, ma_uint32* rate, ma_channel* map, size_t cap) {
+  if (f) *f = ma_format_f32;
+  if (ch) *ch = 2;
+  if (rate) *rate = RATE;
+  if (map) ma_channel_map_init_standard(ma_standard_channel_map_default, map, cap, 2);
+  return MA_SUCCESS;
+}
+ma_data_source_vtable music_vtable = {music_read, music_seek, music_format, ds_cursor, ds_length, nullptr, 0};
+
+bool music_open_file(Music& m) {
+#ifdef __APPLE__
+  CFURLRef url = CFURLCreateFromFileSystemRepresentation(nullptr, (const UInt8*)m.path, (CFIndex)strlen(m.path), false);
+  OSStatus s = url ? ExtAudioFileOpenURL(url, &m.xf) : -1;
+  if (url) CFRelease(url);
+  if (s != noErr) { snprintf(m.err, sizeof m.err, "%s: not a file AudioToolbox can play (error %d)", m.path, (int)s); return false; }
+  AudioStreamBasicDescription in{}, want{};
+  UInt32 sz = sizeof in;
+  SInt64 len = 0;
+  ExtAudioFileGetProperty(m.xf, kExtAudioFileProperty_FileDataFormat, &sz, &in);
+  sz = sizeof len;
+  ExtAudioFileGetProperty(m.xf, kExtAudioFileProperty_FileLengthFrames, &sz, &len);
+  m.fileRate = in.mSampleRate > 0 ? in.mSampleRate : RATE;
+  m.duration = (double)len / m.fileRate;
+  want.mSampleRate = RATE; want.mFormatID = kAudioFormatLinearPCM; want.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
+  want.mChannelsPerFrame = 2; want.mBitsPerChannel = 32; want.mFramesPerPacket = 1; want.mBytesPerFrame = 8; want.mBytesPerPacket = 8;
+  if (ExtAudioFileSetProperty(m.xf, kExtAudioFileProperty_ClientDataFormat, sizeof want, &want) != noErr) {
+    ExtAudioFileDispose(m.xf);
+    snprintf(m.err, sizeof m.err, "%s: cannot be converted to 48 kHz stereo", m.path);
+    return false;
+  }
+  return true;
+#else
+  ma_decoder_config dc = ma_decoder_config_init(ma_format_f32, 2, RATE);
+  if (ma_decoder_init_file(m.path, &dc, &m.dec) != MA_SUCCESS) { snprintf(m.err, sizeof m.err, "%s: not a WAV, FLAC, MP3 or Ogg Vorbis file", m.path); return false; }
+  ma_uint64 len = 0;
+  ma_decoder_get_length_in_pcm_frames(&m.dec, &len);
+  m.duration = (double)len / RATE;
+  return true;
+#endif
+}
+size_t music_decode(Music& m, float* out, size_t frames) {
+#ifdef __APPLE__
+  AudioBufferList bl;
+  bl.mNumberBuffers = 1;
+  bl.mBuffers[0].mNumberChannels = 2; bl.mBuffers[0].mDataByteSize = (UInt32)(frames * 8); bl.mBuffers[0].mData = out;
+  UInt32 n = (UInt32)frames;
+  return ExtAudioFileRead(m.xf, &n, &bl) == noErr ? n : 0;
+#else
+  ma_uint64 n = 0;
+  ma_decoder_read_pcm_frames(&m.dec, out, frames, &n);
+  return (size_t)n;
+#endif
+}
+void music_file_seek(Music& m, double sec) {
+#ifdef __APPLE__
+  ExtAudioFileSeek(m.xf, (SInt64)(sec * m.fileRate));
+#else
+  ma_decoder_seek_to_pcm_frame(&m.dec, (ma_uint64)(sec * RATE));
+#endif
+}
+void music_close_file(Music& m) {
+#ifdef __APPLE__
+  ExtAudioFileDispose(m.xf);
+#else
+  ma_decoder_uninit(&m.dec);
+#endif
+}
+void* music_thread(void* p) {
+  Music& m = *(Music*)p;
+  const bool ok = music_open_file(m);
+  pthread_mutex_lock(&m.mu);
+  m.status = ok ? 1 : -1;
+  if (ok && m.wantPlay) ma_sound_start(&m.sound);
+  pthread_mutex_unlock(&m.mu);
+  if (!ok) return nullptr;
+  const size_t CHUNK = 4096;
+  float* tmp = (float*)ma_malloc(CHUNK * 2 * sizeof(float), nullptr);
+  while (tmp) {
+    pthread_mutex_lock(&m.mu);
+    while (!m.quit && m.seekTo < 0 && (m.eof || m.cap - m.count < CHUNK)) pthread_cond_wait(&m.cv, &m.mu);
+    if (m.quit) { pthread_mutex_unlock(&m.mu); break; }
+    double seek = m.seekTo;
+    if (seek >= 0) { m.head = m.count = 0; m.played = 0; m.startAt = seek; m.eof = false; m.seekTo = -1; }
+    pthread_mutex_unlock(&m.mu);
+    if (seek >= 0) music_file_seek(m, seek);
+    const size_t n = music_decode(m, tmp, CHUNK);   // unlocked: the mixer reads on meanwhile
+    pthread_mutex_lock(&m.mu);
+    if (m.seekTo < 0) {   // a seek asked during the read drops it
+      for (size_t i = 0; i < n; i++) { const size_t k = (m.head + m.count + i) % m.cap; m.buf[k * 2] = tmp[i * 2]; m.buf[k * 2 + 1] = tmp[i * 2 + 1]; }
+      m.count += n;
+      if (n == 0) m.eof = true;
+    }
+    pthread_mutex_unlock(&m.mu);
+  }
+  ma_free(tmp, nullptr);
+  music_close_file(m);
+  return nullptr;
+}
+
 // The next frames of the mix. The engine's clock, which time() and the delays count on, stands still while no sound is in
 // the graph: it is moved by hand over that silence.
 void render(void* out, ma_uint32 frames) {
@@ -124,11 +277,27 @@ bool output() {
   if (opening) { pthread_join(opener, nullptr); opening = false; }
   return playing_out;
 }
+void close_music(int32_t h) {
+  Music* m = music_at(h);
+  if (!m) return;
+  pthread_mutex_lock(&m->mu);
+  m->quit = true;
+  pthread_mutex_unlock(&m->mu);
+  pthread_cond_signal(&m->cv);
+  pthread_join(m->th, nullptr);
+  if (m->soundOn) ma_sound_uninit(&m->sound);   // leaves the mix before its ring goes
+  ma_data_source_uninit(&m->base);
+  ma_free(m->buf, nullptr);
+  pthread_mutex_destroy(&m->mu);
+  pthread_cond_destroy(&m->cv);
+  m->used = false;
+}
 void shutdown() {   // the device stops with the program instead of being cut by the system
   if (!opened) return;
   if (output()) ma_device_uninit(&dev);
   for (Voice& v : voices) release(v);
   for (Stream& s : streams) if (s.used) { ma_sound_uninit(&s.sound); s.used = false; }
+  for (int32_t h = 0; h < MAXMUSIC; h++) close_music(h);
   ma_engine_uninit(&eng);
   opened = false;
 }
@@ -346,6 +515,74 @@ struct HostAudio : NativeAudio {
     pthread_mutex_destroy(&s->mu);
     s->used = false;
   }
+  int32_t musicOpen(zrt::String path) override {
+    ma_engine* e = engine();
+    if (!e) return fail("no mixer");
+    if (path.bytes() == 0 || path.bytes() >= sizeof(musics[0].path)) return fail("no file, or a path too long");
+    int32_t h = 0;
+    while (h < MAXMUSIC && musics[h].used) h++;
+    if (h == MAXMUSIC) return fail("too many musics open (4): close() the ones no longer played");
+    Music& m = musics[h];
+    memset(m.path, 0, sizeof m.path);
+    memcpy(m.path, path.ptr(), path.bytes());
+    m.cap = (size_t)(RING * RATE);
+    m.buf = (float*)ma_malloc(m.cap * 2 * sizeof(float), nullptr);
+    if (!m.buf) return fail("out of memory");
+    m.head = m.count = 0; m.played = 0; m.startAt = 0; m.duration = 0; m.seekTo = -1;
+    m.status = 0; m.quit = m.eof = m.wantPlay = false; m.err[0] = 0;
+    pthread_mutex_init(&m.mu, nullptr);
+    pthread_cond_init(&m.cv, nullptr);
+    ma_data_source_config dc = ma_data_source_config_init();
+    dc.vtable = &music_vtable;
+    m.soundOn = ma_data_source_init(&dc, &m.base) == MA_SUCCESS && ma_sound_init_from_data_source(e, &m.base, MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH, nullptr, &m.sound) == MA_SUCCESS;
+    if (!m.soundOn || pthread_create(&m.th, nullptr, music_thread, &m) != 0) {
+      if (m.soundOn) ma_sound_uninit(&m.sound);
+      ma_free(m.buf, nullptr);
+      return fail("the music cannot start");
+    }
+    m.used = true;
+    return h;
+  }
+  void musicPlay(int32_t h, bool on) override {
+    Music* m = music_at(h);
+    if (!m) return;
+    pthread_mutex_lock(&m->mu);
+    m->wantPlay = on;
+    if (m->status == 1) {
+      if (on && m->eof && m->count == 0 && m->seekTo < 0) { m->seekTo = 0; pthread_cond_signal(&m->cv); }   // played to its end: again from the start
+      if (on) ma_sound_start(&m->sound); else ma_sound_stop(&m->sound);
+    }
+    pthread_mutex_unlock(&m->mu);
+  }
+  void musicSeek(int32_t h, double seconds) override {
+    Music* m = music_at(h);
+    if (!m) return;
+    pthread_mutex_lock(&m->mu);
+    m->seekTo = seconds > 0 ? (m->duration > 0 && seconds > m->duration ? m->duration : seconds) : 0;
+    m->head = m->count = 0;   // what was decoded for before the seek is not heard
+    pthread_mutex_unlock(&m->mu);
+    pthread_cond_signal(&m->cv);
+  }
+  zrt::Array<double> musicInfo(int32_t h) override {
+    Music* m = music_at(h);
+    double v[4] = {0, 0, 0, -1};
+    if (m) {
+      pthread_mutex_lock(&m->mu);
+      v[0] = m->seekTo >= 0 ? m->seekTo : m->startAt + (double)m->played / RATE;
+      if (m->duration > 0 && v[0] > m->duration) v[0] = m->duration;
+      v[1] = m->duration;
+      v[2] = m->wantPlay && m->status == 1 && !(m->eof && m->count == 0 && m->seekTo < 0) ? 1 : 0;
+      v[3] = m->status == 1 && m->eof && m->count == 0 && m->seekTo < 0 ? 2 : m->status;
+      pthread_mutex_unlock(&m->mu);
+    }
+    zrt::Array<double> r = zrt::Array<double>::with_cap(4);
+    memcpy(r.a->data, v, sizeof v);
+    r.a->len = 4;
+    return r;
+  }
+  zrt::String musicError(int32_t h) override { Music* m = music_at(h); return str(m ? m->err : "no such music"); }
+  void musicSetVolume(int32_t h, double volume) override { if (Music* m = music_at(h)) ma_sound_set_volume(&m->sound, (float)volume); }
+  void musicClose(int32_t h) override { close_music(h); }
   double time() override { return opened ? (double)ma_engine_get_time_in_pcm_frames(&eng) / RATE : 0; }
   void setMasterVolume(double volume) override { if (ma_engine* e = engine()) ma_engine_set_volume(e, (float)volume); }
   zrt::Array<double> mix(int32_t frames) override {

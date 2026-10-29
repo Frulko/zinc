@@ -5,7 +5,7 @@
   "entry": "index.ts",
   "description": "Sound effects and music: WAV, FLAC, MP3 and Ogg Vorbis sounds mixed by miniaudio 0.11.25 (public domain), generated tones, volume, loops; silent when headless",
   "targets": {
-    "macos": { "sources": ["vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"] },
+    "macos": { "sources": ["vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "frameworks": ["AudioToolbox", "CoreFoundation"] },
     "linux": { "sources": ["vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "libs": ["m", "dl"], "linkFlags": ["-pthread"] },
     "ios": { "sources": ["native/miniaudio.ios.m"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "frameworks": ["AudioToolbox", "AVFoundation", "CoreAudio"] },
     "windows": { "sources": ["vendor/miniaudio_impl.c"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"] }
