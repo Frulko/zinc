@@ -25,15 +25,18 @@ function layoutStatus(): string {
   return `UI Sync actif · ${c.layoutId !== undefined ? c.layoutId.slice(0, 8) : 'choix reçu'}${c.paletteId !== undefined ? ' · ' + c.paletteId : ''}`;
 }
 export function VehicleDashboard(props: { nightMode: boolean }): i32 {
-  return <View className={props.nightMode ? 'grow flex-col bg-slate-950 p-6 gap-4' : 'grow flex-col bg-slate-100 p-6 gap-4'}>
+  // shortcut: Cobranded uses a solid dynamicColor wallpaper; load verified assets before supporting other layouts.
+  const ink = props.nightMode ? 'text-white' : 'text-[#0b1b17]';
+  const muted = props.nightMode ? 'text-[#d7e3db]' : 'text-slate-600';
+  return <View className={props.nightMode ? 'grow flex-col bg-black p-6 gap-4' : 'grow flex-col bg-[#f2f2f2] p-6 gap-4'}>
     <View className="flex-row items-center gap-4">
       <View className="flex-col"><Text className={props.nightMode ? 'text-amber-200 text-xl' : 'text-amber-800 text-xl'}>TABLEAU DE BORD · COMPOSITION LOCALE</Text><Text className={props.nightMode ? 'text-slate-400 text-xs' : 'text-slate-600 text-xs'}>{layoutStatus()}</Text></View>
       <View className="grow"></View><Text className={props.nightMode ? 'text-slate-400 text-xs' : 'text-slate-600 text-xs'}>{clusterStatus()}</Text>
     </View>
     <View className="grow h-0 flex-row items-center gap-4">
-      <View className="grow w-0 h-full flex-col items-center justify-center gap-3 bg-slate-900 rounded p-5"><Text className="text-cyan-200 text-5xl font-bold">{`${vehicle().speedKph}`}</Text><Text className="text-slate-400">km/h</Text><Text className="text-slate-400">Vitesse · zone gauche</Text></View>
-      <View className="grow w-0 h-full flex-col gap-2"><Canvas className="grow h-0 bg-slate-900 rounded" onDraw={Cluster}></Canvas><Text className={props.nightMode ? 'text-slate-400 text-xs' : 'text-slate-600 text-xs'}>Navigation projetée · zone centrale</Text></View>
-      <View className="grow w-0 h-full flex-col items-center justify-center gap-3 bg-slate-900 rounded p-5"><Text className="text-white text-5xl font-bold">{`${vehicle().rpm}`}</Text><Text className="text-slate-400">tr/min</Text><Text className="text-amber-200 text-2xl">{vehicle().gear}</Text><Text className="text-slate-400">{`Carburant ${vehicle().fuelPct}%`}</Text></View>
+      <View className="grow w-0 h-full flex-col items-center justify-center gap-3 p-5"><Text className={`text-5xl font-bold ${ink}`}>{`${vehicle().speedKph}`}</Text><Text className={muted}>km/h</Text><Text className={muted}>Vitesse · zone gauche</Text></View>
+      <View className="grow w-0 h-full flex-col justify-center gap-2 py-10"><Canvas className="grow h-0 bg-black" onDraw={Cluster}></Canvas><Text className={props.nightMode ? 'text-[#d7e3db] text-xs' : 'text-slate-600 text-xs'}>Navigation projetée · zone centrale</Text></View>
+      <View className="grow w-0 h-full flex-col items-center justify-center gap-3 p-5"><Text className={`text-5xl font-bold ${ink}`}>{`${vehicle().rpm}`}</Text><Text className={muted}>tr/min</Text><Text className="text-amber-500 text-2xl">{vehicle().gear}</Text><Text className={muted}>{`Carburant ${vehicle().fuelPct}%`}</Text></View>
     </View>
     <View className="flex-row items-center gap-3">
       <Button className="bg-slate-700 rounded px-4 py-2" onClick={() => applyVehicle(live, { speedKph: 0, rpm: 0, gear: 'P', fuelPct: 68, climateOn: vehicle().climateOn, targetCelsius: vehicle().targetCelsius })}><Text className="text-white">Arrêt</Text></Button>

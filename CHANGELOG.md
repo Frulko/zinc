@@ -107,6 +107,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- The experimental CarPlay Ultra theme now advertises its two 1920×720 displays instead of the classic 1280×720 and 960×360 sizes. The Mac Cobranded dashboard uses the theme's day/night solid wallpaper colors.
 - CarPlay external GPS identification includes the required vehicle information component, and changing navigation apps clears the previous app’s cached maneuver. The HUD now shows when a navigation app such as Waze reports that it supplies no iAP2 guidance.
 - The Linux CarPlay Bluetooth bridge connects through a standard RFCOMM socket, fixing repeated `File descriptor in bad state` failures with PyBluez on the Pi.
 - Wireless CarPlay startup reports authentication, Wi-Fi handoff and session control milestones at INFO level, while repeated telemetry stays at DEBUG.

@@ -225,3 +225,13 @@ Day/Night retransmission are validated locally only. The Pi service is stopped
 after the probe. The composed Mac dashboard is a local simulation of the
 theme's three principal zones; it is not a pixel-accurate render of Apple
 assets, and the phone has not yet confirmed synchronized appearance on screen.
+
+The next live session exposed a geometry mismatch: `/info` named the theme's
+`Center_Display` and `Cluster_Display` but advertised 1280×720 and 960×360.
+The theme's `package.json` defines **1920×720 for both**, at density 157. The
+experimental profile now uses those pixel sizes and approximate 311×117 mm
+physical sizes, without applying the classic UI-scale override. The Cobranded
+layout's only wallpaper is `dynamicColor`, black in dark mode and `#f2f2f2`
+in light mode; the Mac simulator now uses those colors. It still does not
+render the package's Core Animation assets, so full themed wallpaper and
+gauge composition remain open under criterion #4.

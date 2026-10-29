@@ -40,6 +40,8 @@ with tempfile.TemporaryDirectory(prefix='carplay-usb-prepare-') as temporary:
     assert 'ZINC_CARPLAY_WIFI_PASSPHRASE' in server_config.read_text()
     assert '"ultraGauge" ->' in server.read_text(), 'Ultra gauge WebSocket command missing'
     assert 'ultraUiSync = System.getenv("ZINC_CARPLAY_ULTRA_UI_SYNC") == "1" && UltraTheme.enabled()' in server.read_text()
+    assert 'main = if (UltraTheme.enabled()) AirPlayDisplayConfig(' in server.read_text()
+    assert 'heightPixels = if (UltraTheme.enabled()) UltraTheme.displayHeightPixels else ClusterDimensions.height' in server.read_text()
     assert 'themeAssetIdentifier' in identification.read_text()
     assert 'Cluster_Display' in theme.read_text()
     assert '"uiSync" in offered' in session.read_text()

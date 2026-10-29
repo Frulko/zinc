@@ -16,10 +16,18 @@ class UltraThemeAdvertisementTest {
             base.copy(wireless = Iap2WirelessIdentification("02:00:00:00:00:01", "PlayPort")))).group(24).string(6))
 
         val info = AirPlayInfoPlist.build(AirPlayConfig("PlayPort", "02:00:00:00:00:02", "02:00:00:00:00:02", "366.0",
-            AirPlayDisplayConfig(1280, 720), cluster = AirPlayDisplayConfig(960, 360),
+            AirPlayDisplayConfig(UltraTheme.displayWidthPixels, UltraTheme.displayHeightPixels,
+                UltraTheme.displayWidthMm, UltraTheme.displayHeightMm),
+            cluster = AirPlayDisplayConfig(UltraTheme.displayWidthPixels, UltraTheme.displayHeightPixels,
+                UltraTheme.displayWidthMm, UltraTheme.displayHeightMm),
             mainDisplayId = "Center_Display", clusterDisplayId = "Cluster_Display"))
         val displays = info["displays"] as List<*>
         assertEquals(listOf("Center_Display", "Cluster_Display"), displays.map { (it as Map<*, *>)["uuid"] })
+        // The catalog theme's zones and wallpaper are authored on two 1920 × 720 canvases.
+        assertEquals(listOf(1920 to 720, 1920 to 720), displays.map {
+            val display = it as Map<*, *>
+            (display["widthPixels"] as Int) to (display["heightPixels"] as Int)
+        })
         val panels = UltraUiSync.displayPanels(displays)
         assertEquals(listOf("Center_Display", "Cluster_Display"), panels.map { it["uid"] })
         assertEquals("Cluster_Display", ((panels[1]["displayPlugins"] as List<*>)[0] as Map<*, *>)["uid"])

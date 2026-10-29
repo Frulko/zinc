@@ -82,8 +82,16 @@ t=t.replace('        val session = activeSession ?: return', '''        if (mess
             return
         }
         val session = activeSession ?: return''')
+t=t.replace('            main = com.shilapi.xcertplay.airplay.CarPlayUiScale.apply(', '''            main = if (UltraTheme.enabled()) AirPlayDisplayConfig(
+                widthPixels = UltraTheme.displayWidthPixels, heightPixels = UltraTheme.displayHeightPixels,
+                widthPhysicalMm = UltraTheme.displayWidthMm, heightPhysicalMm = UltraTheme.displayHeightMm,
+                fps = display.fps,
+            ) else com.shilapi.xcertplay.airplay.CarPlayUiScale.apply(''')
 t=t.replace('            rightHandDrive = config.rightHandDrive,', '''            cluster = if (System.getenv("ZINC_CARPLAY_CLUSTER") == "1") AirPlayDisplayConfig(
-                widthPixels = ClusterDimensions.width, heightPixels = ClusterDimensions.height, widthPhysicalMm = 200, heightPhysicalMm = (200.0 * ClusterDimensions.height / ClusterDimensions.width).toInt().coerceAtLeast(1),
+                widthPixels = if (UltraTheme.enabled()) UltraTheme.displayWidthPixels else ClusterDimensions.width,
+                heightPixels = if (UltraTheme.enabled()) UltraTheme.displayHeightPixels else ClusterDimensions.height,
+                widthPhysicalMm = if (UltraTheme.enabled()) UltraTheme.displayWidthMm else 200,
+                heightPhysicalMm = if (UltraTheme.enabled()) UltraTheme.displayHeightMm else (200.0 * ClusterDimensions.height / ClusterDimensions.width).toInt().coerceAtLeast(1),
                 initialUrl = "maps:/car/instrumentcluster/map",
             ) else null,
             ultraVehicle = System.getenv("ZINC_CARPLAY_ULTRA_VEHICLE") == "1",

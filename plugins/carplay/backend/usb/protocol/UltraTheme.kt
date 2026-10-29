@@ -7,6 +7,11 @@ object UltraTheme {
     const val sdkVersion = "19.0"
     const val mainDisplay = "Center_Display"
     const val clusterDisplay = "Cluster_Display"
+    // package.json: both displays are 1920 × 720 at 157 pixels per inch.
+    const val displayWidthPixels = 1920
+    const val displayHeightPixels = 720
+    const val displayWidthMm = 311
+    const val displayHeightMm = 117
     const val layoutId = "6C45CC47-EC01-527A-B40D-1316AA9C936F"
     const val paletteId = "custom"
     val activeComponents = mapOf(

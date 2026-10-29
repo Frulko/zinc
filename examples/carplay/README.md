@@ -77,6 +77,10 @@ and `ZINC_CARPLAY_CLUSTER_HEIGHT=480` on the **backend** to change its resolutio
 Dimensions must be even pixel counts between 64 and 4096. Restart the backend
 and reconnect CarPlay after changing them; the player preserves the actual
 received aspect ratio. Availability and rendering depend on the navigation app.
+When `ZINC_CARPLAY_ULTRA_THEME=44C9FA31EC:985` is also enabled, the theme's
+1920×720 center and cluster canvases override the normal display and cluster
+sizes. The Cobranded dashboard uses its solid `dynamicColor` wallpaper: black
+at night and `#f2f2f2` by day. Other theme artwork is not rendered by Zinc yet.
 Start navigation and click **Request cluster map**. Its stream111 decoder is
 independent of the main stream110 decoder. A blank preview means no cluster
 video has arrived; it is not filled with a mock map.
