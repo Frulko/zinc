@@ -2,7 +2,8 @@
 # The listening history of the iPod app (examples/ipod/src/services/history.ts, historyImport.ts) against the stand-in Last.fm and
 # ListenBrainz of tests/data/ipod-scrobble/stub.py (the real services are never called): the fake iPod's history.jsonl, a Last.fm
 # import of 2,500 generated scrobbles stopped after 3 pages and resumed (an error 29 on the way), an incremental import that finds the
-# scrobble made meanwhile, ListenBrainz by its API (rate-limit headers) and by an export zip, the matching to the fixture iPod
+# scrobble made meanwhile, a refusal not tried again, Last.fm down past its own tries (tried again by itself from where it was, then
+# given up), ListenBrainz by its API (rate-limit headers) and by an export zip, the matching to the fixture iPod
 # (accents, feat., remaster, live, & and "and", one fuzzy, one MBID, a cover and a near-duplicate that must not match) and the queries
 # (top songs, sessions, plays per iPod track, skips, last played, unmatched). On the interpreter and on QuickJS, the stub reset between
 # them (the app runs AOT: ipod_demo builds it).
@@ -13,7 +14,7 @@ trap '[ -n "$stub" ] && kill $stub 2>/dev/null; rm -rf "$tmp"' EXIT
 python3 tests/data/ipod-scrobble/stub.py "$tmp" "$tmp/port" & stub=$!
 for i in $(seq 1 50); do [ -s "$tmp/port" ] && break; sleep 0.1; done
 S=http://127.0.0.1:$(cat "$tmp/port")
-export IPOD_LASTFM_URL=$S/2.0/ IPOD_LISTENBRAINZ_URL=$S IPOD_HISTORY_PACE_MS=1 ZINC_HEADLESS=1
+export IPOD_LASTFM_URL=$S/2.0/ IPOD_LISTENBRAINZ_URL=$S IPOD_HISTORY_PACE_MS=1 IPOD_HISTORY_RETRY_MS=100,100 ZINC_HEADLESS=1
 unset ZINC_DETERMINISTIC   # the importers bound their pages by the wall clock (Date.now), as against the real services
 fail=0
 for eng in interp quickjs; do
@@ -26,6 +27,7 @@ for eng in interp quickjs; do
   python3 - "$tmp/requests.jsonl" <<'PY' || fail=1
 import json, sys
 rs = [json.loads(l) for l in open(sys.argv[1])]
+rs = rs[:next((i for i, r in enumerate(rs) if r.get('params', {}).get('user') == 'nobody'), len(rs))]   # before the retries (another account, then ann from the start)
 recent = [r['params'] for r in rs if r['service'] == 'lastfm-read' and r['method'] == 'user.getrecenttracks']
 assert all(p['api_key'] == 'apikey' and p['limit'] == '200' and p['extended'] == '1' and p['page'] == '1' for p in recent), recent[:1]
 run = recent

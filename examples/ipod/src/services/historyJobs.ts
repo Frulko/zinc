@@ -5,7 +5,7 @@
 import { batch, createSignal } from 'zinc:ui/solid';
 import * as dialog from 'zinc:system/dialog';
 import { History, Counts, Ranked, syncPods } from './history';
-import { ImportRun, importLastfm, importListenbrainz, importListenbrainzFile, lastfmUnfinished, listenbrainzUnfinished } from './historyImport';
+import { ImportRun, importLastfmRetrying, importListenbrainz, importListenbrainzFile, lastfmUnfinished, listenbrainzUnfinished } from './historyImport';
 import { runBeside, busy } from './transfers';
 import { log, backupPlace } from './log';
 import { loadConfig, saveConfig } from './config';
@@ -47,13 +47,13 @@ function start(label: string, work: (run: ImportRun) => Promise<string>): void {
 }
 
 /** Imports (or resumes importing) `user`'s Last.fm history with the API `key` of the Last.fm card (kept: signing in is not needed to
- *  read a public history). */
+ *  read a public history). A failure that passes (the network, Last.fm busy) is tried again by itself, from where it was. */
 export function importLastfmNow(key: string, user: string): void {
   const c = loadConfig();
   if (key.trim() !== '') c.lastfmKey = key.trim();
   c.historyLastfmUser = user.trim();
   saveConfig(c);
-  start('Importing Last.fm history', (run: ImportRun): Promise<string> => importLastfm(history(), c.lastfmKey, c.historyLastfmUser, run));
+  start('Importing Last.fm history', (run: ImportRun): Promise<string> => importLastfmRetrying(history(), c.lastfmKey, c.historyLastfmUser, run));
 }
 
 /** Imports (or resumes importing) `user`'s ListenBrainz listens. */

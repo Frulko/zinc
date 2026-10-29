@@ -9,7 +9,9 @@
 // what came since (`from`). At most one request every PACE_MS (Last.fm asks for 5 a second at most); error 29 (rate limit), 8, 11, 16
 // and HTTP 429/5xx wait 2^n times longer and try again, 6 times in all.
 // ListenBrainz: /1/user/<name>/listens?count=1000&max_ts=..., the same way down; its X-RateLimit-Remaining/Reset-In headers are obeyed.
-// IPOD_HISTORY_PACE_MS replaces the pace (the tests use 1).
+// A Last.fm import that still fails after those tries (the network, its rate limit, a 5xx) is tried again by itself, from where it
+// was, after 2, 5 and 15 minutes (importLastfmRetrying), then given up; a refusal (a bad key, an unknown user) is not tried again.
+// IPOD_HISTORY_PACE_MS replaces the pace (the tests use 1), IPOD_HISTORY_RETRY_MS the waits ("50,50").
 import * as net from 'zinc:net';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
@@ -23,6 +25,9 @@ const TIMEOUT_MS: i32 = 30000;
 const LASTFM_PAGE: i32 = 200;
 const LB_PAGE: i32 = 1000;
 const PERIODS: string[] = ['overall', '12month', '6month', '3month', '1month', '7day'];
+const RETRY_MS: number[] = sys.env('IPOD_HISTORY_RETRY_MS') !== '' ? sys.env('IPOD_HISTORY_RETRY_MS').split(',').map((x: string): number => Number(x))
+  : [2 * 60000, 5 * 60000, 15 * 60000];
+const TRIED = ` (tried ${TRIES} times)`;
 
 /** One import: `stopped` asks it to stop after the page it reads (it resumes later); `progress` hears the pages done and expected. */
 export class ImportRun {
@@ -84,7 +89,28 @@ export async function lastfm(params: string, key: string): Promise<any> {
     say(`Last.fm: ${why}: trying again in ${Math.round(ms / 100) / 10} s (${attempt + 1}/${TRIES})`);
     await sleep(ms);
   }
-  throw new Error(`Last.fm: ${why} (tried ${TRIES} times)`);
+  throw new Error(`Last.fm: ${why}${TRIED}`);
+}
+
+/** True when `e` is a Last.fm failure that passes (the network, its rate limit, a 5xx) still there after lastfm()'s own tries. */
+export function passes(e: Error): boolean { return e.message.startsWith('Last.fm: ') && e.message.endsWith(TRIED); }
+
+function wait(ms: number): string { return ms >= 60000 ? `${Math.round(ms / 60000)} min` : `${Math.round(ms / 100) / 10} s`; }
+
+/** importLastfm, tried again by itself when it fails for a reason that passes: after each of `waits` (ms; 2, 5 and 15 minutes), from
+ *  where it was, then given up with the reason. A refusal is thrown at once; `run.stopped` ends a wait. */
+export async function importLastfmRetrying(h: History, key: string, user: string, run: ImportRun, waits: number[] = RETRY_MS): Promise<string> {
+  for (let i = 0; ; i++) {
+    try { return await importLastfm(h, key, user, run); } catch (e) {
+      const err = e as Error;
+      if (!passes(err)) throw err;
+      if (i >= waits.length) throw new Error(`${err.message}; given up after ${waits.length} more tries: Resume goes on from there`);
+      run.note(`${err.message}: trying again in ${wait(waits[i])}, from where it was (${i + 1}/${waits.length})`);
+      const until = Date.now() + waits[i];
+      while (!run.stopped && Date.now() < until) await sleep(Math.min(1000, until - Date.now()));
+      if (run.stopped) return 'Stopped before trying again: Resume goes on from there';
+    }
+  }
 }
 
 function q(name: string, v: string): string { return `${name}=${encodeURIComponent(v)}`; }

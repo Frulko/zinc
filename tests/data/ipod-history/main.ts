@@ -3,9 +3,10 @@
 // the way), an incremental import, ListenBrainz by its API and by an export zip, the matching to the fixture iPod's library.json, and
 // the queries. Prints one JSON object; tests/data/ipod-history/check.py compares it with the stub's data.
 import * as fs from 'zinc:fs';
+import * as net from 'zinc:net';
 import { env } from 'zinc:sys';
 import { History, syncPods, Ranked } from '../../../examples/ipod/src/services/history';
-import { ImportRun, importLastfm, importListenbrainz, importListenbrainzFile, lastfmUnfinished } from '../../../examples/ipod/src/services/historyImport';
+import { ImportRun, importLastfm, importLastfmRetrying, importListenbrainz, importListenbrainzFile, lastfmUnfinished } from '../../../examples/ipod/src/services/historyImport';
 
 const GUID = '000A27001234ABCD';
 
@@ -42,7 +43,25 @@ async function main(): Promise<void> {
   out.listenbrainz = await importListenbrainz(h, 'ann', new ImportRun());
   out.zip = await importListenbrainzFile(h, `${dir}/export.zip`, new ImportRun());
   out.zipAgain = await importListenbrainzFile(h, `${dir}/export.zip`, new ImportRun());
-  try { await importLastfm(h, 'apikey', 'nobody', new ImportRun()); out.wrongUser = 'no error'; } catch (e) { out.wrongUser = (e as Error).message; }
+  // a refusal is not tried again; then (the account changed: from the start) Last.fm down for longer than its own tries at page 4:
+  // tried again by itself from page 4; then down for good: given up after the waits of IPOD_HISTORY_RETRY_MS
+  const refused: string[] = [];
+  const wrong = new ImportRun();
+  wrong.note = (line: string) => { refused.push(line); };
+  try { await importLastfmRetrying(h, 'apikey', 'nobody', wrong); out.wrongUser = 'no error'; } catch (e) { out.wrongUser = (e as Error).message; }
+  out.wrongUserRetries = refused.filter((l: string) => l.indexOf('from where it was') >= 0).length;
+  const stub = env('IPOD_LASTFM_URL').replace('/2.0/', '');
+  await net.fetch(`${stub}/fail?n=8&after=3`);
+  const retry = new ImportRun(), retryNotes: string[] = [], retryPages: i32[] = [];
+  retry.note = (line: string) => { retryNotes.push(line); };
+  retry.progress = (done: i32, total: i32, added: i32) => { retryPages.push(done); };
+  out.retried = await importLastfmRetrying(h, 'apikey', 'ann', retry);
+  out.retryWaits = retryNotes.filter((l: string) => l.indexOf('from where it was') >= 0);
+  out.retryPages = retryPages;
+  out.retryUnfinished = lastfmUnfinished(h);
+  await net.fetch(`${stub}/fail?n=1000`);
+  try { await importLastfmRetrying(h, 'apikey', 'ann', new ImportRun()); out.givenUp = 'no error'; } catch (e) { out.givenUp = (e as Error).message; }
+  await net.fetch(`${stub}/fail?n=0`);
 
   syncPods(h, `${dir}/cache`);
   const c = h.counts(GUID);

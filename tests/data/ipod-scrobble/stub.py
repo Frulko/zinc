@@ -5,7 +5,8 @@ answer as unavailable (Last.fm error 16 with HTTP 503, ListenBrainz 503). Usage:
 For tests/t1/ipod_history.sh it also serves the reading side, from a generated history (written to <dir>/history-data.json for the
 checks): Last.fm GET user.getrecenttracks (paged, from/to honoured, a now-playing row first, error 29 once at the 4th call, a new
 scrobble arriving at the 6th), getlovedtracks, gettoptracks, gettopartists; ListenBrainz GET /1/user/ann/listen-count and /listens
-(max_ts, count; X-RateLimit headers). GET /reset starts the history calls over.
+(max_ts, count; X-RateLimit headers). GET /reset starts the history calls over; GET /fail?n=N&after=A makes getrecenttracks
+answer HTTP 503 (error 16) N times, after A more good answers.
 
 For tests/t1/ipod_genius.sh: Last.fm GET artist.getsimilar from SIMILAR (an artist it does not list has no neighbours; UNKNOWN_ARTIST
 answers error 6, as Last.fm does for a name it does not know)."""
@@ -62,7 +63,7 @@ def generate():
 LF, LB = generate()
 with open(os.path.join(d, 'history-data.json'), 'w') as f:
     json.dump({'lastfm': LF, 'listenbrainz': LB, 'catalog': CATALOG, 'loved': LOVED}, f)
-state = {'recent': 0, 'added': []}
+state = {'recent': 0, 'added': [], 'fail': 0, 'after': 0}
 SIMILAR = {'Alpha One': [('Lonely Star', '0.9'), ('Someone Else', '0.5')], 'Lonely Star': [('Alpha One', '0.9')]}
 UNKNOWN_ARTIST = 'Charlie Four'
 
@@ -98,6 +99,10 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == '/reset':
             state['recent'] = 0
             state['added'] = []
+            state['fail'] = state['after'] = 0
+            return self.reply(200, {})
+        if u.path == '/fail':
+            state['fail'], state['after'] = int(p.get('n', '0')), int(p.get('after', '0'))
             return self.reply(200, {})
         if u.path.startswith('/2.0') and 'api_sig' in p:   # the signed reads (the sign-in, user.getInfo): as POSTs, but refused as POSTs (below)
             return self.lastfm_signed(p, False, get=True)
@@ -117,6 +122,11 @@ class H(http.server.BaseHTTPRequestHandler):
             limit, page = int(p.get('limit', '50')), int(p.get('page', '1'))
             if m == 'user.getrecenttracks':
                 state['recent'] += 1
+                if state['after'] > 0:
+                    state['after'] -= 1
+                elif state['fail'] > 0:
+                    state['fail'] -= 1
+                    return self.reply(503, {'error': 16, 'message': 'Service temporarily unavailable'})
                 if state['recent'] == 4:
                     return self.reply(200, {'error': 29, 'message': 'Rate Limit Exceeded'})
                 if state['recent'] == 6:

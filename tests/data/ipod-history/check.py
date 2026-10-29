@@ -84,6 +84,13 @@ def check(out):
     eq('zip', o['zip'], '%d new listens from export.zip' % ZIP_N)
     eq('zip again', o['zipAgain'], '0 new listens from export.zip')
     eq('wrong user', o['wrongUser'], 'Last.fm: User not found')
+    eq('a refusal is not tried again', o['wrongUserRetries'], 0)
+    if len(o['retryWaits']) != 1 or 'Service temporarily unavailable (tried 6 times): trying again in 0.1 s, from where it was (1/2)' not in o['retryWaits'][0]:
+        errs.append('the import tried again: %r' % o['retryWaits'])
+    pages = len(o['retryPages'])   # 1, 2, 3, then 4 after the wait: not page 1 again
+    eq('tried again from where it was', o['retryPages'], list(range(1, pages + 1)))
+    eq('tried again to its end', [o['retryUnfinished'], o['retried']], [False, '0 new listens (%d pages)' % pages])
+    eq('given up', o['givenUp'], 'Last.fm: Service temporarily unavailable (tried 6 times); given up after 2 more tries: Resume goes on from there')
     # the listens: Last.fm's 2500 + the one added (its Karma Police is the iPod's), ListenBrainz's own, the zip's, the iPod's 2
     total = len(LF) + 1 - 1 + (len(LB) - 300) + ZIP_N + 2
     key = lambda a, t: next(i for i, c in enumerate(CAT) if c[0] == a and c[1] == t)
