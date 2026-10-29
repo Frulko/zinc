@@ -339,6 +339,20 @@ int main(int argc, char** argv) {
   CHECK(lib.restoreSnapshot(snaps[0].id, nullptr, err) && lib.tracks().size() == 2);
   CHECK(lib.snapshots().size() == 3);   // the restore backed up what it replaced
 
+  // plays heard away from the iPod: counted, the last played moved later only, an unknown id skipped, written to the database
+  {   // (after the restore points: its save takes one more)
+    ipod::Play p1; p1.id = ts[0].id; p1.count = 2; p1.at = 1700000000;
+    ipod::Play p2; p2.id = ts[0].id; p2.count = 1; p2.at = 1600000000;
+    ipod::Play gone; gone.id = "ffffffffffffffff"; gone.count = 1; gone.at = 1700000000;
+    std::vector<ipod::Track> counted;
+    CHECK(lib.played({p1, p2, gone}, counted, err) && counted.size() == 1 && counted[0].playCount == 3 && counted[0].lastPlayed == 1700000000);
+    CHECK(lib.open(mp.string(), false, "", "", err));
+    auto reread = lib.tracks();
+    const ipod::Track* back = byTitle(reread, "Hello");
+    CHECK(back && back->playCount == 3 && back->lastPlayed == 1700000000);
+    printf("played: %s counted %d times\n", back->title.c_str(), back->playCount);
+  }
+
   // check: the file of the removed track is gone (missing); a stray file is an orphan; repair fixes both
   { std::ofstream(mp / "iPod_Control" / "Music" / "F00" / "STRAY.mp3") << "x"; }
   auto ck = lib.check();

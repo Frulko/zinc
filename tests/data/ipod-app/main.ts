@@ -34,6 +34,8 @@ async function main(): Promise<void> {
   const folder = await ipod.backup('', false);
   const list = await ipod.backups();
   console.log('backups', list.length, list[0].folder === folder, list[0].auto, list[list.length - 1].auto);
+  const counted = await ipod.played([{ id: ts[0].id, count: 2, at: 1700000000 }, { id: 'ffffffffffffffff', count: 1, at: 1700000000 }]);
+  console.log('played', counted.length, counted[0].playCount, counted[0].lastPlayed);
   try { await ipod.setArtwork(ts[0].id, song); } catch (e) { console.log('bad cover:', (e as Error).message.indexOf('not an image') >= 0); }
   await ipod.close();
   try { await ipod.tracks(); } catch (e) { console.log('closed:', (e as Error).message); }

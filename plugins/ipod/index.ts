@@ -9,8 +9,8 @@
 //   for (const t of await ipod.tracks()) console.log(t.artist, '-', t.title);
 //   await ipod.eject(pod.mountpoint);
 import N from './native/ipod.spec';
-import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult } from './native/ipod.spec';
-export type { Analysis, DuplicateGroup, MergeGroup, MergeResult, DownloadResult, Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra };
+import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult, Play } from './native/ipod.spec';
+export type { Play, Analysis, DuplicateGroup, MergeGroup, MergeResult, DownloadResult, Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra };
 import { imageFromPixels } from 'zinc:gfx';
 
 /** iPods on this machine: mounted ones (connection 'disk'), and those plugged in by USB but not mounted ('usb', no mountpoint). */
@@ -93,6 +93,10 @@ export function analyze(fingerprints: boolean = true): Promise<Analysis> { retur
 /** Merges duplicates: each group's kept track takes the tags and cover it lacks, the play counts, the higher rating and the removed
  *  copies' playlist places; the other copies and their files are removed; one save. */
 export function merge(groups: MergeGroup[]): Promise<MergeResult[]> { return N.merge(groups); }
+/** Counts plays heard away from the iPod (the computer, a speaker, a Subsonic client) as the iPod counts its own: play count up by
+ *  `count`, last played moved to `at` (Unix seconds) when later; tracks no longer there are skipped. Saves once; resolves with the
+ *  tracks counted. */
+export function played(plays: Play[]): Promise<Track[]> { return N.played(plays); }
 /** Mounts an iPod seen over USB but not mounted: '' = every such iPod (macOS), or a disk name (disk4, sdb2). Writes nothing. */
 export function mount(device: string = ''): Promise<void> { return N.mount(device); }
 /** Saves nothing: closes, flushes and ejects. Save first if you changed something. */

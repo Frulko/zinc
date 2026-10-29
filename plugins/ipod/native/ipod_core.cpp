@@ -1608,6 +1608,24 @@ void fillFrom(Itdb_Track* keep, Itdb_Track* other, std::vector<std::string>& fil
 }
 }  // namespace
 
+bool Library::played(const std::vector<Play>& plays, std::vector<Track>& out, std::string& err) {
+  out.clear();
+  if (!writable(err)) return false;
+  std::vector<Itdb_Track*> counted;
+  for (const Play& p : plays) {
+    Itdb_Track* t = findTrack(DB, p.id);
+    if (!t || p.count <= 0) continue;
+    t->playcount += (guint32)p.count;   // as libgpod merges the iPod's own Play Counts file
+    t->mark_unplayed = 0x01;
+    if ((time_t)p.at > t->time_played) t->time_played = (time_t)p.at;
+    if (std::find(counted.begin(), counted.end(), t) == counted.end()) counted.push_back(t);
+  }
+  if (counted.empty()) return true;
+  if (!save(nullptr, err)) return false;
+  for (Itdb_Track* t : counted) out.push_back(toTrack(t));
+  return true;
+}
+
 std::vector<MergeResult> Library::merge(const std::vector<MergeGroup>& groups, const Progress& progress, std::string& err) {
   std::vector<MergeResult> out;
   if (!writable(err, progress)) return out;   // the session's restore point comes first

@@ -155,6 +155,10 @@ export interface Analysis {
   noFingerprint: i32;
 }
 
+/** Plays heard away from the iPod (on the computer, a Sonos speaker, a Subsonic client) to count on it: `count` more plays of the
+ *  track `id`, the last one at `at` (Unix seconds). */
+export interface Play { id: string; count: i32; at: number; }
+
 /** One group to merge: the track kept and the copies removed. */
 export interface MergeGroup { keep: string; remove: string[]; }
 
@@ -227,6 +231,10 @@ export interface Spec extends NativeModule {
   /** Merges each group into its kept track (the tags and cover it lacks, play counts summed, the higher rating, the last played, the
    *  first added, the removed copies' playlist places), then removes the other copies and their files; one save at the end. */
   merge(groups: MergeGroup[]): Promise<MergeResult[]>;
+  /** Counts plays on the iPod, as the iPod counts its own: each track's play count goes up by `count` and its last played becomes `at`
+   *  when later. Tracks no longer there are skipped. One save at the end (after the session's restore point); resolves with the tracks
+   *  counted, as they are now. */
+  played(plays: Play[]): Promise<Track[]>;
   /** Mounts the disk `device` (disk4 on macOS, sdb2 on Linux), or with '' every iPod plugged in but not mounted (macOS: the
    *  external disks whose media name says iPod). Changes nothing on the iPod. */
   mount(device: string): Promise<void>;

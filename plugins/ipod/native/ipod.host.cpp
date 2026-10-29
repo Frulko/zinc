@@ -142,6 +142,11 @@ struct HostIpod : NativeIpod {
     ipod::Progress p = progress();
     return rec<std::vector<MergeResult>>([g, p](std::string& err) { return lib.merge(g, p, err); });
   }
+  zrt::Promise<Bytes> played(Bytes plays) override {
+    std::vector<Play> v;
+    zn::rec::read(plays, v);
+    return rec<std::vector<Track>>([v](std::string& err) { std::vector<Track> out; lib.played(v, out, err); return out; });
+  }
   zrt::Promise<zrt::Unit> mount(zrt::String device) override { std::string d = str(device); return unit([d](std::string& err) { return ipod::mount(d, err); }); }
   zrt::Promise<zrt::Unit> eject(zrt::String mountpoint) override {
     std::string mp = str(mountpoint);

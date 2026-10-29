@@ -11,7 +11,7 @@
 namespace ipod {
 
 using ::AddResult; using ::DownloadResult; using ::Backup; using ::Check; using ::Device; using ::Extra; using ::PhotoAlbum; using ::Picture; using ::Playlist; using ::Snapshot; using ::SpecItem; using ::Track; using ::TrackInput;
-using ::Analysis; using ::DuplicateGroup; using ::MergeGroup; using ::MergeResult;
+using ::Play; using ::Analysis; using ::DuplicateGroup; using ::MergeGroup; using ::MergeResult;
 
 /** What the duplicate finder knows of a track (ipod_optimise.cpp): the track, its format, its file's content hash ('' when no other
  *  file has its size) and its audio fingerprint (empty when none). */
@@ -89,6 +89,8 @@ class Library {
    *  cached in backupRoot()/<iPod>/fingerprints.txt. */
   Analysis analyze(bool fingerprints, const Progress& progress, std::string& err);
   /** Merges each group into its kept track, removes the other copies and their files, saves once (after the session's restore point). */
+  /** Adds plays to the tracks (play count up, last played moved later); skips the ids not found; saves once. `out`: the tracks counted. */
+  bool played(const std::vector<Play>& plays, std::vector<Track>& out, std::string& err);
   std::vector<MergeResult> merge(const std::vector<MergeGroup>& groups, const Progress& progress, std::string& err);
 
  private:

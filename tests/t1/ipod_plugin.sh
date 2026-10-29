@@ -1,7 +1,7 @@
 #!/bin/sh
 # zinc:ipod end to end (tests/data/ipod-app) on a fake iPod: a folder with iPod_Control/Device/SysInfo that detect() finds through
 # ZINC_IPOD_ROOTS. The plugin is built from its vendored libgpod; open() writes SysInfoExtended and a new database, add() copies a tagged
-# WAV and refuses a FLAC, then playlists, update, save with a snapshot, check, a bad cover and close. The interpreter, QuickJS and the
+# WAV and refuses a FLAC, then playlists, update, save with a snapshot, check, plays counted, a bad cover and close. The interpreter, QuickJS and the
 # compiled program print the same lines. Skips (77) without the system libraries (docs/plugins/ipod.md, Install).
 cd "$(dirname "$0")/../.." || exit 2
 pkg-config --exists glib-2.0 gobject-2.0 libplist-2.0 taglib libusb-1.0 2>/dev/null || { echo "skipped: the libraries of zinc:ipod are not installed"; exit 77; }
@@ -35,6 +35,7 @@ check 0 0
 specs tracks 2 firmware  disk
 artwork 0 -1
 backups 2 true false true
+played 1 2 1700000000
 bad cover: true
 closed: no iPod is open
 OUT

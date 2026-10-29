@@ -1,6 +1,6 @@
 // zinc:ipod stand-in (sim target, ZINC_NATIVE=sim): one iPod Classic in memory, "Zinc Pod" at /Volumes/ZINCPOD, with
 // the same answers as the native side for the same calls, so a program and its tests run without an iPod or libgpod.
-import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult } from './ipod.spec';
+import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult, Play } from './ipod.spec';
 
 const MP = '/Volumes/ZINCPOD';
 const GB = 1024 * 1024 * 1024;
@@ -269,6 +269,19 @@ export default {
     return Promise.resolve(out);
   },
   analyze: (_fingerprints: boolean): Promise<Analysis> => need() ? fail<Analysis>(need()) : Promise.resolve(analyze()),
+  played: (plays: Play[]): Promise<Track[]> => {
+    if (need()) return fail<Track[]>(need());
+    const out: Track[] = [];
+    for (const p of plays) {
+      const t = find(p.id);
+      if (!t || p.count <= 0) continue;
+      t.playCount += p.count;
+      if (p.at > t.lastPlayed) t.lastPlayed = p.at;
+      if (out.indexOf(t) < 0) out.push(t);
+    }
+    if (out.length > 0) saves++;
+    return Promise.resolve(out);
+  },
   merge: (groups: MergeGroup[]): Promise<MergeResult[]> => need() ? fail<MergeResult[]>(need()) : Promise.resolve(merge(groups)),
   check: (): Promise<Check> => Promise.resolve({ missing: [], orphans: [], orphanBytes: 0 }),
   repair: (): Promise<Check> => Promise.resolve({ missing: [], orphans: [], orphanBytes: 0 }),
