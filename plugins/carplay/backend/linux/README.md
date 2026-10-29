@@ -69,8 +69,8 @@ built receiver under `~/zinc-carplay`. Its local identity and AP password are in
 owner-only files; neither is in Git. The Pi stays connected to `Potatoes` on
 5 GHz/channel 36. A NetworkManager profile `zinc-carplay-ap` provides a second,
 simultaneous 5 GHz AP `Zinc-CarPlay-Pi` on `ap0`/`10.77.0.1`; DHCP and DNS were
-observed while it was active. The AP is off after pretesting and the private
-launcher recreates `ap0`, activates it, announces the CarPlay Bluetooth UUID,
+observed while it was active. The private launcher recreates `ap0`, activates
+it, announces the CarPlay Bluetooth UUID,
 and restores Bluetooth/AP state when stopped:
 
 ```sh
@@ -78,15 +78,14 @@ ssh spark@192.168.2.33 'bluetoothctl show | grep -E "Powered:|Pairable:"'
 ssh spark@192.168.2.33 '~/zinc-carplay/start-wireless'
 ```
 
-The Pi Bluetooth adapter is powered, but the iPhone is not paired to it. For
-the first real test, open iPhone **Settings > Bluetooth**, then run
-`ssh -t spark@192.168.2.33 bluetoothctl` and enter `agent on`, `default-agent`,
-`pairable on`, `scan on`. If the phone appears, `pair PHONE_ADDRESS` and
-`trust PHONE_ADDRESS`, accepting the matching iPhone prompt. The launcher
-targets the phone address previously observed on the Mac. If iOS rotates or
-hides that address, override it with `--bt-address NEW_ADDRESS`. Start only one
-of the Mac and Pi receivers while testing the same phone. To view the Pi from
-the Mac:
+As of 29 October the phone is paired and trusted on the Pi; the RFCOMM bridge
+and iAP2 authentication have succeeded. If the launcher is already running,
+do not start a second copy. To keep a private log while restarting it, stop the
+existing launcher, then start it with `ZINC_CARPLAY_IAP2_TRACE=1` and redirect
+its output to an owner-only file. A second Mac terminal can follow that file
+with `ssh spark@192.168.2.33 'tail -F ~/zinc-carplay/logs/wireless.log'`.
+Start only one of the Mac and Pi receivers while testing the same phone. To
+view the Pi from the Mac:
 
 ```sh
 PI_TOKEN=$(ssh spark@192.168.2.33 'cat ~/.config/zinc-carplay/token')
@@ -94,14 +93,38 @@ ZINC_CARPLAY_URL="ws://192.168.2.33:18080/ws?token=$PI_TOKEN" \
   ZINC="$PWD/build/zinc" ZINC_BACKGROUND=0 examples/carplay/run --live
 ```
 
+For the current direct Ethernet test, the Mac's `en12` has `169.254.133.75`
+and the Pi's `eth0` has `169.254.23.158`; the Pi has a temporary host route
+back to the Mac. The same SSH key works on both addresses. `wlan0` is
+disconnected from `Potatoes`, while `ap0` remains the 5 GHz CarPlay AP. The
+receiver is already running with private iAP2 traces in
+`~/zinc-carplay/logs/wireless.log`. Use two Mac terminals:
+
+```sh
+# Terminal 1: live Pi log
+ssh -t -b 169.254.133.75 spark@169.254.23.158 \
+  'tail -F ~/zinc-carplay/logs/wireless.log'
+
+# Terminal 2, from this Zinc worktree: native viewer over Ethernet
+PI_TOKEN=$(ssh -b 169.254.133.75 spark@169.254.23.158 \
+  'cat ~/.config/zinc-carplay/token')
+ZINC="$PWD/build/zinc" ZINC_BACKGROUND=0 ZINC_CARPLAY_DEBUG=1 \
+  ZINC_CARPLAY_URL="ws://169.254.23.158:18080/ws?token=$PI_TOKEN" \
+  examples/carplay/run --live
+```
+
+Select **PlayPort Pi** under iPhone Settings > General > CarPlay. The current
+Ethernet address/route is session-local and may change after a reboot. Do not
+start a second Pi receiver while the logged one is running.
+
 `python3 linux/tests/bridge.py` passes on the Mac, and the Pi helper reports
 its actual Bluetooth address. The Pi advertiser was observed with its CarPlay
 UUID, discoverable/pairable state and temporary name in `bluetoothctl show`;
 all three reverted after SIGTERM. Mac and Pi receiver smoke runs reached HTTP and
 AirPlay startup with software identity; the Pi also answered a WebSocket
-`iap2Status` request from the Mac while bound to its AP address. No iPhone
-Bluetooth pairing, SDP, Wi-Fi handoff, projected media or MFi challenge was
-performed on the Pi. Apple's [wireless CarPlay architecture overview](https://developer.apple.com/videos/play/wwdc2017/717/)
+`iap2Status` request from the Mac while bound to its AP address. The live phone
+completed Bluetooth iAP2 authentication, requested Wi-Fi configuration and
+associated with the AP; RTSP projection has not started. Apple's [wireless CarPlay architecture overview](https://developer.apple.com/videos/play/wwdc2017/717/)
 also calls for AP information elements; the generic NetworkManager AP is not
 yet known to supply those Apple-specific elements. iPhone discovery/handoff
 remains to be tested.

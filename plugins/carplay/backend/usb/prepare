@@ -178,6 +178,11 @@ t=t.replace('onTrace = { log.debug(it) }', 'onTrace = { server.iap2Trace.accept(
 t=t.replace('Iap2Session.openWireless(stream,', 'Iap2Session.openWireless(stream, onArtwork = { server.hub.artwork(it) },')
 t=t.replace('                wireless = Iap2WirelessIdentification(hostBluetoothMac, wifi.ssid),', '                carPlayUsbInterfaceNumber = 0,\n                locationInformationEnabled = true,\n                wireless = Iap2WirelessIdentification(hostBluetoothMac, wifi.ssid),')
 t=t.replace('                onReady = { log.info("wireless bootstrap accepted by the iPhone; waiting for the Wi-Fi handoff") },', '                locationProvider = server.debugGps,\n                onIncoming = { server.debugTelemetry.accept(it) },\n                onReady = { server.iap2Trace.attach(channel, identification); log.info("wireless bootstrap accepted by the iPhone; waiting for the Wi-Fi handoff") },')
+t=t.replace('                onProgress = { log.debug("wireless $it") },', '''                onProgress = {
+                    if (it.startsWith("iap2 rx=0x") && it.substring(10, 14) !in setOf("4300", "5702", "4e0d", "4e0e"))
+                        log.debug("wireless {}", it)
+                    else log.info("wireless {}", it)
+                },''')
 p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/WebHub.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/WebHub.kt']).decode()

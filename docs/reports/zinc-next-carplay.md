@@ -671,6 +671,18 @@ in a separate 10-second sample there was no `_airplay` browse query. These
 samples narrow the next diagnostic, but cannot establish that iOS never
 browses the service.
 
+The owner's next phone attempt displayed “Connexion à CarPlay impossible” for
+the Pi Bluetooth MAC. The live helper now gets `ECONNREFUSED` (`Errno 111`),
+distinct from the fixed PyBluez `EBADFD` (`Errno 77`). The backend was rebuilt
+with INFO logs for wireless control milestones and private iAP2 trace enabled;
+the Pi server/protocol JARs were deployed and the launcher restarted into
+`~/zinc-carplay/logs/wireless.log` (owner-only mode). Mac↔Pi SSH and viewer
+WebSocket now use the direct Ethernet cable, Mac `en12` 169.254.133.75 to Pi
+`eth0` 169.254.23.158. A temporary host route on the Pi fixes asymmetric
+link-local replies. `wlan0` was disconnected from Potatoes; `ap0` stayed active
+at 10.77.0.1 on 5 GHz channel 36. The phone had not rejoined the AP when last
+checked. The direct route needs recreation after a Pi reboot.
+
 The owner's main display responded to day/night but stream111 stayed in dark
 mode. The appearance command builder previously addressed only the main UUID;
 it now addresses both UUIDs when a cluster is configured. Plist round-trip

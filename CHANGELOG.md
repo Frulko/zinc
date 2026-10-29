@@ -97,6 +97,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Fixed
 - CarPlay external GPS identification includes the required vehicle information component, and changing navigation apps clears the previous app’s cached maneuver. The HUD now shows when a navigation app such as Waze reports that it supplies no iAP2 guidance.
 - The Linux CarPlay Bluetooth bridge connects through a standard RFCOMM socket, fixing repeated `File descriptor in bad state` failures with PyBluez on the Pi.
+- Wireless CarPlay startup reports authentication, Wi-Fi handoff and session control milestones at INFO level, while repeated telemetry stays at DEBUG.
 - CarPlay iAP2 traces hide CarPlay start-session connection details; Wi-Fi configuration and authentication bodies remain hidden.
 - The CarPlay debug player shows numbered finger markers and a trackpad map, and explicitly captures navigation keys for CarPlay. F6 or the header button releases capture to edit Zinc controls, and F7 toggles native trackpad contacts with immediate release; native contacts with negative IDs retain their slots.
 - The USB CarPlay receiver saves per-phone host identities and pairing keys privately, tries existing trust first and waits for unlock without discarding saved trust. Its first run with persistent storage can still require Trust approval.
