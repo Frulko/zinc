@@ -388,6 +388,9 @@ The next backlog review turns lines into tasks or deletes them.
 - Sidecar's Mac receiver (app/sidecar/mac/receiver.swift) is Swift beside the engine: a Zinc app on macOS would need a display driver that serves stream.h (stream.listen) and shows hardware layers (HalDisplay.layers with a VideoToolbox picture), as display-fbdev does on the Pi. Then the same app/sidecar-screen runs on a Pi, a Mac and later Windows.
 - Sidecar on a Pi 3B+: the H.264 decoder takes 25 ms a 1080p picture at gpu_freq=300 (tools/v4l2dec-probe.cpp); gpu_freq=450 with over_voltage=2 in the Pi image's config.txt should cut it to ~17 ms, to measure with a good power supply (the rig reports under-voltage) before the image takes it. And a 25 or 24 fps film on a 60 Hz HDMI screen shows each picture 2 or 3 refreshes: switching the mode to 50 Hz (or 48) while a VIDEO region plays at that rate, as Kodi does, removes the judder (some TVs blank 1-2 s).
 
+- JSON.parse: a Table's keys, values and dead flags in one block (6 allocations per JSON object today), toward 3x faster than 2026-10-29 (it is 2x now).
+- mimalloc: MI_TLS_SLOT on macOS without MI_MALLOC_OVERRIDE (_tlv_get_addr is ~5% of allocation-heavy work).
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.

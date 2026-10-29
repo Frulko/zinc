@@ -1345,3 +1345,8 @@ listens in 10,000 sessions: filling and matching the history 3.1 s, building the
 100,000 listens: a full recompute about 3 s (Genius model 1.10 s, signals 345 ms, daily mixes 1.43 s, made for you 107 ms, because you
 listened 46 ms, the rest under 40 ms), run after the first frame; the daily-mix step blocks the UI about 1.4 s. A cached open is a JSON
 read (not timed). Measured once by the batch E agent.
+
+2026-10-29, JSON and file writes (src/rt/rtcalls.cpp JsonBuild, src/host/sys_host.cpp), Apple M1 Pro, a 4.5 MB document (960 objects of
+100 {artist, match}), the minimum of 20 runs at a load of 8-15: interpreter JSON.parse 29.9 -> 14.7 ms, JSON.stringify 23.6 -> 17.4 ms,
+fs.writeText 19.6 -> 1.0 ms (std::ofstream wrote 4 KiB at a time; now one fwrite); QuickJS keeps its own JSON (parse 28.8, stringify
+64.0 ms) and gets the write fix (20.6 -> 3.7 ms). New fs.writeTextAsync/readTextAsync on libuv's pool. Measured by the engine agent.
