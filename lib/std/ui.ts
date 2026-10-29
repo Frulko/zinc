@@ -758,7 +758,7 @@ function settleVirtuals(): void {
     if (!v.variable) continue;
     let changed = false;
     v.rows.forEach((row: i32, i: i32) => {
-      const nh = node(row).lh;
+      const nh = rowNode(row).lh;
       if (v.known[i] && Math.abs(nh - v.hs[i]) < 0.01) return;
       const d = nh - v.hs[i];
       v.known[i] = true; v.hs[i] = nh; fwAdd(v, i, d);
@@ -766,22 +766,32 @@ function settleVirtuals(): void {
       changed = true;
     });
     if (!changed) continue;
-    v.rows.forEach((row: i32, i: i32) => { node(row).top = Math.round(n.pt + fwPrefix(v, i)); });
+    v.rows.forEach((row: i32, i: i32) => { rowNode(row).top = Math.round(n.pt + fwPrefix(v, i)); });
     layoutDirty = true;
   }
 }
-/** Places row i of the virtual list n: absolute, at its offset, across the list's width, its height on a list of fixed rows. */
+/** What a row of a virtual list lays out as: a row made by a component comes as a fragment around it (display: contents), and the
+ *  place goes to the node inside, as the fragment has no box of its own. */
+function rowNode(row: i32): UiNode {
+  let r = node(row);
+  while ((r.tag === FRAGMENT || r.contents) && r.children.length === 1) r = node(r.children[0]);
+  return r;
+}
+/** Places row i of the virtual list n: absolute, at its offset, across the list's width less its own side margins (mx-3 keeps the row
+ *  inset, as in a list that is not virtual), its height on a list of fixed rows. */
 function placeVirtRow(n: UiNode, v: Virtual, r: UiNode, i: i32): void {
-  r.abs = true; r.top = Math.round(n.pt + (v.variable ? fwPrefix(v, i) : i * v.itemH)); r.left = n.pl; r.right = n.pr;
+  r.abs = true; r.top = Math.round(n.pt + (v.variable ? fwPrefix(v, i) : i * v.itemH)); r.left = n.pl + r.ml; r.right = n.pr + r.mr;
   if (!v.variable) r.h = Math.round(v.itemH);
 }
 /** After a restyle (a class or a hover state changed): a row of a virtual list takes its place again, which the style reset cleared. */
 function replaceVirtRow(r: UiNode): void {
-  if (r.parent < 0) return;
-  const p = node(r.parent);
+  let ph = r.parent;
+  while (ph >= 0 && nodes[ph].tag === FRAGMENT) ph = nodes[ph].parent;   // a component's row: its fragment is the list's child
+  if (ph < 0) return;
+  const p = node(ph);
   if (p.virt === null) return;
   const v = p.virt as Virtual;
-  v.rows.forEach((row: i32, i: i32) => { if (row === r.id) placeVirtRow(p, v, r, i); });
+  v.rows.forEach((row: i32, i: i32) => { if (rowNode(row).id === r.id) placeVirtRow(p, v, r, i); });
 }
 function syncVirtual(h: i32, n: UiNode): void {
   const v = n.virt as Virtual;
@@ -791,6 +801,8 @@ function syncVirtual(h: i32, n: UiNode): void {
   let last: i32 = v.variable ? fwFind(v, n.sy + vh - n.pt) + over : Math.ceil((n.sy + vh) / v.itemH) + over;
   if (first < 0) first = 0;
   if (last > v.count - 1) last = v.count - 1;
+  // a row's component rendered again (its props changed) put a new node in its fragment: that one takes the row's place
+  v.rows.forEach((row: i32, i: i32) => { const r = rowNode(row); if (!r.abs) { placeVirtRow(n, v, r, i); layoutDirty = true; } });
   if (first === v.first && last === v.last) return;
   const drop: i32[] = [];
   v.rows.forEach((row: i32, i: i32) => { if (i < first || i > last) drop.push(i); });
@@ -798,7 +810,7 @@ function syncVirtual(h: i32, n: UiNode): void {
   for (let i = first; i <= last; i++) {
     if (v.rows.has(i)) continue;
     const row = v.render(i);
-    placeVirtRow(n, v, node(row), i);
+    placeVirtRow(n, v, rowNode(row), i);
     insert(h, row, -1);
     v.rows.set(i, row);
   }
