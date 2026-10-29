@@ -1,6 +1,6 @@
 #!/bin/sh
 # zinc:net Reply.file (tests/golden/host/net_file.ts): a 3 MiB file in blocks, byte ranges (206, suffix, open-ended), 416, 404 and an
-# async handler, on the interpreter, QuickJS and the compiled program, against tests/golden/host/net_file.out.
+# async handler, two servers at once and stop(port), on the interpreter, QuickJS and the compiled program, against tests/golden/host/net_file.out.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export NET_FILE_DIR=$tmp

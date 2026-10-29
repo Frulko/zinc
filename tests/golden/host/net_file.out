@@ -6,3 +6,5 @@ past 416 bytes */3000000
 missing 404
 async 206 "a012"
 port 0 true 206 "01"
+two servers 206 "a012" second
+stop one refused 206

@@ -390,7 +390,7 @@ export class Login {
     catch (e) { this.status = 'failed'; this.error = 'port 8765: ' + e.message; }
   }
   /** Stops waiting for the browser. */
-  cancel(): void { if (this.status === 'waiting') { stop(); this.status = 'failed'; this.error = 'cancelled'; } }
+  cancel(): void { if (this.status === 'waiting') { stop(8765); this.status = 'failed'; this.error = 'cancelled'; } }
 
   private page(status: i32, text: string): Reply {
     return { status, contentType: 'text/html; charset=utf-8', body: '<!doctype html><meta charset="utf-8"><title>Spotify</title><body style="font: 18px system-ui; margin: 4em; text-align: center">' + text + '</body>' };
@@ -422,7 +422,7 @@ export class Login {
   }
   private finish(reply: Reply, error: string): Reply {
     this.status = error === '' ? 'done' : 'failed'; this.error = error;
-    setTimeout(() => { stop(); }, 300);   // after the reply has gone out
+    setTimeout(() => { stop(8765); }, 300);   // after the reply has gone out (only this server: the app may serve others)
     return reply;
   }
 }

@@ -1,7 +1,7 @@
 #pragma once
 // HTTP/1.1 for zinc:net (ZN-087): a client (fetch) and a server on the libuv loop, parsed with llhttp (third_party/llhttp).
 // Results arrive as loop events (include/zn/loop.h): 40 a fetch finished, 41 a fetch failed (data = the reason, Node's words), 42 a request
-// reached the server (handle = the connection, data = method \x1e target \x1e "name: value\n" lines \x1e body).
+// reached a server (handle = the connection, data = method \x1e target \x1e client address \x1e server port \x1e "name: value\n" lines \x1e body).
 #include <string>
 
 namespace zn::http {
@@ -15,13 +15,14 @@ std::string fetchUrl(int h);    // after redirects
 void fetchFree(int h);
 
 // The port it listens on (port 0: a free one the system picks), 0 when the port cannot be bound (or the certificate is bad: lastError());
-// a second call replaces the first listener. A PEM certificate chain and key make it an https server.
+// several servers may listen at once (a request's event names its port); serving a port again replaces its server. A PEM certificate chain
+// and key make it an https server.
 int serve(int port, const std::string& certPem = std::string(), const std::string& keyPem = std::string());
 const std::string& lastError();
 void reply(int conn, int status, const std::string& headers, const std::string& body);
 // The file at `path` as the body, sent in blocks; `range` is the request's Range header ('' for the whole file): one satisfiable byte
 // range gives a 206 with Content-Range, another a 416; a missing file a 404. Accept-Ranges and Content-Length are added.
 void replyFile(int conn, int status, const std::string& headers, const std::string& path, const std::string& range);
-void stop();
+void stop(int port = 0);   // the server on `port`, every server with 0
 
 }  // namespace zn::http

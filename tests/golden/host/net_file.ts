@@ -2,7 +2,8 @@ import { Headers, Reply, Request, fetch, serve, serveAsync, stop } from 'zinc:ne
 import * as fs from 'zinc:fs';
 import { env } from 'zinc:sys';
 // zinc:net Reply.file: a 3 MiB file sent in blocks, one byte range (206), a suffix range, a range past the end (416), a missing file
-// (404), then the same file from an async handler, and on port 0 (the port the system picked, returned). Loopback, one process.
+// (404), then the same file from an async handler, and on port 0 (the port the system picked, returned); two servers at once, each with
+// its handler, and stop(port) stopping one. Loopback, one process.
 const dir = env('NET_FILE_DIR');
 const path = dir + '/song.bin';
 let text = '';
@@ -34,6 +35,13 @@ async function main(): Promise<void> {
   const free = serveAsync(0, async (req: Request): Promise<Reply> => ({ status: 200, body: '', contentType: 'audio/mpeg', file: path }));
   const picked = await fetch(`http://127.0.0.1:${free}/song`, { headers: rangeOf('bytes=1-2') });
   console.log('port 0', free > 0 && free !== 18843, picked.status, JSON.stringify(await picked.text()));
+  serve(free, (req: Request): Reply => ({ status: 200, body: 'second', contentType: 'text/plain' }));   // two servers, each its handler
+  const first = await fetch(base + '/song', { headers: rangeOf('bytes=0-3') });
+  console.log('two servers', first.status, JSON.stringify(await first.text()), await (await fetch(`http://127.0.0.1:${free}/`)).text());
+  stop(free);
+  let gone = 'served';
+  try { await fetch(`http://127.0.0.1:${free}/`); } catch (e) { gone = 'refused'; }
+  console.log('stop one', gone, (await fetch(base + '/song', { headers: rangeOf('bytes=4-5') })).status);
   stop();
   fs.remove(path);
 }

@@ -1240,7 +1240,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       break;
     }
     case Rt::HostHttpError: if (!gServeDenied.empty()) { ret(r, gServeDenied); gServeDenied.clear(); } else ret(r, zn::http::lastError()); break;
-    case Rt::HostHttpStop: zn::http::stop(); break;
+    case Rt::HostHttpStop: zn::http::stop(n(0)); break;
     case Rt::HostHttpReply: zn::http::reply(n(0), n(1), s(2), s(3)); break;
     case Rt::HostHttpReplyFile: zn::http::replyFile(n(0), n(1), s(2), s(3), s(4)); break;
     case Rt::HostSockConnect: r->i = refused("net", s(0)) ? -1 : zn::sock::connectTcp(s(0), n(1)); break;   // zinc.json permissions (ZN-322)

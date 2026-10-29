@@ -151,11 +151,12 @@ declare module 'zinc:net' {
    *  byte range when the request has a Range header (206, or 416 when it cannot be met); body is then ignored, a missing file is a 404. */
   export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string }
   /** Minimal HTTP/1.1 server (server mode): the handler runs on the event loop. Returns the port it listens on: port 0 lets the
-   *  system pick a free one. */
+   *  system pick a free one. Several ports may be served at once, each with its handler; serving a port again replaces it. */
   export function serve(port: i32, handler: (req: Request) => Reply, tls?: { cert: string; key: string }): i32;
   /** Like serve, for a handler that answers later: the reply goes out when the promise resolves (a rejection is a 500). */
   export function serveAsync(port: i32, handler: (req: Request) => Promise<Reply>, tls?: { cert: string; key: string }): i32;
-  export function stop(): void;
+  /** Stops the server on `port`; without it, every server. */
+  export function stop(port?: i32): void;
 }
 
 declare module 'zinc:osc' {

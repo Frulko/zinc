@@ -317,9 +317,10 @@ struct SConn {
   bool complete = false, answered = false, closed = false;
   tls::Conn* tls = nullptr;
   int closing = 0;
+  int port = 0;   // the listener's port: the program's handler for that server answers
 };
-std::string gCertPem, gKeyPem;   // the certificate and key of an https server
-uv_tcp_t* gListener = nullptr;
+struct Listener { uv_tcp_t tcp; int port = 0; std::string certPem, keyPem; };   // certPem: an https server
+std::map<int, Listener*> gListeners;   // by port: a program may serve several (the app's songs for a speaker, a Subsonic API...)
 std::map<int, SConn*> gConns;
 int gNextConn = 1;
 
@@ -396,9 +397,11 @@ void onConnection(uv_stream_t* srv, int status) {
   }
   c->id = gNextConn++;
   gConns[c->id] = c;
-  if (!gCertPem.empty()) {
+  auto* li = static_cast<Listener*>(srv->data);
+  c->port = li->port;
+  if (!li->certPem.empty()) {
     std::string err;
-    c->tls = tls::openServer(gCertPem, gKeyPem, err);
+    c->tls = tls::openServer(li->certPem, li->keyPem, err);
     if (!c->tls) { closeConn(c); return; }
   }
   llhttp_settings_init(&c->settings);
@@ -419,7 +422,7 @@ void onConnection(uv_stream_t* srv, int status) {
     int len = sizeof a;
     char ip[64] = "";
     if (uv_tcp_getpeername(&k->tcp, reinterpret_cast<sockaddr*>(&a), &len) == 0) uv_ip4_name(reinterpret_cast<sockaddr_in*>(&a), ip, sizeof ip);   // the listener is IPv4
-    loop::pushEvent(k->id, 42, std::string(llhttp_method_name(static_cast<llhttp_method_t>(llhttp_get_method(p)))) + '\x1e' + k->target + '\x1e' + ip + '\x1e' + k->msg.head + '\x1e' + k->msg.body, k->msg.body);   // the payload: the body byte for byte (Request.rawBody)
+    loop::pushEvent(k->id, 42, std::string(llhttp_method_name(static_cast<llhttp_method_t>(llhttp_get_method(p)))) + '\x1e' + k->target + '\x1e' + ip + '\x1e' + std::to_string(k->port) + '\x1e' + k->msg.head + '\x1e' + k->msg.body, k->msg.body);   // the payload: the body byte for byte (Request.rawBody)
     return static_cast<int>(HPE_PAUSED);
   };
   llhttp_init(&c->parser, HTTP_REQUEST, &c->settings);
@@ -458,31 +461,35 @@ std::string fetchUrl(int h) { Fetch* f = fetchAt(h); return f ? f->url : ""; }
 void fetchFree(int h) { Fetch* f = fetchAt(h); if (f) { f->released = true; maybeFree(f); } }
 
 int serve(int port, const std::string& certPem, const std::string& keyPem) {
-  stop();
-  gCertPem = certPem;
-  gKeyPem = keyPem;
+  if (port != 0) stop(port);   // the same port again replaces its server
   if (!certPem.empty()) { std::string err; tls::Conn* probe = tls::openServer(certPem, keyPem, err); if (!probe) { gError = err; return 0; } tls::destroy(probe); }
-  auto* l = new uv_tcp_t;
-  uv_tcp_init(L(), l);
+  auto* l = new Listener;
+  l->certPem = certPem;
+  l->keyPem = keyPem;
+  uv_tcp_init(L(), &l->tcp);
+  l->tcp.data = l;
   sockaddr_in a;
   uv_ip4_addr("0.0.0.0", port, &a);
-  if (uv_tcp_bind(l, reinterpret_cast<sockaddr*>(&a), 0) != 0 || uv_listen(reinterpret_cast<uv_stream_t*>(l), 64, onConnection) != 0) {
-    uv_close(reinterpret_cast<uv_handle_t*>(l), [](uv_handle_t* h) { delete reinterpret_cast<uv_tcp_t*>(h); });
+  if (uv_tcp_bind(&l->tcp, reinterpret_cast<sockaddr*>(&a), 0) != 0 || uv_listen(reinterpret_cast<uv_stream_t*>(&l->tcp), 64, onConnection) != 0) {
+    uv_close(reinterpret_cast<uv_handle_t*>(&l->tcp), [](uv_handle_t* h) { delete static_cast<Listener*>(h->data); });
     return 0;
   }
-  gListener = l;
-  loop::addActive(1);
   sockaddr_in bound{};
   int len = sizeof bound;
-  uv_tcp_getsockname(l, reinterpret_cast<sockaddr*>(&bound), &len);
-  return ntohs(bound.sin_port);
+  uv_tcp_getsockname(&l->tcp, reinterpret_cast<sockaddr*>(&bound), &len);
+  l->port = ntohs(bound.sin_port);
+  gListeners[l->port] = l;
+  loop::addActive(1);
+  return l->port;
 }
 const std::string& lastError() { return gError; }
-void stop() {
-  if (!gListener) return;
-  uv_close(reinterpret_cast<uv_handle_t*>(gListener), [](uv_handle_t* h) { delete reinterpret_cast<uv_tcp_t*>(h); });
-  gListener = nullptr;
-  loop::addActive(-1);
+void stop(int port) {
+  for (auto it = gListeners.begin(); it != gListeners.end();) {
+    if (port != 0 && it->first != port) { ++it; continue; }
+    uv_close(reinterpret_cast<uv_handle_t*>(&it->second->tcp), [](uv_handle_t* h) { delete static_cast<Listener*>(h->data); });
+    it = gListeners.erase(it);
+    loop::addActive(-1);
+  }
 }
 void reply(int conn, int status, const std::string& headers, const std::string& body) {
   auto it = gConns.find(conn);

@@ -604,8 +604,16 @@ class NetCall {
 }
 const __netCalls: NetCall[] = [];
 let __netHooked: boolean = false;
-let __netHandler: ((req: Request) => Reply) | null = null;
-let __netAsyncHandler: ((req: Request) => Promise<Reply>) | null = null;
+// the servers' handlers by port (one of the two per port): a program may serve several ports at once
+const __netPorts: i32[] = [];
+const __netHandlers: (((req: Request) => Reply) | null)[] = [];
+const __netAsyncHandlers: (((req: Request) => Promise<Reply>) | null)[] = [];
+function __netSet(port: i32, f: ((req: Request) => Reply) | null, af: ((req: Request) => Promise<Reply>) | null): void {
+  let i = __netPorts.indexOf(port);
+  if (i < 0) { __netPorts.push(port); __netHandlers.push(null); __netAsyncHandlers.push(null); i = __netPorts.length - 1; }
+  __netHandlers[i] = f;
+  __netAsyncHandlers[i] = af;
+}
 function __sendReply(h: i32, r: Reply, range: string): void {
   let lines = '';
   if (r.headers !== undefined) lines = __headerLines(r.headers as Headers);
@@ -638,10 +646,12 @@ function __netHook(): void {
       const i2 = data.indexOf('\u001e', i1 + 1);
       const i3 = data.indexOf('\u001e', i2 + 1);
       const i4 = data.indexOf('\u001e', i3 + 1);
-      const req: Request = { method: data.slice(0, i1), path: data.slice(i1 + 1, i2), body: data.slice(i4 + 1), headers: new Headers(), rawBody: __host_evPayload(), remoteAddress: data.slice(i2 + 1, i3) };
-      __parseLines(data.slice(i3 + 1, i4), req.headers);
-      const f = __netHandler;
-      const af = __netAsyncHandler;
+      const i5 = data.indexOf('\u001e', i4 + 1);
+      const req: Request = { method: data.slice(0, i1), path: data.slice(i1 + 1, i2), body: data.slice(i5 + 1), headers: new Headers(), rawBody: __host_evPayload(), remoteAddress: data.slice(i2 + 1, i3) };
+      __parseLines(data.slice(i4 + 1, i5), req.headers);
+      const at = __netPorts.indexOf(parseInt(data.slice(i3 + 1, i4)) as i32);
+      const f = at < 0 ? null : __netHandlers[at];
+      const af = at < 0 ? null : __netAsyncHandlers[at];
       if (af !== null) {   // serveAsync: the reply goes out when the promise settles
         try {
           af(req).then((r: Reply) => { __sendReply(h, r, req.headers.get('range')); }).catch((e: Error) => { __host_httpReply(h, 500, 'Content-Type: text/plain; charset=utf-8\n', 'internal error'); });
@@ -692,7 +702,7 @@ export function serve(port: i32, handler: (req: Request) => Reply, tls?: TlsOpti
     bound = __host_httpServe(port);
     if (bound === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
   }
-  __netHandler = handler;
+  __netSet(bound, handler, null);
   return bound;
 }
 /** Like serve, for a handler that answers later: the reply is sent when the promise resolves (a rejection is a 500). */
@@ -707,10 +717,15 @@ export function serveAsync(port: i32, handler: (req: Request) => Promise<Reply>,
     bound = __host_httpServe(port);
     if (bound === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
   }
-  __netAsyncHandler = handler;
+  __netSet(bound, null, handler);
   return bound;
 }
-export function stop(): void { __host_httpStop(); __netHandler = null; __netAsyncHandler = null; }
+/** Stops the server on `port`, every server without it. */
+export function stop(port?: i32): void {
+  const p: i32 = port === undefined ? 0 : port as i32;
+  __host_httpStop(p);
+  for (let i: i32 = 0; i < __netPorts.length; i++) if (p === 0 || __netPorts[i] === p) { __netHandlers[i] = null; __netAsyncHandlers[i] = null; }
+}
 )ZN";
 
 const char* kNativeModule = R"ZN(
