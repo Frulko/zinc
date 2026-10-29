@@ -175,6 +175,15 @@ final class Engine: ObservableObject {
     func openOnScreen(_ id: String) {
         let o = output(id), r = run(id)
         if o.host.hasPrefix("usb") { r.launchNote = "Open the Sidecar app on \(o.name)."; return }   // no Zinc agent there: the app is opened by hand
+        if o.host.hasPrefix("adb") {   // adb starts the app on the device (app/sidecar/android)
+            let serial = o.host.hasPrefix("adb:") ? ["-s", String(o.host.dropFirst(4))] : ["-d"]
+            let sdk = ProcessInfo.processInfo.environment["ANDROID_HOME"] ?? FileManager.default.homeDirectoryForCurrentUser.path + "/Library/Android/sdk"
+            let p = Process(); p.executableURL = URL(fileURLWithPath: sdk + "/platform-tools/adb")
+            p.arguments = serial + ["shell", "am", "start", "-n", "dev.zinc.sidecar.screen/dev.zinc.sidecar.Screen"]
+            p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
+            r.launchNote = (try? p.run()) != nil ? "Opening Sidecar on \(o.name)…" : "Install it once: app/sidecar/android/install.sh"
+            return
+        }
         guard o.kind == .screen, let zinc = Engine.zinc() else { r.launchNote = "No zinc command found to reach the screen's agent."; return }
         let dev = o.host.hasSuffix(".local") ? String(o.host.dropLast(6)) : o.host   // the agent's paired name is its host name
         r.launchNote = "Opening Sidecar Screen on \(o.name)…"
@@ -386,7 +395,7 @@ struct OutputRow: View {
                                 }
                             }
                             Text(o.name).font(.subheadline.bold()).lineLimit(1)
-                            Text(o.kind == .remarkable ? (e.plugged ? "USB · plugged in" : "USB · not plugged") : o.host.hasPrefix("usb") ? "USB cable" : o.host).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                            Text(o.kind == .remarkable ? (e.plugged ? "USB · plugged in" : "USB · not plugged") : o.host.hasPrefix("usb") || o.host.hasPrefix("adb") ? "USB cable" : o.host).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                         }
                         .padding(8).frame(width: 128, alignment: .leading)
                         .background(RoundedRectangle(cornerRadius: 9).fill(on ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.05)))
@@ -413,7 +422,10 @@ struct AddScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("A screen running Sidecar Screen (app/sidecar-screen) shows its address.").font(.caption).foregroundStyle(.secondary)
-            Button("iPad or iPhone on the USB cable (the Sidecar app open on it)") { e.add(name: "iPad", host: "usb"); adding = false }
+            HStack {
+                Button("iPad or iPhone on the USB cable") { e.add(name: "iPad", host: "usb"); adding = false }
+                Button("Android on the USB cable (adb)") { e.add(name: "Android", host: "adb"); adding = false }
+            }
             HStack {
                 TextField("Name (Raspberry Pi)", text: $name).textFieldStyle(.roundedBorder)
                 TextField("Address", text: $host).textFieldStyle(.roundedBorder)

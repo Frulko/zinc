@@ -91,3 +91,12 @@ reach it: the sender tries the 169.254 addresses first.
 runs it on 16.7). `ipad/build.sh` builds it signed with the Apple Development team (xcodegen, Xcode), `ipad/install.sh` puts it on the
 device on the cable (ios-deploy); tap Sidecar on it, then `sidecar-screen --host usb` (or the tray's "iPad or iPhone on the USB cable"). The
 stream and the sound go through macOS's usbmuxd (`mac/usbmux.swift`), on the cable that charges the device: no network, no Wi-Fi.
+
+**An Android device on the USB cable** (`android/`, Android 5 and later; a Nexus 7 of 2012 on 7.1 runs it): `android/build.sh` builds the
+APK with the SDK's tools alone (NDK, javac, d8, aapt2, apksigner: no Gradle), `android/install.sh` installs and opens it (USB debugging on);
+then `sidecar-screen --host adb` (or the tray's "Android on the USB cable", which opens the app itself). The stream and the sound go
+through the Mac's adb server (`mac/adb.swift`: `host:transport` then `tcp:7710`, no port to forward), on the cable that charges it. Its
+native half (`android/jni/receiver.c`) decodes the RECTs with the vendored lz4 and zstd into the Surface; it reads no H.264 yet.
+
+Each screen says its name in its hello (`+name:`, percent-encoded): the Mac's Displays show the screen as the device ("iPad de Guillaume",
+"Nexus 7"), not as Sidecar Screen.

@@ -67,6 +67,12 @@ func nativeSize() -> (Int, Int) {
     #endif
 }
 let (W, H) = size ?? nativeSize()
+// this device's name, as the Mac shows the screen in its Displays (the hello's +name:, percent-encoded: one word)
+#if os(macOS)
+let deviceName = (Host.current().localizedName ?? "Mac").addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "Mac"
+#else
+let deviceName = UIDevice.current.name.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "iPad"
+#endif
 func now_us() -> UInt32 { UInt32(truncatingIfNeeded: clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1000) }
 
 // --- the picture's three surfaces (BGRA)
@@ -465,7 +471,7 @@ func serve(_ c: Int32) {
     var one: Int32 = 1
     setsockopt(c, IPPROTO_TCP, TCP_NODELAY, &one, socklen_t(MemoryLayout<Int32>.size))
     setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
-    let hello = Array("RMPP \(W) \(H) Mac +lz4 +copy +zstd +sub +sink +rgb +h264\n".utf8)
+    let hello = Array("RMPP \(W) \(H) Mac +lz4 +copy +zstd +sub +sink +rgb +h264 +name:\(deviceName)\n".utf8)
     guard write(c, hello, hello.count) == hello.count else { return }
     wire.lock(); client = c; acked = 0; wire.unlock()
     sendHost()

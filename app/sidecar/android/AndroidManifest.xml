@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Android screen of Sidecar (build.sh): one full-screen landscape activity, the Mac's picture and sound. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.zinc.sidecar.screen" android:versionCode="1" android:versionName="0.1">
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="25" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application android:label="Sidecar" android:hasCode="true" android:allowBackup="false">
+        <activity android:name="dev.zinc.sidecar.Screen" android:exported="true" android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout" android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
