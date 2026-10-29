@@ -4,7 +4,7 @@
 import { createSignal } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import { loadConfig } from '../../services/config';
-import { scrobbler, playsWaiting, startLastfm, finishLastfm, awaitLastfm, testLastfm, testListenbrainz, signOutLastfm, setListenbrainz, setAudioCacheMb } from '../../services/listening';
+import { scrobbler, playsWaiting, startLastfm, finishLastfm, awaitLastfm, testLastfm, saveLastfmKeys, testListenbrainz, signOutLastfm, setListenbrainz, setAudioCacheMb } from '../../services/listening';
 import { notify } from '../../services/transfers';
 import { Switch } from 'zinc:ui/kit';
 import { shelfSnap, setShelfSnap, shelfScrollbar, setShelfScrollbar } from '../../forYou';
@@ -82,18 +82,18 @@ export function SettingsPage(): i32 {
       </View>
       {said() !== '' ? <Text className={`text-[12px] ${fg(ERROR)}`}>{said()}</Text> : <View />}
       <Card icon="radio" title="Last.fm" note="Create an API account at last.fm/api/account/create, paste its key and secret, then sign in: the browser asks you to approve this app; once you allow it there, this card says so.">
-        <Input className={field} value={key()} onInput={(v: string) => setKey(v)} placeholder="API key" />
-        <Input className={field} value={secret()} onInput={(v: string) => setSecret(v)} placeholder="Shared secret" />
+        <Input className={field} value={key()} onInput={(v: string) => { setKey(v); saveLastfmKeys(v, secret()); }} placeholder="API key" />
+        <Input className={field} value={secret()} onInput={(v: string) => { setSecret(v); saveLastfmKeys(key(), v); }} placeholder="Shared secret" />
         <View className="flex-row items-center gap-2">
           {user() !== ''
             ? <View className="flex-row items-center gap-2">
-                <Button icon="plug" label={fmTesting() ? 'Testing…' : 'Test connection'} onPress={() => { setFmTesting(true); testLastfm().then((t: string) => fmReport(`Connected: ${t}`, true)).catch((e: Error) => fmReport(e.message, false)).finally(() => setFmTesting(false)); }} />
                 <Button icon="x" label="Sign out" onPress={() => { signOutLastfm(); setUser(''); fmReport('', true); }} />
               </View>
             : <View className="flex-row items-center gap-2">
                 {waiting() ? <Button icon="check" label="Finish" onPress={() => { finishLastfm().then((n: string) => signed(n)).catch((e: Error) => fmReport(e.message, false)); }} /> : <View />}
                 <Button icon="lock-open" label={waiting() ? 'Sign in again' : 'Sign in'} accent={!waiting()} onPress={signIn} />
               </View>}
+          <Button icon="plug" label={fmTesting() ? 'Testing…' : 'Test connection'} onPress={() => { setFmTesting(true); testLastfm().then((t: string) => fmReport(t, true)).catch((e: Error) => fmReport(e.message, false)).finally(() => setFmTesting(false)); }} />
           <Text className={`grow basis-0 text-[11px] ${fg(FAINT)}`}>{user() !== '' ? `Signed in as ${user()} · ${status(scrobbler.lastfmError, scrobbler.waitingLastfm())}` : waiting() ? 'Waiting for the approval in the browser…' : 'Off'}</Text>
         </View>
         {fmSaid() !== '' ? <Text className={`text-[12px] ${fg(fmOk() ? TEXT : ERROR)}`}>{fmSaid()}</Text> : <View />}

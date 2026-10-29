@@ -28,7 +28,12 @@ const PERIODS: string[] = ['overall', '12month', '6month', '3month', '1month', '
 export class ImportRun {
   stopped: boolean = false;
   progress: (done: i32, total: i32, added: i32) => void = (done: i32, total: i32, added: i32) => {};
+  /** A line for the job's steps (a page, a retry, what came in). */
+  note: (line: string) => void = (line: string) => {};
 }
+
+let say: (line: string) => void = (line: string) => {};   // the steps of the import running (one at a time)
+function day(ts: number): string { return new Date(ts * 1000).toISOString().substring(0, 10); }
 
 function sleep(ms: number): Promise<void> { return new Promise<void>((r: () => void) => { setTimeout(r, ms); }); }
 
@@ -75,7 +80,9 @@ export async function lastfm(params: string, key: string): Promise<any> {
     why = r.error !== '' ? `cannot be reached (${r.error})` : message !== '' ? message : `HTTP ${r.status}`;
     const passes = r.error !== '' || code === 29 || code === 8 || code === 11 || code === 16 || r.status === 429 || r.status >= 500;
     if (!passes) throw new Error(`Last.fm: ${why}`);
-    await sleep(backoff(attempt));
+    const ms = backoff(attempt);
+    say(`Last.fm: ${why}: trying again in ${Math.round(ms / 100) / 10} s (${attempt + 1}/${TRIES})`);
+    await sleep(ms);
   }
   throw new Error(`Last.fm: ${why} (tried ${TRIES} times)`);
 }
@@ -95,6 +102,7 @@ async function lastfmExtras(h: History, key: string, user: string): Promise<void
         h.love(s(t.artist.name), s(t.name), s(t.mbid), t.date !== undefined ? Number(t.date.uts) : 0, 'lastfm');
       }
     });
+    say(`loved tracks: page ${page}, ${list.length} songs`);
     if (lt['@attr'] === undefined || page >= Number(lt['@attr'].totalPages)) break;
   }
   for (const kind of ['tracks', 'artists']) {
@@ -113,16 +121,25 @@ async function lastfmExtras(h: History, key: string, user: string): Promise<void
       }
       h.setTop('lastfm', kind, period, rows);
     }
+    say(`top ${kind} of every period: ${PERIODS.join(', ')}`);
   }
 }
 
 /** Imports `user`'s Last.fm history (resuming an import left unfinished). Resolves with the result line. */
 export async function importLastfm(h: History, key: string, user: string, run: ImportRun): Promise<string> {
+  say = run.note;
+  try { return await importLastfmRun(h, key, user, run); } finally { say = (line: string) => {}; }   // other Last.fm reads (Genius) note nothing
+}
+
+async function importLastfmRun(h: History, key: string, user: string, run: ImportRun): Promise<string> {
   if (key === '') throw new Error('Last.fm: paste the API key first (last.fm/api/account/create)');
   if (user === '') throw new Error('Last.fm: the user name is missing');
   if (h.get('lastfm.user') !== user) {   // another account: its own history from the start
     h.db.transaction(() => { for (const k of ['running', 'to', 'runTo', 'pages', 'newest']) h.set(`lastfm.${k}`, ''); h.set('lastfm.user', user); });
   }
+  const newestBefore = h.getNumber('lastfm.newest');
+  if (h.get('lastfm.running') === '1') say(`resuming from page ${h.get('lastfm.pages')}, listens before ${day(h.getNumber('lastfm.to'))}`);
+  else say(newestBefore > 0 ? `${user}: the listens since ${day(newestBefore)}` : `${user}: the whole history`);
   if (h.get('lastfm.running') !== '1') {
     const now = `${Math.floor(Date.now() / 1000)}`;
     h.db.transaction(() => { h.set('lastfm.running', '1'); h.set('lastfm.to', now); h.set('lastfm.runTo', now); h.set('lastfm.pages', '0'); });
@@ -169,6 +186,7 @@ export async function importLastfm(h: History, key: string, user: string, run: I
       if (dated === 0 || left <= 1) { h.set('lastfm.running', ''); h.set('lastfm.newest', h.get('lastfm.runTo')); }
     });
     run.progress(pages, total, added);
+    say(`page ${pages}/${total}: ${dated} listens${dated > 0 ? ` back to ${day(oldest)}` : ''}`);
     if (dated === 0 || left <= 1) return `${added} new listen${added === 1 ? '' : 's'} (${pages} page${pages === 1 ? '' : 's'})`;
   }
 }

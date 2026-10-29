@@ -74,6 +74,10 @@ def check(out):
     eq('unfinished after the resume', o['unfinishedAfter'], False)
     if not o['resumePages'] or not o['resumePages'][0].startswith('4/'):
         errs.append('the resume did not go on from page 4: %r' % o['resumePages'])
+    notes = o['resumeNotes']   # the job's steps: where it resumes, the rate limit retried, one line per page
+    if not notes or not notes[0].startswith('resuming from page 3,') or not any('Rate Limit Exceeded: trying again in' in n for n in notes) \
+            or sum(1 for n in notes if n.startswith('page ')) != len(o['resumePages']):
+        errs.append('the resume\'s steps: %r' % notes[:6])
     eq('incremental', o['incremental'], '1 new listen (1 page)')
     eq('nothing new', o['again'], '0 new listens (1 page)')
     eq('ListenBrainz', o['listenbrainz'], '%d new listens (2 pages)' % (len(LB) - 300))

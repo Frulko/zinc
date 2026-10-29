@@ -29,8 +29,11 @@ async function main(): Promise<void> {
   const pages: string[] = [];
   const resume = new ImportRun();
   resume.progress = (done: i32, total: i32, added: i32) => { pages.push(`${done}/${total}`); };
+  const notes: string[] = [];
+  resume.note = (line: string) => { notes.push(line); };
   out.resumed = await importLastfm(h, 'apikey', 'ann', resume);
   out.resumePages = pages;
+  out.resumeNotes = notes;
   out.unfinishedAfter = lastfmUnfinished(h);
   await new Promise<void>((r: () => void) => { setTimeout(r, 2100); });   // the scrobble added during the import is now in the past
   out.incremental = await importLastfm(h, 'apikey', 'ann', new ImportRun());

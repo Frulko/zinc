@@ -43,6 +43,7 @@ function start(label: string, work: (run: ImportRun) => Promise<string>): void {
   run.progress = (done: i32, total: i32, added: i32) => {
     batch(() => { job.setDone(done); job.setTotal(total); job.setDetail(`pages · ${added} new listen${added === 1 ? '' : 's'}`); });
   };
+  run.note = (line: string) => job.note(line);
 }
 
 /** Imports (or resumes importing) `user`'s Last.fm history with the API `key` of the Last.fm card (kept: signing in is not needed to

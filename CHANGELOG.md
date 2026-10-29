@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- iPod demo: the Last.fm key and secret are kept as you type them; Test connection is always there (before signing in it checks the key and secret); a Last.fm import lists its steps in Transfers: where it resumes, each page and how far back it reached, each retry after a rate limit.
 - iPod demo: a For you shelf can be dragged with the mouse (a drag no longer opens the card under it), and its arrows glide to the next cards.
 - `dragToScroll` on a scroll container lets a mouse drag it (carousels); the drag is not a click. `ui.scrollTo(h, x, y, true)` eases to the offset.
 - iPod demo: the For you shelves snap their cards into place and hide their scroll bars; both are switches in Settings › For you, and the arrows turn a shelf by whole cards.

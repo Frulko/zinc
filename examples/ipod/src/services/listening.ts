@@ -195,13 +195,24 @@ function signedIn(key: string, name: string): string {
   return name;
 }
 
-/** Asks Last.fm which account the saved session opens: "ann · 1234 scrobbles". */
+/** Keeps the Last.fm key and secret as they are typed (the next start shows them again). */
+export function saveLastfmKeys(key: string, secret: string): void {
+  const c = loadConfig();
+  if (c.lastfmKey === key.trim() && c.lastfmSecret === secret.trim()) return;
+  c.lastfmKey = key.trim(); c.lastfmSecret = secret.trim();
+  saveConfig(c);
+  useAccounts(c);
+}
+
+/** Asks Last.fm which account the saved session opens ("Connected: ann · 1234 scrobbles"); not signed in yet, whether the key and the
+ *  secret work (a signed auth.getToken). */
 export async function testLastfm(): Promise<string> {
   const c = loadConfig();
-  if (c.lastfmSession === '') throw new Error('Last.fm: not signed in');
+  if (c.lastfmKey === '' || c.lastfmSecret === '') throw new Error('Last.fm: paste the API key and the shared secret first');
+  if (c.lastfmSession === '') { await lastfmToken(c.lastfmKey, c.lastfmSecret); return 'The API key and the secret work: press Sign in to send your listens'; }
   const a = new Accounts();
   a.lastfmKey = c.lastfmKey; a.lastfmSecret = c.lastfmSecret; a.lastfmSession = c.lastfmSession;
-  return await lastfmCheck(a);
+  return `Connected: ${await lastfmCheck(a)}`;
 }
 
 /** Asks ListenBrainz whose `token` is: the user name. */
