@@ -59,17 +59,15 @@ static int skip(int c, size_t n) {
     return 1;
 }
 
-static uint8_t *plain; static size_t plainCap;
-static ZSTD_DCtx *dctx;
-/** One RECT's B G R rows (compressed or not, Sub-filtered or not) into the picture. */
-static int decodeRect(const uint8_t *data, size_t len, int x, int y, int w, int h, int codec, int sub) {
+/** One RECT's B G R rows (compressed or not, Sub-filtered or not) into the picture; plain and dctx are the decoding thread's own. */
+static int decodeRect(const uint8_t *data, size_t len, int x, int y, int w, int h, int codec, int sub, uint8_t **plain, size_t *plainCap, ZSTD_DCtx **dctx) {
     size_t stride = (size_t)w * 3, raw = stride * h;
     const uint8_t *src = data;
     if (codec) {
-        if (plainCap < raw) { free(plain); plain = malloc(raw); plainCap = raw; }
-        if (codec == 1) { if (LZ4_decompress_safe((const char *)data, (char *)plain, (int)len, (int)raw) != (int)raw) return 0; }
-        else { if (!dctx) dctx = ZSTD_createDCtx(); if (ZSTD_decompressDCtx(dctx, plain, raw, data, len) != raw) return 0; }
-        src = plain;
+        if (*plainCap < raw) { free(*plain); *plain = malloc(raw); *plainCap = raw; }
+        if (codec == 1) { if (LZ4_decompress_safe((const char *)data, (char *)*plain, (int)len, (int)raw) != (int)raw) return 0; }
+        else { if (!*dctx) *dctx = ZSTD_createDCtx(); if (ZSTD_decompressDCtx(*dctx, *plain, raw, data, len) != raw) return 0; }
+        src = *plain;
     } else if (len < raw) return 0;
     for (int r = 0; r < h; r++) {
         const uint8_t *s = src + r * stride;
@@ -82,6 +80,52 @@ static int decodeRect(const uint8_t *data, size_t len, int x, int y, int w, int 
     }
     return 1;
 }
+
+// The RECTs of a picture are decoded by WORKERS threads while the stream thread reads the next ones: one Tegra 3 core decodes about
+// 7 Mbit/s of zstd, the cable carries 27. The rectangles of a picture do not overlap (the Mac's dirty tiles); a COPY and a picture's end
+// wait for the queue to be empty.
+#define WORKERS 3
+typedef struct Job { struct Job *next; uint8_t *data; size_t len; int x, y, w, h, codec, sub; } Job;
+static Job *jobs, **jobsTail = &jobs;
+static int outstanding, failed; static uint32_t decodedUs;
+static pthread_mutex_t jobLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t jobReady = PTHREAD_COND_INITIALIZER, jobDone = PTHREAD_COND_INITIALIZER;
+static void *worker(void *unused) {
+    (void)unused;
+    uint8_t *plain = NULL; size_t plainCap = 0; ZSTD_DCtx *dctx = NULL;
+    for (;;) {
+        pthread_mutex_lock(&jobLock);
+        while (!jobs) pthread_cond_wait(&jobReady, &jobLock);
+        Job *j = jobs; jobs = j->next; if (!jobs) jobsTail = &jobs;
+        pthread_mutex_unlock(&jobLock);
+        uint32_t t = now_us();
+        int ok = decodeRect(j->data, j->len, j->x, j->y, j->w, j->h, j->codec, j->sub, &plain, &plainCap, &dctx);
+        uint32_t dt = now_us() - t;
+        free(j->data); free(j);
+        send16(1, 0, 0, (int32_t)dt, 0, 1);
+        pthread_mutex_lock(&jobLock);
+        decodedUs += dt; if (!ok) failed = 1;
+        if (--outstanding == 0) pthread_cond_broadcast(&jobDone);
+        pthread_mutex_unlock(&jobLock);
+    }
+    return NULL;
+}
+static void queueRect(Job *j) {
+    pthread_mutex_lock(&jobLock);
+    j->next = NULL; *jobsTail = j; jobsTail = &j->next; outstanding++;
+    pthread_cond_signal(&jobReady);
+    pthread_mutex_unlock(&jobLock);
+}
+/** Waits for the queued RECTs; false when one did not decode. */
+static int drain(void) {
+    pthread_mutex_lock(&jobLock);
+    while (outstanding) pthread_cond_wait(&jobDone, &jobLock);
+    int ok = !failed; failed = 0;
+    pthread_mutex_unlock(&jobLock);
+    return ok;
+}
+static uint32_t takeDecoded(void) { pthread_mutex_lock(&jobLock); uint32_t d = decodedUs; decodedUs = 0; pthread_mutex_unlock(&jobLock); return d; }
+
 /** The picture into the window's next buffer, whole: a posted buffer comes back later with an older picture in it.
  *  ponytail: 4 MB copied a picture on a 1280x800 screen (8-12 ms on a Tegra 3); dirty rows per buffer if it shows in a profile. */
 static void show(void) {
@@ -146,8 +190,7 @@ static void serve(int c) {
     if (write(c, hello, (size_t)n) != n) return;
     pthread_mutex_lock(&wire); client = c; acked = 0; pthread_mutex_unlock(&wire);
     uint8_t h[16];
-    uint8_t *data = NULL; size_t cap = 0;
-    uint32_t t0 = 0, decodeUs = 0, hostAt = now_us(); int inPicture = 0;
+    uint32_t hostAt = now_us(); int inPicture = 0;
     sendHost();
     while (readFull(c, h, 16)) {
         int type = h[0], depth = h[1], x = h[2] | h[3] << 8, y = h[4] | h[5] << 8, w = h[6] | h[7] << 8, hh = h[8] | h[9] << 8;
@@ -156,34 +199,32 @@ static void serve(int c) {
         if (type == 1) {   // RECT, depth 24
             size_t raw = (size_t)w * hh * 3;
             if (depth != 24 || codec > 2 || x + w > W || y + hh > H || len > raw + raw / 255 + 64 || len > (size_t)W * H * 3 + 64) break;
-            if (cap < len) { free(data); data = malloc(len); cap = len; }
-            if (!readFull(c, data, len)) break;
-            if (!inPicture) { beginPicture(&inPicture); t0 = now_us(); decodeUs = 0; }
-            uint32_t t = now_us();
-            if (!decodeRect(data, len, x, y, w, hh, codec, sub)) break;
-            decodeUs += now_us() - t;
-            send16(1, 0, 0, (int32_t)(now_us() - t), 0, 1);
-            if (!more) endPicture(&inPicture, decodeUs);
+            Job *j = malloc(sizeof *j);
+            j->data = malloc(len ? len : 1); j->len = len; j->x = x; j->y = y; j->w = w; j->h = hh; j->codec = codec; j->sub = sub;
+            if (!readFull(c, j->data, len)) { free(j->data); free(j); break; }
+            beginPicture(&inPicture);
+            queueRect(j);
+            if (!more) { if (!drain()) break; endPicture(&inPicture, takeDecoded()); }
         } else if (type == 6) {   // COPY: the rectangle moves by [i16 dx][i16 dy]
             int16_t d[2];
             if (len != 4 || !readFull(c, d, 4)) break;
             int dx = d[0], dy = d[1];
             if (x + w > W || y + hh > H || x + dx < 0 || y + dy < 0 || x + dx + w > W || y + dy + hh > H) break;
+            if (!drain()) break;   // the rectangles before it are in the picture
             for (int j = 0; j < hh; j++) { int r = dy > 0 ? hh - 1 - j : j; memmove(fb + (size_t)(y + dy + r) * W + x + dx, fb + (size_t)(y + r) * W + x, (size_t)w * 4); }
-            if (!inPicture) { beginPicture(&inPicture); t0 = now_us(); decodeUs = 0; }
-            if (!more) endPicture(&inPicture, decodeUs);
+            beginPicture(&inPicture);
+            if (!more) endPicture(&inPicture, takeDecoded());
         } else if (type == 9) {   // SINK: read, dropped, ECHO
             if (!skip(c, len)) break;
             send16(11, 0, (int32_t)len, x | y << 16, 0, 0);
         } else {   // MODE, FULL, CURSOR, POINTER, SET, QUIT, VIDEO: nothing for this screen (no +h264 in its hello)
             if (!skip(c, len)) break;
-            if ((type == 4 || type == 5) && !more && inPicture) endPicture(&inPicture, decodeUs);
+            if ((type == 4 || type == 5) && !more && inPicture) { if (!drain()) break; endPicture(&inPicture, takeDecoded()); }
         }
         if (now_us() - hostAt > 2000000) { hostAt = now_us(); sendHost(); }
     }
+    drain(); takeDecoded();   // no worker writes the picture once the stream has left
     if (inPicture) pthread_mutex_unlock(&picLock);   // half a picture: shown with the next one
-    (void)t0;
-    free(data);
     pthread_mutex_lock(&wire); client = -1; pthread_mutex_unlock(&wire);
     LOG("the sender left");
 }
@@ -238,6 +279,7 @@ JNIEXPORT void JNICALL Java_dev_zinc_sidecar_Screen_start(JNIEnv *env, jclass cl
             listening = 1;
             pthread_t t; pthread_create(&t, NULL, listener, NULL); pthread_detach(t);
             pthread_create(&t, NULL, presenter, NULL); pthread_detach(t);
+            for (int i = 0; i < WORKERS; i++) { pthread_create(&t, NULL, worker, NULL); pthread_detach(t); }
         }
     }
     ANativeWindow_setBuffersGeometry(win, W, H, WINDOW_FORMAT_RGBX_8888);   // opaque: the compositor blends nothing
