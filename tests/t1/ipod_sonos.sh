@@ -55,7 +55,7 @@ out=$("$Z" run "$tmp/setup.ts" 2>"$tmp/setup.err")
 [ "$out" = ok ] || { echo "ipod_sonos: the setup: $out $(tail -3 "$tmp/setup.err")"; exit 1; }
 port=$((20000 + ($$ + 91) % 20000))
 app=$tmp/app
-cp -R examples/ipod "$app" && rm -rf "$app/build"
+cp -R examples/ipod "$app" && cp -R examples/ipod-web "$tmp/ipod-web" && rm -rf "$app/build"   # the app imports the daemon's Subsonic module (Share with AudioMuse)
 python3 tests/data/sonos/stub_speaker.py $port "$tmp/sonos.log" --fetch > "$tmp/sonos.out" 2>&1 & srv=$!
 for i in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null -X POST "http://127.0.0.1:$port/" && break; sleep 0.3; done
 # the output button (frame 41), Salon in its menu (frame 141: the search answered), Songs (161), a double-click on the first song (201);

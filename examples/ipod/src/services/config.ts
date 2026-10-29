@@ -1,6 +1,7 @@
 // The app's settings, in <backups>/config.json (beside the logs: ~/.zinc/ipod/config.json by default): the remote iPod, an iPod
 // daemon (examples/ipod-web) the app connects to, the Sonos speaker found last, the size of the remote iPod's audio cache, the
-// scrobbling accounts (Last.fm, ListenBrainz) and whose listening history is imported. Saving keeps the keys this version does not know.
+// scrobbling accounts (Last.fm, ListenBrainz), whose listening history is imported, and Share with AudioMuse (services/share.ts). Saving
+// keeps the keys this version does not know.
 import * as fs from 'zinc:fs';
 import { backupPlace } from './log';
 
@@ -23,6 +24,12 @@ export class AppConfig {
   /** Whose listening history is imported (services/historyJobs.ts): the Last.fm user ('' = the one signed in) and the ListenBrainz user. */
   historyLastfmUser: string = '';
   historyListenbrainzUser: string = '';
+  /** Share with AudioMuse: on, its port, and the Subsonic account AudioMuse uses (user and password, or the API key). */
+  shareOn: boolean = false;
+  sharePort: i32 = 4533;
+  shareUser: string = 'audiomuse';
+  sharePassword: string = '';
+  shareApiKey: string = '';
 }
 
 function configFile(): string { return `${backupPlace()}/config.json`; }
@@ -43,6 +50,11 @@ export function loadConfig(): AppConfig {
     if (stored.listenbrainzToken !== undefined) config.listenbrainzToken = '' + stored.listenbrainzToken;
     if (stored.historyLastfmUser !== undefined) config.historyLastfmUser = '' + stored.historyLastfmUser;
     if (stored.historyListenbrainzUser !== undefined) config.historyListenbrainzUser = '' + stored.historyListenbrainzUser;
+    if (stored.shareOn !== undefined) config.shareOn = stored.shareOn === true;
+    if (stored.sharePort !== undefined) config.sharePort = Number(stored.sharePort) as i32;
+    if (stored.shareUser !== undefined) config.shareUser = '' + stored.shareUser;
+    if (stored.sharePassword !== undefined) config.sharePassword = '' + stored.sharePassword;
+    if (stored.shareApiKey !== undefined) config.shareApiKey = '' + stored.shareApiKey;
   } catch (e) { /* unreadable: the defaults */ }
   return config;
 }
@@ -62,6 +74,11 @@ export function saveConfig(config: AppConfig): void {
     stored.listenbrainzToken = config.listenbrainzToken;
     stored.historyLastfmUser = config.historyLastfmUser;
     stored.historyListenbrainzUser = config.historyListenbrainzUser;
+    stored.shareOn = config.shareOn;
+    stored.sharePort = config.sharePort;
+    stored.shareUser = config.shareUser;
+    stored.sharePassword = config.sharePassword;
+    stored.shareApiKey = config.shareApiKey;
     fs.mkdir(backupPlace(), true);
     fs.writeText(configFile(), JSON.stringify(stored) + '\n');
   } catch (e) { console.error(`ipod: ${configFile()}: ${(e as Error).message}`); }

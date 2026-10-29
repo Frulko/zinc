@@ -102,7 +102,7 @@ export function reuseServer(p: i32, t: string): void { wantedPort = p; wantedTok
 export function serverPort(): i32 { return port; }
 export function serverToken(): string { return token; }
 /** Stops the server (the app quits): the speakers' events and the songs end with it. */
-export function stopServer(): void { if (port !== 0) net.stop(); port = 0; }
+export function stopServer(): void { if (port !== 0) net.stop(port); port = 0; }
 
 /** Serves the open iPod's tracks (started the first time, the tracks replaced when another iPod is open). */
 function share(lib: PodLibrary): void {

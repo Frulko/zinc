@@ -38,7 +38,7 @@ export ZINC_IPOD_BACKUPS="$tmp/backups" ZINC_NATIVE=real ZINC_IPOD_ROOTS="$tmp/V
 out=$("$Z" run "$tmp/setup.ts" 2>"$tmp/setup.err")
 [ "$out" = ok ] || { echo "ipod_queue: the setup: $out $(tail -3 "$tmp/setup.err")"; exit 1; }
 app=$tmp/app
-cp -R examples/ipod "$app" && rm -rf "$app/build"
+cp -R examples/ipod "$app" && cp -R examples/ipod-web "$tmp/ipod-web" && rm -rf "$app/build"   # the app imports the daemon's Subsonic module (Share with AudioMuse)
 # Songs (61), a double-click on the first song (101), a right click on Delta (161: Play next), repeat (201), the queue button (231),
 # the window closed (340)
 cat > "$tmp/first.input" <<'IN'

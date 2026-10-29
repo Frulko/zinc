@@ -58,7 +58,8 @@ export function albumArtistOf(t: ipod.Track): string {
   return t.artist !== '' ? t.artist : 'Unknown Artist';
 }
 
-function index(): void {
+/** Numbers the albums and artists of lib.tracks (the Mac app calls it after filling lib from its own library). */
+export function indexLibrary(): void {
   const albums: Album[] = [];
   const byKey = new Map<string, Album>();
   for (const t of lib.tracks) {
@@ -123,7 +124,7 @@ export function guidOf(d: ipod.Device): string {
 export async function load(): Promise<void> {
   lib.tracks = await ipod.tracks();
   lib.playlists = await ipod.playlists();
-  index();
+  indexLibrary();
 }
 
 function clear(): void {
@@ -133,7 +134,7 @@ function clear(): void {
   lib.guid = '';
   lib.tracks = [];
   lib.playlists = [];
-  index();
+  indexLibrary();
 }
 
 export async function close(): Promise<void> {

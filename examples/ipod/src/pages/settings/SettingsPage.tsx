@@ -10,6 +10,7 @@ import { historyVersion, syncHistory, importing, importLastfmNow, importListenbr
   historyCounts, unmatchedArtists, unmatchedTracks } from '../../services/historyJobs';
 import { Ranked } from '../../services/history';
 import { Button } from '../../components/Button';
+import { ShareFields, SHARE_NOTE } from './ShareFields';
 import { bg, bd, fg, color, CARD, BORDER, TEXT, MUTED, FAINT, ACCENT, ERROR } from '../../constants';
 
 function Card(props: { icon: string; title: string; note: string; children: () => i32 }): i32 {
@@ -100,6 +101,7 @@ export function SettingsPage(): i32 {
           <Button icon="check" label="Save" onPress={() => { const n = parseFloat(cacheMb()); if (Number.isNaN(n) || n < 0) setSaid('The size is a number of MB'); else { setAudioCacheMb(n); setSaid(''); } }} />
         </View>
       </Card>
+      <Card icon="wifi" title="Share with AudioMuse" note={SHARE_NOTE}><ShareFields /></Card>
     </View>
   </ScrollView>;
 }

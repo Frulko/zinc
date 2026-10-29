@@ -51,6 +51,7 @@ import { TransfersPage } from './pages/transfers/TransfersPage';
 import { LogsPage } from './pages/logs/LogsPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { startListening, flush as flushListening } from './services/listening';
+import { resumeSharing, stopSharing } from './services/share';
 
 function Content(props: { lib: PodLibrary; page: string }): i32 {
   const p = props.page;
@@ -93,7 +94,7 @@ onQuit('session', async (): Promise<void> => { saveSession(); });
 onQuit('scrobble', flushListening);   // the song playing counts for the time heard (services/listening.ts)
 onQuit('speaker', (): Promise<void> => release(releaseMode()));
 onQuit('events', unfollow);
-onQuit('server', async (): Promise<void> => { stopServer(); });
+onQuit('server', async (): Promise<void> => { stopServer(); stopSharing(); });
 onQuit('ipod', closeDevice);
 // files dropped on the window arrive one event per file: those of one drop are added together
 let dropped: string[] = [];
@@ -119,4 +120,5 @@ const remoteAtStart = sys.env('IPOD_DEMO_REMOTE');
 if (remoteAtStart !== '') openRemoteDevice(remoteAtStart, sys.env('IPOD_DEMO_REMOTE_TOKEN'));
 rescan();
 startListening();   // what plays counts: on the iPod, Last.fm and ListenBrainz (services/listening.ts)
+resumeSharing();   // Share with AudioMuse, when it was on (services/share.ts)
 render(App, CLEAR_COLOR, null);
