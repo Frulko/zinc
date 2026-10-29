@@ -1351,7 +1351,45 @@ std::string fileHash(const std::string& file) {
 
 bool audible(const std::string& media) { return media == "audio" || media == "podcast" || media == "audiobook"; }
 
+/** "Title — Artist · MP3 · 4.1 MB": a track as the analysis's progress names it. */
+std::string named(const Copy& c) {
+  std::string out = c.t.title.empty() ? c.t.path : c.t.title;
+  if (!c.t.artist.empty()) out += " — " + c.t.artist;
+  return out + " · " + (c.format.empty() ? std::string("?") : c.format) + " · " + mb(c.t.size);
+}
+
 }  // namespace
+
+/** A cache of the analysis on the computer ("key\tvalue" lines): file hashes and fingerprints, keyed by "id size mtime" of the file. */
+static std::map<std::string, std::string> readCache(const fs::path& file) {
+  std::map<std::string, std::string> cache;
+  if (FILE* f = fopen(file.c_str(), "r")) {
+    char line[8192];
+    while (fgets(line, sizeof line, f)) {
+      std::string s = line;
+      while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
+      size_t tab = s.find('\t');
+      if (tab != std::string::npos) cache[s.substr(0, tab)] = s.substr(tab + 1);
+    }
+    fclose(f);
+  }
+  return cache;
+}
+/** Writes `kept` over the cache file when it differs from what was read: the cache is on the computer, the iPod is only read. */
+static void writeCache(const fs::path& file, const std::map<std::string, std::string>& kept, const std::map<std::string, std::string>& read) {
+  if (kept == read) return;
+  std::error_code ec;
+  fs::create_directories(file.parent_path(), ec);
+  std::string text;
+  for (const auto& [key, v] : kept) text += key + "\t" + v + "\n";
+  g_file_set_contents(file.c_str(), text.data(), (gssize)text.size(), nullptr);   // best effort: a full disk costs the next read
+}
+/** "id size mtime" of a track's file; '' when the file is missing. */
+static std::string fileKey(const Copy& c, const std::string& file) {
+  struct stat st;
+  if (stat(file.c_str(), &st) != 0) return "";
+  return c.t.id + " " + std::to_string((long long)st.st_size) + " " + std::to_string((long long)st.st_mtime);
+}
 
 Analysis Library::analyze(bool fingerprints, const Progress& progress, std::string& err) {
   Analysis a;
@@ -1367,15 +1405,31 @@ Analysis Library::analyze(bool fingerprints, const Progress& progress, std::stri
     copies.push_back(std::move(c));
   }
   const size_t n = copies.size();
+  if (progress) progress("read", (int32_t)n, (int32_t)n, std::to_string(n) + " tracks in the database");
+  Device d;
+  std::string why;
+  describe(mp_, d, why);
+  const fs::path cacheDir = fs::path(backupRoot()) / folderKey(d);
 
   // identical files: a content hash for the files whose size another file of the same kind shares
   std::map<std::string, int> sizes;
   for (const Copy& c : copies) sizes[c.t.mediaType + '\x1f' + std::to_string((long long)c.t.size)]++;
   std::vector<size_t> toHash;
   for (size_t i = 0; i < n; i++) if (!copies[i].t.path.empty() && sizes[copies[i].t.mediaType + '\x1f' + std::to_string((long long)copies[i].t.size)] > 1) toHash.push_back(i);
-  for (size_t k = 0; k < toHash.size(); k++) {
-    copies[toHash[k]].hash = fileHash(files[toHash[k]]);
-    if (progress) progress("hash", (int32_t)k + 1, (int32_t)toHash.size(), copies[toHash[k]].t.title);
+  if (progress) progress("hash", 0, (int32_t)toHash.size(), std::to_string(toHash.size()) + " files share their size with another: their content is compared (XXH3)");
+  {
+    const std::map<std::string, std::string> cache = readCache(cacheDir / "hashes.txt");
+    std::map<std::string, std::string> kept;
+    for (size_t k = 0; k < toHash.size(); k++) {
+      Copy& c = copies[toHash[k]];
+      const std::string key = fileKey(c, files[toHash[k]]);
+      auto hit = key.empty() ? cache.end() : cache.find(key);
+      const bool cached = hit != cache.end();
+      c.hash = cached ? hit->second : key.empty() ? std::string() : fileHash(files[toHash[k]]);
+      if (!key.empty() && !c.hash.empty()) kept[key] = c.hash;
+      if (progress) progress("hash", (int32_t)k + 1, (int32_t)toHash.size(), named(c) + " · " + c.t.path + (c.hash.empty() ? " · unreadable" : " · " + c.hash.substr(0, 12) + (cached ? " (cache)" : "")));
+    }
+    writeCache(cacheDir / "hashes.txt", kept, cache);
   }
 
   // audio fingerprints: for the songs, podcasts and audiobooks that have another of their kind of a close duration; from the cache when
@@ -1390,55 +1444,57 @@ Analysis Library::analyze(bool fingerprints, const Progress& progress, std::stri
       for (size_t y = x + 1; y < order.size() && copies[order[y]].t.durationMs - copies[order[x]].t.durationMs <= kAudioDurationMs; y++)
         if (copies[order[x]].t.mediaType == copies[order[y]].t.mediaType) near[order[x]] = near[order[y]] = true;
     for (size_t i = 0; i < n; i++) if (near[i]) want.push_back(i);
+    if (progress) progress("fingerprint", 0, (int32_t)want.size(), std::to_string(want.size()) + " songs, podcasts and audiobooks have another of a length within 2 s: their sound is compared (Chromaprint, first 30 s)");
 
-    Device d;
-    std::string why;
-    describe(mp_, d, why);
-    fs::path cacheFile = fs::path(backupRoot()) / folderKey(d) / "fingerprints.txt";
-    std::map<std::string, std::string> cache;   // "id size mtime" -> the encoded fingerprint, "-" for a file that gave none
-    if (FILE* f = fopen(cacheFile.c_str(), "r")) {
-      char line[8192];
-      while (fgets(line, sizeof line, f)) {
-        std::string s = line;
-        while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
-        size_t tab = s.find('\t');
-        if (tab != std::string::npos) cache[s.substr(0, tab)] = s.substr(tab + 1);
-      }
-      fclose(f);
-    }
+    const fs::path cacheFile = cacheDir / "fingerprints.txt";
+    const std::map<std::string, std::string> cache = readCache(cacheFile);   // "id size mtime" -> the encoded fingerprint, "-" for a file that gave none
     std::map<std::string, std::string> kept;   // what the cache holds after: the tracks of this analysis only
-    int decoded = 0;
     for (size_t k = 0; k < want.size(); k++) {
       Copy& c = copies[want[k]];
-      struct stat st;
-      if (stat(files[want[k]].c_str(), &st) != 0) { a.noFingerprint++; continue; }
-      std::string key = c.t.id + " " + std::to_string((long long)st.st_size) + " " + std::to_string((long long)st.st_mtime);
+      const std::string key = fileKey(c, files[want[k]]);
+      if (key.empty()) {
+        a.noFingerprint++;
+        if (progress) progress("fingerprint", (int32_t)k + 1, (int32_t)want.size(), named(c) + " · its file is missing (" + c.t.path + ")");
+        continue;
+      }
       auto hit = cache.find(key);
       const bool cached = hit != cache.end();
+      std::string reason;
       if (cached) c.fp = hit->second == "-" ? std::vector<uint32_t>() : decodeFingerprint(hit->second);
-      else { std::string reason; c.fp = fingerprint(files[want[k]], reason); decoded++; }
+      else c.fp = fingerprint(files[want[k]], reason);
       if (c.fp.empty()) a.noFingerprint++;
       else if (cached) a.fromCache++;
       else a.fingerprinted++;
       kept[key] = c.fp.empty() ? "-" : encodeFingerprint(c.fp);
-      if (progress) progress("fingerprint", (int32_t)k + 1, (int32_t)want.size(), c.t.title);
+      if (progress) progress("fingerprint", (int32_t)k + 1, (int32_t)want.size(), named(c) + " · " +
+        (c.fp.empty() ? "no fingerprint" + (reason.empty() ? std::string(cached ? " (cache)" : "") : ": " + reason) : cached ? "fingerprint from the cache" : "decoded and fingerprinted"));
     }
-    if (decoded > 0 || kept.size() != cache.size()) {   // the cache is on the computer: the iPod is only read
-      std::error_code ec;
-      fs::create_directories(cacheFile.parent_path(), ec);
-      std::string text;
-      for (const auto& [key, fp] : kept) text += key + "\t" + fp + "\n";
-      g_file_set_contents(cacheFile.c_str(), text.data(), (gssize)text.size(), nullptr);   // best effort: a full disk costs the next decode
-    }
+    writeCache(cacheFile, kept, cache);
   }
 
   a.groups = groupDuplicates(copies);
+  if (progress) {
+    std::map<std::string, const Copy*> byId;
+    for (const Copy& c : copies) byId[c.t.id] = &c;
+    for (size_t g = 0; g < a.groups.size(); g++) {
+      const DuplicateGroup& dg = a.groups[g];
+      std::string why, list;
+      for (const std::string& r : dg.reasons) why += (why.empty() ? "" : "+") + r;
+      for (size_t k = 0; k < dg.trackIds.size(); k++) {
+        auto it = byId.find(dg.trackIds[k]);
+        list += std::string(k == 0 ? " · keep " : " · drop ") + (it != byId.end() ? named(*it->second) : dg.trackIds[k]);
+      }
+      progress("group", (int32_t)g + 1, (int32_t)a.groups.size(), "same " + why + list + (dg.keepWhy.empty() ? "" : " (" + dg.keepWhy + ")"));
+    }
+  }
   for (const Copy& c : copies) {
     if (c.t.mediaType != "audio") continue;
     if (!c.t.artwork) a.noArtwork.push_back(c.t.id);
     if (c.t.title.empty() || c.t.artist.empty() || c.t.album.empty()) a.missingTags.push_back(c.t.id);
   }
+  if (progress) progress("check", 0, 1, "looking for tracks without a file and files no track uses");
   Check ck = check();
+  if (progress) progress("check", 1, 1, std::to_string(ck.missing.size()) + " tracks without a file, " + std::to_string(ck.orphans.size()) + " files no track uses (" + mb(ck.orphanBytes) + ")");
   a.missing = ck.missing;
   a.orphans = ck.orphans;
   a.orphanBytes = ck.orphanBytes;

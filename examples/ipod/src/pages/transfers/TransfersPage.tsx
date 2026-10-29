@@ -1,6 +1,6 @@
 // The transfers: every job of the session (add, download, backup, restore, delete, check, repair), the one running with its
 // progress bar and the file it copies, those waiting with Cancel, those ended with their result (a click lists each file: its tags as
-// the iPod holds them or why it was refused, and its size); and where downloads go.
+// the iPod holds them or why it was refused, and its size; and every step the job took, shown live while it runs); and where downloads go.
 import { Icon } from 'zinc:icons';
 import * as ui from 'zinc:ui';
 import { createSignal } from 'zinc:ui/solid';
@@ -8,7 +8,7 @@ import { jobs, cancel, clearFinished, Job, JobLine, WAITING, RUNNING, DONE, FAIL
 import { downloadFolder, chooseDownloadDir } from '../../actions';
 import { Button } from '../../components/Button';
 import { bytes } from '../../format';
-import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK } from '../../constants';
+import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK, SIDEBAR as LOG_BG } from '../../constants';
 
 const KIND_ICONS: string[] = ['add', 'plus', 'download', 'download', 'backup', 'archive', 'restore', 'rotate-ccw', 'delete', 'x', 'check', 'shield-check', 'repair', 'wrench', 'analyse', 'sparkles', 'merge', 'copy'];
 function iconOf(kind: string): string { for (let i = 0; i < KIND_ICONS.length; i += 2) if (KIND_ICONS[i] === kind) return KIND_ICONS[i + 1]; return 'arrow-down-up'; }
@@ -23,8 +23,11 @@ function Line(props: { l: JobLine }): i32 {
 
 function JobRow(props: { job: Job }): i32 {
   const j = props.job;
-  const [open, setOpen] = createSignal<boolean>(false);
   const state = (): string => j.status();
+  // open while it runs (its steps scroll by), closed when it ends, until a click decides
+  const [chosen, setChosen] = createSignal<i32>(-1);
+  const open = (): boolean => chosen() >= 0 ? chosen() === 1 : state() === RUNNING;
+  const has = (): boolean => j.lines().length > 0 || j.events() !== '';
   const line = (): string => {
     const s = state();
     if (s === WAITING) return 'Waiting';
@@ -32,9 +35,9 @@ function JobRow(props: { job: Job }): i32 {
     return j.result();
   };
   return <View className={`flex-col border-t ${bd(BORDER)}`}>
-  <View className={`flex-row items-center gap-3 px-4 py-3 ${j.lines().length > 0 ? `cursor-pointer hover:${bg(HOVER)}` : ''}`}
-    onPointerDown={(e: ui.PointerEvent) => { if (j.lines().length > 0) setOpen(!open()); }}>
-    <Icon name={j.lines().length > 0 ? (open() ? 'chevron-down' : 'chevron-right') : 'dot'} size={14} color={() => color(FAINT)} strokeWidth={2} />
+  <View className={`flex-row items-center gap-3 px-4 py-3 ${has() ? `cursor-pointer hover:${bg(HOVER)}` : ''}`}
+    onPointerDown={(e: ui.PointerEvent) => { if (has()) setChosen(open() ? 0 : 1); }}>
+    <Icon name={has() ? (open() ? 'chevron-down' : 'chevron-right') : 'dot'} size={14} color={() => color(FAINT)} strokeWidth={2} />
     <Icon name={iconOf(j.kind)} size={16} color={() => color(state() === FAILED ? ERROR : ACCENT)} strokeWidth={2} />
     <View className="grow basis-0 flex-col gap-1 min-w-0">
       <Text className={`text-[13px] font-semibold ${fg(TEXT)}`} numberOfLines={1}>{j.label}</Text>
@@ -46,7 +49,13 @@ function JobRow(props: { job: Job }): i32 {
     {state() === WAITING ? <Button icon="x" label="Cancel" onPress={() => cancel(j)} />
       : <Text className={`text-[11px] font-semibold ${state() === FAILED ? fg(ERROR) : state() === DONE ? fg(MUTED) : fg(FAINT)}`}>{state()}</Text>}
   </View>
-  {open() ? <View className="flex-col gap-1.5 pl-[62] pr-4 pb-3">{j.lines().map((l: JobLine) => <Line l={l} />)}</View> : <View />}
+  {open() && j.lines().length > 0 ? <View className="flex-col gap-1.5 pl-[62] pr-4 pb-3">{j.lines().map((l: JobLine) => <Line l={l} />)}</View> : <View />}
+  {open() && j.events() !== '' ? <View className="flex-col gap-1 pl-[62] pr-4 pb-3">
+    <Text className={`text-[11px] font-semibold ${fg(FAINT)}`}>STEPS</Text>
+    <ScrollView stickToBottom className={`h-[200] rounded-[6] border px-3 py-2 ${bg(LOG_BG)} ${bd(BORDER)}`}>
+      <Text className={`font-mono text-[11px] whitespace-pre-wrap ${fg(MUTED)}`}>{j.events()}</Text>
+    </ScrollView>
+  </View> : <View />}
   </View>;
 }
 

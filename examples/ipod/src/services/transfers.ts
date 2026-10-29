@@ -1,10 +1,11 @@
 // The transfers: a queue of jobs (add, download, backup, restore, delete, repair) run one at a time, since zinc:ipod has one
 // worker and one open iPod. A job's progress comes from ipod.onProgress: item counts (add, download, backup, restore) and the
 // bytes of the file being copied (copy). A job that has not started can be cancelled; one that runs finishes. Every job ends
-// in the log with its result.
+// in the log with its result; every step it reports (phase, item, detail) is a line of its detail view and of details.log.
 import { createSignal, batch } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
-import { log } from './log';
+import * as fs from 'zinc:fs';
+import { log, now, backupPlace } from './log';
 
 export const WAITING = 'waiting', RUNNING = 'running', DONE = 'done', FAILED = 'failed', CANCELLED = 'cancelled';
 
@@ -29,6 +30,10 @@ export class Job {
   detail: () => string; setDetail: (s: string) => void;
   result: () => string; setResult: (s: string) => void;
   lines: () => JobLine[]; setLines: (l: JobLine[]) => void;
+  /** What the job did, step by step, as zinc:ipod reports it (the last EVENTS_SHOWN lines; every line is in details.log). */
+  events: () => string; setEvents: (s: string) => void;
+  private kept: string[] = [];
+  private dropped: number = 0;
   constructor(id: i32, kind: string, label: string, work: () => Promise<string>) {
     this.id = id; this.kind = kind; this.label = label; this.work = work;
     const [s, ss] = createSignal<string>(WAITING); this.status = s; this.setStatus = ss;
@@ -39,6 +44,15 @@ export class Job {
     const [de, sde] = createSignal<string>(''); this.detail = de; this.setDetail = sde;
     const [r, sr] = createSignal<string>(''); this.result = r; this.setResult = sr;
     const [l, sl] = createSignal<JobLine[]>([]); this.lines = l; this.setLines = sl;
+    const [ev, sev] = createSignal<string>(''); this.events = ev; this.setEvents = sev;
+  }
+  /** Adds a step to the job's detail view and to <backups>/logs/details.log. */
+  note(text: string): void {
+    const line = `${now().slice(11)}  ${text}`;
+    this.kept.push(line);
+    if (this.kept.length > EVENTS_SHOWN) { this.kept.shift(); this.dropped++; }
+    this.setEvents((this.dropped > 0 ? `… ${this.dropped} earlier lines in ${detailsFile()}\n` : '') + this.kept.join('\n'));
+    try { fs.mkdir(`${backupPlace()}/logs`, true); fs.appendText(detailsFile(), `${now()}\t${this.label}\t${text}\n`); } catch (e) { /* the view still has it */ }
   }
   /** 0..1: the items done, plus the share of the file being copied. */
   fraction(): number {
@@ -48,6 +62,10 @@ export class Job {
     return part;
   }
 }
+
+const EVENTS_SHOWN = 400;
+/** Every step of every job, one line each (the detail views show the last ones). */
+export function detailsFile(): string { return `${backupPlace()}/logs/details.log`; }
 
 export const [jobs, setJobs] = createSignal<Job[]>([]);
 /** The job running, null when the queue rests. */
@@ -67,6 +85,8 @@ export function enqueue(kind: string, label: string, work: () => Promise<string>
       const j = runningJob();
       if (j === null) return;
       const job = j as Job;
+      if (phase === 'copy') { if (detail !== job.detail()) job.note(`copy ${detail}`); }   // one line per file, not per block
+      else if (detail !== '') job.note(total > 0 && done > 0 ? `${phase} ${done}/${total}  ${detail}` : `${phase}  ${detail}`);
       batch(() => {
         if (phase === 'copy') { job.setFileDone(done); job.setFileTotal(total); job.setDetail(detail); }
         else if (phase !== 'save' && phase !== 'artwork') { job.setDone(done); job.setTotal(total); job.setFileDone(0); job.setFileTotal(0); }
@@ -102,12 +122,15 @@ async function pump(): Promise<void> {
   if (next === null) return;
   const job = next as Job;
   batch(() => { setRunningJob(job); job.setStatus(RUNNING); });
+  job.note(`started: ${job.label}`);
   try {
     const line = await job.work();
+    job.note(`done: ${line}`);
     batch(() => { job.setStatus(DONE); job.setResult(line); job.setDone(job.total()); });
     log(job.label, line, true);
   } catch (e) {
     const why = (e as Error).message;
+    job.note(`failed: ${why}`);
     batch(() => { job.setStatus(FAILED); job.setResult(why); });
     log(job.label, why, false);
   }

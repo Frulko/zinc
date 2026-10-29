@@ -11,8 +11,8 @@
     "orientation": "landscape"
   },
   "targets": {
-    "macos": { "width": 1180, "height": 760, "resize": "fill" },
-    "linux": { "width": 1180, "height": 760, "resize": "fill" }
+    "macos": { "width": 1180, "height": 760, "resize": "fill", "growDrawCommands": true },
+    "linux": { "width": 1180, "height": 760, "resize": "fill", "growDrawCommands": true }
   },
   "permissions": ["fs", "dialog"],
   "requires": ["keyboard", "pointer", "fs", "audio"],

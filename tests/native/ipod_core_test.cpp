@@ -121,6 +121,7 @@ static int duplicates(const fs::path& root, const std::string& cover) {
   ipod::Analysis again = lib.analyze(true, nullptr, err);   // the second time from the cache
   CHECK(again.fingerprinted == 0 && again.fromCache == a.fingerprinted && again.groups.size() == 1 && again.groups[0].trackIds == g.trackIds);
   CHECK(fs::exists(root / "backups" / "8K9999DUPES" / "fingerprints.txt"));
+  CHECK(fs::exists(root / "backups" / "8K9999DUPES" / "hashes.txt"));   // the identical files' hashes, read back by the next analysis
   ipod::Analysis plain = lib.analyze(false, nullptr, err);   // without fingerprints: the AAC is no longer found
   CHECK(plain.groups.size() == 1 && plain.groups[0].trackIds.size() == 2 && plain.groups[0].reasons == std::vector<std::string>({"tags", "file"}));
 
