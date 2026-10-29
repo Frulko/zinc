@@ -8,6 +8,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -504,6 +505,7 @@ struct Checker {
         else if (x.kids.empty() && x.text == "TemplateStringsArray" && lookup(x.text) == kNone) r = arrayOf(tStr);  // the strings of a tagged template (the parser makes the call)
         else if (x.text == "Map" && x.kids.size() == 2 && lookup(x.text) == kNone) { TypeId k0 = annotation(x.kids[0]), v0 = annotation(x.kids[1]); r = mapOf(k0, v0); }
         else if (x.text == "Set" && x.kids.size() == 1 && lookup(x.text) == kNone) r = setOf(annotation(x.kids[0]));
+        else if (lookup(x.text) == kNone && utilityType(x, t, r)) {}
         else {
           std::uint32_t s = lookup(x.text);
           if (s == kNone) diag(kZCannotFindName, t, "'" + std::string(x.text) + "'");
@@ -578,6 +580,80 @@ struct Checker {
     }
     out.nodeType[t] = r;
     return r;
+  }
+
+  // TypeScript's utility types over a record or an interface of data properties: Partial, Required, Readonly, Pick and Omit (keys
+  // given as string literals), and Record with string literal keys. Each is an anonymous record (one per distinct shape).
+  bool utilityType(const Node& x, std::uint32_t t, TypeId& r) {
+    const std::string u(x.text);
+    const bool keyed = u == "Pick" || u == "Omit";
+    if (!(u == "Partial" || u == "Required" || u == "Readonly" || keyed || u == "Record")) return false;
+    const std::size_t want = keyed || u == "Record" ? 2 : 1;
+    if (x.kids.size() != want) { diag(kZCannotInfer, t, "'" + u + "' needs " + std::to_string(want) + " type argument(s)"); return true; }
+    std::vector<std::string> keys;
+    if (want == 2 && !literalKeys(x.kids[u == "Record" ? 0 : 1], keys)) {
+      diag(kZUnsupported, t, u == "Record" ? std::string("Record<K, V> with keys other than string literals (a dictionary is a Map<string, V>)")
+                                           : u + "<T, K> with keys other than string literals ('a' | 'b')");
+      return true;
+    }
+    if (u == "Record") {
+      const TypeId v = annotation(x.kids[1]);
+      std::vector<std::pair<std::string, TypeId>> shape;
+      for (const std::string& k : keys) shape.push_back({k, v});
+      if (!bad(v)) r = recordOf(shape);
+      return true;
+    }
+    const TypeId base = annotation(x.kids[0]);
+    if (bad(base)) return true;
+    const TK bk = ty(base).k;
+    if (bk == TK::Param) { r = base; return true; }   // ponytail: inside a generic template the type itself stands for it (templates are checked, never lowered)
+    if (u == "Readonly" && bk != TK::Object) { r = base; return true; }   // a readonly array or primitive is the type itself: Zinc has no readonly arrays
+    std::vector<const Member*> fields;
+    bool methods = false;
+    if (bk == TK::Object)
+      for (std::uint32_t o = ty(base).obj; o != kNoObj; o = out.objs[o].parent) {
+        std::vector<const Member*> own;
+        for (const Member& m : out.objs[o].members) { if (m.isStatic) continue; if (m.method) methods = true; else own.push_back(&m); }
+        fields.insert(fields.begin(), own.begin(), own.end());   // inherited first
+      }
+    if (bk != TK::Object || methods || out.objs[ty(base).obj].isTuple) {
+      diag(kZUnsupported, t, u + "<" + name(base) + ">: it takes an interface or a record of data properties");
+      return true;
+    }
+    for (const std::string& k : keys)
+      if (std::none_of(fields.begin(), fields.end(), [&](const Member* m) { return m->name == k; })) {
+        diag(kZNotAssignable, t, "'" + k + "' is not a property of '" + name(base) + "'");
+        return true;
+      }
+    std::vector<std::pair<std::string, TypeId>> shape;
+    std::vector<std::string> lits;
+    std::vector<bool> ro;
+    for (const Member* m : fields) {
+      const bool listed = std::find(keys.begin(), keys.end(), m->name) != keys.end();
+      if ((u == "Pick" && !listed) || (u == "Omit" && listed)) continue;
+      const bool opt = u == "Partial" || (u != "Required" && m->optional);
+      TypeId ft = m->type;   // an optional member's type holds undefined (`T | undefined`)
+      if (opt && !m->optional && !hasNull(ft)) ft = unionOf({ft, tNull}, true);
+      else if (!opt && m->optional && withoutNull(ft) != kNoType) ft = withoutNull(ft);
+      shape.push_back({m->name, ft});
+      lits.push_back(opt ? std::string("\x01") : m->hasLiteral ? m->literal : std::string());
+      ro.push_back(u == "Readonly" || m->readonly);
+    }
+    r = recordOf(shape, lits, ro);
+    return true;
+  }
+  // The string literals of a key type: 'a', 'a' | 'b', or an alias of them.
+  bool literalKeys(std::uint32_t k, std::vector<std::string>& keys) {
+    const Node& x = n(k);
+    if (x.kind == N::TypeLit && x.text.size() >= 2 && (x.text[0] == '\'' || x.text[0] == '"')) { keys.emplace_back(x.text.substr(1, x.text.size() - 2)); return true; }
+    if (x.kind == N::TypeUnion) { for (std::uint32_t c : std::vector<std::uint32_t>(x.kids)) if (!literalKeys(c, keys)) return false; return true; }
+    if (x.kind == N::TypeRef && x.kids.empty() && !(x.flags & kFlagTypeQuery)) {
+      const std::uint32_t s = lookup(x.text);
+      if (s == kNone || out.syms[s].kind != SymKind::TypeAlias) return false;
+      auto g = generics.find(s);
+      return g != generics.end() && g->second.node != kNone && literalKeys(n(g->second.node).kids[0], keys);
+    }
+    return false;
   }
 
   // ---- members
@@ -3757,11 +3833,13 @@ struct Checker {
     return true;
   }
   // ---- anonymous records: one class per distinct list of (name, type)
-  std::map<std::pair<std::vector<std::pair<std::string, TypeId>>, std::vector<std::string>>, std::uint32_t> recordObjs;
-  TypeId recordOf(const std::vector<std::pair<std::string, TypeId>>& shape, const std::vector<std::string>& lits = {}) {
-    bool anyLit = false;
+  std::map<std::tuple<std::vector<std::pair<std::string, TypeId>>, std::vector<std::string>, std::vector<bool>>, std::uint32_t> recordObjs;
+  // `ro`: the readonly members (Readonly<T>, or a readonly field kept by Partial, Pick...)
+  TypeId recordOf(const std::vector<std::pair<std::string, TypeId>>& shape, const std::vector<std::string>& lits = {}, const std::vector<bool>& ro = {}) {
+    bool anyLit = false, anyRo = false;
     for (const std::string& l : lits) anyLit = anyLit || !l.empty();
-    auto rkey = std::make_pair(shape, anyLit ? lits : std::vector<std::string>{});   // no literal or optional member: the same record whoever asks (an annotation lists one empty slot per member)
+    for (bool b : ro) anyRo = anyRo || b;
+    auto rkey = std::make_tuple(shape, anyLit ? lits : std::vector<std::string>{}, anyRo ? ro : std::vector<bool>{});   // no literal, optional or readonly member: the same record whoever asks (an annotation lists one empty slot per member)
     auto it = recordObjs.find(rkey);
     if (it != recordObjs.end()) return objType(it->second);
     ObjInfo info;
@@ -3772,11 +3850,12 @@ struct Checker {
     for (std::size_t i = 0; i < shape.size(); ++i) {
       bool opt = i < lits.size() && lits[i] == "\x01";  // an optional member (`b?: B`): marked in the literal slot
       bool lit = i < lits.size() && !lits[i].empty() && !opt;
-      info.name += (i ? "; " : " ") + shape[i].first + (opt ? "?" : "") + ": " + (lit ? "'" + lits[i] + "'" : name(shape[i].second));
+      const bool rdo = i < ro.size() && ro[i];
+      info.name += (i ? "; " : " ") + std::string(rdo ? "readonly " : "") + shape[i].first + (opt ? "?" : "") + ": " + (lit ? "'" + lits[i] + "'" : name(shape[i].second));
       tmpl = tmpl || hasParam(shape[i].second);
       Member m; m.name = shape[i].first; m.type = shape[i].second; m.owner = oi;
       if (lit) { m.literal = lits[i]; m.hasLiteral = true; }
-      m.optional = opt;
+      m.optional = opt; m.readonly = rdo;
       info.members.push_back(std::move(m));
     }
     info.name += shape.empty() ? "}" : " }";

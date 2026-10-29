@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- TypeScript's utility types: `Partial<T>`, `Required<T>`, `Readonly<T>`, `Pick<T, 'a' | 'b'>`, `Omit<T, 'a'>` over an interface or a record of data properties, and `Record<'a' | 'b', V>` (keys given as string literals; a dictionary is still a `Map<string, V>`).
 - iPod demo: Get Info (Cmd+I, a song's right-click menu, or the Songs page's button) opens an iTunes-style Info window on the songs selected: Details, Artwork, Options, Sorting and File tabs, Previous and Next for one song. With several songs, values they do not share say Mixed and only the fields you edit (their box ticks) are written, as one Transfers job and one save, on a remote iPod too. Needs Allow changes.
 - iPod daemon: `POST /api/update` with `{"ids": [...], "patch": {"genre": "Jazz", "comment": ""}}` writes those tags to the songs in one save (`''` and `0` clear a field), with `--allow-changes`; `/api/tracks` gives the new fields (grouping, compilation, sort names, start and stop, volume...).
 - Headless tests: a `ZINC_INPUT` click can hold modifiers, as a key can: `down meta` is a Cmd-click, `down shift+meta` holds both (a list's Cmd and Shift selection can now be scripted).

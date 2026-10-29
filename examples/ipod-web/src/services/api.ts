@@ -13,15 +13,7 @@ import { count } from './plays';
 
 interface PlayedBody { plays: ipod.Play[]; }
 interface PlaylistBody { name: string; ids: string[]; }
-/** The fields /api/update writes: TrackInput's, without the file and the cover (a path on the daemon's disk). */
-interface TrackPatch {
-  title?: string; artist?: string; album?: string; albumArtist?: string; genre?: string; composer?: string; comment?: string;
-  grouping?: string; description?: string; trackNr?: i32; tracks?: i32; cdNr?: i32; cds?: i32; year?: i32; rating?: i32; bpm?: i32;
-  mediaType?: string; compilation?: boolean; sortTitle?: string; sortArtist?: string; sortAlbum?: string; sortAlbumArtist?: string;
-  sortComposer?: string; startMs?: i32; stopMs?: i32; volume?: i32; skipWhenShuffling?: boolean; rememberPosition?: boolean;
-  lyrics?: boolean; playCount?: i32;
-}
-interface UpdateBody { ids: string[]; patch: TrackPatch; }
+interface UpdateBody { ids: string[]; patch: Partial<ipod.TrackInput>; }
 
 function fail(status: i32, sentence: string): net.Reply { return jsonReply(status, `{"error": ${quote(sentence)}}`); }
 
@@ -142,8 +134,9 @@ async function update(req: net.Request): Promise<net.Reply> {
   try { body = JSON.parse(req.body); } catch (e) { return fail(400, usage); }
   if (!Array.isArray(body.ids) || body.ids.length === 0 || body.patch === undefined || body.patch === null) return fail(400, usage);
   for (const id of body.ids) if (!lib.trackById.has(id)) return fail(404, `No track has the id ${id}.`);
+  // the whitelist: a client never names a file of the daemon's disk (the song's file, its cover); JSON.parse keeps what the client sent
   const patch: ipod.TrackInput = { ...body.patch, file: '' };
-  patch.artworkFile = undefined;   // never a path of the daemon's disk from a client
+  patch.artworkFile = undefined;
   for (const id of body.ids) await ipod.update(id, patch);
   await ipod.save();
   await load();
