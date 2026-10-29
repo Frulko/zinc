@@ -30,6 +30,7 @@ import { SleepMenu } from './components/SleepButton';
 import { sleepOpen } from './services/sleep';
 import { watchAlarm } from './services/alarm';
 import { QueuePanel, queueOpen } from './components/QueuePanel';
+import { LyricsPanel, lyricsOpen } from './components/LyricsPanel';
 import { prepare as prepareSession, startSaving, save as saveSession } from './services/session';
 import { install as installBackground, releaseMode } from './services/background';
 import { onQuit, quitNow } from './services/quit';
@@ -98,6 +99,7 @@ function App(): i32 {
       {library() !== null ? <View className="flex-row shrink-0"><HistoryBar /><View className="grow basis-0 min-w-0"><NowPlaying /></View></View> : <View />}
       {library() !== null ? <Content lib={library() as PodLibrary} page={page()} /> : <DevicesPage />}
       {page() !== PAGE_TRANSFERS || library() === null ? <Toasts /> : <View />}
+      {library() !== null && lyricsOpen() ? <LyricsPanel /> : <View />}
       {library() !== null && queueOpen() ? <QueuePanel /> : <View />}
       {library() !== null && pickerOpen() ? <OutputMenu /> : <View />}
       {library() !== null && sleepOpen() ? <SleepMenu /> : <View />}

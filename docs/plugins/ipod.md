@@ -62,9 +62,14 @@ Besides title, artist, album, album artist, genre, composer, comment, track and 
 kind and `artworkFile`, a `Track` has and `update` writes what iTunes' Get Info shows: `grouping`, `description`, `compilation`, the
 sort names (`sortTitle`, `sortArtist`, `sortAlbum`, `sortAlbumArtist`, `sortComposer`: the iPod sorts by them when set), `startMs` and
 `stopMs` (where the song starts and stops; 0 = its end), `volume` (-100 to 100 percent), `skipWhenShuffling`, `rememberPosition`,
-`lyrics` (the flag that tells the iPod the file has lyrics: the text itself stays in the file's tags, which the plugin does not write)
+`lyrics` (the flag that tells the iPod the file has lyrics: the text itself is in the file's tags, which `writeLyrics` writes)
 and `playCount` (`0` is iTunes' Reset Plays). Read only: `kind` (the file type, "MPEG audio file") and `modified` (Unix seconds, set
 by every `update`). `add` and `addWith` take the same fields; given, they win over the file's tags.
+
+`writeLyrics(id, text)` writes the lyrics into the song's file on the iPod (TagLib's LYRICS: an ID3v2 USLT frame in MP3, WAV and AIFF, the
+MP4 lyrics atom in M4A and M4B; `''` removes them), sets the lyrics flag and the file's new size; `save()` writes the database, and the
+iPod then shows them on the Now Playing screen. `readLyrics(id)` reads them back (`''` when the file has none). A file kind TagLib keeps
+no lyrics in is refused with its reason.
 
 ## Smart playlists
 

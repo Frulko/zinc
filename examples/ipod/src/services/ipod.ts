@@ -189,6 +189,14 @@ export async function updateMany(changes: Change[]): Promise<void> {
   await ipod.save();
 }
 
+/** Writes `text` as the lyrics in the track's file and sets its lyrics flag, then saves the iPod. The daemon has no route for it yet: a remote
+ *  iPod refuses. */
+export async function writeLyrics(id: string, text: string): Promise<void> {
+  if (isRemote()) throw new Error('lyrics cannot be written to a remote iPod yet');
+  await ipod.writeLyrics(id, text);
+  await ipod.save();
+}
+
 /** A new normal playlist `name` of the tracks `ids` in that order, saved on the iPod (a remote one through its daemon); its id. */
 export async function createPlaylistOf(name: string, ids: string[]): Promise<string> {
   if (isRemote()) return await remote.createPlaylist(name, ids);

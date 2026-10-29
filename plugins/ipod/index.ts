@@ -44,6 +44,11 @@ export function setArtwork(id: string, imageFile: string): Promise<void> { retur
 /** Writes a track's cover as a PNG file; false when it has none. */
 export function saveArtwork(id: string, pngFile: string): Promise<boolean> { return N.saveArtwork(id, pngFile); }
 
+/** Writes `text` as the lyrics in the track's file (MP3 USLT, M4A lyrics atom; '' removes them) and sets its lyrics flag, so the iPod
+ *  shows them; save() writes the database. */
+export function writeLyrics(id: string, text: string): Promise<void> { return N.writeLyrics(id, text); }
+/** The lyrics in the track's file ('' when it has none). */
+export function readLyrics(id: string): Promise<string> { return N.readLyrics(id); }
 export function createPlaylist(name: string): Promise<string> { return N.createPlaylist(name); }
 export function renamePlaylist(id: string, name: string): Promise<void> { return N.renamePlaylist(id, name); }
 export function deletePlaylist(id: string): Promise<void> { return N.deletePlaylist(id); }

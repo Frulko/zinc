@@ -7,7 +7,8 @@
 // History (ONLINE_MODE=fill): Daft Punk 30 listens, Air 10, Justice 5 and Missing Band 8 (not on the iPod); Last.fm's similar artists:
 // daft punk -> justice .9, cassius .8, stardust .6; air -> phoenix .7, cassius .5. So Discover lists Cassius (30*.8 + 10*.5), Stardust,
 // Phoenix, and Missing Band in "not on this iPod". The config has the stub's Last.fm key.
-// ONLINE_MODE=read prints each song: title | artist | album artist | year | genre | cover | lyrics flag.
+// ONLINE_MODE=read prints each song: title | artist | album artist | year | genre | cover | lyrics flag (| the lyrics in its file, lines joined by /).
+// ONLINE_MODE=lyrics: zinc:ipod's writeLyrics, see below.
 import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import { env } from 'zinc:sys';
@@ -17,12 +18,28 @@ const GUID = '000A27001234ABCD';
 
 async function main(): Promise<void> {
   const dir = env('SETUP_DIR'), mp = dir + '/Volumes/ZINCPOD', backups = env('ZINC_IPOD_BACKUPS');
+  if (env('ONLINE_MODE') === 'lyrics') {   // zinc:ipod's writeLyrics into $SETUP_DIR/lyric.mp3 and lyric.m4a once added, read back after a reopen
+    await ipod.open(mp);
+    const r = await ipod.addWith([{ file: `${dir}/lyric.mp3`, title: 'Mp3 Lyric', artist: 'Lyric Band' }, { file: `${dir}/lyric.m4a`, title: 'M4a Lyric', artist: 'Lyric Band' }]);
+    for (const x of r) { if (x.error !== '') { console.log(x.error); return; } await ipod.writeLyrics(x.id, `Words of ${x.id === r[0].id ? 'mp3' : 'm4a'}\nSecond line é`); }
+    await ipod.save();
+    await ipod.close();
+    await ipod.open(mp);
+    for (const t of await ipod.tracks()) if (t.title.endsWith(' Lyric')) {
+      const text = await ipod.readLyrics(t.id);
+      console.log(`${t.title} | ${t.lyrics} | ${text.split('\n').join('/')} | ${t.path.slice(t.path.lastIndexOf('.'))}`);
+    }
+    await ipod.close();
+    return;
+  }
   if (env('ONLINE_MODE') === 'read') {
     await ipod.open(mp);
     const ts = await ipod.tracks();
     ts.sort((a: ipod.Track, b: ipod.Track) => a.title < b.title ? -1 : a.title > b.title ? 1 : a.id < b.id ? -1 : 1);
     for (const t of ts) {
-      console.log(`${t.title} | ${t.artist} | ${t.albumArtist} | ${t.year} | ${t.genre} | ${t.artwork} | ${t.lyrics}`);
+      let words = '';
+      if (t.lyrics) words = ` | ${(await ipod.readLyrics(t.id)).trim().split('\n').join('/')}`;
+      console.log(`${t.title} | ${t.artist} | ${t.albumArtist} | ${t.year} | ${t.genre} | ${t.artwork} | ${t.lyrics}${words}`);
     }
     await ipod.close();
     return;

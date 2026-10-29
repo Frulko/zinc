@@ -269,6 +269,11 @@ export interface Spec extends NativeModule {
   setArtwork(id: string, imageFile: string): Promise<void>;
   /** Writes the track's cover as a PNG (the largest size the iPod stores); false when it has none. */
   saveArtwork(id: string, pngFile: string): Promise<boolean>;
+  /** Writes `text` as the lyrics in the track's file on the iPod (MP3, WAV, AIFF: ID3v2 USLT; M4A, M4B: the MP4 lyrics atom; ''
+   *  removes them) and sets its lyrics flag, so the iPod shows them; save() writes the database. */
+  writeLyrics(id: string, text: string): Promise<void>;
+  /** The lyrics in the track's file ('' when it has none). */
+  readLyrics(id: string): Promise<string>;
   createPlaylist(name: string): Promise<string>;
   renamePlaylist(id: string, name: string): Promise<void>;
   deletePlaylist(id: string): Promise<void>;

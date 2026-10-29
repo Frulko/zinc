@@ -1141,6 +1141,55 @@ bool Library::setArtwork(const std::string& id, const std::string& image, std::s
   return true;
 }
 
+namespace {
+/** The path of a track's file on the iPod ('' and `err` when it has none). */
+std::string fileOnIpod(Itdb_Track* t, std::string& err) {
+  gchar* f = itdb_filename_on_ipod(t);
+  if (!f) { err = "the file of this track is not on the iPod"; return ""; }
+  std::string path(f);
+  g_free(f);
+  return path;
+}
+}  // namespace
+
+bool Library::writeLyrics(const std::string& id, const std::string& text, std::string& err) {
+  if (!writable(err)) return false;
+  Itdb_Track* t = findTrack(DB, id);
+  if (!t) { err = "no track " + id; return false; }
+  std::string path = fileOnIpod(t, err);
+  if (path.empty()) return false;
+  {
+    // TagLib's LYRICS property is each format's unsynchronised lyrics: ID3v2 USLT (MP3, WAV, AIFF), MP4 (c)lyr (M4A, M4B)
+    TagLib::FileRef f(path.c_str());
+    if (f.isNull() || !f.file()) { err = path + ": TagLib cannot open it"; return false; }
+    TagLib::PropertyMap pm = f.file()->properties();
+    if (text.empty()) pm.erase("LYRICS");
+    else pm.replace("LYRICS", TagLib::StringList(TagLib::String(text, TagLib::String::UTF8)));
+    TagLib::PropertyMap left = f.file()->setProperties(pm);
+    if (!text.empty() && left.contains("LYRICS")) { err = path + ": this kind of file keeps no lyrics"; return false; }
+    if (!f.file()->save()) { err = path + ": its tags could not be written"; return false; }
+  }
+  struct stat st;
+  if (stat(path.c_str(), &st) == 0) t->size = (guint32)st.st_size;   // the tags grew the file
+  t->lyrics_flag = text.empty() ? 0 : 1;
+  t->time_modified = time(nullptr);
+  return true;
+}
+
+bool Library::readLyrics(const std::string& id, std::string& text, std::string& err) {
+  text.clear();
+  if (!db_) { err = "no iPod is open"; return false; }
+  Itdb_Track* t = findTrack(DB, id);
+  if (!t) { err = "no track " + id; return false; }
+  std::string path = fileOnIpod(t, err);
+  if (path.empty()) return false;
+  TagLib::FileRef f(path.c_str());
+  if (f.isNull() || !f.file()) return true;
+  TagLib::PropertyMap pm = f.file()->properties();
+  if (pm.contains("LYRICS") && !pm["LYRICS"].isEmpty()) text = pm["LYRICS"].front().to8Bit(true);
+  return true;
+}
+
 bool Library::saveArtwork(const std::string& id, const std::string& png, bool& had, std::string& err) {
   had = false;
   if (!db_) { err = "no iPod is open"; return false; }

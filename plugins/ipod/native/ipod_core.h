@@ -64,6 +64,8 @@ class Library {
   bool remove(const std::vector<std::string>& ids, std::string& err);
   bool setArtwork(const std::string& id, const std::string& image, std::string& err);
   bool saveArtwork(const std::string& id, const std::string& png, bool& had, std::string& err);
+  bool writeLyrics(const std::string& id, const std::string& text, std::string& err);
+  bool readLyrics(const std::string& id, std::string& text, std::string& err);
   bool createPlaylist(const std::string& name, std::string& id, std::string& err);
   bool renamePlaylist(const std::string& id, const std::string& name, std::string& err);
   bool deletePlaylist(const std::string& id, std::string& err);

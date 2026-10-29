@@ -69,6 +69,14 @@ struct HostIpod : NativeIpod {
     std::string i = str(id), f = str(image);
     return unit([i, f](std::string& err) { return lib.setArtwork(i, f, err); });
   }
+  zrt::Promise<zrt::Unit> writeLyrics(zrt::String id, zrt::String lyrics) override {
+    std::string i = str(id), x = str(lyrics);
+    return unit([i, x](std::string& err) { return lib.writeLyrics(i, x, err); });
+  }
+  zrt::Promise<zrt::String> readLyrics(zrt::String id) override {
+    std::string i = str(id);
+    return text([i](std::string& err) { std::string x; lib.readLyrics(i, x, err); return x; });
+  }
   zrt::Promise<bool> saveArtwork(zrt::String id, zrt::String png) override {
     std::string i = str(id), f = str(png);
     return jobs.run<bool, bool>([i, f](std::string& err) { bool had = false; lib.saveArtwork(i, f, had, err); return had; }, [](bool& b) { return b; });

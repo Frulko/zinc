@@ -1,8 +1,8 @@
 // The bar at the top, as iTunes shows it: previous, play or pause and next on the left, and in the middle the "LCD": the track's cover,
 // title, artist and album, the time played and left, and a progress bar a click seeks in; on the right, where it plays (this computer
 // or a Sonos group, with its volume). Shuffle and repeat (off, all, one) beside the transport, and the queue panel's button (QueuePanel).
-// The LCD's sparkles start "Genius from this song" (25 songs) from the track playing; while a radio plays (radio.ts), 👎 and 👍 beside
-// the queue's button steer it.
+// The LCD's sparkles start "Genius from this song" (25 songs) from the track playing; its quote button opens the Lyrics panel (LyricsPanel);
+// while a radio plays (radio.ts), 👎 and 👍 beside the queue's button steer it.
 import * as ui from 'zinc:ui';
 import { createSignal, onCleanup } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
@@ -10,6 +10,7 @@ import * as ipod from 'zinc:ipod';
 import { current, isPlaying, position, length, playError, toggle, next, previous, seek, setShuffle, cycleRepeat } from '../services/player';
 import { shuffle, repeat } from '../services/queue';
 import { queueOpen, setQueueOpen } from './QueuePanel';
+import { lyricsOpen, setLyricsOpen } from './LyricsPanel';
 import { useCover, releaseCover } from '../services/covers';
 import { OutputButton } from './OutputPicker';
 import { SleepButton } from './SleepButton';
@@ -54,6 +55,9 @@ function Lcd(props: { t: ipod.Track }): i32 {
       </View>
     </View>
     {t.mediaType === 'audio' ? <Transport icon="sparkles" size={15} onPress={() => geniusFrom(t, 25)} /> : <View />}
+    <View className={`items-center justify-center w-[22] h-[34] rounded-full cursor-pointer hover:${bg(HOVER)}`} onPointerDown={(e: ui.PointerEvent) => setLyricsOpen(!lyricsOpen())}>
+      <Icon name="text-quote" size={15} color={() => color(lyricsOpen() ? ACCENT : MUTED)} strokeWidth={2} />
+    </View>
   </View>;
 }
 

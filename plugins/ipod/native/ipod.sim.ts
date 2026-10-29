@@ -10,6 +10,7 @@ const tracks: Track[] = [];
 const taken: Backup[] = [];
 const playlists: Playlist[] = [];
 const sources = new Map<string, string>();   // track id -> the file it was added from: one file added twice is an identical file
+const lyricsText = new Map<string, string>();   // track id -> the lyrics written in its file
 let cb: ((phase: string, done: i32, total: i32, detail: string) => void) | null = null;
 
 function device(): Device {
@@ -227,6 +228,8 @@ export default {
     return Promise.resolve();
   },
   setArtwork: (id: string, _f: string): Promise<void> => { const t = find(id); if (!t) return fail<void>('no track ' + id); t.artwork = true; return Promise.resolve(); },
+  writeLyrics: (id: string, text: string): Promise<void> => { const t = find(id); if (!t) return fail<void>('no track ' + id); lyricsText.set(id, text); t.lyrics = text !== ''; return Promise.resolve(); },
+  readLyrics: (id: string): Promise<string> => { const t = find(id); return t ? Promise.resolve(lyricsText.get(id) ?? '') : fail<string>('no track ' + id); },
   saveArtwork: (id: string, _png: string): Promise<boolean> => { const t = find(id); return t ? Promise.resolve(t.artwork) : fail('no track ' + id); },
   createPlaylist: (name: string): Promise<string> => { const p: Playlist = { id: hex(++seq), name: name, master: false, podcasts: false, smart: false, trackIds: [], rules: emptyRules() }; playlists.push(p); return Promise.resolve(p.id); },
   renamePlaylist: (id: string, name: string): Promise<void> => { const p = playlist(id); if (!p) return fail<void>('no playlist ' + id); p.name = name; return Promise.resolve(); },
