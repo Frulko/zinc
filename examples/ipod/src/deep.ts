@@ -1,8 +1,10 @@
 // AudioMuse-AI in the app (services/audiomuse.ts talks to it): the results kept for the iPod open (<cache>/<GUID>/deep.v1.json), the
 // Settings card's actions (Test connection, Analyse now and Sync results as Transfers jobs beside the iPod's queue), and the near lists
 // Genius and For you ask before they pick. Without AudioMuse, or while it does not answer, the cached results are used as they are
-// ("Deep analysis offline") and the songs it never analysed fall back to tier 1.
+// ("Deep analysis offline") and the songs it never analysed fall back to tier 1. While the app runs, AudioMuse's last task is asked
+// every minute (watchMuse): an analysis that ended since the last sync, whoever started it, is synced by itself.
 import { createSignal, batch } from 'zinc:ui/solid';
+import * as sys from 'zinc:sys';
 import * as ipod from 'zinc:ipod';
 import * as muse from './services/audiomuse';
 import { loadConfig } from './services/config';
@@ -81,7 +83,10 @@ export function syncMuse(): void {
   const guid = cache.podKey(), dir = cache.cacheDir(), list = (lib as PodLibrary).tracks;
   const job = runBeside('deep', 'Sync the deep analysis (AudioMuse)', async (): Promise<string> => {
     try {
-      const d = await muse.sync(conn(), dir, guid, list, (done: i32, total: i32) => { batch(() => { job.setDone(done); job.setTotal(total); job.setDetail('songs'); }); });
+      const c = conn();
+      const last = await muse.lastTask(c);   // the analysis these results come from: a later one is synced by itself
+      const d = await muse.sync(c, dir, guid, list, (done: i32, total: i32) => { batch(() => { job.setDone(done); job.setTotal(total); job.setDetail('songs'); }); },
+        muse.analysisDone(last) ? last.id : '');
       if (cache.podKey() === guid) { kept = d; keptFor = guid; }
       batch(() => { setMuseState('online'); setMuseAnalysed(d.tracks.length as i32); setDeepVersion(deepVersion() + 1); });
       return `${count(d.tracks.length, 'song', 'songs')} of this iPod analysed${d.unknown > 0 ? ` · ${d.unknown} not on it` : ''}${notAnalysed() > 0 ? ` · ${notAnalysed()} not analysed yet` : ''}`;
@@ -117,4 +122,31 @@ export async function prepareNear(ids: string[], pathToo: boolean = false): Prom
     if (museState() !== 'online') setMuseState('online');
     if (asked > 0 && cache.podKey() === guid) setDeepVersion(deepVersion() + 1);
   } catch (e) { failed(e as Error); }
+}
+
+const POLL_MS: number = sys.env('IPOD_MUSE_POLL_MS') !== '' ? Number(sys.env('IPOD_MUSE_POLL_MS')) : 60000;
+let watching = false;
+
+/** Asks AudioMuse its last task now, then every minute while the app runs: an analysis that ended since the last sync is synced. */
+export function watchMuse(): void {
+  if (watching) return;
+  watching = true;
+  const tick = (): void => { checkMuse().then((noPod: boolean) => { setTimeout(tick, noPod ? 2000 : POLL_MS); }); };
+  tick();
+}
+
+/** One look at AudioMuse's last task; true when no iPod is open yet (looked at again soon). Never throws. */
+async function checkMuse(): Promise<boolean> {
+  if (library() === null) return true;
+  const st = museState();
+  // asked only once set up (a token, or synced before: the default address alone is not AudioMuse), and not after it was offline
+  // or refused (Test connection, a sync or Genius reaching it again starts the looks again)
+  if ((loadConfig().museToken === '' && currentDeep() === null) || (st !== '' && st !== 'online') || busy('deep')) return false;
+  try {
+    const t = await muse.lastTask(conn());
+    if (st !== 'online') setMuseState('online');
+    const d = currentDeep();
+    if (muse.analysisDone(t) && (d === null || (d as muse.Deep).task !== t.id)) syncMuse();
+  } catch (e) { failed(e as Error); }
+  return false;
 }

@@ -6,7 +6,8 @@
 #      through /api/cancel, the sync paged into deep.v1.json (ids tr-<id>, one matched by its names, one not on the iPod), Genius
 #      merged differs from tier 1 as planted (A sounds like B: more B), a song not analysed still picked, near lists asked once, a
 #      path, the Sounds like and Mood mixes shelves; the stub down: offline, the cache read back, Genius as merged;
-#   2. the app (stub up): For you shows the deep shelves and "Deep analysis of"; the stub down and the near lists dropped: "Deep
+#   2. the app (stub up), AudioMuse's last task asked every 0.2 s of the virtual clock (IPOD_MUSE_POLL_MS): an analysis running, then finished, is synced
+#      by itself once (deep.v1.json says its task); For you shows the deep shelves and "Deep analysis of"; the stub down and the near lists dropped: "Deep
 #      analysis offline". A free port; the stub is stopped at the end.
 # Skips (77) without the system libraries of zinc:ipod. KEEP=dir keeps the output.
 cd "$(dirname "$0")/../.." || exit 2
@@ -68,15 +69,25 @@ PY
 done
 # ---- 2. the app: For you with the deep shelves, then offline
 cd "$tmp" || exit 2
-app() {   # app <name>: For you from the sidebar, the scene of frame 60
+app() {   # app <name>: For you from the sidebar, the scene of frame 160 (the near lists of the last sync asked first)
   printf '31 move 60 176\n32 down\n33 up\n' > "$1.input"
-  IPOD_DEMO_NOW=1781524800 IPOD_DEMO_MOUNT=$pod ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1180x760 ZINC_FRAMES=62 ZINC_INPUT="$tmp/$1.input" \
-    ZINC_SHOT="$tmp/$1.png" ZINC_SHOT_FRAMES=60 ZINC_SCENE_DUMP="$tmp/$1-scene" timeout 120 "$Z" run "$root/examples/ipod" --interp > "$1.out" 2>&1 \
+  IPOD_DEMO_NOW=1781524800 IPOD_DEMO_MOUNT=$pod ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1180x760 ZINC_FRAMES=162 ZINC_INPUT="$tmp/$1.input" \
+    ZINC_SHOT="$tmp/$1.png" ZINC_SHOT_FRAMES=160 ZINC_SCENE_DUMP="$tmp/$1-scene" timeout 120 "$Z" run "$root/examples/ipod" --interp > "$1.out" 2>&1 \
     || { echo "ipod_deep: the $1 session failed: $(tail -5 "$1.out")"; fail=1; }
 }
-says() { python3 "$root/tools/scene-texts" "$tmp/$1-scene-60" | grep -q "$2" || { echo "ipod_deep: $1 does not show \"$2\": $(python3 "$root/tools/scene-texts" "$tmp/$1-scene-60" | head -40 | tr '\n' '|')"; fail=1; }; }
+says() { python3 "$root/tools/scene-texts" "$tmp/$1-scene-160" | grep -q "$2" || { echo "ipod_deep: $1 does not show \"$2\": $(python3 "$root/tools/scene-texts" "$tmp/$1-scene-160" | head -40 | tr '\n' '|')"; fail=1; }; }
 start
 printf '{"museUrl": "http://127.0.0.1:%s", "museToken": "muse-token"}\n' "$(cat port)" > backups/config.json
+: > requests.jsonl; : > auto
+IPOD_MUSE_POLL_MS=200 IPOD_DEMO_MOUNT=$pod ZINC_FRAMES=900 timeout 120 "$Z" run "$root/examples/ipod" --interp > auto.out 2>&1 || { echo "ipod_deep: the auto session failed: $(tail -5 auto.out)"; fail=1; }
+python3 - requests.jsonl backups/cache/000A27001234ABCD/deep.v1.json > calls.out <<'PY' || { echo "ipod_deep (auto sync): $(cat calls.out)"; fail=1; }
+import json, sys
+calls = [json.loads(l) for l in open(sys.argv[1])]
+looks = sum(1 for c in calls if c['path'] == '/api/last_task')
+syncs = sum(1 for c in calls if c['path'] == '/api/sync' and c['query'].get('page') == '1' and 'fields' not in c['query'])
+task = json.load(open(sys.argv[2]))['task']
+assert looks >= 5 and syncs == 1 and task == 'task-auto', 'looks %d, syncs %d, task %r' % (looks, syncs, task)
+PY
 rm -f backups/cache/000A27001234ABCD/foryou.json
 app online
 for t in 'Deep analysis of' 'Sounds like' 'Mood mixes' 'Aggressive'; do says online "$t"; done

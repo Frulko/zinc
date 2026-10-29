@@ -54,6 +54,7 @@ import { LogsPage } from './pages/logs/LogsPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { startListening, flush as flushListening } from './services/listening';
 import { resumeSharing, stopSharing } from './services/share';
+import { watchMuse } from './deep';
 
 function Content(props: { lib: PodLibrary; page: string }): i32 {
   const p = props.page;
@@ -125,4 +126,5 @@ if (remoteAtStart !== '') openRemoteDevice(remoteAtStart, sys.env('IPOD_DEMO_REM
 rescan();
 startListening();   // what plays counts: on the iPod, Last.fm and ListenBrainz (services/listening.ts)
 resumeSharing();   // Share with AudioMuse, when it was on (services/share.ts)
+watchMuse();   // an AudioMuse analysis that ends is synced by itself (deep.ts)
 render(App, CLEAR_COLOR, null);

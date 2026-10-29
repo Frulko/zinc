@@ -5,12 +5,14 @@ its error body. The library it "analysed" is <dir>/library.json (written by test
 mood_vector, other_features, tempo, energy). Each request is one JSON line of <dir>/requests.jsonl. Usage: stub.py <dir> <port file>.
   analysis   task-1 runs three albums, one per status call, then SUCCESS; task-2 runs until POST /api/cancel/task-2, then REVOKED
   sync       pages of PAGE songs (has_more, next_page), so the client has to page; fields=index gives {id, fp}
+  last task  task-0, a finished analysis; while <dir>/auto exists, task-auto: RUNNING at the first two calls, then SUCCESS
   similar    the n nearest by Euclidean distance over the mood and feature scores"""
 import http.server, json, math, os, sys, urllib.parse
 
 TOKEN, PAGE = 'muse-token', 4
 d = sys.argv[1]
 tasks = {}   # task id -> [state, step]
+auto = {'calls': 0}   # the calls of /api/last_task while <dir>/auto exists
 
 
 def log(entry):
@@ -78,6 +80,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def route(self, method, path, q):
         lib = library()
+        if path == '/api/last_task' and os.path.exists(os.path.join(d, 'auto')):
+            auto['calls'] += 1
+            state = 'RUNNING' if auto['calls'] <= 2 else 'SUCCESS'
+            return 200, {'task_id': 'task-auto', 'task_type': 'main_analysis', 'status': state, 'progress': 50 if state == 'RUNNING' else 100, 'details': {}}
         if path == '/api/last_task':
             return 200, {'task_id': 'task-0', 'task_type': 'main_analysis', 'status': 'SUCCESS', 'progress': 100, 'details': {}}
         if path == '/api/analysis/start' and method == 'POST':

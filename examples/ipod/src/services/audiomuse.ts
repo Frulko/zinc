@@ -69,11 +69,26 @@ export class Reach {
   lastTask: string = '';
 }
 
+/** Its last task (an analysis, a clustering...); id '' when it never ran one. */
+export class LastTask { id: string = ''; type: string = ''; state: string = ''; }
+
+export async function lastTask(c: Muse): Promise<LastTask> {
+  const last = await call(c, 'GET', '/api/last_task');
+  const t = new LastTask();
+  if (last !== null && last.task_id !== undefined && last.task_id !== null) {
+    t.id = str(last.task_id); t.type = str(last.task_type); t.state = str(last.status !== undefined ? last.status : last.state);
+  }
+  return t;
+}
+
+/** True when `t` is an analysis that ended well: its results can be synced. */
+export function analysisDone(t: LastTask): boolean { return t.id !== '' && t.state === 'SUCCESS' && (t.type === '' || t.type.indexOf('analysis') >= 0); }
+
 /** Test connection: throws when it does not answer or refuses the token. */
 export async function reach(c: Muse): Promise<Reach> {
   const out = new Reach();
-  const last = await call(c, 'GET', '/api/last_task');
-  if (last !== null && last.task_id !== undefined && last.task_id !== null) out.lastTask = `${str(last.task_type)} ${str(last.status !== undefined ? last.status : last.state)}`.trim();
+  const last = await lastTask(c);
+  if (last.id !== '') out.lastTask = `${last.type} ${last.state}`.trim();
   const idx = await call(c, 'GET', '/api/sync?fields=index&limit=1');
   out.analysed = num(idx.total_tracks) as i32;
   return out;
@@ -145,17 +160,21 @@ export interface Deep {
   syncedAt: number;
   /** Songs AudioMuse gave that are not on this iPod. */
   unknown: i32;
+  /** The id of the analysis whose results these are ('' unknown): a later one is synced by itself (deep.ts). */
+  task: string;
   tracks: DeepTrack[]; near: Near[]; paths: DeepPath[];
 }
 
-export function emptyDeep(guid: string, url: string): Deep { return { format: FORMAT, guid: guid, url: url, syncedAt: 0, unknown: 0, tracks: [], near: [], paths: [] }; }
+export function emptyDeep(guid: string, url: string): Deep { return { format: FORMAT, guid: guid, url: url, syncedAt: 0, unknown: 0, task: '', tracks: [], near: [], paths: [] }; }
 
 /** The deep results kept in `<dir>/deep.v1.json` for the iPod `guid`, null when none (or another iPod's, or another format). */
 export function readDeep(dir: string, guid: string): Deep | null {
   try {
     const f = `${dir}/${FILE}`;
     if (!fs.exists(f)) return null;
-    const d: Deep = JSON.parse(fs.readText(f));
+    const raw: any = JSON.parse(fs.readText(f));
+    if (raw.task === undefined) raw.task = '';   // kept before the field
+    const d: Deep = raw;
     return d.format === FORMAT && d.guid === guid ? d : null;
   } catch (e) { return null; }   // damaged: synced again
 }
@@ -186,11 +205,12 @@ export class IdMap {
 
 function nameKey(artist: string, title: string, album: string): string { return `${normArtist(artist)}|${normTitle(title)}|${normTitle(album)}`; }
 
-/** Reads every song AudioMuse analysed (page by page, `progress(done, total)`) into a new cache of `guid`, kept in `dir`. The near
- *  lists and paths of the old cache are kept for the songs whose analysis did not change. */
-export async function sync(c: Muse, dir: string, guid: string, tracks: ipod.Track[], progress: (done: i32, total: i32) => void): Promise<Deep> {
+/** Reads every song AudioMuse analysed (page by page, `progress(done, total)`) into a new cache of `guid`, kept in `dir`, as the results
+ *  of the analysis `task` ('' unknown). The near lists and paths of the old cache are kept for the songs whose analysis did not change. */
+export async function sync(c: Muse, dir: string, guid: string, tracks: ipod.Track[], progress: (done: i32, total: i32) => void, task: string = ''): Promise<Deep> {
   const map = new IdMap(tracks);
   const d = emptyDeep(guid, c.url);
+  d.task = task;
   const seen = new Set<string>();
   let page: i32 = 1, done: i32 = 0;
   for (;;) {
