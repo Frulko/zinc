@@ -1,6 +1,6 @@
 true 200 OK "hello net\n" text/plain 10
 false 404
-201 ping yes|POST text/x-ping
+201 ping yes|POST|127.0.0.1 text/x-ping
 [104,105]
 big 1048576
 chunked 1048579 end chunked

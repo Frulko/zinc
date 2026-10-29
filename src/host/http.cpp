@@ -415,7 +415,11 @@ void onConnection(uv_stream_t* srv, int status) {
     auto* k = static_cast<SConn*>(p->data);
     k->msg.flush();
     k->complete = true;
-    loop::pushEvent(k->id, 42, std::string(llhttp_method_name(static_cast<llhttp_method_t>(llhttp_get_method(p)))) + '\x1e' + k->target + '\x1e' + k->msg.head + '\x1e' + k->msg.body, k->msg.body);   // the payload: the body byte for byte (Request.rawBody)
+    sockaddr_storage a{};
+    int len = sizeof a;
+    char ip[64] = "";
+    if (uv_tcp_getpeername(&k->tcp, reinterpret_cast<sockaddr*>(&a), &len) == 0) uv_ip4_name(reinterpret_cast<sockaddr_in*>(&a), ip, sizeof ip);   // the listener is IPv4
+    loop::pushEvent(k->id, 42, std::string(llhttp_method_name(static_cast<llhttp_method_t>(llhttp_get_method(p)))) + '\x1e' + k->target + '\x1e' + ip + '\x1e' + k->msg.head + '\x1e' + k->msg.body, k->msg.body);   // the payload: the body byte for byte (Request.rawBody)
     return static_cast<int>(HPE_PAUSED);
   };
   llhttp_init(&c->parser, HTTP_REQUEST, &c->settings);

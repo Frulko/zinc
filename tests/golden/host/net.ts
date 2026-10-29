@@ -5,7 +5,7 @@ const handler = (req: Request): Reply => {
   if (req.path === '/a.txt') return { status: 200, body: 'hello net\n', contentType: 'text/plain' };
   if (req.path === '/echo') {
     const h = new Headers();
-    h.set('X-Seen', req.headers.get('x-test') + '|' + req.method);
+    h.set('X-Seen', req.headers.get('x-test') + '|' + req.method + '|' + (req.remoteAddress as string));
     return { status: 201, body: req.body, contentType: req.headers.get('content-type'), headers: h };
   }
   if (req.path === '/big') return { status: 200, body: big, contentType: 'application/octet-stream' };

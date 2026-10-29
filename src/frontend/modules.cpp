@@ -576,7 +576,7 @@ export class Response {
     try { return Promise.resolve(JSON.parse(this.body)); } catch (e) { return Promise.reject(e); }
   }
 }
-export interface Request { method: string; path: string; body: string; headers: Headers; rawBody?: string }
+export interface Request { method: string; path: string; body: string; headers: Headers; rawBody?: string; remoteAddress?: string }
 export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string }
 
 function __ctl(s: string): boolean { return s.indexOf('\r') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\u0000') >= 0; }
@@ -637,8 +637,9 @@ function __netHook(): void {
       const i1 = data.indexOf('\u001e');
       const i2 = data.indexOf('\u001e', i1 + 1);
       const i3 = data.indexOf('\u001e', i2 + 1);
-      const req: Request = { method: data.slice(0, i1), path: data.slice(i1 + 1, i2), body: data.slice(i3 + 1), headers: new Headers(), rawBody: __host_evPayload() };
-      __parseLines(data.slice(i2 + 1, i3), req.headers);
+      const i4 = data.indexOf('\u001e', i3 + 1);
+      const req: Request = { method: data.slice(0, i1), path: data.slice(i1 + 1, i2), body: data.slice(i4 + 1), headers: new Headers(), rawBody: __host_evPayload(), remoteAddress: data.slice(i2 + 1, i3) };
+      __parseLines(data.slice(i3 + 1, i4), req.headers);
       const f = __netHandler;
       const af = __netAsyncHandler;
       if (af !== null) {   // serveAsync: the reply goes out when the promise settles

@@ -144,8 +144,9 @@ declare module 'zinc:net' {
    *  Rejects with 'fetch failed: ECONNREFUSED' / 'ENOTFOUND' / 'timeout' / 'response too large' / the libcurl message. */
   export function fetch(url: string, init?: RequestInit): Promise<Response>;
   /** body: the request body as text (invalid UTF-8 repaired); rawBody: the same bytes unchanged, for a binary upload: read it with
-   *  utf8Encode (byte for byte) or store it with fs.writeText, never through other string operations. */
-  export interface Request { method: string; path: string; body: string; headers: Headers; rawBody?: string }
+   *  utf8Encode (byte for byte) or store it with fs.writeText, never through other string operations. remoteAddress: the client's IPv4
+   *  address ("127.0.0.1" from this machine). */
+  export interface Request { method: string; path: string; body: string; headers: Headers; rawBody?: string; remoteAddress?: string }
   /** file: the body is that file's bytes, read and sent in blocks (a song, a video, a picture of any size), with Accept-Ranges and one
    *  byte range when the request has a Range header (206, or 416 when it cannot be met); body is then ignored, a missing file is a 404. */
   export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string }

@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:net`: a server's request has `remoteAddress`, the client's IPv4 address (`127.0.0.1` from the same machine).
 - `await` in a branch of `?:` (`const png = id === '' ? '' : await cover(id)`), and an async function can `return` a promise without awaiting it (it settles as that promise does), as in TypeScript; an `await` inside a larger expression of a branch still asks for a `const` first.
 - `zinc:net`: a reply can send a file (`file: path` in the `Reply`), in blocks and with byte ranges (`Range` gives a 206, a range past the end a 416), so a server streams songs and videos that players can seek; `serveAsync` is declared for TypeScript.
 - `zinc:subtle`: `digest('MD5', data)` for the protocols that still ask for it (Subsonic's tokens); not Web Crypto, never for security.
