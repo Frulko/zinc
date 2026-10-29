@@ -86,6 +86,7 @@ export const PAGE_OVERVIEW = 'overview', PAGE_ALBUMS = 'albums', PAGE_SONGS = 's
   PAGE_VIDEOS = 'videos', PAGE_PHOTOS = 'photos', PAGE_PLAYLISTS = 'playlists', PAGE_FILES = 'files', PAGE_SPECS = 'specs', PAGE_ADD = 'add',
   PAGE_BACKUPS = 'backups', PAGE_OPTIMISE = 'optimise', PAGE_TRANSFERS = 'transfers', PAGE_LOGS = 'logs', PAGE_SETTINGS = 'settings',
   PAGE_ARTISTS = 'artists', PAGE_FOR_YOU = 'foryou', PAGE_YEAR = 'year';
+export const PAGE_DISCOVER = 'discover', PAGE_REPAIR = 'repair';
 
 // ---- adding: the kinds a file can be added as (TrackInput.mediaType) and the files a folder gives
 export const ADD_KINDS: string[] = ['audio', 'podcast', 'audiobook', 'video'];

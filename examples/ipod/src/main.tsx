@@ -45,6 +45,8 @@ import { selectedTracks, selectionList } from './state';
 import { ArtistsPage } from './pages/artists/ArtistsPage';
 import { ForYouPage } from './pages/foryou/ForYouPage';
 import { YearPage } from './pages/foryou/YearPage';
+import { DiscoverPage } from './pages/discover/DiscoverPage';
+import { PAGE_DISCOVER } from './constants';
 import { DevicesPage } from './pages/devices/DevicesPage';
 import { OverviewPage } from './pages/overview/OverviewPage';
 import { AlbumsPage } from './pages/albums/AlbumsPage';
@@ -67,6 +69,7 @@ function Content(props: { lib: PodLibrary; page: string }): i32 {
   const p = props.page;
   if (p === PAGE_FOR_YOU) return <ForYouPage />;
   if (p === PAGE_YEAR) return <YearPage />;
+  if (p === PAGE_DISCOVER) return <DiscoverPage />;
   if (p === PAGE_ALBUMS) return <AlbumsPage />;
   if (p === PAGE_ARTISTS) return <ArtistsPage />;
   if (p === PAGE_SONGS) return <MediaPage title="Songs" one="song" many="songs" />;
