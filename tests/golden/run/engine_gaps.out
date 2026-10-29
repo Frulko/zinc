@@ -17,3 +17,7 @@ caught direct
 catch r
 then 1
 then-rej then
+pick 1 2 0
+nested 2
+nested 0
+single 2 0

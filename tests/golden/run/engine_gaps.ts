@@ -57,4 +57,17 @@ async function awaited(on: boolean): Promise<i32> { const xs = on ? await names(
 // `return []` in an async function takes the array the promise holds, after an await and in a catch
 async function emptyAfter(): Promise<string[]> { await names(); return []; }
 async function emptyCaught(): Promise<string[]> { try { await names(); throw new Error('no'); } catch (e) { return []; } }
+// await in a nested ?:, and in a single-level one beside a number
+async function one(): Promise<i32> { return 1; }
+async function two(): Promise<i32> { return 2; }
+function show(xs: string[]): void { console.log('nested', xs.length); }
+async function pick(w: string): Promise<i32> { const n = w === 'x' ? await one() : w === 'y' ? await two() : 0; return n; }
+async function listOf(w: string): Promise<void> { show(w === 'x' ? await names() : w === 'y' ? await names() : []); }
+async function single(c: boolean): Promise<i32> { const x = c ? await two() : 0; return x; }
+async function later(): Promise<void> {
+  console.log('pick', await pick('x'), await pick('y'), await pick('z'));
+  await listOf('x'); await listOf('z');
+  console.log('single', await single(true), await single(false));
+}
 main();
+setTimeout(() => { later(); }, 0);

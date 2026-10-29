@@ -31,9 +31,7 @@ async function show(which: string): Promise<void> {
   if (s === null) return;
   setTab(which); setArtist(null); setOpened(null); setSongs([]); setSaid('');
   try {
-    if (which === 'playlists') setEntries(await jb.playlists(s as jb.Server));
-    else if (which === 'artists') setEntries(await jb.artists(s as jb.Server));
-    else setEntries([]);
+    setEntries(which === 'playlists' ? await jb.playlists(s as jb.Server) : which === 'artists' ? await jb.artists(s as jb.Server) : []);
   } catch (e) { failed(e as Error); }
 }
 

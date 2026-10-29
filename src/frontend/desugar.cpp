@@ -1,6 +1,7 @@
 #include "frontend/desugar.h"
 
 #include <deque>
+#include <functional>
 #include <string>
 
 #include "frontend/snippet.h"
@@ -201,13 +202,19 @@ struct Desugar {
       Id c0 = lin(n(i).kids[0], pre);
       n(i).kids[0] = c0;
       if (!susp(b1) && !susp(b2)) return i;
-      // c ? await a : b  =>  await (c ? a : __resolved(b)): only the branch taken is evaluated; the one without await costs a microtask
-      auto plain = [&](Id b) { return !susp(b) || (n(b).kind == N::Await && !susp(n(b).kids[0])); };
+      // c ? await a : b  =>  await (c ? a : __resolved(b)): only the branch taken is evaluated; the one without await costs a microtask.
+      // A branch that is itself such a ?: (c ? await a : d ? await b : e) becomes a ?: of promises the same way.
+      std::function<bool(Id)> plain = [&](Id b) {
+        return !susp(b) || (n(b).kind == N::Await && !susp(n(b).kids[0])) ||
+               (n(b).kind == N::Cond && !susp(n(b).kids[0]) && plain(n(b).kids[1]) && plain(n(b).kids[2]));
+      };
       if (!plain(b1) || !plain(b2)) { unsupported(i, "'await' inside a larger expression in a branch of '?:' (put the branch in a const first, or use if/else)"); return i; }
       auto nul = [&](Id b) { return (n(b).kind == N::Literal && (n(b).text == "null" || n(b).text == "undefined")) || (n(b).kind == N::Ident && n(b).text == "undefined"); };
-      if (nul(b1) || nul(b2)) { unsupported(i, "'await' in one branch of '?:' and null in the other (use if/else)"); return i; }
-      auto promise = [&](Id b) -> Id {
-        if (susp(b)) return n(b).kids[0];
+      std::function<bool(Id)> anyNul = [&](Id b) { return nul(b) || (n(b).kind == N::Cond && susp(b) && (anyNul(n(b).kids[1]) || anyNul(n(b).kids[2]))); };
+      if (anyNul(b1) || anyNul(b2)) { unsupported(i, "'await' in one branch of '?:' and null in the other (use if/else)"); return i; }
+      std::function<Id(Id)> promise = [&](Id b) -> Id {
+        if (n(b).kind == N::Await) return n(b).kids[0];
+        if (susp(b)) { n(b).kids[1] = promise(n(b).kids[1]); n(b).kids[2] = promise(n(b).kids[2]); return b; }   // a nested ?: with an await
         Ids r = sn("__resolved(__H0);", {{b}});
         return r.empty() ? b : n(r[0]).kids[0];
       };

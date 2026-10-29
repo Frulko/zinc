@@ -220,6 +220,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `await` in a nested `?:` (`a ? await f() : b ? await g() : []`) compiles; it was refused with Z0005.
 - `export { default } from './m'`, `export { a as default }` and `import { default as x }` now load.
 - JSX: `{props.render(item)}`, a variable that holds an element and `{cond ? row(x) : null}` are mounted as nodes; they showed a number.
 - QuickJS: TypeScript as libraries write it now loads: `export { a, type B }`, `async`, generator, generic and quoted methods in an object literal, and `xs[i]!++` (also on the typed engines).
