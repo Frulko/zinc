@@ -46,6 +46,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: Sidecar dots only photos and films by default and keeps the interface pure black and white, so letters are sharper and less is sent (Greys: Pictures only; `--dither 3`); window borders and separators come out as solid lines instead of dotted ones.
 - reMarkable: Sidecar shows pale tints of the interface (a text selection, a highlighted row, a pale button) as a light grey instead of white paper.
 - reMarkable: Sidecar has an experimental Hybrid preset: fast black and white dots while things move, the panel's 16 true greys as soon as they rest. "Grey levels at rest" (All, 16, 4; `--grey-levels`) sends a resting page on the panel's own grey levels, blue noise between two, in fewer bytes.
+- reMarkable: Sidecar's settings show a preview of each grey pattern (Pictures only, Blue noise, Grid, None); click one to use it.
 - reMarkable: Sidecar's menu bar app can stop the Mac's text caret from blinking while it runs (each blink leaves a ghost on e-ink), and restores it after.
 - reMarkable: Sidecar waits until the mouse rests (moves, clicks, drags, a finger or the Marker) before it cleans ghosts: "Mouse pause" in the settings.
 - reMarkable: Sidecar no longer leaves ghosts, doubled text or pink and yellow residue from updates sent onto pixels the panel is still driving: the tablet holds them until their place rests ("Panel timing" in the settings).

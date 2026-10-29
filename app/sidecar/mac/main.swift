@@ -430,53 +430,9 @@ let lock = NSLock(), ready = DispatchSemaphore(value: 0)
 var fullAt = -1e9   // when the tablet's last full refresh started: what was sent during it goes again after
 var pendingTurn = -1   // the way up the tablet last sent, until the sender takes it
 var latest: CVPixelBuffer?, frameDirty = CGRect.null   // the newest frame, and what changed since the last one taken (frame pixels)
-let bayer: [UInt8] = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22,
-                      3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21]
-/** A 64x64 blue-noise threshold map (void and cluster, Ulichney 1993): no cross-hatch, the dots spread evenly. */
-let blueNoise: [UInt8] = {
-    let n = 64, N = n * n, sigma = 1.5
-    var on = [Bool](repeating: false, count: N), energy = [Double](repeating: 0, count: N), rank = [Int](repeating: 0, count: N)
-    var kernel = [[Double]](repeating: [Double](repeating: 0, count: 2 * 6 + 1), count: 2 * 6 + 1)
-    for dy in -6...6 { for dx in -6...6 { kernel[dy + 6][dx + 6] = exp(-Double(dx * dx + dy * dy) / (2 * sigma * sigma)) } }
-    func splat(_ i: Int, _ sign: Double) {
-        let x = i % n, y = i / n
-        for dy in -6...6 { for dx in -6...6 { energy[((y + dy + n) % n) * n + (x + dx + n) % n] += sign * kernel[dy + 6][dx + 6] } }
-    }
-    var seed: UInt64 = 0x9e3779b97f4a7c15
-    func rnd() -> Int { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; return Int(seed % UInt64(N)) }
-    var ones = 0
-    while ones < N / 10 { let i = rnd(); if !on[i] { on[i] = true; splat(i, 1); ones += 1 } }
-    while true {   // the tightest cluster to the largest void, until they are the same point
-        var c = -1, v = -1
-        for i in 0..<N where on[i] && (c < 0 || energy[i] > energy[c]) { c = i }
-        on[c] = false; splat(c, -1)   // the void is looked for once the dot is out: it may be its own place, and then it is done
-        for i in 0..<N where !on[i] && (v < 0 || energy[i] < energy[v]) { v = i }
-        if v == c { on[c] = true; splat(c, 1); break }
-        on[v] = true; splat(v, 1)
-    }
-    let start = on
-    var k = ones
-    while k > 0 {   // the initial dots ranked from the most clustered down
-        var c = -1
-        for i in 0..<N where on[i] && (c < 0 || energy[i] > energy[c]) { c = i }
-        on[c] = false; splat(c, -1); k -= 1; rank[c] = k
-    }
-    on = start; energy = [Double](repeating: 0, count: N); for i in 0..<N where on[i] { splat(i, 1) }
-    k = ones
-    while k < N {   // then the voids filled, largest first
-        var v = -1
-        for i in 0..<N where !on[i] && (v < 0 || energy[i] < energy[v]) { v = i }
-        on[v] = true; splat(v, 1); rank[v] = k; k += 1
-    }
-    return rank.map { UInt8($0 * 256 / N) }
-}()
 /** The threshold map, 64x64: one level (threshold), Bayer 8x8 tiled, or blue noise. */
 func makeThr() -> [UInt8] {
-    switch ditherKind {
-    case 0: return [UInt8](repeating: 128, count: 64 * 64)
-    case 1: return (0..<64 * 64).map { UInt8(Int(bayer[($0 / 64 & 7) * 8 + ($0 & 7)]) * 4 + 2) }
-    default: return blueNoise.map { max(1, $0) }   // 0 is always ink, 255 always paper ("pictures only" cuts the interface to them)
-    }
+    thresholdMap(ditherKind)
 }
 var thr = makeThr()
 var stats = (frames: 0, rects: 0, bytes: 0, dither: 0.0, wait: 0.0, copies: 0, t: now())

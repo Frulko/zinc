@@ -539,7 +539,19 @@ struct SettingsView: View {
                         Knob(name: "Edge threshold", help: "How faint a line may be and still get drawn. Lower catches more, and more noise.", value: $e.tune.edgeFloor, range: 0...30)
                     }
                     Section("Greys") {
-                        Picker("Pattern", selection: $e.tune.dither) { Text("Pictures only").tag(3); Text("Blue noise").tag(2); Text("Grid").tag(1); Text("None").tag(0) }.pickerStyle(.segmented)
+                        HStack(spacing: 8) {
+                            ForEach([(3, "Pictures only"), (2, "Blue noise"), (1, "Grid"), (0, "None")], id: \.0) { k, name in
+                                Button { e.tune.dither = k } label: {
+                                    VStack(spacing: 4) {
+                                        Image(nsImage: ditherSample(k)).interpolation(.none).resizable().frame(width: 120, height: 72)
+                                        Text(name).font(.caption)
+                                    }
+                                    .padding(4)
+                                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(e.tune.dither == k ? Color.accentColor : .clear, lineWidth: 2))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
                         Text("The panel only has black and white while things move: greys become dots. Pictures only dots photos and films and keeps the interface pure black and white (sharper, lighter to send); blue noise scatters dots everywhere like ink spray, the grid lines them up like an old newspaper, none keeps pure black and white.").font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -631,6 +643,39 @@ struct SettingsView: View {
         }
         .frame(width: 600, height: 640)
     }
+}
+/** A preview of a dither kind, as on the panel while things move: a gradient and a sphere (a picture) beside letters, a hairline and a
+ *  pale tint (the interface), each pixel shown twice as big. */
+private var samples: [Int: NSImage] = [:]
+func ditherSample(_ kind: Int) -> NSImage {
+    if let s = samples[kind] { return s }
+    let w = 60, h = 36, pic = 30   // the picture on the left, the interface on the right
+    let c = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+    c.setFillColor(gray: 1, alpha: 1); c.fill(CGRect(x: 0, y: 0, width: w, height: h))
+    let g = CGGradient(colorSpace: CGColorSpaceCreateDeviceGray(), colorComponents: [0, 1, 1, 1], locations: [0, 1], count: 2)!
+    c.saveGState(); c.clip(to: CGRect(x: 0, y: h / 2, width: pic, height: h / 2))
+    c.drawLinearGradient(g, start: .zero, end: CGPoint(x: pic, y: 0), options: []); c.restoreGState()
+    c.saveGState(); c.clip(to: CGRect(x: 0, y: 0, width: pic, height: h / 2)); c.setFillColor(gray: 0.3, alpha: 1); c.fill(CGRect(x: 0, y: 0, width: pic, height: h / 2))
+    c.drawRadialGradient(CGGradient(colorSpace: CGColorSpaceCreateDeviceGray(), colorComponents: [1, 1, 0.3, 1], locations: [0, 1], count: 2)!,
+                         startCenter: CGPoint(x: 12, y: 11), startRadius: 0, endCenter: CGPoint(x: 15, y: 9), endRadius: 9, options: []); c.restoreGState()
+    c.setFillColor(gray: 0.82, alpha: 1); c.fill(CGRect(x: pic + 3, y: 3, width: 24, height: 9))   // a selection's tint
+    c.setFillColor(gray: 0.78, alpha: 1); c.fill(CGRect(x: pic + 3, y: 15, width: 24, height: 1))  // a hairline
+    let ns = NSGraphicsContext(cgContext: c, flipped: false); NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = ns
+    NSAttributedString(string: "Ab", attributes: [.font: NSFont.boldSystemFont(ofSize: 13), .foregroundColor: NSColor.black]).draw(at: NSPoint(x: pic + 4, y: 18))
+    NSGraphicsContext.restoreGraphicsState()
+    let thr = thresholdMap(kind), px = c.data!.assumingMemoryBound(to: UInt8.self)
+    let src = Array(UnsafeBufferPointer(start: px, count: w * h))
+    for y in 0..<h { for x in 0..<w {
+        var v = Int(src[y * w + x])
+        // a line (lighter above and below it): ink in every pattern, as the engine's edges draw it (line)
+        if x >= pic && y > 0 && y < h - 1 && Int(src[(y - 1) * w + x]) - v > 20 && Int(src[(y + 1) * w + x]) - v > 20 { px[y * w + x] = 0; continue }
+        let picture = x < pic   // as the engine's zones decide (mapZones): the interface is cut to ink or paper, a tint a light grey
+        if kind == 3 && !picture { v = v >= 150 && v <= 235 ? 175 + (v - 150) * 60 / 85 : v < 128 ? 0 : 255 }
+        px[y * w + x] = v < Int(thr[(y & 63) * 64 + (x & 63)]) ? 0 : 255
+    } }
+    let img = NSImage(cgImage: c.makeImage()!, size: NSSize(width: w, height: h))
+    samples[kind] = img
+    return img
 }
 struct Line: View {
     let title: String, text: String
