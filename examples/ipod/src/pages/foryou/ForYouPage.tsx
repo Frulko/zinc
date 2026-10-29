@@ -9,7 +9,7 @@ import { Icon } from 'zinc:icons';
 import { Album, albums, library, showPage, scrollKey } from '../../state';
 import { historyVersion } from '../../services/historyJobs';
 import { Card, Shelf } from '../../services/forYou';
-import { ForYouData, forYou, working, refreshForYou, jumpCards, openCard, playCard, albumOf, artistOf } from '../../forYou';
+import { ForYouData, forYou, working, refreshForYou, jumpCards, openCard, playCard, albumOf, artistOf, shelfSnap, shelfScrollbar } from '../../forYou';
 import { deepNote } from '../../deep';
 import { AlbumCover } from '../../components/AlbumCover';
 import { Button } from '../../components/Button';
@@ -55,7 +55,7 @@ function CardTile(props: { c: Card }): i32 {
   const c = props.c;
   const artist = c.kind === 'artist';
   const away = artist && artistOf(c.id) === null;   // heard, but not on this iPod
-  return <View className={`flex-col gap-2 p-2 rounded-[10] shrink-0 ${away ? '' : `cursor-pointer hover:${bg(HOVER)}`}`} style={{ width: SHELF_CARD_SIZE + 16 }}
+  return <View className={`flex-col gap-2 p-2 rounded-[10] shrink-0 snap-start ${away ? '' : `cursor-pointer hover:${bg(HOVER)}`}`} style={{ width: SHELF_CARD_SIZE + 16 }}
     onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0 && !away) openCard(c); }}>
     <View className={artist ? 'rounded-full overflow-hidden' : ''} style={{ width: SHELF_CARD_SIZE, height: SHELF_CARD_SIZE, opacity: away ? 0.5 : 1 }}>
       <Picture c={c} />
@@ -80,10 +80,12 @@ function Arrow(props: { left: boolean; onPress: () => void }): i32 {
 
 function ShelfRow(props: { shelf: Shelf; cards: Card[] }): i32 {
   const row = createNodeRef();
+  // an arrow turns the shelf by the cards it shows whole, so the first card lands at the shelf's start
   const turn = (dir: number): void => {
     if (row.node < 0) return;
-    const box = ui.screenBox(row.node);
-    ui.scrollTo(row.node, ui.scrollLeft(row.node) + dir * box[2] * 0.8, 0);
+    const step = SHELF_CARD_SIZE + 16 + 4;   // a card and the gap
+    const shown = Math.max(1, Math.floor((ui.screenBox(row.node)[2] - 64) / step));
+    ui.scrollTo(row.node, Math.max(0, (Math.round(ui.scrollLeft(row.node) / step) + dir * shown) * step), 0);
   };
   return <View className="flex-col gap-2 pb-5">
     <View className="flex-row items-center gap-2 px-10">
@@ -91,7 +93,8 @@ function ShelfRow(props: { shelf: Shelf; cards: Card[] }): i32 {
       <Arrow left={true} onPress={() => turn(-1)} />
       <Arrow left={false} onPress={() => turn(1)} />
     </View>
-    <View ref={row} className="flex-row gap-1 px-8 overflow-x-auto" scrollKey={scrollKey(`foryou:${props.shelf.id}`)}>
+    <View ref={row} className={`flex-row gap-1 px-8 overflow-x-auto ${shelfSnap() ? 'snap-x snap-mandatory' : 'snap-none'}`}
+      showsHorizontalScrollIndicator={shelfScrollbar()} scrollKey={scrollKey(`foryou:${props.shelf.id}`)}>
       {props.cards.map((c: Card) => <CardTile c={c} />)}
     </View>
   </View>;

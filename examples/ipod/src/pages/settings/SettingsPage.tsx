@@ -6,6 +6,8 @@ import { Icon } from 'zinc:icons';
 import { loadConfig } from '../../services/config';
 import { scrobbler, playsWaiting, startLastfm, finishLastfm, awaitLastfm, testLastfm, testListenbrainz, signOutLastfm, setListenbrainz, setAudioCacheMb } from '../../services/listening';
 import { notify } from '../../services/transfers';
+import { Switch } from 'zinc:ui/kit';
+import { shelfSnap, setShelfSnap, shelfScrollbar, setShelfScrollbar } from '../../forYou';
 import { cacheDir } from '../../services/cache';
 import { historyVersion, syncHistory, importing, importLastfmNow, importListenbrainzNow, importListenbrainzExport, lastfmLeft, listenbrainzLeft,
   historyCounts, unmatchedArtists, unmatchedTracks } from '../../services/historyJobs';
@@ -121,6 +123,10 @@ export function SettingsPage(): i32 {
           <Text className={`text-[11px] font-semibold ${fg(FAINT)}`}>Not on this iPod, most played first</Text>
           <Text className={`text-[11px] ${fg(MUTED)}`}>{missing()}</Text>
         </View> : <View />}
+      </Card>
+      <Card icon="heart" title="For you" note="How the shelves of For you scroll sideways.">
+        <Switch checked={shelfSnap} onChange={setShelfSnap} label="Cards snap into place when a scroll ends" />
+        <Switch checked={shelfScrollbar} onChange={setShelfScrollbar} label="Show the shelves' scroll bars" />
       </Card>
       <Card icon="hard-drive" title="The iPod's cache" note={`Covers, the library and a remote iPod's songs played are kept in ${cacheDir()}. The songs take at most this many MB (0: no limit); the least recently played go first.`}>
         <View className="flex-row items-center gap-2">

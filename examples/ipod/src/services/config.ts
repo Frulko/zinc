@@ -33,6 +33,9 @@ export class AppConfig {
   /** AudioMuse-AI, the deep analysis (services/audiomuse.ts): its address and its API_TOKEN. */
   museUrl: string = 'http://127.0.0.1:8000';
   museToken: string = '';
+  /** The For you shelves: the cards snap to the shelf's start when a scroll ends, and the shelf shows its scroll bar. */
+  shelfSnap: boolean = true;
+  shelfScrollbar: boolean = false;
 }
 
 function configFile(): string { return `${backupPlace()}/config.json`; }
@@ -60,6 +63,8 @@ export function loadConfig(): AppConfig {
     if (stored.shareApiKey !== undefined) config.shareApiKey = '' + stored.shareApiKey;
     if (stored.museUrl !== undefined) config.museUrl = '' + stored.museUrl;
     if (stored.museToken !== undefined) config.museToken = '' + stored.museToken;
+    if (stored.shelfSnap !== undefined) config.shelfSnap = stored.shelfSnap === true;
+    if (stored.shelfScrollbar !== undefined) config.shelfScrollbar = stored.shelfScrollbar === true;
   } catch (e) { /* unreadable: the defaults */ }
   return config;
 }
@@ -86,6 +91,8 @@ export function saveConfig(config: AppConfig): void {
     stored.shareApiKey = config.shareApiKey;
     stored.museUrl = config.museUrl;
     stored.museToken = config.museToken;
+    stored.shelfSnap = config.shelfSnap;
+    stored.shelfScrollbar = config.shelfScrollbar;
     fs.mkdir(backupPlace(), true);
     fs.writeText(configFile(), JSON.stringify(stored) + '\n');
   } catch (e) { console.error(`ipod: ${configFile()}: ${(e as Error).message}`); }

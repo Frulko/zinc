@@ -17,6 +17,7 @@ import { log } from './services/log';
 import { deepKey, prepareNear } from './deep';
 import * as cache from './services/cache';
 import { PAGE_YEAR } from './constants';
+import { loadConfig, saveConfig } from './services/config';
 
 const FORMAT: i32 = 1;
 const PREFIX = 'draft:foryou:';
@@ -42,6 +43,11 @@ export const [forYou, setForYou] = createSignal<ForYouData | null>(null);
 export const [working, setWorking] = createSignal<boolean>(false);
 /** The drafts played from the page, newest first (Jump back in). */
 export const [recent, setRecent] = createSignal<fy.Card[]>([]);
+/** How the shelves scroll (Settings, saved in config.json). */
+export const [shelfSnap, setShelfSnapShown] = createSignal<boolean>(loadConfig().shelfSnap);
+export const [shelfScrollbar, setShelfScrollbarShown] = createSignal<boolean>(loadConfig().shelfScrollbar);
+export function setShelfSnap(on: boolean): void { const c = loadConfig(); c.shelfSnap = on; saveConfig(c); setShelfSnapShown(on); }
+export function setShelfScrollbar(on: boolean): void { const c = loadConfig(); c.shelfScrollbar = on; saveConfig(c); setShelfScrollbarShown(on); }
 
 /** Now, in Unix seconds (IPOD_DEMO_NOW sets it). */
 export function now(): number {
