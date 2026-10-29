@@ -8,6 +8,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-852: `n.toString(r)` with r outside 2..36 throws no RangeError as in JavaScript (it returns digits).
 - ZN-852: `p.then(onFulfilled, onRejected)` with two arguments is refused (Z0104); JavaScript allows it.
 - ZN-852: a generic Promise<void> converted to PromiseV settles one microtask later than Node; and `await fail<void>()` used as a value has the type `__Void`, which can show in messages. Merging Promise and PromiseV would remove both.
+- ZN-855: `resolve(undefined)` on a `new Promise<void>` is refused (its resolve is `() => void`) though TypeScript accepts it; let the call drop an extra null or undefined argument.
+- ZN-855: a generic function with a parameter of type T and T = void (`ok<void>(undefined)`, `Promise.resolve<void>(x)`) is still refused with Z0103 'null' to 'void'; instantiating functions with `__Void` as classes are would need void-returning callbacks to fit `__Void`-returning ones.
+- ZN-855: the Promise constructor does not reject when its executor throws, as JavaScript does.
+- ZN-855: `then(f)` where f returns a Promise is not flattened although lib/zinc.d.ts says so: implement it or fix the typings.
+- ZN-855: `mqtt` (T0) failed once with "cannot connect" while three trees built: a retry, or tests/ci/off.txt.
 - ZN-853: a component declared in a file with the name of a host component (`function Button`) renders the host one (the kits rely on it: kit/button.tsx wraps `<Button>`); its error "unknown attribute 'icon' on <Button>" should say so and name the fix (rename it).
 - ZN-853: nested `<Text>` inside `<Text>` is refused (Z0005); React Native styles a part of a text that way, Zinc only through ui.setTextRuns.
 - ZN-853: zinc:audio's Music position counts the frames the mixer pulled (up to a block ahead); read the sound's own cursor for an exact one if a karaoke or a lyrics view needs it.
