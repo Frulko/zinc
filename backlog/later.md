@@ -385,6 +385,9 @@ The next backlog review turns lines into tasks or deletes them.
 - Sidecar on a Pi 3B+: the H.264 decoder takes 25 ms a 1080p picture at gpu_freq=300 (tools/v4l2dec-probe.cpp); gpu_freq=450 with over_voltage=2 in the Pi image's config.txt should cut it to ~17 ms, to measure with a good power supply (the rig reports under-voltage) before the image takes it. And a 25 or 24 fps film on a 60 Hz HDMI screen shows each picture 2 or 3 refreshes: switching the mode to 50 Hz (or 48) while a VIDEO region plays at that rate, as Kodi does, removes the judder (some TVs blank 1-2 s).
 
 ## Demos
+- ZN-857: the iPod demo's album grid should take its column count from the window width (fixed at 4 now); a wider window wastes space.
+- ZN-857: the Optimise page could offer one-click fixes for its other findings (fill missing tags or covers from a duplicate or online, delete empty playlists).
+- ZN-857: `ZINC_NATIVE=sim` with `--engine quickjs` does not use a plugin's stand-in (the iPod demo stops on "/Volumes/ZINCPOD does not exist"); make QuickJS load `native/<name>.sim.ts` as the other engines do.
 - examples/carnet-nbe: run against Carnet's own repository (link.sh's default) once the frontend reads a generic method with a default type parameter, a computed key with a rest element in a destructuring, and an inline `type` in an export list; until then node_modules/@nbe points at a patched copy (.nbe-dev, ignored by git).
 - examples/carnet-nbe: what Obsidian has that the vault does not yet: a completion list after `[[`, renaming and deleting a folder, inline formatting (bold, code), and code fences (Carnet's blocks-code plugin is not linked: a fence reads as a paragraph).
 
@@ -524,6 +527,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Cross-platform pass
 
+- ZN-857: iPod audio fingerprints on Linux need a decoder (miniaudio of plugins/audio covers WAV, MP3, FLAC; AAC and ALAC need another); until then `analyze()` on Linux matches by tags and files only.
 - ZN-856: `zinc doc --serve` on Windows (the Winsock path is built, never run) and on Linux.
 - ZN-853: `ipod.mount('')` finds iPod partitions by media name with diskutil (macOS only); on Linux it needs a partition name (`udisksctl`) and a way to find iPod partitions by themselves.
 - zinc:video on a Pi 4 and a Pi 5: HEVC goes through the stateless V4L2 interface (rpi-hevc-dec). Measure with tools/h264dec-bench.cpp (extended to HEVC) FFmpeg of Pi OS (the Raspberry Pi fork has v4l2-request) against GStreamer's upstream v4l2slh265dec, and that the Pi 5 (no H.264 chip) takes libavcodec's software H.264; GStreamer becomes a way of the plugin only where it is the one door to the chip (docs/reports/video-zero-copy.md section 10).
