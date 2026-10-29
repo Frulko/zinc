@@ -260,47 +260,104 @@ func makeTone() -> [UInt8] {
 }
 var tone = makeTone()
 // dark areas (a dark mode's window: light letters on 30 to 50 grey): on the panel a field of ink with thin pale letters that the edges eat.
-// Turned, they read as ink on paper. Per pixel, by a vote of the area around it (169 samples, every 8 pixels over 97 x 97): when most are
-// dark (luma under 128) the pixel's luma is turned (255 - l) before the curve, so a dark panel turns at its own border and the light windows
-// around it stay. Wider than a title's letters and a vote, not a mean: with 33 x 33 and a mean, the middle of a big bold title outvoted its
-// dark field and stayed white (a dotted band across the letters). The same samples on the GPU (shade below): both paths agree to the pixel.
-// --invert 0 keeps them, 2 turns the whole screen
-// The same samples tell a picture from the interface (--dither 3, "pictures only"): when a quarter or more of them come out of the curve as
-// a middle grey (as this pixel is turned or not), the area is a photo or a film and keeps its dither; else it is the interface (flat fields,
-// letters, icons), cut to pure ink or paper at 128: no dots on it, sharper and fewer bytes
-/** How the pixel at (x, y) is drawn: turned (a dark area), and whether its area is a picture. */
-@inline(__always) func around(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ x: Int, _ y: Int, _ t: UnsafePointer<UInt8>) -> (turn: Bool, picture: Bool) {
-    var n = 0, mid = 0, midTurned = 0, dy = -48
-    while dy <= 48 {
-        let row = src + min(max(y + dy, 0), fh - 1) * bpr
-        var dx = -48
-        while dx <= 48 {
-            let l = Int(row[min(max(x + dx, 0), fw - 1)])
-            if l < 128 { n += 1 }
-            let a = t[l], b = t[255 - l]
-            if a > 8 && a < 247 { mid += 1 }
-            if b > 8 && b < 247 { midTurned += 1 }
-            dx += 8
+// Turned, they read as ink on paper; and pictures (photos, films, a screenshot posted in a dark chat) keep a dither while the interface is
+// cut to pure ink or paper at 128 (--dither 3, "pictures only": no dots on letters, sharper and fewer bytes). Both are decided per area,
+// never per pixel: a vote around each pixel flipped back and forth along every border (dashes, dotted bands, black steps at the corners
+// of a light picture in a dark chat). The frame is cut in 8 x 8 blocks, each dark (half its pixels under 128) or light; the blocks joined
+// into areas (4 neighbours, the same kind):
+// - a dark area turns when it is a panel: 24 blocks (192 pixels) or more both ways. A dark button, a menu bar, a dark band of a picture
+//   stay ink with paper letters, as they are;
+// - a small light area (under 12 blocks both ways: a bold title's strokes) beside a turned block turns with it;
+// - a large light area with turned blocks all around it (a picture or a screenshot in a dark chat) is a picture;
+// - else a block is a picture when half its pixels come out of the curve as a middle grey (as the block is turned or not).
+// On a turned area's border the pixel decides within its block: a light pixel turns when something dark is within 4 pixels (a letter of
+// the dark area), a dark pixel when nothing light is (the dark field): the border follows the real edge, at most a 4-pixel line of ink.
+// The same map goes to the GPU (shade below): both paths agree to the pixel. --invert 0 keeps the dark areas, 2 turns the whole screen
+var zones = [UInt8](), zw = 0, zh = 0   // per block of the frame: 1 turned, 2 on a turned area's border, 4 a picture
+/** The blocks of the frame; the frame box whose blocks changed since the last frame (nil: none). */
+func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> (Int, Int, Int, Int)? {
+    let w = (fw + 7) / 8, h = (fh + 7) / 8, n = w * h
+    var dark = [Bool](repeating: false, count: n), pic = [UInt8](repeating: 0, count: n)   // pic: 1 a picture as it is, 2 once turned
+    tone.withUnsafeBufferPointer { t in
+        for by in 0..<h { for bx in 0..<w {
+            var c = 0, d = 0, a = 0, b = 0, y = by * 8
+            while y < min(fh, by * 8 + 8) {   // every other pixel both ways: 16 of the 64
+                let row = src + y * bpr; var x = bx * 8
+                while x < min(fw, bx * 8 + 8) {
+                    let l = Int(row[x]), u = t[l], v = t[255 - l]
+                    c += 1; if l < 128 { d += 1 }; if u > 8 && u < 247 { a += 1 }; if v > 8 && v < 247 { b += 1 }
+                    x += 2
+                }
+                y += 2
+            }
+            let i = by * w + bx
+            dark[i] = d * 2 >= c; pic[i] = (a * 2 >= c ? 1 : 0) | (b * 2 >= c ? 2 : 0)
+        } }
+    }
+    var turn = [Bool](repeating: invertMode == 2, count: n), island = [Bool](repeating: false, count: n)
+    if invertMode == 1 {
+        var comp = [Int32](repeating: -1, count: n), areas: [[Int]] = [], stack: [Int] = []
+        for s in 0..<n where comp[s] < 0 {   // the areas, by flood
+            var m: [Int] = []; comp[s] = Int32(areas.count); stack.append(s)
+            while let i = stack.popLast() {
+                m.append(i)
+                let x = i % w
+                for j in [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w] where j >= 0 && j < n && comp[j] < 0 && dark[j] == dark[s] { comp[j] = comp[s]; stack.append(j) }
+            }
+            areas.append(m)
         }
-        dy += 8
+        func size(_ m: [Int]) -> (Int, Int) {
+            var x0 = w, x1 = 0, y0 = h, y1 = 0
+            for i in m { x0 = min(x0, i % w); x1 = max(x1, i % w); y0 = min(y0, i / w); y1 = max(y1, i / w) }
+            return (x1 - x0 + 1, y1 - y0 + 1)
+        }
+        for m in areas where dark[m[0]] { let (a, b) = size(m); if min(a, b) >= 24 { for i in m { turn[i] = true } } }
+        for m in areas where !dark[m[0]] {
+            var anyTurned = false, allTurned = true
+            for i in m {
+                let x = i % w, y = i / w
+                if x == 0 || y == 0 || x == w - 1 || y == h - 1 { allTurned = false }
+                for j in [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w] where j >= 0 && j < n && comp[j] != comp[i] {
+                    if turn[j] { anyTurned = true } else { allTurned = false }
+                }
+            }
+            let (a, b) = size(m)
+            if max(a, b) < 12 { if anyTurned { for i in m { turn[i] = true } } }
+            else if allTurned { for i in m { island[i] = true } }
+        }
     }
-    var turn = invertMode == 2 || (invertMode == 1 && n > 84)
-    if turn && invertMode == 1 { turn = darkNear(src, bpr, fw, fh, x, y) }
-    return (turn, (turn ? midTurned : mid) >= 42)
+    var z = [UInt8](repeating: 0, count: n)
+    for i in 0..<n {
+        let x = i % w, y = i / w
+        var edge = false
+        if invertMode == 1 {
+            for dy in -1...1 { for dx in -1...1 where x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h && turn[(y + dy) * w + x + dx] != turn[i] { edge = true } }
+        }
+        z[i] = (turn[i] ? 1 : 0) | (edge ? 2 : 0) | (island[i] || pic[i] & (turn[i] ? 2 : 1) != 0 ? 4 : 0)
+    }
+    defer { zones = z; zw = w; zh = h }
+    if w != zw || h != zh { return (0, 0, fw, fh) }
+    var x0 = w, y0 = h, x1 = -1, y1 = -1
+    for i in 0..<n where z[i] != zones[i] { x0 = min(x0, i % w); x1 = max(x1, i % w); y0 = min(y0, i / w); y1 = max(y1, i / w) }
+    // a changed block's pixels, and its neighbours' (their border pixels look 4 pixels into it)
+    return x1 < 0 ? nil : (max(0, x0 * 8 - 8), max(0, y0 * 8 - 8), min(fw, x1 * 8 + 16), min(fh, y1 * 8 + 16))
 }
-// and only a pixel with something dark within 6 pixels turns (25 samples every 3): a light window, a picture or a menu in a dark area keeps
-// its paper where the vote said dark (its corners, a band along its border came out as black steps). The letters of a dark area always have
-// their field next to them; a stroke wider than 12 pixels would turn only along its sides (ponytail: a flood of the light field would lift
-// that, at a cost per pixel the GPU does not have)
-@inline(__always) func darkNear(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ x: Int, _ y: Int) -> Bool {
-    var dy = -6
-    while dy <= 6 {
-        let row = src + min(max(y + dy, 0), fh - 1) * bpr
-        var dx = -6
-        while dx <= 6 { if row[min(max(x + dx, 0), fw - 1)] < 128 { return true }; dx += 3 }
-        dy += 3
+/** How the pixel at (x, y) is drawn: turned (a dark area), and whether its area is a picture. */
+@inline(__always) func around(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ x: Int, _ y: Int) -> (turn: Bool, picture: Bool) {
+    let k = zones[(y >> 3) * zw + (x >> 3)]
+    var turn = k & 1 != 0
+    if k & 2 != 0 {
+        let l = src[y * bpr + x]
+        var found = false, dy = -4   // something dark near a light pixel of a turned block, something light near a dark one of a kept block
+        while dy <= 4 && !found {
+            let row = src + min(max(y + dy, 0), fh - 1) * bpr
+            var dx = -4
+            while dx <= 4 { if (row[min(max(x + dx, 0), fw - 1)] < 128) == turn { found = true; break }; dx += 2 }
+            dy += 2
+        }
+        turn = turn ? l < 128 || found : l < 128 && !found
     }
-    return false
+    return (turn, k & 4 != 0)
 }
 var minBuf = [UInt8](repeating: 0, count: 0)
 // and the edges: a pixel darker than the lightest of its 5x5 neighbours by more than 4 loses --edges (10) levels per level of difference, so
@@ -343,7 +400,7 @@ func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (
             }
             let mn = edges > 0 && invertMode != 0 ? n.baseAddress! + y * bw : nil
             for x in 0..<bw {
-                let (turn, picture) = around(src, bpr, fw, fh, b.0 + x, b.1 + y, t.baseAddress!)
+                let (turn, picture) = around(src, bpr, fw, fh, b.0 + x, b.1 + y)
                 let v = turn ? 255 - Int(s[x]) : Int(s[x])
                 var o = Int(t[v])
                 if edges > 0 { o = Int(line(o, (turn ? 255 - Int(mn![x]) : Int(mx[x])) - v)) }
@@ -831,9 +888,10 @@ let gpuFrom = 150_000   // frame pixels from which a change goes to the GPU
 let shaderSource = """
 #include <metal_stdlib>
 using namespace metal;
-// p: W H stride ox oy fw fh rotate bx0 by0 bx1 by1 edges edgeFloor invert dither; one thread per byte of output (8 panel pixels) of the box
+// p: W H stride ox oy fw fh rotate bx0 by0 bx1 by1 edges edgeFloor invert dither zw (zones: mapZones); one thread per byte of output (8 panel pixels) of the box
 kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant int* p [[buffer(0)]], constant uchar* tone [[buffer(1)]],
-                  constant uchar* thr [[buffer(2)]], device uchar* grey [[buffer(3)]], device uchar* bits [[buffer(4)]], uint2 g [[thread_position_in_grid]]) {
+                  constant uchar* thr [[buffer(2)]], device uchar* grey [[buffer(3)]], device uchar* bits [[buffer(4)]], constant uchar* zones [[buffer(5)]],
+                  uint2 g [[thread_position_in_grid]]) {
   const int W = p[0], stride = p[2], ox = p[3], oy = p[4], fw = p[5], fh = p[6], rot = p[7], edges = p[12], floor_ = p[13];
   const int bx = p[8] + int(g.x), py = p[9] + int(g.y);
   if (bx >= p[10] || py >= p[11]) return;
@@ -847,23 +905,13 @@ kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant in
     int v = 255;   // outside the frame: the white band
     if (fx >= 0 && fy >= 0 && fx < fw && fy < fh) {
       int l = int(round(src.read(uint2(fx, fy)).r * 255.0));
-      bool turn = p[14] == 2, picture = true;   // around() on the CPU: the same 169 samples
-      if (p[14] == 1 || p[15] == 3) {
-        int n = 0, mid = 0, midTurned = 0;
-        for (int dy = -48; dy <= 48; dy += 8) for (int dx = -48; dx <= 48; dx += 8) {
-          const int k = int(round(src.read(uint2(clamp(fx + dx, 0, fw - 1), clamp(fy + dy, 0, fh - 1))).r * 255.0));
-          n += k < 128 ? 1 : 0;
-          const int a = tone[k], b = tone[255 - k];
-          mid += a > 8 && a < 247 ? 1 : 0; midTurned += b > 8 && b < 247 ? 1 : 0;
-        }
-        turn = p[14] == 2 || (p[14] == 1 && n > 84);
-        if (turn && p[14] == 1) {   // darkNear() on the CPU
-          bool near = false;
-          for (int dy = -6; dy <= 6 && !near; dy += 3) for (int dx = -6; dx <= 6; dx += 3)
-            if (int(round(src.read(uint2(clamp(fx + dx, 0, fw - 1), clamp(fy + dy, 0, fh - 1))).r * 255.0)) < 128) { near = true; break; }
-          turn = near;
-        }
-        picture = (turn ? midTurned : mid) >= 42;
+      const int k = zones[(fy >> 3) * p[16] + (fx >> 3)];   // around() on the CPU
+      bool turn = (k & 1) != 0, picture = (k & 4) != 0;
+      if ((k & 2) != 0) {
+        bool found = false;
+        for (int dy = -4; dy <= 4 && !found; dy += 2) for (int dx = -4; dx <= 4; dx += 2)
+          if ((int(round(src.read(uint2(clamp(fx + dx, 0, fw - 1), clamp(fy + dy, 0, fh - 1))).r * 255.0)) < 128) == turn) { found = true; break; }
+        turn = turn ? (l < 128 || found) : (l < 128 && !found);
       }
       if (turn) l = 255 - l;
       v = tone[l];
@@ -905,10 +953,11 @@ final class GPU {
         tone.withUnsafeBytes { toneB.contents().copyMemory(from: $0.baseAddress!, byteCount: 256) }
         thr.withUnsafeBytes { thrB.contents().copyMemory(from: $0.baseAddress!, byteCount: 4096) }
         let r = region
-        var p: [Int32] = [W, H, stride, r.ox, r.oy, fw, fh, rotate, b.0 / 8, b.1, (b.2 + 7) / 8, b.3, edges, edgeFloor, invertMode, ditherKind].map { Int32($0) }
+        var p: [Int32] = [W, H, stride, r.ox, r.oy, fw, fh, rotate, b.0 / 8, b.1, (b.2 + 7) / 8, b.3, edges, edgeFloor, invertMode, ditherKind, zw].map { Int32($0) }
+        guard let zb = zones.withUnsafeBytes({ q.device.makeBuffer(bytes: $0.baseAddress!, length: max(1, $0.count), options: .storageModeShared) }) else { return false }
         e.setComputePipelineState(pipe); e.setTexture(t, index: 0)
         e.setBytes(&p, length: p.count * 4, index: 0); e.setBuffer(toneB, offset: 0, index: 1); e.setBuffer(thrB, offset: 0, index: 2)
-        e.setBuffer(greyB, offset: 0, index: 3); e.setBuffer(bitsB, offset: 0, index: 4)
+        e.setBuffer(greyB, offset: 0, index: 3); e.setBuffer(bitsB, offset: 0, index: 4); e.setBuffer(zb, offset: 0, index: 5)
         e.dispatchThreads(MTLSize(width: (b.2 + 7) / 8 - b.0 / 8, height: b.3 - b.1, depth: 1), threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
         e.endEncoding(); cb.commit(); cb.waitUntilCompleted()
         return cb.status == .completed
@@ -1009,6 +1058,7 @@ func gpuSelftest() -> Never {
             cases += 1
             let b = mapBox(d, toPanel)
             var t0 = now()
+            zw = 0; _ = mapZones(src, bpr, fw, fh)
             shade(src, bpr, fw, fh, d)
             for y in b.1..<b.3 { let o = y * W; shown.replaceSubrange((o + b.0)..<(o + b.2), with: grey[(o + b.0)..<(o + b.2)]) }
             dither(b.0, b.1, b.2, b.3)
@@ -1145,7 +1195,7 @@ Thread {
         if pb != nil { lastFrame = tn }
         if pb != nil { prof.age.append(age) }
         if pb != nil { held = pb } else if reshade, let h = held { pb = h; fd = .infinite }
-        if (invertMode == 1 || ditherKind == 3) && !fd.isNull && !fd.isInfinite { fd = fd.insetBy(dx: -48, dy: -48) }   // a change turns the pixels around it too, or makes them a picture (around)
+        if (invertMode == 1 || ditherKind == 3) && !fd.isNull && !fd.isInfinite { fd = fd.insetBy(dx: -4, dy: -4) }   // a border pixel looks 4 pixels around (around); a changed area's blocks come from mapZones
         reshade = false
         // the pointer alone: at most --pointer-hz moves, the newest; updates that overlap on the panel wait for each other there
         if moved && pb == nil && now() - lastPointer < 1000 / Double(pointerHz) { lock.lock(); pointerMoved = true; lock.unlock(); moved = false; deferred = true; continue }
@@ -1175,6 +1225,7 @@ Thread {
             region = (reg.0, reg.1, reg.2, reg.3)
             cursorArea = .null; if cursorPx == 0, let p { addCursor(p) }   // the frame may be older than the pointer: its place goes again next time
             let src = CVPixelBufferGetBaseAddressOfPlane(pb, 0)!.assumingMemoryBound(to: UInt8.self)
+            if let z = mapZones(src, bpr, fw, fh) { d = d.2 > d.0 ? (min(d.0, z.0), min(d.1, z.1), max(d.2, z.2), max(d.3, z.3)) : z }
             if d.2 > d.0 && d.3 > d.1 {
                 let b = mapBox(d, toPanel)
                 if (d.2 - d.0) * (d.3 - d.1) >= gpuFrom, let g = gpu, g.run(pb, fw, fh, b) { g.take(b); onGPU = b; grow(b, cpu: false); gpuFrames += 1 }
