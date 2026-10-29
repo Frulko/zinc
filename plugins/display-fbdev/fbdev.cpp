@@ -492,6 +492,78 @@ static void wait_refresh() {
   for (uint32_t id : retired) io(DRM_IOCTL_MODE_RMFB, &id);
   retired.clear();
 }
+// The screen's refresh (Sidecar's SET 7): a film at 25 a second on 60 Hz shows its pictures 2, 3, 2, 3 refreshes (a judder), on 50 Hz two
+// each. The modes are the CRTC's connector's at the frame's size; read once (no probe: the EDID is not read again), with the mode the
+// screen had for the way back. Closing the display's file gives the console its own mode back too.
+static drm_mode_modeinfo modes[64], own;
+static int nmodes = -1;
+static uint32_t mode_prop;
+static void load_modes() {
+  nmodes = 0;
+  uint32_t conns[16];
+  drm_mode_card_res res = {};
+  res.connector_id_ptr = (uintptr_t)conns; res.count_connectors = 16;
+  drm_mode_crtc cr = {};
+  cr.crtc_id = crtc;
+  if (io(DRM_IOCTL_MODE_GETRESOURCES, &res) < 0 || res.count_connectors > 16 || io(DRM_IOCTL_MODE_GETCRTC, &cr) < 0 || !cr.mode_valid) return;
+  own = cr.mode;
+  for (uint32_t i = 0; i < res.count_connectors && !nmodes; i++) {
+    drm_mode_modeinfo m[64];
+    drm_mode_get_connector c = {};
+    c.connector_id = conns[i]; c.modes_ptr = (uintptr_t)m; c.count_modes = 64;   // not 0: 0 asks the kernel to probe the screen again
+    if (io(DRM_IOCTL_MODE_GETCONNECTOR, &c) < 0 || c.count_modes > 64 || !c.encoder_id) continue;
+    drm_mode_get_encoder e = {};
+    e.encoder_id = c.encoder_id;
+    if (io(DRM_IOCTL_MODE_GETENCODER, &e) < 0 || e.crtc_id != crtc) continue;
+    for (uint32_t k = 0; k < c.count_modes; k++)
+      if (m[k].hdisplay == own.hdisplay && m[k].vdisplay == own.vdisplay && !(m[k].flags & (DRM_MODE_FLAG_INTERLACE | DRM_MODE_FLAG_DBLSCAN))) modes[nmodes++] = m[k];
+  }
+  uint32_t ids[64]; uint64_t vals[64];
+  drm_mode_obj_get_properties g = {};
+  g.props_ptr = (uintptr_t)ids; g.prop_values_ptr = (uintptr_t)vals; g.count_props = 64; g.obj_id = crtc; g.obj_type = DRM_MODE_OBJECT_CRTC;
+  if (io(DRM_IOCTL_MODE_OBJ_GETPROPERTIES, &g) < 0 || g.count_props > 64) return;
+  for (uint32_t i = 0; i < g.count_props; i++) {
+    drm_mode_get_property q = {};
+    q.prop_id = ids[i];
+    if (io(DRM_IOCTL_MODE_GETPROPERTY, &q) == 0 && !strcmp(q.name, "MODE_ID")) mode_prop = ids[i];
+  }
+}
+/** The refreshes the screen takes at this size, "50,60" (empty: none to choose). */
+static std::string rates() {
+  if (fd < 0) return "";
+  if (nmodes < 0) load_modes();
+  std::vector<int> r;
+  for (int i = 0; i < nmodes; i++) if (std::find(r.begin(), r.end(), (int)modes[i].vrefresh) == r.end()) r.push_back(modes[i].vrefresh);
+  std::sort(r.begin(), r.end());
+  std::string s;
+  for (int v : r) s += (s.empty() ? "" : ",") + std::to_string(v);
+  return r.size() > 1 && mode_prop ? s : "";
+}
+/** The screen at `hz` (0: the mode it had), the frame's size kept: a modeset, the screen dark for a moment. */
+static bool set_refresh(int hz) {
+  if (fd < 0 || failed) return false;
+  if (nmodes < 0) load_modes();
+  const drm_mode_modeinfo* m = hz == 0 && nmodes > 0 ? &own : nullptr;
+  for (int i = 0; i < nmodes && !m; i++) if ((int)modes[i].vrefresh == hz) m = &modes[i];
+  drm_mode_crtc cr = {};
+  cr.crtc_id = crtc;
+  if (!m || !mode_prop || io(DRM_IOCTL_MODE_GETCRTC, &cr) < 0) return false;
+  if (!memcmp(&cr.mode, m, sizeof *m)) return true;
+  drm_mode_create_blob b = {};
+  b.data = (uintptr_t)m; b.length = sizeof *m;
+  if (io(DRM_IOCTL_MODE_CREATEPROPBLOB, &b) < 0) return false;
+  wait_refresh();
+  uint32_t obj = crtc, count = 1, prop = mode_prop;
+  uint64_t val = b.blob_id;
+  drm_mode_atomic a = {};
+  a.flags = DRM_MODE_ATOMIC_ALLOW_MODESET; a.count_objs = 1; a.objs_ptr = (uintptr_t)&obj; a.count_props_ptr = (uintptr_t)&count;
+  a.props_ptr = (uintptr_t)&prop; a.prop_values_ptr = (uintptr_t)&val;
+  const bool ok = io(DRM_IOCTL_MODE_ATOMIC, &a) == 0;
+  drm_mode_destroy_blob d = {b.blob_id};
+  io(DRM_IOCTL_MODE_DESTROYPROPBLOB, &d);   // the CRTC keeps its own reference
+  fprintf(stderr, "fbdev: the screen at %d Hz%s\n", m->vrefresh, ok ? "" : ": refused");
+  return ok;
+}
 }  // namespace kms
 
 /** HalDisplay.layers: the pictures of the next frame. Each one the display can show on a plane gets its framebuffer here; the commit is
@@ -1033,6 +1105,11 @@ static const char* fb_device(const char* query, const char* value) {
 #if __has_include(<linux/videodev2.h>)
     if (kms::flip && !getenv("ZINC_SIDECAR_NO_H264") && vid::can()) t.video = vid::unit;
 #endif
+    if (kms::flip) {
+      std::lock_guard<std::mutex> k(kms_mu);
+      t.rates = kms::rates();
+      if (!t.rates.empty()) t.refresh = [](int hz) { std::lock_guard<std::mutex> k(kms_mu); return kms::set_refresh(hz); };
+    }
 #endif
     return stream::start(atoi(value), t) ? "1" : "0";
   }

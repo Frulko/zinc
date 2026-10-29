@@ -16,7 +16,9 @@
 //   6 COPY    the rectangle (x, y, w, h) moves by the payload's [i16 dx][i16 dy] (a scroll): the Mac sends only what is new after it.
 //   7 SET     x: a setting, y: its value: 1, 2, 3 how long (ms) the panel drives a Pen, colour, full update (nothing new goes to those
 //             pixels before: a pixel still moving ignores a new target and stays half-way, the ghosts and coloured residue), 4 the
-//             profile on (1) or off, 5 holding on (1) or off, 6 the frontlight in permille.
+//             profile on (1) or off, 5 holding on (1) or off, 6 the frontlight in permille, 7 the screen's refresh in Hz, one of
+//             those its hello names (+hz:50,60), 0 its own (a film at 25 a second plays on 50 Hz without judder; back to its own at the
+//             session's end).
 //   8 QUIT    the tablet's app ends (in an ink session xochitl comes back).
 //   9 SINK    a speed test's len bytes (+sink): read and dropped, answered with ECHO once they are all in. With len 0, a ping.
 //  10 VIDEO   (+h264) the screen's (x, y, w, h) shows a video: the payload is one H.264 access unit (Annex B; SPS and PPS before a
@@ -57,6 +59,7 @@
 #include <atomic>
 #include <functional>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <condition_variable>
 #include <deque>
@@ -284,6 +287,8 @@ struct Target {
                                             // frame (display-fbdev's flip from the stream's thread); empty: nothing
   std::function<void(int, int, int, int, std::vector<uint8_t>&)> video;   // VIDEO (+h264): the place and the access unit (len 0: it
                                             // ends; also at the end of a session); it ACKs. Empty: no hardware decoder
+  std::function<bool(int)> refresh;        // SET 7: the screen at that refresh (0: its own); empty: it has one
+  std::string rates;                        // the refreshes it takes, "50,60" (the hello's +hz:)
   bool whole = false;                       // the screen's present reads fb while pictures come (display-fbdev): picture_mu keeps it out
                                             // from a picture's first write to its last, so it never shows half of one (no tiles torn)
 };
@@ -391,8 +396,9 @@ inline void serve(Target t, int ls) {
     setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);   // macOS: a Mac gone is a failed send, not SIGPIPE (send16)
 #endif
     const int top = t.top(), H = t.h - top;
-    char hello[128];
-    const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s +ptr +lz4 +copy +sched +zstd +sub +sink%s%s\n", t.w, H, t.model, t.colour ? " +rgb" : "", t.video ? " +h264" : "");
+    char hello[192];
+    const int n = snprintf(hello, sizeof hello, "RMPP %d %d %s +ptr +lz4 +copy +sched +zstd +sub +sink%s%s%s%s\n", t.w, H, t.model, t.colour ? " +rgb" : "", t.video ? " +h264" : "",
+                           t.refresh ? " +hz:" : "", t.refresh ? t.rates.c_str() : "");
     if (write(c, hello, n) != n) { close(c); continue; }
     { std::lock_guard<std::mutex> g(out); client = c; client_top = top; }
     fingers = 0; two = false; moved = false;
@@ -476,6 +482,7 @@ inline void serve(Target t, int ls) {
       if (h[0] == 7) {   // a setting
         if (x == 1) hold_pen = y; else if (x == 2) hold_colour = y; else if (x == 3) hold_full = y; else if (x == 5) holding = y != 0;
         else if (x == 6) { if (const int l = light(y); l >= 0) send16(9, 0, 0, l, 0, 0); }
+        else if (x == 7 && t.refresh) t.refresh(y);
         else if (x == 4) {
           profiling = y != 0;
           if (profiling && probing != session) { probing = session.load(); std::thread(probe_loop, (unsigned)session).detach(); }
@@ -585,6 +592,7 @@ inline void serve(Target t, int ls) {
       if (now_us() - host_at > 2000000) { host_at = now_us(); send_host(); }
     }
     if (t.video) { buf.clear(); t.video(0, 0, 0, 0, buf); }   // a video still shown goes with the Mac
+    if (t.refresh) t.refresh(0);
     if (dec) dec->wait();   // no ACK of this session's RECTs goes to the next Mac
     settle();
     release();

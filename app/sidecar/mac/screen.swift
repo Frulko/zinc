@@ -264,6 +264,30 @@ if h264 { DispatchQueue.global(qos: .userInitiated).async {
 var video: Area?, encoder: VideoEncoder?
 var candidate: Area?, steady = 0, still = 0, starting = false, making = false
 var videoStats = (frames: 0, bytes: 0, encode: 0.0)
+// the refresh: a film at 25 a second on 60 Hz shows its pictures 2, 3, 2, 3 refreshes (a judder). Its pictures counted every 2 s; at 25 (or
+// 24) for 4 s, the virtual display and the screen go to twice that when the screen takes it (+hz:50,60), and back to 60 six seconds after
+// the film. A mirror keeps its display's own refresh
+let rates = (caps.first { $0.hasPrefix("hz:") }?.dropFirst(3).split(separator: ",").compactMap { Int($0) }) ?? []
+var refresh = 60, filmPictures = 0, wanted = 0, wantedFor = 0, switchedAt = 0.0
+func setRefresh(_ hz: Int) {
+    guard let vd = virtualDisplay else { return }
+    refresh = hz; switchedAt = now()
+    DispatchQueue.main.async {
+        let s = CGVirtualDisplaySettings(); s.hiDPI = hidpi ? 1 : 0
+        s.modes = [CGVirtualDisplayMode(width: UInt(hidpi ? W / 2 : W), height: UInt(hidpi ? H / 2 : H), refreshRate: Double(hz))]
+        if !vd.apply(s) { print("refresh: the virtual display refused \(hz) Hz") }
+    }
+    wire.lock(); writeFull(header(7, 0, 7, hz == 60 ? 0 : hz, 0, 0, 0, false, 0), 16); wire.unlock()
+    print("refresh: \(hz) Hz" + (hz == 60 ? "" : " (a film at \(hz / 2) a second)"))
+}
+func pickRefresh() {
+    guard virtualDisplay != nil, !rates.isEmpty else { return }
+    let fps = Double(filmPictures) / 2
+    filmPictures = 0
+    let want = video == nil ? 60 : abs(fps - 25) < 1.5 && rates.contains(50) ? 50 : abs(fps - 24) < 1 && rates.contains(48) ? 48 : 60
+    if want == wanted { wantedFor += 1 } else { wanted = want; wantedFor = 1 }
+    if want != refresh && wantedFor >= (want == 60 ? 3 : 2) { setRefresh(want) }
+}
 var videoDecodeUs = [Int]()   // the screen's decoder: µs from a unit's last byte to its picture
 /** The rectangle of the busy tiles when they fill most of it and it is large enough to be a film (12 tiles: 256 x 192 pixels). */
 func busyArea() -> Area? {
@@ -406,7 +430,7 @@ func send(_ pb: CVPixelBuffer) {
             let ms = (now() - te) * 1000
             if trace && videoStats.frames < 3 { print(String(format: "trace: unit out after %.1f ms, %d bytes", ms, au.count)) }
             wire.lock(); writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, au.count), 16); writeFull(au, au.count); wire.unlock()
-            q.async { videoStats.frames += 1; videoStats.bytes += 16 + au.count; videoStats.encode += ms; stats.bytes += 16 + au.count; total.bytes += 16 + au.count }
+            q.async { filmPictures += 1; videoStats.frames += 1; videoStats.bytes += 16 + au.count; videoStats.encode += ms; stats.bytes += 16 + au.count; total.bytes += 16 + au.count }
         }
     }
     if runs.isEmpty {
@@ -442,7 +466,11 @@ final class Out: NSObject, SCStreamOutput, SCStreamDelegate {
         guard SCFrameStatus(rawValue: raw) == .complete, let pb = sb.imageBuffer else { return }
         q.async { more.captured += 1; if waiting != nil { more.dropped += 1 }; waiting = pb; last = pb; pump() }
     }
-    func stream(_ s: SCStream, didStopWithError e: Error) { die("capture stopped: \(e.localizedDescription)") }
+    func stream(_ s: SCStream, didStopWithError e: Error) {
+        // a display that changed its refresh may end the capture: it starts again
+        if now() - switchedAt < 5 { print("capture: again after the refresh change (\(e.localizedDescription))"); DispatchQueue.main.async { startCapture(0) }; return }
+        die("capture stopped: \(e.localizedDescription)")
+    }
 }
 let out = Out()
 var stream: SCStream?
@@ -593,6 +621,7 @@ func info(_ seconds: Double) {
                           r.w, r.h, r.x, r.y, Double(videoStats.frames) / seconds, Double(videoStats.bytes) * 8 / seconds / 1e6, videoStats.encode / Double(n),
                           d.isEmpty ? 0 : Double(d[d.count / 2]) / 1000) } ?? "none now (H.264 when a part of the screen moves like a film)"],
         ["Picture", "Sound", soundState],
+        ["Picture", "Refresh", rates.isEmpty ? "60 Hz (the screen offers no other)" : virtualDisplay == nil ? "the mirrored display's own" : "\(refresh) Hz" + (refresh == 60 ? " (50 for a film at 25 a second; the screen takes \(rates.map(String.init).joined(separator: ", ")))" : ", for a film at \(refresh / 2) a second")],
         ["Latency", "Encode (Mac)", stats.raw == 0 ? "– (no tile sent)" : "\(ms(stats.encode / Double(f))) average, \(ms(more.encodeMax)) slowest, \(workers) cores"],
         ["Latency", "Shown (screen)", shownUs.isEmpty ? "–" : { let v = shownUs.sorted(); return String(format: "commit %.1f ms after the last byte (median, %.1f p95), on screen at the next refresh (≤ 16.7 ms)", Double(v[v.count / 2]) / 1000, Double(v[min(v.count - 1, v.count * 95 / 100)]) / 1000) }()],
         ["Latency", "Decode (screen)", more.decodeUs == 0 && pictureUs.isEmpty ? "– (no tile sent)" : (pictureUs.isEmpty ? "" : { let v = pictureUs.sorted(); return String(format: "%.1f ms a picture (median, %.1f p95), ", Double(v[v.count / 2]) / 1000, Double(v[min(v.count - 1, v.count * 95 / 100)]) / 1000) }())
@@ -622,6 +651,7 @@ Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
         // half the screen or more (1080p at 60: 18 ms to encode, 30 to decode; three gave 50 a second), three for a smaller one (four
         // only queued its pictures at the decoder: 36 ms of round trip instead of 20)
         if !r.isEmpty { lastRtt = r[r.count / 2] }
+        pickRefresh()
         pace()
         if f > 0 {
             print(String(format: "%.0f frames/s  %.1f Mbit/s  %.0fx  %.1f runs  rough %d%%  encode %.1f ms  round trip %.0f ms median, %.0f max", Double(f) / 2,
