@@ -596,6 +596,8 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod AudioMuse: read AudioMuse's own clustering playlists (/api/playlists) as more Mood mixes once a library is analysed.
 - iPod AudioMuse: an "Analyse new songs" button on For you when songs are not analysed yet (today only on the Settings card).
 
+- ipod_deep: one QuickJS run of 3 gave the From X to Y path one song short (AAAAABBBBBBC instead of AAAAABBBBBBCC) while AudioMuse loaded the machine; find what in the path build depends on timing.
+
 ## Cross-platform pass
 - iPod AudioMuse over the LAN from the Pi daemon, with the same client.
 - iPod: run ipod_smart on Linux.
