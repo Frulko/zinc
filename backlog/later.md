@@ -546,7 +546,22 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod demo: "Show details" on a failed toast opens the failed job's row on Transfers, not just the page.
 - kit: toast() and addToast return a handle that can be updated (title, progress, actions), so apps do not each rebuild a live toast like the iPod demo's.
 
+- QuickJS: strings of raw bytes (Response.bytes(), an event's rawBody) turn UTF-8 bytes into U+FFFD; the same gap as the zinc:subtle one fixed on 2026-10-29.
+- iPod demo: covers in the cache are not invalidated after setArtwork (one size per album); invalidate by track when the cover changes.
+- iPod demo: the listening service (listening.ts) has no headless test: a scripted session that plays past half a song and checks plays.json and history.jsonl.
+- iPod demo: the opener scope for Last.fm sign-in was dropped at integration because it would also limit Reveal in Finder; scope both (https://www.last.fm/* and the user's folders) once opener scopes take paths.
+- zinc:ui swipe back/forward gives no live feedback (Safari slides the page with the fingers); it acts on release only.
+- QuickJS: sys.clock() read 0 ms around a sub-millisecond loop; check its resolution.
+- iPod demo: history entries survive opening another iPod; reset the history when a device opens.
+- iPod demo: the Linux right-click menu needs a stand-in (no native popup menu there).
+- zinc:system: the Dock's Quit and a logout arrive as a window close; tell them apart (applicationShouldTerminate).
+- iPod demo: the Devices page does not show the "waiting for the iPod" line yet (the signal exists).
+- iPod demo: the queue copied to a Sonos speaker is capped at 1,000 entries; page it in.
+- iPod demo: a running transfer cannot be cancelled midway (a half-written file the database does not know); design a safe cancel.
+- zinc:system: ZINC_SYSTEM_SCRIPT ticks run faster than frames in a UI app, though docs/plugins/system.md says a tick is a frame.
+
 ## Cross-platform pass
+- zinc:ui scrollKey on the web target (DOM render): the browser owns the scroller there; verify the restore.
 - zinc:sonos events on webOS, the Pi and Android: the firewall must let the app's server port in (the webOS helper opens only the SSDP port today).
 - D178: the Mac app's remote iPod against an ipod-web daemon on a Raspberry Pi over a real network (large files, timeouts, Wi-Fi).
 - D178: the iPod daemon (examples/ipod-web) on a Raspberry Pi and a C.H.I.P.: build zinc:ipod's dependencies (glib, libplist, taglib, libusb) for armv6/armv7 with the pinned zig, serve a real iPod (an HFS+ one mounts read only: browse and stream only), stream to a Subsonic client on the LAN, and measure a hard-disk iPod's USB power on the C.H.I.P.'s host port (a powered hub if it browns out); it matters because that is what the daemon is for.
