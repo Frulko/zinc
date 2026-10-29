@@ -16,6 +16,7 @@ import SystemConfiguration
 
 setvbuf(stdout, nil, _IOLBF, 0)
 func die(_ s: String) -> Never { print("sidecar-screen: \(s)"); exit(1) }
+var videoAll = false
 var host = "", port: UInt16 = 7710, mirror = -1, hidpi = false, forceLz4 = false, seconds = 0.0, exact = false, synthetic = 0
 var h264Dump = "", noVideo = false, audio = false
 var argv = Array(CommandLine.arguments.dropFirst())
@@ -29,6 +30,7 @@ while !argv.isEmpty {
     case "--lz4": forceLz4 = true     // lz4 even when the receiver reads zstd: less ratio, less of its CPU
     case "--seconds": seconds = Double(argv.removeFirst())!
     case "--exact": exact = true      // never rough: every picture exact, whatever it costs
+    case "--video-all": videoAll = true   // experimental: the whole screen is one H.264 stream, all the time (the tiles only before it starts)
     case "--no-video": noVideo = true // no H.264 region, even when the receiver decodes it: every pixel exact or rough tiles
     case "--audio": audio = true      // the Mac's sound on the screen when it can play it (sound.swift), the Mac muted meanwhile
     case "--h264-dump": h264Dump = argv.removeFirst()   // no screen: the synthetic load as H.264 into this file for --seconds (Annex B; the
@@ -351,12 +353,12 @@ func send(_ pb: CVPixelBuffer) {
     let t0 = now()
     // the video's start or end, from the pictures before this one
     if h264 {
-        let c = busyArea()
+        let c = videoAll ? Area(x0: 0, y0: 0, x1: TX, y1: TY) : busyArea()
         if c == candidate { steady += 1 } else { candidate = c; steady = 0 }
         // a film's dark or still parts change fewer tiles: a rectangle inside the video's is the same film. Only one that goes out of it
         // (the window moved or grew) for half a second, or a second without a change (a pause), ends it
         let outside = c.map { c in c.x0 < video?.x0 ?? 0 || c.y0 < video?.y0 ?? 0 || c.x1 > video?.x1 ?? 0 || c.y1 > video?.y1 ?? 0 } ?? false
-        if let v = video, still > 60 || (steady >= 30 && outside) {   // over: its place is sent again exact, below
+        if let v = video, !videoAll, still > 60 || (steady >= 30 && outside) {   // over: its place is sent again exact, below
             let r = pixels(v, w, h)
             encoder?.flush()   // its units are on the wire before the stop
             wire.lock(); writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, 0), 16); wire.unlock(); rectsSent += 1
@@ -369,7 +371,8 @@ func send(_ pb: CVPixelBuffer) {
             let r = pixels(c, w, h), tc = now()
             making = true
             DispatchQueue.global(qos: .userInitiated).async {
-                let e = VideoEncoder(w: r.w, h: r.h, bitrate: r.w * r.h * 6)   // ~0.1 bit a pixel at 60
+                // ~0.1 bit a pixel at 60; twice that for the whole screen, whose letters must stay sharp
+                let e = VideoEncoder(w: r.w, h: r.h, bitrate: r.w * r.h * (videoAll ? 12 : 6))
                 q.async {
                     making = false
                     if trace { print(String(format: "trace: encoder made in %.1f ms", (now() - tc) * 1000)) }

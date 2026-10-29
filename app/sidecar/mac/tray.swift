@@ -139,9 +139,9 @@ final class Engine: ObservableObject {
     @Published var soundAvail = Set(UserDefaults.standard.stringArray(forKey: "soundAvail") ?? []) { didSet { UserDefaults.standard.set(Array(soundAvail), forKey: "soundAvail") } }
     func audioOn(_ id: String) -> Bool { UserDefaults.standard.bool(forKey: "audio." + id) }
     func setAudio(_ id: String, _ on: Bool) { UserDefaults.standard.set(on, forKey: "audio." + id); objectWillChange.send(); restart(id) }
-    func update(_ o: Output) {
-        guard let i = screens.firstIndex(where: { $0.id == o.id }), screens[i] != o else { return }
-        screens[i] = o; restart(o.id)
+    func update(_ o: Output, force: Bool = false) {
+        guard let i = screens.firstIndex(where: { $0.id == o.id }), screens[i] != o || force else { return }
+        screens[i] = o; objectWillChange.send(); restart(o.id)
     }
     func add(name: String, host: String) {
         let o = Output(id: UUID().uuidString, kind: .screen, name: name.isEmpty ? host : name, host: host)
@@ -235,7 +235,7 @@ final class Engine: ObservableObject {
         let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath().deletingLastPathComponent().appendingPathComponent(eink ? "sidecar-engine" : "sidecar-screen")
         let p = Process()
         p.executableURL = exe
-        var args = eink ? ["--no-ui", "--control", "--wait"] : ["--host", out.host] + (out.hidpi ? ["--hidpi"] : []) + (out.lz4 ? ["--lz4"] : []) + (audioOn(id) ? ["--audio"] : [])
+        var args = eink ? ["--no-ui", "--control", "--wait"] : ["--host", out.host] + (out.hidpi ? ["--hidpi"] : []) + (out.lz4 ? ["--lz4"] : []) + (audioOn(id) ? ["--audio"] : []) + (UserDefaults.standard.bool(forKey: "videoAll." + id) ? ["--video-all"] : [])
         if mode != .extend { args += ["--mirror", String(display(id))] }
         p.arguments = args
         let i = Pipe(), o = Pipe()
@@ -493,6 +493,9 @@ struct PopoverView: View {
                     Toggle("Sound: the Mac's sound plays on this screen", isOn: Binding(get: { e.audioOn(o.id) }, set: { e.setAudio(o.id, $0) }))
                         .help("The Mac goes quiet while it streams; macOS asks once to let Sidecar record the system's audio")
                 }
+                Toggle("Whole screen as video (experimental)", isOn: Binding(get: { UserDefaults.standard.bool(forKey: "videoAll." + o.id) },
+                                                                              set: { UserDefaults.standard.set($0, forKey: "videoAll." + o.id); e.update(o, force: true) }))
+                    .help("Everything goes as one H.264 stream decoded by the screen's hardware: scrolling and moving windows stay smooth, letters a little softer")
                 Picker("Compression", selection: Binding(get: { o.lz4 }, set: { v in var c = o; c.lz4 = v; e.update(c) })) {
                     Text("zstd: fewest bytes").tag(false); Text("lz4: lightest for the screen").tag(true)
                 }
