@@ -1,6 +1,7 @@
 // zinc:ipod stand-in (sim target, ZINC_NATIVE=sim): one iPod Classic in memory, "Zinc Pod" at /Volumes/ZINCPOD, with
 // the same answers as the native side for the same calls, so a program and its tests run without an iPod or libgpod.
-import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult, Play } from './ipod.spec';
+import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult, Play, SmartRules } from './ipod.spec';
+import { evaluateSmart, emptyRules, SMART_FIELDS } from '../smart';
 
 const MP = '/Volumes/ZINCPOD';
 const GB = 1024 * 1024 * 1024;
@@ -39,6 +40,19 @@ function apply(t: Track, f: TrackInput): void {
   if (f.genre !== undefined) t.genre = f.genre;
   if (f.rating !== undefined) t.rating = f.rating;
   if (f.mediaType !== undefined) t.mediaType = f.mediaType;
+  if (f.bpm !== undefined) t.bpm = f.bpm;
+}
+/** The native save: the live smart playlists are refilled first (all of them with `all`). */
+function saved(all: boolean = false): void {
+  for (const p of playlists) if (p.smart && (all || p.rules.liveUpdate)) p.trackIds = evaluateSmart(p.rules, tracks, playlists);
+  saves++;
+}
+function checkRules(r: SmartRules): string {
+  if (r.match !== 'all' && r.match !== 'any') return `match is all or any, not '${r.match}'`;
+  if (r.limit.type !== 'none' && r.limit.type !== '' && !(r.limit.value > 0)) return 'a limit needs a value above 0';
+  for (let i = 0; i < r.rules.length; i++)
+    if (SMART_FIELDS.indexOf(r.rules[i].field) < 0) return `rule ${i + 1} (${r.rules[i].field} ${r.rules[i].action}): unknown field`;
+  return '';
 }
 
 /** The native normaliseTag without the accents: lowercase letters and digits, single spaces. */
@@ -142,7 +156,7 @@ function merge(groups: MergeGroup[]): MergeResult[] {
     r.playCount = k.playCount;
     out.push(r);
   }
-  saves++;
+  saved();
   return out;
 }
 
@@ -150,7 +164,7 @@ export default {
   detect: (): Promise<Device[]> => Promise.resolve([device()]),
   open: (mp: string, _init: boolean, _model: string, _name: string): Promise<Device> => {
     if (mp !== MP) return fail(mp + ' is not an iPod (no iPod_Control folder)');
-    if (!open) { open = true; playlists.push({ id: hex(++seq), name: 'Zinc Pod', master: true, podcasts: false, smart: false, trackIds: [] }); }
+    if (!open) { open = true; playlists.push({ id: hex(++seq), name: 'Zinc Pod', master: true, podcasts: false, smart: false, trackIds: [], rules: emptyRules() }); }
     return Promise.resolve(device());
   },
   info: (): Promise<Device> => need() ? fail<Device>(need()) : Promise.resolve(device()),
@@ -161,7 +175,7 @@ export default {
     if (need()) return fail<AddResult[]>(need());
     const out: AddResult[] = [];
     let target = pl === '' ? null : playlist(pl);
-    if (pl !== '' && !target) { target = { id: hex(++seq), name: pl, master: false, podcasts: false, smart: false, trackIds: [] }; playlists.push(target); }
+    if (pl !== '' && !target) { target = { id: hex(++seq), name: pl, master: false, podcasts: false, smart: false, trackIds: [], rules: emptyRules() }; playlists.push(target); }
     let i = 0;
     for (const it of items) {
       i++;
@@ -169,7 +183,8 @@ export default {
       if (['.mp3', '.m4a', '.aac', '.m4b', '.wav', '.aif', '.aiff', '.mp4', '.m4v', '.mov'].indexOf(ext) < 0) { out.push({ file: it.file, id: '', error: 'an iPod cannot play ' + ext + ' files (convert to MP3, AAC or ALAC)' }); continue; }
       const t: Track = { id: hex(++seq), title: base(it.file), artist: '', album: '', albumArtist: '', genre: '', composer: '', comment: '',
         trackNr: 0, tracks: 0, cdNr: 0, cds: 0, year: 0, rating: 0, playCount: 0, bitrate: 128, sampleRate: 44100, durationMs: 180000, size: 3000000,
-        mediaType: ext === '.m4b' ? 'audiobook' : 'audio', path: 'iPod_Control/Music/F00/ZN' + seq + ext, artwork: it.artworkFile !== undefined, added: 0, lastPlayed: 0 };
+        mediaType: ext === '.m4b' ? 'audiobook' : 'audio', path: 'iPod_Control/Music/F00/ZN' + seq + ext, artwork: it.artworkFile !== undefined, added: 0, lastPlayed: 0,
+        bpm: 0, skipCount: 0, lastSkipped: 0 };
       apply(t, it);
       tracks.push(t); used += t.size; sources.set(t.id, it.file);
       playlists[0].trackIds.push(t.id);
@@ -177,18 +192,18 @@ export default {
       out.push({ file: it.file, id: t.id, error: '' });
       cb?.('add', i, items.length, it.file);
     }
-    saves++;
+    saved();
     return Promise.resolve(out);
   },
   update: (id: string, f: TrackInput): Promise<Track> => { const t = find(id); if (!t) return fail('no track ' + id); apply(t, f); return Promise.resolve(t); },
   remove: (ids: string[]): Promise<void> => {
     for (const id of ids) { const k = tracks.findIndex((t: Track) => t.id === id); if (k >= 0) { used -= tracks[k].size; tracks.splice(k, 1); } for (const p of playlists) p.trackIds = p.trackIds.filter((x: string) => x !== id); }
-    saves++;
+    saved();
     return Promise.resolve();
   },
   setArtwork: (id: string, _f: string): Promise<void> => { const t = find(id); if (!t) return fail<void>('no track ' + id); t.artwork = true; return Promise.resolve(); },
   saveArtwork: (id: string, _png: string): Promise<boolean> => { const t = find(id); return t ? Promise.resolve(t.artwork) : fail('no track ' + id); },
-  createPlaylist: (name: string): Promise<string> => { const p: Playlist = { id: hex(++seq), name: name, master: false, podcasts: false, smart: false, trackIds: [] }; playlists.push(p); return Promise.resolve(p.id); },
+  createPlaylist: (name: string): Promise<string> => { const p: Playlist = { id: hex(++seq), name: name, master: false, podcasts: false, smart: false, trackIds: [], rules: emptyRules() }; playlists.push(p); return Promise.resolve(p.id); },
   renamePlaylist: (id: string, name: string): Promise<void> => { const p = playlist(id); if (!p) return fail<void>('no playlist ' + id); p.name = name; return Promise.resolve(); },
   deletePlaylist: (id: string): Promise<void> => {
     const k = playlists.findIndex((p: Playlist) => p.id === id);
@@ -197,8 +212,33 @@ export default {
     playlists.splice(k, 1);
     return Promise.resolve();
   },
-  setPlaylistTracks: (id: string, ids: string[]): Promise<void> => { const p = playlist(id); if (!p) return fail<void>('no playlist ' + id); p.trackIds = ids.slice(); return Promise.resolve(); },
-  save: (): Promise<void> => { saves++; return Promise.resolve(); },
+  setPlaylistTracks: (id: string, ids: string[]): Promise<void> => {
+    const p = playlist(id);
+    if (!p) return fail<void>('no playlist ' + id);
+    if (p.smart) return fail<void>('a smart playlist is filled by its rules');
+    p.trackIds = ids.slice();
+    return Promise.resolve();
+  },
+  createSmartPlaylist: (name: string, rules: SmartRules): Promise<string> => {
+    const why = need() || checkRules(rules);
+    if (why) return fail<string>(why);
+    const p: Playlist = { id: hex(++seq), name: name, master: false, podcasts: false, smart: true, trackIds: [], rules: rules };
+    playlists.push(p);
+    p.trackIds = evaluateSmart(rules, tracks, playlists);
+    return Promise.resolve(p.id);
+  },
+  setSmartRules: (id: string, rules: SmartRules): Promise<void> => {
+    const p = playlist(id);
+    if (!p) return fail<void>('no playlist ' + id);
+    if (!p.smart) return fail<void>(p.name + ' is not a smart playlist');
+    const why = checkRules(rules);
+    if (why) return fail<void>(why);
+    p.rules = rules;
+    p.trackIds = evaluateSmart(rules, tracks, playlists);
+    return Promise.resolve();
+  },
+  refreshSmartPlaylists: (): Promise<void> => { if (need()) return fail<void>(need()); saved(true); return Promise.resolve(); },
+  save: (): Promise<void> => { saved(); return Promise.resolve(); },
   snapshots: (): Promise<Snapshot[]> => { const s: Snapshot[] = []; for (let k = Math.min(saves, 5); k > 0; k--) s.push({ id: '20261028-12000' + k, created: 0, bytes: 1024 }); return Promise.resolve(s); },
   restoreSnapshot: (_id: string): Promise<void> => Promise.resolve(),
   backup: (dir: string, music: boolean): Promise<string> => {
@@ -279,7 +319,7 @@ export default {
       if (p.at > t.lastPlayed) t.lastPlayed = p.at;
       if (out.indexOf(t) < 0) out.push(t);
     }
-    if (out.length > 0) saves++;
+    if (out.length > 0) saved();
     return Promise.resolve(out);
   },
   merge: (groups: MergeGroup[]): Promise<MergeResult[]> => need() ? fail<MergeResult[]>(need()) : Promise.resolve(merge(groups)),

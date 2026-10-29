@@ -28,7 +28,7 @@ function HeaderCell(props: { label: string; sortKey: string; sortable: boolean; 
 // what a row shows for an index past the end, while the list shrinks and before its rows are rebuilt
 const NO_TRACK: ipod.Track = { id: '', title: '', artist: '', album: '', albumArtist: '', genre: '', composer: '', comment: '', trackNr: 0, tracks: 0,
   cdNr: 0, cds: 0, year: 0, rating: 0, playCount: 0, bitrate: 0, sampleRate: 0, durationMs: 0, size: 0, mediaType: '', path: '', artwork: false,
-  added: 0, lastPlayed: 0 };
+  added: 0, lastPlayed: 0, bpm: 0, skipCount: 0, lastSkipped: 0 };
 
 function isSelected(t: ipod.Track): boolean { return t.id !== '' && selected().indexOf(t.id) >= 0; }
 

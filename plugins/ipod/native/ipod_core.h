@@ -11,6 +11,7 @@
 namespace ipod {
 
 using ::AddResult; using ::DownloadResult; using ::Backup; using ::Check; using ::Device; using ::Extra; using ::PhotoAlbum; using ::Picture; using ::Playlist; using ::Snapshot; using ::SpecItem; using ::Track; using ::TrackInput;
+using ::SmartRule; using ::SmartLimit; using ::SmartRules;
 using ::Play; using ::Analysis; using ::DuplicateGroup; using ::MergeGroup; using ::MergeResult;
 
 /** What the duplicate finder knows of a track (ipod_optimise.cpp): the track, its format, its file's content hash ('' when no other
@@ -67,6 +68,11 @@ class Library {
   bool renamePlaylist(const std::string& id, const std::string& name, std::string& err);
   bool deletePlaylist(const std::string& id, std::string& err);
   bool setPlaylistTracks(const std::string& id, const std::vector<std::string>& trackIds, std::string& err);
+  /** A smart playlist from `rules`, filled at once; refused on a Nano 6G/7G (SQLite database) and for a rule it cannot write. */
+  bool createSmartPlaylist(const std::string& name, const SmartRules& rules, std::string& id, std::string& err);
+  bool setSmartRules(const std::string& id, const SmartRules& rules, std::string& err);
+  /** Refills every smart playlist it can evaluate (live updating or not), then saves. save() refills only the live ones. */
+  bool refreshSmartPlaylists(const Progress& progress, std::string& err);
   bool save(const Progress& progress, std::string& err);
   /** The restore points of this iPod: its backups on the computer (the automatic ones taken before a session's first change too). */
   std::vector<Snapshot> snapshots();

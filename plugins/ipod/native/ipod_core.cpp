@@ -66,6 +66,7 @@ extern "C" char* zn_ipod_artwork_plist(const char* mountpoint);   // ipod_sysinf
 extern "C" char* zn_ipod_art_formats(const char* mountpoint);
 extern "C" void* zn_ipod_photo_pixbuf(Itdb_Device* device, Itdb_Thumb* thumb);   // the largest RGB size of a photo
 extern "C" const Itdb_IpodInfo* itdb_ipod_info_from_serial(const char* serial);   // the model from the last digits of a serial
+extern "C" gboolean itdb_device_supports_sqlite_db(const Itdb_Device* device);   // a Nano 6G/7G: no smart playlists there
 namespace fs = std::filesystem;
 
 namespace ipod {
@@ -423,6 +424,7 @@ void apply(Itdb_Track* t, const TrackInput& in) {
   if (in.cds) t->cds = *in.cds;
   if (in.year) t->year = *in.year;
   if (in.rating) t->rating = (guint32)std::clamp(*in.rating, 0, 5) * ITDB_RATING_STEP;
+  if (in.bpm) t->BPM = (gint16)std::clamp(*in.bpm, 0, 32767);
 }
 
 Track toTrack(Itdb_Track* t) {
@@ -438,6 +440,7 @@ Track toTrack(Itdb_Track* t) {
   if (t->ipod_path) { r.path = t->ipod_path; std::replace(r.path.begin(), r.path.end(), ':', '/'); if (!r.path.empty() && r.path[0] == '/') r.path.erase(0, 1); }
   r.artwork = itdb_track_has_thumbnails(t);
   r.added = (double)t->time_added; r.lastPlayed = (double)t->time_played;
+  r.bpm = t->BPM; r.skipCount = (int32_t)t->skipcount; r.lastSkipped = (double)t->last_skipped;
   return r;
 }
 
@@ -606,6 +609,162 @@ bool run(std::vector<std::string> argv, std::string& err) {
   if (WIFEXITED(st) && WEXITSTATUS(st) == 0) return true;
   err = argv[0] + " " + argv[1] + " failed (status " + std::to_string(WIFEXITED(st) ? WEXITSTATUS(st) : -1) + ")";
   return false;
+}
+
+// ---------------------------------------------------------------- smart playlists
+// The names of ipod.spec.ts (SmartRule) for libgpod's codes. Kind of a field: S text, I number, D date, B yes/no, P playlist,
+// X binary AND (video kind). Only the fields itdb_splr_eval evaluates are named: a rule on any other is kept as it is, read-only.
+struct SplField { const char* name; guint32 code; char kind; };
+const SplField kSplFields[] = {
+  {"title", ITDB_SPLFIELD_SONG_NAME, 'S'}, {"album", ITDB_SPLFIELD_ALBUM, 'S'}, {"artist", ITDB_SPLFIELD_ARTIST, 'S'},
+  {"albumArtist", ITDB_SPLFIELD_ALBUMARTIST, 'S'}, {"composer", ITDB_SPLFIELD_COMPOSER, 'S'}, {"genre", ITDB_SPLFIELD_GENRE, 'S'},
+  {"comment", ITDB_SPLFIELD_COMMENT, 'S'}, {"grouping", ITDB_SPLFIELD_GROUPING, 'S'}, {"kind", ITDB_SPLFIELD_KIND, 'S'},
+  {"tvShow", ITDB_SPLFIELD_TVSHOW, 'S'},
+  {"bitrate", ITDB_SPLFIELD_BITRATE, 'I'}, {"sampleRate", ITDB_SPLFIELD_SAMPLE_RATE, 'I'}, {"year", ITDB_SPLFIELD_YEAR, 'I'},
+  {"trackNr", ITDB_SPLFIELD_TRACKNUMBER, 'I'}, {"cdNr", ITDB_SPLFIELD_DISC_NUMBER, 'I'}, {"size", ITDB_SPLFIELD_SIZE, 'I'},
+  {"durationMs", ITDB_SPLFIELD_TIME, 'I'}, {"playCount", ITDB_SPLFIELD_PLAYCOUNT, 'I'}, {"skipCount", ITDB_SPLFIELD_SKIPCOUNT, 'I'},
+  {"rating", ITDB_SPLFIELD_RATING, 'I'}, {"bpm", ITDB_SPLFIELD_BPM, 'I'}, {"season", ITDB_SPLFIELD_SEASON_NR, 'I'},
+  {"added", ITDB_SPLFIELD_DATE_ADDED, 'D'}, {"modified", ITDB_SPLFIELD_DATE_MODIFIED, 'D'}, {"lastPlayed", ITDB_SPLFIELD_LAST_PLAYED, 'D'},
+  {"lastSkipped", ITDB_SPLFIELD_LAST_SKIPPED, 'D'},
+  {"compilation", ITDB_SPLFIELD_COMPILATION, 'B'}, {"playlist", ITDB_SPLFIELD_PLAYLIST, 'P'}, {"videoKind", ITDB_SPLFIELD_VIDEO_KIND, 'X'},
+};
+// an action name, its code, and the kinds of field it applies to (those itdb_splr_eval answers for)
+struct SplAction { const char* name; guint32 code; const char* kinds; };
+const SplAction kSplActions[] = {
+  {"is", ITDB_SPLACTION_IS_STRING, "S"}, {"is", ITDB_SPLACTION_IS_INT, "IDBP"}, {"is", ITDB_SPLACTION_BINARY_AND, "X"},
+  {"isNot", ITDB_SPLACTION_IS_NOT, "S"}, {"isNot", ITDB_SPLACTION_IS_NOT_INT, "IDBP"}, {"isNot", ITDB_SPLACTION_NOT_BINARY_AND, "X"},
+  {"contains", ITDB_SPLACTION_CONTAINS, "S"}, {"doesNotContain", ITDB_SPLACTION_DOES_NOT_CONTAIN, "S"},
+  {"startsWith", ITDB_SPLACTION_STARTS_WITH, "S"}, {"doesNotStartWith", ITDB_SPLACTION_DOES_NOT_START_WITH, "S"},
+  {"endsWith", ITDB_SPLACTION_ENDS_WITH, "S"}, {"doesNotEndWith", ITDB_SPLACTION_DOES_NOT_END_WITH, "S"},
+  {"greaterThan", ITDB_SPLACTION_IS_GREATER_THAN, "ID"}, {"lessThan", ITDB_SPLACTION_IS_LESS_THAN, "ID"},
+  {"notGreaterThan", ITDB_SPLACTION_IS_NOT_GREATER_THAN, "D"}, {"notLessThan", ITDB_SPLACTION_IS_NOT_LESS_THAN, "D"},
+  {"inRange", ITDB_SPLACTION_IS_IN_THE_RANGE, "ID"}, {"notInRange", ITDB_SPLACTION_IS_NOT_IN_THE_RANGE, "ID"},
+  {"inTheLast", ITDB_SPLACTION_IS_IN_THE_LAST, "D"}, {"notInTheLast", ITDB_SPLACTION_IS_NOT_IN_THE_LAST, "D"},
+};
+struct SplName { const char* name; guint32 code; };
+const SplName kSplUnits[] = {{"minutes", 60}, {"hours", 3600}, {"days", 86400}, {"weeks", 604800}, {"months", 2628000}, {"years", 31536000}};
+const SplName kSplLimits[] = {{"songs", ITDB_LIMITTYPE_SONGS}, {"minutes", ITDB_LIMITTYPE_MINUTES}, {"hours", ITDB_LIMITTYPE_HOURS},
+  {"MB", ITDB_LIMITTYPE_MB}, {"GB", ITDB_LIMITTYPE_GB}};
+const SplName kSplSorts[] = {{"random", ITDB_LIMITSORT_RANDOM}, {"title", ITDB_LIMITSORT_SONG_NAME}, {"album", ITDB_LIMITSORT_ALBUM},
+  {"artist", ITDB_LIMITSORT_ARTIST}, {"genre", ITDB_LIMITSORT_GENRE}, {"mostRecentlyAdded", ITDB_LIMITSORT_MOST_RECENTLY_ADDED},
+  {"leastRecentlyAdded", (guint32)ITDB_LIMITSORT_LEAST_RECENTLY_ADDED}, {"mostOftenPlayed", ITDB_LIMITSORT_MOST_OFTEN_PLAYED},
+  {"leastOftenPlayed", (guint32)ITDB_LIMITSORT_LEAST_OFTEN_PLAYED}, {"mostRecentlyPlayed", ITDB_LIMITSORT_MOST_RECENTLY_PLAYED},
+  {"leastRecentlyPlayed", (guint32)ITDB_LIMITSORT_LEAST_RECENTLY_PLAYED}, {"highestRating", ITDB_LIMITSORT_HIGHEST_RATING},
+  {"lowestRating", (guint32)ITDB_LIMITSORT_LOWEST_RATING}};
+
+template <size_t N> const char* splName(const SplName (&t)[N], guint32 code) { for (const SplName& x : t) if (x.code == code) return x.name; return nullptr; }
+template <size_t N> bool splCode(const SplName (&t)[N], const std::string& name, guint32& code) { for (const SplName& x : t) if (name == x.name) { code = x.code; return true; } return false; }
+const SplField* splField(guint32 code) { for (const SplField& f : kSplFields) if (f.code == code) return &f; return nullptr; }
+const SplAction* splAction(guint32 code, char kind) { for (const SplAction& a : kSplActions) if (a.code == code && strchr(a.kinds, kind)) return &a; return nullptr; }
+std::string hex32(guint32 v) { char b[16]; snprintf(b, sizeof b, "0x%x", v); return b; }
+bool inTheLast(guint32 action) { return action == ITDB_SPLACTION_IS_IN_THE_LAST || action == ITDB_SPLACTION_IS_NOT_IN_THE_LAST; }
+void freeRule(gpointer x) { g_free(((Itdb_SPLRule*)x)->string); g_free(x); }   // itdb_splr_free is not exported
+bool inRange(guint32 action) { return action == ITDB_SPLACTION_IS_IN_THE_RANGE || action == ITDB_SPLACTION_IS_NOT_IN_THE_RANGE; }
+
+/** The rules of a smart playlist as ipod.spec.ts gives them; `refreshable` false when one of them (or the limit) has no name here. */
+SmartRules toRules(Itdb_Playlist* p) {
+  SmartRules r;
+  r.refreshable = true;
+  r.match = p->splrules.match_operator == ITDB_SPLMATCH_OR ? "any" : "all";
+  r.liveUpdate = p->splpref.liveupdate; r.checkedOnly = p->splpref.matchcheckedonly;
+  r.limit.type = "none";
+  if (p->splpref.checklimits) {
+    const char* t = splName(kSplLimits, p->splpref.limittype);
+    const char* so = splName(kSplSorts, p->splpref.limitsort);
+    r.limit.type = t ? t : hex32(p->splpref.limittype);
+    r.limit.sort = so ? so : hex32(p->splpref.limitsort);
+    r.limit.value = p->splpref.limitvalue;
+    if (!t || !so) r.refreshable = false;
+  }
+  if (!p->splpref.checkrules) return r;   // "match the rules" unticked: every track
+  for (GList* l = p->splrules.rules; l; l = l->next) {
+    Itdb_SPLRule* x = (Itdb_SPLRule*)l->data;
+    SmartRule o;
+    const SplField* f = splField(x->field);
+    const SplAction* a = f ? splAction(x->action, f->kind) : nullptr;
+    o.field = f ? f->name : hex32(x->field);
+    o.action = a ? a->name : hex32(x->action);
+    if (!a) { r.refreshable = false; r.rules.push_back(o); continue; }
+    double k = f->code == ITDB_SPLFIELD_RATING ? ITDB_RATING_STEP : 1;
+    if (f->kind == 'S') o.text = s(x->string);
+    else if (f->kind == 'P') o.text = hexId(x->fromvalue);
+    else if (f->kind == 'B') {}
+    else if (inTheLast(a->code)) {
+      const char* u = splName(kSplUnits, (guint32)x->fromunits);
+      o.units = u ? u : "seconds";
+      o.value = (double)-x->fromdate * (u ? 1 : (double)x->fromunits);
+    } else {
+      o.value = (double)x->fromvalue / k;
+      if (inRange(a->code)) o.value2 = (double)x->tovalue / k;
+    }
+    r.rules.push_back(o);
+  }
+  return r;
+}
+
+/** Writes `in` into the smart playlist `p` (its rules and preferences) and refills it, or says which rule it cannot write and changes
+ *  nothing. */
+bool setRules(Itdb_iTunesDB* db, Itdb_Playlist* p, const SmartRules& in, std::string& err) {
+  if (in.match != "all" && in.match != "any") { err = "match is all or any, not '" + in.match + "'"; return false; }
+  guint32 ltype = 0, lsort = ITDB_LIMITSORT_RANDOM;
+  bool limited = !in.limit.type.empty() && in.limit.type != "none";
+  if (limited) {
+    if (!splCode(kSplLimits, in.limit.type, ltype)) { err = "unknown limit type '" + in.limit.type + "' (songs, minutes, hours, MB or GB)"; return false; }
+    if (!in.limit.sort.empty() && !splCode(kSplSorts, in.limit.sort, lsort)) { err = "unknown limit sort '" + in.limit.sort + "'"; return false; }
+    if (!(in.limit.value > 0)) { err = "a limit needs a value above 0"; return false; }
+  }
+  std::vector<Itdb_SPLRule*> made;
+  auto drop = [&]() { for (Itdb_SPLRule* x : made) freeRule(x); return false; };
+  for (size_t i = 0; i < in.rules.size(); i++) {
+    const SmartRule& o = in.rules[i];
+    std::string where = "rule " + std::to_string(i + 1) + " (" + o.field + " " + o.action + "): ";
+    const SplField* f = nullptr;
+    for (const SplField& x : kSplFields) if (o.field == x.name) f = &x;
+    if (!f) { err = where + "unknown field"; return drop(); }
+    const SplAction* a = nullptr;
+    for (const SplAction& x : kSplActions) if (o.action == x.name && strchr(x.kinds, f->kind)) a = &x;
+    if (!a) { err = where + "not an action of this field"; return drop(); }
+    Itdb_SPLRule* x = itdb_splr_new();
+    made.push_back(x);
+    x->field = f->code; x->action = a->code;
+    double k = f->code == ITDB_SPLFIELD_RATING ? ITDB_RATING_STEP : 1;
+    if (f->kind == 'S') x->string = g_strdup(o.text.c_str());
+    else if (f->kind == 'P') {
+      if (!findPlaylist(db, o.text)) { err = where + "no playlist " + o.text; return drop(); }
+      x->fromvalue = parseId(o.text);
+    } else if (f->kind == 'B') x->fromvalue = 1;
+    else if (o.value < 0 || o.value2 < 0) { err = where + "negative value"; return drop(); }
+    else if (inTheLast(a->code)) {
+      guint32 secs = 1;
+      if (o.units != "seconds" && !splCode(kSplUnits, o.units, secs)) { err = where + "units are minutes, hours, days, weeks, months or years"; return drop(); }
+      x->fromdate = -(gint64)std::llround(o.value);
+      x->fromunits = secs;
+    } else {
+      x->fromvalue = (guint64)std::llround(o.value * k);
+      x->tovalue = (guint64)std::llround(o.value2 * k);
+    }
+    itdb_splr_validate(x);   // the from/to fields iTunes expects for the action (the date marker of "in the last", units 1...)
+  }
+  g_list_free_full(p->splrules.rules, freeRule);
+  p->splrules.rules = nullptr;
+  for (Itdb_SPLRule* x : made) p->splrules.rules = g_list_append(p->splrules.rules, x);
+  p->splrules.match_operator = in.match == "any" ? ITDB_SPLMATCH_OR : ITDB_SPLMATCH_AND;
+  p->splpref.checkrules = !made.empty();
+  p->splpref.checklimits = limited;
+  if (limited) { p->splpref.limittype = ltype; p->splpref.limitsort = lsort; p->splpref.limitvalue = (guint32)std::llround(in.limit.value); }
+  p->splpref.liveupdate = in.liveUpdate;
+  p->splpref.matchcheckedonly = in.checkedOnly;
+  itdb_spl_update(p);
+  return true;
+}
+
+/** Refills the smart playlists libgpod can evaluate (all, or only the live ones): a rule it has no name for would read false and empty
+ *  the playlist, so those keep the members iTunes wrote. */
+void refillSmart(Itdb_iTunesDB* db, bool all) {
+  for (GList* l = db->playlists; l; l = l->next) {
+    Itdb_Playlist* p = (Itdb_Playlist*)l->data;
+    if (p->is_spl && (all || p->splpref.liveupdate) && toRules(p).refreshable) itdb_spl_update(p);
+  }
 }
 
 std::string stamp() {
@@ -839,6 +998,7 @@ std::vector<Playlist> Library::playlists() {
     Playlist r;
     r.id = hexId(p->id); r.name = s(p->name);
     r.master = itdb_playlist_is_mpl(p); r.podcasts = itdb_playlist_is_podcasts(p); r.smart = p->is_spl;
+    if (p->is_spl) r.rules = toRules(p);
     for (GList* m = p->members; m; m = m->next) r.trackIds.push_back(hexId(((Itdb_Track*)m->data)->dbid));
     v.push_back(std::move(r));
   }
@@ -1011,8 +1171,34 @@ bool Library::setPlaylistTracks(const std::string& id, const std::vector<std::st
   return true;
 }
 
+bool Library::createSmartPlaylist(const std::string& name, const SmartRules& rules, std::string& id, std::string& err) {
+  if (!writable(err)) return false;
+  if (itdb_device_supports_sqlite_db(DB->device)) { err = "this iPod keeps no smart playlists; save it as a normal playlist"; return false; }
+  Itdb_Playlist* p = itdb_playlist_new(name.c_str(), TRUE);
+  itdb_playlist_add(DB, p, -1);   // first: a rule may name another playlist, and the update needs p->itdb
+  if (!setRules(DB, p, rules, err)) { itdb_playlist_remove(p); return false; }
+  id = hexId(p->id);
+  return true;
+}
+
+bool Library::setSmartRules(const std::string& id, const SmartRules& rules, std::string& err) {
+  if (!writable(err)) return false;
+  Itdb_Playlist* p = findPlaylist(DB, id);
+  if (!p) { err = "no playlist " + id; return false; }
+  if (!p->is_spl) { err = p->name + std::string(" is not a smart playlist"); return false; }
+  if (itdb_device_supports_sqlite_db(DB->device)) { err = "this iPod keeps no smart playlists; save it as a normal playlist"; return false; }
+  return setRules(DB, p, rules, err);
+}
+
+bool Library::refreshSmartPlaylists(const Progress& progress, std::string& err) {
+  if (!writable(err, progress)) return false;
+  refillSmart(DB, true);
+  return save(progress, err);
+}
+
 bool Library::save(const Progress& progress, std::string& err) {
   if (!writable(err, progress)) return false;   // the first change of a session backs the database up first
+  refillSmart(DB, false);   // libgpod writes the members as they are: the live smart playlists follow the counts and tags changed since
   if (progress) progress("save", 0, 1, "database");
   GError* e = nullptr;
   if (!itdb_write(DB, &e)) { err = takeErr(e, "writing the database"); return false; }

@@ -52,6 +52,10 @@ export interface Track {
   artwork: boolean;
   /** Unix seconds; 0 when never. */
   added: number; lastPlayed: number;
+  /** Beats per minute, 0 when unknown. */
+  bpm: i32;
+  /** Times the song was skipped on the iPod, and the last time (Unix seconds, 0 when never). */
+  skipCount: i32; lastSkipped: number;
 }
 
 /** What to add or change. Empty strings and 0 keep what the file's tags (or the track) say. */
@@ -60,6 +64,8 @@ export interface TrackInput {
   file: string;
   title?: string; artist?: string; album?: string; albumArtist?: string; genre?: string; composer?: string; comment?: string;
   trackNr?: i32; tracks?: i32; cdNr?: i32; cds?: i32; year?: i32; rating?: i32;
+  /** Beats per minute (0 clears it); smart playlists can select on it. */
+  bpm?: i32;
   mediaType?: string;
   /** An image file for the cover; without it, the picture embedded in the file is used. */
   artworkFile?: string;
@@ -79,6 +85,55 @@ export interface Playlist {
   podcasts: boolean;
   smart: boolean;
   trackIds: string[];
+  /** The rules of a smart playlist (smart true); empty otherwise. */
+  rules: SmartRules;
+}
+
+/** One rule of a smart playlist, as iTunes writes it ("Play count is 0", "BPM is in the range 120 to 130", "Last played is in the last
+ *  2 weeks"). Values use the units of Track: rating in stars, durationMs in milliseconds, size in bytes, dates in Unix seconds.
+ *
+ *  field (SmartField) and its kind:
+ *  - text: title, album, artist, albumArtist, composer, genre, comment, grouping, kind (the file type), tvShow
+ *  - number: bitrate, sampleRate, year, trackNr, cdNr, size, durationMs, playCount, skipCount, rating, bpm, season
+ *  - date: added, modified, lastPlayed, lastSkipped
+ *  - yes/no: compilation; playlist (`text` is the playlist's id); videoKind (`value` holds media-type bits)
+ *  action (SmartAction), by kind:
+ *  - text: is, isNot, contains, doesNotContain, startsWith, doesNotStartWith, endsWith, doesNotEndWith
+ *  - number: is, isNot, greaterThan, lessThan, inRange, notInRange
+ *  - date: is, isNot, greaterThan (after), notGreaterThan, lessThan (before), notLessThan, inRange, notInRange, inTheLast, notInTheLast
+ *  - compilation: is (is set), isNot; playlist: is (in the playlist), isNot; videoKind: is, isNot
+ *  A field or action this plugin does not name reads as its number in hex ("0x5a"): the rule is kept on the iPod as it is, but cannot
+ *  be written by setSmartRules. */
+export interface SmartRule {
+  field: string;
+  action: string;
+  /** The text of a text rule; the playlist id of a playlist rule. */
+  text: string;
+  /** The number or date; the first bound of inRange/notInRange; the count of inTheLast/notInTheLast. */
+  value: number;
+  /** The second bound of inRange/notInRange. */
+  value2: number;
+  /** inTheLast/notInTheLast: minutes | hours | days | weeks | months | years ('' otherwise; "seconds" for a unit iTunes has no name for). */
+  units: string;
+}
+
+/** "Limit to 25 songs selected by most recently added". type: none | songs | minutes | hours | MB | GB. sort: random | title | album |
+ *  artist | genre | mostRecentlyAdded | leastRecentlyAdded | mostOftenPlayed | leastOftenPlayed | mostRecentlyPlayed |
+ *  leastRecentlyPlayed | highestRating | lowestRating. */
+export interface SmartLimit { type: string; value: number; sort: string; }
+
+/** What fills a smart playlist. match: all | any. No rule matches every track. */
+export interface SmartRules {
+  match: string;
+  rules: SmartRule[];
+  limit: SmartLimit;
+  /** Live updating: re-evaluated whenever the plugin saves (the iPod itself shows the members written at the last save). */
+  liveUpdate: boolean;
+  /** Match only checked songs. */
+  checkedOnly: boolean;
+  /** False when a rule or the limit uses something the plugin cannot evaluate (a field newer than libgpod): its members are kept as
+   *  iTunes or the iPod wrote them, and the rules are shown read-only. Ignored by createSmartPlaylist and setSmartRules. */
+  refreshable: boolean;
 }
 
 export interface Snapshot { id: string; created: number; bytes: number; }
@@ -192,7 +247,15 @@ export interface Spec extends NativeModule {
   deletePlaylist(id: string): Promise<void>;
   /** Replaces the playlist's tracks (adds, removes and reorders in one call). */
   setPlaylistTracks(id: string, trackIds: string[]): Promise<void>;
-  /** Writes the database (a snapshot of the old one is taken first). */
+  /** Creates a smart playlist and fills it from its rules (save() writes it); resolves with its id. Refused on a Nano 6G/7G (its
+   *  SQLite database keeps no smart playlists) and for a rule it cannot write. */
+  createSmartPlaylist(name: string, rules: SmartRules): Promise<string>;
+  /** Replaces a smart playlist's rules and refills it (save() writes it). */
+  setSmartRules(id: string, rules: SmartRules): Promise<void>;
+  /** Refills every smart playlist the plugin can evaluate, live updating or not, and saves. */
+  refreshSmartPlaylists(): Promise<void>;
+  /** Writes the database (a snapshot of the old one is taken first), after refilling the live smart playlists from the tracks as
+   *  they are now. Every call that saves does the same. */
   save(): Promise<void>;
   snapshots(): Promise<Snapshot[]>;
   /** Puts back the database files of a snapshot and reopens. */

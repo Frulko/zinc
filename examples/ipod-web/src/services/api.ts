@@ -28,12 +28,12 @@ function trackEl(t: ipod.Track): El {
     .s('genre', t.genre).s('composer', t.composer).s('comment', t.comment).n('trackNr', t.trackNr).n('tracks', t.tracks).n('cdNr', t.cdNr)
     .n('cds', t.cds).n('year', t.year).n('rating', t.rating).n('playCount', t.playCount).n('bitrate', t.bitrate).n('sampleRate', t.sampleRate)
     .n('durationMs', t.durationMs).n('size', t.size).s('mediaType', t.mediaType).s('path', t.path).b('artwork', t.artwork)
-    .n('added', t.added).n('lastPlayed', t.lastPlayed);
+    .n('added', t.added).n('lastPlayed', t.lastPlayed).n('bpm', t.bpm).n('skipCount', t.skipCount).n('lastSkipped', t.lastSkipped);
 }
 
 function playlistEl(p: ipod.Playlist): El {
   return new El('playlists').s('id', p.id).s('name', p.name).b('master', p.master).b('podcasts', p.podcasts).b('smart', p.smart)
-    .json('trackIds', strings(p.trackIds));
+    .json('trackIds', strings(p.trackIds)).json('rules', JSON.stringify(p.rules));
 }
 
 /** What the web page's header shows: the open iPod (open '' when none), its storage and counts, and whether changes are allowed. */

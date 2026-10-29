@@ -45,6 +45,59 @@ await ipod.eject(pod.mountpoint);
 | **Read-only volumes** | A Mac-formatted (HFS+) iPod mounts read-only on Linux: every write is refused with that reason instead of failing halfway. |
 
 Ids are strings (the database's 64-bit ids in hex) and stay the same across saves. Ratings are 0 to 5 stars.
+Each `Track` also carries `bpm` (0 when unknown; `update(id, { file: '', bpm: 124 })` sets it), `skipCount` and `lastSkipped` (the
+skips the iPod counted, Unix seconds).
+
+## Smart playlists
+
+The classic iPods (everything with an iTunesDB: Classic, Video, Mini, Nano 1G to 5G, Shuffle) keep smart playlists: rules, a limit and
+the songs they selected. The iPod plays the song list written at the last save; it is the computer that evaluates the rules, as iTunes
+did. The plugin does it with libgpod's evaluator:
+
+```ts
+const id = await ipod.createSmartPlaylist('Tempo', {
+  match: 'all',
+  rules: [{ field: 'bpm', action: 'inRange', value: 120, value2: 130, units: '', text: '' },
+          { field: 'lastPlayed', action: 'notInTheLast', value: 2, value2: 0, units: 'weeks', text: '' }],
+  limit: { type: 'songs', value: 25, sort: 'mostRecentlyAdded' },
+  liveUpdate: true, checkedOnly: false, refreshable: true,
+});
+await ipod.save();
+for (const p of await ipod.playlists()) if (p.smart) console.log(p.name, ipod.describeSmart(p.rules, await ipod.playlists()), p.trackIds.length);
+```
+
+- `playlists()` gives each smart playlist's `rules` (`SmartRules`: `match` all or any, `rules`, `limit` {type, value, sort}, `liveUpdate`,
+  `checkedOnly`, `refreshable`). `createSmartPlaylist(name, rules)` makes one and fills it, `setSmartRules(id, rules)` replaces its rules
+  and refills it; `save()` writes them. `setPlaylistTracks` refuses a smart playlist (its rules fill it).
+- **Refills.** Every save (yours, and those of `add`, `remove`, `played`, `merge`, `repair`) first refills the playlists marked live
+  updating, from the play counts, ratings and tags as they are then. `refreshSmartPlaylists()` refills all of them, live or not, and
+  saves: call it when an iPod is connected after being played on its own.
+- **Rules the plugin cannot evaluate** (a field of a newer iTunes, such as album rating or "loved") read back with the field or action
+  as its number in hex (`"0x5a"`) and `refreshable: false`: the playlist keeps the songs iTunes chose, its rules are kept byte for byte
+  at every save, and they cannot be written by `setSmartRules`.
+- **Nano 6G and 7G** keep their library in SQLite, which holds no smart playlists: `createSmartPlaylist` and `setSmartRules` are refused
+  with "this iPod keeps no smart playlists; save it as a normal playlist". Do what it says: `createPlaylist` + `setPlaylistTracks` with
+  the ids `evaluateSmart` gives.
+- **Preview without writing.** `evaluateSmart(rules, tracks, playlists, now)` (TypeScript, every engine and the sim stand-in) gives the
+  ids the playlist would hold, with libgpod's semantics: text compared without case, and a song without the tag matches no text rule
+  (not even "is not"); ranges in either order; "in the last" counted from `now` (Unix seconds, 0 = the current time); with a limit, a
+  stable sort then songs taken while the total stays within it (a song that would pass it is skipped, the next ones are still tried).
+  It knows the fields `Track` has, and `playlist`; a rule on grouping, kind, tvShow, season, compilation, modified or videoKind never
+  matches in the preview (the native side evaluates them). `checkedOnly` is ignored there (`Track` does not say whether a song is
+  checked); a random limit shuffles. `describeSmart(rules)` says the rules in one line.
+
+| field | kind | value | actions |
+|---|---|---|---|
+| `title`, `album`, `artist`, `albumArtist`, `composer`, `genre`, `comment`, `grouping`, `kind` (file type), `tvShow` | text | `text` | `is`, `isNot`, `contains`, `doesNotContain`, `startsWith`, `doesNotStartWith`, `endsWith`, `doesNotEndWith` |
+| `bitrate` (kbps), `sampleRate` (Hz), `year`, `trackNr`, `cdNr`, `size` (bytes), `durationMs`, `playCount`, `skipCount`, `rating` (stars), `bpm`, `season` | number | `value` (and `value2`) | `is`, `isNot`, `greaterThan`, `lessThan`, `inRange`, `notInRange` |
+| `added`, `modified`, `lastPlayed`, `lastSkipped` | date | `value` Unix seconds (and `value2`); "in the last": `value` a count and `units` minutes, hours, days, weeks, months or years | `is`, `isNot`, `greaterThan` (after), `notGreaterThan`, `lessThan` (before), `notLessThan`, `inRange`, `notInRange`, `inTheLast`, `notInTheLast` |
+| `compilation` | yes/no | none | `is` (is set), `isNot` |
+| `playlist` | playlist | `text`: the playlist's id | `is` (in it), `isNot` |
+| `videoKind` | media bits | `value` | `is`, `isNot` |
+
+Limit `type`: `none`, `songs`, `minutes`, `hours`, `MB`, `GB`. Limit `sort`: `random`, `title`, `album`, `artist`, `genre`,
+`mostRecentlyAdded`, `leastRecentlyAdded`, `mostOftenPlayed`, `leastOftenPlayed`, `mostRecentlyPlayed`, `leastRecentlyPlayed`,
+`highestRating`, `lowestRating`.
 
 ## Install
 
@@ -57,7 +110,8 @@ With TagLib 1 (Debian 12, Raspberry Pi OS) the cover embedded in a file is not r
 
 ## Testing without an iPod
 
-- `tests/t0/ipod.sh` runs every operation on a fake iPod folder (a `SysInfo` file is enough for libgpod to know the model).
+- `tests/t0/ipod.sh` runs every operation on a fake iPod folder (a `SysInfo` file is enough for libgpod to know the model), smart
+  playlists included; `tests/t1/ipod_plugin.sh` checks `evaluateSmart` against libgpod on a table of rules on every engine.
 - `ZINC_IPOD_ROOTS=/some/folder` makes `detect()` look only in that folder, its subfolders taken as mounted volumes (a real iPod plugged in is not read); `ZINC_IPOD_NO_USB=1` skips USB;
   `ZINC_IPOD_BACKUPS=/tmp/b` keeps the backups of a test out of your home.
 - `ZINC_NATIVE=sim` (and the sim target) uses `native/ipod.sim.ts`: an iPod Classic in memory.

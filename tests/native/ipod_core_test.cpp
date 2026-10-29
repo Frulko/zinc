@@ -1,7 +1,7 @@
 // zinc:ipod core on a fake iPod folder (no hardware, no engine): init, SysInfoExtended, add with tags and embedded
 // cover, refusal when it does not fit, playlists, save and re-read, snapshot and restore, backup and restore, check
 // and repair, specs and covers in pixels, backups on the computer (automatic before a session's first change, hard links for what did
-// not change, the music shared and incremental). Build and run: tests/t0/ipod.sh.
+// not change, the music shared and incremental), smart playlists (rules read back, refilled after a play). Build and run: tests/t0/ipod.sh.
 #include "ipod_core.h"
 #include <itdb.h>
 #include <taglib/fileref.h>
@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <sys/stat.h>
 namespace fs = std::filesystem;
 
@@ -173,6 +174,149 @@ static int duplicates(const fs::path& root, const std::string& cover) {
   auto tr = lib.merge({tm}, nullptr, err);
   CHECK(tr.size() == 1 && tr[0].error.empty() && tr[0].freedBytes == 0 && fs::exists(shared) && lib.tracks().size() == ts.size());
   printf("twins: one entry removed, the shared file kept\n");
+  return 0;
+}
+
+/** Smart playlists on a third fake iPod: created from rules (BPM range with a limit and sort, play count, a non-live copy), read back after
+ *  a save and a reopen, refilled when a play changes a count (the live ones at every save, the others by refreshSmartPlaylists), bad rules
+ *  refused, a rule on a field libgpod does not evaluate kept with its members, and the refusal on a Nano 6G (SQLite database). */
+static int smart(const fs::path& root) {
+  std::string err;
+  fs::path mp = root / "Volumes" / "SMART";
+  fs::create_directories(mp / "iPod_Control" / "Device");
+  { std::ofstream(mp / "iPod_Control" / "Device" / "SysInfo") << "ModelNumStr: xB029\npszSerialNumber: 8K7777SMART\nFirewireGuid: 0x000A27007777EEEE\n"; }
+  std::string song = (root / "work" / "smart.wav").string();
+  wav(song, 1);
+  ipod::Library lib;
+  CHECK(lib.open(mp.string(), true, "", "Smart", err));
+  // five songs: bpm 0 (unknown), 118, 122, 125, 130
+  const char* titles[] = {"Slow", "Edge", "Mid", "High", "Top"};
+  const int bpms[] = {0, 118, 122, 125, 130};
+  std::vector<ipod::TrackInput> items;
+  for (int i = 0; i < 5; i++) { ipod::TrackInput in; in.file = song; in.title = std::string(titles[i]); in.artist = std::string("Band"); if (bpms[i]) in.bpm = bpms[i]; items.push_back(in); }
+  auto added = lib.add(items, "", nullptr, err);
+  CHECK(err.empty() && added.size() == 5);
+  std::map<std::string, std::string> id;   // title -> id
+  for (auto& t : lib.tracks()) id[t.title] = t.id;
+  CHECK(byTitle(lib.tracks(), "Mid")->bpm == 122 && byTitle(lib.tracks(), "Slow")->bpm == 0);
+  ipod::Track upd;
+  CHECK(lib.update(id["Slow"], [] { ipod::TrackInput i; i.bpm = 90; return i; }(), upd, err) && upd.bpm == 90);
+  lib.close();
+  {   // dates added one minute apart, the oldest first; skips as the iPod counts them
+    Itdb_iTunesDB* db = itdb_parse(mp.c_str(), nullptr);
+    CHECK(db);
+    int k = 0;
+    for (GList* l = db->tracks; l; l = l->next, k++) {
+      Itdb_Track* t = (Itdb_Track*)l->data;
+      t->time_added = 1600000000 + 60 * k;
+      if (std::string(t->title) == "High") { t->skipcount = 4; t->last_skipped = 1650000000; }
+    }
+    CHECK(itdb_write(db, nullptr));
+    itdb_free(db);
+  }
+  CHECK(lib.open(mp.string(), false, "", "", err));
+  const ipod::Track* high = byTitle(lib.tracks(), "High");
+  CHECK(high->skipCount == 4 && high->lastSkipped == 1650000000 && high->bpm == 125);
+
+  auto rule = [](const char* field, const char* action, double value, double value2 = 0, const char* units = "", const char* text = "") {
+    ipod::SmartRule r; r.field = field; r.action = action; r.value = value; r.value2 = value2; r.units = units; r.text = text; return r;
+  };
+  ipod::SmartRules tempo;
+  tempo.match = "all"; tempo.liveUpdate = true;
+  tempo.rules = {rule("bpm", "inRange", 130, 120)};   // bounds in either order, as iTunes
+  tempo.limit.type = "songs"; tempo.limit.value = 2; tempo.limit.sort = "mostRecentlyAdded";
+  std::string tempoId, unplayedId, frozenId;
+  CHECK(lib.createSmartPlaylist("Tempo", tempo, tempoId, err));
+  ipod::SmartRules unplayed;
+  unplayed.match = "all"; unplayed.liveUpdate = true; unplayed.limit.type = "none";
+  unplayed.rules = {rule("playCount", "is", 0), rule("title", "doesNotContain", 0, 0, "", "SLOW")};
+  CHECK(lib.createSmartPlaylist("Unplayed", unplayed, unplayedId, err));
+  ipod::SmartRules frozen = unplayed;
+  frozen.liveUpdate = false;
+  CHECK(lib.createSmartPlaylist("Frozen", frozen, frozenId, err));
+  ipod::SmartRules recent;   // any of: rated 4 stars or more, skipped in the last 2 weeks (none), played in the last 3 days (none yet)
+  recent.match = "any"; recent.liveUpdate = true; recent.limit.type = "none";
+  recent.rules = {rule("rating", "greaterThan", 3), rule("lastSkipped", "inTheLast", 2, 0, "weeks"), rule("lastPlayed", "inTheLast", 3, 0, "days")};
+  std::string recentId;
+  CHECK(lib.createSmartPlaylist("Recent", recent, recentId, err));
+  auto members = [&](const std::string& pid) { for (auto& p : lib.playlists()) if (p.id == pid) return p.trackIds; return std::vector<std::string>{}; };
+  CHECK(members(tempoId) == std::vector<std::string>({id["Top"], id["High"]}));   // 122..130, the two added last
+  CHECK(members(unplayedId) == std::vector<std::string>({id["Edge"], id["Mid"], id["High"], id["Top"]}));
+  CHECK(members(recentId).empty());
+  CHECK(lib.save(nullptr, err));
+  lib.close();
+
+  CHECK(lib.open(mp.string(), false, "", "", err));   // read back from the database libgpod wrote
+  ipod::SmartRules back;
+  for (auto& p : lib.playlists()) if (p.id == tempoId) { CHECK(p.smart && !p.master); back = p.rules; }
+  CHECK(back.match == "all" && back.liveUpdate && !back.checkedOnly && back.refreshable && back.rules.size() == 1);
+  CHECK(back.rules[0].field == "bpm" && back.rules[0].action == "inRange" && back.rules[0].value == 130 && back.rules[0].value2 == 120);
+  CHECK(back.limit.type == "songs" && back.limit.value == 2 && back.limit.sort == "mostRecentlyAdded");
+  for (auto& p : lib.playlists()) if (p.id == recentId) back = p.rules;
+  CHECK(back.match == "any" && back.rules.size() == 3 && back.rules[0].field == "rating" && back.rules[0].value == 3);
+  CHECK(back.rules[1].action == "inTheLast" && back.rules[1].value == 2 && back.rules[1].units == "weeks" && back.rules[2].units == "days");
+  for (auto& p : lib.playlists()) if (p.id == unplayedId) back = p.rules;
+  CHECK(back.rules.size() == 2 && back.rules[1].text == "SLOW" && back.rules[1].action == "doesNotContain");
+  CHECK(members(tempoId) == std::vector<std::string>({id["Top"], id["High"]}) && members(frozenId) == members(unplayedId));
+
+  // a play: the live playlists follow at the save played() makes, the frozen one waits for refreshSmartPlaylists
+  std::vector<ipod::Track> counted;
+  CHECK(lib.played({{id["Mid"], 1, (double)time(nullptr) - 3600}}, counted, err));
+  CHECK(members(unplayedId) == std::vector<std::string>({id["Edge"], id["High"], id["Top"]}));
+  CHECK(members(recentId) == std::vector<std::string>({id["Mid"]}));
+  CHECK(members(frozenId).size() == 4);
+  CHECK(lib.refreshSmartPlaylists(nullptr, err) && members(frozenId) == members(unplayedId));
+
+  // setSmartRules: refused and unchanged for a bad rule, on a normal playlist, on an unknown playlist; then a new limit
+  ipod::SmartRules bad = tempo;
+  bad.rules = {rule("mood", "is", 1)};
+  CHECK(!lib.setSmartRules(tempoId, bad, err) && err.find("rule 1 (mood is): unknown field") == 0);
+  bad.rules = {rule("bpm", "contains", 1)};
+  CHECK(!lib.setSmartRules(tempoId, bad, err) && err.find("not an action of this field") != std::string::npos);
+  bad.rules = {rule("playlist", "is", 0, 0, "", "ffffffffffffffff")};
+  CHECK(!lib.setSmartRules(tempoId, bad, err) && err.find("no playlist ffffffffffffffff") != std::string::npos);
+  CHECK(members(tempoId) == std::vector<std::string>({id["Top"], id["High"]}));
+  std::string normal;
+  CHECK(lib.createPlaylist("Normal", normal, err) && !lib.setSmartRules(normal, tempo, err) && err == "Normal is not a smart playlist");
+  CHECK(!lib.setPlaylistTracks(tempoId, {id["Mid"]}, err));
+  ipod::SmartRules inList = tempo;   // songs of the playlist "Unplayed", limited to 1 by title
+  inList.rules = {rule("playlist", "is", 0, 0, "", unplayedId.c_str())};
+  inList.limit.value = 1; inList.limit.sort = "title";
+  err.clear();
+  CHECK(lib.setSmartRules(tempoId, inList, err) && members(tempoId) == std::vector<std::string>({id["Edge"]}) && lib.save(nullptr, err));
+
+  // a rule on a field libgpod does not evaluate (album rating, from a newer iTunes): kept with the members iTunes wrote, not refreshable
+  {
+    Itdb_iTunesDB* db = itdb_parse(mp.c_str(), nullptr);   // the database as the last save left it
+    CHECK(db);
+    Itdb_Playlist* p = itdb_playlist_new("Albums", TRUE);
+    itdb_playlist_add(db, p, -1);
+    Itdb_SPLRule* r = (Itdb_SPLRule*)p->splrules.rules->data;
+    r->field = ITDB_SPLFIELD_ALBUM_RATING; r->action = ITDB_SPLACTION_IS_GREATER_THAN; r->fromvalue = 60;
+    itdb_playlist_add_track(p, (Itdb_Track*)db->tracks->data, -1);
+    CHECK(itdb_write(db, nullptr));
+    itdb_free(db);
+  }
+  lib.close();
+  CHECK(lib.open(mp.string(), false, "", "", err));
+  std::string albums;
+  for (auto& p : lib.playlists()) if (p.name == "Albums") { albums = p.id; back = p.rules; }
+  CHECK(!back.refreshable && back.rules.size() == 1 && back.rules[0].field == "0x5a" && back.rules[0].action == "0x10");
+  CHECK(lib.refreshSmartPlaylists(nullptr, err) && members(albums).size() == 1);
+  printf("smart: tempo, unplayed, frozen, recent and an album-rating rule kept; refreshed after a play\n");
+
+  // a Nano 6G (its SysInfoExtended says SQLiteDB): no smart playlist, the reason says what to do
+  fs::path nano = root / "Volumes" / "NANO";
+  fs::create_directories(nano / "iPod_Control" / "Device");
+  { std::ofstream(nano / "iPod_Control" / "Device" / "SysInfo") << "ModelNumStr: xC525\npszSerialNumber: 8K6666NANO6\nFirewireGuid: 0x000A27006666FFFF\n"; }
+  ipod::Library n6;
+  CHECK(n6.open(nano.string(), true, "", "Nano", err));   // the database written as an iTunesDB (a fixture cannot build the SQLite set)
+  n6.close();
+  { std::ofstream(nano / "iPod_Control" / "Device" / "SysInfoExtended") << ipod::sysInfoExtendedPlist("8K6666NANO6", "000A27006666FFFF", "C525", 14, "\t<key>SQLiteDB</key>\n\t<true/>\n"); }
+  CHECK(n6.open(nano.string(), false, "", "", err));
+  std::string none;
+  CHECK(!n6.createSmartPlaylist("Tempo", tempo, none, err) && err == "this iPod keeps no smart playlists; save it as a normal playlist");
+  printf("smart: refused on a Nano 6G\n");
   return 0;
 }
 
@@ -391,6 +535,7 @@ int main(int argc, char** argv) {
   CHECK(plist.find("<key>FireWireGUID</key>") != std::string::npos);
   lib.close();
   if (int r = duplicates(root, argc > 2 ? argv[2] : "")) return r;
+  if (int r = smart(root)) return r;
   printf("ipod core: ok\n");
   return 0;
 }

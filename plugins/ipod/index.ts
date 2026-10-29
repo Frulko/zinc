@@ -9,9 +9,11 @@
 //   for (const t of await ipod.tracks()) console.log(t.artist, '-', t.title);
 //   await ipod.eject(pod.mountpoint);
 import N from './native/ipod.spec';
-import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult, Play } from './native/ipod.spec';
-export type { Play, Analysis, DuplicateGroup, MergeGroup, MergeResult, DownloadResult, Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra };
+import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult, Play, SmartRules, SmartRule, SmartLimit } from './native/ipod.spec';
+export type { SmartRules, SmartRule, SmartLimit, Play, Analysis, DuplicateGroup, MergeGroup, MergeResult, DownloadResult, Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra };
 import { imageFromPixels } from 'zinc:gfx';
+export { evaluateSmart, ruleMatches, describeSmart, describeRule, emptyRules, SMART_FIELDS } from './smart';
+export type { SmartField, SmartAction, SmartLimitType, SmartSort } from './smart';
 
 /** iPods on this machine: mounted ones (connection 'disk'), and those plugged in by USB but not mounted ('usb', no mountpoint). */
 export function detect(): Promise<Device[]> { return N.detect(); }
@@ -34,7 +36,7 @@ export function add(files: string[], playlist: string = ''): Promise<AddResult[]
 }
 /** add() with fields that override the tags (title, artist, rating, mediaType 'podcast' | 'audiobook'..., artworkFile). */
 export function addWith(items: TrackInput[], playlist: string = ''): Promise<AddResult[]> { return N.add(items, playlist); }
-/** Changes fields of a track (only those given); save() writes it. */
+/** Changes fields of a track (only those given, `bpm` too); save() writes it. */
 export function update(id: string, fields: TrackInput): Promise<Track> { return N.update(id, fields); }
 /** Removes tracks and deletes their files; saves. */
 export function remove(ids: string[]): Promise<void> { return N.remove(ids); }
@@ -47,6 +49,14 @@ export function renamePlaylist(id: string, name: string): Promise<void> { return
 export function deletePlaylist(id: string): Promise<void> { return N.deletePlaylist(id); }
 /** Sets the playlist's tracks, in order. */
 export function setPlaylistTracks(id: string, trackIds: string[]): Promise<void> { return N.setPlaylistTracks(id, trackIds); }
+/** A smart playlist (rules, limit, live updating), filled at once; save() writes it. Refused on a Nano 6G/7G, whose database keeps no
+ *  smart playlists: save the result of evaluateSmart() as a normal playlist there. */
+export function createSmartPlaylist(name: string, rules: SmartRules): Promise<string> { return N.createSmartPlaylist(name, rules); }
+/** Replaces a smart playlist's rules and refills it; save() writes it. */
+export function setSmartRules(id: string, rules: SmartRules): Promise<void> { return N.setSmartRules(id, rules); }
+/** Refills every smart playlist (live updating or not) from the tracks as they are now, and saves. Every save already refills the live
+ *  ones. */
+export function refreshSmartPlaylists(): Promise<void> { return N.refreshSmartPlaylists(); }
 
 /** Writes the database; the previous one is kept as a snapshot (the last five). */
 export function save(): Promise<void> { return N.save(); }

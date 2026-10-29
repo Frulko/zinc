@@ -87,6 +87,19 @@ struct HostIpod : NativeIpod {
     auto v = strs(ids);
     return unit([i, v](std::string& err) { return lib.setPlaylistTracks(i, v, err); });
   }
+  zrt::Promise<zrt::String> createSmartPlaylist(zrt::String name, Bytes rules) override {
+    std::string n = str(name);
+    SmartRules r;
+    zn::rec::read(rules, r);
+    return text([n, r](std::string& err) { std::string id; lib.createSmartPlaylist(n, r, id, err); return id; });
+  }
+  zrt::Promise<zrt::Unit> setSmartRules(zrt::String id, Bytes rules) override {
+    std::string i = str(id);
+    SmartRules r;
+    zn::rec::read(rules, r);
+    return unit([i, r](std::string& err) { return lib.setSmartRules(i, r, err); });
+  }
+  zrt::Promise<zrt::Unit> refreshSmartPlaylists() override { ipod::Progress p = progress(); return unit([p](std::string& err) { return lib.refreshSmartPlaylists(p, err); }); }
   zrt::Promise<zrt::Unit> save() override { ipod::Progress p = progress(); return unit([p](std::string& err) { return lib.save(p, err); }); }
   zrt::Promise<Bytes> snapshots() override { return rec<std::vector<Snapshot>>([](std::string& err) { need(err); return lib.snapshots(); }); }
   zrt::Promise<zrt::Unit> restoreSnapshot(zrt::String id) override {
