@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- iPod demo: a smart playlist shows its rules under its name on the Playlists page (read-only for now), and says when iTunes made rules the app cannot re-evaluate.
 - `zinc:ipod`: smart playlists. `playlists()` gives each one's rules (`match` all or any, rules on a field with an action, a limit with its sort, live updating); `createSmartPlaylist(name, rules)`, `setSmartRules(id, rules)` and `refreshSmartPlaylists()` write them, and every save refills the live ones from the play counts and tags as they are. `evaluateSmart(rules, tracks)` previews the songs without writing, as the iPod's database would hold them. A Nano 6G/7G refuses them: "this iPod keeps no smart playlists; save it as a normal playlist".
 - `zinc:ipod`: tracks give `bpm`, `skipCount` and `lastSkipped`, and `update(id, { bpm })` sets the tempo smart playlists can select on.
 - iPod demo: back and forward (‹ › in the top bar, Cmd+[ and Cmd+], the mouse's side buttons, a swipe) return to each page and each album, artist, playlist or photo opened as it was left, at the same scroll, search and selection; every page has a search that ignores case and accents, Cmd+F or Cmd+K searches songs, albums, artists and playlists from anywhere, and a new Artists page lists the album artists.

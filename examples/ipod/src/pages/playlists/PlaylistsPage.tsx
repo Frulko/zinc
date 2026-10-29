@@ -1,4 +1,5 @@
-// The playlists on the iPod (searched by name), and the tracks of the one picked, in its order (searched by title, artist and album).
+// The playlists on the iPod (searched by name), and the tracks of the one picked, in its order (searched by title, artist and album);
+// a smart playlist shows its rules, read-only.
 // Picking one is an entry of the history; a right click on one plays it or queues it (menus.ts).
 import * as ui from 'zinc:ui';
 import * as ipod from 'zinc:ipod';
@@ -49,6 +50,11 @@ export function PlaylistsPage(): i32 {
             <Text className={`text-[22px] font-bold ${fg(TEXT)}`} numberOfLines={1}>{(shown() as ipod.Playlist).name}</Text>
             <Text className={`text-[13px] ${fg(MUTED)}`}>{trackSearch().trim() === '' ? count((shown() as ipod.Playlist).trackIds.length, 'song', 'songs')
               : `${tracks().length} of ${count((shown() as ipod.Playlist).trackIds.length, 'song', 'songs')}`}</Text>
+            {(shown() as ipod.Playlist).smart ? <View className="flex-row items-center gap-1.5 pt-1 min-w-0">
+              <Icon name="sparkles" size={13} color={() => color(MUTED)} strokeWidth={2} />
+              <Text className={`text-[12px] ${fg(MUTED)}`} numberOfLines={2}>{ipod.describeSmart((shown() as ipod.Playlist).rules, playlists()) +
+                ((shown() as ipod.Playlist).rules.refreshable ? '' : ' · kept as iTunes wrote it')}</Text>
+            </View> : <View />}
           </View>
           <SearchField value={trackSearch()} onInput={(v: string) => setTrackSearch(v)} placeholder="Search in the playlist" width={220} />
           <Button icon="download" label="Download" busy={busy(`Download “${(shown() as ipod.Playlist).name}”`)} onPress={() => { const p = shown() as ipod.Playlist; download(`“${p.name}”`, playlistTracks(p.id)); }} />
