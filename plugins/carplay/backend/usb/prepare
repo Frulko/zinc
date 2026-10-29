@@ -24,7 +24,7 @@ p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlayConfig.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlayConfig.kt']).decode()
 assert t.count('    val microphone: Boolean = false,') == 1, 'Unexpected upstream AirPlayConfig'
-t=t.replace('    val microphone: Boolean = false,', '    val microphone: Boolean = false,\n    val ultraVehicle: Boolean = false,')
+t=t.replace('    val microphone: Boolean = false,', '    val microphone: Boolean = false,\n    val ultraVehicle: Boolean = false,\n    val ultraUiSync: Boolean = false,')
 p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/ServerConfig.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/ServerConfig.kt']).decode()
@@ -86,6 +86,7 @@ t=t.replace('            rightHandDrive = config.rightHandDrive,', '''          
                 initialUrl = "maps:/car/instrumentcluster/map",
             ) else null,
             ultraVehicle = System.getenv("ZINC_CARPLAY_ULTRA_VEHICLE") == "1",
+            ultraUiSync = System.getenv("ZINC_CARPLAY_ULTRA_UI_SYNC") == "1",
             rightHandDrive = config.rightHandDrive,''')
 t=t.replace('                "siri" -> session.invokeSiri()', '                "cluster" -> session.setClusterUiShown(true)\n                "siri" -> session.invokeSiri()')
 t=t.replace('                "cluster" -> session.setClusterUiShown(true)', '''                "ultraGauge" -> {
@@ -107,7 +108,7 @@ t=t.replace('"night" -> message.night?.let(session::setNightMode)', '''"night" -
                 }''')
 t=t.replace('                        onReady = { log.info("wireless iAP2 tunnel ready; CarPlay is live") },', '                        locationProvider = debugGps,\n                        onIncoming = { debugTelemetry.accept(it) },\n                        onReady = { iap2Trace.attach(channel, identification); log.info("wireless iAP2 tunnel ready; CarPlay is live") },')
 t=t.replace('    private val listener = object : AirPlaySessionListener {', '    private var lastResourceSummary: String? = null\n\n    private val listener = object : AirPlaySessionListener {')
-t=t.replace('        hub.inputHandler = ::routeInput', '        media.onUltraVehicleState = hub::ultraVehicleState\n        hub.inputHandler = ::routeInput')
+t=t.replace('        hub.inputHandler = ::routeInput', '        media.onUltraVehicleState = hub::ultraVehicleState\n        media.onUltraUiChoice = hub::ultraUiChoice\n        hub.inputHandler = ::routeInput')
 t=t.replace('        override fun onCommand(session: AirPlaySession, type: String, params: Map<String, Any?>) {', '''        override fun onCommand(session: AirPlaySession, type: String, params: Map<String, Any?>) {
             if (type == "modesChanged") {
                 val summary = params["resources"]?.toString()
@@ -227,6 +228,10 @@ t=t.replace('    fun setSessionState(active: Boolean, name: String?) {', '''    
         val report = UltraStatus(status.phoneOffersVehicleState, status.phoneOffersUiSync, status.vehicleStateEnabled, status.uiSyncEnabled)
         latestUltra = report
         broadcastJson(ServerMessage(type = "ultraStatus", ultra = report))
+    }
+
+    fun ultraUiChoice(choice: com.shilapi.xcertplay.transport.UltraUiSync.Choice) {
+        broadcastJson(ServerMessage(type = "debug", message = "Ultra UI Sync RX command=0x${choice.type.toString(16)} ${choice.values.toString().take(200)}"))
     }
 
     fun ultraVehicleState(values: Map<Long, Any>) {
@@ -351,17 +356,21 @@ t=t.replace('/** Session lifecycle and command callbacks for the driver/UI layer
 
 /** Session lifecycle and command callbacks for the driver/UI layer. */''')
 t=t.replace('    fun onDebugLog(message: String) {}', '    fun onUltraStatus(session: AirPlaySession, status: AirPlayUltraStatus) {}\n    fun onDebugLog(message: String) {}')
-t=t.replace('    fun onFeedback(session: AirPlaySession): Map<String, Any?>? = null', '    fun ultraVehicleInfo(): Map<String, Any?>? = null\n    fun onFeedback(session: AirPlaySession): Map<String, Any?>? = null')
-t=t.replace('    internal var deviceBtMac = ""', '    internal var deviceBtMac = ""\n    var ultraVehicleEnabled = false\n        private set')
+t=t.replace('    fun onFeedback(session: AirPlaySession): Map<String, Any?>? = null', '    fun ultraVehicleInfo(): Map<String, Any?>? = null\n    fun ultraUiSyncInfo(): Map<String, Any?>? = null\n    fun onFeedback(session: AirPlaySession): Map<String, Any?>? = null')
+t=t.replace('    internal var deviceBtMac = ""', '    internal var deviceBtMac = ""\n    var ultraVehicleEnabled = false\n        private set\n    var ultraUiSyncEnabled = false\n        private set')
 t=t.replace('                val info = AirPlayInfoPlist.build(config)', '''                val info = AirPlayInfoPlist.build(config).toMutableMap()
-                if (ultraVehicleEnabled) media.ultraVehicleInfo()?.let { info["vehicleStateProtocolInfo"] = it }''')
+                if (ultraVehicleEnabled) media.ultraVehicleInfo()?.let { info["vehicleStateProtocolInfo"] = it }
+                if (ultraUiSyncEnabled) {
+                    media.ultraUiSyncInfo()?.let { info["uiSyncInfo"] = it }
+                    info["displayPanels"] = com.shilapi.xcertplay.transport.UltraUiSync.displayPanels(info["displays"] as? List<*> ?: emptyList<Any>())
+                }''')
 needle='if (message.method.startsWith("RTSP/") || message.method.startsWith("HTTP/")) continue'
 assert t.count(needle) == 1, 'Unexpected upstream event response handler'
 t=t.replace('        eventCseq++', '        eventCseq++\n        if (command["type"] in listOf("setNightMode", "uiAppearanceUpdate", "mapAppearanceUpdate")) debugLog("airplay event appearance command type=${command[\"type\"]} cseq=$eventCseq")')
 t=t.replace('        val peerTimingPort = long(dict["timingPort"])?.toInt() ?: 0', '''        val offered = (dict["features"] as? List<*>)?.filterIsInstance<String>().orEmpty()
         debugLog("airplay offered features=${offered.sorted()} ultraVehicle=${"vehicleStateProtocol" in offered} ultraUiSync=${"uiSync" in offered}")
         val peerTimingPort = long(dict["timingPort"])?.toInt() ?: 0''')
-t=t.replace('        response["enabledFeatures"] = features', '        ultraVehicleEnabled = config.ultraVehicle && "vehicleStateProtocol" in offered && media.ultraVehicleInfo() != null\n        if (ultraVehicleEnabled) features.add("vehicleStateProtocol")\n        response["enabledFeatures"] = features\n        debugLog("airplay enabled features=$features")\n        listener.onUltraStatus(this, AirPlayUltraStatus("vehicleStateProtocol" in offered, "uiSync" in offered, "vehicleStateProtocol" in features, "uiSync" in features))')
+t=t.replace('        response["enabledFeatures"] = features', '        ultraVehicleEnabled = config.ultraVehicle && "vehicleStateProtocol" in offered && media.ultraVehicleInfo() != null\n        if (ultraVehicleEnabled) features.add("vehicleStateProtocol")\n        ultraUiSyncEnabled = config.ultraUiSync && config.cluster != null && "uiSync" in offered && media.ultraUiSyncInfo() != null\n        if (ultraUiSyncEnabled) features.add("uiSync")\n        response["enabledFeatures"] = features\n        debugLog("airplay enabled features=$features")\n        listener.onUltraStatus(this, AirPlayUltraStatus("vehicleStateProtocol" in offered, "uiSync" in offered, ultraVehicleEnabled, ultraUiSyncEnabled))')
 t=t.replace(needle, '''if (message.method.startsWith("RTSP/") || message.method.startsWith("HTTP/")) {
                         val result = if (message.body.isNotEmpty()) runCatching { BplistCodec.decode(message.body) as? Map<*, *> }.getOrNull() else null
                         debugLog("airplay event response cseq=${message.headers["cseq"]} status=${message.path} resultStatus=${result?.get("status")} bodyBytes=${message.body.size}")
@@ -383,14 +392,17 @@ p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/CarPlayMediaEngine.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/CarPlayMediaEngine.kt']).decode()
 assert t.count('import com.shilapi.xcertplay.transport.BlockingDuplexByteStream') == 1, 'Unexpected upstream CarPlayMediaEngine imports'
-t=t.replace('import com.shilapi.xcertplay.transport.BlockingDuplexByteStream', 'import com.shilapi.xcertplay.transport.BlockingDuplexByteStream\nimport com.shilapi.xcertplay.transport.UltraVehicleState\nimport java.util.concurrent.atomic.AtomicLong')
+t=t.replace('import com.shilapi.xcertplay.transport.BlockingDuplexByteStream', 'import com.shilapi.xcertplay.transport.BlockingDuplexByteStream\nimport com.shilapi.xcertplay.transport.UltraVehicleState\nimport com.shilapi.xcertplay.transport.UltraUiSync\nimport java.util.concurrent.atomic.AtomicLong')
 t=t.replace('    private val streams = ConcurrentHashMap<StreamKey, Closeable>()', '''    private val streams = ConcurrentHashMap<StreamKey, Closeable>()
     private val ultraStreams = ConcurrentHashMap<Pair<AirPlaySession, String>, IapTunnel>()
     private val ultraVehicle = UltraVehicleState()
     @Volatile var onUltraVehicleState: ((Map<Long, Any>) -> Unit)? = null
+    @Volatile var onUltraUiChoice: ((UltraUiSync.Choice) -> Unit)? = null
     private val nextUltraStreamId = AtomicLong(2)
 
     override fun ultraVehicleInfo(): Map<String, Any?> = ultraVehicle.infoEntry()
+
+    override fun ultraUiSyncInfo(): Map<String, Any?> = emptyMap()
 
     fun setUltraGauge(iid: Long, value: Any): Boolean {
         val before = ultraVehicle.snapshot()
@@ -399,28 +411,38 @@ t=t.replace('    private val streams = ConcurrentHashMap<StreamKey, Closeable>()
         if (after != before) onUltraVehicleState?.invoke(after)
         if (update == null) return true
         val target = ultraStreams.entries.firstOrNull { it.key.second == ULTRA_VEHICLE_HIGH_UUID }?.value
-            ?: ultraStreams.values.firstOrNull() ?: return false
+            ?: ultraStreams.entries.firstOrNull { it.key.second == ULTRA_VEHICLE_NORMAL_UUID }?.value ?: return false
         target.sendCommand(update)
         return true
     }''')
 needle='''        if (uuid != IAP_DATASTREAM_UUID) return null'''
 assert t.count(needle) == 1, 'Unexpected upstream DataStream UUID routing'
-t=t.replace(needle, '''        if (uuid == ULTRA_VEHICLE_HIGH_UUID || uuid == ULTRA_VEHICLE_NORMAL_UUID) {
-            if (!session.ultraVehicleEnabled) return null
+t=t.replace(needle, '''        if (uuid == ULTRA_VEHICLE_HIGH_UUID || uuid == ULTRA_VEHICLE_NORMAL_UUID || uuid == ULTRA_UI_SYNC_UUID) {
+            val uiSync = uuid == ULTRA_UI_SYNC_UUID
+            if (uiSync && !session.ultraUiSyncEnabled || !uiSync && !session.ultraVehicleEnabled) return null
             val shared = session.sharedSecret ?: return null
             val seed = unsignedPlistDecimal(stream["seed"]) ?: return null
             val salt = "DataStream-Salt$seed".toByteArray(Charsets.US_ASCII)
             val incoming = AirPlayCrypto.hkdfSha512(shared, salt, DATASTREAM_OUTPUT_KEY.toByteArray(Charsets.US_ASCII), 32)
             val outgoing = AirPlayCrypto.hkdfSha512(shared, salt, DATASTREAM_INPUT_KEY.toByteArray(Charsets.US_ASCII), 32)
             val tunnel = IapTunnel(incoming, session.localAddress ?: InetAddress.getByName("0.0.0.0"), outgoing)
+            val uiState = if (uiSync) UltraUiSync() else null
             val port = tunnel.listen(object : IapTunnel.Listener {
                 override fun onOpen(remoteAddress: String?) {
-                    session.logDebug("Ultra vehicle peer opened uuid=$uuid from=$remoteAddress")
+                    session.logDebug("Ultra peer opened uuid=$uuid from=$remoteAddress")
                 }
-                override fun onDebug(message: String) { session.logDebug("Ultra vehicle $uuid $message") }
+                override fun onDebug(message: String) { session.logDebug("Ultra $uuid $message") }
                 override fun onPackage(kind: Int, messageType: Int, replyToken: Long, body: ByteArray) {
-                    session.logDebug("Ultra vehicle package uuid=$uuid kind=$kind type=$messageType bytes=${body.size}")
+                    session.logDebug("Ultra package uuid=$uuid kind=$kind type=$messageType bytes=${body.size}")
                     if (messageType != 0x636d6e64 && messageType != 0x636f6d6d) return
+                    if (uiState != null) {
+                        val answers = uiState.handle(body)
+                        val choices = uiState.takeChoices()
+                        choices.forEach { onUltraUiChoice?.invoke(it) }
+                        session.logDebug("Ultra UI Sync rx bytes=${body.size} replies=${answers.size} choices=${choices.size}")
+                        answers.forEach(tunnel::sendCommand)
+                        return
+                    }
                     val before = ultraVehicle.snapshot()
                     val answers = ultraVehicle.handle(body)
                     val after = ultraVehicle.snapshot()
@@ -429,12 +451,12 @@ t=t.replace(needle, '''        if (uuid == ULTRA_VEHICLE_HIGH_UUID || uuid == UL
                     answers.forEach(tunnel::sendCommand)
                 }
                 override fun onClosed(cause: Throwable?) {
-                    session.logDebug("Ultra vehicle channel ended uuid=$uuid reason=${cause?.message ?: "peer EOF"}")
+                    session.logDebug("Ultra channel ended uuid=$uuid reason=${cause?.message ?: "peer EOF"}")
                 }
             })
             ultraStreams.put(session to uuid, tunnel)?.close()
             val id = nextUltraStreamId.getAndIncrement()
-            session.logDebug("Ultra vehicle stream uuid=$uuid id=$id port=$port")
+            session.logDebug("Ultra stream uuid=$uuid id=$id port=$port")
             return linkedMapOf<String, Any?>("type" to STREAM_TYPE_DATA, "streamID" to id, "dataPort" to port)
         }
         if (uuid != IAP_DATASTREAM_UUID) return null''')
@@ -448,7 +470,8 @@ t=t.replace('        clearPendingIapTunnel(session)\n        val sessionStreams'
         val sessionStreams''')
 t=t.replace('        const val IAP_DATASTREAM_UUID = "E9459FD0-BCAD-4C45-820F-1E72447EF2F2"', '''        const val IAP_DATASTREAM_UUID = "E9459FD0-BCAD-4C45-820F-1E72447EF2F2"
         const val ULTRA_VEHICLE_HIGH_UUID = "FF4A6720-F2BE-4F56-A3E1-DB3B4E37D634"
-        const val ULTRA_VEHICLE_NORMAL_UUID = "3E2F3C61-AAD0-42CB-A8AA-BF22186DA62E"''')
+        const val ULTRA_VEHICLE_NORMAL_UUID = "3E2F3C61-AAD0-42CB-A8AA-BF22186DA62E"
+        const val ULTRA_UI_SYNC_UUID = "07D9F906-8D64-4B54-A808-A20BCA2C51C2"''')
 p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/WebBridge.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/WebBridge.kt']).decode()

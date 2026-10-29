@@ -180,6 +180,18 @@ UI sync is the next distinct channel. LIVI identifies UUID
 `07D9F906-8D64-4B54-A808-A20BCA2C51C2` and an OPACK envelope containing a
 binary plist session protocol (reset, reset-complete, commands and
 acknowledgements). Its feature is guarded by a theme configuration. PlayPort
-does not advertise it yet because no authenticated asset package or
-frame-synchronized compositor is present. Stream 111 remains the classic
-iPhone-rendered cluster video on the Mac; the Pi display is untouched.
+now has a bounded experimental reset/command handler and panel descriptors,
+gated by `ZINC_CARPLAY_ULTRA_UI_SYNC=1` and an active cluster. In a physical
+Pi/iPhone session the phone offered `uiSync`, the receiver enabled it, `/info`
+completed, and classic streams 110/111 remained active. The phone did not
+open the UI Sync UUID during the observed session. This proves negotiation
+compatibility, not UI Sync traffic or composed Ultra presentation. The likely
+missing piece is an authenticated theme asset package and layout request.
+LIVI sends a `theme_asset_identifier` in field 6 of the iAP2
+WirelessCarPlayTransport identification component, while our identification
+omits that field. This is a concrete protocol difference and a plausible
+cause, not a confirmed phone error. An arbitrary identifier without a matching
+authenticated theme would be misleading.
+The flag stays off by default. Stream 111 remains the iPhone-rendered cluster
+video on the Mac; the Pi display is untouched. The Pi service was stopped
+after the probe, and its drop-in was restored to Vehicle State only.

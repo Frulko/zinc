@@ -12,6 +12,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Le panneau Debug CarPlay affiche les capacités Ultra proposées par l’iPhone et celles effectivement activées par le récepteur.
 - `ZINC_CARPLAY_ULTRA_VEHICLE=1` enables an experimental Vehicle State channel when the phone offers it. The CarPlay simulator can send RPM/fuel presets and show vehicle or climate changes received from the phone; speed and gear remain local.
 - The CarPlay dashboard can simulate climate power and target temperature and transmit those values through an active Ultra Vehicle State channel.
+- `ZINC_CARPLAY_ULTRA_UI_SYNC=1` enables an experimental UI Sync negotiation with a cluster display; received layout choices appear in the CarPlay debug log when the iPhone opens the channel.
 - `plugins/carplay/backend/linux/pairings list` shows Bluetooth and AirPlay pairing identifiers without keys; `pairings forget ADDRESS` removes one exact identifier while the receiver is stopped. Different identifiers for the same iPhone remain separate.
 - The Pi wireless launcher reads the selected phone from a private `phone-bt` file and cleans up its Wi-Fi access point and Bluetooth advertisement when the SSH terminal disconnects.
 - The Pi wireless receiver can run as the `playport-pi.service` user unit; it keeps running after SSH disconnects and stops its access point and Bluetooth advertisement when stopped. The CarPlay viewer can stay on the Mac.
