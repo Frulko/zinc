@@ -69,6 +69,15 @@ console.log('setter', boxAs.level);
 const year: any = JSON.parse('{"a":1998}');
 const yr = year.a !== undefined ? '' + year.a : '';
 console.log('concat', yr.slice(0, 2), 'x' + year.a, year.a + 'y', ('' + year.a).length);
+// new Map and new Set from entries, items or another collection
+const m1 = new Map<string, i32>([['a', 1], ['b', 2]]);
+const m2 = new Map<string, i32>(m1);
+m2.set('c', 3);
+const m3: Map<string, i32> = new Map(m2);
+const s1 = new Set<string>(['x', 'y', 'x']);
+const s2 = new Set<string>(s1);
+s2.add('z');
+console.log('collections', m1.size, m2.size, m3.size, m2.get('a') ?? 0, s1.size, s2.size, s2.has('y'));
 // await in a nested ?:, and in a single-level one beside a number
 async function one(): Promise<i32> { return 1; }
 async function two(): Promise<i32> { return 2; }

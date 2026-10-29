@@ -1528,9 +1528,27 @@ struct Checker {
       t = isMap ? mapOf(args[0], args[1]) : setOf(args[0]);
     } else if (want != kNoType && ty(want).k == (isMap ? TK::Map : TK::Set)) t = want;
     else { diag(kZCannotInfer, i, "the type arguments of '" + std::string(c.text) + "'"); return tError; }
-    for (std::uint32_t an : argNodes) expr(an);
-    if (!argNodes.empty()) diag(kZUnsupported, i, "constructor arguments of '" + std::string(c.text) + "'");
-    for (TypeId e : isMap ? std::vector<TypeId>{ty(t).params[0], ty(t).elem} : std::vector<TypeId>{ty(t).elem}) if (bad(e)) return tError;
+    for (TypeId e : isMap ? std::vector<TypeId>{ty(t).params[0], ty(t).elem} : std::vector<TypeId>{ty(t).elem}) if (bad(e)) { for (std::uint32_t an : argNodes) expr(an); return tError; }
+    if (argNodes.size() > 1) { for (std::uint32_t an : argNodes) expr(an); diag(kZWrongArgCount, i, "expected 0-1 argument(s), got " + std::to_string(argNodes.size())); return tError; }
+    if (argNodes.empty()) return t;
+    // new Map(entries) / new Map(otherMap), new Set(items) / new Set(otherSet): a generated helper fills a new collection
+    const std::uint32_t arg = argNodes[0];
+    const TypeId list = arrayOf(isMap ? tupleOf({ty(t).params[0], ty(t).elem}) : ty(t).elem);
+    TypeId at = expr(arg, n(arg).kind == N::Array ? list : t);
+    if (bad(at)) return tError;
+    const bool same = ty(at).k == ty(t).k;
+    if (!require(at, same ? t : list, arg)) return tError;
+    std::vector<TypeId> aliases{t, same ? t : list, ty(t).elem};
+    if (isMap) aliases.push_back(ty(t).params[0]);
+    const std::string T = inspectAliasName(t), S = inspectAliasName(same ? t : list), V = inspectAliasName(ty(t).elem), K = isMap ? inspectAliasName(ty(t).params[0]) : "";
+    const std::string fill = same ? (isMap ? "  src.forEach((v: " + V + ", k: " + K + ") => { r.set(k, v); });\n" : "  src.forEach((v: " + V + ") => { r.add(v); });\n")
+                                  : (isMap ? "  for (const e of src) r.set(e[0], e[1]);\n" : "  for (const e of src) r.add(e);\n");
+    std::uint32_t sym = helper("newcoll," + std::to_string(t) + "," + std::to_string(same), "function $F(src: " + S + "): " + T + " {\n  const r: " + T + " = new " + std::string(c.text) + "();\n" + fill + "  return r;\n}\n", aliases, i);
+    std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+    out.nodeSym[id] = sym;
+    out.nodeType[id] = out.syms[sym].type;
+    a.nodes[i].kind = N::Call;
+    a.nodes[i].kids = {id, arg};
     return t;
   }
 
