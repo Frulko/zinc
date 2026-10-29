@@ -610,6 +610,12 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod demo: the Info window cannot send a cover to a remote iPod (the daemon needs a cover upload route); an album grid on screen keeps the old cover until shown again.
 - tests/t1/ipod_web.sh: a curl -d with nested braces inside "$(...)" reached the daemon cut; bodies go from a file now, the cause was not looked at.
 
+- iPod radio on Sonos: "Start radio" before the group's queue was read can mirror the first append wrongly; read the group first.
+- iPod radio: queue.dropUpcoming filters the context but ignores the shuffle order; check a thumbs down while shuffle is on.
+- iPod demo: "From A to B" drafts last only for the run (not kept in genius.json like the Genius lists).
+- iPod moods: moodMix ranks energy with indexOf per song, O(n^2); sort once with indices for 10,000 analysed songs.
+- iPod demo: the mood mixer's tempo bar and the volume bar are click-only; add dragging to both.
+
 ## Cross-platform pass
 - iPod AudioMuse over the LAN from the Pi daemon, with the same client.
 - iPod: run ipod_smart on Linux.
