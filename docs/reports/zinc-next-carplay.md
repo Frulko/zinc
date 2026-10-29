@@ -631,8 +631,19 @@ session. The iPhone is paired to the Mac but not Pi; no Pi SDP, Bluetooth
 iAP2, software-MFi challenge, Wi-Fi handoff, video or audio was exercised.
 Apple's [WWDC17 wireless architecture](https://developer.apple.com/videos/play/wwdc2017/717/)
 requires Bluetooth CarPlay EIR and specific AP elements in addition to a
-Bluetooth/iAP2 link and 5GHz Wi-Fi. The current generic BlueZ/NetworkManager
-configuration is not proven to advertise all of those elements. It remains
-possible that iOS will not discover or select it until those advertisements
-are implemented and tested on the phone. Mac and Pi real-phone tests are next;
+Bluetooth/iAP2 link and 5GHz Wi-Fi. The supplied `carplay.pdf` §23.2.5.1.1
+specifies accessory UUID `EC884348-CD41-40A2-9727-575D50BF1FD3` in the
+Classic Bluetooth EIR 128-bit service list. The new Linux `carplay-advertise`
+registers a temporary BlueZ ProfileManager server with that UUID and enables
+discovery. On the Pi, `bluetoothctl show` displayed the UUID, temporary alias,
+pairable and discoverable state while active; SIGTERM restored the original
+alias and disabled discovery, and removed the UUID. A prior `btmon` HCI capture
+showed a 128-bit complete service UUID EIR write. The private Pi launcher now
+supervises this profile and removes AP/ap0 on exit; a cold-launch smoke reached
+AirPlay and HTTP readiness, then left no receiver or AP running.
+
+The generic NetworkManager AP is not proven to advertise the Apple-specific
+Wi-Fi Interworking and Device information elements described in the same PDF.
+It remains possible that iOS will not discover or select it until those
+elements are implemented and tested on the phone. Mac and Pi real-phone tests are next;
 do not call the no-chip wireless path accepted from these smoke tests alone.

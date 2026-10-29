@@ -5,13 +5,20 @@ The JVM receiver can use the BlueZ RFCOMM bridge in this directory, selected by
 handover; BLE does not carry this handshake. No Linux wired USB adapter is
 provided by this overlay. Native Zinc media dependencies remain FFmpeg.
 
-Install JDK 21 or newer (the receiver targets JVM 21), BlueZ, Python 3 and
-PyBluez (`bluez` and `python3-bluez` packages on Raspberry Pi OS). Pair and trust
+Install JDK 21 or newer (the receiver targets JVM 21), BlueZ, Python 3,
+PyBluez, python3-dbus and python3-gi. On Debian/Raspberry Pi OS, install
+`bluez python3-bluez python3-dbus python3-gi`. Pair and trust
 the iPhone with the system Bluetooth settings or `bluetoothctl`; the helper does
 not silently pair devices. Supply the Wi-Fi network the phone should join; use
 an existing network or an OS-configured access point. The plugin does not change
 system hotspot configuration. The Linux helper reads its local adapter address
 from `bluetoothctl show`, so the adapter must be powered on.
+
+On Linux, start `plugins/carplay/backend/linux/carplay-advertise --name 'PlayPort'` while the receiver
+runs. It registers the accessory CarPlay UUID through BlueZ, so BlueZ includes
+the UUID in its Classic Bluetooth Extended Inquiry Response. It also makes the
+adapter discoverable and pairable, then restores its previous state on exit.
+The Pi launcher below starts and stops this helper automatically.
 
 From the Zinc checkout, after installing dependencies and provisioning your own
 runtime identity outside the checkout:
@@ -57,13 +64,14 @@ available for the physical test.
 
 ### Prepared Pi 3B+ at 192.168.2.33
 
-The owner-authorized Pi has Debian 13, Java 21, BlueZ/PyBluez and the separately
+The owner-authorized Pi has Debian 13, Java 21, BlueZ/PyBluez/D-Bus and the separately
 built receiver under `~/zinc-carplay`. Its local identity and AP password are in
 owner-only files; neither is in Git. The Pi stays connected to `Potatoes` on
 5 GHz/channel 36. A NetworkManager profile `zinc-carplay-ap` provides a second,
 simultaneous 5 GHz AP `Zinc-CarPlay-Pi` on `ap0`/`10.77.0.1`; DHCP and DNS were
 observed while it was active. The AP is off after pretesting and the private
-launcher recreates `ap0` and activates it:
+launcher recreates `ap0`, activates it, announces the CarPlay Bluetooth UUID,
+and restores Bluetooth/AP state when stopped:
 
 ```sh
 ssh spark@192.168.2.33 'bluetoothctl show | grep -E "Powered:|Pairable:"'
@@ -87,10 +95,13 @@ ZINC_CARPLAY_URL="ws://192.168.2.33:18080/ws?token=$PI_TOKEN" \
 ```
 
 `python3 linux/tests/bridge.py` passes on the Mac, and the Pi helper reports
-its actual Bluetooth address. Mac and Pi receiver smoke runs reached HTTP and
+its actual Bluetooth address. The Pi advertiser was observed with its CarPlay
+UUID, discoverable/pairable state and temporary name in `bluetoothctl show`;
+all three reverted after SIGTERM. Mac and Pi receiver smoke runs reached HTTP and
 AirPlay startup with software identity; the Pi also answered a WebSocket
 `iap2Status` request from the Mac while bound to its AP address. No iPhone
 Bluetooth pairing, SDP, Wi-Fi handoff, projected media or MFi challenge was
 performed on the Pi. Apple's [wireless CarPlay architecture overview](https://developer.apple.com/videos/play/wwdc2017/717/)
-also calls for CarPlay Bluetooth EIR and AP information elements; whether the
-current BlueZ/NetworkManager advertisement satisfies iOS remains to be tested.
+also calls for AP information elements; the generic NetworkManager AP is not
+yet known to supply those Apple-specific elements. iPhone discovery/handoff
+remains to be tested.

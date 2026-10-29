@@ -1,0 +1,82 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: GPL-3.0-only
+"""Advertise the CarPlay Classic Bluetooth UUID while a Linux receiver runs."""
+import argparse
+import signal
+
+import dbus
+import dbus.service
+import dbus.mainloop.glib
+from gi.repository import GLib
+
+
+CARPLAY_UUID = 'ec884348-cd41-40a2-9727-575d50bf1fd3'
+PROFILE_PATH = '/com/zinc/CarPlayDiscovery'
+ADAPTER = 'org.bluez.Adapter1'
+
+
+class Profile(dbus.service.Object):
+    def __init__(self, bus, loop):
+        super().__init__(bus, PROFILE_PATH)
+        self.loop = loop
+
+    @dbus.service.method('org.bluez.Profile1', in_signature='', out_signature='')
+    def Release(self):
+        self.loop.quit()
+
+    @dbus.service.method('org.bluez.Profile1', in_signature='oha{sv}', out_signature='')
+    def NewConnection(self, device, fd, properties):
+        raise dbus.DBusException('org.bluez.Error.Rejected', 'CarPlay discovery only')
+
+    @dbus.service.method('org.bluez.Profile1', in_signature='o', out_signature='')
+    def RequestDisconnection(self, device):
+        pass
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--name', default='PlayPort')
+    args = parser.parse_args()
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+    objects = dbus.Interface(bus.get_object('org.bluez', '/'),
+                             'org.freedesktop.DBus.ObjectManager').GetManagedObjects()
+    path = next((path for path, interfaces in objects.items()
+                 if interfaces.get(ADAPTER, {}).get('Powered')), None)
+    if path is None:
+        parser.error('power on a Classic Bluetooth adapter first')
+    properties = dbus.Interface(bus.get_object('org.bluez', path),
+                                'org.freedesktop.DBus.Properties')
+    saved = {key: properties.Get(ADAPTER, key)
+             for key in ('Alias', 'Discoverable', 'Pairable', 'DiscoverableTimeout')}
+    loop = GLib.MainLoop()
+    profile = Profile(bus, loop)
+    manager = dbus.Interface(bus.get_object('org.bluez', '/org/bluez'),
+                             'org.bluez.ProfileManager1')
+    manager.RegisterProfile(PROFILE_PATH, CARPLAY_UUID, {
+        'Name': args.name, 'Role': 'server', 'Channel': dbus.UInt16(23),
+        'RequireAuthentication': dbus.Boolean(True),
+    })
+    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, loop.quit)
+    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, loop.quit)
+    try:
+        properties.Set(ADAPTER, 'Alias', dbus.String(args.name))
+        properties.Set(ADAPTER, 'DiscoverableTimeout', dbus.UInt32(0))
+        properties.Set(ADAPTER, 'Pairable', dbus.Boolean(True))
+        properties.Set(ADAPTER, 'Discoverable', dbus.Boolean(True))
+        print('CarPlay Bluetooth EIR profile active', flush=True)
+        loop.run()
+    finally:
+        for key in ('Discoverable', 'Pairable', 'DiscoverableTimeout', 'Alias'):
+            try:
+                properties.Set(ADAPTER, key, saved[key])
+            except dbus.DBusException:
+                pass
+        try:
+            manager.UnregisterProfile(PROFILE_PATH)
+        except dbus.DBusException:
+            pass
+
+
+if __name__ == '__main__':
+    main()
