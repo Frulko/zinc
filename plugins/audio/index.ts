@@ -91,9 +91,8 @@ export function tone(hz: number, seconds: number, wave: Wave = 'sine'): Sound {
   return made(A.tone(WAVES.indexOf(wave), hz, seconds), `tone(${hz}, ${seconds})`);
 }
 
-/** Samples played as they are written: the peer's audio of a call (zinc:webrtc's RemoteAudio), a synthesizer, an emulator. It starts
- *  once 60 ms are buffered; when the writer falls behind it plays silence and waits for 60 ms again; when it runs ahead (two clocks
- *  drift apart) what is beyond 180 ms is dropped, so the delay stays short. */
+/** Samples played as they are written: the peer's audio of a call (zinc:webrtc's RemoteAudio), a synthesizer, an emulator. By default
+ *  it starts with 60 ms and trims beyond 180 ms; network media can request a larger buffer through stream(). */
 export class AudioStream {
   private h: i32;
   private vol: number = 1;
@@ -113,9 +112,9 @@ export class AudioStream {
   set volume(v: number) { this.vol = level(v); if (this.h >= 0) A.streamSetVolume(this.h, this.vol); }
   close(): void { if (this.h >= 0) { A.streamClose(this.h); this.h = -1; } }
 }
-/** A stream of `channels` (1 or 2) at `rate` frames per second, playing at once (silent until samples come). */
-export function stream(channels: i32 = 1, rate: i32 = 48000): AudioStream {
-  const h = A.streamOpen(channels, rate);
+/** A stream of `channels` (1 or 2) at `rate` frames per second. Network media can increase the priming and maximum buffer. */
+export function stream(channels: i32 = 1, rate: i32 = 48000, primeMs: i32 = 60, maxMs: i32 = 180): AudioStream {
+  const h = A.streamOpen(channels, rate, primeMs, maxMs);
   if (h < 0) console.warn(`zinc:audio: stream(${channels}, ${rate}): ${A.error()}`);
   return new AudioStream(h, channels, rate);
 }

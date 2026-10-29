@@ -695,3 +695,44 @@ Waze provided `0x5201` with `state=0`, `sourceName=Waze` and
 The HUD now reports that state explicitly, while a metadata-only update cannot
 reactivate a stopped route. The [iAP2 capability recap](zinc-next-carplay-iap2-capabilities.md)
 separates observed RX, advertised TX, and unproven catalog functions.
+
+## 29 October: Bluetooth discovery and stale pairing
+
+The supplied `Bluetooth Accessories.pdf` §18.4 requires the iAP2 accessory
+service UUID in both SDP and EIR. Its little-endian value
+`FFCACADEAFDECADEDEFACADE00000000` maps to
+`00000000-deca-fade-deca-deafdecacaff`; this differs from the iPhone iAP2
+service UUID ending `cafe`. The Pi now advertises the accessory UUID alongside
+the CarPlay UUID. The phone's SDP queries reached and received both records.
+[DiPlay's controller](https://github.com/shihabal3amri/DiPlay/blob/main/shared/src/main/java/com/shilapi/xcertplay/orchestration/CarPlayController.kt)
+and [xcertplay's controller](https://github.com/shilapi/xcertplay/blob/master/shared/src/main/java/com/shilapi/xcertplay/orchestration/CarPlayController.kt)
+both initiate RFCOMM to the phone's `...cafe` UUID, matching our outbound bridge.
+
+The live HCI trace then showed a BlueZ `User Confirmation Negative Reply`
+from the Pi during secure pairing. A temporary default `NoInputNoOutput` agent,
+restricted to the configured phone address, now accompanies the advertised
+profiles. A subsequent trace showed `PIN or Key Missing` when the Pi supplied
+its saved link key; the two sides had inconsistent pairing state. Only the Pi
+record for this iPhone was removed, and the owner forgot PlayPort Pi on the
+phone before pairing again. Private HCI captures were deleted after diagnosis
+because they contained Bluetooth link keys. The fresh pairing is trusted on the
+Pi. The subsequent live run completed RFCOMM iAP2 authentication, Wi-Fi
+handoff, AirPlay RTSP, the wireless iAP2 tunnel and the first video frame from
+the phone at `10.77.0.162`. The receiver accepted Opus audio stream type 102,
+decrypted more than 1200 packets with zero authentication failures and no
+sequence gaps after the initial burst. The owner observed nearly smooth video
+but severely broken audio.
+
+### Wireless audio buffering
+
+The Pi log records `readMaxMs=383..406` for consecutive five-second audio
+windows after setup, while the viewer's `zinc:audio` stream previously trimmed
+any buffer over 180 ms back to 60 ms. Its existing golden demonstrates that a
+500 ms burst discards 21,120 of 24,000 frames. Wireless stream type 102 now
+uses 500 ms priming and a 900 ms limit; ordinary calls and other streams retain
+the 60/180 ms policy. An additional native golden writes three 400 ms bursts:
+after priming, two 400 ms playback intervals remain audible with zero drops
+and underruns. `audio`, `carplay`, `carplay_wireless`, `carplay_demo` and `web_plugins` tests
+pass. The Pi receiver need not restart for this viewer-side change; physical
+listening after restarting the Zinc viewer remains to be checked. The larger
+buffer can add roughly half a second of playback delay.

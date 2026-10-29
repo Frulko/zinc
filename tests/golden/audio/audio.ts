@@ -137,3 +137,14 @@ console.log(`stream: a 500 ms burst keeps ${Math.round(st.buffered * 1000)} ms, 
 st.close();
 st.write(fill(10, 1));
 console.log(`stream closed: ok ${st.ok} buffered ${st.buffered}, bad stream ok ${stream(3, 48000).ok}`);
+
+// Wireless media arrives in roughly 400 ms bursts: two bursts prime playback, then a third must bridge the next gap.
+const wireless = stream(1, 48000, 500, 900);
+wireless.write(fill(19200, 0.5));
+const waiting = peak(mix(480));
+wireless.write(fill(19200, 0.5));
+const playing = mix(19200);
+wireless.write(fill(19200, 0.5));
+const continuous = mix(19200);
+console.log(`wireless stream: waits ${waiting}, plays ${playing[playing.length - 2]}, continues ${continuous[0]}, underruns ${wireless.underruns}, dropped ${wireless.dropped}`);
+wireless.close();

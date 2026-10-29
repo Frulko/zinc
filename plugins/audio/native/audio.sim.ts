@@ -63,9 +63,9 @@ export default {
   samples(sound: i32, channel: i32): f64[] { return []; },
   setMasterVolume(volume: f64): void {},
   // streams keep only how much is buffered (one second at most); nothing plays them
-  streamOpen(channels: i32, rate: i32): i32 {
-    if ((channels == 1 || channels == 2) && rate >= 8000 && rate <= 192000) { buffered.push(0); rates.push(rate); chans.push(channels); return buffered.length - 1; }
-    err = 'a stream of 1 or 2 channels, at 8000 to 192000 frames per second';
+  streamOpen(channels: i32, rate: i32, primeMs: i32, maxMs: i32): i32 {
+    if ((channels == 1 || channels == 2) && rate >= 8000 && rate <= 192000 && primeMs >= 1 && maxMs >= primeMs && maxMs <= 1000) { buffered.push(0); rates.push(rate); chans.push(channels); return buffered.length - 1; }
+    err = 'a stream of 1 or 2 channels at 8000 to 192000 frames per second with 1 <= primeMs <= maxMs <= 1000';
     return -1;
   },
   streamWrite(stream: i32, samples: f64[]): i32 {

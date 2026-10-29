@@ -8,16 +8,23 @@ provided by this overlay. Native Zinc media dependencies remain FFmpeg.
 Install JDK 21 or newer (the receiver targets JVM 21), BlueZ, Python 3,
 PyBluez, python3-dbus and python3-gi. On Debian/Raspberry Pi OS, install
 `bluez python3-bluez python3-dbus python3-gi`. Pair and trust
-the iPhone with the system Bluetooth settings or `bluetoothctl`; the helper does
-not silently pair devices. Supply the Wi-Fi network the phone should join; use
+the iPhone with the system Bluetooth settings or `bluetoothctl`; the optional
+address-restricted agent confirms the phone's pairing request. Supply the Wi-Fi network the phone should join; use
 an existing network or an OS-configured access point. The plugin does not change
 system hotspot configuration. The Linux helper reads its local adapter address
 from `bluetoothctl show`, so the adapter must be powered on.
 
 On Linux, start `plugins/carplay/backend/linux/carplay-advertise --name 'PlayPort'` while the receiver
 runs. It registers the accessory CarPlay UUID through BlueZ, so BlueZ includes
-the UUID in its Classic Bluetooth Extended Inquiry Response. It also makes the
+that UUID and the distinct iAP2 accessory UUID in its Classic Bluetooth
+Extended Inquiry Response and SDP. The bridge opens an outgoing RFCOMM channel
+to the iPhone's iAP2 service; the phone's service UUID ends in `cafe`, while
+the accessory's ends in `caff`. The advertiser also makes the
 adapter discoverable and pairable, then restores its previous state on exit.
+For a headless receiver, add `--pairing-address AA:BB:CC:DD:EE:FF` to register
+a temporary BlueZ `NoInputNoOutput` agent that accepts pairing only from that
+phone. Without it, use an existing system pairing agent. The Pi launcher below
+sets this address; it removes the agent on exit.
 The Pi launcher below starts and stops this helper automatically.
 
 From the Zinc checkout, after installing dependencies and provisioning your own
@@ -66,11 +73,10 @@ available for the physical test.
 
 The owner-authorized Pi has Debian 13, Java 21, BlueZ/PyBluez/D-Bus and the separately
 built receiver under `~/zinc-carplay`. Its local identity and AP password are in
-owner-only files; neither is in Git. The Pi stays connected to `Potatoes` on
-5 GHz/channel 36. A NetworkManager profile `zinc-carplay-ap` provides a second,
-simultaneous 5 GHz AP `Zinc-CarPlay-Pi` on `ap0`/`10.77.0.1`; DHCP and DNS were
+owner-only files; neither is in Git. A NetworkManager profile `zinc-carplay-ap`
+provides the 5 GHz AP `Zinc-CarPlay-Pi` on `ap0`/`10.77.0.1`; DHCP and DNS were
 observed while it was active. The private launcher recreates `ap0`, activates
-it, announces the CarPlay Bluetooth UUID,
+it, announces the CarPlay and iAP2 Bluetooth UUIDs,
 and restores Bluetooth/AP state when stopped:
 
 ```sh
@@ -78,8 +84,9 @@ ssh spark@192.168.2.33 'bluetoothctl show | grep -E "Powered:|Pairable:"'
 ssh spark@192.168.2.33 '~/zinc-carplay/start-wireless'
 ```
 
-As of 29 October the phone is paired and trusted on the Pi; the RFCOMM bridge
-and iAP2 authentication have succeeded. If the launcher is already running,
+On 29 October the phone re-paired and was trusted on the Pi; the RFCOMM bridge,
+iAP2 authentication, Wi-Fi handoff and AirPlay video/audio projection succeeded.
+If the launcher is already running,
 do not start a second copy. To keep a private log while restarting it, stop the
 existing launcher, then start it with `ZINC_CARPLAY_IAP2_TRACE=1` and redirect
 its output to an owner-only file. A second Mac terminal can follow that file
@@ -113,9 +120,23 @@ ZINC="$PWD/build/zinc" ZINC_BACKGROUND=0 ZINC_CARPLAY_DEBUG=1 \
   examples/carplay/run --live
 ```
 
+After changing the Zinc viewer's audio buffer, restart only this Terminal 2
+command. Leave the Pi receiver running; its wireless session can reconnect.
+
 Select **PlayPort Pi** under iPhone Settings > General > CarPlay. The current
 Ethernet address/route is session-local and may change after a reboot. Do not
 start a second Pi receiver while the logged one is running.
+The profile now announces both the CarPlay and iAP2 accessory UUIDs. A failed
+outgoing RFCOMM connect is logged as `Connection refused`; that is before iAP2
+authentication or Wi-Fi handoff. The Pi keeps the live log and private Bluetooth
+capture separate from the Ethernet viewer link.
+If the phone reports connection impossible while the Pi still says `Paired: yes`,
+capture the HCI authentication status. `PIN or Key Missing` means the two sides
+have different saved Bluetooth link keys: forget PlayPort Pi in iPhone CarPlay
+and Bluetooth settings, remove only that iPhone from the Pi with
+`bluetoothctl remove <iPhone Bluetooth address>`, then pair again. The current
+Pi pairing was cleared once after this status was observed; the subsequent
+fresh pairing completed and wireless CarPlay connected.
 
 `python3 linux/tests/bridge.py` passes on the Mac, and the Pi helper reports
 its actual Bluetooth address. The Pi advertiser was observed with its CarPlay

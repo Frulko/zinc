@@ -49,11 +49,9 @@ float rate_of(double r) { return r > 0 ? (float)(r < 1.0 / 64 ? 1.0 / 64 : r > 6
 float pan_of(double p) { return p == p ? (float)(p < -1 ? -1 : p > 1 ? 1 : p) : 0.0f; }
 
 // Streams: samples a program writes as they come (the peer's audio of a call, a synthesizer), played through a miniaudio data source
-// that reads a buffer on the mixer's thread. It starts once PRIME seconds are buffered; when it runs dry it plays silence and waits for
-// PRIME again (an underrun); when the writer runs ahead of the device (two clocks that drift, a burst after a network stall), what is
-// buffered beyond PRIME + SLACK is dropped, so the delay stays under 200 ms.
+// that reads a buffer on the mixer's thread. Each stream has its own priming and maximum delay so a wireless media
+// stream can absorb radio bursts without making calls and synthesizers slow.
 const int MAXSTREAM = 16;
-const double PRIME = 0.06, SLACK = 0.12;
 struct Stream {
   ma_data_source_base base;   // first: miniaudio sees the stream as a data source
   ma_sound sound;
@@ -61,19 +59,19 @@ struct Stream {
   ma_uint32 channels, rate;
   pthread_mutex_t mu;
   float* buf;                 // a ring of cap samples
-  size_t cap, head, count;
+  size_t cap, head, count, prime, most;
   uint64_t underruns, dropped;
 };
 Stream streams[MAXSTREAM];
 ma_result ds_read(ma_data_source* ds, void* out, ma_uint64 frames, ma_uint64* read) {
   Stream* s = (Stream*)ds;
   float* o = (float*)out;
-  const size_t want = (size_t)frames * s->channels, prime = (size_t)(PRIME * s->rate) * s->channels, most = prime + (size_t)(SLACK * s->rate) * s->channels;
+  const size_t want = (size_t)frames * s->channels;
   size_t n = 0;
   pthread_mutex_lock(&s->mu);
-  if (!s->primed && s->count >= prime) s->primed = true;
+  if (!s->primed && s->count >= s->prime) s->primed = true;
   if (s->primed) {
-    if (s->count > most) { const size_t drop = s->count - prime; s->head = (s->head + drop) % s->cap; s->count -= drop; s->dropped += drop / s->channels; }
+    if (s->count > s->most) { const size_t drop = s->count - s->prime; s->head = (s->head + drop) % s->cap; s->count -= drop; s->dropped += drop / s->channels; }
     n = want < s->count ? want : s->count;
     for (size_t i = 0; i < n; i++) o[i] = s->buf[(s->head + i) % s->cap];
     s->head = (s->head + n) % s->cap; s->count -= n;
@@ -290,8 +288,9 @@ struct HostAudio : NativeAudio {
     r.a->len = n;
     return r;
   }
-  int32_t streamOpen(int32_t channels, int32_t rate) override {
+  int32_t streamOpen(int32_t channels, int32_t rate, int32_t primeMs, int32_t maxMs) override {
     if (channels < 1 || channels > 2 || rate < 8000 || rate > 192000) return fail("a stream of 1 or 2 channels, at 8000 to 192000 frames per second");
+    if (primeMs < 1 || maxMs < primeMs || maxMs > 1000) return fail("stream buffer requires 1 <= primeMs <= maxMs <= 1000");
     ma_engine* e = engine();
     if (!e) return fail("no mixer");
     int32_t h = 0;
@@ -300,6 +299,8 @@ struct HostAudio : NativeAudio {
     Stream& s = streams[h];
     s.channels = (ma_uint32)channels; s.rate = (ma_uint32)rate;
     s.cap = (size_t)rate * channels;   // one second
+    s.prime = (size_t)rate * channels * primeMs / 1000;
+    s.most = (size_t)rate * channels * maxMs / 1000;
     s.buf = (float*)ma_malloc(s.cap * sizeof(float), nullptr);
     if (!s.buf) return fail("out of memory");
     s.head = s.count = 0; s.primed = false; s.underruns = s.dropped = 0;

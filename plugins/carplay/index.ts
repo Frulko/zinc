@@ -10,7 +10,9 @@ class AudioTrack {
   decoder: i32 = -1;
   codec: i32 = 0;
   output: AudioStream;
-  constructor(channels: i32, rate: i32) { this.output = stream(channels, rate); }
+  constructor(channels: i32, rate: i32, wirelessMedia: boolean) {
+    this.output = wirelessMedia ? stream(channels, rate, 500, 900) : stream(channels, rate);
+  }
   close(): void { this.output.close(); if (this.decoder >= 0) C.close(this.decoder); }
 }
 
@@ -186,7 +188,7 @@ export class Session {
       const rate = b[3] + b[4] * 256 + b[5] * 65536 + b[6] * 16777216;
       if (rate < 8000 || rate > 96000 || b[7] < 1 || b[7] > 2) return false;
       this.stopAudio(b[1]);
-      const a = new AudioTrack(b[7], rate); a.codec = b[2];
+      const a = new AudioTrack(b[7], rate, b[1] === 102); a.codec = b[2];
       if (b[2] !== 3) {
         a.decoder = C.audioOpen(b[2], rate, b[7], b.slice(9 + b[8]));
         if (a.decoder < 0) { a.close(); this.error = C.error(); return false; }

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Advertise the CarPlay Classic Bluetooth UUID while a Linux receiver runs."""
 import argparse
+import re
 import signal
 
 import dbus
@@ -11,13 +12,16 @@ from gi.repository import GLib
 
 
 CARPLAY_UUID = 'ec884348-cd41-40a2-9727-575d50bf1fd3'
+IAP2_ACCESSORY_UUID = '00000000-deca-fade-deca-deafdecacaff'
 PROFILE_PATH = '/com/zinc/CarPlayDiscovery'
+IAP2_PROFILE_PATH = '/com/zinc/Iap2AccessoryDiscovery'
+AGENT_PATH = '/com/zinc/CarPlayPairingAgent'
 ADAPTER = 'org.bluez.Adapter1'
 
 
 class Profile(dbus.service.Object):
-    def __init__(self, bus, loop):
-        super().__init__(bus, PROFILE_PATH)
+    def __init__(self, bus, loop, path):
+        super().__init__(bus, path)
         self.loop = loop
 
     @dbus.service.method('org.bluez.Profile1', in_signature='', out_signature='')
@@ -33,10 +37,51 @@ class Profile(dbus.service.Object):
         pass
 
 
+class PairingAgent(dbus.service.Object):
+    def __init__(self, bus, address):
+        super().__init__(bus, AGENT_PATH)
+        self.bus = bus
+        self.address = address.upper()
+
+    def allow(self, device):
+        properties = dbus.Interface(self.bus.get_object('org.bluez', device),
+                                    'org.freedesktop.DBus.Properties')
+        address = str(properties.Get('org.bluez.Device1', 'Address')).upper()
+        if address != self.address:
+            raise dbus.DBusException('org.bluez.Error.Rejected', 'Phone not selected for CarPlay')
+
+    @dbus.service.method('org.bluez.Agent1', in_signature='', out_signature='')
+    def Release(self):
+        pass
+
+    @dbus.service.method('org.bluez.Agent1', in_signature='ou', out_signature='')
+    def RequestConfirmation(self, device, passkey):
+        self.allow(device)
+        print(f'CarPlay Bluetooth pairing confirmed for {self.address}', flush=True)
+
+    @dbus.service.method('org.bluez.Agent1', in_signature='o', out_signature='')
+    def RequestAuthorization(self, device):
+        self.allow(device)
+
+    @dbus.service.method('org.bluez.Agent1', in_signature='os', out_signature='')
+    def AuthorizeService(self, device, uuid):
+        self.allow(device)
+        if uuid.lower() not in (CARPLAY_UUID, IAP2_ACCESSORY_UUID):
+            raise dbus.DBusException('org.bluez.Error.Rejected', 'Service not used by CarPlay')
+
+    @dbus.service.method('org.bluez.Agent1', in_signature='', out_signature='')
+    def Cancel(self):
+        pass
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--name', default='PlayPort')
+    parser.add_argument('--pairing-address', help='iPhone Bluetooth address allowed to pair')
     args = parser.parse_args()
+    if args.pairing_address and not re.fullmatch(r'(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}',
+                                                  args.pairing_address):
+        parser.error('--pairing-address expects AA:BB:CC:DD:EE:FF')
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
     objects = dbus.Interface(bus.get_object('org.bluez', '/'),
@@ -50,21 +95,33 @@ def main():
     saved = {key: properties.Get(ADAPTER, key)
              for key in ('Alias', 'Discoverable', 'Pairable', 'DiscoverableTimeout')}
     loop = GLib.MainLoop()
-    profile = Profile(bus, loop)
+    profiles = [Profile(bus, loop, path) for path in (PROFILE_PATH, IAP2_PROFILE_PATH)]
     manager = dbus.Interface(bus.get_object('org.bluez', '/org/bluez'),
                              'org.bluez.ProfileManager1')
-    manager.RegisterProfile(PROFILE_PATH, CARPLAY_UUID, {
-        'Name': args.name, 'Role': 'server', 'Channel': dbus.UInt16(23),
-        'RequireAuthentication': dbus.Boolean(True),
-    })
-    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, loop.quit)
-    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, loop.quit)
+    agent_manager = dbus.Interface(bus.get_object('org.bluez', '/org/bluez'),
+                                   'org.bluez.AgentManager1')
+    agent = PairingAgent(bus, args.pairing_address) if args.pairing_address else None
+    registered = []
+    agent_registered = False
     try:
+        if agent is not None:
+            agent_manager.RegisterAgent(AGENT_PATH, 'NoInputNoOutput')
+            agent_registered = True
+            agent_manager.RequestDefaultAgent(AGENT_PATH)
+        for profile_path, uuid, channel in ((PROFILE_PATH, CARPLAY_UUID, 23),
+                                            (IAP2_PROFILE_PATH, IAP2_ACCESSORY_UUID, 24)):
+            manager.RegisterProfile(profile_path, uuid, {
+                'Name': args.name, 'Role': 'server', 'Channel': dbus.UInt16(channel),
+                'RequireAuthentication': dbus.Boolean(True),
+            })
+            registered.append(profile_path)
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, loop.quit)
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, loop.quit)
         properties.Set(ADAPTER, 'Alias', dbus.String(args.name))
         properties.Set(ADAPTER, 'DiscoverableTimeout', dbus.UInt32(0))
         properties.Set(ADAPTER, 'Pairable', dbus.Boolean(True))
         properties.Set(ADAPTER, 'Discoverable', dbus.Boolean(True))
-        print('CarPlay Bluetooth EIR profile active', flush=True)
+        print('CarPlay and iAP2 accessory Bluetooth EIR profiles active', flush=True)
         loop.run()
     finally:
         for key in ('Discoverable', 'Pairable', 'DiscoverableTimeout', 'Alias'):
@@ -72,10 +129,16 @@ def main():
                 properties.Set(ADAPTER, key, saved[key])
             except dbus.DBusException:
                 pass
-        try:
-            manager.UnregisterProfile(PROFILE_PATH)
-        except dbus.DBusException:
-            pass
+        for profile_path in reversed(registered):
+            try:
+                manager.UnregisterProfile(profile_path)
+            except dbus.DBusException:
+                pass
+        if agent_registered:
+            try:
+                agent_manager.UnregisterAgent(AGENT_PATH)
+            except dbus.DBusException:
+                pass
 
 
 if __name__ == '__main__':

@@ -29,3 +29,4 @@ stream: before 60 ms 0, then left 0.25 right 0.25, buffered 69 ms
 stream: dry after 3392 frames, underruns 1
 stream: a 500 ms burst keeps 49 ms, dropped 21120 frames
 stream closed: ok false buffered 0, bad stream ok false
+wireless stream: waits 0, plays 0.5, continues 0.5, underruns 0, dropped 0

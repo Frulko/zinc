@@ -95,11 +95,12 @@ Z.registerNative('Audio', {
   rate(h) { const s = sounds.get(h); return s && s.buffer ? s.buffer.sampleRate : 0; },
   samples(h, ch) { const s = sounds.get(h); return s && s.buffer && ch < s.buffer.numberOfChannels ? Array.from(s.buffer.getChannelData(ch)) : []; },
   time() { return ctx ? ctx.currentTime : 0; },
-  streamOpen(channels, rate) {
+  streamOpen(channels, rate, primeMs, maxMs) {
     try {
+      if (primeMs < 1 || maxMs < primeMs || maxMs > 1000) throw new Error('stream buffer requires 1 <= primeMs <= maxMs <= 1000');
       const c = context(), g = c.createGain();
       g.connect(master);
-      streams.set(nextStream, { gain: g, channels, rate, at: 0, buffered: 0, underruns: 0, dropped: 0 });
+      streams.set(nextStream, { gain: g, channels, rate, prime: primeMs / 1000, max: maxMs / 1000, at: 0, buffered: 0, underruns: 0, dropped: 0 });
       return nextStream++;
     } catch (e) { lastError = String(e && e.message || e); return -1; }
   },
@@ -109,8 +110,8 @@ Z.registerNative('Audio', {
     const n = Math.floor(samples.length / st.channels), b = c.createBuffer(st.channels, n, st.rate);
     for (let k = 0; k < st.channels; k++) { const d = b.getChannelData(k); for (let i = 0; i < n; i++) d[i] = samples[i * st.channels + k]; }
     const now = c.currentTime;
-    if (st.at < now + 0.0005) { if (st.at > 0) st.underruns++; st.at = now + 0.06; }   // a gap: start again with 60 ms in hand
-    if (st.at - now > 0.18) { st.dropped += n; return n; }                              // far ahead: the writer's clock runs faster, drop the block
+    if (st.at < now + 0.0005) { if (st.at > 0) st.underruns++; st.at = now + st.prime; }
+    if (st.at - now > st.max) { st.dropped += n; return n; }
     const src = c.createBufferSource();
     src.buffer = b; src.connect(st.gain); src.start(st.at);
     st.at += b.duration;
