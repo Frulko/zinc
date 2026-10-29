@@ -139,6 +139,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `--engine quickjs`: `zinc:os` `networkInterfaces`, `userInfo`, `cpus` and `zinc:fs` `symlink`, `readlink`, `chmod` no longer fail with `__host_os... is not defined`.
 - An `await` inside the value assigned to a field or an element (`g.muted = (await read()) === '1'`) no longer fails to compile with Z0108.
 - A row of a virtual list (`VirtualList`, `ui.virtualize`) whose class changes (a selection, a hover style) keeps its place: it no longer jumps to the top of the list and leaves a gap.
 - `zinc:net`: `fetch` with `bodyBytes` sends the bytes as they are; bytes 0x80 and above were turned into U+FFFD, so an uploaded song or picture arrived damaged.
