@@ -1626,6 +1626,24 @@ struct Checker {
         return out.nodeType[i];
       }
     }
+    if (cn.kind == N::Member && cn.text == "sort" && args.empty() && n(cn.kids[0]).kind != N::Super) {  // a.sort(): as JavaScript, by the elements' text
+      const TypeId rt = expr(cn.kids[0]);
+      if (!bad(rt) && ty(rt).k == TK::Array) {
+        const TypeId et = ty(rt).elem;
+        if (et == tStr || et == tBool || isNum(et)) {
+          const std::string A = inspectAliasName(rt), E = inspectAliasName(et);
+          const std::string cmp = et == tStr ? "x < y ? -1 : x > y ? 1 : 0" : "('' + x) < ('' + y) ? -1 : ('' + x) > ('' + y) ? 1 : 0";
+          const std::uint32_t sym = helper("sortText," + std::to_string(rt), "function $F(a: " + A + "): " + A + " {\n  return a.sort((x: " + E + ", y: " + E + "): number => " + cmp + ");\n}\n", {rt, et}, i);
+          const std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
+          out.nodeSym[id] = sym;
+          out.nodeType[id] = out.syms[sym].type;
+          a.nodes[i].kids = {id, cn.kids[0]};
+          rewritten.insert(i);
+          out.nodeType[i] = rt;
+          return rt;
+        }
+      }
+    }
     if (cn.kind == N::Ident && (cn.text == "isNaN" || cn.text == "isFinite") && args.size() == 1 && lookup(cn.text) == kNone) {  // the globals: for a number they are Number.isNaN and Number.isFinite
       TypeId at = expr(args[0]);
       if (!bad(at) && isNum(at)) return rewrite(cn.text == "isNaN" ? "Number.isNaN(__H0)" : "Number.isFinite(__H0)", {{args[0]}});
