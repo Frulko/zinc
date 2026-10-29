@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `await` in a branch of `?:` (`const png = id === '' ? '' : await cover(id)`), and an async function can `return` a promise without awaiting it (it settles as that promise does), as in TypeScript; an `await` inside a larger expression of a branch still asks for a `const` first.
 - `zinc:net`: a reply can send a file (`file: path` in the `Reply`), in blocks and with byte ranges (`Range` gives a 206, a range past the end a 416), so a server streams songs and videos that players can seek; `serveAsync` is declared for TypeScript.
 - `zinc:subtle`: `digest('MD5', data)` for the protocols that still ask for it (Subsonic's tokens); not Web Crypto, never for security.
 - `examples/ipod-web`: a command-line program that serves a web page (and `/pod.json`) showing the iPods plugged into the machine and their specs, read only: `zinc run examples/ipod-web`, then open http://localhost:8686.
@@ -117,6 +118,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- A function expression that uses variables of the function around it, passed where a slightly different function type is expected (a `sort` comparator declared `: i32`), no longer stops the compile with "invalid IR".
 - `zinc:net` servers and fetches work on QuickJS (`--engine quickjs`): its functions were missing there, and a program that only listened ended at once.
 - reMarkable: Sidecar no longer blackens the corners and borders of a light window or picture inside a dark area (black steps, a black bar), and draws thin lines solid in every grey pattern instead of dotted. A tune saved by an older Sidecar switches to "Pictures only" greys.
 - `zinc:ipod`: `detect()` no longer opens the iPods over USB at every scan: it reads the system's USB list, so nothing is sent to an iPod while it is mounted, being ejected or ejected ("OK to disconnect"). An iPod not mounted shows the model its disk gave earlier in the session, else "iPod".

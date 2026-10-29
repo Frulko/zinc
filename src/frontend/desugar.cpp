@@ -197,10 +197,25 @@ struct Desugar {
       return mkIdent(t, i);
     }
     if (kind == N::Cond) {
-      if (susp(n(i).kids[1]) || susp(n(i).kids[2])) { unsupported(i, "'await' in a branch of '?:' (use if/else)"); return i; }
+      Id b1 = n(i).kids[1], b2 = n(i).kids[2];
       Id c0 = lin(n(i).kids[0], pre);
       n(i).kids[0] = c0;
-      return i;
+      if (!susp(b1) && !susp(b2)) return i;
+      // c ? await a : b  =>  await (c ? a : __resolved(b)): only the branch taken is evaluated; the one without await costs a microtask
+      auto plain = [&](Id b) { return !susp(b) || (n(b).kind == N::Await && !susp(n(b).kids[0])); };
+      if (!plain(b1) || !plain(b2)) { unsupported(i, "'await' inside a larger expression in a branch of '?:' (put the branch in a const first, or use if/else)"); return i; }
+      auto nul = [&](Id b) { return (n(b).kind == N::Literal && (n(b).text == "null" || n(b).text == "undefined")) || (n(b).kind == N::Ident && n(b).text == "undefined"); };
+      if (nul(b1) || nul(b2)) { unsupported(i, "'await' in one branch of '?:' and null in the other (use if/else)"); return i; }
+      auto promise = [&](Id b) -> Id {
+        if (susp(b)) return n(b).kids[0];
+        Ids r = sn("__resolved(__H0);", {{b}});
+        return r.empty() ? b : n(r[0]).kids[0];
+      };
+      Id p1 = promise(b1), p2 = promise(b2);
+      n(i).kids[1] = p1;
+      n(i).kids[2] = p2;
+      a.nodes.push_back({N::Await, n(i).start, n(i).end, "", {i}, 0, n(i).file});
+      return lin(static_cast<Id>(a.nodes.size() - 1), pre);
     }
     std::vector<Id> ks = n(i).kids;
     int last = -1;

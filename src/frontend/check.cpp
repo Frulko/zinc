@@ -1072,6 +1072,11 @@ struct Checker {
     auto copy = static_cast<std::uint32_t>(a.nodes.size() - 1);
     if (auto ta = a.targs.find(node); ta != a.targs.end()) { a.targs[copy] = ta->second; a.targs.erase(node); }
     if (rewritten.count(node)) rewritten.insert(copy);
+    // a function expression already checked keeps what it captures, its use of `this`, its own name and its name for the copy the lowering sees
+    if (auto c = out.captures.find(node); c != out.captures.end()) { out.captures[copy] = c->second; out.captures.erase(node); }
+    for (std::uint32_t& l : out.lambdaUsesThis) if (l == node) l = copy;
+    if (auto s = out.selfSym.find(node); s != out.selfSym.end()) { out.selfSym[copy] = s->second; out.selfSym.erase(node); }
+    if (auto l = out.lambdaNames.find(node); l != out.lambdaNames.end()) { out.lambdaNames[copy] = l->second; out.lambdaNames.erase(node); }
     std::uint32_t call = callGenerated(sym, {copy}, node);
     a.nodes[node] = a.nodes[call];
     out.nodeType[node] = out.nodeType[call];
@@ -1727,6 +1732,11 @@ struct Checker {
       TypeId r;
       if (optionalCall(i, kNoType, r)) return r;
     }
+    if (!isNew && x.kids.size() == 2 && n(x.kids[0]).kind == N::Member && n(x.kids[0]).text == "resolveWith" && n(n(x.kids[0]).kids[0]).kind == N::Ident && n(n(x.kids[0]).kids[0]).text == "__p" && lookup("__adopt") != kNone) {   // `return p` in an async function (the desugared `__p.resolveWith(p)`): settles as p does
+      const std::uint32_t self = n(x.kids[0]).kids[0], arg = x.kids[1];
+      const TypeId pt = expr(self), at = expr(arg);
+      if (!bad(at) && promiseKind(at) == 1 && at == pt && replaceWith(i, "__adopt(__H0, __H1)", {{self}, {arg}})) return expr0(i, kNoType);
+    }
     if (isNew && x.kids.size() == 2 && n(x.kids[0]).kind == N::Ident && n(x.kids[0]).text == "Date" && lookup("Date") != kNone && out.syms[lookup("Date")].kind == SymKind::Class) {   // new Date(string) and new Date(date)
       TypeId at = expr(x.kids[1]);
       if (at == tStr) { if (replaceWith(i, "new Date(Date.parse(__H0))", {{x.kids[1]}})) return expr0(i, myExpected); }
@@ -1863,12 +1873,17 @@ struct Checker {
           argNodes.assign(n(i).kids.begin() + 1, n(i).kids.end());
           packed = true;
         }
+        std::uint32_t typedFirst = kNone;   // an argument already typed against the type wanted
         if (cn.text == "__resolved" && argNodes.size() == 1 && !a.targs.count(i) && !recordLiteral(argNodes[0]) && n(argNodes[0]).kind != N::Array && n(argNodes[0]).kind != N::FuncExpr) {  // Promise.resolve(p) is p itself (a literal waits for the type the call is expected to give)
           TypeId at0 = expr(argNodes[0]);
           if (!bad(at0) && promiseKind(at0) == 1 && replaceWith(i, "__H0", {{argNodes[0]}})) return expr0(i, kNoType);
+          if (!bad(at0) && myExpected != kNoType && !bad(myExpected) && promiseKind(myExpected) == 1 && !out.objs[ty(myExpected).obj].typeArgs.empty()) {   // a Promise<i32> wanted: the literal 0 is an i32
+            const TypeId want = out.objs[ty(myExpected).obj].typeArgs[0];
+            if (n(argNodes[0]).kind == N::Number && at0 != want && !hasParam(want) && assignable(at0, want, argNodes[0])) { expr(argNodes[0], want); out.nodeType[argNodes[0]] = want; typedFirst = argNodes[0]; }
+          }
         }
         if (!a.targs.count(i))  // with explicit type arguments the arguments are checked against the parameter types instead (an array literal takes the element kind of `T`)
-        for (std::uint32_t an : argNodes) if (n(an).kind != N::FuncExpr && !(n(an).kind == N::Array && n(an).kids.empty()) && !recordLiteral(an)) expr(an);  // function expressions, empty array literals and object literals wait for the type arguments the others give
+        for (std::uint32_t an : argNodes) if (an != typedFirst && n(an).kind != N::FuncExpr && !(n(an).kind == N::Array && n(an).kids.empty()) && !recordLiteral(an)) expr(an);  // function expressions, empty array literals and object literals wait for the type arguments the others give
         preEvaluated = true;
         GenericDecl& g = generics[gs];
         ensureSelf(g);
@@ -2313,8 +2328,17 @@ struct Checker {
         // `c ? xs : []`: an empty array literal in one branch takes the array type of the other (TypeScript's never[] joins to it)
         auto emptyArr = [&](std::uint32_t k) { return n(k).kind == N::Array && n(k).kids.empty(); };
         const int emptyAt = expected == kNoType && emptyArr(x.kids[1]) != emptyArr(x.kids[2]) ? (emptyArr(x.kids[1]) ? 1 : 2) : 0;
+        // `c ? await p : 0` (desugared to `await (c ? p : __resolved(0))`): the plain branch takes the promise type of the other one
+        auto resolvedCall = [&](std::uint32_t k) { return n(k).kind == N::Call && n(n(k).kids[0]).kind == N::Ident && n(n(k).kids[0]).text == "__resolved"; };
+        const int plainAt = emptyAt == 0 && resolvedCall(x.kids[1]) != resolvedCall(x.kids[2]) ? (resolvedCall(x.kids[1]) ? 1 : 2) : 0;
         TypeId p = kNoType, q = kNoType;
-        if (emptyAt == 1) {
+        if (plainAt == 1) {
+          pushFacts(ff); q = expr(x.kids[2], expected); narrowing.resize(mark);
+          pushFacts(ft); p = expr(x.kids[1], !bad(q) && promiseKind(q) == 1 ? q : expected); narrowing.resize(mark);
+        } else if (plainAt == 2) {
+          pushFacts(ft); p = expr(x.kids[1], expected); narrowing.resize(mark);
+          pushFacts(ff); q = expr(x.kids[2], !bad(p) && promiseKind(p) == 1 ? p : expected); narrowing.resize(mark);
+        } else if (emptyAt == 1) {
           pushFacts(ff); q = expr(x.kids[2], expected); narrowing.resize(mark);
           pushFacts(ft); p = expr(x.kids[1], !bad(q) && ty(q).k == TK::Array ? q : expected); narrowing.resize(mark);
         } else {
