@@ -394,6 +394,8 @@ The next backlog review turns lines into tasks or deletes them.
 - QuickJS: do the checked copy where `any` meets a typed target (D179: drop undeclared properties, TypeError on a wrong type), so JSON.parse into an interface agrees with the interpreter and AOT; the QuickJS transform needs the checker's conversion sites.
 - zinc:system/media on the web target: forward to navigator.mediaSession in plugins/system/web/system.js; accept http(s) artwork URLs.
 - Z5006's lists of system features (include/zn/diagnostics.h, i18n/*/diag.json, docs/diagnostics.md) miss share, update and media: build them from systemFeatures().
+- zinc:fs has no appendBytes nor a write at an offset: the iPod demo's jukebox source joins its Range slices in memory (2.3 s per 40 MB on the interpreter).
+- Checker: Z0005 for an await in a nested ternary branch (`c ? await a() : d ? await a() : []`); Z0103 for `.then` returning a Promise (no flattening to Promise<T>).
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -619,7 +621,11 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod moods: moodMix ranks energy with indexOf per song, O(n^2); sort once with indices for 10,000 analysed songs.
 - iPod demo: the mood mixer's tempo bar and the volume bar are click-only; add dragging to both.
 
+- iPod satellite: POST /devices/:id/jobs (pull with Range, one addWith, remove, committing), GET and DELETE of a job, fingerprints in the track list; then play-count deltas to jukebox once its plays endpoint exists (docs/reports/ipod-jukebox-interconnect.md §7).
+- iPod jukebox source: ALAC rather than AAC 256k for a roomy Classic; covers for remote adds (/api/update takes none); a virtualised browse list with multi-select.
+
 ## Cross-platform pass
+- Run ipod_jukebox and ipod_satellite on Linux (afconvert is missing there; the test uses ffmpeg, else skips).
 - zinc:system/media: a Linux backend (MPRIS over D-Bus) and a Windows one (SystemMediaTransportControls), then turn on mediasession for those profiles.
 - iPod AudioMuse over the LAN from the Pi daemon, with the same client.
 - iPod: run ipod_smart on Linux.
