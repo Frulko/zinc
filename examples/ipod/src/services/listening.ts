@@ -11,7 +11,7 @@ import { current, isPlaying, position } from './player';
 import { openUrl } from 'zinc:system/opener';
 import * as net from 'zinc:net';
 import * as sys from 'zinc:sys';
-import { Scrobbler, Scrobble, Accounts, lastfmToken, lastfmWebAuthUrl, lastfmSession, lastfmCheck, listenbrainzCheck, appendHistory, isoLocal } from './scrobble';
+import { Scrobbler, Scrobble, Accounts, lastfmToken, lastfmWebAuthUrl, lastfmSession, LastfmSessionInfo, lastfmCheck, listenbrainzCheck, appendHistory, isoLocal } from './scrobble';
 import { output } from './sonos';
 import { loadConfig, saveConfig, AppConfig } from './config';
 import { log, backupPlace } from './log';
@@ -164,7 +164,7 @@ function page(title: string, text: string): net.Reply {
 /** Saves the key and secret, starts the callback and opens Last.fm's approval page in the browser; awaitLastfm() waits for it. */
 export async function startLastfm(key: string, secret: string): Promise<void> {
   const c = loadConfig();
-  c.lastfmKey = key.trim(); c.lastfmSecret = secret.trim(); c.lastfmSession = ''; c.lastfmUser = '';
+  c.lastfmKey = key.trim(); c.lastfmSecret = secret.trim();   // a session already there stays until a new one comes
   if (c.lastfmKey === '' || c.lastfmSecret === '') throw new Error('Last.fm: paste the API key and the shared secret first');
   saveConfig(c);
   useAccounts(c);
@@ -172,18 +172,26 @@ export async function startLastfm(key: string, secret: string): Promise<void> {
   let path = '/lastfm-';
   for (const b of sys.randomBytes(12)) path += (b < 16 ? '0' : '') + (b as i32).toString(16);
   cbPath = path; cbName = ''; cbError = '';
+  // a browser that asks twice (a reload, a preload) is answered from the first trade: a token trades for a session only once
+  let tradeToken = '';
+  let trade: Promise<LastfmSessionInfo> | null = null;
+  let hits: i32 = 0;
   cbPort = net.serveAsync(0, async (req: net.Request): Promise<net.Reply> => {
     const q = req.path.indexOf('?');
     if ((q < 0 ? req.path : req.path.slice(0, q)) !== path) return { status: 404, body: 'not found', contentType: 'text/plain' };
     const params = new URLSearchParams(q < 0 ? '' : req.path.slice(q + 1));
     const token = params.get('token') ?? '';
+    hits++;
+    log('Last.fm', `the browser came back (${hits}): ${token === '' ? 'no token' : `a token of ${token.length} characters`}`, token !== '');
     if (token === '') return page('Last.fm did not approve', 'No token came back. Go back to the iPod app and press Sign in again.');
+    if (token !== tradeToken || trade === null) { tradeToken = token; trade = lastfmSession(c.lastfmKey, c.lastfmSecret, token); }
     try {
-      const s = await lastfmSession(c.lastfmKey, c.lastfmSecret, token);
-      cbName = signedIn(s.key, s.name);
+      const s = await (trade as Promise<LastfmSessionInfo>);
+      if (cbName === '') cbName = signedIn(s.key, s.name);
       return page(`Connected as ${s.name}`, 'Your listens now go to Last.fm. You can close this tab and go back to the iPod app.');
     } catch (e) {
       cbError = (e as Error).message;
+      log('Last.fm', `the session was refused: ${cbError}`, false);
       return page('Last.fm sign-in failed', `${cbError}. Go back to the iPod app and press Sign in again.`);
     }
   });

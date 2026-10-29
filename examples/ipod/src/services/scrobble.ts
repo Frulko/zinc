@@ -48,7 +48,7 @@ interface OpenFile { listens: OpenListen[]; }
 interface QueueFile { items: Scrobble[]; }
 interface LastfmError { error?: i32; message?: string; }
 interface LastfmSessionReply { session?: LastfmSessionInfo; error?: i32; message?: string; }
-interface LastfmSessionInfo { name: string; key: string; }
+export interface LastfmSessionInfo { name: string; key: string; }
 interface LastfmTokenReply { token?: string; error?: i32; message?: string; }
 
 function lastfmOn(a: Accounts): boolean { return a.lastfmKey !== '' && a.lastfmSecret !== '' && a.lastfmSession !== ''; }
