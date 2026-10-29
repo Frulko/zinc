@@ -9,6 +9,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Headless tests: `keyup NAME` and `hold shift` (`hold` lets go) lines in `ZINC_INPUT` script a key's release and modifiers held alone.
+- zinc:ui: `ui.onKeyUp(f)` hears a key's release, and Shift, Control, Alt and Meta held alone now reach `ui.onKey` and `ui.onKeyUp` (hold Shift to pick several things, file them when it is let go).
 - iPod demo: the song playing (here or on a Sonos group) shows in macOS Control Center's Now Playing with its cover and position, and the media keys, Control Center and AirPods play, pause, skip and seek it.
 - `zinc:system/media`: an app that plays shows in macOS Control Center's Now Playing (title, artist, album, cover, position, playing or paused) and answers the media keys and AirPods buttons, with the web's Media Session API (`mediaSession.metadata`, `playbackState`, `setPositionState`, `setActionHandler`); permission `"media"`. Other targets do nothing (`zinc:platform` `MEDIASESSION`).
 - TypeScript's utility types: `Partial<T>`, `Required<T>`, `Readonly<T>`, `Pick<T, 'a' | 'b'>`, `Omit<T, 'a'>` over an interface or a record of data properties, and `Record<'a' | 'b', V>` (keys given as string literals; a dictionary is still a `Map<string, V>`).

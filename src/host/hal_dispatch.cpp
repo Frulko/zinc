@@ -50,7 +50,8 @@ static void hold() {
 }
 
 // Scripted input for headless runs (ZINC_INPUT=file): one event per line, `<frame> <event>`, frames counted from 0 at each poll.
-//   move X Y | down | up | right-down | right-up | key NAME (a character, Space, Enter, Escape, Arrow*...) [shift|ctrl|alt|meta]... | text WORD | text "several words" (\" and \\ inside) | wheel DX DY | scroll DX DY PHASE (precise pixels and
+//   move X Y | down | up | right-down | right-up | key NAME (a character, Space, Enter, Escape, Arrow*...) [shift|ctrl|alt|meta]... | keyup NAME [mods] (its release) |
+//   hold MODS (modifiers held alone until the next hold: "hold shift", "hold" lets go of them all) | text WORD | text "several words" (\" and \\ inside) | wheel DX DY | scroll DX DY PHASE (precise pixels and
 //   the phase, as a trackpad's HAL reports them: HalInput.scroll_*) | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
 //   gamepad I [NAME...] (a gamepad is plugged in slot I, 0 to 3) | gamepadoff I | gbutton I B [VALUE] (button B of the W3C standard order,
 //   0 to 16, held until gbuttonup; VALUE 0..1: a trigger's travel or a pressure-sensitive button's press) | gbuttonup I B | gaxis I A VALUE (axis 0 to 3, -1..1, kept)
@@ -189,9 +190,9 @@ bool applyEvent(const Event& e, HalInput* in, float& x, float& y, uint32_t& held
   }
   else if (e.kind == "wheel") { in->wheel_x += static_cast<float>(atof(e.a.c_str())); in->wheel += static_cast<float>(atof(e.b.c_str())); }
   else if (e.kind == "scroll") { in->scroll_dx += static_cast<float>(atof(e.a.c_str())); in->scroll_dy += static_cast<float>(atof(e.b.c_str())); in->scroll_phase = atoi(e.c.c_str()); }
-  else if (e.kind == "key" && in->nkeys < HAL_MAX_KEYS) {
-    in->keys[in->nkeys++] = HalKey{keyCode(e.a), modsOf(e.b), HAL_KEY_DOWN, 0, 0};
-  } else if (e.kind == "text" && in->nkeys < HAL_MAX_KEYS) {
+  else if ((e.kind == "key" || e.kind == "keyup") && in->nkeys < HAL_MAX_KEYS) {
+    in->keys[in->nkeys++] = HalKey{keyCode(e.a), modsOf(e.b), e.kind == "key" ? HAL_KEY_DOWN : HAL_KEY_UP, 0, 0};
+  } else if (e.kind == "hold") in->mods = modsOf(e.a); else if (e.kind == "text" && in->nkeys < HAL_MAX_KEYS) {
     size_t n = e.a.size();
     if (static_cast<size_t>(in->ntext) + n < HAL_TEXT_BYTES) {
       in->keys[in->nkeys++] = HalKey{0, 0, HAL_KEY_TEXT, static_cast<uint16_t>(in->ntext), static_cast<uint16_t>(n)};

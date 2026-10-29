@@ -919,6 +919,10 @@ export function onKeyDown(h: i32, f: (e: KeyEvent) => void): void { handlers(h).
 const keyHandlers: ((e: KeyEvent) => void)[] = [];
 /** Global key handler (shortcuts): gets the keys that the focused node and text fields did not handle. */
 export function onKey(f: (e: KeyEvent) => void): void { keyHandlers.push(f); }
+const keyUpHandlers: ((e: KeyEvent) => void)[] = [];
+/** A key was released, anywhere in the app (DOM keyup): the key's name as onKey gives it, and 'Shift', 'Control', 'Alt' or 'Meta' when a
+ *  modifier is let go, which onKey also hears when it goes down (a modifier held alone: Shift held for a multiple selection). */
+export function onKeyUp(f: (e: KeyEvent) => void): void { keyUpHandlers.push(f); }
 function editOf(h: i32): Edit {
   const e = node(h).ed;
   if (e === null) throw new Error('not a text field (<Input> or <TextArea>)');
@@ -5957,8 +5961,22 @@ const NAV_BTN: i32[] = [Btn.Up, Btn.Down, Btn.Left, Btn.Right, Btn.A, Btn.Select
 let navKeys: i32 = 0, navBack = false;
 let dropText = false;   // the text event of a key down that a handler consumed is skipped
 function navPressed(b: i32): boolean { return wasPressed(b) || (navKeys & (1 << b)) !== 0; }
+const MOD_KEYS: string[] = ['Shift', 'Control', 'Alt', 'Meta'];   // the bits SHIFT, CTRL, ALT, META, in order
+let keyMods0: i32 = 0;   // the modifiers held at the previous frame: a change is a key down or up of that modifier
+function dispatchKeyUp(key: string, mods: i32): void {
+  const ev = new KeyEvent(key, mods, false);
+  for (const f of keyUpHandlers) { if (ev.handled) break; f(ev); }
+}
 function inputFrame(): void {
   curMods = modifiers();
+  if (curMods !== keyMods0) {
+    for (let b = 0; b < 4; b++) {
+      const bit = 1 << b, was = (keyMods0 & bit) !== 0, now = (curMods & bit) !== 0;
+      if (now && !was) dispatchKey(MOD_KEYS[b], curMods, false);
+      else if (was && !now) dispatchKeyUp(MOD_KEYS[b], curMods);
+    }
+    keyMods0 = curMods;
+  }
   const px = pointerX(), py = pointerY();
   if (pick !== null) { pickInput(px, py); return; }
   const wy = wheel(), wx = wheelX(), pz = pinch();
@@ -5976,6 +5994,7 @@ function inputFrame(): void {
     const kind = keyKind(i);
     if (kind === KeyKind.Text) { if (dropText) dropText = false; else typeInto(focus, keyName(i)); }
     else if (kind === KeyKind.Down || kind === KeyKind.Repeat) dispatchKey(keyName(i), keyMods(i), kind === KeyKind.Repeat);
+    else if (kind === KeyKind.Up && keyUpHandlers.length > 0) dispatchKeyUp(keyName(i), keyMods(i));
   }
 }
 
