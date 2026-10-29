@@ -1,7 +1,7 @@
 // The web server: `/` the page, `/pod.json` the same data for a program, `/api/...` the iPod API, `/rest/...` Subsonic, else a 404.
 import * as net from 'zinc:net';
 import { last } from '../state';
-import { page, json } from '../page';
+import { page, json } from '../web/page';
 import { api } from './api';
 import { rest } from './subsonic';
 

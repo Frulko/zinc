@@ -8,7 +8,7 @@ Decision D178 (docs/reports/zinc-next-decisions.md).
 
 ```
 iPod ──USB── Pi / C.H.I.P.: examples/ipod-web (one Zinc program, compiled: zinc build)
-               ├─ /             the page: the iPods and their specs (read only, no token)
+               ├─ /             the management page: library, player, uploads, deletes, eject, specs (it calls /api)
                ├─ /pod.json     the same as JSON (read only, no token)
                ├─ /api/...      the iPod API (JSON), for the Mac app's "remote iPod"
                └─ /rest/...     the Subsonic API 1.16.1 (XML or JSON), for any Subsonic client
@@ -37,6 +37,7 @@ zinc run examples/ipod-web -- [--port 8686] [--token T] [--user U --password P] 
 
 | Route | Answer |
 |---|---|
+| `GET /api/status` | `{"open", "name", "error", "allowChanges", "songs", "albums", "artists", "playlists"}`, and when the open iPod is seen `"model", "generation", "capacityGb", "totalBytes", "freeBytes", "readOnly"`: what the page's header shows |
 | `GET /api/devices` | `{"devices": [Device...], "open": "<mountpoint or ''>"}` (zinc:ipod Device fields as named in ipod.spec.ts) |
 | `GET /api/specs` | `{"specs": [{"group","name","value"}...]}` of the open iPod |
 | `GET /api/tracks` | `{"tracks": [Track...]}` (Track fields as in ipod.spec.ts) |
@@ -63,6 +64,17 @@ implemented by this server".
 
 Ids: a track is `tr-<id>`, an album `al-<n>`, an artist `ar-<n>`, numbered in the order of a sort by name at each library load
 (stable while the library does not change); cover art ids are the album's or the track's.
+
+## The web page
+
+`/` is a management page in one HTML document (inline CSS and plain JavaScript, nothing fetched from outside: it works on a LAN
+without internet), written by `src/web/` and filled from `/api` in the browser. The header: name, model, storage bar, counts, whether
+changes are allowed, the connection state (it asks `/api/status` every 5 s and reads the library again when it changed). Songs (search,
+sort, pages of 200 rows), albums with lazy covers, playlists; a click plays the file in an `<audio>` element (ranges: seeking works),
+previous and next follow the list shown; each song has a download link. With `--allow-changes`: uploads by drop or picker (one
+`POST /api/add` per file, a progress bar and the result each), deleting the ticked songs and ejecting, both confirmed inside the page.
+The specs in a section that opens. From another machine the page asks the token once and keeps it in the browser (`localStorage`); it
+is sent as `Authorization: Bearer`, and as `?token=` for the audio, covers and downloads. The page itself needs no token.
 
 ## The Mac app
 

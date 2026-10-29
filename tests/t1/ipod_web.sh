@@ -2,7 +2,9 @@
 # examples/ipod-web, the iPod daemon, on a fake iPod (a folder with iPod_Control/Device/SysInfo, no USB) that a small program first
 # gives a database with two tagged WAV songs (one with a cover). Read only: the page and /pod.json, /api with and without the token,
 # tracks, a file with a byte range, Subsonic ping (password and token auth, a bad password), getArtists and getAlbum in JSON and XML,
-# search3, stream with a range, getCoverArt, a write refused (403). Then with --allow-changes: an add by POST and a remove.
+# search3, stream with a range, getCoverArt, a write refused (403). Then with --allow-changes: an add by POST and a remove, and the
+# management page in headless Chrome (tools/cdp.py; skipped without Chrome): the token form, the songs from /api, the search, a
+# click that plays the file, an upload through the page's own code, a delete confirmed in the page.
 # Port 8687 (a fixed port: run alone). Skipped (77) without the plugin's libraries.
 cd "$(dirname "$0")/../.." || exit 2
 pkg-config --exists glib-2.0 gobject-2.0 libplist-2.0 taglib libusb-1.0 2>/dev/null || { echo "skipped: the libraries of zinc:ipod are not installed"; exit 77; }
@@ -55,7 +57,8 @@ code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 A='Authorization: Bearer secret'
 
 start
-want 'the page' '*Serving Zinc Pod*: 2 songs, 1 albums, 1 artists*<h2>ZINCPOD</h2>*Classic (Silver)*' "$(curl -s $B/)"
+want 'the page' '*id="pod-name"*Serving Zinc Pod*: 2 songs, 1 albums, 1 artists*id="token-form"*id="search"*id="songs"*id="albums"*id="playlists"*id="manage"*id="specs"*<h2>ZINCPOD</h2>*Classic (Silver)*<audio id="audio"*' "$(curl -s $B/)"
+want '/api/status' '{"open":"*ZINCPOD","name":"Zinc Pod","error":"","allowChanges":false,"songs":2,"albums":1,"artists":1,"playlists":1,"model":"Classic (Silver)"*' "$(curl -s -H "$A" $B/api/status)"
 want 'the JSON' '*"Model": "Classic (Silver)"*"Serial number": "8K1234ABCDE"*' "$(curl -s $B/pod.json)"
 want 'another path' 404 "$(code $B/nope)"
 want '/api without token' 401 "$(code $B/api/tracks)"
@@ -97,5 +100,36 @@ want 'added' '*3 songs*' "$(curl -s $B/)"
 new=$(echo "$added" | sed 's/.*"id":"\([^"]*\)".*/\1/')
 want 'remove' '{"removed": 1}' "$(curl -s -H "$A" -d "{\"ids\": [\"$new\"]}" $B/api/remove)"
 want 'removed' '*2 songs*' "$(curl -s $B/)"
+if python3 -c 'import sys; sys.path.insert(0, "tools"); import cdp; sys.exit(0 if cdp.find_chrome() else 1)'; then
+  web=$(python3 - "$B" <<'PY'
+import sys; sys.path.insert(0, 'tools')
+from cdp import Chrome
+B = sys.argv[1]
+WAIT = 'new Promise(function (ok) { var n = 0; (function t() { var v = (%s); if (v || ++n > 100) ok(v); else setTimeout(t, 50); })(); })'
+with Chrome(['--autoplay-policy=no-user-gesture-required']) as c:
+    c.open(B + '/')
+    out = [c.eval(WAIT % "!$('token-form').hidden && 'token form'")]
+    c.eval("$('token').value = 'secret'; $('token-form').requestSubmit()")
+    out.append(c.eval(WAIT % "document.querySelectorAll('#song-rows tr[data-id]').length === 2 && 'songs ' + $('counts').textContent"))
+    c.eval("$('search').value = 'bet'; $('search').dispatchEvent(new Event('input'))")
+    out.append(c.eval(WAIT % "document.querySelectorAll('#song-rows tr[data-id]').length === 1 && 'search ' + $('song-rows').textContent"))
+    c.eval("document.querySelector('#song-rows tr[data-id] td:nth-child(2)').click()")
+    out.append(c.eval(WAIT % "$('audio').duration > 1 && 'plays ' + $('audio').src.split('?')[1] + ' ' + Math.round($('audio').duration) + ' s ' + document.querySelector('#song-rows tr.playing td:nth-child(2)').textContent"))
+    c.eval("fetch($('audio').src).then(function (r) { return r.blob(); }).then(function (b) { addFiles([new File([b], 'Gamma.wav')]); })")
+    out.append(c.eval(WAIT % "/Added/.test($('uploads').textContent) && S.tracks.some(function (t) { return t.title === 'Gamma'; }) && 'upload ' + $('uploads').textContent"))
+    c.eval("$('search').value = 'gam'; $('search').dispatchEvent(new Event('input'))")
+    c.eval(WAIT % "document.querySelectorAll('#song-rows tr[data-id]').length === 1 && /Gamma/.test($('song-rows').textContent)")
+    c.eval("document.querySelector('#song-rows input[type=checkbox]').click(); $('delete').click()")
+    out.append(c.eval("!$('confirm').hidden && $('confirm-text').textContent"))
+    c.eval("$('confirm-yes').click()")
+    out.append(c.eval(WAIT % "S.tracks.length === 2 && $('manage-msg').textContent"))
+    bad = [p for p in c.problems if '401' not in p[1] and 'favicon' not in p[1]]   # the 401 before the token is expected
+    print(' | '.join(str(o) for o in out), bad or '')
+PY
+)
+  want 'the page in Chrome' 'token form | songs 2 songs*1 albums* | search *Beta* | plays token=secret 2 s Beta | upload Gamma.wav*Added | Delete “Gamma” from the iPod? | Deleted 1 song. ' "$web"
+else
+  echo "the page in Chrome: skipped (no Chrome)"
+fi
 stop
 exit $fail

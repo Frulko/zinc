@@ -33,6 +33,18 @@ function playlistEl(p: ipod.Playlist): El {
     .json('trackIds', strings(p.trackIds));
 }
 
+/** What the web page's header shows: the open iPod (open '' when none), its storage and counts, and whether changes are allowed. */
+function statusEl(): El {
+  const e = new El('status').s('open', lib.mountpoint).s('name', lib.name).s('error', lib.error).b('allowChanges', options.allowChanges)
+    .n('songs', lib.tracks.length).n('albums', lib.albums.length).n('artists', lib.artists.length).n('playlists', lib.playlists.length);
+  for (const d of last.pods) {
+    if (d.mountpoint !== lib.mountpoint || lib.mountpoint === '') continue;
+    e.s('model', d.model).s('generation', d.generation).n('capacityGb', d.capacityGb).n('totalBytes', d.totalBytes)
+      .n('freeBytes', d.freeBytes).b('readOnly', d.readOnly);
+  }
+  return e;
+}
+
 function authorized(req: net.Request, q: Query): boolean {
   if (req.headers.get('authorization') === 'Bearer ' + options.token || q.get('token') === options.token) return true;
   return !options.tokenGiven && req.remoteAddress === '127.0.0.1';
@@ -55,7 +67,9 @@ async function add(req: net.Request, q: Query): Promise<net.Reply> {
   const name = q.get('name').split('/').pop() as string;
   if (name === '' || name.indexOf('.') < 0) return fail(400, 'Give the file name with its extension: /api/add?name=song.mp3.');
   if (req.rawBody === undefined || (req.rawBody as string).length === 0) return fail(400, 'The request body must be the file.');
-  const file = `${cacheDir()}/upload-${name}`;
+  const dir = `${cacheDir()}/upload-${Date.now()}`;   // the file keeps its own name: a song without tags is titled after it
+  const file = `${dir}/${name}`;
+  fs.mkdir(dir, true);
   fs.writeText(file, req.rawBody as string);
   try {
     const results = await ipod.add([file], q.get('playlist'));
@@ -64,7 +78,7 @@ async function add(req: net.Request, q: Query): Promise<net.Reply> {
     for (const r of results) root.add(new El('results').s('file', name).s('id', r.id).s('error', r.error));
     return jsonReply(200, toJson(root));
   } finally {
-    fs.remove(file);
+    fs.remove(dir, true);
   }
 }
 
@@ -98,6 +112,7 @@ async function route(req: net.Request, q: Query): Promise<net.Reply> {
     for (const d of last.pods) root.add(deviceEl(d));
     return jsonReply(200, toJson(root));
   }
+  if (what === 'status') return jsonReply(200, toJson(statusEl()));
   if (what !== 'tracks' && what !== 'playlists' && what !== 'specs' && what !== 'file' && what !== 'cover') return fail(404, `There is no route /api/${what}.`);
   if (lib.mountpoint === '') return fail(404, 'No iPod is open.');
   if (what === 'tracks') {
