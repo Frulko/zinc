@@ -1,12 +1,15 @@
 // What shows while no iPod is open: the search for one (it looks again every few seconds), the iPods to pick from when there
 // are several, an iPod seen on USB but not mounted (what USB tells, and how to get it mounted), the opening, and errors; and the
-// connection to a remote iPod (an iPod daemon's address and token).
+// connection to a remote iPod (an iPod daemon's address and token). With several iPods, a search keeps them by name, model, serial and
+// mountpoint.
 import * as ui from 'zinc:ui';
 import * as ipod from 'zinc:ipod';
 import { Spinner } from 'zinc:ui/kit';
 import { Icon } from 'zinc:icons';
 import { createSignal } from 'zinc:ui/solid';
-import { pods, opening, error, rescan, scanning, openDevice, library, remoteAddress, remoteToken, openRemoteDevice } from '../../state';
+import { pods, opening, error, rescan, scanning, openDevice, library, remoteAddress, remoteToken, openRemoteDevice, search, setSearch, scrollKey } from '../../state';
+import { SearchField } from '../../components/SearchField';
+import { hay, words, matches } from '../../search';
 import { PodDrawing } from '../../components/PodDrawing';
 import { Button } from '../../components/Button';
 import { mountPod, notice } from '../../actions';
@@ -65,7 +68,11 @@ function RemoteCard(): i32 {
 }
 
 export function DevicesPage(): i32 {
-  return <ScrollView className="grow">
+  const listed = (): ipod.Device[] => {
+    const ws = words(search());
+    return ws.length === 0 ? pods() : pods().filter((d: ipod.Device) => matches(hay([d.name, d.model, d.generation, d.serial, d.mountpoint]), ws));
+  };
+  return <ScrollView className="grow" scrollKey={scrollKey('devices')}>
     <View className="flex-col items-center gap-8 px-10 py-14">
       <View className="flex-col items-center gap-2">
         <Text className={`text-[26px] font-bold ${fg(TEXT)}`}>{pods().length === 0 ? 'Connect an iPod' : opening() !== '' ? 'Reading the iPod' : 'Choose an iPod'}</Text>
@@ -83,7 +90,8 @@ export function DevicesPage(): i32 {
             <Text className={`text-[13px] ${fg(MUTED)}`}>{opening() !== '' ? 'Reading its tracks, playlists and details…' : 'Looking for iPods…'}</Text>
           </View>
         : <View />}
-      {pods().length > 0 ? <View className="flex-row flex-wrap justify-center gap-5">{pods().map((d: ipod.Device) => <PodCard d={d} />)}</View> : <View />}
+      {pods().length > 1 ? <SearchField value={search()} onInput={(v: string) => setSearch(v)} placeholder="Search iPods" width={260} /> : <View />}
+      {pods().length > 0 ? <View className="flex-row flex-wrap justify-center gap-5">{listed().map((d: ipod.Device) => <PodCard d={d} />)}</View> : <View />}
       <View className={`flex-row items-center gap-2 px-4 h-[32] rounded-[8] border cursor-pointer ${bd(BORDER)} hover:${bg(HOVER)}`}
         onPointerDown={(e: ui.PointerEvent) => { if (!scanning()) rescan(true); }}>
         <Icon name="refresh-cw" size={14} color={() => color(TEXT)} strokeWidth={2} />

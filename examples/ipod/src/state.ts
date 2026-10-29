@@ -1,8 +1,10 @@
 // The app's state: the iPods found (watched: one mounted, unmounted or pulled shows within seconds), the one open and its library
 // (albums built from the tracks), the page shown, the search, sort and selection of the songs, the Allow changes switch, and the
-// actions the pages call to look and open (the changes and transfers are in actions.ts). Nothing runs at import: main.tsx starts
-// the scan.
+// actions the pages call to look and open (the changes and transfers are in actions.ts). What is shown is a history (zinc:ui/history): each
+// page and each album, artist, playlist, photo album, photo or note opened is an entry, and back and forward give its search, selection and
+// scroll back. Nothing runs at import: main.tsx starts the history and the scan.
 import { createSignal, createMemo, batch } from 'zinc:ui/solid';
+import { createHistory, History } from 'zinc:ui/history';
 import * as ipod from 'zinc:ipod';
 import { findPods, openPod, openRemote, closePod, forgetPod, readLibrary, PodLibrary } from './services/ipod';
 import { loadConfig, saveConfig } from './services/config';
@@ -11,7 +13,8 @@ import { log } from './services/log';
 import { dropCovers, prefetchCovers } from './services/covers';
 import { stop as stopPlaying } from './services/player';
 import { resume as resumeSession } from './services/session';
-import { PAGE_OVERVIEW, SCAN_EVERY_MS, kindsOf } from './constants';
+import { PAGE_OVERVIEW, PAGE_ALBUMS, PAGE_ARTISTS, PAGE_PLAYLISTS, PAGE_PHOTOS, PAGE_FILES, SCAN_EVERY_MS, kindsOf } from './constants';
+import { hay, words, matches } from './search';
 
 /** An album: the tracks that share an album name and album artist, in disc and track order. */
 export class Album {
@@ -19,7 +22,15 @@ export class Album {
   tracks: ipod.Track[] = [];
   /** A track with a cover ('' when none has one). */
   coverTrack: string = '';
+  /** Its title, artist and year folded for the search. */
+  hay: string = '';
   constructor(key: string, title: string, artist: string) { this.key = key; this.title = title; this.artist = artist; this.year = 0; }
+}
+
+/** An artist (an album artist): their albums, in the albums' order, and how many songs. */
+export class Artist {
+  name: string; albums: Album[] = []; songs: i32 = 0; hay: string;
+  constructor(name: string) { this.name = name; this.hay = hay([name]); }
 }
 
 export const [pods, setPods] = createSignal<ipod.Device[]>([]);
@@ -37,7 +48,12 @@ export const [photoAlbumShown, setPhotoAlbumShown] = createSignal<string>('');
 export const [photoShown, setPhotoShown] = createSignal<string>('');
 /** The path of the note, contact or calendar shown on the Files page. */
 export const [extraShown, setExtraShown] = createSignal<string>('');
+/** The artist picked on the Artists page. */
+export const [artistShown, setArtistShown] = createSignal<string>('');
+/** The search of the page shown (its albums, artists, playlists, photo albums, files, tracks, backups or iPods). */
 export const [search, setSearch] = createSignal<string>('');
+/** The search inside the playlist shown. */
+export const [trackSearch, setTrackSearch] = createSignal<string>('');
 /** The songs' sort: title | artist | album | time, and its direction. */
 export const [sortKey, setSortKey] = createSignal<string>('title');
 export const [sortUp, setSortUp] = createSignal<boolean>(true);
@@ -69,10 +85,53 @@ export const albums = createMemo<Album[]>(() => {
     if (al.year === 0 && t.year > 0) al.year = t.year;
     if (al.coverTrack === '' && t.artwork) al.coverTrack = t.id;
   }
-  for (const a of out) a.tracks.sort(inAlbumOrder);
+  for (const a of out) { a.tracks.sort(inAlbumOrder); a.hay = hay([a.title, a.artist, a.year > 0 ? `${a.year}` : '']); }
   out.sort((a: Album, b: Album) => { const c = byText(a.artist, b.artist); return c !== 0 ? c : byText(a.title, b.title); });
   return out;
 }, []);
+
+/** The albums the search keeps. */
+export const shownAlbums = createMemo<Album[]>(() => {
+  const ws = words(search()), all = albums();
+  if (ws.length === 0) return all;
+  return all.filter((a: Album) => matches(a.hay, ws));
+}, []);
+
+/** The album artists, by name, each with their albums. */
+export const artists = createMemo<Artist[]>(() => {
+  const out: Artist[] = [];
+  const byName = new Map<string, Artist>();
+  for (const a of albums()) {
+    let ar = byName.get(lower(a.artist));
+    if (ar === undefined) { const made = new Artist(a.artist); byName.set(lower(a.artist), made); out.push(made); ar = made; }
+    (ar as Artist).albums.push(a);
+    (ar as Artist).songs += a.tracks.length;
+  }
+  return out;
+}, []);
+
+/** The artists the search keeps. */
+export const shownArtists = createMemo<Artist[]>(() => {
+  const ws = words(search()), all = artists();
+  if (ws.length === 0) return all;
+  return all.filter((a: Artist) => matches(a.hay, ws));
+}, []);
+
+/** Each track's title, artist and album folded for the search, by track id (built once per library). */
+export const trackHay = createMemo<Map<string, string>>(() => {
+  const out = new Map<string, string>();
+  const lib = library();
+  if (lib === null) return out;
+  for (const t of lib.tracks) out.set(t.id, hay([t.title, t.artist, t.album]));
+  return out;
+}, new Map<string, string>());
+
+/** The tracks of `list` the words keep (all with no word). */
+export function filterTracks(list: ipod.Track[], ws: string[]): ipod.Track[] {
+  if (ws.length === 0) return list;
+  const index = trackHay();
+  return list.filter((t: ipod.Track) => matches(index.get(t.id) ?? '', ws));
+}
 
 /** How many tracks of the open iPod are of the kinds a page lists. */
 export function countOf(page: string): i32 {
@@ -89,11 +148,11 @@ export function countOf(page: string): i32 {
 export const songs = createMemo<ipod.Track[]>(() => {
   const lib = library();
   if (lib === null) return [];
-  const q = lower(search().trim()), key = sortKey(), up = sortUp(), kinds = kindsOf(page());
+  const ws = words(search()), key = sortKey(), up = sortUp(), kinds = kindsOf(page()), index = trackHay();
   const out: ipod.Track[] = [];
   for (const t of lib.tracks) {
     if (kinds.indexOf(t.mediaType) < 0) continue;
-    if (q === '' || lower(t.title).indexOf(q) >= 0 || lower(t.artist).indexOf(q) >= 0 || lower(t.album).indexOf(q) >= 0) out.push(t);
+    if (ws.length === 0 || matches(index.get(t.id) ?? '', ws)) out.push(t);
   }
   out.sort((a: ipod.Track, b: ipod.Track) => {
     let c: i32 = 0;
@@ -147,7 +206,51 @@ export function sortBy(key: string): void {
   else batch(() => { setSortKey(key); setSortUp(true); });
 }
 
-export function showPage(p: string): void { batch(() => { setPage(p); setAlbumShown(null); setPhotoShown(''); setSearch(''); setSelected([]); setSelectAnchor(-1); }); }
+// ---- what is shown, as entries of a history
+/** What one entry of the history shows: the page, what is open on it, its searches and the rows selected. */
+export class Shown {
+  page: string = PAGE_OVERVIEW; album: string = ''; artist: string = ''; playlist: string = ''; photoAlbum: string = ''; photo: string = '';
+  extra: string = ''; search: string = ''; trackSearch: string = ''; selected: string[] = [];
+}
+/** What is shown now. */
+function shownNow(): Shown {
+  const s = new Shown(), a = albumShown();
+  s.page = page(); s.album = a !== null ? (a as Album).key : ''; s.artist = artistShown(); s.playlist = playlistShown();
+  s.photoAlbum = photoAlbumShown(); s.photo = photoShown(); s.extra = extraShown(); s.search = search(); s.trackSearch = trackSearch(); s.selected = selected();
+  return s;
+}
+function show(s: Shown): void {
+  let album: Album | null = null;
+  if (s.album !== '') for (const a of albums()) if (a.key === s.album) album = a;
+  batch(() => {
+    setPage(s.page); setAlbumShown(album); setArtistShown(s.artist); setPlaylistShown(s.playlist); setPhotoAlbumShown(s.photoAlbum); setPhotoShown(s.photo);
+    setExtraShown(s.extra); setSearch(s.search); setTrackSearch(s.trackSearch); setSelected(s.selected); setSelectAnchor(-1);
+  });
+}
+let nav: History<Shown> | null = null;
+/** Starts the history (main.tsx, before the first render): the keys, the mouse's side buttons and the swipe go back and forward from here on. */
+export function startHistory(): void { if (nav === null) nav = createHistory<Shown>(shownNow(), shownNow, show); }
+/** Shows `s` as a new entry (at once, without a history). */
+function go(s: Shown): void { const h = nav; if (h !== null) (h as History<Shown>).push(s); else show(s); }
+/** What is shown now, on `page`, with nothing opened, searched or selected on it (the playlist, photo album, artist and note picked stay). */
+function fresh(p: string): Shown {
+  const s = shownNow();
+  s.page = p; s.album = ''; s.photo = ''; s.search = ''; s.trackSearch = ''; s.selected = [];
+  return s;
+}
+export function showPage(p: string): void { go(fresh(p)); }
+export function openAlbum(a: Album): void { const s = fresh(PAGE_ALBUMS); s.album = a.key; go(s); }
+export function openArtist(name: string): void { const s = fresh(PAGE_ARTISTS); s.artist = name; if (page() === PAGE_ARTISTS) s.search = search(); go(s); }
+export function openPlaylist(id: string): void { const s = fresh(PAGE_PLAYLISTS); s.playlist = id; if (page() === PAGE_PLAYLISTS) s.search = search(); go(s); }
+export function openPhotoAlbum(id: string): void { const s = fresh(PAGE_PHOTOS); s.photoAlbum = id; if (page() === PAGE_PHOTOS) s.search = search(); go(s); }
+export function openPhoto(id: string): void { const s = shownNow(); s.photo = id; s.selected = []; go(s); }
+export function openExtra(path: string): void { const s = fresh(PAGE_FILES); s.extra = path; if (page() === PAGE_FILES) s.search = search(); go(s); }
+export function goBack(): void { const h = nav; if (h !== null) (h as History<Shown>).back(); }
+export function goForward(): void { const h = nav; if (h !== null) (h as History<Shown>).forward(); }
+export function canGoBack(): boolean { const h = nav; return h !== null && (h as History<Shown>).canBack(); }
+export function canGoForward(): boolean { const h = nav; return h !== null && (h as History<Shown>).canForward(); }
+/** The scrollKey of the view `name` in the entry shown: back and forward give its offset back, a new entry starts at the top. */
+export function scrollKey(name: string): string { const h = nav; return h !== null ? (h as History<Shown>).scrollKey(name) : name; }
 
 /** A click on row `i` of `list`: alone selects it, with Cmd or Ctrl adds or removes it, with Shift selects from the anchor to it. */
 export function selectRow(list: ipod.Track[], i: i32, toggle: boolean, range: boolean): void {

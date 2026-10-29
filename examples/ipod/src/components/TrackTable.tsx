@@ -41,7 +41,7 @@ function menuTracks(list: ipod.Track[], i: i32): ipod.Track[] {
   return list.filter((t: ipod.Track) => sel.indexOf(t.id) >= 0);
 }
 
-export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolean; sortable: boolean; showAlbum: boolean; from: string }): i32 {
+export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolean; sortable: boolean; showAlbum: boolean; from: string; scrollKey?: string }): i32 {
   const list = props.tracks;
   const at = (i: i32): ipod.Track => { const l = list(); return i < l.length ? l[i] : NO_TRACK; };
   return <View className="grow flex-col min-h-0">
@@ -53,7 +53,7 @@ export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolea
       <HeaderCell label="Time" sortKey="time" sortable={props.sortable} className="w-[56] justify-end" />
       <View className="w-[16]" />
     </View>
-    <VirtualList count={list().length} itemHeight={ROW_HEIGHT} className="grow min-h-0">
+    <VirtualList count={list().length} itemHeight={ROW_HEIGHT} className="grow min-h-0" scrollKey={props.scrollKey !== undefined ? props.scrollKey as string : ''}>
       {(i: i32) => <View className={`flex-row items-center px-6 gap-4 ${isSelected(at(i)) ? bg(SELECTED) : `hover:${bg(HOVER)} ${i % 2 === 1 ? bg(STRIPE) : ''}`}`} style={{ height: ROW_HEIGHT }}
         onPointerDown={(e: ui.PointerEvent) => {
           if (at(i).id === '' || e.button !== 0) return;

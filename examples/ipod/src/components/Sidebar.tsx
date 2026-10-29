@@ -4,11 +4,11 @@
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
-import { library, page, showPage, pods, openDevice, opening, rescan, scanning, albums, countOf, photoCount, playlists, remoteAddress, remoteToken,
+import { library, page, showPage, pods, openDevice, opening, rescan, scanning, albums, artists, countOf, photoCount, playlists, remoteAddress, remoteToken,
   openRemoteDevice, disconnectRemote } from '../state';
 import { PodLibrary } from '../services/ipod';
 import { bg, bd, fg, color, SIDEBAR, BORDER, HOVER, SELECTED, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK, SIDEBAR_WIDTH,
-  PAGE_OVERVIEW, PAGE_ALBUMS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS, PAGE_FILES, PAGE_SPECS,
+  PAGE_OVERVIEW, PAGE_ALBUMS, PAGE_ARTISTS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS, PAGE_FILES, PAGE_SPECS,
   PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS, PAGE_SETTINGS } from '../constants';
 import { PodDrawing } from './PodDrawing';
 import { AllowChanges } from './AllowChanges';
@@ -107,6 +107,7 @@ export function Sidebar(): i32 {
       <NavRow icon="info" label="Specs" to={PAGE_SPECS} count={-1} />
       <Section label="Library" />
       <NavRow icon="disc-3" label="Albums" to={PAGE_ALBUMS} count={albums().length} />
+      <NavRow icon="mic-vocal" label="Artists" to={PAGE_ARTISTS} count={artists().length} />
       <NavRow icon="music" label="Songs" to={PAGE_SONGS} count={countOf(PAGE_SONGS)} />
       <NavRow icon="radio" label="Podcasts" to={PAGE_PODCASTS} count={countOf(PAGE_PODCASTS)} />
       <NavRow icon="book-audio" label="Audiobooks" to={PAGE_AUDIOBOOKS} count={countOf(PAGE_AUDIOBOOKS)} />

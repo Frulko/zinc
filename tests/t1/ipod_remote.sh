@@ -57,7 +57,7 @@ cat > "$tmp/session.input" <<'IN'
 41 move 196 107
 42 down
 43 up
-61 move 60 303
+61 move 60 333
 62 down
 63 up
 101 move 500 212

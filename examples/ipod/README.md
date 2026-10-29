@@ -75,6 +75,17 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
 - **Covers.** Each album's cover is taken from the cache (read from the iPod or the daemon the first time) when its row of the grid
   comes on screen, kept by album while shown and freed with `destroyImage` when the row is dropped.
 - **Long lists.** The album grid and every track table are `VirtualList`s: 2,500 songs cost the rows on screen.
+- **Back and forward.** What is shown is a history (`zinc:ui/history`): every page, and every album, artist, playlist, photo album,
+  photo or note opened, is an entry. ‹ and › at the left of the top bar, Cmd+[ and Cmd+], the mouse's side buttons or a two-finger
+  swipe sideways go back and forward, and an entry comes back as it was left: its search, its selected rows and its scroll (each
+  list has a `scrollKey` of its entry, so a new visit starts at the top).
+- **Search everywhere.** Albums (title, artist, year), artists, songs, podcasts, audiobooks, videos (title, artist, album),
+  playlists and the songs inside one, photo albums, notes and files, backups and, with several, the iPods have a search field;
+  matching ignores case and accents ("cafe" finds "Café") and every word must match. Cmd+F or Cmd+K (or the magnifier of the top
+  bar) searches the whole iPod from any page: songs, albums, artists and playlists, Up and Down to move, Enter to play a song or
+  open the rest, Escape to close. Each track's text is folded once per library: on 10,000 tracks a key typed costs under a
+  millisecond on the interpreter.
+- **Artists.** The album artists with their albums; an album opens on the Albums page.
 - **Plugged in, pulled out.** `detect()` runs every three seconds: an iPod mounted shows at once (and opens when it is the only
   one); the open iPod unmounted, ejected elsewhere or pulled stops the playback and the jobs not started, is closed and the
   Devices page says so. One seen on USB but not mounted has a **Mount** button (`ipod.mount`, nothing is written); **Eject** (on
@@ -111,7 +122,8 @@ src/
 ├── main.tsx              # mounts the app, routes the pages, closes the iPod on SIGINT/SIGTERM
 ├── constants.ts          # colours (light and dark schemes), the iPods' colours, sizes, timings, page names
 ├── format.ts             # durations, sizes, counts
-├── state.ts              # iPods found (watched), the open one's library, albums, search, sort, selection, Allow changes
+├── state.ts              # iPods found (watched), the open one's library, albums, artists, search, sort, selection, the history, Allow changes
+├── search.ts             # the one way to match: folded text (case, accents), every word
 ├── actions.ts            # what copies or changes: download, add, backup, restore, delete, check, repair, mount, eject
 ├── optimise.ts           # the analysis, the duplicate groups ticked and kept, the merge
 ├── services/ipod.ts      # the iPod, local (zinc:ipod) or remote: detect, open, read, close, covers, files, add, delete, eject
@@ -130,8 +142,9 @@ src/
 ├── services/scrobble.ts  # the rule, Last.fm (signed calls, sign-in) and ListenBrainz, their offline queues, the history (shared with ipod-web)
 ├── services/listening.ts # follows the player: each listen to the scrobbler, the iPod's play counts, the history
 ├── menus.ts              # the right-click menu: Play, Play next, Add to queue
-├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, DownloadMark, Toasts, NowPlaying, OutputPicker, QueuePanel
-└── pages/                # devices, overview, albums, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs, settings
+├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, DownloadMark, Toasts, NowPlaying, OutputPicker,
+│                         # QueuePanel, HistoryBar (‹ › and the magnifier), SearchField, QuickSearch (Cmd+F / Cmd+K)
+└── pages/                # devices, overview, albums, artists, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs, settings
 ```
 
 ## Test
@@ -148,6 +161,9 @@ another app followed, the window closed (the app stays in the menu bar), the qui
 limit), then the app started again attaching to the group, and left alone by a group whose queue was replaced.
 `tests/demo/ipod_queue.sh` does the queue on the Mac output: Play next, repeat, the panel, the window closed (the app quits and saves
 `session.json`), and the session shown paused at the next start.
+`tests/t1/ipod_nav.sh` fills a fake iPod (a folder) with 40 albums and drives the history and the search: the album grid scrolled,
+an album opened and Cmd+[ (the grid at the same place), a page search typed without accents, the global search's groups, Enter on an
+album and back to the searched grid, Escape.
 
 `tests/t1/ipod_remote.sh` serves a fake iPod with `examples/ipod-web --allow-changes` and runs the app headless connected to it: the
 remote iPod opens, its songs page is compared to a frame hash, a song is played (its file fetched into the cache), one is deleted and a

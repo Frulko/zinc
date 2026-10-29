@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- iPod demo: back and forward (‹ › in the top bar, Cmd+[ and Cmd+], the mouse's side buttons, a swipe) return to each page and each album, artist, playlist or photo opened as it was left, at the same scroll, search and selection; every page has a search that ignores case and accents, Cmd+F or Cmd+K searches songs, albums, artists and playlists from anywhere, and a new Artists page lists the album artists.
 - `zinc:ui/history`: back and forward for desktop apps, as a browser's: each entry holds the app's view state (page, what is open, search, selection), `push`, `back`, `forward`, reactive `canBack` and `canForward`, and a `scrollKey` per entry. Cmd+[ and Cmd+] (Ctrl elsewhere), Alt+Left and Alt+Right, the mouse's back and forward buttons and a two-finger swipe sideways move through it.
 - `zinc:ui`: the mouse's side buttons go back and forward (`ui.goBack`, `ui.goForward`, `ui.addForwardHandler`) instead of acting as a left click, and a two-finger swipe sideways over a page that does not scroll sideways does the same when the app listens; a `ZINC_INPUT` script can send `forward`.
 - `zinc:ui`: `scrollKey` on `ScrollView` and `VirtualList` brings a list back where it was: the offset is kept under the key when the view goes and given back when a view with the same key comes (clamped when the content shrank; a virtual list builds only the rows in view there). `ui.setScrollKey(h, key)` does it from code.

@@ -1,0 +1,20 @@
+31 move 60 273
+32 down
+33 up
+50 move 700 520
+51 wheel 0 -6
+91 move 548 420
+92 down
+93 up
+111 key [ meta
+131 move 1000 118
+132 down
+133 up
+135 text elan
+161 key k meta
+163 text cafe
+191 key ArrowDown
+192 key Enter
+221 key [ meta
+241 key k meta
+243 key Escape

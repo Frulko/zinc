@@ -42,7 +42,7 @@ cp -R examples/ipod "$app" && rm -rf "$app/build"
 # Songs (61), a double-click on the first song (101), a right click on Delta (161: Play next), repeat (201), the queue button (231),
 # the window closed (340)
 cat > "$tmp/first.input" <<'IN'
-61 move 60 303
+61 move 60 333
 62 down
 63 up
 101 move 500 212
@@ -53,7 +53,7 @@ cat > "$tmp/first.input" <<'IN'
 161 move 500 280
 162 right-down
 163 right-up
-201 move 421 32
+201 move 530 32
 202 down
 203 up
 231 move 967 32

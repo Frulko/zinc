@@ -1,10 +1,12 @@
 // Backups and the iPod's health: the backups on the computer (date, tracks, size, with the music or not, taken by hand or
 // automatically before a session's first change), back up now, restore and delete (behind Allow changes, after a question),
-// check and repair, and eject.
+// check and repair, and eject. The search keeps the backups by date, name, folder and kind (automatic, with music).
 import { onMount } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
-import { library, allowChanges } from '../../state';
+import { library, allowChanges, search, setSearch, scrollKey } from '../../state';
+import { SearchField } from '../../components/SearchField';
+import { hay, words, matches } from '../../search';
 import { PodLibrary } from '../../services/ipod';
 import { backupPlace } from '../../services/log';
 import { backupList, refreshBackups, backupNow, restore, deleteBackup, health, checkPod, repairPod, ejectPod, notice, remoteOpen } from '../../actions';
@@ -69,10 +71,14 @@ export function BackupsPage(): i32 {
     const l = library(), out: ipod.Backup[] = [];
     if (l === null) return out;
     const serial = (l as PodLibrary).device.serial;
-    for (const b of backupList()) if (serial === '' || b.serial === serial) out.push(b);
+    const ws = words(search());
+    for (const b of backupList()) {
+      if (serial !== '' && b.serial !== serial) continue;
+      if (ws.length === 0 || matches(hay([when(b.created), b.name, b.folder, b.auto ? 'automatic' : 'by hand', b.music ? 'with music' : '']), ws)) out.push(b);
+    }
     return out;
   };
-  return <ScrollView className="grow">
+  return <ScrollView className="grow" scrollKey={scrollKey('backups')}>
     <View className="flex-col gap-6 px-10 py-8">
       <View className="flex-row items-end gap-2">
         <View className="grow basis-0 flex-col min-w-0">
@@ -81,6 +87,7 @@ export function BackupsPage(): i32 {
         </View>
         <Button icon="archive" label="Back up now" accent={!remoteOpen()} disabled={remoteOpen()} busy={busy('backup')} onPress={() => backupNow(false)} />
         <Button icon="archive" label="With the music" disabled={remoteOpen()} busy={busy('backup')} onPress={() => backupNow(true)} />
+        <SearchField value={search()} onInput={(v: string) => setSearch(v)} placeholder="Search backups" width={200} />
       </View>
       <View className="flex-col gap-2">
         <View className={`flex-row items-center gap-2.5 px-4 py-3 rounded-[10] border ${allowChanges() ? bd(ERROR) : bd(BORDER)}`}>
@@ -94,7 +101,7 @@ export function BackupsPage(): i32 {
         {notice() !== '' ? <Text className={`text-[12px] ${fg(ERROR)}`}>{notice()}</Text> : <View />}
       </View>
       <View className={`flex-col rounded-[10] border overflow-hidden ${bg(CARD)} ${bd(BORDER)}`}>
-        <Text className={`text-[12px] font-semibold px-4 py-2 ${fg(MUTED)}`}>{mine().length === 0 ? 'No backup of this iPod yet' : count(mine().length, 'backup', 'backups')}</Text>
+        <Text className={`text-[12px] font-semibold px-4 py-2 ${fg(MUTED)}`}>{mine().length === 0 ? (search().trim() !== '' ? 'No backup matches' : 'No backup of this iPod yet') : count(mine().length, 'backup', 'backups')}</Text>
         {mine().map((b: ipod.Backup) => <BackupRow b={b} />)}
       </View>
       <HealthCard />

@@ -6,7 +6,9 @@
 // songs download to the computer; files and folders (picked, or dropped on the window) are added to the iPod; backups are taken,
 // restored and deleted; duplicates are found (tags, files, sound) and merged; a queue shows the transfers and a log every operation. Nothing is changed on the iPod until Allow changes
 // is turned on. An iPod mounted, unmounted or pulled shows within seconds. This file mounts the app, routes the pages and the
-// files dropped on the window; what it does is in state.ts, actions.ts, the services and the pages.
+// files dropped on the window; what it does is in state.ts, actions.ts, the services and the pages. What is shown is a history (back and
+// forward: ‹ ›, Cmd+[ and Cmd+], the mouse's side buttons, a two-finger swipe); every page has a search, and Cmd+F or Cmd+K searches the
+// whole iPod.
 //
 //   zinc run examples/ipod
 //   IPOD_DEMO_MOUNT=/Volumes/MYPOD zinc run examples/ipod     show only the iPod mounted there
@@ -16,11 +18,11 @@ import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import { on } from 'zinc:system';
-import { library, page, rescan, closeDevice, loadRemote, openRemoteDevice } from './state';
+import { library, page, rescan, closeDevice, loadRemote, openRemoteDevice, startHistory } from './state';
 import { addFiles } from './actions';
 import { PodLibrary } from './services/ipod';
 import { bg, fg, BACKGROUND, TEXT, CLEAR_COLOR, PAGE_ALBUMS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS,
-  PAGE_FILES, PAGE_SPECS, PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS, PAGE_SETTINGS } from './constants';
+  PAGE_FILES, PAGE_SPECS, PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS, PAGE_SETTINGS, PAGE_ARTISTS } from './constants';
 import { Sidebar } from './components/Sidebar';
 import { NowPlaying } from './components/NowPlaying';
 import { OutputMenu } from './components/OutputPicker';
@@ -31,6 +33,9 @@ import { onQuit, quitNow } from './services/quit';
 import { release } from './services/player';
 import { pickerOpen, unfollow, stopServer } from './services/sonos';
 import { Toasts } from './components/Toasts';
+import { HistoryBar } from './components/HistoryBar';
+import { QuickSearch, quickOpen, openQuickSearch } from './components/QuickSearch';
+import { ArtistsPage } from './pages/artists/ArtistsPage';
 import { DevicesPage } from './pages/devices/DevicesPage';
 import { OverviewPage } from './pages/overview/OverviewPage';
 import { AlbumsPage } from './pages/albums/AlbumsPage';
@@ -50,6 +55,7 @@ import { startListening } from './services/listening';
 function Content(props: { lib: PodLibrary; page: string }): i32 {
   const p = props.page;
   if (p === PAGE_ALBUMS) return <AlbumsPage />;
+  if (p === PAGE_ARTISTS) return <ArtistsPage />;
   if (p === PAGE_SONGS) return <MediaPage title="Songs" one="song" many="songs" />;
   if (p === PAGE_PODCASTS) return <MediaPage title="Podcasts" one="episode" many="episodes" />;
   if (p === PAGE_AUDIOBOOKS) return <MediaPage title="Audiobooks" one="audiobook" many="audiobooks" />;
@@ -71,11 +77,12 @@ function App(): i32 {
   return <View className={`flex-row h-full ${bg(BACKGROUND)} ${fg(TEXT)}`}>
     <Sidebar />
     <View className="grow basis-0 flex-col min-w-0 min-h-0">
-      {library() !== null ? <NowPlaying /> : <View />}
+      {library() !== null ? <View className="flex-row shrink-0"><HistoryBar /><View className="grow basis-0 min-w-0"><NowPlaying /></View></View> : <View />}
       {library() !== null ? <Content lib={library() as PodLibrary} page={page()} /> : <DevicesPage />}
       {page() !== PAGE_TRANSFERS || library() === null ? <Toasts /> : <View />}
       {library() !== null && queueOpen() ? <QueuePanel /> : <View />}
       {library() !== null && pickerOpen() ? <OutputMenu /> : <View />}
+      {library() !== null && quickOpen() ? <QuickSearch /> : <View />}
     </View>
   </View>;
 }
@@ -99,9 +106,13 @@ installBackground();   // closing the window while Sonos plays from this iPod ke
 sys.onSignal('SIGINT', () => { quitNow(); });
 sys.onSignal('SIGTERM', () => { quitNow(); });
 
+// the global search, from any page (a field typing leaves Cmd+F and Cmd+K to it)
+ui.onKey((e: ui.KeyEvent) => { if (e.primary && !e.shift && (e.key === 'f' || e.key === 'k') && library() !== null) { openQuickSearch(); e.handled = true; } });
+
 ui.setScheme('auto');
 prepareSession();
 startSaving();
+startHistory();
 loadRemote();
 const remoteAtStart = sys.env('IPOD_DEMO_REMOTE');
 if (remoteAtStart !== '') openRemoteDevice(remoteAtStart, sys.env('IPOD_DEMO_REMOTE_TOKEN'));

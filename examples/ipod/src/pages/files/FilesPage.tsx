@@ -1,10 +1,12 @@
 // The files the iPod keeps beside its music: notes, contacts, calendars and voice recordings, by kind; a note, a contact card
-// or a calendar picked is shown as text on the right.
+// or a calendar picked is shown as text on the right (an entry of the history). The search keeps the files by name and kind.
 import * as ui from 'zinc:ui';
 import * as ipod from 'zinc:ipod';
 import { readText } from 'zinc:fs';
 import { Icon } from 'zinc:icons';
-import { library, extraShown, setExtraShown } from '../../state';
+import { library, extraShown, openExtra, search, setSearch, scrollKey } from '../../state';
+import { SearchField } from '../../components/SearchField';
+import { hay, words, matches } from '../../search';
 import { PodLibrary } from '../../services/ipod';
 import { bytes, count } from '../../format';
 import { bg, bd, fg, color, BORDER, HOVER, SELECTED, TEXT, MUTED, FAINT, ACCENT } from '../../constants';
@@ -18,7 +20,7 @@ function FileRow(props: { x: ipod.Extra; icon: string }): i32 {
   const x = props.x, readable = x.kind !== 'recording';
   const on = (): boolean => extraShown() === x.path;
   return <View className={`flex-row items-center gap-2.5 h-[40] px-3 rounded-[8] ${readable ? 'cursor-pointer' : ''} ${on() ? bg(SELECTED) : `hover:${bg(HOVER)}`}`}
-    onPointerDown={(e: ui.PointerEvent) => { if (readable) setExtraShown(x.path); }}>
+    onPointerDown={(e: ui.PointerEvent) => { if (readable) openExtra(x.path); }}>
     <Icon name={props.icon} size={16} color={() => color(ACCENT)} strokeWidth={2} />
     <Text className={`grow basis-0 text-[13px] ${fg(TEXT)} ${on() ? 'font-semibold' : ''}`} numberOfLines={1}>{x.name}</Text>
     <Text className={`text-[11px] ${fg(MUTED)}`}>{bytes(x.bytes)}</Text>
@@ -32,7 +34,7 @@ function Body(props: { path: string }): i32 {
   const name = props.path.slice(props.path.lastIndexOf('/') + 1);
   return <View className="grow flex-col min-h-0">
     <Text className={`text-[22px] font-bold px-8 pt-8 pb-4 ${fg(TEXT)}`} numberOfLines={1}>{name}</Text>
-    <ScrollView className="grow px-8 pb-8">
+    <ScrollView className="grow px-8 pb-8" scrollKey={scrollKey('file')}>
       <Text className={`text-[13px] ${fg(TEXT)}`}>{text}</Text>
     </ScrollView>
   </View>;
@@ -44,10 +46,12 @@ export function FilesPage(): i32 {
     <View className={`flex-col w-[300] shrink-0 border-r ${bd(BORDER)}`}>
       <Text className={`text-[26px] font-bold px-6 pt-8 pb-1 ${fg(TEXT)}`}>Notes & files</Text>
       <Text className={`text-[13px] px-6 pb-3 ${fg(MUTED)}`}>{count(lib.extras.length, 'file', 'files')}</Text>
-      <ScrollView className="grow flex-col px-3 pb-4">
+      <View className="px-3 pb-3"><SearchField value={search()} onInput={(v: string) => setSearch(v)} placeholder="Search notes and files" width={276} /></View>
+      <ScrollView className="grow flex-col px-3 pb-4" scrollKey={scrollKey('files')}>
         {lib.extras.length === 0 ? <Text className={`text-[13px] px-3 ${fg(MUTED)}`}>No notes, contacts, calendars or recordings</Text> : <View />}
         {KINDS.map((k: string, i: i32) => {
-          const items = lib.extras.filter((x: ipod.Extra) => x.kind === k);
+          const ws = words(search());
+          const items = lib.extras.filter((x: ipod.Extra) => x.kind === k && (ws.length === 0 || matches(hay([x.name, TITLES[i]]), ws)));
           return items.length === 0 ? <View /> : <View className="flex-col gap-0.5">
             <Text className={`text-[11px] font-semibold px-3 pt-3 pb-1 ${fg(FAINT)}`}>{`${TITLES[i].toUpperCase()} · ${items.length}`}</Text>
             {items.map((x: ipod.Extra) => <FileRow x={x} icon={ICONS[i]} />)}
