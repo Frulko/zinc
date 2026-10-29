@@ -6,7 +6,9 @@ This guide covers the receiver's display geometry, the Mac player's dashboard, a
 
 Apple's [WWDC24 architecture session](https://developer.apple.com/videos/play/wwdc2024/10111/) separates **Remote UI** (video from iPhone, such as maps), **Local UI** (gauges drawn by the vehicle from an authenticated asset and behavior-script package transferred during pairing), vehicle-rendered overlay/punch-through layers, and **UI Sync** (the commands and timing that align the layers). The iPhone's theme selector is a preview of the combined result; the selected palette identifier alone is not a finished cluster image. Our receiver decodes streams 110 and 111 and acknowledges UI Sync, but does not yet fetch, verify, execute or composite the Apple Local UI package. Zinc therefore draws its own clearly labelled dashboard approximation.
 
-A live stream 111 can contain a decoded black placeholder even while frames arrive. The local dashboard now keeps its contour background visible until guidance and a phone layout choice are present. This avoids treating packet count as proof of a visible map. The independent cluster preview remains useful for inspecting the raw stream.
+A live stream 111 can contain a decoded black placeholder even while frames arrive. The Mac player samples the decoded map zone and keeps its contour background visible until guidance, a phone layout choice and nonblack pixels are present. The Debug panel reports whether that zone is visible, black or unavailable. This is a black-placeholder check, not a semantic map detector; a nonblack placeholder can still pass it. The independent cluster preview remains useful for inspecting the raw stream.
+
+The receiver writes each decoded UI Sync command type and its bounded values to the `ui-sync` log. Change a theme on the iPhone while watching that log to establish whether the phone sent a layout or palette selection; an advertised UI Sync capability alone does not prove a choice arrived.
 
 ## What can be customized today
 

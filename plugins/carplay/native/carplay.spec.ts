@@ -8,6 +8,7 @@ export interface Spec extends NativeModule {
   audioOpen(codec: i32, rate: i32, channels: i32, config: u8[]): i32;
   audioDecode(handle: i32, packet: u8[]): f64[];
   image(handle: i32): i32;
+  nonBlackPixels(handle: i32, x: i32, y: i32, width: i32, height: i32): i32;
   error(): string;
   close(handle: i32): void;
 }

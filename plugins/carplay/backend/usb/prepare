@@ -349,6 +349,7 @@ t=t.replace('    fun setSessionState(active: Boolean, name: String?) {', '''    
 
     fun ultraUiChoice(choice: com.shilapi.xcertplay.transport.UltraUiSync.Choice) {
         val values = choice.values
+        org.slf4j.LoggerFactory.getLogger("ui-sync").info("phone command=0x{} values={}", choice.type.toString(16), values.toString().take(1200))
         if (choice.type in listOf(3L, 16L, 19L)) {
             val report = UltraUiChoice(choice.type, (values?.get("layoutID") ?: values?.get("layoutIdentifier")) as? String,
                 (values?.get("paletteID") ?: values?.get("paletteIdentifier")) as? String,

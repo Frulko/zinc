@@ -34,6 +34,9 @@ export class SecondaryScreen {
     gfx.drawImage(image, x + (w - this.width * scale) / 2, y + (h - this.height * scale) / 2,
       this.width * scale, this.height * scale, 255, 0);
   }
+  nonBlackPixels(x: i32, y: i32, w: i32, h: i32): i32 {
+    return this.decoder < 0 || this.frames === 0 ? -1 : C.nonBlackPixels(this.decoder, x, y, w, h);
+  }
   /** Draw one theme zone while preserving the source pixels' aspect ratio. */
   viewRegion(x: number, y: number, w: number, h: number, sx: number, sy: number, sw: number, sh: number): void {
     if (this.decoder < 0 || w <= 0 || h <= 0 || sx < 0 || sy < 0 || sw <= 0 || sh <= 0 || sx + sw > this.width || sy + sh > this.height) return;

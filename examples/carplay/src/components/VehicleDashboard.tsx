@@ -52,8 +52,11 @@ function Cluster(x: i32, y: i32, w: i32, h: i32): void {
 }
 function hasProjectedMap(): boolean {
   if (live === null || live.secondary.frames === 0 || live.hud === null || !live.hud.active || live.hud.stale) return false;
-  // Ultra can decode a black placeholder stream before the phone chooses a layout.
-  return live.ultra === null || !live.ultra.uiSyncEnabled || live.uiChoice !== null;
+  if (live.ultra !== null && live.ultra.uiSyncEnabled && live.uiChoice === null) return false;
+  const secondary = live.secondary;
+  return secondary.width === 1920 && secondary.height === 720 && live.ultra !== null && live.ultra.uiSyncEnabled
+    ? secondary.nonBlackPixels(660, 120, 600, 480) === 1
+    : secondary.nonBlackPixels(0, 0, secondary.width, secondary.height) === 1;
 }
 function layoutStatus(): string {
   const s = live;

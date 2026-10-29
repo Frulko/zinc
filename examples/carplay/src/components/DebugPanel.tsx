@@ -29,7 +29,10 @@ export function tickDebug(session: Session, dt: number): void {
     setSeconds(gps.seconds); setDuration(Math.max(1, gps.duration));
     setMessage(gps.enabled ? `SIMULATED GPS · ${gps.subscribed ? 'iPhone subscribed' : 'waiting for subscription'} · ${gps.points} points · requête ${gps.requested === undefined ? 'inconnue' : gps.requested.join(',')} · ${gps.sent === undefined ? 'TX non renseigné' : gps.sent + ' envois iAP2'} · ${gps.lat ?? 0}, ${gps.lon ?? 0}` : 'GPS disabled');
   }
-  setCluster(session.secondary.frames > 0 ? `Cluster reçu · ${session.secondary.width} × ${session.secondary.height}` : session.clusterEnabled ? 'Cluster annoncé · en attente de vidéo' : 'Cluster désactivé côté serveur');
+  const secondary = session.secondary;
+  const pixels = secondary.width === 1920 && secondary.height === 720 && session.ultra !== null && session.ultra.uiSyncEnabled
+    ? secondary.nonBlackPixels(660, 120, 600, 480) : secondary.nonBlackPixels(0, 0, secondary.width, secondary.height);
+  setCluster(secondary.frames > 0 ? `Cluster reçu · ${secondary.width} × ${secondary.height} · zone carte ${pixels === 1 ? 'visible' : pixels === 0 ? 'noire' : 'indisponible'}` : session.clusterEnabled ? 'Cluster annoncé · en attente de vidéo' : 'Cluster désactivé côté serveur');
   const capabilities = session.ultra;
   setUltra(capabilities === null ? 'CarPlay Ultra · en attente de la négociation' : `iPhone : véhicule ${capabilities.phoneOffersVehicleState ? 'proposé' : 'absent'}, UI sync ${capabilities.phoneOffersUiSync ? 'proposé' : 'absent'} · Récepteur : véhicule ${capabilities.vehicleStateEnabled ? 'activé' : 'inactif'}, UI sync ${capabilities.uiSyncEnabled ? 'activé' : 'inactif'}`);
   const receivedVehicle = session.ultraVehicle;

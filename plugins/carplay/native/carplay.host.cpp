@@ -241,6 +241,26 @@ struct HostCarplay : NativeCarplay {
     return out;
   }
   int32_t image(int32_t h) override { return h >= 0 && h < 4 ? slots[h].image : -1; }
+  int32_t nonBlackPixels(int32_t h, int32_t x, int32_t y, int32_t width, int32_t height) override {
+    if (h < 0 || h >= 4 || slots[h].image < 0) return -1;
+    Decoder& d = slots[h];
+    // The Mac viewer has CPU pixels; a hardware-backed Pi image needs a separate GPU probe.
+    if (d.hardware) return -1;
+    int32_t imageWidth = 0, imageHeight = 0;
+    if (!zrt::raster::image_size(d.image, &imageWidth, &imageHeight) || x < 0 || y < 0 || width <= 0 || height <= 0 || x > imageWidth - width || y > imageHeight - height) return -1;
+    const uint32_t* pixels = zrt::raster::dyn_pixels(d.image);
+    if (!pixels) return -1;
+    int lit = 0;
+    for (int row = 0; row < 16; ++row) for (int col = 0; col < 24; ++col) {
+      const int px = x + (col * 2 + 1) * width / 48;
+      const int py = y + (row * 2 + 1) * height / 32;
+      const uint32_t color = pixels[py * imageWidth + px];
+      if ((color & 255) > 24 || ((color >> 8) & 255) > 24 || ((color >> 16) & 255) > 24) {
+        if (++lit >= 4) return 1;
+      }
+    }
+    return 0;
+  }
   bool decode(int32_t h, zrt::Array<uint8_t> bytes) override {
     if (h < 0 || h >= 4 || !slots[h].codec || bytes.length() <= 0 || bytes.length() > 8*1024*1024) { fail("invalid video packet"); return false; }
     Decoder& d = slots[h];

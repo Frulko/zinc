@@ -111,6 +111,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- The CarPlay dashboard now checks decoded cluster pixels before showing its map zone, so a black stream 111 placeholder no longer covers the local theme. Debug shows whether that zone contains visible pixels, and the receiver logs decoded UI Sync commands for theme diagnosis.
 - CarPlay receiver status now says when the Ultra catalog is advertised, without implying its local theme assets have been rendered.
 - The CarPlay dashboard no longer lets a black Ultra cluster placeholder cover its local theme before the phone sends a UI Sync layout choice.
 - The CarPlay dashboard keeps its instrument background visible while no navigation route is active; the cluster preview appears when guidance and video are available.
