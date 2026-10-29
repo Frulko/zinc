@@ -1,6 +1,7 @@
 // The bar at the top, as iTunes shows it: previous, play or pause and next on the left, and in the middle the "LCD": the track's cover,
 // title, artist and album, the time played and left, and a progress bar a click seeks in; on the right, where it plays (this computer
 // or a Sonos group, with its volume). Shuffle and repeat (off, all, one) beside the transport, and the queue panel's button (QueuePanel).
+// The LCD's sparkles start "Genius from this song" (25 songs) from the track playing.
 import * as ui from 'zinc:ui';
 import { createSignal, onCleanup } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
@@ -10,6 +11,7 @@ import { shuffle, repeat } from '../services/queue';
 import { queueOpen, setQueueOpen } from './QueuePanel';
 import { useCover, releaseCover } from '../services/covers';
 import { OutputButton } from './OutputPicker';
+import { geniusFrom } from '../drafts';
 import { duration } from '../format';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK, STRIPE, LCD_WIDTH, PROGRESS_WIDTH } from '../constants';
 
@@ -48,6 +50,7 @@ function Lcd(props: { t: ipod.Track }): i32 {
         <Text className={`w-[38] text-[10px] ${fg(FAINT)}`}>{`-${duration(Math.max(0, length() - position()) * 1000)}`}</Text>
       </View>
     </View>
+    {t.mediaType === 'audio' ? <Transport icon="sparkles" size={15} onPress={() => geniusFrom(t, 25)} /> : <View />}
   </View>;
 }
 

@@ -50,6 +50,15 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
 - **Settings.** Last.fm: create an API account (last.fm/api/account/create), paste its key and secret, Sign in (the browser asks
   to approve the app), then Finish. ListenBrainz: paste the user token of listenbrainz.org/settings. And the size of the songs'
   cache. Kept in `config.json`.
+- **Genius, without Apple.** Right-click a song › Genius from this song (25, 50 or 100 songs), or the sparkles of the bar for the
+  song playing: the closest songs of the iPod, the seed first, as a smooth path (tempo from the BPM field, years) with no artist twice
+  within 4 songs and no 1-2 star song. It plays at once on the output chosen (this Mac or a Sonos group) as a draft on the Playlists
+  page, with Refresh (another pick) and Save to iPod (a normal playlist; Allow changes). Closeness comes from what is on this computer
+  (`services/genius.ts`, also usable by the daemon): songs heard in the same sessions of the listening history (normalised PMI, recent
+  sessions count more), the same or a similar artist (Last.fm's artist.getSimilar, only with a Last.fm API key, fetched once per
+  artist into `history/similar-artists.json`), genre and decade, and each song's plays, rating and skips. The weights are
+  `history/genius.json`. The Playlists page also lists **mixes**: the taste clusters of the history (by genre when nothing was heard),
+  named by their artists and genre, played and saved the same way.
 - **The queue.** As Spotify's: a double-click plays a song and the ones under it ("Next from" the album, playlist or page); a
   right click on a song, a selection, an album or a playlist offers Play, Play next and Add to queue (the system's own menu), which
   go to "Next in queue", before the rest. The list button of the bar opens the queue panel: Now playing, Next in queue (Clear queue)
@@ -141,7 +150,10 @@ src/
 ├── services/log.ts       # the operations, on the Logs page and in the log file
 ├── services/scrobble.ts  # the rule, Last.fm (signed calls, sign-in) and ListenBrainz, their offline queues, the history (shared with ipod-web)
 ├── services/listening.ts # follows the player: each listen to the scrobbler, the iPod's play counts, the history
-├── menus.ts              # the right-click menu: Play, Play next, Add to queue
+├── services/history.ts   # the listening history (SQLite): listens, loved, matches to each iPod, the queries
+├── services/genius.ts    # similarity (co-listening, artists, genre, decade, plays), Genius, the mixes; no UI (the daemon can use it)
+├── drafts.ts             # Genius lists and mixes as drafts: played first, Refresh, Save to iPod
+├── menus.ts              # the right-click menu: Play, Play next, Add to queue, Genius from this song
 ├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, DownloadMark, Toasts, NowPlaying, OutputPicker,
 │                         # QueuePanel, HistoryBar (‹ › and the magnifier), SearchField, QuickSearch (Cmd+F / Cmd+K)
 └── pages/                # devices, overview, albums, artists, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs, settings

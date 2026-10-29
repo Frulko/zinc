@@ -10,6 +10,7 @@ import { runBeside, busy } from './transfers';
 import { log, backupPlace } from './log';
 import { loadConfig, saveConfig } from './config';
 import * as cache from './cache';
+import * as fs from 'zinc:fs';
 
 let store: History | null = null;
 /** Moves on each time the history changed: what shows it reads it again. */
@@ -21,10 +22,15 @@ export function history(): History {
   return store as History;
 }
 
-/** Brings in the iPods' new local listens and matches what is not matched yet (cheap when nothing changed). */
+/** A history was started (by the Settings page or an import): the pages that only read it leave it alone until then. */
+export function historyStarted(): boolean { return store !== null || fs.exists(`${backupPlace()}/history/history.sqlite`); }
+
+/** Brings in the iPods' new local listens and matches what is not matched yet (cheap when nothing changed: what shows the history
+ *  is told only of a change). */
 export function syncHistory(): void {
-  try { syncPods(history(), `${backupPlace()}/cache`); } catch (e) { log('Listening history', (e as Error).message, false); }
-  setHistoryVersion(historyVersion() + 1);
+  let n: i32 = 0;
+  try { n = syncPods(history(), `${backupPlace()}/cache`); } catch (e) { log('Listening history', (e as Error).message, false); }
+  if (n > 0) setHistoryVersion(historyVersion() + 1);
 }
 
 /** True while an import runs. */
@@ -33,7 +39,7 @@ export function importing(): boolean { return busy('history'); }
 function start(label: string, work: (run: ImportRun) => Promise<string>): void {
   if (importing()) return;
   const run = new ImportRun();
-  const job = runBeside('history', label, async (): Promise<string> => { const line = await work(run); syncHistory(); return line; }, () => { run.stopped = true; });
+  const job = runBeside('history', label, async (): Promise<string> => { const line = await work(run); syncHistory(); setHistoryVersion(historyVersion() + 1); return line; }, () => { run.stopped = true; });
   run.progress = (done: i32, total: i32, added: i32) => {
     batch(() => { job.setDone(done); job.setTotal(total); job.setDetail(`pages · ${added} new listen${added === 1 ? '' : 's'}`); });
   };
