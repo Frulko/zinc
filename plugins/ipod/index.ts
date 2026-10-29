@@ -12,7 +12,7 @@ import N from './native/ipod.spec';
 import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult, Play, SmartRules, SmartRule, SmartLimit } from './native/ipod.spec';
 export type { SmartRules, SmartRule, SmartLimit, Play, Analysis, DuplicateGroup, MergeGroup, MergeResult, DownloadResult, Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra };
 import { imageFromPixels } from 'zinc:gfx';
-export { evaluateSmart, ruleMatches, describeSmart, describeRule, emptyRules, SMART_FIELDS } from './smart';
+export { evaluateSmart, ruleMatches, describeSmart, describeRule, emptyRules, SMART_FIELDS, MEDIA_TYPES, MEDIA_BITS } from './smart';
 export type { SmartField, SmartAction, SmartLimitType, SmartSort } from './smart';
 
 /** iPods on this machine: mounted ones (connection 'disk'), and those plugged in by USB but not mounted ('usb', no mountpoint). */

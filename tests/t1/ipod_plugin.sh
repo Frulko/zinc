@@ -39,7 +39,7 @@ artwork 0 -1
 backups 2 true false true
 played 1 2 1700000000
 bpm 124 skips 0 0
-smart agree 24 of 24 rules read back 24
+smart agree 26 of 26 rules read back 26
 unplayed 1 after a play 0 Match all: playCount is 0 · live
 rules changed 1
 bad rule: rule 1 (mood is): unknown field

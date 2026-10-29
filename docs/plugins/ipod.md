@@ -82,8 +82,8 @@ for (const p of await ipod.playlists()) if (p.smart) console.log(p.name, ipod.de
   ids the playlist would hold, with libgpod's semantics: text compared without case, and a song without the tag matches no text rule
   (not even "is not"); ranges in either order; "in the last" counted from `now` (Unix seconds, 0 = the current time); with a limit, a
   stable sort then songs taken while the total stays within it (a song that would pass it is skipped, the next ones are still tried).
-  It knows the fields `Track` has, and `playlist`; a rule on grouping, kind, tvShow, season, compilation, modified or videoKind never
-  matches in the preview (the native side evaluates them). `checkedOnly` is ignored there (`Track` does not say whether a song is
+  It knows the fields `Track` has, `playlist`, and `videoKind` (from `Track.mediaType`: `MEDIA_TYPES[i]` is the bit `MEDIA_BITS[i]`); a
+  rule on grouping, kind, tvShow, season, compilation or modified never matches in the preview (the native side evaluates them). `checkedOnly` is ignored there (`Track` does not say whether a song is
   checked); a random limit shuffles. `describeSmart(rules)` says the rules in one line.
 
 | field | kind | value | actions |
@@ -93,7 +93,7 @@ for (const p of await ipod.playlists()) if (p.smart) console.log(p.name, ipod.de
 | `added`, `modified`, `lastPlayed`, `lastSkipped` | date | `value` Unix seconds (and `value2`); "in the last": `value` a count and `units` minutes, hours, days, weeks, months or years | `is`, `isNot`, `greaterThan` (after), `notGreaterThan`, `lessThan` (before), `notLessThan`, `inRange`, `notInRange`, `inTheLast`, `notInTheLast` |
 | `compilation` | yes/no | none | `is` (is set), `isNot` |
 | `playlist` | playlist | `text`: the playlist's id | `is` (in it), `isNot` |
-| `videoKind` | media bits | `value` | `is`, `isNot` |
+| `videoKind` ("Media Kind") | media bits: audio 1, video 2, podcast 4, audiobook 8, musicvideo 0x20, tvshow 0x40 | `value` | `is` (any bit in common), `isNot` |
 
 Limit `type`: `none`, `songs`, `minutes`, `hours`, `MB`, `GB`. Limit `sort`: `random`, `title`, `album`, `artist`, `genre`,
 `mostRecentlyAdded`, `leastRecentlyAdded`, `mostOftenPlayed`, `leastOftenPlayed`, `mostRecentlyPlayed`, `leastRecentlyPlayed`,

@@ -3,8 +3,8 @@
 // answers like the native side. describeSmart() says the rules in one line.
 import type { Track, Playlist, SmartRules, SmartRule } from './native/ipod.spec';
 
-/** The fields a rule can test (ipod.spec.ts SmartRule). The evaluator knows those Track has; grouping, kind, tvShow, season,
- *  compilation, modified and videoKind are evaluated only by the native side (a rule on them never matches here). */
+/** The fields a rule can test (ipod.spec.ts SmartRule). The evaluator knows those Track has (videoKind from Track.mediaType); grouping,
+ *  kind, tvShow, season, compilation and modified are evaluated only by the native side (a rule on them never matches here). */
 export type SmartField = 'title' | 'album' | 'artist' | 'albumArtist' | 'composer' | 'genre' | 'comment' | 'grouping' | 'kind' | 'tvShow' |
   'bitrate' | 'sampleRate' | 'year' | 'trackNr' | 'cdNr' | 'size' | 'durationMs' | 'playCount' | 'skipCount' | 'rating' | 'bpm' | 'season' |
   'added' | 'modified' | 'lastPlayed' | 'lastSkipped' | 'compilation' | 'playlist' | 'videoKind';
@@ -22,6 +22,9 @@ const UNITS: string[] = ['minutes', 'hours', 'days', 'weeks', 'months', 'years',
 const UNIT_SECONDS: number[] = [60, 3600, 86400, 604800, 2628000, 31536000, 1];
 const TEXT: string[] = ['title', 'album', 'artist', 'albumArtist', 'composer', 'genre', 'comment'];
 const DATES: string[] = ['added', 'lastPlayed', 'lastSkipped'];
+/** Track.mediaType and the bit libgpod keeps for it (ITDB_MEDIATYPE_*): what a videoKind ("Media Kind") rule's value holds. */
+export const MEDIA_TYPES: string[] = ['audio', 'video', 'podcast', 'audiobook', 'musicvideo', 'tvshow'];
+export const MEDIA_BITS: number[] = [0x1, 0x2, 0x4, 0x8, 0x20, 0x40];
 
 /** Rules with nothing set: match all, no rule (every track), no limit, live. */
 export function emptyRules(): SmartRules {
@@ -75,6 +78,10 @@ export function ruleMatches(r: SmartRule, t: Track, playlists: Playlist[], now: 
   if (r.field === 'playlist') {
     for (const p of playlists) if (p.id === r.text) { const has = p.trackIds.indexOf(t.id) >= 0; return a === 'is' ? has : a === 'isNot' ? !has : false; }
     return false;   // libgpod: an unknown playlist matches nothing
+  }
+  if (r.field === 'videoKind') {   // libgpod: a binary AND of the media type's bits ("Media Kind is Music")
+    const k = MEDIA_TYPES.indexOf(t.mediaType), has = k >= 0 && (MEDIA_BITS[k] & r.value) !== 0;
+    return a === 'is' ? has : a === 'isNot' ? !has : false;
   }
   const v = num(t, r.field);
   if (v < 0) return false;   // a field the evaluator does not know

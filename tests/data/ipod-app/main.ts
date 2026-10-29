@@ -61,6 +61,8 @@ async function main(): Promise<void> {
     rules('all', [one('lastPlayed', 'inTheLast', 2, 0, 'weeks', '')], 'none', 0, ''),
     rules('all', [one('added', 'notInTheLast', 1, 0, 'days', '')], 'none', 0, ''),
     rules('all', [one('durationMs', 'greaterThan', 1000, 0, '', '')], 'none', 0, ''),
+    rules('all', [one('videoKind', 'is', 1, 0, '', '')], 'none', 0, ''),
+    rules('all', [one('videoKind', 'isNot', 4, 0, '', '')], 'none', 0, ''),
     rules('any', [one('rating', 'is', 4, 0, '', ''), one('bpm', 'is', 124, 0, '', '')], 'none', 0, ''),
     rules('all', [one('rating', 'is', 4, 0, '', ''), one('bpm', 'is', 124, 0, '', '')], 'none', 0, ''),
     rules('all', [], 'songs', 1, 'highestRating'),
