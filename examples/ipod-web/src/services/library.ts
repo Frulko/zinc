@@ -31,6 +31,8 @@ export class Library {
   mountpoint: string = '';
   name: string = '';
   serial: string = '';
+  /** The FireWire GUID (letters and digits, uppercase; else the serial): the name of its cache folder. */
+  guid: string = '';
   tracks: ipod.Track[] = [];
   playlists: ipod.Playlist[] = [];
   albums: Album[] = [];
@@ -108,6 +110,15 @@ function index(): void {
   }
 }
 
+/** The name of an iPod's cache folder: its FireWire GUID, else its serial, letters and digits only, uppercase (as the app names it). */
+export function guidOf(d: ipod.Device): string {
+  let raw = d.firewireGuid !== '' ? d.firewireGuid : d.serial !== '' ? d.serial : 'unknown';
+  if (raw.startsWith('0x') || raw.startsWith('0X')) raw = raw.slice(2);   // SysInfo writes it 0x000A27...
+  let s = '';
+  for (let i = 0; i < raw.length; i++) { const c = raw.charCodeAt(i); if ((c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122)) s += raw[i]; }
+  return s !== '' ? s.toUpperCase() : 'unknown';
+}
+
 /** Reads the tracks and playlists of the open iPod again (after a change). */
 export async function load(): Promise<void> {
   lib.tracks = await ipod.tracks();
@@ -119,6 +130,7 @@ function clear(): void {
   lib.mountpoint = '';
   lib.name = '';
   lib.serial = '';
+  lib.guid = '';
   lib.tracks = [];
   lib.playlists = [];
   index();
@@ -152,6 +164,7 @@ export async function sync(pods: ipod.Device[], mount: string): Promise<void> {
         lib.mountpoint = want;
         lib.name = d.name;
         lib.serial = d.serial;
+        lib.guid = guidOf(d);
         await load();
         lib.error = '';
         console.log(`ipod-web: opened ${want}: ${lib.tracks.length} tracks`);

@@ -7,12 +7,10 @@ import { createSignal, batch } from 'zinc:ui/solid';
 import * as sonos from 'zinc:sonos';
 import * as net from 'zinc:net';
 import * as sys from 'zinc:sys';
-import * as fs from 'zinc:fs';
 import * as ipod from 'zinc:ipod';
-import { PodLibrary } from './ipod';
+import { PodLibrary, coverPng } from './ipod';
 import * as remote from './remote';
 import { loadConfig, saveConfig } from './config';
-import { backupPlace } from './log';
 
 /** A group as the picker lists it. */
 export class OutputChoice {
@@ -80,9 +78,8 @@ async function serveSong(req: net.Request): Promise<net.Reply> {
   const track = t as ipod.Track;
   if (parts[2] === 'file') return { status: 200, body: '', contentType: mimeOf(track.path), file: `${sharedMount}/${track.path}` };
   if (parts[2] !== 'cover' || !track.artwork) return { status: 404, body: 'not found', contentType: 'text/plain' };
-  const png = `${backupPlace()}/sonos-covers/${track.id}.png`;
-  fs.mkdir(`${backupPlace()}/sonos-covers`, true);
-  if (!fs.exists(png) && !(await ipod.saveArtwork(track.id, png))) return { status: 404, body: 'no cover', contentType: 'text/plain' };
+  const png = await coverPng(track.id);   // the cover cache's file
+  if (png === '') return { status: 404, body: 'no cover', contentType: 'text/plain' };
   return { status: 200, body: '', contentType: 'image/png', file: png };
 }
 

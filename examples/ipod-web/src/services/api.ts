@@ -7,7 +7,7 @@ import { El, toJson, strings, quote } from 'zinc:xml';
 import { Query, queryOf, jsonReply } from '../query';
 import { options } from './options';
 import { lib, load, close } from './library';
-import { trackFile, coverFile, pngReply, cacheDir } from './files';
+import { trackFile, coverFile, pngReply, cacheDir, dbMarker } from './files';
 import { last } from '../state';
 
 function fail(status: i32, sentence: string): net.Reply { return jsonReply(status, `{"error": ${quote(sentence)}}`); }
@@ -35,7 +35,7 @@ function playlistEl(p: ipod.Playlist): El {
 
 /** What the web page's header shows: the open iPod (open '' when none), its storage and counts, and whether changes are allowed. */
 function statusEl(): El {
-  const e = new El('status').s('open', lib.mountpoint).s('name', lib.name).s('error', lib.error).b('allowChanges', options.allowChanges)
+  const e = new El('status').s('open', lib.mountpoint).s('name', lib.name).s('firewireGuid', lib.guid).s('marker', dbMarker()).s('error', lib.error).b('allowChanges', options.allowChanges)
     .n('songs', lib.tracks.length).n('albums', lib.albums.length).n('artists', lib.artists.length).n('playlists', lib.playlists.length);
   for (const d of last.pods) {
     if (d.mountpoint !== lib.mountpoint || lib.mountpoint === '') continue;

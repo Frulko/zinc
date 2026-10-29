@@ -20,8 +20,9 @@ iPod ──USB── Pi / C.H.I.P.: examples/ipod-web (one Zinc program, compile
   writes nothing on an iPod that already has its SysInfoExtended (a used iPod has it).
 - **Files as they are.** `stream` and `/api/file` send the track's file from the iPod with `Reply.file` (blocks, byte ranges: clients
   seek): no transcoding, no ffmpeg; MP3 and AAC play in every client, ALAC in most.
-- **Small.** zinc:net (llhttp on libuv), zinc:ipod (libgpod), zinc:subtle for the MD5 of Subsonic tokens. No database, no cache but the
-  covers' PNG files in a cache folder.
+- **Small.** zinc:net (llhttp on libuv), zinc:ipod (libgpod), zinc:subtle for the MD5 of Subsonic tokens. No database; the covers'
+  PNG files are kept per iPod, in a folder named after its FireWire GUID (`<backups>/cache/<GUID>/covers`, `~/.zinc/ipod/cache/...` by
+  default, as the app keeps its own), so they are written once, not once per run.
 
 ## Command line
 
@@ -37,7 +38,7 @@ zinc run examples/ipod-web -- [--port 8686] [--token T] [--user U --password P] 
 
 | Route | Answer |
 |---|---|
-| `GET /api/status` | `{"open", "name", "error", "allowChanges", "songs", "albums", "artists", "playlists"}`, and when the open iPod is seen `"model", "generation", "capacityGb", "totalBytes", "freeBytes", "readOnly"`: what the page's header shows |
+| `GET /api/status` | `{"open", "name", "firewireGuid", "marker", "error", "allowChanges", "songs", "albums", "artists", "playlists"}` (`firewireGuid`: the iPod's, in hex without 0x, the name of its cache folders; `marker`: the database's size and time, `"<bytes>:<ms>"`: a client's copy of the library made under another marker is stale), and when the open iPod is seen `"model", "generation", "capacityGb", "totalBytes", "freeBytes", "readOnly"`: what the page's header shows |
 | `GET /api/devices` | `{"devices": [Device...], "open": "<mountpoint or ''>"}` (zinc:ipod Device fields as named in ipod.spec.ts) |
 | `GET /api/specs` | `{"specs": [{"group","name","value"}...]}` of the open iPod |
 | `GET /api/tracks` | `{"tracks": [Track...]}` (Track fields as in ipod.spec.ts) |
@@ -79,7 +80,8 @@ is sent as `Authorization: Bearer`, and as `?token=` for the audio, covers and d
 ## The Mac app
 
 `examples/ipod`: Devices page, "Connect to a remote iPod" (address and token, kept in the config). A remote iPod opens like a plugged
-one: overview, specs, albums with covers, songs, playlists from `/api`; playing downloads the file to a cache then plays it; Add,
+one: overview, specs, albums with covers, songs, playlists from `/api` (kept in the app's cache of that iPod, by its GUID: the next
+connection shows them at once and reads them again only when `/api/status`'s marker changed); playing downloads the file to that cache then plays it; Add,
 Delete and Eject go through `/api` when the daemon allows changes. Backups, check, repair and Optimise stay local-only (greyed with a
 sentence) until the API grows them.
 

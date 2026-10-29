@@ -4,11 +4,11 @@
 // the scan.
 import { createSignal, createMemo, batch } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
-import { findPods, openPod, openRemote, closePod, forgetPod, PodLibrary } from './services/ipod';
+import { findPods, openPod, openRemote, closePod, forgetPod, readLibrary, PodLibrary } from './services/ipod';
 import { loadConfig, saveConfig } from './services/config';
 import { cancelWaiting } from './services/transfers';
 import { log } from './services/log';
-import { dropCovers } from './services/covers';
+import { dropCovers, prefetchCovers } from './services/covers';
 import { stop as stopPlaying } from './services/player';
 import { PAGE_OVERVIEW, SCAN_EVERY_MS, kindsOf } from './constants';
 
@@ -217,6 +217,24 @@ function podGone(lib: PodLibrary): void {
   log(`${name} disconnected`, `${lib.device.mountpoint} is no longer mounted`, false);
 }
 
+/** After an open: a library shown from the cache while the iPod changed since is read again (and replaces it, unless another iPod
+ *  was opened meanwhile); then the albums' covers missing from the cache are read into it, one at a time, while this iPod stays open. */
+async function refreshInBackground(lib: PodLibrary): Promise<void> {
+  let shown = lib;
+  if (lib.stale) {
+    try {
+      const fresh = await readLibrary();
+      if (library() !== lib) return;
+      setLibrary(fresh);
+      shown = fresh;
+      log('Library read again', `${fresh.tracks.length} tracks: the iPod changed since it was last read`, true);
+    } catch (e) { log('Read the library again', (e as Error).message, false); }
+  }
+  const ids: string[] = [];
+  for (const a of albums()) if (a.coverTrack !== '') ids.push(a.coverTrack);
+  await prefetchCovers(ids, () => library() === shown);
+}
+
 /** Opens the iPod at `mountpoint` and shows its overview; an error is shown as a message. */
 export async function openDevice(mountpoint: string): Promise<void> {
   const lib = library();
@@ -229,6 +247,7 @@ export async function openDevice(mountpoint: string): Promise<void> {
     const opened = await openPod(mountpoint);
     batch(() => { setLibrary(opened); setError(''); setPlaylistShown(''); setPhotoAlbumShown(''); setExtraShown(''); showPage(PAGE_OVERVIEW); });
     log(`Opened ${opened.device.name !== '' ? opened.device.name : 'the iPod'}`, `${mountpoint}: ${opened.tracks.length} tracks, ${opened.playlists.length} playlists`, true);
+    refreshInBackground(opened);
   } catch (e) {
     setError(`Could not read the iPod at ${mountpoint}: ${(e as Error).message}`);
     log(`Open ${mountpoint}`, (e as Error).message, false);
@@ -269,6 +288,7 @@ export async function openRemoteDevice(address: string, token: string): Promise<
     const opened = await openRemote(at, token);
     batch(() => { setLibrary(opened); setError(''); setPlaylistShown(''); setPhotoAlbumShown(''); setExtraShown(''); showPage(PAGE_OVERVIEW); });
     log(`Opened ${opened.device.name !== '' ? opened.device.name : 'the iPod'} (remote)`, `${opened.remote}: ${opened.tracks.length} tracks, ${opened.playlists.length} playlists`, true);
+    refreshInBackground(opened);
   } catch (e) {
     setError(`Could not open the remote iPod at ${at}: ${(e as Error).message}`);
     log(`Open ${at}`, (e as Error).message, false);

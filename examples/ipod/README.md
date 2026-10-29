@@ -20,7 +20,7 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   ([examples/ipod-web](../ipod-web/README.md), on a Raspberry Pi with the iPod on its USB port) and keeps them in
   `~/.zinc/ipod/config.json` (beside the logs; other keys are kept). The remote iPod shows in the sidebar's devices with a network
   mark (its x disconnects it) and opens like a plugged one: overview, specs, albums with covers, songs and playlists come from its
-  `/api`; a song played is fetched once into `remote-cache/` beside the logs, then played as a file; Add uploads each file, Delete
+  `/api`; a song played is fetched once into the iPod's cache (below), then played as a file; Add uploads each file, Delete
   and Eject ask the daemon, which refuses them with a sentence (shown) unless started with `--allow-changes`. Backups, check, repair
   and Optimise stay for an iPod plugged into this computer. `services/ipod.ts` is the one place that chooses local or remote.
 - **Finding an iPod.** `ipod.detect()` runs at start and every three seconds while no iPod is shown (Rescan in the sidebar looks
@@ -34,8 +34,15 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   iPod's songs and covers are served by the app on the LAN (`zinc:net`, a free port, a random token in each path, only the open
   iPod's tracks by their id); a remote iPod's come straight from its daemon (`/api/file/<id>?token=`), so the daemon must be
   addressed by a name or address the speakers reach (not `127.0.0.1`), and started with `--token`.
-- **Covers.** Each album's cover is read from the iPod (`ipod.cover`, at twice its size on screen) when its row of the grid comes
-  on screen, cached by album while shown and freed with `destroyImage` when the row is dropped.
+- **The iPod's cache.** What the app reads of an iPod is kept on the computer in a folder named after its FireWire GUID
+  (`~/.zinc/ipod/cache/<GUID>/`, beside the backups), for a plugged iPod and a remote one alike: the covers (`covers/`, one PNG
+  per album, the largest the iPod stores), the library (`library.json`: tracks, playlists, specs and the database's size and time),
+  a remote iPod's songs played (`audio/`, the least recently played dropped past the size set in Settings, 2 GB by default) and its
+  plays not yet counted (`plays.json`). An iPod opens at once from its cached library; when its database changed since (another
+  computer, iTunes, the iPod itself), the library is read again in the background and replaces it. Then the albums' covers not yet
+  cached are read into it one by one, so the grid scrolls without waiting for the iPod. The Sonos speakers are served the same files.
+- **Covers.** Each album's cover is taken from the cache (read from the iPod or the daemon the first time) when its row of the grid
+  comes on screen, kept by album while shown and freed with `destroyImage` when the row is dropped.
 - **Long lists.** The album grid and every track table are `VirtualList`s: 2,500 songs cost the rows on screen.
 - **Plugged in, pulled out.** `detect()` runs every three seconds: an iPod mounted shows at once (and opens when it is the only
   one); the open iPod unmounted, ejected elsewhere or pulled stops the playback and the jobs not started, is closed and the
@@ -78,8 +85,9 @@ src/
 ├── optimise.ts           # the analysis, the duplicate groups ticked and kept, the merge
 ├── services/ipod.ts      # the iPod, local (zinc:ipod) or remote: detect, open, read, close, covers, files, add, delete, eject
 ├── services/remote.ts    # a remote iPod: an iPod daemon's /api over zinc:net
-├── services/config.ts    # config.json: the remote iPod's address and token, the Sonos speaker found last
-├── services/covers.ts    # covers by album, read when shown, freed when dropped
+├── services/cache.ts     # the iPod's cache by FireWire GUID: covers, library, a remote iPod's songs (least recently used out)
+├── services/config.ts    # config.json: the remote iPod's address and token, the Sonos speaker found last, the cache's size
+├── services/covers.ts    # covers by album, read when shown, freed when dropped; the albums' covers read ahead into the cache
 ├── services/player.ts    # playing from the iPod, here or on a Sonos group
 ├── services/sonos.ts     # the Sonos groups, the output chosen, the songs' URLs and the server of a plugged iPod's files
 ├── services/transfers.ts # the queue of jobs, one at a time, with their progress
@@ -98,4 +106,4 @@ disk image while the app runs (it closes the iPod, then opens it again).
 
 `tests/t1/ipod_remote.sh` serves a fake iPod with `examples/ipod-web --allow-changes` and runs the app headless connected to it: the
 remote iPod opens, its songs page is compared to a frame hash, a song is played (its file fetched into the cache), one is deleted and a
-file dropped is uploaded.
+file dropped is uploaded; the iPod's cache folder then holds the song, a cover and the library.

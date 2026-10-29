@@ -3,7 +3,8 @@
 # iPod_Control/Device/SysInfo and two songs, one with a cover, put there by a small program), and the app, headless, connects to it at
 # start (IPOD_DEMO_REMOTE). Checked: the remote iPod opens (the log), the songs page lists its two songs (a frame hash), a double-click
 # plays the first one (its file fetched into the cache), the second is deleted (Allow changes, the question answered) and a file dropped
-# is uploaded: the daemon ends with 2 songs, Alpha and the new one.
+# is uploaded: the daemon ends with 2 songs, Alpha and the new one. The iPod's cache (by its FireWire GUID) holds the song played, the
+# covers shown and the library.
 # Port 8688 (a fixed port: run alone). Skipped (77) without the plugin's libraries. KEEP=dir keeps the shots. UPDATE=1 rewrites the golden.
 cd "$(dirname "$0")/../.." || exit 2
 pkg-config --exists glib-2.0 gobject-2.0 libplist-2.0 taglib libusb-1.0 2>/dev/null || { echo "skipped: the libraries of zinc:ipod are not installed"; exit 77; }
@@ -84,7 +85,11 @@ log=$tmp/backups/logs/demo.log
 for op in 'Opened ZINCPOD (remote)' '2 tracks, 1 playlists' 'Allow changes turned on' '1 track removed' '1 added'; do
   grep -q "$op" "$log" || { echo "ipod_remote: '$op' is not in the log file: $(tail -3 "$log")"; fail=1; }
 done
-ls "$tmp/backups/remote-cache/"*.wav >/dev/null 2>&1 || { echo "ipod_remote: the song played was not fetched into the cache: $(ls "$tmp/backups" 2>&1)"; fail=1; }
+# the iPod's cache, by its FireWire GUID: the song played, the cover shown (Alpha's), the library and the daemon's status that names it
+c=$tmp/backups/cache/000A27001234ABCD
+ls "$c/audio/"*.wav >/dev/null 2>&1 || { echo "ipod_remote: the song played was not fetched into the cache: $(ls -R "$tmp/backups/cache" 2>&1 | head -20)"; fail=1; }
+ls "$c/covers/"*.png >/dev/null 2>&1 && grep -q '"title":"Alpha"' "$c/library.json" || { echo "ipod_remote: no cover or library in the cache: $(ls -R "$c" 2>&1 | head -20)"; fail=1; }
+curl -s -H 'Authorization: Bearer secret' "$B/api/status" | grep -q '"firewireGuid":"000A27001234ABCD","marker":"[0-9]*:[0-9]*"' || { echo "ipod_remote: /api/status has no GUID or marker: $(curl -s -H 'Authorization: Bearer secret' "$B/api/status")"; fail=1; }
 titles=$(curl -s -H 'Authorization: Bearer secret' "$B/api/tracks" | grep -o '"title":"[^"]*"' | tr '\n' ' ')
 case $titles in *Alpha*Beta*|*Beta*) echo "ipod_remote: Beta was not deleted: $titles"; fail=1 ;; esac
 curl -s "$B/" | grep -q ': 2 songs' || { echo "ipod_remote: the delete and the add did not leave 2 songs: $titles"; fail=1; }

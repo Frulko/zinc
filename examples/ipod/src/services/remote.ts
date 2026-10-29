@@ -4,8 +4,8 @@
 import * as net from 'zinc:net';
 import * as fs from 'zinc:fs';
 import * as ipod from 'zinc:ipod';
-import { imageFromBytes } from 'zinc:gfx';
-import { backupPlace } from './log';
+import * as cache from './cache';
+import { loadConfig } from './config';
 
 const TIMEOUT_MS: i32 = 15000;              // a request of the library or a cover
 const FILE_TIMEOUT_MS: i32 = 600000;        // a track's file or an upload (a video over Wi-Fi)
@@ -17,6 +17,7 @@ interface PlaylistsReply { playlists: ipod.Playlist[]; }
 interface SpecsReply { specs: ipod.SpecItem[]; }
 interface AddReply { results: ipod.AddResult[]; }
 interface ErrorReply { error: string; }
+interface StatusReply { marker?: string; }
 
 let address = '';
 let token = '';
@@ -64,14 +65,20 @@ export async function tracks(): Promise<ipod.Track[]> { const r: TracksReply = J
 export async function playlists(): Promise<ipod.Playlist[]> { const r: PlaylistsReply = JSON.parse(await getJson('/api/playlists')); return r.playlists; }
 export async function specs(): Promise<ipod.SpecItem[]> { const r: SpecsReply = JSON.parse(await getJson('/api/specs')); return r.specs; }
 
-/** A track's cover as a runtime image (-1 when the bytes are not a picture); throws when it has none (404). */
-export async function cover(id: string): Promise<i32> {
-  const r = await call('GET', `/api/cover/${encodeURIComponent(id)}`, {});
-  return imageFromBytes(await r.bytes());
+/** The marker of the daemon's iPod database (its size and time): a library read with another one is stale. */
+export async function marker(): Promise<string> {
+  const s: StatusReply = JSON.parse(await getJson('/api/status'));
+  return s.marker !== undefined ? s.marker as string : '';
 }
 
-/** Where the files played are kept: one per track, fetched once. */
-export function cacheFolder(): string { return `${backupPlace()}/remote-cache`; }
+/** Writes a track's cover (a PNG, the largest the iPod stores) to `file`; false when it has none. */
+export async function coverTo(id: string, file: string): Promise<boolean> {
+  let r: net.Response;
+  try { r = await call('GET', `/api/cover/${encodeURIComponent(id)}`, {}); }
+  catch (e) { if ((e as Error).message.indexOf('no cover') >= 0) return false; throw e; }
+  cache.writeWhole(file, await r.bytes());
+  return true;
+}
 
 function extensionOf(path: string): string { const d = path.lastIndexOf('.'); return d > path.lastIndexOf('/') && d > path.lastIndexOf(':') ? path.slice(d) : ''; }
 
@@ -80,15 +87,14 @@ export async function fetchFile(t: ipod.Track, to: string): Promise<void> {
   const r = await call('GET', `/api/file/${encodeURIComponent(t.id)}`, { timeoutMs: FILE_TIMEOUT_MS, maxBytes: FILE_MAX_BYTES });
   const bytes = await r.bytes();
   fs.mkdir(to.slice(0, to.lastIndexOf('/')), true);
-  const part = `${to}.part`;   // a file cut short is never taken for a whole one
-  fs.writeBytes(part, bytes);
-  fs.rename(part, to);
+  cache.writeWhole(to, bytes);
 }
 
-/** The track's file on this computer, fetched into the cache the first time. */
+/** The track's file on this computer, fetched into the iPod's cache the first time (the least recently played go past the size set). */
 export async function localFile(t: ipod.Track): Promise<string> {
-  const file = `${cacheFolder()}/${t.id}${extensionOf(t.path)}`;
+  const file = cache.audioFile(t.id, extensionOf(t.path));
   if (!fs.exists(file)) await fetchFile(t, file);
+  cache.audioUsed(file, loadConfig().audioCacheMb);
   return file;
 }
 

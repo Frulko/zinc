@@ -58,7 +58,7 @@ A='Authorization: Bearer secret'
 
 start
 want 'the page' '*id="pod-name"*Serving Zinc Pod*: 2 songs, 1 albums, 1 artists*id="token-form"*id="search"*id="songs"*id="albums"*id="playlists"*id="manage"*id="specs"*<h2>ZINCPOD</h2>*Classic (Silver)*<audio id="audio"*' "$(curl -s $B/)"
-want '/api/status' '{"open":"*ZINCPOD","name":"Zinc Pod","error":"","allowChanges":false,"songs":2,"albums":1,"artists":1,"playlists":1,"model":"Classic (Silver)"*' "$(curl -s -H "$A" $B/api/status)"
+want '/api/status' '{"open":"*ZINCPOD","name":"Zinc Pod","firewireGuid":"000A27001234ABCD","marker":"*:*","error":"","allowChanges":false,"songs":2,"albums":1,"artists":1,"playlists":1,"model":"Classic (Silver)"*' "$(curl -s -H "$A" $B/api/status)"
 want 'the JSON' '*"Model": "Classic (Silver)"*"Serial number": "8K1234ABCDE"*' "$(curl -s $B/pod.json)"
 want 'another path' 404 "$(code $B/nope)"
 want '/api without token' 401 "$(code $B/api/tracks)"
