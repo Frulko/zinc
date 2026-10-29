@@ -65,6 +65,9 @@ External GPS debug is **simulated**. Edit latitude/longitude/speed (km/h), apply
 preset, or pick a GPX file with **Load GPX**. The panel shows whether the iPhone
 has subscribed. The authenticated backend emits NMEA only while the source is
 enabled and a location subscription is active. Stop GPS disables injection.
+On wireless CarPlay, the receiver passes the phone's requested NMEA selectors to
+the GPS source before sending. The TX count proves delivery to the iAP2 link;
+it does not prove that iOS navigation replaces its own location estimate.
 
 GPX files are limited to 1 MiB / 10,000 points; DTDs and external XML access are
 rejected. Track timestamps define the timeline; without timestamps each point
@@ -106,9 +109,15 @@ For instrument clusters and synthetic vehicle data, see the
 [CarPlay Ultra feasibility report](../../docs/reports/zinc-next-carplay-ultra-feasibility.md):
 the current stream 111 is a classic auxiliary video stream. The **Tableau de bord**
 button opens a full-width local display with the cluster map and simulated speed,
-RPM, gear and fuel; its presets are shared with Debug. It does not send vehicle
-state to the iPhone. The Ultra
-vehicle-state and UI-sync path still needs live negotiation evidence.
+RPM, gear and fuel; its presets are shared with Debug. In the Cobranded layout,
+the map is cropped to the theme's central 600×480 zone without stretching it.
+With the experimental
+Ultra Vehicle State channel active, RPM, fuel and climate values are offered to
+the phone; speed and gear remain local. The phone's Voiture, Radio and Climat
+apps need vehicle services beyond this small profile and may remain blank.
+The catalog offers several cluster layouts and wallpapers, but this receiver
+currently requests the Cobranded cluster layout with its solid day/night color.
+The full asset composition and a theme selector are not implemented.
 
 The HUD button shows/hides navigation and media beneath the main video. It retains
 incremental iAP2 metadata: title, artist, album, playback app, state and reported

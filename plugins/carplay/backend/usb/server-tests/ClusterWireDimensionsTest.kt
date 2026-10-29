@@ -19,6 +19,16 @@ class ClusterWireDimensionsTest {
 
     @Test fun secondaryConfigUsesClusterDimensionsInsteadOfMainScreen() {
         val hub = WebHub(ServerConfig(identityDir = Path.of("."), stateDir = Path.of(".")), DisplayState(1280, 720, 60, 100))
+        assertVideoConfig(hub, listOf(Triple(110, 1280, 720), Triple(111, 960, 360)))
+    }
+
+    @Test fun ultraConfigUsesThemeDimensionsForBothStreams() {
+        val hub = WebHub(ServerConfig(identityDir = Path.of("."), stateDir = Path.of(".")),
+            DisplayState(1280, 720, 60, 100), themeEnabled = true)
+        assertVideoConfig(hub, listOf(Triple(110, 1920, 720), Triple(111, 1920, 720)))
+    }
+
+    private fun assertVideoConfig(hub: WebHub, expected: List<Triple<Int, Int, Int>>) {
         val channel = Channel<Frame>(8)
         val type = Class.forName("com.playport.server.WsClient")
         val constructor = type.getDeclaredConstructor(Channel::class.java).apply { isAccessible = true }
@@ -27,7 +37,7 @@ class ClusterWireDimensionsTest {
         val set = clients.get(hub) as MutableSet<Any>
         set.add(constructor.newInstance(channel))
         try {
-            for ((stream, width, height) in listOf(Triple(110, 1280, 720), Triple(111, 960, 360))) {
+            for ((stream, width, height) in expected) {
                 hub.broadcastVideoConfig(stream, byteArrayOf())
                 val bytes = (channel.tryReceive().getOrThrow() as Frame.Binary).data
                 val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)

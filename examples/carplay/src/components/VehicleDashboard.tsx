@@ -10,7 +10,12 @@ export function tickVehicle(session: Session): void {
     setVehicle({ speedKph: current.speedKph, rpm: incoming.rpm, gear: current.gear, fuelPct: incoming.fuelPct, climateOn: incoming.climateOn, targetCelsius: incoming.targetCelsius });
 }
 function Cluster(x: i32, y: i32, w: i32, h: i32): void {
-  const s = live; if (s !== null) s.secondary.view(x, y, w, h);
+  const s = live;
+  if (s === null) return;
+  // The selected Cobranded cluster layout places projected navigation in Zone1.
+  if (s.ultra !== null && s.ultra.uiSyncEnabled && s.secondary.width === 1920 && s.secondary.height === 720)
+    s.secondary.viewRegion(x, y, w, h, 660, 120, 600, 480);
+  else s.secondary.view(x, y, w, h);
 }
 function clusterStatus(): string {
   const s = live;

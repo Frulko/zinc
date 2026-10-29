@@ -247,6 +247,8 @@ export class Session {
     if (b[0] === 2) {
       if (b.length <= 11 || this.decoder < 0) return false;
       if (!C.decode(this.decoder, b.slice(11))) { this.error = C.error(); return false; }
+      const image = this.image;
+      if (image >= 0) { this.width = gfx.imageWidth(image); this.height = gfx.imageHeight(image); }
       this.frames++; this.status = this.image >= 0 ? 'streaming' : 'waiting for video'; return true;
     }
     return false;

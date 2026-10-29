@@ -34,6 +34,15 @@ export class SecondaryScreen {
     gfx.drawImage(image, x + (w - this.width * scale) / 2, y + (h - this.height * scale) / 2,
       this.width * scale, this.height * scale, 255, 0);
   }
+  /** Draw one theme zone while preserving the source pixels' aspect ratio. */
+  viewRegion(x: number, y: number, w: number, h: number, sx: number, sy: number, sw: number, sh: number): void {
+    if (this.decoder < 0 || w <= 0 || h <= 0 || sx < 0 || sy < 0 || sw <= 0 || sh <= 0 || sx + sw > this.width || sy + sh > this.height) return;
+    const image = C.image(this.decoder);
+    if (image < 0) return;
+    const scale = Math.min(w / sw, h / sh);
+    gfx.drawImageRect(image, sx, sy, sw, sh, x + (w - sw * scale) / 2, y + (h - sh * scale) / 2,
+      sw * scale, sh * scale, 255, 0);
+  }
   close(): void {
     if (this.decoder >= 0) C.close(this.decoder);
     this.decoder = -1; this.width = 0; this.height = 0; this.frames = 0;

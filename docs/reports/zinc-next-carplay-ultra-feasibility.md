@@ -235,3 +235,31 @@ layout's only wallpaper is `dynamicColor`, black in dark mode and `#f2f2f2`
 in light mode; the Mac simulator now uses those colors. It still does not
 render the package's Core Animation assets, so full themed wallpaper and
 gauge composition remain open under criterion #4.
+
+The next phone screenshot showed why the geometry fix was incomplete: `/info`
+advertised 1920×720, while the WebSocket `VIDEO_CONFIG` still carried the
+classic 1280×720 main and 960×360 cluster sizes. The main Zinc player also kept
+that configuration size after decoding a frame. Both wire configurations now
+follow the Ultra theme, and the player uses the decoded image size for display
+and touch coordinates. The wireless iAP2 GPS path had a separate omitted
+`onRequested` call: the phone subscribed, but the provider saw no NMEA
+selectors and emitted no sentences. The call is now made before `start`.
+
+The package separates `Center_Display`'s Wallpaper layout from
+`Cluster_Display`'s Cobranded layout. The center catalog has solid color,
+gradient, landscape and topography wallpapers; the selected cluster Cobranded
+layout offers only a solid dynamic color. The current UI Sync request hardcodes
+that cluster layout. The phone's Voiture, Radio and Climat apps are visible, but
+the receiver currently declares only RPM, fuel and two climate characteristics;
+it does not implement those apps' full vehicle and radio services. A blank app
+screen is therefore not evidence of a working feature.
+
+In the next live Pi/Mac run, both WebSocket video configurations and decoded
+frames reported 1920×720. The main screen rendered with square app icons. The
+cluster stream was likewise 1920×720, but its navigation occupied the Cobranded
+layout's Zone1 rectangle (660,120,600,480); displaying the full stream inside
+the Mac dashboard had left a tiny map in a large black frame. The local dashboard
+now crops to Zone1 and preserves its 5:4 ratio. A live wireless location probe
+reported `subscribed=true`, requested selectors `[0,1,2,32769,32770]` and
+`sent=8` after a Paris debug fix. This proves iAP2 TX activity, not that iOS
+has adopted the simulated location in Plans.
