@@ -49,8 +49,9 @@ export interface UltraStatus {
   phoneOffersVehicleState: boolean; phoneOffersUiSync: boolean;
   vehicleStateEnabled: boolean; uiSyncEnabled: boolean;
 }
+export interface UltraVehicleSnapshot { rpm: i32; fuelPct: i32; climateOn: boolean; targetCelsius: number; }
 interface ControlMessage {
-  message?: string; iap2?: Iap2InspectorSnapshot; hud?: HudSnapshot; gps?: DebugGpsSnapshot; clusterEnabled?: boolean; ultra?: UltraStatus;
+  message?: string; iap2?: Iap2InspectorSnapshot; hud?: HudSnapshot; gps?: DebugGpsSnapshot; clusterEnabled?: boolean; ultra?: UltraStatus; ultraVehicle?: UltraVehicleSnapshot;
   type: string; sessionActive?: boolean; micActive?: boolean; micCodec?: string;
   micRate?: i32; micChannels?: i32; micSamplesPerPacket?: i32; micBitrate?: i32;
 }
@@ -70,6 +71,7 @@ export class Session {
   clusterEnabled: boolean = false;
   iap2: Iap2InspectorSnapshot | null = null;
   ultra: UltraStatus | null = null;
+  ultraVehicle: UltraVehicleSnapshot | null = null;
   readonly iap2Log: string[] = [];
   onIap2Trace: ((text: string) => void) | null = null;
   iap2Error: string = '';
@@ -122,7 +124,7 @@ export class Session {
         const message = JSON.parse(e.data) as ControlMessage;
         if ((message.type === 'session' || message.type === 'hello') && message.sessionActive === true) this.setNightMode(this.night);
         if (message.type === 'session' && message.sessionActive !== true) {
-          this.ultra = null;
+          this.ultra = null; this.ultraVehicle = null;
           this.microphone.stop();
           if (this.hud !== null) this.hud.stale = true;
           this.clearArtwork();
@@ -136,6 +138,7 @@ export class Session {
           if (message.message !== undefined) this.iap2Error = message.message;
         }
         if (message.type === 'ultraStatus' && message.ultra !== undefined) this.ultra = message.ultra;
+        if (message.type === 'ultraVehicle' && message.ultraVehicle !== undefined) this.ultraVehicle = message.ultraVehicle;
         if (message.type === 'iap2Trace' && message.message !== undefined) {
           this.iap2Log.push(message.message.slice(0, 8192));
           if (this.iap2Log.length > 128) this.iap2Log.shift();
@@ -168,7 +171,7 @@ export class Session {
       if (this.socket !== s) return;
       this.socket = null;
       if (this.iap2 !== null) this.iap2.connected = false;
-      this.ultra = null;
+      this.ultra = null; this.ultraVehicle = null;
       if (this.hud !== null) this.hud.stale = true;
       this.clearArtwork();
       this.secondary.close();
@@ -277,6 +280,9 @@ export class Session {
   }
   home(): boolean { return this.send('{"type":"knob","knob":{"select":false,"home":true,"back":false,"x":0,"y":0,"wheel":0}}'); }
   showCluster(): boolean { return this.send('{"type":"cluster"}'); }
+  setUltraGauge(iid: i32, value: i32): boolean {
+    return this.ultra !== null && this.ultra.vehicleStateEnabled && this.send(JSON.stringify({ type: 'ultraGauge', gaugeId: iid, gaugeValue: value }));
+  }
   debugGps(latitude: number, longitude: number, speed: number = 0, course: number = 0): boolean {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 || !Number.isFinite(speed) || speed < 0 || !Number.isFinite(course) || course < 0 || course >= 360) return false;
     return this.send(JSON.stringify({ type: 'debugGps', lat: latitude, lon: longitude, speed: speed, course: course, gpsEnabled: true }));
@@ -349,7 +355,7 @@ export class Session {
   }
   close(): void {
     if (this.iap2 !== null) this.iap2.connected = false;
-    this.ultra = null;
+    this.ultra = null; this.ultraVehicle = null;
     if (this.hud !== null) this.hud.stale = true;
     this.clearArtwork();
     this.secondary.close();

@@ -1,7 +1,8 @@
 # CarPlay Ultra feasibility on the Pi
 
-Research on 29 October 2026. This is a protocol and implementation assessment,
-not a claim that PlayPort Pi has entered an Ultra session.
+Research and receiver probes on 29 October 2026. Vehicle State has been
+negotiated and exchanged with a real iPhone; UI sync, theme assets and
+composed Ultra presentation remain unverified.
 
 ## What the iPhone prompt proves
 
@@ -155,3 +156,30 @@ cluster renderer with simulated gauges, but its receiver source is closed.
 Reddit reports add no independently verifiable channel trace. LIVI remains
 the most useful open implementation reference, with every inferred field
 checked against our live Pi/iPhone exchange before enabling it.
+
+## Vehicle State probe on Pi, 29 October
+
+With `ZINC_CARPLAY_ULTRA_VEHICLE=1`, the iPhone offered both
+`vehicleStateProtocol` and `uiSync`; the receiver enabled Vehicle State only.
+The phone opened both distinct type-130 Vehicle State UUIDs and sent two
+encrypted `comm` packages on the high-priority channel (70 and 83 bytes).
+The receiver parsed each as OPACK and emitted one encrypted command response
+for each. A protocol test covers the same duplex framing and a separate test
+covers the bounded OPACK configuration, registration, update and write logic.
+This is a real bidirectional Vehicle State transport exchange, but the phone
+has not yet been observed registering for RPM or fuel. A WebSocket probe sent
+those two simulated gauges while the feature was enabled; no phone-subscribed
+value update was observed. A subsequent Mac-to-Pi WebSocket probe confirmed
+that the receiver accepted RPM 1900 and fuel 66 and sent the updated snapshots
+back to the client while the phone session remained active. The viewer now
+exposes received climate and gauge snapshots, and the preset controls send
+RPM/fuel when the phone subscribes.
+Speed and gear remain local simulator values.
+
+UI sync is the next distinct channel. LIVI identifies UUID
+`07D9F906-8D64-4B54-A808-A20BCA2C51C2` and an OPACK envelope containing a
+binary plist session protocol (reset, reset-complete, commands and
+acknowledgements). Its feature is guarded by a theme configuration. PlayPort
+does not advertise it yet because no authenticated asset package or
+frame-synchronized compositor is present. Stream 111 remains the classic
+iPhone-rendered cluster video on the Mac; the Pi display is untouched.

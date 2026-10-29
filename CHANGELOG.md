@@ -10,10 +10,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - Le panneau Debug CarPlay affiche les capacités Ultra proposées par l’iPhone et celles effectivement activées par le récepteur.
+- `ZINC_CARPLAY_ULTRA_VEHICLE=1` enables an experimental Vehicle State channel when the phone offers it. The CarPlay simulator can send RPM/fuel presets and show vehicle or climate changes received from the phone; speed and gear remain local.
 - `plugins/carplay/backend/linux/pairings list` shows Bluetooth and AirPlay pairing identifiers without keys; `pairings forget ADDRESS` removes one exact identifier while the receiver is stopped. Different identifiers for the same iPhone remain separate.
 - The Pi wireless launcher reads the selected phone from a private `phone-bt` file and cleans up its Wi-Fi access point and Bluetooth advertisement when the SSH terminal disconnects.
 - The Pi wireless receiver can run as the `playport-pi.service` user unit; it keeps running after SSH disconnects and stops its access point and Bluetooth advertisement when stopped. The CarPlay viewer can stay on the Mac.
-- The CarPlay player has a full-width simulated dashboard with the cluster map, speed, RPM, gear and fuel. Parked, city and motorway presets are shared with the Debug panel; no vehicle state is sent to the iPhone.
+- The CarPlay player has a full-width simulated dashboard with the cluster map, speed, RPM, gear and fuel. Parked, city and motorway presets are shared with the Debug panel.
 - CarPlay’s native iAP2 inspector lists known RX/TX messages, advertised capabilities and observed counts, with decoded live traces, recording/export and a validated TLV sender for advertised commands. Telemetry subscriptions request additional music, call, network and guidance fields, including lane capacity.
 - CarPlay’s HUD can receive real album covers over iAP2 and releases them when replaced or disconnected; GPS diagnostics show the phone’s requested sentence types and filter output accordingly.
 - CarPlay’s HUD displays incremental navigation and music metadata; the cluster resolution is configurable with `ZINC_CARPLAY_CLUSTER_WIDTH` / `HEIGHT`, and its preview preserves the received ratio. Debug GPS adds a bundled GPX button and actual iAP2 write counts.

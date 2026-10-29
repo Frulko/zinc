@@ -22,7 +22,7 @@ class UltraDataTunnelTest {
         val port = tunnel.listen(object : IapTunnel.Listener {
             override fun onPackage(kind: Int, messageType: Int, replyToken: Long, body: ByteArray) {
                 assertEquals(SYNC, kind)
-                assertEquals(COMMAND, messageType)
+                assertEquals(COMM, messageType)
                 assertEquals(42L, replyToken)
                 seen.set(body)
                 received.countDown()
@@ -31,7 +31,7 @@ class UltraDataTunnelTest {
         try {
             Socket(InetAddress.getLoopbackAddress(), port).use { phone ->
                 phone.soTimeout = 2000
-                val request = packageBytes(SYNC, COMMAND, 42, "request".toByteArray())
+                val request = packageBytes(SYNC, COMM, 42, "request".toByteArray())
                 writeFrame(phone, phoneKey, 0, request)
                 assertTrue(received.await(2, TimeUnit.SECONDS))
                 assertArrayEquals("request".toByteArray(), seen.get())
@@ -75,5 +75,6 @@ class UltraDataTunnelTest {
         const val SYNC = 0x73796e63
         const val REPLY = 0x72706c79
         const val COMMAND = 0x636d6e64
+        const val COMM = 0x636f6d6d
     }
 }
