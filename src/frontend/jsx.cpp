@@ -1289,7 +1289,8 @@ std::map<std::string, std::string> jsxImports(std::string_view s, const std::vec
 bool jsxHostTag(const std::string& tag, const std::map<std::string, std::string>& imported) {
   if (!kTags.count(tag)) return false;
   auto it = imported.find(tag);
-  return it == imported.end() || ((it->second.find("components") != std::string::npos || it->second.find("zinc:ui") != std::string::npos) && it->second.rfind("zinc:ui/kit", 0) != 0 && it->second.rfind("zinc:ui/nuxt", 0) != 0) ||   // the kits' Button, Input... are components
+  // only zinc:ui's own names are the host tags: the kits' Button, Input... and an app's (components/Button.tsx) are components
+  return it == imported.end() || (it->second.rfind("zinc:ui", 0) == 0 && it->second.rfind("zinc:ui/kit", 0) != 0 && it->second.rfind("zinc:ui/nuxt", 0) != 0) ||
          (it->second == "zinc:react-native" && (tag == "View" || tag == "Text" || tag == "Image" || tag == "ScrollView"));   // the host elements of zinc:react-native (ZN-367); its Button is a component
 }
 

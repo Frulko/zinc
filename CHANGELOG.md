@@ -104,6 +104,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - On a Raspberry Pi, apps no longer stall for up to 170 ms once a second: the screen's driver stopped reopening every keyboard, mouse and HDMI input each second to look for new ones, and now looks only when one is plugged in.
+- An app's own component named like a built-in one (`Button`, `Image`, `Input`...) and imported from a folder named `components` is the app's component again, instead of the built-in tag that refused its props with error Z0005.
 - A newline in a `<Text>` starts a line, as in React Native, instead of showing as a `?`.
 - `sys.onSignal` and `sys.kill` work under `--engine quickjs` (they stopped with "__host_sigWatch is not defined").
 - A named function passed to a built-in array method with no other use as a value (`songs.sort(byTitle)`) compiles instead of Z0005 "this function used as a value".

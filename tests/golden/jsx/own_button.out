@@ -1,0 +1,7 @@
+node 0
+  class flex-col
+  node 6
+    node 0
+      class flex-row
+      node 1
+        dynTextOf plus Add
