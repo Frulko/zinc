@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- iPod daemon: `POST /api/update` with `{"ids": [...], "patch": {"genre": "Jazz", "comment": ""}}` writes those tags to the songs in one save (`''` and `0` clear a field), with `--allow-changes`; `/api/tracks` gives the new fields (grouping, compilation, sort names, start and stop, volume...).
 - Headless tests: a `ZINC_INPUT` click can hold modifiers, as a key can: `down meta` is a Cmd-click, `down shift+meta` holds both (a list's Cmd and Shift selection can now be scripted).
 - `zinc:ipod`: `update()` writes what iTunes' Get Info edits: grouping, description, compilation, the sort names, start and stop times, volume adjustment, skip when shuffling, remember position, the lyrics flag and the play count (0 resets it); `Track` reads them back with the file's kind and the date modified. A field given as `''`, `0` or `false` is now documented as cleared, and a test proves it.
 - Sidecar: "Add a screen" lists the screens on the same network (the iPad, iPhone, Android and Mac apps announce themselves), one click to add; the Sidecar app for iPadOS now runs on an iPhone too, and its waiting page says how to connect it.

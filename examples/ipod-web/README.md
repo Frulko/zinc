@@ -38,6 +38,7 @@ zinc build examples/ipod-web -o ipod-web    # one program to copy to the Pi
 | `GET /api/cover/<trackId>` | the cover as PNG, 404 when the track has none |
 | `POST /api/add?name=song.mp3&playlist=Mix` | body: the file; `{"results": [{"file", "id", "error"}]}` |
 | `POST /api/remove` | body `{"ids": [...]}`; `{"removed": n}` |
+| `POST /api/update` | body `{"ids": [...], "patch": {"genre": "Rock", "comment": ""}}`: the fields given (zinc:ipod's `TrackInput`, `''` and `0` clear one) written to every track, one save; `{"updated": n}` |
 | `POST /api/playlist` | body `{"name": "...", "ids": [...]}`: a new normal playlist of those tracks, in order; `{"id": "<playlist id>"}` |
 | `POST /api/eject` | closes the library and ejects the iPod |
 

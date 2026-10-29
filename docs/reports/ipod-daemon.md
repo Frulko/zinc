@@ -55,6 +55,7 @@ zinc run examples/ipod-web -- [--port 8686] [--token T] [--user U --password P] 
 | `GET /api/file/<trackId>` | the track's file, with ranges, `Content-Type` from its extension |
 | `POST /api/add?name=<file name>&playlist=<p>` | body: the file's bytes; `{"results": [AddResult]}`; needs `--allow-changes` |
 | `POST /api/remove` | body `{"ids": [...]}`; needs `--allow-changes` |
+| `POST /api/update` | body `{"ids": [...], "patch": {TrackInput fields}}`: the Info window's edits, one save; `{"updated": n}`; needs `--allow-changes` |
 | `POST /api/playlist` | body `{"name": "...", "ids": [...]}`, a normal playlist in that order; needs `--allow-changes` |
 | `POST /api/eject` | closes, `diskutil eject`/`udisksctl`; needs `--allow-changes` |
 | `POST /api/played` | body `{"plays": [{"id", "count", "at"}]}` (`at`: seconds since 1970): adds them to the iPod's play counts (`ipod.played`), `200 {"counted": n}`; read only, they wait in `<backups>/cache/<GUID>/plays.json` and the answer is `202 {"pending": n}` (the plays waiting); a later run with `--allow-changes` writes them after its scan. Only the iPod: the app sends its listens to Last.fm and ListenBrainz itself |

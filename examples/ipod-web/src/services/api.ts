@@ -1,5 +1,5 @@
 // /api: the iPod API in JSON for the Mac app's "remote iPod" (docs/reports/ipod-daemon.md). A bearer token (header or ?token=);
-// without --token, 127.0.0.1 needs none. Writes (add, remove, eject, playlist) need --allow-changes. Errors are {"error": "<sentence>"}.
+// without --token, 127.0.0.1 needs none. Writes (add, remove, update, eject, playlist) need --allow-changes. Errors are {"error": "<sentence>"}.
 import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import * as net from 'zinc:net';
@@ -13,6 +13,15 @@ import { count } from './plays';
 
 interface PlayedBody { plays: ipod.Play[]; }
 interface PlaylistBody { name: string; ids: string[]; }
+/** The fields /api/update writes: TrackInput's, without the file and the cover (a path on the daemon's disk). */
+interface TrackPatch {
+  title?: string; artist?: string; album?: string; albumArtist?: string; genre?: string; composer?: string; comment?: string;
+  grouping?: string; description?: string; trackNr?: i32; tracks?: i32; cdNr?: i32; cds?: i32; year?: i32; rating?: i32; bpm?: i32;
+  mediaType?: string; compilation?: boolean; sortTitle?: string; sortArtist?: string; sortAlbum?: string; sortAlbumArtist?: string;
+  sortComposer?: string; startMs?: i32; stopMs?: i32; volume?: i32; skipWhenShuffling?: boolean; rememberPosition?: boolean;
+  lyrics?: boolean; playCount?: i32;
+}
+interface UpdateBody { ids: string[]; patch: TrackPatch; }
 
 function fail(status: i32, sentence: string): net.Reply { return jsonReply(status, `{"error": ${quote(sentence)}}`); }
 
@@ -29,7 +38,11 @@ function trackEl(t: ipod.Track): El {
     .s('genre', t.genre).s('composer', t.composer).s('comment', t.comment).n('trackNr', t.trackNr).n('tracks', t.tracks).n('cdNr', t.cdNr)
     .n('cds', t.cds).n('year', t.year).n('rating', t.rating).n('playCount', t.playCount).n('bitrate', t.bitrate).n('sampleRate', t.sampleRate)
     .n('durationMs', t.durationMs).n('size', t.size).s('mediaType', t.mediaType).s('path', t.path).b('artwork', t.artwork)
-    .n('added', t.added).n('lastPlayed', t.lastPlayed).n('bpm', t.bpm).n('skipCount', t.skipCount).n('lastSkipped', t.lastSkipped);
+    .n('added', t.added).n('lastPlayed', t.lastPlayed).n('bpm', t.bpm).n('skipCount', t.skipCount).n('lastSkipped', t.lastSkipped)
+    .s('grouping', t.grouping).s('description', t.description).s('kind', t.kind).b('compilation', t.compilation).s('sortTitle', t.sortTitle)
+    .s('sortArtist', t.sortArtist).s('sortAlbum', t.sortAlbum).s('sortAlbumArtist', t.sortAlbumArtist).s('sortComposer', t.sortComposer)
+    .n('startMs', t.startMs).n('stopMs', t.stopMs).n('volume', t.volume).b('skipWhenShuffling', t.skipWhenShuffling)
+    .b('rememberPosition', t.rememberPosition).b('lyrics', t.lyrics).n('modified', t.modified);
 }
 
 function playlistEl(p: ipod.Playlist): El {
@@ -87,7 +100,7 @@ async function add(req: net.Request, q: Query): Promise<net.Reply> {
 }
 
 async function write(req: net.Request, q: Query, what: string): Promise<net.Reply> {
-  if (!options.allowChanges) return fail(403, 'This daemon is read only: start it with --allow-changes to add, remove, eject or make playlists.');
+  if (!options.allowChanges) return fail(403, 'This daemon is read only: start it with --allow-changes to add, remove, edit, eject or make playlists.');
   if (req.method !== 'POST') return fail(405, `Use POST for /api/${what}.`);
   if (lib.mountpoint === '') return fail(404, 'No iPod is open.');
   if (what === 'add') return add(req, q);
@@ -100,6 +113,7 @@ async function write(req: net.Request, q: Query, what: string): Promise<net.Repl
     return jsonReply(200, `{"removed": ${ids.length}}`);
   }
   if (what === 'playlist') return playlist(req);
+  if (what === 'update') return update(req);
   const mp = lib.mountpoint;   // eject
   await close();
   await ipod.eject(mp);
@@ -120,6 +134,22 @@ async function playlist(req: net.Request): Promise<net.Reply> {
   return jsonReply(200, `{"id": ${quote(id)}}`);
 }
 
+/** POST /api/update {"ids": [...], "patch": {<TrackInput fields>}}: the fields given written to every track ('' and 0 clear one), then
+ *  one save ({"updated": n}). */
+async function update(req: net.Request): Promise<net.Reply> {
+  const usage = 'The body must be {"ids": ["<track id>", ...], "patch": {"genre": "Rock", ...}}.';
+  let body: UpdateBody;
+  try { body = JSON.parse(req.body); } catch (e) { return fail(400, usage); }
+  if (!Array.isArray(body.ids) || body.ids.length === 0 || body.patch === undefined || body.patch === null) return fail(400, usage);
+  for (const id of body.ids) if (!lib.trackById.has(id)) return fail(404, `No track has the id ${id}.`);
+  const patch: ipod.TrackInput = { ...body.patch, file: '' };
+  patch.artworkFile = undefined;   // never a path of the daemon's disk from a client
+  for (const id of body.ids) await ipod.update(id, patch);
+  await ipod.save();
+  await load();
+  return jsonReply(200, `{"updated": ${body.ids.length}}`);
+}
+
 /** POST /api/played {"plays": [{"id", "count", "at"}]}: counted on the iPod ({"counted": n}), or kept until the daemon may write
  *  ({"pending": n}, 202) when it is read only. */
 async function played(req: net.Request): Promise<net.Reply> {
@@ -136,7 +166,7 @@ async function route(req: net.Request, q: Query): Promise<net.Reply> {
   const what = parts.length > 2 ? parts[2] : '';
   const id = parts.length > 3 ? decodeURIComponent(parts[3]) : '';
   if (what === 'played') return played(req);
-  if (what === 'add' || what === 'remove' || what === 'eject' || what === 'playlist') return write(req, q, what);
+  if (what === 'add' || what === 'remove' || what === 'eject' || what === 'playlist' || what === 'update') return write(req, q, what);
   if (req.method !== 'GET') return fail(405, 'Use GET for this route.');
   if (what === 'devices') {
     const root = new El('root').list('devices').s('open', lib.mountpoint);
