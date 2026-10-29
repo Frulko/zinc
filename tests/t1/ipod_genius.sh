@@ -2,7 +2,8 @@
 # Genius of the iPod app (examples/ipod/src/services/genius.ts) on a fake iPod (a folder with SysInfo, as ipod_plugin) filled by
 # tests/data/ipod-genius with 26 songs and a generated history whose neighbours are known: the picks from a seed and their order, the
 # artists spread, a 1-star song never picked, the same list twice, Refresh, why each song was picked, Last.fm's similar artists fetched once from the stand-in of
-# tests/data/ipod-scrobble/stub.py (never the real service) and cached, the taste clusters (the three planted groups, named by their
+# tests/data/ipod-scrobble/stub.py (never the real service) and cached, the guided radio (services/radio.ts: extended until the library
+# runs out, no repeat, the artists spread, a 👎 artist never again, a 👍 pulls the next picks), the taste clusters (the three planted groups, named by their
 # artists and genre), the fallback without a history (the genres), and the list saved to the iPod as a normal playlist and read back.
 # The interpreter, then QuickJS on a fresh iPod (the same lines; the app runs AOT: ipod_demo builds it).
 # Skips (77) without the system libraries of zinc:ipod. KEEP=dir keeps the output.
@@ -35,6 +36,8 @@ why L similar artist (Last.fm)
 why B you play it often
 why C you play it often
 old file moved true true newer kept true gone true once true true
+radio AAAAAAALBBBBBBBBCCCCCCCC extensions 10,10,6 disliked L then 16 repeats 0 spread true disliked artist after 0
+radio next AAAAA ALBBB liked a C song AAAAA ACCCC
 ten 10 AAAAAAACCC
 mixes 3
 mix Alpha One, Alpha Two · Rock | 8 7 A spread true
@@ -57,5 +60,30 @@ run() {   # $1: the engine's flag; a new fake iPod and history each time
 }
 run --interp
 run "--engine quickjs"
+# the radio in the app, on the last fake iPod and the made-up speaker of tests/data/sonos/stub_speaker.py (never a real one): Salon
+# chosen (frames 41, 141), Songs (161), "Start radio" on the first song (201, answered by ZINC_SYSTEM_SCRIPT): the seed and ten songs on
+# the group; ⏭ seven times (300..1800, 250 frames apart: the frames do not wait for the speaker), after the sixth fewer than five are
+# left: ten more appended to the group's queue; the queue panel (2100) and 👎 in the bar (2400): the songs after the one playing are
+# picked again on the group, then Next; frame 2700 shows the radio in the panel.
+port=$((20000 + ($$ + 57) % 20000))
+python3 tests/data/sonos/stub_speaker.py $port "$tmp/sonos.log" > "$tmp/sonos.out" 2>&1 & speaker=$!
+trap '[ -n "$stub" ] && kill $stub 2>/dev/null && wait $stub 2>/dev/null; [ -n "$app" ] && kill $app 2>/dev/null; kill $speaker 2>/dev/null; wait $speaker 2>/dev/null; rm -rf "$tmp"' EXIT
+for i in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null -X POST "http://127.0.0.1:$port/" && break; sleep 0.3; done
+{ printf '41 move 1110 32\n42 down\n43 up\n141 move 1000 107\n142 down\n143 up\n161 move 60 363\n162 down\n163 up\n201 move 500 212\n202 right-down\n203 right-up\n'
+  for f in 300 550 800 1050 1300 1550 1800; do printf '%s move 492 32\n%s down\n%s up\n' $f $((f + 1)) $((f + 2)); done
+  printf '2100 move 1045 32\n2101 down\n2102 up\n2400 move 957 32\n2401 down\n2402 up\n'; } > "$tmp/radio.input"
+printf '0 dialog-answer radio\n' > "$tmp/radio.script"
+IPOD_DEMO_SONOS=127.0.0.1:$port IPOD_DEMO_MOUNT="$tmp/Volumes/ZINCPOD" ZINC_DETERMINISTIC=1 TZ=UTC ZINC_SCALE=1 ZINC_SIZE=1180x760 ZINC_FRAMES=100000000 \
+  ZINC_SYSTEM_SCRIPT="$tmp/radio.script" ZINC_INPUT="$tmp/radio.input" ZINC_SHOT="$tmp/radio.png" ZINC_SHOT_FRAMES=2700 ZINC_SCENE_DUMP="$tmp/radio-scene" \
+  timeout 120 "$ZINC" run examples/ipod --interp > "$tmp/radio.out" 2>&1 & app=$!
+# the speaker's log: what the radio queued, the seven Nexts, the top-up, then the 👎 (its range taken out, the new picks, Next)
+for i in $(seq 1 300); do [ "$(grep -c '^Next' "$tmp/sonos.log" 2>/dev/null)" -ge 8 ] && [ -s "$tmp/radio-scene-2700" ] && break; kill -0 $app 2>/dev/null || break; sleep 0.1; done
+sleep 0.5; kill $app 2>/dev/null; wait $app 2>/dev/null; app=''
+[ -n "$KEEP" ] && cp "$tmp"/radio*.png "$tmp/sonos.log" "$tmp/radio.out" "$KEEP/" 2>/dev/null
+got=$(grep -E '^(AddMultipleURIsToQueue|RemoveTrackRangeFromQueue|Next)' "$tmp/sonos.log" | awk '{ if ($1 == "AddMultipleURIsToQueue") print "add", $2, $(NF-1); else if ($1 == "Next") print "next"; else print "remove", $2, $3 }' | tr '\n' ',')
+# the 👎's numbers follow where the group was when it was pressed (the frames do not wait for the speaker)
+echo "$got" | grep -qE '^add 11 0,(next,){6}add 10 12,next,remove 9 13,add 10 9,next,$' || { echo "ipod_genius: the radio on the group: $got"; fail=1; }
+python3 tools/scene-texts "$tmp/radio-scene-2700" | grep -q 'Next from: Radio · Alpha Four Song 1' ||
+  { echo "ipod_genius: the radio's frame 2700 shows no radio in the queue: $(python3 tools/scene-texts "$tmp/radio-scene-2700" | head -30 | tr '\n' '|')"; fail=1; }
 [ $fail -eq 0 ] && echo "ipod_genius: ok"
 exit $fail

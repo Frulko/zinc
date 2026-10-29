@@ -380,12 +380,14 @@ function jitter(id: string, round: i32): number {
 }
 
 /** Orders `pool` (scored, best first) into a list after `first`: each next song is the best by `score` minus the step from the one
- *  before, its artist not among the last artistSpread - 1 songs (when no song passes, the one whose artist was heard longest ago). */
-export function path(m: Model, first: i32, pool: i32[], score: number[], n: i32): i32[] {
-  const out: i32[] = [first];
+ *  before, its artist not among the last artistSpread - 1 songs (when no song passes, the one whose artist was heard longest ago).
+ *  `before`: the songs heard before `first` (a radio's queue), for the spread only; they are not returned. */
+export function path(m: Model, first: i32, pool: i32[], score: number[], n: i32, before: i32[] = []): i32[] {
+  const out: i32[] = before.concat([first]);
   const used = new Set<i32>(); used.add(first);
   const spread = m.w.artistSpread;
-  while (out.length < n) {
+  const end = n + before.length;
+  while (out.length < end) {
     const prev = out[out.length - 1];
     let best: i32 = -1, bestV = -1e18, bestGap: i32 = -1;
     for (const c of pool) {
@@ -400,7 +402,7 @@ export function path(m: Model, first: i32, pool: i32[], score: number[], n: i32)
     if (best < 0) break;
     out.push(best); used.add(best);
   }
-  return out;
+  return before.length > 0 ? out.slice(before.length) : out;
 }
 
 /** "Genius from this song": `n` songs, the seed first, then its closest songs as a smooth path with the artists spread; `round` > 0

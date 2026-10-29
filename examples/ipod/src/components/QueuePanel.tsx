@@ -56,7 +56,7 @@ function Heading(props: { label: string; action: string; onPress: () => void }):
   </View>;
 }
 
-/** The sections, built again on each change of the queue (QueuePanel reads queueVersion around them). */
+/** The sections, built again on each change of the queue (QueuePanel maps the version to them: a condition on it would be built once). */
 function Sections(): i32 {
   const now = queue.current(), at = queue.position(), hand = queue.nextInQueue(), rest = queue.nextFrom(), n = hand.length as i32;
   if (now === null) return <Text className={`text-[13px] px-3 pt-2 ${fg(MUTED)}`}>Nothing is playing. Double-click a song, or right-click one to queue it.</Text>;
@@ -80,7 +80,7 @@ export function QueuePanel(): i32 {
       </View>
     </View>
     <ScrollView className="grow flex-col px-1 pb-4">
-      {queue.queueVersion() >= 0 ? <Sections /> : <View />}
+      {[queue.queueVersion()].map((v: i32) => <Sections />)}
     </ScrollView>
   </View>;
 }

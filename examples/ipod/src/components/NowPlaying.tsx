@@ -1,7 +1,8 @@
 // The bar at the top, as iTunes shows it: previous, play or pause and next on the left, and in the middle the "LCD": the track's cover,
 // title, artist and album, the time played and left, and a progress bar a click seeks in; on the right, where it plays (this computer
 // or a Sonos group, with its volume). Shuffle and repeat (off, all, one) beside the transport, and the queue panel's button (QueuePanel).
-// The LCD's sparkles start "Genius from this song" (25 songs) from the track playing.
+// The LCD's sparkles start "Genius from this song" (25 songs) from the track playing; while a radio plays (radio.ts), 👎 and 👍 beside
+// the queue's button steer it.
 import * as ui from 'zinc:ui';
 import { createSignal, onCleanup } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
@@ -12,6 +13,7 @@ import { queueOpen, setQueueOpen } from './QueuePanel';
 import { useCover, releaseCover } from '../services/covers';
 import { OutputButton } from './OutputPicker';
 import { geniusFrom } from '../drafts';
+import { radioOn, likeNow, dislikeNow } from '../radio';
 import { duration } from '../format';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK, STRIPE, LCD_WIDTH, PROGRESS_WIDTH } from '../constants';
 
@@ -69,6 +71,10 @@ export function NowPlaying(): i32 {
           <Text className={`text-[12px] ${fg(FAINT)}`}>Double-click a track to play it</Text>
         </View>}
     </View>
+    {radioOn() ? <View className="flex-row items-center gap-1">
+      <Transport icon="thumbs-down" size={16} onPress={dislikeNow} />
+      <Transport icon="thumbs-up" size={16} onPress={likeNow} />
+    </View> : null}
     <Transport icon="list-music" size={17} on={queueOpen()} onPress={() => setQueueOpen(!queueOpen())} />
     <OutputButton />
   </View>;

@@ -9,6 +9,7 @@ import * as fs from 'zinc:fs';
 import { env } from 'zinc:sys';
 import { History, Listen, LibTrack } from '../../../examples/ipod/src/services/history';
 import { loadWeights, readArtistGraph, fetchSimilarArtists, buildModel, genius, reasons, mixes, savePlaylist, Model, Mix } from '../../../examples/ipod/src/services/genius';
+import { Radio, startRadio, extend, like, dislike, unqueue } from '../../../examples/ipod/src/services/radio';
 
 const GUID = '000A27001234ABCD';
 const GROUPS: string[] = ['Alpha', 'Bravo', 'Charlie'];
@@ -121,6 +122,7 @@ async function main(): Promise<void> {
   const again = readArtistGraph(dir);
   console.log('old file moved', both.has('old band'), both.size === graph.size + 1, 'newer kept', (both.get('alpha one') as Map<string, number>).size === alphaOne,
     'gone', !fs.exists(`${dir}/similar-artists.json`), 'once', once === 1, again.size === both.size);
+  radio(m1, tracks, seedId, w.artistSpread);
   const short = genius(plain, seedId, 10);
   console.log('ten', short.length, letters(short));
 
@@ -149,6 +151,47 @@ async function main(): Promise<void> {
   console.log('saved', back);
   await ipod.close();
   h.close();
+}
+
+/** A guided radio (services/radio.ts) from `seedId`: 10 songs at a time until the library runs out. After the first extension a 👎 on its
+ *  first song of another group (the songs queued after it are taken back, as the app does); a second radio with a 👍 on a Charlie
+ *  song instead must pick more Charlie songs next. */
+function radio(m: Model, tracks: ipod.Track[], seedId: string, spread: i32): void {
+  let seedTrack = tracks[0];
+  for (const t of tracks) if (t.id === seedId) seedTrack = t;
+  const r = startRadio(m, seedId) as Radio;
+  let queued: ipod.Track[] = [seedTrack];
+  const sizes: i32[] = [];
+  let banned = '', after = '';
+  for (let k = 0; k < 20; k++) {
+    const more = extend(m, r, queued.map((t: ipod.Track) => t.id), 10);
+    if (more.length === 0) break;
+    sizes.push(more.length as i32);
+    if (k === 0) {
+      let at = -1;
+      for (let i = 0; i < more.length && at < 0; i++) if (more[i].artist[0] !== 'A') at = i;
+      banned = more[at].artist;
+      dislike(m, r, more[at].id);
+      unqueue(r, more.slice(at + 1).map((t: ipod.Track) => t.id));
+      queued = queued.concat(more.slice(0, at + 1));
+    } else { queued = queued.concat(more); after += letters(more); }
+  }
+  const seen = new Set<string>();
+  let repeats = 0, bannedAfter = 0;
+  for (const t of queued) { if (seen.has(t.id)) repeats++; seen.add(t.id); }
+  for (const t of queued.slice(queued.length - after.length)) if (t.artist === banned) bannedAfter++;
+  console.log('radio', letters(queued), 'extensions', sizes.join(','), 'disliked', banned[0], 'then', after.length, 'repeats', repeats,
+    'spread', spreadOk(queued, spread), 'disliked artist after', bannedAfter);
+  // 👍: two radios, one liking a Charlie song after its first extension
+  const next = (liked: boolean): string => {
+    const r2 = startRadio(m, seedId) as Radio;
+    const first = extend(m, r2, [seedId], 5);
+    let c = '';
+    for (const t of tracks) if (t.artist === 'Charlie One' && c === '') c = t.id;
+    if (liked) like(r2, c);
+    return letters(first) + ' ' + letters(extend(m, r2, [seedId].concat(first.map((t: ipod.Track) => t.id)), 5));
+  };
+  console.log('radio next', next(false), 'liked a C song', next(true));
 }
 
 function bench(): void {

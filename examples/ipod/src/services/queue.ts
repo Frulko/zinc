@@ -39,10 +39,13 @@ let at: i32 = -1;
 let context: ipod.Track[] = [];
 let keys: i32 = 0;
 let listeners: ((e: Edit) => void)[] = [];
+let watchers: (() => void)[] = [];
 
 /** Called with every edit, after it is applied (services/player.ts keeps a Sonos queue in step). */
 export function onEdit(f: (e: Edit) => void): void { listeners.push(f); }
-function changed(): void { setQueueVersion(queueVersion() + 1); }
+/** Called after every change, the current entry moving included (src/radio.ts tops the queue up). */
+export function onChange(f: () => void): void { watchers.push(f); }
+function changed(): void { setQueueVersion(queueVersion() + 1); for (const f of watchers) f(); }
 
 export function entries(): Entry[] { return items; }
 export function position(): i32 { return at; }
@@ -113,6 +116,21 @@ export function clear(): void { items = []; at = -1; context = []; setContextNam
 export function playNext(tracks: ipod.Track[]): void { insert(at + 1, make(tracks, true, 0)); }
 /** After the hand-added ones, before the rest of the list. */
 export function addToQueue(tracks: ipod.Track[]): void { insert(at + 1 + manualCount(), make(tracks, true, 0)); }
+/** At the end of the list it was started from (a radio growing). */
+export function extend(tracks: ipod.Track[]): void {
+  const list = make(tracks, false, context.length as i32);
+  context = context.concat(tracks);
+  insert(items.length as i32, list);
+}
+/** Takes out what follows the hand-added block (a radio picking again); the tracks taken out. */
+export function dropUpcoming(): ipod.Track[] {
+  const tail = at + 1 + manualCount();
+  const out = items.slice(tail).map((e: Entry) => e.track);
+  remove(tail, (items.length - tail) as i32);
+  // ponytail: the list loses them too; right for a radio (they end it), shuffled entries before them keep their old places
+  context = context.filter((t: ipod.Track) => out.indexOf(t) < 0);
+  return out;
+}
 /** Empties "Next in queue". */
 export function clearHandAdded(): void { remove(at + 1, manualCount()); }
 /** Takes the entry `i` (of `entries()`, after the current one) out. */

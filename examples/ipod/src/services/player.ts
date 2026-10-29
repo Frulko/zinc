@@ -119,6 +119,7 @@ let attached = false;        // the group's queue is ours (false: another app re
 let mine: i32 = -1;          // the group's queueUpdateId after our last change: another one comes from another app
 let ops: (() => Promise<void>)[] = [];   // the changes to send, one at a time, in order
 let sending = false;
+let missed = false;          // the group was heard while our changes were sent: read it after them
 let polling = false;
 let pollTimer: i32 = -1;
 let sinceRead = 0;           // seconds since the group was read
@@ -146,6 +147,7 @@ async function runOps(): Promise<void> {
   const g = chosenGroup();
   if (g !== null) mine = (g as sonos.Group).queueUpdateId;
   sending = false;
+  if (missed && g !== null) { missed = false; poll(); }   // an event came while ours were sent: the group is read now, not at the resync
 }
 
 /** Puts the app's queue on the group from the current entry and plays it from `from` seconds. */
@@ -218,7 +220,7 @@ function isOurs(grp: sonos.Group): boolean {
 /** Shows what the group plays; `withPosition` false (an event) keeps the position counted here unless the song changed. */
 function show(grp: sonos.Group, withPosition: boolean): void {
   setVolumeShown(grp.volume);
-  if (sending) return;   // our changes are on their way: the next event or poll tells
+  if (sending) { missed = true; return; }   // our changes are on their way: read again once they are sent
   if (grp.queueUpdateId > mine && attached && pod !== null) { readBack(grp); return; }   // another app changed the queue (the ids only grow)
   if (!isOurs(grp)) { if (attached && current() !== null && grp.media.uri !== '' && !grp.media.uri.startsWith('x-rincon-queue:')) attached = false; if (!grp.playing()) showNow(current(), false); return; }
   if (grp.shuffle()) { setShuffle(true); send(async (): Promise<void> => { await system().setPlayMode(grp, sonos.playModeOf(false, grp.repeat())); }); }   // shuffle from the Sonos app: laid out here

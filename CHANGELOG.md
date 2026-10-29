@@ -13,6 +13,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - iPod daemon: `POST /api/update` with `{"ids": [...], "patch": {"genre": "Jazz", "comment": ""}}` writes those tags to the songs in one save (`''` and `0` clear a field), with `--allow-changes`; `/api/tracks` gives the new fields (grouping, compilation, sort names, start and stop, volume...).
 - Headless tests: a `ZINC_INPUT` click can hold modifiers, as a key can: `down meta` is a Cmd-click, `down shift+meta` holds both (a list's Cmd and Shift selection can now be scripted).
 - `zinc:ipod`: `update()` writes what iTunes' Get Info edits: grouping, description, compilation, the sort names, start and stop times, volume adjustment, skip when shuffling, remember position, the lyrics flag and the play count (0 resets it); `Track` reads them back with the file's kind and the date modified. A field given as `''`, `0` or `false` is now documented as cleared, and a test proves it.
+- iPod demo: Start radio, from a song's menu or a Genius list: the song, then songs close to it, without end (ten more whenever fewer than five are left), here or on the Sonos group, never the same song twice. While it plays, 👍 in the bar steers the next songs toward the one playing, 👎 skips it and keeps its artist out of the radio. A radio is not saved to the iPod.
 - Sidecar: "Add a screen" lists the screens on the same network (the iPad, iPhone, Android and Mac apps announce themselves), one click to add; the Sidecar app for iPadOS now runs on an iPhone too, and its waiting page says how to connect it.
 - Sidecar: an iPad, an Android device or another Mac used as a screen now drives the Mac: a finger (or the mouse) is the pointer, a tap a click, two quick taps a double click, two fingers scroll, and the Apple Pencil draws with its pressure and tilt. macOS asks once for the Accessibility permission.
 - iPod demo: Save to iPod works on an iPod opened through the iPod daemon: the Genius list or mix is saved as a playlist there (Allow changes, and the daemon started with `--allow-changes`; otherwise its refusal shows on the page). The daemon has a new route for it, `POST /api/playlist` with `{"name", "ids"}`.
@@ -198,6 +199,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - `zinc:fs`: `writeText`, `appendText`, `writeBytes`, `readText` and `copyFile` read and write a file in one go: writing 3 MB took 40 ms or more on macOS, now about 1 ms.
+- iPod demo: the queue panel follows the queue while it is open (it showed the queue as it was when opened), and on a Sonos group the bar shows the song the group moved to right after Next or Previous, not up to 15 seconds later.
 - Sidecar: a screen no longer stops with "capture stopped: Stream was stopped by the system" when another screen comes or goes or the displays change; the capture starts again.
 - Sidecar: a film's rectangle no longer stays on the screen in its video colours once the Mac's screen goes still; its place is sent again exact.
 - iPod: scrolling no longer stutters while the similar artists are fetched from Last.fm: each artist is added to the file instead of rewriting it all.

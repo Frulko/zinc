@@ -20,6 +20,7 @@ import { SmartEditor } from './SmartEditor';
 import { busy } from '../../services/transfers';
 import { syncHistory, historyStarted } from '../../services/historyJobs';
 import { Draft, geniusDrafts, mixDrafts, draftOf, isDraft, isGenius, play, refreshDraft, saveDraft } from '../../drafts';
+import { startRadio } from '../../radio';
 import { count } from '../../format';
 import { bg, bd, fg, color, BORDER, HOVER, SELECTED, TEXT, MUTED, ACCENT, ERROR } from '../../constants';
 
@@ -84,6 +85,7 @@ function DraftView(props: { d: Draft }): i32 {
       </View>
       <Button icon="play" label="Play" accent={true} onPress={() => play(d)} />
       {isGenius(d) ? <Button icon="refresh-cw" label="Refresh" onPress={() => refreshDraft(d)} /> : <View />}
+      {isGenius(d) ? <Button icon="radio" label="Start radio" onPress={() => startRadio(d.tracks[0])} /> : <View />}
       <Button icon="list-plus" label="Save to iPod" busy={busy(`Save “${d.name}” to the iPod`)} onPress={() => saveDraft(d)} />
     </View>
     {why.size > 0 ? <TrackTable tracks={tracks} numbered={false} sortable={false} showAlbum={false} from={d.name} scrollKey={scrollKey('playlist')} why={why} />
