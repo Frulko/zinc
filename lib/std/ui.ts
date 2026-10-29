@@ -5380,6 +5380,32 @@ function setFocusTo(h: i32): void {
 const focusHandlers: ((h: i32) => void)[] = [];
 /** Called with the new focused node (-1: none) whenever the focus moves (virtual keyboards show / hide on it). */
 export function onFocusChange(f: (h: i32) => void): void { focusHandlers.push(f); }
+// A subtree rendered again (a component whose props changed) keeps the focus: holdFocus notes the focused node's path under the
+// subtree's root and its text field's caret, selection and scroll; refocus gives them to the node at the same path in the new subtree.
+// Without it a field whose value comes from its component's props lost the focus at the first character typed.
+let heldPath: i32[] = [];
+let heldCaret: i32 = 0, heldAnchor: i32 = 0, heldSx: number = 0, heldSy: number = 0;
+/** Notes the focus when it is inside `root`, before `root`'s children are rebuilt; false when it is elsewhere. */
+export function holdFocus(root: i32): boolean {
+  if (focus < 0 || focus === root || !nodes[focus].alive || !isAncestor(root, focus)) return false;
+  heldPath = [];
+  for (let h = focus; h !== root; h = nodes[h].parent) heldPath.unshift(nodes[nodes[h].parent].children.indexOf(h));
+  const e = nodes[focus].ed;
+  if (e !== null) { heldCaret = e.caret; heldAnchor = e.anchor; heldSx = e.sx; heldSy = e.sy; }
+  return true;
+}
+/** After the rebuild: the node at the noted path takes the focus back (a text field its caret and selection), when there is one. */
+export function refocus(root: i32): void {
+  let h = root;
+  for (const i of heldPath) { const c = nodes[h].children; if (i < 0 || i >= c.length) return; h = c[i]; }
+  if (!nodes[h].focusable && nodes[h].ed === null) return;
+  setFocusTo(h);
+  const e = nodes[h].ed;
+  if (e !== null) {
+    const n = e.value.length;
+    e.caret = imin(heldCaret, n); e.anchor = imin(heldAnchor, n); e.sx = heldSx; e.sy = heldSy; e.reveal = true;
+  }
+}
 /** Gives the keyboard focus to a node (-1: none). A text field starts the text input. */
 export function focusNode(h: i32): void { setFocusTo(h); }
 export function focused(): i32 { if (overlays.length > 0 || restoreTo >= 0) flushOverlays(); return focus; }

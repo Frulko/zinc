@@ -180,6 +180,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- A text field whose value comes from its component's props keeps the focus, the caret and the selection while you type: the component rendering again at each character no longer drops the focus after the first one.
 - Sidecar: a screen no longer stays taken by a Mac whose connection died without closing (a cable pulled, a sender killed): the next Mac that connects takes it over. A tablet or phone added on the USB cable starts at twice the size (Retina).
 - iPod demo: the Last.fm sign-in no longer fails with "This token has not been issued": Last.fm refuses the session to a POST, the app now asks for it with a GET.
 - iPod demo: signing in to Last.fm works when the API account has a callback URL: the browser comes back to the app once you allow it, shows "Connected as …" and the app signs in by itself (no Finish button).

@@ -207,7 +207,11 @@ export function _hl(n: i32, f: (line: string) => i32[]): void { ui.setHighlight(
  *  so the props are read in this effect and the component is mounted again when one of them changes. The lowering calls _u() right
  *  after the props: the body runs untracked, as Solid runs components. */
 export function _comp(parent: i32, make: () => i32): void {
-  createEffect(() => { ui.clearChildren(parent); ui.insert(parent, make(), -1); });
+  createEffect(() => {
+    const held = ui.holdFocus(parent);   // a field typed into keeps the focus when its component renders again
+    ui.clearChildren(parent); ui.insert(parent, make(), -1);
+    if (held) ui.refocus(parent);
+  });
 }
 export function _u(): void { current = null; }
 /** <Show when={...} fallback={...}>children</Show> */

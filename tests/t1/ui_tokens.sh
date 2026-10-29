@@ -18,6 +18,8 @@ ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SIZE=240x160 "$ZINC" run tests/golden/
 ZINC_FRAMES=240 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SIZE=240x160 "$ZINC" run tests/golden/ui-snap/main.tsx 2>&1 | diff -q - tests/golden/ui-snap/main.out >/dev/null || { echo "scroll snap differs from tests/golden/ui-snap/main.out"; fail=1; }
 # a mouse drags a dragToScroll container (no click), not another; scrollTo(..., true) eases
 ZINC_POINTER=mouse ZINC_FRAMES=120 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SIZE=240x160 "$ZINC" run tests/golden/ui-drag-scroll/main.tsx 2>&1 | grep -v '^ \|^zinc run' | diff -q - tests/golden/ui-drag-scroll/main.out >/dev/null || { echo "drag to scroll differs from tests/golden/ui-drag-scroll/main.out"; fail=1; }
+# a field fed by its component's props keeps the focus while the component renders again at each character
+ZINC_FRAMES=20 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 "$ZINC" run tests/golden/ui-comp-focus/main.tsx 2>&1 | grep -v '^ \|^zinc run' | diff -q - tests/golden/ui-comp-focus/main.out >/dev/null || { echo "a component's field loses the focus: tests/golden/ui-comp-focus/main.out"; fail=1; }
 # colour tokens (ZN-259): the same 35 strings, the same values on the f32 build and on the fixed-point profile of the PS1 (no 24-bit colour in a `number`)
 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SIZE=320x240 "$ZINC" run tests/golden/ui-colors/main.tsx 2>&1 | diff -q - tests/golden/ui-colors/main.out >/dev/null || { echo "colour tokens differ from tests/golden/ui-colors/main.out"; fail=1; }
 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SIZE=320x240 "$ZINC" run --profile ps1 tests/golden/ui-colors/main.tsx 2>&1 | diff -q - tests/golden/ui-colors/main.out >/dev/null || { echo "colour tokens differ under --profile ps1"; fail=1; }
