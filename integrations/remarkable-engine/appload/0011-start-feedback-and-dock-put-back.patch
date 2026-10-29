@@ -1,0 +1,170 @@
+diff --git a/resources/qml/appload.qml b/resources/qml/appload.qml
+index c3d2d29..f9d846f 100644
+--- a/resources/qml/appload.qml
++++ b/resources/qml/appload.qml
+@@ -219,6 +219,7 @@ Rectangle {
+ 
+             delegate: Rectangle {
+                 required property var modelData
++                color: tap.pressed ? "#c8c8c8" : "white"   // the press shows on the tile at once
+                 anchors.margins: 10
+                 width: gridView.cellWidth - 20
+                 height: gridView.cellHeight - 20
+@@ -246,6 +247,7 @@ Rectangle {
+                 }
+ 
+                 MouseArea {
++                    id: tap
+                     anchors.fill: parent
+                     onClicked: () => {
+                         launchWindow(modelData).maximize();
+diff --git a/resources/qml/window.qml b/resources/qml/window.qml
+index 31f9c68..f361450 100644
+--- a/resources/qml/window.qml
++++ b/resources/qml/window.qml
+@@ -205,8 +205,10 @@ FocusScope {
+     function tellWindows(gone) {
+         for(const w of (root.parent ? root.parent.children : [])) if(w !== gone && w.topDocked) w.headerOnTop = w.topDocked(gone);
+     }
+-    onDockedChanged: tellWindows(null)
+-    onMinimizedChanged: tellWindows(null)
++    function leaveDock() { if(!docked || minimized) { dockLayers.stop(); library.dockPutBack(); } }
++    onDockedChanged: { tellWindows(null); leaveDock(); }
++    onMinimizedChanged: { tellWindows(null); leaveDock(); }
++    onClosed: { dockLayers.stop(); library.dockPutBack(); }   // not at xochitl's teardown: only when the app quits
+     onVisibleChanged: tellWindows(null)
+     Component.onDestruction: { AppLoadHeader.release(root); tellWindows(root); }
+     // xochitl's header shows the top docked window's bar (header.qmd); without it, headerBar below draws it over the header
+@@ -746,6 +748,46 @@ FocusScope {
+             }
+         }
+ 
++        // Until the app draws its first frame: its name, so a tap on a tile always shows something at once (e-ink apps can take
++        // seconds to start); after 15 s, how to close it.
++        Rectangle {
++            id: starting
++            anchors.fill: parent
++            visible: qtfbKey != -1 && !windowCanvas.drawn
++            color: "white"
++            property bool slow: false
++            onVisibleChanged: slow = false
++            Timer { id: slowTimer; interval: 15000; running: starting.visible; onTriggered: starting.slow = true }
++            MouseArea { anchors.fill: parent }
++            Column {
++                anchors.centerIn: parent
++                width: parent.width * 0.8
++                spacing: 30
++                Image {
++                    anchors.horizontalCenter: parent.horizontalCenter
++                    source: root.appIcon
++                    sourceSize.width: 200
++                    sourceSize.height: 200
++                    visible: status === Image.Ready
++                }
++                Text {
++                    width: parent.width
++                    horizontalAlignment: Text.AlignHCenter
++                    wrapMode: Text.WordWrap
++                    font.pointSize: 32
++                    text: qsTr("Starting %1…").arg(root.appName)
++                }
++                Text {
++                    width: parent.width
++                    horizontalAlignment: Text.AlignHCenter
++                    wrapMode: Text.WordWrap
++                    font.pointSize: 20
++                    visible: starting.slow
++                    text: qsTr("It is taking long. Swipe down from the top to close it.")
++                }
++            }
++        }
++
+         AppLoadCoordinator {
+             id: coord
+ 
+diff --git a/src/AppLibrary.h b/src/AppLibrary.h
+index 6ac9e2b..727a6d9 100644
+--- a/src/AppLibrary.h
++++ b/src/AppLibrary.h
+@@ -298,6 +298,12 @@ public:
+         }
+         lifted.clear(); opened.clear(); sceneBefore.clear();
+     }
++    // The window is undocked, minimized or closed: xochitl's order comes back at once, else what was lifted would stay over every later window.
++    Q_INVOKABLE void dockPutBack() {
++        if(lifted.isEmpty()) return;
++        putBack();
++        qDebug() << "[AppLoad]: the docked window left: xochitl's layers are back in their order";
++    }
+     Q_INVOKABLE void dockHeaderPressed(QQuickItem *win) {
+         QQuickWindow *window = win ? win->window() : nullptr;
+         if(!window) return;
+diff --git a/src/qtfb/FBController.cpp b/src/qtfb/FBController.cpp
+index 8f66a23..85532cd 100644
+--- a/src/qtfb/FBController.cpp
++++ b/src/qtfb/FBController.cpp
+@@ -17,6 +17,7 @@ bool FBController::active() const {
+ 
+ void FBController::setActive(bool active){
+     _active = active;
++    if(!active && _drawn) { _drawn = false; emit drawnChanged(); }
+     emit activeChanged();
+     emit framebufferSizeChanged();
+     markedUpdate();
+diff --git a/src/qtfb/FBController.h b/src/qtfb/FBController.h
+index 2932d56..9f4aa5e 100644
+--- a/src/qtfb/FBController.h
++++ b/src/qtfb/FBController.h
+@@ -20,6 +20,7 @@
+ class FBController : public QQuickPaintedItem
+ {
+     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
++    Q_PROPERTY(bool drawn READ drawn NOTIFY drawnChanged)   // the client sent its first update since it attached
+     Q_PROPERTY(int framebufferID MEMBER framebufferID WRITE setFramebufferID)
+     Q_PROPERTY(bool allowScaling MEMBER allowScaling)
+     Q_PROPERTY(int refreshMode READ refreshMode NOTIFY refreshModeChanged)
+@@ -66,6 +67,8 @@ public:
+     void setRefreshMode(int refreshMode);
+ 
+     bool active() const;
++    bool drawn() const { return _drawn; }
++    void clientDrew() { if(!_drawn) { _drawn = true; emit drawnChanged(); } }
+ 
+     void markedUpdate(const QRect &rect = QRect());
+     void setActive(bool active); // NOT QML ACCESSIBLE!
+@@ -101,6 +104,7 @@ public:
+ 
+ signals:
+     void activeChanged();
++    void drawnChanged();
+     void dragDown();
+     void requestFullRefresh();
+     void refreshModeChanged();
+@@ -114,6 +118,7 @@ private:
+     int framebufferID = -1;
+     int _refreshMode = DEFAULT_WAVEFORM_MODE;
+     bool _active = false;
++    bool _drawn = false;
+     Rotation fbRotation = Deg0;
+     bool allowScaling = false;
+     bool sendFlippedRotationToClient = false;
+diff --git a/src/qtfb/fbmanagement.cpp b/src/qtfb/fbmanagement.cpp
+index 844534a..b28dcc3 100644
+--- a/src/qtfb/fbmanagement.cpp
++++ b/src/qtfb/fbmanagement.cpp
+@@ -255,6 +255,7 @@ static int handleUpdateRegion(QPointer<FBController> controller, qtfb::managemen
+         case UPDATE_ALL:
+             CERR << "Updated all of framebuffer " << connection->fbKey << std::endl;
+             QMetaObject::invokeMethod(controller, [controller]() {
++                controller->clientDrew();
+                 controller->markedUpdate();
+             }, Qt::QueuedConnection);
+             break;
+@@ -262,6 +263,7 @@ static int handleUpdateRegion(QPointer<FBController> controller, qtfb::managemen
+             CERR << "Updated region " << inbound->update.x << " " << inbound->update.y << " " << inbound->update.w << " " << inbound->update.h << " of framebuffer " << connection->fbKey << std::endl;
+             x = inbound->update.x, y = inbound->update.y, w = inbound->update.w, h = inbound->update.h;
+             QMetaObject::invokeMethod(controller, [controller, x, y, w, h]() {
++                controller->clientDrew();
+                 controller->markedUpdate(QRect(
+                     x,
+                     y,

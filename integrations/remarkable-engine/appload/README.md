@@ -1,6 +1,6 @@
 # AppLoad window-state and widget patches
 
-Five patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied in order by `build.sh`:
+Eleven patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied in order by `build.sh`:
 
 - `0001-window-state.patch`: a qtfb client can minimize and restore its own window and knows when it is hidden. A Zinc
   app on the reMarkable Paper Pro uses it for its "Home" button: the app minimizes itself, xochitl is usable again, and
@@ -28,6 +28,11 @@ Five patches on [AppLoad](https://github.com/asivery/rm-appload) v0.6.0, applied
   status icons), fed by the `AppLoadHeader` singleton; it is written for OS 3.29. When it does not apply, the window draws them over the
   header itself, in the room xochitl's items leave and at their sizes (each layout found is logged). A press reaches the client as `STATE_CHANGED_REASON_ACTION`
   (4: `ACTION_HOME` 1, `ACTION_QUIT` 2); `CAPABILITY_HEADER_BAR` (16) tells it, and zinc:remarkable then draws no `RemarkableBar`.
+
+- `0011-start-feedback-and-dock-put-back.patch` (on top of 0010): a tile shows the press at once, and a new qtfb window shows the app's
+  icon and "Starting <name>…" until the client sends its first update (`FBController.drawn`), then after 15 s how to close it. And what
+  0008 lifted is put back when the docked window is undocked, minimized or closed: before, a window closed while xochitl's layer was
+  lifted left it over every later window, and no app could be seen until xochitl restarted.
 
 ## Protocol (0001)
 
