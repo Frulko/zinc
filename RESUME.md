@@ -1,4 +1,14 @@
-# Resume — 2026-10-25 (pinball)
+# Resume — 2026-10-29 (iPod, zinc doc, plugin docs audit)
+
+## iPod, audio, zinc doc — night of 2026-10-28 to 29
+
+- ZN-853 iPod demo (examples/ipod): photos, podcasts, videos, audiobooks, notes/files, playback from the iPod (zinc:audio `openMusic`, AAC through AudioToolbox), download, add (dialog and drop), backups (Allow changes switch, off at start), transfers, logs, live mount/unmount. Read-only check on the owner's iPod (2501 tracks, 46 podcasts, 12 photos, a 57 min AAC podcast plays). Owner to try by hand: overview scroll at ~1000 px, file pickers, Finder drop, restore/delete/repair dialogs, Mount on a USB-only iPod, unplug while playing.
+- Owner's step: restore the real iPod from the safety backup if wanted: `cd $TMPDIR/realtest && ./realtest restore "/Volumes/IPOD DE LAL" 20261029-000325`, then compare with `~/.zinc/ipod-safety/20261028-235933/md5.txt`.
+- ZN-855 Done: one Promise class (D175). ZN-856 Done: `zinc doc` static site generator (D176, docs/guide/14-doc.md, `zinc doc --std`, `--serve`).
+- Engine fixes: a newline in `<Text>` breaks the line; an app's `components/Button` stays its component; console cores answer zinc:audio's music calls; zinc.d.ts `toString(radix)`.
+- Plugin docs audit: docs/reports/plugin-docs-audit/README.md (67 plugins scored, gaps, proposed order). Owner decides tomorrow; filling each plugin's `plugins/<name>/docs/` is the later.md line ZN-856.
+- Full T1 on 2026-10-29 (before the rebuild): 567 pass, 31 fail, 11 skip. Fixed since: console_audio/assets, plugin_manifest (carplay row), examples (reMarkable goldens), ui_textlayout, ui_alloc_text, oracle_diff, rc; gl_cube passes after the rebuild. Not ours or machine: unbuilt test binaries (rt, native, yoga, sim_*, ...), export_android and music_tree_responsive (owner's uncommitted files), hw_shim (zig cross), launch_time (load), sidecar_stream, zinc_go*, tour, first_run (port), linux_cross_prebuilt (stale dist package), qjs_demos (later.md: prefs per engine), macos_selftests (the dialog selftest hung 26 min with nobody at the screen; killed).
+
 
 ## Catalina desktop delivery — 2026-10-26
 
