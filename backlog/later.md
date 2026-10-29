@@ -533,6 +533,12 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo 3DS: mid chunks now come from the card, so the loading takes 175 frames instead of 32; read the chunks the loading needs in larger batches.
 - consoles: `console host: host.assetsStat is not available on n3ds` (n3ds-platformer).
 
+- iPod Sonos: queue the songs before the one picked too (add at a position), so previous works across the whole list.
+- iPod Sonos: carry the position over when switching output (seek after the first play); try Sonos's batch add (16 songs per call) on a real speaker for long lists.
+- iPod Sonos: cover remote-iPod mode in tests/t1/ipod_sonos.sh (daemon on a free port, the speaker receives the /api/file?token= URL).
+- zinc:sonos: let a speaker's address carry a port, so tests no longer patch :1400 (SoCo parity batch 1, docs/reports/sonos-soco-parity.md).
+- zinc:sonos: docs/plugins/sonos.md says the plugin needs the process permission, plugin.json asks only for net: check and fix.
+
 ## Cross-platform pass
 - D178: the Mac app's remote iPod against an ipod-web daemon on a Raspberry Pi over a real network (large files, timeouts, Wi-Fi).
 - D178: the iPod daemon (examples/ipod-web) on a Raspberry Pi and a C.H.I.P.: build zinc:ipod's dependencies (glib, libplist, taglib, libusb) for armv6/armv7 with the pinned zig, serve a real iPod (an HFS+ one mounts read only: browse and stream only), stream to a Subsonic client on the LAN, and measure a hard-disk iPod's USB power on the C.H.I.P.'s host port (a powered hub if it browns out); it matters because that is what the daemon is for.
