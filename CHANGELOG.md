@@ -159,6 +159,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `--engine quickjs`: `Date.now()` gives the time of day (Unix milliseconds), as on the other engines; it counted from 0 as in a deterministic test run.
 - reMarkable (AppLoad): an app window could stay hidden behind xochitl after a docked window closed while a menu or the sidebar was open; nothing launched until xochitl restarted. A tile now shows the press, and a new window shows the app's name until its first frame.
 - A `const` checked against `null` stays narrowed inside an arrow function written after the check (`if (i === null) return; later(() => i.name)`), as in TypeScript; it was refused with Z0107.
 - `--engine quickjs`: `zinc:subtle` works (`digest`, HMAC, AES, ECDSA...) instead of failing with `__host_crypto is not defined`, and its results keep every byte.

@@ -463,6 +463,15 @@ bool nativeTurn(Engine& e) {
 
 bool wantsFrames(Engine& e) { JSValue cb = global(e, "__zincFrameCb"); const bool yes = JS_IsFunction(e.ctx, cb); JS_FreeValue(e.ctx, cb); return yes; }
 
+// Date.now's origin: the wall clock when the program starts, or 0 in deterministic mode (the rule of zrt's det_init), so Date.now gives Unix
+// milliseconds as on the typed engine and the virtual clock in a test
+long long wallBaseMs() {
+  auto set = [](const char* k) { const char* v = std::getenv(k); return v && *v; };
+  const char* d = std::getenv("ZINC_DETERMINISTIC");
+  if (set("ZINC_REPLAY") || set("ZINC_RECORD") || (d && *d && *d != '0')) return 0;
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
 void hostCall(zn::Rt id, HostArg* r, const HostArg* a = nullptr) { (zn::isLayoutRow(id) ? zn::host::hostLayout : zn::isSysRow(id) ? zn::host::hostSys : zn::host::hostGfx)(static_cast<int>(id), a, r); }
 
 // the frame loop of a zinc:gfx program: poll, clock, due timers, begin, the callback, end (what the typed engine's __gfxLoop does)
@@ -681,7 +690,8 @@ int run(const Options& o) {
   {   // what a bundle has folded in (zinc bundle --define), as globals: the same program runs bundled or not
     const std::string caps = capsJson(o.stdRoot + "/../targets/capabilities.json");
     const std::string defs = "globalThis.__ZINC_ENGINE__ = 'quickjs'; globalThis.__ZINC_CAPS__ = " + caps +
-                             "; globalThis.__ZINC_TARGET__ = __ZINC_CAPS__.TARGET; globalThis.__ZINC_PROFILE__ = __ZINC_CAPS__.PROFILE;";
+                             "; globalThis.__ZINC_TARGET__ = __ZINC_CAPS__.TARGET; globalThis.__ZINC_PROFILE__ = __ZINC_CAPS__.PROFILE;" +
+                             "globalThis.__zincWallBase = " + std::to_string(wallBaseMs()) + ";";
     JS_FreeValue(e.ctx, JS_Eval(e.ctx, defs.data(), defs.size(), "<defines>", JS_EVAL_TYPE_GLOBAL));
   }
 

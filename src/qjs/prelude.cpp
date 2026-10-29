@@ -128,9 +128,10 @@ const char* kPrelude = R"JS(
 
   // timers: virtual clock in milliseconds
   let clock = 0, seq = 0, nextId = 1;
+  g.__zincWallBase = 0;
   let timers = [];
   g.__clock = () => clock;
-  Date.now = () => clock;
+  Date.now = () => g.__zincWallBase + clock;   // the wall clock at start (0 in deterministic mode, set by the host) moved by the virtual one, as the typed engine's now_ms
   for (const f of ['FullYear', 'Month', 'Date', 'Day', 'Hours', 'Minutes', 'Seconds', 'Milliseconds']) Date.prototype['get' + f] = Date.prototype['getUTC' + f];  // no time zones, like the typed engine
   g.setTimeout = (f, ms, ...a) => { const id = nextId++; timers.push({ at: clock + Math.max(0, +ms || 0), ord: clock + Math.max(1, +ms || 0), seq: seq++, id, every: 0, f: () => f(...a) }); return id; };
   g.setInterval = (f, ms, ...a) => { const id = nextId++; ms = Math.max(1, +ms || 0); timers.push({ at: clock + ms, ord: clock + ms, seq: seq++, id, every: ms, f: () => f(...a) }); return id; };

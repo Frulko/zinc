@@ -18,3 +18,9 @@ dt=$(echo "$out" | awk '{print $1}')
 [ $((end - start)) -ge 49 ] || { echo "the timer did not really wait: $((end - start)) ms"; exit 1; }
 out=$(ZINC_DETERMINISTIC=1 "$ZINC" run "$tmp/c.ts" 2>&1)
 [ "$out" = "50 50 false true false" ] || { echo "virtual clock: $out"; exit 1; }
+# QuickJS: Date.now is the epoch by default too (it was the virtual clock from 0 whatever the mode), and 0-based under ZINC_DETERMINISTIC
+echo 'console.log(Date.now() > 1.6e12, Math.abs(Date.now() - new Date().getTime()) < 5000)' > "$tmp/q.ts"
+out=$(env -u ZINC_DETERMINISTIC "$ZINC" run "$tmp/q.ts" --engine quickjs 2>/dev/null)
+[ "$out" = "true true" ] || { echo "QuickJS real clock: $out"; exit 1; }
+out=$(ZINC_DETERMINISTIC=1 "$ZINC" run "$tmp/q.ts" --engine quickjs 2>/dev/null)
+[ "$out" = "false false" ] || { echo "QuickJS virtual clock: $out"; exit 1; }
