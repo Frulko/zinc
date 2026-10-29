@@ -3,7 +3,7 @@ import Foundation
 
 struct Tune: Equatable, Codable {
     var black = 90.0, white = 185.0, gamma = 1.6, edges = 10.0, edgeFloor = 4.0
-    var dither = 2                 // 0 threshold, 1 Bayer 8x8, 2 blue noise
+    var dither = 3                 // 0 threshold, 1 Bayer 8x8, 2 blue noise, 3 blue noise on pictures only (the interface pure ink or paper)
     var cursor = 28.0, moving = 1, dot = 8.0, pointerHz = 12.0, trail = 1500.0
     var fastMode = 0, idle = 1500.0, minClean = 1.0, greys = false
     var typing = 800.0, framesHz = 60.0, blink = true
@@ -38,7 +38,7 @@ let presets: [Preset] = {
     var speed = Tune()
     speed.framesHz = 60; speed.pointerHz = 20; speed.idle = 3000; speed.trail = 1000; speed.typing = 1500; speed.mouse = 1000; speed.gentle = false; speed.dither = 1
     var video = Tune()
-    video.black = 40; video.white = 220; video.gamma = 1.0; video.edges = 0; video.framesHz = 20; video.idle = 0; video.blink = false; video.invert = 0
+    video.black = 40; video.white = 220; video.gamma = 1.0; video.edges = 0; video.framesHz = 20; video.idle = 0; video.blink = false; video.invert = 0; video.dither = 2
     var reading = Tune()
     reading.black = 100; reading.white = 200; reading.edges = 6; reading.framesHz = 10; reading.idle = 800; reading.mouse = 300; reading.greys = true
     return [

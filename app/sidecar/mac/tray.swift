@@ -492,8 +492,8 @@ struct SettingsView: View {
                         Knob(name: "Edge threshold", help: "How faint a line may be and still get drawn. Lower catches more, and more noise.", value: $e.tune.edgeFloor, range: 0...30)
                     }
                     Section("Greys") {
-                        Picker("Pattern", selection: $e.tune.dither) { Text("Blue noise").tag(2); Text("Grid").tag(1); Text("None").tag(0) }.pickerStyle(.segmented)
-                        Text("The panel only has black and white while things move: greys become dots. Blue noise scatters them like ink spray, the grid lines them up like an old newspaper, none keeps pure black and white.").font(.caption).foregroundStyle(.secondary)
+                        Picker("Pattern", selection: $e.tune.dither) { Text("Pictures only").tag(3); Text("Blue noise").tag(2); Text("Grid").tag(1); Text("None").tag(0) }.pickerStyle(.segmented)
+                        Text("The panel only has black and white while things move: greys become dots. Pictures only dots photos and films and keeps the interface pure black and white (sharper, lighter to send); blue noise scatters dots everywhere like ink spray, the grid lines them up like an old newspaper, none keeps pure black and white.").font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .formStyle(.grouped).tabItem { Label("Picture", systemImage: "photo") }
