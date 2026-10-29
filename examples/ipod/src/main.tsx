@@ -25,6 +25,7 @@ import { Sidebar } from './components/Sidebar';
 import { NowPlaying } from './components/NowPlaying';
 import { OutputMenu } from './components/OutputPicker';
 import { pickerOpen } from './services/sonos';
+import { Toasts } from './components/Toasts';
 import { DevicesPage } from './pages/devices/DevicesPage';
 import { OverviewPage } from './pages/overview/OverviewPage';
 import { AlbumsPage } from './pages/albums/AlbumsPage';
@@ -64,6 +65,7 @@ function App(): i32 {
     <View className="grow basis-0 flex-col min-w-0 min-h-0">
       {library() !== null ? <NowPlaying /> : <View />}
       {library() !== null ? <Content lib={library() as PodLibrary} page={page()} /> : <DevicesPage />}
+      {page() !== PAGE_TRANSFERS || library() === null ? <Toasts /> : <View />}
       {library() !== null && pickerOpen() ? <OutputMenu /> : <View />}
     </View>
   </View>;

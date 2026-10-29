@@ -2,7 +2,9 @@
 // worker and one open iPod. A job's progress comes from ipod.onProgress: item counts (add, download, backup, restore) and the
 // bytes of the file being copied (copy). A job that has not started can be cancelled; one that runs finishes. Every job ends
 // in the log with its result; every step it reports (phase, item, detail) is a line of its detail view and of details.log.
-import { createSignal, batch } from 'zinc:ui/solid';
+// Each job is also announced where the owner is (components/Toasts.tsx): a toast from the moment it is queued until it has ended
+// (a failure stays until closed), and the sidebar's Transfers row counts what runs and marks a failure not seen yet.
+import { createSignal, batch, untrack } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import { log, now, backupPlace } from './log';
@@ -19,6 +21,12 @@ export class JobLine {
 
 export class Job {
   id: i32; kind: string; label: string;
+  /** What the control that started it asks busy() (a track's arrow: 'track:<id>'); the label by default. */
+  key: string;
+  /** A file or folder the result can be revealed in Finder ('' = none): set by the work before it resolves. */
+  reveal: string = '';
+  /** False for a message that is only a toast (an eject): it has no row in Transfers. */
+  queued: boolean = true;
   /** Does the job; resolves with the line its result shows ("3 added, 1 refused"). */
   work: () => Promise<string>;
   status: () => string; setStatus: (s: string) => void;
@@ -35,7 +43,7 @@ export class Job {
   private kept: string[] = [];
   private dropped: number = 0;
   constructor(id: i32, kind: string, label: string, work: () => Promise<string>) {
-    this.id = id; this.kind = kind; this.label = label; this.work = work;
+    this.id = id; this.kind = kind; this.label = label; this.work = work; this.key = label;
     const [s, ss] = createSignal<string>(WAITING); this.status = s; this.setStatus = ss;
     const [d, sd] = createSignal<number>(0); this.done = d; this.setDone = sd;
     const [t, st] = createSignal<number>(0); this.total = t; this.setTotal = st;
@@ -61,7 +69,21 @@ export class Job {
     if (t > 0) return Math.min(1, (Math.min(this.done(), t - 1) + part) / t);
     return part;
   }
+  /** One line of where it stands: waiting, the item and file being copied, or its result. */
+  summary(): string {
+    const s = this.status();
+    if (s === WAITING) return 'Waiting for the jobs before it';
+    if (s === RUNNING) return this.total() > 0 ? `${Math.min(this.done() + 1, this.total())} of ${this.total()}${this.detail() !== '' ? ` · ${this.detail()}` : ''}` : this.detail() !== '' ? this.detail() : 'Working…';
+    return this.result();
+  }
+  /** Waiting or running. */
+  active(): boolean { const s = this.status(); return s === WAITING || s === RUNNING; }
 }
+
+const KIND_ICONS: string[] = ['add', 'plus', 'download', 'download', 'backup', 'archive', 'restore', 'rotate-ccw', 'delete', 'x', 'check', 'shield-check', 'repair', 'wrench',
+  'analyse', 'sparkles', 'merge', 'copy', 'eject', 'eject', 'mount', 'usb'];
+/** The icon of a kind of job. */
+export function iconOf(kind: string): string { for (let i = 0; i < KIND_ICONS.length; i += 2) if (KIND_ICONS[i] === kind) return KIND_ICONS[i + 1]; return 'arrow-down-up'; }
 
 const EVENTS_SHOWN = 400;
 /** Every step of every job, one line each (the detail views show the last ones). */
@@ -74,11 +96,43 @@ export const [runningJob, setRunningJob] = createSignal<Job | null>(null);
 let nextId: i32 = 1;
 let listening = false;
 
+/** The jobs announced by a toast, oldest first (components/Toasts.tsx shows the last three). */
+export const [toasts, setToasts] = createSignal<Job[]>([]);
+/** How many jobs failed since the Transfers page was last shown (the sidebar's red dot). */
+export const [unseenFailed, setUnseenFailed] = createSignal<i32>(0);
+
 /** How many jobs wait or run (the sidebar's indicator). */
-export function pending(): i32 { let n = 0; for (const j of jobs()) if (j.status() === WAITING || j.status() === RUNNING) n++; return n; }
+export function pending(): i32 { let n = 0; for (const j of jobs()) if (j.active()) n++; return n; }
+
+/** 0..1 over the jobs that wait or run (one waiting counts as not started). */
+export function overallFraction(): number {
+  let n = 0, sum = 0;
+  for (const j of jobs()) if (j.active()) { n++; sum += j.status() === RUNNING ? j.fraction() : 0; }
+  return n > 0 ? sum / n : 0;
+}
+
+/** True while a job of this kind ('backup') or key (a label, 'track:<id>') waits or runs: its control shows busy. */
+export function busy(match: string): boolean { for (const j of jobs()) if (j.active() && (j.kind === match || j.key === match)) return true; return false; }
+
+/** The last job queued with this key, null when none was. */
+export function latestJob(key: string): Job | null { const all = jobs(); for (let i = all.length - 1; i >= 0; i--) if (all[i].key === key) return all[i]; return null; }
+
+export function dismissToast(job: Job): void { setToasts(toasts().filter((j: Job) => j !== job)); }
+/** The Transfers page shows it all: the toasts of the jobs that ended go, and the failures count as seen. */
+export function transfersSeen(): void {
+  const keep = untrack((): Job[] => toasts().filter((j: Job) => j.active()));
+  batch(() => { setToasts(keep); setUnseenFailed(0); });
+}
+
+/** A toast that is not a job (an eject, a mount): its sentence, red when `ok` is false. */
+export function notify(kind: string, label: string, result: string, ok: boolean): void {
+  const job = new Job(0, kind, label, async (): Promise<string> => result);
+  job.queued = false;
+  batch(() => { job.setStatus(ok ? DONE : FAILED); job.setResult(result); setToasts([...toasts(), job]); });
+}
 
 /** Queues a job; it starts when the ones before it end. */
-export function enqueue(kind: string, label: string, work: () => Promise<string>): Job {
+export function enqueue(kind: string, label: string, work: () => Promise<string>, key: string = ''): Job {
   if (!listening) {
     listening = true;
     ipod.onProgress((phase: string, done: i32, total: i32, detail: string) => {
@@ -94,7 +148,8 @@ export function enqueue(kind: string, label: string, work: () => Promise<string>
     });
   }
   const job = new Job(nextId++, kind, label, work);
-  setJobs([...jobs(), job]);
+  if (key !== '') job.key = key;
+  batch(() => { setJobs([...jobs(), job]); setToasts([...toasts(), job]); });
   pump();
   return job;
 }
@@ -131,7 +186,7 @@ async function pump(): Promise<void> {
   } catch (e) {
     const why = (e as Error).message;
     job.note(`failed: ${why}`);
-    batch(() => { job.setStatus(FAILED); job.setResult(why); });
+    batch(() => { job.setStatus(FAILED); job.setResult(why); setUnseenFailed(unseenFailed() + 1); });
     log(job.label, why, false);
   }
   setRunningJob(null);

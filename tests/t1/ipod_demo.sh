@@ -7,7 +7,8 @@
 # its covers, an album, the songs searched, the songs sorted by artist, the playlists, the specs, the albums in the dark scheme, the
 # podcasts, a note read on the Notes & files page, the photos (none)) on the interpreter, the
 # overview's hash on QuickJS, and a run left alone on the overview paints nothing after it is shown. Then the backups checked, files
-# dropped and added, an album downloaded, the transfers and the log (hashes, files and log lines), the Optimise page analysed (three
+# dropped and added (their toasts on the page), an album downloaded (frame 442: its toast running, the sidebar's badge and the busy
+# Download button on the album's page; 448: the toast's success with Reveal in Finder), the transfers and the log (hashes, files and log lines), the Optimise page analysed (three
 # groups: tags and file, sound), another copy kept in one group and the three merged (the page, the merge job's lines, the log), and
 # the iPod unmounted and mounted again while the app runs.
 # macOS only (hdiutil); skipped (77) without the plugin's libraries. KEEP=dir keeps the shots. UPDATE=1 rewrites the golden.
@@ -52,7 +53,7 @@ grep -q 'zinc profile: paint p50=0.00 p99=0.00 max=0.00' idle.out || { echo "ipo
 # of the first group, merge (the question answered by system.script), the merge job opened
 mkdir -p "$tmp/drop" && cp "$tmp/song.wav" "$tmp/drop/new-song.wav" && printf 'fLaC' > "$tmp/drop/track.flac"
 printf '0 dialog-answer 0\n1330 drop %s\n1331 drop %s\n' "$tmp/drop/new-song.wav" "$tmp/drop/track.flac" > system.script   # the answer: Merge, to the merge's question
-frames="30 60 90 120 150 180 210 240 270 300 330 360 420 480 510 570 600 650"
+frames="30 60 90 120 150 180 210 240 270 300 330 360 420 442 448 480 510 570 600 650"
 IPOD_DEMO_DOWNLOADS="$tmp/dl" ZINC_SYSTEM_SCRIPT="$tmp/system.script" ZINC_FRAMES=650 ZINC_INPUT="$root/tests/data/ipod-demo/session.input" \
   ZINC_FRAMEHASH=all ZINC_SHOT="$tmp/page.png" ZINC_SHOT_FRAMES=$(echo $frames | tr ' ' ',') timeout 120 "$Z" run --interp "$root/examples/ipod" > session.out 2>&1 \
   || { echo "ipod_demo: the session failed: $(tail -5 session.out)"; exit 1; }

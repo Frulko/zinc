@@ -60,10 +60,13 @@ export const PHOTO_VIEW_SIZE: i32 = 640;    // a photo opened
 export const LCD_WIDTH: i32 = 460;          // the now-playing panel at the top
 export const PROGRESS_WIDTH: i32 = 300;     // its progress bar
 export const VOLUME_WIDTH: i32 = 90;        // the Sonos group's volume bar, under the output
+export const TOAST_WIDTH: i32 = 340;        // a transfer's toast, at the bottom right
+export const TOAST_SHOWN: i32 = 3;          // toasts shown at once; the others are "+N more"
 
 // ---- timings
 export const SCAN_EVERY_MS: i32 = 3000;     // detect() again: an iPod mounted, unmounted or pulled shows within this time
 export const LOG_KEEP: i32 = 500;           // operations kept on the Logs page (the file keeps them all)
+export const TOAST_MS: i32 = 5000;          // an ended toast fades after this (not while the pointer is on it; a failure stays)
 
 // ---- pages
 export const PAGE_OVERVIEW = 'overview', PAGE_ALBUMS = 'albums', PAGE_SONGS = 'songs', PAGE_PODCASTS = 'podcasts', PAGE_AUDIOBOOKS = 'audiobooks',

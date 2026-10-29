@@ -1,6 +1,7 @@
 // The actions that copy or change something, each a job of the transfers queue (services/transfers.ts), logged when it ends:
 // download tracks to the computer, add files to the iPod, back up, restore, delete a backup, check and repair, mount and eject.
-// What changes the iPod or its backups refuses to run while Allow changes is off, and what destroys asks first.
+// What changes the iPod or its backups refuses to run while Allow changes is off, and what destroys asks first. Eject and mount are not
+// jobs: their outcome is a toast (notify) wherever the owner clicked them.
 import { createSignal, batch } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
@@ -8,7 +9,7 @@ import * as sys from 'zinc:sys';
 import * as dialog from 'zinc:system/dialog';
 import { library, setLibrary, allowChanges, rescan, page, showPage } from './state';
 import { PodLibrary, readLibrary, downloadTracks, addTracks, removeTracks, ejectOpen } from './services/ipod';
-import { enqueue, runningJob, Job, JobLine } from './services/transfers';
+import { enqueue, notify, runningJob, Job, JobLine } from './services/transfers';
 import { log } from './services/log';
 import { stop as stopPlaying } from './services/player';
 import { dropCovers } from './services/covers';
@@ -91,8 +92,8 @@ export async function refresh(): Promise<void> {
 
 // ---- download (reads the iPod only: no switch)
 
-/** Queues the copy of `tracks` to the download folder. */
-export function download(label: string, tracks: ipod.Track[]): void {
+/** Queues the copy of `tracks` to the download folder; `key` is what the control that asked shows busy for (a track's arrow). */
+export function download(label: string, tracks: ipod.Track[], key: string = ''): void {
   if (lib() === null || tracks.length === 0) return;
   const dir = downloadFolder();
   enqueue('download', `Download ${label}`, async (): Promise<string> => {
@@ -106,11 +107,11 @@ export function download(label: string, tracks: ipod.Track[]): void {
       if (r.error === '' && !r.skipped) total += Math.max(0, sizeOf(r.file));
     }
     const job = runningJob();
-    if (job !== null) (job as Job).setLines(out);
+    if (job !== null) { (job as Job).setLines(out); (job as Job).reveal = dir; }
     const line = `${count(copied, 'file', 'files')} copied (${bytes(total)}), ${skipped} already there${errors.length > 0 ? `, ${errors.length} failed (${errors[0]})` : ''} → ${dir}`;
     if (errors.length > 0 && copied + skipped === 0) throw new Error(line);
     return line;
-  });
+  }, key);
 }
 
 // ---- add
@@ -201,6 +202,8 @@ export function backupNow(music: boolean): void {
   if (lib() === null || !localOnly('Back up')) return;
   enqueue('backup', `Back up ${podName()}${music ? ' with its music' : ''}`, async (): Promise<string> => {
     const folder = await ipod.backup('', music);
+    const job = runningJob();
+    if (job !== null) (job as Job).reveal = folder;
     await refreshBackups();
     return `saved in ${folder}`;
   });
@@ -255,7 +258,8 @@ export async function repairPod(): Promise<void> {
 
 /** Mounts an iPod seen over USB only (diskutil): nothing on it is written. */
 export async function mountPod(): Promise<void> {
-  try { await ipod.mount(''); log('Mount the iPod', 'mounted', true); } catch (e) { setNotice((e as Error).message); log('Mount the iPod', (e as Error).message, false); }
+  try { await ipod.mount(''); log('Mount the iPod', 'mounted', true); notify('mount', 'Mount the iPod', 'Mounted: it opens in a moment', true); }
+  catch (e) { setNotice((e as Error).message); log('Mount the iPod', (e as Error).message, false); notify('mount', 'Mount the iPod', (e as Error).message, false); }
   rescan(true);
 }
 
@@ -264,14 +268,18 @@ export async function ejectPod(): Promise<void> {
   const l = lib();
   if (l === null) return;
   const name = podName(), mp = (l as PodLibrary).device.mountpoint;
-  if (runningJob() !== null) { setNotice('A transfer is running: wait for it, or cancel the ones waiting, then eject'); return; }
+  if (runningJob() !== null) {
+    const why = 'A transfer is running: wait for it, or cancel the ones waiting, then eject';
+    setNotice(why); notify('eject', `Eject ${name}`, why, false); return;
+  }
   stopPlaying();
   if ((l as PodLibrary).remote !== '') {   // the daemon ejects it, or refuses with its sentence and the iPod stays open
     try { await ejectOpen(mp); }
-    catch (e) { setNotice((e as Error).message); log(`Eject ${name}`, (e as Error).message, false); return; }
+    catch (e) { setNotice((e as Error).message); log(`Eject ${name}`, (e as Error).message, false); notify('eject', `Eject ${name}`, (e as Error).message, false); return; }
     dropCovers();
     batch(() => { setLibrary(null); setHealth(null); });
     log(`Eject ${name}`, `${(l as PodLibrary).remote} ejected it: it can be unplugged from there`, true);
+    notify('eject', `Eject ${name}`, `${(l as PodLibrary).remote} ejected it: it can be unplugged from there`, true);
     return;
   }
   dropCovers();
@@ -279,8 +287,10 @@ export async function ejectPod(): Promise<void> {
   try {
     await ejectOpen(mp);
     log(`Eject ${name}`, `${mp} ejected: it can be unplugged`, true);
+    notify('eject', `Eject ${name}`, `Ejected: it can be unplugged`, true);
   } catch (e) {
     log(`Eject ${name}`, (e as Error).message, false);
+    notify('eject', `Eject ${name}`, (e as Error).message, false);
   }
   rescan(true);
 }

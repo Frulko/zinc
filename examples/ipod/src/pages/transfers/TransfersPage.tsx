@@ -3,15 +3,12 @@
 // the iPod holds them or why it was refused, and its size; and every step the job took, shown live while it runs); and where downloads go.
 import { Icon } from 'zinc:icons';
 import * as ui from 'zinc:ui';
-import { createSignal } from 'zinc:ui/solid';
-import { jobs, cancel, clearFinished, Job, JobLine, WAITING, RUNNING, DONE, FAILED } from '../../services/transfers';
+import { createSignal, onCleanup } from 'zinc:ui/solid';
+import { jobs, cancel, clearFinished, transfersSeen, iconOf, Job, JobLine, WAITING, RUNNING, DONE, FAILED } from '../../services/transfers';
 import { downloadFolder, chooseDownloadDir } from '../../actions';
 import { Button } from '../../components/Button';
 import { bytes } from '../../format';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK, SIDEBAR as LOG_BG } from '../../constants';
-
-const KIND_ICONS: string[] = ['add', 'plus', 'download', 'download', 'backup', 'archive', 'restore', 'rotate-ccw', 'delete', 'x', 'check', 'shield-check', 'repair', 'wrench', 'analyse', 'sparkles', 'merge', 'copy'];
-function iconOf(kind: string): string { for (let i = 0; i < KIND_ICONS.length; i += 2) if (KIND_ICONS[i] === kind) return KIND_ICONS[i + 1]; return 'arrow-down-up'; }
 
 function Line(props: { l: JobLine }): i32 {
   return <View className="flex-row items-start gap-2">
@@ -28,12 +25,6 @@ function JobRow(props: { job: Job }): i32 {
   const [chosen, setChosen] = createSignal<i32>(-1);
   const open = (): boolean => chosen() >= 0 ? chosen() === 1 : state() === RUNNING;
   const has = (): boolean => j.lines().length > 0 || j.events() !== '';
-  const line = (): string => {
-    const s = state();
-    if (s === WAITING) return 'Waiting';
-    if (s === RUNNING) return j.total() > 0 ? `${Math.min(j.done() + 1, j.total())} of ${j.total()}${j.detail() !== '' ? ` · ${j.detail()}` : ''}` : j.detail() !== '' ? j.detail() : 'Working…';
-    return j.result();
-  };
   return <View className={`flex-col border-t ${bd(BORDER)}`}>
   <View className={`flex-row items-center gap-3 px-4 py-3 ${has() ? `cursor-pointer hover:${bg(HOVER)}` : ''}`}
     onPointerDown={(e: ui.PointerEvent) => { if (has()) setChosen(open() ? 0 : 1); }}>
@@ -44,7 +35,7 @@ function JobRow(props: { job: Job }): i32 {
       {state() === RUNNING ? <View className={`h-[5] w-[360] rounded-full overflow-hidden ${bg(TRACK)}`}>
         <View className={`h-full ${bg(ACCENT)}`} style={{ width: Math.round(Math.max(0.02, j.fraction()) * 360) }} />
       </View> : <View />}
-      <Text className={`text-[12px] ${state() === FAILED ? fg(ERROR) : fg(MUTED)}`} numberOfLines={2}>{line()}</Text>
+      <Text className={`text-[12px] ${state() === FAILED ? fg(ERROR) : fg(MUTED)}`} numberOfLines={2}>{j.summary()}</Text>
     </View>
     {state() === WAITING ? <Button icon="x" label="Cancel" onPress={() => cancel(j)} />
       : <Text className={`text-[11px] font-semibold ${state() === FAILED ? fg(ERROR) : state() === DONE ? fg(MUTED) : fg(FAINT)}`}>{state()}</Text>}
@@ -60,6 +51,9 @@ function JobRow(props: { job: Job }): i32 {
 }
 
 export function TransfersPage(): i32 {
+  // what is shown here needs no toast, and a failure listed here is seen (the sidebar's red dot goes): on arriving and on leaving
+  transfersSeen();
+  onCleanup(transfersSeen);
   const shown = (): Job[] => { const out: Job[] = []; const all = jobs(); for (let i = all.length - 1; i >= 0; i--) out.push(all[i]); return out; };
   return <ScrollView className="grow">
     <View className="flex-col gap-6 px-10 py-8">

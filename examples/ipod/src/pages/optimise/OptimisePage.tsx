@@ -10,6 +10,7 @@ import { PodLibrary } from '../../services/ipod';
 import { notice, remoteOpen } from '../../actions';
 import { analysis, duplicates, analyse, mergeTicked, tracksById, songName, DuplicateRow } from '../../optimise';
 import { Button } from '../../components/Button';
+import { busy } from '../../services/transfers';
 import { bytes, count, duration } from '../../format';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ACCENT_SOFT, ERROR, REMOTE_LOCAL_ONLY } from '../../constants';
 
@@ -104,9 +105,9 @@ export function OptimisePage(): i32 {
           <Text className={`text-[26px] font-bold ${fg(TEXT)}`}>Optimise</Text>
           <Text className={`text-[13px] ${fg(MUTED)}`} numberOfLines={1}>Duplicates, missing covers and tags, files no track uses</Text>
         </View>
-        <Button icon="sparkles" label={a() === null ? 'Analyse' : 'Analyse again'} accent={a() === null && !remoteOpen()} disabled={remoteOpen()} onPress={analyse} />
+        <Button icon="sparkles" label={a() === null ? 'Analyse' : 'Analyse again'} accent={a() === null && !remoteOpen()} disabled={remoteOpen()} busy={busy('analyse')} onPress={analyse} />
         <Button icon="list-checks" label={`Merge selected (${ticked()})`} accent={a() !== null && ticked() > 0 && allowChanges()}
-          disabled={a() === null || ticked() === 0 || !allowChanges()} onPress={() => { mergeTicked(); }} />
+          disabled={a() === null || ticked() === 0 || !allowChanges()} busy={busy('merge')} onPress={() => { mergeTicked(); }} />
       </View>
       <View className="flex-col gap-2">
         <View className={`flex-row items-center gap-2.5 px-4 py-3 rounded-[10] border ${allowChanges() ? bd(ERROR) : bd(BORDER)}`}>

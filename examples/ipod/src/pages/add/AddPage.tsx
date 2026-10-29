@@ -6,6 +6,7 @@ import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
 import { allowChanges, playlists } from '../../state';
 import { addKind, setAddKind, addPlaylist, setAddPlaylist, addResults, notice, pickAndAdd } from '../../actions';
+import { busy } from '../../services/transfers';
 import { Button } from '../../components/Button';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, SELECTED, TEXT, MUTED, FAINT, ACCENT, ACCENT_SOFT, ERROR, ADD_KINDS, ADD_KIND_NAMES } from '../../constants';
 
@@ -62,8 +63,8 @@ export function AddPage(): i32 {
         <Icon name="upload" size={30} color={() => color(allowChanges() ? ACCENT : FAINT)} strokeWidth={1.5} />
         <Text className={`text-[14px] font-semibold ${fg(TEXT)}`}>Drop files or folders on the window</Text>
         <View className="flex-row gap-2">
-          <Button icon="file-plus" label="Choose files…" accent={true} disabled={!allowChanges()} onPress={() => { pickAndAdd(false); }} />
-          <Button icon="folder-open" label="Choose a folder…" disabled={!allowChanges()} onPress={() => { pickAndAdd(true); }} />
+          <Button icon="file-plus" label="Choose files…" accent={true} disabled={!allowChanges()} busy={busy('add')} onPress={() => { pickAndAdd(false); }} />
+          <Button icon="folder-open" label="Choose a folder…" disabled={!allowChanges()} busy={busy('add')} onPress={() => { pickAndAdd(true); }} />
         </View>
         {notice() !== '' ? <Text className={`text-[12px] ${fg(ERROR)}`}>{notice()}</Text> : <View />}
       </View>

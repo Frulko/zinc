@@ -7,12 +7,13 @@ import * as ipod from 'zinc:ipod';
 import { library, page, showPage, pods, openDevice, opening, rescan, scanning, albums, countOf, photoCount, playlists, remoteAddress, remoteToken,
   openRemoteDevice, disconnectRemote } from '../state';
 import { PodLibrary } from '../services/ipod';
-import { bg, bd, fg, color, SIDEBAR, BORDER, HOVER, SELECTED, TEXT, MUTED, FAINT, ACCENT, TRACK, SIDEBAR_WIDTH,
+import { bg, bd, fg, color, SIDEBAR, BORDER, HOVER, SELECTED, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK, SIDEBAR_WIDTH,
   PAGE_OVERVIEW, PAGE_ALBUMS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS, PAGE_FILES, PAGE_SPECS,
   PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS } from '../constants';
 import { PodDrawing } from './PodDrawing';
 import { AllowChanges } from './AllowChanges';
-import { pending, runningJob, Job } from '../services/transfers';
+import { pending, overallFraction, unseenFailed } from '../services/transfers';
+import { ProgressRing } from 'zinc:ui/kit';
 import { mountPod, ejectPod } from '../actions';
 
 function NavRow(props: { icon: string; label: string; to: string; count: i32 }): i32 {
@@ -79,19 +80,18 @@ function OpenPod(props: { lib: PodLibrary }): i32 {
   </View>;
 }
 
-/** The Transfers row: how many jobs wait or run, and a thin bar of the one running. */
+/** The Transfers row: a ring of the overall progress and a badge of how many jobs wait or run, and a red dot when one failed since the page
+ *  was last shown. */
 function TransfersRow(): i32 {
   const on = (): boolean => page() === PAGE_TRANSFERS;
-  const fraction = (): number => { const j = runningJob(); return j !== null ? (j as Job).fraction() : 0; };
-  return <View className={`flex-col justify-center h-[30] px-2.5 mx-2 rounded-[6] cursor-pointer ${on() ? bg(SELECTED) : `hover:${bg(HOVER)}`}`}
+  return <View className={`flex-row items-center h-[30] px-2.5 mx-2 gap-2.5 rounded-[6] cursor-pointer ${on() ? bg(SELECTED) : `hover:${bg(HOVER)}`}`}
     onPointerDown={(e: ui.PointerEvent) => showPage(PAGE_TRANSFERS)}>
-    <View className="flex-row items-center gap-2.5">
-      <Icon name="arrow-down-up" size={16} color={() => color(ACCENT)} strokeWidth={2} />
-      <Text className={`grow text-[13px] ${fg(TEXT)} ${on() ? 'font-semibold' : ''}`}>Transfers</Text>
-      {pending() > 0 ? <Text className={`text-[11px] font-semibold ${fg(ACCENT)}`}>{`${pending()}`}</Text> : <View />}
-    </View>
-    {runningJob() !== null ? <View className={`h-[3] ml-[26] rounded-full overflow-hidden ${bg(TRACK)}`}>
-      <View className={`h-full ${bg(ACCENT)}`} style={{ widthPercent: Math.max(0.02, fraction()) }} />
+    <Icon name="arrow-down-up" size={16} color={() => color(ACCENT)} strokeWidth={2} />
+    <Text className={`grow text-[13px] ${fg(TEXT)} ${on() ? 'font-semibold' : ''}`}>Transfers</Text>
+    {unseenFailed() > 0 && !on() ? <View className={`w-[8] h-[8] rounded-full ${bg(ERROR)}`} /> : <View />}
+    {pending() > 0 ? <ProgressRing value={() => overallFraction() * 100} size={14} color={() => color(ACCENT)} track={() => color(TRACK)} strokeWidth={4} /> : <View />}
+    {pending() > 0 ? <View className={`min-w-[18] h-[16] px-1 items-center justify-center rounded-full ${bg(ACCENT)}`}>
+      <Text className="text-[10px] font-bold text-white">{`${pending()}`}</Text>
     </View> : <View />}
   </View>;
 }

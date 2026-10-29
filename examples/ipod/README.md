@@ -54,9 +54,16 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   files no track uses and the empty playlists. Each group says why it matched and keeps the most complete copy (lossless, bitrate,
   sample rate, tags, cover, numbers, year; a click on another copy keeps that one); Merge selected (Allow changes, a question)
   gives the kept copy the tags, cover, plays, rating and playlist places of the others and removes them with their files.
-- **Transfers and logs.** Every download, add, backup, restore, delete and repair is a job of one queue (one at a time, progress
-  from `ipod.onProgress`, Cancel before it starts; the sidebar shows how many and a bar). Every operation is on the Logs page and
-  appended to `~/.zinc/ipod/logs/demo.log` (beside the backups).
+- **Transfers and logs.** Every download, add, backup, restore, delete, check, repair, analysis and merge is a job of one queue (one
+  at a time, progress from `ipod.onProgress`, Cancel before it starts). Every operation is on the Logs page and appended to
+  `~/.zinc/ipod/logs/demo.log` (beside the backups).
+- **Feedback where you are.** A job shows at once on the page it was started from, as the Finder and Music show a copy: a toast at
+  the bottom right (its progress live, Show, Cancel while it waits) that turns into its result (Reveal in Finder for a download or a
+  backup) and fades after five seconds, unless the pointer is on it; a failure stays red with Show details until closed. Three
+  stack, then "+N more". The sidebar's Transfers row shows a ring of the overall progress and a badge of the jobs left, and a red
+  dot when one failed and the page was not looked at since. The button that started a job shows a loader and ignores clicks while
+  its job waits or runs; a song's arrow turns into a ring, then a check. Eject and mount answer with a toast too. The Transfers
+  page itself shows no toast.
 - **Light and dark** follow the system (`"scheme": "auto"`).
 
 ## Layout of `src/`
@@ -77,7 +84,7 @@ src/
 ├── services/sonos.ts     # the Sonos groups, the output chosen, the songs' URLs and the server of a plugged iPod's files
 ├── services/transfers.ts # the queue of jobs, one at a time, with their progress
 ├── services/log.ts       # the operations, on the Logs page and in the log file
-├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, NowPlaying, OutputPicker
+├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, DownloadMark, Toasts, NowPlaying, OutputPicker
 └── pages/                # devices, overview, albums, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs
 ```
 

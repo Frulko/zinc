@@ -6,6 +6,7 @@ import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
 import { songs, search, setSearch, page, countOf, selected, allowChanges } from '../../state';
 import { download, deleteTracks, notice } from '../../actions';
+import { busy } from '../../services/transfers';
 import { Button } from '../../components/Button';
 import { TrackTable } from '../../components/TrackTable';
 import { count } from '../../format';
@@ -20,12 +21,13 @@ export function MediaPage(props: { title: string; one: string; many: string }): 
         <Text className={`text-[13px] ${fg(MUTED)}`}>{search().trim() === '' ? count(total(), props.one, props.many) : `${songs().length} of ${count(total(), props.one, props.many)}`}</Text>
       </View>
       {total() > 0 ? <Button icon="download" label={selected().length > 0 ? `Download ${selected().length} selected` : `Download all`}
+        busy={busy(selected().length > 0 ? `Download ${count(selected().length, props.one, props.many)}` : `Download all ${props.many}`)}
         onPress={() => {
           const pick: ipod.Track[] = [];
           for (const t of songs()) if (selected().length === 0 || selected().indexOf(t.id) >= 0) pick.push(t);
           download(selected().length > 0 ? `${count(pick.length, props.one, props.many)}` : `all ${props.many}`, pick);
         }} /> : <View />}
-      <Show when={selected().length > 0}><Button icon="trash" label={`Delete ${selected().length}`} danger={true} disabled={!allowChanges()}
+      <Show when={selected().length > 0}><Button icon="trash" label={`Delete ${selected().length}`} danger={true} disabled={!allowChanges()} busy={busy('delete')}
         onPress={() => {
           const pick: ipod.Track[] = [];
           for (const t of songs()) if (selected().indexOf(t.id) >= 0) pick.push(t);

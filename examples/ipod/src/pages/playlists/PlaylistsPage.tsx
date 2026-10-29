@@ -6,6 +6,7 @@ import { playlists, playlistShown, setPlaylistShown, playlistTracks } from '../.
 import { TrackTable } from '../../components/TrackTable';
 import { Button } from '../../components/Button';
 import { download } from '../../actions';
+import { busy } from '../../services/transfers';
 import { count } from '../../format';
 import { bg, bd, fg, color, BORDER, HOVER, SELECTED, TEXT, MUTED, ACCENT } from '../../constants';
 
@@ -39,7 +40,7 @@ export function PlaylistsPage(): i32 {
             <Text className={`text-[22px] font-bold ${fg(TEXT)}`} numberOfLines={1}>{(shown() as ipod.Playlist).name}</Text>
             <Text className={`text-[13px] ${fg(MUTED)}`}>{count((shown() as ipod.Playlist).trackIds.length, 'song', 'songs')}</Text>
           </View>
-          <Button icon="download" label="Download" onPress={() => { const p = shown() as ipod.Playlist; download(`“${p.name}”`, playlistTracks(p.id)); }} />
+          <Button icon="download" label="Download" busy={busy(`Download “${(shown() as ipod.Playlist).name}”`)} onPress={() => { const p = shown() as ipod.Playlist; download(`“${p.name}”`, playlistTracks(p.id)); }} />
         </View>
         <TrackTable tracks={() => playlistTracks((shown() as ipod.Playlist).id)} numbered={false} sortable={false} showAlbum={true} />
       </View> : <View />}

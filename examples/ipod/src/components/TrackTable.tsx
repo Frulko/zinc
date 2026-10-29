@@ -1,13 +1,14 @@
 // A table of tracks: a header (sortable when `sortable`), then one row per track in a VirtualList, so 2,500 tracks cost the
 // rows on screen only. `numbered` shows the track number (an album) instead of the position. A click selects a row (Cmd or Ctrl
 // adds one, Shift a range: what Download selected copies), a double-click plays the track, then the ones under it; the track playing
-// shows a speaker instead of its number. The arrow at the end of a row downloads that track.
+// shows a speaker instead of its number. The arrow at the end of a row downloads that track (and shows its progress: DownloadMark).
 import * as ui from 'zinc:ui';
 import { VirtualList } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
 import { sortKey, sortUp, sortBy, library, selected, selectRow } from '../state';
 import { download } from '../actions';
+import { DownloadMark } from './DownloadMark';
 import { PodLibrary } from '../services/ipod';
 import { current, isPlaying, playList } from '../services/player';
 import { duration } from '../format';
@@ -57,8 +58,8 @@ export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolea
         <Text className={`w-[190] text-[13px] ${fg(MUTED)}`} numberOfLines={1}>{at(i).artist}</Text>
         {props.showAlbum ? <Text className={`w-[210] text-[13px] ${fg(MUTED)}`} numberOfLines={1}>{at(i).album}</Text> : <View />}
         <Text className={`w-[56] text-[13px] text-right ${fg(MUTED)}`}>{duration(at(i).durationMs)}</Text>
-        <View className="w-[16] items-center cursor-pointer" onPointerDown={(e: ui.PointerEvent) => { const t = at(i); if (t.id !== '') download(`“${t.title}”`, [t]); }}>
-          <Icon name="download" size={13} color={() => color(FAINT)} strokeWidth={2} />
+        <View className="w-[16] items-center cursor-pointer" onPointerDown={(e: ui.PointerEvent) => { const t = at(i); if (t.id !== '') download(`“${t.title}”`, [t], `track:${t.id}`); }}>
+          <DownloadMark id={() => at(i).id} />
         </View>
       </View>}
     </VirtualList>
