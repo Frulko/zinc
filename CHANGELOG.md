@@ -220,6 +220,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `promise.then(f)` where `f` returns a promise gives a `Promise<T>` that waits for it, as in JavaScript; it was typed `Promise<Promise<T>>` (Z0103).
 - `await` in a nested `?:` (`a ? await f() : b ? await g() : []`) compiles; it was refused with Z0005.
 - `export { default } from './m'`, `export { a as default }` and `import { default as x }` now load.
 - JSX: `{props.render(item)}`, a variable that holds an element and `{cond ? row(x) : null}` are mounted as nodes; they showed a number.

@@ -21,3 +21,5 @@ pick 1 2 0
 nested 2
 nested 0
 single 2 0
+flatten 3 2 1
+flatten rejects inner

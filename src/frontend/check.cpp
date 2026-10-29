@@ -2082,6 +2082,11 @@ struct Checker {
           targs.pop_back();
           a.nodes[callee].text = cn.text == "__then" ? "__thenV" : "__then2V";
           gs = lookup(cn.text);
+        } else if ((cn.text == "__then" || cn.text == "__then2") && promiseKind(targs.back()) != 0 && !out.objs[ty(targs.back()).obj].typeArgs.empty()) {
+          // the callbacks return a promise: the result adopts it, Promise<U> and not Promise<Promise<U>> (TypeScript's then flattens)
+          targs.back() = out.objs[ty(targs.back()).obj].typeArgs[0];
+          a.nodes[callee].text = cn.text == "__then" ? "__thenP" : "__then2P";
+          gs = lookup(cn.text);
         }
         std::uint32_t inst = out.syms[gs].kind == SymKind::GenericFunc ? instantiateFunc(gs, targs, callee) : gs;
         if (inst == kNone) return tError;

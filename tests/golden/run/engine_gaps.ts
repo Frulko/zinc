@@ -64,10 +64,17 @@ function show(xs: string[]): void { console.log('nested', xs.length); }
 async function pick(w: string): Promise<i32> { const n = w === 'x' ? await one() : w === 'y' ? await two() : 0; return n; }
 async function listOf(w: string): Promise<void> { show(w === 'x' ? await names() : w === 'y' ? await names() : []); }
 async function single(c: boolean): Promise<i32> { const x = c ? await two() : 0; return x; }
+// then with a callback that returns a promise: the promise it gives adopts it
+function chained(): Promise<i32> { return one().then((n: i32) => two().then((m: i32) => n + m)); }
+function flat(): Promise<i32> { return one().then((n: i32) => two()); }
+function inner(): Promise<i32> { return one().then((n: i32) => fail<i32>('inner')); }
+function both(): Promise<i32> { return fail<i32>('outer').then((n: i32) => two(), (e: Error) => one()); }
 async function later(): Promise<void> {
   console.log('pick', await pick('x'), await pick('y'), await pick('z'));
   await listOf('x'); await listOf('z');
   console.log('single', await single(true), await single(false));
+  console.log('flatten', await chained(), await flat(), await both());
+  try { await inner(); } catch (e) { console.log('flatten rejects', (e as Error).message); }
 }
 main();
 setTimeout(() => { later(); }, 0);

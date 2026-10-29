@@ -3017,6 +3017,26 @@ function __then2V<T>(p: Promise<T>, f: (v: T) => void, g: (e: Error) => void): P
   p.subscribe(new Then2JobV<T>(p, f, g, r));
   return r;
 }
+// then(f) whose callback returns a promise: the new promise adopts it, as in JavaScript (Promise<U>, not Promise<Promise<U>>)
+class ThenJobP<T, U> extends Job {
+  constructor(public p: Promise<T>, public f: (v: T) => Promise<U>, public g: ((e: Error) => Promise<U>) | null, public r: Promise<U>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    const g = this.g;
+    if (err !== null && g === null) { this.r.rejectWith(err); return; }
+    try { __adopt(this.r, err !== null && g !== null ? g(err) : this.f(this.p.value)); } catch (e) { this.r.rejectWith(e); }
+  }
+}
+function __thenP<T, U>(p: Promise<T>, f: (v: T) => Promise<U>): Promise<U> {
+  const r = __newPromise<U>();
+  p.subscribe(new ThenJobP<T, U>(p, f, null, r));
+  return r;
+}
+function __then2P<T, U>(p: Promise<T>, f: (v: T) => Promise<U>, g: (e: Error) => Promise<U>): Promise<U> {
+  const r = __newPromise<U>();
+  p.subscribe(new ThenJobP<T, U>(p, f, g, r));
+  return r;
+}
 
 // catch
 class CatchJob<T> extends Job {
