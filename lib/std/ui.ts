@@ -5103,9 +5103,25 @@ function directScroll(h: i32, dx: number, dy: number): void {
 /** The fingers left: inertia or bounce from the release velocity (`os`: the OS momentum follows). */
 function releaseScroll(h: i32, os: boolean = false): void {
   const n = node(h);
-  if (n.ay !== null) releaseAxis(n.ay as ScrollAxis, maxScrollY(n), os);
-  if (n.ax !== null) releaseAxis(n.ax as ScrollAxis, maxScrollX(n), os);
+  if (n.ay !== null) { releaseAxis(n.ay as ScrollAxis, maxScrollY(n), os); snapRelease(n, true); }
+  if (n.ax !== null) { releaseAxis(n.ax as ScrollAxis, maxScrollX(n), os); snapRelease(n, false); }
   wakeScroll(h);
+}
+/** With scroll snap the fingers' release goes straight to a snap point, as Safari and Chrome do (not a glide, then a second move to
+ *  settle): the point the glide would reach, at least the next one the way the fingers went, by the wheel's spring started at the
+ *  fingers' speed. The OS momentum that follows is left out. A bounce or a stretch keeps its own way back; proximity snapping
+ *  glides on when no point is near the glide's end. */
+function snapRelease(n: UiNode, yAxis: boolean): void {
+  if ((n.sn.snap & (yAxis ? 1 : 2)) === 0) return;
+  const a = (yAxis ? n.ay : n.ax) as ScrollAxis;
+  if (a.mode !== MOMENTUM && a.mode !== INERTIA && a.mode !== FLING && a.mode !== IDLE) return;
+  const end = a.pos - a.v / (1000 * Math.log(DECEL));   // where the engine's inertia would stop
+  let t = snapTo(n, yAxis, end, 0);
+  if (n.sn.snapProx && t === end) return;
+  if (Math.abs(a.v) > MIN_FLING && (t - a.pos) * a.v <= 0) t = snapTo(n, yAxis, a.pos, a.v > 0 ? 1 : -1);
+  const most = WHEEL_W * Math.abs(t - a.pos);   // faster than this the critically damped spring would pass the point
+  a.v = Math.max(-most, Math.min(most, a.v));
+  a.target = t; a.mode = WHEEL;
 }
 /** Fingers landed on a moving scroller: it stops where it is (an overscroll still springs back). */
 function catchScroll(h: i32): void {

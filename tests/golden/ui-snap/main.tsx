@@ -1,4 +1,4 @@
-// Scroll snap (ZN-256): a snap-y container of 100 px pages (snap-start): a wheel notch moves to the next point, a scroll that stops between two settles on the nearest.
+// Scroll snap (ZN-256): a snap-y container of 100 px pages (snap-start): a wheel notch moves to the next point, a scroll that stops between two settles on the nearest; a trackpad swipe released heads for the point its glide would reach at once, animated (no glide, then a second move).
 import * as ui from 'zinc:ui';
 import { render } from 'zinc:ui/react';
 import { quit } from 'zinc:gfx';
@@ -18,5 +18,12 @@ render(Screen, 0xffffff, (dt: number) => {
   if (n === 80) { console.log('after two notches', ui.scrollTop(sc)); ui.wheelAt(20, 20, 1); }
   if (n === 120) { console.log('one notch back', ui.scrollTop(sc)); ui.scrollTo(sc, 0, 130); ui.wheelAt(20, 20, 0.0001); }
   if (n === 121) { /* scrollTo drops the axis state: the container settles from its own state on the next scroll */ }
-  if (n === 160) { console.log('between points', ui.scrollTop(sc)); quit(); }
+  if (n === 160) { console.log('between points', ui.scrollTop(sc)); }
+  // a trackpad swipe of 30 px, fast: on release it heads for the point its glide reaches (animated); the OS momentum after it is left out
+  if (n === 161) ui.trackpadAt(20, 20, 0, 0, 3);
+  if (n >= 162 && n <= 164) ui.trackpadAt(20, 20, 0, -10, 1);
+  if (n === 165) ui.trackpadAt(20, 20, 0, 0, 4);
+  if (n >= 166 && n <= 170) ui.trackpadAt(20, 20, 0, -30, 5);
+  if (n === 166 || n === 168 || n === 172 || n === 180) console.log('on its way', Math.round(ui.scrollTop(sc)));
+  if (n === 200) { console.log('after a swipe', ui.scrollTop(sc)); quit(); }
 });
