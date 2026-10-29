@@ -1,7 +1,7 @@
 import { render, createNodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { KeyboardCapture, installKeyboardCapture } from '../../../examples/carplay/src/services/keyboard';
-import { fitDisplay } from '../../../examples/carplay/src/services/display';
+import { fitWindowHeight } from '../../../examples/carplay/src/services/display';
 function check(ok: boolean, why: string): void { if (!ok) throw new Error(why); }
 const field = createNodeRef();
 const sent: string[] = [];
@@ -33,7 +33,6 @@ check(ui.keyDown(field.node, 'F6') && capture.active && ui.focused() === -1, 'F6
 ui.keyDown(-1, 'Enter');
 check(sent.length === before + 1 && sent[sent.length - 1] === 'Enter', 'recaptured Enter goes only to CarPlay');
 check(!capture.key('c', false, true, false), 'OS shortcuts remain available');
-const fitted = fitDisplay(1217, 592);
-check(fitted !== null && fitted.width === 1216 && fitted.height === 592, 'CarPlay display follows available player ratio');
-check(fitDisplay(400, 300) === null, 'undersized player does not renegotiate display');
+check(fitWindowHeight(700, 780, 380, 1920, 720) === 613, 'window matches fixed Ultra video ratio without cropping');
+check(fitWindowHeight(700, 780, 380, 0, 0) === null, 'window waits for decoded video');
 console.log('carplay keyboard capture: ok');

@@ -12,6 +12,7 @@
     "microphone",
     "fs:read",
     "dialog",
+    "window",
     "fs:write"
   ],
   "targets": {

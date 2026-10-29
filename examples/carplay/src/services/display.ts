@@ -1,7 +1,8 @@
-/** Preserve the measured video area's aspect ratio within the current Ultra pixel budget. */
-export function fitDisplay(width: number, height: number): { width: i32; height: i32 } | null {
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 480 || height < 480) return null;
-  const scale = Math.min(1, 1920 / width, 720 / height);
-  const fittedWidth = Math.floor(width * scale / 2) * 2, fittedHeight = Math.floor(height * scale / 2) * 2;
-  return fittedWidth < 480 || fittedHeight < 480 ? null : { width: fittedWidth, height: fittedHeight };
+/** Resize the window so its current video canvas matches the decoded video ratio. */
+export function fitWindowHeight(windowHeight: number, areaWidth: number, areaHeight: number, videoWidth: number, videoHeight: number): i32 | null {
+  if (!Number.isFinite(windowHeight) || !Number.isFinite(areaWidth) || !Number.isFinite(areaHeight) ||
+      !Number.isFinite(videoWidth) || !Number.isFinite(videoHeight) ||
+      areaWidth <= 0 || areaHeight <= 0 || videoWidth <= 0 || videoHeight <= 0) return null;
+  const height = Math.round(windowHeight + areaWidth * videoHeight / videoWidth - areaHeight);
+  return height >= 400 && height <= 2160 ? height : null;
 }

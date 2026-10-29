@@ -14,7 +14,7 @@ The receiver writes each decoded UI Sync command type and its bounded values to 
 
 | Surface | Current control | Scope |
 | --- | --- | --- |
-| Main CarPlay projection (stream 110) | `--width`, `--height`, `--fps`, `--ui-scale` on the receiver; **Adapter écran** and **Ultra 1920 × 720** in the Mac player during Ultra | Negotiated at the next CarPlay connection. The player preserves the decoded video ratio. |
+| Main CarPlay projection (stream 110) | `--width`, `--height`, `--fps`, `--ui-scale` on the receiver; **Adapter fenêtre** and **Ultra 1920 × 720** in the Mac player during Ultra | Receiver geometry is negotiated at the next CarPlay connection. **Adapter fenêtre** only resizes the Mac window to fit the decoded video. |
 | Cluster map (stream 111) | `ZINC_CARPLAY_CLUSTER=1`, then `ZINC_CARPLAY_CLUSTER_WIDTH` and `ZINC_CARPLAY_CLUSTER_HEIGHT` for classic CarPlay | The iPhone chooses what to project; navigation must be active. Classic accepts even dimensions from 64 to 4096; the experimental Ultra theme keeps this stream at 1920 × 720. |
 | Day and night | Player **Day/Night** button | Sends an appearance command to the iPhone; app and map support varies. The local simulated dashboard follows it. |
 | Local Zinc dashboard and HUD | **Tableau de bord** in the player, implemented in `VehicleDashboard.tsx` and `HudPanel.tsx` | Four live local compositions with projected map, simulated gauges and controls. These do not replace the iPhone's theme package. |
@@ -30,7 +30,7 @@ ZINC_CARPLAY_CLUSTER_HEIGHT=480 \
 plugins/carplay/backend/run --wireless --airplay-port 17000 --http-port 18080
 ```
 
-Reconnect the iPhone after a geometry change. The experimental Ultra profile starts with both announced canvases at **1920 × 720**. In the Mac player, **Adapter écran** requests the measured video area's even pixel dimensions for the center display only; **Ultra 1920 × 720** restores the theme format. Both actions renegotiate CarPlay. The cluster remains at **1920 × 720** so its native projected UI and theme coordinates stay aligned. A theme package can constrain accepted center display sizes; the decoded stream dimensions after reconnection are the proof. Its current cluster layout is `Cobranded`; its center map input occupies a **600 × 480** zone at `(660, 120)` on that canvas. Stretching that zone to 1920 × 720 distorts the map. The player currently fits it within the dashboard instead.
+Reconnect the iPhone after a receiver geometry change. The experimental Ultra profile starts with both announced canvases at **1920 × 720**. Live requests for **984 × 480** and **800 × 480** both produced video at the requested size, but the Ultra theme's controls and home grid were clipped. Video negotiation alone does not reflow that theme. Keep this catalog profile at **1920 × 720** for usable native UI. In the Mac player, **Adapter fenêtre** changes only the local window height so the whole decoded video fits its canvas; it does not restart CarPlay. **Ultra 1920 × 720** requests the catalog format again and reconnects when needed. The cluster remains at **1920 × 720** so its native projected UI and theme coordinates stay aligned. Its current cluster layout is `Cobranded`; its center map input occupies a **600 × 480** zone at `(660, 120)` on that canvas. Stretching that zone to 1920 × 720 distorts the map. The player currently fits it within the dashboard instead.
 
 ## How a local theme should be created
 
