@@ -56,11 +56,11 @@ function CardTile(props: { c: Card }): i32 {
   const artist = c.kind === 'artist';
   const away = artist && artistOf(c.id) === null;   // heard, but not on this iPod
   return <View className={`flex-col gap-2 p-2 rounded-[10] shrink-0 snap-start ${away ? '' : `cursor-pointer hover:${bg(HOVER)}`}`} style={{ width: SHELF_CARD_SIZE + 16 }}
-    onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0 && !away) openCard(c); }}>
+    onClick={() => { if (!away) openCard(c); }}>
     <View className={artist ? 'rounded-full overflow-hidden' : ''} style={{ width: SHELF_CARD_SIZE, height: SHELF_CARD_SIZE, opacity: away ? 0.5 : 1 }}>
       <Picture c={c} />
       {c.kind === 'draft' ? <View className={`absolute right-2 bottom-2 w-[34] h-[34] rounded-full items-center justify-center cursor-pointer ${bg(ACCENT)}`}
-        onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) playCard(c); }}>
+        onClick={() => playCard(c)}>
         <Icon name="play" size={16} color={() => 0xffffff} strokeWidth={2.5} />
       </View> : <View />}
     </View>
@@ -85,7 +85,7 @@ function ShelfRow(props: { shelf: Shelf; cards: Card[] }): i32 {
     if (row.node < 0) return;
     const step = SHELF_CARD_SIZE + 16 + 4;   // a card and the gap
     const shown = Math.max(1, Math.floor((ui.screenBox(row.node)[2] - 64) / step));
-    ui.scrollTo(row.node, Math.max(0, (Math.round(ui.scrollLeft(row.node) / step) + dir * shown) * step), 0);
+    ui.scrollTo(row.node, Math.max(0, (Math.round(ui.scrollLeft(row.node) / step) + dir * shown) * step), 0, true);
   };
   return <View className="flex-col gap-2 pb-5">
     <View className="flex-row items-center gap-2 px-10">
@@ -94,7 +94,7 @@ function ShelfRow(props: { shelf: Shelf; cards: Card[] }): i32 {
       <Arrow left={false} onPress={() => turn(1)} />
     </View>
     <View ref={row} className={`flex-row gap-1 px-8 overflow-x-auto ${shelfSnap() ? 'snap-x snap-mandatory' : 'snap-none'}`}
-      showsHorizontalScrollIndicator={shelfScrollbar()} scrollKey={scrollKey(`foryou:${props.shelf.id}`)}>
+      showsHorizontalScrollIndicator={shelfScrollbar()} dragToScroll scrollKey={scrollKey(`foryou:${props.shelf.id}`)}>
       {props.cards.map((c: Card) => <CardTile c={c} />)}
     </View>
   </View>;

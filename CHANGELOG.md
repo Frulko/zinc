@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- iPod demo: a For you shelf can be dragged with the mouse (a drag no longer opens the card under it), and its arrows glide to the next cards.
 - `dragToScroll` on a scroll container lets a mouse drag it (carousels); the drag is not a click. `ui.scrollTo(h, x, y, true)` eases to the offset.
 - iPod demo: the For you shelves snap their cards into place and hide their scroll bars; both are switches in Settings › For you, and the arrows turn a shelf by whole cards.
 - iPod demo: the Last.fm sign-in finishes on its own once you allow the app in the browser, and says so; the Last.fm and ListenBrainz cards have a Test connection button that names the account.
