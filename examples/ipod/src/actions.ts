@@ -7,7 +7,7 @@ import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import * as dialog from 'zinc:system/dialog';
-import { library, setLibrary, allowChanges, rescan, page, showPage } from './state';
+import { library, setLibrary, allowChanges, rescan, page, showPage, playlists, openPlaylist } from './state';
 import { PodLibrary, readLibrary, downloadTracks, addTracks, removeTracks, ejectOpen } from './services/ipod';
 import { enqueue, notify, runningJob, Job, JobLine } from './services/transfers';
 import { log } from './services/log';
@@ -308,5 +308,37 @@ export async function deleteTracks(label: string, tracks: ipod.Track[]): Promise
     catch (e) { setNotice((e as Error).message); throw e; }   // the daemon's sentence (read only) on the page too
     await refresh();
     return `${count(ids.length, 'track', 'tracks')} removed`;
+  });
+}
+
+// ---- playlists (Allow changes; an iPod plugged into this computer)
+
+/** New playlist: an empty normal playlist ("untitled playlist", numbered when taken), filled from a song's menu (Add to playlist). */
+export function newPlaylist(): void {
+  if (!localOnly('New playlist') || !allowed('New playlist')) return;
+  const taken: string[] = playlists().map((p: ipod.Playlist) => p.name);
+  let name = 'untitled playlist';
+  for (let n = 2; taken.indexOf(name) >= 0; n++) name = `untitled playlist ${n}`;
+  enqueue('playlist', `New playlist “${name}”`, async (): Promise<string> => {
+    const id = await ipod.createPlaylist(name);
+    await ipod.save();
+    await refresh();
+    openPlaylist(id);
+    return `“${name}” made`;
+  });
+}
+
+/** Add to playlist: the songs at the end of the normal playlist `id`. */
+export function addToPlaylist(id: string, tracks: ipod.Track[]): void {
+  let p: ipod.Playlist | null = null;
+  for (const x of playlists()) if (x.id === id) p = x;
+  if (p === null || !localOnly('Add to playlist') || !allowed('Add to playlist')) return;
+  const name = (p as ipod.Playlist).name, ids = (p as ipod.Playlist).trackIds.slice();
+  for (const t of tracks) ids.push(t.id);
+  enqueue('playlist', `Add to “${name}”`, async (): Promise<string> => {
+    await ipod.setPlaylistTracks(id, ids);
+    await ipod.save();
+    await refresh();
+    return `${count(tracks.length, 'song', 'songs')} added to “${name}”`;
   });
 }

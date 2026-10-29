@@ -1,0 +1,84 @@
+31 move 195 107
+32 down
+33 up
+41 move 70 513
+42 down
+43 up
+71 move 444 112
+72 down
+73 up
+101 move 575 241
+102 down
+103 up
+111 move 1001 241
+112 down
+113 up
+121 move 1137 241
+122 down
+123 up
+131 move 575 279
+132 down
+133 up
+141 move 713 279
+142 down
+143 up
+151 move 832 279
+152 down
+153 up
+161 move 587 207
+162 down
+163 up
+171 move 521 318
+172 down
+173 up
+181 move 615 318
+182 down
+183 up
+185 key Backspace
+186 key Backspace
+187 text 3
+191 move 898 318
+192 down
+193 up
+201 move 800 104
+202 down
+203 up
+205 text "Rock favourites"
+211 move 360 600
+241 move 1089 409
+242 down
+243 up
+301 move 444 112
+302 down
+303 up
+311 move 634 142
+312 down
+313 up
+321 move 983 409
+322 down
+323 up
+341 move 1089 409
+342 down
+343 up
+401 move 360 296
+402 down
+403 up
+421 move 1045 199
+422 down
+423 up
+471 move 360 342
+472 down
+473 up
+481 move 983 169
+482 down
+483 up
+501 move 587 149
+502 down
+503 up
+511 move 1000 104
+512 down
+513 up
+515 text ", all"
+521 move 1089 351
+522 down
+523 up

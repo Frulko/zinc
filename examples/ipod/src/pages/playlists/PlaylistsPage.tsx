@@ -1,7 +1,9 @@
 // The playlists on the iPod (searched by name), and the tracks of the one picked, in its order (searched by title, artist and album);
 // a smart playlist shows its rules, read-only. Above them, "Genius & mixes": the last Genius list and the taste clusters of the listening
 // history (drafts.ts), not on the iPod until Save to iPod; Play hears them first (on this Mac or the Sonos group chosen).
-// Picking one is an entry of the history; a right click on one plays it or queues it (menus.ts).
+// Picking one is an entry of the history; a right click on one plays it or queues it (menus.ts). The + beside the title makes a playlist
+// or a smart playlist (the editor, SmartEditor.tsx, shown here while it is open); a smart playlist's rules open in it with Edit rules, or,
+// when the editor cannot read them, the playlist is duplicated as a normal one.
 import * as ui from 'zinc:ui';
 import * as ipod from 'zinc:ipod';
 import { Icon } from 'zinc:icons';
@@ -11,12 +13,15 @@ import { hay, words, matches } from '../../search';
 import { TrackTable } from '../../components/TrackTable';
 import { openTrackMenu } from '../../menus';
 import { Button } from '../../components/Button';
-import { download } from '../../actions';
+import { download, notice, newPlaylist } from '../../actions';
+import { choose } from '../../menus';
+import { SMART_EDITOR, SmartEdit, smartEdit, newSmart, editSmart, whyNotEditable, duplicateAsNormal } from '../../smart';
+import { SmartEditor } from './SmartEditor';
 import { busy } from '../../services/transfers';
 import { syncHistory, historyStarted } from '../../services/historyJobs';
 import { Draft, geniusDraft, mixDrafts, draftOf, isDraft, isGenius, play, refreshDraft, saveDraft } from '../../drafts';
 import { count } from '../../format';
-import { bg, bd, fg, color, BORDER, HOVER, SELECTED, TEXT, MUTED, ACCENT } from '../../constants';
+import { bg, bd, fg, color, BORDER, HOVER, SELECTED, TEXT, MUTED, ACCENT, ERROR } from '../../constants';
 
 function PlaylistRow(props: { p: ipod.Playlist }): i32 {
   const p = props.p;
@@ -42,6 +47,19 @@ function DraftRow(props: { d: Draft }): i32 {
     <View className="grow flex-col min-w-0">
       <Text className={`text-[13px] ${fg(TEXT)} ${on() ? 'font-semibold' : ''}`} numberOfLines={1}>{d.name}</Text>
       <Text className={`text-[11px] ${fg(MUTED)}`}>{`${count(d.tracks.length, 'song', 'songs')} · draft`}</Text>
+    </View>
+  </View>;
+}
+
+/** The smart playlist being made or edited, while the editor is open. */
+function EditorRow(props: { e: SmartEdit }): i32 {
+  const on = (): boolean => playlistShown() === SMART_EDITOR;
+  return <View className={`flex-row items-center gap-2.5 h-[44] px-3 rounded-[8] cursor-pointer ${on() ? bg(SELECTED) : `hover:${bg(HOVER)}`}`}
+    onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) openPlaylist(SMART_EDITOR); }}>
+    <Icon name="sliders-horizontal" size={18} color={() => color(ACCENT)} strokeWidth={2} />
+    <View className="grow flex-col min-w-0">
+      <Text className={`text-[13px] ${fg(TEXT)} ${on() ? 'font-semibold' : ''}`} numberOfLines={1}>{props.e.id === '' ? 'New smart playlist' : props.e.name}</Text>
+      <Text className={`text-[11px] ${fg(MUTED)}`}>editing the rules</Text>
     </View>
   </View>;
 }
@@ -79,9 +97,17 @@ export function PlaylistsPage(): i32 {
   const tracks = (): ipod.Track[] => filterTracks(playlistTracks((shown() as ipod.Playlist).id), words(trackSearch()));
   return <View className="grow flex-row min-h-0">
     <View className={`flex-col w-[250] shrink-0 border-r ${bd(BORDER)}`}>
-      <Text className={`text-[26px] font-bold px-6 pt-8 pb-3 ${fg(TEXT)}`}>Playlists</Text>
+      <View className="flex-row items-center px-6 pt-8 pb-3">
+        <Text className={`grow text-[26px] font-bold ${fg(TEXT)}`}>Playlists</Text>
+        <View className={`items-center justify-center w-[28] h-[28] rounded-full cursor-pointer hover:${bg(HOVER)}`}
+          onPointerDown={async (e: ui.PointerEvent): Promise<void> => {
+            const picked = await choose(e, ['new', 'smart'], ['New playlist', 'New smart playlist…']);
+            if (picked === 'new') newPlaylist(); else if (picked === 'smart') newSmart();
+          }}><Icon name="plus" size={18} color={() => color(ACCENT)} strokeWidth={2.5} /></View>
+      </View>
       <View className="px-3 pb-3"><SearchField value={search()} onInput={(v: string) => setSearch(v)} placeholder="Search playlists" width={226} /></View>
       <ScrollView className="grow flex-col px-3 gap-0.5" scrollKey={scrollKey('playlists')}>
+        {smartEdit() !== null ? <EditorRow e={smartEdit() as SmartEdit} /> : <View />}
         {drafts().length > 0 ? <View className="flex-col gap-0.5">
           <Text className={`text-[11px] font-semibold px-3 pt-1 pb-1 ${fg(MUTED)}`}>GENIUS & MIXES</Text>
           {drafts().map((d: Draft) => <DraftRow d={d} />)}
@@ -92,7 +118,9 @@ export function PlaylistsPage(): i32 {
       </ScrollView>
     </View>
     <View className="grow basis-0 flex-col min-h-0 min-w-0">
-      {shownDraft() !== null ? <DraftView d={shownDraft() as Draft} /> : shown() !== null ? <View className="grow flex-col min-h-0 min-w-0">
+      {notice() !== '' ? <Text className={`text-[12px] px-8 pt-3 ${fg(ERROR)}`}>{notice()}</Text> : <View />}
+      {playlistShown() === SMART_EDITOR && smartEdit() !== null ? <SmartEditor e={smartEdit() as SmartEdit} />
+        : shownDraft() !== null ? <DraftView d={shownDraft() as Draft} /> : shown() !== null ? <View className="grow flex-col min-h-0 min-w-0">
         <View className="flex-row items-end gap-3 px-8 pt-8 pb-4">
           <View className="grow basis-0 flex-col min-w-0">
             <Text className={`text-[22px] font-bold ${fg(TEXT)}`} numberOfLines={1}>{(shown() as ipod.Playlist).name}</Text>
@@ -105,8 +133,14 @@ export function PlaylistsPage(): i32 {
             </View> : <View />}
           </View>
           <SearchField value={trackSearch()} onInput={(v: string) => setTrackSearch(v)} placeholder="Search in the playlist" width={220} />
+          {(shown() as ipod.Playlist).smart && whyNotEditable(shown() as ipod.Playlist) === ''
+            ? <Button icon="sliders-horizontal" label="Edit rules" onPress={() => editSmart(shown() as ipod.Playlist)} /> : <View />}
           <Button icon="download" label="Download" busy={busy(`Download “${(shown() as ipod.Playlist).name}”`)} onPress={() => { const p = shown() as ipod.Playlist; download(`“${p.name}”`, playlistTracks(p.id)); }} />
         </View>
+        {(shown() as ipod.Playlist).smart && whyNotEditable(shown() as ipod.Playlist) !== '' ? <View className="flex-row items-center gap-3 px-8 pb-4 min-w-0">
+          <Text className={`grow basis-0 text-[12px] ${fg(MUTED)}`} numberOfLines={2}>{`These rules cannot be edited here: ${whyNotEditable(shown() as ipod.Playlist)}.`}</Text>
+          <Button icon="copy" label="Duplicate as normal playlist" onPress={() => duplicateAsNormal(shown() as ipod.Playlist)} />
+        </View> : <View />}
         <TrackTable tracks={tracks} numbered={false} sortable={false} showAlbum={true} from={(shown() as ipod.Playlist).name} scrollKey={scrollKey('playlist')} />
       </View> : <View />}
     </View>

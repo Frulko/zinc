@@ -1,8 +1,11 @@
 // The album artists (searched by name) as a VirtualList on the left, and the albums of the one picked as a grid of covers on the right;
-// an album opens on the Albums page. Picking an artist is an entry of the history.
+// an album opens on the Albums page. Picking an artist is an entry of the history; a right click on one plays or queues their songs or
+// starts a smart playlist on them (menus.ts).
 import * as ui from 'zinc:ui';
 import { VirtualList } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
+import * as ipod from 'zinc:ipod';
+import { openTrackMenu } from '../../menus';
 import { Artist, Album, artists, shownArtists, artistShown, openArtist, search, setSearch, scrollKey } from '../../state';
 import { SearchField } from '../../components/SearchField';
 import { AlbumTile } from '../albums/AlbumsPage';
@@ -12,7 +15,8 @@ import { bg, bd, fg, color, BORDER, HOVER, SELECTED, TEXT, MUTED, ACCENT, GRID_R
 function ArtistRow(props: { a: Artist; on: () => boolean }): i32 {
   const a = props.a;
   return <View className={`flex-row items-center gap-2.5 px-3 mx-3 rounded-[8] cursor-pointer ${props.on() ? bg(SELECTED) : `hover:${bg(HOVER)}`}`}
-    style={{ height: ARTIST_ROW_HEIGHT }} onPointerDown={(e: ui.PointerEvent) => openArtist(a.name)}>
+    style={{ height: ARTIST_ROW_HEIGHT }} onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) openArtist(a.name); }}
+    onContextMenu={(e: ui.PointerEvent) => { const ts: ipod.Track[] = []; for (const al of a.albums) for (const t of al.tracks) ts.push(t); openTrackMenu(e, ts, 0, ts, a.name); }}>
     <Icon name="mic-vocal" size={16} color={() => color(ACCENT)} strokeWidth={2} />
     <View className="grow basis-0 flex-col min-w-0">
       <Text className={`text-[13px] ${fg(TEXT)} ${props.on() ? 'font-semibold' : ''}`} numberOfLines={1}>{a.name}</Text>

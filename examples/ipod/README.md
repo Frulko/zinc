@@ -59,6 +59,18 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   artist into `history/similar-artists.json`), genre and decade, and each song's plays, rating and skips. The weights are
   `history/genius.json`. The Playlists page also lists **mixes**: the taste clusters of the history (by genre when nothing was heard),
   named by their artists and genre, played and saved the same way.
+- **Smart playlists, as iTunes made them.** The + of the Playlists page makes a playlist (empty, filled from a song's right-click
+  menu › Add to playlist) or a smart playlist; right-click a song, an album or an artist › Smart playlist like this… starts one on
+  the artist, album artist, album or genre they share. The editor is iTunes' dialog: a name, Match all or any of the rules, one row
+  per rule (field, condition and value by the field's kind: text with the iPod's artists, albums, genres and composers in a menu,
+  a number in its unit, stars, a date or "in the last N days, weeks or months", a media kind, a playlist; − and +), Limit to N songs,
+  minutes, hours, MB or GB selected by random, name, rating, plays, dates..., Live updating, and for a new one templates (Never played,
+  Top 25 most played, Recently added, 5 stars, Forgotten favourites, and Tempo 120–130 when songs have a BPM). Under it, the songs the
+  rules choose now (count, time, size), from zinc:ipod's `evaluateSmart`, libgpod's own rules: Play hears them on the output chosen,
+  Save to iPod (Allow changes, an iPod plugged into this Mac) writes a real smart playlist, refilled at each save when live (a Nano 6G
+  or 7G, which keeps none, gets the songs as a normal playlist and says so). A smart playlist of the iPod opens in the editor with
+  Edit rules; when its rules use what the editor cannot preview (iTunes' newer fields, grouping, kind...), it says why and offers
+  Duplicate as normal playlist. A remote iPod: the preview works, Save says the daemon cannot write smart playlists yet.
 - **For you.** The first page under the iPod, as Spotify's home: shelves of cards from the listening history, Genius and the
   taste mixes (`services/forYou.ts` works them out, without UI): Jump back in (the albums and playlists of the last sessions, the
   drafts played from the page), Daily Mix 1-6 (each taste cluster, 70% songs you know drawn by affinity and 30% close songs heard at
@@ -165,8 +177,9 @@ src/
 ├── services/genius.ts    # similarity (co-listening, artists, genre, decade, plays), Genius, the mixes; no UI (the daemon can use it)
 ├── services/forYou.ts    # the For you shelves: signals, affinity, daily mixes, On Repeat, Rewind, Rediscover, Time Capsule, tops, the year
 ├── drafts.ts             # Genius lists and mixes as drafts: played first, Refresh, Save to iPod
+├── smart.ts              # the smart playlist editor's state: fields and conditions, rows, templates, preview, save, duplicate
+├── menus.ts              # the right-click menu: Play, Play next, Add to queue, Add to playlist, Genius, Smart playlist like this
 ├── forYou.ts             # the For you page's shelves: kept per iPod and history version, worked out off the first frame, as drafts
-├── menus.ts              # the right-click menu: Play, Play next, Add to queue, Genius from this song
 ├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, DownloadMark, Toasts, NowPlaying, OutputPicker,
 │                         # QueuePanel, HistoryBar (‹ › and the magnifier), SearchField, QuickSearch (Cmd+F / Cmd+K)
 └── pages/                # devices, foryou (and Your year), overview, albums, artists, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs, settings
@@ -180,6 +193,10 @@ frame hash per page, checks the overview on QuickJS and that nothing is painted 
 iPod's health, drops two files on the window, downloads an album, shows the transfers and the log, analyses the iPod on the Optimise page and merges its duplicates, and unmounts and mounts the
 disk image while the app runs (it closes the iPod, then opens it again).
 
+`tests/t1/ipod_smart.sh` makes a smart playlist with the editor's controls on a fake iPod (fields, conditions, a value from the
+library's menu, stars, the limit, the name), checks the preview against `evaluateSmart` and the editor's frame against its golden,
+saves it, plays a template's preview and saves it, refuses to edit a playlist on grouping and duplicates it, edits the first one
+again, then reads the iPod's database: the rules and the songs as written.
 `tests/t1/ipod_foryou.sh` checks the For you shelves on a fake iPod with three years of generated history (each shelf's songs
 known), the daily refresh rule with the clock set, the empty and partial states, and a golden frame of the page and of Your year.
 
