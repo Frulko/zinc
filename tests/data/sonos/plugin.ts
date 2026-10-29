@@ -1,6 +1,6 @@
 // tests/t1/sonos_plugin.sh: zinc:sonos against tests/data/sonos/stub_speaker.py (SONOS_STUB=127.0.0.1:<port>). Prints one line per check;
 // the test compares them with plugin.expected and reads the speaker's log for the SOAP arguments sent.
-import { discover, Group, Speaker, Song, UpnpError, musicTrackMeta, Events, Event, Subscription, soap, localAddressFor } from 'zinc:sonos';
+import { discover, Group, Speaker, Song, UpnpError, musicTrackMeta, Events, Event, Subscription, soap, localAddressFor, Queue, QueueItem, SonosPlaylist } from 'zinc:sonos';
 import { serveAsync, stop, Request, Reply } from 'zinc:net';
 import { parse, toXml, escapeXml } from 'zinc:xml';
 import { env } from 'zinc:sys';
@@ -79,11 +79,16 @@ async function batch2(): Promise<void> {
   const a = (sys.speakerByName('Salon') as Speaker).address();
   await soap(a, 'GroupRenderingControl', '/MediaRenderer/GroupRenderingControl/Control', 'SetGroupVolume', '<InstanceID>0</InstanceID><DesiredVolume>44</DesiredVolume>');
   await soap(a, 'RenderingControl', '/MediaRenderer/RenderingControl/Control', 'SetVolume', '<InstanceID>0</InstanceID><Channel>Master</Channel><DesiredVolume>12</DesiredVolume>');
+  await sleep(300);   // the first events (the whole state) are in
+  g.queueUpdateId = 0;
   await soap(a, 'AVTransport', '/MediaRenderer/AVTransport/Control', 'RemoveAllTracksFromQueue', '<InstanceID>0</InstanceID>');
   await soap(a, 'AVTransport', '/MediaRenderer/AVTransport/Control', 'AddURIToQueue', `<InstanceID>0</InstanceID><EnqueuedURI>${song(3).url}</EnqueuedURI><EnqueuedURIMetaData>${escapeXml(musicTrackMeta(song(3)))}</EnqueuedURIMetaData><DesiredFirstTrackNumberEnqueued>0</DesiredFirstTrackNumberEnqueued><EnqueueAsNext>0</EnqueueAsNext>`);
   await soap(a, 'AVTransport', '/MediaRenderer/AVTransport/Control', 'SetAVTransportURI', '<InstanceID>0</InstanceID><CurrentURI>x-rincon-queue:RINCON_A#0</CurrentURI><CurrentURIMetaData></CurrentURIMetaData>');
   await soap(a, 'AVTransport', '/MediaRenderer/AVTransport/Control', 'Pause', '<InstanceID>0</InstanceID>');
   const ok = await until(() => g.volume === 44 && (sys.speakerByName('Salon') as Speaker).volume === 12 && g.state === 'PAUSED_PLAYBACK' && g.track.title === 'Song 3');
+  await sleep(300);   // the queue's ContentDirectory event (ContainerUpdateIDs) of the change made by another app
+  const viaEvent = g.queueUpdateId;
+  console.log(`queue event ${viaEvent > 0 && viaEvent === (await sys.getQueue(g, 0, 1)).updateId}`);
   console.log(`events ${ok} group ${g.volume} room ${(sys.speakerByName('Salon') as Speaker).volume} ${g.state} ${g.track.number}/${g.track.count} ${g.track.title} - ${g.track.artist} ${g.track.duration} ${g.track.source} ${g.playMode} ${g.can('Seek')}`);
   // a NOTIFY the program did not subscribe to is refused; another request is left to the program
   const bad = await fetch(`http://127.0.0.1:${port}/sonos-events`, { method: 'NOTIFY', body: '<e:propertyset/>', headers: [['SID', 'uuid:nobody'], ['NT', 'upnp:event'], ['NTS', 'upnp:propchange']] });
@@ -96,8 +101,44 @@ async function batch2(): Promise<void> {
   stop();
 }
 
+function titles(q: Queue): string { return q.items.map((it: QueueItem) => it.title.replace('Song ', '')).join(','); }
+
+// The queue and the Sonos playlists (study batch 2): numbers count from 1, getQueue's start from 0 (SoCo).
+async function batch3(): Promise<void> {
+  const sys = await discover(env('SONOS_STUB'));
+  const g = sys.groupOf(sys.speakerByName('Salon') as Speaker) as Group;
+  await sys.clearQueue(g);
+  const uris: string[] = [], metas: string[] = [];
+  for (let i: i32 = 1; i <= 20; i++) { uris.push(song(i).url); metas.push(musicTrackMeta(song(i))); }
+  const first = await sys.addMultipleUrisToQueue(g, uris, metas);
+  const page = await sys.getQueue(g, 15, 3);
+  console.log(`multiple ${first} size ${await sys.queueSize(g)} page ${titles(page)} of ${page.total} ${page.items[0].id} ${page.items[0].artist} ${page.items[0].album} ${page.items[0].itemClass} ${page.items[0].uri}`);
+  await sys.playFromQueue(g, 2);
+  const next = await sys.addMultipleUrisToQueue(g, [song(21).url, song(22).url], [musicTrackMeta(song(21)), musicTrackMeta(song(22))], 0, true);
+  await sys.removeFromQueue(g, 1);
+  await sys.removeRangeFromQueue(g, 5, 2);
+  await sys.moveInQueue(g, 1, 3);
+  await sys.reorderTracksInQueue(g, 4, 2, 1);
+  const all = await sys.getQueue(g, 0, 0);
+  await sys.update(g);
+  console.log(`edited next ${next} ${titles(all)} total ${all.total} playing ${g.track.number} ${g.track.title} update ${g.queueUpdateId === all.updateId && all.updateId > 0}`);
+  const mix = await sys.createSonosPlaylist('Mix & Co');
+  for (let i: i32 = 1; i <= 3; i++) await sys.addItemToSonosPlaylist(mix, song(i).url, musicTrackMeta(song(i)));
+  await sys.moveInSonosPlaylist(mix, 3, 1);
+  await sys.removeFromSonosPlaylist(mix, 2);
+  const saved = await sys.createSonosPlaylistFromQueue(g, 'Saved');
+  const savedSize = (await sys.sonosPlaylistTracks(saved)).total;
+  await sys.clearSonosPlaylist(saved);
+  const found = await sys.getSonosPlaylistByTitle('Mix & Co');
+  console.log(`playlists ${(await sys.getSonosPlaylists()).map((p: SonosPlaylist) => p.id + ' ' + p.title).join(', ')} mix ${titles(await sys.sonosPlaylistTracks(mix))} ${mix.uri} found ${found !== null && (found as SonosPlaylist).uri === mix.uri} saved ${savedSize} then ${(await sys.sonosPlaylistTracks(saved)).total}`);
+  await sys.playSonosPlaylist(g, mix);
+  await sys.removeSonosPlaylist(saved);
+  console.log(`after ${(await sys.getSonosPlaylists()).length} queue ${(await sys.getQueue(g)).items[0].uri}`);
+}
+
 async function main(): Promise<void> {
   await batch1();
+  await batch3();
   await batch2();
 }
 main().catch((e: Error) => console.log('error ' + e.message));

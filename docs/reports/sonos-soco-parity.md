@@ -66,31 +66,31 @@ Services: AVT = AVTransport, RC = RenderingControl, GRC = GroupRenderingControl,
 
 | SoCo | UPnP | today | proposed | notes |
 |---|---|---|---|---|
-| `get_queue(start, max_items, full_album_art_uri)` | CD.Browse `Q:0` (+ DIDL parse) | partial | `getQueue(g, start, max)` | zinc has `queueEntry`, `queueIndex` (URI only). Needs DIDL item parser -> `QueueItem` {title, creator, album, art, uri, meta, class} |
-| `queue_size` | CD.Browse `Q:0` count (`TotalMatches`) | missing | `queueSize(g)` | |
+| `get_queue(start, max_items, full_album_art_uri)` | CD.Browse `Q:0` (+ DIDL parse) | done (batch 2) | `getQueue(g, start, max)` | zinc has `queueEntry`, `queueIndex` (URI only). Needs DIDL item parser -> `QueueItem` {title, creator, album, art, uri, meta, class} |
+| `queue_size` | CD.Browse `Q:0` count (`TotalMatches`) | done (batch 2) | `queueSize(g)` | |
 | `add_uri_to_queue(uri, position, as_next)` | AVT.AddURIToQueue | done (batch 1) | `addUriToQueue(g, uri, position, asNext)` | returns first new track number |
 | `add_to_queue(queueable_item, position, as_next)` | AVT.AddURIToQueue with item DIDL | partial (`enqueue(g, favorite)`) | `addToQueue(g, item, position, asNext)` | `enqueue` covers Favorite only |
-| `add_multiple_to_queue(items, container)` | AVT.AddMultipleURIsToQueue | missing | `addMultipleToQueue(g, items, container?)` | batch of up to 16 URIs per call; faster than loops |
+| `add_multiple_to_queue(items, container)` | AVT.AddMultipleURIsToQueue | done (batch 2) | `addMultipleUrisToQueue(g, uris, metas, position, asNext)` | 16 URIs per call; no container argument |
 | `remove_from_queue(index)` | AVT.RemoveTrackFromQueue `Q:0/n` | has | `removeFromQueue` | SoCo index is 0-based, zinc 1-based; document |
-| `remove_range_from_queue(start, num)` | AVT.RemoveTrackRangeFromQueue | missing | `removeRangeFromQueue(g, start, count)` | |
+| `remove_range_from_queue(start, num)` | AVT.RemoveTrackRangeFromQueue | done (batch 2) | `removeRangeFromQueue(g, start, count)` | |
 | `clear_queue()` | AVT.RemoveAllTracksFromQueue | done (batch 1) | `clearQueue(g)` | used internally by `playFavorite` |
-| `reorder_queue`, `move_in_queue(from, to)` | AVT.ReorderTracksInQueue | missing | `moveInQueue(g, from, to)`, `reorderQueue(g, start, count, before)` | |
-| `Queue` class (ListOfMusicInfoItems with update_id) | | missing | `QueueItem[]` + `updateId` | |
+| `reorder_queue`, `move_in_queue(from, to)` | AVT.ReorderTracksInQueue | done (batch 2) | `moveInQueue(g, from, to)`, `reorderTracksInQueue(g, start, count, insertBefore)` | |
+| `Queue` class (ListOfMusicInfoItems with update_id) | | done (batch 2) | `Queue` {items, total, updateId}, `QueueItem` | |
 
 ### 1.5 Sonos playlists (saved queues)
 
 | SoCo | UPnP | today | proposed | notes |
 |---|---|---|---|---|
-| `get_sonos_playlists()` | CD.Browse `SQ:` | missing | `getSonosPlaylists()` | |
-| `get_sonos_playlist_by_attr(attr, match)` | same + filter | missing | `getSonosPlaylistByTitle(title)` | |
-| `create_sonos_playlist(title)` | AVT.CreateSavedQueue | missing | `createSonosPlaylist(title)` | returns `SQ:n` object |
-| `create_sonos_playlist_from_queue(title)` | AVT.SaveQueue | missing | `createSonosPlaylistFromQueue(g, title)` | |
-| `remove_sonos_playlist(playlist)` | CD.DestroyObject `SQ:n` | missing | `removeSonosPlaylist(p)` | |
-| `add_item_to_sonos_playlist(item, playlist)` | AVT.AddURIToSavedQueue (needs UpdateID from Browse) | missing | `addItemToSonosPlaylist(p, item)` | |
-| `reorder_sonos_playlist`, `move_in_sonos_playlist` | AVT.ReorderTracksInSavedQueue | missing | `moveInSonosPlaylist(p, from, to)` | |
-| `remove_from_sonos_playlist(playlist, track_index)` | AVT.ReorderTracksInSavedQueue (SoCo moves the track out; no direct remove action) | missing | `removeFromSonosPlaylist(p, index)` | |
-| `clear_sonos_playlist(playlist, update_id)` | AVT.ReorderTracksInSavedQueue (loop) | missing | `clearSonosPlaylist(p)` | |
-| play a saved playlist | SetAVTransportURI `file:///jffs/settings/savedqueues.rsq#n` + queue | missing | `playSonosPlaylist(g, p)` | via `addUriToQueue` (SoCo: `add_to_queue(playlist)`) |
+| `get_sonos_playlists()` | CD.Browse `SQ:` | done (batch 2) | `getSonosPlaylists()` | |
+| `get_sonos_playlist_by_attr(attr, match)` | same + filter | done (batch 2) | `getSonosPlaylistByTitle(title)` | |
+| `create_sonos_playlist(title)` | AVT.CreateSavedQueue | done (batch 2) | `createSonosPlaylist(title)` | returns `SQ:n` object |
+| `create_sonos_playlist_from_queue(title)` | AVT.SaveQueue | done (batch 2) | `createSonosPlaylistFromQueue(g, title)` | |
+| `remove_sonos_playlist(playlist)` | CD.DestroyObject `SQ:n` | done (batch 2) | `removeSonosPlaylist(p)` | |
+| `add_item_to_sonos_playlist(item, playlist)` | AVT.AddURIToSavedQueue (needs UpdateID from Browse) | done (batch 2) | `addItemToSonosPlaylist(p, item)` | |
+| `reorder_sonos_playlist`, `move_in_sonos_playlist` | AVT.ReorderTracksInSavedQueue | done (batch 2) | `moveInSonosPlaylist(p, from, to)` | |
+| `remove_from_sonos_playlist(playlist, track_index)` | AVT.ReorderTracksInSavedQueue (SoCo moves the track out; no direct remove action) | done (batch 2) | `removeFromSonosPlaylist(p, index)` | |
+| `clear_sonos_playlist(playlist, update_id)` | AVT.ReorderTracksInSavedQueue (loop) | done (batch 2) | `clearSonosPlaylist(p)` | |
+| play a saved playlist | SetAVTransportURI `file:///jffs/settings/savedqueues.rsq#n` + queue | done (batch 2) | `playSonosPlaylist(g, p)` | via `addUriToQueue` (SoCo: `add_to_queue(playlist)`) |
 
 ### 1.6 Volume, EQ, home theatre (`RenderingControl`, addressed per room)
 
@@ -216,7 +216,7 @@ Note: SMAPI is a third-party SOAP API. It is only needed to browse/search a serv
 | `Subscription.unsubscribe()` | `UNSUBSCRIBE` with `SID` | done (batch 6, as `Events`) | `unsubscribe(sub)` | |
 | `Subscription.send_event`, `events` queue, `time_left`, `is_subscribed` | NOTIFY dispatch by `SID`, `SEQ` | done (batch 6, as `Events`) | handler callback | |
 | `EventNotifyHandler`, `EventListener` (HTTP server on 1400+, `get_listen_ip(ip)` = UDP-connect trick to find the interface that reaches the speaker) | `NOTIFY` with `SID`, `NT: upnp:event`, `NTS: upnp:propchange`, body `e:propertyset` | done (batch 6, as `Events`) | `serveAsync` handler | |
-| `parse_event_xml` (LastChange nested XML: `AVTransport` `<Event><InstanceID><TransportState val=.../>`; `RenderingControl` volume per channel; `ZoneGroupTopology` `ZoneGroupState`; `AlarmClock`; `ContentDirectory` `ContainerUpdateIDs`/`FavoritesUpdateID`/`SavedQueuesUpdateID`; `DeviceProperties`; `GroupRenderingControl` `GroupVolume`, `GroupMute`) | | missing | done (batch 6, as `Events`) | `Event` has `sid`, `seq`, `service`, `timestamp`, `variables` |
+| `parse_event_xml` (LastChange nested XML: `AVTransport` `<Event><InstanceID><TransportState val=.../>`; `RenderingControl` volume per channel; `ZoneGroupTopology` `ZoneGroupState`; `AlarmClock`; `ContentDirectory` `ContainerUpdateIDs`/`FavoritesUpdateID`/`SavedQueuesUpdateID`; `DeviceProperties`; `GroupRenderingControl` `GroupVolume`, `GroupMute`) | | missing | done (batch 6, as `Events`) | `Event` has `sid`, `seq`, `service`, `timestamp`, `variables`; ContentDirectory `ContainerUpdateIDs` of `Q:0` sets `group.queueUpdateId` (batch 2) |
 | `ZoneGroupState` event-driven cache | ZGT subscription | done (batch 6: `Events.watch` applies it) | `sys.watch()` | replaces polling `update`/`refresh` |
 | Services used for events | AVTransport, RenderingControl, GroupRenderingControl, ZoneGroupTopology, ContentDirectory, AlarmClock, DeviceProperties, SystemProperties, AudioIn, MusicServices, GroupManagement, ConnectionManager, Queue, QPlay | | | iPod needs: AVT, RC, GRC, ZGT, CD (queue/favorites changed), AC |
 | `Service.iter_actions`, `actions`, `event_vars` (SCPD introspection from `/xml/<service>1.xml`) | HTTP GET SCPD | missing | skip | not needed with hard-coded actions |

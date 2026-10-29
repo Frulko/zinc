@@ -74,6 +74,14 @@ Free functions:
 | `addUriToQueue(g, uri, meta = '', position = 0, asNext = false): Promise<i32>` | Adds a URI to the queue (`add_uri_to_queue`): at its end, at `position` (1 for the first), or right after the song that plays. Returns its number in the queue. |
 | `clearQueue(g)` | Empties the queue (`clear_queue`). |
 | `playFromQueue(g, index, start = true)` | Plays the queue from entry `index`, 0 for the first as SoCo counts (`play_from_queue`); the group then goes through the queue by itself. |
+| `getQueue(g, start = 0, max = 100): Promise<Queue>`, `queueSize(g)` | A page of the queue (`get_queue`; `start` counts from 0 as SoCo does, `max` 0 reads it all), 100 entries per call; how many entries it holds. Sets `g.queueUpdateId`. |
+| `addMultipleUrisToQueue(g, uris, metas, position = 0, asNext = false): Promise<i32>` | Several URIs at once (`add_multiple_to_queue`: AddMultipleURIsToQueue, 16 per call), at the end, at `position` or right after the song that plays; returns the number of the first. |
+| `removeFromQueue(g, n, updateId = 0)`, `removeRangeFromQueue(g, start, count, updateId = 0)` | Takes entry `n` (1 for the first; SoCo counts from 0) or `count` entries from `start` out of the queue. |
+| `moveInQueue(g, from, to)`, `reorderTracksInQueue(g, start, count, insertBefore, updateId = 0)` | Moves one entry so it becomes entry `to`; moves `count` entries before `insertBefore` (numbers before the move). The song that plays keeps playing (its number follows it). |
+| `getSonosPlaylists()`, `getSonosPlaylistByTitle(title)`, `sonosPlaylistTracks(p, start = 0, max = 0): Promise<Queue>` | The Sonos playlists (saved queues, `SQ:n`), one by its title (null when none), the entries of one. |
+| `createSonosPlaylist(title)`, `createSonosPlaylistFromQueue(g, title)`, `removeSonosPlaylist(p)` | Makes an empty one, saves the group's queue as one, deletes one. |
+| `addItemToSonosPlaylist(p, uri, meta = '')`, `removeFromSonosPlaylist(p, n)`, `moveInSonosPlaylist(p, from, to)`, `clearSonosPlaylist(p)`, `reorderSonosPlaylist(p, tracks, positions)` | Changes one (its UpdateID is read first, as the speaker asks); entries count from 1, `reorderSonosPlaylist` takes the speaker's own 0-based lists. |
+| `playSonosPlaylist(g, p)` | The queue becomes the playlist, played from its start (`addUriToQueue(g, p.uri, p.meta)` adds it to the queue instead). |
 | `favorites(): Promise<Favorite[]>` | The Sonos favorites (as saved in the Sonos app). |
 | `playFavorite(g, favorite)` | A stream is played directly; a container (playlist, album) is queued, then played. |
 
@@ -82,12 +90,12 @@ Free functions:
 | API | |
 |---|---|
 | `new Events(sys, port)` | `port`: the program's HTTP server (`serveAsync`), which hands requests to `handleNotify`; `path` (`'/sonos-events'`) is the CALLBACK's path. |
-| `watch(g, timeoutSec = 1800)` | Ends the subscriptions it held and subscribes the group: AVTransport and GroupRenderingControl of the coordinator, RenderingControl of each room, ZoneGroupTopology. The speakers send their whole state at once. |
+| `watch(g, timeoutSec = 1800)` | Ends the subscriptions it held and subscribes the group: AVTransport, GroupRenderingControl and ContentDirectory (the queue; skipped when a speaker refuses it) of the coordinator, RenderingControl of each room, ZoneGroupTopology. The speakers send their whole state at once. |
 | `subscribe(speaker, service, timeoutSec = 1800): Promise<Subscription>` | One service: `AVTransport`, `RenderingControl`, `GroupRenderingControl`, `ZoneGroupTopology`, `ContentDirectory`, `AlarmClock`, `DeviceProperties`. Throws `UpnpError` when refused. Renewed by itself; a renewal refused (a speaker restarted) subscribes again. |
 | `renew(sub)`, `unsubscribe(sub)`, `close()` | By hand; `close` ends them all. `subs` lists the live ones (`service`, `speaker`, `sid`, `timeout`, `active`). |
 | `handleNotify(req): Reply \| null` | A `NOTIFY` under `path`: applied, then answered 200 (412 for an unknown SID; an event older than one applied is dropped); any other request gives null. |
 | `onChange((g, e) => void)` | Called after each event, with the group it changed (null for a room's volume or the topology) and the `Event`. |
-| `apply(sub, e)` | What `handleNotify` does with an event: state, play mode, actions, `media`, the track (its position kept for the same track) from AVTransport; `volume`, `muted` from GroupRenderingControl and RenderingControl; `sys.applyTopology` from ZoneGroupTopology. |
+| `apply(sub, e)` | What `handleNotify` does with an event: state, play mode, actions, `media`, the track (its position kept for the same track) from AVTransport; `volume`, `muted` from GroupRenderingControl and RenderingControl; `queueUpdateId` from ContentDirectory (`ContainerUpdateIDs` of `Q:0`); `sys.applyTopology` from ZoneGroupTopology. |
 
 `parseEvent(service, body): Event` reads a `NOTIFY` body (`Event`: `service`, `sid`, `seq`, `get(name)`, `has(name)`; a LastChange's
 variables by name, a channel other than Master after a slash: `Volume/LF`). `localAddressFor(ip)` is this computer's address on the
@@ -99,9 +107,12 @@ Data classes:
 | class | fields |
 |---|---|
 | `Speaker` | `uuid`, `name`, `ip`, `port` (1400), `coordinator` (uuid of its group's coordinator), `volume` (-1 until read with `readVolumes`), `muted`, `visible`, `bridge`; `address()` is `'ip:port'`. A stereo pair or a home theatre with its satellites is one speaker in `sys.speakers`. |
-| `Group` | `id`, `coordinator`, `members` (coordinator first), `state` (`PLAYING`, `PAUSED_PLAYBACK`, `STOPPED`, `TRANSITIONING`), `status`, `track`, `media`, `volume` (-1 until `update`), `muted`, `playMode`, `actions`. Methods: `name()` (`'Salon + Bureau'`), `playing()`, `can(action)`, `shuffle()`, `repeat()`, `isPlayingRadio()`, `isPlayingLineIn()`, `isPlayingTv()`. |
+| `Group` | `id`, `coordinator`, `members` (coordinator first), `state` (`PLAYING`, `PAUSED_PLAYBACK`, `STOPPED`, `TRANSITIONING`), `status`, `track`, `media`, `volume` (-1 until `update`), `muted`, `playMode`, `actions`, `queueUpdateId` (the queue's UpdateID after the plugin's last change or the last queue event: another app changed the queue when an event brings an id the program did not get from its own call). Methods: `name()` (`'Salon + Bureau'`), `playing()`, `can(action)`, `shuffle()`, `repeat()`, `isPlayingRadio()`, `isPlayingLineIn()`, `isPlayingTv()`. |
 | `Track` | `title`, `artist`, `album`, `art` (absolute URL, or ''), `duration` and `position` in seconds (duration 0 for a radio), `source`, `station`, `uri`, `number` and `count` in the queue, `metadata` (the DIDL). |
 | `Media` | `uri`, `meta`, `nrTracks`: what the transport is set to (SoCo's `get_current_media_info`). |
+| `QueueItem` | An entry of the queue or of a Sonos playlist: `id` (`Q:0/3`), `title`, `artist`, `album`, `art`, `uri`, `meta` (its DIDL, sent back as is), `itemClass`. |
+| `Queue` | `items`, `total` (entries in all), `updateId`. |
+| `SonosPlaylist` | `id` (`SQ:3`), `title`, `uri` (`file:///jffs/settings/savedqueues.rsq#3`), `meta`. |
 | `Favorite` | `title`, `art`, `uri`, `meta` (the DIDL, sent back as is), `container`. |
 | `Song` | A song file over plain HTTP: `url`, `title`, `artist`, `album`, `art` (an absolute URL, or ''), `mime` (`'audio/mpeg'`, `'audio/mp4'`..., `'*'` when unknown), `duration` in seconds. |
 

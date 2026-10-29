@@ -35,7 +35,17 @@ want '^SetRelativeGroupVolume 5$' 'relative group volume'
 want '^EndDirectControlSession' 'EndDirectControlSession'
 want '^SetAVTransportURI x-rincon-mp3radio://radio\.example/live\.mp3 <DIDL-Lite.*<dc:title>Radio X</dc:title>.*audioBroadcast' 'forced radio with its title'
 want '^SetAVTransportURI x-rincon:RINCON_A$' 'Bureau joining in party mode'
-for svc in /ZoneGroupTopology/Event /MediaRenderer/AVTransport/Event /MediaRenderer/GroupRenderingControl/Event /MediaRenderer/RenderingControl/Event; do
+# the queue and the Sonos playlists (the stub refuses a saved queue's change with a stale UpdateID: the lines prove it was read first)
+want '^AddMultipleURIsToQueue 16 http://127\.0\.0\.1:9/song1\.mp3 .* http://127\.0\.0\.1:9/song16\.mp3 <DIDL-Lite.*<dc:title>Song 1</dc:title>.*<dc:title>Song 16</dc:title>.*</DIDL-Lite> 0 0$' 'first chunk of 16 URIs'
+want '^AddMultipleURIsToQueue 4 http://127\.0\.0\.1:9/song17\.mp3 .* 17 0$' 'second chunk after the first'
+want '^AddMultipleURIsToQueue 2 .*song21\.mp3 .*song22\.mp3 .* 0 1$' 'URIs added as next'
+want '^RemoveTrackRangeFromQueue 5 2$' 'range removed'
+want '^ReorderTracksInQueue 1 1 4$' 'move of one entry'
+want '^ReorderTracksInSavedQueue SQ:1 2 0$' 'move in a Sonos playlist'
+want '^SaveQueue Saved$' 'queue saved as a playlist'
+want '^DestroyObject SQ:2$' 'playlist deleted'
+want '^NOTIFY /MediaServer/ContentDirectory/Event [1-9][0-9]* 200$' 'queue event answered'
+for svc in /ZoneGroupTopology/Event /MediaRenderer/AVTransport/Event /MediaRenderer/GroupRenderingControl/Event /MediaRenderer/RenderingControl/Event /MediaServer/ContentDirectory/Event; do
   want "^SUBSCRIBE $svc <http://127\.0\.0\.1:[0-9]+/sonos-events> Second-2\$" "subscription to $svc"
   want "^RENEW $svc uuid:RINCON_A_sub[0-9]+ Second-2\$" "renewal of $svc"
   want "^UNSUBSCRIBE $svc uuid:RINCON_A_sub[0-9]+\$" "end of $svc"

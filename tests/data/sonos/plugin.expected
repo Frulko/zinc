@@ -5,8 +5,13 @@ fault 701 500 Next Transition not available | Next: UPnP 701 (Transition not ava
 mode SHUFFLE_NOREPEAT SHUFFLE true all
 fade true mute true volume 35
 radio radio Radio X true PLAYING
+multiple 1 size 20 page 16,17,18 of 20 Q:0/16 Band & Co First object.item.audioItem.musicTrack http://127.0.0.1:9/song16.mp3
+edited next 4 22,6,3,21,2,7,8,9,10,11,12,13,14,15,16,17,18,19,20 total 19 playing 3 Song 3 update true
+playlists SQ:1 Mix & Co, SQ:2 Saved mix 3,2 file:///jffs/settings/savedqueues.rsq#1 found true saved 19 then 0
+after 1 queue file:///jffs/settings/savedqueues.rsq#1
 callback address 127.0.0.1
-subscribed ZoneGroupTopology,AVTransport,GroupRenderingControl,RenderingControl events AVTransport,GroupRenderingControl,RenderingControl,ZoneGroupTopology rooms 3
+subscribed ZoneGroupTopology,AVTransport,GroupRenderingControl,RenderingControl,ContentDirectory events AVTransport,GroupRenderingControl,RenderingControl,ZoneGroupTopology rooms 3
+queue event true
 events true group 44 room 12 PAUSED_PLAYBACK 1/1 Song 3 - Band & Co 200 queue SHUFFLE true
 unknown sid 412 other 404
-closed 4 -> 0 changes>0 true
+closed 5 -> 0 changes>0 true

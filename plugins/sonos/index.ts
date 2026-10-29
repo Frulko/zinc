@@ -5,7 +5,7 @@
 // (github.com/SoCo/SoCo) in camelCase; docs/reports/sonos-soco-parity.md maps the two.
 import { udp } from 'zinc:socket';
 import { utf8Decode } from 'zinc:sys';
-import { El, parse, escapeXml as escape } from 'zinc:xml';
+import { El, parse, toXml, escapeXml as escape } from 'zinc:xml';
 import { networkInterfaces } from 'zinc:os';
 import { Request, Reply } from 'zinc:net';
 
@@ -105,6 +105,9 @@ export class Group {
   media: Media = new Media();
   /** The group's mute (GroupRenderingControl), read by update. */
   muted: boolean = false;
+  /** The queue's UpdateID: set by each change made through the plugin and by the ContentDirectory events (ContainerUpdateIDs of Q:0), so
+   *  a program tells its own changes from another app's. 0 until either. */
+  queueUpdateId: i32 = 0;
   /** The rooms' names, the coordinator first: 'Salon + Bureau'. */
   name(): string { return this.members.map((m: Speaker) => m.name).join(' + '); }
   playing(): boolean { return this.state === 'PLAYING' || this.state === 'TRANSITIONING'; }
@@ -134,6 +137,41 @@ export class Favorite {
   /** True for a container (a playlist, an album): it is queued; a stream is played directly. */
   container: boolean = false;
 }
+
+/** An entry of a queue or of a Sonos playlist (a DIDL item, SoCo's DidlObject): `meta` is its DIDL, sent back as is to queue it again. */
+export class QueueItem {
+  /** 'Q:0/3' in the queue, 'S:...' or the service's id in a playlist. */
+  id: string = '';
+  title: string = '';
+  /** dc:creator, the artist. */
+  artist: string = '';
+  album: string = '';
+  /** An absolute URL of the cover ('' when none). */
+  art: string = '';
+  uri: string = '';
+  meta: string = '';
+  /** upnp:class ('object.item.audioItem.musicTrack'...). */
+  itemClass: string = '';
+}
+
+/** A page of a queue or of a Sonos playlist (SoCo's Queue): the entries, how many there are in all, and the UpdateID the speaker gave it. */
+export class Queue {
+  items: QueueItem[] = [];
+  total: i32 = 0;
+  updateId: i32 = 0;
+}
+
+/** A Sonos playlist (a saved queue, SQ:n), as the Sonos app lists them. */
+export class SonosPlaylist {
+  /** 'SQ:3'. */
+  id: string = '';
+  title: string = '';
+  /** 'file:///jffs/settings/savedqueues.rsq#3': addUriToQueue(g, p.uri, p.meta) queues it. */
+  uri: string = '';
+  meta: string = '';
+}
+
+const DIDL_OPEN = '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">';
 
 /** A song file a group plays from a plain http:// URL (a computer's own server on the LAN, an iPod daemon): MP3, AAC or ALAC in
  *  MP4 (.m4a), FLAC, WAV. The server should answer byte ranges: the speaker seeks with them. */
@@ -189,6 +227,44 @@ export function artUri(address: string, art: string): string { return art.starts
 const AVT = '/MediaRenderer/AVTransport/Control', RC = '/MediaRenderer/RenderingControl/Control', GRC = '/MediaRenderer/GroupRenderingControl/Control';
 const CD = '/MediaServer/ContentDirectory/Control', ZGT = '/ZoneGroupTopology/Control';
 const I0 = '<InstanceID>0</InstanceID>';
+
+/** The entries of a Browse answer's Result (a DIDL-Lite document). */
+function itemsOf(address: string, result: string): QueueItem[] {
+  const out: QueueItem[] = [];
+  if (result === '') return out;
+  for (const e of parse(result).all('item')) {
+    const q = new QueueItem();
+    q.id = e.attr('id'); q.title = e.textOf('dc:title'); q.artist = e.textOf('dc:creator'); q.album = e.textOf('upnp:album');
+    q.art = artUri(address, e.textOf('upnp:albumArtURI')); q.uri = e.textOf('res'); q.itemClass = e.textOf('upnp:class');
+    q.meta = DIDL_OPEN + toXml(e) + '</DIDL-Lite>';
+    out.push(q);
+  }
+  return out;
+}
+/** ContentDirectory Browse of the children of `id` from `start`, `count` at most (a speaker gives 100 at most per call). */
+function browse(address: string, id: string, start: i32, count: i32): Promise<El> {
+  return soap(address, 'ContentDirectory', CD, 'Browse',
+    `<ObjectID>${escape(id)}</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter><StartingIndex>${start}</StartingIndex><RequestedCount>${count}</RequestedCount><SortCriteria></SortCriteria>`);
+}
+const PAGE: i32 = 100;
+/** Every entry of `id` from `start`, `max` at most (0: all), page by page. */
+async function browseAll(address: string, id: string, start: i32, max: i32): Promise<Queue> {
+  const q = new Queue();
+  let at = start;
+  while (max === 0 || q.items.length < max) {
+    const want = max === 0 ? PAGE : Math.min(PAGE, max - q.items.length) as i32;
+    const r = await browse(address, id, at, want);
+    const got = itemsOf(address, r.textOf('Result'));
+    q.total = (parseInt(r.textOf('TotalMatches')) || 0) as i32;
+    q.updateId = (parseInt(r.textOf('UpdateID')) || 0) as i32;
+    for (const it of got) q.items.push(it);
+    at += got.length;
+    if (got.length < want || at >= q.total) break;
+  }
+  return q;
+}
+/** The NewUpdateID of an answer, `before` when it has none. */
+function updateIdOf(r: El, before: i32): i32 { const v = parseInt(r.textOf('NewUpdateID')); return isNaN(v) ? before : v as i32; }
 
 function avt(g: Group, action: string, args: string = '', timeoutMs: i32 = TIMEOUT_MS): Promise<El> { return soap(g.coordinator.address(), 'AVTransport', AVT, action, I0 + args, timeoutMs); }
 function grc(g: Group, action: string, args: string = ''): Promise<El> { return soap(g.coordinator.address(), 'GroupRenderingControl', GRC, action, I0 + args); }
@@ -360,8 +436,122 @@ export class System {
       `<ObjectID>Q:0</ObjectID><BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter><StartingIndex>${n - 1}</StartingIndex><RequestedCount>1</RequestedCount><SortCriteria></SortCriteria>`);
     return parse(r.textOf('Result')).textOf('res');
   }
-  /** Takes the queue's entry `n` (1 for the first) out. */
-  async removeFromQueue(g: Group, n: i32): Promise<void> { await avt(g, 'RemoveTrackFromQueue', `<ObjectID>Q:0/${n}</ObjectID><UpdateID>0</UpdateID>`); }
+  /** Takes the queue's entry `n` (1 for the first; SoCo's index is 0-based) out. */
+  async removeFromQueue(g: Group, n: i32, updateId: i32 = 0): Promise<void> {
+    const r = await avt(g, 'RemoveTrackFromQueue', `<ObjectID>Q:0/${n}</ObjectID><UpdateID>${updateId}</UpdateID>`);
+    g.queueUpdateId = updateIdOf(r, g.queueUpdateId);
+  }
+  /** Takes `count` entries out from entry `start` (1 for the first): SoCo's remove_range_from_queue. */
+  async removeRangeFromQueue(g: Group, start: i32, count: i32, updateId: i32 = 0): Promise<void> {
+    if (count <= 0) return;
+    const r = await avt(g, 'RemoveTrackRangeFromQueue', `<UpdateID>${updateId}</UpdateID><StartingIndex>${start}</StartingIndex><NumberOfTracks>${count}</NumberOfTracks>`);
+    g.queueUpdateId = updateIdOf(r, g.queueUpdateId);
+  }
+  /** Moves `count` entries from entry `start` to before entry `insertBefore` (numbers of the queue before the move, 1 for the first; past
+   *  the end: to the end). */
+  async reorderTracksInQueue(g: Group, start: i32, count: i32, insertBefore: i32, updateId: i32 = 0): Promise<void> {
+    const r = await avt(g, 'ReorderTracksInQueue', `<StartingIndex>${start}</StartingIndex><NumberOfTracks>${count}</NumberOfTracks><InsertBefore>${insertBefore}</InsertBefore><UpdateID>${updateId}</UpdateID>`);
+    g.queueUpdateId = updateIdOf(r, g.queueUpdateId);
+  }
+  /** Moves the entry `from` so it becomes the entry `to` (1 for the first). */
+  async moveInQueue(g: Group, from: i32, to: i32): Promise<void> {
+    if (from !== to) await this.reorderTracksInQueue(g, from, 1, to > from ? to + 1 : to);
+  }
+  /** A page of the queue (SoCo's get_queue): `max` entries from `start` (0 for the first, as SoCo counts; `max` 0: all of it), read 100
+   *  per call. */
+  async getQueue(g: Group, start: i32 = 0, max: i32 = 100): Promise<Queue> {
+    const q = await browseAll(g.coordinator.address(), 'Q:0', start, max);
+    g.queueUpdateId = q.updateId;
+    return q;
+  }
+  /** How many entries the queue holds. */
+  async queueSize(g: Group): Promise<i32> { return (await this.getQueue(g, 0, 1)).total; }
+  /** Adds several URIs at once (SoCo's add_multiple_to_queue: AddMultipleURIsToQueue, 16 per call): at the end, at `position` (1 for the
+   *  first) or right after the song that plays (`asNext`). `metas[i]` is the DIDL of `uris[i]` ('' for none). Returns the number of the
+   *  first one in the queue. */
+  async addMultipleUrisToQueue(g: Group, uris: string[], metas: string[], position: i32 = 0, asNext: boolean = false): Promise<i32> {
+    let first: i32 = 0;
+    for (let i: i32 = 0; i < uris.length; i += 16) {
+      const n = Math.min(16, uris.length - i) as i32;
+      const us: string[] = [], ms: string[] = [];
+      for (let k = i; k < i + n; k++) { us.push(uris[k]); ms.push(k < metas.length ? metas[k] : ''); }
+      // the chunks after the first go right after it
+      const at: i32 = position > 0 ? position + i : (first > 0 ? first + i : 0);
+      const r = await avt(g, 'AddMultipleURIsToQueue', `<UpdateID>0</UpdateID><NumberOfURIs>${n}</NumberOfURIs><EnqueuedURIs>${escape(us.join(' '))}</EnqueuedURIs>`
+        + `<EnqueuedURIsMetaData>${escape(ms.join(' '))}</EnqueuedURIsMetaData><ContainerURI></ContainerURI><ContainerMetaData></ContainerMetaData>`
+        + `<DesiredFirstTrackNumberEnqueued>${at}</DesiredFirstTrackNumberEnqueued><EnqueueAsNext>${asNext && at === 0 ? 1 : 0}</EnqueueAsNext>`, QUEUE_MS);
+      if (first === 0) first = (parseInt(r.textOf('FirstTrackNumberEnqueued')) || 0) as i32;
+      g.queueUpdateId = updateIdOf(r, g.queueUpdateId);
+    }
+    return first;
+  }
+
+  // ---- Sonos playlists (saved queues, SQ:n), as SoCo's get_sonos_playlists, create_sonos_playlist...: entries count from 1.
+
+  /** The Sonos playlists of the household. */
+  async getSonosPlaylists(): Promise<SonosPlaylist[]> {
+    const r = await browse(this.seed, 'SQ:', 0, PAGE);
+    const out: SonosPlaylist[] = [];
+    const result = r.textOf('Result');
+    if (result === '') return out;
+    for (const c of parse(result).all('container')) {
+      const p = new SonosPlaylist();
+      p.id = c.attr('id'); p.title = c.textOf('dc:title'); p.uri = c.textOf('res');
+      p.meta = DIDL_OPEN + toXml(c) + '</DIDL-Lite>';
+      out.push(p);
+    }
+    return out;
+  }
+  /** The first Sonos playlist named `title`, null when none. */
+  async getSonosPlaylistByTitle(title: string): Promise<SonosPlaylist | null> {
+    for (const p of await this.getSonosPlaylists()) if (p.title === title) return p;
+    return null;
+  }
+  /** The entries of a Sonos playlist (`max` 0: all), with its UpdateID. */
+  async sonosPlaylistTracks(p: SonosPlaylist, start: i32 = 0, max: i32 = 0): Promise<Queue> { return browseAll(this.seed, p.id, start, max); }
+  /** Makes an empty Sonos playlist. */
+  async createSonosPlaylist(title: string): Promise<SonosPlaylist> {
+    const r = await soap(this.seed, 'AVTransport', AVT, 'CreateSavedQueue', I0 + `<Title>${escape(title)}</Title><EnqueuedURI></EnqueuedURI><EnqueuedURIMetaData></EnqueuedURIMetaData>`);
+    return playlistOf(r.textOf('AssignedObjectID'), title);
+  }
+  /** Saves the group's queue as a Sonos playlist. */
+  async createSonosPlaylistFromQueue(g: Group, title: string): Promise<SonosPlaylist> {
+    const r = await avt(g, 'SaveQueue', `<Title>${escape(title)}</Title><ObjectID></ObjectID>`);
+    return playlistOf(r.textOf('AssignedObjectID'), title);
+  }
+  /** Deletes a Sonos playlist. */
+  async removeSonosPlaylist(p: SonosPlaylist): Promise<void> { await soap(this.seed, 'ContentDirectory', CD, 'DestroyObject', `<ObjectID>${escape(p.id)}</ObjectID>`); }
+  /** Adds a URI (a song with musicTrackMeta, a QueueItem's uri and meta) at the end of a Sonos playlist. */
+  async addItemToSonosPlaylist(p: SonosPlaylist, uri: string, meta: string = ''): Promise<void> {
+    const now = await this.sonosPlaylistTracks(p, 0, 1);
+    await soap(this.seed, 'AVTransport', AVT, 'AddURIToSavedQueue', I0 + `<ObjectID>${escape(p.id)}</ObjectID><UpdateID>${now.updateId}</UpdateID>`
+      + `<EnqueuedURI>${escape(uri)}</EnqueuedURI><EnqueuedURIMetaData>${escape(meta)}</EnqueuedURIMetaData><AddAtIndex>4294967295</AddAtIndex>`);
+  }
+  /** ReorderTracksInSavedQueue: the entries listed in `tracks` (0-based, as the speaker counts, comma separated) go to `positions` (''
+   *  takes them out). */
+  async reorderSonosPlaylist(p: SonosPlaylist, tracks: string, positions: string): Promise<void> {
+    const now = await this.sonosPlaylistTracks(p, 0, 1);
+    await soap(this.seed, 'AVTransport', AVT, 'ReorderTracksInSavedQueue', I0 + `<ObjectID>${escape(p.id)}</ObjectID><UpdateID>${now.updateId}</UpdateID>`
+      + `<TrackList>${tracks}</TrackList><NewPositionList>${positions}</NewPositionList>`);
+  }
+  /** Moves the entry `from` of a Sonos playlist so it becomes the entry `to`. */
+  async moveInSonosPlaylist(p: SonosPlaylist, from: i32, to: i32): Promise<void> { await this.reorderSonosPlaylist(p, `${from - 1}`, `${to - 1}`); }
+  /** Takes the entry `n` out of a Sonos playlist. */
+  async removeFromSonosPlaylist(p: SonosPlaylist, n: i32): Promise<void> { await this.reorderSonosPlaylist(p, `${n - 1}`, ''); }
+  /** Empties a Sonos playlist. */
+  async clearSonosPlaylist(p: SonosPlaylist): Promise<void> {
+    const n = (await this.sonosPlaylistTracks(p, 0, 1)).total;
+    if (n === 0) return;
+    const all: string[] = [];
+    for (let i: i32 = 0; i < n; i++) all.push(`${i}`);
+    await this.reorderSonosPlaylist(p, all.join(','), '');
+  }
+  /** Plays a Sonos playlist on a group: the queue becomes it. */
+  async playSonosPlaylist(g: Group, p: SonosPlaylist): Promise<void> {
+    await this.clearQueue(g);
+    await this.addUriToQueue(g, p.uri, p.meta);
+    await this.playFromQueue(g, 0);
+  }
   /** Jumps to a track of the queue, 1 for the first. */
   async seekTrack(g: Group, n: i32): Promise<void> { await avt(g, 'Seek', `<Unit>TRACK_NR</Unit><Target>${n}</Target>`); }
   async seek(g: Group, s: number): Promise<void> { await avt(g, 'Seek', `<Unit>REL_TIME</Unit><Target>${hms(s)}</Target>`); g.track.position = s; }
@@ -436,10 +626,11 @@ export class System {
    *  (`asNext`). Returns its number in the queue (1 for the first). */
   async addUriToQueue(g: Group, uri: string, meta: string = '', position: i32 = 0, asNext: boolean = false): Promise<i32> {
     const r = await avt(g, 'AddURIToQueue', `<EnqueuedURI>${escape(uri)}</EnqueuedURI><EnqueuedURIMetaData>${escape(meta)}</EnqueuedURIMetaData><DesiredFirstTrackNumberEnqueued>${position}</DesiredFirstTrackNumberEnqueued><EnqueueAsNext>${asNext ? 1 : 0}</EnqueueAsNext>`, QUEUE_MS);
+    g.queueUpdateId = updateIdOf(r, g.queueUpdateId);
     return (parseInt(r.textOf('FirstTrackNumberEnqueued')) || 0) as i32;
   }
   /** Empties the group's queue. */
-  async clearQueue(g: Group): Promise<void> { await avt(g, 'RemoveAllTracksFromQueue'); }
+  async clearQueue(g: Group): Promise<void> { const r = await avt(g, 'RemoveAllTracksFromQueue'); g.queueUpdateId = updateIdOf(r, g.queueUpdateId); }
   /** Plays the group's queue from its entry `index` (0 for the first, as SoCo counts): the group then goes on through the queue by itself.
    *  `start` false only selects it. */
   async playFromQueue(g: Group, index: i32, start: boolean = true): Promise<void> {
@@ -485,6 +676,16 @@ function radioMeta(name: string, art: string): string {
     + `<item id="R:0/0/0" parentID="R:0/0" restricted="true"><dc:title>${escape(name)}</dc:title>`
     + (art !== '' ? `<upnp:albumArtURI>${escape(art)}</upnp:albumArtURI>` : '')
     + '<upnp:class>object.item.audioItem.audioBroadcast</upnp:class><desc id="cdudn" nameSpace="urn:schemas-rinconnetworks-com:metadata-1-0/">SA_RINCON65031_</desc></item></DIDL-Lite>';
+}
+
+/** A Sonos playlist made now: its id ('SQ:3') and the URI that queues it. */
+function playlistOf(id: string, title: string): SonosPlaylist {
+  const p = new SonosPlaylist();
+  p.id = id; p.title = title;
+  p.uri = `file:///jffs/settings/savedqueues.rsq#${id.slice(id.indexOf(':') + 1)}`;
+  p.meta = DIDL_OPEN + `<item id="${escape(id)}" parentID="SQ:" restricted="true"><dc:title>${escape(title)}</dc:title><upnp:class>object.container.playlistContainer</upnp:class>`
+    + '<desc id="cdudn" nameSpace="urn:schemas-rinconnetworks-com:metadata-1-0/">RINCON_AssociatedZPUDN</desc></item></DIDL-Lite>';
+  return p;
 }
 
 /** The id of a music service in this household ('Spotify': 9 or 12 depending on the region), -1 when it is not offered. */
@@ -701,8 +902,8 @@ export class Events {
     for (let i = 0; i < all.length; i++) { try { await this.unsubscribe(all[i]); } catch (e) { /* gone: nothing to end */ } }
   }
 
-  /** Follows a group: what it plays (AVTransport) and its volume (GroupRenderingControl) on the coordinator, each room's volume
-   *  (RenderingControl), and the rooms and groups (ZoneGroupTopology, once per household). The subscriptions of the group followed
+  /** Follows a group: what it plays (AVTransport), its volume (GroupRenderingControl) and its queue (ContentDirectory, `queueUpdateId`,
+   *  when the speaker accepts it) on the coordinator, each room's volume (RenderingControl), and the rooms and groups (ZoneGroupTopology). The subscriptions of the group followed
    *  before are ended. */
   async watch(g: Group, timeoutSec: i32 = 1800): Promise<void> {
     await this.close();
@@ -711,6 +912,7 @@ export class Events {
     await this.subscribe(c, 'AVTransport', timeoutSec);
     await this.subscribe(c, 'GroupRenderingControl', timeoutSec);
     for (let i = 0; i < g.members.length; i++) await this.subscribe(g.members[i], 'RenderingControl', timeoutSec);
+    try { await this.subscribe(c, 'ContentDirectory', timeoutSec); } catch (e) { /* refused: the program reads the queue itself */ }
   }
 
   /** The program's HTTP handler calls this with each request: a NOTIFY under `path` is answered (200, or 412 for an unknown SID) and
@@ -748,6 +950,11 @@ export class Events {
     for (const x of sys.groups) if (x.coordinator.uuid === sub.speaker.uuid) g = x;
     if (g === null) return null;
     const grp = g as Group;
+    if (ev.service === 'ContentDirectory') {   // ContainerUpdateIDs: 'Q:0,12' (pairs: a container, its new UpdateID)
+      const ids = ev.get('ContainerUpdateIDs').split(',');
+      for (let i = 0; i + 1 < ids.length; i += 2) if (ids[i] === 'Q:0') grp.queueUpdateId = (parseInt(ids[i + 1]) || 0) as i32;
+      return grp;
+    }
     if (ev.service === 'GroupRenderingControl') {
       if (ev.has('GroupVolume')) grp.volume = (parseInt(ev.get('GroupVolume')) || 0) as i32;
       if (ev.has('GroupMute')) grp.muted = ev.get('GroupMute') === '1';
