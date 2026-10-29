@@ -588,7 +588,12 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod For you: the "For this time of day" and "Loved but not on this iPod" shelves of the Genius study are not built.
 - iPod tests: the folder-based fixture iPods (ipod_nav, ipod_foryou) show the host disk's fullness in the sidebar storage bar, so their golden hashes depend on the machine's free space; pin the reported capacity in the fixture.
 
+- iPod daemon: no smart playlist API (create, set rules, refresh), so the app refuses Save on a remote iPod; add it and enable Save there.
+- zinc:ipod: Track lacks file kind, grouping, compilation and modified, so smart previews and the editor skip those fields.
+- zinc:ipod: the smart preview maps mediaType to a single libgpod bit; a track with several media bits could differ from libgpod.
+
 ## Cross-platform pass
+- iPod: run ipod_smart on Linux.
 - iPod Genius timings on the Pi 3B+ and 4, and a Linux AAC/ALAC decoder for the daemon.
 - iPod history import and its timings on the Pi daemon.
 - zinc:ui scrollKey on the web target (DOM render): the browser owns the scroller there; verify the restore.
