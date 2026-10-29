@@ -28,10 +28,10 @@ class UltraVehicleStateTest {
         val config = response(state.handle(request("configRequest"))[0])
         assertEquals("configResponse", config["command"])
         assertEquals(7L, config["transactionID"])
-        assertEquals(5, ((config["values"] as Map<*, *>)["accessories"] as List<*>).size)
+        assertEquals(8, ((config["values"] as Map<*, *>)["accessories"] as List<*>).size)
 
         val registered = response(state.handle(request("registerRequest", listOf(2562L, 1538L, 9999L)))[0])
-        assertEquals(mapOf(2562L to 1800L, 1538L to 50L), registered["values"])
+        assertEquals(mapOf(2562L to 1800L, 1538L to 68L), registered["values"])
         assertEquals(mapOf(9999L to -6727L), registered["errors"])
         val update = state.setGauge(1538, 63L)
         assertNotNull(update)
@@ -59,6 +59,39 @@ class UltraVehicleStateTest {
         assertEquals(mapOf(514L to false), response(state.setGauge(514, false)!!)["values"])
         assertEquals(mapOf(520L to 22.5), response(state.setGauge(520, 22.5)!!)["values"])
         assertTrue(runCatching { state.setGauge(520, 55.0) }.isFailure)
+    }
+
+    @Test fun nativeClimateHasZonesAndAcceptsSupportedPhoneControls() {
+        val state = UltraVehicleState()
+        val accessories = (state.infoEntry()["pluginConfigs"] as List<*>).first().let { (it as Map<*, *>)["accessories"] as List<*> }
+        val climate = accessories.map { it as Map<*, *> }.first { it["iid"] == 512L }
+        val services = climate["services"] as List<*>
+        assertEquals(listOf(513L, 518L, 532L, 523L, 527L, 529L, 537L), services.map { (it as Map<*, *>)["iid"] })
+        assertEquals("seat_front_right", state.snapshot()[536L])
+        assertEquals(2L, state.snapshot()[525L])
+        state.handle(request("registerRequest", listOf(514L, 525L, 534L)))
+        var trace = ""
+        val replies = state.handle(request("writeRequest", mapOf(514L to false, 525L to 4L, 534L to 22.5, 520L to 40.0))) { trace = it }
+        assertTrue(trace.startsWith("writeRequest tx=7 values="))
+        assertEquals(mapOf(514L to 0L, 525L to 0L, 534L to 0L, 520L to -6727L), response(replies[0])["errors"])
+        assertEquals("updateNotify", response(replies[1])["command"])
+        assertEquals(mapOf(514L to false, 525L to 4L, 534L to 22.5), response(replies[1])["values"])
+        assertEquals(21.0, state.snapshot()[520L])
+        assertNotNull(state.setGauge(525L, 5L))
+        assertTrue(runCatching { state.setGauge(525L, 8L) }.isFailure)
+    }
+
+    @Test fun nativeCarHasFuelTripAndFourTireSensors() {
+        val state = UltraVehicleState()
+        val accessories = (state.infoEntry()["pluginConfigs"] as List<*>).first().let { (it as Map<*, *>)["accessories"] as List<*> }
+        assertTrue(accessories.map { (it as Map<*, *>)["iid"] }.containsAll(listOf(1536L, 1792L, 2048L)))
+        val tires = accessories.map { it as Map<*, *> }.first { it["iid"] == 2048L }
+        assertEquals(4, (tires["services"] as List<*>).size)
+        state.handle(request("registerRequest", listOf(1538L, 1541L, 2050L, 2065L)))
+        assertEquals(mapOf(2050L to 250L), response(state.setGauge(2050L, 250L)!!)["values"])
+        assertEquals(mapOf(1541L to 400L), response(state.setGauge(1541L, 400L)!!)["values"])
+        assertEquals(mapOf(2050L to -6727L), response(state.handle(request("writeRequest", mapOf(2050L to 300L)))[0])["errors"])
+        assertTrue(runCatching { state.setGauge(2065L, 1001L) }.isFailure)
     }
 
     @Test fun simulatedRadioDescribesStationsAndHandlesPhoneSelection() {

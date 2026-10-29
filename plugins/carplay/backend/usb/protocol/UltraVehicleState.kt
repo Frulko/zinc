@@ -6,7 +6,8 @@ package com.shilapi.xcertplay.transport
 class UltraVehicleState {
     private data class Characteristic(
         val iid: Long, val type: Long, val format: Long, val initial: Any,
-        val writable: Boolean = false, val units: Long? = null, val maximum: Long? = null,
+        val writable: Boolean = false, val units: Long? = null, val minimum: Number = 0,
+        val maximum: Number? = null, val step: Number = 1,
         val mutable: Boolean = true, val large: Boolean = false,
     ) {
         fun plist(): Map<String, Any?> = linkedMapOf<String, Any?>(
@@ -15,7 +16,11 @@ class UltraVehicleState {
             "priority" to 1L, "initialValue" to initial,
         ).apply {
             units?.let { this["units"] = it }
-            maximum?.let { this["minimumValue"] = 0L; this["maximumValue"] = it; this["stepValue"] = 1L }
+            maximum?.let {
+                this["minimumValue"] = if (format == 9L) minimum.toDouble() else minimum.toLong()
+                this["maximumValue"] = if (format == 9L) it.toDouble() else it.toLong()
+                this["stepValue"] = if (format == 9L) step.toDouble() else step.toLong()
+            }
             if (format in 10L..13L) this["maximumLength"] = if (large) 2_147_483_647L else 65_535L
             if (large) this["largePayload"] = true
         }
@@ -37,13 +42,74 @@ class UltraVehicleState {
         Accessory(2560, 0x09000005, listOf(Service(2561, 0x1a00000f, listOf(
             Characteristic(2562, 0x30000024, 3, 0L, units = 981, maximum = 8000),
         )))),
-        Accessory(1536, 0x09000006, listOf(Service(1537, 0x1a000005, listOf(
-            Characteristic(1538, 0x41000002, 1, 50L, units = 1205, maximum = 100),
-        )))),
-        Accessory(512, 0x01000001, listOf(
-            Service(513, 0x11000001, listOf(Characteristic(514, 0x31000002, 0, true, writable = true))),
-            Service(518, 0x11000002, listOf(Characteristic(520, 0x31000017, 9, 21.0, writable = true, units = 1082))),
+        Accessory(1536, 0x09000006, listOf(
+            Service(1537, 0x1a000005, listOf(
+                Characteristic(1538, 0x41000002, 1, 68L, units = 1205, maximum = 100),
+                Characteristic(1539, 0x4100001a, 1, 10L, units = 1205, maximum = 100, mutable = false),
+            )),
+            Service(1540, 0x1a000015, listOf(
+                Characteristic(1541, 0x3000004a, 4, 420L, units = 151, maximum = 10000),
+                Characteristic(1542, 0x3000004b, 4, 261L, units = 164, maximum = 10000),
+                Characteristic(1543, 0x36000023, 0, false),
+            )),
         )),
+        Accessory(512, 0x01000001, listOf(
+            Service(513, 0x11000001, listOf(
+                Characteristic(514, 0x31000002, 0, true, writable = true),
+                Characteristic(515, 0x31000003, 0, true, writable = true),
+                Characteristic(516, 0x31000022, 0, false, writable = true),
+                Characteristic(517, 0x31000029, 0, false, writable = true),
+            )),
+            Service(518, 0x11000002, listOf(
+                Characteristic(519, 0x30000002, 0, true, writable = true),
+                Characteristic(520, 0x31000017, 9, 21.0, writable = true, units = 1082, minimum = 16, maximum = 30, step = 0.5),
+                Characteristic(521, 0x31000019, 9, 21.0, units = 1082, minimum = -40, maximum = 85, step = 0.5),
+                Characteristic(522, 0x36000065, 10, "seat_front_left", mutable = false),
+            )),
+            Service(532, 0x11000002, listOf(
+                Characteristic(533, 0x30000002, 0, true, writable = true),
+                Characteristic(534, 0x31000017, 9, 21.0, writable = true, units = 1082, minimum = 16, maximum = 30, step = 0.5),
+                Characteristic(535, 0x31000019, 9, 21.0, units = 1082, minimum = -40, maximum = 85, step = 0.5),
+                Characteristic(536, 0x36000065, 10, "seat_front_right", mutable = false),
+            )),
+            Service(523, 0x11000007, listOf(
+                Characteristic(524, 0x30000002, 0, true, writable = true),
+                Characteristic(525, 0x31000012, 1, 2L, writable = true, maximum = 7),
+                Characteristic(526, 0x3000005f, 0, true, writable = true),
+                Characteristic(531, 0x36000065, 10, "seat_front", mutable = false),
+            )),
+            Service(527, 0x11000011, listOf(Characteristic(528, 0x30000002, 0, false, writable = true))),
+            Service(529, 0x11000008, listOf(Characteristic(530, 0x30000002, 0, true, writable = true))),
+            Service(537, 0x11000012, listOf(
+                Characteristic(538, 0x30000002, 0, false, writable = true),
+                Characteristic(539, 0x36000065, 10, "seat_front", mutable = false),
+            )),
+        )),
+        Accessory(1024, 0x01500001, listOf(
+            Service(1025, 0x22000001, listOf(
+                Characteristic(1026, 0x31000021, 7, 0L, writable = true, maximum = 2),
+                Characteristic(1027, 0x30000002, 0, false, writable = true),
+                Characteristic(1028, 0x36000065, 10, "seat_front_left", mutable = false),
+            )),
+            Service(1029, 0x22000001, listOf(
+                Characteristic(1030, 0x31000021, 7, 0L, writable = true, maximum = 2),
+                Characteristic(1031, 0x30000002, 0, false, writable = true),
+                Characteristic(1032, 0x36000065, 10, "seat_front_right", mutable = false),
+            )),
+        )),
+        Accessory(1792, 0x04000001, listOf(Service(1797, 0x1a00000a, listOf(
+            Characteristic(1798, 0x3000004a, 4, 12345L, units = 151, maximum = 999999),
+            Characteristic(1799, 0x3000004b, 4, 7671L, units = 164, maximum = 999999),
+        )))),
+        Accessory(2048, 0x0a000001, listOf("tire_front_left", "tire_front_right", "tire_rear_left", "tire_rear_right").mapIndexed { index, key ->
+            val iid = 2049L + index * 5
+            Service(iid, 0x1b000001, listOf(
+                Characteristic(iid + 1, 0x3000001b, 3, 240L, units = 932, maximum = 1000),
+                Characteristic(iid + 2, 0x36000065, 10, key, mutable = false),
+                Characteristic(iid + 3, 0x3000001c, 1, 1L, maximum = 5),
+                Characteristic(iid + 4, 0x3000001a, 1, 1L, maximum = 4),
+            ))
+        }),
         Accessory(4096, 0x03000001, listOf(Service(4097, 0x14000006, listOf(
             Characteristic(4098, 0x30000019, 10, "DAB", mutable = false),
             Characteristic(4099, 0x32000025, 1, 6L, mutable = false),
@@ -93,14 +159,21 @@ class UltraVehicleState {
     )
 
     /** Returns protocol replies only; caller sends each on the same encrypted lane. */
-    @Synchronized fun handle(message: ByteArray): List<ByteArray> {
+    @Synchronized fun handle(message: ByteArray, trace: (String) -> Unit = {}): List<ByteArray> {
         val outer = runCatching { AppleOpack.decode(message) as? Map<*, *> }.getOrNull() ?: return emptyList()
         if (outer["pluginID"] != 0L) return emptyList()
         val body = outer["pluginData"] as? ByteArray ?: return emptyList()
         val request = runCatching { AppleOpack.decode(body) as? Map<*, *> }.getOrNull() ?: return emptyList()
         val transaction = request["transactionID"]
+        val command = request["command"] as? String ?: return emptyList()
+        val traceValues = when (val requested = request["values"]) {
+            is Map<*, *> -> requested.entries.joinToString(limit = 12) { (iid, value) -> "$iid=${value.toString().take(60)}" }
+            is List<*> -> requested.take(32).joinToString()
+            else -> ""
+        }
+        trace("$command tx=$transaction values=${traceValues.take(400)}")
         val before = values.toMap()
-        val result = when (request["command"]) {
+        val result = when (command) {
             "configRequest" -> mapOf("command" to "configResponse", "transactionID" to transaction,
                 "values" to mapOf("accessories" to accessories.map { it.plist() }))
             "registerRequest" -> {
@@ -118,12 +191,19 @@ class UltraVehicleState {
                     val iid = key as? Long ?: continue
                     val spec = characteristics[iid]
                     val accepted = when (iid) {
-                        514L -> value is Boolean
-                        520L -> value is Number && value.toDouble() in 16.0..30.0
+                        514L, 515L, 516L, 517L, 519L, 524L, 526L, 528L, 530L,
+                        533L, 538L, 1027L, 1031L -> value is Boolean
+                        520L, 534L -> value is Number && value.toDouble() in 16.0..30.0 && value.toDouble() * 2 % 1 == 0.0
+                        525L -> value is Number && value.toLong() in 0..7 && value.toDouble() == value.toLong().toDouble()
+                        1026L, 1030L -> value is Number && value.toLong() in 0..2 && value.toDouble() == value.toLong().toDouble()
                         else -> false
                     }
                     errors[iid] = if (spec?.writable == true && accepted) 0 else -6727
-                    if (errors[iid] == 0L) values[iid] = if (iid == 520L) (value as Number).toDouble() else value as Any
+                    if (errors[iid] == 0L) values[iid] = when (iid) {
+                        520L, 534L -> (value as Number).toDouble()
+                        525L, 1026L, 1030L -> (value as Number).toLong()
+                        else -> value as Any
+                    }
                 }
                 mapOf("command" to "writeResponse", "transactionID" to transaction, "errors" to errors)
             }
@@ -161,14 +241,25 @@ class UltraVehicleState {
         val accepted = when (iid) {
             2562L -> value is Long && value in 0..8000
             1538L -> value is Long && value in 0..100
-            514L -> value is Boolean
-            520L -> value is Double && value in 16.0..30.0
+            1541L, 1542L -> value is Long && value in 0..10000
+            1798L, 1799L -> value is Long && value in 0..999999
+            2050L, 2055L, 2060L, 2065L -> value is Long && value in 0..1000
+            525L -> value is Long && value in 0..7
+            514L, 515L, 516L, 517L, 519L, 524L, 526L, 528L, 530L,
+            533L, 538L, 1027L, 1031L -> value is Boolean
+            520L, 534L -> value is Double && value in 16.0..30.0 && value * 2 % 1 == 0.0
             else -> false
         }
         require(accepted) { "Invalid Ultra gauge $iid" }
-        if (values[iid] == value) return null
+        val before = values.toMap()
         values[iid] = value
-        return if (iid in followed) wrap(mapOf("command" to "updateNotify", "values" to mapOf(iid to value))) else null
+        if (iid == 1538L) {
+            val kilometers = ((value as Long) * 620 + 50) / 100
+            values[1541L] = kilometers
+            values[1542L] = (kilometers * 1000 + 804) / 1609
+        }
+        val changed = values.filter { (key, current) -> key in followed && before[key] != current }
+        return if (changed.isEmpty()) null else wrap(mapOf("command" to "updateNotify", "values" to changed))
     }
 
     private val radioNames = mapOf("inter" to "France Inter", "fip" to "FIP", "info" to "France Info")

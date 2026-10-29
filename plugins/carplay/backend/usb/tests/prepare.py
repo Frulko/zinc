@@ -41,6 +41,8 @@ with tempfile.TemporaryDirectory(prefix='carplay-usb-prepare-') as temporary:
     assert '"ultraGauge" ->' in server.read_text(), 'Ultra gauge WebSocket command missing'
     assert '"ultraRadio" ->' in server.read_text(), 'Ultra radio WebSocket command missing'
     assert 'Characteristic(4099, 0x32000025' in vehicle.read_text(), 'Radio source descriptor missing'
+    assert 'Characteristic(525, 0x31000012' in vehicle.read_text(), 'Climate fan descriptor missing'
+    assert 'Accessory(2048, 0x0a000001' in vehicle.read_text(), 'Vehicle tire descriptor missing'
     assert 'ultraUiSync = System.getenv("ZINC_CARPLAY_ULTRA_UI_SYNC") == "1" && UltraTheme.enabled()' in server.read_text()
     assert 'main = if (UltraTheme.enabled()) AirPlayDisplayConfig(' in server.read_text()
     assert 'heightPixels = if (UltraTheme.enabled()) UltraTheme.displayHeightPixels else ClusterDimensions.height' in server.read_text()

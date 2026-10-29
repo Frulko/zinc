@@ -337,7 +337,7 @@ data class UltraStatus(
 
 @Serializable
 data class UltraVehicleSnapshot(val rpm: Int, val fuelPct: Int, val climateOn: Boolean, val targetCelsius: Double,
-    val radioStation: String, val radioTitle: String, val radioPlaying: Boolean)
+    val fanLevel: Int, val tireKpa: Int, val radioStation: String, val radioTitle: String, val radioPlaying: Boolean)
 
 @Serializable
 data class UltraUiChoice(val command: Long, val layoutId: String? = null, val paletteId: String? = null, val preference: Int? = null)
@@ -373,6 +373,7 @@ t=t.replace('    fun setSessionState(active: Boolean, name: String?) {', '''    
         val report = UltraVehicleSnapshot(
             rpm = (values[2562L] as Number).toInt(), fuelPct = (values[1538L] as Number).toInt(),
             climateOn = values[514L] as Boolean, targetCelsius = (values[520L] as Number).toDouble(),
+            fanLevel = (values[525L] as Number).toInt(), tireKpa = (values[2050L] as Number).toInt(),
             radioStation = values[4102L] as String, radioTitle = values[4355L] as String,
             radioPlaying = (values[4359L] as Number).toInt() == 1,
         )
@@ -624,7 +625,7 @@ t=t.replace(needle, '''        if (uuid == ULTRA_VEHICLE_HIGH_UUID || uuid == UL
                         return
                     }
                     val before = ultraVehicle.snapshot()
-                    val answers = ultraVehicle.handle(body)
+                    val answers = ultraVehicle.handle(body) { session.logDebug("Ultra vehicle $it") }
                     val after = ultraVehicle.snapshot()
                     if (after != before) onUltraVehicleState?.invoke(after)
                     session.logDebug("Ultra vehicle rx uuid=$uuid bytes=${body.size} replies=${answers.size}")

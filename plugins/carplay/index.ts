@@ -49,7 +49,7 @@ export interface UltraStatus {
   phoneOffersVehicleState: boolean; phoneOffersUiSync: boolean;
   vehicleStateEnabled: boolean; uiSyncEnabled: boolean;
 }
-export interface UltraVehicleSnapshot { rpm: i32; fuelPct: i32; climateOn: boolean; targetCelsius: number; radioStation?: string; radioTitle?: string; radioPlaying?: boolean; }
+export interface UltraVehicleSnapshot { rpm: i32; fuelPct: i32; climateOn: boolean; targetCelsius: number; fanLevel?: i32; tireKpa?: i32; radioStation?: string; radioTitle?: string; radioPlaying?: boolean; }
 export interface UltraUiChoice { command: number; layoutId?: string; paletteId?: string; preference?: i32; }
 export interface PairedDevice {
   id: string; bluetooth: boolean; airPlay: boolean; name?: string | null;

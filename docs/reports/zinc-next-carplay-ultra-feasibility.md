@@ -272,3 +272,11 @@ guaranteed location override. The specification also distinguishes the brief
 Bluetooth handoff link from the iAP2-over-CarPlay runtime link; the current
 receiver advertises LocationInformation on both, so a separate link-scoping
 cleanup and phone trace are needed before calling the GPS behavior complete.
+
+The experimental Vehicle State profile was later expanded with two climate
+zones, fan and seat controls, fuel range, odometer and four tire sensors.
+A live Mac → Pi → Mac WebSocket probe during an Ultra session observed fan
+level 4 and front-left tire pressure 250 kPa after sending those simulated
+values. This confirms receiver state transport only. The iPhone's native
+Climate and Car screens, their subscriptions and phone-origin writes remain
+unverified; the profile does not include an authenticated car theme renderer.

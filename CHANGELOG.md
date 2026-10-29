@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- CarPlay Ultra's experimental Vehicle State profile now describes driver and passenger climate zones, fan and seat controls, plus simulated fuel range, odometer and tire sensors. The Zinc player can change fan level and tire pressure; actual iPhone Car and Climate screens still need device verification.
 - CarPlay Ultra's experimental Vehicle State profile now advertises a simulated DAB source with three stations and handles basic radio controls. The Mac player's Radio choices can update that source; no broadcast audio is supplied.
 - The CarPlay player now offers four live local instrument styles, follows recognized iPhone UI Sync palette choices, and includes labelled vehicle, radio and climate simulators. The receiver no longer requests its fixed Ultra test layout by default; `ZINC_CARPLAY_ULTRA_FORCE_LAYOUT=1` restores that request for diagnostics. Supported RPM, fuel and climate values still reach the experimental Vehicle State channel when subscribed.
 - CarPlay **Appareils** now shows the connected iPhone's Bluetooth/device ID and Wi-Fi MAC; paired rows include available BlueZ name and connection/trust state or an AirPlay key fingerprint.

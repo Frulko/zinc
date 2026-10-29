@@ -44,6 +44,8 @@ export function tickVehicle(session: Session): void {
     lastRadioId = incoming.radioStation;
     setStation(incoming.radioTitle + ' · DAB simulé');
   }
+  if (incoming !== null && incoming.fanLevel !== undefined && incoming.fanLevel !== fan()) setFan(incoming.fanLevel);
+  if (incoming !== null && incoming.tireKpa !== undefined && incoming.tireKpa !== Math.round(tire() * 100)) setTire(incoming.tireKpa / 100);
   const current = vehicle();
   if (incoming !== null && (incoming.rpm !== current.rpm || incoming.fuelPct !== current.fuelPct || incoming.climateOn !== current.climateOn || incoming.targetCelsius !== current.targetCelsius))
     setVehicle({ speedKph: current.speedKph, rpm: incoming.rpm, gear: current.gear, fuelPct: incoming.fuelPct, climateOn: incoming.climateOn, targetCelsius: incoming.targetCelsius });
@@ -92,9 +94,19 @@ function VehicleControls(): i32 {
     <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => applyVehicle(live, { ...vehicle(), speedKph: 50, rpm: 1800, gear: 'D', fuelPct: 67 })}><Text className="text-white text-xs">Ville</Text></Button>
     <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => applyVehicle(live, { ...vehicle(), speedKph: 110, rpm: 2600, gear: 'D', fuelPct: 61 })}><Text className="text-white text-xs">Autoroute</Text></Button>
     <Text className="text-slate-300 text-xs">{`Pneus ${Math.round(tire() * 10) / 10} bar · local`}</Text>
-    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setTire(Math.max(1.8, tire() - 0.1))}><Text className="text-white text-xs">−</Text></Button>
-    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setTire(Math.min(3.0, tire() + 0.1))}><Text className="text-white text-xs">+</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => changeTire(-0.1)}><Text className="text-white text-xs">−</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => changeTire(0.1)}><Text className="text-white text-xs">+</Text></Button>
   </View>;
+}
+function changeTire(delta: number): void {
+  const kpa = Math.round(Math.max(1.8, Math.min(3.0, tire() + delta)) * 100);
+  setTire(kpa / 100);
+  if (live !== null) for (const iid of [2050, 2055, 2060, 2065]) live.setUltraGauge(iid, kpa);
+}
+function changeFan(delta: i32): void {
+  const next = Math.max(0, Math.min(7, fan() + delta));
+  setFan(next);
+  if (live !== null) live.setUltraGauge(525, next);
 }
 function chooseRadio(id: string, title: string): void {
   lastRadioId = id;
@@ -117,8 +129,8 @@ function ClimateControls(): i32 {
     <Text className="text-white">{`${vehicle().targetCelsius} °C`}</Text>
     <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => applyVehicle(live, { ...vehicle(), targetCelsius: Math.min(30, vehicle().targetCelsius + 1) })}><Text className="text-white text-xs">+</Text></Button>
     <Text className="text-slate-300 text-xs">{`Ventilation ${fan()}`}</Text>
-    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setFan(Math.max(0, fan() - 1))}><Text className="text-white text-xs">−</Text></Button>
-    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => setFan(Math.min(5, fan() + 1))}><Text className="text-white text-xs">+</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => changeFan(-1)}><Text className="text-white text-xs">−</Text></Button>
+    <Button className="bg-slate-700 rounded px-3 py-2" onClick={() => changeFan(1)}><Text className="text-white text-xs">+</Text></Button>
   </View>;
 }
 export function VehicleDashboard(props: { nightMode: boolean }): i32 {
