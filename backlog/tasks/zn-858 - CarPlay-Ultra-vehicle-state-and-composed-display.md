@@ -74,3 +74,6 @@ Local UI asset POC: discovered the nested CarPlayAccessory archive (193 plaintex
 
 
 POC 2 continuation: complete original Cobranded Speedometer constructor runs under official Luau 0.692, using unchanged plaintext modules and a bounded offline CP recorder. One instance receives 0/65/130 km/h changes; original tick/number atlases, decoration, unit and fuel/range labels are rendered through SVG/librsvg snapshots in Zinc. Generator verifies changed progress/glyph windows and rejects missing subscription data. Tests `carplay_local_ui_probe` pass. Conical gradients and PLUSLIGHTER remain approximate, not pixel-validated. This is not a live renderer or captured phone asset transfer. Native screenshot includes gauges but loses explanatory text; interpreter includes both. Keep native blocker ZN-861 and live composition ACs open. See docs/reports/carplay-local-ui-poc.md POC 2. No Pi or pairing changes.
+
+
+Correction after pixel-level investigation: POC 1 and POC 2 native and interpreter PNGs contain exactly the same pixels, including text. The previously reported native resource loss was an incorrect reading of the image preview, not a reproduced engine defect. POC 2 command streams also match. Added asset-free UI resource parity coverage rather than modifying correct engine behavior. Live composition remains open; ZN-861 records the verification.

@@ -2,7 +2,7 @@
 
 Worktree carplay-finish / Frulko/carplay-finish. POC 2 tool: tools/carplay-local-ui-poc/component/run.py. Original Cobranded Speedometer constructor and controllers execute unchanged under official Luau 0.692 (temporary CLI /private/tmp/zinc-luau-poc-0692/build/luau). Same instance receives 0/65/130 simulated updates; 163–165 retained layers, original glyph atlases/images, no missing requested data. Offline SVG/librsvg export, not embedded runtime/live UI Sync; conical gradients and additive blending remain approximate. Generated project build/carplay/local-ui-component-2; complete interpreter capture there as capture-interpreter.png, AOT capture as capture-native.png. Tests carplay_local_ui_probe pass (5 tests). No Apple code/artwork committed; docs/reports/carplay-local-ui-poc.md has reproduction and limitations.
 
-ZN-861 remains next: AOT displays all three gauge images but omits explanatory Text nodes, also independent build with symbols; interpreter correct. Earlier probe-4 repeated native run now correct. Do not claim cache root cause or engine fix. Source untouched to avoid workaround. Need asset-free reduction, then retained CP renderer and recorded UI Sync. No Pi/pairing work this turn.
+ZN-861 investigation correction: POC 1 and POC 2 native/interpreter decoded PNGs are exactly identical, as are POC 2 command streams. The image preview was misleading; text exists in both. No engine bug or fix is established. Asset-free ui_resource_parity test compares fresh/cached native, interpreter and QuickJS, and asserts text/image content (not just equal blank frames). Next is retained CP composition / gradient fidelity, then recorded UI Sync. No Pi/pairing work this turn.
 
 # CarPlay worktree handover — 2026-10-29
 

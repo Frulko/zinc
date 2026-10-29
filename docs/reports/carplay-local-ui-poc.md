@@ -91,9 +91,10 @@ previous verified package. No fresh pairing or Pi changes were made for this pro
 
 The real-archive probe completed and asserted speed results. Asset-free tests cover
 unsafe/duplicate ZIP members and signed arc conversion. The generated app compiled
-and rendered on the Mac. The final interpreter screenshot shows geometry, text and
-original images; the final native build displays geometry but omits text/images.
-This engine defect is tracked as ZN-861; the probe source is not changed to hide it. Full runtime, phone asset capture, signature validation,
+and rendered on the Mac. Decoded PNG comparison confirms that the final interpreter and native screenshots
+are identical, including geometry, text and original images. The earlier missing
+resource report was a mistaken reading of the image preview (ZN-861), not a proven
+engine defect. Full runtime, phone asset capture, signature validation,
 UI Sync composition and Pi performance remain unproven.
 
 
@@ -159,16 +160,18 @@ sector and some dark tick labels are not validated against an Apple-rendered
 reference. Original assets and scripts do not imply pixel-identical output.
 
 On 2026-10-29 the real archive export and `carplay_local_ui_probe` tests pass.
-Generated `build/carplay/local-ui-component-2` renders all three gauges in native
-Zinc. Its explanatory UI text is missing in AOT, including a separate build with
-symbols, but present in the interpreter. Captures:
-`/private/tmp/carplay-original-component-repeat.png` (native) and
-`/private/tmp/carplay-component-interp2.png` (interpreter). ZN-861 remains open;
-no source workaround or engine fix is claimed. The earlier probe-4 happened to
-render correctly on a repeated native run, so a general cache diagnosis is not
-established.
+Generated `build/carplay/local-ui-component-2` renders all three gauges and explanatory
+text in native Zinc. Decoded PNG bytes and recorded command streams match the
+interpreter exactly. The initial report of missing text was based on the displayed
+image preview and was incorrect; a cropped header and the decoded pixel comparison
+confirm the text exists. Both POC 1 and POC 2 native/interpreter captures match.
 
-Next implementation boundary: fix ZN-861, then map this recorded layer model to
+Captures: `build/carplay/local-ui-component-2/capture-native.png` and
+`capture-interpreter.png`. The asset-free `ui_resource_parity` test checks fresh
+and cached native runs, interpreter and QuickJS, with explicit assertions that
+text ink and generated image pixels exist. No engine correction was needed.
+
+Next implementation boundary: map this recorded layer model to
 retained Zinc graphics with correct alpha/additive masks and a shared animation
 clock. Connect recorded UI Sync only after matching an original reference frame;
 phone asset transfer and live video composition remain subsequent work.

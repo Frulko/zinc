@@ -2,6 +2,7 @@
   "comment": "tests/run --changed: the tests that cover what a change touched (path prefix -> test names, T0/T1 only) and the pixel canary entries (tools/proto-capture compare --canary). The 42 demos and examples_all are T2: once per milestone, never at the end of a task unless the shared engine core changed, and then in the background.",
   "default": ["checker", "lang"],
   "map": [
+    {"paths": ["tests/t1/ui_resource_parity.sh", "src/host/resources.cpp", "src/res/res.cpp", "src/main.cpp"], "tests": ["ui_resource_parity"]},
     {"paths": ["tools/carplay-local-ui-poc/", "tests/t0/carplay_local_ui_probe.sh"], "tests": ["carplay_local_ui_probe"]},
     {"paths": ["targets/common/touch_device.h", "targets/macos/hal_sdl.cpp", "tests/native/trackpad_touch.cpp", "tests/t0/trackpad_touch.sh"], "tests": ["trackpad_touch", "input_touch"]},
     {"paths": ["plugins/carplay/", "tests/golden/carplay/", "tests/t0/carplay.sh"], "tests": ["carplay", "carplay_microphone", "carplay_demo"]},
