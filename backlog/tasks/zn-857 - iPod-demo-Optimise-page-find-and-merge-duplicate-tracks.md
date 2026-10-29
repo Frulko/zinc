@@ -2,7 +2,8 @@
 id: ZN-857
 title: 'iPod demo: Optimise page, find and merge duplicate tracks'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-29 06:38'
 labels:
   - ipod
