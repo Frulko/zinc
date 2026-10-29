@@ -119,3 +119,7 @@ export async function remove(ids: string[]): Promise<void> {
 }
 
 export async function eject(): Promise<void> { await call('POST', '/api/eject', { body: '', contentType: 'application/json' }); }
+
+/** A URL another device fetches the track's file from (a Sonos speaker): the token rides in the query. */
+export function fileUrl(id: string): string { return `${address}/api/file/${encodeURIComponent(id)}${token !== '' ? `?token=${encodeURIComponent(token)}` : ''}`; }
+export function coverUrl(id: string): string { return `${address}/api/cover/${encodeURIComponent(id)}${token !== '' ? `?token=${encodeURIComponent(token)}` : ''}`; }

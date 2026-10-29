@@ -1,7 +1,8 @@
 // iPod: a read-only viewer of a classic iPod (zinc:ipod). It finds the iPods plugged in, opens one and shows the device (a drawing
 // in its colour, how its disk is used, its identity), its albums with their covers, its songs, podcasts, audiobooks and videos, its
 // photos, its playlists, its notes, contacts, calendars and recordings, and every detail the iPod and its database give. A double-click
-// on a track plays it from the iPod (the bar at the top: play, pause, previous, next, seek). Albums, playlists, podcasts and chosen
+// on a track plays it from the iPod (the bar at the top: play, pause, previous, next, seek), here or on a Sonos group (the output at
+// the right of the bar). Albums, playlists, podcasts and chosen
 // songs download to the computer; files and folders (picked, or dropped on the window) are added to the iPod; backups are taken,
 // restored and deleted; duplicates are found (tags, files, sound) and merged; a queue shows the transfers and a log every operation. Nothing is changed on the iPod until Allow changes
 // is turned on. An iPod mounted, unmounted or pulled shows within seconds. This file mounts the app, routes the pages and the
@@ -10,6 +11,7 @@
 //   zinc run examples/ipod
 //   IPOD_DEMO_MOUNT=/Volumes/MYPOD zinc run examples/ipod     show only the iPod mounted there
 //   IPOD_DEMO_REMOTE=http://pi.local:8686 IPOD_DEMO_REMOTE_TOKEN=T zinc run examples/ipod     connect to that iPod daemon at start
+//   IPOD_DEMO_SONOS=192.168.1.20 zinc run examples/ipod     ask that Sonos speaker first for the groups
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
@@ -21,6 +23,8 @@ import { bg, fg, BACKGROUND, TEXT, CLEAR_COLOR, PAGE_ALBUMS, PAGE_SONGS, PAGE_PO
   PAGE_FILES, PAGE_SPECS, PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS } from './constants';
 import { Sidebar } from './components/Sidebar';
 import { NowPlaying } from './components/NowPlaying';
+import { OutputMenu } from './components/OutputPicker';
+import { pickerOpen } from './services/sonos';
 import { DevicesPage } from './pages/devices/DevicesPage';
 import { OverviewPage } from './pages/overview/OverviewPage';
 import { AlbumsPage } from './pages/albums/AlbumsPage';
@@ -60,6 +64,7 @@ function App(): i32 {
     <View className="grow basis-0 flex-col min-w-0 min-h-0">
       {library() !== null ? <NowPlaying /> : <View />}
       {library() !== null ? <Content lib={library() as PodLibrary} page={page()} /> : <DevicesPage />}
+      {library() !== null && pickerOpen() ? <OutputMenu /> : <View />}
     </View>
   </View>;
 }

@@ -1,11 +1,13 @@
 // The bar at the top, as iTunes shows it: previous, play or pause and next on the left, and in the middle the "LCD": the track's cover,
-// title, artist and album, the time played and left, and a progress bar a click seeks in.
+// title, artist and album, the time played and left, and a progress bar a click seeks in; on the right, where it plays (this computer
+// or a Sonos group, with its volume).
 import * as ui from 'zinc:ui';
 import { createSignal, onCleanup } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
 import { current, isPlaying, position, length, playError, toggle, next, previous, seek } from '../services/player';
 import { useCover, releaseCover } from '../services/covers';
+import { OutputButton } from './OutputPicker';
 import { duration } from '../format';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK, STRIPE, LCD_WIDTH, PROGRESS_WIDTH } from '../constants';
 
@@ -60,6 +62,6 @@ export function NowPlaying(): i32 {
           <Text className={`text-[12px] ${fg(FAINT)}`}>Double-click a track to play it</Text>
         </View>}
     </View>
-    <View className="w-[110]" />
+    <OutputButton />
   </View>;
 }

@@ -59,6 +59,7 @@ export const PHOTO_ROW_HEIGHT: i32 = 166;   // a photo and the gap
 export const PHOTO_VIEW_SIZE: i32 = 640;    // a photo opened
 export const LCD_WIDTH: i32 = 460;          // the now-playing panel at the top
 export const PROGRESS_WIDTH: i32 = 300;     // its progress bar
+export const VOLUME_WIDTH: i32 = 90;        // the Sonos group's volume bar, under the output
 
 // ---- timings
 export const SCAN_EVERY_MS: i32 = 3000;     // detect() again: an iPod mounted, unmounted or pulled shows within this time

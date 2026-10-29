@@ -26,6 +26,14 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
 - **Finding an iPod.** `ipod.detect()` runs at start and every three seconds while no iPod is shown (Rescan in the sidebar looks
   at once). One mounted iPod is opened by itself; with several, pick one. An iPod plugged in but not mounted is shown with what
   USB tells (model, serial, firmware) and a note to put it in disk mode.
+- **Sonos.** The button at the right of the bar picks where the music plays: this computer or a Sonos group (`zinc:sonos` finds
+  them: the speaker that answered last, kept in `config.json`, else an SSDP search; `IPOD_DEMO_SONOS=<address>` asks that speaker
+  first). On a group, a double-click queues the song and the ones after it (up to 200) on the group, which fetches them over HTTP
+  and goes through them by itself; play, pause, next, previous, seek and the group's volume (the bar under the button) go to the
+  group, and the bar follows what it plays (read once a second). Changing the output starts the track shown again there. A plugged
+  iPod's songs and covers are served by the app on the LAN (`zinc:net`, a free port, a random token in each path, only the open
+  iPod's tracks by their id); a remote iPod's come straight from its daemon (`/api/file/<id>?token=`), so the daemon must be
+  addressed by a name or address the speakers reach (not `127.0.0.1`), and started with `--token`.
 - **Covers.** Each album's cover is read from the iPod (`ipod.cover`, at twice its size on screen) when its row of the grid comes
   on screen, cached by album while shown and freed with `destroyImage` when the row is dropped.
 - **Long lists.** The album grid and every track table are `VirtualList`s: 2,500 songs cost the rows on screen.
@@ -63,12 +71,13 @@ src/
 ├── optimise.ts           # the analysis, the duplicate groups ticked and kept, the merge
 ├── services/ipod.ts      # the iPod, local (zinc:ipod) or remote: detect, open, read, close, covers, files, add, delete, eject
 ├── services/remote.ts    # a remote iPod: an iPod daemon's /api over zinc:net
-├── services/config.ts    # config.json: the remote iPod's address and token
+├── services/config.ts    # config.json: the remote iPod's address and token, the Sonos speaker found last
 ├── services/covers.ts    # covers by album, read when shown, freed when dropped
-├── services/player.ts    # playing from the iPod
+├── services/player.ts    # playing from the iPod, here or on a Sonos group
+├── services/sonos.ts     # the Sonos groups, the output chosen, the songs' URLs and the server of a plugged iPod's files
 ├── services/transfers.ts # the queue of jobs, one at a time, with their progress
 ├── services/log.ts       # the operations, on the Logs page and in the log file
-├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, NowPlaying
+├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, NowPlaying, OutputPicker
 └── pages/                # devices, overview, albums, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs
 ```
 

@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- iPod demo: plays the iPod's songs on Sonos. The button at the right of the bar picks this computer or a Sonos group; on a group the songs are queued there, and play, pause, next, previous, seek and the group's volume drive it. A plugged iPod's songs are served by the app on the network, a remote iPod's by its daemon.
 - `zinc:sonos`: `playUri`, `addUriToQueue`, `clearQueue` and `playFromQueue` (named after SoCo's), with `Song` and `musicTrackMeta` to play song files from a plain `http://` URL with their title, artist, album and cover.
 - `zinc:net`: `serve` and `serveAsync` return the port they listen on; port 0 takes a free one.
 - `examples/ipod-web`: the page at `/` manages the iPod from any browser on the network: search and sort the songs, browse albums with their covers and playlists, play and download songs, and with `--allow-changes` add files by drag and drop, delete songs and eject; `GET /api/status` gives what its header shows.
