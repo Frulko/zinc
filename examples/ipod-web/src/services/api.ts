@@ -3,7 +3,7 @@
 import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import * as net from 'zinc:net';
-import { El, toJson, strings, quote } from '../element';
+import { El, toJson, strings, quote } from 'zinc:xml';
 import { Query, queryOf, jsonReply } from '../query';
 import { options } from './options';
 import { lib, load, close } from './library';

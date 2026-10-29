@@ -6,7 +6,7 @@ import * as net from 'zinc:net';
 import { subtle } from 'zinc:subtle';
 import { toHex } from 'zinc:web';
 import { utf8Encode } from 'zinc:sys';
-import { El, toXml, toJson } from '../element';
+import { El, toXml, toJson } from 'zinc:xml';
 import { Query, queryOf } from '../query';
 import { options } from './options';
 import { lib, Album, Artist } from './library';

@@ -1,7 +1,6 @@
 #!/bin/sh
 # examples/music-tree against a made-up house (tests/data/music-tree/fake_house.py: Sonos speakers and the Spotify Web API on one local
-# port), headless. The test's copy of the demo gets a copy of zinc:sonos pointed at that port (a project's plugins/ shadows the engine's),
-# a stub Spotify client calling it, a fake login file (else zinc:spotify reads ~/.zinc/spotify.json) and a counter of drawn frames.
+# port), headless. The test's copy of the demo is given that port as its speakers' address (seed 127.0.0.1:<port>), a stub Spotify client calling it, a fake login file (else zinc:spotify reads ~/.zinc/spotify.json) and a counter of drawn frames.
 # Run rooms: (a) the Rooms page left alone, against a house that does not change, draws at most 2 frames while it polls the speakers
 # (a poll asks for a frame only when what is shown changed: 0 or 1 measured, one per poll before); (b) the list scrolled so a room's slider lies under the header, a tap on "Actualiser" sends
 # no SetVolume. Run home: (c) "Reprendre ici" (the account plays on a Mac) moves the song to the speakers through their Spotify service:
@@ -16,8 +15,7 @@ trap '[ -n "$srv" ] && { kill $srv; wait $srv; } 2>/dev/null; [ -n "$KEEP" ] && 
 port=$((20000 + ($$ + 57) % 20000))
 app=$tmp/app
 cp -R "$DEMO" "$app" && rm -rf "$app/build" "$app/node_modules" "$app/config.json" "$app/spotify.json" "$app/radios.json" "$app/notifications.json" "$app/notif-icons" "$app/tsconfig.json"
-mkdir -p "$app/plugins" && cp -R plugins/sonos "$app/plugins/sonos"
-printf '{"sleep":0,"seed":"127.0.0.1","group":"RINCON_A"}\n' > "$app/config.json"
+printf '{"sleep":0,"seed":"127.0.0.1:%d","group":"RINCON_A"}\n' $port > "$app/config.json"
 printf '{"client_id":"fake","refresh_token":"fake"}\n' > "$app/spotify.json"
 cat > "$app/src/fake-spotify.ts" <<EOF
 import { Spotify, SpotifyError } from 'zinc:spotify';
@@ -41,8 +39,6 @@ def patch(rel, pairs, head=''):
     for a, b in pairs:
         assert a in s, (rel, a); s = s.replace(a, b, 1)
     open(p, 'w').write(head + s)
-sonos = os.path.join(app, 'plugins/sonos/index.ts'); text = open(sonos).read(); assert ':1400' in text
-open(sonos, 'w').write(text.replace(':1400', ':' + port))   # the speakers' port
 patch('src/state.ts', [("new Spotify('spotify.json')", "new FakeSpotify('spotify.json')")], "import { FakeSpotify } from './fake-spotify';\n")
 # the probes: each drawn frame and each poll of the speakers, with the frame number
 patch('src/main.ts', [("onFrame((deltaSeconds: number) => {\n", "onFrame((deltaSeconds: number) => {\n  probeTick();\n"),

@@ -2,7 +2,7 @@
 
 Date 2026-10-29. Research only; no code changed. Sources: SoCo master (`soco/core.py`, `groups.py`, `discovery.py`, `events_base.py`, `events.py`, `music_library.py`, `data_structures.py`, `alarms.py`, `snapshot.py`, `plugins/sharelink.py`, `music_services/music_service.py`, `ms_data_structures.py`, `zonegroupstate.py`, `services.py`), read from GitHub. Current zinc:sonos: `plugins/sonos/index.ts` (380 lines), `xml.ts` (35 lines, string search by tag name), `docs/plugins/sonos.md`.
 
-Legend: has / partial / missing / WIP. WIP = another agent is adding `playUri`, `addUriToQueue`, `clearQueue`, `playFromQueue` right now; counted as in progress, not as present.
+Legend: has / partial / missing / WIP / done (batch N: implemented 2026-10-29, tested by `tests/t1/sonos_plugin.sh`). WIP = another agent is adding `playUri`, `addUriToQueue`, `clearQueue`, `playFromQueue` right now; counted as in progress, not as present.
 
 Naming: SoCo's snake_case becomes camelCase (`play_uri` -> `playUri`). SoCo hangs everything on a `SoCo` speaker object; zinc:sonos has `System` (household) with `Group` and `Speaker` arguments (`sys.play(g)`, `sys.setVolume(s, v)`). Proposal: keep that style (commands that go to the coordinator take a `Group`, per-room ones take a `Speaker`). New properties become `getX(s)` / `setX(s, v)` pairs; do not invent getters on the data classes, since awaits cannot sit in a property.
 
@@ -16,7 +16,7 @@ Services: AVT = AVTransport, RC = RenderingControl, GRC = GroupRenderingControl,
 |---|---|---|---|---|
 | `discover(timeout, include_invisible, interface_addr, allow_network_scan, ...)` | SSDP M-SEARCH 239.255.255.250:1900, ST `urn:schemas-upnp-org:device:ZonePlayer:1`, then `ZGT.GetZoneGroupState` | partial | `discover` (has) | zinc takes the first reply, then reads topology from it (enough, topology lists all rooms). Missing: `includeInvisible`, bounded wait collecting all replies, multi-interface sockets (SoCo sends from each local IPv4), IPv4 multicast TTL |
 | `any_soco()` | same | has | `discover` | |
-| `by_name(name)` | discover + filter on `player_name` | missing | `System.speakerByName(name)` | pure lookup on `sys.speakers`, trivial |
+| `by_name(name)` | discover + filter on `player_name` | done (batch 1) | `System.speakerByName(name)` | pure lookup on `sys.speakers`, trivial |
 | `scan_network(...)`, `scan_network_by_household_id`, `scan_network_get_household_ids`, `scan_network_get_by_name`, `scan_network_any_soco`, `contactable` | HTTP GET `/xml/device_description.xml` on every host of the subnets, threadpool | missing | `scanNetwork(opts)` | fallback when multicast is blocked (VLANs, Wi-Fi isolation, webOS firewall). A bounded concurrent loop of `fetch` with 300 ms timeouts over the /24 of each `networkInterfaces()` entry. Low priority |
 | (zinc extra) `known` seed address | direct `GetZoneGroupState` | has | `discover(known)` | keep |
 
@@ -28,13 +28,13 @@ Services: AVT = AVTransport, RC = RenderingControl, GRC = GroupRenderingControl,
 | `zone_group_state` (cached, event-updated) | ZGT subscription | partial | `sys.refresh()` | poll only; with events (batch 6) refresh on `ZoneGroupState` |
 | `ZoneGroup.members/coordinator/uid/label/short_label` | ZGT | has | `Group.name()` | `Group.id` kept |
 | `ZoneGroup.volume` (get/set) | GRC.GetGroupVolume / SetGroupVolume (after SnapshotGroupVolume) | has | `setGroupVolume`; read in `update` | |
-| `ZoneGroup.mute` (get/set) | GRC.GetGroupMute / SetGroupMute | missing | `getGroupMute(g)`, `setGroupMute(g, m)` | |
-| `ZoneGroup.set_relative_volume(n)` | GRC.SetRelativeGroupVolume | missing | `setRelativeGroupVolume(g, n)` | returns new volume |
+| `ZoneGroup.mute` (get/set) | GRC.GetGroupMute / SetGroupMute | done (batch 1) | `getGroupMute(g)`, `setGroupMute(g, m)` | |
+| `ZoneGroup.set_relative_volume(n)` | GRC.SetRelativeGroupVolume | done (batch 1) | `setRelativeGroupVolume(g, n)` | returns new volume |
 | (not in SoCo) GRC.GetGroupVolume only; | | | | `GRC.SnapshotGroupVolume` already used |
 | `join(master)` | AVT.SetAVTransportURI `x-rincon:<uid>` | has | `join` | |
-| `unjoin()` | AVT.BecomeCoordinatorOfStandaloneGroup | has | `leave` | SoCo name `unjoin`: add alias `unjoin` |
-| `partymode()` | join all visible zones to this one | missing | `partyMode(s)` | loop of `join` |
-| `is_coordinator`, `is_visible`, `is_bridge`, `is_satellite`, `has_satellites`, `is_subwoofer`, `has_subwoofer`, `channel` | ZGT member attributes (`Invisible`, `IsZoneBridge`, `ChannelMapSet`, `HTSatChanMapSet`, `Satellites`) | partial | `Speaker.visible`, `.bridge`, `.channelMap`, `.satellites[]`, `.isSub` | the zinc topology parser keeps only visible members; keep invisible ones in `sys.allSpeakers` |
+| `unjoin()` | AVT.BecomeCoordinatorOfStandaloneGroup | done (batch 1) | `leave` | SoCo name `unjoin`: add alias `unjoin` |
+| `partymode()` | join all visible zones to this one | done (batch 1) | `partyMode(s)` | loop of `join` |
+| `is_coordinator`, `is_visible`, `is_bridge`, `is_satellite`, `has_satellites`, `is_subwoofer`, `has_subwoofer`, `channel` | ZGT member attributes (`Invisible`, `IsZoneBridge`, `ChannelMapSet`, `HTSatChanMapSet`, `Satellites`) | partial (batch 1: `visible`, `bridge`, `sys.allSpeakers`) | `Speaker.visible`, `.bridge`, `.channelMap`, `.satellites[]`, `.isSub` | the zinc topology parser keeps only visible members; keep invisible ones in `sys.allSpeakers` |
 | `create_stereo_pair(slave)` | DP.AddBondedZones (`ChannelMapSet` `uidL:LF,LF;uidR:RF,RF`) | missing | `createStereoPair(left, right)` | |
 | `separate_stereo_pair()` | DP.RemoveBondedZones | missing | `separateStereoPair(s)` | |
 | `add_satellite_speakers`, `separate_satellite_speakers` (`_set_satellite_mapping`) | DP.AddHTSatellite / RemoveHTSatellite (`HTSatChanMapSet`) | missing | `addSatellites(s, ...)`, `removeSatellites` | needs `ChannelMapSet`/`HTSatChanMapSet` parsing |
@@ -47,20 +47,20 @@ Services: AVT = AVTransport, RC = RenderingControl, GRC = GroupRenderingControl,
 |---|---|---|---|---|
 | `play()` | AVT.Play Speed 1 | has | `play` | |
 | `pause()` | AVT.Pause | has | `pause` | zinc falls back to Stop for radios |
-| `stop()` | AVT.Stop | missing | `stop(g)` | |
+| `stop()` | AVT.Stop | done (batch 1) | `stop(g)` | |
 | `next()` / `previous()` | AVT.Next/Previous | has | `next`, `previous` | |
 | `seek(timestamp=, track=)` | AVT.Seek REL_TIME / TRACK_NR | has | `seek`, `seekTrack` | SoCo has no ABS_TIME; fine |
-| `play_from_queue(index, start)` | SetAVTransportURI `x-rincon-queue:<uid>#0`, Seek TRACK_NR, Play | WIP | `playFromQueue(g, index, start=true)` | |
-| `play_uri(uri, meta, title, start, force_radio)` | SetAVTransportURI; `x-rincon-mp3radio` rewrite; builds DIDL for radio | WIP (`playStream` has the radio case) | `playUri(g, uri, meta, title, start, forceRadio)` | |
-| `end_direct_control_session()` | AVT.EndDirectControlSession | missing | `endDirectControlSession(g)` | |
-| `get_current_track_info()` | AVT.GetPositionInfo (track, title, artist, album, album_art, position, duration, uri, metadata, playlist_position) | partial | `update(g)` -> `g.track` | has all but raw `metadata`, playlist_position naming (`track.number`); add `track.metadata` |
-| `get_current_media_info()` | AVT.GetMediaInfo | partial | `update` reads it | expose `g.media` {uri, meta, nrTracks, duration} |
-| `get_current_transport_info()` | AVT.GetTransportInfo | has | `g.state` | missing `CurrentTransportStatus` (ERROR_OK) and speed |
+| `play_from_queue(index, start)` | SetAVTransportURI `x-rincon-queue:<uid>#0`, Seek TRACK_NR, Play | done (batch 1) | `playFromQueue(g, index, start=true)` | |
+| `play_uri(uri, meta, title, start, force_radio)` | SetAVTransportURI; `x-rincon-mp3radio` rewrite; builds DIDL for radio | done (batch 1) | `playUri(g, uri, meta, title, start, forceRadio)` | |
+| `end_direct_control_session()` | AVT.EndDirectControlSession | done (batch 1) | `endDirectControlSession(g)` | |
+| `get_current_track_info()` | AVT.GetPositionInfo (track, title, artist, album, album_art, position, duration, uri, metadata, playlist_position) | done (batch 1) | `update(g)` -> `g.track` | has all but raw `metadata`, playlist_position naming (`track.number`); add `track.metadata` |
+| `get_current_media_info()` | AVT.GetMediaInfo | done (batch 1) | `update` reads it | expose `g.media` {uri, meta, nrTracks, duration} |
+| `get_current_transport_info()` | AVT.GetTransportInfo | done (batch 1) | `g.state` | missing `CurrentTransportStatus` (ERROR_OK) and speed |
 | `available_actions` | AVT.GetCurrentTransportActions | has | `g.actions` | |
-| `play_mode`, `shuffle`, `repeat` (`one`, `all`, `True`/`False`) | AVT.GetTransportSettings / SetPlayMode | has | `setPlayMode` | add `setShuffle(g, b)`, `setRepeat(g, 'none'|'all'|'one')` helpers reading `g.playMode` |
-| `cross_fade` | AVT.GetCrossfadeMode / SetCrossfadeMode | missing | `getCrossFade(g)`, `setCrossFade(g, b)` | |
+| `play_mode`, `shuffle`, `repeat` (`one`, `all`, `True`/`False`) | AVT.GetTransportSettings / SetPlayMode | done (batch 1) | `setPlayMode` | add `setShuffle(g, b)`, `setRepeat(g, 'none'|'all'|'one')` helpers reading `g.playMode` |
+| `cross_fade` | AVT.GetCrossfadeMode / SetCrossfadeMode | done (batch 1) | `getCrossFade(g)`, `setCrossFade(g, b)` | |
 | `get_speaker_info()` | `/xml/device_description.xml` | missing | `getSpeakerInfo(s)` | see 1.14 |
-| `music_source` / `is_playing_radio/line_in/tv` / `music_source_from_uri` | URI regex | partial | `sourceOf(uri)` | zinc kinds: spotify/radio/queue/line-in/tv/airplay/stream/none; SoCo: RADIO, LINE_IN, TV, LIBRARY, SPOTIFY, ... Add `isPlayingRadio/LineIn/Tv(g)` helpers (one-liners on `g.track.source`) |
+| `music_source` / `is_playing_radio/line_in/tv` / `music_source_from_uri` | URI regex | done (batch 1) | `sourceOf(uri)` | zinc kinds: spotify/radio/queue/line-in/tv/airplay/stream/none; SoCo: RADIO, LINE_IN, TV, LIBRARY, SPOTIFY, ... Add `isPlayingRadio/LineIn/Tv(g)` helpers (one-liners on `g.track.source`) |
 
 ### 1.4 Queue (`core.py`, `data_structures.py` `Queue`)
 
@@ -68,12 +68,12 @@ Services: AVT = AVTransport, RC = RenderingControl, GRC = GroupRenderingControl,
 |---|---|---|---|---|
 | `get_queue(start, max_items, full_album_art_uri)` | CD.Browse `Q:0` (+ DIDL parse) | partial | `getQueue(g, start, max)` | zinc has `queueEntry`, `queueIndex` (URI only). Needs DIDL item parser -> `QueueItem` {title, creator, album, art, uri, meta, class} |
 | `queue_size` | CD.Browse `Q:0` count (`TotalMatches`) | missing | `queueSize(g)` | |
-| `add_uri_to_queue(uri, position, as_next)` | AVT.AddURIToQueue | WIP | `addUriToQueue(g, uri, position, asNext)` | returns first new track number |
+| `add_uri_to_queue(uri, position, as_next)` | AVT.AddURIToQueue | done (batch 1) | `addUriToQueue(g, uri, position, asNext)` | returns first new track number |
 | `add_to_queue(queueable_item, position, as_next)` | AVT.AddURIToQueue with item DIDL | partial (`enqueue(g, favorite)`) | `addToQueue(g, item, position, asNext)` | `enqueue` covers Favorite only |
 | `add_multiple_to_queue(items, container)` | AVT.AddMultipleURIsToQueue | missing | `addMultipleToQueue(g, items, container?)` | batch of up to 16 URIs per call; faster than loops |
 | `remove_from_queue(index)` | AVT.RemoveTrackFromQueue `Q:0/n` | has | `removeFromQueue` | SoCo index is 0-based, zinc 1-based; document |
 | `remove_range_from_queue(start, num)` | AVT.RemoveTrackRangeFromQueue | missing | `removeRangeFromQueue(g, start, count)` | |
-| `clear_queue()` | AVT.RemoveAllTracksFromQueue | WIP | `clearQueue(g)` | used internally by `playFavorite` |
+| `clear_queue()` | AVT.RemoveAllTracksFromQueue | done (batch 1) | `clearQueue(g)` | used internally by `playFavorite` |
 | `reorder_queue`, `move_in_queue(from, to)` | AVT.ReorderTracksInQueue | missing | `moveInQueue(g, from, to)`, `reorderQueue(g, start, count, before)` | |
 | `Queue` class (ListOfMusicInfoItems with update_id) | | missing | `QueueItem[]` + `updateId` | |
 

@@ -131,6 +131,7 @@ at once.
 | Child processes | `zinc:process` ([docs](../plugins/process.md)): spawn with stdin / stdout / stderr pipes, kill, exit code |
 | TCP / UDP / Unix sockets, DNS, WebSocket | `zinc:socket` ([docs](../plugins/socket.md)) |
 | Paths | `zinc:path`: POSIX `join`, `resolve`, `relative`, `dirname`, `basename`, `extname`, `parse`, `format` (Node's results) |
+| XML | `zinc:xml`: `parse(text)` into an element tree (`El`: `attr`, `child`, `all`, `find`, `findAll`, `textOf`), `toXml` / `toJson` to write one back, `escapeXml` / `unescapeXml`. A small reader for UPnP, SOAP, RSS and device descriptions, not a general XML engine |
 | SQL database | `zinc:sqlite` ([docs](../plugins/sqlite.md)) |
 | Web APIs (fetch, URL, crypto, events…) | globals ([chapter 9](09-web-apis.md)) |
 

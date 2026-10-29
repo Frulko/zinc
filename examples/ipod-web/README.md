@@ -56,7 +56,7 @@ numbered in the order of their names. Files are sent as they are on the iPod (no
 - `state.ts`: the last scan (`detect()`), then the library follows it.
 - `web/page.ts`: the page and `/pod.json`; `web/shell.ts` its HTML, `web/style.ts` its CSS, `web/script.ts` and `web/manage.ts` its
   JavaScript (the library and the player; uploads, deletes, eject and specs), filled from `/api` in the browser with `textContent`.
-- `element.ts`: the element tree every answer is built from, written as XML or JSON.
+- `zinc:xml` (`lib/std/xml.ts`): the element tree every answer is built from, written as XML or JSON.
 - `query.ts`: a request's path and parameters.
 - `services/options.ts`: the command line. `services/library.ts`: opening the iPod, its albums and artists.
   `services/files.ts`: track files and the covers' cache. `services/web.ts`: the routes. `services/api.ts`: `/api`.

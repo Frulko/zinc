@@ -3,12 +3,14 @@
 Sonos speakers on the local network, through the UPnP API they serve on port 1400: discovery, rooms and groups, what
 plays, transport, volume, grouping, favorites and internet radio streams. No Sonos account and no cloud.
 
-- **No native code.** It is written in Zinc on [`zinc:socket`](socket.md) (SSDP discovery) and `fetch` (the SOAP calls):
-  `plugins/sonos/index.ts` and a small XML reader, `plugins/sonos/xml.ts`. It needs the `net` and `process` permissions
+- **No native code.** It is written in Zinc on [`zinc:socket`](socket.md) (SSDP discovery), `fetch` (the SOAP calls) and
+  `zinc:xml` (the element tree of `lib/std/xml.ts`, which reads the answers): `plugins/sonos/index.ts`. It needs the `net` and `process` permissions
   and adds nothing to a program that does not import it.
-- **Tests.** `tests/t1/music_tree_sonos.sh` and `tests/t1/ipod_sonos.sh`, against made-up speakers. **Examples.** `examples/music` (a wall
+- **Tests.** `tests/t1/sonos_plugin.sh` (every call below, on the interpreter and QuickJS), `tests/t1/music_tree_sonos.sh` and
+  `tests/t1/ipod_sonos.sh`, against made-up speakers (`tests/data/sonos/stub_speaker.py`). **Examples.** `examples/music` (a wall
   remote for Sonos and Spotify), `examples/ipod` (plays an iPod's songs on a Sonos group).
-- **Reference.** The method names of the queue follow [SoCo](https://github.com/SoCo/SoCo) (`play_uri`, `add_uri_to_queue`...), in camelCase.
+- **Reference.** The names follow [SoCo](https://github.com/SoCo/SoCo) (`play_uri`, `add_uri_to_queue`...), in camelCase; what is
+  done and what is left is the table of `docs/reports/sonos-soco-parity.md`.
 - **Reference.** The protocol side (services, actions, URI shapes) is in `docs/reports/sonos-upnp-api.md`.
 
 | target | status |
@@ -40,7 +42,9 @@ Free functions:
 | API | |
 |---|---|
 | `discover(known = '', waitMs = 2000, port = 0): Promise<System>` | Finds the household. With `known` (the address of a speaker that answered before) it asks that speaker first; otherwise, or if it does not answer, it sends an SSDP search and takes the first speaker that replies. Then it reads the rooms and groups. Throws `Error('no Sonos speaker found')` when nothing answers within `waitMs`. |
-| `soap(ip, service, path, action, args): Promise<string>` | One UPnP action sent to a speaker; returns the answer text. Throws `Error('Action: UPnP 701')` (the UPnP error code, or the HTTP status) on a fault. The 4 s timeout applies. |
+| `soap(address, service, path, action, args): Promise<El>` | One UPnP action sent to a speaker (`address`: `'ip'`, port 1400, or `'ip:port'`); returns the answer's element (`u:<action>Response`, a `zinc:xml` `El`: `r.textOf('CurrentVolume')`). Throws `UpnpError` on a fault. The 4 s timeout applies. |
+| `UpnpError` | What every call throws on a fault: `code` (the UPnP code: 701 transition not available, 711 illegal seek target, 714 illegal MIME type, 800 only for the coordinator...; 0 when the answer had none), `status` (HTTP), `action`, `description` (the speaker's, else SoCo's table). `message` is `'Next: UPnP 701 (Transition not available)'`. |
+| `artUri(address, art)`, `hostPort(address)`, `playModeOf(shuffle, repeat)` | A cover's absolute URL; `'ip:port'` with the default port; the play mode for a shuffle and `'none'`, `'all'` or `'one'`. |
 | `sourceOf(uri): string` | The kind of source a transport URI names (see Source kinds). |
 | `serviceId(sys, name): Promise<i32>` | The id of a music service in this household (`'Spotify'`: 9 or 12 depending on the region), -1 when it is not offered. |
 | `accountOf(sys, sid): Promise<i32>` | The account number (`sn`) of a service, read from a Sonos favorite saved from that service, or -1. |
@@ -51,22 +55,25 @@ Free functions:
 
 | API | |
 |---|---|
-| `sys.speakers`, `sys.groups`, `sys.seed` | The rooms, the groups (sorted by name) and the address of the speaker asked for the topology. |
-| `speaker(uuid)`, `group(id)`, `groupOf(speaker)` | Lookups; null when not found. |
+| `sys.speakers`, `sys.allSpeakers`, `sys.groups`, `sys.seed` | The visible rooms, every member with the hidden ones (a stereo pair's second speaker, a sub, satellites, bridges), the groups (sorted by name) and the address of the speaker asked for the topology (`'ip'` or `'ip:port'`: `discover('127.0.0.1:8000')` reaches a stand-in speaker). |
+| `speaker(uuid)`, `speakerByName(name)`, `group(id)`, `groupOf(speaker)` | Lookups; null when not found. |
 | `refresh(): Promise<void>` | Reads the rooms and groups again. A group that remains keeps its object (track, volume). Throws when no speaker answers. |
-| `update(g): Promise<void>` | Reads what a group plays: state, track, position, source, allowed actions, play mode, group volume. |
+| `update(g): Promise<void>` | Reads what a group plays: state and status, track (with its raw DIDL in `track.metadata`), position, source, `media` (the transport URI, its DIDL, the queue's length), allowed actions, play mode, group volume and mute. |
 | `readVolumes(g): Promise<void>` | Reads the volume and mute of every room of the group. |
-| `play(g)`, `pause(g)`, `next(g)`, `previous(g)` | Transport. `pause` sends Stop when the source does not accept Pause (a radio). |
+| `play(g)`, `pause(g)`, `stop(g)`, `next(g)`, `previous(g)` | Transport. `pause` sends Stop when the source does not accept Pause (a radio). |
+| `endDirectControlSession(g)` | Ends the session a service app holds on the group (Spotify Connect), so Sonos commands take it back. |
+| `setShuffle(g, on)`, `setRepeat(g, 'none' \| 'all' \| 'one')`, `getCrossFade(g)`, `setCrossFade(g, on)` | The play mode by its two halves (the other half kept from `g.playMode`), and the cross fade. |
 | `seek(g, seconds)` | Seeks in the current track. |
 | `setPlayMode(g, mode)` | `NORMAL`, `SHUFFLE_NOREPEAT`, `REPEAT_ALL`, `SHUFFLE` (shuffle and repeat all), `REPEAT_ONE`, `SHUFFLE_REPEAT_ONE`. |
 | `setGroupVolume(g, v)` | The whole group's volume, 0..100, the rooms keeping their balance. |
+| `setRelativeGroupVolume(g, delta): Promise<i32>`, `getGroupMute(g)`, `setGroupMute(g, muted)` | The group's volume moved by `delta` (returns the new one); the group's mute. |
 | `setVolume(speaker, v)`, `setMute(speaker, muted)` | One room. |
-| `join(speaker, g)`, `leave(speaker)` | Makes a room play with a group (it leaves its own); takes a room out of its group (it plays alone and stops). |
+| `join(speaker, g)`, `leave(speaker)` (or `unjoin`), `partyMode(speaker)` | Makes a room play with a group (it leaves its own); takes a room out of its group (it plays alone and stops); every other room joins the room's group. |
 | `playStream(g, url, name, art = '')` | Plays an internet radio stream on a group; `name` (and `art`) are what every Sonos app shows. |
-| `playUri(g, uri, meta = '')` | Plays a URI on a group (SoCo's `play_uri`): a song file over `http://` with `musicTrackMeta(song)` as `meta`, or any URI a speaker takes. |
+| `playUri(g, uri, meta = '', title = '', start = true, forceRadio = false)` | Plays a URI on a group (SoCo's `play_uri`): a song file over `http://` with `musicTrackMeta(song)` as `meta`, or any URI a speaker takes. A `title` without `meta` plays it as a station of that name; `forceRadio` rewrites the scheme to `x-rincon-mp3radio`; `start` false only sets it. |
 | `addUriToQueue(g, uri, meta = '', position = 0, asNext = false): Promise<i32>` | Adds a URI to the queue (`add_uri_to_queue`): at its end, at `position` (1 for the first), or right after the song that plays. Returns its number in the queue. |
 | `clearQueue(g)` | Empties the queue (`clear_queue`). |
-| `playFromQueue(g, index)` | Plays the queue from entry `index`, 0 for the first as SoCo counts (`play_from_queue`); the group then goes through the queue by itself. |
+| `playFromQueue(g, index, start = true)` | Plays the queue from entry `index`, 0 for the first as SoCo counts (`play_from_queue`); the group then goes through the queue by itself. |
 | `favorites(): Promise<Favorite[]>` | The Sonos favorites (as saved in the Sonos app). |
 | `playFavorite(g, favorite)` | A stream is played directly; a container (playlist, album) is queued, then played. |
 
@@ -74,16 +81,18 @@ Data classes:
 
 | class | fields |
 |---|---|
-| `Speaker` | `uuid`, `name`, `ip`, `coordinator` (uuid of its group's coordinator), `volume` (-1 until read with `readVolumes`), `muted`. A stereo pair or a home theatre with its satellites is one speaker. |
-| `Group` | `id`, `coordinator`, `members` (coordinator first), `state` (`PLAYING`, `PAUSED_PLAYBACK`, `STOPPED`, `TRANSITIONING`), `track`, `volume` (-1 until `update`), `playMode`, `actions`. Methods: `name()` (`'Salon + Bureau'`), `playing()`, `can(action)`. |
-| `Track` | `title`, `artist`, `album`, `art` (absolute URL, or ''), `duration` and `position` in seconds (duration 0 for a radio), `source`, `station`, `uri`. |
+| `Speaker` | `uuid`, `name`, `ip`, `port` (1400), `coordinator` (uuid of its group's coordinator), `volume` (-1 until read with `readVolumes`), `muted`, `visible`, `bridge`; `address()` is `'ip:port'`. A stereo pair or a home theatre with its satellites is one speaker in `sys.speakers`. |
+| `Group` | `id`, `coordinator`, `members` (coordinator first), `state` (`PLAYING`, `PAUSED_PLAYBACK`, `STOPPED`, `TRANSITIONING`), `status`, `track`, `media`, `volume` (-1 until `update`), `muted`, `playMode`, `actions`. Methods: `name()` (`'Salon + Bureau'`), `playing()`, `can(action)`, `shuffle()`, `repeat()`, `isPlayingRadio()`, `isPlayingLineIn()`, `isPlayingTv()`. |
+| `Track` | `title`, `artist`, `album`, `art` (absolute URL, or ''), `duration` and `position` in seconds (duration 0 for a radio), `source`, `station`, `uri`, `number` and `count` in the queue, `metadata` (the DIDL). |
+| `Media` | `uri`, `meta`, `nrTracks`: what the transport is set to (SoCo's `get_current_media_info`). |
 | `Favorite` | `title`, `art`, `uri`, `meta` (the DIDL, sent back as is), `container`. |
 | `Song` | A song file over plain HTTP: `url`, `title`, `artist`, `album`, `art` (an absolute URL, or ''), `mime` (`'audio/mpeg'`, `'audio/mp4'`..., `'*'` when unknown), `duration` in seconds. |
 
 ## Notes
 
-- **Port 1400.** Every call is an HTTP POST (SOAP) to `http://<speaker>:1400`. There is no eventing: a program polls
-  `update` to follow a group.
+- **Port 1400.** Every call is an HTTP POST (SOAP) to `http://<speaker>:1400` (the port comes from the topology's
+  `Location`, so a stand-in speaker of a test can sit on any port). There is no eventing yet: a program polls `update` to
+  follow a group.
 - **Commands go to the group coordinator.** Transport, play mode and group volume use `group.coordinator`; a member of a
   group refuses them. Volume and mute of one room go to that room's own address.
 - **Discovery and firewalls.** The SSDP search leaves from a UDP port and the speakers answer to that port. On a device

@@ -1,6 +1,6 @@
 #!/bin/sh
-# examples/ipod plays on Sonos, headless, against a made-up speaker (tests/data/ipod-demo/fake_sonos.py: one group, Salon, on a free local
-# port; the test's copy of the demo gets a copy of zinc:sonos pointed at that port). The fake iPod is a folder (two songs, the first with a
+# examples/ipod plays on Sonos, headless, against a made-up speaker (tests/data/sonos/stub_speaker.py: one group, Salon, on a free local
+# port, which the app reaches as IPOD_DEMO_SONOS=127.0.0.1:<port>). The fake iPod is a folder (two songs, the first with a
 # cover, as tests/t1/ipod_remote.sh makes them). The session opens the output menu, picks Salon, opens Songs and double-clicks the first
 # song. Checked in the speaker's log: the queue cleared, the song queued with the URL of the app's own server (a token in the path) and a
 # musicTrack DIDL carrying its title, artist and album, the queue played from its first entry; then, as a real speaker would, a GET of
@@ -44,13 +44,8 @@ out=$("$Z" run "$tmp/setup.ts" 2>"$tmp/setup.err")
 [ "$out" = ok ] || { echo "ipod_sonos: the setup: $out $(tail -3 "$tmp/setup.err")"; exit 1; }
 port=$((20000 + ($$ + 91) % 20000))
 app=$tmp/app
-cp -R examples/ipod "$app" && rm -rf "$app/build" && mkdir -p "$app/plugins" && cp -R plugins/sonos "$app/plugins/sonos"
-python3 - "$app/plugins/sonos/index.ts" $port <<'PY' || { echo "ipod_sonos: zinc:sonos no longer names port 1400"; exit 1; }
-import sys
-p, port = sys.argv[1], sys.argv[2]; s = open(p).read(); assert ':1400' in s
-open(p, 'w').write(s.replace(':1400', ':' + port))
-PY
-python3 tests/data/ipod-demo/fake_sonos.py $port "$tmp/sonos.log" > "$tmp/sonos.out" 2>&1 & srv=$!
+cp -R examples/ipod "$app" && rm -rf "$app/build"
+python3 tests/data/sonos/stub_speaker.py $port "$tmp/sonos.log" --fetch > "$tmp/sonos.out" 2>&1 & srv=$!
 for i in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null -X POST "http://127.0.0.1:$port/" && break; sleep 0.3; done
 # the output button (frame 41), Salon in its menu (frame 141: the search answered), Songs (161), a double-click on the first song (201);
 # the app runs until the speaker's fetches are done (ZINC_DETERMINISTIC: the frames follow the input, the network the wall clock)
@@ -71,7 +66,7 @@ cat > "$tmp/session.input" <<'IN'
 205 up
 IN
 cd "$tmp" || exit 2
-IPOD_DEMO_SONOS=127.0.0.1 ZINC_DETERMINISTIC=1 TZ=UTC IPOD_DEMO_MOUNT="$pod" ZINC_SCALE=1 ZINC_SIZE=1180x760 ZINC_INPUT="$tmp/session.input" \
+IPOD_DEMO_SONOS=127.0.0.1:$port ZINC_DETERMINISTIC=1 TZ=UTC IPOD_DEMO_MOUNT="$pod" ZINC_SCALE=1 ZINC_SIZE=1180x760 ZINC_INPUT="$tmp/session.input" \
   ZINC_FRAMES=100000000 ZINC_SHOT="$tmp/page.png" ZINC_SHOT_FRAMES=140,400 timeout 90 "$Z" run --interp "$app" > app.out 2>&1 &
 pid=$!
 # the speaker's last fetch, then the app is stopped (its server lives as long as it runs)

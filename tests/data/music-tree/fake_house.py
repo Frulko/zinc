@@ -1,5 +1,5 @@
-# A made-up house for headless runs of examples/music-tree (tests/t1/music_tree_sonos.sh): Sonos speakers (UPnP SOAP; the test points a
-# copy of zinc:sonos at this port) and the Spotify Web API (/v1, the test's stub client calls it). usage: fake_house.py <port> <log>
+# A made-up house for headless runs of examples/music-tree (tests/t1/music_tree_sonos.sh): Sonos speakers (UPnP SOAP, reached at 127.0.0.1:<port>)
+# and the Spotify Web API (/v1, the test's stub client calls it). usage: fake_house.py <port> <log>
 # Four groups, five rooms; the groups are paused until a Play. Spotify plays "Chanson du Mac" (album al1, 61 s in) on a Mac. Every
 # Sonos command (not a Get) and every Spotify request that is not a GET is written to <log>, one line each.
 import http.server, html, json, re, sys

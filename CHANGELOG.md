@@ -9,6 +9,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:xml`: `parse(text)` reads XML into an element tree (`El` with `attr`, `child`, `all`, `find`, `findAll`, `textOf`), and `toXml` / `toJson` write one; for UPnP, SOAP, RSS and device descriptions.
+- `zinc:sonos`: more of SoCo's calls: `stop`, `endDirectControlSession`, `setShuffle`, `setRepeat`, cross fade, group mute, `setRelativeGroupVolume`, `speakerByName`, `unjoin`, `partyMode`, `playUri` with a title, `start` and `forceRadio`, the hidden rooms in `sys.allSpeakers`, `group.media` and `track.metadata`; a fault is a `UpnpError` with its UPnP `code`; a speaker's address can carry a port (`discover('192.168.1.20:1400')`).
 - iPod demo: plays the iPod's songs on Sonos. The button at the right of the bar picks this computer or a Sonos group; on a group the songs are queued there, and play, pause, next, previous, seek and the group's volume drive it. A plugged iPod's songs are served by the app on the network, a remote iPod's by its daemon.
 - `zinc:sonos`: `playUri`, `addUriToQueue`, `clearQueue` and `playFromQueue` (named after SoCo's), with `Song` and `musicTrackMeta` to play song files from a plain `http://` URL with their title, artist, album and cover.
 - `zinc:net`: `serve` and `serveAsync` return the port they listen on; port 0 takes a free one.
@@ -132,6 +134,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: PDF, Read and Web draw their pages with the panel's clean UI refresh and switch to the fast Pen refresh only while the writing tools are unfolded (`setPenMode` of `zinc:remarkable`); Read has the tools palette too, and in Web unfolding it no longer renders the page again.
 - A `.zapp` runs on any zinc engine that has what its program uses, even one older than the zinc that packed it: `zinc pack` writes `needs` in the manifest, and an engine that lacks something says "this app needs a newer zinc engine". The Hub tells you to update the tablet's engine instead of installing such an app.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
+
+### Changed (breaking)
+- `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
 - An `await` inside the value assigned to a field or an element (`g.muted = (await read()) === '1'`) no longer fails to compile with Z0108.

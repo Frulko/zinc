@@ -1,0 +1,7 @@
+xml a 1 <b> T & U é☺ 3 <raw> <e/>
+rooms Salon@stub,Bureau@stub hidden 1 groups Bureau,Salon
+queue 1 2 PLAYING 1/2 Song 1 - Band & Co queue 2 OK true
+fault 701 500 Next Transition not available | Next: UPnP 701 (Transition not available)
+mode SHUFFLE_NOREPEAT SHUFFLE true all
+fade true mute true volume 35
+radio radio Radio X true PLAYING
