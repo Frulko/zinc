@@ -61,11 +61,19 @@ export const LCD_WIDTH: i32 = 460;          // the now-playing panel at the top
 export const PROGRESS_WIDTH: i32 = 300;     // its progress bar
 
 // ---- timings
-export const SCAN_EVERY_MS: i32 = 3000;     // detect() again while no iPod is shown
+export const SCAN_EVERY_MS: i32 = 3000;     // detect() again: an iPod mounted, unmounted or pulled shows within this time
+export const LOG_KEEP: i32 = 500;           // operations kept on the Logs page (the file keeps them all)
 
 // ---- pages
 export const PAGE_OVERVIEW = 'overview', PAGE_ALBUMS = 'albums', PAGE_SONGS = 'songs', PAGE_PODCASTS = 'podcasts', PAGE_AUDIOBOOKS = 'audiobooks',
-  PAGE_VIDEOS = 'videos', PAGE_PHOTOS = 'photos', PAGE_PLAYLISTS = 'playlists', PAGE_FILES = 'files', PAGE_SPECS = 'specs';
+  PAGE_VIDEOS = 'videos', PAGE_PHOTOS = 'photos', PAGE_PLAYLISTS = 'playlists', PAGE_FILES = 'files', PAGE_SPECS = 'specs', PAGE_ADD = 'add',
+  PAGE_BACKUPS = 'backups', PAGE_TRANSFERS = 'transfers', PAGE_LOGS = 'logs';
+
+// ---- adding: the kinds a file can be added as (TrackInput.mediaType) and the files a folder gives
+export const ADD_KINDS: string[] = ['audio', 'podcast', 'audiobook', 'video'];
+export const ADD_KIND_NAMES: string[] = ['Music', 'Podcast', 'Audiobook', 'Video'];
+/** What zinc:ipod can copy (a folder's other files are left out; a file picked by hand is tried and refused with its reason). */
+export const MEDIA_EXTENSIONS: string[] = ['mp3', 'm4a', 'aac', 'm4b', 'm4p', 'wav', 'aif', 'aiff', 'mp4', 'm4v', 'mov'];
 
 /** The kinds of media (Track.mediaType) each page of tracks lists. */
 export function kindsOf(page: string): string[] {

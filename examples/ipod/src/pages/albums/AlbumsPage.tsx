@@ -5,6 +5,8 @@ import { VirtualList } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import { Album, albums, albumShown, setAlbumShown } from '../../state';
 import { AlbumCover } from '../../components/AlbumCover';
+import { Button } from '../../components/Button';
+import { download } from '../../actions';
 import { TrackTable } from '../../components/TrackTable';
 import { count, longDuration } from '../../format';
 import { fg, color, TEXT, MUTED, ACCENT, GRID_COLUMNS, COVER_SIZE, GRID_ROW_HEIGHT, HEADER_COVER_SIZE } from '../../constants';
@@ -54,6 +56,7 @@ function AlbumView(props: { album: Album }): i32 {
         <Text className={`text-[28px] font-bold ${fg(TEXT)}`} numberOfLines={2}>{a.title}</Text>
         <Text className={`text-[18px] ${fg(ACCENT)}`} numberOfLines={1}>{a.artist}</Text>
         <Text className={`text-[12px] ${fg(MUTED)}`}>{facts.join(' · ')}</Text>
+        <View className="flex-row pt-2"><Button icon="download" label="Download" onPress={() => download(`“${a.title}”`, a.tracks)} /></View>
       </View>
     </View>
     <TrackTable tracks={() => a.tracks} numbered={true} sortable={false} showAlbum={false} />

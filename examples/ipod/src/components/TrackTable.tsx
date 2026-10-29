@@ -1,15 +1,17 @@
 // A table of tracks: a header (sortable when `sortable`), then one row per track in a VirtualList, so 2,500 tracks cost the
-// rows on screen only. `numbered` shows the track number (an album) instead of the position. A double-click plays the track, then the
-// ones under it; the track playing shows a speaker instead of its number.
+// rows on screen only. `numbered` shows the track number (an album) instead of the position. A click selects a row (Cmd or Ctrl
+// adds one, Shift a range: what Download selected copies), a double-click plays the track, then the ones under it; the track playing
+// shows a speaker instead of its number. The arrow at the end of a row downloads that track.
 import * as ui from 'zinc:ui';
 import { VirtualList } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
-import { sortKey, sortUp, sortBy, library } from '../state';
+import { sortKey, sortUp, sortBy, library, selected, selectRow } from '../state';
+import { download } from '../actions';
 import { PodLibrary } from '../services/ipod';
 import { current, isPlaying, playList } from '../services/player';
 import { duration } from '../format';
-import { bd, bg, fg, color, BORDER, HOVER, STRIPE, MUTED, TEXT, FAINT, ACCENT, ROW_HEIGHT } from '../constants';
+import { bd, bg, fg, color, BORDER, HOVER, SELECTED, STRIPE, MUTED, TEXT, FAINT, ACCENT, ROW_HEIGHT } from '../constants';
 
 function HeaderCell(props: { label: string; sortKey: string; sortable: boolean; className: string }): i32 {
   const on = (): boolean => props.sortable && sortKey() === props.sortKey;
@@ -25,6 +27,8 @@ const NO_TRACK: ipod.Track = { id: '', title: '', artist: '', album: '', albumAr
   cdNr: 0, cds: 0, year: 0, rating: 0, playCount: 0, bitrate: 0, sampleRate: 0, durationMs: 0, size: 0, mediaType: '', path: '', artwork: false,
   added: 0, lastPlayed: 0 };
 
+function isSelected(t: ipod.Track): boolean { return t.id !== '' && selected().indexOf(t.id) >= 0; }
+
 function nowOn(t: ipod.Track): boolean { const c = current(); return c !== null && t.id !== '' && (c as ipod.Track).id === t.id; }
 
 export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolean; sortable: boolean; showAlbum: boolean }): i32 {
@@ -37,10 +41,15 @@ export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolea
       <HeaderCell label="Artist" sortKey="artist" sortable={props.sortable} className="w-[190]" />
       {props.showAlbum ? <HeaderCell label="Album" sortKey="album" sortable={props.sortable} className="w-[210]" /> : <View />}
       <HeaderCell label="Time" sortKey="time" sortable={props.sortable} className="w-[56] justify-end" />
+      <View className="w-[16]" />
     </View>
     <VirtualList count={list().length} itemHeight={ROW_HEIGHT} className="grow min-h-0">
-      {(i: i32) => <View className={`flex-row items-center px-6 gap-4 hover:${bg(HOVER)} ${i % 2 === 1 ? bg(STRIPE) : ''}`} style={{ height: ROW_HEIGHT }}
-        onPointerDown={(e: ui.PointerEvent) => { if (e.clicks === 2 && at(i).id !== '') playList((library() as PodLibrary).device.mountpoint, list(), i); }}>
+      {(i: i32) => <View className={`flex-row items-center px-6 gap-4 ${isSelected(at(i)) ? bg(SELECTED) : `hover:${bg(HOVER)} ${i % 2 === 1 ? bg(STRIPE) : ''}`}`} style={{ height: ROW_HEIGHT }}
+        onPointerDown={(e: ui.PointerEvent) => {
+          if (at(i).id === '') return;
+          if (e.clicks === 2) playList((library() as PodLibrary).device.mountpoint, list(), i);
+          else selectRow(list(), i, e.meta || e.ctrl, e.shift);
+        }}>
         {nowOn(at(i))
           ? <View className="w-[32] items-end"><Icon name={isPlaying() ? 'volume-2' : 'volume'} size={14} color={() => color(ACCENT)} strokeWidth={2} /></View>
           : <Text className={`w-[32] text-[13px] text-right ${fg(FAINT)}`}>{props.numbered ? (at(i).trackNr > 0 ? `${at(i).trackNr}` : '') : `${i + 1}`}</Text>}
@@ -48,6 +57,9 @@ export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolea
         <Text className={`w-[190] text-[13px] ${fg(MUTED)}`} numberOfLines={1}>{at(i).artist}</Text>
         {props.showAlbum ? <Text className={`w-[210] text-[13px] ${fg(MUTED)}`} numberOfLines={1}>{at(i).album}</Text> : <View />}
         <Text className={`w-[56] text-[13px] text-right ${fg(MUTED)}`}>{duration(at(i).durationMs)}</Text>
+        <View className="w-[16] items-center cursor-pointer" onPointerDown={(e: ui.PointerEvent) => { const t = at(i); if (t.id !== '') download(`“${t.title}”`, [t]); }}>
+          <Icon name="download" size={13} color={() => color(FAINT)} strokeWidth={2} />
+        </View>
       </View>}
     </VirtualList>
   </View>;

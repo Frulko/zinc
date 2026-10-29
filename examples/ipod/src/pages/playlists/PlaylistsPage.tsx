@@ -4,6 +4,8 @@ import * as ipod from 'zinc:ipod';
 import { Icon } from 'zinc:icons';
 import { playlists, playlistShown, setPlaylistShown, playlistTracks } from '../../state';
 import { TrackTable } from '../../components/TrackTable';
+import { Button } from '../../components/Button';
+import { download } from '../../actions';
 import { count } from '../../format';
 import { bg, bd, fg, color, BORDER, HOVER, SELECTED, TEXT, MUTED, ACCENT } from '../../constants';
 
@@ -32,9 +34,12 @@ export function PlaylistsPage(): i32 {
     </View>
     <View className="grow basis-0 flex-col min-h-0 min-w-0">
       {shown() !== null ? <View className="grow flex-col min-h-0 min-w-0">
-        <View className="flex-col px-8 pt-8 pb-4">
-          <Text className={`text-[22px] font-bold ${fg(TEXT)}`} numberOfLines={1}>{(shown() as ipod.Playlist).name}</Text>
-          <Text className={`text-[13px] ${fg(MUTED)}`}>{count((shown() as ipod.Playlist).trackIds.length, 'song', 'songs')}</Text>
+        <View className="flex-row items-end gap-3 px-8 pt-8 pb-4">
+          <View className="grow basis-0 flex-col min-w-0">
+            <Text className={`text-[22px] font-bold ${fg(TEXT)}`} numberOfLines={1}>{(shown() as ipod.Playlist).name}</Text>
+            <Text className={`text-[13px] ${fg(MUTED)}`}>{count((shown() as ipod.Playlist).trackIds.length, 'song', 'songs')}</Text>
+          </View>
+          <Button icon="download" label="Download" onPress={() => { const p = shown() as ipod.Playlist; download(`“${p.name}”`, playlistTracks(p.id)); }} />
         </View>
         <TrackTable tracks={() => playlistTracks((shown() as ipod.Playlist).id)} numbered={false} sortable={false} showAlbum={true} />
       </View> : <View />}

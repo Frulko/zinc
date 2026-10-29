@@ -1,8 +1,12 @@
-// The app's state: the iPods found, the one open and its library (albums built from the tracks), the page shown, the search and
-// sort of the songs, and the actions the pages call. Nothing runs at import: main.tsx starts the scan.
+// The app's state: the iPods found (watched: one mounted, unmounted or pulled shows within seconds), the one open and its library
+// (albums built from the tracks), the page shown, the search, sort and selection of the songs, the Allow changes switch, and the
+// actions the pages call to look and open (the changes and transfers are in actions.ts). Nothing runs at import: main.tsx starts
+// the scan.
 import { createSignal, createMemo, batch } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
-import { findPods, openPod, closePod, PodLibrary } from './services/ipod';
+import { findPods, openPod, closePod, forgetPod, PodLibrary } from './services/ipod';
+import { cancelWaiting } from './services/transfers';
+import { log } from './services/log';
 import { dropCovers } from './services/covers';
 import { stop as stopPlaying } from './services/player';
 import { PAGE_OVERVIEW, SCAN_EVERY_MS, kindsOf } from './constants';
@@ -35,6 +39,11 @@ export const [search, setSearch] = createSignal<string>('');
 /** The songs' sort: title | artist | album | time, and its direction. */
 export const [sortKey, setSortKey] = createSignal<string>('title');
 export const [sortUp, setSortUp] = createSignal<boolean>(true);
+/** The tracks selected in a table (ids), and the row a shift-click extends from. */
+export const [selected, setSelected] = createSignal<string[]>([]);
+export const [selectAnchor, setSelectAnchor] = createSignal<i32>(-1);
+/** Every change to the iPod (add, restore, repair) and to its backups (delete) waits for this switch: off at each start. */
+export const [allowChanges, setAllowChanges] = createSignal<boolean>(false);
 
 function lower(s: string): string { return s.toLowerCase(); }
 function byText(a: string, b: string): i32 { const x = lower(a), y = lower(b); return x < y ? -1 : x > y ? 1 : 0; }
@@ -136,33 +145,75 @@ export function sortBy(key: string): void {
   else batch(() => { setSortKey(key); setSortUp(true); });
 }
 
-export function showPage(p: string): void { batch(() => { setPage(p); setAlbumShown(null); setPhotoShown(''); setSearch(''); }); }
+export function showPage(p: string): void { batch(() => { setPage(p); setAlbumShown(null); setPhotoShown(''); setSearch(''); setSelected([]); setSelectAnchor(-1); }); }
+
+/** A click on row `i` of `list`: alone selects it, with Cmd or Ctrl adds or removes it, with Shift selects from the anchor to it. */
+export function selectRow(list: ipod.Track[], i: i32, toggle: boolean, range: boolean): void {
+  if (i < 0 || i >= list.length) return;
+  const id = list[i].id, now = selected();
+  if (range && selectAnchor() >= 0) {
+    const a = Math.min(selectAnchor(), i), b = Math.max(selectAnchor(), i);
+    const out: string[] = [];
+    for (let k = a; k <= b && k < list.length; k++) out.push(list[k].id);
+    setSelected(out);
+    return;
+  }
+  batch(() => {
+    setSelectAnchor(i);
+    if (!toggle) setSelected([id]);
+    else if (now.indexOf(id) >= 0) setSelected(now.filter((x: string) => x !== id));
+    else setSelected([...now, id]);
+  });
+}
 
 // ---- finding and opening iPods
 let scanTimer: i32 = -1;
 
-/** Looks for iPods now; one mounted iPod and nothing open: it is opened. Again every few seconds while no iPod is shown. */
-export async function rescan(): Promise<void> {
-  setScanning(true);
+/** What a list of iPods looks like, to tell a change from the same answer (nothing is redrawn while nothing changes). */
+function signature(list: ipod.Device[]): string {
+  const parts: string[] = [];
+  for (const d of list) parts.push(`${d.connection}|${d.mountpoint}|${d.name}|${d.serial}|${d.freeBytes}`);
+  return parts.join('\n');
+}
+
+/** Looks for iPods (by itself every few seconds, at once with `manual`). The open iPod gone from the list (unmounted, ejected
+ *  elsewhere or pulled) is closed; one mounted iPod and nothing open: it is opened. */
+export async function rescan(manual: boolean = false): Promise<void> {
+  if (scanTimer >= 0) clearTimeout(scanTimer);
+  scanTimer = -1;
+  if (manual) setScanning(true);
   try {
     const found = await findPods();
-    setPods(found);
-    setError('');
+    if (signature(found) !== signature(pods())) setPods(found);
+    if (error() !== '' && manual) setError('');
     const mounted: ipod.Device[] = [];
     for (const d of found) if (d.connection === 'disk') mounted.push(d);
+    const lib = library();
+    if (lib !== null) {
+      const mp = (lib as PodLibrary).device.mountpoint;
+      let still = false;
+      for (const d of mounted) still = still || d.mountpoint === mp;
+      if (!still) podGone(lib as PodLibrary);
+    }
     if (library() === null && opening() === '' && mounted.length === 1) await openDevice(mounted[0].mountpoint);
   } catch (e) {
     setError(`Could not look for iPods: ${(e as Error).message}`);
   }
-  setScanning(false);
-  scheduleScan();
+  if (manual) setScanning(false);
+  scanTimer = setTimeout(() => { scanTimer = -1; rescan(false); }, SCAN_EVERY_MS);
 }
 
-function scheduleScan(): void {
-  if (scanTimer >= 0) clearTimeout(scanTimer);
-  scanTimer = -1;
-  if (library() !== null) return;   // an iPod is shown: no polling (Rescan in the sidebar looks again)
-  scanTimer = setTimeout(() => { scanTimer = -1; rescan(); }, SCAN_EVERY_MS);
+/** The open iPod went away without being ejected here: playback and the jobs not started stop, it is closed and the Devices page
+ *  says so. A job that was running fails by itself (its files are gone). */
+function podGone(lib: PodLibrary): void {
+  const name = lib.device.name !== '' ? lib.device.name : 'The iPod';
+  stopPlaying();
+  cancelWaiting();
+  dropCovers();
+  forgetPod();
+  ipod.close().catch((e: Error) => { /* already closed */ });
+  batch(() => { setLibrary(null); setError(`${name} was disconnected (${lib.device.mountpoint} is no longer mounted). Plug it in again to open it.`); });
+  log(`${name} disconnected`, `${lib.device.mountpoint} is no longer mounted`, false);
 }
 
 /** Opens the iPod at `mountpoint` and shows its overview; an error is shown as a message. */
@@ -175,12 +226,13 @@ export async function openDevice(mountpoint: string): Promise<void> {
     dropCovers();
     setLibrary(null);
     const opened = await openPod(mountpoint);
-    batch(() => { setLibrary(opened); setPlaylistShown(''); setPhotoAlbumShown(''); setExtraShown(''); showPage(PAGE_OVERVIEW); });
+    batch(() => { setLibrary(opened); setError(''); setPlaylistShown(''); setPhotoAlbumShown(''); setExtraShown(''); showPage(PAGE_OVERVIEW); });
+    log(`Opened ${opened.device.name !== '' ? opened.device.name : 'the iPod'}`, `${mountpoint}: ${opened.tracks.length} tracks, ${opened.playlists.length} playlists`, true);
   } catch (e) {
     setError(`Could not read the iPod at ${mountpoint}: ${(e as Error).message}`);
+    log(`Open ${mountpoint}`, (e as Error).message, false);
   }
   setOpening('');
-  scheduleScan();
 }
 
 /** Closes the open iPod (before the app quits). */

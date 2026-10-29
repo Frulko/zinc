@@ -6,6 +6,8 @@ import { Spinner } from 'zinc:ui/kit';
 import { Icon } from 'zinc:icons';
 import { pods, opening, error, rescan, scanning, openDevice, library } from '../../state';
 import { PodDrawing } from '../../components/PodDrawing';
+import { Button } from '../../components/Button';
+import { mountPod, notice } from '../../actions';
 import { bytes } from '../../format';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ERROR } from '../../constants';
 
@@ -27,9 +29,14 @@ function PodCard(props: { d: ipod.Device }): i32 {
     </View>
     {mounted
       ? <Text className={`text-[12px] font-semibold ${fg(ACCENT)}`}>{opening() === d.mountpoint ? 'Opening…' : 'Open'}</Text>
-      : <View className="flex-row items-center gap-1.5">
-          <Icon name="usb" size={13} color={() => color(MUTED)} strokeWidth={2} />
-          <Text className={`text-[11px] text-center ${fg(MUTED)}`}>Plugged in, not mounted: put it in disk mode to read it</Text>
+      : <View className="flex-col items-center gap-2">
+          <View className="flex-row items-center gap-1.5">
+            <Icon name="usb" size={13} color={() => color(MUTED)} strokeWidth={2} />
+            <Text className={`text-[11px] text-center ${fg(MUTED)}`}>Plugged in, not mounted</Text>
+          </View>
+          <Button icon="hard-drive" label="Mount" onPress={() => { mountPod(); }} />
+          <Text className={`text-[10px] text-center ${fg(FAINT)}`}>Mounting makes its disk readable; nothing on it is written</Text>
+          {notice() !== '' ? <Text className={`text-[10px] text-center ${fg(MUTED)}`}>{notice()}</Text> : <View />}
         </View>}
   </View>;
 }
@@ -55,7 +62,7 @@ export function DevicesPage(): i32 {
         : <View />}
       {pods().length > 0 ? <View className="flex-row flex-wrap justify-center gap-5">{pods().map((d: ipod.Device) => <PodCard d={d} />)}</View> : <View />}
       <View className={`flex-row items-center gap-2 px-4 h-[32] rounded-[8] border cursor-pointer ${bd(BORDER)} hover:${bg(HOVER)}`}
-        onPointerDown={(e: ui.PointerEvent) => { if (!scanning()) rescan(); }}>
+        onPointerDown={(e: ui.PointerEvent) => { if (!scanning()) rescan(true); }}>
         <Icon name="refresh-cw" size={14} color={() => color(TEXT)} strokeWidth={2} />
         <Text className={`text-[13px] ${fg(TEXT)}`}>Rescan</Text>
       </View>

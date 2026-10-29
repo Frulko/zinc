@@ -1,6 +1,6 @@
-// The iPod, through zinc:ipod, read only: find the iPods, open one and read its library (tracks, playlists, specs, photos, notes
-// and other files), close it. Nothing here writes to the
-// iPod (no add, update, save, repair or eject).
+// The iPod, through zinc:ipod: find the iPods, open one and read its library (tracks, playlists, specs, photos, notes and other
+// files), read it again after a change, close it. Nothing here writes to the iPod: the changes are the jobs of state's actions,
+// behind the Allow changes switch.
 import * as ipod from 'zinc:ipod';
 import * as sys from 'zinc:sys';
 
@@ -34,8 +34,14 @@ let openMount = '';
 /** Opens the iPod at `mountpoint` (closing the one open before) and reads its tracks, playlists and specs. */
 export async function openPod(mountpoint: string): Promise<PodLibrary> {
   if (openMount !== '') await closePod();
-  const device = await ipod.open(mountpoint);
+  await ipod.open(mountpoint);
   openMount = mountpoint;
+  return await readLibrary();
+}
+
+/** Reads the open iPod's library again (after an add, a restore or a repair), its free space measured again. */
+export async function readLibrary(): Promise<PodLibrary> {
+  const device = await ipod.info();
   const tracks = await ipod.tracks();
   const playlists = await ipod.playlists();
   const specs = await ipod.specs();
@@ -50,3 +56,6 @@ export async function closePod(): Promise<void> {
   openMount = '';
   await ipod.close();
 }
+
+/** The iPod was ejected or pulled: zinc:ipod closed it or will fail; forget it here. */
+export function forgetPod(): void { openMount = ''; }

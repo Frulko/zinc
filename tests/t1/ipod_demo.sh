@@ -6,7 +6,9 @@
 # goes through its pages. Checked: one frame hash per page (tests/golden/ipod-demo/hashes.txt: the overview, the album grid with
 # its covers, an album, the songs searched, the songs sorted by artist, the playlists, the specs, the albums in the dark scheme, the
 # podcasts, a note read on the Notes & files page, the photos (none)) on the interpreter, the
-# overview's hash on QuickJS, and a run left alone on the overview paints nothing after it is shown.
+# overview's hash on QuickJS, and a run left alone on the overview paints nothing after it is shown. Then the backups checked, files
+# dropped and added, an album downloaded, the transfers and the log (hashes, files and log lines), and the iPod unmounted and mounted
+# again while the app runs.
 # macOS only (hdiutil); skipped (77) without the plugin's libraries. KEEP=dir keeps the shots. UPDATE=1 rewrites the golden.
 cd "$(dirname "$0")/../.." || exit 2
 [ "$(uname)" = Darwin ] && command -v hdiutil >/dev/null || { echo "skipped: the fake iPod is a macOS disk image"; exit 77; }
@@ -33,20 +35,42 @@ IPOD_MOUNT=$pod IPOD_SONG="$tmp/song.wav" IPOD_COVER_A="$tmp/cover-a.png" IPOD_C
 grep -q '^filled 9$' fill.out || { echo "ipod_demo: the fake iPod was not filled: $(tail -3 fill.out)"; exit 1; }
 touch -t 202601021200 "$pod/iPod_Control/iTunes/iTunesDB"   # the specs show when the database was written
 mkdir -p "$pod/Notes" "$pod/Recordings" && printf 'Shopping\n- milk\n- bread\n' > "$pod/Notes/Shopping.txt" && cp "$tmp/song.wav" "$pod/Recordings/Memo 1.wav"
-fail=0
-frames="30 60 90 120 150 180 210 240 270 300 330"
-ZINC_FRAMES=330 ZINC_INPUT="$root/tests/data/ipod-demo/session.input" ZINC_FRAMEHASH=all ZINC_SHOT="$tmp/page.png" \
-  ZINC_SHOT_FRAMES=$(echo $frames | tr ' ' ',') timeout 120 "$Z" run --interp "$root/examples/ipod" > session.out 2>&1 \
-  || { echo "ipod_demo: the session failed: $(tail -5 session.out)"; exit 1; }
+rm -rf "$tmp/backups"   # the automatic backup the filling took has today's date: the Backups page starts empty
 hash_at() { awk -v f="$1" '$2 == "framehash" && $3 + 0 <= f + 0 { h = $5 } END { print f, h }' "$2"; }   # idle frames are not presented: the last one shown
+fail=0
+# QuickJS: the same overview
+ZINC_FRAMES=30 ZINC_FRAMEHASH=all timeout 120 "$Z" run "$root/examples/ipod" --engine quickjs > quickjs.out 2>&1
+[ -n "$UPDATE" ] || [ "$(hash_at 30 quickjs.out)" = "$(head -1 "$gold/hashes.txt")" ] || { echo "ipod_demo: QuickJS's overview differs: $(hash_at 30 quickjs.out) $(tail -2 quickjs.out)"; fail=1; }
+# left alone on the overview: nothing is painted once it is shown (frame 30: ZINC_PROFILE_SKIP leaves out the frames that open it), though
+# the app looks for iPods every 3 s
+ZINC_FRAMES=330 ZINC_PROFILE=1 ZINC_PROFILE_SKIP=30 timeout 120 "$Z" run --interp "$root/examples/ipod" > idle.out 2>&1
+grep -q 'zinc profile: paint p50=0.00 p99=0.00 max=0.00' idle.out || { echo "ipod_demo: frames are painted while idle: $(grep 'profile: paint' idle.out || tail -3 idle.out)"; fail=1; }
+# the session: the pages above, then the Backups page checked, two files dropped on the window (one the iPod cannot play) after
+# Allow changes, an album downloaded into the test's folder, the transfers and the log
+mkdir -p "$tmp/drop" && cp "$tmp/song.wav" "$tmp/drop/new-song.wav" && printf 'fLaC' > "$tmp/drop/track.flac"
+printf '1330 drop %s\n1331 drop %s\n' "$tmp/drop/new-song.wav" "$tmp/drop/track.flac" > system.script
+frames="30 60 90 120 150 180 210 240 270 300 330 360 420 480 510"
+IPOD_DEMO_DOWNLOADS="$tmp/dl" ZINC_SYSTEM_SCRIPT="$tmp/system.script" ZINC_FRAMES=510 ZINC_INPUT="$root/tests/data/ipod-demo/session.input" \
+  ZINC_FRAMEHASH=all ZINC_SHOT="$tmp/page.png" ZINC_SHOT_FRAMES=$(echo $frames | tr ' ' ',') timeout 120 "$Z" run --interp "$root/examples/ipod" > session.out 2>&1 \
+  || { echo "ipod_demo: the session failed: $(tail -5 session.out)"; exit 1; }
 for f in $frames; do hash_at "$f" session.out; done > hashes.txt
 [ -n "$UPDATE" ] && cp hashes.txt "$gold/hashes.txt"
 cmp -s hashes.txt "$gold/hashes.txt" || { echo "ipod_demo: frames $(tr '\n' ' ' < hashes.txt), recorded $(tr '\n' ' ' < "$gold/hashes.txt")"; fail=1; }
-# QuickJS: the same overview
-ZINC_FRAMES=30 ZINC_FRAMEHASH=all timeout 120 "$Z" run "$root/examples/ipod" --engine quickjs > quickjs.out 2>&1
-[ "$(hash_at 30 quickjs.out)" = "$(head -1 "$gold/hashes.txt")" ] || { echo "ipod_demo: QuickJS's overview differs: $(hash_at 30 quickjs.out) $(tail -2 quickjs.out)"; fail=1; }
-# left alone on the overview: nothing is painted once it is shown (frame 30: ZINC_PROFILE_SKIP leaves out the frames that open it)
-ZINC_FRAMES=330 ZINC_PROFILE=1 ZINC_PROFILE_SKIP=30 timeout 120 "$Z" run --interp "$root/examples/ipod" > idle.out 2>&1
-grep -q 'zinc profile: paint p50=0.00 p99=0.00 max=0.00' idle.out || { echo "ipod_demo: frames are painted while idle: $(grep 'profile: paint' idle.out || tail -3 idle.out)"; fail=1; }
+# what it did on disk: the album downloaded as Artist/Album/NN Title.ext, the song added and the flac refused, every operation in the log
+log=$tmp/backups/logs/demo.log
+ls "$tmp/dl"/*/*/[0-9][0-9]\ *.* >/dev/null 2>&1 || { echo "ipod_demo: the album was not downloaded: $(find "$tmp/dl" -type f 2>/dev/null | head -3)"; fail=1; }
+for op in 'Opened Zinc Pod' 'Check Zinc Pod' 'Allow changes turned on' '1 added, 1 refused' 'Download “' 'copied, 0 already there'; do
+  grep -q "$op" "$log" || { echo "ipod_demo: '$op' is not in the log file: $(tail -3 "$log")"; fail=1; }
+done
+# unmounted while open, then mounted again: the app closes it and says so, then opens it by itself (seen in the log)
+count() { grep -c "$1" "$log" 2>/dev/null; }
+wait_for() { i=0; while [ "$(count "$1")" -lt "$2" ] && [ $i -lt 300 ]; do sleep 0.1; i=$((i + 1)); done; [ "$(count "$1")" -ge "$2" ]; }
+opened=$(count 'Opened Zinc Pod')
+ZINC_FRAMES=100000000 timeout 60 "$Z" run --interp "$root/examples/ipod" > live.out 2>&1 &
+app=$!
+if wait_for 'Opened Zinc Pod' $((opened + 1)) && hdiutil detach "$pod" -quiet -force && wait_for 'Zinc Pod disconnected' 1 \
+  && hdiutil attach "$tmp/pod.dmg" -mountpoint "$pod" -nobrowse -quiet && wait_for 'Opened Zinc Pod' $((opened + 2)); then :
+else echo "ipod_demo: unmounting and mounting again were not followed: $(tail -3 "$log")"; fail=1; fi
+kill $app 2>/dev/null; wait $app 2>/dev/null
 [ $fail -eq 0 ] && echo "ipod_demo: ok"
 exit $fail

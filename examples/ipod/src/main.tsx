@@ -1,18 +1,23 @@
 // iPod: a read-only viewer of a classic iPod (zinc:ipod). It finds the iPods plugged in, opens one and shows the device (a drawing
 // in its colour, how its disk is used, its identity), its albums with their covers, its songs, podcasts, audiobooks and videos, its
 // photos, its playlists, its notes, contacts, calendars and recordings, and every detail the iPod and its database give. A double-click
-// on a track plays it from the iPod (the bar at the top: play, pause, previous, next, seek). It never writes to the iPod. This file
-// mounts the app and routes the pages; what it does is in state.ts, the services and the pages.
+// on a track plays it from the iPod (the bar at the top: play, pause, previous, next, seek). Albums, playlists, podcasts and chosen
+// songs download to the computer; files and folders (picked, or dropped on the window) are added to the iPod; backups are taken,
+// restored and deleted; a queue shows the transfers and a log every operation. Nothing is changed on the iPod until Allow changes
+// is turned on. An iPod mounted, unmounted or pulled shows within seconds. This file mounts the app, routes the pages and the
+// files dropped on the window; what it does is in state.ts, actions.ts, the services and the pages.
 //
 //   zinc run examples/ipod
 //   IPOD_DEMO_MOUNT=/Volumes/MYPOD zinc run examples/ipod     show only the iPod mounted there
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
+import { on } from 'zinc:system';
 import { library, page, rescan, closeDevice } from './state';
+import { addFiles } from './actions';
 import { PodLibrary } from './services/ipod';
 import { bg, fg, BACKGROUND, TEXT, CLEAR_COLOR, PAGE_ALBUMS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS,
-  PAGE_FILES, PAGE_SPECS } from './constants';
+  PAGE_FILES, PAGE_SPECS, PAGE_ADD, PAGE_BACKUPS, PAGE_TRANSFERS, PAGE_LOGS } from './constants';
 import { Sidebar } from './components/Sidebar';
 import { NowPlaying } from './components/NowPlaying';
 import { DevicesPage } from './pages/devices/DevicesPage';
@@ -23,6 +28,10 @@ import { PhotosPage } from './pages/photos/PhotosPage';
 import { FilesPage } from './pages/files/FilesPage';
 import { PlaylistsPage } from './pages/playlists/PlaylistsPage';
 import { SpecsPage } from './pages/specs/SpecsPage';
+import { AddPage } from './pages/add/AddPage';
+import { BackupsPage } from './pages/backups/BackupsPage';
+import { TransfersPage } from './pages/transfers/TransfersPage';
+import { LogsPage } from './pages/logs/LogsPage';
 
 function Content(props: { lib: PodLibrary; page: string }): i32 {
   const p = props.page;
@@ -35,13 +44,17 @@ function Content(props: { lib: PodLibrary; page: string }): i32 {
   if (p === PAGE_FILES) return <FilesPage />;
   if (p === PAGE_PLAYLISTS) return <PlaylistsPage />;
   if (p === PAGE_SPECS) return <SpecsPage lib={props.lib} />;
+  if (p === PAGE_ADD) return <AddPage />;
+  if (p === PAGE_BACKUPS) return <BackupsPage />;
+  if (p === PAGE_TRANSFERS) return <TransfersPage />;
+  if (p === PAGE_LOGS) return <LogsPage />;
   return <OverviewPage lib={props.lib} />;
 }
 
 function App(): i32 {
   return <View className={`flex-row h-full ${bg(BACKGROUND)} ${fg(TEXT)}`}>
     <Sidebar />
-    <View className="grow flex-col min-w-0">
+    <View className="grow flex-col min-w-0 min-h-0">
       {library() !== null ? <NowPlaying /> : <View />}
       {library() !== null ? <Content lib={library() as PodLibrary} page={page()} /> : <DevicesPage />}
     </View>
@@ -53,6 +66,14 @@ async function quit(): Promise<void> {
   try { await closeDevice(); } catch (e) { /* closing a pulled iPod fails: quit anyway */ }
   sys.exit(0);
 }
+// files dropped on the window arrive one event per file: those of one drop are added together
+let dropped: string[] = [];
+on('drop', (args: string[]) => {
+  if (args.length !== 1 || library() === null) return;   // a text dropped has a second word
+  if (dropped.length === 0) setTimeout(() => { const files = dropped; dropped = []; addFiles(files); }, 100);
+  dropped.push(args[0]);
+});
+
 sys.onSignal('SIGINT', () => { quit(); });
 sys.onSignal('SIGTERM', () => { quit(); });
 
