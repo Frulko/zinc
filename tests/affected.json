@@ -154,6 +154,7 @@
     {"paths": ["tests/data/ui-image-handle/", "tests/t1/ui_image_handle.sh"], "tests": ["ui_image_handle"]},
     {"paths": ["tests/data/ui-text-newline/", "tests/t1/ui_text_newline.sh"], "tests": ["ui_text_newline"]},
     {"paths": ["tests/data/ui-grow-wrap/", "tests/t1/ui_grow_wrap.sh"], "tests": ["ui_grow_wrap"]},
+    {"paths": ["examples/ipod-web/", "plugins/ipod/", "tests/t1/ipod_web.sh"], "tests": ["ipod_web"]},
     {"paths": ["src/frontend/jsx.cpp", "lib/std/ui.ts", "src/res/res.cpp", "targets/web/dom.js", "tests/golden/style-keys/", "tests/t1/style_keys.sh"], "tests": ["style_keys"]},
     {"paths": ["examples/rn-showcase/", "tests/golden/rn-showcase/"], "tests": ["rn_showcase"]},
     {"paths": ["lib/std/platform/", "lib/std/kit/", "lib/std/nuxt/controls.tsx", "lib/std/react-native.tsx", "examples/ui/kit-gallery/", "examples/rn-showcase/", "src/frontend/project.cpp", "tests/golden/platform-look/", "tests/t1/platform_look.sh"], "tests": ["platform_look", "ui_kit_sections", "rn_showcase", "kit_menubar", "nuxt_ui", "react_native"]},

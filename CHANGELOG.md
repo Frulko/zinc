@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `examples/ipod-web`: a command-line program that serves a web page (and `/pod.json`) showing the iPods plugged into the machine and their specs, read only: `zinc run examples/ipod-web`, then open http://localhost:8686.
 - `zinc:ipod`: `analyze()` finds duplicate songs by their tags, by identical files and by their sound (Chromaprint fingerprints, cached on the computer), and lists the music without a cover or tags, unused files and empty playlists; `merge()` keeps the best copy of each song with the tags, cover, play counts, rating and playlist places of the others, and removes the rest with their files (docs/plugins/ipod.md).
 - iPod demo: an Optimise page that analyses the iPod, shows each group of duplicates with why it matched and the copy it keeps (click another to keep it), and merges the ticked groups as a transfer, behind Allow changes.
 - iPod demo: an eject button beside the open iPod, and the transfers open to list every file with its tags or why it was refused, and its size.

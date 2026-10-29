@@ -1,0 +1,6 @@
+{
+  "name": "ipod-web",
+  "entry": "src/main.ts",
+  "app": { "name": "iPod Web", "id": "dev.zinc.ipod-web", "version": "0.1.0" },
+  "permissions": ["net"]
+}
