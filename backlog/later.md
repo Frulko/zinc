@@ -570,6 +570,12 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc: no zip or inflate API; the iPod's ListenBrainz zip import uses the system unzip (Windows lacks it).
 - iPod history: matching by MBID needs MUSICBRAINZ_TRACKID read from the files (the iPod database has none).
 
+- TypeScript: the checker refuses `x instanceof C` when x is `string[] | C` (Z0107); TypeScript accepts it.
+- iPod daemon: examples/ipod-web/zinc.json declares only net; reading iPod_Control and writing the cache need fs, which an exported daemon would refuse (before zinc build on the Pi).
+- iPod app sharing: Subsonic scrobbles could feed listening.ts; Subsonic writes bypass the transfers queue and could interleave with an app job.
+- iPod daemon: --log-requests masks query parameters only, not a POSTed form body.
+- iPod daemon: OrbStack containers reach it as 127.0.0.1, so without --token /api is open to any container; require --token when the request comes through a container gateway, or document it loudly.
+
 ## Cross-platform pass
 - iPod history import and its timings on the Pi daemon.
 - zinc:ui scrollKey on the web target (DOM render): the browser owns the scroller there; verify the restore.
