@@ -135,19 +135,26 @@ static void open_inputs() {
     if (sim_input && !ndev) { int f = open(sim_input, O_RDONLY | O_CLOEXEC); if (f >= 0) devs[ndev++] = Dev{f, 0, fw - 1, 0, fh - 1, true, true}; }
     return;
   }
+  // called each second for a device plugged in meanwhile: only when /dev/input changed, and a device already known is never opened again.
+  // Closing an evdev file waits for an RCU grace period (25 ms a device on a Pi 3): reopening the six of a keyboard and the HDMI port each
+  // second held the program's thread 150 ms every second (a stream's sound ran dry at each one)
+  static timespec seen = {-1, -1};
+  struct stat dir;
+  if (stat("/dev/input", &dir) || (dir.st_mtim.tv_sec == seen.tv_sec && dir.st_mtim.tv_nsec == seen.tv_nsec)) return;
+  seen = dir.st_mtim;
   DIR* directory = opendir("/dev/input");
   if (!directory) return;
   while (dirent* entry = readdir(directory)) {
     if (ndev == 64) break;
     if (strncmp(entry->d_name, "event", 5)) continue;
     std::string path = std::string("/dev/input/") + entry->d_name;
-    int f = open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-    if (f < 0) continue;
     struct stat info;
-    if (fstat(f, &info)) { close(f); continue; }
+    if (stat(path.c_str(), &info)) continue;
     bool known = false;
     for (int i = 0; i < ndev; i++) if (devs[i].device == info.st_rdev && devs[i].inode == info.st_ino) known = true;
-    if (known) { close(f); continue; }
+    if (known) continue;
+    int f = open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    if (f < 0) { seen = {-1, -1}; continue; }   // a device just plugged in may not be the input group's yet: tried again in a second
     unsigned long ev[1] = {0}, keys[KEY_MAX / (8 * sizeof(long)) + 1] = {0}, abs[ABS_MAX / (8 * sizeof(long)) + 1] = {0};
     ioctl(f, EVIOCGBIT(0, sizeof ev), ev);
     ioctl(f, EVIOCGBIT(EV_KEY, sizeof keys), keys);
