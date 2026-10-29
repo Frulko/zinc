@@ -140,8 +140,14 @@ static void open_inputs() {
   // second held the program's thread 150 ms every second (a stream's sound ran dry at each one)
   static timespec seen = {-1, -1};
   struct stat dir;
-  if (stat("/dev/input", &dir) || (dir.st_mtim.tv_sec == seen.tv_sec && dir.st_mtim.tv_nsec == seen.tv_nsec)) return;
-  seen = dir.st_mtim;
+  if (stat("/dev/input", &dir)) return;
+#ifdef __APPLE__
+  const timespec m = dir.st_mtimespec;   // the desktop test builds this driver on a Mac
+#else
+  const timespec m = dir.st_mtim;
+#endif
+  if (m.tv_sec == seen.tv_sec && m.tv_nsec == seen.tv_nsec) return;
+  seen = m;
   DIR* directory = opendir("/dev/input");
   if (!directory) return;
   while (dirent* entry = readdir(directory)) {
