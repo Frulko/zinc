@@ -1221,6 +1221,13 @@ void call(int id, const HostArg* a, HostArg* r) {
       break;
     }
     case Rt::HostHttpFetch: r->i = zn::http::fetchOpen(s(0), s(1), s(2), s(3), n(4), n(5)); break;
+    case Rt::HostHttpFetchBytes: {   // the body's bytes as they are (one u64 slot per byte)
+      const std::uint64_t* p = static_cast<const std::uint64_t*>(a[3].p);
+      std::string body(a[3].n, '\0');
+      for (std::uint32_t i = 0; i < a[3].n; ++i) body[i] = static_cast<char>(p[i] & 0xFF);
+      r->i = zn::http::fetchOpen(s(0), s(1), s(2), body, n(4), n(5));
+      break;
+    }
     case Rt::HostHttpStatus: r->i = zn::http::fetchStatus(n(0)); break;
     case Rt::HostHttpHead: ret(r, zn::http::fetchHead(n(0))); break;
     case Rt::HostHttpBody: ret(r, zn::http::fetchBody(n(0))); break;

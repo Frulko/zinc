@@ -660,20 +660,22 @@ export function fetch(url: string, init?: RequestInit): Promise<Response> {
   return new Promise<Response>((resolve: (v: Response) => void, reject: (e: Error) => void) => {
     let method = 'GET';
     let body = '';
+    let bytes: u8[] | null = null;
     let ct = '';
     let timeout: i32 = 0;
     let max: i32 = 0;
     let lines = '';
     if (init !== undefined) {
       if (init.method !== undefined) method = init.method as string;
-      if (init.bodyBytes !== undefined) body = utf8Decode(init.bodyBytes as u8[]);
+      if (init.bodyBytes !== undefined) bytes = init.bodyBytes as u8[];   // sent as they are, not decoded as UTF-8
       else if (init.body !== undefined) body = init.body as string;
       if (init.contentType !== undefined && !__ctl(init.contentType as string)) lines += 'Content-Type: ' + (init.contentType as string) + '\n';
       if (init.headers !== undefined) lines += __headerLines(init.headers as Headers);
       if (init.timeoutMs !== undefined) timeout = init.timeoutMs as i32;
       if (init.maxBytes !== undefined) max = init.maxBytes as i32;
     }
-    __netCalls.push(new NetCall(__host_httpFetch(url, method, lines, body, timeout, max), resolve, reject));
+    const h = bytes !== null ? __host_httpFetchBytes(url, method, lines, bytes as u8[], timeout, max) : __host_httpFetch(url, method, lines, body, timeout, max);
+    __netCalls.push(new NetCall(h, resolve, reject));
   });
 }
 export interface TlsOptions { cert: string; key: string }

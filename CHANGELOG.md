@@ -126,6 +126,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - A function expression that uses variables of the function around it, passed where a slightly different function type is expected (a `sort` comparator declared `: i32`), no longer stops the compile with "invalid IR".
+- `zinc:net`: `fetch` with `bodyBytes` sends the bytes as they are; bytes 0x80 and above were turned into U+FFFD, so an uploaded song or picture arrived damaged.
 - `zinc:net` servers and fetches work on QuickJS (`--engine quickjs`): its functions were missing there, and a program that only listened ended at once.
 - reMarkable: Sidecar no longer blackens the corners and borders of a light window or picture inside a dark area (black steps, a black bar), no longer draws dashes and dotted bands along the borders of dark areas, keeps dark buttons and bars as they are, dithers a screenshot posted in a dark chat as a picture, and draws thin lines solid in every grey pattern instead of dotted. A tune saved by an older Sidecar switches to "Pictures only" greys.
 - `zinc:ipod`: `detect()` no longer opens the iPods over USB at every scan: it reads the system's USB list, so nothing is sent to an iPod while it is mounted, being ejected or ejected ("OK to disconnect"). An iPod not mounted shows the model its disk gave earlier in the session, else "iPod".

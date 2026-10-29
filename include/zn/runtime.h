@@ -366,7 +366,9 @@
   /* #jsonParse), and a Dyn value as bytes; appended */ \
   X(RecDecode, "string.#recDecode", "Bsx>r", 2) X(RecEncode, "string.#recEncode", "xs>B", 2) \
   /* zinc:net Reply.file: a file as the body, sent in blocks, with the request's Range (src/host/http.cpp replyFile); system row, appended */ \
-  X(HostHttpReplyFile, "host.httpReplyFile", "iisss>n", 2)
+  X(HostHttpReplyFile, "host.httpReplyFile", "iisss>n", 2) \
+  /* zinc:net fetch with RequestInit.bodyBytes: the body as bytes, sent as they are (a string would be UTF-8 decoded); system row, appended */ \
+  X(HostHttpFetchBytes, "host.httpFetchBytes", "sssBii>i", 2)
 
 namespace zn {
 
@@ -404,7 +406,7 @@ inline constexpr bool isSysTailRow(Rt r) {
   return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat) ||
          (r >= Rt::HostOscListen && r <= Rt::HostOscSend) || r == Rt::HostSockError || r == Rt::HostEvReady || r == Rt::HostEvNext ||
          r == Rt::HostSigWatch || r == Rt::HostSigSend ||   // sys.onSignal, sys.kill
-         (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostHttpReplyFile;   // zinc:net, its server too
+         (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes;   // zinc:net, its server too
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
 inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::RecDecode || r == Rt::RecEncode; }
