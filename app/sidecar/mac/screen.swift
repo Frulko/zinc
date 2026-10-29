@@ -15,6 +15,7 @@ import Foundation
 import ScreenCaptureKit
 import CoreMedia
 import SystemConfiguration
+import ApplicationServices
 
 setvbuf(stdout, nil, _IOLBF, 0)
 func die(_ s: String) -> Never { print("sidecar-screen: \(s)"); exit(1) }
@@ -85,6 +86,8 @@ if !h264Dump.isEmpty {
                  frames, w, h, Double(total) * 8 / Double(frames) * 60 / 1e6, keys, ms[ms.count / 2], ms.last!, enc.lowLatency ? "on" : "off"))
     exit(0)
 }
+// the screen's touches play as the Mac's mouse: macOS asks once (System Settings › Privacy & Security › Accessibility)
+if synthetic == 0 && h264Dump.isEmpty { _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) }
 if host.isEmpty { die("--host <the screen's address> is needed (app/sidecar-screen shows it), or usb for an iPad on the cable") }
 // an iPad or iPhone on the USB cable: its UDID after "usb:", else the first one there
 let usb: String? = host == "usb" ? "" : host.hasPrefix("usb:") ? String(host.dropFirst(4)) : nil
@@ -307,6 +310,10 @@ if h264 { DispatchQueue.global(qos: .userInitiated).async {
 } }
 var video: Area?, encoder: VideoEncoder?
 var candidate: Area?, steady = 0, still = 0, starting = false, making = false
+// --video-all: the film is on while the screen moves and off once it is quiet (under 1/64 of it changing for half a second): the screen
+// is then sent again exact, and small changes (a caret, a clock) go as exact tiles; a larger one starts the film again at once, on the
+// same encoder, with a key picture. resend: this picture is the last capture again (the timer's), nothing new moved in it
+var resend = false, quietSince = 0.0
 var capturedAt = 0.0   // the last capture: macOS sends none while the screen is still
 var videoStats = (frames: 0, bytes: 0, encode: 0.0)
 // the refresh: a film at 25 a second on 60 Hz shows its pictures 2, 3, 2, 3 refreshes (a judder). Its pictures counted every 2 s; at 25 (or
@@ -462,33 +469,34 @@ func send(_ pb: CVPixelBuffer) {
     let base = UnsafePointer(CVPixelBufferGetBaseAddress(pb)!.assumingMemoryBound(to: UInt8.self))
     let t0 = now()
     // the video's start or end, from the pictures before this one
+    var ended = false
     if h264 {
-        let c = videoAll ? Area(x0: 0, y0: 0, x1: TX, y1: TY) : busyArea()
+        let c = videoAll ? (resend ? nil : Area(x0: 0, y0: 0, x1: TX, y1: TY)) : busyArea()
         if c == candidate { steady += 1 } else { candidate = c; steady = 0 }
         // a film's dark or still parts change fewer tiles: a rectangle inside the video's is the same film. Only one that goes out of it
         // (the window moved or grew) for half a second, or a second without a change (a pause), ends it
         let outside = c.map { c in c.x0 < video?.x0 ?? 0 || c.y0 < video?.y0 ?? 0 || c.x1 > video?.x1 ?? 0 || c.y1 > video?.y1 ?? 0 } ?? false
-        if let v = video, !videoAll, still > 60 || (steady >= 30 && outside) {   // over: its place is sent again exact, below
+        if let v = video, videoAll ? still > 60 || t0 - quietSince > 0.5 : still > 60 || (steady >= 30 && outside) {   // over: its place is sent again exact, below
             let r = pixels(v, w, h)
             encoder?.flush()   // its units are on the wire before the stop
             wire.lock(); writeFull(header(10, 0, r.x, r.y, r.w, r.h, 0, false, 0), 16); wire.unlock(); rectsSent += 1
             shown.withUnsafeMutableBufferPointer { s in for y in r.y..<(r.y + r.h) { for x in r.x..<(r.x + r.w) { s[(y * W + x) * 4 + 3] = 0 } } }   // differs from any capture
-            video = nil; encoder = nil
+            video = nil; ended = true; if !videoAll { encoder = nil }
             print("video: off (\(still > 60 ? "still" : "moved"))"); pace()
         }
-        if video == nil, !making, steady >= 10, let c {
+        if video == nil, encoder == nil, !making, steady >= 10, let c {
             // made on another thread (the first one of a process can take 0.4 s or more): the film goes on as tiles until it is ready
             let r = pixels(c, w, h), tc = now()
             making = true
             DispatchQueue.global(qos: .userInitiated).async {
                 // ~0.1 bit a pixel at 60; twice that for the whole screen, whose letters must stay sharp
-                let e = VideoEncoder(w: r.w, h: r.h, bitrate: r.w * r.h * (videoAll ? 12 : 6))
+                let e = VideoEncoder(w: r.w, h: r.h, bitrate: r.w * r.h * (videoAll ? (fastLink ? 24 : 12) : 6), lowLatency: !fastLink)
                 q.async {
                     making = false
                     if trace { print(String(format: "trace: encoder made in %.1f ms", (now() - tc) * 1000)) }
                     guard let e, candidate == c, video == nil else { if e == nil { candidate = nil }; return }
                     // this picture's tiles go too: the screen shows them until the decoder's first picture is out
-                    video = c; encoder = e; still = 0; starting = true; pace(); print("video: on \(r.w)x\(r.h) at \(r.x),\(r.y)")
+                    video = c; encoder = e; still = 0; starting = true; quietSince = now(); pace(); print("video: on \(r.w)x\(r.h) at \(r.x),\(r.y)")
                 }
             }
         }
@@ -508,17 +516,22 @@ func send(_ pb: CVPixelBuffer) {
     first = false
     var videoMoved = false
     for ty in 0..<TY { for tx in 0..<TX { busy[ty * TX + tx] = busy[ty * TX + tx] * 0.9 + (state[ty * TX + tx] == 1 ? 0.1 : 0) } }
+    if videoAll, video == nil, let e = encoder, !resend, !ended, changedPx * 32 >= W * H {   // it moves again: the film at once
+        video = Area(x0: 0, y0: 0, x1: TX, y1: TY); e.keyNext = true; still = 0; quietSince = t0; pace(); print("video: on again")
+    }
     if let v = video {
+        var moved = 0
         for ty in v.y0..<v.y1 { for tx in v.x0..<v.x1 {
-            if state[ty * TX + tx] == 1 { videoMoved = true; if !starting { changedPx -= min(T, w - tx * T) * min(T, h - ty * T) } }
+            if state[ty * TX + tx] == 1 { let px = min(T, w - tx * T) * min(T, h - ty * T); videoMoved = true; moved += px; if !starting { changedPx -= px } }
             if !starting { state[ty * TX + tx] = 0 }
             roughAt[ty * TX + tx] = 0
         } }
         still = videoMoved ? 0 : still + 1
+        if moved * 64 >= W * H { quietSince = t0 }
         if starting { videoMoved = true; starting = false }   // the first unit goes even if nothing moved in this picture
     }
     // rough: a sixth of the screen or more moved, or the last picture is not in yet
-    let rough = !exact && changedPx > 0 && (changedPx * 6 >= W * H || !frameEnds.isEmpty)
+    let rough = !exact && !resend && !ended && changedPx > 0 && (changedPx * 6 >= W * H || !frameEnds.isEmpty)
     var runs = [Run]()
     for ty in 0..<TY {
         var start = -1, kind: UInt8 = 0
@@ -613,11 +626,13 @@ func startCapture(_ tries: Int) {
 }
 /** The synthetic load (drawSynthetic), 60 pictures a second. */
 func startSynthetic() {
+    let pauses = ProcessInfo.processInfo.environment["SIDECAR_PAUSES"] != nil
     var pool: CVPixelBufferPool?
     CVPixelBufferPoolCreate(nil, nil, [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA, kCVPixelBufferWidthKey: W, kCVPixelBufferHeightKey: H] as CFDictionary, &pool)
     var n = 0
     print("capturing \(W)x\(H) (synthetic, \(synthetic)% moving)")
     Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { _ in
+        if pauses && n / 60 % 3 == 2 { n += 1; return }   // SIDECAR_PAUSES: still one second in three, as a screen at rest sends nothing
         var pb: CVPixelBuffer?
         guard let pool, CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pb) == kCVReturnSuccess, let pb else { return }
         drawSynthetic(pb, n, W, H, synthetic)
@@ -705,6 +720,8 @@ let peer: String = {
     return "\(String(cString: ip)):\(port)"
 }()
 let linkNow = link()
+// a link where a picture twice the average size costs nothing: the iPad's cable (usbmux), a gigabit Ethernet or Thunderbolt
+let fastLink = usb != nil || (adb == nil && linkNow.bps >= 1_000_000_000)
 /** The Pi firmware's get_throttled bits, in words: now, then since boot. */
 func throttling(_ v: Int) -> String {
     if v < 0 { return "–" }
@@ -788,6 +805,7 @@ Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
 Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
     q.async {
         guard waiting == nil, let pb = last, frameEnds.isEmpty else { return }
+        resend = true; defer { resend = false }
         if video != nil && now() - capturedAt > 0.5 { still = 61; send(pb) }
         else if roughAt.contains(where: { $0 > 0 && now() - $0 > 0.3 }) { send(pb) }
     }

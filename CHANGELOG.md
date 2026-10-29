@@ -163,6 +163,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `<ZoomView>` of `zinc:ui/kit`: pinch, pan, double tap and Ctrl/Cmd + wheel zoom for a page, a picture or any content. While the fingers move it scales the last picture instead of drawing the content again, and tells your app the new view once, when they lift (`onView`).
 
 ### Changed
+- Sidecar's "Whole screen as video" plays the screen as video only while it moves: once it is quiet the screen is sent again pixel-exact, small changes such as a caret stay exact, and the video starts again at once on the next movement. On a fast link (the iPad's cable, Ethernet, Thunderbolt) the video is sharper and about 4 ms quicker to encode.
 - Sidecar keeps two pictures on the way to a screen that answers within two refreshes, instead of one: smoother on slower screens (a Nexus 7 goes from 50 to 60 frames/s while you work).
 - `zinc:net`: a program can serve several ports at once, each with its own handler (`serve`/`serveAsync` again on another port no longer replaces the first server), and `stop(port)` stops one; `stop()` still stops them all. The Spotify login now stops only its own callback server.
 - `zinc:ipod`: `ZINC_IPOD_ROOTS` (for tests) now replaces the folders `detect()` looks in instead of adding one, so a test never reads a real iPod that is plugged in.

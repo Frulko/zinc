@@ -14,10 +14,11 @@ final class VideoEncoder {
     var keyNext = true
 
     /** A session for pictures of w x h (multiples of 16), `bitrate` bits a second on average. Nil when VideoToolbox refuses. */
-    init?(w: Int, h: Int, bitrate: Int) {
+    init?(w: Int, h: Int, bitrate: Int, lowLatency allowed: Bool = true) {
         self.w = w; self.h = h
-        // the low-latency rate control (macOS 11.3+) answers each picture at once; some Macs refuse it (-12902): the ordinary one then
-        for low in [true, false] {
+        // the low-latency rate control (macOS 11.3+) keeps each picture near the average size, for a narrow link; it costs ~4 ms a
+        // picture (1080p on an M1 Pro: 10-12 ms against 6-8), so a fast link goes without it. Some Macs refuse it (-12902): the ordinary one then
+        for low in allowed ? [true, false] : [false] {
             var s: VTCompressionSession?
             let spec = low ? [kVTVideoEncoderSpecification_EnableLowLatencyRateControl: true] as CFDictionary : nil
             if VTCompressionSessionCreate(allocator: nil, width: Int32(w), height: Int32(h), codecType: kCMVideoCodecType_H264, encoderSpecification: spec,
