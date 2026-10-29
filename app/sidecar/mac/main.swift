@@ -160,9 +160,11 @@ var holdOn = true, holdPen = 450, holdColour = 1200, holdFull = 2500, profileOn 
 var panelStats = [(Int, Int, Int)](repeating: (0, 0, 0), count: 3)
 func sched() {
     guard caps.contains("sched") else { return }
-    lock.lock(); let p = profileOn, l = lightTo; lightTo = -1; lock.unlock()
+    lock.lock(); let p = profileOn, l = lightTo, scrolling = now() - lastScroll < 300; lightTo = -1; lock.unlock()
     if l >= 0 { writeFull(header(7, 6, l, 0, 0, 0), 16) }   // the frontlight, permille
-    for (k, v) in [(1, holdPen), (2, holdColour), (3, holdFull), (5, holdOn ? 1 : 0), (4, p ? 1 : 0)] where sentSched[k] != v {
+    // no hold while a scroll runs: the whole page moves, every update waited for the one before it to end (up to --hold-pen ms each)
+    // and the scroll lagged behind the fingers. What it leaves (ghosts, residue) goes with the cleaning once it stops
+    for (k, v) in [(1, holdPen), (2, holdColour), (3, holdFull), (5, holdOn && !scrolling ? 1 : 0), (4, p ? 1 : 0)] where sentSched[k] != v {
         writeFull(header(7, k, min(v, 65535), 0, 0, 0), 16); sentSched[k] = v
     }
 }
