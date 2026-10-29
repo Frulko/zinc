@@ -76,7 +76,7 @@ export function DevicesPanel(): i32 {
           <Text className="text-slate-300">{`Modèle : ${modelText()} · batterie : ${batteryText()}`}</Text>
           <Text className="text-slate-300">{`Adresse Bluetooth / deviceID : ${server().phoneDeviceId ?? 'non reçue'} · Wi-Fi / macAddress : ${server().phoneWifiMac ?? 'non reçue'}`}</Text>
           <Text className="text-slate-300">{`Appairage AirPlay vérifié : ${server().phoneAirPlayPairingId ?? 'non reçu'}`}</Text>
-          <Text className="text-slate-300">{`iAP2 ${server().iap2Connected ? 'connecté' : 'inactif'} · GPS externe ${server().gpsSubscribed ? 'demandé' : 'non demandé'} · cluster ${server().clusterEnabled ? 'annoncé' : 'désactivé'} · thème Ultra ${server().ultraTheme ? 'activé' : 'désactivé'}`}</Text>
+          <Text className="text-slate-300">{`iAP2 ${server().iap2Connected ? 'connecté' : 'inactif'} · GPS externe ${server().gpsSubscribed ? 'demandé' : 'non demandé'} · cluster ${server().clusterEnabled ? 'annoncé' : 'désactivé'} · catalogue Ultra ${server().ultraTheme ? 'annoncé' : 'désactivé'}`}</Text>
           <Text className="text-slate-300">{`Invitation Bluetooth : ${server().autoInvite ? 'active' : 'en pause après suppression'}`}</Text>
           {!server().autoInvite ? <Button className="bg-cyan-900 rounded p-3" onClick={() => { const s = live; if (s !== null) s.resumePairing(); }}><Text className="text-cyan-100">Relancer la connexion</Text></Button> : null}
         </View>}

@@ -111,6 +111,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- CarPlay receiver status now says when the Ultra catalog is advertised, without implying its local theme assets have been rendered.
 - The CarPlay dashboard no longer lets a black Ultra cluster placeholder cover its local theme before the phone sends a UI Sync layout choice.
 - The CarPlay dashboard keeps its instrument background visible while no navigation route is active; the cluster preview appears when guidance and video are available.
 - The CarPlay Ultra player uses decoded frame dimensions for video and touch coordinates, and its WebSocket stream configurations match the advertised 1920×720 displays. The local dashboard frames the cluster's navigation zone at its intended ratio. Wireless debug GPS forwards the iPhone's requested NMEA selectors so subscribed fixes can be sent.
