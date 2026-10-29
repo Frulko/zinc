@@ -71,6 +71,32 @@ export class Favorite {
   container: boolean = false;
 }
 
+/** A song file a group plays from a plain http:// URL (a computer's own server on the LAN, an iPod daemon): MP3, AAC or ALAC in
+ *  MP4 (.m4a), FLAC, WAV. The server should answer byte ranges: the speaker seeks with them. */
+export class Song {
+  url: string = '';
+  title: string = '';
+  artist: string = '';
+  album: string = '';
+  /** An absolute http:// URL of the cover, '' when none. */
+  art: string = '';
+  /** The file's MIME type ('audio/mpeg', 'audio/mp4'...), '*' when unknown. */
+  mime: string = '*';
+  /** Seconds, 0 when unknown. */
+  duration: number = 0;
+}
+
+/** The DIDL of a song, an object.item.audioItem.musicTrack as SoCo writes it (DidlMusicTrack), for playUri and addUriToQueue: every
+ *  Sonos app then shows its title, artist, album and cover. */
+export function musicTrackMeta(s: Song): string {
+  return '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
+    + `<item id="-1" parentID="-1" restricted="true"><res protocolInfo="http-get:*:${escape(s.mime)}:*"${s.duration > 0 ? ` duration="${hms(s.duration)}"` : ''}>${escape(s.url)}</res>`
+    + `<dc:title>${escape(s.title)}</dc:title><upnp:class>object.item.audioItem.musicTrack</upnp:class>`
+    + (s.artist !== '' ? `<dc:creator>${escape(s.artist)}</dc:creator>` : '') + (s.album !== '' ? `<upnp:album>${escape(s.album)}</upnp:album>` : '')
+    + (s.art !== '' ? `<upnp:albumArtURI>${escape(s.art)}</upnp:albumArtURI>` : '')
+    + '<desc id="cdudn" nameSpace="urn:schemas-rinconnetworks-com:metadata-1-0/">RINCON_AssociatedZPUDN</desc></item></DIDL-Lite>';
+}
+
 /** Envelope of one UPnP action, sent to a speaker; the answer's text. @throws Error('Action: UPnP 701') on a fault */
 export async function soap(ip: string, service: string, path: string, action: string, args: string, timeoutMs: i32 = TIMEOUT_MS): Promise<string> {
   const body = '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">'
@@ -269,6 +295,28 @@ export class System {
       + (art !== '' ? `<upnp:albumArtURI>${escape(art)}</upnp:albumArtURI>` : '')
       + '<upnp:class>object.item.audioItem.audioBroadcast</upnp:class><desc id="cdudn" nameSpace="urn:schemas-rinconnetworks-com:metadata-1-0/">SA_RINCON65031_</desc></item></DIDL-Lite>';
     await avt(g, 'SetAVTransportURI', `<CurrentURI>${escape(uri)}</CurrentURI><CurrentURIMetaData>${escape(didl)}</CurrentURIMetaData>`);
+    await this.play(g);
+  }
+
+  // A URI and the queue, named as SoCo names them (play_uri, add_uri_to_queue, clear_queue, play_from_queue).
+
+  /** Plays a URI on a group: a song file over http:// (with musicTrackMeta(song) as `meta`), or any URI a speaker takes. */
+  async playUri(g: Group, uri: string, meta: string = ''): Promise<void> {
+    await avt(g, 'SetAVTransportURI', `<CurrentURI>${escape(uri)}</CurrentURI><CurrentURIMetaData>${escape(meta)}</CurrentURIMetaData>`);
+    await this.play(g);
+  }
+  /** Adds a URI to the group's queue: at its end (`position` 0), at `position` (1 for the first), or right after the song that plays
+   *  (`asNext`). Returns its number in the queue (1 for the first). */
+  async addUriToQueue(g: Group, uri: string, meta: string = '', position: i32 = 0, asNext: boolean = false): Promise<i32> {
+    const r = await avt(g, 'AddURIToQueue', `<EnqueuedURI>${escape(uri)}</EnqueuedURI><EnqueuedURIMetaData>${escape(meta)}</EnqueuedURIMetaData><DesiredFirstTrackNumberEnqueued>${position}</DesiredFirstTrackNumberEnqueued><EnqueueAsNext>${asNext ? 1 : 0}</EnqueueAsNext>`, QUEUE_MS);
+    return (parseInt(tag(r, 'FirstTrackNumberEnqueued')) || 0) as i32;
+  }
+  /** Empties the group's queue. */
+  async clearQueue(g: Group): Promise<void> { await avt(g, 'RemoveAllTracksFromQueue'); }
+  /** Plays the group's queue from its entry `index` (0 for the first, as SoCo counts): the group then goes on through the queue by itself. */
+  async playFromQueue(g: Group, index: i32): Promise<void> {
+    await avt(g, 'SetAVTransportURI', `<CurrentURI>x-rincon-queue:${g.coordinator.uuid}#0</CurrentURI><CurrentURIMetaData></CurrentURIMetaData>`);
+    await this.seekTrack(g, index + 1);
     await this.play(g);
   }
 
