@@ -391,6 +391,9 @@ The next backlog review turns lines into tasks or deletes them.
 - JSON.parse: a Table's keys, values and dead flags in one block (6 allocations per JSON object today), toward 3x faster than 2026-10-29 (it is 2x now).
 - mimalloc: MI_TLS_SLOT on macOS without MI_MALLOC_OVERRIDE (_tlv_get_addr is ~5% of allocation-heavy work).
 
+- QuickJS: do the checked copy where `any` meets a typed target (D179: drop undeclared properties, TypeError on a wrong type), so JSON.parse into an interface agrees with the interpreter and AOT; the QuickJS transform needs the checker's conversion sites.
+- zinc:system/media on the web target: forward to navigator.mediaSession in plugins/system/web/system.js; accept http(s) artwork URLs.
+- Z5006's lists of system features (include/zn/diagnostics.h, i18n/*/diag.json, docs/diagnostics.md) miss share, update and media: build them from systemFeatures().
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -617,6 +620,7 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod demo: the mood mixer's tempo bar and the volume bar are click-only; add dragging to both.
 
 ## Cross-platform pass
+- zinc:system/media: a Linux backend (MPRIS over D-Bus) and a Windows one (SystemMediaTransportControls), then turn on mediasession for those profiles.
 - iPod AudioMuse over the LAN from the Pi daemon, with the same client.
 - iPod: run ipod_smart on Linux.
 - iPod Genius timings on the Pi 3B+ and 4, and a Linux AAC/ALAC decoder for the daemon.
