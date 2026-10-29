@@ -140,6 +140,12 @@ receiver remains on Pi and the Zinc player on Mac; no Pi screen takeover is
 required. Keep LIVI's GPL source as a behavioral reference rather than
 copying it into Zinc's independent player.
 
+The first transport primitive is now implemented in the separate GPL receiver:
+type-130 packages can be acknowledged and answered over an encrypted TCP
+DataStream. A loopback test checks a real socket, both key directions, a sync
+reply, a command, and a package spanning two encrypted frames. It remains
+disabled for the phone until UUID routing and validated OPACK handlers exist.
+
 Additional public references checked: [carlink_linux's capability
 map](https://github.com/lvalen91/carlink_linux/blob/main/docs/CARPLAY_CAPABILITIES.md)
 identifies the same SETUP response tokens, but labels several newer details

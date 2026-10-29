@@ -261,6 +261,58 @@ t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fu
 t=t.replace('Wire.videoConfig(type, codec, display.width, display.height, codecData)', 'Wire.videoConfig(type, codec, if (type == 111) ClusterDimensions.width else display.width, if (type == 111) ClusterDimensions.height else display.height, codecData)')
 t=t.replace('Wire.videoConfig(type, value.first, display.width, display.height, value.second)', 'Wire.videoConfig(type, value.first, if (type == 111) ClusterDimensions.width else display.width, if (type == 111) ClusterDimensions.height else display.height, value.second)')
 p.write_text(t)
+p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/IapTunnel.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/IapTunnel.kt']).decode()
+needle='import java.io.Closeable'
+assert t.count(needle) == 1, 'Unexpected upstream IapTunnel imports'
+t=t.replace(needle, needle+'\nimport java.io.IOException\nimport java.nio.ByteBuffer\nimport java.nio.ByteOrder')
+t=t.replace('    bindAddress: InetAddress = InetAddress.getByName("0.0.0.0"),', '    bindAddress: InetAddress = InetAddress.getByName("0.0.0.0"),\n    private val writeKey: ByteArray? = null,')
+t=t.replace('        fun onIap(bytes: ByteArray) {}', '        fun onIap(bytes: ByteArray) {}\n        fun onPackage(kind: Int, messageType: Int, replyToken: Long, body: ByteArray) {}')
+t=t.replace('    private val readCounter = AtomicLong(0)', '    private val readCounter = AtomicLong(0)\n    private val writeCounter = AtomicLong(0)\n    private val writeLock = Any()')
+t=t.replace('    private var socket: Socket? = null', '    @Volatile private var socket: Socket? = null')
+t=t.replace('    override fun close() {', '''    fun sendCommand(body: ByteArray) = sendPackage(PACKAGE_ASYNC, MSG_TYPE_COMMAND, 0, body)
+
+    private fun sendPackage(kind: Int, messageType: Int, replyToken: Long, body: ByteArray) {
+        require(body.size <= MAX_PACKAGE - PACKAGE_HEADER_LEN) { "DataStream package too large" }
+        val key = writeKey ?: throw IOException("DataStream is receive-only")
+        val packageBytes = ByteBuffer.allocate(PACKAGE_HEADER_LEN + body.size).order(ByteOrder.BIG_ENDIAN)
+            .putInt(PACKAGE_HEADER_LEN + body.size).putInt(kind).putLong(0)
+            .putInt(messageType).putLong(replyToken).putInt(0).put(body).array()
+        synchronized(writeLock) {
+            val output = socket?.getOutputStream() ?: throw IOException("DataStream peer is not connected")
+            var offset = 0
+            while (offset < packageBytes.size) {
+                val end = minOf(offset + MAX_FRAME_PLAIN, packageBytes.size)
+                val chunk = packageBytes.copyOfRange(offset, end)
+                val aad = byteArrayOf(chunk.size.toByte(), (chunk.size ushr 8).toByte())
+                val sealed = AirPlayCrypto.chachaSeal(key, AirPlayCrypto.nonce64(writeCounter.getAndIncrement()), chunk, aad)
+                output.write(aad)
+                output.write(sealed)
+                offset = end
+            }
+            output.flush()
+        }
+    }
+
+    override fun close() {''')
+t=t.replace('            readCounter.set(0)', '            readCounter.set(0)\n            writeCounter.set(0)')
+needle='''            val messageType = readU32Be(buffer, offset + MESSAGE_TYPE_OFFSET)
+            if (messageType == MSG_TYPE_COMM) {'''
+assert t.count(needle) == 1, 'Unexpected upstream DataStream package parser'
+t=t.replace(needle, '''            val kind = readU32Be(buffer, offset + 4)
+            val messageType = readU32Be(buffer, offset + MESSAGE_TYPE_OFFSET)
+            val replyToken = ByteBuffer.wrap(buffer, offset + 20, 8).order(ByteOrder.BIG_ENDIAN).long
+            if (kind == PACKAGE_SYNC && writeKey != null) sendPackage(PACKAGE_REPLY, 0, replyToken, ByteArray(0))
+            if (messageType == MSG_TYPE_COMM) {''')
+t=t.replace('''                listener.onIap(buffer.copyOfRange(offset + PACKAGE_HEADER_LEN, offset + size))
+            }
+            offset += size''', '''                listener.onIap(buffer.copyOfRange(offset + PACKAGE_HEADER_LEN, offset + size))
+            } else if (kind != PACKAGE_REPLY) {
+                listener.onPackage(kind, messageType, replyToken, buffer.copyOfRange(offset + PACKAGE_HEADER_LEN, offset + size))
+            }
+            offset += size''')
+t=t.replace('        const val MSG_TYPE_COMM = 0x636f6d6d', '        const val MSG_TYPE_COMM = 0x636f6d6d\n        const val MSG_TYPE_COMMAND = 0x636d6e64\n        const val PACKAGE_ASYNC = 0x6173796e\n        const val PACKAGE_SYNC = 0x73796e63\n        const val PACKAGE_REPLY = 0x72706c79\n        const val MAX_FRAME_PLAIN = 65535')
+p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt']).decode()
 t=t.replace('/** Session lifecycle and command callbacks for the driver/UI layer. */', '''data class AirPlayUltraStatus(val phoneOffersVehicleState: Boolean, val phoneOffersUiSync: Boolean, val vehicleStateEnabled: Boolean, val uiSyncEnabled: Boolean)
