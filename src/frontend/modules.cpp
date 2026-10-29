@@ -577,7 +577,7 @@ export class Response {
   }
 }
 export interface Request { method: string; path: string; body: string; headers: Headers; rawBody?: string }
-export interface Reply { status: i32; body: string; contentType: string; headers?: Headers }
+export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string }
 
 function __ctl(s: string): boolean { return s.indexOf('\r') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\u0000') >= 0; }
 function __headerLines(h: Headers): string {
@@ -606,12 +606,13 @@ const __netCalls: NetCall[] = [];
 let __netHooked: boolean = false;
 let __netHandler: ((req: Request) => Reply) | null = null;
 let __netAsyncHandler: ((req: Request) => Promise<Reply>) | null = null;
-function __sendReply(h: i32, r: Reply): void {
+function __sendReply(h: i32, r: Reply, range: string): void {
   let lines = '';
   if (r.headers !== undefined) lines = __headerLines(r.headers as Headers);
   const ct = r.contentType.length > 0 && !__ctl(r.contentType) ? r.contentType : 'text/plain; charset=utf-8';
   lines += 'Content-Type: ' + ct + '\n';
-  __host_httpReply(h, r.status, lines, r.body);
+  if (r.file !== undefined) __host_httpReplyFile(h, r.status, lines, r.file as string, range);   // the file's bytes, in blocks, with the Range asked
+  else __host_httpReply(h, r.status, lines, r.body);
 }
 function __netHook(): void {
   if (__netHooked) return;
@@ -642,25 +643,14 @@ function __netHook(): void {
       const af = __netAsyncHandler;
       if (af !== null) {   // serveAsync: the reply goes out when the promise settles
         try {
-          af(req).then((r: Reply) => { __sendReply(h, r); }).catch((e: Error) => { __host_httpReply(h, 500, 'Content-Type: text/plain; charset=utf-8\n', 'internal error'); });
+          af(req).then((r: Reply) => { __sendReply(h, r, req.headers.get('range')); }).catch((e: Error) => { __host_httpReply(h, 500, 'Content-Type: text/plain; charset=utf-8\n', 'internal error'); });
         } catch (e) { __host_httpReply(h, 500, 'Content-Type: text/plain; charset=utf-8\n', 'internal error'); }
         return;
       }
-      let status: i32 = 500;
-      let lines = 'Content-Type: text/plain; charset=utf-8\n';
-      let body = 'internal error';
-      if (f !== null) {
-        try {
-          const r = f(req);
-          status = r.status;
-          body = r.body;
-          lines = '';
-          if (r.headers !== undefined) lines = __headerLines(r.headers as Headers);
-          const ct = r.contentType.length > 0 && !__ctl(r.contentType) ? r.contentType : 'text/plain; charset=utf-8';
-          lines += 'Content-Type: ' + ct + '\n';
-        } catch (e) { status = 500; body = 'internal error'; lines = 'Content-Type: text/plain; charset=utf-8\n'; }
-      }
-      __host_httpReply(h, status, lines, body);
+      if (f === null) { __host_httpReply(h, 500, 'Content-Type: text/plain; charset=utf-8\n', 'internal error'); return; }
+      let r: Reply = { status: 500, body: 'internal error', contentType: 'text/plain; charset=utf-8' };
+      try { r = f(req); } catch (e) { r = { status: 500, body: 'internal error', contentType: 'text/plain; charset=utf-8' }; }
+      __sendReply(h, r, req.headers.get('range'));
     }
   });
 }

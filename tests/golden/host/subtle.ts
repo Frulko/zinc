@@ -6,6 +6,7 @@ function hex(s: string): u8[] { const r: u8[] = []; for (let i = 0; i < s.length
 function text(s: string): u8[] { const r: u8[] = []; for (let i = 0; i < s.length; i++) r.push(s.charCodeAt(i)); return r; }
 function check(name: string, got: u8[], want: string): void { console.log(toHex(got) === want ? 'ok  ' : 'FAIL', name, toHex(got) === want ? '' : toHex(got)); }
 async function main(): Promise<void> {
+  check('md5', await subtle.digest('MD5', text('abc')), '900150983cd24fb0d6963f7d28e17f72');   // RFC 1321
   check('sha-1', await subtle.digest('SHA-1', text('abc')), 'a9993e364706816aba3e25717850c26c9cd0d89d');
   check('sha-256', await subtle.digest('SHA-256', text('abc')), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
   check('sha-384', await subtle.digest('SHA-384', text('abc')), 'cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7');

@@ -156,8 +156,8 @@ const char* kPrelude = R"JS(
     return t.f;
   };
   g.__setClock = ms => { clock = ms; };
-  // the host loop's events ("handle", "kind" and "data" joined by U+001F) for the modules that register a handler (zinc:osc), as the typed prelude's
-  // __pollHost; the engine's turn calls it. ponytail: a program with no timer and no frame ends even while it listens (the typed loop asks evActive)
+  // the host loop's events ("handle", "kind" and "data" joined by U+001F) for the modules that register a handler (zinc:osc, zinc:net), as the typed prelude's
+  // __pollHost; the engine's turn calls it, and waits while the host loop is active (a server listening, a fetch in flight)
   const evHandlers = [];
   g.__addEvHandler = f => { evHandlers.push(f); };
   g.__pollHost = () => {

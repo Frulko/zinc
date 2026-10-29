@@ -17,6 +17,8 @@
 #include "tls.h"
 #include "zn/loop.h"
 
+#include <sys/stat.h>
+
 namespace zn::http {
 std::string gError;
 namespace {
@@ -27,7 +29,7 @@ const char* reasonOf(int s) {
     case 206: return "Partial Content"; case 301: return "Moved Permanently"; case 302: return "Found"; case 303: return "See Other";
     case 304: return "Not Modified"; case 307: return "Temporary Redirect"; case 308: return "Permanent Redirect"; case 400: return "Bad Request";
     case 401: return "Unauthorized"; case 403: return "Forbidden"; case 404: return "Not Found"; case 405: return "Method Not Allowed";
-    case 408: return "Request Timeout"; case 409: return "Conflict"; case 410: return "Gone"; case 413: return "Payload Too Large";
+    case 408: return "Request Timeout"; case 409: return "Conflict"; case 410: return "Gone"; case 413: return "Payload Too Large"; case 416: return "Range Not Satisfiable";
     case 415: return "Unsupported Media Type"; case 418: return "I'm a Teapot"; case 422: return "Unprocessable Entity"; case 426: return "Upgrade Required";
     case 429: return "Too Many Requests"; case 431: return "Request Header Fields Too Large"; case 500: return "Internal Server Error";
     case 501: return "Not Implemented"; case 502: return "Bad Gateway"; case 503: return "Service Unavailable"; case 504: return "Gateway Timeout";
@@ -507,6 +509,109 @@ void reply(int conn, int status, const std::string& headers, const std::string& 
     out += "0\r\n\r\n";
   }
   writeAndClose(it->second, out);
+}
+
+
+// A file as the body, read and written one block at a time (the next block once the last is written: a slow client slows the reads),
+// with one byte range when the request asked for it. ponytail: the blocks are read on the loop thread; a uv_fs read pool if a slow disk
+// shows in other requests' latency.
+namespace {
+constexpr size_t kFileBlock = 256u << 10;
+struct FileSend { uv_write_t req; SConn* c; FILE* f; uint64_t left; std::string data; };
+void sendBlock(FileSend* s);
+void blockWritten(uv_write_t* r, int status) {
+  auto* s = reinterpret_cast<FileSend*>(r);
+  if (status < 0 || s->c->closed) { fclose(s->f); closeConn(s->c); delete s; return; }
+  sendBlock(s);
+}
+void sendBlock(FileSend* s) {
+  SConn* c = s->c;
+  if (c->closed) { fclose(s->f); delete s; return; }
+  uv_timer_start(&c->idle, [](uv_timer_t* t) { closeConn(static_cast<SConn*>(t->data)); }, kIdleMs, 0);   // idle means no block written
+  if (s->left == 0) {   // the end: the TLS close, then the connection
+    fclose(s->f);
+    if (c->tls) {
+      tls::close(c->tls);
+      auto* w = new WriteReq{{}, tls::takeOutput(c->tls), true};
+      w->req.data = c;
+      uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
+      if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&c->tcp), &b, 1, [](uv_write_t* r, int) { auto* x = reinterpret_cast<WriteReq*>(r); closeConn(static_cast<SConn*>(r->data)); delete x; }) != 0) { delete w; closeConn(c); }
+    } else closeConn(c);
+    delete s;
+    return;
+  }
+  if (s->data.empty()) {   // the head was sent first; now a block of the file
+    std::string block(static_cast<size_t>(std::min<uint64_t>(kFileBlock, s->left)), '\0');
+    size_t n = fread(block.data(), 1, block.size(), s->f);
+    if (n == 0) { fclose(s->f); closeConn(c); delete s; return; }   // the file shrank or cannot be read: the client sees a short body
+    block.resize(n);
+    s->left -= n;
+    s->data = std::move(block);
+  }
+  if (c->tls) {
+    if (!tls::write(c->tls, s->data)) { fclose(s->f); closeConn(c); delete s; return; }
+    s->data = tls::takeOutput(c->tls);
+  }
+  std::string out = std::move(s->data);
+  s->data.clear();
+  auto* hold = new std::string(std::move(out));   // alive until the write completes
+  s->req.data = hold;
+  uv_buf_t b = uv_buf_init(hold->data(), static_cast<unsigned>(hold->size()));
+  if (uv_write(&s->req, reinterpret_cast<uv_stream_t*>(&c->tcp), &b, 1, [](uv_write_t* r, int st) { delete static_cast<std::string*>(r->data); blockWritten(r, st); }) != 0) {
+    delete hold; fclose(s->f); closeConn(c); delete s;
+  }
+}
+/** "bytes=a-b", "bytes=a-", "bytes=-n" of a file of `size` bytes: false when it is not one satisfiable range. */
+bool byteRange(const std::string& h, uint64_t size, uint64_t& from, uint64_t& to) {
+  if (h.compare(0, 6, "bytes=") != 0 || size == 0) return false;
+  const std::string r = h.substr(6);
+  const size_t dash = r.find('-');
+  if (dash == std::string::npos || r.find(',') != std::string::npos) return false;
+  const std::string a = r.substr(0, dash), b = r.substr(dash + 1);
+  auto num = [](const std::string& t, uint64_t& v) { if (t.empty() || t.find_first_not_of("0123456789") != std::string::npos || t.size() > 18) return false; v = std::stoull(t); return true; };
+  uint64_t x = 0, y = 0;
+  if (a.empty()) { if (!num(b, y) || y == 0) return false; from = y >= size ? 0 : size - y; to = size - 1; return true; }
+  if (!num(a, x) || x >= size) return false;
+  from = x;
+  to = b.empty() ? size - 1 : (num(b, y) && y >= x ? std::min(y, size - 1) : UINT64_MAX);
+  return to != UINT64_MAX;
+}
+}  // namespace
+
+void replyFile(int conn, int status, const std::string& headers, const std::string& path, const std::string& range) {
+  auto it = gConns.find(conn);
+  if (it == gConns.end()) return;
+  SConn* c = it->second;
+  if (c->closed || c->answered) return;
+  FILE* f = fopen(path.c_str(), "rb");
+  struct stat st;
+  if (!f || fstat(fileno(f), &st) != 0 || !S_ISREG(st.st_mode)) { if (f) fclose(f); quick(c, 404); return; }
+  const uint64_t size = static_cast<uint64_t>(st.st_size);
+  uint64_t from = 0, to = size == 0 ? 0 : size - 1;
+  std::string extra;
+  if (!range.empty()) {
+    if (!byteRange(range, size, from, to)) {
+      fclose(f);
+      writeAndClose(c, "HTTP/1.1 416 " + std::string(reasonOf(416)) + "\r\nContent-Range: bytes */" + std::to_string(size) + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+      return;
+    }
+    status = 206;
+    extra = "Content-Range: bytes " + std::to_string(from) + "-" + std::to_string(to) + "/" + std::to_string(size) + "\r\n";
+  }
+  const uint64_t length = size == 0 ? 0 : to - from + 1;
+  if (from > 0 && fseeko(f, static_cast<off_t>(from), SEEK_SET) != 0) { fclose(f); quick(c, 500); return; }
+  std::string head = "HTTP/1.1 " + std::to_string(status) + " " + reasonOf(status) + "\r\n";
+  for (size_t i = 0; i < headers.size();) {
+    size_t e = headers.find('\n', i);
+    if (e == std::string::npos) e = headers.size();
+    std::string line = headers.substr(i, e - i);
+    if (!line.empty() && !hasCtl(line)) head += line + "\r\n";
+    i = e + 1;
+  }
+  head += extra + "Accept-Ranges: bytes\r\nContent-Length: " + std::to_string(length) + "\r\nConnection: close\r\n\r\n";
+  c->answered = true;
+  auto* s = new FileSend{{}, c, f, length, std::move(head)};
+  sendBlock(s);
 }
 
 }  // namespace zn::http

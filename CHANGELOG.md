@@ -9,6 +9,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:net`: a reply can send a file (`file: path` in the `Reply`), in blocks and with byte ranges (`Range` gives a 206, a range past the end a 416), so a server streams songs and videos that players can seek; `serveAsync` is declared for TypeScript.
+- `zinc:subtle`: `digest('MD5', data)` for the protocols that still ask for it (Subsonic's tokens); not Web Crypto, never for security.
 - `examples/ipod-web`: a command-line program that serves a web page (and `/pod.json`) showing the iPods plugged into the machine and their specs, read only: `zinc run examples/ipod-web`, then open http://localhost:8686.
 - `zinc:ipod`: `analyze()` finds duplicate songs by their tags, by identical files and by their sound (Chromaprint fingerprints, cached on the computer), and lists the music without a cover or tags, unused files and empty playlists; `merge()` keeps the best copy of each song with the tags, cover, play counts, rating and playlist places of the others, and removes the rest with their files (docs/plugins/ipod.md).
 - iPod demo: an Optimise page that analyses the iPod, shows each group of duplicates with why it matched and the copy it keeps (click another to keep it), and merges the ticked groups as a transfer, behind Allow changes.
@@ -112,6 +114,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- `zinc:net` servers and fetches work on QuickJS (`--engine quickjs`): its functions were missing there, and a program that only listened ended at once.
 - `zinc:ipod`: `detect()` no longer opens the iPods over USB at every scan: it reads the system's USB list, so nothing is sent to an iPod while it is mounted, being ejected or ejected ("OK to disconnect"). An iPod not mounted shows the model its disk gave earlier in the session, else "iPod".
 - iPod demo: the album grid has four columns, so a fifth album no longer runs past the window, and a page with a long line of text wraps it instead of growing wider than the window.
 - `ipod.mount('')` mounts an iPod that was ejected and is still plugged in: it resets it on USB, as unplugging it does, instead of saying there is no iPod disk.

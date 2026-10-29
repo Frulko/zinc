@@ -32,6 +32,7 @@ const uint8_t* bytes(const std::string& s) { return reinterpret_cast<const uint8
 std::string fail(std::string& err, const char* what, psa_status_t st) { err = std::string(what) + " (" + std::to_string(static_cast<int>(st)) + ")"; return std::string(); }
 
 psa_algorithm_t hashOf(const std::string& name) {
+  if (name == "md5") return PSA_ALG_MD5;   // not Web Crypto: for the protocols that still ask for it (Subsonic tokens)
   if (name == "sha-1") return PSA_ALG_SHA_1;
   if (name == "sha-256") return PSA_ALG_SHA_256;
   if (name == "sha-384") return PSA_ALG_SHA_384;

@@ -1235,6 +1235,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostHttpError: if (!gServeDenied.empty()) { ret(r, gServeDenied); gServeDenied.clear(); } else ret(r, zn::http::lastError()); break;
     case Rt::HostHttpStop: zn::http::stop(); break;
     case Rt::HostHttpReply: zn::http::reply(n(0), n(1), s(2), s(3)); break;
+    case Rt::HostHttpReplyFile: zn::http::replyFile(n(0), n(1), s(2), s(3), s(4)); break;
     case Rt::HostSockConnect: r->i = refused("net", s(0)) ? -1 : zn::sock::connectTcp(s(0), n(1)); break;   // zinc.json permissions (ZN-322)
     case Rt::HostSockConnectTls: r->i = refused("net", s(0)) ? -1 : zn::sock::connectTls(s(0), n(1)); break;
     case Rt::HostSockConnectUnix: r->i = refused("net", "unix:" + s(0)) ? -1 : zn::sock::connectUnix(s(0)); break;

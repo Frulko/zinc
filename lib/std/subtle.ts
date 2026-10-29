@@ -49,10 +49,11 @@ function op(name: string, a: u8[], b: u8[], c: u8[], d: u8[], n: i32, m: i32): u
 }
 
 export class FullSubtleCrypto {
-  /** 'SHA-1', 'SHA-256', 'SHA-384' or 'SHA-512' (case-insensitive). Rejects with NotSupportedError otherwise. */
+  /** 'SHA-1', 'SHA-256', 'SHA-384' or 'SHA-512' (case-insensitive), and 'MD5', which Web Crypto lacks, for the protocols that still
+   *  ask for it (Subsonic's tokens): never for security. Rejects with NotSupportedError otherwise. */
   async digest(algorithm: string, data: u8[]): Promise<u8[]> {
     const a = algorithm.toUpperCase();
-    if (a === 'SHA-256' || a === 'SHA-1' || a === 'SHA-384' || a === 'SHA-512') return op('digest:' + a.toLowerCase(), data, NONE, NONE, NONE, 0, 0);
+    if (a === 'SHA-256' || a === 'SHA-1' || a === 'SHA-384' || a === 'SHA-512' || a === 'MD5') return op('digest:' + a.toLowerCase(), data, NONE, NONE, NONE, 0, 0);
     throw new DOMException(`Unrecognized algorithm name`, 'NotSupportedError');
   }
   async importKey(format: string, keyData: u8[], algorithm: Algorithm, extractable: boolean, usages: string[]): Promise<CryptoKey> {

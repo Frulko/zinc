@@ -1,0 +1,7 @@
+whole 200 3000000 true bytes 3000000 audio/mpeg
+range 206 "b012345678" bytes 10-19/3000000
+suffix 206 "5678" bytes 2999996-2999999/3000000
+open 206 "78" bytes 2999998-2999999/3000000
+past 416 bytes */3000000
+missing 404
+async 206 "a012"

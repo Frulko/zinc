@@ -4,6 +4,7 @@
 #include "qjs/qjs.h"
 #include "zn/js_ext.h"
 #include "zn/log.h"
+#include "zn/loop.h"
 
 #include <algorithm>
 #include <array>
@@ -524,7 +525,7 @@ bool timerLoop(Engine& e) {
     std::fflush(stdout);   // as in the frame loop
     if (!nativeTurn(e)) { ok = false; break; }
     JSValue fn;
-    if (zn_native_pending() > 0) {   // a native operation is in flight (a thread, a server, a connection): the clock follows the wall clock, so its answer comes before a later timer
+    if (zn_native_pending() > 0 || zn::loop::active()) {   // a native operation or a host one (a server listening, a fetch) is in flight: the clock follows the wall clock, so its answer comes before a later timer
       double clock = 0;
       JSValue c = JS_Call(e.ctx, clockFn, JS_UNDEFINED, 0, nullptr);
       JS_ToFloat64(e.ctx, &clock, c);

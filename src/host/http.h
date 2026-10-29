@@ -18,6 +18,9 @@ void fetchFree(int h);
 bool serve(int port, const std::string& certPem = std::string(), const std::string& keyPem = std::string());
 const std::string& lastError();
 void reply(int conn, int status, const std::string& headers, const std::string& body);
+// The file at `path` as the body, sent in blocks; `range` is the request's Range header ('' for the whole file): one satisfiable byte
+// range gives a 206 with Content-Range, another a 416; a missing file a 404. Accept-Ranges and Content-Length are added.
+void replyFile(int conn, int status, const std::string& headers, const std::string& path, const std::string& range);
 void stop();
 
 }  // namespace zn::http

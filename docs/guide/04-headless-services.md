@@ -28,6 +28,19 @@ serve(3000, (req: Request): Reply => {
 });
 ```
 
+`serveAsync(port, handler)` takes a handler that returns a `Promise<Reply>`: the reply goes out when it resolves (a rejection is
+a 500), so a handler can await a file, a plugin or another server. A reply with `file: path` sends that file's bytes in 256 KiB
+blocks instead of `body` (a song, a video, a picture of any size: the next block is read once the last is written, so a slow
+client slows the reads), with `Accept-Ranges: bytes`; a request with one `Range` gets a 206 and its `Content-Range`, a range
+past the end a 416, a missing file a 404. Players and `<audio>`/`<video>` elements seek with these ranges.
+
+```ts
+serveAsync(3000, async (req: Request): Promise<Reply> => {
+  if (req.path === '/song.mp3') return { status: 200, contentType: 'audio/mpeg', body: '', file: '/music/song.mp3' };
+  return { status: 404, contentType: 'text/plain', body: 'not found' };
+});
+```
+
 `fetch(url, init?)` is the client side (libcurl on hosts, `esp_http_client` on ESP32). Only `http:` and `https:` URLs
 are fetched, following at most 20 redirects; on hosts, a redirect to another scheme, host or port drops the `Authorization`,
 `Proxy-Authorization` and `Cookie` headers. A request times out after `timeoutMs` (default 120000; connecting takes
