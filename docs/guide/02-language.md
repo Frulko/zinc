@@ -8,6 +8,8 @@ rejected, and why; [the syntax cheat sheet](../reference/syntax.md) is the one-p
 
 - Classes: inheritance, `abstract`, statics, accessors (`get`/`set`), `#private` fields, `readonly`.
 - Interfaces, generics (compiled to C++ templates, explicit and inferred), discriminated unions, tuples.
+- Utility types over an interface or a record of data properties: `Partial`, `Required`, `Readonly`, `Pick` and `Omit` (keys as
+  string literals), and `Record<'a' | 'b', V>`; a dictionary with any string key is a `Map<string, V>`.
 - Destructuring (with defaults and `...rest`), rest parameters, spread (in array/object literals and calls), `?.`, `??`, `??=`, `using` / `Symbol.dispose`.
 - Object literals with getters, setters and methods that use `this`; tagged templates and `String.raw`.
 - Enums (numeric only), closures, `for`/`for-of`/`for-in`/`while`, labeled statements with `break label` / `continue label`.
@@ -125,6 +127,12 @@ turns every remaining `Dyn` site into an error.
 const data = JSON.parse('{"n":42,"items":[1,2,3]}');   // Dyn (gradual profile)
 if (typeof data.n === 'number') console.log(data.n);   // narrowed → native i32/f64
 ```
+
+A conversion into an interface or a record is a **checked copy of its declared fields**: `const p: Patch = JSON.parse(body)`
+gives a `Patch` with the fields `Patch` declares, and a property the JSON has beyond them is dropped (a spread of `p` copies only
+those). This is the rule of Zinc: a typed value is exactly its type, as its layout, `JSON.stringify` and `for...in` say. QuickJS,
+which runs the program as plain JavaScript, keeps the extra properties today (as TypeScript does at run time), so code that guards
+what it passes on (a server that takes a patch from a client) still sets or clears the fields it must never take from outside.
 
 Calling a function through a `Dyn` is rejected (Z0105, "Expression is not callable: 'any'"): narrow first. Typed arrays other
 than `any[]`, functions, maps and sets can't become `Dyn`, because a checked copy would break aliasing.
