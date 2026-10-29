@@ -65,7 +65,7 @@ interface ClassDecoratorContext<Class = unknown> { readonly kind: 'class'; reado
 interface ClassFieldDecoratorContext<This = unknown, Value = unknown> { readonly kind: 'field'; readonly name: string | symbol; readonly static: boolean; readonly private: boolean; }
 
 // ---- Number ----
-interface Number { toFixed(digits?: i32): string; toString(): string; }
+interface Number { toFixed(digits?: i32): string; toString(radix?: number): string; }
 interface NumberConstructor {
   /** ToNumber of a number, boolean, string or Dyn (f64 profiles). */
   (value?: unknown): number;
