@@ -68,6 +68,9 @@ enabled and a location subscription is active. Stop GPS disables injection.
 On wireless CarPlay, the receiver passes the phone's requested NMEA selectors to
 the GPS source before sending. The TX count proves delivery to the iAP2 link;
 it does not prove that iOS navigation replaces its own location estimate.
+Apple describes accessory GNSS as an input combined with the iPhone's sensors.
+The debug fix is therefore useful for testing the data path, but it cannot
+guarantee that Maps jumps to the chosen city.
 
 GPX files are limited to 1 MiB / 10,000 points; DTDs and external XML access are
 rejected. Track timestamps define the timeline; without timestamps each point

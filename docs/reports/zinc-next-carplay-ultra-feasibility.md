@@ -263,3 +263,12 @@ now crops to Zone1 and preserves its 5:4 ratio. A live wireless location probe
 reported `subscribed=true`, requested selectors `[0,1,2,32769,32770]` and
 `sent=8` after a Paris debug fix. This proves iAP2 TX activity, not that iOS
 has adopted the simulated location in Plans.
+The local CarPlay specification says the accessory location augments the
+iPhone's built-in location services, and Apple WWDC16 session 722 says vehicle
+satellite location is used alongside iPhone sensors. The Mac cluster map still
+showed the phone's local area after the Paris fix, consistent with iOS choosing
+its own position. Debug GPS should be treated as external GNSS input, not a
+guaranteed location override. The specification also distinguishes the brief
+Bluetooth handoff link from the iAP2-over-CarPlay runtime link; the current
+receiver advertises LocationInformation on both, so a separate link-scoping
+cleanup and phone trace are needed before calling the GPS behavior complete.
