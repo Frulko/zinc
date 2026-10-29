@@ -457,22 +457,25 @@ std::string fetchBody(int h) { Fetch* f = fetchAt(h); return f ? f->msg.body : "
 std::string fetchUrl(int h) { Fetch* f = fetchAt(h); return f ? f->url : ""; }
 void fetchFree(int h) { Fetch* f = fetchAt(h); if (f) { f->released = true; maybeFree(f); } }
 
-bool serve(int port, const std::string& certPem, const std::string& keyPem) {
+int serve(int port, const std::string& certPem, const std::string& keyPem) {
   stop();
   gCertPem = certPem;
   gKeyPem = keyPem;
-  if (!certPem.empty()) { std::string err; tls::Conn* probe = tls::openServer(certPem, keyPem, err); if (!probe) { gError = err; return false; } tls::destroy(probe); }
+  if (!certPem.empty()) { std::string err; tls::Conn* probe = tls::openServer(certPem, keyPem, err); if (!probe) { gError = err; return 0; } tls::destroy(probe); }
   auto* l = new uv_tcp_t;
   uv_tcp_init(L(), l);
   sockaddr_in a;
   uv_ip4_addr("0.0.0.0", port, &a);
   if (uv_tcp_bind(l, reinterpret_cast<sockaddr*>(&a), 0) != 0 || uv_listen(reinterpret_cast<uv_stream_t*>(l), 64, onConnection) != 0) {
     uv_close(reinterpret_cast<uv_handle_t*>(l), [](uv_handle_t* h) { delete reinterpret_cast<uv_tcp_t*>(h); });
-    return false;
+    return 0;
   }
   gListener = l;
   loop::addActive(1);
-  return true;
+  sockaddr_in bound{};
+  int len = sizeof bound;
+  uv_tcp_getsockname(l, reinterpret_cast<sockaddr*>(&bound), &len);
+  return ntohs(bound.sin_port);
 }
 const std::string& lastError() { return gError; }
 void stop() {

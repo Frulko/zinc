@@ -34,6 +34,9 @@ blocks instead of `body` (a song, a video, a picture of any size: the next block
 client slows the reads), with `Accept-Ranges: bytes`; a request with one `Range` gets a 206 and its `Content-Range`, a range
 past the end a 416, a missing file a 404. Players and `<audio>`/`<video>` elements seek with these ranges.
 
+Both return the port they listen on: port 0 lets the system pick a free one (`const port = serveAsync(0, handler)`), for a
+server only this program hands its address out, such as a player that sends a speaker the URL of a song.
+
 ```ts
 serveAsync(3000, async (req: Request): Promise<Reply> => {
   if (req.path === '/song.mp3') return { status: 200, contentType: 'audio/mpeg', body: '', file: '/music/song.mp3' };

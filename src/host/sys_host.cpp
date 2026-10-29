@@ -1236,7 +1236,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostHttpServe: case Rt::HostHttpServeTls: {   // listening needs "net" (or "net:*"): zinc.json permissions (ZN-322)
       gServeDenied = zn::host::perm::check("net", "*");
       if (!gServeDenied.empty()) { r->i = 0; break; }
-      r->i = (static_cast<Rt>(id) == Rt::HostHttpServe ? zn::http::serve(n(0)) : zn::http::serve(n(0), s(1), s(2))) ? 1 : 0;
+      r->i = static_cast<Rt>(id) == Rt::HostHttpServe ? zn::http::serve(n(0)) : zn::http::serve(n(0), s(1), s(2));   // the port bound, 0 on failure
       break;
     }
     case Rt::HostHttpError: if (!gServeDenied.empty()) { ret(r, gServeDenied); gServeDenied.clear(); } else ret(r, zn::http::lastError()); break;

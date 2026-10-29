@@ -14,8 +14,9 @@ std::string fetchBody(int h);
 std::string fetchUrl(int h);    // after redirects
 void fetchFree(int h);
 
-// false when the port cannot be bound (or the certificate is bad: lastError()); a second call replaces the first listener. A PEM certificate chain and key make it an https server.
-bool serve(int port, const std::string& certPem = std::string(), const std::string& keyPem = std::string());
+// The port it listens on (port 0: a free one the system picks), 0 when the port cannot be bound (or the certificate is bad: lastError());
+// a second call replaces the first listener. A PEM certificate chain and key make it an https server.
+int serve(int port, const std::string& certPem = std::string(), const std::string& keyPem = std::string());
 const std::string& lastError();
 void reply(int conn, int status, const std::string& headers, const std::string& body);
 // The file at `path` as the body, sent in blocks; `range` is the request's Range header ('' for the whole file): one satisfiable byte

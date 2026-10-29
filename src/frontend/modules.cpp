@@ -679,23 +679,36 @@ export function fetch(url: string, init?: RequestInit): Promise<Response> {
   });
 }
 export interface TlsOptions { cert: string; key: string }
-/** serve(port, handler, { cert, key }) with a PEM certificate chain and a PEM private key is an https server. */
-export function serve(port: i32, handler: (req: Request) => Reply, tls?: TlsOptions): void {
+/** serve(port, handler, { cert, key }) with a PEM certificate chain and a PEM private key is an https server. Returns the port it
+ *  listens on: port 0 lets the system pick a free one. */
+export function serve(port: i32, handler: (req: Request) => Reply, tls?: TlsOptions): i32 {
   __netHook();
+  let bound: i32 = 0;
   if (tls !== undefined) {
     const t = tls as TlsOptions;
-    if (__host_httpServeTls(port, t.cert, t.key) === 0) throw new Error('net.serve: ' + __host_httpError());
-  } else if (__host_httpServe(port) === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
+    bound = __host_httpServeTls(port, t.cert, t.key);
+    if (bound === 0) throw new Error('net.serve: ' + __host_httpError());
+  } else {
+    bound = __host_httpServe(port);
+    if (bound === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
+  }
   __netHandler = handler;
+  return bound;
 }
 /** Like serve, for a handler that answers later: the reply is sent when the promise resolves (a rejection is a 500). */
-export function serveAsync(port: i32, handler: (req: Request) => Promise<Reply>, tls?: TlsOptions): void {
+export function serveAsync(port: i32, handler: (req: Request) => Promise<Reply>, tls?: TlsOptions): i32 {
   __netHook();
+  let bound: i32 = 0;
   if (tls !== undefined) {
     const t = tls as TlsOptions;
-    if (__host_httpServeTls(port, t.cert, t.key) === 0) throw new Error('net.serve: ' + __host_httpError());
-  } else if (__host_httpServe(port) === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
+    bound = __host_httpServeTls(port, t.cert, t.key);
+    if (bound === 0) throw new Error('net.serve: ' + __host_httpError());
+  } else {
+    bound = __host_httpServe(port);
+    if (bound === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
+  }
   __netAsyncHandler = handler;
+  return bound;
 }
 export function stop(): void { __host_httpStop(); __netHandler = null; __netAsyncHandler = null; }
 )ZN";

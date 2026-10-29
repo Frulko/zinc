@@ -150,10 +150,11 @@ declare module 'zinc:net' {
   /** file: the body is that file's bytes, read and sent in blocks (a song, a video, a picture of any size), with Accept-Ranges and one
    *  byte range when the request has a Range header (206, or 416 when it cannot be met); body is then ignored, a missing file is a 404. */
   export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string }
-  /** Minimal HTTP/1.1 server (server mode): the handler runs on the event loop. */
-  export function serve(port: i32, handler: (req: Request) => Reply, tls?: { cert: string; key: string }): void;
+  /** Minimal HTTP/1.1 server (server mode): the handler runs on the event loop. Returns the port it listens on: port 0 lets the
+   *  system pick a free one. */
+  export function serve(port: i32, handler: (req: Request) => Reply, tls?: { cert: string; key: string }): i32;
   /** Like serve, for a handler that answers later: the reply goes out when the promise resolves (a rejection is a 500). */
-  export function serveAsync(port: i32, handler: (req: Request) => Promise<Reply>, tls?: { cert: string; key: string }): void;
+  export function serveAsync(port: i32, handler: (req: Request) => Promise<Reply>, tls?: { cert: string; key: string }): i32;
   export function stop(): void;
 }
 

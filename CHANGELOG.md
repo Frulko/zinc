@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:net`: `serve` and `serveAsync` return the port they listen on; port 0 takes a free one.
 - `examples/ipod-web`: the page at `/` manages the iPod from any browser on the network: search and sort the songs, browse albums with their covers and playlists, play and download songs, and with `--allow-changes` add files by drag and drop, delete songs and eject; `GET /api/status` gives what its header shows.
 - iPod demo: "Connect to a remote iPod" on the Devices page (the address and token of an `examples/ipod-web` daemon, kept in `config.json` beside the logs) opens an iPod plugged into another computer like a local one, marked with a network sign in the sidebar: its albums with covers, songs and playlists, playing (each song is fetched once into a cache), add, delete and eject when the daemon allows changes (else its sentence is shown); backups, check, repair and Optimise stay for a plugged iPod. The songs page also deletes the selected songs, behind Allow changes.
 - `zinc:net`: a server's request has `remoteAddress`, the client's IPv4 address (`127.0.0.1` from the same machine).
