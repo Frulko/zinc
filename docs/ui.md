@@ -89,6 +89,11 @@ Long texts: Zinc strings are UTF-8, so indexing a non-ASCII string (`charCodeAt`
 work line by line and slice the visible rows once per frame, so scrolling a 5000-line file stays at the display rate;
 code that walks the value of a large field should do the same (`value.split('\n')`).
 
+## Line breaks in a text
+
+A newline in a `<Text>` starts a line, as in React Native: `{'Shopping\n- milk'}` shows two lines, wrapped each at the box's width (a
+note, an address, a log). Only `whitespace-nowrap` and `truncate` keep one line (`tests/t1/ui_text_newline.sh`).
+
 ## Styled runs inside one text
 
 `ui.setTextRuns(h, runs)` styles parts of a text node without splitting it: `runs` is `[length, style, color, ...]` over its text, in

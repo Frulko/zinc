@@ -261,6 +261,7 @@ static void wrapping() {   // the cases of wrapText, worked out by hand with 10 
   CHECK(wrap("aaaa bbbb cccc dddd eeee", 95, s) == (L{"aaaa bbbb", "cccc ddd\u2026"}));
   s = WrapStyle{0, 14}; s.whiteSpace = 1; s.ellipsis = true;
   CHECK(wrap("aaaa bbbb cccc", 75, s) == (L{"aaaa b\u2026"}));
+  CHECK(wrap("ab\ncd ef", 30) == (L{"ab", "cd", "ef"}) && wrap("ab\n\ncd", 100) == (L{"ab", "", "cd"}));   // a newline starts a line
   s = WrapStyle{0, 14}; s.whiteSpace = 2;
   CHECK(wrap("ab\ncd ef", 20, s) == (L{"ab", "cd ef"}));
   s.whiteSpace = 3;

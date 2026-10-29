@@ -2890,6 +2890,8 @@ function wrapRuns(n: UiNode, avail: number): void {
   while (i <= t.length) {
     let j = t.indexOf(' ', i);
     if (j < 0) j = t.length;
+    const nl = t.indexOf('\n', i), hard = nl >= 0 && nl < j;   // a newline ends the line
+    if (hard) j = nl;
     if (le > ls && runsWidth(n, ls, j) > avail) { runsLine(n, at, ls, le); ls = i; }
     if (n.brk === 1) while (j - ls > 1 && runsWidth(n, ls, j) > avail) {   // [ls, j) is one word here
       let k = j - 1;
@@ -2897,6 +2899,7 @@ function wrapRuns(n: UiNode, avail: number): void {
       runsLine(n, at, ls, k); ls = k;
     }
     le = j; i = j + 1;
+    if (hard) { runsLine(n, at, ls, le); ls = i; le = i; }
   }
   runsLine(n, at, ls, le);
   n.lineAt = at;
@@ -2973,9 +2976,9 @@ function wrapText(n: UiNode, maxW: number): void {
   if (runsOn(n)) { wrapRuns(n, avail); return; }
   const text = shownText(n);
   let lines: string[] = [];
-  if (n.ws === 0 && n.brk === 0 && n.clamp === 0 && !n.ellipsis && !n.balance) lines = wrapPara(n, f, tr, text, avail, 0);
+  if (n.ws === 0 && n.brk === 0 && n.clamp === 0 && !n.ellipsis && !n.balance && text.indexOf('\n') < 0) lines = wrapPara(n, f, tr, text, avail, 0);
   else {
-    const paras = n.ws >= 2 ? text.split('\n') : [text];
+    const paras = n.ws !== 1 ? text.split('\n') : [text];   // a newline starts a line in every mode but nowrap, as in a React Native <Text>
     const cut = n.clamp > 0 && !n.balance;   // a clamp without balance needs one line more than the clamp, no more
     for (const para of paras) {
       if (cut && lines.length > n.clamp) break;

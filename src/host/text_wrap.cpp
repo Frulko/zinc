@@ -87,9 +87,10 @@ void wrapLines(const TextMetric& metric, const WrapStyle& style, std::string_vie
   const WrapStyle& s = style;
   lines.clear();
   widths.clear();
-  if (s.whiteSpace == 0 && s.wordBreak == 0 && s.clamp == 0 && !s.ellipsis && !s.balance) lines = w.para(text, avail, 0);
+  if (s.whiteSpace == 0 && s.wordBreak == 0 && s.clamp == 0 && !s.ellipsis && !s.balance && text.find('\n') == std::string_view::npos) lines = w.para(text, avail, 0);
   else {
-    const std::vector<std::string_view> paras = s.whiteSpace >= 2 ? Wrapper::split(text, '\n') : std::vector<std::string_view>{text};
+    // a newline starts a line in every mode but nowrap, as in a React Native <Text>
+    const std::vector<std::string_view> paras = s.whiteSpace != 1 ? Wrapper::split(text, '\n') : std::vector<std::string_view>{text};
     const bool cut = s.clamp > 0 && !s.balance;   // a clamp without balance needs one line more than the clamp, no more
     for (std::string_view p : paras) {
       if (cut && static_cast<int>(lines.size()) > s.clamp) break;
