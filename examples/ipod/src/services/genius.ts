@@ -80,7 +80,8 @@ export function loadWeights(dir: string): Weights {
 export type ArtistGraph = Map<string, Map<string, number>>;
 
 // One JSON line per artist asked, appended as it comes (rewriting the whole file every few artists stalled the frames: 80 ms at 1000
-// artists); a later line of an artist replaces an earlier one. The first versions kept one JSON array, similar-artists.json: still read.
+// artists); a later line of an artist replaces an earlier one. The first versions kept one JSON array, similar-artists.json: moved
+// into the lines the first time it is read, then deleted.
 const SIMILAR_FILE = 'similar-artists.jsonl';
 const SIMILAR_OLD = 'similar-artists.json';
 const SIMILAR_TTL_S: number = 90 * 86400;
@@ -91,17 +92,29 @@ interface SimilarEntry { artist: string; at: number; similar: Similar[]; }
 
 function readSimilar(dir: string): SimilarEntry[] {
   const by = new Map<string, SimilarEntry>();
+  const file = `${dir}/${SIMILAR_FILE}`;
   try {
-    const old = `${dir}/${SIMILAR_OLD}`;
-    if (fs.exists(old)) { const list: SimilarEntry[] = JSON.parse(fs.readText(old)); for (const e of list) by.set(e.artist, e); }
-  } catch (e) { /* damaged: fetched again */ }
-  try {
-    const file = `${dir}/${SIMILAR_FILE}`;
     if (fs.exists(file)) for (const line of fs.readText(file).split('\n')) {
       if (line === '') continue;
       try { const e: SimilarEntry = JSON.parse(line); by.set(e.artist, e); } catch (e) { /* a line cut short by a crash: asked again */ }
     }
   } catch (e) { /* unreadable: fetched again */ }
+  // the first versions' file, one JSON array: its entries newer than the lines are appended once, then it is deleted
+  const old = `${dir}/${SIMILAR_OLD}`;
+  if (fs.exists(old)) {
+    let moved = true;
+    try {
+      const list: SimilarEntry[] = JSON.parse(fs.readText(old));
+      let add = '';
+      for (const e of list) {
+        const had = by.get(e.artist);
+        if (had !== undefined && (had as SimilarEntry).at >= e.at) continue;
+        by.set(e.artist, e); add += JSON.stringify(e) + '\n';
+      }
+      if (add !== '') { try { fs.appendText(file, add); } catch (e) { moved = false; } }   // not written: kept, read again next time
+    } catch (e) { /* damaged: fetched again */ }
+    if (moved) try { fs.remove(old); } catch (e) { /* read again next time */ }
+  }
   const out: SimilarEntry[] = [];
   by.forEach((e: SimilarEntry) => { out.push(e); });
   return out;

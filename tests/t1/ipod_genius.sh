@@ -30,7 +30,7 @@ refresh true true Alpha songs 7 spread true
 stopped after 2 0/13 1/13 2/13 
 fetched 11 again 0
 genius with similar artists AAAAAAALBBBLBBBBCCCCCCCCB spread true
-old file read true lines kept true true
+old file moved true true newer kept true gone true once true true
 ten 10 AAAAAAACCC
 mixes 3
 mix Alpha One, Alpha Two · Rock | 8 7 A spread true
