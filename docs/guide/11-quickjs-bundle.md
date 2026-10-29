@@ -64,8 +64,6 @@ when there is anything to fix.
 
 ## What QuickJS does not do here yet
 
-- Callbacks and promises from native plugin code (`Process.onEvent`, `System.onEvent`, `Gphoto2.detect`...): the programs that use them
-  stop with a clear message on QuickJS and run on the typed engines.
 - A few host modules the typed engine has (`zinc:osc` closing, `zinc:gl`'s `glCreate`), and the dev-mode Fast Refresh: `zinc dev` on QuickJS
   restarts the program at each save.
 - Dynamic `import()` is not followed by `zinc bundle` (the module is loaded at run time instead).
