@@ -57,6 +57,14 @@ async function awaited(on: boolean): Promise<i32> { const xs = on ? await names(
 // `return []` in an async function takes the array the promise holds, after an await and in a catch
 async function emptyAfter(): Promise<string[]> { await names(); return []; }
 async function emptyCaught(): Promise<string[]> { try { await names(); throw new Error('no'); } catch (e) { return []; } }
+// a setter assigned through a cast or a non-null assertion
+class Box { v: number = 0; get level(): number { return this.v; } set level(x: number) { this.v = x * 2; } }
+const box: Box | null = new Box();
+if (box !== null) (box as Box).level = 3;
+const boxAs = box as Box;
+console.log('setter', boxAs.level);
+box!.level = 4;
+console.log('setter', boxAs.level);
 // await in a nested ?:, and in a single-level one beside a number
 async function one(): Promise<i32> { return 1; }
 async function two(): Promise<i32> { return 2; }

@@ -2419,7 +2419,9 @@ struct Checker {
             const Member* setter = lookupMember(ty(ot).obj, "__set_" + std::string(n(target).text), false);
             const Member* plain = lookupMember(ty(ot).obj, n(target).text, false);
             if (setter && !(plain && !plain->method && !plain->getter)) {
-              if (!pureCallee(objNode)) { diag(kZUnsupported, i, "a property with a setter assigned through a computed object"); return tError; }
+              std::uint32_t path = objNode;   // (o as C).p = v and o!.p = v: the cast changes no value, the path under it is what counts
+              while (n(path).kind == N::As || n(path).kind == N::NonNull) path = n(path).kids[0];
+              if (!pureCallee(path)) { diag(kZUnsupported, i, "a property with a setter assigned through a computed object"); return tError; }
               std::vector<std::vector<std::uint32_t>> holes{{cloneNode(objNode, false)}, {value}};
               if (!replaceWith(i, "__H0.__set_" + std::string(n(target).text) + "(__H1)", holes)) return tError;
               return expr0(i, expected);
