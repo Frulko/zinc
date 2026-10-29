@@ -75,6 +75,8 @@ declare module 'zinc:fs' {
   export function readBytes(path: string): u8[];
   /** @throws when the file cannot be written */
   export function writeBytes(path: string, data: u8[]): void;
+  /** Adds the bytes at the end of the file, made when missing (a download written slice by slice). @throws when the file cannot be written */
+  export function appendBytes(path: string, data: u8[]): void;
   export interface Stat { size: f64; mtimeMs: f64; atimeMs: f64; ctimeMs: f64; mode: i32; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
   export interface DirEntry { name: string; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
   /** Errors read `CODE: op path` (ENOENT, EACCES, EEXIST, ENOTDIR, ENOTEMPTY...). @throws */

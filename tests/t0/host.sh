@@ -8,6 +8,8 @@ tools/pngdiff "$tmp/clock-20.png" corpus/ui/clock-20.png >/dev/null || { echo "f
 # Host modules (ZN-049): zinc:fs and zinc:storage over the host calls, in a scratch directory.
 (cd "$tmp" && ZINC_STORAGE="$tmp/store.kv" "$ZINC" run "$OLDPWD/tests/golden/host/modules.ts") >"$tmp/mod.out" 2>&1
 diff -q "$tmp/mod.out" tests/golden/host/modules.out >/dev/null || { echo "host modules output differs: $(head -c 200 "$tmp/mod.out")"; exit 1; }
+(cd "$tmp" && rm -f zn-host-*.bin && ZINC_STORAGE="$tmp/store2.kv" "$ZINC" run "$OLDPWD/tests/golden/host/modules.ts" --engine quickjs) 2>/dev/null | grep -v '^  \|^zinc run' >"$tmp/mod.out"
+diff -q "$tmp/mod.out" tests/golden/host/modules.out >/dev/null || { echo "host modules output differs on QuickJS: $(head -c 200 "$tmp/mod.out")"; exit 1; }
 # zinc:process (ZN-050): a shell command, merged output, exit code.
 "$ZINC" run tests/golden/host/process.ts 2>&1 | diff -q - tests/golden/host/process.out >/dev/null || { echo "zinc:process output differs"; exit 1; }
 # A child that writes without pause (`yes`) does not starve the loop: a timer still fires and stops it.

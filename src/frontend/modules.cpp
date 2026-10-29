@@ -364,6 +364,7 @@ export function readBytes(path: string): u8[] {
   return r;
 }
 export function writeBytes(path: string, data: u8[]): void { __host_fsWriteBytes(path, data); check(); }
+export function appendBytes(path: string, data: u8[]): void { __host_fsAppendBytes(path, data); check(); }
 export interface Stat { size: f64; mtimeMs: f64; atimeMs: f64; ctimeMs: f64; mode: i32; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
 export interface DirEntry { name: string; isFile: boolean; isDirectory: boolean; isSymlink: boolean }
 function statOf(path: string, link: boolean): Stat {

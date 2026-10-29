@@ -6,3 +6,7 @@ console.log(storage.get("k"), storage.keys().length);
 fs.writeText(dir + "/zn-host-modules.txt", "hello");
 fs.appendText(dir + "/zn-host-modules.txt", " world");
 console.log(fs.readText(dir + "/zn-host-modules.txt"), fs.exists(dir + "/zn-host-modules.txt"), fs.exists(dir + "/nope"));
+fs.writeBytes(dir + "/zn-host-bytes.bin", [1, 2]);
+fs.appendBytes(dir + "/zn-host-bytes.bin", [3, 255]);
+fs.appendBytes(dir + "/zn-host-new.bin", [7]);
+console.log(fs.readBytes(dir + "/zn-host-bytes.bin").join(","), fs.readBytes(dir + "/zn-host-new.bin").join(","));

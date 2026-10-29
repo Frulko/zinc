@@ -7,7 +7,7 @@
 //   tags       every column of /tracks (composer, grouping, disc, BPM, rating...) and the cover from /artwork/<hash>
 // Any other Subsonic server (Navidrome...) through /rest when /api/v1 is not there: the token is then "user:password" (or an
 // OpenSubsonic API key); getArtists, getArtist, getAlbum, getPlaylists, getPlaylist, search3, download (Range) or stream?format=aac,
-// getCoverArt. Files come in slices of SLICE bytes into <file>.part/: a download cut short goes on from the last slice.
+// getCoverArt. Files come in slices of SLICE bytes appended to <file>.part: a download cut short goes on from its end.
 // No UI here: src/jukeboxAdd.ts queues the job, src/pages/add/JukeboxSource.tsx browses.
 import * as net from 'zinc:net';
 import * as fs from 'zinc:fs';
@@ -297,53 +297,25 @@ export async function sources(s: Server, songs: Song[], note: (t: string) => voi
   return out;
 }
 
-function sliceName(n: i32): string { let s = `${n}`; while (s.length < 5) s = `0${s}`; return s; }
-
-/** The slices already in `dir`, in order. */
-function slicesIn(dir: string): string[] {
-  const out: string[] = [];
-  if (!fs.exists(dir)) return out;
-  for (const n of fs.list(dir)) if (n.length === 5) out.push(`${dir}/${n}`);
-  return out;
-}
-
-/** Writes the slices of `dir` as `file`, then removes them. */
-function assemble(dir: string, file: string): void {
-  const parts = slicesIn(dir);
-  if (parts.length === 1) fs.rename(parts[0], file);
-  else {
-    // ponytail: zinc:fs has no appendBytes (or a write at an offset): the slices are joined in memory, one song at a time
-    const all: u8[] = [];
-    for (const p of parts) { const b = fs.readBytes(p); for (let i = 0; i < b.length; i++) all.push(b[i]); }
-    fs.writeBytes(`${dir}/whole`, all);
-    fs.rename(`${dir}/whole`, file);
-  }
-  fs.remove(dir, true);
-}
-
-/** Fetches `src` to `file` (its folder made): in slices into <file>.part/ when the server answers Range, going on from the last
- *  slice of a download cut short; whole otherwise. `bytes(done, total)` after each slice. */
+/** Fetches `src` to `file` (its folder made): in slices appended to <file>.part when the server answers Range, going on from the
+ *  end of a download cut short; whole otherwise. `bytes(done, total)` after each slice. */
 export async function fetchTo(s: Server, src: Source, file: string, bytes: (done: number, total: number) => void): Promise<void> {
   fs.mkdir(file.slice(0, file.lastIndexOf('/')), true);
-  const dir = `${file}.part`;
   if (!src.resumable) {
     const r = await net.fetch(src.url, { headers: headers(s), timeoutMs: FILE_TIMEOUT_MS, maxBytes: FILE_MAX_BYTES });
     if (r.status !== 200) throw new Error(`${src.url.split('?')[0]} answered ${r.status}`);
     cache.writeWhole(file, await r.bytes());
     return;
   }
-  fs.mkdir(dir, true);
-  let have: number = 0;
-  for (const p of slicesIn(dir)) have += fs.stat(p).size;
-  let n = slicesIn(dir).length as i32;
+  const part = `${file}.part`;
+  let have: number = fs.exists(part) ? fs.stat(part).size : 0;
   for (;;) {
     const h = headers(s);
     h.set('Range', `bytes=${have}-${have + SLICE - 1}`);
     const r = await net.fetch(src.url, { headers: h, timeoutMs: FILE_TIMEOUT_MS, maxBytes: FILE_MAX_BYTES });
-    if (r.status === 416 && have > 0) break;   // every slice is there: only the joining was left
+    if (r.status === 416 && have > 0) break;   // every slice is there: only the rename was left
     if (r.status === 200) {   // the server sends the whole file whatever the Range: no resume
       const all = await r.bytes();
-      fs.remove(dir, true);
       cache.writeWhole(file, all);
       bytes(all.length, all.length);
       return;
@@ -352,13 +324,12 @@ export async function fetchTo(s: Server, src: Source, file: string, bytes: (done
     const b = await r.bytes();
     const range = r.headers.get('content-range');   // bytes a-b/total
     const total = parseFloat(range.slice(range.indexOf('/') + 1));
-    cache.writeWhole(`${dir}/${sliceName(n)}`, b);
-    n++;
+    fs.appendBytes(part, b);
     have += b.length;
     bytes(have, total);
     if (b.length === 0 || Number.isNaN(total) || have >= total) break;
   }
-  assemble(dir, file);
+  fs.rename(part, file);
 }
 
 // ---- add
