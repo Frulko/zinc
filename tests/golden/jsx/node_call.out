@@ -17,3 +17,15 @@ node 0
     text 3
   node 100
     text 7
+  node 1
+    dynTextOf prop
+  node 1
+    dynTextOf held
+  node 0
+    class flex-row
+    node 1
+      dynTextOf b
+  node 0
+    class flex-row
+    node 1
+      dynTextOf c

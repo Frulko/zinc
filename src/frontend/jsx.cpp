@@ -603,6 +603,7 @@ struct Lowering {
   bool jsxValue(std::size_t a, std::size_t b) {
     strip(a, b);
     if (jsxOnly(a, b)) return true;
+    if (nodeCallAt(a, b)) return true;   // `cond ? props.render(x) : <View/>`
     std::size_t q = 0, colon = 0;
     int depth = 0;
     scan(a, b, [&](std::size_t i, const std::string& x) {
@@ -640,6 +641,7 @@ struct Lowering {
         std::size_t y0 = x0, y1 = x1;
         strip(y0, y1);
         if (jsxOnly(x0, x1)) { dst = lower(*parseElem(y0)); return true; }
+        if (nodeCallAt(y0, y1)) { dst = rw(y0, y1); return true; }   // `cond ? chip('Skip') : null`: a call that makes a node
         Cond in;   // a nested conditional, c1 ? <A/> : c2 ? <B/> : <C/>: a fragment showing one of its branches
         if (y0 >= y1 || !conditional(y0, y1, in)) return false;
         dst = showNode(in);
@@ -655,6 +657,13 @@ struct Lowering {
       std::size_t y0 = lastAnd + 1, y1 = b;
       strip(y0, y1);
       out = {a, lastAnd, lower(*parseElem(y0)), "", false, false};
+      return true;
+    }
+    if (!hasQ && hasAnd && !other) {   // `cond && props.renderFooter()`
+      std::size_t y0 = lastAnd + 1, y1 = b;
+      strip(y0, y1);
+      if (!nodeCallAt(y0, y1)) return false;
+      out = {a, lastAnd, rw(y0, y1), "", false, false};
       return true;
     }
     return false;
@@ -682,16 +691,26 @@ struct Lowering {
     }
     return open > a ? open : 0;
   }
+  // [a, b) is a call of a function that makes a node: `Card(x)`, `props.renderItem(x)`, a function of this file that returns JSX
+  bool nodeCallAt(std::size_t a, std::size_t b) {
+    const std::size_t open = callParen(a, b);
+    return open && dotted(a, open) && nodeCall(calleeText(a, open));
+  }
+  bool dotted(std::size_t a, std::size_t b) const {   // `a.b.c` and nothing else over [a, b)
+    for (std::size_t k = a; k < b; ++k) if (!(t[k].kind == Tok::Ident || (isP(k, ".") && k > a))) return false;
+    return b > a;
+  }
   std::string calleeText(std::size_t a, std::size_t open) const { std::string r; for (std::size_t k = a; k < open; ++k) r += tx(k); return r; }
   static bool childrenCall(const std::string& callee) {
     std::size_t dot = callee.rfind('.');
     std::string last = dot == std::string::npos ? callee : callee.substr(dot + 1);
-    if (last == "children") return true;
+    if (last == "children" || last == "render") return true;   // `props.render(item)`: a render prop
     return last.size() > 6 && last.compare(0, 6, "render") == 0 && std::isupper(static_cast<unsigned char>(last[6]));
   }
   // The functions of this file that return JSX (components and helpers, `function f() { return <View .../>; }` or `const f = () => <View/>`):
   // a call of one as a child is a node to mount, not a number to print (ZN-689).
   std::set<std::string> jsxFns;
+  std::set<std::string> jsxVars;   // the variables of this file that hold an element (filled with jsxFns)
   bool jsxFnsRead = false;
   bool bodyReturnsJsx(std::size_t open, std::size_t close) {
     for (std::size_t k = open + 1; k < close; ++k) {
@@ -714,12 +733,18 @@ struct Lowering {
         while (q < t.size() && !isP(q, "{") && !isP(q, ";") && !isP(q, "=>")) ++q;   // past the return type
         if (isP(q, "{") && bodyReturnsJsx(q, match(q))) jsxFns.insert(tx(i + 1));
       } else if ((isK(i, "const") || isK(i, "let")) && t[i + 1].kind == Tok::Ident) {
-        std::size_t q = i + 2;
-        if (isP(q, ":")) { while (q < t.size() && !isP(q, "=") && !isP(q, ";")) { if (isP(q, "(") || isP(q, "[") || isP(q, "{")) q = match(q); ++q; } }
-        if (!isP(q, "=")) continue;
-        std::size_t end = q + 1;   // the end of the initializer: a `;` or a `,` outside brackets
-        while (end < t.size() && !isP(end, ";") && !isP(end, ",")) { if (isP(end, "(") || isP(end, "[") || isP(end, "{")) end = match(end); else if (jsxStart(end)) end = parseElem(end)->end - 1; ++end; }
-        if (returnsJsx(q + 1, end)) jsxFns.insert(tx(i + 1));
+        for (std::size_t d = i + 1; d < t.size() && t[d].kind == Tok::Ident;) {   // every declarator: `const a = 1, body = <View/>;`
+          std::size_t q = d + 1;
+          if (isP(q, ":")) { while (q < t.size() && !isP(q, "=") && !isP(q, ";") && !isP(q, ",")) { if (isP(q, "(") || isP(q, "[") || isP(q, "{")) q = match(q); ++q; } }
+          std::size_t end = q + 1;   // the end of the initializer: a `;` or a `,` outside brackets
+          if (isP(q, "=")) {
+            while (end < t.size() && !isP(end, ";") && !isP(end, ",")) { if (isP(end, "(") || isP(end, "[") || isP(end, "{")) end = match(end); else if (jsxStart(end)) end = parseElem(end)->end - 1; ++end; }
+            if (returnsJsx(q + 1, end)) jsxFns.insert(tx(d));
+            else if (jsxValue(q + 1, end)) jsxVars.insert(tx(d));   // a node held in a variable: `{body}` mounts it
+          } else end = q;
+          if (!isP(end, ",")) break;
+          d = end + 1;
+        }
       }
     }
     return jsxFns;
@@ -1125,6 +1150,7 @@ struct Lowering {
         std::size_t open = callParen(a, b);
         std::string callee = open ? calleeText(a, open) : "";
         if (open && nodeCall(callee)) { out.push_back("_append(" + parent + ", " + rw(a, b) + ");"); continue; }
+        if (b == a + 1 && t[a].kind == Tok::Ident && (jsxFunctions(), jsxVars.count(tx(a)))) { out.push_back("_append(" + parent + ", " + rw(a, b) + ");"); continue; }
         if (open && callee.size() > 4 && callee.compare(callee.size() - 4, 4, ".map") == 0 && returnsJsx(open + 1, b - 1)) {
           bool oneArg = true;
           scan(open + 1, b - 1, [&](std::size_t, const std::string& x) { if (x == ",") oneArg = false; });

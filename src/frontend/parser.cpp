@@ -1435,7 +1435,7 @@ struct Parser {
     expectP("{");
     while (!isP("}")) {
       if (isId("type") && at(1).kind == Tok::Ident && !isId("as", 1)) ++i;  // `import { a, type B }`: the specifier is type-only; types import like values
-      if (cur().kind != Tok::Ident) unexpected();
+      if (cur().kind != Tok::Ident && !(isKw("default") && isId("as", 1))) unexpected();   // `import { default as X }`
       std::uint32_t s0 = cur().start, ls = s0, le = cur().end;
       std::string_view name = txt(), local = name;
       ++i;
@@ -1488,11 +1488,11 @@ struct Parser {
         const bool typeSpec = isId("type") && at(1).kind == Tok::Ident && !isId("as", 1);  // `export { type B }`: the spec starts at `type`
         const std::uint32_t t0 = cur().start;
         if (typeSpec) ++i;
-        if (cur().kind != Tok::Ident) unexpected();
+        if (cur().kind != Tok::Ident && !isKw("default")) unexpected();   // `export { default } from './m'`, `export { a as default }`
         std::uint32_t s0 = cur().start, es = s0, ee = cur().end;
         std::string_view name = txt(), exported = name;
         ++i;
-        if (isId("as")) { ++i; if (cur().kind != Tok::Ident) unexpected(); es = cur().start; ee = cur().end; exported = txt(); ++i; }
+        if (isId("as")) { ++i; if (cur().kind != Tok::Ident && !isKw("default")) unexpected(); es = cur().start; ee = cur().end; exported = txt(); ++i; }
         std::uint32_t id = mk(N::Ident, es, ee, exported);
         specs.push_back(mk(N::ExportSpec, typeSpec ? t0 : s0, prevEnd(), name, {id}));
         if (typeSpec) r.ast.nodes[specs.back()].flags |= kFlagTypeOnly;
