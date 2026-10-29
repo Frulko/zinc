@@ -1,10 +1,12 @@
 // What shows while no iPod is open: the search for one (it looks again every few seconds), the iPods to pick from when there
-// are several, an iPod seen on USB but not mounted (what USB tells, and how to get it mounted), the opening, and errors.
+// are several, an iPod seen on USB but not mounted (what USB tells, and how to get it mounted), the opening, and errors; and the
+// connection to a remote iPod (an iPod daemon's address and token).
 import * as ui from 'zinc:ui';
 import * as ipod from 'zinc:ipod';
 import { Spinner } from 'zinc:ui/kit';
 import { Icon } from 'zinc:icons';
-import { pods, opening, error, rescan, scanning, openDevice, library } from '../../state';
+import { createSignal } from 'zinc:ui/solid';
+import { pods, opening, error, rescan, scanning, openDevice, library, remoteAddress, remoteToken, openRemoteDevice } from '../../state';
 import { PodDrawing } from '../../components/PodDrawing';
 import { Button } from '../../components/Button';
 import { mountPod, notice } from '../../actions';
@@ -41,6 +43,27 @@ function PodCard(props: { d: ipod.Device }): i32 {
   </View>;
 }
 
+/** An iPod daemon (examples/ipod-web, on a Raspberry Pi with the iPod on its USB port): its address and token, kept in the config. */
+function RemoteCard(): i32 {
+  const [address, setAddress] = createSignal<string>(remoteAddress());
+  const [token, setToken] = createSignal<string>(remoteToken());
+  const field = `h-[30] px-2.5 rounded-[7] border text-[13px] ${bg(CARD)} ${bd(BORDER)} ${fg(TEXT)}`;
+  return <View className={`flex-col gap-3 w-[460] p-5 rounded-[14] border ${bg(CARD)} ${bd(BORDER)}`}>
+    <View className="flex-row items-center gap-2">
+      <Icon name="wifi" size={16} color={() => color(ACCENT)} strokeWidth={2} />
+      <Text className={`text-[15px] font-semibold ${fg(TEXT)}`}>Connect to a remote iPod</Text>
+    </View>
+    <Text className={`text-[12px] ${fg(MUTED)}`}>An iPod plugged into another computer that runs the iPod daemon (zinc run examples/ipod-web).</Text>
+    <Input className={field} value={address()} onInput={(v: string) => setAddress(v)} placeholder="http://pi.local:8686" />
+    <Input className={field} value={token()} onInput={(v: string) => setToken(v)} placeholder="Token (the one the daemon printed)" />
+    <View className="flex-row items-center gap-2">
+      <Button icon="wifi" label={opening() !== '' && opening() === address().trim() ? 'Connecting…' : 'Connect'} accent={true}
+        onPress={() => { openRemoteDevice(address(), token()); }} />
+      <Text className={`grow basis-0 text-[11px] ${fg(FAINT)}`}>Read only unless the daemon was started with --allow-changes</Text>
+    </View>
+  </View>;
+}
+
 export function DevicesPage(): i32 {
   return <ScrollView className="grow">
     <View className="flex-col items-center gap-8 px-10 py-14">
@@ -66,6 +89,7 @@ export function DevicesPage(): i32 {
         <Icon name="refresh-cw" size={14} color={() => color(TEXT)} strokeWidth={2} />
         <Text className={`text-[13px] ${fg(TEXT)}`}>Rescan</Text>
       </View>
+      <RemoteCard />
     </View>
   </ScrollView>;
 }

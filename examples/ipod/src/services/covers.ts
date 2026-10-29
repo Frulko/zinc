@@ -1,8 +1,9 @@
-// Images read from the iPod (album covers through ipod.cover, photos through ipod.photoImage: runtime images), cached by key
+// Images read from the iPod (album covers through coverImage, from a remote iPod too, photos through ipod.photoImage: runtime images), cached by key
 // and size while something shows them. An image is read when its first viewer asks for it and freed (destroyImage) when its
 // last viewer is dropped, so a grid of 2,000 albums or photos holds only the images of the rows on screen.
 import * as ipod from 'zinc:ipod';
 import { destroyImage } from 'zinc:gfx';
+import { coverImage } from './ipod';
 
 class Cover {
   image: i32 = -1;
@@ -27,7 +28,7 @@ async function read(c: Cover, load: (size: i32) => Promise<i32>): Promise<void> 
 /** Calls `show` with the cover of the album `key` (read from the track `trackId` at about `size` px), now when it is cached,
  *  else once read; -1 when it has none. Pair each call with `releaseCover(key, size)`. */
 export function useCover(key: string, trackId: string, size: i32, show: (img: i32) => void): void {
-  useImage(key, size, (s: i32) => ipod.cover(trackId, s), show);
+  useImage(key, size, (s: i32) => coverImage(trackId, s), show);
 }
 
 /** The photo `id` at about `size` px, as useCover does; pair with `releaseCover('photo:' + id, size)`. */

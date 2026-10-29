@@ -9,11 +9,12 @@
 //
 //   zinc run examples/ipod
 //   IPOD_DEMO_MOUNT=/Volumes/MYPOD zinc run examples/ipod     show only the iPod mounted there
+//   IPOD_DEMO_REMOTE=http://pi.local:8686 IPOD_DEMO_REMOTE_TOKEN=T zinc run examples/ipod     connect to that iPod daemon at start
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import { on } from 'zinc:system';
-import { library, page, rescan, closeDevice } from './state';
+import { library, page, rescan, closeDevice, loadRemote, openRemoteDevice } from './state';
 import { addFiles } from './actions';
 import { PodLibrary } from './services/ipod';
 import { bg, fg, BACKGROUND, TEXT, CLEAR_COLOR, PAGE_ALBUMS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS,
@@ -80,5 +81,8 @@ sys.onSignal('SIGINT', () => { quit(); });
 sys.onSignal('SIGTERM', () => { quit(); });
 
 ui.setScheme('auto');
+loadRemote();
+const remoteAtStart = sys.env('IPOD_DEMO_REMOTE');
+if (remoteAtStart !== '') openRemoteDevice(remoteAtStart, sys.env('IPOD_DEMO_REMOTE_TOKEN'));
 rescan();
 render(App, CLEAR_COLOR, null);

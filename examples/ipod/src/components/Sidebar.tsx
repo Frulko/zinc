@@ -1,10 +1,11 @@
 // The sidebar, as Music and the Finder show a device: the iPod open (name, model, how full, and its eject button) and the Allow changes switch, its
 // library's pages, the pages that manage it (add, backups, optimise, transfers with what runs, logs), the other iPods plugged in (one seen
-// over USB only can be mounted), and Rescan at the bottom. Everything above Rescan scrolls when the window is short.
+// over USB only can be mounted), the remote iPod (an iPod daemon's, with a network mark and an x that disconnects it), and Rescan at the bottom. Everything above Rescan scrolls when the window is short.
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
-import { library, page, showPage, pods, openDevice, opening, rescan, scanning, albums, countOf, photoCount, playlists } from '../state';
+import { library, page, showPage, pods, openDevice, opening, rescan, scanning, albums, countOf, photoCount, playlists, remoteAddress, remoteToken,
+  openRemoteDevice, disconnectRemote } from '../state';
 import { PodLibrary } from '../services/ipod';
 import { bg, bd, fg, color, SIDEBAR, BORDER, HOVER, SELECTED, TEXT, MUTED, FAINT, ACCENT, TRACK, SIDEBAR_WIDTH,
   PAGE_OVERVIEW, PAGE_ALBUMS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS, PAGE_FILES, PAGE_SPECS,
@@ -41,6 +42,21 @@ function DeviceRow(props: { d: ipod.Device }): i32 {
   </View>;
 }
 
+/** The remote iPod set in the config: a network mark, its iPod's name once open (else the address), and an x that disconnects it. */
+function RemoteRow(): i32 {
+  const shown = (): boolean => { const l = library(); return l !== null && (l as PodLibrary).remote !== ''; };
+  const label = (): string => { const l = library(); return shown() && (l as PodLibrary).device.name !== '' ? (l as PodLibrary).device.name : remoteAddress().replace('http://', ''); };
+  return <View className={`flex-row items-center h-[30] px-2.5 mx-2 gap-2.5 rounded-[6] cursor-pointer ${shown() ? bg(SELECTED) : `hover:${bg(HOVER)}`}`}
+    onPointerDown={(e: ui.PointerEvent) => { openRemoteDevice(remoteAddress(), remoteToken()); }}>
+    <Icon name="wifi" size={16} color={() => color(MUTED)} strokeWidth={2} />
+    <Text className={`grow text-[13px] ${fg(TEXT)}`} numberOfLines={1}>{label()}</Text>
+    {opening() === remoteAddress() ? <Text className={`text-[11px] ${fg(MUTED)}`}>opening</Text>
+      : <View className={`p-0.5 rounded-full hover:${bg(HOVER)}`} onPointerDown={(e: ui.PointerEvent) => { disconnectRemote(); }}>
+          <Icon name="x" size={13} color={() => color(FAINT)} strokeWidth={2} />
+        </View>}
+  </View>;
+}
+
 function OpenPod(props: { lib: PodLibrary }): i32 {
   const d = props.lib.device;
   const used = d.totalBytes > 0 ? (d.totalBytes - d.freeBytes) / d.totalBytes : 0;
@@ -48,7 +64,11 @@ function OpenPod(props: { lib: PodLibrary }): i32 {
     <PodDrawing model={d.model} name={d.name} width={30} />
     <View className="grow flex-col gap-1 min-w-0">
       <Text className={`text-[14px] font-semibold ${fg(TEXT)}`} numberOfLines={1}>{d.name !== '' ? d.name : 'iPod'}</Text>
-      <Text className={`text-[11px] ${fg(MUTED)}`} numberOfLines={1}>{d.model}</Text>
+      {props.lib.remote !== '' ? <View className="flex-row items-center gap-1 min-w-0">
+          <Icon name="wifi" size={11} color={() => color(MUTED)} strokeWidth={2} />
+          <Text className={`grow text-[11px] ${fg(MUTED)}`} numberOfLines={1}>{d.model}</Text>
+        </View>
+        : <Text className={`text-[11px] ${fg(MUTED)}`} numberOfLines={1}>{d.model}</Text>}
       <View className={`h-[4] rounded-full overflow-hidden ${bg(TRACK)}`}>
         <View className={`h-full ${bg(ACCENT)}`} style={{ widthPercent: Math.max(0.01, used) }} />
       </View>
@@ -105,6 +125,7 @@ export function Sidebar(): i32 {
     <View className="flex-col pb-2">
       {pods().length === 0 ? <Text className={`text-[12px] px-4 ${fg(MUTED)}`}>No iPod plugged in</Text> : <View />}
       {pods().map((d: ipod.Device) => <DeviceRow d={d} />)}
+      {remoteAddress() !== '' ? <RemoteRow /> : <View />}
     </View>
     </View>
     <View className={`flex-row items-center h-[30] px-2.5 mx-2 mb-3 gap-2.5 rounded-[6] cursor-pointer hover:${bg(HOVER)}`}

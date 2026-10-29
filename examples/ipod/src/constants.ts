@@ -75,6 +75,9 @@ export const ADD_KIND_NAMES: string[] = ['Music', 'Podcast', 'Audiobook', 'Video
 /** What zinc:ipod can copy (a folder's other files are left out; a file picked by hand is tried and refused with its reason). */
 export const MEDIA_EXTENSIONS: string[] = ['mp3', 'm4a', 'aac', 'm4b', 'm4p', 'wav', 'aif', 'aiff', 'mp4', 'm4v', 'mov'];
 
+/** Why backups, check, repair and Optimise are greyed for a remote iPod. */
+export const REMOTE_LOCAL_ONLY = 'only for an iPod plugged into this computer: the iPod daemon does not offer it yet';
+
 /** The kinds of media (Track.mediaType) each page of tracks lists. */
 export function kindsOf(page: string): string[] {
   if (page === PAGE_PODCASTS) return ['podcast'];

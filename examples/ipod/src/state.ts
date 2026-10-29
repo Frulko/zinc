@@ -4,7 +4,8 @@
 // the scan.
 import { createSignal, createMemo, batch } from 'zinc:ui/solid';
 import * as ipod from 'zinc:ipod';
-import { findPods, openPod, closePod, forgetPod, PodLibrary } from './services/ipod';
+import { findPods, openPod, openRemote, closePod, forgetPod, PodLibrary } from './services/ipod';
+import { loadConfig, saveConfig } from './services/config';
 import { cancelWaiting } from './services/transfers';
 import { log } from './services/log';
 import { dropCovers } from './services/covers';
@@ -189,7 +190,7 @@ export async function rescan(manual: boolean = false): Promise<void> {
     const mounted: ipod.Device[] = [];
     for (const d of found) if (d.connection === 'disk') mounted.push(d);
     const lib = library();
-    if (lib !== null) {
+    if (lib !== null && (lib as PodLibrary).remote === '') {   // a remote iPod is not on this computer's list
       const mp = (lib as PodLibrary).device.mountpoint;
       let still = false;
       for (const d of mounted) still = still || d.mountpoint === mp;
@@ -233,6 +234,60 @@ export async function openDevice(mountpoint: string): Promise<void> {
     log(`Open ${mountpoint}`, (e as Error).message, false);
   }
   setOpening('');
+}
+
+// ---- a remote iPod (an iPod daemon, examples/ipod-web): its address and token, kept in the config
+
+/** The remote iPod's address ('' = none set) and token, as the config keeps them (loadRemote reads them at start). */
+export const [remoteAddress, setRemoteAddress] = createSignal<string>('');
+export const [remoteToken, setRemoteToken] = createSignal<string>('');
+
+export function loadRemote(): void {
+  const c = loadConfig();
+  batch(() => { setRemoteAddress(c.remoteAddress); setRemoteToken(c.remoteToken); });
+}
+
+function keepRemote(address: string, token: string): void {
+  const c = loadConfig();
+  c.remoteAddress = address; c.remoteToken = token;
+  saveConfig(c);
+  batch(() => { setRemoteAddress(address); setRemoteToken(token); });
+}
+
+/** Connects to the iPod daemon at `address` with `token`, keeps them in the config and shows its iPod's overview. */
+export async function openRemoteDevice(address: string, token: string): Promise<void> {
+  const at = address.trim();
+  if (at === '') { setError('Give the address of the iPod daemon, as http://pi.local:8686'); return; }
+  const lib = library();
+  if (lib !== null && (lib as PodLibrary).remote !== '' && remoteAddress() === at) { showPage(PAGE_OVERVIEW); return; }
+  batch(() => { setOpening(at); setError(''); });
+  keepRemote(at, token.trim());
+  try {
+    stopPlaying();
+    dropCovers();
+    setLibrary(null);
+    const opened = await openRemote(at, token);
+    batch(() => { setLibrary(opened); setError(''); setPlaylistShown(''); setPhotoAlbumShown(''); setExtraShown(''); showPage(PAGE_OVERVIEW); });
+    log(`Opened ${opened.device.name !== '' ? opened.device.name : 'the iPod'} (remote)`, `${opened.remote}: ${opened.tracks.length} tracks, ${opened.playlists.length} playlists`, true);
+  } catch (e) {
+    setError(`Could not open the remote iPod at ${at}: ${(e as Error).message}`);
+    log(`Open ${at}`, (e as Error).message, false);
+  }
+  setOpening('');
+}
+
+/** Closes the remote iPod if it is open and forgets its address (the config too). */
+export async function disconnectRemote(): Promise<void> {
+  const lib = library(), at = remoteAddress();
+  if (lib !== null && (lib as PodLibrary).remote !== '') {
+    stopPlaying();
+    cancelWaiting();
+    dropCovers();
+    setLibrary(null);
+    await closePod();
+  }
+  keepRemote('', '');
+  log('Disconnect the remote iPod', at, true);
 }
 
 /** Closes the open iPod (before the app quits). */

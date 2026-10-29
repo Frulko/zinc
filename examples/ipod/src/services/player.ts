@@ -1,9 +1,11 @@
-// Plays the tracks of the open iPod (zinc:audio's Music: each file is read from the iPod as it plays, never copied): a queue (the
+// Plays the tracks of the open iPod (zinc:audio's Music: each file is read from the iPod as it plays, never copied; a remote iPod's
+// file is first fetched into a cache, services/remote.ts): a queue (the
 // list a track was double-clicked in), play and pause, previous and next, a position the bar shows and seeks in. Read only: playing
 // changes nothing on the iPod (no play count is written).
 import { createSignal, batch } from 'zinc:ui/solid';
 import { openMusic, Music } from 'zinc:audio';
 import * as ipod from 'zinc:ipod';
+import { PodLibrary, playableFile } from './ipod';
 
 export const [current, setCurrent] = createSignal<ipod.Track | null>(null);
 export const [isPlaying, setIsPlaying] = createSignal<boolean>(false);
@@ -17,7 +19,8 @@ const RESTART_AFTER = 3;  // seconds: previous() past this restarts the track, a
 let queue: ipod.Track[] = [];
 let at: i32 = -1;
 let music: Music | null = null;
-let mount = '';
+let pod: PodLibrary | null = null;
+let loads: i32 = 0;   // counts the tracks asked for: a fetch that ends after another was asked is dropped
 let timer: i32 = -1;
 
 function tick(): void {
@@ -31,22 +34,28 @@ function tick(): void {
 function startTicking(): void { if (timer < 0) timer = setInterval(tick, TICK_MS); }
 function stopTicking(): void { if (timer >= 0) clearInterval(timer); timer = -1; }
 
-function load(i: i32): void {
+async function load(i: i32): Promise<void> {
   if (music !== null) (music as Music).close();
   music = null;
-  if (i < 0 || i >= queue.length) { stop(); return; }
+  if (i < 0 || i >= queue.length || pod === null) { stop(); return; }
   at = i;
   const t = queue[i];
-  const m = openMusic(`${mount}/${t.path}`);
+  const asked = ++loads;
+  let file = '';
+  batch(() => { setCurrent(t); setPosition(0); setLength(t.durationMs / 1000); setIsPlaying(false); setPlayError(''); });
+  try { file = await playableFile(pod as PodLibrary, t); }   // a remote iPod's track is fetched first
+  catch (e) { if (asked === loads) setPlayError((e as Error).message); return; }
+  if (asked !== loads) return;   // another track was asked for meanwhile
+  const m = openMusic(file);
   music = m;
   m.play();   // starts once the file is open
   batch(() => { setCurrent(t); setPosition(0); setLength(t.durationMs / 1000); setIsPlaying(true); setPlayError(''); });
   startTicking();
 }
 
-/** Plays `list[i]`, then the tracks after it; `mountpoint` is the iPod's (the tracks' paths are relative to it). */
-export function playList(mountpoint: string, list: ipod.Track[], i: i32): void {
-  mount = mountpoint;
+/** Plays `list[i]`, then the tracks after it, from the iPod `lib`. */
+export function playList(lib: PodLibrary, list: ipod.Track[], i: i32): void {
+  pod = lib;
   queue = list.slice();
   load(i);
 }
@@ -76,6 +85,7 @@ export function seek(seconds: number): void {
 
 /** Stops and forgets the queue (the iPod was closed or another one opened). */
 export function stop(): void {
+  loads++;   // a fetch under way plays nothing
   stopTicking();
   if (music !== null) (music as Music).close();
   music = null;

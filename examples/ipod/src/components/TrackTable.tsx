@@ -47,7 +47,7 @@ export function TrackTable(props: { tracks: () => ipod.Track[]; numbered: boolea
       {(i: i32) => <View className={`flex-row items-center px-6 gap-4 ${isSelected(at(i)) ? bg(SELECTED) : `hover:${bg(HOVER)} ${i % 2 === 1 ? bg(STRIPE) : ''}`}`} style={{ height: ROW_HEIGHT }}
         onPointerDown={(e: ui.PointerEvent) => {
           if (at(i).id === '') return;
-          if (e.clicks === 2) playList((library() as PodLibrary).device.mountpoint, list(), i);
+          if (e.clicks === 2) playList(library() as PodLibrary, list(), i);
           else selectRow(list(), i, e.meta || e.ctrl, e.shift);
         }}>
         {nowOn(at(i))

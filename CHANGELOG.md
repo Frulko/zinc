@@ -10,6 +10,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - `examples/ipod-web`: the page at `/` manages the iPod from any browser on the network: search and sort the songs, browse albums with their covers and playlists, play and download songs, and with `--allow-changes` add files by drag and drop, delete songs and eject; `GET /api/status` gives what its header shows.
+- iPod demo: "Connect to a remote iPod" on the Devices page (the address and token of an `examples/ipod-web` daemon, kept in `config.json` beside the logs) opens an iPod plugged into another computer like a local one, marked with a network sign in the sidebar: its albums with covers, songs and playlists, playing (each song is fetched once into a cache), add, delete and eject when the daemon allows changes (else its sentence is shown); backups, check, repair and Optimise stay for a plugged iPod. The songs page also deletes the selected songs, behind Allow changes.
 - `zinc:net`: a server's request has `remoteAddress`, the client's IPv4 address (`127.0.0.1` from the same machine).
 - `await` in a branch of `?:` (`const png = id === '' ? '' : await cover(id)`), and an async function can `return` a promise without awaiting it (it settles as that promise does), as in TypeScript; an `await` inside a larger expression of a branch still asks for a `const` first.
 - `zinc:net`: a reply can send a file (`file: path` in the `Reply`), in blocks and with byte ranges (`Range` gives a 206, a range past the end a 416), so a server streams songs and videos that players can seek; `serveAsync` is declared for TypeScript.
@@ -125,8 +126,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
-- A function expression that uses variables of the function around it, passed where a slightly different function type is expected (a `sort` comparator declared `: i32`), no longer stops the compile with "invalid IR".
 - `zinc:net`: `fetch` with `bodyBytes` sends the bytes as they are; bytes 0x80 and above were turned into U+FFFD, so an uploaded song or picture arrived damaged.
+- A function expression that uses variables of the function around it, passed where a slightly different function type is expected (a `sort` comparator declared `: i32`), no longer stops the compile with "invalid IR".
 - `zinc:net` servers and fetches work on QuickJS (`--engine quickjs`): its functions were missing there, and a program that only listened ended at once.
 - reMarkable: Sidecar no longer blackens the corners and borders of a light window or picture inside a dark area (black steps, a black bar), no longer draws dashes and dotted bands along the borders of dark areas, keeps dark buttons and bars as they are, dithers a screenshot posted in a dark chat as a picture, and draws thin lines solid in every grey pattern instead of dotted. A tune saved by an older Sidecar switches to "Pictures only" greys.
 - `zinc:ipod`: `detect()` no longer opens the iPods over USB at every scan: it reads the system's USB list, so nothing is sent to an iPod while it is mounted, being ejected or ejected ("OK to disconnect"). An iPod not mounted shows the model its disk gave earlier in the session, else "iPod".

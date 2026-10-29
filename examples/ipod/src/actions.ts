@@ -7,13 +7,13 @@ import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import * as dialog from 'zinc:system/dialog';
 import { library, setLibrary, allowChanges, rescan, page, showPage } from './state';
-import { PodLibrary, readLibrary, closePod } from './services/ipod';
+import { PodLibrary, readLibrary, downloadTracks, addTracks, removeTracks, ejectOpen } from './services/ipod';
 import { enqueue, runningJob, Job, JobLine } from './services/transfers';
 import { log } from './services/log';
 import { stop as stopPlaying } from './services/player';
 import { dropCovers } from './services/covers';
 import { count, bytes } from './format';
-import { ADD_KINDS, MEDIA_EXTENSIONS, PAGE_ADD } from './constants';
+import { ADD_KINDS, MEDIA_EXTENSIONS, PAGE_ADD, REMOTE_LOCAL_ONLY } from './constants';
 
 /** The download folder chosen with the picker ('' = the default, downloadFolder()). */
 export const [downloadDir, setDownloadDir] = createSignal<string>('');
@@ -57,6 +57,16 @@ export async function chooseDownloadDir(): Promise<void> {
   if (picked !== null && (picked as string[]).length > 0) setDownloadDir((picked as string[])[0]);
 }
 
+/** True while the iPod open is a remote one (an iPod daemon's). */
+export function remoteOpen(): boolean { const l = lib(); return l !== null && (l as PodLibrary).remote !== ''; }
+
+/** False (and a notice) for what only an iPod plugged into this computer can do (backups, check, repair, optimise). */
+export function localOnly(what: string): boolean {
+  if (!remoteOpen()) return true;
+  setNotice(`${what}: ${REMOTE_LOCAL_ONLY}`);
+  return false;
+}
+
 /** False (and a notice) while Allow changes is off. */
 export function allowed(what: string): boolean {
   if (allowChanges()) return true;
@@ -84,11 +94,9 @@ export async function refresh(): Promise<void> {
 /** Queues the copy of `tracks` to the download folder. */
 export function download(label: string, tracks: ipod.Track[]): void {
   if (lib() === null || tracks.length === 0) return;
-  const ids: string[] = [];
-  for (const t of tracks) ids.push(t.id);
   const dir = downloadFolder();
   enqueue('download', `Download ${label}`, async (): Promise<string> => {
-    const res = await ipod.download(ids, dir);
+    const res = await downloadTracks(tracks, dir);
     let copied = 0, skipped = 0, total = 0;
     const errors: string[] = [];
     const out: JobLine[] = [];
@@ -146,7 +154,7 @@ export function addFiles(paths: string[]): void {
   const items: ipod.TrackInput[] = [];
   for (const f of files) items.push({ file: f, mediaType: kind });
   enqueue('add', `Add ${count(files.length, 'file', 'files')}${playlist !== '' ? ` to “${playlist}”` : ''}`, async (): Promise<string> => {
-    const res = await ipod.addWith(items, playlist);
+    const res = await addTracks(items, playlist);
     setAddResults(res);
     let added = 0;
     for (const r of res) if (r.error === '') added++;
@@ -190,7 +198,7 @@ export async function refreshBackups(): Promise<void> {
 
 /** Copies the database (and with `music` the music, only what is new) to the computer: reads the iPod only. */
 export function backupNow(music: boolean): void {
-  if (lib() === null) return;
+  if (lib() === null || !localOnly('Back up')) return;
   enqueue('backup', `Back up ${podName()}${music ? ' with its music' : ''}`, async (): Promise<string> => {
     const folder = await ipod.backup('', music);
     await refreshBackups();
@@ -200,7 +208,7 @@ export function backupNow(music: boolean): void {
 
 export async function restore(b: ipod.Backup): Promise<void> {
   const l = lib();
-  if (l === null || !allowed('Restore a backup')) return;
+  if (l === null || !localOnly('Restore a backup') || !allowed('Restore a backup')) return;
   const mp = (l as PodLibrary).device.mountpoint;
   if (!(await confirm(`Restore ${podName()} from this backup?`, `The iPod's database is replaced by the one of ${b.folder} (${count(b.tracks, 'track', 'tracks')}). What is on the iPod now is backed up first.`, 'Restore'))) { log('Restore a backup', 'cancelled', true); return; }
   stopPlaying();
@@ -225,7 +233,7 @@ export async function deleteBackup(b: ipod.Backup): Promise<void> {
 // ---- health, mount, eject
 
 export function checkPod(): void {
-  if (lib() === null) return;
+  if (lib() === null || !localOnly('Check')) return;
   enqueue('check', `Check ${podName()}`, async (): Promise<string> => {
     const c = await ipod.check();
     setHealth(c);
@@ -234,7 +242,7 @@ export function checkPod(): void {
 }
 
 export async function repairPod(): Promise<void> {
-  if (lib() === null || !allowed('Repair the iPod')) return;
+  if (lib() === null || !localOnly('Repair') || !allowed('Repair the iPod')) return;
   if (!(await confirm(`Repair ${podName()}?`, 'Tracks whose file is gone are removed and files no track uses are deleted. The database is backed up first.', 'Repair'))) { log('Repair the iPod', 'cancelled', true); return; }
   stopPlaying();
   enqueue('repair', `Repair ${podName()}`, async (): Promise<string> => {
@@ -258,14 +266,37 @@ export async function ejectPod(): Promise<void> {
   const name = podName(), mp = (l as PodLibrary).device.mountpoint;
   if (runningJob() !== null) { setNotice('A transfer is running: wait for it, or cancel the ones waiting, then eject'); return; }
   stopPlaying();
+  if ((l as PodLibrary).remote !== '') {   // the daemon ejects it, or refuses with its sentence and the iPod stays open
+    try { await ejectOpen(mp); }
+    catch (e) { setNotice((e as Error).message); log(`Eject ${name}`, (e as Error).message, false); return; }
+    dropCovers();
+    batch(() => { setLibrary(null); setHealth(null); });
+    log(`Eject ${name}`, `${(l as PodLibrary).remote} ejected it: it can be unplugged from there`, true);
+    return;
+  }
   dropCovers();
   batch(() => { setLibrary(null); setHealth(null); });
   try {
-    await closePod();
-    await ipod.eject(mp);
+    await ejectOpen(mp);
     log(`Eject ${name}`, `${mp} ejected: it can be unplugged`, true);
   } catch (e) {
     log(`Eject ${name}`, (e as Error).message, false);
   }
   rescan(true);
+}
+
+/** Removes the tracks and their files from the iPod, after a question (Allow changes); the library is read again. */
+export async function deleteTracks(label: string, tracks: ipod.Track[]): Promise<void> {
+  if (lib() === null || tracks.length === 0 || !allowed('Delete from the iPod')) return;
+  if (!(await confirm(`Delete ${label} from ${podName()}?`, `${count(tracks.length, 'track is', 'tracks are')} removed from the iPod with ${tracks.length === 1 ? 'its file' : 'their files'}.`, 'Delete'))) { log('Delete from the iPod', 'cancelled', true); return; }
+  const ids: string[] = [];
+  for (const t of tracks) ids.push(t.id);
+  stopPlaying();
+  setNotice('');
+  enqueue('delete', `Delete ${label}`, async (): Promise<string> => {
+    try { await removeTracks(ids); }
+    catch (e) { setNotice((e as Error).message); throw e; }   // the daemon's sentence (read only) on the page too
+    await refresh();
+    return `${count(ids.length, 'track', 'tracks')} removed`;
+  });
 }

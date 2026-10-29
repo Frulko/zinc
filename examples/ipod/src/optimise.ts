@@ -8,7 +8,7 @@ import { library } from './state';
 import { PodLibrary } from './services/ipod';
 import { enqueue, runningJob, Job, JobLine } from './services/transfers';
 import { stop as stopPlaying } from './services/player';
-import { allowed, confirm, refresh, podName, setNotice } from './actions';
+import { allowed, confirm, refresh, podName, setNotice, localOnly } from './actions';
 import { bytes, count } from './format';
 
 /** One duplicate group as the page shows it: the copies (zinc:ipod's best first), whether it is ticked and the copy kept. */
@@ -59,7 +59,7 @@ export function songName(id: string, tracks: Map<string, ipod.Track>): string {
 
 /** Queues an analysis of the open iPod (it only reads it): fingerprints decoded for what changed since the last one. */
 export function analyse(): void {
-  if (library() === null) return;
+  if (library() === null || !localOnly('Analyse')) return;
   const pod = podKey();
   enqueue('analyse', `Analyse ${podName()}`, async (): Promise<string> => {
     const a = await ipod.analyze(true);
@@ -76,8 +76,8 @@ export function analyse(): void {
 /** Merges the ticked groups into their kept copies (after a question), as one job with one line per group; the library is read
  *  again and the merged groups leave the list. */
 export async function mergeTicked(): Promise<void> {
-  if (library() === null) return;
-  const rows = duplicates().filter((r: DuplicateRow) => r.ticked());
+  if (library() === null || !localOnly('Merge')) return;
+  const rows =duplicates().filter((r: DuplicateRow) => r.ticked());
   if (rows.length === 0) { setNotice('Tick the groups to merge first'); return; }
   if (!allowed('Merge duplicates')) return;
   const tracks = tracksById();

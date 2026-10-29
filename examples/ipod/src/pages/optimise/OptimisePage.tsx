@@ -7,11 +7,11 @@ import { Icon } from 'zinc:icons';
 import * as ipod from 'zinc:ipod';
 import { library, allowChanges } from '../../state';
 import { PodLibrary } from '../../services/ipod';
-import { notice } from '../../actions';
+import { notice, remoteOpen } from '../../actions';
 import { analysis, duplicates, analyse, mergeTicked, tracksById, songName, DuplicateRow } from '../../optimise';
 import { Button } from '../../components/Button';
 import { bytes, count, duration } from '../../format';
-import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ACCENT_SOFT, ERROR } from '../../constants';
+import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ACCENT_SOFT, ERROR, REMOTE_LOCAL_ONLY } from '../../constants';
 
 const REASONS: string[] = ['tags', 'Same tags', 'file', 'Same file', 'audio', 'Same sound'];
 function reasonLabel(r: string): string { for (let i = 0; i < REASONS.length; i += 2) if (REASONS[i] === r) return REASONS[i + 1]; return r; }
@@ -104,14 +104,16 @@ export function OptimisePage(): i32 {
           <Text className={`text-[26px] font-bold ${fg(TEXT)}`}>Optimise</Text>
           <Text className={`text-[13px] ${fg(MUTED)}`} numberOfLines={1}>Duplicates, missing covers and tags, files no track uses</Text>
         </View>
-        <Button icon="sparkles" label={a() === null ? 'Analyse' : 'Analyse again'} accent={a() === null} onPress={analyse} />
+        <Button icon="sparkles" label={a() === null ? 'Analyse' : 'Analyse again'} accent={a() === null && !remoteOpen()} disabled={remoteOpen()} onPress={analyse} />
         <Button icon="list-checks" label={`Merge selected (${ticked()})`} accent={a() !== null && ticked() > 0 && allowChanges()}
           disabled={a() === null || ticked() === 0 || !allowChanges()} onPress={() => { mergeTicked(); }} />
       </View>
       <View className="flex-col gap-2">
         <View className={`flex-row items-center gap-2.5 px-4 py-3 rounded-[10] border ${allowChanges() ? bd(ERROR) : bd(BORDER)}`}>
           <Icon name={allowChanges() ? 'lock-open' : 'lock'} size={16} color={() => color(allowChanges() ? ERROR : MUTED)} strokeWidth={2} />
-          <Text className={`grow basis-0 text-[12px] ${fg(TEXT)}`}>{allowChanges()
+          <Text className={`grow basis-0 text-[12px] ${fg(TEXT)}`}>{remoteOpen()
+            ? `A remote iPod: Optimise is ${REMOTE_LOCAL_ONLY}.`
+            : allowChanges()
             ? 'Changes are allowed: a merge removes the other copies and their files, after a backup of the database.'
             : 'Read only: analysing reads the iPod; merging needs Allow changes (in the sidebar).'}</Text>
         </View>
