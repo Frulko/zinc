@@ -2310,12 +2310,17 @@ struct Checker {
         std::vector<Fact> ft, ff;
         factsOf(x.kids[0], true, ft); factsOf(x.kids[0], false, ff);
         std::size_t mark = narrowing.size();
-        pushFacts(ft);
-        TypeId p = expr(x.kids[1], expected);
-        narrowing.resize(mark);
-        pushFacts(ff);
-        TypeId q = expr(x.kids[2], expected);
-        narrowing.resize(mark);
+        // `c ? xs : []`: an empty array literal in one branch takes the array type of the other (TypeScript's never[] joins to it)
+        auto emptyArr = [&](std::uint32_t k) { return n(k).kind == N::Array && n(k).kids.empty(); };
+        const int emptyAt = expected == kNoType && emptyArr(x.kids[1]) != emptyArr(x.kids[2]) ? (emptyArr(x.kids[1]) ? 1 : 2) : 0;
+        TypeId p = kNoType, q = kNoType;
+        if (emptyAt == 1) {
+          pushFacts(ff); q = expr(x.kids[2], expected); narrowing.resize(mark);
+          pushFacts(ft); p = expr(x.kids[1], !bad(q) && ty(q).k == TK::Array ? q : expected); narrowing.resize(mark);
+        } else {
+          pushFacts(ft); p = expr(x.kids[1], expected); narrowing.resize(mark);
+          pushFacts(ff); q = expr(x.kids[2], emptyAt == 2 && !bad(p) && ty(p).k == TK::Array ? p : expected); narrowing.resize(mark);
+        }
         if (bad(p)) return q;
         if (bad(q)) return p;
         if (expected != kNoType && ty(expected).k != TK::Any && assignable(p, expected, x.kids[1]) && assignable(q, expected, x.kids[2])) { convertDyn(p, expected, x.kids[1]); convertDyn(q, expected, x.kids[2]); return expected; }  // both branches fit the type asked for (c ? 1 : 0 into an i32)

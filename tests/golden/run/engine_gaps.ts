@@ -39,4 +39,11 @@ async function main(): Promise<void> {
   fail<void>('then').then(() => console.log('never')).catch((e: Error) => console.log('then-rej', e.message));
   await Promise.resolve(1).then((x: number) => console.log('then', x));
 }
+// an empty array literal in one branch of ?: takes the other branch's array type
+class Line { text: string; constructor(t: string) { this.text = t; } }
+function linesOf(on: boolean): Line[] { return on ? [new Line('a'), new Line('b')] : []; }
+let joined = '';
+for (const l of linesOf(true).length > 1 ? linesOf(true) : []) joined += l.text;
+const none = linesOf(false).length === 0 ? [] : linesOf(true);
+console.log(joined, none.length);
 main();
