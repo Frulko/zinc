@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Sidecar: "Add a screen" lists the screens on the same network (the iPad, iPhone, Android and Mac apps announce themselves), one click to add; the Sidecar app for iPadOS now runs on an iPhone too, and its waiting page says how to connect it.
 - Sidecar: an iPad, an Android device or another Mac used as a screen now drives the Mac: a finger (or the mouse) is the pointer, a tap a click, two quick taps a double click, two fingers scroll, and the Apple Pencil draws with its pressure and tilt. macOS asks once for the Accessibility permission.
 - iPod demo: Save to iPod works on an iPod opened through the iPod daemon: the Genius list or mix is saved as a playlist there (Allow changes, and the daemon started with `--allow-changes`; otherwise its refusal shows on the page). The daemon has a new route for it, `POST /api/playlist` with `{"name", "ids"}`.
 - iPod demo: a Genius list on the Playlists page says why each song was picked, in a Why column: often played with the seed, same artist, similar artist (Last.fm), sounds close (AudioMuse), or the same genre and decade.

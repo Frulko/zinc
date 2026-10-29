@@ -1,4 +1,4 @@
-# The iPad's Sidecar screen: app/sidecar/mac/receiver.swift (main.swift here) as an iPadOS app, reached on the USB cable through usbmux
+# The iPad's and iPhone's Sidecar screen: app/sidecar/mac/receiver.swift (main.swift here) as an iPadOS and iOS app, reached on the USB cable through usbmux
 # (sidecar-screen --host usb). build.sh generates the Xcode project from this file (xcodegen) and builds it.
 name: SidecarScreen
 options:
@@ -10,7 +10,7 @@ settings:
     HEADER_SEARCH_PATHS: ["$(SRCROOT)/../../../third_party/lz4", "$(SRCROOT)/../../../third_party/zstd"]
     GCC_PREPROCESSOR_DEFINITIONS: ["ZSTD_DISABLE_ASM=1", "ZSTD_MULTITHREAD=0"]
     GCC_WARN_INHIBIT_ALL_WARNINGS: YES
-    TARGETED_DEVICE_FAMILY: "2"
+    TARGETED_DEVICE_FAMILY: "1,2"
     CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "5.0"
 targets:
@@ -34,4 +34,6 @@ targets:
         UIStatusBarHidden: true
         UILaunchScreen: {}
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSBonjourServices: [_zinc-sidecar._tcp]
         NSLocalNetworkUsageDescription: The Mac sends its screen to Sidecar on the USB cable or the network.

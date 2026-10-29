@@ -69,8 +69,11 @@ func nativeSize() -> (Int, Int) {
 let (W, H) = size ?? nativeSize()
 // this device's name, as the Mac shows the screen in its Displays (the hello's +name:, percent-encoded: one word)
 #if os(macOS)
+let kindName = "Mac"
 let deviceName = (Host.current().localizedName ?? "Mac").addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "Mac"
 #else
+let kindName = UIDevice.current.model   // iPad, iPhone
+// ponytail: iOS 16 gives an app "iPad" here, not the name the owner chose (that takes an entitlement Apple grants on request)
 let deviceName = UIDevice.current.name.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "iPad"
 #endif
 func now_us() -> UInt32 { UInt32(truncatingIfNeeded: clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1000) }
@@ -411,7 +414,7 @@ final class Root: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .black; view.isMultipleTouchEnabled = true
         view.layer.addSublayer(picture)
-        waiting.text = "Sidecar\n\nPlug this iPad into the Mac with its cable,\nthen choose it in Sidecar on the Mac (iPad on USB)."
+        if waiting.text?.isEmpty ?? true { waiting.text = "Sidecar\n\nPlug this \(UIDevice.current.model) into the Mac with its cable, then choose it in Sidecar on the Mac (iPad or iPhone on the USB cable)." }
         waiting.numberOfLines = 0; waiting.textAlignment = .center; waiting.textColor = .lightGray; waiting.font = .systemFont(ofSize: 22)
         waiting.frame = view.bounds; waiting.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(waiting)
@@ -533,14 +536,28 @@ do {
     let local = "usb"
     #endif
     print("sidecar-receiver: \(W)x\(H), listening on port \(port): \(local), \(names.joined(separator: ", "))")
+    #if os(iOS)
+    let wifi = names.filter { $0.hasSuffix("(en0)") }.map { String($0.prefix { $0 != " " }) }
+    DispatchQueue.main.async {
+        waiting.text = "Sidecar\n\nPlug this \(UIDevice.current.model) into the Mac with its cable, then choose it in Sidecar on the Mac (iPad or iPhone on the USB cable)."
+            + (wifi.isEmpty ? "" : "\n\nOr on the same Wi-Fi: Sidecar on the Mac lists it under Add a screen (\(wifi.joined(separator: ", ")))")
+    }
+    #endif
     print("on the sending Mac: sidecar-screen --host \(local)\(port == 7710 ? "" : " --port \(port)") [--hidpi]")
 }
+// the screen on the network, for the Mac's "Add a screen" (Bonjour: _zinc-sidecar._tcp, the device's name)
+#if os(macOS)
+let bonjour = NetService(domain: "local.", type: "_zinc-sidecar._tcp.", name: Host.current().localizedName ?? "", port: Int32(port))
+#else
+let bonjour = NetService(domain: "local.", type: "_zinc-sidecar._tcp.", name: UIDevice.current.name, port: Int32(port))
+#endif
+bonjour.publish()
 
 func serve(_ c: Int32) {
     var one: Int32 = 1
     setsockopt(c, IPPROTO_TCP, TCP_NODELAY, &one, socklen_t(MemoryLayout<Int32>.size))
     setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
-    let hello = Array("RMPP \(W) \(H) Mac +lz4 +copy +zstd +sub +sink +rgb +h264 +name:\(deviceName)\n".utf8)
+    let hello = Array("RMPP \(W) \(H) \(kindName) +lz4 +copy +zstd +sub +sink +rgb +h264 +name:\(deviceName)\n".utf8)
     guard write(c, hello, hello.count) == hello.count else { return }
     wire.lock(); client = c; acked = 0; wire.unlock()
     sendHost()

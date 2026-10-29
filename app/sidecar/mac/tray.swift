@@ -444,13 +444,43 @@ struct OutputRow: View {
     }
 }
 
+/** The screens on the network (Bonjour, _zinc-sidecar._tcp: the iPad, iPhone, Android and Mac apps): their names and addresses. */
+final class Finder: NSObject, ObservableObject, NetServiceBrowserDelegate, NetServiceDelegate {
+    @Published var found = [(name: String, host: String)]()
+    private let browser = NetServiceBrowser()
+    private var resolving = [NetService]()
+    override init() { super.init(); browser.delegate = self; browser.searchForServices(ofType: "_zinc-sidecar._tcp.", inDomain: "local.") }
+    func netServiceBrowser(_ b: NetServiceBrowser, didFind s: NetService, moreComing: Bool) { s.delegate = self; resolving.append(s); s.resolve(withTimeout: 5) }
+    func netServiceBrowser(_ b: NetServiceBrowser, didRemove s: NetService, moreComing: Bool) { found.removeAll { $0.name == s.name } }
+    func netServiceDidResolveAddress(_ s: NetService) {
+        resolving.removeAll { $0 == s }
+        // its IPv4 address: Android names every device Android.local, and answers for it poorly
+        let v4 = (s.addresses ?? []).compactMap { d -> String? in d.withUnsafeBytes { p in
+            guard p.count >= MemoryLayout<sockaddr_in>.size, p.load(as: sockaddr.self).sa_family == sa_family_t(AF_INET) else { return nil }
+            var a = p.load(as: sockaddr_in.self).sin_addr, t = [CChar](repeating: 0, count: 16)
+            return inet_ntop(AF_INET, &a, &t, 16).map { _ in String(cString: t) }
+        } }.first
+        guard let h = v4 ?? s.hostName.map({ $0.hasSuffix(".") ? String($0.dropLast()) : $0 }), !found.contains(where: { $0.name == s.name }) else { return }
+        found.append((s.name, h))
+    }
+}
+let finder = Finder()
+
 struct AddScreen: View {
     @ObservedObject var e: Engine
     @Binding var adding: Bool
+    @ObservedObject private var near = finder
     @State private var name = ""
     @State private var host = ""
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            let fresh = near.found.filter { f in !e.screens.contains { $0.host == f.host } }
+            if !fresh.isEmpty {
+                Text("On the network").font(.caption.bold())
+                ForEach(fresh, id: \.host) { f in
+                    Button { e.add(name: f.name, host: f.host); adding = false } label: { Label(f.name, systemImage: "wifi") }
+                }
+            }
             Text("A screen running Sidecar Screen (app/sidecar-screen) shows its address.").font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button("iPad or iPhone on the USB cable") { e.add(name: "iPad", host: "usb"); adding = false }

@@ -100,5 +100,9 @@ native half (`android/jni/receiver.c`) decodes the RECTs with the vendored lz4 a
 (`+h264` when the device has an H.264 decoder) with MediaCodec straight into a second Surface over its place: on a Nexus 7, a whole
 screen in motion goes from 22 frames/s as tiles to 60 as video, a quarter of the CPU.
 
+The iPad, iPhone, Android and Mac screens announce themselves on the network (Bonjour, `_zinc-sidecar._tcp` on port 7710, the device's
+name): the tray's "Add a screen" lists them, and adds one by its IPv4 address. They also send their touches back (INPUT and SCROLL of
+`stream.h`): one finger or the mouse is the Mac's pointer, two fingers scroll, the Apple Pencil draws with its pressure and tilt.
+
 Each screen says its name in its hello (`+name:`, percent-encoded): the Mac's Displays show the screen as the device ("iPad de Guillaume",
 "Nexus 7"), not as Sidecar Screen.

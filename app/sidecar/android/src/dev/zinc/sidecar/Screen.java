@@ -7,6 +7,8 @@ import android.graphics.Color;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
+import android.net.nsd.NsdManager;
+import android.net.nsd.NsdServiceInfo;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -36,6 +38,14 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
     private SurfaceView video;   // the Mac's video (H.264, decoded by MediaCodec into it) over its place, GONE without one
 
     private TextView waiting;
+    private NsdManager nsd;
+    private final NsdManager.RegistrationListener registered = new NsdManager.RegistrationListener() {
+        public void onServiceRegistered(NsdServiceInfo s) {}
+        public void onRegistrationFailed(NsdServiceInfo s, int e) {}
+        public void onServiceUnregistered(NsdServiceInfo s) {}
+        public void onUnregistrationFailed(NsdServiceInfo s, int e) {}
+    };
+    @Override protected void onDestroy() { try { nsd.unregisterService(registered); } catch (Exception e) { /* never registered */ } super.onDestroy(); }
     private final Handler handler = new Handler();
 
     @Override protected void onCreate(Bundle b) {
@@ -57,11 +67,16 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
         root.addView(video, new FrameLayout.LayoutParams(1, 1, Gravity.TOP | Gravity.LEFT));
         self = this;
         waiting = new TextView(this);
-        waiting.setText("Sidecar\n\nPlug this device into the Mac with its USB cable (USB debugging on),\nthen choose it in Sidecar on the Mac (Android on USB).");
+        waiting.setText("Sidecar\n\nPlug this device into the Mac with its USB cable (USB debugging on),\nthen choose it in Sidecar on the Mac (Android on the USB cable).\n\nOr on the same Wi-Fi: Sidecar on the Mac lists it under Add a screen.");
         waiting.setTextColor(Color.LTGRAY); waiting.setTextSize(20); waiting.setGravity(Gravity.CENTER); waiting.setBackgroundColor(Color.BLACK);
         root.addView(waiting);
         setContentView(root);
         sound();   // its port listens before the picture's: a Mac that connects finds both
+        // on the network for the Mac's "Add a screen" (Bonjour: _zinc-sidecar._tcp, the device's name)
+        NsdServiceInfo si = new NsdServiceInfo();
+        si.setServiceName(deviceName()); si.setServiceType("_zinc-sidecar._tcp"); si.setPort(7710);
+        nsd = (NsdManager) getSystemService(NSD_SERVICE);
+        nsd.registerService(si, NsdManager.PROTOCOL_DNS_SD, registered);
         handler.post(new Runnable() { public void run() {
             waiting.setVisibility(connected() ? View.GONE : View.VISIBLE);
             handler.postDelayed(this, 500);
