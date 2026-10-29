@@ -179,6 +179,16 @@ export async function updateTracks(ids: string[], patch: ipod.TrackInput): Promi
   await ipod.save();
 }
 
+/** One patch for some tracks (updateMany). */
+export interface Change { ids: string[]; patch: ipod.TrackInput; }
+
+/** Writes each change (as updateTracks does), then saves the iPod once. A remote iPod's daemon saves each change itself. */
+export async function updateMany(changes: Change[]): Promise<void> {
+  if (isRemote()) { for (const c of changes) await updateTracks(c.ids, c.patch); return; }
+  for (const c of changes) for (const id of c.ids) await ipod.update(id, c.patch);
+  await ipod.save();
+}
+
 /** A new normal playlist `name` of the tracks `ids` in that order, saved on the iPod (a remote one through its daemon); its id. */
 export async function createPlaylistOf(name: string, ids: string[]): Promise<string> {
   if (isRemote()) return await remote.createPlaylist(name, ids);

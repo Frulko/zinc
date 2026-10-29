@@ -9,7 +9,7 @@ import { library, page, showPage, pods, openDevice, opening, rescan, scanning, a
 import { PodLibrary } from '../services/ipod';
 import { bg, bd, fg, color, SIDEBAR, BORDER, HOVER, SELECTED, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK, SIDEBAR_WIDTH,
   PAGE_OVERVIEW, PAGE_ALBUMS, PAGE_ARTISTS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS, PAGE_FILES, PAGE_SPECS,
-  PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS, PAGE_SETTINGS, PAGE_FOR_YOU, PAGE_DISCOVER } from '../constants';
+  PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS, PAGE_SETTINGS, PAGE_FOR_YOU, PAGE_DISCOVER, PAGE_REPAIR } from '../constants';
 import { PodDrawing } from './PodDrawing';
 import { AllowChanges } from './AllowChanges';
 import { pending, overallFraction, unseenFailed } from '../services/transfers';
@@ -120,6 +120,7 @@ export function Sidebar(): i32 {
       <Section label="Manage" />
       <NavRow icon="plus" label="Add to iPod" to={PAGE_ADD} count={-1} />
       <NavRow icon="archive" label="Backups" to={PAGE_BACKUPS} count={-1} />
+      <NavRow icon="wrench" label="Repair" to={PAGE_REPAIR} count={-1} />
       <NavRow icon="sparkles" label="Optimise" to={PAGE_OPTIMISE} count={-1} />
       <TransfersRow />
       <NavRow icon="scroll-text" label="Logs" to={PAGE_LOGS} count={-1} />

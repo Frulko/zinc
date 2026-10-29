@@ -1,11 +1,11 @@
 """A stand-in for the online services of examples/ipod's Discover, Repair and Lyrics (tests/t1/ipod_discover.sh, ipod_repair.sh,
-ipod_lyrics.sh): it never talks to the real ones. Each request is written as one JSON line to <dir>/requests.jsonl (path, query and
+ipod_lyrics.sh): it never talks to the real ones. Each request is written as one JSON line to <dir>/requests.jsonl (time, path, query and
 User-Agent). Usage: stub.py <dir> <port file>.
   /2.0/            Last.fm GET: artist.gettopalbums, artist.gettoptracks (Cassius), artist.getcorrection (any case of "daft punk")
   /ws/2/release    MusicBrainz release search (Moon Safari by Air) and /ws/2/release-group/<id>?inc=genres
   /release/<id>/front-500   the Cover Art Archive: a redirect to /img/<id>.png, a 64x64 PNG
   /api/get         LRCLIB: synced lyrics of "Sing Along" by Lyric Band, plain ones of "Plain Song", 404 otherwise"""
-import http.server, json, os, struct, sys, urllib.parse, zlib
+import http.server, json, os, struct, sys, time, urllib.parse, zlib
 
 d = sys.argv[1]
 KEY = 'apikey'
@@ -42,7 +42,7 @@ class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         p = dict(urllib.parse.parse_qsl(u.query, keep_blank_values=True))
-        log({'path': u.path, 'query': p, 'agent': self.headers.get('User-Agent', '')})
+        log({'t': time.time(), 'path': u.path, 'query': p, 'agent': ' | '.join(self.headers.get_all('User-Agent') or [])})
         if u.path.startswith('/2.0'):
             if p.get('api_key') != KEY:
                 return self.reply(403, {'error': 10, 'message': 'Invalid API key'})

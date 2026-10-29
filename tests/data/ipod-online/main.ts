@@ -21,7 +21,9 @@ async function main(): Promise<void> {
     await ipod.open(mp);
     const ts = await ipod.tracks();
     ts.sort((a: ipod.Track, b: ipod.Track) => a.title < b.title ? -1 : a.title > b.title ? 1 : a.id < b.id ? -1 : 1);
-    for (const t of ts) console.log(`${t.title} | ${t.artist} | ${t.albumArtist} | ${t.year} | ${t.genre} | ${t.artwork} | ${t.lyrics}`);
+    for (const t of ts) {
+      console.log(`${t.title} | ${t.artist} | ${t.albumArtist} | ${t.year} | ${t.genre} | ${t.artwork} | ${t.lyrics}`);
+    }
     await ipod.close();
     return;
   }

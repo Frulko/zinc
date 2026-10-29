@@ -39,5 +39,5 @@ app() {
     || { echo "$(basename "$0" .sh): the $1 session failed: $(tail -5 "$1.out")"; fail=1; }
 }
 hash_at() { awk -v f="$2" '$2 == "framehash" && $3 + 0 <= f + 0 { h = $5 } END { print h }' "$1.out"; }
-says() { python3 "$root/tools/scene-texts" "$tmp/$1-scene-$2" | grep -q "$3" || { echo "$(basename "$0" .sh): $1 frame $2 does not show \"$3\": $(python3 "$root/tools/scene-texts" "$tmp/$1-scene-$2" | head -40 | tr '\n' '|')"; fail=1; }; }
+says() { python3 "$root/tools/scene-texts" "$tmp/$1-scene-$2" 2>/dev/null | grep -q "$3" || { echo "$(basename "$0" .sh): $1 frame $2 does not show \"$3\": $(python3 "$root/tools/scene-texts" "$tmp/$1-scene-$2" | head -40 | tr '\n' '|')"; fail=1; }; }
 podread() { ONLINE_MODE=read timeout 120 "$Z" run "$root/tests/data/ipod-online/main.ts" 2>/dev/null; }

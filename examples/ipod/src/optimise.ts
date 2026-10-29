@@ -75,9 +75,11 @@ export function analyse(): void {
 
 /** Merges the ticked groups into their kept copies (after a question), as one job with one line per group; the library is read
  *  again and the merged groups leave the list. */
-export async function mergeTicked(): Promise<void> {
+export async function mergeTicked(): Promise<void> { await mergeRows(duplicates().filter((r: DuplicateRow) => r.ticked())); }
+
+/** Merges `rows` (also the Repair page's Merge and Fix all), as mergeTicked says. */
+export async function mergeRows(rows: DuplicateRow[]): Promise<void> {
   if (library() === null || !localOnly('Merge')) return;
-  const rows =duplicates().filter((r: DuplicateRow) => r.ticked());
   if (rows.length === 0) { setNotice('Tick the groups to merge first'); return; }
   if (!allowed('Merge duplicates')) return;
   const tracks = tracksById();
