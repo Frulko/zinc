@@ -88,6 +88,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Changed
 - Deterministic runs (`ZINC_DETERMINISTIC`, `zinc test`, `zinc capture`) wait for a plugin's background jobs (zinc:ipod's reads) at each turn of the loop, so their results show in the same frame on every run.
+- Promises are lighter: an async function, `then` or `catch` no longer allocates an array for the value nor three closures for the promise it returns. A loop of `await`s of an async function runs about 20% faster interpreted and 30% faster compiled.
 - Zinc Web on the reMarkable: thinner bars with icon buttons (finger-sized, black on white, inverted when active), and a First button that goes back to page 1 of the page.
 - reMarkable Hub: checking for updates (at start and with **Check for updates**) no longer blocks the Hub; its result, or "Server unreachable", shows in the status line.
 - reMarkable: a pinch or a two-finger pan uses the fast refresh while the fingers move, then one full refresh cleans the page when they lift.
@@ -104,7 +105,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `sys.onSignal` and `sys.kill` work under `--engine quickjs` (they stopped with "__host_sigWatch is not defined").
 - A named function passed to a built-in array method with no other use as a value (`songs.sort(byTitle)`) compiles instead of Z0005 "this function used as a value".
 - Native plugins: a record field named like a C++ keyword (`auto`, `new`, `delete`, `default`...) no longer breaks the generated header; it is `auto_` in C++.
-- A `Promise<T>` made by generic code with `T = void` (`fail<void>()`, `Promise.reject<void>(e)`) is a `Promise<void>`: it can be returned from a function that returns `Promise<void>`, awaited, and given `then` and `catch`.
+- A `Promise<T>` made by generic code with `T = void` (`fail<void>()`, `Promise.reject<void>(e)`) is a `Promise<void>`, the same one an async function returns: it settles at the same microtask as in JavaScript, and messages say `void` instead of an internal type.
+- `p.then(onFulfilled, onRejected)` takes the rejection handler (it was refused with Z0104): its result fulfils the new promise, an error in it rejects it.
+- `return new Promise(resolve => setTimeout(resolve, ms))` in a function returning `Promise<void>` takes `T` from the return type instead of stopping on Z0109; `resolve()` of a `Promise<void>` (and of `Promise.withResolvers<void>()`) needs no argument and can be passed where a `() => void` is wanted.
+- A function with fewer parameters can be passed where one with more is wanted (`p.then(done)` with `done: () => void`), as in TypeScript.
 - An object literal passed to a generic call takes its type from the type wanted there, as in TypeScript: `return Promise.resolve({ xs: [], size: 0 })` in a function returning `Promise<Picture>` no longer stops on Z0109 (empty array) or Z0103, and its number literals take the record's types.
 - Native plugins: a method that returns `Promise<void>` is accepted (it was refused with Z5011 "bad signature 'Pn'"); a plugin whose build fails is reported once instead of being rebuilt, and the index fetched, at every use; vendored C files find the headers of the plugin's `pkg` libraries.
 - Sidecar on a screen (a Pi) no longer shows half of a picture, torn in tiles: a picture is shown whole at the refresh after its last piece, and the Mac keeps one picture in flight when the link is slow.

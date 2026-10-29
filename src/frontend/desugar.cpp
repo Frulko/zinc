@@ -68,7 +68,7 @@ struct Desugar {
         std::string t;
         Holes h;
         if (!c.fins.empty()) {  // inside try...finally: the value is computed, the finally blocks run, then the function ends
-          std::string done = gen ? "__g.done = true;" : vp ? "__p.resolveWith();" : x.kids[0] == kNone ? "__p.resolveWith();" : "__p.resolveWith(__rv);";
+          std::string done = gen ? "__g.done = true;" : vp ? "__p.resolveVoid();" : x.kids[0] == kNone ? "__p.resolveWith();" : "__p.resolveWith(__rv);";
           std::string chain = done;
           for (const std::string& f : c.fins) chain = f + "((): void => { " + chain + " });";  // outermost wraps last, so the innermost runs first
           if (gen && x.kids[0] != kNone) unsupported(s, "'return' with a value in a generator");
@@ -79,8 +79,8 @@ struct Desugar {
         if (gen) {
           if (x.kids[0] != kNone) unsupported(s, "'return' with a value in a generator");
           t = "{ __g.done = true; return; }";
-        } else if (x.kids[0] == kNone) t = "{ " + std::string(vp ? "__p.resolveWith(); " : "") + "return; }";
-        else if (vp) { h = {{x.kids[0]}}; t = "{ __H0; __p.resolveWith(); return; }"; h[0] = {exprStmt(x.kids[0])}; }
+        } else if (x.kids[0] == kNone) t = "{ " + std::string(vp ? "__p.resolveVoid(); " : "") + "return; }";
+        else if (vp) { h = {{x.kids[0]}}; t = "{ __H0; __p.resolveVoid(); return; }"; h[0] = {exprStmt(x.kids[0])}; }
         else { h = {{x.kids[0]}}; t = "{ __p.resolveWith(__H0); return; }"; }
         Ids r = sn(t, h);
         return r.empty() ? s : r[0];
@@ -358,7 +358,7 @@ struct Desugar {
       }
       Holes h{{e}, {}, {}};
       std::string param = tmp, pre;
-      if (form == Ret) pre = vp ? "__p.resolveWith(); " : "__p.resolveWith(" + tmp + "); ";
+      if (form == Ret) pre = vp ? "__p.resolveVoid(); " : "__p.resolveWith(" + tmp + "); ";
       else {
         h[1] = S(rest, c, tail);
         if (form == Decl && !isLet) { param = name + (ann != kNone ? ": __H2" : ""); if (ann != kNone) h[2] = {ann}; }
@@ -432,18 +432,18 @@ struct Desugar {
     vp = false;
     Id t = kNone;
     if (ret == kNone || n(ret).kind != N::TypeRef) { unsupported(f, async ? "an async function without a Promise<T> return type" : "a generator without a Generator<T> return type"); return; }
-    if (async && n(ret).text == "PromiseV") vp = true;
-    else if (n(ret).text == (async ? "Promise" : "Generator") && n(ret).kids.size() == 1) t = n(ret).kids[0];
+    if (n(ret).text == (async ? "Promise" : "Generator") && n(ret).kids.size() == 1) t = n(ret).kids[0];
     else { unsupported(ret, async ? "return type of an async function other than Promise<T>" : "return type of a generator other than Generator<T>"); return; }
+    if (async && t != kNone && n(t).kind == N::TypeRef && n(t).text == "void") vp = true;   // Promise<void>: settled with no value
     Ids body = n(x.kids[1]).kids, nb;
     if (async) {
       Ctx c;
       c.rej = "__rej";
-      Ids code = S(body, c, vp ? "__p.resolveWith();" : "");
-      nb = sn(std::string("const __p = ") + (vp ? "__newPromiseV()" : "__newPromise<__H0>()") + ";\n" +
+      Ids code = S(body, c, vp ? "__p.resolveVoid();" : "");
+      nb = sn(std::string("const __p = __newPromise<__H0>();\n") +
               "const __rej = (__e: Error): void => { __p.rejectWith(__e); };\n" +
               "const __start = (): void => { try { __H1; } catch (__e0) { __rej(__e0); } };\n__start();\nreturn __p;",
-              {t == kNone ? Ids{} : Ids{t}, code});
+              {{t}, code});
     } else {
       Ids code = S(body, Ctx{}, "__g.done = true;");
       nb = sn("const __g = new Generator<__H0>();\n__g.cont = (): void => { __H1; };\nreturn __g;", {{t}, code});
@@ -455,11 +455,7 @@ struct Desugar {
     auto count = static_cast<Id>(a.nodes.size());
     for (Id i = 0; i < count; ++i) {  // the types and static calls first
       Node& x = n(i);
-      if (x.kind == N::TypeRef && x.text == "Promise" && x.kids.size() == 1 && n(x.kids[0]).kind == N::TypeRef && n(x.kids[0]).text == "void") { x.text = "PromiseV"; x.kids.clear(); }
-      else if (x.kind == N::New && n(x.kids[0]).kind == N::Ident && n(x.kids[0]).text == "Promise" && a.targs.count(i) && a.targs[i].size() == 1 && n(a.targs[i][0]).text == "void") {
-        n(x.kids[0]).text = "PromiseV";
-        a.targs.erase(i);
-      } else if (x.kind == N::Call && n(x.kids[0]).kind == N::Member && n(n(x.kids[0]).kids[0]).kind == N::Ident && n(n(x.kids[0]).kids[0]).text == "Promise") {
+      if (x.kind == N::Call && n(x.kids[0]).kind == N::Member && n(n(x.kids[0]).kids[0]).kind == N::Ident && n(n(x.kids[0]).kids[0]).text == "Promise") {
         Node& m = n(x.kids[0]);
         if (m.text == "all") { m.kind = N::Ident; m.text = "__all"; m.kids.clear(); }
         else if (m.text == "reject") { m.kind = N::Ident; m.text = "__rejectedP"; m.kids.clear(); }

@@ -52,6 +52,7 @@ std::string spoken(std::string s) {
     if ((p == 0 || !id(s[p - 1])) && (p + k.size() == s.size() || !id(s[p + k.size()]))) { s.replace(p, k.size(), "number"); p += 6; }
     else p += k.size();
   }
+  for (std::size_t p = s.find("__Void"); p != std::string::npos; p = s.find("__Void", p)) s.replace(p, 6, "void");   // what a generic class made with T = void holds (Promise<void>)
   return s;
 }
 
@@ -164,6 +165,9 @@ struct Checker {
     std::uint32_t f = a.nodes[node].file;
     for (const ModuleInfo& m : a.modules) if (m.file == f) return m.path.rfind("zinc:", 0) == 0 || m.path.find("/lib/std/") != std::string::npos || m.path.find("/plugins/") != std::string::npos;
     return false;
+  }
+  bool preludeNode(std::uint32_t node) const {   // the prelude's own code (__promiseVoid makes its promise with new Promise<void>)
+    return !a.prelude.empty() && a.nodes[node].file == a.nodes[a.prelude[0]].file;
   }
   std::uint32_t dynObj = kNone;  // the ObjInfo of class Dyn, once the prelude has been checked
   std::uint32_t dynObjOf() { if (dynObj == kNone) { std::uint32_t s = lookup("Dyn"); if (s != kNone && out.syms[s].kind == SymKind::Class) dynObj = ty(out.syms[s].type).obj; } return dynObj; }
@@ -309,7 +313,7 @@ struct Checker {
   bool require(TypeId from, TypeId to, std::uint32_t node) {
     if (assignable(from, to, node)) { if (node != kNone) convertDyn(from, to, node); return true; }
     if (arrayConversion(from, to, node)) return true;
-    if (node != kNone && !bad(from) && !bad(to) && name(from) == "NeverPromise" && promiseKind(to) == 1 && ty(to).k == TK::Object) {  // Promise.reject(e) without a type: a promise that only rejects fits any Promise<T>
+    if (node != kNone && !bad(from) && !bad(to) && name(from) == "NeverPromise" && promiseKind(to) != 0 && ty(to).k == TK::Object) {  // Promise.reject(e) without a type: a promise that only rejects fits any Promise<T>
       const ObjInfo& po = out.objs[ty(to).obj];
       if (po.typeArgs.size() != 1) { diag(kZNotAssignable, node, "diag.detail.assign", {{"from", name(from)}, {"to", name(to)}}); return false; }
       TypeId elemT = po.typeArgs[0];
@@ -318,12 +322,8 @@ struct Checker {
       wrapNode(node, sym);
       return true;
     }
-    if (node != kNone && !bad(from) && !bad(to) && name(from) == "NeverPromise" && promiseKind(to) == 2) {  // and Promise<void> (PromiseV)
-      std::uint32_t sym = helper("neverPromiseV", "function $F(p: NeverPromise): PromiseV {\n  const r = __newPromiseV();\n  p.handled = true;\n  const e = p.error;\n  if (e !== null) r.rejectWith(e);\n  return r;\n}\n", {from, to}, node);
-      wrapNode(node, sym);
-      return true;
-    }
-    if (node != kNone && !bad(from) && name(from) == "Promise<__Void>" && promiseKind(to) == 2) { asPromiseV(node, from); return true; }   // fail<void>(): generic code made it with T = void
+    if (from == tNull && isVoidClass(to)) return true;   // the value of a void (`resolve(undefined)` of a Promise<void>) is null
+    if (node != kNone && arityThunk(from, to, node)) return true;
     if (node != kNone && thunkable(from, to)) {
       const Type f = ty(from), t = ty(to);
       std::string ps, call;
@@ -649,13 +649,30 @@ struct Checker {
     out.nodeType[i] = t;
     return t;
   }
-  // A Promise<T> that generic code made with T = void (fail<void>(), Promise.reject<void>(e); a Promise<__Void>, see instantiateClass) where the program's
-  // Promise<void> is wanted (the class PromiseV of async functions): a promise of that class that settles when it does (one microtask later).
-  TypeId asPromiseV(std::uint32_t i, TypeId t) {
-    std::uint32_t sym = helper("promiseV," + std::to_string(t), "function $F(p: " + inspectAliasName(t) + "): PromiseV {\n  const r = __newPromiseV();\n  p.subscribe(new FnJob((): void => {\n    const e = p.error;\n    if (e !== null) r.rejectWith(e); else r.resolveWith();\n  }));\n  return r;\n}\n", {t}, i);
-    out.nodeType[i] = t;
-    wrapNode(i, sym);
-    return out.nodeType[i];
+  // The class __Void: what a generic class made with T = void holds in T's place (Promise<void>, see instantiateClass). Its only value is null.
+  bool isVoidClass(TypeId t) {
+    if (bad(t) || ty(t).k != TK::Object) return false;
+    if (voidClassType == kNoType) { std::uint32_t vs = lookup("__Void"); if (vs == kNone || out.syms[vs].kind != SymKind::Class) return false; voidClassType = out.syms[vs].type; }
+    return t == voidClassType;
+  }
+  TypeId voidClassType = kNoType;
+  // A function value with another number of parameters than the function type wanted, as TypeScript allows: fewer (`p.then(done)` with
+  // done: () => void, the extra arguments are dropped), or more that take a void (the `resolve` of a Promise<void>, (value: void) => void,
+  // in `setTimeout(resolve, ms)`: null is passed for them). Through a function that adapts the call.
+  bool arityThunk(TypeId from, TypeId to, std::uint32_t node) {
+    if (!bad(to) && hasNull(to) && withoutNull(to) != kNoType) to = withoutNull(to);   // `done: (() => void) | null = resolve`
+    if (bad(from) || bad(to) || ty(from).k != TK::Func || ty(to).k != TK::Func || hasParam(from) || hasParam(to)) return false;
+    const Type f = ty(from), t = ty(to);
+    if (f.variadic || t.variadic || f.rest || t.rest || f.params.size() == t.params.size() || f.elem != t.elem) return false;
+    for (std::size_t k = 0; k < f.params.size(); ++k)
+      if (k < t.params.size() ? f.params[k] != t.params[k] : !isVoidClass(f.params[k])) return false;
+    std::string ps, call;
+    std::vector<TypeId> aliases{from, to, t.elem};
+    for (std::size_t k = 0; k < t.params.size(); ++k) { ps += (k ? ", p" : "p") + std::to_string(k) + ": " + inspectAliasName(t.params[k]); aliases.push_back(t.params[k]); }
+    for (std::size_t k = 0; k < f.params.size(); ++k) call += (k ? ", " : "") + (k < t.params.size() ? "p" + std::to_string(k) : std::string("null"));
+    std::uint32_t sym = helper("arityThunk," + std::to_string(from) + "," + std::to_string(to), "function $F(f: " + inspectAliasName(from) + "): " + inspectAliasName(to) + " {\n  return (" + ps + "): " + inspectAliasName(t.elem) + " => f(" + call + ");\n}\n", aliases, node);
+    wrapNode(node, sym);
+    return true;
   }
 
   // Arithmetic result kind, ported from compiler/src/sema.ts `arith` (LNG-05), number type = f64.
@@ -1417,11 +1434,11 @@ struct Checker {
     return t;
   }
 
-  // 0: not a promise, 1: Promise<T>, 2: Promise<void>
+  // 0: not a promise, 1: Promise<T>, 2: Promise<void> (made with T = void, see instantiateClass)
   int promiseKind(TypeId t) {
     if (bad(t) || ty(t).k != TK::Object) return 0;
     std::string nm = name(t);
-    return nm == "PromiseV" ? 2 : nm.rfind("Promise<", 0) == 0 ? 1 : 0;
+    return nm == "Promise<__Void>" ? 2 : nm.rfind("Promise<", 0) == 0 ? 1 : 0;
   }
 
   // Replaces node `i` by the expression `text`, parsed with `holes` spliced in; false if it does not parse.
@@ -1749,13 +1766,12 @@ struct Checker {
     if (!isNew && n(x.kids[0]).kind == N::Member && (n(x.kids[0]).text == "then" || n(x.kids[0]).text == "catch" || n(x.kids[0]).text == "finally") && n(n(x.kids[0]).kids[0]).kind != N::Super) {
       // promise.then(f) and promise.catch(f) are calls of the prelude's helpers with the promise as first argument
       std::uint32_t obj = n(x.kids[0]).kids[0];
-      TypeId ot = expr(obj);
-      if (n(x.kids[0]).text != "then" && !bad(ot) && name(ot) == "Promise<__Void>" && lookup("PromiseV") != kNone) ot = asPromiseV(obj, ot);   // fail<void>().catch(e => {...}): a callback that returns nothing, as for a Promise<void>
-      int pk = promiseKind(ot);
+      int pk = promiseKind(expr(obj));
       if (pk != 0) {
         bool then = n(x.kids[0]).text == "then";
         bool fin = n(x.kids[0]).text == "finally";
-        a.nodes[i].kids[0] = newNode(N::Ident, fin ? (pk == 2 ? "__finallyV" : "__finally") : then ? (pk == 2 ? "__thenFromV" : "__then") : (pk == 2 ? "__catchV" : "__catch"), {}, x.kids[0]);
+        // then(f, g) takes a rejection handler; a Promise<void>'s catch takes a callback that returns nothing
+        a.nodes[i].kids[0] = newNode(N::Ident, fin ? "__finally" : then ? (x.kids.size() == 3 ? "__then2" : "__then") : (pk == 2 ? "__catchV" : "__catch"), {}, x.kids[0]);
         a.nodes[i].kids.insert(a.nodes[i].kids.begin() + 1, obj);
       }
     }
@@ -1778,6 +1794,12 @@ struct Checker {
         if (inst == kNone) { for (std::uint32_t an : argNodes) expr(an); return tError; }
         s = inst;
         ensureBuilt(ty(out.syms[inst].type).obj);  // its constructor type is needed to check the arguments
+      } else if (s != kNone && out.syms[s].kind == SymKind::GenericClass && newExpected != kNoType && !bad(newExpected) && ty(newExpected).k == TK::Object && out.objs[ty(newExpected).obj].genericSym == s && !out.objs[ty(newExpected).obj].isTemplate) {
+        // `return new Promise(resolve => setTimeout(resolve, ms))` in a function returning Promise<void>: the wanted type gives the type arguments, as in TypeScript
+        std::uint32_t inst = instantiateClass(s, std::vector<TypeId>(out.objs[ty(newExpected).obj].typeArgs), callee);
+        if (inst == kNone) { for (std::uint32_t an : argNodes) expr(an); return tError; }
+        s = inst;
+        ensureBuilt(ty(out.syms[inst].type).obj);
       } else if (s != kNone && out.syms[s].kind == SymKind::GenericClass) {
         for (std::uint32_t an : argNodes) expr(an);
         preEvaluated = true;
@@ -1793,6 +1815,8 @@ struct Checker {
         if (inst == kNone) return tError;
         s = inst;
       }
+      if (!preEvaluated && s != kNone && out.syms[s].kind == SymKind::Class && promiseKind(out.syms[s].type) == 2 && argNodes.size() == 1 && !preludeNode(i) && lookup("__promiseVoid") != kNone && replaceWith(i, "__promiseVoid(__H0)", {{argNodes[0]}}))
+        return expr0(i, kNoType);   // new Promise<void>(executor): its resolve is a () => void, as programs that pass it on expect
       if (c.kind == N::Ident && s == kNone && (c.text == "Map" || c.text == "Set")) return newCollection(i, c, argNodes);
       if (s == kNone || out.syms[s].kind != SymKind::Class) {
         if (c.kind == N::Ident && s == kNone) unknownName(callee, c.text);
@@ -1830,7 +1854,7 @@ struct Checker {
         }
       }
       const Node& cn = n(callee);
-      if (cn.kind == N::Ident && cn.text == "__await" && !argNodes.empty() && promiseKind(expr(argNodes[0])) == 2) a.nodes[callee].text = "__awaitV";
+      if (cn.kind == N::Ident && cn.text == "__await" && !argNodes.empty() && promiseKind(expr(argNodes[0])) == 2) a.nodes[callee].text = "__awaitV";   // await of a Promise<void>
       if (cn.kind == N::Ident && cn.text == "__rejectedP" && !a.targs.count(i) && (myExpected == kNoType || bad(myExpected) || promiseKind(myExpected) != 1)) a.nodes[callee].text = "__rejectedN";  // Promise.reject(e) with no type to give it: a promise that only rejects, which fits any Promise<T>
       std::uint32_t gs = cn.kind == N::Ident ? lookup(cn.text) : kNone;
       if (gs != kNone && out.syms[gs].kind == SymKind::GenericFunc) {
@@ -1854,9 +1878,9 @@ struct Checker {
         std::vector<TypeId> targs = typeArgsFor(gs, i, argNodes, out.syms[ts].type);
         genericExpected = kNoType;
         if (targs.empty()) return tError;
-        if ((cn.text == "__then" || cn.text == "__thenFromV") && targs.back() == tVoid) {  // the callback returns nothing: the helpers of a Promise<void> result
+        if ((cn.text == "__then" || cn.text == "__then2") && targs.back() == tVoid) {  // the callbacks return nothing: the helpers of a Promise<void> result
           targs.pop_back();
-          a.nodes[callee].text = cn.text == "__then" ? "__thenV" : "__thenVV";
+          a.nodes[callee].text = cn.text == "__then" ? "__thenV" : "__then2V";
           gs = lookup(cn.text);
         }
         std::uint32_t inst = out.syms[gs].kind == SymKind::GenericFunc ? instantiateFunc(gs, targs, callee) : gs;
@@ -1884,11 +1908,16 @@ struct Checker {
     const Type f = ty(ft);  // copy: expr() below may grow `types`
     if (f.rest && !packed) packRest(i, f.params.size() - 1, 1);
     std::size_t argc = x.kids.size() - 1;
+    if (argc < f.params.size() && !f.rest) {   // parameters that take a void may be left out at the end, as in TypeScript: resolve() of a Promise<void>
+      std::size_t k = argc;
+      while (k < f.params.size() && isVoidClass(f.params[k])) ++k;
+      if (k == f.params.size()) for (; argc < f.params.size(); ++argc) { std::uint32_t nul = newNode(N::Literal, "null", {}, i); a.nodes[i].kids.push_back(nul); }
+    }
     if (argc < f.minArgs || (!f.variadic && argc > f.params.size())) {
       diag(kZWrongArgCount, i, "diag.detail.argCount", {{"expected", std::to_string(f.minArgs) + (f.minArgs == f.params.size() ? "" : "-" + std::to_string(f.params.size()))}, {"got", std::to_string(argc)}});
     }
     for (std::size_t k = 0; k < argc; ++k) {
-      std::uint32_t arg = x.kids[k + 1];
+      std::uint32_t arg = n(i).kids[k + 1];
       if (n(arg).kind == N::Spread) { diag(kZUnsupported, arg, "spread arguments"); continue; }
       TypeId expected = k < f.params.size() ? f.params[k] : (f.variadic && !f.params.empty() ? f.params.back() : kNoType);
       if (!isNew && n(callee).kind == N::Member && (n(callee).text == "log" || n(callee).text == "error")) logArg = arg;
@@ -4194,8 +4223,8 @@ struct Checker {
     }
     const Type& at = ty(arg);
     if (pt.k == TK::Array && at.k == TK::Array) return unify(g, pt.elem, at.elem, bound, argNode);
-    if (pt.k == TK::Func && at.k == TK::Func && pt.params.size() == at.params.size()) {
-      for (std::size_t i = 0; i < pt.params.size(); ++i) if (!unify(g, pt.params[i], at.params[i], bound, argNode)) return false;
+    if (pt.k == TK::Func && at.k == TK::Func && pt.params.size() >= at.params.size()) {   // a function with fewer parameters fits (see arityThunk)
+      for (std::size_t i = 0; i < at.params.size(); ++i) if (!unify(g, pt.params[i], at.params[i], bound, argNode)) return false;
       return unify(g, pt.elem, at.elem, bound, argNode);
     }
     if (pt.k == TK::Object && at.k == TK::Object) {

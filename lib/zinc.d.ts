@@ -264,6 +264,7 @@ interface PromiseLike<T> {
 interface Promise<T> {
   then<U>(f: (v: T) => Promise<U>): Promise<U>;
   then<U>(f: (v: T) => U): Promise<U>;
+  then<U>(f: (v: T) => U, onRejected: (reason: Error) => U): Promise<U>;
   catch(f: (reason: Error) => Promise<T>): Promise<T>;
   catch(f: (reason: Error) => T): Promise<T>;
   finally(f: () => Promise<void>): Promise<T>;

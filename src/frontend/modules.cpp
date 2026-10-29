@@ -2821,48 +2821,42 @@ class PromiseBase {
     this.settle();
   }
 }
-class __Void { }   // what a generic class made with T = void holds in its place (Promise<T> of fail<void>()): nothing ever has this type
+class __Void { }   // what a generic class made with T = void holds in its place (Promise<void>): its only value is null, which a call may leave out (see the checker's voidArgs)
 class Promise<T> extends PromiseBase {
-  value: T[] = [];
-  constructor(executor: (resolve: (value: T) => void, reject: (e: Error) => void) => void) {
+  value!: T;   // set when it fulfils (state 1); a Promise<void> holds null, so no promise allocates more than itself
+  constructor(executor: ((resolve: (value: T) => void, reject: (e: Error) => void) => void) | null) {   // null: the prelude's own promises (__newPromise), settled by its helpers, make no closures
     super();
-    executor((v: T) => { this.resolveWith(v); }, (e: Error) => { this.rejectWith(e); });
+    if (executor !== null) executor((v: T) => { this.resolveWith(v); }, (e: Error) => { this.rejectWith(e); });
   }
   resolveWith(v: T): void {
     if (this.state !== 0) return;
     this.state = 1;
-    this.value = [v];
+    this.value = v;
     this.settle();
   }
-}
-
-class PromiseV extends PromiseBase {
-  constructor(executor: (resolve: () => void, reject: (e: Error) => void) => void) {
-    super();
-    executor(() => { this.resolveWith(); }, (e: Error) => { this.rejectWith(e); });
-  }
-  resolveWith(): void {
+  resolveVoid(): void {   // an async function that returns nothing (a Promise<void>: value stays null)
     if (this.state !== 0) return;
     this.state = 1;
     this.settle();
   }
 }
+
 class AwaitJob<T> extends Job {
   constructor(public p: Promise<T>, public k: (v: T) => void, public rej: (e: Error) => void) { super(); }
   run(): void {
     const err = this.p.error;
-    if (err !== null) this.rej(err); else this.k(this.p.value[0]);
+    if (err !== null) this.rej(err); else this.k(this.p.value);
   }
 }
 function __await<T>(p: Promise<T>, k: (v: T) => void, rej: (e: Error) => void): void { p.subscribe(new AwaitJob<T>(p, k, rej)); }
-class AwaitJobV extends Job {
-  constructor(public p: PromiseV, public k: (v: i32) => void, public rej: (e: Error) => void) { super(); }
+class AwaitJobV extends Job {   // await of a Promise<void>: the rest of the function takes no value (a plain number, the fastest to pass)
+  constructor(public p: Promise<void>, public k: (v: i32) => void, public rej: (e: Error) => void) { super(); }
   run(): void {
     const err = this.p.error;
     if (err !== null) this.rej(err); else this.k(0);
   }
 }
-function __awaitV(p: PromiseV, k: (v: i32) => void, rej: (e: Error) => void): void { p.subscribe(new AwaitJobV(p, k, rej)); }
+function __awaitV(p: Promise<void>, k: (v: i32) => void, rej: (e: Error) => void): void { p.subscribe(new AwaitJobV(p, k, rej)); }
 
 // Generators run as continuations: `cont` is the rest of the body, `next` runs it until it yields a value or ends.
 function __genToArray<T>(g: Generator<T>): T[] {
@@ -2902,16 +2896,21 @@ class Generator<T> {
     return this.value.length > 0;
   }
 }
-function __newPromise<T>(): Promise<T> { return new Promise<T>(r => { }); }
-function __newPromiseV(): PromiseV { return new PromiseV(r => { }); }
+function __newPromise<T>(): Promise<T> { return new Promise<T>(null); }
+// new Promise<void>(executor): its resolve is a () => void, as the TypeScript programs that pass it on expect (setTimeout(resolve, ms), done: () => void)
+function __promiseVoid(executor: (resolve: () => void, reject: (e: Error) => void) => void): Promise<void> {
+  const p = new Promise<void>(null);
+  executor(() => { p.resolveVoid(); }, (e: Error) => { p.rejectWith(e); });
+  return p;
+}
 
-// then: four flavours, by whether the promise and the callback result carry a value
+// then: by whether the callback returns a value, and whether a rejection handler is given (then(f, g): g's result fulfils the new promise too)
 class ThenJob<T, U> extends Job {
   constructor(public p: Promise<T>, public f: (v: T) => U, public r: Promise<U>) { super(); }
   run(): void {
     const err = this.p.error;
     if (err !== null) { this.r.rejectWith(err); return; }
-    try { this.r.resolveWith(this.f(this.p.value[0])); } catch (e) { this.r.rejectWith(e); }
+    try { this.r.resolveWith(this.f(this.p.value)); } catch (e) { this.r.rejectWith(e); }
   }
 }
 function __then<T, U>(p: Promise<T>, f: (v: T) => U): Promise<U> {
@@ -2920,42 +2919,41 @@ function __then<T, U>(p: Promise<T>, f: (v: T) => U): Promise<U> {
   return r;
 }
 class ThenJobV<T> extends Job {
-  constructor(public p: Promise<T>, public f: (v: T) => void, public r: PromiseV) { super(); }
+  constructor(public p: Promise<T>, public f: (v: T) => void, public r: Promise<void>) { super(); }
   run(): void {
     const err = this.p.error;
     if (err !== null) { this.r.rejectWith(err); return; }
-    try { this.f(this.p.value[0]); this.r.resolveWith(); } catch (e) { this.r.rejectWith(e); }
+    try { this.f(this.p.value); this.r.resolveWith(); } catch (e) { this.r.rejectWith(e); }
   }
 }
-function __thenV<T>(p: Promise<T>, f: (v: T) => void): PromiseV {
-  const r = __newPromiseV();
+function __thenV<T>(p: Promise<T>, f: (v: T) => void): Promise<void> {
+  const r = __newPromise<void>();
   p.subscribe(new ThenJobV<T>(p, f, r));
   return r;
 }
-class ThenJobFromV<U> extends Job {
-  constructor(public p: PromiseV, public f: () => U, public r: Promise<U>) { super(); }
+
+class Then2Job<T, U> extends Job {
+  constructor(public p: Promise<T>, public f: (v: T) => U, public g: (e: Error) => U, public r: Promise<U>) { super(); }
   run(): void {
     const err = this.p.error;
-    if (err !== null) { this.r.rejectWith(err); return; }
-    try { this.r.resolveWith(this.f()); } catch (e) { this.r.rejectWith(e); }
+    try { this.r.resolveWith(err !== null ? this.g(err) : this.f(this.p.value)); } catch (e) { this.r.rejectWith(e); }
   }
 }
-function __thenFromV<U>(p: PromiseV, f: () => U): Promise<U> {
+function __then2<T, U>(p: Promise<T>, f: (v: T) => U, g: (e: Error) => U): Promise<U> {
   const r = __newPromise<U>();
-  p.subscribe(new ThenJobFromV<U>(p, f, r));
+  p.subscribe(new Then2Job<T, U>(p, f, g, r));
   return r;
 }
-class ThenJobVV extends Job {
-  constructor(public p: PromiseV, public f: () => void, public r: PromiseV) { super(); }
+class Then2JobV<T> extends Job {
+  constructor(public p: Promise<T>, public f: (v: T) => void, public g: (e: Error) => void, public r: Promise<void>) { super(); }
   run(): void {
     const err = this.p.error;
-    if (err !== null) { this.r.rejectWith(err); return; }
-    try { this.f(); this.r.resolveWith(); } catch (e) { this.r.rejectWith(e); }
+    try { if (err !== null) this.g(err); else this.f(this.p.value); this.r.resolveWith(); } catch (e) { this.r.rejectWith(e); }
   }
 }
-function __thenVV(p: PromiseV, f: () => void): PromiseV {
-  const r = __newPromiseV();
-  p.subscribe(new ThenJobVV(p, f, r));
+function __then2V<T>(p: Promise<T>, f: (v: T) => void, g: (e: Error) => void): Promise<void> {
+  const r = __newPromise<void>();
+  p.subscribe(new Then2JobV<T>(p, f, g, r));
   return r;
 }
 
@@ -2964,7 +2962,7 @@ class CatchJob<T> extends Job {
   constructor(public p: Promise<T>, public f: (e: Error) => T, public r: Promise<T>) { super(); }
   run(): void {
     const err = this.p.error;
-    if (err === null) { this.r.resolveWith(this.p.value[0]); return; }
+    if (err === null) { this.r.resolveWith(this.p.value); return; }
     try { this.r.resolveWith(this.f(err)); } catch (e) { this.r.rejectWith(e); }
   }
 }
@@ -2974,15 +2972,15 @@ function __catch<T>(p: Promise<T>, f: (e: Error) => T): Promise<T> {
   return r;
 }
 class CatchJobV extends Job {
-  constructor(public p: PromiseV, public f: (e: Error) => void, public r: PromiseV) { super(); }
+  constructor(public p: Promise<void>, public f: (e: Error) => void, public r: Promise<void>) { super(); }
   run(): void {
     const err = this.p.error;
     if (err === null) { this.r.resolveWith(); return; }
     try { this.f(err); this.r.resolveWith(); } catch (e) { this.r.rejectWith(e); }
   }
 }
-function __catchV(p: PromiseV, f: (e: Error) => void): PromiseV {
-  const r = __newPromiseV();
+function __catchV(p: Promise<void>, f: (e: Error) => void): Promise<void> {
+  const r = __newPromise<void>();
   p.subscribe(new CatchJobV(p, f, r));
   return r;
 }
@@ -2997,29 +2995,12 @@ class FinallyJob<T> extends Job {
     }
     if (this.hops < 2) { this.hops++; __enqueue(this); return; }
     const err = this.p.error;
-    if (err !== null) this.r.rejectWith(err); else this.r.resolveWith(this.p.value[0]);
+    if (err !== null) this.r.rejectWith(err); else this.r.resolveWith(this.p.value);
   }
 }
 function __finally<T>(p: Promise<T>, f: () => void): Promise<T> {
   const r = __newPromise<T>();
   p.subscribe(new FinallyJob<T>(p, f, r));
-  return r;
-}
-class FinallyJobV extends Job {
-  hops: i32 = 0;
-  constructor(public p: PromiseV, public f: () => void, public r: PromiseV) { super(); }
-  run(): void {
-    if (this.hops === 0) {
-      try { this.f(); } catch (e) { this.r.rejectWith(e); return; }
-    }
-    if (this.hops < 2) { this.hops++; __enqueue(this); return; }
-    const err = this.p.error;
-    if (err !== null) this.r.rejectWith(err); else this.r.resolveWith();
-  }
-}
-function __finallyV(p: PromiseV, f: () => void): PromiseV {
-  const r = __newPromiseV();
-  p.subscribe(new FinallyJobV(p, f, r));
   return r;
 }
 
@@ -3028,8 +3009,8 @@ function __resolved<T>(v: T): Promise<T> {
   p.resolveWith(v);
   return p;
 }
-function __resolvedV(): PromiseV {
-  const p = __newPromiseV();
+function __resolvedV(): Promise<void> {
+  const p = __newPromise<void>();
   p.resolveWith();
   return p;
 }
@@ -3043,7 +3024,7 @@ class AllJob<T> extends Job {
     this.all.left--;
     if (this.all.left === 0) {
       const out: T[] = [];
-      for (const q of this.all.items) out.push(q.value[0]);
+      for (const q of this.all.items) out.push(q.value);
       this.all.result.resolveWith(out);
     }
   }
@@ -3072,7 +3053,7 @@ class RaceJob<T> extends Job {
   constructor(public p: Promise<T>, public r: Promise<T>) { super(); }
   run(): void {
     const err = this.p.error;
-    if (err !== null) this.r.rejectWith(err); else this.r.resolveWith(this.p.value[0]);
+    if (err !== null) this.r.rejectWith(err); else this.r.resolveWith(this.p.value);
   }
 }
 function __race<T>(ps: Promise<T>[]): Promise<T> {
@@ -3088,7 +3069,7 @@ class AnyJob<T> extends Job {
   constructor(public p: Promise<T>, public st: AnyState<T>) { super(); }
   run(): void {
     const err = this.p.error;
-    if (err === null) { this.st.result.resolveWith(this.p.value[0]); return; }
+    if (err === null) { this.st.result.resolveWith(this.p.value); return; }
     this.st.left--;
     if (this.st.left === 0) this.st.result.rejectWith(new Error('All promises were rejected'));
   }
@@ -3119,7 +3100,7 @@ class SettledJob<T> extends Job {
     for (const q of this.st.items) {
       const s = new Settled<T>();
       const err = q.error;
-      if (err !== null) { s.status = 'rejected'; s.reason = err; } else { s.status = 'fulfilled'; s.value = q.value[0]; }
+      if (err !== null) { s.status = 'rejected'; s.reason = err; } else { s.status = 'fulfilled'; s.value = q.value; }
       out.push(s);
     }
     this.st.result.resolveWith(out);

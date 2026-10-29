@@ -1,0 +1,26 @@
+run a
+run c
+a0
+b0
+a1
+b-caught generic
+b1
+c-then 1
+c-rej c
+cv-rej cv
+c-void-then
+box 1
+tick1
+a-catch a
+b2
+d-value 42
+e-rej e5
+f-rej rethrown f
+ok-void
+tick2
+a2
+now
+tick3
+resolvers
+d-end
+tick4
