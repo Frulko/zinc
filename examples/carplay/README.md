@@ -80,6 +80,12 @@ observations use current UTC. A short sample is `routes/paris.gpx`.
 
 For display settings, local theme design ideas and the limits of the experimental
 Ultra package, see the [CarPlay themes guide](../../docs/plugins/carplay-themes.md).
+With an active Ultra UI Sync session, **Adapter écran** measures the available
+video canvas and requests that size and aspect ratio from the iPhone. This
+restarts the CarPlay session; **Ultra 1920 × 720** restores the theme's native
+center display format. The projected cluster stays at 1920 × 720 in both modes.
+The iPhone may decline a size that differs from its theme asset; verify the
+decoded size shown in the player after reconnecting.
 The player’s **Appareils** panel shows live receiver status and exact paired
 identifiers; it can forget one record after confirmation.
 

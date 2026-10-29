@@ -12,6 +12,8 @@ object UltraTheme {
     const val displayHeightPixels = 720
     const val displayWidthMm = 311
     const val displayHeightMm = 117
+    fun physicalWidthMm(pixels: Int): Int = ((pixels.toLong() * displayWidthMm + displayWidthPixels / 2) / displayWidthPixels).toInt().coerceAtLeast(1)
+    fun physicalHeightMm(pixels: Int): Int = ((pixels.toLong() * displayHeightMm + displayHeightPixels / 2) / displayHeightPixels).toInt().coerceAtLeast(1)
     const val layoutId = "6C45CC47-EC01-527A-B40D-1316AA9C936F"
     const val paletteId = "custom"
     val activeComponents = mapOf(

@@ -8,6 +8,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class UltraThemeAdvertisementTest {
+    @Test fun physicalSizeScalesWithRequestedPixels() {
+        assertEquals(311, UltraTheme.physicalWidthMm(1920))
+        assertEquals(117, UltraTheme.physicalHeightMm(720))
+        assertEquals(207, UltraTheme.physicalWidthMm(1280))
+        assertEquals(96, UltraTheme.physicalHeightMm(592))
+    }
     @Test fun themeIdentityAndPanelNamesAgreeOnBothTransports() {
         val base = Iap2IdentificationConfig("PlayPort", "playport", "Zinc", "serial", "1.0", "1.0", 3,
             themeAssetIdentifier = "44C9FA31EC")

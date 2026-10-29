@@ -71,11 +71,12 @@ async function transport(): Promise<void> {
   const debugCommands: string[] = [];
   const inspectorCommands: string[] = [];
   const radioCommands: string[] = [];
+  const displayCommands: string[] = [];
   const server = await serveWebSocket(0, (ws: WebSocket, req: UpgradeRequest) => {
     if (req.path === '/denied') { ws.close(1008, 'invalid token'); return; }
     peer = ws; connections++;
     check(req.path === '/ws?token=test', 'backend authentication URL');
-    ws.onmessage = (e: MessageEvent) => { if (e.binary) { microphone.push(e.bytes[0]); return; } if (e.data.includes('"type":"knob"') || e.data.includes('"type":"siri"')) keys.push(e.data); if (e.data.includes('"type":"touch"')) reports.push(e.data); if (e.data.includes('"type":"night"')) modes.push(e.data); if (e.data.includes('"type":"debugGps"')) debugCommands.push(e.data); if (e.data.includes('"type":"iap2')) inspectorCommands.push(e.data); if (e.data.includes('"type":"ultraRadio"')) radioCommands.push(e.data); };
+    ws.onmessage = (e: MessageEvent) => { if (e.binary) { microphone.push(e.bytes[0]); return; } if (e.data.includes('"type":"knob"') || e.data.includes('"type":"siri"')) keys.push(e.data); if (e.data.includes('"type":"touch"')) reports.push(e.data); if (e.data.includes('"type":"night"')) modes.push(e.data); if (e.data.includes('"type":"debugGps"')) debugCommands.push(e.data); if (e.data.includes('"type":"iap2')) inspectorCommands.push(e.data); if (e.data.includes('"type":"ultraRadio"')) radioCommands.push(e.data); if (e.data.includes('"type":"displaySize"')) displayCommands.push(e.data); };
     ws.send('{"type":"ultraStatus","ultra":{"phoneOffersVehicleState":true,"phoneOffersUiSync":true,"vehicleStateEnabled":true,"uiSyncEnabled":true}}');
     ws.send('{"type":"debug","hud":{"active":true,"instruction":"Rejoignez l’itinéraire","stale":false,"artworkId":9,"road":"École","distance":2,"remaining":2300,"maneuver":3,"distanceKnown":true,"remainingKnown":true,"destination":"Bureau","source":"Apple Maps","routePackets":1,"mediaPackets":1,"title":"Bad Dreams","artist":"Artiste"}}');
     ws.send('{"type":"iap2Status","iap2":{"connected":true,"tracing":false,"subscriptions":[20480],"catalog":[{"id":20480,"name":"StartNowPlayingUpdates","feature":"Now Playing","direction":"TX","schema":"","samplePayload":"","declared":true,"tx":1,"rx":0,"sensitive":false}]}}');
@@ -93,6 +94,9 @@ async function transport(): Promise<void> {
   check(!client.setUltraRadio('unknown') && client.setUltraRadio('fip'), 'validated simulated radio selection');
   for (let i = 0; i < 100 && radioCommands.length === 0; i++) await new Promise<void>(resolve => { setTimeout(resolve, 10); });
   check(radioCommands.length === 1 && radioCommands[0].includes('"stationId":"fip"'), 'radio station reaches Vehicle State receiver');
+  check(!client.requestDisplaySize(401, 300) && client.requestDisplaySize(1216, 592), 'validated player geometry request');
+  for (let i = 0; i < 100 && displayCommands.length === 0; i++) await new Promise<void>(resolve => { setTimeout(resolve, 10); });
+  check(displayCommands.length === 1 && displayCommands[0].includes('"width":1216,"height":592'), 'player geometry reaches receiver');
   check(traceCount === 130, 'live recorder hook sees every event before ring eviction');
   check(client.iap2Log.length === 128 && client.iap2Log[0] === 'IAP2 RX fixture 2', 'bounded detailed inspector ring');
   check(client.traceIap2(true) && client.pollIap2() && client.sendIap2(0x5000, ''), 'inspector TX controls dispatched');

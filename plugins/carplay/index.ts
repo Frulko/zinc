@@ -324,6 +324,10 @@ export class Session {
     return this.ultra !== null && this.ultra.vehicleStateEnabled && (stationId === 'inter' || stationId === 'fip' || stationId === 'info') &&
       this.send(JSON.stringify({ type: 'ultraRadio', stationId: stationId }));
   }
+  requestDisplaySize(width: i32, height: i32): boolean {
+    return this.ultra !== null && this.ultra.uiSyncEnabled && width >= 480 && width <= 3840 && height >= 480 && height <= 3840 &&
+      width % 2 === 0 && height % 2 === 0 && this.send(JSON.stringify({ type: 'displaySize', width: width, height: height }));
+  }
   debugGps(latitude: number, longitude: number, speed: number = 0, course: number = 0): boolean {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 || !Number.isFinite(speed) || speed < 0 || !Number.isFinite(course) || course < 0 || course >= 360) return false;
     return this.send(JSON.stringify({ type: 'debugGps', lat: latitude, lon: longitude, speed: speed, course: course, gpsEnabled: true }));

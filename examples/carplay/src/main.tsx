@@ -10,6 +10,7 @@ import { Iap2Panel, tickIap2 } from './components/Iap2Panel';
 import { HudPanel, tickHud } from './components/HudPanel';
 import { VehicleDashboard, tickVehicle } from './components/VehicleDashboard';
 import { DevicesPanel, tickDevices } from './components/DevicesPanel';
+import { fitDisplay } from './services/display';
 const session = new Session();
 session.setNativeTouchEnabled(false);
 const url = env('ZINC_CARPLAY_URL');
@@ -26,6 +27,7 @@ const [detail, setDetail] = createSignal<string>('');
 const [trackpad, setTrackpad] = createSignal<boolean>(false);
 const [captured, setCaptured] = createSignal<boolean>(true);
 const touchOverlay = new TouchOverlay();
+let videoAreaWidth = 0, videoAreaHeight = 0;
 const keyboard = new KeyboardCapture((key: string) => { session.key(key); }, (active: boolean) => {
   setCaptured(active);
 });
@@ -36,8 +38,17 @@ function toggleTrackpad(): void {
 }
 const handleKey: (e: ui.KeyEvent) => void = offline === null ? installKeyboardCapture(keyboard, toggleTrackpad) : (_e: ui.KeyEvent) => {};
 function Screen(x: i32, y: i32, w: i32, h: i32): void {
+  videoAreaWidth = w; videoAreaHeight = h;
   session.view(x, y, w, h);
   if (offline === null && trackpad()) touchOverlay.draw(x, y, w, h);
+}
+function adaptDisplay(): void {
+  const size = fitDisplay(videoAreaWidth, videoAreaHeight);
+  if (size === null) return;
+  if (session.requestDisplaySize(size.width, size.height)) setStatus(`Écran ${size.width} × ${size.height} demandé · reconnexion CarPlay`);
+}
+function ultraDisplay(): void {
+  if (session.requestDisplaySize(1920, 720)) setStatus('Écran Ultra 1920 × 720 demandé · reconnexion CarPlay');
 }
 function App(): i32 {
   return <View className="flex-col h-full bg-slate-950" onKeyDown={handleKey}>
@@ -65,6 +76,8 @@ function App(): i32 {
       <Button className="px-6 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={() => { session.siri(); }}><Text className="text-white">Siri</Text></Button>
       <Button className="px-6 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={() => { const n = !night(); setNight(n); session.setNightMode(n); }}><Text className="text-white">{night() ? 'Night' : 'Day'}</Text></Button></View> : null}
       {offline === null ? <Button className="px-3 py-3 rounded bg-slate-700" onClick={toggleTrackpad}><Text className="text-amber-200">{trackpad() ? 'Trackpad ON · F7' : 'Trackpad OFF · F7'}</Text></Button> : null}
+      {offline === null && !dashboard() && !inspector() && !devices() ? <Button className="px-3 py-3 rounded bg-slate-700" onClick={adaptDisplay}><Text className="text-white">Adapter écran</Text></Button> : null}
+      {offline === null && !dashboard() && !inspector() && !devices() ? <Button className="px-3 py-3 rounded bg-slate-700" onClick={ultraDisplay}><Text className="text-white">Ultra 1920 × 720</Text></Button> : null}
       <View className="flex-col grow gap-1">
         <Text className="text-sm text-white">{status()}</Text>
         <Text className="text-xs text-slate-400">{detail()}</Text>

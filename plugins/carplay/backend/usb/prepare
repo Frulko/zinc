@@ -66,7 +66,7 @@ assert t.count('microphone = false') == 1, 'Unexpected upstream CarPlayServer mi
 t=t.replace('microphone = false', 'microphone = true')
 t=t.replace('onTrace = { log.debug(it) }', 'onTrace = { iap2Trace.accept(it) }')
 t=t.replace('Iap2Session.openTunnel(stream,', 'Iap2Session.openTunnel(stream, onArtwork = { hub.artwork(it) },')
-t=t.replace('    val hub = WebHub(config, display)', '    val hub = WebHub(config, display)\n    val debugGps = DebugGpsProvider()\n    val iap2Trace = Iap2LiveTrace { line -> org.slf4j.LoggerFactory.getLogger("iap2-live").info("{}", line); hub.iap2Trace(line) }\n    val debugTelemetry = DebugTelemetry { line, hud -> hub.debugTelemetry(line, hud) }')
+t=t.replace('    val hub = WebHub(config, display)', '    init { if (UltraTheme.enabled()) display.update(UltraTheme.displayWidthPixels, UltraTheme.displayHeightPixels, display.fps, display.uiScale, display.hevc) }\n    val hub = WebHub(config, display)\n    val debugGps = DebugGpsProvider()\n    val iap2Trace = Iap2LiveTrace { line -> org.slf4j.LoggerFactory.getLogger("iap2-live").info("{}", line); hub.iap2Trace(line) }\n    val debugTelemetry = DebugTelemetry { line, hud -> hub.debugTelemetry(line, hud) }')
 t=t.replace('        val session = activeSession ?: return', '''        if (message.type in setOf("serverStatus", "pairings", "forgetPairing", "resumePairing")) {
             try {
                 when (message.type) {
@@ -119,12 +119,20 @@ t=t.replace('        val session = activeSession ?: return', '''        if (mess
             } catch (error: Exception) { hub.debugGps(debugGps.snapshot(), "GPS rejected: ${error.message?.take(160)}") }
             return
         }
+        if (message.type == "displaySize") {
+            val width = message.width ?: return
+            val height = message.height ?: return
+            val error = if (UltraTheme.enabled()) applyDisplay(width, height, display.fps, display.uiScale, display.hevc) else "Ultra theme is inactive"
+            hub.displayRequest(if (error == null) "Display ${width}x${height} requested; reconnecting iPhone" else "Display rejected: $error")
+            return
+        }
         val session = activeSession ?: return''')
 t=t.replace('            main = com.shilapi.xcertplay.airplay.CarPlayUiScale.apply(', '''            main = if (UltraTheme.enabled()) AirPlayDisplayConfig(
-                widthPixels = UltraTheme.displayWidthPixels, heightPixels = UltraTheme.displayHeightPixels,
-                widthPhysicalMm = UltraTheme.displayWidthMm, heightPhysicalMm = UltraTheme.displayHeightMm,
+                widthPixels = display.width, heightPixels = display.height,
+                widthPhysicalMm = UltraTheme.physicalWidthMm(display.width), heightPhysicalMm = UltraTheme.physicalHeightMm(display.height),
                 fps = display.fps,
             ) else com.shilapi.xcertplay.airplay.CarPlayUiScale.apply(''')
+t=t.replace('        configStore?.save(PersistentConfig.of(config, display))', '        if (!UltraTheme.enabled()) configStore?.save(PersistentConfig.of(config, display))')
 t=t.replace('            rightHandDrive = config.rightHandDrive,', '''            cluster = if (System.getenv("ZINC_CARPLAY_CLUSTER") == "1") AirPlayDisplayConfig(
                 widthPixels = if (UltraTheme.enabled()) UltraTheme.displayWidthPixels else ClusterDimensions.width,
                 heightPixels = if (UltraTheme.enabled()) UltraTheme.displayHeightPixels else ClusterDimensions.height,
@@ -390,7 +398,7 @@ t=t.replace('    val contacts: List<TouchContactMessage> = emptyList(),', '''   
     val gpx: String? = null, val seekSeconds: Double? = null, val playing: Boolean? = null,
     val playbackRate: Double? = null,
     val gaugeId: Int? = null, val gaugeValue: Int? = null, val gaugeBool: Boolean? = null, val gaugeNumber: Double? = null,
-    val stationId: String? = null,
+    val stationId: String? = null, val width: Int? = null, val height: Int? = null,
     val contacts: List<TouchContactMessage> = emptyList(),''')
 t=t.replace('    val micActive: Boolean? = null,', '    val clusterEnabled: Boolean? = null,\n    val gps: DebugGpsSnapshot? = null,\n    val micActive: Boolean? = null,')
 t=t.replace('        application.install(WebSockets)', '        application.install(WebSockets) { maxFrameSize = 2L * 1024 * 1024 }')
@@ -417,7 +425,9 @@ t=t.replace('                    latestArtwork?.let { client.channel.trySend(Fra
                     latestUltraVehicle?.let { client.channel.trySend(Frame.Text(json.encodeToString(ServerMessage.serializer(), ServerMessage(type = "ultraVehicle", ultraVehicle = it)))) }
                     latestUltraUi?.let { client.channel.trySend(Frame.Text(json.encodeToString(ServerMessage.serializer(), ServerMessage(type = "ultraUiChoice", uiChoice = it)))) }
                     latestArtwork?.let { client.channel.trySend(Frame.Binary(true, it)) }''')
-t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fun debugGps(gps: DebugGpsSnapshot, error: String?) {
+t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fun displayRequest(result: String) { broadcastJson(ServerMessage(type = "debug", message = result)) }
+
+    fun debugGps(gps: DebugGpsSnapshot, error: String?) {
         broadcastJson(ServerMessage(type = "debug", message = error, gps = gps, clusterEnabled = System.getenv("ZINC_CARPLAY_CLUSTER") == "1"))
     }
 
@@ -436,8 +446,8 @@ t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fu
     }
 
     private fun broadcastJson(message: ServerMessage) {''')
-t=t.replace('    fun broadcastVideoConfig(type: Int, codecData: ByteArray) {', '''    private fun videoWidth(type: Int) = if (themeEnabled) UltraTheme.displayWidthPixels else if (type == 111) ClusterDimensions.width else display.width
-    private fun videoHeight(type: Int) = if (themeEnabled) UltraTheme.displayHeightPixels else if (type == 111) ClusterDimensions.height else display.height
+t=t.replace('    fun broadcastVideoConfig(type: Int, codecData: ByteArray) {', '''    private fun videoWidth(type: Int) = if (themeEnabled && type == 111) UltraTheme.displayWidthPixels else if (type == 111) ClusterDimensions.width else display.width
+    private fun videoHeight(type: Int) = if (themeEnabled && type == 111) UltraTheme.displayHeightPixels else if (type == 111) ClusterDimensions.height else display.height
 
     fun broadcastVideoConfig(type: Int, codecData: ByteArray) {''')
 t=t.replace('Wire.videoConfig(type, codec, display.width, display.height, codecData)', 'Wire.videoConfig(type, codec, videoWidth(type), videoHeight(type), codecData)')

@@ -45,8 +45,11 @@ with tempfile.TemporaryDirectory(prefix='carplay-usb-prepare-') as temporary:
     assert 'Accessory(2048, 0x0a000001' in vehicle.read_text(), 'Vehicle tire descriptor missing'
     assert 'ultraUiSync = System.getenv("ZINC_CARPLAY_ULTRA_UI_SYNC") == "1" && UltraTheme.enabled()' in server.read_text()
     assert 'main = if (UltraTheme.enabled()) AirPlayDisplayConfig(' in server.read_text()
+    assert 'widthPixels = display.width, heightPixels = display.height' in server.read_text(), 'Ultra main display ignores requested player geometry'
+    assert 'message.type == "displaySize"' in server.read_text(), 'Player display request route missing'
     assert 'heightPixels = if (UltraTheme.enabled()) UltraTheme.displayHeightPixels else ClusterDimensions.height' in server.read_text()
     assert 'Wire.videoConfig(type, codec, videoWidth(type), videoHeight(type), codecData)' in hub.read_text()
+    assert 'if (themeEnabled && type == 111)' in hub.read_text(), 'Ultra cluster should keep its own geometry'
     assert 'Wire.videoConfig(type, value.first, videoWidth(type), videoHeight(type), value.second)' in hub.read_text()
     assert 'locationProvider?.onRequested(Iap2LocationMessages.requestedComponents(incoming))' in wireless_control.read_text()
     assert 'themeAssetIdentifier' in identification.read_text()
