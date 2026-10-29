@@ -8,7 +8,7 @@ import * as sys from 'zinc:sys';
 import * as dialog from 'zinc:system/dialog';
 import { library, setLibrary, allowChanges, rescan, page, showPage } from './state';
 import { PodLibrary, readLibrary, closePod } from './services/ipod';
-import { enqueue } from './services/transfers';
+import { enqueue, runningJob, Job, JobLine } from './services/transfers';
 import { log } from './services/log';
 import { stop as stopPlaying } from './services/player';
 import { dropCovers } from './services/covers';
@@ -89,16 +89,26 @@ export function download(label: string, tracks: ipod.Track[]): void {
   const dir = downloadFolder();
   enqueue('download', `Download ${label}`, async (): Promise<string> => {
     const res = await ipod.download(ids, dir);
-    let copied = 0, skipped = 0;
+    let copied = 0, skipped = 0, total = 0;
     const errors: string[] = [];
-    for (const r of res) { if (r.error !== '') errors.push(r.error); else if (r.skipped) skipped++; else copied++; }
-    const line = `${count(copied, 'file', 'files')} copied, ${skipped} already there${errors.length > 0 ? `, ${errors.length} failed (${errors[0]})` : ''} → ${dir}`;
+    const out: JobLine[] = [];
+    for (const r of res) {
+      if (r.error !== '') errors.push(r.error); else if (r.skipped) skipped++; else copied++;
+      out.push(new JobLine(r.error === '', r.error !== '' ? r.error : `${r.file.slice(dir.length + 1)}${r.skipped ? '  (already there)' : ''}`, r.error !== '' ? -1 : sizeOf(r.file)));
+      if (r.error === '' && !r.skipped) total += Math.max(0, sizeOf(r.file));
+    }
+    const job = runningJob();
+    if (job !== null) (job as Job).setLines(out);
+    const line = `${count(copied, 'file', 'files')} copied (${bytes(total)}), ${skipped} already there${errors.length > 0 ? `, ${errors.length} failed (${errors[0]})` : ''} → ${dir}`;
     if (errors.length > 0 && copied + skipped === 0) throw new Error(line);
     return line;
   });
 }
 
 // ---- add
+
+/** The size of a file of the computer in bytes, -1 when it cannot be read. */
+function sizeOf(path: string): number { try { return fs.stat(path).size; } catch (e) { return -1; } }
 
 function extensionOf(path: string): string { const d = path.lastIndexOf('.'); return d > path.lastIndexOf('/') ? path.slice(d + 1).toLowerCase() : ''; }
 
@@ -141,8 +151,22 @@ export function addFiles(paths: string[]): void {
     let added = 0;
     for (const r of res) if (r.error === '') added++;
     await refresh();
+    const job = runningJob(), l = lib();
+    if (job !== null) {   // the file's tags as the iPod now holds them, or why it was refused
+      const out: JobLine[] = [];
+      for (const r of res) {
+        const file = r.file.slice(r.file.lastIndexOf('/') + 1);
+        if (r.error !== '') { out.push(new JobLine(false, `${file}: ${r.error}`, sizeOf(r.file))); continue; }
+        let t: ipod.Track | null = null;
+        if (l !== null) for (const x of (l as PodLibrary).tracks) if (x.id === r.id) { t = x; break; }
+        out.push(new JobLine(true, t === null ? file : `${t.title}${t.artist !== '' ? ` — ${t.artist}` : ''}${t.album !== '' ? ` · ${t.album}` : ''}  (${file})`, t !== null ? t.size : sizeOf(r.file)));
+      }
+      (job as Job).setLines(out);
+    }
     if (res.length === 0) throw new Error('nothing was added');
-    return `${added} added, ${res.length - added} refused`;
+    let total = 0;
+    for (const x of job !== null ? (job as Job).lines() : []) if (x.ok && x.size > 0) total += x.size;
+    return `${added} added (${bytes(total)}), ${res.length - added} refused`;
   });
 }
 
@@ -232,6 +256,7 @@ export async function ejectPod(): Promise<void> {
   const l = lib();
   if (l === null) return;
   const name = podName(), mp = (l as PodLibrary).device.mountpoint;
+  if (runningJob() !== null) { setNotice('A transfer is running: wait for it, or cancel the ones waiting, then eject'); return; }
   stopPlaying();
   dropCovers();
   batch(() => { setLibrary(null); setHealth(null); });

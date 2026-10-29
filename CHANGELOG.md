@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- iPod demo: an eject button beside the open iPod, and the transfers open to list every file with its tags or why it was refused, and its size.
 - `zinc doc` makes the documentation of a project, a plugin or the engine (`--std`) as a static site, as `cargo doc` does: the API from the code and its doc comments, the Markdown and MDX pages of `docs/` and of each plugin's `docs/` (steps, tabs, callouts, commands with a copy button, screenshots, examples), search, light and dark themes and your own `docs/theme.css`. `--out` exports the folder, `--serve` serves it on this machine and reloads the pages when you save; nothing is downloaded (docs/guide/14-doc.md).
 - `n.toString(radix)` prints a number in any base from 2 to 36, with the same digits as JavaScript (`(255).toString(16)` is `ff`).
 - Generic arrow functions: `const id = <T>(v: T): T => v`.
@@ -106,6 +107,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- A row whose child grows from `basis-0` (or a small basis) and holds content that wraps is as tall as that content once wrapped at the child's real width: a page with wrapping cards beside a picture scrolls to its end instead of stopping early.
+- `c ? xs : []` compiles: the empty array takes the type of the other branch, as in TypeScript (it stopped on Z0109 "empty array literal").
+- zinc:ipod prints libgpod's messages as one short line each (`zinc:ipod: libgpod: ...`) instead of blank lines and assertions at every read and save; a smart playlist rule libgpod does not know is kept as it was.
 - On a Raspberry Pi, apps no longer stall for up to 170 ms once a second: the screen's driver stopped reopening every keyboard, mouse and HDMI input each second to look for new ones, and now looks only when one is plugged in.
 - An app's own component named like a built-in one (`Button`, `Image`, `Input`...) and imported from a folder named `components` is the app's component again, instead of the built-in tag that refused its props with error Z0005.
 - A newline in a `<Text>` starts a line, as in React Native, instead of showing as a `?`.

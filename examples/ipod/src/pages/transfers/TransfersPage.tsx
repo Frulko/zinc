@@ -1,16 +1,29 @@
 // The transfers: every job of the session (add, download, backup, restore, delete, check, repair), the one running with its
-// progress bar and the file it copies, those waiting with Cancel, those ended with their result; and where downloads go.
+// progress bar and the file it copies, those waiting with Cancel, those ended with their result (a click lists each file: its tags as
+// the iPod holds them or why it was refused, and its size); and where downloads go.
 import { Icon } from 'zinc:icons';
-import { jobs, cancel, clearFinished, Job, WAITING, RUNNING, DONE, FAILED } from '../../services/transfers';
+import * as ui from 'zinc:ui';
+import { createSignal } from 'zinc:ui/solid';
+import { jobs, cancel, clearFinished, Job, JobLine, WAITING, RUNNING, DONE, FAILED } from '../../services/transfers';
 import { downloadFolder, chooseDownloadDir } from '../../actions';
 import { Button } from '../../components/Button';
-import { bg, bd, fg, color, CARD, BORDER, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK } from '../../constants';
+import { bytes } from '../../format';
+import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, FAINT, ACCENT, ERROR, TRACK } from '../../constants';
 
 const KIND_ICONS: string[] = ['add', 'plus', 'download', 'download', 'backup', 'archive', 'restore', 'rotate-ccw', 'delete', 'x', 'check', 'shield-check', 'repair', 'wrench'];
 function iconOf(kind: string): string { for (let i = 0; i < KIND_ICONS.length; i += 2) if (KIND_ICONS[i] === kind) return KIND_ICONS[i + 1]; return 'arrow-down-up'; }
 
+function Line(props: { l: JobLine }): i32 {
+  return <View className="flex-row items-start gap-2">
+    <Icon name={props.l.ok ? 'check' : 'x'} size={12} color={() => color(props.l.ok ? MUTED : ERROR)} strokeWidth={2.5} />
+    <Text className={`grow basis-0 min-w-0 text-[12px] ${props.l.ok ? fg(TEXT) : fg(ERROR)}`}>{props.l.text}</Text>
+    {props.l.size >= 0 ? <Text className={`text-[11px] ${fg(MUTED)}`}>{bytes(props.l.size)}</Text> : <View />}
+  </View>;
+}
+
 function JobRow(props: { job: Job }): i32 {
   const j = props.job;
+  const [open, setOpen] = createSignal<boolean>(false);
   const state = (): string => j.status();
   const line = (): string => {
     const s = state();
@@ -18,7 +31,10 @@ function JobRow(props: { job: Job }): i32 {
     if (s === RUNNING) return j.total() > 0 ? `${Math.min(j.done() + 1, j.total())} of ${j.total()}${j.detail() !== '' ? ` · ${j.detail()}` : ''}` : j.detail() !== '' ? j.detail() : 'Working…';
     return j.result();
   };
-  return <View className={`flex-row items-center gap-3 px-4 py-3 border-t ${bd(BORDER)}`}>
+  return <View className={`flex-col border-t ${bd(BORDER)}`}>
+  <View className={`flex-row items-center gap-3 px-4 py-3 ${j.lines().length > 0 ? `cursor-pointer hover:${bg(HOVER)}` : ''}`}
+    onPointerDown={(e: ui.PointerEvent) => { if (j.lines().length > 0) setOpen(!open()); }}>
+    <Icon name={j.lines().length > 0 ? (open() ? 'chevron-down' : 'chevron-right') : 'dot'} size={14} color={() => color(FAINT)} strokeWidth={2} />
     <Icon name={iconOf(j.kind)} size={16} color={() => color(state() === FAILED ? ERROR : ACCENT)} strokeWidth={2} />
     <View className="grow basis-0 flex-col gap-1 min-w-0">
       <Text className={`text-[13px] font-semibold ${fg(TEXT)}`} numberOfLines={1}>{j.label}</Text>
@@ -29,6 +45,8 @@ function JobRow(props: { job: Job }): i32 {
     </View>
     {state() === WAITING ? <Button icon="x" label="Cancel" onPress={() => cancel(j)} />
       : <Text className={`text-[11px] font-semibold ${state() === FAILED ? fg(ERROR) : state() === DONE ? fg(MUTED) : fg(FAINT)}`}>{state()}</Text>}
+  </View>
+  {open() ? <View className="flex-col gap-1.5 pl-[62] pr-4 pb-3">{j.lines().map((l: JobLine) => <Line l={l} />)}</View> : <View />}
   </View>;
 }
 

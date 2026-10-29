@@ -59,7 +59,7 @@ cmp -s hashes.txt "$gold/hashes.txt" || { echo "ipod_demo: frames $(tr '\n' ' ' 
 # what it did on disk: the album downloaded as Artist/Album/NN Title.ext, the song added and the flac refused, every operation in the log
 log=$tmp/backups/logs/demo.log
 ls "$tmp/dl"/*/*/[0-9][0-9]\ *.* >/dev/null 2>&1 || { echo "ipod_demo: the album was not downloaded: $(find "$tmp/dl" -type f 2>/dev/null | head -3)"; fail=1; }
-for op in 'Opened Zinc Pod' 'Check Zinc Pod' 'Allow changes turned on' '1 added, 1 refused' 'Download “' 'copied, 0 already there'; do
+for op in 'Opened Zinc Pod' 'Check Zinc Pod' 'Allow changes turned on' '1 added (32 KB), 1 refused' 'Download “' 'copied (128 KB), 0 already there'; do
   grep -q "$op" "$log" || { echo "ipod_demo: '$op' is not in the log file: $(tail -3 "$log")"; fail=1; }
 done
 # unmounted while open, then mounted again: the app closes it and says so, then opens it by itself (seen in the log)

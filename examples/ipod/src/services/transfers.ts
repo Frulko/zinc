@@ -8,6 +8,14 @@ import { log } from './log';
 
 export const WAITING = 'waiting', RUNNING = 'running', DONE = 'done', FAILED = 'failed', CANCELLED = 'cancelled';
 
+/** One item of a job, shown when its row is opened: a file added (its title, artist and album) or refused (why), a track downloaded. */
+export class JobLine {
+  ok: boolean; text: string;
+  /** The file's size in bytes, -1 when unknown. */
+  size: number;
+  constructor(ok: boolean, text: string, size: number) { this.ok = ok; this.text = text; this.size = size; }
+}
+
 export class Job {
   id: i32; kind: string; label: string;
   /** Does the job; resolves with the line its result shows ("3 added, 1 refused"). */
@@ -20,6 +28,7 @@ export class Job {
   fileTotal: () => number; setFileTotal: (n: number) => void;
   detail: () => string; setDetail: (s: string) => void;
   result: () => string; setResult: (s: string) => void;
+  lines: () => JobLine[]; setLines: (l: JobLine[]) => void;
   constructor(id: i32, kind: string, label: string, work: () => Promise<string>) {
     this.id = id; this.kind = kind; this.label = label; this.work = work;
     const [s, ss] = createSignal<string>(WAITING); this.status = s; this.setStatus = ss;
@@ -29,6 +38,7 @@ export class Job {
     const [ft, sft] = createSignal<number>(0); this.fileTotal = ft; this.setFileTotal = sft;
     const [de, sde] = createSignal<string>(''); this.detail = de; this.setDetail = sde;
     const [r, sr] = createSignal<string>(''); this.result = r; this.setResult = sr;
+    const [l, sl] = createSignal<JobLine[]>([]); this.lines = l; this.setLines = sl;
   }
   /** 0..1: the items done, plus the share of the file being copied. */
   fraction(): number {

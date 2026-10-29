@@ -1,4 +1,4 @@
-// The sidebar, as Music and the Finder show a device: the iPod open (name, model, how full) and the Allow changes switch, its
+// The sidebar, as Music and the Finder show a device: the iPod open (name, model, how full, and its eject button) and the Allow changes switch, its
 // library's pages, the pages that manage it (add, backups, transfers with what runs, logs), the other iPods plugged in (one seen
 // over USB only can be mounted), and Rescan at the bottom. Everything above Rescan scrolls when the window is short.
 import * as ui from 'zinc:ui';
@@ -12,7 +12,7 @@ import { bg, bd, fg, color, SIDEBAR, BORDER, HOVER, SELECTED, TEXT, MUTED, FAINT
 import { PodDrawing } from './PodDrawing';
 import { AllowChanges } from './AllowChanges';
 import { pending, runningJob, Job } from '../services/transfers';
-import { mountPod } from '../actions';
+import { mountPod, ejectPod } from '../actions';
 
 function NavRow(props: { icon: string; label: string; to: string; count: i32 }): i32 {
   const on = (): boolean => page() === props.to;
@@ -52,6 +52,9 @@ function OpenPod(props: { lib: PodLibrary }): i32 {
       <View className={`h-[4] rounded-full overflow-hidden ${bg(TRACK)}`}>
         <View className={`h-full ${bg(ACCENT)}`} style={{ widthPercent: Math.max(0.01, used) }} />
       </View>
+    </View>
+    <View className={`p-1.5 rounded-full cursor-pointer hover:${bg(HOVER)}`} onPointerDown={(e: ui.PointerEvent) => { ejectPod(); }}>
+      <Icon name="eject" size={16} color={() => color(MUTED)} strokeWidth={2} />
     </View>
   </View>;
 }
