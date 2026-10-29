@@ -598,6 +598,12 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ipod_deep: one QuickJS run of 3 gave the From X to Y path one song short (AAAAABBBBBBC instead of AAAAABBBBBBCC) while AudioMuse loaded the machine; find what in the path build depends on timing.
 
+- iPod demo: the track tables at 1180 px leave the Title column a few characters wide beside Artist and Album/Why; give Title a minimum width or narrow the fixed columns.
+- iPod daemon: smart playlists cannot be saved to a remote iPod yet (smart.ts refuses); a rules route beside /api/playlist would close it.
+- iPod demo: ipod_deep's find_path line came out AAAAABBBBBBCC once (equally close songs ordered by the fake iPod's ids); order ties by title to make it stable.
+- iPod demo: ipod_demo uses a fixed /tmp/zinc-ipod-demo disk image, so two trees running it at once collide; use a per-run path.
+- iPod demo: AudioMuse auto-sync only follows analysis tasks; a clustering run that ends after one does not sync again.
+
 ## Cross-platform pass
 - iPod AudioMuse over the LAN from the Pi daemon, with the same client.
 - iPod: run ipod_smart on Linux.
