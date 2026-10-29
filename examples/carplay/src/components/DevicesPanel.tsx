@@ -9,6 +9,7 @@ const [error, setError] = createSignal<string>('');
 const [pending, setPending] = createSignal<string>('');
 let live: Session | null = null;
 let elapsed = 1;
+let pairingsElapsed = 5;
 
 export function tickDevices(session: Session, dt: number, visible: boolean): void {
   live = session;
@@ -17,6 +18,10 @@ export function tickDevices(session: Session, dt: number, visible: boolean): voi
   if (elapsed >= 1) {
     elapsed = 0;
     session.pollServer();
+  }
+  pairingsElapsed += dt;
+  if (pairingsElapsed >= 5) {
+    pairingsElapsed = 0;
     session.pollPairings();
   }
   setServerReady(session.serverInfo !== null);
@@ -49,6 +54,17 @@ function modelText(): string {
   return name === '' ? code : `${name} (${code})`;
 }
 
+function pairedName(device: PairedDevice): string {
+  const current = server();
+  if (current.sessionActive && (device.id === current.phoneDeviceId || device.id === current.phoneAirPlayPairingId))
+    return `${current.phoneName ?? 'iPhone connecté'} · session active`;
+  return device.name ?? 'Nom non enregistré';
+}
+
+function flag(value: boolean | null | undefined): string {
+  return value == null ? 'inconnu' : value ? 'oui' : 'non';
+}
+
 export function DevicesPanel(): i32 {
   return <ScrollView className="grow bg-slate-950 p-6">
     <View className="flex-col gap-4">
@@ -58,6 +74,8 @@ export function DevicesPanel(): i32 {
           <Text className="text-xl text-white">{server().deviceName} · {server().sessionActive ? 'CarPlay actif' : 'En attente d’iPhone'}</Text>
           <Text className="text-slate-300">{`Téléphone : ${server().phoneName ?? 'aucun'} · transport ${server().wireless ? 'sans fil' : 'filaire'} · en service depuis ${server().uptimeSeconds} s`}</Text>
           <Text className="text-slate-300">{`Modèle : ${modelText()} · batterie : ${batteryText()}`}</Text>
+          <Text className="text-slate-300">{`Adresse Bluetooth / deviceID : ${server().phoneDeviceId ?? 'non reçue'} · Wi-Fi / macAddress : ${server().phoneWifiMac ?? 'non reçue'}`}</Text>
+          <Text className="text-slate-300">{`Appairage AirPlay vérifié : ${server().phoneAirPlayPairingId ?? 'non reçu'}`}</Text>
           <Text className="text-slate-300">{`iAP2 ${server().iap2Connected ? 'connecté' : 'inactif'} · GPS externe ${server().gpsSubscribed ? 'demandé' : 'non demandé'} · cluster ${server().clusterEnabled ? 'annoncé' : 'désactivé'} · thème Ultra ${server().ultraTheme ? 'activé' : 'désactivé'}`}</Text>
           <Text className="text-slate-300">{`Invitation Bluetooth : ${server().autoInvite ? 'active' : 'en pause après suppression'}`}</Text>
           {!server().autoInvite ? <Button className="bg-cyan-900 rounded p-3" onClick={() => { const s = live; if (s !== null) s.resumePairing(); }}><Text className="text-cyan-100">Relancer la connexion</Text></Button> : null}
@@ -70,8 +88,10 @@ export function DevicesPanel(): i32 {
       {pairingsReady() ? <For each={pairings().devices}>{(device: PairedDevice) =>
         <View className="flex-row items-center gap-3 bg-slate-900 rounded p-3">
           <View className="grow flex-col gap-1">
-            <Text className="text-white">{device.id}</Text>
+            <Text className="text-white">{`${pairedName(device)} · ${device.id}`}</Text>
             <Text className="text-slate-400">{`Bluetooth ${device.bluetooth ? 'oui' : 'non ou inconnu'} · AirPlay ${device.airPlay ? 'oui' : 'non'}`}</Text>
+            {device.bluetooth ? <Text className="text-slate-400">{`Connecté ${flag(device.connected)} · confiance ${flag(device.trusted)} · lié ${flag(device.bonded)} · bloqué ${flag(device.blocked)}`}</Text> : null}
+            {device.airPlay ? <Text className="text-slate-400">{`Clé AirPlay · empreinte SHA-256 ${device.airPlayKeyFingerprint ?? 'indisponible'}`}</Text> : null}
           </View>
           <Button className={pending() === device.id ? 'bg-red-700 rounded p-3' : 'bg-slate-700 rounded p-3'} onClick={() => forget(device.id)}><Text className="text-white">{pending() === device.id ? 'Confirmer' : 'Désappairer'}</Text></Button>
         </View>}</For> : null}

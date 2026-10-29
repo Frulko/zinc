@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- CarPlay **Appareils** now shows the connected iPhone's Bluetooth/device ID and Wi-Fi MAC; paired rows include available BlueZ name and connection/trust state or an AirPlay key fingerprint.
 - The CarPlay player's **Appareils** panel shows live receiver, iPhone model and available battery status plus paired Bluetooth/AirPlay identifiers; it can forget one exact record after confirmation and resume wireless invitations.
 - A CarPlay theme guide explains display settings, local theme creation, four proposed visual styles and the limits of the experimental Ultra catalog profile.
 - Le panneau Debug CarPlay affiche les capacités Ultra proposées par l’iPhone et celles effectivement activées par le récepteur.

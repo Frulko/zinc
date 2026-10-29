@@ -51,11 +51,16 @@ export interface UltraStatus {
 }
 export interface UltraVehicleSnapshot { rpm: i32; fuelPct: i32; climateOn: boolean; targetCelsius: number; }
 export interface UltraUiChoice { command: number; layoutId?: string; paletteId?: string; preference?: i32; }
-export interface PairedDevice { id: string; bluetooth: boolean; airPlay: boolean; }
+export interface PairedDevice {
+  id: string; bluetooth: boolean; airPlay: boolean; name?: string | null;
+  connected?: boolean | null; trusted?: boolean | null; bonded?: boolean | null;
+  blocked?: boolean | null; airPlayKeyFingerprint?: string | null;
+}
 export interface PairingsSnapshot { devices: PairedDevice[]; bluetoothAvailable: boolean; }
 export interface ServerLiveSnapshot {
   deviceName: string; wireless: boolean; sessionActive: boolean; phoneName?: string | null;
   phoneModel?: string | null; batteryPercent?: i32 | null;
+  phoneDeviceId?: string | null; phoneWifiMac?: string | null; phoneAirPlayPairingId?: string | null;
   iap2Connected: boolean; gpsSubscribed: boolean; ultraTheme: boolean;
   clusterEnabled: boolean; autoInvite: boolean; uptimeSeconds: number;
 }
