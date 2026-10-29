@@ -1,0 +1,36 @@
+#!/bin/sh
+# Copies trieur (github.com/Frulko/trieur: its packages core and learn, and the datasets of its site's demos) into third_party/trieur,
+# unchanged: plugins/trieur answers @trieur/core, @trieur/learn and @trieur/data/* with them, so trieur keeps being written in its own
+# repository and the demos (examples/trieur, examples/trieur-photos) follow it.
+#   tools/sync-trieur [path to a trieur checkout]   (default ../trieur, beside this repository)
+#   tools/sync-trieur --check [path]                 exit 1 when the copy differs from the checkout
+set -eu
+cd "$(dirname "$0")/.."
+check=0
+[ "${1:-}" = "--check" ] && { check=1; shift; }
+src=${1:-../trieur}
+[ -d "$src/packages/core/src" ] || { echo "sync-trieur: no trieur checkout at $src" >&2; exit 2; }
+dst=third_party/trieur
+if [ $check = 1 ]; then
+  rc=0
+  for p in core learn; do
+    diff -rq -x '*.test.ts' "$src/packages/$p/src" "$dst/$p/src" || rc=1
+  done
+  diff -rq "$src/site/src/data" "$dst/data" || rc=1
+  exit $rc
+fi
+for p in core learn; do
+  rm -rf "$dst/$p"
+  mkdir -p "$dst/$p/src"
+  for f in "$src/packages/$p/src/"*; do
+    case "$f" in *.test.ts) continue ;; esac
+    cp "$f" "$dst/$p/src/"
+  done
+  [ -f "$src/packages/$p/trieur.css" ] && cp "$src/packages/$p/trieur.css" "$dst/$p/"
+done
+rm -rf "$dst/data"; cp -R "$src/site/src/data" "$dst/data"   # the demos' datasets: links, cards, mail, photos
+cp "$src/LICENSE" "$dst/LICENSE"
+rev=$(git -C "$src" rev-parse --short HEAD 2>/dev/null || echo unknown)
+dirty=$(git -C "$src" status --porcelain -- packages site/src/data 2>/dev/null | head -1)
+echo "$rev${dirty:+ (with uncommitted changes)}" > "$dst/VERSION"
+echo "sync-trieur: $dst <- $src at $(cat "$dst/VERSION")"

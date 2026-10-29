@@ -1,0 +1,19 @@
+{
+  "name": "trieur",
+  "kind": "module",
+  "module": "zinc:trieur",
+  "entry": "index.ts",
+  "description": "trieur (github.com/Frulko/trieur) on zinc:ui: sort a pile of cards into zones by drag, throw, tap or key, with a model that learns where the next card goes. trieur's own sources (third_party/trieur) run unchanged on the JavaScript engines",
+  "license": "MIT",
+  "modules": {
+    "@trieur/core": "../../third_party/trieur/core/src/index.ts",
+    "@trieur/core/flick": "../../third_party/trieur/core/src/flick.ts",
+    "@trieur/core/throw": "../../third_party/trieur/core/src/throw.ts",
+    "@trieur/learn": "../../third_party/trieur/learn/src/index.ts",
+    "@trieur/data/links": "../../third_party/trieur/data/links.ts",
+    "@trieur/data/cards": "../../third_party/trieur/data/cards.ts",
+    "@trieur/data/mail": "../../third_party/trieur/data/mail.ts",
+    "@trieur/data/photos": "../../third_party/trieur/data/photos.ts"
+  },
+  "targets": { "macos": {}, "linux": {}, "windows": {}, "android": {}, "ios": {}, "rpi1": {} }
+}

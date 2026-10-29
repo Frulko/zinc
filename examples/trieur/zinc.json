@@ -1,0 +1,67 @@
+{
+  "name": "trieur",
+  "entry": "src/main.tsx",
+  "engine": "quickjs",
+  "app": {
+    "id": "dev.zinc.trieur",
+    "name": "Trieur",
+    "version": "0.1.0",
+    "orientation": "landscape"
+  },
+  "targets": {
+    "macos": {
+      "width": 1280,
+      "height": 820,
+      "resize": "fill"
+    }
+  },
+  "requires": [
+    "display",
+    "pointer|touch",
+    "keyboard"
+  ],
+  "icons": [
+    "archive",
+    "book-open",
+    "brain",
+    "briefcase",
+    "circle-check",
+    "clock",
+    "code",
+    "cog",
+    "external-link",
+    "folder",
+    "gamepad-2",
+    "graduation-cap",
+    "heart-pulse",
+    "house",
+    "inbox",
+    "landmark",
+    "layers",
+    "layout-grid",
+    "link",
+    "minus",
+    "music",
+    "palette",
+    "paperclip",
+    "party-popper",
+    "pen-line",
+    "plane",
+    "plus",
+    "reply",
+    "rotate-ccw",
+    "shield-alert",
+    "shopping-bag",
+    "skip-forward",
+    "sparkles",
+    "sun-moon",
+    "trash",
+    "triangle",
+    "tv",
+    "undo-2",
+    "users",
+    "utensils",
+    "wallet"
+  ],
+  "scheme": "auto"
+}

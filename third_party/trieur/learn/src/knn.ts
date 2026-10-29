@@ -1,0 +1,193 @@
+// Rung 3: k nearest neighbours over the cards already filed.
+//
+// "This link looks like those, and they are in dev." Where Bayes and the linear model need a
+// bit of volume before saying anything, this one is useful **from the very first example** —
+// the best cold start of the three, and the only one that justifies its answer by pointing at
+// cards rather than at features.
+//
+// What it costs: the corpus has to be kept. Hence the ring buffer — past `capacity` cards, the
+// oldest one leaves. Cosine similarity weighted by IDF (a feature present everywhere brings
+// nobody closer) and an inverted index so we only compare against neighbours sharing at least
+// one rare feature.
+
+import type { Feature, Model, ModelJSON, Ranked } from './types.js';
+
+export interface KnnOptions {
+  /** number of neighbours kept */
+  k?: number;
+  /** size of the corpus held in memory */
+  capacity?: number;
+  /** how many of the rarest features are used to fetch candidates */
+  probe?: number;
+  minExamples?: number;
+}
+
+interface Row {
+  f: Feature[];
+  t: string;
+}
+
+export class Knn implements Model {
+  readonly kind = 'knn';
+  k: number;
+  capacity: number;
+  probe: number;
+  minExamples: number;
+
+  #rows: Array<Row | null> = [];
+  #next = 0;
+  #df = new Map<Feature, number>();
+  #index = new Map<Feature, Set<number>>();
+  #count = 0;
+
+  constructor(opts: KnnOptions = {}) {
+    this.k = opts.k ?? 12;
+    this.capacity = opts.capacity ?? 1500;
+    this.probe = opts.probe ?? 24;
+    this.minExamples = opts.minExamples ?? 1;
+  }
+
+  get examples(): number {
+    return this.#count;
+  }
+  get vocabSize(): number {
+    return this.#df.size;
+  }
+  get targets(): string[] {
+    return [...new Set(this.#rows.filter((r): r is Row => r !== null).map((r) => r.t))];
+  }
+
+  #idf(f: Feature): number {
+    return Math.log(1 + this.#count / (1 + (this.#df.get(f) ?? 0)));
+  }
+
+  #norm(features: Feature[]): number {
+    return Math.sqrt(features.reduce((s, f) => s + this.#idf(f) ** 2, 0)) || 1;
+  }
+
+  #attach(i: number, row: Row): void {
+    this.#rows[i] = row;
+    for (const f of new Set(row.f)) {
+      this.#df.set(f, (this.#df.get(f) ?? 0) + 1);
+      (this.#index.get(f) ?? this.#index.set(f, new Set()).get(f)!).add(i);
+    }
+  }
+
+  #detach(i: number): void {
+    const row = this.#rows[i];
+    if (!row) return;
+    for (const f of new Set(row.f)) {
+      const n = (this.#df.get(f) ?? 1) - 1;
+      if (n <= 0) {
+        this.#df.delete(f);
+        this.#index.delete(f);
+      } else {
+        this.#df.set(f, n);
+        this.#index.get(f)?.delete(i);
+      }
+    }
+    this.#rows[i] = null;
+  }
+
+  learn(features: Feature[], target: string, weight = 1): void {
+    if (!features.length) return;
+    if (weight < 0) return this.#drop(features, target);
+    if (this.#rows.length < this.capacity) {
+      this.#attach(this.#rows.length, { f: features, t: target });
+    } else {
+      // ring buffer: the oldest card leaves to make room
+      this.#detach(this.#next);
+      this.#attach(this.#next, { f: features, t: target });
+      this.#next = (this.#next + 1) % this.capacity;
+    }
+    this.#count++;
+  }
+
+  /** Undo: remove the most recent identical card. */
+  #drop(features: Feature[], target: string): void {
+    const key = features.join(' ');
+    for (let i = this.#rows.length - 1; i >= 0; i--) {
+      const r = this.#rows[i];
+      if (r && r.t === target && r.f.join(' ') === key) {
+        this.#detach(i);
+        this.#count = Math.max(0, this.#count - 1);
+        return;
+      }
+    }
+  }
+
+  predict(features: Feature[], targets: string[]): Ranked[] {
+    if (this.#count < this.minExamples || !features.length) return [];
+    const ids = targets.length ? targets : this.targets;
+    if (!ids.length) return [];
+
+    // candidates are only fetched through the rarest features: one present in half the corpus
+    // would bring back half the corpus without discriminating anything
+    const known = features.filter((f) => this.#df.has(f));
+    if (!known.length) return [];
+    const rare = known.sort((a, b) => this.#idf(b) - this.#idf(a)).slice(0, this.probe);
+
+    const candidates = new Set<number>();
+    for (const f of rare) for (const i of this.#index.get(f) ?? []) candidates.add(i);
+    if (!candidates.size) return [];
+
+    const qNorm = this.#norm(known);
+    const qSet = new Set(known);
+    const sims: Array<{ i: number; sim: number; shared: Feature[] }> = [];
+    for (const i of candidates) {
+      const row = this.#rows[i];
+      if (!row) continue;
+      const shared = [...new Set(row.f)].filter((f) => qSet.has(f));
+      if (!shared.length) continue;
+      const dot = shared.reduce((s, f) => s + this.#idf(f) ** 2, 0);
+      sims.push({ i, sim: dot / (qNorm * this.#norm(row.f)), shared });
+    }
+    if (!sims.length) return [];
+
+    const near = sims.sort((a, b) => b.sim - a.sim).slice(0, this.k);
+    const allowed = new Set(ids);
+    const score = new Map<string, number>();
+    const why = new Map<string, Feature[]>();
+    for (const n of near) {
+      const t = this.#rows[n.i]!.t;
+      if (!allowed.has(t)) continue;
+      score.set(t, (score.get(t) ?? 0) + n.sim);
+      if (!why.has(t)) why.set(t, n.shared.slice(0, 3)); // the nearest neighbour explains
+    }
+    const sum = [...score.values()].reduce((a, b) => a + b, 0);
+    if (!sum) return [];
+    return ids
+      .map((id) => ({ id, score: (score.get(id) ?? 0) / sum, why: why.get(id) ?? [] }))
+      .sort((a, b) => b.score - a.score);
+  }
+
+  toJSON(): ModelJSON {
+    return {
+      kind: this.kind,
+      v: 1,
+      k: this.k,
+      capacity: this.capacity,
+      probe: this.probe,
+      minExamples: this.minExamples,
+      count: this.#count,
+      next: this.#next,
+      // the inverted index and the document frequencies are rebuilt on load: storing them
+      // would double the size for nothing
+      rows: this.#rows.filter((r): r is Row => r !== null).map((r) => [r.t, r.f]),
+    };
+  }
+
+  static fromJSON(data: any, opts: KnnOptions = {}): Knn {
+    const knn = new Knn({
+      k: data?.k,
+      capacity: data?.capacity,
+      probe: data?.probe,
+      minExamples: data?.minExamples,
+      ...opts,
+    });
+    for (const [t, f] of (data?.rows ?? []) as Array<[string, Feature[]]>) knn.#attach(knn.#rows.length, { f, t });
+    knn.#count = data?.count ?? knn.#rows.length;
+    knn.#next = (data?.next ?? 0) % Math.max(knn.capacity, 1);
+    return knn;
+  }
+}

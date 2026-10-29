@@ -9,6 +9,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Trieur demo (examples/trieur): links that a model learns to file, the six layouts, an inbox to triage and flashcards with spaced repetition, light or dark, in English or French.
+- `zinc:trieur`: the trieur card sorter on zinc:ui (`createDeck`, `<Deck>`): file a card by dragging or throwing it onto a zone, by its key or by the suggestion of a model that learns from your choices, several zones at once (hold Shift or the card), undo; six zone layouts, light and dark palettes, English and French labels after the computer's language. trieur's own code runs unchanged (`tools/sync-trieur` brings its updates).
 - JSX: `style={seg(on)}` and `style={card}` take a style computed by a function or held in a constant of the same file (`const seg = (on) => ({ backgroundColor: on ? a : b })`): its object is lowered as a `style={{...}}` written in place, on every engine.
 - Headless tests: `keyup NAME` and `hold shift` (`hold` lets go) lines in `ZINC_INPUT` script a key's release and modifiers held alone.
 - zinc:ui: `ui.onKeyUp(f)` hears a key's release, and Shift, Control, Alt and Meta held alone now reach `ui.onKey` and `ui.onKeyUp` (hold Shift to pick several things, file them when it is let go).

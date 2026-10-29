@@ -1,0 +1,819 @@
+/* trieur — default stylesheet.
+
+   Everything is tunable through CSS variables; the host can also rewrite the whole thing,
+   the class names are stable (.tr, .tr-stage, .tr-card, .tr-zone, .tr-bar).
+
+   Every `color-mix()` is preceded by a plain fallback. Safari only shipped it in 16.2, and an
+   iPad that stops at 16.1 would otherwise render every border and every tint as nothing at
+   all. The fallback is what an old tablet sees; the mix is what everyone else sees. */
+
+/* configuration elements: they never render */
+trieur-zone { display: none; }
+trieur-deck { display: block; }
+
+.tr {
+  --tr-accent: #4a54f2;
+  /* multi-zone mode. Amber rather than red on purpose: red reads as error or destruction,
+     and stacking a card into several folders is neither. Amber reads as "hold on, this is a
+     different mode", which is exactly what it is. */
+  --tr-multi: #f59e0b;
+  --tr-ink: currentColor;
+  --tr-line: rgba(128, 128, 128, 0.3);
+  --tr-line: color-mix(in srgb, currentColor 15%, transparent);
+  --tr-card-bg: #fff;
+  --tr-card-w: 260px;
+  --tr-card-h: 300px;
+  --tr-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* nothing in a sorter is text you select: a drag that starts on a label used to paint the
+     whole stage blue. Inputs get it back below. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+@media (prefers-color-scheme: dark) {
+  .tr { --tr-card-bg: #22222c; }
+}
+
+.tr-stage {
+  position: relative;
+  min-height: 600px;
+  border-radius: var(--tr-radius);
+  outline: none;
+  /* A phone scrolls the page with the same swipe that sorts a card. While the deck is a
+     preview the page wins — `pan-y` keeps vertical swipes for the document, so the deck is
+     never a scroll trap. Once it is live (play, or fullscreen, or `touchPreview: false`) the
+     browser starts no scroll at all from a touch on the stage, which is the only way a
+     downward drag into a dock can survive. */
+  touch-action: pan-y;
+}
+.tr-stage:focus-visible {
+  box-shadow: 0 0 0 3px rgba(74, 84, 242, 0.35);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tr-accent) 35%, transparent);
+}
+
+/* --- stage carving: one region per zone, thin outline --- */
+.tr-segments {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* the drag passes through, the region is only there to be seen */
+}
+.tr-seg {
+  --tr-seg: var(--tr-accent);
+  fill: rgba(74, 84, 242, 0.04);
+  fill: color-mix(in srgb, var(--tr-seg) 4%, transparent);
+  stroke: var(--tr-line);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  transition: fill 120ms, stroke 120ms;
+}
+.tr-seg.tr-near {
+  stroke: var(--tr-seg);
+  stroke: color-mix(in srgb, var(--tr-seg) 55%, transparent);
+  stroke-dasharray: none;
+}
+.tr-seg.tr-armed {
+  fill: rgba(74, 84, 242, 0.14);
+  fill: color-mix(in srgb, var(--tr-seg) 14%, transparent);
+  stroke: var(--tr-seg);
+}
+/* a stacked region stays lit: on a phone, that is the whole feedback */
+.tr-seg.tr-picked {
+  fill: rgba(245, 158, 11, 0.12);
+  fill: color-mix(in srgb, var(--tr-multi) 12%, transparent);
+  stroke: var(--tr-multi);
+  stroke-dasharray: none;
+}
+
+/* --- zones: a folder tile, not a label --- */
+.tr-zone {
+  position: absolute;
+  /* `--tr-zone-k` is written by the deck when tiles are packed tightly enough to overlap */
+  transform: translate(-50%, -50%) scale(var(--tr-zone-k, 1));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 104px;
+  padding: 10px 8px 8px;
+  border: 1px solid var(--tr-line);
+  border-radius: 12px;
+  background: var(--tr-card-bg);
+  font-size: 12.5px;
+  line-height: 1.25;
+  text-align: center;
+  /* a zone is a target, never text: no selection, no double-tap zoom, no grey flash */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 120ms, border-color 120ms, background-color 120ms, box-shadow 120ms;
+}
+/* chip: solid colour, or image, or emoji */
+.tr-zone .tr-glyph {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--tr-seg, var(--tr-accent));
+  background: rgba(128, 128, 128, 0.16);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  overflow: hidden;
+}
+.tr-zone .tr-glyph svg { width: 28px; height: 28px; }
+.tr-zone .tr-glyph img { width: 100%; height: 100%; object-fit: cover; }
+.tr-zone .tr-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+/* Crowded: the tile keeps its label and gives up the rest. Sixteen zones on a stage meant for
+   six is a real case — a folder list does not stop growing because a ring is full — and a
+   label in 6px type is a tile that may as well be blank. */
+.tr-zone.tr-tight { width: 84px; padding: 6px 5px 5px; font-size: 11px; }
+.tr-zone.tr-tight .tr-glyph { width: 30px; height: 30px; font-size: 17px; border-radius: 8px; }
+.tr-zone.tr-tight .tr-glyph svg { width: 18px; height: 18px; }
+.tr-zone.tr-tiny { width: 68px; padding: 4px 3px; gap: 2px; font-size: 10.5px; }
+.tr-zone.tr-tiny .tr-glyph { width: 22px; height: 22px; font-size: 13px; border-radius: 6px; }
+.tr-zone.tr-tiny .tr-glyph svg { width: 14px; height: 14px; }
+.tr-zone.tr-tiny .tr-label { -webkit-line-clamp: 1; }
+.tr-zone.tr-tight kbd, .tr-zone.tr-tiny kbd { display: none; }
+
+/* keycaps, everywhere: a shortcut is easier to read as a key than as a word. The heavier
+   bottom border is what makes a flat rectangle read as something you press. */
+.tr kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--tr-line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--tr-card-bg);
+  opacity: 0.9;
+}
+.tr-zone.tr-near { border-color: var(--tr-seg, var(--tr-accent)); }
+/* disabled: still there, still in its place, simply not available */
+.tr-zone.tr-off { opacity: 0.38; cursor: not-allowed; filter: grayscale(0.6); }
+.tr-zone.tr-off .tr-glyph { background: rgba(128, 128, 128, 0.12); }
+.tr-seg.tr-off { fill: none; }
+
+/* free zone: present but not assigned yet */
+.tr-zone.tr-free { border-style: dashed; opacity: 0.6; }
+.tr-zone.tr-free .tr-glyph { background: none; border: 1px dashed var(--tr-line); }
+/* the model's suggestion: an outline, without stealing the show from hover */
+.tr-zone.tr-suggest {
+  border-color: var(--tr-accent);
+  border-color: color-mix(in srgb, var(--tr-accent) 60%, transparent);
+  box-shadow: 0 0 0 3px rgba(74, 84, 242, 0.14);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tr-accent) 14%, transparent);
+}
+/* Out of flow, always: an in-flow glyph makes the suggested tile taller than its neighbours,
+   and a tile centred on its point moves half of that. The suggestion then appeared to nudge
+   the zones every time it changed card — and, since the layout measures a tile to size its
+   margins, sometimes shifted the whole stage by a rounding step. */
+.tr-zone.tr-suggest::after {
+  content: '↵';
+  position: absolute;
+  left: 50%;
+  bottom: -1px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.6;
+}
+.tr-zone.tr-armed {
+  transform: translate(-50%, -50%) scale(calc(var(--tr-zone-k, 1) * 1.12));
+  background: rgba(74, 84, 242, 0.14);
+  background: color-mix(in srgb, var(--tr-accent) 14%, var(--tr-card-bg));
+}
+/* in the stack: the badge carries the rank, and rank 1 is the primary zone */
+.tr-zone.tr-picked {
+  border-color: var(--tr-multi);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tr-multi) 22%, transparent);
+}
+.tr-zone.tr-picked::before {
+  content: attr(data-pick);
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--tr-multi);
+  color: #1b1200;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+/* while the mode is on, tiles are tappable — that is the phone path */
+.tr-multi .tr-zone { cursor: pointer; }
+
+/* --- radial menu: the wedge *is* the button, so the tile stops being a box --- */
+.tr-layout-radial .tr-zone {
+  width: 96px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.tr-layout-radial .tr-zone .tr-glyph { width: 38px; height: 38px; font-size: 20px; }
+.tr-layout-radial .tr-zone .tr-glyph svg { width: 22px; height: 22px; }
+.tr-layout-radial .tr-zone.tr-armed { transform: translate(-50%, -50%) scale(calc(var(--tr-zone-k, 1) * 1.1)); background: none; }
+.tr-layout-radial .tr-zone.tr-picked { box-shadow: none; }
+/* A wedge is a button, so it looks like one: a flat tint, a visible edge, and two states that
+   are unmistakably different — pointing at it, and about to let go into it. */
+.tr-layout-radial .tr-seg {
+  fill: rgba(74, 84, 242, 0.06);
+  fill: color-mix(in srgb, var(--tr-seg) 6%, transparent);
+  stroke: rgba(128, 128, 128, 0.22);
+  stroke: color-mix(in srgb, currentColor 11%, transparent);
+  stroke-dasharray: none;
+  stroke-width: 1;
+  transition: fill 110ms ease-out;
+}
+.tr-layout-radial .tr-seg.tr-near {
+  fill: rgba(74, 84, 242, 0.16);
+  fill: color-mix(in srgb, var(--tr-seg) 16%, transparent);
+  stroke: var(--tr-seg);
+  stroke: color-mix(in srgb, var(--tr-seg) 45%, transparent);
+}
+.tr-layout-radial .tr-seg.tr-armed {
+  fill: rgba(74, 84, 242, 0.3);
+  fill: color-mix(in srgb, var(--tr-seg) 30%, transparent);
+  stroke: var(--tr-seg);
+  stroke-width: 2;
+}
+/* the label of the wedge you are pointing at comes forward with it */
+.tr-layout-radial .tr-zone.tr-near { color: var(--tr-seg, var(--tr-accent)); }
+.tr-layout-radial .tr-zone.tr-armed { font-weight: 600; }
+
+/* --- the throw vector (debug view of `flick`) --- */
+.tr-vector {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 4;
+  pointer-events: none;
+}
+.tr-vector[hidden] { display: none; }
+.tr-vec-line {
+  stroke: var(--tr-multi);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  stroke-linecap: round;
+}
+.tr-vec-well {
+  fill: none;
+  stroke: var(--tr-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+  opacity: 0.6;
+}
+.tr-vec-dot {
+  fill: rgba(245, 158, 11, 0.28);
+  fill: color-mix(in srgb, var(--tr-multi) 28%, transparent);
+  stroke: var(--tr-multi);
+  stroke-width: 2;
+}
+
+/* --- the held pad: a virtual gamepad button for the hand with no Shift key --- */
+.tr-pad {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 4;
+  width: 74px;
+  height: 74px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--tr-multi);
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--tr-multi);
+  opacity: 0.5;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 140ms, transform 140ms, background-color 140ms;
+}
+.tr-pad[hidden] { display: none; } /* display:grid would beat [hidden] */
+.tr-pad.tr-pad-left { left: 18px; right: auto; }
+.tr-pad svg { width: 30px; height: 30px; }
+.tr-pad.tr-on {
+  opacity: 1;
+  transform: scale(1.08);
+  background: rgba(245, 158, 11, 0.24);
+}
+/* summoned under the thumb, like a virtual joystick — it has no home corner to walk to */
+.tr-pad.tr-pad-dynamic {
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  opacity: 0.85;
+}
+.tr-pad.tr-pad-dynamic.tr-on { transform: translate(-50%, -50%) scale(1.08); }
+/* the wait is visible: a disc fills for exactly as long as the hold takes */
+.tr-pad.tr-charging::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.22;
+  transform: scale(0);
+  animation: tr-charge var(--tr-hold, 420ms) linear forwards;
+}
+@keyframes tr-charge {
+  to { transform: scale(1); }
+}
+
+/* --- card piles ---
+   One pile is the ordinary deck. Several sit side by side and share the zones: the tablet
+   case, one pile per hand. */
+.tr-pile { position: relative; display: grid; place-items: center; min-width: 0; }
+.tr-cards { grid-auto-flow: column; grid-auto-columns: 1fr; gap: 18px; }
+/* with two hands on the board, the pile the keyboard is talking to says so. A ring, not a
+   fade: a translucent card shows the one behind it straight through its own text. */
+.tr-piles .tr-pile[data-active='true'] .tr-card:not(.tr-behind) {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12), 0 0 0 2px rgba(74, 84, 242, 0.3);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12), 0 0 0 2px color-mix(in srgb, var(--tr-accent) 30%, transparent);
+}
+
+/* --- card pile --- */
+.tr-cards {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  /* the piles stretch, the cards centre inside them — a pile whose only children are
+     absolutely positioned would otherwise be a zero-sized box */
+  place-items: stretch;
+  /* the band the zones took along the bottom edge, if they took one: the layer stops there,
+     so the card centres in what is left rather than on top of the tray. An inset, not
+     padding — an absolutely positioned card is laid out against the padding box, and padding
+     is exactly what it would ignore. (`--tr-tray` is written by deck.ts.) */
+  bottom: var(--tr-tray, 0px);
+  /* an arc menu puts its hole off-centre and the card follows it there */
+  transform: translate(var(--tr-card-x, 0px), var(--tr-card-y, 0px));
+  pointer-events: none; /* only the cards react */
+}
+.tr-card {
+  pointer-events: auto;
+  position: absolute;
+  width: min(var(--tr-card-w), 78vw);
+  min-height: min(var(--tr-card-h), 46vh);
+  min-height: min(var(--tr-card-h), 46dvh);
+  display: flex;
+  flex-direction: column;
+  background: var(--tr-card-bg);
+  border: 1px solid var(--tr-line);
+  border-radius: var(--tr-radius);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  cursor: grab;
+  /* a card drags as one block: no text selection, no native image drag, no context menu on
+     long press — except on what is clickable */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  /* the card is a gesture surface, but only once it owns the screen: inline it leaves the
+     vertical swipe to the page (see .tr-stage), fullscreen it keeps everything — no
+     double-tap zoom, which would fight the double tap that accepts a suggestion, no pinch */
+  touch-action: pan-y;
+  /* transform + opacity: dealing down and stacking back share the same transition */
+  transition: transform 220ms cubic-bezier(0.22, 0.7, 0.3, 1), opacity 220ms ease-out;
+}
+/* the card in flight stays above the one rising from the pile */
+.tr-card.tr-genie { z-index: 3; pointer-events: none; }
+/* the two states where the card moves every frame get their own compositor layer. Not on
+   .tr-card itself: a permanent will-change keeps a layer alive for nothing, and on an older
+   tablet the video memory is the budget. */
+.tr-card.tr-dragging { cursor: grabbing; transition: none; will-change: transform; }
+.tr-card.tr-genie { will-change: transform, opacity; }
+.tr-card img { -webkit-user-drag: none; user-select: none; }
+/* only interactive elements get the cursor and text selection back */
+.tr-card a, .tr-card button { cursor: pointer; }
+.tr-card input, .tr-card textarea, .tr-card [contenteditable] { user-select: text; -webkit-user-select: text; cursor: auto; }
+.tr-card.tr-behind { transform: scale(0.94) translateY(14px); opacity: 0.55; filter: saturate(0.8); }
+/* genie effect: the card is sucked into the tile it was aimed at. Opacity only drops at the
+   very end — otherwise the card vanishes before arriving and the trip is invisible.
+   Transform and opacity only: a filter here would repaint the card on every frame of its
+   flight, which is precisely the moment that has to stay smooth. */
+.tr-card.tr-genie {
+  /* same feel as the thumb gesture: leaves immediately, slows on arrival, instead of the
+     mushy start of an ease-in-out. The fade only occupies the tail of the trip. */
+  transition: transform 320ms cubic-bezier(0.22, 0.7, 0.3, 1), opacity 110ms ease-in 215ms;
+  opacity: 0;
+}
+/* multi-zone mode: the card is being pointed at zones, not filed yet. A dashed outline says
+   "selection in progress", and a ring breathes on top of it so the mode cannot be mistaken
+   for a state. Dashed rather than marching ants: ants cannot follow a border radius without
+   artefacts. The ring animates opacity alone — a breathing box-shadow repaints the card
+   sixty times a second for nothing. */
+.tr-multi .tr-card:not(.tr-genie) { border: 2px dashed var(--tr-multi); }
+.tr-multi .tr-card:not(.tr-genie)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--tr-multi);
+  border-radius: inherit;
+  pointer-events: none;
+  animation: tr-breathe 1.6s ease-in-out infinite;
+}
+@keyframes tr-breathe {
+  50% { opacity: 0.2; }
+}
+/* the tile acknowledges receipt */
+.tr-zone.tr-catch { animation: tr-catch 300ms cubic-bezier(0.2, 0.9, 0.3, 1); }
+@keyframes tr-catch {
+  35% { transform: translate(-50%, -50%) scale(calc(var(--tr-zone-k, 1) * 1.14)); }
+  60% { transform: translate(-50%, -50%) scale(calc(var(--tr-zone-k, 1) * 0.97)); }
+  to { transform: translate(-50%, -50%) scale(var(--tr-zone-k, 1)); }
+}
+
+/* --- fullscreen (a modal, not the Fullscreen API) --- */
+.tr-close { display: none; }
+.tr-full {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  padding: 20px 24px 16px;
+  background: var(--tr-page-bg, var(--tr-card-bg));
+  animation: tr-open 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.tr-full .tr-stage { flex: 1; min-height: 0; } /* the stage takes the remaining height */
+/* expanded, the deck is the screen: every gesture on it is ours, none of it scrolls anything */
+.tr-full .tr-stage,
+.tr-full .tr-card,
+.tr-full .tr-zone,
+.tr-live .tr-stage,
+.tr-live .tr-card,
+.tr-live .tr-zone { touch-action: none; }
+/* and while a card is actually in the air, nothing else moves either. No `overflow: hidden`
+   here: it relayouts the document twice per drag and loses the scroll position doing it. */
+html.tr-holding, html.tr-holding body { overscroll-behavior: none; }
+/* a pill, not a bare cross: it says what it does and which key does it too */
+.tr-full .tr-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  height: 34px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--tr-line);
+  border-radius: 99px;
+  background: var(--tr-card-bg);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  transition: border-color 140ms, transform 140ms;
+}
+.tr-full .tr-close svg { width: 15px; height: 15px; }
+.tr-full .tr-close:hover { border-color: var(--tr-accent); color: var(--tr-accent); transform: translateY(-1px); }
+.tr-full .tr-close:focus-visible { outline: 2px solid var(--tr-accent); outline-offset: 2px; }
+.tr-full [data-tr='expand'] { display: none; } /* the cross is enough once expanded */
+@keyframes tr-open {
+  from { opacity: 0; transform: scale(0.98); }
+}
+/* the page behind stops scrolling while the modal is open */
+html.tr-locked, html.tr-locked body { overflow: hidden; }
+
+/* --- detail panel ---------------------------------------------------------
+   A closer look at the current card, over the stage rather than in its place: the pile stays
+   where it is, the keys keep working, and the same key that opened the panel closes it. A
+   drawer by default; `mode: 'modal'` centres it instead. */
+.tr-drawer {
+  position: absolute;
+  z-index: 6;
+  inset: 0 0 0 auto;
+  width: var(--tr-drawer-w, min(420px, 92%));
+  display: flex;
+  flex-direction: column;
+  background: var(--tr-card, #fff);
+  border-left: 1px solid var(--tr-line, #e4e4ee);
+  box-shadow: -18px 0 40px rgba(0, 0, 0, 0.12);
+  /* the panel scrolls, the page does not: a long article is why the panel exists */
+  overscroll-behavior: contain;
+  animation: tr-drawer-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.tr-drawer[hidden] { display: none; }
+@keyframes tr-drawer-in {
+  from { transform: translateX(12px); opacity: 0; }
+}
+.tr-drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--tr-line, #e4e4ee);
+}
+.tr-drawer-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tr-drawer-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--tr-line, #e4e4ee);
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.tr-drawer-close svg { width: 15px; height: 15px; }
+.tr-drawer-close:hover { border-color: var(--tr-accent, #4a54f2); color: var(--tr-accent, #4a54f2); }
+.tr-drawer-body { flex: 1; min-height: 0; overflow: auto; }
+/* an iframe is the common case: it should fill the panel, not sit in a box inside it */
+.tr-drawer-body > iframe { display: block; width: 100%; height: 100%; border: 0; }
+
+/* modal: the same panel, centred over the stage. For a card that is a document, not a column. */
+.tr-detail-modal .tr-drawer {
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  width: min(760px, 92%);
+  height: min(84%, 720px);
+  border: 1px solid var(--tr-line, #e4e4ee);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+  animation: tr-detail-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes tr-detail-in {
+  from { transform: translate(-50%, -46%) scale(0.98); opacity: 0; }
+}
+/* card mode: the same sheet, inset from the stage, with no centring transform of its own —
+   the growth animation composes its own transform, and two of them would fight. */
+.tr-detail-card .tr-drawer {
+  inset: 6% 6% 6% 6%;
+  width: auto;
+  height: auto;
+  transform: none;
+  border: 1px solid var(--tr-line, #e4e4ee);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+  animation: none; /* the deck animates this one itself, from the card's own rectangle */
+}
+/* the card steps aside while its own detail is up: it *became* the sheet, it is not behind it */
+.tr-detail-card .tr-cards { opacity: 0; }
+.tr-cards { transition: opacity 140ms ease-out; }
+
+/* the stage dims behind either one, so the eye knows which layer it is on */
+.tr-detailed .tr-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: rgba(20, 20, 30, 0.28);
+  animation: tr-fade-in 160ms ease-out;
+}
+@keyframes tr-fade-in {
+  from { opacity: 0; }
+}
+/* a narrow stage has no room for a column beside the card: the panel takes it whole */
+@media (max-width: 560px) {
+  .tr-drawer, .tr-detail-modal .tr-drawer, .tr-detail-card .tr-drawer { inset: 0; width: 100%; height: 100%; transform: none; border-radius: 0; }
+}
+
+/* --- bottom bar --- */
+.tr-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  opacity: 0.85;
+  /* the bar may scroll with the page, but a double tap on a button must not zoom */
+  touch-action: manipulation;
+}
+.tr-actions { margin-left: auto; display: flex; gap: 8px; }
+.tr-bar button {
+  font: inherit;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--tr-line);
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tr-bar button:hover:not(:disabled) { border-color: var(--tr-accent); color: var(--tr-accent); }
+.tr-bar button:disabled { opacity: 0.4; cursor: default; }
+.tr-bar button[hidden] { display: none; } /* display:inline-flex would beat [hidden] */
+.tr-bar button.tr-on {
+  border-color: var(--tr-multi);
+  color: var(--tr-multi);
+  background: rgba(245, 158, 11, 0.1);
+  background: color-mix(in srgb, var(--tr-multi) 10%, transparent);
+}
+.tr-bar button.tr-on:hover { border-color: var(--tr-multi); color: var(--tr-multi); }
+.tr-bar kbd { font: inherit; font-size: 10px; opacity: 0.7; }
+.tr-nothing { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; opacity: 0.6; font-size: 13px; }
+.tr-nothing[hidden] { display: none; } /* display:grid would beat [hidden] */
+
+/* --- a narrow stage: the card gives up room, and everything else shrinks to match --------
+   Measured, not guessed. `.tr-sm` / `.tr-xs` are written by the deck from the width of its
+   own stage, so a deck in a 420px side panel on a 1440px screen is treated exactly like one
+   on a phone — which a viewport media query gets wrong in both directions. The card that
+   reads well at 260px leaves a 6-zone ring nowhere to stand on a 390px stage, so the whole
+   scale comes down: the card, the tiles, the type, the bar. */
+.tr-sm {
+  --tr-card-w: 216px;
+  --tr-card-h: 262px;
+  --tr-radius: 12px;
+  gap: 8px;
+}
+.tr-sm .tr-card {
+  /* percentages of the card layer, which is the stage: the cap follows the room there is */
+  width: min(var(--tr-card-w), 62%);
+  /* the old 46dvh floor left a third of the card empty under the text */
+  min-height: min(var(--tr-card-h), 46%);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+.tr-sm .tr-zone {
+  width: 72px;
+  padding: 6px 4px 5px;
+  gap: 2px;
+  font-size: 10.5px;
+  border-radius: 10px;
+}
+.tr-sm .tr-zone .tr-glyph { width: 30px; height: 30px; font-size: 16px; border-radius: 8px; }
+.tr-sm .tr-zone .tr-glyph svg { width: 18px; height: 18px; }
+/* a stage this narrow is a thumb's, and a thumb has no keyboard: the keycap is a row of
+   pixels spent on nothing */
+.tr-sm .tr-zone kbd { display: none; }
+.tr-sm .tr-zone.tr-picked::before { top: -6px; right: -6px; min-width: 17px; height: 17px; font-size: 10px; }
+.tr-sm.tr-layout-radial .tr-zone { width: 66px; }
+.tr-sm.tr-layout-dock .tr-zone { width: 72px; }
+.tr-sm .tr-pad { width: 58px; height: 58px; }
+.tr-sm .tr-pad svg { width: 24px; height: 24px; }
+.tr-sm .tr-bar { font-size: 11px; gap: 6px; flex-wrap: wrap; }
+.tr-sm .tr-bar button { padding: 4px 8px; }
+.tr-sm .tr-bar kbd { display: none; }
+/* Fullscreen on a narrow screen is the opposite problem: the deck *is* the screen, so the
+   card takes back the room it gave up as an inline preview. Same tiles, bigger card — the
+   only thing a phone has plenty of is height. */
+.tr-full.tr-sm { --tr-card-w: 300px; --tr-card-h: 420px; }
+.tr-full.tr-sm .tr-card { width: min(var(--tr-card-w), 80%); min-height: min(var(--tr-card-h), 52%); }
+.tr-xs { --tr-card-w: 196px; --tr-card-h: 240px; }
+.tr-xs .tr-zone { width: 66px; font-size: 10px; }
+.tr-xs.tr-layout-radial .tr-zone { width: 62px; }
+
+/* the one genuinely viewport-sized thing: how tall an inline stage should be on a phone */
+@media (max-width: 640px) {
+  .tr:not(.tr-full) .tr-stage { min-height: 56vh; min-height: 56dvh; }
+  .tr-full { padding: 12px 12px 10px; }
+  .tr-full .tr-close { top: 10px; right: 10px; height: 30px; }
+}
+
+/* --- the play button: an inline deck on a phone is a preview until you say otherwise ------
+   A scrim over the stage, the way a modal dims what is behind it, and one round button on top.
+   The scrim is the point: it says the cards underneath are a picture rather than a thing you
+   can touch, which is exactly what they are until you press play. */
+.tr-play { display: none; }
+.tr-idle .tr-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: inherit;
+  background: rgba(250, 250, 252, 0.55);
+  backdrop-filter: saturate(0.75) blur(1px);
+  -webkit-backdrop-filter: saturate(0.75) blur(1px);
+  animation: tr-scrim 200ms ease-out;
+}
+@media (prefers-color-scheme: dark) {
+  .tr-idle .tr-stage::after { background: rgba(12, 12, 18, 0.5); }
+}
+@keyframes tr-scrim {
+  from { opacity: 0; }
+}
+.tr-idle .tr-play {
+  display: grid;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 6;
+  place-items: center;
+  gap: 3px;
+  width: 96px;
+  height: 96px;
+  padding: 0 0 2px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tr-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 10px 24px rgba(74, 84, 242, 0.34),
+    0 2px 6px rgba(0, 0, 0, 0.14);
+  -webkit-tap-highlight-color: transparent;
+  animation: tr-wake 240ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  transition: transform 120ms, box-shadow 120ms;
+}
+.tr-idle .tr-play svg { width: 34px; height: 34px; margin-left: 3px; }
+/* the disc it sits on, so the button reads as lifted off the card rather than stuck to it */
+.tr-idle .tr-play::after {
+  content: '';
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  width: 64px;
+  height: 12px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: #000;
+  opacity: 0.16;
+  filter: blur(5px);
+}
+.tr-idle .tr-play:active { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 6px 14px rgba(74, 84, 242, 0.3); }
+@keyframes tr-wake {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.82); }
+}
+.tr-play[hidden] { display: none; } /* display:grid would beat [hidden] */
+.tr-live-bar { display: contents; } /* just a handle for the floating pair on touch */
+
+/* --- touch, before it owns the screen ---------------------------------------------------
+   Inline on a phone the deck is a preview: the page scrolls straight through it, and a tap
+   opens it fullscreen (see `touchFullscreen`). The Expand button leaves the bar for the top
+   of the stage, because it is now the thing to press, not an afterthought beside Undo.
+   `:not(.tr-full)` on the positioning is not cosmetic: `.tr-full` *is* `.tr`, and a bare
+   `.tr { position: relative }` here would come later in the file and quietly beat the
+   `position: fixed` that makes fullscreen fullscreen. */
+@media (pointer: coarse) {
+  .tr:not(.tr-full) { position: relative; }
+  /* Stop sits beside Expand — the two of them float together, so neither has to guess how
+     wide the other's label is in whatever language it is wearing */
+  .tr:not(.tr-full) .tr-live-bar {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+    display: flex;
+    gap: 8px;
+  }
+  .tr:not(.tr-full) .tr-live-bar button {
+    padding: 6px 12px;
+    border-radius: 99px;
+    background: var(--tr-card-bg);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  }
+}
+
+/* --- a dock puts the zones on the bottom edge, so the tiles sit flat --- */
+.tr-layout-dock .tr-zone { width: 84px; }
+.tr-layout-dock .tr-seg { stroke-dasharray: 4 5; }
+
+/* --- a grid is rectangles: solid edges read as cells, dashes read as scatter --- */
+.tr-layout-grid .tr-seg { stroke-dasharray: none; stroke-width: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tr-card, .tr-zone, .tr-seg, .tr-pad { transition: none; }
+  .tr-zone.tr-catch { animation: none; }
+  .tr-multi .tr-card:not(.tr-genie)::after { animation: none; }
+}
