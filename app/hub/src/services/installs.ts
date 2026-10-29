@@ -134,6 +134,33 @@ export async function cleanTiles(): Promise<string> {
   return gone.length === 0 ? 'AppLoad is clean: every Zinc tile has its app.' : 'Removed ' + gone.join(', ') + '. Reload AppLoad.';
 }
 
+// The ink session (outside xochitl): a second tile, zinc-<name>-session, whose launcher asks the display lease to stop xochitl, run the app
+// with the panel to itself and bring xochitl back on every way out. zinc-tile makes it with the app's tile when the app's zinc.json says
+// "display": {"ink": "session"}; the owner turns it on or off here, and "off" is kept in the app's tile (no-session) across updates.
+function sessionTile(name: string): string { return APPLOAD_DIR + '/zinc-' + name + '-session'; }
+export function hasSession(name: string): boolean { return fs.exists(sessionTile(name) + '/launch.sh'); }
+export async function setSession(name: string, on: boolean): Promise<string> {
+  if (!fs.exists(TILE_COMMAND)) throw new Error('No zinc-tile at ' + TILE_COMMAND + ' (not a reMarkable): no ink session.');
+  const off = APPLOAD_DIR + '/zinc-' + name + '/no-session';
+  if (!on) {
+    await removeTile('zinc-' + name + '-session');
+    if (fs.exists(APPLOAD_DIR + '/zinc-' + name)) fs.writeText(off, 'the owner turned the ink session off in the Hub\n');
+    return name + ' runs in AppLoad\'s window only. Reload AppLoad.';
+  }
+  if (fs.exists(off)) fs.remove(off);
+  const r = await proc.run(TILE_COMMAND, [livePath(name), '--session'], {});
+  if (r.code !== 0) throw new Error('No ink session for ' + name + ': ' + (r.stderr.trim() !== '' ? r.stderr.trim() : 'zinc-tile exit ' + r.code.toString()));
+  return name + ' opens outside xochitl, with the panel to itself (xochitl comes back when it ends). Reload AppLoad.';
+}
+/** Opens the app's ink session now: the lease (systemd-run) stops xochitl, and this hub with it. Its refusal (too many restarts of xochitl
+ *  lately, an OS not verified) comes back as the error. */
+export async function launchSession(name: string): Promise<void> {
+  const r = await proc.run(sessionTile(name) + '/launch.sh', [], {});
+  if (r.code === 0) return;
+  const lines = r.stderr.trim().split('\n');   // the lease's last line says why it refused
+  throw new Error((lines[lines.length - 1] !== '' ? lines[lines.length - 1] : 'exit ' + r.code.toString()) + '. Open it in AppLoad\'s window instead.');
+}
+
 // Pins (AppLoad patch 0004, integrations/remarkable-engine/appload/README.md): pinned.json in AppLoad's directory, a JSON array of AppLoad ids
 // (external::zinc-<name>) in sidebar order. Ids the Hub did not add keep their order, a new pin goes at the end, and the list is written
 // whole through a temporary file and a rename, so AppLoad's watcher never reads half of it.

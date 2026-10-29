@@ -22,8 +22,8 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
   server has a newer version, **Not responding** when the running app is hung; the header's "N updates" opens Store › Installed, and the
   engine's update shows as a banner above the grid. The Hub itself is not a tile.
 - **Store › All**: every app of the server, compact (icon, name, author, description, version, size, what it uses), with **Install** or
-  **Update**. **Store › Installed**: Update, Rollback, the channel, **Pin to sidebar**, **Reset data** and **Uninstall** (the last two ask
-  twice); the Hub's own row says "this app".
+  **Update**. **Store › Installed**: Update, Rollback, the channel, **Pin to sidebar**, **Ink session**, **Reset data** and **Uninstall**
+  (the last two ask twice); the Hub's own row says "this app".
 - **Running**, **Info**, **Settings** as below.
 
 ## What it checks
@@ -44,6 +44,11 @@ On the tablet (the engine of ZN-841 in `/home/root/zinc`): `zinc pack app/hub`, 
 - **Reset data** (two taps) erases only what is unambiguously the app's own: `~/.zinc/<name>` (`ZINC_HUB_APP_DATA` for `~/.zinc`; never
   the engine's own folders such as `hub`, `cache`, `plugins`) and the `<name>.` keys of `zinc:storage`. Documents the user made
   (`~/zinc-docs`, `~/zinc-notes`) stay. The status lists what was removed; a running app is refused until it is stopped.
+- **Ink session** (on or off per app): the app's second tile, `zinc-<name>-session` (`zinc-tile --session`), runs it outside xochitl:
+  the display lease stops xochitl, gives the app the panel and brings xochitl back when it ends. An app whose zinc.json says
+  `"display": {"ink": "session"}` gets it at install; Off removes it and writes `no-session` in the app's tile, so an update does not bring it
+  back. The home grid marks such an app **INK**, and a tap opens it outside xochitl; the lease's refusal (xochitl restarted too often lately,
+  an OS not verified) stays on screen, and the app still opens in AppLoad's window from its own tile.
 - **Pin to sidebar** follows AppLoad's `pinned.json` (AppLoad 0004): a JSON array of ids in `APPLOAD_DIR/pinned.json` (`ZINC_APPLOAD`),
   ours `external::zinc-<name>`; the ids of other tools keep their order, a new pin is appended, and the file is written to a temporary
   file then renamed.

@@ -5,6 +5,8 @@
 #   zinc-tile --remove <tile>
 # Default: AppLoad's shared framebuffer (qtfb), xochitl keeps running. --session: the ink session, xochitl stopped by the display lease and
 # brought back on every way out; refused here when this OS's display engine is not one the engine verified (share/zinc/rmpp/verified).
+# zinc.json "display": {"ink": "session"} (in the .zapp): the qtfb tile comes with the app's ink session tile too, unless the owner turned
+# it off in the Hub (the file no-session in the qtfb tile's directory); an OS whose display engine is not verified gets the qtfb tile only.
 # Then in AppLoad: reload, and tap the tile.
 set -eu
 Z=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -66,3 +68,6 @@ fi
 # a new file put in place: the launch.sh running now (the hub updating itself) keeps reading its own
 chmod 755 "$dir/launch.sh.new" && mv -f "$dir/launch.sh.new" "$dir/launch.sh"
 echo "tile zinc-$name in $dir: open AppLoad, reload, then tap '$name'"
+if [ -z "$session" ] && [ ! -e "$dir/no-session" ] && tar xOf "$zapp" zinc.json 2>/dev/null | tr -d ' \n\t' | grep -q '"display":{[^}]*"ink":"session"'; then
+  "$0" "$zapp" --session || echo "zinc-tile: $name asks for an ink session tile; it runs in AppLoad's window only" >&2
+fi

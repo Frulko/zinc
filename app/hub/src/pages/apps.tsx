@@ -31,7 +31,7 @@ export function Icon(props: { row: AppRow; size: i32; bare?: boolean }): i32 {
 function hung(r: AppRow): boolean { return stuck().some((a: RunningApp) => a.name === r.name); }
 
 /** One tile, as iOS's home screen draws it: the icon in a rounded square, the name under it, small; a round badge on the corner, a dot
- *  when an update waits, "!" when the app does not respond. Six to a row on the portrait page (6 x 220 + 5 x 40 = 1520, in the 1540 px
+ *  when an update waits, "!" when the app does not respond; INK at the bottom when it opens outside xochitl (its ink session). Six to a row on the portrait page (6 x 220 + 5 x 40 = 1520, in the 1540 px
  *  inside its padding: no rounding pushes one down). */
 function Tile(props: { row: AppRow }): i32 {
   const r = props.row;
@@ -41,6 +41,8 @@ function Tile(props: { row: AppRow }): i32 {
       <View className="w-[176px] h-[176px] items-center justify-center border-2 border-black rounded-[40px]"><Icon row={r} size={112} bare={true} /></View>
       {badge !== '' ? <View className="absolute top-0 right-[6px] w-[48px] h-[48px] items-center justify-center rounded-full bg-black border-4 border-white">
         <Text className="text-[28px] font-bold text-white">{badge}</Text></View> : null}
+      {r.session ? <View className="absolute bottom-[4px] left-[6px] px-3 h-[40px] items-center justify-center rounded-lg bg-black border-4 border-white">
+        <Text className="text-[22px] font-bold text-white">INK</Text></View> : null}
     </View>
     <Text className="w-[220px] truncate text-center text-[26px] text-black">{r.name}</Text>
   </Button>;

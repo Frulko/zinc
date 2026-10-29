@@ -288,6 +288,24 @@ expect 'Unpinned notes from the sidebar.'
 [ "$(cat "$pins")" = '["external::koreader"]' ] || { echo "pinned.json after Unpin: $(cat "$pins")"; fail=1; }
 app "pin com.example.notes"
 [ -e "$pins.tmp" ] && { echo "the pins' temporary file was left"; fail=1; }
+# Ink session (outside xochitl): On makes the second tile (zinc-tile --session), the home grid badges it INK, Open runs its launcher and
+# shows the lease's refusal; Off removes it and leaves no-session in the app's tile, so an update does not bring it back
+: > "$tmp/tile.log"; mkdir -p "$ZINC_APPLOAD/zinc-notes"
+app "session com.example.notes"
+expect 'notes opens outside xochitl'
+grep -qx -- "$live --session" "$tmp/tile.log" || { echo "Ink session did not call zinc-tile --session: $(cat "$tmp/tile.log")"; fail=1; }
+s=$ZINC_APPLOAD/zinc-notes-session; mkdir -p "$s"   # what zinc-tile --session makes on the tablet
+printf '#!/bin/sh\necho "lease: refused: xochitl was restarted 2 times in the last 10 minutes (at most 2)" >&2\nexit 1\n' > "$s/launch.sh"; chmod 755 "$s/launch.sh"
+app "store installed"
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qx 'Ink session: on' || { echo "an app with its ink session does not say so in Installed"; fail=1; }
+app "page apps"
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qx 'INK' || { echo "the home grid has no INK badge"; fail=1; }
+app "open com.example.notes"
+expect 'lease: refused: xochitl was restarted 2 times in the last 10 minutes (at most 2). Open it in AppLoad'
+app "session com.example.notes"
+expect 'notes runs in AppLoad'
+grep -qx -- '--remove zinc-notes-session' "$tmp/tile.log" && [ -e "$ZINC_APPLOAD/zinc-notes/no-session" ] || { echo "Ink session off: $(cat "$tmp/tile.log"), no-session $(ls "$ZINC_APPLOAD/zinc-notes")"; fail=1; }
+rm -rf "$s" "$ZINC_APPLOAD/zinc-notes"
 
 # Uninstall: the first tap arms it, the second removes the tiles, the package and the record; the hub never uninstalls itself
 : > "$tmp/tile.log"

@@ -349,6 +349,10 @@ set `"display": { "driver": "rmpp", "keyboard": true }` in zinc.json and `zinc-t
 tile's `external.manifest.json`. Caps Lock, dead keys and characters outside Latin-1 are not seen (AppLoad sends no text). The ink
 session (`"ink": "session"`) has no keyboard yet.
 
+An app that is best outside xochitl (a second screen, a game) says `"display": { "driver": "rmpp", "ink": "session" }`: `zinc-tile` then
+makes its ink session tile (`zinc-<name>-session`) beside the qtfb one, and the Hub opens it there and marks it INK. The owner turns it off
+or on per app in Store › Installed (Ink session); off is kept in the app's tile as the file `no-session`.
+
 ## Install on the tablet
 
 1. Enable developer mode (wipes the tablet), connect USB, `ssh root@10.11.99.1`.

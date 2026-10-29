@@ -7,7 +7,7 @@ import { engineOffered, engineVersion, installEngine } from './services/engine';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import { quit } from 'zinc:gfx';
-import { Installed, installed, previous, install, rollback, uninstall, cleanTiles, nameOf, livePath, pinnedIds, setPinned, resetData } from './services/installs';
+import { Installed, installed, previous, install, rollback, uninstall, cleanTiles, nameOf, livePath, pinnedIds, setPinned, resetData, hasSession, setSession, launchSession } from './services/installs';
 import { STABLE, HUB_ID, DEVICE_NAME, HUB_DIR, ENGINE_ZBC, ENGINE_RT } from './constants';
 import { RunningApp, running, stopApp } from './services/running';
 import { InfoSection, loadInfo, hubVersion } from './services/system';
@@ -31,6 +31,7 @@ export class AppRow {
   uses: string = '';                // its permissions in a few words, '' when it declares none of them
   declared: boolean = false;
   pinned: boolean = false;          // in xochitl's sidebar (AppLoad 0004's pinned.json)
+  session: boolean = false;         // has its ink session tile: Open runs it outside xochitl, with the panel to itself
   inCatalog: boolean = true;        // false: installed earlier, the server no longer offers it
   /** Rollback goes back to an older version only: after a rollback the newer one comes back with Update. */
   get canRollback(): boolean { return this.previous !== '' && newer(this.installed, this.previous); }
@@ -167,7 +168,7 @@ export function rebuildRows(): void {
     list.push(r);
   }
   const pins = pinnedIds();
-  for (const r of list) r.pinned = pins.indexOf('external::zinc-' + r.name) >= 0;
+  for (const r of list) { r.pinned = pins.indexOf('external::zinc-' + r.name) >= 0; r.session = r.installed !== '' && hasSession(r.name); }
   setRows(list);
 }
 
@@ -367,10 +368,27 @@ export function togglePin(id: string): void {
   }
 }
 
-/** Open: the hub quits and its tile's launcher runs the app in this window (ZINC_NEXT, zinc-tile), then brings the hub back. */
-export function openApp(id: string): void {
+/** Ink session on or off for an app: its second tile, outside xochitl (services/installs.ts). */
+export async function toggleSession(id: string): Promise<void> {
+  for (const r of rows()) if (r.id === id) {
+    const on = !r.session;
+    await run((on ? 'Ink session for ' : 'No ink session for ') + r.name, async (): Promise<string> => { const m = await setSession(r.name, on); rebuildRows(); return m; });
+  }
+}
+
+/** Open: the hub quits and its tile's launcher runs the app in this window (ZINC_NEXT, zinc-tile), then brings the hub back. An app with its
+ *  ink session opens outside xochitl instead: the lease stops xochitl (and this hub) and brings it back when the app ends. */
+export async function openApp(id: string): Promise<void> {
   const i = installed(id);
   if (i === null) { say(id + ' is not installed.'); return; }
+  if (hasSession(i.name)) {
+    await run('Opening ' + i.name + ' outside xochitl', async (): Promise<string> => {
+      progress('xochitl stops and ' + i.name + ' takes the whole panel; closing it brings xochitl back.');
+      await launchSession(i.name);
+      return 'Opening ' + i.name + ' outside xochitl.';
+    });
+    return;
+  }
   const next = sys.env('ZINC_NEXT');
   if (next === '') { say('Open ' + i.name + ' from AppLoad: reload it, then tap ' + i.name + '.'); return; }
   fs.writeText(next, livePath(i.name));
