@@ -14,6 +14,7 @@ struct Tune: Equatable, Codable {
     var tabletPen = false          // the Marker as a graphics tablet's pen (pressure, tilt, hover), not a mouse
     var rotationLock = false       // the picture keeps its way up whatever the accelerometer says
     var invert = 1                 // dark areas (a dark mode's windows): 0 kept, 1 turned to ink on paper, 2 the whole screen turned
+    var greyLevels = 0             // the true greys of a clean pass: 0 all 256, 16 (the panel's own) or 4, blue noise between two levels
 }
 
 extension Tune {
@@ -42,10 +43,14 @@ let presets: [Preset] = {
     video.black = 40; video.white = 220; video.gamma = 1.0; video.edges = 0; video.framesHz = 20; video.idle = 0; video.blink = false; video.invert = 0; video.dither = 2
     var reading = Tune()
     reading.black = 100; reading.white = 200; reading.edges = 6; reading.framesHz = 10; reading.idle = 800; reading.mouse = 300; reading.greys = true
+    // experimental: the fast waveform and dots while anything moves, the panel's 16 true greys as soon as a place rests
+    var hybrid = Tune()
+    hybrid.dither = 3; hybrid.greys = true; hybrid.greyLevels = 16; hybrid.idle = 700; hybrid.minClean = 0.2; hybrid.mouse = 400; hybrid.typing = 600
     return [
         Preset(id: "text", icon: "text.cursor", title: "Text", line: "Code, mail, notes: sharp letters, a steady caret, no flash while you type.", tune: text),
         Preset(id: "speed", icon: "hare", title: "Speed", line: "Everything moves at once: the most frames, cleaning waits until you stop.", tune: speed),
         Preset(id: "video", icon: "film", title: "Video", line: "Pictures that move: soft greys from blue noise, never a cleaning flash.", tune: video),
+        Preset(id: "hybrid", icon: "circle.lefthalf.filled", title: "Hybrid (experimental)", line: "Fast black and white dots while things move, the panel's 16 true greys as soon as they rest.", tune: hybrid),
         Preset(id: "reading", icon: "book", title: "Reading", line: "Long pages: calm, few frames, true greys once the page rests.", tune: reading),
     ]
 }()

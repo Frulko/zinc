@@ -16,6 +16,7 @@ import SwiftUI
 var invertMode = 1   // dark areas, see darkAround
 var host = "10.11.99.1", points = (0, 0), native = false, mirror = -1, ditherKind = 3, seconds = 0.0, idleMs = 1500, trailMs = 1500, minClean = -1, cursorPx = 28, cleanMode = 0, fastMode0 = 0, pointerHz = 12, moving = 1, dotPx = 8, levels = (90, 185), gamma = 1.6, edges = 10, edgeFloor = 4, rotate = 0, ui = true, control = false, waitAlways = false
 var gentle = true, tabletPen = false, rotationLock = false, selftest = false
+var greyLevels = 0   // the clean pass's greys: 0 all 256, 16 or 4 (level below)
 setvbuf(stdout, nil, _IOLBF, 0)   // a line at a time, into a pipe or a file too
 var argv = CommandLine.arguments.dropFirst()
 while let a = argv.popFirst() {
@@ -36,6 +37,7 @@ while let a = argv.popFirst() {
     case "--no-ui": ui = false   // no settings window
     case "--wait": waitAlways = true   // wait for the tablet as long as it takes (the menu bar app), not 30 s
     case "--pointer-hz": pointerHz = max(1, Int(argv.popFirst()!)!)   // pointer moves sent per second at most, the newest only: a fast update lasts ~100+ ms on the panel
+    case "--grey-levels": greyLevels = Int(argv.popFirst()!)!   // the clean pass's greys: 0 all 256, 16 or 4 (blue noise between two levels)
     case "--clean-mode": cleanMode = Int(argv.popFirst()!)!   // 0: the clean pass stays in the fast waveform (no switch); 3 or 4: true greys in xochitl's page or UI one
     case "--levels": let l = argv.popFirst()!.split(separator: ",").map { Int($0)! }; levels = (l[0], l[1])   // the tone curve's black and white points
     case "--gamma": gamma = Double(argv.popFirst()!)!
@@ -591,6 +593,13 @@ func blinkBack(_ t: Int) -> Bool {
     return hi >= 0 && hi - lo < 6 && gained == 0 && lost > 0
 }
 var backToFast = 0.0   // when the clean pass's waveform gives way to the fast one again
+// the clean pass's greys on the panel's own levels (--grey-levels 16, or 4): the panel shows 16 greys whatever it is sent, so the other 240
+// values are bytes for nothing. Each grey falls on one of the two levels around it, by the blue noise (a gradient stays smooth, without
+// bands), and the rectangle is a few values repeated: zstd packs it smaller
+@inline(__always) func level(_ v: UInt8, _ x: Int, _ y: Int) -> UInt8 {
+    let q = greyLevels - 1, s = Int(v) * q, base = s / 255, frac = s % 255
+    return UInt8((base + (frac * 256 / 255 > Int(blueNoise[(y & 63) * 64 + (x & 63)]) ? 1 : 0)) * 255 / q)
+}
 /** Cleans the tiles of mask. fast: the pointer's trail, all in the fast waveform (no waveform switch: the next move starts at once). */
 func clean(_ mask: inout [Bool], fast: Bool = false) {
     let c0 = now(); defer { prof.clean.append(now() - c0) }
@@ -600,6 +609,7 @@ func clean(_ mask: inout [Bool], fast: Bool = false) {
     func greys(_ x: Int, _ y: Int, _ w: Int, _ h: Int, more: Bool = false) {
         var payload = [UInt8](repeating: 0, count: w * h)
         for j in 0..<h { let o = (y + j) * W + x; payload.replaceSubrange(j * w..<(j + 1) * w, with: shown[o..<(o + w)]) }
+        if greyLevels > 1 { for j in 0..<h { for i in 0..<w { payload[j * w + i] = level(payload[j * w + i], x + i, y + j) } } }
         sendRect(x, y, w, h, payload, depth: 8, more: more)
     }
     if !fast && rects.reduce(0, { $0 + $1.2 * $1.3 }) * 3 >= W * H {   // much of the screen: one full refresh is one flash, and cleaner
@@ -802,7 +812,7 @@ func currentTune() -> Tune {
          cursor: Double(cursorPx), moving: moving, dot: Double(dotPx), pointerHz: Double(pointerHz), trail: Double(trailMs),
          fastMode: fastMode0, idle: Double(idleMs), minClean: minClean < 0 ? 1.0 : Double(minClean) * 100 / Double(W * H), greys: cleanMode != 0,
          typing: Double(typingMs), framesHz: Double(framesHz), blink: blinkFilter, hold: holdOn, holdPen: Double(holdPen), holdColour: Double(holdColour),
-         holdFull: Double(holdFull), mouse: Double(mouseMs), gentle: gentle, tabletPen: tabletPen, rotationLock: rotationLock, invert: invertMode)
+         holdFull: Double(holdFull), mouse: Double(mouseMs), gentle: gentle, tabletPen: tabletPen, rotationLock: rotationLock, invert: invertMode, greyLevels: greyLevels)
 }
 var pendingTune: Tune?, pendingAction = ""   // "full", "clean" or "quit-tablet"
 var reshade = false   // the tone changed: the whole frame goes through it again
@@ -815,7 +825,7 @@ func apply(_ t: Tune) {
     idleMs = Int(t.idle); minClean = Int(t.minClean * Double(W * H) / 100); cleanMode = t.greys ? 3 : 0
     typingMs = Int(t.typing); framesHz = max(1, Int(t.framesHz)); blinkFilter = t.blink; mouseMs = Int(t.mouse)
     holdOn = t.hold; holdPen = Int(t.holdPen); holdColour = Int(t.holdColour); holdFull = Int(t.holdFull)
-    gentle = t.gentle; tabletPen = t.tabletPen; rotationLock = t.rotationLock
+    gentle = t.gentle; tabletPen = t.tabletPen; rotationLock = t.rotationLock; greyLevels = t.greyLevels
     if t.fastMode != fastMode0 { fastMode0 = t.fastMode; writeFull(header(2, fastMode0, 0, 0, 0, 0), 16); fastMode = true }
     if shader { tone = makeTone(); thr = makeThr() }
     if look { uprightMask = makeArrow(); pointerMask = turnedMask(); dotMask = makeDot() }

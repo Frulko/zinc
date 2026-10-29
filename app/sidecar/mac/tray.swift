@@ -571,6 +571,8 @@ struct SettingsView: View {
                         Knob(name: "Mouse pause", help: "Nothing is wiped while the mouse moves, clicks or drags (a finger and the Marker count too): the cleaning waits until it has rested this long. 0: only around the pointer.", value: $e.tune.mouse, range: 0...3000, step: 50, unit: " ms")
                         Switch(name: "Gentle clean", help: "Wipes through a grey checker instead of a black flash: softer on the eyes.", on: $e.tune.gentle)
                         Switch(name: "True greys when clean", help: "Pages that rest get real grey levels. Prettier, but the panel switches modes (a slower moment).", on: $e.tune.greys)
+                        Picker("Grey levels at rest", selection: $e.tune.greyLevels) { Text("All").tag(0); Text("16 (the panel's)").tag(16); Text("4").tag(4) }.pickerStyle(.segmented).disabled(!e.tune.greys)
+                        Text("The panel shows 16 greys: sent on its own levels (blue noise between two), a resting page is fewer bytes and looks the same; 4 is lighter still, with a little grain.").font(.caption).foregroundStyle(.secondary)
                         Switch(name: "Steady caret on the Mac", help: "macOS stops blinking the text caret while Sidecar runs, and blinks it again after. Apps read it when they open: reopen the one you type in. VS Code, Terminal and Chrome have their own setting.", on: $e.steadyCaret)
                         Switch(name: "Hold a blinking caret", help: "For the apps that still blink: the caret stays shown on paper instead of flipping (every flip leaves a little ghost).", on: $e.tune.blink)
                     }
