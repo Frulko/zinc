@@ -209,6 +209,7 @@ struct Stripper {
         case N::Interface: case N::TypeAlias: blank(x.start, x.end); break;
         case N::Import: importDecl(x, values); break;
         case N::ExportList: if (x.flags & kFlagTypeOnly) blank(x.start, x.end); break;   // `export type { A } from './a'`
+        case N::ExportSpec: if (x.flags & kFlagTypeOnly) blank(x.start, x.start + 4); break;   // `export { a, type B }`: the type exports as the binding `export var B` of its module
         case N::Export:
           decorators(x.start);
           if (!x.kids.empty() && x.kids[0] != kNone && (n(x.kids[0]).kind == N::Interface || n(x.kids[0]).kind == N::TypeAlias)) {

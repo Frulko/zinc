@@ -3,7 +3,7 @@
 # (tests/golden/qjs; ts_syntax.ts: the type syntax libraries write, top-level await, CommonJS files), an uncaught exception ends with exit code 101, an unknown engine is refused.
 cd "$(dirname "$0")/../.." || exit 2
 fail=0
-for t in plain.js strip.ts ts_syntax.ts; do
+for t in plain.js strip.ts ts_syntax.ts ts_more.ts; do
   "$ZINC" run tests/golden/qjs/$t --engine quickjs 2>&1 | diff -q - tests/golden/qjs/${t%.*}.out >/dev/null || { echo "$t on quickjs differs from tests/golden/qjs/${t%.*}.out"; fail=1; }
 done
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

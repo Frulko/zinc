@@ -200,6 +200,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- QuickJS: TypeScript as libraries write it now loads: `export { a, type B }`, `async`, generator, generic and quoted methods in an object literal, and `xs[i]!++` (also on the typed engines).
 - `zinc:fs`: `writeText`, `appendText`, `writeBytes`, `readText` and `copyFile` read and write a file in one go: writing 3 MB took 40 ms or more on macOS, now about 1 ms.
 - iPod demo: the queue panel follows the queue while it is open (it showed the queue as it was when opened), and on a Sonos group the bar shows the song the group moved to right after Next or Previous, not up to 15 seconds later.
 - Sidecar: a screen no longer stops with "capture stopped: Stream was stopped by the system" when another screen comes or goes or the displays change; the capture starts again.

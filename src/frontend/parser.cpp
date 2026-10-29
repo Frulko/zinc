@@ -137,6 +137,12 @@ struct Parser {
     return mk(N::ObjectPattern, st, prevEnd(), {}, std::move(props));
   }
   // An array literal on the left of `=` becomes an assignment pattern (targets may be members and elements).
+  // `a! = 1`, `xs[i]!++`: a non-null assertion on a target asserts nothing at run time, the target is `a`
+  std::uint32_t assignTarget(std::uint32_t e) {
+    while (r.ast.nodes[e].kind == N::NonNull) e = r.ast.nodes[e].kids[0];
+    return e;
+  }
+
   void toAssignPattern(std::uint32_t id) {
     Node& nd = r.ast.nodes[id];
     if (nd.kind == N::Array) {
@@ -552,6 +558,7 @@ struct Parser {
     std::uint32_t lhs = conditional();
     Op op = operatorAt();
     if (op.ntoks && isAssignOp(op.text)) {
+      lhs = assignTarget(lhs);
       N k = r.ast.nodes[lhs].kind;
       if (k == N::Array && op.text == "=") toAssignPattern(lhs);
       else if (k != N::Ident && k != N::Member && k != N::Index) fail(kZBadAssignTarget, startOf(lhs), "");
@@ -610,7 +617,7 @@ struct Parser {
     }
     if (isP("++") || isP("--")) {
       std::string_view op = txt(); ++i;
-      std::uint32_t e = unary();
+      std::uint32_t e = assignTarget(unary());
       N k = r.ast.nodes[e].kind;
       if (k != N::Ident && k != N::Member && k != N::Index) fail(kZBadAssignTarget, startOf(e), "");   // `++3`: the target of an assignment, as `3 += 1`
       return mk(N::UpdatePre, st, endOf(e), op, {e});
@@ -679,6 +686,7 @@ struct Parser {
         if (!pendingTargs.empty()) { r.ast.targs[e] = std::move(pendingTargs); pendingTargs.clear(); }
       } else if ((isP("++") || isP("--")) && !newlineBefore()) {
         std::string_view op = txt(); ++i;
+        e = assignTarget(e);
         N k = r.ast.nodes[e].kind;
         if (k != N::Ident && k != N::Member && k != N::Index) fail(kZBadAssignTarget, startOf(e), "");   // `3++`
         e = mk(N::UpdatePost, startOf(e), prevEnd(), op, {e});
@@ -1306,6 +1314,11 @@ struct Parser {
         if (!eatP(",")) break;
         continue;
       }
+      // `async name() {}`, `*name() {}`, `async *name() {}`: modifiers of a method (`async` alone, or `async: 1`, is a key)
+      std::uint32_t mst = cur().start;
+      bool masync = false, mgen = false;
+      if (isId("async") && !newlineAt(1) && !isP("(", 1) && !isP(":", 1) && !isP(",", 1) && !isP("}", 1) && !isP("<", 1)) { masync = true; ++i; }
+      if (eatP("*")) mgen = true;
       if (cur().kind != Tok::Ident && cur().kind != Tok::Keyword && cur().kind != Tok::String && cur().kind != Tok::Number) unexpected();
       std::uint32_t ps = cur().start, pe = cur().end;
       std::string_view key = txt();
@@ -1314,16 +1327,20 @@ struct Parser {
       if (str) key = key.substr(1, key.size() - 2);
       ++i;
       std::uint32_t value;
-      if (eatP(":")) value = assignment();
-      else if (!str && (isP(",") || isP("}"))) value = mk(N::Ident, ps, pe, key);  // shorthand `{ x }`
-      else if (isP("(") && !str) {  // a method: `{ f(x: i32): i32 { ... } }`, a function expression (use arrow functions to capture `this`)
+      if (!masync && !mgen && eatP(":")) value = assignment();
+      else if (!masync && !mgen && !str && (isP(",") || isP("}"))) value = mk(N::Ident, ps, pe, key);  // shorthand `{ x }`
+      else if (isP("(") || isP("<")) {  // a method: `{ f(x: i32): i32 { ... } }`, `'f'() {}`, `async g<T>() {}`: a function expression (use arrow functions to capture `this`)
+        std::vector<std::uint32_t> mtps;
+        if (isP("<")) mtps = typeParams();
         auto mps = params(false);
         std::uint32_t ret = kNone;
         if (eatP(":")) ret = type();
-        std::uint32_t body = withFn(false, false, [&] { return block(); });
+        std::uint32_t body = withFn(masync, mgen, [&] { return block(); });
         value = funcExpr(ps, mps, ret, body, false);
-      } else unsupported("string-named methods in object literals");
-      props.push_back(mk(N::Prop, ps, prevEnd(), key, {value}));
+        r.ast.nodes[value].flags |= (masync ? kFlagAsync : 0) | (mgen ? kFlagGenerator : 0);
+        if (!mtps.empty()) r.ast.tparams[value] = std::move(mtps);
+      } else unexpected();
+      props.push_back(mk(N::Prop, masync || mgen ? mst : ps, prevEnd(), key, {value}));
       if (!eatP(",")) break;
     }
     expectP("}");
@@ -1468,14 +1485,17 @@ struct Parser {
       ++i;
       std::vector<std::uint32_t> specs;
       while (!isP("}")) {
-        if (isId("type") && at(1).kind == Tok::Ident && !isId("as", 1)) ++i;  // `export { type B }`
+        const bool typeSpec = isId("type") && at(1).kind == Tok::Ident && !isId("as", 1);  // `export { type B }`: the spec starts at `type`
+        const std::uint32_t t0 = cur().start;
+        if (typeSpec) ++i;
         if (cur().kind != Tok::Ident) unexpected();
         std::uint32_t s0 = cur().start, es = s0, ee = cur().end;
         std::string_view name = txt(), exported = name;
         ++i;
         if (isId("as")) { ++i; if (cur().kind != Tok::Ident) unexpected(); es = cur().start; ee = cur().end; exported = txt(); ++i; }
         std::uint32_t id = mk(N::Ident, es, ee, exported);
-        specs.push_back(mk(N::ExportSpec, s0, prevEnd(), name, {id}));
+        specs.push_back(mk(N::ExportSpec, typeSpec ? t0 : s0, prevEnd(), name, {id}));
+        if (typeSpec) r.ast.nodes[specs.back()].flags |= kFlagTypeOnly;
         if (!eatP(",")) break;
       }
       expectP("}");
