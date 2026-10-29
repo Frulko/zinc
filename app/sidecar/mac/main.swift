@@ -281,22 +281,31 @@ var zones = [UInt8](), zw = 0, zh = 0   // per block of the frame: 1 turned, 2 o
 /** The blocks of the frame; the frame box whose blocks changed since the last frame (nil: none). */
 func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> (Int, Int, Int, Int)? {
     let w = (fw + 7) / 8, h = (fh + 7) / 8, n = w * h
-    var dark = [Bool](repeating: false, count: n), pic = [UInt8](repeating: 0, count: n)   // pic: 1 a picture as it is, 2 once turned
+    var dark = [Bool](repeating: false, count: n), pic = [UInt8](repeating: 0, count: n)
     tone.withUnsafeBufferPointer { t in
         for by in 0..<h { for bx in 0..<w {
-            var c = 0, d = 0, a = 0, b = 0, y = by * 8
+            var c = 0, d = 0, a = 0, busy = 0, y = by * 8
             while y < min(fh, by * 8 + 8) {   // every other pixel both ways: 16 of the 64
-                let row = src + y * bpr; var x = bx * 8
+                let row = src + y * bpr; var x = bx * 8, last = Int(row[x])
                 while x < min(fw, bx * 8 + 8) {
-                    let l = Int(row[x]), u = t[l], v = t[255 - l]
-                    c += 1; if l < 128 { d += 1 }; if u > 8 && u < 247 { a += 1 }; if v > 8 && v < 247 { b += 1 }
+                    let l = Int(row[x])
+                    c += 1; if l < 128 { d += 1 }; if l > 24 && l < 232 { a += 1 }; busy += abs(l - last); last = l
                     x += 2
                 }
                 y += 2
             }
             let i = by * w + bx
-            dark[i] = d * 2 >= c; pic[i] = (a * 2 >= c ? 1 : 0) | (b * 2 >= c ? 2 : 0)
+            // a picture: mostly middle greys, and grain (a flat grey button or field has none; a photo, even a smooth one, has some)
+            dark[i] = d * 2 >= c; pic[i] = a * 2 >= c && busy * 2 >= c * 3 ? 1 : 0
         } }
+    }
+    // a block is a picture when most of the 3 x 3 around it are: no lone block in a page of text, no hole in a face's dark hair
+    var photo = [Bool](repeating: false, count: n)
+    for i in 0..<n {
+        let x = i % w, y = i / w
+        var k = 0
+        for dy in -1...1 { for dx in -1...1 where x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h { k += Int(pic[(y + dy) * w + x + dx]) } }
+        photo[i] = k >= 5
     }
     var turn = [Bool](repeating: invertMode == 2, count: n), island = [Bool](repeating: false, count: n)
     if invertMode == 1 {
@@ -330,14 +339,16 @@ func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> 
             else if allTurned { for i in m { island[i] = true } }
         }
     }
+    // a picture is never turned (a photo turned is its negative), whatever the area around it does
+    for i in 0..<n where photo[i] || island[i] { turn[i] = false; photo[i] = true }
     var z = [UInt8](repeating: 0, count: n)
     for i in 0..<n {
         let x = i % w, y = i / w
         var edge = false
-        if invertMode == 1 {
+        if invertMode == 1 && !photo[i] {
             for dy in -1...1 { for dx in -1...1 where x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h && turn[(y + dy) * w + x + dx] != turn[i] { edge = true } }
         }
-        z[i] = (turn[i] ? 1 : 0) | (edge ? 2 : 0) | (island[i] || pic[i] & (turn[i] ? 2 : 1) != 0 ? 4 : 0)
+        z[i] = (turn[i] ? 1 : 0) | (edge ? 2 : 0) | (photo[i] ? 4 : 0)
     }
     defer { zones = z; zw = w; zh = h }
     if w != zw || h != zh { return (0, 0, fw, fh) }
@@ -346,6 +357,10 @@ func mapZones(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int) -> 
     // a changed block's pixels, and its neighbours' (their border pixels look 4 pixels into it)
     return x1 < 0 ? nil : (max(0, x0 * 8 - 8), max(0, y0 * 8 - 8), min(fw, x1 * 8 + 16), min(fh, y1 * 8 + 16))
 }
+// a picture's own curve: the interface's (black and white points close together, gamma 1.6: bold letters) crushed a photo into blobs of
+// ink, and the edge pass drew black outlines inside it. A picture gets a gentle stretch (24 to 232 to the full range, its middle a little
+// lighter: the panel's dots read darker than their share) and no edges; the dither does the rest
+let photoTone: [UInt8] = (0..<256).map { v in UInt8((pow(max(0, min(1, (Double(v) - 24) / 208)), 0.85) * 255).rounded()) }
 /** How the pixel at (x, y) is drawn: turned (a dark area), and whether its area is a picture. */
 @inline(__always) func around(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ x: Int, _ y: Int) -> (turn: Bool, picture: Bool) {
     let k = zones[(y >> 3) * zw + (x >> 3)]
@@ -406,6 +421,7 @@ func shade(_ src: UnsafePointer<UInt8>, _ bpr: Int, _ fw: Int, _ fh: Int, _ b: (
             let mn = edges > 0 && invertMode != 0 ? n.baseAddress! + y * bw : nil
             for x in 0..<bw {
                 let (turn, picture) = around(src, bpr, fw, fh, b.0 + x, b.1 + y)
+                if picture { d[x * step] = photoTone[Int(s[x])]; continue }
                 let v = turn ? 255 - Int(s[x]) : Int(s[x])
                 var o = Int(t[v])
                 var flat = false
@@ -880,6 +896,7 @@ kernel void shade(texture2d<float, access::read> src [[texture(0)]], constant in
       int l = int(round(src.read(uint2(fx, fy)).r * 255.0));
       const int k = zones[(fy >> 3) * p[16] + (fx >> 3)];   // around() on the CPU
       bool turn = (k & 1) != 0, picture = (k & 4) != 0;
+      if (picture) { v = tone[256 + l]; grey[py * W + px] = uchar(v); if (v < int(thr[(py & 63) * 64 + (px & 63)])) out |= uchar(0x80 >> i); continue; }   // photoTone
       if ((k & 2) != 0) {
         bool found = false;
         for (int dy = -4; dy <= 4 && !found; dy += 2) for (int dx = -4; dx <= 4; dx += 2)
@@ -918,7 +935,7 @@ final class GPU {
         var c: CVMetalTextureCache?
         guard CVMetalTextureCacheCreate(nil, nil, dev, nil, &c) == kCVReturnSuccess, let cache = c,
               let g = dev.makeBuffer(length: W * H, options: .storageModeShared), let b = dev.makeBuffer(length: stride * H, options: .storageModeShared),
-              let t = dev.makeBuffer(length: 256, options: .storageModeShared), let r = dev.makeBuffer(length: 4096, options: .storageModeShared) else { return nil }
+              let t = dev.makeBuffer(length: 512, options: .storageModeShared), let r = dev.makeBuffer(length: 4096, options: .storageModeShared) else { return nil }
         (self.q, self.pipe, self.cache, greyB, bitsB, toneB, thrB) = (q, pipe, cache, g, b, t, r)
     }
     /** The panel box b (pixels) from the frame pb (fw x fh, its luma plane): greys and bits into the buffers; false when it cannot. */
@@ -927,6 +944,7 @@ final class GPU {
         guard CVMetalTextureCacheCreateTextureFromImage(nil, cache, pb, nil, .r8Unorm, CVPixelBufferGetWidthOfPlane(pb, 0), CVPixelBufferGetHeightOfPlane(pb, 0), 0, &tex) == kCVReturnSuccess,
               let tx = tex, let t = CVMetalTextureGetTexture(tx), let cb = q.makeCommandBuffer(), let e = cb.makeComputeCommandEncoder() else { return false }
         tone.withUnsafeBytes { toneB.contents().copyMemory(from: $0.baseAddress!, byteCount: 256) }
+        photoTone.withUnsafeBytes { (toneB.contents() + 256).copyMemory(from: $0.baseAddress!, byteCount: 256) }
         thr.withUnsafeBytes { thrB.contents().copyMemory(from: $0.baseAddress!, byteCount: 4096) }
         let r = region
         var p: [Int32] = [W, H, stride, r.ox, r.oy, fw, fh, rotate, b.0 / 8, b.1, (b.2 + 7) / 8, b.3, edges, edgeFloor, invertMode, ditherKind, zw].map { Int32($0) }
