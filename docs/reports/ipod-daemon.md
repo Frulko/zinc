@@ -28,11 +28,14 @@ iPod ──USB── Pi / C.H.I.P.: examples/ipod-web (one Zinc program, compile
 
 ```
 zinc run examples/ipod-web -- [--port 8686] [--token T] [--user U --password P] [--allow-changes] [--mount PATH]
+    [--lastfm-key K --lastfm-secret S --lastfm-session SK] [--listenbrainz-token T]
 ```
 
 - `--token`: the API's bearer token (`Authorization: Bearer T` or `?token=T`); without it `/api` answers 401 except from 127.0.0.1.
   When neither is given a token is generated at start and printed once.
 - `--user`/`--password`: the Subsonic account (one); without them `/rest` answers Subsonic error 40.
+- `--lastfm-key`/`--lastfm-secret`/`--lastfm-session`, `--listenbrainz-token`: where the Subsonic clients' scrobbles go besides the
+  iPod (the session key is the one the Mac app's Settings got, in its `config.json`). Without them only the iPod counts the plays.
 
 ## /api (JSON, bearer token)
 
@@ -48,6 +51,7 @@ zinc run examples/ipod-web -- [--port 8686] [--token T] [--user U --password P] 
 | `POST /api/add?name=<file name>&playlist=<p>` | body: the file's bytes; `{"results": [AddResult]}`; needs `--allow-changes` |
 | `POST /api/remove` | body `{"ids": [...]}`; needs `--allow-changes` |
 | `POST /api/eject` | closes, `diskutil eject`/`udisksctl`; needs `--allow-changes` |
+| `POST /api/played` | body `{"plays": [{"id", "count", "at"}]}` (`at`: seconds since 1970): adds them to the iPod's play counts (`ipod.played`), `200 {"counted": n}`; read only, they wait in `<backups>/cache/<GUID>/plays.json` and the answer is `202 {"pending": n}` (the plays waiting); a later run with `--allow-changes` writes them after its scan. Only the iPod: the app sends its listens to Last.fm and ListenBrainz itself |
 
 Errors: `{"error": "<sentence>"}` with 400, 401, 403, 404 or 500.
 
@@ -60,7 +64,9 @@ Auth: `u` with `p` (plain or `enc:<hex>`) or `t` = md5(password + `s`). `status=
 Methods: `ping`, `getLicense` (valid), `getMusicFolders` (one: the iPod), `getIndexes`, `getArtists`, `getArtist`, `getAlbum`,
 `getAlbumList` and `getAlbumList2` (alphabeticalByName, alphabeticalByArtist, newest, random, frequent, recent, byYear, byGenre),
 `getSong`, `getRandomSongs`, `getGenres`, `search2`, `search3`, `getPlaylists`, `getPlaylist`, `getCoverArt`, `stream`, `download`,
-`scrobble` (accepted, nothing written), `getStarred`/`getStarred2` (empty), `getUser` (the one user). Others: error 0 "not
+`scrobble` (with `submission=false`: now playing on Last.fm and ListenBrainz; else the listen, at `time` or now, counts on the iPod as
+`/api/played` does, goes to both services when their accounts are given (an offline queue on disk, sent by 50) and is one line of
+`<backups>/cache/<GUID>/history.jsonl`; a song shorter than 30 s is not counted), `getStarred`/`getStarred2` (empty), `getUser` (the one user). Others: error 0 "not
 implemented by this server".
 
 Ids: a track is `tr-<id>`, an album `al-<n>`, an artist `ar-<n>`, numbered in the order of a sort by name at each library load

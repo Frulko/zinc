@@ -3,6 +3,7 @@
 import * as ipod from 'zinc:ipod';
 import { sync } from './services/library';
 import { options } from './services/options';
+import { writeWaiting } from './services/plays';
 
 export class Scan {
   pods: ipod.Device[] = [];
@@ -20,4 +21,5 @@ export async function scan(): Promise<void> {
   }
   last.at = new Date().toISOString();
   await sync(last.pods, options.mount);
+  await writeWaiting();
 }

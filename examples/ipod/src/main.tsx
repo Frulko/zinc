@@ -20,7 +20,7 @@ import { library, page, rescan, closeDevice, loadRemote, openRemoteDevice } from
 import { addFiles } from './actions';
 import { PodLibrary } from './services/ipod';
 import { bg, fg, BACKGROUND, TEXT, CLEAR_COLOR, PAGE_ALBUMS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS,
-  PAGE_FILES, PAGE_SPECS, PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS } from './constants';
+  PAGE_FILES, PAGE_SPECS, PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS, PAGE_SETTINGS } from './constants';
 import { Sidebar } from './components/Sidebar';
 import { NowPlaying } from './components/NowPlaying';
 import { OutputMenu } from './components/OutputPicker';
@@ -39,6 +39,8 @@ import { BackupsPage } from './pages/backups/BackupsPage';
 import { OptimisePage } from './pages/optimise/OptimisePage';
 import { TransfersPage } from './pages/transfers/TransfersPage';
 import { LogsPage } from './pages/logs/LogsPage';
+import { SettingsPage } from './pages/settings/SettingsPage';
+import { startListening } from './services/listening';
 
 function Content(props: { lib: PodLibrary; page: string }): i32 {
   const p = props.page;
@@ -56,6 +58,7 @@ function Content(props: { lib: PodLibrary; page: string }): i32 {
   if (p === PAGE_OPTIMISE) return <OptimisePage />;
   if (p === PAGE_TRANSFERS) return <TransfersPage />;
   if (p === PAGE_LOGS) return <LogsPage />;
+  if (p === PAGE_SETTINGS) return <SettingsPage />;
   return <OverviewPage lib={props.lib} />;
 }
 
@@ -92,4 +95,5 @@ loadRemote();
 const remoteAtStart = sys.env('IPOD_DEMO_REMOTE');
 if (remoteAtStart !== '') openRemoteDevice(remoteAtStart, sys.env('IPOD_DEMO_REMOTE_TOKEN'));
 rescan();
+startListening();   // what plays counts: on the iPod, Last.fm and ListenBrainz (services/listening.ts)
 render(App, CLEAR_COLOR, null);

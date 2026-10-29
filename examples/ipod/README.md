@@ -38,9 +38,18 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   (`~/.zinc/ipod/cache/<GUID>/`, beside the backups), for a plugged iPod and a remote one alike: the covers (`covers/`, one PNG
   per album, the largest the iPod stores), the library (`library.json`: tracks, playlists, specs and the database's size and time),
   a remote iPod's songs played (`audio/`, the least recently played dropped past the size set in Settings, 2 GB by default) and its
-  plays not yet counted (`plays.json`). An iPod opens at once from its cached library; when its database changed since (another
+  plays not yet counted (`plays.json`), and the listen history (`history.jsonl`, below). An iPod opens at once from its cached library; when its database changed since (another
   computer, iTunes, the iPod itself), the library is read again in the background and replaces it. Then the albums' covers not yet
   cached are read into it one by one, so the grid scrolls without waiting for the iPod. The Sonos speakers are served the same files.
+- **Every listen counts.** A song heard for half its length or 4 minutes (and longer than 30 s), here, on Sonos or from a remote
+  iPod, adds one play to the iPod's play count and last played date (written at once behind Allow changes, else kept in `plays.json`
+  and written when changes are allowed; a remote iPod's go to its daemon), and is sent to Last.fm and ListenBrainz when Settings
+  has their accounts (now playing too; an offline queue on disk, sent by 50 when the service answers again). A song paused and taken
+  up later continues the same listen. Each listen, counted or skipped, is one line of `history.jsonl` (track, artist, title, album,
+  duration, time heard, start with its time zone, mac/sonos/remote/subsonic), never rewritten.
+- **Settings.** Last.fm: create an API account (last.fm/api/account/create), paste its key and secret, Sign in (the browser asks
+  to approve the app), then Finish. ListenBrainz: paste the user token of listenbrainz.org/settings. And the size of the songs'
+  cache. Kept in `config.json`.
 - **Covers.** Each album's cover is taken from the cache (read from the iPod or the daemon the first time) when its row of the grid
   comes on screen, kept by album while shown and freed with `destroyImage` when the row is dropped.
 - **Long lists.** The album grid and every track table are `VirtualList`s: 2,500 songs cost the rows on screen.
@@ -92,8 +101,10 @@ src/
 ├── services/sonos.ts     # the Sonos groups, the output chosen, the songs' URLs and the server of a plugged iPod's files
 ├── services/transfers.ts # the queue of jobs, one at a time, with their progress
 ├── services/log.ts       # the operations, on the Logs page and in the log file
+├── services/scrobble.ts  # the rule, Last.fm (signed calls, sign-in) and ListenBrainz, their offline queues, the history (shared with ipod-web)
+├── services/listening.ts # follows the player: each listen to the scrobbler, the iPod's play counts, the history
 ├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, DownloadMark, Toasts, NowPlaying, OutputPicker
-└── pages/                # devices, overview, albums, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs
+└── pages/                # devices, overview, albums, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs, settings
 ```
 
 ## Test
@@ -107,3 +118,8 @@ disk image while the app runs (it closes the iPod, then opens it again).
 `tests/t1/ipod_remote.sh` serves a fake iPod with `examples/ipod-web --allow-changes` and runs the app headless connected to it: the
 remote iPod opens, its songs page is compared to a frame hash, a song is played (its file fetched into the cache), one is deleted and a
 file dropped is uploaded; the iPod's cache folder then holds the song, a cover and the library.
+
+`tests/t1/ipod_scrobble.sh` runs the scrobbling core against a local stand-in of Last.fm and ListenBrainz (`IPOD_LASTFM_URL`,
+`IPOD_LISTENBRAINZ_URL`; the real services are never called): the rule, a listen that adds up, the sign-in, the signatures, the
+payloads, the queues kept while offline and sent by 50; then the daemon's `/api/played` and Subsonic `scrobble`, read only and
+with `--allow-changes`.

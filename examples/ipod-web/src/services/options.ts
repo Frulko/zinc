@@ -1,4 +1,5 @@
 // The command line: zinc run examples/ipod-web -- [--port N] [--token T] [--user U --password P] [--allow-changes] [--mount PATH]
+//   [--lastfm-key K --lastfm-secret S --lastfm-session SK] [--listenbrainz-token T]   (the Subsonic clients' plays scrobbled)
 import { args, randomBytes } from 'zinc:sys';
 import { toHex } from 'zinc:web';
 import { DEFAULT_PORT } from '../constants';
@@ -13,6 +14,12 @@ export class Options {
   allowChanges: boolean = false;
   /** '' = the first mounted iPod with a database. */
   mount: string = '';
+  /** Last.fm: the API account's key and secret and a session key (the iPod app's settings show it once signed in). */
+  lastfmKey: string = '';
+  lastfmSecret: string = '';
+  lastfmSession: string = '';
+  /** ListenBrainz: the user token. */
+  listenbrainzToken: string = '';
 }
 
 export function parseOptions(): Options {
@@ -26,6 +33,10 @@ export function parseOptions(): Options {
     else if (a === '--token') { o.token = next; o.tokenGiven = next !== ''; }
     else if (a === '--user') o.user = next;
     else if (a === '--password') o.password = next;
+    else if (a === '--lastfm-key') o.lastfmKey = next;
+    else if (a === '--lastfm-secret') o.lastfmSecret = next;
+    else if (a === '--lastfm-session') o.lastfmSession = next;
+    else if (a === '--listenbrainz-token') o.listenbrainzToken = next;
     else if (a === '--mount') o.mount = next.endsWith('/') && next.length > 1 ? next.slice(0, next.length - 1) : next;
     else continue;
     i++;

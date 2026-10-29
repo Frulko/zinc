@@ -18,6 +18,8 @@ interface SpecsReply { specs: ipod.SpecItem[]; }
 interface AddReply { results: ipod.AddResult[]; }
 interface ErrorReply { error: string; }
 interface StatusReply { marker?: string; }
+interface PlayedReply { counted?: i32; pending?: i32; }
+interface PlayedBody { plays: ipod.Play[]; }
 
 let address = '';
 let token = '';
@@ -122,6 +124,13 @@ export async function remove(ids: string[]): Promise<void> {
   const quoted: string[] = [];
   for (const id of ids) quoted.push(JSON.stringify(id));
   await call('POST', '/api/remove', { body: `{"ids": [${quoted.join(', ')}]}`, contentType: 'application/json' });
+}
+
+/** Hands plays to the daemon (POST /api/played): it counts them on the iPod, or keeps them until it may; its answer as a sentence. */
+export async function played(plays: ipod.Play[]): Promise<string> {
+  const body: PlayedBody = { plays: plays };
+  const r: PlayedReply = JSON.parse(await (await call('POST', '/api/played', { body: JSON.stringify(body), contentType: 'application/json' })).text());
+  return r.counted !== undefined ? `${r.counted} counted by the daemon` : `${r.pending !== undefined ? r.pending : 0} kept by the daemon until it may write`;
 }
 
 export async function eject(): Promise<void> { await call('POST', '/api/eject', { body: '', contentType: 'application/json' }); }

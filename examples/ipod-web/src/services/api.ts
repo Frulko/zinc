@@ -9,6 +9,9 @@ import { options } from './options';
 import { lib, load, close } from './library';
 import { trackFile, coverFile, pngReply, cacheDir, dbMarker } from './files';
 import { last } from '../state';
+import { count } from './plays';
+
+interface PlayedBody { plays: ipod.Play[]; }
 
 function fail(status: i32, sentence: string): net.Reply { return jsonReply(status, `{"error": ${quote(sentence)}}`); }
 
@@ -101,10 +104,22 @@ async function write(req: net.Request, q: Query, what: string): Promise<net.Repl
   return jsonReply(200, `{"ejected": ${quote(mp)}}`);
 }
 
+/** POST /api/played {"plays": [{"id", "count", "at"}]}: counted on the iPod ({"counted": n}), or kept until the daemon may write
+ *  ({"pending": n}, 202) when it is read only. */
+async function played(req: net.Request): Promise<net.Reply> {
+  if (req.method !== 'POST') return fail(405, 'Use POST for /api/played.');
+  if (lib.mountpoint === '') return fail(404, 'No iPod is open.');
+  let body: PlayedBody;
+  try { body = JSON.parse(req.body); } catch (e) { return fail(400, 'The body must be {"plays": [{"id": "<track id>", "count": 1, "at": <Unix seconds>}, ...]}.'); }
+  const n = await count(body.plays);
+  return n >= 0 ? jsonReply(200, `{"counted": ${n}}`) : jsonReply(202, `{"pending": ${-n}}`);
+}
+
 async function route(req: net.Request, q: Query): Promise<net.Reply> {
   const parts = q.path.split('/');   // '', 'api', route, id
   const what = parts.length > 2 ? parts[2] : '';
   const id = parts.length > 3 ? decodeURIComponent(parts[3]) : '';
+  if (what === 'played') return played(req);
   if (what === 'add' || what === 'remove' || what === 'eject') return write(req, q, what);
   if (req.method !== 'GET') return fail(405, 'Use GET for this route.');
   if (what === 'devices') {

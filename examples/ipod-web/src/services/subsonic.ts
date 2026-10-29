@@ -12,6 +12,9 @@ import { options } from './options';
 import { lib, Album, Artist } from './library';
 import { trackFile, coverFile, pngReply, suffixOf, contentTypeOf } from './files';
 import { SUBSONIC_VERSION } from '../constants';
+import { count, scrobbler } from './plays';
+import { Scrobble, counts, appendHistory, isoLocal } from '../../../ipod/src/services/scrobble';
+import { podDir } from './files';
 
 class Failure { code: i32; message: string; constructor(code: i32, message: string) { this.code = code; this.message = message; } }
 
@@ -177,7 +180,7 @@ function trackOf(id: string): ipod.Track | null {
 /** The answer of a method that is not a file; a Failure for an unknown id or method. */
 function answer(method: string, q: Query): El | Failure | null {
   const id = q.get('id');
-  if (method === 'ping' || method === 'scrobble') return null;
+  if (method === 'ping') return null;
   if (method === 'getLicense') return new El('license').b('valid', true);
   if (method === 'getMusicFolders') {
     const e = new El('musicFolders').list('musicFolder');
@@ -226,6 +229,28 @@ function answer(method: string, q: Query): El | Failure | null {
   return new Failure(0, `${method} is not implemented by this server.`);
 }
 
+/** scrobble: with submission (the default) the client heard the song: counted on the iPod and sent to Last.fm and ListenBrainz (a song
+ *  of 30 s or less never counts, as on Last.fm); without, it is what plays now. `time`: when it was played, in ms (else now). */
+async function scrobble(q: Query): Promise<void> {
+  const submission = q.get('submission') !== 'false';
+  const at = q.get('time') !== '' ? Math.floor(parseFloat(q.get('time')) / 1000) : Math.floor(Date.now() / 1000);
+  const plays: ipod.Play[] = [];
+  for (const id of q.params.getAll('id')) {
+    const t = trackOf(id);
+    if (t === null) continue;
+    const track = t as ipod.Track;
+    const s: Scrobble = { artist: track.artist !== '' ? track.artist : track.albumArtist, track: track.title, album: track.album, albumArtist: track.albumArtist, durationS: Math.round(track.durationMs / 1000), at: at };
+    if (!submission) { scrobbler.nowPlaying(s); continue; }
+    const counted = counts(track.durationMs, track.durationMs);   // the client says it was heard: only a short song does not count
+    appendHistory(`${podDir('')}/history.jsonl`, { listen: `${track.id}|${at * 1000}`, trackId: track.id, artist: s.artist, title: s.track, album: s.album,
+      durationMs: track.durationMs, heardMs: track.durationMs, startedAt: isoLocal(at * 1000), source: 'subsonic', counted: counted, skipped: !counted });
+    if (!counted) continue;
+    plays.push({ id: track.id, count: 1, at: at });
+    if (s.track !== '' && s.artist !== '') scrobbler.submit(s);
+  }
+  if (plays.length > 0) await count(plays);
+}
+
 export async function rest(req: net.Request): Promise<net.Reply> {
   const q = queryOf(req);
   let method = q.path.slice('/rest/'.length);
@@ -244,6 +269,7 @@ export async function rest(req: net.Request): Promise<net.Reply> {
       const png = trackId === '' ? '' : await coverFile(trackId);
       return png === '' ? { status: 404, body: 'no cover\n', contentType: 'text/plain' } : pngReply(png);
     }
+    if (method === 'scrobble') { await scrobble(q); return respond(q, null, null); }
     const r = answer(method, q);
     if (r instanceof Failure) return failed(q, r.code, r.message);
     return respond(q, r as El | null, null);
