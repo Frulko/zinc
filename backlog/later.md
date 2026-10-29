@@ -592,7 +592,12 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:ipod: Track lacks file kind, grouping, compilation and modified, so smart previews and the editor skip those fields.
 - zinc:ipod: the smart preview maps mediaType to a single libgpod bit; a track with several media bits could differ from libgpod.
 
+- iPod AudioMuse: pull the MusiCNN embeddings (include_embeddings=true) into a deep.v1.bin for a true cosine kNN and Daily Mixes clustered on sound.
+- iPod AudioMuse: read AudioMuse's own clustering playlists (/api/playlists) as more Mood mixes once a library is analysed.
+- iPod AudioMuse: an "Analyse new songs" button on For you when songs are not analysed yet (today only on the Settings card).
+
 ## Cross-platform pass
+- iPod AudioMuse over the LAN from the Pi daemon, with the same client.
 - iPod: run ipod_smart on Linux.
 - iPod Genius timings on the Pi 3B+ and 4, and a Linux AAC/ALAC decoder for the daemon.
 - iPod history import and its timings on the Pi daemon.
