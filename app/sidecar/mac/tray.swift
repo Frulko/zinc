@@ -14,6 +14,17 @@ struct Output: Codable, Identifiable, Hashable {
     var hidpi = false, lz4 = false   // a screen's: drawn at twice its points (Retina), lz4 for a screen whose CPU is short
     var scale: Double? = nil         // the screen's pixels per point (sidecar-screen --scale); none saved yet: 2 with hidpi, else 1
     var pixelsPerPoint: Double { scale ?? (hidpi ? 2 : 1) }
+    var pixels: [Int]? = nil         // the screen's pixels, once it said them (its sizes)
+    /** The sizes it offers, macOS's way: its shape, from text twice as large (Retina) to every pixel a point, each in between drawn
+     *  HiDPI (twice its points) and scaled down to the screen. Only whole even points: a 2732 x 2048 iPad has just Retina and native. */
+    var sizes: [(scale: Double, w: Int, h: Int)] {
+        guard let p = pixels, p.count == 2 else { return [(2, 0, 0), (1, 0, 0)] }
+        return [(2, 1), (8, 5), (3, 2), (4, 3), (5, 4), (1, 1)].compactMap { n, d in
+            let (w, h) = (p[0] * d, p[1] * d)
+            guard w % n == 0, h % n == 0, n == 1 || (w / n % 2 == 0 && h / n % 2 == 0) else { return nil }
+            return (Double(n) / Double(d), w / n, h / n)
+        }
+    }
     var icon: String { kind == .remarkable ? "ipad.landscape" : "display" }
     var modes: [Mode] { kind == .remarkable ? Mode.allCases : [.extend, .mirror] }
     static let remarkable = Output(id: "rmpp", kind: .remarkable, name: "reMarkable Paper Pro", host: "10.11.99.1")
@@ -144,6 +155,13 @@ final class Engine: ObservableObject {
     func update(_ o: Output, force: Bool = false) {
         guard let i = screens.firstIndex(where: { $0.id == o.id }), screens[i] != o || force else { return }
         screens[i] = o; objectWillChange.send(); restart(o.id)
+    }
+    /** What a screen said of itself: its pixels, and its name for a card still called as it was added ("Android", "iPad", the address). */
+    private func learn(_ id: String, _ w: [String]) {
+        guard w.count == 3, let i = screens.firstIndex(where: { $0.id == id }), let pw = Int(w[0]), let ph = Int(w[1]) else { return }
+        var o = screens[i]; o.pixels = [pw, ph]
+        if w[2] != "Sidecar Screen" && ["Android", "iPad", o.host].contains(o.name) { o.name = w[2] }
+        if o != screens[i] { screens[i] = o }   // no restart: nothing it runs with changed
     }
     func add(name: String, host: String) {
         var o = Output(id: UUID().uuidString, kind: .screen, name: name.isEmpty ? host : name, host: host)
@@ -293,6 +311,7 @@ final class Engine: ObservableObject {
             }
             else if line.hasPrefix("tablet: ") { r.state = .connected(String(line.dropFirst(8))) }
             else if line.hasPrefix("screen: ") { r.state = .connected(String(line.dropFirst(8))) }
+            else if line.hasPrefix("device: ") { learn(r.id, line.dropFirst(8).split(separator: " ", maxSplits: 2).map(String.init)) }
             else if line.hasPrefix("sound: ") { if line.hasPrefix("sound: none") { soundAvail.remove(r.id) } else { soundAvail.insert(r.id) } }
             else if line.hasPrefix("sidecar-screen: ") { r.problem = String(line.dropFirst(16)) }
             else if line.hasPrefix("speedtest: ") { r.testing = line == "speedtest: running" }
@@ -507,11 +526,13 @@ struct PopoverView: View {
             } else {
                 // Apple's Sidecar's two: Retina (an iPad Pro 12.9" is 1366 x 1024 points on its 2732 x 2048 pixels), or every pixel a point.
                 // ponytail: scales between them render a backing larger than the screen, then shrink it: more to encode, softer text
-                Picker("Size", selection: Binding(get: { o.pixelsPerPoint }, set: { v in var c = o; c.scale = v; e.update(c) })) {
-                    Text("Retina").tag(2.0); Text("Native pixels").tag(1.0)
+                Picker("Looks like", selection: Binding(get: { o.pixelsPerPoint }, set: { v in var c = o; c.scale = v; e.update(c) })) {
+                    ForEach(o.sizes, id: \.scale) { z in
+                        let kind = z.scale == 2 ? "Retina" : z.scale == 1 ? "native pixels" : "HiDPI"
+                        Text(z.w == 0 ? kind.capitalized : "\(z.w) × \(z.h) · \(kind)").tag(z.scale)
+                    }
                 }
-                .pickerStyle(.segmented)
-                .help("Retina: twice the pixels per point, the screen's own text size (an iPad Pro 12.9\": 1366 × 1024). Native pixels: one pixel per point, small text on a dense screen.")
+                .help("The size of the Mac's desktop on this screen, in points. Retina: twice the pixels per point, the screen's own text size (an iPad Pro 12.9\": 1366 × 1024). HiDPI: more room, drawn at twice and scaled down to the screen, text still sharp. Native pixels: one pixel per point, the most room and the smallest text.")
                 if e.soundAvail.contains(o.id) {   // only once the screen said it plays sound
                     Toggle("Sound: the Mac's sound plays on this screen", isOn: Binding(get: { e.audioOn(o.id) }, set: { e.setAudio(o.id, $0) }))
                         .help("The Mac goes quiet while it streams; macOS asks once to let Sidecar record the system's audio")

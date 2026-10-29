@@ -157,7 +157,10 @@ let screenName = words.first { $0.hasPrefix("+name:") }.flatMap { String($0.drop
 let PW = Int((Double(W) / scale).rounded()) & ~1, PH = Int((Double(H) / scale).rounded()) & ~1
 if W <= 0 || H <= 0 || !caps.contains("rgb") { die("not a colour screen: \(words.joined(separator: " "))") }
 let zstd = caps.contains("zstd") && !forceLz4, sub = caps.contains("sub")
-print("screen: \(words[3...].filter { !$0.hasPrefix("+") }.joined(separator: " ")) \(W)x\(H), \(zstd ? "zstd" : "lz4")\(sub ? " + Sub" : "")")
+let kindName = words[3...].filter { !$0.hasPrefix("+") }.joined(separator: " ")
+let receiverName = screenName == "Sidecar Screen" ? kindName : "\(screenName) (\(kindName))"
+print("screen: \(receiverName) \(W)x\(H), \(zstd ? "zstd" : "lz4")\(sub ? " + Sub" : "")")
+print("device: \(W) \(H) \(screenName)")   // for the tray: the screen's pixels (its sizes) and its name (its card)
 
 // --- the sound (sound.swift): the screen's app answers on the next port "OK" when it has a sound output, so the tray offers the option
 // ("sound: available"); with --audio the Mac's sound goes there as 16-bit PCM (1.5 Mbit/s at 48 kHz) on that connection of its own
@@ -233,7 +236,9 @@ if synthetic > 0 {   // nothing captured, nothing to show on the Mac
     d.name = screenName
     d.maxPixelsWide = UInt32(hidpi ? 2 * PW : W); d.maxPixelsHigh = UInt32(hidpi ? 2 * PH : H)
     d.sizeInMillimeters = CGSize(width: Double(W) / 92 * 25.4, height: Double(H) / 92 * 25.4)   // a 24" 1080p monitor's density
-    d.vendorID = 0x5A4E; d.productID = 0x5343; d.serialNum = 1
+    // a serial per device (its host and name, FNV-1a): macOS refuses a second display with the same one, and keeps each one's place
+    d.vendorID = 0x5A4E; d.productID = 0x5343
+    d.serialNum = max(1, "\(host)/\(screenName)".utf8.reduce(UInt32(2166136261)) { ($0 ^ UInt32($1)) &* 16777619 })
     d.terminationHandler = { _, _ in }
     guard let vd = CGVirtualDisplay(descriptor: d) else { die("no virtual display (macOS refused it)") }
     virtualDisplay = vd; target = vd.displayID
@@ -630,7 +635,7 @@ func info(_ seconds: Double) {
         ["Link", "Interface", "\(linkNow.name), \(rate(linkNow.bps)) as macOS reports it"],
         ["Link", "Mac", linkNow.local],
         ["Link", "Screen", "\(host) (\(peer))"],
-        ["Picture", "Receiver", "\(words[3...].filter { !$0.hasPrefix("+") }.joined(separator: " ")), \(W) × \(H)"],
+        ["Picture", "Receiver", "\(receiverName), \(W) × \(H)"],
         ["Picture", "Mac display", mirror >= 0 ? "mirror of display \(mirror)" : hidpi ? "virtual, \(PW) × \(PH) points (\(String(format: "%g", scale)) pixels per point)" : "virtual, \(W) × \(H) at 1x"],
         ["Picture", "Codec", "\(zstd ? "zstd 1" : "lz4")\(sub ? " + Sub filter" : ""), 64 px tiles\(exact ? ", always exact" : ", 5-6-5 colour while much moves")"],
         ["Picture", "Receiver reads", caps.sorted().joined(separator: " ")],
