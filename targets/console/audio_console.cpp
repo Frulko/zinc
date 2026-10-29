@@ -289,6 +289,13 @@ FN(fMix) {   // the null backend only: with an output the HAL takes the mix
   return ZN_OK;
 }
 
+// ponytail: no music streaming on a console core yet (a file read as it plays needs a reader thread or a per-frame decode); musicOpen refuses
+// with the reason and the rest are no-ops, so a program that only probes for music still loads.
+FN(fMusicOpen) { (void)a; r->i = fail("a console core plays music as a sound: load() a WAV or Ogg Vorbis file and play() it"); return ZN_OK; }
+FN(fMusicInfo) { (void)a; outD.assign(4, 0.0); outD[3] = -1; r->v = dview(); return ZN_OK; }
+FN(fMusicError) { (void)a; r->s = zs(errMsg); return ZN_OK; }
+FN(fMusicNop) { (void)a; (void)r; return ZN_OK; }
+
 const ZnExport kExports[] = {
   {"backend", ">s", fBackend, 0}, {"load", "B>i", fLoad, 0}, {"tone", "idd>i", fTone, 0}, {"error", ">s", fError, 0}, {"duration", "i>d", fDuration, 0},
   {"unload", "i>n", fUnload, 0}, {"play", "idbdd>b", fPlay, 0}, {"stop", "i>n", fStop, 0}, {"playing", "i>b", fPlaying, 0},
@@ -298,6 +305,8 @@ const ZnExport kExports[] = {
   {"samples", "ii>D", fSamples, 0}, {"time", ">d", fTime, 0}, {"streamOpen", "ii>i", fStreamOpen, 0}, {"streamWrite", "iD>i", fStreamWrite, 0},
   {"streamInfo", "i>D", fStreamInfo, 0}, {"streamSetVolume", "id>n", fStreamSetVolume, 0}, {"streamClose", "i>n", fStreamClose, 0},
   {"setMasterVolume", "d>n", fSetMasterVolume, 0}, {"mix", "i>D", fMix, 0},
+  {"musicOpen", "s>i", fMusicOpen, 0}, {"musicPlay", "ib>n", fMusicNop, 0}, {"musicSeek", "id>n", fMusicNop, 0}, {"musicInfo", "i>D", fMusicInfo, 0},
+  {"musicError", "i>s", fMusicError, 0}, {"musicSetVolume", "id>n", fMusicNop, 0}, {"musicClose", "i>n", fMusicNop, 0},
 };
 }  // namespace
 
