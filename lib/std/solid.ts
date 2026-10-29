@@ -200,7 +200,7 @@ export function _key(n: i32, f: (e: ui.KeyEvent) => void): void { ui.onKeyDown(n
 export function _ctx(n: i32, c: string): void { ui.keyContext(n, c); }
 export function _submit(n: i32, f: () => void): void { ui.onSubmit(n, f); }   // <Form onSubmit>
 export function _onText(n: i32, change: boolean, f: (v: string) => void): void { ui.onText(n, change, f); }
-export function _str(n: i32, key: string, s: string): void { if (key === 'value') ui.setValue(n, s); else if (key === 'role') ui.setRole(n, s); else if (key === 'label') ui.setLabel(n, s); else if (key.startsWith('attr:')) ui.setAttr(n, key.slice(5), s); else ui.setPlaceholder(n, s); }
+export function _str(n: i32, key: string, s: string): void { if (key === 'value') ui.setValue(n, s); else if (key === 'role') ui.setRole(n, s); else if (key === 'label') ui.setLabel(n, s); else if (key === 'scrollKey') ui.setScrollKey(n, s); else if (key.startsWith('attr:')) ui.setAttr(n, key.slice(5), s); else ui.setPlaceholder(n, s); }
 export function _dynStr(n: i32, key: string, get: () => string): void { createEffect(() => { _str(n, key, get()); }); }
 export function _hl(n: i32, f: (line: string) => i32[]): void { ui.setHighlight(n, f); }
 /** A component whose props read signals (`<Navbar title={page()}/>`): Solid passes props as getters, Zinc's typed props are values,

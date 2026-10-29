@@ -335,6 +335,7 @@ export class UiNode {
   basisCut: boolean = false;   // a box below it was given less than its content by a flex-basis: its size depends on the width it gets
   vx: number = 0; vy: number = 0; scrolledAt: number = -100000;
   stick: boolean = false; endY: number = 0;   // stickToBottom: follows the end while it shows it; endY is the end the last layout saw
+  skey: string = '';   // scrollKey: the offset is kept under it when the node goes and given back to the next node with it
   // scroll physics (ScrollAxis, stepScroll), created on the first user scroll; `live` while a gesture or an
   // animation drives the offset (overscroll allowed; clampScroll leaves it alone)
   ax: ScrollAxis | null = null; ay: ScrollAxis | null = null; live: boolean = false;
@@ -593,6 +594,7 @@ export function destroy(h: i32): void { release(h); }
 function release(h: i32): void {
   const n = node(h);
   if (!n.alive) return;
+  if (n.skey !== '') { if (!dropRestore(h)) keepScroll(n); n.skey = ''; }
   for (const c of n.children) release(c);
   if (n.rn !== null) {
     LY.destroy(h); n.rn = null;
@@ -649,6 +651,58 @@ function shiftAxis(x: ScrollAxis | null, d: number): void {
   const a = x as ScrollAxis;
   a.pos += d; a.raw += d; a.target += d; a.p0 += d;
   for (let i = 0; i < a.ps.length; i++) a.ps[i] += d;
+}
+// ---- scroll restoration (scrollKey), after the browser's history.scrollRestoration and React Router's <ScrollRestoration>: a scroll container
+// with a key leaves its offset under it when it goes (unmounted, or its key changed) and a container that takes that key gets it back after its
+// first layout, clamped to its content. A virtual list keeps the row at its top and the distance into it, so rows of measured heights that come
+// back as estimates show the same row; only the rows in view at the restored offset are built.
+const keptScroll = new Map<string, number[]>();   // key -> [sx, sy, top row of a variable list (-1 otherwise), offset into that row]
+const keptOrder: string[] = [];
+const KEPT_MAX: i32 = 1000;   // ponytail: the oldest key is forgotten past this many
+const restoring: i32[] = [];  // containers waiting for a layout to take their kept offset
+function keepScroll(n: UiNode): void {
+  let row: number = -1, into: number = 0;
+  const v = n.virt;
+  if (v !== null && (v as Virtual).variable && (v as Virtual).count > 0) {
+    const vv = v as Virtual, r = fwFind(vv, n.sy - n.pt);
+    row = r; into = n.sy - n.pt - fwPrefix(vv, r);
+  }
+  const at = keptOrder.indexOf(n.skey);
+  if (at >= 0) keptOrder.splice(at, 1);
+  keptOrder.push(n.skey);
+  keptScroll.set(n.skey, [n.sx, n.sy, row, into]);
+  if (keptOrder.length > KEPT_MAX) keptScroll.delete(keptOrder.shift() as string);
+}
+/** h no longer waits for its offset; false when it did not (its offset is its own, to keep). */
+function dropRestore(h: i32): boolean { const i = restoring.indexOf(h); if (i < 0) return false; restoring.splice(i, 1); return true; }
+/** The key a scroll container keeps its offset under ('' none): the offset of the last container that had the key comes back after its first
+ *  layout; a container whose key changes keeps the old key's offset and takes the new one's (the top when it has none). */
+export function setScrollKey(h: i32, key: string): void {
+  const n = node(h);
+  if (n.skey === key) return;
+  const had = n.skey !== '';
+  if (had && !dropRestore(h)) keepScroll(n);
+  n.skey = key;
+  if (key !== '' && keptScroll.has(key)) { restoring.push(h); layoutDirty = true; }
+  else if (had) scrollTo(h, 0, 0);
+}
+export function scrollKey(h: i32): string { return node(h).skey; }
+function restoreScrolls(): void {
+  for (let i = restoring.length - 1; i >= 0; i--) {
+    const h = restoring[i], n = nodes[h];
+    if (!n.alive) { restoring.splice(i, 1); continue; }
+    if (n.lh <= 0) continue;   // not laid out yet (hidden): the next layout
+    restoring.splice(i, 1);
+    const k = keptScroll.get(n.skey);
+    if (k === undefined) continue;
+    let y: number = k[1];
+    const v = n.virt;
+    if (v !== null && (v as Virtual).variable && k[2] >= 0) {
+      const vv = v as Virtual, r: i32 = Math.round(k[2]);
+      y = n.pt + fwPrefix(vv, imin(r, vv.count)) + k[3];
+    }
+    scrollTo(h, k[0], y);
+  }
 }
 /**
  * Makes a scroll container a virtual list of `count` rows of `itemH` pixels: only the rows in view (+3) are built by
@@ -3597,6 +3651,7 @@ export function layout(): void {
   if (own) paintDirty = true; else extPaint = true;
   hoverDirty = true;
   if (cqAny && !inSettle) settleContainers();
+  if (restoring.length > 0) restoreScrolls();
   if (virtList.length > 0 && !inVirt) { inVirt = true; settleVirtuals(); if (layoutDirty) layout(); inVirt = false; }
   if (autoFields.length > 0 && !inFields) { inFields = true; settleFields(); if (layoutDirty) layout(); inFields = false; }   // a new width wraps them again
 }

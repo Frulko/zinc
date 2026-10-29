@@ -1058,6 +1058,7 @@ struct Lowering {
       else if (name == "onDraw") push("_draw(" + v + ", " + expr + ");");
       else if (name == "onSubmit") push("_submit(" + v + ", " + expr + ");");
       else if (name == "accessibilityRole") push("_str(" + v + ", 'role', " + (lit ? quote(a.lit) : expr) + ");");
+      else if (name == "scrollKey") push(lit ? "_str(" + v + ", 'scrollKey', " + quote(a.lit) + ");" : react ? "_str(" + v + ", 'scrollKey', " + expr + ");" : "_dynStr(" + v + ", 'scrollKey', () => (" + expr + "));");   // scroll restoration (docs/ui.md)
       else if (name == "accessibilityLabel") push(lit ? "_str(" + v + ", 'label', " + quote(a.lit) + ");" : react ? "_str(" + v + ", 'label', " + expr + ");" : "_dynStr(" + v + ", 'label', () => (" + expr + "));");
       else if (kWebAttrs.count(name) || (name == "type" && !(lit && (a.lit == "password" || a.lit == "text")))) {   // a hint for the page
         const std::string key = quote("attr:" + (name == "htmlFor" ? std::string("for") : name));
@@ -1177,6 +1178,10 @@ struct Lowering {
       const Attr* cls = find("className");
       if (cls && cls->kind == 1) out.push_back("_class(" + v + ", " + quote(cls->lit) + ");");
       else if (cls) out.push_back(react ? "_class(" + v + ", " + valueOf(*cls) + ");" : "_dynClass(" + v + ", () => (" + valueOf(*cls) + "));");
+      if (const Attr* rf = find("ref")) out.push_back("_ref(" + v + ", " + valueOf(*rf) + ");");
+      const Attr* sk = find("scrollKey");   // before the rows: the kept offset is taken at the first layout, so only the rows there are built
+      if (sk && sk->kind == 1) out.push_back("_str(" + v + ", 'scrollKey', " + quote(sk->lit) + ");");
+      else if (sk) out.push_back(react ? "_str(" + v + ", 'scrollKey', " + valueOf(*sk) + ");" : "_dynStr(" + v + ", 'scrollKey', () => (" + valueOf(*sk) + "));");
       const std::string height = ih ? valueOf(*ih) : "-(" + valueOf(*est) + ")";
       out.push_back(react ? "_virtual(" + v + ", " + valueOf(*count) + ", " + height + ", " + rw(c->eb, c->ee) + ");"
                           : "_virtual(" + v + ", () => (" + valueOf(*count) + "), " + height + ", " + rw(c->eb, c->ee) + ");");

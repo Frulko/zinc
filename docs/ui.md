@@ -445,6 +445,18 @@ On Android (`ui.platformStyle()` 'android', `ZINC_PLATFORM=android` on the deskt
 `<ScrollView stickToBottom>` follows its end (a chat, a log): while it shows the end, it keeps showing it as the content grows or the view is resized;
 once the user scrolls up it stays where it is, and it follows again when brought back to the end (`ui.scrollTo(h, 0, 1e9)` from code).
 
+### Scroll restoration: `scrollKey`
+
+`<ScrollView scrollKey="albums">` and `<VirtualList scrollKey="albums" ...>` (or `ui.setScrollKey(h, key)`) keep their offset under the key,
+in the spirit of the browser's `history.scrollRestoration` and React Router's `<ScrollRestoration>` (React Native has no such prop): when the
+view unmounts, its offset is kept; a view that mounts with the same key gets it back after its first layout, clamped to its content when the
+content shrank. A virtual list restores before its rows are built, so only the rows in view at the restored offset are built, and a list of
+rows of their own heights (`estimatedItemHeight`) keeps the row at its top and the distance into it, so the same row shows though the rows
+come back as estimates. A view whose key changes while it is mounted keeps the old key's offset and takes the new one's (the top when the
+new key has none). Use a key per place a person can come back to (a key per history entry: back returns to where the list was, a new
+entry starts at the top). The last 1,000 keys are kept. `tests/t1/ui_scroll_key.sh`
+(`tests/golden/ui-scroll-key`) checks it on the interpreter and QuickJS.
+
 Input: the SDL HAL resamples the precise deltas at frame time (now - 5 ms, linear between events, extrapolation ≤ 8 ms:
 Chromium / Android) into `HalInput.scroll_dx / dy / phase` (`gfx.scrollDX / scrollDY / scrollPhase`). On macOS the main
 window's precise scrolls (trackpad, Magic Mouse) come from their NSEvents (`targets/macos/hal_cocoa.mm`) with the gesture

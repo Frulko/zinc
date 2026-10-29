@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:ui`: `scrollKey` on `ScrollView` and `VirtualList` brings a list back where it was: the offset is kept under the key when the view goes and given back when a view with the same key comes (clamped when the content shrank; a virtual list builds only the rows in view there). `ui.setScrollKey(h, key)` does it from code.
 - iPod demo: every download, add, backup, restore, delete, check, repair, analysis and merge answers on the page it was started from: a toast at the bottom right with its progress, Show and Cancel, then its result (Reveal in Finder) or its error; the sidebar's Transfers row shows a ring, a count and a red dot for a failure not seen; the button that started a job shows a loader until it ends, and a song's arrow a ring then a check. Eject and mount answer with a toast too.
 - `zinc:ui/kit` has `ProgressRing`: a job's progress as a small ring filling clockwise, for a sidebar row or a table cell.
 - reMarkable: Zinc Hub can run an app outside xochitl, with the panel to itself: Store › Installed › Ink session turns it on or off per app, the home grid marks it INK and opens it that way, and an app whose zinc.json says `"display": {"ink": "session"}` (Sidecar does) gets it at install. When the tablet refuses (xochitl restarted too often lately), the Hub says why.
