@@ -134,6 +134,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- An `await` inside the value assigned to a field or an element (`g.muted = (await read()) === '1'`) no longer fails to compile with Z0108.
 - A row of a virtual list (`VirtualList`, `ui.virtualize`) whose class changes (a selection, a hover style) keeps its place: it no longer jumps to the top of the list and leaves a gap.
 - `zinc:net`: `fetch` with `bodyBytes` sends the bytes as they are; bytes 0x80 and above were turned into U+FFFD, so an uploaded song or picture arrived damaged.
 - A function expression that uses variables of the function around it, passed where a slightly different function type is expected (a `sort` comparator declared `: i32`), no longer stops the compile with "invalid IR".

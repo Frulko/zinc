@@ -224,7 +224,11 @@ struct Desugar {
       Id ko = ks[static_cast<std::size_t>(k)];
       if (ko == kNone) continue;
       Id r = lin(ko, pre);
-      if (k < last && !trivialOperand(r) && hoistableKind(r) && !(kind == N::Call && k == 0)) r = hoist(r, pre);
+      if (kind == N::Assign && k == 0) {  // a target stays a place: `o.f = (await g()) + 1` evaluates o (and an index) first, never the value of o.f
+        if (k < last && (n(r).kind == N::Member || n(r).kind == N::Index))
+          for (std::size_t q = 0; q < (n(r).kind == N::Index ? 2u : 1u) && q < n(r).kids.size(); ++q)
+            if (n(r).kids[q] != kNone && !trivialOperand(n(r).kids[q]) && hoistableKind(n(r).kids[q])) n(r).kids[q] = hoist(n(r).kids[q], pre);
+      } else if (k < last && !trivialOperand(r) && hoistableKind(r) && !(kind == N::Call && k == 0)) r = hoist(r, pre);
       else if (k < last && kind == N::Call && k == 0 && n(r).kind == N::Member && !trivialOperand(n(r).kids[0]) && hoistableKind(n(r).kids[0])) n(r).kids[0] = hoist(n(r).kids[0], pre);  // obj.m(...): obj is evaluated first
       n(i).kids[static_cast<std::size_t>(k)] = r;
     }
