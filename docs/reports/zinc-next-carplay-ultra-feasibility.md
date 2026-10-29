@@ -107,7 +107,45 @@ future CAN adapter the same consumer. A real CAN adapter would decode known
 vehicle-specific signals into `VehicleState`; it must not be the UI model.
 
 The full Ultra protocol cannot be implemented reliably from the supplied PDF
-excerpts alone. The next evidence to obtain is a redacted live handshake from
-this Pi/iPhone pair and the exact LIVI source path used for the working vehicle
-state channel. Do not change the receiver's advertised capabilities until we
+excerpts alone. Do not change the receiver's advertised capabilities until it
 can handle what the iPhone requests after negotiation.
+
+## Negotiation observed on Pi, 29 October
+
+An instrumented receiver captured the iPhone's session SETUP feature offer.
+It includes **`uiSync`** and **`vehicleStateProtocol`**. The receiver responds
+with only `iAPChannel`, `viewAreas` and `altScreen`. The same session then
+establishes type-130 iAP2 and types 110/111 video, with no Ultra-specific
+data channel. This identifies a concrete negotiation gap. The Zinc Debug
+panel now shows offered and enabled capabilities separately; a CarPlay Ultra
+label on the phone must not be read as proof that either feature was enabled.
+
+The [LIVI receiver implementation](https://github.com/f-io/LIVI) provides a
+candidate protocol map. Its `stack/setup.rs` selects the two feature names,
+`vehicle_state.rs` handles a bidirectional OPACK vehicle protocol over two
+type-130 data streams, and `ui_sync.rs` handles a separate UI sync stream.
+Its vehicle streams use UUIDs `FF4A6720-F2BE-4F56-A3E1-DB3B4E37D634`
+and `3E2F3C61-AAD0-42CB-A8AA-BF22186DA62E`; UI sync uses
+`07D9F906-8D64-4B54-A808-A20BCA2C51C2`. These are implementation
+evidence to verify in a live exchange, not a claim of Apple protocol support
+by this receiver. The current Kotlin `IapTunnel` accepts the iAP2 stream
+only, and its parser lacks OPACK vehicle messages. Enabling the feature bits
+without routing and responding on those streams would create a broken session.
+
+The first implementation slice is a duplex type-130 channel dispatcher keyed
+by UUID, OPACK vehicle request/reply handling for a small fixed simulated
+vehicle profile, then a live test showing a phone request and one reflected
+value. UI sync and authenticated graphics assets follow separately. The
+receiver remains on Pi and the Zinc player on Mac; no Pi screen takeover is
+required. Keep LIVI's GPL source as a behavioral reference rather than
+copying it into Zinc's independent player.
+
+Additional public references checked: [carlink_linux's capability
+map](https://github.com/lvalen91/carlink_linux/blob/main/docs/CARPLAY_CAPABILITIES.md)
+identifies the same SETUP response tokens, but labels several newer details
+as iOS-binary findings or inference. [CarCast's public
+documentation](https://github.com/rPlayAI/carcast-public) claims an Ultra
+cluster renderer with simulated gauges, but its receiver source is closed.
+Reddit reports add no independently verifiable channel trace. LIVI remains
+the most useful open implementation reference, with every inferred field
+checked against our live Pi/iPhone exchange before enabling it.

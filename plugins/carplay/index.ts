@@ -45,8 +45,12 @@ export interface Iap2Capability {
 export interface Iap2InspectorSnapshot {
   connected: boolean; tracing: boolean; catalog: Iap2Capability[]; subscriptions: i32[];
 }
+export interface UltraStatus {
+  phoneOffersVehicleState: boolean; phoneOffersUiSync: boolean;
+  vehicleStateEnabled: boolean; uiSyncEnabled: boolean;
+}
 interface ControlMessage {
-  message?: string; iap2?: Iap2InspectorSnapshot; hud?: HudSnapshot; gps?: DebugGpsSnapshot; clusterEnabled?: boolean;
+  message?: string; iap2?: Iap2InspectorSnapshot; hud?: HudSnapshot; gps?: DebugGpsSnapshot; clusterEnabled?: boolean; ultra?: UltraStatus;
   type: string; sessionActive?: boolean; micActive?: boolean; micCodec?: string;
   micRate?: i32; micChannels?: i32; micSamplesPerPacket?: i32; micBitrate?: i32;
 }
@@ -65,6 +69,7 @@ export class Session {
   gps: DebugGpsSnapshot | null = null;
   clusterEnabled: boolean = false;
   iap2: Iap2InspectorSnapshot | null = null;
+  ultra: UltraStatus | null = null;
   readonly iap2Log: string[] = [];
   onIap2Trace: ((text: string) => void) | null = null;
   iap2Error: string = '';
@@ -117,6 +122,7 @@ export class Session {
         const message = JSON.parse(e.data) as ControlMessage;
         if ((message.type === 'session' || message.type === 'hello') && message.sessionActive === true) this.setNightMode(this.night);
         if (message.type === 'session' && message.sessionActive !== true) {
+          this.ultra = null;
           this.microphone.stop();
           if (this.hud !== null) this.hud.stale = true;
           this.clearArtwork();
@@ -129,6 +135,7 @@ export class Session {
           if (message.iap2 !== undefined) this.iap2 = message.iap2;
           if (message.message !== undefined) this.iap2Error = message.message;
         }
+        if (message.type === 'ultraStatus' && message.ultra !== undefined) this.ultra = message.ultra;
         if (message.type === 'iap2Trace' && message.message !== undefined) {
           this.iap2Log.push(message.message.slice(0, 8192));
           if (this.iap2Log.length > 128) this.iap2Log.shift();
@@ -161,6 +168,7 @@ export class Session {
       if (this.socket !== s) return;
       this.socket = null;
       if (this.iap2 !== null) this.iap2.connected = false;
+      this.ultra = null;
       if (this.hud !== null) this.hud.stale = true;
       this.clearArtwork();
       this.secondary.close();
@@ -341,6 +349,7 @@ export class Session {
   }
   close(): void {
     if (this.iap2 !== null) this.iap2.connected = false;
+    this.ultra = null;
     if (this.hud !== null) this.hud.stale = true;
     this.clearArtwork();
     this.secondary.close();

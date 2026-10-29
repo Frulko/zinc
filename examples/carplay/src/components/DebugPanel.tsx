@@ -12,6 +12,7 @@ const [speed, setSpeed] = createSignal<string>('0');
 const [seconds, setSeconds] = createSignal<number>(0);
 const [message, setMessage] = createSignal<string>('GPS disabled — injected fixes are simulated');
 const [cluster, setCluster] = createSignal<string>('Waiting for receiver status');
+const [ultra, setUltra] = createSignal<string>('CarPlay Ultra · en attente de la négociation');
 const [contacts, setContacts] = createSignal<string>('Native contacts: 0 · peak 0');
 const [twoContacts, setTwoContacts] = createSignal<boolean>(false);
 const [logs, setLogs] = createSignal<string[]>([]);
@@ -29,6 +30,8 @@ export function tickDebug(session: Session, dt: number): void {
     setMessage(gps.enabled ? `SIMULATED GPS · ${gps.subscribed ? 'iPhone subscribed' : 'waiting for subscription'} · ${gps.points} points · requête ${gps.requested === undefined ? 'inconnue' : gps.requested.join(',')} · ${gps.sent === undefined ? 'TX non renseigné' : gps.sent + ' envois iAP2'} · ${gps.lat ?? 0}, ${gps.lon ?? 0}` : 'GPS disabled');
   }
   setCluster(session.secondary.frames > 0 ? `Cluster reçu · ${session.secondary.width} × ${session.secondary.height}` : session.clusterEnabled ? 'Cluster annoncé · en attente de vidéo' : 'Cluster désactivé côté serveur');
+  const capabilities = session.ultra;
+  setUltra(capabilities === null ? 'CarPlay Ultra · en attente de la négociation' : `iPhone : véhicule ${capabilities.phoneOffersVehicleState ? 'proposé' : 'absent'}, UI sync ${capabilities.phoneOffersUiSync ? 'proposé' : 'absent'} · Récepteur : véhicule ${capabilities.vehicleStateEnabled ? 'activé' : 'inactif'}, UI sync ${capabilities.uiSyncEnabled ? 'activé' : 'inactif'}`);
   setLogs(session.debugLog.slice(-6));
 
 }
@@ -111,6 +114,7 @@ export function DebugPanel(): i32 {
       <Text className="text-slate-400 text-xs">Enable ZINC_CARPLAY_CLUSTER=1 before receiver startup; navigation must be active.</Text>
       <Text className="text-slate-200 text-xs">{contacts()}</Text>
       <Text className="text-slate-200 text-xs">{cluster()}</Text>
+      <Text className="text-cyan-200 text-xs">{ultra()}</Text>
       <Text className="text-amber-200">Journal iAP2 · événements reçus</Text>
       <For each={logs()}>{(line: string) => <Text className="text-slate-400 text-xs">{line}</Text>}</For>
       <Button className="bg-slate-700 rounded p-2" onClick={() => {

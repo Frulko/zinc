@@ -99,6 +99,11 @@ t=t.replace('        override fun onCommand(session: AirPlaySession, type: Strin
                     lastResourceSummary = summary
                 }
             }''')
+t=t.replace('        override fun onDebugLog(message: String) {', '''        override fun onUltraStatus(session: AirPlaySession, status: com.shilapi.xcertplay.airplay.AirPlayUltraStatus) {
+            hub.ultraStatus(status)
+        }
+
+        override fun onDebugLog(message: String) {''')
 p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/iap2/catalog/Iap2Endpoint.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/iap2/catalog/Iap2Endpoint.kt']).decode()
@@ -186,7 +191,26 @@ t=t.replace('                onProgress = { log.debug("wireless $it") },', '''  
 p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/WebHub.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/WebHub.kt']).decode()
+t=t.replace('@Serializable\ndata class ServerMessage(', '''@Serializable
+data class UltraStatus(
+    val phoneOffersVehicleState: Boolean,
+    val phoneOffersUiSync: Boolean,
+    val vehicleStateEnabled: Boolean,
+    val uiSyncEnabled: Boolean,
+)
+
+@Serializable
+data class ServerMessage(''')
 t=t.replace('    private val json = Json { ignoreUnknownKeys = true }', '    private val json = Json { ignoreUnknownKeys = true }\n    private val debugJson = Json { encodeDefaults = true; explicitNulls = false }')
+t=t.replace('    private val clients = ConcurrentHashMap.newKeySet<WsClient>()', '    private val clients = ConcurrentHashMap.newKeySet<WsClient>()\n    @Volatile private var latestUltra: UltraStatus? = null')
+t=t.replace('    fun setSessionState(active: Boolean, name: String?) {', '''    fun ultraStatus(status: com.shilapi.xcertplay.airplay.AirPlayUltraStatus) {
+        val report = UltraStatus(status.phoneOffersVehicleState, status.phoneOffersUiSync, status.vehicleStateEnabled, status.uiSyncEnabled)
+        latestUltra = report
+        broadcastJson(ServerMessage(type = "ultraStatus", ultra = report))
+    }
+
+    fun setSessionState(active: Boolean, name: String?) {
+        if (!active) latestUltra = null''')
 t=t.replace('        val text = json.encodeToString(ServerMessage.serializer(), message)', '        val text = (if (message.type == "debug" || message.type.startsWith("iap2")) debugJson else json).encodeToString(ServerMessage.serializer(), message)')
 t=t.replace('    val contacts: List<TouchContactMessage> = emptyList(),', '''    val traceEnabled: Boolean? = null, val messageId: Int? = null, val payloadHex: String? = null,
     val lat: Double? = null, val lon: Double? = null, val speed: Double? = null,
@@ -215,12 +239,15 @@ t=t.replace('    private fun broadcastBinary(bytes: ByteArray) {', '''    @Volat
 
     private fun broadcastBinary(bytes: ByteArray) {''')
 t=t.replace('                    // Replay codec/audio setup', '                    latestArtwork?.let { client.channel.trySend(Frame.Binary(true, it)) }\n                    // Replay codec/audio setup')
+t=t.replace('                    latestArtwork?.let { client.channel.trySend(Frame.Binary(true, it)) }', '''                    latestUltra?.let { client.channel.trySend(Frame.Text(json.encodeToString(ServerMessage.serializer(), ServerMessage(type = "ultraStatus", ultra = it)))) }
+                    latestArtwork?.let { client.channel.trySend(Frame.Binary(true, it)) }''')
 t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fun debugGps(gps: DebugGpsSnapshot, error: String?) {
         broadcastJson(ServerMessage(type = "debug", message = error, gps = gps, clusterEnabled = System.getenv("ZINC_CARPLAY_CLUSTER") == "1"))
     }
 
     private fun broadcastJson(message: ServerMessage) {''')
 t=t.replace('    val micActive: Boolean? = null,', '    val iap2: Iap2InspectorSnapshot? = null,\n    val hud: HudSnapshot? = null,\n    val micActive: Boolean? = null,')
+t=t.replace('    val micActive: Boolean? = null,', '    val ultra: UltraStatus? = null,\n    val micActive: Boolean? = null,')
 t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fun iap2Status(snapshot: Iap2InspectorSnapshot, error: String?) {
         broadcastJson(ServerMessage(type = "iap2Status", iap2 = snapshot, message = error))
     }
@@ -236,9 +263,17 @@ t=t.replace('Wire.videoConfig(type, value.first, display.width, display.height, 
 p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/airplay/AirPlaySession.kt']).decode()
+t=t.replace('/** Session lifecycle and command callbacks for the driver/UI layer. */', '''data class AirPlayUltraStatus(val phoneOffersVehicleState: Boolean, val phoneOffersUiSync: Boolean, val vehicleStateEnabled: Boolean, val uiSyncEnabled: Boolean)
+
+/** Session lifecycle and command callbacks for the driver/UI layer. */''')
+t=t.replace('    fun onDebugLog(message: String) {}', '    fun onUltraStatus(session: AirPlaySession, status: AirPlayUltraStatus) {}\n    fun onDebugLog(message: String) {}')
 needle='if (message.method.startsWith("RTSP/") || message.method.startsWith("HTTP/")) continue'
 assert t.count(needle) == 1, 'Unexpected upstream event response handler'
 t=t.replace('        eventCseq++', '        eventCseq++\n        if (command["type"] in listOf("setNightMode", "uiAppearanceUpdate", "mapAppearanceUpdate")) debugLog("airplay event appearance command type=${command[\"type\"]} cseq=$eventCseq")')
+t=t.replace('        val peerTimingPort = long(dict["timingPort"])?.toInt() ?: 0', '''        val offered = (dict["features"] as? List<*>)?.filterIsInstance<String>().orEmpty()
+        debugLog("airplay offered features=${offered.sorted()} ultraVehicle=${"vehicleStateProtocol" in offered} ultraUiSync=${"uiSync" in offered}")
+        val peerTimingPort = long(dict["timingPort"])?.toInt() ?: 0''')
+t=t.replace('        response["enabledFeatures"] = features', '        response["enabledFeatures"] = features\n        debugLog("airplay enabled features=$features")\n        listener.onUltraStatus(this, AirPlayUltraStatus("vehicleStateProtocol" in offered, "uiSync" in offered, "vehicleStateProtocol" in features, "uiSync" in features))')
 t=t.replace(needle, '''if (message.method.startsWith("RTSP/") || message.method.startsWith("HTTP/")) {
                         val result = if (message.body.isNotEmpty()) runCatching { BplistCodec.decode(message.body) as? Map<*, *> }.getOrNull() else null
                         debugLog("airplay event response cseq=${message.headers["cseq"]} status=${message.path} resultStatus=${result?.get("status")} bodyBytes=${message.body.size}")
