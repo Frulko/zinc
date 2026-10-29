@@ -1,6 +1,8 @@
-# Latest: Local UI proof (29 October 2026)
+# Latest: original Local UI component POC (29 October 2026)
 
-Discovered CarPlayAccessory.assets.zip inside catalog 44C9FA31EC:985: 193 plaintext Lua modules and 2875 PNGs. tools/carplay-local-ui-poc runs selected original speed/radial-layout modules and generates a native Zinc preview. Last generated app: build/carplay/local-ui-probe-4; complete interpreter screenshot /private/tmp/carplay-local-ui-interp.png. Probe tests passed; final AOT rendering loses text/images while interpreter renders them. ZN-861 is the next engine blocker to investigate. Full CP bridge, live theme reception and signature verification remain open; see docs/reports/carplay-local-ui-poc.md. No Pi restart or pairing changes in this offline investigation.
+Worktree carplay-finish / Frulko/carplay-finish. POC 2 tool: tools/carplay-local-ui-poc/component/run.py. Original Cobranded Speedometer constructor and controllers execute unchanged under official Luau 0.692 (temporary CLI /private/tmp/zinc-luau-poc-0692/build/luau). Same instance receives 0/65/130 simulated updates; 163–165 retained layers, original glyph atlases/images, no missing requested data. Offline SVG/librsvg export, not embedded runtime/live UI Sync; conical gradients and additive blending remain approximate. Generated project build/carplay/local-ui-component-2; complete interpreter capture there as capture-interpreter.png, AOT capture as capture-native.png. Tests carplay_local_ui_probe pass (5 tests). No Apple code/artwork committed; docs/reports/carplay-local-ui-poc.md has reproduction and limitations.
+
+ZN-861 remains next: AOT displays all three gauge images but omits explanatory Text nodes, also independent build with symbols; interpreter correct. Earlier probe-4 repeated native run now correct. Do not claim cache root cause or engine fix. Source untouched to avoid workaround. Need asset-free reduction, then retained CP renderer and recorded UI Sync. No Pi/pairing work this turn.
 
 # CarPlay worktree handover — 2026-10-29
 

@@ -95,3 +95,80 @@ and rendered on the Mac. The final interpreter screenshot shows geometry, text a
 original images; the final native build displays geometry but omits text/images.
 This engine defect is tracked as ZN-861; the probe source is not changed to hide it. Full runtime, phone asset capture, signature validation,
 UI Sync composition and Pi performance remain unproven.
+
+
+## POC 2: original complete speedometer component
+
+`tools/carplay-local-ui-poc/component/run.py` executes the first Speedometer
+component of the Cobranded layout, including its original slots, appearance
+controllers, labels, progress and visibility controllers. It does not replace
+these modules with locally drawn gauges. The 193 plaintext modules are wrapped
+unchanged; the output report records each SHA-256. No original module or artwork
+is committed to the repository.
+
+This is an **offline scene export**, not a completed Local UI runtime in the player:
+
+1. Official Luau executes the original modules against our limited CP layer recorder.
+2. One component instance receives simulated speed changes 0 → 65 → 130 km/h.
+3. Its retained layer tree is serialized, including masks and image atlas windows.
+4. Python exports SVG with the original PNGs and raster glyphs. librsvg renders it.
+5. A generated Zinc app displays the three snapshots.
+
+The genuine script results include the speed text, tick labels, decorative image,
+unit, fuel icon, range label and progress arc. Fuel and range are simulated at
+68% and 320 km. Assertions check three updates, the normalized progress values,
+the original decoration and changing glyph windows. Missing data subscriptions
+or unsupported CP calls fail the export. This does not prove compatibility with
+other layouts, video, notifications, input, package updates or UI Sync.
+
+The dialect is executable by [Luau](https://github.com/luau-lang/luau): the modules
+use its [generalized table iteration](https://luau.org/syntax/), and the original
+logger even mentions Luau. Standard Lua is insufficient for the full constructor.
+The experiment runs plaintext `.lua`, not `.luac`; embedding a bytecode-compatible
+runtime is not yet established.
+
+### Reproduce locally
+
+Dependencies: Python 3 with Pillow and NumPy, `rsvg-convert` (librsvg), CMake and a
+C++ compiler to build the standalone Luau CLI. No Luau library is vendored into
+Zinc yet. Pin the tested official MIT-licensed runtime:
+
+```sh
+git clone --depth 1 --branch 0.692 https://github.com/luau-lang/luau /tmp/zinc-luau-0692
+git -C /tmp/zinc-luau-0692 rev-parse HEAD
+# Expected: 9457397af45f9d69423c5168d23fddd998a5f0fd
+cmake -S /tmp/zinc-luau-0692 -B /tmp/zinc-luau-0692/build -DCMAKE_BUILD_TYPE=Release -DLUAU_BUILD_TESTS=OFF -DLUAU_BUILD_WEB=OFF
+cmake --build /tmp/zinc-luau-0692/build --target Luau.Repl.CLI -- -j2 -l8
+python3 tools/carplay-local-ui-poc/component/run.py /path/to/catalog.zip \
+  --luau /tmp/zinc-luau-0692/build/luau --out build/carplay/original-component
+ZINC_BACKGROUND=1 build/zinc run build/carplay/original-component
+```
+
+Choose a new output directory for each export. It contains the reproducible
+bundle, execution log, `scene-{speed}.json`, SVGs, PNGs in `assets/`, the Zinc
+project and `report.json`. Keep these outputs private: they include the supplied
+package's code and artwork. The input archive is still the catalog ZIP, not a
+package captured from an iPhone, and its signature remains unverified.
+
+### Fidelity limits and current evidence
+
+The CP bridge's geometry conventions are inferred from the scripts. The exporter
+samples arcs at two pixels per segment, rasterizes conical gradients with an
+inferred direction, and approximates PLUSLIGHTER using screen blending. The bright
+sector and some dark tick labels are not validated against an Apple-rendered
+reference. Original assets and scripts do not imply pixel-identical output.
+
+On 2026-10-29 the real archive export and `carplay_local_ui_probe` tests pass.
+Generated `build/carplay/local-ui-component-2` renders all three gauges in native
+Zinc. Its explanatory UI text is missing in AOT, including a separate build with
+symbols, but present in the interpreter. Captures:
+`/private/tmp/carplay-original-component-repeat.png` (native) and
+`/private/tmp/carplay-component-interp2.png` (interpreter). ZN-861 remains open;
+no source workaround or engine fix is claimed. The earlier probe-4 happened to
+render correctly on a repeated native run, so a general cache diagnosis is not
+established.
+
+Next implementation boundary: fix ZN-861, then map this recorded layer model to
+retained Zinc graphics with correct alpha/additive masks and a shared animation
+clock. Connect recorded UI Sync only after matching an original reference frame;
+phone asset transfer and live video composition remain subsequent work.

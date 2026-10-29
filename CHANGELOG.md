@@ -9,6 +9,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+
+- The offline CarPlay Local UI probe can execute an original speedometer component from a supplied asset package and export three simulated states, including its original glyphs and images; live composition remains experimental.
 - An offline CarPlay Local UI probe inventories a supplied accessory theme, executes selected original Lua speed/geometry functions, and generates a Zinc preview with extracted images. Full theme execution and live asset reception remain open.
 - CarPlay Ultra's experimental Vehicle State profile now advertises automaker settings data with simulated fuel and tire values, plus an interior style resource. The iPhone's native Vehicle app still stays on its loading screen in the current live test.
 - The CarPlay player can fit its Mac window to the full Ultra video without changing the iPhone display; a separate button restores the theme's 1920 × 720 format. Smaller negotiated videos clipped the current Ultra theme.
