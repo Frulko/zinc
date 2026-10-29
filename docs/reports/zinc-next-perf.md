@@ -1336,3 +1336,7 @@ Nine cached upper views add an estimated 4 MiB GPU + 3 MiB CPU image memory; col
 max 309.49 ms, excluded from gameplay measurements. No physical timing claim or exact before/after
 speed claim (trajectories differ). Summary docs/reports/bench/n3ds-pinball-026-stereo-emulator.json;
 commands, raw paths and limits in zinc-next-pinball-physics.md.
+
+2026-10-29, iPod demo Genius (tier 1, examples/ipod/src/services/genius.ts), Apple M1 Pro, AOT; synthetic 10,000 songs and 100,000
+listens in 10,000 sessions: filling and matching the history 3.1 s, building the model 0.64 s, a 100-song Genius 16 ms, the taste mixes
+1.1 s. The interpreter: 0.67 s / 17 ms / 1.04 s. Measured once by the batch D agent, not a gate.

@@ -576,7 +576,15 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod daemon: --log-requests masks query parameters only, not a POSTed form body.
 - iPod daemon: OrbStack containers reach it as 127.0.0.1, so without --token /api is open to any container; require --token when the request comes through a container gateway, or document it loudly.
 
+- iPod Genius: build the model and mixes off the UI thread (1.7 s on the first Playlists open for 10k songs / 100k listens), or cache them on disk per history version.
+- iPod Genius: loudness through libebur128 in a native zinc:ipod analysis pass (only native code gets PCM of AAC/ALAC); zinc:audio.decode lacks AAC/ALAC.
+- iPod Genius: ListenBrainz similar artists (labs API) once listens carry artist MBIDs.
+- iPod daemon: serve /api/genius and /api/mixes from services/genius.ts.
+- TypeScript: a Dyn JSON.stringify writes integer-like keys in insertion order; JavaScript writes them first, ascending.
+- TypeScript: JSON.stringify with a replacer function is refused.
+
 ## Cross-platform pass
+- iPod Genius timings on the Pi 3B+ and 4, and a Linux AAC/ALAC decoder for the daemon.
 - iPod history import and its timings on the Pi daemon.
 - zinc:ui scrollKey on the web target (DOM render): the browser owns the scroller there; verify the restore.
 - zinc:sonos events on webOS, the Pi and Android: the firewall must let the app's server port in (the webOS helper opens only the SSDP port today).
