@@ -16,6 +16,17 @@ class DebugTelemetryTest {
         state.accept(Iap2BodyBuilder.opaque(0x5001).group(0) { string(1, "") }.build())
         assertEquals("", latest.title); assertEquals("Album", latest.album)
     }
+    @Test fun changingNavigationSourceCannotKeepPreviousAppsTurn() {
+        var latest = HudSnapshot()
+        val state = DebugTelemetry { _, hud -> latest = hud }
+        state.accept(Iap2BodyBuilder.opaque(0x5201).u8(1, 1).string(19, "Apple Maps").u16List(13, listOf(0)).build())
+        state.accept(Iap2BodyBuilder.opaque(0x5202).u16(1, 0).string(2, "Turn left").u8(3, 1).build())
+        assertEquals(1, latest.maneuver)
+        state.accept(Iap2BodyBuilder.opaque(0x5201).string(19, "Google Maps").u32(7, 1000).build())
+        assertEquals("Google Maps", latest.source); assertEquals(-1, latest.maneuver)
+        assertEquals("", latest.instruction); assertFalse(latest.distanceKnown)
+        assertTrue(latest.remainingKnown); assertEquals(1000L, latest.remaining)
+    }
     @Test fun partialGuidanceUpdatesResolveManeuverAndClearOnArrival() {
         var latest = HudSnapshot()
         val events = mutableListOf<String>()

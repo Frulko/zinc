@@ -45,3 +45,9 @@ Iap2FileTransferReceiver and iap2/session/Iap2Session from the same DiPlay pin,
 with its file-transfer and link-engine tests. This routes negotiated session12
 file datagrams separately from session10 CSM controls. Local ArtworkFrame checks
 PNG/JPEG dimensions with JDK ImageIO in memory; no new image library is added.
+
+Iap2TelemetrySchema uses field mappings from the pinned LIVI message schemas
+(now_playing, route_guidance, power and communications) and DiPlay lane capacity.
+Formatting/validation stays in the pinned typed iAP2 codec. The live inspector,
+recording/export and restricted TX routing are local additions. User-supplied
+Apple PDF excerpts were read locally and are not copied into this repository.

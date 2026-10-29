@@ -38,9 +38,22 @@ p=root/'server/src/main/kotlin/com/playport/server/CarPlayServer.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/CarPlayServer.kt']).decode()
 assert t.count('microphone = false') == 1, 'Unexpected upstream CarPlayServer microphone setting'
 t=t.replace('microphone = false', 'microphone = true')
+t=t.replace('onTrace = { log.debug(it) }', 'onTrace = { iap2Trace.accept(it) }')
 t=t.replace('Iap2Session.openTunnel(stream,', 'Iap2Session.openTunnel(stream, onArtwork = { hub.artwork(it) },')
-t=t.replace('    val hub = WebHub(config, display)', '    val hub = WebHub(config, display)\n    val debugGps = DebugGpsProvider()\n    val debugTelemetry = DebugTelemetry { line, hud -> hub.debugTelemetry(line, hud) }')
-t=t.replace('        val session = activeSession ?: return', '''        if (message.type.startsWith("debugGps") || message.type == "debugGpx") {
+t=t.replace('    val hub = WebHub(config, display)', '    val hub = WebHub(config, display)\n    val debugGps = DebugGpsProvider()\n    val iap2Trace = Iap2LiveTrace { line -> org.slf4j.LoggerFactory.getLogger("iap2-live").info("{}", line); hub.iap2Trace(line) }\n    val debugTelemetry = DebugTelemetry { line, hud -> hub.debugTelemetry(line, hud) }')
+t=t.replace('        val session = activeSession ?: return', '''        if (message.type.startsWith("iap2")) {
+            try {
+                when (message.type) {
+                    "iap2Trace" -> iap2Trace.tracing(message.traceEnabled ?: false)
+                    "iap2Send" -> iap2Trace.send(requireNotNull(message.messageId), message.payloadHex.orEmpty())
+                    "iap2Status" -> Unit
+                    else -> error("Unknown inspector command")
+                }
+                hub.iap2Status(iap2Trace.snapshot(), null)
+            } catch (error: Exception) { hub.iap2Status(iap2Trace.snapshot(), error.message?.take(180)) }
+            return
+        }
+        if (message.type.startsWith("debugGps") || message.type == "debugGpx") {
             try {
                 when (message.type) {
                     "debugGps" -> if (message.gpsEnabled == false) debugGps.disable() else debugGps.setFix(
@@ -70,7 +83,7 @@ t=t.replace('"night" -> message.night?.let(session::setNightMode)', '''"night" -
                     val sent = session.setNightMode(it)
                     log.info("CarPlay nightMode={} sent={}", it, sent)
                 }''')
-t=t.replace('                        onReady = { log.info("wireless iAP2 tunnel ready; CarPlay is live") },', '                        locationProvider = debugGps,\n                        onIncoming = { debugTelemetry.accept(it) },\n                        onReady = { log.info("wireless iAP2 tunnel ready; CarPlay is live") },')
+t=t.replace('                        onReady = { log.info("wireless iAP2 tunnel ready; CarPlay is live") },', '                        locationProvider = debugGps,\n                        onIncoming = { debugTelemetry.accept(it) },\n                        onReady = { iap2Trace.attach(channel, identification); log.info("wireless iAP2 tunnel ready; CarPlay is live") },')
 t=t.replace('    private val listener = object : AirPlaySessionListener {', '    private var lastResourceSummary: String? = null\n\n    private val listener = object : AirPlaySessionListener {')
 t=t.replace('        override fun onCommand(session: AirPlaySession, type: String, params: Map<String, Any?>) {', '''        override fun onCommand(session: AirPlaySession, type: String, params: Map<String, Any?>) {
             if (type == "modesChanged") {
@@ -80,6 +93,66 @@ t=t.replace('        override fun onCommand(session: AirPlaySession, type: Strin
                     lastResourceSummary = summary
                 }
             }''')
+p.write_text(t)
+p=root/'protocol/src/main/java/com/shilapi/xcertplay/iap2/catalog/Iap2Endpoint.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/iap2/catalog/Iap2Endpoint.kt']).decode()
+needle='                    field(6, "MaxGuidanceManeuverStorageCapacity", Iap2WireType.U16),'
+assert t.count(needle) == 1, 'Unexpected route display schema'
+t=t.replace(needle, needle + '\n                    field(7, "MaxLaneGuidanceDescriptionLength", Iap2WireType.U16),\n                    field(8, "MaxLaneGuidanceStorageCapacity", Iap2WireType.U16),')
+p.write_text(t)
+p=root/'protocol/src/main/java/com/shilapi/xcertplay/iap2/trace/Iap2FrameFormatter.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/iap2/trace/Iap2FrameFormatter.kt']).decode()
+t=t.replace('val endpoint = Iap2Endpoints.byId(frame.messageId)', 'val endpoint = com.shilapi.xcertplay.transport.Iap2TelemetrySchema.endpoint(frame.messageId) ?: Iap2Endpoints.byId(frame.messageId)')
+p.write_text(t)
+p=root/'protocol/src/main/java/com/shilapi/xcertplay/transport/Iap2IdentificationClient.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/transport/Iap2IdentificationClient.kt']).decode()
+needle='                if (config.locationInformationEnabled) {\n                    group(22) {'
+assert t.count(needle) == 1, 'Unexpected location identification component'
+t=t.replace(needle, '''                // CarPlay requires VehicleInformation alongside external LocationInformation.
+                if (config.locationInformationEnabled && !config.vehicleStatusEnabled) {
+                    group(20) {
+                        u16(0, 3)
+                        string(1, config.name)
+                        string(6, config.name)
+                        string(8, config.name)
+                    }
+                }
+''' + needle)
+t=t.replace('            0x5202, // RouteGuidanceManeuverUpdate', '            0x5202, // RouteGuidanceManeuverUpdate\n            0x5204, // LaneGuidanceInformation')
+t=t.replace('                    u16(6, 8)', '                    u16(6, 8)\n                    u16(7, 64)\n                    u16(8, 8)')
+p.write_text(t)
+p=root/'protocol/src/main/java/com/shilapi/xcertplay/iap2/message/Iap2Messages.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/iap2/message/Iap2Messages.kt']).decode()
+t=t.replace('listOf(1, 4, 6, 12, 26)', 'listOf(0, 1, 4, 6, 12, 14, 16, 26)')
+t=t.replace('listOf(0, 1, 7)', 'listOf(0, 1, 7, 16)')
+t=t.replace('''Iap2Messages.build(Iap2Endpoints.START_POWER_UPDATES) {
+            void(4)''', '''Iap2Messages.build(Iap2Endpoints.START_POWER_UPDATES) {
+            void(0)
+            void(1)
+            void(2)
+            void(4)''')
+t=t.replace('''Iap2Messages.build(Iap2Endpoints.START_COMMUNICATIONS_UPDATES) {
+            void(0)''', '''Iap2Messages.build(Iap2Endpoints.START_COMMUNICATIONS_UPDATES) {
+            void(1)
+            void(2)
+            void(0)''')
+t=t.replace('''Iap2Messages.build(Iap2Endpoints.START_CALL_STATE_UPDATES) {
+            void(0)''', '''Iap2Messages.build(Iap2Endpoints.START_CALL_STATE_UPDATES) {
+            void(6)
+            void(7)
+            void(8)
+            void(9)
+            void(10)
+            void(12)
+            void(0)''')
+
+t=t.replace('''            u16(0, 42)
+            void(1)
+            void(2)''', '''            u16(0, 42)
+            void(1)
+            void(2)
+            void(3)
+            void(4)''')
 p.write_text(t)
 p=root/'protocol/src/main/java/com/shilapi/xcertplay/transport/Iap2WirelessControlClient.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:protocol/src/main/java/com/shilapi/xcertplay/transport/Iap2WirelessControlClient.kt']).decode()
@@ -95,15 +168,17 @@ t=t.replace(old, '''        for (line in sentence.lineSequence().map { it.trim()
 p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/WirelessBootstrap.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/WirelessBootstrap.kt']).decode()
+t=t.replace('onTrace = { log.debug(it) }', 'onTrace = { server.iap2Trace.accept(it) }')
 t=t.replace('Iap2Session.openWireless(stream,', 'Iap2Session.openWireless(stream, onArtwork = { server.hub.artwork(it) },')
 t=t.replace('                wireless = Iap2WirelessIdentification(hostBluetoothMac, wifi.ssid),', '                carPlayUsbInterfaceNumber = 0,\n                locationInformationEnabled = true,\n                wireless = Iap2WirelessIdentification(hostBluetoothMac, wifi.ssid),')
-t=t.replace('                onReady = { log.info("wireless bootstrap accepted by the iPhone; waiting for the Wi-Fi handoff") },', '                locationProvider = server.debugGps,\n                onIncoming = { server.debugTelemetry.accept(it) },\n                onReady = { log.info("wireless bootstrap accepted by the iPhone; waiting for the Wi-Fi handoff") },')
+t=t.replace('                onReady = { log.info("wireless bootstrap accepted by the iPhone; waiting for the Wi-Fi handoff") },', '                locationProvider = server.debugGps,\n                onIncoming = { server.debugTelemetry.accept(it) },\n                onReady = { server.iap2Trace.attach(channel, identification); log.info("wireless bootstrap accepted by the iPhone; waiting for the Wi-Fi handoff") },')
 p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/WebHub.kt'
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/WebHub.kt']).decode()
 t=t.replace('    private val json = Json { ignoreUnknownKeys = true }', '    private val json = Json { ignoreUnknownKeys = true }\n    private val debugJson = Json { encodeDefaults = true; explicitNulls = false }')
-t=t.replace('        val text = json.encodeToString(ServerMessage.serializer(), message)', '        val text = (if (message.type == "debug") debugJson else json).encodeToString(ServerMessage.serializer(), message)')
-t=t.replace('    val contacts: List<TouchContactMessage> = emptyList(),', '''    val lat: Double? = null, val lon: Double? = null, val speed: Double? = null,
+t=t.replace('        val text = json.encodeToString(ServerMessage.serializer(), message)', '        val text = (if (message.type == "debug" || message.type.startsWith("iap2")) debugJson else json).encodeToString(ServerMessage.serializer(), message)')
+t=t.replace('    val contacts: List<TouchContactMessage> = emptyList(),', '''    val traceEnabled: Boolean? = null, val messageId: Int? = null, val payloadHex: String? = null,
+    val lat: Double? = null, val lon: Double? = null, val speed: Double? = null,
     val course: Double? = null, val altitude: Double? = null, val gpsEnabled: Boolean? = null,
     val gpx: String? = null, val seekSeconds: Double? = null, val playing: Boolean? = null,
     val playbackRate: Double? = null,
@@ -134,8 +209,13 @@ t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fu
     }
 
     private fun broadcastJson(message: ServerMessage) {''')
-t=t.replace('    val micActive: Boolean? = null,', '    val hud: HudSnapshot? = null,\n    val micActive: Boolean? = null,')
-t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fun debugTelemetry(line: String, hud: HudSnapshot) {
+t=t.replace('    val micActive: Boolean? = null,', '    val iap2: Iap2InspectorSnapshot? = null,\n    val hud: HudSnapshot? = null,\n    val micActive: Boolean? = null,')
+t=t.replace('    private fun broadcastJson(message: ServerMessage) {', '''    fun iap2Status(snapshot: Iap2InspectorSnapshot, error: String?) {
+        broadcastJson(ServerMessage(type = "iap2Status", iap2 = snapshot, message = error))
+    }
+    fun iap2Trace(text: String) { broadcastJson(ServerMessage(type = "iap2Trace", message = text)) }
+
+    fun debugTelemetry(line: String, hud: HudSnapshot) {
         broadcastJson(ServerMessage(type = "debug", message = line, hud = hud))
     }
 

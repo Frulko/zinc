@@ -35,8 +35,15 @@ export interface DebugGpsSnapshot {
   enabled: boolean; subscribed: boolean; requested?: i32[]; lat?: number; lon?: number; points: i32;
   seconds: number; duration: number; playing: boolean; sent?: number; lastSentMillis?: number;
 }
+export interface Iap2Capability {
+  id: i32; name: string; feature: string; direction: string; schema: string; samplePayload: string;
+  declared: boolean; tx: number; rx: number; sensitive: boolean;
+}
+export interface Iap2InspectorSnapshot {
+  connected: boolean; tracing: boolean; catalog: Iap2Capability[]; subscriptions: i32[];
+}
 interface ControlMessage {
-  message?: string; hud?: HudSnapshot; gps?: DebugGpsSnapshot; clusterEnabled?: boolean;
+  message?: string; iap2?: Iap2InspectorSnapshot; hud?: HudSnapshot; gps?: DebugGpsSnapshot; clusterEnabled?: boolean;
   type: string; sessionActive?: boolean; micActive?: boolean; micCodec?: string;
   micRate?: i32; micChannels?: i32; micSamplesPerPacket?: i32; micBitrate?: i32;
 }
@@ -54,6 +61,14 @@ export class Session {
   hud: HudSnapshot | null = null;
   gps: DebugGpsSnapshot | null = null;
   clusterEnabled: boolean = false;
+  iap2: Iap2InspectorSnapshot | null = null;
+  readonly iap2Log: string[] = [];
+  onIap2Trace: ((text: string) => void) | null = null;
+  iap2Error: string = '';
+  pollIap2(): boolean { return this.send('{"type":"iap2Status"}'); }
+  traceIap2(enabled: boolean): boolean { return this.send(JSON.stringify({ type: 'iap2Trace', traceEnabled: enabled })); }
+  sendIap2(id: i32, payload: string): boolean { this.iap2Error = ''; return this.send(JSON.stringify({ type: 'iap2Send', messageId: id, payloadHex: payload })); }
+
   private cover: i32 = -1;
   private coverId: i32 = -1;
   artworkImage(): i32 { return this.hud !== null && !this.hud.stale && this.hud.artworkId === this.coverId ? this.cover : -1; }
@@ -107,6 +122,16 @@ export class Session {
           for (const id of this.audio.keys()) this.stopAudio(id);
           this.status = 'waiting for iPhone';
         }
+        if (message.type === 'iap2Status') {
+          if (message.iap2 !== undefined) this.iap2 = message.iap2;
+          if (message.message !== undefined) this.iap2Error = message.message;
+        }
+        if (message.type === 'iap2Trace' && message.message !== undefined) {
+          this.iap2Log.push(message.message.slice(0, 8192));
+          if (this.iap2Log.length > 128) this.iap2Log.shift();
+          const trace = this.onIap2Trace;
+          if (trace !== null) { try { trace(message.message); } catch (e) { this.iap2Error = 'Trace listener failed'; } }
+        }
         if (message.type === 'debug') {
           if (message.clusterEnabled !== undefined) this.clusterEnabled = message.clusterEnabled;
           if (message.gps !== undefined) this.gps = message.gps;
@@ -132,6 +157,7 @@ export class Session {
     s.onclose = e => {
       if (this.socket !== s) return;
       this.socket = null;
+      if (this.iap2 !== null) this.iap2.connected = false;
       if (this.hud !== null) this.hud.stale = true;
       this.clearArtwork();
       this.secondary.close();
@@ -311,6 +337,7 @@ export class Session {
     for (const f of this.fingers) { f.assigned = false; f.down = false; }
   }
   close(): void {
+    if (this.iap2 !== null) this.iap2.connected = false;
     if (this.hud !== null) this.hud.stale = true;
     this.clearArtwork();
     this.secondary.close();

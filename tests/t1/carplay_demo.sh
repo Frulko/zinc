@@ -4,6 +4,7 @@ cd "$(dirname "$0")/../.."
 Z=${ZINC:-build/zinc}
 export ZINC_ROOT="$PWD"
 "$Z" check examples/carplay
+ZINC_HEADLESS=1 ZINC_SIZE=1280x800 ZINC_FRAMES=4 ZINC_SHOT="${TMPDIR:-/tmp}/zinc-carplay-inspector.png" "$Z" run -q tests/golden/carplay/inspector
 ZINC_HEADLESS=1 ZINC_SIZE=900x300 ZINC_FRAMES=4 ZINC_SHOT="${TMPDIR:-/tmp}/zinc-carplay-hud.png" "$Z" run -q tests/golden/carplay/hud.tsx
 ZINC_HEADLESS=1 ZINC_FRAMES=2 "$Z" run -q tests/golden/carplay/player-input.tsx
 ZINC="$Z" ZINC_CARPLAY_URL=ws://127.0.0.1:9 ZINC_HEADLESS=1 ZINC_FRAMES=24 ZINC_SHOT="${TMPDIR:-/tmp}/zinc-carplay-live-disconnected.png" examples/carplay/run --live

@@ -120,3 +120,44 @@ Unicode apostrophes and accented characters pass the WebHub JSON / WebSocket /
 HUD regression. If the live instruction contains a literal question-mark byte
 or invalid UTF-8, the journal reports `iAP2 instruction source: UTF8=...` to
 identify source corruption; the viewer never guesses replacement punctuation.
+
+
+### iAP2 inspector
+
+In the live player, click **iAP2**. It releases keyboard capture and enables live
+tracing. Search by ID, endpoint name or family; filter RX/TX and page through the
+receiver's entire known catalog. Each entry shows its declared direction,
+identification advertisement, TX/RX observations and available TLV schema.
+Messages not in the catalog still appear after observation as unknown endpoints.
+An advertised capability or subscription is not proof that the phone/app provides
+values. Owner testing: Plans complete guidance; Google Maps partial data without
+direction; Waze no HUD metadata in this setup. These are observations of that
+phone/app session, not global claims about every app version.
+
+The detailed journal shows the most recent20 exchanges; memory retains128. Pause
+freezes the display, not capture. **Enregistrer** chooses a file and appends all
+subsequent trace events until stopped, including when returning to the video.
+**Exporter** saves a snapshot of the catalog/counters and current memory ring.
+Long strings/raw bodies use the protocol formatter's bounded previews; this is
+not an unlimited byte dump of media or cryptographic exchanges.
+
+**Composer TX** takes a TLV body in hex. Selecting a supported start-subscription
+entry preloads its actual protocol payload. Stop-subscription entries use an
+empty body. The receiver checks valid TLV framing,4096-byte limit, TX direction,
+authenticated link and the messages advertised for that link. Catalog-only
+commands remain visible but cannot be sent until implemented/advertised. The
+receiver's authentication, identification and Wi-Fi bodies remain hidden and
+cannot be sent through this composer.
+
+For startup tracing in the backend terminal, add
+`ZINC_CARPLAY_IAP2_TRACE=1` to its existing environment. The UI toggle also controls
+terminal output. RX/TX counters run while text tracing is off. No subscription is
+sent merely by selecting an entry. Entering the inspector itself does not start
+extra phone features; startup subscriptions request music, navigation, power,
+communications and call updates. Extra metadata/exit/lane capacities are now
+advertised/requested where specified, but availability remains app-dependent.
+
+After reviewing the supplied CarPlay chapter, external-GPS identification now
+also includes generic VehicleInformation, without inventing engine or battery
+values. Restart backend/player and reconnect the phone to apply identification
+changes. Whether this resolves Plans following the GPX still needs a phone test.

@@ -51,6 +51,8 @@ console.log('carplay decoder: ok');
 
 async function transport(): Promise<void> {
   const client = new Session();
+  let traceCount = 0;
+  client.onIap2Trace = (_text: string) => { traceCount++; };
   check(!client.setNightMode(true) && client.nightMode, 'remember night before connection');
   let peer: WebSocket | null = null;
   let connections = 0;
@@ -59,12 +61,15 @@ async function transport(): Promise<void> {
   const reports: string[] = [];
   const modes: string[] = [];
   const debugCommands: string[] = [];
+  const inspectorCommands: string[] = [];
   const server = await serveWebSocket(0, (ws: WebSocket, req: UpgradeRequest) => {
     if (req.path === '/denied') { ws.close(1008, 'invalid token'); return; }
     peer = ws; connections++;
     check(req.path === '/ws?token=test', 'backend authentication URL');
-    ws.onmessage = (e: MessageEvent) => { if (e.binary) { microphone.push(e.bytes[0]); return; } if (e.data.includes('"type":"knob"') || e.data.includes('"type":"siri"')) keys.push(e.data); if (e.data.includes('"type":"touch"')) reports.push(e.data); if (e.data.includes('"type":"night"')) modes.push(e.data); if (e.data.includes('"type":"debugGps"')) debugCommands.push(e.data); };
+    ws.onmessage = (e: MessageEvent) => { if (e.binary) { microphone.push(e.bytes[0]); return; } if (e.data.includes('"type":"knob"') || e.data.includes('"type":"siri"')) keys.push(e.data); if (e.data.includes('"type":"touch"')) reports.push(e.data); if (e.data.includes('"type":"night"')) modes.push(e.data); if (e.data.includes('"type":"debugGps"')) debugCommands.push(e.data); if (e.data.includes('"type":"iap2')) inspectorCommands.push(e.data); };
     ws.send('{"type":"debug","hud":{"active":true,"instruction":"Rejoignez l’itinéraire","stale":false,"artworkId":9,"road":"École","distance":2,"remaining":2300,"maneuver":3,"distanceKnown":true,"remainingKnown":true,"destination":"Bureau","source":"Apple Maps","routePackets":1,"mediaPackets":1,"title":"Bad Dreams","artist":"Artiste"}}');
+    ws.send('{"type":"iap2Status","iap2":{"connected":true,"tracing":false,"subscriptions":[20480],"catalog":[{"id":20480,"name":"StartNowPlayingUpdates","feature":"Now Playing","direction":"TX","schema":"","samplePayload":"","declared":true,"tx":1,"rx":0,"sensitive":false}]}}');
+    for (let i = 0; i < 130; i++) ws.send(JSON.stringify({ type: 'iap2Trace', message: 'IAP2 RX fixture ' + i }));
     const artHeader: u8[] = [7, 9];
     ws.sendBytes(artHeader.concat(readBytes(sys.env('ZINC_ROOT') + '/tests/golden/carplay/artwork.png')));
     ws.sendBytes([1, 110, 1, 64, 0, 0, 0, 32, 0, 0, 0, 0]);
@@ -74,6 +79,12 @@ async function transport(): Promise<void> {
   for (let i = 0; i < 100 && client.frames === 0; i++) await new Promise<void>(resolve => { setTimeout(resolve, 10); });
   check(client.image >= 0, 'WebSocket to native image');
   check(client.hud !== null && client.hud.instruction === 'Rejoignez l’itinéraire', 'Unicode instruction preserved across WebSocket and JSON');
+  check(client.iap2 !== null && client.iap2.catalog.length === 1 && client.iap2.connected, 'typed inspector catalog received');
+  check(traceCount === 130, 'live recorder hook sees every event before ring eviction');
+  check(client.iap2Log.length === 128 && client.iap2Log[0] === 'IAP2 RX fixture 2', 'bounded detailed inspector ring');
+  check(client.traceIap2(true) && client.pollIap2() && client.sendIap2(0x5000, ''), 'inspector TX controls dispatched');
+  for (let i = 0; i < 100 && inspectorCommands.length < 3; i++) await new Promise<void>(resolve => { setTimeout(resolve, 10); });
+  check(inspectorCommands.length === 3 && inspectorCommands[0].includes('"traceEnabled":true') && inspectorCommands[2].includes('"messageId":20480'), 'inspector commands reach backend');
   check(client.artworkImage() >= 0, 'artwork frame decoded and matched to metadata ID');
   check(client.receive([7, 9]) && client.artworkImage() === -1, 'artwork cancel clears image');
   check(!client.receive([7, 9, 0, 0, 0]), 'invalid artwork rejected');

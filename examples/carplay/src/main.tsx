@@ -6,6 +6,7 @@ import { env } from 'zinc:sys';
 import { DebugPanel, tickDebug } from './components/DebugPanel';
 import { KeyboardCapture, installKeyboardCapture } from './services/keyboard';
 import { TouchOverlay } from './components/TouchOverlay';
+import { Iap2Panel, tickIap2 } from './components/Iap2Panel';
 import { HudPanel, tickHud } from './components/HudPanel';
 const session = new Session();
 const url = env('ZINC_CARPLAY_URL');
@@ -13,6 +14,7 @@ const media = env('ZINC_CARPLAY_MEDIA');
 const offline = media !== '' ? new OfflineMedia(session, media) : null;
 const [status, setStatus] = createSignal<string>(offline !== null ? 'OFFLINE MEDIA / no iPhone authentication' : 'Live mode: start the receiver, then Connect');
 const [debug, setDebug] = createSignal<boolean>(env('ZINC_CARPLAY_DEBUG') === '1');
+const [inspector, setInspector] = createSignal<boolean>(false);
 const [hudShown, setHudShown] = createSignal<boolean>(true);
 const [night, setNight] = createSignal<boolean>(false);
 const [detail, setDetail] = createSignal<string>('');
@@ -34,22 +36,23 @@ function Screen(x: i32, y: i32, w: i32, h: i32): void {
 }
 function App(): i32 {
   return <View className="flex-col h-full bg-slate-950" onKeyDown={handleKey}>
-    <View className="flex-row items-center px-6 h-16 gap-4 bg-slate-900">
-      <Text className="text-xl text-amber-200">{offline !== null ? 'ZINC / OFFLINE MEDIA' : 'ZINC / CARPLAY LIVE'}</Text>
+    <View className="flex-row items-center px-4 h-16 gap-2 bg-slate-900">
+      <Text className="text-xl text-amber-200">{offline !== null ? 'ZINC / OFFLINE MEDIA' : 'ZINC / CARPLAY'}</Text>
       <View className="grow"></View>
-      {offline === null ? <Button className="px-3 py-3 rounded bg-slate-700" onClick={() => keyboard.set(!keyboard.active)}><Text className="text-amber-200">{captured() ? 'Clavier → CarPlay · F6' : 'Clavier → Zinc UI · F6'}</Text></Button> : null}
+      {offline === null ? <Button className="px-3 py-3 rounded bg-slate-700" onClick={() => keyboard.set(!keyboard.active)}><Text className="text-amber-200">{captured() ? 'F6 · Clavier CarPlay' : 'F6 · Clavier Zinc'}</Text></Button> : null}
+      {offline === null ? <Button className="px-3 py-3 rounded bg-cyan-900" onClick={() => { const on = !inspector(); setInspector(on); keyboard.set(!on); if (on) { session.pollIap2(); session.traceIap2(true); } }}><Text className="text-cyan-100">{inspector() ? 'Vidéo' : 'iAP2'}</Text></Button> : null}
       {offline === null ? <Button className="px-3 py-3 rounded bg-slate-800" onClick={() => setHudShown(!hudShown())}><Text className="text-white">HUD</Text></Button> : null}
       {offline === null ? <Button className="px-4 py-3 rounded bg-slate-800" onClick={() => setDebug(!debug())}><Text className="text-white">Debug</Text></Button> : null}
       {offline === null ? <Button className="px-5 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={connect}><Text className="text-white">Connect</Text></Button> : <Text className="text-slate-400">Local H.264 + PCM test media</Text>}
       {offline === null ? <Button className="px-5 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={() => { session.close(); }}><Text className="text-white">Disconnect</Text></Button> : null}
     </View>
-    <View className="flex-row grow h-0">
+    {inspector() ? <Iap2Panel /> : <View className="flex-row grow h-0">
       <View className="grow flex-col w-0">
         <Canvas className="grow h-0" onDraw={Screen} onPointerDown={() => { keyboard.set(true); }}></Canvas>
         {offline === null && hudShown() ? <HudPanel /> : null}
       </View>
       {debug() ? <DebugPanel /> : null}
-    </View>
+    </View>}
     <View className="flex-row items-center h-20 px-6 gap-4 bg-slate-900">
       {offline === null ? <View className="flex-row gap-4"><Button className="px-6 py-3 rounded bg-amber-200 active:bg-amber-400" onClick={() => { session.home(); }}><Text className="text-slate-950">Home</Text></Button>
       <Button className="px-6 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={() => { session.siri(); }}><Text className="text-white">Siri</Text></Button>
@@ -70,7 +73,7 @@ render(App, 0x0c0a09, (dt: number) => {
   if (elapsed < 0.25) return;
   const debugDt = elapsed;
   elapsed = 0;
-  if (offline === null) { tickDebug(session, debugDt); tickHud(session); }
+  if (offline === null) { tickDebug(session, debugDt); tickHud(session); tickIap2(session, debugDt, inspector()); }
   if (offline === null && url !== '') setStatus(session.status);
   setDetail(session.error !== '' ? session.error : offline !== null ? `${session.width} × ${session.height} / ${session.frames} packets / Local four-second loop · 440 Hz tone` : `${session.width} × ${session.height} / ${session.frames} packets / Arrows · Tab · Enter · Esc · Home · S / F6: keyboard capture`);
 });

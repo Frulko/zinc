@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- CarPlay’s native iAP2 inspector lists known RX/TX messages, advertised capabilities and observed counts, with decoded live traces, recording/export and a validated TLV sender for advertised commands. Telemetry subscriptions request additional music, call, network and guidance fields, including lane capacity.
 - CarPlay’s HUD can receive real album covers over iAP2 and releases them when replaced or disconnected; GPS diagnostics show the phone’s requested sentence types and filter output accordingly.
 - CarPlay’s HUD displays incremental navigation and music metadata; the cluster resolution is configurable with `ZINC_CARPLAY_CLUSTER_WIDTH` / `HEIGHT`, and its preview preserves the received ratio. Debug GPS adds a bundled GPX button and actual iAP2 write counts.
 - CarPlay’s native debug player adds external GPS presets, a bounded GPX timeline, an independent cluster preview and decoded iAP2 HUD logs, plus a clearly labelled two-contact mouse simulator.
@@ -94,6 +95,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- CarPlay external GPS identification includes the required vehicle information component, and changing navigation apps clears the previous app’s cached maneuver.
 - The CarPlay debug player shows numbered finger markers and a trackpad map, and explicitly captures navigation keys for CarPlay. F6 or the header button releases capture to edit Zinc controls, and F7 toggles native trackpad contacts with immediate release; native contacts with negative IDs retain their slots.
 - The USB CarPlay receiver saves per-phone host identities and pairing keys privately, tries existing trust first and waits for unlock without discarding saved trust. Its first run with persistent storage can still require Trust approval.
 - CarPlay day/night changes now send UI and map appearance updates addressed to the main display, in addition to the legacy night-mode command.

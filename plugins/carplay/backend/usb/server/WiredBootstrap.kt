@@ -41,7 +41,7 @@ class WiredBootstrap(private val serial: String) : Closeable {
                     host, LockdownPairStore(server.config.stateDir, serial), "ZincCarPlay",
                     timeoutMillis = 120000, isCancelled = { closed }, onProgress = { log.info(it) },
                 )
-                val control = Iap2Session.open(stream, onArtwork = { server.hub.artwork(it) }, onTrace = { log.debug(it) })
+                val control = Iap2Session.open(stream, onArtwork = { server.hub.artwork(it) }, onTrace = { server.iap2Trace.accept(it) })
                 session = control
                 if (closed) { control.close(); return@Thread }
                 val identification = Iap2IdentificationConfig(
@@ -62,7 +62,7 @@ class WiredBootstrap(private val serial: String) : Closeable {
                     timeoutMillis = Iap2WiredControlClient.NO_TIMEOUT_MILLIS,
                     locationProvider = server.debugGps,
                     onIncoming = { server.debugTelemetry.accept(it) },
-                onProgress = { log.info(it) },
+                onProgress = { if (it == "iap2 authentication accepted") server.iap2Trace.attach(control, identification); log.info(it) },
                 )
             } catch (error: Exception) {
                 if (!closed) log.error("Wired CarPlay ended", error)

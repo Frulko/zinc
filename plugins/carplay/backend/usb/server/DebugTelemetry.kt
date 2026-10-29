@@ -43,6 +43,13 @@ class DebugTelemetry(private val publish: (String, HudSnapshot) -> Unit) {
                 }
                 0x5201 -> {
                     hud = hud.copy(routePackets = hud.routePackets + 1)
+                    val source = body.optionalString(19)?.take(80)
+                    if (source != null && hud.source.isNotEmpty() && source != hud.source) {
+                        currentIndex = -1; maneuvers.clear()
+                        hud = hud.copy(source = source, road = "", instruction = "", destination = "",
+                            maneuver = -1, distance = 0, remaining = 0, distanceKnown = false,
+                            remainingKnown = false, remainingSeconds = null)
+                    }
                     val state = body.optionalU8(1)
                     if (state == 0 || state == 2) {
                         hud = hud.copy(active = false, road = "", instruction = "", distance = 0, remaining = 0, distanceKnown = false, remainingKnown = false, remainingSeconds = null, destination = "", maneuver = -1, stale = false)

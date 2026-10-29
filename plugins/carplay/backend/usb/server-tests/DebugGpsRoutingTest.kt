@@ -11,6 +11,11 @@ class DebugGpsRoutingTest {
             CarPlayServer(ServerConfig(stateDir = directory, identityDir = directory, bindAddress = "127.0.0.1")).use { server ->
                 val route = CarPlayServer::class.java.getDeclaredMethod("routeInput", ClientMessage::class.java)
                 route.isAccessible = true
+                route.invoke(server, ClientMessage(type = "iap2Trace", traceEnabled = true))
+                assertTrue(server.iap2Trace.snapshot().tracing)
+                assertFalse(server.iap2Trace.snapshot().connected)
+                route.invoke(server, ClientMessage(type = "iap2Status"))
+                route.invoke(server, ClientMessage(type = "iap2Send", messageId = 0x5000, payloadHex = ""))
                 route.invoke(server, ClientMessage(type = "debugGps", lat = 48.0, lon = 2.0, gpsEnabled = true))
                 assertTrue(server.debugGps.snapshot().enabled)
                 assertFalse(server.debugGps.snapshot().subscribed)

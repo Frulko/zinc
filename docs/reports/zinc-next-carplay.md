@@ -531,3 +531,64 @@ wait for real-phone evidence to identify the remaining reported corruption.
 
 Validation: full external protocol/server build/tests, carplay, carplay_demo and
 carplay_usb pass. Main engine/worktree untouched; no agent app/server remains.
+
+
+## Official-document comparison and bidirectional inspector
+
+User supplied eight PDFs under Downloads/carplay-specs. Read-only extraction and
+rendered review of carplay.pdf PDFpage29 (printed409), §23.2.7.1 confirms external
+location and VehicleInformationComponent are required in USB identification;
+PDFpage31 (printed411), §23.2.7.4 requires GNSS mode for wireless. Our location
+profile had omitted VehicleInformation unless EV status was enabled. The overlay
+now adds generic id/name/display names when location is enabled without EV
+status, preserves existing EV identity, and does not invent engine/fuel values.
+Regression covers USB/wireless identity and no duplicate EV component.
+
+The supplied carplay.pdf is a2015-12-18 chapter excerpt,106pages; its referenced
+Location Information chapter at printed637–638 is absent. The file called
+iap2.pdf is a10-page authentication/identification excerpt, not the full iAP2
+specification. No unsupported GNSS-mode payload or string-encoding fallback was
+invented from these references. CarPlay PDF SHA256:
+2a8920eaf0e79ce87929afb78082fdc13e502ccadb77e82bf86bd65121ec6a64.
+Documents stay outside the repository. Existing source references remain pinned.
+
+Owner tests confirm: Apple Plans full HUD data, Google Maps partial without
+maneuver direction, Waze no HUD data in that session. Public Waze help reports
+cluster support on compatible vehicles; this does not prove raw guidance TLVs
+for this setup. Apple WWDC25 navigation metadata is opt-in per app:
+https://developer.apple.com/videos/play/wwdc2025/216/ . Navigation source changes
+now clear cached maneuvers/distances/instructions to avoid retaining another
+app's turn; first source-name arrival preserves already received maneuvers.
+
+Native full-page inspector: known endpoint catalog, RX/TX direction/filter,
+search/pagination, advertised versus catalog-only, observed counts, subscriptions
+sent and typed schemas. Unknown observed IDs are listed. A single existing
+Iap2Session trace hook captures RX and TX, including GPS requests/output and
+subscriptions; no competing reader is created. The existing bounded formatter
+now uses local schemas for music, route/maneuver/lane, battery/cellular/calls.
+Trace UI/terminal are switchable, default off unless backend env
+ZINC_CARPLAY_IAP2_TRACE=1; opening the inspector enables them. Sensitive families
+AA(authentication),1D(identity),57(Wi-Fi) show header-only and cannot be composed.
+
+Composer can send validated TLV bodies on authenticated links, only in TX
+direction and for advertised message IDs. Subscription sample bodies come from
+the actual protocol builders. No arbitrary catalog capability is advertised just
+to enable a button: many require more handlers or platform support. Additional
+known subscription flags request album artist/genre/bundle ID, power/call/network
+fields and route exit/timezone. Lane message5204 plus component limits7/8 are
+advertised and schema-checked, following pinned DiPlay/LIVI.
+
+The UI retains128 events and displays20, split into Text rows (embedded newlines
+otherwise render as question glyphs in Zinc Text). Export writes snapshot/ring;
+explicit recording writes all subsequent trace events via a callback before ring
+eviction, until stopped. PNG/JPEG artwork uses the separate file-transfer path;
+CSM traces are bounded previews, not full media/secret dumps. Only user-chosen
+export/record files are written. Opening/closing inspector releases/recaptures
+CarPlay keyboard ownership. The demo declares fs:write for these file actions.
+
+Proof: full protocol/server tests, native typed WebSocket catalog + RX ring + TX
+commands + recorder callback, native inspector fixture screenshot, carplay and
+carplay_demo pass. LiveTrace tests cover redaction, RX/TX counts, unknown events,
+start/stop subscriptions, schema decode, payload sample flags and malformed TLV.
+Hardware validation of revised GPS identity, cover delivery and detailed trace
+remains user acceptance; no GPS or encoding resolution is claimed yet.
