@@ -1,0 +1,63 @@
+#!/bin/sh
+set -eu
+root=$(CDPATH= cd -- "$(dirname "$0")/../../../.." && pwd)
+phone=$(cat "$HOME/.config/zinc-carplay/phone-bt")
+printf '%s\n' "$phone" | grep -Eq '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$' || {
+  echo 'phone-bt must contain one Bluetooth address AA:BB:CC:DD:EE:FF' >&2
+  exit 1
+}
+receiver_pid=
+advertiser_pid=
+cleanup() {
+  trap - EXIT INT TERM HUP
+  if [ -n "$receiver_pid" ]; then
+    kill "$receiver_pid" 2>/dev/null || true
+    wait "$receiver_pid" 2>/dev/null || true
+  fi
+  if [ -n "$advertiser_pid" ]; then
+    kill "$advertiser_pid" 2>/dev/null || true
+    wait "$advertiser_pid" 2>/dev/null || true
+  fi
+  sudo -n nmcli connection down zinc-carplay-ap >/dev/null 2>&1 || true
+  sudo -n /usr/sbin/iw dev ap0 del >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+if ! ip link show ap0 >/dev/null 2>&1; then
+  sudo -n /usr/sbin/iw phy phy0 interface add ap0 type __ap
+fi
+sudo -n ip link set ap0 up
+if ! nmcli -t -f NAME connection show --active | grep -Fxq zinc-carplay-ap; then
+  sudo -n nmcli connection up zinc-carplay-ap ifname ap0
+fi
+token=$(cat "$HOME/.config/zinc-carplay/token")
+ZINC_CARPLAY_WIFI_PASSPHRASE=$(cat "$HOME/.config/zinc-carplay/ap-psk")
+: "${ZINC_CARPLAY_WIFI_PASSPHRASE:?Missing access-point passphrase}"
+ZINC_CARPLAY_IDENTITY=${ZINC_CARPLAY_IDENTITY:-$HOME/.local/share/zinc/carplay-experiment/identity}
+export ZINC_CARPLAY_WIFI_PASSPHRASE ZINC_CARPLAY_IDENTITY
+"$root/plugins/carplay/backend/linux/carplay-advertise" --name 'PlayPort Pi' \
+  --pairing-address "$phone" &
+advertiser_pid=$!
+n=0
+until bluetoothctl show | grep -Fqi 'ec884348-cd41-40a2-9727-575d50bf1fd3'; do
+  if ! kill -0 "$advertiser_pid" 2>/dev/null; then
+    echo 'CarPlay Bluetooth advertisement failed' >&2
+    exit 1
+  fi
+  n=$((n + 1))
+  if [ "$n" -ge 25 ]; then
+    echo 'CarPlay Bluetooth advertisement timed out' >&2
+    exit 1
+  fi
+  sleep 0.2
+done
+"$root/plugins/carplay/backend/run" --wireless \
+  --device-name 'PlayPort Pi' \
+  --bt-address "$phone" \
+  --wifi-ssid Zinc-CarPlay-Pi --wifi-channel 36 --wifi-security wpa2 \
+  --bind 10.77.0.1 --airplay-port 17000 --http-port 18080 \
+  --token "$token" "$@" &
+receiver_pid=$!
+wait "$receiver_pid"

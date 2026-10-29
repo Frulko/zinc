@@ -117,6 +117,7 @@ def main():
             registered.append(profile_path)
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, loop.quit)
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, loop.quit)
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGHUP, loop.quit)
         properties.Set(ADAPTER, 'Alias', dbus.String(args.name))
         properties.Set(ADAPTER, 'DiscoverableTimeout', dbus.UInt32(0))
         properties.Set(ADAPTER, 'Pairable', dbus.Boolean(True))

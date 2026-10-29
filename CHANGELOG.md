@@ -9,6 +9,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `plugins/carplay/backend/linux/pairings list` shows Bluetooth and AirPlay pairing identifiers without keys; `pairings forget ADDRESS` removes one exact identifier while the receiver is stopped. Different identifiers for the same iPhone remain separate.
+- The Pi wireless launcher reads the selected phone from a private `phone-bt` file and cleans up its Wi-Fi access point and Bluetooth advertisement when the SSH terminal disconnects.
+- The Pi wireless receiver can run as the `playport-pi.service` user unit; it keeps running after SSH disconnects and stops its access point and Bluetooth advertisement when stopped. The CarPlay viewer can stay on the Mac.
 - The CarPlay player has a full-width simulated dashboard with the cluster map, speed, RPM, gear and fuel. Parked, city and motorway presets are shared with the Debug panel; no vehicle state is sent to the iPhone.
 - CarPlay’s native iAP2 inspector lists known RX/TX messages, advertised capabilities and observed counts, with decoded live traces, recording/export and a validated TLV sender for advertised commands. Telemetry subscriptions request additional music, call, network and guidance fields, including lane capacity.
 - CarPlay’s HUD can receive real album covers over iAP2 and releases them when replaced or disconnected; GPS diagnostics show the phone’s requested sentence types and filter output accordingly.

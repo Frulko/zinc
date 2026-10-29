@@ -1,0 +1,19 @@
+[Unit]
+Description=PlayPort wireless CarPlay receiver on Raspberry Pi
+
+[Service]
+Type=simple
+WorkingDirectory=%h/zinc-carplay
+Environment=ZINC_CARPLAY_CLUSTER=1
+ExecStart=%h/zinc-carplay/plugins/carplay/backend/linux/pi-start-wireless
+ExecStopPost=-/usr/bin/sudo -n /usr/bin/nmcli connection down zinc-carplay-ap
+ExecStopPost=-/usr/bin/sudo -n /usr/sbin/iw dev ap0 del
+Restart=on-failure
+RestartSec=5
+SuccessExitStatus=129 130 143
+KillMode=mixed
+TimeoutStopSec=20
+UMask=0077
+
+[Install]
+WantedBy=default.target

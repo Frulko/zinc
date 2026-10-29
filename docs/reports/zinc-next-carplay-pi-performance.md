@@ -27,9 +27,22 @@ about 107.5% of one CPU core on the software path versus 12.4% with DMA-BUF
 display planes; that is evidence for the mechanism, not a CarPlay measurement.
 See [the Pi report](raspberry-pi.md#the-film-without-a-cpu-copy-the-decoders-buffer-on-a-plane-of-the-display-zn-731-2026-10-12).
 
-## Run receiver and player as two services
+## Current Pi receiver, Mac player
 
-On a Pi with a display, use the operating system to supervise two processes:
+The tested setup keeps the Pi screen under its existing ZincPlayer/Sidecar
+orchestrator. The Pi hosts only the wireless receiver. Its `spark` user unit
+`playport-pi.service` starts the AP, Bluetooth advertisement and receiver;
+`systemctl --user stop playport-pi.service` stops them together. The Mac Zinc
+viewer connects over the Pi's USB Ethernet link. A physical service start
+opened the AirPlay and WebSocket ports and the phone reopened streams 130, 111
+and 110. A physical stop left the unit inactive with no AP, advertisement or
+AirPlay listener. See the Linux README for the exact commands. No Pi display
+switch or Pi CarPlay viewer is required for this mode.
+
+## Optional Pi-local player design
+
+If the owner later chooses a Pi-local display, use the operating system to
+supervise two processes:
 
 | Unit | Owns | Restart policy |
 | --- | --- | --- |
@@ -108,13 +121,13 @@ and reconnects. `PartOf=` makes stopping the target stop both units, and the
 ordering stops the player before the receiver. The launcher must handle
 SIGTERM and restore the AP and Bluetooth state.
 
-This topology also works if both programs are authored in Zinc: each is built
-and run as its own executable. A later C++ receiver can replace the JVM unit
+This proposed topology also works if both programs are authored in Zinc: each
+is built and run as its own executable. A later C++ receiver can replace the JVM unit
 without changing the Zinc player or its media envelope. Avoid spawning the
 receiver from the UI with `zinc:process`: an abrupt UI exit could kill the
-launcher before it restores the AP and Bluetooth state. The existing Pi launcher
-is private and has not yet been inspected as a systemd unit; install the units
-only when the Pi and exported player are available for an end-to-end test.
+launcher before it restores the AP and Bluetooth state. The current receiver
+has a tested user service; the two system units above remain a proposal for a
+later Pi-local player and have not been installed.
 
 ## Porting plan and decision gates
 

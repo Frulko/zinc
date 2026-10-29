@@ -86,54 +86,81 @@ ssh spark@192.168.2.33 '~/zinc-carplay/start-wireless'
 
 On 29 October the phone re-paired and was trusted on the Pi; the RFCOMM bridge,
 iAP2 authentication, Wi-Fi handoff and AirPlay video/audio projection succeeded.
-If the launcher is already running,
-do not start a second copy. To keep a private log while restarting it, stop the
-existing launcher, then start it with `ZINC_CARPLAY_IAP2_TRACE=1` and redirect
-its output to an owner-only file. A second Mac terminal can follow that file
-with `ssh spark@192.168.2.33 'tail -F ~/zinc-carplay/logs/wireless.log'`.
-Start only one of the Mac and Pi receivers while testing the same phone. To
-view the Pi from the Mac:
+The independent pairing records can be inspected with
+`plugins/carplay/backend/linux/pairings list` on the Pi. The command reads
+BlueZ and the receiver's private AirPlay store without printing keys.
+Bluetooth and AirPlay identifiers may differ even for the same phone. With the
+receiver stopped, `pairings forget AA:BB:CC:DD:EE:FF` removes only the exact
+identifier shown by `list`; repeat for the other identifier if resetting both
+layers. It refuses changes while the receiver is running. Forget PlayPort Pi
+on the iPhone too before a fresh pairing. The `--state-dir` option selects a
+nondefault wireless state directory.
+Start only one of the Mac and Pi receivers while testing the same phone.
+
+The current direct Mac↔Pi link is the Pi's USB device Ethernet gadget. On 29
+October it appeared as Mac `en6` (`169.254.230.17`) and Pi `zmac0`
+(`169.254.112.69`); both addresses can change after reconnecting. Check
+`ifconfig en6` and the Pi's `ip -br -4 addr show zmac0` rather than assuming
+that the RJ45 `en12` link is present. The existing SSH host key belongs to the
+same Pi, so `HostKeyAlias` reuses the verified key for the new address. Pi
+`wlan0` can stay disconnected from `Potatoes` while `ap0` serves CarPlay.
+The Pi receiver is a `spark` user service. Start and inspect it from one Mac
+terminal while ZincPlayer or Sidecar keeps its current Pi screen:
 
 ```sh
-PI_TOKEN=$(ssh spark@192.168.2.33 'cat ~/.config/zinc-carplay/token')
-ZINC_CARPLAY_URL="ws://192.168.2.33:18080/ws?token=$PI_TOKEN" \
-  ZINC="$PWD/build/zinc" ZINC_BACKGROUND=0 examples/carplay/run --live
+MAC_IP=$(ipconfig getifaddr en6)
+ssh -o HostKeyAlias=169.254.23.158 -b "$MAC_IP" spark@169.254.112.69 \
+  'systemctl --user start playport-pi.service; systemctl --user is-active playport-pi.service'
 ```
 
-For the current direct Ethernet test, the Mac's `en12` gets a `169.254.*.*`
-address that can change after reconnecting; the Pi's `eth0` was last seen at
-`169.254.23.158`. Check `ifconfig en12` for `status: active` before SSH. The same
-SSH key works on both addresses. `wlan0` is
-disconnected from `Potatoes`, while `ap0` remains the 5 GHz CarPlay AP. The
-receiver is already running with private iAP2 traces in
-`~/zinc-carplay/logs/wireless.log`. Use two Mac terminals:
+The service keeps running after SSH exits. Stop it explicitly before shutting
+down or forgetting a pairing:
 
 ```sh
-MAC_IP=$(ipconfig getifaddr en12)
-# Terminal 1: live Pi log
-ssh -t -b "$MAC_IP" spark@169.254.23.158 \
-  'tail -F ~/zinc-carplay/logs/wireless.log'
+ssh -o HostKeyAlias=169.254.23.158 -b "$(ipconfig getifaddr en6)" \
+  spark@169.254.112.69 'systemctl --user stop playport-pi.service'
+```
 
-# Terminal 2, from this Zinc worktree: native viewer over Ethernet
-MAC_IP=$(ipconfig getifaddr en12)
-PI_TOKEN=$(ssh -b "$MAC_IP" spark@169.254.23.158 \
+The launcher and the service cleanup remove the AP and Bluetooth advertisement
+on stop. Do not start a separate manual receiver while the service is active.
+To inspect or forget pairings, use a separate SSH command:
+
+```sh
+ssh -o HostKeyAlias=169.254.23.158 -b "$(ipconfig getifaddr en6)" \
+  spark@169.254.112.69 '~/zinc-carplay/plugins/carplay/backend/linux/pairings list'
+```
+
+The current phone has distinct Bluetooth and AirPlay identifiers, so `list`
+shows two rows. `forget` must be run separately for any identifier that should
+be removed, after stopping the receiver.
+The versioned `pi-start-wireless` launcher is installed behind the Pi's
+`~/zinc-carplay/start-wireless` wrapper. It reads the selected iPhone Bluetooth
+address from owner-only `~/.config/zinc-carplay/phone-bt` and its token and AP
+password from adjacent private files. To change phones, stop the receiver,
+update `phone-bt` to the Bluetooth address shown by `pairings list`, and restart.
+Its HUP/INT/TERM cleanup also handles a manually launched receiver losing its
+SSH terminal.
+
+For the viewer and live log, open two additional Mac terminals:
+
+```sh
+MAC_IP=$(ipconfig getifaddr en6)
+# Terminal 1: live Pi service log
+ssh -t -o HostKeyAlias=169.254.23.158 -b "$MAC_IP" spark@169.254.112.69 \
+  'journalctl _SYSTEMD_USER_UNIT=playport-pi.service -f'
+
+# Terminal 2, from this Zinc worktree: native viewer over USB Ethernet
+MAC_IP=$(ipconfig getifaddr en6)
+PI_TOKEN=$(ssh -o HostKeyAlias=169.254.23.158 -b "$MAC_IP" spark@169.254.112.69 \
   'cat ~/.config/zinc-carplay/token')
 ZINC="$PWD/build/zinc" ZINC_BACKGROUND=0 ZINC_CARPLAY_DEBUG=1 \
-  ZINC_CARPLAY_URL="ws://169.254.23.158:18080/ws?token=$PI_TOKEN" \
+  ZINC_CARPLAY_URL="ws://169.254.112.69:18080/ws?token=$PI_TOKEN" \
   examples/carplay/run --live
 ```
 
-After changing the Zinc viewer's audio buffer, restart only this Terminal 2
-command. Leave the Pi receiver running; its wireless session can reconnect.
-To stop the viewer, use `Ctrl+C` in Terminal 2. To stop the Pi receiver without
-shutting down the board, run the following; its launcher removes the AP and
-Bluetooth advertisement:
-
-```sh
-MAC_IP=$(ipconfig getifaddr en12)
-ssh -b "$MAC_IP" spark@169.254.23.158 \
-  'kill "$(cat ~/zinc-carplay/logs/wireless.pid)"'
-```
+Restart only the viewer command after changing viewer code. Leave the Pi
+receiver running; its wireless session can reconnect. `Ctrl+C` stops the
+viewer or log follower; stop the receiver with the service command above.
 
 To power off the Pi, use `sudo shutdown -h now` over the same SSH link and wait
 for shutdown before removing power.

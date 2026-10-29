@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""List or forget Bluetooth and AirPlay pairing records on a Linux receiver."""
+
+import argparse
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+
+
+MAC = re.compile(r"(?:[0-9A-F]{2}:){5}[0-9A-F]{2}\Z")
+DEFAULT_STATE = Path.home() / ".local/share/zinc/carplay-experiment/wireless-state"
+
+
+def paired_bluetooth():
+    result = subprocess.run(["bluetoothctl", "devices", "Paired"], capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip() or "bluetoothctl devices Paired failed")
+    return {match.group(1).upper() for line in result.stdout.splitlines()
+            if (match := re.match(r"Device ((?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2})(?:\s|$)", line))}
+
+
+def airplay_lines(path):
+    if not path.exists():
+        return []
+    return path.read_text(encoding="latin-1").splitlines(keepends=True)
+
+
+def airplay_address(line):
+    # java.util.Properties.store escapes the five colons in a MAC-shaped identifier.
+    key = line.partition("=")[0].replace("\\:", ":").upper()
+    return key if MAC.fullmatch(key) else None
+
+
+def receiver_running():
+    for process in Path("/proc").glob("[0-9]*/cmdline"):
+        try:
+            parts = process.read_bytes().split(b"\0")
+        except (OSError, PermissionError):
+            continue
+        if b"com.playport.server.MainKt" in parts:
+            return True
+    return False
+
+
+def forget(address, path, bluetooth, lines):
+    if receiver_running():
+        raise RuntimeError("Stop the CarPlay receiver before forgetting a phone")
+    airplay = any(airplay_address(line) == address for line in lines)
+    if address not in bluetooth and not airplay:
+        raise RuntimeError(f"Phone {address} is not paired here")
+    if address in bluetooth:
+        result = subprocess.run(["bluetoothctl", "remove", address], capture_output=True, text=True)
+        if result.returncode or address in paired_bluetooth():
+            raise RuntimeError(result.stderr.strip() or f"Bluetooth removal failed for {address}")
+    if airplay:
+        remaining = [line for line in lines if airplay_address(line) != address]
+        mode = path.stat().st_mode & 0o777
+        fd, temporary = tempfile.mkstemp(prefix=".pairings-", dir=path.parent)
+        try:
+            os.fchmod(fd, mode)
+            with os.fdopen(fd, "w", encoding="latin-1") as output:
+                output.writelines(remaining)
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+    print(f"Forgot {address}: Bluetooth={'removed' if address in bluetooth else 'absent'}, AirPlay={'removed' if airplay else 'absent'}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--state-dir", type=Path, default=Path(os.environ.get("ZINC_CARPLAY_STATE_DIR", DEFAULT_STATE)))
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("list", help="list pairing identifiers without their keys")
+    remove = commands.add_parser("forget", help="remove the exact Bluetooth or AirPlay identifier")
+    remove.add_argument("address", help="identifier AA:BB:CC:DD:EE:FF shown by list")
+    args = parser.parse_args()
+    path = args.state_dir / "pairings.properties"
+    try:
+        lines = airplay_lines(path)
+        airplay = {address for line in lines if (address := airplay_address(line))}
+        bluetooth_available = True
+        try:
+            bluetooth = paired_bluetooth()
+        except (OSError, RuntimeError) as error:
+            if args.command != "list":
+                raise
+            bluetooth_available = False
+            bluetooth = set()
+            print(f"pairings: Bluetooth unavailable: {error}", file=sys.stderr)
+        if args.command == "list":
+            for address in sorted(bluetooth | airplay):
+                bt = "unknown" if not bluetooth_available else "yes" if address in bluetooth else "no"
+                print(f"{address}  Bluetooth={bt}  AirPlay={'yes' if address in airplay else 'no'}")
+            if not bluetooth and not airplay:
+                print("No paired phones")
+        else:
+            address = args.address.upper()
+            if not MAC.fullmatch(address):
+                parser.error("address must be AA:BB:CC:DD:EE:FF")
+            forget(address, path, bluetooth, lines)
+    except (OSError, RuntimeError, UnicodeError) as error:
+        print(f"pairings: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

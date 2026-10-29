@@ -84,6 +84,18 @@ value reaching the phone. Until then the honest label in Zinc is **cluster
 video + local simulated dashboard**. No CAN bus or live vehicle actuator is
 needed for this gate.
 
+### Live Pi trace, 29 October
+
+With the Pi receiver launched using `ZINC_CARPLAY_CLUSTER=1`, the iPhone
+reconnected automatically over Bluetooth and the Pi access point. The actual
+`/info` response listed display types 110 and 111; the iPhone requested both
+video streams and type 130, the existing wireless iAP2 data tunnel. The Mac
+Zinc player received and rendered the main stream over the Pi's USB Ethernet
+link. In the private receiver trace, there was no `uiSync`,
+`vehicleStateProtocol`, asset-package exchange, or observed vehicle-state
+round trip. This is a working classic cluster session, not proof of Ultra.
+The session trace is owner-private because it contains phone and media data.
+
 ## Integration seam
 
 Keep the receiver and player independent as in the

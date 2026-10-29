@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/../.."
-sh -n plugins/carplay/backend/build plugins/carplay/backend/run
+sh -n plugins/carplay/backend/build plugins/carplay/backend/run plugins/carplay/backend/linux/pi-start-wireless
 python3 plugins/carplay/backend/linux/tests/bridge.py
+python3 plugins/carplay/backend/linux/tests/pairings.py
 python3 -m py_compile plugins/carplay/backend/linux/carplay-advertise
 plugins/carplay/backend/linux/bt-bridge --help >/dev/null
