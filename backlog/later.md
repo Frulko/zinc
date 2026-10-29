@@ -624,6 +624,14 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod satellite: POST /devices/:id/jobs (pull with Range, one addWith, remove, committing), GET and DELETE of a job, fingerprints in the track list; then play-count deltas to jukebox once its plays endpoint exists (docs/reports/ipod-jukebox-interconnect.md §7).
 - iPod jukebox source: ALAC rather than AAC 256k for a roomy Classic; covers for remote adds (/api/update takes none); a virtualised browse list with multi-select.
 
+- iPod daemon: no lyrics nor cover writes for a remote iPod yet (a writeLyrics route, a cover upload for artworkFile); both refuse with a clear error.
+- iPod demo: the LRCLIB and MusicBrainz caches live under the backups folder, shared by all iPods; decide per iPod or shared on purpose.
+- iPod demo: check the MusicBrainz pace (1 request/s) once in real time (ZINC_DETERMINISTIC runs a virtual clock).
+- iPod demo: the now-playing display is crowded at 1180 px (the time label touches the cover).
+- iPod demo: Discover as a For you shelf; a QuickJS smoke run of Discover, Repair and Lyrics; a test of the Lyrics panel scrolling long lyrics.
+- iPod sleep timer: zinc:sonos SetSleepTimer/GetRemainingSleepTimerDuration so a Sonos keeps the timer if the app quits; keep the app in the menu bar while an alarm is set (closing the window quits it today); tests of the alarm on wake and of the end-of-song/end-of-list modes.
+- ipod_deep: its auto-sync step polls in real time and fails under load; drive it by the virtual clock.
+
 ## Cross-platform pass
 - Run ipod_jukebox and ipod_satellite on Linux (afconvert is missing there; the test uses ffmpeg, else skips).
 - zinc:system/media: a Linux backend (MPRIS over D-Bus) and a Windows one (SystemMediaTransportControls), then turn on mediasession for those profiles.
