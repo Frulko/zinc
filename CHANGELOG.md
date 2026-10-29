@@ -20,6 +20,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:audio`: `openMusic(path)` plays a song or an audiobook as it is read from the disk, never decoded whole: play, pause, seek, position, duration, ended. On macOS and iOS it plays AAC, ALAC, MP3, WAV and AIFF, elsewhere WAV, FLAC, MP3 and Ogg Vorbis.
 - `zinc:ipod`: `photoAlbums()` and `photo()`/`photoImage()` read the iPod's photos, `extras()` lists its notes, contacts, calendars and voice recordings.
 - The `examples/ipod` demo plays the iPod's music: double-click a track, then play, pause, previous, next and seek in the bar at the top, as in iTunes. It also shows the podcasts, audiobooks, videos, photos and the notes and files of the iPod.
+- `zinc:ipod`: `download(ids, dir)` copies tracks to the computer as `Artist/Album/NN Title.ext`, skipping files already there; `deleteBackup(folder)` deletes a backup and refuses anything outside the backup folder; `mount()` mounts an iPod plugged in but not mounted.
 - `<Image image={img} />` shows a runtime image (from `imageFromBytes`, `imageFromPixels` or a plugin), as `src` shows an image of the assets; it follows a signal like any prop.
 - `zinc:carplay` forwards two simultaneous touch contacts with stable finger slots and supports day/night appearance through `setNightMode`; the demo includes a Day/Night button.
 - Experimental `zinc:carplay` plugin and native viewer demo receive video, audio and touch controls through a separately installed PlayPort backend. USB and microphone uplink are not implemented yet.

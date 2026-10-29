@@ -123,8 +123,16 @@ struct HostIpod : NativeIpod {
   }
   zrt::Promise<Bytes> extras() override { return rec<std::vector<Extra>>([](std::string& err) { need(err); return lib.extras(); }); }
   zrt::Promise<Bytes> backups(zrt::String dir) override { std::string d = str(dir); return rec<std::vector<Backup>>([d](std::string&) { return ipod::backups(d); }); }
+  zrt::Promise<zrt::Unit> deleteBackup(zrt::String folder) override { std::string f = str(folder); return unit([f](std::string& err) { return ipod::deleteBackup(f, err); }); }
+  zrt::Promise<Bytes> download(zrt::Array<zrt::String> ids, zrt::String dir) override {
+    auto v = strs(ids);
+    std::string d = str(dir);
+    ipod::Progress p = progress();
+    return rec<std::vector<DownloadResult>>([v, d, p](std::string& err) { return lib.download(v, d, p, err); });
+  }
   zrt::Promise<Bytes> check() override { return rec<Check>([](std::string& err) { need(err); return lib.check(); }); }
   zrt::Promise<Bytes> repair() override { ipod::Progress p = progress(); return rec<Check>([p](std::string& err) { Check c; lib.repair(c, p, err); return c; }); }
+  zrt::Promise<zrt::Unit> mount(zrt::String device) override { std::string d = str(device); return unit([d](std::string& err) { return ipod::mount(d, err); }); }
   zrt::Promise<zrt::Unit> eject(zrt::String mountpoint) override {
     std::string mp = str(mountpoint);
     return unit([mp](std::string& err) { if (lib.mountpoint() == mp) lib.close(); return ipod::eject(mp, err); });

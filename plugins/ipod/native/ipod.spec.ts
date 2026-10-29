@@ -67,6 +67,10 @@ export interface TrackInput {
 
 export interface AddResult { file: string; id: string; error: string; }
 
+/** A track copied from the iPod to the computer: `file` is where it is (or would be), `skipped` when a file of the same size was
+ *  already there, `error` '' when it worked. */
+export interface DownloadResult { id: string; file: string; error: string; skipped: boolean; }
+
 export interface Playlist {
   id: string;
   name: string;
@@ -162,14 +166,23 @@ export interface Spec extends NativeModule {
   backup(dir: string, music: boolean): Promise<string>;
   /** The backups in `dir` and its iPod folders ('' = the default place), newest first. */
   backups(dir: string): Promise<Backup[]>;
+  /** Deletes one backup folder (a folder of backups() under the default place; anything else is refused). The shared Music
+   *  folder is kept. */
+  deleteBackup(folder: string): Promise<void>;
+  /** Copies tracks of the open iPod into `dir` as Artist/Album/NN Title.ext (names from the tags, made safe for any disk);
+   *  a file of the same size already there is skipped. Reads the iPod only. One result per id. */
+  download(ids: string[], dir: string): Promise<DownloadResult[]>;
   /** Copies a backup folder back onto the iPod at `mountpoint` (closed first) and reopens it. */
   restoreBackup(folder: string, mountpoint: string): Promise<Device>;
   check(): Promise<Check>;
   /** Removes the tracks whose file is missing and deletes the orphan files. Saves at the end. */
   repair(): Promise<Check>;
+  /** Mounts the disk `device` (disk4 on macOS, sdb2 on Linux), or with '' every iPod plugged in but not mounted (macOS: the
+   *  external disks whose media name says iPod). Changes nothing on the iPod. */
+  mount(device: string): Promise<void>;
   /** Flushes, closes and ejects (diskutil on macOS, udisksctl or umount on Linux). */
   eject(mountpoint: string): Promise<void>;
-  /** phase: copy | artwork | save | backup | restore; done/total: items (copy: bytes of the current file in `detail`). */
+  /** phase: copy | add | download | artwork | save | backup | restore; done/total: items (copy: bytes of the current file in `detail`). */
   onProgress(cb: (phase: string, done: i32, total: i32, detail: string) => void): void;
 }
 export default requireNative<Spec>('Ipod');

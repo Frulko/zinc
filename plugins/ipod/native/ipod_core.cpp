@@ -1201,6 +1201,44 @@ std::vector<Extra> Library::extras() {
   return v;
 }
 
+std::vector<DownloadResult> Library::download(const std::vector<std::string>& ids, const std::string& dir, const Progress& progress, std::string& err) {
+  std::vector<DownloadResult> out;
+  if (!db_) { err = "no iPod is open"; return out; }
+  if (dir.empty()) { err = "no folder to download to"; return out; }
+  int32_t i = 0;
+  for (const std::string& id : ids) {
+    DownloadResult r;
+    r.id = id;
+    r.skipped = false;
+    ++i;
+    Itdb_Track* t = findTrack(DB, id);
+    if (!t || !t->ipod_path) r.error = "no track " + id + " on the iPod";
+    else {
+      Track tr = toTrack(t);
+      fs::path from = fs::path(mp_) / tr.path;
+      std::string ext = from.extension().string();
+      for (char& c : ext) c = (char)tolower((unsigned char)c);
+      // Artist/Album/NN Title.ext, as iTunes lays out its music folder ("D-NN" on an album of several discs)
+      std::string artist = safeName(!tr.albumArtist.empty() ? tr.albumArtist : tr.artist, "Unknown Artist");
+      std::string album = safeName(tr.album, "Unknown Album");
+      char nr[16] = "";
+      if (tr.trackNr > 0 && tr.cds > 1 && tr.cdNr > 0) snprintf(nr, sizeof nr, "%d-%02d ", tr.cdNr, tr.trackNr);
+      else if (tr.trackNr > 0) snprintf(nr, sizeof nr, "%02d ", tr.trackNr);
+      fs::path to = fs::path(dir) / artist / album / (nr + safeName(tr.title, "Untitled") + ext);
+      r.file = to.string();
+      std::error_code ec, e2;
+      auto size = fs::file_size(from, ec);
+      if (ec) r.error = tr.path + ": the file is not on the iPod";
+      else if (fs::exists(to, e2) && fs::file_size(to, e2) == size) r.skipped = true;
+      else if (!fs::create_directories(to.parent_path(), e2) && e2) r.error = to.parent_path().string() + ": " + e2.message();
+      else copyFile(from.string(), r.file, progress, to.filename().string(), r.error);
+    }
+    out.push_back(r);
+    if (progress) progress("download", i, (int32_t)ids.size(), r.file);
+  }
+  return out;
+}
+
 Check Library::check() {
   Check c;
   if (!db_) return c;
@@ -1261,6 +1299,37 @@ std::vector<Backup> backups(const std::string& dir) {
   return v;
 }
 
+bool deleteBackup(const std::string& folder, std::string& err) {
+  std::error_code ec, e2;
+  fs::path root = fs::weakly_canonical(backupRoot(), ec), f = fs::weakly_canonical(folder, e2);
+  if (ec || e2 || !present(f)) { err = folder + ": no such backup"; return false; }
+  auto rel = f.lexically_relative(root);
+  // inside the backup place, at most <iPod>/<date> deep, and a backup (its manifest): never the root, an iPod's folder or its Music
+  if (rel.empty() || rel.native()[0] == '.' || std::distance(rel.begin(), rel.end()) > 2 || f.filename() == "Music") {
+    err = folder + " is not a backup of " + root.string() + ": refused";
+    return false;
+  }
+  Backup b;
+  if (!readManifest(f, b)) { err = folder + " is not a backup (no Info.plist): refused"; return false; }
+  fs::remove_all(f, ec);
+  if (ec) { err = folder + ": " + ec.message(); return false; }
+  return true;
+}
+
+std::string safeName(const std::string& name, const std::string& fallback) {
+  std::string s;
+  for (unsigned char c : name) s += (c < 0x20 || c == 0x7f || strchr("/\\:*?\"<>|", c)) ? '_' : (char)c;
+  size_t a = s.find_first_not_of(" ."), b = s.find_last_not_of(" .");
+  s = a == std::string::npos ? "" : s.substr(a, b - a + 1);
+  if (s.size() > 120) {   // cut before a UTF-8 continuation byte, never inside a character
+    size_t n = 120;
+    while (n > 0 && ((unsigned char)s[n] & 0xc0) == 0x80) n--;
+    s.resize(n);
+    while (!s.empty() && (s.back() == ' ' || s.back() == '.')) s.pop_back();
+  }
+  return s.empty() ? fallback : s;
+}
+
 bool restoreBackup(const std::string& folder, const std::string& mp, const Progress& progress, std::string& err) {
   fs::path from = fs::path(folder) / "iPod_Control", to = fs::path(mp) / "iPod_Control";
   if (!present(from / "iTunes")) { err = folder + " is not an iPod backup (no iPod_Control/iTunes)"; return false; }
@@ -1285,6 +1354,37 @@ bool restoreBackup(const std::string& folder, const std::string& mp, const Progr
   if (present(music) && !syncTree(music, to / "Music", progress, "restore", err)) return false;
   sync();
   return true;
+}
+
+bool mount(const std::string& device, std::string& err) {
+  if (device.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789") != std::string::npos) { err = device + " is not a disk name (e.g. disk4)"; return false; }
+#ifdef __APPLE__
+  if (!device.empty()) return run({"diskutil", "mountDisk", device}, err);
+  auto capture = [](const std::string& cmd) {   // fixed commands: the only variable part is a disk name diskutil printed
+    std::string out;
+    if (FILE* p = popen(cmd.c_str(), "r")) { char b[4096]; size_t n; while ((n = fread(b, 1, sizeof b, p)) > 0) out.append(b, n); pclose(p); }
+    return out;
+  };
+  plist_t list = plistFromXml(capture("diskutil list -plist external physical"));
+  plist_t disks = list ? plist_dict_get_item(list, "WholeDisks") : nullptr;
+  bool found = false, ok = true;
+  for (uint32_t i = 0; disks && i < plist_array_get_size(disks); i++) {
+    std::string d = plistText(plist_array_get_item(disks, i));
+    if (d.empty() || d.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789") != std::string::npos) continue;
+    plist_t info = plistFromXml(capture("diskutil info -plist " + d));
+    bool pod = (plistKey(info, "MediaName") + " " + plistKey(info, "IORegistryEntryName")).find("iPod") != std::string::npos;
+    if (info) plist_free(info);
+    if (!pod) continue;
+    found = true;
+    ok = run({"diskutil", "mountDisk", d}, err) && ok;
+  }
+  if (list) plist_free(list);
+  if (!found) { err = "no iPod disk to mount (put the iPod in disk mode, or enable disk use in iTunes or Finder)"; return false; }
+  return ok;
+#else
+  if (device.empty()) { err = "name the iPod's partition (e.g. sdb2), or mount it with the file manager"; return false; }
+  return run({"udisksctl", "mount", "--block-device", "/dev/" + device}, err);
+#endif
 }
 
 bool eject(const std::string& mp, std::string& err) {

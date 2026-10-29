@@ -10,7 +10,7 @@
 
 namespace ipod {
 
-using ::AddResult; using ::Backup; using ::Check; using ::Device; using ::Extra; using ::PhotoAlbum; using ::Picture; using ::Playlist; using ::Snapshot; using ::SpecItem; using ::Track; using ::TrackInput;
+using ::AddResult; using ::DownloadResult; using ::Backup; using ::Check; using ::Device; using ::Extra; using ::PhotoAlbum; using ::Picture; using ::Playlist; using ::Snapshot; using ::SpecItem; using ::Track; using ::TrackInput;
 
 /** phase, done, total, detail */
 using Progress = std::function<void(const std::string&, int32_t, int32_t, const std::string&)>;
@@ -61,6 +61,8 @@ class Library {
   std::vector<PhotoAlbum> photoAlbums(std::string& err);
   bool photo(const std::string& id, int32_t size, Picture& out, std::string& err);
   std::vector<Extra> extras();
+  /** Copies tracks into `dir` as Artist/Album/NN Title.ext; a file of the same size already there is skipped. Reads the iPod only. */
+  std::vector<DownloadResult> download(const std::vector<std::string>& ids, const std::string& dir, const Progress& progress, std::string& err);
   Check check();
   bool repair(Check& after, const Progress& progress, std::string& err);
 
@@ -78,9 +80,17 @@ class Library {
 std::string backupRoot();
 /** The backups in `dir` ('' = backupRoot()) and its iPod folders, newest first. */
 std::vector<Backup> backups(const std::string& dir);
+/** Deletes a backup folder; refused unless it is a backup (its Info.plist) inside backupRoot(). */
+bool deleteBackup(const std::string& folder, std::string& err);
+/** A name made safe for a file on any disk (FAT32, HFS+, ext4): no / \ : * ? " < > | nor control characters, no leading dot or
+ *  space, no trailing dot or space, at most 120 bytes (cut on a UTF-8 boundary); `fallback` when nothing is left. */
+std::string safeName(const std::string& name, const std::string& fallback);
 /** Copies a backup folder onto the iPod at `mountpoint`: its database, and the music files it refers to that the iPod lacks (from the
  *  backup's shared Music folder). The iPod's own description (iPod_Control/Device) is never replaced. */
 bool restoreBackup(const std::string& folder, const std::string& mountpoint, const Progress& progress, std::string& err);
+/** Mounts the disk `device` (a BSD name such as disk4, sdb2 on Linux), or with '' every iPod disk plugged in but not mounted
+ *  (macOS: the external disks whose media name says iPod). Changes nothing on the iPod. */
+bool mount(const std::string& device, std::string& err);
 /** sync, unmount and power off the volume. */
 bool eject(const std::string& mountpoint, std::string& err);
 

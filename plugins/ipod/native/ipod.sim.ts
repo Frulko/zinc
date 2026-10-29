@@ -1,6 +1,6 @@
 // zinc:ipod stand-in (sim target, ZINC_NATIVE=sim): one iPod Classic in memory, "Zinc Pod" at /Volumes/ZINCPOD, with
 // the same answers as the native side for the same calls, so a program and its tests run without an iPod or libgpod.
-import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra } from './ipod.spec';
+import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult } from './ipod.spec';
 
 const MP = '/Volumes/ZINCPOD';
 const GB = 1024 * 1024 * 1024;
@@ -21,6 +21,16 @@ const need = (): string => open ? '' : 'no iPod is open';
 function base(file: string): string { const s = file.slice(file.lastIndexOf('/') + 1); const d = s.lastIndexOf('.'); return d > 0 ? s.slice(0, d) : s; }
 function find(id: string): Track | null { for (const t of tracks) if (t.id === id) return t; return null; }
 function playlist(id: string): Playlist | null { for (const p of playlists) if (p.id === id || p.name === id) return p; return null; }
+/** The native side's safeName: no / \ : * ? " < > | nor control characters, no leading or trailing dot or space. */
+function safe(name: string, fallback: string): string {
+  let s = '';
+  for (let i = 0; i < name.length; i++) { const c = name.charCodeAt(i); s += c < 32 || c === 127 || '/\\:*?"<>|'.indexOf(name[i]) >= 0 ? '_' : name[i]; }
+  let a = 0, b = s.length;
+  while (a < b && (s[a] === ' ' || s[a] === '.')) a++;
+  while (b > a && (s[b - 1] === ' ' || s[b - 1] === '.')) b--;
+  s = s.slice(a, Math.min(b, a + 120));
+  return s === '' ? fallback : s;
+}
 function apply(t: Track, f: TrackInput): void {
   if (f.title !== undefined) t.title = f.title;
   if (f.artist !== undefined) t.artist = f.artist;
@@ -130,8 +140,31 @@ export default {
     { kind: 'contact', name: 'Ada Lovelace.vcf', path: MP + '/Contacts/Ada Lovelace.vcf', bytes: 210, modified: 0 },
     { kind: 'recording', name: 'Memo 1.wav', path: MP + '/Recordings/Memo 1.wav', bytes: 480000, modified: 0 }]),
   backups: (_dir: string): Promise<Backup[]> => Promise.resolve(taken.slice()),
+  deleteBackup: (folder: string): Promise<void> => {
+    const k = taken.findIndex((b: Backup) => b.folder === folder);
+    if (k < 0) return fail<void>(folder + ' is not a backup of ~/.zinc/ipod: refused');
+    taken.splice(k, 1);
+    return Promise.resolve();
+  },
+  download: (ids: string[], dir: string): Promise<DownloadResult[]> => {
+    if (need()) return fail<DownloadResult[]>(need());
+    const out: DownloadResult[] = [];
+    let i = 0;
+    for (const id of ids) {
+      i++;
+      const t = find(id);
+      if (!t) { out.push({ id: id, file: '', error: 'no track ' + id + ' on the iPod', skipped: false }); continue; }
+      const nr = t.trackNr > 0 ? (t.trackNr < 10 ? '0' : '') + t.trackNr + ' ' : '';
+      const file = dir + '/' + safe(t.albumArtist !== '' ? t.albumArtist : t.artist, 'Unknown Artist') + '/' + safe(t.album, 'Unknown Album') + '/' +
+        nr + safe(t.title, 'Untitled') + t.path.slice(t.path.lastIndexOf('.')).toLowerCase();
+      out.push({ id: id, file: file, error: '', skipped: false });
+      cb?.('download', i, ids.length, file);
+    }
+    return Promise.resolve(out);
+  },
   check: (): Promise<Check> => Promise.resolve({ missing: [], orphans: [], orphanBytes: 0 }),
   repair: (): Promise<Check> => Promise.resolve({ missing: [], orphans: [], orphanBytes: 0 }),
+  mount: (_device: string): Promise<void> => Promise.resolve(),
   eject: (_mp: string): Promise<void> => { open = false; return Promise.resolve(); },
   onProgress: (f: (phase: string, done: i32, total: i32, detail: string) => void): void => { cb = f; },
 };

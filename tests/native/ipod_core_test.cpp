@@ -7,6 +7,7 @@
 #include <taglib/fileref.h>
 #include <taglib/tpropertymap.h>
 #include <taglib/tvariant.h>
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <filesystem>
@@ -164,6 +165,21 @@ int main(int argc, char** argv) {
   auto ex = lib.extras();
   CHECK(ex.size() == 2 && ex[0].kind == "note" && ex[0].name == "todo.txt" && ex[0].bytes == 4 && ex[1].kind == "recording");
 
+  // download: Artist/Album/NN Title.ext from the tags (album artist first), then again: the files of the same size are skipped; an
+  // unknown id has its own error; the iPod is only read (no restore point is taken)
+  fs::path dl = work / "Downloads";
+  std::vector<std::string> phases;
+  auto got = lib.download({ts[0].id, ts[1].id, "ffffffffffffffff"}, dl.string(), [&](const std::string& ph, int32_t, int32_t, const std::string&) { phases.push_back(ph); }, err);
+  CHECK(err.empty() && got.size() == 3 && got[0].error.empty() && !got[0].skipped && got[2].error.find("no track") != std::string::npos);
+  CHECK(got[0].file == (dl / "Various" / "Tests" / "03 Hello.wav").string() && fs::file_size(got[0].file) == fs::file_size(mp / ts[0].path));
+  CHECK(got[1].file == (dl / "Various" / "Tests" / "03 Override.wav").string() && fs::exists(got[1].file));
+  CHECK(std::find(phases.begin(), phases.end(), "download") != phases.end() && std::find(phases.begin(), phases.end(), "copy") != phases.end());
+  auto again = lib.download({ts[0].id, ts[1].id}, dl.string(), nullptr, err);
+  CHECK(again.size() == 2 && again[0].skipped && again[1].skipped && again[0].error.empty());
+  CHECK(ipod::safeName(" ../a/b:c*?\"<>|\x01. ", "x") == "_a_b_c_______" && ipod::safeName("...", "Unknown") == "Unknown");
+  CHECK(ipod::safeName(std::string(119, 'a') + "\xc3\xa9" + "z", "x").size() == 119);   // never cut inside a character
+  printf("download: %s\n", got[0].file.c_str());
+
   // restore points: the first change of the first session backed the empty database up; this session's first change backs up the
   // two tracks; a restore puts them back
   auto snaps0 = lib.snapshots();
@@ -197,6 +213,16 @@ int main(int argc, char** argv) {
   fs::remove(kept);
   CHECK(ipod::restoreBackup(folder2, mp.string(), nullptr, err));
   CHECK(lib.open(mp.string(), false, "", "", err) && lib.tracks().size() == 1 && fs::exists(kept));
+
+  // deleteBackup: refused outside the backup place, on an iPod's folder and on the shared music; a backup of the place is deleted
+  CHECK(!ipod::deleteBackup(folder2, err) && err.find("refused") != std::string::npos && fs::exists(folder2));
+  auto mine = ipod::backups("");
+  fs::path podDir = fs::path(mine[0].folder).parent_path();
+  CHECK(!ipod::deleteBackup(podDir.string(), err) && !ipod::deleteBackup(backups.string(), err) && fs::exists(podDir));
+  CHECK(!ipod::deleteBackup((backups / "8K1234ABCDE" / ".." / ".." / "work").string(), err) && fs::exists(work));
+  CHECK(!ipod::mount("disk4; rm -rf /", err) && err.find("not a disk name") != std::string::npos);   // never reaches a shell
+  err.clear();
+  CHECK(ipod::deleteBackup(mine[0].folder, err) && !fs::exists(mine[0].folder) && ipod::backups("").size() == mine.size() - 1);
 
   std::string plist = ipod::sysInfoExtendedPlist("8K1234", "000A27001234ABCD", "B029", 0, "");
   CHECK(plist.find("<key>FireWireGUID</key>") != std::string::npos);

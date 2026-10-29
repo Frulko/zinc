@@ -9,8 +9,8 @@
 //   for (const t of await ipod.tracks()) console.log(t.artist, '-', t.title);
 //   await ipod.eject(pod.mountpoint);
 import N from './native/ipod.spec';
-import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra } from './native/ipod.spec';
-export type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra };
+import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult } from './native/ipod.spec';
+export type { DownloadResult, Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra };
 import { imageFromPixels } from 'zinc:gfx';
 
 /** iPods on this machine: mounted ones (connection 'disk'), and those plugged in by USB but not mounted ('usb', no mountpoint). */
@@ -78,17 +78,23 @@ export function extras(): Promise<Extra[]> { return N.extras(); }
 export function backup(dir: string = '', music: boolean = true): Promise<string> { return N.backup(dir, music); }
 /** The backups of `dir` ('' = the default place, every iPod), newest first. */
 export function backups(dir: string = ''): Promise<Backup[]> { return N.backups(dir); }
+/** Deletes a backup folder of backups(); refused outside the default place (ZINC_IPOD_BACKUPS, ZINC_HOME/ipod or ~/.zinc/ipod). */
+export function deleteBackup(folder: string): Promise<void> { return N.deleteBackup(folder); }
+/** Copies tracks from the iPod into `dir` as Artist/Album/NN Title.ext, skipping the files already there with the same size. */
+export function download(ids: string[], dir: string): Promise<DownloadResult[]> { return N.download(ids, dir); }
 export function restoreBackup(folder: string, mountpoint: string): Promise<Device> { return N.restoreBackup(folder, mountpoint); }
 /** Tracks whose file is gone and files no track uses. */
 export function check(): Promise<Check> { return N.check(); }
 /** Fixes what check() finds; saves. */
 export function repair(): Promise<Check> { return N.repair(); }
+/** Mounts an iPod seen over USB but not mounted: '' = every such iPod (macOS), or a disk name (disk4, sdb2). Writes nothing. */
+export function mount(device: string = ''): Promise<void> { return N.mount(device); }
 /** Saves nothing: closes, flushes and ejects. Save first if you changed something. */
 export function eject(mountpoint: string): Promise<void> { return N.eject(mountpoint); }
 
 const progressCbs: ((phase: string, done: i32, total: i32, detail: string) => void)[] = [];
 let listening = false;
-/** Progress of long calls. phase: copy (done/total in KiB of the file `detail`), add, save, backup, restore. */
+/** Progress of long calls. phase: copy (done/total in KiB of the file `detail`), add, download (files), save, backup, restore. */
 export function onProgress(cb: (phase: string, done: i32, total: i32, detail: string) => void): void {
   progressCbs.push(cb);
   if (listening) return;
