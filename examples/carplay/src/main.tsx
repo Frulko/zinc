@@ -49,7 +49,7 @@ function App(): i32 {
       {offline === null ? <Button className="px-5 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={connect}><Text className="text-white">Connect</Text></Button> : <Text className="text-slate-400">Local H.264 + PCM test media</Text>}
       {offline === null ? <Button className="px-5 py-3 rounded bg-slate-800 active:bg-slate-600" onClick={() => { session.close(); }}><Text className="text-white">Disconnect</Text></Button> : null}
     </View>
-    {inspector() ? <Iap2Panel /> : dashboard() ? <VehicleDashboard /> : <View className="flex-row grow h-0">
+    {inspector() ? <Iap2Panel /> : dashboard() ? <VehicleDashboard nightMode={night()} /> : <View className="flex-row grow h-0">
       <View className="grow flex-col w-0">
         <Canvas className="grow h-0" onDraw={Screen} onPointerDown={() => { keyboard.set(true); }}></Canvas>
         {offline === null && hudShown() ? <HudPanel /> : null}

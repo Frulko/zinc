@@ -50,8 +50,9 @@ export interface UltraStatus {
   vehicleStateEnabled: boolean; uiSyncEnabled: boolean;
 }
 export interface UltraVehicleSnapshot { rpm: i32; fuelPct: i32; climateOn: boolean; targetCelsius: number; }
+export interface UltraUiChoice { command: number; layoutId?: string; paletteId?: string; preference?: i32; }
 interface ControlMessage {
-  message?: string; iap2?: Iap2InspectorSnapshot; hud?: HudSnapshot; gps?: DebugGpsSnapshot; clusterEnabled?: boolean; ultra?: UltraStatus; ultraVehicle?: UltraVehicleSnapshot;
+  message?: string; iap2?: Iap2InspectorSnapshot; hud?: HudSnapshot; gps?: DebugGpsSnapshot; clusterEnabled?: boolean; ultra?: UltraStatus; ultraVehicle?: UltraVehicleSnapshot; uiChoice?: UltraUiChoice;
   type: string; sessionActive?: boolean; micActive?: boolean; micCodec?: string;
   micRate?: i32; micChannels?: i32; micSamplesPerPacket?: i32; micBitrate?: i32;
 }
@@ -72,6 +73,7 @@ export class Session {
   iap2: Iap2InspectorSnapshot | null = null;
   ultra: UltraStatus | null = null;
   ultraVehicle: UltraVehicleSnapshot | null = null;
+  uiChoice: UltraUiChoice | null = null;
   readonly iap2Log: string[] = [];
   onIap2Trace: ((text: string) => void) | null = null;
   iap2Error: string = '';
@@ -124,7 +126,7 @@ export class Session {
         const message = JSON.parse(e.data) as ControlMessage;
         if ((message.type === 'session' || message.type === 'hello') && message.sessionActive === true) this.setNightMode(this.night);
         if (message.type === 'session' && message.sessionActive !== true) {
-          this.ultra = null; this.ultraVehicle = null;
+          this.ultra = null; this.ultraVehicle = null; this.uiChoice = null;
           this.microphone.stop();
           if (this.hud !== null) this.hud.stale = true;
           this.clearArtwork();
@@ -139,6 +141,7 @@ export class Session {
         }
         if (message.type === 'ultraStatus' && message.ultra !== undefined) this.ultra = message.ultra;
         if (message.type === 'ultraVehicle' && message.ultraVehicle !== undefined) this.ultraVehicle = message.ultraVehicle;
+        if (message.type === 'ultraUiChoice' && message.uiChoice !== undefined) this.uiChoice = message.uiChoice;
         if (message.type === 'iap2Trace' && message.message !== undefined) {
           this.iap2Log.push(message.message.slice(0, 8192));
           if (this.iap2Log.length > 128) this.iap2Log.shift();
@@ -171,7 +174,7 @@ export class Session {
       if (this.socket !== s) return;
       this.socket = null;
       if (this.iap2 !== null) this.iap2.connected = false;
-      this.ultra = null; this.ultraVehicle = null;
+      this.ultra = null; this.ultraVehicle = null; this.uiChoice = null;
       if (this.hud !== null) this.hud.stale = true;
       this.clearArtwork();
       this.secondary.close();
@@ -360,7 +363,7 @@ export class Session {
   }
   close(): void {
     if (this.iap2 !== null) this.iap2.connected = false;
-    this.ultra = null; this.ultraVehicle = null;
+    this.ultra = null; this.ultraVehicle = null; this.uiChoice = null;
     if (this.hud !== null) this.hud.stale = true;
     this.clearArtwork();
     this.secondary.close();

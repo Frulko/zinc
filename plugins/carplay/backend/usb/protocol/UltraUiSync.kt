@@ -5,22 +5,23 @@ package com.shilapi.xcertplay.transport
 import com.shilapi.xcertplay.airplay.BplistCodec
 
 /** Bounded UI Sync reset and command acknowledgement state for one DataStream. */
-class UltraUiSync {
+class UltraUiSync(private val themedLayout: Boolean = false) {
     data class Choice(val type: Long, val values: Map<*, *>?)
 
     companion object {
         fun displayPanels(displays: List<*>): List<Map<String, Any?>> = displays.filterIsInstance<Map<*, *>>().mapNotNull { display ->
             val uuid = display["uuid"] as? String ?: return@mapNotNull null
             val cluster = (display["type"] as? Number)?.toInt() == 111
+            val panelUid = if (uuid == "Center_Display" || uuid == "Cluster_Display") uuid else "$uuid-panel"
             val panel = linkedMapOf<String, Any?>(
-                "uid" to "$uuid-panel",
+                "uid" to panelUid,
                 "widthPixels" to display["widthPixels"], "heightPixels" to display["heightPixels"],
                 "widthPhysical" to display["widthPhysical"], "heightPhysical" to display["heightPhysical"],
                 "properties" to if (cluster) listOf("showsInstruments") else emptyList<String>(),
                 "initialVideoStreams" to listOf(mapOf("uuid" to uuid, "originXPixels" to 0L,
                     "originYPixels" to 0L, "zIndex" to 0L)),
             )
-            if (cluster) panel["displayPlugins"] = listOf(mapOf("uid" to "$uuid-panel", "videoStreams" to listOf(uuid)))
+            if (cluster) panel["displayPlugins"] = listOf(mapOf("uid" to panelUid, "videoStreams" to listOf(uuid)))
             panel
         }
     }
@@ -30,6 +31,7 @@ class UltraUiSync {
     private var lastRx = 0L
     private var waitingForReset = false
     private var ready = false
+    private var night = true
     private var phoneId: Any? = null
     private var panel = emptyMap<String, Any?>()
     private val choices = ArrayList<Choice>()
@@ -41,6 +43,21 @@ class UltraUiSync {
     }
 
     @Synchronized fun takeChoices(): List<Choice> = choices.toList().also { choices.clear() }
+
+    @Synchronized fun setNightMode(enabled: Boolean): List<ByteArray> {
+        if (night == enabled) return emptyList()
+        night = enabled
+        return if (ready && themedLayout) listOf(message(2, command = requestLayout())) else emptyList()
+    }
+
+    private fun requestLayout(): Map<String, Any?> = mapOf("type" to 0x05L, "data" to mapOf(
+        "layoutID" to UltraTheme.layoutId,
+        "paletteID" to UltraTheme.paletteId,
+        "appearanceMode" to if (night) 1L else 0L,
+        "fadeInNewLayout" to true,
+        "fadeOutOldLayout" to true,
+        "activeComponents" to UltraTheme.activeComponents,
+    ))
 
     @Synchronized fun handle(bytes: ByteArray): List<ByteArray> {
         val frame = runCatching { AppleOpack.decode(bytes) as? Map<*, *> }.getOrNull() ?: return emptyList()
@@ -62,11 +79,16 @@ class UltraUiSync {
                 waitingForReset = false; ready = true
                 lastRx = (header["psn"] as? Number)?.toLong() ?: 0L
                 val version = minOf(2L, (header["version"] as? Number)?.toLong() ?: 1L)
-                listOf(
+                buildList {
+                    addAll(listOf(
                     message(1, extra = mapOf("version" to version) + if (version >= 2) id() else emptyMap()),
                     message(2, command = mapOf("type" to 0x11L, "data" to mapOf("allow" to true))),
+                    ))
+                    if (themedLayout) add(message(2, command = requestLayout()))
+                    add(
                     message(2, command = mapOf("type" to 0x07L, "data" to mapOf("tokenID" to 4711L))),
-                )
+                    )
+                }
             }
             2L -> {
                 if (!ready) return emptyList()

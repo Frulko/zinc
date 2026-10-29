@@ -41,6 +41,24 @@ class UltraUiSyncTest {
         assertTrue(state.handle(frame(mapOf("type" to 1L, "ssn" to 1L))).isEmpty())
     }
 
+    @Test fun themedSessionRequestsTheCatalogLayoutAfterReset() {
+        val state = UltraUiSync(themedLayout = true)
+        state.handle(frame(mapOf("type" to 0L, "id" to "phone")))
+        val ready = state.handle(frame(mapOf("type" to 1L, "ssn" to 1L, "psn" to 3L, "version" to 2L)))
+        assertEquals(4, ready.size)
+        val request = BplistCodec.decode(header(ready[2])["data"] as ByteArray) as Map<*, *>
+        assertEquals(0x05L, request["type"])
+        val data = request["data"] as Map<*, *>
+        assertEquals(UltraTheme.layoutId, data["layoutID"])
+        assertEquals(UltraTheme.paletteId, data["paletteID"])
+        assertEquals(UltraTheme.activeComponents, data["activeComponents"])
+        val day = state.setNightMode(false)
+        assertEquals(1, day.size)
+        val dayRequest = BplistCodec.decode(header(day.single())["data"] as ByteArray) as Map<*, *>
+        assertEquals(0L, (dayRequest["data"] as Map<*, *>)["appearanceMode"])
+        assertTrue(state.setNightMode(false).isEmpty())
+    }
+
     @Test fun mapsClusterVideoToAnInstrumentPanel() {
         val panels = UltraUiSync.displayPanels(listOf(mapOf("uuid" to "main", "type" to 110, "widthPixels" to 1280),
             mapOf("uuid" to "cluster", "type" to 111, "widthPixels" to 960)))

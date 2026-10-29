@@ -1,19 +1,20 @@
 # CarPlay Ultra feasibility on the Pi
 
-Research and receiver probes on 29 October 2026. Vehicle State has been
-negotiated and exchanged with a real iPhone; UI sync, theme assets and
-composed Ultra presentation remain unverified.
+Research and receiver probes on 29 October 2026. Vehicle State and UI Sync
+have both exchanged messages with a real iPhone. An Apple catalog theme was
+identified and advertised, but its signature chain and a synchronized Ultra
+composition remain unverified.
 
 ## What the iPhone prompt proves
 
 An iPhone showing **CarPlay Ultra** for PlayPort Pi proves that it recognized an
 accessory offer. It does not prove that the later Ultra transport, vehicle-state
-channels, asset package, or instrument UI were negotiated. The current receiver
+channels, asset package, or instrument UI were negotiated. The initial receiver
 advertises a main display (stream 110) and an auxiliary cluster display (stream
 111) in the generated `AirPlayInfoPlist.kt` patched by
 [`plugins/carplay/backend/usb/prepare`](../../plugins/carplay/backend/usb/prepare).
-It only lists `vocoderInfo` and `enhancedRequestCarUI` as extended features and
-has no observed UI-sync or vehicle-state channel implementation. The cluster
+At that stage it only listed `vocoderInfo` and `enhancedRequestCarUI` as extended features and
+had no observed UI-sync or vehicle-state channel implementation. The cluster
 map already shown by Zinc is an iPhone-rendered **classic** auxiliary video
 stream. Its existence alone is not evidence of Ultra.
 
@@ -195,3 +196,32 @@ authenticated theme would be misleading.
 The flag stays off by default. Stream 111 remains the iPhone-rendered cluster
 video on the Mac; the Pi display is untouched. The Pi service was stopped
 after the probe, and its drop-in was restored to Vehicle State only.
+
+## Theme and UI Sync live exchange, 29 October
+
+The Apple MobileAsset `com.apple.MobileAsset.CarDDPAssets` catalog returned
+asset `44C9FA31EC` version 985, minimum SDK 19.0. The downloaded 50,870,896
+byte ZIP matched the catalog's SHA-1 measurement and had SHA-256
+`872c2a33ea16b481da6515f5c19c5ea736a23ed4ae5be97d6994ac2649cdb385`.
+Its `package.json` names `Center_Display` and `Cluster_Display`; `theme.json`
+names the Cobranded layout `6C45CC47-EC01-527A-B40D-1316AA9C936F`, default
+palette `custom`, and the four active zones used by the request. This is a
+third-party branded theme used only as an experimental protocol probe. The
+catalog measurement was checked; the package's certificate chain and asset
+signature were not independently verified. The ZIP and artwork are outside
+the repository.
+
+With `ZINC_CARPLAY_CLUSTER=1`, `ZINC_CARPLAY_ULTRA_THEME=44C9FA31EC:985` and
+`ZINC_CARPLAY_ULTRA_UI_SYNC=1`, the receiver announced one consistent asset ID
+in iAP2 Identification and CarPlayStartSession and used the package's display
+IDs in AirPlay `/info` and UI Sync panels. The iPhone connected over Wi-Fi,
+opened both classic video streams, then opened the encrypted UI Sync type-130
+UUID `07D9F906-8D64-4B54-A808-A20BCA2C51C2`. Reset received 1 reply;
+reset-complete received 4, including a layout request; later phone commands
+received acknowledgements and layout/palette choices. This is observed
+bidirectional UI Sync traffic, beyond accepted feature bits. A follow-up
+restart did not complete the Wi-Fi handoff, so the final typed player event and
+Day/Night retransmission are validated locally only. The Pi service is stopped
+after the probe. The composed Mac dashboard is a local simulation of the
+theme's three principal zones; it is not a pixel-accurate render of Apple
+assets, and the phone has not yet confirmed synchronized appearance on screen.

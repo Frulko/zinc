@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package com.playport.server
 
+import com.shilapi.xcertplay.transport.UltraTheme
+
 import com.shilapi.xcertplay.transport.*
 import com.shilapi.xcertplay.iap2.session.Iap2Session
 import com.shilapi.xcertplay.mfi.Iap2MfiAuthenticationClient
@@ -50,6 +52,7 @@ class WiredBootstrap(private val serial: String) : Closeable {
                     serialNumber = "ZINC-" + server.deviceId.replace(":", ""),
                     firmwareVersion = "1.0", hardwareVersion = "1.0", carPlayUsbInterfaceNumber = device.carPlayInterface,
                     locationInformationEnabled = true,
+                    themeAssetIdentifier = if (UltraTheme.enabled()) UltraTheme.assetId else null,
                 )
                 log.info("Wired endpoint host={} port={} deviceIdentifier={}", network!!.address, server.config.airPlayPort, network!!.deviceIdentifier)
                 Iap2WiredControlClient(control, Iap2MfiAuthenticationClient(server.mfi)).run(
@@ -57,6 +60,8 @@ class WiredBootstrap(private val serial: String) : Closeable {
                     Iap2WiredCarPlayEndpoint(
                         listOf(network!!.address), server.config.airPlayPort,
                         server.identity.publicKeyHex, server.config.sourceVersion, network!!.deviceIdentifier,
+                        sdkVersion = if (UltraTheme.enabled()) UltraTheme.sdkVersion else null,
+                        clusterAsset = if (UltraTheme.enabled()) com.shilapi.xcertplay.iap2.message.Iap2ClusterAsset(UltraTheme.assetId, UltraTheme.assetVersion) else null,
                     ),
                     availableCurrentMilliAmps = 0,
                     timeoutMillis = Iap2WiredControlClient.NO_TIMEOUT_MILLIS,
