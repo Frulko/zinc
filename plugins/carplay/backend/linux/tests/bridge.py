@@ -6,6 +6,8 @@ import runpy
 import socket
 import threading
 import unittest
+from unittest.mock import patch
+import subprocess
 
 bridge = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'bt-bridge'))
 
@@ -14,6 +16,12 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual('AA:BB:CC:DD:EE:FF', bridge['address']('aa:bb:cc:dd:ee:ff'))
         with self.assertRaises(Exception):
             bridge['address']('not a Bluetooth address')
+
+    def test_local_address_uses_bluez_controller(self):
+        output = 'Controller b8:27:eb:2e:aa:28 zinc-player [default]\n\tPowered: yes\n'
+        with patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, output)) as run:
+            self.assertEqual('B8:27:EB:2E:AA:28', bridge['local_address']())
+            self.assertEqual(['bluetoothctl', 'show'], run.call_args.args[0])
 
     def test_bidirectional_binary_stdio_and_eof(self):
         peer, local = socket.socketpair()

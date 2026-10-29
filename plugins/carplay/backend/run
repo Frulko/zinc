@@ -55,5 +55,11 @@ if [ ! -x "$backend/server/build/install/server/bin/server" ]; then
   echo 'Run plugins/carplay/backend/build first' >&2
   exit 1
 fi
+if [ "$usb" = 1 ]; then
+  state_dir=${ZINC_CARPLAY_STATE_DIR:-$root/build/carplay/state}
+else
+  state_dir=${ZINC_CARPLAY_STATE_DIR:-$HOME/.local/share/zinc/carplay-experiment/wireless-state}
+fi
+umask 077
 cd "$backend"
-exec server/build/install/server/bin/server --identity-dir "$ZINC_CARPLAY_IDENTITY" --state-dir "$root/build/carplay/state" --bt-bridge "$bt_bridge" --http "$@"
+exec server/build/install/server/bin/server --identity-dir "$ZINC_CARPLAY_IDENTITY" --state-dir "$state_dir" --bt-bridge "$bt_bridge" --http "$@"

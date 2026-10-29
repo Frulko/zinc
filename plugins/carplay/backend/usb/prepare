@@ -21,6 +21,12 @@ if 'org.bouncycastle:bctls-jdk18on' not in t:
 if 'jvmArgs("--enable-native-access=ALL-UNNAMED")' not in t:
  t += '\ntasks.test { jvmArgs("--enable-native-access=ALL-UNNAMED") }\n'
 p.write_text(t)
+p=root/'server/src/main/kotlin/com/playport/server/ServerConfig.kt'
+t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/ServerConfig.kt']).decode()
+needle='            var config = defaults\n'
+assert t.count(needle) == 1, 'Unexpected upstream ServerConfig.kt'
+t=t.replace(needle, needle+'            System.getenv("ZINC_CARPLAY_WIFI_PASSPHRASE")?.takeIf { it.isNotEmpty() }?.let { config = config.copy(wifiPassphrase = it) }\n')
+p.write_text(t)
 p=root/'server/src/main/kotlin/com/playport/server/Main.kt'
 # A warm overlay must produce the same source as a fresh pinned checkout.
 t=subprocess.check_output(['git', '-C', str(root), 'show', 'HEAD:server/src/main/kotlin/com/playport/server/Main.kt']).decode()

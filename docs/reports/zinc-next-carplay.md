@@ -592,3 +592,47 @@ carplay_demo pass. LiveTrace tests cover redaction, RX/TX counts, unknown events
 start/stop subscriptions, schema decode, payload sample flags and malformed TLV.
 Hardware validation of revised GPS identity, cover delivery and detailed trace
 remains user acceptance; no GPS or encoding resolution is claimed yet.
+
+## Overnight wireless Mac/Pi preflight (owner authorized)
+
+The Mac IOBluetooth helper reports its adapter and the paired iPhone. A Mac
+wireless receiver with a deliberately invalid Bluetooth target reached RTSP
+bind and HTTP readiness on the Mac Wi-Fi IP, with software MFi identity loaded.
+It initially failed because USB's state directory was root-owned. `backend/run`
+now defaults wireless sessions to a private user-home state and uses umask 077;
+wired USB keeps its existing state path. The pinned server overlay accepts
+`ZINC_CARPLAY_WIFI_PASSPHRASE` as a fallback before explicit CLI options, so a
+Wi-Fi secret need not be exposed in argv. A full protocol/server build/tests
+passed after this change.
+
+On the Pi3B+ (Debian13,aarch64,905MiB), passwordless SSH to spark@192.168.2.33
+and fallback USB link169.254.100.201 worked. Installed OpenJDK21 headless,
+python3-bluez and dnsmasq-base; BlueZ was installed but soft-blocked, then
+unblocked/powered. PyBluez `read_local_bdaddr` returned EINVAL on this kernel;
+the Linux helper now reads the powered controller from `bluetoothctl show`.
+The helper unit test and real Pi `--print-address` pass. The Mac-built JVM
+installDist, launcher and owner-provided offline identity were copied to
+owner-only Pi directories; the private key was never put in Git or logs.
+
+The Pi Wi-Fi phy advertises managed+AP concurrency only on one channel. It
+remained a client of `Potatoes` at5GHz/channel36 while a virtual `ap0` hosted
+`Zinc-CarPlay-Pi` on the same channel. NetworkManager shared IPv4 gave the AP
+10.77.0.1/24, with DHCP/DNS listeners. The receiver bound AirPlay to
+10.77.0.1:17000, HTTP to all interfaces:18080, and accepted an authenticated
+WebSocket `iap2Status` request from the Mac over the existing192.168.2 network.
+With an intentionally invalid phone address, Bluetooth bootstrap failed
+gracefully after server readiness. The AP and receiver were stopped and the
+temporary token rotated after the smoke runs; a private Pi launcher recreates
+the AP and reads its password from an owner-only file. The Pi's existing Wi-Fi
+and SSH connection remain connected.
+
+This proves runtime portability and radio/AP startup, not a wireless CarPlay
+session. The iPhone is paired to the Mac but not Pi; no Pi SDP, Bluetooth
+iAP2, software-MFi challenge, Wi-Fi handoff, video or audio was exercised.
+Apple's [WWDC17 wireless architecture](https://developer.apple.com/videos/play/wwdc2017/717/)
+requires Bluetooth CarPlay EIR and specific AP elements in addition to a
+Bluetooth/iAP2 link and 5GHz Wi-Fi. The current generic BlueZ/NetworkManager
+configuration is not proven to advertise all of those elements. It remains
+possible that iOS will not discover or select it until those advertisements
+are implemented and tested on the phone. Mac and Pi real-phone tests are next;
+do not call the no-chip wireless path accepted from these smoke tests alone.
