@@ -159,7 +159,9 @@ function bench(): void {
     const a = Math.floor(i / 10);
     tracks.push({ id: `t${i}`, title: `Song ${i}`, artist: `Artist ${a}`, album: `Album ${a}`, albumArtist: '', genre: `Genre ${a % 25}`, composer: '', comment: '',
       trackNr: 0, tracks: 0, cdNr: 0, cds: 0, year: 1960 + a % 60, rating: 0, playCount: i % 7, bitrate: 256, sampleRate: 44100, durationMs: 200000, size: 0,
-      mediaType: 'audio', path: '', artwork: false, added: 0, lastPlayed: 0, bpm: 80 + i % 80, skipCount: i % 11 === 0 ? 1 : 0, lastSkipped: 0 });
+      mediaType: 'audio', path: '', artwork: false, added: 0, lastPlayed: 0, bpm: 80 + i % 80, skipCount: i % 11 === 0 ? 1 : 0, lastSkipped: 0,
+      grouping: '', description: '', kind: '', compilation: false, sortTitle: '', sortArtist: '', sortAlbum: '', sortAlbumArtist: '', sortComposer: '',
+      startMs: 0, stopMs: 0, volume: 0, skipWhenShuffling: false, rememberPosition: false, lyrics: false, modified: 0 });
   }
   const h = new History(`${dir}/bench.sqlite`);
   let t0 = Date.now();

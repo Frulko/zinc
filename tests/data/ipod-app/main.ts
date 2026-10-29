@@ -91,7 +91,23 @@ async function main(): Promise<void> {
   console.log('rules changed', await size(unplayed));
   try { await ipod.createSmartPlaylist('Bad', rules('all', [one('mood', 'is', 1, 0, '', '')], 'none', 0, '')); } catch (e) { console.log('bad rule:', (e as Error).message); }
   try { await ipod.setArtwork(ts[0].id, song); } catch (e) { console.log('bad cover:', (e as Error).message.indexOf('not an image') >= 0); }
+  // Get Info: every field written, saved, then some cleared ('' 0 false are written, a field left out is kept), read back after a reopen
+  const id = ts[1].id;
+  const set = await ipod.update(id, { file: '', title: 'Edited', comment: 'C', grouping: 'G', description: 'D', year: 1999, rating: 3, compilation: true,
+    sortTitle: 'Edited, The', sortArtist: 'SA', sortAlbum: 'SB', sortAlbumArtist: 'SC', sortComposer: 'SD', startMs: 1000, stopMs: 1500, volume: 50,
+    skipWhenShuffling: true, rememberPosition: true, lyrics: true, playCount: 0 });
+  console.log('set', set.title, set.comment, set.grouping, set.description, set.year, set.rating, set.compilation, set.sortTitle, set.sortArtist,
+    set.sortAlbum, set.sortAlbumArtist, set.sortComposer, set.startMs, set.stopMs, set.volume, set.skipWhenShuffling, set.rememberPosition, set.lyrics,
+    set.playCount, set.modified > 0, set.kind);
+  await ipod.save();
+  await ipod.update(id, { file: '', comment: '', grouping: '', year: 0, rating: 0, compilation: false, sortArtist: '', volume: -30, skipWhenShuffling: false });
+  await ipod.save();
   await ipod.close();
   try { await ipod.tracks(); } catch (e) { console.log('closed:', (e as Error).message); }
+  await ipod.open((pod as ipod.Device).mountpoint);
+  for (const t of await ipod.tracks()) if (t.id === id)
+    console.log('reopened', t.title, `[${t.comment}]`, `[${t.grouping}]`, t.description, t.year, t.rating, t.compilation, t.sortTitle, `[${t.sortArtist}]`,
+      t.startMs, t.stopMs, t.volume, t.skipWhenShuffling, t.rememberPosition, t.lyrics, t.playCount);
+  await ipod.close();
 }
 main();

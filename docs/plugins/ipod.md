@@ -24,7 +24,7 @@ await ipod.eject(pod.mountpoint);
 | | |
 |---|---|
 | **SysInfoExtended** | `open()` writes `iPod_Control/Device/SysInfoExtended` when it is missing (after a restore or a format): read from the iPod over USB when it is plugged in, else built from `SysInfo`, the model table and the USB serial (the FireWire GUID the checksums need). The built file carries libgpod's artwork formats for the model, so covers keep working. |
-| **Tags and covers** | `add()` reads title, artist, album, album artist, composer, genre, track and disc numbers, year, duration, bitrate and the embedded cover of each file. `addWith()` overrides any of them, `artworkFile` sets another cover. |
+| **Tags and covers** | `add()` reads title, artist, album, album artist, composer, genre, track and disc numbers, year, duration, bitrate and the embedded cover of each file. `addWith()` overrides any of them, `artworkFile` sets another cover; `update()` changes them later (see Editing tags). |
 | **Formats** | MP3, AAC/M4A, ALAC, WAV, AIFF, M4B audiobooks, MP4/M4V/MOV video. Anything else (FLAC, OGG...) is refused with a message that says to convert it. |
 | **Space** | A batch is refused before anything is copied when it does not fit, keeping 64 MB free for the database and covers. |
 | **Transfers** | Each file is copied in 1 MB blocks with progress, then `fsync`: a pulled cable never leaves the database pointing at half a file. |
@@ -47,6 +47,24 @@ await ipod.eject(pod.mountpoint);
 Ids are strings (the database's 64-bit ids in hex) and stay the same across saves. Ratings are 0 to 5 stars.
 Each `Track` also carries `bpm` (0 when unknown; `update(id, { file: '', bpm: 124 })` sets it), `skipCount` and `lastSkipped` (the
 skips the iPod counted, Unix seconds).
+
+## Editing tags (Get Info)
+
+`update(id, fields)` writes the fields given and keeps the others; `''`, `0` and `false` are written too, so a field can be cleared:
+
+```ts
+await ipod.update(id, { file: '', comment: '', rating: 0, grouping: 'Live', compilation: true });   // file is ignored by update
+for (const other of ids) await ipod.update(other, { file: '', genre: 'Jazz' });                    // a selection: one save at the end
+await ipod.save();
+```
+
+Besides title, artist, album, album artist, genre, composer, comment, track and disc numbers and counts, year, rating, BPM, media
+kind and `artworkFile`, a `Track` has and `update` writes what iTunes' Get Info shows: `grouping`, `description`, `compilation`, the
+sort names (`sortTitle`, `sortArtist`, `sortAlbum`, `sortAlbumArtist`, `sortComposer`: the iPod sorts by them when set), `startMs` and
+`stopMs` (where the song starts and stops; 0 = its end), `volume` (-100 to 100 percent), `skipWhenShuffling`, `rememberPosition`,
+`lyrics` (the flag that tells the iPod the file has lyrics: the text itself stays in the file's tags, which the plugin does not write)
+and `playCount` (`0` is iTunes' Reset Plays). Read only: `kind` (the file type, "MPEG audio file") and `modified` (Unix seconds, set
+by every `update`). `add` and `addWith` take the same fields; given, they win over the file's tags.
 
 ## Smart playlists
 

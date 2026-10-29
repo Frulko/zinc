@@ -425,6 +425,21 @@ void apply(Itdb_Track* t, const TrackInput& in) {
   if (in.year) t->year = *in.year;
   if (in.rating) t->rating = (guint32)std::clamp(*in.rating, 0, 5) * ITDB_RATING_STEP;
   if (in.bpm) t->BPM = (gint16)std::clamp(*in.bpm, 0, 32767);
+  if (in.grouping) setStr(t->grouping, *in.grouping);
+  if (in.description) setStr(t->description, *in.description);
+  if (in.compilation) t->compilation = *in.compilation ? 1 : 0;
+  if (in.sortTitle) setStr(t->sort_title, *in.sortTitle);
+  if (in.sortArtist) setStr(t->sort_artist, *in.sortArtist);
+  if (in.sortAlbum) setStr(t->sort_album, *in.sortAlbum);
+  if (in.sortAlbumArtist) setStr(t->sort_albumartist, *in.sortAlbumArtist);
+  if (in.sortComposer) setStr(t->sort_composer, *in.sortComposer);
+  if (in.startMs) t->starttime = (guint32)std::max(*in.startMs, 0);
+  if (in.stopMs) t->stoptime = (guint32)std::max(*in.stopMs, 0);
+  if (in.volume) t->volume = std::clamp(*in.volume, -100, 100) * 255 / 100;   // the iTunesDB keeps -255..255
+  if (in.skipWhenShuffling) t->skip_when_shuffling = *in.skipWhenShuffling ? 1 : 0;
+  if (in.rememberPosition) t->remember_playback_position = *in.rememberPosition ? 1 : 0;
+  if (in.lyrics) t->lyrics_flag = *in.lyrics ? 1 : 0;
+  if (in.playCount) { t->playcount = t->playcount2 = (guint32)std::max(*in.playCount, 0); if (*in.playCount <= 0) t->recent_playcount = 0; }
 }
 
 Track toTrack(Itdb_Track* t) {
@@ -441,6 +456,13 @@ Track toTrack(Itdb_Track* t) {
   r.artwork = itdb_track_has_thumbnails(t);
   r.added = (double)t->time_added; r.lastPlayed = (double)t->time_played;
   r.bpm = t->BPM; r.skipCount = (int32_t)t->skipcount; r.lastSkipped = (double)t->last_skipped;
+  r.grouping = s(t->grouping); r.description = s(t->description); r.kind = s(t->filetype); r.compilation = t->compilation != 0;
+  r.sortTitle = s(t->sort_title); r.sortArtist = s(t->sort_artist); r.sortAlbum = s(t->sort_album);
+  r.sortAlbumArtist = s(t->sort_albumartist); r.sortComposer = s(t->sort_composer);
+  r.startMs = (int32_t)t->starttime; r.stopMs = (int32_t)t->stoptime;
+  r.volume = (t->volume * 100 + (t->volume < 0 ? -127 : 127)) / 255;   // rounded back to the percent written
+  r.skipWhenShuffling = t->skip_when_shuffling != 0; r.rememberPosition = t->remember_playback_position != 0; r.lyrics = t->lyrics_flag != 0;
+  r.modified = (double)t->time_modified;
   return r;
 }
 
@@ -1085,6 +1107,7 @@ bool Library::update(const std::string& id, const TrackInput& in, Track& out, st
   if (in.mediaType && !mediaType(*in.mediaType, media)) { err = "unknown mediaType " + *in.mediaType; return false; }
   apply(t, in);
   t->mediatype = media;
+  t->time_modified = time(nullptr);
   if (in.artworkFile && (!decodableFile(*in.artworkFile) || !itdb_track_set_thumbnails(t, in.artworkFile->c_str()))) { err = *in.artworkFile + ": not an image"; return false; }
   out = toTrack(t);
   return true;

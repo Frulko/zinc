@@ -37,10 +37,33 @@ function apply(t: Track, f: TrackInput): void {
   if (f.title !== undefined) t.title = f.title;
   if (f.artist !== undefined) t.artist = f.artist;
   if (f.album !== undefined) t.album = f.album;
+  if (f.albumArtist !== undefined) t.albumArtist = f.albumArtist;
   if (f.genre !== undefined) t.genre = f.genre;
-  if (f.rating !== undefined) t.rating = f.rating;
+  if (f.composer !== undefined) t.composer = f.composer;
+  if (f.comment !== undefined) t.comment = f.comment;
+  if (f.grouping !== undefined) t.grouping = f.grouping;
+  if (f.description !== undefined) t.description = f.description;
+  if (f.trackNr !== undefined) t.trackNr = f.trackNr;
+  if (f.tracks !== undefined) t.tracks = f.tracks;
+  if (f.cdNr !== undefined) t.cdNr = f.cdNr;
+  if (f.cds !== undefined) t.cds = f.cds;
+  if (f.year !== undefined) t.year = f.year;
+  if (f.rating !== undefined) t.rating = Math.max(0, Math.min(5, f.rating)) as i32;
   if (f.mediaType !== undefined) t.mediaType = f.mediaType;
   if (f.bpm !== undefined) t.bpm = f.bpm;
+  if (f.compilation !== undefined) t.compilation = f.compilation;
+  if (f.sortTitle !== undefined) t.sortTitle = f.sortTitle;
+  if (f.sortArtist !== undefined) t.sortArtist = f.sortArtist;
+  if (f.sortAlbum !== undefined) t.sortAlbum = f.sortAlbum;
+  if (f.sortAlbumArtist !== undefined) t.sortAlbumArtist = f.sortAlbumArtist;
+  if (f.sortComposer !== undefined) t.sortComposer = f.sortComposer;
+  if (f.startMs !== undefined) t.startMs = Math.max(0, f.startMs) as i32;
+  if (f.stopMs !== undefined) t.stopMs = Math.max(0, f.stopMs) as i32;
+  if (f.volume !== undefined) t.volume = Math.max(-100, Math.min(100, f.volume)) as i32;
+  if (f.skipWhenShuffling !== undefined) t.skipWhenShuffling = f.skipWhenShuffling;
+  if (f.rememberPosition !== undefined) t.rememberPosition = f.rememberPosition;
+  if (f.lyrics !== undefined) t.lyrics = f.lyrics;
+  if (f.playCount !== undefined) t.playCount = Math.max(0, f.playCount) as i32;
 }
 /** The native save: the live smart playlists are refilled first (all of them with `all`). */
 function saved(all: boolean = false): void {
@@ -184,7 +207,9 @@ export default {
       const t: Track = { id: hex(++seq), title: base(it.file), artist: '', album: '', albumArtist: '', genre: '', composer: '', comment: '',
         trackNr: 0, tracks: 0, cdNr: 0, cds: 0, year: 0, rating: 0, playCount: 0, bitrate: 128, sampleRate: 44100, durationMs: 180000, size: 3000000,
         mediaType: ext === '.m4b' ? 'audiobook' : 'audio', path: 'iPod_Control/Music/F00/ZN' + seq + ext, artwork: it.artworkFile !== undefined, added: 0, lastPlayed: 0,
-        bpm: 0, skipCount: 0, lastSkipped: 0 };
+        bpm: 0, skipCount: 0, lastSkipped: 0, grouping: '', description: '', kind: ext === '.mp3' ? 'MPEG audio file' : 'AAC audio file', compilation: false,
+        sortTitle: '', sortArtist: '', sortAlbum: '', sortAlbumArtist: '', sortComposer: '', startMs: 0, stopMs: 0, volume: 0,
+        skipWhenShuffling: false, rememberPosition: false, lyrics: false, modified: 0 };
       apply(t, it);
       tracks.push(t); used += t.size; sources.set(t.id, it.file);
       playlists[0].trackIds.push(t.id);
@@ -195,7 +220,7 @@ export default {
     saved();
     return Promise.resolve(out);
   },
-  update: (id: string, f: TrackInput): Promise<Track> => { const t = find(id); if (!t) return fail('no track ' + id); apply(t, f); return Promise.resolve(t); },
+  update: (id: string, f: TrackInput): Promise<Track> => { const t = find(id); if (!t) return fail('no track ' + id); apply(t, f); t.modified = Math.floor(Date.now() / 1000); return Promise.resolve(t); },
   remove: (ids: string[]): Promise<void> => {
     for (const id of ids) { const k = tracks.findIndex((t: Track) => t.id === id); if (k >= 0) { used -= tracks[k].size; tracks.splice(k, 1); } for (const p of playlists) p.trackIds = p.trackIds.filter((x: string) => x !== id); }
     saved();

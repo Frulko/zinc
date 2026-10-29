@@ -1,7 +1,7 @@
 #!/bin/sh
 # zinc:ipod end to end (tests/data/ipod-app) on a fake iPod: a folder with iPod_Control/Device/SysInfo that detect() finds through
 # ZINC_IPOD_ROOTS. The plugin is built from its vendored libgpod; open() writes SysInfoExtended and a new database, add() copies a tagged
-# WAV and refuses a FLAC, then playlists, update, save with a snapshot, check, plays counted, smart playlists (the TypeScript evaluator against libgpod on a table of
+# WAV and refuses a FLAC, then playlists, update (every Get Info field set, then cleared, read back after a reopen), save with a snapshot, check, plays counted, smart playlists (the TypeScript evaluator against libgpod on a table of
 # rules, rules read back, refilled after a play), a bad cover and close. The interpreter, QuickJS and the
 # compiled program print the same lines. Skips (77) without the system libraries (docs/plugins/ipod.md, Install).
 cd "$(dirname "$0")/../.." || exit 2
@@ -44,7 +44,9 @@ unplayed 1 after a play 0 Match all: playCount is 0 · live
 rules changed 1
 bad rule: rule 1 (mood is): unknown field
 bad cover: true
+set Edited C G D 1999 3 true Edited, The SA SB SC SD 1000 1500 50 true true true 0 true WAV audio file
 closed: no iPod is open
+reopened Edited [] [] D 0 0 false Edited, The [] 1000 1500 -30 false true true 0
 OUT
 check() { if ! diff "$tmp/out" "$tmp/want" >"$tmp/d"; then echo "ipod_plugin: $1 differs: $(head -c 600 "$tmp/d") $(tail -c 300 "$tmp/err")"; fail=1; fi; }
 fresh; "$ZINC" run --interp tests/data/ipod-app >"$tmp/out" 2>"$tmp/err"; check "the interpreter"

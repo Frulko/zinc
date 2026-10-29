@@ -56,17 +56,44 @@ export interface Track {
   bpm: i32;
   /** Times the song was skipped on the iPod, and the last time (Unix seconds, 0 when never). */
   skipCount: i32; lastSkipped: number;
+  /** iTunes' Grouping, and the description (podcast show notes). */
+  grouping: string; description: string;
+  /** The file's kind as iTunes names it ("MPEG audio file", "AAC audio file"...). */
+  kind: string;
+  /** Part of a compilation (iTunes' "Album is a compilation of songs by various artists"). */
+  compilation: boolean;
+  /** The names the iPod sorts by ('' when the plain name is used). */
+  sortTitle: string; sortArtist: string; sortAlbum: string; sortAlbumArtist: string; sortComposer: string;
+  /** Where the song starts and stops playing, in milliseconds (stopMs 0: at its end). */
+  startMs: i32; stopMs: i32;
+  /** Volume adjustment, -100 to 100 percent (0: none). */
+  volume: i32;
+  /** Skipped when shuffling; remembers the playback position; has lyrics in its file (the iPod shows them). */
+  skipWhenShuffling: boolean; rememberPosition: boolean; lyrics: boolean;
+  /** Last changed (Unix seconds, 0 when never). */
+  modified: number;
 }
 
-/** What to add or change. Empty strings and 0 keep what the file's tags (or the track) say. */
+/** What to add or change. A field left out keeps what the file's tags (add) or the track (update) say; a field given is written,
+ *  '' , 0 and false included: `update(id, { file: '', comment: '' })` clears the comment. */
 export interface TrackInput {
   /** The file to copy (add) — ignored by update. */
   file: string;
   title?: string; artist?: string; album?: string; albumArtist?: string; genre?: string; composer?: string; comment?: string;
+  grouping?: string; description?: string;
   trackNr?: i32; tracks?: i32; cdNr?: i32; cds?: i32; year?: i32; rating?: i32;
   /** Beats per minute (0 clears it); smart playlists can select on it. */
   bpm?: i32;
   mediaType?: string;
+  compilation?: boolean;
+  sortTitle?: string; sortArtist?: string; sortAlbum?: string; sortAlbumArtist?: string; sortComposer?: string;
+  /** Milliseconds; stopMs 0 plays to the end. */
+  startMs?: i32; stopMs?: i32;
+  /** -100 to 100 percent. */
+  volume?: i32;
+  skipWhenShuffling?: boolean; rememberPosition?: boolean; lyrics?: boolean;
+  /** Sets the play count (0: iTunes' Reset Plays). */
+  playCount?: i32;
   /** An image file for the cover; without it, the picture embedded in the file is used. */
   artworkFile?: string;
 }
