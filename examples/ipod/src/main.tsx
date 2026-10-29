@@ -3,7 +3,7 @@
 // photos, its playlists, its notes, contacts, calendars and recordings, and every detail the iPod and its database give. A double-click
 // on a track plays it from the iPod (the bar at the top: play, pause, previous, next, seek). Albums, playlists, podcasts and chosen
 // songs download to the computer; files and folders (picked, or dropped on the window) are added to the iPod; backups are taken,
-// restored and deleted; a queue shows the transfers and a log every operation. Nothing is changed on the iPod until Allow changes
+// restored and deleted; duplicates are found (tags, files, sound) and merged; a queue shows the transfers and a log every operation. Nothing is changed on the iPod until Allow changes
 // is turned on. An iPod mounted, unmounted or pulled shows within seconds. This file mounts the app, routes the pages and the
 // files dropped on the window; what it does is in state.ts, actions.ts, the services and the pages.
 //
@@ -17,7 +17,7 @@ import { library, page, rescan, closeDevice } from './state';
 import { addFiles } from './actions';
 import { PodLibrary } from './services/ipod';
 import { bg, fg, BACKGROUND, TEXT, CLEAR_COLOR, PAGE_ALBUMS, PAGE_SONGS, PAGE_PODCASTS, PAGE_AUDIOBOOKS, PAGE_VIDEOS, PAGE_PHOTOS, PAGE_PLAYLISTS,
-  PAGE_FILES, PAGE_SPECS, PAGE_ADD, PAGE_BACKUPS, PAGE_TRANSFERS, PAGE_LOGS } from './constants';
+  PAGE_FILES, PAGE_SPECS, PAGE_ADD, PAGE_BACKUPS, PAGE_OPTIMISE, PAGE_TRANSFERS, PAGE_LOGS } from './constants';
 import { Sidebar } from './components/Sidebar';
 import { NowPlaying } from './components/NowPlaying';
 import { DevicesPage } from './pages/devices/DevicesPage';
@@ -30,6 +30,7 @@ import { PlaylistsPage } from './pages/playlists/PlaylistsPage';
 import { SpecsPage } from './pages/specs/SpecsPage';
 import { AddPage } from './pages/add/AddPage';
 import { BackupsPage } from './pages/backups/BackupsPage';
+import { OptimisePage } from './pages/optimise/OptimisePage';
 import { TransfersPage } from './pages/transfers/TransfersPage';
 import { LogsPage } from './pages/logs/LogsPage';
 
@@ -46,6 +47,7 @@ function Content(props: { lib: PodLibrary; page: string }): i32 {
   if (p === PAGE_SPECS) return <SpecsPage lib={props.lib} />;
   if (p === PAGE_ADD) return <AddPage />;
   if (p === PAGE_BACKUPS) return <BackupsPage />;
+  if (p === PAGE_OPTIMISE) return <OptimisePage />;
   if (p === PAGE_TRANSFERS) return <TransfersPage />;
   if (p === PAGE_LOGS) return <LogsPage />;
   return <OverviewPage lib={props.lib} />;
@@ -54,7 +56,7 @@ function Content(props: { lib: PodLibrary; page: string }): i32 {
 function App(): i32 {
   return <View className={`flex-row h-full ${bg(BACKGROUND)} ${fg(TEXT)}`}>
     <Sidebar />
-    <View className="grow flex-col min-w-0 min-h-0">
+    <View className="grow basis-0 flex-col min-w-0 min-h-0">
       {library() !== null ? <NowPlaying /> : <View />}
       {library() !== null ? <Content lib={library() as PodLibrary} page={page()} /> : <DevicesPage />}
     </View>

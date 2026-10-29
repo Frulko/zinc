@@ -49,7 +49,7 @@ export function podColors(model: string): PodColors {
 // ---- sizes (px)
 export const SIDEBAR_WIDTH: i32 = 232;
 export const ROW_HEIGHT: i32 = 34;          // a track row of the tables
-export const GRID_COLUMNS: i32 = 5;         // albums per row of the grid
+export const GRID_COLUMNS: i32 = 4;         // albums per row of the grid: four fit the window opened (1180 px)
 export const COVER_SIZE: i32 = 168;         // an album's cover in the grid
 export const GRID_ROW_HEIGHT: i32 = 236;    // cover, two lines of text and the gap
 export const HEADER_COVER_SIZE: i32 = 200;  // the cover at the top of an album
@@ -67,7 +67,7 @@ export const LOG_KEEP: i32 = 500;           // operations kept on the Logs page 
 // ---- pages
 export const PAGE_OVERVIEW = 'overview', PAGE_ALBUMS = 'albums', PAGE_SONGS = 'songs', PAGE_PODCASTS = 'podcasts', PAGE_AUDIOBOOKS = 'audiobooks',
   PAGE_VIDEOS = 'videos', PAGE_PHOTOS = 'photos', PAGE_PLAYLISTS = 'playlists', PAGE_FILES = 'files', PAGE_SPECS = 'specs', PAGE_ADD = 'add',
-  PAGE_BACKUPS = 'backups', PAGE_TRANSFERS = 'transfers', PAGE_LOGS = 'logs';
+  PAGE_BACKUPS = 'backups', PAGE_OPTIMISE = 'optimise', PAGE_TRANSFERS = 'transfers', PAGE_LOGS = 'logs';
 
 // ---- adding: the kinds a file can be added as (TrackInput.mediaType) and the files a folder gives
 export const ADD_KINDS: string[] = ['audio', 'podcast', 'audiobook', 'video'];

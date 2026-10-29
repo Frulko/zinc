@@ -11,6 +11,26 @@
 namespace ipod {
 
 using ::AddResult; using ::DownloadResult; using ::Backup; using ::Check; using ::Device; using ::Extra; using ::PhotoAlbum; using ::Picture; using ::Playlist; using ::Snapshot; using ::SpecItem; using ::Track; using ::TrackInput;
+using ::Analysis; using ::DuplicateGroup; using ::MergeGroup; using ::MergeResult;
+
+/** What the duplicate finder knows of a track (ipod_optimise.cpp): the track, its format, its file's content hash ('' when no other
+ *  file has its size) and its audio fingerprint (empty when none). */
+struct Copy {
+  Track t;
+  std::string format;   // MP3, AAC, ALAC, WAV, AIFF, MP4...
+  bool lossless = false;
+  std::string hash;
+  std::vector<uint32_t> fp;
+};
+/** The keep score of DuplicateGroup (ipod.spec.ts): < 0 when `a` is the better copy to keep, > 0 when `b` is, 0 when they tie on every
+ *  criterion; `why` gets the criterion that decided ("lossless", "320 kbps against 128"...). */
+int compareCopies(const Copy& a, const Copy& b, std::string* why);
+/** What the score sees of a copy, as shown: "MP3 · 128 kbps · 44.1 kHz · 4 tags · cover". */
+std::string quality(const Copy& c);
+/** Lowercase, no accents, no punctuation, single spaces: "Café  del Mar!" and "cafe del mar" are equal. */
+std::string normaliseTag(const std::string& s);
+/** The groups of copies that are one song (only copies of the same media type are compared), each best first with its reasons. */
+std::vector<DuplicateGroup> groupDuplicates(const std::vector<Copy>& copies);
 
 /** phase, done, total, detail */
 using Progress = std::function<void(const std::string&, int32_t, int32_t, const std::string&)>;
@@ -65,6 +85,11 @@ class Library {
   std::vector<DownloadResult> download(const std::vector<std::string>& ids, const std::string& dir, const Progress& progress, std::string& err);
   Check check();
   bool repair(Check& after, const Progress& progress, std::string& err);
+  /** Duplicates, music without a cover or tags, check()'s findings, empty playlists. Reads the iPod only; the fingerprints are
+   *  cached in backupRoot()/<iPod>/fingerprints.txt. */
+  Analysis analyze(bool fingerprints, const Progress& progress, std::string& err);
+  /** Merges each group into its kept track, removes the other copies and their files, saves once (after the session's restore point). */
+  std::vector<MergeResult> merge(const std::vector<MergeGroup>& groups, const Progress& progress, std::string& err);
 
  private:
   void* db_ = nullptr;   // Itdb_iTunesDB*

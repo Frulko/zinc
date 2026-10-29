@@ -1,6 +1,6 @@
 // zinc:ipod stand-in (sim target, ZINC_NATIVE=sim): one iPod Classic in memory, "Zinc Pod" at /Volumes/ZINCPOD, with
 // the same answers as the native side for the same calls, so a program and its tests run without an iPod or libgpod.
-import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult } from './ipod.spec';
+import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult } from './ipod.spec';
 
 const MP = '/Volumes/ZINCPOD';
 const GB = 1024 * 1024 * 1024;
@@ -8,6 +8,7 @@ let open = false, used = 0, seq = 0, saves = 0;
 const tracks: Track[] = [];
 const taken: Backup[] = [];
 const playlists: Playlist[] = [];
+const sources = new Map<string, string>();   // track id -> the file it was added from: one file added twice is an identical file
 let cb: ((phase: string, done: i32, total: i32, detail: string) => void) | null = null;
 
 function device(): Device {
@@ -40,6 +41,111 @@ function apply(t: Track, f: TrackInput): void {
   if (f.mediaType !== undefined) t.mediaType = f.mediaType;
 }
 
+/** The native normaliseTag without the accents: lowercase letters and digits, single spaces. */
+function norm(s: string): string {
+  let out = '', space = false;
+  const l = s.toLowerCase();
+  for (let i = 0; i < l.length; i++) {
+    const c = l.charCodeAt(i);
+    if (!((c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c > 127)) { space = out !== ''; continue; }
+    if (space) out += ' ';
+    space = false;
+    out += l[i];
+  }
+  return out;
+}
+function filled(t: Track): i32 { let n = 0; for (const s of [t.title, t.artist, t.album, t.albumArtist, t.genre, t.composer]) if (s !== '') n++; return n; }
+function numbers(t: Track): i32 { return (t.trackNr > 0 ? 1 : 0) + (t.tracks > 0 ? 1 : 0) + (t.cdNr > 0 ? 1 : 0) + (t.cds > 0 ? 1 : 0); }
+/** The native keep score (compareCopies) on what the stand-in knows: < 0 when `a` is kept before `b`, and why. No lossless here. */
+function score(a: Track, b: Track): [number, string] {
+  if (Math.abs(a.bitrate - b.bitrate) > 0.05 * Math.max(a.bitrate, b.bitrate)) return [b.bitrate - a.bitrate, `${Math.max(a.bitrate, b.bitrate)} kbps against ${Math.min(a.bitrate, b.bitrate)}`];
+  if (a.sampleRate !== b.sampleRate) return [b.sampleRate - a.sampleRate, 'sample rate'];
+  if (filled(a) !== filled(b)) return [filled(b) - filled(a), 'more tags'];
+  if (a.artwork !== b.artwork) return [a.artwork ? -1 : 1, 'a cover'];
+  if (numbers(a) !== numbers(b)) return [numbers(b) - numbers(a), 'track and disc numbers'];
+  if ((a.year > 0) !== (b.year > 0)) return [a.year > 0 ? -1 : 1, 'a year'];
+  return [a.id < b.id ? -1 : 1, 'the same on every criterion'];
+}
+/** Groups by tags (title and artist, the same album or one without, durations within 2 s) and by the file added; no fingerprints. */
+function analyze(): Analysis {
+  const groups: DuplicateGroup[] = [];
+  const grouped = new Set<string>();
+  for (const t of tracks) {
+    if (grouped.has(t.id)) continue;
+    const copies: Track[] = [t];
+    let tags = false, file = false;
+    for (const u of tracks) {
+      if (u.id === t.id || grouped.has(u.id) || u.mediaType !== t.mediaType) continue;
+      const sameTags = norm(t.title) !== '' && norm(t.title) === norm(u.title) && norm(t.artist) === norm(u.artist) &&
+        (t.album === '' || u.album === '' || norm(t.album) === norm(u.album)) && Math.abs(t.durationMs - u.durationMs) <= 2000;
+      const sameFile = sources.get(t.id) === sources.get(u.id);
+      if (!sameTags && !sameFile) continue;
+      tags = tags || sameTags;
+      file = file || sameFile;
+      copies.push(u);
+    }
+    if (copies.length < 2) continue;
+    for (const c of copies) grouped.add(c.id);
+    copies.sort((a: Track, b: Track) => score(a, b)[0]);
+    const reasons: string[] = [];
+    if (tags) reasons.push('tags');
+    if (file) reasons.push('file');
+    const quality: string[] = [], ids: string[] = [];
+    let saved = 0;
+    for (let i = 0; i < copies.length; i++) {
+      const c = copies[i];
+      if (i > 0) saved += c.size;
+      ids.push(c.id);
+      quality.push(`${c.path.slice(c.path.lastIndexOf('.') + 1).toUpperCase()} · ${c.bitrate} kbps · ${c.sampleRate / 1000} kHz · ${filled(c)} tags${c.artwork ? ' · cover' : ''}`);
+    }
+    groups.push({ trackIds: ids, reasons: reasons, keepWhy: score(copies[0], copies[1])[1], quality: quality, savedBytes: saved });
+  }
+  const noArtwork: string[] = [], missingTags: string[] = [], emptyPlaylists: string[] = [];
+  for (const t of tracks) {
+    if (t.mediaType !== 'audio') continue;
+    if (!t.artwork) noArtwork.push(t.id);
+    if (t.title === '' || t.artist === '' || t.album === '') missingTags.push(t.id);
+  }
+  for (const p of playlists) if (!p.master && !p.smart && p.trackIds.length === 0) emptyPlaylists.push(p.id);
+  return { groups: groups, noArtwork: noArtwork, missingTags: missingTags, missing: [], orphans: [], orphanBytes: 0, emptyPlaylists: emptyPlaylists,
+    fingerprinted: 0, fromCache: 0, noFingerprint: 0 };
+}
+function merge(groups: MergeGroup[]): MergeResult[] {
+  const out: MergeResult[] = [];
+  for (const g of groups) {
+    const r: MergeResult = { keep: g.keep, removed: [], freedBytes: 0, playlistPlaces: 0, filled: [], playCount: 0, error: '' };
+    const kept = find(g.keep);
+    if (kept === null) { r.error = 'no track ' + g.keep; out.push(r); continue; }
+    const k = kept as Track;
+    for (const id of g.remove) {
+      const o = find(id);
+      if (o === null || id === g.keep) continue;
+      const x = o as Track;
+      if (k.album === '' && x.album !== '') { k.album = x.album; r.filled.push('album'); }
+      if (k.genre === '' && x.genre !== '') { k.genre = x.genre; r.filled.push('genre'); }
+      if (k.year === 0 && x.year > 0) { k.year = x.year; r.filled.push('year'); }
+      if (!k.artwork && x.artwork) { k.artwork = true; r.filled.push('cover'); }
+      k.playCount += x.playCount;
+      k.rating = Math.max(k.rating, x.rating);
+      k.lastPlayed = Math.max(k.lastPlayed, x.lastPlayed);
+      for (const p of playlists) {
+        if (p.trackIds.indexOf(id) < 0) continue;
+        const has = p.trackIds.indexOf(g.keep) >= 0;
+        p.trackIds = has ? p.trackIds.filter((y: string) => y !== id) : p.trackIds.map((y: string) => y === id ? g.keep : y);
+        if (!p.master && !has) r.playlistPlaces++;
+      }
+      tracks.splice(tracks.indexOf(x), 1);
+      used -= x.size;
+      r.freedBytes += x.size;
+      r.removed.push(id);
+    }
+    r.playCount = k.playCount;
+    out.push(r);
+  }
+  saves++;
+  return out;
+}
+
 export default {
   detect: (): Promise<Device[]> => Promise.resolve([device()]),
   open: (mp: string, _init: boolean, _model: string, _name: string): Promise<Device> => {
@@ -65,7 +171,7 @@ export default {
         trackNr: 0, tracks: 0, cdNr: 0, cds: 0, year: 0, rating: 0, playCount: 0, bitrate: 128, sampleRate: 44100, durationMs: 180000, size: 3000000,
         mediaType: ext === '.m4b' ? 'audiobook' : 'audio', path: 'iPod_Control/Music/F00/ZN' + seq + ext, artwork: it.artworkFile !== undefined, added: 0, lastPlayed: 0 };
       apply(t, it);
-      tracks.push(t); used += t.size;
+      tracks.push(t); used += t.size; sources.set(t.id, it.file);
       playlists[0].trackIds.push(t.id);
       if (target) target.trackIds.push(t.id);
       out.push({ file: it.file, id: t.id, error: '' });
@@ -162,6 +268,8 @@ export default {
     }
     return Promise.resolve(out);
   },
+  analyze: (_fingerprints: boolean): Promise<Analysis> => need() ? fail<Analysis>(need()) : Promise.resolve(analyze()),
+  merge: (groups: MergeGroup[]): Promise<MergeResult[]> => need() ? fail<MergeResult[]>(need()) : Promise.resolve(merge(groups)),
   check: (): Promise<Check> => Promise.resolve({ missing: [], orphans: [], orphanBytes: 0 }),
   repair: (): Promise<Check> => Promise.resolve({ missing: [], orphans: [], orphanBytes: 0 }),
   mount: (_device: string): Promise<void> => Promise.resolve(),

@@ -29,7 +29,7 @@ export const [backupList, setBackupList] = createSignal<ipod.Backup[]>([]);
 export const [health, setHealth] = createSignal<ipod.Check | null>(null);
 
 function lib(): PodLibrary | null { return library(); }
-function podName(): string { const l = lib(); return l !== null && (l as PodLibrary).device.name !== '' ? (l as PodLibrary).device.name : 'iPod'; }
+export function podName(): string { const l = lib(); return l !== null && (l as PodLibrary).device.name !== '' ? (l as PodLibrary).device.name : 'iPod'; }
 
 /** A name safe for a folder (what zinc:ipod's download does to the tags). */
 function safe(name: string): string {
@@ -58,14 +58,14 @@ export async function chooseDownloadDir(): Promise<void> {
 }
 
 /** False (and a notice) while Allow changes is off. */
-function allowed(what: string): boolean {
+export function allowed(what: string): boolean {
   if (allowChanges()) return true;
   setNotice(`${what}: turn on Allow changes first (the iPod and its backups are only read until then)`);
   log(what, 'refused: Allow changes is off', false);
   return false;
 }
 
-async function confirm(question: string, detail: string, yes: string): Promise<boolean> {
+export async function confirm(question: string, detail: string, yes: string): Promise<boolean> {
   const o = new dialog.MessageOptions(question);
   o.detail = detail;
   o.kind = 'warning';
@@ -74,7 +74,7 @@ async function confirm(question: string, detail: string, yes: string): Promise<b
 }
 
 /** Reads the library again after a change, keeping the page shown. */
-async function refresh(): Promise<void> {
+export async function refresh(): Promise<void> {
   const fresh = await readLibrary();
   setLibrary(fresh);
 }

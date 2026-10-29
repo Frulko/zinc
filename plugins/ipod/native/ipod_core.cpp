@@ -1,6 +1,7 @@
 // zinc:ipod core (see ipod_core.h): libgpod for the database, TagLib for the tags of the files added, libusb for
 // SysInfoExtended, std::filesystem for copies, snapshots and backups. Runs on one thread at a time (the worker).
 #include "ipod_core.h"
+#include "ipod_fingerprint.h"
 
 #include <itdb.h>
 #include <libusb.h>
@@ -35,6 +36,8 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 #include "gdk-pixbuf/gdk-pixbuf.h"
+#define XXH_INLINE_ALL
+#include "xxhash.h"
 
 // libgpod reports through GLib on stderr, with blank lines, at every read and save: a smart-playlist rule on a field newer than it knows
 // ("Unknown action type 1", then a failed itdb_splr_validate assertion) is one, and it is kept byte for byte anyway. One short line per
@@ -856,19 +859,23 @@ bool Library::update(const std::string& id, const TrackInput& in, Track& out, st
   return true;
 }
 
+namespace {
+/** Takes a track out of every playlist and the database, and deletes its file unless `keepFile` (another track points to it). */
+void dropTrack(Itdb_iTunesDB* db, Itdb_Track* t, bool keepFile = false) {
+  gchar* f = keepFile ? nullptr : itdb_filename_on_ipod(t);
+  if (f) { unlink(f); g_free(f); }
+  for (GList* l = db->playlists; l; l = l->next) {
+    Itdb_Playlist* p = (Itdb_Playlist*)l->data;
+    while (itdb_playlist_contains_track(p, t)) itdb_playlist_remove_track(p, t);
+  }
+  itdb_track_remove(t);
+}
+}  // namespace
+
 bool Library::remove(const std::vector<std::string>& ids, std::string& err) {
   if (!writable(err)) return false;
-  for (const std::string& id : ids) {
-    Itdb_Track* t = findTrack(DB, id);
-    if (!t) continue;
-    gchar* f = itdb_filename_on_ipod(t);
-    if (f) { unlink(f); g_free(f); }
-    for (GList* l = DB->playlists; l; l = l->next) {
-      Itdb_Playlist* p = (Itdb_Playlist*)l->data;
-      while (itdb_playlist_contains_track(p, t)) itdb_playlist_remove_track(p, t);
-    }
-    itdb_track_remove(t);
-  }
+  for (const std::string& id : ids)
+    if (Itdb_Track* t = findTrack(DB, id)) dropTrack(DB, t);
   return save(nullptr, err);
 }
 
@@ -1302,16 +1309,246 @@ Check Library::check() {
 bool Library::repair(Check& after, const Progress& progress, std::string& err) {
   if (!writable(err, progress)) return false;
   Check c = check();
-  for (const std::string& id : c.missing) {
-    Itdb_Track* t = findTrack(DB, id);
-    if (!t) continue;
-    for (GList* l = DB->playlists; l; l = l->next) while (itdb_playlist_contains_track((Itdb_Playlist*)l->data, t)) itdb_playlist_remove_track((Itdb_Playlist*)l->data, t);
-    itdb_track_remove(t);
-  }
+  for (const std::string& id : c.missing)
+    if (Itdb_Track* t = findTrack(DB, id)) dropTrack(DB, t, true);
   for (const std::string& o : c.orphans) unlink((fs::path(mp_) / o).c_str());
   if (!save(progress, err)) return false;
   after = check();
   return true;
+}
+
+// ---------------------------------------------------------------- the duplicate finder (ipod_optimise.cpp) and the merge
+namespace {
+
+/** The format shown in a group and whether it loses nothing: from the file's extension, and for an .m4a the database's file type or
+ *  a bitrate no AAC reaches (ALAC). */
+void formatOf(Itdb_Track* t, const std::string& path, std::string& format, bool& lossless) {
+  std::string ext = fs::path(path).extension().string();
+  for (char& c : ext) c = (char)toupper((unsigned char)c);
+  if (!ext.empty()) ext.erase(0, 1);
+  bool alac = (t->filetype && strstr(t->filetype, "ossless")) || (ext == "M4A" && t->bitrate >= 400);
+  lossless = alac || ext == "WAV" || ext == "AIF" || ext == "AIFF";
+  format = alac ? "ALAC" : ext == "M4A" || ext == "M4B" || ext == "M4P" ? "AAC" : ext == "AIF" ? "AIFF" : ext;
+}
+
+/** XXH3-128 of a file, as hex; '' when it cannot be read. */
+std::string fileHash(const std::string& file) {
+  int fd = ::open(file.c_str(), O_RDONLY);
+  if (fd < 0) return "";
+  XXH3_state_t* st = XXH3_createState();
+  XXH3_128bits_reset(st);
+  std::vector<char> buf(1 << 20);
+  ssize_t n;
+  while ((n = ::read(fd, buf.data(), buf.size())) > 0) XXH3_128bits_update(st, buf.data(), (size_t)n);
+  ::close(fd);
+  XXH128_hash_t h = XXH3_128bits_digest(st);
+  XXH3_freeState(st);
+  if (n < 0) return "";
+  char hex[33];
+  snprintf(hex, sizeof hex, "%016" PRIx64 "%016" PRIx64, (uint64_t)h.high64, (uint64_t)h.low64);
+  return hex;
+}
+
+bool audible(const std::string& media) { return media == "audio" || media == "podcast" || media == "audiobook"; }
+
+}  // namespace
+
+Analysis Library::analyze(bool fingerprints, const Progress& progress, std::string& err) {
+  Analysis a;
+  if (!db_) { err = "no iPod is open"; return a; }
+  std::vector<Copy> copies;
+  std::vector<std::string> files;   // absolute, per copy
+  for (GList* l = DB->tracks; l; l = l->next) {
+    Itdb_Track* t = (Itdb_Track*)l->data;
+    Copy c;
+    c.t = toTrack(t);
+    formatOf(t, c.t.path, c.format, c.lossless);
+    files.push_back((fs::path(mp_) / c.t.path).string());
+    copies.push_back(std::move(c));
+  }
+  const size_t n = copies.size();
+
+  // identical files: a content hash for the files whose size another file of the same kind shares
+  std::map<std::string, int> sizes;
+  for (const Copy& c : copies) sizes[c.t.mediaType + '\x1f' + std::to_string((long long)c.t.size)]++;
+  std::vector<size_t> toHash;
+  for (size_t i = 0; i < n; i++) if (!copies[i].t.path.empty() && sizes[copies[i].t.mediaType + '\x1f' + std::to_string((long long)copies[i].t.size)] > 1) toHash.push_back(i);
+  for (size_t k = 0; k < toHash.size(); k++) {
+    copies[toHash[k]].hash = fileHash(files[toHash[k]]);
+    if (progress) progress("hash", (int32_t)k + 1, (int32_t)toHash.size(), copies[toHash[k]].t.title);
+  }
+
+  // audio fingerprints: for the songs, podcasts and audiobooks that have another of their kind of a close duration; from the cache when
+  // the track's file is the one fingerprinted (same size and time), else decoded now
+  if (fingerprints) {
+    std::vector<size_t> want;
+    std::vector<size_t> order;
+    for (size_t i = 0; i < n; i++) if (audible(copies[i].t.mediaType) && !copies[i].t.path.empty()) order.push_back(i);
+    std::sort(order.begin(), order.end(), [&](size_t x, size_t y) { return copies[x].t.durationMs < copies[y].t.durationMs; });
+    std::vector<bool> near(n, false);
+    for (size_t x = 0; x < order.size(); x++)
+      for (size_t y = x + 1; y < order.size() && copies[order[y]].t.durationMs - copies[order[x]].t.durationMs <= kAudioDurationMs; y++)
+        if (copies[order[x]].t.mediaType == copies[order[y]].t.mediaType) near[order[x]] = near[order[y]] = true;
+    for (size_t i = 0; i < n; i++) if (near[i]) want.push_back(i);
+
+    Device d;
+    std::string why;
+    describe(mp_, d, why);
+    fs::path cacheFile = fs::path(backupRoot()) / folderKey(d) / "fingerprints.txt";
+    std::map<std::string, std::string> cache;   // "id size mtime" -> the encoded fingerprint, "-" for a file that gave none
+    if (FILE* f = fopen(cacheFile.c_str(), "r")) {
+      char line[8192];
+      while (fgets(line, sizeof line, f)) {
+        std::string s = line;
+        while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
+        size_t tab = s.find('\t');
+        if (tab != std::string::npos) cache[s.substr(0, tab)] = s.substr(tab + 1);
+      }
+      fclose(f);
+    }
+    std::map<std::string, std::string> kept;   // what the cache holds after: the tracks of this analysis only
+    int decoded = 0;
+    for (size_t k = 0; k < want.size(); k++) {
+      Copy& c = copies[want[k]];
+      struct stat st;
+      if (stat(files[want[k]].c_str(), &st) != 0) { a.noFingerprint++; continue; }
+      std::string key = c.t.id + " " + std::to_string((long long)st.st_size) + " " + std::to_string((long long)st.st_mtime);
+      auto hit = cache.find(key);
+      const bool cached = hit != cache.end();
+      if (cached) c.fp = hit->second == "-" ? std::vector<uint32_t>() : decodeFingerprint(hit->second);
+      else { std::string reason; c.fp = fingerprint(files[want[k]], reason); decoded++; }
+      if (c.fp.empty()) a.noFingerprint++;
+      else if (cached) a.fromCache++;
+      else a.fingerprinted++;
+      kept[key] = c.fp.empty() ? "-" : encodeFingerprint(c.fp);
+      if (progress) progress("fingerprint", (int32_t)k + 1, (int32_t)want.size(), c.t.title);
+    }
+    if (decoded > 0 || kept.size() != cache.size()) {   // the cache is on the computer: the iPod is only read
+      std::error_code ec;
+      fs::create_directories(cacheFile.parent_path(), ec);
+      std::string text;
+      for (const auto& [key, fp] : kept) text += key + "\t" + fp + "\n";
+      g_file_set_contents(cacheFile.c_str(), text.data(), (gssize)text.size(), nullptr);   // best effort: a full disk costs the next decode
+    }
+  }
+
+  a.groups = groupDuplicates(copies);
+  for (const Copy& c : copies) {
+    if (c.t.mediaType != "audio") continue;
+    if (!c.t.artwork) a.noArtwork.push_back(c.t.id);
+    if (c.t.title.empty() || c.t.artist.empty() || c.t.album.empty()) a.missingTags.push_back(c.t.id);
+  }
+  Check ck = check();
+  a.missing = ck.missing;
+  a.orphans = ck.orphans;
+  a.orphanBytes = ck.orphanBytes;
+  for (GList* l = DB->playlists; l; l = l->next) {
+    Itdb_Playlist* p = (Itdb_Playlist*)l->data;
+    if (!itdb_playlist_is_mpl(p) && !p->is_spl && !p->members) a.emptyPlaylists.push_back(hexId(p->id));
+  }
+  return a;
+}
+
+namespace {
+/** Gives `keep` what it lacks of `other`: text tags, numbers and the cover. The names of the fields taken go to `filled`. */
+void fillFrom(Itdb_Track* keep, Itdb_Track* other, std::vector<std::string>& filled) {
+  auto text = [&](gchar*& k, gchar* o, const char* name) {
+    if ((!k || !*k) && o && *o) { setStr(k, o); filled.push_back(name); }
+  };
+  text(keep->title, other->title, "title");
+  text(keep->artist, other->artist, "artist");
+  text(keep->album, other->album, "album");
+  text(keep->albumartist, other->albumartist, "album artist");
+  text(keep->genre, other->genre, "genre");
+  text(keep->composer, other->composer, "composer");
+  text(keep->comment, other->comment, "comment");
+  auto num = [&](gint32& k, gint32 o, const char* name) { if (k <= 0 && o > 0) { k = o; filled.push_back(name); } };
+  num(keep->track_nr, other->track_nr, "track number");
+  num(keep->tracks, other->tracks, "track count");
+  num(keep->cd_nr, other->cd_nr, "disc number");
+  num(keep->cds, other->cds, "disc count");
+  num(keep->year, other->year, "year");
+  if (!itdb_track_has_thumbnails(keep) && itdb_track_has_thumbnails(other)) {
+    GdkPixbuf* p = (GdkPixbuf*)itdb_track_get_thumbnail(other, -1, -1);   // its largest stored size
+    if (p) {
+      int len = 0;
+      unsigned char* png = stbi_write_png_to_mem(gdk_pixbuf_get_pixels(p), gdk_pixbuf_get_rowstride(p), gdk_pixbuf_get_width(p), gdk_pixbuf_get_height(p), gdk_pixbuf_get_n_channels(p), &len);
+      if (png && itdb_track_set_thumbnails_from_data(keep, png, (gsize)len)) filled.push_back("cover");
+      free(png);
+      g_object_unref(p);
+    }
+  }
+}
+}  // namespace
+
+std::vector<MergeResult> Library::merge(const std::vector<MergeGroup>& groups, const Progress& progress, std::string& err) {
+  std::vector<MergeResult> out;
+  if (!writable(err, progress)) return out;   // the session's restore point comes first
+  // the files of the tracks that stay: a removed copy that points to one of them (a database with two entries for a file) loses its
+  // entry, never the file
+  std::set<std::string> removing;
+  for (const MergeGroup& g : groups) for (const std::string& r : g.remove) if (r != g.keep) removing.insert(r);
+  std::set<std::string> keptFiles;
+  for (GList* l = DB->tracks; l; l = l->next) {
+    Itdb_Track* t = (Itdb_Track*)l->data;
+    if (removing.count(hexId(t->dbid)) || !t->ipod_path) continue;
+    keptFiles.insert(t->ipod_path);
+  }
+  int32_t i = 0;
+  std::set<std::string> done;
+  for (const MergeGroup& g : groups) {
+    MergeResult r;
+    r.keep = g.keep;
+    r.freedBytes = 0;
+    r.playlistPlaces = 0;
+    Itdb_Track* keep = findTrack(DB, g.keep);
+    std::vector<Itdb_Track*> others;
+    if (!keep) r.error = "no track " + g.keep;
+    else if (done.count(g.keep)) r.error = "the track " + g.keep + " is in two groups";
+    for (const std::string& id : g.remove) {
+      if (!r.error.empty() || id == g.keep) continue;
+      Itdb_Track* t = findTrack(DB, id);
+      if (!t) r.error = "no track " + id;
+      else if (done.count(id)) r.error = "the track " + id + " is in two groups";
+      else others.push_back(t);
+    }
+    if (!r.error.empty() || others.empty()) {
+      if (r.error.empty()) r.error = "nothing to merge into " + g.keep;
+      r.playCount = keep ? (int32_t)keep->playcount : 0;
+      out.push_back(r);
+      continue;
+    }
+    for (Itdb_Track* o : others) {
+      fillFrom(keep, o, r.filled);
+      keep->playcount += o->playcount;
+      keep->skipcount += o->skipcount;
+      keep->rating = std::max(keep->rating, o->rating);
+      keep->time_played = std::max(keep->time_played, o->time_played);
+      if (o->time_added > 0 && (keep->time_added == 0 || o->time_added < keep->time_added)) keep->time_added = o->time_added;
+      // its places in the playlists go to the kept track (unless it is there already)
+      for (GList* l = DB->playlists; l; l = l->next) {
+        Itdb_Playlist* p = (Itdb_Playlist*)l->data;
+        if (itdb_playlist_is_mpl(p) || p->is_spl) continue;
+        gint at = g_list_index(p->members, o);
+        if (at < 0) continue;
+        while (itdb_playlist_contains_track(p, o)) itdb_playlist_remove_track(p, o);
+        if (!itdb_playlist_contains_track(p, keep)) { itdb_playlist_add_track(p, keep, at); r.playlistPlaces++; }
+      }
+      const bool shared = o->ipod_path && keptFiles.count(o->ipod_path);
+      r.removed.push_back(hexId(o->dbid));
+      if (!shared) r.freedBytes += o->size;
+      done.insert(hexId(o->dbid));
+      dropTrack(DB, o, shared);
+    }
+    std::sort(r.filled.begin(), r.filled.end());
+    r.filled.erase(std::unique(r.filled.begin(), r.filled.end()), r.filled.end());
+    r.playCount = (int32_t)keep->playcount;
+    done.insert(g.keep);
+    out.push_back(r);
+    if (progress) progress("merge", ++i, (int32_t)groups.size(), s(keep->title));
+  }
+  if (!save(progress, err)) return out;
+  return out;
 }
 
 std::string backupRoot() {

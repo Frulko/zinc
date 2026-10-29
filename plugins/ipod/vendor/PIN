@@ -3,3 +3,10 @@ libgpod  https://github.com/gerion0/libgpod  commit cdf101737cdde83a5c4b8ead324c
          links the vendored hashab instead of dlopening libhashab.so; config.h written by hand (no autoconf/meson).
 hashab   https://github.com/DigiDNA/hashab  commit a7d1509d25a47a99b8a42947c25b364aad4cbf7f (2026-01-29); src/*.c src/*.h src/data/ and LICENSE unchanged.
 shim     gdk-pixbuf/ and gdk_pixbuf_shim.c are ours (zinc:ipod): the gdk-pixbuf calls of libgpod over stb.
+chromaprint  https://github.com/acoustid/chromaprint/releases/download/v1.6.0/chromaprint-1.6.0.tar.gz (1.6.0, 2025-08-28;
+         sha256 9d33482e56a1389a37a0d6742c376139fa43e3b8a63d29003222b93db2cb40da), MIT. src/*.cpp src/*.h, src/utils/ (headers and
+         base64.cpp), LICENSE.md and NEWS.txt copied unchanged, except: the tests, the command line tools, the FFmpeg readers, the FFT
+         back ends other than KissFFT and avresample/ (the LGPL part, from FFmpeg) are left out; src/config.h written by hand; utils.h
+         and fft_lib.h include "config.h" instead of <config.h> (the include path holds the config.h of libgpod too).
+         src/3rdparty/kissfft: KissFFT commit febd4caeed32e33ad8b2e0bb5ea77542c40f18ec (BSD-3-Clause), as chromaprint bundles it:
+         kiss_fft.c, kiss_fftr.c, their headers, COPYING and LICENSES unchanged.

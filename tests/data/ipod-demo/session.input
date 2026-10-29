@@ -68,12 +68,30 @@
 440 move 550 296
 441 down
 442 up
-450 move 60 610
+450 move 60 640
 451 down
 452 up
 470 move 500 388
 471 down
 472 up
-481 move 60 640
+481 move 60 670
 482 down
 483 up
+511 move 60 610
+512 down
+513 up
+520 move 915 136
+521 down
+522 up
+571 move 600 551
+572 down
+573 up
+575 move 1062 136
+576 down
+577 up
+611 move 60 640
+612 down
+613 up
+620 move 500 322
+621 down
+622 up

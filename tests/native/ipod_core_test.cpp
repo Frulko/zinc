@@ -27,6 +27,154 @@ static void wav(const std::string& path, int seconds) {   // 8 kHz mono 16-bit s
   std::string z(n, '\0'); f.write(z.data(), n);
 }
 
+static std::string env(const char* k) { const char* v = getenv(k); return v ? v : ""; }
+static const ipod::Track* byTitle(const std::vector<ipod::Track>& ts, const std::string& title) {
+  for (const auto& t : ts) if (t.title == title) return &t;
+  return nullptr;
+}
+
+/** The duplicate finder and the merge on a second fake iPod: one melody as a WAV twice (the same file, other tags, one with a cover),
+ *  as AAC and as MP3 (other tags: only the sound matches), another melody, and the same song as a podcast. The melodies come from
+ *  tests/t0/ipod.sh (IPOD_MELODY, IPOD_MELODY_AAC, IPOD_MELODY_MP3, IPOD_OTHER); without them the part is skipped. */
+static int duplicates(const fs::path& root, const std::string& cover) {
+  std::string err;
+  // the score and the tags, without a database
+  CHECK(ipod::normaliseTag("  Café  del Mar!") == "cafe del mar" && ipod::normaliseTag("AC/DC") == "ac dc" && ipod::normaliseTag("...") == "");
+  ipod::Copy wav, mp3, mp3b;
+  wav.lossless = true; wav.format = "WAV"; wav.t.bitrate = 1411; wav.t.sampleRate = 44100;
+  mp3.format = "MP3"; mp3.t.bitrate = 320; mp3.t.sampleRate = 44100; mp3.t.title = "A"; mp3.t.artist = "B"; mp3.t.album = "C"; mp3.t.artwork = true;
+  std::string why;
+  CHECK(ipod::compareCopies(wav, mp3, &why) < 0 && why == "lossless");
+  mp3b = mp3; mp3b.t.bitrate = 128;
+  CHECK(ipod::compareCopies(mp3b, mp3, &why) > 0 && why == "320 kbps against 128");
+  mp3b.t.bitrate = 310; mp3b.t.album = "";   // within 5%: a tie on the bitrate, then the tags decide
+  CHECK(ipod::compareCopies(mp3, mp3b, &why) < 0 && why == "more tags");
+  mp3b.t.album = "C"; mp3b.t.artwork = false;
+  CHECK(ipod::compareCopies(mp3, mp3b, &why) < 0 && why == "a cover");
+  mp3b.t.artwork = true; mp3b.t.trackNr = 2;
+  CHECK(ipod::compareCopies(mp3, mp3b, &why) > 0 && why == "track and disc numbers");
+  mp3b.t.trackNr = 0; mp3b.t.year = 1999;
+  CHECK(ipod::compareCopies(mp3, mp3b, &why) > 0 && why == "a year");
+  mp3b.t.year = 0; mp3.t.added = 2000; mp3b.t.added = 1000;
+  CHECK(ipod::compareCopies(mp3, mp3b, &why) > 0 && why == "added first");
+  mp3b.t.added = 0;   // never dated comes after a date
+  CHECK(ipod::compareCopies(mp3, mp3b, &why) < 0 && why == "added first");
+  CHECK(ipod::quality(wav) == "WAV lossless · 1411 kbps · 44.1 kHz · 0 tags" && ipod::quality(mp3) == "MP3 · 320 kbps · 44.1 kHz · 3 tags · cover");
+
+  const std::string melody = env("IPOD_MELODY"), aac = env("IPOD_MELODY_AAC"), mp3file = env("IPOD_MELODY_MP3"), other = env("IPOD_OTHER");
+  if (melody.empty() || aac.empty() || other.empty()) { printf("duplicates: the score only (no melodies)\n"); return 0; }
+  fs::path mp = root / "Volumes" / "DUPES";
+  fs::create_directories(mp / "iPod_Control" / "Device");
+  { std::ofstream(mp / "iPod_Control" / "Device" / "SysInfo") << "ModelNumStr: xB029\npszSerialNumber: 8K9999DUPES\nFirewireGuid: 0x000A27009999DDDD\n"; }
+  ipod::Library lib;
+  CHECK(lib.open(mp.string(), true, "", "Dupes", err));
+  auto in = [](const std::string& file, const char* title, const char* artist, const char* album, int rating) {
+    ipod::TrackInput i; i.file = file; i.title = std::string(title); i.artist = std::string(artist); i.album = std::string(album); i.rating = rating;
+    return i;
+  };
+  ipod::TrackInput first = in(melody, "Blue Hour", "Lumen", "Afterglow", 3);
+  first.trackNr = 1; first.year = 2019;
+  ipod::TrackInput second = in(melody, "blue  hour", "LUMEN", "", 5);   // the same file, no album, a cover
+  if (!cover.empty()) second.artworkFile = cover;
+  std::vector<ipod::TrackInput> items = {first, second, in(aac, "Morning Light", "Somebody", "Singles", 0), in(other, "Other Song", "Lumen", "Afterglow", 0)};
+  if (!mp3file.empty()) items.push_back(in(mp3file, "Track 01", "Unknown", "", 0));
+  ipod::TrackInput pod = in(melody, "Blue Hour", "Lumen", "Afterglow", 0);
+  pod.mediaType = std::string("podcast");   // the same sound as a podcast: another kind, never its duplicate
+  items.push_back(pod);
+  auto added = lib.add(items, "Road", nullptr, err);
+  CHECK(err.empty() && added.size() == items.size());
+  for (auto& r : added) CHECK(r.error.empty());
+  std::string empty;
+  CHECK(lib.createPlaylist("Empty", empty, err));
+  auto ts = lib.tracks();
+  const std::string t1 = byTitle(ts, "Blue Hour")->id, t2 = byTitle(ts, "blue  hour")->id, t3 = byTitle(ts, "Morning Light")->id, t5 = byTitle(ts, "Other Song")->id;
+  std::string road;
+  for (auto& p : lib.playlists()) if (p.name == "Road") road = p.id;
+  CHECK(lib.setPlaylistTracks(road, {t5, t2, t3}, err) && lib.save(nullptr, err));
+  lib.close();
+  {   // play counts and dates as an iPod leaves them (zinc:ipod has no call to set them)
+    Itdb_iTunesDB* db = itdb_parse(mp.c_str(), nullptr);
+    CHECK(db);
+    for (GList* l = db->tracks; l; l = l->next) {
+      Itdb_Track* t = (Itdb_Track*)l->data;
+      std::string title = t->title ? t->title : "";
+      if (title == "blue  hour") { t->playcount = 3; t->time_played = 1700000000; }
+      if (title == "Morning Light") { t->playcount = 2; t->time_played = 1600000000; }
+    }
+    CHECK(itdb_write(db, nullptr));
+    itdb_free(db);
+  }
+  CHECK(lib.open(mp.string(), false, "", "", err));
+
+  std::vector<std::string> phases;
+  ipod::Analysis a = lib.analyze(true, [&](const std::string& ph, int32_t, int32_t, const std::string&) { phases.push_back(ph); }, err);
+  CHECK(err.empty() && a.groups.size() == 1);
+  const ipod::DuplicateGroup& g = a.groups[0];
+  CHECK(g.trackIds.size() == (mp3file.empty() ? 3u : 4u) && g.trackIds[0] == t1 && g.trackIds[1] == t2 && g.keepWhy == "more tags");
+  CHECK(g.reasons == std::vector<std::string>({"tags", "file", "audio"}));
+  CHECK(g.quality[0].rfind("WAV lossless", 0) == 0 && g.quality[1].find("cover") != std::string::npos && g.quality.back().rfind("AAC · ", 0) == 0);   // 64 kbps: after the MP3 of 96
+  CHECK(a.fingerprinted >= 4 && a.fromCache == 0 && a.noFingerprint == 0);
+  CHECK(std::find(phases.begin(), phases.end(), "hash") != phases.end() && std::find(phases.begin(), phases.end(), "fingerprint") != phases.end());
+  CHECK(a.emptyPlaylists == std::vector<std::string>({empty}) && std::find(a.missingTags.begin(), a.missingTags.end(), t2) != a.missingTags.end());
+  CHECK(std::find(a.noArtwork.begin(), a.noArtwork.end(), t1) != a.noArtwork.end());
+  printf("duplicates: %zu copies (%s), keep %s: %s; %d fingerprinted\n", g.trackIds.size(), g.quality.back().c_str(), g.trackIds[0].c_str(), g.keepWhy.c_str(), a.fingerprinted);
+  ipod::Analysis again = lib.analyze(true, nullptr, err);   // the second time from the cache
+  CHECK(again.fingerprinted == 0 && again.fromCache == a.fingerprinted && again.groups.size() == 1 && again.groups[0].trackIds == g.trackIds);
+  CHECK(fs::exists(root / "backups" / "8K9999DUPES" / "fingerprints.txt"));
+  ipod::Analysis plain = lib.analyze(false, nullptr, err);   // without fingerprints: the AAC is no longer found
+  CHECK(plain.groups.size() == 1 && plain.groups[0].trackIds.size() == 2 && plain.groups[0].reasons == std::vector<std::string>({"tags", "file"}));
+
+  // merge: keep the first WAV, remove its copy (a file of its own, with the same bytes) and the AAC; the cover, the counts, the last
+  // played and the playlist places go to the kept one; a bad group is reported and left alone; a restore point is taken first
+  size_t backupsBefore = ipod::backups((root / "backups").string()).size();
+  std::string f2 = (mp / byTitle(lib.tracks(), "blue  hour")->path).string(), f3 = (mp / byTitle(lib.tracks(), "Morning Light")->path).string();
+  ipod::MergeGroup mg; mg.keep = t1; mg.remove = {t2, t3};
+  ipod::MergeGroup bad; bad.keep = "ffffffffffffffff"; bad.remove = {t5};
+  auto res = lib.merge({mg, bad}, nullptr, err);
+  CHECK(err.empty() && res.size() == 2 && res[0].error.empty() && res[0].removed.size() == 2 && res[0].playCount == 5 && res[0].playlistPlaces == 1);
+  CHECK(!res[1].error.empty() && res[1].removed.empty());
+  CHECK(!fs::exists(f2) && !fs::exists(f3) && res[0].freedBytes == (double)(fs::file_size(melody) + fs::file_size(aac)));
+  CHECK(ipod::backups((root / "backups").string()).size() == backupsBefore + 1);
+  if (!cover.empty()) CHECK(std::find(res[0].filled.begin(), res[0].filled.end(), "cover") != res[0].filled.end());
+  lib.close();
+  CHECK(lib.open(mp.string(), false, "", "", err));   // what was saved
+  ts = lib.tracks();
+  const ipod::Track* kept = byTitle(ts, "Blue Hour");
+  CHECK(kept && !byTitle(ts, "blue  hour") && !byTitle(ts, "Morning Light") && kept->rating == 5 && kept->playCount == 5 && kept->lastPlayed == 1700000000);
+  if (!cover.empty()) CHECK(kept->artwork);
+  for (auto& p : lib.playlists()) if (p.id == road) CHECK(p.trackIds == std::vector<std::string>({t5, t1}));
+  ipod::Analysis after = lib.analyze(true, nullptr, err);
+  CHECK(after.groups.size() == (mp3file.empty() ? 0u : 1u));
+  printf("merge: %zu removed, %.0f bytes freed, filled %zu fields, play count %d\n", res[0].removed.size(), res[0].freedBytes, res[0].filled.size(), res[0].playCount);
+
+  // two entries of the database for one file: the merge removes the entry, never the file the kept one plays
+  lib.close();
+  {
+    Itdb_iTunesDB* db = itdb_parse(mp.c_str(), nullptr);
+    CHECK(db);
+    Itdb_Track* src = nullptr;
+    for (GList* l = db->tracks; l; l = l->next) if (std::string(((Itdb_Track*)l->data)->title) == "Other Song") src = (Itdb_Track*)l->data;
+    CHECK(src);
+    Itdb_Track* twin = itdb_track_duplicate(src);
+    twin->dbid = twin->dbid2 = src->dbid + 1;   // a duplicate keeps the dbid: give it its own
+    itdb_track_add(db, twin, -1);
+    itdb_playlist_add_track(itdb_playlist_mpl(db), twin, -1);
+    CHECK(twin->ipod_path && std::string(twin->ipod_path) == src->ipod_path && itdb_write(db, nullptr));
+    itdb_free(db);
+  }
+  CHECK(lib.open(mp.string(), false, "", "", err));
+  ipod::Analysis twins = lib.analyze(false, nullptr, err);
+  const ipod::DuplicateGroup* tg = nullptr;
+  for (auto& x : twins.groups) if (std::find(x.trackIds.begin(), x.trackIds.end(), t5) != x.trackIds.end()) tg = &x;
+  CHECK(tg && tg->trackIds.size() == 2);
+  std::string shared = (mp / byTitle(lib.tracks(), "Other Song")->path).string();
+  ipod::MergeGroup tm; tm.keep = tg->trackIds[0]; tm.remove = {tg->trackIds[1]};
+  auto tr = lib.merge({tm}, nullptr, err);
+  CHECK(tr.size() == 1 && tr[0].error.empty() && tr[0].freedBytes == 0 && fs::exists(shared) && lib.tracks().size() == ts.size());
+  printf("twins: one entry removed, the shared file kept\n");
+  return 0;
+}
+
 int main(int argc, char** argv) {
   std::string err;
   fs::path root = argc > 1 ? argv[1] : fs::temp_directory_path() / "zinc-ipod-test";
@@ -226,6 +374,8 @@ int main(int argc, char** argv) {
 
   std::string plist = ipod::sysInfoExtendedPlist("8K1234", "000A27001234ABCD", "B029", 0, "");
   CHECK(plist.find("<key>FireWireGUID</key>") != std::string::npos);
+  lib.close();
+  if (int r = duplicates(root, argc > 2 ? argv[2] : "")) return r;
   printf("ipod core: ok\n");
   return 0;
 }

@@ -1,10 +1,34 @@
-# Writes the media of tests/t1/ipod_demo.sh into the folder given: song.wav (two seconds of silence) and two 64x64 PNG covers
-# (cover-a.png: a violet to orange gradient with a sun; cover-b.png: green stripes).
-import struct, sys, zlib, os
+# Writes the media of tests/t1/ipod_demo.sh and tests/t0/ipod.sh into the folder given: song.wav (two seconds of silence),
+# tone-1.wav to tone-9.wav (two seconds of a tone each, one per song, all of song.wav's size: their bytes differ), melody-a.wav and
+# melody-b.wav (twelve seconds of two different melodies, for the audio fingerprints) and two 64x64 PNG covers (cover-a.png: a
+# violet to orange gradient with a sun; cover-b.png: green stripes).
+import math, random, struct, sys, zlib, os
 
 out = sys.argv[1]
-n = 8000 * 2 * 2
-open(os.path.join(out, 'song.wav'), 'wb').write(b'RIFF' + struct.pack('<I', 36 + n) + b'WAVEfmt ' + struct.pack('<IHHIIHH', 16, 1, 1, 8000, 16000, 2, 16) + b'data' + struct.pack('<I', n) + b'\0' * n)
+
+def wav(name, rate, samples):
+    data = b''.join(struct.pack('<h', s) for s in samples)
+    open(os.path.join(out, name), 'wb').write(b'RIFF' + struct.pack('<I', 36 + len(data)) + b'WAVEfmt ' + struct.pack('<IHHIIHH', 16, 1, 1, rate, rate * 2, 2, 16) + b'data' + struct.pack('<I', len(data)) + data)
+
+wav('song.wav', 8000, [0] * 16000)
+for k in range(1, 10):
+    f = 200 + 60 * k
+    wav(f'tone-{k}.wav', 8000, [int(6000 * math.sin(2 * math.pi * f * i / 8000)) for i in range(16000)])
+
+def melody(name, seed, rate=22050, secs=12):
+    rnd = random.Random(seed)
+    notes = [rnd.choice([220, 247, 262, 294, 330, 349, 392, 440, 494, 523]) for _ in range(secs * 4)]
+    samples = []
+    for i in range(rate * secs):
+        t = i / rate
+        f = notes[min(int(t * 4), len(notes) - 1)]
+        env = 1 - (t * 4 % 1) * 0.7
+        v = env * (0.5 * math.sin(2 * math.pi * f * t) + 0.25 * math.sin(4 * math.pi * f * t) + 0.12 * math.sin(6 * math.pi * f * t))
+        samples.append(int(max(-1, min(1, v)) * 20000))
+    wav(name, rate, samples)
+
+melody('melody-a.wav', 1)
+melody('melody-b.wav', 2)
 
 def png(path, pixel):
     w = h = 64

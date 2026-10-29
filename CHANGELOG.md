@@ -9,6 +9,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:ipod`: `analyze()` finds duplicate songs by their tags, by identical files and by their sound (Chromaprint fingerprints, cached on the computer), and lists the music without a cover or tags, unused files and empty playlists; `merge()` keeps the best copy of each song with the tags, cover, play counts, rating and playlist places of the others, and removes the rest with their files (docs/plugins/ipod.md).
+- iPod demo: an Optimise page that analyses the iPod, shows each group of duplicates with why it matched and the copy it keeps (click another to keep it), and merges the ticked groups as a transfer, behind Allow changes.
 - iPod demo: an eject button beside the open iPod, and the transfers open to list every file with its tags or why it was refused, and its size.
 - `zinc doc` makes the documentation of a project, a plugin or the engine (`--std`) as a static site, as `cargo doc` does: the API from the code and its doc comments, the Markdown and MDX pages of `docs/` and of each plugin's `docs/` (steps, tabs, callouts, commands with a copy button, screenshots, examples), search, light and dark themes and your own `docs/theme.css`. `--out` exports the folder, `--serve` serves it on this machine and reloads the pages when you save; nothing is downloaded (docs/guide/14-doc.md).
 - `n.toString(radix)` prints a number in any base from 2 to 36, with the same digits as JavaScript (`(255).toString(16)` is `ff`).
@@ -107,6 +109,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Fixed
+- iPod demo: the album grid has four columns, so a fifth album no longer runs past the window, and a page with a long line of text wraps it instead of growing wider than the window.
 - `ipod.mount('')` mounts an iPod that was ejected and is still plugged in: it resets it on USB, as unplugging it does, instead of saying there is no iPod disk.
 - A row whose child grows from `basis-0` (or a small basis) and holds content that wraps is as tall as that content once wrapped at the child's real width: a page with wrapping cards beside a picture scrolls to its end instead of stopping early.
 - `c ? xs : []` compiles: the empty array takes the type of the other branch, as in TypeScript (it stopped on Z0109 "empty array literal").

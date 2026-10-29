@@ -9,8 +9,8 @@
 //   for (const t of await ipod.tracks()) console.log(t.artist, '-', t.title);
 //   await ipod.eject(pod.mountpoint);
 import N from './native/ipod.spec';
-import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult } from './native/ipod.spec';
-export type { DownloadResult, Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra };
+import type { Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra, DownloadResult, Analysis, DuplicateGroup, MergeGroup, MergeResult } from './native/ipod.spec';
+export type { Analysis, DuplicateGroup, MergeGroup, MergeResult, DownloadResult, Device, Track, TrackInput, AddResult, Playlist, Snapshot, Check, SpecItem, Picture, Backup, PhotoAlbum, Extra };
 import { imageFromPixels } from 'zinc:gfx';
 
 /** iPods on this machine: mounted ones (connection 'disk'), and those plugged in by USB but not mounted ('usb', no mountpoint). */
@@ -87,6 +87,12 @@ export function restoreBackup(folder: string, mountpoint: string): Promise<Devic
 export function check(): Promise<Check> { return N.check(); }
 /** Fixes what check() finds; saves. */
 export function repair(): Promise<Check> { return N.repair(); }
+/** Finds what can be cleaned up: duplicates (by tags, identical files and, with `fingerprints`, the sound itself), music without a
+ *  cover or tags, the files check() finds, empty playlists. Reads the iPod only; fingerprints are cached on the computer. */
+export function analyze(fingerprints: boolean = true): Promise<Analysis> { return N.analyze(fingerprints); }
+/** Merges duplicates: each group's kept track takes the tags and cover it lacks, the play counts, the higher rating and the removed
+ *  copies' playlist places; the other copies and their files are removed; one save. */
+export function merge(groups: MergeGroup[]): Promise<MergeResult[]> { return N.merge(groups); }
 /** Mounts an iPod seen over USB but not mounted: '' = every such iPod (macOS), or a disk name (disk4, sdb2). Writes nothing. */
 export function mount(device: string = ''): Promise<void> { return N.mount(device); }
 /** Saves nothing: closes, flushes and ejects. Save first if you changed something. */
@@ -94,7 +100,8 @@ export function eject(mountpoint: string): Promise<void> { return N.eject(mountp
 
 const progressCbs: ((phase: string, done: i32, total: i32, detail: string) => void)[] = [];
 let listening = false;
-/** Progress of long calls. phase: copy (done/total in KiB of the file `detail`), add, download (files), save, backup, restore. */
+/** Progress of long calls. phase: copy (done/total in KiB of the file `detail`), add, download (files), save, backup, restore, hash and
+ *  fingerprint (analyze: tracks), merge (groups). */
 export function onProgress(cb: (phase: string, done: i32, total: i32, detail: string) => void): void {
   progressCbs.push(cb);
   if (listening) return;

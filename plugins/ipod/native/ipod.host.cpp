@@ -132,6 +132,16 @@ struct HostIpod : NativeIpod {
   }
   zrt::Promise<Bytes> check() override { return rec<Check>([](std::string& err) { need(err); return lib.check(); }); }
   zrt::Promise<Bytes> repair() override { ipod::Progress p = progress(); return rec<Check>([p](std::string& err) { Check c; lib.repair(c, p, err); return c; }); }
+  zrt::Promise<Bytes> analyze(bool fingerprints) override {
+    ipod::Progress p = progress();
+    return rec<Analysis>([fingerprints, p](std::string& err) { return lib.analyze(fingerprints, p, err); });
+  }
+  zrt::Promise<Bytes> merge(Bytes groups) override {
+    std::vector<MergeGroup> g;
+    zn::rec::read(groups, g);
+    ipod::Progress p = progress();
+    return rec<std::vector<MergeResult>>([g, p](std::string& err) { return lib.merge(g, p, err); });
+  }
   zrt::Promise<zrt::Unit> mount(zrt::String device) override { std::string d = str(device); return unit([d](std::string& err) { return ipod::mount(d, err); }); }
   zrt::Promise<zrt::Unit> eject(zrt::String mountpoint) override {
     std::string mp = str(mountpoint);

@@ -11,6 +11,8 @@
     "macos": {
       "sources": [
         "native/ipod_core.cpp",
+        "native/ipod_optimise.cpp",
+        "native/ipod_fingerprint.cpp",
         "native/ipod_sysinfo.c",
         "vendor/shim/gdk_pixbuf_shim.c",
         "vendor/libgpod/db-artwork-debug.c",
@@ -41,13 +43,36 @@
         "vendor/hashab/generate_buffer_from_state_mixing.c",
         "vendor/hashab/generate_initial_buffer.c",
         "vendor/hashab/generate_key_material.c",
-        "vendor/hashab/data/data.c"
+        "vendor/hashab/data/data.c",
+        "vendor/chromaprint/src/audio_processor.cpp",
+        "vendor/chromaprint/src/chroma.cpp",
+        "vendor/chromaprint/src/chroma_filter.cpp",
+        "vendor/chromaprint/src/chroma_resampler.cpp",
+        "vendor/chromaprint/src/chromaprint.cpp",
+        "vendor/chromaprint/src/fft.cpp",
+        "vendor/chromaprint/src/fft_lib_kissfft.cpp",
+        "vendor/chromaprint/src/fingerprint_calculator.cpp",
+        "vendor/chromaprint/src/fingerprint_compressor.cpp",
+        "vendor/chromaprint/src/fingerprint_decompressor.cpp",
+        "vendor/chromaprint/src/fingerprint_matcher.cpp",
+        "vendor/chromaprint/src/fingerprinter.cpp",
+        "vendor/chromaprint/src/fingerprinter_configuration.cpp",
+        "vendor/chromaprint/src/image_builder.cpp",
+        "vendor/chromaprint/src/silence_remover.cpp",
+        "vendor/chromaprint/src/simhash.cpp",
+        "vendor/chromaprint/src/spectrum.cpp",
+        "vendor/chromaprint/src/utils/base64.cpp",
+        "vendor/chromaprint/src/3rdparty/kissfft/kiss_fft.c",
+        "vendor/chromaprint/src/3rdparty/kissfft/kiss_fftr.c"
       ],
       "flags": [
         "-I./vendor/libgpod",
         "-I./vendor/shim",
         "-I./vendor/hashab",
         "-I../../third_party/stb",
+        "-I../../third_party/xxhash",
+        "-I./vendor/chromaprint/src",
+        "-I./vendor/chromaprint/src/3rdparty/kissfft",
         "-DHAVE_CONFIG_H",
         "-iwithsysroot",
         "/usr/include/libxml2"
@@ -69,11 +94,17 @@
         "libplist",
         "taglib",
         "libusb"
+      ],
+      "frameworks": [
+        "AudioToolbox",
+        "CoreFoundation"
       ]
     },
     "linux": {
       "sources": [
         "native/ipod_core.cpp",
+        "native/ipod_optimise.cpp",
+        "native/ipod_fingerprint.cpp",
         "native/ipod_sysinfo.c",
         "vendor/shim/gdk_pixbuf_shim.c",
         "vendor/libgpod/db-artwork-debug.c",
@@ -104,13 +135,36 @@
         "vendor/hashab/generate_buffer_from_state_mixing.c",
         "vendor/hashab/generate_initial_buffer.c",
         "vendor/hashab/generate_key_material.c",
-        "vendor/hashab/data/data.c"
+        "vendor/hashab/data/data.c",
+        "vendor/chromaprint/src/audio_processor.cpp",
+        "vendor/chromaprint/src/chroma.cpp",
+        "vendor/chromaprint/src/chroma_filter.cpp",
+        "vendor/chromaprint/src/chroma_resampler.cpp",
+        "vendor/chromaprint/src/chromaprint.cpp",
+        "vendor/chromaprint/src/fft.cpp",
+        "vendor/chromaprint/src/fft_lib_kissfft.cpp",
+        "vendor/chromaprint/src/fingerprint_calculator.cpp",
+        "vendor/chromaprint/src/fingerprint_compressor.cpp",
+        "vendor/chromaprint/src/fingerprint_decompressor.cpp",
+        "vendor/chromaprint/src/fingerprint_matcher.cpp",
+        "vendor/chromaprint/src/fingerprinter.cpp",
+        "vendor/chromaprint/src/fingerprinter_configuration.cpp",
+        "vendor/chromaprint/src/image_builder.cpp",
+        "vendor/chromaprint/src/silence_remover.cpp",
+        "vendor/chromaprint/src/simhash.cpp",
+        "vendor/chromaprint/src/spectrum.cpp",
+        "vendor/chromaprint/src/utils/base64.cpp",
+        "vendor/chromaprint/src/3rdparty/kissfft/kiss_fft.c",
+        "vendor/chromaprint/src/3rdparty/kissfft/kiss_fftr.c"
       ],
       "flags": [
         "-I./vendor/libgpod",
         "-I./vendor/shim",
         "-I./vendor/hashab",
         "-I../../third_party/stb",
+        "-I../../third_party/xxhash",
+        "-I./vendor/chromaprint/src",
+        "-I./vendor/chromaprint/src/3rdparty/kissfft",
         "-DHAVE_CONFIG_H"
       ],
       "pkg": [
@@ -137,6 +191,8 @@
     "rpi1": {
       "sources": [
         "native/ipod_core.cpp",
+        "native/ipod_optimise.cpp",
+        "native/ipod_fingerprint.cpp",
         "native/ipod_sysinfo.c",
         "vendor/shim/gdk_pixbuf_shim.c",
         "vendor/libgpod/db-artwork-debug.c",
@@ -167,13 +223,36 @@
         "vendor/hashab/generate_buffer_from_state_mixing.c",
         "vendor/hashab/generate_initial_buffer.c",
         "vendor/hashab/generate_key_material.c",
-        "vendor/hashab/data/data.c"
+        "vendor/hashab/data/data.c",
+        "vendor/chromaprint/src/audio_processor.cpp",
+        "vendor/chromaprint/src/chroma.cpp",
+        "vendor/chromaprint/src/chroma_filter.cpp",
+        "vendor/chromaprint/src/chroma_resampler.cpp",
+        "vendor/chromaprint/src/chromaprint.cpp",
+        "vendor/chromaprint/src/fft.cpp",
+        "vendor/chromaprint/src/fft_lib_kissfft.cpp",
+        "vendor/chromaprint/src/fingerprint_calculator.cpp",
+        "vendor/chromaprint/src/fingerprint_compressor.cpp",
+        "vendor/chromaprint/src/fingerprint_decompressor.cpp",
+        "vendor/chromaprint/src/fingerprint_matcher.cpp",
+        "vendor/chromaprint/src/fingerprinter.cpp",
+        "vendor/chromaprint/src/fingerprinter_configuration.cpp",
+        "vendor/chromaprint/src/image_builder.cpp",
+        "vendor/chromaprint/src/silence_remover.cpp",
+        "vendor/chromaprint/src/simhash.cpp",
+        "vendor/chromaprint/src/spectrum.cpp",
+        "vendor/chromaprint/src/utils/base64.cpp",
+        "vendor/chromaprint/src/3rdparty/kissfft/kiss_fft.c",
+        "vendor/chromaprint/src/3rdparty/kissfft/kiss_fftr.c"
       ],
       "flags": [
         "-I./vendor/libgpod",
         "-I./vendor/shim",
         "-I./vendor/hashab",
         "-I../../third_party/stb",
+        "-I../../third_party/xxhash",
+        "-I./vendor/chromaprint/src",
+        "-I./vendor/chromaprint/src/3rdparty/kissfft",
         "-DHAVE_CONFIG_H"
       ],
       "pkg": [

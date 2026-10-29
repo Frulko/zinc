@@ -119,6 +119,49 @@ export interface Backup {
   auto: boolean;
 }
 
+/** Tracks that are one song (analyze()). The copy to keep comes first, by this score, criterion after criterion: lossless first,
+ *  then the higher bitrate (within 5% is a tie), the higher sample rate, more tags filled (title, artist, album, album artist,
+ *  genre, composer), a cover, more of the track and disc numbers, a year, then the one added first. */
+export interface DuplicateGroup {
+  /** The copies, the one to keep first. */
+  trackIds: string[];
+  /** Why they are one song: tags (the same title and artist, the same album or one without, durations within 2 s), file
+   *  (byte-identical files) and audio (the same Chromaprint fingerprint); one or more. */
+  reasons: string[];
+  /** The criterion the first copy wins by against the second ("lossless", "320 kbps against 128"...). */
+  keepWhy: string;
+  /** What the score sees of each copy, in trackIds' order ("MP3 · 128 kbps · 44.1 kHz · 4 tags · cover"). */
+  quality: string[];
+  /** Bytes freed by keeping only the first copy. */
+  savedBytes: number;
+}
+
+/** What analyze() finds on the open iPod. Ids are tracks' ids, except emptyPlaylists (playlists' ids). */
+export interface Analysis {
+  groups: DuplicateGroup[];
+  /** Music tracks without a cover. */
+  noArtwork: string[];
+  /** Music tracks without a title, an artist or an album. */
+  missingTags: string[];
+  /** check(): tracks whose file is gone, files no track uses. */
+  missing: string[];
+  orphans: string[];
+  orphanBytes: number;
+  /** Playlists (not smart) without a track. */
+  emptyPlaylists: string[];
+  /** Fingerprints computed by this analysis, taken from the cache, and the files that gave none (unreadable, too short or silent). */
+  fingerprinted: i32;
+  fromCache: i32;
+  noFingerprint: i32;
+}
+
+/** One group to merge: the track kept and the copies removed. */
+export interface MergeGroup { keep: string; remove: string[]; }
+
+/** What a merge did to one group: the copies removed, the bytes freed, the playlist places moved to the kept track, the fields it
+ *  took from the removed copies ("album", "cover"...), its play count after; `error` when the group was left as it was. */
+export interface MergeResult { keep: string; removed: string[]; freedBytes: number; playlistPlaces: i32; filled: string[]; playCount: i32; error: string; }
+
 export interface Spec extends NativeModule {
   /** iPods mounted on this machine (the volumes holding iPod_Control). */
   detect(): Promise<Device[]>;
@@ -177,12 +220,19 @@ export interface Spec extends NativeModule {
   check(): Promise<Check>;
   /** Removes the tracks whose file is missing and deletes the orphan files. Saves at the end. */
   repair(): Promise<Check>;
+  /** Looks for duplicates (tags, identical files and, with `fingerprints`, the audio's Chromaprint fingerprint), music without a
+   *  cover or tags, the files check() finds and empty playlists. Reads the iPod only; the fingerprints are cached on the computer (beside
+   *  the iPod's backups, by track, size and file time), so the next analysis decodes only what changed. */
+  analyze(fingerprints: boolean): Promise<Analysis>;
+  /** Merges each group into its kept track (the tags and cover it lacks, play counts summed, the higher rating, the last played, the
+   *  first added, the removed copies' playlist places), then removes the other copies and their files; one save at the end. */
+  merge(groups: MergeGroup[]): Promise<MergeResult[]>;
   /** Mounts the disk `device` (disk4 on macOS, sdb2 on Linux), or with '' every iPod plugged in but not mounted (macOS: the
    *  external disks whose media name says iPod). Changes nothing on the iPod. */
   mount(device: string): Promise<void>;
   /** Flushes, closes and ejects (diskutil on macOS, udisksctl or umount on Linux). */
   eject(mountpoint: string): Promise<void>;
-  /** phase: copy | add | download | artwork | save | backup | restore; done/total: items (copy: bytes of the current file in `detail`). */
+  /** phase: copy | add | download | artwork | save | backup | restore | hash | fingerprint | merge; done/total: items (copy: bytes of the current file in `detail`). */
   onProgress(cb: (phase: string, done: i32, total: i32, detail: string) => void): void;
 }
 export default requireNative<Spec>('Ipod');

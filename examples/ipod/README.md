@@ -31,6 +31,11 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   files and folders on the window. The space is checked first; each file gets its result (refused format, not audio).
 - **Backups.** The backups of this iPod on the computer (automatic ones are taken by `zinc:ipod` before the first change of a
   session), Back up now (with or without the music), Restore and Delete after a question; Check and Repair, Eject.
+- **Optimise.** Analyse (it only reads the iPod) finds the duplicates by their tags (title, artist, album, length within 2 s), by
+  identical files and by their sound (Chromaprint fingerprints, cached on the computer), the songs without a cover or tags, the
+  files no track uses and the empty playlists. Each group says why it matched and keeps the most complete copy (lossless, bitrate,
+  sample rate, tags, cover, numbers, year; a click on another copy keeps that one); Merge selected (Allow changes, a question)
+  gives the kept copy the tags, cover, plays, rating and playlist places of the others and removes them with their files.
 - **Transfers and logs.** Every download, add, backup, restore, delete and repair is a job of one queue (one at a time, progress
   from `ipod.onProgress`, Cancel before it starts; the sidebar shows how many and a bar). Every operation is on the Logs page and
   appended to `~/.zinc/ipod/logs/demo.log` (beside the backups).
@@ -45,19 +50,20 @@ src/
 ├── format.ts             # durations, sizes, counts
 ├── state.ts              # iPods found (watched), the open one's library, albums, search, sort, selection, Allow changes
 ├── actions.ts            # what copies or changes: download, add, backup, restore, delete, check, repair, mount, eject
+├── optimise.ts           # the analysis, the duplicate groups ticked and kept, the merge
 ├── services/ipod.ts      # zinc:ipod reads: detect, open and read (again after a change), close
 ├── services/covers.ts    # covers by album, read when shown, freed when dropped
 ├── services/player.ts    # playing from the iPod
 ├── services/transfers.ts # the queue of jobs, one at a time, with their progress
 ├── services/log.ts       # the operations, on the Logs page and in the log file
 ├── components/           # Sidebar, AllowChanges, Button, PodDrawing, StorageBar, AlbumCover, TrackTable, NowPlaying
-└── pages/                # devices, overview, albums, songs, playlists, photos, files, specs, add, backups, transfers, logs
+└── pages/                # devices, overview, albums, songs, playlists, photos, files, specs, add, backups, optimise, transfers, logs
 ```
 
 ## Test
 
 `tests/t1/ipod_demo.sh` makes a fake iPod on a 128 MB disk image, fills it with nine tracks in three albums (two with covers),
-a podcast and a playlist, then drives the app headless through every page (and the albums again in the dark scheme), compares one
+a podcast, a playlist and three duplicates, then drives the app headless through every page (and the albums again in the dark scheme), compares one
 frame hash per page, checks the overview on QuickJS and that nothing is painted while the app is left alone; then it checks the
-iPod's health, drops two files on the window, downloads an album, shows the transfers and the log, and unmounts and mounts the
+iPod's health, drops two files on the window, downloads an album, shows the transfers and the log, analyses the iPod on the Optimise page and merges its duplicates, and unmounts and mounts the
 disk image while the app runs (it closes the iPod, then opens it again).
