@@ -331,6 +331,7 @@ export class UiNode {
   // scrolling (UI-14): 1 vertical, 2 horizontal, 3 both; content size from layout, offset applied at paint/hit time
   scroll: i32 = 0;
   sx: number = 0; sy: number = 0; contentW: number = 0; contentH: number = 0;
+  natW: number = 0;   // the width measure() gave when the whole row was offered, before flex-basis (classic layout)
   vx: number = 0; vy: number = 0; scrolledAt: number = -100000;
   stick: boolean = false; endY: number = 0;   // stickToBottom: follows the end while it shows it; endY is the end the last layout saw
   // scroll physics (ScrollAxis, stepScroll), created on the first user scroll; `live` while a gesture or an
@@ -3123,6 +3124,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     for (const c of kids) {
       pctBase = n.row ? -1 : inner;
       measure(c, n.row ? inner : inner - c.ml - c.mr, innerH);
+      c.natW = c.lw;
       applyBasis(c, n.row, mainAvail);
       if (aspects && c.aspect > 0 && c.h < 0 && c.hFrac === 0 && !c.fullH) {
         const g: number = c.grow > 0 ? c.grow : c.fullW ? 1 : 0;
@@ -3156,6 +3158,22 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
           main += (i > 0 ? gm : 0) + outerW(c);
           if (outerH(c) > cross) cross = outerH(c);
         }
+      }
+    }
+    // a row with room left: the children that grow get it, and one that gets less than the width it was measured at (a flex-basis below
+    // its content) is measured again at that width, so that what wraps in it wraps there and the row takes the height that gives
+    if (n.row && !n.wrap && !aspects && main < inner - 0.5) {
+      let gs: number = 0;
+      for (const c of kids) if (c.grow > 0) gs += c.grow;
+      if (gs > 0) {
+        const free: number = inner - main;
+        let again = false;
+        for (const c of kids) {
+          if (c.grow <= 0) continue;
+          const fw: number = c.lw + free * c.grow / gs;
+          if (c.natW > fw + 0.5) { measure(c, fw, innerH); applyBasis(c, true, mainAvail); again = true; }
+        }
+        if (again) { cross = 0; for (const c of kids) if (outerH(c) > cross) cross = outerH(c); }
       }
     }
     n.lw = (n.row ? main : cross) + n.pl + n.pr;
