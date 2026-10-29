@@ -5,6 +5,7 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- qjs_demos: rn-showcase on QuickJS ignores the prefs (language, notes) saved by earlier runs that the interpreter reads (French and 2 notes against English and 3 on 2026-10-29): zinc:storage seems keyed per engine, and the test runs in the user's ZINC_HOME; give the test its own ZINC_HOME and make the store the same on every engine.
 - ZN-856: fill `plugins/<name>/docs/` for every plugin (overview, a tutorial with `<Steps>`, a screenshot, notes), following docs/reports/plugin-docs-audit/; most engine plugins fall back to `docs/plugins/<name>.md` or the `plugin.json` description.
 - ZN-856: MDX components written in Zinc and rendered at build time, so a plugin can add its own (an unknown component keeps its text with a warning).
 - ZN-856: an API reader over the parser if the token-based reader (an ASI rule of thumb) misreads real code.
