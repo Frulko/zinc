@@ -1589,6 +1589,7 @@ struct Checker {
         if (str) return rewrite("__toNumber(__H0)", {{args[0]}});
         if (num_) return rewrite("__H0", {{args[0]}});
         if (bl) return rewrite("(__H0 ? 1 : 0)", {{args[0]}});
+        if (!rawDyn() && isDyn(at)) return rewrite("__dynNumber(__H0)", {{args[0]}});   // as JavaScript: null 0, undefined NaN, a string parsed
       } else {
         if (str) return rewrite("(__H0.length > 0)", {{args[0]}});
         if (bl) return rewrite("__H0", {{args[0]}});
