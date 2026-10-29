@@ -14,7 +14,7 @@
     "macos": { "width": 1180, "height": 760, "resize": "fill", "growDrawCommands": true },
     "linux": { "width": 1180, "height": 760, "resize": "fill", "growDrawCommands": true }
   },
-  "permissions": ["fs", "dialog", "net", "opener", "menu", "tray", "window"],
+  "permissions": ["fs", "dialog", "net", "opener", "menu", "tray", "window", "media"],
   "requires": ["keyboard", "pointer", "fs", "audio"],
   "icons": ["loader-circle", "arrow-up", "arrow-down", "list-music", "sparkles", "hard-drive", "info", "disc-3", "music", "usb", "radio", "book-audio", "clapperboard", "images", "image", "notebook-pen", "contact", "calendar", "mic", "play", "pause", "skip-back", "skip-forward", "volume", "volume-2", "plus", "download", "archive", "rotate-ccw", "x", "shield-check", "wrench", "arrow-down-up", "circle-check", "circle-x", "lock", "lock-open", "scroll-text", "file-plus", "folder-open", "list-checks", "eject", "check", "chevron-down", "chevron-right", "dot", "copy", "tag", "file-x", "wifi", "trash", "laptop", "speaker", "volume-1", "refresh-cw", "shuffle", "repeat", "repeat-1", "settings", "mic-vocal", "search", "chevron-left", "list-plus", "sliders-horizontal", "list-filter", "minus", "star", "heart", "calendar-heart", "clock", "thumbs-up", "thumbs-down"]
 }

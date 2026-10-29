@@ -31,6 +31,7 @@ import { prepare as prepareSession, startSaving, save as saveSession } from './s
 import { install as installBackground, releaseMode } from './services/background';
 import { onQuit, quitNow } from './services/quit';
 import { release } from './services/player';
+import { install as installNowPlaying } from './services/nowPlaying';
 import { pickerOpen, unfollow, stopServer } from './services/sonos';
 import { Toasts } from './components/Toasts';
 import { HistoryBar } from './components/HistoryBar';
@@ -113,6 +114,7 @@ on('drop', (args: string[]) => {
   dropped.push(args[0]);
 });
 
+installNowPlaying();   // Control Center's Now Playing and the media keys
 installBackground();   // closing the window while Sonos plays from this iPod keeps the app in the menu bar; Cmd+Q asks then
 sys.onSignal('SIGINT', () => { quitNow(); });
 sys.onSignal('SIGTERM', () => { quitNow(); });
