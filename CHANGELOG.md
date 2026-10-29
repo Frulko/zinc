@@ -182,6 +182,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- Sidecar: a screen no longer stops with "capture stopped: Stream was stopped by the system" when another screen comes or goes or the displays change; the capture starts again.
 - Sidecar: a film's rectangle no longer stays on the screen in its video colours once the Mac's screen goes still; its place is sent again exact.
 - iPod: scrolling no longer stutters while the similar artists are fetched from Last.fm: each artist is added to the file instead of rewriting it all.
 - iPod: the Similar artists from Last.fm job shows how many artists it asked of how many, and Cancel stops it (what was fetched is kept); it now fetches every artist in one run instead of 200 per launch.

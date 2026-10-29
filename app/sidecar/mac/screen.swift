@@ -313,10 +313,10 @@ var videoStats = (frames: 0, bytes: 0, encode: 0.0)
 // 24) for 4 s, the virtual display and the screen go to twice that when the screen takes it (+hz:50,60), and back to 60 six seconds after
 // the film. A mirror keeps its display's own refresh
 let rates = (caps.first { $0.hasPrefix("hz:") }?.dropFirst(3).split(separator: ",").compactMap { Int($0) }) ?? []
-var refresh = 60, filmPictures = 0, wanted = 0, wantedFor = 0, switchedAt = 0.0
+var refresh = 60, filmPictures = 0, wanted = 0, wantedFor = 0
 func setRefresh(_ hz: Int) {
     guard let vd = virtualDisplay else { return }
-    refresh = hz; switchedAt = now()
+    refresh = hz
     DispatchQueue.main.async {
         let s = CGVirtualDisplaySettings(); s.hiDPI = hidpi ? 1 : 0
         s.modes = [CGVirtualDisplayMode(width: UInt(PW), height: UInt(PH), refreshRate: Double(hz))]
@@ -504,6 +504,7 @@ func send(_ pb: CVPixelBuffer) {
     rectsSent += cut.count; frameEnds.append((rectsSent, t0)); stats.frames += 1; total.frames += 1
 }
 
+var restarts = [Double]()   // when the capture last started again
 final class Out: NSObject, SCStreamOutput, SCStreamDelegate {
     func stream(_ s: SCStream, didOutputSampleBuffer sb: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .screen, let info = CMSampleBufferGetSampleAttachmentsArray(sb, createIfNecessary: false) as? [[SCStreamFrameInfo: Any]],
@@ -513,9 +514,12 @@ final class Out: NSObject, SCStreamOutput, SCStreamDelegate {
         q.async { more.captured += 1; capturedAt = now(); if waiting != nil { more.dropped += 1 }; waiting = pb; last = pb; pump() }
     }
     func stream(_ s: SCStream, didStopWithError e: Error) {
-        // a display that changed its refresh may end the capture: it starts again
-        if now() - switchedAt < 5 { print("capture: again after the refresh change (\(e.localizedDescription))"); DispatchQueue.main.async { startCapture(0) }; return }
-        die("capture stopped: \(e.localizedDescription)")
+        // macOS ends a capture when the displays change (another screen comes or goes, a mode or refresh changes, the Mac sleeps): it
+        // starts again, the mode set again; only one that keeps stopping (5 times in 30 s) ends the session
+        restarts = restarts.filter { now() - $0 < 30 } + [now()]
+        if restarts.count > 5 { die("capture stopped: \(e.localizedDescription)") }
+        print("capture: again (\(e.localizedDescription))")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { if let vd = virtualDisplay { _ = setMode(vd.displayID) }; startCapture(0) }
     }
 }
 let out = Out()
