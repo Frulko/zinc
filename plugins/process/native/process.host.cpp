@@ -52,9 +52,13 @@ struct HostProcess : NativeProcess, zrt::Poller {
   bool polling = false;
 
   int32_t spawn(zrt::String cmd, zrt::String args, zrt::String cwd, zrt::String env) override {
-    int h = 0;
-    while (h < MAXP && procs[h].used) h++;
-    if (h == MAXP) { strcpy(err_msg, "too many processes"); return -1; }
+    // the slot after the last one given, not the lowest free one: a handle is not given again at once, so an event still on its way for the
+    // ended child (the dev bridge of the web target delivers them a little later) never reaches the new one
+    static int next = 0;
+    int h = -1;
+    for (int k = 0; k < MAXP && h < 0; k++) if (!procs[(next + k) % MAXP].used) h = (next + k) % MAXP;
+    if (h < 0) { strcpy(err_msg, "too many processes"); return -1; }
+    next = (h + 1) % MAXP;
     char *c = cstr(cmd), *a = cstr(args), *d = cstr(cwd), *e = cstr(env);
     char** argv = split(a, 1);
     argv[0] = c;

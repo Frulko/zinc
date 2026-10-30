@@ -249,7 +249,7 @@ Three layers tell a program, and its author, what the browser gives.
 
    ```
    warning W0601: webusb (plugin gphoto2) is not available in firefox (never shipped), safari (never shipped); Chromium browsers only, secure context
-   warning W0602: the native side 'Process' has no browser backend (a plugin's web entry): its calls throw ZnUnsupported
+   warning W0602: the native side 'Process' has no browser backend (a plugin's web entry): its calls throw ZnUnsupported (zinc dev runs it through the dev bridge)
    warning W0603: the program calls processes and signals: it throws ZnUnsupported in the browser
    ```
 
@@ -431,6 +431,22 @@ old function calls the new one, with no reload of the importers.
 
 The existing Fast Refresh of `zinc dev` (D122 to D124) maps live objects of the interpreter to new classes; that machinery is the interpreter's, so the web build reuses its program-side API
 (`import.meta.hot`, `_hotC`, `zinc:ui/solid`'s hooks) and not the swap itself. A save took 55 to 70 ms to reach the page in the fixture of `tests/t1/web_dev.sh`.
+
+### The dev bridge
+
+A plugin whose native side has no browser backend (`zinc:process`, `zinc:lvgl`, `zinc:device`, `zinc:cdp`... the W0602 list) still works under `zinc dev --target web`: the dev
+server starts a small program on QuickJS with the plugin's real native code (`targets/web/bridge-host.mjs`, written to `build/.zinc-web-dev/bridge-host.mjs`) and the page
+calls it. `zinc dev` says which sides it runs (`the native sides Lvgl, Device run on this machine through the dev bridge`) and drops their W0602 lines.
+
+- A call is a synchronous request to `http://127.0.0.1:<port>/call`, as a native call is synchronous; a promise result settles later. The callbacks and settled promises come
+  back in the order the native side made them, each as a task of its own, never inside a call (as on the native event loop).
+- It listens on loopback only, and every request carries a token the dev server writes into the page; a request without it gets 403. With `--lan` there is no bridge (the
+  page would serve other machines) and those calls throw ZnUnsupported.
+- It is for development on your own machine. An export never has one: a page hosted online gets no processes, files or devices from a server, so those calls throw
+  ZnUnsupported there (the online demos use browser backends instead).
+- The set of native sides is read when `zinc dev` starts: a save that adds such a plugin needs `zinc dev` restarted.
+
+`tests/t1/web_bridge.sh` runs a `zinc:process` program through it in headless Chrome.
 
 ## Hosting
 

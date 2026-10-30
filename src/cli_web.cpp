@@ -15,6 +15,7 @@
 #include <fstream>
 #include <map>
 #include <mutex>
+#include <random>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -27,6 +28,7 @@
 #include "cli_pm.h"
 #include "cli_web_deps.h"
 #include "frontend/profile.h"
+#include "platform/platform.h"
 #include "platform/socket.h"
 #include "tc/tc.h"
 #include "yyjson.h"
@@ -183,7 +185,7 @@ std::string webExplain(const std::string& code) {
      "// zinc.json: { \"targets\": { \"web\": { \"browsers\": \"chrome >= 111, firefox >= 115\" } } }\nimport 'zinc:fakeusb';   // W0601: webusb is not in firefox"},
     {"W0602", "The program uses a native side that has no browser backend",
      "A plugin brings its browser version with a \"web\" entry of its plugin.json: either \"entry\" (a module written for the page) or \"native\" and \"impl\" (the functions of its native spec, in JavaScript). "
-     "A native side with neither still loads, and each call of it throws ZnUnsupported.",
+     "A native side with neither still loads, and each call of it throws ZnUnsupported in an export; under zinc dev --target web the dev bridge runs it on your machine.",
      "Use a plugin that has a web entry, add one (docs/targets/web.md, \"Plugins\"), or keep the calls behind supports() of zinc:browser.",
      "import { Process } from 'zinc:process';   // W0602: the native side 'Process' has no browser backend"},
     {"W0603", "The program calls a native service the web target does not have",
@@ -381,7 +383,8 @@ std::string nativeJs(const std::vector<WebPlugin>& used, const std::vector<std::
       "    if (typeof k !== 'string') return undefined;\n"
       "    if (k in t) return t[k];\n"
       "    const e = Z.nativeOf(name), f = e && e.impl[k];\n"
-      "    return t[k] = typeof f === 'function' ? f.bind(e.impl) : () => { throw new Z.ZnUnsupported('plugin ' + name + '.' + k, e ? 'its browser backend does not have it' : 'the plugin has no browser backend'); };\n"
+      "    if (!e && Z.bridge) return t[k] = (...a) => Z.bridge.call(name, k, a);   // zinc dev: the native side on this machine\n"
+      "    return t[k] = typeof f === 'function' ? f.bind(e.impl) : () => { throw new Z.ZnUnsupported('plugin ' + name + '.' + k, e ? 'its browser backend does not have it' : 'the plugin has no browser backend; zinc dev --target web runs it through the dev bridge'); };\n"
       "  } });\n"
       "}\n";
   for (const std::string& r : rowJs) js += "// ---- host rows\n(() => {\n" + r + "\n})();\n";
@@ -453,7 +456,7 @@ Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundl
   const std::string browsers = !a.browsers.empty() ? a.browsers : c.cfg.browsers;
   std::string warnings = webCheckReport(c.browsersJson, browsers, std::vector<std::string>(needs.begin(), needs.end()), "the web host");
   for (const WebPlugin& p : c.used) warnings += webCheckReport(c.browsersJson, browsers, p.needs, "plugin " + p.name);
-  for (const std::string& nm : sc.natives) if (!claimed.count(nm)) warnings += "warning W0602: the native side '" + nm + "' has no browser backend (a plugin's web entry): its calls throw ZnUnsupported\n";
+  for (const std::string& nm : sc.natives) if (!claimed.count(nm)) warnings += "warning W0602: the native side '" + nm + "' has no browser backend (a plugin's web entry): its calls throw ZnUnsupported (zinc dev runs it through the dev bridge)\n";
   std::set<std::string> have = implementedRows(c.runtime);
   const std::vector<RowFile> rf = rowFiles(runtimeDir(a));
   for (const RowFile& f : rf) have.insert(f.names.begin(), f.names.end());
@@ -894,6 +897,8 @@ struct Dev {
   std::map<std::string, std::string> cache;       // "file?v" -> served text
   std::string lastError;
   std::string depsDir, depsKey;                   // the pre-bundled packages of node_modules (cli_web_deps.h), served at /__deps/
+  zn::plat::Pid bridge = -1;                      // the dev bridge (startBridge), -1 when the page needs none
+  std::string bridgeJson;                         // its address and token for the page's config: {"url":...,"token":...}
 };
 
 // the module as the page gets it: its imports carry the version of what changed, `import.meta.hot` is its record, and the functions a user module
@@ -1008,6 +1013,67 @@ bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& 
     d.depsKey = dr.key;
   }
   return true;
+}
+
+// The dev bridge (targets/web/bridge-host.mjs, docs/targets/web.md): the native sides the page has no browser backend for run on this machine,
+// on QuickJS with the plugins' real native code, and the page calls them over loopback with a token. zinc dev only: an export never gets one.
+// ponytail: the set of native sides is read once at start; a save that adds a plugin needs zinc dev restarted.
+void startBridge(Dev& d) {
+  std::set<std::string> claimed;
+  for (const WebPlugin& p : d.cm.used) if (!p.native.empty() && !p.impl.empty()) claimed.insert(p.native);
+  std::map<std::string, std::string> specs;   // native side -> the spec module that requires it (export default requireNative...)
+  static const std::regex nat("requireNative\\d*\\s*\\(\\s*[\"']([A-Za-z0-9_]+)[\"']");
+  for (const auto& [file, m] : d.mods) {
+    const std::string t = readAll(d.stage / file);
+    for (auto it = std::sregex_iterator(t.begin(), t.end(), nat); it != std::sregex_iterator(); ++it) if (!claimed.count((*it)[1])) specs[(*it)[1]] = m.name;
+  }
+  if (specs.empty()) return;
+  std::string names;
+  for (const auto& [n, f] : specs) names += (names.empty() ? "" : ", ") + n;
+  if (d.a.lan) { std::fprintf(stderr, "zinc dev: --lan: the native sides %s have no dev bridge (it serves this machine only); their calls throw ZnUnsupported\n", names.c_str()); return; }
+  int port = 0;
+  {
+    const int s = static_cast<int>(::socket(AF_INET, SOCK_STREAM, 0));
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    socklen_t len = sizeof a;
+    if (::bind(s, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0 && ::getsockname(s, reinterpret_cast<sockaddr*>(&a), &len) == 0) port = ntohs(a.sin_port);
+    zn::plat::sockClose(s);
+  }
+  std::random_device rd;
+  const std::string token = zn::tc::sha256Hex(std::to_string(rd()) + std::to_string(rd()) + std::to_string(rd()) + std::to_string(rd())).substr(0, 32);
+  std::string js = "// written by zinc dev --target web: the dev bridge of this project (targets/web/bridge-host.mjs)\n", mods;
+  int i = 0;
+  for (const auto& [n, f] : specs) { js += "import M" + std::to_string(i) + " from " + jstr(f) + ";\n"; mods += (mods.empty() ? "" : ", ") + jstr(n) + ": M" + std::to_string(i); ++i; }
+  js += "const mods = { " + mods + " }, PORT = " + std::to_string(port) + ", TOKEN = " + jstr(token) + ";\n" + readAll(fs::path(runtimeDir(d.a)) / "bridge-host.mjs");
+  const fs::path host = d.root / "bridge-host.mjs";
+  writeAll(host, js);
+  zn::plat::SpawnOptions o;
+  o.newGroup = true;
+  o.cwd = d.a.dir;
+  o.env = {{"ZINC_BACKGROUND", "1"}, {"ZINC_STEPS", "0"}};
+  d.bridge = zn::plat::spawn({selfExe(), "run", host.string()}, o);
+  for (int k = 0; k < 150 && d.bridge > 0; ++k) {   // up to 15 s: a plugin's native library may be built on first use
+    int code = 0;
+    if (zn::plat::wait(d.bridge, code, false)) { d.bridge = -1; break; }
+    const int s = static_cast<int>(::socket(AF_INET, SOCK_STREAM, 0));
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    a.sin_port = htons(static_cast<std::uint16_t>(port));
+    const bool up = ::connect(s, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0;
+    zn::plat::sockClose(s);
+    if (up) { d.bridgeJson = "{\"url\":" + jstr("http://127.0.0.1:" + std::to_string(port)) + ",\"token\":" + jstr(token) + "}"; break; }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  if (d.bridgeJson.empty()) {
+    if (d.bridge > 0) zn::plat::stop(d.bridge);
+    d.bridge = -1;
+    std::fprintf(stderr, "zinc dev: the dev bridge for %s did not start (its output is above); their calls throw ZnUnsupported\n", names.c_str());
+    return;
+  }
+  std::fprintf(stderr, "zinc dev: the native sides %s run on this machine through the dev bridge (zinc dev only: an export has no bridge)\n", names.c_str());
 }
 
 void connection(Dev* d, int fd) {
@@ -1172,6 +1238,13 @@ int devWeb(const WebArgs& a) {
   bool refreshable = false;
   if (!restage(d, log, changed, refreshable, true)) { std::fprintf(stderr, "zinc dev: %s", log.c_str()); d.lastError = log; if (!a.prepare.empty()) return 1; }
   d.cm = analyse(a, d.stage);
+  if (a.prepare.empty()) startBridge(d);
+  if (!d.bridgeJson.empty()) {   // the W0602 lines of the sides the bridge answers would say the opposite of what happens
+    std::string kept, line;
+    std::istringstream rs(d.cm.report);
+    while (std::getline(rs, line)) if (line.find("warning W0602") == std::string::npos) kept += line + "\n";
+    d.cm.report = kept;
+  }
   std::fputs(d.cm.report.c_str(), stderr);
   // the page and the runtime files, as they are (no hashes, no minify: the browser's devtools read them)
   const bool dom = d.cm.cfg.render == "dom";
@@ -1193,12 +1266,15 @@ int devWeb(const WebArgs& a) {
   }
   std::vector<Asset> assets = listAssets(a.dir);
   for (Asset& as : assets) as.url = as.name;
-  const std::string cfg = configJson(a, d.cm.cfg, d.cm, assets, "./stage/" + d.entry, a.prepare.empty(), dom ? "./dom.js" : "", "./hmr.js");
+  std::string cfg = configJson(a, d.cm.cfg, d.cm, assets, "./stage/" + d.entry, a.prepare.empty(), dom ? "./dom.js" : "", "./hmr.js");
+  if (!d.bridgeJson.empty() && !cfg.empty() && cfg.back() == '}') cfg.insert(cfg.size() - 1, ",\"bridge\":" + d.bridgeJson);
   std::string page = pageFor(d.cm.cfg, cfg, "", true, false, false, "", "./native.js");
   page += "<script type=\"module\" src=\"./runtime.js\"></script>\n</body>\n</html>\n";
   writeAll(d.site / "index.html", page);
   if (!a.prepare.empty()) return 0;
-  return serve(d, a.port, a.lan);
+  const int rc = serve(d, a.port, a.lan);
+  if (d.bridge > 0) zn::plat::stop(d.bridge);
+  return rc;
 }
 
 }  // namespace zn::cli

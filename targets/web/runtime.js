@@ -76,8 +76,65 @@ const Z = (G.__zincWeb = {
   /** Throws ZnUnsupported when a feature of features() is missing; plugins call it first. */
   require(feature, why) { if (!FEATURES[feature]) throw new ZnUnsupported(feature, why); },
   nativeOf(name) { return registry[name]; },
+  bridge: CFG.bridge ? devBridge(CFG.bridge) : null,
   invalidate() { /* set below */ },
 });
+
+// The dev bridge (zinc dev only, docs/targets/web.md): a native side with no browser backend runs on the developer's machine (targets/web/bridge-host.mjs).
+// A call is a synchronous request, as a native call is synchronous. The events of that side (callbacks, settled promises) come with each answer and
+// from a synchronous drain after a long poll says there are some, so they keep the order that side made them; they run as a task of their own,
+// never inside a call, as on the native loop. ponytail: a plugin that gives a freed handle again at once could see an old event reach the new
+// owner (the handle is freed there before the page has run the event); zinc:process rotates its handles for that reason.
+function devBridge({ url, token }) {
+  const fns = new Map(), ids = new WeakMap(), pending = new Map();
+  let polling = false;
+  const enc = (v) => typeof v === 'function' ? { $cb: ids.get(v) ?? (ids.set(v, fns.size + 1), fns.set(fns.size + 1, v), fns.size) }
+    : ArrayBuffer.isView(v) ? { $ta: v.constructor.name, d: Array.from(v) } : v;
+  const dec = (v) => v && typeof v === 'object' && v.$ta ? new G[v.$ta](v.d) : v;
+  function request(method, path, body) {
+    const x = new XMLHttpRequest();
+    x.open(method, url + path, false);
+    x.setRequestHeader('x-zinc-token', token);
+    x.send(body);
+    return JSON.parse(x.responseText);
+  }
+  let queued = [];
+  function run(evs) {
+    if (!evs || !evs.length) return;
+    if (!queued.length) setTimeout(flush, 0);
+    queued.push(...evs);
+  }
+  function flush() {
+    const evs = queued;
+    queued = [];
+    for (const ev of evs) {
+      if (ev.cb !== undefined) { const f = fns.get(ev.cb); if (f) f(...ev.a.map(dec)); continue; }
+      const p = pending.get(ev.p);
+      if (!p) continue;
+      pending.delete(ev.p);
+      if (ev.e !== undefined) p.reject(new Error(ev.e)); else p.resolve(dec(ev.v));
+    }
+  }
+  async function poll() {
+    for (;;) {
+      try {
+        await fetch(url + '/wait', { headers: { 'x-zinc-token': token } });
+        run(request('GET', '/drain', null).ev);
+      } catch (e) { await new Promise((res) => setTimeout(res, 1000)); }
+    }
+  }
+  return {
+    call(name, k, args) {
+      let r;
+      try { r = request('POST', '/call', JSON.stringify({ m: name, k, a: args.map(enc) })); } catch (e) { throw new ZnUnsupported('plugin ' + name + '.' + k, 'the dev bridge does not answer (zinc dev stopped?)'); }
+      if (r.p !== undefined || fns.size) { if (!polling) { polling = true; poll(); } }
+      const settled = r.p === undefined ? null : new Promise((resolve, reject) => pending.set(r.p, { resolve, reject }));
+      run(r.ev);
+      if (r.e !== undefined) throw new Error(name + '.' + k + ': ' + r.e);
+      return settled || dec(r.v);
+    },
+  };
+}
 
 // ---------------------------------------------------------------- environment the bundle expects
 G.process = G.process || { env: {}, argv: ['zinc'], platform: 'browser', exit() {}, stdout: { write: (s) => console.log(String(s).replace(/\n$/, '')) }, stderr: { write: (s) => console.error(String(s).replace(/\n$/, '')) } };

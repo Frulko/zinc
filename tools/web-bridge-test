@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""The dev bridge of zinc dev --target web in headless Chrome (docs/targets/web.md, "The dev bridge"; tests/t1/web_bridge.sh).
+Serves tests/fixtures/web-bridge (zinc:process, which has no browser backend), opens the page and waits for a child's line (a callback) and a
+run() result (a promise) that came through the bridge; then checks that a request without the token is refused and that the bridge stops with zinc dev.
+usage: web-bridge-test <zinc> <project-dir>   Prints one JSON line; exit 1 on a failed step, 77 without Chrome."""
+import json, os, re, socket, subprocess, sys, threading, time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cdp import Chrome, find_chrome
+
+zinc, project = sys.argv[1], os.path.abspath(sys.argv[2])
+if not find_chrome():
+    print("SKIP no Chrome"); sys.exit(77)
+s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
+dev = subprocess.Popen([zinc, "dev", project, "--target", "web", "--port", str(port)], stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=dict(os.environ, ZINC_BACKGROUND="1"), text=True)
+log, steps = [], {}
+def pump():
+    for line in dev.stderr: log.append(line.rstrip())
+threading.Thread(target=pump, daemon=True).start()
+def stop():
+    dev.terminate()
+    try: dev.wait(10)
+    except Exception: dev.kill()
+def fail(why, console=()):
+    steps["failed"] = why
+    print(json.dumps({"steps": steps, "devlog": log[-12:], "console": list(console)[:12]})); stop(); sys.exit(1)
+t0 = time.monotonic()
+while time.monotonic() - t0 < 60 and not any("http://127.0.0.1:%d" % port in l for l in log): time.sleep(0.1)
+if not any("through the dev bridge" in l for l in log): fail("zinc dev did not start the bridge")
+cfg = open(os.path.join(project, "build", ".zinc-web-dev", "site", "index.html")).read()
+url = json.loads(re.search(r'"bridge":(\{[^}]*\})', cfg).group(1))["url"]
+with Chrome(["--window-size=800,500"]) as c:
+    c.open("http://127.0.0.1:%d/" % port)
+    end = time.monotonic() + 20
+    while time.monotonic() < end and not ("stdout: bridge-line" in c.console and "run: 0 bridge-run" in c.console): c._recv(-1, 0.2)
+    if "stdout: bridge-line" not in c.console: fail("no child line through a callback", c.console)
+    steps["callback"] = True
+    if "run: 0 bridge-run" not in c.console: fail("no run() result through a promise", c.console)
+    steps["promise"] = True
+    st = c.eval("fetch(%s + '/call', {method: 'POST', body: '{}'}).then(r => r.status, e => 'error')" % json.dumps(url))
+    if st != 403: fail("a request without the token got %r" % st)
+    steps["token"] = True
+stop()
+try:
+    socket.create_connection(("127.0.0.1", int(url.rsplit(":", 1)[1])), 1).close(); fail("the bridge still listens after zinc dev stopped")
+except OSError: steps["stopped"] = True
+print(json.dumps({"steps": steps}))
