@@ -1622,7 +1622,13 @@ std::uint32_t loweredOffset(const std::vector<SrcPiece>& map, std::uint32_t src)
   return best;
 }
 
-std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags, std::vector<SrcPiece>* map, bool hot, const std::string& devFile) {
+bool importsReact(std::string_view src) {
+  bool react = false;
+  jsxImports(src, lex(src, true), &react);
+  return react;
+}
+
+std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags, std::vector<SrcPiece>* map, bool hot, const std::string& devFile, bool projectReact) {
   std::size_t lt = src.find('<');
   bool maybe = false;
   for (; lt != std::string_view::npos && lt + 1 < src.size(); lt = src.find('<', lt + 1))
@@ -1638,6 +1644,11 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
   try {
     // imports: names to modules (a kit component's explicit import wins over the host tag of the same name); the model
     L.imported = jsxImports(src, L.t, &L.react);
+    if (!L.react && projectReact) {
+      bool solid = false;
+      for (const auto& kv : L.imported) if (kv.second == "zinc:ui/solid" || kv.second == "solid-js") solid = true;
+      L.react = !solid;
+    }
     std::size_t pr = src.find("@jsxHelpers");
     L.lib = L.react ? "zinc:ui/react" : "zinc:ui/solid";
     if (pr != std::string_view::npos) {

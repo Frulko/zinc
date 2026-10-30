@@ -283,6 +283,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- In a React-model app, a component file that does not import React (as React's automatic JSX runtime allows) is compiled in the React model, like the entry; it was compiled as Solid.
 - A JSX child `{cond ? <A/> : items.map(...)}` (a branch that is a list of rows) compiles in React-model files; it was refused with Z0113.
 - `serve()` of `zinc:net` on a port another program holds says which port is busy and what to do, instead of `net.serve: cannot listen`; the `server` template takes its port from `PORT` as `service` does (`PORT=8080 zinc run`, `PORT=0` for a free one) and both print the port they listen on.
 - A program that imports `zinc:audio` (or any module) without using its values, or only for its types, no longer fails with Z0109 `return type of '__set_volume'`: a setter or method with no return type that returns nothing is `void` there too.

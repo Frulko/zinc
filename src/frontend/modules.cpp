@@ -2044,12 +2044,14 @@ struct Loader {
     }
     return loadFile(path, std::move(text));
   }
+  bool projectReact = false;
   std::uint32_t loadFile(const std::string& path, std::string text) {
     auto fi = static_cast<std::uint32_t>(prog.files.size());
     const std::size_t diagsAtStart = prog.diags.size();
     std::string original;
     std::vector<SrcPiece> map;
     bool isTsx = path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0;
+    if (fi == 0) projectReact = importsReact(text);   // the entry's model is the project's (lowerJsx's projectReact)
     if (uiPreset() == "react-native" && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = rewriteReactNativeImports(text, isTsx);   // React Native's own imports (ZN-367.05)
     if (!typesMode && text.find("requireNative<") != std::string::npos && text.find("export function requireNative") == std::string::npos) text = lowerRequireNative(text, prog.diags, fi, prog.ast.natives);
     if (!typesMode && (text.find("zinc:worker'") != std::string::npos || text.find("zinc:worker\"") != std::string::npos))
@@ -2059,7 +2061,8 @@ struct Loader {
       std::size_t before = prog.diags.size();
       const std::set<std::string> classTags = classTagsOf(path, text);
       original = text;
-      text = lowerJsx(text, prog.diags, fi, &classTags, &map, hot && !libraryModule(path), dev && !libraryModule(path) ? shownPath(path) : std::string());
+      text = lowerJsx(text, prog.diags, fi, &classTags, &map, hot && !libraryModule(path), dev && !libraryModule(path) ? shownPath(path) : std::string(),
+                      projectReact && !libraryModule(path));
       if (map.empty()) original.clear();
       else for (std::size_t k = diagsAtStart; k < prog.diags.size(); ++k) if (prog.diags[k].file == fi) prog.diags[k].pos = loweredOffset(map, prog.diags[k].pos);   // in the lowered text, as the parser's
       if (const char* d = std::getenv("ZN_DUMP_JSX")) if (path.find(d) != std::string::npos) std::fprintf(stderr, "=== %s (JSX lowered)\n%s\n", path.c_str(), text.c_str());  // debugging: the plain code a .tsx file became

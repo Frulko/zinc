@@ -20,8 +20,12 @@ namespace zn::frontend {
 // becomes `_hotC('@hot:<Tag>', () => Tag(...))`, its Fast Refresh proxy; the loader replaces the marker with the path of the file that declares it.
 // `devFile` (a dev run, a file of the project: its path as shown): each component call is followed by `_cn(node, 'Tag', 'file:line', 'props as written')`,
 // what the inspector's component tree shows. Empty: nothing is recorded, the program has no trace of it.
+// `projectReact`: the project's entry uses the React model, so a file that imports neither model (a component file of a React app, which
+// React's automatic JSX runtime lets go without `import React`) is lowered in it too, as tsconfig's jsxImportSource does for tsc.
 std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags = nullptr, std::vector<SrcPiece>* map = nullptr,
-                     bool hot = false, const std::string& devFile = "");   // classTags: components declared as classes (this file or a relative import), lowered to _cc in the React model
+                     bool hot = false, const std::string& devFile = "", bool projectReact = false);
+// Whether a file's imports choose the React model (zinc:ui/react, react, inferno).
+bool importsReact(std::string_view src);   // classTags: components declared as classes (this file or a relative import), lowered to _cc in the React model
 
 // The lowercase tags Z0007 names a component for ("view" -> "View", "div" -> "View"...): what `zinc migrate jsx-capitalised-tags` rewrites.
 const std::map<std::string, std::string>& jsxLowercaseTags();
