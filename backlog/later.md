@@ -430,6 +430,9 @@ The next backlog review turns lines into tasks or deletes them.
 - Inspector (ZN-373): Network initiator file:line (needs per-call-site line tables in the interpreter and AOT); the console line at the Runtime.enable replay boundary shows twice; `zinc debug` does not set ZINC_DEV (no component names); component names on --engine quickjs untested; DOMStorage polls every 500 ms instead of a zinc:storage hook; class completion is a generated list, not the style engine's tables; no image request in the Network fixture.
 - UI fonts: no glyph fallback, so ▾▸↑↓ show as "?" in the UI font (the inspector uses + - >> << for now).
 - Headless runs: ZINC_REALTIME does not pace frames, so ZINC_FRAMES is not a duration for screenshot tooling.
+- Threads debugger (D185): `zinc debug` (command line) and `--dap` do not stop in workers yet (DAP could show each worker as a thread); the Inspector's Sources view does not open worker sessions yet (the protocol is there); a worker paused in the debugger keeps the main program from ending (resume or detach it at shutdown).
+- Threads profiler: in `zinc profile --trace`, sampled slices can overlap a worker's onmessage span edges by one sample period, and worker tracks get their name event twice.
+- Render thread, once it lands: record zn_frame_trace stages as a "zinc render" track at the hook point in runtime/gfx.cpp trace_json.
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -671,6 +674,7 @@ The next backlog review turns lines into tasks or deletes them.
 - Inspector: measure the Elements tree and rendered-only filter on examples/ipod's Songs page (VirtualList) with the fake iPod env.
 
 ## Cross-platform pass
+- Threads profiler: check on Linux that `zinc profile` puts samples on each worker thread (SIGPROF delivery; older kernels favour the main thread).
 - Workers: worker.cpp is in the esp32, console and wasm source lists, unbuilt; prove pthread_attr_setstacksize and thread names there.
 - threads (D181): RSS per idle worker and the Genius build time in a worker on the Pi 3B+ and the Nexus 7.
 
