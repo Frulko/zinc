@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cstring>
 #include <functional>
+#include <map>
+#include <tuple>
 
 #include "zbc/zbc.h"
 
@@ -71,10 +73,16 @@ struct TypeTable {
   Module& zm;
   std::uint32_t strCls = ir::kNoClass;
 
+  // the class found for a collection type: the scan of every class for each value was 0.9 of the 1.3 s emit of examples/ipod. Classes are only
+  // appended, so the first match found stays the first match.
+  std::map<std::tuple<int, int, unsigned, int, unsigned>, std::uint16_t> found;
   std::uint16_t coll(CKind k, VType elem, VType key, ir::TypeId t) {
+    const auto id = k == CKind::String ? std::make_tuple(static_cast<int>(k), 0, 0u, 0, 0u)
+                                       : std::make_tuple(static_cast<int>(k), static_cast<int>(elem.cls), elem.cls == Cls::R ? elem.ref : 0u, static_cast<int>(key.cls), key.cls == Cls::R ? key.ref : 0u);   // as VType's ==
+    if (auto it = found.find(id); it != found.end()) return it->second;
     for (std::size_t c = 0; c < zm.classes.size(); ++c) {
       const ClassInfo& ci = zm.classes[c];
-      if (ci.kind == k && (k == CKind::String || (ci.elem == elem && ci.key == key))) return static_cast<std::uint16_t>(c);
+      if (ci.kind == k && (k == CKind::String || (ci.elem == elem && ci.key == key))) return found[id] = static_cast<std::uint16_t>(c);
     }
     ClassInfo info;
     info.name = ir::typeName(im, t);
