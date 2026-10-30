@@ -1,7 +1,8 @@
 """A stand-in for the online services of examples/ipod's Discover, Repair and Lyrics (tests/t1/ipod_discover.sh, ipod_repair.sh,
 ipod_lyrics.sh): it never talks to the real ones. Each request is written as one JSON line to <dir>/requests.jsonl (time, path, query and
 User-Agent). Usage: stub.py <dir> <port file>.
-  /2.0/            Last.fm GET: artist.gettopalbums, artist.gettoptracks (Cassius), artist.getcorrection (any case of "daft punk")
+  /2.0/            Last.fm GET: artist.gettopalbums, artist.gettoptracks (Cassius), artist.getcorrection (any case of "daft punk"),
+                   artist.getsimilar (none)
   /ws/2/release    MusicBrainz release search (Moon Safari by Air) and /ws/2/release-group/<id>?inc=genres
   /release/<id>/front-500   the Cover Art Archive: a redirect to /img/<id>.png, a 64x64 PNG
   /api/get         LRCLIB: synced lyrics of "Sing Along" by Lyric Band, plain ones of "Plain Song", 404 otherwise"""
@@ -56,6 +57,8 @@ class H(http.server.BaseHTTPRequestHandler):
             if m == 'artist.getcorrection':
                 name = 'Daft Punk' if a.lower() == 'daft punk' else a
                 return self.reply(200, {'corrections': {'correction': {'artist': {'name': name}}}})
+            if m == 'artist.getsimilar':   # the app asks it in the background once a key is set: no neighbours here
+                return self.reply(200, {'similarartists': {'artist': [], '@attr': {'artist': a}}})
             return self.reply(400, {'error': 3, 'message': 'Invalid Method'})
         if u.path == '/ws/2/release':
             q = p.get('query', '')

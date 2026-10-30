@@ -69,7 +69,7 @@ monotone() {   # monotone <name> <values> <down|up> <last> [fewest]: at least <f
 
 # ---- 1. this computer: Songs (frame 41), the first song double-clicked (81), the moon (121), 15 minutes (141)
 cat > local.input <<'IN'
-41 move 60 363
+41 move 60 393
 42 down
 43 up
 81 move 500 212
@@ -101,7 +101,7 @@ cat > sonos.input <<'IN'
 241 move 1000 107
 242 down
 243 up
-261 move 60 363
+261 move 60 393
 262 down
 263 up
 301 move 500 212
