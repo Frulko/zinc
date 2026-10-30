@@ -252,9 +252,11 @@ Its panels (one file each in `app/inspector/`):
 - **Storage**: the key/values (view, edit, add, delete, clear all, updated live) and the SQLite databases: tables, schema, rows by pages
   of 50, a read-only query, and *Run as write...* behind a confirmation (dev runs only).
 - **Console**, with a filter; **Screen**, with the highlighted node drawn over it; **Sources** (above); **Performance** (above).
-- **Pick** (Chrome's inspect arrow): hover the Screen view or the program's own window to highlight the node there, click to select it in
-  Elements (the tree opens to it); the click does not reach the app. In a dev run, Cmd/Ctrl+Shift+C in the program starts it too, Escape
-  ends it.
+- **Pick** (Chrome's inspect arrow): hover the Screen view or the program's own window to highlight the node there with Chrome's overlay
+  (margin, border, padding and content boxes, a tooltip with its component, classes, size and a text's font and colour); ArrowUp
+  highlights its parent (a box the pointer cannot reach on its own), ArrowDown comes back. A click selects it in Elements (the tree opens and
+  scrolls to it, Styles shows it) and ends the pick; the click does not reach the app. In a dev run, Cmd/Ctrl+Shift+C in the program starts
+  it too; Escape ends it, in the program or in the inspector.
 - **Pause / Resume / Step frame** freeze the whole program as Chrome pauses a page (`Zinc.setPaused {paused}`, `Zinc.stepFrame`,
   `Zinc.getPaused`, the event `Zinc.pausedChanged`; F8 or Cmd/Ctrl+\ in the program window of a dev run). While paused no frame callback,
   timer or interval runs, input is dropped, the clock (`performance.now`, `Date.now`, the timers) stops and goes on from there at the resume,

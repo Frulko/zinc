@@ -302,7 +302,6 @@ export async function select(at: i32): Promise<void> {
 export async function readStyles(): Promise<void> {
   const id = target();
   if (id < 0) { setStyles([]); setBox(''); setBoxLines([]); setRules([]); setClasses([]); setDecls([]); setStageAttrs([]); return; }
-  call('Overlay.highlightNode', `{"nodeId":${id},"highlightConfig":{}}`);
   const sn = nodeOf(id);
   setStageAttrs(sn !== null && (sn as TNode).stage ? (sn as TNode).attrs.slice(0) : []);
   const computed = await call('CSS.getComputedStyleForNode', `{"nodeId":${id}}`);

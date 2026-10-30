@@ -1,7 +1,8 @@
 #!/bin/sh
 # The Zinc Inspector's Screen view on tests/data/inspector_screen (a dev run): the frames the program streams never carry the highlight (a
 # node highlighted on a still screen sends no frame; the inspector draws the box itself), DOM.getNodeForLocation finds the inner box at a
-# point (and says so when there is nothing), and a pick on the screen highlights that node, then selects it in Elements and ends the pick.
+# point (and says so when there is nothing), and a pick on the screen highlights that node (ArrowUp its parent, ArrowDown back), then
+# selects what is highlighted in Elements (its row shown), ends the pick and leaves no highlight in the program; Escape ends a pick.
 # Then two seconds of the animated program: the frame rate, the size of a frame, its decoding and latency (printed, not checked).
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'kill $target 2>/dev/null; rm -rf "$tmp"' EXIT
@@ -21,7 +22,10 @@ want 'frames sent while a node is highlighted: 0'
 want 'node at 60,60: <View className="w-[40px] h-[30px] bg-rose-600">'
 want 'node at -5,-5: No node found at given location'
 grep -q '^screen hover: \([0-9]*\) = \1, drawn box 48,48,40,30$' "$tmp/dump" || { echo "the hover on the screen is not the node there, drawn at its box"; fail=1; }
-want 'screen pick: <View className="w-[40px] h-[30px] bg-rose-600"> selected, view elements, picking false'
+sky='<View className="absolute left-[40px] top-[40px] w-[120px] h-[60px] p-2 bg-sky-600">'
+want "screen parent: $sky, back true | tip "   # ArrowUp while picking: the parent of the node under the pointer, ArrowDown back
+want "screen pick: $sky selected, view elements, picking false, row true, highlight left in the program false"   # the click picks what is highlighted
+want 'escape: picking false, highlight left false'
 [ $fail = 0 ] || { echo "--- dump:"; head -c 3000 "$tmp/dump"; }
 inspect screenfps 1
 grep '^screen fps: ' "$tmp/dump" || { echo "no frame rate: $(head -c 600 "$tmp/dump")"; fail=1; }

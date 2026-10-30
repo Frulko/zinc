@@ -11,7 +11,7 @@
 // its image as the attribute src (a string field `src`, else the string `name` of its `texture`, as Starling's and PixiJS's textures carry).
 import { stages, Stage, DisplayObject, uiState, setAfterRender, setTreeWatch } from 'zinc:stage';
 import { polygon, line, resetTransform, pointerX, pointerY, pointerDown, buttonEventCount, buttonEventDown } from 'zinc:gfx';
-import { drawingNode, repaint, setAfterPaint } from 'zinc:ui';
+import { drawingNode, repaint, setAfterPaint, inspectTip } from 'zinc:ui';
 
 /** Node ids of the display tree, apart from the zinc:ui handles and text ids of index.ts; a node's text child is its id + STAGE_TEXT. */
 export const STAGE_BASE: i32 = 100000000;
@@ -293,6 +293,9 @@ function drawLit(): void {
   resetTransform();
   polygon(quad.slice(0), 0x3b82f6, 90);
   for (let i = 0; i < 8; i += 2) line(quad[i], quad[i + 1], quad[(i + 2) % 8], quad[(i + 3) % 8], 0x60a5fa);
+  const o = lit as DisplayObject, x0 = Math.min(quad[0], quad[2], quad[4], quad[6]), y0 = Math.min(quad[1], quad[3], quad[5], quad[7]);
+  const w = Math.max(quad[0], quad[2], quad[4], quad[6]) - x0, h = Math.max(quad[1], quad[3], quad[5], quad[7]) - y0;
+  inspectTip(x0, y0, w, h, o.constructor.name + (o.name.length > 0 ? ' "' + o.name + '"' : '') + `  ${Math.round(w)} × ${Math.round(h)}`);   // Chrome's tooltip
 }
 function litOn(s: Stage): boolean { const n = lit; return n !== null && (n as DisplayObject).isOnStage && (n as DisplayObject).stage === s; }
 setAfterRender((s: Stage) => {

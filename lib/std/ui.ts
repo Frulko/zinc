@@ -6145,18 +6145,56 @@ export function frame(dt: number, background: i32): void {
     if (touchSel >= 0) paintTouchSelection();
   }
   lastCommands = commandCount();
-  if (highlight >= 0 && nodes[highlight].alive) {
-    const n = nodes[highlight];
-    boxOf(highlight);  // on the surface: through scroll offsets, transforms and layers
-    rrect(boxX, boxY, n.lw * boxK, n.lh * boxK, 0, 0x3b82f6, 90);
-    border(boxX, boxY, n.lw * boxK, n.lh * boxK, 0, 1, 0x60a5fa, 255);
-  }
+  if (highlight >= 0 && nodes[highlight].alive) drawHighlight(highlight);
   if (afterPaint !== null) (afterPaint as () => void)();
   if (prof) profMark(PROF_PAINT);
 }
 const PROF_APP: i32 = 0, PROF_INPUT: i32 = 1, PROF_ANIM: i32 = 2, PROF_LAYOUT: i32 = 3, PROF_PAINT: i32 = 4;  // gfx.cpp prof phases
 // ---------------------------------------------------------------- inspector hooks (plugins/devtools)
-let highlight: i32 = -1;
+let highlight: i32 = -1, highlightTip = '';
+/** Chrome's inspect overlay over node hd: its margin (orange), border (yellow), padding (green) and content (blue), then the tooltip. */
+function drawHighlight(hd: i32): void {
+  const n = nodes[hd];
+  boxOf(hd);  // on the surface: through scroll offsets, transforms and layers
+  const k = boxK, x = boxX, y = boxY, w = n.lw * k, h = n.lh * k, b = (n.borderW < 0 ? 1 : n.borderW) * k;
+  ring(x - n.ml * k, y - n.mt * k, w + (n.ml + n.mr) * k, h + (n.mt + n.mb) * k, n.mt * k, n.mr * k, n.mb * k, n.ml * k, 0xf6b26b);
+  ring(x, y, w, h, b, b, b, b, 0xffe599);
+  const px = x + b, py = y + b, pw = w - 2 * b, ph = h - 2 * b;
+  ring(px, py, pw, ph, n.pt * k, n.pr * k, n.pb * k, n.pl * k, 0x93c47d);
+  rrect(px + n.pl * k, py + n.pt * k, pw - (n.pl + n.pr) * k, ph - (n.pt + n.pb) * k, 0, 0x6fa8dc, 150);
+  border(x, y, w, h, 0, 1, 0x3b82f6, 255);
+  if (highlightTip !== '') inspectTip(x, y, w, h, highlightTip);
+}
+/** The four strips of a box's side widths (top, right, bottom, left) inside x, y, w, h. */
+function ring(x: number, y: number, w: number, h: number, t: number, r: number, b: number, l: number, c: i32): void {
+  if (t > 0) rrect(x, y, w, t, 0, c, 150);
+  if (b > 0) rrect(x, y + h - b, w, b, 0, c, 150);
+  if (l > 0) rrect(x, y + t, l, h - t - b, 0, c, 150);
+  if (r > 0) rrect(x + w - r, y + t, r, h - t - b, 0, c, 150);
+}
+/** The inspect overlay's tooltip for the box x, y, w, h: its lines under the box (over it when there is no room below), kept inside the
+ *  window. zinc:stage's highlight draws one too (plugins/devtools/stage.ts). */
+export function inspectTip(x: number, y: number, w: number, h: number, tip: string): void {
+  const f = familyFace('sans', 400, false, 12);
+  if (f < 0) return;
+  const lines = tip.split('\n'), lh = 16, pad = 6, W = width(), H = height();
+  let tw: number = 0;
+  for (let i = 0; i < lines.length; i++) {   // a line too long for the window loses the end of its name (before its two spaces, where its size is)
+    let l = lines[i];
+    const cut = l.indexOf('  ') > 0 ? l.indexOf('  ') : l.length;
+    for (let k = cut; k > 1 && textWidth(f, l, 0) > W - 4 - 2 * pad; k--) l = lines[i].slice(0, k - 1) + '…' + lines[i].slice(cut);
+    lines[i] = l;
+    tw = Math.max(tw, textWidth(f, l, 0));
+  }
+  const bw = tw + 2 * pad, bh = lines.length * lh + 2 * pad - 2;
+  let ty = y + h + 6 + bh <= H ? y + h + 6 : y - 6 - bh;
+  ty = Math.max(2, Math.min(H - bh - 2, ty));
+  const tx = Math.max(2, Math.min(W - bw - 2, x));
+  shadow(tx, ty + 2, bw, bh, 4, 6, 0x000000, 60);
+  rrect(tx, ty, bw, bh, 4, 0xffffff, 255);
+  border(tx, ty, bw, bh, 4, 1, 0xcbd5e1, 255);
+  for (let i = 0; i < lines.length; i++) drawText(f, tx + pad, ty + pad + i * lh, lines[i], i === 0 ? 0x881280 : 0x334155, 255, 0);
+}
 /** Root handle, or -1. */
 export function inspectRoot(): i32 { return root; }
 /** A live node, or null (freed or out of range). */
@@ -6170,8 +6208,8 @@ let afterPaint: (() => void) | null = null;
 export function setAfterPaint(f: (() => void) | null): void { afterPaint = f; }
 /** The node under the window point (x, y), the topmost (-1: none): the inspector's DOM.getNodeForLocation. */
 export function inspectHit(x: number, y: number): i32 { if (layoutDirty) layout(); return hit(x, y, HIT_NODE); }
-/** Draws a highlight box over node h (-1: none). */
-export function inspectHighlight(h: i32): void { if (highlight !== h) { highlight = h; paintDirty = true; } }
+/** Draws Chrome's inspect overlay over node h (-1: none): its box model, and `tip` (lines) in a tooltip next to it. */
+export function inspectHighlight(h: i32, tip: string = ''): void { if (highlight !== h || highlightTip !== tip) { highlight = h; highlightTip = tip; paintDirty = true; } }
 /** Interaction state for the inspector: "hover", "focus", "active", "disabled" (space-separated, '' for none). */
 export function inspectState(h: i32): string {
   const n = nodes[h], s: string[] = [];
@@ -6241,17 +6279,21 @@ export function sheetStyle(h: i32, numbers: boolean): UiNode {
   return s;
 }
 let pick: ((x: number, y: number, pressed: boolean) => void) | null = null, pickEnd: (() => void) | null = null, pickDown = false;
+let pickKey: ((key: string) => void) | null = null;
 let pickHeld = false;   // the press that ended the pick, until it is released: not the app's
 /** Pick mode (the DevTools inspect arrow): f gets the pointer's window point each frame, pressed on a click; the app gets no pointer or
- *  key input meanwhile. Escape or Cmd/Ctrl+Shift+C ends it and calls end; null ends it. */
-export function inspectPick(f: ((x: number, y: number, pressed: boolean) => void) | null, end: (() => void) | null = null): void {
+ *  key input meanwhile. Escape or Cmd/Ctrl+Shift+C ends it and calls end; the other keys go to `key` (the inspector's ArrowUp: the parent);
+ *  null ends it. */
+export function inspectPick(f: ((x: number, y: number, pressed: boolean) => void) | null, end: (() => void) | null = null,
+    key: ((key: string) => void) | null = null): void {
   if (f === null && pick !== null) pickHeld = pointerDown();
-  pick = f; pickEnd = end; pickDown = pointerDown();
+  pick = f; pickEnd = end; pickKey = key; pickDown = pointerDown();
 }
 function pickInput(px: number, py: number): void {
   for (let i = 0; i < keyCount(); i++) if (keyKind(i) === KeyKind.Down) {
     const k = keyName(i).toLowerCase(), m = keyMods(i);
     if (k === 'escape' || (k === 'c' && (m & SHIFT) !== 0 && (m & (CTRL | META)) !== 0)) { const e = pickEnd; inspectPick(null); if (e !== null) e(); return; }
+    if (pickKey !== null) (pickKey as (key: string) => void)(keyName(i));
   }
   let pressed = false;
   for (let i = 0; i < buttonEventCount(); i++) if (buttonEventDown(i)) pressed = true;

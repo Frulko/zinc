@@ -17,9 +17,10 @@ import { ThreadsView, watchThreads, threads, threadLine } from './threads';
 import { conn, call, status, setStatus, view, setView, setDevRun, sleep, until, sideW, setSideW, rightW, setRightW, consoleH, setConsoleH } from './state';
 import { ResizeHandle } from 'zinc:ui/kit';
 import { Btn, Flat } from './widgets';
-import { ElementsView, dumpTree } from './tree';
+import { ElementsView, dumpTree, scrollToNode } from './tree';
+import * as ui from 'zinc:ui';
 import { StylesPane } from './styles';
-import { loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, selected, nodeOf, styles, rules, box, target, setProp, label, findNode, inlineText, TNode } from './elements';
+import { loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, selected, nodeOf, styles, rules, box, target, setProp, label, findNode, inlineText, TNode, Row } from './elements';
 import { NetworkView, onNetwork, onReload, dumpNetwork, reqs, pick, Req } from './network';
 import { StorageView, loadStorage, onStorage, changes, dumpStorage, items, pickItem, tables, openTable } from './storage';
 import { SourcesView, DebugPane, onDebugger, resetSources, setWaiting, setPaused, setEnded, dumpDebugger } from './sources';
@@ -76,28 +77,60 @@ async function refreshBox(): Promise<void> {
 /** The arrow: pick mode on or off, here (the Screen view) and in the program (Overlay.setInspectMode), as Chrome's. */
 function setPick(on: boolean): void {
   setPicking(on);
-  setHover(0);
+  setHover(0); hoverBase = 0; hoverUp = 0; hoverNext = [];
   call('Overlay.setInspectMode', on ? '{"mode":"searchForNode","highlightConfig":{}}' : '{"mode":"none","highlightConfig":{}}');
   refreshBox();
 }
-let hoverBusy = false;
+// The pointer's moves over the screen are coalesced: one question on its way at a time, and the last point asked once it is answered, so
+// the hover follows the pointer without a backlog (and without dropping where the pointer stopped).
+let hoverBusy = false, hoverNext: number[] = [];
+let hoverUp: i32 = 0;   // ArrowUp while picking on the screen: how many levels above the node under the pointer
 /** The pointer over the screen at the program's window point (x, y): the node there (DOM.getNodeForLocation, the program's own hit test)
- *  is highlighted; `click` selects it in Elements, the tree opened to it, and ends the pick. */
+ *  is highlighted; `click` selects the highlighted node in Elements, the tree opened and scrolled to it, and ends the pick. */
 async function screenAt(x: number, y: number, click: boolean): Promise<void> {
-  if (hoverBusy && !click) return;   // one question at a time while the pointer moves
+  if (click) { const at = hover() > 0 ? hover() : await nodeAtPoint(x, y); setPick(false); if (at > 0) await picked(at); return; }
+  if (hoverBusy) { hoverNext = [x, y]; return; }
   hoverBusy = true;
-  const r = await call('DOM.getNodeForLocation', `{"x":${Math.round(x)},"y":${Math.round(y)}}`);
+  let px = x, py = y;
+  for (;;) {
+    const id = await nodeAtPoint(px, py);
+    if (picking() && id !== hoverBase) { hoverBase = id; hoverUp = 0; setHover(id); await refreshBox(); }
+    if (hoverNext.length === 0) break;
+    px = hoverNext[0]; py = hoverNext[1]; hoverNext = [];
+  }
   hoverBusy = false;
-  const id: i32 = r.nodeId !== undefined ? r.nodeId : 0;
-  if (click) { setPick(false); if (id > 0) await picked(id); return; }
-  if (id !== hover()) { setHover(id); await refreshBox(); }
 }
-/** A node picked (on the screen or in the program): selected in Elements, its ancestors unfolded. */
+let hoverBase: i32 = 0;   // the node under the pointer (hover() is it, or an ancestor ArrowUp chose)
+async function nodeAtPoint(x: number, y: number): Promise<i32> {
+  const r = await call('DOM.getNodeForLocation', `{"x":${Math.round(x)},"y":${Math.round(y)}}`);
+  const id: i32 = r.nodeId !== undefined ? r.nodeId : 0;
+  return id;
+}
+/** ArrowUp / ArrowDown while picking on the screen: the highlight goes to the parent of the node under the pointer, and back. */
+function hoverLevel(by: i32): void {
+  hoverUp = Math.max(0, hoverUp + by);
+  let n = nodeOf(hoverBase);
+  for (let k = 0; k < hoverUp && n !== null; k++) {
+    const p = (n as TNode).parent;
+    if (p === null) { hoverUp = k; break; }
+    n = p;
+  }
+  if (n !== null && (n as TNode).id !== hover()) { setHover((n as TNode).id); refreshBox(); }
+}
+/** A node picked (on the screen or in the program): selected in Elements, its ancestors unfolded, its row scrolled to, Styles showing it. */
 async function picked(id: i32): Promise<void> {
   if (view() === 'screen') await screen(false);
   setView('elements');
   await select(id);   // its ancestors unfolded
+  await sleep(50);    // the rows of the opened ancestors are laid out
+  scrollToNode(selected());
 }
+// Escape ends the pick (on the screen, and in the program, which ends its own on its Escape); the arrows go up and down the hovered node's ancestors.
+ui.onKey((e: ui.KeyEvent) => {
+  if (!picking()) return;
+  if (e.key === 'Escape') { e.preventDefault(); setPick(false); }
+  else if (view() === 'screen' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); hoverLevel(e.key === 'ArrowUp' ? 1 : -1); }
+});
 
 // The apps of the paired devices: `zinc device inspect --all` forwards the inspector of each to a port of this machine and names it, one line
 // "<port> <device> <app>" each, then "ready"; it ends when this program does. ZINC names the engine to run, else the zinc of PATH.
@@ -255,9 +288,17 @@ function TargetRow(p: { t: Target }): i32 {   // the program card: its name, the
 // The frame fitted into the view with its proportions: its place in the Canvas (left, top, width, height), set by each draw.
 const fit: number[] = [0, 0, 1, 1];
 function quadBox(q: number[], i: i32): number[] { return [q[i], q[i + 1], q[i + 2] - q[i], q[i + 5] - q[i + 1]]; }
-function ScreenView(): i32 {   // the last frame, and over it the highlighted node's margin (orange), border box (blue) and content (light blue)
+/** The Screen view's tooltip line: the node highlighted, its size; while picking, how to reach its parent. */
+function screenTip(): string {
+  const id = picking() && hover() > 0 ? hover() : target(), n = nodeOf(id), q = shown();
+  if (n === null || q.length < 24) return picking() ? 'Pick: click a node of the screen (Escape cancels)' : '';
+  const b = quadBox(q, 8);
+  return label(n as TNode) + '  ' + Math.round(b[2]) + ' × ' + Math.round(b[3]) + (picking() ? '   ↑ parent · ↓ back · Esc cancel' : '');
+}
+function ScreenView(): i32 {   // the last frame, and over it the highlighted node's margin (orange), padding (green) and content (blue)
   const point = (e: PointerEvent): number[] => [(e.x - fit[0]) * devW / fit[2], (e.y - fit[1]) * devH / fit[3]];
-  return <Canvas className="flex-1" onPointerMove={(e: PointerEvent) => { if (picking()) { const p = point(e); screenAt(p[0], p[1], false); } }}
+  return <View className="flex-col flex-1 min-h-0">
+  <Canvas className="flex-1" onPointerMove={(e: PointerEvent) => { if (picking()) { const p = point(e); screenAt(p[0], p[1], false); } }}
     onPointerDown={(e: PointerEvent) => { if (picking()) { const p = point(e); screenAt(p[0], p[1], true); } }}
     onDraw={(x: i32, y: i32, w: i32, h: i32) => {
     rect(x, y, w, h, 0xe2e8f0);
@@ -270,11 +311,13 @@ function ScreenView(): i32 {   // the last frame, and over it the highlighted no
     const q = shown();
     if (q.length < 24) return;
     const s = fit[2] / devW, ox = x + fit[0], oy = y + fit[1];
-    const colors: u32[] = [0xf6b26b, 0x6fa8dc, 0x9fc5e8];
+    const colors: u32[] = [0xf6b26b, 0x93c47d, 0x6fa8dc];   // Chrome's margin, padding and content
     for (let i = 0; i < 3; i++) { const b = quadBox(q, i * 8); rrect(ox + b[0] * s, oy + b[1] * s, b[2] * s, b[3] * s, 0, colors[i], 110); }
     const b = quadBox(q, 8);
     border(ox + b[0] * s, oy + b[1] * s, b[2] * s, b[3] * s, 0, 1, 0x1d4ed8, 255);
-  }} />;
+  }} />
+  <Text className="px-2 py-1 text-xs font-mono text-slate-700 border-t">{screenTip()}</Text>
+  </View>;
 }
 
 // ---- the Performance view
@@ -459,14 +502,27 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the panels as t
     console.log('node at 60,60: ' + (atNode !== null ? label(atNode as TNode) : 'none'));
     const none = await call('DOM.getNodeForLocation', '{"x":-5,"y":-5}');
     console.log('node at -5,-5: ' + (none.message !== undefined ? none.message : 'found'));
+    const plain: string = (await call('Page.captureScreenshot', '{}')).data;   // the program's frame with no highlight
     setPick(true);
     await sleep(300);   // the program's own pick mode first says what is under its pointer
     await screenAt(60, 60, false);
     await sleep(200);
     console.log('screen hover: ' + hover() + ' = ' + atId + ', drawn box ' + quadBox(shown(), 8).join(','));
-    await screenAt(60, 60, true);
+    ui.sendKey('ArrowUp'); await sleep(200);   // the parent the pointer cannot reach, then back to the node under it
+    const up = nodeOf(hover());
+    ui.sendKey('ArrowDown'); await sleep(200);
+    console.log('screen parent: ' + (up !== null ? label(up as TNode) : 'none') + ', back ' + (hover() === atId) + ' | tip ' + screenTip());
+    ui.sendKey('ArrowUp'); await sleep(200);
+    await screenAt(60, 60, true);   // the click picks what is highlighted: the parent
     const sel = nodeOf(selected());
-    console.log('screen pick: ' + (sel !== null ? label(sel as TNode) : 'none') + ' selected, view ' + view() + ', picking ' + picking());
+    await sleep(300);
+    const after: string = (await call('Page.captureScreenshot', '{}')).data;
+    console.log('screen pick: ' + (sel !== null ? label(sel as TNode) : 'none') + ' selected, view ' + view() + ', picking ' + picking() +
+      ', row ' + (rows().findIndex((r: Row) => r.node.id === selected()) >= 0) + ', highlight left in the program ' + (after !== plain));
+    setPick(true); await sleep(300);
+    ui.sendKey('Escape'); await sleep(300);
+    const esc: string = (await call('Page.captureScreenshot', '{}')).data;
+    console.log('escape: picking ' + picking() + ', highlight left ' + (esc !== plain));
     quit();
     return;
   }

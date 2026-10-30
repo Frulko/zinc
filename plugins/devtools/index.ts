@@ -152,9 +152,32 @@ function nodeAt(x: number, y: number): i32 {
 let lit: i32 = 0;
 function light(id: i32): void {
   lit = id;
-  const o = cast < 0 ? stageNode(id) : null, h = handleOf(id);
+  const o = cast < 0 ? stageNode(id) : null, h = handleOf(id), n = inspectNode(h);
   stageHighlight(o);   // a scene's node: its own turned box
-  inspectHighlight(cast < 0 && o === null && inspectNode(h) !== null ? h : -1);
+  inspectHighlight(cast < 0 && o === null && n !== null ? h : -1, cast < 0 && o === null && n !== null ? tipOf(h, n as UiNode) : '');
+}
+/** The overlay's tooltip for zinc:ui node h, as Chrome's: its component, tag and classes (shortened), its size; a text's font and colour. */
+function tipOf(h: i32, n: UiNode): string {
+  let p = h;
+  while (p >= 0 && componentName(p).length === 0) p = parentOf(p);
+  const tag = TAG_NAMES[n.tag], c = cls(n).split(' ').filter((t: string) => t.length > 0).join('.'), b = screenBox(h);
+  let head = (p >= 0 ? `<${componentName(p)}> ` : '') + tag.charAt(0).toUpperCase() + tag.slice(1) + (c.length > 0 ? '.' + c : '');
+  if (head.length > 64) head = head.slice(0, 63) + '…';
+  const t = `${head}  ${Math.round(b[2])} × ${Math.round(b[3])}`;
+  return n.tag !== TEXT ? t : t + `\nfont ${Math.round(n.size)}px ${n.weight > 0 ? n.weight : n.bold ? 700 : 400} · color ${hex(n.fg)}`;
+}
+/** The node Elements shows `up` levels above node id (ArrowUp while picking: the parent the pointer cannot reach), id itself for 0. */
+function above(id: i32, up: i32): i32 {
+  let at = id;
+  for (let k = 0; k < up; k++) {
+    const o = stageNode(at);
+    if (o !== null) { const pa = (o as DisplayObject).parent; if (pa === null) break; at = stageId(pa as DisplayObject); continue; }
+    let h = parentOf(handleOf(at));
+    for (let n = inspectNode(h); n !== null && plain(h, n); n = inspectNode(h)) h = parentOf(h);
+    if (h < 0) break;
+    at = h + 1;
+  }
+  return at;
 }
 // Inspect mode (the inspector's arrow, or Cmd/Ctrl+Shift+C in the program of a dev run): hovering the app highlights the node, a click
 // selects it in Elements and ends the mode, and reaches nothing in the app; Escape or the shortcut again ends it. A scene drawn alone runs
@@ -172,10 +195,16 @@ function onPicked(id: i32, pressed: boolean): void {
   if (id !== picked && id > 0) Cdp.send(-1, `{"method":"Overlay.nodeHighlightRequested","params":{"nodeId":${id}}}`);
   picked = id;
 }
-function onPick(x: number, y: number, pressed: boolean): void { onPicked(nodeAt(x, y), pressed); }
+let pickBase: i32 = 0, pickUp: i32 = 0;   // the node under the pointer, and how many levels above it ArrowUp went (back to 0 on another node)
+function onPick(x: number, y: number, pressed: boolean): void {
+  const at = nodeAt(x, y);
+  if (at !== pickBase) { pickBase = at; pickUp = 0; }
+  onPicked(at > 0 ? above(at, pickUp) : 0, pressed);
+}
 function startPick(): void {
-  picked = 0;
-  inspectPick(onPick, () => { stagePick(null); light(0); Cdp.send(-1, '{"method":"Overlay.inspectModeCanceled","params":{}}'); });
+  picked = 0; pickBase = 0; pickUp = 0;
+  inspectPick(onPick, () => { stagePick(null); light(0); Cdp.send(-1, '{"method":"Overlay.inspectModeCanceled","params":{}}'); },
+    (k: string) => { if (k === 'ArrowUp' && above(pickBase, pickUp + 1) !== above(pickBase, pickUp)) pickUp++; else if (k === 'ArrowDown' && pickUp > 0) pickUp--; });
   if (inspectRoot() < 0) stagePick((o: DisplayObject, pressed: boolean) => { onPicked(stageId(o), pressed); });
 }
 onKey((e: KeyEvent) => { if (DEV && e.primary && e.shift && e.key.toLowerCase() === 'c' && Cdp.clients() > 0) { startPick(); e.preventDefault(); } });

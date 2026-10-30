@@ -49,7 +49,7 @@ function TreeRow(p: { r: Row }): i32 {
     style={{ paddingLeft: 4 + r.depth * 14 }}
     onPointerDown={(e: ui.PointerEvent) => { if (e.alt && fold) toggleFold(n.id, true); select(n.id); }}
     onDoubleClick={(e: ui.PointerEvent) => { if (t !== null) editText(t as TNode); else if (fold) toggleFold(n.id, false); }}
-    onPointerEnter={(e: ui.PointerEvent) => { highlight(hostOf(n)); }} onPointerLeave={(e: ui.PointerEvent) => { highlight(target()); }}>
+    onPointerEnter={(e: ui.PointerEvent) => { highlight(hostOf(n)); }} onPointerLeave={(e: ui.PointerEvent) => { highlight(-1); }}>
     <View className="w-3 h-4 flex-row items-center justify-center" onPointerDown={(e: ui.PointerEvent) => { if (fold) toggleFold(n.id, e.alt); else select(n.id); }}>
       <Text className="text-[8px] text-slate-500">{fold ? (isOpen(n) ? '▼' : '▶') : ''}</Text>
     </View>
@@ -75,6 +75,8 @@ export function ElementsView(): i32 {
   </View>;
 }
 
+/** Scrolls the tree to node id's row (a node picked in the program or on the screen: selected, its ancestors opened, then shown). */
+export function scrollToNode(id: i32): void { const i = rowIndex(id); if (i >= 0 && list.node >= 0) ui.scrollToRow(list.node, i); }
 function rowIndex(id: i32): i32 { const rs = rows(); for (let i = 0; i < rs.length; i++) if (rs[i].node.id === id && !rs[i].close) return i; return -1; }
 /** Chrome's keys in the tree: up and down move the selection, right opens a folded node (then goes to its first child), left folds an open one
  *  (else goes to its parent). */
