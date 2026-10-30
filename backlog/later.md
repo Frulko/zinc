@@ -474,6 +474,12 @@ The next backlog review turns lines into tasks or deletes them.
 - `tests/t1/agent_inspect.sh` still expects the lowercase `"<view "` in the inspector dump.
 - Inspector Elements: badges sit at the row's right edge rather than right after the tag (needs inline boxes in wrapping text); arrow keys on keyword values could cycle through their keywords as Chrome's Styles pane does.
 
+- Open records (D193): writing an optional field the class lacks throws "object is not extensible" on interpreter and AOT (QuickJS adds it, as JavaScript); a narrower array or record field (`Dog[]` for `Animal[]`, a record with more fields) is refused (a copy would break sharing); writing a wrong-class value into a narrower field throws where JavaScript stores it; writes through a computed object (`list[i].name = v`) to a setter or interface property are refused; a class with a narrower field shared as a record satisfying an interface that needs a box conversion (`number|null`) gets no slot for that property.
+- Narrowing does not carry into nested functions in general: in JSX `{x === undefined ? … : <Text>{x.toUpperCase()}</Text>}` still fails (the text is its own reactive function); an optional-chain condition does not narrow its root (`p?.children !== undefined ? p.children() : …` fails with Z0107).
+- JSX: a component whose props are all optional cannot be written `<Bar />` (Z0104, no props object passed).
+- A record literal with an optional field left out prints `note: undefined`; JavaScript omits the key. An `any` view does not show methods (`(o as any).greet` is undefined).
+- Inliner: mutually recursive functions are no longer inlined (D193); measure recursive-descent code with bench-gate.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
