@@ -5,7 +5,7 @@ import { Icon } from 'zinc:icons';
 import { thumbnail, cancel } from 'zinc:imageio';
 import { THEME } from 'zinc:trieur';
 import { t } from '../i18n';
-import { infoOf, takenAt, type Photo } from '../library';
+import { infoOf, takenAt, cameraName, type Photo } from '../library';
 
 export const CARD_W = 340, CARD_H = 420;
 
@@ -18,7 +18,7 @@ export function PhotoCard(p: { photo: Photo }): any {
   const when = takenAt(ph);
   // ponytail: toLocaleDateString ignores the language on QuickJS (no Intl yet): the months come from the app's words
   const date = () => t.date(when.getDate(), when.getMonth(), when.getFullYear());
-  const camera = i ? `${i.make} ${i.model}`.trim() : '';
+  const camera = i ? cameraName(i) : '';
   const chip = (icon: string, text: string) => <View className="h-[24] px-2 rounded-full flex-row items-center gap-1" style={{ backgroundColor: 0x000000, opacity: 0.55 }}>
     <Icon name={icon} size={12} color={() => 0xffffff} />
     <Text className="text-[11px] text-white">{text}</Text>

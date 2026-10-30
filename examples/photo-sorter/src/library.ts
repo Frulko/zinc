@@ -60,6 +60,12 @@ export function infoOf(p: Photo): ImageInfo | null {
   return infos.get(p.path)!;
 }
 
+/** 'Fujifilm X-T4', 'Canon EOS 5D Mark III' (Canon's model already names the maker), '' when unknown. */
+export function cameraName(i: ImageInfo): string {
+  const make = i.make.trim(), model = i.model.trim();
+  return model.toLowerCase().startsWith(make.toLowerCase().split(' ')[0]!) ? model : `${make} ${model}`.trim();
+}
+
 /** When it was taken: the camera's date, else the file's. */
 export function takenAt(p: Photo): Date {
   const d = infoOf(p)?.date;
@@ -69,7 +75,7 @@ export function takenAt(p: Photo): Date {
 /** What the model may look at: where it comes from, the camera, the shape, when; never the album it went to. */
 export function meta(p: Photo): Record<string, unknown> {
   const i = infoOf(p), when = takenAt(p);
-  const camera = i ? `${i.make} ${i.model}`.trim() : '';
+  const camera = i ? cameraName(i) : '';
   return {
     folder: baseName(dirName(p.path)),
     format: i?.format ?? ext(p.name),
