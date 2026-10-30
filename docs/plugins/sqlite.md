@@ -35,6 +35,7 @@ db.close();
 | `stmt.all(params?, named?)` | Returns `Row[]`. |
 | `stmt.get(params?, named?)` | Returns `Row \| null`. |
 | `stmt.values(params?, named?)` | Returns `unknown[][]`. |
+| `stmt.cursor(params?, named?): Cursor` | The rows a batch at a time: `cursor.next(max)` returns up to `max` rows as `unknown[][]` (fewer only at the end, then `cursor.done`); `cursor.close()` stops early. It has its own native statement. |
 | `stmt.columns()`, `stmt.finalize()` | |
 | `row.get(name): unknown`, `row.text(name)`, `row.number(name)`, `row.bytes(name)`, `row.isNull(name)`, `row.columns`, `row.values` | |
 
@@ -55,6 +56,6 @@ db.close();
   the one prepared longest ago gives its slot back and is prepared again at its next use. `finalize()` frees one at once.
 
 - **Threads.** SQLite runs on the calling thread: a long query blocks the event loop. Keep queries short, or batch
-  them in a transaction.
+  them in a transaction; read a large result with a cursor and give the loop a turn between batches.
 - **Library version.** The sim reports Node's SQLite version (3.51.2 with Node 24.14). Results are the same for
   standard SQL.

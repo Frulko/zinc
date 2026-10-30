@@ -1,5 +1,6 @@
 // zinc:sqlite statements are never collected: prepare() gives the same one for the same SQL, and when the native slots (1024) run out
-// the one prepared longest ago gives its slot back and is prepared again at its next use (plugins/sqlite/index.ts).
+// the one prepared longest ago gives its slot back and is prepared again at its next use (plugins/sqlite/index.ts). A cursor reads a
+// query a batch at a time.
 import { Database } from 'zinc:sqlite';
 
 const db = new Database();
@@ -15,6 +16,17 @@ console.log('evicted and prepared again', again !== null && again.number('c') ==
 const f = db.prepare('SELECT 2');
 f.finalize();
 console.log('finalized leaves the cache', db.prepare('SELECT 2') !== f);
+// a cursor reads a batch at a time with its own statement: the same SQL run between its batches does not disturb it
+const q = db.prepare('SELECT n FROM t WHERE n < ? ORDER BY n');
+const cur = q.cursor([2500]);
+let seen = 0, ordered = true, batches = 0;
+while (!cur.done) {
+  const rows = cur.next(1000);
+  batches++;
+  for (const r of rows) { if ((r[0] as number) !== seen) ordered = false; seen++; }
+  q.all([5]);
+}
+console.log('cursor in batches', seen === 2500 && ordered && batches === 3, cur.next(10).length === 0);
 db.close();
 const db2 = new Database();
 console.log('slots given back at close', db2.prepare('SELECT 3 AS x').get() !== null);

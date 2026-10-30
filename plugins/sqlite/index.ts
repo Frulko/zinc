@@ -79,7 +79,8 @@ export class Statement {
     if (t === 4) { const b: unknown = Blob.fromBytes(S.columnBlob(h, i)); return b; }
     return null;
   }
-  private rows(max: i32): unknown[][] {
+  /** Up to `max` rows (-1: all). The statement is reset after them, unless `more` and `max` rows came: the next call goes on. */
+  rows(max: i32, more: boolean = false): unknown[][] {
     const h = this.live();
     const out: unknown[][] = [];
     const n = S.columnCount(h);
@@ -91,7 +92,7 @@ export class Statement {
       for (let i = 0; i < n; i++) r.push(this.value(h, i));
       out.push(r);
     }
-    S.reset(h);
+    if (!more || out.length < max) S.reset(h);
     return out;
   }
   /** Runs the statement; changes and the last inserted rowid. @throws SqliteError */
@@ -118,7 +119,32 @@ export class Statement {
     this.bind(params, named);
     return this.rows(-1);
   }
+  /** The rows a batch at a time (`Cursor.next`), as better-sqlite3's iterate(): a long read that lets the event loop run between batches.
+   *  The cursor has its own native statement, so the same SQL run meanwhile does not disturb it. @throws SqliteError */
+  cursor(params: unknown[] = [], named: Map<string, unknown> | null = null): Cursor {
+    const own = new Statement(this.db, this.db.slot(this.sql), this.sql);
+    own.bind(params, named);
+    return new Cursor(own);
+  }
   finalize(): void { if (this.h >= 0) S.finalize(this.h); this.h = -1; this.db.forget(this); }
+}
+
+/** A query read a batch at a time (Statement.cursor). */
+export class Cursor {
+  private st: Statement;
+  /** True once the last row was read (the native statement is then freed). */
+  done: boolean = false;
+  constructor(st: Statement) { this.st = st; }
+  /** The next rows (at most `max`) as arrays of values, in column order; fewer than `max` only at the end. @throws SqliteError */
+  next(max: i32): unknown[][] {
+    if (this.done) return [];
+    let r: unknown[][] = [];
+    try { r = this.st.rows(max, true); } catch (e) { this.close(); throw e; }
+    if (r.length < max) this.close();
+    return r;
+  }
+  /** Frees the native statement before the end. */
+  close(): void { if (!this.done) { this.done = true; this.st.finalize(); } }
 }
 
 export interface DatabaseOptions { readOnly?: boolean; create?: boolean }
