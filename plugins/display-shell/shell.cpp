@@ -4,6 +4,7 @@
 // that buffer missed since it was last written, into a free buffer and sends FRAME; the shell RELEASEs a buffer when it leaves the screen.
 // With no free buffer `present` waits on the socket: the shell paces the app, and an app that changes nothing sends nothing. The shell's
 // INPUT is the app's pointer, keys, wheel and touches; QUIT and the socket closing end the app. The wire: plugins/display-remote/remote_proto.h.
+#include "render_bands.h"
 #include "hal.h"
 #include "../display-remote/remote_proto.h"
 #include <sys/mman.h>
@@ -195,12 +196,23 @@ void ensure() {
 
 void s_size(int32_t* w, int32_t* h) { ensure(); if (nbuf) { *w = W; *h = H; } }
 int s_init(const HalConfig*) { ensure(); return 1; }
+// The frame is rasterized in bands of 16 rows on every core, as display-fbdev does (2026-10-31: one thread made an app under the shell
+// up to four times slower than the same app on the screen itself). ZINC_RENDER_THREADS=1: one thread.
+zbands::Pool& pool = *new zbands::Pool;
+struct Band { const HalFrame* f; void (*fn)(uint32_t*, int32_t, int32_t); };
+void band(void* p, int32_t a, int32_t b) { const Band* j = (const Band*)p; j->fn(stage.data() + (size_t)a * W, a, b); }
+void render_bands(const HalFrame* f, void (*fn)(uint32_t*, int32_t, int32_t), int32_t y0, int32_t y1) {
+  static bool started = false;
+  if (!started) { started = true; pool.init(); }
+  Band j{f, fn};
+  pool.run(y0, y1, 16, band, &j);
+}
 void s_present(const HalFrame* f) {
   pump(false);
   if (gone || quit || !nbuf || f->w != W || f->h != H) return;   // another size: the runtime follows surface_size at the next frame
   Box d{f->x0, f->y0, f->x1, f->y1};
-  if (full || f->move) { f->render(stage.data(), 0, H); d = {0, 0, W, H}; full = false; }   // a scroll moved pixels the stage has not
-  else if (!d.empty()) (f->render_damage ? f->render_damage : f->render)(stage.data() + (size_t)d.y0 * W, d.y0, d.y1);
+  if (full || f->move) { render_bands(f, f->render, 0, H); d = {0, 0, W, H}; full = false; }   // a scroll moved pixels the stage has not
+  else if (!d.empty()) render_bands(f, f->render_damage ? f->render_damage : f->render, d.y0, d.y1);
   else return;   // nothing changed: nothing goes
   for (int i = 0; i < nbuf; i++) stale[i] = join(stale[i], d);
   const int g = gen;
