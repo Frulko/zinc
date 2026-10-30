@@ -680,7 +680,12 @@ struct Lowering {
     if (c.negate) cond = "!(" + cond + ")";
     if (react) return "((" + cond + ") ? " + c.yes + " : " + (c.hasNo ? c.no : "_el(6)") + ")";
     std::string v = "__n" + std::to_string(counter++);
-    return "((): i32 => { const " + v + ": i32 = _el(6); _show(" + v + ", () => (" + cond + "), () => " + c.yes + ", " + (c.hasNo ? "() => " + c.no : "null") + "); return " + v + "; })()";
+    return "((): i32 => { const " + v + ": i32 = _el(6); _show(" + v + ", " + showArgs(cond, c) + "); return " + v + "; })()";
+  }
+  // The condition and branches of _show: each branch tests the condition again, so what it narrows (`p.children !== undefined ?
+  // p.children() : ...`) stays narrowed in the branch's own function, as in the ternary written
+  std::string showArgs(const std::string& cond, const Cond& c) {
+    return "() => (" + cond + "), () => ((" + cond + ") ? " + c.yes + " : _el(6)), " + (c.hasNo ? "() => ((" + cond + ") ? _el(6) : " + c.no + ")" : std::string("null"));
   }
 
   // `callee(args)` over [a, b): the open paren, or 0
@@ -1217,7 +1222,7 @@ struct Lowering {
           std::string cond = rw(cj.cb, cj.ce);
           if (cj.negate) cond = "!(" + cond + ")";
           if (react) out.push_back("_append(" + parent + ", (" + cond + ") ? " + cj.yes + " : " + (cj.hasNo ? cj.no : "_el(6)") + ");");
-          else out.push_back("_show(" + parent + ", () => (" + cond + "), () => " + cj.yes + ", " + (cj.hasNo ? "() => " + cj.no : "null") + ");");
+          else out.push_back("_show(" + parent + ", " + showArgs(cond, cj) + ");");
         } else {
           std::string e = rw(a, b);
           out.push_back(react ? "_text(" + parent + ", `${" + e + "}`);" : "_dynText(" + parent + ", () => `${" + e + "}`);");
