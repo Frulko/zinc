@@ -193,6 +193,7 @@
     {"paths": ["tests/data/ui-image-handle/", "tests/t1/ui_image_handle.sh"], "tests": ["ui_image_handle"]},
     {"paths": ["tests/data/ui-text-newline/", "tests/t1/ui_text_newline.sh"], "tests": ["ui_text_newline"]},
     {"paths": ["tests/data/ui-grow-wrap/", "tests/t1/ui_grow_wrap.sh"], "tests": ["ui_grow_wrap"]},
+    {"paths": ["lib/std/ui.ts", "tests/golden/ui-border-box/", "tests/t1/ui_border_box.sh"], "tests": ["ui_border_box", "layout_conformance", "scroll_end"]},
     {"paths": ["examples/ipod-web/", "plugins/ipod/", "tests/t1/ipod_web.sh", "tests/t1/ipod_share.sh"], "tests": ["ipod_web", "ipod_remote", "ipod_share"]},
     {"paths": ["src/frontend/jsx.cpp", "lib/std/ui.ts", "src/res/res.cpp", "targets/web/dom.js", "tests/golden/style-keys/", "tests/t1/style_keys.sh"], "tests": ["style_keys"]},
     {"paths": ["examples/rn-showcase/", "tests/golden/rn-showcase/"], "tests": ["rn_showcase"]},

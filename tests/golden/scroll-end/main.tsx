@@ -55,7 +55,7 @@ render(App, 0xffffff, (dt: number) => {
     ui.scrollTo(page.node, 0, 100000);
     report('from code', page.node, last.node, 14, 10);
     ui.scrollTo(inner.node, 0, 100000);
-    report('nested, from code', inner.node, innerLast.node, 5, 3);
+    report('nested, from code', inner.node, innerLast.node, 5, 3 + 1);   // the padding and the 1 px border under it (ZN-882)
     ui.scrollTo(page.node, 0, 0);
     ui.scrollTo(inner.node, 0, 0);
     for (let k = 0; k < 8; k++) ui.wheelAt(x, y, -3);            // the wheel, more notches than the page is long

@@ -3092,8 +3092,8 @@ function placePics(n: UiNode): void {
       if (kid >= n.children.length) return;
       const m = nodes[n.children[kid++]];
       while (line + 1 < la.length && la[line + 1] <= at) line++;
-      const free = n.lw - n.pl - n.pr - n.lineW[line], al = talignOf(n), off = al === 1 ? Math.floor(free / 2) : al === 2 ? free : 0;
-      place(m, n.x + n.pl + off + runsWidth(n, la[line], at), n.y + n.pt + line * lh + picTop(n, lh, picH(st)), picW(st), picH(st));
+      const free = n.lw - inL(n) - inR(n) - n.lineW[line], al = talignOf(n), off = al === 1 ? Math.floor(free / 2) : al === 2 ? free : 0;
+      place(m, n.x + inL(n) + off + runsWidth(n, la[line], at), n.y + inT(n) + line * lh + picTop(n, lh, picH(st)), picW(st), picH(st));
     }
     at += r[k];
   }
@@ -3150,7 +3150,7 @@ class WrapKey {
 }
 function wrapText(n: UiNode, maxW: number): void {
   const f = fontOf(n), tr = trackPx(n);
-  const avail = maxW - n.pl - n.pr;
+  const avail = maxW - inL(n) - inR(n);
   const flags = (n.ellipsis ? 1 : 0) | (n.balance ? 2 : 0);
   let k = n.wk;
   if (k !== null) {
@@ -3259,7 +3259,7 @@ function orderKids(kids: UiNode[]): void {
 function applyBasis(c: UiNode, row: boolean, mainAvail: number): void {
   if (c.basis < 0 && c.basisFrac <= 0) return;
   const b: number = c.basis >= 0 ? c.basis : Math.round(mainAvail * c.basisFrac);
-  if (row) c.lw = Math.max(b, c.pl + c.pr); else c.lh = Math.max(b, c.pt + c.pb);   // a box is never smaller than its padding (CSS border-box)
+  if (row) c.lw = Math.max(b, inL(c) + inR(c)); else c.lh = Math.max(b, inT(c) + inB(c));   // a box is never smaller than its padding and border (CSS border-box)
 }
 /** A child's main size inside its min and max size, CSS's hypothetical main size: whether a line overflows is decided with it, so a
  *  `flex-1 basis-0 min-w-[200px]` pane counts as 200 px and the siblings that shrink make room for it (its base, 0, still shares a free room). */
@@ -3274,27 +3274,35 @@ function gapMain(n: UiNode): number { return n.row ? (n.gapX >= 0 ? n.gapX : n.g
 function gapCross(n: UiNode): number { return n.row ? (n.gapY >= 0 ? n.gapY : n.gap) : (n.gapX >= 0 ? n.gapX : n.gap); }
 function outerW(c: UiNode): number { return c.lw + c.ml + c.mr; }
 function outerH(c: UiNode): number { return c.lh + c.mt + c.mb; }
+/** A side's border width: its own when set, else the box's (-1: 1 px). A border takes layout space as padding does (CSS border-box, Yoga). */
+function bwOf(n: UiNode, side: number): number { return side >= 0 ? side : n.borderW < 0 ? 1 : n.borderW; }
+/** The inset of the content on each side: padding plus border. */
+function inT(n: UiNode): number { return n.pt + bwOf(n, n.bd.bT); }
+function inR(n: UiNode): number { return n.pr + bwOf(n, n.bd.bR); }
+function inB(n: UiNode): number { return n.pb + bwOf(n, n.bd.bB); }
+function inL(n: UiNode): number { return n.pl + bwOf(n, n.bd.bL); }
 let pctBase: number = -1;   // the width a percent width is taken of: the container's content width, whatever margins the child has (CSS)
 function measure(n: UiNode, maxW: number, maxH: number): void {
   let ownW: number = n.w >= 0 ? n.w : n.wFrac > 0 ? Math.round((pctBase >= 0 ? pctBase : maxW) * n.wFrac) : -1;
   pctBase = -1;
   if (n.maxW >= 0) { if (maxW > n.maxW) maxW = n.maxW; if (ownW > n.maxW) ownW = n.maxW; }   // a box with a max-width never ends wider: what wraps in it is measured for that width, not for the one offered (ZN-737)
-  const ownH: number = n.h >= 0 ? n.h : n.hFrac > 0 ? Math.round(maxH * n.hFrac) : -1;
+  let ownH: number = n.h >= 0 ? n.h : n.hFrac > 0 ? Math.round(maxH * n.hFrac) : -1;
+  if (n.contentBox) { if (ownW >= 0) ownW += inL(n) + inR(n); if (ownH >= 0) ownH += inT(n) + inB(n); }   // box-content: the size is the content's, padding and border come on top
   if (n.tag === TEXT) {
     inheritText(n);
     if (n.children.length > 0) picKids(n, maxW, maxH);
     wrapText(n, ownW >= 0 ? ownW : maxW);
     let widest: number = 0;
     for (const w of n.lineW) if (w > widest) widest = w;
-    n.lw = Math.ceil(widest) + n.pl + n.pr;
-    n.lh = n.lines.length * lineHeightOf(n) + n.pt + n.pb;
+    n.lw = Math.ceil(widest) + inL(n) + inR(n);
+    n.lh = n.lines.length * lineHeightOf(n) + inT(n) + inB(n);
     for (const c of n.children) { const t = node(c); if (t.tag === TEXT) measure(t, maxW, maxH); }
   } else if (n.ed !== null) {
     // text fields: 200 px wide by default (stretch / grow / w-* size them), one line or `rows` lines high
     const e = n.ed as Edit;
     fontOf(n);
-    n.lw = (n.fullW ? 0 : 200) + n.pl + n.pr;
-    n.lh = (e.multi ? (e.rows > 0 ? e.rows : e.fit) : 1) * lineHeightOf(n) + n.pt + n.pb;
+    n.lw = (n.fullW ? 0 : 200) + inL(n) + inR(n);
+    n.lh = (e.multi ? (e.rows > 0 ? e.rows : e.fit) : 1) * lineHeightOf(n) + inT(n) + inB(n);
   } else if (n.tag === IMAGE && n.img >= 0) {
     // intrinsic size, aspect ratio kept when one side is set; w-full / h-full fill (0 basis, then grow/stretch)
     const iw = imageWidth(n.img), ih = imageHeight(n.img);
@@ -3306,8 +3314,8 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
     n.basisCut = false;
     flat(n, kids, false);
     orderKids(kids);
-    const inner: number = (ownW >= 0 ? ownW : maxW) - n.pl - n.pr;
-    const innerH: number = (n.scroll & 1) !== 0 ? 1000000 : (ownH >= 0 ? ownH : maxH) - n.pt - n.pb;
+    const inner: number = (ownW >= 0 ? ownW : maxW) - inL(n) - inR(n);
+    const innerH: number = (n.scroll & 1) !== 0 ? 1000000 : (ownH >= 0 ? ownH : maxH) - inT(n) - inB(n);
     const mainAvail: number = n.row ? inner : innerH;
     let main: number = 0, cross: number = 0, lineMain: number = 0, lineCross: number = 0;
     let count: i32 = 0;
@@ -3381,25 +3389,25 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
           if (c.natW > fw + 0.5 || c.basisCut) { measure(c, fw, innerH); applyBasis(c, true, mainAvail); again = true; }
           else if (c.w >= 0 && c.wFrac === 0 && fw > c.lw + 0.5) {   // a width that grows is its flex-basis (CSS's flex-1 w-0): what wraps in it wraps at the
             const w = c.w;                                             // width it gets, and the row takes the height that gives; the basis stays its width
-            c.w = -1; measure(c, fw, innerH); c.w = w; c.lw = Math.max(w, c.pl + c.pr); again = true;
+            c.w = -1; measure(c, fw, innerH); c.w = w; c.lw = Math.max(w, inL(c) + inR(c)); again = true;
           }
         }
         if (again) { cross = 0; for (const c of kids) if (outerH(c) > cross) cross = outerH(c); }
       }
     }
-    n.lw = (n.row ? main : cross) + n.pl + n.pr;
-    n.lh = (n.row ? cross : main) + n.pt + n.pb;
+    n.lw = (n.row ? main : cross) + inL(n) + inR(n);
+    n.lh = (n.row ? cross : main) + inT(n) + inB(n);
     mDepth--;   // (the absolute children are measured by place(), for the box this node ends with)
   }
   if (n.scroll !== 0) {
     // the viewport is sized by its constraints (grow / full / fixed), the content keeps its natural size
     n.contentW = n.lw; n.contentH = n.lh;
-    if (n.virt !== null) { const v = n.virt as Virtual; n.contentH = (v.variable ? fwPrefix(v, v.count) : v.count * v.itemH) + n.pt + n.pb; }
+    if (n.virt !== null) { const v = n.virt as Virtual; n.contentH = (v.variable ? fwPrefix(v, v.count) : v.count * v.itemH) + inT(n) + inB(n); }
     if ((n.scroll & 1) !== 0) n.lh = ownH >= 0 ? ownH : n.fullH || n.grow > 0 ? 0 : Math.min(n.contentH, maxH);
     if ((n.scroll & 2) !== 0) n.lw = ownW >= 0 ? ownW : n.fullW || n.grow > 0 ? 0 : Math.min(n.contentW, maxW);
   }
-  if (ownW >= 0) n.lw = Math.max(ownW, n.pl + n.pr);
-  if (ownH >= 0) n.lh = Math.max(ownH, n.pt + n.pb);
+  if (ownW >= 0) n.lw = Math.max(ownW, inL(n) + inR(n));
+  if (ownH >= 0) n.lh = Math.max(ownH, inT(n) + inB(n));
   if (n.maxW >= 0 || n.minW >= 0 || n.maxH >= 0 || n.minH >= 0 || n.aspect > 0) { constrainSize(n, n.lw, n.lh); n.lw = csW; n.lh = csH; }
 }
 /** A child's flex-shrink along its parent's main axis. Shrinking is opt-in in classic (-1: never), but `min-w-0` in a row (`min-h-0` in a column)
@@ -3471,7 +3479,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     // A truncated text (ellipsis) is cut again at its final width, as CSS's text-overflow is: flex-shrink can make its box narrower than the measure.
     const k = n.wk;
     if (k !== null) {
-      const inner = vw - n.pl - n.pr, at = (k as WrapKey).avail;
+      const inner = vw - inL(n) - inR(n), at = (k as WrapKey).avail;
       if ((n.lines.length > 1 && inner > at + 0.5) || (n.ellipsis && Math.abs(inner - at) > 0.5)) wrapText(n, vw);
     }
     if (n.lineAt !== null && n.children.length > 0) placePics(n);
@@ -3485,7 +3493,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
   flat(n, kids, false);
   orderKids(kids);
   if (n.reverse) kids.reverse();   // row-reverse / col-reverse: the main axis runs the other way; start and end swap below
-  const iw = w - n.pl - n.pr, ih = h - n.pt - n.pb;
+  const iw = w - inL(n) - inR(n), ih = h - inT(n) - inB(n);
   const innerMain = n.row ? iw : ih, innerCross = n.row ? ih : iw;
   const gm = gapMain(n), gc = gapCross(n);
   const jm: i32 = n.reverse ? (n.justify === 0 ? 2 : n.justify === 2 ? 0 : n.justify) : n.justify;
@@ -3580,7 +3588,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       else if (jm === 3 && n.reverse) pos = free;   // one item: space-between is flex-start, which is the far end of a reversed axis
       else if (jm === 4) { between = gm + free / count; pos = between / 2 - gm / 2; }
       else if (jm === 5) { between = gm + free / (count + 1); pos = between - gm; }
-    }
+    } else if (free < 0 && shrinkTotal === 0 && n.reverse && n.justify === 0) pos = free;   // flex-start of a reversed axis is its far end: what overflows, overflows at the start (CSS, Yoga)
     const frozen = grows > 0 && free > 0 ? growWithLimits(n, kids, start, end, free, grows) : null;
     for (let i = start; i < end; i++) {
       const c = kids[i];
@@ -3612,26 +3620,28 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       const trail: number = autos > 0 && am !== 0 ? (n.row ? ((am >> 1) & 1) : ((am >> 3) & 1)) * autoShare : 0;
       // wrap-reverse: the cross axis is mirrored, lines stack from its end and each line's start is its far edge (ZN-380)
       const cs = n.wrapRev ? innerCross - (crossPos + off + cc + marginCross) + (n.row ? c.mt : c.ml) : crossPos + off + (n.row ? c.mt : c.ml);
-      if (n.row) place(c, rtl ? Math.round(x + n.lw - n.pr - pos - lead - c.mr - cm) : Math.round(x + n.pl + pos + lead + c.ml), Math.round(y + n.pt + cs), cm, cc);   // RTL: rows run from the right edge
-      else place(c, Math.round(x + n.pl + cs), Math.round(y + n.pt + pos + lead + c.mt), cc, cm);
+      if (n.row) place(c, rtl ? Math.round(x + n.lw - inR(n) - pos - lead - c.mr - cm) : Math.round(x + inL(n) + pos + lead + c.ml), Math.round(y + inT(n) + cs), cm, cc);   // RTL: rows run from the right edge
+      else place(c, Math.round(x + inL(n) + cs), Math.round(y + inT(n) + pos + lead + c.mt), cc, cm);
       pos += lead + cm + trail + (n.row ? c.ml + c.mr : c.mt + c.mb) + between;
     }
     crossPos += lineCross + gc + acBetween;
     start = end;
   }
   flat(n, abs, true);
+  // an absolute child is placed in its parent's padding box, inside the border (CSS)
+  const bl = bwOf(n, n.bd.bL), bt = bwOf(n, n.bd.bT), pw = w - bl - bwOf(n, n.bd.bR), ph = h - bt - bwOf(n, n.bd.bB);
   for (const c of abs) {
     // An absolute child is measured here, for the box its parent ends with, not in measure(), for the box its parent was offered: a parent that ends narrower
     // (a column that grows beside a bar, with screens stacked `absolute inset-0` in it) had its screens measured for a width they never get, with fewer lines
     // in a flex-wrap and percent widths too large, and a scroll area in them took its content for shorter than it is placed and stopped before its end (ZN-737).
-    const bw: number = c.left !== UNSET && c.right !== UNSET ? w - c.left - c.right : c.fullW ? w : iw, bh: number = c.top !== UNSET && c.bottom !== UNSET ? h - c.top - c.bottom : c.fullH ? h : ih;
+    const bw: number = c.left !== UNSET && c.right !== UNSET ? pw - c.left - c.right : c.fullW ? pw : iw, bh: number = c.top !== UNSET && c.bottom !== UNSET ? ph - c.top - c.bottom : c.fullH ? ph : ih;
     measure(c, bw, bh);
-    let cw: number = c.fullW ? w : c.lw;
-    let ch: number = c.fullH ? h : c.lh;
-    if (c.left !== UNSET && c.right !== UNSET) cw = w - c.left - c.right;
-    if (c.top !== UNSET && c.bottom !== UNSET) ch = h - c.top - c.bottom;
-    const cx = c.left !== UNSET ? x + c.left : c.right !== UNSET ? x + w - c.right - cw : x + n.pl;
-    const cy = c.top !== UNSET ? y + c.top : c.bottom !== UNSET ? y + h - c.bottom - ch : y + n.pt;
+    let cw: number = c.fullW ? pw : c.lw;
+    let ch: number = c.fullH ? ph : c.lh;
+    if (c.left !== UNSET && c.right !== UNSET) cw = pw - c.left - c.right;
+    if (c.top !== UNSET && c.bottom !== UNSET) ch = ph - c.top - c.bottom;
+    const cx = c.left !== UNSET ? x + bl + c.left : c.right !== UNSET ? x + bl + pw - c.right - cw : x + inL(n);
+    const cy = c.top !== UNSET ? y + bt + c.top : c.bottom !== UNSET ? y + bt + ph - c.bottom - ch : y + inT(n);
     place(c, cx, cy, cw, ch);
   }
   pDepth--;
@@ -3668,7 +3678,7 @@ function rnValue(n: UiNode, p: i32): number {
   if (p === 1011) return n.alignContent;
   if (p === 25) return n.abs ? 1 : n.stat ? 2 : 0;
   if (p === 26) return n.scroll !== 0 ? 2 : n.overflow ? 1 : 0;
-  if (p >= 32 && p <= 35) { const b = n.bd, s = p === 32 ? b.bT : p === 33 ? b.bR : p === 34 ? b.bB : b.bL; return s >= 0 ? s : n.borderW; }   // borders take layout space in Yoga (React Native, CSS)
+  if (p >= 32 && p <= 35) { const b = n.bd, s = p === 32 ? b.bT : p === 33 ? b.bR : p === 34 ? b.bB : b.bL; return bwOf(n, s); }   // borders take layout space in Yoga (React Native, CSS)
   if (p === 89) return n.contentBox ? 1 : 0;
   if (p === 36) return n.pt; if (p === 37) return n.pr; if (p === 38) return n.pb; if (p === 39) return n.pl;
   if (p === 40) return (n.mAuto & 4) !== 0 ? UNSET : n.mt; if (p === 41) return (n.mAuto & 2) !== 0 ? UNSET : n.mr;   // UNSET: auto
@@ -3762,8 +3772,8 @@ function rnRead(n: UiNode, ax: number, ay: number): void {
   if (n.scroll !== 0) {   // the content: the extent of the children (through fragments, which have no box of their own), or the size of a virtual list
     rnCW = 0; rnCH = 0;
     rnExtent(n, n);
-    n.contentW = Math.max(n.lw, rnCW + n.pr); n.contentH = Math.max(n.lh, rnCH + n.pb);
-    if (n.virt !== null) { const v = n.virt as Virtual; n.contentH = (v.variable ? fwPrefix(v, v.count) : v.count * v.itemH) + n.pt + n.pb; }
+    n.contentW = Math.max(n.lw, rnCW + inR(n)); n.contentH = Math.max(n.lh, rnCH + inB(n));
+    if (n.virt !== null) { const v = n.virt as Virtual; n.contentH = (v.variable ? fwPrefix(v, v.count) : v.count * v.itemH) + inT(n) + inB(n); }
     clampScroll(n);
   }
 }
@@ -4398,14 +4408,14 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       const fa = textFgAlpha(h);
       const tai: i32 = fa === 255 ? ai : Math.round(ai * fa / 255);
       for (let i = 0; i < n.lines.length; i++) {
-        const free = n.lw - n.pl - n.pr - n.lineW[i];
+        const free = n.lw - inL(n) - inR(n) - n.lineW[i];
         const off = talignOf(n) === 1 ? Math.floor(free / 2) : talignOf(n) === 2 ? free : 0;
-        const tx = x + (n.pl + off) * kk, ty = y + (n.pt + i * lh + top + n.vshift * n.size) * kk;
+        const tx = x + (inL(n) + off) * kk, ty = y + (inT(n) + i * lh + top + n.vshift * n.size) * kk;
         if (tsNode === h && tsA !== tsB) {   // the selected part of this line, under the text
           const ls = tsStart(n, i), a0 = imax(imin(tsA, tsB), ls), b0 = imin(imax(tsA, tsB), ls + n.lines[i].length);
-          if (b0 > a0) { const x0 = linePrefixW(n, i, a0 - ls), x1 = linePrefixW(n, i, b0 - ls); rrect(tx + x0 * kk, y + (n.pt + i * lh) * kk, (x1 - x0) * kk, lh * kk, 0, n.selBg >= 0 ? n.selBg : SEL_FOCUSED, 110); }
+          if (b0 > a0) { const x0 = linePrefixW(n, i, a0 - ls), x1 = linePrefixW(n, i, b0 - ls); rrect(tx + x0 * kk, y + (inT(n) + i * lh) * kk, (x1 - x0) * kk, lh * kk, 0, n.selBg >= 0 ? n.selBg : SEL_FOCUSED, 110); }
         }
-        const jx = n.talign === 3 && i < n.lines.length - 1 && spaces(n.lines[i]) > 0 ? (n.lw - n.pl - n.pr - n.lineW[i]) / spaces(n.lines[i]) : 0;   // justify: the free width goes to the spaces
+        const jx = n.talign === 3 && i < n.lines.length - 1 && spaces(n.lines[i]) > 0 ? (n.lw - inL(n) - inR(n) - n.lineW[i]) / spaces(n.lines[i]) : 0;   // justify: the free width goes to the spaces
         const lx = kk !== 1 ? 0 : tx, ly = kk !== 1 ? 0 : ty;
         if (kk !== 1) setTf(kk, 0, 0, kk, tx, ty);
         if (n.tsAlpha > 0 && n.lineAt === null && commandsFree() > 32) drawLine(n, f, lx + n.tsX, ly + n.tsY, n.lines[i], n.tsColor >= 0 ? n.tsColor : 0x000000, Math.round(tai * n.tsAlpha / 255), jx, 1);
@@ -4590,7 +4600,7 @@ function ensureRows(n: UiNode, e: Edit): void {
   // indexes each line's own string
   const parts: string[] = e.multi ? s.split('\n') : [s];
   e.gutter = e.lineNumbers ? textWidth(f, '0'.repeat(imax(2, `${parts.length}`.length)), 0) + 16 : 0;
-  const w = n.lw - n.pl - n.pr - e.gutter;
+  const w = n.lw - inL(n) - inR(n) - e.gutter;
   e.rs = []; e.re = [];
   let start: i32 = 0;
   for (const part of parts) {
@@ -4638,17 +4648,17 @@ function offAtX(n: UiNode, e: Edit, r: i32, x: number): i32 {
   }
   return rowEnd(e, r);
 }
-function editTop(n: UiNode, e: Edit): number { return e.multi ? n.pt : n.pt + Math.floor((n.lh - n.pt - n.pb - lineHeightOf(n)) / 2); }
+function editTop(n: UiNode, e: Edit): number { return e.multi ? inT(n) : inT(n) + Math.floor((n.lh - inT(n) - inB(n) - lineHeightOf(n)) / 2); }
 /** Offset under a node-local point. */
 function offAt(n: UiNode, e: Edit, lx: number, ly: number): i32 {
   ensureRows(n, e);
   const lh = lineHeightOf(n);
   const r: i32 = e.multi ? clampI(Math.floor((ly - editTop(n, e) + e.sy) / lh), 0, e.rs.length - 1) : 0;
-  return offAtX(n, e, r, lx - n.pl - e.gutter + e.sx);
+  return offAtX(n, e, r, lx - inL(n) - e.gutter + e.sx);
 }
 /** Scrolls the text so the caret is visible. */
 function revealCaret(n: UiNode, e: Edit): void {
-  const lh = lineHeightOf(n), cw = n.lw - n.pl - n.pr - e.gutter, ch = n.lh - n.pt - n.pb;
+  const lh = lineHeightOf(n), cw = n.lw - inL(n) - inR(n) - e.gutter, ch = n.lh - inT(n) - inB(n);
   const r = rowOf(e, e.caret), cx = xIn(n, e, r, e.caret);
   if (cx - e.sx > cw - 2) e.sx = cx - cw + 2;
   if (cx < e.sx) e.sx = Math.max(0, cx - cw / 3);
@@ -4663,7 +4673,7 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
   const fg = textFg(h);
   if (e.reveal) { revealCaret(n, e); e.reveal = false; e.ay = null; }
   const lh = lineHeightOf(n), f = fontAtScale(n, k), g = e.gutter, s = shown(e);
-  const cl = n.pl + g, cw = n.lw - n.pl - n.pr - g, ch = n.lh - n.pt - n.pb, top = editTop(n, e);
+  const cl = inL(n) + g, cw = n.lw - inL(n) - inR(n) - g, ch = n.lh - inT(n) - inB(n), top = editTop(n, e);
   const base = Math.round((lh - n.size * 1.21) / 2);
   const focused = focus === h;
   const first: i32 = e.multi ? imax(0, Math.floor(e.sy / lh)) : 0;
@@ -4675,7 +4685,7 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
   const chunk = sub(s, c0, c1);
   if (g > 0) {
     // line numbers: the first row of each logical line (brighter on a line with a MARK_LINE, a dot for MARK_GUTTER)
-    clip(x, y + n.pt * k, cl * k, ch * k);
+    clip(x, y + inT(n) * k, cl * k, ch * k);
     let line: i32 = 1;
     for (let r = 1; r <= first; r++) if (e.rs[r] !== e.re[r - 1]) line++;
     for (let r = first; r <= last; r++) {
@@ -4685,15 +4695,15 @@ function paintEdit(h: i32, n: UiNode, e: Edit, x: number, y: number, k: number, 
       let active = false;
       for (let i = 0; i + 3 < mk.length; i += 4) {
         if (mk[i + 3] === MARK_LINE && mk[i] <= e.re[r] && mk[i + 1] >= e.rs[r]) active = true;
-        if (mk[i + 3] === MARK_GUTTER && mk[i] >= e.rs[r] && mk[i] <= e.re[r]) rrect(x + (n.pl / 2 - 3) * k, ry + (lh / 2 - 3) * k, 6 * k, 6 * k, 3 * k, mk[i + 2], ai);
+        if (mk[i + 3] === MARK_GUTTER && mk[i] >= e.rs[r] && mk[i] <= e.re[r]) rrect(x + (inL(n) - n.pl / 2 - 3) * k, ry + (lh / 2 - 3) * k, 6 * k, 6 * k, 3 * k, mk[i + 2], ai);
       }
       drawText(f, x + (cl - 10 - textWidth(n.fontId, num, 0)) * k, ry + base * k, num, active ? editColor(e, 1, fg) : editColor(e, 0, GUTTER_NUM), ai, 0);
     }
     unclip();
     const gl = editColor(e, 2, GUTTER_LINE);
-    if (gl >= 0) rrect(x + (cl - 5) * k, y + n.pt * k, k, ch * k, 0, gl, ai);
+    if (gl >= 0) rrect(x + (cl - 5) * k, y + inT(n) * k, k, ch * k, 0, gl, ai);
   }
-  clip(x + cl * k, y + n.pt * k, cw * k, ch * k);
+  clip(x + cl * k, y + inT(n) * k, cw * k, ch * k);
   const s0 = imin(e.caret, e.anchor), s1 = imax(e.caret, e.anchor);
   const selColor = n.selBg >= 0 ? n.selBg : editColor(e, 3, focused ? SEL_FOCUSED : SEL_BLURRED), selAlpha: i32 = focused ? 110 : 70;
   const guide = editColor(e, 5, -1), indentW = guide >= 0 ? textWidth(n.fontId, '  ', 0) : 0;
@@ -4839,7 +4849,7 @@ function editKey(h: i32, n: UiNode, e: Edit, ev: KeyEvent): boolean {
     return false;
   }
   const lh = lineHeightOf(n);
-  const page: i32 = imax(1, Math.floor((n.lh - n.pt - n.pb) / lh) - 1);
+  const page: i32 = imax(1, Math.floor((n.lh - inT(n) - inB(n)) / lh) - 1);
   if (key === 'ArrowLeft' || key === 'ArrowRight') {
     const left = key === 'ArrowLeft';
     if (s1 > s0 && !sh && !byWord && !byLine) { moveTo(e, left ? s0 : s1, false); return true; }
@@ -4908,13 +4918,13 @@ function editMaxX(n: UiNode, e: Edit): number {
   if (e.widest < 0) {
     // wrapped rows fit the box; otherwise the widest line (measured on the line strings, see ensureRows)
     let w: number = 0;
-    if (e.multi && e.wrap) w = n.lw - n.pl - n.pr - e.gutter - 2;
+    if (e.multi && e.wrap) w = n.lw - inL(n) - inR(n) - e.gutter - 2;
     else for (const part of (e.multi ? shown(e).split('\n') : [shown(e)])) w = Math.max(w, textWidth(n.fontId, part, 0));
     e.widest = w;
   }
-  return Math.max(0, e.widest - (n.lw - n.pl - n.pr - e.gutter) + 2);
+  return Math.max(0, e.widest - (n.lw - inL(n) - inR(n) - e.gutter) + 2);
 }
-function editMaxY(n: UiNode, e: Edit): number { return Math.max(0, e.rs.length * lineHeightOf(n) - (n.lh - n.pt - n.pb)); }
+function editMaxY(n: UiNode, e: Edit): number { return Math.max(0, e.rs.length * lineHeightOf(n) - (n.lh - inT(n) - inB(n))); }
 const editScrollers: i32[] = [];   // text fields whose scroll is animating (wheel easing, rubber band)
 /**
  * Wheel over a scrollable field, like scroll containers: trackpads scroll 1:1 (the OS supplies the momentum) and
@@ -5024,7 +5034,7 @@ export function editView(h: i32): number[] {
   const n = node(h), e = editOf(h);
   ensureRows(n, e);
   const lh = lineHeightOf(n);
-  return [e.sx, e.sy, e.rs.length * lh, n.lh - n.pt - n.pb, lh, e.rs.length, e.gutter, editMaxX(n, e) + n.lw - n.pl - n.pr - e.gutter - 2];
+  return [e.sx, e.sy, e.rs.length * lh, n.lh - inT(n) - inB(n), lh, e.rs.length, e.gutter, editMaxX(n, e) + n.lw - inL(n) - inR(n) - e.gutter - 2];
 }
 /** Scrolls a text field to (x, y) pixels (clamped), stopping any wheel easing. */
 export function scrollEditTo(h: i32, x: number, y: number): void {
@@ -5378,7 +5388,7 @@ function wants(n: UiNode, mode: i32): boolean {
 }
 function editScrolls(n: UiNode, e: Edit): boolean {
   ensureRows(n, e);
-  return e.multi && e.rs.length * lineHeightOf(n) > n.lh - n.pt - n.pb;
+  return e.multi && e.rs.length * lineHeightOf(n) > n.lh - inT(n) - inB(n);
 }
 /** position: sticky; top-N: how far the box is held down from its place while its scroll container is scrolled past it (kept inside its parent). */
 function stickyDy(n: UiNode): number {
@@ -5390,7 +5400,7 @@ function stickyDy(n: UiNode): number {
   let dy = sc.y + sc.sy + n.top - n.y;
   if (dy <= 0) return 0;
   const par = n.parent >= 0 ? nodes[n.parent] : sc;
-  const room = par.y + par.lh - par.pb - (n.y + n.lh);
+  const room = par.y + par.lh - inB(par) - (n.y + n.lh);
   return dy < room ? dy : (room > 0 ? room : 0);
 }
 /** Children in paint order (hit test: the reverse): by z-index, a stable sort; null when none has a z-index or is sticky (the order of the tree). */
@@ -5575,7 +5585,7 @@ function pointerMove(px: number, py: number): void {
     const n = nodes[selecting], e = n.ed as Edit, lh = lineHeightOf(n);
     boxOf(selecting);
     // past the edges the text scrolls one line per move
-    const ly = Math.max(n.pt - lh / 2, Math.min(n.lh - n.pb + lh / 2, (py - boxY) / boxK));
+    const ly = Math.max(inT(n) - lh / 2, Math.min(n.lh - inB(n) + lh / 2, (py - boxY) / boxK));
     moveTo(e, offAt(n, e, (px - boxX) / boxK, ly), true);
   }
   if (tsDrag && tsNode >= 0 && (held & 1) !== 0) { boxOf(tsNode); const nb = tsPosAt(nodes[tsNode], (px - boxX) / boxK, (py - boxY) / boxK); if (nb !== tsB) { tsB = nb; paintDirty = true; } }
@@ -5591,9 +5601,9 @@ function tsStart(n: UiNode, line: i32): i32 { let k = 0; for (let i = 0; i < lin
 function tsPosAt(n: UiNode, lx: number, ly: number): i32 {
   if (n.lines.length === 0) return 0;
   const lh = lineHeightOf(n);
-  const line = Math.max(0, Math.min(n.lines.length - 1, Math.floor((ly - n.pt) / lh)));
-  const text = n.lines[line], free = n.lw - n.pl - n.pr - n.lineW[line];
-  const x = lx - n.pl - (talignOf(n) === 1 ? Math.floor(free / 2) : talignOf(n) === 2 ? free : 0);
+  const line = Math.max(0, Math.min(n.lines.length - 1, Math.floor((ly - inT(n)) / lh)));
+  const text = n.lines[line], free = n.lw - inL(n) - inR(n) - n.lineW[line];
+  const x = lx - inL(n) - (talignOf(n) === 1 ? Math.floor(free / 2) : talignOf(n) === 2 ? free : 0);
   let col = 0, prev = 0;
   for (let c = 1; c <= text.length; c++) {
     const w = linePrefixW(n, line, c);
@@ -5631,7 +5641,7 @@ function caretAt(h: i32, off: i32): void {
   ensureRows(n, e);
   boxOf(h);
   const lh = lineHeightOf(n), r = rowOf(e, off);
-  caretX = boxX + (n.pl + e.gutter + xIn(n, e, r, off) - e.sx) * boxK;
+  caretX = boxX + (inL(n) + e.gutter + xIn(n, e, r, off) - e.sx) * boxK;
   caretY = boxY + (editTop(n, e) + r * lh - e.sy) * boxK;
   caretH = lh * boxK;
 }
@@ -5713,7 +5723,7 @@ function paintTouchSelection(): void {
     rrect(mx, my, mw, mh, android ? 8 : mh / 2, lbg >= 0 ? lbg : 0xffffff, 255);
     clip(mx, my, mw, mh, android ? 8 : mh / 2);
     const r = rowOf(e, e.caret), line = sub(shown(e), e.rs[r], e.re[r]), z = 1.25;
-    const lx = caretX - (n.pl + e.gutter + xIn(n, e, r, e.caret) - e.sx) * boxK;   // where the line starts on the surface
+    const lx = caretX - (inL(n) + e.gutter + xIn(n, e, r, e.caret) - e.sx) * boxK;   // where the line starts on the surface
     setTransform(z, 0, 0, z, caretX - (caretX - lx) * z, my + 4);
     drawText(n.fontId, 0, Math.round((lineHeightOf(n) - n.size * 1.21) / 2), line, textFg(touchSel), 255, 0);
     resetTransform();
