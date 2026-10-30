@@ -437,6 +437,8 @@ The next backlog review turns lines into tasks or deletes them.
 - Covariant arrays (D188) copy instead of sharing: true aliasing (`Dog[]` as `Animal[]`) needs an array reference cast in the IR and AOT; `T[] | null` covariance is not handled yet.
 - Checker: Z0005 "async function without a Promise<T> return type" for async arrow functions and object-literal methods without an annotation (photo-sorter and trieur stop on it, now that their circular-import error is gone).
 - i18n: the German Z5012 and Z5013 entries are missing from i18n/de/diag.json.
+- Covariant promise (D189): the converted promise settles one microtask later than Node's; share the instance if the IR gets a reference cast.
+- iPod worker (D181 step 4): drafts.ts posts 10k tracks as full Track records once per model, so measure the main thread's encode cost (a subset interface may be cheaper); run the Genius bench (GENIUS_BENCH) in the worker and compare the 20-seed ids with the main-thread build.
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
