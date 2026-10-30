@@ -331,6 +331,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `zinc run app.zapp` loads the native plugin libraries the app carries, as a fused app does: an app using `zinc:video` packed on a Mac for a Raspberry Pi runs there without FFmpeg's development packages.
 - `zinc pack --target rpi` (and `zinc device deploy` to a Pi) carries the libraries of plugins the program loads at their first call, such as `zinc:video`, so the app no longer tries to compile them on the device.
 - Updating a Raspberry Pi image no longer compiles the player on the Pi: a release carries it ready to run (the update that failed on a Pi 3 with "cannot read the library of plugin"). The player of a release now includes `zinc:shell`.
 - JSX: a component declared in the same file with the name of a built-in one (`function Button(props) {...}`) is used as that component, as in React, instead of being refused with "unknown attribute".

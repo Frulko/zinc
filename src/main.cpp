@@ -142,6 +142,7 @@ static bool gPackingConsole = false;   // zinc pack --profile psp|vita|n3ds: the
 static std::vector<std::string> gPluginDirs;   // the directories of those plugins: inputs of a compiled run (ZN-605)
 static std::string gBundleOut;                   // `zinc build --bundle ... -o <out>.app`: the bundle to assemble once the program is linked
 static bool gFusedApp = false;                   // this is a fused executable (ZN-319): its archive's native libraries are its own code (ZN-652)
+static bool gPackedApp = false;                  // a fused app or `zinc run x.zapp`: the archive's native libraries are the app's (a plugin with no prebuilt library here, zinc:video)
 // Where a .zapp keeps the native plugin libraries of its program (ZN-652): native/<target>-<arch>/<plugin>/ with the library and its exports.
 static std::string packedTarget() {
 #if defined(__aarch64__)
@@ -187,7 +188,7 @@ static bool packedPlugin(const std::string& module) {
   namespace fs = std::filesystem;
   std::error_code ec;
   const fs::path dir = fs::path(gProjectDir) / "native" / packedTarget();
-  if (!gFusedApp || !fs::is_directory(dir, ec)) return false;
+  if (!gPackedApp || !fs::is_directory(dir, ec)) return false;
   for (const auto& e : fs::directory_iterator(dir, ec)) {
     std::ifstream ex(e.path() / "exports");
     std::string first;
@@ -1861,7 +1862,7 @@ int main(int argc, char** argv) {
     std::string zbc, err;
     std::uint64_t at = 0, size = 0;
     if (fusedArchive(at, size)) {
-      gFusedApp = true;
+      gFusedApp = gPackedApp = true;
       std::string engine;
       if (!unpackZapp(zn::tc::executablePath(), at, size, zbc, err, &engine)) { std::fprintf(stderr, "%s: %s\n", argv[0], err.c_str()); return 1; }
       if (engine.empty()) zbc = chooseAppVersion(zbc);   // a newer version staged or in use (ZN-324.02)
@@ -2568,6 +2569,7 @@ int main(int argc, char** argv) {
       std::string zbc, err;
       if (!unpackZapp(path, 0, 0, zbc, err)) { std::fprintf(stderr, "zinc: %s: %s\n", path.c_str(), err.c_str()); return 1; }
       zbc = chooseAppVersion(zbc);   // a newer version staged or in use (ZN-324.02)
+      gPackedApp = true;
       gOriginalArgs[2] = zbc;
       path = zbc;
     }
