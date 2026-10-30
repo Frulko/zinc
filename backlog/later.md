@@ -456,6 +456,9 @@ The next backlog review turns lines into tasks or deletes them.
 - An open record's literal class gets no vtable getter entries for non-record interfaces with properties it satisfies (rare).
 - Writing through a non-record interface property (`iface.prop = v`) is refused (interface properties are read-only getters); TypeScript allows it, it needs a setter selector.
 
+- Storage: AsyncStorage keys (`@async/…`) that JS-engine apps wrote to the shared `<zinc home>/storage.kv` stay there (only `<name>.` keys migrate), so fatty and other QuickJS apps start with an empty own store; a one-time migration needs a rule for keys no app owns.
+- Info view: the refresh rate is the display the window opened on (`SDL_EVENT_WINDOW_DISPLAY_CHANGED` would follow a move); the JSC heap reading walks the heap at each 1 s refresh (measure on a big program); assets are counted once per process (an asset added under `zinc dev` shows after a restart); a standalone `zinc build` executable has no `ZINC_PROGRAM_INFO` (bake it in as `ZINC_APP_NAME` is).
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -839,3 +842,4 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo 3DS: on the real Old 3DS XL read the `n3ds:` and `sd packs` lines of sdmc:/zinc.log; the heap margin is about 4 MB (34.2 of 38), lower the 16 MB zrt heap if Tokyo uses much less.
 - tokyo 3DS: confirm on the real Old 3DS that the white ground blocks are gone (ZINC_PROFILE=1 counters `draws without their picture`, `chunk loads held back`); Azahar never showed them.
 - Inspector Info card on Linux (/proc/self/statm, /proc/cpuinfo), Windows (GetProcessTimes, GetProcessMemoryInfo) and the Pi's GL path (gl_renderer, SDL_GL_GetSwapInterval vsync).
+- Info view: the refresh-rate key of Linux and Windows `hal_sdl`, and the `js.heap` provider of the JSC module on Linux (WebKitGTK).
