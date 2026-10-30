@@ -894,6 +894,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-891: check on a real Discord call that the UDP voice server answers our RTCP sender reports; without them the round trip shows "--" and Go Live never adapts.
 - ZN-891: a lossy phase in the fake Discord (loss on the voice stream) so the session covers the automatic ultra low data switch; read REMB for the video bitrate.
 
+- ZN-903: load newer pages when a history left after a jump far back is scrolled to its end, instead of only Jump to present.
+- ZN-903: a composer in the thread pane (today the arrow opens the thread as the channel, to write).
+- ZN-903: my roles changed during the session (GUILD_MEMBER_UPDATE for me) do not update the pin permission until the next start.
+- ZN-907: show my own status on my avatar in the user bar (the status picker stays in the official app).
+- ZN-907: guild channels whose permissions differ share one member list (Discord's list id is not read).
+
 ## Cross-platform pass
 - ZN-875: zinc:screen-capture/picker and app icons on the Linux and Windows backends.
 - ZN-873: H.264 decode and encode on Linux (V4L2 M2M or a vendored decoder) for discord-voice video.
