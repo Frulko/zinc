@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Photo sorter demo (examples/photo-sorter): pick one or more folders, then file each picture into album folders (in place or into another folder, moved or copied) by dragging, throwing, a key or the suggestion of a model that learns from the camera, the date and the place; a trash that empties into the system's or puts everything back; undo takes each change back on disk; thumbnails and EXIF from `zinc:imageio`, light or dark, in French or English.
 - `zinc:trieur`: `setLanguage('fr' | 'en')` changes the deck's labels at once (the computer's language at start); the Trieur demo has an FR / EN switch in its sidebar.
 - Trieur demo (examples/trieur): links that a model learns to file, the six layouts, an inbox to triage and flashcards with spaced repetition, light or dark, in English or French.
 - `zinc:trieur`: the trieur card sorter on zinc:ui (`createDeck`, `<Deck>`): file a card by dragging or throwing it onto a zone, by its key or by the suggestion of a model that learns from your choices, several zones at once (hold Shift or the card), undo; six zone layouts, light and dark palettes, English and French labels after the computer's language. trieur's own code runs unchanged (`tools/sync-trieur` brings its updates).

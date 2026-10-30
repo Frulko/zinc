@@ -1,0 +1,64 @@
+{
+  "name": "photo-sorter",
+  "entry": "src/main.tsx",
+  "engine": "quickjs",
+  "app": {
+    "id": "dev.zinc.photo-sorter",
+    "name": "Trieur photos",
+    "version": "0.1.0"
+  },
+  "targets": {
+    "macos": {
+      "width": 1240,
+      "height": 860,
+      "resize": "fill"
+    }
+  },
+  "permissions": [
+    "fs",
+    "dialog",
+    "opener"
+  ],
+  "requires": [
+    "display",
+    "pointer|touch",
+    "keyboard"
+  ],
+  "scheme": "auto",
+  "icons": [
+    "aperture",
+    "archive",
+    "check",
+    "chevron-left",
+    "copy",
+    "corner-down-right",
+    "external-link",
+    "folder",
+    "folder-input",
+    "folder-open",
+    "folder-output",
+    "folder-plus",
+    "folder-tree",
+    "heart",
+    "image",
+    "images",
+    "layers",
+    "library",
+    "map-pin",
+    "move-right",
+    "party-popper",
+    "plane",
+    "plus",
+    "printer",
+    "ratio",
+    "rotate-ccw",
+    "skip-forward",
+    "sparkles",
+    "star",
+    "sun-moon",
+    "trash",
+    "undo-2",
+    "wand-sparkles",
+    "x"
+  ]
+}
