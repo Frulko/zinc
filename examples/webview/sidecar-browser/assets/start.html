@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sidecar Browser</title>
+<style>
+  body { margin: 0; font: 18px -apple-system, system-ui, sans-serif; background: #0f172a; color: #e2e8f0; display: flex; min-height: 100vh; align-items: center; justify-content: center; }
+  main { max-width: 36em; padding: 2em; }
+  h1 { font-size: 2.2em; margin: 0 0 .3em; }
+  p { color: #94a3b8; line-height: 1.5; }
+  .links { display: flex; flex-wrap: wrap; gap: .6em; margin-top: 1.4em; }
+  a { color: #f8fafc; background: #0369a1; padding: .7em 1.1em; border-radius: .6em; text-decoration: none; }
+  #clock { font-variant-numeric: tabular-nums; color: #34d399; }
+</style></head>
+<body><main>
+  <h1>Sidecar Browser</h1>
+  <p>This page runs in WebKit on the Mac and is drawn on this screen by <code>display-sidecar</code>. Type an address on the Mac, or touch a link.</p>
+  <p id="clock"></p>
+  <div class="links">
+    <a href="https://en.m.wikipedia.org/wiki/Special:Random">Random Wikipedia</a>
+    <a href="https://news.ycombinator.com">Hacker News</a>
+    <a href="https://www.openstreetmap.org">OpenStreetMap</a>
+  </div>
+</main>
+<script>setInterval(() => { document.getElementById('clock').textContent = new Date().toLocaleTimeString(); }, 1000);</script>
+</body></html>

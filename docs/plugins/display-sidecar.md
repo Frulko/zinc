@@ -32,5 +32,9 @@ their pictures (WebKit snapshots, at the screen's scale) and the driver lays the
 to it, the rest to the app. Measured with `examples/webview/hybrid` on the Nexus 7: about a fifth of a core on the Mac in all (the app
 and WebKit's processes); the page counts as shown (`document.hidden` false, `requestAnimationFrame` runs). macOS only for now.
 
+The app's window and the tablet at once: a second process of the app (`sys.execPath()`, `zinc:process`) runs with `ZINC_DISPLAY=sidecar`
+and the window drives it over its stdin. `examples/webview/sidecar-browser` does this: a small browser whose "Stream to" button sends the
+page to the tablet, the window becoming its remote (an address bar that opens pages on the tablet).
+
 Not yet: H.264 for a frame where most of the screen moves (the screens decode it: `+h264`), a second screen beside the app's window, the
 display list sent instead of pixels, UDP on the network.
