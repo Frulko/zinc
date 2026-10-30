@@ -201,7 +201,7 @@ function fontId(name, px) {
     if (loadedFaces.has(name)) { weight = 400; italic = false; }   // a face file is the weight it is: no synthetic bold on top
   }
   else if (base === 'sans') family = SANS;
-  else if (base === 'mono') family = MONO;
+  else if (base === 'mono' || base === 'grid') family = MONO;   // grid: the built-in face of gfx.text, which the page draws in the monospace face
   else if (base === 'serif') family = SERIF;
   else { fontIds.set(key, -1); return -1; }
   const f = { px, family, weight, italic, css: `${italic ? 'italic ' : ''}${weight} ${px}px ${family}`, asc: Math.round(px * 0.97), lh: Math.round(px * 1.21) };
