@@ -681,6 +681,7 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod demo: For you's final write (JSON.stringify of the shelves and the drafts) is not sliced; genius() and the mood mixes are still synchronous.
 - iPod demo: measure For you's frame gaps again now that a timer set in a frame waits for the next one (the slices were measured before that fix).
 - Inspector: measure the Elements tree and rendered-only filter on examples/ipod's Songs page (VirtualList) with the fake iPod env.
+- iPod demo: a T1 frame-gap check of For you on the FORYOU_MODE=big fixture (10k songs, 100k listens); it needs a paced windowed run (headless frames are unpaced; ZINC_TRACE keeps only the last spans).
 
 ## Cross-platform pass
 - Threads profiler: check on Linux that `zinc profile` puts samples on each worker thread (SIGPROF delivery; older kernels favour the main thread).
