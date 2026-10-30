@@ -267,6 +267,7 @@ startRefreshing();
 startShell();
 let shownSerial = -1;
 
+let drawnImage = -1;   // the app image the last drawn frame showed (zinc:shell)
 onFrame((deltaSeconds: number) => {
   if (pollMilliseconds > 0) sys.poll(pollMilliseconds);
   appState.inputIdleSeconds += deltaSeconds;
@@ -280,6 +281,11 @@ onFrame((deltaSeconds: number) => {
   // the shown app sent a frame: the shell draws it
   if (isShell && appState.page === PAGE_APP && shell.serial() !== shownSerial) {
     shownSerial = shell.serial();
+    // on a plane the new buffer shows by itself: keep() offers it again, nothing is drawn (the same image as the frame drawn last)
+    if (!uiState.dirty && shell.onPlane() && shell.image() === drawnImage) {
+      keep();
+      return;
+    }
     uiState.dirty = true;
   }
 
@@ -290,6 +296,7 @@ onFrame((deltaSeconds: number) => {
   uiState.dirty = false;
   clearTouchZones();
   stage.renderStage(screenWidth, screenHeight);
+  drawnImage = isShell && appState.page === PAGE_APP ? shell.image() : -1;
   if (!readyWritten && sys.env('ZINC_PLAYER_READY_FILE') !== '') {
     readyWritten = true;
     try { fs.writeText(sys.env('ZINC_PLAYER_READY_FILE'), 'ready\n'); } catch (e) { /* the updater times out if readiness cannot be reported */ }

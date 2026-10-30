@@ -10,6 +10,7 @@ export interface Spec extends NativeModule {
   image(): i32;
   barHeight(): i32;
   setMode(mode: i32): void;
+  onPlane(): boolean;
   responding(): boolean;
   serial(): i32;
   onExit(cb: (name: string, status: i32) => void): void;

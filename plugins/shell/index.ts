@@ -26,6 +26,9 @@ export function appMode(dir: string): string {
     return '';
   }
 }
+/** True when the app's screen is a picture of the display (its buffers are the card's): a new frame of it needs no drawing by the
+ *  shell, keep() shows it (the runtime offers the plane the new buffer). False on shared memory: draw the image again. */
+export function onPlane(): boolean { return S.onPlane(); }
 /** The mode of the app start() showed last: 'fullscreen', 'kiosk' or ''. */
 export function mode(): string { return shownMode; }
 /** Home: the shown app is asked to quit, its process group is ended 2 s later (SIGTERM), killed 1 s after that. The image goes at once. */
