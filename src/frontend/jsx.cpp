@@ -1199,6 +1199,8 @@ struct Lowering {
         std::string callee = open ? calleeText(a, open) : "";
         if (open && nodeCall(callee)) { out.push_back("_append(" + parent + ", " + rw(a, b) + ");"); continue; }
         if (b == a + 1 && t[a].kind == Tok::Ident && (jsxFunctions(), jsxVars.count(tx(a)))) { out.push_back("_append(" + parent + ", " + rw(a, b) + ");"); continue; }
+        // `{props.children}` as React and Solid write it: the children a component is given are a function that makes them, called here
+        if (b >= a + 3 && tx(b - 1) == "children" && isP(b - 2, ".") && dotted(a, b)) { out.push_back("_append(" + parent + ", " + rw(a, b) + "());"); continue; }
         if (open && callee.size() > 4 && callee.compare(callee.size() - 4, 4, ".map") == 0 && returnsJsx(open + 1, b - 1)) {
           bool oneArg = true;
           scan(open + 1, b - 1, [&](std::size_t, const std::string& x) { if (x == ",") oneArg = false; });

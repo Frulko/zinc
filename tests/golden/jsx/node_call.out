@@ -29,3 +29,8 @@ node 0
     class flex-row
     node 1
       dynTextOf c
+  node 6
+    node 0
+      class p-4
+      node 1
+        textOf inside

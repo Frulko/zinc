@@ -220,6 +220,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- JSX: `{props.children}` in a component mounts the children it was given, as in React and Solid (`{props.children()}` still works); it used to print nothing useful.
 - `new Map(entries)`, `new Map(otherMap)`, `new Set(items)` and `new Set(otherSet)` make a filled collection, as in TypeScript; arguments to these constructors were refused with Z0005.
 - A string joined to an `any` value with `+` (`'' + data.year`) is a `string`, as in TypeScript, so its string methods can be called; it was typed `any` (Z0105).
 - A property with a setter can be assigned through a cast or a non-null assertion (`(b as Box).level = 3`, `b!.level = 3`); it was refused with Z0005.
