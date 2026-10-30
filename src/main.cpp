@@ -3403,6 +3403,9 @@ int main(int argc, char** argv) {
       else if (argv[k][0] != '-') dir = argv[k];
       else { std::fprintf(stderr, "zinc %s: unknown option %s\n", argv[1], argv[k]); return 2; }
     }
+    // the secrets can come from the environment instead of a command line that ps shows (Atelier passes them so)
+    if (key.empty() && std::getenv("ZINC_UPDATE_SEED")) key = std::getenv("ZINC_UPDATE_SEED");
+    if (hubToken.empty() && std::getenv("ZINC_HUB_TOKEN")) hubToken = std::getenv("ZINC_HUB_TOKEN");
     std::ifstream pf(fs::path(dir) / "zinc.json");
     std::stringstream ps; ps << pf.rdbuf();
     zn::frontend::Project proj; std::string err;

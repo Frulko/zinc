@@ -453,6 +453,10 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
   if (yyjson_val* x = yyjson_obj_get(root, "keyboard"); x && yyjson_is_str(x)) out.keyboard = yyjson_get_str(x);
   if (yyjson_val* x = yyjson_obj_get(root, "webgl"); x && yyjson_is_bool(x)) out.webgl = yyjson_get_bool(x);
   if (yyjson_val* x = yyjson_obj_get(root, "player"); x && yyjson_is_bool(x)) out.player = yyjson_get_bool(x);   // a player (Zinc Go, ZN-631)
+  if (yyjson_val* x = yyjson_obj_get(root, "shell")) {   // how a Pi's shell shows the app (plugins/shell; the device agent copies it to app.json)
+    const char* m = yyjson_get_str(x);
+    if (!m || (std::strcmp(m, "window") && std::strcmp(m, "fullscreen") && std::strcmp(m, "kiosk"))) { err = "line " + std::to_string(lineOf(text, "shell")) + ": \"shell\" must be \"window\", \"fullscreen\" or \"kiosk\""; out.fatal = true; return false; }
+  }
   if (yyjson_val* x = yyjson_obj_get(root, "web")) out.web = yyjson_is_obj(x) || yyjson_is_true(x);
   if (yyjson_val* x = yyjson_obj_get(root, "engine"); x && yyjson_is_str(x)) out.engine = yyjson_get_str(x);
   if (yyjson_val* d = yyjson_obj_get(root, "dev"); d && yyjson_is_obj(d))
@@ -624,7 +628,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(t, i, n, k, v) if (yyjson_val* pm = yyjson_obj_get(v, "permissions")) if (!permissionList(pm, out.targetPermissions[yyjson_get_str(k)], "targets.<name>.permissions")) return false;
   }
-  static const char* known[] = {"3d", "app", "permissions", "permissionStrings", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "displays", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "engine", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher", "player"};
+  static const char* known[] = {"3d", "app", "permissions", "permissionStrings", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "displays", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "engine", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher", "player", "shell"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) {

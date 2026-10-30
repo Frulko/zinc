@@ -1,7 +1,7 @@
 /** @jsxHelpers ./helpers */
 // A call that gives a node, used as a child (ZN-689): a component of the file (`{Part()}`), an arrow helper that returns JSX (`{row('a')}`)
 // and a component in a fragment are mounted; a number and String(x) stay text. Also mounted: a render prop (`{props.render(x)}`), a
-// variable that holds an element (`{body}`, the second of its declarators; `{later}`, assigned after its declaration), a node call in a conditional (`?:` and `&&`), and the
+// variable that holds an element (`{body}`, the second of its declarators; `{later}`, assigned after its declaration), a node call in a conditional (`?:` and `&&`, a render prop's too), and the
 // children a component is given written as React does (`{p.children}`).
 import { dump } from './helpers';
 
@@ -26,6 +26,7 @@ const root = <View className="flex-col">
   {later}
   {flag ? row('b') : null}
   {flag && row('c')}
+  {flag && props.render('d')}
   <Card><Text>inside</Text></Card>
 </View>;
 dump(root);

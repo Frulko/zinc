@@ -95,6 +95,8 @@ void defaults() {
   CHECK(parseProject(R"({"name": "x"})", p, err), "%s", err.c_str());
   CHECK(p.assets.dir == "assets" && p.assets.rules.empty() && p.assets.groups.empty() && p.assets.profiles.empty() && p.assets.budgets.empty(), "assets defaults");
   CHECK(!p.splash.present && !p.loading.present && !p.launcher.present, "absent keys are not present");
+  Project k;
+  CHECK(parseProject(R"({"shell": "kiosk"})", k, err) && k.warnings.empty(), "shell is a known key: %s", err.c_str());
   Project s;
   CHECK(parseProject(R"({"assets": "media", "splash": "s.png"})", s, err) && s.assets.dir == "media" && s.splash.present && s.splash.image == "s.png", "the string forms");
   Project w;
@@ -110,6 +112,7 @@ void errors() {
   struct Case { const char* json; const char* err; };
   const Case cases[] = {
     {R"({"assets": 3})", "\"assets\" must be the assets directory or an object"},
+    {R"({"shell": "big"})", "\"shell\" must be \"window\", \"fullscreen\" or \"kiosk\""},
     {R"({"assets": ""})", "\"assets\" must name the assets directory"},
     {R"({"assets": {"dir": 1}})", "assets.dir must be the assets directory"},
     {R"({"assets": {"rules": {}}})", "assets.rules must be an array"},
