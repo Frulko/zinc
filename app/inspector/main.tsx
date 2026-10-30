@@ -1,18 +1,24 @@
 // Zinc Inspector (ZN-373.01): inspects running Zinc programs over the Chrome DevTools protocol, as a Zinc app. The programs that listen on the
-// given ports (zinc:devtools: 9229, zinc debug --cdp: 9222), the Elements tree of the one attached, the selected node's computed style and box
-// (highlighted in the program), its rules and element.style to edit (ZN-373.02), the program's screen, its console, its requests (ZN-373.03),
-// its frames and their phases (Performance, ZN-373.05), and for zinc debug --cdp the Sources view: breakpoints, the stack, the scopes, watches
-// and stepping (ZN-373.04).
+// given ports (zinc:devtools: 9229, zinc debug --cdp: 9222) and, attached to one, its panels, one file each: Elements (elements.tsx: the
+// component tree, filters, live styling), Network (network.tsx), Storage (storage.tsx: key/values and SQLite), Sources (sources.tsx, for
+// zinc debug --cdp), the Console (console.tsx), the program's screen and Performance (its frames and their phases, ZN-373.05, below).
 // The apps of the paired devices are listed with the programs of this machine (ZN-729.05): `zinc device inspect --all` brings their inspectors here.
 // Usage: zinc run app/inspector/main.tsx -- [port...]
-// ZINC_INSPECTOR_DUMP=1: attach to the first program, select the first node with a padding class, wait a second and print what each view
-// shows, then quit; a debugger target gets a scripted session instead (tests/t1/inspector.sh).
+// ZINC_INSPECTOR_DUMP=1: attach to the first program, go through each panel and print what it shows, then quit (tests/t1/inspector.sh);
+// =elements: the Elements panel only; =storage: the Storage panel only (tests/t1/inspector_storage.sh). A debugger target gets the Sources session.
 import { createSignal, render } from 'zinc:ui/solid';
 import * as sys from 'zinc:sys';
 import { quit, imageFromBytes, destroyImage, imageWidth, imageHeight, drawImage, rect } from 'zinc:gfx';
 import { base64Decode } from 'zinc:web';
 import { spawn, Process } from 'zinc:process';
-import { Target, Cdp, Row, Inline, Req, Script, Frame, Prop, discover, rows, styleLines, consoleLine, ruleLines, inlineOf, applyNetwork, framesOf, propsOf, remoteText, TraceFrame, PhaseTotal, traceFrames, phaseTotals, msText } from './model';
+import { Target, Cdp, discover, TraceFrame, PhaseTotal, traceFrames, phaseTotals, msText } from './model';
+import { conn, call, status, setStatus, view, setView, setDevRun, sleep, until } from './state';
+import { Btn } from './widgets';
+import { ElementsView, StylesPane, loadDocument, refreshRendered, renderedOnly, rows, dumpElements, select, styles, rules, box, target, setProp, label, TNode } from './elements';
+import { NetworkView, onNetwork, onReload, dumpNetwork, reqs, pick, Req } from './network';
+import { StorageView, loadStorage, onStorage, changes, dumpStorage, items, pickItem, tables, openTable } from './storage';
+import { SourcesView, DebugPane, onDebugger, resetSources, setWaiting, setPaused, setEnded, dumpDebugger } from './sources';
+import { ConsolePane, onConsole, logs, setLogs } from './console';
 
 const args = sys.args();
 const ports: i32[] = [];
@@ -21,38 +27,7 @@ if (ports.length === 0) { ports.push(9229); ports.push(9222); }
 
 const [targets, setTargets] = createSignal<Target[]>([]);
 const [attached, setAttached] = createSignal<string>('');
-const [tree, setTree] = createSignal<Row[]>([]);
-const [selected, setSelected] = createSignal<i32>(-1);
-const [styles, setStyles] = createSignal<string[]>([]);
-const [box, setBox] = createSignal<string>('');
-const [logs, setLogs] = createSignal<string[]>([]);
-const [status, setStatus] = createSignal<string>('');
-const [rules, setRules] = createSignal<string[]>([]);
-const [inline, setInline] = createSignal<Inline>(new Inline());
-const [draft, setDraft] = createSignal<string>('');   // what is typed in element.style
-const [view, setView] = createSignal<string>('elements');   // elements | screen
 const [frame, setFrame] = createSignal<i32>(-1);   // the program's screen (Page.screencastFrame) as a runtime image
-const [reqs, setReqs] = createSignal<Req[]>([]);   // the Network view (ZN-373.03)
-const [picked, setPicked] = createSignal<string>('');
-const [body, setBody] = createSignal<string>('');
-// the Sources view (ZN-373.04), against zinc debug --cdp
-class Bp { line: i32 = 0; id: string = ''; }
-class ScopeLine { depth: i32 = 0; name: string = ''; value: string = ''; objectId: string = ''; open: boolean = false; }
-const [scripts, setScripts] = createSignal<Script[]>([]);
-const [script, setScript] = createSignal<string>('');
-const [source, setSource] = createSignal<string[]>([]);
-const [bps, setBps] = createSignal<Bp[]>([]);
-const [cond, setCond] = createSignal<string>('');   // the condition of the next breakpoint set
-const [waiting, setWaiting] = createSignal<boolean>(false);   // the program waits for Run (Runtime.runIfWaitingForDebugger)
-const [paused, setPaused] = createSignal<boolean>(false);
-const [frames, setFrames] = createSignal<Frame[]>([]);
-const [frameIx, setFrameIx] = createSignal<i32>(0);
-const [scope, setScope] = createSignal<ScopeLine[]>([]);
-const [watches, setWatches] = createSignal<string[]>([]);
-const [watchVals, setWatchVals] = createSignal<string[]>([]);
-const [watchDraft, setWatchDraft] = createSignal<string>('');
-const [ended, setEnded] = createSignal<boolean>(false);
-const [stops, setStops] = createSignal<i32>(0);   // the frames shown so far (the dump waits on it)
 // the Performance view (ZN-373.05): Tracing.start / end, the runtime's frames and their phases
 const [recording, setRecording] = createSignal<boolean>(false);
 const [traced, setTraced] = createSignal<TraceFrame[]>([]);
@@ -61,7 +36,6 @@ const [frameAt, setFrameAt] = createSignal<i32>(-1);   // the frame picked in th
 const [traces, setTraces] = createSignal<i32>(0);   // traces received (the dump waits on it)
 let traceEvents: any[] = [];
 
-let cdp: Cdp | null = null;
 let reloading = false;
 
 // The apps of the paired devices: `zinc device inspect --all` forwards the inspector of each to a port of this machine and names it, one line
@@ -105,25 +79,9 @@ async function refresh(): Promise<void> {
   await list();
 }
 
-async function loadDocument(): Promise<void> {
-  if (cdp === null) return;
-  const d = await (cdp as Cdp).call('DOM.getDocument', '{"depth":-1}');
-  setTree(d.root !== undefined ? rows(d.root, 0, []) : []);   // zinc debug --cdp has no tree
-}
-
 function onEvent(method: string, params: any): void {
-  if (method === 'Debugger.scriptParsed') {
-    const s = new Script();
-    s.id = params.scriptId; s.url = params.url;
-    const l = scripts().slice(0); l.push(s); setScripts(l);
-    if (script() === '') openScript(s.id);
-  } else if (method === 'Debugger.paused') {
-    setPaused(true);
-    setFrames(framesOf(params));
-    showFrame(0);
-  } else if (method === 'Debugger.resumed') {
-    setPaused(false);
-  } else if (method === 'Tracing.dataCollected') {
+  if (method.startsWith('Debugger.')) onDebugger(method, params);
+  else if (method === 'Tracing.dataCollected') {
     for (const e of params.value) traceEvents.push(e);
   } else if (method === 'Tracing.tracingComplete') {
     const fs = traceFrames(traceEvents);
@@ -134,24 +92,21 @@ function onEvent(method: string, params: any): void {
     const id = imageFromBytes(base64Decode(params.data));
     if (id >= 0) { if (frame() >= 0) destroyImage(frame()); setFrame(id); }
     const session: number = params.sessionId;
-    if (cdp !== null) (cdp as Cdp).call('Page.screencastFrameAck', `{"sessionId":${session}}`);
-  } else if (method.startsWith('Network.')) {
-    const l = reqs().slice(0);
-    if (applyNetwork(l, method, params)) setReqs(l);
-  } else if (method === 'Runtime.consoleAPICalled') {
-    const l = logs().slice(logs().length > 199 ? logs().length - 199 : 0);
-    l.push(consoleLine(params));
-    setLogs(l);
-  } else if (method.startsWith('DOM.') && !reloading) {   // the tree changed: read it again (a small tree; a later version can apply the mutations)
+    call('Page.screencastFrameAck', `{"sessionId":${session}}`);
+  } else if (method.startsWith('Network.')) onNetwork(method, params);
+  else if (method.startsWith('DOMStorage.')) onStorage(method, params);
+  else if (method === 'Runtime.consoleAPICalled') onConsole(params);
+  else if (method === 'Runtime.executionContextsCleared') onReload();
+  else if (method.startsWith('DOM.') && !reloading) {   // the tree changed: read it again, the folds, the filters and the selection kept
     reloading = true;
     setTimeout(() => { reloading = false; loadDocument(); }, 300);
   }
 }
 
 async function attach(t: Target): Promise<void> {
-  if (cdp !== null) (cdp as Cdp).close();
+  if (conn.c !== null) (conn.c as Cdp).close();
   const c = new Cdp(t.ws);
-  cdp = c;
+  conn.c = c;
   held = t.port;
   c.onEvent = onEvent;
   c.onClose = () => { setStatus('detached from ' + t.name()); setEnded(true); setPaused(false); };
@@ -159,139 +114,38 @@ async function attach(t: Target): Promise<void> {
   await c.open;
   setAttached(t.name() + ' (port ' + t.port + ')');
   setLogs([]);
-  setReqs([]);
-  await c.call('Runtime.enable', '{}');
-  setScripts([]); setScript(''); setSource([]); setBps([]); setFrames([]); setScope([]); setEnded(false);
+  onReload();
+  await call('Runtime.enable', '{}');
+  resetSources();
   if (t.type === 'node') {   // zinc debug --cdp: the debugger; the program waits for Run
-    await c.call('Debugger.enable', '{}');
+    await call('Debugger.enable', '{}');
     setWaiting(true);
     setView('sources');
     setStatus('attached: set breakpoints, then Run');
     return;
   }
-  await c.call('Network.enable', '{}');   // the requests made before the attach come too
+  const info = await call('Zinc.getInfo', '{}');
+  setDevRun(info.dev !== undefined && info.dev === true);
+  await call('Network.enable', '{}');   // the requests made before the attach come too
   await loadDocument();
+  await loadStorage();
   setStatus('attached');
 }
 
-// ---- the Sources view
-async function openScript(id: string): Promise<void> {
-  if (cdp === null) return;
-  setScript(id);
-  const r = await (cdp as Cdp).call('Debugger.getScriptSource', `{"scriptId":${JSON.stringify(id)}}`);
-  const t: string = r.scriptSource !== undefined ? r.scriptSource : '';
-  setSource(t.split('\n'));
-}
-function urlOf(id: string): string { for (const s of scripts()) if (s.id === id) return s.url; return ''; }
-function nameOf(id: string): string { for (const s of scripts()) if (s.id === id) return s.name(); return id; }
-/** Sets a breakpoint on a line of the shown script (with the condition typed, if any), or removes the one there. */
-async function toggleBp(line: i32): Promise<void> {
-  if (cdp === null) return;
-  const c = cdp as Cdp;
-  for (const b of bps()) if (b.line === line) {
-    await c.call('Debugger.removeBreakpoint', `{"breakpointId":${JSON.stringify(b.id)}}`);
-    setBps(bps().filter((x: Bp) => x.line !== line));
-    return;
-  }
-  const r = await c.call('Debugger.setBreakpointByUrl', `{"url":${JSON.stringify(urlOf(script()))},"lineNumber":${line - 1}${cond().length > 0 ? ',"condition":' + JSON.stringify(cond()) : ''}}`);
-  if (r.breakpointId === undefined) { setStatus('no code at line ' + line); return; }
-  const b = new Bp();
-  b.id = r.breakpointId;
-  const at: i32 = r.locations[0].lineNumber;
-  b.line = at + 1;
-  const l = bps().slice(0); l.push(b); setBps(l);
-}
-async function run(): Promise<void> { if (cdp === null) return; setWaiting(false); setStatus('running'); await (cdp as Cdp).call('Runtime.runIfWaitingForDebugger', '{}'); }
-async function command(method: string): Promise<void> { if (cdp !== null) await (cdp as Cdp).call(method, '{}'); }
-async function showFrame(i: i32): Promise<void> {
-  const fs = frames();
-  if (i >= fs.length || cdp === null) return;
-  setFrameIx(i);
-  const f = fs[i];
-  if (f.script !== script()) await openScript(f.script);
-  const lines: ScopeLine[] = [];
-  for (let k = 0; k < f.scopes.length; k++) {
-    lines.push(scopeLine(0, f.scopeNames[k], '', '', false));
-    for (const p of propsOf(await (cdp as Cdp).call('Runtime.getProperties', `{"objectId":${JSON.stringify(f.scopes[k])}}`))) lines.push(scopeLine(1, p.name, p.value, p.objectId, false));
-  }
-  setScope(lines);
-  await evalWatches();
-  setStops(stops() + 1);
-}
-function scopeLine(depth: i32, name: string, value: string, objectId: string, open: boolean): ScopeLine {
-  const x = new ScopeLine(); x.depth = depth; x.name = name; x.value = value; x.objectId = objectId; x.open = open;
-  return x;
-}
-/** Unfolds (or folds) an object or array of the Scope pane; the line is replaced, so its marker is drawn again. */
-async function unfold(at: i32): Promise<void> {
-  const l = scope();
-  const s = l[at];
-  if (s.objectId === '' || cdp === null) return;
-  let end = at + 1;
-  while (end < l.length && l[end].depth > s.depth) end++;
-  const kids: ScopeLine[] = [];
-  if (!s.open) for (const p of propsOf(await (cdp as Cdp).call('Runtime.getProperties', `{"objectId":${JSON.stringify(s.objectId)}}`))) kids.push(scopeLine(s.depth + 1, p.name, p.value, p.objectId, false));
-  setScope(l.slice(0, at).concat([scopeLine(s.depth, s.name, s.value, s.objectId, !s.open)]).concat(kids).concat(l.slice(end)));
-}
-async function evalWatches(): Promise<void> {
-  if (cdp === null || !paused() || frames().length === 0) { setWatchVals([]); return; }
-  const out: string[] = [];
-  const id = frames()[frameIx()].id;
-  for (const w of watches()) {
-    const r = await (cdp as Cdp).call('Debugger.evaluateOnCallFrame', `{"callFrameId":${JSON.stringify(id)},"expression":${JSON.stringify(w)}}`);
-    out.push(r.exceptionDetails !== undefined ? 'error: ' + remoteText(r.result) : remoteText(r.result));
-  }
-  setWatchVals(out);
-}
-
-async function select(id: i32): Promise<void> {
-  if (cdp === null) return;
-  const c = cdp as Cdp;
-  setSelected(id);
-  c.call('Overlay.highlightNode', `{"nodeId":${id},"highlightConfig":{}}`);
-  setStyles(styleLines(await c.call('CSS.getComputedStyleForNode', `{"nodeId":${id}}`)));
-  const b = await c.call('DOM.getBoxModel', `{"nodeId":${id}}`);
-  if (b.model !== undefined) { const w: number = b.model.width; const h: number = b.model.height; setBox(w + ' × ' + h); } else setBox('');
-  const m = await c.call('CSS.getMatchedStylesForNode', `{"nodeId":${id}}`);
-  setRules(ruleLines(m));
-  const i = inlineOf(m.inlineStyle);
-  setInline(i);
-  setDraft(i.text);
-}
-
-/** element.style of the selected node becomes `text` (CSS.setStyleTexts): the program changes at once and prints the patch to its console. */
-async function applyStyle(text: string): Promise<void> {
-  if (cdp === null || selected() < 0 || inline().sheet === '') return;
-  const i = inline();
-  const r = await (cdp as Cdp).call('CSS.setStyleTexts', `{"edits":[{"styleSheetId":${JSON.stringify(i.sheet)},"range":${i.range},"text":${JSON.stringify(text)}}]}`);
-  setStatus(r.styles !== undefined ? 'element.style applied' : 'not applied');
-  await select(selected());
-}
+// "Rendered only" follows scrolling and animation: what draws is asked again twice a second while Elements shows it.
+setInterval(() => { if (conn.c !== null && view() === 'elements' && renderedOnly()) refreshRendered(false); }, 500);
 
 async function screen(on: boolean): Promise<void> {   // the screencast: frames of the program's screen while the Screen view is open
-  if (cdp === null) return;
-  await (cdp as Cdp).call(on ? 'Page.startScreencast' : 'Page.stopScreencast', on ? '{"format":"png","maxWidth":640,"maxHeight":480}' : '{}');
+  await call(on ? 'Page.startScreencast' : 'Page.stopScreencast', on ? '{"format":"png","maxWidth":640,"maxHeight":480}' : '{}');
 }
 
 // ---- the views
-function Btn(p: { label: string; onClick: () => void }): i32 {
-  return <Button className="py-1 flex-row items-center justify-center h-7 px-3 rounded-md bg-slate-900" onClick={p.onClick}>
-    <Text className="text-xs font-medium text-white">{p.label}</Text>
-  </Button>;
-}
-
 function TargetRow(p: { t: Target }): i32 {
   return <View className="flex-col gap-1 p-2 rounded-md bg-white border">
     <Text className="text-sm font-medium text-slate-900">{p.t.name()}</Text>
     <Text className="text-xs text-slate-500">{p.t.type + ' on port ' + p.t.port}</Text>
     <Btn label="Attach" onClick={() => { attach(p.t); }} />
   </View>;
-}
-
-function TreeRow(p: { r: Row }): i32 {
-  return <Button className={'px-2 py-1 flex-row items-center justify-start h-6 rounded ' + (selected() === p.r.nodeId ? 'bg-sky-100' : 'bg-white')} style={{ paddingLeft: 8 + p.r.depth * 14 }} onClick={() => { select(p.r.nodeId); }}>
-    <Text className={'text-xs font-mono ' + (p.r.label.startsWith('<') ? 'text-purple-800' : 'text-slate-700')}>{p.r.label}</Text>
-  </Button>;
 }
 
 function ScreenView(): i32 {   // the last frame, fitted into the view with its proportions
@@ -305,75 +159,13 @@ function ScreenView(): i32 {   // the last frame, fitted into the view with its 
   }} />;
 }
 
-function Styles(): i32 {
-  return <View className="flex-col gap-1 p-2 border-b">
-    <Text className="text-xs font-medium text-slate-600">element.style</Text>
-    <Input className="bg-slate-800 border-slate-600 py-1.5 text-slate-100 h-7 px-2 text-xs font-mono border rounded" value={draft()} onInput={(v: string) => { setDraft(v); }} />
-    <Btn label="Apply" onClick={() => { applyStyle(draft()); }} />
-    <View className="flex-col">{rules().map((l: string) => <Text className="text-xs font-mono text-slate-700">{l}</Text>)}</View>
-  </View>;
-}
-
-async function pick(r: Req): Promise<void> {   // a request's response body
-  setPicked(r.id);
-  if (cdp === null) return;
-  const b = await (cdp as Cdp).call('Network.getResponseBody', `{"requestId":${JSON.stringify(r.id)}}`);
-  const t: string = b.body !== undefined ? b.body : '';
-  setBody(t);
-}
-
-function SourceLine(p: { n: i32; text: string }): i32 {
-  const here = (): boolean => paused() && frames().length > 0 && frames()[frameIx()].line === p.n && frames()[frameIx()].script === script();
-  const bp = (): boolean => bps().some((b: Bp) => b.line === p.n);
-  return <Button className={'px-2 py-1 flex-row items-center justify-start h-5 ' + (here() ? 'bg-amber-100' : 'bg-white')} onClick={() => { toggleBp(p.n); }}>
-    <Text className={'w-5 text-xs ' + (bp() ? 'text-red-600' : 'text-white')}>●</Text>
-    <Text className="w-8 text-xs font-mono text-slate-400">{'' + p.n}</Text>
-    <Text className="text-xs font-mono text-slate-800">{p.text}</Text>
-  </Button>;
-}
-
-function SourcesView(): i32 {
-  return <View className="flex-col flex-1">
-    <View className="flex-row items-center gap-1 p-1 border-b">
-      {waiting() ? <Btn label="Run" onClick={() => { run(); }} /> : <View />}
-      <Btn label="Resume" onClick={() => { command('Debugger.resume'); }} />
-      <Btn label="Over" onClick={() => { command('Debugger.stepOver'); }} />
-      <Btn label="Into" onClick={() => { command('Debugger.stepInto'); }} />
-      <Btn label="Out" onClick={() => { command('Debugger.stepOut'); }} />
-      <Btn label="Pause" onClick={() => { command('Debugger.pause'); }} />
-      <Input className="bg-slate-800 border-slate-600 py-1.5 text-slate-100 w-40 h-7 px-2 text-xs font-mono border rounded" value={cond()} onInput={(v: string) => { setCond(v); }} />
-      <Text className="text-xs text-slate-500">{ended() ? 'ended' : paused() ? 'paused' : waiting() ? 'waiting' : 'running'}</Text>
-    </View>
-    <View className="flex-row gap-1 px-1 border-b">{scripts().map((s: Script) => <Button className={'py-1 h-6 px-2 rounded ' + (script() === s.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { openScript(s.id); }}><Text className="text-xs text-slate-800">{s.name()}</Text></Button>)}</View>
-    <ScrollView className="flex-1">
-      <View className="flex-col">{source().map((t: string, i: i32) => <SourceLine n={i + 1} text={t} />)}</View>
-    </ScrollView>
-  </View>;
-}
-
-function DebugPane(): i32 {   // the right column of a debugger target: the stack, the scopes, the watches
-  return <View className="flex-col gap-1 p-2">
-    <Text className="text-xs font-medium text-slate-600">Call stack</Text>
-    {frames().map((f: Frame, i: i32) => <Button className={'py-1 flex-row justify-start h-6 px-1 rounded ' + (frameIx() === i ? 'bg-sky-100' : 'bg-white')} onClick={() => { showFrame(i); }}>
-      <Text className="text-xs font-mono text-slate-800">{f.name + ' ' + nameOf(f.script) + ':' + f.line}</Text></Button>)}
-    <Text className="text-xs font-medium text-slate-600">Scope</Text>
-    {scope().map((s: ScopeLine, i: i32) => <Button className="px-2 py-1 flex-row justify-start h-5 rounded bg-white" style={{ paddingLeft: s.depth * 12 }} onClick={() => { unfold(i); }}>
-      <Text className={'text-xs font-mono ' + (s.depth === 0 ? 'font-medium text-slate-600' : 'text-slate-800')}>{s.depth === 0 ? s.name : (s.objectId !== '' ? (s.open ? '▾ ' : '▸ ') : '') + s.name + ': ' + s.value}</Text></Button>)}
-    <Text className="text-xs font-medium text-slate-600">Watch</Text>
-    {watches().map((w: string, i: i32) => <Text className="text-xs font-mono text-slate-800">{w + ' = ' + (i < watchVals().length ? watchVals()[i] : '')}</Text>)}
-    <Input className="bg-slate-800 border-slate-600 py-1.5 text-slate-100 h-7 px-2 text-xs font-mono border rounded" value={watchDraft()} onInput={(v: string) => { setWatchDraft(v); }} />
-    <Btn label="Add watch" onClick={() => { const l = watches().slice(0); l.push(watchDraft()); setWatches(l); setWatchDraft(''); evalWatches(); }} />
-  </View>;
-}
-
 // ---- the Performance view
 async function record(): Promise<void> {
-  if (cdp === null) return;
   traceEvents = [];
   setRecording(true);
-  await (cdp as Cdp).call('Tracing.start', '{"categories":"devtools.timeline"}');
+  await call('Tracing.start', '{"categories":"devtools.timeline"}');
 }
-async function stopRecording(): Promise<void> { if (cdp === null) return; setRecording(false); await (cdp as Cdp).call('Tracing.end', '{}'); }
+async function stopRecording(): Promise<void> { setRecording(false); await call('Tracing.end', '{}'); }
 function phaseColor(name: string): string {
   return name === 'app' ? 'bg-amber-400' : name === 'input' ? 'bg-slate-400' : name === 'anim' ? 'bg-violet-400' : name === 'layout' ? 'bg-purple-600' :
     name === 'paint' ? 'bg-emerald-500' : name === 'effects' ? 'bg-teal-400' : name === 'diff' ? 'bg-cyan-500' : name === 'raster' ? 'bg-green-700' : 'bg-slate-300';
@@ -410,23 +202,6 @@ function frameLines(): string[] {   // the picked frame, phase by phase
   return out;
 }
 
-function NetRow(p: { r: Req }): i32 {
-  return <Button className={'py-1 flex-row items-center justify-start h-6 px-2 rounded ' + (picked() === p.r.id ? 'bg-sky-100' : 'bg-white')} onClick={() => { pick(p.r); }}>
-    <Text className={'text-xs font-mono ' + (p.r.error.length > 0 || p.r.status >= 400 ? 'text-red-700' : 'text-slate-800')}>{p.r.line()}</Text>
-  </Button>;
-}
-
-function NetworkView(): i32 {
-  return <View className="flex-col flex-1">
-    <ScrollView className="flex-1">
-      <View className="flex-col">{reqs().map((r: Req) => <NetRow r={r} />)}</View>
-    </ScrollView>
-    <ScrollView className="h-32 border-t bg-slate-50">
-      <Text className="p-2 text-xs font-mono text-slate-800">{body()}</Text>
-    </ScrollView>
-  </View>;
-}
-
 function Tab(p: { id: string; label: string }): i32 {
   return <Button className={'py-1 flex-row items-center h-7 px-3 rounded-md ' + (view() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { setView(p.id); screen(p.id === 'screen'); }}>
     <Text className="text-xs font-medium text-slate-900">{p.label}</Text>
@@ -449,36 +224,25 @@ function App(): i32 {
           <Tab id="elements" label="Elements" />
           <Tab id="screen" label="Screen" />
           <Tab id="network" label="Network" />
+          <Tab id="storage" label="Storage" />
           <Tab id="sources" label="Sources" />
           <Tab id="performance" label="Performance" />
           <Text className="flex-1 text-xs text-slate-600">{attached()}</Text>
         </View>
-        {view() === 'sources' ? <SourcesView /> : view() === 'performance' ? <PerformanceView /> : view() === 'network' ? <NetworkView /> : view() === 'screen' ? <ScreenView /> :
-        <ScrollView className="flex-1">
-          <View className="flex-col">{tree().map((r: Row) => <TreeRow r={r} />)}</View>
-        </ScrollView>}
+        {view() === 'sources' ? <SourcesView /> : view() === 'performance' ? <PerformanceView /> : view() === 'network' ? <NetworkView /> : view() === 'storage' ? <StorageView /> :
+          view() === 'screen' ? <ScreenView /> : <ElementsView />}
       </View>
-      <View className="flex-col w-72 border-l">
+      {view() === 'network' || view() === 'storage' ? <View /> : <View className="flex-col w-80 border-l">
         {view() === 'sources' ? <ScrollView className="flex-1"><DebugPane /></ScrollView> :
-        view() === 'performance' ? <View className="flex-col gap-1 p-2">{frameLines().map((l: string) => <Text className="text-xs font-mono text-slate-800">{l}</Text>)}</View> : <View className="flex-col flex-1">
-          <Styles />
-          <Text className="px-2 py-1 text-xs font-medium text-slate-600 border-b">{box() === '' ? 'Computed' : 'Computed · ' + box()}</Text>
-          <ScrollView className="flex-1">
-            <View className="flex-col p-2">{styles().map((s: string) => <Text className="text-xs font-mono text-slate-800">{s}</Text>)}</View>
-          </ScrollView>
-        </View>}
-      </View>
+        view() === 'performance' ? <View className="flex-col gap-1 p-2">{frameLines().map((l: string) => <Text className="text-xs font-mono text-slate-800">{l}</Text>)}</View> : <StylesPane />}
+      </View>}
     </View>
-    <View className="flex-col h-40 border-t bg-slate-50">
-      <Text className="px-2 py-1 text-xs font-medium text-slate-600">Console</Text>
-      <ScrollView className="flex-1">
-        <View className="flex-col px-2">{logs().map((l: string) => <Text className={'text-xs font-mono ' + (l.startsWith('error') ? 'text-red-700' : 'text-slate-800')}>{l}</Text>)}</View>
-      </ScrollView>
-    </View>
+    <ConsolePane />
   </View>;
 }
 
-async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the views as text, for scripted tests
+async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the panels as text, for scripted tests
+  const mode = sys.env('ZINC_INSPECTOR_DUMP');
   await refresh();
   if (targets().length === 0) { await devicesListed; await list(); }   // none here: those of the paired devices, once they are known
   const ts = targets();
@@ -487,39 +251,48 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the views as te
   if (ts.length === 0) { quit(); return; }
   await attach(ts[0]);
   if (ts[0].type === 'node') { await dumpDebugger(); quit(); return; }
-  for (const r of tree()) if (r.label.indexOf('"p-') >= 0 || r.label.indexOf(' p-') >= 0) { await select(r.nodeId); break; }   // a padding class
-  await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 1200); });
-  console.log('elements:');
-  for (const r of tree()) console.log('  '.repeat(r.depth + 1) + r.label);
-  console.log('selected: ' + selected() + ' ' + box());
-  for (const s of styles()) console.log('  ' + s);
-  console.log('rules:');
-  for (const l of rules()) console.log('  ' + l);
-  if (cdp !== null && selected() >= 0) {   // ZN-373.02: element.style edited, the program's frame before and after, and its screen
-    const c = cdp as Cdp;
-    const before: string = (await c.call('Page.captureScreenshot', '{}')).data;
+  if (mode === 'storage') {
+    setView('storage');
+    await dumpStorage(async (n: i32): Promise<void> => { await until(() => changes() > n); });
+    quit();
+    return;
+  }
+  await until(() => rows().length > 0);
+  await sleep(1200);
+  await dumpElements();
+  if (mode === 'elements') { quit(); return; }
+  let pad: TNode | null = null;   // ZN-373.02: a node with a padding class, its rules, element.style edited, the program's frame before and after
+  for (const r of rows()) if (r.node.cls.startsWith('p-') || r.node.cls.indexOf(' p-') >= 0) { pad = r.node; break; }
+  if (pad !== null) {
+    await select((pad as TNode).id);
+    console.log('selected: ' + label(pad as TNode) + ' ' + box());
+    for (const s of styles()) console.log('  ' + s);
+    console.log('rules:');
+    for (const l of rules()) console.log('  ' + l);
+    const before: string = (await call('Page.captureScreenshot', '{}')).data;
     const was = box();
-    await applyStyle('padding-left: 40px;');
-    await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 300); });
-    const after: string = (await c.call('Page.captureScreenshot', '{}')).data;
-    console.log('element.style: ' + inline().text + ' | box ' + was + ' -> ' + box() + ' | frame changed: ' + (before !== after));
+    await setProp('padding-left', '40px');
+    await sleep(300);
+    const after: string = (await call('Page.captureScreenshot', '{}')).data;
+    const m = await call('CSS.getInlineStylesForNode', `{"nodeId":${target()}}`);
+    const text: string = m.inlineStyle !== undefined ? m.inlineStyle.cssText : '';
+    console.log('element.style: ' + text + ' | box ' + was + ' -> ' + box() + ' | frame changed: ' + (before !== after));
     setView('screen');
     await screen(true);
-    for (let k = 0; k < 40 && frame() < 0; k++) await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 50); });
+    for (let k = 0; k < 40 && frame() < 0; k++) await sleep(50);
     console.log('screen: ' + (frame() >= 0 ? imageWidth(frame()) + ' x ' + imageHeight(frame()) : 'none'));
     await screen(false);
-    await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 300); });   // the patch reaches the console
+    await sleep(300);   // the patch reaches the console
   }
   console.log('console:');
   for (const l of logs()) console.log('  ' + l);
-  console.log('network:');   // ZN-373.03: the requests and the first one's body
-  for (const r of reqs()) console.log('  ' + r.line().replace(/[0-9]+ ms/, 'N ms'));   // the time varies: its unit only
-  if (reqs().length > 0) { await pick(reqs()[0]); console.log('body: ' + body()); }
+  setView('network');
+  await dumpNetwork();
   console.log('performance:');   // ZN-373.05: half a second of the program's frames
   setView('performance');
   const n = traces();
   await record();
-  await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 500); });
+  await sleep(500);
   await stopRecording();
   await until(() => traces() > n);
   const fs = traced();
@@ -531,38 +304,17 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the views as te
   quit();
 }
 
-async function until(f: () => boolean): Promise<boolean> {   // polls every 20 ms, 5 s at most
-  for (let k = 0; k < 250; k++) { if (f()) return true; await new Promise<void>((resolve) => { setTimeout(() => { resolve(); }, 20); }); }
-  return false;
-}
-/** A command that runs the program on, then the next stop shown. */
-async function stepped(what: string, method: string): Promise<void> {
-  const n = stops();
-  if (method === 'run') await run(); else await command(method);
-  await until(() => stops() > n);
-  console.log(what + ': ' + frames().map((f: Frame) => f.name + ' ' + nameOf(f.script) + ':' + f.line).join(', '));
-}
-async function dumpDebugger(): Promise<void> {   // ZN-373.04: a session of the Sources view against zinc debug --cdp (tests/data/debug_cli/main.ts)
-  await until(() => source().length > 1);
-  console.log('scripts: ' + scripts().map((s: Script) => s.name()).join(' '));
-  console.log('source: ' + source().length + ' lines, line 9: ' + source()[8].trim());
-  await toggleBp(19);
-  console.log('breakpoints: ' + bps().map((b: Bp) => '' + b.line).join(' '));
-  setWatches(['total + 1', 'p.x * 10']);
-  await stepped('start', 'run');
-  await stepped('paused', 'Debugger.resume');
-  for (let i = 0; i < scope().length; i++) if (scope()[i].name === 'p') { await unfold(i); break; }
-  console.log('scope:');
-  for (const s of scope()) console.log('  '.repeat(s.depth + 1) + (s.depth === 0 ? s.name : s.name + ': ' + s.value));
-  for (let i = 0; i < watches().length; i++) console.log('watch: ' + watches()[i] + ' = ' + watchVals()[i]);
-  await stepped('step into', 'Debugger.stepInto');
-  await stepped('step over', 'Debugger.stepOver');
-  await stepped('step out', 'Debugger.stepOut');
-  await toggleBp(19);
-  console.log('breakpoints: ' + bps().length);
-  await command('Debugger.resume');
-  console.log('ended: ' + await until(() => ended()));
+/** ZINC_INSPECTOR_VIEW=<panel>: attach to the first program found and open that panel (screenshots of the panels, docs). */
+async function openView(v: string): Promise<void> {
+  await refresh();
+  if (targets().length === 0) return;
+  await attach(targets()[0]);
+  setView(v);
+  await sleep(500);
+  if (v === 'network') { for (const r of reqs()) if (!r.ws()) { await pick(r); break; } return; }   // a request picked: its details show
+  if (v === 'storage') { if (items().length > 0) pickItem(items()[items().length - 1].key); if (tables().length > 0) await openTable(tables()[0], 0); return; }
+  for (const r of rows()) if (r.node.comp) { await select(r.node.id); break; }   // a component selected: its props and styles show
 }
 
 render(App, 0xffffff, (dt: number) => {});
-if (sys.env('ZINC_INSPECTOR_DUMP') !== '') dump(); else refresh();
+if (sys.env('ZINC_INSPECTOR_DUMP') !== '') dump(); else if (sys.env('ZINC_INSPECTOR_VIEW') !== '') openView(sys.env('ZINC_INSPECTOR_VIEW')); else refresh();

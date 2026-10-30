@@ -1,6 +1,6 @@
-// Zinc Inspector (ZN-373.01): a Chrome DevTools protocol client written in Zinc, for plugins/devtools (the zinc:ui tree, styles, console,
-// network) and zinc debug --cdp (the debugger). Discovery over HTTP (/json/list), then a WebSocket of zinc:socket; the messages are JSON read
-// as dynamic values.
+// Zinc Inspector (ZN-373.01): the Chrome DevTools protocol client of the panels, for plugins/devtools (the zinc:ui tree, styles, console,
+// network, storage) and zinc debug --cdp (the debugger), with the readers of its results the panels share. Discovery over HTTP (/json/list),
+// then a WebSocket of zinc:socket; the messages are JSON read as dynamic values.
 import { WebSocket, MessageEvent } from 'zinc:socket';
 import { fetch } from 'zinc:net';
 
@@ -62,30 +62,6 @@ export class Cdp {
   close(): void { this.ws.close(); }
 }
 
-/** A row of the Elements tree: a node at its depth, as the Elements panel writes it. */
-export class Row { nodeId: i32 = 0; depth: i32 = 0; label: string = ''; }
-
-/** The rows of a DOM.getDocument tree: elements as <tag class="...">, text as "text", the document itself left out. */
-export function rows(node: any, depth: i32, out: Row[]): Row[] {
-  const type: i32 = node.nodeType;
-  if (type === 1) {
-    const r = new Row();
-    r.nodeId = node.nodeId; r.depth = depth;
-    let label = '<' + node.localName;
-    const at = node.attributes;
-    if (at !== undefined) for (let i = 0; i + 1 < at.length; i += 2) { const k: string = at[i]; const v: string = at[i + 1]; if (k === 'class' && v.length > 0) label += ' class="' + v + '"'; }
-    r.label = label + '>';
-    out.push(r);
-  } else if (type === 3) {
-    const r = new Row();
-    r.nodeId = node.nodeId; r.depth = depth; r.label = '"' + node.nodeValue + '"';
-    out.push(r);
-  }
-  const kids = node.children;
-  if (kids !== undefined) for (const k of kids) rows(k, type === 9 ? depth : depth + 1, out);
-  return out;
-}
-
 /** A computed style as name: value lines. */
 export function styleLines(computed: any): string[] {
   const out: string[] = [];
@@ -125,41 +101,6 @@ export function inlineOf(style: any): Inline {
   const sl: number = r.startLine; const sc: number = r.startColumn; const el: number = r.endLine; const ec: number = r.endColumn;
   i.range = `{"startLine":${sl},"startColumn":${sc},"endLine":${el},"endColumn":${ec}}`;
   return i;
-}
-
-/** A request of the Network view (ZN-373.03), built from the Network events of zinc:devtools. */
-export class Req {
-  id: string = ''; method: string = ''; url: string = ''; type: string = ''; status: i32 = 0; error: string = '';
-  start: number = 0; end: number = -1; size: i32 = 0; frames: i32 = 0;
-  /** One line: method, status (or the error), the path, the time and the size. */
-  line(): string {
-    const u = this.url.indexOf('://') >= 0 ? this.url.slice(this.url.indexOf('/', this.url.indexOf('://') + 3)) : this.url;
-    const ms = this.end >= 0 ? Math.round((this.end - this.start) * 1000) + ' ms' : 'pending';
-    return this.method + ' ' + (this.error.length > 0 ? this.error : this.status > 0 ? '' + this.status : '…') + ' ' + (u.length > 0 ? u : this.url) + ' ' + ms +
-      (this.frames > 0 ? ' ' + this.frames + ' frames' : ' ' + this.size + ' B');
-  }
-}
-
-/** Applies a Network event to the requests (in the order they started); false when it is not one. */
-export function applyNetwork(reqs: Req[], method: string, params: any): boolean {
-  if (!method.startsWith('Network.')) return false;
-  const id: string = params.requestId;
-  let r: Req | null = null;
-  for (const x of reqs) if (x.id === id) r = x;
-  if (method === 'Network.requestWillBeSent' || method === 'Network.webSocketCreated') {
-    if (r === null) { r = new Req(); r.id = id; reqs.push(r); }
-    const q = r as Req;
-    if (method === 'Network.webSocketCreated') { q.method = 'WS'; q.url = params.url; q.type = 'WebSocket'; q.start = 0; return true; }
-    q.method = params.request.method; q.url = params.request.url; q.type = params.type; q.start = params.timestamp;
-    return true;
-  }
-  if (r === null) return true;
-  const q = r as Req;
-  if (method === 'Network.responseReceived') { q.status = params.response.status; }
-  else if (method === 'Network.loadingFinished') { q.end = params.timestamp; q.size = params.encodedDataLength; }
-  else if (method === 'Network.loadingFailed') { q.end = params.timestamp; q.error = params.errorText; }
-  else if (method === 'Network.webSocketFrameSent' || method === 'Network.webSocketFrameReceived') q.frames++;
-  return true;
 }
 
 /** A script of the Sources view (ZN-373.04): its id and URL, from Debugger.scriptParsed. */

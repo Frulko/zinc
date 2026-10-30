@@ -62,7 +62,8 @@ async function styles() {
   const attr = (n, k) => { const a = n.attributes ?? []; const i = a.indexOf(k); return i >= 0 && i % 2 === 0 ? a[i + 1] : undefined; };
   const tagged = nodes.find(n => (attr(n, 'class') ?? '').includes('bg-rose-600'));
   const parent = nodes.find(n => (n.children ?? []).includes(tagged));
-  const sheet = parent.children[parent.children.indexOf(tagged) + 1];
+  const sheetComp = nodes.find(n => n.nodeName === 'Sheet');   // a dev run names the components: <Tagged> and <Sheet> hold the two boxes
+  const sheet = sheetComp ? sheetComp.children[0] : parent.children[parent.children.indexOf(tagged) + 1];
   const shot = async () => Buffer.from((await call('Page.captureScreenshot', { format: 'png' })).data, 'base64');
   const settle = () => new Promise(r => setTimeout(r, 300));   // a few frames: the edit is laid out and painted
   const left = async n => (await call('DOM.getBoxModel', { nodeId: n.nodeId })).model;

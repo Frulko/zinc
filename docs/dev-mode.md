@@ -140,10 +140,12 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
 - discovery: `/json/list`, `/json/version`; in Chrome open `chrome://inspect`, *Configure…* → `localhost:9229`,
   (localhost:9229 is in the default list) then *inspect* under Remote Target (or open
   `devtools://devtools/bundled/inspector.html?ws=127.0.0.1:9229/zinc`);
-- **Elements**: `DOM.getDocument`, `requestChildNodes` — the component tree: each component shows as its own element
-  (`<Shell>`, `<Card>`, `<Button>`; dev builds record the names), host nodes as `view`, `text`, `button`…; plain
-  fragments (grouped children, dynamic slots) are not shown, their children are. Text as text nodes, attributes `class` and `layout` (`x,y wxh`); editing `class` (`DOM.setAttributeValue`,
-  `setAttributesAsText`) restyles the node live; `DOM.getBoxModel`;
+- **Elements**: `DOM.getDocument`, `requestChildNodes` — the component tree: in a dev run (`zinc dev`, or `ZINC_DEV=1`) each component of
+  the program shows as its own element (`<Shell>`, `<Card>`) with the attributes `source` (`src/main.tsx:30`, where it is used) and `props`
+  (the props as written there); the compiler records them only in dev runs, so other runs pay nothing and show the host nodes alone. Host
+  nodes show as `view`, `text`, `button`…; plain fragments (grouped children, dynamic slots) are not shown, their children are. Text as text
+  nodes, attributes `class` and `layout` (`x,y wxh`); editing `class` (`DOM.setAttributeValue`, `setAttributesAsText`) restyles the node
+  live, in a dev run only (elsewhere the edit is refused with an error that says so); `DOM.getBoxModel`;
 - **Computed styles**: `CSS.getComputedStyleForNode` with the layout values (position, size, padding, margin, gap,
   flex, colors, font size, radius, opacity; padding, margin and border widths also per side, for the box model);
 - **Styles** (ZN-369): `CSS.getMatchedStylesForNode` shows what each source of the node's style declares, as read-only rules: its classes
@@ -155,7 +157,7 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
   console, one line per edited node in the form its source uses: a node with style sheets or numbers gets the keys to add to its style
   object (`style, add { paddingLeft: 20, backgroundColor: "#10b981" }`), another node its new class string (`className="p-2 rounded
   pl-[20px] bg-[#000000]"`: a class that sets only edited properties is replaced, one that sets more stays and the new class after it
-  wins). The edits last until the node goes away; nothing is written to the source;
+  wins). The edits last until the node goes away; nothing is written to the source. Like class edits, they work in dev runs only;
 - **Overlay.highlightNode** draws a blue box over the node in the app (through scroll offsets and transforms);
 - **inspect mode** (the arrow at the top left, `Overlay.setInspectMode`): hovering the app highlights the node under
   the pointer, in the app and in Elements (`Overlay.nodeHighlightRequested`); a click selects it in Elements
@@ -191,7 +193,17 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
   URLs and in `Location`), as fields of a urlencoded form and as JSON fields at any depth, in request and response
   bodies and in WebSocket and MQTT text (`"pin":"***"`, the rest of the body is kept byte for byte). Not masked:
   free text, multipart forms, the bytes of a plain TCP socket, names written percent-encoded or with JSON escapes.
-  Bounds: the last 1000 requests, 4 MiB per body;
+  Bounds: the last 1000 requests, 4 MiB per body. Each client that sends `Network.enable` gets the whole log replayed, so a
+  second inspector, or one that attaches late, sees the same requests;
+- **Storage** (`DOMStorage.*`): the key/values of `zinc:storage` and async-storage as Chrome's local storage (`getDOMStorageItems`; set,
+  remove and clear in dev runs only); changes made by the program are sent as `domStorageItemAdded` / `Updated` / `Removed` (read twice a
+  second);
+- **Zinc domains**: `Zinc.getInfo` (`dev`, the screen size), `Zinc.getUnrendered` (the nodes that draw nothing: hidden, zero size, off
+  screen or clipped away by a scroll view, such as the rows a virtual list keeps), `Zinc.completeClass` (the known utility classes that
+  start with a prefix), `Zinc.getHar` (the network log as HAR), and `ZincSqlite.getDatabases` / `ZincSqlite.query` (`databaseId`, `sql`,
+  `limit`, `write`): the SQLite databases the program opened with `plugins/sqlite` in a dev run, queried read-only (`PRAGMA query_only`)
+  unless `write` is set, which is refused outside dev runs. The sqlite plugin registers its databases in `zinc:devhooks` in dev runs only,
+  so neither plugin imports the other;
 - every other method gets an empty result so the frontend never waits.
 
 Across a hot reload the sockets are handed to the new version (`ZINC_DEVTOOLS_FDS`), which sends
@@ -208,8 +220,28 @@ sets or removes a breakpoint (with the condition typed in the toolbar), Run star
 drive it; the right column shows the call stack, the scopes (objects and arrays unfold) and the watches, evaluated in the selected frame.
 The Performance view records the runtime's frames (Tracing.start / end, the same spans as `ZINC_TRACE`): the time of each phase over the
 recording, the frames as bars of their phases to scale, and the phases of the frame picked (the slowest at first). The runtime keeps the
-last 32768 spans (about 3600 frames). `tests/t1/inspector.sh` runs it against a headless program and a `zinc debug --cdp` session
-(`ZINC_INSPECTOR_DUMP=1` prints its views).
+last 32768 spans (about 3600 frames).
+
+Its panels (one file each in `app/inspector/`):
+
+- **Elements**: the tree with the components of a dev run (`<Card> src/main.tsx:30`), each foldable; a click on a component selects its
+  first host node and shows its props. A search box finds a component, a tag, a class, a text or an id and opens the tree down to each
+  match. Toggles: *Rendered only* (on by default: hides what draws nothing, such as `display: none` nodes and the rows a virtual list keeps
+  outside its view), *Components only*, *Hide host wrappers*. The tree is a virtual list, so a tree of thousands of nodes stays fast.
+- **Live styling** (dev runs only; elsewhere the panel says why and changes nothing): the node's classes as chips (click to switch one off
+  and on, x to remove it), a field to add a class with completion of the known classes, `element.style` properties to add, change, switch
+  off and delete. The computed style and the box model follow at once. Nothing is written to the source: the console prints the patch.
+- **Network**: the requests with status, method, type, size, time and a waterfall; filters by type (fetch, js, img, media, ws, other),
+  text and status; *Preserve log*, *Clear*, *Export HAR* (to `~/Downloads`, or `ZINC_INSPECTOR_HAR`). A request shows its headers,
+  query and payload, a preview (JSON as a foldable tree, text, an image), the response, the timing phases, *Copy as cURL*, and for a
+  WebSocket its messages (`>>` sent, `<<` received).
+- **Storage**: the key/values (view, edit, add, delete, clear all, updated live) and the SQLite databases: tables, schema, rows by pages
+  of 50, a read-only query, and *Run as write...* behind a confirmation (dev runs only).
+- **Console**, with a filter; **Screen**; **Sources** (above); **Performance** (above).
+
+`tests/t1/inspector.sh` and `tests/t1/inspector_storage.sh` run it against headless programs and a `zinc debug --cdp` session:
+`ZINC_INSPECTOR_DUMP=1` prints every view, `=elements` and `=storage` one; `ZINC_INSPECTOR_VIEW=<panel>` attaches to the first program
+and opens that panel (with `ZINC_SHOT`, a picture of it).
 
 On a remote device, `zinc dev --device` runs ssh with `-L 9229:127.0.0.1:9229`, so Chrome on the dev machine uses
 `localhost:9229` as well.

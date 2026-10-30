@@ -6,8 +6,16 @@
 // panel: classes and style sheets as rules, element.style and the box model edited live with the patch printed to the console
 // (ZN-369). Unknown methods get an empty result so the frontend never waits.
 import Cdp from './native/cdp.spec';
-import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectState, inspectStyle, classStyle, sheetStyle, componentName, parentOf, setClass, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
+import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
 import { width, height } from 'zinc:gfx';
+import { env } from 'zinc:sys';
+import { get as storeGet, set as storeSet, remove as storeRemove, keys as storeKeys } from 'zinc:storage';
+import { devDatabases, DevDatabase } from 'zinc:devhooks';
+
+/** A dev run (zinc dev): the only one where the styles can be edited live; an exported or plain run refuses, with this message. */
+const DEV = env('ZINC_DEV') === '1';
+const NOT_DEV_STORE = 'changing the storage works in dev runs only (zinc dev): this program was not started by zinc dev, and nothing was changed';
+const NOT_DEV = 'live styling works in dev runs only (zinc dev): this program was not started by zinc dev, and nothing was changed';
 
 const DOC: i32 = 900000000, TEXT_BASE: i32 = 500000000, FRAGMENT: i32 = 6;
 
@@ -51,6 +59,8 @@ function listeners(n: UiNode): string {
 function attrs(h: i32, n: UiNode): string[] {
   const a = ['class', cls(n), 'layout', `${Math.round(n.x)},${Math.round(n.y)} ${Math.round(n.lw)}x${Math.round(n.lh)}`];
   if (n.hidden) { a.push('hidden'); a.push(''); }
+  const src = componentSource(h);   // a component of a dev run: where it is called, its props as written there
+  if (src.length > 0) { a.push('source'); a.push(src); a.push('props'); a.push(componentProps(h)); }
   const st = inspectState(h), on = listeners(n), ed = edited(h);
   if (ed !== null) { a.push('style'); a.push(cssText(ed.decls)); }
   if (st.length > 0) { a.push('state'); a.push(st); }
@@ -136,6 +146,10 @@ function handle(client: i32, msg: string): void {
   const h = handleOf(nodeId);
   const n = inspectNode(h);
   let result = '{}';
+  if (!DEV && (method === 'DOM.setAttributeValue' || method === 'DOM.setAttributesAsText' || method === 'CSS.setStyleTexts')) {
+    Cdp.send(client, `{"id":${id},"error":{"code":-32000,"message":${q(NOT_DEV)}}}`);
+    return;
+  }
   if (method === 'DOM.getDocument') { result = `{"root":${documentNode()}}`; snaps.clear(); shownRoot = inspectRoot(); remember(inspectRoot()); }
   else if (method === 'DOM.requestChildNodes' && n !== null) {
     Cdp.send(client, `{"method":"DOM.setChildNodes","params":{"parentId":${nodeId},"nodes":[${children(h, n).join(',')}]}}`);
@@ -173,13 +187,73 @@ function handle(client: i32, msg: string): void {
     Cdp.send(client, '{"method":"Tracing.tracingComplete","params":{"dataLossOccurred":false}}');
     return;
   }
-  else if (method === 'Network.enable') netOn = true;   // what the program requested before DevTools attached is sent too
+  else if (method === 'Network.enable') {   // what the program requested before DevTools attached is sent too, to this client
+    const q0 = Cdp.net(1, '');   // the events not sent yet: to the clients already listening (they would get the replay's copy too otherwise)
+    if (netOn) for (const e of q0.split('\n')) if (e.length > 0) Cdp.send(-1, e);
+    Cdp.send(client, `{"id":${id},"result":{}}`);
+    for (const e of Cdp.net(10, '').split('\n')) if (e.length > 0) Cdp.send(client, e);
+    netOn = true;
+    return;
+  }
   else if (method === 'Network.disable') netOn = false;
   else if (method === 'Network.getResponseBody') result = orEmpty(Cdp.net(2, Cdp.str(msg, 'requestId')));
   else if (method === 'Network.getRequestPostData') result = orEmpty(Cdp.net(3, Cdp.str(msg, 'requestId')));
   else if (method === 'Zinc.getResourceStats') result = Cdp.resourceStats();
+  else if (method === 'Zinc.getInfo') result = `{"dev":${DEV},"width":${width()},"height":${height()}}`;
+  else if (method === 'Zinc.getUnrendered') result = `{"nodeIds":[${unrendered().join(',')}]}`;
+  else if (method === 'DOMStorage.enable') { storeOn = true; storeSnap = storeRead(); }
+  else if (method === 'DOMStorage.disable') storeOn = false;
+  else if (method === 'DOMStorage.getDOMStorageItems') result = `{"entries":[${storeRead().map((e: string[]) => `[${q(e[0])},${q(e[1])}]`).join(',')}]}`;
+  else if (method === 'DOMStorage.setDOMStorageItem' || method === 'DOMStorage.removeDOMStorageItem' || method === 'DOMStorage.clear') {
+    if (!DEV) { Cdp.send(client, `{"id":${id},"error":{"code":-32000,"message":${q(NOT_DEV_STORE)}}}`); return; }
+    if (method === 'DOMStorage.setDOMStorageItem') storeSet(Cdp.str(msg, 'key'), Cdp.str(msg, 'value'));
+    else if (method === 'DOMStorage.removeDOMStorageItem') storeRemove(Cdp.str(msg, 'key'));
+    else for (const k of storeKeys()) storeRemove(k);
+  }
+  else if (method === 'ZincSqlite.getDatabases') result = `{"databases":[${devDatabases.map((d: DevDatabase) => `{"id":${d.id},"path":${q(d.path)}}`).join(',')}]}`;
+  else if (method === 'ZincSqlite.query') {
+    const want: i32 = Math.round(Cdp.num(msg, 'databaseId')), write = msg.indexOf('"write":true') >= 0;
+    let db: DevDatabase | null = null;
+    for (const d of devDatabases) if (d.id === want) db = d;
+    if (db === null) result = '{"error":"no such database (it was closed)"}';
+    else if (write && !DEV) result = `{"error":${q(NOT_DEV_STORE)}}`;
+    else { const max = Cdp.num(msg, 'limit'); result = (db as DevDatabase).query(Cdp.str(msg, 'sql'), max > 0 ? Math.round(max) : 500, write); }
+  }
+  else if (method === 'Zinc.getHar') result = orEmpty(Cdp.net(9, ''));
+  else if (method === 'Zinc.completeClass') result = `{"classes":[${knownClasses(Cdp.str(msg, 'prefix'), 40).map((c: string) => q(c)).join(',')}]}`;
   else if (method === 'Runtime.evaluate') result = '{"result":{"type":"string","value":"zinc: no JavaScript engine on the device (the console shows the program output)"}}';
   Cdp.send(client, `{"id":${id},"result":${result}}`);
+}
+
+// ---------------------------------------------------------------- what draws (the inspector's "rendered only" filter)
+/** The DevTools ids of the top-most elements Elements shows that draw nothing: display none, no size, outside the screen or the clip of a
+ *  scroll view or overflow-hidden box (the rows a virtual list keeps beyond its view), a component none of whose children draws. Their
+ *  subtrees draw nothing either and are not listed. */
+function unrendered(): i32[] {
+  const out: i32[] = [];
+  const r = inspectRoot(), n = inspectNode(r);
+  if (n !== null && !draws(r, n, [0, 0, width(), height()], out)) out.push(r + 1);
+  return out;
+}
+function draws(h: i32, n: UiNode, clip: number[], out: i32[]): boolean {
+  if (n.hidden) return false;
+  let inner = clip;
+  if (n.tag !== FRAGMENT) {
+    const b = screenBox(h);
+    const x0 = Math.max(b[0], clip[0]), y0 = Math.max(b[1], clip[1]), x1 = Math.min(b[0] + b[2], clip[2]), y1 = Math.min(b[1] + b[3], clip[3]);
+    if (b[2] <= 0 || b[3] <= 0 || x1 <= x0 || y1 <= y0) return false;
+    if (n.overflow || n.scroll !== 0) inner = [x0, y0, x1, y1];
+  }
+  const mine: i32[] = [];
+  let any = n.tag !== FRAGMENT;   // a component's wrapper draws when one of its children does
+  for (const k of kidIds(h, n, [])) {
+    if (k >= TEXT_BASE) continue;
+    const c = inspectNode(k - 1);
+    if (c === null) continue;
+    if (draws(k - 1, c, inner, out)) any = true; else mine.push(k);
+  }
+  if (any) for (const k of mine) out.push(k);
+  return any;
 }
 
 // ---------------------------------------------------------------- the Styles panel (ZN-369)
@@ -477,6 +551,27 @@ setInterval(() => {
   if (events.length === 0) return;
   for (const e of events.split('\n')) if (e.length > 0) Cdp.send(-1, e);
 }, 100);
+// The Storage panel's key/values (zinc:storage, which AsyncStorage keeps its keys in): while a client has DOMStorage enabled, what changed
+// since the last look goes out every 500 ms as Chrome's DOMStorage events, so the panel follows the program's writes.
+// ponytail: polled, the whole store read each time; a write hook in zinc:storage if a program keeps thousands of keys.
+let storeOn = false;
+let storeSnap: string[][] = [];
+function storeRead(): string[][] { const out: string[][] = []; for (const k of storeKeys()) out.push([k, storeGet(k)]); return out; }
+const STORE_ID = '{"securityOrigin":"zinc://app","isLocalStorage":true}';
+setInterval(() => {
+  if (!storeOn) return;
+  if (Cdp.clients() === 0) { storeOn = false; return; }
+  const now = storeRead(), was = new Map<string, string>();
+  for (const e of storeSnap) was.set(e[0], e[1]);
+  for (const e of now) {
+    const old = was.get(e[0]);
+    if (old === undefined) Cdp.send(-1, `{"method":"DOMStorage.domStorageItemAdded","params":{"storageId":${STORE_ID},"key":${q(e[0])},"newValue":${q(e[1])}}}`);
+    else if (old !== e[1]) Cdp.send(-1, `{"method":"DOMStorage.domStorageItemUpdated","params":{"storageId":${STORE_ID},"key":${q(e[0])},"oldValue":${q(old)},"newValue":${q(e[1])}}}`);
+    was.delete(e[0]);
+  }
+  was.forEach((v: string, k: string) => { Cdp.send(-1, `{"method":"DOMStorage.domStorageItemRemoved","params":{"storageId":${STORE_ID},"key":${q(k)}}}`); });
+  storeSnap = now;
+}, 500);
 let shownRoot: i32 = -1;
 setInterval(() => {
   if (Cdp.clients() === 0) { snaps.clear(); return; }
