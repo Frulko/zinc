@@ -8,6 +8,7 @@
 #include "hal.h"
 #include "hal_window.h"
 #include "zn/host.h"
+#include "zn/ease.h"
 #include "zn/runtime.h"
 #include "zrt.h"
 #include "zrt_raster.h"
@@ -348,6 +349,11 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxEndWindow: g::endWindow(); break;
     case Rt::HostGfxLoadFont: r->i = loadFont(str(a[0]), a[1].d); break;   // the SDL HAL has it; headless runs and other HALs keep their surface
     case Rt::HostGfxCommandsFree: r->i = g::commandsFree(); break;
+    case Rt::HostGfxEase: r->d = zn::ease::at(n(0), a[1].d); break;
+    case Rt::HostGfxLayerBegin: g::layerBegin(n(0), a[1].d, a[2].d); break;
+    case Rt::HostGfxLayerEnd: r->i = g::layerEnd() ? 1 : 0; break;
+    case Rt::HostGfxLayerAnim: g::layerAnim(n(0), n(1), a[2].d, a[3].d, a[4].d, a[5].d, n(6), a[7].d); break;
+    case Rt::HostGfxCompClock: r->i = g::compClock(a[0].d) ? 1 : 0; break;
     case Rt::HostGfxProfMark: if (g::profiling()) g::profMark(n(0)); zn_ui_log_mark(n(0)); break;
     case Rt::HostGfxFinish:
       if (pauseFlag) { pauseFlag = false; break; }   // paused, not finished: the next loop draws in the same window

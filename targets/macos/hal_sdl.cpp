@@ -1262,7 +1262,7 @@ static void ps_end() {
     std::sort(v, v + 120);
     n += snprintf(b + n, sizeof b - n, " %s p50 %.2f p99 %.2f", names[k], v[59] / 1000.0, v[118] / 1000.0);
   }
-  n += snprintf(b + n, sizeof b - n, " ms\n");
+  n += snprintf(b + n, sizeof b - n, " max %.2f ms\n", ps_us[PS_GAP][119] / 1000.0);   // the longest interval: a stall (a busy script) shows here
   hal_log_err(b, (size_t)n);
 }
 

@@ -840,6 +840,12 @@ uint8_t* capture_png(size_t* n, int32_t maxw = 0, int32_t maxh = 0);  // the fra
                                                                    // shrunk to fit maxw x maxh; DevTools screenshots
 int32_t commandCount();             // draw commands of this frame so far (gfx.cpp)
 int32_t commandsFree();             // draw commands the frame still takes
+// The compositor (D182 step 6): a layer is the commands of one node's subtree, recorded with no transform; the compositor turns them around
+// (cx, cy) by the value of the layer's declared animation at each present, on the render thread while the script is busy.
+void layerBegin(int32_t id, double cx, double cy);
+bool layerEnd();                    // false: the layer holds a command the compositor cannot move (the script animates it instead)
+void layerAnim(int32_t id, int32_t prop, double from, double to, double start, double dur, int32_t easing, double iterations);   // dur < 0: none
+bool compClock(double ms);          // the script's clock this frame (ms < 0: only asks); true when the compositor runs
 bool profiling();                   // profiler (gfx.cpp): ZINC_PROFILE / ZINC_TRACE / DevTools Tracing
 extern const char* (*thread_trace)(int32_t op, size_t* n);   // the other threads' trace events, set by a host (Zinc Next: the workers, zn::host::threadTrace): 1 start, 0 stop and return them, 2 return them
 extern const char* (*hud_info)();   // ZINC_PERF_HUD (ZN-375): the panel's engine line, set by a host (Zinc Next: the engine and its allocation counters)

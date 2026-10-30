@@ -693,6 +693,27 @@ function writeLine(err, s) {
   let i;
   while ((i = out.text.indexOf('\n')) >= 0) { (err ? console.error : console.log)(out.text.slice(0, i)); out.text = out.text.slice(i + 1); }
 }
+function bezier(x1, y1, x2, y2, x) {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  let lo = 0, hi = 1, u = x;
+  for (let i = 0; i < 30; i++) {
+    const v = ((1 - 3 * x2 + 3 * x1) * u + (3 * x2 - 6 * x1)) * u * u + 3 * x1 * u;
+    if (Math.abs(v - x) < 1e-7) break;
+    if (v < x) lo = u; else hi = u;
+    u = (lo + hi) / 2;
+  }
+  return ((1 - 3 * y2 + 3 * y1) * u + (3 * y2 - 6 * y1)) * u * u + 3 * y1 * u;
+}
+const BEZ = { 5: [0.4, 0, 1, 1], 6: [0, 0, 0.2, 1], 7: [0.4, 0, 0.2, 1], 8: [0.25, 0.1, 0.25, 1], 9: [0.42, 0, 1, 1], 10: [0, 0, 0.58, 1], 11: [0.42, 0, 0.58, 1] };
+function easeAt(e, t) {
+  if (e === 0) return t;
+  if (e === 1) return t * t * t;
+  if (e === 2) { const u = 1 - t; return 1 - u * u * u; }
+  if (e === 3) return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  if (BEZ[e]) return bezier(...BEZ[e], t);
+  return 1 - Math.exp(-6 * t) * Math.cos(10 * t);
+}
 let quit = false, startMs = performance.now();
 const lastKeys = [];
 let frameKeys = [], frameBtn = [], framePen = [];
@@ -702,6 +723,8 @@ const rows = {
   gfxWidth: () => W, gfxHeight: () => H, gfxPixelScale: () => 1, gfxSetResize: () => {}, gfxProfiling: () => false, gfxProfMark: () => {},
   gfxCommands: () => 0, gfxCommandsFree: () => 1 << 20, gfxShouldQuit: () => quit, gfxQuit: () => { quit = true; }, gfxPoll: () => 1 / 60,
   gfxCapture: () => false,
+  // the easing curves of include/zn/ease.h (the browser host has no C++: the same formulas, keep them equal); no compositor here (D182)
+  gfxEase: (e, t) => easeAt(e, t), gfxLayerBegin: () => {}, gfxLayerEnd: () => 0, gfxLayerAnim: () => {}, gfxCompClock: () => 0,
   // drawing
   gfxClear: (c) => B.clear(c), gfxRect: (x, y, w, h, c) => B.rect(x, y, w, h, c), gfxRRect: (x, y, w, h, r, c, a) => B.rrect(x, y, w, h, r, c, a),
   gfxLine: (a, b, c, d, e) => B.line(a, b, c, d, e), gfxText: (x, y, s, c, k) => B.text(x, y, s, c, k),

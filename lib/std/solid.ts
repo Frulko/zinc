@@ -167,10 +167,11 @@ export function _ref(n: i32, r: NodeRef): void { r.node = n; }
 /** Handle to a mounted node (ref={...}), used by animate(). */
 export class NodeRef { node: i32 = -1; }
 export function createNodeRef(): NodeRef { return new NodeRef(); }
-export interface AnimateOptions { dur?: i32; easing?: string; delay?: i32 }
-/** Engine-driven tween (UI-17): no reactive work per frame. Properties: width, height, opacity, translateX, translateY. */
+export interface AnimateOptions { dur?: i32; easing?: string; delay?: i32; iterations?: number }
+/** Engine-driven tween (UI-17): no reactive work per frame. Properties: width, height, opacity, translateX, translateY, rotate (played by the
+ *  compositor: it keeps turning while the script is busy). `iterations` repeats it from its start (Infinity: until another animate()). */
 export function animate(ref: NodeRef, prop: string, to: number, opts: AnimateOptions): Promise<void> {
-  return ui.animate(ref.node, prop, to, opts.dur ?? 300, opts.easing ?? 'out', opts.delay ?? 0);
+  return ui.animate(ref.node, prop, to, opts.dur ?? 300, opts.easing ?? 'out', opts.delay ?? 0, opts.iterations ?? 1);
 }
 /** Resolves after `ms` milliseconds. */
 export function after(ms: number): Promise<void> { return new Promise<void>(resolve => { setTimeout(resolve, ms); }); }
