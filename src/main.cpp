@@ -3431,7 +3431,11 @@ int main(int argc, char** argv) {
         target = c->second;
       }
       const std::string tail = target == "any" ? "" : "-" + target;
-      const std::string file = name + "-" + version + tail + (asExport ? ".tar" : ".zapp"), zapp = (fs::path(outDir) / file).string();
+      // the file is one path component a hub and a URL take as it is: "My App" is published as My-App-1.0.0.zapp
+      std::string base = name;
+      for (char& c : base) if (!std::isalnum(static_cast<unsigned char>(c)) && c != '.' && c != '-' && c != '_' && c != '+') c = '-';
+      if (!base.empty() && base[0] == '.') base[0] = '-';
+      const std::string file = base + "-" + version + tail + (asExport ? ".tar" : ".zapp"), zapp = (fs::path(outDir) / file).string();
       const std::string self = zn::tc::executablePath();
       if (asExport) {   // zinc export --target T, its directory (export's last line) as a deterministic ustar: sorted, time 0, executables 0755
         std::string said;
@@ -3475,6 +3479,7 @@ int main(int argc, char** argv) {
       { std::ofstream h(hd); fs::permissions(hd, fs::perms::owner_read | fs::perms::owner_write, ec);
         h << "Authorization: Bearer " << hubToken << "\nX-Manifest-Length: " << signedText.size() << "\nX-App-Key: " << proj.updateKey << "\nContent-Type: application/octet-stream\n"; }
       const std::string endpoint = hub + (hub.back() == '/' ? "" : "/") + "publish";
+      std::fflush(stdout);   // the published line before curl's answer, on a pipe too
       const int rc = zn::plat::run({"curl", "-sS", "--fail-with-body", "--max-time", "600", "-X", "POST", "-H", "@" + hd.string(), "--data-binary", "@" + up.string(), endpoint});
       fs::remove(up, ec); fs::remove(hd, ec);
       std::printf("\n");
