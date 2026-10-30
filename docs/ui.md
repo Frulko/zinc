@@ -459,6 +459,8 @@ new key has none). Use a key per place a person can come back to: `zinc:ui/histo
 returns to where the list was and a new entry starts at the top. The last 1,000 keys are kept. `tests/t1/ui_scroll_key.sh`
 (`tests/golden/ui-scroll-key`) checks it on the interpreter and QuickJS.
 
+`ui.scrollToRow(list, i)` brings row `i` of a virtual list into view with the least scroll (to the top when it is above the view, to the bottom when below), as a tree keeps its selected row shown when the arrow keys move it; a row not measured yet counts at its estimate (`tests/golden/ui-virtual`).
+
 Input: the SDL HAL resamples the precise deltas at frame time (now - 5 ms, linear between events, extrapolation ≤ 8 ms:
 Chromium / Android) into `HalInput.scroll_dx / dy / phase` (`gfx.scrollDX / scrollDY / scrollPhase`). On macOS the main
 window's precise scrolls (trackpad, Magic Mouse) come from their NSEvents (`targets/macos/hal_cocoa.mm`) with the gesture

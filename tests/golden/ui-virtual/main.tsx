@@ -37,5 +37,7 @@ ui.mount(root, 0xffffff, (dt: number) => {
   if (f === 3) { show('start'); ui.scrollTo(list, 0, 600000); }
   if (f === 6) { show('at 600000'); ui.scrollTo(list, 0, 0); }
   if (f === 9) { show('back at 0'); showFourth('fixed row'); ui.setClass(fourth(), 'w-full bg-[#ff0000]'); }
-  if (f === 11) { showFourth('restyled row'); quit(); }
+  if (f === 11) { showFourth('restyled row'); ui.scrollToRow(list, 1000); }   // row 1000 below the view: shown at the bottom, then row 2 above it at the top
+  if (f === 14) { show('row 1000 shown'); ui.scrollToRow(list, 2); }
+  if (f === 17) { show('row 2 shown'); quit(); }
 });

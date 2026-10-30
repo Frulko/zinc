@@ -10,6 +10,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - Zinc Inspector, Storage works like Chrome DevTools' Application panel: a tree of the stores (zinc:storage, AsyncStorage, each SQLite database and its tables) and a grid with sortable, resizable columns, a filter and row selection; key/values are edited in place (double-click), added, deleted and cleared, the value picked shows below as a foldable JSON tree or raw text; a table shows its columns, typed cells (NULL dimmed, numbers right-aligned, blobs as size and first bytes), pages with the row count, sort and filter, and its schema with its indexes.
+- `zinc:ui`: `scrollToRow(list, i)` brings a row of a virtual list into view with the least scroll.
 - Zinc Inspector, Info: the frame rate vsync aims at (the display's refresh rate), the assets on disk and in packs, the JavaScript heap on QuickJS, JavaScriptCore, V8 and Hermes, and the source files of a program run from a `.zapp`.
 - Zinc Inspector, Info: the refresh rate follows the window to another screen, an asset saved while the program runs is counted at once, and an executable of `zinc build` shows its source files and `zinc:` imports.
 - Zinc Inspector: a new Info view, shown first when you attach, describes the program: its zinc.json name, id, version and permissions, entry and project, the zinc version, dev run or not, uptime and pid; the machine (system, CPU, cores, memory, host name, this machine or a paired device); the engine (interpreter, AOT, QuickJS, JavaScriptCore, V8, Hermes) and profile; the renderer (CPU raster or GPU, how frames are presented, the GPU, window size, scale, vsync); its plugins (native or not), source files, functions compiled and baked assets; the `zinc:` modules it imports; its workers; and frame rate, last frame, phase times, resident memory and CPU time, refreshed every second (`Zinc.getProgramInfo` for other DevTools clients).
@@ -254,6 +255,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - `zinc dev` with the inspector on port 0 (any free port): the program binds the port itself and zinc dev names it (`the inspector listens on port N`); the next versions keep it, and take another when it is taken, instead of a port chosen beforehand that another program could take first.
+- `zinc:ui`: a text that grows from a zero width in a row (`flex-1 w-0`) wraps at the width it gets instead of staying on one clipped line, with style runs too.
 - A class instance can be used where an interface of fields or an object type is expected (`const l: Labeled = new Tag()`, in arrays, as a parameter or a return value), as TypeScript allows: reads and writes go to the instance itself.
 - Converting an `any` back to a class finds an instance of a subclass declared in a later module instead of throwing a TypeError.
 - Programs on QuickJS, JavaScriptCore, V8 and Hermes (and so every such program under `zinc dev`) keep their `zinc:storage` and AsyncStorage keys in their own store, `<zinc home>/apps/<zinc.json name>/storage.kv`, instead of the store shared by all apps; Zinc Inspector's Storage panel names the store it lists.

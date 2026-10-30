@@ -732,6 +732,16 @@ export function virtualize(h: i32, count: i32, itemH: number, render: (i: i32) =
   vv.first = 0; vv.last = -1;
   layoutDirty = true;
 }
+/** Brings row i of virtual list h into view with the least scroll (above the view: to its top; below it: to its bottom), as a tree or a list
+ *  keeps its selected row shown when the keyboard moves it. A row of a variable list not measured yet counts at its estimate. */
+export function scrollToRow(h: i32, i: i32): void {
+  const n = node(h), v = n.virt;
+  if (v === null || i < 0 || i >= (v as Virtual).count) return;
+  const vv = v as Virtual;
+  const top: number = n.pt + (vv.variable ? fwPrefix(vv, i) : i * vv.itemH), rh: number = vv.variable ? vv.hs[i] : vv.itemH;
+  if (top < n.sy) scrollTo(h, n.sx, top);
+  else if (top + rh > n.sy + n.lh) scrollTo(h, n.sx, top + rh - n.lh);
+}
 // Fenwick tree over the row heights of a variable list: offset of a row and the row at an offset, both O(log n); 100k rows cost two arrays.
 function fwBuild(v: Virtual, est: number): void {
   v.hs = []; v.known = []; v.tree = [0];
@@ -3272,6 +3282,10 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
           if (c.grow <= 0) continue;
           const fw: number = c.lw + free * c.grow / gs;
           if (c.natW > fw + 0.5 || c.basisCut) { measure(c, fw, innerH); applyBasis(c, true, mainAvail); again = true; }
+          else if (c.w >= 0 && c.wFrac === 0 && fw > c.lw + 0.5) {   // a width that grows is its flex-basis (CSS's flex-1 w-0): what wraps in it wraps at the
+            const w = c.w;                                             // width it gets, and the row takes the height that gives; the basis stays its width
+            c.w = -1; measure(c, fw, innerH); c.w = w; c.lw = Math.max(w, c.pl + c.pr); again = true;
+          }
         }
         if (again) { cross = 0; for (const c of kids) if (outerH(c) > cross) cross = outerH(c); }
       }
