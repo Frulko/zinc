@@ -69,9 +69,9 @@ export class Gateway {
   }
   /** Op 37: what the open server sends this client (its member list, typing): lazy guilds (docs/reports/discord-client-research.md 2.5). */
   subscribe(body: any): void { this.send(OP_GUILD_SUBSCRIPTIONS_BULK, body); }
-  /** Op 4: joins a voice channel or a DM call ('' guild: a DM), moves, or leaves ('' channel), with our mute and deafen. */
-  voiceState(guildId: string, channelId: string, mute: boolean, deaf: boolean): void {
-    this.send(OP_VOICE_STATE, { guild_id: guildId !== '' ? guildId : null, channel_id: channelId !== '' ? channelId : null, self_mute: mute, self_deaf: deaf, self_video: false });
+  /** Op 4: joins a voice channel or a DM call ('' guild: a DM), moves, or leaves ('' channel), with our mute, deafen and camera. */
+  voiceState(guildId: string, channelId: string, mute: boolean, deaf: boolean, video: boolean): void {
+    this.send(OP_VOICE_STATE, { guild_id: guildId !== '' ? guildId : null, channel_id: channelId !== '' ? channelId : null, self_mute: mute, self_deaf: deaf, self_video: video });
   }
   /** Drops the connection as a network failure would (tests): the next connection resumes. */
   drop(): void { const ws = this.ws; if (ws !== null) ws.close(4000, 'drop'); }

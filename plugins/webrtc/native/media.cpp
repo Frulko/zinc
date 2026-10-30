@@ -1,10 +1,13 @@
 // zinc:webrtc media (media.h): VP8 through libvpx 1.17 (vendor/libvpx, generic C: the same code on every target), Opus through libopus
 // 1.6.1 (vendor/opus, floating point), the BGRX <-> I420 conversion and the reassembly of received RTP packets into frames.
+// MEDIA_NO_VP8: built without libvpx (zinc:discord-voice takes the H.264, Opus and reassembly parts only); vp8Encoder/vp8Decoder are null.
 #include "media.h"
+#ifndef MEDIA_NO_VP8
 #include "vpx/vp8cx.h"
 #include "vpx/vp8dx.h"
 #include "vpx/vpx_decoder.h"
 #include "vpx/vpx_encoder.h"
+#endif
 #include "opus.h"
 #include <string.h>
 
@@ -57,6 +60,7 @@ void scale(const uint32_t* src, int sw, int sh, uint32_t* dst, int dw, int dh) {
 }
 
 // ---- VP8 (libvpx). Real-time settings as WebRTC's own libvpx wrapper uses them: CBR, no lag, error resilient, a buffer of one second.
+#ifndef MEDIA_NO_VP8
 namespace {
 struct Vp8Enc : VideoEncoder {
   vpx_codec_ctx_t ctx;
@@ -145,6 +149,11 @@ VideoDecoder* vp8Decoder() {
   if (!d->ok) { delete d; return nullptr; }
   return d;
 }
+
+#else
+VideoEncoder* vp8Encoder(int, int, int, int) { return nullptr; }
+VideoDecoder* vp8Decoder() { return nullptr; }
+#endif
 
 #ifndef __APPLE__   // videotoolbox.cpp on macOS; V4L2 M2M on a Pi is for the cross-platform pass
 bool h264Available() { return false; }

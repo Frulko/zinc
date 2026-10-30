@@ -37,6 +37,17 @@ export interface Spec extends NativeModule {
   speaking(h: i32): string;
   /** [packets sent, packets received, decryption failures, frames decoded, frames mixed into the output, late or lost packets] */
   stats(h: i32): f64[];
+  /** Video, H.264 (VideoToolbox; none elsewhere yet): our camera's stream, its SSRC from Ready's `streams` (0: we send no video). */
+  videoSend(h: i32, ssrc: u32): void;
+  /** The newest frame of a runtime image (a zinc:camera Camera's) to encode and send on the media thread; false when it cannot be read. */
+  sendImage(h: i32, image: i32): boolean;
+  /** Decodes the camera of the stream `ssrc` (someone's, from op 12) at most width x height pixels (the decoder scales it); 0 x 0 stops
+   *  decoding it: its packets are dropped unopened and its image freed. */
+  watch(h: i32, ssrc: u32, user: string, width: i32, height: i32): void;
+  /** The runtime image of the newest decoded frame of `ssrc`, moved to that frame now (no copy); -1 before the first. */
+  videoImage(h: i32, ssrc: u32): i32;
+  /** [video frames encoded, video packets sent, video frames decoded, key frames asked of the others (PLI), key frames they asked of us] */
+  videoStats(h: i32): f64[];
   /** Stops the media and closes the socket and the devices. */
   close(h: i32): void;
 

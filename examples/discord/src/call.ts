@@ -1,13 +1,17 @@
 // Voice calls (docs/reports/discord-client-research.md 4): joining a voice channel or a DM call is op 4 on the main gateway; Discord
 // answers with VOICE_STATE_UPDATE (our voice session) and VOICE_SERVER_UPDATE (the voice server), and zinc:discord-voice does the rest.
 // This file keeps who is in which voice channel or call, who speaks, our mute and deafen, and the voice settings (devices, volumes, input
-// mode), kept on this machine with zinc:storage. No drawing.
+// mode), kept on this machine with zinc:storage. Video: our camera (zinc:camera) sent while it is on, and the others' cameras decoded only
+// while the call view shows them and the window is not minimized, at the size of their tile. No drawing.
 import { VoiceConnection, VoiceState, AudioDevice, inputDevices, outputDevices } from 'zinc:discord-voice';
 import { requestPermission, Microphone } from 'zinc:microphone';
+import { Camera, requestPermission as cameraPermission } from 'zinc:camera';
+import { pixelScale } from 'zinc:gfx';
+import { addSignalListener, appState, repaint } from 'zinc:ui';
 import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
 import { api } from './services/rest';
-import { PTT_KEY } from './constants';
+import { PTT_KEY, TILE_W, TILE_H } from './constants';
 
 export type CallState = VoiceState | 'idle';
 const VOICE_KEY = 'voice';
@@ -70,6 +74,13 @@ export class Call {
   settings: VoiceSettings = new VoiceSettings();
   /** The settings wait for a key to make push-to-talk's. */
   recordingKey = false;
+  /** Our camera is on (sent to the call, shown in our tile). */
+  video = false;
+  private cam: Camera | null = null;
+  private viewOn = false;                                       // the call view shows the tiles
+  private images: Map<string, i32> = new Map<string, i32>();   // user -> the image of their camera on screen
+  private frames = -1;                                          // the timer that moves those images to their newest frame
+  private decoded = 0;
   private flags: Map<string, VoiceFlags> = new Map<string, VoiceFlags>();
   private tick = -1;
   private meter: Microphone | null = null;
@@ -78,14 +89,16 @@ export class Call {
   private server: any = null;
   private conn: VoiceConnection | null = null;
   private me: () => string;
-  private op4: (guildId: string, channelId: string, mute: boolean, deaf: boolean) => void;
+  private op4: (guildId: string, channelId: string, mute: boolean, deaf: boolean, video: boolean) => void;
   private changed: () => void;
   private log: (line: string) => void;
 
-  constructor(me: () => string, op4: (guildId: string, channelId: string, mute: boolean, deaf: boolean) => void, changed: () => void, log: (line: string) => void) {
+  constructor(me: () => string, op4: (guildId: string, channelId: string, mute: boolean, deaf: boolean, video: boolean) => void, changed: () => void, log: (line: string) => void) {
     this.me = me; this.op4 = op4; this.changed = changed; this.log = log;
     this.settings.load(storage.get(VOICE_KEY));
     this.ptt = this.settings.mode === 'ptt';
+    // minimized or hidden: no camera is decoded (and the server sends none); back: they come again
+    addSignalListener((kind: string, arg: string): void => { if (kind === 'background' || kind === 'foreground') this.videoWatch(); });
   }
 
   // ------------------------------------------------------------------ the voice settings
@@ -129,10 +142,78 @@ export class Call {
   }
   /** Someone's mute and deafen as they show them (a speaking ring is not drawn for a muted user). */
   flagsOf(id: string): VoiceFlags { const f = this.flags.get(id); return f !== undefined ? f : { mute: false, deaf: false }; }
-  /** The call view shows: its duration moves each second. */
+  /** The call view shows: its duration moves each second, and the cameras of its tiles are decoded. */
   watch(on: boolean): void {
     if (on && this.tick < 0) this.tick = setInterval(() => { this.changed(); }, 1000);
     if (!on && this.tick >= 0) { clearInterval(this.tick); this.tick = -1; }
+    if (on !== this.viewOn) { this.viewOn = on; this.videoWatch(); }
+  }
+
+  // ------------------------------------------------------------------ video
+  /** Someone sends a camera (us: ours is on). */
+  hasVideo(id: string): boolean { if (id === this.me()) return this.video; const c = this.conn; return c !== null && c.cameras.has(id); }
+  /** The image of someone's camera on screen (ours: the camera's own), -1 before its first frame. */
+  videoOf(id: string): i32 {
+    if (id === this.me()) { const m = this.cam; return m !== null ? m.image : -1; }
+    const i = this.images.get(id);
+    return i !== undefined ? i : -1;
+  }
+  /** [frames sent, packets sent, frames decoded, key frames asked, key frames asked of us] */
+  videoStats(): number[] { const c = this.conn; return c !== null ? c.videoStats() : [0, 0, 0, 0, 0]; }
+  /** Turns our camera on (the system's question first; op 4 self_video and the voice gateway's op 12 tell the others) or off. */
+  async toggleVideo(): Promise<void> {
+    if (this.video) { this.cameraOff(); this.apply(); return; }
+    if (env('ZINC_FAKE_CAMERA') === '' && await cameraPermission() !== 'granted') {
+      this.error = 'Camera access is off for this app (System Settings > Privacy & Security > Camera).'; this.changed(); return;
+    }
+    let cam: Camera;
+    try { cam = await Camera.open('', { width: 640, height: 360, fps: 30 }); } catch (e) { this.error = `Camera: ${e.message}`; this.changed(); return; }
+    if (this.channelId === '' || this.cam !== null) { cam.close(); return; }
+    this.cam = cam; this.video = true;
+    cam.onFrame((i: number): void => {
+      const c = this.conn;
+      if (c !== null) c.sendImage(cam.image);
+      if (this.viewOn && appState() === 'active') repaint();   // our tile shows the camera's image
+    });
+    const c = this.conn;
+    if (c !== null) c.setCamera(true);
+    this.apply();
+  }
+  private cameraOff(): void {
+    if (!this.video && this.cam === null) return;   // nothing to tell anyone
+    const m = this.cam;
+    this.cam = null; this.video = false;
+    if (m !== null) m.close();
+    const c = this.conn;
+    if (c !== null) c.setCamera(false);
+  }
+  /** Which cameras to decode, at which size: the others' in the tiles while the call view shows and the window is not minimized. A timer
+   *  moves their images to the newest frame and repaints only when one came. */
+  private videoWatch(): void {
+    const c = this.conn;
+    const shown: Map<string, number[]> = new Map<string, number[]>();
+    if (c !== null && this.viewOn && appState() === 'active') {
+      const k = pixelScale();
+      for (const id of this.members(this.channelId)) if (c.cameras.has(id)) shown.set(id, [TILE_W * k, TILE_H * k]);
+    }
+    if (c !== null) c.watch(shown);
+    for (const id of Array.from(this.images.keys())) if (!shown.has(id)) this.images.delete(id);
+    if (shown.size > 0 && this.frames < 0) this.frames = setInterval(() => { this.pull(); }, 33);
+    if (shown.size === 0 && this.frames >= 0) { clearInterval(this.frames); this.frames = -1; }
+  }
+  private pull(): void {
+    const c = this.conn;
+    if (c === null) return;
+    const n = c.videoStats()[2];
+    if (n === this.decoded) return;
+    this.decoded = n;
+    let fresh = false;
+    for (const id of c.cameras.keys()) {
+      const img = c.videoImage(id);
+      if (img < 0) continue;
+      if (this.images.get(id) !== img) { this.images.set(id, img); fresh = true; }
+    }
+    if (fresh) this.changed(); else repaint();   // a new image (the first, or a new size) is a new element; the same one only repaints
   }
 
   /** The users in a voice channel or DM call. */
@@ -152,7 +233,7 @@ export class Call {
       if (p === 'denied') { this.error = 'Microphone access is off for this app (System Settings > Privacy & Security > Microphone).'; this.changed(); return; }
     }
     this.channelId = channelId; this.guildId = guildId; this.state = 'connecting';
-    this.op4(guildId, channelId, this.mute, this.deaf);
+    this.op4(guildId, channelId, this.mute, this.deaf, this.video);
     if (guildId === '' && this.members(channelId).length === 0) {
       try { await api('POST', `/channels/${channelId}/call/ring`, { recipients: null }); } catch (e) { this.log(`ring failed: ${e.message}`); }
     }
@@ -160,7 +241,7 @@ export class Call {
   }
   leave(): void {
     if (this.channelId === '') return;
-    this.op4(this.guildId, '', this.mute, this.deaf);
+    this.op4(this.guildId, '', this.mute, this.deaf, false);
     this.drop();
     this.channelId = ''; this.guildId = ''; this.state = 'idle';
     this.changed();
@@ -227,6 +308,8 @@ export class Call {
       if (st === 'closed') { this.error = conn.reason !== 'left' ? `Voice disconnected: ${conn.reason}` : ''; this.conn = null; this.speaking.clear(); }
       this.changed();
     };
+    conn.onVideo = (): void => { if (this.conn === conn) { this.videoWatch(); this.changed(); } };
+    if (this.video) conn.setCamera(true);   // sent once the connection is up
     conn.onSpeaking = (who: string[]): void => {
       if (this.conn !== conn) return;
       this.speaking.clear();
@@ -245,13 +328,15 @@ export class Call {
       c.setVolumes(s.inputVolume / 100, s.outputVolume / 100, s.threshold());
       for (const [u, v] of s.users) c.setUserVolume(u, v / 100);
     }
-    if (tell && this.channelId !== '') this.op4(this.guildId, this.channelId, this.mute || this.deaf, this.deaf);
+    if (tell && this.channelId !== '') this.op4(this.guildId, this.channelId, this.mute || this.deaf, this.deaf, this.video);
     this.changed();
   }
   private drop(): void {
+    this.cameraOff();
     const c = this.conn;
     this.conn = null; this.server = null; this.sessionId = ''; this.since = 0;
     if (c !== null) c.close();
     this.speaking.clear();
+    this.videoWatch();
   }
 }

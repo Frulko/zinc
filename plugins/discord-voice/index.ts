@@ -4,12 +4,15 @@
 // the native side (native/voice.host.cpp) carries the media on its own thread: UDP and IP discovery, the _rtpsize transport encryption,
 // Opus, a jitter buffer per speaker, the mix, the microphone and the speakers. DAVE, the end-to-end encryption every call has used since
 // March 2026: this file runs its state machine (ops 21 to 31, binary for the MLS messages) and libdave on the native side holds the group
-// and encrypts each frame.
+// and encrypts each frame. Video (docs/reports/discord-client-research.md 5.2) rides on the same UDP: op 12 says who sends a camera and
+// on which SSRC (ours too), op 15 (Media Sink Wants) asks the server for each stream we show at a quality, 0 for the others; the native
+// side decodes only the streams watch() names, at their size.
 import { WebSocket, MessageEvent, CloseEvent } from 'zinc:socket';
 import S from './native/voice.spec';
 
 const OP_IDENTIFY = 0, OP_SELECT_PROTOCOL = 1, OP_READY = 2, OP_HEARTBEAT = 3, OP_SESSION_DESCRIPTION = 4, OP_SPEAKING = 5,
-  OP_HEARTBEAT_ACK = 6, OP_RESUME = 7, OP_HELLO = 8, OP_RESUMED = 9, OP_CLIENTS_CONNECT = 11, OP_CLIENT_DISCONNECT = 13;
+  OP_HEARTBEAT_ACK = 6, OP_RESUME = 7, OP_HELLO = 8, OP_RESUMED = 9, OP_CLIENTS_CONNECT = 11, OP_VIDEO = 12, OP_CLIENT_DISCONNECT = 13,
+  OP_MEDIA_SINK_WANTS = 15;
 // DAVE (daveprotocol.com): JSON 21 prepare transition, 22 execute transition, 23 transition ready, 24 prepare epoch, 31 invalid commit or
 // welcome; binary 25 external sender, 26 key package, 27 proposals, 28 commit and welcome, 29 announce commit, 30 welcome
 const OP_DAVE_PREPARE_TRANSITION = 21, OP_DAVE_EXECUTE_TRANSITION = 22, OP_DAVE_TRANSITION_READY = 23, OP_DAVE_PREPARE_EPOCH = 24,
@@ -20,6 +23,11 @@ const SPEAKING_MICROPHONE = 1;
 // channel deleted), unknown encryption mode
 const FINAL = [4004, 4006, 4009, 4014, 4016];
 const POLL_MS = 50;
+// what Select Protocol offers: Opus, and H.264 (VideoToolbox on both sides, the server's default video codec); RTX is declared, not used
+const CODECS: any[] = [{ name: 'opus', type: 'audio', priority: 1000, payload_type: 120 },
+  { name: 'H264', type: 'video', priority: 1000, payload_type: 101, rtx_payload_type: 102, encode: true, decode: true }];
+// our camera's stream as op 12 describes it (cameras offer quality 100; one layer, no simulcast)
+const CAMERA_W = 640, CAMERA_H = 360, CAMERA_FPS = 30, CAMERA_BPS = 1000000;
 
 /** What the main gateway gave: VOICE_SERVER_UPDATE's endpoint and token, VOICE_STATE_UPDATE's session id. */
 export interface VoiceServer {
@@ -46,6 +54,9 @@ export class VoiceConnection {
   /** The users in the call, from the voice gateway (op 11 and 13). */
   users: Set<string> = new Set<string>();
   log: (line: string) => void = (line: string): void => {};
+  /** Who sends a camera now (user id -> the SSRC of their stream), from op 12; onVideo is called when it changes. */
+  cameras: Map<string, u32> = new Map<string, u32>();
+  onVideo: () => void = (): void => {};
 
   private server: VoiceServer;
   private ws: WebSocket | null = null;
@@ -68,6 +79,11 @@ export class VoiceConnection {
   private output = '';
   private gains: number[] = [1, 1, 0.01];                     // microphone, output, voice activity threshold
   private userGains: Map<string, number> = new Map<string, number>();
+  private videoSsrc: u32 = 0;                                 // our camera's stream (Ready's streams), its RTX
+  private rtxSsrc: u32 = 0;
+  private camera = false;
+  private wants = '';                                         // the last op 15 sent
+  private watched: Map<string, u32> = new Map<string, u32>();   // user -> the SSRC decoded for them
 
   constructor(server: VoiceServer) {
     this.server = server;
@@ -90,6 +106,34 @@ export class VoiceConnection {
   level(): number { return this.h >= 0 ? S.level(this.h) : 0; }
   /** [packets sent, received, decryption failures, frames decoded, frames mixed, late or lost] */
   stats(): number[] { return this.h >= 0 ? S.stats(this.h) : [0, 0, 0, 0, 0, 0]; }
+  /** [video frames encoded, video packets sent, video frames decoded, key frames we asked for, key frames asked of us] */
+  videoStats(): number[] { return this.h >= 0 ? S.videoStats(this.h) : [0, 0, 0, 0, 0]; }
+
+  /** Sends our camera (op 12 describes the stream, then each sendImage() frame goes out) or stops it (op 12 with no stream). The program
+   *  also tells the main gateway (op 4 self_video). */
+  setCamera(on: boolean): void { this.camera = on; this.describeVideo(); }
+  /** A frame of our camera (a runtime image: zinc:camera's `image`), encoded and sent on the media thread. */
+  sendImage(image: i32): void { if (this.h >= 0 && this.camera && image >= 0) S.sendImage(this.h, image); }
+  /** The cameras shown and their size in pixels (user id -> [width, height]); the others are not decoded, and the server is asked for
+   *  each shown stream at a quality that fits its size (100, or 50 for a small tile) and for none of the rest (op 15, sent on a change). */
+  watch(shown: Map<string, number[]>): void {
+    if (this.h < 0) return;
+    const want: any = {}, pixels: any = {};
+    for (const [user, ssrc] of this.cameras) {
+      const s = shown.get(user);
+      const w: i32 = s !== undefined ? Math.round(s[0]) : 0, ht: i32 = s !== undefined ? Math.round(s[1]) : 0;
+      want[`${ssrc}`] = w > 0 ? (w * ht >= CAMERA_W * CAMERA_H ? 100 : 50) : 0;
+      if (w > 0) pixels[`${ssrc}`] = w * ht;
+      S.watch(this.h, ssrc, user, w, ht);
+      if (w > 0) this.watched.set(user, ssrc); else this.watched.delete(user);
+    }
+    for (const [user, ssrc] of this.watched) if (this.cameras.get(user) !== ssrc) { S.watch(this.h, ssrc, user, 0, 0); this.watched.delete(user); }
+    want.pixelCounts = pixels;
+    const text = JSON.stringify(want);
+    if (text !== this.wants) { this.wants = text; this.send(OP_MEDIA_SINK_WANTS, want); }
+  }
+  /** The newest frame of someone's camera as a runtime image (moved to it now), -1 when none is decoded. */
+  videoImage(user: string): i32 { const s = this.watched.get(user); return this.h >= 0 && s !== undefined ? S.videoImage(this.h, s) : -1; }
   /** Leaves: the voice socket closes with 1000 and the media stops. The program also sends op 4 with a null channel. */
   close(): void { this.end('left'); }
 
@@ -109,7 +153,7 @@ export class VoiceConnection {
     ws.onopen = (): void => {
       if (this.resumed) this.send(OP_RESUME, { server_id: this.server.serverId, session_id: this.server.sessionId, token: this.server.token, seq_ack: this.seq });
       else this.send(OP_IDENTIFY, { server_id: this.server.serverId, user_id: this.server.userId, session_id: this.server.sessionId,
-        token: this.server.token, max_dave_protocol_version: S.daveVersion() });
+        token: this.server.token, max_dave_protocol_version: S.daveVersion(), video: true, streams: [{ type: 'video', rid: '100', quality: 100 }] });
     };
     ws.onmessage = (e: MessageEvent): void => { if (this.ws === ws) { if (e.binary) this.binary(e.bytes); else this.receive(JSON.parse(e.data)); } };
     ws.onclose = (e: CloseEvent): void => { if (this.ws === ws) this.closed(e.code); };
@@ -135,7 +179,9 @@ export class VoiceConnection {
     else if (op === OP_SESSION_DESCRIPTION) this.described(d);
     else if (op === OP_SPEAKING) { if (this.h >= 0 && d.user_id !== undefined) S.bind(this.h, d.ssrc, `${d.user_id}`); }
     else if (op === OP_CLIENTS_CONNECT) { for (const id of d.user_ids) this.users.add(`${id}`); }
-    else if (op === OP_CLIENT_DISCONNECT) this.users.delete(`${d.user_id}`);
+    else if (op === OP_CLIENT_DISCONNECT) { this.users.delete(`${d.user_id}`); if (this.cameras.delete(`${d.user_id}`)) this.onVideo(); }
+    else if (op === OP_VIDEO) this.video(d);
+    else if (op === OP_MEDIA_SINK_WANTS) {}   // what the server wants of our stream: one layer, sent as it is
     else if (op === OP_RESUMED) this.setState('connected');
     else if (op === OP_DAVE_PREPARE_TRANSITION) this.prepare(d.transition_id, d.protocol_version);
     else if (op === OP_DAVE_EXECUTE_TRANSITION) this.execute(d.transition_id);
@@ -145,6 +191,7 @@ export class VoiceConnection {
   /** Ready: our SSRC and the UDP endpoint. IP discovery runs on the native side; its answer selects the protocol. */
   private ready(d: any): void {
     this.ssrc = d.ssrc;
+    if (Array.isArray(d.streams) && d.streams.length > 0) { this.videoSsrc = d.streams[0].ssrc; this.rtxSsrc = d.streams[0].rtx_ssrc ?? this.videoSsrc + 1; }
     this.serverModes = [];
     for (const x of d.modes) this.serverModes.push(`${x}`);
     const h = S.connect(`${d.ip}`, d.port, this.ssrc);
@@ -162,7 +209,7 @@ export class VoiceConnection {
       const mode = S.modes().split('\u001f').find((x: string) => this.serverModes.indexOf(x) >= 0);
       if (mode === undefined) { this.end(`no shared encryption mode (the server offers ${this.serverModes.join(', ')})`); return; }
       this.log(`voice discovered ${address}:${port}, mode ${mode}`);
-      this.send(OP_SELECT_PROTOCOL, { protocol: 'udp', data: { address: address, port: parseInt(port), mode: mode } });
+      this.send(OP_SELECT_PROTOCOL, { protocol: 'udp', data: { address: address, port: parseInt(port), mode: mode }, codecs: CODECS });
     }, 10);
   }
   private described(d: any): void {
@@ -173,10 +220,11 @@ export class VoiceConnection {
     this.dave = d.dave_protocol_version ?? 0;
     if (this.dave > 0) this.keyPackage();
     this.setState('connected');
-    if (this.poll < 0) this.poll = setInterval(() => { this.watch(); }, POLL_MS);
+    if (this.camera) this.describeVideo();   // a camera turned on while connecting, or a resumed session
+    if (this.poll < 0) this.poll = setInterval(() => { this.tick(); }, POLL_MS);
   }
   /** Speaking (op 5) when we start and stop sending, and onSpeaking when who is heard changes. */
-  private watch(): void {
+  private tick(): void {
     if (this.h < 0) return;
     const now = S.speaking(this.h);
     const who: string[] = now === '' ? [] : now.split('\u001e').map((r: string) => r.split('\u001f')[0]);
@@ -191,6 +239,28 @@ export class VoiceConnection {
     const e2ee = st[0] !== '0' && st[1] === '1';
     if (st.length > 4 && st[4] !== '') this.log(`voice dave: ${st[4]}`);
     if (e2ee !== this.e2ee) { this.e2ee = e2ee; this.log(`voice end-to-end encrypted ${e2ee}`); this.onState(this.state); }
+  }
+  // ------------------------------------------------------------------ video
+  /** Op 12 from the server: someone's camera started (a video SSRC) or stopped (0, or no active stream). */
+  private video(d: any): void {
+    const user = `${d.user_id}`;
+    if (user === this.server.userId || d.user_id === undefined) return;
+    if (this.h >= 0 && typeof d.audio_ssrc === 'number' && d.audio_ssrc !== 0) S.bind(this.h, d.audio_ssrc, user);
+    let ssrc: u32 = typeof d.video_ssrc === 'number' ? d.video_ssrc : 0;
+    if (Array.isArray(d.streams)) for (const st of d.streams) if (st.active === false && st.ssrc === ssrc) ssrc = 0;
+    if (ssrc !== 0) { if (this.cameras.get(user) === ssrc) return; this.cameras.set(user, ssrc); }
+    else if (!this.cameras.delete(user)) return;
+    this.log(`voice camera ${user} ${ssrc !== 0 ? 'on' : 'off'}`);
+    this.onVideo();
+  }
+  /** Op 12 from us: our stream, before its first packet (else the server drops the connection: invalid SSRC), or none. */
+  private describeVideo(): void {
+    if (this.h < 0 || this.state !== 'connected' || this.videoSsrc === 0) return;
+    const on = this.camera;
+    S.videoSend(this.h, on ? this.videoSsrc : 0);
+    this.send(OP_VIDEO, { audio_ssrc: this.ssrc, video_ssrc: on ? this.videoSsrc : 0, rtx_ssrc: on ? this.rtxSsrc : 0,
+      streams: on ? [{ type: 'video', rid: '100', ssrc: this.videoSsrc, rtx_ssrc: this.rtxSsrc, active: true, quality: 100,
+        max_bitrate: CAMERA_BPS, max_framerate: CAMERA_FPS, max_resolution: { type: 'fixed', width: CAMERA_W, height: CAMERA_H } }] : [] });
   }
   // ------------------------------------------------------------------ DAVE
   /** Our key package for a new group (op 26). */
@@ -246,7 +316,10 @@ export class VoiceConnection {
     this.reason = why;
     if (this.beat >= 0) { clearInterval(this.beat); this.beat = -1; }
     if (this.poll >= 0) { clearInterval(this.poll); this.poll = -1; }
-    if (this.h >= 0) { S.close(this.h); this.h = -1; }
+    if (this.h >= 0) { S.close(this.h); this.h = -1; }   // and the images of the cameras
+    this.watched.clear();
+    this.wants = '';
+    if (this.cameras.size > 0) { this.cameras.clear(); this.onVideo(); }
     const ws = this.ws;
     this.ws = null;
     if (ws !== null) ws.close(1000, '');

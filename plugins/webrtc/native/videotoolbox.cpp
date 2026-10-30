@@ -9,6 +9,7 @@
 #include <VideoToolbox/VideoToolbox.h>
 #include <stdlib.h>
 #include <string.h>
+#include <algorithm>
 
 namespace media {
 namespace {
@@ -121,8 +122,8 @@ struct VtDec : VideoDecoder {
   CMVideoFormatDescriptionRef fmt = nullptr;
   std::vector<uint8_t> sps, pps, u, v;
   std::vector<uint32_t>* out = nullptr;
-  int ow = 0, oh = 0;
-  bool got = false;
+  int ow = 0, oh = 0, fitW = 0, fitH = 0;
+  bool got = false, refit = false;
   static void done(void* ref, void*, OSStatus st, VTDecodeInfoFlags, CVImageBufferRef img, CMTime, CMTime) {
     VtDec* d = (VtDec*)ref;
     if (st != noErr || !img || !d->out) return;
@@ -151,6 +152,15 @@ struct VtDec : VideoDecoder {
     CFMutableDictionaryRef dst = CFDictionaryCreateMutable(nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     CFNumberRef pf = num(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange);
     CFDictionarySetValue(dst, kCVPixelBufferPixelFormatTypeKey, pf);
+    const CMVideoDimensions d = CMVideoFormatDescriptionGetDimensions(fmt);
+    if (fitW > 0 && fitH > 0 && (d.width > fitW || d.height > fitH)) {   // scaled by the decoder: no full-size frame is converted
+      const double k = std::min((double)fitW / d.width, (double)fitH / d.height);
+      CFNumberRef sw = num(std::max(2, (int)(d.width * k) & ~1)), sh = num(std::max(2, (int)(d.height * k) & ~1));
+      CFDictionarySetValue(dst, kCVPixelBufferWidthKey, sw);
+      CFDictionarySetValue(dst, kCVPixelBufferHeightKey, sh);
+      CFRelease(sw); CFRelease(sh);
+    }
+    refit = false;
     VTDecompressionOutputCallbackRecord cb = {done, this};
     const OSStatus st = VTDecompressionSessionCreate(nullptr, fmt, nullptr, dst, &cb, &s);
     CFRelease(pf); CFRelease(dst);
@@ -158,6 +168,7 @@ struct VtDec : VideoDecoder {
     return true;
   }
   ~VtDec() override { reset(); }
+  void fit(int w, int h) override { if (w != fitW || h != fitH) { fitW = w; fitH = h; refit = true; } }
   bool decode(const uint8_t* data, size_t n, std::vector<uint32_t>& px, int& w, int& h) override {
     // Annex B -> NAL units: parameter sets (re)open the session, the rest becomes one AVCC sample
     std::vector<uint8_t> avcc, nsps, npps;
@@ -178,7 +189,7 @@ struct VtDec : VideoDecoder {
       }
       i = e;
     }
-    if (!nsps.empty() && !npps.empty() && (nsps != sps || npps != pps || !s)) { sps = nsps; pps = npps; if (!open()) return false; }
+    if (!nsps.empty() && !npps.empty() && (nsps != sps || npps != pps || !s || refit)) { sps = nsps; pps = npps; if (!open()) return false; }
     if (!s || avcc.empty()) return false;
     CMBlockBufferRef bb = nullptr;
     CMSampleBufferRef sb = nullptr;

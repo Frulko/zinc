@@ -10,7 +10,7 @@
 // Files dropped on the window are sent to the open channel.
 import { render } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
-import { quit, capture } from 'zinc:gfx';
+import { quit, capture, imageWidth, imageHeight } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
 import App from './App';
@@ -155,6 +155,21 @@ async function voice(): Promise<void> {
   await until(() => call.stats()[3] >= 25);
   const s = call.stats();
   console.log(`voice: heard 25 frames, ${s[2]} failures, mixed ${s[4] > 0}`);
+  await call.toggleVideo();   // the fake camera; the fake server sends it back as Grace's, decoded at her tile's size
+  await until(() => call.videoOf('101') >= 0);
+  const img = call.videoOf('101'), v = call.videoStats();
+  console.log(`voice: camera on, sent ${v[0] > 0 && v[1] > 0}, Grace's camera ${imageWidth(img)}x${imageHeight(img)}, ours ${call.videoOf(store.me.id) >= 0}`);
+  await shot('video');
+  ui.systemSignal('background');   // minimized: nothing decoded, the server asked for nothing
+  await pause(300);
+  const hidden = call.videoStats()[2];
+  await pause(300);
+  console.log(`voice: minimized, decoding stopped ${call.videoStats()[2] === hidden}`);
+  ui.systemSignal('foreground');
+  await until(() => call.videoStats()[2] > hidden);
+  await call.toggleVideo();
+  await until(() => !call.hasVideo('101'));
+  console.log(`voice: camera off, Grace's camera ${call.videoOf('101')}`);
   call.set((v: VoiceSettings): void => { v.sensitivity = -10; });   // our tone is at -13 dB: under it, nothing leaves
   await until(() => !call.speaking.has(store.me.id) && !call.speaking.has('101'));
   await pause(400);

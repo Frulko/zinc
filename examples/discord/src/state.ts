@@ -104,7 +104,7 @@ export class Store implements GatewayHandler {
 
   constructor() {
     this.gateway = new Gateway(this);
-    this.call = new Call((): string => this.me.id, (g: string, c: string, mute: boolean, deaf: boolean): void => { this.gateway.voiceState(g, c, mute, deaf); },
+    this.call = new Call((): string => this.me.id, (g: string, c: string, mute: boolean, deaf: boolean, video: boolean): void => { this.gateway.voiceState(g, c, mute, deaf, video); },
       (): void => { this.changed(); }, (line: string): void => { this.log(line); });
     setRestLog((line: string): void => { this.log(line); });
     onSafeMode((message: string, unauthorized: boolean): void => { if (unauthorized) this.authFailed(); else { this.error = message; this.changed(); } });

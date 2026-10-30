@@ -467,6 +467,13 @@ static void signal_event(const SDL_Event& e) {
   if (e.type == SDL_EVENT_SYSTEM_THEME_CHANGED) signal_theme();
   else if (e.type == SDL_EVENT_WINDOW_SAFE_AREA_CHANGED || e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) signal_safe_area();
   else if (e.type == SDL_EVENT_WINDOW_FOCUS_GAINED || e.type == SDL_EVENT_WINDOW_FOCUS_LOST) sys_signal(e.type == SDL_EVENT_WINDOW_FOCUS_GAINED ? "focus 1" : "focus 0");
+  else if (e.type == SDL_EVENT_WINDOW_MINIMIZED || e.type == SDL_EVENT_WINDOW_HIDDEN || e.type == SDL_EVENT_WINDOW_RESTORED || e.type == SDL_EVENT_WINDOW_SHOWN) {
+    // a desktop window minimized or hidden is an app in the background (zinc:ui draws nothing, a call stops decoding video), as a phone's
+    // home screen is; covered by other windows (occluded) is not: a test's window opened behind the others still draws
+    static bool hidden = false;
+    const bool now = e.type == SDL_EVENT_WINDOW_MINIMIZED || e.type == SDL_EVENT_WINDOW_HIDDEN;
+    if (now != hidden) { hidden = now; sys_signal(now ? "background" : "foreground"); }
+  }
   else if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_AC_BACK && !e.key.repeat) sys_signal("back");
   else if (e.type == SDL_EVENT_SCREEN_KEYBOARD_HIDDEN) sys_signal("keyboard 0");   // its height comes from the phone's glue (src/app)
   else if (e.type == SDL_EVENT_TEXT_EDITING) { std::string c = "compose "; c += e.edit.text ? e.edit.text : ""; sys_signal(c.c_str()); }

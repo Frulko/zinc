@@ -4,7 +4,8 @@
 # the devices on QuickJS too); then the client against the fake Discord on 127.0.0.1
 # (examples/discord/tests/fake-discord.ts) with the fake microphone, no device: Lounge joined with op 4, the voice gateway v8 (Identify,
 # Ready, IP discovery over UDP, Select Protocol, Session Description), our tone encrypted, sent, opened by the fake and sent back as Grace
-# (her speaking ring), the input sensitivity above our tone (nothing sent) and back with a lower input volume, mute, push-to-talk not held
+# (her speaking ring), our fake camera encoded (H.264), sent and sent back as Grace's (op 12), decoded at her tile's size (op 15), not
+# decoded while minimized, then off; the input sensitivity above our tone (nothing sent) and back with a lower input volume, mute, push-to-talk not held
 # then held, deafen, the Voice & audio settings kept, leaving, and a DM call that rings. What the app prints and what the fake received
 # (sorted: the two race) are compared with tests/golden/discord-voice; DISCORD_VOICE_SHOTS=dir keeps the frames of the call view and of the
 # settings to look at (not compared yet). ZN_UPDATE_GOLDEN=1 records again.
@@ -14,7 +15,7 @@ case $ZINC in /*) ;; *) ZINC=$PWD/$ZINC ;; esac   # the app runs from its own di
 tmp=$(mktemp -d)
 cleanup() { [ -n "$fake" ] && { kill "$fake" 2>/dev/null; wait "$fake" 2>/dev/null; }; rm -rf "$tmp"; }
 trap cleanup EXIT
-export ZINC_BACKGROUND=1 ZINC_FAKE_MICROPHONE=1
+export ZINC_BACKGROUND=1 ZINC_FAKE_MICROPHONE=1 ZINC_FAKE_CAMERA=1
 export ZINC_DETERMINISTIC=0   # real UDP and a 20 ms media clock
 fail=0
 timeout 120 "$ZINC" run tests/golden/host/discord_voice_rtp.ts > "$tmp/rtp" 2>&1

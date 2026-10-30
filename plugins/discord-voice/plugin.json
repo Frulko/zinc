@@ -3,7 +3,7 @@
   "kind": "module",
   "module": "zinc:discord-voice",
   "entry": "index.ts",
-  "description": "Discord voice calls: the voice gateway v8, UDP with IP discovery, RTP in the aead_aes256_gcm_rtpsize (the engine's mbedTLS) and aead_xchacha20_poly1305_rtpsize (Monocypher) modes, Opus 48 kHz stereo 20 ms (the libopus of plugins/webrtc), a jitter buffer per speaker and the mix, capture and playback (miniaudio), mute, deafen and push-to-talk, and DAVE, the end-to-end encryption of calls (libdave and mlspp on a vendored BoringSSL)",
+  "description": "Discord voice calls: the voice gateway v8, UDP with IP discovery, RTP in the aead_aes256_gcm_rtpsize (the engine's mbedTLS) and aead_xchacha20_poly1305_rtpsize (Monocypher) modes, Opus 48 kHz stereo 20 ms (the libopus of plugins/webrtc), a jitter buffer per speaker and the mix, capture and playback (miniaudio), mute, deafen and push-to-talk, video (H.264 through VideoToolbox: the cameras of the call decoded at the size they are shown, ours encoded and sent), and DAVE, the end-to-end encryption of calls (libdave and mlspp on a vendored BoringSSL)",
   "requires": [
     "net",
     "threads"
@@ -12,6 +12,8 @@
     "macos": {
       "sources": [
         "../audio/vendor/miniaudio_impl.c",
+        "../webrtc/native/videotoolbox.cpp",
+        "../webrtc/native/media.cpp",
         "../webrtc/vendor/opus/src/opus.c",
         "../webrtc/vendor/opus/src/opus_decoder.c",
         "../webrtc/vendor/opus/src/opus_encoder.c",
@@ -470,11 +472,15 @@
         "BORINGSSL_IMPLEMENTATION",
         "OPENSSL_NO_ASM",
         "WITH_BORINGSSL",
-        "DISABLE_GREASE"
+        "DISABLE_GREASE",
+        "MEDIA_NO_VP8"
       ],
       "frameworks": [
         "AudioToolbox",
-        "CoreFoundation"
+        "CoreFoundation",
+        "VideoToolbox",
+        "CoreMedia",
+        "CoreVideo"
       ],
       "vendorFlags": [
         "-fexceptions",
@@ -485,6 +491,7 @@
     "linux": {
       "sources": [
         "../audio/vendor/miniaudio_impl.c",
+        "../webrtc/native/media.cpp",
         "../webrtc/vendor/opus/src/opus.c",
         "../webrtc/vendor/opus/src/opus_decoder.c",
         "../webrtc/vendor/opus/src/opus_encoder.c",
@@ -943,7 +950,8 @@
         "BORINGSSL_IMPLEMENTATION",
         "OPENSSL_NO_ASM",
         "WITH_BORINGSSL",
-        "DISABLE_GREASE"
+        "DISABLE_GREASE",
+        "MEDIA_NO_VP8"
       ],
       "libs": [
         "m",

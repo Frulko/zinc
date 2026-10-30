@@ -22,6 +22,9 @@ struct VideoEncoder {
 struct VideoDecoder {
   virtual ~VideoDecoder() {}
   virtual bool decode(const uint8_t* data, size_t n, std::vector<uint32_t>& px, int& w, int& h) = 0;
+  /** Frames at most w x h (the aspect kept; 0: the stream's size), from the next key frame on. Scaled by the decoder where it can
+   *  (VideoToolbox), else ignored. */
+  virtual void fit(int w, int h) { (void)w; (void)h; }
 };
 
 VideoEncoder* vp8Encoder(int w, int h, int bps, int fps);

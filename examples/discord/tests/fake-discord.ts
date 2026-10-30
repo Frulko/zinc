@@ -351,12 +351,12 @@ function memberList(d: any): void {
 // ------------------------------------------------------------------ voice
 const VOICE_KEY: i32[] = [];
 for (let i = 0; i < 32; i++) VOICE_KEY.push((i * 13 + 5) & 255);
-const MY_SSRC = 11, GRACE_SSRC = 22;
+const MY_SSRC = 11, GRACE_SSRC = 22, MY_VIDEO_SSRC = 12, GRACE_VIDEO_SSRC = 33;
 let voiceChannel = '';
 let voicePort: i32 = 0;
 let rtp: UdpSocket | null = null;
 let voiceMode = '';
-let received = 0, refused = 0, echoSeq = 0, echoTs: u32 = 0, echoCounter: u32 = 0;
+let received = 0, refused = 0, echoSeq = 0, echoTs: u32 = 0, echoCounter: u32 = 0, videoIn = 0, plis = 0;
 const keyBytes = (): u8[] => { const k: u8[] = []; for (const b of VOICE_KEY) k.push(b); return k; };
 
 /** Op 4: join (our voice state, Grace's, the voice server), a change of mute or deafen in the same channel, or leaving. */
@@ -381,24 +381,34 @@ function voiceGateway(ws: WebSocket, req: UpgradeRequest): void {
     if (e.binary) { console.log(`voice binary op ${e.bytes[0]}: ${e.bytes.length > 100 ? 'over' : 'under'} 100 bytes`); return; }   // op 26: the key package
     const p: any = JSON.parse(e.data), d: any = p.d;
     if (p.op === 0) {
-      console.log(`voice identify server=${d.server_id} user=${d.user_id} session=${d.session_id} token=${d.token === 'voice-token'} dave=${d.max_dave_protocol_version}`);
-      received = 0; refused = 0;
+      console.log(`voice identify server=${d.server_id} user=${d.user_id} session=${d.session_id} token=${d.token === 'voice-token'} dave=${d.max_dave_protocol_version} video=${d.video} streams=${JSON.stringify(d.streams)}`);
+      received = 0; refused = 0; videoIn = 0; plis = 0;
       send(8, { heartbeat_interval: 13750 });
-      send(2, { ssrc: MY_SSRC, ip: '127.0.0.1', port: (rtp as UdpSocket).port, modes: ['aead_aes256_gcm_rtpsize', 'aead_xchacha20_poly1305_rtpsize', 'xsalsa20_poly1305'] });
+      send(2, { ssrc: MY_SSRC, ip: '127.0.0.1', port: (rtp as UdpSocket).port, modes: ['aead_aes256_gcm_rtpsize', 'aead_xchacha20_poly1305_rtpsize', 'xsalsa20_poly1305'],
+        streams: [{ type: 'video', rid: '100', ssrc: MY_VIDEO_SSRC, rtx_ssrc: MY_VIDEO_SSRC + 1, quality: 100, active: false }] });
     } else if (p.op === 1) {
       voiceMode = d.data.mode;
-      console.log(`voice select protocol=${d.protocol} address=${d.data.address} port=${d.data.port > 0} mode=${voiceMode}`);
+      const codecs: string[] = [];
+      for (const c of d.codecs) codecs.push(`${c.name}/${c.payload_type}`);
+      console.log(`voice select protocol=${d.protocol} address=${d.data.address} port=${d.data.port > 0} mode=${voiceMode} codecs=${codecs.join(',')}`);
       send(4, { mode: voiceMode, secret_key: VOICE_KEY, dave_protocol_version: voiceChannel === '400' ? 1 : 0 });   // DAVE in the DM call
       send(11, { user_ids: ['101'] });
       send(5, { user_id: '101', ssrc: GRACE_SSRC, speaking: 1 });
     } else if (p.op === 3) send(6, { t: d.t });
     else if (p.op === 5) console.log(`voice speaking ${d.speaking} ssrc=${d.ssrc}`);
+    else if (p.op === 12) {   // our camera: Grace's (the echo of ours) starts or stops with it
+      console.log(`voice video ssrc=${d.video_ssrc} rtx=${d.rtx_ssrc} streams=${d.streams.length}${d.streams.length > 0 ? ` ${d.streams[0].max_resolution.width}x${d.streams[0].max_resolution.height}` : ''}`);
+      const on = d.video_ssrc !== 0;
+      send(12, { user_id: '101', audio_ssrc: GRACE_SSRC, video_ssrc: on ? GRACE_VIDEO_SSRC : 0, rtx_ssrc: on ? GRACE_VIDEO_SSRC + 1 : 0,
+        streams: on ? [{ type: 'video', rid: '100', ssrc: GRACE_VIDEO_SSRC, rtx_ssrc: GRACE_VIDEO_SSRC + 1, active: true, quality: 100 }] : [] });
+    } else if (p.op === 15) console.log(`voice wants ${JSON.stringify(d)}`);
     else console.log(`voice op ${p.op}`);
   };
-  ws.onclose = (e: CloseEvent): void => { console.log(`voice closed ${e.code}: 25 packets or more ${received >= 25}, refused ${refused}`); };
+  ws.onclose = (e: CloseEvent): void => { console.log(`voice closed ${e.code}: 25 packets or more ${received >= 25}, refused ${refused}, video ${videoIn > 0}, key frames asked ${plis > 0}`); };
 }
 
-/** UDP: IP discovery, then each packet of ours opened and sent back as Grace's. */
+/** UDP: IP discovery, then each packet of ours opened and sent back as Grace's: our voice as hers, our camera as hers, our RTCP (a key
+ *  frame asked for her camera) back to us, as the server forwards it to the sender. */
 function voiceUdp(m: Datagram): void {
   const b = m.bytes;
   if (b.length === 74 && b[1] === 1) {
@@ -410,6 +420,16 @@ function voiceUdp(m: Datagram): void {
     for (let i = 0; i < ip.length; i++) r[8 + i] = ip.charCodeAt(i);
     r[72] = (m.port >> 8) & 255; r[73] = m.port & 255;
     (rtp as UdpSocket).sendBytes(m.address, m.port, r);
+    return;
+  }
+  if (b.length >= 8 && b[1] >= 200 && b[1] <= 206) { plis++; (rtp as UdpSocket).sendBytes(m.address, m.port, b); return; }
+  if (b.length >= 12 && (b[1] & 0x7f) === 101) {
+    const frame = unseal(voiceMode, keyBytes(), b);
+    if (frame.length === 0) { refused++; return; }
+    videoIn++;
+    const h: u8[] = [0x80, b[1], b[2], b[3], b[4], b[5], b[6], b[7], 0, 0, 0, GRACE_VIDEO_SSRC];   // the same sequence, time and marker
+    (rtp as UdpSocket).sendBytes(m.address, m.port, seal(voiceMode, keyBytes(), h, echoCounter, frame));
+    echoCounter++;
     return;
   }
   const opus = unseal(voiceMode, keyBytes(), b);
