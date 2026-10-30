@@ -18,7 +18,7 @@ import { conn, call, status, setStatus, view, setView, setDevRun, sleep, until }
 import { Btn, Flat } from './widgets';
 import { ElementsView, dumpTree } from './tree';
 import { StylesPane } from './styles';
-import { loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, selected, nodeOf, styles, rules, box, target, setProp, label, findNode, TNode } from './elements';
+import { loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, selected, nodeOf, styles, rules, box, target, setProp, label, findNode, inlineText, TNode } from './elements';
 import { NetworkView, onNetwork, onReload, dumpNetwork, reqs, pick, Req } from './network';
 import { StorageView, loadStorage, onStorage, changes, dumpStorage, items, pickItem, tables, openTable } from './storage';
 import { SourcesView, DebugPane, onDebugger, resetSources, setWaiting, setPaused, setEnded, dumpDebugger } from './sources';
@@ -26,9 +26,11 @@ import { ConsolePane, onConsole, logs, setLogs } from './console';
 import { InfoView, watchInfo, loadInfo, dumpInfo, infoLoads, setInfoDevice } from './info';
 
 const args = sys.args();
+// The ports looked at: those given (`announced`: the ports the programs announce, model.ts), else 9229, 9222 and the announced ones.
 const ports: i32[] = [];
-for (const a of args) ports.push(parseInt(a));
-if (ports.length === 0) { ports.push(9229); ports.push(9222); }
+let announced = args.length === 0;
+for (const a of args) { if (a === 'announced') announced = true; else ports.push(parseInt(a)); }
+if (args.length === 0) { ports.push(9229); ports.push(9222); }
 
 const [targets, setTargets] = createSignal<Target[]>([]);
 const [attached, setAttached] = createSignal<string>('');
@@ -96,6 +98,7 @@ async function picked(id: i32): Promise<void> {
 // "<port> <device> <app>" each, then "ready"; it ends when this program does. ZINC names the engine to run, else the zinc of PATH.
 let devicePorts: i32[] = [];
 let deviceApps: string[] = [];
+let deviceNames: string[] = [];
 let devices: Process | null = null;
 let held: i32 = 0;   // the port of the program attached to
 let devicesListed: Promise<void> = new Promise<void>((resolve) => { resolve(); });
@@ -104,14 +107,14 @@ function findDevices(): void {
     if (devicePorts.indexOf(held) >= 0) return;   // ponytail: attached to a device's app, its forwarding is kept and the list not renewed
     (devices as Process).kill();
   }
-  devicePorts = []; deviceApps = [];
+  devicePorts = []; deviceApps = []; deviceNames = [];
   devicesListed = new Promise<void>((resolve) => {
     try {
       const p = spawn(sys.env('ZINC') !== '' ? sys.env('ZINC') : 'zinc', ['device', 'inspect', '--all'], {});
       devices = p;
       p.onStdout((line: string) => {
         const w = line.split(' ');
-        if (w.length === 3) { devicePorts.push(parseInt(w[0])); deviceApps.push(w[2] + ' on ' + w[1]); }
+        if (w.length === 3) { devicePorts.push(parseInt(w[0])); deviceApps.push(w[2] + ' on ' + w[1]); deviceNames.push(w[1]); }
         else if (line === 'ready') { resolve(); if (devicePorts.length > 0) list(); }
       });
       p.onExit((code: i32) => { resolve(); });
@@ -119,14 +122,29 @@ function findDevices(): void {
   });
 }
 
+// The list follows the programs by itself: looked at again every second (the ports scanned and those the programs announce, model.ts), a
+// program alone is attached to when none is, and the program attached that exits is waited for: when it comes back (zinc dev starts a new
+// process at each save), the inspector attaches to it again on the same view.
+let listing = false;
+let lost: Target | null = null;   // the program attached that exited, waited for
+const auto = sys.env('ZINC_INSPECTOR_DUMP') === '' && sys.env('ZINC_INSPECTOR_VIEW') === '';   // scripted runs attach themselves
 async function list(): Promise<void> {
+  if (listing) { await until(() => !listing); return; }   // the look under way gives the list
+  listing = true;
   const all = ports.concat(devicePorts);
-  setStatus('looking on ports ' + all.join(', ') + '…');
-  const found = await discover(all);
-  for (const t of found) { const at = devicePorts.indexOf(t.port); if (at >= 0) t.title = deviceApps[at]; }
-  setTargets(found);
-  setStatus(found.length + (found.length === 1 ? ' program' : ' programs'));
+  const found = await discover(all, announced);
+  listing = false;
+  for (const t of found) { const at = devicePorts.indexOf(t.port); if (at >= 0) { t.device = deviceNames[at]; if (t.engine.length === 0) t.title = deviceApps[at]; } }
+  const was = targets().map((t: Target) => t.port + ' ' + t.pid + ' ' + t.title).join('|');
+  if (found.map((t: Target) => t.port + ' ' + t.pid + ' ' + t.title).join('|') !== was) setTargets(found);
+  if (lost !== null) {
+    for (const t of found) if (t.key() === (lost as Target).key()) { const v = view(); lost = null; await attach(t, v); return; }
+    return;
+  }
+  if (conn.c === null) setStatus(found.length === 0 ? 'no program yet: start one with zinc:devtools (zinc dev, or import \'zinc:devtools\')' : found.length + (found.length === 1 ? ' program' : ' programs'));
+  if (auto && conn.c === null && found.length === 1) await attach(found[0]);
 }
+setInterval(() => { list(); }, 1000);
 
 async function refresh(): Promise<void> {
   findDevices();
@@ -165,13 +183,22 @@ function onEvent(method: string, params: any): void {
   }
 }
 
-async function attach(t: Target): Promise<void> {
+/** Attaches to program `t`; `again`: the view to keep, when it is the program attached before, started again. */
+async function attach(t: Target, again: string = ''): Promise<void> {
+  lost = null;
   if (conn.c !== null) (conn.c as Cdp).close();
   const c = new Cdp(t.ws);
   conn.c = c;
   held = t.port;
   c.onEvent = onEvent;
-  c.onClose = () => { setStatus('detached from ' + t.name()); setEnded(true); setPaused(false); };
+  c.onClose = () => {
+    if (conn.c !== c) return;   // another program was attached since
+    setEnded(true); setPaused(false);
+    if (t.type === 'node') { setStatus('detached from ' + t.name()); return; }   // zinc debug: the run is over
+    conn.c = null; lost = t;
+    setStatus(t.name() + ' exited: waiting for it to come back');
+    setAttached(t.name() + ' (exited, waiting for it to come back)');
+  };
   setStatus('attaching to ' + t.name() + '…');
   await c.open;
   setAttached(t.name() + ' (port ' + t.port + ')');
@@ -188,13 +215,16 @@ async function attach(t: Target): Promise<void> {
   }
   const info = await call('Zinc.getInfo', '{}');
   setDevRun(info.dev !== undefined && info.dev === true);
-  setInfoDevice(devicePorts.indexOf(t.port) >= 0 ? t.title : '');   // the Info view first (a debugger target opens on Sources above)
-  setView('info');
+  setInfoDevice(t.device);   // the Info view first (a debugger target opens on Sources above)
+  setView(again.length > 0 ? again : 'info');
   watchInfo();
   await call('Network.enable', '{}');   // the requests made before the attach come too
+  const sel = selected();
   await loadDocument();
+  if (again.length > 0 && sel >= 0 && nodeOf(sel) !== null) await select(sel);   // the same node, when the new run has it
   await loadStorage();
-  setStatus('attached');
+  if (again === 'screen') screen(true);
+  setStatus(again.length > 0 ? 'attached again: ' + t.name() + ' restarted' : 'attached');
 }
 
 // "Rendered only" follows scrolling and animation: what draws is asked again twice a second while Elements shows it.
@@ -207,10 +237,10 @@ async function screen(on: boolean): Promise<void> {   // the screencast: frames 
 }
 
 // ---- the views
-function TargetRow(p: { t: Target }): i32 {
+function TargetRow(p: { t: Target }): i32 {   // the program card: its name, then engine, run, project, process, port and device
   return <View className="flex-col gap-1 p-2 rounded-md bg-white border">
     <Text className="text-sm font-medium text-slate-900">{p.t.name()}</Text>
-    <Text className="text-xs text-slate-500">{p.t.type + ' on port ' + p.t.port}</Text>
+    <Text className="text-xs text-slate-500 break-words">{p.t.card()}</Text>
     <Btn label="Attach" onClick={() => { attach(p.t); }} />
   </View>;
 }
@@ -354,10 +384,22 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the panels as t
   if (targets().length === 0) { await devicesListed; await list(); }   // none here: those of the paired devices, once they are known
   const ts = targets();
   console.log('programs: ' + ts.length);
-  for (const t of ts) console.log('program: ' + t.title + ' (' + t.type + ')');
+  for (const t of ts) { console.log('program: ' + t.title + ' (' + t.type + ')'); console.log('card: ' + t.card()); }
   if (ts.length === 0) { quit(); return; }
   await attach(ts[0]);
   if (ts[0].type === 'node') { await dumpDebugger(); quit(); return; }
+  if (mode === 'reconnect') {   // the program ends and starts again (on another port): attached to it again, on the same view
+    const wait = async (f: () => boolean): Promise<boolean> => { for (let k = 0; k < 1500; k++) { if (f()) return true; await sleep(20); } return false; };
+    setView('elements');
+    console.log('attached: ' + attached() + ' | view ' + view());
+    console.log('ready for restart');
+    await wait(() => status().indexOf('exited') >= 0);
+    console.log('dropped: ' + status());
+    await wait(() => status().startsWith('attached again'));
+    console.log('again: ' + status() + ' | view ' + view() + ' | ' + attached());
+    quit();
+    return;
+  }
   if (mode === 'info') {   // the Info view's card, once its workers are known
     const n = infoLoads();
     await until(() => infoLoads() > n);
@@ -497,7 +539,8 @@ async function openView(v: string): Promise<void> {
   await sleep(500);
   if (v === 'network') { for (const r of reqs()) if (!r.ws()) { await pick(r); break; } return; }   // a request picked: its details show
   if (v === 'storage') { if (items().length > 0) pickItem(items()[items().length - 1].key); else if (tables().length > 0) await openTable(tables()[0], 0); return; }   // a key, else a table
-  const c = findNode((n: TNode): boolean => n.comp);   // a component selected (its props and styles show), the path to it opened
+  let c = findNode((n: TNode): boolean => n.comp);   // a component selected (its props and styles show), the path to it opened
+  if (c === null) c = findNode((n: TNode): boolean => n.stage && inlineText(n) !== null);   // a zinc:stage scene: a node that shows a text
   if (c !== null) await select((c as TNode).id);
 }
 

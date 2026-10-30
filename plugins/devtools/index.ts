@@ -671,6 +671,28 @@ function castFrame(): void {
 }
 
 Cdp.listen(9229, handle);   // the default: zinc.json plugins.devtools.port and ZINC_DEVTOOLS_PORT change it (docs/dev-mode.md)
+Cdp.net(15, targetFields());   // what discovery says of the program
+
+function textOf(o: any, k: string): string { if (o === undefined || o === null) return ''; const v: any = o[k]; return typeof v === 'string' ? v : ''; }
+/** The program as /json/list describes it to chrome://inspect and the Zinc Inspector's list (the fields after its ids and WebSocket URL):
+ *  title, its name (zinc.json app.name, else name, else ZINC_APP_NAME: the project's folder or the file); description, the engine, dev run and
+ *  project; url, zinc://<app id or name>/<entry in its project>; and `zinc`, the same for the Inspector's program card. */
+function targetFields(): string {
+  const rt: any = JSON.parse(orEmpty(Cdp.net(12, '')));
+  const prog: any = rt.program, proj: any = prog !== undefined && prog !== null ? prog.project : null;
+  const entry = textOf(prog, 'entry'), dir = textOf(prog, 'projectDir'), file = entry.slice(entry.lastIndexOf('/') + 1);
+  let name = textOf(proj, 'appName');
+  if (name.length === 0) name = textOf(proj, 'name');
+  if (name.length === 0) name = env('ZINC_APP_NAME');
+  if (name.length === 0) name = file.length > 0 ? file : 'Zinc app';
+  const engine = textOf(rt, 'engine'), home = env('HOME');
+  const project = home.length > 0 && dir.startsWith(home + '/') ? '~' + dir.slice(home.length) : dir;
+  const id = textOf(proj, 'id');
+  const url = `zinc://${id.length > 0 ? id : name.split(' ').join('-')}/${dir.length > 0 && entry.startsWith(dir + '/') ? entry.slice(dir.length + 1) : file}`;
+  const pid: any = rt.pid;
+  return `"title":${q(name)},"description":${q('Zinc · ' + (engine.length > 0 ? engine : 'engine?') + (DEV ? ' · dev run' : '') + (project.length > 0 ? ' · ' + project : ''))},` +
+    `"url":${q(url)},"zinc":{"name":${q(name)},"engine":${q(engine)},"dev":${DEV},"project":${q(project)},"entry":${q(entry)},"pid":${typeof pid === 'number' ? pid : 0}}`;
+}
 // The Network panel: the host records every request from now on (headers that carry credentials masked); the events wait in the host until a client
 // enables the domain, then follow live.
 let netOn = false;

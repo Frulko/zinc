@@ -10,6 +10,7 @@
 # preview, cURL, the filters, a WebSocket with its messages and the HAR export. ZN-373.05: half a second in the Performance view.
 # Chrome's tree: folded by default (Alt-click folds or opens a subtree), the long className of an iPod-like row wrapped, the arrow keys, a class
 # edited in place, a Text's properties (font size stepped, alignment), its text edited in its row (DOM.setNodeValue).
+# The program list names it after its zinc.json with its engine, run, project, pid and port.
 # The same program not in a dev run: no component names, and the class, element.style and text edits refused with the message.
 # ZN-373.04: the Sources view against zinc debug --cdp: a breakpoint set on a line, the stop there with the stack, the locals (a Point
 # unfolded) and two watches, step into, over and out, the breakpoint removed and the program run to its end.
@@ -34,6 +35,8 @@ fail=0
 want() { grep -qF -- "$1" "$tmp/dump" || { echo "missing in the inspector's views: $1"; fail=1; }; }
 section() { awk -v s="$1:" '$0 == s { on = 1; next } /^[a-z].*:/ { on = 0 } on' "$tmp/dump"; }   # the lines under a title of the dump
 want "programs: 1"
+want "program: inspector-target (page)"   # its zinc.json name, its engine, a dev run, where it is (the program card, chrome://inspect)
+want "card: interpreter · dev run · "
 want '<View className="flex-col gap-2 p-4">'
 want '"Hello inspector"'
 want '<View className="w-4 h-4 bg-rose-600">'
@@ -102,6 +105,7 @@ f0=$fail   # not a dev run: no component names, the edits refused
 start $port2 "$tmp/target2.log" 0
 inspect $port2 elements
 want "dev run: false"
+want "card: interpreter · run · "
 want "class refused: live styling works in dev runs only (zinc dev): this program was not started by zinc dev, and nothing was changed"
 want "style refused: live styling works in dev runs only (zinc dev)"
 want "width still 16px"

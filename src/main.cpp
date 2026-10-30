@@ -346,7 +346,7 @@ static std::string programInfo(const std::string& entry) {   // before the run m
     std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf();
     zn::frontend::Project p; std::string perr;
     if (zn::frontend::parseProject(ss.str(), p, perr)) {
-      project = "{\"file\":" + jsonText(fs::absolute(pf, ec).lexically_normal().string()) + ",\"name\":" + jsonText(p.name) + ",\"id\":" + jsonText(p.app.id) +
+      project = "{\"file\":" + jsonText(fs::absolute(pf, ec).lexically_normal().string()) + ",\"name\":" + jsonText(p.name) + ",\"appName\":" + jsonText(p.app.name) + ",\"id\":" + jsonText(p.app.id) +
                 ",\"version\":" + jsonText(p.app.version) + ",\"permissionsDeclared\":" + (p.permissionsDeclared ? "true" : "false") + ",\"permissions\":[";
       for (std::size_t i = 0; i < p.permissions.size(); ++i) project += (i ? "," : "") + jsonText(p.permissions[i]);
       project += "]}";

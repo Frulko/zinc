@@ -1,28 +1,73 @@
 // Zinc Inspector (ZN-373.01): the Chrome DevTools protocol client of the panels, for plugins/devtools (the zinc:ui tree, styles, console,
-// network, storage) and zinc debug --cdp (the debugger), with the readers of its results the panels share. Discovery over HTTP (/json/list),
-// then a WebSocket of zinc:socket; the messages are JSON read as dynamic values.
+// network, storage) and zinc debug --cdp (the debugger), with the readers of its results the panels share. Discovery over HTTP (/json/list)
+// on the given ports and on those the programs announce, then a WebSocket of zinc:socket; the messages are JSON read as dynamic values.
 import { WebSocket, MessageEvent } from 'zinc:socket';
 import { fetch } from 'zinc:net';
+import { list as listDir, readText, remove } from 'zinc:fs';
+import { env } from 'zinc:sys';
 
 export class Target {
   port: i32 = 0; title: string = ''; type: string = ''; ws: string = '';
+  // what zinc:devtools says of the program (its /json/list `zinc`): engine, dev run, project folder (~ for home), entry, process; and the
+  // paired device it runs on ('' : this machine)
+  engine: string = ''; dev: boolean = false; project: string = ''; entry: string = ''; pid: i32 = 0; device: string = '';
   /** The title without its directory (zinc debug --cdp titles a target with the program's whole path). */
   name(): string { return this.title.slice(this.title.lastIndexOf('/') + 1); }
+  /** The program card's line under the name: engine, dev run, project, process and port, device. */
+  card(): string {
+    const parts: string[] = [];
+    if (this.engine.length > 0) parts.push(this.engine);
+    if (this.engine.length > 0) parts.push(this.dev ? 'dev run' : 'run');
+    if (this.project.length > 0) parts.push(this.project);
+    if (this.pid > 0) parts.push('pid ' + this.pid);
+    parts.push((this.type === 'node' ? 'debugger' : 'port') + ' ' + this.port);
+    if (this.device.length > 0) parts.push('on ' + this.device);
+    return parts.join(' · ');
+  }
+  /** What stays when the program restarts (zinc dev starts a new process at each save): its entry, else its title. */
+  key(): string { return this.entry.length > 0 ? this.entry : this.title; }
 }
 
-/** The programs that answer /json/list on these ports of this machine (an inspector of zinc:devtools: 9229; zinc debug --cdp: 9222). */
-export async function discover(ports: i32[]): Promise<Target[]> {
+/** <zinc home>/run/devtools: each program with zinc:devtools writes <pid>.json there, {"port", "pid"} (plugins/devtools/native). */
+function runDir(): string { return (env('ZINC_HOME').length > 0 ? env('ZINC_HOME') : env('HOME') + '/.zinc') + '/run/devtools'; }
+
+/** The programs that answer /json/list on these ports of this machine (an inspector of zinc:devtools: 9229; zinc debug --cdp: 9222) and,
+ *  `announced`, on the ports the programs announce in runDir, whatever they are (ZINC_DEVTOOLS_PORT=0, zinc dev); the file of a program that no longer
+ *  answers, or whose port another program took, is removed. */
+export async function discover(ports: i32[], announced: boolean): Promise<Target[]> {
+  const all: i32[] = ports.slice(0), pids: i32[] = [], files: string[] = [];
+  for (const p of ports) { pids.push(0); files.push(''); }
+  if (announced) try {
+    for (const f of listDir(runDir())) {
+      if (!f.endsWith('.json')) continue;
+      const path = runDir() + '/' + f;
+      try {
+        const a = JSON.parse(readText(path));
+        const port: i32 = a.port, pid: i32 = a.pid;
+        const at = all.indexOf(port);
+        if (at >= 0) { pids[at] = pid; files[at] = path; continue; }
+        all.push(port); pids.push(pid); files.push(path);
+      } catch (e) { remove(path); }
+    }
+  } catch (e) { /* no folder yet */ }
   const out: Target[] = [];
-  for (const port of ports) {
+  for (let i = 0; i < all.length; i++) {
+    const port = all[i];
+    let found = false;
     try {
       const res = await fetch(`http://127.0.0.1:${port}/json/list`);
       const list = JSON.parse(await res.text());
       for (const t of list) {
         const x = new Target();
         x.port = port; x.title = t.title; x.type = t.type; x.ws = t.webSocketDebuggerUrl;
+        const z = t.zinc;
+        if (z !== undefined) { x.engine = z.engine; x.dev = z.dev; x.project = z.project; x.entry = z.entry; x.pid = z.pid; }
+        if (pids[i] > 0 && x.pid > 0 && x.pid !== pids[i]) continue;   // the port is another program's now: the file is stale
         out.push(x);
+        found = true;
       }
     } catch (e) { /* nothing there */ }
+    if (!found && files[i].length > 0) remove(files[i]);
   }
   return out;
 }

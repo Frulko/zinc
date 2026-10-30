@@ -3,15 +3,16 @@
 // text. The screenshot is the frame saved by zinc:gfx capture, whole (ZN-369); the console (ZN-373.01) and the frame spans of Tracing (ZN-373.05) come from the host.
 import { listen as listenTcp, Server, Socket, WebSocket, MessageEvent } from 'zinc:socket';
 import { sha1, base64Encode } from 'zinc:web';
-import { utf8Encode, utf8Decode, env } from 'zinc:sys';
+import { utf8Encode, utf8Decode, env, pid, writeErr } from 'zinc:sys';
 import { capture } from 'zinc:gfx';
-import { readBytes, remove, tmpdir } from 'zinc:fs';
+import { readBytes, remove, tmpdir, mkdir, writeText } from 'zinc:fs';
 import { call as netLog } from 'zinc:__netlog';
 import { resourceStats } from 'zinc:__diagnostics';
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const clients: (WebSocket | null)[] = [];
 let onMessage: ((client: i32, msg: string) => void) | null = null;
+let described = '"title":"Zinc app (next)","description":"Zinc UI","url":"zinc://app"';   // net(15): the program's name, engine... (index.ts)
 
 function headerValue(head: string, name: string): string {
   for (const line of head.split('\r\n')) {
@@ -55,7 +56,7 @@ function request(s: Socket, head: string, rest: u8[]): void {
   }
   if (path.startsWith('/json/version')) reply(s, '200 OK', '{"Browser":"Zinc/0.1","Protocol-Version":"1.3"}');
   else if (path.startsWith('/json')) {
-    reply(s, '200 OK', `[{"description":"Zinc UI","devtoolsFrontendUrl":"devtools://devtools/bundled/inspector.html?ws=${host}/zinc","id":"zinc","title":"Zinc app (next)","type":"page","url":"zinc://app","webSocketDebuggerUrl":"ws://${host}/zinc"}]`);
+    reply(s, '200 OK', `[{"devtoolsFrontendUrl":"devtools://devtools/bundled/inspector.html?ws=${host}/zinc","id":"zinc","type":"page","webSocketDebuggerUrl":"ws://${host}/zinc",${described}}]`);
   } else reply(s, '200 OK', 'Zinc DevTools endpoint: open chrome://inspect');
 }
 function accept(s: Socket): void {
@@ -95,6 +96,15 @@ function strField(msg: string, key: string): string {
   return out;
 }
 
+// Discovery of any port: <zinc home>/run/devtools/<pid>.json names the port of each program listening (cdp.host.cpp writes the same); the Zinc
+// Inspector reads the folder, and removes the file of a program that no longer answers.
+function announce(): void {
+  try {
+    const home = env('ZINC_HOME').length > 0 ? env('ZINC_HOME') : env('HOME') + '/.zinc', dir = home + '/run/devtools';
+    mkdir(dir, true);
+    writeText(`${dir}/${pid()}.json`, `{"port":${port},"pid":${pid()}}`);
+  } catch (e) { /* a read-only home: found on the scanned ports only */ }
+}
 let port: i32 = 0;      // where the inspector listens
 let logging = false;    // the network log was started: it leaves out the program's own connections to that port
 let any = false;        // zinc dev: the port is the previous version's, any free one when it is taken
@@ -109,8 +119,10 @@ async function start(): Promise<void> {
     }
     if ((srv as Server).port !== port) { port = (srv as Server).port; if (logging) netLog(0, `${port}`); }   // asked for port 0: the system chose one
     if (report) netLog(20, `${port}`);
-    console.error(`zinc devtools: chrome://inspect (Discover network targets: localhost:${port}) or ws://127.0.0.1:${port}/zinc`);
-  } catch (e) { console.error(`zinc devtools: port ${port} unavailable`); }
+    announce();
+    // on stderr, not through console.error: the inspector's console would show it as an error
+    writeErr(`zinc devtools: chrome://inspect (Discover network targets: localhost:${port}) or ws://127.0.0.1:${port}/zinc\n`);
+  } catch (e) { writeErr(`zinc devtools: port ${port} unavailable\n`); }
 }
 
 export default {
@@ -147,6 +159,7 @@ export default {
   },
   trace(on: boolean): string { return netLog(on ? 7 : 8, ''); },   // the runtime's frame phases (ZN-373.05)
   net(op: i32, arg: string): string {
+    if (op === 15) { described = arg; return ''; }
     if (op !== 0) return netLog(op, arg);
     logging = true;
     return netLog(0, `${port}`);

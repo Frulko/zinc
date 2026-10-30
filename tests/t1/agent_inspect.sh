@@ -77,7 +77,7 @@ dev top -n 1 --json | grep -q '"name":"inspected"[^}]*"cpuMs":[0-9]*,"rss":[1-9]
 # Zinc Inspector, started with a port where nothing listens: it finds the app of the paired device and attaches to it
 free=$(python3 tests/free_ports.py 1)
 ZINC="$Z" ZINC_HOME="$W" ZINC_INSPECTOR_DUMP=1 ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 timeout 40 "$Z" run app/inspector/main.tsx -- "$free" > "$tmp/dump" 2>&1 || bad "Zinc Inspector failed: $(head -c 600 "$tmp/dump")"
-for want in "programs: 1" "program: inspected on $name (page)" "elements:" "<view " "screen: "; do
+for want in "programs: 1" "program: inspected (page)" " · on $name" "elements:" "<View " "screen: "; do
   grep -qF -- "$want" "$tmp/dump" || bad "missing in Zinc Inspector's views: $want ($(head -c 400 "$tmp/dump"))"
 done
 

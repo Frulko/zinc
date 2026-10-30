@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
 
 extern "C" __attribute__((weak)) const char* zn_resource_stats_json(void);
 extern "C" __attribute__((weak)) const char* zn_program_info_json(void);
@@ -86,6 +87,26 @@ struct Client { int fd = -1; bool ws = false; int n = 0; char in[65536]; };
 const int MAXC = 4;
 const int RING = 32;  // console messages replayed to a client that enables Runtime late
 
+char described[2048] = "\"title\":\"Zinc app (" ZRT_PLATFORM ")\",\"description\":\"Zinc UI\",\"url\":\"zinc://app\"";   // net(15): the program's name, engine... (index.ts)
+char announced[1024];   // <zinc home>/run/devtools/<pid>.json while this program listens
+
+// Discovery of any port, as cdp.next.ts: the file names the port this program listens on; removed at exit (the Zinc Inspector removes the
+// file of a program that died without it).
+void unannounce() { if (announced[0]) unlink(announced); }
+void announce(int port) {
+  const char* zh = getenv("ZINC_HOME");
+  const char* home = getenv("HOME");
+  char dir[900];
+  if (zh && *zh) snprintf(dir, sizeof dir, "%s/run/devtools", zh);
+  else if (home) snprintf(dir, sizeof dir, "%s/.zinc/run/devtools", home);
+  else return;
+  for (char* p = dir + 1; *p; p++) if (*p == '/') { *p = 0; mkdir(dir, 0755); *p = '/'; }
+  mkdir(dir, 0755);
+  snprintf(announced, sizeof announced, "%s/%d.json", dir, (int)getpid());
+  if (FILE* f = fopen(announced, "w")) { fprintf(f, "{\"port\":%d,\"pid\":%d}", port, (int)getpid()); fclose(f); atexit(unannounce); }
+  else announced[0] = 0;
+}
+
 struct HostCdp : NativeCdp, zrt::Poller {
   int lfd = -1;
   Client cl[MAXC];
@@ -132,6 +153,7 @@ struct HostCdp : NativeCdp, zrt::Poller {
     socklen_t al = sizeof a;
     if (port == 0 && getsockname(lfd, (sockaddr*)&a, &al) == 0) port = ntohs(a.sin_port);   // ZINC_DEVTOOLS_PORT=0: the port the system chose
     if (report && zn_dev_report) { char line[32]; snprintf(line, sizeof line, "devtools %d", port); zn_dev_report(line); }
+    announce(port);
     fprintf(stderr, "zinc devtools: chrome://inspect (Discover network targets: localhost:%d) or ws://127.0.0.1:%d/zinc\n", port, port);
     return true;
   }
@@ -182,7 +204,8 @@ struct HostCdp : NativeCdp, zrt::Poller {
   zrt::String screencast(int32_t maxw, int32_t maxh, int32_t) override { return maxw < 0 ? zrt::String() : screenshot(maxw, maxh); }
   zrt::String trace(bool on) override { return zrt::gfx::trace(on); }
   zrt::String resourceStats() override { return lit(zn_resource_stats_json ? zn_resource_stats_json() : "{}"); }
-  zrt::String net(int32_t op, zrt::String) override {   // the network log is the Zinc Next host's (ZN-370); 12: the program (the inspector's Info view)
+  zrt::String net(int32_t op, zrt::String arg) override {   // the network log is the Zinc Next host's (ZN-370); 12: the program (the inspector's Info view)
+    if (op == 15) { if (arg.bytes() < sizeof described) { memcpy(described, arg.ptr(), arg.bytes()); described[arg.bytes()] = 0; } return zrt::String(); }   // ponytail: a longer one keeps the default
     return lit(op == 12 && zn_program_info_json ? zn_program_info_json() : "");
   }
 
@@ -207,7 +230,7 @@ struct HostCdp : NativeCdp, zrt::Poller {
       drop(c);
       return;
     }
-    char out[1024];
+    char out[4096];
     if (const char* k = strcasestr(c.in, "\r\nSec-WebSocket-Key:")) {
       k += 20; while (*k == ' ') k++;
       char key[128]; int i = 0;
@@ -222,11 +245,11 @@ struct HostCdp : NativeCdp, zrt::Poller {
       c.ws = true; c.n = 0;
       return;
     }
-    char body[768];
+    char body[3072];
     if (!strncmp(c.in, "GET /json/version", 17)) snprintf(body, sizeof body, "{\"Browser\":\"Zinc/0.1\",\"Protocol-Version\":\"1.3\"}");
     else if (!strncmp(c.in, "GET /json", 9))
-      snprintf(body, sizeof body, "[{\"description\":\"Zinc UI\",\"devtoolsFrontendUrl\":\"devtools://devtools/bundled/inspector.html?ws=%s/zinc\","
-               "\"id\":\"zinc\",\"title\":\"Zinc app (%s)\",\"type\":\"page\",\"url\":\"zinc://app\",\"webSocketDebuggerUrl\":\"ws://%s/zinc\"}]", host, ZRT_PLATFORM, host);
+      snprintf(body, sizeof body, "[{\"devtoolsFrontendUrl\":\"devtools://devtools/bundled/inspector.html?ws=%s/zinc\","
+               "\"id\":\"zinc\",\"type\":\"page\",\"webSocketDebuggerUrl\":\"ws://%s/zinc\",%s}]", host, host, described);
     else snprintf(body, sizeof body, "Zinc DevTools endpoint: open chrome://inspect");
     int n = snprintf(out, sizeof out, "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=UTF-8\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", (int)strlen(body), body);
     write_all(c.fd, out, (size_t)n);
