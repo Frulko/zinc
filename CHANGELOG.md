@@ -252,6 +252,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `zinc dev` with the inspector on port 0 (any free port): the program binds the port itself and zinc dev names it (`the inspector listens on port N`); the next versions keep it, and take another when it is taken, instead of a port chosen beforehand that another program could take first.
 - A class instance can be used where an interface of fields or an object type is expected (`const l: Labeled = new Tag()`, in arrays, as a parameter or a return value), as TypeScript allows: reads and writes go to the instance itself.
 - Converting an `any` back to a class finds an instance of a subclass declared in a later module instead of throwing a TypeError.
 - Programs on QuickJS, JavaScriptCore, V8 and Hermes (and so every such program under `zinc dev`) keep their `zinc:storage` and AsyncStorage keys in their own store, `<zinc home>/apps/<zinc.json name>/storage.kv`, instead of the store shared by all apps; Zinc Inspector's Storage panel names the store it lists.

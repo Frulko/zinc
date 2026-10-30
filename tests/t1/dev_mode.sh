@@ -49,6 +49,9 @@ n=0; while [ $n -lt 100 ] && ! since "v3 started" | grep -q "run        interpre
 since "v2 started" | grep -q "^zinc: plugins: .*gestures" || { echo "v2 imports zinc:gestures, its run does not say so: $(cat "$t/dev.log")"; fail=1; }
 since "v3 started" | grep -q "run        interpreter" || { echo "v3 did not run: $(cat "$t/dev.log")"; fail=1; }
 since "v3 started" | grep -q "gestures" && { echo "v3 no longer imports zinc:gestures: $(cat "$t/dev.log")"; fail=1; }
+# ZINC_DEVTOOLS_PORT=0: the first version binds a free port and tells zinc dev, which names it; the next versions listen on the same one
+ip=$(sed -n 's/.*the inspector listens on port \([0-9]*\).*/\1/p' "$t/dev.log" | head -1)
+[ -n "$ip" ] && [ "$(grep -c "localhost:$ip)" "$t/dev.log")" -ge 2 ] || { echo "the inspector's port is not reported and kept across versions: $(cat "$t/dev.log")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
 # 4. the inspector: a UI program under dev answers a scripted CDP client, on the port its zinc.json gives (a free one, ZN-633)
 cd "$t" && "$Z" init ui --template remarkable >/dev/null 2>&1; cd "$t" || exit 2
@@ -73,7 +76,7 @@ waitfor "$t/dev3.log" "cycle ab" 5 || { echo "a quickjs project under dev: $(cat
 kill $dev; wait $dev 2>/dev/null
 grep -q "inspector on port" "$t/dev3.log" && { echo "a script (no frame loop) got the inspector: $(cat "$t/dev3.log")"; fail=1; }
 # 4c. a zinc:stage program on QuickJS gets the inspector, and reads the project's assets from dev's wrapper entry (examples/fatty); port 0
-# in zinc.json: zinc dev names the free port it chose, and the program listens there
+# in zinc.json: the program binds a free port and tells zinc dev, which names it
 port=0
 mkdir -p "$t/stg/src" "$t/stg/assets" && cd "$t/stg" || exit 2
 printf '{"name":"stg","entry":"src/main.ts","engine":"quickjs","plugins":{"devtools":{"port":%s}}}\n' "$port" > zinc.json
@@ -82,7 +85,8 @@ printf "import { onFrame } from 'zinc:gfx';\nimport { Stage } from 'zinc:stage';
 "$Z" dev > "$t/dev4.log" 2>&1 &
 dev=$!
 waitfor "$t/dev4.log" "read stage asset" 8 || { echo "a zinc:stage project on QuickJS under dev: $(cat "$t/dev4.log")"; fail=1; }
-port=$(sed -n 's/.*v1 started with the inspector on port \([0-9]*\).*/\1/p' "$t/dev4.log")
+waitfor "$t/dev4.log" "inspector listens on port" 5
+port=$(sed -n 's/.*the inspector listens on port \([0-9]*\).*/\1/p' "$t/dev4.log")
 [ -n "$port" ] && [ "$port" != 0 ] && waitfor "$t/dev4.log" "localhost:$port)" 5 || { echo "zinc dev does not name the inspector's real port: $(cat "$t/dev4.log")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
 # 5. monitor: telemetry lines read from a file

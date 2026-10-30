@@ -1,7 +1,7 @@
 // zinc:devtools transport for the Zinc Next engine: the Spec of cdp.spec.ts over zinc:socket (TCP and the WebSocket class of the socket plugin) instead of a
 // poller of BSD sockets. HTTP discovery (/json/list, /json/version), the same Host and Origin checks as cdp.host.cpp, then a WebSocket upgrade; messages are
 // text. The screenshot is the frame saved by zinc:gfx capture, whole (ZN-369); the console (ZN-373.01) and the frame spans of Tracing (ZN-373.05) come from the host.
-import { listen as listenTcp, Socket, WebSocket, MessageEvent } from 'zinc:socket';
+import { listen as listenTcp, Server, Socket, WebSocket, MessageEvent } from 'zinc:socket';
 import { sha1, base64Encode } from 'zinc:web';
 import { utf8Encode, utf8Decode, env } from 'zinc:sys';
 import { capture } from 'zinc:gfx';
@@ -97,10 +97,18 @@ function strField(msg: string, key: string): string {
 
 let port: i32 = 0;      // where the inspector listens
 let logging = false;    // the network log was started: it leaves out the program's own connections to that port
+let any = false;        // zinc dev: the port is the previous version's, any free one when it is taken
 async function start(): Promise<void> {
+  const report = port === 0 || any;   // zinc dev learns the port bound (host.netLog 20: its dev socket)
   try {
-    const srv = await listenTcp(port, accept, '127.0.0.1');
-    if (srv.port !== port) { port = srv.port; if (logging) netLog(0, `${port}`); }   // asked for port 0: the system chose one
+    let srv: Server | null = null;
+    try { srv = await listenTcp(port, accept, '127.0.0.1'); } catch (e) {
+      if (!any || port === 0) throw e;
+      port = 0;
+      srv = await listenTcp(0, accept, '127.0.0.1');
+    }
+    if ((srv as Server).port !== port) { port = (srv as Server).port; if (logging) netLog(0, `${port}`); }   // asked for port 0: the system chose one
+    if (report) netLog(20, `${port}`);
     console.error(`zinc devtools: chrome://inspect (Discover network targets: localhost:${port}) or ws://127.0.0.1:${port}/zinc`);
   } catch (e) { console.error(`zinc devtools: port ${port} unavailable`); }
 }
@@ -111,6 +119,7 @@ export default {
     // ZINC_DEVTOOLS_PORT wins over the port the plugin asks for (two programs at once; `zinc run` sets it from zinc.json plugins.devtools.port); 0 takes any free port
     const e = env('ZINC_DEVTOOLS_PORT');
     port = e.length > 0 ? parseInt(e) : asked;
+    any = env('ZINC_DEVTOOLS_ANY').length > 0;
     start();
     return true;
   },

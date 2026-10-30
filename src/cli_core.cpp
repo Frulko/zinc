@@ -3548,17 +3548,10 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   if (v8Tools) env.push_back({"ZINC_INSPECT", devtoolsPort(p.entry).empty() ? "9229" : devtoolsPort(p.entry)});
   std::string inspectPort = devtoolsPort(p.dir);
   if (inspectPort.empty()) inspectPort = "9229";
-  if (tools && !v8Tools && inspectPort == "0") {   // any free port: chosen here once, so the line below names it and every version listens on it
-    // ponytail: found free then closed, another program could take it before the child listens (it would say "port unavailable")
-    const int s = static_cast<int>(::socket(AF_INET, SOCK_STREAM, 0));
-    sockaddr_in a{};
-    a.sin_family = AF_INET;
-    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    socklen_t len = sizeof a;
-    if (s >= 0 && ::bind(s, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0 && ::getsockname(s, reinterpret_cast<sockaddr*>(&a), &len) == 0) inspectPort = std::to_string(ntohs(a.sin_port));
-    if (s >= 0) zn::plat::sockClose(s);
-    if (inspectPort != "0") env.push_back({"ZINC_DEVTOOLS_PORT", inspectPort});
-  }
+  // any free port (0): the first version binds one and says which on its dev socket ("devtools <port>"); the next versions ask for the same
+  // one and take another when it is taken (ZINC_DEVTOOLS_ANY), so the inspector stays where it was across saves
+  const bool anyPort = tools && !v8Tools && inspectPort == "0";
+  std::string boundPort, devIn;   // the port the running version said, what it sent that is not a whole line yet
   fs::create_directories(fs::path(p.dir) / "build" / "shots", ec);
   zn::plat::Pid child = 0;
   int version = 0, devFd = -1;   // devFd: our end of the running version's dev socket (asset hot reload)
@@ -3578,6 +3571,9 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     if (!redbox) cmd.insert(cmd.end(), rest.begin(), rest.end());
     if (redbox) writeFile(devDir / "redbox.ts", redBoxSource(msg));
     auto childEnv = env;
+    devIn.clear();
+    if (anyPort) childEnv.push_back({"ZINC_DEVTOOLS_PORT", boundPort.empty() ? "0" : boundPort});
+    if (anyPort && !boundPort.empty()) childEnv.push_back({"ZINC_DEVTOOLS_ANY", "1"});
     int sv[2] = {-1, -1};
     int hv[2] = {-1, -1};   // the hot channel: hot mode on the child only, never on zinc run, build, export or pack
 #ifndef _WIN32   // no socketpair on Windows yet: a save restarts the program there (no asset reload, no Fast Refresh)
@@ -3602,9 +3598,9 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     if (!redbox) ++version;
     if (redbox) std::fprintf(stderr, "zinc dev: red box on screen (%ld ms after the save)\n", sinceSave);
     else {
-      const std::string& port = inspectPort;
+      const std::string port = anyPort ? boundPort : inspectPort;   // any port: said when the version has bound it
       const std::string after = version == 1 ? "" : " (" + std::to_string(sinceSave) + " ms after the save)";   // the first start follows no save
-      std::fprintf(stderr, "zinc dev: v%d started%s%s\n", version, tools ? (" with the inspector on port " + (port.empty() ? "9229" : port)).c_str() : "", after.c_str());
+      std::fprintf(stderr, "zinc dev: v%d started%s%s\n", version, tools ? (" with the inspector" + (port.empty() ? std::string() : " on port " + port)).c_str() : "", after.c_str());
     }
     std::fflush(stderr);
   };
@@ -3638,6 +3634,19 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     if (remote && !remote->poll()) { std::fprintf(stderr, "zinc dev: the session with the device ended\n"); return 1; }
     int st;
     if (child > 0 && zn::plat::wait(child, st, false)) { std::fprintf(stderr, "zinc dev: program exited (%d), waiting for changes...\n", st); child = 0; }
+#ifndef _WIN32
+    if (anyPort && devFd >= 0) {   // the running version's lines: the port its inspector bound
+      char buf[256];
+      for (ssize_t got; (got = ::recv(devFd, buf, sizeof buf, MSG_DONTWAIT)) > 0;) devIn.append(buf, static_cast<std::size_t>(got));
+      for (std::size_t nl; (nl = devIn.find('\n')) != std::string::npos; devIn.erase(0, nl + 1)) {
+        const std::string line = devIn.substr(0, nl);
+        if (line.rfind("devtools ", 0) != 0 || line.substr(9) == boundPort) continue;
+        boundPort = line.substr(9);
+        std::fprintf(stderr, "zinc dev: the inspector listens on port %s\n", boundPort.c_str());
+        std::fflush(stderr);
+      }
+    }
+#endif
     Stamps now = snapshot(p.dir);
     if (now == seen) continue;
     const auto t0 = Clock::now();

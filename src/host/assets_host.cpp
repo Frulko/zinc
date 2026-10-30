@@ -29,6 +29,7 @@
 #include <set>
 
 namespace zn::host::assets {
+int gDevFd = -1;   // zinc dev's socket once devListen took it from the environment
 namespace {
 
 constexpr std::size_t kInFlight = 4;   // jobs handed to the libuv pool at once: its default size
@@ -225,6 +226,7 @@ void onDevRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
 // The socket is the program's alone: the processes it starts (a zinc it runs) neither inherit it nor look for it.
 void devListen(Manager& g, int fd) {
   unsetenv("ZINC_DEV_FD");
+  gDevFd = fd;
 #ifndef _WIN32
   fcntl(fd, F_SETFD, FD_CLOEXEC);   // a Windows child does not inherit a pipe handle (all handles beyond the startup's are reordered by default)
 #endif
@@ -529,3 +531,17 @@ double stat(int k) {
 }
 
 }  // namespace zn::host::assets
+
+// zinc dev's child tells it things on the same socket, a line each: "devtools <port>", the port its inspector bound when zinc dev asked for
+// any (plugins/devtools: cdp.next.ts through host.netLog, cdp.host.cpp directly). Nothing happens outside zinc dev.
+extern "C" void zn_dev_report(const char* line) {
+#ifndef _WIN32
+  int fd = zn::host::assets::gDevFd;
+  if (fd < 0) if (const char* e = std::getenv("ZINC_DEV_FD")) fd = std::atoi(e);
+  if (fd < 0) return;
+  const std::string l = std::string(line) + "\n";
+  if (::write(fd, l.data(), l.size()) < 0) {}
+#else
+  (void)line;
+#endif
+}

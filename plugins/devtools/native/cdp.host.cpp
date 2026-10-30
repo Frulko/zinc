@@ -16,7 +16,8 @@
 #include <strings.h>
 
 extern "C" __attribute__((weak)) const char* zn_resource_stats_json(void);
-extern "C" __attribute__((weak)) const char* zn_program_info_json(void);   // src/host/sys_host.cpp: Zinc.getProgramInfo's host part
+extern "C" __attribute__((weak)) const char* zn_program_info_json(void);
+extern "C" __attribute__((weak)) void zn_dev_report(const char* line);   // src/host/assets_host.cpp: a line to zinc dev   // src/host/sys_host.cpp: Zinc.getProgramInfo's host part
 
 namespace {
 // ---- SHA-1 + base64, for Sec-WebSocket-Accept only
@@ -98,6 +99,8 @@ struct HostCdp : NativeCdp, zrt::Poller {
     port = ZP_DEVTOOLS_PORT;  // zinc.json plugins.devtools.port
 #endif
     if (const char* p = getenv("ZINC_DEVTOOLS_PORT")) port = atoi(p);  // two programs at once
+    const bool any = getenv("ZINC_DEVTOOLS_ANY") != nullptr;   // zinc dev: the port is the previous version's, any free one when it is taken
+    const bool report = port == 0 || any;                       // zinc dev learns the port bound
     cb = onMessage;
     if (!polling) { polling = true; zrt::add_poller(this); }
     zrt::inspector_log = on_log;
@@ -118,7 +121,9 @@ struct HostCdp : NativeCdp, zrt::Poller {
     a.sin_family = AF_INET;
     a.sin_port = htons((uint16_t)port);
     a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);  // remote devices: ssh -L 9229:127.0.0.1:9229 (zinc dev --device does it)
-    if (bind(lfd, (sockaddr*)&a, sizeof a) || ::listen(lfd, 4)) {
+    int bad = bind(lfd, (sockaddr*)&a, sizeof a);
+    if (bad && any && port != 0) { port = 0; a.sin_port = 0; bad = bind(lfd, (sockaddr*)&a, sizeof a); }
+    if (bad || ::listen(lfd, 4)) {
       fprintf(stderr, "zinc devtools: port %d unavailable\n", port);
       close(lfd); lfd = -1;
       return false;
@@ -126,6 +131,7 @@ struct HostCdp : NativeCdp, zrt::Poller {
     fcntl(lfd, F_SETFL, O_NONBLOCK);
     socklen_t al = sizeof a;
     if (port == 0 && getsockname(lfd, (sockaddr*)&a, &al) == 0) port = ntohs(a.sin_port);   // ZINC_DEVTOOLS_PORT=0: the port the system chose
+    if (report && zn_dev_report) { char line[32]; snprintf(line, sizeof line, "devtools %d", port); zn_dev_report(line); }
     fprintf(stderr, "zinc devtools: chrome://inspect (Discover network targets: localhost:%d) or ws://127.0.0.1:%d/zinc\n", port, port);
     return true;
   }
