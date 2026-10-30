@@ -32,6 +32,7 @@ void close(int id, const std::string& error = std::string());         // the req
 
 // For the inspector: the queued events (one JSON object per line), and the results of Network.getResponseBody and Network.getRequestPostData.
 std::string drain();
+std::string replay();         // op 10: the events of every request logged so far, for a client that enables Network late (the queue is left as it was)
 void consoleStart();          // op 4: the program's console lines from now on (consoleLine, include/zn/hostsys.h)
 std::string consoleDrain();   // op 5: the lines since the last call, as Runtime.consoleAPICalled events (one per line)
 std::string consoleRecent();  // op 6: the last 32, for a client that enables Runtime late

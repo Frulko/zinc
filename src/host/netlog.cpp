@@ -269,12 +269,18 @@ void announce(Entry& e) {
        ",\"initialPriority\":\"High\",\"referrerPolicy\":\"no-referrer\"" + (e.reqBody.empty() ? "" : ",\"hasPostData\":true") + (post.empty() || b64 ? "" : ",\"postData\":" + post) +
        "},\"timestamp\":" + num(e.t0) + ",\"wallTime\":" + num(e.wall) + ",\"initiator\":{\"type\":\"other\"},\"type\":\"" + typeOf(e) + "\",\"frameId\":\"main\"");
 }
+void ended(const Entry& e);
 void finish(Entry& e, const std::string& error) {
   if (!e.announced) announce(e);
   e.done = true;
   e.error = error;
   e.tEnd = nowS();
   e.in.clear(); e.out.clear();
+  ended(e);
+}
+// The events of the end of a request or stream (finish, and replay for a client that comes later).
+void ended(const Entry& e) {
+  const std::string& error = e.error;
   const std::string ts = "\"timestamp\":" + num(e.tEnd);
   if (stream(e)) {
     if (!error.empty()) emit("webSocketFrameError", e, ts + ",\"errorMessage\":" + q(error));
@@ -486,6 +492,26 @@ void close(int id, const std::string& error) {
 }
 
 std::string drain() { std::string out; out.swap(st().queue); return out; }
+std::string replay() {
+  State& s = st();
+  std::string queued;
+  queued.swap(s.queue);
+  for (auto& kv : s.entries) {
+    Entry& e = kv.second;
+    if (!e.announced) continue;   // a TCP stream that sent nothing yet
+    announce(e);
+    if (stream(e) && e.status > 0)
+      emit("webSocketHandshakeResponseReceived", e, "\"timestamp\":" + num(e.t0) + ",\"response\":{\"status\":" + std::to_string(e.status) + ",\"statusText\":" + q(e.reason) + ",\"headers\":" + headObject(e.resHead) + "}");
+    for (const Frame& f : e.frames)
+      emit(f.sent ? "webSocketFrameSent" : "webSocketFrameReceived", e, "\"timestamp\":" + num(e.t0 + f.wall - e.wall) + ",\"response\":{\"opcode\":" + std::to_string(f.op) +
+           ",\"mask\":" + (f.sent ? "true" : "false") + ",\"payloadData\":" + (f.op == 1 ? q(f.data) : "\"" + base64(f.data) + "\"") + "}");
+    if (e.done) ended(e);
+  }
+  std::string out;
+  out.swap(s.queue);
+  s.queue.swap(queued);
+  return out;
+}
 
 // The console (ZN-373.01): Runtime.consoleAPICalled events, queued for the inspector and the last 32 kept for a late Runtime.enable.
 namespace {

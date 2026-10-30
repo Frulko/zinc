@@ -21,7 +21,8 @@ export interface Spec extends NativeModule {
    *  Chrome trace events. */
   trace(on: boolean): string;
   /** The host's network log (Zinc Next, src/host/netlog.h): op 0 starts recording (the program's own connections to the inspector's port are left out), 1 returns the queued Network events (one JSON
-   *  object per line), 2 the result of Network.getResponseBody and 3 of Network.getRequestPostData (arg: the request id). '' where there is no log. */
+   *  object per line), 2 the result of Network.getResponseBody and 3 of Network.getRequestPostData (arg: the request id), 9 the log as HAR, 10 the events of
+   *  every request so far (a client that enables Network late). '' where there is no log. */
   net(op: i32, arg: string): string;
 }
 export default requireNative<Spec>('Cdp');
