@@ -38,6 +38,8 @@ export const PAGE_HOME = 'home';
 export const PAGE_CRASH = 'crash';
 export const PAGE_SETTINGS = 'settings';
 export const PAGE_APPS = 'apps';
+/** The shell shows an app below its bar (ZINC_SHELL_SOCKET). */
+export const PAGE_APP = 'app';
 
 export const SECTION_WIFI = 'wifi';
 export const SECTION_REMOTE = 'remote';

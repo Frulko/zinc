@@ -38,7 +38,8 @@ import {
 } from 'zinc:gfx';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
-import { PAGE_APPS, PAGE_CRASH, PAGE_SETTINGS, TOP_BAR_HEIGHT } from './constants';
+import * as shell from 'zinc:shell';
+import { PAGE_APP, PAGE_APPS, PAGE_CRASH, PAGE_SETTINGS, TOP_BAR_HEIGHT } from './constants';
 import { DisplayObject, Stage } from './core/display';
 import {
   ScrollBox,
@@ -56,7 +57,9 @@ import {
   eraseInForm,
   goBack,
   hideScreenKeyboard,
+  isShell,
   startRefreshing,
+  startShell,
   submitForm,
   typeIntoForm,
 } from './state';
@@ -67,6 +70,7 @@ import { HomePageNode } from './pages/home/home-page';
 import { CrashPageNode } from './pages/crash/crash-page';
 import { AppsPageNode } from './pages/apps/apps-page';
 import { SettingsPageNode } from './pages/settings/settings-page';
+import { AppPageNode } from './pages/app/app-page';
 
 const WHEEL_STEP_PIXELS = 48;
 const TAP_SLOP_PIXELS = 10;
@@ -84,6 +88,7 @@ const homePage = new HomePageNode();
 const crashPage = new CrashPageNode();
 const settingsPage = new SettingsPageNode();
 const appsPage = new AppsPageNode();
+const appPage = new AppPageNode();
 const topBar = new TopBarNode();
 const deleteAppDialog = new DeleteAppDialogNode();
 const textForm = new TextFormNode();
@@ -92,7 +97,7 @@ stage.addChild(topBar);
 stage.addChild(deleteAppDialog);
 stage.addChild(textForm);
 /** The nodes as big as the screen. */
-const screenSizedNodes: DisplayObject[] = [pageContainer, homePage, crashPage, settingsPage, appsPage, deleteAppDialog, textForm];
+const screenSizedNodes: DisplayObject[] = [pageContainer, homePage, crashPage, settingsPage, appsPage, appPage, deleteAppDialog, textForm];
 
 let mountedPage = '';
 
@@ -102,7 +107,7 @@ function syncMountedPage(screenWidth: number, screenHeight: number): void {
     mountedPage = appState.page;
     pageContainer.removeChildren();
     const page = appState.page;
-    pageContainer.addChild(page === PAGE_SETTINGS ? settingsPage : page === PAGE_CRASH ? crashPage : page === PAGE_APPS ? appsPage : homePage);
+    pageContainer.addChild(page === PAGE_SETTINGS ? settingsPage : page === PAGE_CRASH ? crashPage : page === PAGE_APPS ? appsPage : page === PAGE_APP ? appPage : homePage);
   }
   if (appState.page === PAGE_SETTINGS) settingsPage.syncSection();
   for (let index = 0; index < screenSizedNodes.length; index++) {
@@ -110,7 +115,7 @@ function syncMountedPage(screenWidth: number, screenHeight: number): void {
     screenSizedNodes[index].height = screenHeight;
   }
   topBar.width = screenWidth;
-  topBar.height = TOP_BAR_HEIGHT;
+  topBar.height = appState.page === PAGE_APP ? shell.barHeight() : TOP_BAR_HEIGHT;
 }
 
 // ----------------------------------------------------------------------------
@@ -253,6 +258,8 @@ function stepScrollInertia(deltaSeconds: number): void {
 
 escapeByApp(true);
 startRefreshing();
+startShell();
+let shownSerial = -1;
 
 onFrame((deltaSeconds: number) => {
   if (pollMilliseconds > 0) sys.poll(pollMilliseconds);
@@ -264,6 +271,11 @@ onFrame((deltaSeconds: number) => {
   const screenHeight = height();
   syncMountedPage(screenWidth, screenHeight);
   stage.updateTree(deltaSeconds);
+  // the shown app sent a frame: the shell draws it
+  if (isShell && appState.page === PAGE_APP && shell.serial() !== shownSerial) {
+    shownSerial = shell.serial();
+    uiState.dirty = true;
+  }
 
   if (!uiState.dirty) {
     keep();

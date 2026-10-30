@@ -8,6 +8,7 @@ import * as fs from 'zinc:fs';
 import * as os from 'zinc:os';
 import * as sys from 'zinc:sys';
 import * as network from 'zinc:network';
+import * as shell from 'zinc:shell';
 import {
   BACKGROUND_THEMES,
   CLOCK_INTERVAL_MS,
@@ -19,6 +20,7 @@ import {
   KEYBOARD_AZERTY,
   KEYBOARD_QWERTY,
   NEXT_APP_FILE,
+  PAGE_APP,
   PAGE_APPS,
   PAGE_CRASH,
   PAGE_HOME,
@@ -49,6 +51,10 @@ const configPath = fromEnv('ZINC_PLAYER_CONFIG', zincHome + '/player.json');
 /** The engine's version, which zinc-session passes on (the last word of `zinc --version`: zinc-next 0.6.2). */
 const versionWords = sys.env('ZINC_VERSION').trim().split(' ');
 export const zincVersion = versionWords[versionWords.length - 1];
+/** The player is the shell (D194): it starts the apps itself and shows them below its bar, instead of exiting for zinc-session. */
+export const isShell = sys.env('ZINC_SHELL_SOCKET') !== '';
+/** The last lines of an app's log a crash page shows. */
+const CRASH_LOG_LINES = 80;
 
 /** The text field the overlay form edits (a Wi-Fi password, the country, the name). */
 export class TextForm {
@@ -71,6 +77,10 @@ class AppState {
   page: string = PAGE_HOME;
   settingsSection: string = SECTION_WIFI;
   crashReport: CrashReport | null = null;
+  /** The app the shell shows ('' when none). */
+  shownAppName: string = '';
+  /** Its title, for the bar. */
+  shownAppTitle: string = '';
   isAppInstalled: boolean = false;
   /** The apps sent to the device, newest first. */
   apps: InstalledApp[] = [];
@@ -285,11 +295,57 @@ export function goBack(): void {
 // ----------------------------------------------------------------------------
 
 export function startApp(): void {
-  sys.exit(EXIT_START_APP);
+  if (isShell) showApp(appPath, 'app', 'App');
+  else sys.exit(EXIT_START_APP);
+}
+
+/** The shell starts the app and shows it; its end comes back through onAppExit. */
+function showApp(directory: string, name: string, title: string): void {
+  if (shell.start(directory, name) <= 0) {
+    setMessage('Could not start ' + title + '.', true);
+    return;
+  }
+  appState.shownAppName = name;
+  appState.shownAppTitle = title;
+  navigateTo(PAGE_APP);
+}
+
+/** Home in the bar: the hub at once, the app is asked to quit (and ended if it does not). */
+export function goHome(): void {
+  shell.home();
+  navigateTo(PAGE_HOME);
+}
+
+/** The shown app ended: back to the hub, or its crash page when it failed (143: stopped by SIGTERM). */
+function onAppExit(name: string, status: number): void {
+  appState.shownAppName = '';
+  if (status === 0 || status === 143) {
+    if (appState.page === PAGE_APP) navigateTo(PAGE_HOME);
+    uiState.dirty = true;
+    return;
+  }
+  const report = new CrashReport();
+  report.app = name;
+  report.exitStatus = '' + status;
+  report.time = new Date().toLocaleString();
+  const logPath = agentDirectory + '/logs/' + name + '.log';
+  const lines = fs.exists(logPath) ? fs.readText(logPath).trimEnd().split('\n') : [];
+  const tail = lines.slice(Math.max(0, lines.length - CRASH_LOG_LINES)).filter((line: string) => !line.startsWith('[exited'));
+  report.output = tail.length === 0 ? ['It printed nothing.'] : tail;
+  appState.crashReport = report;
+  navigateTo(PAGE_CRASH);
+}
+
+export function startShell(): void {
+  if (isShell) shell.onExit(onAppExit);
 }
 
 /** Starts an app sent to the device: zinc-session reads its folder from the run directory. */
 export function startInstalledApp(app: InstalledApp): void {
+  if (isShell) {
+    showApp(app.directory, app.name, app.title);
+    return;
+  }
   try {
     fs.writeText(runDirectory + '/' + NEXT_APP_FILE, app.directory + '\n');
   } catch (e) {

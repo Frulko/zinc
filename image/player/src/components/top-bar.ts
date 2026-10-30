@@ -5,12 +5,14 @@
 // launcher: back, the title and the time.
 
 import { rect, textWidth } from 'zinc:gfx';
+import * as shell from 'zinc:shell';
 import {
   COLOR_SEPARATOR,
   COLOR_SIDEBAR,
   COLOR_TEXT_PRIMARY,
   COLOR_TEXT_SECONDARY,
   COLOR_WHITE,
+  PAGE_APP,
   PAGE_APPS,
   PAGE_PADDING,
   PAGE_SETTINGS,
@@ -19,7 +21,7 @@ import {
 } from '../constants';
 import { Fonts } from '../fonts';
 import { DisplayObject } from '../core/display';
-import { appState, goBack, openSettings } from '../state';
+import { appState, goBack, goHome, openSettings } from '../state';
 import { drawIconButton } from './buttons';
 import { drawGlyph, drawLabel } from './primitives';
 
@@ -37,6 +39,20 @@ export class TopBarNode extends DisplayObject {
   override onDraw(barWidth: number, barHeight: number): void {
     const textY = (barHeight - 22) / 2;
     const updateAvailable = appState.updates.hasUpdate();
+    if (appState.page === PAGE_APP) {
+      // the shell's bar over an app: Home, its name, the time; opaque, so the app below needs no blending
+      rect(0, 0, barWidth, barHeight, COLOR_SIDEBAR);
+      drawIconButton('top/home', 'house', PAGE_PADDING / 2 + 12, barHeight / 2, barHeight * 0.6, COLOR_TEXT_PRIMARY, goHome);
+      const title = appState.shownAppTitle !== '' ? appState.shownAppTitle : shell.title();
+      drawLabel(Fonts.labelBold, PAGE_PADDING / 2 + barHeight + 8, textY + 2, title, COLOR_TEXT_PRIMARY, barWidth / 2);
+      const clockX = barWidth - PAGE_PADDING / 2 - textWidth(Fonts.label, appState.clockText, 0);
+      drawLabel(Fonts.label, clockX, textY + 2, appState.clockText, COLOR_TEXT_SECONDARY);
+      if (!shell.responding()) {
+        const warning = 'Not responding';
+        drawLabel(Fonts.label, clockX - 20 - textWidth(Fonts.label, warning, 0), textY + 2, warning, COLOR_TEXT_PRIMARY);
+      }
+      return;
+    }
     if (appState.page === PAGE_SETTINGS) {
       rect(0, 0, barWidth, barHeight, COLOR_SIDEBAR);
       rect(0, barHeight - 1, barWidth, 1, COLOR_SEPARATOR);

@@ -33,4 +33,4 @@ export function readCrashReport(path: string): CrashReport | null {
   try { return parseCrashReport(fs.readText(path)); } catch (e) { return null; }
 }
 
-export function deleteCrashReport(path: string): void { fs.remove(path); }
+export function deleteCrashReport(path: string): void { if (fs.exists(path)) fs.remove(path); }
