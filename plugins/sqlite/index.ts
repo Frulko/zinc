@@ -4,6 +4,7 @@
 // (an integer-valued number binds as INTEGER), string, boolean (0 / 1) or a zinc:web Blob (BLOB).
 import S from './native/sqlite.spec';
 import { Blob } from 'zinc:web';
+import { devDatabaseOpened, devDatabaseClosed } from 'zinc:devhooks';
 
 export class SqliteError extends Error {
   constructor(message: string) { super(message); this.name = 'SqliteError'; }
@@ -163,6 +164,27 @@ export class Database {
     const h = S.open(path, ro ? 1 : 2 | ((options.create ?? true) ? 4 : 0));
     if (h < 0) throw fail();
     this.h = h;
+    this.dev = devDatabaseOpened(path, (sql: string, max: i32, write: boolean): string => this.inspect(sql, max, write));
+  }
+  private dev: i32 = 0;
+  /** The inspector's query (zinc:devhooks, dev runs): rows as JSON, writes refused by SQLite itself (PRAGMA query_only) unless `write`. */
+  private inspect(sql: string, max: i32, write: boolean): string {
+    const cell = (v: unknown): string => v === null ? 'null' : typeof v === 'number' ? (isFinite(v) ? `${v}` : 'null') : typeof v === 'string' ? JSON.stringify(v) :
+      v instanceof Blob ? JSON.stringify(`<blob ${v.data.length} bytes>`) : 'null';
+    let st: Statement | null = null;
+    try {
+      if (!write) this.exec('PRAGMA query_only = 1');
+      st = new Statement(this, this.slot(sql), sql);   // its own: finalized below without touching the program's cached statements
+      const cols = (st as Statement).columns();
+      const rows = (st as Statement).values().slice(0, max);
+      (st as Statement).finalize();
+      if (!write) this.exec('PRAGMA query_only = 0');
+      return `{"columns":[${cols.map((c: string) => JSON.stringify(c)).join(',')}],"rows":[${rows.map((r: unknown[]) => '[' + r.map(cell).join(',') + ']').join(',')}],"changes":${S.changes(this.h)}}`;
+    } catch (e) {
+      if (st !== null) (st as Statement).finalize();
+      if (!write && this.h >= 0) this.exec('PRAGMA query_only = 0');
+      return `{"error":${JSON.stringify((e as Error).message)}}`;
+    }
   }
   handle(): i32 { if (this.h < 0) throw new SqliteError('database is closed'); return this.h; }
   get isOpen(): boolean { return this.h >= 0; }
@@ -212,6 +234,7 @@ export class Database {
     for (const st of Array.from(this.statements.values())) st.finalize();
     S.close(this.h);
     this.h = -1;
+    devDatabaseClosed(this.dev);
   }
   /** Version of the SQLite library (the bundled amalgamation natively, Node's on the sim). */
   static version(): string { return S.version(); }
