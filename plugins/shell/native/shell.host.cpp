@@ -46,8 +46,11 @@ namespace {
 zrt::String zs(const char* s) { return zrt::String::from(s, (uint32_t)strlen(s)); }
 double now() { return zrt::now_ms(); }
 
-/** The bar's height: round(H / 15) within 32..56; ZINC_SHELL_BAR=<px> overrides (0 and garbage are refused). */
+int32_t mode = 0;   // the shown app's zinc.json "shell": 0 below the bar, 1 fullscreen (no bar), 2 kiosk (no bar, no Home, no Ctrl+Alt+Backspace)
+
+/** The bar's height: round(H / 15) within 32..56; ZINC_SHELL_BAR=<px> overrides (0 and garbage are refused); 0 for a fullscreen or kiosk app. */
 int32_t bar_height() {
+  if (mode != 0) return 0;
   if (const char* e = getenv("ZINC_SHELL_BAR"); e && *e) {
     const int v = atoi(e);
     if (v > 0 && v < zrt::surf_h) return v;
@@ -411,6 +414,7 @@ struct HostShell : NativeShell, zrt::Poller {
   zrt::String title() override { return zs(shown.fd >= 0 ? shown.title : ""); }
   int32_t image() override { return shown.fd >= 0 ? shown.img : -1; }
   int32_t barHeight() override { return bar_height(); }
+  void setMode(int32_t m) override { mode = m; serial_no++; }
   bool responding() override { return shown.fd < 0 || now() - shown.pong_at < 6000; }
   int32_t serial() override { return (int32_t)serial_no; }
   void onExit(zrt::Fn<void(zrt::String, int32_t)> f) override { exit_cb = f; listen_once(); }
@@ -567,6 +571,7 @@ void forward_input(HalInput* in) {
   bool go_home = false, kill = false;
   for (int32_t i = 0; i < in->nkeys; i++) {
     const HalKey& k = in->keys[i];
+    if (mode == 2 && (k.key == HAL_KEY_BROWSER_HOME || (k.key == HAL_KEY_BACKSPACE && (k.mods & HAL_MOD_CTRL) && (k.mods & HAL_MOD_ALT)))) continue;   // kiosk: the app's alone
     if (k.key == HAL_KEY_BROWSER_HOME) { go_home = go_home || k.kind == HAL_KEY_DOWN; continue; }
     if (k.key == HAL_KEY_BACKSPACE && (k.mods & HAL_MOD_CTRL) && (k.mods & HAL_MOD_ALT)) { kill = kill || k.kind == HAL_KEY_DOWN; continue; }
     const uint16_t len = k.kind == HAL_KEY_TEXT && k.off + k.len <= in->ntext ? k.len : 0;

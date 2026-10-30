@@ -38,6 +38,7 @@ export class TopBarNode extends DisplayObject {
   }
 
   override onDraw(barWidth: number, barHeight: number): void {
+    if (barHeight <= 0) return;   // a fullscreen or kiosk app: no bar
     const textY = (barHeight - 22) / 2;
     const updateAvailable = appState.updates.hasUpdate();
     if (appState.page === PAGE_APP) {

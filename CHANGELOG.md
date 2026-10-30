@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Raspberry Pi shell: an app's `zinc.json` `"shell": "fullscreen"` shows it without the top bar (Home still quits it), and `"shell": "kiosk"` without the bar and with no way out (no Home, no Ctrl+Alt+Backspace; it starts again if it ends). `ZINC_SHELL_START=<app folder>` in `/etc/zinc/session.conf` shows that app when the Pi starts.
 - `zinc:webrtc` shows what goes wrong in a call: `CallQuality` turns `getStats()` into a good / fair / poor score (a MOS from loss, round trip and jitter) with the bit rates, `setLowDataMode(pc, true)` sends the voice as Opus at 10 kbit/s with DTX and FEC and the video tiny or off, and zinc:ui/kit's `CallStats` panel shows it live with sparklines; the webrtc-call demo has the panel and the switch, automatic after 5 poor seconds. `getStats()` also reports `framesDropped` and `availableOutgoingBitrate`.
 - Raspberry Pi image: `"ab": true` in a `tools/pi-image` profile builds an A/B image whose whole system is replaced by a signed bundle (`tools/pi-image keys`, `tools/pi-image bundle`, then `zinc-system-update install` on the Pi); it boots the new system once and goes back to the previous one if the session does not start.
 - `zinc publish --target rpi` (rpi2, rpi1, or a Linux target) publishes a .zapp packed for that machine, and `--export` publishes the export of `zinc export --target` with its engine; the manifest names the target (`target=`, `kind=`, signed with the app), and a Zinc hub keeps one package per channel and target.

@@ -81,6 +81,7 @@ class AppState {
   crashReport: CrashReport | null = null;
   /** The app the shell shows ('' when none). */
   shownAppName: string = '';
+  shownAppDirectory: string = '';
   /** Its title, for the bar. */
   shownAppTitle: string = '';
   isAppInstalled: boolean = false;
@@ -302,6 +303,9 @@ export function startApp(): void {
   else sys.exit(EXIT_START_APP);
 }
 
+/** A kiosk app that ended starts again after this long (a crash loop stays slow enough to read its log). */
+const KIOSK_RESTART_MS = 1000;
+
 /** The shell starts the app and shows it; its end comes back through onAppExit. */
 function showApp(directory: string, name: string, title: string): void {
   if (shell.start(directory, name) <= 0) {
@@ -309,18 +313,27 @@ function showApp(directory: string, name: string, title: string): void {
     return;
   }
   appState.shownAppName = name;
+  appState.shownAppDirectory = directory;
   appState.shownAppTitle = title;
   navigateTo(PAGE_APP);
 }
 
 /** Home in the bar: the hub at once, the app is asked to quit (and ended if it does not). */
 export function goHome(): void {
+  if (shell.mode() === 'kiosk') return;
   shell.home();
+  shell.clearMode();
   navigateTo(PAGE_HOME);
 }
 
 /** The shown app ended: back to the hub, or its crash page when it failed (143: stopped by SIGTERM). */
 function onAppExit(name: string, status: number): void {
+  if (shell.mode() === 'kiosk' && name === appState.shownAppName) {   // a kiosk app is never left: it starts again
+    const directory = appState.shownAppDirectory, title = appState.shownAppTitle;
+    setTimeout(() => showApp(directory, name, title), KIOSK_RESTART_MS);
+    return;
+  }
+  shell.clearMode();
   appState.shownAppName = '';
   if (status === 0 || status === 143) {
     if (appState.page === PAGE_APP) navigateTo(PAGE_HOME);

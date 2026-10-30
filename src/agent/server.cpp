@@ -328,7 +328,7 @@ void recordApp(const std::string& dir, const std::string& name, bool dev, const 
     if (!members) { if (fs::is_regular_file(dir + "/" + base + icon, ec)) kept = base + icon; }
     else if (const auto it = members->find(icon); it != members->end() && writePrivate(dir + "/icon" + ext, it->second)) kept = "icon" + ext;
   }
-  writePrivate(dir + "/app.json", Obj().str("name", name).str("title", title).str("icon", kept).str("display", z.str("display")).num("sent", static_cast<long long>(std::time(nullptr))).flag("dev", dev).done() + "\n");
+  writePrivate(dir + "/app.json", Obj().str("name", name).str("title", title).str("icon", kept).str("display", z.str("display")).str("shell", z.str("shell")).num("sent", static_cast<long long>(std::time(nullptr))).flag("dev", dev).done() + "\n");
 }
 
 namespace {

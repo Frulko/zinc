@@ -83,6 +83,9 @@ CONF=${ZINC_SESSION_CONF:-/etc/zinc/session.conf}
 if [ -r "$CONF" ]; then
   conf_shell=$(sed -n 's/^[[:space:]]*ZINC_SHELL=["'\'']*\([01]\).*/\1/p' "$CONF" | tail -n 1)
   [ -z "$conf_shell" ] || ZINC_SHELL=$conf_shell
+  # the app the shell shows at start (its folder: /var/lib/zinc/.zinc/agent/apps/<name>); its zinc.json "shell": "kiosk" keeps it there
+  conf_start=$(sed -n 's/^[[:space:]]*ZINC_SHELL_START=["'\'']*\([^"'\'']*\).*/\1/p' "$CONF" | tail -n 1)
+  [ -z "$conf_start" ] || export ZINC_SHELL_START="$conf_start"
 fi
 if [ "${ZINC_SHELL:-0}" = 1 ]; then
   last_failure=0

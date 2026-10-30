@@ -3,14 +3,35 @@
 // zinc:gfx drawImage(image(), 0, barHeight(), width(), height() - barHeight(), 255, 0). While an app is shown, a press that starts below
 // the bar, the keys and the gamepad buttons go to the app and are taken out of the shell's own input. Design:
 // docs/reports/zinc-shell/03-design.md.
+import * as fs from 'zinc:fs';
 import S from './native/shell.spec';
+
+let shownMode = '';
 
 /** Starts the app installed in `dir` (its app.zapp with this engine, else its run.sh) in a session of its own, as the device agent does:
  *  output in $ZINC_HOME/agent/logs/<name>.log, pid in agent/run/<name>.pid. Returns its pid, 0 when it could not start. It shows itself
  *  when it connects; one that does not connect within 3 s is given the whole screen until it ends. */
-export function start(dir: string, name: string): number { return S.start(dir, name); }
+export function start(dir: string, name: string): number {
+  shownMode = appMode(dir);
+  S.setMode(shownMode === 'kiosk' ? 2 : shownMode === 'fullscreen' ? 1 : 0);
+  return S.start(dir, name);
+}
+/** The app's zinc.json "shell", as the device agent copied it into app.json: 'fullscreen' (no bar; Home still quits it), 'kiosk' (no bar,
+ *  no Home, no Ctrl+Alt+Backspace: the shell starts it again when it ends), '' (below the bar). */
+export function appMode(dir: string): string {
+  try {
+    const mode = '' + JSON.parse(fs.readText(dir + '/app.json')).shell;
+    return mode === 'fullscreen' || mode === 'kiosk' ? mode : '';
+  } catch (e) {
+    return '';
+  }
+}
+/** The mode of the app start() showed last: 'fullscreen', 'kiosk' or ''. */
+export function mode(): string { return shownMode; }
 /** Home: the shown app is asked to quit, its process group is ended 2 s later (SIGTERM), killed 1 s after that. The image goes at once. */
 export function home(): void { S.home(); }
+/** Back to the bar for the next app (after the shown one ended or went home). */
+export function clearMode(): void { shownMode = ''; S.setMode(0); }
 /** The shown app's name (start's), '' when none is shown. */
 export function current(): string { return S.current(); }
 /** The shown app's title, as it said when it connected. */
