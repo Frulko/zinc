@@ -244,6 +244,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - Modules that import each other's types (`import type` both ways, or a module whose types the entry it is imported by declares) check as TypeScript does, instead of failing with `Cannot find name` or `is not exported`.
+- A conditional whose branches have different types takes their union, as in TypeScript, instead of `Type is not assignable`: `c ? Promise.resolve(null) : Promise.resolve(r)` is a promise of `R | null`, `console.log(c ? n : 'none')` prints either, `c ? new Dog() : new Cat()` is a `Dog | Cat`. A `string | number` kept in a variable is still refused (`Syntax not supported yet`).
 - Web: a `zinc:canvas` context drawn on the screen (`begin(x, y, w, h)` ... `end()`) shows in a page instead of throwing at `end()` (the canvas sketch demo).
 - Web: a page uses the assets folder `zinc.json` names (`"assets": "../platformer/assets"`), not always `assets/` (n3ds-platformer's sounds were missing).
 - `zinc dev --target web`: a module with `export function` inside a string or template literal no longer stops with a ReferenceError (ui/forms' script editor).

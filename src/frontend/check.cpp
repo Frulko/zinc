@@ -2587,8 +2587,22 @@ struct Checker {
         // `c ? await p : 0` (desugared to `await (c ? p : __resolved(0))`): the plain branch takes the promise type of the other one
         auto resolvedCall = [&](std::uint32_t k) { return n(k).kind == N::Call && n(n(k).kids[0]).kind == N::Ident && n(n(k).kids[0]).text == "__resolved"; };
         const int plainAt = emptyAt == 0 && resolvedCall(x.kids[1]) != resolvedCall(x.kids[2]) ? (resolvedCall(x.kids[1]) ? 1 : 2) : 0;
+        // `c ? Promise.resolve(null) : Promise.resolve(r)` with no type asked for: the null branch is made as the other branch's promise with null
+        // (TypeScript's Promise<null> | Promise<R>, read as the Promise<R | null> both convert to; a Promise<null> alone holds no type the IR has)
+        auto nullResolved = [&](std::uint32_t k) { return resolvedCall(k) && n(k).kids.size() == 2 && n(n(k).kids[1]).kind == N::Literal && n(n(k).kids[1]).text == "null"; };
+        const int nullAt = emptyAt == 0 && plainAt == 0 && expected == kNoType && nullResolved(x.kids[1]) != nullResolved(x.kids[2]) ? (nullResolved(x.kids[1]) ? 1 : 2) : 0;
         TypeId p = kNoType, q = kNoType;
-        if (plainAt == 1) {
+        if (nullAt != 0) {
+          pushFacts(nullAt == 1 ? ff : ft); const TypeId o = expr(x.kids[nullAt == 1 ? 2 : 1]); narrowing.resize(mark);
+          TypeId want = kNoType;
+          if (promiseKind(o) == 1 && out.objs[ty(o).obj].typeArgs.size() == 1 && out.objs[ty(o).obj].genericSym != kNoObj) {
+            const TypeId te = unionOf({out.objs[ty(o).obj].typeArgs[0], tNull});
+            const std::uint32_t inst = bad(te) ? kNone : instantiateClass(out.objs[ty(o).obj].genericSym, {te}, i);
+            if (inst != kNone) want = out.syms[inst].type;
+          }
+          pushFacts(nullAt == 1 ? ft : ff); const TypeId nt = expr(x.kids[nullAt], want); narrowing.resize(mark);
+          p = nullAt == 1 ? nt : o; q = nullAt == 1 ? o : nt;
+        } else if (plainAt == 1) {
           pushFacts(ff); q = expr(x.kids[2], expected); narrowing.resize(mark);
           pushFacts(ft); p = expr(x.kids[1], !bad(q) && promiseKind(q) == 1 ? q : expected); narrowing.resize(mark);
         } else if (plainAt == 2) {
@@ -2617,6 +2631,24 @@ struct Checker {
         if (assignable(q, p, x.kids[2])) { convertDyn(q, p, x.kids[2]); return p; }   // (a class in the branch of an `unknown` becomes a Dyn)
         if (assignable(p, q, x.kids[1])) { convertDyn(p, q, x.kids[1]); return q; }
         if (name(p) == "NeverPromise" && promiseKind(q) != 0) { require(p, q, x.kids[1]); return q; }  // a branch that only rejects takes the other branch's promise type
+        // branches of unrelated types join to their union, as in TypeScript (`c ? 'x' : 1` is a string | number). Two promises join to the promise
+        // of the union (`Promise<null> | Promise<R>` is read as a `Promise<R | null>`, which both convert to: a union of promises could not be awaited)
+        if (promiseKind(p) == 1 && promiseKind(q) == 1 && out.objs[ty(p).obj].typeArgs.size() == 1 && out.objs[ty(q).obj].typeArgs.size() == 1 && out.objs[ty(p).obj].genericSym != kNoObj) {
+          const TypeId te = unionOf({out.objs[ty(p).obj].typeArgs[0], out.objs[ty(q).obj].typeArgs[0]});
+          const std::uint32_t inst = bad(te) ? kNone : instantiateClass(out.objs[ty(p).obj].genericSym, {te}, i);
+          if (inst != kNone) { const TypeId pu = out.syms[inst].type; require(p, pu, x.kids[1]); require(q, pu, x.kids[2]); return pu; }
+        }
+        auto prim = [&](TypeId t) { return ty(t).k == TK::Num || ty(t).k == TK::Bool || ty(t).k == TK::Str; };
+        if (expected == tAny && prim(p) && prim(q)) {   // console.log(c ? n : 'none'): each branch as the text console.log prints for it
+          // ponytail: `${v}` prints -0 as 0 where console.log prints -0; a union of primitives the IR holds (a later task) makes this go
+          for (auto [t, k] : {std::pair{p, x.kids[1]}, std::pair{q, x.kids[2]}}) {
+            if (t == tStr) continue;
+            const std::string T = inspectAliasName(t);
+            wrapNode(k, helper("logtext," + std::to_string(t), "function $F(v: " + T + "): string {\n  return `${v}`;\n}\n", {t}, k));
+          }
+          return tStr;
+        }
+        if (const TypeId u = unionOf({p, q}); !bad(u) && ty(u).k == TK::Union && assignable(p, u, x.kids[1]) && assignable(q, u, x.kids[2])) { convertDyn(p, u, x.kids[1]); convertDyn(q, u, x.kids[2]); return u; }
         require(q, p, x.kids[2]);  // conversions (a thunk, a promise that only rejects) or the error
         return p;
       }

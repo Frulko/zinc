@@ -1584,7 +1584,7 @@ struct Lowering::FnLower {
       }
       case N::Cond: {
         TypeId rt = natural(i);
-        if (ty(rt).k == Type::K::Void) {  // `c ? a() : b()` of two calls that return nothing: run one of them, no value joins
+        if (ty(rt).k == Type::K::Void && c.types[c.nodeType[i]].k == frontend::TK::Void) {  // `c ? a() : b()` of two calls that return nothing: run one of them, no value joins
           ValueId vc = exprTo(x.kids[0], m.boolT());
           BlockId vt = newBlock(), ve = newBlock(), vj = newBlock();
           condbr(vc, vt, ve);

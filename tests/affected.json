@@ -95,6 +95,7 @@
     {"paths": ["src/frontend/check.cpp", "tests/golden/host/dyn_generic.ts", "tests/t0/dyn_generic.sh"], "tests": ["dyn_generic"]},
     {"paths": ["src/rt/worker.cpp", "src/rt/worker.h", "lib/std/worker.ts", "src/zbc/", "tests/data/worker_basic/", "tests/data/worker_draw/", "tests/t0/worker_basic.sh"], "tests": ["worker_basic"]},
     {"paths": ["src/frontend/modules.cpp", "src/frontend/parser.cpp", "src/frontend/check.cpp", "src/main.cpp", "tests/data/import_type/", "tests/t0/import_type.sh"], "tests": ["import_type"]},
+    {"paths": ["src/frontend/check.cpp", "src/ir/lower.cpp", "tests/data/type_cycle_union/", "tests/t0/type_cycle_union.sh"], "tests": ["type_cycle_union"]},
     {"paths": ["src/frontend/check.cpp", "tests/data/array_covariance/", "tests/t0/array_covariance.sh"], "tests": ["array_covariance"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/desugar.cpp", "src/frontend/modules.cpp", "tests/data/async_gaps/", "tests/t0/async_gaps.sh"], "tests": ["async_gaps"]},
     {"paths": ["src/rt/worker.cpp", "lib/std/worker.ts", "tests/data/busy_worker/", "tests/t1/busy_worker.sh"], "tests": ["busy_worker"]},
