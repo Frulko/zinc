@@ -6,6 +6,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
 
+- zinc:system simulator: `ZINC_SYSTEM_SCRIPT` splits a line's arguments on spaces, so `dialog-answer /Users/me/Pictures/Trieur test` answers `/Users/me/Pictures/Trieur`; a quoted or rest-of-line path would let a test pick a folder with a space.
 - QuickJS: no Intl, so `toLocaleDateString('fr-FR', { month: 'long' })` gives the en-US form; examples/photo-sorter names its months itself (a `ponytail:` comment marks it).
 - zinc:ui: a width given as a string decided at run time (`width: `${n}%``) is not read as a percent; `pct(n)` is the way, and the diagnostic could say so.
 - photo-sorter: dropping folders on the window to add them as sources (`drop` events of zinc:system), and a grid to sort several pictures at once.
