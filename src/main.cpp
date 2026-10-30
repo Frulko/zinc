@@ -1858,6 +1858,7 @@ int main(int argc, char** argv) {
   // what a .zapp's needs are compared with (src/zapp.cpp): a program that installs apps (app/hub) reads them with zinc:sys env()
   setenv("ZINC_ENGINE_ZBC", std::to_string(zn::kZbcVersion).c_str(), 1);
   setenv("ZINC_ENGINE_RT", std::to_string(static_cast<unsigned>(zn::Rt::Count)).c_str(), 1);
+  setenv("ZINC_ENGINE_VERSION", kVersionText, 1);   // with its commit (0.9.1+708.gbace6c038): what the Pi player shows
   {   // a fused app: every argument is the app's; it runs as `zinc run <its program> -- args`
     std::string zbc, err;
     std::uint64_t at = 0, size = 0;
