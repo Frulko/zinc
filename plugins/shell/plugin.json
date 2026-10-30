@@ -1,0 +1,11 @@
+{
+  "name": "shell",
+  "kind": "module",
+  "module": "zinc:shell",
+  "entry": "index.ts",
+  "description": "The system shell's side of ZINC_DISPLAY=shell: starts apps, shows the app's screen as a runtime image below a bar, forwards input, Home",
+  "targets": {
+    "macos": {},
+    "linux": {}
+  }
+}

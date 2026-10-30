@@ -27,6 +27,7 @@
     {"paths": ["examples/blender-library/", "tests/t1/blender_library.sh", "tests/golden/blender-library/"], "tests": ["blender_library"]},
     {"paths": ["plugins/display-sidecar/", "tests/t1/display_on_demand.sh"], "tests": ["display_on_demand"]},
     {"paths": ["plugins/display-shell/", "plugins/display-remote/remote_proto.h", "tests/display_shell.py", "tests/t0/display_shell.sh"], "tests": ["display_shell"]},
+    {"paths": ["plugins/shell/", "plugins/display-remote/remote_proto.h", "tests/golden/shell/", "tests/t0/shell_plugin.sh", "runtime/raster.cpp", "runtime/zrt.cpp", "src/host/gfx_host.cpp"], "tests": ["shell_plugin"]},
     {"paths": ["plugins/display-rmpp/", "integrations/remarkable-ink/protocol.h", "tests/native/rmpp/sim.cpp", "tests/t1/rmpp_sim.sh", "tests/golden/sim/rmpp-", "examples/remarkable/notes/", "examples/remarkable/dashboard/", "tests/fixtures/rmpp-keys/"], "tests": ["rmpp_sim"]},
     {"paths": ["plugins/display-rmpp/", "tests/native/rmpp/sim.cpp", "tests/native/sidecar/", "tests/t1/sidecar_stream.sh", "tests/t1/sidecar_session.sh", "app/sidecar/"], "tests": ["sidecar_stream", "sidecar_session"]},
     {"paths": ["plugins/display-fbdev/", "tests/native/fbdev_desktop.cpp", "tests/native/chip_fbdev.cpp", "tests/native/stubs/linux/input.h", "tests/t0/fbdev_desktop.sh", "runtime/gfx.cpp"], "tests": ["fbdev_desktop"]},
