@@ -3,19 +3,24 @@
 # with an app id, a version and permissions) on the interpreter: the card names the program, the engine, the renderer, the plugins, the files
 # and functions compiled, the assets on disk and in packs, the zinc: modules its own files import, the permissions, the worker and the live
 # numbers. Then the engine line on the AOT program (zinc run --native: the card crosses the exec through ZINC_PROGRAM_INFO), the files of
-# its .zapp (program.info), and on QuickJS and JavaScriptCore (tests/data/inspector: no workers; the plugin's C++ transport answers there)
+# its .zapp (program.info), of a zinc build executable (baked in) with an asset added while it runs, and on QuickJS and JavaScriptCore (tests/data/inspector: no workers; the plugin's C++ transport answers there)
 # their JavaScript heap. The display's refresh rate needs a window: not checked headless.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'kill $target 2>/dev/null; rm -rf "$tmp"' EXIT
 fail=0
-card() {   # card <dir> [run flags...]: the target started on a free port, the inspector's Info dump in $tmp/dump
-  dir=$1; shift
+start() {   # start <command...>: the target started on a free port
   port=$(python3 tests/free_ports.py 1)
-  ZINC_HEADLESS=1 ZINC_FRAMES=100000000 ZINC_DEVTOOLS_PORT=$port timeout 90 "$ZINC" run "$dir" "$@" > "$tmp/target.log" 2>&1 & target=$!
+  ZINC_HEADLESS=1 ZINC_FRAMES=100000000 ZINC_DEVTOOLS_PORT=$port timeout 90 "$@" > "$tmp/target.log" 2>&1 & target=$!
   n=0; while [ $n -lt $((800 * ${ZN_WAIT_SCALE:-1})) ] && ! grep -q "zinc devtools:" "$tmp/target.log"; do sleep 0.05; n=$((n+1)); done
   grep -q "localhost:$port)" "$tmp/target.log" || { echo "the target does not listen on $port: $(tail -5 "$tmp/target.log")"; exit 1; }
+}
+dump() {   # the inspector's Info dump of the target in $tmp/dump
   ZINC_INSPECTOR_DUMP=info ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000 timeout 60 "$ZINC" run app/inspector/main.tsx -- "$port" > "$tmp/dump" 2>&1 ||
     { echo "the inspector failed: $(head -c 600 "$tmp/dump")"; exit 1; }
+}
+card() {   # card <dir> [run flags...]: zinc run, one dump, stopped
+  dir=$1; shift
+  start "$ZINC" run "$dir" "$@"; dump
   kill $target 2>/dev/null; wait $target 2>/dev/null
 }
 want() { grep -qE -- "$1" "$tmp/dump" || { echo "missing in the Info view: $1"; fail=1; }; }
@@ -48,6 +53,18 @@ card tests/data/inspector_info --native
 want "^    engine: AOT \(compiled to native code\)$"
 want "^    files: 33 source files, [1-9][0-9]* functions compiled$"
 want "^    workers: 1 worker$"
+[ $fail -eq $f0 ] || cat "$tmp/dump"
+
+f0=$fail   # an executable of zinc build carries the program info its compile knew; an asset saved while it runs is counted at the next request
+ZINC_HOME="$tmp/home" "$ZINC" build tests/data/inspector_info -o "$tmp/info-app" > "$tmp/build.log" 2>&1 || { echo "zinc build failed: $(tail -3 "$tmp/build.log")"; fail=1; }
+mkdir -p "$tmp/assets"; echo a > "$tmp/assets/a.txt"
+start env ZINC_HOME="$tmp/home" ZINC_ASSETS="$tmp/assets" "$tmp/info-app"; dump
+want "^    files: 33 source files, [1-9][0-9]* functions compiled$"
+want "^    imports: zinc:devtools, zinc:storage, zinc:ui/solid, zinc:worker$"
+want "^    assets: .* 1 files on disk "
+echo b > "$tmp/assets/b.txt"; dump
+want "^    assets: .* 2 files on disk "
+kill $target 2>/dev/null; wait $target 2>/dev/null
 [ $fail -eq $f0 ] || cat "$tmp/dump"
 
 f0=$fail   # a packed program carries what its compile knew of its sources (program.info)

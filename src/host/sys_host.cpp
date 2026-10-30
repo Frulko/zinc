@@ -1468,15 +1468,20 @@ std::string programInfoJson() {
   const char* gfx = gfxInfo(&n);
   const char* headless = std::getenv("ZINC_HEADLESS");
   // the assets zinc:assets reads: the files of its directory on disk and the entries of the packs mounted (zinc build's, a .zapp's, dev packs)
-  // ponytail: counted once per process; a save that adds assets shows after a restart
-  static const std::string assets = [] {
+  // counted again at each request, so an asset saved during a run shows at once; a count is kept for 1000 times what it cost (about 6 us a
+  // file on an M1 Pro: 100 files 0.6 ms, 2264 files 13 ms, recounted every 13 s), so a large directory costs at most about 1 ms a second
+  static std::string assets;
+  static auto recount = std::chrono::steady_clock::time_point{};
+  if (const auto t0 = std::chrono::steady_clock::now(); t0 >= recount) {
     std::vector<std::string> disk, packed;
     const std::string dir = assetsDir();
     if (!dir.empty()) listAssets(dir, "", disk);
     zn::host::assets::names(packed);
-    return "{\"dir\":" + jsonText(dir) + ",\"files\":" + std::to_string(disk.size()) + ",\"packs\":" + std::to_string(static_cast<long>(zn::host::assets::stat(4))) +
-           ",\"packed\":" + std::to_string(packed.size()) + "}";
-  }();
+    assets = "{\"dir\":" + jsonText(dir) + ",\"files\":" + std::to_string(disk.size()) + ",\"packs\":" + std::to_string(static_cast<long>(zn::host::assets::stat(4))) +
+             ",\"packed\":" + std::to_string(packed.size()) + "}";
+    const auto t1 = std::chrono::steady_clock::now();
+    recount = t1 + (t1 - t0) * 1000;
+  }
   return std::string("{\"engine\":\"") + engineName() + "\",\"pid\":" + std::to_string(getpid()) + ",\"assets\":" + assets +
          ",\"uptimeMs\":" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - gStarted).count()) +
          ",\"rssBytes\":" + std::to_string(rss) + ",\"cpuMs\":" + std::to_string(static_cast<long long>(cpuMs)) +

@@ -4,6 +4,7 @@
 #include <napi/env.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -33,12 +34,20 @@ void onRejection(napi_env, napi_value fn) {
 }
 
 // JSBasePrivate.h's JSGetMemoryUsageStatistics, exported by the framework: the heap's capacity and its objects
-// ponytail: it counts the objects by type over the whole heap at each call; a cheaper reading if the Info view's 1 s refresh shows in a profile
+// It walks the whole heap (about 11 ns an object on an M1 Pro: 2.7 ms for 280k objects, 28 ms for 2.5M), and nothing public is cheaper: a
+// reading is kept for 1000 times what it cost, so the walk takes at most about 1 ms a second whatever the heap (the Info view asks each second)
 extern "C" JSObjectRef JSGetMemoryUsageStatistics(JSContextRef ctx);
 ZnResourceStats heapStats(napi_env) {
+  static ZnResourceStats last{};
+  static std::chrono::steady_clock::time_point next{};
+  const auto t0 = std::chrono::steady_clock::now();
+  if (t0 < next) return last;
   JSObjectRef o = JSGetMemoryUsageStatistics(gContext);
   auto num = [&](const char* k) { JSStringRef n = JSStringCreateWithUTF8CString(k); const double v = JSValueToNumber(gContext, JSObjectGetProperty(gContext, o, n, nullptr), nullptr); JSStringRelease(n); return v > 0 ? static_cast<uint64_t>(v) : 0; };
-  return {num("objectCount"), num("heapCapacity") + num("extraMemorySize"), 0, 0, 0};
+  last = {num("objectCount"), num("heapCapacity") + num("extraMemorySize"), 0, 0, 0};
+  const auto t1 = std::chrono::steady_clock::now();
+  next = t1 + (t1 - t0) * 1000;
+  return last;
 }
 
 void drainJobs(napi_env) {}   // JavaScriptCore runs the microtasks when the outermost call into it returns

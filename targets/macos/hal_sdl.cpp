@@ -442,7 +442,15 @@ static void signal_safe_area() {   // window points into the surface's units
 // A player started another program in the same window (Zinc Go, src/app/player.cpp): it hears the theme and the safe area again, as a
 // program does when the window opens
 extern "C" void zn_hal_sdl_resignal(void) { signal_theme(); signal_safe_area(); }
+// The refresh rate of the display the window is on, the frame rate vsync aims at (SDL reads CoreGraphics, a ProMotion screen's maximum on
+// macOS): ZINC_PROFILE=json and the inspector's Info view; again when the window moves to another screen or that screen's mode changes
+static void publish_refresh() {
+  if (!zrt_prof_info || !win) return;
+  const SDL_DisplayMode* dm = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(win));
+  if (dm && dm->refresh_rate > 0) { char hz[16]; SDL_snprintf(hz, sizeof hz, "%g", SDL_round(dm->refresh_rate * 100) / 100); zrt_prof_info("refresh", hz); }
+}
 static void signal_event(const SDL_Event& e) {
+  if (e.type == SDL_EVENT_WINDOW_DISPLAY_CHANGED || e.type == SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED) publish_refresh();
   if (e.type == SDL_EVENT_SYSTEM_THEME_CHANGED) signal_theme();
   else if (e.type == SDL_EVENT_WINDOW_SAFE_AREA_CHANGED || e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) signal_safe_area();
   else if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_AC_BACK && !e.key.repeat) sys_signal("back");
@@ -617,10 +625,7 @@ void hal_init(const HalConfig* cfg) {
     if (ren) SDL_GetRenderVSync(ren, &vs);
     zrt_prof_info("present", present ? present : "?");
     zrt_prof_info("vsync", vs ? "on" : "off");
-    // the display's refresh rate, the frame rate vsync aims at (SDL reads CoreGraphics, a ProMotion screen's maximum on macOS)
-    // ponytail: the display the window opens on; a window moved to another screen keeps the first one's
-    const SDL_DisplayMode* dm = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(win));
-    if (dm && dm->refresh_rate > 0) { char hz[16]; SDL_snprintf(hz, sizeof hz, "%g", SDL_round(dm->refresh_rate * 100) / 100); zrt_prof_info("refresh", hz); }
+    publish_refresh();
   }
   start_workers();
   if (full) { show_main(); shown = true; set_fullscreen(true); SDL_SyncWindow(win); }   // fullscreen applies to a shown window: no wait on a hidden one

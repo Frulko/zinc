@@ -953,6 +953,9 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     std::string lit;
     for (char c : nm) { if (c == '"' || c == '\\') lit += '\\'; if (static_cast<unsigned char>(c) >= 0x20) lit += c; }
     if (!lit.empty()) assetLines += "  setenv(\"ZINC_APP_NAME\", \"" + lit + "\", 1);   // the app's own name, over the one of an app that started it\n";
+    std::string info;   // the inspector's Info view: what this compile knew of the program (its files, imports, project), as zinc run --native passes it
+    for (char c : programInfo(entry)) { if (c == '"' || c == '\\') info += '\\'; info += c; }
+    assetLines += "  setenv(\"ZINC_PROGRAM_INFO\", \"" + info + "\", 1);\n";
   }
   const char* cxx = std::getenv("CXX");
   bool haveLibs = fs::exists(libs / "libzn_rt.a");
