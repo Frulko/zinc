@@ -299,6 +299,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- With `"text": "shaped"`, a typographic quote (’ “ ”), a symbol or a text-style emoji (⛔) the built-in font lacks is drawn from the system fonts instead of a '?'.
 - A TLS 1.3 connection (`wss://`, `connectTls`, `https`) no longer hangs when the server's session tickets and its first reply arrive together, as Cloudflare's servers send them: about one connection in two to Discord's gateway waited forever.
 - `array.splice(start, count)` takes an `any` start or count (a field of parsed JSON), as TypeScript does; it stopped the build.
 - React-model apps: a component replaced by another (a new `key`) now lets go of its views: a list it showed stayed alive out of sight, kept its rows mounted, and its `onScroll` handler could fire for a view made later (a chat loaded older messages by itself after switching channels).

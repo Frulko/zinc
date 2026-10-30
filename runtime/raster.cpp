@@ -508,10 +508,13 @@ const ShapeHooks* shape_hooks = nullptr;
 static bool shaped_cp(uint32_t cp) {   // combining marks, Hebrew to Indic and Southeast Asian scripts, ZWJ and variation selectors, Arabic forms, emoji: not symbols, arrows or CJK
   return (cp >= 0x300 && cp <= 0x36F) || (cp >= 0x590 && cp <= 0x1FFF) || cp == 0x200C || cp == 0x200D || (cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0xFB1D && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF) || cp >= 0x1F000;
 }
-static bool needs_shaping(const char* s, uint32_t n) {
+/** The text goes to the shaping tier: a code point it alone draws, or one the font's tables lack (a symbol, a quote, a letter a baked font
+ *  left out), which the tier's fallback fonts draw instead of a '?'. ASCII is always in the tables. */
+static bool needs_shaping(int32_t font, const Font& f, const char* s, uint32_t n) {
   for (uint32_t i = 0; i < n;) {
-    if ((uint8_t)s[i] < 0xCC) { i++; continue; }
-    if (shaped_cp(next_cp(s, n, i))) return true;
+    if ((uint8_t)s[i] < 0x80) { i++; continue; }
+    const uint32_t cp = next_cp(s, n, i);
+    if (shaped_cp(cp) || (!ignorable_cp(cp) && !glyph_of(font, f, cp))) return true;
   }
   return false;
 }
@@ -534,7 +537,7 @@ static const Glyph* missing_glyph(int32_t font, const Font& f, uint32_t cp) {
 int32_t text_advance(int32_t font, const char* s, uint32_t n, float tracking) {
   const Font* fp = font_at(font);
   if (!fp) return 0;
-  if (shape_hooks && (needs_shaping(s, n) || (font < font_count && !fp->count))) { int32_t a = shape_hooks->run(font, s, n, tracking, nullptr, nullptr); if (a >= 0) return a; }
+  if (shape_hooks && (needs_shaping(font, *fp, s, n) || (font < font_count && !fp->count))) { int32_t a = shape_hooks->run(font, s, n, tracking, nullptr, nullptr); if (a >= 0) return a; }
   const Font& f = *fp;
   int32_t pen = 0;
   for (uint32_t i = 0; i < n;) {
@@ -550,7 +553,7 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
   if (!fp) return;
   const Font& f = *fp;
   int32_t pen = ifloor(c.x * 64), base = ifloor(c.y + 0.5f) + f.ascent;   // floor, not truncation: a line above the top or left edge lands where it would lower down (ZN-744)
-  if (shape_hooks && (needs_shaping(s, c.n) || (c.res < font_count && !fp->count))) {   // a baked font without glyphs is an outline format the tables cannot read (CFF)
+  if (shape_hooks && (needs_shaping(c.res, f, s, c.n) || (c.res < font_count && !fp->count))) {   // a baked font without glyphs is an outline format the tables cannot read (CFF)
     struct Ctx { const Target* t; const Cmd* c; int32_t px, py; } cx = {&t, &c, (pen + 32) >> 6, base};
     int32_t a = shape_hooks->run(c.res, s, c.n, c.s, [](void* u, const ShapedGlyph& g) {
       Ctx& k = *static_cast<Ctx*>(u);
@@ -1062,7 +1065,7 @@ static void xf_text(const Target& t, const Cmd& c, const char* s, const Xf& m) {
   const int32_t gf = (int32_t)c.r - 1;
   const Font* gp = gf >= 0 ? font_at(gf) : nullptr;
   const float q = gp ? (float)gp->px / f.px : 1;
-  if (shape_hooks && (needs_shaping(s, c.n) || (c.res < font_count && !fp->count))) {
+  if (shape_hooks && (needs_shaping(c.res, f, s, c.n) || (c.res < font_count && !fp->count))) {
     struct Ctx { const Target* t; const Xf* m; const Cmd* c; float x, y, q; } cx = {&t, &m, &c, c.x, base, q};
     if (shape_hooks->run(gp ? gf : c.res, s, c.n, gp ? c.s * gp->px / f.px : c.s, [](void* u, const ShapedGlyph& g) {
           Ctx& k = *static_cast<Ctx*>(u);

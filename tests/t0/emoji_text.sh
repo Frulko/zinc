@@ -2,7 +2,8 @@
 # Emoji in text (ZN-868). Without the shaping tier (zinc.json "text": "shaped", D32) an emoji is drawn as '?' and the run says once what to
 # add, instead of a silent '?'. With ZINC_TEXT=shaped the emoji are drawn in colour, and the compiled run (ZINC_RUN=native: zinc run's
 # cached executable) links the tier as the interpreter has it, and QuickJS installs it (from ZINC_TEXT or zinc.json): both drew '?'. The
-# same frame on the interpreter, QuickJS and the compiled run, both ways.
+# same frame on the interpreter, QuickJS and the compiled run, both ways. Shaped, a symbol or a quote the font's tables lack (U+2019, U+26D4)
+# goes to the tier's fallback fonts too: it drew '?'.
 cd "$(dirname "$0")/../.." || exit 2
 [ -n "$CXX" ] || command -v c++ >/dev/null || { echo "skipped: no C++ compiler"; exit 77; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -33,4 +34,9 @@ mkdir "$tmp/p" && cp $prog "$tmp/p/main.ts" && printf '{ "name": "emoji", "entry
 p=$(run p-shaped simple "$ZINC" run "$tmp/p" --engine quickjs)
 [ "$p" = "$hash_shaped" ] || { echo "emoji_text: a shaped project on QuickJS draws $p, want $hash_shaped"; fail=1; }
 [ "$hash_simple" != "$hash_shaped" ] || { echo "emoji_text: the shaped frame is the '?' frame"; fail=1; }
+# a typographic quote and a text-style emoji under the shaped tier: not the frame of the '?' they were
+sed "s/Hi \\\\u{1F600} ok \\\\u{1F44D}/l\\\\u2019an \\\\u26D4/" $prog > "$tmp/quote.ts" && sed "s/Hi \\\\u{1F600} ok \\\\u{1F44D}/l?an ?/" $prog > "$tmp/qmark.ts"
+grep -q 'u2019' "$tmp/quote.ts" || { echo "emoji_text: the quote program was not made"; exit 1; }
+a=$(run quote shaped "$ZINC" run --interp "$tmp/quote.ts"); b=$(run qmark shaped "$ZINC" run --interp "$tmp/qmark.ts")
+[ -n "$a" ] && [ "$a" != "$b" ] || { echo "emoji_text: U+2019 and U+26D4 are drawn as '?' under the shaped tier"; fail=1; }
 exit $fail
