@@ -74,6 +74,49 @@ yield_screen() {
 
 launch=1
 [ ! -e /var/lib/zinc-update/activating ] || launch=0
+
+# The shell (D194, docs/reports/zinc-shell/03-design.md §3): with ZINC_SHELL=1 the session runs the player as the shell and
+# nothing else; the player starts the boot app and the tiles' apps itself (zinc:shell). A GL app's file lease still stops
+# it (yield_screen) and starts it again after. Two failures within 60 s: this boot falls back to the loop below.
+# ponytail: P3 default 0, the image switches it in P5
+CONF=${ZINC_SESSION_CONF:-/etc/zinc/session.conf}
+if [ -r "$CONF" ]; then
+  conf_shell=$(sed -n 's/^[[:space:]]*ZINC_SHELL=["'\'']*\([01]\).*/\1/p' "$CONF" | tail -n 1)
+  [ -z "$conf_shell" ] || ZINC_SHELL=$conf_shell
+fi
+if [ "${ZINC_SHELL:-0}" = 1 ]; then
+  last_failure=0
+  while :; do
+    if yield_screen; then launch=0; continue; fi
+    ZINC_VERSION=$(zinc --version 2>/dev/null | head -n 1)
+    export ZINC_VERSION
+    rm -f "$RUN/player-ready" "$RUN/next-app" "$RUN/shell.sock"
+    ZINC_SHELL_SOCKET="$RUN/shell.sock" ZINC_BOOT_APP=$launch ZINC_PLAYER_READY_FILE="$RUN/player-ready" \
+      setsid zinc run "$PLAYER" 0<&0 > >(tee "$RUN/shell.log") 2>&1 &
+    foreground=$!
+    launch=0
+    yielded=0
+    while kill -0 "$foreground" 2>/dev/null; do
+      if yield_screen; then yielded=1; break; fi
+      sleep 0.1
+    done
+    [ "$yielded" = 0 ] || continue
+    wait "$foreground"
+    status=$?
+    foreground=0
+    [ "$status" -ne 0 ] || continue
+    now=$(date +%s)
+    if [ "$last_failure" -gt 0 ] && [ $((now - last_failure)) -lt 60 ]; then
+      { echo "time=$(date '+%Y-%m-%d %H:%M:%S')"; echo "The shell failed twice within 60 s (last status $status): this boot runs the player without it.";
+        echo; tail -n 40 "$RUN/shell.log" 2>/dev/null; } >"$RUN/zinc-report.txt"
+      launch=1
+      break
+    fi
+    last_failure=$now
+    sleep 1
+  done
+fi
+
 while :; do
   if yield_screen; then launch=0; continue; fi
   ZINC_VERSION=$(zinc --version 2>/dev/null | head -n 1)

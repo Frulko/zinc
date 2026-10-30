@@ -22,7 +22,10 @@ namespace zn::agent {
 
 // Hold the agent state's display mutex across fork/handoff; the child waits on a pipe before exec.
 bool awaitScreen(int fd);
-bool handoffScreen(long pid, int fd, std::string& err);
+// lease false: the app is shown by the shell (it CONNECTs to it), only the earlier remote programs are ended.
+bool handoffScreen(long pid, int fd, std::string& err, bool lease = true);
+// The shell's socket when one answers there (ZINC_SHELL_SOCKET, else shell.sock of ZINC_AGENT_SCREEN or ZINC_RUN), else "".
+std::string liveShell();
 void releaseScreen(long pid);
 
 inline constexpr int kPort = 7733;

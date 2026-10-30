@@ -336,8 +336,11 @@ function onAppExit(name: string, status: number): void {
   navigateTo(PAGE_CRASH);
 }
 
+/** The shell's start: zinc-session (ZINC_SHELL=1) leaves the boot app to it (ZINC_BOOT_APP=1, not during an update). */
 export function startShell(): void {
-  if (isShell) shell.onExit(onAppExit);
+  if (!isShell) return;
+  shell.onExit(onAppExit);
+  if (sys.env('ZINC_BOOT_APP') === '1' && fs.exists(appPath)) showApp(appPath, 'app', 'App');
 }
 
 /** Starts an app sent to the device: zinc-session reads its folder from the run directory. */

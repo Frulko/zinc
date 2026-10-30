@@ -99,6 +99,16 @@ bool launch(Program& p, const std::string& self, const std::string& dir, const s
                                                            {"ZINC_DEV_BAR", "1"}, {"ZINC_SHOT_DIR", fs::path(dir).parent_path().parent_path().string() + "/shots"}};   // the dev bar, where its screenshots go
   for (const std::string& kv : extra)   // zinc dev --perf and the like: the engine's own switches only
     if (kv.rfind("ZINC_", 0) == 0 && kv.find('=') != std::string::npos) vars.emplace_back(kv.substr(0, kv.find('=')), kv.substr(kv.find('=') + 1));
+  // under the shell (D194): shown below its bar, which has Home, so no dev bar and no file lease; a GL program keeps both
+  if (project.empty()) readFile(dir + "/zinc.json", project);
+  const std::string shell = !project.empty() && Doc(project).str("display") == "gl" ? std::string() : liveShell();
+  if (!shell.empty()) {
+    std::erase_if(vars, [](const auto& v) { return v.first == "ZINC_DEV_BAR"; });
+    std::string name = project.empty() ? std::string() : Doc(project).str("name");
+    vars.emplace_back("ZINC_DISPLAY", "shell");
+    vars.emplace_back("ZINC_SHELL_SOCKET", shell);
+    vars.emplace_back("ZINC_APP_NAME", name.empty() ? "dev" : name);
+  }
   std::vector<std::string> env = environment(vars);
   const std::vector<char*> argvp = pointers(argv), envp = pointers(env);
   int gate[2];
@@ -118,7 +128,7 @@ bool launch(Program& p, const std::string& self, const std::string& dir, const s
   for (const int fd : {null, out[1], sv[1]}) ::close(fd);
   ::close(gate[0]);
   if (pid < 0) { ::close(gate[1]); err = std::string("cannot start it: ") + std::strerror(errno); ::close(out[0]); ::close(sv[0]); return false; }
-  if (!handoffScreen(pid, gate[1], err)) { ::waitpid(pid, nullptr, 0); ::close(out[0]); ::close(sv[0]); return false; }
+  if (!handoffScreen(pid, gate[1], err, shell.empty())) { ::waitpid(pid, nullptr, 0); ::close(out[0]); ::close(sv[0]); return false; }
   const timeval wait{2, 0};   // as zinc dev does on this machine: a version that stopped reading costs a save 2 s
   const int room = 4 << 20;   // an atlas page in one write
   ::setsockopt(sv[0], SOL_SOCKET, SO_SNDTIMEO, &wait, sizeof wait);

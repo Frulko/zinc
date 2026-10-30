@@ -10,6 +10,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - `ZINC_DISPLAY=shell`: an app draws into the buffers of a Zinc shell (the Raspberry Pi player in shell mode) through the socket `ZINC_SHELL_SOCKET`, takes its input from it and ends when the shell asks or goes away.
+- Raspberry Pi: `ZINC_SHELL=1` in `/etc/zinc/session.conf` runs the player as the shell, which starts the boot app and the tiles' apps below its bar; `zinc device run` shows an app through it and `zinc device stop` returns to the hub. An app whose `zinc.json` says `"display": "gl"` still takes the whole screen. If the shell fails twice within a minute, the Pi falls back to the old player for that boot and says why in `/run/zinc/zinc-report.txt`.
 - `zinc:shell` (Linux and macOS): a program that owns the screen starts apps with `start(dir, name)`, shows the running app below its own bar (`image()`, `barHeight()`), forwards it the input below the bar and quits it with `home()`; apps run under it with `ZINC_DISPLAY=shell`. The Home key of a keyboard or remote is `BrowserHome` in `keyName()`.
 - `zinc:ui` `windowFocused()` says whether the window has the focus (another app or window in front makes it false); the `focus 0|1` system signal sets it in tests.
 - `zinc pack --target rpi` (or `rpi1`, `rpi2`, `aarch64-linux`, `armhf-linux`, `x86_64-linux`) packs a `.zapp` for another Linux machine, its native plugins cross-built for it.

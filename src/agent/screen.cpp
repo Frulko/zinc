@@ -6,7 +6,10 @@
 #include <cstdlib>
 #include <csignal>
 #include <filesystem>
+#include <cstring>
 #include <set>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <thread>
 #include <unistd.h>
 
@@ -36,9 +39,25 @@ void releaseScreen(long pid) {
   if (!dir.empty() && firstLine(dir + "/device-screen") == std::to_string(pid)) ::unlink((dir + "/device-screen").c_str());
 }
 
-bool handoffScreen(long pid, int fd, std::string& err) {
+std::string liveShell() {
+  std::string path;
+  if (const char* e = std::getenv("ZINC_SHELL_SOCKET"); e && *e) path = e;
+  else if (const std::string dir = screenDir(); !dir.empty()) path = dir + "/shell.sock";
+  else if (const char* r = std::getenv("ZINC_RUN"); r && *r) path = std::string(r) + "/shell.sock";
+  sockaddr_un a{};
+  if (path.empty() || path.size() >= sizeof a.sun_path) return "";
+  a.sun_family = AF_UNIX;
+  std::memcpy(a.sun_path, path.c_str(), path.size() + 1);
+  const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd < 0) return "";
+  const bool live = ::connect(fd, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0;   // the shell drops a client that sends nothing
+  ::close(fd);
+  return live ? path : "";
+}
+
+bool handoffScreen(long pid, int fd, std::string& err, bool lease) {
   const std::string dir = screenDir(), mine = std::to_string(pid);
-  bool ready = dir.empty();
+  bool ready = dir.empty() || !lease;
   if (!dir.empty()) {
     const long previous = std::atol(firstLine(dir + "/device-screen").c_str());
     std::set<long> old{previous};
@@ -50,7 +69,7 @@ bool handoffScreen(long pid, int fd, std::string& err) {
       for (int i = 0; i < 60 && ::kill(other, 0) == 0; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
       ::kill(-other, SIGKILL);
     }
-    if (writePrivate(dir + "/device-screen", mine + "\n")) {
+    if (lease && writePrivate(dir + "/device-screen", mine + "\n")) {
       for (int i = 0; i < 100; ++i) {
         if (firstLine(dir + "/screen-ready") == mine) { ready = true; break; }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));

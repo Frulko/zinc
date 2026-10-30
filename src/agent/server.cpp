@@ -328,7 +328,7 @@ void recordApp(const std::string& dir, const std::string& name, bool dev, const 
     if (!members) { if (fs::is_regular_file(dir + "/" + base + icon, ec)) kept = base + icon; }
     else if (const auto it = members->find(icon); it != members->end() && writePrivate(dir + "/icon" + ext, it->second)) kept = "icon" + ext;
   }
-  writePrivate(dir + "/app.json", Obj().str("name", name).str("title", title).str("icon", kept).num("sent", static_cast<long long>(std::time(nullptr))).flag("dev", dev).done() + "\n");
+  writePrivate(dir + "/app.json", Obj().str("name", name).str("title", title).str("icon", kept).str("display", z.str("display")).num("sent", static_cast<long long>(std::time(nullptr))).flag("dev", dev).done() + "\n");
 }
 
 namespace {
@@ -372,6 +372,14 @@ pid_t startApp(State& s, const std::string& name, const std::vector<std::string>
   if (log < 0 || null < 0) { err = std::string("cannot open the log: ") + std::strerror(errno); if (log >= 0) ::close(log); if (null >= 0) ::close(null); return 0; }
   Env withInspector = extraEnv;
   withInspector.emplace_back("ZINC_ENGINE", s.self);
+  // under the shell (D194) the app is shown below its bar: no file lease, its CONNECT replaces the app shown; a GL app keeps the lease
+  std::string meta;
+  const std::string shell = readFile(dir + "/app.json", meta) && Doc(meta).str("display") == "gl" ? std::string() : liveShell();
+  if (!shell.empty()) {
+    withInspector.emplace_back("ZINC_DISPLAY", "shell");
+    withInspector.emplace_back("ZINC_SHELL_SOCKET", shell);
+    withInspector.emplace_back("ZINC_APP_NAME", name);
+  }
   const int inspector = inspectorPort(withInspector);   // every app gets a port for its inspector, and `apps` says which (ZN-729.05)
   std::vector<std::string> env = environment(withInspector);
   const std::vector<char*> argvp = pointers(argv), envp = pointers(env);
@@ -392,7 +400,7 @@ pid_t startApp(State& s, const std::string& name, const std::vector<std::string>
   ::close(null);
   ::close(gate[0]);
   if (pid < 0) { ::close(gate[1]); err = std::string("cannot start it: ") + std::strerror(errno); return 0; }
-  if (!handoffScreen(pid, gate[1], err)) { ::waitpid(pid, nullptr, 0); return 0; }
+  if (!handoffScreen(pid, gate[1], err, shell.empty())) { ::waitpid(pid, nullptr, 0); return 0; }
   const std::string pidFile = s.home + "/run/" + name + ".pid", logFile = s.home + "/logs/" + name + ".log";
   writePrivate(pidFile, std::to_string(pid) + "\n" + std::to_string(inspector) + "\n");
   std::thread([pid, pidFile, logFile, &s] {   // its end goes in its log, and its pid file with it
