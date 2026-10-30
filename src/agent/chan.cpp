@@ -219,7 +219,7 @@ bool fill(Chan& c) {
   return open && st == tls::State::Ready;
 }
 
-bool next(Chan& c, char& type, std::string& payload, bool* bad) { return net::takeFrame(c.in, kMaxAgentFrame, type, payload, bad); }
+bool next(Chan& c, char& type, std::string& payload, bool* bad) { return net::takeFrameAt(c.in, c.inAt, kMaxAgentFrame, type, payload, bad); }
 
 bool recv(Chan& c, char& type, std::string& payload, int timeoutMs) {
   for (;;) {

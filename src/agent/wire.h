@@ -46,6 +46,7 @@ struct Chan {
   int fd = -1;
   zn::tls::Conn* tls = nullptr;
   std::string in;   // decrypted bytes not yet taken as frames
+  std::size_t inAt = 0;   // how much of `in` was taken (net::takeFrameAt)
   Chan() = default;
   Chan(const Chan&) = delete;
   Chan& operator=(const Chan&) = delete;

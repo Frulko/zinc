@@ -65,6 +65,7 @@ struct Conn {
 #endif
   mbedtls_pk_context key;
   std::string in, out, err;
+  size_t inAt = 0;   // what mbedTLS has taken of `in`: read from there, compacted now and then, never one copy of the rest per record
   std::function<std::string(const std::string&)> pskLookup;
   std::string pskId;
   std::string host;   // a client's server name, for the system's verifier (TLS_OS_TRUST)
@@ -154,10 +155,15 @@ bool osTrusted(Conn* c) {
 int sendCb(void* ctx, const unsigned char* buf, size_t n) { static_cast<Conn*>(ctx)->out.append(reinterpret_cast<const char*>(buf), n); return static_cast<int>(n); }
 int recvCb(void* ctx, unsigned char* buf, size_t n) {
   auto* c = static_cast<Conn*>(ctx);
-  if (c->in.empty()) return MBEDTLS_ERR_SSL_WANT_READ;
-  size_t k = n < c->in.size() ? n : c->in.size();
-  std::memcpy(buf, c->in.data(), k);
-  c->in.erase(0, k);
+  const size_t left = c->in.size() - c->inAt;
+  if (!left) return MBEDTLS_ERR_SSL_WANT_READ;
+  const size_t k = n < left ? n : left;
+  std::memcpy(buf, c->in.data() + c->inAt, k);
+  c->inAt += k;
+  // all taken: empty again (`in` is empty exactly when nothing waits); half taken: the rest moved down once. Erasing the record taken each time
+  // moved the whole buffer per record: megabytes per 16 KB on a slow device behind a fast sender (1 MB/s on a Pi 3, zinc device install)
+  if (c->inAt == c->in.size()) { c->in.clear(); c->inAt = 0; }
+  else if (c->inAt >= 65536 && c->inAt * 2 >= c->in.size()) { c->in.erase(0, c->inAt); c->inAt = 0; }
   return static_cast<int>(k);
 }
 
@@ -349,7 +355,7 @@ State read(Conn* c, std::string& out) {
   unsigned char buf[16384];
   int stalls = 0;   // calls in a row that took no byte
   for (;;) {
-    const size_t before = c->in.size();
+    const size_t before = c->in.size() - c->inAt;
     int rc = mbedtls_ssl_read(&c->ssl, buf, sizeof buf);
     if (rc > 0) { out.append(reinterpret_cast<char*>(buf), static_cast<size_t>(rc)); stalls = 0; continue; }
     if (rc == 0 || rc == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) { c->closed = true; return State::Closed; }
@@ -360,7 +366,7 @@ State read(Conn* c, std::string& out) {
       // that never come, as the server waits for us (ZN-762; Cloudflare's gateway.discord.gg about one connection in two, the "TLS 1.3 session
       // dropped" of http.cpp). So read again while bytes are fed or mbedTLS holds some: a call either takes bytes or ends a pending message, and
       // a few calls in a row without a byte end the loop.
-      stalls = c->in.size() < before ? 0 : stalls + 1;
+      stalls = c->in.size() - c->inAt < before ? 0 : stalls + 1;
       if ((!c->in.empty() || mbedtls_ssl_check_pending(&c->ssl)) && stalls < 4) continue;
       return State::Ready;
     }
