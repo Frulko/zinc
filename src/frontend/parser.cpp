@@ -1401,7 +1401,15 @@ struct Parser {
   std::uint32_t importDecl() {
     std::uint32_t st = cur().start;
     ++i;
-    if (isId("type") && (isP("{", 1) || isP("*", 1) || (at(1).kind == Tok::Ident && !isId("from", 1)))) ++i;   // `import type ...`: types import like values
+    // `import type ...`, `import { type B }`: the specifiers carry kFlagTypeOnly; the loader resolves a type-only import after every value import
+    // and loads a module it alone reaches as its types (modules.cpp, Loader::finishTypes)
+    const bool typeOnly = isId("type") && (isP("{", 1) || isP("*", 1) || (at(1).kind == Tok::Ident && !isId("from", 1)));
+    if (typeOnly) ++i;
+    const std::uint32_t r0 = importDeclRest(st);
+    if (typeOnly) for (std::uint32_t sp : r.ast.nodes[r0].kids) r.ast.nodes[sp].flags |= kFlagTypeOnly;
+    return r0;
+  }
+  std::uint32_t importDeclRest(std::uint32_t st) {
     if (cur().kind == Tok::String) { std::string_view src = sourceString(); semi(); return mk(N::Import, st, prevEnd(), src); }
     if (isP("*")) {  // `import * as ns from './x'`: one spec named "*"; the loader rewrites `ns.name` into a named import
       std::uint32_t s0 = cur().start;
@@ -1434,7 +1442,8 @@ struct Parser {
     }
     expectP("{");
     while (!isP("}")) {
-      if (isId("type") && at(1).kind == Tok::Ident && !isId("as", 1)) ++i;  // `import { a, type B }`: the specifier is type-only; types import like values
+      const bool typeSpec = isId("type") && at(1).kind == Tok::Ident && !isId("as", 1);  // `import { a, type B }`: the specifier is type-only
+      if (typeSpec) ++i;
       if (cur().kind != Tok::Ident && !(isKw("default") && isId("as", 1))) unexpected();   // `import { default as X }`
       std::uint32_t s0 = cur().start, ls = s0, le = cur().end;
       std::string_view name = txt(), local = name;
@@ -1442,6 +1451,7 @@ struct Parser {
       if (isId("as")) { ++i; if (cur().kind != Tok::Ident) unexpected(); ls = cur().start; le = cur().end; local = txt(); ++i; }
       std::uint32_t id = mk(N::Ident, ls, le, local);
       specs.push_back(mk(N::ImportSpec, s0, prevEnd(), name, {id}));
+      if (typeSpec) r.ast.nodes[specs.back()].flags |= kFlagTypeOnly;
       if (!eatP(",")) break;
     }
     expectP("}");

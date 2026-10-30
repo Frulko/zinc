@@ -264,7 +264,7 @@ static void notePlugins(const zn::frontend::Program& prog) {
   namespace fs = std::filesystem;
   gUsedPlugins.clear();
   std::vector<std::string> problems, files;
-  for (const auto& f : prog.files) if (!f.path.empty() && f.path[0] != '<' && f.path.rfind("zinc:", 0) != 0) files.push_back(fs::absolute(f.path).lexically_normal().string());
+  for (const auto& f : prog.files) if (!f.typesOnly && !f.path.empty() && f.path[0] != '<' && f.path.rfind("zinc:", 0) != 0) files.push_back(fs::absolute(f.path).lexically_normal().string());   // a plugin read for its types only is not used
   for (const auto& p : zn::frontend::discoverPlugins(gRoot, gProjectDir, problems)) {
     const std::string dir = (fs::absolute(p.dir).lexically_normal() / "").string();
     for (const std::string& f : files) if (f.compare(0, dir.size(), dir) == 0) { gUsedPlugins.push_back(p.manifest.name); break; }
@@ -509,6 +509,7 @@ static std::vector<std::string> gHostImports;   // the host modules ('zinc:gfx',
 static void scanHostImports(const zn::frontend::Program& prog) {
   gHostImports.clear();
   for (const auto& f : prog.files) {
+    if (f.typesOnly) continue;   // a module read for its types runs nothing (`import type`)
     const std::string& t = f.text;
     for (std::size_t at = t.find("zinc:"); at != std::string::npos; at = t.find("zinc:", at + 1)) {
       if (at == 0 || (t[at - 1] != '\'' && t[at - 1] != '"')) continue;

@@ -113,7 +113,7 @@ inline constexpr std::uint32_t kFlagAbstract = 1, kFlagStatic = 2, kFlagReadonly
                                kFlagTypeQuery = 65536,  // a TypeRef written `typeof x`: the type of the value x
                                kFlagRest = 131072,  // a Param written `...name`: the remaining arguments as an array
                                kFlagSetter = 262144,  // a Prop of an object literal written `set name(v) { ... }` (kFlagGetter: `get name() { ... }`)
-                               kFlagTypeOnly = 524288,  // an ExportList written `export type { ... }`: no value to export at run time
+                               kFlagTypeOnly = 524288,  // an ExportList written `export type { ... }`, an ExportSpec `type B`, an ImportSpec of `import type` or `{ type B }`: no value at run time
                                kFlagModuleLevel = 1048576;  // an Await outside any function (top-level await of a module)
 
 // Class members start at this index of a Class node's kids; Interface members start at 1.
@@ -144,6 +144,7 @@ struct ModuleInfo {
   std::vector<std::uint32_t> stmts;
   std::vector<ModuleImport> imports;
   std::vector<ModuleExport> exports;
+  bool typesOnly = false;   // reached by type-only imports alone: its interfaces and type aliases, no run-time code (Loader::finishTypes)
 };
 
 // An export of a native module that the program calls through requireNative<Spec>('Name'): the checker declares __native_<index>, the lowering emits CallNative.

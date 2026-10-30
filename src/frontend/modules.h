@@ -19,6 +19,7 @@ struct SourceFile {
   std::string text;  // nodes view this text, so files never move (a deque)
   std::string original;            // a .tsx file: the text before its JSX was lowered, and where each piece of `text` comes from in it (ZN-371.03)
   std::vector<SrcPiece> map;
+  bool typesOnly = false;          // a module only type-only imports reach: no code, host import or plugin of it is in the program
 };
 
 struct NativeFallback { std::string module, backend, reason; };

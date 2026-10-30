@@ -5122,13 +5122,31 @@ struct Checker {
     if (!a.prelude.empty()) { topList = &a.prelude; inPrelude = true; stmtList(a.prelude); inPrelude = false; }  // Error and friends, in the scope every module sees
     if (lookup("__fmtDyn") != kNone) preludeDone = jsonPreludeDone = true;  // the Dyn prelude carries the console.log and JSON helpers
     exportsOf.resize(a.modules.size());
-    for (std::uint32_t mi = 0; mi < a.modules.size(); ++mi) {  // initialisation order: a module after the modules it imports
+    // a module after the modules it imports: the load order, except for a type-only import, which the loader resolves last (Loader::finishTypes)
+    std::vector<std::uint32_t> order;
+    std::vector<char> seen(a.modules.size(), 0);
+    auto visit = [&](auto& self, std::uint32_t m) -> void {
+      if (seen[m]) return;
+      seen[m] = 1;
+      for (const ModuleImport& im : a.modules[m].imports) if (im.from < a.modules.size()) self(self, im.from);
+      for (const ModuleExport& e : a.modules[m].exports) if (e.from < a.modules.size()) self(self, e.from);
+      order.push_back(m);
+    };
+    for (std::uint32_t m = 0; m < a.modules.size(); ++m) visit(visit, m);
+    for (std::uint32_t mi : order) {
       tdzNames.clear();   // the flags are module-local
       if (!inPreludeFile(a.modules[mi])) tdzPrepass(a.modules[mi].stmts, a.modules[mi].stmts.empty() ? a.root : a.modules[mi].stmts[0]);
       const ModuleInfo& mod = a.modules[mi];
       push();
       for (const ModuleImport& im : mod.imports) {
         auto it = exportsOf[im.from].find(im.name);
+        if (it == exportsOf[im.from].end() && a.modules[im.from].typesOnly) {
+          // a module only type-only imports reach has its types alone: a name of its code is no error for an import TypeScript elides (it is
+          // read in types only, or not at all), and an `import type` of a class or function says how to get it
+          if (!mod.typesOnly && (n(im.node).flags & kFlagTypeOnly))
+            diag(kZCannotFindName, im.node, "'" + std::string(im.name) + "' of '" + a.modules[im.from].path + "' is not a type: `import type` reads the interfaces, type aliases, enums and classes of a module no value import loads (import it as a value)");
+          continue;
+        }
         if (it == exportsOf[im.from].end()) {
           std::vector<std::string> names;
           for (const auto& ex : exportsOf[im.from]) names.emplace_back(ex.first);
@@ -5153,6 +5171,7 @@ struct Checker {
         std::uint32_t sym = kNone;
         if (e.from == kNone) { auto f = scopes.back()->find(e.local); if (f != scopes.back()->end()) sym = f->second; }
         else { auto f = exportsOf[e.from].find(e.local); if (f != exportsOf[e.from].end()) sym = f->second; }
+        if (sym == kNone && mod.typesOnly) continue;   // a module read for its types exports its types only
         if (sym == kNone) { diag(kZCannotFindName, e.node, "'" + std::string(e.local) + "' " + (e.from == kNone ? "is not declared in this module" : "is not exported by '" + a.modules[e.from].path + "'")); continue; }
         add(e.name, sym, e.node);
         if (out.syms[sym].kind == SymKind::Class) {   // and its static generic methods (`Class.method`), so an importer can call them

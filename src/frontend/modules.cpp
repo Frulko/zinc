@@ -16,6 +16,9 @@
 #include <map>
 #include <regex>
 #include <set>
+#include <tuple>
+#include <unordered_set>
+#include <algorithm>
 
 #include "frontend/desugar.h"
 #include "frontend/diagnostics.h"
@@ -1657,6 +1660,73 @@ struct Loader {
   std::map<std::string, std::uint32_t> done;   // path -> module index
   std::map<std::string, bool> visiting;
   std::vector<std::uint32_t> flat;             // the program's statements in module order
+  // Type-only imports (`import type`, `{ type B }`, and the imports TypeScript elides: every binding read in types only) are resolved once every
+  // value import is loaded (finishTypes): a module they alone reach is loaded in typesMode, as its interfaces, type aliases, enums and class shapes, with no
+  // code, top-level statement, host import or native module (a worker that names a plugin's type gets nothing of the plugin, D181)
+  static constexpr std::size_t kNoDeferred = static_cast<std::size_t>(-1);
+  struct Deferred { std::uint32_t file, stmt; std::vector<ModuleImport> ns; };   // ns: the `ns$name` imports of an `import type * as ns`
+  std::vector<Deferred> deferred;
+  bool typesMode = false;
+  std::map<std::uint32_t, std::uint32_t> moduleOfFile;
+  static bool typeDecl(N k) { return k == N::Interface || k == N::TypeAlias || k == N::Enum || k == N::Class; }
+  // A class of a module read for its types is its shape: abstract, no constructor, methods without bodies, fields without initializers
+  // (a field typed by its initializer keeps a literal one; another is left out); nothing of it runs, since nothing can construct it
+  static void classShape(Ast& A, std::uint32_t cls) {
+    Node& c = A.nodes[cls];
+    if (c.kind != N::Class) return;
+    c.flags |= kFlagAbstract;
+    std::vector<std::uint32_t> kids(c.kids.begin(), c.kids.begin() + kClassMembersFrom);
+    for (std::size_t k = kClassMembersFrom; k < c.kids.size(); ++k) {
+      Node& m = A.nodes[c.kids[k]];
+      if (m.kind == N::Method) {
+        if (m.text == "constructor") continue;
+        m.kids[1] = kNone;
+        m.flags = (m.flags | kFlagAbstract) & ~(kFlagAsync | kFlagGenerator);
+      } else if (m.kind == N::Field) {
+        if (m.kids.size() > 1 && m.kids[1] != kNone && m.kids[0] == kNone) {
+          const N ik = A.nodes[m.kids[1]].kind;
+          if ((m.flags & kFlagSynthetic) || !(ik == N::Number || ik == N::String || ik == N::Literal)) continue;
+        } else if (m.kids.size() > 1) { m.kids[1] = kNone; m.flags |= kFlagDefinite; }
+      }
+      kids.push_back(c.kids[k]);
+    }
+    A.nodes[cls].kids = std::move(kids);
+  }
+  // The names a file reads as values, from node `from` on (the rule of the QuickJS strip, qjs/strip.cpp valueNames): an identifier outside an
+  // import specifier, an exported name, a class's `extends`, and `typeof x` (its type is the value's)
+  static std::unordered_set<std::string_view> valueNames(const Ast& A, std::uint32_t from) {
+    std::unordered_set<std::uint32_t> spec;
+    for (std::uint32_t i = from; i < A.nodes.size(); ++i) if (A.nodes[i].kind == N::ImportSpec) spec.insert(A.nodes[i].kids[0]);
+    std::unordered_set<std::string_view> v;
+    for (std::uint32_t i = from; i < A.nodes.size(); ++i) {
+      const Node& x = A.nodes[i];
+      if (x.kind == N::Ident && !spec.count(i)) v.insert(x.text);
+      else if (x.kind == N::ExportSpec) v.insert(x.text);
+      else if ((x.kind == N::TypeRef && (x.flags & kFlagTypeQuery)) || (x.kind == N::Class && x.kids[0] != kNone)) {
+        std::string_view t = x.kind == N::Class ? A.nodes[x.kids[0]].text : x.text;
+        v.insert(t.substr(0, t.find('.')));
+      }
+    }
+    return v;
+  }
+  void finishTypes() {
+    typesMode = true;
+    for (std::size_t k = 0; k < deferred.size(); ++k) {   // grows: a module loaded here defers its own imports
+      const std::uint32_t fi = deferred[k].file, st = deferred[k].stmt;
+      const std::uint32_t from = resolve(fi, st, prog.ast.nodes[st].text);
+      auto mi = moduleOfFile.find(fi);
+      if (from == kNone || mi == moduleOfFile.end()) continue;
+      Ast& A = prog.ast;
+      ModuleInfo& mod = A.modules[mi->second];
+      const Node& x = A.nodes[st];
+      if (x.kind == N::Import) {
+        for (std::uint32_t sp : x.kids) if (A.nodes[sp].text != "*") mod.imports.push_back({from, A.nodes[sp].text, A.nodes[A.nodes[sp].kids[0]].text, sp});
+        for (ModuleImport im : deferred[k].ns) { im.from = from; mod.imports.push_back(im); }
+      } else if (x.kind == N::ExportAll) mod.exports.push_back({{}, {}, from, true, st});
+      else for (std::uint32_t sp : x.kids) mod.exports.push_back({A.nodes[A.nodes[sp].kids[0]].text, A.nodes[sp].text, from, false, sp});
+    }
+    typesMode = false;
+  }
   std::map<std::string, std::string> dirSpelling;   // canonical directory -> the first spelling that reached it
   std::string stdRoot;                         // lib/std: where 'zinc:ui' and the other standard modules live
   bool hot = false;                            // hot mode (zinc dev's Fast Refresh, ZN-742)
@@ -1726,7 +1796,7 @@ struct Loader {
         return load(path, lucideModuleSource(prog.files[0].path, stdRoot + "/../../third_party/lucide/icon-nodes.json"));
       }
       const std::string_view stdFile = stdModuleFile(spec);
-      if (std::string feature = systemFeatureOf(spec); !feature.empty() && !stdFile.empty()) {   // a system module needs its permission in zinc.json (deny by default)
+      if (std::string feature = systemFeatureOf(spec); !feature.empty() && !stdFile.empty() && !typesMode) {   // a system module needs its permission in zinc.json (deny by default)
         const std::vector<std::string>* granted = systemPermissions();
         bool ok = false;
         if (granted) for (const std::string& g : *granted) ok = ok || g == feature || g.rfind(feature + ":", 0) == 0;
@@ -1736,7 +1806,7 @@ struct Loader {
       auto pl = plugins.find(spec);
       if (pl != plugins.end()) {  // a plugin: its module source is Zinc, its native part comes from the sim file of its spec (see below)
         if (done.count(pl->second)) return done[pl->second];
-        if (!pluginUsable(pl->second, fromFile, node)) return kNone;
+        if (!typesMode && !pluginUsable(pl->second, fromFile, node)) return kNone;
         std::string text;
         if (read(pl->second, text)) return load(pl->second, std::move(text));
       }
@@ -1785,6 +1855,11 @@ struct Loader {
     std::string text;
     // `native/x.spec` (requireNative<Spec>('X')) has no native code in this engine: its sibling x.sim.ts, a Zinc implementation of the same API
     // that the old simulator ran, takes its place (deterministic and headless)
+    if (typesMode && base.size() > 5 && base.compare(base.size() - 5, 5, ".spec") == 0) {   // a spec read for its types: its own declarations, never the stand-in of its native module
+      if (done.count(base + ".ts")) return done[base + ".ts"];
+      std::string decls;
+      if (read(base + ".ts", decls)) return load(base + ".ts", std::move(decls));
+    }
     if (base.size() > 5 && base.compare(base.size() - 5, 5, ".spec") == 0) {
       // ZINC_NATIVE (decision D21): x.next.ts, written for this engine, wins in "auto" (the default); the x.sim.ts that the old simulator ran (it may use TypeScript the Zinc subset
       // does not have) yields to the plugin's native code when that can be built and loaded; "real" always takes the native code and reports why it cannot, "sim" never builds it
@@ -1924,8 +1999,8 @@ struct Loader {
     std::vector<SrcPiece> map;
     bool isTsx = path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0;
     if (uiPreset() == "react-native" && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = rewriteReactNativeImports(text, isTsx);   // React Native's own imports (ZN-367.05)
-    if (text.find("requireNative<") != std::string::npos && text.find("export function requireNative") == std::string::npos) text = lowerRequireNative(text, prog.diags, fi, prog.ast.natives);
-    if (text.find("zinc:worker'") != std::string::npos || text.find("zinc:worker\"") != std::string::npos)
+    if (!typesMode && text.find("requireNative<") != std::string::npos && text.find("export function requireNative") == std::string::npos) text = lowerRequireNative(text, prog.diags, fi, prog.ast.natives);
+    if (!typesMode && (text.find("zinc:worker'") != std::string::npos || text.find("zinc:worker\"") != std::string::npos))
       text = lowerWorkerEntries(text, path, std::filesystem::absolute(prog.files.empty() ? path : prog.files[0].path).parent_path().string(), prog.diags, fi, prog.workers);
     if (text.find("StyleSheet") != std::string::npos && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = lowerStyleSheets(text, prog.diags, fi, isTsx);
     if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {
@@ -1945,7 +2020,7 @@ struct Loader {
     prog.files.push_back({path, std::move(text), std::move(original), std::move(map)});
     visiting[path] = true;
     ParseResult pr = parse(prog.files[fi].text);
-    if (pr.ast.root != kNone && pr.diags.empty() && !isWebFile(path)) {
+    if (pr.ast.root != kNone && pr.diags.empty() && !isWebFile(path) && !typesMode) {
       std::string add = webGlobalImports(pr.ast);
       if (!add.empty()) { prog.files[fi].text += add; pr = parse(prog.files[fi].text); }
     }
@@ -1961,12 +2036,13 @@ struct Loader {
       }
       for (auto& [k, v] : pr.ast.tparams) { auto& d = A.tparams[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
       for (auto& [k, v] : pr.ast.targs) { auto& d = A.targs[k + off]; for (std::uint32_t x : v) d.push_back(x + off); }
-      if (auto sp = specOf.find(path); sp != specOf.end()) padToSpec(A, pr.ast.root + off, sp->second);
-      const std::uint32_t hotUse = hotMeta(A, off, fi, path, hot);
+      if (auto sp = specOf.find(path); sp != specOf.end() && !typesMode) padToSpec(A, pr.ast.root + off, sp->second);
+      const std::uint32_t hotUse = hotMeta(A, off, fi, path, hot && !typesMode);
+      const std::unordered_set<std::string_view> values = valueNames(A, off);
       if (fi == 0 && hot) hotModule = resolve(0, kNone, "'zinc:hot'");
       if (fi == 0 && !loaderStage().source.empty()) load(loaderStage().path, loaderStage().source);   // zinc.json "loading" (ZN-447): before any module of the entry
       ModuleInfo mod;
-      std::vector<std::pair<std::string, std::uint32_t>> namespaces;  // `import * as ns` of this module: alias, module
+      std::vector<std::tuple<std::string, std::uint32_t, std::size_t>> namespaces;  // `import * as ns` of this module: alias, module, its deferred import (or kNoDeferred)
       mod.path = path;
       mod.file = fi;
       if (hotUse != kNone && hotModule != kNone) mod.imports.push_back({hotModule, "hotModule", "__zinc_hot", hotUse});
@@ -1974,21 +2050,30 @@ struct Loader {
         const Node& x = A.nodes[st];
         switch (x.kind) {
           case N::Import: {
+            if (x.kids.empty() && typesMode) break;   // `import './x'` in a module read for its types: nothing runs
+            // no specifier read as a value (`import type`, `{ type B }`, or a binding read in types only, which TypeScript elides): resolved by finishTypes
+            if (typesMode || (!x.kids.empty() && std::none_of(x.kids.begin(), x.kids.end(), [&](std::uint32_t sp) { return !(A.nodes[sp].flags & kFlagTypeOnly) && values.count(A.nodes[A.nodes[sp].kids[0]].text); }))) {
+              for (std::uint32_t sp : x.kids) if (A.nodes[sp].text == "*") namespaces.push_back({std::string(A.nodes[A.nodes[sp].kids[0]].text), kNone, deferred.size()});
+              deferred.push_back({fi, st, {}});
+              break;
+            }
             std::uint32_t from = resolve(fi, st, x.text);
             if (from == kNone) break;
             for (std::uint32_t sp : std::vector<std::uint32_t>(x.kids)) {
-              if (A.nodes[sp].text == "*") { namespaces.push_back({std::string(A.nodes[A.nodes[sp].kids[0]].text), from}); continue; }
+              if (A.nodes[sp].text == "*") { namespaces.push_back({std::string(A.nodes[A.nodes[sp].kids[0]].text), from, kNoDeferred}); continue; }
               mod.imports.push_back({from, A.nodes[sp].text, A.nodes[A.nodes[sp].kids[0]].text, sp});
             }
             break;
           }
           case N::ExportAll: {
+            if (typesMode) { deferred.push_back({fi, st, {}}); break; }
             std::uint32_t from = resolve(fi, st, x.text);
             if (from != kNone) mod.exports.push_back({{}, {}, from, true, st});
             break;
           }
           case N::ExportList: {
             std::uint32_t from = kNone;
+            if (!x.text.empty() && (typesMode || (x.flags & kFlagTypeOnly))) { deferred.push_back({fi, st, {}}); break; }   // `export type { A } from './a'`
             if (!x.text.empty()) { from = resolve(fi, st, x.text); if (from == kNone) break; }
             for (std::uint32_t sp : std::vector<std::uint32_t>(x.kids)) mod.exports.push_back({A.nodes[A.nodes[sp].kids[0]].text, A.nodes[sp].text, from, false, sp});
             break;
@@ -1996,6 +2081,8 @@ struct Loader {
           case N::Export: {
             std::uint32_t d = x.kids[0];
             const Node& dn = A.nodes[d];
+            if (typesMode && !typeDecl(dn.kind)) break;
+            if (typesMode) classShape(A, d);
             bool isDefault = (x.flags & kFlagDefault) != 0;
             if (dn.kind == N::VarDecl) {
               for (std::uint32_t dc : std::vector<std::uint32_t>(dn.kids)) {
@@ -2011,11 +2098,14 @@ struct Loader {
             mod.stmts.push_back(d);
             break;
           }
-          default: mod.stmts.push_back(st);
+          default:
+            if (typesMode && !typeDecl(x.kind)) break;
+            if (typesMode) classShape(A, st);
+            mod.stmts.push_back(st);
         }
       }
       // `import * as ns`: every `ns.name` of this file becomes the named import `ns$name`
-      for (const auto& [alias, from] : namespaces) {
+      for (const auto& [alias, from, later] : namespaces) {
         std::set<std::string> added;
         for (std::size_t k = off; k < A.nodes.size(); ++k) {
           Node& nd = A.nodes[k];
@@ -2032,11 +2122,11 @@ struct Loader {
             A.generated.push_back(alias + "$" + rest);
             nd.text = A.generated.back();
           } else continue;
-          if (from == kNone || !added.insert(prop).second) continue;
+          if ((from == kNone && later == kNoDeferred) || !added.insert(prop).second) continue;
           A.generated.push_back(prop);
           std::string_view propText = A.generated.back();
           A.generated.push_back(alias + "$" + prop);
-          mod.imports.push_back({from, propText, A.generated.back(), static_cast<std::uint32_t>(k)});
+          (later == kNoDeferred ? mod.imports : deferred[later].ns).push_back({from, propText, A.generated.back(), static_cast<std::uint32_t>(k)});
         }
       }
       // hot mode: the Fast Refresh proxy of a component (`_hotC('@hot:Home', ...)`, jsx.cpp) names the file that declares it, through re-exports
@@ -2061,6 +2151,8 @@ struct Loader {
         }
       result = static_cast<std::uint32_t>(A.modules.size());
       for (std::uint32_t st : mod.stmts) flat.push_back(st);
+      mod.typesOnly = prog.files[fi].typesOnly = typesMode;
+      moduleOfFile[fi] = result;
       A.modules.push_back(std::move(mod));
     }
     visiting.erase(path);
@@ -3424,9 +3516,10 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   L.hot = hot;
   if (const char* d = std::getenv("ZINC_DEV"); hot || (d && std::string(d) == "1")) L.dev = true;
   L.load(entry, std::move(text));
+  L.finishTypes();
   p.ast.hotModule = L.hotModule;
   bool usesGfx = false;
-  for (const SourceFile& f : p.files) if (f.path == "zinc:gfx" || f.path == "zinc:sys") usesGfx = true;  // (the frame loop is only entered by onFrame; zinc:sys needs the clock of the async prelude)
+  for (const SourceFile& f : p.files) if (!f.typesOnly && (f.path == "zinc:gfx" || f.path == "zinc:sys")) usesGfx = true;  // (the frame loop is only entered by onFrame; zinc:sys needs the clock of the async prelude)
   if (p.diags.empty()) {  // in a file without any/unknown/JSON.parse nothing tells undefined from null: it is null (`T | undefined`, `x !== undefined`, `m.get(k)`); a file that uses Dyn keeps the Dyn undefined
     std::set<std::uint32_t> dynFiles;
     for (const Node& x : p.ast.nodes) {
@@ -3467,7 +3560,12 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   bool random = p.diags.empty() && needsRandom(p.ast);
   bool arrayFrom = p.diags.empty() && needsArrayFrom(p.ast);
   bool regexp = p.diags.empty() && needsRegExp(p.ast);
-  if (async) desugarAsync(p.ast, p.diags);
+  if (async) {
+    const std::size_t before = p.diags.size();
+    desugarAsync(p.ast, p.diags);
+    // the code of a module read for its types is not in the program: what the desugaring says of it does not count
+    p.diags.erase(std::remove_if(p.diags.begin() + static_cast<std::ptrdiff_t>(before), p.diags.end(), [&](const Diag& d) { return d.file < p.files.size() && p.files[d.file].typesOnly; }), p.diags.end());
+  }
   if (!p.diags.empty()) return p;
   if (p.diags.empty() && (async || json || arena || random || arrayFrom || regexp || consoleX || needsErrors(p.ast) || needsTdz(p.ast))) {
     auto fi = static_cast<std::uint32_t>(p.files.size());
