@@ -35,6 +35,7 @@
 #include "platform/socket.h"
 #include "tc/tc.h"
 #include "yyjson.h"
+#include "zn/log.h"
 #include "zpk/zpk.h"
 
 namespace fs = std::filesystem;
@@ -871,7 +872,14 @@ class H(http.server.SimpleHTTPRequestHandler):
         if self.left is None: return super().copyfile(src, out)
         out.write(src.read(self.left))
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-http.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1]) if len(sys.argv) > 1 else 8000), H).serve_forever()
+port = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+for p in ([port] if port else range(8000, 8100)):   # 8000, or the next free port (zinc dev may hold 8000)
+    try: srv = http.server.ThreadingHTTPServer(('127.0.0.1', p), H); break
+    except OSError:
+        if port: raise
+print('serving %s on http://127.0.0.1:%d/ (Ctrl-C stops)' % (os.getcwd(), srv.server_address[1]), flush=True)
+try: srv.serve_forever()
+except KeyboardInterrupt: pass
 )PY";
   // 6. write, then the precompressed copies
   fs::path outDir = a.out.empty() ? fs::path(a.dir) / "dist" / (a.name + "-web") : fs::path(a.out);
@@ -899,6 +907,7 @@ http.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1]) if len(sys.argv) 
   }
   std::printf("web: %s render, %zu file(s), %s (javascript %s, gzip %s%s)%s\n", cm.cfg.render.c_str(), out.size(), humanKb(total).c_str(), humanKb(js).c_str(), gz ? humanKb(gz).c_str() : "-",
               br ? (", brotli " + humanKb(br)).c_str() : "", pwa ? ", offline cache" : "");
+  zn::log::step("next", zn::log::shortPath((fs::absolute(outDir) / "serve.py").string()) + ", then open the address it prints; or copy the folder to a static host");
   std::printf("%s\n", outDir.string().c_str());
   return 0;
 }

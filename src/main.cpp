@@ -644,6 +644,7 @@ static std::string appNameEnv(const std::string& entry) {
 // zinc pack and the Linux exports: the photographs (JPEG, WebP) of the assets stay files, decoded when the program first draws them
 // (gfx_host.cpp photoFromAssets), not baked: their pixels weigh ten times the file. A console or a board keeps them baked.
 static bool gPhotosAsFiles = false;
+static std::string humanSize(std::uint64_t n) { char b[32]; if (n < 1000) std::snprintf(b, sizeof b, "%u bytes", static_cast<unsigned>(n)); else if (n < 1000000) std::snprintf(b, sizeof b, "%.0f KB", n / 1e3); else std::snprintf(b, sizeof b, "%.1f MB", n / 1e6); return b; }
 static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, std::string& err) {
   namespace fs = std::filesystem;
   zn::res::Options o;
@@ -2439,7 +2440,7 @@ int main(int argc, char** argv) {
       std::ofstream out(outPath, std::ios::binary);
       out.write(archive.data(), static_cast<std::streamsize>(archive.size()));
       if (!out) { std::fprintf(stderr, "zinc pack: cannot write %s\n", outPath.c_str()); return 1; }
-      std::printf("packed %s (%zu files, %zu bytes, on %s)\n", outPath.c_str(), files.size() + 1, archive.size(), engine.c_str());
+      std::printf("packed %s (%zu files, %s, on %s)\n", zn::log::shortPath(fs::absolute(outPath).string()).c_str(), files.size() + 1, humanSize(archive.size()).c_str(), engine.c_str());
       return 0;
     }
     zn::zbc::Module zm;
@@ -2536,7 +2537,7 @@ int main(int argc, char** argv) {
     std::ofstream out(outPath, std::ios::binary);
     out.write(archive.data(), static_cast<std::streamsize>(archive.size()));
     if (!out) { std::fprintf(stderr, "zinc pack: cannot write %s\n", outPath.c_str()); return 1; }
-    std::printf("packed %s (%zu files, %zu bytes)\n", outPath.c_str(), files.size() + 1, archive.size());
+    std::printf("packed %s (%zu files, %s)\n", zn::log::shortPath(fs::absolute(outPath).string()).c_str(), files.size() + 1, humanSize(archive.size()).c_str());
     return 0;
   }
   if (argc >= 3 && !std::strcmp(argv[1], "fuse")) {   // zinc fuse app.zapp [--target T] [-o app]: this engine with the archive appended, one executable (ZN-319)
@@ -3060,6 +3061,8 @@ int main(int argc, char** argv) {
     gBuildTarget = target->name;   // linux-arm64 and the other spellings: one name for the layout rules and the asset packs
     if (gBuildTarget == "rpi") gBuildTarget = "rpi1";
     if (const char* os = std::strrchr(target->name, '-'); os && zn::knownPlatform(os + 1)) setenv("ZINC_PLATFORM", os + 1, 0);   // the target's platform files (x.webos.ts), not this machine's
+    const auto tBuild = std::chrono::steady_clock::now();
+    if (zn::log::steps()) std::fprintf(stderr, "zinc build %s for %s\n", zn::log::shortPath(fs::absolute(argv[4]).string()).c_str(), target->name);
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[4], zm)) return rc;
     std::string zig, err;
@@ -3130,11 +3133,16 @@ int main(int argc, char** argv) {
       for (const char* lib : {"zn_script", "zn_qjs_ext", "zn_napi_qjs", "zn_quickjs", "zn_rt", "zn_mimalloc", "zn_zbc", "zn_ir", "zn_frontend", "zn_native", "zn_host_gfx", "zn_layout", "zn_yoga", "zn_codec", "zn_uv", "zn_llhttp", "zn_mbedtls", "zn_regexp", "zn_zpk", "zn_lz4", "zn_zstd", "zn_sha256", "zn_yyjson"}) if (fs::exists(L + "lib" + lib + ".a")) cmd += " '" + L + "lib" + lib + ".a'";
       cmd += " -lpthread -Wl,-S -o '" + std::string(argv[6]) + "'";   // -S: no debug sections (40 of museum-table's 130 MB), the symbols kept for crash traces
       writeComponents(std::string(argv[6]) + ".components", cmd, crossPlugins);   // ZN-323
+      zn::log::Phase ph("build", "cross compile and link", "native", "zig c++ for " + std::string(target->name) + ", compile and link");
       ok = std::system(cmd.c_str()) == 0;
       if (!ok) err = "the cross compiler failed: " + cmd;
-    } else { ok = zn::tc::crossBuild(zig, gRoot, cpp.string(), argv[3], argv[6], err); writeComponents(std::string(argv[6]) + ".components", "", {}); }   // only the runtime
+    } else {   // only the runtime
+      zn::log::Phase ph("build", "cross compile and link", "native", "zig c++ for " + std::string(target->name) + ", compile and link");
+      ok = zn::tc::crossBuild(zig, gRoot, cpp.string(), argv[3], argv[6], err); writeComponents(std::string(argv[6]) + ".components", "", {});
+    }
     if (!std::getenv("ZN_KEEP_CPP")) fs::remove(cpp);
     if (!ok) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+    { std::error_code ec; const auto sz = fs::file_size(argv[6], ec); char mb[32]; std::snprintf(mb, sizeof mb, "%.1f MB", ec ? 0.0 : static_cast<double>(sz) / 1e6); zn::log::step("done", zn::log::shortPath(fs::absolute(argv[6]).string()) + " (" + mb + ")", zn::log::since(tBuild)); }
     return 0;
   }
   if (argc == 5 && !std::strcmp(argv[1], "build") && !std::strcmp(argv[3], "-o")) {  // zinc build <file> -o <out>: compile to C++ and then to a native program
@@ -3176,7 +3184,25 @@ int main(int argc, char** argv) {
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
     installDisplayDrivers("", argv[2]);   // a board or a display driver of the project: the driver is linked into the program
-    return buildNative(argv[0], argv[2], argv[4], zm, tBuild);
+    const int rc = buildNative(argv[0], argv[2], argv[4], zm, tBuild);
+#ifdef __APPLE__
+    if (const char* app = std::getenv("ZINC_EXPORT_APP"); rc == 0 && app && *app && gBundleOut.empty()) {   // zinc export --target macos: the .app of the program just linked, not a second build
+      namespace fs = std::filesystem;
+      zn::frontend::Project proj;
+      std::string perr;
+      const std::string pf = zn::frontend::findProjectFile(argv[2]);
+      if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
+      if (proj.app.id.empty()) { zn::log::step("app", "no .app: it needs \"app\": { \"id\": \"com.example." + proj.name + "\" } in zinc.json"); return 0; }
+      const zn::tc::BundleSpec spec = bundleSpecOf(proj, fs::path(pf).parent_path().string());
+      std::string berr;
+      if (!zn::tc::writeBundle(spec, argv[4], app, berr)) { std::fprintf(stderr, "zinc: bundle: %s\n", berr.c_str()); return 1; }
+      std::error_code ec;
+      const fs::path res = std::string(argv[4]) + ".res";   // --no-embed: the fonts and images go in the Resources of the .app
+      if (fs::exists(res, ec)) fs::copy_file(res, fs::path(app) / "Contents/Resources" / res.filename(), fs::copy_options::overwrite_existing, ec);
+      zn::log::step("app", zn::log::shortPath(fs::absolute(app).string()) + (spec.identity == "-" || spec.identity.empty() ? " (signed ad hoc)" : " (signed by " + spec.identity + ")"));
+    }
+#endif
+    return rc;
   }
   if (argc == 3 && !std::strcmp(argv[1], "--emit=cpp")) {  // zinc --emit=cpp <file>: the C++ of the AOT build
     zn::zbc::Module zm;
@@ -3218,14 +3244,23 @@ int main(int argc, char** argv) {
     out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
     return out && !bytes.empty() ? 0 : 2;
   }
-  if (argc == 4 && !std::strcmp(argv[1], "--emit=zbc-bin")) {  // zinc --emit=zbc-bin <file> <out.zbc>
+  if ((argc == 4 || (argc == 6 && !std::strcmp(argv[4], "--res"))) && !std::strcmp(argv[1], "--emit=zbc-bin")) {  // zinc --emit=zbc-bin <file> <out.zbc> [--res <blob>]: --res also bakes the fonts and images, from the same compile
     if (const char* t = std::getenv("ZINC_DEVICE_TARGET")) { gDeviceCore = true; gBuildTarget = t; }   // as `run --target esp32` compiles (zinc export --target esp32)
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
     auto bytes = zn::zbc::encode(zm);
     std::ofstream out(argv[3], std::ios::binary);
     out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-    return out ? 0 : 2;
+    if (!out) return 2;
+    if (argc == 6) {
+      std::vector<std::uint8_t> blob;
+      std::string err;
+      if (!bakeResources(argv[2], blob, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      std::ofstream ro(argv[5], std::ios::binary);
+      ro.write(reinterpret_cast<const char*>(blob.data()), static_cast<std::streamsize>(blob.size()));
+      if (!ro) return 2;
+    }
+    return 0;
   }
   if (argc == 4 && !std::strcmp(argv[1], "zbc")) {  // zinc zbc --check|--dump <file.zbc>: decode and verify a bytecode file
     std::ifstream in(argv[3], std::ios::binary);

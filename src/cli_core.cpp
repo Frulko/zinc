@@ -51,6 +51,7 @@
 #include "frontend/profile.h"
 #include "frontend/project.h"
 #include "zn/app.h"
+#include "zn/log.h"
 #include "zn/devproto.h"
 #include "zapp.h"
 #include "yyjson.h"
@@ -125,7 +126,7 @@ const Command kCommands[] = {
   {"plugins", "zinc plugins [project-dir] [--defines <plugin> [target]] | zinc plugins search [word] | zinc plugins update [plugin...]", "cli.cmd.plugins", "Lists the plugins visible to a project and where they run. search: the plugins and templates of the signed index whose name or description has the word, one line each (kind, name and version, targets, description). update: each dependency added by name moves to the highest version its range (name@^1.2, ~1.2, >=1.2, 1.2) allows, checked like zinc add; one line per plugin that moved."},
   {"capture", "zinc capture <entry|dir> [--frames 1,60] [--every n] [--out dir] [--size WxH]", "cli.cmd.capture", "Runs the program headless and deterministic and writes ZINC_SHOT frames (frame-<n>.png) into --out (default shots/). zinc capture --scene replays a scene dump instead."},
   {"bench", "zinc bench [entry|dir] [--frames n]", "cli.cmd.bench", "Runs headless for n frames (default 120) and prints p50 / p99 / max per phase (app, layout, paint, raster...)."},
-  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|web|esp32|android|ios] [-o dir] [--print] [--no-embed] [--deb] [--dmg] [--key <seed-hex>] [--aab | --apk [--release] [--abis list] | --ipa [--simulator]] [--dry-run]", "cli.cmd.export", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh (--engine mquickjs: firmware.bin, app.img and flash.sh of the MicroQuickJS firmware); android: a Gradle project whose CMake builds the engine and the program with the NDK (--print lists ./gradlew assembleDebug and bundleRelease); ios: a CMake project for CMake's Xcode generator (--print lists the cmake, xcodebuild and simctl commands). --aab builds a release bundle for Google Play (Gradle bundleRelease, signed with the upload key of ZINC_ANDROID_KEYSTORE or zinc.json signing.android, its passwords from ZINC_ANDROID_STORE_PASSWORD and ZINC_ANDROID_KEY_PASSWORD, else the debug keystore) and checks that its 64-bit libraries are aligned to 16 KB; --apk a debug APK (zipalign -c -P 16 too; --abis armeabi-v7a,arm64-v8a,x86_64 picks the ABIs), --apk --release the release APK (not debuggable, signed with the upload key when one is named, else with the debug keystore for an install with adb); --ipa archives and exports an IPA with ExportOptions.plist from zinc.json signing.ios (team or ZINC_IOS_TEAM, method app-store-connect, release-testing, debugging or enterprise, profile), --ipa --simulator a zipped Debug .app for the simulator; --dry-run prints their commands and runs none. An iOS project carries PrivacyInfo.xcprivacy (the required-reason APIs of the engine and the plugins). --no-embed leaves the baked fonts and images out of the executable, in <name>.res beside it (the .app always keeps them in its Resources). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id). The .app is signed ad hoc, or by zinc.json \"signing\": { \"identity\", \"keychain\", \"notaryProfile\" } with the hardened runtime and the entitlements of \"permissions\"; the notarization commands are printed. --key (or ZINC_UPDATE_SEED) writes <file>.sig, an Ed25519 signature, beside the executable and the .deb or .dmg: zinc verify checks them. A project on \"engine\": \"jsc\", \"v8\" or \"hermes\" exports for macos only (on \"quickjs\", the macos export is the same .app with app.js and its bytecode app.qbc, no engine pack): <name>.app holds zinc (signed with the JIT entitlement), the program bundled for the engine and the engine's pack (zinc engine), and run.sh starts it."},
+  {"export", "zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|web|esp32|android|ios] [-o dir] [--print] [--no-embed] [--deb] [--dmg] [--key <seed-hex>] [--aab | --apk [--release] [--abis list] | --ipa [--simulator]] [--dry-run]", "cli.cmd.export", "dist/<name>-<target>/: the executable (cross built with the pinned zig for another target), run.sh, README.txt, assets/, a .desktop file (Linux) or the .app (macOS); wasm: a static site (index.html, app.js, app.wasm, app.zbc, serve.py); esp32: core.bin, app.bin and flash.sh (--engine mquickjs: firmware.bin, app.img and flash.sh of the MicroQuickJS firmware); android: a Gradle project whose CMake builds the engine and the program with the NDK (--print lists ./gradlew assembleDebug and bundleRelease); ios: a CMake project for CMake's Xcode generator (--print lists the cmake, xcodebuild and simctl commands). --aab builds a release bundle for Google Play (Gradle bundleRelease, signed with the upload key of ZINC_ANDROID_KEYSTORE or zinc.json signing.android, its passwords from ZINC_ANDROID_STORE_PASSWORD and ZINC_ANDROID_KEY_PASSWORD, else the debug keystore) and checks that its 64-bit libraries are aligned to 16 KB; --apk a debug APK (zipalign -c -P 16 too; --abis armeabi-v7a,arm64-v8a,x86_64 picks the ABIs), --apk --release the release APK (not debuggable, signed with the upload key when one is named, else with the debug keystore for an install with adb); --ipa archives and exports an IPA with ExportOptions.plist from zinc.json signing.ios (team or ZINC_IOS_TEAM, method app-store-connect, release-testing, debugging or enterprise, profile), --ipa --simulator a zipped Debug .app for the simulator; --dry-run prints their commands and runs none. An iOS project carries PrivacyInfo.xcprivacy (the required-reason APIs of the engine and the plugins). --no-embed leaves the baked fonts and images out of the executable, in <name>.res beside it (and in the Resources of the .app). --deb also writes dist/<name>_<version>_<arch>.deb (Linux targets; reproducible, written without dpkg); --dmg dist/<name>-<version>.dmg with the .app and an Applications link (macos; the .app needs zinc.json app.id). The .app is signed ad hoc, or by zinc.json \"signing\": { \"identity\", \"keychain\", \"notaryProfile\" } with the hardened runtime and the entitlements of \"permissions\"; the notarization commands are printed. --key (or ZINC_UPDATE_SEED) writes <file>.sig, an Ed25519 signature, beside the executable and the .deb or .dmg: zinc verify checks them. A project on \"engine\": \"jsc\", \"v8\" or \"hermes\" exports for macos only (on \"quickjs\", the macos export is the same .app with app.js and its bytecode app.qbc, no engine pack): <name>.app holds zinc (signed with the JIT entitlement), the program bundled for the engine and the engine's pack (zinc engine), and run.sh starts it."},
   {"add", "zinc add <name | git-url[@ref] | gh:user/repo[@ref] | archive URL> [dir]", "cli.cmd.add", "A name (name@range: ^1.2, ~1.2, >=1.2, 1.2) is looked up in the signed index, the highest version the range allows: its tier (official, or verified for a publisher the index delegates to) and publisher are printed first. Fetches the plugin (git: at its default branch or @ref; an archive: file:// or https://, .tar.gz, .tgz or .tar) into plugins/<name>, records it in zinc.json \"dependencies\" and pins it in zinc.lock: the commit or the archive's sha256, the version and the capabilities plugin.json \"permissions\" asks for (an update asking for a new one is refused until --accept). --key <public key>: the archive's <url>.sig must verify with it, and the key is locked too. Nothing of the plugin is run; links and special files are refused. What each tier guarantees, and what a mirror can and cannot do: docs/guide/08-security.md, \"Plugin distribution: threat model and guarantees\"."},
   {"sign", "zinc sign <file> <seed-hex>", "cli.cmd.sign", "Writes <file>.sig: the detached Ed25519 signature (128 hex digits) that zinc add --key <public key> checks. zinc update-keygen makes a key pair."},
   {"plugin-build", "zinc plugin-build <plugin> [project] [--target T] [--pack file.tar | --prebuild]", "cli.cmd.plugin-build", "Compiles the plugin's native code with the pinned zig into ~/.zinc/cache/<target>/plugins/<name>-<key> (or finds it there) and prints where; the key is the one every client computes for the same sources, options and target. --pack writes it as a deterministic archive: the binaries/<target>/<name>-<key>.tar a plugin index serves (tools/plugin-pack names it). --prebuild copies it into the plugin's prebuilt/<target>/. --target cross-builds it for a Linux target (aarch64-linux, armhf-linux, armv7-linux, x86_64-linux)."},
@@ -2016,14 +2017,16 @@ static int exportIos(const ProjectInfo& p, const fs::path& out, const std::strin
 // page's glue (targets/wasm/glue: app.js, its worker and WASI). The SharedArrayBuffer of the frame loop needs COOP/COEP headers: serve.py serves the folder with them.
 static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::string& engineRoot) {
   const fs::path root = engineRoot, glue = root / "targets" / "wasm" / "glue", wasm = root / "build-wasm" / "vm-web.wasm";
-  if (fs::exists(root / "tools" / "build-wasm") && status(std::system((q((root / "tools" / "build-wasm").string()) + " >/dev/null").c_str())) != 0) {   // incremental: links when the runtime changed
-    std::fprintf(stderr, "zinc export: tools/build-wasm failed (zinc toolchain install fetches the pinned zig)\n"); return 1;
+  const auto t0 = std::chrono::steady_clock::now();
+  if (fs::exists(root / "tools" / "build-wasm")) {   // incremental: compiles what changed in the runtime, then links
+    zn::log::Phase ph("export", "wasm", "wasm", "interpreter for the browser");
+    if (status(std::system((q((root / "tools" / "build-wasm").string()) + " >/dev/null").c_str())) != 0) { std::fprintf(stderr, "zinc export: tools/build-wasm failed (zinc toolchain install fetches the pinned zig)\n"); return 1; }
   }
   std::error_code ec;
   if (!fs::exists(wasm, ec)) { std::fprintf(stderr, "zinc export: %s is missing\n", wasm.string().c_str()); return 1; }
-  if (status(std::system((q(self()) + " --emit=zbc-bin " + q(p.entry) + " " + q((out / "app.zbc").string())).c_str())) != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return 1; }
-  // the baked images of a program with assets (the blob of zinc bake): the worker draws zinc:gfx images from it (ZN-432)
-  if (fs::exists(fs::path(p.dir) / "assets", ec) && status(std::system((q(self()) + " bake " + q(p.entry) + " -o " + q((out / "app.res").string())).c_str())) != 0) { std::fprintf(stderr, "zinc export: the resources could not be baked\n"); return 1; }
+  // one compile: the program as ZBC, and the baked images of a program with assets (the blob of zinc bake) that the worker draws zinc:gfx images from (ZN-432)
+  const bool res = fs::exists(fs::path(p.dir) / "assets", ec);
+  if (status(std::system((q(self()) + " --emit=zbc-bin " + q(p.entry) + " " + q((out / "app.zbc").string()) + (res ? " --res " + q((out / "app.res").string()) : "")).c_str())) != 0) { std::fprintf(stderr, "zinc export: the build failed\n"); return 1; }
   fs::copy_file(wasm, out / "app.wasm", fs::copy_options::overwrite_existing, ec);
   for (const char* f : {"app.js", "worker.mjs", "wasi.mjs"}) fs::copy_file(glue / f, out / f, fs::copy_options::overwrite_existing, ec);
   if (ec) { std::fprintf(stderr, "zinc export: %s\n", ec.message().c_str()); return 1; }
@@ -2045,16 +2048,28 @@ static int exportWasm(const ProjectInfo& p, const fs::path& out, const std::stri
   if (auto at = page.find("<title>zinc</title>"); at != std::string::npos) page.replace(at, 19, "<title>" + p.name + "</title>");
   if (haveProj && !proj.app.icon.empty() && fs::copy_file(fs::path(p.dir) / proj.app.icon, out / "favicon.png", fs::copy_options::overwrite_existing, ec))   // zinc.json app.icon (a PNG)
     page.replace(page.find("</title>") + 8, 0, "<link rel=\"icon\" href=\"favicon.png\">");
+  else page.replace(page.find("</title>") + 8, 0, "<link rel=\"icon\" href=\"data:,\">");   // no icon: an empty one, so the browser does not ask for /favicon.ico
   if (const std::string style = haveProj ? splashStyle(splashFor(proj, p.dir, "wasm")) : std::string(); !style.empty())
     if (const auto at = page.find("<canvas id=\"c\""); at != std::string::npos) page.insert(at + 14, style);
   writeFile(out / "index.html", page);
   writeFile(out / "serve.py", "#!/usr/bin/env python3\n# Serves this folder on http://127.0.0.1:8000 with the COOP/COEP headers the page needs (SharedArrayBuffer). Any static host that sends them works too.\n"
             "import http.server, os, sys\nclass H(http.server.SimpleHTTPRequestHandler):\n    extensions_map = dict(http.server.SimpleHTTPRequestHandler.extensions_map, **{'.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm'})\n"
             "    def end_headers(self):\n        self.send_header('Cross-Origin-Opener-Policy', 'same-origin'); self.send_header('Cross-Origin-Embedder-Policy', 'require-corp'); super().end_headers()\n"
-            "os.chdir(os.path.dirname(os.path.abspath(__file__)))\nhttp.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1]) if len(sys.argv) > 1 else 8000), H).serve_forever()\n");
+            "os.chdir(os.path.dirname(os.path.abspath(__file__)))\n"
+            "port = int(sys.argv[1]) if len(sys.argv) > 1 else 0\n"
+            "for p in ([port] if port else range(8000, 8100)):   # 8000, or the next free port (zinc dev may hold 8000)\n"
+            "    try: srv = http.server.ThreadingHTTPServer(('127.0.0.1', p), H); break\n"
+            "    except OSError:\n"
+            "        if port: raise\n"
+            "print('serving %s on http://127.0.0.1:%d/ (Ctrl-C stops)' % (os.getcwd(), srv.server_address[1]), flush=True)\n"
+            "try: srv.serve_forever()\n"
+            "except KeyboardInterrupt: pass\n");
   fs::permissions(out / "serve.py", fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
   if (fs::exists(fs::path(p.dir) / "assets")) fs::copy(fs::path(p.dir) / "assets", out / "assets", fs::copy_options::recursive, ec);
-  writeFile(out / "README.txt", p.name + " " + p.version + " (wasm) built with Zinc.\nServe this folder with the headers Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy: require-corp\n(./serve.py does, then open http://127.0.0.1:8000).\n");
+  writeFile(out / "README.txt", p.name + " " + p.version + " (wasm) built with Zinc.\nServe this folder with the headers Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy: require-corp\n(./serve.py does, then open the address it prints).\n");
+  zn::log::step("site", "index.html, app.js, app.wasm, app.zbc" + std::string(res ? ", app.res, assets/" : "") + ", serve.py");
+  zn::log::step("done", zn::log::shortPath(fs::absolute(out).string()), zn::log::since(t0));
+  zn::log::step("next", zn::log::shortPath((fs::absolute(out) / "serve.py").string()) + ", then open the address it prints");
   std::printf("%s\n", out.string().c_str());
   return 0;
 }
@@ -2088,6 +2103,7 @@ static void notarizeHint(const ProjectInfo& p, const fs::path& out, const std::v
 }
 
 int exportApp(const std::vector<std::string>& args, const std::string& engineRoot) {
+  const auto tExport = std::chrono::steady_clock::now();
   Opts o = parseOpts(args, {"--target", "-o", "--key", "--abis", "--render", "--browsers"}, {"--deb", "--dmg", "--no-embed", "--inspect", "--print", "--aab", "--apk", "--release", "--ipa", "--simulator", "--dry-run", "--werror", "--no-pwa", "--sourcemap", "--check", "--prerender"});
   if (o.bad) { std::fprintf(stderr, "zinc export: unknown option %s\nusage: zinc export [entry|dir] [--target linux|rpi|rpi1|rpi2|chip|pocketchip|rmpp|macos|wasm|web|esp32|android|ios] [-o dir] [--print] [--deb] [--dmg] [--inspect] [--key <seed-hex>] [--aab | --apk [--release] [--abis list]] [--ipa [--simulator]] [--dry-run]\n", o.badArg.c_str()); return 2; }
   Pack pack{has(o, "--aab"), has(o, "--apk"), has(o, "--ipa"), has(o, "--simulator"), has(o, "--dry-run"), o.v.count("--abis") ? o.v["--abis"] : "", has(o, "--release")};
@@ -2099,6 +2115,7 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   if (has(o, "--inspect")) p.entry = inspectEntry(p.dir, p.entry);   // a debug build for a device (zinc device deploy --inspect)
   for (char c : p.name) if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '_' || c == '-')) { std::fprintf(stderr, "zinc export: zinc.json name \"%s\" is not usable in a file name (letters, digits, '.', '_', '-')\n", p.name.c_str()); return 2; }
   const std::string target = o.v.count("--target") ? o.v["--target"] : zn::plat::osName();
+  if (zn::log::steps()) { const std::string d = zn::log::shortPath(fs::absolute(p.dir).lexically_normal().string()); std::fprintf(stderr, "zinc export %s for %s\n", d.empty() || d == "/" ? "." : d.c_str(), target.c_str()); }
   if (target == "web") {   // the program as JavaScript on the browser's own engine (docs/targets/web.md)
     WebArgs w;
     w.dir = p.dir; w.entry = p.entry; w.name = p.name; w.version = p.version; w.engineRoot = engineRoot;
@@ -2140,7 +2157,8 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   }
   // the argument orders of the two build commands: `build <file> -o <out>` for this machine, `build --target <t> <file> -o <out>` for another
   const std::string embed = has(o, "--no-embed") ? " --no-embed" : "";   // the fonts and images in <name>.res beside the executable
-  const std::string cmd = zt.empty() ? "ZINC_COMPONENTS=1 " + q(self()) + " build" + embed + " " + q(p.entry) + " -o " + q((out / p.name).string())   // ZINC_COMPONENTS: what it links, for the SBOM
+  const std::string appEnv = target == "macos" ? "ZINC_EXPORT_APP=" + q((out / (p.name + ".app")).string()) + " " : "";   // the .app from the same build
+  const std::string cmd = zt.empty() ? appEnv + "ZINC_COMPONENTS=1 " + q(self()) + " build" + embed + " " + q(p.entry) + " -o " + q((out / p.name).string())   // ZINC_COMPONENTS: what it links, for the SBOM
                                      : "ZINC_COMPONENTS=1 ZINC_EXPORT_TARGET=" + q(target) + " " + q(self()) + " build" + embed + " --target " + q(zt) + " " + q(p.entry) + " -o " + q((out / p.name).string());
   if (target == "rmpp") {   // an AppLoad app directory (docs/targets/remarkable-paper-pro.md); zinc.json "display": {"ink": "session"} starts it through the display lease
     std::string ink, icon;
@@ -2200,10 +2218,6 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   writeFile(out / "README.txt", p.name + " " + p.version + " (" + target + ") built with Zinc.\nRun: ./run.sh\n" + (embed.empty() ? "The executable is self-contained: the fonts and images are baked in" : "The fonts and images are baked in " + p.name + ".res, which stays beside the executable") + "; assets/ holds the files the program reads at run time.\n");
   if (!zt.empty() && zt.find("linux") != std::string::npos)
     writeFile(out / (p.name + ".desktop"), "[Desktop Entry]\nType=Application\nName=" + p.name + "\nExec=" + p.name + "\nTerminal=false\nCategories=Utility;\n");
-  if (target == "macos") {
-    std::string bcmd = q(self()) + " build --bundle " + q(p.entry) + " -o " + q((out / (p.name + ".app")).string());
-    if (status(std::system(bcmd.c_str())) != 0) std::fprintf(stderr, "zinc export: the .app bundle could not be made (the plain executable is in %s)\n", out.string().c_str());
-  }
   artifacts.push_back(out / p.name);
   {   // what the exported app may do (ZN-322.03): zinc.json "permissions", enforced by the app
     std::ifstream pf(fs::path(p.dir) / "zinc.json");
@@ -2253,6 +2267,10 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
     std::printf("signature: %s.sig\n", a.string().c_str());
   }
   if (target == "macos") notarizeHint(p, out, artifacts);
+  std::fflush(stdout); zn::log::step("exported", zn::log::shortPath(fs::absolute(out).string()), zn::log::since(tExport));
+  if (zt.empty()) zn::log::step("next", zn::log::shortPath((fs::absolute(out) / "run.sh").string()) + (fs::exists(out / (p.name + ".app"), ec) ? " or open " + zn::log::shortPath((fs::absolute(out) / (p.name + ".app")).string()) : std::string()));
+  else if (target == "rmpp") zn::log::step("next", zn::log::shortPath((fs::absolute(out) / "deploy.sh").string()) + " installs it on the tablet (USB, developer mode)");
+  else zn::log::step("next", "copy " + zn::log::shortPath(fs::absolute(out).string()) + " to the " + target + " machine and start its run.sh (zinc device deploy does both)");
   std::printf("%s\n", out.string().c_str());
   return 0;
 }
