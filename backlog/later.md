@@ -444,6 +444,8 @@ The next backlog review turns lines into tasks or deletes them.
 - D190: an `export * from` a module of the same import cycle copies its partial export table, so values it declares later are not re-exported.
 - ZN-850 native records: plugin calls with records (`__recEnc`/`__recDec`, src/frontend/dyn.cpp) still go through Dyn and JSON at ~1 µs per record; reuse D191's recLayout + planFor/encodeValue/decodeValue (src/rt/worker.cpp).
 - zinc:worker (D191): a message interface that is not a record (no fixed class) gets "has no message form" at run time (would need candidate classes in the layout); i8/i16/u8/u16 fields travel as 32-bit, so a narrower receiver is not truncated; encode is ~40 ns per record, mostly rec::Writer's small vector inserts (a pre-sized buffer would halve it).
+- Inspector Info view: show the target frame rate (display refresh) next to vsync, count assets on disk and in packs (not only baked fonts and images), and the heap size on JSC, V8 and Hermes (no resourceStats provider there); a .zbc/.zapp run reports 0 source files.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -826,3 +828,4 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo Vita: Vita3K follows the Mac's load (p95 12-23 ms); remeasure on a quiet Mac or a real Vita.
 - tokyo 3DS: on the real Old 3DS XL read the `n3ds:` and `sd packs` lines of sdmc:/zinc.log; the heap margin is about 4 MB (34.2 of 38), lower the 16 MB zrt heap if Tokyo uses much less.
 - tokyo 3DS: confirm on the real Old 3DS that the white ground blocks are gone (ZINC_PROFILE=1 counters `draws without their picture`, `chunk loads held back`); Azahar never showed them.
+- Inspector Info card on Linux (/proc/self/statm, /proc/cpuinfo), Windows (GetProcessTimes, GetProcessMemoryInfo) and the Pi's GL path (gl_renderer, SDL_GL_GetSwapInterval vsync).
