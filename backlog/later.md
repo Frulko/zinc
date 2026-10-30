@@ -415,6 +415,10 @@ The next backlog review turns lines into tasks or deletes them.
 - `.then` callbacks returning `T | Promise<T>`, or then(f, g) with only one returning a promise, are not flattened; the adoption takes one microtask where Node takes two.
 - `new Set('abc')` and `new Map(generator)` are not supported (arrays and same-kind collections are).
 - The ir and zbc goldens of `exceptions` (__log47 vs __log48) and lint's rules.expect (ProgressRing's svg import) are stale on develop.
+- Async functions: a loop whose awaits complete at once (no real suspension) recurses instead of looping; a trampoline in desugar.cpp loop() would keep the stack flat for long sliced work.
+- Checker: `.then(async () => ...)` on a `Promise<void>` gives Z0103 (the async callback's Promise is not flattened).
+- Checker: destructuring in a `for (const [k, v] of ...)` whose body awaits gives Z0005.
+- Set and Map are not iterable directly in `for (const x of set)` as the slicing agent of the iPod demo met it (it went through Array.from): check and fix on every engine.
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -650,6 +654,9 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod demo: Discover as a For you shelf; a QuickJS smoke run of Discover, Repair and Lyrics; a test of the Lyrics panel scrolling long lyrics.
 - iPod sleep timer: zinc:sonos SetSleepTimer/GetRemainingSleepTimerDuration so a Sonos keeps the timer if the app quits; keep the app in the menu bar while an alarm is set (closing the window quits it today); tests of the alarm on wake and of the end-of-song/end-of-list modes.
 - ipod_deep: its auto-sync step polls in real time and fails under load; drive it by the virtual clock.
+- iPod demo: Genius, For you and the cache parsing on a zinc:worker (D181 step 4) once workers land; the slices only spread the work over frames.
+- iPod demo: For you's final write (JSON.stringify of the shelves and the drafts) is not sliced; genius() and the mood mixes are still synchronous.
+- iPod demo: measure For you's frame gaps again now that a timer set in a frame waits for the next one (the slices were measured before that fix).
 
 ## Cross-platform pass
 - threads (D181): RSS per idle worker and the Genius build time in a worker on the Pi 3B+ and the Nexus 7.

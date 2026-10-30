@@ -2,7 +2,7 @@
 // on this iPod, best first, each "because you listen to X, Y"; a click opens its top albums and songs (Last.fm, kept 30 days) and links
 // to Bandcamp, MusicBrainz and Last.fm. The second list is the artists of your history that are not on this iPod, most played first.
 import * as ui from 'zinc:ui';
-import { createSignal, createMemo } from 'zinc:ui/solid';
+import { createSignal, createEffect } from 'zinc:ui/solid';
 import { Icon } from 'zinc:icons';
 import { openUrl } from 'zinc:system/opener';
 import { library, scrollKey, showPage } from '../../state';
@@ -24,20 +24,25 @@ function dir(): string { return `${backupPlace()}/history`; }
 
 class Found { list: Discovery[] = []; heard: i32 = 0; graph: i32 = 0; away: Ranked[] = []; }
 
-const found = createMemo<Found>(() => {
-  historyVersion();
+const [found, setFound] = createSignal<Found>(new Found());
+let run: i32 = 0;   // a newer history or library replaces the lists being worked out
+
+async function workOut(): Promise<void> {
+  const mine = ++run;
   const lib = library(), f = new Found();
-  if (lib === null || !historyStarted()) return f;
+  if (lib === null || !historyStarted()) { setFound(f); return; }
   const onPod = new Set<string>();
   for (const t of lib.tracks) { if (t.artist !== '') onPod.add(normArtist(t.artist)); if (t.albumArtist !== '') onPod.add(normArtist(t.albumArtist)); }
-  const graph = readArtistGraph(dir());
+  const graph = await readArtistGraph(dir());   // read a slice at a time (services/slice.ts)
+  if (mine !== run) return;
   let heard: Ranked[] = [];
   try { heard = history().topArtists(0, 1e12, 5000); } catch (e) { /* no history yet */ }
   f.list = discoveries(graph, heard, onPod, SHOWN);
   f.heard = heard.length; f.graph = graph.size;
   f.away = unmatchedArtists(HISTORY_SHOWN);
-  return f;
-}, new Found());
+  setFound(f);
+}
+
 
 /** The discovery opened (its key), what Last.fm said of it, or why it could not. */
 const [opened, setOpened] = createSignal<string>('');
@@ -112,6 +117,7 @@ function Note(props: { text: string; button: string; onPress: () => void }): i32
 }
 
 export function DiscoverPage(): i32 {
+  createEffect(() => { historyVersion(); library(); workOut(); });   // while the page shows
   const f = (): Found => found();
   return <ScrollView className="grow" scrollKey={scrollKey('discover')}>
     <View className="flex-col gap-4 px-10 pt-6 pb-10">

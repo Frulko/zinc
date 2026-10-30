@@ -71,7 +71,7 @@ port=$((20000 + ($$ + 57) % 20000))
 python3 tests/data/sonos/stub_speaker.py $port "$tmp/sonos.log" > "$tmp/sonos.out" 2>&1 & speaker=$!
 trap '[ -n "$stub" ] && kill $stub 2>/dev/null && wait $stub 2>/dev/null; [ -n "$app" ] && kill $app 2>/dev/null; kill $speaker 2>/dev/null; wait $speaker 2>/dev/null; rm -rf "$tmp"' EXIT
 for i in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null -X POST "http://127.0.0.1:$port/" && break; sleep 0.3; done
-{ printf '41 move 1110 32\n42 down\n43 up\n600 move 1000 107\n601 down\n602 up\n640 move 60 363\n641 down\n642 up\n680 move 500 212\n681 right-down\n682 right-up\n'
+{ printf '41 move 1110 32\n42 down\n43 up\n600 move 1000 107\n601 down\n602 up\n640 move 60 393\n641 down\n642 up\n680 move 500 212\n681 right-down\n682 right-up\n'
   for f in 800 1050 1300 1550 1800 2050 2300; do printf '%s move 492 32\n%s down\n%s up\n' $f $((f + 1)) $((f + 2)); done
   printf '2600 move 1045 32\n2601 down\n2602 up\n2900 move 957 32\n2901 down\n2902 up\n'; } > "$tmp/radio.input"
 printf '0 dialog-answer radio\n' > "$tmp/radio.script"
@@ -89,7 +89,7 @@ python3 tools/scene-texts "$tmp/radio-scene-3200" | grep -q 'Next from: Radio ·
   { echo "ipod_genius: the radio's frame 3200 shows no radio in the queue: $(python3 tools/scene-texts "$tmp/radio-scene-3200" | head -30 | tr '\n' '|')"; fail=1; }
 # "Path from here…" in the app (no AudioMuse): Songs (41), the first song's menu (81, answered), the search field asks the song it
 # goes to (frame 120), "charlie one song 1" and Enter (141, 161): the draft opens on the Playlists page (frame 200)
-printf '41 move 60 363\n42 down\n43 up\n81 move 500 212\n82 right-down\n83 right-up\n141 text "charlie one song 1"\n161 key Enter\n' > "$tmp/path.input"
+printf '41 move 60 393\n42 down\n43 up\n81 move 500 212\n82 right-down\n83 right-up\n141 text "charlie one song 1"\n161 key Enter\n' > "$tmp/path.input"
 printf '0 dialog-answer path\n' > "$tmp/path.script"
 IPOD_DEMO_MOUNT="$tmp/Volumes/ZINCPOD" ZINC_DETERMINISTIC=1 TZ=UTC ZINC_SCALE=1 ZINC_SIZE=1180x760 ZINC_FRAMES=202 ZINC_SYSTEM_SCRIPT="$tmp/path.script" \
   ZINC_INPUT="$tmp/path.input" ZINC_SHOT="$tmp/path.png" ZINC_SHOT_FRAMES=120,200 ZINC_SCENE_DUMP="$tmp/path-scene" \
