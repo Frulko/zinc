@@ -523,6 +523,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.33: `zinc run <bare-word>` (Z0119) could suggest `example:<word>` when it names a catalogue entry.
 - ZN-774.33: fold duplicate catalogue entries (the same idea in Atelier and in a lesson).
 - ZN-774.34: restamp the "A first mistake" section of the translated guides (fr, es, it, de) with the new error output.
+- Tests: sidecar_stream/sidecar_session left three `zinc run <tmp>/sidecar` orphans (29 h, SIGTERM ignored) that make tour's "still running" check fail; make the sidecar program end on SIGTERM and the tests kill what they start, and scope tour's pgrep to its own folder.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
 
 ## Demos
