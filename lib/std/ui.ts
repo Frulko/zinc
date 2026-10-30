@@ -3485,8 +3485,9 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
         cm = n.row ? csW : csH; cc = n.row ? csH : csW;
       }
       if (autoCrossStart || autoCrossEnd) off = autoCrossStart && autoCrossEnd ? Math.floor((lineCross - cc - marginCross) / 2) : autoCrossStart ? lineCross - cc - marginCross : 0;   // an auto cross margin beats align-items
-      else if (!stretch && alx === 1) off = Math.floor((lineCross - cc - marginCross) / 2);
-      else if (!stretch && alx === 2) off = lineCross - cc - marginCross;
+      // a stretch that max-width (or max-height) cut short is placed as align-self says (w-full max-w-[760] self-center: centred, as in Yoga)
+      else if ((!stretch || cc < lineCross - marginCross) && alx === 1) off = Math.floor((lineCross - cc - marginCross) / 2);
+      else if ((!stretch || cc < lineCross - marginCross) && alx === 2) off = lineCross - cc - marginCross;
       const lead: number = autos > 0 && am !== 0 ? (n.row ? (am & 1) : ((am >> 2) & 1)) * autoShare : 0;
       const trail: number = autos > 0 && am !== 0 ? (n.row ? ((am >> 1) & 1) : ((am >> 3) & 1)) * autoShare : 0;
       // wrap-reverse: the cross axis is mirrored, lines stack from its end and each line's start is its far edge (ZN-380)

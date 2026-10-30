@@ -1,5 +1,6 @@
 // React Native's size constraints in object styles (ZN-359): minWidth, maxWidth, minHeight, maxHeight and aspectRatio, static and dynamic, and a percent
-// width decided at run time (`width: pct(v)`), in classic and in the rn layout mode (run with ZINC_UI_LAYOUT=rn).
+// width decided at run time (`width: pct(v)`), in classic and in the rn layout mode (run with ZINC_UI_LAYOUT=rn). A full width that maxWidth cuts
+// short follows its alignSelf: centred, or at the end (w-full max-w-[760] self-center).
 import { StyleSheet } from 'zinc:ui';
 import * as ui from 'zinc:ui';
 import { pct } from 'zinc:ui';
@@ -19,7 +20,8 @@ const s = StyleSheet.create({
 const [lim, setLim] = createSignal<number>(60);
 const [done, setDone] = createSignal<number>(25);
 const refs: NodeRef[] = [];
-for (let i = 0; i < 8; i++) refs.push(createNodeRef());
+for (let i = 0; i < 10; i++) refs.push(createNodeRef());
+const left = (k: i32): string => { const b = ui.screenBox(refs[k].node); const c = ui.screenBox(refs[0].node); return `${Math.round(b[0] - c[0])}+${Math.round(b[2])}`; };
 const box = (k: i32): string => { const b = ui.screenBox(refs[k].node); return `${Math.round(b[2])}x${Math.round(b[3])}`; };
 
 function App(): i32 {
@@ -32,6 +34,8 @@ function App(): i32 {
     <View ref={refs[5]} style={s.ratioNum} />
     <View ref={refs[6]} style={{ width: 250, maxWidth: lim(), height: 10, minHeight: lim() / 4 }} />
     <View style={s.track}><View ref={refs[7]} style={{ width: pct(done()), height: 8 }} /></View>
+    <View ref={refs[8]} className="w-full max-w-[120] h-[10] self-center" />
+    <View ref={refs[9]} className="w-full max-w-[100] h-[10] self-end" />
   </View>;
 }
 let frames = 0;
@@ -43,6 +47,7 @@ render(App, 0xffffff, (dt: number) => {
     console.log('minHeight 30 over 5: ' + box(2) + ', maxHeight 25 over 90: ' + box(3));
     console.log('aspectRatio 16/9 at 120: ' + box(4) + ', aspectRatio 2 at 100: ' + box(5));
     console.log('dynamic max 60 / min 15: ' + box(6) + ', pct(25) of 200: ' + box(7));
+    console.log('100% under maxWidth 120, centred: ' + left(8) + ', under maxWidth 100, at the end: ' + left(9));
     setLim(140); setDone(80);
   }
   if (frames === 4) console.log('after the change, max 140 / min 35: ' + box(6) + ', pct(80): ' + box(7));

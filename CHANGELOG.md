@@ -220,6 +220,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- zinc:ui: `w-full max-w-[760] self-center` (or `self-end`) now centres the box (or puts it at the end) once max-width makes it narrower than its line, as Yoga does; it stayed at the start.
 - `zinc dev --target web --force` starts a project whose zinc.json "requires" a feature the web lacks; `--force` was ignored there.
 - JSX: `{props.children}` in a component mounts the children it was given, as in React and Solid (`{props.children()}` still works); it used to print nothing useful.
 - `new Map(entries)`, `new Map(otherMap)`, `new Set(items)` and `new Set(otherSet)` make a filled collection, as in TypeScript; arguments to these constructors were refused with Z0005.
