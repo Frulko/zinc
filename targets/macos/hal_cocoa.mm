@@ -36,9 +36,4 @@ extern "C" int hal_sdl_scroll_monitor(void* nswindow, void (*cb)(double age_s, d
   return 1;
 }
 // System Settings > Accessibility > Display > Reduce motion (hal_sdl.cpp signal_theme: the `reducemotion` signal)
-// The program's command-line arguments are not files to open: AppKit hands each one to application:openFile:, which SDL3 turns into a drop
-// (`zinc run examples/discord` dropped "examples/discord" on the app). SDL2 registered this default; SDL3 no longer does. Not persisted.
-extern "C" void hal_sdl_ignore_argv_files(void) {
-  [[NSUserDefaults standardUserDefaults] registerDefaults:@{@"NSTreatUnrecognizedCommandLineArgumentsAsOpen": @NO}];
-}
 extern "C" int hal_sdl_reduce_motion(void) { return NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion ? 1 : 0; }

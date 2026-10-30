@@ -45,7 +45,19 @@ extern "C" __attribute__((weak)) void hal_sdl_window_background(void*, uint32_t)
 // hal_cocoa.mm on macOS: the main window's precise scrolls with their phases (0 here: none, the SDL wheel events are the source) and Reduce motion (-1: unknown)
 extern "C" __attribute__((weak)) int hal_sdl_scroll_monitor(void*, void (*)(double, double, double, uint32_t, uint32_t)) { return 0; }
 extern "C" __attribute__((weak)) int hal_sdl_reduce_motion(void) { return -1; }
-extern "C" __attribute__((weak)) void hal_sdl_ignore_argv_files(void) {}   // hal_cocoa.mm: the arguments are not dropped files
+#ifdef __APPLE__
+#include <crt_externs.h>
+// AppKit hands the program's arguments to application:openFile: at launch, which SDL3 turns into dropped files (`zinc run examples/discord`
+// dropped "examples/discord" on the app). NSTreatUnrecognizedCommandLineArgumentsAsOpen comes too late once a plugin has launched NSApp, so
+// a dropped path that is exactly an argument is not a drop: a real one is absolute.
+static bool is_argument(const char* path) {
+  char** argv = *_NSGetArgv();
+  for (int i = 1, n = *_NSGetArgc(); i < n; i++) if (argv[i] && strcmp(argv[i], path) == 0) return true;
+  return false;
+}
+#else
+static bool is_argument(const char*) { return false; }
+#endif
 static HalWindowConfig wcfg;   // ZN-233 / ZN-249: window properties from zinc.json app.window
 static bool wcfg_set = false;
 extern "C" void hal_set_window_config(const HalWindowConfig* c) { wcfg = *c; wcfg_set = true; }
@@ -494,7 +506,6 @@ void hal_init(const HalConfig* cfg) {
 #endif
   }
   SDL_SetHint(SDL_HINT_IME_IMPLEMENTED_UI, "composition");   // zinc:ui draws the composing text in the field (SDL_EVENT_TEXT_EDITING)
-  hal_sdl_ignore_argv_files();   // before SDL_Init, which finishes the launch and opens the arguments
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   // window size in points: zinc.json targets.<id>.zoom (ZINC_ZOOM overrides); auto only enlarges tiny surfaces
 #ifdef ZINC_ZOOM
@@ -1091,7 +1102,8 @@ void hal_poll_input(HalInput* in) {
     }
     // kiosk: no way out from the keyboard or the window (stop the process or its service instead)
     if (e.type == SDL_EVENT_QUIT && !kiosk && (!close_handler || close_handler())) quit = true;   // a handler may veto (close to tray)
-    if (drop_handler && (e.type == SDL_EVENT_DROP_FILE || e.type == SDL_EVENT_DROP_TEXT) && e.drop.data) drop_handler(e.drop.data, e.type == SDL_EVENT_DROP_TEXT);
+    if (drop_handler && (e.type == SDL_EVENT_DROP_FILE || e.type == SDL_EVENT_DROP_TEXT) && e.drop.data && !(e.type == SDL_EVENT_DROP_FILE && is_argument(e.drop.data)))
+      drop_handler(e.drop.data, e.type == SDL_EVENT_DROP_TEXT);
     // not while a text field has the keyboard: Escape blurs the field first
     if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_ESCAPE && !escape_app && !(win && SDL_TextInputActive(win))) hal_escape();
     if (gfx_on && e.type == SDL_EVENT_KEY_DOWN && !kiosk && !e.key.repeat && (e.key.scancode == SDL_SCANCODE_F11 || (e.key.scancode == SDL_SCANCODE_F && (e.key.mod & SDL_KMOD_GUI) && (e.key.mod & SDL_KMOD_CTRL))))
