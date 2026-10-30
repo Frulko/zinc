@@ -1,0 +1,82 @@
+{
+  "title": {
+    "en": "The keyboard",
+    "fr": "Le clavier",
+    "es": "El teclado",
+    "it": "La tastiera",
+    "de": "Die Tastatur"
+  },
+  "lesson": "learn/03-keyboard",
+  "file": "src/main.ts",
+  "steps": [
+    {
+      "text": {
+        "en": "Move the square to the left while the left arrow is held: if (isDown(Btn.Left)) x -= SPEED * dt;",
+        "fr": "Déplacez le carré vers la gauche tant que la flèche gauche est enfoncée : if (isDown(Btn.Left)) x -= SPEED * dt;",
+        "es": "Mueve el cuadrado a la izquierda mientras se pulsa la flecha izquierda: if (isDown(Btn.Left)) x -= SPEED * dt;",
+        "it": "Sposta il quadrato a sinistra finché la freccia sinistra è premuta: if (isDown(Btn.Left)) x -= SPEED * dt;",
+        "de": "Bewege das Quadrat nach links, solange die linke Pfeiltaste gedrückt ist: if (isDown(Btn.Left)) x -= SPEED * dt;"
+      },
+      "message": {
+        "en": "The left arrow does nothing yet: no isDown(Btn.Left).",
+        "fr": "La flèche gauche ne fait rien : pas de isDown(Btn.Left).",
+        "es": "La flecha izquierda no hace nada: no hay isDown(Btn.Left).",
+        "it": "La freccia sinistra non fa niente: nessun isDown(Btn.Left).",
+        "de": "Die linke Pfeiltaste tut noch nichts: kein isDown(Btn.Left)."
+      },
+      "hint": {
+        "en": "isDown asks whether a key is held now, so it goes inside onFrame: it is asked again every frame.",
+        "fr": "isDown demande si une touche est enfoncée maintenant : il va dans onFrame, demandé à chaque image.",
+        "es": "isDown pregunta si una tecla está pulsada ahora: va dentro de onFrame, se pregunta en cada fotograma.",
+        "it": "isDown chiede se un tasto è premuto ora: va dentro onFrame, chiesto a ogni fotogramma.",
+        "de": "isDown fragt, ob eine Taste jetzt gedrückt ist: es steht in onFrame und wird in jedem Bild gefragt."
+      }
+    },
+    {
+      "text": {
+        "en": "Add the three other arrows: Btn.Right adds to x, Btn.Up takes from y, Btn.Down adds to y.",
+        "fr": "Ajoutez les trois autres flèches : Btn.Right ajoute à x, Btn.Up retire à y, Btn.Down ajoute à y.",
+        "es": "Añade las otras tres flechas: Btn.Right suma a x, Btn.Up resta a y, Btn.Down suma a y.",
+        "it": "Aggiungi le altre tre frecce: Btn.Right aggiunge a x, Btn.Up toglie a y, Btn.Down aggiunge a y.",
+        "de": "Füge die drei anderen Pfeile hinzu: Btn.Right addiert zu x, Btn.Up zieht von y ab, Btn.Down addiert zu y."
+      },
+      "message": {
+        "en": "Some arrows do nothing yet: Btn.Right, Btn.Up and Btn.Down are all needed.",
+        "fr": "Certaines flèches ne font rien : il faut Btn.Right, Btn.Up et Btn.Down.",
+        "es": "Algunas flechas no hacen nada: hacen falta Btn.Right, Btn.Up y Btn.Down.",
+        "it": "Alcune frecce non fanno niente: servono Btn.Right, Btn.Up e Btn.Down.",
+        "de": "Einige Pfeile tun noch nichts: Btn.Right, Btn.Up und Btn.Down werden gebraucht."
+      },
+      "hint": {
+        "en": "y counts down from the top of the window: up is a smaller y.",
+        "fr": "y compte vers le bas depuis le haut de la fenêtre : monter, c'est un y plus petit.",
+        "es": "y cuenta hacia abajo desde arriba de la ventana: subir es una y más pequeña.",
+        "it": "y conta verso il basso dall'alto della finestra: salire è una y più piccola.",
+        "de": "y zählt vom oberen Fensterrand nach unten: nach oben ist ein kleineres y."
+      }
+    },
+    {
+      "text": {
+        "en": "Change the colour of the square when A (the Z key or Space) is pressed: wasPressed(Btn.A).",
+        "fr": "Changez la couleur du carré quand A (la touche Z ou Espace) est pressé : wasPressed(Btn.A).",
+        "es": "Cambia el color del cuadrado cuando se pulse A (la tecla Z o Espacio): wasPressed(Btn.A).",
+        "it": "Cambia il colore del quadrato quando si preme A (il tasto Z o Spazio): wasPressed(Btn.A).",
+        "de": "Ändere die Farbe des Quadrats, wenn A (die Taste Z oder Leertaste) gedrückt wird: wasPressed(Btn.A)."
+      },
+      "message": {
+        "en": "A does nothing yet: no wasPressed(Btn.A).",
+        "fr": "A ne fait rien : pas de wasPressed(Btn.A).",
+        "es": "A no hace nada: no hay wasPressed(Btn.A).",
+        "it": "A non fa niente: nessun wasPressed(Btn.A).",
+        "de": "A tut noch nichts: kein wasPressed(Btn.A)."
+      },
+      "hint": {
+        "en": "wasPressed is true for one frame only, when the key goes down: if (wasPressed(Btn.A)) color = color === 0xe8b06a ? 0x5bc0eb : 0xe8b06a;",
+        "fr": "wasPressed n'est vrai qu'une image, quand la touche descend : if (wasPressed(Btn.A)) color = color === 0xe8b06a ? 0x5bc0eb : 0xe8b06a;",
+        "es": "wasPressed es verdadero un solo fotograma, cuando baja la tecla: if (wasPressed(Btn.A)) color = color === 0xe8b06a ? 0x5bc0eb : 0xe8b06a;",
+        "it": "wasPressed è vero per un solo fotogramma, quando il tasto scende: if (wasPressed(Btn.A)) color = color === 0xe8b06a ? 0x5bc0eb : 0xe8b06a;",
+        "de": "wasPressed ist nur ein Bild lang wahr, wenn die Taste nach unten geht: if (wasPressed(Btn.A)) color = color === 0xe8b06a ? 0x5bc0eb : 0xe8b06a;"
+      }
+    }
+  ]
+}

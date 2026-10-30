@@ -1,0 +1,5 @@
+{
+  "name": "keyboard",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.learn.keyboard", "window": { "width": 640, "height": 400 } }
+}

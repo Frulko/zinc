@@ -8,11 +8,11 @@
 // `<frame> <command id>`, `<frame> example:<folder>` or `<frame> quit` per line, run at that frame as the menu item would be;
 // for the devices panel `<frame> pair:<name or address> <code>` fills its form and pairs, `<frame> device:<name>` is a press on
 // that device, `<frame> clipboard` prints what the clipboard holds, `<frame> lang:<code>` switches the language, `<frame> template:<name> <folder>`
-// makes a project from a template, `<frame> new:<style>` a new sketch in that style (drawing, scene, canvas, interface), `<frame> explain` clicks the first error code of the console (`<frame> reference` then its Reference button), `<frame> tour:next|back|skip|fix` press
+// makes a project from a template, `<frame> new:<style>` a new sketch in that style (drawing, scene, canvas, interface), `<frame> lesson:<id>` opens a lesson beside the sketch and `<frame> lesson-check|lesson-hint|lesson-solve` press its buttons, `<frame> explain` clicks the first error code of the console (`<frame> reference` then its Reference button), `<frame> tour:next|back|skip|fix` press
 // that button of the tour's card, `<frame> tour:lang:<code>` a language of its first card and `<frame> tour:step` prints the step and its box;
 // ZINC_ATELIER_TOUR=1 lets a test's sketchbook have the first-launch tour, `<frame> permission:<id>` allows or removes a permission of the project, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
 // ZINC_ATELIER_BROWSE=ms (how long the list of devices waits for the network; 0: the paired ones only).
-import { render } from 'zinc:ui/solid';
+import { render, createEffect } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
@@ -21,7 +21,7 @@ import * as menu from 'zinc:system/menu';
 import { quit, clipboardText } from 'zinc:gfx';
 import { stepMotion } from './app/motion';
 import { theme, bg, setTheme, DARK } from './app/theme';
-import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile, newSketch } from './app/workspace';
+import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile, newSketch, sketchDir, saveAll } from './app/workspace';
 import { findOpen, closeFind } from './app/search';
 import { COMMANDS, MENUS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer } from './app/commands';
 import { check, stepTools, setJump, stopAll, consoleText, status, newProject } from './app/tools';
@@ -31,6 +31,8 @@ import { stepLsp, setGo, stopLsp } from './app/lsp';
 import { Header, EngineMenu, engineOpen, setEngineOpen } from './components/Header';
 import { EditorCard, stepEditor } from './components/Editor';
 import { ConsoleCard, stepConsole, explainFirst } from './components/Console';
+import { LessonPanel } from './components/Lesson';
+import { lesson, lessonList, LessonEntry, loadLessons, openLesson, sketchOpened, checkLesson, solveStep, setHintOpen, hintOpen, lessonText } from './app/lesson';
 import { openReference } from './app/commands';
 import { StartView, EXAMPLES, Example, openExample } from './components/Start';
 import { Palette } from './components/Palette';
@@ -44,10 +46,13 @@ import { t, LANGUAGES, languageName, lang, setLanguage, setOnLanguage } from './
 function App(): i32 {
   return <View className={`flex-col h-full ${bg(theme().chrome)}`}>
     <Header />
-    <View className="grow flex-col px-2.5 pb-2.5 gap-2">
-      <EditorCard />
-      <ConsoleCard />
-      <StartView />
+    <View className="grow flex-row px-2.5 pb-2.5 gap-2">
+      <View className="grow flex-col gap-2">
+        <EditorCard />
+        <ConsoleCard />
+        <StartView />
+      </View>
+      {lesson() !== null && <LessonPanel />}
     </View>
     <EngineMenu />
     <DevicesPanel />
@@ -73,6 +78,7 @@ function buildMenu(): void {
       if (c.menu !== name) continue;
       if (c.sep) items.push(menu.separator());
       items.push(menu.item(c.id, c.name(), c.keys));
+      if (c.id === 'help-learn' && lessonList().length > 0) items.push(menu.submenu(t('atelier.menu.lessons'), lessonList().map((l: LessonEntry) => menu.item('lesson:' + l.id, l.title))));
       if (c.id === 'examples') items.push(menu.submenu(t('atelier.menu.open_example'), EXAMPLES.map((e: Example) => menu.item('example:' + e.dir, e.name()))));
       if (c.id === 'redo') {
         items.push(menu.separator());
@@ -132,7 +138,9 @@ function leave(): void { stopAll(); stopLsp(); }
 menu.onClick('role:quit', (source: string) => { leave(); system.quit(); });
 system.on('window', (a: string[]) => { if (a.length > 0 && a[0] === 'close-requested') leave(); });
 
-setHooks((b: Buffer) => {}, (b: Buffer) => check());
+setHooks((b: Buffer) => {}, (b: Buffer) => { check(); checkLesson(); });
+createEffect(() => sketchOpened(sketchDir()));   // a lesson's folder opens with its panel
+loadLessons(() => { buildMenu(); for (const l of lessonList()) menu.onClick('lesson:' + l.id, (source: string) => openLesson(l.id)); });
 setJump(jumpTo);
 setGo((path: string, line: i32, col: i32) => { const b = openFile(path); if (b !== null) jumpTo(b as Buffer, line, col); });
 installMenu();
@@ -155,7 +163,7 @@ if (sys.env('ZINC_ATELIER_SCRIPT') !== '') {
   }
 }
 let frame: i32 = 0;
-function says(text: string): boolean { return consoleText().indexOf(text) >= 0 || status().indexOf(text) >= 0 || panelText().indexOf(text) >= 0 || projectText().indexOf(text) >= 0; }
+function says(text: string): boolean { return consoleText().indexOf(text) >= 0 || lessonText().indexOf(text) >= 0 || status().indexOf(text) >= 0 || panelText().indexOf(text) >= 0 || projectText().indexOf(text) >= 0; }
 function stepScript(): void {
   frame++;
   for (let i = 0; i < scriptAt.length; i++) {
@@ -167,6 +175,10 @@ function stepScript(): void {
     else if (id.startsWith('new:')) { setStartOpen(false); newSketch(id.slice(4)); }   // a card of New sketch
     else if (id.startsWith('template:')) { const w = id.slice(9).split(' '); newProject(w[0], w.length > 1 ? w[1] : w[0]); }   // a template of the palette, named
     else if (id === 'explain') explainFirst();   // a click on the first error code of the console
+    else if (id.startsWith('lesson:')) openLesson(id.slice(7));   // Help > Lessons > a lesson
+    else if (id === 'lesson-check') { saveAll(); checkLesson(); }   // the panel's buttons
+    else if (id === 'lesson-hint') { setHintOpen(!hintOpen()); console.log('[lesson] hint ' + (hintOpen() ? 'shown' : 'hidden')); }
+    else if (id === 'lesson-solve') solveStep();
     else if (id === 'reference') openReference();   // the console's Reference button, after an explain
     else if (id === 'tour:next') nextStep();
     else if (id === 'tour:back') backStep();

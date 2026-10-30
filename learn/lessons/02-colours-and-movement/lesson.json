@@ -1,0 +1,82 @@
+{
+  "title": {
+    "en": "Colours and movement",
+    "fr": "Couleurs et mouvement",
+    "es": "Colores y movimiento",
+    "it": "Colori e movimento",
+    "de": "Farben und Bewegung"
+  },
+  "lesson": "learn/02-colours-and-movement",
+  "file": "src/main.ts",
+  "steps": [
+    {
+      "text": {
+        "en": "The ball stands still. Make it move: in onFrame, add SPEED * dt to x (x += SPEED * dt;).",
+        "fr": "La balle est immobile. Faites-la bouger : dans onFrame, ajoutez SPEED * dt à x (x += SPEED * dt;).",
+        "es": "La pelota está quieta. Hazla moverse: en onFrame, suma SPEED * dt a x (x += SPEED * dt;).",
+        "it": "La palla è ferma. Falla muovere: in onFrame aggiungi SPEED * dt a x (x += SPEED * dt;).",
+        "de": "Der Ball steht still. Bewege ihn: addiere in onFrame SPEED * dt zu x (x += SPEED * dt;)."
+      },
+      "message": {
+        "en": "The ball does not move yet: x never grows by SPEED * dt.",
+        "fr": "La balle ne bouge pas encore : x n'augmente jamais de SPEED * dt.",
+        "es": "La pelota aún no se mueve: x nunca crece en SPEED * dt.",
+        "it": "La palla non si muove ancora: x non cresce mai di SPEED * dt.",
+        "de": "Der Ball bewegt sich noch nicht: x wächst nie um SPEED * dt."
+      },
+      "hint": {
+        "en": "dt is the time since the last frame, in seconds: SPEED * dt pixels per frame is SPEED pixels per second on every machine.",
+        "fr": "dt est le temps depuis la dernière image, en secondes : SPEED * dt pixels par image font SPEED pixels par seconde sur toute machine.",
+        "es": "dt es el tiempo desde el último fotograma, en segundos: SPEED * dt píxeles por fotograma son SPEED píxeles por segundo en cualquier máquina.",
+        "it": "dt è il tempo dall'ultimo fotogramma, in secondi: SPEED * dt pixel per fotogramma fanno SPEED pixel al secondo su ogni macchina.",
+        "de": "dt ist die Zeit seit dem letzten Bild in Sekunden: SPEED * dt Pixel pro Bild sind SPEED Pixel pro Sekunde auf jedem Rechner."
+      }
+    },
+    {
+      "text": {
+        "en": "The ball leaves the window for ever. Bring it back: when x is greater than width(), set x to -SIZE.",
+        "fr": "La balle sort de la fenêtre pour toujours. Ramenez-la : quand x dépasse width(), donnez à x la valeur -SIZE.",
+        "es": "La pelota sale de la ventana para siempre. Haz que vuelva: cuando x sea mayor que width(), pon x a -SIZE.",
+        "it": "La palla esce dalla finestra per sempre. Riportala: quando x supera width(), metti x a -SIZE.",
+        "de": "Der Ball verlässt das Fenster für immer. Hol ihn zurück: wenn x größer als width() ist, setze x auf -SIZE."
+      },
+      "message": {
+        "en": "The ball never comes back: no if (x > width()) yet.",
+        "fr": "La balle ne revient jamais : pas encore de if (x > width()).",
+        "es": "La pelota nunca vuelve: todavía no hay if (x > width()).",
+        "it": "La palla non torna mai: ancora nessun if (x > width()).",
+        "de": "Der Ball kommt nie zurück: noch kein if (x > width())."
+      },
+      "hint": {
+        "en": "if (x > width()) x = -SIZE; after the line that moves it. Import width from zinc:gfx.",
+        "fr": "if (x > width()) x = -SIZE; après la ligne qui la déplace. Importez width depuis zinc:gfx.",
+        "es": "if (x > width()) x = -SIZE; después de la línea que la mueve. Importa width desde zinc:gfx.",
+        "it": "if (x > width()) x = -SIZE; dopo la riga che la sposta. Importa width da zinc:gfx.",
+        "de": "if (x > width()) x = -SIZE; nach der Zeile, die ihn bewegt. Importiere width aus zinc:gfx."
+      }
+    },
+    {
+      "text": {
+        "en": "Make the background glow: count the time (let time = 0; time += dt;) and give clear a colour made from Math.sin(time).",
+        "fr": "Faites briller le fond : comptez le temps (let time = 0; time += dt;) et donnez à clear une couleur faite de Math.sin(time).",
+        "es": "Haz que el fondo brille: cuenta el tiempo (let time = 0; time += dt;) y da a clear un color hecho con Math.sin(time).",
+        "it": "Fai brillare lo sfondo: conta il tempo (let time = 0; time += dt;) e dai a clear un colore fatto con Math.sin(time).",
+        "de": "Lass den Hintergrund leuchten: zähle die Zeit (let time = 0; time += dt;) und gib clear eine Farbe aus Math.sin(time)."
+      },
+      "message": {
+        "en": "The background does not change yet: no time += dt and Math.sin.",
+        "fr": "Le fond ne change pas encore : pas de time += dt ni de Math.sin.",
+        "es": "El fondo aún no cambia: no hay time += dt ni Math.sin.",
+        "it": "Lo sfondo non cambia ancora: niente time += dt e Math.sin.",
+        "de": "Der Hintergrund ändert sich noch nicht: kein time += dt und Math.sin."
+      },
+      "hint": {
+        "en": "(Math.sin(time * 2) + 1) / 2 goes from 0 to 1 and back; 40 + 60 * glow is a blue between 40 and 100.",
+        "fr": "(Math.sin(time * 2) + 1) / 2 va de 0 à 1 et revient ; 40 + 60 * glow est un bleu entre 40 et 100.",
+        "es": "(Math.sin(time * 2) + 1) / 2 va de 0 a 1 y vuelve; 40 + 60 * glow es un azul entre 40 y 100.",
+        "it": "(Math.sin(time * 2) + 1) / 2 va da 0 a 1 e ritorna; 40 + 60 * glow è un blu tra 40 e 100.",
+        "de": "(Math.sin(time * 2) + 1) / 2 geht von 0 bis 1 und zurück; 40 + 60 * glow ist ein Blau zwischen 40 und 100."
+      }
+    }
+  ]
+}

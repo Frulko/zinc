@@ -1,0 +1,82 @@
+{
+  "title": {
+    "en": "The mouse and touch",
+    "fr": "La souris et le toucher",
+    "es": "El ratón y el tacto",
+    "it": "Il mouse e il tocco",
+    "de": "Maus und Berührung"
+  },
+  "lesson": "learn/04-mouse-and-touch",
+  "file": "src/main.ts",
+  "steps": [
+    {
+      "text": {
+        "en": "Draw a dot under the pointer: rrect at pointerX() and pointerY(), brush pixels wide.",
+        "fr": "Dessinez un point sous le pointeur : rrect à pointerX() et pointerY(), de brush pixels de large.",
+        "es": "Dibuja un punto bajo el puntero: rrect en pointerX() y pointerY(), de brush píxeles de ancho.",
+        "it": "Disegna un punto sotto il puntatore: rrect in pointerX() e pointerY(), largo brush pixel.",
+        "de": "Zeichne einen Punkt unter den Zeiger: rrect bei pointerX() und pointerY(), brush Pixel breit."
+      },
+      "message": {
+        "en": "No dot follows the pointer: rrect with pointerX() and pointerY() is missing.",
+        "fr": "Aucun point ne suit le pointeur : il manque rrect avec pointerX() et pointerY().",
+        "es": "Ningún punto sigue al puntero: falta rrect con pointerX() y pointerY().",
+        "it": "Nessun punto segue il puntatore: manca rrect con pointerX() e pointerY().",
+        "de": "Kein Punkt folgt dem Zeiger: rrect mit pointerX() und pointerY() fehlt."
+      },
+      "hint": {
+        "en": "Take half the brush off x and y so that the dot's centre is under the pointer: rrect(pointerX() - brush / 2, pointerY() - brush / 2, brush, brush, brush / 2, 0x5746e0, 255);",
+        "fr": "Retirez la moitié du pinceau à x et y pour centrer le point sous le pointeur : rrect(pointerX() - brush / 2, pointerY() - brush / 2, brush, brush, brush / 2, 0x5746e0, 255);",
+        "es": "Resta la mitad del pincel a x e y para centrar el punto bajo el puntero: rrect(pointerX() - brush / 2, pointerY() - brush / 2, brush, brush, brush / 2, 0x5746e0, 255);",
+        "it": "Togli metà pennello da x e y per centrare il punto sotto il puntatore: rrect(pointerX() - brush / 2, pointerY() - brush / 2, brush, brush, brush / 2, 0x5746e0, 255);",
+        "de": "Ziehe den halben Pinsel von x und y ab, damit die Mitte des Punkts unter dem Zeiger liegt: rrect(pointerX() - brush / 2, pointerY() - brush / 2, brush, brush, brush / 2, 0x5746e0, 255);"
+      }
+    },
+    {
+      "text": {
+        "en": "Show the dot only while the button (or a finger) is down: put if (pointerDown()) in front of the rrect.",
+        "fr": "N'affichez le point que si le bouton (ou un doigt) est appuyé : mettez if (pointerDown()) devant le rrect.",
+        "es": "Muestra el punto solo mientras el botón (o un dedo) está pulsado: pon if (pointerDown()) delante del rrect.",
+        "it": "Mostra il punto solo mentre il pulsante (o un dito) è premuto: metti if (pointerDown()) davanti al rrect.",
+        "de": "Zeige den Punkt nur, solange die Taste (oder ein Finger) gedrückt ist: setze if (pointerDown()) vor das rrect."
+      },
+      "message": {
+        "en": "The dot shows even with the button up: pointerDown() is not used.",
+        "fr": "Le point s'affiche même bouton relâché : pointerDown() n'est pas utilisé.",
+        "es": "El punto aparece aunque el botón esté suelto: no se usa pointerDown().",
+        "it": "Il punto appare anche a pulsante rilasciato: pointerDown() non è usato.",
+        "de": "Der Punkt erscheint auch ohne gedrückte Taste: pointerDown() wird nicht benutzt."
+      },
+      "hint": {
+        "en": "pointerDown() is true while the left button or a finger presses; a touch screen and a mouse give the same answers.",
+        "fr": "pointerDown() est vrai tant que le bouton gauche ou un doigt appuie ; un écran tactile et une souris répondent pareil.",
+        "es": "pointerDown() es verdadero mientras el botón izquierdo o un dedo presiona; una pantalla táctil y un ratón responden igual.",
+        "it": "pointerDown() è vero finché il pulsante sinistro o un dito preme; touch e mouse rispondono allo stesso modo.",
+        "de": "pointerDown() ist wahr, solange die linke Taste oder ein Finger drückt; Touchscreen und Maus antworten gleich."
+      }
+    },
+    {
+      "text": {
+        "en": "Let the mouse wheel change the size of the brush, between 2 and 40.",
+        "fr": "Faites changer la taille du pinceau par la molette, entre 2 et 40.",
+        "es": "Haz que la rueda del ratón cambie el tamaño del pincel, entre 2 y 40.",
+        "it": "Fai cambiare la dimensione del pennello con la rotella, tra 2 e 40.",
+        "de": "Lass das Mausrad die Pinselgröße ändern, zwischen 2 und 40."
+      },
+      "message": {
+        "en": "The wheel does nothing yet: wheel() is not read.",
+        "fr": "La molette ne fait rien : wheel() n'est pas lu.",
+        "es": "La rueda no hace nada: no se lee wheel().",
+        "it": "La rotella non fa niente: wheel() non viene letto.",
+        "de": "Das Mausrad tut noch nichts: wheel() wird nicht gelesen."
+      },
+      "hint": {
+        "en": "wheel() is the turn of this frame (0 when still): brush = Math.max(2, Math.min(40, brush + wheel() * 2));",
+        "fr": "wheel() est le tour de cette image (0 à l'arrêt) : brush = Math.max(2, Math.min(40, brush + wheel() * 2));",
+        "es": "wheel() es el giro de este fotograma (0 si está quieta): brush = Math.max(2, Math.min(40, brush + wheel() * 2));",
+        "it": "wheel() è la rotazione di questo fotogramma (0 se ferma): brush = Math.max(2, Math.min(40, brush + wheel() * 2));",
+        "de": "wheel() ist die Drehung dieses Bildes (0 in Ruhe): brush = Math.max(2, Math.min(40, brush + wheel() * 2));"
+      }
+    }
+  ]
+}

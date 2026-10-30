@@ -74,6 +74,7 @@ def payload(share):
     copy_tree(os.path.join(REPO, "lib", "std"), os.path.join(share, "lib", "std"))
     copy_tree(os.path.join(REPO, "lib", "fonts"), os.path.join(share, "lib", "fonts"))
     copy_tree(os.path.join(REPO, "templates"), os.path.join(share, "templates"))   # zinc new (ZN-315)
+    copy_tree(os.path.join(REPO, "learn", "lessons"), os.path.join(share, "learn", "lessons"))   # zinc learn and Atelier's lesson panel, offline (ZN-774.26)
     copy_tree(os.path.join(REPO, "i18n"), os.path.join(share, "i18n"), lambda r: r.endswith(".json"))   # the CLI and Atelier messages in fr, es, it, de, read by zinc:i18n too (D159; English is in the binary): install.sh and Homebrew unpack this archive
     # Signed Pi updates carry the display session and agent unit with their engine.
     for source, name in (("usr/lib/zinc/zinc-session", "zinc-session"), ("etc/systemd/system/zinc-agent.service", "zinc-agent.service"),

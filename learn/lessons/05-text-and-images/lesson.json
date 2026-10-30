@@ -1,0 +1,82 @@
+{
+  "title": {
+    "en": "Text and images",
+    "fr": "Texte et images",
+    "es": "Texto e imágenes",
+    "it": "Testo e immagini",
+    "de": "Text und Bilder"
+  },
+  "lesson": "learn/05-text-and-images",
+  "file": "src/main.ts",
+  "steps": [
+    {
+      "text": {
+        "en": "Write the title 'Hello, space' at 40, 40 with drawText and the font title.",
+        "fr": "Écrivez le titre 'Hello, space' en 40, 40 avec drawText et la police title.",
+        "es": "Escribe el título 'Hello, space' en 40, 40 con drawText y la fuente title.",
+        "it": "Scrivi il titolo 'Hello, space' in 40, 40 con drawText e il font title.",
+        "de": "Schreibe den Titel 'Hello, space' bei 40, 40 mit drawText und der Schrift title."
+      },
+      "message": {
+        "en": "No text yet: the program does not call drawText.",
+        "fr": "Pas encore de texte : le programme n'appelle pas drawText.",
+        "es": "Todavía no hay texto: el programa no llama a drawText.",
+        "it": "Ancora nessun testo: il programma non chiama drawText.",
+        "de": "Noch kein Text: das Programm ruft drawText nicht auf."
+      },
+      "hint": {
+        "en": "drawText(font, x, y, text, colour, opacity, 0): drawText(title, 40, 40, 'Hello, space', 0xeceaf0, 255, 0);",
+        "fr": "drawText(police, x, y, texte, couleur, opacité, 0) : drawText(title, 40, 40, 'Hello, space', 0xeceaf0, 255, 0);",
+        "es": "drawText(fuente, x, y, texto, color, opacidad, 0): drawText(title, 40, 40, 'Hello, space', 0xeceaf0, 255, 0);",
+        "it": "drawText(font, x, y, testo, colore, opacità, 0): drawText(title, 40, 40, 'Hello, space', 0xeceaf0, 255, 0);",
+        "de": "drawText(Schrift, x, y, Text, Farbe, Deckkraft, 0): drawText(title, 40, 40, 'Hello, space', 0xeceaf0, 255, 0);"
+      }
+    },
+    {
+      "text": {
+        "en": "Centre the title: measure it with textWidth, then start it at (width() - w) / 2.",
+        "fr": "Centrez le titre : mesurez-le avec textWidth, puis commencez-le à (width() - w) / 2.",
+        "es": "Centra el título: mídelo con textWidth y empiézalo en (width() - w) / 2.",
+        "it": "Centra il titolo: misuralo con textWidth, poi fallo iniziare a (width() - w) / 2.",
+        "de": "Zentriere den Titel: miss ihn mit textWidth und beginne ihn bei (width() - w) / 2."
+      },
+      "message": {
+        "en": "The title is not measured: textWidth is not called.",
+        "fr": "Le titre n'est pas mesuré : textWidth n'est pas appelé.",
+        "es": "El título no se mide: no se llama a textWidth.",
+        "it": "Il titolo non è misurato: textWidth non viene chiamato.",
+        "de": "Der Titel wird nicht gemessen: textWidth wird nicht aufgerufen."
+      },
+      "hint": {
+        "en": "const w = textWidth(title, 'Hello, space', 0); is its width in pixels; half of what is left on each side centres it.",
+        "fr": "const w = textWidth(title, 'Hello, space', 0); est sa largeur en pixels ; la moitié du reste de chaque côté le centre.",
+        "es": "const w = textWidth(title, 'Hello, space', 0); es su ancho en píxeles; la mitad de lo que queda a cada lado lo centra.",
+        "it": "const w = textWidth(title, 'Hello, space', 0); è la sua larghezza in pixel; metà dello spazio restante per lato lo centra.",
+        "de": "const w = textWidth(title, 'Hello, space', 0); ist seine Breite in Pixeln; die Hälfte des Rests auf jeder Seite zentriert ihn."
+      }
+    },
+    {
+      "text": {
+        "en": "Load the picture assets/rocket.svg with image('rocket.svg') and draw it in the middle with drawImage, at twice its size.",
+        "fr": "Chargez l'image assets/rocket.svg avec image('rocket.svg') et dessinez-la au milieu avec drawImage, deux fois plus grande.",
+        "es": "Carga la imagen assets/rocket.svg con image('rocket.svg') y dibújala en el centro con drawImage, al doble de tamaño.",
+        "it": "Carica l'immagine assets/rocket.svg con image('rocket.svg') e disegnala al centro con drawImage, grande il doppio.",
+        "de": "Lade das Bild assets/rocket.svg mit image('rocket.svg') und zeichne es mit drawImage doppelt so groß in die Mitte."
+      },
+      "message": {
+        "en": "No rocket yet: image('rocket.svg') and drawImage are both needed.",
+        "fr": "Pas encore de fusée : il faut image('rocket.svg') et drawImage.",
+        "es": "Todavía no hay cohete: hacen falta image('rocket.svg') y drawImage.",
+        "it": "Ancora nessun razzo: servono image('rocket.svg') e drawImage.",
+        "de": "Noch keine Rakete: image('rocket.svg') und drawImage werden gebraucht."
+      },
+      "hint": {
+        "en": "Load it once, outside onFrame: const rocket = image('rocket.svg'); then drawImage(rocket, x, y, size, size, 255, 0) in the frame.",
+        "fr": "Chargez-la une fois, hors de onFrame : const rocket = image('rocket.svg'); puis drawImage(rocket, x, y, size, size, 255, 0) dans l'image.",
+        "es": "Cárgala una vez, fuera de onFrame: const rocket = image('rocket.svg'); luego drawImage(rocket, x, y, size, size, 255, 0) en el fotograma.",
+        "it": "Caricala una volta, fuori da onFrame: const rocket = image('rocket.svg'); poi drawImage(rocket, x, y, size, size, 255, 0) nel fotogramma.",
+        "de": "Lade es einmal, außerhalb von onFrame: const rocket = image('rocket.svg'); dann drawImage(rocket, x, y, size, size, 255, 0) im Bild."
+      }
+    }
+  ]
+}

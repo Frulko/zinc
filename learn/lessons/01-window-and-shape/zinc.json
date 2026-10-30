@@ -1,0 +1,5 @@
+{
+  "name": "window-and-shape",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.learn.shape", "window": { "width": 640, "height": 400 } }
+}

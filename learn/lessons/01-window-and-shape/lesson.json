@@ -1,0 +1,82 @@
+{
+  "title": {
+    "en": "A window and a shape",
+    "fr": "Une fenêtre et une forme",
+    "es": "Una ventana y una forma",
+    "it": "Una finestra e una forma",
+    "de": "Ein Fenster und eine Form"
+  },
+  "lesson": "learn/01-window-and-shape",
+  "file": "src/main.ts",
+  "steps": [
+    {
+      "text": {
+        "en": "The window is empty: draw a purple rectangle. Add rect(40, 40, 160, 100, 0x5746e0) after clear, and add rect to the import line.",
+        "fr": "La fenêtre est vide : dessinez un rectangle violet. Ajoutez rect(40, 40, 160, 100, 0x5746e0) après clear, et ajoutez rect à la ligne d'import.",
+        "es": "La ventana está vacía: dibuja un rectángulo morado. Añade rect(40, 40, 160, 100, 0x5746e0) después de clear y añade rect a la línea de import.",
+        "it": "La finestra è vuota: disegna un rettangolo viola. Aggiungi rect(40, 40, 160, 100, 0x5746e0) dopo clear e aggiungi rect alla riga di import.",
+        "de": "Das Fenster ist leer: zeichne ein violettes Rechteck. Füge rect(40, 40, 160, 100, 0x5746e0) nach clear hinzu und rect zur Import-Zeile."
+      },
+      "message": {
+        "en": "No rectangle yet: the program does not call rect().",
+        "fr": "Pas encore de rectangle : le programme n'appelle pas rect().",
+        "es": "Todavía no hay rectángulo: el programa no llama a rect().",
+        "it": "Ancora nessun rettangolo: il programma non chiama rect().",
+        "de": "Noch kein Rechteck: das Programm ruft rect() nicht auf."
+      },
+      "hint": {
+        "en": "The numbers of rect are x, y, width, height and the colour. What is drawn later covers what was drawn before, so rect comes after clear.",
+        "fr": "Les nombres de rect sont x, y, largeur, hauteur et la couleur. Ce qui est dessiné après recouvre ce qui l'a été avant : rect vient après clear.",
+        "es": "Los números de rect son x, y, ancho, alto y el color. Lo que se dibuja después tapa lo anterior, así que rect va después de clear.",
+        "it": "I numeri di rect sono x, y, larghezza, altezza e il colore. Ciò che si disegna dopo copre ciò che c'era prima: rect va dopo clear.",
+        "de": "Die Zahlen von rect sind x, y, Breite, Höhe und die Farbe. Was später gezeichnet wird, verdeckt das Frühere: rect kommt nach clear."
+      }
+    },
+    {
+      "text": {
+        "en": "Add a pink circle in the middle with rrect: a square of 120 whose corners have a radius of 60 (half its size) is a circle.",
+        "fr": "Ajoutez un cercle rose au milieu avec rrect : un carré de 120 dont les coins ont un rayon de 60 (la moitié) est un cercle.",
+        "es": "Añade un círculo rosa en el centro con rrect: un cuadrado de 120 con esquinas de radio 60 (la mitad) es un círculo.",
+        "it": "Aggiungi un cerchio rosa al centro con rrect: un quadrato di 120 con angoli di raggio 60 (la metà) è un cerchio.",
+        "de": "Füge mit rrect einen rosa Kreis in der Mitte hinzu: ein Quadrat von 120 mit Ecken vom Radius 60 (der Hälfte) ist ein Kreis."
+      },
+      "message": {
+        "en": "No circle yet: the program does not call rrect().",
+        "fr": "Pas encore de cercle : le programme n'appelle pas rrect().",
+        "es": "Todavía no hay círculo: el programa no llama a rrect().",
+        "it": "Ancora nessun cerchio: il programma non chiama rrect().",
+        "de": "Noch kein Kreis: das Programm ruft rrect() nicht auf."
+      },
+      "hint": {
+        "en": "rrect(x, y, width, height, radius, colour, opacity). width() / 2 - 60 puts a circle of 120 in the middle; import rrect, width and height.",
+        "fr": "rrect(x, y, largeur, hauteur, rayon, couleur, opacité). width() / 2 - 60 centre un cercle de 120 ; importez rrect, width et height.",
+        "es": "rrect(x, y, ancho, alto, radio, color, opacidad). width() / 2 - 60 centra un círculo de 120; importa rrect, width y height.",
+        "it": "rrect(x, y, larghezza, altezza, raggio, colore, opacità). width() / 2 - 60 centra un cerchio di 120; importa rrect, width e height.",
+        "de": "rrect(x, y, Breite, Höhe, Radius, Farbe, Deckkraft). width() / 2 - 60 zentriert einen Kreis von 120; importiere rrect, width und height."
+      }
+    },
+    {
+      "text": {
+        "en": "Print the size of the window once, before onFrame: console.log with width() and height().",
+        "fr": "Affichez une fois la taille de la fenêtre, avant onFrame : console.log avec width() et height().",
+        "es": "Muestra una vez el tamaño de la ventana, antes de onFrame: console.log con width() y height().",
+        "it": "Stampa una volta la dimensione della finestra, prima di onFrame: console.log con width() e height().",
+        "de": "Gib die Größe des Fensters einmal vor onFrame aus: console.log mit width() und height()."
+      },
+      "message": {
+        "en": "Nothing printed yet: call console.log with width() and height().",
+        "fr": "Rien n'est affiché : appelez console.log avec width() et height().",
+        "es": "Todavía no se muestra nada: llama a console.log con width() y height().",
+        "it": "Ancora niente di stampato: chiama console.log con width() e height().",
+        "de": "Noch keine Ausgabe: rufe console.log mit width() und height() auf."
+      },
+      "hint": {
+        "en": "Between backquotes, ${width()} is replaced by its value: console.log(`The window is ${width()} by ${height()} pixels.`);",
+        "fr": "Entre accents graves, ${width()} est remplacé par sa valeur : console.log(`The window is ${width()} by ${height()} pixels.`);",
+        "es": "Entre comillas invertidas, ${width()} se sustituye por su valor: console.log(`The window is ${width()} by ${height()} pixels.`);",
+        "it": "Tra apici inversi, ${width()} viene sostituito dal suo valore: console.log(`The window is ${width()} by ${height()} pixels.`);",
+        "de": "Zwischen Backticks wird ${width()} durch seinen Wert ersetzt: console.log(`The window is ${width()} by ${height()} pixels.`);"
+      }
+    }
+  ]
+}

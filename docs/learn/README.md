@@ -39,6 +39,20 @@ A window opens. Close it to stop the program. What the program prints with `cons
 **Your own project**: make a folder with the two files of the lesson. `zinc.json` says where the code is and how big the
 window is; lesson 1 explains it. Then `zinc run` in that folder.
 
+## Learn by doing: `zinc learn`
+
+The first five lessons are also exercises, with no download and no network: each has a few steps, each step says what to change,
+checks your code when you save, and gives a hint or the solution when you ask.
+
+```sh
+zinc learn          # the lessons and how far you went
+zinc learn 1        # lesson 1 in a new folder: edit src/main.ts, save, the step is checked
+```
+
+While it watches, Enter checks again, `h` prints a hint, `s` the solution and `q` stops; `zinc learn` goes on where you stopped. In
+**Zinc Atelier**, *Help > Lessons* opens the same lesson in a panel beside the code, with Check, Hint and Solution buttons; both keep
+the same progress.
+
 ## The lessons
 
 **Part 1: drawing.** Your program draws the whole picture itself, again and again, many times a second. This is how games,

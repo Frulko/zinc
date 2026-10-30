@@ -1,0 +1,5 @@
+{
+  "name": "colours-and-movement",
+  "entry": "src/main.ts",
+  "app": { "id": "com.example.learn.movement", "window": { "width": 640, "height": 400 } }
+}

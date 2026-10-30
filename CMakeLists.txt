@@ -569,7 +569,7 @@ set_target_properties(zn_md4c PROPERTIES C_STANDARD 99)
 target_compile_options(zn_md4c PRIVATE -w)
 add_library(zn_doc STATIC src/doc/doc.cpp src/doc/api.cpp src/doc/md.cpp src/doc/highlight.cpp src/doc/theme.cpp)
 target_link_libraries(zn_doc PUBLIC zn_frontend zn_platform zn_codec zn_tc PRIVATE zn_md4c zn_yyjson)
-add_executable(zinc src/main.cpp src/test_cmd.cpp src/cli_core.cpp src/cli_tour.cpp src/cli_examples.cpp src/cli_web.cpp src/cli_web_deps.cpp src/cli_pm.cpp src/cli_mqjs.cpp src/lsp/lsp.cpp src/dev/hot.cpp src/dev/hot_swap.cpp)   # dev/hot*.cpp: zinc dev's Fast Refresh, in the command line only (ZN-742); hot_swap.cpp also in the player (ZN-631)
+add_executable(zinc src/main.cpp src/test_cmd.cpp src/cli_core.cpp src/cli_tour.cpp src/cli_examples.cpp src/cli_learn.cpp src/cli_web.cpp src/cli_web_deps.cpp src/cli_pm.cpp src/cli_mqjs.cpp src/lsp/lsp.cpp src/dev/hot.cpp src/dev/hot_swap.cpp)   # dev/hot*.cpp: zinc dev's Fast Refresh, in the command line only (ZN-742); hot_swap.cpp also in the player (ZN-631)
 option(ZN_NATIVE_FIXTURE "register the C test module 'Fixture' (tests/native/fixture.c) in zinc, for the native-call tests" ON)
 if(ZN_NATIVE_FIXTURE)
   add_library(zn_native_fixture STATIC tests/native/fixture.c)   # also linked into the programs zinc build writes when they call the module

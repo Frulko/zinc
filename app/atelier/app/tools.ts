@@ -19,7 +19,7 @@ const SCRUB: string[] = ['ZINC_SHOT', 'ZINC_SHOT_FRAMES', 'ZINC_INPUT', 'ZINC_SI
   'ZINC_RUN'];   // nor the engine Atelier itself was started on (`zinc run --interp`, `zinc dev`): the sketch runs on the one its menu names
 export function spawnZinc(args: string[], cwd: string): proc.Process { return zinc(args, cwd); }
 /** The commands whose output the user reads in Atelier's language (D159); the others' output is parsed, so they speak English. */
-const SPOKEN: string[] = ['run', 'dev', 'check', 'explain', 'new', 'export'];
+const SPOKEN: string[] = ['run', 'dev', 'check', 'explain', 'new', 'export', 'learn'];
 export function zinc(args: string[], cwd: string): proc.Process {
   const a: string[] = [];
   for (const v of SCRUB) { a.push('-u'); a.push(v); }
@@ -371,6 +371,8 @@ export function stepTools(): void {
 // ---------------------------------------------------------------- diagnostics
 let checks: i32 = 0;      // short jobs under way (a check, the list of libraries): a scripted session waits for them
 let checkGen: i32 = 0;
+/** A short job of another module starts (+1) or ends (-1): a lesson's check (app/lesson.ts). */
+export function job(delta: i32): void { checks += delta; }
 /** Type checks the sketch as saved (`zinc check <main file>`) and gives every open file its diagnostics: squiggles and gutter
  *  dots in the editor, the first message on the status line. */
 export function check(): void {

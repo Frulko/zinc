@@ -39,6 +39,9 @@ std::string exampleDir(const std::string& spec, const std::string& engineRoot, s
 int examples(const std::vector<std::string>& args, const std::string& engineRoot);
 /** `zinc tour [step] [--list] [--reset] [--auto [--until step] [--dir path]]`: the guided first walk (src/cli_tour.cpp). */
 int tour(const std::vector<std::string>& args);
+/** `zinc learn [lesson] [--dir path] [--check | --hint | --solve | --unpack] [--json] [--reset]`: the lessons as exercises, a check per step
+ *  (src/cli_learn.cpp). `engineRoot` holds learn/lessons. */
+int learn(const std::vector<std::string>& args, const std::string& engineRoot);
 
 /** Your settings ($ZINC_HOME/config.json, shared with Zinc Atelier): one string value, "" when it is not set; saving keeps the keys
  *  this zinc does not know, and an empty value removes the key. */
