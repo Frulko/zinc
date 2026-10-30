@@ -147,6 +147,8 @@ export function _el(tag: i32): i32 { return hostNode(tag); }
 export function _text(parent: i32, s: string): void { const t = hostNode(ui.TEXT); ui.setText(t, s); ui.insert(parent, t, -1); }
 export function _textOf(n: i32, s: string): void { ui.setText(n, s); }
 export function _append(parent: i32, child: i32): void { ui.insert(parent, child, -1); }
+/** A dev run's component call (jsx.h devFile): the wrapper node `n` stands for component `name`, called at `src` (file:line) with the props written there. */
+export function _cn(n: i32, name: string, src: string, props: string): void { ui.setComponentName(n, name, src, props); }
 export function _class(n: i32, c: string): void { ui.setClass(n, c); }
 export function _on(n: i32, f: () => void): void { ui.listen(n, f); }
 export function _draw(n: i32, f: (x: i32, y: i32, w: i32, h: i32) => void): void { ui.draw(n, f); }

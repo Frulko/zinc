@@ -1644,7 +1644,7 @@ constexpr StdModule kStdModules[] = {
     {"zinc:ui/dnd", "dnd.ts", {}}, {"zinc:react-native", "react-native.tsx", {}}, {"zinc:react-native/linking", "react-native-linking.ts", {}},
     {"zinc:ui/nuxt", "nuxt/index.ts", {}}, {"zinc:ui/platform", "platform/index.ts", {}}, {"zinc:ui/navigation", "navigation.tsx", {}}, {"zinc:ui/history", "history.ts", {}},
     {"zinc:haptics", "haptics.ts", {}}, {"zinc:device-info", "device-info.ts", {}}, {"zinc:hardware", "hardware.ts", {}}, {"zinc:signals", "signals.ts", {}},
-    {"zinc:path", "path.ts", {}}, {"zinc:worker", "worker.ts", {}}, {"zinc:xml", "xml.ts", {}}, {"zinc:assert", "assert.ts", {}}, {"zinc:hot", "hot.ts", {}}, {"zinc:i18n", "i18n.ts", {}}, {"zinc:stage", "stage.ts", {}}, {"zinc:system", "system/index.ts", {}},
+    {"zinc:path", "path.ts", {}}, {"zinc:worker", "worker.ts", {}}, {"zinc:xml", "xml.ts", {}}, {"zinc:assert", "assert.ts", {}}, {"zinc:hot", "hot.ts", {}}, {"zinc:devhooks", "devhooks.ts", {}}, {"zinc:i18n", "i18n.ts", {}}, {"zinc:stage", "stage.ts", {}}, {"zinc:system", "system/index.ts", {}},
     {"zinc:system/notification", "system/notification.ts", {}}, {"zinc:system/menu", "system/menu.ts", {}}, {"zinc:system/tray", "system/tray.ts", {}},
     {"zinc:system/dialog", "system/dialog.ts", {}}, {"zinc:system/window", "system/window.ts", {}}, {"zinc:system/shortcut", "system/shortcut.ts", {}},
     {"zinc:system/instance", "system/instance.ts", {}}, {"zinc:system/deeplink", "system/deeplink.ts", {}}, {"zinc:system/autostart", "system/autostart.ts", {}},
@@ -1660,6 +1660,14 @@ struct Loader {
   std::map<std::string, std::string> dirSpelling;   // canonical directory -> the first spelling that reached it
   std::string stdRoot;                         // lib/std: where 'zinc:ui' and the other standard modules live
   bool hot = false;                            // hot mode (zinc dev's Fast Refresh, ZN-742)
+  bool dev = false;                            // a dev run (zinc dev, ZINC_DEV=1): component calls record their names for the inspector (jsx.h devFile)
+  /** A file's path as the inspector shows it: relative to the working directory when it is below it. */
+  static std::string shownPath(const std::string& path) {
+    std::error_code ec;
+    const std::filesystem::path rel = std::filesystem::path(path).lexically_proximate(std::filesystem::current_path(ec));
+    const std::string r = rel.generic_string();
+    return ec || r.empty() || r.rfind("..", 0) == 0 ? path : r;
+  }
   std::uint32_t hotModule = kNone;             // then zinc:hot, loaded before every other module
   ModuleResolver res;                          // the files of imports, as every engine finds them (frontend/resolve.h)
   std::string pending;                         // the text of the last file res.exists read: the file it resolved, loaded with no second read
@@ -1924,7 +1932,7 @@ struct Loader {
       std::size_t before = prog.diags.size();
       const std::set<std::string> classTags = classTagsOf(path, text);
       original = text;
-      text = lowerJsx(text, prog.diags, fi, &classTags, &map, hot && !libraryModule(path));
+      text = lowerJsx(text, prog.diags, fi, &classTags, &map, hot && !libraryModule(path), dev && !libraryModule(path) ? shownPath(path) : std::string());
       if (map.empty()) original.clear();
       else for (std::size_t k = diagsAtStart; k < prog.diags.size(); ++k) if (prog.diags[k].file == fi) prog.diags[k].pos = loweredOffset(map, prog.diags[k].pos);   // in the lowered text, as the parser's
       if (const char* d = std::getenv("ZN_DUMP_JSX")) if (path.find(d) != std::string::npos) std::fprintf(stderr, "=== %s (JSX lowered)\n%s\n", path.c_str(), text.c_str());  // debugging: the plain code a .tsx file became
@@ -3414,6 +3422,7 @@ Program loadProgram(const std::string& entry, const ReadFile& read, bool strict,
   }
   Loader L(p, read, stdRoot);
   L.hot = hot;
+  if (const char* d = std::getenv("ZINC_DEV"); hot || (d && std::string(d) == "1")) L.dev = true;
   L.load(entry, std::move(text));
   p.ast.hotModule = L.hotModule;
   bool usesGfx = false;

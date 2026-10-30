@@ -288,7 +288,9 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
     // zinc dev --target web (ZINC_WEB_HOT=1): a project component gets its Fast Refresh proxy, as in the typed engine's hot mode
     const char* hotWeb = std::getenv("ZINC_WEB_HOT");
     const bool hot = hotWeb && hotWeb[0] == '1' && file.rfind("zinc:", 0) != 0 && file.find("/lib/std/") == std::string::npos;
-    text = lowerJsx(text, diags, 0, &classTags, &map, hot);
+    const char* dev = std::getenv("ZINC_DEV");   // a dev run: component names for the inspector, as the typed loader records them (jsx.h devFile)
+    const bool devNames = dev && std::string(dev) == "1" && !libraryModule(file);
+    text = lowerJsx(text, diags, 0, &classTags, &map, hot, devNames ? file : std::string());
   }
   if (!diags.empty()) {   // the lowering's own positions are in the source the user wrote
     err.clear();

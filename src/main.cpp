@@ -1113,7 +1113,7 @@ namespace fs = std::filesystem;
 static std::vector<std::uint8_t> gResources;   // the baked fonts and images of the cached program
 static constexpr std::size_t kKeep = 64;      // programs kept; the least recently run go first
 static std::string key(const std::string& entry) {   // the engine files too: another root (ZINC_ROOT) reads another lib/std
-  return entry + " profile=" + (gProfile ? gProfile->name : "host") + (gStrict ? " strict" : "") + (hotMode() ? " hot" : "") + " root=" + gRoot;
+  return entry + " profile=" + (gProfile ? gProfile->name : "host") + (gStrict ? " strict" : "") + (hotMode() ? " hot" : "") + (std::getenv("ZINC_DEV") && std::strcmp(std::getenv("ZINC_DEV"), "1") == 0 ? " dev" : "") + " root=" + gRoot;   // dev: component names (jsx.h)
 }
 static fs::path dirOf(const std::string& entry) { return fs::path(zn::tc::home()) / "cache" / "zbc" / zn::tc::sha256Hex(key(entry)).substr(0, 16); }
 static std::string signature(const std::string& entry) { return "zbc " + inputs::signature(key(entry), {}); }

@@ -606,7 +606,7 @@ function release(h: i32): void {
   if (n.tag === CANVAS && !n.lazy) canvases--;
   if (n.surface && n.img >= 0) { destroyImage(n.img); n.img = -1; }
   if (overlays.length > 0 || layers.length > 0 || anchors.length > 0) forget(h);
-  if (componentNames.size > 0) componentNames.delete(h);
+  if (componentNames.size > 0) { componentNames.delete(h); componentSources.delete(h); componentPropsOf.delete(h); }
   if (devStyles.size > 0) devStyles.delete(h);
   n.alive = false;
   n.onClick = null;
@@ -6140,10 +6140,16 @@ export function inspectState(h: i32): string {
   return s.join(' ');
 }
 const componentNames = new Map<i32, string>();
-/** Name of the component a wrapper node stands for (dev builds: recorded by the JSX compiler for the inspector). */
-export function setComponentName(h: i32, name: string): void { componentNames.set(h, name); }
+const componentSources = new Map<i32, string>(), componentPropsOf = new Map<i32, string>();   // dev runs only: empty elsewhere
+/** Name of the component a wrapper node stands for (dev runs: recorded by the JSX lowering for the inspector, `_cn`), where it is called
+ *  (file:line) and its props as written there. */
+export function setComponentName(h: i32, name: string, src: string = '', props: string = ''): void { componentNames.set(h, name); componentSources.set(h, src); componentPropsOf.set(h, props); }
 /** '' when the node is not a component's wrapper. */
 export function componentName(h: i32): string { return componentNames.get(h) ?? ''; }
+/** file:line of the component call that made wrapper h ('' when unknown). */
+export function componentSource(h: i32): string { return componentSources.get(h) ?? ''; }
+/** Its props as written at that call (`title={page()} wide`), '' when none. */
+export function componentProps(h: i32): string { return componentPropsOf.get(h) ?? ''; }
 // The Styles panel's element.style (ZN-369): properties edited in DevTools, applied over the node's classes, style sheets and style numbers
 const devStyles = new Map<i32, Style>();
 /** Sets the inspector's styles of node h (style keys as in StyleSheet objects, colours as 0xRRGGBB); no keys removes them. */
@@ -6160,6 +6166,29 @@ export function classStyle(tag: i32, cls: string): UiNode {
   defaults(s);
   for (const c of cls.split(' ')) if (c.length > 0 && c !== '\u0000') applyToken(s, c, '');
   return s;
+}
+// The class completion of the inspector's Styles panel: keywords, the spacing and size scales, the palette's colours; each candidate is kept
+// only when applyToken knows it, so the list cannot drift from what the engine applies.
+const CLASS_WORDS: string[] = ['flex', 'flex-row', 'flex-col', 'flex-wrap', 'flex-1', 'grow', 'shrink-0', 'hidden', 'block', 'relative', 'absolute', 'inset-0',
+  'items-start', 'items-center', 'items-end', 'items-stretch', 'justify-start', 'justify-center', 'justify-end', 'justify-between', 'justify-around', 'self-center',
+  'overflow-hidden', 'rounded', 'rounded-sm', 'rounded-md', 'rounded-lg', 'rounded-xl', 'rounded-2xl', 'rounded-full', 'border', 'border-2', 'border-4',
+  'border-t', 'border-b', 'border-l', 'border-r', 'shadow', 'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-xl', 'font-normal', 'font-medium', 'font-semibold', 'font-bold', 'font-mono',
+  'italic', 'underline', 'uppercase', 'truncate', 'text-left', 'text-center', 'text-right', 'text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl',
+  'text-3xl', 'text-4xl', 'opacity-0', 'opacity-25', 'opacity-50', 'opacity-75', 'opacity-100', 'bg-transparent'];
+const CLASS_SPACED: string[] = ['p', 'px', 'py', 'pt', 'pr', 'pb', 'pl', 'm', 'mx', 'my', 'mt', 'mr', 'mb', 'ml', 'gap', 'gap-x', 'gap-y', 'w', 'h', 'min-w', 'min-h',
+  'max-w', 'max-h', 'top', 'left', 'right', 'bottom', 'size'];
+const CLASS_SCALE: string[] = ['0', 'px', '0.5', '1', '1.5', '2', '2.5', '3', '4', '5', '6', '8', '10', '12', '16', '20', '24', '32', '40', '48', '64', '96', 'full', 'auto', '1/2', '1/3', '2/3', '1/4', '3/4'];
+/** Whether `tok` is a class the engine applies (on a view). */
+export function classKnown(tok: string): boolean { const s = new UiNode(VIEW); defaults(s); return applyToken(s, tok, ''); }
+/** The known classes that start with `prefix`, at most `max` (the inspector's completion). */
+export function knownClasses(prefix: string, max: i32): string[] {
+  initColors();
+  const out: string[] = [];
+  const add = (t: string): void => { if (out.length < max && t.startsWith(prefix) && out.indexOf(t) < 0 && classKnown(t)) out.push(t); };
+  for (const w of CLASS_WORDS) add(w);
+  for (const p of CLASS_SPACED) for (const v of CLASS_SCALE) add(p + '-' + v);
+  for (const p of ['bg', 'text', 'border']) for (const c of COLORS.keys()) add(p + '-' + c);
+  return out;
 }
 /** Such a node with what node h's style sheets declare (numbers false), or its style numbers (true). */
 export function sheetStyle(h: i32, numbers: boolean): UiNode {
