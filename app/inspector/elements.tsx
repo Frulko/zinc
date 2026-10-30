@@ -270,14 +270,6 @@ export function findNode(f: (n: TNode) => boolean): TNode | null {
   return null;
 }
 export function nodeOf(id: i32): TNode | null { const n = byId.get(id); return n !== undefined ? n : null; }
-/** A node picked on the screen: its ancestors unfolded, then selected. */
-export async function reveal(id: i32): Promise<void> {
-  const n = nodeOf(id);
-  if (n === null) return;
-  for (let p = (n as TNode).parent; p !== null; p = (p as TNode).parent) collapsed.delete((p as TNode).id);
-  refilter();
-  await select(id);
-}
 /** A component's first host node (what it draws), or null. */
 function firstHost(n: TNode): TNode | null {
   for (const k of n.kids) { if (!k.text && !k.comp) return k; const f = firstHost(k); if (f !== null) return f; }

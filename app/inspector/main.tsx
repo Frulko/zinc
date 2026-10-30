@@ -18,7 +18,7 @@ import { conn, call, status, setStatus, view, setView, setDevRun, sleep, until }
 import { Btn, Flat } from './widgets';
 import { ElementsView, dumpTree } from './tree';
 import { StylesPane } from './styles';
-import { loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, reveal, selected, nodeOf, styles, rules, box, target, setProp, label, findNode, TNode } from './elements';
+import { loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, selected, nodeOf, styles, rules, box, target, setProp, label, findNode, TNode } from './elements';
 import { NetworkView, onNetwork, onReload, dumpNetwork, reqs, pick, Req } from './network';
 import { StorageView, loadStorage, onStorage, changes, dumpStorage, items, pickItem, tables, openTable } from './storage';
 import { SourcesView, DebugPane, onDebugger, resetSources, setWaiting, setPaused, setEnded, dumpDebugger } from './sources';
@@ -89,7 +89,7 @@ async function screenAt(x: number, y: number, click: boolean): Promise<void> {
 async function picked(id: i32): Promise<void> {
   if (view() === 'screen') await screen(false);
   setView('elements');
-  await reveal(id);
+  await select(id);   // its ancestors unfolded
 }
 
 // The apps of the paired devices: `zinc device inspect --all` forwards the inspector of each to a port of this machine and names it, one line
