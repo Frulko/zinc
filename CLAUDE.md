@@ -10,4 +10,5 @@
 - Never stop to ask the owner a question during the loop (see "Decide alone" above): research, decide, record, continue.
 - Engine gaps are fixed, not worked around ("Fill the engine's gaps" in AGENTS.md): when code hits a missing feature or a defect of the engine, fix the engine with a test, or make it the next task; never bend the user's code around it.
 - Never take the focus: every app or window you start while the owner works runs with `ZINC_BACKGROUND=1` (or `zinc --background ...`), and nothing you start is left running ("Never take the focus" in AGENTS.md).
-- Changelog: a change a user can see adds one plain line to `## [Unreleased]` of `CHANGELOG.md` in the same commit ("The changelog" in AGENTS.md); `make release` publishes it.
+- Changelog: a change a user can see adds one plain line under the right theme heading of `## [Unreleased]` in `CHANGELOG.md` in the same commit; written as readable Markdown for people, cut by theme ("The changelog" in AGENTS.md); `make release` publishes it.
+- Features: go straight to the goal, make it work and look at its effect, test after; no test runs between every edit (AGENTS.md "Feature first, tests after").

@@ -89,6 +89,8 @@ For now the engine is built and tested on the development Mac only. Do as many b
 
 The goal of a session is progress on the backlog: finish tasks, improve and complete the engine. Tests exist to prove a change, not to fill the session.
 
+**Feature first, tests after (owner, 2026-10-31).** Building a feature, go straight to the goal: make it work in the real app or on the real device, look at what it changes, then test. No test run between every edit while the feature takes shape; iterate in small steps and take the quick wins first. The tests come once the feature works, and prove it before the commit that closes it.
+
 - Before running a test, ask what it proves. If your change cannot make it fail, do not run it.
 - End of a task: the task's own test (`tests/run --only <name>`) and the few tests that cover the files you touched. Run `tests/run --changed` only when it maps to a handful of tests; when it falls back to the whole tier, pick the relevant tests yourself.
 - End-to-end runs (full T1, T2, the demos, `examples_all`, the WebGL conformance, benchmarks, fuzz) belong to large milestones or to changes in the shared core (IR, runtime, raster, layout, text). Start them in the background and keep working; never wait for them.
@@ -144,11 +146,16 @@ Every commit goes on `develop` (or a branch merged into it); nobody commits on `
 
 ## The changelog: `CHANGELOG.md` is kept as the work goes (owner, 2026-10-16)
 
-A release has real notes, written for the people who use Zinc, not a list of commit subjects. `CHANGELOG.md` (Keep a Changelog: *Added*, *Changed*, *Deprecated*, *Removed*, *Fixed*, *Security*) has an `## [Unreleased]` section that every change visible to a user, a plugin author or a maintainer of an app adds a line to, **in the same commit as the change** (as the task file is):
+A release has real notes, written for the people who use Zinc, not a list of commit subjects. `CHANGELOG.md` (Keep a Changelog) has an `## [Unreleased]` section that every change visible to a user, a plugin author or a maintainer of an app adds a line to, **in the same commit as the change** (as the task file is).
 
-- Write what changes for them, in plain words and one or two lines: the command, the option, the error code, what they do now. Not the file, not the task number, not how it is built.
-- A breaking change goes under *Changed (breaking)* with the way out (the `zinc migrate` codemod, the new spelling).
+How it reads (owner, 2026-10-31): well-written Markdown that a person reads with pleasure, never a wall of lines.
+
+- **Cut by theme, then by kind.** Under a version, `###` headings name what people work with (*Raspberry Pi and the shell*, *Devices and deploy*, *Rendering and performance*, *UI*, *Plugins*, *Tools*...), most important first; inside one, the bullets start with a bold word for the kind when it is not obvious (**New**, **Faster**, **Fixed**, **Changed**). *Breaking changes* get their own heading at the top, with the way out (the `zinc migrate` codemod, the new spelling).
+- **A release opens with two or three sentences**: what this version is about, in plain words, before any list.
+- **One idea per bullet, one or two lines**: what people can do now, with the command, option or `zinc.json` key in code spans. Not the file, not the task number, not how it is built; no jargon a user would not know, no internal names.
+- **Group the small things**: several small fixes of one area make one bullet, not five.
 - No line for what nobody sees: tests, CI, backlog files, refactors, documents. A fix is a line only if someone could have met the bug.
+- While the work goes, a commit adds its line under the right heading of *Unreleased*; at a release the section is reread and rewritten whole so it reads as one text.
 - `make release` turns *Unreleased* into the new version and the GitHub release notes: it shows the draft, lets you edit it, and when *Unreleased* is empty it drafts from the commits (feat, fix, perf) as a starting point. Read it before saying yes.
 
 ## Tests
