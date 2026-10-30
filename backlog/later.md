@@ -835,6 +835,11 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-883: tests/t1/discord_voice.sh should compare the call view and settings frames (call.png, settings.png) with a hash golden.
 
+- ZN-886: resume the gateway session across launches (save session_id, seq and resume_gateway_url at quit), so a quick restart does not start a new session.
+- ZN-886: refuse a second instance of the Discord client (two processes would hold two sessions for one token).
+- ZN-886: make the daily IDENTIFY cap span launches (it is per process now).
+- ZN-886: give the fake Discord a 401, a captcha 400, a long 429 and op 9 d:false so the T1 session proves safe mode and the identify backoff.
+
 ## Cross-platform pass
 - ZN-872: the discord-voice plugin on Linux (ALSA/PulseAudio through miniaudio, BoringSSL without asm) and the zig cross build of its 431 sources.
 - ZN-864: `hal_win_ctl` on Linux (SDL3 HAL) and the n3ds HAL (weak default: nothing moves).
