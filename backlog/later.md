@@ -546,6 +546,9 @@ The next backlog review turns lines into tasks or deletes them.
 - Tests: sidecar_stream/sidecar_session left three `zinc run <tmp>/sidecar` orphans (29 h, SIGTERM ignored) that make tour's "still running" check fail; make the sidecar program end on SIGTERM and the tests kill what they start, and scope tour's pgrep to its own folder.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
 - ZN-877: `{ b: null }` into `b?: unknown` stores null and reads back as undefined (typeof 'undefined'); the `Dyn | null` slot cannot tell null from undefined, so null should be stored as `__null` and `=== null` on that union taught to see it.
+- ZN-867: `setTextRuns` could take a background colour per run, so Discord spoilers draw as a dark box instead of bullets.
+- ZN-867: the checker refuses `.catch((e: any) => ...)` (a function with an `any` parameter is not assignable to `(Error) => any`), which TypeScript accepts.
+- ZN-867: `ui_class_parser` fails on develop ("style-only Solid program: 1 @applyToken function(s) in the ZBC, expected 0"), not from the Discord work; check the recent `lib/std/ui.ts` changes.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
@@ -789,6 +792,8 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod demo: a T1 frame-gap check of For you on the FORYOU_MODE=big fixture (10k songs, 100k listens); it needs a paced windowed run (headless frames are unpaced; ZINC_TRACE keeps only the last spans).
 - iPod demo: For you's SQL step before the worker job (times, top artists and tracks, yearCounts, lovedOn) takes ~100 ms on the UI thread with 100k listens, mostly the JS side (rows to objects, yearCounts): slice it or count in the worker.
 - iPod demo: the first sync after a library change parses library.json (10k tracks) in one 40 ms JSON.parse.
+- ZN-867: the Discord client acks without checking whether its window has the focus; ack only when the channel is visible in a focused window, as the web client does.
+- ZN-867: Discord lists (`- item`) stay plain text in the client; draw bullets.
 
 ## Cross-platform pass
 - ZN-864: `hal_win_ctl` on Linux (SDL3 HAL) and the n3ds HAL (weak default: nothing moves).
