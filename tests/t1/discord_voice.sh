@@ -9,7 +9,9 @@
 # connection, sent back as Grace's stream: watched in her tile, in full view, stopped); the input sensitivity above our tone (nothing sent) and back with a lower input volume, mute, push-to-talk not held
 # then held, deafen, the Voice & audio settings kept, leaving, and a DM call that rings. What the app prints and what the fake received
 # (sorted: the two race) are compared with tests/golden/discord-voice; DISCORD_VOICE_SHOTS=dir keeps the frames of the call view and of the
-# settings to look at (not compared yet). ZN_UPDATE_GOLDEN=1 records again.
+# settings to look at (not compared yet). Quality: the RTCP reports both ways (the call's reading good, a round trip measured), the ultra
+# low data mode (voice under 12 kbit/s, the camera 160x90 under 80 kbit/s, then back), our Go Live bitrate lowered by the fake's 25% loss
+# reports; the measured bit rates are printed. ZN_UPDATE_GOLDEN=1 records again.
 cd "$(dirname "$0")/../.." || exit 2
 golden=$PWD/tests/golden/discord-voice
 case $ZINC in /*) ;; *) ZINC=$PWD/$ZINC ;; esac   # the app runs from its own directory
@@ -36,6 +38,7 @@ read -r api gw < "$tmp/ports"
   DISCORD_CACHE="$tmp/cache" ZINC_STORAGE="$tmp/storage.kv" ZINC_SYSTEM_LOG="$tmp/system" DISCORD_TOKEN=test-token DISCORD_DEMO=voice DISCORD_SHOTS="$tmp/shots" \
   timeout 60 "$ZINC" run . > "$tmp/app" 2>&1) || { echo "discord_voice: the session failed"; tail -8 "$tmp/app"; exit 1; }
 grep '^voice' "$tmp/app" | sort > "$tmp/session"
+grep '^measured:' "$tmp/app"   # the bit rates, normal and ultra low data (not compared)
 [ -z "$DISCORD_VOICE_SHOTS" ] || cp "$tmp/shots/"*.png "$DISCORD_VOICE_SHOTS/"
 sleep 0.3   # the last voice socket's close reaches the fake
 grep -E '^(voice|identify|rest POST /api/v9/channels/[0-9]+/call)' "$tmp/fake" | sort > "$tmp/server"

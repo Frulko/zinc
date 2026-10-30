@@ -27,6 +27,7 @@ import { VoiceSettings, decibels } from './call';
 import { AudioDevice } from 'zinc:discord-voice';
 import { API_BASE, TILE_W } from './constants';
 import { pickerOpen, confirmPicker } from 'zinc:screen-capture/picker';
+import { RTCStats } from 'zinc:webrtc/quality';
 
 ui.onKey((e: ui.KeyEvent): void => {
   const call = store.call;
@@ -137,6 +138,39 @@ async function shot(name: string): Promise<void> {
   if (env('DISCORD_SHOTS') !== '') capture(`${env('DISCORD_SHOTS')}/${name}.png`);
 }
 const dB = (): number => Math.round(decibels(store.call.level()));
+/** One outbound stream of a report ('audio' or 'video'; the whole call's by default), null when none is sent. */
+function sent(kind: string, report: Map<string, RTCStats> = store.call.getStats()): RTCStats | null {
+  for (const s of report.values()) if (s.type === 'outbound-rtp' && s.kind === kind) return s;
+  return null;
+}
+/** The audio sent over the next two readings, in kbit/s (payload bytes), after the one under way. */
+async function audioKbps(): Promise<number> {
+  const a0 = sent('audio'), t0 = Date.now();
+  await pause(2000);
+  const a1 = sent('audio');
+  return a0 !== null && a1 !== null ? (a1.bytesSent - a0.bytesSent) * 8 / (Date.now() - t0) : 0;
+}
+
+/** Quality: the RTCP reports both ways (the fake answers each sender report at once: a round trip, no loss), the call's reading good; the
+ *  ultra low data mode by hand: voice from Opus at 64 kbit/s to about 10, and back. The kbit/s are printed apart (not compared). */
+async function quality(): Promise<void> {
+  const call = store.call;
+  await until(() => call.quality.history.length >= 3 && call.quality.last.rttMs >= 0);
+  const q = call.quality.last;
+  console.log(`voice: quality ${q.quality}, round trip measured ${q.rttMs >= 0}, loss ${q.lossPct}%, codec ${q.audioCodec}`);
+  call.toggleStats();
+  await shot('stats');
+  const normal = await audioKbps();
+  call.setLowData(true);
+  await pause(500);
+  const low = await audioKbps();
+  call.setLowData(false);
+  await pause(500);
+  const back = await audioKbps();
+  call.toggleStats();
+  console.log(`measured: audio ${normal.toFixed(1)} kbit/s, ultra low data ${low.toFixed(1)}, back ${back.toFixed(1)}`);
+  console.log(`voice: ultra low data audio under 12 kbit/s ${low > 0 && low < 12}, back over 40 ${back > 40}, kept ${call.settings.lowData}`);
+}
 
 /** Go Live: the share dialog (the fake sources, ZINC_FAKE_SCREEN=1), the fake screen shared at the default 720p 30 fps on the stream's own
  *  connection; the fake makes Grace live with ours: watched in her tile, then in full view (decoded bigger), then not; our stream stopped. */
@@ -159,6 +193,10 @@ async function goLive(): Promise<void> {
   img = call.streamOf('101');
   console.log(`voice: full view ${imageWidth(img)}x${imageHeight(img)}`);
   call.focus(false);
+  const ours = (): RTCStats | null => { const o = call.sharing, c = o !== null ? o.conn : null; return c !== null ? sent('video', c.getStats()) : null; };
+  await until(() => { const v = ours(); return v !== null && v.targetBitrate > 0 && v.targetBitrate < 1990656; });   // the fake reports 25% lost
+  console.log(`measured: Go Live 1152x720 at 1990.7 kbit/s, lowered to ${((ours() as RTCStats).targetBitrate / 1000).toFixed(1)} by the loss reports`);
+  console.log(`voice: stream bitrate lowered by 25% loss reports true`);
   call.stopWatching();
   call.stopLive();
   await until(() => !call.live.has('101'));
@@ -183,11 +221,23 @@ async function voice(): Promise<void> {
   await until(() => call.stats()[3] >= 25);
   const s = call.stats();
   console.log(`voice: heard 25 frames, ${s[2]} failures, mixed ${s[4] > 0}`);
+  await quality();
   await call.toggleVideo();   // the fake camera; the fake server sends it back as Grace's, decoded at her tile's size
   await until(() => call.videoOf('101') >= 0);
   const img = call.videoOf('101'), v = call.videoStats();
   console.log(`voice: camera on, sent ${v[0] > 0 && v[1] > 0}, Grace's camera ${imageWidth(img)}x${imageHeight(img)}, ours ${call.videoOf(store.me.id) >= 0}`);
   await shot('video');
+  const full = sent('video');
+  call.setLowData(true);   // the camera at a quarter of its size, 5 fps, 60 kbit/s at most
+  await until(() => { const v = sent('video'); return v !== null && v.frameWidth < 640; });
+  await pause(2000);
+  const v0 = sent('video'), t0 = Date.now();
+  await pause(2000);
+  const v1 = sent('video');
+  const tiny = v0 !== null && v1 !== null ? (v1.bytesSent - v0.bytesSent) * 8 / (Date.now() - t0) : 0;
+  console.log(`measured: camera ${full !== null ? full.frameWidth : 0}x${full !== null ? full.frameHeight : 0} at ${full !== null ? full.targetBitrate / 1000 : 0} kbit/s, ultra low data ${v1 !== null ? v1.frameWidth : 0}x${v1 !== null ? v1.frameHeight : 0} ${tiny.toFixed(1)} kbit/s`);
+  console.log(`voice: ultra low data camera ${v1 !== null ? v1.frameWidth : 0}x${v1 !== null ? v1.frameHeight : 0}, under 80 kbit/s ${tiny > 0 && tiny < 80}`);
+  call.setLowData(false);
   ui.systemSignal('background');   // minimized: nothing decoded, the server asked for nothing
   await pause(300);
   const hidden = call.videoStats()[2];

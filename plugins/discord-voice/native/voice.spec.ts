@@ -50,6 +50,14 @@ export interface Spec extends NativeModule {
   videoImage(h: i32, ssrc: u32): i32;
   /** [video frames encoded, video packets sent, video frames decoded, key frames asked of the others (PLI), key frames they asked of us] */
   videoStats(h: i32): f64[];
+  /** The ultra low data mode, or back (all 0): Opus at audioBps (16 kbit/s and under: DTX, voice, wideband, FEC for 15% loss; 0: 64 kbit/s),
+   *  video frames 1/videoScale the size, at most videoFps a second and videoBps bit/s (0: no cap). */
+  setLimits(h: i32, audioBps: i32, videoScale: i32, videoFps: i32, videoBps: i32): void;
+  /** The counters of RTCP's reports, records of fields: "out\u001fkind\u001fssrc\u001fbytes\u001fpackets\u001ftarget bit/s\u001fframes
+   *  encoded\u001fwidth\u001fheight\u001fkey frames asked of us", "remote\u001fkind\u001fssrc\u001ffraction lost 0..1\u001fpackets lost\u001fjitter
+   *  s\u001fround trip s (-1 unknown)" (the server's report on our stream), "in\u001fkind\u001fssrc\u001fuser\u001fbytes\u001fpackets\u001fpackets
+   *  lost\u001fjitter s\u001fframes decoded\u001fframes dropped". */
+  report(h: i32): string;
   /** Stops the media and closes the socket and the devices. */
   close(h: i32): void;
 
@@ -76,7 +84,7 @@ export interface Spec extends NativeModule {
   header(seq: i32, timestamp: u32, ssrc: u32): u8[];
   /** `header` + the encrypted payload + its tag + the 4-byte nonce counter, as the client sends it. [] for an unknown mode or key. */
   seal(mode: string, key: u8[], header: u8[], counter: u32, payload: u8[]): u8[];
-  /** The payload of a received packet (its RTP header extension skipped), [] when it does not authenticate. */
+  /** The payload of a received packet (its RTP header extension skipped; RTCP: after its 8-byte header), [] when it does not authenticate. */
   unseal(mode: string, key: u8[], packet: u8[]): u8[];
 }
 export default requireNative<Spec>('DiscordVoice');

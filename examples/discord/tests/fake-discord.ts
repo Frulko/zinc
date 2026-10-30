@@ -450,8 +450,20 @@ function voiceGateway(ws: WebSocket, req: UpgradeRequest): void {
   ws.onclose = (e: CloseEvent): void => { if (kind !== 'voice') { console.log(`voice ${kind} closed ${e.code}`); return; } console.log(`voice closed ${e.code}: 25 packets or more ${received >= 25}, refused ${refused}, video ${videoIn > 0}, key frames asked ${plis > 0}`); };
 }
 
+/** A sender report of ours: the receiver report a server answers with (one block on the sender's stream: its time back with no delay, so
+ *  the round trip is the loopback's; our Go Live stream reported 25% lost, so its bitrate goes down). */
+function receiverReport(m: Datagram, b: u8[]): void {
+  const body = unseal(voiceMode, keyBytes(), b);
+  if (body.length < 20) return;
+  const lost: u8 = b[7] === STREAM_VIDEO_SSRC ? 64 : 0;
+  const h: u8[] = [0x81, 201, 0, 7, 0, 0, 0, 1];
+  const block: u8[] = [b[4], b[5], b[6], b[7], lost, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, body[2], body[3], body[4], body[5], 0, 0, 0, 0];
+  (rtp as UdpSocket).sendBytes(m.address, m.port, seal(voiceMode, keyBytes(), h, echoCounter, block));
+  echoCounter++;
+}
+
 /** UDP: IP discovery, then each packet of ours opened and sent back as Grace's: our voice as hers, our camera as hers, our RTCP (a key
- *  frame asked for her camera) back to us, as the server forwards it to the sender. */
+ *  frame asked for her camera) back to us, as the server forwards it to the sender; a sender report answered (receiverReport). */
 function voiceUdp(m: Datagram): void {
   const b = m.bytes;
   if (b.length === 74 && b[1] === 1) {
@@ -468,6 +480,7 @@ function voiceUdp(m: Datagram): void {
     (rtp as UdpSocket).sendBytes(m.address, m.port, r);
     return;
   }
+  if (b.length >= 8 && b[1] === 200) { receiverReport(m, b); return; }
   if (b.length >= 8 && b[1] >= 200 && b[1] <= 206 && b[7] === WATCH_SSRC) { if (streamPort > 0) (rtp as UdpSocket).sendBytes(streamAddr, streamPort, b); return; }
   if (b.length >= 8 && b[1] >= 200 && b[1] <= 206) { plis++; (rtp as UdpSocket).sendBytes(m.address, m.port, b); return; }
   if (b.length >= 12 && (b[1] & 0x7f) === 101 && b[11] === STREAM_VIDEO_SSRC) {   // our stream: on to the watcher as Grace's

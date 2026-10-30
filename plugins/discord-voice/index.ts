@@ -7,8 +7,11 @@
 // and encrypts each frame. Video (docs/reports/discord-client-research.md 5.2) rides on the same UDP: op 12 says who sends a camera and
 // on which SSRC (ours too), op 15 (Media Sink Wants) asks the server for each stream we show at a quality, 0 for the others; the native
 // side decodes only the streams watch() names, at their size. Go Live (a screen shared) is a second connection of the same kind to the
-// stream's own server (VoiceServer.stream): video only, its DAVE group the stream's rtc_server_id - 1.
+// stream's own server (VoiceServer.stream): video only, its DAVE group the stream's rtc_server_id - 1. Quality: getStats() gives what the
+// RTCP reports of the native side measured as zinc:webrtc's getStats() does (CallQuality reads either), setLowDataMode() the same ultra
+// low data mode.
 import { WebSocket, MessageEvent, CloseEvent } from 'zinc:socket';
+import { RTCStats } from 'zinc:webrtc/quality';
 import S from './native/voice.spec';
 
 const OP_IDENTIFY = 0, OP_SELECT_PROTOCOL = 1, OP_READY = 2, OP_HEARTBEAT = 3, OP_SESSION_DESCRIPTION = 4, OP_SPEAKING = 5,
@@ -34,6 +37,11 @@ const CAMERA_W = 640, CAMERA_H = 360;
 export interface VideoQuality { width: number; height: number; fps: number }
 /** The encoder's bitrate for a quality: 0.08 bit per pixel and frame, 500 kb/s to 8 Mb/s (360p30 550 kb/s, 720p30 2.2 Mb/s, 1080p60 8 Mb/s). */
 export function videoBitrate(q: VideoQuality): i32 { return Math.round(Math.max(500000, Math.min(8000000, q.width * q.height * q.fps * 0.08))); }
+
+/** The ultra low data mode: Opus at 10 kbit/s (DTX, voice, wideband, in-band FEC), a camera at a quarter of its width and height, 5 fps
+ *  and 60 kbit/s at most, a Go Live stream at half its size, 5 fps and 150 kbit/s (zinc:webrtc's setLowDataMode does the same). */
+export const LOW_DATA_AUDIO_BPS = 10000;
+const LOW_CAMERA = [4, 5, 60000], LOW_STREAM = [2, 5, 150000];
 
 /** What the main gateway gave: VOICE_SERVER_UPDATE's endpoint and token, VOICE_STATE_UPDATE's session id. */
 export interface VoiceServer {
@@ -93,6 +101,7 @@ export class VoiceConnection {
   private quality: VideoQuality = { width: 640, height: 360, fps: 30 };
   private wants = '';                                         // the last op 15 sent
   private watched: Map<string, u32> = new Map<string, u32>();   // user -> the SSRC decoded for them
+  private lowData = false;
 
   constructor(server: VoiceServer) {
     this.server = server;
@@ -117,6 +126,53 @@ export class VoiceConnection {
   stats(): number[] { return this.h >= 0 ? S.stats(this.h) : [0, 0, 0, 0, 0, 0]; }
   /** [video frames encoded, video packets sent, video frames decoded, key frames we asked for, key frames asked of us] */
   videoStats(): number[] { return this.h >= 0 ? S.videoStats(this.h) : [0, 0, 0, 0, 0]; }
+  /** The connection's counters as zinc:webrtc's getStats() gives them, from the RTCP reports both ways (one a second): 'outbound-rtp' per
+   *  stream we send (bytesSent, packetsSent, targetBitrate; video: framesEncoded, frameWidth, frameHeight, pliCount), 'remote-inbound-rtp'
+   *  (the server's report on it: fractionLost, packetsLost, jitter, roundTripTime), 'inbound-rtp' per stream received (bytesReceived,
+   *  packetsReceived, packetsLost, jitter; video: framesDecoded, framesDropped), 'candidate-pair' (currentRoundTripTime,
+   *  availableOutgoingBitrate: what the encoders aim at) and 'codec'. Ids carry the SSRC, so two connections' reports merge into one map. */
+  getStats(): Map<string, RTCStats> {
+    const out = new Map<string, RTCStats>();
+    if (this.h < 0) return out;
+    const pair = new RTCStats(`CP${this.ssrc}`, 'candidate-pair');
+    let rtt = -1;
+    for (const rec of S.report(this.h).split('\u001e')) {
+      if (rec === '') continue;
+      const f = rec.split('\u001f'), num = (i: i32): number => parseFloat(f[i]);
+      const kind = f[1], codec = kind === 'audio' ? 'C120' : 'C101';
+      if (f[0] === 'out') {
+        const o = new RTCStats(`OT${f[2]}`, 'outbound-rtp');
+        o.kind = kind; o.ssrc = num(2); o.codecId = codec; o.bytesSent = num(3); o.packetsSent = num(4); o.targetBitrate = num(5);
+        o.framesEncoded = num(6); o.frameWidth = num(7); o.frameHeight = num(8); o.pliCount = num(9);
+        out.set(o.id, o);
+        pair.bytesSent += o.bytesSent; pair.availableOutgoingBitrate += o.targetBitrate;
+      } else if (f[0] === 'remote') {
+        const r = new RTCStats(`RI${f[2]}`, 'remote-inbound-rtp');
+        r.kind = kind; r.ssrc = num(2); r.codecId = codec; r.fractionLost = num(3); r.packetsLost = num(4); r.jitter = num(5);
+        r.roundTripTime = Math.max(0, num(6)); r.localId = `OT${f[2]}`;
+        if (num(6) >= 0) rtt = Math.max(rtt, num(6));
+        out.set(r.id, r);
+      } else if (f[0] === 'in') {
+        const i = new RTCStats(`IT${f[2]}`, 'inbound-rtp');
+        i.kind = kind; i.ssrc = num(2); i.codecId = codec; i.trackIdentifier = f[3]; i.bytesReceived = num(4); i.packetsReceived = num(5);
+        i.packetsLost = num(6); i.jitter = num(7); i.framesDecoded = num(8); i.framesDropped = num(9);
+        out.set(i.id, i);
+        pair.bytesReceived += i.bytesReceived;
+      } else continue;
+      if (!out.has(codec)) {
+        const c = new RTCStats(codec, 'codec');
+        c.mimeType = kind === 'audio' ? 'audio/opus' : 'video/H264'; c.payloadType = kind === 'audio' ? 120 : 101;
+        c.clockRate = kind === 'audio' ? 48000 : 90000; c.channels = kind === 'audio' ? 2 : 0;
+        out.set(codec, c);
+      }
+    }
+    pair.state = this.state; pair.currentRoundTripTime = Math.max(0, rtt);
+    out.set(pair.id, pair);
+    return out;
+  }
+  /** The ultra low data mode for a poor connection (LOW_DATA_AUDIO_BPS and the video caps above), or back to full quality. Nothing is
+   *  negotiated again: the encoders change, the server and the others see smaller packets. */
+  setLowDataMode(on: boolean): void { this.lowData = on; this.limits(); }
 
   /** Sends our camera, or our screen on a Go Live connection (op 12 describes the stream at `q`, then each sendImage() frame goes out,
    *  encoded at videoBitrate(q)), or stops it (op 12 with no stream). The program also tells the main gateway (op 4 self_video). */
@@ -147,6 +203,11 @@ export class VoiceConnection {
   close(): void { this.end('left'); }
 
   private controls(): void { if (this.h >= 0) S.controls(this.h, this.mute, this.deaf, this.ptt, this.held); }
+  private limits(): void {
+    if (this.h < 0) return;
+    const v = this.server.stream === true ? LOW_STREAM : LOW_CAMERA;
+    if (this.lowData) S.setLimits(this.h, LOW_DATA_AUDIO_BPS, v[0], v[1], v[2]); else S.setLimits(this.h, 0, 0, 0, 0);
+  }
   private audio(): void {
     if (this.h < 0) return;
     S.setDevices(this.h, this.input, this.output);
@@ -209,6 +270,7 @@ export class VoiceConnection {
     this.h = h;
     this.controls();
     this.audio();
+    this.limits();
     for (const [u, g] of this.userGains) S.setUserVolume(h, u, g);
     const t = setInterval(() => {
       if (this.h !== h) { clearInterval(t); return; }

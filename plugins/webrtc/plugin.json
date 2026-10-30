@@ -3,6 +3,7 @@
   "kind": "module",
   "module": "zinc:webrtc",
   "entry": "index.ts",
+  "modules": { "zinc:webrtc/quality": "quality.ts" },
   "description": "WebRTC (RTCPeerConnection): data channels and audio and video tracks on libdatachannel (MPL-2.0) with libjuice, usrsctp, libsrtp and the engine's mbedTLS; Opus audio (libopus), VP8 video (libvpx) everywhere and H.264 through VideoToolbox on macOS; STUN/TURN, stats, an in-process loopback",
   "requires": ["net", "threads"],
   "targets": {

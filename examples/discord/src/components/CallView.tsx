@@ -2,8 +2,12 @@
 // speak, with their mute and deafen, and their camera when it is on (ours from our camera, the others' decoded at the tile's size); the
 // call's name, state and duration on top; mute, deafen, the camera, Go Live and disconnect at the bottom. A Go Live stream is a tile of its
 // own (LIVE): ours shows our capture; another's shows "Watch Stream" until pressed, then the stream, and a press fills the call view with it.
+// The connection's quality is three bars by the call's state, as Discord has them (green, yellow, red); pressed, they open the CallStats
+// panel with the ultra low data switches.
 import { Icon } from 'zinc:icons';
+import { CallStats, Switch } from 'zinc:ui/kit';
 import { store } from '../state';
+import { VoiceSettings } from '../call';
 import { Avatar } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
 import { BG_SIDE, TEXT_MUTED, TEXT_STRONG, SPEAKING_RING, CALL_AVATAR, TILE_W, TILE_H, FULL_W, FULL_H } from '../constants';
@@ -58,6 +62,31 @@ function FullStream() {
   </View>;
 }
 
+const QUALITY_COLOR: Map<string, string> = new Map<string, string>([['good', '#23a55a'], ['fair', '#f0b232'], ['poor', '#f23f43'], ['unknown', '#80848e']]);
+/** The connection's quality as Discord's bars: three for good, two for fair, one for poor (lit in its colour). */
+function Bars() {
+  const call = store.call, q = call.quality.last.quality, lit = q === 'good' ? 3 : q === 'fair' ? 2 : q === 'poor' ? 1 : 0;
+  const color = QUALITY_COLOR.get(q) ?? '#80848e';
+  return <View className="h-[24] px-1 flex-row items-end gap-[2] rounded hover:bg-[#2b2d31]" onPress={() => call.toggleStats()}
+    aria-label={`Connection ${q === 'unknown' ? 'being measured' : q}${call.lowData() ? ', ultra low data' : ''}, show the call's statistics`}>
+    {[0, 1, 2].map((i: i32) => <View key={`${i}`} className={`w-[4] h-[${6 + i * 5}] mb-[4] rounded-sm bg-[${i < lit ? color : '#4e5058'}]`} />)}
+  </View>;
+}
+
+/** The call's statistics (zinc:ui/kit's CallStats over the connections' RTCP reports) and the ultra low data switches. */
+function StatsPanel() {
+  const call = store.call, s = call.settings;
+  return <View className="absolute top-[48] right-4 w-[340]">
+    <CallStats sample={() => call.quality.last} history={() => call.quality.history}>
+      <View className="gap-2 pt-1">
+        <Text className={`text-xs ${TEXT_MUTED}`}>{`${call.quality.last.audioCodec === '' ? 'opus' : call.quality.last.audioCodec}${call.lowData() ? ' · ultra low data' : ''}${call.autoLow ? ' (poor connection)' : ''}`}</Text>
+        <Switch checked={() => call.lowData()} onChange={(on: boolean) => call.setLowData(on)} label="Ultra low data" />
+        <Switch checked={() => s.autoLowData} onChange={(on: boolean) => call.set((v: VoiceSettings): void => { v.autoLowData = on; })} label="Switch on when poor" />
+      </View>
+    </CallStats>
+  </View>;
+}
+
 /** A round button of the bar: red when its state is on (mute, deafen) or for hanging up. */
 function Round(p: { icon: string; label: string; red: boolean; onPress: () => void }) {
   return <View className={`w-[48] h-[48] rounded-full items-center justify-center ${p.red ? 'bg-[#f23f43]' : 'bg-[#2b2d31] hover:bg-[#35373c]'}`}
@@ -74,6 +103,7 @@ export function CallView(p: { compact: boolean }) {
     <View className="h-[48] px-4 flex-row items-center gap-2">
       <Icon name="volume-2" size={20} color={() => 0x949ba4} />
       <Text className={`grow font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{c !== null ? c.name : ''}</Text>
+      {call.state === 'connected' ? <Bars /> : null}
       <Text className={`text-sm ${call.state === 'connected' ? 'text-[#23a55a]' : 'text-[#f0b232]'}`}>{label}</Text>
       <Text className={`text-sm ${TEXT_MUTED}`} aria-label="Call duration">{time}</Text>
     </View>
@@ -92,5 +122,6 @@ export function CallView(p: { compact: boolean }) {
       {call.watching !== null ? <Round icon="eye-off" label="Stop Watching" red={false} onPress={() => call.stopWatching()} /> : null}
       <Round icon="phone-off" label="Disconnect" red={true} onPress={() => call.leave()} />
     </View>
+    {call.statsOpen && call.state === 'connected' ? <StatsPanel /> : null}
   </View>;
 }

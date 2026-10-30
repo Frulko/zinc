@@ -1,6 +1,6 @@
 // The settings, in place of the messages, in two panes as Discord has them. Servers: which servers show, one switch per server; a server
 // joined after the choice was made comes off and marked new. Voice & audio: the microphone and the speakers, their volumes, the input mode
-// (voice activity with its sensitivity over a live meter, or push-to-talk on a chosen key), the camera's quality and each user's volume. Both stay on this
+// (voice activity with its sensitivity over a live meter, or push-to-talk on a chosen key), the camera's quality, the ultra low data mode and each user's volume. Both stay on this
 // machine (state.ts, call.ts), never sent to Discord.
 import { Icon } from 'zinc:icons';
 import { Switch, Slider, Tabs } from 'zinc:ui/kit';
@@ -114,6 +114,12 @@ function Voice() {
     <Heading text="Camera quality" />
     <Tabs items={['360p', '720p']} selected={() => s.camera === 720 ? 1 : 0} onSelect={(i: i32) => set((v: VoiceSettings): void => { v.camera = i === 1 ? 720 : 360; })} className="w-[200]" />
     <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>From the next time the camera is turned on. Go Live's quality is chosen when sharing.</Text>
+    <Heading text="Poor connection" />
+    <View className="gap-2">
+      <Switch checked={() => s.lowData} onChange={(on: boolean) => call.setLowData(on)} label="Ultra low data" />
+      <Switch checked={() => s.autoLowData} onChange={(on: boolean) => set((v: VoiceSettings): void => { v.autoLowData = on; })} label="Switch on after 5 poor seconds" />
+    </View>
+    <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>Voice at 10 kbit/s, the camera at a quarter of its size and 5 frames a second, Go Live at half its size and 5 frames a second.</Text>
     {users.length > 0 ? <Heading text="User volume" /> : null}
     {users.map((id: string) => <View key={id} className="h-[36] flex-row items-center gap-3">
       <Text className={`w-[140] text-sm ${TEXT_MAIN}`} numberOfLines={1}>{store.userName(id)}</Text>

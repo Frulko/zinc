@@ -11,9 +11,13 @@ voice: minimized, decoding stopped true
 voice: muted, speaking ''
 voice: push-to-talk held, speaking Ada, Grace
 voice: push-to-talk, not held, speaking ''
+voice: quality good, round trip measured true, loss 0%, codec opus
 voice: sensitivity -10 dB, level under it true, speaking ''
 voice: sensitivity -40 dB, input volume 80%, level -15 dB, speaking Ada, Grace
-voice: settings kept true: {"input":"zinc:fake-microphone","output":"zinc:fake-speakers","inputVolume":80,"outputVolume":100,"users":{"101":150},"mode":"voice","sensitivity":-40,"pttKey":"F8","camera":360,"streamRes":"720","streamFps":30}
+voice: settings kept true: {"input":"zinc:fake-microphone","output":"zinc:fake-speakers","inputVolume":80,"outputVolume":100,"users":{"101":150},"mode":"voice","sensitivity":-40,"pttKey":"F8","camera":360,"streamRes":"720","streamFps":30,"lowData":false,"autoLowData":true}
 voice: speaking Ada, Grace, in Lounge Ada, Grace
+voice: stream bitrate lowered by 25% loss reports true
 voice: stream stopped, ours true, watching false
+voice: ultra low data audio under 12 kbit/s true, back over 40 true, kept false
+voice: ultra low data camera 160x90, under 80 kbit/s true
 voice: watching Grace's stream 230x144

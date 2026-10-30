@@ -12,6 +12,9 @@
 // "udp", not WebRTC). A second thread per connection encodes our camera (VideoToolbox, plugins/webrtc/native/media.h) and decodes the
 // streams the program watches: only those, at the size they are shown (the decoder scales), into three buffers per stream (the decoder's,
 // the newest frame, the image's) swapped instead of copied. Packets of a stream nobody watches are dropped before they are opened.
+// Quality (RFC 3550 6.4): each second a sender report for our streams with a receiver report block per stream we receive (loss, jitter,
+// the last sender report's time); the server's reports on ours give their loss, jitter and round trip (report()), and their loss steers
+// the video encoder's bitrate (down by half the loss above 10%, up 8% a report under 2%). setLimits() is the ultra low data mode.
 #define ZRT_HOSTED_CPP
 #include "zinc_native_discordvoice.h"
 #define MONOCYPHER_CPP_NAMESPACE zn_voice_monocypher
@@ -65,6 +68,9 @@ const int SILENCE_FRAMES = 5;                             // sent after speech, 
 const uint8_t SILENCE[3] = {0xF8, 0xFF, 0xFE};
 const size_t JITTER_MAX = 8;                              // frames kept per speaker (160 ms); older ones are dropped
 const size_t JITTER_START = 2;                            // frames buffered before a speaker is played
+const int AUDIO_BPS = 64000;                              // Opus at full quality; setLimits() lowers it
+const double REPORT_MS = 1000;                            // RTCP sender and receiver reports
+const int MIN_VIDEO_BPS = 50000;                          // the loss-based bitrate does not go under this
 enum Mode { NONE = -1, AES_GCM = 0, XCHACHA = 1 };
 const char* MODE_NAMES[] = {"aead_aes256_gcm_rtpsize", "aead_xchacha20_poly1305_rtpsize"};
 
@@ -82,6 +88,12 @@ inline uint16_t be16(const uint8_t* p) { return (uint16_t)(p[0] << 8 | p[1]); }
 inline uint32_t be32(const uint8_t* p) { return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3]; }
 inline void put32(uint8_t* p, uint32_t v) { p[0] = (uint8_t)(v >> 24); p[1] = (uint8_t)(v >> 16); p[2] = (uint8_t)(v >> 8); p[3] = (uint8_t)v; }
 double nowMs() { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
+/** The wall clock as NTP: seconds since 1900 and their fraction (sender reports), and its middle 32 bits (the round trip's units, 1/65536 s). */
+uint64_t ntpNow() {
+  const double t = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count() + 2208988800.0;
+  return (uint64_t)t << 32 | (uint64_t)((t - floor(t)) * 4294967296.0);
+}
+uint32_t ntpMid(uint64_t ntp) { return (uint32_t)(ntp >> 16); }
 int modeOf(const std::string& m) { for (int i = 0; i < 2; i++) if (m == MODE_NAMES[i]) return i; return NONE; }
 bool fakeMic() { const char* v = getenv("ZINC_FAKE_MICROPHONE"); return v && *v && strcmp(v, "0") != 0; }
 const char* FAKE_IN = "zinc:fake-microphone\x1fZinc Fake Microphone\x1e", *FAKE_OUT = "zinc:fake-speakers\x1fZinc Fake Speakers\x1e";
@@ -190,6 +202,34 @@ struct Watch {
   std::vector<uint32_t> back;
 };
 
+/** What we receive of one SSRC (RFC 3550 A.1, A.8): the highest sequence and its wraps, packets, bytes, the interarrival jitter in its
+ *  clock's units, and the last sender report it sent (for our report block's LSR and DLSR). */
+struct Rx {
+  bool init = false, video = false;
+  uint16_t maxSeq = 0;
+  uint32_t cycles = 0, base = 0, expPrior = 0, recPrior = 0, lsr = 0;
+  uint64_t received = 0, bytes = 0;
+  int64_t lastTransit = 0;
+  double jitter = 0, lsrAt = 0;
+  uint32_t extMax() const { return cycles + maxSeq; }
+  int64_t lost() const { return std::max<int64_t>(0, (int64_t)extMax() - base + 1 - (int64_t)received); }
+  void packet(uint16_t seq, uint32_t ts, size_t n, double now) {
+    const int clock = video ? 90000 : RATE;
+    const int64_t transit = (int64_t)(now * clock / 1000) - (int64_t)ts;
+    if (!init) { init = true; base = seq; maxSeq = seq; lastTransit = transit; }
+    else {
+      const uint16_t d = (uint16_t)(seq - maxSeq);
+      if (d < 3000) { if (seq < maxSeq) cycles += 65536; maxSeq = seq; }
+      const int64_t dt = transit - lastTransit;
+      lastTransit = transit;
+      if (dt > -clock && dt < clock) jitter += ((double)(dt < 0 ? -dt : dt) - jitter) / 16;   // a frame's packets share a timestamp
+    }
+    received++; bytes += n;
+  }
+};
+/** The server's last report block on one of our streams. */
+struct Remote { double fraction = 0, lost = 0, jitter = 0, rtt = -1; bool seen = false; };
+
 struct Speaker {
   OpusDecoder* dec = nullptr;
   std::deque<std::vector<float>> frames;
@@ -212,8 +252,14 @@ struct Conn {
   std::map<uint32_t, std::string> users;
   std::string speakingNow;             // the records of speaking(), written each tick
   double stats[6] = {0, 0, 0, 0, 0, 0};
+  std::map<uint32_t, Rx> rx;           // what we receive, by SSRC
+  Remote remote[2];                    // the server's reports on our voice and on our video
+  double sentBytes[2] = {0, 0};        // payload bytes of our voice and of our video
+  int audioBps = AUDIO_BPS;            // setLimits(): the Opus target
+  double reportAt = 0;
   // the worker's own
-  OpusEncoder* enc = nullptr;
+  media::OpusEnc* enc = nullptr;
+  int encAudioBps = AUDIO_BPS;
   uint16_t seq = 0;
   uint32_t ts = 0, counter = 0;
   int silence = 0;
@@ -245,6 +291,10 @@ struct Conn {
   std::map<uint32_t, std::shared_ptr<Watch>> watches;
   uint32_t vssrc = 0;
   int vbps = 0, vfps = 30;              // our stream's bitrate and rate (videoSend), 0: from its size
+  int capScale = 1, capFps = 0, capBps = 0;   // setLimits(): frames 1/capScale the size, at most capFps a second and capBps
+  int adaptBps = 0;                     // the bitrate the server's loss reports allow (0: not lowered yet)
+  int curBps = 0, curW = 0, curH = 0;   // what the encoder runs at now (report())
+  double sendAt = -1e9;                 // the last frame taken (the rate cap)
   std::vector<uint32_t> pend;
   int pw = 0, ph = 0;
   bool hasPend = false, forceKey = false;
@@ -278,6 +328,8 @@ struct Conn {
   void videoLoop();
   void videoPacket(const uint8_t* p, size_t n, double now);
   void rtcp(const uint8_t* p, size_t n);
+  void report(double now);
+  int videoCap(int w, int h) const;
   void sendVideo(const std::vector<uint32_t>& px, int w, int h, bool key);
   void decodeAll(Watch& x);
   void pli(uint32_t source);
@@ -296,6 +348,11 @@ void Conn::received(const uint8_t* p, size_t n, double now) {
   }
   if (!started || n < 12) return;
   if (p[1] >= 200 && p[1] <= 206) { rtcp(p, n); return; }
+  if ((p[1] & 0x7f) == PT_H264 || ((p[1] & 0x7f) == PT_OPUS && audio)) {
+    Rx& r = rx[be32(p + 8)];
+    r.video = (p[1] & 0x7f) == PT_H264;
+    r.packet(be16(p + 2), be32(p + 4), n, now);
+  }
   if ((p[1] & 0x7f) == PT_H264) { videoPacket(p, n, now); return; }
   if ((p[1] & 0x7f) != PT_OPUS || !audio) return;   // RTX (we ask for key frames instead) and the rest
   stats[1]++;
@@ -345,7 +402,9 @@ void Conn::tick(double now) {
   float pcm[FRAME * CH];
   bool m, d, p, h;
   double gin, gout, gate;
-  { std::lock_guard<std::mutex> g(mu); m = mute; d = deaf; p = ptt; h = held; gin = inGain; gout = outGain; gate = threshold; }
+  int abps;
+  { std::lock_guard<std::mutex> g(mu); m = mute; d = deaf; p = ptt; h = held; gin = inGain; gout = outGain; gate = threshold; abps = audioBps; }
+  if (abps != encAudioBps) { media::opusSetBitrate(enc, abps); encAudioBps = abps; }   // 16 kbit/s and under: DTX, voice, wideband, FEC for 15%
   if (frame(pcm)) {
     if (gin != 1) for (float& v : pcm) v = std::max(-1.0f, std::min(1.0f, (float)(v * gin)));
     myLevel = rms(pcm, FRAME * CH);
@@ -354,7 +413,7 @@ void Conn::tick(double now) {
     const bool send = !m && (p ? h : now - voiceAt < VAD_HOLD_MS);
     uint8_t opus[1500];
     int n = 0;
-    if (send) { n = opus_encode_float(enc, pcm, FRAME, opus, sizeof opus); silence = SILENCE_FRAMES; }
+    if (send) { n = media::opusEncode(enc, pcm, opus, sizeof opus); silence = SILENCE_FRAMES; if (n > 0 && n <= 2) n = 0; }   // DTX: a 1-2 byte frame is silence, not sent
     else if (silence > 0) { memcpy(opus, SILENCE, 3); n = 3; silence--; }
     if (n > 0) {
       std::lock_guard<std::mutex> g(mu);
@@ -371,6 +430,7 @@ void Conn::tick(double now) {
         const std::vector<uint8_t> hdr = rtpHeader(seq++, ts, ssrc);
         const std::vector<uint8_t> pkt = cipher.seal(hdr.data(), hdr.size(), counter++, frame.data(), frame.size());
         stats[0]++;
+        sentBytes[0] += (double)frame.size();
         if (n != 3) sentAt = now;   // speaking: what actually left, not what DAVE held back
         sendRaw(pkt.data(), pkt.size());
       }
@@ -430,6 +490,7 @@ void Conn::loop() {
       }
     if (!media) { next = nowMs(); continue; }
     now = nowMs();
+    if (now - reportAt >= REPORT_MS) { reportAt = now; report(now); }
     if (now >= next) {
       tick(now);
       next += FRAME * 1000.0 / RATE;
@@ -451,11 +512,88 @@ void Conn::videoPacket(const uint8_t* p, size_t n, double now) {
   { std::lock_guard<std::mutex> g(x->m); x->re.push(pkt.data(), pkt.size(), (int64_t)now); }
   vcv.notify_one();
 }
-/** RTCP (under mu): a PLI asks us for a key frame. */
+/** RTCP (under mu), each packet of a compound one: a PLI asks us for a key frame; a sender report's time is kept for our report block
+ *  on its stream; a report block on one of our streams gives its loss, jitter and round trip, and on our video steers the bitrate. */
 void Conn::rtcp(const uint8_t* p, size_t n) {
-  std::vector<uint8_t> body;
-  if (!cipher.open(p, n, body, true)) return;
-  if (p[1] == 206 && (p[0] & 0x1f) == 1) { vstats[4]++; std::lock_guard<std::mutex> g(vmu); forceKey = true; }
+  std::vector<uint8_t> all;
+  if (!cipher.open(p, n, all, true)) return;
+  all.insert(all.begin(), p, p + 8);
+  const double now = nowMs();
+  const uint32_t mid = ntpMid(ntpNow());
+  for (size_t at = 0; at + 8 <= all.size();) {
+    const uint8_t* q = all.data() + at;
+    const size_t len = std::min(all.size() - at, 4 * ((size_t)be16(q + 2) + 1));
+    const int count = q[0] & 0x1f;
+    at += len;
+    if (q[1] == 206 && count == 1) { vstats[4]++; std::lock_guard<std::mutex> g(vmu); forceKey = true; continue; }
+    if (q[1] != 200 && q[1] != 201) continue;
+    size_t b = 8;
+    if (q[1] == 200) {
+      if (len < 28) continue;
+      auto it = rx.find(be32(q + 4));
+      if (it != rx.end()) { it->second.lsr = be32(q + 10); it->second.lsrAt = now; }
+      b = 28;
+    }
+    for (int k = 0; k < count && b + 24 <= len; k++, b += 24) {
+      const uint8_t* r = q + b;
+      const uint32_t of = be32(r);
+      if (of != ssrc && (of != vssrc || of == 0)) continue;
+      const bool video = of != ssrc;
+      Remote& x = remote[video ? 1 : 0];
+      x.seen = true;
+      x.fraction = r[4] / 256.0;
+      x.lost = (double)(int32_t)((uint32_t)r[5] << 24 | (uint32_t)r[6] << 16 | (uint32_t)r[7] << 8) / 256;   // 24-bit signed
+      x.jitter = be32(r + 12) / (video ? 90000.0 : (double)RATE);
+      const uint32_t lsr = be32(r + 16), dlsr = be32(r + 20);
+      if (lsr != 0 && (int32_t)(mid - lsr - dlsr) >= 0) x.rtt = (double)(mid - lsr - dlsr) / 65536.0;
+      if (!video) continue;
+      std::lock_guard<std::mutex> g(vmu);   // the loss-based half of WebRTC's congestion control (GCC)
+      const int cap = videoCap(curW, curH), cur = adaptBps > 0 ? std::min(adaptBps, cap) : cap;
+      if (x.fraction > 0.10) adaptBps = std::max(MIN_VIDEO_BPS, (int)(cur * (1 - 0.5 * x.fraction)));
+      else if (x.fraction < 0.02 && adaptBps > 0) adaptBps = adaptBps * 1.08 >= cap ? 0 : (int)(adaptBps * 1.08);
+    }
+  }
+}
+/** The most our video may use at w x h: videoSend's bitrate (0: from the size), under setLimits()'s cap (under vmu). */
+int Conn::videoCap(int w, int h) const {
+  const int base = vbps > 0 ? vbps : std::max(300000, std::min(2500000, w * h * 3));   // about 0.1 bit per pixel at 30 fps
+  return capBps > 0 ? std::min(base, capBps) : base;
+}
+/** Each second (the worker, mu taken here): a sender report for our voice (a Go Live connection: for its video, or a receiver report
+ *  before it sends) with a report block per stream received since the last one, and a sender report for our video. */
+void Conn::report(double now) {
+  std::lock_guard<std::mutex> g(mu);
+  uint32_t vs;
+  { std::lock_guard<std::mutex> v(vmu); vs = vssrc; }
+  const uint64_t ntp = ntpNow();
+  auto sr = [&](uint32_t from, uint32_t rtpTs, double packets, double bytes, bool blocks) {
+    std::vector<uint8_t> body;
+    auto u32 = [&](uint32_t v) { uint8_t b[4]; put32(b, v); body.insert(body.end(), b, b + 4); };
+    u32((uint32_t)(ntp >> 32)); u32((uint32_t)ntp); u32(rtpTs); u32((uint32_t)packets); u32((uint32_t)bytes);
+    int count = 0;
+    if (blocks) for (auto& [id, r] : rx) {
+      if (count == 31) break;
+      const uint32_t expected = r.extMax() - r.base + 1, expInt = expected - r.expPrior, recInt = (uint32_t)r.received - r.recPrior;
+      r.expPrior = expected; r.recPrior = (uint32_t)r.received;
+      if (recInt == 0) continue;   // not received since the last report
+      const int lostInt = (int)expInt - (int)recInt;
+      const uint32_t fraction = expInt == 0 || lostInt <= 0 ? 0 : (uint32_t)((lostInt << 8) / (int)expInt);
+      const uint32_t lost = (uint32_t)std::min<int64_t>(r.lost(), 0x7fffff);
+      u32(id); u32(fraction << 24 | lost); u32(r.extMax()); u32((uint32_t)r.jitter);
+      u32(r.lsr); u32(r.lsr != 0 ? (uint32_t)((now - r.lsrAt) / 1000 * 65536) : 0);
+      count++;
+    }
+    uint8_t hdr[8] = {(uint8_t)(0x80 | count), 200, 0, 0};
+    const size_t words = (8 + body.size()) / 4 - 1;
+    hdr[2] = (uint8_t)(words >> 8); hdr[3] = (uint8_t)words;
+    put32(hdr + 4, from);
+    const std::vector<uint8_t> pkt = cipher.seal(hdr, 8, counter++, body.data(), body.size());
+    sendRaw(pkt.data(), pkt.size());
+  };
+  const uint32_t vts = (uint32_t)(int64_t)(now * 90);
+  if (audio) sr(ssrc, ts, stats[0], sentBytes[0], true);
+  if (vs != 0) sr(vs, vts, vstats[1], sentBytes[1], !audio);
+  else if (!audio) sr(ssrc, 0, 0, 0, true);   // watching only: the blocks ride on an empty sender report
 }
 /** Asks the sender of the stream `source` for a key frame (RTCP PLI; video thread). */
 void Conn::pli(uint32_t source) {
@@ -470,12 +608,18 @@ void Conn::pli(uint32_t source) {
 /** One camera frame: encoded, end-to-end encrypted, cut into RTP packets (RFC 6184: single NAL units and FU-A) and sent (video thread). */
 void Conn::sendVideo(const std::vector<uint32_t>& px, int w, int h, bool key) {
   int bps, fps;
-  { std::lock_guard<std::mutex> v(vmu); bps = vbps > 0 ? vbps : std::max(300000, std::min(2500000, w * h * 3)); fps = vfps; }   // about 0.1 bit per pixel at 30 fps
-  if (!venc || venc->w != w || venc->h != h || encBps != bps || encFps != fps) {
+  {
+    std::lock_guard<std::mutex> v(vmu);
+    const int cap = videoCap(w, h);
+    bps = adaptBps > 0 ? std::min(adaptBps, cap) : cap;
+    fps = capFps > 0 ? std::min(vfps, capFps) : vfps;
+    curBps = bps; curW = w; curH = h;
+  }
+  if (!venc || venc->w != w || venc->h != h || encFps != fps) {
     venc.reset(media::h264Encoder(w, h, bps, fps));
     encBps = bps; encFps = fps;
     key = true;
-  }
+  } else if (encBps != bps) { venc->setRate(bps, fps); encBps = bps; }   // the loss reports: no new encoder, no key frame
   std::vector<uint8_t> au;
   bool isKey = false;
   if (!venc || !venc->encode(px.data(), w, h, (int64_t)nowMs(), key, au, isKey)) return;
@@ -517,6 +661,7 @@ void Conn::sendVideo(const std::vector<uint32_t>& px, int w, int h, bool key) {
     if (bn) body.insert(body.end(), b, b + bn);
     const std::vector<uint8_t> pkt = cipher.seal(hdr, sizeof hdr, counter++, body.data(), body.size());
     vstats[1]++;
+    sentBytes[1] += (double)body.size();
     sendRaw(pkt.data(), pkt.size());
   };
   for (size_t k = 0; k < nals.size(); k++) {
@@ -698,18 +843,14 @@ struct HostDiscordVoice : NativeDiscordVoice {
     if (!c) { err = "discord-voice: no such connection"; return false; }
     const int m = modeOf(cstr(mode));
     if (m == NONE) { err = "discord-voice: unknown encryption mode " + cstr(mode); return false; }
-    int e = 0;
-    OpusEncoder* enc = opus_encoder_create(RATE, CH, OPUS_APPLICATION_VOIP, &e);
-    if (e != OPUS_OK) { err = "discord-voice: Opus encoder"; return false; }
-    opus_encoder_ctl(enc, OPUS_SET_BITRATE(64000));
-    opus_encoder_ctl(enc, OPUS_SET_INBAND_FEC(1));
-    opus_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(5));
+    media::OpusEnc* enc = media::opusEncoder(CH, AUDIO_BPS);   // voice, in-band FEC; setLimits() changes its bitrate (opusSetBitrate)
+    if (!enc) { err = "discord-voice: Opus encoder"; return false; }
     c->fake = audio && fakeMic();
     c->audio = audio;
     if (audio) openDevices(c);   // devices first, then the worker uses them
     std::lock_guard<std::mutex> g(c->mu);
-    if (c->started) { opus_encoder_destroy(enc); err = "discord-voice: already started"; return false; }
-    if (!c->cipher.init(m, vec(key))) { opus_encoder_destroy(enc); err = "discord-voice: the key must be 32 bytes"; return false; }
+    if (c->started) { media::opusFree(enc); err = "discord-voice: already started"; return false; }
+    if (!c->cipher.init(m, vec(key))) { media::opusFree(enc); err = "discord-voice: the key must be 32 bytes"; return false; }
     c->enc = enc;
     c->started = true;
     err.clear();
@@ -791,7 +932,7 @@ struct HostDiscordVoice : NativeDiscordVoice {
     for (auto& [id, x] : c->watches) if (x->img >= 0) zrt::raster::dyn_destroy(x->img);
     if (c->capOn) ma_device_uninit(&c->cap);
     if (c->playOn) ma_device_uninit(&c->play);
-    if (c->enc) opus_encoder_destroy(c->enc);
+    media::opusFree(c->enc);
     ::close(c->fd);
     delete c;
     conns[h] = nullptr;
@@ -809,12 +950,17 @@ struct HostDiscordVoice : NativeDiscordVoice {
     const uint32_t* px = nullptr;
     int32_t w = 0, ih = 0, s = 0;
     if (!c || !zrt::raster::dyn_view(image, &px, &w, &ih, &s) || !px || w < 16 || ih < 16) return false;
-    w &= ~1; ih &= ~1;   // whole chroma samples for the encoder
     std::lock_guard<std::mutex> g(c->vmu);
     if (!c->vssrc) return true;
-    c->pend.resize((size_t)w * ih);   // the one copy: the camera rewrites its image on its own thread, the encoder reads this one
-    for (int r = 0; r < ih; r++) memcpy(c->pend.data() + (size_t)r * w, px + (size_t)r * s, (size_t)w * 4);
-    c->pw = w; c->ph = ih; c->hasPend = true;
+    const double now = nowMs(), fps = c->capFps > 0 ? std::min(c->vfps, c->capFps) : c->vfps;
+    if (now - c->sendAt < 900.0 / fps) return true;   // over the rate: this frame is skipped
+    c->sendAt = now;
+    const int k = std::max(1, std::min(c->capScale, std::min(w, ih) / 16));
+    const int ow = (w / k) & ~1, oh = (ih / k) & ~1;   // whole chroma samples for the encoder
+    c->pend.resize((size_t)ow * oh);   // the one copy: the camera rewrites its image on its own thread, the encoder reads this one
+    if (k == 1) for (int r = 0; r < oh; r++) memcpy(c->pend.data() + (size_t)r * ow, px + (size_t)r * s, (size_t)ow * 4);
+    else for (int r = 0; r < oh; r++) for (int x = 0; x < ow; x++) c->pend[(size_t)r * ow + x] = px[(size_t)r * k * s + (size_t)x * k];   // nearest
+    c->pw = ow; c->ph = oh; c->hasPend = true;
     c->vcv.notify_one();
     return true;
   }
@@ -853,6 +999,39 @@ struct HostDiscordVoice : NativeDiscordVoice {
       } else zrt::raster::dyn_update(x->img, x->shown.data(), x->sw);
     }
     return x->img;
+  }
+  void setLimits(int32_t h, int32_t audioBps, int32_t videoScale, int32_t videoFps, int32_t videoBps) override {
+    Conn* c = at(h);
+    if (!c) return;
+    std::lock_guard<std::mutex> g(c->mu);
+    c->audioBps = audioBps > 0 ? audioBps : AUDIO_BPS;
+    std::lock_guard<std::mutex> v(c->vmu);
+    c->capScale = std::max(1, videoScale); c->capFps = std::max(0, videoFps); c->capBps = std::max(0, videoBps);
+  }
+  zrt::String report(int32_t h) override {
+    Conn* c = at(h);
+    if (!c) return str("");
+    std::lock_guard<std::mutex> g(c->mu);
+    std::lock_guard<std::mutex> v(c->vmu);
+    auto n = [](double x) { char b[32]; snprintf(b, sizeof b, "%.6g", x); return std::string(b); };
+    std::string out;
+    auto row = [&](std::initializer_list<std::string> f) { if (!out.empty()) out += RS; bool first = true; for (const std::string& x : f) { if (!first) out += FS; out += x; first = false; } };
+    if (c->audio) row({"out", "audio", n(c->ssrc), n(c->sentBytes[0]), n(c->stats[0]), n(c->audioBps), "0", "0", "0", "0"});
+    if (c->vssrc) row({"out", "video", n(c->vssrc), n(c->sentBytes[1]), n(c->vstats[1]), n(c->curBps), n(c->vstats[0]), n(c->curW), n(c->curH), n(c->vstats[4])});
+    for (int k = 0; k < 2; k++) {
+      const Remote& x = c->remote[k];
+      if (x.seen && (k == 0 ? c->audio : c->vssrc != 0)) row({"remote", k ? "video" : "audio", n(k ? c->vssrc : c->ssrc), n(x.fraction), n(x.lost), n(x.jitter), n(x.rtt)});
+    }
+    for (auto& [id, r] : c->rx) {
+      double decoded = 0, dropped = 0;
+      std::string user;
+      auto u = c->users.find(id);
+      if (u != c->users.end()) user = u->second;
+      auto w = c->watches.find(id);
+      if (w != c->watches.end()) { std::lock_guard<std::mutex> l(w->second->m); decoded = w->second->decoded; dropped = (double)w->second->re.dropped; user = w->second->user; }
+      row({"in", r.video ? "video" : "audio", n(id), user, n((double)r.bytes), n((double)r.received), n((double)r.lost()), n(r.jitter / (r.video ? 90000.0 : RATE)), n(decoded), n(dropped)});
+    }
+    return str(out);
   }
   zrt::Array<double> videoStats(int32_t h) override {
     zrt::Array<double> r = zrt::Array<double>::with_cap(5);
@@ -978,7 +1157,7 @@ struct HostDiscordVoice : NativeDiscordVoice {
     Cipher c;
     std::vector<uint8_t> out;
     const std::vector<uint8_t> p = vec(packet);
-    if (!c.init(modeOf(cstr(mode)), vec(key)) || !c.open(p.data(), p.size(), out)) return arr({});
+    if (!c.init(modeOf(cstr(mode)), vec(key)) || !c.open(p.data(), p.size(), out, p.size() > 1 && p[1] >= 200 && p[1] <= 206)) return arr({});
     return arr(out);
   }
 };

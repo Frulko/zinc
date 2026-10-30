@@ -4,8 +4,11 @@
 // mode), kept on this machine with zinc:storage. Video: our camera (zinc:camera) sent while it is on, and the others' cameras decoded only
 // while the call view shows them and the window is not minimized, at the size of their tile. Go Live: a screen or a window shared
 // (zinc:screen-capture, captured at exactly the size and rate sent) over its own connection to the stream's server, and the others' streams
-// watched one at a time, decoded only while shown, at their tile's size or the full view's. No drawing.
+// watched one at a time, decoded only while shown, at their tile's size or the full view's. Quality: the connections' RTCP counters read
+// each second (CallQuality: good, fair, poor), and the ultra low data mode, chosen in the settings or switched on after 5 poor seconds.
+// No drawing.
 import { VoiceConnection, VoiceState, AudioDevice, VideoQuality, inputDevices, outputDevices } from 'zinc:discord-voice';
+import { CallQuality, RTCStats } from 'zinc:webrtc/quality';
 import { ScreenCapture } from 'zinc:screen-capture';
 import { pickScreen, ShareChoice } from 'zinc:screen-capture/picker';
 import { requestPermission, Microphone } from 'zinc:microphone';
@@ -36,6 +39,9 @@ export class VoiceSettings {
   camera = 360;
   streamRes = '720';
   streamFps = 30;
+  /** The ultra low data mode (zinc:discord-voice's setLowDataMode), always on, or switched on for a call after 5 poor seconds. */
+  lowData = false;
+  autoLowData = true;
 
   load(text: string): void {
     if (text === '') return;
@@ -50,13 +56,16 @@ export class VoiceSettings {
     if (v.camera === 360 || v.camera === 720) this.camera = v.camera;
     if (v.streamRes === '720' || v.streamRes === '1080' || v.streamRes === 'source') this.streamRes = v.streamRes;
     if (v.streamFps === 15 || v.streamFps === 30 || v.streamFps === 60) this.streamFps = v.streamFps;
+    if (typeof v.lowData === 'boolean') this.lowData = v.lowData;
+    if (typeof v.autoLowData === 'boolean') this.autoLowData = v.autoLowData;
     if (v.users !== null && typeof v.users === 'object') for (const k of Object.keys(v.users)) this.users.set(k, v.users[k] as number);
   }
   text(): string {
     const users: any = {};
     for (const [k, n] of this.users) users[k] = n;
     return JSON.stringify({ input: this.input, output: this.output, inputVolume: this.inputVolume, outputVolume: this.outputVolume, users: users,
-      mode: this.mode, sensitivity: this.sensitivity, pttKey: this.pttKey, camera: this.camera, streamRes: this.streamRes, streamFps: this.streamFps });
+      mode: this.mode, sensitivity: this.sensitivity, pttKey: this.pttKey, camera: this.camera, streamRes: this.streamRes, streamFps: this.streamFps,
+      lowData: this.lowData, autoLowData: this.autoLowData });
   }
   /** The sensitivity as the RMS level of the voice activity (zinc:discord-voice's threshold). */
   threshold(): number { return Math.pow(10, this.sensitivity / 20); }
@@ -108,6 +117,12 @@ export class Call {
   recordingKey = false;
   /** Our camera is on (sent to the call, shown in our tile). */
   video = false;
+  /** The call's health, a reading a second while connected (the call bar's bars, the CallStats panel), and the panel shown. */
+  quality: CallQuality = new CallQuality();
+  statsOpen = false;
+  /** The ultra low data mode was switched on by 5 poor seconds (for this call only). */
+  autoLow = false;
+  private sampler = -1;
   private cam: Camera | null = null;
   private viewOn = false;                                       // the call view shows the tiles
   private images: Map<string, i32> = new Map<string, i32>();   // user -> the image of their camera on screen
@@ -157,6 +172,35 @@ export class Call {
     const m = this.meter;
     if (m !== null && m.id !== this.settings.input) { this.meterOn(false); this.meterOn(true); }
     this.apply(false);
+  }
+  /** The ultra low data mode is on: chosen, or switched on by a poor connection. */
+  lowData(): boolean { return this.settings.lowData || this.autoLow; }
+  /** The mode by hand (kept); off also ends an automatic one. */
+  setLowData(on: boolean): void { if (!on) this.autoLow = false; this.set((s: VoiceSettings): void => { s.lowData = on; }); }
+  toggleStats(): void { this.statsOpen = !this.statsOpen; this.changed(); }
+  /** Every connection of the call's counters in one report: the voice one's, our stream's, the watched one's. */
+  getStats(): Map<string, RTCStats> {
+    const out = new Map<string, RTCStats>();
+    for (const c of this.conns()) c.getStats().forEach((s: RTCStats, id: string): void => { out.set(id, s); });
+    return out;
+  }
+  private conns(): VoiceConnection[] {
+    const all: VoiceConnection[] = [];
+    const c = this.conn, o = this.sharing, w = this.watching;
+    if (c !== null) all.push(c);
+    if (o !== null && o.conn !== null) all.push(o.conn as VoiceConnection);
+    if (w !== null && w.conn !== null) all.push(w.conn as VoiceConnection);
+    return all;
+  }
+  /** A reading a second while connected; after 5 poor ones in a row the ultra low data mode comes on (when allowed: autoLowData). */
+  private sample(): void {
+    if (this.state !== 'connected') return;
+    const q = this.quality.update(this.getStats());
+    if (this.settings.autoLowData && !this.lowData() && this.quality.poorFor >= 5) {
+      this.autoLow = true;
+      this.log(`voice ultra low data on: ${q.lossPct.toFixed(0)}% lost, ${Math.round(q.rttMs)} ms`);
+      this.apply(false);
+    }   // the call view repaints each second on its own (watch())
   }
   userVolume(id: string): number { const v = this.settings.users.get(id); return v !== undefined ? v : 100; }
   setUserVolume(id: string, percent: number): void {
@@ -362,6 +406,7 @@ export class Call {
     conn.log = this.log;
     const ours = l === this.sharing;
     if (ours) conn.setCamera(true, this.screenQ);   // op 12 once connected, then the capture's frames
+    conn.setLowDataMode(this.lowData());
     conn.onState = (st: VoiceState): void => {
       if (l.conn !== conn) return;
       if (st === 'connected' && ours) this.gw(22, { stream_key: l.key, paused: false });
@@ -478,6 +523,8 @@ export class Call {
     };
     conn.onVideo = (): void => { if (this.conn === conn) { this.videoWatch(); this.changed(); } };
     if (this.video) conn.setCamera(true, this.cameraQ());   // sent once the connection is up
+    this.quality.reset();
+    if (this.sampler < 0) this.sampler = setInterval(() => { this.sample(); }, 1000);
     conn.onSpeaking = (who: string[]): void => {
       if (this.conn !== conn) return;
       this.speaking.clear();
@@ -496,6 +543,7 @@ export class Call {
       c.setVolumes(s.inputVolume / 100, s.outputVolume / 100, s.threshold());
       for (const [u, v] of s.users) c.setUserVolume(u, v / 100);
     }
+    for (const x of this.conns()) x.setLowDataMode(this.lowData());
     if (tell && this.channelId !== '') this.op4(this.guildId, this.channelId, this.mute || this.deaf, this.deaf, this.video);
     this.changed();
   }
@@ -506,6 +554,8 @@ export class Call {
     const c = this.conn;
     this.conn = null; this.server = null; this.sessionId = ''; this.since = 0;
     if (c !== null) c.close();
+    if (this.sampler >= 0) { clearInterval(this.sampler); this.sampler = -1; }
+    this.autoLow = false; this.statsOpen = false;
     this.speaking.clear();
     this.videoWatch();
   }

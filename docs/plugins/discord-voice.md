@@ -5,6 +5,7 @@ A Discord voice connection: what a program needs once it has joined a voice chan
 
 ```ts
 import { VoiceConnection, inputDevices, outputDevices } from 'zinc:discord-voice';
+import { CallQuality } from 'zinc:webrtc/quality';
 
 // after op 4 on the main gateway: VOICE_STATE_UPDATE gave session_id, VOICE_SERVER_UPDATE gave token and endpoint
 const call = new VoiceConnection({ endpoint, token, serverId: guildId, channelId, userId, sessionId });
@@ -19,6 +20,8 @@ call.onVideo = () => console.log([...call.cameras.keys()]);   // who sends a cam
 call.watch(new Map([['101', [512, 288]]]));    // decode only 101's camera, at most 512x288 (op 15 asks the server for it, 0 for the rest)
 call.videoImage('101');                        // its newest frame as a runtime image (<Image image={...}>)
 call.setCamera(true); cam.onFrame(() => call.sendImage(cam.image));   // our zinc:camera, then op 4 self_video on the main gateway
+const q = new CallQuality();                   // from 'zinc:webrtc/quality'
+setInterval(() => { q.update(call.getStats()); if (q.poorFor >= 5) call.setLowDataMode(true); }, 1000);
 call.close();   // then op 4 with a null channel
 ```
 
@@ -40,8 +43,16 @@ call.close();   // then op 4 with a null channel
   to their size, into buffers handed to the image without copies; DAVE encrypts and decrypts each video frame as it does audio. A key
   frame is asked (RTCP PLI) after a loss or when a stream starts showing, at most once a second, and a PLI from the server makes our next
   frame a key frame. macOS only for now (`plugins/webrtc/native/videotoolbox.cpp`); elsewhere no stream decodes and nothing is sent.
+- **Quality.** Each second the native side sends an RTCP sender report for our streams with a receiver report block per stream it
+  receives (RFC 3550: loss, interarrival jitter, the last sender report's time) and reads the server's blocks on ours. `getStats()` gives
+  them as zinc:webrtc's `getStats()` does (`outbound-rtp`, `remote-inbound-rtp` with `fractionLost`, `jitter`, `roundTripTime`,
+  `inbound-rtp` with `framesDropped`, `candidate-pair`, `codec`; ids carry the SSRC so two connections' reports merge), so
+  `CallQuality` and zinc:ui/kit's `CallStats` read it. A video report over 10% lost lowers the encoder's bitrate by half the loss (not
+  under 50 kbit/s); under 2% it climbs back 8% a report. `setLowDataMode(true)`: Opus at 10 kbit/s with DTX, voice, wideband and FEC for
+  15% loss (the encoder settings of zinc:webrtc's low data mode), a camera at a quarter of its size, 5 fps and 60 kbit/s, a Go Live
+  stream at half its size, 5 fps and 150 kbit/s. Whether Discord's servers answer our sender reports has not been checked on a real call.
 - **Tests.** `ZINC_FAKE_MICROPHONE=1`: a 440 Hz tone and no audio device; `inputDevices()` and `outputDevices()` give "Zinc Fake Microphone" and "Zinc Fake Speakers". `rtpHeader`, `seal` and `unseal` give the framing and the transport
   encryption alone (`tests/golden/host/discord_voice_rtp.ts`, vectors recorded with Node by `plugins/discord-voice/tests/vectors.mjs`);
   `tests/t1/discord_voice.sh` runs a call against the fake Discord of `examples/discord/tests`.
-- **Not yet.** Packet reordering and loss concealment (Opus PLC/FEC), RTX and NACK, simulcast layers of our camera, VP8/AV1, Go Live,
+- **Not yet.** Packet reordering and loss concealment (Opus PLC/FEC), RTX and NACK, REMB and transport-wide congestion control, simulcast layers of our camera, VP8/AV1,
   DAVE's verification codes (pairwise fingerprints).
