@@ -283,6 +283,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - A JSX child `{cond ? <A/> : items.map(...)}` (a branch that is a list of rows) compiles in React-model files; it was refused with Z0113.
+- A program that imports `zinc:audio` (or any module) without using its values, or only for its types, no longer fails with Z0109 `return type of '__set_volume'`: a setter or method with no return type that returns nothing is `void` there too.
 - A default value on an async arrow function's parameter (`async (k: string, by: number = 1) => ...`) no longer fails with Z0103, and a closure inside an arrow function sees its defaulted parameter with its declared type; the default is evaluated only when the argument is left out.
 - `zinc dev` with the inspector on port 0 (any free port): the program binds the port itself and zinc dev names it (`the inspector listens on port N`); the next versions keep it, and take another when it is taken, instead of a port chosen beforehand that another program could take first.
 - `zinc:ui`: a text that grows from a zero width in a row (`flex-1 w-0`) wraps at the width it gets instead of staying on one clipped line, with style runs too.

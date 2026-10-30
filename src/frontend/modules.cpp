@@ -1696,15 +1696,31 @@ struct Loader {
   bool typesMode = false;
   std::map<std::uint32_t, std::uint32_t> moduleOfFile;
   static bool typeDecl(N k) { return k == N::Interface || k == N::TypeAlias || k == N::Enum || k == N::Class; }
+  static bool returnsValue(const Ast& A, std::uint32_t s) {   // a `return x` of this function's own body (not of a nested one)
+    if (s == kNone) return false;
+    const Node& x = A.nodes[s];
+    if (x.kind == N::Function || x.kind == N::Class || x.kind == N::FuncExpr) return false;
+    if (x.kind == N::Return) return x.kids[0] != kNone;
+    for (std::uint32_t k : x.kids) if (returnsValue(A, k)) return true;
+    return false;
+  }
   // A class of a module read for its types is its shape: abstract, no constructor, methods without bodies, fields without initializers
-  // (a field typed by its initializer keeps a literal one; another is left out); nothing of it runs, since nothing can construct it
+  // (a field typed by its initializer keeps a literal one; another is left out); nothing of it runs, since nothing can construct it.
+  // A method with no return type that returns no value (a setter, `stop() { ... }`) is given `void`, which its body said.
   static void classShape(Ast& A, std::uint32_t cls) {
-    Node& c = A.nodes[cls];
-    if (c.kind != N::Class) return;
-    c.flags |= kFlagAbstract;
-    std::vector<std::uint32_t> kids(c.kids.begin(), c.kids.begin() + kClassMembersFrom);
-    for (std::size_t k = kClassMembersFrom; k < c.kids.size(); ++k) {
-      Node& m = A.nodes[c.kids[k]];
+    if (A.nodes[cls].kind != N::Class) return;
+    A.nodes[cls].flags |= kFlagAbstract;
+    const std::vector<std::uint32_t> all = A.nodes[cls].kids;   // a copy: the void types below grow A.nodes
+    std::vector<std::uint32_t> kids(all.begin(), all.begin() + kClassMembersFrom);
+    for (std::size_t k = kClassMembersFrom; k < all.size(); ++k) {
+      if (A.nodes[all[k]].kind == N::Method && A.nodes[all[k]].kids[0] == kNone && !(A.nodes[all[k]].flags & (kFlagAsync | kFlagGenerator))
+          && A.nodes[all[k]].text != "constructor" && !returnsValue(A, A.nodes[all[k]].kids[1])) {
+        const Node& m = A.nodes[all[k]];
+        Node v{N::TypeRef, m.start, m.start, "void", {}, 0, m.file};
+        A.nodes.push_back(std::move(v));
+        A.nodes[all[k]].kids[0] = static_cast<std::uint32_t>(A.nodes.size() - 1);
+      }
+      Node& m = A.nodes[all[k]];
       if (m.kind == N::Method) {
         if (m.text == "constructor") continue;
         m.kids[1] = kNone;
@@ -1715,7 +1731,7 @@ struct Loader {
           if ((m.flags & kFlagSynthetic) || !(ik == N::Number || ik == N::String || ik == N::Literal)) continue;
         } else if (m.kids.size() > 1) { m.kids[1] = kNone; m.flags |= kFlagDefinite; }
       }
-      kids.push_back(c.kids[k]);
+      kids.push_back(all[k]);
     }
     A.nodes[cls].kids = std::move(kids);
   }
