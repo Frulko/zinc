@@ -239,6 +239,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- Web: a page uses the assets folder `zinc.json` names (`"assets": "../platformer/assets"`), not always `assets/` (n3ds-platformer's sounds were missing).
+- `zinc dev --target web`: a module with `export function` inside a string or template literal no longer stops with a ReferenceError (ui/forms' script editor).
 - Web: `sha256()` of `zinc:web` works in a page (it threw ZnUnsupported); `sha1`, `sha384` and `sha512` still ask for `crypto.subtle.digest()`.
 - `View`, `Text` and `Image` imported from `@pocketjs/framework/solid/components` are host elements again: PocketJS programs (the pocket-hero demo) compile instead of failing with Z0105 on every tag.
 - Web: `autostart.get()` of `zinc:system` answers `{ enabled: false }` in a page instead of throwing (the notify-relay demo stopped at start).

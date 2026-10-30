@@ -28,6 +28,11 @@ while time.monotonic() - t0 < 60 and not any("http://127.0.0.1:%d" % port in l f
 if not any("through the dev bridge" in l for l in log): fail("zinc dev did not start the bridge")
 cfg = open(os.path.join(project, "build", ".zinc-web-dev", "site", "index.html")).read()
 url = json.loads(re.search(r'"bridge":(\{[^}]*\})', cfg).group(1))["url"]
+import urllib.request
+try: asset = urllib.request.urlopen("http://127.0.0.1:%d/assets/hello.txt" % port, timeout=10).read().decode()
+except Exception as e: fail("no asset from the folder zinc.json names (\"assets\": \"data\"): %s" % e)
+if '"assets/hello.txt"' not in cfg or not asset.startswith("an asset"): fail("the page does not list or serve data/hello.txt as assets/hello.txt")
+steps["assetsDir"] = True
 with Chrome(["--window-size=800,500"]) as c:
     c.open("http://127.0.0.1:%d/" % port)
     end = time.monotonic() + 20
@@ -38,7 +43,6 @@ with Chrome(["--window-size=800,500"]) as c:
     steps["promise"] = True
     m = next((re.search(r"serving: (\d+)", l) for l in c.console if "serving: " in l), None)
     if not m: fail("zinc:net serve() did not listen through the bridge", c.console)
-    import urllib.request
     try: body = urllib.request.urlopen("http://127.0.0.1:%s/hello" % m.group(1), timeout=10).read().decode()
     except Exception as e: fail("the page's server did not answer: %s" % e, c.console)
     if body != "page answers /hello": fail("the page's server answered %r" % body)

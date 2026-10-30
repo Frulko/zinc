@@ -496,9 +496,17 @@ std::string mime(const std::string& path) {
 }
 
 struct Asset { std::string name, file, url; std::size_t size = 0; bool image = false, stream = false; std::string font; };   // stream: a video, fetched by its <video> element from its url, not before the app starts
+// zinc.json's "assets": "dir" (n3ds-platformer reads platformer's), `assets` without one; the page names each file "assets/<path in it>"
+fs::path assetsRoot(const std::string& dir) {
+  zn::frontend::Project p;
+  std::string err;
+  const std::string pf = zn::frontend::findProjectFile(dir);
+  if (!pf.empty()) zn::frontend::parseProject(readAll(pf), p, err);
+  return (fs::path(dir) / p.assets.dir).lexically_normal();
+}
 std::vector<Asset> listAssets(const std::string& dir) {
   std::vector<Asset> out;
-  const fs::path root = fs::path(dir) / "assets";
+  const fs::path root = assetsRoot(dir);
   std::error_code ec;
   if (!fs::is_directory(root, ec)) return out;
   static const std::set<std::string> images = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"}, fonts = {".ttf", ".otf", ".woff", ".woff2"}, videos = {".mp4", ".m4v", ".mov", ".webm", ".ogv", ".mkv", ".avi", ".ts"};
@@ -1005,7 +1013,9 @@ std::string serveModule(Dev& d, const std::string& file, int version) {
     for (auto m = std::sregex_iterator(out.begin(), out.end(), ex); m != std::sregex_iterator(); ++m) names.insert((*m)[1].matched ? (*m)[1].str() : (*m)[2].str());
     static const std::regex cst("(\\nexport\\s+)const(\\s+)");
     out = std::regex_replace(out, cst, "$1let$2");
-    for (const std::string& n : names) tail += n + " = globalThis.__zincRefresh(" + jstr(file) + ", " + jstr(n) + ", " + n + ");\n";
+    // ponytail: a regex over the text, so `export function` inside a string or a template (ui/forms' script editor) matches too: the typeof guard skips a name the
+    // module never declared; a scanner that skips strings and comments if a real collision shows up
+    for (const std::string& n : names) tail += "if (typeof " + n + " === 'function') " + n + " = globalThis.__zincRefresh(" + jstr(file) + ", " + jstr(n) + ", " + n + ");\n";
   }
   {   // `import * as ns from 'pkg'`: the pre-bundled package's namespace, whatever it is (a CommonJS package has no static names; esbuild's interop object has them all)
     static const std::regex nsImport("import\\s*\\*\\s*as\\s+([A-Za-z_$][\\w$]*)\\s+from\\s*(\"/__deps/[^\"]+\")");
@@ -1234,7 +1244,7 @@ void connection(Dev* d, int fd) {
     { std::lock_guard<std::mutex> lock(d->m); dir = d->depsDir; }
     if (dir.empty()) { reply(404, "text/plain", "no packages"); return; }
     f = fs::path(dir) / path.substr(8);
-  } else if (path.rfind("/assets/", 0) == 0) f = fs::path(d->a.dir) / path.substr(1);
+  } else if (path.rfind("/assets/", 0) == 0) f = assetsRoot(d->a.dir) / path.substr(8);
   else if (path.rfind("/__project/", 0) == 0 && !d->a.lan) f = fs::path(d->a.dir) / path.substr(11);
   else f = d->site / path.substr(1);
   std::error_code ec;

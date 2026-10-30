@@ -1,5 +1,6 @@
 {
   "name": "web-bridge",
   "entry": "src/main.ts",
+  "assets": "data",
   "targets": { "web": { "render": "dom", "title": "Dev bridge fixture" } }
 }
