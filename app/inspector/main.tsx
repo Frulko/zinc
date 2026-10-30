@@ -179,8 +179,9 @@ async function list(): Promise<void> {
     for (const t of found) if (t.key() === (lost as Target).key()) { const v = view(); lost = null; await attach(t, v); return; }
     return;
   }
-  if (conn.c === null) setStatus(found.length === 0 ? 'no program yet: start one with zinc:devtools (zinc dev, or import \'zinc:devtools\')' : found.length + (found.length === 1 ? ' program' : ' programs'));
-  if (auto && conn.c === null && found.length === 1) await attach(found[0]);
+  const mains = found.filter((t: Target) => t.window === 0);   // a program's main window: its other windows are targets too (ZN-864)
+  if (conn.c === null) setStatus(mains.length === 0 ? 'no program yet: start one with zinc:devtools (zinc dev, or import \'zinc:devtools\')' : mains.length + (mains.length === 1 ? ' program' : ' programs'));
+  if (auto && conn.c === null && mains.length === 1) await attach(mains[0]);
 }
 setInterval(() => { list(); }, 1000);
 
@@ -468,6 +469,28 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the panels as t
     return;
   }
   if (mode === 'layout') { await dumpLayout(); quit(); return; }   // tests/t1/inspector_layout.sh
+  if (mode === 'windows') {   // tests/t1/multiwin.sh: each window of the program a target; a side window's tree, node at a point and screen
+    for (const t of ts) if (t.window > 0) {
+      await attach(t);
+      await until(() => rows().length > 0);
+      console.log('window ' + t.window + ': ' + attached());
+      for (const r of rows()) if (!r.close) {
+        console.log('  '.repeat(r.depth + 1) + label(r.node));
+        const x = inlineText(r.node);
+        if (x !== null) console.log('  '.repeat(r.depth + 2) + label(x as TNode));
+      }
+      const at = await call('DOM.getNodeForLocation', '{"x":30,"y":30}');
+      const atId: i32 = at.nodeId !== undefined ? at.nodeId : 0, atNode = nodeOf(atId);
+      console.log('node at 30,30: ' + (atNode !== null ? label(atNode as TNode) : 'none'));
+      setView('screen');
+      await screen(true);
+      await until(() => frame() >= 0);
+      console.log('screen: ' + imageWidth(frame()) + ' x ' + imageHeight(frame()) + ', window ' + devW + ' x ' + devH);
+      await screen(false);
+    }
+    quit();
+    return;
+  }
   setView('elements');
   if (mode === 'screenfps') {   // two seconds of an animated program's screen: frames per second, size, decoding, latency
     setView('screen');

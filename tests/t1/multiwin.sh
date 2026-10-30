@@ -4,8 +4,10 @@
 # interpreter, the AOT and QuickJS print the same lines and draw the same frames of both windows. tests/data/multiwin_worker: the second
 # window's scene is computed by a worker (workerPort/parentPort); a deterministic run captures both windows, a run on the real clock checks
 # that the main window keeps drawing while the worker holds its thread 1.5 s (interpreter; the AOT build of workers is worker_engines.sh's).
+# The inspector: each window of tests/data/multiwin is a target of its own; attached to the side window, Elements shows its tree, the node
+# at a point is found in it and the Screen view streams that window.
 cd "$(dirname "$0")/../.." || exit 2
-tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+tmp=$(mktemp -d); trap 'kill $target 2>/dev/null; rm -rf "$tmp"' EXIT
 fail=0
 want() {   # log line
   grep -qxF "$2" "$tmp/$1.log" || { echo "$1: no line '$2' in: $(tr '\n' '|' <"$tmp/$1.log" | head -c 600)"; fail=1; }
@@ -38,4 +40,18 @@ same "$tmp/w-8-w1.png" tests/golden/multiwin/worker-side.png
 env -u ZINC_DETERMINISTIC ZINC_HEADLESS=1 ZINC_FRAMES=100000000 timeout 60 "$ZINC" run --interp tests/data/multiwin_worker >"$tmp/busy.log" 2>&1 ||
   { echo "busy worker: exit $?: $(tail -c 400 "$tmp/busy.log")"; fail=1; }
 want busy "busy reply 'done': the main window kept drawing"
+
+export ZINC_HOME="$tmp/home" ZINC_REALTIME=1 ZINC_HEADLESS=1 ZINC_FRAMES=100000000
+unset ZINC_DETERMINISTIC
+MULTIWIN_KEEP=1 ZINC_DEVTOOLS_PORT=0 timeout 60 "$ZINC" run --interp tests/data/multiwin/inspect.ts >"$tmp/t.log" 2>&1 & target=$!
+n=0; while [ $n -lt $((400 * ${ZN_WAIT_SCALE:-1})) ] && ! grep -q "zinc devtools:" "$tmp/t.log"; do sleep 0.05; n=$((n+1)); done
+ZINC_INSPECTOR_DUMP=windows timeout 60 "$ZINC" run app/inspector/main.tsx -- announced >"$tmp/i.log" 2>&1 || { echo "inspector: exit $?: $(tail -c 400 "$tmp/i.log")"; fail=1; }
+kill $target 2>/dev/null; wait $target 2>/dev/null
+want i "programs: 2"
+want i "program: multiwin (page)"
+want i "program: multiwin · Side, resized (page)"
+grep -qF "window 1: multiwin · Side, resized (port " "$tmp/i.log" || { echo "the side window was not attached: $(tr '\n' '|' <"$tmp/i.log" | head -c 600)"; fail=1; }
+want i '    <View className="flex-col gap-3 p-4 h-full">'
+want i 'node at 30,30: <Text className="text-lg text-slate-900">'
+want i "screen: 260 x 160, window 260 x 160"
 exit $fail

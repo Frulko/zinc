@@ -2053,7 +2053,7 @@ void endImage() {
 // handed to the HAL and dropped from the list, like beginImage. While its callback runs, the window's input stands in for the main
 // window's and width()/height() are its size. The HAL (hal_window.h) owns the rule of the last window: closing one keeps the others,
 // closing the last one ends the program; a closed main window is hidden while others are open.
-struct Win { int32_t id; int32_t w, h, pw, ph; uint32_t* px; uint32_t hash; bool open; HalInput in, prev; };
+struct Win { int32_t id; int32_t w, h, pw, ph; uint32_t* px; uint32_t hash; bool open; HalInput in, prev; char title[96]; };
 static Win wins[ZRT_MAX_WINDOWS];
 static Win* in_win = nullptr;   // the window being drawn
 static int32_t win_ids = 0;
@@ -2071,6 +2071,7 @@ int32_t openWindow(const String& title, int32_t w, int32_t h) {
   if (x->px) hal_free(x->px);
   __builtin_memset(x, 0, sizeof *x);
   x->id = id; x->w = w; x->h = h; x->open = true; x->in.pinch = 1;
+  __builtin_memcpy(x->title, t, (n < sizeof x->title - 1 ? n : sizeof x->title - 1) + 1); x->title[sizeof x->title - 1] = 0;
   return id;
 }
 void closeWindow(int32_t id) {
@@ -2091,7 +2092,23 @@ int32_t windowCtl(int32_t id, int32_t op, const String& title, int32_t a, int32_
   char t[256];
   uint32_t n = title.bytes() < sizeof t - 1 ? title.bytes() : (uint32_t)sizeof t - 1;
   __builtin_memcpy(t, title.ptr(), n); t[n] = 0;
+  if (op == 3 && id) { Win* x = win_of(id); __builtin_memcpy(x->title, t, (n < sizeof x->title - 1 ? n : sizeof x->title - 1) + 1); x->title[sizeof x->title - 1] = 0; }
   return hal_win_ctl(id, op, t, a, b);
+}
+/** The inspector (src/host/screencast.cpp): slot i of the windows beside the main one, when it holds an open window: its id, title and
+ *  size in points; false past the last slot (an empty slot gives true with id 0). */
+bool windowSlot(int32_t i, int32_t* id, const char** title, int32_t* w, int32_t* h) {
+  if (i < 0 || i >= ZRT_MAX_WINDOWS) return false;
+  Win& x = wins[i];
+  *id = x.open && windowOpen(x.id) ? x.id : 0; *title = x.title; *w = x.w; *h = x.h;
+  return true;
+}
+/** Window id's last frame (physical pixels, 0x00RRGGBB) and the hash it was drawn from; null before its first frame. */
+const uint32_t* windowPixels(int32_t id, int32_t* pw, int32_t* ph, uint32_t* hash) {
+  Win* x = win_of(id);
+  if (!x || !x->px) return nullptr;
+  *pw = x->pw; *ph = x->ph; *hash = x->hash;
+  return x->px;
 }
 void beginWindow(int32_t id) {
   Win* x = win_of(id);

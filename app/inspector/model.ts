@@ -11,6 +11,8 @@ export class Target {
   // what zinc:devtools says of the program (its /json/list `zinc`): engine, dev run, project folder (~ for home), entry, process; and the
   // paired device it runs on ('' : this machine)
   engine: string = ''; dev: boolean = false; project: string = ''; entry: string = ''; pid: i32 = 0; device: string = '';
+  /** The program's window this target is (ZN-864): 0 the main one, else a window beside it, each a target of its own. */
+  window: i32 = 0;
   /** The title without its directory (zinc debug --cdp titles a target with the program's whole path). */
   name(): string { return this.title.slice(this.title.lastIndexOf('/') + 1); }
   /** The program card's line under the name: engine, dev run, project, process and port, device. */
@@ -25,7 +27,7 @@ export class Target {
     return parts.join(' · ');
   }
   /** What stays when the program restarts (zinc dev starts a new process at each save): its entry, else its title. */
-  key(): string { return this.entry.length > 0 ? this.entry : this.title; }
+  key(): string { return (this.entry.length > 0 ? this.entry : this.title) + (this.window > 0 ? '#' + this.window : ''); }
 }
 
 /** <zinc home>/run/devtools: each program with zinc:devtools writes <pid>.json there, {"port", "pid"} (plugins/devtools/native). */
@@ -62,6 +64,8 @@ export async function discover(ports: i32[], announced: boolean): Promise<Target
         x.port = port; x.title = t.title; x.type = t.type; x.ws = t.webSocketDebuggerUrl;
         const z = t.zinc;
         if (z !== undefined) { x.engine = z.engine; x.dev = z.dev; x.project = z.project; x.entry = z.entry; x.pid = z.pid; }
+        const w = t.window;
+        if (w !== undefined) { const id: i32 = w.id; x.window = id; }
         if (pids[i] > 0 && x.pid > 0 && x.pid !== pids[i]) continue;   // the port is another program's now: the file is stale
         out.push(x);
         found = true;

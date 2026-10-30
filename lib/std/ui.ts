@@ -11,7 +11,7 @@ import {
   scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId,
 } from 'zinc:gfx';
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
-import { openWindow, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
+import { openWindow, windowOpen, frame as gfxFrame } from 'zinc:gfx';   // trees in windows of their own (ZN-663)
 import { overlaid } from 'zinc:gfx';   // the loader's fade draws over the first frames (ZN-447): a kept frame would hold it
 import { refreshIntent } from 'zinc:gfx';   // an e-ink panel's waveform: interactive while a pinch moves, settle when it ends
 import { platform, env, device } from 'zinc:sys';
@@ -6332,6 +6332,10 @@ class Surface {
   primaryId: i32 = -1; fIds: i32[] = []; fXs: number[] = []; fYs: number[] = []; pinching = false; pinchD0: number = 1; pinchA0: number = 0;
   pinchScale: number = 1; pinchRot: number = 0; halPrimary: i32 = -1; halFingers: i32[] = [];
   overlays: Overlay[] = []; layers: Layer[] = []; anchors: Anchor[] = [];
+  // the inspector's highlight and pick of this window (ZN-864: each window is a target of its own)
+  highlight: i32 = -1; highlightTip = ''; pick: ((x: number, y: number, pressed: boolean) => void) | null = null; pickEnd: (() => void) | null = null;
+  pickKey: ((key: string) => void) | null = null; pickDown = false; pickHeld = false;
+  win: i32 = 0;   // its zinc:gfx window
 }
 /** The surfaces of the windows that are not drawn now (while a window draws, the main window's state is in its Surface). */
 const surfaces: Surface[] = [];
@@ -6409,6 +6413,24 @@ function swapSurface(s: Surface): void {
   i = halPrimary; halPrimary = s.halPrimary; s.halPrimary = i;
   a = halFingers; halFingers = s.halFingers; s.halFingers = a;
   swapItems(overlays, s.overlays); swapItems(layers, s.layers); swapItems(anchors, s.anchors);
+  i = highlight; highlight = s.highlight; s.highlight = i;
+  const ht = highlightTip; highlightTip = s.highlightTip; s.highlightTip = ht;
+  const pf = pick; pick = s.pick; s.pick = pf;
+  const pe = pickEnd; pickEnd = s.pickEnd; s.pickEnd = pe;
+  const pk = pickKey; pickKey = s.pickKey; s.pickKey = pk;
+  b = pickDown; pickDown = s.pickDown; s.pickDown = b;
+  b = pickHeld; pickHeld = s.pickHeld; s.pickHeld = b;
+}
+/** Runs f with the tree of window `win` (zinc:gfx id, 0: the main one) as the one this module reads: its root, layout, highlight and pick (the
+ *  inspector attached to that window). False, without calling f, when no tree of this module is in that window. Called outside a frame. */
+export function inspectIn(win: i32, f: () => void): boolean {
+  if (win === 0) { f(); return true; }
+  for (const s of surfaces) if (s.win === win && windowOpen(win)) {
+    swapSurface(s);
+    try { f(); } finally { swapSurface(s); }
+    return true;
+  }
+  return false;
 }
 /** A change of the surface being drawn: every other surface lays out (`layout`) or paints again. */
 function othersDirty(relayout: boolean): void {
@@ -6425,7 +6447,7 @@ export function mountWindow(title: string, w: i32, hgt: i32, h: i32, background:
     frame(dt, background);
     swapSurface(s);
   });
-  if (id < 0) surfaces.pop();
+  if (id < 0) surfaces.pop(); else s.win = id;
   return id;
 }
 /** Deterministic dump of the laid-out tree (golden tests, TST-07). */

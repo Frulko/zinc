@@ -5,6 +5,7 @@ import * as ui from 'zinc:ui';
 import * as win from 'zinc:system/window';
 import { MessageChannel, MessageEvent } from 'zinc:worker';
 import { frame } from 'zinc:gfx';
+import { env } from 'zinc:sys';
 
 interface Note { text: string; n: i32 }
 
@@ -52,7 +53,7 @@ ui.mount(mainRoot, 0x0f172a, (dt: number) => {
   } else if (f === 4) {
     sidePort.request({ text: 'apples', n: 21 }).then((r: Note) => { console.log(`side asked, main replied '${r.text}' ${r.n}`); });
     mainPort.request({ text: 'pears', n: 2 }).then((r: Note) => { console.log(`main asked, side replied '${r.text}' ${r.n}`); });
-  } else if (f === 9) {
+  } else if (f === 9 && env('MULTIWIN_KEEP') === '') {   // kept open for the inspector (tests/t1/multiwin.sh)
     s.close();
     console.log(`closed the side window: ${show()}, open ${s.isOpen() ? 'yes' : 'no'}`);
   }

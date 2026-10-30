@@ -11,6 +11,7 @@ import { resourceStats } from 'zinc:__diagnostics';
 
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const clients: (WebSocket | null)[] = [];
+const clientWin: i32[] = [];   // the window each client attached to (ws://.../zinc/w<id>; 0: the main one), -1 once it left
 let onMessage: ((client: i32, msg: string) => void) | null = null;
 let described = '"title":"Zinc app (next)","description":"Zinc UI","url":"zinc://app"';   // net(15): the program's name, engine... (index.ts)
 
@@ -49,15 +50,33 @@ function request(s: Socket, head: string, rest: u8[]): void {
     const ws = new WebSocket(path, null, s);
     const id: i32 = clients.length;
     clients.push(ws);
+    const win: i32 = path.startsWith('/zinc/w') ? parseInt(path.slice(7)) : 0;
+    clientWin.push(win);
     ws.onmessage = (e: MessageEvent) => { const f = onMessage; if (f !== null && !e.binary) f(id, e.data); };
-    ws.onclose = (e) => { clients[id] = null; };
+    ws.onclose = (e) => { clients[id] = null; clientWin[id] = -1; };
     if (rest.length > 0) ws.receive(rest);
     return;
   }
   if (path.startsWith('/json/version')) reply(s, '200 OK', '{"Browser":"Zinc/0.1","Protocol-Version":"1.3"}');
-  else if (path.startsWith('/json')) {
-    reply(s, '200 OK', `[{"devtoolsFrontendUrl":"devtools://devtools/bundled/inspector.html?ws=${host}/zinc","id":"zinc","type":"page","webSocketDebuggerUrl":"ws://${host}/zinc",${described}}]`);
-  } else reply(s, '200 OK', 'Zinc DevTools endpoint: open chrome://inspect');
+  else if (path.startsWith('/json')) reply(s, '200 OK', targets(host)); else reply(s, '200 OK', 'Zinc DevTools endpoint: open chrome://inspect');
+}
+/** /json/list: one target per window, the main one first (ZN-864, as Electron lists each window in chrome://inspect). A window beside it is
+ *  named by the program and its title, and says which it is in `window`. */
+function targets(host: string): string {
+  const one = (path: string, id: string, fields: string): string =>
+    `{"devtoolsFrontendUrl":"devtools://devtools/bundled/inspector.html?ws=${host}${path}","id":"${id}","type":"page","webSocketDebuggerUrl":"ws://${host}${path}",${fields}}`;
+  const out: string[] = [one('/zinc', 'zinc', described + ',"window":{"id":0,"title":""}')];
+  const cut = described.indexOf(',"description":');
+  const ws = netLog(16, '');
+  if (cut > 0 && described.startsWith('"title":') && ws.length > 2) {
+    const name: string = JSON.parse(described.slice(8, cut));
+    const list = JSON.parse(ws);
+    for (const w of list) {
+      const id: i32 = w.id, title: string = w.title;
+      out.push(one(`/zinc/w${id}`, `zinc-w${id}`, `"title":${JSON.stringify(name + ' · ' + title)}${described.slice(cut)},"window":{"id":${id},"title":${JSON.stringify(title)}}`));
+    }
+  }
+  return '[' + out.join(',') + ']';
 }
 function accept(s: Socket): void {
   let buf: u8[] = [];
@@ -160,6 +179,7 @@ export default {
   trace(on: boolean): string { return netLog(on ? 7 : 8, ''); },   // the runtime's frame phases (ZN-373.05)
   net(op: i32, arg: string): string {
     if (op === 15) { described = arg; return ''; }
+    if (op === 25) { const o: string[] = []; for (const w of clientWin) o.push(`${w}`); return o.join(' '); }   // the window of each client (index.ts)
     if (op !== 0) return netLog(op, arg);
     logging = true;
     return netLog(0, `${port}`);

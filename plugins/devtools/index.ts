@@ -5,10 +5,12 @@
 // (every fetch, WebSocket, MQTT client and outgoing TCP socket of the program, from the host's network log), and the Styles
 // panel: classes and style sheets as rules, element.style and the box model edited live with the patch printed to the console
 // (ZN-369). Unknown methods get an empty result so the frontend never waits. A program with a zinc:stage scene and no zinc:ui tree shows its
-// display tree instead, and a stage drawn in a <Canvas> shows under that Canvas (stage.ts).
+// display tree instead, and a stage drawn in a <Canvas> shows under that Canvas (stage.ts). Each window of the program is a target of its
+// own (ZN-864, as each window of Electron is in chrome://inspect): /json/list names them, and a client attached to a window beside the main
+// one gets that window's tree (zinc:ui inspectIn), screen and pick; the console, network, storage and pause stay the program's.
 import Cdp from './native/cdp.spec';
-import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectHit, onKey, KeyEvent, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, setText, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
-import { width, height, pointerX, pointerY, onPausedFrame } from 'zinc:gfx';
+import { inspectIn, inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectHit, onKey, KeyEvent, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, setText, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
+import { width, height, pointerX, pointerY, onPausedFrame, windowCtl } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import { saveLocation } from 'zinc:hardware';
 import { type as osType, release as osRelease, arch as osArch, cpus as osCpus, totalmem, hostname } from 'zinc:os';
@@ -150,11 +152,13 @@ function nodeAt(x: number, y: number): i32 {
 // The highlight (Overlay.highlightNode, the pick's hover): drawn by the program into its frame, except while the inspector streams the screen,
 // which draws it over the frames it shows (from DOM.getBoxModel), as Chrome's device view does: the frames never carry it.
 let lit: i32 = 0;
+let here: i32 = 0;   // the window the request or the pick is about (0: the main one)
 function light(id: i32): void {
   lit = id;
-  const o = cast < 0 ? stageNode(id) : null, h = handleOf(id), n = inspectNode(h);
+  const drawn = cast < 0 || castWin !== here;   // the program draws it, unless the inspector streams this window
+  const o = drawn ? stageNode(id) : null, h = handleOf(id), n = inspectNode(h);
   stageHighlight(o);   // a scene's node: its own turned box
-  inspectHighlight(cast < 0 && o === null && n !== null ? h : -1, cast < 0 && o === null && n !== null ? tipOf(h, n as UiNode) : '');
+  inspectHighlight(drawn && o === null && n !== null ? h : -1, drawn && o === null && n !== null ? tipOf(h, n as UiNode) : '');
 }
 /** The overlay's tooltip for zinc:ui node h, as Chrome's: its component, tag and classes (shortened), its size; a text's font and colour. */
 function tipOf(h: i32, n: UiNode): string {
@@ -182,17 +186,18 @@ function above(id: i32, up: i32): i32 {
 // Inspect mode (the inspector's arrow, or Cmd/Ctrl+Shift+C in the program of a dev run): hovering the app highlights the node, a click
 // selects it in Elements and ends the mode, and reaches nothing in the app; Escape or the shortcut again ends it. A scene drawn alone runs
 // its own pick mode (stage.ts), zinc:ui runs it otherwise.
-let picked: i32 = 0;
+let picked: i32 = 0, pickWin: i32 = 0;   // the window picked in: its clients get the events
 function onPicked(id: i32, pressed: boolean): void {
+  here = pickWin;
   if (pressed) {
     inspectPick(null);
     stagePick(null);
     light(0);
-    if (id > 0) Cdp.send(-1, `{"method":"Overlay.inspectNodeRequested","params":{"backendNodeId":${id}}}`);
+    if (id > 0) sendWin(pickWin, `{"method":"Overlay.inspectNodeRequested","params":{"backendNodeId":${id}}}`);
     return;
   }
   light(id);
-  if (id !== picked && id > 0) Cdp.send(-1, `{"method":"Overlay.nodeHighlightRequested","params":{"nodeId":${id}}}`);
+  if (id !== picked && id > 0) sendWin(pickWin, `{"method":"Overlay.nodeHighlightRequested","params":{"nodeId":${id}}}`);
   picked = id;
 }
 let pickBase: i32 = 0, pickUp: i32 = 0;   // the node under the pointer, and how many levels above it ArrowUp went (back to 0 on another node)
@@ -201,13 +206,58 @@ function onPick(x: number, y: number, pressed: boolean): void {
   if (at !== pickBase) { pickBase = at; pickUp = 0; }
   onPicked(at > 0 ? above(at, pickUp) : 0, pressed);
 }
-function startPick(): void {
-  picked = 0; pickBase = 0; pickUp = 0;
-  inspectPick(onPick, () => { stagePick(null); light(0); Cdp.send(-1, '{"method":"Overlay.inspectModeCanceled","params":{}}'); },
+function startPick(win: i32): void {
+  picked = 0; pickBase = 0; pickUp = 0; pickWin = win;
+  inspectPick(onPick, () => { here = pickWin; stagePick(null); light(0); sendWin(pickWin, '{"method":"Overlay.inspectModeCanceled","params":{}}'); },
     (k: string) => { if (k === 'ArrowUp' && above(pickBase, pickUp + 1) !== above(pickBase, pickUp)) pickUp++; else if (k === 'ArrowDown' && pickUp > 0) pickUp--; });
-  if (inspectRoot() < 0) stagePick((o: DisplayObject, pressed: boolean) => { onPicked(stageId(o), pressed); });
+  if (inspectRoot() < 0 && win === 0) stagePick((o: DisplayObject, pressed: boolean) => { onPicked(stageId(o), pressed); });
 }
-onKey((e: KeyEvent) => { if (DEV && e.primary && e.shift && e.key.toLowerCase() === 'c' && Cdp.clients() > 0) { startPick(); e.preventDefault(); } });
+onKey((e: KeyEvent) => { if (DEV && e.primary && e.shift && e.key.toLowerCase() === 'c' && Cdp.clients() > 0) { startPick(windowCtl(0, 9, '', 0, 0)); e.preventDefault(); } });   // in the window it is pressed in
+
+// ---- the windows (ZN-864): each one a target, /json/list ws://.../zinc/w<id> (native/cdp.next.ts); the main one is ws://.../zinc
+/** The window each client attached to, by client (-1: gone); [] on a transport that has one target. */
+function clientWins(): i32[] {
+  const s = Cdp.net(25, ''), out: i32[] = [];
+  if (s.length > 0) for (const v of s.split(' ')) { const w: i32 = parseInt(v); out.push(w); }
+  return out;
+}
+function winOf(client: i32): i32 { const w = clientWins(); return client >= 0 && client < w.length && w[client] > 0 ? w[client] : 0; }
+/** Sends to the clients attached to window `win`. */
+function sendWin(win: i32, msg: string): void {
+  const w = clientWins();
+  if (w.length === 0) { if (win === 0) Cdp.send(-1, msg); return; }
+  for (let c: i32 = 0; c < w.length; c++) if (w[c] === win) Cdp.send(c, msg);
+}
+/** Window win's size in points ([0, 0] when it is not open), its title in `title`. */
+let winTitle = '';
+function winSize(win: i32): number[] {
+  if (win === 0) return [width(), height()];
+  winTitle = '';
+  const list = JSON.parse(orEmpty(Cdp.net(16, '')).replace('{}', '[]'));
+  for (const e of list) { const id: i32 = e.id; if (id === win) { winTitle = e.title; const w: number = e.width, h: number = e.height; return [w, h]; } }
+  return [0, 0];
+}
+function handle(client: i32, msg: string): void {
+  const w = winOf(client);
+  here = w;
+  if (w === 0) { handleIn(client, msg, 0); return; }
+  if (inspectIn(w, () => { handleIn(client, msg, w); })) return;
+  // a window that draws itself (zinc:gfx, a scene a worker computes): Elements shows the window alone; the rest is the program's
+  const method = Cdp.str(msg, 'method');
+  if (!method.startsWith('DOM.') && !method.startsWith('CSS.') && !method.startsWith('Overlay.') && method !== 'Zinc.getUnrendered') { handleIn(client, msg, w); return; }
+  const id = Cdp.num(msg, 'id'), size = winSize(w);
+  let result = '{}';
+  if (method === 'DOM.getDocument')
+    result = `{"root":{"nodeId":${DOC},"backendNodeId":${DOC},"nodeType":9,"nodeName":"#document","localName":"","nodeValue":"","childNodeCount":1,"children":[` +
+      `{"nodeId":${DOC + 1},"backendNodeId":${DOC + 1},"nodeType":1,"nodeName":"WINDOW","localName":"window","nodeValue":"","childNodeCount":0,"children":[],` +
+      `"attributes":["title",${q(winTitle)},"layout",${q(`${size[0]} × ${size[1]}`)}]}],"documentURL":"zinc://app","baseURL":"zinc://app","xmlVersion":""}}`;
+  else if (method === 'DOM.getNodeForLocation') { Cdp.send(client, `{"id":${id},"error":{"code":-32000,"message":"No node found at given location"}}`); return; }
+  else if (method === 'DOM.getBoxModel' && Math.round(Cdp.num(msg, 'nodeId')) === DOC + 1) {
+    const b = `[0,0,${size[0]},0,${size[0]},${size[1]},0,${size[1]}]`;
+    result = `{"model":{"content":${b},"padding":${b},"border":${b},"margin":${b},"width":${size[0]},"height":${size[1]}}}`;
+  } else if (method === 'Zinc.getUnrendered') result = '{"nodeIds":[]}';
+  Cdp.send(client, `{"id":${id},"result":${result}}`);
+}
 
 /** A result of the host's network log; `{}` on targets that have none. */
 function orEmpty(json: string): string { return json.length > 0 ? json : '{}'; }
@@ -221,7 +271,8 @@ function programInfo(): string {
     `"resources":${orEmpty(Cdp.resourceStats())}}`;
 }
 
-function handle(client: i32, msg: string): void {
+/** A request of a client attached to window `win`, with that window's tree as zinc:ui's (inspectIn). */
+function handleIn(client: i32, msg: string, win: i32): void {
   const id = Cdp.num(msg, 'id'), method = Cdp.str(msg, 'method');
   const nid = Cdp.num(msg, 'nodeId');
   const nodeId: i32 = Math.round(nid !== 0 ? nid : Cdp.num(msg, 'backendNodeId'));
@@ -238,7 +289,13 @@ function handle(client: i32, msg: string): void {
     const r = stageAnswer(method, nodeId, msg, pure);
     if (r.length > 0) { Cdp.send(client, `{"id":${id},${r}}`); return; }
   }
-  if (method === 'DOM.getDocument') { stageReset(); result = `{"root":${documentNode()}}`; snaps.clear(); shownRoot = inspectRoot(); remember(inspectRoot()); }
+  if (method === 'DOM.getDocument') {
+    if (win === 0) stageReset();
+    result = `{"root":${documentNode()}}`;
+    const was = shown.get(win);
+    if (was !== undefined) forget(was + 1);
+    shown.set(win, inspectRoot()); remember(inspectRoot());
+  }
   else if (method === 'DOM.requestChildNodes' && n !== null) {
     Cdp.send(client, `{"method":"DOM.setChildNodes","params":{"parentId":${nodeId},"nodes":[${children(h, n).join(',')}]}}`);
   } else if ((method === 'DOM.setAttributeValue' || method === 'DOM.setAttributesAsText') && n !== null) {
@@ -249,12 +306,12 @@ function handle(client: i32, msg: string): void {
       touch(h);
       setClass(h, v);
       if (msg.indexOf('"preview":true') < 0) printPatch();   // a class previewed while the completion is arrowed through is not a change yet
-      Cdp.send(-1, `{"method":"DOM.attributeModified","params":{"nodeId":${nodeId},"name":"class","value":${q(v)}}}`);
+      sendWin(win, `{"method":"DOM.attributeModified","params":{"nodeId":${nodeId},"name":"class","value":${q(v)}}}`);
     }
   } else if (method === 'DOM.setNodeValue' && n !== null && nodeId >= TEXT_BASE && n.tag === TEXT) {   // a text edited in Elements: shown at once, not written to the source
     const v = Cdp.str(msg, 'value');
     setText(h, v);
-    Cdp.send(-1, `{"method":"DOM.characterDataModified","params":{"nodeId":${nodeId},"characterData":${q(v)}}}`);
+    sendWin(win, `{"method":"DOM.characterDataModified","params":{"nodeId":${nodeId},"characterData":${q(v)}}}`);
   } else if (method === 'DOM.pushNodesByBackendIdsToFrontend') {
     result = `{"nodeIds":[${Math.round(Cdp.num(msg, 'backendNodeIds'))}]}`;
   } else if (method === 'DOM.getBoxModel' && n !== null) result = boxModel(h, n);
@@ -269,7 +326,7 @@ function handle(client: i32, msg: string): void {
   else if (method === 'CSS.setStyleTexts') result = setStyleText(Cdp.str(msg, 'styleSheetId'), Cdp.str(msg, 'text'));
   else if (method === 'Overlay.highlightNode') light(n !== null ? nodeId : 0);
   else if (method === 'Overlay.setInspectMode') {
-    if (Cdp.str(msg, 'mode') === 'searchForNode') startPick(); else { inspectPick(null); stagePick(null); light(0); }
+    if (Cdp.str(msg, 'mode') === 'searchForNode') startPick(win); else { inspectPick(null); stagePick(null); light(0); }
   }
   else if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') light(0);
   else if (method === 'Page.getResourceTree')
@@ -278,8 +335,8 @@ function handle(client: i32, msg: string): void {
     Cdp.send(client, '{"method":"Runtime.executionContextCreated","params":{"context":{"id":1,"origin":"zinc://app","name":"zinc","uniqueId":"zinc-1","auxData":{"isDefault":true,"type":"default","frameId":"main"}}}}');
     for (const e of Cdp.net(6, '').split('\n')) if (e.length > 0) Cdp.send(client, e);   // Zinc Next: the last console lines (the prototype's host replays its own)
   }
-  else if (method === 'Page.captureScreenshot') result = `{"data":"${Cdp.screenshot(0, 0)}"}`;  // PNG of the frame on screen
-  else if (method === 'Page.startScreencast') castStart(client, msg);
+  else if (method === 'Page.captureScreenshot') result = `{"data":"${win === 0 ? Cdp.screenshot(0, 0) : Cdp.net(17, `${win}`)}"}`;  // PNG of the frame on screen
+  else if (method === 'Page.startScreencast') castStart(client, msg, win);
   else if (method === 'Page.stopScreencast') castStop();
   else if (method === 'Page.screencastFrameAck') castReady = true;
   else if (method === 'Tracing.start') Cdp.trace(true);   // the Performance panel: frame phases and raster bands
@@ -302,7 +359,7 @@ function handle(client: i32, msg: string): void {
   else if (method === 'Network.getRequestPostData') result = orEmpty(Cdp.net(3, Cdp.str(msg, 'requestId')));
   else if (method === 'Zinc.getResourceStats') result = Cdp.resourceStats();
   else if (method === 'Zinc.getThreads') { const t = Cdp.net(11, ''); result = `{"threads":${t.length > 0 ? t : '[]'}}`; }   // the workers: state, queues, messages, live blocks, CPU
-  else if (method === 'Zinc.getInfo') result = `{"dev":${DEV},"width":${width()},"height":${height()}}`;
+  else if (method === 'Zinc.getInfo') { const size = winSize(win); result = `{"dev":${DEV},"width":${size[0]},"height":${size[1]},"window":${win}}`; }
   else if (method === 'Zinc.getProgramInfo') result = programInfo();
   else if (method === 'Zinc.getUnrendered') result = `{"nodeIds":[${unrendered().join(',')}]}`;
   else if (method === 'DOMStorage.enable') { storeOn = true; storeSnap = storeRead(); }
@@ -748,8 +805,10 @@ function sync(h: i32, out: string[]): void {
 // asks for PNG, sent when the screen changed and the previous frame was acknowledged. The host keeps a copy of the frame from the damaged
 // rows of each present and shrinks and encodes only when a frame is due (src/host/screencast.cpp); nothing runs while no screen is watched.
 let cast: i32 = -1, castW: i32 = 0, castH: i32 = 0, castQ: i32 = 80, castReady = true, castLast = '', castSession: i32 = 0, castTimer: i32 = -1;
-function castStart(client: i32, msg: string): void {
-  cast = client; castW = Math.round(Cdp.num(msg, 'maxWidth')); castH = Math.round(Cdp.num(msg, 'maxHeight')); castReady = true; castLast = '';
+let castWin: i32 = 0;   // the window streamed (one screen at a time)
+function castStart(client: i32, msg: string, win: i32): void {
+  if (cast >= 0 && castWin !== win) Cdp.screencast(-1, 0, 0);
+  cast = client; castWin = win; castW = Math.round(Cdp.num(msg, 'maxWidth')); castH = Math.round(Cdp.num(msg, 'maxHeight')); castReady = true; castLast = '';
   const q = Math.round(Cdp.num(msg, 'quality'));
   castQ = Cdp.str(msg, 'format') === 'png' ? 0 : q > 0 && q <= 100 ? q : 80;
   light(lit);   // the program stops drawing the highlight: the inspector does
@@ -764,11 +823,12 @@ function castStop(): void {
 function castFrame(): void {
   if (cast < 0 || !castReady) return;
   if (Cdp.clients() === 0) { castStop(); return; }
-  const img = Cdp.screencast(castW, castH, castQ);
+  const img = castWin === 0 ? Cdp.screencast(castW, castH, castQ) : Cdp.net(13, `${castW} ${castH} ${castQ} ${castWin}`);
   if (img.length === 0 || img === castLast) return;
   castLast = img; castReady = false; castSession++;
+  const size = winSize(castWin);
   Cdp.send(cast, `{"method":"Page.screencastFrame","params":{"data":"${img}","sessionId":${castSession},"metadata":{"offsetTop":0,"pageScaleFactor":1,` +
-    `"deviceWidth":${width()},"deviceHeight":${height()},"scrollOffsetX":0,"scrollOffsetY":0,"timestamp":${Date.now() / 1000}}}}`);
+    `"deviceWidth":${size[0]},"deviceHeight":${size[1]},"scrollOffsetX":0,"scrollOffsetY":0,"timestamp":${Date.now() / 1000}}}}`);
 }
 
 Cdp.listen(9229, handle);   // the default: zinc.json plugins.devtools.port and ZINC_DEVTOOLS_PORT change it (docs/dev-mode.md)
@@ -837,22 +897,27 @@ function storeSync(): void {
   was.forEach((v: string, k: string) => { Cdp.send(-1, `{"method":"DOMStorage.domStorageItemRemoved","params":{"storageId":${STORE_ID},"key":${q(k)}}}`); });
   storeSnap = now;
 }
-let shownRoot: i32 = -1;
+const shown = new Map<i32, i32>();   // by window: the root Elements was sent there (DOM.getDocument asked)
 setInterval(() => { domSync(); }, 100);
 function domSync(): void {
-  if (Cdp.clients() === 0) { snaps.clear(); return; }
-  if (snaps.size === 0) return;  // DOM.getDocument not asked yet
-  if (inspectRoot() !== shownRoot) { shownRoot = inspectRoot(); snaps.clear(); Cdp.send(-1, '{"method":"DOM.documentUpdated","params":{}}'); return; }
+  if (Cdp.clients() === 0) { snaps.clear(); shown.clear(); return; }
+  const ws: i32[] = [];
+  shown.forEach((r: i32, w: i32) => { ws.push(w); });
+  for (const w of ws) if (!inspectIn(w, () => { winSync(w); })) shown.delete(w);   // a window closed
+}
+function winSync(w: i32): void {
+  const r = shown.get(w) as i32;
+  if (inspectRoot() !== r) { forget(r + 1); shown.delete(w); sendWin(w, '{"method":"DOM.documentUpdated","params":{}}'); return; }
   const events: string[] = [];
-  sync(inspectRoot(), events);
-  for (const e of events) Cdp.send(-1, e);
+  sync(r, events);
+  for (const e of events) sendWin(w, e);
 }
 setInterval(() => { stageSync(); }, 100);
 function stageSync(): void {   // the zinc:stage tree: only the parents whose children changed (stage.ts)
   const events = stageEvents();
   if (Cdp.clients() === 0) return;
-  for (const e of events) Cdp.send(-1, e);
-  for (const e of stageAttributeEvents(500)) Cdp.send(-1, e);   // renames and hides, 500 nodes looked at each time
+  for (const e of events) sendWin(0, e);
+  for (const e of stageAttributeEvents(500)) sendWin(0, e);   // renames and hides, 500 nodes looked at each time
 }
 // The pause (Zinc.setPaused, Zinc.stepFrame; F8 or Cmd/Ctrl+\ in the program): its timers stop with the program's, so while it holds these pumps run
 // from the paused frames instead (zinc:gfx onPausedFrame): the screen at each frame, the console, the network, the trees and the state every 12th

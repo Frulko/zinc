@@ -27,7 +27,9 @@ export interface Spec extends NativeModule {
    *  object per line), 2 the result of Network.getResponseBody and 3 of Network.getRequestPostData (arg: the request id), 9 the log as HAR, 10 the events of
    *  every request so far (a client that enables Network late), 11 the workers (a JSON array: state, queues, messages, live blocks, CPU), 12 the program (a JSON object: engine, pid, uptime, resident
    *  memory, CPU time, what zinc run said of it, the surface, the renderer and the last frames), 15 sets what discovery says of the program (arg: the
-   *  fields of its /json/list entry after the ids: title, description, url, zinc). '' where there is no log. */
+   *  fields of its /json/list entry after the ids: title, description, url, zinc), 13 with a fourth number streams that window beside the main one, 16 the windows
+   *  beside the main one (a JSON array of {id, title, width, height}), 17 one's frame as PNG (arg: its id), 25 the window each client attached to (its ids
+   *  by client, -1 for one gone; ZN-864). '' where there is no log. */
   net(op: i32, arg: string): string;
 }
 export default requireNative<Spec>('Cdp');

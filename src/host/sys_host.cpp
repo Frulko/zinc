@@ -135,6 +135,8 @@ void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, b
 namespace zn::host {
 std::string programInfoJson();   // below: Zinc.getProgramInfo
 std::string screencastFrame(const std::string& arg);   // screencast.cpp
+std::string windowList();
+std::string windowShot(const std::string& arg);
 void screencastStop();
 namespace {
 
@@ -1319,7 +1321,9 @@ void call(int id, const HostArg* a, HostArg* r) {
       if (n(0) == 11) { std::size_t len = 0; const char* p = zn::host::threadTrace(3, nullptr, &len); ret(r, std::string(p, len)); break; }   // the workers (the inspector's Threads view)
       if (n(0) == 12) { ret(r, programInfoJson()); break; }
       if (n(0) == 13) { ret(r, screencastFrame(s(1))); break; }   // the inspector's Screen view (screencast.cpp): the next frame, 14 stop
-      if (n(0) == 14) { screencastStop(); ret(r, std::string()); break; }   // the program, the engine, the process and the renderer (the inspector's Info view)
+      if (n(0) == 14) { screencastStop(); ret(r, std::string()); break; }
+      if (n(0) == 16) { ret(r, windowList()); break; }   // the windows beside the main one, each a target of the inspector (ZN-864); 17 one's frame as PNG
+      if (n(0) == 17) { ret(r, windowShot(s(1))); break; }   // the program, the engine, the process and the renderer (the inspector's Info view)
       if (n(0) >= 21 && n(0) <= 24) {   // the inspector's pause (gfx_host.cpp): 21 pause ("1") or resume, 22 step one frame, 23 draw the paused frame again; each answers the state, as 18
         if (n(0) == 21) zn::host::devPause(s(1) == "1");
         else if (n(0) == 22) zn::host::devStep();
