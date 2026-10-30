@@ -52,7 +52,7 @@ const configPath = fromEnv('ZINC_PLAYER_CONFIG', zincHome + '/player.json');
 const versionWords = sys.env('ZINC_VERSION').trim().split(' ');
 export const zincVersion = versionWords[versionWords.length - 1];
 /** The player is the shell (D194): it starts the apps itself and shows them below its bar, instead of exiting for zinc-session. */
-export const isShell = sys.env('ZINC_SHELL_SOCKET') !== '';
+export const isShell = sys.env('ZINC_SHELL_SOCKET') !== '' && sys.env('ZINC_DISPLAY') !== 'shell';   // shown by a shell: an app, not a shell
 /** The last lines of an app's log a crash page shows. */
 const CRASH_LOG_LINES = 80;
 

@@ -212,6 +212,8 @@ struct HostShell : NativeShell, zrt::Poller {
   }
   void listen_once() {
     if (lfd >= 0 || !path.empty()) return;
+    // a program a shell shows (the player started from its own tile) is not a shell: it would take the socket of the one showing it
+    if (const char* d = getenv("ZINC_DISPLAY"); d && !strcmp(d, "shell")) { path = "-"; return; }
     const char* e = getenv("ZINC_SHELL_SOCKET");
     if (e && *e) path = e;
     else { const char* r = getenv("ZINC_RUN"); path = std::string(r && *r ? r : "/run/zinc") + "/shell.sock"; }
@@ -219,6 +221,14 @@ struct HostShell : NativeShell, zrt::Poller {
     a.sun_family = AF_UNIX;
     if (path.size() >= sizeof a.sun_path) { fprintf(stderr, "shell: socket path too long: %s\n", path.c_str()); return; }
     memcpy(a.sun_path, path.c_str(), path.size() + 1);
+    lfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (lfd < 0) return;
+    fcntl(lfd, F_SETFD, FD_CLOEXEC);
+    if (connect(lfd, (sockaddr*)&a, sizeof a) == 0) {   // another shell answers there: never take its socket
+      fprintf(stderr, "shell: another shell listens on %s\n", path.c_str());
+      ::close(lfd); lfd = -1; return;
+    }
+    ::close(lfd);
     lfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (lfd < 0) return;
     fcntl(lfd, F_SETFD, FD_CLOEXEC);
