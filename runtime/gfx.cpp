@@ -55,6 +55,9 @@ extern "C" { void (*zn_frame_trace)(int32_t, uint64_t, uint64_t, int64_t, int64_
 extern "C" __attribute__((weak)) int32_t hal_present_async(void) { return 0; }
 #ifdef ZRT_RENDER_THREAD
 #include <pthread.h>
+#ifdef __APPLE__
+#include <pthread/qos.h>
+#endif
 namespace zrt { namespace rthread {
 static int mode = -1;   // -1 not read, 0 off, 1 auto, 2 forced
 static bool started = false, busy = false, failed = false;
@@ -68,6 +71,8 @@ static uint64_t r0, r1, prev_r0;   // the last render's span, the start of the o
 static void* loop(void*) {
 #ifdef __APPLE__
   pthread_setname_np("zinc render");
+  // the main thread's class: a default thread goes to the efficiency cores under load and every present waits for it
+  pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
 #else
   pthread_setname_np(pthread_self(), "zinc render");
 #endif
