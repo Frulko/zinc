@@ -8,6 +8,9 @@ echo connecting
 ended: ended
 hung up
 hung up
+low data off (by hand)
+low data on (by hand)
+low data: audio 6 to 12 kbit/s, quality measured
 microphone off
 microphone on
 picture back: image, frames flowing

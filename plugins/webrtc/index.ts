@@ -76,7 +76,8 @@ export class RTCDataChannelEvent extends Event {
  *  use, currentRoundTripTime), 'outbound-rtp' (what a transceiver sends: bytesSent, packetsSent, framesEncoded, keyFramesEncoded,
  *  framesPerSecond, frameWidth, frameHeight, pliCount, totalEncodeTime, targetBitrate), 'remote-inbound-rtp' (the peer's reports on it:
  *  roundTripTime, fractionLost, packetsLost, jitter), 'inbound-rtp' (what it receives: bytesReceived, packetsReceived, packetsLost, jitter,
- *  framesDecoded, keyFramesDecoded, framesPerSecond, frameWidth, frameHeight, totalSamplesReceived, concealedSamples, pliCount), 'codec'
+ *  framesDecoded, framesDropped, keyFramesDecoded, framesPerSecond, frameWidth, frameHeight, totalSamplesReceived, concealedSamples, pliCount),
+ *  'candidate-pair' also availableOutgoingBitrate (the peer's REMB estimate, else what the encoders aim at), 'codec'
  *  (mimeType, payloadType, clockRate, channels, sdpFmtpLine). Times are in seconds; packetsSent counts the 1200-byte fragments of each frame. */
 export class RTCStats {
   id: string; type: string; timestamp: number;
@@ -89,7 +90,9 @@ export class RTCStats {
   roundTripTime: number = 0; currentRoundTripTime: number = 0;
   framesEncoded: number = 0; framesDecoded: number = 0; keyFramesEncoded: number = 0; keyFramesDecoded: number = 0; framesPerSecond: number = 0;
   frameWidth: number = 0; frameHeight: number = 0; pliCount: number = 0; totalEncodeTime: number = 0; targetBitrate: number = 0;
-  totalSamplesReceived: number = 0; concealedSamples: number = 0;
+  totalSamplesReceived: number = 0; concealedSamples: number = 0; framesDropped: number = 0; availableOutgoingBitrate: number = 0;
+  /** Zinc, outbound-rtp: the peer's REMB estimate for this stream (bit/s, 0 when it sends none). */
+  rembBitrate: number = 0;
   mimeType: string = ''; payloadType: number = 0; clockRate: number = 0; channels: number = 0; sdpFmtpLine: string = '';
   constructor(id: string, type: string) { this.id = id; this.type = type; this.timestamp = Date.now(); }
 }
@@ -714,7 +717,7 @@ export class RTCPeerConnection extends EventTarget {
       o.kind = t.kind; o.mid = mid; o.ssrc = n('ssrc'); o.bytesSent = n('bytesSent'); o.packetsSent = n('packetsSent');
       o.framesEncoded = n('framesEncoded'); o.keyFramesEncoded = n('keyFramesEncoded'); o.framesPerSecond = n('framesPerSecondSent');
       o.frameWidth = n('frameWidthSent'); o.frameHeight = n('frameHeightSent'); o.pliCount = n('pliCount'); o.totalEncodeTime = n('totalEncodeTime');
-      o.targetBitrate = n('targetBitrate');
+      o.targetBitrate = n('targetBitrate'); o.rembBitrate = n('rembBitrate');
       const tr = t.sender.track;
       if (tr !== null) o.trackIdentifier = (tr as MediaStreamTrack).id;
       o.codecId = codec(t.sendCodec, 'sendPayloadType', 'sendClockRate', 'sendFmtp');
@@ -729,7 +732,7 @@ export class RTCPeerConnection extends EventTarget {
       i.kind = t.kind; i.mid = mid; i.bytesReceived = n('bytesReceived'); i.packetsReceived = n('packetsReceived'); i.packetsLost = n('packetsLost');
       i.jitter = n('jitter'); i.framesDecoded = n('framesDecoded'); i.keyFramesDecoded = n('keyFramesDecoded'); i.framesPerSecond = n('framesPerSecond');
       i.frameWidth = n('frameWidth'); i.frameHeight = n('frameHeight'); i.totalSamplesReceived = n('totalSamplesReceived');
-      i.concealedSamples = n('concealedSamples'); i.pliCount = n('pliSent'); i.trackIdentifier = t.receiver.track.id;
+      i.concealedSamples = n('concealedSamples'); i.framesDropped = n('framesDropped'); i.pliCount = n('pliSent'); i.trackIdentifier = t.receiver.track.id;
       i.codecId = codec(t.recvCodec, 'recvPayloadType', 'recvClockRate', 'recvFmtp');
       out.set(i.id, i);
     }
@@ -769,7 +772,7 @@ export class RTCPeerConnection extends EventTarget {
     out.set(p.id, p); out.set(t.id, t); out.set(c.id, c);
     for (const x of this.txs) this.statsOf(x, out, true, true);
     out.forEach((r: RTCStats) => {   // the media bytes count in the transport; the round trip of the pair is the last one the peer reported
-      if (r.type === 'outbound-rtp') t.bytesSent += r.bytesSent;
+      if (r.type === 'outbound-rtp') { t.bytesSent += r.bytesSent; c.availableOutgoingBitrate += r.rembBitrate > 0 ? r.rembBitrate : r.targetBitrate; }
       else if (r.type === 'inbound-rtp') t.bytesReceived += r.bytesReceived;
       else if (r.type === 'remote-inbound-rtp' && r.roundTripTime > 0) c.currentRoundTripTime = r.roundTripTime;
     });
@@ -833,4 +836,108 @@ function description(s: string): RTCSessionDescription | null {
   if (s === '') return null;
   const k = s.indexOf(FS);
   return new RTCSessionDescription({ type: s.substring(0, k), sdp: s.substring(k + 1) });
+}
+
+// ---------------------------------------------------------------- call quality (Zinc)
+
+/** One reading of CallQuality: the call's health over the last interval. lossPct is the larger of what this side lost and what the peer
+ *  reports losing of ours; rttMs -1 before the first receiver report; kbit/s from the byte counts since the previous reading. */
+export class QualitySample {
+  /** 'good', 'fair' or 'poor' from mos (4.0 and over, 3.6 and over, under); 'unknown' before the first interval. */
+  quality: string = 'unknown';
+  /** Mean opinion score, 1 to 4.5, by the E-model (ITU-T G.107) simplified as WebRTC monitors do: latency, jitter and loss. */
+  mos: number = 0;
+  lossPct: number = 0; rttMs: number = -1; jitterMs: number = 0;
+  sendKbps: number = 0; recvKbps: number = 0; availableKbps: number = 0;
+  /** The peer's video codec ('VP8') and picture ('640×480 30 fps'), '' without any. */
+  videoCodec: string = ''; video: string = '';
+  /** The audio codec ('opus'), '' before it is known. */
+  audioCodec: string = '';
+  framesDropped: number = 0;
+  time: number = 0;
+}
+
+/** The E-model's MOS of a round trip and a jitter in milliseconds and a loss in percent. */
+export function mosOf(rttMs: number, jitterMs: number, lossPct: number): number {
+  const lat = Math.max(0, rttMs) / 2 + jitterMs * 2 + 10;
+  let r = lat < 160 ? 93.2 - lat / 40 : 93.2 - (lat - 120) / 10;
+  r = Math.max(0, Math.min(100, r - lossPct * 2.5));
+  return 1 + 0.035 * r + 0.000007 * r * (r - 60) * (100 - r);
+}
+
+/** Turns getStats() reports, read every second or so, into QualitySample readings, and keeps the last ones for a graph.
+ *
+ *    const q = new CallQuality();
+ *    setInterval(async () => { q.update(await pc.getStats()); if (q.poorFor >= 5) setLowDataMode(pc, true); }, 1000);
+ */
+export class CallQuality {
+  /** The newest readings, oldest first, at most `keep`. */
+  history: QualitySample[] = [];
+  last: QualitySample = new QualitySample();
+  /** How many readings in a row were poor (0 after a good or fair one). */
+  poorFor: number = 0;
+  keep: number;
+  private sent: number = -1; private recv: number = 0; private got: number = 0; private lost: number = 0; private at: number = 0;
+  constructor(keep: number = 60) { this.keep = keep; }
+  update(report: Map<string, RTCStats>): QualitySample {
+    const q = new QualitySample();
+    let sent = 0, recv = 0, got = 0, lost = 0, peerLoss = 0, rtt = -1, jitter = 0, avail = 0, now = 0;
+    report.forEach((s: RTCStats): void => {
+      now = Math.max(now, s.timestamp);
+      if (s.type === 'outbound-rtp') sent += s.bytesSent;
+      else if (s.type === 'inbound-rtp') {
+        recv += s.bytesReceived; got += s.packetsReceived; lost += s.packetsLost; jitter = Math.max(jitter, s.jitter * 1000);
+        q.framesDropped += s.framesDropped;
+        if (s.kind === 'video' && s.frameWidth > 0) q.video = `${s.frameWidth}×${s.frameHeight} ${s.framesPerSecond} fps`;
+      } else if (s.type === 'remote-inbound-rtp') {
+        if (s.roundTripTime > 0) rtt = Math.max(rtt, s.roundTripTime * 1000);
+        peerLoss = Math.max(peerLoss, s.fractionLost * 100); jitter = Math.max(jitter, s.jitter * 1000);
+      } else if (s.type === 'candidate-pair') avail += s.availableOutgoingBitrate;
+      else if (s.type === 'codec') { if (s.mimeType.startsWith('video/')) q.videoCodec = s.mimeType.substring(6); else q.audioCodec = s.mimeType.substring(6); }
+    });
+    const secs = this.sent >= 0 && now > this.at ? (now - this.at) / 1000 : 0;
+    if (secs > 0) {
+      q.sendKbps = Math.max(0, (sent - this.sent) * 8 / 1000 / secs);
+      q.recvKbps = Math.max(0, (recv - this.recv) * 8 / 1000 / secs);
+      const dg = got - this.got, dl = Math.max(0, lost - this.lost);
+      q.lossPct = Math.max(dg + dl > 0 ? 100 * dl / (dg + dl) : 0, peerLoss);
+      q.rttMs = rtt; q.jitterMs = jitter; q.availableKbps = avail / 1000;
+      q.mos = mosOf(rtt, jitter, q.lossPct);
+      q.quality = q.mos >= 4 ? 'good' : q.mos >= 3.6 ? 'fair' : 'poor';
+      this.poorFor = q.quality === 'poor' ? this.poorFor + 1 : 0;
+    }
+    q.time = now;
+    this.sent = sent; this.recv = recv; this.got = got; this.lost = lost; this.at = now;
+    this.last = q;
+    this.history.push(q);
+    if (this.history.length > this.keep) this.history.shift();
+    return q;
+  }
+  /** Forgets the readings (a new call). */
+  reset(): void { this.history = []; this.last = new QualitySample(); this.poorFor = 0; this.sent = -1; }
+}
+
+/** The ultra low data mode's audio bit rate: Opus at 10 kbit/s, voice, wideband, DTX and in-band FEC (the encoder switches those on at
+ *  16 kbit/s and under). */
+export const LOW_DATA_AUDIO_BPS = 10000;
+const saved = new Map<RTCRtpSender, RTCRtpEncodingParameters>();
+/** The ultra low data mode for a poor connection, on or off: the audio goes out as Opus at LOW_DATA_AUDIO_BPS with DTX and FEC; the video
+ *  stops ('off') or goes out at a quarter of its size, 5 frames a second and 60 kbit/s at most ('tiny'). Off puts back the encodings the
+ *  senders had. It is setParameters on each sender: no new negotiation, the peer needs nothing. */
+export async function setLowDataMode(pc: RTCPeerConnection, on: boolean, video: string = 'tiny'): Promise<void> {
+  for (const s of pc.getSenders()) {
+    const t = s.track;
+    if (t === null) continue;
+    const p = s.getParameters(), was = saved.get(s);
+    if (!on) {
+      if (was === undefined) continue;
+      p.encodings = [was as RTCRtpEncodingParameters];
+      saved.delete(s);
+    } else {
+      if (was === undefined) saved.set(s, p.encodings[0]);
+      p.encodings = [(t as MediaStreamTrack).kind === 'audio' ? { active: true, maxBitrate: LOW_DATA_AUDIO_BPS }
+        : video === 'off' ? { active: false } : { active: true, maxBitrate: 60000, maxFramerate: 5, scaleResolutionDownBy: 4 }];
+    }
+    await s.setParameters(p);
+  }
 }

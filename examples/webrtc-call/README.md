@@ -38,7 +38,7 @@ build/zinc device deploy examples/webrtc-call --env CALL_MODE=room --env CALL_SI
 Keep the room name `zinc` on both (or type another one in both), press Call on each side. The address can also be typed in the phone's
 **Signalling server** field. `ipconfig getifaddr en0` prints the Mac's address.
 
-Keys: **M** mutes, **V** stops the video, **C** picks the next camera, **S** shows or hides the stats, **Esc** hangs up, then quits.
+Keys: **M** mutes, **V** stops the video, **C** picks the next camera, **S** shows or hides the stats, **L** the ultra low data mode, **Esc** hangs up, then quits.
 
 The speaker is off at first: in this window your own voice would come back through it. There is no echo cancellation yet, so use a
 headset when you turn it on in a room call.
@@ -52,6 +52,9 @@ headset when you turn it on in a room call.
   `sender.replaceTrack`, so no new negotiation is needed.
 - The overlay reads `pc.getStats()` once a second: `outbound-rtp` and `inbound-rtp` bytes give the bit rates, `inbound-rtp` the size and
   frame rate, `remote-inbound-rtp` the round-trip time.
+- The side panel is zinc:ui/kit's `CallStats`, fed by zinc:webrtc's `CallQuality`: a good / fair / poor score with its MOS, the loss, the
+  round trip and the bit rates with sparklines. Its **Ultra low data** switch (key **L**) calls `setLowDataMode`: Opus at 10 kbit/s with
+  DTX and FEC and a 160x120 video at 5 fps, about 23 kbit/s out in all instead of about 120; it switches on by itself after 5 poor seconds.
 - Codecs: H.264 in hardware where the machine has it (VideoToolbox on macOS), VP8 otherwise, Opus for the audio.
 
 Test hooks: `CALL_DEMO=1` runs a scripted session (call, mute, video off, the camera again, hang up, quit), `CALL_LOG=1` prints what happens

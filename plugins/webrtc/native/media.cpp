@@ -168,10 +168,18 @@ OpusEnc* opusEncoder(int channels, int bps) {
   int err = 0;
   OpusEncoder* e = opus_encoder_create(48000, channels, OPUS_APPLICATION_VOIP, &err);
   if (!e || err != OPUS_OK) return nullptr;
-  opus_encoder_ctl(e, OPUS_SET_BITRATE(bps));
   opus_encoder_ctl(e, OPUS_SET_INBAND_FEC(1));
-  opus_encoder_ctl(e, OPUS_SET_PACKET_LOSS_PERC(5));
-  return new OpusEnc{e, channels};
+  OpusEnc* r = new OpusEnc{e, channels};
+  opusSetBitrate(r, bps);
+  return r;
+}
+void opusSetBitrate(OpusEnc* e, int bps) {
+  const bool low = bps <= 16000;
+  opus_encoder_ctl(e->e, OPUS_SET_BITRATE(bps));
+  opus_encoder_ctl(e->e, OPUS_SET_DTX(low ? 1 : 0));
+  opus_encoder_ctl(e->e, OPUS_SET_PACKET_LOSS_PERC(low ? 15 : 5));
+  opus_encoder_ctl(e->e, OPUS_SET_SIGNAL(low ? OPUS_SIGNAL_VOICE : OPUS_AUTO));
+  opus_encoder_ctl(e->e, OPUS_SET_MAX_BANDWIDTH(low ? OPUS_BANDWIDTH_WIDEBAND : OPUS_BANDWIDTH_FULLBAND));
 }
 int opusEncode(OpusEnc* e, const float* pcm, uint8_t* out, int max) { return opus_encode_float(e->e, pcm, 960, out, max); }
 void opusFree(OpusEnc* e) { if (e) { opus_encoder_destroy(e->e); delete e; } }
@@ -181,7 +189,9 @@ OpusDec* opusDecoder() {
   if (!d || err != OPUS_OK) return nullptr;
   return new OpusDec{d};
 }
-int opusDecode(OpusDec* d, const uint8_t* data, int n, float* pcm, int max) { return opus_decode_float(d->d, data, data ? n : 0, pcm, max, 0); }
+int opusDecode(OpusDec* d, const uint8_t* data, int n, float* pcm, int max, bool fec) {
+  return opus_decode_float(d->d, data, data ? n : 0, pcm, fec ? 960 : max, fec ? 1 : 0);
+}
 void opusFree(OpusDec* d) { if (d) { opus_decoder_destroy(d->d); delete d; } }
 
 // ---- reassembly
@@ -285,15 +295,15 @@ bool Reassembler::pop(std::vector<uint8_t>& frame, int64_t nowMs, int& lost, boo
       const bool broken = j != q.end() && j->second.ts != ts;
       if (!broken && nowMs - it->second.at < wait && q.size() < 600) return false;
       while (!q.empty() && q.begin()->first < s) q.erase(q.begin());   // drop what came of this frame
-      next = s; waitKey = true; askKey = true;
+      next = s; waitKey = true; askKey = true; dropped++;
       continue;
     }
     bool ok = true;
     for (int64_t k = next; k <= s && ok; k++) ok = payload(q[k], frame, k == next, key);
     while (!q.empty() && q.begin()->first <= s) q.erase(q.begin());
     next = s + 1;
-    if (!ok) { waitKey = true; askKey = true; continue; }
-    if (waitKey && !key) { askKey = true; continue; }   // nothing decodes before a key frame (the host asks at most every 300 ms)
+    if (!ok) { waitKey = true; askKey = true; dropped++; continue; }
+    if (waitKey && !key) { askKey = true; dropped++; continue; }   // nothing decodes before a key frame (the host asks at most every 300 ms)
     waitKey = false;
     return true;
   }

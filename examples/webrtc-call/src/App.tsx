@@ -6,6 +6,7 @@ import { currentScheme, setScheme } from 'zinc:ui';
 import { drawImage, drawImageRect, rect, rrect, drawText, font, textWidth } from 'zinc:gfx';
 import { CameraDevice } from 'zinc:camera';
 import { Icon } from 'zinc:icons';
+import { CallStats, Switch } from 'zinc:ui/kit';
 import { call, Mode } from './call';
 
 const ink = (): i32 => currentScheme() === 'dark' ? 0xE4E4E7 : 0x27272A;
@@ -153,6 +154,13 @@ export default function App() {
       </View>
       <View className="md:w-72 gap-5 p-4 bg-white dark:bg-zinc-900 border-t md:border-t-0 md:border-l border-zinc-200 dark:border-zinc-800">
         <Text className="text-sm text-zinc-700 dark:text-zinc-300">{status()}</Text>
+        {c.stage === 'live' && c.showStats && <CallStats sample={() => c.quality.last} history={() => c.quality.history}>
+          <View className="gap-2 pt-1">
+            <Text className="text-xs text-zinc-500 dark:text-zinc-400">{`${c.numbers.codec === '' ? 'video' : c.numbers.codec} · ${c.numbers.audio === '' ? 'audio' : c.numbers.audio} ${Math.round(c.numbers.audioKbps)} kbit/s`}</Text>
+            <Switch checked={() => c.lowData} onChange={(_on: boolean) => { c.toggleLowData(); }} label="Ultra low data" />
+            <Switch checked={() => c.autoLowData} onChange={(on: boolean) => { c.autoLowData = on; c.changed(); }} label="Switch on when poor" />
+          </View>
+        </CallStats>}
         {c.mode === 'room' && <View className="gap-2">
           <Field label="Signalling server" value={c.server} onInput={(v: string) => { c.server = v; }} />
           <Field label="Room" value={c.room} onInput={(v: string) => { c.room = v; }} />

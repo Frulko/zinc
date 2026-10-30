@@ -5,7 +5,7 @@
 //     straight back: the big picture went through the encoder, the network stack and the decoder twice. No network needed.
 //   - "Room": one peer here, the other in another copy of the app, paired by room name through webrtc-chat's signalling server
 //     (zinc run examples/webrtc-chat/signal-server.ts).
-import { RTCPeerConnection, RTCTrackEvent, RTCStats, RTCPeerConnectionIceEvent, RTCIceCandidate, RTCRtpSender, RemoteVideo, RemoteAudio } from 'zinc:webrtc';
+import { RTCPeerConnection, RTCTrackEvent, RTCStats, RTCPeerConnectionIceEvent, RTCIceCandidate, RTCRtpSender, RemoteVideo, RemoteAudio, CallQuality, setLowDataMode } from 'zinc:webrtc';
 import { devices, CameraDevice, Camera, requestPermission as askCamera } from 'zinc:camera';
 import { Microphone, requestPermission as askMicrophone } from 'zinc:microphone';
 import { stream, AudioStream } from 'zinc:audio';
@@ -21,6 +21,8 @@ export type Mode = 'local' | 'room';
 export class Numbers {
   sendKbps: number = 0; recvKbps: number = 0; fps: number = 0; width: number = 0; height: number = 0;
   rttMs: number = -1; lossPct: number = 0; codec: string = ''; audio: string = '';
+  /** What the microphone's track alone sends. */
+  audioKbps: number = 0;
 }
 
 export class Call {
@@ -37,6 +39,11 @@ export class Call {
   room: string = 'zinc';
   server: string = env('CALL_SIGNAL') !== '' ? env('CALL_SIGNAL') : 'ws://localhost:8787';
   numbers: Numbers = new Numbers();
+  /** The call's health, a reading a second (the quality panel). */
+  quality: CallQuality = new CallQuality(60);
+  /** The ultra low data mode: Opus at 10 kbit/s with DTX and FEC, the video tiny. `autoLowData` turns it on after 5 poor seconds. */
+  lowData: boolean = false;
+  autoLowData: boolean = true;
   local: MediaStream | null = null;
   remoteVideo: MediaStreamTrack | null = null;
   remoteAudio: MediaStreamTrack | null = null;
@@ -47,6 +54,7 @@ export class Call {
   private videoSender: RTCRtpSender | null = null;
   private lastSent: number = 0;
   private lastRecv: number = 0;
+  private lastAudio: number = 0;
   private listeners: (() => void)[] = [];
 
   constructor() { setInterval((): void => { this.measure(); }, 1000); }
@@ -190,7 +198,8 @@ export class Call {
     const sp = this.speaker;
     if (sp !== null) { sp.close(); this.speaker = null; }
     this.remoteVideo = null; this.remoteAudio = null;
-    this.numbers = new Numbers(); this.lastSent = 0; this.lastRecv = 0;
+    this.numbers = new Numbers(); this.lastSent = 0; this.lastRecv = 0; this.lastAudio = 0;
+    this.quality.reset(); this.lowData = false;
     if (this.stage === 'live' || this.stage === 'connecting') this.stage = 'ended';
     this.log('hung up');
     this.changed();
@@ -214,6 +223,18 @@ export class Call {
   toggleCamera(): void { this.camOn = !this.camOn; this.applyMute(); this.log(`camera ${this.camOn ? 'on' : 'off'}`); this.changed(); }
   toggleSpeaker(): void { this.speakerOn = !this.speakerOn; this.log(`speaker ${this.speakerOn ? 'on' : 'off'}`); this.changed(); }
   toggleStats(): void { this.showStats = !this.showStats; this.changed(); }
+  /** The ultra low data mode by hand; switching it off by hand also stops the automatic switch for this call. */
+  async toggleLowData(): Promise<void> {
+    if (this.lowData) this.autoLowData = false;
+    await this.setLowData(!this.lowData, 'by hand');
+  }
+  private async setLowData(on: boolean, why: string): Promise<void> {
+    const pc = this.me;
+    this.lowData = on;
+    if (pc !== null) await setLowDataMode(pc as RTCPeerConnection, on);
+    this.log(`low data ${on ? 'on' : 'off'} (${why})`);
+    this.changed();
+  }
   /** The camera picker: another camera (or the same one, opened again) replaces the one sent, without a new negotiation (replaceTrack). */
   async pickCamera(i: number): Promise<void> {
     this.which = i;
@@ -256,9 +277,9 @@ export class Call {
     if (pc === null || this.stage !== 'live') return;
     const all = await (pc as RTCPeerConnection).getStats();
     const n = new Numbers();
-    let sent = 0, recv = 0;
+    let sent = 0, recv = 0, audio = 0;
     all.forEach((s: RTCStats): void => {
-      if (s.type === 'outbound-rtp') sent += s.bytesSent;
+      if (s.type === 'outbound-rtp') { sent += s.bytesSent; if (s.kind === 'audio') audio += s.bytesSent; }
       else if (s.type === 'inbound-rtp') {
         recv += s.bytesReceived;
         if (s.kind === 'video') { n.fps = s.framesPerSecond; n.width = s.frameWidth; n.height = s.frameHeight; n.lossPct = s.packetsReceived > 0 ? 100 * s.packetsLost / (s.packetsReceived + s.packetsLost) : 0; }
@@ -267,8 +288,11 @@ export class Call {
     });
     n.sendKbps = this.lastSent > 0 ? Math.max(0, (sent - this.lastSent) * 8 / 1000) : 0;
     n.recvKbps = this.lastRecv > 0 ? Math.max(0, (recv - this.lastRecv) * 8 / 1000) : 0;
-    this.lastSent = sent; this.lastRecv = recv;
+    n.audioKbps = this.lastAudio > 0 ? Math.max(0, (audio - this.lastAudio) * 8 / 1000) : 0;
+    this.lastSent = sent; this.lastRecv = recv; this.lastAudio = audio;
     this.numbers = n;
+    this.quality.update(all);
+    if (this.autoLowData && !this.lowData && this.quality.poorFor >= 5) await this.setLowData(true, 'the call stayed poor');
     this.changed();
   }
 }

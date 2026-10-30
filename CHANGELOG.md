@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:webrtc` shows what goes wrong in a call: `CallQuality` turns `getStats()` into a good / fair / poor score (a MOS from loss, round trip and jitter) with the bit rates, `setLowDataMode(pc, true)` sends the voice as Opus at 10 kbit/s with DTX and FEC and the video tiny or off, and zinc:ui/kit's `CallStats` panel shows it live with sparklines; the webrtc-call demo has the panel and the switch, automatic after 5 poor seconds. `getStats()` also reports `framesDropped` and `availableOutgoingBitrate`.
 - Raspberry Pi image: `"ab": true` in a `tools/pi-image` profile builds an A/B image whose whole system is replaced by a signed bundle (`tools/pi-image keys`, `tools/pi-image bundle`, then `zinc-system-update install` on the Pi); it boots the new system once and goes back to the previous one if the session does not start.
 - `zinc publish --target rpi` (rpi2, rpi1, or a Linux target) publishes a .zapp packed for that machine, and `--export` publishes the export of `zinc export --target` with its engine; the manifest names the target (`target=`, `kind=`, signed with the app), and a Zinc hub keeps one package per channel and target.
 - The Raspberry Pi's player installs apps from a Zinc hub: the + of its top bar pairs with the hub by the code it prints, lists the apps made for this Pi and installs them beside the apps sent with `zinc device` (the catalog, the publisher's signature and the SHA-256 checked as on the reMarkable).

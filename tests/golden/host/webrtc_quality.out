@@ -1,0 +1,9 @@
+mos: clean 4.40, 5% loss 4.03, 15% loss 2.84, 600 ms 3.70
+clean: good out 32 in 16 kbit/s, rtt 40 ms, jitter 4 ms, loss 0%, opus
+40 received, 10 lost: poor loss 20%, poor for 1
+40 received, 20 lost: poor loss 33.3%; then clean: good, poor for 0, history 3
+normal: audio over 20 kbit/s ok, video over 30 kbit/s ok
+low data: audio 6 to 12 kbit/s ok, video at most 70 kbit/s ok, 80 pixels wide
+low data, silent: audio under 2 kbit/s (DTX) ok
+video off: ok
+back: audio over 20 kbit/s ok, video over 30 kbit/s ok, 320 pixels wide

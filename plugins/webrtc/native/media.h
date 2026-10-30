@@ -38,11 +38,15 @@ VideoDecoder* h264Decoder();
 struct OpusEnc;
 struct OpusDec;
 OpusEnc* opusEncoder(int channels, int bps);
+/** A new target: at 16 kbit/s and under (the low data mode) voice-only, wideband at most, DTX (silence sends a frame every 400 ms) and
+ *  in-band FEC tuned for 15% loss; above, the defaults (FEC for 5%). */
+void opusSetBitrate(OpusEnc* e, int bps);
 int opusEncode(OpusEnc* e, const float* pcm, uint8_t* out, int max);
 void opusFree(OpusEnc* e);
 OpusDec* opusDecoder();
-/** One frame of mono samples into pcm (960 for 20 ms), or concealment when data is null; the count, < 0 on error. */
-int opusDecode(OpusDec* d, const uint8_t* data, int n, float* pcm, int max);
+/** One frame of mono samples into pcm (960 for 20 ms), or concealment when data is null; with fec, the frame before this packet from its
+ *  in-band FEC (concealment when it has none). The count, < 0 on error. */
+int opusDecode(OpusDec* d, const uint8_t* data, int n, float* pcm, int max, bool fec = false);
 void opusFree(OpusDec* d);
 
 /** BGRX -> I420 (BT.601, limited range) and back; odd sizes round the chroma planes up. */
@@ -64,6 +68,8 @@ struct Reassembler {
   /** True once after a loss of video: a key frame should be asked for (PLI). */
   bool needKey() { bool k = askKey; askKey = false; return k; }
   Codec codec;
+  /** Video frames thrown away whole: incomplete, or waiting for a key frame (framesDropped). */
+  long long dropped = 0;
  private:
   struct Pkt { uint32_t ts; bool marker; int64_t at; std::vector<uint8_t> payload; };
   std::map<int64_t, Pkt> q;   // by extended sequence number

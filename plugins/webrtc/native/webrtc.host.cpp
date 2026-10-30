@@ -166,7 +166,7 @@ struct Stats {
   long long bytesSent = 0, packetsSent = 0, framesEncoded = 0, keyFramesEncoded = 0, pliReceived = 0, encodeUs = 0, samplesSent = 0;
   int sentWidth = 0, sentHeight = 0, targetBitrate = 0, rembBitrate = 0;
   // received
-  long long bytesReceived = 0, packetsReceived = 0, framesDecoded = 0, keyFramesDecoded = 0, pliSent = 0, samplesReceived = 0, concealed = 0;
+  long long bytesReceived = 0, packetsReceived = 0, framesDecoded = 0, keyFramesDecoded = 0, pliSent = 0, samplesReceived = 0, concealed = 0, framesDropped = 0;
   int recvWidth = 0, recvHeight = 0;
   int64_t baseSeq = -1, maxSeq = -1;
   double jitter = 0, transit = 0;
@@ -393,6 +393,7 @@ void work(std::shared_ptr<Tx> tp) {
   std::unique_ptr<media::VideoDecoder> dec;
   std::unique_ptr<media::Reassembler> rs;
   media::OpusEnc* aenc = nullptr;
+  int aencBps = 0;
   media::OpusDec* adec = nullptr;
   std::string encName;
   int decPt = -1;
@@ -457,16 +458,19 @@ void work(std::shared_ptr<Tx> tp) {
     }
     // audio out: 20 ms frames of Opus
     if (!t.video && sendC.pt >= 0 && pcm.size() >= 960) {
-      if (!aenc) aenc = media::opusEncoder(1, t.maxBitrate > 0 ? (int)t.maxBitrate : 32000);
+      const int bps = t.maxBitrate > 0 ? (int)t.maxBitrate : 32000;   // setParameters' maxBitrate, live (the low data mode: 6 to 16 kbit/s)
+      if (!aenc) aenc = media::opusEncoder(1, bps);
+      else if (bps != aencBps) media::opusSetBitrate(aenc, bps);
+      aencBps = bps;
       size_t at = 0;
       for (; aenc && at + 960 <= pcm.size(); at += 960) {
         bytes.resize(1500);
         const int n = media::opusEncode(aenc, pcm.data() + at, bytes.data(), (int)bytes.size());
-        if (n > 0) {
+        if (n > 2 || (n > 0 && bps > 16000)) {   // 1 or 2 bytes under DTX: a frame of silence, not sent (as browsers do); the timestamp moves on
           bytes.resize((size_t)n);
           sendFrame(t, bytes, audioTs);
           std::lock_guard<std::mutex> l(t.m);
-          t.st.bytesSent += n; t.st.packetsSent++; t.st.samplesSent += 960;
+          t.st.bytesSent += n; t.st.packetsSent++; t.st.samplesSent += 960; t.st.targetBitrate = bps;
         }
         audioTs += 960;
       }
@@ -515,7 +519,7 @@ void work(std::shared_ptr<Tx> tp) {
       while (rs->pop(frame, now, lost, key)) {
         if (t.video && dec) {
           int fw = 0, fh = 0;
-          if (!dec->decode(frame.data(), frame.size(), out, fw, fh)) { t.wantKey = false; continue; }
+          if (!dec->decode(frame.data(), frame.size(), out, fw, fh)) { t.wantKey = false; std::lock_guard<std::mutex> l(t.m); t.st.framesDropped++; continue; }
           std::lock_guard<std::mutex> l(t.m);
           t.frame.swap(out); t.fw = fw; t.fh = fh; t.frames++;
           t.st.framesDecoded++; if (key) t.st.keyFramesDecoded++;
@@ -525,8 +529,8 @@ void work(std::shared_ptr<Tx> tp) {
         } else if (!t.video && adec) {
           float buf[5760];
           std::lock_guard<std::mutex> l(t.m);
-          for (int i = 0; i < lost; i++) {   // concealment of the frames lost before this one
-            const int n = media::opusDecode(adec, nullptr, 0, buf, 960);
+          for (int i = 0; i < lost; i++) {   // concealment of the frames lost before this one; the last from this packet's FEC
+            const int n = i == lost - 1 ? media::opusDecode(adec, frame.data(), (int)frame.size(), buf, 960, true) : media::opusDecode(adec, nullptr, 0, buf, 960);
             if (n > 0) { t.audio.insert(t.audio.end(), buf, buf + n); t.st.concealed += n; }
           }
           const int n = media::opusDecode(adec, frame.data(), (int)frame.size(), buf, 5760);
@@ -534,6 +538,7 @@ void work(std::shared_ptr<Tx> tp) {
           if (t.audio.size() > 48000) t.audio.erase(t.audio.begin(), t.audio.begin() + (long)(t.audio.size() - 48000));   // a second at most
         }
       }
+      if (t.video) { std::lock_guard<std::mutex> l(t.m); t.st.framesDropped += rs->dropped; rs->dropped = 0; }
       if (rs->needKey() && now - lastKeyAsk > 300) {
         lastKeyAsk = now;
         rtcRequestKeyframe(t.id);
@@ -1104,7 +1109,7 @@ struct HostWebRTC : NativeWebRTC {
     kv("packetsLost", num(expected > s.packetsReceived ? expected - s.packetsReceived : 0)); kv("jitter", dbl(s.jitter / clock));
     kv("framesDecoded", num(s.framesDecoded)); kv("keyFramesDecoded", num(s.keyFramesDecoded)); kv("pliSent", num(s.pliSent));
     kv("frameWidth", num(s.recvWidth)); kv("frameHeight", num(s.recvHeight)); kv("framesPerSecond", num((long long)s.decodedTimes.size()));
-    kv("totalSamplesReceived", num(s.samplesReceived)); kv("concealedSamples", num(s.concealed));
+    kv("totalSamplesReceived", num(s.samplesReceived)); kv("concealedSamples", num(s.concealed)); kv("framesDropped", num(s.framesDropped));
     kv("roundTripTime", dbl(s.rtt)); kv("fractionLost", dbl(s.fractionLost)); kv("remotePacketsLost", num(s.remoteLost)); kv("remoteJitter", dbl(s.remoteJitter));
     kv("sendPayloadType", num(t->send.pt)); kv("recvPayloadType", num(t->recv.pt));
     kv("sendClockRate", num(t->send.clock)); kv("recvClockRate", num(t->recv.clock));

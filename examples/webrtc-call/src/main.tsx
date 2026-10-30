@@ -1,8 +1,8 @@
 // webrtc-call: a video call on zinc:webrtc (audio and video tracks), zinc:camera, zinc:microphone and zinc:audio, in the React model. See
 // README.md.
 //   build/zinc run examples/webrtc-call
-// Keys: M mutes, V stops the video, C picks the next camera, S the stats, Enter calls, Esc hangs up then quits.
-// Test hooks: CALL_DEMO=1 runs the scripted session (call, mute, video off, a camera switch, screen sharing, the stats, hang up, quit), CALL_LOG=1 prints
+// Keys: M mutes, V stops the video, C picks the next camera, S the stats, L the ultra low data mode, Enter calls, Esc hangs up then quits.
+// Test hooks: CALL_DEMO=1 runs the scripted session (call, the ultra low data mode, mute, video off, a camera switch, screen sharing, the stats, hang up, quit), CALL_LOG=1 prints
 // what happens (tests/t1/webrtc_call.sh), CALL_MODE=room starts on the room tab, CALL_SIGNAL=ws://host:port the signalling server,
 // ZINC_SCHEME=dark the dark scheme.
 import { render } from 'zinc:ui/react';
@@ -21,6 +21,7 @@ ui.onKey((e: ui.KeyEvent): void => {
   else if (k === 'v') c.toggleCamera();
   else if (k === 'c') { if (c.cameras.length > 0) c.pickCamera((c.which + 1) % c.cameras.length); }
   else if (k === 's') c.toggleStats();
+  else if (k === 'l') c.toggleLowData();
   else if (k === 'd') c.toggleShare();
   else return;
   e.preventDefault();
@@ -39,6 +40,13 @@ async function script(): Promise<void> {
   await until(() => c.numbers.fps > 0 && c.numbers.rttMs >= 0 && c.numbers.sendKbps > 0 && c.numbers.recvKbps > 0);
   const n = c.numbers;
   c.log(`stats ${n.width}x${n.height} ${n.codec === 'VP8' || n.codec === 'H264' ? 'codec' : 'no codec'} audio ${n.audio} ${n.sendKbps > 0 && n.recvKbps > 0 ? 'bit rates' : 'no bit rates'}`);
+  // the ultra low data mode: the microphone's bit rate measured over the seconds that follow (stderr: the numbers themselves)
+  await c.toggleLowData();
+  await new Promise<void>((done: () => void) => { setTimeout(() => done(), 4000); });
+  const low = c.numbers;
+  c.log(`low data: audio ${low.audioKbps >= 6 && low.audioKbps <= 12 ? '6 to 12' : 'NOT 6 to 12'} kbit/s, quality ${c.quality.last.quality === 'unknown' ? 'unknown' : 'measured'}`);
+  console.error(`low data: audio ${low.audioKbps.toFixed(1)} kbit/s, all out ${low.sendKbps.toFixed(1)} kbit/s, video ${low.width}x${low.height} ${low.fps} fps; before: audio ${n.audioKbps.toFixed(1)}, all out ${n.sendKbps.toFixed(1)} kbit/s`);
+  await c.toggleLowData();
   c.toggleMic();
   c.toggleCamera();
   const f = c.peerFrames();

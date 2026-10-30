@@ -431,6 +431,7 @@
     {"paths": ["plugins/camera/", "tests/golden/host/webcam_session.ts", "tests/golden/host/webcam_session.out", "tests/golden/host/webcam_draw.ts", "tests/data/bmp_pixel.py"], "tests": ["webcam_sim", "webcam"]},
     {"paths": ["plugins/webrtc/", "tests/golden/host/webrtc_loopback.ts", "tests/golden/host/webrtc_loopback.out", "tests/data/webrtc_globals.ts", "examples/webrtc-chat/"], "tests": ["webrtc", "webrtc_chat"]},
     {"paths": ["plugins/webrtc/", "tests/golden/host/webrtc_media.ts", "tests/golden/host/webrtc_media.out"], "tests": ["webrtc_media"]},
+    {"paths": ["plugins/webrtc/", "lib/std/kit/callstats.tsx", "tests/golden/host/webrtc_quality.ts", "tests/golden/host/webrtc_quality.out"], "tests": ["webrtc_quality"]},
     {"paths": ["plugins/webrtc/", "tests/data/webrtc_interop.ts", "tools/webrtc-interop", "tools/cdp.py"], "tests": ["webrtc_interop"]},
     {"paths": ["plugins/webrtc/", "plugins/audio/", "plugins/screen-capture/", "examples/webrtc-call/", "tests/golden/webrtc-call/"], "tests": ["webrtc_call"]},
     {"paths": ["plugins/screen-capture/", "tests/t1/screen_capture.sh"], "tests": ["screen_capture"]},
