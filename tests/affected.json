@@ -100,6 +100,7 @@
     {"paths": ["src/frontend/modules.cpp", "tests/data/late_frame.ts", "tests/t0/late_frame.sh"], "tests": ["late_frame"]},
     {"paths": ["src/frontend/modules.cpp", "src/qjs/prelude.cpp", "tests/data/timer-yield/", "tests/t0/timer_yield.sh"], "tests": ["timer_yield"]},
     {"paths": ["tests/data/busy_spinner/", "tests/t1/busy_spinner.sh"], "tests": ["busy_spinner"]},
+    {"paths": ["src/host/loop.cpp", "third_party/mimalloc/", "tests/data/heap_trim.ts", "tests/t0/heap_trim.sh"], "tests": ["heap_trim"]},
     {"paths": ["src/rt/", "src/host/loop.cpp", "include/zn/alloc_stats.h", "tests/unit/threads_test.cpp", "tests/data/threads_two.ts", "tests/t0/threads_two.sh"], "tests": ["threads_two"]},
     {"paths": ["src/frontend/check.cpp", "tests/golden/host/dyn_generic.ts", "tests/t0/dyn_generic.sh"], "tests": ["dyn_generic"]},
     {"paths": ["src/frontend/jsx.cpp", "src/frontend/check.cpp", "lib/std/react.ts", "tests/t0/jsx_react_narrow.sh"], "tests": ["jsx_react_narrow", "rn_port"]},

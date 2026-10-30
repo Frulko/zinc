@@ -307,7 +307,7 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
   else()
     message(STATUS "zinc: SDL3 not found, apps run headless only")
   endif()
-  target_link_libraries(zn_host_gfx PUBLIC zn_uv zn_llhttp zn_mbedtls zn_regexp zn_codec zn_zpk)   # zn_zpk: the packs of zinc:assets (ZN-436)
+  target_link_libraries(zn_host_gfx PUBLIC zn_uv zn_llhttp zn_mbedtls zn_regexp zn_codec zn_zpk zn_mimalloc)   # zn_zpk: the packs of zinc:assets (ZN-436); zn_mimalloc: loop.cpp gives its freed pages back
   if(WIN32)
     target_link_libraries(zn_host_gfx PUBLIC crypt32)   # the system's certificate store (src/host/tls.cpp)
   endif()

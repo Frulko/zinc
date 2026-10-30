@@ -2750,13 +2750,14 @@ int main(int argc, char** argv) {
       std::string err;
       const std::filesystem::path baked = std::filesystem::path(absPath).parent_path() / "resources.bin";
       std::error_code rec;
-      if (fromCache && !zbccache::gResources.empty()) blob = zbccache::gResources;
+      if (fromCache && !zbccache::gResources.empty()) blob = std::move(zbccache::gResources);
       else if (gSources.empty() && std::filesystem::exists(baked, rec)) { std::ifstream rf(baked, std::ios::binary); blob.assign(std::istreambuf_iterator<char>(rf), std::istreambuf_iterator<char>()); }
       else if (!bakeResources(absPath.c_str(), blob, err)) blob.clear();
       if (blob.empty() || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
     }
 #endif
     if (compiled && !gDebug) zbccache::store(absPath, zm, blob, hotUnit.get());   // the next interpreted run of an unchanged program starts from here (ZN-415)
+    if (!hotRun) std::vector<std::uint8_t>().swap(blob);   // installResources copied what the raster draws: the 7 MB of a UI program's blob were held for the whole run (ZN-885)
     if (!gTrialDir.empty()) std::thread([] { std::this_thread::sleep_for(std::chrono::seconds(5)); promoteTrial(); }).detach();   // an update on trial that runs 5 s is healthy
     gRunOut = &out;
     zn::log::write("run", zn::log::Info, "engine interpreter (ZBC), " + std::to_string(zm.functions.size()) + " functions");   // ZN-368

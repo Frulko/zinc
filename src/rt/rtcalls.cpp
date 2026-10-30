@@ -994,7 +994,7 @@ std::uint64_t cbRegister(Machine& m, Obj* fn, const std::string& inner) {
   const ClassRT& c = *fn->cls;
   const Func* call = nullptr;
   for (std::uint32_t sel : m.mod->classes[c.id].selectors)
-    if (m.mod->selectors[sel].name == "call" && m.mod->selectors[sel].params.size() == params.size() && sel < c.vtable.size() && c.vtable[sel]) call = c.vtable[sel];
+    if (m.mod->selectors[sel].name == "call" && m.mod->selectors[sel].params.size() == params.size() && c.method(sel)) call = c.method(sel);
   if (!call) return 0;
   m.retain(fn);
   std::uint64_t h = gCbNext++;
@@ -1009,7 +1009,7 @@ void rebindCallbacks(Machine& m) {
     const ClassRT& c = *e.fn->cls;
     e.call = nullptr;
     for (std::uint32_t sel : m.mod->classes[c.id].selectors)
-      if (m.mod->selectors[sel].name == "call" && m.mod->selectors[sel].params.size() == e.params.size() && sel < c.vtable.size() && c.vtable[sel]) e.call = c.vtable[sel];
+      if (m.mod->selectors[sel].name == "call" && m.mod->selectors[sel].params.size() == e.params.size() && c.method(sel)) e.call = c.method(sel);
   }
 }
 

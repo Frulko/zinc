@@ -39,6 +39,19 @@ const guilds: any[] = [
   { id: '201', name: 'Makers', icon: null, channels: [{ id: '311', type: 0, name: 'welcome', position: 0, last_message_id: '930' }] },
 ];
 const dms: any[] = [{ id: '400', type: 1, recipient_ids: ['101'], last_message_id: '950' }, { id: '401', type: 3, recipient_ids: ['101', '102'], last_message_id: '940' }];
+// FAKE_GUILDS=n (by hand, ZN-885): n more servers of 50 channels, 30 roles and 40 emoji each, and 20 users a server, a READY of ~40 KB a
+// server as a real account's (100 servers: the 4 MB the owner measured)
+for (let g = 0; g < (env('FAKE_GUILDS') !== '' ? parseInt(env('FAKE_GUILDS')) : 0); g++) {
+  const id = 10000 + g * 1000, channels: any[] = [], roles: any[] = [], emojis: any[] = [];
+  for (let c = 0; c < 50; c++) channels.push({ id: `${id + c}`, type: c % 10 === 0 ? 4 : 0, name: `channel-${c}`, position: c, parent_id: `${id + c - c % 10}`,
+    last_message_id: `${900000 + c}`, topic: `The topic of channel ${c}, a sentence or two that says what it is for and what not to post there.`, rate_limit_per_user: 0, nsfw: false,
+    permission_overwrites: [0, 1, 2, 3].map((k: number): any => ({ id: `${id + 100 + k}`, type: 0, allow: '1024', deny: '2048' })) });
+  for (let r = 0; r < 30; r++) roles.push({ id: `${id + 100 + r}`, name: `role ${r}`, color: r * 4000, hoist: false, position: r, permissions: '1071698660929', managed: false, mentionable: true, flags: 0 });
+  for (let e = 0; e < 40; e++) emojis.push({ id: `${id + 200 + e}`, name: `emoji_${e}`, roles: [], require_colons: true, managed: false, animated: false, available: true });
+  for (let u = 0; u < 20; u++) users.push({ id: `${id + 300 + u}`, username: `user${g}_${u}`, global_name: `User ${g}.${u}`, avatar: `av${id + u}`, discriminator: '0', public_flags: 0 });
+  guilds.push({ id: `${id}`, properties: { name: `Server ${g}`, icon: `ic${id}`, description: 'A server of the large READY', features: ['COMMUNITY', 'NEWS'] },
+    roles: roles, emojis: emojis, channels: channels, threads: [], member_count: 1000 + g, joined_at: '2024-01-01T00:00:00.000000+00:00' });
+}
 // #general read up to 902 (903 is unread), #welcome up to 925 with 2 mentions, the DM read
 const readStates: any[] = [{ id: '302', last_message_id: '902', mention_count: 0 }, { id: '311', last_message_id: '925', mention_count: 2 },
   { id: '400', last_message_id: '950', mention_count: 0 }];

@@ -669,7 +669,10 @@ std::string systemLocale() {
 #endif
   return "en-US";
 }
-void ret(HostArg* r, const std::string& s) { gOut = s; r->p = gOut.data(); r->n = static_cast<std::uint32_t>(gOut.size()); }
+void ret(HostArg* r, const std::string& s) {
+  if (gOut.capacity() > (64u << 10) && s.size() <= (64u << 10)) std::string().swap(gOut);   // a large answer (a 4 MB WebSocket message) is not kept for the session (ZN-885)
+  gOut = s; r->p = gOut.data(); r->n = static_cast<std::uint32_t>(gOut.size());
+}
 std::string str(const HostArg& a) { return std::string(static_cast<const char*>(a.p), a.n); }
 
 const char* codeOf(int e) {

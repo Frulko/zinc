@@ -98,7 +98,9 @@ struct ClassRT {
   zbc::CKind kind = zbc::CKind::Object;
   std::uint32_t nfields = 0;
   std::vector<std::uint32_t> supers;
-  std::vector<const Func*> vtable;  // by selector id; empty for interfaces, abstract and builtin classes, and classes without methods
+  std::vector<const Func*> vtable;  // by selector id - vbase; empty for interfaces, abstract and builtin classes, and classes without methods
+  std::uint32_t vbase = 0;          // the class's lowest selector: its table spans only its own selectors (1223 tables of all 830 were 8 MB, ZN-885)
+  const Func* method(std::uint32_t sel) const { sel -= vbase; return sel < vtable.size() ? vtable[sel] : nullptr; }   // null: not a method of this class
   KeyKind elemKind = KeyKind::Int;  // array and Set elements, Map values
   KeyKind keyKind = KeyKind::Int;   // Map keys, Set elements
   std::vector<std::uint8_t> fieldRef;    // per field: holds a reference (released when the object dies, and when overwritten)
@@ -376,7 +378,7 @@ inline const char* setField(Machine& m, Slot* r, unsigned a, unsigned b, unsigne
 inline const Func* virtualTarget(const Slot* r, unsigned a, unsigned sel, const char*& err) {
   auto* o = reinterpret_cast<const Obj*>(r[a]);
   if (__builtin_expect(!o, 0)) { err = kNullRef; return nullptr; }
-  return o->cls->vtable[sel];
+  return o->cls->vtable[sel - o->cls->vbase];   // verified code names a selector its receiver's class lists
 }
 // Whether the C++ stack of the running thread is nearly used up (the recursion of compiled functions; no store, one compare).
 inline bool stackLow(const Machine& m) { return static_cast<char*>(__builtin_frame_address(0)) < m.cLimit; }

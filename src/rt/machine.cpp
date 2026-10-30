@@ -7,6 +7,7 @@
 #include "rt/rt.h"
 #include "zn/native.h"
 
+#include <algorithm>
 #include <bit>
 #include <charconv>
 #include <cmath>
@@ -203,6 +204,7 @@ void Machine::destroy(Obj* root) {
       allocated[at] = allocated.back();
       allocated[at]->pad = at;
       allocated.pop_back();
+      if (allocated.capacity() > (1u << 16) && allocated.size() < allocated.capacity() / 8) allocated.shrink_to_fit();   // a burst (a parsed 4 MB JSON) gone: its 2 MB of slots too
     }
     switch (o->cls->kind) {
       case zbc::CKind::Array: delete static_cast<ArrObj*>(o); break;
@@ -280,8 +282,10 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
     c.supers = ci.supers;
     // a class without methods gets no table: a verified CallVirt names a selector its receiver's class lists (230 of the widgets demo's 560 classes)
     if (ci.kind == zbc::CKind::Object && !ci.isInterface && !ci.isAbstract && !ci.selectors.empty()) {
-      c.vtable.assign(m.selectors.size(), nullptr);
-      for (std::size_t k = 0; k < ci.selectors.size(); ++k) c.vtable[ci.selectors[k]] = &funcs[ci.vtable[k]];   // the module's table is sparse
+      const auto [lo, hi] = std::minmax_element(ci.selectors.begin(), ci.selectors.end());
+      c.vbase = *lo;
+      c.vtable.assign(*hi - *lo + 1, nullptr);
+      for (std::size_t k = 0; k < ci.selectors.size(); ++k) c.vtable[ci.selectors[k] - c.vbase] = &funcs[ci.vtable[k]];   // the module's table is sparse
     }
     if (ci.kind == zbc::CKind::String) strClass = &c;
     if (ci.kind == zbc::CKind::Array) arrayOf[arrKey(ci.elem)] = &c;
@@ -400,8 +404,8 @@ bool Machine::resolveDyn() {
 std::string Machine::exceptionText(Obj* exc) {
   const ClassRT& c = *exc->cls;
   for (std::uint32_t sel : mod->classes[c.id].selectors) {
-    if (mod->selectors[sel].name != "__errorString" || sel >= c.vtable.size() || !c.vtable[sel]) continue;
-    const Func* f = c.vtable[sel];
+    const Func* f = c.method(sel);
+    if (mod->selectors[sel].name != "__errorString" || !f) continue;
     std::vector<Slot> regs(f->nregs + 4, 0);
     retain(exc);  // the callee owns its parameters
     regs[0] = reinterpret_cast<Slot>(exc);
@@ -417,7 +421,7 @@ const Func* Machine::findComparator(const Obj* fn, zbc::VType elem) const {
   const ClassRT& c = *fn->cls;
   for (std::uint32_t sel : mod->classes[c.id].selectors) {
     const zbc::SelInfo& si = mod->selectors[sel];
-    if (si.name == "call" && si.params.size() == 2 && si.params[0] == elem && si.params[1] == elem && si.ret.cls == zbc::Cls::D && sel < c.vtable.size() && c.vtable[sel]) return c.vtable[sel];
+    if (si.name == "call" && si.params.size() == 2 && si.params[0] == elem && si.params[1] == elem && si.ret.cls == zbc::Cls::D && c.method(sel)) return c.method(sel);
   }
   return nullptr;
 }

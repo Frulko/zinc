@@ -391,11 +391,21 @@ int _mi_prim_commit(void* start, size_t size, bool* is_zero) {
     err = errno;
     unix_mprotect_hint(err);
   }
+  #if defined(__APPLE__) && defined(MADV_FREE_REUSE)
+  unix_madvise(start, size, MADV_FREE_REUSE);   // zinc (ZN-885), from upstream: the pages count in the footprint again
+  #endif
   return err;
 }
 
 int _mi_prim_decommit(void* start, size_t size, bool* needs_recommit) {
   int err = 0;
+  #if defined(__APPLE__) && defined(MADV_FREE_REUSABLE)
+  // zinc (ZN-885), from upstream (mimalloc issue #1097): on macOS MADV_DONTNEED leaves the pages in the physical footprint (Activity
+  // Monitor's Memory); MADV_FREE_REUSABLE takes them out at once, and the commit above counts them again (MADV_FREE_REUSE)
+  err = unix_madvise(start, size, MADV_FREE_REUSABLE);
+  if (err != 0) { err = unix_madvise(start, size, MADV_DONTNEED); }
+  *needs_recommit = true;
+  #else
   // decommit: use MADV_DONTNEED as it decreases rss immediately (unlike MADV_FREE)
   err = unix_madvise(start, size, MADV_DONTNEED);
   #if !MI_DEBUG && !MI_SECURE
@@ -403,6 +413,7 @@ int _mi_prim_decommit(void* start, size_t size, bool* needs_recommit) {
   #else
     *needs_recommit = true;
     mprotect(start, size, PROT_NONE);
+  #endif
   #endif
   /*
   // decommit: use mmap with MAP_FIXED and PROT_NONE to discard the existing memory (and reduce rss)

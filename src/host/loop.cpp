@@ -4,8 +4,14 @@
 #include "osc.h"
 
 #include <uv.h>
+#if __has_include(<mimalloc.h>)
+#include <mimalloc.h>
+#endif
 
 #include <csignal>
+#ifdef __APPLE__
+#include <malloc/malloc.h>
+#endif
 #include <cstdlib>
 #include <deque>
 #include <cstring>
@@ -61,7 +67,24 @@ Child* childAt(int h) { return h >= 0 && static_cast<size_t>(h) < gChildren.size
 
 }  // namespace
 
+// Every 2 s, and before a sleep of 100 ms or more (each thread that runs a program: the main one, the workers): the memory the allocators keep of freed blocks goes back to the
+// system. Both keep it for a later allocation of the same size, so a burst (a Discord account's 4 MB READY parsed then dropped, ZN-885)
+// stayed in the physical footprint for the whole session: 216 MB of which 75 freed. 0.1 to 0.5 ms on the M1 Pro.
+static void trimHeap(bool idle) {
+  thread_local double last = -1e300;
+  const double t = nowMs();
+  if (!idle && t - last < 2000) return;
+  last = t;
+#if __has_include(<mimalloc.h>)
+  mi_collect(true);   // the runtime's objects; forced: now, not after mimalloc's purge delay
+#endif
+#ifdef __APPLE__
+  malloc_zone_pressure_relief(nullptr, 0);   // the strings, vectors and buffers of the engine and the system (libmalloc)
+#endif
+}
+
 void pump() {
+  trimHeap(false);
   // uv_run polls only while some handle is active, and the signal and stdin watchers are unreferenced: an active zero timer makes one polling round happen
   thread_local uv_timer_t* t = [] { auto* x = new uv_timer_t; uv_timer_init(loop(), x); return x; }();
   uv_timer_start(t, onTimer, 0, 0);
@@ -75,6 +98,7 @@ void wait(double ms) {
   ms = 0;   // an app shell owns the run loop (ZN-620): a turn looks at the loop and returns, the next tick comes back
 #endif
   if (ms <= 0) { pump(); return; }
+  trimHeap(ms >= 100);
   netlog::tick(ms);   // nothing looks at the log while the process sleeps
   uv_timer_t t;
   uv_timer_init(loop(), &t);
