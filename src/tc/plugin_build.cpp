@@ -182,18 +182,43 @@ static std::string zincImplib(const std::string& engineRoot) {
 
 std::string arTool() { return gAr; }
 
+std::string failure(const std::string& what, const std::string& out) {
+  std::string err = what + " failed:\n" + out.substr(0, 3000);
+  if ((out.find("framework") != std::string::npos || out.find("SDK") != std::string::npos) && !xcodeToolsInstalled())
+    err += "\nthis plugin links macOS frameworks, which come from the SDK of the Xcode command line tools, not installed on this Mac: run `xcode-select --install`, then this command again";
+  return err;
+}
+
 bool run(const std::string& cmd, std::string& err, const std::string& what) {
   log::Phase phase("plugin", what, "plugin", what);
   std::string out;
   const int st = captureSh(cmd + " 2>&1", out);
   if (st < 0) { err = "cannot run " + what; return false; }
-  if (st != 0) {
-    err = what + " failed:\n" + out.substr(0, 3000);
-    if ((out.find("framework") != std::string::npos || out.find("SDK") != std::string::npos) && !xcodeToolsInstalled())
-      err += "\nthis plugin links macOS frameworks, which come from the SDK of the Xcode command line tools, not installed on this Mac: run `xcode-select --install`, then this command again";
-    return false;
-  }
+  if (st != 0) { err = failure(what, out); return false; }
   return true;
+}
+
+// The compiles of a plugin (its sources, its thunk, its vendored libraries) run at once, compileJobs() at a time: one after the other, zinc:ipod's
+// 57 sources took 71 s. Each command's output goes to a log in `logDir`, read back for the error of the first that failed.
+struct Job { std::string cmd, what; };
+bool runJobs(const std::vector<Job>& jobs, const std::string& logDir, const std::string& name, std::string& err) {
+  if (jobs.empty()) return true;
+  std::vector<std::string> cmds;
+  for (std::size_t k = 0; k < jobs.size(); ++k) {
+    const std::string log = logDir + "/job" + std::to_string(k) + ".log";
+    cmds.push_back("{ " + jobs[k].cmd + " ; } > " + q(log) + " 2>&1 || { touch " + q(log + ".failed") + "; exit 1; }");
+  }
+  bool ok;
+  { log::Phase phase("plugin", "compile " + name, "plugin", std::to_string(jobs.size()) + " sources of " + name); ok = runCommands(cmds, compileJobs(), "plugin"); }
+  std::error_code ec;
+  std::string first;   // the error of the first job that failed
+  for (std::size_t k = 0; k < jobs.size(); ++k) {
+    const std::string log = logDir + "/job" + std::to_string(k) + ".log";
+    if (first.empty() && fs::exists(log + ".failed", ec)) { std::string out; readAll(log, out); first = failure(jobs[k].what, out); }
+    fs::remove(log, ec); fs::remove(log + ".failed", ec);
+  }
+  if (!ok) err = first.empty() ? "compiling " + name + " failed" : first;
+  return ok;
 }
 
 // ---- A Rust crate of the plugin (plugin.json targets.<id>.cargo: its directory, ZN loro plugin): cargo builds it as a static library for this machine's Rust
@@ -590,10 +615,12 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   if (!fs::exists(out.shared) || !fs::exists(out.archive)) fetchPrebuilt(m.name, keyHex, gCross.on ? gCross.name : target, engineRoot, dir, vdir, out);   // ZN-337: a published binary first
   bool told = false;   // ZN-774.03: a first build takes 5 to 20 s; the person is told before it starts, once, which plugin and that it is once
   auto tell = [&] { if (!told) log::step("plugin", i18n::tr("cli.run.plugin_build", {{"plugin", m.name}})); told = true; };
-  if (!vendored.empty() && !fs::exists(out.vendor)) {   // the vendored C libraries: compiled once for these defines
+  std::vector<Job> jobs;   // the vendored libraries' and the plugin's own compiles, run at once below
+  std::string vendorObjs;
+  const bool buildVendor = !vendored.empty() && !fs::exists(out.vendor);
+  if (buildVendor) {   // the vendored C libraries: compiled once for these defines
     tell();
     fs::create_directories(vdir, ec);
-    std::string objs;
     int k = 0;
     for (const std::string& s : vendored) {
       std::string o = vdir + "/v" + std::to_string(k++) + ".o";
@@ -603,11 +630,9 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
       for (const std::string& f : ts.vendorFlags) if (!isC || f.rfind("-std=", 0) != 0) cflagsC += " " + rel(f);
       if (isC) for (const std::string& c : cflags) cflagsC += " " + c;   // the system libraries' headers (pkg-config): zinc:ipod's libgpod includes glib.h
       for (const std::string& d : defines) if (d.rfind("ZP_", 0) != 0 && d.rfind("ZRT_", 0) != 0) cflagsC += " -D" + q(d);
-      if (!run(cflagsC + remap + " -c " + q(s) + " -o " + q(o), err, std::string(isC ? "the C compiler on " : "the C++ compiler on ") + s)) return false;
-      objs += " " + q(o);
+      jobs.push_back({cflagsC + remap + " -c " + q(s) + " -o " + q(o), std::string(isC ? "the C compiler on " : "the C++ compiler on ") + s});
+      vendorObjs += " " + q(o);
     }
-    if (!run(arTool() + " rcs " + q(out.vendor) + objs, err, "ar")) return false;
-    out.rebuilt = true;
   }
   // trust: the digest written after the build must still match the library (a tampered cache entry is refused, never loaded); an entry without one is rebuilt
   std::string digestFile = dir + "/plugin.sha256", recorded;
@@ -618,7 +643,9 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
       return false;
     }
   } else { fs::remove(out.shared, ec); }
-  if (!fs::exists(out.shared) || !fs::exists(out.archive)) {
+  const bool buildOwn = !fs::exists(out.shared) || !fs::exists(out.archive);
+  std::vector<std::string> objs;
+  if (buildOwn) {
     tell();
     std::string gdir = dir + "/gen";
     fs::create_directories(gdir, ec);
@@ -637,15 +664,21 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
       + (buildOs() == "macos" ? " -I" + q(std::string(ZN_SDL_INCLUDE).rfind("@root@", 0) == 0 ? root + std::string(ZN_SDL_INCLUDE).substr(6) : std::string(ZN_SDL_INCLUDE)) : std::string())   // SDL3 (the host's): the emulator windows of the display drivers, zinc:3d's GL context
 #endif
       + " -I" + q(root + "/third_party");
-    std::vector<std::string> objs;
     int k = 0;
     for (const std::string& s : own) {
       std::string o = dir + "/o" + std::to_string(k++) + ".o";
       const bool isC = endsWith(s, ".c");   // the .abi.c implementation: C99 on include/zn/native.h
-      if (!run((isC ? cc + " -std=c11 -O2 -fPIC -w" : cxx + " " + flags) + remap + defs + inc + " -c " + q(s) + " -o " + q(o), err, std::string(isC ? "the C compiler on " : "the C++ compiler on ") + fs::path(s).filename().string())) return false;
+      jobs.push_back({(isC ? cc + " -std=c11 -O2 -fPIC -w" : cxx + " " + flags) + remap + defs + inc + " -c " + q(s) + " -o " + q(o), std::string(isC ? "the C compiler on " : "the C++ compiler on ") + fs::path(s).filename().string()});
       objs.push_back(o);
     }
-    if (!display && !abi) { std::string o = dir + "/thunk.o"; if (!run(cxx + " " + flags + remap + defs + inc + " -c " + q(thunk) + " -o " + q(o), err, "the C++ compiler on the thunk of " + m.name)) return false; objs.push_back(o); }
+    if (!display && !abi) { std::string o = dir + "/thunk.o"; jobs.push_back({cxx + " " + flags + remap + defs + inc + " -c " + q(thunk) + " -o " + q(o), "the C++ compiler on the thunk of " + m.name}); objs.push_back(o); }
+  }
+  if (!runJobs(jobs, dir, m.name, err)) return false;
+  if (buildVendor) {
+    if (!run(arTool() + " rcs " + q(out.vendor) + vendorObjs, err, "ar")) return false;
+    out.rebuilt = true;
+  }
+  if (buildOwn) {
     std::string list;
     for (const std::string& o : objs) list += " " + q(o);
     std::string linkLibs;

@@ -713,10 +713,6 @@ static void writeComponents(const std::string& file, const std::string& link, co
 namespace aotcache {
 namespace fs = std::filesystem;
 static fs::path dir() { return fs::path(zn::tc::home()) / "cache" / "aot-obj"; }
-static unsigned jobs() {
-  if (const char* j = std::getenv("ZINC_JOBS")) return static_cast<unsigned>(std::max(1, std::atoi(j)));
-  return std::clamp(std::thread::hardware_concurrency() / 2, 1u, 8u);
-}
 static std::string capture(const std::string& cmd) {
   std::string outText;
   if (FILE* f = popen((cmd + " 2>/dev/null").c_str(), "r")) { char buf[256]; std::size_t n; while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) outText.append(buf, n); pclose(f); }
@@ -981,7 +977,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
       const std::string tmp = objs[k] + ".part" + std::to_string(::getpid());
       cmds.push_back(std::string(cxx ? cxx : "c++") + cflags + pchFlag + " -c '" + units[k].string() + "' -o '" + tmp + "' && mv '" + tmp + "' '" + objs[k] + "'");
     }
-    const unsigned limit = aotcache::jobs();
+    const unsigned limit = zn::tc::compileJobs();
     zn::log::Phase ph("build", "compile (C++)", "native", std::to_string(cmds.size()) + " of " + std::to_string(units.size()) + " units, " + std::to_string(limit) + " at once");
     zn::log::step("cache", std::to_string(units.size() - cmds.size()) + " of " + std::to_string(units.size()) + " C++ units reused");
     rc = zn::tc::runCommands(cmds, limit, "native") ? 0 : 1;

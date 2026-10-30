@@ -2,6 +2,7 @@
 #include "zn/log.h"
 #include <algorithm>
 #include <cerrno>
+#include <cstdlib>
 #include <thread>
 #ifdef _WIN32
 #include <io.h>
@@ -15,6 +16,10 @@ extern char** environ;
 #endif
 
 namespace zn::tc {
+unsigned compileJobs() {
+  if (const char* j = std::getenv("ZINC_JOBS")) return static_cast<unsigned>(std::max(1, std::atoi(j)));
+  return std::clamp(std::thread::hardware_concurrency() / 2, 1u, 8u);
+}
 bool runCommands(const std::vector<std::string>& commands, unsigned limit, const char* stage) {
 #ifdef _WIN32
   using pid_t = zn::plat::Pid;

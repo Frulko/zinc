@@ -42,6 +42,8 @@ std::string sha256Hex(const std::string& bytes);   // of bytes in memory
 
 // Run shell commands with bounded parallelism and live progress, stopping new jobs after a failure.
 bool runCommands(const std::vector<std::string>& commands, unsigned limit, const char* stage);
+// How many compiler processes a build runs at once: ZINC_JOBS, else half the cores (1 to 8).
+unsigned compileJobs();
 
 // The path of a usable zig: $ZINC_ZIG, or the pinned one (downloaded and verified when missing). False with `err` set when that fails.
 bool ensureZig(std::string& zigPath, std::string& err);

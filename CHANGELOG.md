@@ -204,6 +204,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `<ZoomView>` of `zinc:ui/kit`: pinch, pan, double tap and Ctrl/Cmd + wheel zoom for a page, a picture or any content. While the fingers move it scales the last picture instead of drawing the content again, and tells your app the new view once, when they lift (`onView`).
 
 ### Changed
+- The first build of a plugin compiles its source files at once, half the cores at a time (`ZINC_JOBS` sets the number): zinc:ipod builds in 19 s instead of 72 s, and the iPod demo's first `zinc build` takes 75 s instead of 145 s.
 - The compile of a large program spends less time writing its bytecode: 1.3 s down to 0.24 s for the iPod demo.
 - `zinc run` and `zinc build` write the C++ of a large program about ten times faster: 13.7 s down to 1.4 s for the iPod demo, on every build after an edit.
 - `zinc:fs` `copyFile` keeps the source file's modification time and permissions, so a picture copied to another disk keeps its date.
