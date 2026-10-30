@@ -238,6 +238,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Zinc Inspector finds every program with the inspector, on any port (`ZINC_DEVTOOLS_PORT=0`, `zinc dev`): programs announce themselves in `<zinc home>/run/devtools`, the list refreshes every second, a program alone is attached at once, and when the attached program exits it says so and attaches again, on the same view, when it comes back (each save under `zinc dev`). Its `zinc devtools: chrome://inspect …` start line no longer shows as an error in the console.
 
 ### Changed
+- `zinc new` alone asks nothing: it makes a game in `my-game` (`my-game-2`... when that folder is taken); `zinc new --pick` asks what to make, as bare `zinc new` did.
+- `zinc run` and `zinc dev` print one progress line at most (the first native build: `zinc: compiling for this machine, once`); `--verbose` (or `ZINC_STEPS=1`) shows every step as before.
 - `zinc:ui`: `min-w-0` (in a row) and `min-h-0` (in a column) let a box shrink below its content as in CSS, so `flex-1 min-w-0` panes and texts stay inside the window; a `basis-*` now respects the box's `min-*`/`max-*` size.
 - On QuickJS (`--engine quickjs`), `performance.now()` reads the program's clock, the one `Date.now()` and the timers use, as on the Zinc engine: it is steady in tests and stops while the inspector pauses the program.
 - iPod demo: on a large library, For you no longer freezes the window for a second when it opens: the iPods' new listens are matched a little at a time and only what is new since the last time, and the listen counts are read in one quick pass.

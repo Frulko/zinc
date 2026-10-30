@@ -211,7 +211,7 @@ Result makeProject(Tour& t, const std::string& dirArg) {
     if (!fs::exists(dir / "zinc.json", ec) && zinc(t, "new game " + q(dir.string()), ".", out) != 0) { t.why = out; return Result::Failed; }
   } else {
     const auto since = fs::file_time_type::clock::now() - std::chrono::seconds(1);
-    if (zincHere(t, "new --template game", ".") != 0) return Result::Stopped;
+    if (zincHere(t, "new --pick --template game", ".") != 0) return Result::Stopped;
     dir = madeSince(fs::current_path(ec), since);
   }
   if (dir.empty() || !fs::exists(dir / "zinc.json", ec) || !fs::exists(dir / "src" / "main.ts", ec)) { t.why = tr("cli.tour.new.missing"); return Result::Failed; }
@@ -337,7 +337,7 @@ Result chooseKind(Tour& t) {
   } else {
     if (const char c = ask(t, tr("cli.tour.kind.ask")); c != 'g') return c == 's' ? Result::Skipped : Result::Stopped;
     const auto since = fs::file_time_type::clock::now() - std::chrono::seconds(1);
-    if (zincHere(t, "new", parent.string()) != 0) return Result::Skipped;
+    if (zincHere(t, "new --pick", parent.string()) != 0) return Result::Skipped;
     dir = madeSince(parent, since);
   }
   std::string out;

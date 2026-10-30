@@ -1,5 +1,5 @@
 #!/bin/sh
-# Command steps (ZN-720): all engines report stages, also into a pipe; -q explicitly hides progress.
+# Command steps (ZN-720): all engines report stages, also into a pipe (zinc run and zinc dev with ZINC_STEPS=1 or -v: they print one line by default, ZN-774.32); -q explicitly hides progress.
 cd "$(dirname "$0")/../.." || exit 2
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 fail=0
@@ -15,7 +15,7 @@ grep -q "^  run        interpreter" "$t/r" || { echo "run: no interpreter step";
 ZINC_STEPS=1 "$ZINC" -q build tests/data/run_compiled/main.ts -o "$t/app" 2>"$t/q" >/dev/null
 [ -s "$t/q" ] && { echo "-q did not hide the steps"; fail=1; }
 printf 'console.log("js output");\n' > "$t/main.js"
-"$ZINC" run "$t/main.js" > "$t/jsout" 2> "$t/jslog" || fail=1
+ZINC_STEPS=1 "$ZINC" run "$t/main.js" > "$t/jsout" 2> "$t/jslog" || fail=1
 [ "$(cat "$t/jsout")" = 'js output' ] || { echo 'QuickJS stdout changed'; fail=1; }
 for s in 'zinc run' '  engine ' '  prepare ' '  context ' '  load ' '  run ' '  exit '; do
   grep -q "^$s" "$t/jslog" || { echo "QuickJS: no '$s' line"; cat "$t/jslog"; fail=1; }

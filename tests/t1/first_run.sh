@@ -7,10 +7,12 @@
 #   written <project> (FIRST_RUN_UPDATE=1 rewrites them);
 # - the guide quotes the first line of each message;
 # - a bare `zinc`, `zinc --help` and a misspelt command lead to the list of commands, grouped (Start here, Build and ship);
-# - zinc new with no argument: the usage and nothing written without a terminal; through a pty, the question (arrows) and the name;
-#   for a kind written in several styles, how to write it, each style its template (ZN-774.15); the next steps after zinc new; the first bare zinc at a terminal greets once, and its language is saved (ZN-774.02);
+# - zinc new with no argument asks nothing, at a terminal or not: my-game, then my-game-2 (ZN-774.32); zinc new --pick: the usage and nothing
+#   written without a terminal; through a pty, the question (arrows) and the name; for a kind written in several styles, how to write it,
+#   each style its template (ZN-774.15); the next steps after zinc new; the first bare zinc at a terminal greets once, and its language is saved (ZN-774.02);
 # - install.sh and install.ps1 end with zinc --next-steps, which the Homebrew caveats repeat word for word;
-# - zinc check says what it checked; zinc dev's first start says which file to change, that a save shows it, and that Ctrl+C stops (ZN-774.03).
+# - zinc check says what it checked; zinc dev's first start says which file to change, that a save shows it, and that Ctrl+C stops (ZN-774.03);
+# - zinc run and zinc dev print one progress line at most by default, the steps with --verbose (ZN-774.32).
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 gold="$PWD/tests/golden/first-run"
@@ -35,10 +37,12 @@ done
 g="$tmp/game"
 out=$(cd "$g" && "$Z" check 2>&1)
 echo "$out" | grep -Eqx 'ok: src/main.ts (checked \(types and imports\)|and its imports checked \([0-9]+ files\)), no errors' || { echo "zinc check does not say what it checked: $out"; fail=1; }
-(cd "$g" && ZINC_FRAMES=2 exec "$Z" dev --no-devtools > "$tmp/dev.log" 2>&1) &
+(cd "$g" && unset ZINC_STEPS && ZINC_DEVTOOLS_PORT=0 ZINC_FRAMES=2 exec "$Z" dev > "$tmp/dev.log" 2>&1) &
 dev=$!
-n=0; while [ $n -lt 200 ] && ! grep -q "Ctrl+C" "$tmp/dev.log"; do sleep 0.05; n=$((n + 1)); done
+n=0; while [ $n -lt 200 ] && ! grep -q "program exited" "$tmp/dev.log"; do sleep 0.05; n=$((n + 1)); done
 kill $dev 2>/dev/null; wait $dev 2>/dev/null
+[ "$(grep -c '^zinc dev: v1 started' "$tmp/dev.log")" = 1 ] && ! grep -Eq '^  [a-z]|^zinc run |^zinc: plugins|using Next implementation' "$tmp/dev.log" \
+  || { echo "zinc dev prints more than one progress line: $(head -12 "$tmp/dev.log")"; fail=1; }
 grep -qx "zinc dev: change src/main.ts and save: the program updates at once. Ctrl+C stops." "$tmp/dev.log" && ! grep -q "after the save" "$tmp/dev.log" \
   || { echo "zinc dev does not start with what to do: $(head -5 "$tmp/dev.log")"; fail=1; }
 cp "$g/src/main.ts" "$tmp/main.ts"
@@ -48,6 +52,13 @@ sed 's/arrows to move/hello from me/' "$tmp/main.ts" > "$g/src/main.ts"
 grep -q 'hello from me' "$g/src/main.ts" || { echo "the game template has no 'arrows to move' text to change (the guide changes it)"; fail=1; }
 after=$(frame)
 [ -n "$before" ] && [ -n "$after" ] && [ "$before" != "$after" ] || { echo "a changed text does not change the frame: $before, $after"; fail=1; }
+
+# the first native run: one line; the next: none; --verbose: the steps
+quiet() { (cd "$g" && unset ZINC_STEPS && ZINC_HOME="$tmp/runhome" ZINC_FRAMES=1 "$Z" run --native "$@" 2>&1 >/dev/null); }
+out=$(quiet)
+[ "$out" = "zinc: compiling for this machine, once (a few seconds; the next runs start at once)" ] || { echo "the first native zinc run is not one line: $out"; fail=1; }
+out=$(quiet); [ -z "$out" ] || { echo "a cached zinc run prints: $out"; fail=1; }
+quiet --verbose | grep -q '^  run        native' || { echo "zinc run --verbose does not print the steps: $(quiet --verbose | head -3)"; fail=1; }
 
 # the six mistakes: mistake <name> <project> <zinc arguments...>, after the files were edited
 mistake() {
@@ -87,7 +98,7 @@ cp "$tmp/main.ts" "$g/src/main.ts"
 mistake missing-file "$g" run src/mian.ts
 
 # lost at the first command: the list of commands, the closest command
-"$Z" 2>/dev/null </dev/null | grep -q '^  new  *make a project (it asks what to make)' || { echo "a bare zinc does not list the commands"; fail=1; }
+"$Z" 2>/dev/null </dev/null | grep -q '^  new  *make a project$' || { echo "a bare zinc does not list the commands"; fail=1; }
 "$Z" help | grep -q '^Start here' && "$Z" help | grep -q '^Build and ship' && ! "$Z" help | grep -q '^  lsp ' || { echo "zinc help is not grouped"; fail=1; }
 "$Z" help --all | grep -q '^  lsp  *language server' || { echo "zinc help --all does not list every command"; fail=1; }
 for c in new run dev check doctor explain build; do
@@ -98,10 +109,13 @@ done
 "$Z" --help | grep -q '^  run  *run a program or project' || { echo "zinc --help does not list the commands"; fail=1; }
 [ "$("$Z" rnu 2>&1)" = "zinc: unknown command 'rnu': did you mean 'zinc run'? (zinc help lists the commands)" ] || { echo "zinc rnu: $("$Z" rnu 2>&1)"; fail=1; }
 
-# zinc new with no argument: a script gets the usage, exit 2, and nothing is written
-mkdir "$tmp/empty" && (cd "$tmp/empty" && "$Z" new </dev/null >"$tmp/new.out" 2>&1); rc=$?
-[ $rc -eq 2 ] && grep -q '^usage: zinc new' "$tmp/new.out" && [ -z "$(ls -A "$tmp/empty")" ] || { echo "zinc new without a terminal: exit $rc, $(ls -A "$tmp/empty" | head -3)"; fail=1; }
-(cd "$tmp/empty" && CI=1 "$Z" new >/dev/null 2>&1 </dev/null); [ $? -eq 2 ] || { echo "zinc new under CI does not exit 2"; fail=1; }
+# zinc new --pick: a script gets the usage, exit 2, and nothing is written
+mkdir "$tmp/empty" && (cd "$tmp/empty" && "$Z" new --pick </dev/null >"$tmp/new.out" 2>&1); rc=$?
+[ $rc -eq 2 ] && grep -q '^usage: zinc new' "$tmp/new.out" && [ -z "$(ls -A "$tmp/empty")" ] || { echo "zinc new --pick without a terminal: exit $rc, $(ls -A "$tmp/empty" | head -3)"; fail=1; }
+(cd "$tmp/empty" && CI=1 "$Z" new --pick >/dev/null 2>&1 </dev/null); [ $? -eq 2 ] || { echo "zinc new --pick under CI does not exit 2"; fail=1; }
+# zinc new alone, without a terminal: my-game, then my-game-2
+(cd "$tmp/empty" && "$Z" new </dev/null >/dev/null 2>&1 && "$Z" new </dev/null >/dev/null 2>&1)
+[ -f "$tmp/empty/my-game/zinc.json" ] && [ -f "$tmp/empty/my-game-2/zinc.json" ] || { echo "zinc new without a terminal did not make my-game and my-game-2: $(ls -A "$tmp/empty")"; fail=1; }
 "$Z" new --list | grep -q '^Games$' && "$Z" new --list | grep -q '^  desktop-app  ' && ! "$Z" new --list | grep -q 'from the index' || { echo "zinc new --list is not grouped by what it makes"; fail=1; }
 "$Z" new --list | grep -q '^  canvas  ' && "$Z" new --list | grep -q '^  stage  ' || { echo "zinc new --list does not show the canvas and stage styles"; fail=1; }
 out=$("$Z" new cli "$tmp/next")
@@ -142,8 +156,11 @@ _, status = os.waitpid(pid, 0)
 sys.stdout.write(out.decode("utf-8", "replace"))
 sys.exit(os.waitstatus_to_exitcode(status))
 PY
-mkdir "$tmp/wiz"
-python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "What do you want to make?=>\x1b[B\x1b[B\r" "How do you want to write it?=>\r" "Name of the new folder=>my-app\r" -- "$Z" new > "$tmp/wiz.out" 2>&1
+mkdir "$tmp/wiz" "$tmp/bare"
+python3 "$tmp/terminal.py" "$tmp/bare" "$tmp/home" -- "$Z" new > "$tmp/bare.out" 2>&1; rc=$?
+[ $rc -eq 0 ] && [ -f "$tmp/bare/my-game/zinc.json" ] && grep -q 'Created my-game (game)' "$tmp/bare.out" && ! grep -q '?' "$tmp/bare.out" \
+  && (cd "$tmp/bare/my-game" && ZINC_FRAMES=2 "$Z" run >/dev/null 2>&1) || { echo "bare zinc new at a terminal asks or fails: exit $rc, $(head -5 "$tmp/bare.out")"; fail=1; }
+python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "What do you want to make?=>\x1b[B\x1b[B\r" "How do you want to write it?=>\r" "Name of the new folder=>my-app\r" -- "$Z" new --pick > "$tmp/wiz.out" 2>&1
 rc=$?
 [ $rc -eq 0 ] && [ -f "$tmp/wiz/my-app/zinc.json" ] && [ -d "$tmp/wiz/my-app/src/pages" ] || { echo "the zinc new question (down twice, Enter, Enter, my-app) did not make the third kind in its first style, desktop-app: exit $rc, $(tail -5 "$tmp/wiz.out")"; fail=1; }
 grep -q 'Created my-app (desktop-app)' "$tmp/wiz.out" || { echo "the question does not end with the next steps: $(tail -5 "$tmp/wiz.out")"; fail=1; }
@@ -151,10 +168,10 @@ grep -q 'Created my-app (desktop-app)' "$tmp/wiz.out" || { echo "the question do
 grep -q 'Interface: describe the screen once in JSX' "$tmp/wiz.out" && grep -q 'Scene: objects that draw themselves' "$tmp/wiz.out" && ! grep -q 'Canvas: ' "$tmp/wiz.out" \
   && ! grep -q 'a scene of objects you tap and drag' "$tmp/wiz.out" && ! grep -q "a drawing on the web's Canvas API" "$tmp/wiz.out" \
   || { echo "an app with windows is not asked Interface or Scene, or the styles are kinds too: $(tail -12 "$tmp/wiz.out")"; fail=1; }
-TERM=dumb python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type a number=>1\r" "How do you want to write it?=>2\r" "Name of the new folder=>\r" -- /usr/bin/env TERM=dumb "$Z" new > "$tmp/wiz2.out" 2>&1
+TERM=dumb python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type a number=>1\r" "How do you want to write it?=>2\r" "Name of the new folder=>\r" -- /usr/bin/env TERM=dumb "$Z" new --pick > "$tmp/wiz2.out" 2>&1
 [ -f "$tmp/wiz/my-stage/zinc.json" ] && grep -q "from 'zinc:stage'" "$tmp/wiz/my-stage/src/main.ts" && grep -q '^   1\. Drawing: ' "$tmp/wiz2.out" && grep -q '^   3\. Canvas: ' "$tmp/wiz2.out" \
   || { echo "the numbered question (TERM=dumb: 1, a game; 2, Scene; Enter) did not make my-stage from the three styles of a game: $(tail -8 "$tmp/wiz2.out")"; fail=1; }
-TERM=dumb python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type a number=>6\r" "Name of the new folder=>\r" -- /usr/bin/env TERM=dumb "$Z" new > "$tmp/wiz3.out" 2>&1
+TERM=dumb python3 "$tmp/terminal.py" "$tmp/wiz" "$tmp/home" "Type a number=>6\r" "Name of the new folder=>\r" -- /usr/bin/env TERM=dumb "$Z" new --pick > "$tmp/wiz3.out" 2>&1
 [ -f "$tmp/wiz/my-cli/zinc.json" ] && ! grep -q 'How do you want to write it' "$tmp/wiz3.out" || { echo "the numbered question (TERM=dumb, 6, Enter) did not make my-cli without a style question: $(tail -5 "$tmp/wiz3.out")"; fail=1; }
 # the welcome: once, at a terminal; its language saved beside the keys of others
 mkdir -p "$tmp/home" && printf '{"atelier.theme": "dark"}\n' > "$tmp/home/config.json"

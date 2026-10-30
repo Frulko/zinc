@@ -42,7 +42,7 @@ $(block linux intel x86_64)
     # the end of install.sh and install.ps1 (zinc --next-steps in English; tests/t1/first_run.sh keeps the two equal)
     <<~TXT
       Three steps to start:
-        1. zinc new   make a project (it asks what to make)
+        1. zinc new   make a project (a game in my-game, with no question)
         2. zinc dev   in the project's folder: runs it, every save shows at once
         3. zinc tour  a guided first walk
       Learn to draw and react to the keyboard and mouse: https://frulko.github.io/zinc/docs/learn/

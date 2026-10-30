@@ -1095,6 +1095,7 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
       return 0;
     }
     zn::log::step("build", "first run of this version: native build, cached for the next runs");
+    zn::log::brief("compiling for this machine, once (a few seconds; the next runs start at once)");
   }
   writeComponents(std::string(out) + ".components", cmd, gPlugins);   // for the SBOM of zinc export (ZN-323)
   zn::log::write("build", zn::log::Debug, "compile and link: " + cmd);
@@ -1866,8 +1867,8 @@ int main(int argc, char** argv) {
   for (int k = 1; k < argc; ++k) {   // -v / --verbose, -vv, --log-format json (ZN-368): set ZINC_LOG / ZINC_LOG_FORMAT, which child zincs inherit; `--` ends the options
     if (!std::strcmp(argv[k], "--")) break;
     int drop = 0;
-    if (!std::strcmp(argv[k], "-v") || !std::strcmp(argv[k], "--verbose")) { setenv("ZINC_LOG", "info", 0); drop = 1; }
-    else if (!std::strcmp(argv[k], "-vv")) { setenv("ZINC_LOG", "debug", 0); drop = 1; }
+    if (!std::strcmp(argv[k], "-v") || !std::strcmp(argv[k], "--verbose")) { setenv("ZINC_LOG", "info", 0); setenv("ZINC_STEPS", "1", 0); drop = 1; }
+    else if (!std::strcmp(argv[k], "-vv")) { setenv("ZINC_LOG", "debug", 0); setenv("ZINC_STEPS", "1", 0); drop = 1; }
     else if (!std::strcmp(argv[k], "--background")) { setenv("ZINC_BACKGROUND", "1", 1); drop = 1; }   // windows open without taking the focus (docs/guide/01-getting-started.md, AGENTS.md)
     else if (!std::strcmp(argv[k], "-q") || !std::strcmp(argv[k], "--quiet")) { setenv("ZINC_STEPS", "0", 1); drop = 1; }   // no step lines
     else if (!std::strcmp(argv[k], "--log-format") && k + 1 < argc) { setenv("ZINC_LOG_FORMAT", argv[k + 1], 1); drop = 2; }
@@ -1883,6 +1884,8 @@ int main(int argc, char** argv) {
     argc -= drop;
     --k;
   }
+  // zinc run and zinc dev print one progress line at most (ZN-774.32): the details are behind -v / --verbose (or ZINC_STEPS=1)
+  if (argc >= 2 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "dev"))) setenv("ZINC_STEPS", "brief", 0);
   { char e[256]; zn_register_module(zn_module_QuickJS(), e, sizeof e); zn_register_module(zn_module_QuickJSFast(), e, sizeof e); }
 #ifdef ZN_NATIVE_FIXTURE
   { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }   // a test module in C99 (tests/native/fixture.c): what the native-call fixtures call
