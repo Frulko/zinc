@@ -408,6 +408,10 @@ The next backlog review turns lines into tasks or deletes them.
 - Z5006's lists of system features (include/zn/diagnostics.h, i18n/*/diag.json, docs/diagnostics.md) miss share, update and media: build them from systemFeatures().
 - zinc:fs has no appendBytes nor a write at an offset: the iPod demo's jukebox source joins its Range slices in memory (2.3 s per 40 MB on the interpreter).
 - Checker: Z0005 for an await in a nested ternary branch (`c ? await a() : d ? await a() : []`); Z0103 for `.then` returning a Promise (no flattening to Promise<T>).
+- threads (D181): an interpreter back-edge interrupt check so Worker.terminate() stops a busy worker at once (measure with bench-gate first); share a module's fusedCode and string constants across its workers' Machines if the Pi's RSS asks for it; SharedArrayBuffer and Atomics only when a user needs them; Map as a sendable type (sent as pairs).
+- `.then` callbacks returning `T | Promise<T>`, or then(f, g) with only one returning a promise, are not flattened; the adoption takes one microtask where Node takes two.
+- `new Set('abc')` and `new Map(generator)` are not supported (arrays and same-kind collections are).
+- The ir and zbc goldens of `exceptions` (__log47 vs __log48) and lint's rules.expect (ProgressRing's svg import) are stale on develop.
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -645,6 +649,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ipod_deep: its auto-sync step polls in real time and fails under load; drive it by the virtual clock.
 
 ## Cross-platform pass
+- threads (D181): RSS per idle worker and the Genius build time in a worker on the Pi 3B+ and the Nexus 7.
 
 - ZN-862: build plugins/imageio on Linux, Windows and iOS; check WebP and EXIF in a Linux AOT build (libwebp's symbols exported).
 - Run ipod_jukebox and ipod_satellite on Linux (afconvert is missing there; the test uses ffmpeg, else skips).
