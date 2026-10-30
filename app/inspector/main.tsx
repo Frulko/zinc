@@ -246,7 +246,7 @@ async function screen(on: boolean): Promise<void> {   // the screencast: frames 
 // ---- the views
 function TargetRow(p: { t: Target }): i32 {   // the program card: its name, then engine, run, project, process, port and device
   return <View className="flex-col gap-1 p-2 rounded-md bg-white border">
-    <Text className="text-sm font-medium text-slate-900">{p.t.name()}</Text>
+    <Text className="text-sm font-medium text-slate-900 break-all">{p.t.name()}</Text>
     <Text className="text-xs text-slate-500 break-words">{p.t.card()}</Text>
     <Btn label="Attach" onClick={() => { attach(p.t); }} />
   </View>;
