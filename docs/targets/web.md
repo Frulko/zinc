@@ -346,7 +346,8 @@ A plugin declares its browser version in `plugin.json`:
 | `zinc:map` | yes | MapLibre GL JS behind `MapView` (see above) | Chrome (six offline tiles of Paris, drawn; labels not checked) |
 | `zinc:video` | yes | `entry`: the browser's `<video>` (streamed from its url, never preloaded), the whole `Player` API, plus `controls`, `volume`, `rate`, `seek`, `poster`, `fit`, `fullscreen()`, `pictureInPicture()`, `on(event)`; `player.draw` in a node is the element itself in the DOM render, its current frame on a canvas render; `player.image` follows the frames; a file the browser cannot decode shows a message and a download link (`player.error`); W0604 at export | Chrome (VP9 and AV1 WebM, the API, the fallback; HEVC and H.264 depend on the build) |
 | `zinc:lottie` | yes | `native` + `impl` over lottie-web 5.13 (MIT, vendored in `plugins/lottie/web/vendor` with its licence), loaded the first time an animation is drawn: the SVG build in the DOM render (an `<svg>` in the node's box), the canvas build on a canvas render; `Player` and `<Lottie/>` unchanged. `cacheBg` (render to an image) is not supported | Chrome |
-| `zinc:3d`, `zinc:physics3d` | not yet | `zinc:3d` is the Zinc renderer's own scene API (use `three` on the web); physics3d would be a second Box2D-style shim | – |
+| `zinc:3d` | yes | `native` + `impl` (`plugins/3d/web/render3d.js`): the GPU renderer of `render3d.gl.cpp` on the page's WebGL 2 (same shaders, 4x multisampling, mipmapped textures from gfx images), drawn at the page's pixel ratio and painted in the box as an element; no worlds (`World` opens nothing) and no plugin options (`msaa`, `filter` at their defaults) | Chrome (the gallery's 3d page; examples/3d/cubes: SSIM 0.9985 against the native GPU frame) |
+| `zinc:physics3d` | not yet | physics3d would be a second Box2D-style shim | – |
 | `zinc:mapping`, `zinc:sonos`, `zinc:spotify` | not yet | fetch and WebSocket over a proxy where the service has no CORS | – |
 | `zinc:process`, `zinc:ffi`, `zinc:script`, `zinc:wasm`, displays, boards, `zinc:remote`, `zinc:webos`... | no | no equivalent on a page (the browser runs WebAssembly and `eval` itself) | – |
 
@@ -467,7 +468,7 @@ calls it. `zinc dev` says which sides it runs (`the native sides Lvgl, Device ru
   or a `curl` reaches the program on its port as under `zinc run`.
 - The media files of the project outside `assets/` (videos, sounds, such as `examples/hero`'s `media/bbb.mp4`) are served by `zinc dev` at `/__project/<path>` with byte
   ranges, so `zinc:video`'s `<video>` element plays and seeks them by the path the program gives.
-- A side that draws (`zinc:3d`, the `zinc:three` subset) is never bridged: it would draw on your machine, not in the page. Its plugin.json says so with `"web": {"bridge": false}`; it keeps its W0602.
+- A side that draws (the `zinc:three` subset) is never bridged: it would draw on your machine, not in the page. Its plugin.json says so with `"web": {"bridge": false}`; it keeps its W0602.
 - The set of native sides is read when `zinc dev` starts: a save that adds such a plugin needs `zinc dev` restarted.
 
 `tests/t1/web_bridge.sh` runs a `zinc:process` program, a `zinc:net` server and fetch, and a `zinc:socket` UDP datagram through it in headless Chrome.

@@ -14,7 +14,7 @@ text 7690014c58180f97
 sound 2fd6e872048633f1
 bounce-drawing 79595cb685a01772
 bouncing-ball 1fcbee30466fb36c
-3d c06d889b36e52c45 Render3D
+3d c06d889b36e52c45
 breakout 3f05cd97ff153eac
 13-a-stage-and-a-sprite 399e2c4e6a18a318
 bounce-scene d3b584facbe1f9e9

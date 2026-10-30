@@ -23,7 +23,7 @@
       "macos": "native/render3d.gl.cpp"
     }
   },
-  "web": { "bridge": false },
+  "web": { "native": "Render3D", "impl": "web/render3d.js", "needs": ["webgl2"] },
   "targets": {
     "macos": {
       "frameworks": [

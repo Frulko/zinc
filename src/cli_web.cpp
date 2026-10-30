@@ -1145,7 +1145,7 @@ void startBridge(Dev& d) {
     const std::string t = readAll(d.stage / file);
     for (auto it = std::sregex_iterator(t.begin(), t.end(), nat); it != std::sregex_iterator(); ++it) if (!claimed.count((*it)[1])) specs[(*it)[1]] = m.name;
   }
-  for (auto it = specs.begin(); it != specs.end();) {   // plugin.json "web": {"bridge": false}: a side that draws (zinc:3d, three) would draw on this machine, not in the page
+  for (auto it = specs.begin(); it != specs.end();) {   // plugin.json "web": {"bridge": false}: a side that draws (three) would draw on this machine, not in the page
     Json pj(readAll(fs::path(it->second).parent_path().parent_path() / "plugin.json"));
     yyjson_val* w = pj.root ? yyjson_obj_get(pj.root, "web") : nullptr;
     yyjson_val* b = w ? yyjson_obj_get(w, "bridge") : nullptr;

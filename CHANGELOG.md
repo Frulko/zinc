@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc export --target web` runs `zinc:3d` programs: the scene draws on the browser's WebGL 2, as the desktop's GPU renderer does (worlds not yet), and the 3d example of the site's gallery runs in its page.
 - `display-sidecar`: a Zinc app runs on an iPad, iPhone, Android or another Mac with the Sidecar app as its screen, with its own frames and no screen capture: `ZINC_DISPLAY=sidecar ZINC_SIDECAR=adb zinc run <app>` (or `usb`, or an address). Touches and the Apple Pencil drive the app.
 - `display-sidecar`: an app with a web view (`zinc:webview`) shows the page on the Sidecar screen too, and the page answers its touches.
 - `zinc:secure-store` keeps secrets (tokens, keys) in the macOS Keychain with Expo's API: `import * as SecureStore from 'expo-secure-store'`, then `getItemAsync`, `setItemAsync`, `deleteItemAsync`, `isAvailableAsync`. Where no keychain exists the calls reject; secrets are never written to a plain file.

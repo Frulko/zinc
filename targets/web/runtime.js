@@ -259,6 +259,8 @@ function newImage(w, h) {
 Z.images = {
   canvas: (id) => (images[id] ? images[id].canvas : null),
   touch: (id) => { if (images[id]) images[id].rev = (images[id].rev || 0) + 1; },
+  /** How many times its pixels changed (touch), for a backend that keeps a copy of them (zinc:3d's textures). */
+  rev: (id) => (images[id] ? images[id].rev || 0 : -1),
   /** Gives the image another size (zinc:gl present, drawShader): its canvas is cleared. */
   resize: (id, w, h) => { const im = images[id]; if (!im) return; im.canvas.width = Math.max(1, w); im.canvas.height = Math.max(1, h); im.w = w; im.h = h; im.k = 1; },
 };

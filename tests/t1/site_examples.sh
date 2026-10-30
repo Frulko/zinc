@@ -1,7 +1,8 @@
 #!/bin/sh
 # The site's gallery of graded examples (ZN-774.36): the committed web exports of site/public/play match learn/catalog.txt and the examples' sources
 # (tools/site-examples --check); the site builds the gallery (every entry, the module and grade filters) and a page per example with its source and
-# copy buttons; and in headless Chrome the hello page runs its program in its frame: it prints its line, frames come and the canvas is drawn.
+# copy buttons; and in headless Chrome the hello page runs its program in its frame (it prints its line, frames come and the canvas is drawn), and so
+# does the 3d page (zinc:3d on WebGL 2).
 # Skipped (77) without Chrome or the site's packages (cd site && pnpm install).
 cd "$(dirname "$0")/../.." || exit 2
 command -v python3 >/dev/null 2>&1 || { echo "site_examples: no python3"; exit 77; }
@@ -22,7 +23,7 @@ for s in 1 2 3 4; do grep -q "data-stars=\"$s\" aria-label" "$g" || { echo "site
 grep -q 'src="/zinc/play/hello/"' "$p" || { echo "site_examples: the hello page does not run its program"; fail=1; }
 grep -q "console.log(&#39;Hello from Zinc&#39;)" "$p" || { echo "site_examples: the hello page does not show its source"; fail=1; }
 grep -q 'class="copy" type="button" data-copy="// Hello' "$p" || { echo "site_examples: the source has no copy button"; fail=1; }
-grep -q 'runs at home only' "$tmp/root/zinc/examples/3d/index.html" || { echo "site_examples: the 3d page does not say it runs at home only"; fail=1; }
+grep -q 'src="/zinc/play/3d/"' "$tmp/root/zinc/examples/3d/index.html" || { echo "site_examples: the 3d page does not run its program (zinc:3d on WebGL 2)"; fail=1; }
 # the hello page in headless Chrome: its frame runs the program
 frame="(() => { const w = document.getElementById('ex-app').contentWindow, cv = w.document.querySelector('canvas'); if (!cv) return 'no canvas'; const t = document.createElement('canvas'); t.width = cv.width; t.height = cv.height; const g = t.getContext('2d'); g.drawImage(cv, 0, 0); const d = g.getImageData(0, 0, t.width, t.height).data; let k = 0; for (let i = 4; i < d.length; i += 4) if (d[i] !== d[0] || d[i+1] !== d[1] || d[i+2] !== d[2]) k++; return (w.__zincFrames || 0) + ' frames, ' + (k / (d.length / 4)).toFixed(3) + ' drawn'; })()"
 out=$(python3 -I tools/web-browser-test "$tmp/root" --path /zinc/examples/hello/ --wait 3 --size 1200x800 --eval "$frame") || { echo "site_examples: Chrome failed: $out"; exit 1; }
@@ -32,5 +33,14 @@ o = json.load(sys.stdin)
 m = re.match(r"(\d+) frames, ([0-9.]+) drawn", str(o.get("eval")))
 ok = "Hello from Zinc" in o["console"] and not o["errors"] and m and int(m.group(1)) >= 10 and float(m.group(2)) > 0.005
 print("site_examples: hello in its page: %s, console %s%s" % (o.get("eval"), o["console"][:3], "" if ok else ", errors %s" % o["errors"][:3]))
+sys.exit(0 if ok else 1)' || fail=1
+# the 3d page (ZN-563.03): zinc:3d draws on the page's WebGL 2 (plugins/3d/web/render3d.js), its frames come and its canvas is drawn (the cube and the ring over the background)
+out=$(python3 -I tools/web-browser-test "$tmp/root" --path /zinc/examples/3d/ --wait 3 --size 1200x800 --eval "$frame") || { echo "site_examples: Chrome failed: $out"; exit 1; }
+printf '%s\n' "$out" | python3 -I -c '
+import json, re, sys
+o = json.load(sys.stdin)
+m = re.match(r"(\d+) frames, ([0-9.]+) drawn", str(o.get("eval")))
+ok = not o["errors"] and m and int(m.group(1)) >= 10 and float(m.group(2)) > 0.02
+print("site_examples: 3d in its page: %s%s" % (o.get("eval"), "" if ok else ", errors %s, console %s" % (o["errors"][:3], o["console"][:3])))
 sys.exit(0 if ok else 1)' || fail=1
 exit $fail
