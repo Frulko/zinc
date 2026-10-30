@@ -566,6 +566,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-880: a line break between two adjacent inline pictures with no space (`:a::b:`), as CSS allows; today they wrap as one word.
 - ZN-880: the ir/zbc golden "exceptions" differs in helper numbering (__log47 against __log50) on develop's binary; re-record or find what moved.
 
+- ZN-881: Solid's `_append` should skip a null child as React does, so a component returning null works under Solid too.
+- ZN-881: infer a generic function's return type from its arguments (Z0109 today asks for it written out).
+- ZN-882: re-record the nuxt_ui, rn_showcase and platform_look hashes once their failure on develop is fixed; the new ones include the border inset.
+- ZN-882: the default layout still fails 139 Yoga conformance cases; negative space and auto margins are the next easy ones.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -818,6 +823,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-872: Opus loss concealment and FEC, and reordering in the jitter buffer: real calls over Wi-Fi will show whether gaps are audible.
 - ZN-872: DAVE verification codes (daveSessionGetPairwiseFingerprint) in the call bar, as the official client shows them.
 - ZN-872: READY_SUPPLEMENTAL's voice_states (capability bit 5 not asked): who is already in voice channels at start shows only after a VOICE_STATE_UPDATE.
+
+- ZN-881: Discord interactive components (buttons, selects) behind a setting, since they act on a bot for the user.
+- ZN-881: Discord inline video and voice-message playback, Lottie stickers, archived threads, role colours on names, fetching an absent referenced message, burst reactions.
+- ZN-882: tests/t1/discord_voice.sh could check the speaking ring's pixels once the app can shoot on an event rather than a frame number.
 
 ## Cross-platform pass
 - ZN-872: the discord-voice plugin on Linux (ALSA/PulseAudio through miniaudio, BoringSSL without asm) and the zig cross build of its 431 sources.
