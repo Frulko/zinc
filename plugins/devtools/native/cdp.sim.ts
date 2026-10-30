@@ -7,6 +7,7 @@ export default {
   resourceStats(): string { return '{}'; },
   clients(): number { return 0; },
   screenshot(maxW: i32, maxH: i32): string { return ''; },
+  screencast(maxW: i32, maxH: i32, quality: i32): string { return ''; },
   trace(_on: boolean): string { return '[]'; },
   net(_op: i32, _arg: string): string { return ''; },
 };

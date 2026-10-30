@@ -131,6 +131,8 @@ void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, b
 }
 namespace zn::host {
 std::string programInfoJson();   // below: Zinc.getProgramInfo
+std::string screencastFrame(const std::string& arg);   // screencast.cpp
+void screencastStop();
 namespace {
 
 using zn::Rt;
@@ -1295,7 +1297,9 @@ void call(int id, const HostArg* a, HostArg* r) {
       if (n(0) == 4) zn::netlog::consoleStart();   // the console (ZN-373.01): 4 start, 5 the new lines, 6 the last 32
       if (n(0) == 7 || n(0) == 8) { std::size_t len = 0; const char* p = zn::host::traceEvents(n(0) == 7, &len); ret(r, std::string(p, len)); break; }   // Tracing (ZN-373.05): 7 start, 8 end
       if (n(0) == 11) { std::size_t len = 0; const char* p = zn::host::threadTrace(3, nullptr, &len); ret(r, std::string(p, len)); break; }   // the workers (the inspector's Threads view)
-      if (n(0) == 12) { ret(r, programInfoJson()); break; }   // the program, the engine, the process and the renderer (the inspector's Info view)
+      if (n(0) == 12) { ret(r, programInfoJson()); break; }
+      if (n(0) == 13) { ret(r, screencastFrame(s(1))); break; }   // the inspector's Screen view (screencast.cpp): the next frame, 14 stop
+      if (n(0) == 14) { screencastStop(); ret(r, std::string()); break; }   // the program, the engine, the process and the renderer (the inspector's Info view)
       ret(r, n(0) == 1 ? zn::netlog::drain() : n(0) == 2 ? zn::netlog::responseBody(arg) : n(0) == 3 ? zn::netlog::postData(arg) : n(0) == 5 ? zn::netlog::consoleDrain() : n(0) == 6 ? zn::netlog::consoleRecent() : n(0) == 9 ? zn::netlog::har() : n(0) == 10 ? zn::netlog::replay() : std::string());   // 9: the log as HAR (the inspector's export)
       break;
     }

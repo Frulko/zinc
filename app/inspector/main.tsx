@@ -7,17 +7,18 @@
 // ZINC_INSPECTOR_DUMP=1: attach to the first program, go through each panel and print what it shows, then quit (tests/t1/inspector.sh);
 // =elements: the Elements panel only; =storage: the Storage panel only (tests/t1/inspector_storage.sh); =info: the Info view's card (tests/t1/inspector_info.sh). A debugger target gets the Sources session.
 import { createSignal, render } from 'zinc:ui/solid';
+import { PointerEvent } from 'zinc:ui';
 import * as sys from 'zinc:sys';
-import { quit, imageFromBytes, destroyImage, imageWidth, imageHeight, drawImage, rect } from 'zinc:gfx';
+import { quit, imageFromBytes, destroyImage, imageWidth, imageHeight, drawImage, rect, rrect, border } from 'zinc:gfx';
 import { base64Decode } from 'zinc:web';
 import { spawn, Process } from 'zinc:process';
 import { Target, Cdp, discover, TraceFrame, PhaseTotal, traceFrames, phaseTotals, msText, Track, traceTracks } from './model';
 import { ThreadsView, watchThreads, threads, threadLine } from './threads';
 import { conn, call, status, setStatus, view, setView, setDevRun, sleep, until } from './state';
-import { Btn } from './widgets';
+import { Btn, Flat } from './widgets';
 import { ElementsView, dumpTree } from './tree';
 import { StylesPane } from './styles';
-import { loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, styles, rules, box, target, setProp, label, findNode, TNode } from './elements';
+import { loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, reveal, selected, nodeOf, styles, rules, box, target, setProp, label, findNode, TNode } from './elements';
 import { NetworkView, onNetwork, onReload, dumpNetwork, reqs, pick, Req } from './network';
 import { StorageView, loadStorage, onStorage, changes, dumpStorage, items, pickItem, tables, openTable } from './storage';
 import { SourcesView, DebugPane, onDebugger, resetSources, setWaiting, setPaused, setEnded, dumpDebugger } from './sources';
@@ -42,6 +43,54 @@ const [tracks, setTracks] = createSignal<Track[]>([]);   // a track per thread: 
 let traceEvents: any[] = [];
 
 let reloading = false;
+/** The screencast's counters (ZINC_INSPECTOR_DUMP=screenfps): frames, base64 bytes, ms spent decoding, ms from the program's send to here. */
+class CastStats { frames: i32 = 0; bytes: number = 0; decode: number = 0; latency: number = 0; }
+const cast = new CastStats();
+// The Screen view draws the highlight itself over the frames (the program leaves it out of them while it streams, as Chrome's device view):
+// the node under the pointer while picking, else the node selected in Elements. Boxes are in the program's window points.
+let devW = 1, devH = 1;   // the program's window (the frames' metadata)
+const [picking, setPicking] = createSignal<boolean>(false);   // the inspect arrow: on the Screen view and in the program
+const [hover, setHover] = createSignal<i32>(0);
+const [shown, setShown] = createSignal<number[]>([]);   // margin, border and content quads of the node drawn, flattened (24 numbers)
+let boxBusy = false, boxAgain = false;
+async function refreshBox(): Promise<void> {
+  if (boxBusy) { boxAgain = true; return; }   // asked again while a box is on its way: once more after it
+  boxBusy = true;
+  do {
+    boxAgain = false;
+    const id = picking() && hover() > 0 ? hover() : target();
+    const b = id > 0 && conn.c !== null ? await call('DOM.getBoxModel', `{"nodeId":${id}}`) : JSON.parse('{}');
+    const q: number[] = [];
+    if (b.model !== undefined) for (const k of ['margin', 'border', 'content']) { const a: number[] = b.model[k]; for (const v of a) q.push(v); }
+    if (q.join(',') !== shown().join(',')) setShown(q);
+  } while (boxAgain);
+  boxBusy = false;
+}
+/** The arrow: pick mode on or off, here (the Screen view) and in the program (Overlay.setInspectMode), as Chrome's. */
+function setPick(on: boolean): void {
+  setPicking(on);
+  setHover(0);
+  call('Overlay.setInspectMode', on ? '{"mode":"searchForNode","highlightConfig":{}}' : '{"mode":"none","highlightConfig":{}}');
+  refreshBox();
+}
+let hoverBusy = false;
+/** The pointer over the screen at the program's window point (x, y): the node there (DOM.getNodeForLocation, the program's own hit test)
+ *  is highlighted; `click` selects it in Elements, the tree opened to it, and ends the pick. */
+async function screenAt(x: number, y: number, click: boolean): Promise<void> {
+  if (hoverBusy && !click) return;   // one question at a time while the pointer moves
+  hoverBusy = true;
+  const r = await call('DOM.getNodeForLocation', `{"x":${Math.round(x)},"y":${Math.round(y)}}`);
+  hoverBusy = false;
+  const id: i32 = r.nodeId !== undefined ? r.nodeId : 0;
+  if (click) { setPick(false); if (id > 0) await picked(id); return; }
+  if (id !== hover()) { setHover(id); await refreshBox(); }
+}
+/** A node picked (on the screen or in the program): selected in Elements, its ancestors unfolded. */
+async function picked(id: i32): Promise<void> {
+  if (view() === 'screen') await screen(false);
+  setView('elements');
+  await reveal(id);
+}
 
 // The apps of the paired devices: `zinc device inspect --all` forwards the inspector of each to a port of this machine and names it, one line
 // "<port> <device> <app>" each, then "ready"; it ends when this program does. ZINC names the engine to run, else the zinc of PATH.
@@ -93,11 +142,19 @@ function onEvent(method: string, params: any): void {
     let slow = -1;
     for (let i = 0; i < fs.length; i++) if (slow < 0 || fs[i].dur > fs[slow].dur) slow = i;
     setTraced(fs); setTotals(phaseTotals(fs)); setFrameAt(slow); setTracks(traceTracks(traceEvents)); setTraces(traces() + 1);
-  } else if (method === 'Page.screencastFrame') {   // the program's screen: decoded, shown, acknowledged so the next one comes
-    const id = imageFromBytes(base64Decode(params.data));
+  } else if (method === 'Overlay.inspectNodeRequested') { const id: i32 = params.backendNodeId; setPicking(false); setHover(0); picked(id); }   // picked in the program
+  else if (method === 'Overlay.nodeHighlightRequested') { const id: i32 = params.nodeId; setHover(id); refreshBox(); }
+  else if (method === 'Overlay.inspectModeCanceled') { setPicking(false); setHover(0); refreshBox(); }
+  else if (method === 'Page.screencastFrame') {   // the program's screen: decoded, shown, acknowledged so the next one comes
+    const t0 = performance.now(), data: string = params.data;
+    devW = params.metadata.deviceWidth; devH = params.metadata.deviceHeight;
+    const id = imageFromBytes(base64Decode(data));
     if (id >= 0) { if (frame() >= 0) destroyImage(frame()); setFrame(id); }
+    const sent: number = params.metadata.timestamp;
+    cast.frames++; cast.bytes += data.length; cast.decode += performance.now() - t0; cast.latency += Date.now() - sent * 1000;
     const session: number = params.sessionId;
     call('Page.screencastFrameAck', `{"sessionId":${session}}`);
+    refreshBox();   // the node drawn over it may have moved
   } else if (method.startsWith('Network.')) onNetwork(method, params);
   else if (method.startsWith('DOMStorage.')) onStorage(method, params);
   else if (method === 'Runtime.consoleAPICalled') onConsole(params);
@@ -145,7 +202,8 @@ async function attach(t: Target): Promise<void> {
 setInterval(() => { if (conn.c !== null && view() === 'elements') { if (renderedOnly()) refreshRendered(false); refreshStage(); } }, 500);
 
 async function screen(on: boolean): Promise<void> {   // the screencast: frames of the program's screen while the Screen view is open
-  await call(on ? 'Page.startScreencast' : 'Page.stopScreencast', on ? '{"format":"png","maxWidth":640,"maxHeight":480}' : '{}');
+  await call(on ? 'Page.startScreencast' : 'Page.stopScreencast', on ? '{"format":"jpeg","quality":80,"maxWidth":640,"maxHeight":480}' : '{}');
+  if (on) refreshBox();
 }
 
 // ---- the views
@@ -157,14 +215,28 @@ function TargetRow(p: { t: Target }): i32 {
   </View>;
 }
 
-function ScreenView(): i32 {   // the last frame, fitted into the view with its proportions
-  return <Canvas className="flex-1" onDraw={(x: i32, y: i32, w: i32, h: i32) => {
+// The frame fitted into the view with its proportions: its place in the Canvas (left, top, width, height), set by each draw.
+const fit: number[] = [0, 0, 1, 1];
+function quadBox(q: number[], i: i32): number[] { return [q[i], q[i + 1], q[i + 2] - q[i], q[i + 5] - q[i + 1]]; }
+function ScreenView(): i32 {   // the last frame, and over it the highlighted node's margin (orange), border box (blue) and content (light blue)
+  const point = (e: PointerEvent): number[] => [(e.x - fit[0]) * devW / fit[2], (e.y - fit[1]) * devH / fit[3]];
+  return <Canvas className="flex-1" onPointerMove={(e: PointerEvent) => { if (picking()) { const p = point(e); screenAt(p[0], p[1], false); } }}
+    onPointerDown={(e: PointerEvent) => { if (picking()) { const p = point(e); screenAt(p[0], p[1], true); } }}
+    onDraw={(x: i32, y: i32, w: i32, h: i32) => {
     rect(x, y, w, h, 0xe2e8f0);
     const f = frame();
     if (f < 0) return;
     const iw = imageWidth(f), ih = imageHeight(f);
     const k = Math.min(w / Math.max(1, iw), h / Math.max(1, ih));
-    drawImage(f, x + (w - iw * k) / 2, y + (h - ih * k) / 2, iw * k, ih * k, 255, 0);
+    fit[0] = (w - iw * k) / 2; fit[1] = (h - ih * k) / 2; fit[2] = iw * k; fit[3] = ih * k;
+    drawImage(f, x + fit[0], y + fit[1], fit[2], fit[3], 255, 0);
+    const q = shown();
+    if (q.length < 24) return;
+    const s = fit[2] / devW, ox = x + fit[0], oy = y + fit[1];
+    const colors: u32[] = [0xf6b26b, 0x6fa8dc, 0x9fc5e8];
+    for (let i = 0; i < 3; i++) { const b = quadBox(q, i * 8); rrect(ox + b[0] * s, oy + b[1] * s, b[2] * s, b[3] * s, 0, colors[i], 110); }
+    const b = quadBox(q, 8);
+    border(ox + b[0] * s, oy + b[1] * s, b[2] * s, b[3] * s, 0, 1, 0x1d4ed8, 255);
   }} />;
 }
 
@@ -261,6 +333,7 @@ function App(): i32 {
           <Tab id="sources" label="Sources" />
           <Tab id="performance" label="Performance" />
           <Tab id="threads" label="Threads" />
+          <Flat label={picking() ? 'Pick: on' : 'Pick'} on={picking()} onClick={() => { setPick(!picking()); }} />
           <Text className="flex-1 text-xs text-slate-600">{attached()}</Text>
         </View>
         {view() === 'sources' ? <SourcesView /> : view() === 'performance' ? <PerformanceView /> : view() === 'threads' ? <ThreadsView /> : view() === 'network' ? <NetworkView /> : view() === 'storage' ? <StorageView /> :
@@ -295,6 +368,50 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the panels as t
     return;
   }
   setView('elements');
+  if (mode === 'screenfps') {   // two seconds of an animated program's screen: frames per second, size, decoding, latency
+    setView('screen');
+    await screen(true);
+    await until(() => frame() >= 0);
+    await sleep(300);
+    const n0 = cast.frames, b0 = cast.bytes, d0 = cast.decode, l0 = cast.latency, t0 = performance.now();
+    await sleep(2000);
+    const n = cast.frames - n0, k = Math.max(1, n);
+    console.log('screen fps: ' + Math.round(n * 1000 / (performance.now() - t0)) + ', ' + Math.round((cast.bytes - b0) / k / 1024) + ' KB base64 a frame, decode ' +
+      (Math.round((cast.decode - d0) / k * 100) / 100) + ' ms, latency ' + Math.round((cast.latency - l0) / k) + ' ms, ' + imageWidth(frame()) + ' x ' + imageHeight(frame()));
+    await screen(false);
+    quit();
+    return;
+  }
+  if (mode === 'screen') {   // tests/data/inspector_screen: the highlight stays out of the frames, the node at a point, a pick on the screen
+    await until(() => rows().length > 0);
+    let sky = 0;
+    for (const r of rows()) if (r.node.cls.indexOf('bg-sky-600') >= 0) sky = r.node.id;
+    setView('screen');
+    await screen(true);
+    await until(() => frame() >= 0);
+    await sleep(400);
+    const n0 = cast.frames;
+    await call('Overlay.highlightNode', `{"nodeId":${sky},"highlightConfig":{}}`);
+    await sleep(500);
+    console.log('frames sent while a node is highlighted: ' + (cast.frames - n0));
+    await call('Overlay.hideHighlight', '{}');
+    const at = await call('DOM.getNodeForLocation', '{"x":60,"y":60}');
+    const atId: i32 = at.nodeId !== undefined ? at.nodeId : 0;
+    const atNode = nodeOf(atId);
+    console.log('node at 60,60: ' + (atNode !== null ? label(atNode as TNode) : 'none'));
+    const none = await call('DOM.getNodeForLocation', '{"x":-5,"y":-5}');
+    console.log('node at -5,-5: ' + (none.message !== undefined ? none.message : 'found'));
+    setPick(true);
+    await sleep(300);   // the program's own pick mode first says what is under its pointer
+    await screenAt(60, 60, false);
+    await sleep(200);
+    console.log('screen hover: ' + hover() + ' = ' + atId + ', drawn box ' + quadBox(shown(), 8).join(','));
+    await screenAt(60, 60, true);
+    const sel = nodeOf(selected());
+    console.log('screen pick: ' + (sel !== null ? label(sel as TNode) : 'none') + ' selected, view ' + view() + ', picking ' + picking());
+    quit();
+    return;
+  }
   if (mode === 'threads') {   // the Threads view, then a recording's tracks
     setView('threads');
     watchThreads();

@@ -17,6 +17,9 @@ export interface Spec extends NativeModule {
   resourceStats(): string;
   /** The frame on screen as a base64 PNG, shrunk to fit maxW x maxH (0: full size); '' when there is none. */
   screenshot(maxW: i32, maxH: i32): string;
+  /** The screencast's next frame (Page.startScreencast): the frame on screen as base64 JPEG of that quality (0: PNG), shrunk to fit
+   *  maxW x maxH, or '' when the screen did not change since the last one; maxW < 0 stops it. */
+  screencast(maxW: i32, maxH: i32, quality: i32): string;
   /** Profiler spans (runtime/gfx.cpp): true starts collecting (returns ''), false returns them as a JSON array of
    *  Chrome trace events. */
   trace(on: boolean): string;

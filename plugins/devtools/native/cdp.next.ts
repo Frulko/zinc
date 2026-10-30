@@ -140,6 +140,11 @@ export default {
     remove(f);
     return base64Encode(png);
   },
+  screencast(maxW: i32, maxH: i32, quality: i32): string {   // the host keeps the frame from its damage (src/host/screencast.cpp)
+    if (maxW >= 0) return netLog(13, `${maxW} ${maxH} ${quality}`);
+    netLog(14, '');
+    return '';
+  },
   trace(on: boolean): string { return netLog(on ? 7 : 8, ''); },   // the runtime's frame phases (ZN-373.05)
   net(op: i32, arg: string): string {
     if (op !== 0) return netLog(op, arg);

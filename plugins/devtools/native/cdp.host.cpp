@@ -178,6 +178,8 @@ struct HostCdp : NativeCdp, zrt::Poller {
     return s;
   }
 
+  // ponytail: a whole PNG each time (index.ts skips the unchanged ones); the damage-only JPEG frames are the Zinc Next host's (cdp.next.ts)
+  zrt::String screencast(int32_t maxw, int32_t maxh, int32_t) override { return maxw < 0 ? zrt::String() : screenshot(maxw, maxh); }
   zrt::String trace(bool on) override { return zrt::gfx::trace(on); }
   zrt::String resourceStats() override { return lit(zn_resource_stats_json ? zn_resource_stats_json() : "{}"); }
   zrt::String net(int32_t op, zrt::String) override {   // the network log is the Zinc Next host's (ZN-370); 12: the program (the inspector's Info view)

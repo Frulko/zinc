@@ -175,10 +175,12 @@ of the Chrome DevTools protocol:
   node under the pointer, through its turned box. Meanwhile a `zinc:ui` app gets no pointer or key input (a scene that reads the pointer
   itself still does). `DOM.getNodeForLocation` finds the node at a point the same way;
 - **screencast** (the page view next to the panels, `Page.startScreencast`): the frame on screen, shrunk by a whole
-  factor to the size DevTools asks for, as PNG, sent when it changed and the previous frame was acknowledged
-  (at most 10 per second);
+  factor to the size DevTools asks for, as JPEG of the `quality` asked for (80 by default; PNG for `format: "png"`), sent when the screen
+  changed and the previous frame was acknowledged. On Zinc Next the host keeps a copy of the frame from the damaged rows of each present
+  and shrinks only what changed (`src/host/screencast.cpp`), so a still screen costs nothing and a moving one runs at the frame rate.
+  While a screencast runs the program does not draw the highlight into its frame: the inspector draws it over the picture;
 - **Page.captureScreenshot** returns the frame on screen as a base64 PNG, rasterized by the runtime at the window's
-  physical size (`format`, `clip` and `quality` are ignored; on Zinc Next the screencast also gets the frame whole);
+  physical size (`format`, `clip` and `quality` are ignored);
 - **Console**: `Runtime.consoleAPICalled` for every line the program prints (`console.log` as log, `console.error` as error; the last 32
   are replayed when DevTools connects). On Zinc Next the runtime passes each line to the host as it writes it (`zn::rt::gConsoleTap`, out of
   the interpreter's loop) and `zinc:devtools` sends them every 100 ms (ZN-373.01);
@@ -249,7 +251,10 @@ Its panels (one file each in `app/inspector/`):
   WebSocket its messages (`>>` sent, `<<` received).
 - **Storage**: the key/values (view, edit, add, delete, clear all, updated live) and the SQLite databases: tables, schema, rows by pages
   of 50, a read-only query, and *Run as write...* behind a confirmation (dev runs only).
-- **Console**, with a filter; **Screen**; **Sources** (above); **Performance** (above).
+- **Console**, with a filter; **Screen**, with the highlighted node drawn over it; **Sources** (above); **Performance** (above).
+- **Pick** (Chrome's inspect arrow): hover the Screen view or the program's own window to highlight the node there, click to select it in
+  Elements (the tree opens to it); the click does not reach the app. In a dev run, Cmd/Ctrl+Shift+C in the program starts it too, Escape
+  ends it.
 
 `tests/t1/inspector.sh` and `tests/t1/inspector_storage.sh` run it against headless programs and a `zinc debug --cdp` session:
 `ZINC_INSPECTOR_DUMP=1` prints every view, `=elements` and `=storage` one; `ZINC_INSPECTOR_VIEW=<panel>` attaches to the first program

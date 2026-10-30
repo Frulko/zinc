@@ -5994,6 +5994,7 @@ function inputFrame(): void {
   }
   const px = pointerX(), py = pointerY();
   if (pick !== null) { pickInput(px, py); return; }
+  if (pickHeld) { pickHeld = pointerDown(); return; }
   const wy = wheel(), wx = wheelX(), pz = pinch();
   if (wy !== 0 || wx !== 0 || pz !== 1) wheelInput(px, py, wy, wx, pz);
   trackpadInput(px, py, scrollDX(), scrollDY(), scrollPhase());
@@ -6151,7 +6152,7 @@ let afterPaint: (() => void) | null = null;
  *  highlight there in window coordinates (null: nothing is called). */
 export function setAfterPaint(f: (() => void) | null): void { afterPaint = f; }
 /** The node under the window point (x, y), the topmost (-1: none): the inspector's DOM.getNodeForLocation. */
-export function inspectHit(x: number, y: number): i32 { return hit(x, y, HIT_NODE); }
+export function inspectHit(x: number, y: number): i32 { if (layoutDirty) layout(); return hit(x, y, HIT_NODE); }
 /** Draws a highlight box over node h (-1: none). */
 export function inspectHighlight(h: i32): void { if (highlight !== h) { highlight = h; paintDirty = true; } }
 /** Interaction state for the inspector: "hover", "focus", "active", "disabled" (space-separated, '' for none). */
@@ -6222,22 +6223,25 @@ export function sheetStyle(h: i32, numbers: boolean): UiNode {
   else for (let i = 0; i < n.sheetKeys.length; i++) sheetNumber(s, n.sheetKeys[i], n.sheetIds[i], n.sheetVals[i]);
   return s;
 }
-let pick: ((h: i32, pressed: boolean) => void) | null = null, pickDown = false;
-/** Pick mode (the DevTools inspect arrow): the pointer highlights the node under it and f gets it, pressed on a
- *  click; the app gets no pointer or key input meanwhile. null ends it. */
-export function inspectPick(f: ((h: i32, pressed: boolean) => void) | null): void {
-  pick = f; pickDown = pointerDown();
-  if (f === null) inspectHighlight(-1);
+let pick: ((x: number, y: number, pressed: boolean) => void) | null = null, pickEnd: (() => void) | null = null, pickDown = false;
+let pickHeld = false;   // the press that ended the pick, until it is released: not the app's
+/** Pick mode (the DevTools inspect arrow): f gets the pointer's window point each frame, pressed on a click; the app gets no pointer or
+ *  key input meanwhile. Escape or Cmd/Ctrl+Shift+C ends it and calls end; null ends it. */
+export function inspectPick(f: ((x: number, y: number, pressed: boolean) => void) | null, end: (() => void) | null = null): void {
+  if (f === null && pick !== null) pickHeld = pointerDown();
+  pick = f; pickEnd = end; pickDown = pointerDown();
 }
 function pickInput(px: number, py: number): void {
-  const h = hit(px, py, HIT_NODE);
+  for (let i = 0; i < keyCount(); i++) if (keyKind(i) === KeyKind.Down) {
+    const k = keyName(i).toLowerCase(), m = keyMods(i);
+    if (k === 'escape' || (k === 'c' && (m & SHIFT) !== 0 && (m & (CTRL | META)) !== 0)) { const e = pickEnd; inspectPick(null); if (e !== null) e(); return; }
+  }
   let pressed = false;
   for (let i = 0; i < buttonEventCount(); i++) if (buttonEventDown(i)) pressed = true;
   const down = pointerDown();
   if (down && !pickDown) pressed = true;
   pickDown = down;
-  inspectHighlight(h);
-  if (pick !== null) (pick as (h: i32, pressed: boolean) => void)(h, pressed);
+  if (pick !== null) (pick as (x: number, y: number, pressed: boolean) => void)(px, py, pressed);
 }
 /** Mounts a root node and drives it from the frame loop (UI-13). `extra` runs each frame before drawing. */
 export function mount(h: i32, background: i32, extra: ((dt: number) => void) | null): void {

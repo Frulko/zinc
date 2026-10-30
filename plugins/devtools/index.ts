@@ -7,7 +7,7 @@
 // (ZN-369). Unknown methods get an empty result so the frontend never waits. A program with a zinc:stage scene and no zinc:ui tree shows its
 // display tree instead, and a stage drawn in a <Canvas> shows under that Canvas (stage.ts).
 import Cdp from './native/cdp.spec';
-import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectHit, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, setText, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
+import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectHit, onKey, KeyEvent, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, setText, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
 import { width, height, pointerX, pointerY } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import { saveLocation } from 'zinc:hardware';
@@ -118,11 +118,13 @@ function style(n: UiNode): string {
   ];
   return props.map((p: string[]) => `{"name":${q(p[0])},"value":${q(p[1])}}`).join(',');
 }
-function boxModel(n: UiNode): string {
+/** The box model on the window (through scroll offsets, transforms and layers), as Chrome gives it in page coordinates: the inspector draws it over the screen. */
+function boxModel(hd: i32, n: UiNode): string {
   const quad = (x: number, y: number, w: number, h: number): string => `[${x},${y},${x + w},${y},${x + w},${y + h},${x},${y + h}]`;
-  const x = Math.round(n.x), y = Math.round(n.y), w = Math.round(n.lw), h = Math.round(n.lh);
-  const content = quad(x + n.pl, y + n.pt, w - n.pl - n.pr, h - n.pt - n.pb), border = quad(x, y, w, h);
-  return `{"model":{"content":${content},"padding":${border},"border":${border},"margin":${quad(x - n.ml, y - n.mt, w + n.ml + n.mr, h + n.mt + n.mb)},"width":${w},"height":${h}}}`;
+  const b = screenBox(hd), k = n.lw > 0 ? b[2] / n.lw : 1;
+  const x = Math.round(b[0]), y = Math.round(b[1]), w = Math.round(b[2]), h = Math.round(b[3]);
+  const content = quad(x + n.pl * k, y + n.pt * k, w - (n.pl + n.pr) * k, h - (n.pt + n.pb) * k), border = quad(x, y, w, h);
+  return `{"model":{"content":${content},"padding":${border},"border":${border},"margin":${quad(x - n.ml * k, y - n.mt * k, w + (n.ml + n.mr) * k, h + (n.mt + n.mb) * k)},"width":${w},"height":${h}}}`;
 }
 /** Value of class="..." in a setAttributesAsText edit. */
 function classFromText(text: string): string {
@@ -133,34 +135,50 @@ function classFromText(text: string): string {
   return j < 0 ? rest : rest.slice(0, j);
 }
 
-// Inspect mode: hovering the app highlights the node in Elements, a click selects it there (and ends the mode). Over a zinc:stage scene it is
-// the scene's topmost node under the pointer, through its turned box (stage.ts), whether the scene is drawn alone or in a Canvas.
-let picked: i32 = -1;
-/** The DevTools id of what Elements shows for zinc:ui's node `hit` at the window point (x, y): the node, or the scene's node in a Canvas. */
-function shownAt(hit: i32, x: number, y: number): i32 {
-  const s = stageIn(hit);
+/** The DevTools id of the node under the window point (x, y), 0 for none: the one hit test of DOM.getNodeForLocation (the inspector's Screen
+ *  view) and of the pick in the program. Over a zinc:stage scene it is the scene's topmost node there, through its turned box (stage.ts),
+ *  whether the scene is drawn alone or in a Canvas. */
+function nodeAt(x: number, y: number): i32 {
+  if (inspectRoot() < 0) { const r = stageRoot(), o = r !== null ? stageHit(r as DisplayObject, x, y) : null; return o !== null ? stageId(o as DisplayObject) : 0; }
+  const hit = inspectHit(x, y), s = stageIn(hit);
   const o = s !== null ? stageHit(s as DisplayObject, x, y) : null;
   if (o !== null) return stageId(o as DisplayObject);
   let h = hit;
   for (let n = inspectNode(h); n !== null && plain(h, n); n = inspectNode(h)) h = parentOf(h);  // the node Elements shows
-  return h < 0 ? -1 : h + 1;
+  return h < 0 ? 0 : h + 1;
 }
+// The highlight (Overlay.highlightNode, the pick's hover): drawn by the program into its frame, except while the inspector streams the screen,
+// which draws it over the frames it shows (from DOM.getBoxModel), as Chrome's device view does: the frames never carry it.
+let lit: i32 = 0;
+function light(id: i32): void {
+  lit = id;
+  const o = cast < 0 ? stageNode(id) : null, h = handleOf(id);
+  stageHighlight(o);   // a scene's node: its own turned box
+  inspectHighlight(cast < 0 && o === null && inspectNode(h) !== null ? h : -1);
+}
+// Inspect mode (the inspector's arrow, or Cmd/Ctrl+Shift+C in the program of a dev run): hovering the app highlights the node, a click
+// selects it in Elements and ends the mode, and reaches nothing in the app; Escape or the shortcut again ends it. A scene drawn alone runs
+// its own pick mode (stage.ts), zinc:ui runs it otherwise.
+let picked: i32 = 0;
 function onPicked(id: i32, pressed: boolean): void {
-  if (id < 0) return;
   if (pressed) {
     inspectPick(null);
     stagePick(null);
-    Cdp.send(-1, `{"method":"Overlay.inspectNodeRequested","params":{"backendNodeId":${id}}}`);
-  } else if (id !== picked) Cdp.send(-1, `{"method":"Overlay.nodeHighlightRequested","params":{"nodeId":${id}}}`);
+    light(0);
+    if (id > 0) Cdp.send(-1, `{"method":"Overlay.inspectNodeRequested","params":{"backendNodeId":${id}}}`);
+    return;
+  }
+  light(id);
+  if (id !== picked && id > 0) Cdp.send(-1, `{"method":"Overlay.nodeHighlightRequested","params":{"nodeId":${id}}}`);
   picked = id;
 }
-function onPick(hit: i32, pressed: boolean): void {
-  const id = shownAt(hit, pointerX(), pointerY());
-  const o = stageNode(id);
-  stageHighlight(o);   // a scene's node: its own turned box instead of its Canvas's
-  if (o !== null) inspectHighlight(-1);
-  onPicked(id, pressed);
+function onPick(x: number, y: number, pressed: boolean): void { onPicked(nodeAt(x, y), pressed); }
+function startPick(): void {
+  picked = 0;
+  inspectPick(onPick, () => { stagePick(null); light(0); Cdp.send(-1, '{"method":"Overlay.inspectModeCanceled","params":{}}'); });
+  if (inspectRoot() < 0) stagePick((o: DisplayObject, pressed: boolean) => { onPicked(stageId(o), pressed); });
 }
+onKey((e: KeyEvent) => { if (DEV && e.primary && e.shift && e.key.toLowerCase() === 'c' && Cdp.clients() > 0) { startPick(); e.preventDefault(); } });
 
 /** A result of the host's network log; `{}` on targets that have none. */
 function orEmpty(json: string): string { return json.length > 0 ? json : '{}'; }
@@ -206,25 +224,21 @@ function handle(client: i32, msg: string): void {
     Cdp.send(-1, `{"method":"DOM.characterDataModified","params":{"nodeId":${nodeId},"characterData":${q(v)}}}`);
   } else if (method === 'DOM.pushNodesByBackendIdsToFrontend') {
     result = `{"nodeIds":[${Math.round(Cdp.num(msg, 'backendNodeIds'))}]}`;
-  } else if (method === 'DOM.getBoxModel' && n !== null) result = boxModel(n);
+  } else if (method === 'DOM.getBoxModel' && n !== null) result = boxModel(h, n);
+  else if (method === 'DOM.getNodeForLocation') {
+    const at = nodeAt(Cdp.num(msg, 'x'), Cdp.num(msg, 'y'));
+    if (at === 0) { Cdp.send(client, `{"id":${id},"error":{"code":-32000,"message":"No node found at given location"}}`); return; }
+    result = `{"backendNodeId":${at},"nodeId":${at},"frameId":"main"}`;
+  }
   else if (method === 'CSS.getComputedStyleForNode' && n !== null) result = `{"computedStyle":[${style(n)}]}`;
   else if (method === 'CSS.getMatchedStylesForNode') result = n !== null ? matched(h, n) : '{"matchedCSSRules":[],"pseudoElements":[],"inherited":[],"cssKeyframesRules":[]}';
   else if (method === 'CSS.getInlineStylesForNode' && n !== null) result = `{"inlineStyle":${inline(h)}}`;
   else if (method === 'CSS.setStyleTexts') result = setStyleText(Cdp.str(msg, 'styleSheetId'), Cdp.str(msg, 'text'));
-  else if (method === 'Overlay.highlightNode') { stageHighlight(null); inspectHighlight(n !== null ? h : -1); }
-  else if (method === 'Overlay.setInspectMode') {   // a scene drawn alone runs its own pick mode (stage.ts), zinc:ui runs it for a scene in a Canvas
-    picked = -1;
-    const on = Cdp.str(msg, 'mode') === 'searchForNode';
-    inspectPick(on ? onPick : null);
-    stagePick(on && pure ? (o: DisplayObject, pressed: boolean) => { onPicked(stageId(o), pressed); } : null);
-  } else if (method === 'DOM.getNodeForLocation') {   // the node at a point of the window, as the pick mode finds it
-    const x = Cdp.num(msg, 'x'), y = Cdp.num(msg, 'y'), r = stageRoot();
-    const o = pure && r !== null ? stageHit(r as DisplayObject, x, y) : null;
-    const at = o !== null ? stageId(o as DisplayObject) : pure ? -1 : shownAt(inspectHit(x, y), x, y);
-    if (at < 0) { Cdp.send(client, `{"id":${id},"error":{"code":-32000,"message":"No node found at given location"}}`); return; }
-    result = `{"backendNodeId":${at},"nodeId":${at},"frameId":"main"}`;
+  else if (method === 'Overlay.highlightNode') light(n !== null ? nodeId : 0);
+  else if (method === 'Overlay.setInspectMode') {
+    if (Cdp.str(msg, 'mode') === 'searchForNode') startPick(); else { inspectPick(null); stagePick(null); light(0); }
   }
-  else if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') { stageHighlight(null); inspectHighlight(-1); }
+  else if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') light(0);
   else if (method === 'Page.getResourceTree')
     result = '{"frameTree":{"frame":{"id":"main","loaderId":"zinc","url":"zinc://app","domainAndRegistry":"","securityOrigin":"zinc://app","mimeType":"text/html","secureContextType":"Secure","crossOriginIsolatedContextType":"NotIsolated","gatedAPIFeatures":[]},"resources":[]}}';
   else if (method === 'Runtime.enable') {
@@ -232,8 +246,8 @@ function handle(client: i32, msg: string): void {
     for (const e of Cdp.net(6, '').split('\n')) if (e.length > 0) Cdp.send(client, e);   // Zinc Next: the last console lines (the prototype's host replays its own)
   }
   else if (method === 'Page.captureScreenshot') result = `{"data":"${Cdp.screenshot(0, 0)}"}`;  // PNG of the frame on screen
-  else if (method === 'Page.startScreencast') { cast = client; castW = Math.round(Cdp.num(msg, 'maxWidth')); castH = Math.round(Cdp.num(msg, 'maxHeight')); castReady = true; castLast = ''; }
-  else if (method === 'Page.stopScreencast') cast = -1;
+  else if (method === 'Page.startScreencast') castStart(client, msg);
+  else if (method === 'Page.stopScreencast') castStop();
   else if (method === 'Page.screencastFrameAck') castReady = true;
   else if (method === 'Tracing.start') Cdp.trace(true);   // the Performance panel: frame phases and raster bands
   else if (method === 'Tracing.end') {
@@ -287,9 +301,9 @@ function stageAnswer(method: string, nodeId: i32, msg: string, pure: boolean): s
   if (pure && method === 'DOM.getDocument') return `"result":{"root":${stageDocument(DOC)}}`;
   if (pure && method === 'Zinc.getUnrendered') return `"result":{"nodeIds":[${stageUnrendered(stageRoot()).join(',')}]}`;
   if (method === 'DOM.pushNodesByBackendIdsToFrontend' || method === 'DOM.getNodeForLocation' || method === 'Overlay.setInspectMode') return '';   // as for zinc:ui
-  if (method === 'Overlay.highlightNode') { inspectHighlight(-1); stageHighlight(o); return '"result":{}'; }
+  if (method === 'Overlay.highlightNode') { light(o !== null ? nodeId : 0); return '"result":{}'; }
   if (method === 'DOM.getAttributes' && o !== null) return `"result":${stageAttributes(o as DisplayObject)}`;
-  if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') { stageHighlight(null); return '"result":{}'; }
+  if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') { light(0); return '"result":{}'; }
   if (method === 'DOM.getBoxModel' && o !== null) return `"result":${stageBoxModel(o as DisplayObject)}`;
   if (method === 'DOM.setAttributeValue' && o !== null) {
     const why = stageSet(o as DisplayObject, Cdp.str(msg, 'name'), Cdp.str(msg, 'value'));
@@ -622,18 +636,32 @@ function sync(h: i32, out: string[]): void {
   }
   for (const k of s.kids) if (k < TEXT_BASE) sync(k - 1, out);
 }
-// Screencast (the page view next to the panels): the frame on screen, shrunk to the size the frontend asks for, sent
-// when it changed and the previous one was acknowledged.
-let cast: i32 = -1, castW: i32 = 0, castH: i32 = 0, castReady = true, castLast = '', castSession: i32 = 0;
-setInterval(() => {
+// Screencast (the inspector's Screen view, Chrome's device view): the frame on screen shrunk to the size the frontend asks for, JPEG unless it
+// asks for PNG, sent when the screen changed and the previous frame was acknowledged. The host keeps a copy of the frame from the damaged
+// rows of each present and shrinks and encodes only when a frame is due (src/host/screencast.cpp); nothing runs while no screen is watched.
+let cast: i32 = -1, castW: i32 = 0, castH: i32 = 0, castQ: i32 = 80, castReady = true, castLast = '', castSession: i32 = 0, castTimer: i32 = -1;
+function castStart(client: i32, msg: string): void {
+  cast = client; castW = Math.round(Cdp.num(msg, 'maxWidth')); castH = Math.round(Cdp.num(msg, 'maxHeight')); castReady = true; castLast = '';
+  const q = Math.round(Cdp.num(msg, 'quality'));
+  castQ = Cdp.str(msg, 'format') === 'png' ? 0 : q > 0 && q <= 100 ? q : 80;
+  light(lit);   // the program stops drawing the highlight: the inspector does
+  if (castTimer < 0) castTimer = setInterval(castFrame, 16);
+}
+function castStop(): void {
+  cast = -1;
+  if (castTimer >= 0) { clearInterval(castTimer); castTimer = -1; }
+  Cdp.screencast(-1, 0, 0);
+  light(lit);
+}
+function castFrame(): void {
   if (cast < 0 || !castReady) return;
-  if (Cdp.clients() === 0) { cast = -1; return; }
-  const png = Cdp.screenshot(castW, castH);
-  if (png.length === 0 || png === castLast) return;
-  castLast = png; castReady = false; castSession++;
-  Cdp.send(cast, `{"method":"Page.screencastFrame","params":{"data":"${png}","sessionId":${castSession},"metadata":{"offsetTop":0,"pageScaleFactor":1,` +
+  if (Cdp.clients() === 0) { castStop(); return; }
+  const img = Cdp.screencast(castW, castH, castQ);
+  if (img.length === 0 || img === castLast) return;
+  castLast = img; castReady = false; castSession++;
+  Cdp.send(cast, `{"method":"Page.screencastFrame","params":{"data":"${img}","sessionId":${castSession},"metadata":{"offsetTop":0,"pageScaleFactor":1,` +
     `"deviceWidth":${width()},"deviceHeight":${height()},"scrollOffsetX":0,"scrollOffsetY":0,"timestamp":${Date.now() / 1000}}}}`);
-}, 100);
+}
 
 Cdp.listen(9229, handle);   // the default: zinc.json plugins.devtools.port and ZINC_DEVTOOLS_PORT change it (docs/dev-mode.md)
 // The Network panel: the host records every request from now on (headers that carry credentials masked); the events wait in the host until a client

@@ -416,8 +416,9 @@ static const zn::gl::PresentHooks kGlPresent = {
     onFrameEnd};
 const void* glPresentHooks() { return &kGlPresent; }
 void installMirror();   // mirror.cpp
+void installScreencast();   // screencast.cpp
 void installGfx() {
   zrt::gfx::thread_trace = [](int32_t op, size_t* n) { return threadTrace(op, [] { return static_cast<std::uint64_t>(hal_time_us()); }, n); };   // the workers' tracks, on the frames' clock
-  zrt::gfx::png_encoder = encodePngHook; zrt::gfx::hud_info = hudInfo;hostGfx = call; installSys(); installMirror(); }
+  zrt::gfx::png_encoder = encodePngHook; zrt::gfx::hud_info = hudInfo;hostGfx = call; installSys(); installMirror(); installScreencast(); }
 
 }  // namespace zn::host

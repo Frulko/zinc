@@ -183,7 +183,7 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
   if(WIN32)   # docs/targets/windows.md: targets/windows/hal_windows.cpp, the Win32 stand-in
     set(ZN_HAL_PLATFORM ${CMAKE_CURRENT_SOURCE_DIR}/targets/windows/hal_windows.cpp)
   endif()
-  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/netlog.cpp src/host/http.cpp src/host/tls.cpp src/host/crypto.cpp src/host/ed25519.cpp src/host/regexp.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/assets_host.cpp src/host/permissions.cpp src/host/gfx_host.cpp src/host/ui_log.cpp src/host/render_bench.cpp src/host/backend_sw.cpp src/host/resources.cpp src/host/splash.cpp src/host/mirror.cpp
+  add_library(zn_host_gfx STATIC src/host/loop.cpp src/host/osc.cpp src/host/mqtt.cpp src/host/netlog.cpp src/host/http.cpp src/host/tls.cpp src/host/crypto.cpp src/host/ed25519.cpp src/host/regexp.cpp src/host/sock.cpp src/host/sys_host.cpp src/host/assets_host.cpp src/host/permissions.cpp src/host/gfx_host.cpp src/host/ui_log.cpp src/host/render_bench.cpp src/host/backend_sw.cpp src/host/resources.cpp src/host/splash.cpp src/host/mirror.cpp src/host/screencast.cpp
     ${ZN_RUNTIME_DIR}/zrt.cpp ${ZN_RUNTIME_DIR}/host.cpp ${ZN_RUNTIME_DIR}/raster.cpp ${ZN_RUNTIME_DIR}/ttf.cpp ${ZN_RUNTIME_DIR}/gfx.cpp
     src/host/hal_dispatch.cpp ${CMAKE_CURRENT_SOURCE_DIR}/targets/null/hal_null.cpp ${ZN_HAL_PLATFORM})
   # the headless and the window HAL live in one binary: their hal_* functions are renamed, src/host/hal_dispatch.cpp picks one at run time
