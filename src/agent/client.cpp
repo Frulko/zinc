@@ -720,12 +720,11 @@ int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self)
       source = pi && sourceOnly;
       if (pi && !source) {
         packFor = exportTarget(os, arch, kind); pack = !packFor.empty();
-        // its engine runs the bytecode compiled here: the same build or the program may call what it lacks (an "unknown runtime call")
+        // its engine runs the bytecode compiled here: an older one lacks the runtime rows added since (the load says so, with the way out)
         const std::string there = a.str("engine"), here = zn::tc::version();
-        if (pack && there != here && !force)
-          return fail(d.name + " runs zinc " + there + " and this computer zinc " + here + ": the app compiled here may not run there. Put this "
-                      "zinc on it once (zinc device " + d.name + " update --local, or update for a release), --source sends the sources for its "
-                      "engine to compile, --force tries anyway");
+        if (pack && there != here)
+          zn::log::step("device", d.name + " runs zinc " + there + ", this computer zinc " + here + ": if the app says it was compiled by a newer zinc, "
+                        "zinc device " + d.name + " update --local puts this one there");
       }
       else pack = !source && os == kThisOs && cpuName(arch) == cpuName(u.machine);
       if (pack) why += packFor.empty() ? ", as this machine" : ", built here for it";

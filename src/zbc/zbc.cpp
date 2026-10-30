@@ -199,7 +199,7 @@ struct Verifier {
             case Op::Call: if (d >= m.functions.size()) return fail(pc, "call to a missing function"); break;
             case Op::GetGlobal: case Op::SetGlobal: if (d >= m.globals.size()) return fail(pc, "missing global"); break;
             case Op::LoadStr: if (d >= m.strings.size()) return fail(pc, "string index out of range"); break;
-            case Op::Rt: if (d >= static_cast<unsigned>(Rt::Count)) return fail(pc, "unknown runtime call"); break;
+            case Op::Rt: if (d >= static_cast<unsigned>(Rt::Count)) return fail(pc, "unknown runtime call: it was compiled by a newer zinc (rows are only added); run it with that zinc, or put it on this machine (zinc device <name> update --local)"); break;
             case Op::CallNative: if (d >= m.natives.size()) return fail(pc, "unknown native export"); break;
             case Op::New: case Op::Downcast: case Op::LoadNull: case Op::InstanceOf: if (d >= m.classes.size()) return fail(pc, "unknown class"); break;
             case Op::CallVirt: if (d >= m.selectors.size()) return fail(pc, "unknown selector"); break;
