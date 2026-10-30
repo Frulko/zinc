@@ -45,6 +45,7 @@ extern "C" __attribute__((weak)) void hal_sdl_window_background(void*, uint32_t)
 // hal_cocoa.mm on macOS: the main window's precise scrolls with their phases (0 here: none, the SDL wheel events are the source) and Reduce motion (-1: unknown)
 extern "C" __attribute__((weak)) int hal_sdl_scroll_monitor(void*, void (*)(double, double, double, uint32_t, uint32_t)) { return 0; }
 extern "C" __attribute__((weak)) int hal_sdl_reduce_motion(void) { return -1; }
+extern "C" __attribute__((weak)) void hal_sdl_ignore_argv_files(void) {}   // hal_cocoa.mm: the arguments are not dropped files
 static HalWindowConfig wcfg;   // ZN-233 / ZN-249: window properties from zinc.json app.window
 static bool wcfg_set = false;
 extern "C" void hal_set_window_config(const HalWindowConfig* c) { wcfg = *c; wcfg_set = true; }
@@ -493,6 +494,7 @@ void hal_init(const HalConfig* cfg) {
 #endif
   }
   SDL_SetHint(SDL_HINT_IME_IMPLEMENTED_UI, "composition");   // zinc:ui draws the composing text in the field (SDL_EVENT_TEXT_EDITING)
+  hal_sdl_ignore_argv_files();   // before SDL_Init, which finishes the launch and opens the arguments
   if (!SDL_Init(SDL_INIT_VIDEO)) hal_panic(SDL_GetError(), "hal_sdl", __LINE__);
   // window size in points: zinc.json targets.<id>.zoom (ZINC_ZOOM overrides); auto only enlarges tiny surfaces
 #ifdef ZINC_ZOOM
