@@ -1,5 +1,5 @@
-// The project of the open sketch (ZN-736): what its zinc.json says, for the header and the project card, and what the card changes.
-// A sketch without a zinc.json is a plain sketch; the card offers to write one. zinc.json is read as text (model.ts: the engine has
+// The project of the open sketch (ZN-736): what its zinc.json says, for the sidebar and the Settings page, and what that page changes.
+// A sketch without a zinc.json is a plain sketch; the page offers to write one. zinc.json is read as text (model.ts: the engine has
 // no command that prints a parsed project) and an edit replaces one value of that text; `zinc check` then says what the engine
 // thinks of it. The plugins are those `zinc plugins` lists among the modules the code imports.
 import { createSignal, createEffect } from 'zinc:ui/solid';
@@ -7,7 +7,8 @@ import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import * as proc from 'zinc:process';
 import { sketchDir, sketchName, mainFile, buffers, edited, save, openFile, say } from './workspace';
-import { check, libraries, loadLibraries, Library } from './tools';
+import { check, libraries, loadLibraries, Library, zinc, publish } from './tools';
+import * as dialog from 'zinc:system/dialog';
 import { Project, Target, readProject, jsonGet, jsonSet, jsonList, projectFiles, importsOf, permissionWords } from '../model';
 import { t, tn } from './text';
 
@@ -133,6 +134,108 @@ export function setSize(width: string, height: string): void {
   const a = write(['targets', HERE, 'width'], `${w}`), b = write(['targets', HERE, 'height'], `${h}`);
   if (a || b) say(t('atelier.project.window', ['width', `${w}`, 'height', `${h}`, 'target', HERE]));
 }
+/** The app's identifier, app.id: reverse DNS (com.example.notes), what macOS and the devices know it by. */
+export function setId(v: string): void {
+  const id = v.trim();
+  if (id === '' || project() === null) return;
+  const labels = id.split('.');
+  let ok = labels.length >= 2;
+  for (const l of labels) {
+    if (l === '' || !(l.charCodeAt(0) >= 97 && l.charCodeAt(0) <= 122) && !(l.charCodeAt(0) >= 65 && l.charCodeAt(0) <= 90)) ok = false;
+    for (let i = 0; i < l.length; i++) { const c = l.charCodeAt(i); if (!((c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 45)) ok = false; }
+  }
+  if (!ok) { say(t('atelier.project.bad_id')); return; }
+  if (write(['app', 'id'], JSON.stringify(id))) say(t('atelier.project.id', ['id', id]));
+}
+/** How the window on this machine follows its size: 'fill' (the interface is laid out again) or 'letterbox' (the picture is scaled). */
+export function setResize(mode: string): void { if (project() !== null && write(['targets', HERE, 'resize'], JSON.stringify(mode))) say(t('atelier.project.resize_' + mode)); }
+export function setFullscreen(on: boolean): void { if (project() !== null && write(['targets', HERE, 'fullscreen'], on ? 'true' : 'false')) say(t(on ? 'atelier.project.fullscreen_on' : 'atelier.project.fullscreen_off')); }
+/** How a Raspberry Pi's shell shows the app: 'window' (under its bar), 'fullscreen' (no bar; Home still leaves it) or 'kiosk' (the app alone). */
+export function setShell(mode: string): void { if (project() !== null && write(['shell'], JSON.stringify(mode))) say(t('atelier.project.shell_' + mode)); }
+/** The app's icon: a PNG, copied into the project when it is elsewhere, named by app.icon. */
+export function setIcon(path: string): void {
+  const dir = sketchDir();
+  if (project() === null || path === '') return;
+  if (!path.toLowerCase().endsWith('.png')) { say(t('atelier.project.icon_png')); return; }
+  let rel = path.startsWith(dir + '/') ? path.slice(dir.length + 1) : '';
+  if (rel === '') { try { fs.copyFile(path, dir + '/icon.png'); rel = 'icon.png'; } catch (e) { say(t('atelier.project.cannot_write')); return; } }
+  write(['app', 'icon'], JSON.stringify(rel));
+  say(t('atelier.project.icon', ['path', rel]));
+}
+export function chooseIcon(): void {
+  if (!dialog.isSupported() || sys.env('ZINC_HEADLESS') !== '' || sys.env('ZINC_DETERMINISTIC') !== '') { say(t('atelier.project.icon_by_hand')); return; }
+  const o = new dialog.OpenOptions();
+  o.title = t('atelier.project.icon_title'); o.defaultPath = sketchDir(); o.filters = [new dialog.Filter('PNG', ['png'])];
+  dialog.open(o).then((paths: string[] | null) => { if (paths !== null && paths.length > 0) setIcon(paths[0]); });
+}
+
+// ---- publishing: the hub the app goes to and the key its releases are signed with. They are the user's, not the project's: kept with
+// zinc's own files (~/.zinc/atelier/hub.json, the seed in ~/.zinc/keys/<app id>.seed, both readable by the user only). zinc.json gets the
+// public key only (update.publicKey), which the devices check every release against.
+function zincHome(): string { return sys.env('ZINC_HOME') !== '' ? sys.env('ZINC_HOME') : sys.env('HOME') + '/.zinc'; }
+function hubFile(): string { return zincHome() + '/atelier/hub.json'; }
+function seedFile(): string { const p = project(); return zincHome() + '/keys/' + (p === null || (p as Project).id === '' ? sketchName() : (p as Project).id) + '.seed'; }
+function readHub(): string[] {
+  try { const j = fs.readText(hubFile()); return [jsonText(jsonGet(j, ['url'])), jsonText(jsonGet(j, ['token']))]; } catch (e) { return ['', '']; }
+}
+function jsonText(raw: string): string { if (!raw.startsWith('"')) return ''; try { const v: string = JSON.parse(raw); return v; } catch (e) { return ''; } }
+export const [hub, setHubSignal] = createSignal<string[]>(readHub());
+function writePrivate(path: string, text: string): void {
+  fs.mkdir(path.slice(0, path.lastIndexOf('/')), true);
+  fs.writeText(path, '');
+  fs.chmod(path, 384);   // 0600, before the secret is written
+  fs.writeText(path, text);
+}
+/** The hub's address and its publisher token (`zinc run app/hub-server` prints both). */
+export function setHub(url: string, token: string): void {
+  const u = url.trim(), k = token.trim();
+  try { writePrivate(hubFile(), `{ "url": ${JSON.stringify(u)}, "token": ${JSON.stringify(k)} }\n`); } catch (e) { say(t('atelier.publish.cannot_save')); return; }
+  setHubSignal([u, k]);
+  say(t('atelier.publish.hub_saved'));
+}
+/** The seed of the app's key, '' when this machine has none (or not the one zinc.json names). */
+export function seed(): string {
+  const p = project();
+  if (p === null || (p as Project).publicKey === '') return '';
+  try { return fs.readText(seedFile()).trim(); } catch (e) { return ''; }
+}
+/** Makes the app's key pair (`zinc update-keygen`): the seed stays on this machine, the public key goes to zinc.json. */
+export function makeKey(): void {
+  if (project() === null) return;
+  if (jsonGet(text(), ['app', 'id']) === '') write(['app', 'id'], JSON.stringify(appId()));
+  let out = '';
+  try {
+    const p = zinc(['update-keygen'], sketchDir());
+    p.onData((chunk: string, stderr: boolean) => { if (!stderr) out += chunk; });
+    p.onExit((code: i32) => {
+      let s = '', pub = '';
+      for (const l of out.split('\n')) { if (l.startsWith('seed=')) s = l.slice(5).trim(); else if (l.startsWith('public=')) pub = l.slice(7).trim(); }
+      if (code !== 0 || s === '' || pub === '') { say(t('atelier.publish.no_key')); return; }
+      try { writePrivate(seedFile(), s + '\n'); } catch (e) { say(t('atelier.publish.cannot_save')); return; }
+      write(['update', 'publicKey'], JSON.stringify(pub));
+      say(t('atelier.publish.key_made', ['path', seedFile()]));
+    });
+  } catch (e) { say(t('atelier.publish.no_key')); }
+}
+
+/** Share > Publish: the machine the package is for ('' any, rpi, rpi2, rpi1) and the channel; then `zinc publish` to the hub. */
+export const PUBLISH_TARGETS: string[] = ['', 'rpi', 'rpi2', 'rpi1'];
+export const [publishTarget, setPublishTarget] = createSignal<i32>(1);
+export const [publishChannel, setPublishChannel] = createSignal<string>('stable');
+/** What is missing before a publish: '' when nothing is. */
+export function publishMissing(): string {
+  const p = project();
+  if (p === null) return t('atelier.share.needs_project');
+  if (hub()[0] === '' || hub()[1] === '') return t('atelier.share.needs_hub');
+  if ((p as Project).publicKey === '' || seed() === '') return t('atelier.share.needs_key');
+  return '';
+}
+export function publishApp(): void {
+  const why = publishMissing();
+  if (why !== '') { say(why); return; }
+  publish(PUBLISH_TARGETS[publishTarget()], publishChannel(), hub()[0], hub()[1], seed());
+}
+
 /** Adds the permission, or removes it when the project has it. */
 export function togglePermission(id: string): void {
   const p = project(), want = id.trim();

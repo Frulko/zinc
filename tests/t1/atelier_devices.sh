@@ -54,7 +54,7 @@ cat > "$tmp/session" <<EOF
 25 wait:blink stopped
 26 wait:Stopped
 EOF
-printf '%s\n' "8 move 1150 181" "8 down" "9 up" "10 key a meta" "11 text $code" "12 key Enter" > "$tmp/keys"
+printf '%s\n' "8 move 954 364" "8 down" "9 up" "10 key a meta" "11 text $code" "12 key Enter" > "$tmp/keys"
 ZINC_HOME="$W" ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_ECHO=1 ZINC_ATELIER_BROWSE=0 ZINC_ATELIER_SCRIPT="$tmp/session" ZINC_INPUT="$tmp/keys" ZINC_SYSTEM_LOG=/dev/null \
   ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 ZINC_SCALE=1 ZINC_SHOT="$tmp/panel.png" ZINC_SHOT_FRAMES=30 \
   timeout 50 "$Z" run app/atelier -- "$tmp/blink" >"$tmp/out" 2>"$tmp/err" || bad "the session failed: $(tail -2 "$tmp/out") $(tail -c 300 "$tmp/err")"
@@ -86,8 +86,8 @@ has "${figure}.*apps blink stopped" "the figures do not show the sketch stopped"
 ZINC_HOME="$W" timeout 20 "$Z" device apps > "$tmp/apps" 2>&1
 grep -q '^blink .*stopped' "$tmp/apps" || bad "the sketch still runs on the device after Stop: $(cat "$tmp/apps")"
 g=tests/golden/atelier/devices-30.png
-# the panel's left part (the devices, the name field, the note, what is shown of the device, its apps), then the code field and the Pair button
-tools/pngdiff "$tmp/panel-30.png" "$g" --crop 826,46,224,384 >/dev/null && tools/pngdiff "$tmp/panel-30.png" "$g" --crop 1050,124,216,40 >/dev/null \
-  || bad "the panel differs from $g"
+# the page's left part (the devices, the note, what is shown of the device, its apps), then the code field and the Pair button
+tools/pngdiff "$tmp/panel-30.png" "$g" --crop 432,150,425,420 >/dev/null && tools/pngdiff "$tmp/panel-30.png" "$g" --crop 900,340,165,48 >/dev/null \
+  || bad "the Devices page differs from $g"
 [ -n "$ATELIER_KEEP" ] && cp "$tmp/out" "$ATELIER_KEEP.out" && cp "$tmp/panel-30.png" "$ATELIER_KEEP"   # what this run said and its frame, to look at them or to renew the golden
 exit $fail

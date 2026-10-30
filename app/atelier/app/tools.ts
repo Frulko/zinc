@@ -20,13 +20,13 @@ const SCRUB: string[] = ['ZINC_SHOT', 'ZINC_SHOT_FRAMES', 'ZINC_INPUT', 'ZINC_SI
 export function spawnZinc(args: string[], cwd: string): proc.Process { return zinc(args, cwd); }
 /** The commands whose output the user reads in Atelier's language (D159); the others' output is parsed, so they speak English. */
 const SPOKEN: string[] = ['run', 'dev', 'check', 'explain', 'new', 'export', 'learn'];
-export function zinc(args: string[], cwd: string): proc.Process {
+export function zinc(args: string[], cwd: string, env: string[] = []): proc.Process {
   const a: string[] = [];
   for (const v of SCRUB) { a.push('-u'); a.push(v); }
   a.push('ZINC_LANG=' + (SPOKEN.indexOf(args[0]) >= 0 ? lang() : 'en'));
-  a.push('ZINC_STEPS=' + (args[0] === 'run' || args[0] === 'dev' || args[0] === 'export' || args.indexOf('deploy') > 0 ? '1' : '0'));   // the steps of a build are what the console shows; a check or a list is read whole
+  a.push('ZINC_STEPS=' + (args[0] === 'run' || args[0] === 'dev' || args[0] === 'export' || args[0] === 'pack' || args[0] === 'publish' || args.indexOf('deploy') > 0 ? '1' : '0'));   // the steps of a build are what the console shows; a check or a list is read whole
   a.push(ZINC);
-  return proc.spawn('/usr/bin/env', a.concat(args), { cwd: cwd });
+  return proc.spawn('/usr/bin/env', a.concat(args), { cwd: cwd, env: env });
 }
 
 const echo: boolean = sys.env('ZINC_ATELIER_ECHO') !== '';   // tests read the console and the status line on Atelier's own output
@@ -259,28 +259,55 @@ function cannotStart(why: string): void {
 }
 /** Build App: the app for this machine (`zinc export`: the program, its bundle on a Mac, in dist/), the steps of the build in the console
  *  and where the app is on the status line. */
-export function build(): void {
+export function build(): void { task('build', ['export', '.'], []); }
+/** Share > Package: `zinc pack`, the .zapp that any machine with zinc runs (build/<name>.zapp). */
+export function pack(): void { task('pack', ['pack', '.'], []); }
+/** Share > Publish: `zinc publish` to the hub, signed with the app's key, for one machine (`target`: '' for any, rpi, rpi2, rpi1) on a channel.
+ *  The seed and the hub's token go to zinc in its environment, never on a command line. */
+export function publish(target: string, channel: string, hubUrl: string, token: string, seed: string): void {
+  const args = ['publish', '.', '--channel', channel, '--hub', hubUrl].concat(target !== '' ? ['--target', target] : []);
+  task('publish', args, ['ZINC_UPDATE_SEED=' + seed, 'ZINC_HUB_TOKEN=' + token]);
+}
+/** What the last build, pack or publish made: [its kind, its path from the sketch's folder ('' while none, or when it failed)]. */
+export const [made, setMade] = createSignal<string[]>(['', '']);
+/** The file a line of export, pack or publish names as what it made ('' for another line): export prints the folder alone,
+ *  pack `packed <file> (5 files, 528896 bytes)`, publish `published <app> <version> on <channel>: <file>, <manifest>`. */
+function madeOf(line: string): string {
+  const l = line.trim();
+  if (l === '') return '';
+  if (l.startsWith('packed ')) { const e = l.lastIndexOf(' ('); return e > 7 ? l.slice(7, e) : l.slice(7); }
+  if (l.startsWith('published ')) { const a = l.indexOf(': '), e = l.indexOf(', ', a), f = a < 0 ? '' : e > a ? l.slice(a + 2, e) : l.slice(a + 2); return f.startsWith('./') ? f.slice(2) : f; }
+  return l.indexOf(' ') < 0 || l.startsWith('/') ? l : '';
+}
+/** One job of the Share page: its steps in the console, what it made on the status line (the last line it prints on its standard output). */
+function task(kind: string, args: string[], env: string[]): void {
   if (child !== null) { say(t('atelier.build.busy')); return; }
   const dir = sketchDir();
   if (dir === '' || mainFile(dir) === '') { setStatus('atelier.build.nothing', 2); return; }
   saveAll();
   clearConsole();
   remote = ''; app = ''; ended = -1; refused = ''; stopped = false;
-  add(new Line('$ zinc export .', K_CMD));
-  setDebugging(false); setPhase(BUILDING); setStage('starting'); setStatus('atelier.build.building', 0);
+  add(new Line('$ zinc ' + args.join(' '), K_CMD));
+  setDebugging(false); setPhase(BUILDING); setStage('starting'); setStatus('atelier.' + kind + '.building', 0);
+  setMade([kind, '']);
   let made = '';
   try {
-    const p = zinc(['export', '.'], dir);
+    const p = zinc(args, dir, env);
     child = p;
     // every line is the build's: what export prints last on its standard output is the folder it wrote
-    p.onStdout((l: string) => { if (l.trim() !== '') made = l.trim(); add(classify(l, false)); });
+    p.onStdout((l: string) => { const w = madeOf(l); if (w !== '') made = w; add(classify(l, false)); });
     p.onStderr((l: string) => { const c = classify(l, true), s = stepOf(l); if (s.length > 0) setStage(s[0]); add(c, s.length > 0 && buf.length > 0 && stepOf(buf[buf.length - 1].text).length > 0 && stepOf(buf[buf.length - 1].text)[0] === s[0]); if (c.kind === K_ERR) showConsole(true); });
     p.onExit((code: i32) => {
       child = null;
       if ((code === 126 || code === 127) && stage() === 'starting') { setStage(''); cannotStart(''); return; }
       setPhase(IDLE); setStage('');
       if (stopped) setStatus('atelier.run.stopped', 0);
-      else if (code === 0) setStatus('atelier.build.built', 1, ['path', made.startsWith(dir + '/') ? made.slice(dir.length + 1) : made]);
+      else if (code === 0) {
+        let real = dir; try { real = fs.realpath(dir); } catch (e) { }
+        const rel = made.startsWith(dir + '/') ? made.slice(dir.length + 1) : made.startsWith(real + '/') ? made.slice(real.length + 1) : made;
+        setMade([kind, rel]);
+        setStatus('atelier.' + kind + '.built', 1, ['path', rel]);
+      }
       else { setStatus('atelier.run.build_failed', 2); showConsole(true); }
       add(new Line(stopped ? t('atelier.console.stopped') : `exit ${code}`, K_END));
     });

@@ -10,9 +10,9 @@ import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, 
   sketchDir, sketchbook, mainFile, openFile, baseName, freeName } from './workspace';
 import { openFind } from './search';
 import { toggleTheme } from './theme';
-import { openProject } from './project';
-import { run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady, reference } from './tools';
-import { openDevices } from './devices';
+import { openProject, projectOpen, setProjectOpen, publishApp } from './project';
+import { pack, run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady, reference } from './tools';
+import { openDevices, closeDevices, devicesOpen } from './devices';
 import { startTour } from './tour';
 import { editCommand, setText, menuKey, goDefinition } from './cursors';
 import { suggest } from './lsp';
@@ -51,14 +51,14 @@ export function keysText(keys: string): string {
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
     if (i < parts.length - 1) out += p === 'CmdOrCtrl' ? '⌘' : p === 'Shift' ? '⇧' : p === 'Alt' ? '⌥' : p === 'Ctrl' ? '⌃' : p;
-    else out += p === 'Up' ? '↑' : p === 'Down' ? '↓' : p === 'Slash' ? '/' : p === 'Enter' ? '↵' : p === 'Period' ? '.' : p === 'BracketLeft' ? '[' : p === 'BracketRight' ? ']' : p;
+    else out += p === 'Up' ? '↑' : p === 'Down' ? '↓' : p === 'Slash' ? '/' : p === 'Enter' ? '↵' : p === 'Period' ? '.' : p === 'Comma' ? ',' : p === 'BracketLeft' ? '[' : p === 'BracketRight' ? ']' : p;
   }
   return out;
 }
 /** Whether a key event is the shortcut `keys`. */
 function matches(keys: string, e: ui.KeyEvent): boolean {
   const parts = keys.split('+'), key = parts[parts.length - 1];
-  const want = key === 'Up' ? 'ArrowUp' : key === 'Down' ? 'ArrowDown' : key === 'Slash' ? '/' : key === 'Period' ? '.' : key === 'BracketLeft' ? '[' : key === 'BracketRight' ? ']' : key.length === 1 ? key.toLowerCase() : key;
+  const want = key === 'Up' ? 'ArrowUp' : key === 'Down' ? 'ArrowDown' : key === 'Slash' ? '/' : key === 'Period' ? '.' : key === 'Comma' ? ',' : key === 'BracketLeft' ? '[' : key === 'BracketRight' ? ']' : key.length === 1 ? key.toLowerCase() : key;
   if (e.key !== want) return false;
   return e.primary === (parts.indexOf('CmdOrCtrl') >= 0) && e.shift === (parts.indexOf('Shift') >= 0) && e.alt === (parts.indexOf('Alt') >= 0);
 }
@@ -112,6 +112,19 @@ export function fromTemplate(template: string): void {
 
 /** The start view (examples and a new sketch) over the editor. */
 export const [startOpen, setStartOpen] = createSignal<boolean>(false);
+/** The Share page: build, pack, publish. */
+export const [shareOpen, setShareOpen] = createSignal<boolean>(false);
+/** The page the content shows, as the sidebar names it: 'code', 'settings', 'devices', 'share' or 'start'. */
+export function page(): string { return startOpen() ? 'start' : devicesOpen() ? 'devices' : projectOpen() ? 'settings' : shareOpen() ? 'share' : 'code'; }
+/** Shows one page of the sidebar (each keeps its own state: the devices are asked again, the settings read zinc.json again). */
+export function go(p: string): void {
+  setStartOpen(p === 'start');
+  setShareOpen(p === 'share');
+  if (p !== 'devices' && devicesOpen()) closeDevices();
+  if (p !== 'settings') setProjectOpen(false);
+  if (p === 'settings') openProject();
+  if (p === 'devices' && !devicesOpen()) openDevices();
+}
 
 /** Adds a library to the sketch: its import line at the top of the main file (the plugins `zinc plugins` lists come with zinc). */
 export function addLibrary(name: string): void {
@@ -143,7 +156,7 @@ function chooseSketch(): void {
 }
 add('file', 'new-project', 'CmdOrCtrl+Shift+N', () => openPalette(PAL_TEMPLATES));
 add('file', 'open', 'CmdOrCtrl+O', () => chooseSketch());
-add('file', 'examples', 'CmdOrCtrl+Shift+O', () => setStartOpen(true));
+add('file', 'examples', 'CmdOrCtrl+Shift+O', () => go('start'));
 add('file', 'open-file', 'CmdOrCtrl+P', () => { if (sketchDir() !== '') openPalette(PAL_FILES); });
 add('file', 'save', 'CmdOrCtrl+S', () => { saveAll(); const b = active(); if (b !== null && !(b as Buffer).modified()) say(t('atelier.file.saved_all')); check(); }, true);
 add('file', 'close', 'CmdOrCtrl+W', withBuffer((b: Buffer) => closeBuffer(b)));
@@ -169,9 +182,12 @@ add('sketch', 'run', 'CmdOrCtrl+R', () => run(false));
 add('sketch', 'stop', 'CmdOrCtrl+Period', () => stop());
 add('sketch', 'debug', 'CmdOrCtrl+Shift+R', () => run(true));
 for (let i = 0; i < ENGINE_IDS.length; i++) add('sketch', 'engine-' + ENGINE_IDS[i], '', () => { setEngine(i); setDevice(''); say(t('atelier.engine.chosen', ['engine', engineName(i)])); }, i === 0);
-add('sketch', 'devices', '', () => openDevices());
-add('sketch', 'project', '', () => openProject(), true);
+add('sketch', 'devices', '', () => go('devices'));
+add('sketch', 'project', 'CmdOrCtrl+Comma', () => go('settings'), true);
 add('sketch', 'build', '', () => build());
+add('sketch', 'pack', '', () => pack());
+add('sketch', 'publish', '', () => publishApp());
+add('sketch', 'share', '', () => go('share'));
 add('sketch', 'add-file', 'CmdOrCtrl+T', () => { if (sketchDir() !== '') ask(t('atelier.file.new_prompt'), '', (v: string) => newFile(v)); }, true);
 add('sketch', 'rename-file', '', withBuffer((b: Buffer) => ask(t('atelier.file.rename_prompt', ['name', b.name]), baseName(b.path), (v: string) => renameFile(b, v))));
 add('sketch', 'delete-file', '', withBuffer((b: Buffer) => ask(t('atelier.file.delete_prompt', ['name', b.name, 'word', t('atelier.file.delete_word')]), '', (v: string) => { if (v === t('atelier.file.delete_word')) deleteFile(b); })));

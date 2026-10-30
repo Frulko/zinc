@@ -55,7 +55,8 @@ export function panelText(): string {
 function plain(out: string): string {
   const at = out.lastIndexOf('zinc device: ');
   const said = (at < 0 ? out : out.slice(at + 13)).trim().split('\n')[0];
-  if (said.startsWith('wrong code')) return t('atelier.device.wrong_code');
+  // the EC J-PAKE handshake of `zinc device pair` fails on a TLS alert when the codes differ; a timeout is a slow device, not a wrong code
+  if (said.startsWith('wrong code') || (said.startsWith('pairing failed: SSL') && !said.includes('timed out'))) return t('atelier.device.wrong_code');
   if (said.startsWith('pairing is closed')) return t('atelier.device.pairing_closed');
   if (said.startsWith('nothing answers')) return t('atelier.device.no_answer');
   return said === '' ? t('atelier.device.failed') : said.charAt(0).toUpperCase() + said.slice(1);

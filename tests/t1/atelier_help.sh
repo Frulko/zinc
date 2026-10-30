@@ -43,8 +43,8 @@ grep -q 'opener.open {"target":"https://frulko.github.io/zinc/docs/learn/"}' "$t
 [ -f "$tmp/book/my-game/zinc.json" ] && [ -f "$tmp/book/my-game/src/main.ts" ] || { echo "atelier help: the game template did not make $tmp/book/my-game"; fail=1; }
 grep -q '^\[status\] my-game is ready, made from the game template$' "$tmp/start.out" || { echo "atelier help: the new project is not said open: $(grep status "$tmp/start.out" | tail -2)"; fail=1; }
 
-# ZN-774.26: a click on the first lesson of the start view opens it beside the sketch (its chip at 414,223 on a fresh sketchbook)
-rm -f "$tmp/book/.last"; printf '8 quit\n' > "$tmp/lesson.session"; printf '2 move 414 223\n3 down\n4 up\n' > "$tmp/lesson.input"
+# ZN-774.26: a click on the first lesson of the start view opens it beside the sketch (its chip at 625,217 on a fresh sketchbook)
+rm -f "$tmp/book/.last"; printf '8 quit\n' > "$tmp/lesson.session"; printf '2 move 625 217\n3 down\n4 up\n' > "$tmp/lesson.input"
 run lesson ZINC_INPUT="$tmp/lesson.input" ZINC_FRAMES=8
 grep -q '^\[lesson\] 01-window-and-shape step 1/3' "$tmp/lesson.out" || { echo "atelier help: the start view's lesson did not open: $(grep -E 'lesson|status' "$tmp/lesson.out" | tail -2)"; fail=1; }
 

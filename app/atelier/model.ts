@@ -233,11 +233,12 @@ export function jsonSet(text: string, path: string[], value: string): string {
   return text;
 }
 
-export interface Target { name: string; width: i32; height: i32; display: string }
+export interface Target { name: string; width: i32; height: i32; display: string; resize: string; fullscreen: boolean }
 /** What zinc.json says of a project; '' and [] for what it does not say. */
 export class Project {
   name: string = ''; id: string = ''; version: string = ''; icon: string = ''; entry: string = ''; assets: string = '';
   targets: Target[] = []; permissions: string[] = []; declared: boolean = false; requires: string[] = [];
+  shell: string = ''; publicKey: string = '';   // how a Pi's shell shows it ("window", "fullscreen", "kiosk"); update.publicKey, the key its releases are signed with
 }
 function jsonText(raw: string): string {
   if (!raw.startsWith('"')) return '';
@@ -263,11 +264,14 @@ export function readProject(text: string): Project | null {
   for (const name of jsonKeys(text, ['targets'])) {
     const d = jsonGet(text, ['targets', name, 'display']);
     p.targets.push({ name, width: jsonInt(jsonGet(text, ['targets', name, 'width'])), height: jsonInt(jsonGet(text, ['targets', name, 'height'])),
-      display: d.startsWith('{') ? jsonText(jsonGet(text, ['targets', name, 'display', 'driver'])) : jsonText(d) });
+      display: d.startsWith('{') ? jsonText(jsonGet(text, ['targets', name, 'display', 'driver'])) : jsonText(d),
+      resize: jsonText(jsonGet(text, ['targets', name, 'resize'])), fullscreen: jsonGet(text, ['targets', name, 'fullscreen']) === 'true' });
   }
   p.declared = jsonGet(text, ['permissions']) !== '';
   p.permissions = jsonTexts(jsonGet(text, ['permissions']));
   p.requires = jsonTexts(jsonGet(text, ['requires']));
+  p.shell = jsonText(jsonGet(text, ['shell']));
+  p.publicKey = jsonText(jsonGet(text, ['update', 'publicKey']));
   return p;
 }
 /** A list of texts as zinc.json writes one on a line: `["menu", "tray"]`. */

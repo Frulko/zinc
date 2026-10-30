@@ -29,7 +29,7 @@ function verdict(): string {
 }
 
 export function LessonPanel(): i32 {
-  return <View className={`w-[300] flex-col rounded-[14] border p-3.5 gap-2.5 ${bg(theme().bg)} ${bd(theme().borderSoft)}`}>
+  return <View className={`w-[300] flex-col border-l p-3.5 gap-2.5 ${bg(theme().sidebar)} ${bd(theme().borderSoft)}`}>
     <View className="flex-row items-center gap-2">
       <Text className={`grow shrink text-[14px] font-semibold ${fg(theme().text)}`}>{state().title}</Text>
       <IconButton kind={I_CLOSE} size={12} onPress={() => closeLesson()} tip={() => t('atelier.lesson.close')} />

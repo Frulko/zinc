@@ -195,7 +195,7 @@ function EmptyPane(): i32 {
 /** The editor card (the tour points at it). */
 export const editorRef = createNodeRef();
 export function EditorCard(): i32 {
-  return <View ref={editorRef} className={`grow flex-col overflow-hidden rounded-[14] border ${bg(theme().bg)} ${bd(theme().borderSoft)}`}>
+  return <View ref={editorRef} className={`grow flex-col overflow-hidden ${bg(theme().bg)}`}>
     <FindBar />
     <View className="grow my-[6]">
       <For each={buffers()}>{(b: Buffer, i: i32) => <BufferEditor b={b} />}</For>

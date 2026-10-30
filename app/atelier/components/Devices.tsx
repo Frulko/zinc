@@ -1,6 +1,6 @@
-// The devices panel (ZN-729.06), under the pill that says where the sketch runs: the devices of the network and the paired
-// ones (a press on a paired one sends Run there), the form that pairs one with the code it shows, and for the chosen device
-// what it is, its load, its memory, its temperature and its apps, renewed every second.
+// The Devices page (ZN-729.06): the devices of the network and the paired ones (a press on a paired one sends Run there: `zinc device
+// <name> deploy`, which sends only what changed), the form that pairs one with the code it shows (a Raspberry Pi or a Mac running
+// `zinc agent`), and for the chosen device what it is, its load, its memory, its temperature and its apps, renewed every second.
 // What changes with the machine and the moment (addresses, figures) is in the right column, of a fixed width.
 import { createNodeRef, createEffect } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
@@ -9,12 +9,13 @@ import { focusLater } from '../app/workspace';
 import { device } from '../app/tools';
 import { devices, listed, devicesOpen, closeDevices, figures, note, noteBad, who, setWho, code, setCode, pairing, pair, choose, refresh, isPaired, stateText, none } from '../app/devices';
 import { Device, Figures, DeviceApp, sizeText } from '../model';
-import { Glyph, IconButton } from './Controls';
+import { Glyph } from './Controls';
+import { Page, Group, Row, Button } from './Form';
 import { t as tr } from '../app/text';
-import { I_CHECK, I_CLOSE, I_DOT } from './icons';
+import { I_CHECK, I_DOT } from './icons';
 
 const whoRef = createNodeRef(), codeRef = createNodeRef();
-const FIELD = (): string => `h-[30] text-[13px] px-3 rounded-full border-0 ${bg(theme().chrome)} ${fg(theme().text)} focus:${bd(theme().chrome)}`;
+const FIELD = (): string => `h-[26] text-[13px] px-2 rounded-[6] border ${bg(theme().bg)} ${bd(theme().border)} ${fg(theme().text)} focus:${bd(theme().accent)}`;
 const VALUE = 'w-[200] items-end overflow-hidden';
 
 function DeviceRow(props: { d: Device }): i32 {
@@ -77,34 +78,25 @@ function formKey(e: ui.KeyEvent): void {
 createEffect(() => { if (devicesOpen() && devices().length === 0) focusLater(whoRef.node); });
 
 export function DevicesPanel(): i32 {
-  return <View className="absolute inset-0" style={{ hidden: devicesOpen() ? 0 : 1 }}>
-    <View className="absolute inset-0" onPointerDown={() => closeDevices()} />
-    <View className={`absolute top-[50] right-[10] w-[440] flex-col p-2 rounded-xl border shadow-lg ${bg(theme().elevated)} ${bd(theme().border)}`} onPointerDown={() => {}}>
-      <View className="flex-row items-center h-[30] pl-2.5 gap-2">
-        <Text className={`grow text-[13px] font-semibold ${fg(theme().text)}`}>{tr('atelier.device.title')}</Text>
-        <View className={`flex-row items-center h-[24] px-2.5 rounded-full cursor-pointer hover:${bg(theme().hover)}`} onPointerDown={(e: ui.PointerEvent) => refresh()}>
-          <Text className={`text-[12px] ${fg(theme().muted)}`}>{tr('atelier.device.look_again')}</Text>
-        </View>
-        <IconButton kind={I_CLOSE} size={12} onPress={() => closeDevices()} />
+  return <Page shown={devicesOpen} title={() => tr('atelier.device.title')} subtitle={() => tr('atelier.device.subtitle')}>
+    <Group title={tr('atelier.device.found')} note={() => tr('atelier.device.how_1') + ' ' + tr('atelier.device.how_2')}>
+      {devices().map((d: Device) => <View className={`flex-col px-1.5 py-1 ${bg(theme().elevated)}`}><DeviceRow d={d} /></View>)}
+      {devices().length === 0 && <Row label={() => listed() ? none() : tr('atelier.device.looking')} />}
+      <Row label={() => tr('atelier.device.look_again_hint')}><Button label={() => tr('atelier.device.look_again')} onPress={() => refresh()} /></Row>
+    </Group>
+    <Group title={tr('atelier.device.pair_title')}>
+      <View className={`flex-row items-center px-3.5 py-2.5 gap-2 ${bg(theme().elevated)}`}>
+        <Input ref={whoRef} className={`grow ${FIELD()}`} placeholder={tr('atelier.device.who')} value={who()} onInput={(v: string) => setWho(v)} onKeyDown={formKey} />
+        <Input ref={codeRef} className={`w-[96] ${FIELD()}`} placeholder={tr('atelier.device.code')} value={code()} onInput={(v: string) => setCode(v)} onKeyDown={formKey} />
+        <View style={{ opacity: pairing() ? 0.5 : 1 }}><Button primary label={() => tr('atelier.device.pair')} onPress={() => pair()} /></View>
       </View>
-      {devices().map((d: Device) => <DeviceRow d={d} />)}
-      {devices().length === 0 && <View className="flex-col px-2.5 py-1.5 gap-1">
-        <Text className={`text-[13px] ${fg(theme().text)}`}>{listed() ? none() : tr('atelier.device.looking')}</Text>
-        <Text className={`text-[12px] ${fg(theme().muted)}`}>{tr('atelier.device.how_1')}</Text>
-        <Text className={`text-[12px] ${fg(theme().muted)}`}>{tr('atelier.device.how_2')}</Text>
-      </View>}
-      <View className="flex-row items-center pt-1.5 px-1 gap-1.5">
-        <Input ref={whoRef} className={`bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 grow ${FIELD()}`} placeholder={tr('atelier.device.who')} value={who()} onInput={(v: string) => setWho(v)} onKeyDown={formKey} />
-        <Input ref={codeRef} className={`bg-slate-800 border border-slate-600 rounded-md text-[14px] px-2 py-1.5 text-slate-100 w-[96] ${FIELD()}`} placeholder={tr('atelier.device.code')} value={code()} onInput={(v: string) => setCode(v)} onKeyDown={formKey} />
-        <View className={`flex-row items-center h-[30] px-3.5 rounded-full cursor-pointer active:opacity-80 ${bg(theme().accent)}`} style={{ opacity: pairing() ? 0.5 : 1 }}
-          onPointerDown={(e: ui.PointerEvent) => { if (e.button === 0) pair(); }}>
-          <Text className={`text-[13px] font-semibold ${fg(theme().onAccent)}`}>{tr('atelier.device.pair')}</Text>
-        </View>
-      </View>
-      <View className="px-2.5 pt-1.5 pb-0.5" style={{ hidden: note() === '' ? 1 : 0 }}>
-        <Text className={`text-[12px] ${fg(noteBad() ? theme().error : theme().muted)}`}>{note()}</Text>
-      </View>
+    </Group>
+    <View className="px-1 pt-1.5" style={{ hidden: note() === '' ? 1 : 0 }}>
+      <Text className={`text-[12px] ${fg(noteBad() ? theme().error : theme().muted)}`}>{note()}</Text>
+    </View>
+    <View className={`flex-col mt-5 p-1.5 rounded-[10] border ${bg(theme().elevated)} ${bd(theme().borderSoft)}`} style={{ hidden: device() === '' ? 1 : 0 }}>
       <Details />
     </View>
-  </View>;
+  </Page>;
 }
+

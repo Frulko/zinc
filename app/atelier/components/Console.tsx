@@ -154,7 +154,7 @@ function StatusLine(): i32 {
 /** The console card (the tour points at it). */
 export const consoleRef = createNodeRef();
 export function ConsoleCard(): i32 {
-  return <View ref={consoleRef} className={`flex-col overflow-hidden rounded-[14] border ${bg(theme().bg)} ${bd(theme().borderSoft)}`}>
+  return <View ref={consoleRef} className={`flex-col overflow-hidden border-t ${bg(theme().bg)} ${bd(theme().borderSoft)}`}>
     <StatusLine />
     <View className={`overflow-hidden border-t ${bd(theme().borderSoft)}`} style={{ height: consoleH.get(), hidden: consoleH.get() < 1 ? 1 : 0 }}>
       <Log />

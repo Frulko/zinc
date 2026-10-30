@@ -37,14 +37,14 @@ mkdir -p "$tmp/wrap"
 printf "for (let i = 1; i <= 7; i++) console.log('row ' + i);\nconsole.log('A line longer than the console card: it names the device, what it is, what is built for it and why, and it goes on well past the right edge of the card so that it has to wrap onto a second row, and then onto a third one for good measure, without ever being drawn over the line that follows it, as the line of a failed build did: zinc: cmake --build failed, with the whole command behind it, its directory, its target and what the shell answered, sh: cmake: command not found, all of it on one line of the console (main.ts:3:1).');\nconsole.log('the line after it');\n" > "$tmp/wrap/main.ts"
 printf '4 run\n55 clipboard\n56 copy-console\n57 clipboard\n' > "$tmp/session"
 # a click on the place the long line names (frame 40), three clicks on the line after it (44 to 49), Cmd+C
-printf '%s\n' "40 move 130 733" "40 down" "41 up" "44 move 80 752" "44 down" "45 up" "46 down" "47 up" "48 down" "49 up" "50 key c meta" > "$tmp/keys"
+printf '%s\n' "40 move 930 742" "40 down" "41 up" "44 move 300 761" "44 down" "45 up" "46 down" "47 up" "48 down" "49 up" "50 key c meta" > "$tmp/keys"
 ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_SYNC=1 ZINC_ATELIER_ECHO=1 ZINC_SYSTEM_LOG=/dev/null ZINC_ATELIER_SCRIPT="$tmp/session" ZINC_INPUT="$tmp/keys" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=60 ZINC_SCALE=1 \
   ZINC_SHOT="$tmp/console.png" ZINC_SHOT_FRAMES=60 "$ZINC" run app/atelier -- "$tmp/wrap" >"$tmp/out" 2>"$tmp/err" || { echo "atelier console failed: $(head -c 300 "$tmp/err")"; fail=1; }
 [ "$(grep -c '^\[clipboard\]' "$tmp/out")" = 2 ] && sed -n '/^\[clipboard\]/p' "$tmp/out" | head -1 | grep -q '^\[clipboard\] the line after it$' \
   || { echo "atelier console: three clicks on a line and Cmd+C did not copy it: $(grep '^\[clipboard\]' "$tmp/out" | head -1 | cut -c1-200)"; fail=1; }
 grep -q '^\[clipboard\] \$ zinc run main.ts | .* | row 1 | .* | the line after it | exit 0$' "$tmp/out" || { echo "atelier console: Copy the Console did not take every line: $(grep '^\[clipboard\]' "$tmp/out" | tail -1 | cut -c1-200)"; fail=1; }
 # the console's text (the long line on four rows, the selected line) and the caret's place after the click on main.ts:3:1
-tools/pngdiff "$tmp/console-60.png" "$g/console-60.png" --crop 12,566,1250,222 >/dev/null && tools/pngdiff "$tmp/console-60.png" "$g/console-60.png" --crop 1140,530,100,28 >/dev/null \
+tools/pngdiff "$tmp/console-60.png" "$g/console-60.png" --crop 230,575,1045,220 >/dev/null && tools/pngdiff "$tmp/console-60.png" "$g/console-60.png" --crop 1160,540,90,26 >/dev/null \
   || { echo "atelier console: the wrapped line, the selection or the place opened differ from $g/console-60.png"; fail=1; }
 [ -n "$ATELIER_KEEP" ] && cp "$tmp/console-60.png" "$(dirname "$ATELIER_KEEP")/console-60.png"
 
@@ -54,8 +54,8 @@ printf '{\n  "name": "weather",\n  "app": { "id": "org.example.weather", "versio
 printf "import * as audio from 'zinc:audio';\nimport { onFrame, clear } from 'zinc:gfx';\nonFrame((dt: number) => { clear(0x101820); });\n" > "$tmp/weather/src/main.tsx"
 cp "$tmp/weather/zinc.json" "$tmp/zinc.before"
 printf '2 project\n3 wait:plugins zinc:audio\n4 permission:tray\n5 wait:permissions menu, fs:read:data, tray\n11 wait:project Weather Station 1.4.0\n' > "$tmp/session"
-# the name, typed in its field (frames 6 to 9): a press, its text selected, the new one, Enter
-printf '%s\n' "6 move 958 102" "6 down" "7 up" "7 key a meta" '8 text "Weather Station"' "9 key Enter" > "$tmp/keys"
+# the name, typed in its field of the Settings page (frames 6 to 9): a press, its text selected, the new one, Enter
+printf '%s\n' "6 move 936 260" "6 down" "7 up" "7 key a meta" '8 text "Weather Station"' "9 key Enter" > "$tmp/keys"
 ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_SYNC=1 ZINC_ATELIER_ECHO=1 ZINC_SYSTEM_LOG=/dev/null ZINC_ATELIER_SCRIPT="$tmp/session" ZINC_INPUT="$tmp/keys" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=12 ZINC_SCALE=1 \
   ZINC_SHOT="$tmp/project.png" ZINC_SHOT_FRAMES=12 "$ZINC" run app/atelier -- "$tmp/weather" >"$tmp/out" 2>"$tmp/err" || { echo "atelier project failed: $(head -c 300 "$tmp/err")"; fail=1; }
 grep -q '^atelier script:' "$tmp/out" && { echo "atelier project: the session waited in vain: $(grep '^atelier script:' "$tmp/out" | head -2)"; fail=1; }
@@ -64,12 +64,12 @@ grep -q '^\[project\] project weather 1\.4\.0 id org\.example\.weather entry src
 grep -q '^  "permissions": \["menu", "fs:read:data", "tray"\],$' "$tmp/weather/zinc.json" && grep -q '^  "name": "Weather Station",$' "$tmp/weather/zinc.json" \
   && [ "$(diff "$tmp/zinc.before" "$tmp/weather/zinc.json" | grep -c '^[<>]')" = 4 ] && "$ZINC" check "$tmp/weather" >/dev/null 2>&1 \
   || { echo "atelier project: allowing tray and a new name are not two changed lines of a zinc.json the engine takes: $(diff "$tmp/zinc.before" "$tmp/weather/zinc.json" | head -6)"; fail=1; }
-tools/pngdiff "$tmp/project-12.png" "$g/project-12.png" --crop 760,8,440,466 >/dev/null || { echo "atelier project: the header's pill or the card differ from $g/project-12.png"; fail=1; }
+tools/pngdiff "$tmp/project-12.png" "$g/project-12.png" --crop 430,60,650,700 >/dev/null || { echo "atelier project: the Settings page differs from $g/project-12.png"; fail=1; }
 [ -n "$ATELIER_KEEP" ] && cp "$tmp/project-12.png" "$(dirname "$ATELIER_KEEP")/project-12.png"
-# a plain sketch: the card offers to make it a project (a press on its button, frame 6)
+# a plain sketch: Settings offers to make it a project (a press on its button, frame 6)
 mkdir -p "$tmp/plain" && printf "console.log('plain');\n" > "$tmp/plain/main.ts"
 printf '2 project\n3 wait:sketch plain\n10 wait:project plain 0.1.0\n' > "$tmp/session"
-printf '%s\n' "6 move 838 225" "6 down" "7 up" > "$tmp/keys"
+printf '%s\n' "6 move 995 180" "6 down" "7 up" > "$tmp/keys"
 ZINC_ATELIER_HOME="$tmp/book" ZINC_ATELIER_SYNC=1 ZINC_ATELIER_ECHO=1 ZINC_SYSTEM_LOG=/dev/null ZINC_ATELIER_SCRIPT="$tmp/session" ZINC_INPUT="$tmp/keys" ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=12 ZINC_SCALE=1 \
   "$ZINC" run app/atelier -- "$tmp/plain" >"$tmp/out" 2>"$tmp/err" || { echo "atelier plain sketch failed: $(head -c 300 "$tmp/err")"; fail=1; }
 grep -q '^\[project\] sketch plain$' "$tmp/out" && grep -q '^\[project\] project plain 0\.1\.0 id com\.example\.plain entry main\.ts ' "$tmp/out" && grep -q '"name": "plain"' "$tmp/plain/zinc.json" && grep -q '"entry": "main.ts"' "$tmp/plain/zinc.json" \

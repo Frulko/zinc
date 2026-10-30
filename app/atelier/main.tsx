@@ -10,7 +10,7 @@
 // that device, `<frame> clipboard` prints what the clipboard holds, `<frame> lang:<code>` switches the language, `<frame> template:<name> <folder>`
 // makes a project from a template, `<frame> new:<style>` a new sketch in that style (drawing, scene, canvas, interface), `<frame> lesson:<id>` opens a lesson beside the sketch and `<frame> lesson-check|lesson-hint|lesson-solve` press its buttons, `<frame> explain` clicks the first error code of the console (`<frame> reference` then its Reference button), `<frame> tour:next|back|skip|fix` press
 // that button of the tour's card, `<frame> tour:lang:<code>` a language of its first card and `<frame> tour:step` prints the step and its box;
-// ZINC_ATELIER_TOUR=1 lets a test's sketchbook have the first-launch tour, `<frame> permission:<id>` allows or removes a permission of the project, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
+// ZINC_ATELIER_TOUR=1 lets a test's sketchbook have the first-launch tour, `<frame> permission:<id>` allows or removes a permission of the project, `<frame> set:<name> <value>` changes a setting (name, version, id, shell, resize, fullscreen, size WxH, hub <url> <token>, key, target any|rpi|rpi2|rpi1, channel), and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
 // ZINC_ATELIER_BROWSE=ms (how long the list of devices waits for the network; 0: the paired ones only).
 import { render, createEffect } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
@@ -23,12 +23,15 @@ import { stepMotion } from './app/motion';
 import { theme, bg, setTheme, DARK } from './app/theme';
 import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile, newSketch, sketchDir, saveAll } from './app/workspace';
 import { findOpen, closeFind } from './app/search';
-import { COMMANDS, MENUS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer } from './app/commands';
+import { COMMANDS, MENUS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer, shareOpen, setShareOpen } from './app/commands';
 import { check, stepTools, setJump, stopAll, consoleText, status, newProject } from './app/tools';
 import { devicesOpen, closeDevices, setWho, setCode, pair, choose, panelText, refresh } from './app/devices';
 import { stepCursors, stepMenuKeys, jumpTo, setMenuKeys, menuKey, noteKey } from './app/cursors';
 import { stepLsp, setGo, stopLsp } from './app/lsp';
-import { Header, EngineMenu, engineOpen, setEngineOpen } from './components/Header';
+import { Header, EngineMenu, engineOpen, setEngineOpen, TabStrip } from './components/Header';
+import { Sidebar } from './components/Sidebar';
+import { SettingsPage } from './components/Settings';
+import { SharePage } from './components/Share';
 import { EditorCard, stepEditor } from './components/Editor';
 import { ConsoleCard, stepConsole, explainFirst } from './components/Console';
 import { LessonPanel } from './components/Lesson';
@@ -39,24 +42,31 @@ import { Palette } from './components/Palette';
 import { Tour, stepTour, tourLine, fixCode } from './components/Tour';
 import { tourOn, tourWanted, startTour, nextStep, backStep, endTour } from './app/tour';
 import { DevicesPanel } from './components/Devices';
-import { ProjectCard } from './components/Project';
-import { projectOpen, setProjectOpen, projectText, togglePermission } from './app/project';
+
+import { projectOpen, setProjectOpen, projectText, togglePermission, setName, setVersion, setId, setShell, setResize, setFullscreen, setSize, setHub, hub, makeKey, PUBLISH_TARGETS, setPublishTarget, setPublishChannel } from './app/project';
 import { t, LANGUAGES, languageName, lang, setLanguage, setOnLanguage } from './app/text';
 
 function App(): i32 {
-  return <View className={`flex-col h-full ${bg(theme().chrome)}`}>
-    <Header />
-    <View className="grow flex-row px-2.5 pb-2.5 gap-2">
-      <View className="grow flex-col gap-2">
-        <EditorCard />
-        <ConsoleCard />
-        <StartView />
+  return <View className={`flex-row h-full ${bg(theme().bg)}`}>
+    <Sidebar />
+    <View className="grow shrink flex-col">
+      <Header />
+      <View className="grow flex-row">
+        <View className="grow shrink flex-col">
+          <View className="grow shrink flex-col">
+            <TabStrip />
+            <EditorCard />
+            <SettingsPage />
+            <DevicesPanel />
+            <SharePage />
+            <StartView />
+          </View>
+          <ConsoleCard />
+        </View>
+        {lesson() !== null && <LessonPanel />}
       </View>
-      {lesson() !== null && <LessonPanel />}
     </View>
     <EngineMenu />
-    <DevicesPanel />
-    <ProjectCard />
     <Palette />
     <Tour />
   </View>;
@@ -118,6 +128,7 @@ ui.onKey((e: ui.KeyEvent) => {
     else if (paletteMode() !== PAL_CLOSED) closePalette();
     else if (devicesOpen()) closeDevices();
     else if (projectOpen()) setProjectOpen(false);
+    else if (shareOpen()) setShareOpen(false);
     else if (promptLabel() !== '') answer(false);
     else if (findOpen()) closeFind();
     else if (startOpen()) setStartOpen(false);
@@ -163,6 +174,22 @@ if (sys.env('ZINC_ATELIER_SCRIPT') !== '') {
   }
 }
 let frame: i32 = 0;
+/** A field or a control of the Settings page, as a script names it: `shell kiosk`, `size 800x600`, `hub http://h:8787 <token>`. */
+function setting(line: string): void {
+  const w = line.split(' '), v = w.length > 1 ? w[1] : '';
+  if (w[0] === 'name') setName(w.slice(1).join(' '));
+  else if (w[0] === 'version') setVersion(v);
+  else if (w[0] === 'id') setId(v);
+  else if (w[0] === 'shell') setShell(v);
+  else if (w[0] === 'resize') setResize(v);
+  else if (w[0] === 'fullscreen') setFullscreen(v === 'on');
+  else if (w[0] === 'size') { const s = v.split('x'); setSize(s[0], s.length > 1 ? s[1] : ''); }
+  else if (w[0] === 'hub') setHub(v, w.length > 2 ? w[2] : hub()[1]);
+  else if (w[0] === 'key') makeKey();
+  else if (w[0] === 'target') setPublishTarget(PUBLISH_TARGETS.indexOf(v === 'any' ? '' : v));
+  else if (w[0] === 'channel') setPublishChannel(v);
+  else console.log('atelier script: no setting ' + w[0]);
+}
 function says(text: string): boolean { return consoleText().indexOf(text) >= 0 || lessonText().indexOf(text) >= 0 || status().indexOf(text) >= 0 || panelText().indexOf(text) >= 0 || projectText().indexOf(text) >= 0; }
 function stepScript(): void {
   frame++;
@@ -188,7 +215,8 @@ function stepScript(): void {
     else if (id.startsWith('tour:lang:')) setLanguage(id.slice(10));   // a language of the tour's first card
     else if (id.startsWith('pair:')) { const w = id.slice(5).split(' '); setWho(w[0]); setCode(w.length > 1 ? w[1] : ''); pair(); }
     else if (id.startsWith('device:')) choose(id.slice(7));
-    else if (id.startsWith('permission:')) togglePermission(id.slice(11));   // the project card: allows it, or removes it
+    else if (id.startsWith('permission:')) togglePermission(id.slice(11));   // the Settings page: allows it, or removes it
+    else if (id.startsWith('set:')) setting(id.slice(4));
     else if (id === 'clipboard') console.log('[clipboard] ' + clipboardText().split('\n').join(' | '));   // what a copy took, for the tests
     else if (id.startsWith('wait:')) {
       let n = 0;
@@ -199,7 +227,7 @@ function stepScript(): void {
   }
 }
 
-render(App, 0xf3f1ec, (dt: number) => {
+render(App, 0xffffff, (dt: number) => {
   if (scriptAt.length > 0) stepScript();
   stepMotion(dt);
   stepNotice(dt);
