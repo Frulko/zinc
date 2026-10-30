@@ -486,7 +486,7 @@ std::string mime(const std::string& path) {
   static const std::map<std::string, std::string> m = {{".html", "text/html; charset=utf-8"}, {".js", "text/javascript; charset=utf-8"}, {".mjs", "text/javascript; charset=utf-8"}, {".json", "application/json"},
     {".css", "text/css"}, {".png", "image/png"}, {".jpg", "image/jpeg"}, {".jpeg", "image/jpeg"}, {".webp", "image/webp"}, {".gif", "image/gif"}, {".svg", "image/svg+xml"}, {".wasm", "application/wasm"},
     {".webmanifest", "application/manifest+json"}, {".ttf", "font/ttf"}, {".otf", "font/otf"}, {".woff", "font/woff"}, {".woff2", "font/woff2"}, {".mp3", "audio/mpeg"}, {".ogg", "audio/ogg"},
-    {".wav", "audio/wav"}, {".map", "application/json"}, {".txt", "text/plain; charset=utf-8"}, {".bin", "application/octet-stream"}};
+    {".wav", "audio/wav"}, {".m4a", "audio/mp4"}, {".mp4", "video/mp4"}, {".m4v", "video/mp4"}, {".webm", "video/webm"}, {".ogv", "video/ogg"}, {".mov", "video/quicktime"}, {".map", "application/json"}, {".txt", "text/plain; charset=utf-8"}, {".bin", "application/octet-stream"}};
   auto it = m.find(e);
   return it == m.end() ? "application/octet-stream" : it->second;
 }
@@ -510,6 +510,26 @@ std::vector<Asset> listAssets(const std::string& dir) {
     a.image = images.count(e) > 0;
     a.stream = videos.count(e) > 0;
     if (fonts.count(e)) a.font = f.stem().string();
+    out.push_back(a);
+  }
+  return out;
+}
+
+// zinc dev: the media files a program reads by their path in the project, outside assets/ (examples/hero's media/bbb.mp4), served at /__project/ with byte ranges
+std::vector<Asset> projectMedia(const std::string& dir) {
+  std::vector<Asset> out;
+  static const std::set<std::string> media = {".mp4", ".m4v", ".mov", ".webm", ".ogv", ".mp3", ".m4a", ".ogg", ".wav", ".flac"};
+  std::error_code ec;
+  for (auto it = fs::recursive_directory_iterator(dir, fs::directory_options::skip_permission_denied, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    const std::string n = it->path().filename().string();
+    if (it->is_directory() && (n == "assets" || n == "build" || n == "dist" || n == "node_modules" || n[0] == '.')) { it.disable_recursion_pending(); continue; }
+    if (!it->is_regular_file() || !media.count(lower(it->path().extension().string()))) continue;
+    Asset a;
+    a.name = it->path().lexically_relative(dir).generic_string();
+    a.file = it->path().string();
+    a.url = "./__project/" + a.name;
+    a.size = static_cast<std::size_t>(fs::file_size(it->path(), ec));
+    a.stream = true;
     out.push_back(a);
   }
   return out;
@@ -1158,10 +1178,28 @@ void connection(Dev* d, int fd) {
     if (dir.empty()) { reply(404, "text/plain", "no packages"); return; }
     f = fs::path(dir) / path.substr(8);
   } else if (path.rfind("/assets/", 0) == 0) f = fs::path(d->a.dir) / path.substr(1);
+  else if (path.rfind("/__project/", 0) == 0 && !d->a.lan) f = fs::path(d->a.dir) / path.substr(11);
   else f = d->site / path.substr(1);
   std::error_code ec;
   if (!fs::is_regular_file(f, ec)) { reply(404, "text/plain", "not found: " + path); return; }
-  reply(200, mime(f.string()), readAll(f));
+  const std::string body = readAll(f), range = header("Range");
+  std::size_t from = 0, to = body.empty() ? 0 : body.size() - 1;
+  if (range.rfind("bytes=", 0) == 0 && !body.empty()) {   // one range, as a <video> element asks to seek: bytes=a-, bytes=a-b, bytes=-n
+    const std::string r = range.substr(6);
+    const std::size_t dash = r.find('-');
+    if (dash != std::string::npos) {
+      const std::string a = r.substr(0, dash), b = r.substr(dash + 1);
+      if (a.empty() && !b.empty()) from = body.size() - std::min<std::size_t>(body.size(), std::strtoull(b.c_str(), nullptr, 10));
+      else { from = std::strtoull(a.c_str(), nullptr, 10); if (!b.empty()) to = std::min<std::size_t>(to, std::strtoull(b.c_str(), nullptr, 10)); }
+    }
+    if (from > to) { sendAll(fd, "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */" + std::to_string(body.size()) + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"); zn::plat::sockClose(fd); return; }
+    sendAll(fd, "HTTP/1.1 206 Partial Content\r\nContent-Type: " + mime(f.string()) + "\r\nContent-Range: bytes " + std::to_string(from) + "-" + std::to_string(to) + "/" + std::to_string(body.size()) +
+                "\r\nAccept-Ranges: bytes\r\nContent-Length: " + std::to_string(to - from + 1) + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n" + body.substr(from, to - from + 1));
+    zn::plat::sockClose(fd);
+    return;
+  }
+  sendAll(fd, "HTTP/1.1 200 OK\r\nContent-Type: " + mime(f.string()) + "\r\nAccept-Ranges: bytes\r\nContent-Length: " + std::to_string(body.size()) + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n" + body);
+  zn::plat::sockClose(fd);
 }
 
 int serve(Dev& d, int port, bool lan) {
@@ -1286,6 +1324,7 @@ int devWeb(const WebArgs& a) {
   }
   std::vector<Asset> assets = listAssets(a.dir);
   for (Asset& as : assets) as.url = as.name;
+  if (!a.lan) for (Asset& as : projectMedia(a.dir)) assets.push_back(as);
   std::string cfg = configJson(a, d.cm.cfg, d.cm, assets, "./stage/" + d.entry, a.prepare.empty(), dom ? "./dom.js" : "", "./hmr.js");
   if (!d.bridgeJson.empty() && !cfg.empty() && cfg.back() == '}') cfg.insert(cfg.size() - 1, ",\"bridge\":" + d.bridgeJson);
   std::string page = pageFor(d.cm.cfg, cfg, "", true, false, false, "", "./native.js");

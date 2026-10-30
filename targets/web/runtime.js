@@ -798,11 +798,20 @@ for (const n of UNSUPPORTED) G['__host_' + n] = function () { throw new ZnUnsupp
 for (const [n, f] of Object.entries(rows)) G['__host_' + n] = f;
 G.__addEvHandler = G.__addEvHandler || (() => {});   // the native event loop's handlers (signals, stdin, plugin events): none of those events reach a page
 if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host services the page lacks are this machine's, as under zinc run (the dev bridge)
+  const remote = (n) => (...a) => Z.bridge.call('__rows', n, a);
   const local = /^(ev|loop|layout|assets|gfx|sys|storage)/;
-  for (const n of [...UNSUPPORTED.filter((n) => !local.test(n)), ...Object.keys(rows).filter((n) => n.startsWith('fs')), 'sysEnv']) G['__host_' + n] = (...a) => Z.bridge.call('__rows', n, a);
-  let loaded = new Uint8Array(0);
-  G.__host_fsLoad = (p) => { loaded = Z.bridge.call('__fs', 'load', [p]); return loaded.length; };
-  G.__host_fsByte = (i) => loaded[i] || 0;
+  for (const n of [...UNSUPPORTED.filter((n) => !local.test(n)), ...Object.keys(rows).filter((n) => n.startsWith('fs')), 'sysEnv']) G['__host_' + n] = remote(n);
+  // a file the page has itself (an asset, a file it wrote in memory) is read here; any other path is the machine's
+  let viaBridge = false, loaded = new Uint8Array(0);
+  const mine = (p) => !!fileBytes(p);
+  G.__host_fsFailed = () => (viaBridge ? Z.bridge.call('__rows', 'fsFailed', []) : rows.fsFailed());
+  G.__host_fsError = () => (viaBridge ? Z.bridge.call('__rows', 'fsError', []) : rows.fsError());
+  for (const n of ['fsReadText', 'fsExists']) G['__host_' + n] = (p, ...a) => ((viaBridge = !mine(p)) ? Z.bridge.call('__rows', n, [p, ...a]) : rows[n](p, ...a));
+  G.__host_fsLoad = (p) => ((viaBridge = !mine(p)) ? (loaded = Z.bridge.call('__fs', 'load', [p])).length : rows.fsLoad(p));
+  G.__host_assetsLoad = (n) => { viaBridge = false; return rows.assetsLoad(n); };   // (zinc:assets reads the bytes with fsByte)
+  G.__host_fsByte = (i) => (viaBridge ? loaded[i] || 0 : rows.fsByte(i));
+  for (const n of ['fsStat']) G['__host_' + n] = (p, ...a) => ((viaBridge = !mine(p)) ? Z.bridge.call('__rows', n, [p, ...a]) : rows[n](p, ...a));
+  for (const n of ['fsStatD', 'fsStatI']) G['__host_' + n] = (...a) => (viaBridge ? Z.bridge.call('__rows', n, a) : rows[n](...a));
 }
 
 // ---------------------------------------------------------------- WebAssembly for the plugins that need native code

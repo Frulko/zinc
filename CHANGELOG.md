@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc dev --target web` serves the project's videos and sounds outside `assets/` (with seeking), so `zinc:video` plays them in the page by their path (the hero demo's video).
 - `zinc dev --target web` runs the plugins that have no browser backend (zinc:process, zinc:lvgl, zinc:device...), the file system and the environment on your machine through a local bridge, so apps that need them (kanban, carnet, ipod) work in the page during development; an export still has none.
 - Photo sorter demo (examples/photo-sorter): pick one or more folders, then file each picture into album folders (in place or into another folder, moved or copied) by dragging, throwing, a key or the suggestion of a model that learns from the camera, the date and the place; a trash that empties into the system's or puts everything back; undo takes each change back on disk; thumbnails and EXIF from `zinc:imageio`, light or dark, in French or English.
 - `zinc:trieur`: `setLanguage('fr' | 'en')` changes the deck's labels at once (the computer's language at start); the Trieur demo has an FR / EN switch in its sidebar.
