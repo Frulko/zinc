@@ -1996,6 +1996,13 @@ struct Checker {
     bool preEvaluated = false;  // generic calls evaluate their arguments first to infer type arguments
     bool packed = false;        // the arguments of a rest parameter are already one array
     std::vector<std::uint32_t> argNodes(x.kids.begin() + 1, x.kids.end());
+    if (!isNew && n(callee).kind == N::Ident && n(callee).text == "__recSchemaOf" && argNodes.empty() && a.targs.count(i) && a.targs[i].size() == 1) {   // zinc:worker
+      TypeId t = annotation(a.targs[i][0]);
+      if (bad(t) || hasParam(t)) { out.nodeType[i] = tStr; return tStr; }   // a template: never lowered
+      std::string why, sc = recSchema(t, why);   // a type that is not data was reported where the Worker is made (Z5012)
+      if (!replaceWith(i, "'" + sc + "'", {})) { diag(kZUnsupported, i, "internal error: schema rewrite did not parse"); return tError; }
+      return expr0(i, kNoType);
+    }
     if (isNew) {
       const Node& c = n(callee);
       std::uint32_t s = c.kind == N::Ident ? lookup(c.text) : kNone;
@@ -2008,6 +2015,8 @@ struct Checker {
         if (inst == kNone) { for (std::uint32_t an : argNodes) expr(an); return tError; }
         s = inst;
         ensureBuilt(ty(out.syms[inst].type).obj);  // its constructor type is needed to check the arguments
+        if (lookupMember(ty(out.syms[inst].type).obj, "__zincWorker", false))   // zinc:worker's Worker: what crosses is data (Z5012)
+          for (TypeId t : targs) { std::string why; if (!bad(t) && recSchema(t, why).empty()) diag(kZWorkerMessageNotData, i, why); }
       } else if (s != kNone && out.syms[s].kind == SymKind::GenericClass && newExpected != kNoType && !bad(newExpected) && ty(newExpected).k == TK::Object && out.objs[ty(newExpected).obj].genericSym == s && !out.objs[ty(newExpected).obj].isTemplate) {
         // `return new Promise(resolve => setTimeout(resolve, ms))` in a function returning Promise<void>: the wanted type gives the type arguments, as in TypeScript
         std::uint32_t inst = instantiateClass(s, std::vector<TypeId>(out.objs[ty(newExpected).obj].typeArgs), callee);
@@ -2439,6 +2448,10 @@ struct Checker {
           std::uint32_t objSym = n(objNode).kind == N::Ident ? lookup(n(objNode).text) : kNone;
           bool classRef = objSym != kNone && (out.syms[objSym].kind == SymKind::Class || out.syms[objSym].kind == SymKind::GenericClass || out.syms[objSym].kind == SymKind::Enum);  // C.n = v: a static field, not a setter
           TypeId ot = classRef ? kNoType : n(objNode).kind == N::This ? (curClass == kNone ? kNoType : objType(curClass)) : expr(objNode);
+          if (ot != kNoType && !bad(ot) && ty(ot).k == TK::Object && n(target).text == "onmessage" && lookupMember(ty(ot).obj, "__zincWorkerSelf", false) && lookup("__workerOnMessage") != kNone) {
+            if (!replaceWith(i, "__workerOnMessage(__H0)", {{value}})) return tError;   // zinc:worker: a setter cannot take its handler's type parameter
+            return expr0(i, expected);
+          }
           if (ot != kNoType && !bad(ot) && ty(ot).k == TK::Object) {
             const Member* setter = lookupMember(ty(ot).obj, "__set_" + std::string(n(target).text), false);
             const Member* plain = lookupMember(ty(ot).obj, n(target).text, false);
@@ -4208,6 +4221,51 @@ struct Checker {
     f();
   }
 
+  // zinc:worker (D181): a message type's schema on the record wire (include/zn/rec.h), or "" with `why` when it is not data.
+  std::string recSchema(TypeId t, std::string& why, int depth = 0) const {
+    if (depth > 16) { why = "'" + name(t) + "' nests too deep (a record that holds itself has no wire form)"; return ""; }
+    const Type& x = ty(t);
+    switch (x.k) {
+      case TK::Num:
+        switch (x.num) {
+          case Num::f64: case Num::f32: return "d";
+          case Num::i8: case Num::i16: case Num::i32: return "i";
+          case Num::u8: case Num::u16: case Num::u32: return "u";
+          default: why = "'" + name(t) + "' has no message form (use number, i32 or u32)"; return "";
+        }
+      case TK::Bool: return "b";
+      case TK::Str: return "s";
+      case TK::Array: {
+        if (ty(x.elem).k == TK::Num && ty(x.elem).num == Num::u8) return "B";
+        std::string e = recSchema(x.elem, why, depth + 1);
+        return e.empty() ? e : "*" + e;
+      }
+      case TK::Union: {
+        TypeId one = kNoType;
+        int others = 0;
+        bool nul = false;
+        for (TypeId m : x.params) { if (m == tNull) nul = true; else { one = m; ++others; } }
+        if (!nul || others != 1) { why = "'" + name(t) + "' is a union: a message field is T or T | null"; return ""; }
+        std::string e = recSchema(one, why, depth + 1);
+        return e.empty() ? e : "?" + e;
+      }
+      case TK::Object: {
+        const ObjInfo& o = out.objs[x.obj];
+        if (!(o.isRecord || o.isInterface) || o.isTuple) { why = "'" + name(t) + "' is " + (o.isTuple ? "a tuple" : "a class instance") + ": a message carries records of data"; return ""; }
+        std::string r = "{";
+        for (const Member& m : o.members) {
+          if (m.isStatic) continue;
+          if (m.method || m.getter) { why = "'" + name(t) + "' has the method '" + m.name + "': a message carries data only"; return ""; }
+          std::string f = recSchema(m.type, why, depth + 1);
+          if (f.empty()) return "";
+          if (m.optional && f[0] != '?') f = "?" + f;
+          r += (r.size() > 1 ? "," : "") + m.name + ":" + f;
+        }
+        return r + "}";
+      }
+      default: why = "'" + name(t) + "' has no message form (numbers, booleans, strings, u8[], arrays, T | null and records)"; return "";
+    }
+  }
   TypeId paramType(std::uint32_t idx) { Type t; t.k = TK::Param; t.obj = idx; return intern(t); }
   bool hasParam(TypeId t) const {
     const Type& x = ty(t);

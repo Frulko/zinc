@@ -143,7 +143,7 @@ target_compile_definitions(zn_mimalloc PRIVATE MI_STATIC_LIB MI_SKIP_COLLECT_ON_
 set_target_properties(zn_mimalloc PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_mimalloc PRIVATE -w -O2)
 
-add_library(zn_rt STATIC src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp src/rt/unicode.cpp)
+add_library(zn_rt STATIC src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp src/rt/worker.cpp src/rt/unicode.cpp)
 target_link_libraries(zn_rt PUBLIC zn_zbc zn_mimalloc zn_regexp)   # libunicode: case mapping, normalization, collation
 if(ZN_SANITIZE OR ZN_TSAN)
   target_compile_definitions(zn_rt PUBLIC ZN_NO_MIMALLOC)   # keep the sanitizer's own allocator (ASan's checks, TSan's view of malloc and free across threads)
@@ -757,7 +757,7 @@ if(TARGET zn_host_gfx AND SDL3_FOUND)
   elseif(ANDROID)
     target_link_libraries(zn_app_host PUBLIC GLESv2)
   endif()
-  add_library(zn_app STATIC src/app/app.cpp src/app/embed.cpp src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp src/rt/unicode.cpp src/zbc/zbc.cpp)   # the shell, src/app/shell_sdl.cpp, goes into the app itself
+  add_library(zn_app STATIC src/app/app.cpp src/app/embed.cpp src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp src/rt/worker.cpp src/rt/unicode.cpp src/zbc/zbc.cpp)   # the shell, src/app/shell_sdl.cpp, goes into the app itself
   if(NOT ZN_SANITIZE AND NOT ZN_TSAN)
     target_sources(zn_app PRIVATE src/rt/alloc.cpp)
   endif()

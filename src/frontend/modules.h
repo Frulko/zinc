@@ -28,6 +28,7 @@ struct Program {
   std::deque<SourceFile> files;  // files[0] is the entry
   std::vector<Diag> diags;       // syntax and module resolution errors; Diag::file indexes `files`
   std::vector<NativeFallback> nativeFallbacks;
+  std::vector<std::pair<std::string, std::string>> workers;   // zinc:worker: each worker's key (its path from the entry's directory) and its file, compiled as a program of its own
 };
 
 // `strict` selects the strict profile; so does a line `// zinc-profile: strict` among the first lines of the entry file.

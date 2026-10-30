@@ -26,7 +26,7 @@ namespace zn::rt {
 void (*gConsoleTap)(const char* p, std::size_t n, bool err) = nullptr;
 
 void Machine::flushOut() {
-  if (gConsoleTap)   // each line to the inspector
+  if (gConsoleTap && !gOnWorker)   // each line to the inspector (a worker's lines go to stdout only: the tap is the main thread's)
     for (std::size_t b = 0; b < out->size();) {
       std::size_t e = out->find('\n', b);
       if (e == std::string::npos) e = out->size();
@@ -43,7 +43,7 @@ void Machine::flushErrLine() {
   std::string line = out->substr(errMark) + '\n';
   out->resize(errMark);
   flushOut();
-  if (gConsoleTap) gConsoleTap(line.data(), line.size() - 1, true);
+  if (gConsoleTap && !gOnWorker) gConsoleTap(line.data(), line.size() - 1, true);
   std::fwrite(line.data(), 1, line.size(), stderr);
 }
 

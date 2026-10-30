@@ -15,6 +15,7 @@
 
 #include "rt/rt.h"
 #include "rt/unicode.h"
+#include "rt/worker.h"
 #include "zn/host.h"
 #include "zn/native.h"
 #include "zn/native_sig.h"
@@ -812,10 +813,15 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
     if (gExitEndsRun || gOnWorker) { thread_local std::string why; why ="exit " + std::to_string(static_cast<std::int32_t>(a[0])); return why.c_str(); }
     std::exit(static_cast<int>(static_cast<std::int32_t>(a[0])));
   }
+  if (gOnWorker) {
+    if (worker::stopping()) return "terminated";   // terminate(): the worker's program ends at its next host call
+    if (!sys || isLayoutRow(id) || isGlRow(id)) return "this module draws or lays out: it is not available in a worker (do the drawing on the main side and post the result)";
+  }
   // a turn of the event loop begins (the timer loop and the frame loop of the prelude both ask for the host's events first) or the program waits:
   // what it printed goes out now, so the lines of a running program reach the terminal, the file or the pipe before it exits (ZN-638)
-  if (gOnWorker && (!sys || isLayoutRow(id) || isGlRow(id))) return "this module draws or lays out: it is not available in a worker (do the drawing on the main side and post the result)";
   if ((id == Rt::HostEvReady || id == Rt::HostLoopWait) && m.outLive && !m.out->empty()) m.flushOut();
+  if (id == Rt::HostEvReady) worker::deliver();     // the messages of zinc:worker become events of this loop
+  else if (id == Rt::HostLoopWait) worker::idleWait();
   if (!call && gDeviceProfile) {
     thread_local std::string why;
     why = std::string(isLayoutRow(id) ? "the rn layout engine" : isGlRow(id) ? "zinc:gl" : sys ? "the system modules" : "zinc:gfx") + " is not available on this device (profile " + gDeviceProfile + ")";
@@ -1272,6 +1278,7 @@ struct RecDyn {
 const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
   if (zn::host::HostFast f = zn::host::hostFast[static_cast<unsigned>(id)]) { f(a); return nullptr; }   // a hot scalar host row (ZN-397)
   if (id == Rt::HostNativePoll) { a[0] = static_cast<Slot>(nativePoll(m, scratch, a[0] != 0)); return nullptr; }
+  if (isWorkerRow(id)) return worker::call(m, id, a);   // zinc:worker (D181)
 #define NN(x) do { if (!(x)) return kNull; } while (0)
   if (isHostRow(id)) return hostRt(m, id, a, scratch);
   switch (id) {

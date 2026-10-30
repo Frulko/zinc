@@ -580,6 +580,31 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
         }
       }
       if (gProfile) { out.profile = gProfile->name; out.heapBytes = static_cast<std::uint32_t>(std::min<std::uint64_t>(gProfile->heapBytes, 0xFFFFFFFFu)); }
+      if (!prog.workers.empty()) {   // zinc:worker (D181): each worker file is a program of its own, carried in this module
+        static int nested = 0;
+        if (nested > 0) { std::fprintf(stderr, "%s: a worker cannot start another worker yet (start it from the main program)\n", path); return 1; }
+        const auto workers = prog.workers;
+        auto sources = gSources; auto isLib = gSourceIsLib; auto paths = gSourcePaths; auto hostImports = gHostImports;
+        auto* hotUnit = gHotUnit;
+        gHotUnit = nullptr;
+        ++nested;
+        int rc = 0;
+        for (const auto& [key, file] : workers) {
+          zn::zbc::Module wm;
+          rc = compileToZbc(file.c_str(), wm);
+          if (rc == 0 && std::find(gHostImports.begin(), gHostImports.end(), "zinc:gfx") != gHostImports.end()) {
+            std::fprintf(stderr, "%s: a worker cannot draw: zinc:gfx, zinc:ui and zinc:gl run on the main thread only (post the results to it)\n", file.c_str());
+            rc = 1;
+          }
+          for (const std::string& p : gSourcePaths) if (std::find(paths.begin(), paths.end(), p) == paths.end()) paths.push_back(p);   // a change to a worker compiles the program again
+          if (rc) break;
+          out.workers.push_back({key, zn::zbc::encode(wm)});
+        }
+        --nested;
+        gHotUnit = hotUnit;
+        gSources = std::move(sources); gSourceIsLib = std::move(isLib); gSourcePaths = std::move(paths); gHostImports = std::move(hostImports);
+        if (rc) return rc;
+      }
       zn::log::step("compile", std::to_string(prog.files.size()) + (prog.files.size() == 1 ? " file" : " files") + ", " + std::to_string(out.functions.size()) + " functions", zn::log::since(t0));
       return 0;
     }

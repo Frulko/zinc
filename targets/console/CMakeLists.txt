@@ -42,7 +42,7 @@ if(ZN_CONSOLE_AOT)
   set(ZN_ENGINE_EXEC "")
 endif()
 # the engine (C++20): the same files as the WASI build (tools/build-wasm), the plain allocator
-add_library(zn_console_engine STATIC ${ZN_NEXT}/src/rt/alloc.cpp ${ZN_NEXT}/src/rt/machine.cpp ${ZN_NEXT}/src/rt/program.cpp ${ZN_NEXT}/src/rt/rtcalls.cpp
+add_library(zn_console_engine STATIC ${ZN_NEXT}/src/rt/alloc.cpp ${ZN_NEXT}/src/rt/machine.cpp ${ZN_NEXT}/src/rt/program.cpp ${ZN_NEXT}/src/rt/worker.cpp ${ZN_NEXT}/src/rt/rtcalls.cpp
   ${ZN_NEXT}/src/rt/unicode.cpp ${ZN_NEXT}/src/zbc/zbc.cpp ${ZN_ENGINE_EXEC} ${ZN_NEXT}/third_party/quickjs-ng/libunicode.c)
 set_target_properties(zn_console_engine PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
 target_include_directories(zn_console_engine PUBLIC ${ZN_NEXT}/include ${ZN_NEXT}/src ${ZN_NEXT}/third_party/quickjs-ng)

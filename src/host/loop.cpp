@@ -396,6 +396,14 @@ bool sendSignal(int pid, const std::string& name) {
   ::kill(pid, s->num);
   return true;
 }
+// A wake-up of this thread's loop that any thread may send (workers, D181): an unreferenced async handle, so it keeps no loop alive by itself.
+void* wakeNew() {
+  auto* a = new uv_async_t;
+  uv_async_init(loop(), a, [](uv_async_t*) {});
+  uv_unref(reinterpret_cast<uv_handle_t*>(a));
+  return a;   // ponytail: never closed, one per thread that owns or is a worker, kept for the life of the process
+}
+void wakeSend(void* h) { if (h) uv_async_send(static_cast<uv_async_t*>(h)); }
 void readStdin() {
   if (gStdin) return;
   gStdin = true;

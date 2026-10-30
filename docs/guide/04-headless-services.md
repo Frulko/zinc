@@ -134,6 +134,49 @@ at once.
 | XML | `zinc:xml`: `parse(text)` into an element tree (`El`: `attr`, `child`, `all`, `find`, `findAll`, `textOf`), `toXml` / `toJson` to write one back, `escapeXml` / `unescapeXml`. A small reader for UPnP, SOAP, RSS and device descriptions, not a general XML engine |
 | SQL database | `zinc:sqlite` ([docs](../plugins/sqlite.md)) |
 | Web APIs (fetch, URL, crypto, events…) | globals ([chapter 9](09-web-apis.md)) |
+| Computing on another thread | `zinc:worker`: `Worker`, `self`, `MessageEvent` ([below](#workers-zincworker)) |
+
+## Workers (`zinc:worker`)
+
+A long computation (a search, a sort of a big library, decoding, a simulation) stops the frames of an app while it runs. A worker runs it on
+another thread, as the Web Workers API does: the worker is a second program with its own heap and event loop, and the two talk by messages.
+
+```ts
+// types.ts: what crosses, shared by both sides
+export interface Job { query: string; limit: i32 }
+export interface Found { ids: i32[]; took: number }
+
+// search.ts: the worker
+import { self, MessageEvent } from 'zinc:worker';
+import { Job, Found } from './types';
+self.onmessage = (e: MessageEvent<Job>) => {
+  const t0 = performance.now();
+  const ids = search(e.data.query, e.data.limit);   // as long as it needs: the app keeps drawing
+  self.postMessage({ ids: ids, took: performance.now() - t0 });
+};
+
+// main.ts: the app
+import { Worker, MessageEvent, ErrorEvent } from 'zinc:worker';
+import { Job, Found } from './types';
+const w = new Worker<Job, Found>(new URL('./search.ts', import.meta.url));
+w.onmessage = (e: MessageEvent<Found>) => { results.set(e.data.ids); };
+w.onerror = (e: ErrorEvent) => { console.error(e.message); };
+w.postMessage({ query: 'jazz', limit: 50 });
+```
+
+- `Worker<In, Out>` names what the app sends (`In`) and what the worker posts back (`Out`). Both must be data: numbers, `i32`, `u32`,
+  booleans, strings, `u8[]` buffers, arrays, `T | null` and records of those (Z5012 names the field that is not). Messages are copied;
+  nothing is shared.
+- `postMessage(value, [buffer])`: a `u8[]` in the second argument is moved, and is empty on the sender's side afterwards.
+- The worker's file is a literal path, or `new URL('./file.ts', import.meta.url)` (Z5013): it is compiled with the program, and `zinc run` and
+  `zinc build` take it with them.
+- `onerror` gets the worker's uncaught exception; its program has ended. Without `onerror` the error is printed.
+- `terminate()` stops the worker at its next call into the engine and drops its pending messages; `self.close()` ends it from inside.
+  A worker keeps the app's loop running until it ends or is terminated, as in Node and Deno.
+- A worker cannot draw (`zinc:gfx`, `zinc:ui`, `zinc:gl`) or use a plugin's native code; files, the network, timers and `fetch` work.
+  It cannot start another worker yet.
+- Under `ZINC_DETERMINISTIC` the app waits at each loop turn for its workers to be idle, so replies arrive at the same turn on every run.
+- Workers run on the interpreter (`zinc run`, the default); a compiled build (`--native`, `zinc build`) refuses to start one for now.
 
 ## Running as a systemd service
 

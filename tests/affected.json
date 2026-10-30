@@ -93,6 +93,8 @@
     {"paths": ["tests/data/busy_spinner/", "tests/t1/busy_spinner.sh"], "tests": ["busy_spinner"]},
     {"paths": ["src/rt/", "src/host/loop.cpp", "include/zn/alloc_stats.h", "tests/unit/threads_test.cpp", "tests/data/threads_two.ts", "tests/t0/threads_two.sh"], "tests": ["threads_two"]},
     {"paths": ["src/frontend/check.cpp", "tests/golden/host/dyn_generic.ts", "tests/t0/dyn_generic.sh"], "tests": ["dyn_generic"]},
+    {"paths": ["src/rt/worker.cpp", "src/rt/worker.h", "lib/std/worker.ts", "src/zbc/", "tests/data/worker_basic/", "tests/data/worker_draw/", "tests/t0/worker_basic.sh"], "tests": ["worker_basic"]},
+    {"paths": ["src/rt/worker.cpp", "lib/std/worker.ts", "tests/data/busy_worker/", "tests/t1/busy_worker.sh"], "tests": ["busy_worker"]},
     {"paths": ["src/agent/inspect.cpp", "src/agent/server.cpp", "src/agent/client.cpp", "app/inspector/", "tests/t1/agent_inspect.sh"], "tests": ["agent_inspect"]},
     {"paths": ["src/host/tls.cpp", "src/host/tls.h", "third_party/mbedtls/include/mbedtls/mbedtls_config.h"], "tests": ["agent", "tls"]},
     {"paths": ["src/host/sock.cpp", "src/host/sock.h", "plugins/socket/", "tests/wss_echo.mjs", "tests/golden/host/wss.ts", "tests/golden/host/wss.out", "tests/golden/host/tls_first.ts"], "tests": ["tls"]},

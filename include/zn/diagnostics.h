@@ -143,6 +143,15 @@
     "`requireNative<Spec>('Name')` needs the module registered in the engine (or a stand-in next to the spec, x.next.ts or x.sim.ts) with the "  \
     "export and signature the Spec describes.", "Link the module, add a stand-in, or fix the Spec to match the module.",                      \
     "import { NativeModule, requireNative } from 'zinc:native';\ninterface Spec extends NativeModule { f(): void }\nconst n = requireNative<Spec>('Nowhere');") \
+  X(WorkerMessageNotData, "Z5012", "A worker's message type is not data",                                                \
+    "A worker shares nothing with its parent: each message is copied as data. Numbers, i32, u32, booleans, strings, u8[] buffers, arrays, "     \
+    "T | null and records (interfaces and object types of those) cross; maps, sets, functions and class instances do not.",                     \
+    "Send a record of the data instead (a Map as an array of [key, value] records, an object as its fields).",                                  \
+    "import { Worker } from 'zinc:worker';\nconst w = new Worker<Map<string, i32>, number>('./work.ts');")                                         \
+  X(WorkerEntryNotStatic, "Z5013", "A worker's file is not named by a literal",                                                \
+    "A worker is a second program compiled with this one, so its file must be known at build time: a string literal, or "                      \
+    "`new URL('./file.ts', import.meta.url)`.", "Write the worker's path as a literal.",                                                            \
+    "import { Worker } from 'zinc:worker';\nconst file = './work.ts';\nconst w = new Worker<number, number>(file);")                              \
   X(FixedUnrepresentable, "Z4001", "The value cannot be represented in fixed point",                                      \
     "Under a fixed-point profile (`--profile ps1`, or `// zinc-profile: ps1`) `number` is Q20.12: no Infinity and no NaN, so Math.min() and Math.max() "\
     "with no argument (which are Infinity and -Infinity) have no value.", "Give the call at least one argument.",                                \

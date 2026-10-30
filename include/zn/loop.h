@@ -58,6 +58,9 @@ bool oscSend(const std::string& host, int port, const std::string& packed);
 void* uvLoop();
 void pushEvent(int handle, int kind, std::string data, std::string payload = std::string());
 void addActive(int delta);
+// A wake-up of the calling thread's loop (its wait returns), which any thread may send: the messages of zinc:worker (src/rt/worker.cpp).
+void* wakeNew();
+void wakeSend(void* handle);
 bool resolveHost(const std::string& host, int port, void* out);
 
 }  // namespace zn::loop

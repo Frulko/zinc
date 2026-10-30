@@ -94,6 +94,7 @@ struct Module {
   std::vector<Native> natives;      // the targets of CallNative
   std::string profile;              // the target profile the program was built for (esp32, ps1...; "" = the host's) and its heap budget in bytes (0 = none): enforced by the runtime, in an AOT program too
   std::uint32_t heapBytes = 0;
+  std::vector<std::pair<std::string, std::vector<std::uint8_t>>> workers;   // zinc:worker: each worker file's own encoded module, by its key (the entry as the program names it); an optional trailing section
   std::vector<std::string> files;   // debug builds: the source files, then the operands of Line
   std::vector<LineInfo> lines;
   std::vector<std::string> globalNames, globalTypes;   // debug builds: the program's own globals by name and IR type ("" for the engine's)

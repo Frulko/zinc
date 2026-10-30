@@ -720,6 +720,10 @@ std::vector<std::uint8_t> encode(const Module& m) {
   for (const Native& n : m.natives) { w.str(n.module); w.str(n.name); w.str(n.sig); }
   w.str(m.profile);
   w.u32(m.heapBytes);
+  if (!m.workers.empty()) {   // only a program with workers carries the section: every other module keeps its bytes
+    w.u32(static_cast<std::uint32_t>(m.workers.size()));
+    for (const auto& [key, mod] : m.workers) { w.str(key); w.str(std::string(mod.begin(), mod.end())); }
+  }
   return w.b;
 }
 
@@ -819,6 +823,15 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
   }
   if (!r.str(out.profile)) return fail("truncated file (profile)");
   out.heapBytes = r.u32();
+  if (!r.bad && r.p < bytes.size()) {   // the workers section (zinc:worker)
+    std::uint32_t nw = r.u32();
+    if (nw > kMaxFunctions) return fail("truncated file (workers)");
+    for (std::uint32_t i = 0; i < nw; ++i) {
+      std::string key, mod;
+      if (!r.str(key) || !r.str(mod)) return fail("truncated file (workers)");
+      out.workers.emplace_back(std::move(key), std::vector<std::uint8_t>(mod.begin(), mod.end()));
+    }
+  }
   if (r.bad) return fail("truncated file");
   if (r.p != bytes.size()) return fail("trailing bytes after the profile");
   return true;

@@ -438,6 +438,29 @@ interface Spec extends NativeModule { f(): void }
 const n = requireNative<Spec>('Nowhere');
 ```
 
+## Z5012: A worker's message type is not data
+
+A worker shares nothing with its parent: each message is copied as data. Numbers, i32, u32, booleans, strings, u8[] buffers, arrays, T | null and records (interfaces and object types of those) cross; maps, sets, functions and class instances do not.
+
+Fix: Send a record of the data instead (a Map as an array of [key, value] records, an object as its fields).
+
+```ts
+import { Worker } from 'zinc:worker';
+const w = new Worker<Map<string, i32>, number>('./work.ts');
+```
+
+## Z5013: A worker's file is not named by a literal
+
+A worker is a second program compiled with this one, so its file must be known at build time: a string literal, or `new URL('./file.ts', import.meta.url)`.
+
+Fix: Write the worker's path as a literal.
+
+```ts
+import { Worker } from 'zinc:worker';
+const file = './work.ts';
+const w = new Worker<number, number>(file);
+```
+
 ## Z4001: The value cannot be represented in fixed point
 
 Under a fixed-point profile (`--profile ps1`, or `// zinc-profile: ps1`) `number` is Q20.12: no Infinity and no NaN, so Math.min() and Math.max() with no argument (which are Infinity and -Infinity) have no value.

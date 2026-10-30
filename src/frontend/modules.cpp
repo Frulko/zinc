@@ -1344,6 +1344,67 @@ std::string dynArgument(const Ast& a, const std::string& text, std::uint32_t ty,
   return "(" + ps + "): " + rt + " => { " + (rq == "void" ? "" : "return ") + pn + "(" + call + "); }";
 }
 
+// zinc:worker (D181): `new Worker<In, Out>('./work.ts')` and `new Worker<In, Out>(new URL('./work.ts', import.meta.url))` name a second program of the
+// build. The argument becomes the worker's key (its path from the entry's directory), recorded in `workers` for the build to compile; any
+// other argument is Z5013. A file that imports zinc:worker also gets __workerOnMessage, which `self.onmessage = f` becomes (check.cpp).
+std::string lowerWorkerEntries(const std::string& text, const std::string& path, const std::string& entryDir, std::vector<Diag>& diags, std::uint32_t file,
+                               std::vector<std::pair<std::string, std::string>>& workers) {
+  namespace fs = std::filesystem;
+  std::string out;
+  std::size_t from = 0;
+  auto ws = [&](std::size_t q) { while (q < text.size() && std::isspace(static_cast<unsigned char>(text[q]))) ++q; return q; };
+  auto literal = [&](std::size_t q, std::string& v) -> std::size_t {   // a quoted string without escapes: the end past it, or npos
+    if (q >= text.size() || (text[q] != '\'' && text[q] != '"')) return std::string::npos;
+    std::size_t e = text.find(text[q], q + 1);
+    if (e == std::string::npos || text.find('\\', q) < e || text.find('\n', q) < e) return std::string::npos;
+    v = text.substr(q + 1, e - q - 1);
+    return e + 1;
+  };
+  for (std::size_t at = text.find("new Worker"); at != std::string::npos; at = text.find("new Worker", at + 1)) {
+    std::size_t q = at + 10;
+    if (q < text.size() && (std::isalnum(static_cast<unsigned char>(text[q])) || text[q] == '_' || text[q] == '$')) continue;   // new WorkerPool
+    q = ws(q);
+    if (q < text.size() && text[q] == '<') {   // the type arguments, nested ones too
+      int depth = 0;
+      for (; q < text.size(); ++q) { if (text[q] == '<') ++depth; else if (text[q] == '>' && --depth == 0) { ++q; break; } }
+      q = ws(q);
+    }
+    if (q >= text.size() || text[q] != '(') continue;
+    const std::size_t argFrom = ws(q + 1);
+    std::string rel;
+    std::size_t e = literal(argFrom, rel);
+    if (e == std::string::npos && text.compare(argFrom, 7, "new URL") == 0) {
+      std::size_t u = ws(argFrom + 7);
+      if (u < text.size() && text[u] == '(') {
+        e = literal(ws(u + 1), rel);
+        if (e != std::string::npos) {
+          e = ws(e);
+          if (e < text.size() && text[e] == ',' && text.compare(ws(e + 1), 15, "import.meta.url") == 0) { e = ws(ws(e + 1) + 15); e = e < text.size() && text[e] == ')' ? e + 1 : std::string::npos; }
+          else e = std::string::npos;
+        }
+      }
+    }
+    if (e != std::string::npos) { std::size_t c = ws(e); if (c >= text.size() || text[c] != ')') e = std::string::npos; }
+    if (e == std::string::npos) { diags.push_back({kZWorkerEntryNotStatic, static_cast<std::uint32_t>(at), "write the worker's file as './file.ts' or new URL('./file.ts', import.meta.url)", file}); continue; }
+    fs::path abs = (fs::absolute(path).parent_path() / rel).lexically_normal();
+    std::string key = abs.lexically_relative(fs::absolute(entryDir).lexically_normal()).generic_string();
+    if (key.empty()) key = abs.generic_string();
+    bool known = false;
+    for (const auto& w : workers) known = known || w.first == key;
+    if (!known) workers.push_back({key, abs.string()});
+    out += text.substr(from, argFrom - from) + "'" + key + "'";
+    from = e;
+  }
+  out += text.substr(from);
+  if (path.find("lib/std/worker.ts") == std::string::npos) {   // and its event classes, which are not the web's (a generic MessageEvent<T>) when the file does not import them
+    std::string names = "__workerOnMessage";
+    for (const char* nm : {"MessageEvent", "ErrorEvent"})
+      if (std::regex_search(text, std::regex(std::string("\\b") + nm + "\\b")) && !std::regex_search(text, std::regex(std::string("import\\s*(type\\s*)?\\{[^}]*\\b") + nm + "\\b"))) names += std::string(", ") + nm;
+    out += "\nimport { " + names + " } from 'zinc:worker';\n";
+  }
+  return out;
+}
+
 // requireNative<Spec>('Name') (zinc:native): the Spec interface of the same file lists the members of a native module. Each member becomes a call of
 // __native_<n> (the checker declares it from Ast::natives, the lowering emits CallNative) inside a generated class that implements the Spec; the call is
 // replaced by `new` of that class. The registry must hold the module (Z5011), and every member must be expressible in the ABI (Z5010).
@@ -1583,7 +1644,7 @@ constexpr StdModule kStdModules[] = {
     {"zinc:ui/dnd", "dnd.ts", {}}, {"zinc:react-native", "react-native.tsx", {}}, {"zinc:react-native/linking", "react-native-linking.ts", {}},
     {"zinc:ui/nuxt", "nuxt/index.ts", {}}, {"zinc:ui/platform", "platform/index.ts", {}}, {"zinc:ui/navigation", "navigation.tsx", {}}, {"zinc:ui/history", "history.ts", {}},
     {"zinc:haptics", "haptics.ts", {}}, {"zinc:device-info", "device-info.ts", {}}, {"zinc:hardware", "hardware.ts", {}}, {"zinc:signals", "signals.ts", {}},
-    {"zinc:path", "path.ts", {}}, {"zinc:xml", "xml.ts", {}}, {"zinc:assert", "assert.ts", {}}, {"zinc:hot", "hot.ts", {}}, {"zinc:i18n", "i18n.ts", {}}, {"zinc:stage", "stage.ts", {}}, {"zinc:system", "system/index.ts", {}},
+    {"zinc:path", "path.ts", {}}, {"zinc:worker", "worker.ts", {}}, {"zinc:xml", "xml.ts", {}}, {"zinc:assert", "assert.ts", {}}, {"zinc:hot", "hot.ts", {}}, {"zinc:i18n", "i18n.ts", {}}, {"zinc:stage", "stage.ts", {}}, {"zinc:system", "system/index.ts", {}},
     {"zinc:system/notification", "system/notification.ts", {}}, {"zinc:system/menu", "system/menu.ts", {}}, {"zinc:system/tray", "system/tray.ts", {}},
     {"zinc:system/dialog", "system/dialog.ts", {}}, {"zinc:system/window", "system/window.ts", {}}, {"zinc:system/shortcut", "system/shortcut.ts", {}},
     {"zinc:system/instance", "system/instance.ts", {}}, {"zinc:system/deeplink", "system/deeplink.ts", {}}, {"zinc:system/autostart", "system/autostart.ts", {}},
@@ -1856,6 +1917,8 @@ struct Loader {
     bool isTsx = path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0;
     if (uiPreset() == "react-native" && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = rewriteReactNativeImports(text, isTsx);   // React Native's own imports (ZN-367.05)
     if (text.find("requireNative<") != std::string::npos && text.find("export function requireNative") == std::string::npos) text = lowerRequireNative(text, prog.diags, fi, prog.ast.natives);
+    if (text.find("zinc:worker'") != std::string::npos || text.find("zinc:worker\"") != std::string::npos)
+      text = lowerWorkerEntries(text, path, std::filesystem::absolute(prog.files.empty() ? path : prog.files[0].path).parent_path().string(), prog.diags, fi, prog.workers);
     if (text.find("StyleSheet") != std::string::npos && (isTsx || (path.size() > 3 && path.compare(path.size() - 3, 3, ".ts") == 0))) text = lowerStyleSheets(text, prog.diags, fi, isTsx);
     if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tsx") == 0) {
       std::size_t before = prog.diags.size();

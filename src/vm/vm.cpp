@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "rt/rt.h"
+#include "rt/worker.h"
 #include "zn/ops.h"
 
 namespace zn::rt {
@@ -230,9 +231,10 @@ namespace zn::vm {
 
 using namespace zn::rt;
 
-Result run(const zbc::Module& mod, std::string& out, bool traceFree) { return runModule(mod, out, traceFree, nullptr, nullptr); }
+Result run(const zbc::Module& mod, std::string& out, bool traceFree) { worker::gBytecode = true; return runModule(mod, out, traceFree, nullptr, nullptr); }
 Result runHooked(const zbc::Module& mod, std::string& out, void (*setup)(Machine&, const void*), const void* setupData, void (*finish)(Machine&, const void*), const void* finishData,
                  std::size_t stackSlots, std::size_t maxDepth) {
+  worker::gBytecode = true;   // the workers of zinc:worker run their bytecode here too
   return runModuleHooked(mod, out, false, setup, setupData, finish, finishData, stackSlots, maxDepth);
 }
 

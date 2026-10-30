@@ -1,6 +1,6 @@
 set(ZN ${CMAKE_CURRENT_LIST_DIR}/../../..)
 idf_component_register(
-  SRCS main.cpp ${ZN}/src/dev/core.cpp ${ZN}/src/rt/alloc.cpp ${ZN}/src/rt/machine.cpp ${ZN}/src/rt/rtcalls.cpp ${ZN}/src/rt/program.cpp ${ZN}/src/rt/native.cpp ${ZN}/src/rt/unicode.cpp ${ZN}/third_party/quickjs-ng/libunicode.c ${ZN}/src/vm/vm.cpp ${ZN}/src/zbc/zbc.cpp
+  SRCS main.cpp ${ZN}/src/dev/core.cpp ${ZN}/src/rt/alloc.cpp ${ZN}/src/rt/machine.cpp ${ZN}/src/rt/rtcalls.cpp ${ZN}/src/rt/program.cpp ${ZN}/src/rt/worker.cpp ${ZN}/src/rt/native.cpp ${ZN}/src/rt/unicode.cpp ${ZN}/third_party/quickjs-ng/libunicode.c ${ZN}/src/vm/vm.cpp ${ZN}/src/zbc/zbc.cpp
   INCLUDE_DIRS ${ZN}/include ${ZN}/src ${ZN}/third_party/quickjs-ng
   REQUIRES driver esp_system spi_flash)
 # no mimalloc on the device (the C library's heap serves everything); the runtime is built as on the host otherwise

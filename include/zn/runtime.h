@@ -373,7 +373,14 @@
   /* it (kind 60 written, 61 read with the text as the payload, 62 failed with the error as the data); system rows, appended */ \
   X(HostFsWriteAsync, "host.fsWriteAsync", "ss>i", 2) X(HostFsReadAsync, "host.fsReadAsync", "s>i", 2) \
   /* zinc:fs appendBytes: bytes added at the end of a file (made when missing); system row, appended */ \
-  X(HostFsAppendBytes, "host.fsAppendBytes", "sB>n", 2)
+  X(HostFsAppendBytes, "host.fsAppendBytes", "sB>n", 2) \
+  /* zinc:worker (D181, src/rt/worker.cpp, served by the runtime, not a host): start a worker of the build (entry key, the record schemas of what */ \
+  /* it receives and posts; 0 and workerError(0) when it fails), post the bytes of a record (handle 0: a worker to its parent), the next message */ \
+  /* (empty: none), the error that ended it ("" running, "<ended>" without error), terminate (0: self.close), the worker's schemas, onmessage */ \
+  /* begin/end marks for the trace; appended */ \
+  X(HostWorkerStart, "host.workerStart", "sss>i", 2) X(HostWorkerPost, "host.workerPost", "iB>n", 2) X(HostWorkerRecv, "host.workerRecv", "i>B", 2) \
+  X(HostWorkerError, "host.workerError", "i>s", 2) X(HostWorkerClose, "host.workerClose", "i>n", 2) X(HostWorkerSchema, "host.workerSchema", "i>s", 2) \
+  X(HostWorkerMark, "host.workerMark", "ii>n", 2)
 
 namespace zn {
 
@@ -418,6 +425,8 @@ inline constexpr bool isSysTailRow(Rt r) {
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
 inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::RecDecode || r == Rt::RecEncode; }
+// zinc:worker's rows: declared as host functions (__host_worker*), served by the runtime's worker table (src/rt/worker.cpp).
+inline constexpr bool isWorkerRow(Rt r) { return r >= Rt::HostWorkerStart && r <= Rt::HostWorkerMark; }
 inline constexpr bool isHostRow(Rt r) { return ((r >= Rt::HostGfxFrames && r <= Rt::HostHostLast) || r >= Rt::HostLoopWait) && !isCoreTailRow(r); }
 inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r) && !isCoreTailRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }

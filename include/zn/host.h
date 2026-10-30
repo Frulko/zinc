@@ -31,6 +31,15 @@ extern HostFast hostFast[kHostFastRows];
 }  // namespace zn::host
 namespace zrt { extern std::int32_t surf_w, surf_h; }   // the surface in logical pixels (runtime/zrt.cpp): AOT code reads width() / height() there, inline (ZN-399)
 namespace zn::host {
+// The loop of the calling thread as the workers of zinc:worker use it (src/rt/worker.cpp): a wake-up any thread may send, an event of kind
+// `kind` for `handle`, and the count of handles that keep the loop running. Filled by installSys (src/host/loop.cpp); null without a host.
+struct LoopBridge {
+  void* (*wakeNew)() = nullptr;
+  void (*wakeSend)(void* handle) = nullptr;
+  void (*push)(int handle, int kind) = nullptr;
+  void (*active)(int delta) = nullptr;
+};
+extern LoopBridge loopBridge;   // defined in src/rt/worker.cpp
 extern HostCall hostSys;  // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (the entries of the table from HostSysFirst)
 // Provided by src/host (built with ZN_HOST_GFX): installs `hostGfx`; the runtime itself starts on the first HostGfxFrames call.
 void installGfx();    // the graphics host and the system modules (installSys) together

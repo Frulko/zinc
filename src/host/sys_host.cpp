@@ -132,22 +132,22 @@ namespace {
 using zn::Rt;
 
 std::vector<std::string> gArgs;
-std::string gOut;           // the string a call returns
-std::string gError;         // the last failure: "CODE: op path"
-bool gFailed = false;
-std::vector<std::string> gNames;   // directory listing / environment keys / storage keys / asset names
-std::vector<std::array<std::string, 6>> gNets;   // os.networkInterfaces(): name, address, netmask, family, mac, internal
-std::vector<int> gKinds;           // listing entries: 1 file, 2 directory, 4 symlink
-std::vector<unsigned char> gBytes; // the file or asset loaded last
-std::vector<zn::zpk::Input> gPack;  // the entries of the pack zinc:assets writePack is making
-struct StatInfo { double size = 0, mtime = 0, atime = 0, ctime = 0; int mode = 0, file = 0, dir = 0, link = 0; } gStat;
+thread_local std::string gOut;           // the string a call returns
+thread_local std::string gError;         // the last failure: "CODE: op path"
+thread_local bool gFailed = false;   // these results are per thread: a worker (zinc:worker, D181) calls the system modules from its own
+thread_local std::vector<std::string> gNames;   // directory listing / environment keys / storage keys / asset names
+thread_local std::vector<std::array<std::string, 6>> gNets;   // os.networkInterfaces(): name, address, netmask, family, mac, internal
+thread_local std::vector<int> gKinds;           // listing entries: 1 file, 2 directory, 4 symlink
+thread_local std::vector<unsigned char> gBytes; // the file or asset loaded last
+thread_local std::vector<zn::zpk::Input> gPack;  // the entries of the pack zinc:assets writePack is making
+struct StatInfo { double size = 0, mtime = 0, atime = 0, ctime = 0; int mode = 0, file = 0, dir = 0, link = 0; }; thread_local StatInfo gStat;
 
-std::string gCryptoError;
-std::string gServeDenied;   // why the last serve was refused by the permissions
-std::string gPermDenied;    // why the last process, socket, mqtt or osc call was refused by the permissions (read once by their error())
+thread_local std::string gCryptoError;
+thread_local std::string gServeDenied;   // why the last serve was refused by the permissions
+thread_local std::string gPermDenied;    // why the last process, socket, mqtt or osc call was refused by the permissions (read once by their error())
 bool refused(const char* feature, const std::string& detail) { gPermDenied = zn::host::perm::check(feature, detail); return !gPermDenied.empty(); }
 std::string takeRefusal() { std::string s; s.swap(gPermDenied); return s; }
-std::string gPayload;   // the payload of the event evNext returned last
+thread_local std::string gPayload;   // the payload of the event evNext returned last
 // The working directory the program started in (ZN-687: sys.launchDir of a built program), kept before its first chdir.
 const std::string& startDir() { static const std::string d = [] { char b[4096]; return std::string(getcwd(b, sizeof b) ? b : ""); }(); return d; }
 // "fr_FR.UTF-8@euro" -> "fr-FR"
@@ -1435,7 +1435,13 @@ void call(int id, const HostArg* a, HostArg* r) {
 }  // namespace
 
 void setProgramArgs(const std::vector<std::string>& args) { gArgs = args; zn::netlog::on(); }   // on(): a run with --har writes its HAR even without a request
-void installSys() { hostSys = call; }
+void installSys() {
+  hostSys = call;
+  loopBridge.wakeNew = zn::loop::wakeNew;   // zinc:worker (src/rt/worker.cpp)
+  loopBridge.wakeSend = zn::loop::wakeSend;
+  loopBridge.push = [](int h, int kind) { zn::loop::pushEvent(h, kind, std::string()); };
+  loopBridge.active = zn::loop::addActive;
+}
 
 // Called by the system plugin (zinc.json scopes and the dialogs): the fs scope switch and a path the user picked.
 extern "C" void zn_host_fs_scope(int userPickedOnly) { gScopeOn = userPickedOnly != 0; }
