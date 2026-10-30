@@ -8,7 +8,7 @@
 // display tree instead, and a stage drawn in a <Canvas> shows under that Canvas (stage.ts).
 import Cdp from './native/cdp.spec';
 import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectHit, onKey, KeyEvent, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, setText, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
-import { width, height, pointerX, pointerY } from 'zinc:gfx';
+import { width, height, pointerX, pointerY, onPausedFrame } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import { saveLocation } from 'zinc:hardware';
 import { type as osType, release as osRelease, arch as osArch, cpus as osCpus, totalmem, hostname } from 'zinc:os';
@@ -199,6 +199,7 @@ function handle(client: i32, msg: string): void {
   const h = handleOf(nodeId);
   const n = inspectNode(h);
   let result = '{}';
+  if (REPAINTS.indexOf(method) >= 0) Cdp.net(23, '');   // paused: the edit (or the highlight) is drawn at the next frame, the clock still stopped
   if (!DEV && (method === 'DOM.setAttributeValue' || method === 'DOM.setAttributesAsText' || method === 'CSS.setStyleTexts' || method === 'DOM.setNodeValue')) {
     Cdp.send(client, `{"id":${id},"error":{"code":-32000,"message":${q(NOT_DEV)}}}`);
     return;
@@ -291,6 +292,12 @@ function handle(client: i32, msg: string): void {
     else { const max = Cdp.num(msg, 'limit'); result = (db as DevDatabase).query(Cdp.str(msg, 'sql'), max > 0 ? Math.round(max) : 500, write); }
   }
   else if (method === 'Zinc.getHar') result = orEmpty(Cdp.net(9, ''));
+  else if (method === 'Zinc.setPaused' || method === 'Zinc.stepFrame' || method === 'Zinc.getPaused') {   // the program paused as a page in Chrome (src/host/gfx_host.cpp)
+    if (method === 'Zinc.setPaused') Cdp.net(21, msg.replaceAll(' ', '').indexOf('"paused":true') >= 0 ? '1' : '0');
+    if (method === 'Zinc.stepFrame') Cdp.net(22, '');
+    pauseSync();
+    result = `{"paused":${pausedShown}}`;
+  }
   else if (method === 'Zinc.completeClass') result = `{"classes":[${knownClasses(Cdp.str(msg, 'prefix'), 40).map((c: string) => q(c)).join(',')}]}`;
   else if (method === 'Runtime.evaluate') result = '{"result":{"type":"string","value":"zinc: no JavaScript engine on the device (the console shows the program output)"}}';
   Cdp.send(client, `{"id":${id},"result":${result}}`);
@@ -700,18 +707,20 @@ Cdp.net(0, '');
 // The Console on Zinc Next (ZN-373.01): the host keeps the program's console lines from now on; they go out every 100 ms (the prototype's host
 // mirrors the console itself and answers '' here).
 Cdp.net(4, '');
-setInterval(() => {
+setInterval(() => { consoleSync(); }, 100);
+function consoleSync(): void {
   const lines = Cdp.net(5, '');
   if (lines.length === 0 || Cdp.clients() === 0) return;
   for (const e of lines.split('\n')) if (e.length > 0) Cdp.send(-1, e);
-}, 100);
-setInterval(() => {
+}
+setInterval(() => { netSync(); }, 100);
+function netSync(): void {
   if (!netOn) return;
   if (Cdp.clients() === 0) { netOn = false; return; }
   const events = Cdp.net(1, '');
   if (events.length === 0) return;
   for (const e of events.split('\n')) if (e.length > 0) Cdp.send(-1, e);
-}, 100);
+}
 // The Storage panel's key/values (zinc:storage, which AsyncStorage keeps its keys in): while a client has DOMStorage enabled, what changed
 // since the last look goes out every 500 ms as Chrome's DOMStorage events, so the panel follows the program's writes.
 // ponytail: polled, the whole store read each time; a write hook in zinc:storage if a program keeps thousands of keys.
@@ -719,7 +728,8 @@ let storeOn = false;
 let storeSnap: string[][] = [];
 function storeRead(): string[][] { const out: string[][] = []; for (const k of storeKeys()) out.push([k, storeGet(k)]); return out; }
 const STORE_ID = '{"securityOrigin":"zinc://app","isLocalStorage":true}';
-setInterval(() => {
+setInterval(() => { storeSync(); }, 500);
+function storeSync(): void {
   if (!storeOn) return;
   if (Cdp.clients() === 0) { storeOn = false; return; }
   const now = storeRead(), was = new Map<string, string>();
@@ -732,19 +742,40 @@ setInterval(() => {
   }
   was.forEach((v: string, k: string) => { Cdp.send(-1, `{"method":"DOMStorage.domStorageItemRemoved","params":{"storageId":${STORE_ID},"key":${q(k)}}}`); });
   storeSnap = now;
-}, 500);
+}
 let shownRoot: i32 = -1;
-setInterval(() => {
+setInterval(() => { domSync(); }, 100);
+function domSync(): void {
   if (Cdp.clients() === 0) { snaps.clear(); return; }
   if (snaps.size === 0) return;  // DOM.getDocument not asked yet
   if (inspectRoot() !== shownRoot) { shownRoot = inspectRoot(); snaps.clear(); Cdp.send(-1, '{"method":"DOM.documentUpdated","params":{}}'); return; }
   const events: string[] = [];
   sync(inspectRoot(), events);
   for (const e of events) Cdp.send(-1, e);
-}, 100);
-setInterval(() => {   // the zinc:stage tree: only the parents whose children changed (stage.ts)
+}
+setInterval(() => { stageSync(); }, 100);
+function stageSync(): void {   // the zinc:stage tree: only the parents whose children changed (stage.ts)
   const events = stageEvents();
   if (Cdp.clients() === 0) return;
   for (const e of events) Cdp.send(-1, e);
   for (const e of stageAttributeEvents(500)) Cdp.send(-1, e);   // renames and hides, 500 nodes looked at each time
-}, 100);
+}
+// The pause (Zinc.setPaused, Zinc.stepFrame; F8 or Cmd/Ctrl+\ in the program): its timers stop with the program's, so while it holds these pumps run
+// from the paused frames instead (zinc:gfx onPausedFrame): the screen at each frame, the console, the network, the trees and the state every 12th
+// (about 100 ms). Zinc.pausedChanged tells the clients when the state changes, from here or from the program's key.
+const REPAINTS: string[] = ['DOM.setAttributeValue', 'DOM.setAttributesAsText', 'CSS.setStyleTexts', 'DOM.setNodeValue', 'Overlay.highlightNode', 'Overlay.hideHighlight',
+  'DOM.hideHighlight', 'DOMStorage.setDOMStorageItem', 'DOMStorage.removeDOMStorageItem', 'DOMStorage.clear'];
+let pausedShown = false, pausedTicks: i32 = 0;
+function pauseSync(): void {
+  const p = Cdp.net(24, '') === '1';
+  if (p === pausedShown) return;
+  pausedShown = p;
+  Cdp.send(-1, `{"method":"Zinc.pausedChanged","params":{"paused":${p}}}`);
+}
+setInterval(() => { if (pausedShown) pauseSync(); }, 100);   // resumed by the program's key
+onPausedFrame(() => {
+  castFrame();
+  if (pausedTicks++ % 12 !== 0) return;
+  pauseSync();
+  consoleSync(); netSync(); storeSync(); domSync(); stageSync();
+});

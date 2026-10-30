@@ -21,7 +21,7 @@ namespace zrt {
 extern int32_t frame_no;
 extern HalInput input, prev_input;
 extern bool quit_requested;
-namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); extern bool grow_enabled;
+namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); void pause_badge(bool on); extern bool grow_enabled;
   extern uint8_t* (*png_encoder)(const uint32_t*, int32_t, int32_t, size_t*, void* (*)(size_t)); }
 }
 extern "C" int zn_hal_is_live(void);  // hal_dispatch.cpp: a window (the SDL HAL) or the headless one
@@ -35,6 +35,7 @@ uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h);
 }
 namespace zrt { extern bool display_driver; }  // runtime/zrt.cpp: a plugins/display-* driver took over the screen
 namespace zrt { extern void (*mirror_input)(HalInput* in); }  // runtime/zrt.cpp: zinc device screen --live
+namespace zn::loop { void holdClock(bool on); void stepClock(double ms); }   // src/host/loop.cpp (zn/loop.h brings <vector>, which zrt.h clashes with)
 
 namespace {
 
@@ -46,6 +47,32 @@ zrt::String str(const HostArg& a) { return zrt::String::from(static_cast<const c
 bool quitFlag = false;
 bool pauseFlag = false;   // zn::host::pauseLoop: the frame loop ends once, the window stays (zinc dev's Fast Refresh, ZN-742)
 uint64_t lastFrameUs = 0, frameStartUs = 0;
+// The inspector's pause (zn/host.h devPause): asked by the inspector or by F8 / Cmd or Ctrl+\ in a dev run, applied by the next poll.
+bool devOn = false, devStepAsked = false, devRepaintAsked = false;
+int devFrame = 0;   // what host.gfxPaused answers for this frame: 0 the program's, 1 paused, 2 paused and drawn again
+// Paused: the program keeps the input it had and gets nothing new, as a page paused in Chrome drops what arrives meanwhile. Closing the window still quits.
+void dropInput() {
+  HalInput& in = zrt::input;
+  const int32_t quit = in.quit;
+  in = zrt::prev_input;
+  in.nkeys = in.ntext = in.nbtn = 0;
+  in.wheel = in.wheel_x = in.scroll_dx = in.scroll_dy = 0;
+  in.pinch = 1;
+  in.scroll_phase = 0;
+  in.quit = quit;
+}
+// F8, or Cmd/Ctrl+\ as in Chrome, pauses or resumes a dev run (zinc dev); the program never sees the key.
+void devShortcut() {
+  static const bool dev = [] { const char* e = getenv("ZINC_DEV"); return e && *e == '1'; }();
+  HalInput& in = zrt::input;
+  for (int32_t i = 0; dev && i < in.nkeys;) {
+    const HalKey& k = in.keys[i];
+    if (k.key != HAL_KEY_F1 + 7 && !(k.key == '\\' && (k.mods & (HAL_MOD_CTRL | HAL_MOD_META)))) { i++; continue; }
+    if (k.kind == HAL_KEY_DOWN) zn::host::devPause(!devOn);
+    memmove(&in.keys[i], &in.keys[i + 1], sizeof(HalKey) * static_cast<size_t>(in.nkeys - i - 1));
+    in.nkeys--;
+  }
+}
 char* sbuf = nullptr;  // the string a call returns lives here until the next call
 size_t scap = 0;
 void answer(zn::host::HostArg* r, const char* p, size_t n) {
@@ -200,6 +227,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     case Rt::HostGfxBegin: g::begin_frame(); break;
     case Rt::HostGfxEnd: {
+      if (devFrame == 1) g::keep();   // paused: the frame on screen stays (with the badge over it)
       for (int k = 0; k < nFrameEnd; ++k) frameEnd[k]();
       g::end_frame();
       zrt::frame_no++;
@@ -262,14 +290,22 @@ void call(int id, const HostArg* a, HostArg* r) {
       if (zrt::display_driver && hal_display->poll) hal_display->poll(&zrt::input);   // the driver's own input and its ZINC_FRAMES / ZINC_SHOT counting
       if (zrt::mirror_input) zrt::mirror_input(&zrt::input);   // zinc device screen --live (src/host/mirror.cpp)
       if (zrt::input.quit) quitFlag = true;
+      devShortcut();
       uint64_t t = hal_time_us();
       double fixed = hal_fixed_dt(), dt = fixed;
       if (fixed <= 0) { dt = lastFrameUs ? static_cast<double>(t - lastFrameUs) / 1e6 : 1.0 / 60.0; if (dt > 0.1) dt = 0.1; }
-      lastFrameUs = frameStartUs = t;
+      lastFrameUs = frameStartUs = t;   // measured while paused too: the first frame after it is an ordinary step, not the pause
+      devFrame = 0;
+      if (devOn) {   // a step is one frame of the program (1/60 s of its clock), then paused again
+        dropInput();
+        if (devStepAsked) { devStepAsked = false; dt = 1.0 / 60.0; zn::loop::stepClock(1000.0 / 60.0); }
+        else { devFrame = devRepaintAsked ? 2 : 1; devRepaintAsked = false; dt = 0; }
+      }
       zrt::gfx::sync_surface();
       r->d = dt;
       break;
     }
+    case Rt::HostGfxPaused: r->i = devFrame; break;
     case Rt::HostGfxShouldQuit: r->i = (quitFlag || zrt::quit_requested || pauseFlag) ? 1 : 0; break;
     case Rt::HostGfxQuit: g::quit(); break;
     case Rt::HostGfxKeyName: { zrt::String k = g::keyName(n(0)); answer(r, k.ptr(), k.bytes()); break; }
@@ -372,6 +408,16 @@ const char* traceEvents(bool on, std::size_t* n) {
 void setGrowDrawCommands(bool on) { zrt::gfx::grow_enabled = on; }
 void onFrameEnd(void (*fn)()) { if (nFrameEnd < 4) frameEnd[nFrameEnd++] = fn; }
 void pauseLoop() { pauseFlag = true; }
+void devPause(bool on) {
+  devStepAsked = devRepaintAsked = false;
+  if (on == devOn) return;
+  devOn = on;
+  zn::loop::holdClock(on);
+  zrt::gfx::pause_badge(on);
+}
+bool devPaused() { return devOn; }
+void devStep() { if (devOn) devStepAsked = true; }
+void devRepaint() { if (devOn) devRepaintAsked = true; }
 void resetLoop() { quitFlag = pauseFlag = false; zrt::frame_no = 0; zrt::quit_requested = false; }
 
 // screenshots: a deflate-compressed PNG instead of the runtime's stored blocks (ZN-115)
@@ -422,3 +468,13 @@ void installGfx() {
   zrt::gfx::png_encoder = encodePngHook; zrt::gfx::hud_info = hudInfo;hostGfx = call; installSys(); installMirror(); installScreencast(); }
 
 }  // namespace zn::host
+
+// The inspector's pause for the plugins that run their own clock (zinc:audio's mixer stops, then goes on from where it was): weak-linked by them.
+extern "C" int zn_dev_paused(void) { return devOn ? 1 : 0; }
+// The pause ops of zinc:__netlog (21 pause "1" or resume, 22 step, 23 repaint, 24 the state) for the C++ transport of zinc:devtools (cdp.host.cpp, QuickJS).
+extern "C" const char* zn_dev_pause_op(int op, const char* arg) {
+  if (op == 21) zn::host::devPause(arg && arg[0] == '1');
+  else if (op == 22) zn::host::devStep();
+  else if (op == 23) zn::host::devRepaint();
+  return devOn ? "1" : "0";
+}

@@ -121,6 +121,8 @@ struct Overlay { Cmd cmds[64]; char text[ZRT_OVERLAY_TEXT]; uint32_t ncmd, ntext
 static Overlay rbox, banner;       // box: full-screen red box; banner: LogBox-style strip at the bottom
 static Overlay taps;               // the fingers of a touch screen, where they press (taps_update below)
 static Overlay bar;                // the dev bar (devbar:: below): quit, the time, a menu
+static Overlay paused;             // "Paused in Zinc Inspector" (pause_badge): the window's only, never in a capture or the screencast
+bool capturing = false;            // a capture or the screencast (src/host/screencast.cpp) renders: the badge is left out
 static bool bar_off = false;       // a screenshot taken from its menu leaves it out
 static bool bar_on() { static const bool on = [] { const char* e = hal_env("ZINC_DEV_BAR"); return e && *e && *e != '0'; }(); return on; }
 static bool ovl_changed = false;  // next present repaints the whole screen
@@ -221,6 +223,17 @@ bool crash_screen(const char* text, uint32_t n) {
   ovl_para(rbox, pad, (float)ph - 38.0f * k, hint, sizeof hint - 1, 0xfecaca, 2);
   return true;
 }
+/** The inspector's pause (src/host/gfx_host.cpp devPause): an amber label at the top of the window, as Chrome's "Paused in debugger". */
+void pause_badge(bool on) {
+  paused.ncmd = paused.ntext = 0;
+  ovl_changed = true;
+  if (!on) return;
+  static const char t[] = "Paused in Zinc Inspector";
+  const int32_t k = ovl_k();
+  const float w = (sizeof t + 1) * 8.0f * k, h = 14.0f * k, x = ((float)pw - w) / 2, y = (bar_on() ? 18.0f : 4.0f) * k;
+  ovl_rect(paused, x, y, w, h, 0xfbbf24);
+  ovl_text(paused, x + 8.0f * k, y + 3.0f * k, t, sizeof t - 1, 0x1c1917);
+}
 /** console.warn/error in dev builds: a yellow strip at the bottom, hidden after 8 s. */
 void log_banner(int, const char* s, uint32_t n) {
   int32_t k = ovl_k();
@@ -272,6 +285,7 @@ static void render_rows(uint32_t* rows, int32_t y0, int32_t y1) {
   if (hud_ovl && hud_ovl->ncmd) hud_render(rows, y0, y1, all);
   if (bar.ncmd && !bar_off) raster::render(ovl_frame(bar), rows, pw, y0, y1, all);
   if (taps.ncmd) raster::render(ovl_frame(taps), rows, pw, y0, y1, all);
+  if (paused.ncmd && !capturing) raster::render(ovl_frame(paused), rows, pw, y0, y1, all);
 }
 // the same rows with the holes of the hardware layers in another colour (HalFrame.render_holes, "hardware layers" below)
 static int32_t nlay = 0;   // the pictures of the shown frame that are on a layer
@@ -281,10 +295,10 @@ static void render_holes(uint32_t* rows, int32_t y0, int32_t y1, uint32_t color)
   raster::set_layer_fill(HAL_LAYER_HOLE);
 }
 // the frame as command lists in paint order, for GPU displays (HalFrame.frames); same lists as render_rows
-static HalCmdList lists[7];
+static HalCmdList lists[8];
 static int32_t frame_lists(const HalCmdList* out[], int32_t max) {
   int32_t n = 0;
-  auto add = [&](const raster::Frame& f) { if (n < max && n < 7) { lists[n] = HalCmdList{f.cmds, f.count, f.text, f.pts}; out[n] = &lists[n]; n++; } };
+  auto add = [&](const raster::Frame& f) { if (n < max && n < 8) { lists[n] = HalCmdList{f.cmds, f.count, f.text, f.pts}; out[n] = &lists[n]; n++; } };
   if (shown) add(frame_of(*shown));
   if (rbox.ncmd) add(ovl_frame(rbox));
   if (banner.ncmd) add(ovl_frame(banner));
@@ -292,6 +306,7 @@ static int32_t frame_lists(const HalCmdList* out[], int32_t max) {
   if (hud_ovl && hud_ovl->ncmd) add(ovl_frame(*hud_ovl));
   if (bar.ncmd) add(ovl_frame(bar));
   if (taps.ncmd) add(ovl_frame(taps));
+  if (paused.ncmd) add(ovl_frame(paused));
   return n;
 }
 // damage of the frame being presented, as disjoint rectangles (render_damage)
@@ -308,6 +323,7 @@ static void render_in(uint32_t* rows, int32_t y0, int32_t y1, raster::Rect r) { 
   if (hud_ovl && hud_ovl->ncmd) hud_render(rows, y0, y1, r);
   if (bar.ncmd && !bar_off) raster::render(ovl_frame(bar), rows, pw, y0, y1, r);
   if (taps.ncmd) raster::render(ovl_frame(taps), rows, pw, y0, y1, r);
+  if (paused.ncmd && !capturing) raster::render(ovl_frame(paused), rows, pw, y0, y1, r);
 }
 static void render_damage(uint32_t* rows, int32_t y0, int32_t y1) {
   for (int32_t i = 0; i < ndmg; i++) {
@@ -906,7 +922,9 @@ namespace gfx {
 static uint32_t* grab() {
   init_scale();
   uint32_t* px = (uint32_t*)hal_alloc((size_t)pw * ph * 4);
+  capturing = true;
   if (px) render_rows(px, 0, ph);
+  capturing = false;
   return px;
 }
 static uint32_t crc32(uint32_t c, const uint8_t* p, size_t n) {
@@ -1532,6 +1550,7 @@ void end_frame() {
     if (hud_ovl && hud_ovl->ncmd) both(hud_ovl->at);
     if (bar.ncmd) both(raster::bounds_all(ovl_frame(bar), pw, ph));
     if (taps.ncmd) both(raster::bounds_all(ovl_frame(taps), pw, ph));
+    if (paused.ncmd) both(raster::bounds_all(ovl_frame(paused), pw, ph));
     hud::add_rect(A);
     hm = HalMove{HalRect{A.x0, A.y0, A.x1, A.y1}, mv.dx, mv.dy, mn, mdmg};
   }

@@ -383,7 +383,10 @@
   X(HostWorkerMark, "host.workerMark", "ii>n", 2) \
   /* zinc:worker's typed wire (D173 bytes, no u8[] in between): whether a message waits (it becomes the current one), a value posted by its record */ \
   /* schema and its type's layout (the lowering's recLayout), the current message read into the receiver's type (the class of the typed null); appended */ \
-  X(HostWorkerNext, "host.workerNext", "i>b", 2) X(HostWorkerPostRec, "string.#workerPostRec", "ixss>n", 2) X(HostWorkerRead, "string.#workerRead", "ssx>r", 2)
+  X(HostWorkerNext, "host.workerNext", "i>b", 2) X(HostWorkerPostRec, "string.#workerPostRec", "ixss>n", 2) X(HostWorkerRead, "string.#workerRead", "ssx>r", 2) \
+  /* the inspector's pause (Zinc.setPaused, F8 in a dev run; src/host/gfx_host.cpp): what this frame is, asked after host.gfxPoll: 0 the program's, */ \
+  /* 1 paused (no timer, no callback: the frame on screen is kept), 2 paused with a repaint asked (the frame callbacks with dt 0); graphics row, appended */ \
+  X(HostGfxPaused, "host.gfxPaused", ">i", 2)
 
 namespace zn {
 
@@ -414,7 +417,7 @@ inline constexpr bool isGlRow(Rt r) { return r >= Rt::HostGlCreate && r <= Rt::H
 inline constexpr bool isGfxTailRow(Rt r) {
   return r == Rt::HostGfxCommands || r == Rt::HostGfxCommandsFree || r == Rt::HostGfxSetResize || r == Rt::HostGfxSetTransform || r == Rt::HostGfxResetTransform || r == Rt::HostGfxDrawImageRect || r == Rt::HostGfxImageFromBytes ||
          (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont || r == Rt::HostGfxGradientPaint || r == Rt::HostGfxImageFromPixels ||
-         r == Rt::HostGfxUpdateImage || (r >= Rt::HostGfxShaderProgram && r <= Rt::HostGfxProfSection);
+         r == Rt::HostGfxUpdateImage || (r >= Rt::HostGfxShaderProgram && r <= Rt::HostGfxProfSection) || r == Rt::HostGfxPaused;
 }
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too. zinc:osc and the loop's events it arrives by.
 inline constexpr bool isSysTailRow(Rt r) {

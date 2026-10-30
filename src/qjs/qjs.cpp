@@ -181,6 +181,9 @@ std::string gfxSource() {
          "    __host_gfxBeginWindow(id); __winFns[i](dt); __host_gfxEndWindow(); }\n"
          "  if (__overFn !== null && !__overFn(dt)) __overFn = null; }\n"   // overlay (ZN-447): over the program's drawing
          "let __overFn = null;\n"
+         "let __pausedFn = null;\n"   // zinc:devtools' pumps while the inspector pauses the program (frameLoop below)
+         "export function onPausedFrame(f) { __pausedFn = f; }\n"
+         "globalThis.__zincPausedFrame = () => { if (__pausedFn !== null) __pausedFn(); };\n"
          "export function overlay(draw) { __overFn = draw; }\n"
          "export function overlaid() { return __overFn !== null; }\n"
          "export function onFrame(cb) { __frameCb = cb; globalThis.__zincFrameCb = __frameStep; }\n"
@@ -499,6 +502,18 @@ bool frameLoop(Engine& e) {
     hostCall(zn::Rt::HostGfxPoll, &r);
     redrawStep = saved;
     if (!ok || !nativeTurn(e)) return false;
+    HostArg paused;
+    hostCall(zn::Rt::HostGfxPaused, &paused);
+    if (paused.i != 0) {   // the inspector pauses the program (src/host/gfx_host.cpp): no timer, no clock time, zinc:devtools' pumps, the frame kept or drawn again with dt 0
+      JSValue pf = global(e, "__zincPausedFrame");
+      if (JS_IsFunction(e.ctx, pf)) ok = callFn(e, pf, JS_UNDEFINED, false);
+      JS_FreeValue(e.ctx, pf);
+      hostCall(zn::Rt::HostGfxBegin, &r);
+      if (ok && paused.i == 2 && JS_IsFunction(e.ctx, cb)) { JSValue dv = JS_NewFloat64(e.ctx, 0); ok = callFn(e, cb, dv, true); JS_FreeValue(e.ctx, dv); }
+      hostCall(zn::Rt::HostGfxEnd, &r);
+      hostCall(zn::Rt::HostGfxShouldQuit, &r);
+      return ok && !r.i;
+    }
     double dt = r.d;
     clock += dt * 1000;
     JSValue cv = JS_NewFloat64(e.ctx, clock);

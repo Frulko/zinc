@@ -255,6 +255,13 @@ Its panels (one file each in `app/inspector/`):
 - **Pick** (Chrome's inspect arrow): hover the Screen view or the program's own window to highlight the node there, click to select it in
   Elements (the tree opens to it); the click does not reach the app. In a dev run, Cmd/Ctrl+Shift+C in the program starts it too, Escape
   ends it.
+- **Pause / Resume / Step frame** freeze the whole program as Chrome pauses a page (`Zinc.setPaused {paused}`, `Zinc.stepFrame`,
+  `Zinc.getPaused`, the event `Zinc.pausedChanged`; F8 or Cmd/Ctrl+\ in the program window of a dev run). While paused no frame callback,
+  timer or interval runs, input is dropped, the clock (`performance.now`, `Date.now`, the timers) stops and goes on from there at the resume,
+  zinc:audio plays silence and its mix stands still, and a worker's messages wait in its queue (the worker itself keeps running). The window
+  keeps the last frame with a "Paused in Zinc Inspector" badge, which captures and the Screen view leave out. The inspector keeps answering:
+  an edit (a class, a style, a text, a highlight, a stored key) draws the frame once more with dt 0, the clock still stopped. A step runs one
+  frame of 1/60 s with its due timers, then pauses again. Other host events (the program's own sockets and fetches) still arrive.
 
 `tests/t1/inspector.sh` and `tests/t1/inspector_storage.sh` run it against headless programs and a `zinc debug --cdp` session:
 `ZINC_INSPECTOR_DUMP=1` prints every view, `=elements` and `=storage` one; `ZINC_INSPECTOR_VIEW=<panel>` attaches to the first program

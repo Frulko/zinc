@@ -1245,7 +1245,7 @@ void call(int id, const HostArg* a, HostArg* r) {
 #endif
       break;
     }
-    case Rt::HostLoopNow: r->d = zn::loop::nowMs(); break;
+    case Rt::HostLoopNow: r->d = zn::loop::programMs(); break;   // the inspector's pause stops it (gfx_host.cpp)
     case Rt::HostProcSpawnEx: {
       auto split = [](const std::string& joined) { std::vector<std::string> v; if (joined.empty()) return v; size_t at = 0; for (;;) { size_t k = joined.find('\x1f', at); v.push_back(joined.substr(at, k == std::string::npos ? std::string::npos : k - at)); if (k == std::string::npos) break; at = k + 1; } return v; };
       if (refused("process", s(0))) { r->i = -1; break; }   // zinc.json permissions (ZN-322)
@@ -1300,6 +1300,13 @@ void call(int id, const HostArg* a, HostArg* r) {
       if (n(0) == 12) { ret(r, programInfoJson()); break; }
       if (n(0) == 13) { ret(r, screencastFrame(s(1))); break; }   // the inspector's Screen view (screencast.cpp): the next frame, 14 stop
       if (n(0) == 14) { screencastStop(); ret(r, std::string()); break; }   // the program, the engine, the process and the renderer (the inspector's Info view)
+      if (n(0) >= 21 && n(0) <= 24) {   // the inspector's pause (gfx_host.cpp): 21 pause ("1") or resume, 22 step one frame, 23 draw the paused frame again; each answers the state, as 18
+        if (n(0) == 21) zn::host::devPause(s(1) == "1");
+        else if (n(0) == 22) zn::host::devStep();
+        else if (n(0) == 23) zn::host::devRepaint();
+        ret(r, zn::host::devPaused() ? "1" : "0");
+        break;
+      }
       ret(r, n(0) == 1 ? zn::netlog::drain() : n(0) == 2 ? zn::netlog::responseBody(arg) : n(0) == 3 ? zn::netlog::postData(arg) : n(0) == 5 ? zn::netlog::consoleDrain() : n(0) == 6 ? zn::netlog::consoleRecent() : n(0) == 9 ? zn::netlog::har() : n(0) == 10 ? zn::netlog::replay() : std::string());   // 9: the log as HAR (the inspector's export)
       break;
     }

@@ -17,6 +17,8 @@ declare module 'zinc:gfx' {
   export function overlay(draw: (dt: number) => boolean): void;
   /** Whether an overlay draws (zinc:ui paints its frame again instead of keeping it). */
   export function overlaid(): boolean;
+  /** zinc:devtools: `f` runs at each frame while the inspector pauses the program (Zinc.setPaused, F8), when no timer and no frame callback does. */
+  export function onPausedFrame(f: () => void): void;
   export function width(): i32;
   export function height(): i32;
   export function clear(color: u32): void;

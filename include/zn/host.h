@@ -70,6 +70,14 @@ void onFrameEnd(void (*fn)());   // runs `fn` on the main thread at the end of e
 void pauseLoop();
 // The frame loop of a new program in the same surface (the console player, ZN-792): the quit and pause flags cleared, the frame count back to 0.
 void resetLoop();
+// The inspector's pause (Zinc.setPaused through zinc:__netlog ops 21 to 24, F8 or Cmd/Ctrl+\ in a dev run; src/host/gfx_host.cpp), as a page paused in
+// Chrome: from the next poll on, host.gfxPaused tells the engine's frame loop to run no timer and no frame callback, the program's input is dropped,
+// its clock (host.loopNow) stops and a badge is drawn over the window (never in a capture or the screencast). devStep runs one frame of 1/60 s of
+// the clock, then pauses again; devRepaint draws the frame once more with dt 0 (an edit in the inspector) without moving the clock.
+void devPause(bool on);
+bool devPaused();
+void devStep();
+void devRepaint();
 bool replayScene(const char* scene, const char* out);   // ZN-170: rasterize a ZINC_SCENE_DUMP file into a png with the installed fonts and images
 const char* traceEvents(bool on, std::size_t* n);   // DevTools Tracing.start (true) / Tracing.end (false: the frame spans as trace events JSON, valid until the next call)
 const char* gfxInfo(std::size_t* n);   // Zinc.getProgramInfo: the surface, its scale, the renderer and the last frames as JSON (zrt::gfx::info_json), valid until the next call

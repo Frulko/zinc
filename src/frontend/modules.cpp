@@ -47,10 +47,35 @@ const __winFns: ((dt: number) => void)[] = [];
 // One frame (ZN-620): __gfxLoop runs them in a loop on a desktop, an app shell runs one per tick (__gfxAppStep). False when the program quits.
 function __gfxStep(): boolean {
   const dt = __host_gfxPoll();
+  const paused = __host_gfxPaused();
+  if (paused !== 0) return __gfxPausedStep(paused);
+  __holdWorkers = false;
   __clock = __real ? __host_loopNow() : __clock + dt * 1000;  // a real run follows the clock of the host, a deterministic one the fixed step
   __pollHost();
   __frameTimers();
   __host_gfxBegin();
+  __gfxDraw(dt);
+  __drainJobs();
+  __host_gfxEnd();
+  __frameNo++;
+  return !__host_gfxShouldQuit();
+}
+// A frame while the inspector pauses the program (Zinc.setPaused, F8 in a dev run; src/host/gfx_host.cpp): no timer, no frame callback, no input and
+// a stopped clock. The host's events still arrive (the inspector's own socket), a worker's messages wait for the resume, zinc:devtools' pumps run
+// (onPausedFrame), and the host keeps the frame on screen, unless an edit in the inspector asked for it again (paused 2: the callbacks with dt 0).
+function __gfxPausedStep(paused: i32): boolean {
+  __holdWorkers = true;
+  __pollHost();
+  const f = __pausedFn;
+  if (f !== null) f();
+  __drainJobs();
+  __host_gfxBegin();
+  if (paused === 2) __gfxDraw(0);
+  __drainJobs();
+  __host_gfxEnd();
+  return !__host_gfxShouldQuit();
+}
+function __gfxDraw(dt: number): void {
   if (__resizeFns.length > 0 && (__host_gfxWidth() !== __lastW || __host_gfxHeight() !== __lastH)) {   // the window was resized (ZN-608)
     __lastW = __host_gfxWidth(); __lastH = __host_gfxHeight();
     for (let i: i32 = 0; i < __resizeFns.length; i++) __resizeFns[i](__lastW, __lastH);
@@ -66,10 +91,6 @@ function __gfxStep(): boolean {
   }
   const over = __overFn;
   if (over !== null && !over(dt)) __overFn = null;
-  __drainJobs();
-  __host_gfxEnd();
-  __frameNo++;
-  return !__host_gfxShouldQuit();
 }
 // A frame the host draws from inside the poll while the window system holds the loop (a live resize on macOS): called by name (kRedrawFunction)
 function __gfxRedraw(): void { if (__frameCb !== null || __winIds.length > 0) __gfxStep(); }
@@ -90,6 +111,9 @@ let __overFn: ((dt: number) => boolean) | null = null;
 export function overlay(draw: (dt: number) => boolean): void { __overFn = draw; }
 /** Whether an overlay draws: zinc:ui paints its frame again instead of keeping it. */
 export function overlaid(): boolean { return __overFn !== null; }
+let __pausedFn: (() => void) | null = null;
+/** zinc:devtools: `f` runs at each frame while the inspector pauses the program (Zinc.setPaused), when no timer and no frame callback does. */
+export function onPausedFrame(f: () => void): void { __pausedFn = f; }
 export function onFrame(cb: (dt: number) => void): void { __frameCb = cb; __frameHook = __gfxLoop; __frameStep = __gfxAppStep; }
 /** Calls `cb(width, height)` before the next frame each time the surface changes size. Asking for it makes the surface follow the window
  *  (responsive) instead of a fixed size scaled into it, unless zinc.json chose: targets.<target>.resize "letterbox" keeps the fixed surface. */
@@ -2942,24 +2966,33 @@ function __addEvHandler(f: (h: i32, kind: i32, data: string) => void): void { __
 // A turn takes at most __EV_BUDGET events (each up to one read of a pipe, 64 KiB): a child that writes without pause would otherwise keep the
 // loop here and starve the frames, the timers and the input (Escape could not stop it). The rest waits for the next turn.
 const __EV_BUDGET: i32 = 64;
+// While the inspector pauses the program (zinc:gfx __gfxPausedStep) a worker's messages wait in its queue: their wake-ups (kind 70) are kept here
+// and given at the resume.
+let __holdWorkers = false;
+let __heldEv: string[] = [];
 function __pollHost(): boolean {
   let any = false;
   let budget: i32 = __EV_BUDGET;
+  if (!__holdWorkers && __heldEv.length > 0) { const held = __heldEv; __heldEv = []; for (const e of held) __dispatchEv(e); }
   while (budget-- > 0 && __host_evReady()) {
     const e = __host_evNext();
     if (e.length === 0) break;
     any = true;
-    const i1 = e.indexOf('\u001f');
-    const i2 = e.indexOf('\u001f', i1 + 1);
-    const h = parseInt(e.slice(0, i1));
-    const kind = parseInt(e.slice(i1 + 1, i2));
-    const data = e.slice(i2 + 1);
-    for (const f of __evHandlers) f(h, kind, data);
-    __drainJobs();
+    if (__holdWorkers && e.startsWith('70\u001f', e.indexOf('\u001f') + 1)) { __heldEv.push(e); continue; }
+    __dispatchEv(e);
   }
   __host_nativePoll(1);
   __drainJobs();
   return any;
+}
+function __dispatchEv(e: string): void {
+  const i1 = e.indexOf('\u001f');
+  const i2 = e.indexOf('\u001f', i1 + 1);
+  const h = parseInt(e.slice(0, i1));
+  const kind = parseInt(e.slice(i1 + 1, i2));
+  const data = e.slice(i2 + 1);
+  for (const f of __evHandlers) f(h, kind, data);
+  __drainJobs();
 }
 // One turn of the event loop (ZN-620): the next timer, or a wait on the host's loop; false when nothing is left to run. __runLoop runs turns
 // until then; an app shell runs one per tick (__appStep), and there no wait sleeps.

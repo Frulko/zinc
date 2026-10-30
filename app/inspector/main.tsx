@@ -42,6 +42,9 @@ const [recording, setRecording] = createSignal<boolean>(false);
 const [traced, setTraced] = createSignal<TraceFrame[]>([]);
 const [totals, setTotals] = createSignal<PhaseTotal[]>([]);
 const [frameAt, setFrameAt] = createSignal<i32>(-1);   // the frame picked in the timeline
+// The whole program paused, as a page in Chrome (Zinc.setPaused: its frames, timers, input and clock stop; Zinc.stepFrame runs one frame)
+const [appPaused, setAppPaused] = createSignal<boolean>(false);
+async function pauseApp(method: string, params: string): Promise<void> { const r = await call(method, params); setAppPaused(r.paused === true); }
 const [traces, setTraces] = createSignal<i32>(0);   // traces received (the dump waits on it)
 const [tracks, setTracks] = createSignal<Track[]>([]);   // a track per thread: the main one, each worker
 let traceEvents: any[] = [];
@@ -178,6 +181,7 @@ function onEvent(method: string, params: any): void {
   } else if (method.startsWith('Network.')) onNetwork(method, params);
   else if (method.startsWith('DOMStorage.')) onStorage(method, params);
   else if (method === 'Runtime.consoleAPICalled') onConsole(params);
+  else if (method === 'Zinc.pausedChanged') setAppPaused(params.paused === true);   // F8 in the program, or another client
   else if (method === 'Runtime.executionContextsCleared') onReload();
   else if (method.startsWith('DOM.') && !reloading) {   // the tree changed: read it again, the folds, the filters and the selection kept
     reloading = true;
@@ -195,7 +199,7 @@ async function attach(t: Target, again: string = ''): Promise<void> {
   c.onEvent = onEvent;
   c.onClose = () => {
     if (conn.c !== c) return;   // another program was attached since
-    setEnded(true); setPaused(false);
+    setEnded(true); setPaused(false); setAppPaused(false);
     if (t.type === 'node') { setStatus('detached from ' + t.name()); return; }   // zinc debug: the run is over
     conn.c = null; lost = t;
     setStatus(t.name() + ' exited: waiting for it to come back');
@@ -217,6 +221,7 @@ async function attach(t: Target, again: string = ''): Promise<void> {
   }
   const info = await call('Zinc.getInfo', '{}');
   setDevRun(info.dev !== undefined && info.dev === true);
+  await pauseApp('Zinc.getPaused', '{}');
   setInfoDevice(t.device);   // the Info view first (a debugger target opens on Sources above)
   setView(again.length > 0 ? again : 'info');
   watchInfo();
@@ -369,6 +374,8 @@ function App(): i32 {
           <Tab id="performance" label="Performance" />
           <Tab id="threads" label="Threads" />
           <Flat label={picking() ? 'Pick: on' : 'Pick'} on={picking()} onClick={() => { setPick(!picking()); }} />
+          <Flat label={appPaused() ? 'Resume' : 'Pause'} on={appPaused()} onClick={() => { pauseApp('Zinc.setPaused', `{"paused":${!appPaused()}}`); }} />
+          {appPaused() ? <Flat label="Step frame" on={false} onClick={() => { pauseApp('Zinc.stepFrame', '{}'); }} /> : <View />}
           <Text className="flex-1 text-xs text-slate-600 whitespace-nowrap">{attached()}</Text>
         </View>
         {view() === 'sources' ? <SourcesView /> : view() === 'performance' ? <PerformanceView /> : view() === 'threads' ? <ThreadsView /> : view() === 'network' ? <NetworkView /> : view() === 'storage' ? <StorageView /> :

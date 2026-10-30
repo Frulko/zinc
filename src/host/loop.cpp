@@ -89,6 +89,14 @@ double nowMs() {
   static const uint64_t start = uv_hrtime();
   return static_cast<double>(uv_hrtime() - start) / 1e6;
 }
+namespace { bool held = false; double heldAt = 0, lag = 0; }
+double programMs() { return held ? heldAt : nowMs() - lag; }
+void holdClock(bool on) {
+  if (on == held) return;
+  if (on) heldAt = nowMs() - lag; else lag = nowMs() - heldAt;
+  held = on;
+}
+void stepClock(double ms) { if (held) heldAt += ms; }
 
 int spawn(const std::string& line) {
 #ifdef ZN_APP_LIBRARY   // no shell in an app (ZN-620)

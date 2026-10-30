@@ -258,7 +258,12 @@ void render(void* out, ma_uint32 frames) {
   ma_engine_read_pcm_frames(&eng, out, frames, nullptr);
   if (ma_engine_get_time_in_pcm_frames(&eng) < t + frames) ma_engine_set_time_in_pcm_frames(&eng, t + frames);
 }
-void pull(ma_device*, void* out, const void*, ma_uint32 frames) { render(out, frames); }
+// While the inspector pauses the program (zinc dev, src/host/gfx_host.cpp) the device gets silence and the mix stands still, so it goes on where it stopped.
+extern "C" int zn_dev_paused(void) __attribute__((weak));
+void pull(ma_device*, void* out, const void*, ma_uint32 frames) {
+  if (zn_dev_paused && zn_dev_paused()) { memset(out, 0, (size_t)frames * 2 * sizeof(float)); return; }
+  render(out, frames);
+}
 // The default playback device, asked for the mixer's format (miniaudio converts when the hardware has another).
 // On its own thread: starting Core Audio took 90 to 520 ms on the development Mac, a frozen frame if a game paid it
 // at its first sound. Sounds started meanwhile begin when the device does.

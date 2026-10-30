@@ -9,6 +9,7 @@
 #include <vector>
 
 namespace zrt { extern void (*mirror_present)(const HalFrame* f); }
+namespace zrt::gfx { extern bool capturing; }   // runtime/gfx.cpp: while set, the window-only overlays (the inspector's pause badge) are left out
 
 namespace zn::host {
 namespace {
@@ -29,11 +30,13 @@ void present(const HalFrame* f) {
   renderAll = f->render;
   if (f->w != W || f->h != H) { W = f->w; H = f->h; full = true; }
   if (!on || W <= 0 || H <= 0) return;
+  zrt::gfx::capturing = true;
   if (full || f->move) { fb.assign(static_cast<size_t>(W) * H, 0); f->render(fb.data(), 0, H); damage(0, 0, W, H); full = false; }
   else if (f->x1 > f->x0 && f->y1 > f->y0) {
     (f->render_damage ? f->render_damage : f->render)(fb.data() + static_cast<size_t>(f->y0) * W, f->y0, f->y1);
     damage(f->x0, f->y0, f->x1, f->y1);
   }
+  zrt::gfx::capturing = false;
 }
 std::string base64(const std::vector<uint8_t>& s) {
   static const char* t = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -60,7 +63,7 @@ std::string screencastFrame(const std::string& arg) {
   std::sscanf(arg.c_str(), "%d %d %d", &mw, &mh, &quality);
   if (!on) {   // the first frame: drawn whole now from the last frame's renderer, damage-only from then on
     on = true; full = true;
-    if (renderAll && W > 0) { fb.assign(static_cast<size_t>(W) * H, 0); renderAll(fb.data(), 0, H); damage(0, 0, W, H); full = false; }
+    if (renderAll && W > 0) { zrt::gfx::capturing = true; fb.assign(static_cast<size_t>(W) * H, 0); renderAll(fb.data(), 0, H); zrt::gfx::capturing = false; damage(0, 0, W, H); full = false; }
   }
   if (dx1 <= dx0 || W <= 0) return std::string();
   int k = 1;

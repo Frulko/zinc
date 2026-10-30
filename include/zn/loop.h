@@ -13,6 +13,11 @@ void pump();
 void wait(double ms);
 // Monotonic milliseconds since the first call.
 double nowMs();
+// The program's clock (host.loopNow): nowMs() less the time the inspector held the program paused (Zinc.setPaused, src/host/gfx_host.cpp), so an
+// animation goes on from where it stopped; holdClock(true) stops it, false restarts it there, stepClock moves a stopped clock on by `ms`.
+double programMs();
+void holdClock(bool on);
+void stepClock(double ms);
 
 // A child process: `/bin/sh -c line`, its stdout and stderr merged. -1 when it cannot start.
 int spawn(const std::string& line);

@@ -18,6 +18,7 @@
 
 extern "C" __attribute__((weak)) const char* zn_resource_stats_json(void);
 extern "C" __attribute__((weak)) const char* zn_program_info_json(void);
+extern "C" __attribute__((weak)) const char* zn_dev_pause_op(int op, const char* arg);   // src/host/gfx_host.cpp: the inspector's pause (ops 21 to 24)
 extern "C" __attribute__((weak)) void zn_dev_report(const char* line);   // src/host/assets_host.cpp: a line to zinc dev   // src/host/sys_host.cpp: Zinc.getProgramInfo's host part
 
 namespace {
@@ -204,8 +205,9 @@ struct HostCdp : NativeCdp, zrt::Poller {
   zrt::String screencast(int32_t maxw, int32_t maxh, int32_t) override { return maxw < 0 ? zrt::String() : screenshot(maxw, maxh); }
   zrt::String trace(bool on) override { return zrt::gfx::trace(on); }
   zrt::String resourceStats() override { return lit(zn_resource_stats_json ? zn_resource_stats_json() : "{}"); }
-  zrt::String net(int32_t op, zrt::String arg) override {   // the network log is the Zinc Next host's (ZN-370); 12: the program (the inspector's Info view)
+  zrt::String net(int32_t op, zrt::String arg) override {   // the network log is the Zinc Next host's (ZN-370); 12: the program (the inspector's Info view), 15 the discovery title, 21 to 24 the pause
     if (op == 15) { if (arg.bytes() < sizeof described) { memcpy(described, arg.ptr(), arg.bytes()); described[arg.bytes()] = 0; } return zrt::String(); }   // ponytail: a longer one keeps the default
+    if (op >= 21 && op <= 24 && zn_dev_pause_op) return lit(zn_dev_pause_op(op, arg.bytes() > 0 ? arg.ptr() : ""));
     return lit(op == 12 && zn_program_info_json ? zn_program_info_json() : "");
   }
 
