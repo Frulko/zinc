@@ -598,6 +598,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-874: system audio in getDisplayMedia (ScreenCaptureKit capturesAudio), for Go Live with sound.
 - ZN-874: the web build of examples/webrtc-call shows "Camera off" in place of a shared screen's preview (browser tracks have no .image).
 - ZN-874: bring tests/data/plugins-table.txt and plugins-added-table.txt up to date (discord-voice, display shell and sidecar, imageio, secure-store, shell, trieur); plugin_manifest fails on develop.
+- deploy delta (`zinc device deploy` sends changed .zapp members): a t1 case in tests/t1/agent_deploy.sh (second send much smaller; a corrupt installed zapp falls back to the whole file).
+- deploy delta: stream the agent's rebuild through zapp::unpackTo instead of three in-memory copies (~70 MB for a 23 MiB app on a Pi).
+- deploy delta: describe the `delta` install exchange in docs/reports/zinc-next-agent.md; apply it per file to export directories (run.sh) as zinc dev's `there` map does.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
