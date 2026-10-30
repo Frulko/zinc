@@ -34,11 +34,17 @@ function until(cond: () => boolean): Promise<void> {
 }
 const count = (id: string): i32 => { const l = store.messages.get(id); return l !== undefined ? l.length : -1; };
 
+/** Opens the first channel that reads (a server or the DMs open none until one is chosen). */
+function openFirst(): string {
+  for (const c of store.channels()) if (c.readable()) { store.selectChannel(c.id); return c.id; }
+  return '';
+}
+
 async function demo(): Promise<void> {
   await until(() => store.stage === 'ready');
   console.log(`servers ${store.guilds.map((g) => g.name).join(', ')}`);
-  console.log(`channels ${store.channels().map((c) => c.name).join(', ')}`);
-  const id = store.channelId;
+  console.log(`channels ${store.channels().map((c) => c.name).join(', ')}, open '${store.channelId}'`);
+  const id = openFirst();
   await until(() => count(id) > 0);
   console.log(`history ${count(id)}`);
   const before = count(id);
@@ -49,9 +55,12 @@ async function demo(): Promise<void> {
   console.log('resumed');
   await until(() => count(id) > before + 1);                  // and another after RESUME
   store.selectGuild('');
+  console.log(`dms open: '${store.channelId}'`);
+  openFirst();
   console.log(`dms ${store.channels().map((c) => c.name).join(', ')}`);
   await until(() => count(store.channelId) > 0);
   store.selectGuild(store.guilds[0].id);
+  store.selectChannel(id);
   await write(id);
   await media(id);
   await notifications(id);
@@ -150,8 +159,9 @@ function settings(): void {
 
 /** DISCORD_BENCH: the open channel's whole history, then a scroll to its top and back, 60 px a frame. */
 async function bench(): Promise<void> {
-  await until(() => store.stage === 'ready' && count(store.channelId) > 0);
-  const id = store.channelId;
+  await until(() => store.stage === 'ready');
+  const id = openFirst();
+  await until(() => count(id) > 0);
   while (!store.allLoaded(id)) if (await store.loadOlder() === 0) await new Promise<void>((done: () => void) => { setTimeout(done, 50); });
   console.log(`bench: ${count(id)} messages`);
   await new Promise<void>((done: () => void) => { setTimeout(done, 300); });

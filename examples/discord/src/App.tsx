@@ -10,6 +10,13 @@ import { MemberList } from './components/MemberList';
 import { Settings } from './components/Settings';
 import { BG_MAIN, TEXT_MUTED } from './constants';
 
+/** No conversation open: the server or the DMs are shown, one is chosen in the list. */
+function Pick() {
+  return <View className={`grow basis-0 items-center justify-center ${BG_MAIN}`}>
+    <Text className={TEXT_MUTED}>{store.guildId === '' ? 'Choose a conversation.' : 'Choose a channel.'}</Text>
+  </View>;
+}
+
 export default function App() {
   const [, setVersion] = useState<number>(0);
   useEffect((): void => {
@@ -22,7 +29,7 @@ export default function App() {
   return <View className="grow flex-row">
     <GuildRail />
     <ChannelList />
-    {store.settingsOpen ? <Settings /> : <MessageView />}
-    {store.guildId !== '' && !store.settingsOpen ? <MemberList /> : null}
+    {store.settingsOpen ? <Settings /> : store.channelId === '' ? <Pick /> : <MessageView />}
+    {store.guildId !== '' && store.channelId !== '' && !store.settingsOpen ? <MemberList /> : null}
   </View>;
 }

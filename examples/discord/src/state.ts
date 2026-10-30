@@ -360,11 +360,10 @@ export class Store implements GatewayHandler {
   }
 
   // ------------------------------------------------------------------ navigation
+  /** Shows a server's channels (or the DMs) without opening one: nothing is fetched or read until a conversation is chosen. */
   selectGuild(id: string): void {
     this.guildId = id;
-    let first = '';
-    for (const c of this.channels()) if (c.readable()) { first = c.id; break; }
-    this.selectChannel(first);
+    this.selectChannel('');
   }
   selectChannel(id: string): void {
     if (id !== this.channelId) { this.draft = ''; this.replyTo = null; this.editing = null; this.lastTypingAt = 0; }

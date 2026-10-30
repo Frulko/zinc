@@ -10,10 +10,11 @@ cached avatars_103_av103.png
 cached emojis_77.png
 cached emojis_78.png
 cached icons_200_ic200.png
-channels Lounge, Text, general, random
+channels Lounge, Text, general, random, open ''
 clicked: open 400, badge 0
 deleted 907
 dms Grace, Grace, linus
+dms open: ''
 edited 906: Hello **edited** ~~world~~ ||secret|| <@101> (edited)
 gateway closed (4000), again in 1000 ms
 history 302: 50 messages
