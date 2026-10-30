@@ -8,6 +8,7 @@ import { Upload, readUpload, uploadFiles } from './services/upload';
 import { MemberRow, subscription, applyMemberListUpdate } from './members';
 import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, MESSAGES_PAGE, OLDER_PAGE, MESSAGE_MAX, TYPING_EVERY_MS, TYPING_SHOWN_MS, ACK_DELAY_MS, DISCORD_EPOCH, UPLOAD_MAX } from './constants';
 import { env } from 'zinc:sys';
+import * as storage from 'zinc:storage';
 
 export class User { id = ''; name = ''; avatar = ''; }
 export class Channel {
@@ -35,6 +36,8 @@ class Typist { userId = ''; name = ''; until: number = 0; }
 export type Stage = 'login' | 'connecting' | 'ready' | 'reconnecting' | 'failed';
 
 const str = (v: any): string => typeof v === 'string' ? v : '';
+const SERVERS_KEY = 'servers';
+const sortedIds = (s: Set<string>): string[] => { const out: string[] = []; s.forEach((v: string): void => { out.push(v); }); return out.sort(); };
 
 export class Store implements GatewayHandler {
   stage: Stage = 'login';
@@ -55,6 +58,12 @@ export class Store implements GatewayHandler {
   /** The member list of the open server's open channel (members.ts), and the server it is of. */
   members: MemberRow[] = [];
   membersOf = '';
+  /** The settings screen is open (in place of the messages). */
+  settingsOpen = false;
+  /** The servers shown, chosen in the settings and kept on this machine (zinc:storage), never sent to Discord: null until a choice is
+   *  made (every server shows), then an allowlist. `known`: the servers the settings listed, so one joined after is new (and off). */
+  private allowed: Set<string> | null = null;
+  private known: Set<string> = new Set<string>();
   private reads: Map<string, ReadState> = new Map<string, ReadState>();
   private complete: Set<string> = new Set<string>();   // channels whose whole history is loaded
   private older = '';                                   // the channel whose page before is on its way
@@ -71,6 +80,13 @@ export class Store implements GatewayHandler {
     this.gateway = new Gateway(this);
     setRestLog((line: string): void => { this.log(line); });
     onPicture((): void => { this.changed(); }, (line: string): void => { this.log(line); });
+    const saved = storage.get(SERVERS_KEY);
+    if (saved !== '') {
+      const v: any = JSON.parse(saved), allowed = new Set<string>();
+      if (Array.isArray(v.allowed)) for (const id of v.allowed) allowed.add(str(id));
+      if (Array.isArray(v.known)) for (const id of v.known) this.known.add(str(id));
+      this.allowed = allowed;
+    }
   }
   onChange(f: () => void): void { this.listeners.push(f); }
   changed(): void { for (const f of this.listeners) f(); }
@@ -159,7 +175,8 @@ export class Store implements GatewayHandler {
       this.log(`read ${str(e.id)}: up to ${r.lastId}, ${r.mentions} mentions`);
     }
     this.log(`ready ${this.me.name}: ${this.guilds.length} servers, ${this.dms.length} DMs`);
-    if (this.channelId === '') this.selectGuild(this.guilds.length > 0 ? this.guilds[0].id : '');
+    const shown = this.shownGuilds();
+    if (this.channelId === '') this.selectGuild(shown.length > 0 ? shown[0].id : '');
   }
   private guild(g: any): Guild {
     const p: any = g.properties !== undefined && g.properties !== null ? g.properties : g;   // CLIENT_STATE_V2 puts the fields in properties
@@ -212,6 +229,35 @@ export class Store implements GatewayHandler {
     for (const g of this.guilds) for (const c of g.channels) if (c.id === id) return c;
     return null;
   }
+  // ------------------------------------------------------------------ the servers shown (the settings)
+  /** A server switched off is out of the rail, so out of the unread and mention marks, and never opened, so never subscribed to. */
+  shown(g: Guild): boolean { const a = this.allowed; return a === null || a.has(g.id); }
+  shownGuilds(): Guild[] { return this.guilds.filter((g: Guild) => this.shown(g)); }
+  /** Joined after the choice was made, and not listed by the settings since: off until switched on. */
+  isNew(g: Guild): boolean { return this.allowed !== null && !this.known.has(g.id); }
+  setShown(id: string, on: boolean): void {
+    let a = this.allowed;
+    if (a === null) {                                   // the first choice starts from every server on
+      a = new Set<string>();
+      for (const g of this.guilds) { a.add(g.id); this.known.add(g.id); }
+      this.allowed = a;
+    }
+    if (on) a.add(id); else a.delete(id);
+    this.saveServers();
+    this.log(`servers shown: ${this.shownGuilds().map((g: Guild) => g.name).join(', ')}`);
+    if (!on && this.guildId === id) this.selectGuild('');
+    this.changed();
+  }
+  /** Closing the settings: the servers they listed are no longer new. */
+  showSettings(open: boolean): void {
+    if (!open && this.allowed !== null) { for (const g of this.guilds) this.known.add(g.id); this.saveServers(); }
+    this.settingsOpen = open; this.changed();
+  }
+  private saveServers(): void {
+    const a = this.allowed;
+    if (a !== null) storage.set(SERVERS_KEY, JSON.stringify({ allowed: sortedIds(a), known: sortedIds(this.known) }));
+  }
+
   /** The channels of the open server, or the DMs. */
   channels(): Channel[] { const g = this.findGuild(this.guildId); return g !== null ? g.channels : this.dms; }
 

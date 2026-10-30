@@ -7,6 +7,7 @@ import { GuildRail } from './components/GuildRail';
 import { ChannelList } from './components/ChannelList';
 import { MessageView } from './components/MessageView';
 import { MemberList } from './components/MemberList';
+import { Settings } from './components/Settings';
 import { BG_MAIN, TEXT_MUTED } from './constants';
 
 export default function App() {
@@ -21,7 +22,7 @@ export default function App() {
   return <View className="grow flex-row">
     <GuildRail />
     <ChannelList />
-    <MessageView />
-    {store.guildId !== '' ? <MemberList /> : null}
+    {store.settingsOpen ? <Settings /> : <MessageView />}
+    {store.guildId !== '' && !store.settingsOpen ? <MemberList /> : null}
   </View>;
 }

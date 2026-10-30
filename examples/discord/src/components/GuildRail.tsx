@@ -23,7 +23,7 @@ export function GuildRail() {
     <View className="items-center gap-2 py-3">
       <Pill label="Direct messages" picture={-1} on={store.guildId === ''} unread={false} mentions={store.dmMentions()} onPress={() => store.selectGuild('')} />
       <View className="w-8 h-[2] rounded bg-[#35363c]" />
-      {store.guilds.map((g: Guild) => <Pill key={g.id} label={g.name} picture={g.icon !== '' ? cdnPicture(iconKey(g.id, g.icon)) : -1} on={store.guildId === g.id}
+      {store.shownGuilds().map((g: Guild) => <Pill key={g.id} label={g.name} picture={g.icon !== '' ? cdnPicture(iconKey(g.id, g.icon)) : -1} on={store.guildId === g.id}
         unread={store.guildUnread(g)} mentions={store.guildMentions(g)} onPress={() => store.selectGuild(g.id)} />)}
     </View>
   </ScrollView>;

@@ -25,9 +25,9 @@ fake=$!
 for _ in $(seq 100); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
 [ -s "$tmp/ports" ] || { echo "discord: the fake server did not start"; exit 1; }
 read -r api gw < "$tmp/ports"
-(cd examples/discord && env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=1200x760 ZINC_FRAMES=1000000 ZINC_FRAMEHASH=last \
+(cd examples/discord && env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=1200x760 ZINC_FRAMES=1000000 ZINC_FRAMEHASH=last ${ZINC_SHOT:+ZINC_SHOT=$ZINC_SHOT} \
   DISCORD_API="http://127.0.0.1:$api/api/v9" DISCORD_GATEWAY="ws://127.0.0.1:$gw" DISCORD_CDN="http://127.0.0.1:$api/cdn" \
-  DISCORD_CACHE="$tmp/cache" DISCORD_UPLOAD_FILE="$tmp/notes.png" DISCORD_TOKEN=test-token DISCORD_DEMO=1 DISCORD_LOG=1 \
+  DISCORD_CACHE="$tmp/cache" ZINC_STORAGE="$tmp/storage.kv" DISCORD_UPLOAD_FILE="$tmp/notes.png" DISCORD_TOKEN=test-token DISCORD_DEMO=1 DISCORD_LOG=1 \
   timeout 60 "$ZINC" run . > "$tmp/app" 2>&1) || { echo "discord: the session failed"; tail -8 "$tmp/app"; exit 1; }
 { grep -v '^zinc' "$tmp/app"; ls "$tmp/cache" | sed 's/^/cached /'; } | sort > "$tmp/session"   # sorted: the scripted session races the history request
 grep -v '^zinc' "$tmp/fake" | sort > "$tmp/server"

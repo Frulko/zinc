@@ -46,7 +46,11 @@ sent 907: Replying, after the bucket
 sent 909: Here is the photo
 sent a file: Here is the photo, notes.png 160x120
 sent once: 1 new, pending false
+servers shown: Makers
 servers Zinc Lab, Makers
+settings: kept {"allowed":["201"],"known":["200","201"]}
+settings: rail Makers(read 0), joined later shown false new true, dms 2, open 
+settings: rail Zinc Lab(read 0) Makers(read 0)
 shown: Grace is typing…
 stage connecting
 stage ready

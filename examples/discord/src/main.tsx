@@ -4,16 +4,17 @@
 // Test hooks: DISCORD_API, DISCORD_GATEWAY move the endpoints (a fake Discord, tests/t1/discord.sh), DISCORD_TOKEN logs in without the
 // keychain, DISCORD_LOG=1 prints what happens, DISCORD_DEMO=1 runs the scripted session (servers, a channel's history, a live message,
 // a dropped connection that resumes, a second live message, a DM, then the writing of write() and the pictures, files and members of
-// media() below) and quits; DISCORD_BENCH=1 loads the whole history of the open channel and scrolls it to the top and back (frame times:
+// media() below, then the servers switched in settings()) and quits; DISCORD_BENCH=1 loads the whole history of the open channel and scrolls it to the top and back (frame times:
 // ZINC_PROFILE=1). DISCORD_CACHE moves the pictures' folder, DISCORD_UPLOAD_FILE is the file media() sends.
 // Files dropped on the window are sent to the open channel.
 import { render } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
 import { quit } from 'zinc:gfx';
 import { env } from 'zinc:sys';
+import * as storage from 'zinc:storage';
 import App from './App';
 import { on } from 'zinc:system';
-import { store, Message, Attachment } from './state';
+import { store, Message, Attachment, Guild } from './state';
 import { parse, describe } from './markdown';
 import { picturesLoading } from './services/cdn';
 import { historyList } from './components/MessageView';
@@ -50,6 +51,7 @@ async function demo(): Promise<void> {
   store.selectGuild(store.guilds[0].id);
   await write(id);
   await media(id);
+  settings();
   setTimeout(() => { quit(); }, 300);
 }
 
@@ -104,6 +106,19 @@ async function media(id: string): Promise<void> {
   await until(() => store.typingText(id) !== '');                              // Grace types back: in the last frame
   await new Promise<void>((done: () => void) => { setTimeout(done, 100); });   // a frame shows the rows, which ask for their pictures
   await until(() => picturesLoading() === 0);
+}
+
+/** The settings: a server switched off leaves the rail and its counts, one joined after the choice comes off and new, the DMs stay; the
+ *  choice is kept (zinc:storage). The screen stays open for the last frame. */
+function settings(): void {
+  const rail = (): string => store.shownGuilds().map((g: Guild) => `${g.name}(${store.guildUnread(g) ? 'unread' : 'read'} ${store.guildMentions(g)})`).join(' ');
+  store.showSettings(true);
+  console.log(`settings: rail ${rail()}`);
+  store.setShown('200', false);                                                  // Zinc Lab off: it was open
+  store.dispatch('GUILD_CREATE', { id: '202', name: 'Joined later', icon: null, channels: [{ id: '321', type: 0, name: 'hello', position: 0, last_message_id: '960' }] });
+  const later = store.findGuild('202') as Guild;
+  console.log(`settings: rail ${rail()}, joined later shown ${store.shown(later)} new ${store.isNew(later)}, dms ${store.dms.length}, open ${store.guildId}`);
+  console.log(`settings: kept ${storage.get('servers')}`);
 }
 
 /** DISCORD_BENCH: the open channel's whole history, then a scroll to its top and back, 60 px a frame. */

@@ -12,6 +12,8 @@ export interface SwitchProps {
   checked: () => boolean;
   onChange: (checked: boolean) => void;
   label?: string;
+  /** The name a screen reader says when no label is shown (React Native's accessibilityLabel); the label otherwise. */
+  accessibilityLabel?: string;
 }
 
 /** The platform's colours rather than the theme's: a platform look with the kit's built-in theme. */
@@ -37,7 +39,7 @@ export function Switch(props: SwitchProps): i32 {
   const L = look();
   const flip = (): void => { toggleFeedback(); props.onChange(!props.checked()); };
   if (L.name === 'neutral') return <View className="flex-row items-center gap-2">
-    <View className={`flex-row w-9 h-5 p-0.5 rounded-full transition-colors ${trackClass(props.checked())}`} onClick={flip} role="switch" aria-checked={String(props.checked())} aria-label={props.label ?? ''}>
+    <View className={`flex-row w-9 h-5 p-0.5 rounded-full transition-colors ${trackClass(props.checked())}`} onClick={flip} role="switch" aria-checked={String(props.checked())} aria-label={props.accessibilityLabel ?? props.label ?? ''}>
       <View className={`w-4 h-4 rounded-full shadow-sm bg-${thumbColor(props.checked())}`} style={{ translateX: props.checked() ? 16 : 0 }} />
     </View>
     <Show when={props.label !== undefined}>
@@ -49,7 +51,7 @@ export function Switch(props: SwitchProps): i32 {
   const k = (on: boolean): number => on ? L.thumbOn : L.thumbOff;
   const x = (on: boolean): number => on ? inner - (innerH - L.thumbOn) / 2 - L.thumbOn : (innerH - L.thumbOff) / 2;
   return <View className="flex-row items-center gap-2">
-    <View className={`flex-row items-center w-[${L.switchW}px] h-[${L.switchH}px] rounded-full transition-colors ${trackClass(props.checked())}`} onClick={flip} role="switch" aria-checked={String(props.checked())} aria-label={props.label ?? ''}>
+    <View className={`flex-row items-center w-[${L.switchW}px] h-[${L.switchH}px] rounded-full transition-colors ${trackClass(props.checked())}`} onClick={flip} role="switch" aria-checked={String(props.checked())} aria-label={props.accessibilityLabel ?? props.label ?? ''}>
       <View className={`w-[${k(props.checked())}px] h-[${k(props.checked())}px] rounded-full ${L.outline > 0 ? '' : 'shadow-sm'} bg-${thumbColor(props.checked())}`} style={{ translateX: x(props.checked()) }} />
     </View>
     <Show when={props.label !== undefined}>

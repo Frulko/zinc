@@ -6,7 +6,7 @@
   "app": { "name": "Lite for Discord", "id": "dev.zinc.examples.discord", "version": "0.1.0" },
   "requires": ["display", "pointer|touch"],
   "permissions": ["net", "fs", "dialog", "window"],
-  "icons": ["at-sign", "circle-plus", "corner-up-left", "hash", "paperclip", "pencil", "trash-2", "users", "volume-2", "x"],
+  "icons": ["at-sign", "circle-plus", "corner-up-left", "hash", "paperclip", "pencil", "settings", "trash-2", "users", "volume-2", "x"],
   "targets": {
     "macos": { "width": 1200, "height": 760, "resize": "fill" },
     "linux": { "width": 1200, "height": 760 }

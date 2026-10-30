@@ -5,7 +5,7 @@ import { store, Channel } from '../state';
 import { CH_CATEGORY, CH_VOICE, CH_DM, CH_GROUP_DM, BG_SIDE, BG_SELECTED, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, CHANNELS_W, MENTION_BG } from '../constants';
 
 function icon(c: Channel): string { return c.type === CH_VOICE ? 'volume-2' : c.type === CH_GROUP_DM ? 'users' : c.type === CH_DM ? 'at-sign' : 'hash'; }
-const MUTED = (): i32 => 0x949ba4;
+export const MUTED = (): i32 => 0x949ba4;
 
 /** The red count of unread mentions. */
 export function Badge(p: { n: i32 }) {
@@ -37,6 +37,9 @@ export function ChannelList() {
     </ScrollView>
     <View className="h-[52] px-3 flex-row items-center gap-2 bg-[#232428]">
       <Text className={`grow text-sm font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{store.me.name}</Text>
+      <View className={`p-1 rounded ${BG_HOVER}`} onPress={() => store.showSettings(!store.settingsOpen)} aria-label="Settings">
+        <Icon name="settings" size={18} color={MUTED} />
+      </View>
       <View className={`px-2 py-1 rounded ${BG_HOVER}`} onPress={() => store.logout()} aria-label="Log out">
         <Text className={`text-xs ${TEXT_MUTED}`}>Log out</Text>
       </View>
