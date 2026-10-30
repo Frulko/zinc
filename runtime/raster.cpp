@@ -672,6 +672,32 @@ static void dyn_drop_blocks(Dyn* d) { if (d->blocks) { hal_free(d->blocks); d->b
 void dyn_update(int32_t id, const uint32_t* px, int32_t stride) {
   if (Dyn* d = dyn_at(id)) { if (px) { d->px = px; if (stride) d->stride = stride; } d->version = ++dyn_versions; dyn_drop_blocks(d); }
 }
+// dyn_update_rect's changes (main thread only, as the frame diff that reads them): image `id` went from version `from` to `to` with only `r`
+// of its pixels changed. ponytail: a ring of 16 shared by every image; a change that fell out of it damages the whole image, as dyn_update does
+struct DynPart { int32_t id; uint32_t from, to; Rect r; };
+static DynPart dyn_parts[16];
+static uint32_t dyn_nparts;
+void dyn_update_rect(int32_t id, int32_t x, int32_t y, int32_t w, int32_t h, const uint32_t* px) {
+  Dyn* d = dyn_at(id);
+  if (!d) return;
+  const uint32_t from = d->version;
+  dyn_update(id, px, 0);
+  dyn_parts[dyn_nparts++ % 16] = DynPart{id, from, d->version, Rect{x, y, x + w, y + h}};
+}
+/** The part of image `id` (its pixels) that changed from version `from` to `to`, when only dyn_update_rect changed it in between. */
+static bool dyn_changed(int32_t id, uint32_t from, uint32_t to, Rect* out) {
+  Rect u = {1 << 30, 1 << 30, -(1 << 30), -(1 << 30)};
+  for (uint32_t cur = to; cur != from;) {   // versions only grow: the walk ends
+    const DynPart* p = nullptr;
+    for (const DynPart& e : dyn_parts) if (e.to && e.id == id && e.to == cur) { p = &e; break; }
+    if (!p) return false;
+    u.x0 = p->r.x0 < u.x0 ? p->r.x0 : u.x0; u.y0 = p->r.y0 < u.y0 ? p->r.y0 : u.y0;
+    u.x1 = p->r.x1 > u.x1 ? p->r.x1 : u.x1; u.y1 = p->r.y1 > u.y1 ? p->r.y1 : u.y1;
+    cur = p->from;
+  }
+  *out = u;
+  return true;
+}
 void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, bool premultiplied) {
   Dyn* d = dyn_at(id);
   if (!d) return;
@@ -1609,6 +1635,19 @@ static void damage_add(Rect* out, int32_t& n, int32_t max, Rect screen, Rect r, 
   join_all();   // the grown rect may now overlap or join others
   out[n++] = r;
 }
+/** The same plain IMAGE drawn again after dyn_update_rect: the screen rectangle of the pixels that changed (a pixel more around, the
+ *  filter's reach), not the whole image (zinc:shell draws another program's surface this way). */
+static bool image_part(const Frame& a, const Cmd& x, const Frame& b, const Cmd& y, Rect* out) {
+  if (x.kind != IMAGE || y.kind != IMAGE || x.c2 == y.c2 || (x.pad & kImageBox) || x.res < DYN_BASE) return false;
+  Cmd t = y;
+  t.c2 = x.c2;
+  int32_t iw, ih;
+  Rect r;
+  if (!same(a, x, b, t) || !image_size(x.res, &iw, &ih) || iw <= 0 || ih <= 0 || !dyn_changed(x.res, x.c2, y.c2, &r)) return false;
+  const float kx = x.w / iw, ky = x.h / ih;
+  *out = Rect{ifloor(x.x + r.x0 * kx) - 1, ifloor(x.y + r.y0 * ky) - 1, iceil(x.x + r.x1 * kx) + 1, iceil(x.y + r.y1 * ky) + 1};
+  return true;
+}
 int32_t diff_rects(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* out, int32_t max, uint32_t* changed, uint32_t bulk_after) {
   int32_t n = 0;
   uint32_t nch = 0;
@@ -1629,6 +1668,8 @@ int32_t diff_rects(const Frame& a, const Frame& b, int32_t w, int32_t h, Rect* o
       if (inb) grow(bulk, cmd_bounds(b.cmds[i], w, h));
       continue;
     }
+    Rect part;
+    if (ina && inb && image_part(a, a.cmds[i], b, b.cmds[i], &part)) { damage_add(out, n, max, screen, part); continue; }
     if (ina) damage_add(out, n, max, screen, cmd_bounds(a.cmds[i], w, h));
     if (inb) damage_add(out, n, max, screen, cmd_bounds(b.cmds[i], w, h));
   }

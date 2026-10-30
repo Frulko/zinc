@@ -148,7 +148,8 @@ int keyCode(const std::string& n) {
   if (n.size() == 1) return static_cast<unsigned char>(n[0]);
   static const struct { const char* n; int code; } named[] = {{"Backspace", HAL_KEY_BACKSPACE}, {"Delete", HAL_KEY_DELETE}, {"Enter", HAL_KEY_ENTER}, {"Tab", HAL_KEY_TAB},
     {"Escape", HAL_KEY_ESCAPE}, {"ArrowLeft", HAL_KEY_ARROW_LEFT}, {"ArrowRight", HAL_KEY_ARROW_RIGHT}, {"ArrowUp", HAL_KEY_ARROW_UP}, {"ArrowDown", HAL_KEY_ARROW_DOWN},
-    {"Home", HAL_KEY_HOME}, {"End", HAL_KEY_END}, {"PageUp", HAL_KEY_PAGEUP}, {"PageDown", HAL_KEY_PAGEDOWN}, {"Space", ' '}};
+    {"Home", HAL_KEY_HOME}, {"End", HAL_KEY_END}, {"PageUp", HAL_KEY_PAGEUP}, {"PageDown", HAL_KEY_PAGEDOWN}, {"Space", ' '},
+    {"BrowserHome", HAL_KEY_BROWSER_HOME}};
   for (auto& k : named) if (n == k.n) return k.code;
   return 0;
 }

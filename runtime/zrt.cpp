@@ -857,6 +857,8 @@ bool display_driver = false;  // a plugins/display-* driver took over the screen
 // zinc device screen --live (src/host/mirror.cpp): the frames shown, and the viewer's input merged into the program's; null without a viewer
 void (*mirror_present)(const HalFrame* f) = nullptr;
 void (*mirror_input)(HalInput* in) = nullptr;
+// zinc:shell (plugins/shell): after the mirror, takes out of the frame's input what goes to the program it shows; null without one
+void (*shell_input)(HalInput* in) = nullptr;
 void (*first_present)() = nullptr;   // once, after the program's first frame reached the screen (zinc dev's startup timeline)
 // the dev bar's (runtime/gfx.cpp devbar): restart the program, the local time in minutes since midnight; set by the host, null without one
 void (*dev_restart)() = nullptr;
@@ -931,6 +933,7 @@ bool loop_once() {
     hal_poll_input(&input);
     if (display_driver && hal_display->poll) hal_display->poll(&input);
     if (mirror_input) mirror_input(&input);
+    if (shell_input) shell_input(&input);
     if (input.quit) return false;
     if (det_mode) det_input();
     uint64_t t = hal_time_us();

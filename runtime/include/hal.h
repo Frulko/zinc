@@ -33,6 +33,7 @@ enum HalKeyKind : int32_t { HAL_KEY_DOWN = 0, HAL_KEY_UP = 1, HAL_KEY_REPEAT = 2
 enum HalKeyCode : int32_t {
   HAL_KEY_BACKSPACE = 256, HAL_KEY_DELETE, HAL_KEY_ENTER, HAL_KEY_TAB, HAL_KEY_ESCAPE, HAL_KEY_ARROW_LEFT, HAL_KEY_ARROW_RIGHT,
   HAL_KEY_ARROW_UP, HAL_KEY_ARROW_DOWN, HAL_KEY_HOME, HAL_KEY_END, HAL_KEY_PAGEUP, HAL_KEY_PAGEDOWN, HAL_KEY_F1,  // F1..F12 follow
+  HAL_KEY_BROWSER_HOME = HAL_KEY_F1 + 12,   // a keyboard's or a remote's Home key (evdev KEY_HOMEPAGE): zinc:shell's Home
 };
 // kind HAL_KEY_TEXT: typed text (UTF-8), text[off .. off+len) of HalInput.text; key is 0
 struct HalKey { int32_t key; uint32_t mods; int32_t kind; uint16_t off, len; };
@@ -242,6 +243,10 @@ struct HalDisplay {
   // may be null (a fixed surface). The surface's logical size now, when the system changed it after init: a system keyboard that takes
   // the bottom of the screen, a rotation. The runtime then draws a whole frame at that size.
   void (*surface_size)(int32_t* w, int32_t* h);
+  // may be null (nothing to give up). on = 1: another program takes the screen for a while (zinc:shell gives it to an app that does not use
+  // the shell's buffers): the driver closes the display and its input devices, and presents nothing; on = 0: it opens them again and
+  // presents a whole frame.
+  void (*suspend)(int on);
 };
 extern HalDisplay* hal_display;
 // A driver's registration: `static int reg = hal_display_register(&d, "sidecar");`. A driver linked on demand (zinc.json "displays": the

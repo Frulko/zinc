@@ -54,6 +54,7 @@ static uint32_t amask;
 static bool vsync = true;
 static uint64_t last_us;
 static volatile sig_atomic_t sig_quit;
+static bool suspended, resumed;   // fb_suspend: the screen is another program's; it came back (a whole frame is due)
 // ZINC_RENDER_THREADS: rasterizer and converter threads (1 = the old single-thread path). Leaked on purpose: the workers
 // wait on its condition variable until the process ends, and destroying it at exit would hang (glibc waits for waiters).
 static zbands::Pool& pool = *new zbands::Pool;
@@ -130,6 +131,7 @@ static struct { int id; float x, y; bool fresh, gone; } slots[HAL_MAX_TOUCH];   
 static const char* sim_fb = getenv("ZINC_FBDEV_SIM");
 static const char* sim_input = getenv("ZINC_FBDEV_SIM_INPUT");
 static bool bit(const unsigned long* b, int n) { return b[n / (8 * sizeof(long))] >> (n % (8 * sizeof(long))) & 1; }
+static timespec inputs_seen = {-1, -1};   // /dev/input's time when it was last read
 static void open_inputs() {
   if (sim_fb) {   // the scripted screen: no ioctl on a plain file
     if (sim_input && !ndev) { int f = open(sim_input, O_RDONLY | O_CLOEXEC); if (f >= 0) devs[ndev++] = Dev{f, 0, fw - 1, 0, fh - 1, true, true}; }
@@ -138,7 +140,7 @@ static void open_inputs() {
   // called each second for a device plugged in meanwhile: only when /dev/input changed, and a device already known is never opened again.
   // Closing an evdev file waits for an RCU grace period (25 ms a device on a Pi 3): reopening the six of a keyboard and the HDMI port each
   // second held the program's thread 150 ms every second (a stream's sound ran dry at each one)
-  static timespec seen = {-1, -1};
+  timespec& seen = inputs_seen;
   struct stat dir;
   if (stat("/dev/input", &dir)) return;
 #ifdef __APPLE__
@@ -570,7 +572,7 @@ static bool set_refresh(int hz) {
  *  fb_present's, with the frame. */
 static uint32_t fb_layers(const HalLayer* l, int32_t n) {
   using namespace kms;
-  if (n <= 0 || kms::failed || refuse) { for (int k = 0; k < nlay; k++) replaced.push_back(lay[k].fb); nlay = 0; return 0; }
+  if (n <= 0 || suspended || kms::failed || refuse) { for (int k = 0; k < nlay; k++) replaced.push_back(lay[k].fb); nlay = 0; return 0; }
   if (kms::fd < 0) {
     const uint64_t t0 = now_us();
     if (!open_file()) { kms::failed = true; return 0; }
@@ -941,7 +943,13 @@ static void fb_present(const HalFrame* f) {
 #endif
   HalFrame own;
   bool from_stream = false;
-  if (stream::ended.exchange(false)) { own = *f; own.x0 = own.y0 = 0; own.x1 = W; own.y1 = H; f = &own; }
+  if (suspended) {   // the surface keeps up with the frames, nothing goes to the screen
+    if (f->y1 > f->y0 && f->x1 > f->x0) { Job job{f, 1}; pool.run(f->y0, f->y1, BAND_ROWS, band, &job); }
+    usleep(1000000u / ZP_DISPLAY_FBDEV_FPS);
+    return;
+  }
+  if (resumed) { resumed = false; own = *f; own.x0 = own.y0 = 0; own.x1 = W; own.y1 = H; own.render_damage = nullptr; f = &own; }   // the screen shows the other program's last frame
+  else if (stream::ended.exchange(false)) { own = *f; own.x0 = own.y0 = 0; own.x1 = W; own.y1 = H; f = &own; }
   else if (stream::active) { own = *f; own.x0 = own.y0 = own.x1 = own.y1 = 0; f = &own; from_stream = true; }   // its damage once the refresh came
   bool has = !from_stream && f->y1 > f->y0 && f->x1 > f->x0;
   const bool overlay = cursor_visible || previous_cursor.x1 > previous_cursor.x0;
@@ -1004,6 +1012,7 @@ static void fb_poll(HalInput* in) {
   // the null HAL counts a frame budget (60 by default) for headless tests; on a real screen only ZINC_FRAMES does
   static bool budget = getenv("ZINC_FRAMES") != nullptr;
   if (!budget) in->quit = 0;
+  if (suspended) { if (sig_quit) in->quit = 1; return; }
   const uint64_t now = now_us();
   if (ZP_DISPLAY_FBDEV_INPUT && now - last_scan >= 1000000) {
     if (!sim_fb && keyboard::refresh()) for (int k = 0; k <= KEY_MAX; k++) if (key_holds[k]) keyboard::state_update_key(keyboard::state, k + 8, 1);
@@ -1119,5 +1128,32 @@ static const char* fb_device(const char* query, const char* value) {
   else return nullptr;
   return "";
 }
-static HalDisplay fbdev = {fb_init, fb_present, fb_poll, fb_shutdown, 0, 0, nullptr, nullptr, fb_native, fb_device};   // layers: set by fb_init when the screen has the planes
+/** HalDisplay.suspend (zinc:shell): on, the display's file (DRM master and its planes) and the input devices (their grabs) are closed for
+ *  another program to take; off, they are opened again and the next frame is presented whole. /dev/fb0 stays mapped, nothing is written. */
+static void fb_suspend(int on) {
+  if ((on != 0) == suspended) return;
+  suspended = on != 0;
+  fprintf(stderr, "fbdev: %s\n", suspended ? "the screen is given to another program" : "the screen is back");
+#ifdef ZP_FBDEV_KMS
+  static bool had_planes;
+  {
+    std::lock_guard<std::mutex> k(kms_mu);
+    if (suspended) { had_planes = kms::flip && kms::fd >= 0; kms::close_file(); }
+    else if (had_planes && kms::open_file()) kms::take();
+  }
+#endif
+  if (sim_fb) { resumed = !suspended; return; }   // the scripted screen: its input file goes on where it was
+  if (suspended) {
+    for (int i = 0; i < ndev; i++) close(devs[i].fd);
+    ndev = 0;
+    memset(key_holds, 0, sizeof key_holds);
+    mouse_buttons = held = 0; mouse_btn = {}; touch_btn = {};
+    for (auto& t : slots) t.id = -1;
+  } else {
+    inputs_seen = {-1, -1};
+    if (ZP_DISPLAY_FBDEV_INPUT) open_inputs();
+    resumed = true;
+  }
+}
+static HalDisplay fbdev = {fb_init, fb_present, fb_poll, fb_shutdown, 0, 0, nullptr, nullptr, fb_native, fb_device, nullptr, fb_suspend};   // layers: set by fb_init when the screen has the planes
 static int registered = (hal_display = &fbdev, 0);

@@ -35,7 +35,7 @@ uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h);
 }
 namespace zn::host { const char* assetsRoot(); }   // sys_host.cpp: the directory zinc:assets reads
 namespace zrt { extern bool display_driver; }  // runtime/zrt.cpp: a plugins/display-* driver took over the screen
-namespace zrt { extern void (*mirror_input)(HalInput* in); }  // runtime/zrt.cpp: zinc device screen --live
+namespace zrt { extern void (*mirror_input)(HalInput* in); extern void (*shell_input)(HalInput* in); }  // runtime/zrt.cpp: zinc device screen --live, zinc:shell
 namespace zn::loop { void holdClock(bool on); void stepClock(double ms); }   // src/host/loop.cpp (zn/loop.h brings <vector>, which zrt.h clashes with)
 
 namespace {
@@ -322,6 +322,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       for (const HalGamepad& p : zrt::input.pad) zrt::input.buttons |= hal_gamepad_buttons(&p);   // a gamepad is also the zinc:gfx buttons (ZN-574)
       if (zrt::display_driver && hal_display->poll) hal_display->poll(&zrt::input);   // the driver's own input and its ZINC_FRAMES / ZINC_SHOT counting
       if (zrt::mirror_input) zrt::mirror_input(&zrt::input);   // zinc device screen --live (src/host/mirror.cpp)
+      if (zrt::shell_input) zrt::shell_input(&zrt::input);     // zinc:shell: what goes to the program it shows (plugins/shell)
       if (zrt::input.quit) quitFlag = true;
       devShortcut();
       uint64_t t = hal_time_us();

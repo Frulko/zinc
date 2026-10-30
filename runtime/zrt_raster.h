@@ -64,6 +64,9 @@ static const int32_t DYN_BASE = 1 << 20;
 int32_t dyn_create(int32_t w, int32_t h);                                      // runtime-owned buffer
 int32_t dyn_wrap(int32_t w, int32_t h, const uint32_t* px, int32_t stride);    // caller-owned buffer
 void dyn_update(int32_t id, const uint32_t* px, int32_t stride);                // new pixels (null: same buffer), marks damage
+// Only x, y, w, h of the pixels changed (main thread): the frame diff damages that part of the image where it is drawn, not all of it.
+// px: the image now shows that buffer (same size and stride), which differs from the last one only there; null: same buffer
+void dyn_update_rect(int32_t id, int32_t x, int32_t y, int32_t w, int32_t h, const uint32_t* px = nullptr);
 uint32_t* dyn_pixels(int32_t id);
 void dyn_resize(int32_t id, int32_t w, int32_t h);                             // runtime-owned buffers only
 void dyn_destroy(int32_t id);

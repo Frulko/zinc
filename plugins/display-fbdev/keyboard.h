@@ -95,6 +95,7 @@ static int named(uint32_t sym) {
     case 0xff52: return HAL_KEY_ARROW_UP; case 0xff54: return HAL_KEY_ARROW_DOWN;
     case 0xff50: return HAL_KEY_HOME; case 0xff57: return HAL_KEY_END;
     case 0xff55: return HAL_KEY_PAGEUP; case 0xff56: return HAL_KEY_PAGEDOWN;
+    case 0x1008ff18: return HAL_KEY_BROWSER_HOME;   // XF86HomePage (KEY_HOMEPAGE)
   }
   if (sym >= 0xffbe && sym <= 0xffc9) return HAL_KEY_F1 + sym - 0xffbe;
   return sym >= 32 && sym <= 126 ? (int)sym : 0;

@@ -2223,6 +2223,7 @@ String keyName(int32_t i) {
   if (k.kind == HAL_KEY_TEXT) return String::from(input.text + k.off, k.len);
   if (k.key >= 32 && k.key < 127) { char c = (char)k.key; return String::from(&c, 1); }
   if (k.key >= HAL_KEY_BACKSPACE && k.key < HAL_KEY_F1) { const char* n = KEY_NAMES[k.key - HAL_KEY_BACKSPACE]; uint32_t l = 0; while (n[l]) l++; return String::from(n, l); }
+  if (k.key == HAL_KEY_BROWSER_HOME) return String::from("BrowserHome", 11);
   if (k.key >= HAL_KEY_F1 && k.key < HAL_KEY_F1 + 12) { char b[4] = {'F', 0, 0, 0}; int32_t f = k.key - HAL_KEY_F1 + 1; uint32_t l = 1; if (f >= 10) b[l++] = '1'; b[l++] = (char)('0' + f % 10); return String::from(b, l); }
   return String();
 }
