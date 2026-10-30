@@ -7,7 +7,7 @@ export class Conn { c: Cdp | null = null; }
 export const conn = new Conn();
 
 export const [status, setStatus] = createSignal<string>('');
-export const [view, setView] = createSignal<string>('elements');   // elements | screen | network | storage | sources | performance
+export const [view, setView] = createSignal<string>('info');   // info | elements | screen | network | storage | sources | performance
 /** The program attached was started by zinc dev: styles and storage can be changed (Zinc.getInfo). */
 export const [devRun, setDevRun] = createSignal<boolean>(false);
 

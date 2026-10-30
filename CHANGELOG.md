@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Zinc Inspector: a new Info view, shown first when you attach, describes the program: its zinc.json name, id, version and permissions, entry and project, the zinc version, dev run or not, uptime and pid; the machine (system, CPU, cores, memory, host name, this machine or a paired device); the engine (interpreter, AOT, QuickJS, JavaScriptCore, V8, Hermes) and profile; the renderer (CPU raster or GPU, how frames are presented, the GPU, window size, scale, vsync); its plugins (native or not), source files, functions compiled and baked assets; the `zinc:` modules it imports; its workers; and frame rate, last frame, phase times, resident memory and CPU time, refreshed every second (`Zinc.getProgramInfo` for other DevTools clients).
 - `zinc dev --target web`: the program's `fetch` to another origin is made by your machine, so devices of the local network and sites without CORS headers answer as under `zinc run` (the music demo's Sonos speakers).
 - `zinc dev --target web`: `zinc:socket` (TCP, UDP, servers) works in the page through the dev bridge, and the events of `zinc:net`'s fetch, `zinc:osc` and the other host services reach the page (the music demo's UDP remote).
 - `zinc dev --target web`: a `zinc:net` server (`serve`, `serveAsync`) of the page listens on your machine through the dev bridge and answers with the page's handler (ipod-web, modules-showcase).

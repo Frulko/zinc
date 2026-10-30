@@ -72,6 +72,8 @@ void pauseLoop();
 void resetLoop();
 bool replayScene(const char* scene, const char* out);   // ZN-170: rasterize a ZINC_SCENE_DUMP file into a png with the installed fonts and images
 const char* traceEvents(bool on, std::size_t* n);   // DevTools Tracing.start (true) / Tracing.end (false: the frame spans as trace events JSON, valid until the next call)
+const char* gfxInfo(std::size_t* n);   // Zinc.getProgramInfo: the surface, its scale, the renderer and the last frames as JSON (zrt::gfx::info_json), valid until the next call
+const char* engineName();              // the engine running the program: "interpreter", "AOT", "QuickJS", "JavaScriptCore", "V8", "Hermes"
 struct RenderBench { int width, height, cmds; double medianUs, p99Us; std::uint64_t hash; };   // hash: FNV-1a 64 of the pixels like ZINC_FRAMEHASH
 bool benchScene(const char* scene, int runs, int threads, RenderBench& out);   // ZN-171: replay a scene dump `runs` times on `threads` band threads (src/host/render_bench.cpp)
 int strokeCheck(int count);   // ZN-406: random polylines through stroke_contours against the per-vertex cosf/sinf reference; mismatches (0 = identical)

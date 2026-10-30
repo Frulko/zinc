@@ -608,6 +608,16 @@ void hal_init(const HalConfig* cfg) {
   // a fixed surface (letterbox) keeps its proportions while the window is resized, so it never shows bars
   if (!fill) { const float a = (float)W / (float)H; SDL_SetWindowAspectRatio(win, a, a); }
   if (ren) SDL_SetRenderVSync(ren, 1);
+  if (zrt_prof_info) {   // how the frames reach the screen: ZINC_PROFILE=json and the inspector's Info view (Zinc.getProgramInfo)
+    int vs = 1;
+    const char* present = mtl_on ? "Metal" : ren ? SDL_GetRendererName(ren) : "window buffer";
+#ifdef ZN_HAL_GL
+    if (gl_on) { present = "OpenGL"; SDL_GL_GetSwapInterval(&vs); }
+#endif
+    if (ren) SDL_GetRenderVSync(ren, &vs);
+    zrt_prof_info("present", present ? present : "?");
+    zrt_prof_info("vsync", vs ? "on" : "off");
+  }
   start_workers();
   if (full) { show_main(); shown = true; set_fullscreen(true); SDL_SyncWindow(win); }   // fullscreen applies to a shown window: no wait on a hidden one
   if (kiosk) { SDL_HideCursor(); SDL_SetWindowAlwaysOnTop(win, true); }

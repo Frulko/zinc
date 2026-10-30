@@ -16,6 +16,7 @@
 #include <strings.h>
 
 extern "C" __attribute__((weak)) const char* zn_resource_stats_json(void);
+extern "C" __attribute__((weak)) const char* zn_program_info_json(void);   // src/host/sys_host.cpp: Zinc.getProgramInfo's host part
 
 namespace {
 // ---- SHA-1 + base64, for Sec-WebSocket-Accept only
@@ -171,7 +172,9 @@ struct HostCdp : NativeCdp, zrt::Poller {
 
   zrt::String trace(bool on) override { return zrt::gfx::trace(on); }
   zrt::String resourceStats() override { return lit(zn_resource_stats_json ? zn_resource_stats_json() : "{}"); }
-  zrt::String net(int32_t, zrt::String) override { return lit(""); }   // the network log is the Zinc Next host's (ZN-370)
+  zrt::String net(int32_t op, zrt::String) override {   // the network log is the Zinc Next host's (ZN-370); 12: the program (the inspector's Info view)
+    return lit(op == 12 && zn_program_info_json ? zn_program_info_json() : "");
+  }
 
   void drop(Client& c) { if (c.fd >= 0) close(c.fd); c.fd = -1; c.ws = false; c.n = 0; }
 

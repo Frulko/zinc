@@ -401,14 +401,14 @@ struct State {
   uint64_t prev_end;
   uint64_t sec_t0;                      // when the section's first frame ended: the warm-up skip ends after 1.5 s whatever the frame count (a scene at 1 fps would never record)
   uint32_t skip, seen;                  // ZINC_PROFILE_SKIP: the first frames (shader builds, glyph uploads) are not recorded
-  bool summary, tracing, hud, json;
+  bool summary, tracing, hud, json, info;   // info: the inspector's Info view reads the frames (info_json)
 };
 static char g_info[24][2][96];            // key / value pairs the display drivers publish (the GPU's strings): ZINC_PROFILE=json prints them; static because the GL context exists before the first frame
 static uint32_t g_ninfo;
 extern "C" { void (*zrt_gl_info_hook)() = nullptr; }   // set by runtime/gl_replay.cpp when a GL renderer runs: publishes its counters just before the summary   // runtime/gl_replay.cpp: publishes the GL renderer's counters just before the summary
 static State* st = nullptr;
 static const char* trace_file = nullptr;
-static bool active() { return st && (st->summary || st->tracing || st->hud); }
+static bool active() { return st && (st->summary || st->tracing || st->hud || st->info); }
 static void enable() {
   if (st) return;
   st = (State*)hal_alloc(sizeof(State));
@@ -861,6 +861,36 @@ String trace(bool on) {
   String s = prof::trace_json(prof::trace_file ? 2 : 0);
   if (prof::st && !prof::trace_file) prof::st->tracing = false;
   return s;
+}
+/** plugins/devtools Zinc.getProgramInfo (the inspector's Info view): the surface and its scale, the frame count, what the display driver
+ *  published (renderer, present, vsync, the GPU's strings) and, over the last 30 frames the profiler holds, the frame rate, the last frame's
+ *  time and each phase's average. The first call starts the profiler's frame record, as the perf panel does; it stays on. */
+String info_json() {
+  prof::enable();
+  if (prof::st) prof::st->info = true;
+  init_scale();
+  StrBuilder sb;
+  sb.cstr("{\"surface\":["); to_s(sb, (int64_t)surf_w); sb.ch(','); to_s(sb, (int64_t)surf_h);
+  sb.cstr("],\"pixels\":["); to_s(sb, (int64_t)pw); sb.ch(','); to_s(sb, (int64_t)ph);
+  sb.cstr("],\"scale\":"); to_s(sb, (int64_t)pxk); sb.cstr(",\"frame\":"); to_s(sb, (int64_t)frame_no); sb.cstr(",\"info\":{");
+  for (uint32_t i = 0; i < prof::g_ninfo; i++) { if (i) sb.ch(','); prof::jstr(sb, prof::g_info[i][0]); sb.ch(':'); prof::jstr(sb, prof::g_info[i][1]); }
+  sb.ch('}');
+  const prof::State* s = prof::st;
+  const uint32_t n = s ? (s->nframes < 30 ? s->nframes : 30) : 0;
+  if (n) {
+    uint64_t gaps = 0, ngaps = 0, last = 0, avg[prof::N] = {0};
+    for (uint32_t i = 0; i < n; i++) {
+      const uint32_t at = (s->nframes - 1 - i) % ZRT_PROF_FRAMES;
+      if (s->interval[at]) { gaps += s->interval[at]; ngaps++; }
+      for (int32_t p = 0; p < prof::N; p++) { avg[p] += s->us[at][p]; if (!i) last += s->us[at][p]; }
+    }
+    sb.cstr(",\"frames\":"); to_s(sb, (int64_t)n); sb.cstr(",\"fps\":"); to_s(sb, gaps ? (double)ngaps * 1e6 / (double)gaps : 0.0);
+    sb.cstr(",\"lastFrameUs\":"); to_s(sb, (int64_t)last); sb.cstr(",\"phasesUs\":{");
+    for (int32_t p = 0; p < prof::N; p++) { if (p) sb.ch(','); prof::jstr(sb, prof::NAMES[p]); sb.ch(':'); to_s(sb, (int64_t)(avg[p] / n)); }
+    sb.ch('}');
+  }
+  sb.ch('}');
+  return String::from(sb.buf, sb.len);
 }
 
 // ---------- frame capture (docs/guide/06-testing.md): ZINC_SHOT, gfx.capture, F12 in zinc dev, DevTools screenshots ----

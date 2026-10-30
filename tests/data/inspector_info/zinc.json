@@ -1,0 +1,6 @@
+{
+  "name": "inspector-info",
+  "entry": "src/main.tsx",
+  "app": { "id": "dev.zinc.tests.inspectorinfo", "version": "1.2.3" },
+  "permissions": ["fs", "net"]
+}

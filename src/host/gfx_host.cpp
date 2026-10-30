@@ -396,6 +396,13 @@ static const char* hudInfo() {   // the perf panel's engine line (ZN-375): the r
   return line;
 }
 void setEngineName(const char* name) { gEngine = name; }
+const char* engineName() { return gEngine; }
+const char* gfxInfo(std::size_t* n) {
+  static zrt::String s;
+  s = zrt::gfx::info_json();
+  *n = s.bytes();
+  return s.ptr();
+}
 // gl.zincPresent and zinc:gl's present (ZN-411, ZN-562): libzn_webgl writes the canvas into the runtime image's own pixels
 static const zn::gl::PresentHooks kGlPresent = {
     [](int image, int* w, int* h) { int32_t iw = 0, ih = 0; if (!zrt::raster::image_size(image, &iw, &ih)) return false; *w = iw; *h = ih; return true; },

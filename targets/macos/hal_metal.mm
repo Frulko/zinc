@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+extern "C" __attribute__((weak)) void zrt_prof_info(const char* key, const char* val);   // runtime/gfx.cpp: what the machine's GPU is
+
 static SDL_MetalView view;
 static CAMetalLayer* layer;
 static id<MTLCommandQueue> queue;
@@ -24,6 +26,7 @@ extern "C" bool hal_mtl_open(SDL_Window* w, bool nearest) {
   layer = (__bridge CAMetalLayer*)SDL_Metal_GetLayer(view);
   if (!layer) return false;
   layer.device = dev;
+  if (zrt_prof_info) zrt_prof_info("gpu", dev.name.UTF8String);   // the inspector's Info view, ZINC_PROFILE=json
   layer.pixelFormat = MTLPixelFormatBGRA8Unorm;   // the raster's byte order (0x00RRGGBB little-endian), as SDL's Metal renderer sets it
   layer.framebufferOnly = NO;                     // the drawable is a blit destination
   layer.opaque = YES;                             // the raster leaves the alpha byte at 0

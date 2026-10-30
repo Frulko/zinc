@@ -260,27 +260,103 @@ static void installNativeProvider(const char* entry) {
 static std::vector<std::string> gUsedPlugins;
 static std::vector<zn::frontend::NativeFallback> gNativeFallbacks;
 static std::string gDisplayPlugin;
+// What the inspector's Info view says of the program (Zinc.getProgramInfo): its files, the functions compiled, the zinc: modules its own files
+// import and its plugins, native or not. Kept beside a cached program as `plugins.info` (one JSON line), as the plugin names are.
+static int gInfoFiles = 0;
+static long gInfoFunctions = -1;   // -1: not a ZBC program (QuickJS and the other JavaScript engines)
+static std::vector<std::string> gInfoImports;
+static std::string gInfoCached;   // the facts of a cached program, read back
+static std::string jsonText(const std::string& s) {
+  std::string o = "\"";
+  for (char c : s) { if (c == '"' || c == '\\') o += '\\'; if (c == '\n') o += "\\n"; else if (static_cast<unsigned char>(c) >= 0x20) o += c; }
+  return o + "\"";
+}
+static std::string programFacts() {
+  if (!gInfoCached.empty()) return gInfoCached;
+  std::string o = "{\"files\":" + std::to_string(gInfoFiles) + ",\"functions\":" + (gInfoFunctions < 0 ? std::string("null") : std::to_string(gInfoFunctions)) + ",\"imports\":[";
+  for (std::size_t i = 0; i < gInfoImports.size(); ++i) o += (i ? "," : "") + jsonText(gInfoImports[i]);
+  o += "],\"plugins\":[";
+  for (std::size_t i = 0; i < gUsedPlugins.size(); ++i) {   // native: its C/C++ code is loaded (a Zinc stand-in or a plugin written in Zinc is not)
+    bool native = false;
+    std::string backend;
+    for (const auto& l : gPlugins) if (l.plugin == gUsedPlugins[i] && !l.module.empty() && !l.display) {
+      native = true;
+      for (const auto& f : gNativeFallbacks) if (f.module == l.module) { native = false; backend = f.backend; }
+    }
+    o += std::string(i ? "," : "") + "{\"name\":" + jsonText(gUsedPlugins[i]) + ",\"native\":" + (native ? "true" : "false") + (backend.empty() ? "" : ",\"backend\":" + jsonText(backend)) + "}";
+  }
+  return o + "]}";
+}
 static void notePlugins(const zn::frontend::Program& prog) {
   namespace fs = std::filesystem;
   gUsedPlugins.clear();
+  gInfoCached.clear();
+  gInfoImports.clear();
+  gInfoFiles = static_cast<int>(prog.files.size());
   std::vector<std::string> problems, files;
   for (const auto& f : prog.files) if (!f.typesOnly && !f.path.empty() && f.path[0] != '<' && f.path.rfind("zinc:", 0) != 0) files.push_back(fs::absolute(f.path).lexically_normal().string());   // a plugin read for its types only is not used
+  std::vector<std::string> pluginDirs;
   for (const auto& p : zn::frontend::discoverPlugins(gRoot, gProjectDir, problems)) {
     const std::string dir = (fs::absolute(p.dir).lexically_normal() / "").string();
+    pluginDirs.push_back(dir);
     for (const std::string& f : files) if (f.compare(0, dir.size(), dir) == 0) { gUsedPlugins.push_back(p.manifest.name); break; }
   }
+  // the zinc: modules the program's own files name (not the standard library's or the plugins' files): the features it uses
+  const std::string lib = (fs::absolute(gRoot).lexically_normal() / "lib" / "").string();
+  for (const auto& f : prog.files) {
+    if (f.typesOnly || f.path.empty() || f.path[0] == '<' || f.path.rfind("zinc:", 0) == 0) continue;
+    const std::string abs = fs::absolute(f.path).lexically_normal().string();
+    bool own = abs.compare(0, lib.size(), lib) != 0;
+    for (const std::string& d : pluginDirs) if (abs.compare(0, d.size(), d) == 0) own = false;
+    if (!own) continue;
+    const std::string& t = f.text;
+    for (std::size_t at = t.find("zinc:"); at != std::string::npos; at = t.find("zinc:", at + 1)) {
+      if (at == 0 || (t[at - 1] != '\'' && t[at - 1] != '"')) continue;
+      std::size_t e = at;
+      while (e < t.size() && (std::isalnum(static_cast<unsigned char>(t[e])) || t[e] == ':' || t[e] == '/' || t[e] == '_' || t[e] == '-')) ++e;
+      const std::string spec = t.substr(at, e - at);
+      if (e < t.size() && t[e] == t[at - 1] && spec.size() > 5 && std::find(gInfoImports.begin(), gInfoImports.end(), spec) == gInfoImports.end()) gInfoImports.push_back(spec);
+    }
+  }
+  std::sort(gInfoImports.begin(), gInfoImports.end());
 }
 static void savePlugins(const std::filesystem::path& file) {
   std::ofstream o(file); for (const std::string& n : gUsedPlugins) o << n << "\n";
   std::ofstream notices(file.string() + ".fallbacks");
   for (const auto& n : gNativeFallbacks) notices << std::quoted(n.module) << ' ' << std::quoted(n.backend) << ' ' << std::quoted(n.reason) << '\n';
+  std::ofstream(file.string() + ".info") << programFacts() << "\n";
 }
 static void loadPlugins(const std::filesystem::path& file) {
   gUsedPlugins.clear(); std::ifstream in(file); for (std::string n; std::getline(in, n);) if (!n.empty()) gUsedPlugins.push_back(n);
   gNativeFallbacks.clear(); std::ifstream notices(file.string() + ".fallbacks");
   zn::frontend::NativeFallback n;
   while (notices >> std::quoted(n.module) >> std::quoted(n.backend) >> std::quoted(n.reason)) gNativeFallbacks.push_back(n);
+  std::ifstream info(file.string() + ".info");
+  gInfoCached.clear();
+  std::getline(info, gInfoCached);
 }
+/** Zinc.getProgramInfo's part that only the command line knows: the entry, the project, this zinc, the profile and the program's facts. */
+static std::string programInfo(const std::string& entry) {   // before the run moves into its project: `entry` may be relative
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string pf = zn::frontend::findProjectFile(entry);
+  const std::string dir = (pf.empty() ? fs::absolute(entry, ec).parent_path() : fs::absolute(pf, ec).parent_path()).lexically_normal().string();
+  std::string project = "null";
+  if (!pf.empty()) {   // zinc.json: name, app id and version, permissions
+    std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf();
+    zn::frontend::Project p; std::string perr;
+    if (zn::frontend::parseProject(ss.str(), p, perr)) {
+      project = "{\"file\":" + jsonText(fs::absolute(pf, ec).lexically_normal().string()) + ",\"name\":" + jsonText(p.name) + ",\"id\":" + jsonText(p.app.id) +
+                ",\"version\":" + jsonText(p.app.version) + ",\"permissionsDeclared\":" + (p.permissionsDeclared ? "true" : "false") + ",\"permissions\":[";
+      for (std::size_t i = 0; i < p.permissions.size(); ++i) project += (i ? "," : "") + jsonText(p.permissions[i]);
+      project += "]}";
+    }
+  }
+  return "{\"entry\":" + jsonText(fs::absolute(entry, ec).lexically_normal().string()) + ",\"projectDir\":" + jsonText(dir) + ",\"zinc\":" + jsonText(kVersionText) +
+         ",\"profile\":" + jsonText(gProfile ? gProfile->name : "host") + ",\"facts\":" + programFacts() + ",\"project\":" + project + "}";
+}
+static std::string gInfoEntry;   // the running program's entry, absolute: zn::host::setProgramInfo asks for its info at each request
+static std::string runningProgramInfo() { return programInfo(gInfoEntry); }
 static void printPlugins() {
   static bool printed = false;
   if (printed) return;
@@ -589,6 +665,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
         if (nested > 0) { std::fprintf(stderr, "%s: a worker cannot start another worker yet (start it from the main program)\n", path); return 1; }
         const auto workers = prog.workers;
         auto sources = gSources; auto isLib = gSourceIsLib; auto paths = gSourcePaths; auto hostImports = gHostImports; auto debugSources = gDebugSources;
+        auto plugins = gUsedPlugins; auto imports = gInfoImports; int files = gInfoFiles;   // the program's plugins, imports and files: its workers' too
         auto* hotUnit = gHotUnit;
         gHotUnit = nullptr;
         ++nested;
@@ -602,6 +679,9 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
           }
           for (const std::string& p : gSourcePaths) if (std::find(paths.begin(), paths.end(), p) == paths.end()) paths.push_back(p);   // a change to a worker compiles the program again
           if (rc) break;
+          for (const std::string& n : gUsedPlugins) if (std::find(plugins.begin(), plugins.end(), n) == plugins.end()) plugins.push_back(n);
+          for (const std::string& m : gInfoImports) if (std::find(imports.begin(), imports.end(), m) == imports.end()) imports.push_back(m);
+          files += gInfoFiles;
           if (gDebug) gWorkerSources[key] = gDebugSources;   // zinc debug --cdp: the worker's files, for its own debugger
           out.workers.push_back({key, zn::zbc::encode(wm)});
         }
@@ -609,8 +689,11 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
         gHotUnit = hotUnit;
         gSources = std::move(sources); gSourceIsLib = std::move(isLib); gSourcePaths = std::move(paths); gHostImports = std::move(hostImports);
         gDebugSources = std::move(debugSources);
+        gUsedPlugins = std::move(plugins); gInfoImports = std::move(imports); gInfoFiles = files;
+        std::sort(gInfoImports.begin(), gInfoImports.end());
         if (rc) return rc;
       }
+      gInfoFunctions = static_cast<long>(out.functions.size());
       zn::log::step("compile", std::to_string(prog.files.size()) + (prog.files.size() == 1 ? " file" : " files") + ", " + std::to_string(out.functions.size()) + " functions", zn::log::since(t0));
       return 0;
     }
@@ -1215,6 +1298,7 @@ static bool wanted() {
 }
 static int exec(const fs::path& app, bool built, const std::string& entry, const std::string& projectDir, const std::vector<std::string>& progArgs) {
   zn::log::write("run", zn::log::Info, "engine AOT (" + app.string() + ")");
+  setenv("ZINC_PROGRAM_INFO", programInfo(entry).c_str(), 1);   // the inspector's Info view: the program reads it at start, then drops it
   assetsEnv(entry);   // as for the interpreter's run below main's compile
   printPlugins();
   zn::log::step("run", built ? "native" : "native, cached build (--interp to interpret)");
@@ -1385,7 +1469,6 @@ static zn::frontend::Project gUpdProject;
 static std::vector<std::string> gLaunchArgs;   // argv as the process got it, before a fused app or a .zapp rewrote it
 static std::string* gRunOut = nullptr;          // what the running program printed so far (the VM writes it out at the end): a restart prints it first
 static int updateReply(char* out, int cap, const std::string& json) { std::snprintf(out, static_cast<std::size_t>(cap), "%s", json.c_str()); return 1; }
-static std::string jsonText(const std::string& s) { std::string o = "\""; for (char c : s) { if (c == '"' || c == '\\') o += '\\'; if (c == '\n') { o += "\\n"; continue; } o += c; } return o + "\""; }
 extern "C" int zn_host_update(const char* op, const char* args, char* out, int cap) {
   (void)args;
   const zn::frontend::Project& p = gUpdProject;
@@ -2088,6 +2171,7 @@ int main(int argc, char** argv) {
     zn::log::write("run", zn::log::Info, std::string("engine ") + engineName);   // ZN-368
 #ifdef ZN_HOST_GFX
     zn::host::setEngineName(engine == "quickjs" ? "QuickJS" : engineName);   // the perf panel (ZN-375)
+    gInfoEntry = std::filesystem::absolute(argv[2]).string(); zn::host::setProgramInfo(runningProgramInfo);   // the inspector's Info view
 #endif
     if (std::getenv("ZINC_INSPECT") && engine == "quickjs") std::fprintf(stderr, "zinc: --inspect: an inspector attaches to --engine v8 or hermes (Chrome DevTools) or jsc (Safari) programs; zinc debug --cdp for a Zinc program\n");
     return engine == "quickjs" ? zn::qjs::run(qo) : runEngineModule(engine, qo);
@@ -2544,6 +2628,8 @@ int main(int argc, char** argv) {
     zn::log::write("run", zn::log::Info, "engine interpreter (ZBC), " + std::to_string(zm.functions.size()) + " functions");   // ZN-368
 #ifdef ZN_HOST_GFX
     zn::host::setEngineName("interpreter");   // the perf panel (ZN-375)
+    gInfoFunctions = static_cast<long>(zm.functions.size());
+    gInfoEntry = absPath; zn::host::setProgramInfo(runningProgramInfo);   // the inspector's Info view
 #endif
     printPlugins();
     zn::log::step("run", "interpreter");

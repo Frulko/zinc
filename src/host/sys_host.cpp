@@ -25,6 +25,7 @@
 #include <winsock2.h>
 #else
 #include <sys/wait.h>
+#include <sys/resource.h>
 #include <dirent.h>
 #include <dlfcn.h>
 #include <sys/utsname.h>
@@ -41,6 +42,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -127,6 +129,7 @@ void dyn_destroy(int32_t id);
 void dyn_set_blocks(int32_t id, uint32_t gl, const void* data, uint32_t bytes, bool premultiplied);
 }
 namespace zn::host {
+std::string programInfoJson();   // below: Zinc.getProgramInfo
 namespace {
 
 using zn::Rt;
@@ -1290,6 +1293,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       if (n(0) == 4) zn::netlog::consoleStart();   // the console (ZN-373.01): 4 start, 5 the new lines, 6 the last 32
       if (n(0) == 7 || n(0) == 8) { std::size_t len = 0; const char* p = zn::host::traceEvents(n(0) == 7, &len); ret(r, std::string(p, len)); break; }   // Tracing (ZN-373.05): 7 start, 8 end
       if (n(0) == 11) { std::size_t len = 0; const char* p = zn::host::threadTrace(3, nullptr, &len); ret(r, std::string(p, len)); break; }   // the workers (the inspector's Threads view)
+      if (n(0) == 12) { ret(r, programInfoJson()); break; }   // the program, the engine, the process and the renderer (the inspector's Info view)
       ret(r, n(0) == 1 ? zn::netlog::drain() : n(0) == 2 ? zn::netlog::responseBody(arg) : n(0) == 3 ? zn::netlog::postData(arg) : n(0) == 5 ? zn::netlog::consoleDrain() : n(0) == 6 ? zn::netlog::consoleRecent() : n(0) == 9 ? zn::netlog::har() : n(0) == 10 ? zn::netlog::replay() : std::string());   // 9: the log as HAR (the inspector's export)
       break;
     }
@@ -1436,7 +1440,44 @@ void call(int id, const HostArg* a, HostArg* r) {
 }  // namespace
 
 void setProgramArgs(const std::vector<std::string>& args) { gArgs = args; zn::netlog::on(); }   // on(): a run with --har writes its HAR even without a request
+static std::string gProgramInfo = "{}";   // an AOT program's, from ZINC_PROGRAM_INFO
+static std::string (*gProgramInfoSource)() = nullptr;
+static const auto gStarted = std::chrono::steady_clock::now();   // the process's start, near enough: this library's static initialisation
+void setProgramInfo(std::string (*source)()) { gProgramInfoSource = source; }
+/** Zinc.getProgramInfo (plugins/devtools, the inspector's Info view): the engine, what the command line said of the program, the process's
+ *  uptime, resident memory and CPU time, and the surface, the renderer and the last frames (gfxInfo). */
+std::string programInfoJson() {
+  std::uint64_t rss = 0;
+  double cpuMs = 0;
+#if defined(__APPLE__)
+  mach_task_basic_info_data_t ti; mach_msg_type_number_t cnt = MACH_TASK_BASIC_INFO_COUNT;
+  if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&ti), &cnt) == KERN_SUCCESS) rss = ti.resident_size;
+#elif defined(_WIN32)
+  PROCESS_MEMORY_COUNTERS pmc{};
+  if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof pmc)) rss = pmc.WorkingSetSize;
+  FILETIME c, e, k, u;
+  if (GetProcessTimes(GetCurrentProcess(), &c, &e, &k, &u)) cpuMs = (static_cast<double>((static_cast<std::uint64_t>(k.dwHighDateTime) << 32) | k.dwLowDateTime) + static_cast<double>((static_cast<std::uint64_t>(u.dwHighDateTime) << 32) | u.dwLowDateTime)) / 1e4;
+#else
+  if (FILE* f = std::fopen("/proc/self/statm", "r")) { unsigned long long pages = 0, res = 0; if (std::fscanf(f, "%llu %llu", &pages, &res) == 2) rss = res * static_cast<std::uint64_t>(sysconf(_SC_PAGESIZE)); std::fclose(f); }
+#endif
+#ifndef _WIN32
+  rusage ru{};
+  if (getrusage(RUSAGE_SELF, &ru) == 0) cpuMs = (ru.ru_utime.tv_sec + ru.ru_stime.tv_sec) * 1e3 + (ru.ru_utime.tv_usec + ru.ru_stime.tv_usec) / 1e3;
+#endif
+  std::size_t n = 0;
+  const char* gfx = gfxInfo(&n);
+  const char* headless = std::getenv("ZINC_HEADLESS");
+  return std::string("{\"engine\":\"") + engineName() + "\",\"pid\":" + std::to_string(getpid()) +
+         ",\"uptimeMs\":" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - gStarted).count()) +
+         ",\"rssBytes\":" + std::to_string(rss) + ",\"cpuMs\":" + std::to_string(static_cast<long long>(cpuMs)) +
+         ",\"headless\":" + (headless && *headless && *headless != '0' ? "true" : "false") + ",\"program\":" + (gProgramInfoSource ? gProgramInfoSource() : gProgramInfo) + ",\"gfx\":" + std::string(gfx, n) + "}";
+}
+}  // namespace zn::host
+/** The same for the devtools plugin's native transport (plugins/devtools/native/cdp.host.cpp: QuickJS programs), as zn_resource_stats_json. */
+extern "C" const char* zn_program_info_json(void) { static std::string s; s = zn::host::programInfoJson(); return s.c_str(); }
+namespace zn::host {
 void installSys() {
+  if (const char* e = std::getenv("ZINC_PROGRAM_INFO")) { gProgramInfo = e; unsetenv("ZINC_PROGRAM_INFO"); }   // an AOT program: from zinc run (main.cpp), not for its children
   hostSys = call;
   loopBridge.wakeNew = zn::loop::wakeNew;   // zinc:worker (src/rt/worker.cpp)
   loopBridge.wakeSend = zn::loop::wakeSend;

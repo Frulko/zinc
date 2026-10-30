@@ -5,7 +5,7 @@
 // The apps of the paired devices are listed with the programs of this machine (ZN-729.05): `zinc device inspect --all` brings their inspectors here.
 // Usage: zinc run app/inspector/main.tsx -- [port...]
 // ZINC_INSPECTOR_DUMP=1: attach to the first program, go through each panel and print what it shows, then quit (tests/t1/inspector.sh);
-// =elements: the Elements panel only; =storage: the Storage panel only (tests/t1/inspector_storage.sh). A debugger target gets the Sources session.
+// =elements: the Elements panel only; =storage: the Storage panel only (tests/t1/inspector_storage.sh); =info: the Info view's card (tests/t1/inspector_info.sh). A debugger target gets the Sources session.
 import { createSignal, render } from 'zinc:ui/solid';
 import * as sys from 'zinc:sys';
 import { quit, imageFromBytes, destroyImage, imageWidth, imageHeight, drawImage, rect } from 'zinc:gfx';
@@ -20,6 +20,7 @@ import { NetworkView, onNetwork, onReload, dumpNetwork, reqs, pick, Req } from '
 import { StorageView, loadStorage, onStorage, changes, dumpStorage, items, pickItem, tables, openTable } from './storage';
 import { SourcesView, DebugPane, onDebugger, resetSources, setWaiting, setPaused, setEnded, dumpDebugger } from './sources';
 import { ConsolePane, onConsole, logs, setLogs } from './console';
+import { InfoView, watchInfo, loadInfo, dumpInfo, infoLoads, setInfoDevice } from './info';
 
 const args = sys.args();
 const ports: i32[] = [];
@@ -128,6 +129,9 @@ async function attach(t: Target): Promise<void> {
   }
   const info = await call('Zinc.getInfo', '{}');
   setDevRun(info.dev !== undefined && info.dev === true);
+  setInfoDevice(devicePorts.indexOf(t.port) >= 0 ? t.title : '');   // the Info view first (a debugger target opens on Sources above)
+  setView('info');
+  watchInfo();
   await call('Network.enable', '{}');   // the requests made before the attach come too
   await loadDocument();
   await loadStorage();
@@ -228,7 +232,7 @@ function frameLines(): string[] {   // the picked frame, phase by phase
 }
 
 function Tab(p: { id: string; label: string }): i32 {
-  return <Button className={'py-1 flex-row items-center h-7 px-3 rounded-md ' + (view() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { setView(p.id); screen(p.id === 'screen'); if (p.id === 'threads') watchThreads(); }}>
+  return <Button className={'py-1 flex-row items-center h-7 px-3 rounded-md ' + (view() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { setView(p.id); screen(p.id === 'screen'); if (p.id === 'threads') watchThreads(); if (p.id === 'info') watchInfo(); }}>
     <Text className="text-xs font-medium text-slate-900">{p.label}</Text>
   </Button>;
 }
@@ -246,6 +250,7 @@ function App(): i32 {
       </View>
       <View className="flex-col flex-1 w-0 overflow-hidden">
         <View className="flex-row items-center gap-1 px-2 py-1 border-b">
+          <Tab id="info" label="Info" />
           <Tab id="elements" label="Elements" />
           <Tab id="screen" label="Screen" />
           <Tab id="network" label="Network" />
@@ -256,9 +261,9 @@ function App(): i32 {
           <Text className="flex-1 text-xs text-slate-600">{attached()}</Text>
         </View>
         {view() === 'sources' ? <SourcesView /> : view() === 'performance' ? <PerformanceView /> : view() === 'threads' ? <ThreadsView /> : view() === 'network' ? <NetworkView /> : view() === 'storage' ? <StorageView /> :
-          view() === 'screen' ? <ScreenView /> : <ElementsView />}
+          view() === 'screen' ? <ScreenView /> : view() === 'info' ? <InfoView /> : <ElementsView />}
       </View>
-      {view() === 'network' || view() === 'storage' || view() === 'threads' ? <View /> : <View className="flex-col w-80 border-l">
+      {view() === 'network' || view() === 'storage' || view() === 'threads' || view() === 'info' ? <View /> : <View className="flex-col w-80 border-l">
         {view() === 'sources' ? <ScrollView className="flex-1"><DebugPane /></ScrollView> :
         view() === 'performance' ? <View className="flex-col gap-1 p-2">{frameLines().map((l: string) => <Text className="text-xs font-mono text-slate-800">{l}</Text>)}</View> : <StylesPane />}
       </View>}
@@ -277,6 +282,16 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the panels as t
   if (ts.length === 0) { quit(); return; }
   await attach(ts[0]);
   if (ts[0].type === 'node') { await dumpDebugger(); quit(); return; }
+  if (mode === 'info') {   // the Info view's card, once its workers are known
+    const n = infoLoads();
+    await until(() => infoLoads() > n);
+    await sleep(1200);   // a few frames: the frame rate, the phases
+    await loadInfo();
+    dumpInfo();
+    quit();
+    return;
+  }
+  setView('elements');
   if (mode === 'threads') {   // the Threads view, then a recording's tracks
     setView('threads');
     watchThreads();

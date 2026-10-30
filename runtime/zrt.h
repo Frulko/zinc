@@ -847,6 +847,7 @@ bool scene_replay(const char* scene, const char* out);  // ZN-170: rasterize a Z
 String profSection(const String& label);                // ZINC_PROFILE: prints the numbers of the frames since the last section (and the last frame's hash), then starts a new section
 void profMark(int32_t phase);       // attributes the time since the previous mark to `phase`
 String trace(bool on);              // DevTools Tracing.start (true) / Tracing.end (false: the trace events JSON)
+String info_json();                 // Zinc.getProgramInfo: the surface, its scale, the renderer's strings, the last frames' rate and phases (JSON)
 double wheelX();
 int32_t pointerButtons();
 int32_t modifiers();

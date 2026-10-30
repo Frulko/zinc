@@ -9,6 +9,7 @@ import Cdp from './native/cdp.spec';
 import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
 import { width, height } from 'zinc:gfx';
 import { env } from 'zinc:sys';
+import { type as osType, release as osRelease, arch as osArch, cpus as osCpus, totalmem, hostname } from 'zinc:os';
 import { get as storeGet, set as storeSet, remove as storeRemove, keys as storeKeys } from 'zinc:storage';
 import { devDatabases, DevDatabase } from 'zinc:devhooks';
 
@@ -139,6 +140,15 @@ function onPick(hit: i32, pressed: boolean): void {
 /** A result of the host's network log; `{}` on targets that have none. */
 function orEmpty(json: string): string { return json.length > 0 ? json : '{}'; }
 
+/** Zinc.getProgramInfo (the inspector's Info view): the host's part (engine, process, what zinc run said of the program, renderer, frames),
+ *  the machine (zinc:os), the window and the resource counters (the baked fonts and images, the runtime's blocks). */
+function programInfo(): string {
+  const cpus = osCpus();
+  return `{"runtime":${orEmpty(Cdp.net(12, ''))},"dev":${DEV},"width":${width()},"height":${height()},"os":${q(osType())},"release":${q(osRelease())},` +
+    `"arch":${q(osArch())},"cpu":${q(cpus.length > 0 ? cpus[0].model : '')},"cores":${cpus.length},"memory":${totalmem()},"host":${q(hostname())},` +
+    `"resources":${orEmpty(Cdp.resourceStats())}}`;
+}
+
 function handle(client: i32, msg: string): void {
   const id = Cdp.num(msg, 'id'), method = Cdp.str(msg, 'method');
   const nid = Cdp.num(msg, 'nodeId');
@@ -201,6 +211,7 @@ function handle(client: i32, msg: string): void {
   else if (method === 'Zinc.getResourceStats') result = Cdp.resourceStats();
   else if (method === 'Zinc.getThreads') { const t = Cdp.net(11, ''); result = `{"threads":${t.length > 0 ? t : '[]'}}`; }   // the workers: state, queues, messages, live blocks, CPU
   else if (method === 'Zinc.getInfo') result = `{"dev":${DEV},"width":${width()},"height":${height()}}`;
+  else if (method === 'Zinc.getProgramInfo') result = programInfo();
   else if (method === 'Zinc.getUnrendered') result = `{"nodeIds":[${unrendered().join(',')}]}`;
   else if (method === 'DOMStorage.enable') { storeOn = true; storeSnap = storeRead(); }
   else if (method === 'DOMStorage.disable') storeOn = false;
