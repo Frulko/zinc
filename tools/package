@@ -63,7 +63,14 @@ def payload(share):
     for part in ("prebuilt", "js"):   # --engine mquickjs: the firmware image and the files zinc prepares a program with (src/cli_mqjs.cpp)
         copy_tree(os.path.join(NEXT, "firmware", "esp32-mquickjs", part), os.path.join(nx, "firmware", "esp32-mquickjs", part))
     copy_tree(os.path.join(NEXT, "tools", "esp32sim"), os.path.join(nx, "tools", "esp32sim"))   # --emulator: the patch zinc builds esp32sim with (src/tc/tc.cpp)
-    copy_tree(os.path.join(NEXT, "app"), os.path.join(nx, "app"), lambda r: r.endswith(('.ts', '.tsx', '.json', '.png', '.txt')) and not r.startswith('atelier/build'))   # zinc.json (permissions), icon, thumbs, examples/index.txt: Atelier does not run without them
+    copy_tree(os.path.join(NEXT, "app"), os.path.join(nx, "app"), lambda r: r.endswith(('.ts', '.tsx', '.json', '.png', '.txt')) and not r.startswith('atelier/build'))   # zinc.json (permissions), icon, thumbs: Atelier does not run without them
+    # the graded examples (ZN-774.33): the catalogue and every folder it lists, without their build output; zinc examples, example:<name> and Atelier read them
+    copy_tree(os.path.join(REPO, "learn"), os.path.join(share, "learn"))
+    with open(os.path.join(REPO, "learn", "catalog.txt")) as catalog:
+        for line in catalog:
+            fields = line.rstrip("\n").split("|")
+            if line.startswith("#") or len(fields) < 6: continue
+            copy_tree(os.path.join(REPO, fields[3]), os.path.join(share, fields[3]), lambda r: not r.startswith(("build/", "dist/", ".")))
     copy_tree(os.path.join(REPO, "lib", "std"), os.path.join(share, "lib", "std"))
     copy_tree(os.path.join(REPO, "lib", "fonts"), os.path.join(share, "lib", "fonts"))
     copy_tree(os.path.join(REPO, "templates"), os.path.join(share, "templates"))   # zinc new (ZN-315)

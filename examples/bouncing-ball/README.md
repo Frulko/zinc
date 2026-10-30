@@ -7,9 +7,8 @@ nothing: the HUD text is rebuilt only when it changes.
 ## Run it
 
 ```sh
-zinc run examples/bouncing-ball                  # macOS window (SDL3)
+zinc run example:bouncing-ball                   # a window (installed: the examples ship with zinc)
 zinc run examples/bouncing-ball --target wasm    # browser: http://localhost:8080
-zinc run examples/bouncing-ball --target sim     # Node, headless (stop it with ZINC_FRAMES=n)
 ```
 
 Controls: hold **Up** or **Space** to add 100 balls per frame, **Down** resets to one ball, hold the **mouse button** to spray balls

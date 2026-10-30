@@ -22,14 +22,13 @@ Or install **Zinc Atelier**, the app that edits and runs programs with no termin
 
 ## How to run a lesson
 
-The code of every lesson is a small project in [`docs/learn/samples/`](samples/): a `zinc.json` file and a `src` folder.
-Download that folder from [GitHub](https://github.com/Frulko/zinc/tree/main/docs/learn/samples), or use your copy of the
-Zinc repository.
+The code of every lesson is a small project (a `zinc.json` file and a `src` folder) that comes with Zinc: `zinc examples`
+lists them with the other examples, graded by stars, and `zinc new my-lesson --from example:01-window-and-shape` copies one to change.
 
-**In a terminal**, give `zinc run` the lesson's folder:
+**In a terminal**, give `zinc run` the lesson's name (or its folder):
 
 ```sh
-zinc run docs/learn/samples/01-window-and-shape
+zinc run example:01-window-and-shape
 ```
 
 A window opens. Close it to stop the program. What the program prints with `console.log` shows in the terminal.

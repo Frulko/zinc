@@ -239,7 +239,7 @@ erreur et `zinc explain`, Fast Refresh avec `zinc dev`, un type de programme, la
 (`zinc tour --list`, `zinc tour 5`, `zinc tour --reset`), dans votre langue. Ensuite, [les leçons](../learn/README.md) continuent.
 
 - **Vous enseignez.** [Le langage](02-language.md) est du TypeScript avec les règles qui y sont listées, et chaque code d'erreur
-  s'explique lui-même (`zinc explain`). `zinc new game-2d` est un petit jeu complet à lire et à modifier en classe ; `zinc run examples/breakout` en est
+  s'explique lui-même (`zinc explain`). `zinc new game-2d` est un petit jeu complet à lire et à modifier en classe ; `zinc run example:breakout` en est
   un autre. `zinc test` lance les fichiers `*.test.ts` d'un projet ([les tests](06-testing.md)). Les programmes tournent de la même façon sur les
   vieilles machines de l'école et sur un Raspberry Pi.
 - **Vous fabriquez.** `zinc new iot-board` est un appareil avec un capteur et un écran qui tourne sur votre bureau avec le capteur

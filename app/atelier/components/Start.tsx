@@ -1,14 +1,15 @@
 // The start view: what Zinc is and where the lessons are, a new sketch in one of the four styles (D161), the templates of real
 // apps, then the examples by style, one card each with a picture of what it draws. A card opens a copy in the sketchbook, so the
-// examples themselves stay as they are. The examples are folders of examples/ beside this app, listed in examples/index.txt
-// (`folder|Title|one line|style`, the styles of STYLES); their pictures are thumbs/<folder>.png.
+// examples themselves stay as they are. The examples are those of the graded catalogue learn/catalog.txt (ZN-774.33), the list
+// `zinc examples` prints too (`name|stars|style|path|title|line|lesson`, the styles of STYLES, the path from the engine's root);
+// their pictures are thumbs/<name>.png.
 import { createNodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import { imageFromBytes, drawImage, rrect, border } from 'zinc:gfx';
 import { theme, bg, fg, bd } from '../app/theme';
-import { newSketch, openCopy, sketchbook, say, APP_HOME, STYLES } from '../app/workspace';
+import { newSketch, openCopy, sketchbook, say, APP_HOME, ENGINE_ROOT, STYLES } from '../app/workspace';
 import { startOpen, setStartOpen, openDocs, fromTemplate, openPalette, PAL_TEMPLATES } from '../app/commands';
 import { Glyph } from './Controls';
 import { t, has } from '../app/text';
@@ -18,10 +19,10 @@ import { I_PLUS } from './icons';
 const TEMPLATES: string[] = ['game', 'game-2d', 'desktop-app', 'dashboard', '3d', 'iot-board'];
 
 export class Example {
-  dir: string; title: string; text: string; style: string;
+  dir: string; path: string; title: string; text: string; style: string;
   image: i32 = -2;   // -2 not loaded yet, -1 no picture
-  constructor(dir: string, title: string, text: string, style: string) { this.dir = dir; this.title = title; this.text = text; this.style = style; }
-  /** Its title and its line in the language of the interface (atelier.example.<folder>.title, .text); index.txt's English otherwise. */
+  constructor(dir: string, path: string, title: string, text: string, style: string) { this.dir = dir; this.path = path; this.title = title; this.text = text; this.style = style; }
+  /** Its title and its line in the language of the interface (atelier.example.<name>.title, .text); the catalogue's English otherwise. */
   name(): string { const k = `atelier.example.${this.dir}.title`; return has(k) ? t(k) : this.title; }
   line(): string { const k = `atelier.example.${this.dir}.text`; return has(k) ? t(k) : this.text; }
 }
@@ -29,17 +30,19 @@ function load(): Example[] {
   const out: Example[] = [];
   if (APP_HOME === '') return out;
   try {
-    for (const l of fs.readText(APP_HOME + '/examples/index.txt').split('\n')) {
+    for (const l of fs.readText(ENGINE_ROOT + '/learn/catalog.txt').split('\n')) {
       const p = l.split('|');
-      if (p.length >= 3 && fs.exists(`${APP_HOME}/examples/${p[0]}`)) out.push(new Example(p[0], p[1], p[2], p.length > 3 ? p[3].trim() : STYLES[0]));
+      if (l.startsWith('#') || p.length < 6) continue;
+      const path = `${ENGINE_ROOT}/${p[3]}`;
+      if (fs.exists(path)) out.push(new Example(p[0], path, p[4], p[5], p[2]));
     }
   } catch (e) { }
   return out;
 }
 export const EXAMPLES: Example[] = load();
-/** Opens a copy of an example by its folder name; false when there is none. */
+/** Opens a copy of an example by its name in the catalogue; false when there is none. */
 export function openExample(dir: string): boolean {
-  for (const e of EXAMPLES) if (e.dir === dir) { if (openCopy(`${APP_HOME}/examples/${e.dir}`)) setStartOpen(false); return true; }
+  for (const e of EXAMPLES) if (e.dir === dir) { if (openCopy(e.path)) setStartOpen(false); return true; }
   say(t('atelier.example.none', ['name', dir]));
   return false;
 }

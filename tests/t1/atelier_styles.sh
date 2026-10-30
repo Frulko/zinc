@@ -30,8 +30,10 @@ has top "The web's canvas calls: paths, fills, gradients (zinc:canvas)."
 has top 'Buttons and text described in JSX, like React (zinc:ui).'
 has top 'Bouncing ball Click it: the program measures the distance to its centre.'
 # the examples of the other styles, under their headings, in this order
-has end 'Scene Bouncing ball Click it: the ball says where it takes a tap. Canvas Bouncing ball Click it: the canvas says if the point is in its path.'
-has end 'Interface Interface A button and its number. Bouncing ball Click it: its box calls onClick.'
+# (the examples of learn/catalog.txt, ZN-774.33: Atelier's and the lessons' in one list)
+has end 'Scene A stage and a sprite Three balls roll across a stage, each at its speed. Bouncing ball Click it: the ball says where it takes a tap.'
+has end 'Canvas Paths and fills A house, a path and a sun, drawn with paths. Bouncing ball Click it: the canvas says if the point is in its path.'
+has end 'Interface Interface A button and its number. Components A card with a picture, a title and a button. Bouncing ball Click it: its box calls onClick.'
 # style: the folder Atelier made, the main file, its import, the first line of its comment
 check() {
   f="$tmp/book/$2/$3"

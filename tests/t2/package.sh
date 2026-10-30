@@ -26,6 +26,9 @@ printf 'console.log("hello", 6 * 7);\n' > hello.ts
 real=$(cd "$tmp" && pwd -P)
 case "$(clean "$Z" --root)" in "$real"/zinc-*/share/zinc) ;; *) echo "the engine files are not read from the package: $(clean "$Z" --root)"; fail=1 ;; esac
 out=$(clean "$Z" run hello.ts 2>&1); [ "$out" = "hello 42" ] || { echo "hello.ts does not run from the package: $(printf '%s' "$out" | head -c 600)"; fail=1; }
+# the graded examples ship (ZN-774.33): the guide's example:breakout and a lesson run, and zinc examples lists the catalogue
+clean ZINC_HEADLESS=1 ZINC_FRAMES=2 "$Z" run example:breakout >/dev/null 2>"$tmp/err" && clean ZINC_HEADLESS=1 ZINC_FRAMES=2 "$Z" run example:01-window-and-shape >/dev/null 2>>"$tmp/err" \
+  && clean "$Z" examples | grep -q ' breakout ' || { echo "the examples of learn/catalog.txt do not run from the package: $(head -c 300 "$tmp/err")"; fail=1; }
 if [ -n "$APP" ]; then
   clean ZINC_BACKGROUND=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=2 ZINC_SIZE=800x500 ZINC_SHOT="$tmp/work/atelier.png" ZINC_SHOT_FRAMES=2 ZINC_PROJECT="$tmp/work" "$APP" >/dev/null 2>"$tmp/err" \
     && [ -s "$tmp/work/atelier-2.png" ] || { echo "the app does not open from the package: $(head -c 300 "$tmp/err")"; fail=1; }

@@ -1969,6 +1969,14 @@ int main(int argc, char** argv) {
   }
   {   // help, init and the bare project commands (ZN-138)
     std::vector<std::string> cl(argv, argv + argc);
+    if (argc >= 2 && !std::strcmp(argv[1], "examples")) return zn::cli::examples(cl, gRoot);
+    if (argc >= 3 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "dev") || !std::strcmp(argv[1], "check") || !std::strcmp(argv[1], "build")))
+      for (std::size_t k = 2; k < cl.size() && cl[k] != "--"; ++k)   // example:<name>: its folder from learn/catalog.txt (ZN-774.33)
+        if (cl[k].rfind("example:", 0) == 0) {
+          std::string err;
+          cl[k] = zn::cli::exampleDir(cl[k], gRoot, err);
+          if (cl[k].empty()) { std::fprintf(stderr, "%s\n", err.c_str()); return 2; }
+        }
 #ifdef ZN_AGENT   // the device agent and its client (ZN-729); before --help is read, which belongs to the command a remote shell runs
     if (argc >= 2 && !std::strcmp(argv[1], "agent")) return zn::agent::serve({cl.begin() + 2, cl.end()}, zn::tc::executablePath(), kVersionText);
     if (argc >= 2 && !std::strcmp(argv[1], "device")) return zn::agent::device({cl.begin() + 2, cl.end()}, zn::tc::executablePath());

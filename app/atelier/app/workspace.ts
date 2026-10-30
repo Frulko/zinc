@@ -131,10 +131,12 @@ function appHome(): string {
   const cands: string[] = ['.', sys.launchDir() + '/app/atelier', sys.launchDir() + '/app/atelier', sys.launchDir()];
   if (up > 0) cands.push(bin.slice(0, up) + '/app/atelier');
   if (bin !== '') cands.push(bin.slice(0, bin.lastIndexOf('/')) + '/../Resources/zinc/app/atelier');
-  for (const c of cands) if (fs.exists(c + '/examples/index.txt')) { try { return fs.realpath(c); } catch (e) { return c; } }
+  for (const c of cands) if (fs.exists(c + '/../../learn/catalog.txt')) { try { return fs.realpath(c); } catch (e) { return c; } }
   return '';
 }
 export const APP_HOME: string = appHome();
+/** The engine's files (the repository, or share/zinc of an install): app/atelier is two folders down. */
+export const ENGINE_ROOT: string = APP_HOME === '' ? '' : APP_HOME.slice(0, APP_HOME.lastIndexOf('/', APP_HOME.lastIndexOf('/') - 1));
 
 // ---------------------------------------------------------------- the sketch
 export const [sketchDir, setSketchDir] = createSignal<string>('');

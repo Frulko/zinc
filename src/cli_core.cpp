@@ -105,7 +105,8 @@ const Command kCommands[] = {
    "  --watch          bundle again on each save"},
   {"check", "zinc check [entry|dir]", "cli.cmd.check", "Parses and checks the entry and what it imports; prints the diagnostics (zinc explain <code> describes one). Exit 1 on errors."},
   {"test", "zinc test [--profile P] [--runner interp|aot|quickjs|jsc|v8|hermes|esp32-qemu|devicesim] [dir]", "cli.cmd.test", "Runs the *.test.ts / test-*.ts files and the conformance programs against their goldens: those of dir, else of the project in the current directory, else the engine's tests/conformance."},
-  {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new | zinc new --pick | zinc new --list", "cli.cmd.new", "With no argument it asks nothing: a game in my-game (my-game-2... when that folder is taken). --pick at a terminal asks what to make (the arrows and Enter, or a number), how to write it when that kind has several styles (a game: Drawing, Scene or Canvas; an app with windows: Interface or Scene), and the name of the new folder; in a script, a pipe or CI --pick prints this usage and writes nothing. Copies templates/<template>/ ({{name}}, {{id}} and {{ident}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README: its README.<lang>.md in the language in force when it has one) into a new or empty directory, writes tsconfig.json for this machine, and says what to do next. zinc new <dir> makes a game; --list prints the templates by what they make. zinc new plugin <dir>: a plugin repository to publish (docs/plugins.md, \"Plugin starter\")."},
+  {"new", "zinc new [template|path|git-url|gh:user/repo[@ref]] <dir> | zinc new [<dir>] --from example:<name> | zinc new | zinc new --pick | zinc new --list", "cli.cmd.new", "With no argument it asks nothing: a game in my-game (my-game-2... when that folder is taken). --pick at a terminal asks what to make (the arrows and Enter, or a number), how to write it when that kind has several styles (a game: Drawing, Scene or Canvas; an app with windows: Interface or Scene), and the name of the new folder; in a script, a pipe or CI --pick prints this usage and writes nothing. Copies templates/<template>/ ({{name}}, {{id}} and {{ident}} filled in the files and their names; or a template directory, or a git repository cloned at its default branch or @ref, its commit recorded in zinc.json \"template\"; nothing of the template is run) (zinc.json, sources, assets, tests, README: its README.<lang>.md in the language in force when it has one) into a new or empty directory, writes tsconfig.json for this machine, and says what to do next. zinc new <dir> makes a game; --list prints the templates by what they make. zinc new plugin <dir>: a plugin repository to publish (docs/plugins.md, \"Plugin starter\")."},
+  {"examples", "zinc examples [drawing|scene|canvas|interface]", "cli.cmd.examples", "Lists the graded examples of learn/catalog.txt by style, then by stars (one: the first hour; four: a whole program to read), each with its name and one line. They ship with zinc: zinc run example:<name> runs one where it is (zinc dev and zinc check take the name too), zinc new <folder> --from example:<name> copies it into a new folder to change. A name the catalogue does not have gets the closest one. Zinc Atelier shows the same examples on its start view."},
   {"tour", "zinc tour [step] [--list] [--reset] [--auto [--until step] [--dir path]]", "cli.cmd.tour", "A guided first walk in eight steps, in a real project: make it (the zinc new question), run it, change a line, make a mistake and read it with zinc explain, Fast Refresh with zinc dev, choose a kind of program, find the docs, open Zinc Atelier. Each step says what to do and checks by itself that it is done. Progress is kept in $ZINC_HOME/tour.json (~/.zinc/tour.json): zinc tour goes on where you stopped, zinc tour <step> goes to a step, --list shows the steps done, --reset starts again (the project stays). Without a terminal or under CI it asks nothing and prints the steps. --auto does every step itself (the edits too) without a question or a window, up to --until, in --dir (default: zinc-tour in the current directory); exit 1 at the first step that fails."},
   {"pack", "zinc pack [dir] [-o app.zapp]","cli.cmd.pack", "Writes build/<name>.zapp: a deterministic ustar with the compiled program, its baked fonts and images, its assets and zinc.json, every file listed with its SHA-256 in manifest.json (and a signature slot). zinc run app.zapp checks and runs it (docs/zapp.md)."},
   {"assets", "zinc assets build|info [dir] [--target T] [--release]", "cli.cmd.assets", "zinc assets info prints the asset profile (texture formats, max size, audio codecs, pack codec) and the budgets in force on each target: targets/capabilities.json, then zinc.json assets.profiles, targets.<id>.assets and assets.budgets. zinc assets build imports every file of the project's assets directory (zinc.json assets.dir; its assets.rules and assets.groups choose importers and packs) (images to premultiplied RGBA, texture rules to the GPU formats of the target's profile through basisu, model rules through gltfpack: a quantised GLB compressed with EXT_meshopt_compression for three or a .zmesh for zinc:3d, world rules a glTF scene to a zinc:3d .zworld with its cells, levels and chunks, the rest copied as is) and writes one ZPK pack per group with report.json (each asset's importer, group, source and output bytes, time) into build/assets/<target> (default: this machine). Artifacts are kept by content in ~/.zinc/cache/assets, so a second build of an unchanged project runs no importer and a changed file is imported alone. --release compresses the packs with the target's codec (zstd, lz4 on the Pi) and encodes textures (a dev build makes rgba8). zinc pack and zinc build do it for this machine, zinc export (release) for its target (docs/reports/zinc-next-assets.md)."},
@@ -154,7 +155,7 @@ const Command kCommands[] = {
 
 const Command* findCommand(const std::string& n) { for (const Command& c : kCommands) if (n == c.name) return &c; return nullptr; }
 // What `zinc help` shows first: the commands of a first day, then those that make something to give away; `zinc help --all` has the rest
-const char* const kStartHere[] = {"new", "run", "dev", "check", "doctor", "explain", "tour"};
+const char* const kStartHere[] = {"new", "run", "dev", "check", "examples", "doctor", "explain", "tour"};
 const char* const kShip[] = {"build", "pack", "export", "publish"};
 // Two examples at the top of `zinc help <command>` for the commands of a first day
 struct Example { const char* command; const char* line; const char* id; };
@@ -165,6 +166,7 @@ const Example kExamples[] = {
   {"check", "zinc check", "cli.example.check.project"}, {"check", "zinc check src/main.ts", "cli.example.check.file"},
   {"doctor", "zinc doctor", "cli.example.doctor.short"}, {"doctor", "zinc doctor --details", "cli.example.doctor.details"},
   {"explain", "zinc explain Z0103", "cli.example.explain.code"}, {"explain", "zinc explain --codes", "cli.example.explain.codes"},
+  {"examples", "zinc examples", "cli.example.examples.all"}, {"examples", "zinc run example:breakout", "cli.example.examples.run"},
   {"tour", "zinc tour", "cli.example.tour.go"}, {"tour", "zinc tour --list", "cli.example.tour.list"},
   {"build", "zinc build", "cli.example.build.project"}, {"build", "zinc build --target aarch64-linux", "cli.example.build.target"},
 };
@@ -673,11 +675,14 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   std::string tmpl = "game";
   std::vector<std::string> pos;
   bool list = false, named = false, pick = false;
+  std::string from;
   for (std::size_t i = 2; i < args.size(); ++i) {
     if (args[i] == "--template" && i + 1 < args.size()) { tmpl = args[++i]; named = true; }
     else if (args[i].rfind("--template=", 0) == 0) { tmpl = args[i].substr(11); named = true; }
     else if (args[i] == "--list") list = true;
     else if (args[i] == "--pick" || args[i] == "-i") pick = true;
+    else if (args[i] == "--from" && i + 1 < args.size()) from = args[++i];
+    else if (args[i].rfind("--from=", 0) == 0) from = args[i].substr(7);
     else if (args[i].rfind("-", 0) != 0) pos.push_back(args[i]);
     else { std::fprintf(stderr, "%s\n%s\n", tr("cli.option.unknown", {{"command", cmd}, {"option", args[i]}}).c_str(), tr("cli.usage", {{"usage", findCommand(cmd.c_str())->usage}}).c_str()); return 2; }
   }
@@ -688,6 +693,14 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
     printIndexTemplates(engineRoot, all);
     return 0;
   }
+  TemplateInfo example;   // --from example:<name> (ZN-774.33): that folder of learn/catalog.txt, copied to change; another --from is a template
+  if (from.rfind("example:", 0) == 0) {
+    std::string err;
+    example.dir = exampleDir(from, engineRoot, err);
+    if (example.dir.empty()) { std::fprintf(stderr, "%s\n", err.c_str()); return 2; }
+    example.name = tmpl = from.substr(8);
+    if (pos.empty()) pos.push_back(tmpl);
+  } else if (!from.empty()) { tmpl = from; named = true; }
   if (pos.empty() && pick) {   // zinc new --pick: a person at a terminal is asked; a script, a pipe or CI gets the usage and nothing is written
     const char* ci = std::getenv("CI");
     if (!isatty(0) || !isatty(1) || (ci && *ci)) { std::fprintf(stderr, "%s\n%s\n", tr("cli.usage", {{"usage", findCommand(cmd.c_str())->usage}}).c_str(), tr("cli.usage.more", {{"command", cmd}}).c_str()); return 2; }
@@ -704,8 +717,8 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   if (pos.size() > 2 || (pos.size() == 2 && named)) { std::fprintf(stderr, "%s\n", tr("cli.usage", {{"usage", findCommand(cmd.c_str())->usage}}).c_str()); return 2; }
   if (pos.size() == 2) tmpl = pos[0];
   const std::string dir = pos.empty() ? "." : pos.back();
-  const TemplateInfo* t = nullptr;
-  for (const TemplateInfo& x : all) if (x.name == tmpl) t = &x;
+  const TemplateInfo* t = example.dir.empty() ? nullptr : &example;
+  if (!t) for (const TemplateInfo& x : all) if (x.name == tmpl) t = &x;
   std::error_code ec;
   bool external = !t && (tmpl.find('/') != std::string::npos || tmpl.find(':') != std::string::npos || tmpl.rfind(".", 0) == 0);
   std::string subdir, tier = t ? "official" : "community";   // the engine's own templates are official; a URL is community (ZN-349)
@@ -752,7 +765,7 @@ int init(const std::vector<std::string>& args, const std::string& engineRoot) {
   const std::string readme = "README." + zn::i18n::language() + ".md";
   const bool translated = fs::is_regular_file(t->dir / readme, ec);
   for (auto it = fs::recursive_directory_iterator(t->dir, ec); ok && it != fs::recursive_directory_iterator(); it.increment(ec)) {
-    if (it->path().filename() == ".git") { it.disable_recursion_pending(); continue; }
+    if (it->path().filename() == ".git" || (it.depth() == 0 && it->path().filename() == "build")) { it.disable_recursion_pending(); continue; }   // build: an example's run output
     if (it->is_symlink() || !it->is_regular_file() || it->path().filename() == "template.json") continue;
     fs::path rel = fs::relative(it->path(), t->dir);
     const std::string r = rel.string();

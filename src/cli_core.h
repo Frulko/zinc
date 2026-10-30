@@ -30,6 +30,13 @@ int unknownCommand(const std::string& name);
 int init(const std::vector<std::string>& args, const std::string& engineRoot);
 /** A page of the documentation site ("learn/" gives https://frulko.github.io/zinc/docs/learn/): every link the command line prints. */
 std::string docs(const char* page);
+/** One line of learn/catalog.txt, the graded examples (src/cli_examples.cpp). */
+struct CatalogEntry { std::string name; int stars; std::string module, path, title, line, lesson; };
+std::vector<CatalogEntry> readCatalog(const std::string& engineRoot);
+/** example:<name> as a folder, absolute; "" with `err` (the message, with a did-you-mean) when the catalogue has no such name. */
+std::string exampleDir(const std::string& spec, const std::string& engineRoot, std::string& err);
+/** `zinc examples [module]`: the catalogue by module and grade. */
+int examples(const std::vector<std::string>& args, const std::string& engineRoot);
 /** `zinc tour [step] [--list] [--reset] [--auto [--until step] [--dir path]]`: the guided first walk (src/cli_tour.cpp). */
 int tour(const std::vector<std::string>& args);
 

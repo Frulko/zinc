@@ -248,5 +248,13 @@
   "cli.tour.noterm": "zinc tour te hace preguntas y te espera: ábrelo en un terminal. zinc tour --auto hace cada paso solo.",
   "cli.tour.reset": "El recorrido guiado empieza de nuevo. Su proyecto se queda en {dir}.",
   "cli.tour.reset_none": "El recorrido guiado empieza de nuevo.",
-  "cli.tour.no_step": "zinc tour: los pasos van del 1 al {total}"
+  "cli.tour.no_step": "zinc tour: los pasos van del 1 al {total}",
+  "cli.cmd.examples": "los ejemplos graduados: listarlos, ejecutar uno, copiar uno",
+  "cli.example.examples.all": "todos los ejemplos, por estilo y por estrellas",
+  "cli.example.examples.run": "ejecuta uno",
+  "cli.examples.how": "zinc run example:<nombre> ejecuta uno; zinc new <carpeta> --from example:<nombre> lo copia para cambiarlo.",
+  "cli.examples.none": "zinc: ningún ejemplo se llama '{name}' (zinc examples los lista)",
+  "cli.examples.guess": "zinc: ningún ejemplo se llama '{name}': ¿quisiste decir '{guess}'? (zinc examples los lista)",
+  "cli.examples.missing": "zinc: falta el catálogo de ejemplos ({path}): reinstala zinc",
+  "cli.examples.module": "zinc examples: no hay estilo '{module}' (drawing, scene, canvas o interface)"
 }
