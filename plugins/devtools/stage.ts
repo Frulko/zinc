@@ -3,10 +3,12 @@
 // after its class (Sprite, the program's GameManager...) with its name, position, size, scale, rotation, alpha, visibility and child count as
 // attributes. The properties are read through an `any` view of the node, so a subclass's own fields (fatty's alpha, scaleX, rotation) show and
 // can be set like the base's; a property the node does not have is left out. The tree follows the program live: zinc:stage tells which parents
-// gained or lost children (setTreeWatch), and their changes go out as DOM mutations ten times a second (stageEvents), never a diff of the whole tree.
+// gained or lost children (setTreeWatch), and their changes go out as DOM mutations ten times a second (stageEvents), never a diff of the whole tree;
+// renames and hides are found by looking at a slice of the sent nodes each time (stageAttributeEvents). The pick mode and DOM.getNodeForLocation
+// hit-test the scene through each node's turned box (stageHit).
 import { stages, Stage, DisplayObject, uiState, setAfterRender, setTreeWatch } from 'zinc:stage';
-import { polygon, line, resetTransform } from 'zinc:gfx';
-import { drawingNode, repaint } from 'zinc:ui';
+import { polygon, line, resetTransform, pointerX, pointerY, pointerDown, buttonEventCount, buttonEventDown } from 'zinc:gfx';
+import { drawingNode, repaint, setAfterPaint } from 'zinc:ui';
 
 /** Node ids of the display tree, apart from the zinc:ui handles and text ids of index.ts. */
 export const STAGE_BASE: i32 = 100000000;
@@ -18,6 +20,14 @@ let next: i32 = STAGE_BASE;
 const sent = new Map<i32, DisplayObject[]>();   // by id: the children the frontend was sent
 const dirty = new Set<DisplayObject>();         // the parents whose children changed since the last stageEvents
 const canvasOf = new Map<Stage, i32>();         // a stage drawn in a zinc:ui Canvas (drawIn): that Canvas's handle
+
+// The name and visible of the nodes sent, as sent: stageAttributeEvents looks at a slice of them each time, in turn, so a program's renames
+// and hides reach the inspector without hooks on the fields and without walking a big tree at once.
+const names = new Map<DisplayObject, string>();
+const hidden = new Set<DisplayObject>();
+const watch: DisplayObject[] = [];
+const watched = new Set<DisplayObject>();   // the nodes in `watch`
+let cursor: i32 = 0;
 
 function q(s: string): string { return JSON.stringify(s); }
 function idOf(o: DisplayObject): i32 {
@@ -40,7 +50,10 @@ export function stageCanvases(): DisplayObject[] { const out: DisplayObject[] = 
 /** The DevTools id of a node (given one if it has none yet). */
 export function stageId(o: DisplayObject): i32 { return idOf(o); }
 /** A new DOM.getDocument: what was sent is forgotten, the ids of the nodes sent again are kept. */
-export function stageReset(): void { prev = ids; ids = new Map<DisplayObject, i32>(); nodes = new Map<i32, DisplayObject>(); sent.clear(); dirty.clear(); }
+export function stageReset(): void {
+  prev = ids; ids = new Map<DisplayObject, i32>(); nodes = new Map<i32, DisplayObject>(); sent.clear(); dirty.clear();
+  names.clear(); hidden.clear(); watched.clear(); watch.length = 0; cursor = 0;
+}
 
 /** A property as text: numbers rounded to 3 decimals, '' when the node has no such property. */
 function prop(o: DisplayObject, name: string): string {
@@ -65,6 +78,9 @@ export function stageElement(o: DisplayObject): string {
   for (const c of o.children) kids.push(stageElement(c));
   const id = idOf(o), cls = o.constructor.name;
   sent.set(id, o.children.slice(0));
+  names.set(o, o.name);
+  if (o.visible) hidden.delete(o); else hidden.add(o);
+  if (!watched.has(o)) { watched.add(o); watch.push(o); }
   return `{"nodeId":${id},"backendNodeId":${id},"nodeType":1,"nodeName":${q(cls)},"localName":${q(cls)},"nodeValue":"",` +
     `"childNodeCount":${kids.length},"children":[${kids.join(',')}],"attributes":[${attrs(o).map((v: string) => q(v)).join(',')}]}`;
 }
@@ -81,7 +97,33 @@ function forget(o: DisplayObject): void {
   if (id === undefined) return;
   const kids = sent.get(id);
   if (kids !== undefined) for (const k of kids) forget(k);
-  sent.delete(id); ids.delete(o); prev.delete(o); nodes.delete(id);
+  sent.delete(id); ids.delete(o); prev.delete(o); nodes.delete(id); names.delete(o);
+}
+
+/** DOM.attributeModified for the sent nodes whose name or visible changed, looking at `max` of them (the next ones at the next call). */
+export function stageAttributeEvents(max: i32): string[] {
+  const out: string[] = [];
+  for (let n = 0; n < max && watch.length > 0; n++) {
+    if (cursor >= watch.length) cursor = 0;
+    const o = watch[cursor];
+    const was = names.get(o);
+    if (was === undefined) {   // no longer in the tree sent: dropped from the turn
+      watched.delete(o);
+      watch[cursor] = watch[watch.length - 1];
+      watch.pop();
+      continue;
+    }
+    cursor++;
+    if (was !== o.name) {
+      names.set(o, o.name);
+      out.push(`{"method":"DOM.attributeModified","params":{"nodeId":${idOf(o)},"name":"name","value":${q(o.name)}}}`);
+    }
+    if (hidden.has(o) === o.visible) {
+      if (o.visible) hidden.delete(o); else hidden.add(o);
+      out.push(`{"method":"DOM.attributeModified","params":{"nodeId":${idOf(o)},"name":"visible","value":"${o.visible ? 'true' : 'false'}"}}`);
+    }
+  }
+  return out;
 }
 setTreeWatch((parent: DisplayObject) => { dirty.add(parent); });
 /** The DOM mutations since the last call: for each parent that was sent and whose children changed, the children it lost, then the ones
@@ -133,25 +175,33 @@ export function stageUnrendered(r: DisplayObject | null): i32[] {
 }
 
 // The node's box on the screen: the rectangle (0, 0, width, height) of the node through the matrix of every node from the Stage down to it,
-// each one's x, y, scaleX, scaleY, rotation (radians, Starling's) and pivotX, pivotY (fatty's compat layer; a node without them: 1 and 0),
-// as fatty's Sprite.renderTree composes them. A node of size 0 takes its parent's, as the layout does.
+// each one's x, y, scaleX, scaleY, rotation and pivotX, pivotY (fatty's compat layer; a node without them: 1 and 0), as fatty's
+// Sprite.renderTree composes them. The rotation is in the unit its Stage declares (rotationUnit: radians unless it says degrees). A node of
+// size 0 takes its parent's, as the layout does.
+let la = 1, lb = 0, lc = 0, ld = 1, lx = 0, ly = 0;   // the last local() matrix
+function local(n: DisplayObject, k: number): void {
+  const r = num(n, 'rotation', 0) * k, sx = num(n, 'scaleX', 1), sy = num(n, 'scaleY', 1), px = num(n, 'pivotX', 0), py = num(n, 'pivotY', 0);
+  const cos = Math.cos(r), sin = Math.sin(r);
+  la = cos * sx; lb = sin * sx; lc = -sin * sy; ld = cos * sy;
+  lx = n.x - px * la - py * lc; ly = n.y - px * lb - py * ld;
+}
+/** Radians per unit of `rotation` in the tree of `root`. */
+function unit(root: DisplayObject): number { return root instanceof Stage && (root as Stage).rotationUnit === 'degrees' ? Math.PI / 180 : 1; }
 const quad: number[] = [0, 0, 0, 0, 0, 0, 0, 0];
 let boxW = 0, boxH = 0;
 function measure(o: DisplayObject): void {
   const chain: DisplayObject[] = [];
   for (let n: DisplayObject | null = o; n !== null; n = (n as DisplayObject).parent) chain.unshift(n as DisplayObject);
+  const k = unit(chain[0]);
   let a = 1, b = 0, c = 0, d = 1, tx = 0, ty = 0, w = 0, h = 0;
   for (const n of chain) {
-    const r = num(n, 'rotation', 0), sx = num(n, 'scaleX', 1), sy = num(n, 'scaleY', 1), px = num(n, 'pivotX', 0), py = num(n, 'pivotY', 0);
-    const cos = Math.cos(r), sin = Math.sin(r);
-    const la = cos * sx, lb = sin * sx, lc = -sin * sy, ld = cos * sy;
-    const lx = n.x - px * la - py * lc, ly = n.y - px * lb - py * ld;
+    local(n, k);
     const na = a * la + c * lb, nb = b * la + d * lb, nc = a * lc + c * ld, nd = b * lc + d * ld;
     tx = a * lx + c * ly + tx; ty = b * lx + d * ly + ty;
     a = na; b = nb; c = nc; d = nd;
     w = n.width > 0 ? n.width : w; h = n.height > 0 ? n.height : h;
   }
-  const corner = (k: i32, x: number, y: number): void => { quad[k] = a * x + c * y + tx; quad[k + 1] = b * x + d * y + ty; };
+  const corner = (i: i32, x: number, y: number): void => { quad[i] = a * x + c * y + tx; quad[i + 1] = b * x + d * y + ty; };
   corner(0, 0, 0); corner(2, w, 0); corner(4, w, h); corner(6, 0, h);
   boxW = Math.sqrt(a * a + b * b) * w; boxH = Math.sqrt(c * c + d * d) * h;
 }
@@ -162,24 +212,76 @@ export function stageBoxModel(o: DisplayObject): string {
   return `{"model":{"content":${qs},"padding":${qs},"border":${qs},"margin":${qs},"width":${Math.round(boxW)},"height":${Math.round(boxH)}}}`;
 }
 
-// Overlay.highlightNode: the node's turned box drawn over the scene after each drawing of its Stage (Stage.frame or drawIn); the same call
-// learns which zinc:ui Canvas each stage is drawn in.
+/** The topmost node of the scene `s` under the window point (x, y): the last drawn first, children over their parent, through each node's
+ *  turned box; hidden nodes (visible false, alpha 0) and their subtrees are skipped. null when the point is outside the stage. */
+export function stageHit(s: DisplayObject, x: number, y: number): DisplayObject | null { return hitIn(s, 1, 0, 0, 1, 0, 0, 0, 0, unit(s), x, y); }
+function hitIn(n: DisplayObject, a: number, b: number, c: number, d: number, tx: number, ty: number, pw: number, ph: number, k: number,
+               x: number, y: number): DisplayObject | null {
+  if (!n.visible || num(n, 'alpha', 1) <= 0) return null;
+  local(n, k);
+  const na = a * la + c * lb, nb = b * la + d * lb, nc = a * lc + c * ld, nd = b * lc + d * ld;
+  const nx = a * lx + c * ly + tx, ny = b * lx + d * ly + ty;
+  const w = n.width > 0 ? n.width : pw, h = n.height > 0 ? n.height : ph;
+  for (let i = n.children.length - 1; i >= 0; i--) {
+    const found = hitIn(n.children[i], na, nb, nc, nd, nx, ny, w, h, k, x, y);
+    if (found !== null) return found;
+  }
+  const det = na * nd - nb * nc;
+  if (Math.abs(det) < 1e-9) return null;
+  const dx = x - nx, dy = y - ny, u = (nd * dx - nc * dy) / det, v = (na * dy - nb * dx) / det;
+  return u >= 0 && v >= 0 && u < w && v < h ? n : null;
+}
+
+// Overlay.highlightNode: the node's turned box over the scene. A stage drawn alone gets it after each of its drawings (Stage.frame); a stage
+// in a zinc:ui Canvas gets it in zinc:ui's overlay pass, over the interface's later nodes, in window coordinates. The drawing of a stage
+// also tells which Canvas it is in, and runs the pick mode of a stage drawn alone.
 let lit: DisplayObject | null = null;
-setAfterRender((s: Stage) => {
-  const h = drawingNode();
-  if (h >= 0) canvasOf.set(s, h);
-  const n = lit;
-  if (n === null || !(n as DisplayObject).isOnStage || (n as DisplayObject).stage !== s) return;
-  measure(n as DisplayObject);
+let inCanvas: Stage | null = null;   // the stage of the lit node, drawn in a Canvas during this paint of zinc:ui
+function drawLit(): void {
+  measure(lit as DisplayObject);
   resetTransform();
   polygon(quad.slice(0), 0x3b82f6, 90);
-  for (let k = 0; k < 8; k += 2) line(quad[k], quad[k + 1], quad[(k + 2) % 8], quad[(k + 3) % 8], 0x60a5fa);
+  for (let i = 0; i < 8; i += 2) line(quad[i], quad[i + 1], quad[(i + 2) % 8], quad[(i + 3) % 8], 0x60a5fa);
+}
+function litOn(s: Stage): boolean { const n = lit; return n !== null && (n as DisplayObject).isOnStage && (n as DisplayObject).stage === s; }
+setAfterRender((s: Stage) => {
+  const h = drawingNode();
+  if (h >= 0) { canvasOf.set(s, h); if (litOn(s)) inCanvas = s; return; }
+  if (pick !== null) pickInput(s);
+  if (litOn(s)) drawLit();
+});
+setAfterPaint(() => {
+  const s = inCanvas;
+  inCanvas = null;
+  if (s !== null && litOn(s as Stage)) drawLit();
 });
 export function stageHighlight(o: DisplayObject | null): void {
   if (o === lit) return;
   lit = o;
   uiState.dirty = true;
   repaint();   // a stage in a Canvas draws when zinc:ui paints
+}
+
+// Pick mode on a stage drawn alone (zinc:ui runs it for a stage in a Canvas): at each drawing, the node under the pointer is highlighted and
+// given to `pick`, pressed on a click. The scene keeps drawing meanwhile, so the highlight follows the pointer.
+// ponytail: the program still gets the pointer when it routes it itself (fatty, music-tree); Stage.update's own routing could skip it
+let pick: ((o: DisplayObject, pressed: boolean) => void) | null = null, pickDown = false;
+export function stagePick(f: ((o: DisplayObject, pressed: boolean) => void) | null): void {
+  pick = f; pickDown = pointerDown();
+  uiState.dirty = true;
+  if (f === null) stageHighlight(null);
+}
+function pickInput(s: Stage): void {
+  let pressed = false;
+  for (let i = 0; i < buttonEventCount(); i++) if (buttonEventDown(i)) pressed = true;
+  const down = pointerDown();
+  if (down && !pickDown) pressed = true;
+  pickDown = down;
+  uiState.dirty = true;
+  const o = stageHit(s, pointerX(), pointerY());
+  if (o === null) return;
+  lit = o;
+  (pick as (o: DisplayObject, pressed: boolean) => void)(o as DisplayObject, pressed);
 }
 
 /** DOM.setAttributeValue on a node: x, y, width, height, scaleX, scaleY, rotation, pivotX, pivotY, alpha (numbers) or visible (true / false).

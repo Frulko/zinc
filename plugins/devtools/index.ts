@@ -7,15 +7,15 @@
 // (ZN-369). Unknown methods get an empty result so the frontend never waits. A program with a zinc:stage scene and no zinc:ui tree shows its
 // display tree instead, and a stage drawn in a <Canvas> shows under that Canvas (stage.ts).
 import Cdp from './native/cdp.spec';
-import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
-import { width, height } from 'zinc:gfx';
+import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectHit, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
+import { width, height, pointerX, pointerY } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import { saveLocation } from 'zinc:hardware';
 import { type as osType, release as osRelease, arch as osArch, cpus as osCpus, totalmem, hostname } from 'zinc:os';
 import { get as storeGet, set as storeSet, remove as storeRemove, keys as storeKeys } from 'zinc:storage';
 import { devDatabases, DevDatabase } from 'zinc:devhooks';
 import { DisplayObject } from 'zinc:stage';
-import { stageRoot, stageNode, stageDocument, stageUnrendered, stageHighlight, stageBoxModel, stageSet, stageIn, stageId, stageElement, stageReset, stageEvents, stageAttributes, stageCanvases, STAGE_BASE } from './stage';
+import { stageRoot, stageNode, stageDocument, stageUnrendered, stageHighlight, stageBoxModel, stageSet, stageIn, stageId, stageElement, stageReset, stageEvents, stageAttributes, stageCanvases, stageHit, stagePick, stageAttributeEvents, STAGE_BASE } from './stage';
 
 /** A dev run (zinc dev): the only one where the styles can be edited live; an exported or plain run refuses, with this message. */
 const DEV = env('ZINC_DEV') === '1';
@@ -130,17 +130,33 @@ function classFromText(text: string): string {
   return j < 0 ? rest : rest.slice(0, j);
 }
 
-// Inspect mode: hovering the app highlights the node in Elements, a click selects it there (and ends the mode).
+// Inspect mode: hovering the app highlights the node in Elements, a click selects it there (and ends the mode). Over a zinc:stage scene it is
+// the scene's topmost node under the pointer, through its turned box (stage.ts), whether the scene is drawn alone or in a Canvas.
 let picked: i32 = -1;
-function onPick(hit: i32, pressed: boolean): void {
+/** The DevTools id of what Elements shows for zinc:ui's node `hit` at the window point (x, y): the node, or the scene's node in a Canvas. */
+function shownAt(hit: i32, x: number, y: number): i32 {
+  const s = stageIn(hit);
+  const o = s !== null ? stageHit(s as DisplayObject, x, y) : null;
+  if (o !== null) return stageId(o as DisplayObject);
   let h = hit;
   for (let n = inspectNode(h); n !== null && plain(h, n); n = inspectNode(h)) h = parentOf(h);  // the node Elements shows
-  if (h < 0) return;
+  return h < 0 ? -1 : h + 1;
+}
+function onPicked(id: i32, pressed: boolean): void {
+  if (id < 0) return;
   if (pressed) {
     inspectPick(null);
-    Cdp.send(-1, `{"method":"Overlay.inspectNodeRequested","params":{"backendNodeId":${h + 1}}}`);
-  } else if (h !== picked) Cdp.send(-1, `{"method":"Overlay.nodeHighlightRequested","params":{"nodeId":${h + 1}}}`);
-  picked = h;
+    stagePick(null);
+    Cdp.send(-1, `{"method":"Overlay.inspectNodeRequested","params":{"backendNodeId":${id}}}`);
+  } else if (id !== picked) Cdp.send(-1, `{"method":"Overlay.nodeHighlightRequested","params":{"nodeId":${id}}}`);
+  picked = id;
+}
+function onPick(hit: i32, pressed: boolean): void {
+  const id = shownAt(hit, pointerX(), pointerY());
+  const o = stageNode(id);
+  stageHighlight(o);   // a scene's node: its own turned box instead of its Canvas's
+  if (o !== null) inspectHighlight(-1);
+  onPicked(id, pressed);
 }
 
 /** A result of the host's network log; `{}` on targets that have none. */
@@ -189,7 +205,18 @@ function handle(client: i32, msg: string): void {
   else if (method === 'CSS.getInlineStylesForNode' && n !== null) result = `{"inlineStyle":${inline(h)}}`;
   else if (method === 'CSS.setStyleTexts') result = setStyleText(Cdp.str(msg, 'styleSheetId'), Cdp.str(msg, 'text'));
   else if (method === 'Overlay.highlightNode') { stageHighlight(null); inspectHighlight(n !== null ? h : -1); }
-  else if (method === 'Overlay.setInspectMode') { picked = -1; inspectPick(Cdp.str(msg, 'mode') === 'searchForNode' ? onPick : null); }
+  else if (method === 'Overlay.setInspectMode') {   // a scene drawn alone runs its own pick mode (stage.ts), zinc:ui runs it for a scene in a Canvas
+    picked = -1;
+    const on = Cdp.str(msg, 'mode') === 'searchForNode';
+    inspectPick(on ? onPick : null);
+    stagePick(on && pure ? (o: DisplayObject, pressed: boolean) => { onPicked(stageId(o), pressed); } : null);
+  } else if (method === 'DOM.getNodeForLocation') {   // the node at a point of the window, as the pick mode finds it
+    const x = Cdp.num(msg, 'x'), y = Cdp.num(msg, 'y'), r = stageRoot();
+    const o = pure && r !== null ? stageHit(r as DisplayObject, x, y) : null;
+    const at = o !== null ? stageId(o as DisplayObject) : pure ? -1 : shownAt(inspectHit(x, y), x, y);
+    if (at < 0) { Cdp.send(client, `{"id":${id},"error":{"code":-32000,"message":"No node found at given location"}}`); return; }
+    result = `{"backendNodeId":${at},"nodeId":${at},"frameId":"main"}`;
+  }
   else if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') { stageHighlight(null); inspectHighlight(-1); }
   else if (method === 'Page.getResourceTree')
     result = '{"frameTree":{"frame":{"id":"main","loaderId":"zinc","url":"zinc://app","domainAndRegistry":"","securityOrigin":"zinc://app","mimeType":"text/html","secureContextType":"Secure","crossOriginIsolatedContextType":"NotIsolated","gatedAPIFeatures":[]},"resources":[]}}';
@@ -252,6 +279,7 @@ function stageAnswer(method: string, nodeId: i32, msg: string, pure: boolean): s
   const o = stageNode(nodeId);
   if (pure && method === 'DOM.getDocument') return `"result":{"root":${stageDocument(DOC)}}`;
   if (pure && method === 'Zinc.getUnrendered') return `"result":{"nodeIds":[${stageUnrendered(stageRoot()).join(',')}]}`;
+  if (method === 'DOM.pushNodesByBackendIdsToFrontend' || method === 'DOM.getNodeForLocation' || method === 'Overlay.setInspectMode') return '';   // as for zinc:ui
   if (method === 'Overlay.highlightNode') { inspectHighlight(-1); stageHighlight(o); return '"result":{}'; }
   if (method === 'DOM.getAttributes' && o !== null) return `"result":${stageAttributes(o as DisplayObject)}`;
   if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') { stageHighlight(null); return '"result":{}'; }
@@ -627,5 +655,7 @@ setInterval(() => {
 }, 100);
 setInterval(() => {   // the zinc:stage tree: only the parents whose children changed (stage.ts)
   const events = stageEvents();
-  if (Cdp.clients() > 0) for (const e of events) Cdp.send(-1, e);
+  if (Cdp.clients() === 0) return;
+  for (const e of events) Cdp.send(-1, e);
+  for (const e of stageAttributeEvents(500)) Cdp.send(-1, e);   // renames and hides, 500 nodes looked at each time
 }, 100);

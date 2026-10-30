@@ -740,6 +740,10 @@ export function setAfterRender(f: ((stage: Stage) => void) | null): void { after
 export class Stage extends DisplayObject {
   /** The background Stage.frame clears to (AS3's stage.color). */
   color: u32 = 0x000000;
+  /** The unit of a `rotation` the scene's own node classes declare: zinc:stage's nodes do not turn, a layer over them may (fatty's Starling
+   *  layer, in radians as Starling, PixiJS and three.js; an AS3 or OpenFL port, in degrees). 'radians' or 'degrees': the inspector turns its
+   *  highlight and picks nodes with it. */
+  rotationUnit: string = 'radians';
 
   constructor() {
     super('Stage');

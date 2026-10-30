@@ -6119,6 +6119,7 @@ export function frame(dt: number, background: i32): void {
     rrect(boxX, boxY, n.lw * boxK, n.lh * boxK, 0, 0x3b82f6, 90);
     border(boxX, boxY, n.lw * boxK, n.lh * boxK, 0, 1, 0x60a5fa, 255);
   }
+  if (afterPaint !== null) (afterPaint as () => void)();
   if (prof) profMark(PROF_PAINT);
 }
 const PROF_APP: i32 = 0, PROF_INPUT: i32 = 1, PROF_ANIM: i32 = 2, PROF_LAYOUT: i32 = 3, PROF_PAINT: i32 = 4;  // gfx.cpp prof phases
@@ -6131,6 +6132,12 @@ let drawing: i32 = -1;
 /** The Canvas whose onDraw runs now, -1 outside one (the inspector nests a zinc:stage scene drawn there under it). */
 export function drawingNode(): i32 { return drawing; }
 export function inspectNode(h: i32): UiNode | null { return h >= 0 && h < nodes.length && nodes[h].alive ? nodes[h] : null; }
+let afterPaint: (() => void) | null = null;
+/** Called after each paint of the main window, over everything, where the highlight is drawn: the inspector draws a zinc:stage node's
+ *  highlight there in window coordinates (null: nothing is called). */
+export function setAfterPaint(f: (() => void) | null): void { afterPaint = f; }
+/** The node under the window point (x, y), the topmost (-1: none): the inspector's DOM.getNodeForLocation. */
+export function inspectHit(x: number, y: number): i32 { return hit(x, y, HIT_NODE); }
 /** Draws a highlight box over node h (-1: none). */
 export function inspectHighlight(h: i32): void { if (highlight !== h) { highlight = h; paintDirty = true; } }
 /** Interaction state for the inspector: "hover", "focus", "active", "disabled" (space-separated, '' for none). */

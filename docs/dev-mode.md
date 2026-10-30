@@ -142,9 +142,12 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
   `devtools://devtools/bundled/inspector.html?ws=127.0.0.1:9229/zinc`);
 - **Elements of a `zinc:stage` scene**: a program with a `Stage` and no `zinc:ui` tree shows its display tree, and a stage drawn in a
   `<Canvas>` (`stage.drawIn`) shows under that Canvas next to the interface. Each node is an element named after its class with its
-  properties as attributes; a node added or removed by the program goes out as `DOM.childNodeInserted` / `childNodeRemoved`,
-  `DOM.getAttributes` reads a node's current values, and the highlight and `DOM.getBoxModel` follow `rotation` (radians), `scaleX`,
-  `scaleY`, `pivotX` and `pivotY` of the node and its parents;
+  properties as attributes; a node added or removed by the program goes out as `DOM.childNodeInserted` / `childNodeRemoved`, a change of
+  a node's `name` or `visible` as `DOM.attributeModified` (selected or not; the sent nodes are looked at 500 per tenth of a second, in turn),
+  `DOM.getAttributes` reads a node's current values, and the highlight, `DOM.getBoxModel` and the pick mode follow `rotation`, `scaleX`,
+  `scaleY`, `pivotX` and `pivotY` of the node and its parents. zinc:stage's own nodes do not turn: `rotation` is a property a layer over
+  them declares, in radians (fatty's Starling layer) unless the stage says degrees (`stage.rotationUnit = 'degrees'`, an AS3 or OpenFL
+  port). A scene in a Canvas gets its highlight in the interface's overlay pass, over the nodes painted after the Canvas;
 - **Elements**: `DOM.getDocument`, `requestChildNodes` — the component tree: in a dev run (`zinc dev`, or `ZINC_DEV=1`) each component of
   the program shows as its own element (`<Shell>`, `<Card>`) with the attributes `source` (`src/main.tsx:30`, where it is used) and `props`
   (the props as written there); the compiler records them only in dev runs, so other runs pay nothing and show the host nodes alone. Host
@@ -166,7 +169,9 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
 - **Overlay.highlightNode** draws a blue box over the node in the app (through scroll offsets and transforms);
 - **inspect mode** (the arrow at the top left, `Overlay.setInspectMode`): hovering the app highlights the node under
   the pointer, in the app and in Elements (`Overlay.nodeHighlightRequested`); a click selects it in Elements
-  (`Overlay.inspectNodeRequested`) and ends the mode. Meanwhile the app gets no pointer or key input;
+  (`Overlay.inspectNodeRequested`) and ends the mode. Over a `zinc:stage` scene, alone or in a Canvas, it is the scene's topmost visible
+  node under the pointer, through its turned box. Meanwhile a `zinc:ui` app gets no pointer or key input (a scene that reads the pointer
+  itself still does). `DOM.getNodeForLocation` finds the node at a point the same way;
 - **screencast** (the page view next to the panels, `Page.startScreencast`): the frame on screen, shrunk by a whole
   factor to the size DevTools asks for, as PNG, sent when it changed and the previous frame was acknowledged
   (at most 10 per second);
