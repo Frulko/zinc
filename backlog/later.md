@@ -517,6 +517,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-587: `process.exit` inside a QuickJS worker exits the whole process; on the typed engines it ends only the worker.
 - ZN-587: QuickJS `.js` programs have no `URL` global, so `new Worker(new URL('./w.js', import.meta.url))` fails in plain JS.
 - ZN-587: `zinc bundle`/`zinc export` for QuickJS does not bundle a worker's entry file.
+- ZN-774.32: measure the `zinc dev` save-to-frame refresh on a quiet machine and correct the guide's "96 ms" (command in the task notes).
+- ZN-774.33: restamp the translated learn READMEs (fr, es, it, de) with `example:` names (their code must match the English source commit).
+- ZN-774.33: Atelier thumbnails for the 22 new catalogue entries.
+- ZN-774.33: `zinc run <bare-word>` (Z0119) could suggest `example:<word>` when it names a catalogue entry.
+- ZN-774.33: fold duplicate catalogue entries (the same idea in Atelier and in a lesson).
+- ZN-774.34: restamp the "A first mistake" section of the translated guides (fr, es, it, de) with the new error output.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
 
 ## Demos
