@@ -832,10 +832,11 @@ static std::string pch(const std::string& cxx, const std::string& cflags) {
   const std::string version = capture(cxx + " --version");
   if (version.find("clang") == std::string::npos) return "";
   std::string key = version + cflags;
-  for (const char* d : {"/include/zn", "/src/rt", "/src/zbc", "/third_party/mimalloc/include"}) {
+  // the headers the prelude reaches: zbc.h includes ir/ir.h, which includes frontend/check.h
+  for (const char* d : {"/include/zn", "/src/rt", "/src/zbc", "/src/ir", "/src/frontend", "/third_party/mimalloc/include"}) {
     std::error_code ec;
     for (auto it = fs::recursive_directory_iterator(gRoot + d, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
-      if (it->is_regular_file(ec)) {   // the content, and the mtime clang checks the header against (an edit undone keeps the content, not the mtime)
+      if (it->is_regular_file(ec) && it->path().extension() == ".h") {   // the content, and the mtime clang checks the header against (an edit undone keeps the content, not the mtime)
         std::ifstream in(it->path(), std::ios::binary); std::stringstream ss; ss << in.rdbuf();
         key += it->path().string() + "\n" + std::to_string(static_cast<long long>(fs::last_write_time(it->path(), ec).time_since_epoch().count())) + "\n" + ss.str();
       }
