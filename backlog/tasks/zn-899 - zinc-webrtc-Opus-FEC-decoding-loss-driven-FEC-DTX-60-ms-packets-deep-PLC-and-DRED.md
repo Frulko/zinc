@@ -4,7 +4,8 @@ title: >-
   zinc:webrtc: Opus FEC decoding, loss-driven FEC, DTX, 60 ms packets, deep PLC
   and DRED
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 22:58'
 labels:
   - media

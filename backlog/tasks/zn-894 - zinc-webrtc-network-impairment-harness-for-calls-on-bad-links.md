@@ -2,7 +2,8 @@
 id: ZN-894
 title: 'zinc:webrtc: network impairment harness for calls on bad links'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 22:57'
 labels:
   - media

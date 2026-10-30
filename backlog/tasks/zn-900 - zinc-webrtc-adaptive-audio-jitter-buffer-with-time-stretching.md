@@ -2,7 +2,8 @@
 id: ZN-900
 title: 'zinc:webrtc: adaptive audio jitter buffer with time stretching'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 22:58'
 labels:
   - media
