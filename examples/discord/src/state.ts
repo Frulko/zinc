@@ -1,18 +1,18 @@
 // The app's state and its actions: the user, the servers and their channels, the DMs, the open channel and its messages. The gateway's
 // dispatches and the REST answers land here; the screen reads these fields and re-renders when changed() calls it back. No drawing.
 import { Gateway, GatewayHandler } from './services/gateway';
-import { api, setToken, setRestLog, onSafeMode, ApiError } from './services/rest';
+import { ApiError } from './services/rest';
+import * as guard from './safety/index';
 import { loadToken, saveToken, forgetToken } from './services/session';
-import { onPicture } from './services/cdn';
+import { onPicture, cacheFolder } from './services/cdn';
 import { Upload, readUpload, uploadFiles } from './services/upload';
 import { MemberRow, subscription, applyMemberListUpdate, ranges, mobileOnly } from './members';
-import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, CH_FORUM, CH_MEDIA, isThread, MESSAGES_PAGE, OLDER_PAGE, MESSAGE_MAX, TYPING_EVERY_MS, TYPING_SHOWN_MS, ACK_DELAY_MS, DISCORD_EPOCH, UPLOAD_MAX } from './constants';
+import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, CH_FORUM, CH_MEDIA, isThread, MESSAGES_PAGE, OLDER_PAGE, TYPING_SHOWN_MS, DISCORD_EPOCH } from './constants';
 import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
 import { windowFocused } from 'zinc:ui';
 import { NotifyRules, Where } from './notify';
 import { Call } from './call';
-import { Rights, Overwrite, readOverwrites, canPin } from './permissions';
 import { Embed, Reaction, Sticker, Poll, Component, ThreadRef, embeds, reactions, stickers, poll, pollVoted, componentRows, threadRef,
   interactionLine, systemText, reactionAdded, reactionRemoved, reactionPath, T_THREAD_STARTER } from './content';
 
@@ -21,7 +21,6 @@ export class Channel {
   id = ''; guildId = ''; type: i32 = CH_TEXT; name = ''; position: i32 = 0; parentId = ''; lastMessageId = '';
   /** A thread: its count of messages and its tags (ids); a forum: the names of its tags by id. */
   messageCount: i32 = 0; tags: string[] = []; tagNames: Map<string, string> = new Map<string, string>();
-  overwrites: Overwrite[] = [];
   /** A DM: the other person (their avatar and presence). */
   recipientId = '';
   /** Text channels, threads and DMs open in the message view, forums as their list of posts; voice and categories are shown only. */
@@ -29,7 +28,7 @@ export class Channel {
   forum(): boolean { return this.type === CH_FORUM || this.type === CH_MEDIA; }
 }
 export class Guild {
-  id = ''; name = ''; icon = ''; channels: Channel[] = []; roles: Map<string, string> = new Map<string, string>(); rights: Rights = new Rights();
+  id = ''; name = ''; icon = ''; channels: Channel[] = []; roles: Map<string, string> = new Map<string, string>();
   /** The roles' colours (0: none) and positions: a member's name takes the colour of their highest coloured role. */
   roleColors: Map<string, i32> = new Map<string, i32>(); rolePositions: Map<string, i32> = new Map<string, i32>();
 }
@@ -108,8 +107,6 @@ export class Store implements GatewayHandler {
   private older = '';                                   // the channel whose page before is on its way
   private typists: Map<string, Typist[]> = new Map<string, Typist[]>();
   private typingTimer = -1;
-  private lastTypingAt: number = 0;
-  private ackTimer = -1;
   private users: Map<string, User> = new Map<string, User>();
   private gateway: Gateway;
   /** The voice call (call.ts). */
@@ -119,10 +116,12 @@ export class Store implements GatewayHandler {
 
   constructor() {
     this.gateway = new Gateway(this);
-    this.call = new Call((): string => this.me.id, (g: string, c: string, mute: boolean, deaf: boolean, video: boolean): void => { this.gateway.voiceState(g, c, mute, deaf, video); },
-      (): void => { this.changed(); }, (line: string): void => { this.log(line); }, (op: i32, d: any): void => { this.gateway.stream(op, d); });
-    setRestLog((line: string): void => { this.log(line); });
-    onSafeMode((message: string, unauthorized: boolean): void => { if (unauthorized) this.authFailed(); else { this.error = message; this.changed(); } });
+    this.call = new Call((): string => this.me.id, (g: string, c: string, mute: boolean, deaf: boolean, video: boolean): void => { this.voiceState(g, c, mute, deaf, video); },
+      (): void => { this.changed(); }, (line: string): void => { this.log(line); }, (op: i32, d: any): void => { this.stream(op, d); });
+    guard.setLog((line: string): void => { this.log(line); });
+    guard.onChange((): void => { this.changed(); });
+    guard.onSafeMode((message: string, unauthorized: boolean): void => { if (unauthorized) this.authFailed(); else { this.error = message; this.changed(); } });
+    guard.keepReadyIn(`${cacheFolder()}/.ready.json`);   // a dot file: the cache's listing of pictures does not show it
     onPicture((): void => { this.changed(); }, (line: string): void => { this.log(line); });
     const saved = storage.get(SERVERS_KEY);
     if (saved !== '') {
@@ -140,28 +139,64 @@ export class Store implements GatewayHandler {
   /** At start: a token kept in the keychain (or DISCORD_TOKEN for tests) logs in at once. */
   async resume(): Promise<void> {
     const t = env('DISCORD_TOKEN') !== '' ? env('DISCORD_TOKEN') : await loadToken();
-    if (t !== '') this.connect(t);
+    if (t === '') return;
+    const last = guard.lastSession();   // the last launch left a session a moment ago: READY read back, then RESUME
+    if (last === null) { this.connect(t, null); return; }
+    this.log('session: resumed from the last launch');
+    this.dispatch('READY', last[1]);
+    guard.observe('READY', last[1]);
+    this.connect(t, last[0] as guard.Saved);
+  }
+  /** Quitting (every way out of the app comes here): the session is kept for a quick restart. */
+  suspend(): void {
+    guard.keepSession(this.gateway.saved());
+    this.gateway.suspend();
   }
   async login(token: string): Promise<void> {
     const t = token.trim();
     if (t === '') { this.error = 'Paste your token first.'; this.changed(); return; }
     this.error = '';
+    guard.forgetSession();
     if (env('DISCORD_TOKEN') === '') {
       try { await saveToken(t); } catch (e) { this.error = `The token could not be kept in the keychain: ${e.message}`; this.changed(); return; }
     }
-    this.connect(t);
+    this.connect(t, null);
   }
   async logout(): Promise<void> {
     this.call.leave();
     this.gateway.stop();
-    try { await forgetToken(); } catch (e) {}
+    guard.forgetSession();
+    if (env('DISCORD_TOKEN') === '') try { await forgetToken(); } catch (e) {}   // a test's token was never in the keychain
     this.guilds = []; this.dms = []; this.messages.clear(); this.users.clear(); this.reads.clear(); this.typists.clear(); this.guildId = ''; this.channelId = '';
     this.members = []; this.membersOf = ''; this.complete.clear();
     this.stage = 'login'; this.changed();
   }
   /** Drops the gateway connection (tests): it must resume. */
   dropConnection(): void { this.gateway.drop(); }
-  private connect(token: string): void { setToken(token); this.gateway.start(token); }
+  private connect(token: string, resume: guard.Saved | null): void { guard.setToken(token); this.gateway.start(token, resume); }
+  /** Op 4 for the call: joining, muting, deafening go through the guard; leaving always goes. */
+  private voiceState(guildId: string, channelId: string, mute: boolean, deaf: boolean, video: boolean): void {
+    const d: any = { guild_id: guildId !== '' ? guildId : null, channel_id: channelId !== '' ? channelId : null, self_mute: mute, self_deaf: deaf, self_video: video };
+    if (channelId === '') guard.leave(4, d); else guard.send(guard.begin('voice'), 4, d);
+  }
+  /** Go Live's ops for the call: 18 (our stream), 20 (watch one), 22 (paused or not) go through the guard; 19 (ending one) always goes. */
+  private stream(op: i32, d: any): void {
+    if (op === 19) guard.leave(op, d);
+    else if (op === 18 || op === 20 || op === 22) guard.send(guard.begin('stream'), op, d);
+  }
+  /** Joins a voice channel or a DM call (pressed in the channel list), when the guard lets it: not a full channel, not without CONNECT;
+   *  without SPEAK the call starts muted. */
+  async joinCall(channelId: string, guildId: string): Promise<void> {
+    if (this.call.channelId === channelId) return;
+    const d = new guard.Details();
+    d.channel = channelId; d.inCall = this.call.members(channelId).length;
+    const v = guard.begin('call', d, 0);
+    if (!v.ok) { this.refuse(v.message); return; }
+    if (guard.mustMute(channelId)) this.call.mute = true;
+    await this.call.join(channelId, guildId);
+  }
+  /** What the guard refused, shown where errors show. */
+  private refuse(message: string): void { this.error = message; this.changed(); }
 
   // ------------------------------------------------------------------ GatewayHandler
   status(s: string): void {
@@ -171,7 +206,8 @@ export class Store implements GatewayHandler {
   authFailed(): void {
     this.log('auth failed');
     this.gateway.stop();
-    forgetToken().catch((): void => {});
+    if (env('DISCORD_TOKEN') === '') forgetToken().catch((): void => {});
+    guard.forgetSession();
     this.stage = 'login'; this.error = 'Discord refused this token: log in again.'; this.changed();
   }
   dispatch(t: string, d: any): void {
@@ -228,10 +264,7 @@ export class Store implements GatewayHandler {
     if (Array.isArray(d.users)) for (const u of d.users) this.user(u);
     this.guilds = [];
     if (Array.isArray(d.guilds)) for (let i = 0; i < d.guilds.length; i++) if (d.guilds[i].unavailable !== true) {
-      const g: any = d.guilds[i], out = this.guild(g);
-      // my roles in each server (merged_members, in the order of the servers): what I may do there (permissions.ts)
-      const mm: any = Array.isArray(d.merged_members) && i < d.merged_members.length ? d.merged_members[i] : null;
-      if (Array.isArray(mm)) for (const m of mm) if (str(m.user_id) === this.me.id && Array.isArray(m.roles)) for (const r of m.roles) out.rights.mine.push(str(r));
+      const g: any = d.guilds[i], out = this.guild(g);   // what I may do there: the guard's permissions (safety/access.ts)
       this.guilds.push(out);
       if (Array.isArray(g.voice_states)) for (const v of g.voice_states) this.call.stateUpdate(v);   // who is in the voice channels
     }
@@ -263,10 +296,9 @@ export class Store implements GatewayHandler {
     out.id = str(g.id); out.name = str(p.name); out.icon = str(p.icon);
     const roles: any = Array.isArray(g.roles) ? g.roles : p.roles;
     if (Array.isArray(roles)) for (const r of roles) {
-      out.roles.set(str(r.id), str(r.name)); out.rights.roles.set(str(r.id), str(r.permissions));
+      out.roles.set(str(r.id), str(r.name));
       out.roleColors.set(str(r.id), r.color ?? 0); out.rolePositions.set(str(r.id), r.position ?? 0);
     }
-    out.rights.ownerId = str(p.owner_id);
     if (Array.isArray(g.channels)) for (const c of g.channels) out.channels.push(this.channel(c, out.id));
     if (Array.isArray(g.threads)) for (const c of g.threads) out.channels.push(this.channel(c, out.id));   // the active threads
     sortChannels(out.channels);
@@ -277,7 +309,6 @@ export class Store implements GatewayHandler {
     out.id = str(c.id); out.guildId = guildId; out.type = c.type; out.position = c.position ?? 0;
     out.parentId = str(c.parent_id); out.lastMessageId = str(c.last_message_id); out.name = str(c.name);
     out.messageCount = c.message_count ?? 0;
-    out.overwrites = readOverwrites(c.permission_overwrites);
     if (Array.isArray(c.applied_tags)) for (const t of c.applied_tags) out.tags.push(str(t));
     if (Array.isArray(c.available_tags)) for (const t of c.available_tags) out.tagNames.set(str(t.id), str(t.name));
     if (out.name === '' && (out.type === CH_DM || out.type === CH_GROUP_DM)) {
@@ -491,7 +522,7 @@ export class Store implements GatewayHandler {
   }
   selectChannel(id: string): void {
     if (id !== this.channelId) {
-      this.draft = ''; this.replyTo = null; this.editing = null; this.lastTypingAt = 0;
+      this.draft = ''; this.replyTo = null; this.editing = null;
       this.newFrom = id !== '' && this.unread(id) ? this.read(id).lastId : ''; this.atEnd = true; this.newWhileUp = 0; this.jumpId = '';
       this.pane = 'members'; this.threadId = '';                  // the pins or the thread beside were the last channel's
     }
@@ -519,7 +550,7 @@ export class Store implements GatewayHandler {
   private async loadPosts(forum: Channel): Promise<void> {
     this.loading = true; this.changed();
     try {
-      const r: any = await api('GET', `/channels/${forum.id}/threads/search?archived=false&sort_by=last_message_time&sort_order=desc&limit=25&offset=0`);
+      const r: any = await guard.api('posts', 'GET', `/channels/${forum.id}/threads/search?archived=false&sort_by=last_message_time&sort_order=desc&limit=25&offset=0`, undefined);
       if (r !== null && Array.isArray(r.threads)) for (const t of r.threads) this.putChannel(this.channel(t, forum.guildId));
       if (r !== null && Array.isArray(r.first_messages)) for (const m of r.first_messages) this.previews.set(str(m.channel_id), this.message(m));
       this.postsOf.add(forum.id);
@@ -530,7 +561,7 @@ export class Store implements GatewayHandler {
   private async loadHistory(id: string): Promise<void> {
     this.loading = true; this.changed();
     try {
-      const page: any = await api('GET', `/channels/${id}/messages?limit=${MESSAGES_PAGE}`);
+      const page: any = await guard.api('history', 'GET', `/channels/${id}/messages?limit=${MESSAGES_PAGE}`, undefined);
       const list: Message[] = [];
       if (Array.isArray(page)) for (let i = page.length - 1; i >= 0; i--) list.push(this.message(page[i]));   // newest first on the wire
       if (list.length < MESSAGES_PAGE) this.complete.add(id);
@@ -553,7 +584,7 @@ export class Store implements GatewayHandler {
     this.older = ch;
     let n = 0;
     try {
-      const page: any = await api('GET', `/channels/${ch}/messages?before=${list[0].id}&limit=${OLDER_PAGE}`);
+      const page: any = await guard.api('older', 'GET', `/channels/${ch}/messages?before=${list[0].id}&limit=${OLDER_PAGE}`, undefined);
       const add: Message[] = [];
       if (Array.isArray(page)) for (let i = page.length - 1; i >= 0; i--) add.push(this.message(page[i]));
       if (add.length < OLDER_PAGE) this.complete.add(ch);
@@ -582,8 +613,8 @@ export class Store implements GatewayHandler {
     const c = this.findChannel(this.subscribedTo);
     const rs = ranges(first, last), key = JSON.stringify(rs);
     if (c === null || key === this.subscribedRanges) return;
+    if (!guard.send(guard.begin('subscribe'), 37, subscription(c.guildId, c.id, rs))) return;   // refused: asked again at the next scroll
     this.subscribedRanges = key;
-    this.gateway.subscribe(subscription(c.guildId, c.id, rs));
   }
   private memberListUpdated(d: any): void {
     if (str(d.guild_id) !== this.membersOf) return;
@@ -624,14 +655,14 @@ export class Store implements GatewayHandler {
   }
 
   // ------------------------------------------------------------------ writing
-  /** The composer's text changed: Discord shows "typing" for 10 s, so it is sent again every 8 s while the person types. */
+  /** The composer's text changed: "typing" goes when the guard lets it (while the person types, paced, where they may write). */
   typed(text: string): void {
     this.draft = text;
     if (text === '' || this.editing !== null || this.channelId === '') return;
-    const now = Date.now();
-    if (now - this.lastTypingAt < TYPING_EVERY_MS) return;
-    this.lastTypingAt = now;
-    api('POST', `/channels/${this.channelId}/typing`, undefined, true).catch((e) => { this.log(`typing failed: ${e.message}`); });
+    const d = new guard.Details();
+    d.channel = this.channelId;
+    const v = guard.begin('typing', d);
+    if (v.ok) guard.request(v, 'POST', `/channels/${this.channelId}/typing`, undefined).catch((e) => { this.log(`typing failed: ${e.message}`); });
   }
   reply(m: Message): void { this.editing = null; this.replyTo = m; this.changed(); }
   /** Edits m in the composer (Up in an empty composer edits my last message). */
@@ -646,13 +677,16 @@ export class Store implements GatewayHandler {
   async send(): Promise<void> {
     const text = this.draft.trim(), ch = this.channelId;
     if (text === '' || ch === '') return;
-    if (text.length > MESSAGE_MAX) { this.error = `A message holds ${MESSAGE_MAX} characters at most.`; this.changed(); return; }
     const editing = this.editing, replyTo = this.replyTo;
-    this.draft = ''; this.editing = null; this.replyTo = null; this.lastTypingAt = 0; this.error = '';
+    if (editing !== null && text === editing.content) { this.draft = ''; this.editing = null; this.changed(); return; }
+    const d = new guard.Details();
+    d.channel = ch; d.text = text; d.edit = editing !== null;
+    const v = guard.begin(editing !== null ? 'edit' : 'send', d);
+    if (!v.ok) { this.refuse(v.message); return; }   // the draft stays in the composer
+    this.draft = ''; this.editing = null; this.replyTo = null; this.error = '';
     if (editing !== null) {
       this.changed();
-      if (text === editing.content) return;
-      try { await api('PATCH', `/channels/${ch}/messages/${editing.id}`, { content: text }); }
+      try { await guard.request(v, 'PATCH', `/channels/${ch}/messages/${editing.id}`, { content: text }); }
       catch (e) { this.error = `Could not edit the message: ${e.message}`; this.changed(); }
       return;
     }
@@ -662,21 +696,27 @@ export class Store implements GatewayHandler {
       m.replyTo = `${replyTo.author}: ${replyTo.content.slice(0, 80)}`;
       body.message_reference = { message_id: replyTo.id, channel_id: ch };
     }
-    await this.post(ch, m, body, []);
+    await this.post(ch, m, body, [], v, null);
   }
   /** Sends files picked or dropped, with the composer's text (Discord's cloud upload: services/upload.ts). */
   async sendFiles(paths: string[]): Promise<void> {
     const ch = this.channelId;
     if (ch === '' || paths.length === 0) return;
-    if (paths.length > UPLOAD_MAX) { this.error = `A message holds ${UPLOAD_MAX} files at most.`; this.changed(); return; }
     const files: Upload[] = [];
     try { for (const p of paths) files.push(readUpload(p)); }
     catch (e) { this.error = `Could not read the file: ${e.message}`; this.changed(); return; }
     const text = this.draft.trim();
+    const d = new guard.Details();
+    d.channel = ch; d.text = text;
+    for (const f of files) d.sizes.push(f.bytes.length);
+    const up = guard.begin('upload', d, 1 + files.length);   // the request that names the files, and one PUT each
+    if (!up.ok) { this.refuse(up.message); return; }
+    const v = guard.begin('send', d);
+    if (!v.ok) { this.refuse(v.message); return; }
     this.draft = ''; this.replyTo = null; this.editing = null; this.error = '';
     const m = this.pendingMessage(ch, text);
     for (const f of files) { const a = new Attachment(); a.filename = f.filename; a.size = f.bytes.length; m.attachments.push(a); }
-    await this.post(ch, m, { content: text, nonce: m.nonce, tts: false, flags: 0 }, files);
+    await this.post(ch, m, { content: text, nonce: m.nonce, tts: false, flags: 0 }, files, v, up);
   }
   private pendingMessage(ch: string, text: string): Message {
     const m = new Message();
@@ -685,16 +725,16 @@ export class Store implements GatewayHandler {
     return m;
   }
   /** Shows m at once, uploads its files, sends it; the server's echo (found by the nonce) replaces it. */
-  private async post(ch: string, m: Message, body: any, files: Upload[]): Promise<void> {
+  private async post(ch: string, m: Message, body: any, files: Upload[], v: guard.Verdict, up: guard.Verdict | null): Promise<void> {
     const list = this.messages.get(ch);
     if (list !== undefined) list.push(m);
     this.changed();
     try {
-      if (files.length > 0) {
-        body.attachments = await uploadFiles(ch, files);
+      if (up !== null) {
+        body.attachments = await uploadFiles(ch, files, up);
         this.log(`uploaded ${files.map((f: Upload) => f.filename).join(', ')}`);
       }
-      const d: any = await api('POST', `/channels/${ch}/messages`, body);
+      const d: any = await guard.request(v, 'POST', `/channels/${ch}/messages`, body);
       if (d !== null && m.pending) { this.messageCreated(d); this.changed(); }
     } catch (e) {
       m.pending = false; m.failed = true;
@@ -705,7 +745,11 @@ export class Store implements GatewayHandler {
   async remove(m: Message): Promise<void> {
     if (m.pending) return;
     if (m.failed) { this.messageDeleted(m.channelId, m.id); this.changed(); return; }
-    try { await api('DELETE', `/channels/${m.channelId}/messages/${m.id}`); }
+    const d = new guard.Details();
+    d.channel = m.channelId;
+    const v = guard.begin('delete', d);
+    if (!v.ok) { this.refuse(v.message); return; }
+    try { await guard.request(v, 'DELETE', `/channels/${m.channelId}/messages/${m.id}`, undefined); }
     catch (e) { this.error = `Could not delete the message: ${e.message}`; this.changed(); }
   }
   revealSpoilers(m: Message): void { this.revealed.add(m.id); this.changed(); }
@@ -721,11 +765,16 @@ export class Store implements GatewayHandler {
     const emoji: any = r !== null ? { id: r.id, name: r.name } : { id: '', name: '👍' };
     let on = true;
     for (const x of m.reactions) if ((emoji.id !== '' ? x.id === emoji.id : x.name === emoji.name) && x.me) on = false;
+    const d = new guard.Details();
+    d.channel = m.channelId; d.author = on ? m.authorId : '';
+    d.newReaction = on && m.reactions.every((x: Reaction) => emoji.id !== '' ? x.id !== emoji.id : x.name !== emoji.name);
+    const v = guard.begin('react', d);
+    if (!v.ok) { this.refuse(v.message); return; }
     const path = reactionPath(emoji.id, emoji.name);
     if (on) reactionAdded(m.reactions, emoji, true); else reactionRemoved(m.reactions, emoji, true, false);
     this.log(`react ${m.id} ${emoji.name} ${on ? 'on' : 'off'}`);
     this.changed();
-    try { await api(on ? 'PUT' : 'DELETE', `/channels/${m.channelId}/messages/${m.id}/reactions/${path}/@me?location=Message&type=0`); }
+    try { await guard.request(v, on ? 'PUT' : 'DELETE', `/channels/${m.channelId}/messages/${m.id}/reactions/${path}/@me?location=Message&type=0`, undefined); }
     catch (e) { this.error = `Could not react: ${e.message}`; this.changed(); }
   }
   private reacted(t: string, d: any): void {
@@ -742,6 +791,10 @@ export class Store implements GatewayHandler {
   async vote(m: Message, answerId: i32): Promise<void> {
     const p = m.poll;
     if (p === null || p.finalized) return;
+    const d = new guard.Details();
+    d.channel = m.channelId;
+    const v = guard.begin('vote', d);
+    if (!v.ok) { this.refuse(v.message); return; }
     const chosen: string[] = [];
     for (const a of p.answers) {
       const on = a.id === answerId ? !a.mine : p.multi && a.mine;
@@ -750,7 +803,7 @@ export class Store implements GatewayHandler {
     }
     this.log(`vote ${m.id}: ${chosen.join(',')}`);
     this.changed();
-    try { await api('PUT', `/channels/${m.channelId}/polls/${m.id}/answers/@me`, { answer_ids: chosen }); }
+    try { await guard.request(v, 'PUT', `/channels/${m.channelId}/polls/${m.id}/answers/@me`, { answer_ids: chosen }); }
     catch (e) { this.error = `Could not vote: ${e.message}`; this.changed(); }
   }
   private pollVote(add: boolean, d: any): void {
@@ -833,17 +886,16 @@ export class Store implements GatewayHandler {
   private ack(ch: string): void {
     const c = this.findChannel(ch);
     if (c === null || !this.unread(ch)) return;          // read already: no request
+    const v = guard.begin('ack');   // only what the window in front shows is read
+    if (!v.ok) return;
     const r = this.read(ch);
     r.lastId = c.lastMessageId; r.mentions = 0;
     const lastViewed = Math.floor((Date.now() - DISCORD_EPOCH) / 86400000);
-    api('POST', `/channels/${ch}/messages/${c.lastMessageId}/ack`, { token: null, last_viewed: lastViewed }, true)
+    guard.request(v, 'POST', `/channels/${ch}/messages/${c.lastMessageId}/ack`, { token: null, last_viewed: lastViewed })
       .catch((e) => { this.log(`ack failed: ${e.message}`); });
   }
   /** Messages that arrive in the open channel are read: one ack for a burst. */
-  private ackSoon(ch: string): void {
-    if (this.ackTimer >= 0) return;
-    this.ackTimer = setTimeout(() => { this.ackTimer = -1; this.ack(ch); }, ACK_DELAY_MS);
-  }
+  private ackSoon(ch: string): void { guard.afterBurst((): void => { this.ack(ch); }); }
 
   // ------------------------------------------------------------------ the conversation: unread line, end of the history, jumps, pins, threads
   /** The last message read when the open channel was opened ('' when it was read): the 'new messages' line goes above the next one. */
@@ -887,7 +939,7 @@ export class Store implements GatewayHandler {
     if (this.findMessage(ch, id) !== null) { this.jumpId = id; this.log(`jump ${ch}: ${id} (loaded)`); this.changed(); return; }
     this.loading = true; this.changed();
     try {
-      const page: any = await api('GET', `/channels/${ch}/messages?around=${id}&limit=${MESSAGES_PAGE}`);
+      const page: any = await guard.api('history', 'GET', `/channels/${ch}/messages?around=${id}&limit=${MESSAGES_PAGE}`, undefined);
       const got: Message[] = [];
       if (Array.isArray(page)) for (let i = page.length - 1; i >= 0; i--) got.push(this.message(page[i]));
       const list = this.messages.get(ch);
@@ -901,13 +953,8 @@ export class Store implements GatewayHandler {
     this.loading = false; this.changed();
   }
 
-  /** Pin and unpin are offered: in a DM, or in a server with the right (permissions.ts; a thread has its parent's overwrites). */
-  canPin(ch: string): boolean {
-    const c = this.findChannel(ch);
-    if (c === null) return false;
-    const p = isThread(c.type) ? this.findChannel(c.parentId) : c;
-    return canPin(c.guildId !== '' ? (this.findGuild(c.guildId) as Guild).rights : null, c.guildId, this.me.id, p !== null ? p.overwrites : []);
-  }
+  /** Pin and unpin are offered: in a DM, or in a server with the right (the guard's permissions; a thread has its parent's). */
+  canPin(ch: string): boolean { return guard.mayPin(ch); }
   /** Shows the open channel's pins at the right (fetched the first time), or the member list again. */
   togglePins(): void {
     if (this.pane === 'pins') { this.pane = 'members'; this.changed(); return; }
@@ -916,7 +963,7 @@ export class Store implements GatewayHandler {
   }
   private async loadPins(ch: string): Promise<void> {
     try {
-      const r: any = await api('GET', `/channels/${ch}/messages/pins?limit=50`);
+      const r: any = await guard.api('pins', 'GET', `/channels/${ch}/messages/pins?limit=50`, undefined);
       const out: Message[] = [];
       if (r !== null && Array.isArray(r.items)) for (const it of r.items) { const m = this.message(it.message); m.pinned = true; out.push(m); }
       this.pins.set(ch, out);
@@ -927,13 +974,17 @@ export class Store implements GatewayHandler {
   /** Pins m or unpins it: shown at once (and in the pins when they are loaded); Discord's echo is a MESSAGE_UPDATE. */
   async pin(m: Message): Promise<void> {
     const on = !m.pinned, ch = m.channelId;
+    const d = new guard.Details();
+    d.channel = ch;
+    const v = guard.begin('pin', d);
+    if (!v.ok) { this.refuse(v.message); return; }
     m.pinned = on;
     const kept = this.pins.get(ch);
     if (kept !== undefined) this.pins.set(ch, on ? [m].concat(kept) : kept.filter((x: Message) => x.id !== m.id));
     this.log(`pin ${m.id} ${on ? 'on' : 'off'}`);
     this.changed();
     if (kept !== undefined) this.pinning.add(ch);
-    try { await api(on ? 'PUT' : 'DELETE', `/channels/${ch}/messages/pins/${m.id}`); }
+    try { await guard.request(v, on ? 'PUT' : 'DELETE', `/channels/${ch}/messages/pins/${m.id}`, undefined); }
     catch (e) { m.pinned = !on; this.pins.delete(ch); this.pinning.delete(ch); this.error = `Could not ${on ? 'pin' : 'unpin'} the message: ${e.message}`; this.changed(); }
   }
   /** Reads a thread or a forum post beside the channel (its history fetched the first time); '' closes it. */

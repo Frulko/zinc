@@ -5,7 +5,7 @@
 // keychain, DISCORD_LOG=1 prints what happens, DISCORD_DEMO=1 runs the scripted session (servers, a channel's history, a live message,
 // a dropped connection that resumes, a second live message, a DM, then the writing of write() and the pictures, files and members of
 // media() below, then the servers switched in settings()) and quits; DISCORD_DEMO=voice runs the call of voice() (tests/t1/discord_voice.sh),
-// DISCORD_DEMO=showcase every kind of message content (showcase.ts); DISCORD_BENCH=1 loads the whole history of the open channel and scrolls it to the top and back (frame times:
+// DISCORD_DEMO=showcase every kind of message content (showcase.ts), DISCORD_DEMO=safety the safety model (safety-session.ts), DISCORD_DEMO=restart a launch that quits once ready (tests/t1/discord_safety.sh); DISCORD_BENCH=1 loads the whole history of the open channel and scrolls it to the top and back (frame times:
 // ZINC_PROFILE=1). DISCORD_CACHE moves the pictures' folder, DISCORD_UPLOAD_FILE is the file media() sends.
 // Files dropped on the window are sent to the open channel.
 import { render } from 'zinc:ui/react';
@@ -26,9 +26,13 @@ import * as notifs from './services/notifications';
 import * as notification from 'zinc:system/notification';
 import { VoiceSettings, decibels } from './call';
 import { AudioDevice } from 'zinc:discord-voice';
-import { API_BASE, TILE_W } from './constants';
+import { TILE_W } from './constants';
 import { pickerOpen, confirmPicker } from 'zinc:screen-capture/picker';
 import { RTCStats } from 'zinc:webrtc/quality';
+import * as guard from './safety/index';
+import * as win from 'zinc:system/window';
+import * as sys from 'zinc:sys';
+import { safety } from './safety-session';
 
 ui.onKey((e: ui.KeyEvent): void => {
   const call = store.call;
@@ -40,7 +44,7 @@ ui.onKey((e: ui.KeyEvent): void => {
     return;
   }
   if (e.primary || e.alt) return;
-  if (e.key === 'Escape') { quit(); e.preventDefault(); }
+  if (e.key === 'Escape') { leave(); e.preventDefault(); }
   if (e.key === call.settings.pttKey) { call.hold(true); e.preventDefault(); }
 });
 ui.onKeyUp((e: ui.KeyEvent): void => { if (e.key === store.call.settings.pttKey) store.call.hold(false); });
@@ -119,13 +123,29 @@ async function write(id: string): Promise<void> {
   console.log(`revealed ${describe(parse('a ||b|| c', (k: string, x: string): string => x, true))}`);
 }
 
+/** Every way out (Escape, the window closed, Ctrl+C, kill) keeps the session for a quick restart (the guard's layer 6). */
+function leave(): void { store.suspend(); quit(); }
+win.onCloseRequested((): void => { store.suspend(); });
+sys.onSignal('SIGINT', leave);
+sys.onSignal('SIGTERM', leave);
+
 render(App, 0x313338, null);
 startNotifications();
-store.resume();
+// one instance (so one session of the account): a second launch brings the first to the front and ends
+guard.single().then((first: boolean): void => {
+  if (first) store.resume();
+  else { console.log('discord: already running, the open window comes to the front'); quit(); }
+});
 // The scripted sessions send messages, react, vote, call and page through whole histories: they run only against a fake Discord on this
-// machine (DISCORD_API on 127.0.0.1 or localhost), never on a real account.
-const fakeDiscord = API_BASE.startsWith('http://127.0.0.1:') || API_BASE.startsWith('http://localhost:');
-if ((env('DISCORD_DEMO') !== '' || env('DISCORD_BENCH') !== '') && !fakeDiscord) console.log('discord: DISCORD_DEMO and DISCORD_BENCH run only against a fake Discord on 127.0.0.1');
+// machine (DISCORD_API on 127.0.0.1 or localhost), never on a real account; the guard still applies its caps and checks to them.
+const scripting = env('DISCORD_DEMO') !== '' || env('DISCORD_BENCH') !== '';
+const fakeDiscord = scripting && guard.allowScripts();
+if (scripting && !fakeDiscord) console.log('discord: DISCORD_DEMO and DISCORD_BENCH run only against a fake Discord on 127.0.0.1');
+if (fakeDiscord && env('DISCORD_DEMO') === 'safety') safety();
+if (fakeDiscord && env('DISCORD_DEMO') === 'restart') until(() => store.stage === 'ready').then((): void => {
+  console.log(`restart: ready, identifies today ${guard.identifiesToday()}`);
+  leave();
+});
 if (fakeDiscord && env('DISCORD_DEMO') === '1') demo();
 if (fakeDiscord && env('DISCORD_DEMO') === 'voice') voice();
 if (fakeDiscord && env('DISCORD_DEMO') === 'showcase') showcase();

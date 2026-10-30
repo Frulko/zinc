@@ -35,8 +35,11 @@ const ASSETS = env('FAKE_ASSETS');
 const me: any = { id: '100', username: 'ada', global_name: 'Ada', avatar: null };
 const users: any[] = [{ id: '101', username: 'grace', global_name: 'Grace', avatar: 'av101' }, { id: '102', username: 'linus', global_name: null, avatar: null }];
 const katherine: any = { id: '103', username: 'katherine', global_name: 'Katherine', avatar: 'av103' };
+// @everyone's permissions, as a server gives by default: VIEW_CHANNEL, SEND_MESSAGES, ADD_REACTIONS, ATTACH_FILES, READ_MESSAGE_HISTORY,
+// CONNECT, SPEAK (the guard refuses what they lack); the maintainers add MANAGE_MESSAGES (pins)
+const EVERYONE = `${1024 + 2048 + 64 + 32768 + 65536 + 1048576 + 2097152}`;
 const guilds: any[] = [
-  { id: '200', properties: { name: 'Zinc Lab', icon: 'ic200', owner_id: '101' }, roles: [{ id: '200', name: '@everyone', permissions: '1024' },
+  { id: '200', properties: { name: 'Zinc Lab', icon: 'ic200', owner_id: '101' }, roles: [{ id: '200', name: '@everyone', permissions: EVERYONE },
     { id: '500', name: 'maintainers', permissions: '8192', color: 3447003, hoist: true, position: 1 }], channels: [
     { id: '301', type: 4, name: 'Text', position: 0 },
     { id: '302', type: 0, name: 'general', position: 0, parent_id: '301', last_message_id: '903' },
@@ -44,7 +47,7 @@ const guilds: any[] = [
     { id: '304', type: 2, name: 'Lounge', position: 0 },
     show.channels[0], show.channels[1],
   ], threads: show.threads },
-  { id: '201', name: 'Makers', icon: null, channels: [{ id: '311', type: 0, name: 'welcome', position: 0, last_message_id: '930' }] },
+  { id: '201', name: 'Makers', icon: null, roles: [{ id: '201', name: '@everyone', permissions: EVERYONE }], channels: [{ id: '311', type: 0, name: 'welcome', position: 0, last_message_id: '930' }] },
 ];
 const dms: any[] = [{ id: '400', type: 1, recipient_ids: ['101'], last_message_id: '950' }, { id: '401', type: 3, recipient_ids: ['101', '102'], last_message_id: '940' }];
 // FAKE_GUILDS=n (by hand, ZN-885): n more servers of 50 channels, 30 roles and 40 emoji each, and 20 users a server, a READY of ~40 KB a
@@ -59,6 +62,18 @@ for (let g = 0; g < (env('FAKE_GUILDS') !== '' ? parseInt(env('FAKE_GUILDS')) : 
   for (let u = 0; u < 20; u++) users.push({ id: `${id + 300 + u}`, username: `user${g}_${u}`, global_name: `User ${g}.${u}`, avatar: `av${id + u}`, discriminator: '0', public_flags: 0 });
   guilds.push({ id: `${id}`, properties: { name: `Server ${g}`, icon: `ic${id}`, description: 'A server of the large READY', features: ['COMMUNITY', 'NEWS'] },
     roles: roles, emojis: emojis, channels: channels, threads: [], member_count: 1000 + g, joined_at: '2024-01-01T00:00:00.000000+00:00' });
+}
+// FAKE_GUARDS=1 (tests/t1/discord_safety.sh): what the safety model must see and meet. READY carries @everyone's permissions, my member
+// object (no roles), a slowmode channel #slow (30 s), a read-only #announcements (@everyone may not send), Mallory blocked and her DM; a
+// message "fault:captcha" is answered with a captcha, an edit to "fault:429" with a 429 of 60 s followed by op 9 d:false, a message's delete with 401.
+const GUARDS = env('FAKE_GUARDS') === '1';
+const mallory: any = { id: '104', username: 'mallory', global_name: 'Mallory', avatar: null };
+if (GUARDS) {
+  const channels: any[] = guilds[0].channels;
+  channels.push({ id: '320', type: 0, name: 'slow', position: 2, parent_id: '301', rate_limit_per_user: 30 });
+  channels.push({ id: '321', type: 0, name: 'announcements', position: 3, parent_id: '301', permission_overwrites: [{ id: '200', type: 0, allow: '0', deny: '2048' }] });
+  users.push(mallory);
+  dms.push({ id: '402', type: 1, recipient_ids: ['104'], last_message_id: '0' });
 }
 // #general read up to 902 (903 is unread), #welcome up to 925 with 2 mentions, the DM read
 const readStates: any[] = [{ id: '302', last_message_id: '902', mention_count: 0 }, { id: '311', last_message_id: '925', mention_count: 2 },
@@ -281,6 +296,21 @@ function rest(req: Request): Reply {
     const ch = typing[1];
     setTimeout(() => { dispatch('TYPING_START', { channel_id: ch, user_id: '101', timestamp: 1793350000 }); }, 100);
     return { status: 204, contentType: 'text/plain', body: '' };
+  }
+  if (GUARDS && req.method === 'POST' && msgs !== null && one === '' && body.content === 'fault:captcha') {
+    console.log(`${line} -> 400 captcha`);
+    return json(400, '{"captcha_key":["captcha-required"],"captcha_sitekey":"site","captcha_service":"hcaptcha"}');
+  }
+  if (GUARDS && req.method === 'PATCH' && msgs !== null && body.content === 'fault:429') {
+    console.log(`${line} -> 429 for 60 s, then op 9`);
+    setTimeout(() => { const ws = live; if (ws !== null) ws.send('{"op":9,"d":false}'); }, 50);
+    const h = new Headers();
+    h.set('Retry-After', '60'); h.set('X-RateLimit-Scope', 'user');
+    return json(429, '{"message":"You are being rate limited.","retry_after":60,"global":false}', h);
+  }
+  if (GUARDS && req.method === 'DELETE' && msgs !== null && one !== '' && !req.path.includes('/reactions/')) {
+    console.log(`${line} -> 401`);
+    return json(401, '{"message":"401: Unauthorized","code":0}');
   }
   if (req.method === 'POST' && msgs !== null && one === '') {
     // the message bucket: the first message empties it for 0.5 s, the next one must come after
@@ -556,10 +586,16 @@ async function main(): Promise<void> {
       else if (p.op === 2) {
         console.log(`identify token=${p.d.token === TOKEN} capabilities=${p.d.capabilities} browser=${p.d.properties.browser}`);
         if (p.d.token !== TOKEN) { ws.close(4004, 'Authentication failed.'); return; }
-        dispatch('READY', { v: 9, user: me, users: users, guilds: guilds, private_channels: dms, session_id: 'sess-1',
+        const ready: any = { v: 9, user: me, users: users, guilds: guilds, private_channels: dms, session_id: 'sess-1',
           resume_gateway_url: `ws://127.0.0.1:${gwPort}`, read_state: { entries: readStates, partial: false, version: 1 },
           merged_members: [[{ user_id: '100', roles: ['500'] }], [{ user_id: '100', roles: [] }]],   // Ada maintains Zinc Lab (Manage Messages)
-          merged_presences: { friends: [{ user_id: '101', status: 'online', client_status: { mobile: 'online' } }, { user_id: '102', status: 'idle', client_status: { web: 'idle' } }] } });
+          merged_presences: { friends: [{ user_id: '101', status: 'online', client_status: { mobile: 'online' } }, { user_id: '102', status: 'idle', client_status: { web: 'idle' } }] } };
+        if (GUARDS) {
+          ready.merged_members = guilds.map((g: any): any[] => g.id === '200' ? [{ user_id: '100', roles: [] }] : []);
+          ready.relationships = [{ id: '104', type: 2, user: mallory }];
+          ready.user_settings = { status: 'online' };
+        }
+        dispatch('READY', ready);
       } else if (p.op === 6) {
         console.log(`resume session=${p.d.session_id} seq=${p.d.seq}`);
         dispatch('RESUMED', null);

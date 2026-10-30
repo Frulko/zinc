@@ -46,7 +46,7 @@ interaction), replies (and replies to a deleted message), forwarded messages, an
 pins, boosts, calls, threads) as one line; a type the app does not know says "Unsupported message". Threads are listed under their
 channel and open like a channel; a forum opens on its posts. Discord's rate limits are honoured: a request waits while its bucket is empty or 50 went in the
 last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a minute, and a refusal (a captcha, a verification, a long
-429) is shown plainly and pauses the background requests; every request the app makes is listed in
+429) is shown plainly and pauses the background requests. Every request and action goes through one guard (`src/safety/`) that keeps to a person's pace: your own key or click, permissions, slowmode, spam checks, caps a minute and an hour with growing cooldowns, one instance, a quick restart that resumes ([docs/reports/discord-safety-model.md](../../docs/reports/discord-safety-model.md)); every request the app makes is listed in
 [docs/reports/discord-client-requests.md](../../docs/reports/discord-client-requests.md). Not yet: animated emoji and avatars show their first frame, your own status is not shown. Coming in order
 (milestone M28): notifications (ZN-870), voice (ZN-872), video (ZN-873), screen sharing (ZN-875).
 
@@ -60,13 +60,13 @@ last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a
 | `markdown.ts` | Discord's Markdown: blocks and the style runs of their text, custom emoji, timestamps |
 | `content.ts` | what a message carries besides its text: embeds, reactions, stickers, polls, buttons, threads, system messages |
 | `showcase.ts` | the scripted session of #showcase (every kind of content) |
-| `permissions.ts` | what the user may do in a channel (the roles' bits and the channel's overwrites): whether pinning is offered |
+| `safety-session.ts` | the scripted session of the safety model (`DISCORD_DEMO=safety`, `tests/t1/discord_safety.sh`) |
 | `members.ts` | the member list: the subscription (op 37) and `GUILD_MEMBER_LIST_UPDATE` (SYNC, INSERT, UPDATE, DELETE, INVALIDATE) |
 | `services/cdn.ts` | pictures from the CDN: the disk cache, expired attachment URLs renewed (`attachments/refresh-urls`) |
 | `services/upload.ts` | file upload: `POST /channels/{id}/attachments`, then a `PUT` of the bytes to the URL it gives |
-| `services/gateway.ts` | the gateway: HELLO, heartbeats and the zombie check, IDENTIFY or RESUME, reconnection with backoff |
-| `services/rest.ts` | the HTTP API with the token and identity headers, and the rate-limit buckets |
-| `services/limits.ts` | the sliding windows of the global and gateway limits, the plain errors and when safe mode starts |
+| `services/gateway.ts` | the gateway protocol: HELLO, heartbeats and the zombie check, IDENTIFY or RESUME (its socket is sent through the guard) |
+| `services/rest.ts` | the HTTP transport with the token and identity headers, called only by the guard |
+| `safety/` | the safety model, the one place for every limit: `index.ts` (the guard every request and action goes through), `policy.ts` (every number), `core.ts` (budgets, cooldowns, spam checks, Discord's buckets), `access.ts` (permissions, slowmode, blocked people) |
 | `services/identity.ts` | the client properties (IDENTIFY and `X-Super-Properties`) |
 | `services/auth.ts` | the QR code login (the remote-auth gateway, its RSA-OAEP key exchange) and the password login with its two-factor code |
 | `services/session.ts` | the token in the keychain |

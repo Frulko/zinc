@@ -17,7 +17,7 @@ import { pixelScale } from 'zinc:gfx';
 import { addSignalListener, appState, repaint } from 'zinc:ui';
 import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
-import { api } from './services/rest';
+import * as guard from './safety/index';
 import { PTT_KEY, TILE_W, TILE_H, FULL_W, FULL_H } from './constants';
 
 export type CallState = VoiceState | 'idle';
@@ -325,6 +325,7 @@ export class Call {
   async shareScreen(): Promise<void> {
     if (this.channelId === '') return;
     this.error = '';
+    if (!this.mayGoLive()) return;
     const s = this.settings;
     let picked: ShareChoice | null = null;
     try {
@@ -360,11 +361,19 @@ export class Call {
     this.gw(19, { stream_key: l.key });
     this.endLive(l);
   }
+  /** Going live or watching a stream is a person's click: the guard's 'live' verdict (its ops then go as 'stream'); else the error shows. */
+  private mayGoLive(): boolean {
+    const v = guard.begin('live', null, 0);
+    if (!v.ok) { this.error = v.message; this.changed(); }
+    return v.ok;
+  }
   /** Watches someone's stream (op 20); one at a time. */
   watchStream(user: string): void {
     if (this.channelId === '' || user === this.me()) return;
     const w = this.watching;
-    if (w !== null) { if (w.user === user) return; this.stopWatching(); }
+    if (w !== null && w.user === user) return;
+    if (!this.mayGoLive()) return;
+    if (w !== null) this.stopWatching();
     const l = new Live();
     l.key = this.keyOf(user); l.user = user;
     this.watching = l; this.focused = false;
@@ -445,7 +454,7 @@ export class Call {
     this.channelId = channelId; this.guildId = guildId; this.state = 'connecting';
     this.op4(guildId, channelId, this.mute, this.deaf, this.video);
     if (guildId === '' && this.members(channelId).length === 0) {
-      try { await api('POST', `/channels/${channelId}/call/ring`, { recipients: null }); } catch (e) { this.log(`ring failed: ${e.message}`); }
+      try { await guard.api('ring', 'POST', `/channels/${channelId}/call/ring`, { recipients: null }); } catch (e) { this.log(`ring failed: ${e.message}`); }
     }
     this.changed();
   }

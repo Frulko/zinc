@@ -1,0 +1,30 @@
+identify token=true capabilities=1246 browser=Chrome
+identify token=true capabilities=1246 browser=Chrome
+rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest DELETE /api/v9/channels/302/messages/907 auth=true super=true -> 401
+rest GET /api/v9/channels/302/messages?before=100000&limit=100 auth=true super=true
+rest PATCH /api/v9/channels/302/messages/907 auth=true super=true -> 429 for 60 s, then op 9
+rest POST /api/v9/attachments/refresh-urls auth=true super=true 302/903/801/photo.png expired=true
+rest POST /api/v9/channels/302/messages auth=true super=true -> 400 captcha
+rest POST /api/v9/channels/302/messages auth=true super=true content="The same text everywhere" nonce=true reply= waited=false
+rest POST /api/v9/channels/302/messages/903/ack auth=true super=true last_viewed=true token=true
+rest POST /api/v9/channels/302/typing auth=true super=true
+rest POST /api/v9/channels/302/typing auth=true super=true
+rest POST /api/v9/channels/320/messages auth=true super=true content="First in the slow channel" nonce=true reply= waited=first
+rest POST /api/v9/channels/320/typing auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+resume session=sess-1 seq=1
+resume session=sess-1 seq=1

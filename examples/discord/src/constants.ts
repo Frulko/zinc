@@ -25,7 +25,6 @@ export const CAPABILITIES = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 6)
 
 export const SECRET_TOKEN_KEY = 'discord-token';
 export const MESSAGES_PAGE = 50, OLDER_PAGE = 100;   // the first page of a channel, then the pages before it (100: the API's most)
-export const RECONNECT_MAX_MS = 60000;
 
 // Channel types (the API's numbers)
 export const CH_TEXT = 0, CH_DM = 1, CH_VOICE = 2, CH_GROUP_DM = 3, CH_CATEGORY = 4, CH_ANNOUNCEMENT = 5, CH_FORUM = 15, CH_MEDIA = 16;
@@ -40,9 +39,7 @@ export const BG_SELECTED = 'bg-[#404249]', BG_HOVER = 'hover:bg-[#35373c]', BG_A
 export const TEXT_MAIN = 'text-[#dbdee1]', TEXT_MUTED = 'text-[#949ba4]', TEXT_STRONG = 'text-[#f2f3f5]', TEXT_ERROR = 'text-[#fa777c]';
 
 // Writing (docs/reports/discord-client-research.md 2.6 and 3)
-export const MESSAGE_MAX = 2000;
-export const TYPING_EVERY_MS = 8000, TYPING_SHOWN_MS = 10000;   // the web client sends typing every 8 s; an indicator lasts 10 s
-export const ACK_DELAY_MS = 300;
+export const TYPING_SHOWN_MS = 10000;   // an indicator lasts 10 s (when "typing" is sent: src/safety/policy.ts)
 export const DISCORD_EPOCH = 1420070400000;
 export const MENTION_BG = 'bg-[#f23f43]', TEXT_MENTION = 0xc9cdfb, TEXT_LINK = 0x00a8fc, TEXT_CODE = 0xdbdee1, SPOILER = 0x6d6f78;
 
@@ -60,4 +57,3 @@ export const VOICE_AVATAR = 20, CALL_AVATAR = 64, SPEAKING_RING = 'border-[#23a5
 export const EMBED_W = 432, THUMB = 80, STICKER = 160;   // an embed card at most, its thumbnail, a sticker
 export const ROW_ESTIMATE = 44;           // a message's height before it is laid out (the virtual list's estimate)
 export const OLDER_AT = 400;              // px from the top of the history where the page before is asked for
-export const UPLOAD_MAX = 10;             // files in one message

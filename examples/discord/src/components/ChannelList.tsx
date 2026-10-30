@@ -36,11 +36,11 @@ function Row(p: { c: Channel }) {
   if (c.type === CH_CATEGORY) return <Text className={`px-2 pt-4 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>{c.name}</Text>;
   const on = c.id === store.channelId, open = c.readable(), unread = open && !on && store.unread(c.id), mentions = store.mentions(c.id);
   return <View className={`mx-2 px-2 h-[32] flex-row items-center gap-1.5 rounded ${isThread(c.type) ? 'ml-6' : ''} ${on ? BG_SELECTED : BG_HOVER}`} aria-label={c.name}
-    onPress={() => { if (open || c.type === CH_VOICE) store.selectChannel(c.id); if (c.type === CH_VOICE) store.call.join(c.id, c.guildId); }}>
+    onPress={() => { if (open || c.type === CH_VOICE) store.selectChannel(c.id); if (c.type === CH_VOICE) store.joinCall(c.id, c.guildId); }}>
     {c.type === CH_DM && c.recipientId !== '' ? <DmAvatar c={c} /> : <Icon name={icon(c)} size={18} color={MUTED} />}
     <Text className={`grow text-[15px] ${on || unread ? `${TEXT_STRONG} font-semibold` : open ? TEXT_MAIN : TEXT_MUTED}`} numberOfLines={1}>{c.name}</Text>
     {mentions > 0 ? <Badge n={mentions} /> : null}
-    {c.type === CH_DM || c.type === CH_GROUP_DM ? <View className="p-0.5 rounded hover:bg-[#404249]" aria-label={`Call ${c.name}`} onPress={() => store.call.join(c.id, '')}>
+    {c.type === CH_DM || c.type === CH_GROUP_DM ? <View className="p-0.5 rounded hover:bg-[#404249]" aria-label={`Call ${c.name}`} onPress={() => store.joinCall(c.id, '')}>
       <Icon name="phone" size={16} color={() => store.call.ringing.has(c.id) || store.call.members(c.id).length > 0 ? 0x23a55a : 0x949ba4} />
     </View> : null}
   </View>;

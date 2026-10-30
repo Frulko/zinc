@@ -7,10 +7,9 @@ import { imageFromBytes } from 'zinc:gfx';
 import { readBytes, writeBytes, exists, mkdir } from 'zinc:fs';
 import { dataDir } from 'zinc:system/window';
 import { CDN_BASE, CACHE_DIR } from '../constants';
-import { api } from './rest';
+import * as guard from '../safety/index';
 
 const CDN_SIZE = 128;   // px: the largest shown (48 pt) on a 2x screen; without it the CDN sends the picture as uploaded, up to 1024 px
-const AT_ONCE = 6;      // downloads at a time, as a browser per host: 93 servers' icons at once were 93 TLS handshakes on the loop
 const images: Map<string, i32> = new Map<string, i32>();   // key -> picture; -1 while it loads, or when it failed
 let folder = '';
 let loaded: () => void = (): void => {};
@@ -57,7 +56,8 @@ function picture(key: string, url: string): i32 {
   return -1;
 }
 
-function cacheFolder(): string {
+/** The client's disk cache: the pictures, and READY of the last session (the guard's quick restart). */
+export function cacheFolder(): string {
   if (folder === '') { folder = CACHE_DIR !== '' ? CACHE_DIR : `${dataDir()}/cdn`; mkdir(folder, true); }
   return folder;
 }
@@ -68,14 +68,10 @@ let loading: i32 = 0;
 /** Pictures on their way (the tests wait for none). */
 export function picturesLoading(): i32 { return loading; }
 
-const waiting: string[][] = [];   // [key, url] of the downloads past AT_ONCE: the last asked (the last shown) goes first
-let downloading: i32 = 0;
 async function load(key: string, url: string): Promise<void> {
   loading++;
-  if (exists(fileOf(key)) || downloading < AT_ONCE) await fetchPicture(key, url);
-  else { waiting.push([key, url]); return; }
+  await fetchPicture(key, url);
   loading--;
-  while (waiting.length > 0 && downloading < AT_ONCE) { const w = waiting.pop() as string[]; loading--; load(w[0], w[1]); }
 }
 async function fetchPicture(key: string, url: string): Promise<void> {
   await Promise.resolve();   // after the render that asked for it
@@ -84,8 +80,7 @@ async function fetchPicture(key: string, url: string): Promise<void> {
   try {
     if (exists(file)) { bytes = readBytes(file); log(`picture ${key}: from the disk`); }
     else {
-      downloading++;
-      try { bytes = await download(url); } finally { downloading--; }
+      bytes = await download(url);   // the guard queues the downloads (a few at a time)
       writeBytes(file, bytes); log(`picture ${key}: from the CDN`);
     }
   } catch (e) { log(`picture ${key} failed: ${e.message}`); return; }
@@ -108,13 +103,13 @@ const expired = (url: string): boolean => signed(url) && parseInt(param(url, 'ex
 
 async function download(url: string): Promise<u8[]> {
   let u = expired(url) ? await refresh(url) : url;
-  let r = await fetch(u);
-  if ((r.status === 403 || r.status === 404) && signed(u) && u === url) { u = await refresh(url); r = await fetch(u); }   // expired on the way
+  let r = await guard.download(u);
+  if ((r.status === 403 || r.status === 404) && signed(u) && u === url) { u = await refresh(url); r = await guard.download(u); }   // expired on the way
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return await r.bytes();
 }
-/** A signed attachment URL renewed. The pictures of one frame ask together: their URLs go in one request, 50 at most each (Discord's
- *  limit), instead of one request a picture. */
+/** A signed attachment URL renewed. The pictures of one frame ask together: their URLs go in one request (the guard's REFRESH_BATCH at
+ *  most each), instead of one request a picture. */
 let toRefresh: string[] = [];
 let refreshing: Promise<Map<string, string>> | null = null;
 async function refreshAll(): Promise<Map<string, string>> {
@@ -122,8 +117,10 @@ async function refreshAll(): Promise<Map<string, string>> {
   const urls = toRefresh;
   toRefresh = []; refreshing = null;
   const out = new Map<string, string>();
-  for (let i = 0; i < urls.length; i += 50) {
-    const r: any = await api('POST', '/attachments/refresh-urls', { attachment_urls: urls.slice(i, i + 50) }, true);
+  for (let i = 0; i < urls.length; i += guard.REFRESH_BATCH) {
+    let r: any = null;
+    try { r = await guard.api('refresh', 'POST', '/attachments/refresh-urls', { attachment_urls: urls.slice(i, i + guard.REFRESH_BATCH) }); }
+    catch (e) { log(`refresh-urls: ${e.message}`); }   // the guard or Discord said no: those pictures stay as they are
     if (r !== null && Array.isArray(r.refreshed_urls)) for (const x of r.refreshed_urls) if (typeof x.original === 'string' && typeof x.refreshed === 'string') out.set(x.original, x.refreshed);
   }
   return out;

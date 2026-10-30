@@ -20,7 +20,7 @@ case $ZINC in /*) ;; *) ZINC=$PWD/$ZINC ;; esac   # the app runs from its own di
 tmp=$(mktemp -d)
 cleanup() { [ -n "$fake" ] && { kill "$fake" 2>/dev/null; wait "$fake" 2>/dev/null; }; rm -rf "$tmp"; }
 trap cleanup EXIT
-export ZINC_BACKGROUND=1
+export ZINC_BACKGROUND=1 ZINC_SYSTEM_RUNTIME_DIR=$tmp   # the app's single-instance lock, apart from any other run
 export ZINC_DETERMINISTIC=0   # a networked session: the rate-limit waits and the nonces read the real clock, not the virtual one of tests/run
 assets=$PWD/examples/discord/tests/assets
 mkdir -p "$tmp/cache" && cp "$assets/emoji.png" "$tmp/cache/emojis_78.png" && cp "$assets/photo.png" "$tmp/notes.png"

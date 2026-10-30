@@ -14,6 +14,7 @@ import { Markdown } from './Markdown';
 import { Content } from './Content';
 import { Avatar } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
+import { cannotSend, countdown } from '../safety/index';
 import { BG_MAIN, BG_INPUT, BG_SIDE, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR, AVATAR, ROW_ESTIMATE, OLDER_AT } from '../constants';
 
 const MUTED = (): i32 => 0xb5bac1;
@@ -149,6 +150,12 @@ function Composer(p: { name: string }) {
     else if (e.key === 'ArrowUp' && store.draft === '') { const m = store.lastOwn(); if (m !== null) { store.edit(m); e.preventDefault(); } }
   };
   const r = store.replyTo, ed = store.editing, typing = store.typingText(store.channelId);
+  // the guard says when nothing can be written here (no permission, a blocked person, a DM closed to me) and counts down a slowmode
+  const no = cannotSend(store.channelId), wait = countdown(store.channelId);
+  if (no !== '') return <View className="px-4">
+    <View className={`h-[44] px-4 justify-center rounded-lg ${BG_INPUT}`}><Text className={`text-sm ${TEXT_MUTED}`} numberOfLines={1}>{no}</Text></View>
+    <Text className={`h-[22] text-xs font-semibold ${TEXT_MAIN}`} numberOfLines={1}>{typing}</Text>
+  </View>;
   return <View className="px-4">
     {r !== null || ed !== null ? <View className={`h-[32] px-4 flex-row items-center rounded-t-lg ${BG_SIDE}`}>
       <Text className={`grow text-sm ${TEXT_MUTED}`} numberOfLines={1}>{r !== null ? `Replying to ${r.author}` : 'Editing a message: Enter saves, Escape cancels'}</Text>
@@ -161,7 +168,7 @@ function Composer(p: { name: string }) {
           onInput={(v: string) => store.typed(v)} onKeyDown={keys} aria-label="Message" />
       </View>
     </View>
-    <Text className={`h-[22] text-xs font-semibold ${TEXT_MAIN}`} numberOfLines={1}>{typing}</Text>
+    <Text className={`h-[22] text-xs font-semibold ${TEXT_MAIN}`} numberOfLines={1}>{typing !== '' ? typing : wait}</Text>
   </View>;
 }
 

@@ -4,12 +4,13 @@
 // scans it: the gateway sends the user (encrypted: id:discriminator:avatar:username), then, once confirmed on the phone, a ticket that
 // POST /users/@me/remote-auth/login exchanges for the encrypted token. The password: POST /auth/login, then /auth/mfa/totp or
 // /auth/mfa/sms (after /auth/mfa/sms/send) with the ticket when the account has two-factor authentication.
-// One attempt per click, nothing retried: an expired code waits for "New code". A captcha is never shown or solved: rest.ts's message
-// says to log in with the QR code or in the official app.
+// One attempt per click, nothing retried: an expired code waits for "New code". Every request and each new code asks the guard first
+// (src/safety: kinds login, mfa, qr, ticket). A captcha is never shown or solved: the guard's message says to log in with the QR code or
+// in the official app.
 import { WebSocket, MessageEvent, CloseEvent } from 'zinc:socket';
 import { subtle, CryptoKey } from 'zinc:subtle';
 import { base64Encode, base64Decode, TextDecoder } from 'zinc:web';
-import { api, setToken, ApiError } from './rest';
+import { api, begin, setToken, ApiError } from '../safety/index';
 import { REMOTE_AUTH_URL, WEB_ORIGIN, QR_LINK, USER_AGENT } from '../constants';
 
 const OAEP = { name: 'RSA-OAEP', hash: 'SHA-256' };
@@ -43,6 +44,8 @@ export class QrLogin {
   async start(): Promise<void> {
     this.stop();
     const gen = ++this.gen;
+    const v = begin('qr');   // with the login screen, then only on "New code": the guard's pace and caps
+    if (!v.ok) { this.end('expired', v.message); return; }
     this.stage = 'starting'; this.link = ''; this.user = ''; this.error = ''; this.changed();
     try {
       const pair = await subtle.generateKeyPair({ name: 'RSA-OAEP', hash: 'SHA-256', modulusLength: 2048 }, false, ['decrypt']);
@@ -83,7 +86,7 @@ export class QrLogin {
     } else if (m.op === 'pending_login') {
       this.stop();
       setToken('');
-      const r: any = await api('POST', '/users/@me/remote-auth/login', { ticket: m.ticket as string });
+      const r: any = await api('ticket', 'POST', '/users/@me/remote-auth/login', { ticket: m.ticket as string });
       const token = utf8(await decrypt(key, r.encrypted_token as string));
       this.stage = 'done'; this.changed();
       this.loggedIn(token);
@@ -110,19 +113,19 @@ export function loginError(e: Error): string {
 /** The token, or '' when Discord asks for a second factor: `mfa` then holds its ticket and the kinds offered. */
 export async function passwordLogin(login: string, password: string, mfa: Mfa): Promise<string> {
   setToken('');
-  const r: any = await api('POST', '/auth/login', { login: login, password: password, undelete: false, login_source: null, gift_code_sku_id: null });
+  const r: any = await api('login', 'POST', '/auth/login', { login: login, password: password, undelete: false, login_source: null, gift_code_sku_id: null });
   if (typeof r.token === 'string' && r.token !== '') return r.token as string;
   if (r.mfa === true && typeof r.ticket === 'string') { mfa.ticket = r.ticket as string; mfa.totp = r.totp === true; mfa.sms = r.sms === true; return ''; }
   throw new Error('Discord did not log in: finish in the official Discord app, or use the QR code.');
 }
 /** Sends the SMS code; the phone it went to (masked by Discord). */
 export async function sendSms(mfa: Mfa): Promise<string> {
-  const r: any = await api('POST', '/auth/mfa/sms/send', { ticket: mfa.ticket });
+  const r: any = await api('mfa', 'POST', '/auth/mfa/sms/send', { ticket: mfa.ticket });
   mfa.phone = typeof r.phone === 'string' ? r.phone as string : '';
   return mfa.phone;
 }
 /** The token for a code from the authenticator app ('totp') or the SMS ('sms'). */
 export async function mfaLogin(kind: string, code: string, mfa: Mfa): Promise<string> {
-  const r: any = await api('POST', `/auth/mfa/${kind}`, { code: code.replace(/\s/g, ''), ticket: mfa.ticket, login_source: null, gift_code_sku_id: null });
+  const r: any = await api('mfa', 'POST', `/auth/mfa/${kind}`, { code: code.replace(/\s/g, ''), ticket: mfa.ticket, login_source: null, gift_code_sku_id: null });
   return r.token as string;
 }

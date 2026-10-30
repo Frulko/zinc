@@ -18,7 +18,7 @@ case $ZINC in /*) ;; *) ZINC=$PWD/$ZINC ;; esac   # the app runs from its own di
 tmp=$(mktemp -d)
 cleanup() { [ -n "$fake" ] && { kill "$fake" 2>/dev/null; wait "$fake" 2>/dev/null; }; rm -rf "$tmp"; }
 trap cleanup EXIT
-export ZINC_BACKGROUND=1 ZINC_FAKE_MICROPHONE=1 ZINC_FAKE_CAMERA=1 ZINC_FAKE_SCREEN=1
+export ZINC_BACKGROUND=1 ZINC_FAKE_MICROPHONE=1 ZINC_FAKE_CAMERA=1 ZINC_FAKE_SCREEN=1 ZINC_SYSTEM_RUNTIME_DIR=$tmp   # the app's single-instance lock, apart from any other run
 export ZINC_DETERMINISTIC=0   # real UDP and a 20 ms media clock
 fail=0
 timeout 120 "$ZINC" run tests/golden/host/discord_voice_rtp.ts > "$tmp/rtp" 2>&1

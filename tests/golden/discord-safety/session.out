@@ -1,0 +1,19 @@
+first restart: ready, identifies today 1
+second session: resumed from the last launch
+second restart: ready, identifies today 1
+again discord: already running, the open window comes to the front
+session: resumed from the last launch
+safety: ready, identifies today 1
+safety: read-only: You do not have permission to send messages here. / You do not have permission to send messages here.
+safety: blocked: You blocked this person: unblock them in Discord to write here.
+safety: slowmode: first '', second 'Slowmode: you can send again in 30 s.', countdown true
+safety: repeat: first '', again 'Not sent: you sent this message already.'
+safety: pasted elsewhere: 'Not sent: the same message in several conversations looks like spam.'
+safety: mentions: 'Not sent: a message mentions 5 people or roles at most here.'
+safety: reaction burst: 15 of 20 sent, then 'Slow down: wait 5 s.'
+safety: history loop: 1 page asked, 14 refused
+safety: captcha: 'Could not send the message: Discord asks for a captcha, which this client does not show: log in with the QR code, or once in the official Discord app.'
+safety: long 429: 'Could not edit the message: Discord is limiting how fast this client can go: try again in 60 s.'
+safety: after the breaker: refused true
+safety: op 9: identified again after 1 to 5 s true, identifies today 2
+safety: 401: back to the login, 'Could not delete the message: Discord refused the token: log in again.'; then a message: 'Discord refused the token: log in again.'

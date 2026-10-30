@@ -8,6 +8,7 @@ import { base64Encode, base64Decode } from 'zinc:web';
 import { exit } from 'zinc:sys';
 import { decrypt, utf8, proofOf, payloadName, QrLogin, Mfa, passwordLogin, mfaLogin, loginError } from '../src/services/auth';
 import { QR_LINK } from '../src/constants';
+import { allowScripts } from '../src/safety/index';
 
 const KEY =
   '308204a302010002820101008f57b3e4d0254a302f0336db43f1a3d8df07a942478df3e03e2681f5b35494487b294d40a0c7c3edd4e3788b30191cfb42ff3fdb34f25307fa24d7aedc9387e901d38dc2' +
@@ -71,6 +72,7 @@ async function password(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  check('the guard lets a script log in against the fake Discord only', allowScripts());   // no person here: the guard's human origin is waived
   await vectors();
   await qrLogin();
   await password();
