@@ -1,0 +1,8 @@
+{
+  "name": "Zinc Inspector",
+  "entry": "main.tsx",
+  "targets": {
+    "macos": { "width": 1280, "height": 800, "resize": "fill" },
+    "linux": { "width": 1280, "height": 800, "resize": "fill" }
+  }
+}
