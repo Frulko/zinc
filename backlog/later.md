@@ -505,6 +505,13 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-864: sprite-studio reopens its tools window with `mountWindow` on the same root, one more stale Surface per reopen (see the closed-Surface line above).
 - ZN-864: test worker timers (`setTimeout` in a worker on the real clock); sprite-studio's preview relies on them.
 - sprite-studio: export a PNG sprite sheet or GIF; selection with move/copy/paste; zoom input in the preview once scene windows take input.
+- Web dev bridge: zinc:net `serve`/`serveAsync` take a `host` option so the bridge binds 127.0.0.1 instead of 0.0.0.0 (others are refused with 403 today, but the port is open on the LAN).
+- Web dev bridge: `Access-Control-Allow-Origin` only the dev page's own origin (today any http://127.0.0.1:*); `/__project/` serves dotfiles such as `.env`.
+- Web dev bridge: bytes travel as JSON number arrays and `__fs.load` reads one byte per `__host_fsByte` call (~4x the size in sync XHR); send base64 or binary.
+- Web dev: zinc:sqlite keeps a page-local copy (localStorage) of a machine path under `zinc dev`; route it through the bridge in dev.
+- iPod web: the Songs page renders every row (2400 songs = 34k DOM nodes, heap 16→105 MB); use a virtual list.
+- iPod remote: "Read the library again: cannot convert Dyn (undefined) to string" against the running daemon on 8686 (a field the old daemon lacks); make the remote decode tolerate a missing field.
+- Web dev: the old page's pending `/wait` logs `net::ERR_EMPTY_RESPONSE` once per reload (the bridge restarts before the page unloads).
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
 
 ## Demos
