@@ -11,7 +11,9 @@ struct ScSource {
   int w = 0, h = 0;                  // pixels
   int tw = 0, th = 0;                // the thumbnail's size, 0 for none
   std::vector<uint32_t> thumb;
+  std::vector<uint32_t> icon;        // a window's application icon, SC_ICON x SC_ICON, 0xAARRGGBB straight alpha; empty for none
 };
+const int SC_ICON = 32;
 
 /** The source's sw x sh fitted in the asked box (0: within 1920 x 1080), aspect kept, never above the source, even sizes (what encoders take). */
 inline void sc_fit(int sw, int sh, int& w, int& h) {

@@ -4,6 +4,7 @@
   "deterministic": true,
   "module": "zinc:screen-capture",
   "entry": "index.ts",
+  "modules": { "zinc:screen-capture/picker": "picker.ts" },
   "description": "Screen and window capture (ScreenCaptureKit on macOS): sources with thumbnails, a capture at a size and rate as a runtime image without copies, getDisplayMedia for zinc:webrtc; fake sources for tests",
   "native": { "impl": { "macos": "native/screen.macos.mm" } },
   "targets": {

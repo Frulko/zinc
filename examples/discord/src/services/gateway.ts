@@ -12,6 +12,8 @@ import { Window } from './limits';
 
 const OP_DISPATCH = 0, OP_HEARTBEAT = 1, OP_IDENTIFY = 2, OP_VOICE_STATE = 4, OP_RESUME = 6, OP_RECONNECT = 7, OP_INVALID_SESSION = 9, OP_HELLO = 10, OP_ACK = 11;
 const OP_GUILD_SUBSCRIPTIONS_BULK = 37;
+// Go Live: 18 creates our stream, 19 ends it or stops watching one, 20 watches one, 22 pauses ours or not
+const OP_STREAM = [18, 19, 20, 22];
 const CLOSE_AUTH_FAILED = 4004;
 // close codes after which a new connection cannot help: bad shard, sharding, bad version, bad or disallowed intents
 const FATAL = [4010, 4011, 4012, 4013, 4014];
@@ -73,6 +75,8 @@ export class Gateway {
   voiceState(guildId: string, channelId: string, mute: boolean, deaf: boolean, video: boolean): void {
     this.send(OP_VOICE_STATE, { guild_id: guildId !== '' ? guildId : null, channel_id: channelId !== '' ? channelId : null, self_mute: mute, self_deaf: deaf, self_video: video });
   }
+  /** Go Live (OP_STREAM): STREAM_CREATE and STREAM_SERVER_UPDATE answer with the stream's own voice server. */
+  stream(op: i32, d: any): void { if (OP_STREAM.indexOf(op) >= 0) this.send(op, d); }
   /** Drops the connection as a network failure would (tests): the next connection resumes. */
   drop(): void { const ws = this.ws; if (ws !== null) ws.close(4000, 'drop'); }
 

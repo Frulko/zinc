@@ -84,8 +84,8 @@ struct Fake { const char* id; const char* kind; const char* name; int w, h; };
 const Fake FAKES[2] = {{"zinc:fake-screen", "screen", "Zinc Fake Screen", 1280, 800}, {"zinc:fake-window", "window", "Zinc Fake Window", 800, 600}};
 const Fake* fake_of(const std::string& id) { for (const Fake& f : FAKES) if (id == f.id) return &f; return nullptr; }
 void clear_thumbs() { for (int32_t t : thumbs) zrt::raster::dyn_destroy(t); thumbs.clear(); }
-std::string record(const ScSource& s, int32_t thumb) {
-  return s.id + FS + s.kind + FS + s.name + FS + s.app + FS + std::to_string(s.w) + FS + std::to_string(s.h) + FS + std::to_string(thumb) + RS;
+std::string record(const ScSource& s, int32_t thumb, int32_t icon) {
+  return s.id + FS + s.kind + FS + s.name + FS + s.app + FS + std::to_string(s.w) + FS + std::to_string(s.h) + FS + std::to_string(thumb) + FS + std::to_string(icon) + RS;
 }
 int32_t thumb_of(const ScSource& s) {
   if (s.tw <= 0 || s.th <= 0 || s.thumb.size() < (size_t)s.tw * s.th) return -1;
@@ -96,6 +96,30 @@ int32_t thumb_of(const ScSource& s) {
   zrt::raster::dyn_update(img, nullptr, 0);
   thumbs.push_back(img);
   return img;
+}
+/** The application icon as a runtime image with alpha (freed with the thumbnails), -1 for none. */
+int32_t icon_of(const ScSource& s) {
+  if (s.icon.size() < (size_t)SC_ICON * SC_ICON) return -1;
+  const int32_t img = zrt::raster::dyn_create(SC_ICON, SC_ICON);
+  uint32_t* d = img >= 0 ? zrt::raster::dyn_pixels(img) : nullptr;
+  if (!d) return -1;
+  memcpy(d, s.icon.data(), s.icon.size() * 4);
+  zrt::raster::dyn_set_alpha(img, true);
+  zrt::raster::dyn_update(img, nullptr, 0);
+  thumbs.push_back(img);
+  return img;
+}
+/** The fake application's icon: a blurple rounded square with a white bar (a window), alpha outside the corners. */
+void fake_icon(ScSource& s) {
+  s.icon.assign((size_t)SC_ICON * SC_ICON, 0);
+  const int r = SC_ICON / 5;
+  for (int y = 0; y < SC_ICON; y++)
+    for (int x = 0; x < SC_ICON; x++) {
+      const int dx = x < r ? r - x : x >= SC_ICON - r ? x - (SC_ICON - r - 1) : 0, dy = y < r ? r - y : y >= SC_ICON - r ? y - (SC_ICON - r - 1) : 0;
+      if (dx * dx + dy * dy > r * r) continue;
+      const bool bar = y >= SC_ICON / 3 && y < SC_ICON / 3 + SC_ICON / 8 && x >= SC_ICON / 5 && x < SC_ICON - SC_ICON / 5;
+      s.icon[(size_t)y * SC_ICON + x] = bar ? 0xFFFFFFFF : 0xFF5865F2;
+    }
 }
 }  // namespace
 
@@ -114,7 +138,8 @@ struct HostScreenCapture : NativeScreenCapture {
         if (!(strcmp(f.kind, "screen") ? windows : screens)) continue;
         ScSource s; s.id = f.id; s.kind = f.kind; s.name = f.name; s.app = "Zinc"; s.w = f.w; s.h = f.h;
         if (tw > 0 && th > 0) { s.tw = tw; s.th = th; sc_fit(f.w, f.h, s.tw, s.th); s.thumb.resize((size_t)s.tw * s.th); pattern(s.thumb.data(), s.tw, s.th, 0); }
-        listed += record(s, thumb_of(s));
+        if (!strcmp(f.kind, "window")) fake_icon(s);
+        listed += record(s, thumb_of(s), icon_of(s));
       }
       listing = 1;
       return true;
@@ -128,7 +153,7 @@ struct HostScreenCapture : NativeScreenCapture {
     std::string why;
     const int s = sc_backend_list_state(out, why);
     if (s < 0) { err = "screen capture: " + why; listing = -1; }
-    else if (s > 0) { for (const ScSource& x : out) listed += record(x, thumb_of(x)); listing = 1; }
+    else if (s > 0) { for (const ScSource& x : out) listed += record(x, thumb_of(x), icon_of(x)); listing = 1; }
     return listing;
   }
   zrt::String sources() override { return str(listing == 1 ? listed : std::string()); }

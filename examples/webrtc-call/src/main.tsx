@@ -11,6 +11,7 @@ import { quit } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import App from './App';
 import { call } from './call';
+import { pickerOpen, confirmPicker } from 'zinc:screen-capture/picker';
 
 ui.onKey((e: ui.KeyEvent): void => {
   if (e.primary || e.alt) return;
@@ -54,7 +55,10 @@ async function script(): Promise<void> {
   c.toggleMic();
   c.toggleCamera();
   await c.pickCamera(0);
-  await c.toggleShare();
+  const share = c.toggleShare();   // the share dialog: the fake screen, 720p
+  await until(() => pickerOpen());
+  confirmPicker('zinc:fake-screen');
+  await share;
   await until(() => c.peerWidth() > 640);
   c.log(`screen back: ${c.peerWidth()}x${c.peerHeight()}`);
   await c.toggleShare();

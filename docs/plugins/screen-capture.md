@@ -12,7 +12,7 @@ import { navigator } from 'zinc:web';
 
 await requestPermission();                                                   // macOS asks once; then System Settings
 const sources = await getSources({ types: ['screen', 'window'], thumbnailSize: { width: 240, height: 150 } });
-// a picker of your own: <Image source={s.thumbnail}>, s.name, s.appName
+// a picker of your own: <Image source={s.thumbnail}>, s.name, s.appName, s.appIcon (or the share dialog below)
 const stream = await navigator.mediaDevices.getDisplayMedia({ video: { deviceId: sources[0].id, width: 1280, height: 720, frameRate: 15 } });
 await sender.replaceTrack(stream.getVideoTracks()[0]);                       // zinc:webrtc
 ```
@@ -21,12 +21,39 @@ await sender.replaceTrack(stream.getVideoTracks()[0]);                       // 
 |---|---|
 | `permissionStatus()` | `'granted'` or `'denied'`, without asking (macOS does not tell "never asked" from "refused"). `denied` too when zinc.json "permissions" lack `screen` |
 | `requestPermission()` | the system's question the first time; afterwards the person allows the app in System Settings › Privacy & Security › Screen & System Audio Recording and opens it again. A background run (`ZINC_BACKGROUND=1`, every test) never asks |
-| `getSources({ types?, thumbnailSize? })` | `Promise<CaptureSource[]>`: the screens (the main one first), then the windows with a title. `id`, `kind`, `name`, `appName`, `width`, `height` (pixels), `thumbnail` (a runtime image, -1 without; it lives until the next call). Rejects with where to allow screen recording when it is not allowed: listing never asks |
+| `getSources({ types?, thumbnailSize? })` | `Promise<CaptureSource[]>`: the screens (the main one first), then the windows with a title. `id`, `kind`, `name`, `appName`, `width`, `height` (pixels), `thumbnail` (a runtime image, -1 without; it lives until the next call), `appIcon` (a window's application icon, 32 pixels square with alpha, -1 for a screen; the same life). Rejects with where to allow screen recording when it is not allowed: listing never asks |
 | `ScreenCapture.open(id, { width?, height?, frameRate?, cursor? })` | a running capture (`''`: the main screen). The frames fit `width` x `height` with the source's aspect (default: the source's size, at most 1920 x 1080), `frameRate` default 30 (at most 60), `cursor` default true. `image`, `frameIndex`, `onFrame(cb)`, `onEnded(cb)` (the window closed), `snapshot()`, `close()` |
 | `navigator.mediaDevices.getDisplayMedia({ video })` | (zinc:web, once this module is imported) a stream with one video track: `video: true` for the main screen, or `{ deviceId, width, height, frameRate, cursor: 'never' }`. `NotAllowedError` with the explanation when screen recording is refused, `NotFoundError` for an unknown source. The track ends (`ended` event) when its window closes |
 
 ScreenCaptureKit hands over only the frames that changed, as IOSurface pixel buffers at the asked size; the capture's runtime image points at
 the newest one (no copy), and `zinc:webrtc` encodes from it. `close()` (or `track.stop()`) stops the system's recording at once.
 
+## The share dialog (`zinc:screen-capture/picker`)
+
+The dialog a call app opens on "Share screen", written once for every app: the screens, then the windows grouped by application (its icon
+and name), each with a thumbnail refreshed every 1.5 s while it is open; one selected (a ring); the quality to send: resolution 720p, 1080p or
+Source (the source's own size), 15, 30 or 60 frames a second, the pointer drawn or not; Share and Cancel (Escape or a press outside cancels).
+It asks for screen recording first when needed (never in a background run), sits on its own modal layer in the kit theme's colours, and works
+the same under the Solid and the React models: nothing to mount.
+
+```ts
+import { ScreenCapture } from 'zinc:screen-capture';
+import { pickScreen } from 'zinc:screen-capture/picker';
+
+const c = await pickScreen({ resolution: '720', frameRate: 30 });   // null when cancelled
+if (c !== null) {
+  const cap = await ScreenCapture.open(c.sourceId, { width: c.width, height: c.height, frameRate: c.frameRate, cursor: c.cursor });
+  // or getDisplayMedia({ video: { deviceId: c.sourceId, width: c.width, height: c.height, frameRate: c.frameRate, cursor: c.cursor ? 'always' : 'never' } })
+}
+```
+
+| API | |
+|---|---|
+| `pickScreen(options?)` | `Promise<ShareChoice \| null>`: `{ sourceId, width, height, frameRate, cursor, resolution }` (the box to capture in: 1280 x 720, 1920 x 1080 or the source's size; `resolution` is `'720'`, `'1080'` or `'source'`, to keep for next time). Rejects with the reason when nothing can be listed (screen recording refused). A second call cancels the first dialog |
+| options | `title` ('Share your screen'), `shareLabel` ('Share'), `types`, `resolution` and `frameRate` shown first (720p, 30), `cursor` (true), `cursorOption` (offer the pointer's switch, true), `allowed(resolution, frameRate)` with `lockedNote`: a quality the account may not send is dimmed and labelled (Discord's Go Live above 720p 30 fps without Nitro) |
+| `pickerOpen()`, `confirmPicker(id?)`, `cancelPicker()` | the dialog is open; press Share (with `id` selected first) or Cancel: keyboard shortcuts and scripted sessions |
+
+Used by `examples/discord` (Go Live) and `examples/webrtc-call` (Share screen).
+
 Tests: `ZINC_FAKE_SCREEN=1`, and every deterministic run, list only "Zinc Fake Screen" (1280 x 800) and "Zinc Fake Window" (800 x 600), a
-moving pattern: no test captures the screen of the person at the machine (`tests/t1/screen_capture.sh`).
+moving pattern (the window's application, "Zinc", has a small blurple icon): no test captures the screen of the person at the machine (`tests/t1/screen_capture.sh`).

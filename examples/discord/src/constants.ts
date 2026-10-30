@@ -54,6 +54,8 @@ export const MEDIA_MAX_W = 400, MEDIA_MAX_H = 300;
 // Voice (call.ts): who speaks has a green ring; the push-to-talk key, held
 /** A participant's tile in the call view (a camera is decoded at this size times the pixel scale). */
 export const TILE_W = 256, TILE_H = 144;
+/** A watched Go Live stream in full view. */
+export const FULL_W = 960, FULL_H = 540;
 export const VOICE_AVATAR = 20, CALL_AVATAR = 64, SPEAKING_RING = 'border-[#23a55a]', PTT_KEY = 'F8';
 export const EMBED_W = 432, THUMB = 80, STICKER = 160;   // an embed card at most, its thumbnail, a sticker
 export const ROW_ESTIMATE = 44;           // a message's height before it is laid out (the virtual list's estimate)

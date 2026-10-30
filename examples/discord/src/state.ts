@@ -105,7 +105,7 @@ export class Store implements GatewayHandler {
   constructor() {
     this.gateway = new Gateway(this);
     this.call = new Call((): string => this.me.id, (g: string, c: string, mute: boolean, deaf: boolean, video: boolean): void => { this.gateway.voiceState(g, c, mute, deaf, video); },
-      (): void => { this.changed(); }, (line: string): void => { this.log(line); });
+      (): void => { this.changed(); }, (line: string): void => { this.log(line); }, (op: i32, d: any): void => { this.gateway.stream(op, d); });
     setRestLog((line: string): void => { this.log(line); });
     onSafeMode((message: string, unauthorized: boolean): void => { if (unauthorized) this.authFailed(); else { this.error = message; this.changed(); } });
     onPicture((): void => { this.changed(); }, (line: string): void => { this.log(line); });
@@ -186,6 +186,7 @@ export class Store implements GatewayHandler {
     else if (t === 'VOICE_STATE_UPDATE') this.call.stateUpdate(d);
     else if (t === 'VOICE_SERVER_UPDATE') this.call.serverUpdate(d);
     else if (t === 'CALL_CREATE' || t === 'CALL_UPDATE' || t === 'CALL_DELETE') this.call.callUpdate(t, d);
+    else if (t.startsWith('STREAM_')) this.call.streamEvent(t, d);
     else return;
     this.changed();
   }
@@ -205,6 +206,7 @@ export class Store implements GatewayHandler {
     this.users.clear();
     this.subscribedTo = '';
     this.me = this.user(d.user);
+    this.call.nitro = typeof d.user.premium_type === 'number' && d.user.premium_type > 0;   // Go Live above 720p 30 fps
     this.rules.load(d);
     if (Array.isArray(d.users)) for (const u of d.users) this.user(u);
     this.guilds = [];

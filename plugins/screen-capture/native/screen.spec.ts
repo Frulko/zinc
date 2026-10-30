@@ -15,7 +15,8 @@ export interface Spec extends NativeModule {
   /** 0 listing, 1 done, -1 failed (see error()). */
   listState(): i32;
   /** The sources of the last list: id, kind ('screen' 'window'), name, app name, width, height (pixels), thumbnail (a runtime image of
-   *  zinc:gfx, -1 for none; it lives until the next list()) records. */
+   *  zinc:gfx, -1 for none; it lives until the next list()), application icon (a runtime image with alpha, SC_ICON pixels square, -1 for
+   *  none; the same life) records. */
   sources(): string;
   /** Why the last call failed, '' when it did not. */
   error(): string;

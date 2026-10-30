@@ -9,7 +9,7 @@ import { RTCPeerConnection, RTCTrackEvent, RTCStats, RTCPeerConnectionIceEvent, 
 import { devices, CameraDevice, Camera, requestPermission as askCamera } from 'zinc:camera';
 import { Microphone, requestPermission as askMicrophone } from 'zinc:microphone';
 import { stream, AudioStream } from 'zinc:audio';
-import { permissionStatus as screenAccess, requestPermission as askScreen } from 'zinc:screen-capture';
+import { pickScreen } from 'zinc:screen-capture/picker';
 import { navigator, MediaStream, MediaStreamTrack, Event } from 'zinc:web';
 import { WebSocket, MessageEvent as WsMessage } from 'zinc:socket';
 import { env } from 'zinc:sys';
@@ -245,14 +245,16 @@ export class Call {
     await this.sendVideo(fresh.getVideoTracks()[0]);
     this.log(`camera ${d.name}`);
   }
-  /** Screen sharing: the main screen replaces the camera (replaceTrack, no new negotiation); pressed again, the camera comes back. macOS asks
-   *  once for screen recording; refused, the reason and where to allow it are shown. */
+  /** Screen sharing: the share dialog (zinc:screen-capture/picker: a screen or a window, its quality), then that source replaces the camera
+   *  (replaceTrack, no new negotiation); pressed again, the camera comes back. macOS asks once for screen recording; refused, the reason and
+   *  where to allow it are shown. */
   async toggleShare(): Promise<void> {
     if (this.local === null) return;
     if (this.sharing) { await this.pickCamera(this.which); return; }
-    if (screenAccess() !== 'granted') await askScreen();
     try {
-      const track = (await navigator.mediaDevices.getDisplayMedia({ video: { width: 1280, height: 720, frameRate: 15 } })).getVideoTracks()[0];
+      const c = await pickScreen({ frameRate: 15 });
+      if (c === null || this.local === null) return;
+      const track = (await navigator.mediaDevices.getDisplayMedia({ video: { deviceId: c.sourceId, width: c.width, height: c.height, frameRate: c.frameRate, cursor: c.cursor ? 'always' : 'never' } })).getVideoTracks()[0];
       track.addEventListener('ended', (_e: Event): void => { if (this.sharing) this.pickCamera(this.which); });   // the shared screen went away
       this.why = '';
       this.sharing = true;

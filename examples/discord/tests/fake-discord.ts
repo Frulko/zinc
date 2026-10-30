@@ -352,6 +352,10 @@ function memberList(d: any): void {
 const VOICE_KEY: i32[] = [];
 for (let i = 0; i < 32; i++) VOICE_KEY.push((i * 13 + 5) & 255);
 const MY_SSRC = 11, GRACE_SSRC = 22, MY_VIDEO_SSRC = 12, GRACE_VIDEO_SSRC = 33;
+// Go Live: our stream's connection (token stream-token: SSRC 41, video 42) and the one that watches Grace's (watch-token: 51); Grace's
+// stream is ours sent on to the watcher as SSRC 63, and the watcher's key frame requests go to our stream's connection
+const STREAM_SSRC = 41, STREAM_VIDEO_SSRC = 42, WATCH_SSRC = 51, GRACE_STREAM_SSRC = 63, STREAM_RTC = '1000';
+let streamAddr = '', streamPort: i32 = 0, watchAddr = '', watchPort: i32 = 0;
 let voiceChannel = '';
 let voicePort: i32 = 0;
 let rtp: UdpSocket | null = null;
@@ -372,21 +376,60 @@ function voiceState(d: any): void {
   dispatch('VOICE_SERVER_UPDATE', { token: 'voice-token', guild_id: guild, endpoint: `ws://127.0.0.1:${voicePort}` });
 }
 
+/** Go Live on the main gateway: op 18 (our stream: its server, and Grace goes live too), 20 (watch Grace's), 19 (stop either), 22. */
+function streamOp(op: i32, d: any): void {
+  const key = `${d.stream_key}`;
+  if (op === 18) {
+    console.log(`voice stream create type=${d.type} guild=${d.guild_id} channel=${d.channel_id}`);
+    const ours = `guild:${d.guild_id}:${d.channel_id}:100`;
+    dispatch('STREAM_CREATE', { stream_key: ours, rtc_server_id: STREAM_RTC, viewer_ids: [], paused: false, region: 'local' });
+    dispatch('STREAM_SERVER_UPDATE', { stream_key: ours, endpoint: `ws://127.0.0.1:${voicePort}`, token: 'stream-token', guild_id: null });
+    dispatch('VOICE_STATE_UPDATE', { user_id: '101', guild_id: d.guild_id, channel_id: d.channel_id, session_id: 'voice-sess', self_stream: true });
+  } else if (op === 20) {
+    console.log(`voice stream watch ${key}`);
+    dispatch('STREAM_CREATE', { stream_key: key, rtc_server_id: STREAM_RTC, viewer_ids: ['100'], paused: false, region: 'local' });
+    dispatch('STREAM_SERVER_UPDATE', { stream_key: key, endpoint: `ws://127.0.0.1:${voicePort}`, token: 'watch-token', guild_id: null });
+  } else if (op === 19) {
+    console.log(`voice stream delete ${key}`);
+    const f = key.split(':');
+    if (f[3] === '100') dispatch('VOICE_STATE_UPDATE', { user_id: '101', guild_id: f[1], channel_id: f[2], session_id: 'voice-sess', self_stream: false });
+  } else console.log(`voice stream paused=${d.paused} ${key}`);
+}
+
 /** The voice gateway v8: every message carries `seq`. */
 function voiceGateway(ws: WebSocket, req: UpgradeRequest): void {
   console.log(`voice gateway ${req.path}`);
-  let vseq = 0;
+  let vseq = 0, kind = 'voice';
   const send = (op: i32, d: any): void => { vseq++; ws.send(JSON.stringify({ op: op, d: d, seq: vseq })); };
   ws.onmessage = (e: MessageEvent): void => {
     if (e.binary) { console.log(`voice binary op ${e.bytes[0]}: ${e.bytes.length > 100 ? 'over' : 'under'} 100 bytes`); return; }   // op 26: the key package
     const p: any = JSON.parse(e.data), d: any = p.d;
     if (p.op === 0) {
+      kind = d.token === 'stream-token' ? 'stream' : d.token === 'watch-token' ? 'watch' : 'voice';
+      if (kind !== 'voice') {   // Go Live: the stream's own server (rtc_server_id), our voice session
+        console.log(`voice ${kind} identify server=${d.server_id} session=${d.session_id} video=${d.video} streams=${JSON.stringify(d.streams)}`);
+        const a: i32 = kind === 'stream' ? STREAM_SSRC : WATCH_SSRC;
+        send(8, { heartbeat_interval: 13750 });
+        send(2, { ssrc: a, ip: '127.0.0.1', port: (rtp as UdpSocket).port, modes: ['aead_aes256_gcm_rtpsize'],
+          streams: [{ type: 'screen', rid: '100', ssrc: a + 1, rtx_ssrc: a + 2, quality: 100, active: false }] });
+        return;
+      }
       console.log(`voice identify server=${d.server_id} user=${d.user_id} session=${d.session_id} token=${d.token === 'voice-token'} dave=${d.max_dave_protocol_version} video=${d.video} streams=${JSON.stringify(d.streams)}`);
       received = 0; refused = 0; videoIn = 0; plis = 0;
       send(8, { heartbeat_interval: 13750 });
       send(2, { ssrc: MY_SSRC, ip: '127.0.0.1', port: (rtp as UdpSocket).port, modes: ['aead_aes256_gcm_rtpsize', 'aead_xchacha20_poly1305_rtpsize', 'xsalsa20_poly1305'],
         streams: [{ type: 'video', rid: '100', ssrc: MY_VIDEO_SSRC, rtx_ssrc: MY_VIDEO_SSRC + 1, quality: 100, active: false }] });
-    } else if (p.op === 1) {
+    } else if (p.op === 1 && kind !== 'voice') {
+      console.log(`voice ${kind} select protocol=${d.protocol} mode=${d.data.mode}`);
+      send(4, { mode: d.data.mode, secret_key: VOICE_KEY, dave_protocol_version: 0 });
+      if (kind === 'watch') send(12, { user_id: '101', audio_ssrc: 0, video_ssrc: GRACE_STREAM_SSRC, rtx_ssrc: GRACE_STREAM_SSRC + 1,
+        streams: [{ type: 'screen', rid: '100', ssrc: GRACE_STREAM_SSRC, rtx_ssrc: GRACE_STREAM_SSRC + 1, active: true, quality: 100 }] });
+    } else if (p.op === 12 && kind !== 'voice') {
+      const st: any = d.streams.length > 0 ? d.streams[0] : null;
+      console.log(`voice ${kind} video ssrc=${d.video_ssrc}${st !== null ? ` ${st.type} ${st.max_resolution.width}x${st.max_resolution.height} ${st.max_framerate} fps ${st.max_bitrate} bps` : ''}`);
+    } else if (p.op === 15 && kind !== 'voice') console.log(`voice ${kind} wants ${JSON.stringify(d)}`);
+    else if (kind !== 'voice' && p.op !== 3) console.log(`voice ${kind} op ${p.op}`);
+    else if (p.op === 1) {
       voiceMode = d.data.mode;
       const codecs: string[] = [];
       for (const c of d.codecs) codecs.push(`${c.name}/${c.payload_type}`);
@@ -404,7 +447,7 @@ function voiceGateway(ws: WebSocket, req: UpgradeRequest): void {
     } else if (p.op === 15) console.log(`voice wants ${JSON.stringify(d)}`);
     else console.log(`voice op ${p.op}`);
   };
-  ws.onclose = (e: CloseEvent): void => { console.log(`voice closed ${e.code}: 25 packets or more ${received >= 25}, refused ${refused}, video ${videoIn > 0}, key frames asked ${plis > 0}`); };
+  ws.onclose = (e: CloseEvent): void => { if (kind !== 'voice') { console.log(`voice ${kind} closed ${e.code}`); return; } console.log(`voice closed ${e.code}: 25 packets or more ${received >= 25}, refused ${refused}, video ${videoIn > 0}, key frames asked ${plis > 0}`); };
 }
 
 /** UDP: IP discovery, then each packet of ours opened and sent back as Grace's: our voice as hers, our camera as hers, our RTCP (a key
@@ -416,13 +459,26 @@ function voiceUdp(m: Datagram): void {
     for (let i = 0; i < 74; i++) r.push(0);
     r[1] = 2; r[3] = 70;
     for (let i = 0; i < 4; i++) r[4 + i] = b[4 + i];
+    const ssrc = b[7];   // ours are under 256
+    if (ssrc === STREAM_SSRC) { streamAddr = m.address; streamPort = m.port; }
+    if (ssrc === WATCH_SSRC) { watchAddr = m.address; watchPort = m.port; }
     const ip = '127.0.0.1';
     for (let i = 0; i < ip.length; i++) r[8 + i] = ip.charCodeAt(i);
     r[72] = (m.port >> 8) & 255; r[73] = m.port & 255;
     (rtp as UdpSocket).sendBytes(m.address, m.port, r);
     return;
   }
+  if (b.length >= 8 && b[1] >= 200 && b[1] <= 206 && b[7] === WATCH_SSRC) { if (streamPort > 0) (rtp as UdpSocket).sendBytes(streamAddr, streamPort, b); return; }
   if (b.length >= 8 && b[1] >= 200 && b[1] <= 206) { plis++; (rtp as UdpSocket).sendBytes(m.address, m.port, b); return; }
+  if (b.length >= 12 && (b[1] & 0x7f) === 101 && b[11] === STREAM_VIDEO_SSRC) {   // our stream: on to the watcher as Grace's
+    if (watchPort === 0) return;
+    const frame = unseal(voiceMode, keyBytes(), b);
+    if (frame.length === 0) return;
+    const h: u8[] = [0x80, b[1], b[2], b[3], b[4], b[5], b[6], b[7], 0, 0, 0, GRACE_STREAM_SSRC];
+    (rtp as UdpSocket).sendBytes(watchAddr, watchPort, seal(voiceMode, keyBytes(), h, echoCounter, frame));
+    echoCounter++;
+    return;
+  }
   if (b.length >= 12 && (b[1] & 0x7f) === 101) {
     const frame = unseal(voiceMode, keyBytes(), b);
     if (frame.length === 0) { refused++; return; }
@@ -465,6 +521,7 @@ async function main(): Promise<void> {
         setTimeout(() => { dispatch('MESSAGE_CREATE', msg('905', '302', users[0], 'Back after the drop', 14)); }, 200);
       } else if (p.op === 37) memberList(p.d);
       else if (p.op === 4) voiceState(p.d);
+      else if (p.op === 18 || p.op === 19 || p.op === 20 || p.op === 22) streamOp(p.op, p.d);
     };
   }, '127.0.0.1');
   gwPort = gw.port;

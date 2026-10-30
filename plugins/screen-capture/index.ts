@@ -16,7 +16,9 @@ export type PermissionStatus = 'granted' | 'denied';
 
 /** A screen or a window. `thumbnail`: a runtime image (gfx.drawImage, <Image source>) of the size asked, -1 without one; it lives until the
  *  next getSources(). */
-export interface CaptureSource { id: string; kind: SourceKind; name: string; appName: string; width: number; height: number; thumbnail: number }
+export interface CaptureSource { id: string; kind: SourceKind; name: string; appName: string; width: number; height: number; thumbnail: number;
+  /** A window's application icon (a runtime image, 32 pixels square, with alpha), -1 for none (screens); it lives as long as `thumbnail`. */
+  appIcon: number }
 export interface SourcesOptions { types?: SourceKind[]; thumbnailSize?: { width: number; height: number } }
 /** width x height: the box the frames fit in (the source's aspect is kept; default: the source's size, at most 1920 x 1080); frameRate
  *  (default 30, at most 60); cursor: draw the pointer (default true). */
@@ -46,7 +48,7 @@ export function getSources(o: SourcesOptions = {}): Promise<CaptureSource[]> {
       for (const r of S.sources().split(RS)) {
         if (r === '') continue;
         const f = r.split(FS);
-        out.push({ id: f[0], kind: f[1] === 'window' ? 'window' : 'screen', name: f[2], appName: f[3], width: parseInt(f[4]), height: parseInt(f[5]), thumbnail: parseInt(f[6]) });
+        out.push({ id: f[0], kind: f[1] === 'window' ? 'window' : 'screen', name: f[2], appName: f[3], width: parseInt(f[4]), height: parseInt(f[5]), thumbnail: parseInt(f[6]), appIcon: f.length > 7 ? parseInt(f[7]) : -1 });
       }
       resolve(out);
       return true;

@@ -15,8 +15,9 @@ export interface Spec extends NativeModule {
   modes(): string;
   /** Starts the media with Session Description's mode and 32-byte key: capture, encode and send; receive, decode and play. False (see
    *  error()) for a mode it does not know or a key that is not 32 bytes. The fake microphone (ZINC_FAKE_MICROPHONE=1, a 440 Hz tone)
-   *  and no output device in that case: what the tests use. */
-  start(h: i32, mode: string, key: u8[]): boolean;
+   *  and no output device in that case: what the tests use. audio false: a Go Live connection, video only (no device is opened, the voice
+   *  packets are dropped). */
+  start(h: i32, mode: string, key: u8[], audio: boolean): boolean;
   /** mute: send nothing; deaf: play nothing; ptt: push-to-talk mode, then `held` says when to send (else the voice activity decides). */
   controls(h: i32, mute: boolean, deaf: boolean, ptt: boolean, held: boolean): void;
   /** The microphones (output false) or the speakers (true) as records "id\u001fname": ids as zinc:microphone's devices() writes them.
@@ -37,8 +38,9 @@ export interface Spec extends NativeModule {
   speaking(h: i32): string;
   /** [packets sent, packets received, decryption failures, frames decoded, frames mixed into the output, late or lost packets] */
   stats(h: i32): f64[];
-  /** Video, H.264 (VideoToolbox; none elsewhere yet): our camera's stream, its SSRC from Ready's `streams` (0: we send no video). */
-  videoSend(h: i32, ssrc: u32): void;
+  /** Video, H.264 (VideoToolbox; none elsewhere yet): our camera's or screen's stream, its SSRC from Ready's `streams` (0: we send no
+   *  video), the encoder's bitrate in bit/s (0: from the frame's size) and frame rate. */
+  videoSend(h: i32, ssrc: u32, bitrate: i32, fps: i32): void;
   /** The newest frame of a runtime image (a zinc:camera Camera's) to encode and send on the media thread; false when it cannot be read. */
   sendImage(h: i32, image: i32): boolean;
   /** Decodes the camera of the stream `ssrc` (someone's, from op 12) at most width x height pixels (the decoder scales it); 0 x 0 stops

@@ -25,7 +25,8 @@ import * as notifs from './services/notifications';
 import * as notification from 'zinc:system/notification';
 import { VoiceSettings, decibels } from './call';
 import { AudioDevice } from 'zinc:discord-voice';
-import { API_BASE } from './constants';
+import { API_BASE, TILE_W } from './constants';
+import { pickerOpen, confirmPicker } from 'zinc:screen-capture/picker';
 
 ui.onKey((e: ui.KeyEvent): void => {
   const call = store.call;
@@ -137,6 +138,33 @@ async function shot(name: string): Promise<void> {
 }
 const dB = (): number => Math.round(decibels(store.call.level()));
 
+/** Go Live: the share dialog (the fake sources, ZINC_FAKE_SCREEN=1), the fake screen shared at the default 720p 30 fps on the stream's own
+ *  connection; the fake makes Grace live with ours: watched in her tile, then in full view (decoded bigger), then not; our stream stopped. */
+async function goLive(): Promise<void> {
+  const call = store.call;
+  const sharing = call.shareScreen();
+  await until(() => pickerOpen());
+  await shot('picker');
+  confirmPicker('zinc:fake-screen');
+  await sharing;
+  await until(() => call.live.has('101'));
+  console.log(`voice: live, our stream ${call.streamOf(store.me.id) >= 0}, Grace live ${call.live.has('101')}`);
+  call.watchStream('101');
+  await until(() => call.streamOf('101') >= 0);
+  let img = call.streamOf('101');
+  console.log(`voice: watching Grace's stream ${imageWidth(img)}x${imageHeight(img)}`);
+  await shot('golive');
+  call.focus(true);
+  await until(() => imageWidth(call.streamOf('101')) > TILE_W);
+  img = call.streamOf('101');
+  console.log(`voice: full view ${imageWidth(img)}x${imageHeight(img)}`);
+  call.focus(false);
+  call.stopWatching();
+  call.stopLive();
+  await until(() => !call.live.has('101'));
+  console.log(`voice: stream stopped, ours ${call.sharing === null && call.streamOf(store.me.id) < 0}, watching ${call.watching !== null}`);
+}
+
 /** A call: the voice channel Lounge opened and joined (op 4, the voice gateway, IP discovery, the mode, Grace heard back), its call view;
  *  the sensitivity raised above our voice (nothing sent) and lowered again with a lower input volume, mute (the call view's frame),
  *  push-to-talk held and let go, deafen, the Voice & audio settings (devices, Grace's volume: their frame, then kept), hanging up; then a
@@ -170,6 +198,7 @@ async function voice(): Promise<void> {
   await call.toggleVideo();
   await until(() => !call.hasVideo('101'));
   console.log(`voice: camera off, Grace's camera ${call.videoOf('101')}`);
+  await goLive();
   call.set((v: VoiceSettings): void => { v.sensitivity = -10; });   // our tone is at -13 dB: under it, nothing leaves
   await until(() => !call.speaking.has(store.me.id) && !call.speaking.has('101'));
   await pause(400);

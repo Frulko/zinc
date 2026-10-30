@@ -2,7 +2,7 @@
 // picker when the program calls navigator.mediaDevices.getDisplayMedia(), which zinc:web leaves to the browser. Permission is asked there too.
 export type SourceKind = 'screen' | 'window';
 export type PermissionStatus = 'granted' | 'denied';
-export interface CaptureSource { id: string; kind: SourceKind; name: string; appName: string; width: number; height: number; thumbnail: number }
+export interface CaptureSource { id: string; kind: SourceKind; name: string; appName: string; width: number; height: number; thumbnail: number; appIcon: number }
 export interface SourcesOptions { types?: SourceKind[]; thumbnailSize?: { width: number; height: number } }
 
 /** The browser asks at getDisplayMedia(): 'granted' here. */

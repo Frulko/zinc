@@ -206,7 +206,7 @@ struct Conn {
   std::atomic<bool> run{true};
   std::mutex mu;                       // what the program's thread reads or sets: below
   std::string disc;                    // IP discovery's answer
-  bool started = false;
+  bool started = false, audio = true;  // audio false: a Go Live connection (video only: no devices, voice not decoded)
   Cipher cipher;
   bool mute = false, deaf = false, ptt = false, held = false;
   std::map<uint32_t, std::string> users;
@@ -244,12 +244,14 @@ struct Conn {
   std::condition_variable vcv;
   std::map<uint32_t, std::shared_ptr<Watch>> watches;
   uint32_t vssrc = 0;
+  int vbps = 0, vfps = 30;              // our stream's bitrate and rate (videoSend), 0: from its size
   std::vector<uint32_t> pend;
   int pw = 0, ph = 0;
   bool hasPend = false, forceKey = false;
   std::thread vth;
   // the video thread's own
   std::unique_ptr<media::VideoEncoder> venc;
+  int encBps = 0, encFps = 0;
   uint16_t vseq = 0;
 
   ~Conn() {
@@ -295,7 +297,7 @@ void Conn::received(const uint8_t* p, size_t n, double now) {
   if (!started || n < 12) return;
   if (p[1] >= 200 && p[1] <= 206) { rtcp(p, n); return; }
   if ((p[1] & 0x7f) == PT_H264) { videoPacket(p, n, now); return; }
-  if ((p[1] & 0x7f) != PT_OPUS) return;   // RTX (we ask for key frames instead) and the rest
+  if ((p[1] & 0x7f) != PT_OPUS || !audio) return;   // RTX (we ask for key frames instead) and the rest
   stats[1]++;
   std::vector<uint8_t> pl;
   if (!cipher.open(p, n, pl)) { stats[2]++; return; }
@@ -467,8 +469,11 @@ void Conn::pli(uint32_t source) {
 }
 /** One camera frame: encoded, end-to-end encrypted, cut into RTP packets (RFC 6184: single NAL units and FU-A) and sent (video thread). */
 void Conn::sendVideo(const std::vector<uint32_t>& px, int w, int h, bool key) {
-  if (!venc || venc->w != w || venc->h != h) {
-    venc.reset(media::h264Encoder(w, h, std::max(300000, std::min(2500000, w * h * 3)), 30));   // about 0.1 bit per pixel at 30 fps
+  int bps, fps;
+  { std::lock_guard<std::mutex> v(vmu); bps = vbps > 0 ? vbps : std::max(300000, std::min(2500000, w * h * 3)); fps = vfps; }   // about 0.1 bit per pixel at 30 fps
+  if (!venc || venc->w != w || venc->h != h || encBps != bps || encFps != fps) {
+    venc.reset(media::h264Encoder(w, h, bps, fps));
+    encBps = bps; encFps = fps;
     key = true;
   }
   std::vector<uint8_t> au;
@@ -688,7 +693,7 @@ struct HostDiscordVoice : NativeDiscordVoice {
     return str(c->disc);
   }
   zrt::String modes() override { return str(std::string(MODE_NAMES[0]) + FS + MODE_NAMES[1]); }
-  bool start(int32_t h, zrt::String mode, zrt::Array<uint8_t> key) override {
+  bool start(int32_t h, zrt::String mode, zrt::Array<uint8_t> key, bool audio) override {
     Conn* c = at(h);
     if (!c) { err = "discord-voice: no such connection"; return false; }
     const int m = modeOf(cstr(mode));
@@ -699,8 +704,9 @@ struct HostDiscordVoice : NativeDiscordVoice {
     opus_encoder_ctl(enc, OPUS_SET_BITRATE(64000));
     opus_encoder_ctl(enc, OPUS_SET_INBAND_FEC(1));
     opus_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(5));
-    c->fake = fakeMic();
-    openDevices(c);   // devices first, then the worker uses them
+    c->fake = audio && fakeMic();
+    c->audio = audio;
+    if (audio) openDevices(c);   // devices first, then the worker uses them
     std::lock_guard<std::mutex> g(c->mu);
     if (c->started) { opus_encoder_destroy(enc); err = "discord-voice: already started"; return false; }
     if (!c->cipher.init(m, vec(key))) { opus_encoder_destroy(enc); err = "discord-voice: the key must be 32 bytes"; return false; }
@@ -790,13 +796,13 @@ struct HostDiscordVoice : NativeDiscordVoice {
     delete c;
     conns[h] = nullptr;
   }
-  void videoSend(int32_t h, uint32_t ssrc) override {
+  void videoSend(int32_t h, uint32_t ssrc, int32_t bitrate, int32_t fps) override {
     Conn* c = at(h);
     if (!c) return;
     std::lock_guard<std::mutex> g(c->mu);
     if (ssrc && c->daveEnc) daveEncryptorAssignSsrcToCodec(c->daveEnc, ssrc, DAVE_CODEC_H264);
     std::lock_guard<std::mutex> v(c->vmu);
-    c->vssrc = ssrc; c->forceKey = true; c->hasPend = false;
+    c->vssrc = ssrc; c->vbps = bitrate; c->vfps = fps > 0 ? fps : 30; c->forceKey = true; c->hasPend = false;
   }
   bool sendImage(int32_t h, int32_t image) override {
     Conn* c = at(h);

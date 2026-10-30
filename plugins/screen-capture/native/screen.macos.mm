@@ -12,6 +12,7 @@
 #import <CoreVideo/CoreVideo.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 #include <atomic>
+#include <map>
 #include <mutex>
 #include <pthread.h>
 #include <stdlib.h>
@@ -108,6 +109,26 @@ void draw(CGImageRef img, ScSource& s) {
   if (c) { CGContextDrawImage(c, CGRectMake(0, 0, s.tw, s.th), img); CGContextRelease(c); }
   CGColorSpaceRelease(cs);
 }
+// An application's icon at SC_ICON x SC_ICON, straight alpha (the runtime images' format); empty when it has none
+std::vector<uint32_t> app_icon(pid_t pid) {
+  std::vector<uint32_t> px;
+  NSImage* im = [NSRunningApplication runningApplicationWithProcessIdentifier:pid].icon;
+  NSRect r = NSMakeRect(0, 0, SC_ICON, SC_ICON);
+  CGImageRef cg = im ? [im CGImageForProposedRect:&r context:nil hints:nil] : nullptr;
+  if (!cg) return px;
+  px.assign((size_t)SC_ICON * SC_ICON, 0);
+  CGColorSpaceRef cs = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+  CGContextRef c = CGBitmapContextCreate(px.data(), SC_ICON, SC_ICON, 8, (size_t)SC_ICON * 4, cs, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+  if (c) { CGContextSetInterpolationQuality(c, kCGInterpolationHigh); CGContextDrawImage(c, CGRectMake(0, 0, SC_ICON, SC_ICON), cg); CGContextRelease(c); }
+  CGColorSpaceRelease(cs);
+  for (uint32_t& p : px) {   // premultiplied -> straight
+    const uint32_t a = p >> 24;
+    if (a == 0 || a == 255) continue;
+    const uint32_t rr = ((p >> 16) & 255) * 255 / a, gg = ((p >> 8) & 255) * 255 / a, bb = (p & 255) * 255 / a;
+    p = a << 24 | (rr > 255 ? 255 : rr) << 16 | (gg > 255 ? 255 : gg) << 8 | (bb > 255 ? 255 : bb);
+  }
+  return px;
+}
 void list_failed(int gen, const std::string& why) {
   std::lock_guard<std::mutex> g(L.mu);
   if (gen == L.gen) { L.why = why; L.state = -1; }
@@ -191,11 +212,18 @@ bool sc_backend_list(bool screens, bool windows, int tw, int th, std::string& er
       }
       if (windows) {
         const double sc = backing();
+        std::map<pid_t, std::vector<uint32_t>> icons;   // one per application
         for (SCWindow* w in content.windows) {
           if (w.windowLayer != 0 || w.title.length == 0 || w.frame.size.width < 64 || w.frame.size.height < 64) continue;
           ScSource s;
           s.id = "window:" + std::to_string(w.windowID); s.kind = "window"; s.name = w.title.UTF8String;
           s.app = w.owningApplication.applicationName ? w.owningApplication.applicationName.UTF8String : "";
+          if (w.owningApplication) {
+            const pid_t pid = w.owningApplication.processID;
+            auto it = icons.find(pid);
+            if (it == icons.end()) it = icons.emplace(pid, app_icon(pid)).first;
+            s.icon = it->second;
+          }
           s.w = (int)(w.frame.size.width * sc); s.h = (int)(w.frame.size.height * sc);
           found->push_back(s);
           filters.push_back([[SCContentFilter alloc] initWithDesktopIndependentWindow:w]);

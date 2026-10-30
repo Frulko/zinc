@@ -1,6 +1,6 @@
 // The settings, in place of the messages, in two panes as Discord has them. Servers: which servers show, one switch per server; a server
 // joined after the choice was made comes off and marked new. Voice & audio: the microphone and the speakers, their volumes, the input mode
-// (voice activity with its sensitivity over a live meter, or push-to-talk on a chosen key) and each user's volume. Both stay on this
+// (voice activity with its sensitivity over a live meter, or push-to-talk on a chosen key), the camera's quality and each user's volume. Both stay on this
 // machine (state.ts, call.ts), never sent to Discord.
 import { Icon } from 'zinc:icons';
 import { Switch, Slider, Tabs } from 'zinc:ui/kit';
@@ -111,6 +111,9 @@ function Voice() {
       </View>
       <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>Nothing is sent unless the key is held.</Text>
     </View>}
+    <Heading text="Camera quality" />
+    <Tabs items={['360p', '720p']} selected={() => s.camera === 720 ? 1 : 0} onSelect={(i: i32) => set((v: VoiceSettings): void => { v.camera = i === 1 ? 720 : 360; })} className="w-[200]" />
+    <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>From the next time the camera is turned on. Go Live's quality is chosen when sharing.</Text>
     {users.length > 0 ? <Heading text="User volume" /> : null}
     {users.map((id: string) => <View key={id} className="h-[36] flex-row items-center gap-3">
       <Text className={`w-[140] text-sm ${TEXT_MAIN}`} numberOfLines={1}>{store.userName(id)}</Text>

@@ -6,7 +6,8 @@
 // March 2026: this file runs its state machine (ops 21 to 31, binary for the MLS messages) and libdave on the native side holds the group
 // and encrypts each frame. Video (docs/reports/discord-client-research.md 5.2) rides on the same UDP: op 12 says who sends a camera and
 // on which SSRC (ours too), op 15 (Media Sink Wants) asks the server for each stream we show at a quality, 0 for the others; the native
-// side decodes only the streams watch() names, at their size.
+// side decodes only the streams watch() names, at their size. Go Live (a screen shared) is a second connection of the same kind to the
+// stream's own server (VoiceServer.stream): video only, its DAVE group the stream's rtc_server_id - 1.
 import { WebSocket, MessageEvent, CloseEvent } from 'zinc:socket';
 import S from './native/voice.spec';
 
@@ -26,17 +27,24 @@ const POLL_MS = 50;
 // what Select Protocol offers: Opus, and H.264 (VideoToolbox on both sides, the server's default video codec); RTX is declared, not used
 const CODECS: any[] = [{ name: 'opus', type: 'audio', priority: 1000, payload_type: 120 },
   { name: 'H264', type: 'video', priority: 1000, payload_type: 101, rtx_payload_type: 102, encode: true, decode: true }];
-// our camera's stream as op 12 describes it (cameras offer quality 100; one layer, no simulcast)
-const CAMERA_W = 640, CAMERA_H = 360, CAMERA_FPS = 30, CAMERA_BPS = 1000000;
+// the quality op 15 asks for a stream shown at 640x360 or more (100), smaller (50)
+const CAMERA_W = 640, CAMERA_H = 360;
+
+/** A video stream's size and rate: what op 12 announces and what the encoder is given. */
+export interface VideoQuality { width: number; height: number; fps: number }
+/** The encoder's bitrate for a quality: 0.08 bit per pixel and frame, 500 kb/s to 8 Mb/s (360p30 550 kb/s, 720p30 2.2 Mb/s, 1080p60 8 Mb/s). */
+export function videoBitrate(q: VideoQuality): i32 { return Math.round(Math.max(500000, Math.min(8000000, q.width * q.height * q.fps * 0.08))); }
 
 /** What the main gateway gave: VOICE_SERVER_UPDATE's endpoint and token, VOICE_STATE_UPDATE's session id. */
 export interface VoiceServer {
   endpoint: string;    // host[:port], or a ws:// or wss:// URL (a test server)
   token: string;
   serverId: string;    // the guild id, or the channel id of a DM call
-  channelId: string;   // the voice channel or DM: the id of DAVE's group
+  channelId: string;   // the voice channel or DM: the id of DAVE's group (a Go Live stream: its rtc_server_id - 1)
   userId: string;
   sessionId: string;
+  /** A Go Live connection (STREAM_SERVER_UPDATE): video only, no microphone or speakers; its stream is a 'screen'. */
+  stream?: boolean;
 }
 export type VoiceState = 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
@@ -82,6 +90,7 @@ export class VoiceConnection {
   private videoSsrc: u32 = 0;                                 // our camera's stream (Ready's streams), its RTX
   private rtxSsrc: u32 = 0;
   private camera = false;
+  private quality: VideoQuality = { width: 640, height: 360, fps: 30 };
   private wants = '';                                         // the last op 15 sent
   private watched: Map<string, u32> = new Map<string, u32>();   // user -> the SSRC decoded for them
 
@@ -109,9 +118,9 @@ export class VoiceConnection {
   /** [video frames encoded, video packets sent, video frames decoded, key frames we asked for, key frames asked of us] */
   videoStats(): number[] { return this.h >= 0 ? S.videoStats(this.h) : [0, 0, 0, 0, 0]; }
 
-  /** Sends our camera (op 12 describes the stream, then each sendImage() frame goes out) or stops it (op 12 with no stream). The program
-   *  also tells the main gateway (op 4 self_video). */
-  setCamera(on: boolean): void { this.camera = on; this.describeVideo(); }
+  /** Sends our camera, or our screen on a Go Live connection (op 12 describes the stream at `q`, then each sendImage() frame goes out,
+   *  encoded at videoBitrate(q)), or stops it (op 12 with no stream). The program also tells the main gateway (op 4 self_video). */
+  setCamera(on: boolean, q: VideoQuality | null = null): void { this.camera = on; if (q !== null) this.quality = q; this.describeVideo(); }
   /** A frame of our camera (a runtime image: zinc:camera's `image`), encoded and sent on the media thread. */
   sendImage(image: i32): void { if (this.h >= 0 && this.camera && image >= 0) S.sendImage(this.h, image); }
   /** The cameras shown and their size in pixels (user id -> [width, height]); the others are not decoded, and the server is asked for
@@ -153,11 +162,12 @@ export class VoiceConnection {
     ws.onopen = (): void => {
       if (this.resumed) this.send(OP_RESUME, { server_id: this.server.serverId, session_id: this.server.sessionId, token: this.server.token, seq_ack: this.seq });
       else this.send(OP_IDENTIFY, { server_id: this.server.serverId, user_id: this.server.userId, session_id: this.server.sessionId,
-        token: this.server.token, max_dave_protocol_version: S.daveVersion(), video: true, streams: [{ type: 'video', rid: '100', quality: 100 }] });
+        token: this.server.token, max_dave_protocol_version: S.daveVersion(), video: true, streams: [{ type: this.kind(), rid: '100', quality: 100 }] });
     };
     ws.onmessage = (e: MessageEvent): void => { if (this.ws === ws) { if (e.binary) this.binary(e.bytes); else this.receive(JSON.parse(e.data)); } };
     ws.onclose = (e: CloseEvent): void => { if (this.ws === ws) this.closed(e.code); };
   }
+  private kind(): string { return this.server.stream === true ? 'screen' : 'video'; }
   private send(op: i32, d: any): void { const ws = this.ws; if (ws !== null) ws.send(JSON.stringify({ op: op, d: d })); }
   /** A binary message: the opcode, then the payload. */
   private sendBinary(op: i32, payload: u8[]): void {
@@ -216,7 +226,7 @@ export class VoiceConnection {
     const key: u8[] = [];
     for (const b of d.secret_key) key.push(b);
     this.mode = `${d.mode}`;
-    if (!S.start(this.h, this.mode, key)) { this.end(S.error()); return; }
+    if (!S.start(this.h, this.mode, key, this.server.stream !== true)) { this.end(S.error()); return; }
     this.dave = d.dave_protocol_version ?? 0;
     if (this.dave > 0) this.keyPackage();
     this.setState('connected');
@@ -256,11 +266,11 @@ export class VoiceConnection {
   /** Op 12 from us: our stream, before its first packet (else the server drops the connection: invalid SSRC), or none. */
   private describeVideo(): void {
     if (this.h < 0 || this.state !== 'connected' || this.videoSsrc === 0) return;
-    const on = this.camera;
-    S.videoSend(this.h, on ? this.videoSsrc : 0);
+    const on = this.camera, q = this.quality, bps = videoBitrate(q);
+    S.videoSend(this.h, on ? this.videoSsrc : 0, bps, q.fps);
     this.send(OP_VIDEO, { audio_ssrc: this.ssrc, video_ssrc: on ? this.videoSsrc : 0, rtx_ssrc: on ? this.rtxSsrc : 0,
-      streams: on ? [{ type: 'video', rid: '100', ssrc: this.videoSsrc, rtx_ssrc: this.rtxSsrc, active: true, quality: 100,
-        max_bitrate: CAMERA_BPS, max_framerate: CAMERA_FPS, max_resolution: { type: 'fixed', width: CAMERA_W, height: CAMERA_H } }] : [] });
+      streams: on ? [{ type: this.kind(), rid: '100', ssrc: this.videoSsrc, rtx_ssrc: this.rtxSsrc, active: true, quality: 100,
+        max_bitrate: bps, max_framerate: q.fps, max_resolution: { type: 'fixed', width: q.width, height: q.height } }] : [] });
   }
   // ------------------------------------------------------------------ DAVE
   /** Our key package for a new group (op 26). */
