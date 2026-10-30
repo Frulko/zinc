@@ -556,6 +556,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-868: emoji maps print a stray hint glyph ('ᵉʳ') for some sequences; check the shaped text tier's fallback.
 - ZN-868: shaped text (D32) could be the default on desktop; the Discord client opts in with `"text": "shaped"`.
 - ZN-868: profile `settleVirtuals`/`syncVirtual` in layout on a long channel; they lead the frame profile.
+- ZN-878: on QuickJS a WebSocket message of 60 KB or more never arrives (`--engine quickjs`, a local serveWebSocket sending 'x'.repeat(60000)); the interpreter and native runs get it.
+- ZN-878: top-level await is refused (Z0005); scripts and tests have to wrap their code in an async main.
+- ZN-878: the GL replay (runtime/gl_replay.cpp) draws text from the glyph tables only, with no shaping hook: emoji and complex scripts would be '?' there.
+- ZN-878: a 6 MB WebSocket message still takes 0.7 s natively (slices and the byte-by-byte join of plugins/socket); a native frame reader would make it a few ms.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.

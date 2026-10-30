@@ -287,6 +287,11 @@ export class WebSocket extends EventTarget {
   client: boolean;
   key: string = '';
   buf: u8[] = [];
+  /** Reads held back while the frame at the head of buf is incomplete (want: the bytes it needs, 0 when not known yet), joined once it is
+   *  whole: joining at each read copied the buffer every 16 KB, seconds for Discord's READY of a few MB. */
+  held: u8[][] = [];
+  heldLen: i32 = 0;
+  want: i32 = 0;
   handshaking: boolean;
   frag: u8[] = [];
   fragOp: i32 = 0;
@@ -386,7 +391,13 @@ export class WebSocket extends EventTarget {
     s.writeBytes(h.concat(m).concat(body));
   }
   receive(b: u8[]): void {
-    this.buf = concat(this.buf, b);
+    if (this.want > 0 && this.buf.length + this.heldLen + b.length < this.want) { this.held.push(b); this.heldLen += b.length; return; }
+    if (this.held.length > 0) {
+      const all: u8[] = this.buf;
+      for (const h of this.held) for (let i = 0; i < h.length; i++) all.push(h[i]);
+      for (let i = 0; i < b.length; i++) all.push(b[i]);
+      this.held = []; this.heldLen = 0; this.buf = all;
+    } else this.buf = concat(this.buf, b);
     if (this.handshaking) {
       let end = -1;
       for (let i = 0; i + 3 < this.buf.length; i++) if (this.buf[i] === 13 && this.buf[i + 1] === 10 && this.buf[i + 2] === 13 && this.buf[i + 3] === 10) { end = i; break; }
@@ -421,7 +432,8 @@ export class WebSocket extends EventTarget {
       }
       const mk: u8[] = masked ? buf.slice(at, at + 4) : [];
       if (masked) at += 4;
-      if (buf.length < at + n) return;
+      if (buf.length < at + n) { this.want = at + n; return; }
+      this.want = 0;
       let payload = buf.slice(at, at + n);
       if (masked) { const p: u8[] = []; for (let i = 0; i < n; i++) p.push(payload[i] ^ mk[i & 3]); payload = p; }
       this.buf = buf.slice(at + n);
