@@ -631,6 +631,17 @@ struct Lowering {
   }
 
   struct Cond { std::size_t cb, ce; std::string yes, no; bool hasNo = false, negate = false; };
+  // [a, b) is `c ? x : y` at its top level: the `?` and its `:`
+  bool ternary(std::size_t a, std::size_t b, std::size_t& q, std::size_t& colon) {
+    bool hasQ = false;
+    int depth = 0;
+    colon = 0;
+    scan(a, b, [&](std::size_t i, const std::string& x) {
+      if (x == "?") { if (!hasQ) { hasQ = true; q = i; } ++depth; }
+      else if (x == ":" && hasQ && depth > 0) { if (--depth == 0 && !colon) colon = i; }
+    });
+    return hasQ && colon != 0;
+  }
   bool conditional(std::size_t a, std::size_t b, Cond& out) {
     std::size_t q = 0, colon = 0, lastAnd = 0;
     bool hasQ = false, hasAnd = false, other = false;
@@ -1207,7 +1218,9 @@ struct Lowering {
         if (b == a + 1 && t[a].kind == Tok::Ident && (jsxFunctions(), jsxVars.count(tx(a)))) { out.push_back("_append(" + parent + ", " + rw(a, b) + ");"); continue; }
         // `{props.children}` as React and Solid write it: the children a component is given are a function that makes them, called here
         if (b >= a + 3 && tx(b - 1) == "children" && isP(b - 2, ".") && dotted(a, b)) { out.push_back("_append(" + parent + ", " + rw(a, b) + "());"); continue; }
-        if (open && callee.size() > 4 && callee.compare(callee.size() - 4, 4, ".map") == 0 && returnsJsx(open + 1, b - 1)) {
+        std::size_t q = 0, colon = 0;
+        const bool isTernary = ternary(a, b, q, colon);   // `c ? x : xs.map(...)` ends with a call too: not a list
+        if (open && !isTernary && callee.size() > 4 && callee.compare(callee.size() - 4, 4, ".map") == 0 && returnsJsx(open + 1, b - 1)) {
           bool oneArg = true;
           scan(open + 1, b - 1, [&](std::size_t, const std::string& x) { if (x == ",") oneArg = false; });
           if (oneArg) {
@@ -1218,7 +1231,22 @@ struct Lowering {
           }
         }
         Cond cj;
-        if (conditional(a, b, cj)) {
+        const bool isCond = conditional(a, b, cj);
+        if (react && !isCond && isTernary) {
+          // `{c ? <A/> : list.map(...)}`, a branch conditional() does not take (a list of rows, an expression): each branch is a child of
+          // its own, lowered by these same rules
+          auto branch = [&](std::size_t x0, std::size_t x1) {
+            strip(x0, x1);
+            if (isNull(x0, x1)) return;
+            Child k; k.kind = 1; k.eb = x0; k.ee = x1;
+            children(parent, {k}, out);
+          };
+          out.push_back("if (" + rw(a, q) + ") {");
+          branch(q + 1, colon);
+          out.push_back("} else {");
+          branch(colon + 1, b);
+          out.push_back("}");
+        } else if (isCond) {
           std::string cond = rw(cj.cb, cj.ce);
           if (cj.negate) cond = "!(" + cond + ")";
           if (react) out.push_back("_append(" + parent + ", (" + cond + ") ? " + cj.yes + " : " + (cj.hasNo ? cj.no : "_el(6)") + ");");

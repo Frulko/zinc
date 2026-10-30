@@ -217,7 +217,7 @@
     {"paths": ["src/host/layout_host.cpp", "tests/golden/layout-bridge/", "tests/golden/layout-rn/", "src/qjs/qjs.cpp", "src/aot/aot.cpp", "tests/golden/layout-conformance/", "tools/layout-fixtures"], "tests": ["layout_bridge", "layout_rn", "layout_conformance", "rtl"]},
     {"paths": ["src/frontend/jsx.cpp", "src/frontend/jsx", "tests/golden/jsx/"], "tests": ["jsx", "jsx_banned", "jsx_style", "react_class", "ui_tokens"], "canary": true},
     {"paths": ["tests/golden/jsx/errors/", "tests/t0/jsx_banned.sh", "include/zn/diagnostics.h"], "tests": ["jsx_banned", "migrate"]},
-    {"paths": ["src/frontend/jsx.cpp", "lib/std/solid.ts", "lib/std/kit/host.ts", "lib/std/nuxt/host.ts", "lib/std/nuxt/navigation.tsx", "tests/data/solid_props/", "tests/t1/solid_props.sh", "tests/t0/jsx_narrow.sh"], "tests": ["solid_props", "solid_cleanup", "jsx_narrow"]},
+    {"paths": ["src/frontend/jsx.cpp", "lib/std/solid.ts", "lib/std/kit/host.ts", "lib/std/nuxt/host.ts", "lib/std/nuxt/navigation.tsx", "tests/data/solid_props/", "tests/t1/solid_props.sh", "tests/t0/jsx_narrow.sh", "tests/t0/jsx_list_branch.sh"], "tests": ["solid_props", "solid_cleanup", "jsx_narrow", "jsx_list_branch"]},
     {"paths": ["src/doc/", "third_party/md4c/", "tests/t0/doc.sh", "tests/data/doc/"], "tests": ["doc"]},
     {"paths": ["src/doc/", "lib/gfx.d.ts", "lib/modules.d.ts", "lib/zinc.d.ts", "docs/cheatsheet.md", "tests/t0/cheatsheet.sh"], "tests": ["cheatsheet"]},
     {"paths": ["src/lint/", "tests/t0/lint.sh", "tests/t0/migrate.sh", "tests/golden/lint/", "tests/golden/migrate/", "targets/capabilities.json", "src/frontend/capabilities.cpp"], "tests": ["lint", "migrate"]},
