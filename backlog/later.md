@@ -530,6 +530,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.26: translate the "zinc learn" section of docs/learn/README.md in docs/i18n/*.
 - i18n: `i18n/de/diag.json` lacks Z5012 and Z5013, and `i18n_test` is not built: `tests/run --only i18n` fails on develop.
 - ZN-711: first_run gives each template 5 s; the 3d template exits 124 on a fresh ZINC_HOME while its first run fills the plugin cache. Warm the cache first or scale the timeout on a cold cache.
+- ZN-774.36: the site's Pages workflow could run `tools/site-examples` with the release's zinc, so the 3.8 MB of exports in `site/public/play` stop being committed and cannot go stale.
+- ZN-774.36: each gallery export carries its own `zinc.<hash>.js` runtime (38 KB) and ~210 KB of `zinc:ui`; one shared copy would cut `site/public/play` by about two thirds.
+- ZN-774.36: the browser interpreter (`zinc export --target wasm`) lacks Canvas2D and Audio (8 of the 35 graded examples), which `--target web` runs.
+- ZN-774.36: `zinc export --target web` of a folder with no `zinc.json` takes a parent's (Atelier's sketches pick up Atelier's `requires fs`).
 - Frontend: in a module read only for its types, a method with no return type that returns a value (or an async one) still fails with Z0109 once its body is dropped; the shape could keep the type the full check infers.
 - Tests: sidecar_stream/sidecar_session left three `zinc run <tmp>/sidecar` orphans (29 h, SIGTERM ignored) that make tour's "still running" check fail; make the sidecar program end on SIGTERM and the tests kill what they start, and scope tour's pgrep to its own folder.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
