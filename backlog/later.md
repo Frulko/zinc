@@ -580,6 +580,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-885: zrt's TLSF heap never returns pages; madvise(MADV_FREE_REUSABLE) the inside of large free blocks (11 MB touched in a Discord call).
 - ZN-885: Discord's 618 Mach ports and 15 threads were not reproduced with the fake session; count ports per kind (lsmp) on a real session.
 - ZN-885: upgrade mimalloc from 2.1.7 to a release with the macOS MADV_FREE_REUSABLE decommit and drop the local prim.c patch.
+- ZN-889: the checker refuses `(error: any) => void` where `(Error) => void` is expected; TypeScript accepts it (engine gap).
+- ZN-889: a plain `zinc publish` of a .zapp with native plugins is labelled `any`; name the host target when the pack carries `native/`.
+- ZN-889: the Pi player shows no permission consent screen before a hub install or update (app/hub has one).
+- ZN-889: rollback and uninstall from the Pi player's hub page.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
@@ -1003,3 +1007,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-888: the boot app under the shell is named `app`; use agent/apps/<name> when ZINC_APP points there, so `zinc device stop <name>` matches it.
 - ZN-888: shell.start should accept a .zapp file or a project directory, as the old zinc-session loop did, so a ZINC_APP that is not an app folder still starts.
 - ZN-888: a T1 test with the real player in shell mode (ZINC_FBDEV_SIM) and zinc device run/stop through the agent, instead of stand-in sockets.
+- ZN-889: `zinc publish --target rpi --export` from the Mac, then on the Pi 3B+ install a .zapp and an export app from the hub over Wi-Fi, launch, Home; check that the `tar -h` player bundle of image/build.sh builds there.
