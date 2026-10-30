@@ -419,6 +419,7 @@ void onConnection(uv_stream_t* srv, int status) {
     auto* k = static_cast<SConn*>(p->data);
     k->msg.flush();
     k->complete = true;
+    uv_timer_stop(&k->idle);   // the request is all here: the idle limit is for a client that stops sending, not for a handler that answers later (serveAsync)
     sockaddr_storage a{};
     int len = sizeof a;
     char ip[64] = "";

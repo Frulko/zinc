@@ -222,6 +222,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- zinc:net: a `serveAsync` handler that takes more than 10 seconds to answer sends its reply; the server used to cut it with a 408.
 - zinc:ui: `width: pct(0)` (and `height: pct(0)`) is now no width, as 0% is on the web: a progress bar starts empty; it used to take the whole line.
 - zinc:ui: `w-full max-w-[760] self-center` (or `self-end`) now centres the box (or puts it at the end) once max-width makes it narrower than its line, as Yoga does; it stayed at the start.
 - `zinc dev --target web --force` starts a project whose zinc.json "requires" a feature the web lacks; `--force` was ignored there.

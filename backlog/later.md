@@ -369,7 +369,6 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-843: a text field's placeholder is slate grey, which shows grey on e-ink.
 - ZN-844: `finally` is skipped after `return await` in an async function (interpreter and native): a cleanup in a `finally` never runs; found in app/web-relay, reproduced in 5 lines.
 - ZN-844: a `zinc:net` Reply needs a bytes body (like `RequestInit.bodyBytes`): binary replies go through a temporary file today (web relay PNGs, hub `.zapp`).
-- ZN-844: the `zinc:net` server's 10 s per-connection timer (`kIdleMs`, `src/host/http.cpp`) answers 408 while a `serveAsync` handler still works: stop it once the request is complete, so slow pages load fully in the web relay.
 - ZN-844: web relay: dither to the Paper Pro's colour e-ink palette (Floyd–Steinberg on the PNG) and measure whether it reads better than plain grey.
 - ZN-844: web reader: forms and JavaScript clicks (only `<a href>` is followed today); send a tap to the relay as a CDP mouse event.
 - ZN-844: web reader: draw only the new pen segment instead of redrawing every stroke each frame, to cut pen latency on pages with many strokes.
