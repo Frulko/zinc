@@ -1,9 +1,9 @@
-// The start view: what Zinc is and where the lessons are, a new sketch in one of the four styles (D161), the templates of real
-// apps, then the examples by style, one card each with a picture of what it draws. A card opens a copy in the sketchbook, so the
+// The start view: what Zinc is and where the lessons are (the path of the lessons of `zinc learn`, each with its progress, one press
+// opens it beside the sketch: ZN-774.26), a new sketch in one of the four styles (D161), the templates of real apps, then the examples by style, one card each with a picture of what it draws. A card opens a copy in the sketchbook, so the
 // examples themselves stay as they are. The examples are those of the graded catalogue learn/catalog.txt (ZN-774.33), the list
 // `zinc examples` prints too (`name|stars|style|path|title|line|lesson`, the styles of STYLES, the path from the engine's root);
 // their pictures are thumbs/<name>.png.
-import { createNodeRef } from 'zinc:ui/solid';
+import { createNodeRef, For } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
@@ -14,6 +14,7 @@ import { startOpen, setStartOpen, openDocs, fromTemplate, openPalette, PAL_TEMPL
 import { Glyph } from './Controls';
 import { t, has } from '../app/text';
 import { I_PLUS } from './icons';
+import { lessonList, openLesson, LessonEntry } from '../app/lesson';
 
 /** The templates of `zinc new` the start view offers (their names are atelier.template.<name>); the palette lists them all. */
 const TEMPLATES: string[] = ['game', 'game-2d', 'desktop-app', 'dashboard', '3d', 'iot-board'];
@@ -102,6 +103,11 @@ export function StartView(): i32 {
         <Text className={`text-[14px] ${fg(theme().text)}`}>{t('atelier.start.learn')}</Text>
         <Text className={`text-[14px] font-semibold cursor-pointer ${fg(theme().accent)}`}
           onPointerDown={(p: ui.PointerEvent) => { if (p.button === 0) openDocs('docs/learn/'); }}>{t('atelier.start.learn_link')}</Text>
+      </View>
+      <View className="flex-row flex-wrap items-center gap-2 pt-3">
+        <Text className={`text-[14px] pr-1 ${fg(theme().text)}`}>{t('atelier.start.lessons')}</Text>
+        <For each={lessonList()}>{(l: LessonEntry, i: i32) => <Chip onPress={() => openLesson(l.id)}
+          label={() => t(l.done >= l.steps ? 'atelier.start.lesson_done' : 'atelier.start.lesson', ['n', `${i + 1}`, 'title', l.title, 'done', `${l.done}`, 'steps', `${l.steps}`])} />}</For>
       </View>
       <Text className={`text-[13px] pt-2 ${fg(theme().muted)}`}>{t('atelier.start.copies', ['path', tilde(sketchbook())])}</Text>
       <View ref={stylesRef} className="flex-col">

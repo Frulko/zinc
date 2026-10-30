@@ -20,11 +20,15 @@ python3 - "$tmp" <<'EOF' || fail=1
 import json, re, subprocess, sys
 tmp = sys.argv[1]
 order = [('de', 3), ('en', 6), ('fr', 9), ('es', 12), ('it', 15)]
-# the menu bars in the order they were set: the first at the start, then one per switch
-bars = [l for l in open(tmp + '/system') if 'menu.setApp' in l]
-if len(bars) < 5: print('atelier languages: %d menu bars logged, 5 expected' % len(bars)); sys.exit(1)
+# the last menu bar set in each language (its checked item of Tools > Language): a switch may set it twice, the lessons' titles coming after
+bars = {}
+for l in open(tmp + '/system'):
+    m = re.search(r'"id":"lang:(\w+)","type":"radio","checked":true', l) if 'menu.setApp' in l else None
+    if m: bars[m.group(1)] = l
+if len(bars) < 5: print('atelier languages: menu bars logged in %s, 5 languages expected' % sorted(bars)); sys.exit(1)
 seen = {}
-for (lang, frame), bar in zip(order, bars[:5]):
+for lang, frame in order:
+    bar = bars[lang]
     texts = set(re.findall(r'"label":"((?:[^"\\]|\\.)*)"', bar))
     dump = subprocess.run(['python3', 'tools/scene-texts', '%s/scene-%d' % (tmp, frame)], capture_output=True, text=True).stdout
     seen[lang] = (texts, set(l for l in dump.split('\n') if l.strip()))

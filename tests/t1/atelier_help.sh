@@ -5,6 +5,7 @@
 #   help       Help has Learn first, then the guide, the kinds of programs, the syntax, the examples and the error codes (the menu bar
 #              the recording simulator logs); Learn opens the lessons in the browser (its opener.open)
 #   template   a project from the game template of `zinc new`, without a terminal: made in the sketchbook, then open
+#   lesson     the start view lists the lessons of `zinc learn` with their progress; a click on one opens it beside the sketch
 #   explain    a sketch with a type error, Run: a click on its error code prints `zinc explain` of that code in the console, its fixes
 #              under it; the Reference button opens the code's page of the site
 #   no zinc    with no zinc where Atelier looks, the status line says how to fix it
@@ -26,7 +27,8 @@ run start ZINC_INPUT="$tmp/start.input" ZINC_FRAMES=44 ZINC_SHOT="$tmp/start.png
 [ -n "$ATELIER_KEEP" ] && cp "$tmp/start-39.png" "$ATELIER_KEEP"
 python3 tools/scene-texts "$tmp/scene-39" > "$tmp/texts"
 for want in 'Zinc is TypeScript for making things' 'Open the lessons' 'Small game' 'All templates' 'New sketch: how do you want to write it?' \
-    'Drawing' 'Interface' 'A cube and a ring that turn.' 'A button and its number.' 'Every command, by its name'; do
+    'Drawing' 'Interface' 'A cube and a ring that turn.' 'A button and its number.' 'Every command, by its name' \
+    'Or do them here, one step at a time:' '1. A window and a shape · 0/3' '5. Text and images · 0/3'; do
   grep -q "$want" "$tmp/texts" || { echo "atelier help: the start view does not show \"$want\""; fail=1; }
 done
 python3 - "$tmp/start.system" <<'EOF' || fail=1
@@ -40,6 +42,11 @@ EOF
 grep -q 'opener.open {"target":"https://frulko.github.io/zinc/docs/learn/"}' "$tmp/start.system" || { echo "atelier help: Learn did not open the lessons: $(grep opener "$tmp/start.system")"; fail=1; }
 [ -f "$tmp/book/my-game/zinc.json" ] && [ -f "$tmp/book/my-game/src/main.ts" ] || { echo "atelier help: the game template did not make $tmp/book/my-game"; fail=1; }
 grep -q '^\[status\] my-game is ready, made from the game template$' "$tmp/start.out" || { echo "atelier help: the new project is not said open: $(grep status "$tmp/start.out" | tail -2)"; fail=1; }
+
+# ZN-774.26: a click on the first lesson of the start view opens it beside the sketch (its chip at 414,223 on a fresh sketchbook)
+rm -f "$tmp/book/.last"; printf '8 quit\n' > "$tmp/lesson.session"; printf '2 move 414 223\n3 down\n4 up\n' > "$tmp/lesson.input"
+run lesson ZINC_INPUT="$tmp/lesson.input" ZINC_FRAMES=8
+grep -q '^\[lesson\] 01-window-and-shape step 1/3' "$tmp/lesson.out" || { echo "atelier help: the start view's lesson did not open: $(grep -E 'lesson|status' "$tmp/lesson.out" | tail -2)"; fail=1; }
 
 mkdir -p "$tmp/bad"; printf 'const x: number = "a";\nconsole.log(x);\n' > "$tmp/bad/main.ts"
 printf '%s' "$tmp/bad" > "$tmp/book/.last"   # the sketch Atelier opens at its start

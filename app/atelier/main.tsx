@@ -97,7 +97,7 @@ function buildMenu(): void {
 }
 function installMenu(): void {
   buildMenu();
-  setOnLanguage(buildMenu);
+  setOnLanguage(() => loadLessons(buildMenu));   // the lessons' titles in the new language too (the menu and the start view)
   for (const c of COMMANDS) menu.onClick(c.id, (source: string) => c.run());
   for (const e of EXAMPLES) menu.onClick('example:' + e.dir, (source: string) => { openExample(e.dir); });
   for (const code of LANGUAGES) menu.onClick('lang:' + code, (source: string) => setLanguage(code));

@@ -73,7 +73,7 @@ export function loadLessons(then: () => void): void {
       setLessonList(list);
       then();
     });
-  } catch (e) { job(-1); }
+  } catch (e) { job(-1); then(); }
 }
 
 /** Opens lesson `id` beside the editor: unpacked into the sketchbook the first time (its starter code), then opened as the sketch. */
@@ -102,7 +102,7 @@ export function checkLesson(): void {
   if (cur === null || (cur as LessonState).dir !== sketchDir()) return;
   learn(['--check', '--dir', (cur as LessonState).dir], (s: LessonState | null) => {
     if (s === null) return;
-    if ((s as LessonState).passed) { setHintOpen(false); say(t('atelier.lesson.passed', ['step', `${(s as LessonState).checked}`])); }
+    if ((s as LessonState).passed) { setHintOpen(false); say(t('atelier.lesson.passed', ['step', `${(s as LessonState).checked}`])); loadLessons(() => { }); }   // the start view's progress
     show(s);
   });
 }
