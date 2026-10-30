@@ -205,6 +205,7 @@ struct Lowering {
           if (mt == frontend::kNoType) continue;
           const frontend::Type& mtt = c.types[mt];
           if (mtt.k == frontend::TK::Null) continue;
+          if (mtt.k == frontend::TK::Any) return irType(mt, at);   // `any | undefined` (Map<K, any>.get) is `any`, as in TypeScript
           if (mtt.k == frontend::TK::Str || mtt.k == frontend::TK::Array || mtt.k == frontend::TK::Map || mtt.k == frontend::TK::Set || mtt.k == frontend::TK::Func) {  // `string | null`, `T[] | null`: the type itself holds null
             if (x.params.size() == 2 && (x.params[0] == 5u || x.params[1] == 5u)) return irType(mt, at);
           }
