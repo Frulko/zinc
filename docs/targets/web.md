@@ -249,7 +249,7 @@ Three layers tell a program, and its author, what the browser gives.
 
    ```
    warning W0601: webusb (plugin gphoto2) is not available in firefox (never shipped), safari (never shipped); Chromium browsers only, secure context
-   warning W0602: the native side 'Process' has no browser backend (a plugin's web entry): its calls throw ZnUnsupported (zinc dev runs it through the dev bridge)
+   warning W0602: the native side 'Process' has no browser backend (a plugin's web entry): its calls throw ZnUnsupported (docs/targets/web.md, "The dev bridge")
    warning W0603: the program calls processes and signals: it throws ZnUnsupported in the browser
    ```
 
@@ -444,6 +444,7 @@ calls it. `zinc dev` says which sides it runs (`the native sides Lvgl, Device ru
   page would serve other machines) and those calls throw ZnUnsupported.
 - It is for development on your own machine. An export never has one: a page hosted online gets no processes, files or devices from a server, so those calls throw
   ZnUnsupported there (the online demos use browser backends instead).
+- A side that draws (`zinc:3d`, the `zinc:three` subset) is never bridged: it would draw on your machine, not in the page. Its plugin.json says so with `"web": {"bridge": false}`; it keeps its W0602.
 - The set of native sides is read when `zinc dev` starts: a save that adds such a plugin needs `zinc dev` restarted.
 
 `tests/t1/web_bridge.sh` runs a `zinc:process` program through it in headless Chrome.

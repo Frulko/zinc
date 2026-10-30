@@ -23,6 +23,7 @@
       "macos": "native/render3d.gl.cpp"
     }
   },
+  "web": { "bridge": false },
   "targets": {
     "macos": {
       "frameworks": [

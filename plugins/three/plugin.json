@@ -13,6 +13,7 @@
   "description": "three.js API subset on zinc:3d: scene graph, geometries, materials, lights, cameras, raycasting, GLTFLoader, OrbitControls",
   "web": {
     "entry": "web/index.ts",
+    "bridge": false,
     "needs": ["webgl2"],
     "modules": {
       "three/addons/loaders/GLTFLoader.js": "web/GLTFLoader.ts",

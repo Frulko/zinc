@@ -384,7 +384,7 @@ std::string nativeJs(const std::vector<WebPlugin>& used, const std::vector<std::
       "    if (k in t) return t[k];\n"
       "    const e = Z.nativeOf(name), f = e && e.impl[k];\n"
       "    if (!e && Z.bridge) return t[k] = (...a) => Z.bridge.call(name, k, a);   // zinc dev: the native side on this machine\n"
-      "    return t[k] = typeof f === 'function' ? f.bind(e.impl) : () => { throw new Z.ZnUnsupported('plugin ' + name + '.' + k, e ? 'its browser backend does not have it' : 'the plugin has no browser backend; zinc dev --target web runs it through the dev bridge'); };\n"
+      "    return t[k] = typeof f === 'function' ? f.bind(e.impl) : () => { throw new Z.ZnUnsupported('plugin ' + name + '.' + k, e ? 'its browser backend does not have it' : 'the plugin has no browser backend (docs/targets/web.md, \"The dev bridge\")'); };\n"
       "  } });\n"
       "}\n";
   for (const std::string& r : rowJs) js += "// ---- host rows\n(() => {\n" + r + "\n})();\n";
@@ -456,7 +456,7 @@ Common analyse(const WebArgs& a, const fs::path& stage, const std::string& bundl
   const std::string browsers = !a.browsers.empty() ? a.browsers : c.cfg.browsers;
   std::string warnings = webCheckReport(c.browsersJson, browsers, std::vector<std::string>(needs.begin(), needs.end()), "the web host");
   for (const WebPlugin& p : c.used) warnings += webCheckReport(c.browsersJson, browsers, p.needs, "plugin " + p.name);
-  for (const std::string& nm : sc.natives) if (!claimed.count(nm)) warnings += "warning W0602: the native side '" + nm + "' has no browser backend (a plugin's web entry): its calls throw ZnUnsupported (zinc dev runs it through the dev bridge)\n";
+  for (const std::string& nm : sc.natives) if (!claimed.count(nm)) warnings += "warning W0602: the native side '" + nm + "' has no browser backend (a plugin's web entry): its calls throw ZnUnsupported (docs/targets/web.md, \"The dev bridge\")\n";
   std::set<std::string> have = implementedRows(c.runtime);
   const std::vector<RowFile> rf = rowFiles(runtimeDir(a));
   for (const RowFile& f : rf) have.insert(f.names.begin(), f.names.end());
@@ -899,6 +899,7 @@ struct Dev {
   std::string depsDir, depsKey;                   // the pre-bundled packages of node_modules (cli_web_deps.h), served at /__deps/
   zn::plat::Pid bridge = -1;                      // the dev bridge (startBridge), -1 when the page needs none
   std::string bridgeJson;                         // its address and token for the page's config: {"url":...,"token":...}
+  std::vector<std::string> bridged;               // the native sides it answers
 };
 
 // the module as the page gets it: its imports carry the version of what changed, `import.meta.hot` is its record, and the functions a user module
@@ -1027,9 +1028,15 @@ void startBridge(Dev& d) {
     const std::string t = readAll(d.stage / file);
     for (auto it = std::sregex_iterator(t.begin(), t.end(), nat); it != std::sregex_iterator(); ++it) if (!claimed.count((*it)[1])) specs[(*it)[1]] = m.name;
   }
+  for (auto it = specs.begin(); it != specs.end();) {   // plugin.json "web": {"bridge": false}: a side that draws (zinc:3d, three) would draw on this machine, not in the page
+    Json pj(readAll(fs::path(it->second).parent_path().parent_path() / "plugin.json"));
+    yyjson_val* w = pj.root ? yyjson_obj_get(pj.root, "web") : nullptr;
+    yyjson_val* b = w ? yyjson_obj_get(w, "bridge") : nullptr;
+    if (yyjson_is_bool(b) && !yyjson_get_bool(b)) it = specs.erase(it); else ++it;
+  }
   if (specs.empty()) return;
   std::string names;
-  for (const auto& [n, f] : specs) names += (names.empty() ? "" : ", ") + n;
+  for (const auto& [n, f] : specs) { names += (names.empty() ? "" : ", ") + n; d.bridged.push_back(n); }
   if (d.a.lan) { std::fprintf(stderr, "zinc dev: --lan: the native sides %s have no dev bridge (it serves this machine only); their calls throw ZnUnsupported\n", names.c_str()); return; }
   int port = 0;
   {
@@ -1242,7 +1249,11 @@ int devWeb(const WebArgs& a) {
   if (!d.bridgeJson.empty()) {   // the W0602 lines of the sides the bridge answers would say the opposite of what happens
     std::string kept, line;
     std::istringstream rs(d.cm.report);
-    while (std::getline(rs, line)) if (line.find("warning W0602") == std::string::npos) kept += line + "\n";
+    while (std::getline(rs, line)) {
+      bool bridged = false;
+      for (const std::string& n : d.bridged) if (line.find("warning W0602: the native side '" + n + "'") != std::string::npos) bridged = true;
+      if (!bridged) kept += line + "\n";
+    }
     d.cm.report = kept;
   }
   std::fputs(d.cm.report.c_str(), stderr);
