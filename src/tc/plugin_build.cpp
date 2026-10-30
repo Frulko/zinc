@@ -497,11 +497,11 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
 #else
   const bool native_linux = false;
 #endif
-  const std::string root = gCross.on ? sysroot : "";
-  if ((gCross.on || native_linux) && fs::exists(root + "/usr/include")) {
-    cflags.push_back("-idirafter " + q(root + "/usr/include"));
+  const std::string sys = gCross.on ? sysroot : "";
+  if ((gCross.on || native_linux) && fs::exists(sys + "/usr/include")) {
+    cflags.push_back("-idirafter " + q(sys + "/usr/include"));
     auto multiarch = [&](const std::string& dir, const std::string& flag, std::vector<std::string>& to) {
-      for (const auto& e : fs::directory_iterator(root + dir, ec))
+      for (const auto& e : fs::directory_iterator(sys + dir, ec))
         if (e.path().filename().string().find("-linux-gnu") != std::string::npos) to.push_back(flag + q(e.path().string()));
     };
     multiarch("/usr/include", "-idirafter ", cflags);
