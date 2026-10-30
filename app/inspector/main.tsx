@@ -376,7 +376,7 @@ async function openView(v: string): Promise<void> {
   setView(v);
   await sleep(500);
   if (v === 'network') { for (const r of reqs()) if (!r.ws()) { await pick(r); break; } return; }   // a request picked: its details show
-  if (v === 'storage') { if (items().length > 0) pickItem(items()[items().length - 1].key); if (tables().length > 0) await openTable(tables()[0], 0); return; }
+  if (v === 'storage') { if (items().length > 0) pickItem(items()[items().length - 1].key); else if (tables().length > 0) await openTable(tables()[0], 0); return; }   // a key, else a table
   for (const r of rows()) if (r.node.comp) { await select(r.node.id); break; }   // a component selected: its props and styles show
 }
 
