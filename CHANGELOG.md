@@ -246,6 +246,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `zinc dev` runs a project whose `zinc.json` says `"engine": "quickjs"` on QuickJS, as `zinc run` does, instead of the interpreter (which refused examples/fatty's circular imports).
 - Zinc Inspector opens in a 1280×800 window that resizes, instead of a 320×240 one blown up to fit.
 - Modules that import each other's types (`import type` both ways, or a module whose types the entry it is imported by declares) check as TypeScript does, instead of failing with `Cannot find name` or `is not exported`.
 - A conditional whose branches have different types takes their union, as in TypeScript, instead of `Type is not assignable`: `c ? Promise.resolve(null) : Promise.resolve(r)` is a promise of `R | null`, `console.log(c ? n : 'none')` prints either, `c ? new Dog() : new Cat()` is a `Dog | Cat`. A `string | number` kept in a variable is still refused (`Syntax not supported yet`).

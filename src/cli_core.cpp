@@ -3558,7 +3558,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     hotOff.clear();
     hotBuf.clear();
     std::vector<std::string> cmd = {exe, "run", redbox ? (devDir / "redbox.ts").string() : runEntry};
-    if (!redbox && (p.engine == "jsc" || p.engine == "v8" || p.engine == "hermes")) cmd.insert(cmd.end(), {"--engine", p.engine});   // a file names no project: its engine on the command line
+    if (!redbox && (p.engine == "quickjs" || p.engine == "jsc" || p.engine == "v8" || p.engine == "hermes")) cmd.insert(cmd.end(), {"--engine", p.engine});   // a file names no project: its engine on the command line
     if (!redbox) cmd.insert(cmd.end(), rest.begin(), rest.end());
     if (redbox) writeFile(devDir / "redbox.ts", redBoxSource(msg));
     auto childEnv = env;

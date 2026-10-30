@@ -62,6 +62,15 @@ waitfor "$t/dev2.log" "with the inspector on port $port" 5 || { echo "no inspect
 sleep 1.5
 python3 "$root/tools/cdp-probe" "$port" > "$t/cdp.out" 2>&1 || { echo "cdp client: $(cat "$t/cdp.out")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
+# 4b. a project on QuickJS ("engine": "quickjs") runs there under dev, circular imports included (examples/fatty)
+mkdir -p "$t/qjs/src" && cd "$t/qjs" || exit 2
+printf '{"name":"qjs","entry":"src/main.ts","engine":"quickjs"}\n' > zinc.json
+printf "import { b } from './b';\nexport function a(): string { return 'a'; }\nconsole.log('cycle ' + b());\n" > src/main.ts
+printf "import { a } from './main';\nexport function b(): string { return a() + 'b'; }\n" > src/b.ts
+"$Z" dev > "$t/dev3.log" 2>&1 &
+dev=$!
+waitfor "$t/dev3.log" "cycle ab" 5 || { echo "a quickjs project under dev: $(cat "$t/dev3.log")"; fail=1; }
+kill $dev; wait $dev 2>/dev/null
 # 5. monitor: telemetry lines read from a file
 cat > "$t/tele.jsonl" <<'T'
 {"type":"hello","ts":1,"seq":0,"payload":{"version":"0.1","platform":"macos","features":["perf"]}}
