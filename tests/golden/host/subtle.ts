@@ -1,7 +1,7 @@
 import { subtle, CryptoKey } from 'zinc:subtle';
 import { toHex } from 'zinc:web';
 // crypto.subtle known answers (ZN-089): FIPS 180 digests, RFC 4231 HMAC, NIST SP 800-38A AES-CBC/CTR, the GCM spec test case 4, RFC 7914 PBKDF2, RFC 5869 HKDF,
-// RFC 5903 ECDH on P-256, and ECDSA signing round trips.
+// RFC 5903 ECDH on P-256, ECDSA signing round trips, and RSA-OAEP-SHA256 against OpenSSL.
 function hex(s: string): u8[] { const r: u8[] = []; for (let i = 0; i < s.length; i += 2) r.push(parseInt(s.slice(i, i + 2), 16)); return r; }
 function text(s: string): u8[] { const r: u8[] = []; for (let i = 0; i < s.length; i++) r.push(s.charCodeAt(i)); return r; }
 function check(name: string, got: u8[], want: string): void { console.log(toHex(got) === want ? 'ok  ' : 'FAIL', name, toHex(got) === want ? '' : toHex(got)); }
@@ -66,5 +66,17 @@ async function main(): Promise<void> {
   console.log('ed25519 verify', await subtle.verify(ed, edp, eds, hex('72')), await subtle.verify(ed, edp, eds, hex('73')));
   const edpair = await subtle.generateKeyPair(ed, true, ['sign']);
   console.log('ed25519 pair', await subtle.verify(ed, edpair.publicKey, await subtle.sign(ed, edpair.privateKey, text('message')), text('message')));
+
+  // RSA-OAEP with SHA-256: a 1024-bit key and a ciphertext made by OpenSSL (pkeyutl, oaep, sha256 and mgf1 sha256)
+  const rsa = { name: 'RSA-OAEP', hash: 'SHA-256' };
+  const rk = await subtle.importKey('raw-private', hex('3082025c02010002818100b4093d568fe7a7eacb7504992ce35d2faca2252293935fb7022c2111166eb422995d58e552b2155b66679a75b7cc1fc00bb28916442ed5453993e630348642f89d13ab8592088e5b8e26ee0b71f5eedff883c6d7b47da275fce42eea98fefded28c787cc93207ec7baf0d5d6b10b3f69d8c7b5730388b19c2def5c6049e30711020301000102818100a14d09ecad3fd31d352e61714f5b61991e25a3f9c798a98fd0dd72bed98753d30fef277f46c9110373cb6d02fd2a6063f2d701a5b66ef35b734bc457fa27348603845bf4f38c26e37571da28837d96c84fd136e98a6fa7d7e516cfcbb25f1719fa1794461b9f1b097612e75539df7df5ffa34f1871312b522673569477aee541024100db7a36a416835f99e35fb6720307db6d676dcd04257d401e8759244c6e1d48891d02afd0558ae1fbc45f9f5d37e0505dfd76299d5f6d196eff4d8bc2111d7989024100d1fed155dbe76d37d3d9f64cb24268827042054e9c5bff56ce32d2e7a6018d19c8743d9ec608ffa56bd3360bf28d841f4171828164be2584c06cc49706dba74902406c512c965ee60750937eb134237ac538814b175b6c851c17f504717da6fa9cc9ce9f7cd57ce24615531d3e316b5a314fb1bf975a2bb6544f0b80e1f0ad31b6c102402901f7e32a645121bbcf2e97df9fb444f4a30fe2400a7f1c767bda4fbe4d433eabb4776c100425d829ec3efbaa4c1466fe22aa779632c3a4dee6dea51783c17102402802f67e22e9003a6b332daad57dabb1e922500cfa2bc9dee5fe2dab2c822f915733454c05f30ff0c14daa3878e816c7509c413d617bd8def517e8c91c4e7566'), rsa, true, ['decrypt']);
+  check('rsa-oaep-sha256 openssl decrypt', await subtle.decrypt(rsa, rk, hex('7d0dddc06a3cb464b09378edc760023cf2e6748daa0775ec0d44cfb93665b2638b6c428c440c1454d66bc676334c8920987b48b5400d3b21ee200a31207fce9b4d2c99cb408d336e1ea6540a92cdbf7aaddc17ae9d8532e6b8a4659705d477933a698a6d58118c5480b229c995328eea9554b4c5b2b5f646135a1749455a80b8')), toHex(text('hello rsa')));
+  const rp = await subtle.importKey('spki', hex('30819f300d06092a864886f70d010101050003818d0030818902818100b4093d568fe7a7eacb7504992ce35d2faca2252293935fb7022c2111166eb422995d58e552b2155b66679a75b7cc1fc00bb28916442ed5453993e630348642f89d13ab8592088e5b8e26ee0b71f5eedff883c6d7b47da275fce42eea98fefded28c787cc93207ec7baf0d5d6b10b3f69d8c7b5730388b19c2def5c6049e307110203010001'), rsa, true, ['encrypt']);
+  check('rsa spki export', await subtle.exportKey('spki', rp), '30819f300d06092a864886f70d010101050003818d0030818902818100b4093d568fe7a7eacb7504992ce35d2faca2252293935fb7022c2111166eb422995d58e552b2155b66679a75b7cc1fc00bb28916442ed5453993e630348642f89d13ab8592088e5b8e26ee0b71f5eedff883c6d7b47da275fce42eea98fefded28c787cc93207ec7baf0d5d6b10b3f69d8c7b5730388b19c2def5c6049e307110203010001');
+  check('rsa-oaep round trip', await subtle.decrypt(rsa, rk, await subtle.encrypt(rsa, rp, text('nonce'))), toHex(text('nonce')));
+  const rpair = await subtle.generateKeyPair({ name: 'RSA-OAEP', hash: 'SHA-256', modulusLength: 1024 }, false, ['decrypt']);
+  const rspki = await subtle.exportKey('spki', rpair.publicKey);
+  const rback = await subtle.importKey('spki', rspki, rsa, false, ['encrypt']);
+  console.log('rsa pair', rspki.length, toHex(await subtle.decrypt(rsa, rpair.privateKey, await subtle.encrypt(rsa, rback, text('token')))) === toHex(text('token')));
 }
 main();

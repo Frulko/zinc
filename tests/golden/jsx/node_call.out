@@ -21,6 +21,8 @@ node 0
     dynTextOf prop
   node 1
     dynTextOf held
+  node 1
+    textOf later
   node 0
     class flex-row
     node 1

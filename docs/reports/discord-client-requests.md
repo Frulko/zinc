@@ -32,6 +32,12 @@ Sources (Discord developer documentation, read 2026-10-30):
 
 No op 8 (request guild members), no op 14 or bulk member paging, no subscription of channels that are not on screen.
 
+### Remote-auth gateway (`src/services/auth.ts`, one WebSocket while the login screen shows)
+
+`wss://remote-auth-gateway.discord.gg/?v=2`, with the web origin it requires: `init` (the public key), `nonce_proof`, `heartbeat` every
+`heartbeat_interval`. Opened once when the login screen shows and closed when it is left; when the code expires (the gateway's
+`timeout_ms`, about 2 minutes) or the phone cancels, nothing reconnects until **New code** is pressed.
+
 ### HTTP API (`src/services/rest.ts`)
 
 | Endpoint | Who triggers it | How often |
@@ -48,6 +54,9 @@ No op 8 (request guild members), no op 14 or bulk member paging, no subscription
 | `POST /channels/{id}/attachments` | sending files | per message with files |
 | `POST /attachments/refresh-urls` | pictures whose signed URL expired come on screen | one request for the pictures of a frame, 50 URLs each; background |
 | `POST /channels/{id}/call/ring` | starting a DM call nobody is in | per call |
+| `POST /auth/login` | **Log in** with email and password (ZN-869) | per press, never retried; a captcha answer is shown, not solved |
+| `POST /auth/mfa/totp`, `/auth/mfa/sms/send`, `/auth/mfa/sms` | the two-factor step of that login | per press |
+| `POST /users/@me/remote-auth/login` | the phone confirmed the QR code login (the ticket for the encrypted token) | once per QR login |
 
 At startup the client makes **no HTTP API request**: READY carries the servers, channels, DMs, read states, settings and voice states.
 Pictures (avatars, server icons, emoji, stickers, attachments) come from the CDN (`cdn.discordapp.com`, kept on disk) and the upload

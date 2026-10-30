@@ -12,6 +12,8 @@
 // Ready with a UDP port, IP discovery, Session Description in the mode chosen, Speaking for Grace); Grace's audio is ours sent back: each
 // packet received is opened with the session's key and sent again as her SSRC. A DM call rings (POST /call/ring) and asks for DAVE
 // (dave_protocol_version 1): the key package is printed, no MLS group is made. Every request it gets is printed.
+// Login (tests/t1/discord_login.sh): the remote-auth gateway at /ra (the key exchange, a fingerprint, the user, a ticket that
+// /users/@me/remote-auth/login turns into the encrypted token), and /auth/login with a TOTP or SMS code, a wrong password and a captcha.
 // #showcase holds one message of each kind of content
 // (showcase.ts): once its history is asked for, the preview of a link arrives as a partial MESSAGE_UPDATE and Grace and Ada react; a
 // reaction PUT or DELETE and a poll vote are answered 204 and echoed, Linus votes too; the thread #release-talk has its history, the forum
@@ -22,6 +24,8 @@ import { rtpHeader, seal, unseal } from 'zinc:discord-voice';
 import { env } from 'zinc:sys';
 import { writeText } from 'zinc:fs';
 import * as show from './showcase';
+import { subtle, CryptoKey } from 'zinc:subtle';
+import { base64Encode, base64Decode, TextEncoder } from 'zinc:web';
 
 const TOKEN = 'test-token';
 const ASSETS = env('FAKE_ASSETS');
@@ -143,10 +147,61 @@ function files(req: Request): Reply | null {
   return null;
 }
 
+// ------------------------------------------------------------------ login
+const OAEP = { name: 'RSA-OAEP', hash: 'SHA-256' };
+const RA_NONCE = 'fake-nonce-42', MFA_TICKET = 'mfa-ticket', RA_TICKET = 'ra-ticket';
+let raToken = '';   // the token encrypted with the client's key, for /users/@me/remote-auth/login
+async function raMessage(ws: WebSocket, p: any, key: CryptoKey[]): Promise<void> {
+  const seal = async (text: string): Promise<string> => base64Encode(await subtle.encrypt(OAEP, key[0], new TextEncoder().encode(text)));
+  if (p.op === 'heartbeat') ws.send('{"op":"heartbeat_ack"}');
+  else if (p.op === 'init') {
+    key.push(await subtle.importKey('spki', base64Decode(p.encoded_public_key as string), OAEP, false, ['encrypt']));
+    console.log(`remote auth init`);
+    ws.send(JSON.stringify({ op: 'nonce_proof', encrypted_nonce: await seal(RA_NONCE) }));
+  } else if (p.op === 'nonce_proof') {
+    const want = base64Encode(await subtle.digest('SHA-256', new TextEncoder().encode(RA_NONCE))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    console.log(`remote auth proof ok=${p.proof === want}`);
+    if (p.proof !== want) { ws.close(4003, 'bad proof'); return; }
+    ws.send(JSON.stringify({ op: 'pending_remote_init', fingerprint: 'fp-123' }));
+    if (env('FAKE_RA_HOLD') === '1') return;   // the phone never scans: the QR code stays on screen (a picture of the login screen)
+    const user = await seal('100:0:null:ada');
+    raToken = await seal(TOKEN);
+    setTimeout(() => { ws.send(JSON.stringify({ op: 'pending_ticket', encrypted_user_payload: user })); }, 100);   // scanned
+    setTimeout(() => { ws.send(JSON.stringify({ op: 'pending_login', ticket: RA_TICKET })); }, 200);               // confirmed on the phone
+  }
+}
+function remoteAuth(ws: WebSocket, req: UpgradeRequest): void {
+  console.log(`remote auth ${req.path} origin=${req.header('origin')}`);
+  const key: CryptoKey[] = [];
+  ws.send(JSON.stringify({ op: 'hello', heartbeat_interval: 41250, timeout_ms: 120000 }));
+  ws.onmessage = (e: MessageEvent): void => { raMessage(ws, JSON.parse(e.data), key).catch((err: Error): void => { console.log(`remote auth error ${err.message}`); }); };
+}
+/** The routes a login takes, without a token; null for the others. */
+function login(req: Request, auth: string): Reply | null {
+  if (req.method !== 'POST' || !(req.path.startsWith('/api/v9/auth/') || req.path === '/api/v9/users/@me/remote-auth/login')) return null;
+  const body: any = JSON.parse(req.body);
+  console.log(`rest POST ${req.path} auth=${auth !== ''}${body.login !== undefined ? ' login=' + body.login : ''}${body.code !== undefined ? ' code=' + body.code : ''}`);
+  if (req.path === '/api/v9/users/@me/remote-auth/login')
+    return body.ticket === RA_TICKET && raToken !== '' ? json(200, JSON.stringify({ encrypted_token: raToken })) : json(400, '{"message":"Invalid ticket","code":50035}');
+  if (req.path === '/api/v9/auth/login') {
+    if (body.login === 'captcha@example.com')
+      return json(400, '{"captcha_key":["captcha-required"],"captcha_sitekey":"fake-site","captcha_service":"hcaptcha"}');
+    if (body.password !== 'right')
+      return json(400, '{"message":"Invalid Form Body","code":50035,"errors":{"login":{"_errors":[{"code":"INVALID_LOGIN","message":"Login or password is invalid."}]}}}');
+    return json(200, JSON.stringify({ user_id: '100', mfa: true, sms: true, totp: true, backup: false, ticket: MFA_TICKET }));
+  }
+  if (req.path === '/api/v9/auth/mfa/sms/send') return json(200, '{"phone":"+*******1234"}');
+  if ((req.path === '/api/v9/auth/mfa/totp' || req.path === '/api/v9/auth/mfa/sms') && body.ticket === MFA_TICKET && body.code === '123456')
+    return json(200, JSON.stringify({ token: TOKEN, user_settings: { locale: 'en-US', theme: 'dark' } }));
+  return json(400, '{"message":"Invalid two-factor code","code":60008}');
+}
+
 function rest(req: Request): Reply {
   const f = files(req);
   if (f !== null) return f;
   const auth = req.headers.get('authorization');
+  const l = login(req, auth);
+  if (l !== null) return l;
   const sp = req.headers.get('x-super-properties');
   const line = `rest ${req.method} ${req.path} auth=${auth === TOKEN} super=${sp.length > 0}`;
   if (auth !== TOKEN) { console.log(line); return json(401, '{"message":"401: Unauthorized","code":0}'); }
@@ -372,6 +427,7 @@ async function main(): Promise<void> {
   shipping.attachments = [photo('801', '302/903/801/photo.png', false)];
   showcaseList = show.showcase(cdn(), now());
   const gw = await serveWebSocket(0, (ws: WebSocket, req: UpgradeRequest) => {
+    if (req.path.startsWith('/ra')) { remoteAuth(ws, req); return; }
     console.log(`gateway ${req.path} agent=${(req.header('user-agent')).indexOf('Chrome') > 0}`);
     live = ws;
     ws.send(JSON.stringify({ op: 10, d: { heartbeat_interval: 41250 } }));

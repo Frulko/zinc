@@ -8,6 +8,10 @@ export const API_BASE = or('DISCORD_API', 'https://discord.com/api/v9');
 export const GATEWAY_URL = or('DISCORD_GATEWAY', 'wss://gateway.discord.gg');
 export const GATEWAY_QUERY = '/?encoding=json&v=9';
 export const CDN_BASE = or('DISCORD_CDN', 'https://cdn.discordapp.com');
+// QR code login: the remote-auth gateway, which accepts only the web origin, and the link the phone app reads from the code
+export const REMOTE_AUTH_URL = or('DISCORD_REMOTE_AUTH', 'wss://remote-auth-gateway.discord.gg/?v=2');
+export const WEB_ORIGIN = 'https://discord.com';
+export const QR_LINK = 'https://discord.com/ra/';
 
 // One coherent identity, sent in IDENTIFY, in X-Super-Properties and as the User-Agent (docs/reports/discord-client-research.md 2.3).
 // ponytail: Chrome and the build number as the web client sent them on 2026-10-30, baked in; DISCORD_BUILD_NUMBER overrides it until it is read from the live web client.

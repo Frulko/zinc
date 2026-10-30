@@ -17,6 +17,7 @@ std::string run(const std::string& op, const std::string& a, const std::string& 
 #else
 
 #include <psa/crypto.h>
+#include <mbedtls/pk.h>
 
 #include <cstring>
 #include <vector>
@@ -206,6 +207,82 @@ std::string run(const std::string& op, const std::string& a, const std::string& 
     size_t len = 0;
     st = psa_raw_key_agreement(PSA_ALG_ECDH, k.id, bytes(b), b.size(), reinterpret_cast<uint8_t*>(out.data()), out.size(), &len);
     if (st != PSA_SUCCESS) return fail(err, "ecdh", st);
+    out.resize(len);
+    return out;
+  }
+  if (head == "rsa-generate") {   // n = modulus bits, exponent 65537; the private key as PKCS#1 RSAPrivateKey DER
+    if (n < 1024 || n > 4096) { err = "rsa-generate: 1024 to 4096 bits"; return std::string(); }
+    psa_key_attributes_t at = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&at, PSA_KEY_TYPE_RSA_KEY_PAIR);
+    psa_set_key_bits(&at, static_cast<size_t>(n));
+    psa_set_key_usage_flags(&at, PSA_KEY_USAGE_EXPORT);
+    psa_set_key_algorithm(&at, PSA_ALG_RSA_OAEP(PSA_ALG_SHA_256));
+    mbedtls_svc_key_id_t id = MBEDTLS_SVC_KEY_ID_INIT;
+    st = psa_generate_key(&at, &id);
+    psa_reset_key_attributes(&at);
+    if (st != PSA_SUCCESS) return fail(err, "rsa-generate", st);
+    std::string out(PSA_EXPORT_KEY_PAIR_MAX_SIZE, '\0');
+    size_t len = 0;
+    st = psa_export_key(id, reinterpret_cast<uint8_t*>(out.data()), out.size(), &len);
+    psa_destroy_key(id);
+    if (st != PSA_SUCCESS) return fail(err, "rsa-generate: export", st);
+    out.resize(len);
+    return out;
+  }
+  if (head == "rsa-public") {   // a = PKCS#1 private key; the PKCS#1 RSAPublicKey DER
+    Key k(PSA_KEY_TYPE_RSA_KEY_PAIR, PSA_KEY_USAGE_EXPORT, PSA_ALG_RSA_OAEP(PSA_ALG_SHA_256), a);
+    if (k.st != PSA_SUCCESS) return fail(err, "rsa-public: key", k.st);
+    std::string out(PSA_EXPORT_PUBLIC_KEY_MAX_SIZE, '\0');
+    size_t len = 0;
+    st = psa_export_public_key(k.id, reinterpret_cast<uint8_t*>(out.data()), out.size(), &len);
+    if (st != PSA_SUCCESS) return fail(err, "rsa-public", st);
+    out.resize(len);
+    return out;
+  }
+  if (head == "rsa-spki") {   // a = PKCS#1 public key; the SubjectPublicKeyInfo DER (mbedTLS's PK writer)
+    Key k(PSA_KEY_TYPE_RSA_PUBLIC_KEY, PSA_KEY_USAGE_EXPORT, PSA_ALG_RSA_OAEP(PSA_ALG_SHA_256), a);
+    if (k.st != PSA_SUCCESS) return fail(err, "rsa-spki: key", k.st);
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    std::string out(PSA_EXPORT_PUBLIC_KEY_MAX_SIZE + 64, '\0');
+    int len = mbedtls_pk_copy_public_from_psa(k.id, &pk);
+    if (len == 0) len = mbedtls_pk_write_pubkey_der(&pk, reinterpret_cast<unsigned char*>(out.data()), out.size());   // written at the end of the buffer
+    mbedtls_pk_free(&pk);
+    if (len <= 0) { err = "rsa-spki: write (" + std::to_string(len) + ")"; return std::string(); }
+    return out.substr(out.size() - static_cast<size_t>(len));
+  }
+  if (head == "rsa-spki-import") {   // a = SubjectPublicKeyInfo DER; the PKCS#1 public key
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    int rc = mbedtls_pk_parse_public_key(&pk, bytes(a), a.size());
+    psa_key_attributes_t at = PSA_KEY_ATTRIBUTES_INIT;
+    if (rc == 0) rc = mbedtls_pk_get_psa_attributes(&pk, PSA_KEY_USAGE_ENCRYPT, &at);   // a usage with an algorithm (export alone is refused)
+    if (rc == 0 && psa_get_key_type(&at) != PSA_KEY_TYPE_RSA_PUBLIC_KEY) rc = -1;
+    if (rc == 0) psa_set_key_usage_flags(&at, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_EXPORT);
+    mbedtls_svc_key_id_t id = MBEDTLS_SVC_KEY_ID_INIT;
+    if (rc == 0) rc = mbedtls_pk_import_into_psa(&pk, &at, &id);
+    psa_reset_key_attributes(&at);
+    mbedtls_pk_free(&pk);
+    if (rc != 0) { err = "rsa-spki-import: not an RSA public key (" + std::to_string(rc) + ")"; return std::string(); }
+    std::string out(PSA_EXPORT_PUBLIC_KEY_MAX_SIZE, '\0');
+    size_t len = 0;
+    st = psa_export_public_key(id, reinterpret_cast<uint8_t*>(out.data()), out.size(), &len);
+    psa_destroy_key(id);
+    if (st != PSA_SUCCESS) return fail(err, "rsa-spki-import: export", st);
+    out.resize(len);
+    return out;
+  }
+  if (head == "rsa-oaep-encrypt" || head == "rsa-oaep-decrypt") {   // a = PKCS#1 public (encrypt) or private (decrypt) key, b = data, no label
+    psa_algorithm_t h = hashOf(arg);
+    if (h == PSA_ALG_NONE) { err = "unsupported hash"; return std::string(); }
+    bool enc = head == "rsa-oaep-encrypt";
+    Key k(enc ? PSA_KEY_TYPE_RSA_PUBLIC_KEY : PSA_KEY_TYPE_RSA_KEY_PAIR, enc ? PSA_KEY_USAGE_ENCRYPT : PSA_KEY_USAGE_DECRYPT, PSA_ALG_RSA_OAEP(h), a);
+    if (k.st != PSA_SUCCESS) return fail(err, "rsa-oaep: key", k.st);
+    std::string out(PSA_ASYMMETRIC_ENCRYPT_OUTPUT_MAX_SIZE, '\0');
+    size_t len = 0;
+    st = enc ? psa_asymmetric_encrypt(k.id, PSA_ALG_RSA_OAEP(h), bytes(b), b.size(), nullptr, 0, reinterpret_cast<uint8_t*>(out.data()), out.size(), &len)
+             : psa_asymmetric_decrypt(k.id, PSA_ALG_RSA_OAEP(h), bytes(b), b.size(), nullptr, 0, reinterpret_cast<uint8_t*>(out.data()), out.size(), &len);
+    if (st != PSA_SUCCESS) return fail(err, enc ? "rsa-oaep-encrypt" : "rsa-oaep-decrypt", st);
     out.resize(len);
     return out;
   }

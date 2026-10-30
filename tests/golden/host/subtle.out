@@ -21,3 +21,7 @@ ok   ed25519 rfc8032-2 public
 ok   ed25519 rfc8032-2 sign 
 ed25519 verify true false
 ed25519 pair true
+ok   rsa-oaep-sha256 openssl decrypt 
+ok   rsa spki export 
+ok   rsa-oaep round trip 
+rsa pair 162 true

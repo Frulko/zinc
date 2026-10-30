@@ -15,7 +15,10 @@ HTTP API over `fetch`) and keeps your token in the system keychain (`zinc:secure
 build/zinc run examples/discord
 ```
 
-Paste your token and press **Log in**: the token is kept in the keychain, the next start logs in by itself; **Log out** forgets it.
+Log in by scanning the QR code with the Discord app on your phone (You, then Scan QR Code), or with your email and password (then the code
+of your authenticator app or one sent by SMS), or paste a token. The token is kept in the keychain, the next start logs in by itself;
+**Log out** forgets it. When Discord asks for a captcha the app does not show it: log in with the QR code instead, or once in the
+official app. An expired QR code waits for **New code**; nothing is retried by itself.
 
 What works now: your servers, their channels (by category) and your DMs; a channel's history, loaded 50 messages at a time and older
 pages as you scroll up, in a virtual list that stays smooth over thousands of messages; new, edited and deleted messages as they happen;
@@ -38,7 +41,7 @@ channel and open like a channel; a forum opens on its posts. Discord's rate limi
 last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a minute, and a refusal (a captcha, a verification, a long
 429) is shown plainly and pauses the background requests; every request the app makes is listed in
 [docs/reports/discord-client-requests.md](../../docs/reports/discord-client-requests.md). Not yet: animated emoji and avatars show their first frame, the member list shows its first 100 members. Coming in order
-(milestone M28): QR code and password login (ZN-869), notifications (ZN-870), voice (ZN-872), video (ZN-873), screen sharing (ZN-875).
+(milestone M28): notifications (ZN-870), voice (ZN-872), video (ZN-873), screen sharing (ZN-875).
 
 ## Layout of `src/`
 
@@ -57,13 +60,14 @@ last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a
 | `services/rest.ts` | the HTTP API with the token and identity headers, and the rate-limit buckets |
 | `services/limits.ts` | the sliding windows of the global and gateway limits, the plain errors and when safe mode starts |
 | `services/identity.ts` | the client properties (IDENTIFY and `X-Super-Properties`) |
+| `services/auth.ts` | the QR code login (the remote-auth gateway, its RSA-OAEP key exchange) and the password login with its two-factor code |
 | `services/session.ts` | the token in the keychain |
 | `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`) and content (`Content.tsx`), avatars, the member list |
 
 ## Test
 
-`tests/t1/discord.sh` runs the app against a fake Discord on 127.0.0.1 (`tests/fake-discord.ts`), no network. By hand:
-`DISCORD_API`, `DISCORD_GATEWAY` point it elsewhere, `DISCORD_TOKEN` skips the keychain, `DISCORD_LOG=1` prints what happens,
+`tests/t1/discord.sh` runs the app against a fake Discord on 127.0.0.1 (`tests/fake-discord.ts`), no network; `tests/t1/discord_login.sh`
+the logins (`tests/login.ts`). By hand: `DISCORD_API`, `DISCORD_GATEWAY`, `DISCORD_REMOTE_AUTH` point it elsewhere, `DISCORD_TOKEN` skips the keychain, `DISCORD_LOG=1` prints what happens,
 `DISCORD_DEMO=1` plays the scripted session, `DISCORD_CDN` moves the CDN, `DISCORD_CACHE` the pictures' folder, `DISCORD_UPLOAD_FILE` is
 the file the session sends, and `DISCORD_BENCH=1` loads the open channel's whole history and scrolls it to the top and back (frame times
 with `ZINC_PROFILE=1`; `FAKE_HISTORY=1997` gives the fake 2,000 messages).

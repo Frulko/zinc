@@ -767,6 +767,15 @@ struct Lowering {
           if (!isP(end, ",")) break;
           d = end + 1;
         }
+      } else if (t[i].kind == Tok::Ident && isP(i + 1, "=") && !isP(i + 2, "{") && !(i > 0 && (isP(i - 1, ".") || isP(i - 1, "?.")))) {
+        // an element assigned later, `let form; if (a) form = <View/>; else form = <Text/>;`: `{form}` mounts it too (a JSX attribute,
+        // `title={<Text/>}`, is not an assignment: its value starts with a brace)
+        std::size_t end = i + 2;
+        while (end < t.size() && !isP(end, ";") && !isP(end, ",") && !isP(end, ")") && !isP(end, "}")) {
+          if (isP(end, "(") || isP(end, "[") || isP(end, "{")) end = match(end); else if (jsxStart(end)) end = parseElem(end)->end - 1;
+          ++end;
+        }
+        if (end > i + 2 && jsxValue(i + 2, end)) jsxVars.insert(tx(i));
       }
     }
     return jsxFns;
@@ -1382,7 +1391,7 @@ struct Lowering {
       }
       if (hot && !react && lib == "zinc:ui/solid" && tag.find('.') == std::string::npos) {   // a component of the project: its Fast Refresh proxy
         auto im = imported.find(tag);
-        if (im == imported.end() || im->second.rfind("./", 0) == 0 || im->second.rfind("../", 0) == 0) call = "_hotC('@hot:" + tag + "', () => " + call + ")";
+        if (im == imported.end() || im->second.empty() || im->second.rfind("./", 0) == 0 || im->second.rfind("../", 0) == 0) call = "_hotC('@hot:" + tag + "', () => " + call + ")";
       }
       std::string keyArg = key ? "'' + (" + valueOf(*key) + ")" : "''";
       if (react && classTags.count(tag)) out.push_back("_cc(" + v + ", () => new " + tag + "(" + (props.empty() ? "{}" : "{ " + args + " }") + "), " + quote(tag) + ", " + keyArg + ");");   // a class component (Inferno, React classes): an instance per mount
@@ -1432,13 +1441,27 @@ std::map<std::string, std::string> jsxImports(std::string_view s, const std::vec
       if (react && (spec == "zinc:ui/react" || spec == "react" || spec == "inferno")) *react = true;
     }
   }
+  // a component the file declares at its top level with a host tag's name (function Button, const Input = ...) is that component, as in
+  // React: it shadows the host tag; recorded with an empty module
+  int depth = 0;
+  for (std::size_t i = 0; i + 1 < t.size(); ++i) {
+    const Tok k = t[i].kind;
+    if (k == Tok::Punct) { const std::string p = tx(i); if (p == "{") ++depth; else if (p == "}") --depth; continue; }
+    if (k == Tok::TemplateHead) { ++depth; continue; }
+    if (k == Tok::TemplateTail) { --depth; continue; }
+    if (depth != 0 || (k != Tok::Keyword && k != Tok::Ident)) continue;
+    const std::string w = tx(i);
+    if (w != "function" && w != "class" && w != "const" && w != "let" && w != "var") continue;
+    const std::size_t n = i + 1;
+    if (t[n].kind == Tok::Ident && kTags.count(tx(n)) && !imported.count(tx(n))) imported[tx(n)] = "";
+  }
   return imported;
 }
 
 bool jsxHostTag(const std::string& tag, const std::map<std::string, std::string>& imported) {
   if (!kTags.count(tag)) return false;
   auto it = imported.find(tag);
-  // only zinc:ui's own names are the host tags: the kits' Button, Input... and an app's (components/Button.tsx) are components
+  // only zinc:ui's own names are the host tags: the kits' Button, Input... and an app's (components/Button.tsx, or declared in the file) are components
   return it == imported.end() || (it->second.rfind("zinc:ui", 0) == 0 && it->second.rfind("zinc:ui/kit", 0) != 0 && it->second.rfind("zinc:ui/nuxt", 0) != 0) ||
          ((it->second == "zinc:react-native" || it->second == "@pocketjs/framework/solid/components") &&   // the host elements of zinc:react-native (ZN-367) and PocketJS
           (tag == "View" || tag == "Text" || tag == "Image" || tag == "ScrollView"));                          // its Button is a component

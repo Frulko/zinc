@@ -21,7 +21,7 @@ for (let i = 0; i < 50; i++) if (g.take(10000) === 0) sends++;
 check('the gateway keeps under 120 a minute', g.count(10000) <= 120 && sends === SENDS_MAX - 100);
 check('the gateway waits for its oldest send', g.take(10000) === 50000);
 
-check('captcha', plainError(400, { captcha_key: ['captcha-required'], captcha_sitekey: 'x' }, 0).indexOf('official Discord app') > 0);
+check('captcha', plainError(400, { captcha_key: ['captcha-required'], captcha_sitekey: 'x' }, 0).indexOf('QR code') > 0);
 check('401', plainError(401, null, 0).indexOf('log in again') > 0);
 check('429 says when', plainError(429, { retry_after: 12.2 }, 12.2).indexOf('13 s') > 0);
 check('other errors keep the API message', plainError(404, { message: 'Unknown Channel' }, 0) === '');

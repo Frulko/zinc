@@ -5,3 +5,6 @@ node 0
       class flex-row
       node 1
         dynTextOf plus Add
+  node 6
+    node 1
+      dynTextOf local

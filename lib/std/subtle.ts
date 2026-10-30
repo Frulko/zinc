@@ -1,6 +1,7 @@
 // zinc:subtle — Web Crypto (crypto.subtle) beyond digest, on PSA / mbedTLS through the host (src/host/crypto.cpp): HMAC, AES-GCM / AES-CBC / AES-CTR, PBKDF2, HKDF,
-// ECDSA and ECDH on P-256, Ed25519 (Monocypher, src/host/ed25519.cpp). Zinc Next only (the prototype's lib/std/web.ts has digest). Keys import and export as 'raw' (an EC private key as 'raw-private', its 32-byte
-// scalar, an Ed25519 private key as 'raw-private', its 32-byte seed); jwk, pkcs8, spki and RSA are not supported. generateKey makes a symmetric key, generateKeyPair (not in the Web Crypto API) an EC or Ed25519 pair.
+// ECDSA and ECDH on P-256, Ed25519 (Monocypher, src/host/ed25519.cpp), RSA-OAEP. Zinc Next only (the prototype's lib/std/web.ts has digest). Keys import and export as 'raw' (an EC private key as 'raw-private', its 32-byte
+// scalar, an Ed25519 private key as 'raw-private', its 32-byte seed, an RSA private key as 'raw-private', its PKCS#1 DER; an RSA public key as 'spki'); jwk and pkcs8 are not
+// supported. generateKey makes a symmetric key, generateKeyPair (not in the Web Crypto API) an EC, Ed25519 or RSA-OAEP pair (exponent 65537).
 import { op as cryptoOp } from 'zinc:__crypto';
 import { DOMException } from 'zinc:web';
 
@@ -17,6 +18,8 @@ export interface Algorithm {
   iterations?: i32;
   info?: u8[];
   namedCurve?: string;
+  /** RSA-OAEP: the key size in bits (2048 by default). */
+  modulusLength?: i32;
   /** ECDH: the other party's public key. */
   public?: CryptoKey;
 }
@@ -58,6 +61,11 @@ export class FullSubtleCrypto {
   }
   async importKey(format: string, keyData: u8[], algorithm: Algorithm, extractable: boolean, usages: string[]): Promise<CryptoKey> {
     const name = algorithm.name.toUpperCase();
+    if (name === 'RSA-OAEP') {
+      if (format === 'spki') return new CryptoKey('public', extractable, algorithm, usages, op('rsa-spki-import', keyData, NONE, NONE, NONE, 0, 0), NONE);
+      if (format === 'raw-private') return new CryptoKey('private', extractable, algorithm, usages, op('rsa-public', keyData, NONE, NONE, NONE, 0, 0), keyData);
+      throw new DOMException(`format ${format} is not supported for RSA-OAEP (spki or raw-private)`, 'NotSupportedError');
+    }
     if (format === 'raw' || format === 'raw-private') {
       if (name === 'ED25519') {
         if (keyData.length !== 32) throw new DOMException('an Ed25519 key is 32 bytes', 'DataError');
@@ -81,6 +89,7 @@ export class FullSubtleCrypto {
     if (!key.extractable) throw new DOMException('key is not extractable', 'InvalidAccessError');
     if (format === 'raw') return key.data;
     if (format === 'raw-private' && key.type === 'private') return key.priv;
+    if (format === 'spki' && key.type === 'public' && key.algorithm.name.toUpperCase() === 'RSA-OAEP') return op('rsa-spki', key.data, NONE, NONE, NONE, 0, 0);
     throw new DOMException(`format ${format} is not supported (raw only)`, 'NotSupportedError');
   }
   async generateKey(algorithm: Algorithm, extractable: boolean, usages: string[]): Promise<CryptoKey> {
@@ -102,6 +111,11 @@ export class FullSubtleCrypto {
       const seed = op('random', NONE, NONE, NONE, NONE, 32, 0);
       const pk = op('ed25519-public', seed, NONE, NONE, NONE, 0, 0);
       return new CryptoKeyPair(new CryptoKey('public', true, algorithm, ['verify'], pk, NONE), new CryptoKey('private', extractable, algorithm, usages, pk, seed));
+    }
+    if (name === 'RSA-OAEP') {
+      const priv = op('rsa-generate', NONE, NONE, NONE, NONE, algorithm.modulusLength === undefined ? 2048 : algorithm.modulusLength as i32, 0);
+      const pub = op('rsa-public', priv, NONE, NONE, NONE, 0, 0);
+      return new CryptoKeyPair(new CryptoKey('public', true, algorithm, ['encrypt'], pub, NONE), new CryptoKey('private', extractable, algorithm, usages, pub, priv));
     }
     if ((name !== 'ECDSA' && name !== 'ECDH') || algorithm.namedCurve !== 'P-256') throw new DOMException('ECDSA or ECDH on P-256, or Ed25519', 'NotSupportedError');
     const both = op('ec-generate', NONE, NONE, NONE, NONE, 0, 0);
@@ -134,6 +148,10 @@ export class FullSubtleCrypto {
   private cipher(algorithm: Algorithm, key: CryptoKey, data: u8[], enc: boolean): u8[] {
     const name = algorithm.name.toUpperCase();
     const use = enc ? 'encrypt' : 'decrypt';
+    if (name === 'RSA-OAEP') {
+      need(key, use, 'RSA-OAEP');
+      return op((enc ? 'rsa-oaep-encrypt:' : 'rsa-oaep-decrypt:') + hashName(key.algorithm.hash), enc ? key.data : key.priv, data, NONE, NONE, 0, 0);
+    }
     if (name === 'AES-GCM') {
       need(key, use, 'AES-GCM');
       if (algorithm.iv === undefined) throw new DOMException('AES-GCM needs an iv', 'OperationError');

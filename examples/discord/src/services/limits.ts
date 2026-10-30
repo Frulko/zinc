@@ -24,7 +24,7 @@ export class Window {
 /** The plain sentence for a refused request, from its status and body ('' when the API's own message says it best). */
 export function plainError(status: i32, body: any, retryAfter: number): string {
   const captcha = body !== null && body !== undefined && (body.captcha_key !== undefined || body.captcha_sitekey !== undefined);
-  if (captcha) return 'Discord asks for a captcha: do this once in the official Discord app, then try again here.';
+  if (captcha) return 'Discord asks for a captcha, which this client does not show: log in with the QR code, or once in the official Discord app.';
   if (status === 401) return 'Discord refused the token: log in again.';
   if (verification(status, body)) return 'Discord wants this account verified (email or phone): do it in the official Discord app, then try again here.';
   if (status === 429) return `Discord is limiting how fast this client can go: try again in ${Math.max(1, Math.ceil(retryAfter))} s.`;

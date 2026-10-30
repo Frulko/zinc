@@ -3,14 +3,16 @@
 // route and major id, a request waits while its bucket is empty or the client sent 50 in the last second, a 429 waits retry_after (the
 // whole client when it is global) and tries again, three times at most and only for short waits. Refused requests are counted: a 401 stops
 // every request until the next login, and past INVALID_MAX refusals (401, 403, 429) in 10 minutes nothing is sent until the window clears,
-// far under the 10,000 that get an address banned. A captcha is never answered here: the error says to finish it in the official app.
+// far under the 10,000 that get an address banned. A captcha is never answered here: the error says to log in with the QR code or in the official app.
 import { API_BASE, USER_AGENT, LOCALE } from '../constants';
 import { superProperties } from './identity';
 import { Window, plainError, startsSafeMode } from './limits';
 
 export class ApiError extends Error {
   status: i32;
-  constructor(status: i32, message: string) { super(message); this.status = status; }
+  /** The answer's JSON (null when there was none): the form errors of a login. */
+  body: any;
+  constructor(status: i32, message: string, body: any = null) { super(message); this.status = status; this.body = body; }
 }
 
 let token = '';
@@ -28,8 +30,8 @@ const perSecond = new Window(GLOBAL_PER_SECOND, 1000);
 const invalid = new Window(INVALID_MAX, 600000);
 
 function headers(json: boolean): [string, string][] {
-  const h: [string, string][] = [['Authorization', token], ['User-Agent', USER_AGENT], ['X-Super-Properties', superProperties],
-    ['X-Discord-Locale', LOCALE], ['Accept', '*/*']];
+  const h: [string, string][] = token !== '' ? [['Authorization', token]] : [];   // a login has no token yet
+  h.push(['User-Agent', USER_AGENT]); h.push(['X-Super-Properties', superProperties]); h.push(['X-Discord-Locale', LOCALE]); h.push(['Accept', '*/*']);
   if (json) h.push(['Content-Type', 'application/json']);
   return h;
 }
@@ -126,7 +128,7 @@ export async function api(method: string, path: string, body: any = undefined, b
     if (!r.ok) {
       let message = plainError(r.status, j, wait);
       if (message === '') message = j !== null && typeof j.message === 'string' ? j.message : `HTTP ${r.status}`;
-      throw new ApiError(r.status, message);
+      throw new ApiError(r.status, message, j);
     }
     return text.length > 0 ? JSON.parse(text) : null;
   }
