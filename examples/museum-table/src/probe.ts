@@ -1,5 +1,5 @@
 // Explicit diagnostic endpoint; the existing CDP transport restricts listening, Host and Origin to local tools.
-import Cdp from '../../../plugins/devtools/native/cdp.spec';
+import Cdp from 'zinc:devtools/cdp';   // the inspector's channel: the probe answers on it
 import { pid } from 'zinc:sys';
 import { Player } from './player';
 import { retainedDecoders } from './film';
