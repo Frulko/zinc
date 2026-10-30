@@ -71,6 +71,7 @@ std::string mb(long long n) { char b[32]; std::snprintf(b, sizeof b, "%.1f MB", 
 bool installOffer(tuf::Client& index, const Offer& o, Pack& out, std::string& err) {
   const auto t0 = std::chrono::steady_clock::now();
   zn::log::step("engine", o.pack.name + " " + o.pack.version + ": downloading " + mb(o.target.length) + " from the signed index");
+  zn::log::brief("downloading the " + o.pack.name + " engine " + o.pack.version + " (" + mb(o.target.length) + "), once");
   std::string bytes;
   if (!index.download(o.target, bytes, err)) return false;   // its length and SHA-256 as the signed targets role says, else refused
   zn::log::step("engine", "checked: SHA-256 " + o.target.sha256.substr(0, 16) + "..., signed by the index's release role", zn::log::since(t0));

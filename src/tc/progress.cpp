@@ -28,7 +28,8 @@ bool runCommands(const std::vector<std::string>& commands, unsigned limit, const
   std::size_t next = 0, completed = 0;
   bool ok = true, painted = false;
   const auto start = std::chrono::steady_clock::now();
-  double last = -2000;
+  const bool tty = isatty(2);
+  double last = tty ? -2000 : 0;   // a log (not a terminal): the first line after 2 s, not an empty "0/1" at once
   unsigned tick = 0;
   limit = std::max(1u, limit);
   while ((ok && next < commands.size()) || !live.empty()) {
@@ -61,9 +62,10 @@ bool runCommands(const std::vector<std::string>& commands, unsigned limit, const
       } else ++it;
     }
     const double elapsed = log::since(start);
-    if (log::steps() && (completed != before || elapsed - last >= (isatty(2) ? 200 : 2000))) {
+    // a log gets a line per finished command when there are several (one command: the caller's step says when it ends), and one every 2 s
+    if (log::steps() && ((completed != before && (tty || commands.size() > 1)) || elapsed - last >= (tty ? 200 : 2000))) {
       const std::string detail = std::to_string(completed) + "/" + std::to_string(commands.size()) + " completed, " + std::to_string(live.size()) + " running";
-      if (isatty(2)) {
+      if (tty) {
         std::fprintf(stderr, "\r\033[2K  %-10s %c %s  %s", stage, "|/-\\"[tick++ % 4], detail.c_str(), log::duration(elapsed).c_str());
         std::fflush(stderr);
         painted = true;
