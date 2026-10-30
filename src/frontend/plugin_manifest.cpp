@@ -269,7 +269,10 @@ std::vector<FoundPlugin> discoverPlugins(const std::string& engineRoot, const st
     std::vector<fs::path> dirs;
     for (const auto& e : fs::directory_iterator(root, ec)) dirs.push_back(e.path());
     std::sort(dirs.begin(), dirs.end());
-    for (const fs::path& d : dirs) {
+    for (const fs::path& listed : dirs) {
+      // a linked plugin is built where it lives: its native code includes its neighbours by relative path (as resolve.cpp reads it)
+      std::error_code lec;
+      const fs::path d = fs::is_symlink(listed, lec) ? fs::canonical(listed, lec) : listed;
       std::string text, path = (d / "plugin.json").string();
       if (!readText(path, text)) continue;
       FoundPlugin fp;

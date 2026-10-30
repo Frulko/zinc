@@ -131,7 +131,12 @@ void ModuleResolver::readPluginsIn(const std::string& dirIn) {
   const std::string dir = fs::path(dirIn).lexically_normal().string();   // "next/plugins" and "plugins" are one directory, so one module identity
   if (!pluginDirsRead_.insert(dir).second) return;
   std::error_code ec;
-  for (const auto& e : fs::directory_iterator(dir, ec)) {
+  for (const auto& entry : fs::directory_iterator(dir, ec)) {
+    // a plugin linked into a project (image/player/plugins/shell -> ../../../plugins/shell) is read where it lives: its native code
+    // includes its neighbours by relative path, and the repository's copy and the link are then one module
+    std::error_code lec;
+    const fs::path real = entry.is_symlink(lec) ? fs::canonical(entry.path(), lec) : fs::path();
+    const fs::directory_entry e(real.empty() ? entry.path() : real, lec);
     std::string text;
     std::string manifest = (e.path() / "plugin.json").string();
     if (!read(manifest, text)) continue;
