@@ -163,7 +163,7 @@
     {"paths": ["tests/golden/ui-transition/"], "tests": ["ui_transition"]},
     {"paths": ["tests/golden/ui-modal-motion/", "lib/std/nuxt/overlays.tsx"], "tests": ["ui_modal_motion", "nuxt_ui"]},
     {"paths": ["tests/golden/ui-press/"], "tests": ["ui_press"]},
-    {"paths": ["src/frontend/jsx.cpp", "tests/golden/style-flex/", "tests/golden/style-size/", "tests/golden/style-shadow/", "tests/golden/style-transform/", "tests/golden/pan-responder/", "tests/golden/react-native/", "tests/golden/style-dynamic/", "tests/golden/style-border/", "tests/golden/layout-compat/", "tests/golden/rtl/"], "tests": ["style_flex", "style_size", "style_shadow", "style_transform", "pan_responder", "react_native", "style_dynamic", "style_border", "layout_compat", "react_native_imports", "rtl", "jsx_style", "ui_image_handle"]},
+    {"paths": ["src/frontend/jsx.cpp", "tests/golden/style-flex/", "tests/golden/style-size/", "tests/golden/style-shadow/", "tests/golden/style-transform/", "tests/golden/pan-responder/", "tests/golden/react-native/", "tests/golden/style-dynamic/", "tests/golden/style-border/", "tests/golden/layout-compat/", "tests/golden/rtl/"], "tests": ["pocket_hero", "style_flex", "style_size", "style_shadow", "style_transform", "pan_responder", "react_native", "style_dynamic", "style_border", "layout_compat", "react_native_imports", "rtl", "jsx_style", "ui_image_handle"]},
     {"paths": ["tests/data/ui-image-handle/", "tests/t1/ui_image_handle.sh"], "tests": ["ui_image_handle"]},
     {"paths": ["tests/data/ui-text-newline/", "tests/t1/ui_text_newline.sh"], "tests": ["ui_text_newline"]},
     {"paths": ["tests/data/ui-grow-wrap/", "tests/t1/ui_grow_wrap.sh"], "tests": ["ui_grow_wrap"]},

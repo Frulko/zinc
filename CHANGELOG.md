@@ -237,6 +237,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `View`, `Text` and `Image` imported from `@pocketjs/framework/solid/components` are host elements again: PocketJS programs (the pocket-hero demo) compile instead of failing with Z0105 on every tag.
 - Web: `autostart.get()` of `zinc:system` answers `{ enabled: false }` in a page instead of throwing (the notify-relay demo stopped at start).
 - Web: a sensor the browser lacks (`AmbientLightSensor`, `Gyroscope`...) reports a NotReadableError `error` event after `start()` instead of stopping the program, and `navigator.deviceInfo` is `null` in a page (the hardware demo crashed).
 - Web: `font('grid', px)` measures the face `gfx.text` draws with, so text centred with `textWidth` is centred in a page (it measured 0).

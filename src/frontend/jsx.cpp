@@ -1388,7 +1388,8 @@ bool jsxHostTag(const std::string& tag, const std::map<std::string, std::string>
   auto it = imported.find(tag);
   // only zinc:ui's own names are the host tags: the kits' Button, Input... and an app's (components/Button.tsx) are components
   return it == imported.end() || (it->second.rfind("zinc:ui", 0) == 0 && it->second.rfind("zinc:ui/kit", 0) != 0 && it->second.rfind("zinc:ui/nuxt", 0) != 0) ||
-         (it->second == "zinc:react-native" && (tag == "View" || tag == "Text" || tag == "Image" || tag == "ScrollView"));   // the host elements of zinc:react-native (ZN-367); its Button is a component
+         ((it->second == "zinc:react-native" || it->second == "@pocketjs/framework/solid/components") &&   // the host elements of zinc:react-native (ZN-367) and PocketJS
+          (tag == "View" || tag == "Text" || tag == "Image" || tag == "ScrollView"));                          // its Button is a component
 }
 
 const std::map<std::string, std::string>& jsxLowercaseTags() {
