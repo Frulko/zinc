@@ -1,10 +1,10 @@
 // The channels of the open server (categories as headers, each channel's active threads under it, forums open on their posts) or the DMs,
-// unread ones in white with their count of mentions; a voice channel joins its call when pressed (and shows it, CallView.tsx) and lists who is in it (a green ring:
+// unread ones in white with their count of mentions, a DM with the person's avatar and presence; a voice channel joins its call when pressed (and shows it, CallView.tsx) and lists who is in it (a green ring:
 // speaking), a DM has a call button (green while it rings us). At the bottom the call bar while in a call, and the user with mute, deafen
 // and log out.
 import { Icon } from 'zinc:icons';
 import { store, Channel } from '../state';
-import { Avatar } from './Avatar';
+import { Avatar, Status } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
 import { CH_CATEGORY, CH_VOICE, CH_DM, CH_GROUP_DM, isThread, BG_SIDE, BG_SELECTED, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR, CHANNELS_W, MENTION_BG, SPEAKING_RING, VOICE_AVATAR } from '../constants';
 
@@ -22,13 +22,22 @@ export function Badge(p: { n: i32 }) {
   </View>;
 }
 
+/** A DM's person: their avatar and presence. */
+function DmAvatar(p: { c: Channel }) {
+  const id = p.c.recipientId, hash = store.avatarOf(id), s = store.presenceOf(id);
+  return <View>
+    <Avatar picture={hash !== '' ? cdnPicture(avatarKey(id, hash)) : -1} name={p.c.name} size={20} round={true} />
+    <Status status={s.status} mobile={s.mobile} offline={true} ring="border-[#2b2d31]" />
+  </View>;
+}
+
 function Row(p: { c: Channel }) {
   const c = p.c;
   if (c.type === CH_CATEGORY) return <Text className={`px-2 pt-4 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>{c.name}</Text>;
   const on = c.id === store.channelId, open = c.readable(), unread = open && !on && store.unread(c.id), mentions = store.mentions(c.id);
   return <View className={`mx-2 px-2 h-[32] flex-row items-center gap-1.5 rounded ${isThread(c.type) ? 'ml-6' : ''} ${on ? BG_SELECTED : BG_HOVER}`} aria-label={c.name}
     onPress={() => { if (open || c.type === CH_VOICE) store.selectChannel(c.id); if (c.type === CH_VOICE) store.call.join(c.id, c.guildId); }}>
-    <Icon name={icon(c)} size={18} color={MUTED} />
+    {c.type === CH_DM && c.recipientId !== '' ? <DmAvatar c={c} /> : <Icon name={icon(c)} size={18} color={MUTED} />}
     <Text className={`grow text-[15px] ${on || unread ? `${TEXT_STRONG} font-semibold` : open ? TEXT_MAIN : TEXT_MUTED}`} numberOfLines={1}>{c.name}</Text>
     {mentions > 0 ? <Badge n={mentions} /> : null}
     {c.type === CH_DM || c.type === CH_GROUP_DM ? <View className="p-0.5 rounded hover:bg-[#404249]" aria-label={`Call ${c.name}`} onPress={() => store.call.join(c.id, '')}>

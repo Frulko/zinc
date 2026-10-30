@@ -5,7 +5,7 @@ import { api, setToken, setRestLog, onSafeMode, ApiError } from './services/rest
 import { loadToken, saveToken, forgetToken } from './services/session';
 import { onPicture } from './services/cdn';
 import { Upload, readUpload, uploadFiles } from './services/upload';
-import { MemberRow, subscription, applyMemberListUpdate } from './members';
+import { MemberRow, subscription, applyMemberListUpdate, ranges, mobileOnly } from './members';
 import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, CH_FORUM, CH_MEDIA, isThread, MESSAGES_PAGE, OLDER_PAGE, MESSAGE_MAX, TYPING_EVERY_MS, TYPING_SHOWN_MS, ACK_DELAY_MS, DISCORD_EPOCH, UPLOAD_MAX } from './constants';
 import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
@@ -22,11 +22,19 @@ export class Channel {
   /** A thread: its count of messages and its tags (ids); a forum: the names of its tags by id. */
   messageCount: i32 = 0; tags: string[] = []; tagNames: Map<string, string> = new Map<string, string>();
   overwrites: Overwrite[] = [];
+  /** A DM: the other person (their avatar and presence). */
+  recipientId = '';
   /** Text channels, threads and DMs open in the message view, forums as their list of posts; voice and categories are shown only. */
   readable(): boolean { return this.type === CH_TEXT || this.type === CH_ANNOUNCEMENT || this.type === CH_DM || this.type === CH_GROUP_DM || isThread(this.type) || this.forum(); }
   forum(): boolean { return this.type === CH_FORUM || this.type === CH_MEDIA; }
 }
-export class Guild { id = ''; name = ''; icon = ''; channels: Channel[] = []; roles: Map<string, string> = new Map<string, string>(); rights: Rights = new Rights(); }
+export class Guild {
+  id = ''; name = ''; icon = ''; channels: Channel[] = []; roles: Map<string, string> = new Map<string, string>(); rights: Rights = new Rights();
+  /** The roles' colours (0: none) and positions: a member's name takes the colour of their highest coloured role. */
+  roleColors: Map<string, i32> = new Map<string, i32>(); rolePositions: Map<string, i32> = new Map<string, i32>();
+}
+/** Someone's presence: 'online', 'idle', 'dnd' or 'offline', and on a phone only. */
+export class Presence { status = 'offline'; mobile = false; }
 /** A file of a message: an image is shown (its size known before it loads, so the list does not jump), a video as its first frame, a sound
  *  or a voice message with its length, another file as a link with its size. */
 export class Attachment {
@@ -81,6 +89,9 @@ export class Store implements GatewayHandler {
   members: MemberRow[] = [];
   membersOf = '';
   private subscribedTo = '';    // the channel op 37 last asked for on this session: asked again only when it changes
+  private subscribedRanges = '';   // and the ranges of its member list it asked for (the rows on screen)
+  /** Presences by user: READY's, PRESENCE_UPDATE's and the member list's. */
+  presences: Map<string, Presence> = new Map<string, Presence>();
   /** The settings screen is open (in place of the messages). */
   settingsOpen = false;
   /** The settings' pane: 'servers' or 'voice' (Voice & audio). */
@@ -187,6 +198,7 @@ export class Store implements GatewayHandler {
     else if (t === 'TYPING_START') this.typingStarted(d);
     else if (t === 'MESSAGE_ACK') this.acked(str(d.channel_id), str(d.message_id), d.mention_count ?? 0);
     else if (t === 'GUILD_MEMBER_LIST_UPDATE') this.memberListUpdated(d);
+    else if (t === 'PRESENCE_UPDATE') this.presenceUpdated(d);
     else if (t === 'CHANNEL_PINS_UPDATE') { if (!this.pinning.delete(str(d.channel_id))) this.pins.delete(str(d.channel_id)); }   // pinned elsewhere: asked again when the pins are opened
     else if (t === 'VOICE_STATE_UPDATE') this.call.stateUpdate(d);
     else if (t === 'VOICE_SERVER_UPDATE') this.call.serverUpdate(d);
@@ -236,6 +248,11 @@ export class Store implements GatewayHandler {
       this.reads.set(str(e.id), r);
       this.log(`read ${str(e.id)}: up to ${r.lastId}, ${r.mentions} mentions`);
     }
+    // the presences of friends and DM recipients (merged_presences), or the older list
+    this.presences.clear();
+    const mp: any = d.merged_presences;
+    const friends: any = mp !== undefined && mp !== null && Array.isArray(mp.friends) ? mp.friends : d.presences;
+    if (Array.isArray(friends)) for (const p of friends) this.presenceUpdated(p);
     this.log(`ready ${this.me.name}: ${this.guilds.length} servers, ${this.dms.length} DMs`);
     const shown = this.shownGuilds();
     if (this.channelId === '') this.selectGuild(shown.length > 0 ? shown[0].id : '');
@@ -245,7 +262,10 @@ export class Store implements GatewayHandler {
     const out = new Guild();
     out.id = str(g.id); out.name = str(p.name); out.icon = str(p.icon);
     const roles: any = Array.isArray(g.roles) ? g.roles : p.roles;
-    if (Array.isArray(roles)) for (const r of roles) { out.roles.set(str(r.id), str(r.name)); out.rights.roles.set(str(r.id), str(r.permissions)); }
+    if (Array.isArray(roles)) for (const r of roles) {
+      out.roles.set(str(r.id), str(r.name)); out.rights.roles.set(str(r.id), str(r.permissions));
+      out.roleColors.set(str(r.id), r.color ?? 0); out.rolePositions.set(str(r.id), r.position ?? 0);
+    }
     out.rights.ownerId = str(p.owner_id);
     if (Array.isArray(g.channels)) for (const c of g.channels) out.channels.push(this.channel(c, out.id));
     if (Array.isArray(g.threads)) for (const c of g.threads) out.channels.push(this.channel(c, out.id));   // the active threads
@@ -262,8 +282,11 @@ export class Store implements GatewayHandler {
     if (Array.isArray(c.available_tags)) for (const t of c.available_tags) out.tagNames.set(str(t.id), str(t.name));
     if (out.name === '' && (out.type === CH_DM || out.type === CH_GROUP_DM)) {
       const names: string[] = [];
-      if (Array.isArray(c.recipients)) for (const r of c.recipients) names.push(this.user(r).name);
-      if (Array.isArray(c.recipient_ids)) for (const id of c.recipient_ids) { const u = this.users.get(str(id)); if (u !== undefined) names.push(u.name); }
+      if (Array.isArray(c.recipients)) for (const r of c.recipients) { names.push(this.user(r).name); if (out.recipientId === '') out.recipientId = str(r.id); }
+      if (Array.isArray(c.recipient_ids)) for (const id of c.recipient_ids) {
+        const u = this.users.get(str(id)); if (u !== undefined) names.push(u.name);
+        if (out.recipientId === '') out.recipientId = str(id);
+      }
       out.name = names.join(', ');
     }
     return out;
@@ -550,13 +573,54 @@ export class Store implements GatewayHandler {
   private subscribe(id: string): void {
     const c = this.findChannel(id);
     if (c === null || c.guildId === '' || id === this.subscribedTo) return;
-    this.members = []; this.membersOf = c.guildId; this.subscribedTo = id;
-    this.gateway.subscribe(subscription(c.guildId, id));
+    this.members = []; this.membersOf = c.guildId; this.subscribedTo = id; this.subscribedRanges = '';
+    this.memberRows(0, 0);
+  }
+  /** The member list shows rows first..last: op 37 asks for their ranges when they are not the ones asked for already (the list scrolled
+   *  to another hundred). */
+  memberRows(first: i32, last: i32): void {
+    const c = this.findChannel(this.subscribedTo);
+    const rs = ranges(first, last), key = JSON.stringify(rs);
+    if (c === null || key === this.subscribedRanges) return;
+    this.subscribedRanges = key;
+    this.gateway.subscribe(subscription(c.guildId, c.id, rs));
   }
   private memberListUpdated(d: any): void {
     if (str(d.guild_id) !== this.membersOf) return;
-    applyMemberListUpdate(this.members, d, (u: any): string => this.user(u).id);
-    this.log(`members ${this.membersOf}: ${this.members.map((r: MemberRow) => r.group !== '' ? `[${r.group} ${r.count}]` : `${this.userName(r.userId)}(${r.status})`).join(' ')}`);
+    applyMemberListUpdate(this.members, d, (u: any): string => this.user(u).id, (r: MemberRow): void => {
+      const p = this.presence(r.userId); p.status = r.status; p.mobile = r.mobile;
+    });
+    const known = this.members.filter((r: MemberRow) => r.known);
+    this.log(`members ${this.membersOf}: ${known.slice(0, 12).map((r: MemberRow) => r.group !== '' ? `[${this.groupName(r.group)} ${r.count}]` : `${r.nick !== '' ? r.nick : this.userName(r.userId)}(${r.status}${r.mobile ? ' mobile' : ''}${this.roleColor(r) !== 0 ? ' coloured' : ''})`).join(' ')}${known.length > 12 ? ' …' : ''}, ${known.length} of ${this.members.length} rows`);
+  }
+  /** A header's name: a role's, Online or Offline. */
+  groupName(id: string): string { return id === 'online' ? 'Online' : id === 'offline' ? 'Offline' : this.roleName(id); }
+  /** The colour of a member's name: that of their highest role with one, 0 when none. */
+  roleColor(r: MemberRow): i32 {
+    const g = this.findGuild(this.membersOf);
+    let best = -1, color = 0;
+    if (g !== null) for (const id of r.roles) {
+      const c = g.roleColors.get(id) ?? 0, pos = g.rolePositions.get(id) ?? 0;
+      if (c !== 0 && pos > best) { best = pos; color = c; }
+    }
+    return color;
+  }
+  private presence(userId: string): Presence {
+    const known = this.presences.get(userId);
+    if (known !== undefined) return known;
+    const p = new Presence();
+    this.presences.set(userId, p);
+    return p;
+  }
+  /** Someone's presence, 'offline' when none is known. */
+  presenceOf(userId: string): Presence { const p = this.presences.get(userId); return p !== undefined ? p : new Presence(); }
+  /** PRESENCE_UPDATE (and READY's): a friend's or a DM's status, from any server or none. */
+  private presenceUpdated(d: any): void {
+    const id = d.user !== undefined && d.user !== null ? str(d.user.id) : str(d.user_id);
+    if (id === '') return;
+    const p = this.presence(id);
+    p.status = str(d.status) !== '' ? str(d.status) : 'offline'; p.mobile = mobileOnly(d.client_status);
+    this.log(`presence ${this.userName(id)}: ${p.status}${p.mobile ? ' mobile' : ''}`);
   }
 
   // ------------------------------------------------------------------ writing

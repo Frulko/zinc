@@ -6,7 +6,8 @@
 // answered with a MESSAGE_ACK of #welcome (read on another device). Pictures: the CDN (/cdn/) serves the PNGs of FAKE_ASSETS for avatars,
 // server icons and emoji; #general's photo has an expired signed URL, which only /attachments/refresh-urls makes valid. Upload: POST
 // /channels/302/attachments gives an upload_url on this server, the PUT there stores the bytes, and the message that names them carries an
-// image attachment. Op 37 for #general answers a member list SYNC, then an INSERT and an UPDATE. #general has FAKE_HISTORY messages before
+// image attachment. Op 37 answers a SYNC of each range of the member list it asks for (a hoisted role, Online, Offline: 156 rows), then an
+// INSERT and an UPDATE, and a PRESENCE_UPDATE; READY gives the friends' presences (Grace on her phone). #general has FAKE_HISTORY messages before
 // its last three (67 by default: a first page of 50, then one of 20), paged by ?before=. Voice (tests/t1/discord_voice.sh): op 4 answers
 // VOICE_STATE_UPDATE (ours and Grace's, who is in every call) and VOICE_SERVER_UPDATE naming a voice gateway v8 on this machine (Hello,
 // Ready with a UDP port, IP discovery, Session Description in the mode chosen, Speaking for Grace); Grace's audio is ours sent back: each
@@ -36,7 +37,7 @@ const users: any[] = [{ id: '101', username: 'grace', global_name: 'Grace', avat
 const katherine: any = { id: '103', username: 'katherine', global_name: 'Katherine', avatar: 'av103' };
 const guilds: any[] = [
   { id: '200', properties: { name: 'Zinc Lab', icon: 'ic200', owner_id: '101' }, roles: [{ id: '200', name: '@everyone', permissions: '1024' },
-    { id: '500', name: 'maintainers', permissions: '8192' }], channels: [
+    { id: '500', name: 'maintainers', permissions: '8192', color: 3447003, hoist: true, position: 1 }], channels: [
     { id: '301', type: 4, name: 'Text', position: 0 },
     { id: '302', type: 0, name: 'general', position: 0, parent_id: '301', last_message_id: '903' },
     { id: '303', type: 0, name: 'random', position: 1, parent_id: '301' },
@@ -343,25 +344,37 @@ function rest(req: Request): Reply {
   return json(404, '{"message":"404: Not Found","code":0}');
 }
 
-/** Op 37: the member list of #general (a SYNC of the range), then Katherine comes online (INSERT) and Grace goes idle (UPDATE). */
+/** The member list of Zinc Lab, as Discord groups it: the hoisted role maintainers (Ada), Online (Grace), Offline (linus and 150 more). */
+const member = (u: any, status: string, roles: string[], mobile: boolean = false): any =>
+  ({ member: { user: u, roles: roles, nick: null, presence: { status: status, client_status: mobile ? { mobile: status } : { desktop: status } } } });
+const memberRows: any[] = [{ group: { id: '500', count: 1 } }, member(me, 'online', ['500']), { group: { id: 'online', count: 1 } }, member(users[0], 'online', []),
+  { group: { id: 'offline', count: 151 } }, member(users[1], 'offline', [])];
+for (let k = 0; k < 150; k++) memberRows.push(member({ id: `${7000 + k}`, username: `member${k}`, global_name: null, avatar: null }, 'offline', []));
+let memberGroups: any[] = [{ id: '500', count: 1 }, { id: 'online', count: 1 }, { id: 'offline', count: 151 }];
+
+/** Op 37: a SYNC of each range asked for (the rows on screen); after the second subscription Katherine comes online on her phone (INSERT),
+ *  Grace goes idle (UPDATE) and linus is busy (PRESENCE_UPDATE, as a friend). */
 function memberList(d: any): void {
   const g: any = d.subscriptions['200'];
   if (g === undefined) return;
-  const ranges: any = g.channels['302'];
-  console.log(`subscribe guild=200 channel=302 ranges=${JSON.stringify(ranges)} typing=${g.typing}`);
-  const member = (u: any, status: string): any => ({ member: { user: u, roles: [], nick: null, presence: { status: status } } });
-  dispatch('GUILD_MEMBER_LIST_UPDATE', { guild_id: '200', id: 'everyone', member_count: 3, online_count: 2,
-    groups: [{ id: 'online', count: 2 }, { id: 'offline', count: 1 }],
-    ops: [{ op: 'SYNC', range: [0, 99], items: [{ group: { id: 'online', count: 2 } }, member(users[0], 'online'), member(me, 'online'),
-      { group: { id: 'offline', count: 1 } }, member(users[1], 'offline')] }] });
+  for (const ch in g.channels) {
+    const ranges: any = g.channels[ch];
+    console.log(`subscribe guild=200 channel=${ch} ranges=${JSON.stringify(ranges)} typing=${g.typing}`);
+    const ops: any[] = [];
+    for (const r of ranges) ops.push({ op: 'SYNC', range: r, items: memberRows.slice(r[0], r[1] + 1) });
+    dispatch('GUILD_MEMBER_LIST_UPDATE', { guild_id: '200', id: 'everyone', member_count: 152, online_count: 2, groups: memberGroups, ops: ops });
+  }
   // the changes follow the second subscription (the session back on #general after the resume): the first one falls before the dropped
   // connection, which would lose them (the fake replays nothing on a resume)
   if (++subscriptions < 2 || listed) return;
   listed = true;
   setTimeout(() => {
-    dispatch('GUILD_MEMBER_LIST_UPDATE', { guild_id: '200', id: 'everyone', member_count: 4, online_count: 3,
-      groups: [{ id: 'online', count: 3 }, { id: 'offline', count: 1 }],
-      ops: [{ op: 'INSERT', index: 3, item: member(katherine, 'online') }, { op: 'UPDATE', index: 1, item: member(users[0], 'idle') }] });
+    const kath = member(katherine, 'online', [], true), idle = member(users[0], 'idle', []);
+    memberRows.splice(4, 0, kath); memberRows[3] = idle; memberRows[2] = { group: { id: 'online', count: 2 } };
+    memberGroups = [{ id: '500', count: 1 }, { id: 'online', count: 2 }, { id: 'offline', count: 151 }];
+    dispatch('GUILD_MEMBER_LIST_UPDATE', { guild_id: '200', id: 'everyone', member_count: 153, online_count: 3, groups: memberGroups,
+      ops: [{ op: 'INSERT', index: 4, item: kath }, { op: 'UPDATE', index: 3, item: idle }] });
+    dispatch('PRESENCE_UPDATE', { user: { id: '102' }, status: 'dnd', client_status: { desktop: 'dnd' }, activities: [] });
   }, 300);
 }
 
@@ -545,7 +558,8 @@ async function main(): Promise<void> {
         if (p.d.token !== TOKEN) { ws.close(4004, 'Authentication failed.'); return; }
         dispatch('READY', { v: 9, user: me, users: users, guilds: guilds, private_channels: dms, session_id: 'sess-1',
           resume_gateway_url: `ws://127.0.0.1:${gwPort}`, read_state: { entries: readStates, partial: false, version: 1 },
-          merged_members: [[{ user_id: '100', roles: ['500'] }], [{ user_id: '100', roles: [] }]] });   // Ada maintains Zinc Lab (Manage Messages)
+          merged_members: [[{ user_id: '100', roles: ['500'] }], [{ user_id: '100', roles: [] }]],   // Ada maintains Zinc Lab (Manage Messages)
+          merged_presences: { friends: [{ user_id: '101', status: 'online', client_status: { mobile: 'online' } }, { user_id: '102', status: 'idle', client_status: { web: 'idle' } }] } });
       } else if (p.op === 6) {
         console.log(`resume session=${p.d.session_id} seq=${p.d.seq}`);
         dispatch('RESUMED', null);

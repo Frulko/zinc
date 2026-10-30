@@ -26,7 +26,9 @@ a dropped connection resumes. Pictures: avatars, server icons, custom emoji (lar
 come from Discord's CDN and are kept on disk (`<data dir>/cdn`); an attachment whose signed URL expired is renewed first. Unicode emoji
 are drawn in colour (`"text": "shaped"` in `zinc.json`). Files: the **+** button, or a file dropped on the window, sends it to the
 open channel with Discord's upload flow (the file goes to the storage URL Discord gives, then the message names it). The member list of
-a server channel shows on the right, grouped (online, offline, roles), with each member's status. Writing: **Enter** sends, **Shift+Enter** starts a new line; under the pointer a
+a server channel shows on the right as Discord groups it (hoisted roles, Online, Offline, with their counts), each member with their
+presence (online, idle, do not disturb, on a phone) and their name in their role's colour; only the hundreds of rows on screen are asked
+for. DMs show the other person's avatar and presence. Writing: **Enter** sends, **Shift+Enter** starts a new line; under the pointer a
 message offers **Reply**, and on yours **Edit** and **Delete** (click twice); **Up** in an empty box edits your last message, **Escape**
 cancels a reply or an edit. Who is typing shows under the box, and you are shown typing to the others while you type. Unread channels are
 white, with their count of mentions (servers in the rail too); a channel is marked read once its end shows (as reading it on another device
@@ -45,7 +47,7 @@ pins, boosts, calls, threads) as one line; a type the app does not know says "Un
 channel and open like a channel; a forum opens on its posts. Discord's rate limits are honoured: a request waits while its bucket is empty or 50 went in the
 last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a minute, and a refusal (a captcha, a verification, a long
 429) is shown plainly and pauses the background requests; every request the app makes is listed in
-[docs/reports/discord-client-requests.md](../../docs/reports/discord-client-requests.md). Not yet: animated emoji and avatars show their first frame, the member list shows its first 100 members. Coming in order
+[docs/reports/discord-client-requests.md](../../docs/reports/discord-client-requests.md). Not yet: animated emoji and avatars show their first frame, your own status is not shown. Coming in order
 (milestone M28): notifications (ZN-870), voice (ZN-872), video (ZN-873), screen sharing (ZN-875).
 
 ## Layout of `src/`

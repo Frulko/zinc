@@ -27,7 +27,7 @@ Sources (Discord developer documentation, read 2026-10-30):
 | op 2 IDENTIFY | a new session: launch or login, after op 9 `d: false`, after close 4007/4009 | once per launch normally; at most 1 per 5 s and 50 a day per process (Discord: 1000 a day) |
 | op 6 RESUME | every other reconnect (drop, op 7, zombie connection, op 9 `d: true`) on `resume_gateway_url` | per drop |
 | op 1 heartbeat | every `heartbeat_interval` (about 41 s), first at a random point of it; and when the server asks | ~1.5 a minute |
-| op 37 guild subscriptions | a server channel is opened: its first 100 member rows, typing, activities, threads | per channel switch, not again for the channel already subscribed on this session |
+| op 37 guild subscriptions | a server channel is opened: its first 100 member rows, typing, activities, threads; the member list scrolled to another hundred: the ranges on screen (3 at most) | per channel switch, not again for the channel already subscribed on this session; per hundred of rows scrolled to |
 | op 4 voice state | joining, muting, deafening, leaving a call (person's action) | per action |
 
 No op 8 (request guild members), no op 14 or bulk member paging, no subscription of channels that are not on screen.

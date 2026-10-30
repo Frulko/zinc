@@ -19,6 +19,7 @@ import { store, Message, Attachment, Guild } from './state';
 import { parse, describe } from './markdown';
 import { picturesLoading } from './services/cdn';
 import { historyList } from './components/MessageView';
+import { memberList } from './components/MemberList';
 import { showcase } from './showcase';
 import { startNotifications } from './services/notifications';
 import * as notifs from './services/notifications';
@@ -306,7 +307,14 @@ const last = (ch: string): Message | null => { const l = store.messages.get(ch);
 /** Pictures, files and members: the member list (SYNC, then an INSERT and an UPDATE), the page of history before the first, a file sent
  *  with the cloud upload, and every picture of the channel loaded (from the CDN, the disk, an expired attachment URL renewed). */
 async function media(id: string): Promise<void> {
-  await until(() => store.members.length >= 6);
+  await until(() => store.members.length === 157 && store.presenceOf('102').status === 'dnd');   // Katherine came, linus is busy
+  ui.scrollTo(memberList(), 0, 1e9);                                            // the list's end: op 37 asks for its second hundred
+  await until(() => store.members[156].known);
+  console.log(`member list scrolled: ${store.members.filter((r) => r.known).length} of ${store.members.length} rows, last ${store.userName(store.members[156].userId)}`);
+  const pr = (id: string): string => { const p = store.presenceOf(id); return `${p.status}${p.mobile ? ' (mobile)' : ''}`; };
+  console.log(`presences: Grace ${pr('101')}, linus ${pr('102')}, Katherine ${pr('103')}, Ada's name ${store.roleColor(store.members[1]).toString(16)}`);
+  ui.scrollTo(memberList(), 0, 0);
+  await shot('members');                                                       // DISCORD_SHOTS: the list and the DMs' presences, to look at
   const n = await store.loadOlder();
   console.log(`older page: ${n} messages, all loaded ${store.allLoaded(id)}, ${count(id)} in the channel`);
   store.typed('Here is the photo');

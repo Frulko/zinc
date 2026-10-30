@@ -23,9 +23,12 @@ history 400: 1 messages
 history 50
 jump 302: present
 markdown h1:Notes | text:*bold* /it/ _under_ ~gone~ `code` ▒••••••▒ <@Grace> in <#general> [:zinc:] {https://zinc.dev} {_site_} | quote:quoted | code(ts):let x = 1;
-members 200: [online 2] Grace(online) Ada(online) [offline 1] linus(offline)
-members 200: [online 2] Grace(online) Ada(online) [offline 1] linus(offline)
-members 200: [online 3] Grace(idle) Ada(online) Katherine(online) [offline 1] linus(offline)
+member list scrolled: 157 of 157 rows, last member149
+members 200: [maintainers 1] Ada(online coloured) [Online 1] Grace(online) [Offline 151] linus(offline) member0(offline) member1(offline) member2(offline) member3(offline) member4(offline) member5(offline) …, 100 of 156 rows
+members 200: [maintainers 1] Ada(online coloured) [Online 1] Grace(online) [Offline 151] linus(offline) member0(offline) member1(offline) member2(offline) member3(offline) member4(offline) member5(offline) …, 100 of 156 rows
+members 200: [maintainers 1] Ada(online coloured) [Online 2] Grace(idle) Katherine(online mobile) [Offline 151] linus(offline) member0(offline) member1(offline) member2(offline) member3(offline) member4(offline) …, 101 of 157 rows
+members 200: [maintainers 1] Ada(online coloured) [Online 2] Grace(idle) Katherine(online mobile) [Offline 151] linus(offline) member0(offline) member1(offline) member2(offline) member3(offline) member4(offline) …, 157 of 157 rows
+members 200: [maintainers 1] Ada(online coloured) [Online 2] Grace(idle) Katherine(online mobile) [Offline 151] linus(offline) member0(offline) member1(offline) member2(offline) member3(offline) member4(offline) …, 157 of 157 rows
 message in 302 from Grace: Back after the drop
 message in 302 from Grace: Got it, *thanks*
 message in 302 from Grace: Seen here, no notification
@@ -44,6 +47,10 @@ picture avatars/103/av103.png: from the CDN
 picture emojis/77.png: from the CDN
 picture emojis/78.png: from the disk
 picture icons/200/ic200.png: from the CDN
+presence Grace: online mobile
+presence linus: dnd
+presence linus: idle
+presences: Grace idle, linus offline, Katherine online (mobile), Ada's name 3498db
 rate limit: 429 on PATCH /channels/302/messages/:id, retry after its bucket
 rate limit: PATCH /channels/302/messages/:id waits for its bucket
 rate limit: POST /channels/302/messages waits for its bucket
