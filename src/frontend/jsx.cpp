@@ -1293,6 +1293,13 @@ struct Lowering {
       const Attr* sk = find("scrollKey");   // before the rows: the kept offset is taken at the first layout, so only the rows there are built
       if (sk && sk->kind == 1) out.push_back("_str(" + v + ", 'scrollKey', " + quote(sk->lit) + ");");
       else if (sk) out.push_back(react ? "_str(" + v + ", 'scrollKey', " + valueOf(*sk) + ");" : "_dynStr(" + v + ", 'scrollKey', () => (" + valueOf(*sk) + "));");
+      for (const Attr& a : e.attrs) {   // the scroll flags of a ScrollView (stickToBottom: a chat's history); anything else is refused, not dropped
+        if (a.name == "count" || a.name == "itemHeight" || a.name == "estimatedItemHeight" || a.name == "className" || a.name == "ref" || a.name == "scrollKey" || a.name == "key") continue;
+        if (!kFlagAttrs.count(a.name)) fail(a.tok, "unknown attribute '" + a.name + "' on <VirtualList>");
+        const std::string x = a.kind == 2 ? valueOf(a) : "";
+        if (a.kind != 2 || x == "true" || x == "false") out.push_back("_num(" + v + ", '" + a.name + "', " + (x == "false" ? "0" : "1") + ");");
+        else out.push_back(react ? "_num(" + v + ", '" + a.name + "', (" + x + ") ? 1 : 0);" : "_dynNum(" + v + ", '" + a.name + "', () => ((" + x + ") ? 1 : 0));");
+      }
       const std::string height = ih ? valueOf(*ih) : "-(" + valueOf(*est) + ")";
       out.push_back(react ? "_virtual(" + v + ", " + valueOf(*count) + ", " + height + ", " + rw(c->eb, c->ee) + ");"
                           : "_virtual(" + v + ", () => (" + valueOf(*count) + "), " + height + ", " + rw(c->eb, c->ee) + ");");

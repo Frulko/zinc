@@ -724,9 +724,11 @@ export function virtualize(h: i32, count: i32, itemH: number, render: (i: i32) =
   if (v === null) { v = new Virtual(render); n.virt = v; virtList.push(h); }
   const vv = v as Virtual;
   // a negative itemH is an estimate: rows have their own heights (ZN-193)
+  // the heights measured so far stay with their rows: a list rendered again (a message came, the count grew) keeps what it shows in place
+  const keep = vv.variable && itemH < 0;
   vv.render = render; vv.count = count; vv.itemH = itemH < 0 ? -itemH : itemH; vv.drop = drop;
   vv.variable = itemH < 0;
-  if (vv.variable) fwBuild(vv, vv.itemH);
+  if (vv.variable) fwBuild(vv, vv.itemH, keep);
   vv.rows.forEach((row: i32, i: i32) => { if (drop !== null) drop(row); detach(h, row); release(row); });
   vv.rows = new Map<i32, i32>();
   vv.first = 0; vv.last = -1;
@@ -743,9 +745,13 @@ export function scrollToRow(h: i32, i: i32): void {
   else if (top + rh > n.sy + n.lh) scrollTo(h, n.sx, top + rh - n.lh);
 }
 // Fenwick tree over the row heights of a variable list: offset of a row and the row at an offset, both O(log n); 100k rows cost two arrays.
-function fwBuild(v: Virtual, est: number): void {
+function fwBuild(v: Virtual, est: number, keep: boolean): void {
+  const hs = v.hs, known = v.known;
   v.hs = []; v.known = []; v.tree = [0];
-  for (let i = 0; i < v.count; i++) { v.hs.push(est); v.known.push(false); v.tree.push(est); }
+  for (let i = 0; i < v.count; i++) {
+    const k = keep && i < known.length && known[i], h = k ? hs[i] : est;
+    v.hs.push(h); v.known.push(k); v.tree.push(h);
+  }
   for (let i = 1; i <= v.count; i++) { const j = i + (i & -i); if (j <= v.count) v.tree[j] = v.tree[j] + v.tree[i]; }
 }
 function fwPrefix(v: Virtual, i: i32): number { let s = 0; for (let k = i; k > 0; k -= k & -k) s += v.tree[k]; return s; }
