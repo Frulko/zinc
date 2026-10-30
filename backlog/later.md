@@ -560,6 +560,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-878: top-level await is refused (Z0005); scripts and tests have to wrap their code in an async main.
 - ZN-878: the GL replay (runtime/gl_replay.cpp) draws text from the glyph tables only, with no shaping hook: emoji and complex scripts would be '?' there.
 - ZN-878: a 6 MB WebSocket message still takes 0.7 s natively (slices and the byte-by-byte join of plugins/socket); a native frame reader would make it a few ms.
+- ZN-880: style runs and inline pictures in the rn layout engine (Yoga, LY.text), which ignores setTextRuns: React Native apps on ui.layout "rn" cannot nest inline images.
+- ZN-880: each line as high as its own tallest picture, instead of every line taking the paragraph's tallest; matters for long paragraphs with one tall picture.
+- ZN-880: inline pictures under numberOfLines, truncate, whitespace-* and text-balance, where runs are off and the U+FFFC shows as a character.
+- ZN-880: a line break between two adjacent inline pictures with no space (`:a::b:`), as CSS allows; today they wrap as one word.
+- ZN-880: the ir/zbc golden "exceptions" differs in helper numbering (__log47 against __log50) on develop's binary; re-record or find what moved.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
