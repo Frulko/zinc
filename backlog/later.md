@@ -538,6 +538,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-563.03: plugin options (zinc.json "plugins": {"3d": {msaa, filter}}) do not reach a web export's page; render3d.js uses 4x MSAA and mipmaps.
 - ZN-563.03: zinc:3d in the semantic DOM render (render: dom) is untested; only the canvas render ran in Chrome.
 - ZN-563.03: web_3d's SSIM is measured with headless Chrome's GL; check it on a CI runner before the release tier, or list it in tests/ci/off.txt like three_gpu.
+- ZN-864: Elements of a window drawn by a worker Scene (sprite-studio's preview) shows one `<window>` node; list the Scene's shapes once devtools can read them without linking zinc:system's native code.
+- ZN-864: picking in a side window is proven only through DOM.getNodeForLocation; add a scripted pick with pointer input sent to that window.
+- ZN-864: cdp.host.cpp (the rpi1 transport) lists the main window only; add the per-window targets of cdp.next.ts.
+- ZN-864: headless sprite-studio's main-window captureScreenshot came back 320x240 while getInfo says 560x600.
 - Frontend: in a module read only for its types, a method with no return type that returns a value (or an async one) still fails with Z0109 once its body is dropped; the shape could keep the type the full check infers.
 - Tests: sidecar_stream/sidecar_session left three `zinc run <tmp>/sidecar` orphans (29 h, SIGTERM ignored) that make tour's "still running" check fail; make the sidecar program end on SIGTERM and the tests kill what they start, and scope tour's pgrep to its own folder.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
