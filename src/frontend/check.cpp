@@ -3509,8 +3509,10 @@ struct Checker {
   // Narrowing of property paths (`this.head`, `n.next.next`, `a[i]`): a path of locals, `this`, fields and constant or local indexes gets a
   // symbol of its own, so the facts of a test of it are kept like those of a variable. A write to a local, a field or an element, and a
   // call of a method on a path, forget what was known below it (the rule: only the object whose method runs, or a path through it, may change).
+  // pathSyms is never emptied: a scan of every path at each write or method call was 0.4 of the check of examples/ipod. pathsOf finds the
+  // paths of a local, and the paths below a key are a range of the ordered map.
   std::map<std::string, std::uint32_t> pathSyms;
-  std::map<std::string, std::vector<std::uint32_t>> pathRoots;  // the locals a path depends on (its base and the locals that index it)
+  std::unordered_map<std::uint32_t, std::vector<const std::string*>> pathsOf;   // a local -> the keys of the paths that depend on it (its base, its indexes)
   std::uint32_t identSym(std::uint32_t id) const { return out.nodeSym[id] != kNone ? out.nodeSym[id] : lookup(n(id).text); }
   // The key of a path node, or "" when it is not one. `roots` collects the locals the path depends on.
   std::string pathKey(std::uint32_t node, std::vector<std::uint32_t>* roots = nullptr) const {
@@ -3539,8 +3541,12 @@ struct Checker {
     auto it = pathSyms.find(key);
     if (it != pathSyms.end()) return it->second;
     out.syms.push_back({SymKind::Var, keep(key), declared, kNone, false});
-    pathRoots[key] = roots;
-    return pathSyms[key] = static_cast<std::uint32_t>(out.syms.size() - 1);
+    auto at = pathSyms.emplace(key, static_cast<std::uint32_t>(out.syms.size() - 1)).first;
+    std::vector<std::uint32_t> rs = roots;
+    std::sort(rs.begin(), rs.end());
+    rs.erase(std::unique(rs.begin(), rs.end()), rs.end());
+    for (std::uint32_t r : rs) pathsOf[r].push_back(&at->first);
+    return at->second;
   }
   // The symbol standing for the node, if it is a path some test or write has met before.
   std::uint32_t pathSymOf(std::uint32_t node) const {
@@ -3554,15 +3560,19 @@ struct Checker {
     std::string k = pathKey(node, &roots);
     return k.empty() ? kNone : pathSymFor(k, roots, declared);
   }
-  void forgetPaths(const std::function<bool(const std::string&, const std::vector<std::uint32_t>&)>& pick) {
-    for (auto& [k, sy] : pathSyms) if (pick(k, pathRoots[k])) narrowing.push_back({sy, out.syms[sy].type});
-  }
   void resetPaths(std::uint32_t base) {  // the local was assigned: what was known about the paths that use it is gone
-    forgetPaths([&](const std::string&, const std::vector<std::uint32_t>& roots) { return std::find(roots.begin(), roots.end(), base) != roots.end(); });
+    auto it = pathsOf.find(base);
+    if (it == pathsOf.end()) return;
+    std::vector<const std::string*> keys = it->second;
+    std::sort(keys.begin(), keys.end(), [](const std::string* a, const std::string* b) { return *a < *b; });   // in key order, as a scan of the map would
+    for (const std::string* k : keys) { const std::uint32_t sy = pathSyms.find(*k)->second; narrowing.push_back({sy, out.syms[sy].type}); }
   }
   void resetBelow(const std::string& key) {  // a write or call on `key`: its fields and elements may have changed
     if (key.empty()) return;
-    forgetPaths([&](const std::string& k, const std::vector<std::uint32_t>&) { return k.size() > key.size() && k.compare(0, key.size(), key) == 0 && (k[key.size()] == '.' || k[key.size()] == '['); });
+    for (const char sep : {'.', '['}) {   // '.' sorts before '[': the order of a scan of the map
+      const std::string from = key + sep;
+      for (auto it = pathSyms.lower_bound(from); it != pathSyms.end() && it->first.compare(0, from.size(), from) == 0; ++it) narrowing.push_back({it->second, out.syms[it->second].type});
+    }
   }
   bool trackable(std::uint32_t sym) const { return out.syms[sym].kind == SymKind::Var || out.syms[sym].kind == SymKind::Param; }
   TypeId currentType(std::uint32_t sym, const std::vector<Fact>* extra = nullptr) const {
