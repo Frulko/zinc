@@ -9,11 +9,14 @@
 # The engine (ZN-844): `tools/rmpp-engine --publish` sends a bundle (a stand-in here) with the publisher token; the signed catalog lists it
 # (version, zbc, rt, url, sha256, size), a paired device downloads it, the admin page shows it; a wrong token, an older version and a body
 # that is not a gzip are refused.
+# Targets (ZN-889): an app published with --target rpi and rpi2 has one package per target; a changed target= is refused; the
+# player of a Pi pairs, installs the package of its target into the agent's apps (app.zapp, app.json).
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 command -v curl >/dev/null && command -v python3 >/dev/null || { echo "SKIP: needs curl and python3"; exit 77; }
 tmp=$(mktemp -d); srv=
 trap '[ -n "$srv" ] && { kill $srv; wait $srv; } 2>/dev/null; rm -rf "$tmp"' EXIT
+zinc_home=${ZINC_HOME:-$HOME/.zinc}   # the player runs with the plugins already built there
 export ZINC_HOME="$tmp/home"
 fail=0
 eval "$("$Z" update-keygen | sed 's/^/k_/')"   # k_seed, k_public: the app's key
@@ -131,6 +134,49 @@ echo '{"version":"1.0.0+28.gb75e2b04","zbc":8,"rt":600}' >"$eng/engine.json"
 out=$(tools/rmpp-engine --publish "$hub" --token "$token" -o "$eng" 2>&1); echo "$out" | grep -q 'stored the engine 1.0.0+28.gb75e2b04' || { echo "a later dev build: $out"; fail=1; }
 echo '{"version":"1.0.0+21.gc6c2ce83","zbc":8,"rt":600}' >"$eng/engine.json"
 out=$(tools/rmpp-engine --publish "$hub" --token "$token" -o "$eng" 2>&1) && { echo "an older dev build is accepted: $out"; fail=1; }
+
+# targets (ZN-889): one app published for two Pis, rpi (linux-aarch64) and rpi2 (linux-armv7): one package per (channel, target), each
+# listed with its target in the signed catalog; the manifest names its target under the app's signature, so a manifest whose target was
+# changed is refused; the Pi's player (ZINC_PLAYER_HUB_INSTALL) pairs, takes the package of its target and writes the agent's layout
+"$Z" new cli "$tmp/pi" >/dev/null || exit 2
+python3 - "$tmp/pi/zinc.json" "$k_public" <<'PY'
+import json, sys
+p, key = sys.argv[1:]
+d = json.load(open(p)); d['app'] = {'id': 'com.example.pi', 'version': '1.0.0', 'name': 'Pi App'}
+d['update'] = {'url': 'http://127.0.0.1/', 'channel': 'stable', 'publicKey': key}
+json.dump(d, open(p, 'w'))
+PY
+for t in rpi rpi2; do
+  out=$("$Z" publish "$tmp/pi" --target $t --key "$k_seed" -o "$tmp/out-$t" --hub "$hub" --token "$token" 2>&1)
+  echo "$out" | grep -q "stored com.example.pi 1.0.0 on stable for linux-a" || { echo "publish --target $t: $out"; fail=1; }
+done
+grep -qx 'target=linux-aarch64' "$tmp/out-rpi/stable-linux-aarch64.manifest" && grep -qx 'kind=zapp' "$tmp/out-rpi/stable-linux-aarch64.manifest" \
+  || { echo "the rpi manifest: $(cat "$tmp/out-rpi/stable-linux-aarch64.manifest")"; fail=1; }
+out=$("$Z" publish "$tmp/pi" --target rpi --key "$k_seed" -o "$tmp/out-again" --hub "$hub" --token "$token" 2>&1) && { echo "the same version for the same target is accepted: $out"; fail=1; }
+echo "$out" | grep -q 'not newer than 1.0.0 on stable for linux-aarch64' || { echo "same target again: $out"; fail=1; }
+# a signed manifest whose target was changed: the signature no longer verifies
+m7=$tmp/out-rpi2/stable-linux-armv7.manifest
+sed 's/^target=linux-armv7$/target=linux-armv6/' "$m7" >"$tmp/m6" && cat "$tmp/m6" "$tmp/out-rpi2/pi-1.0.0-linux-armv7.zapp" >"$tmp/body6"
+out=$(curl -s -X POST -H "Authorization: Bearer $token" -H "X-Manifest-Length: $(wc -c <"$tmp/m6" | tr -d ' ')" --data-binary @"$tmp/body6" "$hub/publish")
+echo "$out" | grep -q 'manifest signature does not verify' || { echo "a manifest with a changed target is accepted: $out"; fail=1; }
+curl -sf -H "$auth" "$hub/catalog.json" >"$tmp/cat-t.json" || fail=1
+python3 - "$tmp/cat-t.json" <<'PY' || fail=1
+import json, sys
+app = [a for a in json.load(open(sys.argv[1]))['apps'] if a['id'] == 'com.example.pi'][0]
+got = sorted((c['channel'], c['target'], c['kind'], c['url']) for c in app['channels'])
+want = [('stable', 'linux-aarch64', 'zapp', 'apps/com.example.pi/pi-1.0.0-linux-aarch64.zapp'), ('stable', 'linux-armv7', 'zapp', 'apps/com.example.pi/pi-1.0.0-linux-armv7.zapp')]
+if got != want: sys.exit(f'the catalog lists {got}, not {want}')
+PY
+curl -sf -H "$auth" "$hub/apps/com.example.pi/stable/linux-armv7.manifest" | cmp -s - "$m7" || { echo "the linux-armv7 manifest is not served"; fail=1; }
+# the player of an armv7 Pi installs the linux-armv7 package into a fresh agent home
+pc=$(sed -n 's/^hub: pairing code //p' "$tmp/hub.log" | tail -1)
+out=$(env ZINC_HOME="$zinc_home" ZINC_HEADLESS=1 ZINC_FRAMES=100000 ZINC_PLAYER_POLL_MS=2 ZINC_PLAYER_UPDATE_CHECK=0 ZINC_ADMIN=/usr/bin/false \
+  ZINC_RUN="$tmp/prun" ZINC_PLAYER_CONFIG="$tmp/player.json" ZINC_PLAYER_AGENT_DIR="$tmp/agent" ZINC_HUB_DIR="$tmp/hubdir" \
+  ZINC_PLAYER_TARGETS=linux-armv7,any,rpi2 ZINC_PLAYER_HUB_INSTALL="$hub" ZINC_PLAYER_HUB_CODE="$pc" ZINC_PLAYER_HUB_APP=com.example.pi \
+  timeout 180 "$Z" run image/player 2>&1)
+echo "$out" | grep -q 'hub: Installed Pi App 1.0.0. (linux-armv7, zapp)' || { echo "the player's install: $(echo "$out" | tail -5)"; fail=1; }
+cmp -s "$tmp/agent/apps/pi/app.zapp" "$tmp/out-rpi2/pi-1.0.0-linux-armv7.zapp" || { echo "the player did not install the linux-armv7 package"; fail=1; }
+grep -q '"title":"Pi App".*"hub":"com.example.pi","version":"1.0.0","target":"linux-armv7"' "$tmp/agent/apps/pi/app.json" || { echo "app.json: $(cat "$tmp/agent/apps/pi/app.json")"; fail=1; }
 
 kill $srv; wait $srv 2>/dev/null; srv=
 [ $fail -eq 0 ] && echo "hub server: ok"

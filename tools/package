@@ -86,6 +86,8 @@ def payload(share):
         copy_tree(os.path.join(REPO, "image", "player"), source, lambda r: not r.startswith(('dist/', 'build/', 'dev/')))
         for plugin in ("network", "shell"):   # the player's plugins/ are links into the repository's
             copy_tree(os.path.join(REPO, "plugins", plugin), os.path.join(source, "plugins", plugin))
+        for app in ("hub", "hub-server"):   # the hub's code the player imports (image/player/shared/app/<app> links to app/<app>, ZN-889)
+            copy_tree(os.path.join(REPO, "app", app, "src"), os.path.join(source, "shared", "app", app, "src"))
         with tarfile.open(os.path.join(share, "image", "player-source.tar.gz"), "w:gz") as bundle:
             for name in sorted(os.listdir(source)):
                 bundle.add(os.path.join(source, name), arcname=name)

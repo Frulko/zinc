@@ -24,6 +24,7 @@ import {
   PAGE_APPS,
   PAGE_CRASH,
   PAGE_HOME,
+  PAGE_HUB,
   PAGE_REFRESH_INTERVAL_MS,
   PAGE_SETTINGS,
   SECTION_WIFI,
@@ -46,7 +47,7 @@ const appPath = fromEnv('ZINC_APP', DEFAULT_APP_PATH);
 const runDirectory = fromEnv('ZINC_RUN', DEFAULT_RUN_DIRECTORY);
 const crashReportPath = runDirectory + '/' + CRASH_REPORT_FILE;
 const adminPath = fromEnv('ZINC_ADMIN', DEFAULT_ADMIN_PATH);
-const agentDirectory = fromEnv('ZINC_PLAYER_AGENT_DIR', zincHome + '/agent');
+export const agentDirectory = fromEnv('ZINC_PLAYER_AGENT_DIR', zincHome + '/agent');
 const configPath = fromEnv('ZINC_PLAYER_CONFIG', zincHome + '/player.json');
 /** The engine's version, which zinc-session passes on (the last word of `zinc --version`: zinc-next 0.6.2). */
 const versionWords = sys.env('ZINC_VERSION').trim().split(' ');
@@ -288,6 +289,7 @@ export function goBack(): void {
   if (appState.appToDelete !== null) cancelDeleteApp();
   else if (appState.page === PAGE_SETTINGS) navigateTo(appState.crashReport !== null ? PAGE_CRASH : PAGE_HOME);
   else if (appState.page === PAGE_APPS) navigateTo(PAGE_HOME);
+  else if (appState.page === PAGE_HUB) navigateTo(PAGE_HOME);
 }
 
 // ----------------------------------------------------------------------------

@@ -3372,10 +3372,12 @@ int main(int argc, char** argv) {
     // verified. --url is where the channel is when zinc.json's update.url is not: an address the app keeps with its content (ZN-650.11)
     namespace fs = std::filesystem;
     const bool publish = !std::strcmp(argv[1], "publish");
-    std::string dir = ".", key, channel, notes, outDir, urlArg, hub, hubToken;
-    bool checkOnly = false;
+    std::string dir = ".", key, channel, notes, outDir, urlArg, hub, hubToken, pubTarget;
+    bool checkOnly = false, asExport = false;
     for (int k = 2; k < argc; ++k) {
       if (!std::strcmp(argv[k], "--key") && k + 1 < argc) key = argv[++k];
+      else if (publish && !std::strcmp(argv[k], "--target") && k + 1 < argc) pubTarget = argv[++k];   // ZN-889: a package for one machine (a Pi)
+      else if (publish && !std::strcmp(argv[k], "--export")) asExport = true;
       else if (publish && !std::strcmp(argv[k], "--hub") && k + 1 < argc) hub = argv[++k];   // ZN-842: upload to app/hub-server
       else if (publish && !std::strcmp(argv[k], "--token") && k + 1 < argc) hubToken = argv[++k];
       else if (!publish && !std::strcmp(argv[k], "--url") && k + 1 < argc) urlArg = argv[++k];
@@ -3398,14 +3400,50 @@ int main(int argc, char** argv) {
       if (zn::tc::publicKeyOf(key) != proj.updateKey) { std::fprintf(stderr, "zinc publish: --key is not the seed of zinc.json update.publicKey\n"); return 2; }
       if (outDir.empty()) outDir = (fs::path(dir) / "dist" / "updates").string();
       std::error_code ec; fs::create_directories(outDir, ec);
-      const std::string file = name + "-" + version + ".zapp", zapp = (fs::path(outDir) / file).string();
-      const std::string cmd = "'" + zn::tc::executablePath() + "' pack '" + dir + "' -o '" + zapp + "' >/dev/null";
-      if (std::system(cmd.c_str()) != 0) { std::fprintf(stderr, "zinc publish: the pack failed\n"); return 1; }
+      if (asExport && pubTarget.empty()) { std::fprintf(stderr, "zinc publish: --export needs --target (rpi, rpi2, rpi1...)\n"); return 2; }
+      // the manifest's target= (ZN-889): a .zapp packed for a Linux machine names its CPU, an export its export target; without --target the
+      // .zapp is `any`, as every package was before targets (the reMarkable's hub takes `any` and linux-aarch64)
+      static const std::map<std::string, std::string> cpus = {{"rpi", "linux-aarch64"}, {"aarch64-linux", "linux-aarch64"}, {"rpi2", "linux-armv7"}, {"armv7-linux", "linux-armv7"},
+                                                              {"rpi1", "linux-armv6"}, {"armhf-linux", "linux-armv6"}, {"x86_64-linux", "linux-x86_64"}};
+      std::string target = "any";
+      if (asExport) target = pubTarget;
+      else if (!pubTarget.empty()) {
+        const auto c = cpus.find(pubTarget);
+        if (c == cpus.end()) { std::fprintf(stderr, "zinc publish: --target takes rpi, rpi2, rpi1 or a Linux target (aarch64-linux, armv7-linux, armhf-linux, x86_64-linux), not '%s'\n", pubTarget.c_str()); return 2; }
+        target = c->second;
+      }
+      const std::string tail = target == "any" ? "" : "-" + target;
+      const std::string file = name + "-" + version + tail + (asExport ? ".tar" : ".zapp"), zapp = (fs::path(outDir) / file).string();
+      const std::string self = zn::tc::executablePath();
+      if (asExport) {   // zinc export --target T, its directory (export's last line) as a deterministic ustar: sorted, time 0, executables 0755
+        std::string said;
+        if (FILE* f = popen(("'" + self + "' export '" + dir + "' --target '" + pubTarget + "'").c_str(), "r")) {
+          char buf[256]; std::size_t n;
+          while ((n = std::fread(buf, 1, sizeof buf, f)) > 0) said.append(buf, n);
+          if (pclose(f) != 0) said.clear();
+        }
+        while (!said.empty() && said.back() == '\n') said.pop_back();
+        const std::string made = said.substr(said.rfind('\n') + 1);
+        if (made.empty() || !fs::exists(fs::path(made) / "run.sh", ec)) { std::fprintf(stderr, "zinc publish: zinc export --target %s made no directory with a run.sh\n", pubTarget.c_str()); return 1; }
+        std::vector<zn::zapp::TarEntry> files;
+        for (auto it = fs::recursive_directory_iterator(made, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+          if (!it->is_regular_file()) continue;   // links are followed by is_regular_file; directories come with their files
+          std::ifstream in(it->path(), std::ios::binary);
+          const bool exec = (fs::status(it->path(), ec).permissions() & fs::perms::owner_exec) != fs::perms::none;
+          files.push_back({it->path().lexically_relative(made).generic_string(), std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()), exec ? 0755u : 0644u, false});
+        }
+        std::sort(files.begin(), files.end(), [](const zn::zapp::TarEntry& a, const zn::zapp::TarEntry& b) { return a.name < b.name; });
+        std::ofstream(zapp, std::ios::binary) << zn::zapp::ustar(files);
+      } else {
+        const std::string cmd = "'" + self + "' pack '" + dir + "' -o '" + zapp + "'" + (pubTarget.empty() ? "" : " --target '" + pubTarget + "'") + " >/dev/null";
+        if (std::system(cmd.c_str()) != 0) { std::fprintf(stderr, "zinc publish: the pack failed\n"); return 1; }
+      }
       std::string manifest = "app=" + (proj.app.id.empty() ? name : proj.app.id) + "\nchannel=" + channel + "\nversion=" + version + "\nurl=" + file + "\nsha256=" + zn::tc::sha256File(zapp) + "\n";
+      if (target != "any") manifest += "target=" + target + "\nkind=" + (asExport ? "export" : "zapp") + "\n";
       if (!notes.empty()) manifest += "notes=" + notes + "\n";
       std::string signedText;
       if (!zn::tc::signManifest(manifest, key, signedText, err)) { std::fprintf(stderr, "zinc publish: %s\n", err.c_str()); return 1; }
-      const fs::path mf = fs::path(outDir) / (channel + ".manifest");
+      const fs::path mf = fs::path(outDir) / (channel + tail + ".manifest");
       std::ofstream(mf) << signedText;
       std::printf("published %s %s on %s: %s, %s\n", name.c_str(), version.c_str(), channel.c_str(), zapp.c_str(), mf.string().c_str());
       if (hub.empty()) return 0;
@@ -3418,11 +3456,11 @@ int main(int argc, char** argv) {
       { std::ofstream(up, std::ios::binary) << body; }
       { std::ofstream h(hd); fs::permissions(hd, fs::perms::owner_read | fs::perms::owner_write, ec);
         h << "Authorization: Bearer " << hubToken << "\nX-Manifest-Length: " << signedText.size() << "\nX-App-Key: " << proj.updateKey << "\nContent-Type: application/octet-stream\n"; }
-      const std::string target = hub + (hub.back() == '/' ? "" : "/") + "publish";
-      const int rc = zn::plat::run({"curl", "-sS", "--fail-with-body", "--max-time", "600", "-X", "POST", "-H", "@" + hd.string(), "--data-binary", "@" + up.string(), target});
+      const std::string endpoint = hub + (hub.back() == '/' ? "" : "/") + "publish";
+      const int rc = zn::plat::run({"curl", "-sS", "--fail-with-body", "--max-time", "600", "-X", "POST", "-H", "@" + hd.string(), "--data-binary", "@" + up.string(), endpoint});
       fs::remove(up, ec); fs::remove(hd, ec);
       std::printf("\n");
-      if (rc != 0) { std::fprintf(stderr, "zinc publish: the hub %s refused the upload (curl exit %d)\n", target.c_str(), rc); return 1; }
+      if (rc != 0) { std::fprintf(stderr, "zinc publish: the hub %s refused the upload (curl exit %d)\n", endpoint.c_str(), rc); return 1; }
       return 0;
     }
     if (proj.updateUrl.empty()) { std::fprintf(stderr, "zinc update-app: zinc.json update.url is where the channel manifests are\n"); return 2; }

@@ -39,7 +39,7 @@ import {
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import * as shell from 'zinc:shell';
-import { PAGE_APP, PAGE_APPS, PAGE_CRASH, PAGE_SETTINGS, TOP_BAR_HEIGHT } from './constants';
+import { PAGE_APP, PAGE_APPS, PAGE_CRASH, PAGE_HUB, PAGE_SETTINGS, TOP_BAR_HEIGHT } from './constants';
 import { DisplayObject, Stage } from './core/display';
 import {
   ScrollBox,
@@ -52,6 +52,7 @@ import {
   uiState,
 } from './core/input';
 import {
+  agentDirectory,
   appState,
   closeForm,
   eraseInForm,
@@ -71,6 +72,8 @@ import { CrashPageNode } from './pages/crash/crash-page';
 import { AppsPageNode } from './pages/apps/apps-page';
 import { SettingsPageNode } from './pages/settings/settings-page';
 import { AppPageNode } from './pages/app/app-page';
+import { HubPageNode } from './pages/hub/hub-page';
+import { installFromEnvironment } from './services/hub';
 
 const WHEEL_STEP_PIXELS = 48;
 const TAP_SLOP_PIXELS = 10;
@@ -89,6 +92,7 @@ const crashPage = new CrashPageNode();
 const settingsPage = new SettingsPageNode();
 const appsPage = new AppsPageNode();
 const appPage = new AppPageNode();
+const hubPage = new HubPageNode();
 const topBar = new TopBarNode();
 const deleteAppDialog = new DeleteAppDialogNode();
 const textForm = new TextFormNode();
@@ -97,7 +101,7 @@ stage.addChild(topBar);
 stage.addChild(deleteAppDialog);
 stage.addChild(textForm);
 /** The nodes as big as the screen. */
-const screenSizedNodes: DisplayObject[] = [pageContainer, homePage, crashPage, settingsPage, appsPage, appPage, deleteAppDialog, textForm];
+const screenSizedNodes: DisplayObject[] = [pageContainer, homePage, crashPage, settingsPage, appsPage, appPage, hubPage, deleteAppDialog, textForm];
 
 let mountedPage = '';
 
@@ -107,7 +111,7 @@ function syncMountedPage(screenWidth: number, screenHeight: number): void {
     mountedPage = appState.page;
     pageContainer.removeChildren();
     const page = appState.page;
-    pageContainer.addChild(page === PAGE_SETTINGS ? settingsPage : page === PAGE_CRASH ? crashPage : page === PAGE_APPS ? appsPage : page === PAGE_APP ? appPage : homePage);
+    pageContainer.addChild(page === PAGE_SETTINGS ? settingsPage : page === PAGE_CRASH ? crashPage : page === PAGE_APPS ? appsPage : page === PAGE_APP ? appPage : page === PAGE_HUB ? hubPage : homePage);
   }
   if (appState.page === PAGE_SETTINGS) settingsPage.syncSection();
   for (let index = 0; index < screenSizedNodes.length; index++) {
@@ -256,6 +260,8 @@ function stepScrollInertia(deltaSeconds: number): void {
   if (scroll.stepInertia(deltaSeconds)) uiState.dirty = true;
 }
 
+// ZINC_PLAYER_HUB_INSTALL: install one app from a hub and end (services/hub.ts), for scripts and tests
+if (sys.env('ZINC_PLAYER_HUB_INSTALL') !== '') installFromEnvironment(agentDirectory);
 escapeByApp(true);
 startRefreshing();
 startShell();

@@ -121,7 +121,8 @@ tar xzf "$ZINC" -C "$R/usr/lib/zinc/engine" --strip-components=1 --no-same-owner
 [ ! -d /src/image/engine-overlay ] || cp -rn /src/image/engine-overlay/. "$R/usr/lib/zinc/engine/"
 ln -sf /usr/lib/zinc/engine/bin/zinc "$R/usr/bin/zinc"
 cp -r /src/image/player "$R/usr/lib/zinc/player"
-tar -czf "$R/usr/lib/zinc/player-source.tar.gz" --exclude=./dev --exclude=./.zinc --exclude=./build -C /src/image/player .
+rm -rf "$R/usr/lib/zinc/player/shared" && cp -rL /src/image/player/shared "$R/usr/lib/zinc/player/shared"   # the hub's code it imports (links to app/)
+tar -czhf "$R/usr/lib/zinc/player-source.tar.gz" --exclude=./dev --exclude=./.zinc --exclude=./build -C /src/image/player .
 install -m 644 /src/image/update.pub "$R/etc/zinc/update.pub"
 if [ -d /src/app ] || [ -f /src/app ]; then cp -r /src/app "$R/var/lib/zinc/app"; fi
 # the profile the image was made from, without its secrets

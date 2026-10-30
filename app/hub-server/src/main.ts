@@ -10,6 +10,9 @@
 //   devices.txt                one paired device per line: SHA-256 of its token, name, pairing time (ms)
 //   apps/<id>/key              the app's Ed25519 public key, recorded by its first publish
 //   apps/<id>/<file>.zapp      the packages; apps/<id>/<channel>/<version>.manifest the signed manifests; <version>.retracted a retracted version
+//   apps/<id>/<channel>/<target>/<version>.manifest   the same for a package made for one target (ZN-889: its manifest's `target=` line,
+//                              linux-aarch64, linux-armv7, linux-armv6, or an export target rpi, rpi2, rpi1 with `kind=export` and a .tar of
+//                              the export directory); a manifest without `target=` is `any` and stays at the channel's level as before
 //   apps/<id>/<file>.png       the package's icon.png (zinc pack, from zinc.json app.icon), when it has one
 //   engine/current             the reMarkable engine bundle offered (ZN-844): `key=value` lines version, zbc, rt, sha256, size, file
 //   engine/<file>              that bundle, zinc-rmpp-<version>.tar.gz of tools/rmpp-engine (only the current one is kept)
@@ -25,7 +28,9 @@
 //                              device trusts for it, with the SHA-256 and size listed here and the new engine's own `zinc --engine-info`.
 //   GET  /catalog.json.sig     device: the Ed25519 signature of catalog.json by the hub key, hex (`zinc verify catalog.json --key <server key>`)
 //   GET  /apps/<id>/<channel>.manifest, /apps/<id>/<file>.zapp, /apps/<id>/<file>.png   device: the channel's current manifest (its url is
-//                              relative), the package and its icon
+//                              relative), the package and its icon; /apps/<id>/<channel>/<target>.manifest and /apps/<id>/<file>.tar for
+//                              a target's package. Every channel entry of the catalog says its "target" and "kind" (zapp or export): one
+//                              entry per (channel, target), and a device takes the targets it runs
 //   POST /publish              publisher: body = the signed manifest then the .zapp, headers X-Manifest-Length (bytes of manifest) and X-App-Key
 //   POST /publish-engine       publisher: body = zinc-rmpp.tar.gz, headers X-Engine-Version, X-Engine-Zbc, X-Engine-Rt (its engine.json);
 //                              `tools/rmpp-engine --publish <hub> --token <t>` sends it. A version not newer than the current one is refused.
@@ -111,19 +116,32 @@ async function isDevice(req: Request): Promise<boolean> {
   return false;
 }
 function list(dir: string): string[] { return fs.exists(dir) ? fs.list(dir) : []; }
-// the versions published on a channel, retracted or not
-function versions(id: string, channel: string): string[] {
+const ANY = 'any';
+/** Where the manifests of one (channel, target) are: the channel's folder for `any`, a folder per target under it otherwise. */
+function slot(id: string, channel: string, target: string): string { return apps + '/' + id + '/' + channel + (target === ANY ? '' : '/' + target); }
+// the versions published on a channel for a target, retracted or not
+function versions(id: string, channel: string, target: string): string[] {
   const r: string[] = [];
-  for (const f of list(apps + '/' + id + '/' + channel)) if (f.endsWith('.manifest')) r.push(f.slice(0, f.length - 9));
+  for (const f of list(slot(id, channel, target))) if (f.endsWith('.manifest')) r.push(f.slice(0, f.length - 9));
   r.sort((a: string, b: string) => (newer(a, b) ? -1 : newer(b, a) ? 1 : 0));
   return r;
 }
-function retracted(id: string, channel: string, v: string): boolean { return fs.exists(apps + '/' + id + '/' + channel + '/' + v + '.retracted'); }
-function current(id: string, channel: string): string {   // the newest version not retracted, '' when none
-  for (const v of versions(id, channel)) if (!retracted(id, channel, v)) return v;
+function retracted(id: string, channel: string, target: string, v: string): boolean { return fs.exists(slot(id, channel, target) + '/' + v + '.retracted'); }
+function current(id: string, channel: string, target: string): string {   // the newest version not retracted, '' when none
+  for (const v of versions(id, channel, target)) if (!retracted(id, channel, target, v)) return v;
   return '';
 }
 function channels(id: string): string[] { return list(apps + '/' + id).filter((c: string) => safe(c) && fs.stat(apps + '/' + id + '/' + c).isDirectory); }
+/** The targets a channel has packages for: `any` first when it has some, then the target folders. */
+function targets(id: string, channel: string): string[] {
+  const dir = apps + '/' + id + '/' + channel;
+  const r: string[] = list(dir).filter((f: string) => f.endsWith('.manifest')).length > 0 ? [ANY] : [];
+  for (const t of list(dir)) if (safe(t) && t !== ANY && fs.stat(dir + '/' + t).isDirectory) r.push(t);
+  return r;
+}
+/** The manifest's target (`any` when it names none) and kind (`zapp` when it names none). */
+function targetOf(m: Manifest): string { return m.get('target') === '' ? ANY : m.get('target'); }
+function kindOf(m: Manifest): string { return m.get('kind') === '' ? 'zapp' : m.get('kind'); }
 
 // A member of a ustar archive (a .zapp), [] when absent: 512-byte headers, the name in bytes 0..100, the size in octal at 124..136.
 function member(tar: u8[], name: string): u8[] {
@@ -196,19 +214,19 @@ async function catalog(): Promise<string> {
   for (const id of list(apps)) {
     if (!safe(id) || !fs.exists(apps + '/' + id + '/key')) continue;
     let chs = '';
-    for (const c of channels(id)) {
-      const v = current(id, c);
+    for (const c of channels(id)) for (const t of targets(id, c)) {
+      const v = current(id, c, t);
       if (v.length === 0) continue;
-      const m = parseManifest(fs.readText(apps + '/' + id + '/' + c + '/' + v + '.manifest'));
+      const m = parseManifest(fs.readText(slot(id, c, t) + '/' + v + '.manifest'));
       const zapp = fs.readBytes(apps + '/' + id + '/' + m.get('url'));
       let icon = iconPath(id, m.get('url')), iconSum = '';
       if (fs.exists(data + '/' + icon)) iconSum = await sha256(fs.readBytes(data + '/' + icon));
       else icon = '';
       // a package that does not read (altered on the disk) still has its line: the devices refuse it by its signed SHA-256, the others install
       let about = '';
-      try { about = needsOf(zapp) + metaOf(zapp); } catch (e) { console.log('hub: ' + id + ' ' + v + ' does not read: ' + e.message); }
-      chs += (chs.length > 0 ? ',' : '') + '{"channel":' + json(c) + ',"version":' + json(v) + ',"manifest":' + json('apps/' + id + '/' + c + '.manifest') +
-        ',"url":' + json('apps/' + id + '/' + m.get('url')) + ',"sha256":' + json(m.get('sha256')) + ',"icon":' + json(icon) + ',"iconSha256":' + json(iconSum) + about + '}';
+      try { about = (kindOf(m) === 'export' ? ',"zbc":0,"rt":0' : needsOf(zapp)) + metaOf(zapp); } catch (e) { console.log('hub: ' + id + ' ' + v + ' does not read: ' + e.message); }
+      chs += (chs.length > 0 ? ',' : '') + '{"channel":' + json(c) + ',"version":' + json(v) + ',"manifest":' + json('apps/' + id + '/' + c + (t === ANY ? '' : '/' + t) + '.manifest') +
+        ',"url":' + json('apps/' + id + '/' + m.get('url')) + ',"sha256":' + json(m.get('sha256')) + ',"target":' + json(t) + ',"kind":' + json(kindOf(m)) + ',"icon":' + json(icon) + ',"iconSha256":' + json(iconSum) + about + '}';
     }
     s += (firstApp ? '' : ',') + '{"id":' + json(id) + ',"key":' + json(fs.readText(apps + '/' + id + '/key').trim()) + ',"channels":[' + chs + ']}';
     firstApp = false;
@@ -248,27 +266,29 @@ async function publish(req: Request): Promise<Reply> {
   if (!(n > 0) || n > all.length || n > 65536) return reply(400, 'X-Manifest-Length is the size of the manifest at the start of the body\n');
   const m = parseManifest(sys.utf8Decode(all.slice(0, n)));
   const zapp = all.slice(n);
-  const id = m.get('app'), channel = m.get('channel'), version = m.get('version'), file = m.get('url');
-  if (!safe(id) || !safe(channel) || !safe(version) || !safe(file) || !file.endsWith('.zapp')) return reply(400, 'the manifest needs app, channel, version and a url that is a .zapp file name\n');
+  const id = m.get('app'), channel = m.get('channel'), version = m.get('version'), file = m.get('url'), target = targetOf(m), kind = kindOf(m);
+  if (!safe(id) || !safe(channel) || !safe(version) || !safe(file) || !safe(target) || (kind !== 'zapp' && kind !== 'export') || !file.endsWith(kind === 'export' ? '.tar' : '.zapp'))
+    return reply(400, 'the manifest needs app, channel, version and a url that is a .zapp file name (a .tar for kind=export)\n');
   const dir = apps + '/' + id;
   let key = req.headers.get('x-app-key').trim().toLowerCase();
   if (fs.exists(dir + '/key')) key = fs.readText(dir + '/key').trim();   // the key of the first publish stays the app's key
   if (!(await verifyManifest(m, key))) return reply(403, 'refused: the manifest signature does not verify with the key of ' + id + '\n');
   const sum = await sha256(zapp);
   if (sum !== m.get('sha256')) return reply(400, 'refused: the .zapp does not match the SHA-256 of its manifest (' + sum + ')\n');
-  for (const v of versions(id, channel)) if (!newer(version, v)) return reply(409, 'refused: ' + version + ' is not newer than ' + v + ' on ' + channel + '\n');
+  for (const v of versions(id, channel, target)) if (!newer(version, v)) return reply(409, 'refused: ' + version + ' is not newer than ' + v + ' on ' + channel + (target === ANY ? '' : ' for ' + target) + '\n');
   const path = dir + '/' + file;
   if (fs.exists(path) && (await sha256(fs.readBytes(path))) !== sum) return reply(409, 'refused: ' + file + ' already exists with another content\n');
   let icon: u8[] = [];
-  try { icon = await iconOf(zapp); } catch (e) { return reply(400, e.message); }
-  fs.mkdir(dir + '/' + channel, true);
+  if (kind === 'zapp') try { icon = await iconOf(zapp); } catch (e) { return reply(400, e.message); }
+  fs.mkdir(slot(id, channel, target), true);
   if (!fs.exists(dir + '/key')) fs.writeText(dir + '/key', key + '\n');
   fs.writeBytes(path, zapp);
   if (icon.length > 0) fs.writeBytes(data + '/' + iconPath(id, file), icon);
-  fs.writeText(dir + '/' + channel + '/' + version + '.manifest', m.body + 'sig=' + m.sig + '\n');
+  fs.writeText(slot(id, channel, target) + '/' + version + '.manifest', m.body + 'sig=' + m.sig + '\n');
   catalogText = '';
-  console.log('hub: stored ' + id + ' ' + version + ' on ' + channel);
-  return reply(200, 'stored ' + id + ' ' + version + ' on ' + channel);
+  const what = id + ' ' + version + ' on ' + channel + (target === ANY ? '' : ' for ' + target);
+  console.log('hub: stored ' + what);
+  return reply(200, 'stored ' + what);
 }
 
 function posInt(t: string): boolean { return t.length > 0 && t.length < 10 && parseInt(t).toString() === t && parseInt(t) > 0; }
@@ -297,13 +317,13 @@ function adminPage(token: string, note: string): Reply {
   s += '<p>Server key <code>' + hubPublic + '</code><br>Pairing code <b>' + pairCode + '</b></p><h2>Apps</h2><table><tr><th>App</th><th>Channel</th><th>Version</th><th></th></tr>';
   for (const id of list(apps)) {
     if (!safe(id)) continue;
-    for (const c of channels(id)) {
-      const live = current(id, c);
-      for (const v of versions(id, c)) {
-        const gone = retracted(id, c, v);
-        s += '<tr><td>' + html(id) + '</td><td>' + html(c) + '</td><td>' + html(v) + (v === live ? ' (current)' : '') + (gone ? ' (retracted)' : '') + '</td><td>';
+    for (const c of channels(id)) for (const t of targets(id, c)) {
+      const live = current(id, c, t);
+      for (const v of versions(id, c, t)) {
+        const gone = retracted(id, c, t, v);
+        s += '<tr><td>' + html(id) + '</td><td>' + html(c) + (t === ANY ? '' : ' (' + html(t) + ')') + '</td><td>' + html(v) + (v === live ? ' (current)' : '') + (gone ? ' (retracted)' : '') + '</td><td>';
         if (!gone) s += '<form method="post" action="/admin/retract"><input type="hidden" name="token" value="' + html(token) + '"><input type="hidden" name="app" value="' + html(id) +
-          '"><input type="hidden" name="channel" value="' + html(c) + '"><input type="hidden" name="version" value="' + html(v) + '"><button>Retract</button></form>';
+          '"><input type="hidden" name="channel" value="' + html(c) + '"><input type="hidden" name="target" value="' + html(t) + '"><input type="hidden" name="version" value="' + html(v) + '"><button>Retract</button></form>';
         s += '</td></tr>';
       }
     }
@@ -318,9 +338,9 @@ function adminPage(token: string, note: string): Reply {
 function retract(req: Request): Reply {
   const token = form(req.body, 'token');
   if (!same(token, publisherToken)) return reply(403, 'wrong token\n');
-  const id = form(req.body, 'app'), c = form(req.body, 'channel'), v = form(req.body, 'version');
-  if (!safe(id) || !safe(c) || !safe(v) || !fs.exists(apps + '/' + id + '/' + c + '/' + v + '.manifest')) return reply(404, 'no such version\n');
-  fs.writeText(apps + '/' + id + '/' + c + '/' + v + '.retracted', Date.now().toString() + '\n');
+  const id = form(req.body, 'app'), c = form(req.body, 'channel'), v = form(req.body, 'version'), t = form(req.body, 'target') === '' ? ANY : form(req.body, 'target');
+  if (!safe(id) || !safe(c) || !safe(v) || !safe(t) || !fs.exists(slot(id, c, t) + '/' + v + '.manifest')) return reply(404, 'no such version\n');
+  fs.writeText(slot(id, c, t) + '/' + v + '.retracted', Date.now().toString() + '\n');
   catalogText = '';
   console.log('hub: retracted ' + id + ' ' + v + ' on ' + c);
   return adminPage(token, 'Retracted ' + id + ' ' + v + ' on ' + c + '.');
@@ -350,16 +370,21 @@ async function handle(req: Request): Promise<Reply> {
   const e = engine();
   if (p.length === 3 && p[1] === 'engine' && e !== null && p[2] === (e as Manifest).get('file'))
     return reply(200, fs.readText(engineDir + '/' + p[2]), 'application/gzip');   // readText is byte for byte
+  if (p.length === 5 && p[1] === 'apps' && safe(p[2]) && safe(p[3]) && safe(p[4]) && p[4].endsWith('.manifest')) {   // a target's manifest
+    const t = p[4].slice(0, p[4].length - 9);
+    const v = t === ANY ? '' : current(p[2], p[3], t);
+    if (v.length > 0) return reply(200, fs.readText(slot(p[2], p[3], t) + '/' + v + '.manifest'));
+  }
   if (p.length === 4 && p[1] === 'apps' && safe(p[2]) && safe(p[3])) {
     const id = p[2], name = p[3];
     if (name.endsWith('.manifest')) {
-      const c = name.slice(0, name.length - 9), v = current(id, c);
+      const c = name.slice(0, name.length - 9), v = current(id, c, ANY);
       if (v.length > 0) return reply(200, fs.readText(apps + '/' + id + '/' + c + '/' + v + '.manifest'));
-    } else if ((name.endsWith('.zapp') || name.endsWith('.png')) && fs.exists(apps + '/' + id + '/' + name)) {
+    } else if ((name.endsWith('.zapp') || name.endsWith('.tar') || name.endsWith('.png')) && fs.exists(apps + '/' + id + '/' + name)) {
       const zapp = name.endsWith('.png') ? name.slice(0, name.length - 4) + '.zapp' : name;
-      for (const c of channels(id)) {   // only a package (or its icon) that a current, unretracted manifest points at
-        const v = current(id, c);
-        if (v.length > 0 && parseManifest(fs.readText(apps + '/' + id + '/' + c + '/' + v + '.manifest')).get('url') === zapp)
+      for (const c of channels(id)) for (const t of targets(id, c)) {   // only a package (or its icon) that a current, unretracted manifest points at
+        const v = current(id, c, t);
+        if (v.length > 0 && parseManifest(fs.readText(slot(id, c, t) + '/' + v + '.manifest')).get('url') === zapp)
           return reply(200, fs.readText(apps + '/' + id + '/' + name), name.endsWith('.png') ? 'image/png' : 'application/octet-stream');   // readText is byte for byte
       }
     }

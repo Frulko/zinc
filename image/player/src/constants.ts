@@ -40,6 +40,8 @@ export const PAGE_SETTINGS = 'settings';
 export const PAGE_APPS = 'apps';
 /** The shell shows an app below its bar (ZINC_SHELL_SOCKET). */
 export const PAGE_APP = 'app';
+/** Get apps: a Zinc hub's catalog (ZN-889). */
+export const PAGE_HUB = 'hub';
 
 export const SECTION_WIFI = 'wifi';
 export const SECTION_REMOTE = 'remote';

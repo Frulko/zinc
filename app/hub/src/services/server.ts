@@ -16,6 +16,8 @@ export class CatalogChannel {
   manifest: string = '';   // path on the server: apps/<id>/<channel>.manifest
   url: string = '';        // path on the server: apps/<id>/<file>.zapp
   sha256: string = '';
+  target: string = 'any';  // the machine the package is for (ZN-889): any, linux-aarch64, linux-armv7, linux-armv6, or an export target (rpi...)
+  kind: string = 'zapp';   // zapp, or export: a .tar of `zinc export`'s directory, its engine inside (url apps/<id>/<file>.tar)
   icon: string = '';       // path on the server: apps/<id>/<file>.png, '' when the package has no icon
   iconSha256: string = '';
   zbc: i32 = 0;            // the engine the package needs (its manifest.json needs, docs/zapp.md): ZBC version and runtime calls, 0 when unknown
@@ -48,6 +50,9 @@ export class Catalog {
   engine: CatalogEngine | null = null;
 }
 
+/** The targets this tablet runs, best first: a package for another machine is not offered. */
+export const REMARKABLE_TARGETS: string[] = ['linux-aarch64', 'any'];
+
 function base(server: string): string { return server.endsWith('/') ? server.slice(0, server.length - 1) : server; }
 
 async function request(cfg: HubConfig, path: string, init: net.RequestInit): Promise<net.Response> {
@@ -76,21 +81,22 @@ export async function pair(cfg: HubConfig, code: string, device: string): Promis
   cfg.token = token;
 }
 
-/** The catalog, its signature checked against the pinned server key; kept in `cache` (and `cache`.sig) once it checks. */
-export async function catalog(cfg: HubConfig, cache: string): Promise<Catalog> {
+/** The catalog, its signature checked against the pinned server key; kept in `cache` (and `cache`.sig) once it checks. Each app keeps per
+ *  channel the package of the best of `targets` (the device's, best first) and nothing for another machine. */
+export async function catalog(cfg: HubConfig, cache: string, targets: string[] = REMARKABLE_TARGETS): Promise<Catalog> {
   const text = await (await get(cfg, 'catalog.json')).text();
   const sig = (await (await get(cfg, 'catalog.json.sig')).text()).trim();
-  const r = await verified(cfg, text, sig);
+  const r = await verified(cfg, text, sig, targets);
   fs.writeText(cache, text);
   fs.writeText(cache + '.sig', sig);
   return r;
 }
 /** The last catalog that checked, so the Hub shows its apps, names and icons at once and offline; null when none (or it no longer checks). */
-export async function cachedCatalog(cfg: HubConfig, cache: string): Promise<Catalog | null> {
+export async function cachedCatalog(cfg: HubConfig, cache: string, targets: string[] = REMARKABLE_TARGETS): Promise<Catalog | null> {
   if (!fs.exists(cache) || !fs.exists(cache + '.sig')) return null;
-  try { return await verified(cfg, fs.readText(cache), fs.readText(cache + '.sig')); } catch (e) { return null; }
+  try { return await verified(cfg, fs.readText(cache), fs.readText(cache + '.sig'), targets); } catch (e) { return null; }
 }
-async function verified(cfg: HubConfig, text: string, sig: string): Promise<Catalog> {
+async function verified(cfg: HubConfig, text: string, sig: string, targets: string[]): Promise<Catalog> {
   const key = await subtle.importKey('raw', unhex(cfg.serverKey), { name: 'Ed25519' }, false, ['verify']);
   if (sig.length !== 128 || !(await subtle.verify({ name: 'Ed25519' }, key, unhex(sig), sys.utf8Encode(text))))
     throw new Error('Refused: the catalog is not signed by the server this tablet paired with. Someone may be in between; pair again only if you trust this server.');
@@ -112,12 +118,21 @@ async function verified(cfg: HubConfig, text: string, sig: string): Promise<Cata
       const c = a.channels[k];
       const ch = new CatalogChannel();
       ch.channel = '' + c.channel; ch.version = '' + c.version; ch.manifest = '' + c.manifest; ch.url = '' + c.url; ch.sha256 = '' + c.sha256;
+      if (c.target !== undefined && c.target !== null) ch.target = '' + c.target;   // an older server names none: any
+      if (c.kind !== undefined && c.kind !== null) ch.kind = '' + c.kind;
       ch.icon = c.icon === undefined ? '' : '' + c.icon; ch.iconSha256 = c.iconSha256 === undefined ? '' : '' + c.iconSha256;
       ch.zbc = c.zbc === undefined ? 0 : parseInt('' + c.zbc); ch.rt = c.rt === undefined ? 0 : parseInt('' + c.rt);
       ch.description = c.description === undefined ? '' : '' + c.description; ch.author = c.author === undefined ? '' : '' + c.author;
       ch.homepage = c.homepage === undefined ? '' : '' + c.homepage; ch.size = c.size === undefined ? 0 : parseInt('' + c.size);
       if (c.permissions !== undefined && c.permissions !== null) { ch.declared = true; for (let n: i32 = 0; n < c.permissions.length; n++) ch.permissions.push('' + c.permissions[n]); }
-      if (safe(ch.channel)) app.channels.push(ch);
+      const rank = targets.indexOf(ch.target);
+      if (!safe(ch.channel) || rank < 0) continue;
+      let kept = false;   // one package per channel: the best target
+      for (let n: i32 = 0; n < app.channels.length; n++) if (app.channels[n].channel === ch.channel) {
+        kept = true;
+        if (rank < targets.indexOf(app.channels[n].target)) app.channels[n] = ch;
+      }
+      if (!kept) app.channels.push(ch);
     }
     apps.push(app);
   }
@@ -151,9 +166,11 @@ export async function download(cfg: HubConfig, app: CatalogApp, ch: CatalogChann
   progress('Checking the publisher\'s signature');
   if (!(await verifyManifest(m, app.key)))
     throw new Error('Refused: the manifest of ' + app.id + ' is not signed by its publisher. It was altered; nothing was installed.');
-  if (m.get('app') !== app.id || m.get('channel') !== ch.channel || m.get('version') !== ch.version || m.get('sha256') !== ch.sha256 || m.get('url') !== fileOf(ch))
-    throw new Error('Refused: the server offers ' + app.id + ' ' + ch.version + ' but sends the manifest of ' + m.get('app') + ' ' + m.get('version') + '. Nothing was installed.');
-  if (!safe(m.get('url')) || !m.get('url').endsWith('.zapp')) throw new Error('Refused: the manifest of ' + app.id + ' names no .zapp file.');
+  const target = m.get('target') === '' ? 'any' : m.get('target'), kind = m.get('kind') === '' ? 'zapp' : m.get('kind');
+  if (m.get('app') !== app.id || m.get('channel') !== ch.channel || m.get('version') !== ch.version || m.get('sha256') !== ch.sha256 || m.get('url') !== fileOf(ch) ||
+      target !== ch.target || kind !== ch.kind)
+    throw new Error('Refused: the server offers ' + app.id + ' ' + ch.version + ' for ' + ch.target + ' but sends the manifest of ' + m.get('app') + ' ' + m.get('version') + ' for ' + target + '. Nothing was installed.');
+  if (!safe(m.get('url')) || !m.get('url').endsWith(kind === 'export' ? '.tar' : '.zapp')) throw new Error('Refused: the manifest of ' + app.id + ' names no ' + (kind === 'export' ? '.tar' : '.zapp') + ' file.');
   progress('Downloading ' + m.get('url'));
   const zapp = await (await get(cfg, ch.url)).bytes();
   progress('Checking its SHA-256');

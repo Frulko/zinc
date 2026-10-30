@@ -269,7 +269,7 @@
     {"paths": ["src/host/assets_host.cpp", "src/host/assets_host.h", "src/host/sys_host.cpp", "plugins/sprite/", "templates/game-2d/", "src/cli_core.cpp", "tests/t1/asset_reload.sh"], "tests": ["asset_reload"]},
     {"paths": ["plugins/loader/", "src/cli_core.cpp", "src/frontend/project.cpp", "src/frontend/project.h", "src/qjs/qjs.cpp", "src/host/gfx_host.cpp", "src/host/sys_host.cpp", "templates/game-2d/", "tests/data/loader/", "tests/golden/loader/", "tests/t1/loader.sh"], "tests": ["loader"]},
     {"paths": ["src/tc/tc.cpp", "src/tc/tc.h", "third_party/monocypher/"], "tests": ["update_sign", "mirrors", "app_update", "tc"]},
-    {"paths": ["app/hub-server/", "tests/t1/hub_server.sh", "src/host/ed25519.cpp", "src/host/http.cpp"], "tests": ["hub_server"]},
+    {"paths": ["app/hub-server/", "tests/t1/hub_server.sh", "src/host/ed25519.cpp", "src/host/http.cpp", "app/hub/src/services/server.ts", "image/player/src/services/hub.ts"], "tests": ["hub_server"]},
     {"paths": ["app/hub/", "app/hub-server/", "plugins/remarkable/", "lib/std/kit/keyboard.tsx", "tests/t1/hub_app.sh"], "tests": ["hub_app"]},
     {"paths": ["app/hub/", "src/host/hal_dispatch.cpp", "tests/t1/hub_running.sh"], "tests": ["hub_running"]},
     {"paths": ["app/web/", "app/web-relay/", "plugins/socket/", "plugins/process/", "plugins/ink/", "tests/t1/web_relay.sh"], "tests": ["web_relay"]},

@@ -14,6 +14,7 @@ import {
   COLOR_WHITE,
   PAGE_APP,
   PAGE_APPS,
+  PAGE_HUB,
   PAGE_PADDING,
   PAGE_SETTINGS,
   SECTION_WIFI,
@@ -21,7 +22,7 @@ import {
 } from '../constants';
 import { Fonts } from '../fonts';
 import { DisplayObject } from '../core/display';
-import { appState, goBack, goHome, openSettings } from '../state';
+import { appState, goBack, goHome, navigateTo, openSettings } from '../state';
 import { drawIconButton } from './buttons';
 import { drawGlyph, drawLabel } from './primitives';
 
@@ -64,9 +65,9 @@ export class TopBarNode extends DisplayObject {
         COLOR_TEXT_PRIMARY, () => openSettings(SECTION_UPDATES), 40);
       return;
     }
-    if (appState.page === PAGE_APPS) {
+    if (appState.page === PAGE_APPS || appState.page === PAGE_HUB) {
       drawIconButton('top/back', 'chevron-left', PAGE_PADDING, barHeight / 2, 24, COLOR_WHITE, goBack);
-      drawLabel(Fonts.heading, PAGE_PADDING + 26, textY, 'All apps', COLOR_WHITE);
+      drawLabel(Fonts.heading, PAGE_PADDING + 26, textY, appState.page === PAGE_HUB ? 'Get apps' : 'All apps', COLOR_WHITE);
       drawLabel(Fonts.label, barWidth - PAGE_PADDING - textWidth(Fonts.label, appState.clockText, 0), textY + 2,
         appState.clockText, COLOR_WHITE, 100, 200);
       return;
@@ -79,5 +80,6 @@ export class TopBarNode extends DisplayObject {
     drawGlyph(connectionIconName(), settingsCenterX - 56, barHeight / 2 - 11, 22, COLOR_WHITE, 220);
     if (updateAvailable) drawIconButton('top/update', 'download', settingsCenterX - 96, barHeight / 2, 22,
       COLOR_WHITE, () => openSettings(SECTION_UPDATES), 40);
+    drawIconButton('top/hub', 'plus', settingsCenterX - (updateAvailable ? 136 : 96), barHeight / 2, 22, COLOR_WHITE, () => navigateTo(PAGE_HUB), 40);
   }
 }

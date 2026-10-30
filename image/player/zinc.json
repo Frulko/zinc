@@ -3,7 +3,7 @@
   "entry": "src/main.ts",
   "app": { "name": "Zinc Player", "id": "dev.zinc.player", "version": "0.2.0", "icon": "icon.png", "orientation": "landscape" },
   "requires": ["display", "pointer|touch|keyboard"],
-  "permissions": ["fs", "process"],
+  "permissions": ["fs", "net", "process"],
   "icons": [
     "settings", "wifi", "wifi-off", "wifi-high", "wifi-low", "wifi-zero", "ethernet-port", "lock", "chevron-left",
     "refresh-cw", "play", "rotate-ccw", "house", "delete", "arrow-big-up", "keyboard-off", "eye", "eye-off", "laptop",
