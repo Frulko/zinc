@@ -3,9 +3,10 @@ id: ZN-866
 title: >-
   examples/discord: token login, gateway v9, servers, channels and DMs, live
   messages
-status: Backlog
+status: In Progress
 assignee: []
 created_date: '2026-10-30 14:52'
+updated_date: '2026-10-30 14:58'
 labels:
   - net
   - ui
