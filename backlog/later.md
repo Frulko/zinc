@@ -465,6 +465,10 @@ The next backlog review turns lines into tasks or deletes them.
 
 - Inspector zinc:stage pick mode: a scene that reads the pointer itself (fatty, music-tree) still gets the clicks during the pick; `Stage.update` could skip its routing while picking, a program routing the pointer itself needs a host-level gate.
 
+- Text: the UI font has no ▸/▾ glyphs (drawn as "?") while ▶/▼ render: a font coverage or fallback gap.
+- Headless runs with ZINC_SHOT: unless shots are taken often, frames run unthrottled, so `ZINC_FRAMES=300` ends before a 500 ms `setTimeout` fires; scripted inspector shots needed `ZINC_FRAMES=30000`.
+- Inspector Storage, SQLite grid: no detail pane for a selected cell (full long text or blob), no in-place cell edit (writes go through the query bar), blob hex limited to 16 bytes; `app/inspector/table.tsx`'s Grid could become a kit DataTable in `lib/std/kit` with its own test.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
