@@ -351,6 +351,7 @@
     {"paths": ["src/text/"], "tests": ["text_layout", "segment", "text_shaped"]},
     {"paths": ["runtime/raster.cpp", "src/main.cpp", "src/text/shaped_gfx.cpp", "tests/t0/emoji_text.sh", "tests/data/emoji_text/"], "tests": ["emoji_text"]},
     {"paths": ["src/frontend/jsx.cpp", "lib/std/ui.ts", "tests/t0/virtual_stick.sh", "tests/data/virtual_stick/"], "tests": ["virtual_stick"]},
+    {"paths": ["lib/std/react.ts", "tests/t0/virtual_rows.sh", "tests/data/virtual_rows/"], "tests": ["virtual_rows"]},
     {"paths": ["third_party/node-api/", "src/qjs/napi_util.h", "src/qjs/ext.cpp", "tests/native/napi_test.cpp", "tests/t0/napi.sh"], "tests": ["napi", "qjs_native", "segment", "webenv_canvas2d", "webenv_image", "script", "jsc", "v8"]},
     {"paths": ["src/engine/", "include/zn/engine.h", "tests/t0/jsc.sh", "tests/t0/v8.sh", "tests/t0/hermes.sh", "tools/hermes-pack", "tools/hermes-patches/", "targets/macos/zinc.entitlements", "tests/v8_inspect_check.mjs", "tests/t1/v8_inspect.sh", "tests/t1/hermes_inspect.sh", "tests/data/v8_inspect/", "src/dbg/ws.cpp", "src/dbg/ws.h"], "tests": ["jsc", "v8", "hermes", "v8_inspect", "hermes_inspect"]},
     {"paths": ["src/gl/"], "tests": ["webgl_conformance"]},

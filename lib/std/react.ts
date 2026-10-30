@@ -65,6 +65,9 @@ function rerender(inst: Instance): void {
   for (const e of inst.effects) e();  // useLayoutEffect/useEffect: after the tree is committed
 }
 function unmount(inst: Instance): void {
+  if (inst.dead) return;
+  const at = instances.indexOf(inst);
+  if (at >= 0) instances.splice(at, 1);   // the list holds the live instances only: a virtual list's rows come and go as it scrolls
   const c = inst.comp;
   if (c !== null) { c.componentWillUnmount(); c.inst = null; }
   for (const h of inst.hooks) if (h instanceof EffectHook) { const c = h.cleanup; if (c !== null) c(); }
@@ -171,8 +174,24 @@ export function _hl(n: i32, f: (line: string) => i32[]): void { ui.setHighlight(
 export function _virtual(n: i32, count: i32, itemH: number, render: (i: i32) => i32): void {
   const prev = cur;
   cur = null;  // rows are built outside this component's reconciliation (they come and go with scrolling)
-  ui.virtualize(n, count, itemH, (i: i32) => { const p = cur; cur = null; const r = render(i); cur = p; return r; }, null);
+  ui.virtualize(n, count, itemH, (i: i32) => {
+    const p = cur; cur = null;
+    const before = instances.length;
+    const r = render(i);
+    cur = p;
+    if (instances.length > before) rowInstances.set(r, instances.slice(before));
+    return r;
+  }, dropRow);
   cur = prev;
+}
+/** The component instances a virtual list's row made, unmounted when the row scrolls out or the list renders again (they were kept for
+ *  good: scrolling a long list grew the memory without end). */
+const rowInstances: Map<i32, Instance[]> = new Map<i32, Instance[]>();
+function dropRow(row: i32): void {
+  const made = rowInstances.get(row);
+  if (made === undefined) return;
+  rowInstances.delete(row);
+  for (const k of made) unmount(k);
 }
 export function _focusable(n: i32): void { ui.setFocusable(n, true); }
 export function _ref(n: i32, r: MutableRef<i32>): void { r.current = n; }
