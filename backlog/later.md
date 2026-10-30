@@ -875,7 +875,13 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-869: try the QR and password+TOTP logins with a spare real account (AC1, AC2); check Discord still accepts remote-auth v2 and the Origin header.
 
+- ZN-875: send screen audio with Go Live (ScreenCaptureKit SCStreamOutputTypeAudio through zinc:screen-capture).
+- ZN-875: adapt the Go Live and camera bitrate to RTCP receiver reports (loss, REMB) on the voice UDP path (criterion #3).
+- ZN-875: watch several Go Live streams at once (one at a time today).
+- ZN-875: show the stream preview (GET /streams/{key}/preview) on a stream tile before watching; check its rate limits first.
+
 ## Cross-platform pass
+- ZN-875: zinc:screen-capture/picker and app icons on the Linux and Windows backends.
 - ZN-873: H.264 decode and encode on Linux (V4L2 M2M or a vendored decoder) for discord-voice video.
 - ZN-874: screen capture on Linux (PipeWire portal) and Windows (Windows.Graphics.Capture) behind plugins/screen-capture/native/backend.h.
 - ZN-884: run the shell's suspend on a Pi 3 (KMS closed and reopened, evdev grabs released, a whole frame after) and the 3 s no-CONNECT rule on the sim framebuffer.
