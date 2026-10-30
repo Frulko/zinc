@@ -249,8 +249,22 @@ struct Checker {
       if (node != kNone && isNumLit(a, node)) return isIntLit(a, node) || isFloat(t.num);  // literals adapt to the target kind
       return widens(f.num, t.num) || (!isFx(f.num) && !isFx(t.num));  // machine numbers convert among themselves (truncating), like the number type they alias
     }
-    if (f.k == TK::Object && t.k == TK::Object) return objAssignable(f.obj, t.obj);
+    if (f.k == TK::Object && t.k == TK::Object) return objAssignable(f.obj, t.obj) || classToRecord(f.obj, t.obj);
     return false;
+  }
+  // An instance of class `a` where record `b` is expected: every field of `b` is a public field of `a` with the same type. The instance is
+  // shared, as in TypeScript; the record is remembered so the lowering reads its fields through the object's own class.
+  bool classToRecord(std::uint32_t a, std::uint32_t b) {
+    const ObjInfo &f = out.objs[a], &t = out.objs[b];
+    if (!f.isClass || f.isRecord || f.isTuple || !t.isRecord || t.isTuple || t.members.empty()) return false;
+    for (const Member& m : t.members) {
+      const Member* fm = lookupMember(a, m.name, false);
+      if (m.method || m.isStatic || !fm || fm->method || fm->getter || fm->access != 0 || fm->type != m.type) return false;
+    }
+    if (f.isTemplate || t.isTemplate) return true;   // checked over type parameters, lowered per instance
+    auto& cs = out.openRecords[b];
+    if (std::find(cs.begin(), cs.end(), a) == cs.end()) cs.push_back(a);
+    return true;
   }
   // `(i32, string) => void` where `(f64, string) => void` is expected: TypeScript has one number type, so a callback may take any machine
   // number kind. The value is wrapped in a function that converts the arguments (and the result) between the kinds.
@@ -357,7 +371,7 @@ struct Checker {
       return true;
     }
     if (node != kNone && !bad(from) && !bad(to) && ty(from).k == TK::Array && ty(to).k == TK::Array && !bad(ty(from).elem) && !bad(ty(to).elem) && ty(ty(from).elem).k == TK::Object &&
-        ty(ty(to).elem).k == TK::Object && (recordWidenable(ty(from).elem, ty(to).elem) || objAssignable(ty(ty(from).elem).obj, ty(ty(to).elem).obj))) {
+        ty(ty(to).elem).k == TK::Object && (recordWidenable(ty(from).elem, ty(to).elem) || objAssignable(ty(ty(from).elem).obj, ty(ty(to).elem).obj) || classToRecord(ty(ty(from).elem).obj, ty(ty(to).elem).obj))) {
       // arrays are covariant, as in TypeScript (`Big[]` as `Song[]`, `Dog[]` as `Animal[]`): the IR types an array by its element, so this is a new
       // array of the elements, each converted as one value is (a record copied with the fields asked for, an object shared)
       const TypeId fe = ty(from).elem, te = ty(to).elem;
@@ -1172,7 +1186,10 @@ struct Checker {
     restoreCtx(sv);
     for (auto& u : closure) {
       dynSyms[u] = (*genScope)[keep(u.second ? dynToName(u.first) : dynFromName(u.first))];
-      if (!u.second) continue;
+      if (!u.second) {
+        if (auto down = genScope->find(keep(dynDownName(u.first))); down != genScope->end()) out.dynDowns[out.syms[down->second].decl] = u.first;
+        continue;
+      }
       out.dynTos[u.first] = out.syms[dynSyms[u]].decl;
       if (auto sub = genScope->find(keep(dynSubName(u.first))); sub != genScope->end()) { out.dynSubs[out.syms[sub->second].decl] = u.first; dynSubAt[u.first] = at; }
     }

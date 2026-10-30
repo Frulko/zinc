@@ -16,6 +16,7 @@ const char* dynPrelude();
 // Names of the generated converters of a type.
 std::string dynToName(TypeId t);    // __dynTo<t>(v: T): any
 std::string dynFromName(TypeId t);  // __dynFrom<t>(d: any): T
+std::string dynDownName(TypeId t);  // __dynDown<t>(d: any): T | null, of a class: the object of a view of a subclass of T (the lowering writes it), null otherwise
 std::string dynSubName(TypeId t);   // __dynSub<t>(v: T): any, of a class: the view of the subclass `v` is an instance of (the lowering writes it), undefined for T itself
 
 // Source of __dynTo<t> or __dynFrom<t> (a checked conversion); the types whose converters it calls are appended to `deps`.

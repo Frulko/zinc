@@ -106,6 +106,22 @@ struct Lowering {
 
   std::vector<std::uint32_t> classOfObj;                          // checker object -> IR class
   std::map<std::vector<std::uint32_t>, std::uint32_t> unionIface; // sorted member objects of a union of unrelated classes -> the interface they implement
+  // A record a class instance is assigned to (Checked::openRecords): classOfObj is then an interface, and this the class of its literals
+  std::unordered_map<std::uint32_t, std::uint32_t> litClassOfObj;
+  std::uint32_t newClassOf(std::uint32_t obj) const { auto it = litClassOfObj.find(obj); return it == litClassOfObj.end() ? classOfObj[obj] : it->second; }
+  // The classes a value of open record `obj` can be an instance of (with the checker object whose layout it has): its literals, then the classes
+  std::vector<std::pair<std::uint32_t, std::uint32_t>> openShapes(std::uint32_t obj) const {
+    std::vector<std::pair<std::uint32_t, std::uint32_t>> r{{obj, litClassOfObj.at(obj)}};
+    for (std::uint32_t o : c.openRecords.at(obj)) if (classOfObj[o] != kNil) r.push_back({o, classOfObj[o]});
+    return r;
+  }
+  // frontend::objAssignable, and a class assigned to an open record
+  bool objIs(std::uint32_t o, std::uint32_t b) const {
+    if (frontend::objAssignable(c, o, b)) return true;
+    if (!litClassOfObj.count(b)) return false;
+    for (std::uint32_t k : c.openRecords.at(b)) if (frontend::isSubclass(c, o, k)) return true;
+    return false;
+  }
   std::unordered_map<std::uint32_t, std::uint32_t> nodeOfFunc;   // function index -> Function/Method/FuncExpr node
   std::unordered_map<std::uint32_t, std::uint32_t> funcOfNode;    // Function/Method node -> function index
   std::unordered_map<std::string, std::uint32_t> methodFn;        // "obj:name" -> instance method function (concrete only)
@@ -183,13 +199,13 @@ struct Lowering {
         }
         for (std::uint32_t cand : objs) {
           bool all = true;
-          for (std::uint32_t o : objs) all = all && frontend::objAssignable(c, o, cand);
+          for (std::uint32_t o : objs) all = all && objIs(o, cand);
           if (all) return m.refT(classOfObj[cand]);
         }
         if (!objs.empty()) {  // `Sq | Ci`: the nearest class every member derives from
           for (std::uint32_t anc = c.objs[objs[0]].parent, depth = 0; anc != kNil && depth < 1000; anc = c.objs[anc].parent, ++depth) {
             bool all = classOfObj[anc] != kNil;
-            for (std::uint32_t o : objs) all = all && frontend::objAssignable(c, o, anc);
+            for (std::uint32_t o : objs) all = all && objIs(o, anc);
             if (all) return m.refT(classOfObj[anc]);
           }
           auto key = objs;  // unrelated classes (the records of a discriminated union): an interface they all implement
@@ -274,9 +290,16 @@ struct Lowering {
       classOfObj[o] = static_cast<std::uint32_t>(m.classes.size());
       Class cl;
       cl.name = c.objs[o].name;
-      cl.isInterface = c.objs[o].isInterface;
+      const bool open = c.objs[o].isRecord && !c.objs[o].isTuple && c.openRecords.count(o);
+      cl.isInterface = c.objs[o].isInterface || open;
       cl.isAbstract = c.objs[o].isAbstract;
       m.classes.push_back(std::move(cl));
+      if (open) {
+        Class lit;
+        lit.name = c.objs[o].name;
+        litClassOfObj[o] = static_cast<std::uint32_t>(m.classes.size());
+        m.classes.push_back(std::move(lit));
+      }
     }
     // a union of unrelated classes (`{ kind: 'a' } | { kind: 'b' }`) is an interface its members implement
     for (frontend::TypeId t = 0; t < c.types.size(); ++t) {
@@ -293,10 +316,10 @@ struct Lowering {
       std::sort(objs.begin(), objs.end());
       if (unionIface.count(objs)) continue;
       bool related = false;  // some member is a supertype of the others, or they share an ancestor
-      for (std::uint32_t cand : objs) { bool all = true; for (std::uint32_t o : objs) all = all && frontend::objAssignable(c, o, cand); related = related || all; }
+      for (std::uint32_t cand : objs) { bool all = true; for (std::uint32_t o : objs) all = all && objIs(o, cand); related = related || all; }
       for (std::uint32_t anc = c.objs[objs[0]].parent, d = 0; !related && anc != kNil && d < 1000; anc = c.objs[anc].parent, ++d) {
         bool all = classOfObj[anc] != kNil;
-        for (std::uint32_t o : objs) all = all && frontend::objAssignable(c, o, anc);
+        for (std::uint32_t o : objs) all = all && objIs(o, anc);
         related = all;
       }
       if (related) continue;
@@ -307,7 +330,10 @@ struct Lowering {
       m.classes.push_back(std::move(cl));
       auto ci = static_cast<std::uint32_t>(m.classes.size() - 1);
       unionIface[objs] = ci;
-      for (std::uint32_t o : objs) m.classes[classOfObj[o]].implements.push_back(ci);
+      for (std::uint32_t o : objs) {
+        m.classes[classOfObj[o]].implements.push_back(ci);
+        if (litClassOfObj.count(o)) for (std::uint32_t k : c.openRecords.at(o)) if (classOfObj[k] != kNil) m.classes[classOfObj[k]].implements.push_back(ci);   // an open record: the classes assigned to it are members too
+      }
     }
     // every function type used as a value gets its interface before the vtables are sized
     std::function<void(frontend::TypeId, bool)> scan = [&](frontend::TypeId t, bool create) {
@@ -343,6 +369,18 @@ struct Lowering {
           m.globals.push_back({c.objs[o].name + "." + mem.name, irType(mem.type)});
           staticGlobal[mkey(o, mem.name)] = static_cast<std::uint32_t>(m.globals.size() - 1);
         }
+    }
+    for (std::uint32_t o = 0; o < c.objs.size(); ++o) {
+      if (auto lit = litClassOfObj.find(o); lit != litClassOfObj.end()) {   // an open record: its literals have its fields, and the classes assigned to it implement it
+        const std::uint32_t ri = classOfObj[o];
+        std::vector<std::pair<std::string, TypeId>> rf;
+        for (const auto& [nm, t] : layoutOf(o)) rf.push_back({nm, irType(t)});
+        for (auto& f : rf) m.classes[lit->second].fields.push_back({f.first, f.second});
+        for (std::uint32_t i : std::vector<std::uint32_t>(m.classes[ri].implements))   // what the record satisfies (a union it is a member of)
+          if (std::find(m.classes[lit->second].implements.begin(), m.classes[lit->second].implements.end(), i) == m.classes[lit->second].implements.end()) m.classes[lit->second].implements.push_back(i);
+        m.classes[lit->second].implements.push_back(ri);
+        for (std::uint32_t k : c.openRecords.at(o)) if (classOfObj[k] != kNil) m.classes[classOfObj[k]].implements.push_back(ri);
+      }
     }
   }
 
@@ -518,7 +556,7 @@ struct Lowering {
       }
       case frontend::TK::Object: {
         const frontend::ObjInfo& o = c.objs[x.obj];
-        if (!o.isRecord || o.isTuple || classOfObj[x.obj] == kNil) return "";   // ponytail: a record is a final class; an interface that is not one (generic) has no fixed layout
+        if (!o.isRecord || o.isTuple || classOfObj[x.obj] == kNil || litClassOfObj.count(x.obj)) return "";   // ponytail: a record is a final class; an interface that is not one (generic) has no fixed layout
         std::string r = "{" + std::to_string(classOfObj[x.obj]) + ":";
         bool first = true;
         for (const auto& [nm, ft] : std::vector<std::pair<std::string, frontend::TypeId>>(layoutOf(x.obj))) {
@@ -896,6 +934,7 @@ struct Lowering {
     };
     for (std::uint32_t o = 0; o < c.objs.size(); ++o)
       if (classOfObj[o] != kNil) m.classes[classOfObj[o]].key = whereObj(o) + "::" + m.classes[classOfObj[o]].name;
+    for (auto [o, lit] : litClassOfObj) m.classes[lit].key = m.classes[classOfObj[o]].key + " literal";
     std::map<std::uint32_t, const LambdaInfo*> byNode;   // the lambdas a desugaring made at one offset (an async method's) are told apart by their order
     for (auto& [node, li] : lambdas) byNode[node] = &li;
     std::unordered_map<std::string, int> seen;
@@ -1023,8 +1062,11 @@ struct Lowering::FnLower {
     const ValueId v = expr(objNode);
     auto nameOf = [&](std::uint32_t o) { const frontend::ObjInfo& oi = c.objs[o]; return oi.isRecord ? std::string("Object") : oi.name.substr(0, oi.name.find('<')); };
     std::vector<std::uint32_t> cands;
-    for (std::uint32_t o : frontend::implementations(c, obj)) if (L.classOfObj[o] != kNil) cands.push_back(o);
-    if (c.objs[obj].isRecord || cands.empty()) return constStr(nameOf(obj));
+    auto under = [&](std::uint32_t root) { for (std::uint32_t o : frontend::implementations(c, root)) if (L.classOfObj[o] != kNil) cands.push_back(o); };
+    const bool open = L.litClassOfObj.count(obj) != 0;   // a record a class instance was assigned to: those classes, then Object
+    if (open) for (std::uint32_t k : c.openRecords.at(obj)) { under(k); if (!c.objs[k].isAbstract && L.classOfObj[k] != kNil) cands.push_back(k); }
+    else under(obj);
+    if ((c.objs[obj].isRecord && !open) || cands.empty()) return constStr(nameOf(obj));
     BlockId join = newBlock();
     ValueId jp = newValue(m.strT());
     f.blocks[join].params.push_back(jp);
@@ -1038,6 +1080,33 @@ struct Lowering::FnLower {
       br(join, {constStr(nameOf(cands[k]))});
       cur = next;
       if (k + 1 == cands.size()) br(join, {constStr(nameOf(obj))});
+    }
+    seal(join);
+    cur = join;
+    return jp;
+  }
+  // Field `name` of `obj`, which is an instance of one of `shapes` (class, and the checker object whose layout it has): tested in order, the last
+  // one taken without a test (closed world). Reads it as `rt`, or writes `w` into it.
+  ValueId fieldChain(ValueId obj, const std::vector<std::pair<std::uint32_t, std::uint32_t>>& shapes, std::string_view name, TypeId rt, ValueId w = kNoValue) {
+    BlockId join = newBlock();
+    ValueId jp = kNoValue;
+    if (w == kNoValue) { jp = newValue(rt); f.blocks[join].params.push_back(jp); }
+    for (std::size_t k = 0; k < shapes.size(); ++k) {
+      const auto [so, cls] = shapes[k];
+      BlockId next = kNil;
+      if (k + 1 < shapes.size()) {
+        BlockId hit = newBlock();
+        next = newBlock();
+        condbr(emit(IrOp::InstOf, m.boolT(), {obj}, 0, 0, cls), hit, next);
+        sealed[hit] = sealed[next] = 1;
+        cur = hit;
+      }
+      const ValueId o = emit(IrOp::RefCast, m.refT(cls), {obj});
+      const std::uint32_t fi = L.fieldIndex(so, name);
+      const TypeId ft = m.classes[cls].fields[fi].type;
+      if (w == kNoValue) br(join, {coerce(emit(IrOp::GetField, ft, {o}, 0, 0, fi), rt)});
+      else { emit(IrOp::SetField, m.voidT(), {o, coerce(w, ft)}, 0, 0, fi); br(join); }
+      if (next != kNil) cur = next;
     }
     seal(join);
     cur = join;
@@ -1574,13 +1643,13 @@ struct Lowering::FnLower {
       case N::NonNull: return coerce(expr(x.kids[0], L.irType(c.nodeType[i])), L.irType(c.nodeType[i]));  // x!: the checked unwrap of the downcast
       case N::As: return coerce(expr(x.kids[0], L.irType(c.nodeType[i])), L.irType(c.nodeType[i]));  // a numeric conversion or a checked downcast
       case N::ObjectLit: {  // a fresh object of the record class, fields set in source order
-        std::uint32_t obj = c.types[c.nodeType[i]].obj, cls = L.classOfObj[obj];
+        std::uint32_t obj = c.types[c.nodeType[i]].obj, cls = L.newClassOf(obj);
         ValueId o = emit(IrOp::New, m.refT(cls), {}, 0, 0, cls);
         for (std::uint32_t p : x.kids) {
           std::uint32_t fi = L.fieldIndex(obj, n(p).text);
           emit(IrOp::SetField, m.voidT(), {o, exprTo(n(p).kids[0], m.classes[cls].fields[fi].type)}, 0, 0, fi);
         }
-        return o;
+        return coerce(o, m.refT(L.classOfObj[obj]));
       }
       case N::Binary: {
         std::string_view o = x.text;
@@ -1735,30 +1804,19 @@ struct Lowering::FnLower {
           }
         }
         if (ct.k == frontend::TK::Union) {  // a field every member of a union of records has: found by the dynamic class
-          std::vector<std::uint32_t> objs;
-          for (frontend::TypeId mt : ct.params) if (mt != 5u) objs.push_back(c.types[mt].obj);
-          TypeId rt = natural(i);
-          BlockId join = newBlock();
-          ValueId jp = newValue(rt);
-          f.blocks[join].params.push_back(jp);
-          for (std::size_t k = 0; k < objs.size(); ++k) {
-            std::uint32_t cls = L.classOfObj[objs[k]];
-            if (k + 1 < objs.size()) {
-              BlockId hit = newBlock(), next = newBlock();
-              condbr(emit(IrOp::InstOf, m.boolT(), {obj}, 0, 0, cls), hit, next);
-              sealed[hit] = sealed[next] = 1;
-              cur = hit;
-              br(join, {emit(IrOp::GetField, rt, {emit(IrOp::RefCast, m.refT(cls), {obj})}, 0, 0, L.fieldIndex(objs[k], x.text))});
-              cur = next;
-            } else br(join, {emit(IrOp::GetField, rt, {emit(IrOp::RefCast, m.refT(cls), {obj})}, 0, 0, L.fieldIndex(objs[k], x.text))});
+          std::vector<std::pair<std::uint32_t, std::uint32_t>> shapes;
+          for (frontend::TypeId mt : ct.params) {
+            if (mt == 5u) continue;
+            const std::uint32_t o = c.types[mt].obj;
+            if (L.litClassOfObj.count(o)) for (auto sh : L.openShapes(o)) shapes.push_back(sh);
+            else shapes.push_back({o, L.classOfObj[o]});
           }
-          seal(join);
-          cur = join;
-          return jp;
+          return fieldChain(obj, shapes, x.text, natural(i));
         }
         if (ct.k == frontend::TK::Array) return emit(IrOp::ArrLen, m.numT(NumK::i32), {obj});
         if (ct.k == frontend::TK::Str) return emit(IrOp::StrLen, m.numT(NumK::i32), {obj});
         if (ct.k == frontend::TK::Map || ct.k == frontend::TK::Set) return emit(IrOp::Rt, m.numT(NumK::i32), {obj}, 0, 0, static_cast<std::uint32_t>(ct.k == frontend::TK::Map ? zn::Rt::MapSize : zn::Rt::SetSize));
+        if (L.litClassOfObj.count(ct.obj)) return fieldChain(obj, L.openShapes(ct.obj), x.text, natural(i));
         std::uint32_t fi = L.fieldIndex(ct.obj, x.text);
         TypeId fieldT = m.classes[ty(tv(obj)).aux].fields[fi].type;  // the stored type; the node may be narrowed from it (T | null to T)
         ValueId fv = emit(IrOp::GetField, fieldT, {obj}, 0, 0, fi);
@@ -1779,7 +1837,8 @@ struct Lowering::FnLower {
   }
 
   // ---- lvalues
-  struct LVal { enum K { Var, Field, Elem, Static } k; std::uint32_t sym = kNil; ValueId obj = kNoValue, idx = kNoValue; std::uint32_t field = 0; TypeId type = 0; };
+  struct LVal { enum K { Var, Field, Elem, Static } k; std::uint32_t sym = kNil; ValueId obj = kNoValue, idx = kNoValue; std::uint32_t field = 0; TypeId type = 0;
+                std::uint32_t open = kNil; std::string_view name = {}; };   // a field of an open record: its checker object and the field's name
   LVal lvalue(std::uint32_t node) {
     const Node& x = n(node);
     LVal lv;
@@ -1796,6 +1855,7 @@ struct Lowering::FnLower {
       lv.k = LVal::Field;
       lv.obj = expr(x.kids[0]);
       lv.field = L.fieldIndex(c.types[c.nodeType[x.kids[0]]].obj, x.text);
+      if (L.litClassOfObj.count(c.types[c.nodeType[x.kids[0]]].obj)) { lv.open = c.types[c.nodeType[x.kids[0]]].obj; lv.name = x.text; }
       return lv;
     }
     if (isTupleObj(c.nodeType[x.kids[0]])) {
@@ -1812,6 +1872,7 @@ struct Lowering::FnLower {
   ValueId load(const LVal& lv) {
     if (lv.k == LVal::Var) return readSym(lv.sym);
     if (lv.k == LVal::Static) return emit(IrOp::GetGlobal, lv.type, {}, 0, 0, lv.field);
+    if (lv.k == LVal::Field && lv.open != kNil) return fieldChain(lv.obj, L.openShapes(lv.open), lv.name, lv.type);
     if (lv.k == LVal::Field) return emit(IrOp::GetField, lv.type, {lv.obj}, 0, 0, lv.field);
     return emit(IrOp::ArrGet, lv.type, {lv.obj, lv.idx});
   }
@@ -1819,6 +1880,7 @@ struct Lowering::FnLower {
     v = coerce(v, lv.type);
     if (lv.k == LVal::Var) writeSym(lv.sym, v);
     else if (lv.k == LVal::Static) emit(IrOp::SetGlobal, m.voidT(), {v}, 0, 0, lv.field);
+    else if (lv.k == LVal::Field && lv.open != kNil) fieldChain(lv.obj, L.openShapes(lv.open), lv.name, lv.type, v);
     else if (lv.k == LVal::Field) emit(IrOp::SetField, m.voidT(), {lv.obj, v}, 0, 0, lv.field);
     else emit(IrOp::ArrSet, m.voidT(), {lv.obj, lv.idx, v});
   }
@@ -1883,6 +1945,35 @@ struct Lowering::FnLower {
       cur = next;
     }
     br(join, {emit(IrOp::Call, ret, {v}, 0, 0, fallback)});
+    seal(join);
+    cur = join;
+    return jp;
+  }
+  // __dynDown<t>(d) (dyn.cpp): the object of `d` when it is the view of an instance of a subclass of t (a DynRefT<S>, S any class of the
+  // program), most derived first; otherwise the call as written (null)
+  ValueId dynDownView(frontend::TypeId t, const Node& x, std::uint32_t fallback) {
+    const ValueId d = expr(x.kids[1]);
+    const TypeId ret = m.functions[fallback].ret;
+    BlockId join = newBlock();
+    ValueId jp = newValue(ret);
+    f.blocks[join].params.push_back(jp);
+    for (std::uint32_t so : frontend::implementations(c, c.types[t].obj)) {
+      std::uint32_t view = kNil;   // DynRefT<S>: exists when some value of S was made an `any`
+      for (std::uint32_t o = 0; o < c.objs.size() && view == kNil; ++o) {
+        const frontend::ObjInfo& oi = c.objs[o];
+        if (oi.genericSym != kNil && c.syms[oi.genericSym].name == "DynRefT" && oi.typeArgs.size() == 1 && c.types[oi.typeArgs[0]].k == frontend::TK::Object &&
+            c.types[oi.typeArgs[0]].obj == so && L.classOfObj[o] != kNil) view = o;
+      }
+      if (view == kNil) continue;
+      const std::uint32_t cls = L.classOfObj[view], fi = L.fieldIndex(view, "o");
+      BlockId hit = newBlock(), next = newBlock();
+      condbr(emit(IrOp::InstOf, m.boolT(), {d}, 0, 0, cls), hit, next);
+      sealed[hit] = sealed[next] = 1;
+      cur = hit;
+      br(join, {coerce(emit(IrOp::GetField, m.classes[cls].fields[fi].type, {emit(IrOp::RefCast, m.refT(cls), {d})}, 0, 0, fi), ret)});
+      cur = next;
+    }
+    br(join, {emit(IrOp::Call, ret, {d}, 0, 0, fallback)});
     seal(join);
     cur = join;
     return jp;
@@ -2014,6 +2105,7 @@ struct Lowering::FnLower {
     if (callee.kind == N::Ident) {
       std::uint32_t s = c.nodeSym[x.kids[0]];
       if (s != kNil && c.syms[s].kind == SymKind::Func) if (auto ds = c.dynSubs.find(c.syms[s].decl); ds != c.dynSubs.end()) return dynSubView(ds->second, x, L.funcOfNode[c.syms[s].decl]);
+      if (s != kNil && c.syms[s].kind == SymKind::Func) if (auto dd = c.dynDowns.find(c.syms[s].decl); dd != c.dynDowns.end()) return dynDownView(dd->second, x, L.funcOfNode[c.syms[s].decl]);
       if (s != kNil && c.syms[s].kind == SymKind::Func && !L.closureFns.count(c.syms[s].decl)) return callFunction(L.funcOfNode[c.syms[s].decl], {}, x.kids, 1);
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__jsonOut") return emit(IrOp::Rt, m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(zn::Rt::JsonOut));
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__jsonQuoteNative") return emit(IrOp::Rt, m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(zn::Rt::StrJsonQuote));
@@ -2232,7 +2324,8 @@ struct Lowering::FnLower {
     }
     for (std::uint32_t pp : p.kids) {  // {a, b: x}: fields of a class instance
       std::uint32_t fi = L.fieldIndex(ct.obj, n(pp).text);
-      ValueId prop = emit(IrOp::GetField, L.irType(c.nodeType[pp]), {v}, 0, 0, fi);
+      ValueId prop = L.litClassOfObj.count(ct.obj) ? fieldChain(v, L.openShapes(ct.obj), n(pp).text, L.irType(c.nodeType[pp]))
+                                                    : emit(IrOp::GetField, L.irType(c.nodeType[pp]), {v}, 0, 0, fi);
       if (n(pp).kids.size() > 1 && n(pp).kids[1] != kNil && c.types[c.nodeType[pp]].undef) {   // {z = 5}: the default when the property is undefined (ZN-155)
         const TypeId bt = L.irType(c.nodeType[n(pp).kids[0]]);
         BlockId hb = newBlock(), eb = newBlock(), join = newBlock();

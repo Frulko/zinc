@@ -111,6 +111,12 @@ struct Checked {
   // the subclass the object is an instance of, through dynTos (type -> declaration node of its __dynTo<t>).
   std::unordered_map<std::uint32_t, TypeId> dynSubs;
   std::unordered_map<TypeId, std::uint32_t> dynTos;
+  // A __dynDown<t> declaration node -> its class type t: the lowering turns its calls into the object of a view of a subclass of t (any class of
+  // the program, whatever module declares it), null for any other value.
+  std::unordered_map<std::uint32_t, TypeId> dynDowns;
+  // A record a class instance was assigned to (TypeScript's structural typing: `const l: Labeled = new Tag()`) -> those classes. The lowering
+  // makes such a record an interface over its literal class and these classes, so reads and writes reach the instance's own fields.
+  std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> openRecords;
 };
 
 // Checks the program. Generic declarations are instantiated by cloning their nodes into `ast`.

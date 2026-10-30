@@ -1,6 +1,6 @@
 // The class of an object at run time: o.constructor.name, and an `any` view of an object that reads and writes the fields of its own
 // class, not only those of the static type it had when it became an `any` (the inspector reads a zinc:stage node this way).
-import { Base, peek } from './class_runtime_base';
+import { Base, back, peek } from './class_runtime_base';
 abstract class Shape { x: number = 1; }
 class Node2 extends Shape { visible: boolean = true; name: string = 'n'; }
 class Sprite extends Node2 { alpha: number = 0.5; }
@@ -21,3 +21,20 @@ d['alpha'] = 0.25;
 console.log(v.x, (v as Sprite).alpha);
 class Later extends Base { alpha: number = 0.75; }
 console.log(peek(new Later()), peek(new Base()));
+console.log(back(new Later()), back(new Base()));
+// A class instance where an interface of fields (a record) is expected, as TypeScript's structural typing allows: shared, read and written in place.
+interface Titled { title: string; }
+class Page implements Titled { title = 'p'; n: number = 2; }
+class Cover extends Page { gloss = true; }
+const t: Titled = new Page();
+t.title = 'q';
+t.title += '!';
+function titleOf(v: Titled): string { return v.title; }
+function cover(): Titled { return new Cover(); }
+const pages: Page[] = [new Page()];
+const titled: Titled[] = pages;
+titled[0].title = 'shared';
+const all: Titled[] = [t, { title: 'lit' }, cover(), titled[0]];
+const { title } = all[2];
+const plain: { title: string } = new Cover();
+console.log(all.map((v: Titled) => titleOf(v)).join(' '), pages[0].title, title, plain.title, t.constructor.name, all[1].constructor.name);

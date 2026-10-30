@@ -248,6 +248,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- A class instance can be used where an interface of fields or an object type is expected (`const l: Labeled = new Tag()`, in arrays, as a parameter or a return value), as TypeScript allows: reads and writes go to the instance itself.
+- Converting an `any` back to a class finds an instance of a subclass declared in a later module instead of throwing a TypeError.
 - A compiled run (`--native`) no longer fails with "has been modified since the precompiled header was built" after an engine header under `src/ir` or `src/frontend` changed.
 - `zinc run` of a file of a project that is not its entry (zinc dev's wrapper in `build/.zinc-dev`) reads the project's assets (`zinc.json` `"assets"`) instead of `build/assets`, so examples/fatty finds its sprites under `zinc dev`.
 - `o.constructor.name` gives the name of the object's class on every engine (it was refused with Z0106), and an `any` that holds an object of a subclass reads and writes that subclass's own fields, as JavaScript does, even when a library module made the `any` from the base class.

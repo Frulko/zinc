@@ -7,3 +7,5 @@ export function peek(o: Base): string {
   d.x = 3;
   return `${o.constructor.name} alpha ${a} x ${o.x}`;
 }
+// An `any` back to a Base: an instance of a subclass declared after this module stays that object.
+export function back(d: any): string { const b: Base = d; b.x = 4; return `${b.constructor.name} ${b.x}`; }

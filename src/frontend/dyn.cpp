@@ -66,6 +66,7 @@ bool convertibleRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
 std::string dynToName(TypeId t) { return "__dynTo" + std::to_string(t); }
 std::string dynFromName(TypeId t) { return "__dynFrom" + std::to_string(t); }
 std::string dynSubName(TypeId t) { return "__dynSub" + std::to_string(t); }
+std::string dynDownName(TypeId t) { return "__dynDown" + std::to_string(t); }
 
 bool dynConvertible(const Checked& c, TypeId t) {
   std::set<TypeId> seen;
@@ -144,13 +145,10 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
                (jsonOk ? "(): string => " + jsonName(t) + "(o)" : "(): string => '{}'") + ");\n";
       } else {
         body = "  if (d instanceof DynRef && d.exact(" + std::to_string(t) + ")) return (d as DynRefT<" + A + ">).o;\n";
-        if (oi.isClass && !oi.isRecord && !oi.isTemplate)   // the view of an instance of a subclass is typed with that subclass
-          for (std::uint32_t so = 0; so < c.objs.size(); ++so) {
-            const ObjInfo& si = c.objs[so];
-            TypeId st = so != x.obj && si.isClass && !si.isRecord && !si.isTemplate && !si.isAbstract && isSubclass(c, so, x.obj) ? typeOfObject(c, so) : kNoType;
-            if (st != kNoType) deps.push_back({st, false});   // its alias must exist too
-            if (st != kNoType) body += "  if (d instanceof DynRef && d.exact(" + std::to_string(st) + ")) return (d as DynRefT<" + inspectAliasName(st) + ">).o;\n";
-          }
+        if (oi.isClass && !oi.isRecord && !oi.isTemplate) {   // the view of an instance of a subclass is typed with that subclass, which a later module may declare
+          body += "  const sub: " + A + " | null = " + dynDownName(t) + "(d);\n  if (sub !== null) return sub;\n";
+          extra = "function " + dynDownName(t) + "(d: any): " + A + " | null {\n  return null;\n}\n";
+        }
         if (oi.isRecord) {
           body += "  if (d instanceof DynObj || d instanceof DynRef) {\n    const r: " + A + " = { ";
           bool first = true;
