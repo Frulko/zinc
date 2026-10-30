@@ -319,6 +319,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Bitwise operators (`& | ^ << >> >>>` and `&=`...) on an `any` value compile, as in TypeScript, instead of error Z0005.
 - A conditional whose branches are an integer (`i32`) and a `number`, with no declared type around it (`w += c ? n : 2.5`, `const v = c ? n : x`), is a `number`: it was cut to an integer when the integer branch came first.
 - macOS: the arguments of `zinc run` (the project's path) are no longer delivered to the app as a file dropped on its window at launch.
+- Text taken apart one character at a time (`s.charAt(i)` over an emoji) and joined again is the same text: on the interpreter and in built apps the emoji came back as two replacement marks.
 - `zinc:socket` WebSocket receives a large message about seven times faster (6 MB: 5.1 s down to 0.7 s), so the Discord demo connects much sooner.
 - With `"text": "shaped"`, a typographic quote (’ “ ”), a symbol or a text-style emoji (⛔) the built-in font lacks is drawn from the system fonts instead of a '?'.
 - A TLS 1.3 connection (`wss://`, `connectTls`, `https`) no longer hangs when the server's session tickets and its first reply arrive together, as Cloudflare's servers send them: about one connection in two to Discord's gateway waited forever.

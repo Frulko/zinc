@@ -311,13 +311,33 @@ bool Machine::load(const zbc::Module& m, std::string& err) {
   return true;
 }
 
+namespace {
+// The halves of a surrogate pair stored apart (3-byte WTF-8 forms: s.charAt(i) of an emoji) written at `d` as the 4-byte UTF-8 character
+// they make together: the same bytes, comparison and hash as the character written whole. False when `h` and `l` are not such halves.
+bool joinPair(const std::uint8_t* h, const std::uint8_t* l, char* d) {
+  if (h[0] != 0xED || h[1] < 0xA0 || h[1] > 0xAF || (h[2] & 0xC0) != 0x80 || l[0] != 0xED || l[1] < 0xB0 || l[1] > 0xBF || (l[2] & 0xC0) != 0x80) return false;
+  const std::uint32_t cp = 0x10000 + ((((h[1] & 0x0Fu) << 6) | (h[2] & 0x3Fu)) << 10) + (((l[1] & 0x0Fu) << 6) | (l[2] & 0x3Fu));
+  d[0] = static_cast<char>(0xF0 | cp >> 18); d[1] = static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+  d[2] = static_cast<char>(0x80 | ((cp >> 6) & 0x3F)); d[3] = static_cast<char>(0x80 | (cp & 0x3F));
+  return true;
+}
+}  // namespace
+
 StrObj* Machine::newStr(const char* p, std::size_t n) {
   auto* s = static_cast<StrObj*>(allocRaw(sizeof(StrObj) + n + 1));
   if (!s) std::abort();
   s->cls = strClass; s->rc = 1;
-  s->len = static_cast<std::uint32_t>(n);
   char* d = reinterpret_cast<char*>(s + 1);
   if (n) std::memcpy(d, p, n);
+  if (n >= 6 && std::memchr(d, 0xED, n)) {   // halves of a pair side by side: the character
+    std::size_t o = 0;
+    for (std::size_t i = 0; i < n;) {
+      if (i + 6 <= n && joinPair(reinterpret_cast<const std::uint8_t*>(d + i), reinterpret_cast<const std::uint8_t*>(d + i + 3), d + o)) { o += 4; i += 6; }
+      else d[o++] = d[i++];
+    }
+    n = o;
+  }
+  s->len = static_cast<std::uint32_t>(n);
   d[n] = 0;
   bool ascii = true;
   std::uint32_t units = 0;
@@ -342,6 +362,11 @@ StrObj* Machine::newStrCat(const StrObj* a, const StrObj* b) {
   char* d = reinterpret_cast<char*>(s + 1);
   if (a->len) std::memcpy(d, a->data(), a->len);
   if (b->len) std::memcpy(d + a->len, b->data(), b->len);
+  if (a->len >= 3 && b->len >= 3 && joinPair(reinterpret_cast<const std::uint8_t*>(d + a->len - 3), reinterpret_cast<const std::uint8_t*>(d + a->len), d + a->len - 3)) {
+    std::memmove(d + a->len + 1, d + a->len + 3, b->len - 3);   // a ends with the high half and b starts with the low one: the character
+    s->len = static_cast<std::uint32_t>(n - 2);
+    d[n - 2] = 0;
+  }
   d[n] = 0;
   s->ascii = a->ascii && b->ascii;
   s->u16len = a->u16len + b->u16len;

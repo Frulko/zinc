@@ -100,6 +100,7 @@
     {"paths": ["tests/data/busy_spinner/", "tests/t1/busy_spinner.sh"], "tests": ["busy_spinner"]},
     {"paths": ["src/rt/", "src/host/loop.cpp", "include/zn/alloc_stats.h", "tests/unit/threads_test.cpp", "tests/data/threads_two.ts", "tests/t0/threads_two.sh"], "tests": ["threads_two"]},
     {"paths": ["src/frontend/check.cpp", "tests/golden/host/dyn_generic.ts", "tests/t0/dyn_generic.sh"], "tests": ["dyn_generic"]},
+    {"paths": ["src/rt/machine.cpp", "src/rt/rtcalls.cpp", "runtime/zrt.cpp", "tests/t0/str_surrogate_join.sh"], "tests": ["str_surrogate_join", "str_invalid_utf8"]},
     {"paths": ["src/rt/worker.cpp", "src/rt/worker.h", "lib/std/worker.ts", "src/zbc/", "tests/data/worker_basic/", "tests/data/worker_draw/", "tests/t0/worker_basic.sh"], "tests": ["worker_basic"]},
     {"paths": ["src/rt/worker.cpp", "lib/std/worker.ts", "include/zn/rec.h", "tests/data/worker_wire/", "tests/t0/worker_wire.sh"], "tests": ["worker_wire"]},
     {"paths": ["src/frontend/modules.cpp", "src/frontend/parser.cpp", "src/frontend/check.cpp", "src/main.cpp", "tests/data/import_type/", "tests/t0/import_type.sh"], "tests": ["import_type"]},

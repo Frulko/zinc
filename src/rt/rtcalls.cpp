@@ -61,7 +61,7 @@ std::string toUtf8(const char16_t* p, std::size_t n) {
   for (std::size_t i = 0; i < n; ++i) {
     std::uint32_t c = p[i];
     if (c >= 0xD800 && c < 0xDC00 && i + 1 < n && p[i + 1] >= 0xDC00 && p[i + 1] < 0xE000) { c = 0x10000 + ((c - 0xD800) << 10) + (p[i + 1] - 0xDC00u); ++i; }
-    else if (c >= 0xD800 && c < 0xE000) c = 0xFFFD;  // a lone surrogate
+    // a lone surrogate keeps its 3-byte (WTF-8) form, as the AOT runtime stores it: joined to its other half it is the character again
     if (c < 0x80) r += static_cast<char>(c);
     else if (c < 0x800) { r += static_cast<char>(0xC0 | c >> 6); r += static_cast<char>(0x80 | (c & 0x3F)); }
     else if (c < 0x10000) { r += static_cast<char>(0xE0 | c >> 12); r += static_cast<char>(0x80 | ((c >> 6) & 0x3F)); r += static_cast<char>(0x80 | (c & 0x3F)); }
