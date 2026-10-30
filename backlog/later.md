@@ -613,6 +613,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-890: Z0005 "conversion of '() => void' to Dyn" on `const next = waiting.pop(); if (next !== undefined) next();` in the Discord guard's download(); not reproduced in a small program yet.
 - ZN-890: promise_statics.ts of the run test fails with Z0103 on develop.
 
+- ZN-891: Zinc refuses Map<string, Class> where Map<string, Interface> is expected (Z0103), which TypeScript accepts; fix the checker's generic variance with a test, then CallQuality can take an interface.
+- ZN-891: map zinc:webrtc/quality in plugins/webrtc's web.modules so it resolves on the web target.
+- ZN-891: tests/t1/webrtc_call.sh should make ZINC absolute, as discord_voice.sh does; tests/run keeps only the last --only when given several.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -886,6 +890,9 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-890: Cmd+Q through the menu's quit role does not go through store.suspend() in Discord, so that quit is not resumed at the next launch.
 - ZN-890: pace the voice gateway of plugins/discord-voice through the Discord guard's gateway budget.
+
+- ZN-891: check on a real Discord call that the UDP voice server answers our RTCP sender reports; without them the round trip shows "--" and Go Live never adapts.
+- ZN-891: a lossy phase in the fake Discord (loss on the voice stream) so the session covers the automatic ultra low data switch; read REMB for the video bitrate.
 
 ## Cross-platform pass
 - ZN-875: zinc:screen-capture/picker and app icons on the Linux and Windows backends.
