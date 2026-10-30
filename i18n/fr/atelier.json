@@ -310,6 +310,7 @@
   "atelier.console.empty": "Rien pour l’instant. Lancez le croquis : sa compilation et ce qu’il affiche arrivent ici.",
   "atelier.console.stopped": "arrêté",
   "atelier.console.copy": "Copier",
+  "atelier.console.reference": "Référence",
   "atelier.console.copied_one": "Console copiée : {count} ligne",
   "atelier.console.copied_many": "Console copiée : {count} de lignes",
   "atelier.console.copied_other": "Console copiée : {count} lignes",

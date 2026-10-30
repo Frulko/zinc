@@ -12,6 +12,23 @@ Fix: Check the line for a missing operand, bracket or keyword.
 let x = ;
 ```
 
+Fixed:
+
+```ts
+// Give the variable a value after =
+let x = 0;
+```
+
+Fixed:
+
+```ts
+// Or say only its type, and give it a value later
+let x: number;
+x = 1;
+```
+
+Lesson: [learn/01-window-and-shape](learn/01-window-and-shape.md)
+
 ## Z0002: Expected a specific token
 
 The construct requires a particular token (such as ';', ')' or ':') and found something else.
@@ -23,6 +40,32 @@ let a = 1
 let b = 2 3;
 ```
 
+Fixed:
+
+```ts
+// One value per statement
+let a = 1
+let b = 2;
+```
+
+Fixed:
+
+```ts
+// Or an operator between the two values
+let a = 1
+let b = 2 + 3;
+```
+
+Fixed:
+
+```ts
+// Or two statements, each ending with ;
+let a = 1
+let b = 2; let c = 3;
+```
+
+Lesson: [learn/01-window-and-shape](learn/01-window-and-shape.md)
+
 ## Z0003: Invalid or unterminated literal
 
 A string, template, regular expression or comment is not closed, or a character is not valid in the source.
@@ -33,6 +76,23 @@ Fix: Close the literal on the same line (strings) or remove the stray character.
 const s = "abc
 ```
 
+Fixed:
+
+```ts
+// Close the string on the same line
+const s = "abc";
+```
+
+Fixed:
+
+```ts
+// A text over several lines goes between backquotes
+const s = `abc
+def`;
+```
+
+Lesson: [learn/01-window-and-shape](learn/01-window-and-shape.md)
+
 ## Z0004: Invalid assignment target
 
 Only a variable, a property (a.b) or an element (a[i]) can be assigned to.
@@ -42,6 +102,24 @@ Fix: Assign to a variable or property instead.
 ```ts
 1 + 2 = a;
 ```
+
+Fixed:
+
+```ts
+// The variable that changes goes on the left of =
+let a = 0;
+a = 1 + 2;
+```
+
+Fixed:
+
+```ts
+// To compare two values, write ===
+const a = 3;
+console.log(1 + 2 === a);
+```
+
+Lesson: [learn/02-colours-and-movement](learn/02-colours-and-movement.md)
 
 ## Z0005: Syntax not supported yet
 
@@ -65,6 +143,29 @@ function App(): i32 {
 }
 ```
 
+Fixed:
+
+```ts
+// className carries the classes
+function App(): i32 {
+  return <View className="p-4" />;
+}
+```
+
+Fixed:
+
+```ts
+// and a component of yours takes them as className too
+function Card(props: { className: string }): i32 {
+  return <View className={props.className} />;
+}
+function App(): i32 {
+  return <Card className="p-4" />;
+}
+```
+
+Lesson: [learn/07-components](learn/07-components.md)
+
 ## Z0007: JSX components start with a capital letter
 
 As in React and React Native, a JSX tag names a component and components start with a capital letter: `<View>`, `<Text>`, `<Button>`, `<Image>`, `<ScrollView>`, `<Canvas>`, `<Input>`, `<TextArea>` or one of yours. A lowercase tag is not a component of Zinc.
@@ -77,6 +178,26 @@ function App(): i32 {
 }
 ```
 
+Fixed:
+
+```ts
+// Components start with a capital letter
+function App(): i32 {
+  return <View />;
+}
+```
+
+Fixed:
+
+```ts
+// A list that scrolls is a ScrollView
+function App(): i32 {
+  return <ScrollView><Text>Hello</Text></ScrollView>;
+}
+```
+
+Lesson: [learn/07-components](learn/07-components.md)
+
 ## Z0101: Cannot find name
 
 The identifier is not declared in this scope, or is declared later in the same scope.
@@ -86,6 +207,32 @@ Fix: Declare it before use, or fix the spelling.
 ```ts
 let a = b;
 ```
+
+Fixed:
+
+```ts
+// Declare b before it is used
+let b = 1;
+let a = b;
+```
+
+Fixed:
+
+```ts
+// A function of the engine: import it from its module first
+import { width } from 'zinc:gfx';
+let a = width();
+```
+
+Fixed:
+
+```ts
+// Or check the spelling: names are case-sensitive
+let total = 1;
+let a = total;
+```
+
+Lesson: [learn/01-window-and-shape](learn/01-window-and-shape.md)
 
 ## Z0102: Duplicate declaration
 
@@ -98,6 +245,24 @@ let a = 1;
 let a = 2;
 ```
 
+Fixed:
+
+```ts
+// Give the second variable another name
+let a = 1;
+let b = 2;
+```
+
+Fixed:
+
+```ts
+// Or change the first one's value: no let the second time
+let a = 1;
+a = 2;
+```
+
+Lesson: [learn/02-colours-and-movement](learn/02-colours-and-movement.md)
+
 ## Z0103: Type is not assignable
 
 The value's type cannot be used where another type is expected. Machine numeric kinds (i32, f64, ...) are distinct: only lossless widening is implicit, and conditions must be boolean. `number` is f64 (f32 or fixed point on some boards, see --profile); messages say number.
@@ -107,6 +272,29 @@ Fix: Convert explicitly or change the declared type.
 ```ts
 let a: i32 = "x";
 ```
+
+Fixed:
+
+```ts
+// A number where a number is expected
+let a: i32 = 1;
+```
+
+Fixed:
+
+```ts
+// Or declare that it holds a text
+let a: string = "x";
+```
+
+Fixed:
+
+```ts
+// Or turn the text into a number
+let a: number = parseFloat("1.5");
+```
+
+Lesson: [learn/01-window-and-shape](learn/01-window-and-shape.md)
 
 ## Z0104: Wrong number of arguments
 
@@ -119,6 +307,33 @@ function f(a: i32): i32 { return a; }
 f(1, 2);
 ```
 
+Fixed:
+
+```ts
+// Pass what the function declares
+function f(a: i32): i32 { return a; }
+f(1);
+```
+
+Fixed:
+
+```ts
+// Or declare a second parameter
+function f(a: i32, b: i32): i32 { return a + b; }
+f(1, 2);
+```
+
+Fixed:
+
+```ts
+// Or give it a default value, so it can be left out
+function f(a: i32, b: i32 = 0): i32 { return a + b; }
+f(1);
+f(1, 2);
+```
+
+Lesson: [learn/01-window-and-shape](learn/01-window-and-shape.md)
+
 ## Z0105: Expression is not callable
 
 Only functions and methods can be called, and only classes can be used with new.
@@ -129,6 +344,24 @@ Fix: Call a function, or remove the parentheses.
 let a = 1;
 a();
 ```
+
+Fixed:
+
+```ts
+// A value is used without parentheses
+let a = 1;
+console.log(a);
+```
+
+Fixed:
+
+```ts
+// Or make it a function
+const a = (): i32 => 1;
+a();
+```
+
+Lesson: [learn/02-colours-and-movement](learn/02-colours-and-movement.md)
 
 ## Z0106: Property does not exist
 
@@ -141,6 +374,24 @@ let a = 1;
 a.foo;
 ```
 
+Fixed:
+
+```ts
+// Use a member the type has (the cheat sheet lists them)
+let a = 1;
+console.log(a.toFixed(2));
+```
+
+Fixed:
+
+```ts
+// Or make an object that has the property
+const a = { foo: 1 };
+console.log(a.foo);
+```
+
+Lesson: [learn/02-colours-and-movement](learn/02-colours-and-movement.md)
+
 ## Z0107: Operator cannot be applied to these types
 
 The operands' types do not support the operator.
@@ -150,6 +401,29 @@ Fix: Convert the operands or use another operator.
 ```ts
 let a = 1 - "x";
 ```
+
+Fixed:
+
+```ts
+// Numbers with numbers
+let a = 1 - 2;
+```
+
+Fixed:
+
+```ts
+// Or turn the text into a number first
+let a = 1 - parseFloat("2");
+```
+
+Fixed:
+
+```ts
+// + joins a number and a text into a text
+let a = 1 + "x";
+```
+
+Lesson: [learn/02-colours-and-movement](learn/02-colours-and-movement.md)
 
 ## Z0108: Cannot assign to a constant
 
@@ -161,6 +435,24 @@ Fix: Declare it with let, or do not assign.
 const a = 1;
 a = 2;
 ```
+
+Fixed:
+
+```ts
+// A value that changes is declared with let
+let a = 1;
+a = 2;
+```
+
+Fixed:
+
+```ts
+// Or keep it constant and make a new one
+const a = 1;
+const b = a + 1;
+```
+
+Lesson: [learn/02-colours-and-movement](learn/02-colours-and-movement.md)
 
 ## Z0109: Cannot infer a type
 
@@ -174,6 +466,26 @@ function f(a) {
 }
 ```
 
+Fixed:
+
+```ts
+// Say the type of each parameter
+function f(a: number) {
+  return 1;
+}
+```
+
+Fixed:
+
+```ts
+// and, to be clear, the type it returns
+function f(a: number): number {
+  return a + 1;
+}
+```
+
+Lesson: [learn/01-window-and-shape](learn/01-window-and-shape.md)
+
 ## Z0110: Not all code paths return a value
 
 A function with a non-void return type must return on every path.
@@ -186,6 +498,28 @@ function f(a: i32): i32 {
 }
 ```
 
+Fixed:
+
+```ts
+// Return a value on every path
+function f(a: i32): i32 {
+  if (a > 0) return 1;
+  return 0;
+}
+```
+
+Fixed:
+
+```ts
+// Or with else
+function f(a: i32): i32 {
+  if (a > 0) return 1;
+  else return -1;
+}
+```
+
+Lesson: [learn/01-window-and-shape](learn/01-window-and-shape.md)
+
 ## Z0111: Field is not initialized
 
 A field without an initializer must be assigned in the constructor.
@@ -197,6 +531,27 @@ class A {
   x: i32;
 }
 ```
+
+Fixed:
+
+```ts
+// Give the field a first value
+class A {
+  x: i32 = 0;
+}
+```
+
+Fixed:
+
+```ts
+// Or set it in the constructor
+class A {
+  x: i32;
+  constructor(x: i32) { this.x = x; }
+}
+```
+
+Lesson: [guide/02-language](guide/02-language.md)
 
 ## Z0112: Not allowed in this context
 
@@ -218,6 +573,24 @@ Fix: Use an array.
 let a = 1;
 a[0];
 ```
+
+Fixed:
+
+```ts
+// Index an array
+const a = [1, 2, 3];
+console.log(a[0]);
+```
+
+Fixed:
+
+```ts
+// Or the characters of a text
+const a = "abc";
+console.log(a.charAt(0));
+```
+
+Lesson: [learn/08-state](learn/08-state.md)
 
 ## Z0114: Invalid class hierarchy or override
 
@@ -252,6 +625,26 @@ interface I { f(): i32; }
 class A implements I { }
 ```
 
+Fixed:
+
+```ts
+// Write every member the interface lists
+interface I { f(): i32; }
+class A implements I {
+  f(): i32 { return 1; }
+}
+```
+
+Fixed:
+
+```ts
+// Or do not claim the interface
+interface I { f(): i32; }
+class A { }
+```
+
+Lesson: [guide/02-language](guide/02-language.md)
+
 ## Z0117: Member is not accessible
 
 A private member is visible only inside its class, a protected member inside its class and subclasses.
@@ -263,6 +656,29 @@ class A { private x: i32 = 1; }
 const a = new A();
 console.log(a.x);
 ```
+
+Fixed:
+
+```ts
+// Make the field public
+class A { x: i32 = 1; }
+const a = new A();
+console.log(a.x);
+```
+
+Fixed:
+
+```ts
+// Or keep it private and read it through a method
+class A {
+  private x: i32 = 1;
+  value(): i32 { return this.x; }
+}
+const a = new A();
+console.log(a.value());
+```
+
+Lesson: [guide/02-language](guide/02-language.md)
 
 ## Z0118: Invalid super call
 
@@ -288,6 +704,24 @@ Fix: Fix the path or create the file.
 import { x } from './missing';
 ```
 
+Fixed:
+
+```ts
+// The engine's modules start with zinc: (the cheat sheet lists them)
+import { width } from 'zinc:gfx';
+console.log(width());
+```
+
+Fixed:
+
+```ts
+// Or declare the value in this file
+const x = 1;
+console.log(x);
+```
+
+Lesson: [learn/01-window-and-shape](learn/01-window-and-shape.md)
+
 ## Z1001: `var` is not supported
 
 `var` hoists and has function scope, which a typed engine cannot give a static meaning to.
@@ -298,6 +732,25 @@ Fix: Use `let` (reassigned) or `const`.
 var x = 1;
 console.log(x);
 ```
+
+Fixed:
+
+```ts
+// A value that changes: let
+let x = 1;
+x = 2;
+console.log(x);
+```
+
+Fixed:
+
+```ts
+// A value that does not: const
+const x = 1;
+console.log(x);
+```
+
+Lesson: [learn/02-colours-and-movement](learn/02-colours-and-movement.md)
 
 ## Z1002: `arguments` is not supported
 
@@ -339,6 +792,25 @@ Fix: Use a Map (`map.delete(key)`), or set the field to null.
 const o = { a: 1 };
 delete o.a;
 ```
+
+Fixed:
+
+```ts
+// Keys that come and go belong in a Map
+const o = new Map<string, i32>();
+o.set('a', 1);
+o.delete('a');
+```
+
+Fixed:
+
+```ts
+// Or an optional property set to undefined
+const o: { a?: i32 } = { a: 1 };
+o.a = undefined;
+```
+
+Lesson: [learn/08-state](learn/08-state.md)
 
 ## Z1009: Dynamic `import()` is not supported
 

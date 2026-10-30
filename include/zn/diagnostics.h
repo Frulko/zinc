@@ -161,6 +161,105 @@
     "statically typed: `any` and the untyped result of JSON.parse are the gradual (Dyn) part of the language.",         \
     "Give the value a type, use `unknown` and narrow it, or drop the strict profile.", "// zinc-profile: strict\nconst x: any = 1;\nconsole.log(x);")
 
+// What a beginner meets in the lessons and the templates (ZN-774.28, after Rust's error index and Elm's messages): per code, the page of
+// docs/learn (or docs/guide) that teaches it and two or three fixed versions of the registry's example, each opening with a comment that
+// says what it changes. `zinc explain` and docs/diagnostics.md print them under the example; tests/t0/explain_fixes.sh compiles the
+// example (it must give its code) and every fix (it must give none).
+// X(code, page, fix1, fix2, fix3): fix3 may be ""
+#define ZN_DIAGNOSTIC_FIXES(X) \
+  X("Z0001", "learn/01-window-and-shape", \
+    "// Give the variable a value after =\nlet x = 0;", \
+    "// Or say only its type, and give it a value later\nlet x: number;\nx = 1;", \
+    "") \
+  X("Z0002", "learn/01-window-and-shape", \
+    "// One value per statement\nlet a = 1\nlet b = 2;", \
+    "// Or an operator between the two values\nlet a = 1\nlet b = 2 + 3;", \
+    "// Or two statements, each ending with ;\nlet a = 1\nlet b = 2; let c = 3;") \
+  X("Z0003", "learn/01-window-and-shape", \
+    "// Close the string on the same line\nconst s = \"abc\";", \
+    "// A text over several lines goes between backquotes\nconst s = `abc\ndef`;", \
+    "") \
+  X("Z0004", "learn/02-colours-and-movement", \
+    "// The variable that changes goes on the left of =\nlet a = 0;\na = 1 + 2;", \
+    "// To compare two values, write ===\nconst a = 3;\nconsole.log(1 + 2 === a);", \
+    "") \
+  X("Z0006", "learn/07-components", \
+    "// className carries the classes\nfunction App(): i32 {\n  return <View className=\"p-4\" />;\n}", \
+    "// and a component of yours takes them as className too\nfunction Card(props: { className: string }): i32 {\n  return <View className={props.className} />;\n}\nfunction App(): i32 {\n  return <Card className=\"p-4\" />;\n}", \
+    "") \
+  X("Z0007", "learn/07-components", \
+    "// Components start with a capital letter\nfunction App(): i32 {\n  return <View />;\n}", \
+    "// A list that scrolls is a ScrollView\nfunction App(): i32 {\n  return <ScrollView><Text>Hello</Text></ScrollView>;\n}", \
+    "") \
+  X("Z0101", "learn/01-window-and-shape", \
+    "// Declare b before it is used\nlet b = 1;\nlet a = b;", \
+    "// A function of the engine: import it from its module first\nimport { width } from 'zinc:gfx';\nlet a = width();", \
+    "// Or check the spelling: names are case-sensitive\nlet total = 1;\nlet a = total;") \
+  X("Z0102", "learn/02-colours-and-movement", \
+    "// Give the second variable another name\nlet a = 1;\nlet b = 2;", \
+    "// Or change the first one's value: no let the second time\nlet a = 1;\na = 2;", \
+    "") \
+  X("Z0103", "learn/01-window-and-shape", \
+    "// A number where a number is expected\nlet a: i32 = 1;", \
+    "// Or declare that it holds a text\nlet a: string = \"x\";", \
+    "// Or turn the text into a number\nlet a: number = parseFloat(\"1.5\");") \
+  X("Z0104", "learn/01-window-and-shape", \
+    "// Pass what the function declares\nfunction f(a: i32): i32 { return a; }\nf(1);", \
+    "// Or declare a second parameter\nfunction f(a: i32, b: i32): i32 { return a + b; }\nf(1, 2);", \
+    "// Or give it a default value, so it can be left out\nfunction f(a: i32, b: i32 = 0): i32 { return a + b; }\nf(1);\nf(1, 2);") \
+  X("Z0105", "learn/02-colours-and-movement", \
+    "// A value is used without parentheses\nlet a = 1;\nconsole.log(a);", \
+    "// Or make it a function\nconst a = (): i32 => 1;\na();", \
+    "") \
+  X("Z0106", "learn/02-colours-and-movement", \
+    "// Use a member the type has (the cheat sheet lists them)\nlet a = 1;\nconsole.log(a.toFixed(2));", \
+    "// Or make an object that has the property\nconst a = { foo: 1 };\nconsole.log(a.foo);", \
+    "") \
+  X("Z0107", "learn/02-colours-and-movement", \
+    "// Numbers with numbers\nlet a = 1 - 2;", \
+    "// Or turn the text into a number first\nlet a = 1 - parseFloat(\"2\");", \
+    "// + joins a number and a text into a text\nlet a = 1 + \"x\";") \
+  X("Z0108", "learn/02-colours-and-movement", \
+    "// A value that changes is declared with let\nlet a = 1;\na = 2;", \
+    "// Or keep it constant and make a new one\nconst a = 1;\nconst b = a + 1;", \
+    "") \
+  X("Z0109", "learn/01-window-and-shape", \
+    "// Say the type of each parameter\nfunction f(a: number) {\n  return 1;\n}", \
+    "// and, to be clear, the type it returns\nfunction f(a: number): number {\n  return a + 1;\n}", \
+    "") \
+  X("Z0110", "learn/01-window-and-shape", \
+    "// Return a value on every path\nfunction f(a: i32): i32 {\n  if (a > 0) return 1;\n  return 0;\n}", \
+    "// Or with else\nfunction f(a: i32): i32 {\n  if (a > 0) return 1;\n  else return -1;\n}", \
+    "") \
+  X("Z0111", "guide/02-language", \
+    "// Give the field a first value\nclass A {\n  x: i32 = 0;\n}", \
+    "// Or set it in the constructor\nclass A {\n  x: i32;\n  constructor(x: i32) { this.x = x; }\n}", \
+    "") \
+  X("Z0113", "learn/08-state", \
+    "// Index an array\nconst a = [1, 2, 3];\nconsole.log(a[0]);", \
+    "// Or the characters of a text\nconst a = \"abc\";\nconsole.log(a.charAt(0));", \
+    "") \
+  X("Z0116", "guide/02-language", \
+    "// Write every member the interface lists\ninterface I { f(): i32; }\nclass A implements I {\n  f(): i32 { return 1; }\n}", \
+    "// Or do not claim the interface\ninterface I { f(): i32; }\nclass A { }", \
+    "") \
+  X("Z0117", "guide/02-language", \
+    "// Make the field public\nclass A { x: i32 = 1; }\nconst a = new A();\nconsole.log(a.x);", \
+    "// Or keep it private and read it through a method\nclass A {\n  private x: i32 = 1;\n  value(): i32 { return this.x; }\n}\nconst a = new A();\nconsole.log(a.value());", \
+    "") \
+  X("Z0119", "learn/01-window-and-shape", \
+    "// The engine's modules start with zinc: (the cheat sheet lists them)\nimport { width } from 'zinc:gfx';\nconsole.log(width());", \
+    "// Or declare the value in this file\nconst x = 1;\nconsole.log(x);", \
+    "") \
+  X("Z1001", "learn/02-colours-and-movement", \
+    "// A value that changes: let\nlet x = 1;\nx = 2;\nconsole.log(x);", \
+    "// A value that does not: const\nconst x = 1;\nconsole.log(x);", \
+    "") \
+  X("Z1007", "learn/08-state", \
+    "// Keys that come and go belong in a Map\nconst o = new Map<string, i32>();\no.set('a', 1);\no.delete('a');", \
+    "// Or an optional property set to undefined\nconst o: { a?: i32 } = { a: 1 };\no.a = undefined;", \
+    "")
+
 namespace zn {
 
 struct DiagInfo {
@@ -180,6 +279,25 @@ inline constexpr DiagInfo kDiagnostics[] = {
     ZN_DIAGNOSTICS(X)
 #undef X
 };
+
+// The site the documentation is published on: a page of docs/ is <kDocsUrl><path without .md>/ (site/docs-map.mjs)
+inline constexpr const char* kDocsUrl = "https://frulko.github.io/zinc/docs/";
+
+struct DiagFixes {
+  const char* code;
+  const char* page;      // learn/01-window-and-shape: docs/learn/01-window-and-shape.md
+  const char* fixes[3];  // "" when there are two
+};
+inline constexpr DiagFixes kDiagFixes[] = {
+#define X(code, page, f1, f2, f3) {code, page, {f1, f2, f3}},
+    ZN_DIAGNOSTIC_FIXES(X)
+#undef X
+};
+inline const DiagFixes* findFixes(std::string_view code) {
+  for (const DiagFixes& f : kDiagFixes)
+    if (code == f.code) return &f;
+  return nullptr;
+}
 
 inline const DiagInfo* findDiag(std::string_view code) {
   for (const DiagInfo& d : kDiagnostics)

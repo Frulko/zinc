@@ -7,8 +7,8 @@ import { createNodeRef, createEffect, untrack } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { theme, bg, fg, bd } from '../app/theme';
 import { active, Buffer, notice, focusLater } from '../app/workspace';
-import { lines, Line, K_OUT, K_ERR, jump, explain, consoleH, consoleOpen, showConsole, takeFollow, copyConsole, status, statusKind, phase, IDLE, BUILDING, inspectorPort, openInspector } from '../app/tools';
-import { promptLabel, promptValue, setPromptValue, answer } from '../app/commands';
+import { lines, Line, K_OUT, K_ERR, jump, explain, consoleH, consoleOpen, showConsole, takeFollow, copyConsole, status, statusKind, phase, IDLE, BUILDING, inspectorPort, openInspector, reference } from '../app/tools';
+import { promptLabel, promptValue, setPromptValue, answer, openReference } from '../app/commands';
 import { jumpTo } from '../app/cursors';
 import { caretInfo } from './Editor';
 import { Glyph, IconButton, Kbd } from './Controls';
@@ -137,6 +137,10 @@ function StatusLine(): i32 {
     {inspectorPort() > 0 && !asking() && <View className={`flex-row items-center h-[24] px-2.5 rounded-full cursor-pointer ${bg(theme().accentSoft)}`}
       onPointerDown={(e: ui.PointerEvent) => openInspector()}>
       <Text className={`text-[12px] font-medium ${fg(theme().accent)}`}>{tr('atelier.console.inspector', ['port', `${inspectorPort()}`])}</Text>
+    </View>}
+    {consoleOpen() && reference() !== '' && !asking() && <View className={`flex-row items-center h-[24] px-2.5 rounded-full cursor-pointer ${bg(theme().accentSoft)}`}
+      onPointerDown={(e: ui.PointerEvent) => openReference()}>
+      <Text className={`text-[12px] font-medium ${fg(theme().accent)}`}>{tr('atelier.console.reference')}</Text>
     </View>}
     {consoleOpen() && lines().length > 0 && !asking() && <View className={`flex-row items-center h-[24] px-2.5 rounded-full cursor-pointer hover:${bg(theme().hover)}`}
       onPointerDown={(e: ui.PointerEvent) => copyConsole()}>

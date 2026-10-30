@@ -309,6 +309,7 @@
   "atelier.console.empty": "Nothing yet. Run the sketch: its build and what it prints arrive here.",
   "atelier.console.stopped": "stopped",
   "atelier.console.copy": "Copy",
+  "atelier.console.reference": "Reference",
   "atelier.console.copied_one": "Copied the console: {count} line",
   "atelier.console.copied_other": "Copied the console: {count} lines",
   "atelier.console.problems_one": "{count} problem",

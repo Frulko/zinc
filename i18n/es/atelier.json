@@ -310,6 +310,7 @@
   "atelier.console.empty": "Nada todavía. Ejecuta el boceto: su compilación y lo que escribe llegan aquí.",
   "atelier.console.stopped": "detenido",
   "atelier.console.copy": "Copiar",
+  "atelier.console.reference": "Referencia",
   "atelier.console.copied_one": "Consola copiada: {count} línea",
   "atelier.console.copied_many": "Consola copiada: {count} de líneas",
   "atelier.console.copied_other": "Consola copiada: {count} líneas",

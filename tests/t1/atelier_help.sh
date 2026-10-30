@@ -5,7 +5,8 @@
 #   help       Help has Learn first, then the guide, the kinds of programs, the syntax, the examples and the error codes (the menu bar
 #              the recording simulator logs); Learn opens the lessons in the browser (its opener.open)
 #   template   a project from the game template of `zinc new`, without a terminal: made in the sketchbook, then open
-#   explain    a sketch with a type error, Run: a click on its error code prints `zinc explain` of that code in the console
+#   explain    a sketch with a type error, Run: a click on its error code prints `zinc explain` of that code in the console, its fixes
+#              under it; the Reference button opens the code's page of the site
 #   no zinc    with no zinc where Atelier looks, the status line says how to fix it
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -42,10 +43,15 @@ grep -q '^\[status\] my-game is ready, made from the game template$' "$tmp/start
 
 mkdir -p "$tmp/bad"; printf 'const x: number = "a";\nconsole.log(x);\n' > "$tmp/bad/main.ts"
 printf '%s' "$tmp/bad" > "$tmp/book/.last"   # the sketch Atelier opens at its start
-printf '3 run\n6 explain\n8 quit\n' > "$tmp/explain.session"
-run explain ZINC_FRAMES=8
+printf '3 run\n6 explain\n8 reference\n10 quit\n' > "$tmp/explain.session"
+run explain ZINC_FRAMES=10
 grep -q '^\[console\] \$ zinc explain Z0103$' "$tmp/explain.out" && grep -q '^\[console\] Z0103: ' "$tmp/explain.out" \
   || { echo "atelier help: the error code was not explained: $(grep console "$tmp/explain.out" | tail -4)"; fail=1; }
+# ZN-774.28: the fixes under the error, and the Reference button opens its page of the site
+grep -q '^\[console\] Fixed:$' "$tmp/explain.out" && grep -q '^\[console\] let a: string = "x";$' "$tmp/explain.out" \
+  || { echo "atelier help: the fixes are not shown under the error: $(grep console "$tmp/explain.out" | tail -6)"; fail=1; }
+grep -q 'opener.open {"target":"https://frulko.github.io/zinc/docs/diagnostics/#z0103-type-is-not-assignable"}' "$tmp/explain.system" \
+  || { echo "atelier help: Reference did not open the error's page: $(grep opener "$tmp/explain.system")"; fail=1; }
 
 printf '3 run\n5 quit\n' > "$tmp/nozinc.session"
 run nozinc ZINC_BIN="$tmp/nowhere/zinc" ZINC_FRAMES=5

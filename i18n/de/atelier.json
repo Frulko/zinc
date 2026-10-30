@@ -309,6 +309,7 @@
   "atelier.console.empty": "Noch nichts. Führe den Sketch aus: Seine Kompilierung und seine Ausgaben erscheinen hier.",
   "atelier.console.stopped": "gestoppt",
   "atelier.console.copy": "Kopieren",
+  "atelier.console.reference": "Referenz",
   "atelier.console.copied_one": "Konsole kopiert: {count} Zeile",
   "atelier.console.copied_other": "Konsole kopiert: {count} Zeilen",
   "atelier.console.problems_one": "{count} Problem",

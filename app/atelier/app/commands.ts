@@ -11,7 +11,7 @@ import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, 
 import { openFind } from './search';
 import { toggleTheme } from './theme';
 import { openProject } from './project';
-import { run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady } from './tools';
+import { run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady, reference } from './tools';
 import { openDevices } from './devices';
 import { startTour } from './tour';
 import { editCommand, setText, menuKey, goDefinition } from './cursors';
@@ -190,6 +190,8 @@ add('tools', 'prev-tab', 'CmdOrCtrl+Shift+BracketLeft', () => cycle(-1));
 // the documentation on the web site, opened in the browser (zinc.json allows these pages only: scopes.opener)
 export const DOCS = 'https://frulko.github.io/zinc/';
 export function openDocs(page: string): void { const url = DOCS + page; say(t('atelier.help.opening', ['url', url])); opener.openUrl(url); }
+/** The page of the error code explained last, with its fixes (the console's Reference button). */
+export function openReference(): void { if (reference() !== '') openDocs(reference().slice(DOCS.length)); }
 const PAGES: string[] = ['help-learn', 'docs/learn/', 'help-start', 'docs/guide/01-getting-started/', 'help-kinds', 'docs/start/choose/',
   'help-syntax', 'docs/reference/syntax/', 'help-examples', 'demos/', 'help-errors', 'docs/diagnostics/'];
 for (let i = 0; i < PAGES.length; i += 2) { const page = PAGES[i + 1]; add('help', PAGES[i], '', () => openDocs(page), i === 10); }

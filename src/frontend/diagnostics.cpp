@@ -33,6 +33,19 @@ std::string quote(std::string_view t) {
   return q + "\"";
 }
 
+// The entry's place on the site: docs/diagnostics.md, at the anchor its English heading gets (GitHub's slugs: lower case, spaces to -)
+std::string reference(const DiagInfo& d) {
+  std::string slug;
+  for (const char* c = d.code; *c; c++) slug += static_cast<char>(std::tolower(static_cast<unsigned char>(*c)));
+  slug += "-";
+  for (const char* c = d.title; *c; c++) {
+    const unsigned char x = static_cast<unsigned char>(*c);
+    if (std::isalnum(x)) slug += static_cast<char>(std::tolower(x));
+    else if (x == ' ' || x == '-' || x == '_') slug += x == ' ' ? '-' : static_cast<char>(x);
+  }
+  return std::string(kDocsUrl) + "diagnostics/#" + slug;
+}
+
 }  // namespace
 
 std::string nearest(std::string_view name, const std::vector<std::string>& candidates) {
@@ -121,6 +134,10 @@ std::string explain(std::string_view code) {
   if (!d) return "";
   std::string out = std::string(d->code) + ": " + text(*d, "title", d->title) + "\n\n" + i18n::tr("diag.explain.why") + " " + text(*d, "why", d->why) +
                     "\n" + i18n::tr("diag.explain.fix") + " " + text(*d, "fix", d->fix) + "\n\n" + i18n::tr("diag.explain.example") + "\n" + d->example + "\n";
+  if (const DiagFixes* f = findFixes(d->code)) {   // the fixed programs, the lesson that teaches it and the page of the site
+    for (const char* fix : f->fixes) if (*fix) out += "\n" + i18n::tr("diag.explain.fixed") + "\n" + fix + "\n";
+    out += "\n" + i18n::tr("diag.explain.lesson") + " " + kDocsUrl + f->page + "/\n" + i18n::tr("diag.explain.reference") + " " + reference(*d) + "\n";
+  }
   if (!english()) out += "\n" + i18n::tr("diag.explain.english", {{"title", d->title}}) + "\n";   // what to search for
   return out;
 }
@@ -128,9 +145,14 @@ std::string explain(std::string_view code) {
 std::string markdown() {
   std::string out = "# " + i18n::tr("diag.markdown.title") + "\n\n" + i18n::tr("diag.markdown.intro") + "\n";
   const std::string fix = i18n::tr("diag.explain.fix");
-  for (const DiagInfo& d : kDiagnostics)
+  for (const DiagInfo& d : kDiagnostics) {
     out += std::string("\n## ") + d.code + ": " + text(d, "title", d.title) + "\n\n" + text(d, "why", d.why) + "\n\n" + fix + " " + text(d, "fix", d.fix) +
            "\n\n```ts\n" + d.example + "\n```\n";
+    if (const DiagFixes* f = findFixes(d.code)) {
+      for (const char* fix : f->fixes) if (*fix) out += "\n" + i18n::tr("diag.explain.fixed") + "\n\n```ts\n" + fix + "\n```\n";
+      out += "\n" + i18n::tr("diag.explain.lesson") + " [" + f->page + "](" + f->page + ".md)\n";
+    }
+  }
   return out;
 }
 

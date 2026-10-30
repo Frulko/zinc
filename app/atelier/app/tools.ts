@@ -416,13 +416,20 @@ export function problems(): void {
 
 // ---------------------------------------------------------------- error codes and templates
 /** What an error code means, with an example and the fix (`zinc explain Z0103`), printed in the console: a click on a code does it. */
+/** The page of the site that explains the code shown last (`Reference: https://.../diagnostics/#z0103-...`): the console's Reference button. */
+export const [reference, setReference] = createSignal<string>('');
 export function explain(code: string): void {
   add(new Line('$ zinc explain ' + code, K_CMD));
   showConsole(true);
+  setReference('');
   try {
     const p = zinc(['explain', code], '');
     checks++;
-    p.onStdout((l: string) => add(new Line(l, K_OUT)));
+    p.onStdout((l: string) => {
+      add(new Line(l, K_OUT));
+      const at = l.indexOf('https://');
+      if (at >= 0 && l.indexOf('/diagnostics/#') > at) setReference(l.slice(at).trim());
+    });
     p.onStderr((l: string) => add(new Line(l, K_ERR)));
     p.onExit((c: i32) => { checks--; });
   } catch (e) { setStatus('atelier.run.no_zinc', 2, ['path', ZINC]); }

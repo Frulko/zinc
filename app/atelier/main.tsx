@@ -8,7 +8,7 @@
 // `<frame> <command id>`, `<frame> example:<folder>` or `<frame> quit` per line, run at that frame as the menu item would be;
 // for the devices panel `<frame> pair:<name or address> <code>` fills its form and pairs, `<frame> device:<name>` is a press on
 // that device, `<frame> clipboard` prints what the clipboard holds, `<frame> lang:<code>` switches the language, `<frame> template:<name> <folder>`
-// makes a project from a template, `<frame> new:<style>` a new sketch in that style (drawing, scene, canvas, interface), `<frame> explain` clicks the first error code of the console, `<frame> tour:next|back|skip|fix` press
+// makes a project from a template, `<frame> new:<style>` a new sketch in that style (drawing, scene, canvas, interface), `<frame> explain` clicks the first error code of the console (`<frame> reference` then its Reference button), `<frame> tour:next|back|skip|fix` press
 // that button of the tour's card, `<frame> tour:lang:<code>` a language of its first card and `<frame> tour:step` prints the step and its box;
 // ZINC_ATELIER_TOUR=1 lets a test's sketchbook have the first-launch tour, `<frame> permission:<id>` allows or removes a permission of the project, and `<frame> wait:<text>` holds the frame until the console, the status line or the panel says it, 10 s at most),
 // ZINC_ATELIER_BROWSE=ms (how long the list of devices waits for the network; 0: the paired ones only).
@@ -31,6 +31,7 @@ import { stepLsp, setGo, stopLsp } from './app/lsp';
 import { Header, EngineMenu, engineOpen, setEngineOpen } from './components/Header';
 import { EditorCard, stepEditor } from './components/Editor';
 import { ConsoleCard, stepConsole, explainFirst } from './components/Console';
+import { openReference } from './app/commands';
 import { StartView, EXAMPLES, Example, openExample } from './components/Start';
 import { Palette } from './components/Palette';
 import { Tour, stepTour, tourLine, fixCode } from './components/Tour';
@@ -166,6 +167,7 @@ function stepScript(): void {
     else if (id.startsWith('new:')) { setStartOpen(false); newSketch(id.slice(4)); }   // a card of New sketch
     else if (id.startsWith('template:')) { const w = id.slice(9).split(' '); newProject(w[0], w.length > 1 ? w[1] : w[0]); }   // a template of the palette, named
     else if (id === 'explain') explainFirst();   // a click on the first error code of the console
+    else if (id === 'reference') openReference();   // the console's Reference button, after an explain
     else if (id === 'tour:next') nextStep();
     else if (id === 'tour:back') backStep();
     else if (id === 'tour:skip') endTour(true);

@@ -310,6 +310,7 @@
   "atelier.console.empty": "Ancora niente. Esegui lo sketch: la compilazione e quello che scrive arrivano qui.",
   "atelier.console.stopped": "fermato",
   "atelier.console.copy": "Copia",
+  "atelier.console.reference": "Riferimento",
   "atelier.console.copied_one": "Console copiata: {count} riga",
   "atelier.console.copied_many": "Console copiata: {count} di righe",
   "atelier.console.copied_other": "Console copiata: {count} righe",

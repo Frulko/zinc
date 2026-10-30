@@ -6,7 +6,7 @@ fail=0
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 for code in $("$ZINC" explain --codes); do
   grep -qs "^$code " tests/golden/*/errors/*.expect || { echo "no fixture for $code"; fail=1; }
-  "$ZINC" explain "$code" | sed '1,/^Example:/d' > "$tmp/ex.ts"
+  "$ZINC" explain "$code" | sed -n '/^Example:$/,/^$/p' | sed '1d;/^$/d' > "$tmp/ex.ts"   # the example, not the fixes under it
   ex=$tmp/ex.ts; grep -q '/>' "$ex" && { mv "$ex" "$tmp/ex.tsx"; ex=$tmp/ex.tsx; }   # a JSX example (Z0006, Z0007) is a .tsx file
   got=$("$ZINC" check --check "$ex" 2>&1| head -1 | sed -E 's/^[^:]*:[0-9]+:[0-9]+: error (Z[0-9]+):.*/\1/')
   [ "$got" = "$code" ] || { echo "example of $code reports '$got'"; fail=1; }
