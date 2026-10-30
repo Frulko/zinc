@@ -470,7 +470,6 @@ The next backlog review turns lines into tasks or deletes them.
 - Inspector Storage, SQLite grid: no detail pane for a selected cell (full long text or blob), no in-place cell edit (writes go through the query bar), blob hex limited to 16 bytes; `app/inspector/table.tsx`'s Grid could become a kit DataTable in `lib/std/kit` with its own test.
 
 - Checker vs lowering: `zinc check` accepts a JSX child `{cond ? list.map(...) : <View />}` but compiling fails with "Z0005 this type in the IR"; check and compile must agree, and the mixed form should be supported.
-- zinc:ui `flex-1` only grows, while Tailwind's `flex-1` is `flex: 1 1 0%`: a plain `flex-1` text measures at full content width and overflows its row (`flex-1 min-w-0` too). Align with Tailwind and rerun the layout goldens.
 - `tests/t1/agent_inspect.sh` still expects the lowercase `"<view "` in the inspector dump.
 - Inspector Elements: badges sit at the row's right edge rather than right after the tag (needs inline boxes in wrapping text); arrow keys on keyword values could cycle through their keywords as Chrome's Styles pane does.
 
@@ -487,6 +486,11 @@ The next backlog review turns lines into tasks or deletes them.
 
 - Inspector program list: the app icon as `faviconUrl`, served over HTTP by the devtools transport. Stage Image: a thumbnail in the right pane needs the texture region rendered to PNG on the program side.
 - Inspector discovery: the interpreter/AOT transport (`cdp.next.ts`) leaves its `<zinc home>/run/devtools/<pid>.json` behind at exit (no exit hook in zinc:sys) and no transport removes it on SIGTERM; the Inspector prunes them. An exit hook in zinc:sys would remove it.
+
+- zinc:ui classic: a plain `flex-1` (without `min-w-0`) still grows from its content width, not Tailwind's `flex: 1 1 0%` (`flex-1 min-w-0` works since f3dc85238); align it and rerun the layout goldens.
+- Inspector: a table wider than its pane has its vertical scrollbar at the content's right edge inside the horizontal scroller (needs a header synced by onScroll beside a body scrolling both ways); the tab bar scrolls sideways with no sign of hidden tabs (a » menu as Chrome); pane sizes are kept per session only. Kit `ResizeHandle`: no keyboard resizing, no `aria-valuenow`.
+- Inspector pause: the program's own sockets and fetches still deliver events while paused (holding them needs telling the inspector's socket apart); the Node-API engine loop (src/engine/driver.cpp: JSC/V8/Hermes) does not check `host.gfxPaused` (clock and input freeze, frames keep running); the badge was checked headless only (check it in a real macOS window with ZINC_BACKGROUND=1); on QuickJS headless the timers' clock moves a fixed dt per frame, so the clock-jump check runs on the interpreter only.
+- `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
