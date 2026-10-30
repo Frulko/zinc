@@ -571,6 +571,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-882: re-record the nuxt_ui, rn_showcase and platform_look hashes once their failure on develop is fixed; the new ones include the border inset.
 - ZN-882: the default layout still fails 139 Yoga conformance cases; negative space and auto margins are the next easy ones.
 
+- ZN-883: on QuickJS, u8[]/u32 arguments to a native module arrive wrong (the RTP vectors of tests/golden/host/discord_voice_rtp.ts fail): voice calls cannot work on --engine quickjs until fixed.
+- ZN-883: tests/t0/modules.sh expects Z0119 at package.ts:1:1 but gets 1:19 on develop: fix the test or the diagnostic's position.
+- ZN-883: border-transparent seemed to draw a light border on a call tile; check the colour is honoured.
+- ZN-883: zinc:audio could list and choose output devices for every program, not only discord-voice.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -827,6 +832,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-881: Discord interactive components (buttons, selects) behind a setting, since they act on a bot for the user.
 - ZN-881: Discord inline video and voice-message playback, Lottie stickers, archived threads, role colours on names, fetching an absent referenced message, burst reactions.
 - ZN-882: tests/t1/discord_voice.sh could check the speaking ring's pixels once the app can shoot on an event rather than a frame number.
+
+- ZN-883: tests/t1/discord_voice.sh should compare the call view and settings frames (call.png, settings.png) with a hash golden.
 
 ## Cross-platform pass
 - ZN-872: the discord-voice plugin on Linux (ALSA/PulseAudio through miniaudio, BoringSSL without asm) and the zig cross build of its 431 sources.
