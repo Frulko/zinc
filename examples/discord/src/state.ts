@@ -9,6 +9,8 @@ import { MemberRow, subscription, applyMemberListUpdate } from './members';
 import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, MESSAGES_PAGE, OLDER_PAGE, MESSAGE_MAX, TYPING_EVERY_MS, TYPING_SHOWN_MS, ACK_DELAY_MS, DISCORD_EPOCH, UPLOAD_MAX } from './constants';
 import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
+import { windowFocused } from 'zinc:ui';
+import { NotifyRules, Where } from './notify';
 
 export class User { id = ''; name = ''; avatar = ''; }
 export class Channel {
@@ -64,6 +66,9 @@ export class Store implements GatewayHandler {
    *  made (every server shows), then an allowlist. `known`: the servers the settings listed, so one joined after is new (and off). */
   private allowed: Set<string> | null = null;
   private known: Set<string> = new Set<string>();
+  /** Who notifies (notify.ts), and what shows a notification (services/notifications.ts; null: none). */
+  rules: NotifyRules = new NotifyRules();
+  notifier: ((m: Message, c: Channel) => void) | null = null;
   private reads: Map<string, ReadState> = new Map<string, ReadState>();
   private complete: Set<string> = new Set<string>();   // channels whose whole history is loaded
   private older = '';                                   // the channel whose page before is on its way
@@ -130,7 +135,12 @@ export class Store implements GatewayHandler {
   }
   dispatch(t: string, d: any): void {
     if (t === 'READY') this.ready(d);
-    else if (t === 'GUILD_CREATE') { this.removeGuild(str(d.id)); this.guilds.push(this.guild(d)); }
+    else if (t === 'GUILD_CREATE') {
+      this.removeGuild(str(d.id)); this.guilds.push(this.guild(d));
+      const p: any = d.properties !== undefined && d.properties !== null ? d.properties : d;
+      if (typeof p.default_message_notifications === 'number') this.rules.setDefault(str(d.id), p.default_message_notifications);
+    }
+    else if (t === 'USER_GUILD_SETTINGS_UPDATE') this.rules.update(d)
     else if (t === 'GUILD_DELETE') this.removeGuild(str(d.id));
     else if (t === 'CHANNEL_CREATE' || t === 'CHANNEL_UPDATE') this.putChannel(this.channel(d, str(d.guild_id)));
     else if (t === 'CHANNEL_DELETE') this.removeChannel(str(d.id));
@@ -158,6 +168,7 @@ export class Store implements GatewayHandler {
   private ready(d: any): void {
     this.users.clear();
     this.me = this.user(d.user);
+    this.rules.load(d);
     if (Array.isArray(d.users)) for (const u of d.users) this.user(u);
     this.guilds = [];
     if (Array.isArray(d.guilds)) for (const g of d.guilds) if (g.unavailable !== true) this.guilds.push(this.guild(g));
@@ -229,6 +240,26 @@ export class Store implements GatewayHandler {
     for (const g of this.guilds) for (const c of g.channels) if (c.id === id) return c;
     return null;
   }
+  // ------------------------------------------------------------------ notifications
+  /** Discord's rules, but never for a server switched off here nor for the channel shown in the focused window. */
+  private notifies(d: any, c: Channel): boolean {
+    if (c.guildId !== '') { const g = this.findGuild(c.guildId); if (g === null || !this.shown(g)) return false; }
+    if (c.id === this.channelId && !this.settingsOpen && windowFocused()) return false;
+    const yes = this.rules.notifies(d, where(c), Date.now());
+    this.log(`notify ${c.id}: ${yes ? 'yes' : 'no'}`);
+    return yes;
+  }
+  /** The mentions of the DMs and the servers shown: the Dock's badge. */
+  totalMentions(): i32 { let n = this.dmMentions(); for (const g of this.shownGuilds()) n += this.guildMentions(g); return n; }
+  /** Opens a channel (a notification clicked): its server, then the channel. */
+  open(channelId: string): void {
+    const c = this.findChannel(channelId);
+    if (c === null) return;
+    this.settingsOpen = false;
+    if (this.guildId !== c.guildId) this.selectGuild(c.guildId);
+    this.selectChannel(c.id);
+  }
+
   // ------------------------------------------------------------------ the servers shown (the settings)
   /** A server switched off is out of the rail, so out of the unread and mention marks, and never opened, so never subscribed to. */
   shown(g: Guild): boolean { const a = this.allowed; return a === null || a.has(g.id); }
@@ -300,7 +331,9 @@ export class Store implements GatewayHandler {
     const rs = this.read(m.channelId);
     if (m.authorId === this.me.id) { rs.lastId = m.id; rs.mentions = 0; }
     else if (m.channelId === this.channelId) this.ackSoon(m.channelId);
-    else if ((c !== null && c.guildId === '') || m.mentionsEveryone || m.mentions.indexOf(this.me.id) >= 0) rs.mentions++;
+    else if (c !== null && c.guildId === '' && !this.rules.muted(where(c), Date.now())) rs.mentions++;   // a DM counts unless muted
+    else if (c !== null && this.rules.mentions(d, c.guildId)) rs.mentions++;
+    if (c !== null && this.notifier !== null && this.notifies(d, c)) this.notifier(m, c);
     const list = this.messages.get(m.channelId);
     if (list === undefined) return;            // never opened: its history is fetched when it is
     for (let i = 0; i < list.length; i++) {
@@ -574,6 +607,9 @@ function snowflakeNow(): string {
   const low = lo * 4194304, carry = Math.floor(low / 10000000), rest = `${low % 10000000}`;
   return `${hi * 4194304 + carry}${'0'.repeat(7 - rest.length)}${rest}`;
 }
+
+/** A channel as the notification rules see it. */
+function where(c: Channel): Where { const w = new Where(); w.id = c.id; w.guildId = c.guildId; w.type = c.type; w.parentId = c.parentId; return w; }
 
 /** Snowflakes compared as numbers: a longer id is a later one. */
 function compareIds(a: string, b: string): i32 { return a.length !== b.length ? a.length - b.length : a < b ? -1 : a > b ? 1 : 0; }

@@ -22,9 +22,11 @@ rest POST /api/v9/channels/302/messages/903/ack auth=true super=true last_viewed
 rest POST /api/v9/channels/302/messages/904/ack auth=true super=true last_viewed=true token=true
 rest POST /api/v9/channels/302/messages/905/ack auth=true super=true last_viewed=true token=true
 rest POST /api/v9/channels/302/messages/908/ack auth=true super=true last_viewed=true token=true
+rest POST /api/v9/channels/302/messages/970/ack auth=true super=true last_viewed=true token=true
 rest POST /api/v9/channels/302/typing auth=true super=true
 rest POST /api/v9/channels/302/typing auth=true super=true
 rest POST /api/v9/channels/302/typing auth=true super=true
+rest POST /api/v9/channels/400/messages/971/ack auth=true super=true last_viewed=true token=true
 resume session=sess-1 seq=4
 subscribe guild=200 channel=302 ranges=[[0,99]] typing=true
 subscribe guild=200 channel=302 ranges=[[0,99]] typing=true

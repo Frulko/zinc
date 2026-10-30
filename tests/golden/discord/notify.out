@@ -1,0 +1,20 @@
+lab default is mentions only: plain message: silent
+lab default: a direct mention: notifies
+lab default: my role: notifies
+lab default: another role: silent
+lab default: @everyone: notifies
+channel override all messages: notifies
+channel muted until 2099: silent
+channel mute expired in 2020: notifies
+category set to nothing, child channel: silent
+makers all messages: notifies
+makers in a voice channel's chat: silent
+makers suppresses @everyone, a channel of mentions only: silent
+quiet server muted for good: silent
+my own message: silent
+@silent message: silent
+DM: notifies
+muted DM: silent
+muted DM that mentions me: notifies
+group DM recipient removed: silent
+makers mentions-only channel, my role (roles suppressed): silent

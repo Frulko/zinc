@@ -7,7 +7,8 @@
 # members: the member list (op 37, a SYNC, an INSERT and an UPDATE), the page of history before the first, a file sent with the cloud upload
 # (attachments, PUT to the upload URL, the message), the avatars, server icon, custom emoji and photos from the fake CDN, one emoji from the
 # disk cache (seeded here: never asked of the CDN), an expired attachment URL renewed with refresh-urls, and the files the cache kept; then
-# the last frame's hash.
+# notifications (none for the channel shown in the focused window, one for a DM behind another window, a click that opens it, the Dock's
+# badge: the calls of the zinc:system simulator); then the last frame's hash.
 # What the app logs and what the fake server received (both sorted: the acks race the scripted session) are compared with
 # tests/golden/discord. ZN_UPDATE_GOLDEN=1 records again.
 cd "$(dirname "$0")/../.." || exit 2
@@ -27,9 +28,9 @@ for _ in $(seq 100); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
 read -r api gw < "$tmp/ports"
 (cd examples/discord && env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=1200x760 ZINC_FRAMES=1000000 ZINC_FRAMEHASH=last ${ZINC_SHOT:+ZINC_SHOT=$ZINC_SHOT} \
   DISCORD_API="http://127.0.0.1:$api/api/v9" DISCORD_GATEWAY="ws://127.0.0.1:$gw" DISCORD_CDN="http://127.0.0.1:$api/cdn" \
-  DISCORD_CACHE="$tmp/cache" ZINC_STORAGE="$tmp/storage.kv" DISCORD_UPLOAD_FILE="$tmp/notes.png" DISCORD_TOKEN=test-token DISCORD_DEMO=1 DISCORD_LOG=1 \
+  DISCORD_CACHE="$tmp/cache" ZINC_STORAGE="$tmp/storage.kv" ZINC_SYSTEM_LOG="$tmp/system" DISCORD_UPLOAD_FILE="$tmp/notes.png" DISCORD_TOKEN=test-token DISCORD_DEMO=1 DISCORD_LOG=1 \
   timeout 60 "$ZINC" run . > "$tmp/app" 2>&1) || { echo "discord: the session failed"; tail -8 "$tmp/app"; exit 1; }
-{ grep -v '^zinc' "$tmp/app" | grep -v '^timing: '; ls "$tmp/cache" | sed 's/^/cached /'; } | sort > "$tmp/session"   # sorted: the scripted session races the history request
+{ grep -v '^zinc' "$tmp/app" | grep -v '^timing: '; grep -E '^\[system\] (dock.setBadge|notification.notify) ' "$tmp/system"; ls "$tmp/cache" | sed 's/^/cached /'; } | sort > "$tmp/session"   # sorted: the scripted session races the history request
 grep -v '^zinc' "$tmp/fake" | sort > "$tmp/server"
 sed -n 's/^zinc: framehash [0-9]* [0-9x]* //p' "$tmp/app" | tail -1 > "$tmp/hash"
 if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$tmp/session" "$golden/session.out"; cp "$tmp/server" "$golden/server.out"; cp "$tmp/hash" "$golden/hash.txt"; echo "discord: goldens recorded"; exit 0; fi

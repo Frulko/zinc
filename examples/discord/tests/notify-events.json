@@ -1,0 +1,605 @@
+{
+ "ready": {
+  "user": {
+   "id": "100",
+   "username": "ada"
+  },
+  "guilds": [
+   {
+    "id": "200",
+    "properties": {
+     "name": "Lab",
+     "default_message_notifications": 1
+    }
+   },
+   {
+    "id": "201",
+    "name": "Makers",
+    "default_message_notifications": 0
+   },
+   {
+    "id": "202",
+    "properties": {
+     "name": "Quiet",
+     "default_message_notifications": 0
+    }
+   }
+  ],
+  "merged_members": [
+   [
+    {
+     "user_id": "100",
+     "roles": [
+      "500"
+     ]
+    }
+   ],
+   [
+    {
+     "user_id": "100",
+     "roles": []
+    }
+   ],
+   []
+  ],
+  "user_guild_settings": {
+   "version": 3,
+   "partial": false,
+   "entries": [
+    {
+     "guild_id": "200",
+     "message_notifications": 3,
+     "muted": false,
+     "suppress_everyone": false,
+     "suppress_roles": false,
+     "channel_overrides": [
+      {
+       "channel_id": "302",
+       "message_notifications": 0,
+       "muted": false,
+       "mute_config": null
+      },
+      {
+       "channel_id": "303",
+       "message_notifications": 3,
+       "muted": true,
+       "mute_config": {
+        "end_time": "2099-01-01T00:00:00Z",
+        "selected_time_window": -1
+       }
+      },
+      {
+       "channel_id": "304",
+       "message_notifications": 3,
+       "muted": true,
+       "mute_config": {
+        "end_time": "2020-01-01T00:00:00Z",
+        "selected_time_window": 3600
+       }
+      },
+      {
+       "channel_id": "310",
+       "message_notifications": 2,
+       "muted": false,
+       "mute_config": null
+      }
+     ]
+    },
+    {
+     "guild_id": "201",
+     "message_notifications": 3,
+     "muted": false,
+     "suppress_everyone": true,
+     "suppress_roles": true,
+     "channel_overrides": [
+      {
+       "channel_id": "323",
+       "message_notifications": 1,
+       "muted": false,
+       "mute_config": null
+      }
+     ]
+    },
+    {
+     "guild_id": "202",
+     "message_notifications": 3,
+     "muted": true,
+     "mute_config": null,
+     "channel_overrides": []
+    },
+    {
+     "guild_id": null,
+     "message_notifications": 3,
+     "muted": false,
+     "channel_overrides": [
+      {
+       "channel_id": "401",
+       "message_notifications": 3,
+       "muted": true,
+       "mute_config": null
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "now": "2026-10-30T12:00:00Z",
+ "cases": [
+  {
+   "name": "lab default is mentions only: plain message",
+   "channel": {
+    "id": "301",
+    "guildId": "200",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "lab default: a direct mention",
+   "channel": {
+    "id": "301",
+    "guildId": "200",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [
+     {
+      "id": "100",
+      "username": "ada"
+     }
+    ],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "lab default: my role",
+   "channel": {
+    "id": "301",
+    "guildId": "200",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [
+     "500"
+    ],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "lab default: another role",
+   "channel": {
+    "id": "301",
+    "guildId": "200",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [
+     "501"
+    ],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "lab default: @everyone",
+   "channel": {
+    "id": "301",
+    "guildId": "200",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [],
+    "mention_everyone": true,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "channel override all messages",
+   "channel": {
+    "id": "302",
+    "guildId": "200",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "channel muted until 2099",
+   "channel": {
+    "id": "303",
+    "guildId": "200",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [
+     {
+      "id": "100",
+      "username": "ada"
+     }
+    ],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "channel mute expired in 2020",
+   "channel": {
+    "id": "304",
+    "guildId": "200",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [
+     {
+      "id": "100",
+      "username": "ada"
+     }
+    ],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "category set to nothing, child channel",
+   "channel": {
+    "id": "311",
+    "guildId": "200",
+    "type": 0,
+    "parentId": "310"
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [
+     {
+      "id": "100",
+      "username": "ada"
+     }
+    ],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "makers all messages",
+   "channel": {
+    "id": "321",
+    "guildId": "201",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "makers in a voice channel's chat",
+   "channel": {
+    "id": "322",
+    "guildId": "201",
+    "type": 2,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "makers suppresses @everyone, a channel of mentions only",
+   "channel": {
+    "id": "323",
+    "guildId": "201",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [],
+    "mention_everyone": true,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "quiet server muted for good",
+   "channel": {
+    "id": "331",
+    "guildId": "202",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [
+     {
+      "id": "100",
+      "username": "ada"
+     }
+    ],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "my own message",
+   "channel": {
+    "id": "302",
+    "guildId": "200",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "100",
+     "username": "ada"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "@silent message",
+   "channel": {
+    "id": "302",
+    "guildId": "200",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 4096,
+    "type": 0
+   }
+  },
+  {
+   "name": "DM",
+   "channel": {
+    "id": "400",
+    "guildId": "",
+    "type": 1,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "muted DM",
+   "channel": {
+    "id": "401",
+    "guildId": "",
+    "type": 1,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "muted DM that mentions me",
+   "channel": {
+    "id": "401",
+    "guildId": "",
+    "type": 1,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [
+     {
+      "id": "100",
+      "username": "ada"
+     }
+    ],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  },
+  {
+   "name": "group DM recipient removed",
+   "channel": {
+    "id": "402",
+    "guildId": "",
+    "type": 3,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 2
+   }
+  },
+  {
+   "name": "makers mentions-only channel, my role (roles suppressed)",
+   "channel": {
+    "id": "323",
+    "guildId": "201",
+    "type": 0,
+    "parentId": ""
+   },
+   "message": {
+    "id": "900",
+    "author": {
+     "id": "101",
+     "username": "grace"
+    },
+    "content": "hi",
+    "mentions": [],
+    "mention_roles": [
+     "500"
+    ],
+    "mention_everyone": false,
+    "flags": 0,
+    "type": 0
+   }
+  }
+ ]
+}

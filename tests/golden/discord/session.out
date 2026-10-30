@@ -1,3 +1,8 @@
+[system] dock.setBadge {"text":""}
+[system] dock.setBadge {"text":""}
+[system] dock.setBadge {"text":"1"}
+[system] dock.setBadge {"text":"2"}
+[system] notification.notify {"id":"channel-400","title":"Grace","subtitle":"Grace","body":"Are you there? @Ada","icon":"","group":"400","actions":[],"reply":""}
 cached attachments_302_903_801_photo.png
 cached attachments_302_909_802_notes.png
 cached avatars_101_av101.png
@@ -6,6 +11,7 @@ cached emojis_77.png
 cached emojis_78.png
 cached icons_200_ic200.png
 channels Lounge, Text, general, random
+clicked: open 400, badge 0
 deleted 907
 dms Grace, Grace, linus
 edited 906: Hello **edited** ~~world~~ ||secret|| <@101> (edited)
@@ -19,7 +25,11 @@ members 200: [online 2] Grace(online) Ada(online) [offline 1] linus(offline)
 members 200: [online 3] Grace(idle) Ada(online) Katherine(online) [offline 1] linus(offline)
 message in 302 from Grace: Back after the drop
 message in 302 from Grace: Got it, *thanks*
+message in 302 from Grace: Seen here, no notification
 message in 302 from linus: Live from the gateway
+message in 400 from Grace: Are you there? <@100>
+notified: badge 1
+notify 400: yes
 older 302: 20 messages
 older page: 20 messages, all loaded true, 74 in the channel
 picture attachments/302/903/801/photo.png: from the CDN

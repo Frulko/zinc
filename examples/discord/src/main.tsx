@@ -18,6 +18,9 @@ import { store, Message, Attachment, Guild } from './state';
 import { parse, describe } from './markdown';
 import { picturesLoading } from './services/cdn';
 import { historyList } from './components/MessageView';
+import { startNotifications } from './services/notifications';
+import * as notifs from './services/notifications';
+import * as notification from 'zinc:system/notification';
 
 ui.onKey((e: ui.KeyEvent): void => {
   if (e.primary || e.alt) return;
@@ -51,6 +54,7 @@ async function demo(): Promise<void> {
   store.selectGuild(store.guilds[0].id);
   await write(id);
   await media(id);
+  await notifications(id);
   settings();
   setTimeout(() => { quit(); }, 300);
 }
@@ -87,6 +91,7 @@ async function write(id: string): Promise<void> {
 }
 
 render(App, 0x313338, null);
+startNotifications();
 store.resume();
 if (env('DISCORD_DEMO') === '1') demo();
 
@@ -106,6 +111,25 @@ async function media(id: string): Promise<void> {
   await until(() => store.typingText(id) !== '');                              // Grace types back: in the last frame
   await new Promise<void>((done: () => void) => { setTimeout(done, 100); });   // a frame shows the rows, which ask for their pictures
   await until(() => picturesLoading() === 0);
+}
+
+/** Notifications: none for the channel shown in the focused window, one for a DM while the window is behind another, a click on it opens
+ *  the DM (and its read clears the Dock's badge). The messages are dispatched as the gateway delivers them. */
+async function notifications(id: string): Promise<void> {
+  const grace: any = { id: '101', username: 'grace', global_name: 'Grace', avatar: 'av101' };
+  const msg = (mid: string, ch: string, text: string): any => ({ id: mid, channel_id: ch, author: grace, content: text, timestamp: '2026-10-30T09:40:00.000000+00:00', attachments: [], mentions: [] });
+  ui.systemSignal('focus 1');
+  store.dispatch('MESSAGE_CREATE', msg('970', id, 'Seen here, no notification'));
+  ui.systemSignal('focus 0');
+  const dm: any = msg('971', '400', 'Are you there? <@100>');
+  dm.mentions = [{ id: '100', username: 'ada', global_name: 'Ada', avatar: null }];
+  store.dispatch('MESSAGE_CREATE', dm);
+  await until(() => notifs.last !== null);
+  console.log(`notified: badge ${store.totalMentions()}`);
+  for (const f of (notifs.last as notification.Notification).clickCbs) f();   // as the system's notification-click event does
+  ui.systemSignal('focus 1');
+  console.log(`clicked: open ${store.channelId}, badge ${store.totalMentions()}`);
+  await until(() => count('400') > 1 && !store.unread(id));   // the DM's history, and #general read (its ack waits for the burst)
 }
 
 /** The settings: a server switched off leaves the rail and its counts, one joined after the choice comes off and new, the DMs stay; the
