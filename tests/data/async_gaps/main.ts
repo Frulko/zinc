@@ -46,7 +46,15 @@ async function doWhile(): Promise<void> {   // await in the body and in the test
   console.log('do while', i, seen);
 }
 
+// A default on an async lambda's parameter: its body (a closure of the async rewrite) sees the declared type, the default evaluated only when
+// the argument is left out; a non-async lambda's callback the same
+let made = 0;
+function fallback(): number { made++; return 7; }
+const stepBy = async (k: string, by: number = fallback()): Promise<number> => { await Promise.resolve(); return by * 2; };
+const later = (x: number = 1): (() => number) => () => x + 1;
+
 async function main(): Promise<void> {
+  console.log('default', await stepBy('a'), await stepBy('b', 3), made, later()(), later(5)());
   await narrowed();
   await doWhile();
   const x = await maybe(2);

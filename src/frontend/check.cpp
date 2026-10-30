@@ -3952,13 +3952,17 @@ struct Checker {
         if (!nullDefault) {
           std::uint32_t ann = n(p).kids[0];
           if (ann == kNone) { diag(kZCannotInfer, p, "diag.detail.fnExprParam", {{"name", std::string(n(p).text)}}); continue; }
-          std::uint32_t nul = newNode(N::TypeRef, "null", {}, p);
+          std::uint32_t nul = newNode(N::TypeRef, "null", {}, p), own = cloneNode(ann, false);
           a.nodes[p].kids[0] = newNode(N::TypeUnion, {}, {ann, nul}, p);
+          // the body sees a variable of the declared type (`let x: T`), not the parameter `T | null` narrowed: a closure of the body (an
+          // async lambda's own body, a callback) captures it with its type, where a narrowing would not reach
           std::string nm(n(p).text);
-          std::vector<std::uint32_t> st = snippet(a, "if (" + nm + " === null) { " + nm + " = __H0; }", {{d}}, p);
+          a.generated.push_back("__dp_" + nm);
+          a.nodes[p].text = a.generated.back();
+          std::vector<std::uint32_t> st = snippet(a, "let " + nm + ": __H1; if (__dp_" + nm + " !== null) { " + nm + " = __dp_" + nm + "; } else { " + nm + " = __H0; }", {{d}, {own}}, p);
           out.nodeType.resize(a.nodes.size(), kNoType);
           out.nodeSym.resize(a.nodes.size(), kNone);
-          if (!st.empty()) prologue.push_back(st[0]);
+          for (std::uint32_t s : st) prologue.push_back(s);
         }
         a.nodes[p].kids[1] = kNone;
       }
