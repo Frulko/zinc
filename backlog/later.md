@@ -523,6 +523,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.33: `zinc run <bare-word>` (Z0119) could suggest `example:<word>` when it names a catalogue entry.
 - ZN-774.33: fold duplicate catalogue entries (the same idea in Atelier and in a lesson).
 - ZN-774.34: restamp the "A first mistake" section of the translated guides (fr, es, it, de) with the new error output.
+- ZN-774: `zinc tour`'s help and step 1 still describe "the zinc new question" (src/cli_core.cpp tour row, cli.cmd.tour, src/cli_tour.cpp); `zinc new` asks nothing since ZN-774.32.
+- ZN-774.35: link each cheat sheet line to the catalogue examples that use it, and `zinc help <module>.<name>` for one entry.
+- ZN-774.28: translate the comment lines inside the explain fixes (English code comments today).
+- ZN-774.26: lessons 06 to 20 in the exercise format, and a check that runs the program headless a few frames (output or a pixel) to judge what it does, not only its source.
+- ZN-774.26: translate the "zinc learn" section of docs/learn/README.md in docs/i18n/*.
+- i18n: `i18n/de/diag.json` lacks Z5012 and Z5013, and `i18n_test` is not built: `tests/run --only i18n` fails on develop.
 - Tests: sidecar_stream/sidecar_session left three `zinc run <tmp>/sidecar` orphans (29 h, SIGTERM ignored) that make tour's "still running" check fail; make the sidecar program end on SIGTERM and the tests kill what they start, and scope tour's pgrep to its own folder.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
 
