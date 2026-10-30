@@ -342,7 +342,10 @@ function onAppExit(name: string, status: number): void {
 export function startShell(): void {
   if (!isShell) return;
   shell.onExit(onAppExit);
-  if (sys.env('ZINC_BOOT_APP') === '1' && fs.exists(appPath)) showApp(appPath, 'app', 'App');
+  // ZINC_SHELL_START=<app dir>: shown at once, as if its tile were tapped (a measurement or a test on a device nobody touches)
+  const startDirectory = sys.env('ZINC_SHELL_START');
+  if (startDirectory !== '') showApp(startDirectory, 'app', 'App');
+  else if (sys.env('ZINC_BOOT_APP') === '1' && fs.exists(appPath)) showApp(appPath, 'app', 'App');
 }
 
 /** Starts an app sent to the device: zinc-session reads its folder from the run directory. */

@@ -1,7 +1,8 @@
 // zinc:shell for macos and linux (POSIX): docs/reports/zinc-shell/03-design.md §3-§5, the wire of plugins/display-remote/remote_proto.h (SH_*).
 // One zrt::Poller, run by the event loop at each turn (no thread): it accepts on ZINC_SHELL_SOCKET, reads the apps' messages, reaps the apps
-// it started and keeps the clocks (ping, the quit's grace, the 3 s to connect). The shown app's three buffers are shared memory; the
-// runtime image wraps the buffer of its last FRAME (dyn_update_rect: the shell's frame damages only what the app changed). The input hook
+// it started and keeps the clocks (ping, the quit's grace, the 3 s to connect). The shown app's three buffers are dumb buffers of the
+// display's card sent as dmabufs (Linux, a card), else shared memory; the runtime image wraps the buffer of its last FRAME (dyn_update_rect:
+// the shell's frame damages only what the app changed) and, on dmabufs, is a picture fbdev puts on a plane (no copy). The input hook
 // (zrt::shell_input, after the runtime's input merge) forwards the shown app's share of each frame's input and takes it out of the shell's.
 #define ZRT_HOSTED_CPP   // std::string and std::vector: the standard placement new
 #include "zinc_native_shell.h"
@@ -13,11 +14,18 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 #include <vector>
+#if defined(__linux__) && __has_include(<drm/drm.h>) && __has_include(<drm/drm_mode.h>) && __has_include(<drm/drm_fourcc.h>)
+#include <drm/drm.h>
+#include <drm/drm_mode.h>
+#include <drm/drm_fourcc.h>
+#define ZP_SHELL_DUMB 1
+#endif
 #ifdef __APPLE__
 #include <crt_externs.h>
 #include <mach-o/dyld.h>
@@ -72,7 +80,7 @@ Child* kid_of(pid_t pid) {   // the started app a process belongs to (itself or 
 bool can_suspend() { return zrt::display_driver && hal_display && hal_display->suspend; }
 
 // ---------------------------------------------------------------- the client on the screen
-struct Buf { int fd = -1; uint32_t* px = nullptr; size_t len = 0; };
+struct Buf { int fd = -1; uint32_t* px = nullptr; size_t len = 0; uint32_t serial = 0; };
 struct Client {
   int fd = -1;
   bool connected = false;       // CONNECT received
@@ -85,6 +93,9 @@ struct Client {
   struct { int32_t b; int32_t after; } held[SH_MAX_BUFFERS];   // buffers that left the image, released once frame `after` was presented
   int nheld = 0;
   int32_t img = -1;
+  bool dmabuf = false;          // the buffers are dumb buffers of the display's card: the image is also a picture a plane can show
+  uint32_t stride = 0;          // bytes per row of the buffers
+  zrt::raster::Picture pic{};   // the buffer shown, as a picture of the display (dmabuf only)
   uint32_t ping = 0;
   double ping_at = 0, pong_at = 0;
 };
@@ -97,7 +108,7 @@ void drop_buffers(Client& c) {
   if (c.img >= 0) { zrt::raster::dyn_destroy(c.img); serial_no++; }
   c.img = -1;
   for (Buf& b : c.buf) { if (b.px) munmap(b.px, b.len); if (b.fd >= 0) ::close(b.fd); b = Buf{}; }
-  c.w = c.h = 0; c.shown = -1; c.nheld = 0;
+  c.w = c.h = 0; c.shown = -1; c.nheld = 0; c.dmabuf = false; c.stride = 0;
 }
 void close_client(Client& c) {
   if (&c == &shown) { last_input.clear(); app_press = false; }
@@ -121,12 +132,68 @@ void msg(Client& c, uint8_t type, const void* p, uint32_t n) {
   flush(c);
 }
 
-/** Three shared buffers of w x h, sent with SH_BUFFERS. False: not now (output waiting) or no memory. */
+#ifdef ZP_SHELL_DUMB
+// The app's buffers as dumb buffers of the display's card (03-design.md §2.2 A): exported as dmabufs, mapped by the app as shm is, and
+// shown by a plane of the display with no copy (fbdev's layers take the image's picture). The card is opened once, never as its master:
+// the display driver's own open commits the planes. ZINC_SHELL_DMABUF=0: shared memory (the software composition, to compare).
+int dri = -2;   // -2: not tried yet, -1: none (shared memory)
+int dri_io(unsigned long req, void* arg) { int r; do r = ioctl(dri, req, arg); while (r < 0 && (errno == EINTR || errno == EAGAIN)); return r; }
+bool dumb_buffers(Client& c, int32_t w, int32_t h) {
+  if (dri == -2) {
+    dri = -1;
+    const char* e = getenv("ZINC_SHELL_DMABUF");
+    const bool off = e && *e == '0';
+    for (int k = 0; k < 4 && dri < 0 && !off; k++) {
+      char path[32];
+      snprintf(path, sizeof path, "/dev/dri/card%d", k);
+      const int fd = open(path, O_RDWR | O_CLOEXEC);
+      if (fd < 0) continue;
+      dri = fd;
+      dri_io(DRM_IOCTL_DROP_MASTER, nullptr);   // opened before the display driver's: the master is the display's, not ours
+      drm_mode_card_res res = {};   // a card that scans out (a Pi 4's card0 is the 3D one)
+      if (dri_io(DRM_IOCTL_MODE_GETRESOURCES, &res) < 0 || !res.count_crtcs) { ::close(fd); dri = -1; }
+    }
+    if (dri < 0) fprintf(stderr, "shell: no display card (/dev/dri)%s: the app's buffers are shared memory\n", off ? " (ZINC_SHELL_DMABUF=0)" : "");
+  }
+  if (dri < 0) return false;
+  static uint32_t serials = 0x80000000u;   // ponytail: above a video player's serials, which count from 1 in the same process
+  for (int i = 0; i < SH_MAX_BUFFERS; i++) {
+    Buf& b = c.buf[i];
+    drm_mode_create_dumb cd = {};
+    cd.width = (uint32_t)w; cd.height = (uint32_t)h; cd.bpp = 32;
+    if (dri_io(DRM_IOCTL_MODE_CREATE_DUMB, &cd) < 0) { fprintf(stderr, "shell: no dumb buffer of %dx%d (%s): the app's buffers are shared memory\n", w, h, strerror(errno)); drop_buffers(c); return false; }
+    drm_prime_handle ph = {};
+    ph.handle = cd.handle; ph.flags = DRM_CLOEXEC | DRM_RDWR;
+    const bool fd = dri_io(DRM_IOCTL_PRIME_HANDLE_TO_FD, &ph) == 0;
+    drm_gem_close gc = {cd.handle, 0};
+    dri_io(DRM_IOCTL_GEM_CLOSE, &gc);   // the dmabuf holds the buffer from here
+    void* m = fd ? mmap(nullptr, (size_t)cd.size, PROT_READ | PROT_WRITE, MAP_SHARED, ph.fd, 0) : MAP_FAILED;
+    if (fd) b.fd = ph.fd;
+    if (m == MAP_FAILED || cd.pitch % 4) { fprintf(stderr, "shell: a dumb buffer not exported or mapped (%s): the app's buffers are shared memory\n", strerror(errno)); drop_buffers(c); return false; }
+    b.px = (uint32_t*)m; b.len = (size_t)cd.size; b.serial = ++serials;
+    c.stride = cd.pitch;
+  }
+  c.dmabuf = true;
+  c.pic = zrt::raster::Picture{};
+  HalPicture& p = c.pic.hal;
+  p.format = DRM_FORMAT_XRGB8888; p.w = w; p.h = h; p.nplanes = 1; p.pitch[0] = c.stride; p.full_range = 1;
+  c.pic.bw = w; c.pic.bh = h;
+  c.pic.fill = [](void* u) { ((zrt::raster::Picture*)u)->filled = true; };   // the image wraps the same mapped pixels
+  c.pic.user = &c.pic;
+  return true;
+}
+#endif
+
+/** Three buffers of w x h, sent with SH_BUFFERS: dumb buffers of the display's card where there is one, else shared memory. False: not
+ *  now (output waiting) or no memory. */
 bool send_buffers(Client& c, int32_t w, int32_t h) {
   flush(c);
   if (!c.out.empty()) return false;   // the fds ride on the message's first byte: nothing may be queued before it
   drop_buffers(c);
   const size_t len = (size_t)w * h * 4;
+#ifdef ZP_SHELL_DUMB
+  if (!dumb_buffers(c, w, h))
+#endif
   for (int i = 0; i < SH_MAX_BUFFERS; i++) {
     Buf& b = c.buf[i];
 #ifdef __linux__
@@ -143,11 +210,12 @@ bool send_buffers(Client& c, int32_t w, int32_t h) {
     void* m = b.fd >= 0 && ftruncate(b.fd, (off_t)len) == 0 ? mmap(nullptr, len, PROT_READ | PROT_WRITE, MAP_SHARED, b.fd, 0) : MAP_FAILED;
     if (m == MAP_FAILED) { fprintf(stderr, "shell: no shared memory for the app's buffers (%s)\n", strerror(errno)); drop_buffers(c); return false; }
     b.px = (uint32_t*)m; b.len = len;
+    c.stride = (uint32_t)w * 4;
   }
   uint8_t m[5 + 14];
   m[0] = SH_BUFFERS; put32(m + 1, 14);
-  put16(m + 5, (uint16_t)w); put16(m + 7, (uint16_t)h); put32(m + 9, (uint32_t)w * 4); put32(m + 13, SH_XR24);
-  m[17] = 1; m[18] = SH_MAX_BUFFERS;   // shm, three
+  put16(m + 5, (uint16_t)w); put16(m + 7, (uint16_t)h); put32(m + 9, c.stride); put32(m + 13, SH_XR24);
+  m[17] = c.dmabuf ? 0 : 1; m[18] = SH_MAX_BUFFERS;   // dmabuf or shm, three
   iovec io = {m, sizeof m};
   char ctl[CMSG_SPACE(sizeof(int) * SH_MAX_BUFFERS)];
   memset(ctl, 0, sizeof ctl);
@@ -181,12 +249,16 @@ void on_frame(Client& c, const uint8_t* p, uint32_t n) {
     }
     x0 = x0 < 0 ? 0 : x0; y0 = y0 < 0 ? 0 : y0; x1 = x1 > c.w ? c.w : x1; y1 = y1 > c.h ? c.h : y1;
   }
-  if (c.img < 0) c.img = zrt::raster::dyn_wrap(c.w, c.h, c.buf[b].px, c.w);
-  else if (x1 > x0 && y1 > y0) zrt::raster::dyn_update_rect(c.img, x0, y0, x1 - x0, y1 - y0, c.buf[b].px);
+  if (c.dmabuf) { c.pic.hal.serial = c.buf[b].serial; c.pic.hal.fd[0] = c.buf[b].fd; c.pic.filled = true; }   // a plane shows this buffer now
+  if (c.img < 0) {
+    c.img = zrt::raster::dyn_wrap(c.w, c.h, c.buf[b].px, (int32_t)(c.stride / 4));
+    if (c.dmabuf) zrt::raster::dyn_set_picture(c.img, &c.pic);
+  } else if (x1 > x0 && y1 > y0) zrt::raster::dyn_update_rect(c.img, x0, y0, x1 - x0, y1 - y0, c.buf[b].px);
   else zrt::raster::dyn_update_rect(c.img, 0, 0, 0, 0, c.buf[b].px);
   if (c.shown >= 0 && c.shown != b) {
     // the buffer that was shown leaves the screen with the next frame the shell presents; until then it may still be read
-    if (c.nheld < SH_MAX_BUFFERS) c.held[c.nheld++] = {c.shown, zrt::frame_no};
+    // (a plane scans it until the refresh of that frame's commit, which the present after it waits for: one frame more)
+    if (c.nheld < SH_MAX_BUFFERS) c.held[c.nheld++] = {c.shown, zrt::frame_no + (c.dmabuf ? 1 : 0)};
     else release(c, c.shown);
   }
   c.shown = b;

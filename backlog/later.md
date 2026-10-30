@@ -585,6 +585,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-889: the Pi player shows no permission consent screen before a hub install or update (app/hub has one).
 - ZN-889: rollback and uninstall from the Pi player's hub page.
 
+- ZN-869: zinc:subtle RSA keys could also import and export pkcs8 and jwk, for Web Crypto compatibility (spki and raw-private PKCS#1 today).
+- ZN-869: making the 2048-bit RSA key blocks the UI thread a moment when the login screen opens; measure it on a Pi and the handhelds.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -848,6 +851,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-886: refuse a second instance of the Discord client (two processes would hold two sessions for one token).
 - ZN-886: make the daily IDENTIFY cap span launches (it is per process now).
 - ZN-886: give the fake Discord a 401, a captcha 400, a long 429 and op 9 d:false so the T1 session proves safe mode and the identify backoff.
+
+- ZN-869: try the QR and password+TOTP logins with a spare real account (AC1, AC2); check Discord still accepts remote-auth v2 and the Origin header.
 
 ## Cross-platform pass
 - ZN-884: run the shell's suspend on a Pi 3 (KMS closed and reopened, evdev grabs released, a whole frame after) and the 3 s no-CONNECT rule on the sim framebuffer.
