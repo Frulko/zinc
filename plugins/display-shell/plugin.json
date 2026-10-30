@@ -1,0 +1,10 @@
+{
+  "name": "display-shell",
+  "kind": "display",
+  "description": "A Zinc shell (zinc:shell, the Pi's player in shell mode) as the app's display: the app draws into the shell's shared buffers over ZINC_SHELL_SOCKET",
+  "targets": {
+    "macos": { "sources": ["shell.cpp"] },
+    "linux": { "sources": ["shell.cpp"] },
+    "rpi1": { "sources": ["shell.cpp"] }
+  }
+}

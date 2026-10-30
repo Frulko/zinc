@@ -30,7 +30,7 @@ enum : uint8_t { HELLO = 1, RECT = 2, FRAME = 3, PONG = 4, ACK = 16, POINTER = 1
 //   SH_BUFFERS  w u16, h u16, stride u32 (bytes), fourcc u32 (XR24), kind u8 (0 dmabuf, 1 shm), n u8 (3), + n fds   after CONNECT
 //               and on every resize: the earlier buffers are dropped, every new one is free, the app draws whole
 //   SH_RELEASE  buffer u8                                    the buffer left the screen: the app may draw into it again
-//   SH_INPUT    src/host/mirror.cpp's INPUT payload (x, y in 0..1 of the app's surface), then touches n u8, n x (id u8, x f32, y f32)
+//   SH_INPUT    src/host/mirror.cpp's INPUT payload (x, y in 0..1 of the app's surface), then touches n u8, n x (id u8, x f32, y f32), x y in 0..1 too, x y in 0..1 too
 //   SH_QUIT     reason u8 (0 Home, 1 replaced, 2 shutdown)  the app's quit request; the shell ends its group 2 s later
 //   PING        serial u32                                   every 2 s; no PONG within 6 s: "not responding"
 enum : uint8_t { SH_INPUT = 22, SH_CONNECT = 32, SH_FRAME = 33, SH_BUFFERS = 40, SH_RELEASE = 41, SH_QUIT = 42 };
