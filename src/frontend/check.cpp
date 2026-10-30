@@ -356,6 +356,18 @@ struct Checker {
       wrapNode(node, sym);
       return true;
     }
+    if (node != kNone && !bad(from) && !bad(to) && ty(from).k == TK::Array && ty(to).k == TK::Array && !bad(ty(from).elem) && !bad(ty(to).elem) && ty(ty(from).elem).k == TK::Object &&
+        ty(ty(to).elem).k == TK::Object && (recordWidenable(ty(from).elem, ty(to).elem) || objAssignable(ty(ty(from).elem).obj, ty(ty(to).elem).obj))) {
+      // arrays are covariant, as in TypeScript (`Big[]` as `Song[]`, `Dog[]` as `Animal[]`): the IR types an array by its element, so this is a new
+      // array of the elements, each converted as one value is (a record copied with the fields asked for, an object shared)
+      const TypeId fe = ty(from).elem, te = ty(to).elem;
+      if (out.objs[ty(fe).obj].isTemplate || out.objs[ty(te).obj].isTemplate) return true;
+      const std::string A = inspectAliasName(from), B = inspectAliasName(to);
+      std::uint32_t sym = helper("arrwiden," + std::to_string(from) + "," + std::to_string(to),
+          "function $F(a: " + A + "): " + B + " {\n  const r: " + B + " = [];\n  for (let i: i32 = 0; i < a.length; i++) r.push(a[i]);\n  return r;\n}\n", {from, to, fe, te}, node);
+      wrapNode(node, sym);
+      return true;
+    }
     diag(kZNotAssignable, node, "diag.detail.assign", {{"from", name(from)}, {"to", name(to)}});
     return false;
   }
