@@ -550,6 +550,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-867: the checker refuses `.catch((e: any) => ...)` (a function with an `any` parameter is not assignable to `(Error) => any`), which TypeScript accepts.
 - ZN-867: `ui_class_parser` fails on develop ("style-only Solid program: 1 @applyToken function(s) in the ZBC, expected 0"), not from the Discord work; check the recent `lib/std/ui.ts` changes.
 - ZN-866: tls::read stalled on a TLS 1.3 record holding several post-handshake messages (Cloudflare's coalesced NewSessionTickets, gateway.discord.gg one connection in two); fixed by reading while mbedTLS holds bytes, proven against the real gateway only. A regression test needs a server that packs both tickets in one record (BoringSSL's behaviour; mbedTLS and OpenSSL send one record each), and the TLS 1.2 fallbacks for api.spotify.com and upload.wikimedia.org (http.cpp, tls.h) are probably the same bug: check them over TLS 1.3 and remove the fallback if they answer.
+- ZN-868: the checker refuses a `useEffect` callback that returns its cleanup function (Z0103); React allows it and the Discord views need it.
+- ZN-868: images inline in Text runs (custom emoji inside a sentence) are drawn as separate views; a run kind for an image would keep them on the line.
+- ZN-868: VirtualList shifts the scroll when rows are prepended (history loaded above); keep the anchor row in place.
+- ZN-868: emoji maps print a stray hint glyph ('ᵉʳ') for some sequences; check the shaped text tier's fallback.
+- ZN-868: shaped text (D32) could be the default on desktop; the Discord client opts in with `"text": "shaped"`.
+- ZN-868: profile `settleVirtuals`/`syncVirtual` in layout on a long channel; they lead the frame profile.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
@@ -796,6 +802,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-867: the Discord client acks without checking whether its window has the focus; ack only when the channel is visible in a focused window, as the web client does.
 - ZN-867: Discord lists (`- item`) stay plain text in the client; draw bullets.
 - ZN-872: alternative to native Discord voice (owner idea 2026-10-30, not chosen for now): a self-hostable call relay (Docker: Chromium + Xvfb + a Zinc relay, Chrome started per call) where the official web client joins the call and zinc:webrtc bridges the media both ways (getUserMedia/getDisplayMedia overridden in the page, remote tracks sent back); no libdave, nothing to imitate. Text stays direct. Builds on app/web-relay.
+- ZN-868: the Discord client's CDN picture map never evicts; cap it (LRU) for long sessions.
+- ZN-868: animated emoji show their first frame only.
+- ZN-868: the default avatar index needs the 64-bit shift (`(id >> 22) % 6`); check it against big ids.
+- ZN-868: the member list ignores the list id of GUILD_MEMBER_LIST_UPDATE; verify op 37 against the real gateway.
 
 ## Cross-platform pass
 - ZN-864: `hal_win_ctl` on Linux (SDL3 HAL) and the n3ds HAL (weak default: nothing moves).
