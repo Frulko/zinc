@@ -1,6 +1,6 @@
 // display-shell: a Zinc shell (zinc:shell, plugins/shell: the Pi's player in shell mode) as the app's display (D194,
 // docs/reports/zinc-shell/03-design.md §4). The app connects to the Unix socket ZINC_SHELL_SOCKET, says CONNECT, and the shell answers with
-// BUFFERS: its surface size and three shared buffers (shm or dmabuf fds, both mapped the same way). Each frame writes its damage, plus what
+// BUFFERS: its surface size and four shared buffers (shm or dmabuf fds, both mapped the same way). Each frame writes its damage, plus what
 // that buffer missed since it was last written, into a free buffer and sends FRAME; the shell RELEASEs a buffer when it leaves the screen.
 // With no free buffer `present` waits on the socket: the shell paces the app, and an app that changes nothing sends nothing. The shell's
 // INPUT is the app's pointer, keys, wheel and touches; QUIT and the socket closing end the app. The wire: plugins/display-remote/remote_proto.h.

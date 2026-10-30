@@ -36,7 +36,7 @@ enum : uint8_t { HELLO = 1, RECT = 2, FRAME = 3, PONG = 4, ACK = 16, POINTER = 1
 enum : uint8_t { SH_INPUT = 22, SH_CONNECT = 32, SH_FRAME = 33, SH_BUFFERS = 40, SH_RELEASE = 41, SH_QUIT = 42 };
 static const uint16_t SH_VERSION = 1;
 static const uint32_t SH_XR24 = 0x34325258;   // DRM_FORMAT_XRGB8888: the runtime's 0x00RRGGBB words
-static const int SH_MAX_BUFFERS = 3, SH_MAX_DAMAGE = 8;
+static const int SH_MAX_BUFFERS = 4, SH_MAX_DAMAGE = 8;   // four: on a plane a replaced buffer comes back two shell frames later (2026-10-31: three held an app at 40 fps)
 static const uint32_t MAX_TOKEN = 64;
 static const char* const GROUP = "239.255.90.1";
 static const int BEACON_PORT = 7701;
