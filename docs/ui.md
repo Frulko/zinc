@@ -97,7 +97,7 @@ note, an address, a log). Only `whitespace-nowrap` and `truncate` keep one line 
 ## Styled runs inside one text
 
 `ui.setTextRuns(h, runs)` styles parts of a text node without splitting it: `runs` is `[length, style, color, ...]` over its text, in
-order; `style` or-s `ui.RUN_BOLD`, `RUN_ITALIC`, `RUN_MONO` and `RUN_UNDERLINE` (0: the text's own), `color` is `0xRRGGBB`, `-1` for
+order; `style` or-s `ui.RUN_BOLD`, `RUN_ITALIC`, `RUN_MONO`, `RUN_UNDERLINE` and `RUN_STRIKE` (0: the text's own), `color` is `0xRRGGBB`, `-1` for
 the text's colour, or `ui.schemeColor('name')` for a `defineScheme` variable that follows the scheme. The lines wrap at spaces with each
 run measured in its own face, and a `select-text` node still selects and copies as one text (`tests/golden/ui-runs`). It is how a
 paragraph of markdown keeps its **bold**, `code` and links in one selectable text (examples/agents). `break-words` cuts a word longer

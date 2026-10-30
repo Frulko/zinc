@@ -534,8 +534,8 @@ export function setText(h: i32, s: string): void {
   const n = node(h);
   if (n.text !== s) { n.text = s; layoutDirty = true; if (tsNode === h) tsNode = -1; }
 }
-/** Style of a run of setTextRuns: bold, italic, monospace, underlined (an or of them; 0 the text's own). */
-export const RUN_BOLD: i32 = 1, RUN_ITALIC: i32 = 2, RUN_MONO: i32 = 4, RUN_UNDERLINE: i32 = 8;
+/** Style of a run of setTextRuns: bold, italic, monospace, underlined, struck through (an or of them; 0 the text's own). */
+export const RUN_BOLD: i32 = 1, RUN_ITALIC: i32 = 2, RUN_MONO: i32 = 4, RUN_UNDERLINE: i32 = 8, RUN_STRIKE: i32 = 16;
 /**
  * Styles parts of one text node: `runs` is [length, style, color, ...] over its text, in order (style: RUN_* or-ed, color 0xRRGGBB, -1 for
  * the text's colour, or schemeColor('name') to follow the scheme; what the runs do not cover keeps the text's style). The text still wraps at its spaces and still selects and copies as
@@ -3115,7 +3115,7 @@ function wrapText(n: UiNode, maxW: number): void {
   }
   for (const l of lines) { n.lines.push(l); n.lineW.push(lineWidth(n, f, l, tr)); }
 }
-/** Line i of a text node with runs: each run in its face and colour, underlined runs underlined. */
+/** Line i of a text node with runs: each run in its face and colour, underlined runs underlined, struck runs struck through. */
 function drawRunsLine(n: UiNode, i: i32, x: number, y: number, fg: i32, alpha: i32): void {
   const r = n.runs as i32[], a = (n.lineAt as i32[])[i], b = a + n.lines[i].length, tr = trackPx(n), asc = fontAscent(n.fontId);
   let cx = x, at: i32 = 0, k: i32 = 0;
@@ -3127,6 +3127,7 @@ function drawRunsLine(n: UiNode, i: i32, x: number, y: number, fg: i32, alpha: i
       const f = runFace(n, style), piece = n.text.slice(s0, s1), w = textWidth(f, piece, tr);
       drawText(f, cx, y, piece, col, alpha, tr);
       if ((style & RUN_UNDERLINE) !== 0) rrect(cx, y + asc + Math.round(n.size * 0.1), w, Math.max(1, Math.round(n.size / 14)), 0, col, alpha);
+      if ((style & RUN_STRIKE) !== 0) rrect(cx, y + Math.round(asc * 0.62), w, Math.max(1, Math.round(n.size / 14)), 0, col, alpha);
       cx += w;
     }
     at += len; k += 3;
