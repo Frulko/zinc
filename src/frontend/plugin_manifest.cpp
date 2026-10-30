@@ -114,7 +114,12 @@ bool parsePluginManifest(std::string_view text, PluginManifest& out, std::string
   if (!str(root, "name", out.name, err) || !str(root, "kind", out.kind, err) || !str(root, "module", out.module, err) || !str(root, "entry", out.entry, err) || !str(root, "description", out.description, err)) return false;
   if (out.entry.empty()) out.entry = "index.ts";
   if (const Profile* cur = currentProfile(); cur && std::string_view(cur->name) == "web")   // the web target: "web": { "entry": ... } is the browser's version of the module (docs/targets/web.md, "Plugins")
-    if (yyjson_val* w = yyjson_obj_get(root, "web"); yyjson_is_obj(w)) { std::string we; if (str(w, "entry", we, err) && !we.empty()) out.entry = we; }
+    if (yyjson_val* w = yyjson_obj_get(root, "web"); yyjson_is_obj(w)) {
+      std::string we, dev;
+      // "dev": "native": under zinc dev the module stays the native one and its native side runs through the dev bridge (raw sockets a page cannot open)
+      const bool bridged = std::getenv("ZINC_WEB_DEV") && str(w, "dev", dev, err) && dev == "native";
+      if (!bridged && str(w, "entry", we, err) && !we.empty()) out.entry = we;
+    }
   if (out.kind != "module" && out.kind != "display") { err = "\"kind\" must be \"module\" or \"display\""; return false; }
   if (yyjson_val* r = yyjson_obj_get(root, "requires")) {
     if (!yyjson_is_arr(r)) { err = "\"requires\" must be an array"; return false; }

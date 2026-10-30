@@ -21,6 +21,9 @@ function answer(id, status, lines, more) {
   for (const l of lines.split('\n')) { const c = l.indexOf(':'); if (c < 0) continue; const k = l.slice(0, c).trim(), v = l.slice(c + 1).trim(); if (k.toLowerCase() === 'content-type') contentType = v; else headers.set(k, v); }
   res({ status, contentType, headers, ...more });
 }
+// this side's event loop serves the page's modules: what they asked for through the rows (a fetch, an OSC listener, a signal) comes back as their event, with its
+// payload; a request to a page's server (42) is __net's
+__addEvHandler((h, kind, data) => { if (kind === 42) return; const pl = __host_evPayload(); push({ ev: [h, kind, data, typeof pl === 'string' ? pl : Array.from(pl || [])] }); });
 const served = [];
 mods.__net = {
   serve: (port, cb) => { const bound = serveAsync(port, (req) => new Promise((res) => {

@@ -15,5 +15,5 @@
     "rpi1": {},
     "rmpp": {}
   },
-  "web": { "entry": "web/index.ts", "needs": ["websocket"] }
+  "web": { "entry": "web/index.ts", "dev": "native", "needs": ["websocket"] }
 }

@@ -1337,6 +1337,7 @@ int devWeb(const WebArgs& a) {
 #ifdef SIGPIPE
   std::signal(SIGPIPE, SIG_IGN);
 #endif
+  if (!a.lan && a.prepare.empty()) setenv("ZINC_WEB_DEV", "1", 1);   // the bundle keeps the native entry of a plugin that asks for the bridge ("web": {"dev": "native"})
   Dev d;
   d.a = a;
   d.root = a.prepare.empty() ? fs::path(a.dir) / "build" / ".zinc-web-dev" : fs::absolute(a.prepare);

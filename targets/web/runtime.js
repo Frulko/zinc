@@ -109,6 +109,7 @@ function devBridge({ url, token, natives }) {
     queued = [];
     for (const ev of evs) {
       if (ev.cb !== undefined) { const f = fns.get(ev.cb); if (f) f(...ev.a.map(dec)); continue; }
+      if (ev.ev !== undefined) { Z.hostEvent(...ev.ev); continue; }   // an event of this machine's loop (a fetch done, an OSC message...) for the page's modules
       const p = pending.get(ev.p);
       if (!p) continue;
       pending.delete(ev.p);
@@ -831,12 +832,14 @@ if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host s
   G.__host_fsByte = (i) => (viaBridge ? loaded[i] || 0 : rows.fsByte(i));
   for (const n of ['fsStat']) G['__host_' + n] = (p, ...a) => ((viaBridge = !mine(p)) ? Z.bridge.call('__rows', n, [p, ...a]) : rows[n](p, ...a));
   for (const n of ['fsStatD', 'fsStatI']) G['__host_' + n] = (...a) => (viaBridge ? Z.bridge.call('__rows', n, a) : rows[n](...a));
-  // zinc:net's servers listen on this machine: a request reaches the page as zinc:net's request event (42), its reply goes back through the bridge
+  // the events of this machine's loop reach the page's handlers (zinc:net, zinc:osc...), with their payload; zinc:net's servers listen on this machine: a request
+  // reaches the page as zinc:net's request event (42), its reply goes back through the bridge
   const evHandlers = [];
   let payload = [];
   G.__addEvHandler = (f) => { evHandlers.push(f); };
   G.__host_evPayload = () => payload;
-  const request = (id, data, raw) => { payload = raw; for (const f of evHandlers) f(id, 42, data); };
+  Z.hostEvent = (h, kind, data, raw) => { payload = raw; for (const f of evHandlers) f(h, kind, data); };
+  const request = (id, data, raw) => Z.hostEvent(id, 42, data, raw);
   G.__host_httpServe = (port) => Z.bridge.call('__net', 'serve', [port, request]);
   G.__host_httpError = () => '';
   G.__host_httpReply = (h, status, lines, body) => Z.bridge.call('__net', 'reply', [h, status, lines, body]);

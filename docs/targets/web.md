@@ -454,6 +454,9 @@ calls it. `zinc dev` says which sides it runs (`the native sides Lvgl, Device ru
   project's folder, as under `zinc run`; so `zinc.json` "requires" (fs, process) is not checked under `zinc dev` unless `--lan`. What the page does itself (drawing, layout,
   input, audio, storage) stays the page's.
 - A file the page has itself (an asset, a file the program wrote in the page) is read in the page; any other path is read on the machine.
+- The events of this machine's loop that the page's modules asked for (a `zinc:net` fetch that ends, an OSC message, a signal) come back to the page's handlers.
+- A plugin whose browser version cannot do what its native one does (`zinc:socket`: TCP, UDP, a server) says `"web": {"dev": "native"}` in plugin.json: under `zinc dev` the
+  page gets the native module and its native side runs through the bridge; an export keeps the browser version.
 - A `zinc:net` server (`serve`, `serveAsync`) listens on this machine: each request goes to the page's handler and its reply comes back through the bridge, so a phone
   or a `curl` reaches the program on its port as under `zinc run`.
 - The media files of the project outside `assets/` (videos, sounds, such as `examples/hero`'s `media/bbb.mp4`) are served by `zinc dev` at `/__project/<path>` with byte
@@ -461,7 +464,7 @@ calls it. `zinc dev` says which sides it runs (`the native sides Lvgl, Device ru
 - A side that draws (`zinc:3d`, the `zinc:three` subset) is never bridged: it would draw on your machine, not in the page. Its plugin.json says so with `"web": {"bridge": false}`; it keeps its W0602.
 - The set of native sides is read when `zinc dev` starts: a save that adds such a plugin needs `zinc dev` restarted.
 
-`tests/t1/web_bridge.sh` runs a `zinc:process` program and a `zinc:net` server through it in headless Chrome.
+`tests/t1/web_bridge.sh` runs a `zinc:process` program, a `zinc:net` server and fetch, and a `zinc:socket` UDP datagram through it in headless Chrome.
 
 ## Hosting
 

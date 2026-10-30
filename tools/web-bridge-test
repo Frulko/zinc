@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The dev bridge of zinc dev --target web in headless Chrome (docs/targets/web.md, "The dev bridge"; tests/t1/web_bridge.sh).
 Serves tests/fixtures/web-bridge (zinc:process, which has no browser backend), opens the page and waits for a child's line (a callback) and a
-run() result (a promise) that came through the bridge, and a zinc:net server of the page that answers a request from this machine; then checks that a request without the token is refused and that the bridge stops with zinc dev.
+run() result (a promise) that came through the bridge, a zinc:net server of the page that answers a request from this machine, a zinc:net fetch whose end comes back as an event of the machine's loop, and a UDP datagram of zinc:socket (its native module under zinc dev); then checks that a request without the token is refused and that the bridge stops with zinc dev.
 usage: web-bridge-test <zinc> <project-dir>   Prints one JSON line; exit 1 on a failed step, 77 without Chrome."""
 import json, os, re, socket, subprocess, sys, threading, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -43,6 +43,14 @@ with Chrome(["--window-size=800,500"]) as c:
     except Exception as e: fail("the page's server did not answer: %s" % e, c.console)
     if body != "page answers /hello": fail("the page's server answered %r" % body)
     steps["serve"] = True
+    end = time.monotonic() + 10
+    while time.monotonic() < end and "udp: bridge-datagram" not in c.console: c._recv(-1, 0.2)
+    if "udp: bridge-datagram" not in c.console: fail("no UDP datagram through zinc:socket's native module", c.console)
+    steps["udp"] = True
+    end = time.monotonic() + 10
+    while time.monotonic() < end and "fetch: page answers /self" not in c.console: c._recv(-1, 0.2)
+    if "fetch: page answers /self" not in c.console: fail("no zinc:net fetch result (an event of the machine's loop)", c.console)
+    steps["events"] = True
     st = c.eval("fetch(%s + '/call', {method: 'POST', body: '{}'}).then(r => r.status, e => 'error')" % json.dumps(url))
     if st != 403: fail("a request without the token got %r" % st)
     steps["token"] = True
