@@ -2,7 +2,8 @@
 id: ZN-875
 title: 'examples/discord: Go Live screen sharing'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 14:57'
 labels:
   - net
