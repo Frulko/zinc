@@ -4,7 +4,7 @@ export const dirs = ['learn', 'start', 'guide', 'reference', 'plugins', 'targets
 export const top = [
   'ui-kit', 'ui', 'plugins', 'boards', 'studio', 'dev-mode', 'licenses',
   'nuxt-ui', 'react-native', 'templates', 'diagnostics', 'zapp', 'desktop-integration',
-  'engines', 'diagnostics-vs-tsc', 'figma-ui', 'zpk', 'ir-format',
+  'engines', 'diagnostics-vs-tsc', 'cheatsheet', 'figma-ui', 'zpk', 'ir-format',
 ];
 export const patterns = [...dirs.map((d) => `${d}/*.md`), `{${top.join(',')}}.md`];
 /** rel: a path inside docs/ with slashes, e.g. "guide/02-language.md". */

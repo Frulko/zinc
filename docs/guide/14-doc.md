@@ -10,7 +10,11 @@ zinc doc                  # build/doc/index.html: open it in a browser
 zinc doc --serve          # http://127.0.0.1:7878/, rebuilt when you save a page or a source
 zinc doc --out site       # the folder somewhere else (a web host, a USB key)
 zinc doc --std            # the engine's own documentation: guides, standard library, every plugin
+zinc doc --cheatsheet     # one page: every function of the engine's modules, its signature and its first sentence
 ```
+
+`--cheatsheet` prints Markdown (or writes it with `--out file`); [the cheat sheet](../cheatsheet.md) of the site is this page, made from
+`lib/*.d.ts`, and a test fails when the two differ.
 
 `--serve` prints the address and opens nothing: open it yourself. It picks the next free port when 7878 is taken (`--port 9000` asks for
 one, `--port 0` for any free one), and a page you have open reloads by itself when the site is rebuilt. Ctrl-C stops it.

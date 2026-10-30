@@ -84,7 +84,7 @@ declare var Number: NumberConstructor;
 declare function parseInt(s: string, radix?: i32): number;
 declare function parseFloat(s: string): number;
 declare function isNaN(x: number): boolean;
-declare function isFinite(x: number): boolean;declare function isNaN(n: number): boolean;
+declare function isFinite(x: number): boolean;
 declare const NaN: number;
 declare const Infinity: number;
 
