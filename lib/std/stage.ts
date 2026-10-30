@@ -370,6 +370,10 @@ export function routePointer(x: number, y: number, isDown: boolean, deltaSeconds
 // The display tree
 // ----------------------------------------------------------------------------------------------------------------------------------------
 
+let treeWatch: ((parent: DisplayObject) => void) | null = null;
+/** Called with the parent each time a child is added or removed (the inspector's live tree); null: nothing is called. */
+export function setTreeWatch(f: ((parent: DisplayObject) => void) | null): void { treeWatch = f; }
+
 /** A node of the scene: a position in its parent, a size, children, the hooks a subclass overrides, and the row/column layout. */
 export class DisplayObject {
   /** A readable name, for debugging. */
@@ -425,6 +429,7 @@ export class DisplayObject {
     this.children.push(child);
     if (this.isOnStage) child.notifyAddedToStage();
     if (!isFramePassRunning) uiState.dirty = true;
+    if (treeWatch !== null) (treeWatch as (parent: DisplayObject) => void)(this);
     return child;
   }
 
@@ -444,6 +449,7 @@ export class DisplayObject {
       child.parent = null;
       if (child.isOnStage) child.notifyRemovedFromStage();
       if (!isFramePassRunning) uiState.dirty = true;
+      if (treeWatch !== null) (treeWatch as (parent: DisplayObject) => void)(this);
     }
     return child;
   }
@@ -725,9 +731,10 @@ export class Sprite extends DisplayObject {}
 
 /** The Stages made, the first one first: the inspector (zinc:devtools) shows the first one's tree. */
 export const stages: Stage[] = [];
-let afterRender: (() => void) | null = null;
-/** Called after each drawing of a Stage (renderStage): the inspector draws its highlight over the scene there. */
-export function setAfterRender(f: (() => void) | null): void { afterRender = f; }
+let afterRender: ((stage: Stage) => void) | null = null;
+/** Called after each drawing of a Stage (renderStage, drawIn): the inspector draws its highlight over the scene there, and learns which
+ *  zinc:ui Canvas a stage is drawn in. */
+export function setAfterRender(f: ((stage: Stage) => void) | null): void { afterRender = f; }
 
 /** The root of the scene: the window's size, laid out then drawn. */
 export class Stage extends DisplayObject {
@@ -745,7 +752,7 @@ export class Stage extends DisplayObject {
     this.width = screenWidth;
     this.height = screenHeight;
     this.layoutAndRender(screenWidth, screenHeight, 0, 0);
-    if (afterRender !== null) (afterRender as () => void)();
+    if (afterRender !== null) (afterRender as (stage: Stage) => void)(this);
   }
 
   /**
@@ -805,6 +812,7 @@ export class Stage extends DisplayObject {
     boxClipBottom = y + h;
     cutZonesTo(true, x, y, x + w, y + h);
     this.layoutAndRender(w, h, 0, 0);
+    if (afterRender !== null) (afterRender as (stage: Stage) => void)(this);
     isBoxClipOpen = false;
     cutZonesTo(false, 0, 0, 0, 0);
     unclip();

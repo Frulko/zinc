@@ -2,7 +2,7 @@
 // render, dev runs), collapsible, searched (component, tag, className, text, id) and filtered (rendered only, components only, host
 // wrappers hidden); the selected node's component and props, its classes and element.style edited live in dev runs, its box and computed style.
 import { createSignal } from 'zinc:ui/solid';
-import { call, conn, status, setStatus, devRun, errorOf, sleep } from './state';
+import { call, conn, status, setStatus, devRun, errorOf, sleep, until } from './state';
 import { styleLines, ruleLines, inlineOf, Inline } from './model';
 import { Btn, Flat, Toggle, Field, Mono } from './widgets';
 
@@ -46,13 +46,8 @@ export function build(d: any, parent: TNode | null, byId: Map<i32, TNode>, roots
       x.comp = !x.stage && name === local && name.length > 0 && name.charAt(0) !== name.charAt(0).toLowerCase();   // zinc:devtools names a component's wrapper as written
       x.tag = x.comp || x.stage ? name : hostName(local);
       x.cls = attr(d, 'class'); x.source = attr(d, 'source'); x.props = attr(d, 'props'); x.on = attr(d, 'on'); x.hidden = hasAttr(d, 'hidden');
-      if (x.stage) {
-        const at = d.attributes;
-        for (let i = 0; i + 1 < at.length; i += 2) { const k: string = at[i]; const v: string = at[i + 1]; if (k !== 'stage') { x.attrs.push(k); x.attrs.push(v); } }
-        x.hidden = attr(d, 'visible') === 'false';
-        x.props = x.attrs.join(' ');
-      }
-      x.hay = (x.tag + ' ' + x.cls + ' #' + x.id + ' ' + x.source + ' ' + x.props).toLowerCase();
+      if (x.stage) stageValues(x, d.attributes);
+      else x.hay = (x.tag + ' ' + x.cls + ' #' + x.id + ' ' + x.source + ' ' + x.props).toLowerCase();
     }
     byId.set(x.id, x);
     if (parent !== null) (parent as TNode).kids.push(x); else roots.push(x);
@@ -60,6 +55,14 @@ export function build(d: any, parent: TNode | null, byId: Map<i32, TNode>, roots
   }
   const kids = d.children;
   if (kids !== undefined) for (const k of kids) build(k, n !== null ? n : parent, byId, roots);
+}
+/** A zinc:stage node's properties from its attribute list (name, value...). */
+function stageValues(x: TNode, at: any): void {
+  x.attrs = [];
+  for (let i = 0; i + 1 < at.length; i += 2) { const k: string = at[i]; const v: string = at[i + 1]; if (k !== 'stage') { x.attrs.push(k); x.attrs.push(v); } }
+  x.hidden = stageAttr(x, 'visible') === 'false';
+  x.props = x.attrs.join(' ');
+  x.hay = (x.tag + ' #' + x.id + ' ' + x.props).toLowerCase();
 }
 /** A row's text: <Card> for a component, <View className="..."> for a host node, "text" for text. */
 export function label(n: TNode): string {
@@ -117,6 +120,19 @@ export async function loadDocument(): Promise<void> {
   if (d.root !== undefined) build(d.root, null, m, r);
   byId = m; roots = r;
   await refreshRendered(true);
+  await refreshStage();
+}
+/** The selected zinc:stage node's values read again (DOM.getAttributes) with its box: a moving node's x, y... follow in the Styles pane. */
+export async function refreshStage(): Promise<void> {
+  const id = target(), n = nodeOf(id);
+  if (n === null || !(n as TNode).stage) return;
+  const r = await call('DOM.getAttributes', `{"nodeId":${id}}`);
+  if (r.attributes === undefined) return;
+  stageValues(n as TNode, r.attributes);
+  const a = (n as TNode).attrs;
+  if (a.join('\u0001') !== stageAttrs().join('\u0001')) setStageAttrs(a.slice(0));
+  const b = await call('DOM.getBoxModel', `{"nodeId":${id}}`);
+  if (b.model !== undefined) { const w: number = b.model.width; const h: number = b.model.height; if (box() !== w + ' × ' + h) setBox(w + ' × ' + h); }
 }
 /** The nodes that draw nothing (Zinc.getUnrendered); the rows are built again when they changed (or when `always`). */
 export async function refreshRendered(always: boolean): Promise<void> {
@@ -470,8 +486,11 @@ export async function dumpElements(): Promise<void> {
   await sleep(300);   // the patch reaches the console
 }
 
+function hasNamed(n: TNode, nm: string): boolean { if (n.stage && stageAttr(n, 'name') === nm) return true; for (const k of n.kids) if (hasNamed(k, nm)) return true; return false; }
 /** A zinc:stage node selected (its properties and box), then its x moved by 100: the box and the program's frame follow. */
 async function dumpStage(n: TNode): Promise<void> {
+  const named = (nm: string): boolean => { for (const x of roots) if (hasNamed(x, nm)) return true; return false; };
+  const ghost = named('ghost');   // the scene of main.ts, which answers the move below
   await select(n.id);
   const left = async (): Promise<number> => { const b = await call('DOM.getBoxModel', `{"nodeId":${n.id}}`); const x: number = b.model !== undefined ? b.model.content[0] : -1; return x; };
   const pairs: string[] = [];
@@ -486,4 +505,14 @@ async function dumpStage(n: TNode): Promise<void> {
   const after: string = (await call('Page.captureScreenshot', '{}')).data;
   console.log('stage edit: x ' + x0 + ' -> ' + stageAttr(n, 'x') + ', box left ' + l0 + ' -> ' + (await left()) + ' | frame changed: ' + (before !== after));
   console.log('bad edit: ' + ((await setStageProp('alpha', 'abc')) ? 'applied' : status()));
+  // the program answers the move (tests/data/inspector_stage): a node joins, another leaves, the ball drops; the tree and its values follow
+  if (!ghost) return;
+  const live = await until(() => named('spark') && !named('ghost'));
+  const moved = await until(() => { const a = stageAttrs(); for (let i = 0; i + 1 < a.length; i += 2) if (a[i] === 'y') return a[i + 1] === '60'; return false; });
+  console.log('live: spark inserted, ghost removed ' + live + ' | selected y follows ' + moved);
+  for (const r of rows()) if (r.node.stage && stageAttr(r.node, 'rotation') !== '') {   // a turned node: its box turns with it
+    const m = await call('DOM.getBoxModel', `{"nodeId":${r.node.id}}`);
+    const qd: number[] = m.model.content, w: number = m.model.width, h: number = m.model.height;
+    console.log('turned: ' + label(r.node) + ' quad ' + qd.join(',') + ' | ' + w + ' × ' + h);
+  }
 }

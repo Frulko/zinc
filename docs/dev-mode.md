@@ -140,6 +140,11 @@ port; the line `zinc devtools: ...` on stderr names the port in use) and speaks 
 - discovery: `/json/list`, `/json/version`; in Chrome open `chrome://inspect`, *Configure…* → `localhost:9229`,
   (localhost:9229 is in the default list) then *inspect* under Remote Target (or open
   `devtools://devtools/bundled/inspector.html?ws=127.0.0.1:9229/zinc`);
+- **Elements of a `zinc:stage` scene**: a program with a `Stage` and no `zinc:ui` tree shows its display tree, and a stage drawn in a
+  `<Canvas>` (`stage.drawIn`) shows under that Canvas next to the interface. Each node is an element named after its class with its
+  properties as attributes; a node added or removed by the program goes out as `DOM.childNodeInserted` / `childNodeRemoved`,
+  `DOM.getAttributes` reads a node's current values, and the highlight and `DOM.getBoxModel` follow `rotation` (radians), `scaleX`,
+  `scaleY`, `pivotX` and `pivotY` of the node and its parents;
 - **Elements**: `DOM.getDocument`, `requestChildNodes` — the component tree: in a dev run (`zinc dev`, or `ZINC_DEV=1`) each component of
   the program shows as its own element (`<Shell>`, `<Card>`) with the attributes `source` (`src/main.tsx:30`, where it is used) and `props`
   (the props as written there); the compiler records them only in dev runs, so other runs pay nothing and show the host nodes alone. Host

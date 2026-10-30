@@ -5,7 +5,7 @@
 // (every fetch, WebSocket, MQTT client and outgoing TCP socket of the program, from the host's network log), and the Styles
 // panel: classes and style sheets as rules, element.style and the box model edited live with the patch printed to the console
 // (ZN-369). Unknown methods get an empty result so the frontend never waits. A program with a zinc:stage scene and no zinc:ui tree shows its
-// display tree instead (stage.ts).
+// display tree instead, and a stage drawn in a <Canvas> shows under that Canvas (stage.ts).
 import Cdp from './native/cdp.spec';
 import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
 import { width, height } from 'zinc:gfx';
@@ -15,7 +15,7 @@ import { type as osType, release as osRelease, arch as osArch, cpus as osCpus, t
 import { get as storeGet, set as storeSet, remove as storeRemove, keys as storeKeys } from 'zinc:storage';
 import { devDatabases, DevDatabase } from 'zinc:devhooks';
 import { DisplayObject } from 'zinc:stage';
-import { stageRoot, stageNode, stageDocument, stageUnrendered, stageHighlight, stageBoxModel, stageSet } from './stage';
+import { stageRoot, stageNode, stageDocument, stageUnrendered, stageHighlight, stageBoxModel, stageSet, stageIn, stageId, stageElement, stageReset, stageEvents, stageAttributes, stageCanvases, STAGE_BASE } from './stage';
 
 /** A dev run (zinc dev): the only one where the styles can be edited live; an exported or plain run refuses, with this message. */
 const DEV = env('ZINC_DEV') === '1';
@@ -82,6 +82,8 @@ function children(h: i32, n: UiNode): string[] {
     const e = element(c);
     if (e.length > 0) kids.push(e);
   }
+  const s = stageIn(h);   // a zinc:stage scene drawn in this Canvas
+  if (s !== null) kids.push(stageElement(s as DisplayObject));
   return kids;
 }
 function element(h: i32): string {
@@ -164,11 +166,12 @@ function handle(client: i32, msg: string): void {
     Cdp.send(client, `{"id":${id},"error":{"code":-32000,"message":${q(NOT_DEV)}}}`);
     return;
   }
-  if (inspectRoot() < 0 && stageRoot() !== null) {   // a zinc:stage program: its display tree instead (stage.ts)
-    const r = stageAnswer(method, nodeId, msg);
+  const pure = inspectRoot() < 0 && stageRoot() !== null;   // a zinc:stage program: its display tree instead (stage.ts)
+  if (pure || stageNode(nodeId) !== null) {   // or a node of a stage drawn in a Canvas
+    const r = stageAnswer(method, nodeId, msg, pure);
     if (r.length > 0) { Cdp.send(client, `{"id":${id},${r}}`); return; }
   }
-  if (method === 'DOM.getDocument') { result = `{"root":${documentNode()}}`; snaps.clear(); shownRoot = inspectRoot(); remember(inspectRoot()); }
+  if (method === 'DOM.getDocument') { stageReset(); result = `{"root":${documentNode()}}`; snaps.clear(); shownRoot = inspectRoot(); remember(inspectRoot()); }
   else if (method === 'DOM.requestChildNodes' && n !== null) {
     Cdp.send(client, `{"method":"DOM.setChildNodes","params":{"parentId":${nodeId},"nodes":[${children(h, n).join(',')}]}}`);
   } else if ((method === 'DOM.setAttributeValue' || method === 'DOM.setAttributesAsText') && n !== null) {
@@ -185,9 +188,9 @@ function handle(client: i32, msg: string): void {
   else if (method === 'CSS.getMatchedStylesForNode') result = n !== null ? matched(h, n) : '{"matchedCSSRules":[],"pseudoElements":[],"inherited":[],"cssKeyframesRules":[]}';
   else if (method === 'CSS.getInlineStylesForNode' && n !== null) result = `{"inlineStyle":${inline(h)}}`;
   else if (method === 'CSS.setStyleTexts') result = setStyleText(Cdp.str(msg, 'styleSheetId'), Cdp.str(msg, 'text'));
-  else if (method === 'Overlay.highlightNode') inspectHighlight(n !== null ? h : -1);
+  else if (method === 'Overlay.highlightNode') { stageHighlight(null); inspectHighlight(n !== null ? h : -1); }
   else if (method === 'Overlay.setInspectMode') { picked = -1; inspectPick(Cdp.str(msg, 'mode') === 'searchForNode' ? onPick : null); }
-  else if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') inspectHighlight(-1);
+  else if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') { stageHighlight(null); inspectHighlight(-1); }
   else if (method === 'Page.getResourceTree')
     result = '{"frameTree":{"frame":{"id":"main","loaderId":"zinc","url":"zinc://app","domainAndRegistry":"","securityOrigin":"zinc://app","mimeType":"text/html","secureContextType":"Secure","crossOriginIsolatedContextType":"NotIsolated","gatedAPIFeatures":[]},"resources":[]}}';
   else if (method === 'Runtime.enable') {
@@ -245,11 +248,12 @@ function handle(client: i32, msg: string): void {
   Cdp.send(client, `{"id":${id},"result":${result}}`);
 }
 /** The answer to a DOM, CSS or Overlay method on the zinc:stage tree ('"result":...' or '"error":...'), '' for the methods it leaves to handle. */
-function stageAnswer(method: string, nodeId: i32, msg: string): string {
+function stageAnswer(method: string, nodeId: i32, msg: string, pure: boolean): string {
   const o = stageNode(nodeId);
-  if (method === 'DOM.getDocument') return `"result":{"root":${stageDocument(DOC)}}`;
-  if (method === 'Zinc.getUnrendered') return `"result":{"nodeIds":[${stageUnrendered().join(',')}]}`;
-  if (method === 'Overlay.highlightNode') { stageHighlight(o); return '"result":{}'; }
+  if (pure && method === 'DOM.getDocument') return `"result":{"root":${stageDocument(DOC)}}`;
+  if (pure && method === 'Zinc.getUnrendered') return `"result":{"nodeIds":[${stageUnrendered(stageRoot()).join(',')}]}`;
+  if (method === 'Overlay.highlightNode') { inspectHighlight(-1); stageHighlight(o); return '"result":{}'; }
+  if (method === 'DOM.getAttributes' && o !== null) return `"result":${stageAttributes(o as DisplayObject)}`;
   if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') { stageHighlight(null); return '"result":{}'; }
   if (method === 'DOM.getBoxModel' && o !== null) return `"result":${stageBoxModel(o as DisplayObject)}`;
   if (method === 'DOM.setAttributeValue' && o !== null) {
@@ -268,6 +272,7 @@ function unrendered(): i32[] {
   const out: i32[] = [];
   const r = inspectRoot(), n = inspectNode(r);
   if (n !== null && !draws(r, n, [0, 0, width(), height()], out)) out.push(r + 1);
+  for (const s of stageCanvases()) for (const k of stageUnrendered(s)) out.push(k);   // the stages drawn in a Canvas
   return out;
 }
 function draws(h: i32, n: UiNode, clip: number[], out: i32[]): boolean {
@@ -487,10 +492,14 @@ function kidIds(h: i32, n: UiNode, out: i32[]): i32[] {
     if (cn === null) continue;
     if (plain(c, cn)) kidIds(c, cn, out); else out.push(c + 1);
   }
+  const s = stageIn(h);
+  if (s !== null) out.push(stageId(s as DisplayObject));
   return out;
 }
 function nodeJson(id: i32): string {
-  if (id < TEXT_BASE) return element(id - 1);
+  const o = stageNode(id);
+  if (o !== null) return stageElement(o as DisplayObject);
+  if (id < STAGE_BASE) return element(id - 1);
   const n = inspectNode(id - TEXT_BASE);
   return `{"nodeId":${id},"backendNodeId":${id},"nodeType":3,"nodeName":"#text","localName":"","nodeValue":${q(n !== null ? n.text : '')}}`;
 }
@@ -615,4 +624,8 @@ setInterval(() => {
   const events: string[] = [];
   sync(inspectRoot(), events);
   for (const e of events) Cdp.send(-1, e);
+}, 100);
+setInterval(() => {   // the zinc:stage tree: only the parents whose children changed (stage.ts)
+  const events = stageEvents();
+  if (Cdp.clients() > 0) for (const e of events) Cdp.send(-1, e);
 }, 100);

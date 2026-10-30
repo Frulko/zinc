@@ -15,7 +15,7 @@ import { Target, Cdp, discover, TraceFrame, PhaseTotal, traceFrames, phaseTotals
 import { ThreadsView, watchThreads, threads, threadLine } from './threads';
 import { conn, call, status, setStatus, view, setView, setDevRun, sleep, until } from './state';
 import { Btn } from './widgets';
-import { ElementsView, StylesPane, loadDocument, refreshRendered, renderedOnly, rows, dumpElements, select, styles, rules, box, target, setProp, label, TNode } from './elements';
+import { ElementsView, StylesPane, loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, styles, rules, box, target, setProp, label, TNode } from './elements';
 import { NetworkView, onNetwork, onReload, dumpNetwork, reqs, pick, Req } from './network';
 import { StorageView, loadStorage, onStorage, changes, dumpStorage, items, pickItem, tables, openTable } from './storage';
 import { SourcesView, DebugPane, onDebugger, resetSources, setWaiting, setPaused, setEnded, dumpDebugger } from './sources';
@@ -139,7 +139,8 @@ async function attach(t: Target): Promise<void> {
 }
 
 // "Rendered only" follows scrolling and animation: what draws is asked again twice a second while Elements shows it.
-setInterval(() => { if (conn.c !== null && view() === 'elements' && renderedOnly()) refreshRendered(false); }, 500);
+// The selected zinc:stage node's values follow the program too (a node that moves).
+setInterval(() => { if (conn.c !== null && view() === 'elements') { if (renderedOnly()) refreshRendered(false); refreshStage(); } }, 500);
 
 async function screen(on: boolean): Promise<void> {   // the screencast: frames of the program's screen while the Screen view is open
   await call(on ? 'Page.startScreencast' : 'Page.stopScreencast', on ? '{"format":"png","maxWidth":640,"maxHeight":480}' : '{}');

@@ -4302,7 +4302,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     }
     if (n.ed !== null) paintEdit(h, n, n.ed as Edit, x, y, kk, ai);
     const d = n.onDraw;
-    if (d !== null) d(Math.round(x), Math.round(y), Math.round(w), Math.round(hh));
+    if (d !== null) { drawing = h; d(Math.round(x), Math.round(y), Math.round(w), Math.round(hh)); drawing = -1; }
     if (n.overflow) {
       // children stay inside the border and its rounded corners, like CSS overflow: hidden (the padding box)
       const bw = n.borderW < 0 ? 1 : n.borderW;
@@ -6127,6 +6127,9 @@ let highlight: i32 = -1;
 /** Root handle, or -1. */
 export function inspectRoot(): i32 { return root; }
 /** A live node, or null (freed or out of range). */
+let drawing: i32 = -1;
+/** The Canvas whose onDraw runs now, -1 outside one (the inspector nests a zinc:stage scene drawn there under it). */
+export function drawingNode(): i32 { return drawing; }
 export function inspectNode(h: i32): UiNode | null { return h >= 0 && h < nodes.length && nodes[h].alive ? nodes[h] : null; }
 /** Draws a highlight box over node h (-1: none). */
 export function inspectHighlight(h: i32): void { if (highlight !== h) { highlight = h; paintDirty = true; } }
