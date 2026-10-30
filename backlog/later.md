@@ -609,6 +609,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-891: the web build's setLowDataMode cannot turn on Opus DTX without usedtx=1 in the SDP fmtp; add it when low data is on.
 - ZN-891: let the low data mode's 10 kbit/s audio rate and tiny-video settings be passed as options, to tune them on a real slow network.
 
+- ZN-890: a native module's error (SecureStore.remove, keychain OSStatus -25244) seems to escape .catch and end the app as "runtime error"; reproduce with a native that fails safely and check it throws a catchable Error as include/zn/native.h says.
+- ZN-890: Z0005 "conversion of '() => void' to Dyn" on `const next = waiting.pop(); if (next !== undefined) next();` in the Discord guard's download(); not reproduced in a small program yet.
+- ZN-890: promise_statics.ts of the run test fails with Z0103 on develop.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -879,6 +883,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-875: adapt the Go Live and camera bitrate to RTCP receiver reports (loss, REMB) on the voice UDP path (criterion #3).
 - ZN-875: watch several Go Live streams at once (one at a time today).
 - ZN-875: show the stream preview (GET /streams/{key}/preview) on a stream tile before watching; check its rate limits first.
+
+- ZN-890: Cmd+Q through the menu's quit role does not go through store.suspend() in Discord, so that quit is not resumed at the next launch.
+- ZN-890: pace the voice gateway of plugins/discord-voice through the Discord guard's gateway budget.
 
 ## Cross-platform pass
 - ZN-875: zinc:screen-capture/picker and app icons on the Linux and Windows backends.
