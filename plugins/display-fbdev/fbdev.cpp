@@ -330,6 +330,20 @@ static int back;                       // the buffer the next frame is written t
 static Shown lay[HAL_MAX_LAYERS];      // the pictures of the frame presented next
 static int nlay;
 static std::vector<uint32_t> replaced, retired;   // framebuffers of pictures that left: with the next commit, and off the screen once its refresh came
+// The framebuffers of the last pictures that left the frame, by serial: a shell's app cycles three buffers, each one picture of its own,
+// and comes back to each one every third frame with no ADDFB2/RMFB (03-design.md §7.2 item 6). The oldest goes when a fourth comes.
+static struct { uint32_t serial, fb; } kept[3];
+static uint32_t added, removed;        // statistics: ADDFB2 of pictures, RMFB of their framebuffers
+static void keep_fb(uint32_t serial, uint32_t fb) {
+  if (!fb) return;
+  if (kept[2].fb) replaced.push_back(kept[2].fb);
+  kept[2] = kept[1]; kept[1] = kept[0]; kept[0] = {serial, fb};
+}
+static uint32_t kept_fb(uint32_t serial) {
+  for (auto& k : kept) if (k.fb && k.serial == serial) { const uint32_t fb = k.fb; k = {0, 0}; return fb; }
+  return 0;
+}
+static void drop_kept() { for (auto& k : kept) { if (k.fb) replaced.push_back(k.fb); k = {0, 0}; } }
 static bool pending;                   // a commit waits for its refresh
 static bool failed;                    // the display refused the planes: /dev/fb0 until the program ends
 static bool flip;                      // every frame goes through the two buffers (the file stays open), not only the frames with a picture
@@ -361,6 +375,7 @@ static void close_file() {
   for (Buffer& b : buf) { if (b.map) munmap(b.map, b.len); b = Buffer{}; }
   if (fd >= 0) close(fd);   // the planes, the framebuffers and the buffers go with it
   fd = -1; nlay = 0; pending = false; replaced.clear(); retired.clear();
+  for (auto& k : kept) k = {0, 0};
 }
 static int card = -1;   // the display's card once its planes were found: their ids do not change, a later open only makes the buffers
 /** The screen's CRTC, a free overlay plane per picture and one for the frame above them. */
@@ -492,6 +507,7 @@ static void wait_refresh() {
   }
   pending = false;
   for (uint32_t id : retired) io(DRM_IOCTL_MODE_RMFB, &id);
+  removed += (uint32_t)retired.size();
   retired.clear();
 }
 // The screen's refresh (Sidecar's SET 7): a film at 25 a second on 60 Hz shows its pictures 2, 3, 2, 3 refreshes (a judder), on 50 Hz two
@@ -572,7 +588,7 @@ static bool set_refresh(int hz) {
  *  fb_present's, with the frame. */
 static uint32_t fb_layers(const HalLayer* l, int32_t n) {
   using namespace kms;
-  if (n <= 0 || suspended || kms::failed || refuse) { for (int k = 0; k < nlay; k++) replaced.push_back(lay[k].fb); nlay = 0; return 0; }
+  if (n <= 0 || suspended || kms::failed || refuse) { for (int k = 0; k < nlay; k++) replaced.push_back(lay[k].fb); nlay = 0; drop_kept(); return 0; }
   if (kms::fd < 0) {
     const uint64_t t0 = now_us();
     if (!open_file()) { kms::failed = true; return 0; }
@@ -587,13 +603,14 @@ static uint32_t fb_layers(const HalLayer* l, int32_t n) {
     const HalPicture& p = *l[k].pic;
     Shown s = {p.serial, 0, l[k], p.w, p.h, p.full_range, p.bt709};
     for (int j = 0; j < nlay; j++) if (lay[j].serial == p.serial && lay[j].fb) { s.fb = lay[j].fb; lay[j].fb = 0; }   // the picture of the frame before, still shown
-    if (!s.fb) { s.fb = adopt(p); pictures += s.fb != 0; }
+    if (!s.fb) s.fb = kept_fb(p.serial);
+    if (!s.fb) { s.fb = adopt(p); pictures += s.fb != 0; added += s.fb != 0; }
     if (!s.fb) continue;
     const Shown& was = lay[m];
     if (m >= nlay || was.at.x != s.at.x || was.at.y != s.at.y || was.at.w != s.at.w || was.at.h != s.at.h || was.w != s.w || was.h != s.h) moved = true;
     next[m++] = s; took |= 1u << k;
   }
-  for (int j = 0; j < nlay; j++) if (lay[j].fb) replaced.push_back(lay[j].fb);
+  for (int j = 0; j < nlay; j++) keep_fb(lay[j].serial, lay[j].fb);   // still on the screen until this commit's refresh: kept, not reused before
   moved = moved || m != nlay;
   for (int j = 0; j < m; j++) lay[j] = next[j];
   nlay = m;
@@ -1077,7 +1094,7 @@ static void fb_shutdown() {
   }
   if (crc_on) fprintf(stderr, "fbdev crc: %08x\n", crc32_of(surf, (size_t)W * H));
 #ifdef ZP_FBDEV_KMS
-  if (stats && kms::pictures) fprintf(stderr, "fbdev planes: %u pictures shown from their dmabuf, %u frames committed\n", kms::pictures, kms::frames);
+  if (stats && kms::pictures) fprintf(stderr, "fbdev planes: %u pictures shown from their dmabuf, %u frames committed, %u ADDFB2 and %u RMFB of pictures\n", kms::pictures, kms::frames, kms::added, kms::removed);
   // the proof of the path taken: no frame of a flipping run is written into /dev/fb0, and a commit writes little more than the damage
   if (stats) fprintf(stderr, "fbdev flip: %u commits at the refresh, %u frames written into /dev/fb0 while it was on the screen\n", kms::frames, kms::direct);
   if (stats && kms::frames) fprintf(stderr, "fbdev flip: damage %.1f%% of the surface a commit, written to its buffer %.1f%%\n", 100.0 * kms::asked / kms::frames / ((double)W * H), 100.0 * kms::wrote / kms::frames / ((double)W * H));
