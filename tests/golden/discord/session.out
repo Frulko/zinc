@@ -3,6 +3,7 @@
 [system] dock.setBadge {"text":"1"}
 [system] dock.setBadge {"text":"2"}
 [system] notification.notify {"id":"channel-400","title":"Grace","subtitle":"Grace","body":"Are you there? @Ada","icon":"","group":"400","actions":[],"reply":""}
+at the present: 0 new, unread false
 cached attachments_302_903_801_photo.png
 cached attachments_302_909_802_notes.png
 cached avatars_101_av101.png
@@ -20,6 +21,7 @@ gateway closed (4000), again in 1000 ms
 history 302: 50 messages
 history 400: 1 messages
 history 50
+jump 302: present
 markdown h1:Notes | text:*bold* /it/ _under_ ~gone~ `code` ▒••••••▒ <@Grace> in <#general> [:zinc:] {https://zinc.dev} {_site_} | quote:quoted | code(ts):let x = 1;
 members 200: [online 2] Grace(online) Ada(online) [offline 1] linus(offline)
 members 200: [online 2] Grace(online) Ada(online) [offline 1] linus(offline)
@@ -27,8 +29,10 @@ members 200: [online 3] Grace(idle) Ada(online) Katherine(online) [offline 1] li
 message in 302 from Grace: Back after the drop
 message in 302 from Grace: Got it, *thanks*
 message in 302 from Grace: Seen here, no notification
+message in 302 from Grace: While you read the history
 message in 302 from linus: Live from the gateway
 message in 400 from Grace: Are you there? <@100>
+new messages line after 902
 notified: badge 1
 notify 400: yes
 older 302: 20 messages
@@ -52,6 +56,7 @@ ready Ada: 2 servers, 2 DMs
 refreshed attachments/302/903/801/photo.png
 resumed
 revealed text:a b c
+scrolled up: 1 new, unread true
 sent 906: Hello **world** ||secret|| <@101>
 sent 907: Replying, after the bucket
 sent 909: Here is the photo

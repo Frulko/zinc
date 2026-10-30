@@ -1,4 +1,4 @@
-// The screen: the login, or the columns of Discord (servers, channels, messages, a server's members). The state lives in state.ts; this
+// The screen: the login, or the columns of Discord (servers, channels, messages, a server's members or the pins or a thread beside). The state lives in state.ts; this
 // file only chooses what to show and re-renders when the state changes.
 import { useState, useEffect } from 'zinc:ui/react';
 import { store } from './state';
@@ -7,6 +7,7 @@ import { GuildRail } from './components/GuildRail';
 import { ChannelList } from './components/ChannelList';
 import { MessageView } from './components/MessageView';
 import { MemberList } from './components/MemberList';
+import { SidePane } from './components/SidePane';
 import { Settings } from './components/Settings';
 import { CallView } from './components/CallView';
 import { BG_MAIN, TEXT_MUTED, CH_VOICE } from './constants';
@@ -38,6 +39,6 @@ export default function App() {
     {store.settingsOpen ? <Settings /> : voiceRoom ? (callHere ? <CallView compact={false} /> : <Pick />)
       : callHere ? <View className="grow basis-0"><CallView compact={true} /><MessageView /></View>
       : store.channelId === '' ? <Pick /> : <MessageView />}
-    {store.guildId !== '' && store.channelId !== '' && !store.settingsOpen ? <MemberList /> : null}
+    {store.settingsOpen || store.channelId === '' ? null : store.pane !== 'members' ? <SidePane /> : store.guildId !== '' ? <MemberList /> : null}
   </View>;
 }

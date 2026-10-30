@@ -31,7 +31,17 @@ show 1021: app; text "text:Again?"; row button Roll again/1, button Docs/5, butt
 show 1022: text "h1:Plan | h2:Today | li0•:lists | li1•:nested | li01.:one | li02.:two | text:At ⟨9:20 AM⟩ on ⟨October 30, 2026⟩, ⟨in 3 hours⟩: run </roll dice>, read {_the docs_}, see {https://zinc.dev} and <Channels & Roles>, <@everyone> | sub:small print | quote:quoted
 show 1023: system "text:/Unsupported message/"
 sidebar Lounge, general, random, showcase, ↳release talk, ideas(forum)
+pins allowed: showcase true, welcome false, DM true
+pins 305: 1000
+pin 1017 on
+pins shown: 1017, 1000, 1017 pinned true
+jump 305: 1000 (loaded)
+thread pane 306
 thread 306: 3 messages, first by Grace: Let us talk about the release here. (type 21)
 posts 307: Plugins for MIDI [feature] 1; Dark mode everywhere [feature,ui] 5
 forum 307: Plugins for MIDI, Dark mode everywhere; preview "What if every app had a dark theme by default?"
+thread pane 308
+jump 302: 100000 (fetched, 25 around)
+jump: #general holds 70, older than the present false
+jump 302: 100000 (loaded)
 sidebar Lounge, general, random, showcase, ↳hotfix, ↳release talk, ideas(forum)

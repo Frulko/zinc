@@ -12,6 +12,7 @@ import * as storage from 'zinc:storage';
 import { windowFocused } from 'zinc:ui';
 import { NotifyRules, Where } from './notify';
 import { Call } from './call';
+import { Rights, Overwrite, readOverwrites, canPin } from './permissions';
 import { Embed, Reaction, Sticker, Poll, Component, ThreadRef, embeds, reactions, stickers, poll, pollVoted, componentRows, threadRef,
   interactionLine, systemText, reactionAdded, reactionRemoved, reactionPath, T_THREAD_STARTER } from './content';
 
@@ -20,11 +21,12 @@ export class Channel {
   id = ''; guildId = ''; type: i32 = CH_TEXT; name = ''; position: i32 = 0; parentId = ''; lastMessageId = '';
   /** A thread: its count of messages and its tags (ids); a forum: the names of its tags by id. */
   messageCount: i32 = 0; tags: string[] = []; tagNames: Map<string, string> = new Map<string, string>();
+  overwrites: Overwrite[] = [];
   /** Text channels, threads and DMs open in the message view, forums as their list of posts; voice and categories are shown only. */
   readable(): boolean { return this.type === CH_TEXT || this.type === CH_ANNOUNCEMENT || this.type === CH_DM || this.type === CH_GROUP_DM || isThread(this.type) || this.forum(); }
   forum(): boolean { return this.type === CH_FORUM || this.type === CH_MEDIA; }
 }
-export class Guild { id = ''; name = ''; icon = ''; channels: Channel[] = []; roles: Map<string, string> = new Map<string, string>(); }
+export class Guild { id = ''; name = ''; icon = ''; channels: Channel[] = []; roles: Map<string, string> = new Map<string, string>(); rights: Rights = new Rights(); }
 /** A file of a message: an image is shown (its size known before it loads, so the list does not jump), a video as its first frame, a sound
  *  or a voice message with its length, another file as a link with its size. */
 export class Attachment {
@@ -38,6 +40,8 @@ export class Attachment {
 export class Message {
   id = ''; channelId = ''; authorId = ''; author = ''; content = ''; timestamp = ''; edited = false;
   attachments: Attachment[] = []; replyTo = '';
+  /** The id of the message it answers ('' none: a jump goes there) and whether it is pinned. */
+  replyId = ''; pinned = false;
   /** Sent from here: the nonce that finds the server's echo; pending until the answer or the echo comes, failed when it was refused. */
   nonce = ''; pending = false; failed = false;
   /** Who it mentions (user ids) and whether it mentions everyone. */
@@ -183,6 +187,7 @@ export class Store implements GatewayHandler {
     else if (t === 'TYPING_START') this.typingStarted(d);
     else if (t === 'MESSAGE_ACK') this.acked(str(d.channel_id), str(d.message_id), d.mention_count ?? 0);
     else if (t === 'GUILD_MEMBER_LIST_UPDATE') this.memberListUpdated(d);
+    else if (t === 'CHANNEL_PINS_UPDATE') { if (!this.pinning.delete(str(d.channel_id))) this.pins.delete(str(d.channel_id)); }   // pinned elsewhere: asked again when the pins are opened
     else if (t === 'VOICE_STATE_UPDATE') this.call.stateUpdate(d);
     else if (t === 'VOICE_SERVER_UPDATE') this.call.serverUpdate(d);
     else if (t === 'CALL_CREATE' || t === 'CALL_UPDATE' || t === 'CALL_DELETE') this.call.callUpdate(t, d);
@@ -210,8 +215,12 @@ export class Store implements GatewayHandler {
     this.rules.load(d);
     if (Array.isArray(d.users)) for (const u of d.users) this.user(u);
     this.guilds = [];
-    if (Array.isArray(d.guilds)) for (const g of d.guilds) if (g.unavailable !== true) {
-      this.guilds.push(this.guild(g));
+    if (Array.isArray(d.guilds)) for (let i = 0; i < d.guilds.length; i++) if (d.guilds[i].unavailable !== true) {
+      const g: any = d.guilds[i], out = this.guild(g);
+      // my roles in each server (merged_members, in the order of the servers): what I may do there (permissions.ts)
+      const mm: any = Array.isArray(d.merged_members) && i < d.merged_members.length ? d.merged_members[i] : null;
+      if (Array.isArray(mm)) for (const m of mm) if (str(m.user_id) === this.me.id && Array.isArray(m.roles)) for (const r of m.roles) out.rights.mine.push(str(r));
+      this.guilds.push(out);
       if (Array.isArray(g.voice_states)) for (const v of g.voice_states) this.call.stateUpdate(v);   // who is in the voice channels
     }
     this.dms = [];
@@ -236,7 +245,8 @@ export class Store implements GatewayHandler {
     const out = new Guild();
     out.id = str(g.id); out.name = str(p.name); out.icon = str(p.icon);
     const roles: any = Array.isArray(g.roles) ? g.roles : p.roles;
-    if (Array.isArray(roles)) for (const r of roles) out.roles.set(str(r.id), str(r.name));
+    if (Array.isArray(roles)) for (const r of roles) { out.roles.set(str(r.id), str(r.name)); out.rights.roles.set(str(r.id), str(r.permissions)); }
+    out.rights.ownerId = str(p.owner_id);
     if (Array.isArray(g.channels)) for (const c of g.channels) out.channels.push(this.channel(c, out.id));
     if (Array.isArray(g.threads)) for (const c of g.threads) out.channels.push(this.channel(c, out.id));   // the active threads
     sortChannels(out.channels);
@@ -247,6 +257,7 @@ export class Store implements GatewayHandler {
     out.id = str(c.id); out.guildId = guildId; out.type = c.type; out.position = c.position ?? 0;
     out.parentId = str(c.parent_id); out.lastMessageId = str(c.last_message_id); out.name = str(c.name);
     out.messageCount = c.message_count ?? 0;
+    out.overwrites = readOverwrites(c.permission_overwrites);
     if (Array.isArray(c.applied_tags)) for (const t of c.applied_tags) out.tags.push(str(t));
     if (Array.isArray(c.available_tags)) for (const t of c.available_tags) out.tagNames.set(str(t.id), str(t.name));
     if (out.name === '' && (out.type === CH_DM || out.type === CH_GROUP_DM)) {
@@ -375,6 +386,8 @@ export class Store implements GatewayHandler {
     const reply = ref !== undefined && ref !== null && (ref.type ?? 0) === 0 && (m.type === 19 || m.type === 20 || m.type === 23);
     if (r !== undefined && r !== null) out.replyTo = `${this.user(r.author).name}: ${replyText(r)}`;
     else if (r === null && reply) { out.replyTo = 'Original message was deleted'; out.replyDeleted = true; }
+    if (reply || r !== undefined && r !== null) out.replyId = ref !== undefined && ref !== null ? str(ref.message_id) : str(r.id);
+    out.pinned = m.pinned === true;
     out.nonce = typeof m.nonce === 'string' ? m.nonce : '';
     if (Array.isArray(m.mentions)) for (const u of m.mentions) out.mentions.push(this.user(u).id);
     out.mentionsEveryone = m.mention_everyone === true;
@@ -408,12 +421,13 @@ export class Store implements GatewayHandler {
     // read state: what I write is read; another's message is read at once in the open channel, else counts when it is a DM or names me
     const rs = this.read(m.channelId);
     if (m.authorId === this.me.id) { rs.lastId = m.id; rs.mentions = 0; }
-    else if (m.channelId === this.channelId) this.ackSoon(m.channelId);
+    else if (m.channelId === this.channelId && this.atEnd && !this.detached.has(m.channelId) || m.channelId === this.threadId) this.ackSoon(m.channelId);
+    else if (m.channelId === this.channelId) this.newWhileUp++;   // scrolled up: the banner counts it, the end acks it
     else if (c !== null && c.guildId === '' && !this.rules.muted(where(c), Date.now())) rs.mentions++;   // a DM counts unless muted
     else if (c !== null && this.rules.mentions(d, c.guildId)) rs.mentions++;
     if (c !== null && this.notifier !== null && this.notifies(d, c)) this.notifier(m, c);
     const list = this.messages.get(m.channelId);
-    if (list === undefined) return;            // never opened: its history is fetched when it is
+    if (list === undefined || this.detached.has(m.channelId)) return;   // never opened, or showing older messages: fetched when it is
     for (let i = 0; i < list.length; i++) {
       if (list[i].id === m.id) return;
       if (m.nonce !== '' && list[i].pending && list[i].nonce === m.nonce) { list[i] = m; this.log(`sent ${m.id}: ${m.content}`); return; }   // the echo of what I sent
@@ -432,6 +446,7 @@ export class Store implements GatewayHandler {
       } else {                                                     // a partial update (an embed resolved, a poll ended) keeps the rest
         if (typeof d.content === 'string') was.content = d.content;
         if (typeof d.flags === 'number') was.flags = d.flags;
+        if (typeof d.pinned === 'boolean') was.pinned = d.pinned;
         if (d.attachments !== undefined) was.attachments = attachments(d.attachments);
         this.content(was, d);
       }
@@ -452,7 +467,11 @@ export class Store implements GatewayHandler {
     this.selectChannel('');
   }
   selectChannel(id: string): void {
-    if (id !== this.channelId) { this.draft = ''; this.replyTo = null; this.editing = null; this.lastTypingAt = 0; }
+    if (id !== this.channelId) {
+      this.draft = ''; this.replyTo = null; this.editing = null; this.lastTypingAt = 0;
+      this.newFrom = id !== '' && this.unread(id) ? this.read(id).lastId : ''; this.atEnd = true; this.newWhileUp = 0; this.jumpId = '';
+      this.pane = 'members'; this.threadId = '';                  // the pins or the thread beside were the last channel's
+    }
     this.channelId = id;
     this.subscribe(id);
     this.changed();
@@ -496,7 +515,7 @@ export class Store implements GatewayHandler {
       if (live !== undefined) for (const m of live) if (list.every((x: Message) => x.id !== m.id)) list.push(m);
       this.messages.set(id, list);
       this.log(`history ${id}: ${list.length} messages`);
-      if (this.channelId === id) this.ack(id);
+      if (this.channelId === id || this.threadId === id) this.ack(id);
     } catch (e) {
       this.error = e instanceof ApiError && e.status === 403 ? 'You cannot read this channel.' : `Could not load the messages: ${e.message}`;
       this.log(`history ${id} failed: ${e.message}`);
@@ -761,6 +780,106 @@ export class Store implements GatewayHandler {
     if (this.ackTimer >= 0) return;
     this.ackTimer = setTimeout(() => { this.ackTimer = -1; this.ack(ch); }, ACK_DELAY_MS);
   }
+
+  // ------------------------------------------------------------------ the conversation: unread line, end of the history, jumps, pins, threads
+  /** The last message read when the open channel was opened ('' when it was read): the 'new messages' line goes above the next one. */
+  newFrom = '';
+  /** The history shows its end (MessageView tells, from its scroll); messages that came while it did not. */
+  atEnd = true;
+  newWhileUp: i32 = 0;
+  /** A message to bring into view and light up (a reply's reference, a pin): MessageView scrolls to it once. */
+  jumpId = '';
+  /** Channels whose loaded messages stop before the present (a jump far back): new messages wait for 'Jump to present'. */
+  private detached: Set<string> = new Set<string>();
+  /** What shows at the right: 'members' (a server's member list), 'pins' (the open channel's) or 'thread' (threadId, read beside). */
+  pane = 'members';
+  threadId = '';
+  /** The pinned messages by channel, fetched when the pins are opened and kept (a pin elsewhere drops them: CHANNEL_PINS_UPDATE). */
+  pins: Map<string, Message[]> = new Map<string, Message[]>();
+  private pinning: Set<string> = new Set<string>();   // channels where I pinned: the CHANNEL_PINS_UPDATE that follows is mine, the pins kept are right
+
+  /** The history scrolled to its end or away from it: at the end the messages that came are read. */
+  setAtEnd(on: boolean): void {
+    if (on === this.atEnd) return;
+    this.atEnd = on;
+    if (on) { this.newWhileUp = 0; if (!this.detached.has(this.channelId)) this.ack(this.channelId); }
+    this.changed();
+  }
+  /** The open channel shows messages older than the present (after a jump far back). */
+  showingOlder(): boolean { return this.detached.has(this.channelId); }
+  /** Back to the latest messages: the page of the present again when a jump left it, else the end of the list (MessageView). */
+  jumpToPresent(): void {
+    const ch = this.channelId;
+    this.jumpId = '';
+    if (this.detached.has(ch)) { this.detached.delete(ch); this.messages.delete(ch); this.complete.delete(ch); this.loadHistory(ch); }
+    this.log(`jump ${ch}: present`);
+    this.setAtEnd(true);
+    this.changed();
+  }
+  /** Shows message id of the open channel (a reply's reference, a pin): at once when loaded, else the page around it, fetched once. */
+  async jumpTo(id: string): Promise<void> {
+    const ch = this.channelId;
+    if (id === '' || ch === '') return;
+    if (this.findMessage(ch, id) !== null) { this.jumpId = id; this.log(`jump ${ch}: ${id} (loaded)`); this.changed(); return; }
+    this.loading = true; this.changed();
+    try {
+      const page: any = await api('GET', `/channels/${ch}/messages?around=${id}&limit=${MESSAGES_PAGE}`);
+      const got: Message[] = [];
+      if (Array.isArray(page)) for (let i = page.length - 1; i >= 0; i--) got.push(this.message(page[i]));
+      const list = this.messages.get(ch);
+      if (got.length === 0 || got.every((m: Message) => m.id !== id)) this.error = 'That message is gone.';
+      else if (list !== undefined && list.length > 0 && compareIds(got[got.length - 1].id, list[0].id) >= 0) {   // it reaches what is loaded: one list
+        this.messages.set(ch, got.filter((m: Message) => compareIds(m.id, list[0].id) < 0).concat(list));
+      } else { this.messages.set(ch, got); this.detached.add(ch); this.complete.delete(ch); }
+      if (this.error === '') this.jumpId = id;
+      this.log(`jump ${ch}: ${id} (fetched, ${got.length} around${this.detached.has(ch) ? ', older than the present' : ''})`);
+    } catch (e) { this.error = `Could not load that message: ${e.message}`; }
+    this.loading = false; this.changed();
+  }
+
+  /** Pin and unpin are offered: in a DM, or in a server with the right (permissions.ts; a thread has its parent's overwrites). */
+  canPin(ch: string): boolean {
+    const c = this.findChannel(ch);
+    if (c === null) return false;
+    const p = isThread(c.type) ? this.findChannel(c.parentId) : c;
+    return canPin(c.guildId !== '' ? (this.findGuild(c.guildId) as Guild).rights : null, c.guildId, this.me.id, p !== null ? p.overwrites : []);
+  }
+  /** Shows the open channel's pins at the right (fetched the first time), or the member list again. */
+  togglePins(): void {
+    if (this.pane === 'pins') { this.pane = 'members'; this.changed(); return; }
+    this.pane = 'pins'; this.changed();
+    if (!this.pins.has(this.channelId)) this.loadPins(this.channelId);
+  }
+  private async loadPins(ch: string): Promise<void> {
+    try {
+      const r: any = await api('GET', `/channels/${ch}/messages/pins?limit=50`);
+      const out: Message[] = [];
+      if (r !== null && Array.isArray(r.items)) for (const it of r.items) { const m = this.message(it.message); m.pinned = true; out.push(m); }
+      this.pins.set(ch, out);
+      this.log(`pins ${ch}: ${out.map((m: Message) => m.id).join(', ')}`);
+    } catch (e) { this.error = `Could not load the pins: ${e.message}`; }
+    this.changed();
+  }
+  /** Pins m or unpins it: shown at once (and in the pins when they are loaded); Discord's echo is a MESSAGE_UPDATE. */
+  async pin(m: Message): Promise<void> {
+    const on = !m.pinned, ch = m.channelId;
+    m.pinned = on;
+    const kept = this.pins.get(ch);
+    if (kept !== undefined) this.pins.set(ch, on ? [m].concat(kept) : kept.filter((x: Message) => x.id !== m.id));
+    this.log(`pin ${m.id} ${on ? 'on' : 'off'}`);
+    this.changed();
+    if (kept !== undefined) this.pinning.add(ch);
+    try { await api(on ? 'PUT' : 'DELETE', `/channels/${ch}/messages/pins/${m.id}`); }
+    catch (e) { m.pinned = !on; this.pins.delete(ch); this.pinning.delete(ch); this.error = `Could not ${on ? 'pin' : 'unpin'} the message: ${e.message}`; this.changed(); }
+  }
+  /** Reads a thread or a forum post beside the channel (its history fetched the first time); '' closes it. */
+  openThread(id: string): void {
+    this.threadId = id; this.pane = id !== '' ? 'thread' : 'members';
+    this.changed();
+    if (id === '') return;
+    if (!this.messages.has(id)) this.loadHistory(id); else this.ack(id);
+    this.log(`thread pane ${id}`);
+  }
 }
 
 /** A snowflake for now, as the web client's nonces: (ms since 2015) << 22, in decimal without BigInt (the low half carries). */
@@ -798,7 +917,7 @@ function replyText(r: any): string {
 function where(c: Channel): Where { const w = new Where(); w.id = c.id; w.guildId = c.guildId; w.type = c.type; w.parentId = c.parentId; return w; }
 
 /** Snowflakes compared as numbers: a longer id is a later one. */
-function compareIds(a: string, b: string): i32 { return a.length !== b.length ? a.length - b.length : a < b ? -1 : a > b ? 1 : 0; }
+export function compareIds(a: string, b: string): i32 { return a.length !== b.length ? a.length - b.length : a < b ? -1 : a > b ? 1 : 0; }
 
 /** Discord's sidebar order: channels without a category first, then each category followed by its channels, by position. */
 function sortChannels(list: Channel[]): void {

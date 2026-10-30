@@ -29,7 +29,12 @@ open channel with Discord's upload flow (the file goes to the storage URL Discor
 a server channel shows on the right, grouped (online, offline, roles), with each member's status. Writing: **Enter** sends, **Shift+Enter** starts a new line; under the pointer a
 message offers **Reply**, and on yours **Edit** and **Delete** (click twice); **Up** in an empty box edits your last message, **Escape**
 cancels a reply or an edit. Who is typing shows under the box, and you are shown typing to the others while you type. Unread channels are
-white, with their count of mentions (servers in the rail too); opening a channel marks it read, as reading it on another device does.
+white, with their count of mentions (servers in the rail too); a channel is marked read once its end shows (as reading it on another device
+does), with a red NEW line above the first message you had not read, and scrolled up, a bar counts what came and **Jump to present** goes
+back. A reply's line jumps to the message it answers (the page around it is fetched once when it is older than what is loaded). The pin of
+the header lists the channel's pinned messages (a click shows one); **Pin** and **Unpin** are offered in DMs and where your roles allow it
+(Manage Messages or Pin Messages). A message's thread and a forum's posts open in a pane beside the channel (its arrow opens them as the
+channel, to write).
 Messages are drawn in Discord's Markdown: bold, italic, underline, strike, inline code and code blocks, quotes, headings, lists, links,
 mentions, slash commands, timestamps (`<t:...>`, in your time zone), and spoilers (click to show). What a message carries is drawn too:
 link previews and bots' cards (embeds), GIFs and videos as their picture with a play mark (they open in the browser), videos, sounds,
@@ -53,6 +58,7 @@ last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a
 | `markdown.ts` | Discord's Markdown: blocks and the style runs of their text, custom emoji, timestamps |
 | `content.ts` | what a message carries besides its text: embeds, reactions, stickers, polls, buttons, threads, system messages |
 | `showcase.ts` | the scripted session of #showcase (every kind of content) |
+| `permissions.ts` | what the user may do in a channel (the roles' bits and the channel's overwrites): whether pinning is offered |
 | `members.ts` | the member list: the subscription (op 37) and `GUILD_MEMBER_LIST_UPDATE` (SYNC, INSERT, UPDATE, DELETE, INVALIDATE) |
 | `services/cdn.ts` | pictures from the CDN: the disk cache, expired attachment URLs renewed (`attachments/refresh-urls`) |
 | `services/upload.ts` | file upload: `POST /channels/{id}/attachments`, then a `PUT` of the bytes to the URL it gives |
@@ -62,7 +68,7 @@ last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a
 | `services/identity.ts` | the client properties (IDENTIFY and `X-Super-Properties`) |
 | `services/auth.ts` | the QR code login (the remote-auth gateway, its RSA-OAEP key exchange) and the password login with its two-factor code |
 | `services/session.ts` | the token in the keychain |
-| `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`) and content (`Content.tsx`), avatars, the member list |
+| `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`) and content (`Content.tsx`), avatars, the member list, the pins or a thread beside the messages (`SidePane.tsx`) |
 
 ## Test
 

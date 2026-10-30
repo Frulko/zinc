@@ -17,7 +17,9 @@
 // #showcase holds one message of each kind of content
 // (showcase.ts): once its history is asked for, the preview of a link arrives as a partial MESSAGE_UPDATE and Grace and Ada react; a
 // reaction PUT or DELETE and a poll vote are answered 204 and echoed, Linus votes too; the thread #release-talk has its history, the forum
-// #ideas its posts (threads/search), after which a new thread is created (THREAD_CREATE). Every request it gets is printed.
+// #ideas its posts (threads/search), after which a new thread is created (THREAD_CREATE). #showcase's pins (GET .../messages/pins) hold its
+// build card; a pin or unpin is echoed as MESSAGE_UPDATE and CHANNEL_PINS_UPDATE. READY's merged_members make Ada a maintainer of Zinc Lab
+// (Manage Messages), not of Makers. A history page can be asked `around` a message (half before it). Every request it gets is printed.
 import { serve, Request, Reply, Headers } from 'zinc:net';
 import { serveWebSocket, WebSocket, MessageEvent, CloseEvent, UpgradeRequest, udp, UdpSocket, Datagram } from 'zinc:socket';
 import { rtpHeader, seal, unseal } from 'zinc:discord-voice';
@@ -33,7 +35,8 @@ const me: any = { id: '100', username: 'ada', global_name: 'Ada', avatar: null }
 const users: any[] = [{ id: '101', username: 'grace', global_name: 'Grace', avatar: 'av101' }, { id: '102', username: 'linus', global_name: null, avatar: null }];
 const katherine: any = { id: '103', username: 'katherine', global_name: 'Katherine', avatar: 'av103' };
 const guilds: any[] = [
-  { id: '200', properties: { name: 'Zinc Lab', icon: 'ic200' }, roles: [{ id: '500', name: 'maintainers' }], channels: [
+  { id: '200', properties: { name: 'Zinc Lab', icon: 'ic200', owner_id: '101' }, roles: [{ id: '200', name: '@everyone', permissions: '1024' },
+    { id: '500', name: 'maintainers', permissions: '8192' }], channels: [
     { id: '301', type: 4, name: 'Text', position: 0 },
     { id: '302', type: 0, name: 'general', position: 0, parent_id: '301', last_message_id: '903' },
     { id: '303', type: 0, name: 'random', position: 1, parent_id: '301' },
@@ -82,10 +85,11 @@ shipping.attachments = [];   // its photo is added once the CDN's port is known 
 general.push(morning); general.push(msg('902', '302', me, 'Nice, the resume works too?', 11)); general.push(shipping);
 const dmHistory: any[] = [msg('950', '400', users[0], 'See you at the meetup 🎉', 30)];
 
-/** A page of history, newest first: the `limit` messages before `before` (or the last ones). */
-function page(list: any[], before: string, limit: i32): any[] {
+/** A page of history, newest first: the `limit` messages before `before` (or the last ones), or those `around` one (half before it). */
+function page(list: any[], before: string, limit: i32, around: string = ''): any[] {
   let end = list.length;
   if (before !== '') for (let i = 0; i < list.length; i++) if (list[i].id === before) end = i;
+  if (around !== '') for (let i = 0; i < list.length; i++) if (list[i].id === around) end = Math.min(list.length, i + limit / 2);
   const out: any[] = [];
   for (let i = end - 1; i >= 0 && i >= end - limit; i--) out.push(list[i]);
   return out;
@@ -206,6 +210,19 @@ function rest(req: Request): Reply {
   const line = `rest ${req.method} ${req.path} auth=${auth === TOKEN} super=${sp.length > 0}`;
   if (auth !== TOKEN) { console.log(line); return json(401, '{"message":"401: Unauthorized","code":0}'); }
   const body: any = req.body !== '' ? JSON.parse(req.body) : null;
+  // the pins of #showcase: its build card; a pin or an unpin is echoed as MESSAGE_UPDATE and CHANNEL_PINS_UPDATE, as Discord does
+  if (req.method === 'GET' && req.path === '/api/v9/channels/305/messages/pins?limit=50') {
+    console.log(line);
+    const card = showcaseList.filter((m: any): boolean => m.id === '1000');
+    return json(200, JSON.stringify({ items: card.map((m: any): any => ({ pinned_at: stamp(1), message: m })), has_more: false }));
+  }
+  const pinned = /^\/api\/v9\/channels\/(\d+)\/messages\/pins\/(\d+)$/.exec(req.path);
+  if ((req.method === 'PUT' || req.method === 'DELETE') && pinned !== null) {
+    console.log(line);
+    dispatch('MESSAGE_UPDATE', { id: pinned[2], channel_id: pinned[1], guild_id: '200', pinned: req.method === 'PUT' });
+    dispatch('CHANNEL_PINS_UPDATE', { channel_id: pinned[1], guild_id: '200', last_pin_timestamp: stamp(25) });
+    return { status: 204, contentType: 'text/plain', body: '' };
+  }
   const msgs = /^\/api\/v9\/channels\/(\d+)\/messages(\/(\d+))?(\/ack)?/.exec(req.path);
   const one = msgs !== null && msgs.length > 3 && typeof msgs[3] === 'string' ? msgs[3] : '';
   const ack = msgs !== null && msgs.length > 4 && msgs[4] === '/ack';
@@ -226,7 +243,7 @@ function rest(req: Request): Reply {
     }
     if (msgs[1] === '306') return json(200, JSON.stringify(show.threadHistory()));
     const list: any[] = msgs[1] === '302' ? general : msgs[1] === '400' ? dmHistory : msgs[1] === '305' ? showcaseList : [];
-    return json(200, JSON.stringify(page(list, query(req.path, 'before'), parseInt(query(req.path, 'limit')))));
+    return json(200, JSON.stringify(page(list, query(req.path, 'before'), parseInt(query(req.path, 'limit')), query(req.path, 'around'))));
   }
   if (req.method === 'POST' && /^\/api\/v9\/channels\/\d+\/call\/ring$/.test(req.path)) {
     console.log(`${line} recipients=${body.recipients}`);
@@ -527,7 +544,8 @@ async function main(): Promise<void> {
         console.log(`identify token=${p.d.token === TOKEN} capabilities=${p.d.capabilities} browser=${p.d.properties.browser}`);
         if (p.d.token !== TOKEN) { ws.close(4004, 'Authentication failed.'); return; }
         dispatch('READY', { v: 9, user: me, users: users, guilds: guilds, private_channels: dms, session_id: 'sess-1',
-          resume_gateway_url: `ws://127.0.0.1:${gwPort}`, read_state: { entries: readStates, partial: false, version: 1 } });
+          resume_gateway_url: `ws://127.0.0.1:${gwPort}`, read_state: { entries: readStates, partial: false, version: 1 },
+          merged_members: [[{ user_id: '100', roles: ['500'] }], [{ user_id: '100', roles: [] }]] });   // Ada maintains Zinc Lab (Manage Messages)
       } else if (p.op === 6) {
         console.log(`resume session=${p.d.session_id} seq=${p.d.seq}`);
         dispatch('RESUMED', null);

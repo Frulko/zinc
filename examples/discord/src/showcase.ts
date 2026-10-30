@@ -1,6 +1,8 @@
 // DISCORD_DEMO=showcase (tests/t1/discord.sh): #showcase of the fake Discord, one message of each kind of content. It logs what each message
 // carries, waits for the link preview that comes as an update and for the reactions of others, reacts and votes, opens the thread and the
-// forum, sees a new thread come, then shows #showcase again for the last frame (the golden picture) and quits.
+// forum, sees a new thread come, opens the pins, pins a message, follows a reply to its message, reads the thread and a forum post beside
+// their channel, jumps to a message of #general older than its loaded page, then shows #showcase again with its pins for the last frame (the
+// golden picture) and quits.
 import { quit } from 'zinc:gfx';
 import { store, Message, Attachment, Channel } from './state';
 import { Embed, Reaction, Component } from './content';
@@ -54,15 +56,32 @@ export async function showcase(): Promise<void> {
   await until(() => { const p = find('1009').poll; return p !== null && p.answers[1].count === 2; });   // Linus voted too
   for (const m of list) console.log(summary(m));
   console.log(`sidebar ${sidebar()}`);
-  store.selectChannel('306');
+  // the conversation (ZN-903): who may pin, the pins, a pin, a reply's reference followed, the thread read beside its channel
+  console.log(`pins allowed: showcase ${store.canPin('305')}, welcome ${store.canPin('311')}, DM ${store.canPin('400')}`);
+  store.togglePins();
+  await until(() => store.pins.has('305'));
+  await store.pin(find('1017'));
+  await until(() => (store.pins.get('305') as Message[]).length === 2);
+  console.log(`pins shown: ${(store.pins.get('305') as Message[]).map((m: Message) => m.id).join(', ')}, 1017 pinned ${find('1017').pinned}`);
+  await store.jumpTo(find('1017').replyId);
+  store.openThread('306');
   await until(() => count('306') === 3);
   const first = (store.messages.get('306') as Message[])[0];
   console.log(`thread 306: ${count('306')} messages, first by ${first.author}: ${first.content} (type ${first.type})`);
   store.selectChannel('307');
   await until(() => store.posts('307').length === 2 && store.findChannel('310') !== null);
   console.log(`forum 307: ${store.posts('307').map((c: Channel) => c.name).join(', ')}; preview "${(store.previews.get('308') as Message).content}"`);
+  store.openThread('308');
+  await until(() => count('308') >= 0);
+  // a message older than the loaded page of #general: the page around it is fetched once and joins the list
+  store.selectChannel('302');
+  await until(() => count('302') === 50);
+  await store.jumpTo('100000');
+  console.log(`jump: #general holds ${count('302')}, older than the present ${store.showingOlder()}`);
+  await store.jumpTo('100000');                                 // loaded now: no request
   console.log(`sidebar ${sidebar()}`);
   store.selectChannel('305');
+  store.togglePins();                                           // kept: no request; the pins are in the last frame
   await wait(150);                                              // a frame shows the rows, which ask for their pictures
   await until(() => picturesLoading() === 0);
   await wait(150);

@@ -41,7 +41,7 @@ read -r api gw < "$tmp/ports"
 { grep -v '^zinc' "$tmp/app" | grep -v '^timing: '; grep -E '^\[system\] (dock.setBadge|notification.notify) ' "$tmp/system"; ls "$tmp/cache" | sed 's/^/cached /'; } | sort > "$tmp/session"   # sorted: the scripted session races the history request
 grep -v '^zinc' "$tmp/fake" | sort > "$tmp/server"
 sed -n 's/^zinc: framehash [0-9]* [0-9x]* //p' "$tmp/app" | tail -1 > "$tmp/hash"
-grep -E '^(show |sidebar |thread |forum |posts |react |reactions |vote |poll |edited 1001)' "$tmp/show" > "$tmp/showcase"   # in the order of the session
+grep -E '^(show |sidebar |thread |forum |posts |react |reactions |vote |poll |edited 1001|pins |pin |jump)' "$tmp/show" > "$tmp/showcase"   # in the order of the session
 sed -n 's/^zinc: framehash [0-9]* [0-9x]* //p' "$tmp/show" | tail -1 > "$tmp/showhash"
 if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$tmp/session" "$golden/session.out"; cp "$tmp/server" "$golden/server.out"; cp "$tmp/hash" "$golden/hash.txt"
   cp "$tmp/showcase" "$golden/showcase.out"; cp "$tmp/showhash" "$golden/showcase-hash.txt"; echo "discord: goldens recorded"; exit 0; fi

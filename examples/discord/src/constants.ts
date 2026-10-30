@@ -32,7 +32,7 @@ export const CH_TEXT = 0, CH_DM = 1, CH_VOICE = 2, CH_GROUP_DM = 3, CH_CATEGORY 
 export const CH_ANNOUNCEMENT_THREAD = 10, CH_PRIVATE_THREAD = 12;
 export const isThread = (type: i32): boolean => type >= CH_ANNOUNCEMENT_THREAD && type <= CH_PRIVATE_THREAD;
 
-export const RAIL_W = 72, CHANNELS_W = 240, MEMBERS_W = 240;
+export const RAIL_W = 72, CHANNELS_W = 240, MEMBERS_W = 240, PANE_W = 360;   // PANE_W: the pins or a thread beside the messages
 
 // Discord's dark theme, as classes
 export const BG_RAIL = 'bg-[#1e1f22]', BG_SIDE = 'bg-[#2b2d31]', BG_MAIN = 'bg-[#313338]', BG_INPUT = 'bg-[#383a40]';

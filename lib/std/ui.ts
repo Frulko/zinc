@@ -880,7 +880,9 @@ export function onPointer(h: i32, kind: i32, f: (e: PointerEvent) => void): void
 }
 // ---- React Native's responder shapes (ZN-366): PanResponder over onDrag, onScroll, and the events Animated.event maps.
 export class ContentOffset { x: number = 0; y: number = 0; }
-export class NativeEvent { contentOffset: ContentOffset = new ContentOffset(); locationX: number = 0; locationY: number = 0; pageX: number = 0; pageY: number = 0; timestamp: number = 0; }
+/** onScroll's contentSize (what scrolls) and layoutMeasurement (the box that shows it), as React Native: at the end when offset + view >= content. */
+export class ScrollSize { width: number = 0; height: number = 0; }
+export class NativeEvent { contentOffset: ContentOffset = new ContentOffset(); contentSize: ScrollSize = new ScrollSize(); layoutMeasurement: ScrollSize = new ScrollSize(); locationX: number = 0; locationY: number = 0; pageX: number = 0; pageY: number = 0; timestamp: number = 0; }
 export class ResponderEvent { nativeEvent: NativeEvent = new NativeEvent(); }
 /** React Native's gestureState: dx / dy since the press, vx / vy in px per ms, moveX / moveY the latest position, x0 / y0 where the gesture began. */
 export class GestureState { stateID: i32 = 0; moveX: number = 0; moveY: number = 0; x0: number = 0; y0: number = 0; dx: number = 0; dy: number = 0; vx: number = 0; vy: number = 0; numberActiveTouches: i32 = 0; }
@@ -940,7 +942,9 @@ function fireScrolls(): void {
     if (!n.alive || (n.sx === scrollSeen[2 * i] && n.sy === scrollSeen[2 * i + 1])) continue;
     scrollSeen[2 * i] = n.sx; scrollSeen[2 * i + 1] = n.sy;
     const e = new ResponderEvent();
-    e.nativeEvent.contentOffset.x = n.sx; e.nativeEvent.contentOffset.y = n.sy; e.nativeEvent.timestamp = clock;
+    const ne = e.nativeEvent;
+    ne.contentOffset.x = n.sx; ne.contentOffset.y = n.sy; ne.timestamp = clock;
+    ne.contentSize.width = n.contentW; ne.contentSize.height = n.contentH; ne.layoutMeasurement.width = n.lw; ne.layoutMeasurement.height = n.lh;
     scrollFns[i](e, noGesture);
   }
 }

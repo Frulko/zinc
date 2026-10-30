@@ -42,10 +42,13 @@ No op 8 (request guild members), no op 14 or bulk member paging, no subscription
 
 | Endpoint | Who triggers it | How often |
 |---|---|---|
-| `GET /channels/{id}/messages?limit=50` | opening a channel for the first time this session | once per channel (kept in memory after) |
+| `GET /channels/{id}/messages?limit=50` | opening a channel (or a thread beside it) for the first time this session; **Jump to present** after a jump far back | once per channel (kept in memory after) |
 | `GET /channels/{id}/messages?before=..&limit=100` | scrolling to the top of a history | one page at a time, never two in flight |
 | `GET /channels/{id}/threads/search?...&limit=25` | opening a forum | once per forum per session |
-| `POST /channels/{id}/messages/{m}/ack` | opening an unread channel, messages arriving in the open one | only when unread; one per 300 ms burst; background |
+| `GET /channels/{id}/messages?around={m}&limit=50` | following a reply to a message older than the loaded page | once per message (the page joins the list, or replaces it until **Jump to present**) |
+| `GET /channels/{id}/messages/pins?limit=50` | opening the pins of a channel | once per channel per session; again only after someone else pinned there (CHANNEL_PINS_UPDATE) |
+| `PUT`/`DELETE /channels/{id}/messages/pins/{m}` | **Pin** / **Unpin**, offered only in DMs or with Manage Messages or Pin Messages | per press |
+| `POST /channels/{id}/messages/{m}/ack` | opening an unread channel or thread, messages arriving in the open one while its end shows, scrolling back to its end | only when unread; one per 300 ms burst; background |
 | `POST /channels/{id}/typing` | the person types | at most every 8 s while typing (as the web client); background |
 | `POST /channels/{id}/messages` | Enter, or files sent | per message |
 | `PATCH`/`DELETE /channels/{id}/messages/{m}` | edit, delete (twice-clicked) | per action |

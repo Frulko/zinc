@@ -8,7 +8,7 @@ import { useRef, useEffect, useState } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
 import * as dialog from 'zinc:system/dialog';
-import { store, Message, Channel } from '../state';
+import { store, Message, Channel, compareIds } from '../state';
 import { isBody, systemIcon } from '../content';
 import { Markdown } from './Markdown';
 import { Content } from './Content';
@@ -70,16 +70,24 @@ function SystemRow(p: { m: Message; last: boolean }) {
   </View>;
 }
 
+/** The line above the first message not read when the channel was opened. */
+function NewLine() {
+  return <View className="mx-4 mt-2 h-[1] bg-[#f23f43]">
+    <Text className="absolute right-0 -top-[7] px-1 rounded-sm bg-[#f23f43] text-[10px] font-bold text-white">NEW</Text>
+  </View>;
+}
+
 function Row(p: { m: Message; head: boolean; last: boolean }) {
   const m = p.m;
   const [confirm, setConfirm] = useState<boolean>(false);
   if (m.system !== '') return <SystemRow m={m} last={p.last} />;
   const mine = m.authorId === store.me.id;
-  const on = store.editing === m || store.replyTo === m;
+  const on = store.editing === m || store.replyTo === m || store.jumpId === m.id;
   const head = p.head || m.replyTo !== '' || m.interaction !== '';   // a reply or a command's answer starts a group, as on Discord
   const hash = head ? store.avatarOf(m.authorId) : '';
   return <View className={`group px-4 ${head ? 'pt-4' : 'pt-[2]'} ${p.last ? 'pb-6' : ''} ${on ? 'bg-[#2e3035]' : 'hover:bg-[#2e3035]'}`}>
-    {m.replyTo !== '' ? <Text className={`pl-14 text-xs ${TEXT_MUTED} ${m.replyDeleted ? 'italic' : ''}`} numberOfLines={1}>{'↱ ' + m.replyTo}</Text> : null}
+    {m.replyTo !== '' ? <Text className={`pl-14 text-xs ${TEXT_MUTED} ${m.replyDeleted ? 'italic' : 'hover:text-[#dbdee1]'}`} numberOfLines={1}
+      onPress={() => { if (!m.replyDeleted) store.jumpTo(m.replyId); }}>{'↱ ' + m.replyTo}</Text> : null}
     {m.interaction !== '' ? <Text className={`pl-14 text-xs ${TEXT_MUTED}`} numberOfLines={1}>{'↱ ' + m.interaction}</Text> : null}
     <View className="flex-row gap-4">
       <View className={`w-[${AVATAR}]`}>
@@ -99,6 +107,7 @@ function Row(p: { m: Message; head: boolean; last: boolean }) {
     {m.pending ? null : <View className={`absolute -top-2 right-4 flex-row rounded border border-[#1e1f22] ${BG_MAIN} opacity-0 group-hover:opacity-100`}>
       {m.failed ? null : <Action icon="thumbs-up" label="Add reaction" danger={false} onPress={() => store.react(m, null)} />}
       {m.failed ? null : <Action icon="corner-up-left" label="Reply" danger={false} onPress={() => store.reply(m)} />}
+      {!m.failed && store.canPin(m.channelId) ? <Action icon="pin" label={m.pinned ? 'Unpin' : 'Pin'} danger={false} onPress={() => { store.pin(m); }} /> : null}
       {mine && !m.failed ? <Action icon="pencil" label="Edit" danger={false} onPress={() => store.edit(m)} /> : null}
       {mine ? <Action icon="trash-2" label={confirm ? 'Delete: click again' : 'Delete'} danger={confirm}
         onPress={() => { if (confirm) store.remove(m); else setConfirm(true); }} /> : null}
@@ -113,7 +122,7 @@ function Forum(p: { c: Channel }) {
     <View className="p-4 gap-2">
       {store.posts(c.id).map((t: Channel) => {
         const first = store.previews.get(t.id);
-        return <View key={t.id} className={`px-4 py-3 gap-1 rounded-lg ${BG_SIDE} ${BG_HOVER}`} aria-label={t.name} onPress={() => store.selectChannel(t.id)}>
+        return <View key={t.id} className={`px-4 py-3 gap-1 rounded-lg ${BG_SIDE} ${BG_HOVER}`} aria-label={t.name} onPress={() => store.openThread(t.id)}>
           <Text className={`text-[16px] font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{t.name}</Text>
           {t.tags.length > 0 ? <View className="flex-row gap-1">{t.tags.map((id: string) =>
             <Text key={id} className={`px-2 rounded-full bg-[#383a40] text-xs ${TEXT_MAIN}`}>{c.tagNames.get(id) ?? id}</Text>)}</View> : null}
@@ -161,6 +170,7 @@ let keepRow: i32 = -1;
 let shown: i32 = -1;
 /** The history's list node (-1 before it is shown): the bench of main.tsx scrolls it. */
 export function historyList(): i32 { return shown; }
+let jumped = '';
 async function older(): Promise<void> { const n = await store.loadOlder(); if (n > 0) keepRow = n; }
 
 /** The history: a virtual list of rows of their own heights, which opens at its end and follows it. */
@@ -172,16 +182,39 @@ function History(p: { list: Message[] }) {
     // older messages when the reader goes up near the top: a scroll down (the list opening at its end, following a new message) never asks
     let y = 0;
     ui.onScroll(ref.current, (e: ui.ResponderEvent, g: ui.GestureState): void => {
-      const now = e.nativeEvent.contentOffset.y;
+      const ne = e.nativeEvent, now = ne.contentOffset.y;
       if (now < y && now < OLDER_AT) older();
       y = now;
+      store.setAtEnd(now + ne.layoutMeasurement.height >= ne.contentSize.height - 4);   // at the end: what comes is read, no banner
     });
   }, []);
-  useEffect((): void => { if (keepRow >= 0) { ui.scrollToRow(ref.current, keepRow); keepRow = -1; } }, null);
+  useEffect((): void => {
+    if (keepRow >= 0) { ui.scrollToRow(ref.current, keepRow); keepRow = -1; }
+    if (store.jumpId !== jumped) {                           // a jump: its message brought into view, once
+      jumped = store.jumpId;
+      for (let i = 0; i < list.length; i++) if (list[i].id === jumped) ui.scrollToRow(ref.current, i);
+    }
+  }, null);
+  const from = store.newFrom;
   return <VirtualList ref={ref} count={list.length} estimatedItemHeight={ROW_ESTIMATE} className="grow" stickToBottom>
-    {(i: i32) => <Row key={list[i].id !== '' ? list[i].id : list[i].nonce} m={list[i]} head={i === 0 || list[i - 1].authorId !== list[i].authorId}
-      last={i === list.length - 1} />}
+    {(i: i32) => {
+      const row = <Row key={list[i].id !== '' ? list[i].id : list[i].nonce} m={list[i]} head={i === 0 || list[i - 1].authorId !== list[i].authorId}
+        last={i === list.length - 1} />;
+      const fresh = from !== '' && list[i].id !== '' && compareIds(list[i].id, from) > 0 && (i === 0 || compareIds(list[i - 1].id, from) <= 0);
+      return fresh ? <View key={list[i].id}><NewLine />{row}</View> : row;
+    }}
   </VirtualList>;
+}
+
+/** Scrolled away from new messages, or showing older ones after a jump: a bar that goes back to the present. */
+function Present() {
+  const older = store.showingOlder(), n = store.newWhileUp;
+  if (!older && (store.atEnd || n === 0)) return null;
+  return <View className="mx-4 h-[28] px-3 flex-row items-center rounded-t-lg bg-[#5865f2]">
+    <Text className="grow text-sm font-semibold text-white" numberOfLines={1}>{older ? 'You are viewing older messages' : `${n} new message${n === 1 ? '' : 's'}`}</Text>
+    <Text className="text-sm font-semibold text-white" aria-label="Jump to present"
+      onPress={() => { if (!older && shown >= 0) ui.scrollTo(shown, 0, 1e9); store.jumpToPresent(); }}>Jump to present</Text>
+  </View>;
 }
 
 export function MessageView() {
@@ -192,11 +225,15 @@ export function MessageView() {
   return <View className={`grow basis-0 ${BG_MAIN}`}>
     <View className="h-[48] px-4 flex-row items-center border-b border-[#26272b]">
       <Text className={`grow font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{title}</Text>
+      {c !== null && !c.forum() ? <View className={`p-1 rounded ${store.pane === 'pins' ? 'bg-[#404249]' : BG_HOVER}`} aria-label="Pinned messages" onPress={() => store.togglePins()}>
+        <Icon name="pin" size={20} color={MUTED} />
+      </View> : null}
     </View>
     {banner !== '' ? <Text className="px-4 py-1 text-sm text-white bg-[#da373c]">{banner}</Text> : null}
     {store.error !== '' ? <Text className={`px-4 py-1 text-sm ${TEXT_ERROR}`}>{store.error}</Text> : null}
     {c !== null && c.forum() ? <Forum c={c} />
       : list === undefined ? <Text className={`grow p-4 ${TEXT_MUTED}`}>{c === null ? 'No channel open.' : 'Loading…'}</Text> : <History key={store.channelId} list={list} />}
+    {c !== null && !c.forum() ? <Present /> : null}
     {c !== null && !c.forum() ? <Composer name={title} /> : null}
   </View>;
 }

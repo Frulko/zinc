@@ -219,7 +219,7 @@ export function Content(p: { m: Message }) {
     {(m.flags & F_SUPPRESS_EMBEDS) === 0 ? m.embeds.map((e: Embed, i: i32) => <EmbedCard key={`${i}`} e={e} />) : null}
     {m.poll !== null ? <PollView m={m} /> : null}
     {m.rows.map((row: Component[], i: i32) => <View key={`${i}`} className="mt-1 flex-row flex-wrap gap-2">{row.map((c: Component, k: i32) => <Control key={`${k}`} c={c} />)}</View>)}
-    {t !== null ? <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg ${BG_SIDE}`} aria-label={`Thread ${t.name}`} onPress={() => store.open(t.id)}>
+    {t !== null ? <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg ${BG_SIDE}`} aria-label={`Thread ${t.name}`} onPress={() => store.openThread(t.id)}>
       <Icon name="message-square" size={16} color={MUTED} />
       <Text className={`text-sm font-semibold ${TEXT_STRONG}`}>{t.name}</Text>
       <Text className="text-sm text-[#00a8fc]">{`${t.count} message${t.count === 1 ? '' : 's'}`}</Text>

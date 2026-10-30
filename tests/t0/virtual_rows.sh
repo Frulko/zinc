@@ -3,11 +3,13 @@
 # is unmounted (componentWillUnmount runs) and its instance dropped; they were kept for good, so scrolling a long list grew without end.
 # 2,000 rows down and back up, then a render: the rows mounted are the ones shown. A component replaced (another key) let its nodes live on
 # out of the tree: its list kept its rows mounted, measured them at no height and scrolled on its own; now its nodes are destroyed and the
-# list's rows unmount with it, and its onScroll handler is forgotten (a node made later with its handle called it). The interpreter, the compiled run and QuickJS.
+# list's rows unmount with it, and its onScroll handler is forgotten (a node made later with its handle called it). onScroll gives React
+# Native's contentSize and layoutMeasurement too (ZN-903: a chat knows it shows its end). The interpreter, the compiled run and QuickJS.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export ZINC_HOME="$tmp/home" ZINC_HEADLESS=1 ZINC_SIZE=200x200 ZINC_SCALE=1 ZINC_FRAMES=1000
-want='rows mounted as at the start: true
+want='onScroll'"'"'s content, view and offset at the end: 48000 120 47880
+rows mounted as at the start: true
 rows made over the scroll: true
 a replaced list unmounts its rows: true
 its onScroll is gone: true'

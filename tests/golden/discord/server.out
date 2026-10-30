@@ -1,4 +1,5 @@
 cdn GET attachments/302/903/801/photo.png 200
+cdn GET attachments/302/903/801/photo.png 200
 cdn GET attachments/302/909/802/notes.png 200
 cdn GET attachments/305/1104/screen.png 200
 cdn GET attachments/305/1105/demo.mp4 200
@@ -8,6 +9,7 @@ cdn GET avatars/101/av101.png 200
 cdn GET avatars/103/av103.png 200
 cdn GET emojis/77.png 200
 cdn GET emojis/77.png 200
+cdn GET emojis/78.png 200
 cdn GET external/banner.png 200
 cdn GET external/og.png 200
 cdn GET external/tenor.png 200
@@ -23,34 +25,42 @@ gateway /?encoding=json&v=9 agent=true
 identify token=true capabilities=1246 browser=Chrome
 identify token=true capabilities=1246 browser=Chrome
 rest DELETE /api/v9/channels/302/messages/907 auth=true super=true
+rest GET /api/v9/channels/302/messages?around=100000&limit=50 auth=true super=true
 rest GET /api/v9/channels/302/messages?before=100020&limit=100 auth=true super=true
 rest GET /api/v9/channels/302/messages?limit=50 auth=true super=true
+rest GET /api/v9/channels/302/messages?limit=50 auth=true super=true
 rest GET /api/v9/channels/305/messages?limit=50 auth=true super=true
+rest GET /api/v9/channels/305/messages/pins?limit=50 auth=true super=true
 rest GET /api/v9/channels/306/messages?limit=50 auth=true super=true
 rest GET /api/v9/channels/307/threads/search?archived=false&sort_by=last_message_time&sort_order=desc&limit=25&offset=0 auth=true super=true
+rest GET /api/v9/channels/308/messages?limit=50 auth=true super=true
 rest GET /api/v9/channels/400/messages?limit=50 auth=true super=true
 rest PATCH /api/v9/channels/302/messages/906 auth=true super=true -> 429
 rest PATCH /api/v9/channels/302/messages/906 auth=true super=true content="Hello **edited** ~~world~~ ||secret|| <@101>" waited=true
+rest POST /api/v9/attachments/refresh-urls auth=true super=true 302/903/801/photo.png expired=true
 rest POST /api/v9/attachments/refresh-urls auth=true super=true 302/903/801/photo.png expired=true
 rest POST /api/v9/channels/302/attachments auth=true super=true file=notes.png size=true id=0
 rest POST /api/v9/channels/302/messages auth=true super=true content="Hello **world** ||secret|| <@101>" nonce=true reply= waited=first
 rest POST /api/v9/channels/302/messages auth=true super=true content="Here is the photo" nonce=true reply= waited=true attachments=0:notes.png:u0/notes.png stored=true
 rest POST /api/v9/channels/302/messages auth=true super=true content="Replying, after the bucket" nonce=true reply=903 waited=true
 rest POST /api/v9/channels/302/messages/903/ack auth=true super=true last_viewed=true token=true
+rest POST /api/v9/channels/302/messages/903/ack auth=true super=true last_viewed=true token=true
 rest POST /api/v9/channels/302/messages/904/ack auth=true super=true last_viewed=true token=true
 rest POST /api/v9/channels/302/messages/905/ack auth=true super=true last_viewed=true token=true
 rest POST /api/v9/channels/302/messages/908/ack auth=true super=true last_viewed=true token=true
+rest POST /api/v9/channels/302/messages/965/ack auth=true super=true last_viewed=true token=true
 rest POST /api/v9/channels/302/messages/970/ack auth=true super=true last_viewed=true token=true
 rest POST /api/v9/channels/302/typing auth=true super=true
 rest POST /api/v9/channels/302/typing auth=true super=true
 rest POST /api/v9/channels/302/typing auth=true super=true
 rest POST /api/v9/channels/400/messages/971/ack auth=true super=true last_viewed=true token=true
 rest PUT /api/v9/channels/305/messages/1007/reactions/%F0%9F%8E%89/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/305/messages/pins/1017 auth=true super=true
 rest PUT /api/v9/channels/305/polls/1009/answers/@me auth=true super=true answers=["1"]
 resume session=sess-1 seq=4
 subscribe guild=200 channel=302 ranges=[[0,99]] typing=true
 subscribe guild=200 channel=302 ranges=[[0,99]] typing=true
-subscribe guild=200 channel=302 ranges=null typing=true
+subscribe guild=200 channel=302 ranges=[[0,99]] typing=true
 subscribe guild=200 channel=302 ranges=null typing=true
 subscribe guild=200 channel=302 ranges=null typing=true
 subscribe guild=200 channel=302 ranges=null typing=true

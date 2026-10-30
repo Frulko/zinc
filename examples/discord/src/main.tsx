@@ -62,6 +62,7 @@ async function demo(): Promise<void> {
   console.log(`servers ${store.guilds.map((g) => g.name).join(', ')}`);
   console.log(`channels ${store.channels().map((c) => c.name).join(', ')}, open '${store.channelId}'`);
   const id = openFirst();
+  console.log(`new messages line after ${store.newFrom}`);   // #general was read up to 902
   await until(() => count(id) > 0);
   console.log(`history ${count(id)}`);
   const before = count(id);
@@ -80,6 +81,7 @@ async function demo(): Promise<void> {
   store.selectChannel(id);
   await write(id);
   await media(id);
+  await present(id);
   await notifications(id);
   settings();
   setTimeout(() => { quit(); }, 300);
@@ -315,6 +317,19 @@ async function media(id: string): Promise<void> {
   await until(() => store.typingText(id) !== '');                              // Grace types back: in the last frame
   await new Promise<void>((done: () => void) => { setTimeout(done, 100); });   // a frame shows the rows, which ask for their pictures
   await until(() => picturesLoading() === 0);
+}
+
+/** Scrolled up, a new message is counted in the bar and not read; 'Jump to present' goes back to the end, which reads it. */
+async function present(id: string): Promise<void> {
+  ui.scrollTo(historyList(), 0, 0);
+  await until(() => !store.atEnd);
+  store.dispatch('MESSAGE_CREATE', { id: '965', channel_id: id, author: { id: '101', username: 'grace', global_name: 'Grace', avatar: 'av101' },
+    content: 'While you read the history', timestamp: '2026-10-30T09:39:00.000000+00:00', attachments: [], mentions: [] });
+  console.log(`scrolled up: ${store.newWhileUp} new, unread ${store.unread(id)}`);
+  ui.scrollTo(historyList(), 0, 1e9);
+  store.jumpToPresent();
+  await until(() => store.atEnd && !store.unread(id));
+  console.log(`at the present: ${store.newWhileUp} new, unread ${store.unread(id)}`);
 }
 
 /** Notifications: none for the channel shown in the focused window, one for a DM while the window is behind another, a click on it opens
