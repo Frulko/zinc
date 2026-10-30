@@ -124,6 +124,8 @@ struct HostCdp : NativeCdp, zrt::Poller {
       return false;
     }
     fcntl(lfd, F_SETFL, O_NONBLOCK);
+    socklen_t al = sizeof a;
+    if (port == 0 && getsockname(lfd, (sockaddr*)&a, &al) == 0) port = ntohs(a.sin_port);   // ZINC_DEVTOOLS_PORT=0: the port the system chose
     fprintf(stderr, "zinc devtools: chrome://inspect (Discover network targets: localhost:%d) or ws://127.0.0.1:%d/zinc\n", port, port);
     return true;
   }

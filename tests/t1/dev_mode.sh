@@ -72,8 +72,9 @@ dev=$!
 waitfor "$t/dev3.log" "cycle ab" 5 || { echo "a quickjs project under dev: $(cat "$t/dev3.log")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
 grep -q "inspector on port" "$t/dev3.log" && { echo "a script (no frame loop) got the inspector: $(cat "$t/dev3.log")"; fail=1; }
-# 4c. a zinc:stage program on QuickJS gets the inspector, and reads the project's assets from dev's wrapper entry (examples/fatty)
-port=$(python3 "$root/tests/free_ports.py")
+# 4c. a zinc:stage program on QuickJS gets the inspector, and reads the project's assets from dev's wrapper entry (examples/fatty); port 0
+# in zinc.json: zinc dev names the free port it chose, and the program listens there
+port=0
 mkdir -p "$t/stg/src" "$t/stg/assets" && cd "$t/stg" || exit 2
 printf '{"name":"stg","entry":"src/main.ts","engine":"quickjs","plugins":{"devtools":{"port":%s}}}\n' "$port" > zinc.json
 printf 'stage asset' > assets/note.txt
@@ -81,7 +82,8 @@ printf "import { onFrame } from 'zinc:gfx';\nimport { Stage } from 'zinc:stage';
 "$Z" dev > "$t/dev4.log" 2>&1 &
 dev=$!
 waitfor "$t/dev4.log" "read stage asset" 8 || { echo "a zinc:stage project on QuickJS under dev: $(cat "$t/dev4.log")"; fail=1; }
-grep -q "inspector on port $port" "$t/dev4.log" || { echo "the zinc:stage project has no inspector: $(cat "$t/dev4.log")"; fail=1; }
+port=$(sed -n 's/.*v1 started with the inspector on port \([0-9]*\).*/\1/p' "$t/dev4.log")
+[ -n "$port" ] && [ "$port" != 0 ] && waitfor "$t/dev4.log" "localhost:$port)" 5 || { echo "zinc dev does not name the inspector's real port: $(cat "$t/dev4.log")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
 # 5. monitor: telemetry lines read from a file
 cat > "$t/tele.jsonl" <<'T'

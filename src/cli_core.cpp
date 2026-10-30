@@ -3546,6 +3546,19 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   const std::string exe = self();
   std::vector<std::pair<std::string, std::string>> env = {{"ZINC_SHOT_DIR", (fs::path(p.dir) / "build" / "shots").string()}, {"ZINC_DEV", "1"}};
   if (v8Tools) env.push_back({"ZINC_INSPECT", devtoolsPort(p.entry).empty() ? "9229" : devtoolsPort(p.entry)});
+  std::string inspectPort = devtoolsPort(p.dir);
+  if (inspectPort.empty()) inspectPort = "9229";
+  if (tools && !v8Tools && inspectPort == "0") {   // any free port: chosen here once, so the line below names it and every version listens on it
+    // ponytail: found free then closed, another program could take it before the child listens (it would say "port unavailable")
+    const int s = static_cast<int>(::socket(AF_INET, SOCK_STREAM, 0));
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    socklen_t len = sizeof a;
+    if (s >= 0 && ::bind(s, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0 && ::getsockname(s, reinterpret_cast<sockaddr*>(&a), &len) == 0) inspectPort = std::to_string(ntohs(a.sin_port));
+    if (s >= 0) zn::plat::sockClose(s);
+    if (inspectPort != "0") env.push_back({"ZINC_DEVTOOLS_PORT", inspectPort});
+  }
   fs::create_directories(fs::path(p.dir) / "build" / "shots", ec);
   zn::plat::Pid child = 0;
   int version = 0, devFd = -1;   // devFd: our end of the running version's dev socket (asset hot reload)
@@ -3589,7 +3602,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     if (!redbox) ++version;
     if (redbox) std::fprintf(stderr, "zinc dev: red box on screen (%ld ms after the save)\n", sinceSave);
     else {
-      const std::string port = devtoolsPort(p.dir);
+      const std::string& port = inspectPort;
       const std::string after = version == 1 ? "" : " (" + std::to_string(sinceSave) + " ms after the save)";   // the first start follows no save
       std::fprintf(stderr, "zinc dev: v%d started%s%s\n", version, tools ? (" with the inspector on port " + (port.empty() ? "9229" : port)).c_str() : "", after.c_str());
     }
