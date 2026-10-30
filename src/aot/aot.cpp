@@ -478,7 +478,8 @@ std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<
     const std::vector<char> wt = typedFunctions(wm, arith, divs);
     const std::string ns = "zw" + std::to_string(w);
     s += "#include \"rt/worker.h\"\nnamespace " + ns + " {   // the worker '" + mod.workers[w].first + "'\n" + declarations(wm, wt);
-    for (std::size_t i = 0; i < wm.functions.size(); ++i) { FnEmitter fe(wm, wm.functions[i], i, arith, divs, wt); fe.emit(); s += fe.out; }
+    const bool wok = zbc::verifyTables(wm).empty();   // the worker's own tables, checked once as the program's are
+    for (std::size_t i = 0; i < wm.functions.size(); ++i) { FnEmitter fe(wm, wm.functions[i], i, arith, divs, wt, wok); fe.emit(); s += fe.out; }
     auto wb = tablesOf(wm);
     s += "static const char kModule[] = \n  ";
     appendBytes(s, wb.data(), wb.size());
