@@ -135,8 +135,8 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
         get += "    }\n    return __undef;\n  }";
         set += "    }\n  }";
         if (!hasExpr.empty()) has = "(n: string): boolean => " + hasExpr;
-        const bool sub = oi.isClass && !oi.isRecord && !oi.isTemplate;
-        if (sub) {   // an instance of a subclass: its own view, with its fields
+        const bool sub = oi.isClass && !oi.isTemplate && !(oi.isRecord && fs.empty());
+        if (sub) {   // an instance of a subclass (or of a class shared as the record): its own view, with its fields
           body = "  const sub: any = " + dynSubName(t) + "(v);\n  if (sub.kind() !== 0) return sub;\n";
           extra = "function " + dynSubName(t) + "(v: " + A + "): any {\n  return __undef;\n}\n";
         }
@@ -145,7 +145,7 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
                (jsonOk ? "(): string => " + jsonName(t) + "(o)" : "(): string => '{}'") + ");\n";
       } else {
         body = "  if (d instanceof DynRef && d.exact(" + std::to_string(t) + ")) return (d as DynRefT<" + A + ">).o;\n";
-        if (oi.isClass && !oi.isRecord && !oi.isTemplate) {   // the view of an instance of a subclass is typed with that subclass, which a later module may declare
+        if (oi.isClass && !oi.isTemplate && !(oi.isRecord && fs.empty())) {   // the view of an instance of a subclass (or of a class shared as the record) is that object; a later module may declare its class
           body += "  const sub: " + A + " | null = " + dynDownName(t) + "(d);\n  if (sub !== null) return sub;\n";
           extra = "function " + dynDownName(t) + "(d: any): " + A + " | null {\n  return null;\n}\n";
         }

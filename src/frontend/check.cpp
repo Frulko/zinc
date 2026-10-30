@@ -252,19 +252,31 @@ struct Checker {
     if (f.k == TK::Object && t.k == TK::Object) return objAssignable(f.obj, t.obj) || classToRecord(f.obj, t.obj);
     return false;
   }
-  // An instance of class `a` where record `b` is expected: every field of `b` is a public field of `a` with the same type. The instance is
-  // shared, as in TypeScript; the record is remembered so the lowering reads its fields through the object's own class.
+  // An instance of class `a` (or a value of interface `a`) where record `b` is expected, as TypeScript's structural typing allows: the instance is
+  // shared; the record is remembered so the lowering reads its fields through the object's own class.
   bool classToRecord(std::uint32_t a, std::uint32_t b) {
     const ObjInfo &f = out.objs[a], &t = out.objs[b];
-    if (!f.isClass || f.isRecord || f.isTuple || !t.isRecord || t.isTuple || t.members.empty()) return false;
-    for (const Member& m : t.members) {
-      const Member* fm = lookupMember(a, m.name, false);
-      if (m.method || m.isStatic || !fm || fm->method || fm->getter || fm->access != 0 || fm->type != m.type) return false;
-    }
+    if (!(f.isClass || f.isInterface) || f.isRecord || f.isTuple || !t.isRecord || t.isTuple || t.members.empty()) return false;
+    if (!c2rBusy.insert({a, b}).second) return true;   // a field of the record's own type (`next: Node`): assumed while it is checked
+    bool ok = true;
+    for (const Member& m : t.members) ok = ok && !m.method && !m.isStatic && suppliesField(a, m);
+    c2rBusy.erase({a, b});
+    if (!ok) return false;
     if (f.isTemplate || t.isTemplate) return true;   // checked over type parameters, lowered per instance
     auto& cs = out.openRecords[b];
     if (std::find(cs.begin(), cs.end(), a) == cs.end()) cs.push_back(a);
     return true;
+  }
+  std::set<std::pair<std::uint32_t, std::uint32_t>> c2rBusy;
+  // Record field `m` is a public field or getter of `a` whose type is assignable to the field's (a literal, a member of a union, a subclass, a
+  // machine number), or `m` is optional and `a` lacks it (it reads undefined), as in TypeScript.
+  bool suppliesField(std::uint32_t a, const Member& m) {
+    const Member* fm = lookupMember(a, m.name, false);
+    if (!fm) return m.optional;
+    if (fm->access != 0 || fm->isStatic || (fm->method && !fm->getter)) return false;
+    if (m.hasLiteral && !(fm->hasLiteral && fm->literal == m.literal)) return false;
+    const TypeId ft = fm->getter ? ty(fm->type).elem : fm->type;
+    return ft == m.type || assignable(ft, m.type, kNone);
   }
   // `(i32, string) => void` where `(f64, string) => void` is expected: TypeScript has one number type, so a callback may take any machine
   // number kind. The value is wrapped in a function that converts the arguments (and the result) between the kinds.
@@ -1117,6 +1129,7 @@ struct Checker {
       }
     }
     declareSource(text, at);
+    for (TypeId u : closure) if (auto s = genScope->find(keep(inspectSubName(u))); s != genScope->end()) out.fmtSubs[out.syms[s->second].decl] = u;
     std::uint32_t sym = (*genScope)[keep(inspectLogName(t))];
     restoreCtx(sv);
     logSym[t] = sym;
@@ -1151,6 +1164,7 @@ struct Checker {
       for (std::uint32_t s = 0; s < out.syms.size(); ++s)
         if (out.syms[s].kind == SymKind::Class && out.syms[s].type == cl) { (*genScope)[keep(inspectClassName(cl))] = s; break; }
     declareSource(text, at);
+    for (TypeId u : closure) if (auto s = genScope->find(keep(jsonSubName(u))); s != genScope->end()) out.jsonSubs[out.syms[s->second].decl] = u;
     std::uint32_t sym = (*genScope)[keep(jsonName(t))];
     restoreCtx(sv);
     jsonSyms[t] = sym;
@@ -1199,15 +1213,39 @@ struct Checker {
   // into the view of the subclass the object is an instance of. A subclass can be declared after its base's view was made (a library module is
   // checked before the program's classes): once every module is checked, every subclass of those classes gets its view.
   std::map<TypeId, std::uint32_t> dynSubAt;   // class type -> a node where its view was asked
+  std::uint32_t typeErrorAt = kNone;   // the first write through an interface's setter (Member::ifaceSetter)
   void finishDynViews() {
     std::vector<std::function<void()>> late;
     auto* sd = defer;
     defer = &late;
+    bool hasTypeError = false;   // the error classes come with the prelude a program that names none of them does not have: it then traps
+    { Ctx sv = saveCtx(); enterGenerated(); hasTypeError = lookup("TypeError") != kNone; restoreCtx(sv); }
+    if ((typeErrorAt != kNone || !out.openRecords.empty()) && out.typeErrorFn == kNone && hasTypeError)
+      out.typeErrorFn = out.syms[helper("typeError", "function $F(msg: string): void {\n  throw new TypeError(msg);\n}\n", {}, typeErrorAt != kNone ? typeErrorAt : a.root)].decl;
+    // the classes an object can have: the subclasses of a class; the classes shared as an open record (its formatter and serialiser too)
+    auto under = [&](TypeId t) { return out.objs[ty(t).obj].isRecord ? openClasses(out, ty(t).obj) : implementations(out, ty(t).obj); };
+    auto declOf = [&](const std::string& nm) { auto s = genScope->find(keep(nm)); return s == genScope->end() ? kNone : out.syms[s->second].decl; };
     for (bool more = true; more;) {
       more = false;
       for (auto [t, at] : std::map<TypeId, std::uint32_t>(dynSubAt))
-        for (std::uint32_t so : implementations(out, ty(t).obj))
+        for (std::uint32_t so : under(t))
           if (!dynSyms.count({objType(so), true})) { dynSym(objType(so), true, at); more = true; }
+      for (auto [at, t] : std::map<std::uint32_t, TypeId>(out.fmtSubs.begin(), out.fmtSubs.end()))
+        for (std::uint32_t so : under(t)) {
+          const TypeId ct = objType(so);
+          if (out.fmtOf.count(ct) || !inspectable(out, ct)) continue;
+          inspectLog(ct, at);
+          out.fmtOf[ct] = declOf(inspectFmtName(ct));
+          more = true;
+        }
+      for (auto [at, t] : std::map<std::uint32_t, TypeId>(out.jsonSubs.begin(), out.jsonSubs.end()))
+        for (std::uint32_t so : under(t)) {
+          const TypeId ct = objType(so);
+          if (out.jsonOf.count(ct) || !jsonable(out, ct)) continue;
+          jsonSym(ct, at);
+          out.jsonOf[ct] = declOf(jsonName(ct));
+          more = true;
+        }
       for (std::size_t k = 0; k < late.size(); ++k) late[k]();   // the bodies, which may ask for more views
       late.clear();
     }
@@ -2533,24 +2571,41 @@ struct Checker {
           std::string bop = x.text == "=" ? "" : std::string(x.text.substr(0, x.text.size() - 1));
           if (rewriteDynStore(i, target, bop, value, false)) return expr0(i, expected);
         }
-        if (n(target).kind == N::Member && x.text == "=" && !(n(target).flags & kFlagOptional)) {  // obj.name = v where the class has `set name(v)`: a call of the setter
+        const bool arithStore = x.text != "=" && x.text != "&&=" && x.text != "||=" && x.text.substr(0, 2) != "??";   // obj.name += v
+        if (n(target).kind == N::Member && (x.text == "=" || arithStore) && !(n(target).flags & kFlagOptional)) {  // obj.name = v where the class has `set name(v)`: a call of the setter
           std::uint32_t objNode = n(target).kids[0];
           std::uint32_t objSym = n(objNode).kind == N::Ident ? lookup(n(objNode).text) : kNone;
           bool classRef = objSym != kNone && (out.syms[objSym].kind == SymKind::Class || out.syms[objSym].kind == SymKind::GenericClass || out.syms[objSym].kind == SymKind::Enum);  // C.n = v: a static field, not a setter
           TypeId ot = classRef ? kNoType : n(objNode).kind == N::This ? (curClass == kNone ? kNoType : objType(curClass)) : expr(objNode);
-          if (ot != kNoType && !bad(ot) && ty(ot).k == TK::Object && n(target).text == "onmessage" && lookupMember(ty(ot).obj, "__zincWorkerSelf", false) && lookup("__workerOnMessage") != kNone) {
+          if (ot != kNoType && !bad(ot) && ty(ot).k == TK::Object && x.text == "=" && n(target).text == "onmessage" && lookupMember(ty(ot).obj, "__zincWorkerSelf", false) && lookup("__workerOnMessage") != kNone) {
             if (!replaceWith(i, "__workerOnMessage(__H0)", {{value}})) return tError;   // zinc:worker: a setter cannot take its handler's type parameter
             return expr0(i, expected);
           }
           if (ot != kNoType && !bad(ot) && ty(ot).k == TK::Object) {
-            const Member* setter = lookupMember(ty(ot).obj, "__set_" + std::string(n(target).text), false);
-            const Member* plain = lookupMember(ty(ot).obj, n(target).text, false);
+            const std::string pname(n(target).text);
+            const std::uint32_t oo = ty(ot).obj;
+            const Member* setter = lookupMember(oo, "__set_" + pname, false);
+            const Member* plain = lookupMember(oo, pname, false);
+            if (!setter && plain && plain->getter && plain->writable && out.objs[oo].isInterface) {   // iface.name = v: the interface's setter, which
+              Member sm;                                                                            // each class satisfies (lowering, buildVtables)
+              sm.name = "__set_" + pname; sm.type = func({ty(plain->type).elem}, tVoid, 1); sm.method = true; sm.readonly = true; sm.isAbstract = true;
+              sm.owner = oo; sm.ifaceSetter = true;
+              out.objs[oo].members.push_back(std::move(sm));
+              if (typeErrorAt == kNone) typeErrorAt = i;
+              setter = lookupMember(oo, "__set_" + pname, false);
+              plain = lookupMember(oo, pname, false);
+            }
             if (setter && !(plain && !plain->method && !plain->getter)) {
               std::uint32_t path = objNode;   // (o as C).p = v and o!.p = v: the cast changes no value, the path under it is what counts
               while (n(path).kind == N::As || n(path).kind == N::NonNull) path = n(path).kids[0];
               if (!pureCallee(path)) { diag(kZUnsupported, i, "a property with a setter assigned through a computed object"); return tError; }
               std::vector<std::vector<std::uint32_t>> holes{{cloneNode(objNode, false)}, {value}};
-              if (!replaceWith(i, "__H0.__set_" + std::string(n(target).text) + "(__H1)", holes)) return tError;
+              std::string call = "__H0.__set_" + pname + "(__H1)";
+              if (x.text != "=") {   // o.p += v: o.p = o.p + v, read through the getter
+                holes.push_back({cloneNode(objNode, false)});
+                call = "__H0.__set_" + pname + "(__H2." + pname + " " + std::string(x.text.substr(0, x.text.size() - 1)) + " (__H1))";
+              }
+              if (!replaceWith(i, call, holes)) return tError;
               return expr0(i, expected);
             }
           }
@@ -4011,7 +4066,12 @@ struct Checker {
       for (std::uint32_t r : n(c.kids[0]).kids) {
         if (n(r).kind != N::TypeRef || !n(r).kids.empty()) return false;
         bool found = false;
-        for (std::uint32_t p : *peers) if (n(p).kind == N::Interface && n(p).text == n(r).text && p != iface) { found = isRecordDecl(p, peers, depth + 1); break; }
+        bool peer = false;
+        for (std::uint32_t p : *peers) if (n(p).kind == N::Interface && n(p).text == n(r).text && p != iface) { found = isRecordDecl(p, peers, depth + 1); peer = true; break; }
+        if (!peer) {   // a record imported from another module
+          const std::uint32_t sy = lookup(n(r).text);
+          found = sy != kNone && out.syms[sy].kind == SymKind::Class && ty(out.syms[sy].type).k == TK::Object && out.objs[ty(out.syms[sy].type).obj].isRecord;
+        }
         if (!found) return false;
       }
     }
@@ -4911,6 +4971,7 @@ struct Checker {
         TypeId t = mn.kids[0] != kNone ? annotation(mn.kids[0]) : tError;
         out.nodeType[m] = t;
         mem.type = func({}, t, 0); mem.method = true; mem.readonly = true; mem.isAbstract = true; mem.getter = true;
+        mem.writable = (fl & frontend::kFlagReadonly) == 0;
         out.objs[objIdx].members.push_back(std::move(mem));
         continue;
       }
@@ -4964,14 +5025,14 @@ struct Checker {
           if (bad(it)) continue;
           if (ty(it).k == TK::Object && out.objs[ty(it).obj].isRecord) {  // an interface of fields: structural, the class declares each field with its type
             for (const Member& im : out.objs[ty(it).obj].members) {
-              const Member* m = lookupMember(objIdx, im.name, false);
-              if (!m || m->method || m->isStatic || m->access != 0 || m->type != im.type) diag(kZMissingInterfaceMember, r, "'" + im.name + "' of '" + out.objs[ty(it).obj].name + "'");
+              if (!suppliesField(objIdx, im)) diag(kZMissingInterfaceMember, r, "'" + im.name + "' of '" + out.objs[ty(it).obj].name + "'");
             }
             continue;
           }
           if (ty(it).k != TK::Object || !out.objs[ty(it).obj].isInterface) { diag(kZInvalidHierarchy, r, "'implements' needs an interface"); continue; }
           std::uint32_t io = ty(it).obj;
           for (const Member& im : out.objs[io].members) {
+            if (im.ifaceSetter) continue;
             const Member* m = lookupMember(objIdx, im.name, false);
             if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && ty(im.type).elem == m->type) continue;  // a property satisfied by a field
             if (!m || !m->method || m->type != im.type || m->access != 0) diag(kZMissingInterfaceMember, r, "'" + im.name + "' of '" + out.objs[io].name + "'");
@@ -5438,7 +5499,7 @@ const Member* lookupMember(const Checked& c, std::uint32_t obj, std::string_view
 // Structural check against an interface: every method of the interface, with the same type, is public on `obj`.
 static bool structuralMatch(const Checked& c, std::uint32_t obj, std::uint32_t iface) {
   for (const Member& im : c.objs[iface].members) {
-    if (im.isStatic) continue;
+    if (im.isStatic || im.ifaceSetter) continue;
     const Member* m = lookupMember(c, obj, im.name, false);
     if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && c.types[im.type].elem == m->type) continue;  // a property satisfied by a field
     if (!m || !m->method || m->type != im.type || m->access != 0) return false;

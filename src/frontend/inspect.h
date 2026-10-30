@@ -18,6 +18,13 @@ std::string inspectClassName(TypeId t);  // __C<id>: the class, for instanceof
 
 // The concrete classes that can be the dynamic type of a value of class or interface `obj`, most derived first.
 std::vector<std::uint32_t> implementations(const Checked& c, std::uint32_t obj);
+// The same for an open record (Checked::openRecords): the classes whose instances are shared as it, most derived first, each once.
+std::vector<std::uint32_t> openClasses(const Checked& c, std::uint32_t rec);
+
+// __fmtSub<t> and __jsSub<t> of a record t: the formatter or serialiser of the class of an instance shared as t (the lowering writes them,
+// Checked::fmtSubs), null for t's own literals.
+std::string inspectSubName(TypeId t);
+std::string jsonSubName(TypeId t);
 
 // Helpers shared by every formatter (quoting, grouping, line breaking), as source text.
 const char* inspectPrelude();

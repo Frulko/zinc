@@ -45,6 +45,9 @@ struct Member {
   bool hasLiteral = false;
   bool optional = false;              // declared `name?: T`: an object literal may leave it out (it is then null)
   bool getter = false;                // a `get name()` accessor: `type` is the method's signature, a read calls it
+  bool writable = false;              // an interface property not declared readonly: `iface.name = v` calls its setter `__set_name`
+  bool ifaceSetter = false;           // that `__set_name(v)`, added to the interface at the first write: a class satisfies it with a setter, a field or
+                                      // (a getter alone) a TypeError, as JavaScript gives
 };
 
 struct ObjInfo {
@@ -117,6 +120,14 @@ struct Checked {
   // A record a class instance was assigned to (TypeScript's structural typing: `const l: Labeled = new Tag()`) -> those classes. The lowering
   // makes such a record an interface over its literal class and these classes, so reads and writes reach the instance's own fields.
   std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> openRecords;
+  // A __fmtSub<t>, __jsSub<t> or __dynSub<t> declaration node of a record t -> t: the lowering turns its calls into the formatter, serialiser or
+  // `any` view of the class an instance shared as t has (openRecords), null (undefined) for t's own literals. And the declaration nodes of the
+  // generated __fmt<t> and __js<t> of each class type, which it calls.
+  std::unordered_map<std::uint32_t, TypeId> fmtSubs, jsonSubs;
+  std::unordered_map<TypeId, std::uint32_t> fmtOf, jsonOf;
+  // The declaration node of a generated `(msg: string): void` that throws a TypeError: what a write through a record or an interface does to a
+  // property the class has only a getter for, or lacks (kNone: not generated)
+  std::uint32_t typeErrorFn = 0xFFFFFFFFu;
 };
 
 // Checks the program. Generic declarations are instantiated by cloning their nodes into `ast`.

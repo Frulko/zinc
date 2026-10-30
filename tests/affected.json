@@ -153,7 +153,7 @@
     {"paths": ["src/aot/aot.cpp"], "tests": ["debug_lldb"]},
     {"paths": ["app/inspector/", "tests/data/inspector/", "tests/t1/inspector.sh", "plugins/devtools/", "src/host/netlog.cpp", "src/frontend/jsx.cpp", "tests/netlog_servers.py"], "tests": ["inspector"]},
     {"paths": ["app/inspector/", "tests/data/inspector_stage/", "tests/t1/inspector_stage.sh", "plugins/devtools/", "lib/std/stage.ts"], "tests": ["inspector_stage"]},
-    {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/dyn.cpp", "src/frontend/dyn.h", "src/frontend/inspect.cpp", "src/ir/lower.cpp", "tests/t0/class_runtime.sh", "tests/golden/host/class_runtime"], "tests": ["class_runtime"]},
+    {"paths": ["src/frontend/check.cpp", "src/frontend/check.h", "src/frontend/dyn.cpp", "src/frontend/dyn.h", "src/frontend/inspect.cpp", "src/ir/lower.cpp", "tests/t0/class_runtime.sh", "tests/golden/host/class_runtime", "tests/golden/host/open_records", "src/ir/opt.cpp"], "tests": ["class_runtime"]},
     {"paths": ["src/main.cpp", "tests/t0/assets_wrapper.sh"], "tests": ["assets_wrapper"]},
     {"paths": ["app/inspector/", "tests/data/inspector-storage/", "tests/t1/inspector_storage.sh", "plugins/devtools/", "plugins/sqlite/index.ts", "plugins/async-storage/", "lib/std/devhooks.ts"], "tests": ["inspector_storage"]},
     {"paths": ["app/atelier/", "tests/t1/atelier_ide.sh", "tests/t0/atelier.sh", "tests/golden/atelier/"], "tests": ["atelier_ide", "atelier"]},

@@ -43,6 +43,23 @@ std::vector<std::uint32_t> implementations(const Checked& c, std::uint32_t obj) 
   return r;
 }
 
+std::vector<std::uint32_t> openClasses(const Checked& c, std::uint32_t rec) {
+  std::vector<std::uint32_t> r;
+  auto it = c.openRecords.find(rec);
+  if (it == c.openRecords.end()) return r;
+  auto add = [&](std::uint32_t o) { if (std::find(r.begin(), r.end(), o) == r.end()) r.push_back(o); };
+  for (std::uint32_t k : it->second) {
+    for (std::uint32_t o : implementations(c, k)) add(o);
+    const ObjInfo& ki = c.objs[k];
+    if (ki.isClass && !ki.isAbstract && !ki.isTemplate && typeOfObj(c, k) != kNoType) add(k);
+  }
+  std::stable_sort(r.begin(), r.end(), [&](std::uint32_t x, std::uint32_t y) { return depthOf(c, x) > depthOf(c, y); });
+  return r;
+}
+
+std::string inspectSubName(TypeId t) { return "__fmtSub" + std::to_string(t); }
+std::string jsonSubName(TypeId t) { return "__jsSub" + std::to_string(t); }
+
 namespace {
 
 bool isFloatNum(Num n) { return n == Num::f64 || n == Num::f32 || n == Num::fx12 || n == Num::fx16; }
@@ -132,7 +149,7 @@ bool jsonable(const Checked& c, TypeId t) {
 std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, std::vector<TypeId>& classes) {
   const Type& x = c.types[t];
   std::string head = "function " + jsonName(t) + "(v: " + inspectAliasName(t) + "): string {\n";
-  std::string body;
+  std::string body, extra;   // extra: a function declared with it (__jsSub)
   auto call = [&](TypeId ct, const std::string& val) { deps.push_back(ct); return jsonName(ct) + "(" + val + ")"; };
   switch (x.k) {
     case TK::Num: body = "  return __jsonNum(v);\n"; break;
@@ -173,6 +190,9 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
           body += "  if (v instanceof " + inspectClassName(ot) + ") return " + call(ot, "v") + ";\n";
         }
         if (oi.isInterface || oi.isAbstract) { body += "  return '{}';\n"; break; }
+      } else if (!fs.empty()) {   // an instance of a class shared as the record serialises as its class does (a stub the lowering writes)
+        body += "  const sub: string | null = " + jsonSubName(t) + "(v);\n  if (sub !== null) return sub;\n";
+        extra = "function " + jsonSubName(t) + "(v: " + inspectAliasName(t) + "): string | null {\n  return null;\n}\n";
       }
       bool anyOmit = false;
       for (const Member* m : fs) anyOmit = anyOmit || (c.types[m->type].k == TK::Union && c.types[m->type].undef);
@@ -198,7 +218,7 @@ std::string jsonFunction(const Checked& c, TypeId t, std::vector<TypeId>& deps, 
     }
     default: body = "  return 'null';\n"; break;
   }
-  return head + body + "}\n";
+  return head + body + "}\n" + extra;
 }
 
 const char* jsonPrelude() {
@@ -215,6 +235,7 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
   std::string head = "function " + inspectFmtName(t) + "(v: " + inspectAliasName(t) + ", c: i64[], lvl: i32): string {\n";
   std::string body;
   const std::string cyc = "  const id: i64 = __identity(v);\n  for (let k: i32 = 0; k < lvl; k++) if (c[2 + k] === id) return __circ(c, id);\n";
+  std::string extra;   // a function declared with it (__fmtSub)
   auto call = [&](TypeId ct, const std::string& val, const char* lv) { deps.push_back(ct); return inspectFmtName(ct) + "(" + val + ", c, " + lv + ")"; };
   auto reduce = [&](const std::string& open, const std::string& close, bool arr, bool numeric, const std::string& more) {
     return "  return __reduce(c, out, " + std::string("__ref(c, id), ") + open + ", " + close + ", l, " + (arr ? "true" : "false") + ", " + (numeric ? "true" : "false") + ", " + more + ");\n";
@@ -274,6 +295,10 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
         break;
       }
       bool plain = oi.isRecord;  // object literals print without a class name
+      if (plain && !fs.empty()) {   // an instance of a class shared as the record prints as its class does (a stub the lowering writes)
+        body += "  const sub: string | null = " + inspectSubName(t) + "(v, c, lvl);\n  if (sub !== null) return sub;\n";
+        extra = "function " + inspectSubName(t) + "(v: " + inspectAliasName(t) + ", c: i64[], lvl: i32): string | null {\n  return null;\n}\n";
+      }
       // a class or interface: the dynamic type decides, most derived first
       if (!plain) {
         for (std::uint32_t o : implementations(c, x.obj)) {
@@ -292,7 +317,7 @@ std::string inspectFunction(const Checked& c, TypeId t, bool withLog, std::vecto
     }
     default: body = "  return '[unknown]';\n"; break;
   }
-  std::string text = head + body + "}\n";
+  std::string text = head + body + "}\n" + extra;
   if (withLog) text += "function " + inspectLogName(t) + "(v: " + inspectAliasName(t) + "): string {\n  return " + inspectFmtName(t) + "(v, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);\n}\n";
   return text;
 }

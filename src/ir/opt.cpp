@@ -108,10 +108,41 @@ void inlineAt(Function& f, std::size_t bi, std::size_t k, const Function& g, Typ
   f.blocks.push_back(std::move(cont));
 }
 
+// The functions that call themselves through others (a strongly connected component of the call graph with more than one function, Tarjan):
+// inlining one into a caller brings a call of the next, whose body brings a call of the first, until the caller is full (`a: A | null` in a
+// record A: its generated serialisers)
+std::vector<bool> mutuallyRecursive(const std::vector<Function>& fs) {
+  const std::size_t n = fs.size();
+  std::vector<std::vector<std::uint32_t>> calls(n);
+  for (std::size_t f = 0; f < n; ++f)
+    for (const Block& b : fs[f].blocks)
+      for (const Inst& i : b.insts) if (i.op == IrOp::Call && i.sym < n && i.sym != f) calls[f].push_back(i.sym);
+  std::vector<int> index(n, -1), low(n, 0);
+  std::vector<bool> onStack(n, false), out(n, false);
+  std::vector<std::uint32_t> stack;
+  int next = 0;
+  std::function<void(std::uint32_t)> visit = [&](std::uint32_t v) {
+    index[v] = low[v] = next++;
+    stack.push_back(v);
+    onStack[v] = true;
+    for (std::uint32_t w : calls[v]) {
+      if (index[w] < 0) { visit(w); low[v] = std::min(low[v], low[w]); }
+      else if (onStack[w]) low[v] = std::min(low[v], index[w]);
+    }
+    if (low[v] != index[v]) return;
+    std::vector<std::uint32_t> comp;
+    for (std::uint32_t w = kNoClass; w != v;) { w = stack.back(); stack.pop_back(); onStack[w] = false; comp.push_back(w); }
+    if (comp.size() > 1) for (std::uint32_t w : comp) out[w] = true;
+  };
+  for (std::uint32_t v = 0; v < n; ++v) if (index[v] < 0) visit(v);
+  return out;
+}
+
 bool inlineRound(Module& m) {
   std::vector<Function> snap = m.functions;  // callees as they were at the start of the round
   std::vector<bool> ok(snap.size());
-  for (std::size_t g = 1; g < snap.size(); ++g) ok[g] = !snap[g].entry && size(snap[g]) <= kInlineMaxInsts && returns(snap[g]) && !callsItself(snap[g], static_cast<std::uint32_t>(g));
+  const std::vector<bool> cyclic = mutuallyRecursive(snap);
+  for (std::size_t g = 1; g < snap.size(); ++g) ok[g] = !snap[g].entry && size(snap[g]) <= kInlineMaxInsts && returns(snap[g]) && !callsItself(snap[g], static_cast<std::uint32_t>(g)) && !cyclic[g];
   bool changed = false;
   const TypeId voidT = m.voidT();
   for (std::size_t fi = 0; fi < m.functions.size(); ++fi) {

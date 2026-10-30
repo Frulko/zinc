@@ -1,0 +1,12 @@
+TypeError g
+set! undefined S set!
+k 3 null animal woof
+P p+ p+
+S s+ s+
+TypeError
+R r
+p w w h
+Tag { label: 'x', n: 2 } { label: 'lit' } Tag2 { label: 'x', n: 2, more: true }
+[{"label":"lit"},{"label":"x","n":2},{"label":"x","n":2,"more":true}]
+3 true true
+{"id":0,"next":{"id":1,"next":null}} { id: 0, next: Node { id: 1, next: null } }

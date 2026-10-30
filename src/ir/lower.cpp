@@ -110,17 +110,35 @@ struct Lowering {
   std::unordered_map<std::uint32_t, std::uint32_t> litClassOfObj;
   std::uint32_t newClassOf(std::uint32_t obj) const { auto it = litClassOfObj.find(obj); return it == litClassOfObj.end() ? classOfObj[obj] : it->second; }
   // The classes a value of open record `obj` can be an instance of (with the checker object whose layout it has): its literals, then the classes
+  // (a class stands for its subclasses; an interface for the classes that implement it)
   std::vector<std::pair<std::uint32_t, std::uint32_t>> openShapes(std::uint32_t obj) const {
     std::vector<std::pair<std::uint32_t, std::uint32_t>> r{{obj, litClassOfObj.at(obj)}};
-    for (std::uint32_t o : c.openRecords.at(obj)) if (classOfObj[o] != kNil) r.push_back({o, classOfObj[o]});
+    auto add = [&](std::uint32_t o) {
+      if (classOfObj[o] == kNil) return;
+      for (auto& [so, cls] : r) if (so == o) return;
+      r.push_back({o, classOfObj[o]});
+    };
+    for (std::uint32_t o : c.openRecords.at(obj)) {
+      if (!c.objs[o].isInterface) add(o);
+      else for (std::uint32_t k : frontend::implementations(c, o)) add(k);
+    }
     return r;
   }
   // frontend::objAssignable, and a class assigned to an open record
   bool objIs(std::uint32_t o, std::uint32_t b) const {
     if (frontend::objAssignable(c, o, b)) return true;
     if (!litClassOfObj.count(b)) return false;
-    for (std::uint32_t k : c.openRecords.at(b)) if (frontend::isSubclass(c, o, k)) return true;
+    for (std::uint32_t k : c.openRecords.at(b)) if (c.objs[k].isInterface ? frontend::objAssignable(c, o, k) : frontend::isSubclass(c, o, k)) return true;
     return false;
+  }
+  // The IR classes that share values with open record `obj`: the classes assigned to it, and those implementing an interface assigned to it
+  std::vector<std::uint32_t> openIrClasses(std::uint32_t obj) const {
+    std::vector<std::uint32_t> r;
+    for (std::uint32_t o : c.openRecords.at(obj)) {
+      std::vector<std::uint32_t> ks = c.objs[o].isInterface ? frontend::implementations(c, o) : std::vector<std::uint32_t>{o};
+      for (std::uint32_t k : ks) if (classOfObj[k] != kNil && std::find(r.begin(), r.end(), classOfObj[k]) == r.end()) r.push_back(classOfObj[k]);
+    }
+    return r;
   }
   std::unordered_map<std::uint32_t, std::uint32_t> nodeOfFunc;   // function index -> Function/Method/FuncExpr node
   std::unordered_map<std::uint32_t, std::uint32_t> funcOfNode;    // Function/Method node -> function index
@@ -332,7 +350,7 @@ struct Lowering {
       unionIface[objs] = ci;
       for (std::uint32_t o : objs) {
         m.classes[classOfObj[o]].implements.push_back(ci);
-        if (litClassOfObj.count(o)) for (std::uint32_t k : c.openRecords.at(o)) if (classOfObj[k] != kNil) m.classes[classOfObj[k]].implements.push_back(ci);   // an open record: the classes assigned to it are members too
+        if (litClassOfObj.count(o)) for (std::uint32_t k : openIrClasses(o)) m.classes[k].implements.push_back(ci);   // an open record: the classes assigned to it are members too
       }
     }
     // every function type used as a value gets its interface before the vtables are sized
@@ -379,35 +397,78 @@ struct Lowering {
         for (std::uint32_t i : std::vector<std::uint32_t>(m.classes[ri].implements))   // what the record satisfies (a union it is a member of)
           if (std::find(m.classes[lit->second].implements.begin(), m.classes[lit->second].implements.end(), i) == m.classes[lit->second].implements.end()) m.classes[lit->second].implements.push_back(i);
         m.classes[lit->second].implements.push_back(ri);
-        for (std::uint32_t k : c.openRecords.at(o)) if (classOfObj[k] != kNil) m.classes[classOfObj[k]].implements.push_back(ri);
+        for (std::uint32_t k : openIrClasses(o)) m.classes[k].implements.push_back(ri);
+        for (std::uint32_t k : c.openRecords.at(o)) if (c.objs[k].isInterface && classOfObj[k] != kNil) m.classes[classOfObj[k]].implements.push_back(ri);   // an interface value converts up to it
       }
     }
   }
 
-  // The getter that reads field `name` of class `obj`, for an interface property a field satisfies; kNil if there is no such field.
-  std::uint32_t fieldGetter(std::uint32_t obj, const std::string& name) {
-    const auto& lay = layoutOf(obj);
-    for (std::size_t k = 0; k < lay.size(); ++k) {
-      if (lay[k].first != name) continue;
-      TypeId ft = irType(lay[k].second);
-      std::uint32_t fi = addFunction(m.classes[classOfObj[obj]].name + ".get " + name, {m.refT(classOfObj[obj])}, ft);
-      Function& f = m.functions[fi];
-      f.blocks.emplace_back();
-      f.blocks[0].params = f.params;
-      Inst get;
-      get.op = IrOp::GetField; get.ty = ft; get.sym = static_cast<std::uint32_t>(k); get.args = {f.params[0]};
-      f.valueTypes.push_back(ft);
-      get.res = static_cast<ValueId>(f.valueTypes.size() - 1);
-      Inst ret;
-      ret.op = IrOp::Ret; ret.ty = m.voidT(); ret.args = {get.res};
-      f.blocks[0].insts.push_back(std::move(get));
-      f.blocks[0].insts.push_back(std::move(ret));
-      return fi;
+  // A vtable entry made by hand for an interface property that a field satisfies, on IR class `cls` with the layout of checker object `obj`:
+  // the getter reads field `name` as `want`, the setter `__set_name` (frontend::Member::ifaceSetter) writes it from a `want`, converting a machine
+  // number or a reference (a class shared as an open record may have a narrower field). The setter of a property the class has only a getter
+  // for throws the TypeError JavaScript throws. kNil when there is no such field, or no such conversion.
+  std::uint32_t accessor(std::uint32_t obj, std::uint32_t cls, const std::string& name, bool set, TypeId want) {
+    const std::uint32_t fi = fieldIndex(obj, name);
+    const frontend::Member* gm = frontend::lookupMember(c, obj, name, false);
+    if (fi == kNil && !(set && gm && gm->getter)) return kNil;
+    const TypeId ft = fi == kNil ? want : irType(layoutOf(obj)[fi].second);
+    auto convertible = [&](TypeId a, TypeId b) {
+      const Type &x = m.types[a], &y = m.types[b];
+      return a == b || (x.k == Type::K::Num && y.k == Type::K::Num) || (x.k == Type::K::Ref && y.k == Type::K::Ref);
+    };
+    if (!convertible(ft, want)) return kNil;
+    const std::uint32_t fn = set ? addFunction(m.classes[cls].name + ".set " + name, {m.refT(cls), want}, m.voidT())
+                                 : addFunction(m.classes[cls].name + ".get " + name, {m.refT(cls)}, want);
+    Function& f = m.functions[fn];
+    f.blocks.emplace_back();
+    f.blocks[0].params = f.params;
+    auto add = [&](IrOp op, TypeId t, std::vector<ValueId> args, std::int64_t imm = 0, std::uint32_t sym = 0) {
+      Inst i;
+      i.op = op; i.ty = t; i.args = std::move(args); i.imm = imm; i.sym = sym;
+      if (m.types[t].k != Type::K::Void) { f.valueTypes.push_back(t); i.res = static_cast<ValueId>(f.valueTypes.size() - 1); }
+      f.blocks[0].insts.push_back(std::move(i));
+      return f.blocks[0].insts.back().res;
+    };
+    auto conv = [&](ValueId v, TypeId from, TypeId to) { return from == to ? v : add(m.types[to].k == Type::K::Num ? IrOp::Conv : IrOp::RefCast, to, {v}); };
+    IrOp end = IrOp::Ret;
+    std::vector<ValueId> result;
+    if (!set) result = {conv(add(IrOp::GetField, ft, {f.params[0]}, 0, fi), ft, want)};
+    else if (fi != kNil) add(IrOp::SetField, m.voidT(), {f.params[0], conv(f.params[1], want, ft)}, 0, fi);
+    else {   // a getter alone: JavaScript's TypeError; printed, then a trap, in a program without the error classes
+      const bool thrower = c.typeErrorFn != kNil && funcOfNode.count(c.typeErrorFn);
+      const ValueId msg = add(IrOp::Const, m.strT(), {}, internStr(std::string(thrower ? "" : "Uncaught TypeError: ") + "Cannot set property " + name + " of #<" + c.objs[obj].name + "> which has only a getter"));
+      if (thrower) add(IrOp::Call, m.voidT(), {msg}, 0, funcOfNode.at(c.typeErrorFn));
+      else { add(IrOp::Builtin, m.voidT(), {msg}, 0, static_cast<std::uint32_t>(Builtin::ConsoleError)); end = IrOp::Unreachable; }
     }
-    return kNil;
+    Inst ret;
+    ret.op = end; ret.ty = m.voidT(); ret.args = result;
+    f.blocks[0].insts.push_back(std::move(ret));
+    return fn;
+  }
+  // The open records an instance of class `o` can be shared as (Checked::openRecords)
+  std::vector<std::uint32_t> openRecordsOf(std::uint32_t o) const {
+    std::vector<std::uint32_t> r;
+    for (const auto& [rec, lit] : litClassOfObj)
+      for (std::uint32_t k : c.openRecords.at(rec))
+        if (c.objs[k].isInterface ? frontend::objAssignable(c, o, k) : frontend::isSubclass(c, o, k)) { r.push_back(rec); break; }
+    return r;
   }
 
   void buildVtables() {
+    // the getter and setter selectors of the interfaces `o` satisfies, or (`viaOpen`) that an open record it is shared as satisfies
+    auto propertySelectors = [&](std::uint32_t o, bool viaOpen, std::vector<std::uint32_t>& sels) {
+      std::vector<std::uint32_t> from{o};
+      if (viaOpen) from = openRecordsOf(o);
+      for (std::uint32_t src : from)
+        for (std::uint32_t ii = 0; ii < c.objs.size(); ++ii) {
+          if (!c.objs[ii].isInterface || classOfObj[ii] == kNil || ii == src || !frontend::objAssignable(c, src, ii)) continue;
+          for (const frontend::Member& mem : c.objs[ii].members) {
+            if (!mem.getter && !mem.ifaceSetter) continue;
+            std::uint32_t sel = selectorFor(mem.name, mem.type);
+            if (std::find(sels.begin(), sels.end(), sel) == sels.end()) sels.push_back(sel);
+          }
+        }
+    };
     for (std::uint32_t o = 0; o < c.objs.size(); ++o) {  // selectors visible on each class
       if (classOfObj[o] == kNil) continue;
       Class& cl = m.classes[classOfObj[o]];
@@ -417,26 +478,33 @@ struct Lowering {
           std::uint32_t sel = selectorFor(mem.name, mem.type);
           if (std::find(cl.selectors.begin(), cl.selectors.end(), sel) == cl.selectors.end()) cl.selectors.push_back(sel);
         }
-      if (!cl.isInterface)  // the properties of the interfaces a class satisfies: read through a getter selector
-        for (std::uint32_t ii = 0; ii < c.objs.size(); ++ii) {
-          if (!c.objs[ii].isInterface || classOfObj[ii] == kNil || ii == o || !frontend::objAssignable(c, o, ii)) continue;
-          for (const frontend::Member& mem : c.objs[ii].members) {
-            if (!mem.getter) continue;
-            std::uint32_t sel = selectorFor(mem.name, mem.type);
-            if (std::find(cl.selectors.begin(), cl.selectors.end(), sel) == cl.selectors.end()) cl.selectors.push_back(sel);
-          }
-        }
+      std::vector<std::uint32_t> sels = m.classes[classOfObj[o]].selectors;
+      if (!m.classes[classOfObj[o]].isInterface) {  // the properties of the interfaces a class satisfies: read through a getter selector
+        propertySelectors(o, false, sels);
+        if (!litClassOfObj.empty() && c.objs[o].isClass && !c.objs[o].isRecord) propertySelectors(o, true, sels);
+      }
+      m.classes[classOfObj[o]].selectors = std::move(sels);
+      if (auto lit = litClassOfObj.find(o); lit != litClassOfObj.end()) {   // an open record's literals: the properties of the interfaces it satisfies
+        std::vector<std::uint32_t> ls;
+        propertySelectors(o, false, ls);
+        m.classes[lit->second].selectors = std::move(ls);
+      }
     }
+    auto fill = [&](std::uint32_t o, std::uint32_t cls) {
+      m.classes[cls].vtable.assign(m.selectors.size(), kNil);
+      for (std::uint32_t sel : std::vector<std::uint32_t>(m.classes[cls].selectors)) {
+        const Selector s = m.selectors[sel];
+        std::uint32_t fn = resolveMethod(o, s.name);
+        const bool set = s.name.rfind("__set_", 0) == 0;
+        if (fn == kNil) fn = set ? accessor(o, cls, s.name.substr(6), true, s.params.empty() ? s.ret : s.params[0]) : accessor(o, cls, s.name, false, s.ret);
+        m.classes[cls].vtable[sel] = fn;
+      }
+    };
     for (std::uint32_t o = 0; o < c.objs.size(); ++o) {
       if (classOfObj[o] == kNil) continue;
-      Class& cl = m.classes[classOfObj[o]];
-      if (cl.isInterface || cl.isAbstract) continue;
-      cl.vtable.assign(m.selectors.size(), kNil);
-      for (std::uint32_t sel : cl.selectors) {
-        std::uint32_t fn = resolveMethod(o, m.selectors[sel].name);
-        if (fn == kNil) fn = fieldGetter(o, m.selectors[sel].name);
-        m.classes[classOfObj[o]].vtable[sel] = fn;
-      }
+      if (auto lit = litClassOfObj.find(o); lit != litClassOfObj.end()) fill(o, lit->second);
+      if (m.classes[classOfObj[o]].isInterface || m.classes[classOfObj[o]].isAbstract) continue;
+      fill(o, classOfObj[o]);
     }
   }
 
@@ -1064,7 +1132,7 @@ struct Lowering::FnLower {
     std::vector<std::uint32_t> cands;
     auto under = [&](std::uint32_t root) { for (std::uint32_t o : frontend::implementations(c, root)) if (L.classOfObj[o] != kNil) cands.push_back(o); };
     const bool open = L.litClassOfObj.count(obj) != 0;   // a record a class instance was assigned to: those classes, then Object
-    if (open) for (std::uint32_t k : c.openRecords.at(obj)) { under(k); if (!c.objs[k].isAbstract && L.classOfObj[k] != kNil) cands.push_back(k); }
+    if (open) for (std::uint32_t k : c.openRecords.at(obj)) { under(k); if (c.objs[k].isClass && !c.objs[k].isAbstract && L.classOfObj[k] != kNil) cands.push_back(k); }
     else under(obj);
     if ((c.objs[obj].isRecord && !open) || cands.empty()) return constStr(nameOf(obj));
     BlockId join = newBlock();
@@ -1103,14 +1171,53 @@ struct Lowering::FnLower {
       }
       const ValueId o = emit(IrOp::RefCast, m.refT(cls), {obj});
       const std::uint32_t fi = L.fieldIndex(so, name);
-      const TypeId ft = m.classes[cls].fields[fi].type;
-      if (w == kNoValue) br(join, {coerce(emit(IrOp::GetField, ft, {o}, 0, 0, fi), rt)});
-      else { emit(IrOp::SetField, m.voidT(), {o, coerce(w, ft)}, 0, 0, fi); br(join); }
+      if (fi != kNil) {
+        const TypeId ft = m.classes[cls].fields[fi].type;
+        if (w == kNoValue) br(join, {coerce(emit(IrOp::GetField, ft, {o}, 0, 0, fi), rt)});
+        else if (ty(ft).k == Type::K::Ref && ty(tv(w)).k == Type::K::Ref && !m.isSubtype(ty(tv(w)).aux, ty(ft).aux)) {
+          // a field narrower than the record's (a subclass where it says the base), which TypeScript lets the record write: null or an
+          // instance of the field's class goes in; another value cannot, a TypeError rather than a broken field
+          BlockId test = newBlock(), store = newBlock(), refuse = newBlock();
+          condbr(emit(IrOp::Eq, m.boolT(), {w, nullConst(tv(w))}), store, test);
+          sealed[test] = 1;
+          cur = test;
+          condbr(emit(IrOp::InstOf, m.boolT(), {w}, 0, 0, ty(ft).aux), store, refuse);
+          sealed[store] = sealed[refuse] = 1;
+          cur = store;
+          emit(IrOp::SetField, m.voidT(), {o, emit(IrOp::RefCast, ft, {w})}, 0, 0, fi);
+          br(join);
+          cur = refuse;
+          throwTypeError("Cannot store this value in '" + std::string(name) + "' of " + c.objs[so].name + ", a field of type " + m.classes[ty(ft).aux].name);
+        } else { emit(IrOp::SetField, m.voidT(), {o, coerce(w, ft)}, 0, 0, fi); br(join); }
+      } else {   // a getter (and a setter, if any) of the class, or an optional field the class lacks: undefined, and a write throws as JavaScript's would
+        const std::string nm(name);
+        const frontend::Member* gm = frontend::lookupMember(c, so, nm, false);
+        const frontend::Member* sm = frontend::lookupMember(c, so, "__set_" + nm, false);
+        if (w == kNoValue && gm) {
+          const std::uint32_t sel = L.selectorFor(nm, gm->type);
+          br(join, {coerce(emit(IrOp::CallVirt, m.selectors[sel].ret, {o}, 0, 0, sel), rt)});
+        } else if (w == kNoValue) br(join, {nullConst(rt)});
+        else if (sm && sm->method) {
+          const std::uint32_t sel = L.selectorFor(sm->name, sm->type);
+          emit(IrOp::CallVirt, m.voidT(), {o, coerce(w, m.selectors[sel].params[0])}, 0, 0, sel);
+          br(join);
+        } else {
+          throwTypeError(gm ? "Cannot set property " + nm + " of #<" + c.objs[so].name + "> which has only a getter" : "Cannot add property " + nm + ", object is not extensible");
+          br(join);
+        }
+      }
       if (next != kNil) cur = next;
     }
     seal(join);
     cur = join;
     return jp;
+  }
+  // throw new TypeError(msg), through the checker's generated helper (Checked::typeErrorFn); a trap in a program without the error classes.
+  // Ends the block.
+  void throwTypeError(const std::string& msg) {
+    if (c.typeErrorFn != kNil && L.funcOfNode.count(c.typeErrorFn)) emit(IrOp::Call, m.voidT(), {constStr(msg)}, 0, 0, L.funcOfNode.at(c.typeErrorFn));
+    else builtin(Builtin::ConsoleError, {constStr("Uncaught TypeError: " + msg)}, m.voidT());
+    terminate(IrOp::Unreachable, {}, {});
   }
   ValueId coerce(ValueId v, TypeId to) {
     if (v == kNoValue || tv(v) == to) return v;
@@ -1923,6 +2030,40 @@ struct Lowering::FnLower {
     return emit(IrOp::Call, cf.ret, std::move(vs), 0, 0, fn);
   }
 
+  // The classes a value of class or record `obj` can have besides `obj`: its subclasses, or the classes shared as an open record (none for
+  // another record)
+  std::vector<std::uint32_t> classesUnder(std::uint32_t obj) const { return c.objs[obj].isRecord ? frontend::openClasses(c, obj) : frontend::implementations(c, obj); }
+  // __fmtSub<t>(v, c, lvl) and __jsSub<t>(v) of a record t (inspect.cpp): the formatter or serialiser (`targets`) of the class of an instance
+  // shared as t, most derived first; null for t's own literals, and straight away when no class is shared as t
+  ValueId openSub(frontend::TypeId t, const Node& x, std::uint32_t fallback, const std::unordered_map<frontend::TypeId, std::uint32_t>& targets) {
+    const TypeId ret = m.functions[fallback].ret;
+    const std::uint32_t rec = c.types[t].obj;
+    if (!L.litClassOfObj.count(rec)) return nullConst(ret);
+    std::vector<ValueId> args;
+    for (std::size_t k = 1; k < x.kids.size(); ++k) args.push_back(expr(x.kids[k]));
+    BlockId join = newBlock();
+    ValueId jp = newValue(ret);
+    f.blocks[join].params.push_back(jp);
+    for (std::uint32_t so : frontend::openClasses(c, rec)) {
+      std::uint32_t decl = kNil;
+      for (const auto& [ct, d] : targets) if (c.types[ct].k == frontend::TK::Object && c.types[ct].obj == so) { decl = d; break; }
+      const std::uint32_t cls = L.classOfObj[so];
+      if (decl == kNil || cls == kNil || !L.funcOfNode.count(decl)) continue;
+      const std::uint32_t fn = L.funcOfNode[decl];
+      BlockId hit = newBlock(), next = newBlock();
+      condbr(emit(IrOp::InstOf, m.boolT(), {args[0]}, 0, 0, cls), hit, next);
+      sealed[hit] = sealed[next] = 1;
+      cur = hit;
+      std::vector<ValueId> vs{emit(IrOp::RefCast, m.refT(cls), {args[0]})};
+      for (std::size_t k = 1; k < args.size(); ++k) vs.push_back(args[k]);
+      br(join, {coerce(emit(IrOp::Call, m.functions[fn].ret, std::move(vs), 0, 0, fn), ret)});
+      cur = next;
+    }
+    br(join, {nullConst(ret)});
+    seal(join);
+    cur = join;
+    return jp;
+  }
   // __dynSub<t>(v) (dyn.cpp): the `any` view of the subclass of t that v is an instance of, most derived first; v of t itself: the call
   // as written (undefined), and the caller makes t's own view
   ValueId dynSubView(frontend::TypeId t, const Node& x, std::uint32_t fallback) {
@@ -1931,7 +2072,7 @@ struct Lowering::FnLower {
     BlockId join = newBlock();
     ValueId jp = newValue(ret);
     f.blocks[join].params.push_back(jp);
-    for (std::uint32_t so : frontend::implementations(c, c.types[t].obj)) {
+    for (std::uint32_t so : classesUnder(c.types[t].obj)) {
       auto to = c.dynTos.end();
       for (auto it = c.dynTos.begin(); it != c.dynTos.end(); ++it) if (c.types[it->first].k == frontend::TK::Object && c.types[it->first].obj == so) { to = it; break; }
       const std::uint32_t cls = L.classOfObj[so];
@@ -1957,7 +2098,7 @@ struct Lowering::FnLower {
     BlockId join = newBlock();
     ValueId jp = newValue(ret);
     f.blocks[join].params.push_back(jp);
-    for (std::uint32_t so : frontend::implementations(c, c.types[t].obj)) {
+    for (std::uint32_t so : classesUnder(c.types[t].obj)) {
       std::uint32_t view = kNil;   // DynRefT<S>: exists when some value of S was made an `any`
       for (std::uint32_t o = 0; o < c.objs.size() && view == kNil; ++o) {
         const frontend::ObjInfo& oi = c.objs[o];
@@ -2106,6 +2247,8 @@ struct Lowering::FnLower {
       std::uint32_t s = c.nodeSym[x.kids[0]];
       if (s != kNil && c.syms[s].kind == SymKind::Func) if (auto ds = c.dynSubs.find(c.syms[s].decl); ds != c.dynSubs.end()) return dynSubView(ds->second, x, L.funcOfNode[c.syms[s].decl]);
       if (s != kNil && c.syms[s].kind == SymKind::Func) if (auto dd = c.dynDowns.find(c.syms[s].decl); dd != c.dynDowns.end()) return dynDownView(dd->second, x, L.funcOfNode[c.syms[s].decl]);
+      if (s != kNil && c.syms[s].kind == SymKind::Func) if (auto fs = c.fmtSubs.find(c.syms[s].decl); fs != c.fmtSubs.end()) return openSub(fs->second, x, L.funcOfNode[c.syms[s].decl], c.fmtOf);
+      if (s != kNil && c.syms[s].kind == SymKind::Func) if (auto js = c.jsonSubs.find(c.syms[s].decl); js != c.jsonSubs.end()) return openSub(js->second, x, L.funcOfNode[c.syms[s].decl], c.jsonOf);
       if (s != kNil && c.syms[s].kind == SymKind::Func && !L.closureFns.count(c.syms[s].decl)) return callFunction(L.funcOfNode[c.syms[s].decl], {}, x.kids, 1);
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__jsonOut") return emit(IrOp::Rt, m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(zn::Rt::JsonOut));
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__jsonQuoteNative") return emit(IrOp::Rt, m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(zn::Rt::StrJsonQuote));
