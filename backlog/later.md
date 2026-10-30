@@ -495,6 +495,11 @@ The next backlog review turns lines into tasks or deletes them.
 - Inspector Styles: the "+ add a declaration" line shows with no node selected; hide it.
 - Inspector Screen view: name the hovered node in a tooltip on the canvas, as Chrome's device view, not on a line under the picture.
 - Inspector Styles: blurring an edited field into the palette's hex field leaves the edit open instead of applying it.
+- ZN-864: let `MessagePort.handle` take an async handler (a Promise reply), as Electron's `ipcMain.handle` does.
+- ZN-864: test a request sent from a worker to the main program (the port supports it, no test covers it).
+- ZN-864: run a whole zinc:ui tree in a worker window; today only a `Scene` display list crosses (gfx runtime per process, D75).
+- ZN-864: `zinc:system/window` `open()` takes no x/y in its options; the program calls `setPosition` after opening.
+- ZN-864: a closed `mountWindow` window leaves its zinc:ui Surface in the surfaces list; drop it.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
 
 ## Demos
@@ -741,6 +746,7 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod demo: the first sync after a library change parses library.json (10k tracks) in one 40 ms JSON.parse.
 
 ## Cross-platform pass
+- ZN-864: `hal_win_ctl` on Linux (SDL3 HAL) and the n3ds HAL (weak default: nothing moves).
 - Threads profiler: check on Linux that `zinc profile` puts samples on each worker thread (SIGPROF delivery; older kernels favour the main thread).
 - Workers: worker.cpp is in the esp32, console and wasm source lists, unbuilt; prove pthread_attr_setstacksize and thread names there.
 - threads (D181): RSS per idle worker and the Genius build time in a worker on the Pi 3B+ and the Nexus 7.
