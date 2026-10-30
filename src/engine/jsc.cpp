@@ -32,6 +32,15 @@ void onRejection(napi_env, napi_value fn) {
   JSGlobalContextSetUnhandledRejectionCallback(gContext, reinterpret_cast<JSObjectRef>(fn), nullptr);
 }
 
+// JSBasePrivate.h's JSGetMemoryUsageStatistics, exported by the framework: the heap's capacity and its objects
+// ponytail: it counts the objects by type over the whole heap at each call; a cheaper reading if the Info view's 1 s refresh shows in a profile
+extern "C" JSObjectRef JSGetMemoryUsageStatistics(JSContextRef ctx);
+ZnResourceStats heapStats(napi_env) {
+  JSObjectRef o = JSGetMemoryUsageStatistics(gContext);
+  auto num = [&](const char* k) { JSStringRef n = JSStringCreateWithUTF8CString(k); const double v = JSValueToNumber(gContext, JSObjectGetProperty(gContext, o, n, nullptr), nullptr); JSStringRelease(n); return v > 0 ? static_cast<uint64_t>(v) : 0; };
+  return {num("objectCount"), num("heapCapacity") + num("extraMemorySize"), 0, 0, 0};
+}
+
 void drainJobs(napi_env) {}   // JavaScriptCore runs the microtasks when the outermost call into it returns
 // `zinc run --engine jsc --inspect[-brk]` (ZINC_INSPECT): Safari's Web Inspector on the context, through the public JSGlobalContextSetInspectable
 // (macOS 13.3). Safari lists it under Develop > this Mac by the program's name; the inspector speaks to JavaScriptCore itself, no port of ours.

@@ -617,6 +617,10 @@ void hal_init(const HalConfig* cfg) {
     if (ren) SDL_GetRenderVSync(ren, &vs);
     zrt_prof_info("present", present ? present : "?");
     zrt_prof_info("vsync", vs ? "on" : "off");
+    // the display's refresh rate, the frame rate vsync aims at (SDL reads CoreGraphics, a ProMotion screen's maximum on macOS)
+    // ponytail: the display the window opens on; a window moved to another screen keeps the first one's
+    const SDL_DisplayMode* dm = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(win));
+    if (dm && dm->refresh_rate > 0) { char hz[16]; SDL_snprintf(hz, sizeof hz, "%g", SDL_round(dm->refresh_rate * 100) / 100); zrt_prof_info("refresh", hz); }
   }
   start_workers();
   if (full) { show_main(); shown = true; set_fullscreen(true); SDL_SyncWindow(win); }   // fullscreen applies to a shown window: no wait on a hidden one

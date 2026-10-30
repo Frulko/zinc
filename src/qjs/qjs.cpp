@@ -37,6 +37,7 @@ bool qjs_lre_check_stack_overflow(void*, size_t);
 #include "qjs/strip.h"
 #include "zn/host.h"
 #include "zn/native.h"
+#include "zn/resource_stats.h"
 #include "zn/runtime.h"
 
 namespace zn::qjs {
@@ -676,6 +677,11 @@ int run(const Options& o) {
   if (o.profileHz || std::getenv("ZN_QJS_DUMP")) profileStart(e.rt, o.profileHz);   // a dump alone (tools/qjs2c) prints no report
 #endif
   e.ctx = JS_NewContext(e.rt);
+  static ZnResourceStatsRegistration heap("js.heap", [](void* rt) {   // the inspector's Info view, as the other engines' (src/engine)
+    JSMemoryUsage u;
+    JS_ComputeMemoryUsage(static_cast<JSRuntime*>(rt), &u);
+    return ZnResourceStats{static_cast<uint64_t>(u.obj_count), static_cast<uint64_t>(u.malloc_size), 0, 0, 0};
+  }, e.rt);
   JS_SetMemoryLimit(e.rt, 0);
   if (const std::size_t n = stackBudget()) JS_SetMaxStackSize(e.rt, n);
   JS_SetHostPromiseRejectionTracker(e.rt, trackRejection, &e);

@@ -2356,6 +2356,7 @@ int main(int argc, char** argv) {
     std::map<std::string, std::string> files;
     const auto zbc = zn::zbc::encode(zm);
     files["program.zbc"] = std::string(zbc.begin(), zbc.end());
+    files["program.info"] = programFacts();   // its files, functions, imports and plugins: the inspector's Info view, the sources being left behind
     std::vector<std::uint8_t> blob; std::string err;
     if (zn::aot::usesHost(zm)) {   // a program that draws: its baked fonts and images (a command-line program needs none)
       if (!bakeResources(entry.c_str(), blob, err)) { std::fprintf(stderr, "zinc pack: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
@@ -2600,6 +2601,7 @@ int main(int argc, char** argv) {
       err = zn::zbc::verify(zm);
       if (std::getenv("ZN_TIMING")) std::fprintf(stderr, "decode %.2f ms, verify %.2f ms\n", std::chrono::duration<double, std::milli>(t1 - t0).count(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count());
       if (!err.empty()) { std::fprintf(stderr, "%s: invalid ZBC: %s\n", argv[2], err.c_str()); return 1; }
+      if (std::ifstream info(std::filesystem::path(path).parent_path() / "program.info"); info) std::getline(info, gInfoCached);   // what zinc pack knew of its sources
       {   // a compiled program (a .zapp's, a fused app's) loads the native plugins it calls, as a compile would have (ZN-324.03)
         installNativeProvider(path.c_str());
         std::set<std::string> mods;

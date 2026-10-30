@@ -81,7 +81,8 @@ export function infoSections(r: any, ws: ThreadInfo[], where: string): Section[]
   if (gpu.length > 0) add(ren, 'GPU', gpu);
   add(ren, 'window', num(r.width) + ' x ' + num(r.height) + ' (' + num(g.pixels[0]) + ' x ' + num(g.pixels[1]) + ' pixels)');
   add(ren, 'scale', num(g.scale) + 'x' + (num(g.scale) > 1 ? ' (HiDPI)' : ''));
-  add(ren, 'vsync', rt.headless === true ? 'none (headless)' : or(str(g.info.vsync), 'unknown'));
+  const hz = str(g.info.refresh);   // the display's refresh rate: the frame rate vsync aims at
+  add(ren, 'vsync', rt.headless === true ? 'none (headless)' : or(str(g.info.vsync), 'unknown') + (hz.length > 0 ? ', target ' + hz + ' fps (the display refreshes at ' + hz + ' Hz)' : ''));
   out.push(ren);
   const code = new Section(); code.title = 'Code';
   const plugins: string[] = [];
@@ -90,7 +91,10 @@ export function infoSections(r: any, ws: ThreadInfo[], where: string): Section[]
   add(code, 'files', num(f.files) + ' source files' + (has(f.functions) ? ', ' + num(f.functions) + ' functions compiled' : ''));
   const res = r.resources;
   const fonts = has(res['baked.fonts']) ? num(res['baked.fonts'].objects) : 0, images = has(res['baked.images']) ? num(res['baked.images'].objects) : 0;
-  add(code, 'assets', fonts + ' fonts, ' + images + ' images baked');
+  const a = has(rt.assets) ? rt.assets : JSON.parse('{}');
+  const packs = num(a.packs);
+  add(code, 'assets', fonts + ' fonts, ' + images + ' images baked; ' + num(a.files) + ' files on disk' + (str(a.dir).length > 0 ? ' (' + str(a.dir) + ')' : '') +
+    '; ' + (packs > 0 ? num(a.packed) + ' in ' + packs + (packs === 1 ? ' pack' : ' packs') : 'no pack'));
   out.push(code);
   const feat = new Section(); feat.title = 'Features';
   const imports: string[] = [];
@@ -112,7 +116,8 @@ export function infoSections(r: any, ws: ThreadInfo[], where: string): Section[]
     for (const k of ['app', 'input', 'anim', 'layout', 'paint', 'effects', 'diff', 'raster', 'present']) ph.push(k + ' ' + msText(num(g.phasesUs[k])));
     add(perf, 'phases', ph.join(', '));
   }
-  add(perf, 'memory', bytes(num(rt.rssBytes)) + ' resident' + (has(res['runtime.blocks']) ? ', ' + num(res['runtime.blocks'].objects) + ' live blocks' : ''));
+  add(perf, 'memory', bytes(num(rt.rssBytes)) + ' resident' + (has(res['runtime.blocks']) ? ', ' + num(res['runtime.blocks'].objects) + ' live blocks' : '') +
+    (has(res['js.heap']) ? ', ' + bytes(num(res['js.heap'].cpuBytes)) + ' JavaScript heap' : ''));
   add(perf, 'CPU time', duration(num(rt.cpuMs)) + ' (' + num(rt.cpuMs) + ' ms)');
   out.push(perf);
   return out;

@@ -1467,7 +1467,17 @@ std::string programInfoJson() {
   std::size_t n = 0;
   const char* gfx = gfxInfo(&n);
   const char* headless = std::getenv("ZINC_HEADLESS");
-  return std::string("{\"engine\":\"") + engineName() + "\",\"pid\":" + std::to_string(getpid()) +
+  // the assets zinc:assets reads: the files of its directory on disk and the entries of the packs mounted (zinc build's, a .zapp's, dev packs)
+  // ponytail: counted once per process; a save that adds assets shows after a restart
+  static const std::string assets = [] {
+    std::vector<std::string> disk, packed;
+    const std::string dir = assetsDir();
+    if (!dir.empty()) listAssets(dir, "", disk);
+    zn::host::assets::names(packed);
+    return "{\"dir\":" + jsonText(dir) + ",\"files\":" + std::to_string(disk.size()) + ",\"packs\":" + std::to_string(static_cast<long>(zn::host::assets::stat(4))) +
+           ",\"packed\":" + std::to_string(packed.size()) + "}";
+  }();
+  return std::string("{\"engine\":\"") + engineName() + "\",\"pid\":" + std::to_string(getpid()) + ",\"assets\":" + assets +
          ",\"uptimeMs\":" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - gStarted).count()) +
          ",\"rssBytes\":" + std::to_string(rss) + ",\"cpuMs\":" + std::to_string(static_cast<long long>(cpuMs)) +
          ",\"headless\":" + (headless && *headless && *headless != '0' ? "true" : "false") + ",\"program\":" + (gProgramInfoSource ? gProgramInfoSource() : gProgramInfo) + ",\"gfx\":" + std::string(gfx, n) + "}";

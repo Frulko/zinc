@@ -1,9 +1,10 @@
 #!/bin/sh
 # The Info view of the Zinc Inspector (Zinc.getProgramInfo): tests/data/inspector_info (zinc:devtools, a worker, zinc:storage, a zinc.json
 # with an app id, a version and permissions) on the interpreter: the card names the program, the engine, the renderer, the plugins, the files
-# and functions compiled, the zinc: modules its own files import, the permissions, the worker and the live numbers. Then the engine line on
-# the AOT program (zinc run --native: the card crosses the exec through ZINC_PROGRAM_INFO) and on QuickJS (tests/data/inspector: QuickJS has
-# no workers; the plugin's C++ transport answers there).
+# and functions compiled, the assets on disk and in packs, the zinc: modules its own files import, the permissions, the worker and the live
+# numbers. Then the engine line on the AOT program (zinc run --native: the card crosses the exec through ZINC_PROGRAM_INFO), the files of
+# its .zapp (program.info), and on QuickJS and JavaScriptCore (tests/data/inspector: no workers; the plugin's C++ transport answers there)
+# their JavaScript heap. The display's refresh rate needs a window: not checked headless.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'kill $target 2>/dev/null; rm -rf "$tmp"' EXIT
 fail=0
@@ -32,7 +33,7 @@ want "^    renderer: CPU raster, headless \(no window\)$"
 want "^    window: 320 x 240 \(320 x 240 pixels\)$"
 want "^    plugins: devtools \(Zinc\), socket \(Zinc\)$"
 want "^    files: 33 source files, [1-9][0-9]* functions compiled$"   # the program's 29 files (zinc:devtools brings its stage view and zinc:hardware) and its worker's 4
-want "^    assets: [1-9][0-9]* fonts, 0 images baked$"
+want "^    assets: [1-9][0-9]* fonts, 0 images baked; 1 files on disk \(/.*/tests/data/inspector_info/assets\); no pack$"
 want "^    imports: zinc:devtools, zinc:storage, zinc:ui/solid, zinc:worker$"
 want "^    permissions: fs, net$"
 want "^    workers: 1 worker$"
@@ -49,11 +50,27 @@ want "^    files: 33 source files, [1-9][0-9]* functions compiled$"
 want "^    workers: 1 worker$"
 [ $fail -eq $f0 ] || cat "$tmp/dump"
 
+f0=$fail   # a packed program carries what its compile knew of its sources (program.info)
+ZINC_HOME="$tmp/home" "$ZINC" pack tests/data/inspector_info -o "$tmp/info.zapp" > /dev/null 2>&1 || { echo "zinc pack failed"; fail=1; }
+ZINC_HOME="$tmp/home" card "$tmp/info.zapp"
+want "^    files: 33 source files, [1-9][0-9]* functions compiled$"
+want "^    imports: zinc:devtools, zinc:storage, zinc:ui/solid, zinc:worker$"
+[ $fail -eq $f0 ] || cat "$tmp/dump"
+
 f0=$fail
 card tests/data/inspector --engine quickjs
 want "^    engine: QuickJS \(JavaScript\)$"
 want "^    plugins: devtools \(native\), socket \(Zinc\)$"
 want "^    imports: zinc:devtools, zinc:net, zinc:socket, zinc:sys, zinc:ui/solid$"
 want "^    permissions: not declared$"
+want "^    memory: [0-9.]+ MB resident, (.*, )?[0-9.]+ [KM]B JavaScript heap$"
 [ $fail -eq $f0 ] || cat "$tmp/dump"
+
+f0=$fail   # the JavaScript heap on JavaScriptCore (the system's on macOS; V8 and Hermes need their SDK, tools/v8-pack and tools/hermes-pack)
+if [ "$(uname)" = Darwin ] && [ -f "$(dirname "$ZINC")/libzn_engine_jsc.dylib" ]; then
+  card tests/data/inspector --engine jsc
+  want "^    engine: JavaScriptCore \(JavaScript\)$"
+  want "^    memory: [0-9.]+ MB resident, (.*, )?[0-9.]+ [KM]B JavaScript heap$"
+  [ $fail -eq $f0 ] || cat "$tmp/dump"
+fi
 exit $fail

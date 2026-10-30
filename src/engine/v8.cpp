@@ -177,6 +177,12 @@ void onRejection(napi_env, napi_value fn) {
   gTell.Reset(gIsolate, *reinterpret_cast<v8::Local<v8::Function>*>(&fn));   // a napi_value is a v8::Local (js_native_api_v8.h V8LocalValueFromJsValue)
 }
 
+ZnResourceStats heapStats(napi_env) {
+  v8::HeapStatistics h;
+  gIsolate->GetHeapStatistics(&h);
+  return {0, h.used_heap_size() + h.external_memory(), 0, 0, 0};
+}
+
 void drainJobs(napi_env) {
   if (gInspector) {
     pump();

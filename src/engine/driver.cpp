@@ -24,6 +24,7 @@
 #include "zn/log.h"
 #include "zn/napi_table.h"
 #include "zn/native.h"
+#include "zn/resource_stats.h"
 #include "zn/runtime.h"
 
 namespace zn::text { void installIntlSegmenter(napi_env env); }   // src/text/segmenter_js.cpp
@@ -418,6 +419,7 @@ int run(const zn_engine_args* a) {
   takeZinc(a);
   napi_env env = open();
   if (!env) { std::fprintf(stderr, "zinc: the %s engine did not start\n", kName); return 101; }
+  static ZnResourceStatsRegistration heap("js.heap", [](void* e) { return heapStats(static_cast<napi_env>(e)); }, env);   // the inspector's Info view
   {
     napi_value fn;
     napi_create_function(env, "rejected", NAPI_AUTO_LENGTH, js_rejected, nullptr, &fn);

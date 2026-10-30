@@ -139,6 +139,23 @@ void onRejection(napi_env env, napi_value fn) {
   if (napi_call_function(env, undefined, make, 1, &fn, &flush) == napi_ok) napi_create_reference(env, flush, 1, &gFlush);
 }
 
+// HermesInternal.getInstrumentedStats(): the GC's own numbers (js_heapSize: the bytes the heap holds now)
+ZnResourceStats heapStats(napi_env env) {
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(env, &scope) != napi_ok) return {};
+  napi_value g, hi, fn, stats, v;
+  double bytes = 0;
+  bool fun = false;
+  if (napi_get_global(env, &g) == napi_ok && napi_get_named_property(env, g, "HermesInternal", &hi) == napi_ok &&
+      napi_get_named_property(env, hi, "getInstrumentedStats", &fn) == napi_ok) {
+    napi_valuetype t;
+    fun = napi_typeof(env, fn, &t) == napi_ok && t == napi_function;
+  }
+  if (fun && napi_call_function(env, hi, fn, 0, nullptr, &stats) == napi_ok && napi_get_named_property(env, stats, "js_heapSize", &v) == napi_ok) napi_get_value_double(env, v, &bytes);
+  napi_close_handle_scope(env, scope);
+  return {0, bytes > 0 ? static_cast<uint64_t>(bytes) : 0, 0, 0, 0};
+}
+
 void drainJobs(napi_env env) {
   if (gInspect) zn_hermes_cdp_run();
   if (zn_hermes_drain(env) != napi_ok || !gFlush) return;   // the exception stays pending: the driver reports it
