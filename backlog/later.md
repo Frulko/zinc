@@ -549,6 +549,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-867: `setTextRuns` could take a background colour per run, so Discord spoilers draw as a dark box instead of bullets.
 - ZN-867: the checker refuses `.catch((e: any) => ...)` (a function with an `any` parameter is not assignable to `(Error) => any`), which TypeScript accepts.
 - ZN-867: `ui_class_parser` fails on develop ("style-only Solid program: 1 @applyToken function(s) in the ZBC, expected 0"), not from the Discord work; check the recent `lib/std/ui.ts` changes.
+- ZN-866: tls::read stalled on a TLS 1.3 record holding several post-handshake messages (Cloudflare's coalesced NewSessionTickets, gateway.discord.gg one connection in two); fixed by reading while mbedTLS holds bytes, proven against the real gateway only. A regression test needs a server that packs both tickets in one record (BoringSSL's behaviour; mbedTLS and OpenSSL send one record each), and the TLS 1.2 fallbacks for api.spotify.com and upload.wikimedia.org (http.cpp, tls.h) are probably the same bug: check them over TLS 1.3 and remove the fallback if they answer.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.

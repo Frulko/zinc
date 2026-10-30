@@ -347,18 +347,21 @@ bool write(Conn* c, const std::string& plain) {
 State read(Conn* c, std::string& out) {
   if (c->failed) return State::Failed;
   unsigned char buf[16384];
-  bool retried = false;
+  int stalls = 0;   // calls in a row that took no byte
   for (;;) {
     const size_t before = c->in.size();
     int rc = mbedtls_ssl_read(&c->ssl, buf, sizeof buf);
-    if (rc > 0) { out.append(reinterpret_cast<char*>(buf), static_cast<size_t>(rc)); retried = false; continue; }
+    if (rc > 0) { out.append(reinterpret_cast<char*>(buf), static_cast<size_t>(rc)); stalls = 0; continue; }
     if (rc == 0 || rc == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) { c->closed = true; return State::Closed; }
-    if (rc == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) { retried = false; continue; }   // a TLS 1.3 message of its own: the bytes fed after it are still to read
+    if (rc == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) { stalls = 0; continue; }   // a TLS 1.3 message of its own: the bytes fed after it are still to read
     if (rc == MBEDTLS_ERR_SSL_WANT_READ || rc == MBEDTLS_ERR_SSL_WANT_WRITE) {
       // WANT_READ does not always mean "no more bytes": on a TLS 1.3 NewSessionTicket mbedTLS keeps the message, answers WANT_READ and processes it on
-      // the next call, and the records fed behind it (often the server's first reply) would wait for the next bytes from the network (ZN-762).
-      // So read again while the call took bytes and more are fed, and once when the ticket is pending: every retry takes bytes or is the only one.
-      if ((c->in.size() < before && !c->in.empty()) || (!mbedtls_ssl_is_handshake_over(&c->ssl) && !retried)) { retried = true; continue; }
+      // the next call, without taking a byte, and the records fed behind it (often the server's first reply) would wait for bytes from the network
+      // that never come, as the server waits for us (ZN-762; Cloudflare's gateway.discord.gg about one connection in two, the "TLS 1.3 session
+      // dropped" of http.cpp). So read again while bytes are fed or mbedTLS holds some: a call either takes bytes or ends a pending message, and
+      // a few calls in a row without a byte end the loop.
+      stalls = c->in.size() < before ? 0 : stalls + 1;
+      if ((!c->in.empty() || mbedtls_ssl_check_pending(&c->ssl)) && stalls < 4) continue;
       return State::Ready;
     }
     c->failed = true;

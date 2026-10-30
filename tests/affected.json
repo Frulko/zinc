@@ -105,7 +105,7 @@
     {"paths": ["src/rt/worker.cpp", "lib/std/worker.ts", "tests/data/busy_worker/", "tests/t1/busy_worker.sh"], "tests": ["busy_worker"]},
     {"paths": ["src/aot/aot.cpp", "src/rt/worker.cpp", "src/qjs/prelude.cpp", "src/qjs/worker_js.cpp", "src/qjs/strip.cpp", "include/zn/worker_bridge.h", "lib/std/worker.ts", "tests/data/worker_basic/", "tests/data/worker_wire/", "tests/t1/worker_engines.sh"], "tests": ["worker_engines"]},
     {"paths": ["src/agent/inspect.cpp", "src/agent/server.cpp", "src/agent/client.cpp", "app/inspector/", "tests/t1/agent_inspect.sh"], "tests": ["agent_inspect"]},
-    {"paths": ["src/host/tls.cpp", "src/host/tls.h", "third_party/mbedtls/include/mbedtls/mbedtls_config.h"], "tests": ["agent", "tls"]},
+    {"paths": ["src/host/tls.cpp", "src/host/tls.h", "third_party/mbedtls/include/mbedtls/mbedtls_config.h", "tests/unit/tls_ticket_test.cpp", "tests/t0/tls_ticket.sh"], "tests": ["agent", "tls", "tls_ticket"]},
     {"paths": ["src/host/sock.cpp", "src/host/sock.h", "plugins/socket/", "tests/wss_echo.mjs", "tests/golden/host/wss.ts", "tests/golden/host/wss.out", "tests/golden/host/tls_first.ts"], "tests": ["tls"]},
     {"paths": ["src/agent/", "tests/t1/agent_ota.sh"], "tests": ["agent_ota"]},
     {"paths": ["src/agent/", "tests/t1/agent_dev.sh"], "tests": ["agent_dev"]},

@@ -674,6 +674,12 @@ add_executable(platform_test tests/unit/platform_test.cpp)   # tests/t0/platform
 target_link_libraries(platform_test PRIVATE zn_platform)
 
 add_executable(i18n_test tests/unit/i18n_test.cpp)   # tests/t0/i18n.sh
+add_executable(tls_ticket_test tests/unit/tls_ticket_test.cpp src/host/tls.cpp)   # tests/t0/tls_ticket.sh
+target_include_directories(tls_ticket_test PRIVATE src)
+target_link_libraries(tls_ticket_test PRIVATE zn_mbedtls)
+if(APPLE)
+  target_link_libraries(tls_ticket_test PRIVATE "-framework Security" "-framework CoreFoundation")
+endif()
 target_link_libraries(i18n_test PRIVATE zn_i18n)
 
 add_executable(ir_test tests/unit/ir_test.cpp)
