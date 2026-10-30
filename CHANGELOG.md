@@ -19,6 +19,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc.json` `"displays"`: display drivers linked on demand. The app keeps its window, and a process started with `ZINC_DISPLAY=<driver>` (a second process of the app, say) uses that screen.
 - `sys.execPath()` gives the program's own executable (Node's `process.execPath`), to start the app again as a second process.
 - `examples/webview/sidecar-browser`: a browser window that streams its page to a tablet and becomes its remote, with an address bar that opens pages on the tablet.
+- `display-sidecar`: a pinch on the tablet zooms a web view, a double tap double clicks, and a mouse plugged into the tablet hovers and right clicks; the sidecar-browser demo types the Mac's keyboard into the tablet's page and zooms it with − / 100 % / +.
+- `zinc:webview`: `setZoom(factor)` zooms the page, `key(code, text, mods)` types a key into it.
 - `zinc:secure-store` keeps secrets (tokens, keys) in the macOS Keychain with Expo's API: `import * as SecureStore from 'expo-secure-store'`, then `getItemAsync`, `setItemAsync`, `deleteItemAsync`, `isAvailableAsync`. Where no keychain exists the calls reject; secrets are never written to a plain file.
 - `zinc:socket`: `new WebSocket(url, { headers: [[name, value], ...] })` sends extra headers (Origin, User-Agent...) in the opening handshake.
 - The site has a gallery of the graded examples (`/examples/`): filter them by style and by stars, open one and it runs in the page beside its source, with copy buttons for the code and for `zinc run example:<name>`. The two demos to play in the browser now load in a moment, without the reload they needed.

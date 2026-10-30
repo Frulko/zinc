@@ -1,6 +1,6 @@
 // The tablet's side: the same program started again by the Mac's window with ZINC_DISPLAY=sidecar. It shows one web view over the whole
-// screen; touches on the tablet go to the page. Its orders come on stdin, one a line ("go <url>", "back", "forward", "reload"), and it
-// tells what the page does on stdout ("load <url>").
+// screen; touches on the tablet go to the page (a pinch zooms it). Its orders come on stdin, one a line ("go <url>", "back", "forward",
+// "reload", "zoom <factor>", "key <code>\t<mods>\t<text>": the Mac's keyboard), and it tells what the page does on stdout ("load <url>").
 import { render } from 'zinc:ui/solid';
 import { NativeView } from 'zinc:ui';
 import * as sys from 'zinc:sys';
@@ -14,6 +14,11 @@ function obey(web: webview.WebView, line: string): void {
   else if (line === 'back') web.eval('history.back()');
   else if (line === 'forward') web.eval('history.forward()');
   else if (line === 'reload') web.eval('location.reload()');
+  else if (line.startsWith('zoom ')) web.setZoom(parseFloat(line.substring(5)));
+  else if (line.startsWith('key ')) {
+    const f = line.substring(4).split('\t');
+    if (f.length === 3) web.key(f[0], f[2], parseInt(f[1]));
+  }
 }
 
 export function runScreen(): void {

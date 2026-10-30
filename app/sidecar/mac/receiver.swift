@@ -308,6 +308,9 @@ final class View: NSView {
     override func mouseDragged(with e: NSEvent) { input(0x12, at(e)) }
     override func mouseUp(with e: NSEvent) { input(0x11, at(e)) }
     override func mouseMoved(with e: NSEvent) { input(0x13, at(e)) }
+    override func rightMouseDown(with e: NSEvent) { input(0x14, at(e)) }
+    override func rightMouseUp(with e: NSEvent) { input(0x15, at(e)) }
+    override func magnify(with e: NSEvent) { let p = at(e); send16(13, 0, p.0, p.1, Int32(((1 + e.magnification) * 65536).rounded())) }
     override func scrollWheel(with e: NSEvent) {
         let s = min(bounds.width / CGFloat(W), bounds.height / CGFloat(H))
         send16(6, 0, Int32((e.scrollingDeltaX / s).rounded()), Int32((e.scrollingDeltaY / s).rounded()), 0)
@@ -421,7 +424,12 @@ final class Root: UIViewController {
     }
     // one finger is the Mac's mouse (its press waits 60 ms: a second finger then makes it a scroll, not a click), two fingers scroll,
     // the Pencil draws with its pressure and tilt
-    var finger: UITouch?, pressAt: CGPoint?, fingers = false, centre = CGPoint.zero, pressTimer: Timer?
+    var finger: UITouch?, pressAt: CGPoint?, fingers = false, centre = CGPoint.zero, spread: CGFloat = 0, pressTimer: Timer?
+    /** The fingers' mean distance from their centre: its change is a pinch (PINCH). */
+    func spreadOf(_ e: UIEvent?, _ c: CGPoint) -> CGFloat {
+        let ps = (e?.allTouches ?? []).filter { $0.type != .pencil && $0.phase != .ended && $0.phase != .cancelled }.map { $0.location(in: view) }
+        return ps.count > 1 ? ps.map { hypot($0.x - c.x, $0.y - c.y) }.reduce(0, +) / CGFloat(ps.count) : 0
+    }
     func at(_ t: UITouch) -> (Int32, Int32) { streamPoint(t.location(in: view), view.bounds, flipped: true) }
     func pen(_ type: UInt8, _ t: UITouch) {
         let lean = (CGFloat.pi / 2 - t.altitudeAngle) * 180 / .pi, az = t.azimuthAngle(in: view)
@@ -447,6 +455,7 @@ final class Root: UIViewController {
                 pressTimer?.invalidate(); pressTimer = nil; pressAt = nil; finger = nil
                 fingers = true; centre = middle(e)
             }
+            if fingers { spread = spreadOf(e, middle(e)) }
         }
     }
     override func touchesMoved(_ touches: Set<UITouch>, with e: UIEvent?) {
@@ -456,6 +465,11 @@ final class Root: UIViewController {
             let c = middle(e), s = min(view.bounds.width / CGFloat(W), view.bounds.height / CGFloat(H))
             send16(6, 0, Int32(((c.x - centre.x) / s).rounded()), Int32(((c.y - centre.y) / s).rounded()), 0)
             centre = c
+            let sp = spreadOf(e, c)
+            if spread > 0 && sp > 0 && abs(sp / spread - 1) > 0.002 {
+                let p = streamPoint(c, view.bounds, flipped: true)
+                send16(13, 0, p.0, p.1, Int32((sp / spread * 65536).rounded())); spread = sp
+            }
         }
     }
     override func touchesEnded(_ touches: Set<UITouch>, with e: UIEvent?) {
@@ -463,7 +477,7 @@ final class Root: UIViewController {
             if t.type == .pencil { pen(0x21, t); continue }
             if t == finger { press(); input(0x11, at(t)); finger = nil }
         }
-        if fingers { centre = middle(e); if (e?.allTouches ?? []).allSatisfy({ $0.phase == .ended || $0.phase == .cancelled }) { fingers = false } }
+        if fingers { centre = middle(e); spread = spreadOf(e, centre); if (e?.allTouches ?? []).allSatisfy({ $0.phase == .ended || $0.phase == .cancelled }) { fingers = false } }
     }
     override func touchesCancelled(_ touches: Set<UITouch>, with e: UIEvent?) { touchesEnded(touches, with: e) }
     override func viewDidLayoutSubviews() {

@@ -60,6 +60,7 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
         view.getHolder().addCallback(this);
         root.addView(view);
         view.setOnTouchListener(new View.OnTouchListener() { public boolean onTouch(View v, MotionEvent e) { touch(e); return true; } });
+        view.setOnGenericMotionListener(new View.OnGenericMotionListener() { public boolean onGenericMotion(View v, MotionEvent e) { return mouse(e); } });
         video = new SurfaceView(this);
         video.setZOrderMediaOverlay(true);   // over the picture's Surface
         video.setVisibility(View.GONE);
@@ -95,8 +96,22 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
     }
     // the touches, the Mac's mouse (the picture's Surface fills the screen: a view pixel is a stream pixel). One finger is the left
-    // button (its press waits 60 ms: a second finger then makes it a scroll, not a click), two fingers scroll
-    private int finger = -1; private boolean fingers, pending; private float fx, fy, cx, cy;
+    // button (its press waits 60 ms: a second finger then makes it a scroll, not a click), two fingers scroll and pinch (PINCH: their
+    // spread). A mouse on the tablet: its buttons at once (the right one as 0x14 / 0x15), its moves without a button (0x13), its wheel
+    private int finger = -1; private boolean fingers, pending, right; private float fx, fy, cx, cy, spread;
+    private float spreadOf(MotionEvent e, int leaving) {
+        float d = 0; int n = 0;
+        for (int i = 0; i < e.getPointerCount(); i++) if (i != leaving) { d += (float) Math.hypot(e.getX(i) - cx, e.getY(i) - cy); n++; }
+        return n > 1 ? d / n : 0;
+    }
+    private boolean mouse(MotionEvent e) {
+        if (e.getActionMasked() == MotionEvent.ACTION_HOVER_MOVE) { input(2, 0x13, 0, (int) e.getX(), (int) e.getY(), 0); return true; }
+        if (e.getActionMasked() == MotionEvent.ACTION_SCROLL) {   // a wheel step down is the page moving up: fingers going up 40 pixels
+            input(6, 0, 0, Math.round(e.getAxisValue(MotionEvent.AXIS_HSCROLL) * -40), Math.round(e.getAxisValue(MotionEvent.AXIS_VSCROLL) * 40), 0);
+            return true;
+        }
+        return false;
+    }
     private final Runnable pressNow = new Runnable() { public void run() { press(); } };
     private void press() { handler.removeCallbacks(pressNow); if (pending) { pending = false; input(2, 0x10, 0, (int) fx, (int) fy, 0); } }
     private void centre(MotionEvent e, int leaving) {
@@ -107,14 +122,18 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
     private void touch(MotionEvent e) {
         switch (e.getActionMasked()) {
         case MotionEvent.ACTION_DOWN:
-            finger = e.getPointerId(0); fx = e.getX(); fy = e.getY(); pending = true; handler.postDelayed(pressNow, 60);
+            if (e.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE && (e.getButtonState() & MotionEvent.BUTTON_SECONDARY) != 0) {
+                right = true; input(2, 0x14, 0, (int) e.getX(), (int) e.getY(), 0); break;
+            }
+            finger = e.getPointerId(0); fx = e.getX(); fy = e.getY(); pending = true;
+            if (e.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE) press(); else handler.postDelayed(pressNow, 60);   // a mouse makes no scroll
             break;
         case MotionEvent.ACTION_POINTER_DOWN:
             if (!fingers) {   // a second finger: a scroll; a press already sent is let go where it was
                 if (finger >= 0 && !pending) input(2, 0x11, 0, (int) fx, (int) fy, 0);
                 handler.removeCallbacks(pressNow); pending = false; finger = -1; fingers = true;
             }
-            centre(e, -1);
+            centre(e, -1); spread = spreadOf(e, -1);
             break;
         case MotionEvent.ACTION_MOVE:
             if (finger >= 0) {
@@ -125,12 +144,15 @@ public class Screen extends Activity implements SurfaceHolder.Callback {
             } else if (fingers) {
                 float ox = cx, oy = cy; centre(e, -1);
                 input(6, 0, 0, Math.round(cx - ox), Math.round(cy - oy), 0);
+                float sp = spreadOf(e, -1);
+                if (spread > 0 && sp > 0 && Math.abs(sp / spread - 1) > 0.002f) { input(13, 0, 0, Math.round(cx), Math.round(cy), Math.round(sp / spread * 65536)); spread = sp; }
             }
             break;
         case MotionEvent.ACTION_POINTER_UP:
-            centre(e, e.getActionIndex());
+            centre(e, e.getActionIndex()); spread = spreadOf(e, e.getActionIndex());
             break;
         case MotionEvent.ACTION_UP: case MotionEvent.ACTION_CANCEL:
+            if (right) { right = false; input(2, 0x15, 0, (int) e.getX(), (int) e.getY(), 0); break; }
             if (finger >= 0) { press(); input(2, 0x11, 0, (int) e.getX(), (int) e.getY(), 0); }
             finger = -1; fingers = false;
             break;

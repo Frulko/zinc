@@ -8,6 +8,8 @@ export default {
   navigate(_v: number, _url: string): void {},
   loadHtml(_v: number, _html: string, _base: string): void {},
   eval(_v: number, _js: string): void {},
+  setZoom(_v: number, _f: number): void {},
+  key(_v: number, _down: boolean, _code: string, _text: string, _mods: number): void {},
   post(_v: number, _data: string): void {},
   reply(_v: number, _id: number, _ok: boolean, _r: string): void {},
   close(_v: number): void {},

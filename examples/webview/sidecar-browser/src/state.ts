@@ -13,6 +13,9 @@ export const [streaming, setStreaming] = createSignal<boolean>(false);
 export const [connected, setConnected] = createSignal<boolean>(false);
 export const [status, setStatus] = createSignal<string>('');
 export const [tabletUrl, setTabletUrl] = createSignal<string>(START_URL);
+export const [zoom, setZoomSignal] = createSignal<number>(1);
+
+const ZOOMS: number[] = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];   // Safari's steps
 
 let tablet: proc.Process | null = null;
 let onReady: () => void = () => {};
@@ -43,6 +46,25 @@ export function history(order: string): void {
   web.eval(order === 'back' ? 'history.back()' : order === 'forward' ? 'history.forward()' : 'location.reload()');
 }
 
+/** The page's zoom one step in (+1) or out (-1), or back to 100 % (0): the tablet's page while streaming, else the window's. */
+export function zoomStep(dir: i32): void {
+  let i = ZOOMS.indexOf(zoom());
+  if (i < 0) i = 4;
+  const z = dir === 0 ? 1 : ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, i + dir))];
+  setZoomSignal(z);
+  if (tablet !== null) tablet.write(`zoom ${z}\n`); else web.setZoom(z);
+}
+
+/** A key of the Mac's keyboard for the tablet's page: its KeyboardEvent.code from the key's name, what it types, the modifiers
+ *  (1 shift, 2 control, 4 option, 8 command). False when nothing streams. */
+export function typeOnTablet(key: string, text: string, mods: i32): boolean {
+  if (tablet === null) return false;
+  const c = key.length === 1 ? key.toUpperCase() : '';
+  const code = c >= 'A' && c <= 'Z' ? 'Key' + c : c >= '0' && c <= '9' ? 'Digit' + c : c === ' ' ? 'Space' : key.length === 1 ? '' : key;
+  tablet.write(`key ${code}\t${mods}\t${text}\n`);
+  return true;
+}
+
 /** Starts the tablet's process (this program again, its screen the tablet over display-sidecar) on the page the window shows. */
 export function startStream(host: string): void {
   if (tablet !== null) return;
@@ -55,7 +77,11 @@ export function startStream(host: string): void {
   setStreaming(true); setConnected(false); setStatus(`Connecting to ${host}...`);
   web.hide();
   p.onStdout((line: string) => {
-    if (line === 'ready') { p.write('go ' + urlOf(typed() === '' ? START_URL : typed()) + '\n'); onReady(); }
+    if (line === 'ready') {
+      p.write('go ' + urlOf(typed() === '' ? START_URL : typed()) + '\n');
+      if (zoom() !== 1) p.write(`zoom ${zoom()}\n`);
+      onReady();
+    }
     else if (line.startsWith('load ')) { setTabletUrl(line.substring(5)); setTyped(line.substring(5)); }
   });
   p.onStderr((line: string) => {

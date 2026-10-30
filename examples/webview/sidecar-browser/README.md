@@ -5,6 +5,9 @@ the program again with its screen on the tablet (`display-sidecar`), and the win
 address bar, the shortcuts and the history buttons act on the page the tablet shows. Touch the tablet to use the page; **Stop streaming**
 brings the page back to the window.
 
+While it streams, the Mac's keyboard types into the page on the tablet (tap a field there first), the − / 100 % / + buttons zoom it,
+and a pinch on the tablet magnifies it around the fingers. A mouse plugged into the tablet hovers and right clicks.
+
 ```sh
 zinc run examples/webview/sidecar-browser
 ```

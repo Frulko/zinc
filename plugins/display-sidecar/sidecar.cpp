@@ -274,23 +274,29 @@ static void readAnswers() {
     int32_t a, b, c; memcpy(&a, m + 4, 4); memcpy(&b, m + 8, 4); memcpy(&c, m + 12, 4);
     const int type = m[1], id = m[2] | m[3] << 8;
     if (m[0] == 1) { std::lock_guard<std::mutex> l(mu); rectsAcked++; while (!frameEnds.empty() && frameEnds.front() <= rectsAcked) frameEnds.erase(frameEnds.begin()); }
-    else if (m[0] == 2) {   // INPUT: 0x10 press, 0x11 release, 0x12 move, 0x13 hover; 0x20.. the pen, its pressure 0..4096 and tilt
+    else if (m[0] == 2) {   // INPUT: 0x10 press, 0x11 release, 0x12 move, 0x13 hover, 0x14 / 0x15 right button; 0x20.. the pen, its pressure 0..4096 and tilt
       px = (float)a / K; py = (float)b / K;
       const int k = type & 15;
       static bool toWeb;   // the press went to a web view: its moves and release follow it
-      if (hal_overlays && type < 0x20 && (k <= 1 || (k == 2 && toWeb)) && (toWeb || k == 0)) {
-        const bool took = hal_overlays->pointer(px, py, k, 0, 0);
-        toWeb = took && k != 1;
-        if (took) continue;
+      if (hal_overlays && type < 0x20) {
+        // the web views' kinds: 0 press, 1 release, 2 drag (while they hold the press), 7 a mouse moving, 5 / 6 the right button
+        const int wk = k <= 2 ? k : k == 3 ? 7 : k == 4 ? 5 : k == 5 ? 6 : -1;
+        if (wk >= 0 && (wk != 2 || toWeb) && (wk != 1 || toWeb)) {
+          const bool took = hal_overlays->pointer(px, py, wk, 0, 0);
+          if (k <= 1) toWeb = took && k == 0;
+          if (took) continue;
+        }
       }
       if (k == 0) pdown = 1; else if (k == 1) pdown = 0;
       if (type >= 0x20) {
         HalPen p{px, py, c / 4096.0f, (float)(int8_t)(id & 255), (float)(int8_t)(id >> 8), k == 1 ? 0u : k == 3 ? (uint32_t)HAL_PEN_HOVER : (uint32_t)HAL_PEN_DOWN};
         hal_pen_push(&p);
       }
-    } else if (m[0] == 6) {
+    } else if (m[0] == 6) {   // SCROLL: two fingers, in pixels; a wheel step is about 40 points
       if (!hal_overlays || !hal_overlays->pointer(px, py, 3, (double)a / K, (double)b / K)) wheel += (float)b / K / 40;
-    }   // SCROLL: two fingers, in pixels; a wheel step is about 40 points
+    } else if (m[0] == 13 && hal_overlays) {   // PINCH: the web views zoom; the app has no pinch yet
+      hal_overlays->pointer((double)a / K, (double)b / K, 4, c / 65536.0, 0);
+    }
   }
 }
 

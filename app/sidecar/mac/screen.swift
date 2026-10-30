@@ -364,7 +364,9 @@ func touch(_ type: Int, _ id: Int, _ x: Int, _ y: Int, _ pressure: Int) {
     case 0: if touchId != -1 { return }; touchId = who; t = .leftMouseDown
     case 2: if touchId != who { return }; t = .leftMouseDragged
     case 1: if touchId != who { return }; touchId = -1; t = .leftMouseUp
-    case 3: if touchId != -1 { return }; t = .mouseMoved   // a pen hovering: the pointer follows it
+    case 3: if touchId != -1 { return }; t = .mouseMoved   // a pen hovering, a mouse on the tablet: the pointer follows it
+    case 4: if touchId != -1 { return }; t = .rightMouseDown   // a mouse's right button
+    case 5: t = .rightMouseUp
     default: return
     }
     if t == .leftMouseDown {   // macOS counts the clicks itself only for a real mouse
@@ -373,7 +375,7 @@ func touch(_ type: Int, _ id: Int, _ x: Int, _ y: Int, _ pressure: Int) {
     }
     if synthetic > 0 { print("input: \(t.rawValue) at \(x),\(y) click \(clicks.n)"); return }   // no display of ours: said, not played
     if pen && t == .leftMouseDown { proximity(true) }
-    guard let ev = CGEvent(mouseEventSource: nil, mouseType: t, mouseCursorPosition: at, mouseButton: .left) else { return }
+    guard let ev = CGEvent(mouseEventSource: nil, mouseType: t, mouseCursorPosition: at, mouseButton: kind >= 4 ? .right : .left) else { return }
     ev.setIntegerValueField(.mouseEventClickState, value: Int64(max(1, clicks.n)))
     if pen {   // drawing apps read a tablet's point: pressure 0..4096, tilt in degrees (x low byte, y high byte of id)
         let force = min(1, Double(pressure) / 4096)

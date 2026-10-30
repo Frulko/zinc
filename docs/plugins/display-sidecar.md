@@ -30,7 +30,9 @@ a frame, on a Mac then loaded by other builds.
 Web views (`zinc:webview`) work on the screen too: with no window of the app, the plugin keeps them in a window off every screen, takes
 their pictures (WebKit snapshots, at the screen's scale) and the driver lays them into its frames; a touch that lands on a web view goes
 to it, the rest to the app. Measured with `examples/webview/hybrid` on the Nexus 7: about a fifth of a core on the Mac in all (the app
-and WebKit's processes); the page counts as shown (`document.hidden` false, `requestAnimationFrame` runs). macOS only for now.
+and WebKit's processes); the page counts as shown (`document.hidden` false, `requestAnimationFrame` runs). A pinch zooms the page
+(WebKit's magnification, around the fingers), a double tap is a double click, and a mouse plugged into the tablet hovers and right
+clicks (the receivers send hover, right button and pinch: `stream.h`). macOS only for now.
 
 The app's window and the tablet at once: a second process of the app (`sys.execPath()`, `zinc:process`) runs with `ZINC_DISPLAY=sidecar`
 and the window drives it over its stdin. The project lists the driver in `zinc.json` (`"displays": ["sidecar"]`): it is linked into the

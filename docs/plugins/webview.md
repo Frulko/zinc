@@ -46,6 +46,8 @@ web.postMessage('{"type":"tick","n":1}');                                       
 | `postMessage(data)` | delivered to the page as `zinc.onmessage(value)` and as a `zinc` window event (`addEventListener('zinc', e => e.data)`); JSON text arrives parsed |
 | `onMessage(cb)` | strings sent with `window.zinc.postMessage(x)` (non-strings are sent as JSON text) |
 | `handle(cmd, fn)` | registers a command for `await zinc.invoke(cmd, args)`: `args` is a string (objects arrive as JSON text), the returned string resolves the page's promise (parsed when it is JSON), a `throw` rejects it with the message |
+| `setZoom(factor)` | the page's zoom (1 is 100%), as the browser's Cmd +/- (Android: the text zoom) |
+| `key(code, text, mods)` | presses and releases a key in the page: `code` as `KeyboardEvent.code` (`KeyA`, `Enter`, `ArrowLeft`), the characters it types, the modifiers (1 shift, 2 control, 4 option, 8 command); for a view out of sight, such as one on a Sidecar screen (macOS) |
 | `onLoad(cb)` | a page finished loading (its URL) |
 | `close()` | removes the view |
 

@@ -86,6 +86,11 @@ export class WebView {
   loadHtml(html: string): void { W.loadHtml(this.id, html, 'zinc://app/'); }
   /** Runs JavaScript in the page (fire and forget; use invoke/postMessage for results). */
   eval(js: string): void { W.eval(this.id, js); }
+  /** The page's zoom, as Cmd + and Cmd - do in a browser: 1 is 100 %. */
+  setZoom(factor: number): void { W.setZoom(this.id, factor); }
+  /** A key typed in the page: its KeyboardEvent.code ("KeyA", "Enter"...), its text, the modifiers (1 shift, 2 control, 4 option, 8
+   *  command), pressed then let go. macOS for now (a remote keyboard: examples/webview/sidecar-browser). */
+  key(code: string, text: string, mods: i32): void { W.key(this.id, true, code, text, mods); W.key(this.id, false, code, text, mods); }
   /** Sends data to the page: `zinc.onmessage = (data) => ...` or `addEventListener('zinc', e => e.data)`.
    *  JSON text arrives parsed. */
   postMessage(data: string): void { W.post(this.id, data); }

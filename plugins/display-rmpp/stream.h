@@ -31,6 +31,7 @@
 //   kind 1 ACK    a: the RECT's number, b: microseconds to decode and apply it
 //   kind 2 INPUT  type: AppLoad's (0x10 finger press, 0x11 release, 0x12 move; 0x20..0x22 the Marker), id: the finger,
 //                 a, b: where, in the stream's pixels, c: the Marker's pressure. While a Mac is connected the app gets no touch.
+//                 The colour screens add 0x13 a mouse moving with no button, 0x14 / 0x15 its right button pressed / let go.
 //   kind 3 TURN   a: the tablet's way up from its accelerometer, 0 upright, 90 its top on the left, 180 upside down, 270 its top on the
 //                 right; at the start and on each change (lying flat changes nothing). The Mac turns its picture to match.
 //   kind 5 FULL   a full refresh has just started (the Mac's, or two fingers): what the Mac sends during it may not stay, so it
@@ -41,6 +42,8 @@
 // INPUT for the Marker (0x20..0x22, and 0x23: hovering, from evdev in an ink session) has its tilt in id: x degrees in the low byte, y in
 // the high one (signed).
 //   kind 6 SCROLL a, b: one finger's step while two are down, in the stream's pixels (the Mac halves it and turns it with the picture).
+//   kind 13 PINCH a, b: the fingers' centre in the stream's pixels, c: how much they spread since the last one, x 65536 (a trackpad's
+//                 magnify on a Mac receiver).
 //   kind 8 PROFILE every 2 s while the profile is on: type 0 a updates sent to the panel, b rectangles held (their place still driven),
 //                 c the panel's busy time in permille; type 1 a, b, c how long the panel moved after a lone Pen, colour, full update
 //                 (median ms, 0: none seen); type 2 a from an update to the panel's first frame (median ms), b rectangles received.

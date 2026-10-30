@@ -12,6 +12,11 @@ export interface Spec extends NativeModule {
   navigate(v: i32, url: string): void;
   loadHtml(v: i32, html: string, baseUrl: string): void;
   eval(v: i32, js: string): void;
+  /** The page's zoom, as Cmd + and Cmd - do in a browser (the layout reflows): 1 is 100 %. */
+  setZoom(v: i32, factor: f64): void;
+  /** A key of the keyboard for the page, as if typed in it: its KeyboardEvent.code ("KeyA", "Enter", "ArrowLeft"...), the text it types
+   *  ("" for none), the modifiers (1 shift, 2 control, 4 option, 8 command). macOS; elsewhere nothing yet. */
+  key(v: i32, down: boolean, code: string, text: string, mods: i32): void;
   /** Delivers `data` (a string, parsed when it is JSON) to the page: zinc.onmessage and a 'zinc' window event. */
   post(v: i32, data: string): void;
   /** Settles the page's zinc.invoke call `id` (result parsed when it is JSON). */

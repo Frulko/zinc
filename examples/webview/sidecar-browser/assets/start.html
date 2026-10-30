@@ -8,10 +8,18 @@
   .links { display: flex; flex-wrap: wrap; gap: .6em; margin-top: 1.4em; }
   a { color: #f8fafc; background: #0369a1; padding: .7em 1.1em; border-radius: .6em; text-decoration: none; }
   #clock { font-variant-numeric: tabular-nums; color: #34d399; }
+  form { display: flex; gap: .5em; margin: 1.2em 0; }
+  input { flex: 1; font: inherit; padding: .7em 1em; border-radius: .6em; border: 1px solid #334155; background: #1e293b; color: #f8fafc; }
+  input:focus { outline: 2px solid #38bdf8; }
+  button { font: inherit; padding: .7em 1.1em; border-radius: .6em; border: 0; background: #0369a1; color: #f8fafc; }
 </style></head>
 <body><main>
   <h1>Sidecar Browser</h1>
   <p>This page runs in WebKit on the Mac and is drawn on this screen by <code>display-sidecar</code>. Type an address on the Mac, or touch a link.</p>
+  <form action="https://duckduckgo.com/" method="get">
+    <input id="q" name="q" placeholder="Search the web (type on the Mac)" autofocus autocomplete="off">
+    <button>Search</button>
+  </form>
   <p id="clock"></p>
   <div class="links">
     <a href="https://en.m.wikipedia.org/wiki/Special:Random">Random Wikipedia</a>

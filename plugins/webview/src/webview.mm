@@ -21,6 +21,8 @@ typedef NSSize ZSize;
 #import <WebKit/WebKit.h>
 #include <SDL3/SDL.h>
 #include <stdio.h>
+#include <math.h>
+#include <algorithm>
 #include <stdlib.h>
 #include <string.h>
 #include "hal.h"
@@ -133,6 +135,14 @@ static bool trusted(WKFrameInfo* f, NSInteger port) {
 @implementation ZincClip
 - (BOOL)isFlipped { return YES; }
 @end
+/** The window of the web views shown on another screen (offscreenView): WebKit focuses a field, draws its caret and takes keys only in
+ *  the key window, which this one says it is without ever being made so (the person's app keeps the keyboard). */
+@interface ZincOffscreen : NSWindow
+@end
+@implementation ZincOffscreen
+- (BOOL)isKeyWindow { return YES; }
+- (BOOL)isMainWindow { return YES; }
+@end
 #endif
 
 static const int MAXV = 16;
@@ -198,13 +208,59 @@ static int overlayPointer(double x, double y, int kind, double dx, double dy) {
       if (e) { NSView* target = [offscreen.contentView hitTest:at]; [target scrollWheel:e]; }
       return 1;
     }
-    const NSEventType t = kind == 0 ? NSEventTypeLeftMouseDown : kind == 1 ? NSEventTypeLeftMouseUp : NSEventTypeLeftMouseDragged;
-    e = [NSEvent mouseEventWithType:t location:at modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:offscreen.windowNumber
-                            context:nil eventNumber:0 clickCount:1 pressure:kind == 1 ? 0 : 1];
+    if (kind == 4) {   // a pinch: WebKit's own magnification, as a trackpad's, around the fingers
+      WKWebView* wv = views[hit].wv;
+      const double m = std::min(5.0, std::max(1.0, wv.magnification * dx));
+      [wv setMagnification:m centeredAtPoint:[wv convertPoint:at fromView:nil]];
+      return 1;
+    }
+    // the clicks: two presses close in time and place are a double click (macOS counts them only for a real mouse)
+    static double lastAt = 0, lastX = 0, lastY = 0;
+    static int clicks = 1;
+    const double now = NSProcessInfo.processInfo.systemUptime;
+    if (kind == 0 || kind == 5) {
+      clicks = now - lastAt < 0.45 && fabs(x - lastX) < 6 && fabs(y - lastY) < 6 ? clicks + 1 : 1;
+      lastAt = now; lastX = x; lastY = y;
+    }
+    if ((kind == 0 || kind == 5) && offscreen.firstResponder != views[hit].wv) [offscreen makeFirstResponder:views[hit].wv];   // a click focuses its field
+    const NSEventType t = kind == 0 ? NSEventTypeLeftMouseDown : kind == 1 ? NSEventTypeLeftMouseUp : kind == 2 ? NSEventTypeLeftMouseDragged
+                        : kind == 5 ? NSEventTypeRightMouseDown : kind == 6 ? NSEventTypeRightMouseUp : NSEventTypeMouseMoved;
+    e = [NSEvent mouseEventWithType:t location:at modifierFlags:0 timestamp:now windowNumber:offscreen.windowNumber
+                            context:nil eventNumber:0 clickCount:kind == 7 ? 0 : clicks pressure:kind == 0 || kind == 2 || kind == 5 ? 1 : 0];
     [offscreen sendEvent:e];
   }
   held = kind == 0 ? hit : kind == 1 ? -1 : held;
   return 1;
+}
+/** A key for web view wv, as the keyboard sends it: the macOS key code of its KeyboardEvent.code (what the page reads as code and keyCode),
+ *  the characters it types (text, or the function key's), the modifiers (1 shift, 2 control, 4 option, 8 command). */
+static void typeKey(WKWebView* wv, bool down, NSString* code, NSString* text, int mods) {
+  static NSDictionary<NSString*, NSArray*>* keys = [@{   // code: [macOS virtual key, characters when the key types none of its own]
+    @"Enter": @[@36, @"\r"], @"NumpadEnter": @[@76, @"\r"], @"Tab": @[@48, @"\t"], @"Space": @[@49, @" "], @"Backspace": @[@51, @"\x7f"],
+    @"Escape": @[@53, @"\x1b"], @"Delete": @[@117, [NSString stringWithFormat:@"%C", (unichar)NSDeleteFunctionKey]],
+    @"ArrowLeft": @[@123, [NSString stringWithFormat:@"%C", (unichar)NSLeftArrowFunctionKey]], @"ArrowRight": @[@124, [NSString stringWithFormat:@"%C", (unichar)NSRightArrowFunctionKey]],
+    @"ArrowDown": @[@125, [NSString stringWithFormat:@"%C", (unichar)NSDownArrowFunctionKey]], @"ArrowUp": @[@126, [NSString stringWithFormat:@"%C", (unichar)NSUpArrowFunctionKey]],
+    @"Home": @[@115, [NSString stringWithFormat:@"%C", (unichar)NSHomeFunctionKey]], @"End": @[@119, [NSString stringWithFormat:@"%C", (unichar)NSEndFunctionKey]],
+    @"PageUp": @[@116, [NSString stringWithFormat:@"%C", (unichar)NSPageUpFunctionKey]], @"PageDown": @[@121, [NSString stringWithFormat:@"%C", (unichar)NSPageDownFunctionKey]],
+    @"KeyA": @[@0, @""], @"KeyS": @[@1, @""], @"KeyD": @[@2, @""], @"KeyF": @[@3, @""], @"KeyH": @[@4, @""], @"KeyG": @[@5, @""], @"KeyZ": @[@6, @""],
+    @"KeyX": @[@7, @""], @"KeyC": @[@8, @""], @"KeyV": @[@9, @""], @"KeyB": @[@11, @""], @"KeyQ": @[@12, @""], @"KeyW": @[@13, @""], @"KeyE": @[@14, @""],
+    @"KeyR": @[@15, @""], @"KeyY": @[@16, @""], @"KeyT": @[@17, @""], @"Digit1": @[@18, @""], @"Digit2": @[@19, @""], @"Digit3": @[@20, @""],
+    @"Digit4": @[@21, @""], @"Digit6": @[@22, @""], @"Digit5": @[@23, @""], @"Equal": @[@24, @""], @"Digit9": @[@25, @""], @"Digit7": @[@26, @""],
+    @"Minus": @[@27, @""], @"Digit8": @[@28, @""], @"Digit0": @[@29, @""], @"BracketRight": @[@30, @""], @"KeyO": @[@31, @""], @"KeyU": @[@32, @""],
+    @"BracketLeft": @[@33, @""], @"KeyI": @[@34, @""], @"KeyP": @[@35, @""], @"KeyL": @[@37, @""], @"KeyJ": @[@38, @""], @"Quote": @[@39, @""],
+    @"KeyK": @[@40, @""], @"Semicolon": @[@41, @""], @"Backslash": @[@42, @""], @"Comma": @[@43, @""], @"Slash": @[@44, @""], @"KeyN": @[@45, @""],
+    @"KeyM": @[@46, @""], @"Period": @[@47, @""], @"Backquote": @[@50, @""],
+  } retain];   // kept: this file counts references by hand, the literal alone is gone at the next pool drain
+  NSArray* k = keys[code];
+  NSString* chars = text.length ? text : k ? k[1] : @"";
+  const NSEventModifierFlags flags = (mods & 1 ? NSEventModifierFlagShift : 0) | (mods & 2 ? NSEventModifierFlagControl : 0) |
+                                     (mods & 4 ? NSEventModifierFlagOption : 0) | (mods & 8 ? NSEventModifierFlagCommand : 0);
+  NSEvent* e = [NSEvent keyEventWithType:down ? NSEventTypeKeyDown : NSEventTypeKeyUp location:NSZeroPoint modifierFlags:flags
+                               timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:wv.window.windowNumber context:nil characters:chars
+             charactersIgnoringModifiers:chars isARepeat:NO keyCode:(unsigned short)(k ? [k[0] intValue] : 0)];
+  if (wv.window.firstResponder != wv) [wv.window makeFirstResponder:wv];
+  if (flags & NSEventModifierFlagCommand) { if (down) [wv performKeyEquivalent:e]; }   // copy, paste, select all: the menu's shortcuts
+  else if (down) [wv keyDown:e]; else [wv keyUp:e];
 }
 static HalOverlays overlays = {overlayPicture, overlayPointer};
 static int overlaysRegistered = (hal_overlays = &overlays, 0);
@@ -221,8 +277,9 @@ static ZView* offscreenView() {
     [NSApp finishLaunching];
     int W = 1, H = 1;
     hal_surface_size(&W, &H);
-    offscreen = [[NSWindow alloc] initWithContentRect:NSMakeRect(-30000, -30000, W, H) styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+    offscreen = [[ZincOffscreen alloc] initWithContentRect:NSMakeRect(-30000, -30000, W, H) styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
     offscreen.releasedWhenClosed = NO;
+    offscreen.acceptsMouseMovedEvents = YES;   // a mouse on the tablet: the page's hover
     [offscreen setFrameOrigin:NSMakePoint(-30000, -30000)];
     [offscreen orderFrontRegardless];   // off every screen, but ordered in: WebKit paints and runs its timers only for a window that is
   }
@@ -300,6 +357,7 @@ struct MacWebview : NativeWebview, zrt::Poller {
       // is shown on another screen, so occlusion is not asked. ponytail: WebKit's private setter, skipped when a release drops it
       SEL noOcclusion = NSSelectorFromString(@"_setWindowOcclusionDetectionEnabled:");
       if (hv.window == offscreen && [wv respondsToSelector:noOcclusion]) ((void (*)(id, SEL, BOOL))objc_msgSend)(wv, noOcclusion, NO);
+      if (hv.window == offscreen) wv.allowsMagnification = YES;   // the screen's pinch (overlayPointer)
 #endif
       [clip addSubview:wv];
       [hv addSubview:clip];
@@ -339,6 +397,14 @@ struct MacWebview : NativeWebview, zrt::Poller {
   }
   void eval(int32_t v, zrt::String js) override {
     @autoreleasepool { if (View* p = at(v)) [p->wv evaluateJavaScript:ns(js) completionHandler:nil]; }
+  }
+  void setZoom(int32_t v, double factor) override {
+    if (View* p = at(v)) if (@available(macOS 11.0, iOS 14.0, *)) p->wv.pageZoom = factor > 0.25 ? factor : 0.25;
+  }
+  void key(int32_t v, bool down, zrt::String code, zrt::String text, int32_t mods) override {
+#if !TARGET_OS_IPHONE
+    @autoreleasepool { if (View* p = at(v)) typeKey(p->wv, down, ns(code), ns(text), mods); }
+#endif
   }
   void call(int32_t v, NSString* js, NSDictionary* args) {
     if (View* p = at(v)) [p->wv callAsyncJavaScript:js arguments:args inFrame:nil inContentWorld:[WKContentWorld pageWorld] completionHandler:nil];

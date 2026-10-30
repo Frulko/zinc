@@ -1,9 +1,10 @@
 // The Mac's window. Alone it is a small browser; while it streams, the page is on the tablet and the window becomes its remote: a large
 // address bar, the history buttons, shortcuts and what the tablet shows now.
 import { For, Show } from 'zinc:ui/solid';
-import { NativeView } from 'zinc:ui';
+import * as ui from 'zinc:ui';
+import { NativeView, KeyEvent } from 'zinc:ui';
 import { SHORTCUTS, TARGETS, Shortcut, Target } from './constants';
-import { web, typed, setTyped, streaming, connected, status, tabletUrl, go, open, history, startStream, stopStream } from './state';
+import { web, typed, setTyped, streaming, connected, status, tabletUrl, zoom, zoomStep, typeOnTablet, go, open, history, startStream, stopStream } from './state';
 
 const BUTTON = 'px-3 h-9 rounded-md bg-slate-800 active:bg-slate-600 items-center justify-center';
 
@@ -14,6 +15,22 @@ function HistoryButtons(): i32 {
     <Button className={BUTTON} onClick={() => history('reload')}><Text className="text-sm text-slate-200">Reload</Text></Button>
   </View>;
 }
+
+function ZoomButtons(): i32 {
+  return <View className="flex-row gap-2 items-center">
+    <Button className={BUTTON} onClick={() => zoomStep(-1)}><Text className="text-sm text-slate-200">−</Text></Button>
+    <Button className="w-16 h-9 rounded-md bg-slate-800 active:bg-slate-600 items-center justify-center" onClick={() => zoomStep(0)}>
+      <Text className="text-sm text-slate-200">{`${Math.round(zoom() * 100)} %`}</Text>
+    </Button>
+    <Button className={BUTTON} onClick={() => zoomStep(1)}><Text className="text-sm text-slate-200">+</Text></Button>
+  </View>;
+}
+
+// While streaming, the keys no field of the window takes (the address bar has not the focus) are typed in the tablet's page
+ui.onKey((e: KeyEvent) => {
+  const mods = (e.shift ? 1 : 0) | (e.ctrl ? 2 : 0) | (e.alt ? 4 : 0) | (e.meta ? 8 : 0);
+  if (typeOnTablet(e.key, e.key.length === 1 && !e.ctrl && !e.meta ? e.key : '', mods)) e.preventDefault();
+});
 
 function AddressBar(props: { large: boolean }): i32 {
   const field = props.large ? 'grow h-14 px-4 text-lg rounded-xl bg-slate-900 border border-slate-700 text-white focus:border-sky-500'
@@ -31,6 +48,7 @@ function Browser(): i32 {
     <View className="flex-row gap-2 p-2 items-center bg-slate-900 border-b border-slate-800">
       <HistoryButtons />
       <AddressBar large={false} />
+      <ZoomButtons />
       <For each={TARGETS}>{(t: Target, _i: i32) =>
         <Button className="px-3 h-9 rounded-md bg-emerald-700 active:bg-emerald-500 items-center justify-center" onClick={() => startStream(t.host)}>
           <Text className="text-sm text-white">{'Stream to ' + t.label}</Text>
@@ -57,6 +75,10 @@ function Remote(): i32 {
     <View className="flex-row gap-3 items-center">
       <HistoryButtons />
       <AddressBar large={true} />
+    </View>
+    <View className="flex-row gap-3 items-center">
+      <ZoomButtons />
+      <Text className="text-xs text-slate-400">Pinch on the tablet to zoom in; click outside the address bar and type: the keys go to the page.</Text>
     </View>
     <View className="flex-col gap-1 p-4 rounded-xl bg-slate-900">
       <Text className="text-xs tracking-wider text-slate-500">ON THE TABLET NOW</Text>
