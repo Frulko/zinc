@@ -14,7 +14,7 @@ class Instance {
   hooks: Hook[] = [];
   index: i32 = 0;
   host: i32;
-  render: () => i32;
+  render: () => i32 | null;   // a component may render nothing (null), as in React
   scheduled: boolean = false;
   dead: boolean = false;   // unmounted: an update queued before (a window-size listener that was never removed) must not touch its host, whose handle may belong to another node by now
   effects: (() => void)[] = [];
@@ -30,7 +30,7 @@ class Instance {
   cursor: i32 = 0;
   kidCursor: i32 = 0;
   comp: ComponentBase | null = null;  // class components (Inferno/React classes)
-  constructor(host: i32, render: () => i32, name: string, key: string) { this.host = host; this.render = render; this.name = name; this.key = key; instances.push(this); }
+  constructor(host: i32, render: () => i32 | null, name: string, key: string) { this.host = host; this.render = render; this.name = name; this.key = key; instances.push(this); }
 }
 const instances: Instance[] = [];
 export function __dispose(): void {
@@ -61,7 +61,7 @@ function rerender(inst: Instance): void {
   for (const kid of inst.kids) if (inst.nextKids.indexOf(kid) < 0) unmount(kid);
   inst.nodes = inst.nextNodes; inst.tags = inst.nextTags; inst.kids = inst.nextKids;
   ui.detachChildren(inst.host);
-  ui.insert(inst.host, node, -1);
+  if (node !== null) ui.insert(inst.host, node, -1);
   for (const e of inst.effects) e();  // useLayoutEffect/useEffect: after the tree is committed
 }
 function unmount(inst: Instance): void {
@@ -152,7 +152,7 @@ export function useRef<T>(v: T): MutableRef<T> {
 export function _el(tag: i32): i32 { return hostNode(tag); }
 export function _text(parent: i32, s: string): void { const t = hostNode(ui.TEXT); ui.setText(t, s); ui.insert(parent, t, -1); }
 export function _textOf(n: i32, s: string): void { ui.setText(n, s); }
-export function _append(parent: i32, child: i32): void { ui.insert(parent, child, -1); }
+export function _append(parent: i32, child: i32 | null): void { if (child !== null) ui.insert(parent, child, -1); }
 /** A dev run's component call (jsx.h devFile): the wrapper node `n` stands for component `name`, called at `src` (file:line) with the props written there. */
 export function _cn(n: i32, name: string, src: string, props: string): void { ui.setComponentName(n, name, src, props); }
 export function _class(n: i32, c: string): void { ui.setClass(n, c); }
@@ -246,7 +246,7 @@ export function linkEvent<T>(data: T, fn: (data: T) => void): () => void { retur
 
 /** A component instance: renders into `host` (a fragment) and re-renders on state changes. Inside a parent render,
  *  the previous instance with the same component name and key keeps its state. */
-export function _rc(host: i32, render: () => i32, name: string = '', key: string = ''): void {
+export function _rc(host: i32, render: () => i32 | null, name: string = '', key: string = ''): void {
   const parent = cur;
   let inst: Instance | null = null;
   if (parent !== null) {

@@ -291,8 +291,11 @@ struct Checker {
     auto kinds = [&](TypeId x, TypeId y) { if (x == y) return true; if (ty(x).k == TK::Num && ty(y).k == TK::Num && ty(x).obj == 0 && ty(y).obj == 0) { differs = true; return true; } return false; };
     for (std::size_t k = 0; k < f.params.size(); ++k) if (!kinds(t.params[k], f.params[k])) return false;
     if (!(f.elem == t.elem || kinds(f.elem, t.elem))) {
-      if (t.elem != tVoid) return false;
-      differs = true;   // as TypeScript: a function returning something (an async handler's Promise) where one returning void is expected; the result is dropped
+      // as TypeScript: a function returning T where one returning a union with T is expected (a component `() => i32` where `() => i32 | null`
+      // is), and one returning something (an async handler's Promise) where one returning void is (the result is dropped)
+      const Type& r = ty(t.elem);
+      if (t.elem != tVoid && !(r.k == TK::Union && std::find(r.params.begin(), r.params.end(), f.elem) != r.params.end())) return false;
+      differs = true;
     }
     return differs;
   }

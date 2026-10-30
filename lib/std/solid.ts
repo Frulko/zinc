@@ -177,7 +177,7 @@ export function after(ms: number): Promise<void> { return new Promise<void>(reso
 export function _text(parent: i32, s: string): void { ui.insert(parent, ui.createText(s), -1); }
 export function _textOf(n: i32, s: string): void { ui.setText(n, s); }
 export function _dynTextOf(n: i32, get: () => string): void { createEffect(() => { ui.setText(n, get()); }); }
-export function _append(parent: i32, child: i32): void { ui.insert(parent, child, -1); }
+export function _append(parent: i32, child: i32 | null): void { if (child !== null) ui.insert(parent, child, -1); }   // a component may render nothing
 /** A dev run's component call (jsx.h devFile): the wrapper node `n` stands for component `name`, called at `src` (file:line) with the props written there. */
 export function _cn(n: i32, name: string, src: string, props: string): void { ui.setComponentName(n, name, src, props); }
 export function _class(n: i32, c: string): void { ui.setClass(n, c); }
@@ -208,10 +208,12 @@ export function _hl(n: i32, f: (line: string) => i32[]): void { ui.setHighlight(
 /** A component whose props read signals (`<Navbar title={page()}/>`): Solid passes props as getters, Zinc's typed props are values,
  *  so the props are read in this effect and the component is mounted again when one of them changes. The lowering calls _u() right
  *  after the props: the body runs untracked, as Solid runs components. */
-export function _comp(parent: i32, make: () => i32): void {
+export function _comp(parent: i32, make: () => i32 | null): void {
   createEffect(() => {
     const held = ui.holdFocus(parent);   // a field typed into keeps the focus when its component renders again
-    ui.clearChildren(parent); ui.insert(parent, make(), -1);
+    ui.clearChildren(parent);
+    const n = make();
+    if (n !== null) ui.insert(parent, n, -1);
     if (held) ui.refocus(parent);
   });
 }
