@@ -11,6 +11,7 @@ struct NativeCdp : zrt::Object {
   virtual int32_t clients() = 0;
   virtual zrt::String resourceStats() = 0;
   virtual zrt::String screenshot(int32_t maxW, int32_t maxH) = 0;
+  virtual zrt::String screencast(int32_t maxW, int32_t maxH, int32_t quality) = 0;
   virtual zrt::String trace(bool on) = 0;
   virtual zrt::String net(int32_t op, zrt::String arg) = 0;
 };
