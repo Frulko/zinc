@@ -1277,8 +1277,8 @@ function writeProp(n: UiNode, id: i32, key: string, v: number): void {
   }
   if (id === P_WIDTH) { n.w = v > 0 && iv === 0 ? 1 : iv; n.wFrac = 0; n.fullW = false; }   // a hairline (StyleSheet.hairlineWidth 0.33 at scale 3) keeps one pixel
   else if (id === P_HEIGHT) { n.h = v > 0 && iv === 0 ? 1 : iv; n.hFrac = 0; n.fullH = false; }
-  else if (id === P_WIDTH_PERCENT) { n.w = -1; n.wFrac = v; n.fullW = false; }
-  else if (id === P_HEIGHT_PERCENT) { n.h = -1; n.hFrac = v; n.fullH = false; }
+  else if (id === P_WIDTH_PERCENT) { n.w = v === 0 ? 0 : -1; n.wFrac = v; n.fullW = false; }   // 0%: no width (a progress bar at its start), not auto
+  else if (id === P_HEIGHT_PERCENT) { n.h = v === 0 ? 0 : -1; n.hFrac = v; n.fullH = false; }
   else if (id === P_FLEX_DIRECTION) { n.row = (iv & 1) !== 0; n.reverse = iv >= 2; }   // 0 column, 1 row, 2 column-reverse, 3 row-reverse
   else if (id === P_FLEX_WRAP) { n.wrap = iv !== 0; n.wrapRev = iv === 2; }   // 2: wrap-reverse
   else if (id === P_ROW_GAP) n.gapY = iv; else if (id === P_COLUMN_GAP) n.gapX = iv; else if (id === P_MARGIN_AUTO) n.mAuto = iv;   // ponytail: replaces the auto sides of the classes (ml-auto); merge per side if apps mix them

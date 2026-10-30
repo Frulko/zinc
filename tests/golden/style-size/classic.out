@@ -5,3 +5,4 @@ aspectRatio 16/9 at 120: 120x68, aspectRatio 2 at 100: 100x50
 dynamic max 60 / min 15: 60x15, pct(25) of 200: 50x8
 100% under maxWidth 120, centred: 90+120, under maxWidth 100, at the end: 200+100
 after the change, max 140 / min 35: 140x35, pct(80): 160x8
+pct(0) in a column that stretches: 0x8
