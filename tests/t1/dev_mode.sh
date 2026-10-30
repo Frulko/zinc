@@ -26,7 +26,7 @@ p1=$(pixel "$t/frame-3.png" 1 1)
 # 1. a good edit: the background changes, the new version is on screen within 2 s
 t0=$(now_ms)
 cp src/main.ts src/main.ts.bak
-{ echo "import { Gestures } from 'zinc:gestures';"; sed 's/clear(0x101820)/clear(0x204010)/' src/main.ts.bak; } > "$t/main.new" && mv "$t/main.new" src/main.ts
+{ echo "import 'zinc:gestures';"; sed 's/clear(0x101820)/clear(0x204010)/' src/main.ts.bak; } > "$t/main.new" && mv "$t/main.new" src/main.ts
 waitfor "$t/dev.log" "v2 started" 2 || { echo "no reload within 2 s: $(cat "$t/dev.log")"; fail=1; }
 sleep 0.4
 p2=$(pixel "$t/frame-3.png" 1 1)

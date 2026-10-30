@@ -31,7 +31,7 @@ want "^    engine: interpreter \(ZBC bytecode\)$"
 want "^    renderer: CPU raster, headless \(no window\)$"
 want "^    window: 320 x 240 \(320 x 240 pixels\)$"
 want "^    plugins: devtools \(Zinc\), socket \(Zinc\)$"
-want "^    files: 30 source files, [1-9][0-9]* functions compiled$"   # the program's 26 files and its worker's 4
+want "^    files: 32 source files, [1-9][0-9]* functions compiled$"   # the program's 28 files (zinc:devtools brings its stage view) and its worker's 4
 want "^    assets: [1-9][0-9]* fonts, 0 images baked$"
 want "^    imports: zinc:devtools, zinc:storage, zinc:ui/solid, zinc:worker$"
 want "^    permissions: fs, net$"
@@ -45,7 +45,7 @@ want "^    memory: [0-9.]+ MB resident, [1-9][0-9]* live blocks$"
 f0=$fail
 card tests/data/inspector_info --native
 want "^    engine: AOT \(compiled to native code\)$"
-want "^    files: 30 source files, [1-9][0-9]* functions compiled$"
+want "^    files: 32 source files, [1-9][0-9]* functions compiled$"
 want "^    workers: 1 worker$"
 [ $fail -eq $f0 ] || cat "$tmp/dump"
 
