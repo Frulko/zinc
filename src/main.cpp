@@ -2327,14 +2327,28 @@ int main(int argc, char** argv) {
   }
   if (argc >= 2 && !std::strcmp(argv[1], "pack")) {   // zinc pack [dir] [-o app.zapp]: the program, its baked resources, assets and zinc.json in one file (ZN-318)
     namespace fs = std::filesystem;
-    std::string dir = ".", outPath;
+    std::string dir = ".", outPath, packTarget;
     bool inspect = false;   // the program with the inspector in front, as zinc dev runs it (zinc device deploy --inspect)
     for (int k = 2; k < argc; ++k) {
       if (!std::strcmp(argv[k], "-o") && k + 1 < argc) outPath = argv[++k];
       else if (!std::strcmp(argv[k], "--inspect")) inspect = true;
+      else if (!std::strcmp(argv[k], "--target") && k + 1 < argc) packTarget = argv[++k];
       else if (argv[k][0] != '-') dir = argv[k];
-      else { std::fprintf(stderr, "zinc pack: unknown option %s\nusage: zinc pack [dir] [-o app.zapp] [--inspect]\n", argv[k]); return 2; }
+      else { std::fprintf(stderr, "zinc pack: unknown option %s\nusage: zinc pack [dir] [-o app.zapp] [--inspect] [--target <linux target>]\n", argv[k]); return 2; }
     }
+    // --target: a .zapp for another Linux machine (a Pi): compiled here, its plugins' native code cross-built with the pinned zig as the
+    // shared libraries that machine's engine loads (zinc device deploy, as the ESP32's app is built here and its core runs it)
+    const zn::tc::Target* cross = nullptr;
+    if (!packTarget.empty()) {
+      static const std::map<std::string, std::string> pis = {{"rpi", "aarch64-linux"}, {"rpi1", "armhf-linux"}, {"rpi2", "armv7-linux"}};
+      const auto pi = pis.find(packTarget);
+      cross = zn::tc::findTarget(pi == pis.end() ? packTarget : pi->second);
+      if (!cross || !std::strstr(cross->name, "-linux")) { std::fprintf(stderr, "zinc pack: --target takes a Linux target (aarch64-linux, armhf-linux, armv7-linux, x86_64-linux, rpi, rpi1, rpi2), not '%s'\n", packTarget.c_str()); return 2; }
+      gBuildTarget = pi == pis.end() ? cross->name : packTarget;   // the layout rules and asset packs of that machine
+      setenv("ZINC_PLATFORM", "linux", 0);
+    }
+    // where that machine's engine looks for them: packedTarget() as it computes it there
+    const std::string nativeDir = !cross ? packedTarget() : std::strstr(cross->name, "aarch64") ? "linux-arm64" : std::strstr(cross->name, "x86_64") ? "linux-x86_64" : "linux";
     const std::string projDir = fs::absolute(dir).lexically_normal().string();
     std::ifstream pf(fs::path(projDir) / "zinc.json");
     std::stringstream ps; ps << pf.rdbuf();
@@ -2419,17 +2433,33 @@ int main(int argc, char** argv) {
     }
     if (have) files["zinc.json"] = ps.str();
     std::error_code ec;
-    for (const zn::tc::PluginLib& lib : gPlugins) {   // the native plugins the program calls, built for this machine: a fused app loads them (ZN-652)
-      if (lib.display || lib.module.empty()) continue;
+    std::vector<zn::frontend::FoundPlugin> found;
+    if (cross) {
+      std::vector<std::string> problems;
+      found = zn::frontend::discoverPlugins(gRoot, projDir, problems);
+      std::string zig, zerr;
+      if (!zn::tc::ensureZig(zig, zerr)) { std::fprintf(stderr, "zinc pack: %s\n", zerr.c_str()); return 1; }
+      zn::tc::setCrossTarget(cross->name, cross->zigTarget, zig, true);   // the .so too: the library the device's engine loads
+    }
+    for (const zn::tc::PluginLib& host : gPlugins) {   // the native plugins the program calls, built for this machine: a fused app loads them (ZN-652)
+      if (host.display || host.module.empty()) continue;
+      zn::tc::PluginLib lib = host;
+      if (cross) {   // built again for the target, as zinc build --target does (the ones loaded here to compile are this machine's)
+        const zn::frontend::FoundPlugin* hit = nullptr;
+        for (const auto& f : found) if (f.manifest.name == host.plugin) hit = &f;
+        std::string berr;
+        if (!hit || !zn::tc::buildPlugin(*hit, gRoot, projDir, "linux", lib, berr)) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc pack: plugin '%s' for %s: %s\n", host.plugin.c_str(), cross->name, berr.c_str()); return 1; }
+      }
       const fs::path so(lib.shared);
       std::ifstream lf(so, std::ios::binary);
       std::stringstream ls; ls << lf.rdbuf();
-      const std::string ex = zn::tc::pluginExportsFile(lib);   // a prebuilt library (an install's, read-only) has no cached file: read from it
-      if (!lf || ex.empty()) { std::fprintf(stderr, "zinc pack: cannot read the library of plugin %s (%s)\n", lib.plugin.c_str(), so.string().c_str()); return 1; }
-      const std::string base = "native/" + packedTarget() + "/" + lib.plugin + "/";
+      const std::string ex = zn::tc::pluginExportsFile(host);   // the spec's table, the same on every target (a cross-built library cannot be opened here)
+      if (!lf || ex.empty()) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc pack: cannot read the library of plugin %s (%s)\n", lib.plugin.c_str(), so.string().c_str()); return 1; }
+      const std::string base = "native/" + nativeDir + "/" + lib.plugin + "/";
       files[base + so.filename().string()] = ls.str();
       files[base + "exports"] = ex;
     }
+    zn::tc::clearCrossTarget();
     // the project's own plugins (plugins/), as sources: a .zapp builds its plugins where it runs, and the engine there has only its own
     if (fs::is_directory(fs::path(projDir) / "plugins", ec))
       for (auto it = fs::recursive_directory_iterator(fs::path(projDir) / "plugins", ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {

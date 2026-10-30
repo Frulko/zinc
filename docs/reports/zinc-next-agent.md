@@ -34,7 +34,7 @@ zinc device inspect hero | shot hero | monitor hero | top    # its inspector her
 
 `<device>` goes after `device` when several are paired (`zinc device spark info`); its name or the start of its id.
 
-Pi development deployments send project sources and assets to the installed engine by default: no host cross compilation or second engine transfer. The project keeps its `engine` setting (including QuickJS cycles); typed programs run with `--interp`, so this mode favors iteration over AOT throughput. Missing native plugins may still compile once on the Pi. `--target rpi` opts into the native export; `--pack` retains its existing archive behavior. `--inspect` currently uses the existing native export path. The preparation step includes the complete native/cross build time, even on failure.
+Pi development deployments get a `.zapp` built on the workstation for the Pi (owner, 2026-10-30: the Mac is the faster machine, as it builds an ESP32's app): `zinc pack --target rpi|rpi1|rpi2` compiles the program, bakes its resources and cross-builds its plugins with the pinned zig as the `.so` the Pi's engine loads (`native/linux-arm64/`); nothing compiles on the Pi. The Pi's engine must be the workstation's build (the bytecode calls the runtime's rows by number): another version is refused with `zinc device <pi> update --local` as the way out, `--force` tries anyway. `--source` keeps the former mode (sources compiled by the installed engine), `--target rpi` the native export. (This replaces ZN-782's source default.)
 
 Source deployment includes `src/`, the entry and root TS/JS modules, declared assets/icon, `plugins/`, `node_modules/` and the project/package/TypeScript manifests. Hidden files, build outputs and root user settings are excluded; links and paths outside the project are refused. Keep code dependencies within the project and use the explicit native export for other layouts. Sources are visible on the paired device.
 
@@ -127,7 +127,7 @@ never names `zinc:ui` has nothing to inspect and is built as it is. `zinc device
 | `os` | `arch` | `kind` | Sent |
 |---|---|---|---|
 | the workstation's | the workstation's (`arm64` and `aarch64` are one) | | the `.zapp` of `zinc pack` |
-| `linux` | any supported architecture | holds `Raspberry Pi` | project sources for the installed engine (except `--inspect`) |
+| `linux` | any supported architecture | holds `Raspberry Pi` | a `.zapp` built here for the Pi (`--source`: project sources for the installed engine) |
 | `linux` | `aarch64` | anything else | the export for `linux` |
 | `linux` | `armv7l`, `armv8l` | other boards | the export for `rpi2` (`--target chip` or `pocketchip` for those boards) |
 | `linux` | `armv6l` | other boards | the export for `rpi1` |

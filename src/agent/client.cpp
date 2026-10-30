@@ -684,12 +684,13 @@ int deployPlayer(Device& d, const Doc& info, const std::string& path, std::strin
 // follows from what the device is: sources for a Pi's installed engine, a .zapp for this system/architecture, else a native export.
 int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self) {
   Launch l = launchOptions(args);
-  bool follow = true, pack = false, inspect = false, source = false, force = false, start = true;
-  std::string name, path = ".", target;
+  bool follow = true, pack = false, inspect = false, source = false, force = false, start = true, sourceOnly = false;
+  std::string name, path = ".", target, packFor;   // packFor: the device's target when the .zapp is built here for another machine
   for (size_t i = 0; i < args.size(); ++i) {
     if (args[i] == "--no-logs") follow = false;
     else if (args[i] == "--no-run") start = false;   // installed only: zinc device bench starts it itself
     else if (args[i] == "--pack") pack = true;
+    else if (args[i] == "--source") sourceOnly = true;   // the sources, compiled by the device's engine (the way before the Mac built them)
     else if (args[i] == "--inspect") inspect = true;
     else if (args[i] == "--force") force = true;
     else if (args[i] == "--target" && i + 1 < args.size()) target = args[++i];
@@ -714,9 +715,20 @@ int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self)
       ::uname(&u);
       const std::string os = a.str("os"), arch = a.str("arch"), kind = a.str("kind");
       why = d.name + " is " + os + " " + arch + (kind.empty() ? "" : " (" + kind + ")");
-      source = !inspect && os == "linux" && kind.find("Raspberry Pi") != std::string::npos;
-      pack = !source && os == kThisOs && cpuName(arch) == cpuName(u.machine);
-      if (pack) why += ", as this machine";
+      // a Pi runs the .zapp this machine compiles for it (its plugins cross-built here), as an ESP32 runs the app built here: nothing compiles there
+      const bool pi = !inspect && os == "linux" && kind.find("Raspberry Pi") != std::string::npos;
+      source = pi && sourceOnly;
+      if (pi && !source) {
+        packFor = exportTarget(os, arch, kind); pack = !packFor.empty();
+        // its engine runs the bytecode compiled here: the same build or the program may call what it lacks (an "unknown runtime call")
+        const std::string there = a.str("engine"), here = zn::tc::version();
+        if (pack && there != here && !force)
+          return fail(d.name + " runs zinc " + there + " and this computer zinc " + here + ": the app compiled here may not run there. Put this "
+                      "zinc on it once (zinc device " + d.name + " update --local, or update for a release), --source sends the sources for its "
+                      "engine to compile, --force tries anyway");
+      }
+      else pack = !source && os == kThisOs && cpuName(arch) == cpuName(u.machine);
+      if (pack) why += packFor.empty() ? ", as this machine" : ", built here for it";
       else if (!source && (target = exportTarget(os, arch, kind)).empty())
         return fail(why + ": zinc export has no target for it (--target <t> names one; --pack sends a .zapp, which its engine runs without native plugins)");
     }
@@ -734,6 +746,7 @@ int cmdDeploy(Device& d, std::vector<std::string> args, const std::string& self)
       zn::log::step("device", why + ": packing a .zapp");
       made = (fs::temp_directory_path(ec) / ("zinc-deploy-" + std::to_string(::getpid()) + ".zapp")).string();
       std::vector<std::string> cmd = {self, "pack", path, "-o", made};
+      if (!packFor.empty()) { cmd.push_back("--target"); cmd.push_back(packFor); }
       cmd.insert(cmd.end(), more.begin(), more.end());
       const int rc = spawnWait(cmd);
       if (rc != 0) return rc;

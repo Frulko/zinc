@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc pack --target rpi` (or `rpi1`, `rpi2`, `aarch64-linux`, `armhf-linux`, `x86_64-linux`) packs a `.zapp` for another Linux machine, its native plugins cross-built for it.
 - `zinc:ui`: negative offsets `-top-2`, `-right-[6px]`, `-bottom-1`, `-left-px` place an absolute box past its parent's edge, as in Tailwind.
 - `zinc:ui`: `ui.RUN_STRIKE` strikes a run of `setTextRuns` through, as `RUN_UNDERLINE` underlines it.
 - The Discord client demo (`examples/discord`): a native client in the spirit of discord-lite, no web view; log in with a token kept in the keychain, browse your servers, channels and DMs, read a channel's history and new, edited and deleted messages live; a dropped connection resumes. Unofficial: try it with a spare account.
@@ -262,6 +263,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Zinc Inspector finds every program with the inspector, on any port (`ZINC_DEVTOOLS_PORT=0`, `zinc dev`): programs announce themselves in `<zinc home>/run/devtools`, the list refreshes every second, a program alone is attached at once, and when the attached program exits it says so and attaches again, on the same view, when it comes back (each save under `zinc dev`). Its `zinc devtools: chrome://inspect …` start line no longer shows as an error in the console.
 
 ### Changed
+- `zinc device deploy` to a Raspberry Pi builds the app on your computer (a `.zapp` with its plugins cross-built for the Pi) and the Pi just runs it: no compiling on the Pi. The Pi needs the same zinc (`zinc device <pi> update --local`, or `update`); `--source` sends the sources as before.
 - `zinc new` alone asks nothing: it makes a game in `my-game` (`my-game-2`... when that folder is taken); `zinc new --pick` asks what to make, as bare `zinc new` did.
 - `zinc run` and `zinc dev` print one progress line at most (the first native build: `zinc: compiling for this machine, once`); `--verbose` (or `ZINC_STEPS=1`) shows every step as before.
 - Errors of `zinc run`, `zinc check` and `zinc dev` name the file from the folder you are in, show the line of your code with a `^^^` under the mistake (a missing module points at its name), and a misspelt name is reported once, not again at every place that uses it. `--engine quickjs` prints syntax and JSX errors the same way.
