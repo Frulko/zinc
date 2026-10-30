@@ -605,6 +605,10 @@ The next backlog review turns lines into tasks or deletes them.
 - D195: commit the release CA certificate beside update.pub and build and sign a .raucb per release in CI (ZINC_UPDATE_SEED and the RAUC key as secrets).
 - D195: a data partition (apps, /home, network) grown on first boot instead of copying state at install time.
 
+- ZN-891: simulate a lossy link (drop or delay RTP in the plugin under an env var) to prove the automatic low data switch and FEC recovery end to end.
+- ZN-891: the web build's setLowDataMode cannot turn on Opus DTX without usedtx=1 in the SDP fmtp; add it when low data is on.
+- ZN-891: let the low data mode's 10 kbit/s audio rate and tiny-video settings be passed as options, to tune them on a real slow network.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
