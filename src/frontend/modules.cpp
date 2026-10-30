@@ -322,6 +322,8 @@ export function cwd(): string { return __host_sysCwd(); }
 export function launchDir(): string { return __host_sysLaunchDir(); }
 /** The system's preferred language as a BCP 47 tag ("fr-FR"): LC_ALL, LC_MESSAGES or LANG when set, else the system's setting (an app started from the Finder has no LANG). */
 export function locale(): string { return __host_sysLocale(); }
+/** The program's own executable (Node's process.execPath), to start the app again as a second process; '' where there is none (the web, a console). */
+export function execPath(): string { return __host_sysExecPath(); }
 /** A device feature (the backend of the web APIs of zinc:web): a JSON or plain answer, '' when this machine has none. */
 export function device(query: string, arg: string = ''): string { return __host_sysDevice(query, arg); }
 /** The app's own folder for its files (<zinc home>/apps/<zinc.json name>/, made on first call): its zinc:storage lives there too, and the reMarkable Hub's Reset data and Uninstall erase it whole. */

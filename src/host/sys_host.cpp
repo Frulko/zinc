@@ -28,6 +28,9 @@
 #include <sys/resource.h>
 #include <dirent.h>
 #include <dlfcn.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 #include <sys/utsname.h>
 #include <pwd.h>
 #include <grp.h>
@@ -155,6 +158,22 @@ bool refused(const char* feature, const std::string& detail) { gPermDenied = zn:
 std::string takeRefusal() { std::string s; s.swap(gPermDenied); return s; }
 thread_local std::string gPayload;   // the payload of the event evNext returned last
 // The working directory the program started in (ZN-687: sys.launchDir of a built program), kept before its first chdir.
+// The program's own executable (sys.execPath), as tc::executablePath finds zinc's: the host library links no tc.
+static std::string execPath() {
+  char b[4096];
+#if defined(__APPLE__)
+  std::uint32_t n = sizeof b;
+  if (_NSGetExecutablePath(b, &n) != 0) return "";
+  char real[PATH_MAX];
+  return realpath(b, real) ? real : b;
+#elif defined(_WIN32)
+  const DWORD n = GetModuleFileNameA(nullptr, b, sizeof b);
+  return n > 0 && n < sizeof b ? std::string(b, n) : "";
+#else
+  const ssize_t n = readlink("/proc/self/exe", b, sizeof b - 1);
+  return n > 0 ? std::string(b, (size_t)n) : "";
+#endif
+}
 const std::string& startDir() { static const std::string d = [] { char b[4096]; return std::string(getcwd(b, sizeof b) ? b : ""); }(); return d; }
 // "fr_FR.UTF-8@euro" -> "fr-FR"
 std::string bcp47(std::string v) {
@@ -972,6 +991,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysCwd: { char b[4096]; ret(r, getcwd(b, sizeof b) ? b : ""); break; }
     case Rt::HostSysLaunchDir: { const char* d = getenv("ZINC_LAUNCH_DIR"); ret(r, d && *d ? std::string(d) : startDir()); break; }   // zinc run sets it before entering the project
     case Rt::HostSysLocale: ret(r, systemLocale()); break;
+    case Rt::HostSysExecPath: ret(r, execPath()); break;
     case Rt::HostSysChdir: startDir(); r->i = chdir(s(0).c_str()) == 0; break;
     case Rt::HostSysSetEnv: setenv(s(0).c_str(), s(1).c_str(), 1); break;
     case Rt::HostSysUnsetEnv: unsetenv(s(0).c_str()); break;

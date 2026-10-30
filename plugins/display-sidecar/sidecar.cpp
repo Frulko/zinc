@@ -229,9 +229,7 @@ static void handOver() {
 }
 
 // --- the web views (plugins/webview): with no window of the app they live off screen; their pictures are laid into the frame here and the
-// touches that land on them go to them. Weak: an app without the web view plugin links these, which have no view.
-extern "C" __attribute__((weak)) int zn_webview_overlay(int, int, const uint32_t**, int*, int*, double*, double*, unsigned*) { return 0; }
-extern "C" __attribute__((weak)) int zn_webview_pointer(double, double, int, double, double) { return 0; }
+// touches that land on them go to them (hal_overlays, registered by the plugin that has them).
 static unsigned webGen[16]; static int webBox[16][4];   // the picture last laid, and where (pixels)
 static void damage(int x0, int y0, int x1, int y1) {
   if (dx1 <= dx0) { dx0 = x0; dy0 = y0; dx1 = x1; dy1 = y1; }
@@ -240,10 +238,11 @@ static void damage(int x0, int y0, int x1, int y1) {
 /** Lays each web view's newest picture over its clip of the frame when the picture is new or the app drew over it (fb then has the
  *  app's pixels there); a view that went away leaves its box to the app's next frame. */
 static void layWebViews(bool drew, int fx0, int fy0, int fx1, int fy1) {
+  if (!hal_overlays) return;
   for (int i = 0; i < 16; i++) {
     const uint32_t* px; int pw, ph; double b[4], c[4]; unsigned gen;
     int* box = webBox[i];
-    if (!zn_webview_overlay(i, K, &px, &pw, &ph, b, c, &gen)) {
+    if (!hal_overlays->picture(i, K, &px, &pw, &ph, b, c, &gen)) {
       if (box[2] > box[0]) { webGen[i] = 0; box[0] = box[2] = 0; }
       continue;
     }
@@ -279,8 +278,8 @@ static void readAnswers() {
       px = (float)a / K; py = (float)b / K;
       const int k = type & 15;
       static bool toWeb;   // the press went to a web view: its moves and release follow it
-      if (type < 0x20 && (k <= 1 || (k == 2 && toWeb)) && (toWeb || k == 0)) {
-        const bool took = zn_webview_pointer(px, py, k, 0, 0);
+      if (hal_overlays && type < 0x20 && (k <= 1 || (k == 2 && toWeb)) && (toWeb || k == 0)) {
+        const bool took = hal_overlays->pointer(px, py, k, 0, 0);
         toWeb = took && k != 1;
         if (took) continue;
       }
@@ -290,7 +289,7 @@ static void readAnswers() {
         hal_pen_push(&p);
       }
     } else if (m[0] == 6) {
-      if (!zn_webview_pointer(px, py, 3, (double)a / K, (double)b / K)) wheel += (float)b / K / 40;
+      if (!hal_overlays || !hal_overlays->pointer(px, py, 3, (double)a / K, (double)b / K)) wheel += (float)b / K / 40;
     }   // SCROLL: two fingers, in pixels; a wheel step is about 40 points
   }
 }

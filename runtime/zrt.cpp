@@ -2,7 +2,7 @@
 #include "zrt.h"
 #include <setjmp.h>
 
-extern "C" { HalDisplay* hal_display = nullptr; }
+extern "C" { HalDisplay* hal_display = nullptr; HalOverlays* hal_overlays = nullptr; }
 // Optional HAL hook (targets/common/hal_posix.cpp): routes fatal signals of the main thread to `on_fault`.
 extern "C" __attribute__((weak)) void hal_trap_faults(void (*on_fault)(const char* what));
 extern "C" __attribute__((weak)) int hal_heap_region_more(int, void**, size_t*) { return 0; }

@@ -242,6 +242,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysPid: r->i = 1; break;
     case Rt::HostSysCwd: case Rt::HostSysLaunchDir: ret(r, dataDir()); break;
     case Rt::HostSysLocale: ret(r, "en-US"); break;
+    case Rt::HostSysExecPath: ret(r, ""); break;   // a console runs one program
     case Rt::HostSysIsatty: r->i = 0; break;
     case Rt::HostSysWriteErr: hal_log_err(static_cast<const char*>(a[0].p), a[0].n); break;
     case Rt::HostSysRandomByte: r->i = std::rand() & 0xFF; break;

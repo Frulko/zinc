@@ -142,6 +142,7 @@ Every function of the engine's modules on one page: its signature and what it do
 - `pid(): i32`
 - `cwd(): string`
 - `launchDir(): string` The directory the user ran the program from (`zinc run <project>` starts the program in the project): resolve relative paths given as arguments against it.
+- `execPath(): string` The program's own executable (Node's `process.execPath`; `zinc` itself when interpreted), to start the app again as a second process with `zinc:process`.
 - `locale(): string` The system's preferred language as a BCP 47 tag ("fr-FR"): LC_ALL, LC_MESSAGES or LANG when set, else the system's setting.
 - `device(query: string, arg?: string): string` A device feature, the backend of the web APIs of zinc:web (navigator.getBattery, wakeLock, onLine, visibility, sensors): a JSON or plain answer, '' when this machine has none.
 - `chdir(dir: string): boolean`

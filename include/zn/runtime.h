@@ -389,7 +389,9 @@
   X(HostGfxPaused, "host.gfxPaused", ">i", 2) \
   /* zinc:gfx windowCtl (ZN-864, zinc:system/window): window id (0: the main one), op 0 move to a,b; 1 resize to a,b; 2 focus; 3 title s; */ \
   /* 4..7 its x, y, w, h; 8 the last id opened; 9 the window being drawn (0: the main one); graphics row, appended */ \
-  X(HostGfxWindowCtl, "host.gfxWindowCtl", "iisii>i", 2)
+  X(HostGfxWindowCtl, "host.gfxWindowCtl", "iisii>i", 2) \
+  /* zinc:sys execPath: the program's own executable, to start it again (a second process of the app); system row, appended */ \
+  X(HostSysExecPath, "host.sysExecPath", ">s", 2)
 
 namespace zn {
 
@@ -424,7 +426,7 @@ inline constexpr bool isGfxTailRow(Rt r) {
 }
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too. zinc:osc and the loop's events it arrives by.
 inline constexpr bool isSysTailRow(Rt r) {
-  return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat) ||
+  return r == Rt::HostSysLaunchDir || r == Rt::HostSysLocale || r == Rt::HostSysExecPath || r == Rt::HostSysDevice || (r >= Rt::HostAssetsMount && r <= Rt::HostAssetsStat) ||
          (r >= Rt::HostOscListen && r <= Rt::HostOscSend) || r == Rt::HostSockError || r == Rt::HostEvReady || r == Rt::HostEvNext ||
          r == Rt::HostSigWatch || r == Rt::HostSigSend ||   // sys.onSignal, sys.kill
          (r >= Rt::HostFsSymlink && r <= Rt::HostOsNetField) ||   // zinc:fs symlink, readlink, chmod and zinc:os uid, gid, shell, cpus, networkInterfaces

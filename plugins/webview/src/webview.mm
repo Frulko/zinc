@@ -24,6 +24,9 @@ typedef NSSize ZSize;
 #include <stdlib.h>
 #include <string.h>
 #include "hal.h"
+#if !TARGET_OS_IPHONE
+#include <objc/message.h>
+#endif
 #include "zrt_assets_dir.h"
 #include "zinc_native_webview.h"
 
@@ -134,7 +137,7 @@ static bool trusted(WKFrameInfo* f, NSInteger port) {
 
 static const int MAXV = 16;
 struct View { WKWebView* wv; ZincBridge* br; ZView* clip; double x, y, w, h, cx, cy, cw, ch; };
-// the snapshots of the off-screen web views (zn_webview_overlay): the newest picture of each, BGRA premultiplied, at `scale` pixels a point
+// the snapshots of the off-screen web views (hal_overlays): the newest picture of each, BGRA premultiplied, at `scale` pixels a point
 struct Shot { uint32_t* px = nullptr; int w = 0, h = 0; unsigned gen = 0; bool taking = false; };
 static View views[MAXV];
 static View* at(int32_t v) { return v >= 0 && v < MAXV && views[v].wv ? &views[v] : nullptr; }
@@ -164,7 +167,7 @@ static void snap(int i, int scale) {
 }
 /** Web view i's newest picture for a display driver: its box and clip in points, its pixels (w x h, `scale` a point), a number that
  *  changes with each new picture; 0 when there is none (no such view, hidden, not taken yet). Asks for the next picture meanwhile. */
-extern "C" int zn_webview_overlay(int i, int scale, const uint32_t** px, int* pw, int* ph, double box[4], double clip[4], unsigned* gen) {
+static int overlayPicture(int i, int scale, const uint32_t** px, int* pw, int* ph, double box[4], double clip[4], unsigned* gen) {
   if (i < 0 || i >= MAXV || !views[i].wv || !offscreen || views[i].clip.hidden) return 0;
   snap(i, scale);
   const Shot& s = shots[i];
@@ -176,7 +179,7 @@ extern "C" int zn_webview_overlay(int i, int scale, const uint32_t** px, int* pw
 }
 /** A touch of the screen at (x, y) points for the off-screen web views: kind 0 press, 1 release, 2 drag, 3 scroll by (dx, dy) points.
  *  1 when a web view takes it (the point is in its clip, or it holds the press), else 0: the app's. */
-extern "C" int zn_webview_pointer(double x, double y, int kind, double dx, double dy) {
+static int overlayPointer(double x, double y, int kind, double dx, double dy) {
   static int held = -1;
   if (!offscreen) return 0;
   int hit = held;
@@ -203,12 +206,14 @@ extern "C" int zn_webview_pointer(double x, double y, int kind, double dx, doubl
   held = kind == 0 ? hit : kind == 1 ? -1 : held;
   return 1;
 }
+static HalOverlays overlays = {overlayPicture, overlayPointer};
+static int overlaysRegistered = (hal_overlays = &overlays, 0);
 #endif
 
 #if !TARGET_OS_IPHONE
 // No window of the app (a display driver shows it elsewhere: display-sidecar): the web views live in a window of their own, off every
 // screen, at the surface's size in points; their pictures are taken (WKWebView snapshots) and the driver lays them into its frames
-// (zn_webview_overlay), and sends them the screen's touches (zn_webview_pointer).
+// (hal_overlays), and sends them the screen's touches.
 static ZView* offscreenView() {
   if (!offscreen) {
     [NSApplication sharedApplication];
@@ -291,6 +296,10 @@ struct MacWebview : NativeWebview, zrt::Poller {
       clip.layer.masksToBounds = YES;
       if (@available(macOS 14.0, *)) clip.clipsToBounds = YES;   // NSView stopped clipping its subviews by default with the macOS 14 SDK
       if (@available(macOS 13.3, *)) wv.inspectable = ZP_WEBVIEW_INSPECTABLE;
+      // off screen, WebKit takes the page for hidden (document.hidden, no requestAnimationFrame: a map never draws its tiles): its window
+      // is shown on another screen, so occlusion is not asked. ponytail: WebKit's private setter, skipped when a release drops it
+      SEL noOcclusion = NSSelectorFromString(@"_setWindowOcclusionDetectionEnabled:");
+      if (hv.window == offscreen && [wv respondsToSelector:noOcclusion]) ((void (*)(id, SEL, BOOL))objc_msgSend)(wv, noOcclusion, NO);
 #endif
       [clip addSubview:wv];
       [hv addSubview:clip];

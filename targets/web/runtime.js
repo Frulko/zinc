@@ -764,7 +764,7 @@ const rows = {
   sysWrite: (s) => writeLine(false, s), sysWriteErr: (s) => writeLine(true, s),
   sysRandomByte: () => crypto.getRandomValues(new Uint8Array(1))[0], sysUtf8Len: (s) => enc.encode(s).length, sysUtf8Byte: (s, i) => enc.encode(s)[i] || 0,
   sysUtf8Decode: (b) => dec.decode(Uint8Array.from(b)), sysBytesToString: (b) => String.fromCharCode(...b),
-  sysLaunchDir: () => '/', sysLocale: () => navigator.language || 'en-US', sysDevice: (q, a) => deviceQuery(q, a),
+  sysLaunchDir: () => '/', sysLocale: () => navigator.language || 'en-US', sysExecPath: () => '', sysDevice: (q, a) => deviceQuery(q, a),
   sysAllocations: () => 0, sysLiveBlocks: () => 0,
   // files: the assets are read only, what the app writes lives in memory for the page's life; storage is the page's localStorage
   fsFailed: () => fsErr !== '', fsError: () => fsErr,

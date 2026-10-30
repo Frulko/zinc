@@ -242,4 +242,14 @@ struct HalDisplay {
   void (*surface_size)(int32_t* w, int32_t* h);
 };
 extern HalDisplay* hal_display;
+// Pictures laid over the frames of a display driver that shows the app with no window of it (display-sidecar): the web views of
+// zinc:webview, kept off screen. A plugin that has such pictures registers this from a static constructor, as a driver does.
+struct HalOverlays {
+  // picture i (0..15): its pixels (w x h, `scale` a point, BGRA), its box and clip in points, a number that changes with each new picture;
+  // 0 when there is none. Asks for the next picture meanwhile.
+  int (*picture)(int i, int scale, const uint32_t** px, int* w, int* h, double box[4], double clip[4], unsigned* gen);
+  // a touch at (x, y) points: kind 0 press, 1 release, 2 drag, 3 scroll by (dx, dy); 1 when a picture's owner took it, else it is the app's
+  int (*pointer)(double x, double y, int kind, double dx, double dy);
+};
+extern HalOverlays* hal_overlays;
 }

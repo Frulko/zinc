@@ -13,6 +13,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc export --target web` runs `zinc:3d` programs: the scene draws on the browser's WebGL 2, as the desktop's GPU renderer does (worlds not yet), and the 3d example of the site's gallery runs in its page.
 - `display-sidecar`: a Zinc app runs on an iPad, iPhone, Android or another Mac with the Sidecar app as its screen, with its own frames and no screen capture: `ZINC_DISPLAY=sidecar ZINC_SIDECAR=adb zinc run <app>` (or `usb`, or an address). Touches and the Apple Pencil drive the app.
 - `display-sidecar`: an app with a web view (`zinc:webview`) shows the page on the Sidecar screen too, and the page answers its touches.
+- `sys.execPath()` gives the program's own executable (Node's `process.execPath`), to start the app again as a second process.
 - `zinc:secure-store` keeps secrets (tokens, keys) in the macOS Keychain with Expo's API: `import * as SecureStore from 'expo-secure-store'`, then `getItemAsync`, `setItemAsync`, `deleteItemAsync`, `isAvailableAsync`. Where no keychain exists the calls reject; secrets are never written to a plain file.
 - `zinc:socket`: `new WebSocket(url, { headers: [[name, value], ...] })` sends extra headers (Origin, User-Agent...) in the opening handshake.
 - The site has a gallery of the graded examples (`/examples/`): filter them by style and by stars, open one and it runs in the page beside its source, with copy buttons for the code and for `zinc run example:<name>`. The two demos to play in the browser now load in a moment, without the reload they needed.

@@ -31,6 +31,8 @@ declare module 'zinc:sys' {
   export function cwd(): string;
   /** The directory the user ran the program from (`zinc run <project>` starts the program in the project): resolve relative paths given as arguments against it. */
   export function launchDir(): string;
+  /** The program's own executable (Node's process.execPath), to start the app again as a second process; '' where there is none (the web, a console). */
+  export function execPath(): string;
   /** The system's preferred language as a BCP 47 tag ("fr-FR"): LC_ALL, LC_MESSAGES or LANG when set, else the system's setting. */
   export function locale(): string;
   /** A device feature, the backend of the web APIs of zinc:web (navigator.getBattery, wakeLock, onLine, visibility, sensors): a JSON or

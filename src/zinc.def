@@ -312,6 +312,7 @@ EXPORTS
   hal_clipboard_get
   hal_clipboard_set
   hal_display DATA
+  hal_overlays DATA
   hal_env
   hal_escape
   hal_escape_by_app
