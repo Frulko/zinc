@@ -2,7 +2,8 @@
 id: ZN-864
 title: 'System: open several windows and message between them'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 10:10'
 labels:
   - system
