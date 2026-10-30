@@ -1972,6 +1972,7 @@ int main(int argc, char** argv) {
       else if (!std::strcmp(argv[k], "--hz") && k + 1 < argc) po.hz = std::atoi(argv[++k]);
       else if (!std::strcmp(argv[k], "--speedscope") && k + 1 < argc) po.speedscope = argv[++k];
       else if (!std::strcmp(argv[k], "--folded") && k + 1 < argc) po.folded = argv[++k];
+      else if (!std::strcmp(argv[k], "--trace") && k + 1 < argc) po.trace = argv[++k];
       else { std::fprintf(stderr, "unknown option %s\n", argv[k]); return 2; }
     }
     zn::zbc::Module zm;
@@ -1990,7 +1991,7 @@ int main(int argc, char** argv) {
     std::fwrite(out.data(), 1, out.size(), stderr);  // the program's own output goes to stderr: stdout is the report
     std::fputs(report.c_str(), stdout);
     if (!res.ok) { std::fprintf(stderr, "%s\n", res.error.c_str()); return res.error.rfind("panic: ", 0) == 0 ? 101 : 1; }
-    if (!isMem) std::fprintf(stderr, "wrote %s\n", po.speedscope.c_str());
+    if (!isMem) std::fprintf(stderr, "wrote %s%s%s\n", po.speedscope.c_str(), po.trace.empty() ? "" : " and ", po.trace.c_str());
     if (checkLeaks && res.leaked) { std::fprintf(stderr, "leaked %zu object(s)\n", res.leaked); return 4; }
     return 0;
   }

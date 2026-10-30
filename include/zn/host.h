@@ -40,6 +40,10 @@ struct LoopBridge {
   void (*active)(int delta) = nullptr;
 };
 extern LoopBridge loopBridge;   // defined in src/rt/worker.cpp
+// The workers for the profiler and the inspector (src/rt/worker.cpp traceThreads): op 1 starts collecting their trace events on `clock` (microseconds),
+// 0 stops and returns them, 2 returns them and goes on, 3 returns the workers' snapshot as a JSON array. The events are Chrome trace objects, each
+// after a comma (appended to an array). Valid until the next call. Never null.
+extern const char* (*threadTrace)(int op, std::uint64_t (*clock)(), std::size_t* n);
 extern HostCall hostSys;  // zinc:sys, zinc:fs, zinc:storage, zinc:assets, zinc:os (the entries of the table from HostSysFirst)
 // Provided by src/host (built with ZN_HOST_GFX): installs `hostGfx`; the runtime itself starts on the first HostGfxFrames call.
 void installGfx();    // the graphics host and the system modules (installSys) together

@@ -13,9 +13,11 @@ struct ProfileOptions {
   int hz = 1000;             // samples per second of CPU time
   std::string speedscope;    // path of the speedscope file (https://www.speedscope.app), empty: none
   std::string folded;        // path of the folded stacks (flamegraph.pl, inferno), empty: none
+  std::string trace;         // path of a Chrome trace (Perfetto, chrome://tracing): a track per thread, the workers' messages as flows; empty: none
 };
 
-// Runs the module with the sampling profiler. `report` gets the table of functions by self time.
+// Runs the module with the sampling profiler, on its main thread and on each worker it starts (one profile, one table and one track per thread).
+// `report` gets the tables of functions by self time.
 rt::Result profile(const zbc::Module& m, std::string& out, const ProfileOptions& o, std::string& report);
 
 // Runs the module counting allocations. `report` is a table, or a JSON object when `json`.

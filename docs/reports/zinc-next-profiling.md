@@ -5,7 +5,7 @@ Four tools, all running on the interpreter or on any process, with output in for
 ## CPU: `zinc profile`
 
 ```
-zinc profile prog.ts [--hz 1000] [--speedscope out.json] [--folded out.folded]
+zinc profile prog.ts [--hz 1000] [--speedscope out.json] [--folded out.folded] [--trace out.json]
 ```
 
 Runs the program in the interpreter and samples the call stack on a CPU-time timer (`SIGPROF`). The signal handler only copies function
@@ -15,6 +15,12 @@ functions by self time (self and total, in percent and milliseconds); the progra
 - `--speedscope`: a sampled profile of the speedscope file format. Open it at <https://www.speedscope.app> (time order, left heavy, sandwich).
   Default `zinc.speedscope.json`.
 - `--folded`: collapsed stacks (`main;f;g 42`), for `flamegraph.pl`, `inferno` or `pprof` converters.
+- `--trace`: a Chrome trace (Perfetto, `chrome://tracing`): a named track per thread with its sampled calls as slices, and the messages of
+  the workers as flow events (the post, the receive, the handler).
+
+A program with workers (`zinc:worker`) is sampled on every thread: `SIGPROF` goes to the thread that spends the CPU, whose track (registered
+by `rt::worker::machineHook` before its program runs) gets the sample. The report has a table per thread, the speedscope file a profile per
+thread, and the folded stacks of a worker start with its thread's name (`zinc worker work.ts#1;main;...`).
 
 The optimiser inlines small functions (`ZN_NO_OPT=1` keeps the structure of the source). Native (AOT) programs are measured with the
 system's tools (`sample`, `perf`, Instruments); `tools/resmon` covers their CPU and memory over a run.

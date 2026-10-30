@@ -841,6 +841,7 @@ uint8_t* capture_png(size_t* n, int32_t maxw = 0, int32_t maxh = 0);  // the fra
 int32_t commandCount();             // draw commands of this frame so far (gfx.cpp)
 int32_t commandsFree();             // draw commands the frame still takes
 bool profiling();                   // profiler (gfx.cpp): ZINC_PROFILE / ZINC_TRACE / DevTools Tracing
+extern const char* (*thread_trace)(int32_t op, size_t* n);   // the other threads' trace events, set by a host (Zinc Next: the workers, zn::host::threadTrace): 1 start, 0 stop and return them, 2 return them
 extern const char* (*hud_info)();   // ZINC_PERF_HUD (ZN-375): the panel's engine line, set by a host (Zinc Next: the engine and its allocation counters)
 bool scene_replay(const char* scene, const char* out);  // ZN-170: rasterize a ZINC_SCENE_DUMP file into a png/bmp with the installed fonts and images
 String profSection(const String& label);                // ZINC_PROFILE: prints the numbers of the frames since the last section (and the last frame's hash), then starts a new section

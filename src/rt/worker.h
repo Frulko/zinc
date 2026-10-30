@@ -37,6 +37,7 @@ struct Info {
   std::size_t queuedOut = 0;  // messages waiting for the main program
   std::uint64_t messagesIn = 0, messagesOut = 0;   // posted to it, posted by it
   std::uint64_t liveBlocks = 0;                    // the worker's live heap blocks (zinc:sys liveObjects), refreshed at each turn of its loop
+  double cpuMs = 0;                                // the CPU time of its thread, refreshed at each turn of its loop and at its end
   std::string error;          // what ended it
 };
 std::vector<Info> snapshot();
@@ -45,5 +46,13 @@ std::vector<Info> snapshot();
 enum Event : int { Start = 0, PostToWorker, PostToMain, ReceiveInWorker, ReceiveInMain, HandlerBegin, HandlerEnd, Terminate, Error, End };
 using TraceHook = void (*)(Event kind, int id, const char* entry, std::size_t bytes, double nowMs);
 extern TraceHook traceHook;   // null: nothing listens, and nothing is measured
+// The profiler and the debugger: called on a worker's thread with its machine, once loaded and before its program runs (begin), then once it has
+// returned (the machine still alive). Null: nothing.
+using MachineHook = void (*)(Machine& m, int id, const std::string& entry, bool begin);
+extern MachineHook machineHook;
+// The Chrome trace of the workers (zn::host::threadTrace, the same ops): a track per worker (tid 100 + id, named "zinc worker <entry>#<id>"), its
+// onmessage spans, its posts and receives as slices joined by flow events (post, receive, handler), its start and end; the main thread is tid 1.
+// It installs traceHook while it collects.
+const char* traceThreads(int op, std::uint64_t (*clock)(), std::size_t* n);
 
 }  // namespace zn::rt::worker

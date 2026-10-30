@@ -432,6 +432,7 @@
     {"paths": ["targets/macos/hal_sdl.cpp", "targets/macos/hal_cocoa.mm", "runtime/zrt.cpp", "runtime/include/hal_window.h", "src/rt/rtcalls.cpp", "src/qjs/qjs.cpp", "src/host/gfx_host.cpp", "src/frontend/modules.cpp", "src/main.cpp", "tests/t1/window_live_resize.sh", "tests/golden/macos/live-resize/"], "tests": ["window_live_resize", "window_resize"]},
     {"paths": ["targets/wasm/", "tools/wasm-export-test", "tests/t1/image_rect_wasm.sh"], "tests": ["image_rect_wasm"]},
     {"paths": ["docs/learn/", "docs/start/", "tests/t1/learn_samples.sh", "tests/data/learn_samples/", "lib/std/stage.ts", "plugins/canvas2d/"], "tests": ["learn_samples"]},
-    {"paths": ["templates/canvas/", "templates/stage/", "tests/golden/templates/"], "tests": ["templates_kickstart", "first_run"]}
+    {"paths": ["templates/canvas/", "templates/stage/", "tests/golden/templates/"], "tests": ["templates_kickstart", "first_run"]},
+    {"paths": ["src/prof/", "src/rt/worker.cpp", "src/rt/worker.h", "tests/data/worker_profile/", "tests/t0/worker_profile.sh"], "tests": ["worker_profile"]}
   ]
 }

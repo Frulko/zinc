@@ -520,7 +520,7 @@ static void summary() {
   hal_log_err(sb.buf, sb.len);
 }
 /** The collected spans as a JSON array of Chrome trace events (ts / dur in µs). */
-static String trace_json() {
+static String trace_json(int32_t threads_op) {
   StrBuilder sb;
   sb.cstr("[{\"name\":\"process_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"zinc\"}},"
           "{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"CrRendererMain\"}}");
@@ -540,11 +540,15 @@ static String trace_json() {
     sb.cstr("\",\"cat\":\"zinc\",\"ph\":\"X\",\"pid\":1,\"tid\":"); to_s(sb, (int32_t)s.tid);
     sb.cstr(",\"ts\":"); to_s(sb, s.t0); sb.cstr(",\"dur\":"); to_s(sb, s.dur); sb.ch('}');
   }
+  // the workers' tracks (tid 100 + id): their onmessage spans and the flows of their messages. The render thread's stages (zn_frame_trace,
+  // D182) are the next track here once that thread lands.
+  size_t tn = 0;
+  if (thread_trace) if (const char* te = thread_trace(threads_op, &tn)) sb.raw(te, (uint32_t)tn);
   sb.ch(']');
   return sb.build();
 }
 static void write_trace() {
-  String s = trace_json();
+  String s = trace_json(2);
   void* f = zrt_host_open(trace_file, "wb");
   if (f) { zrt_host_io(f, (void*)s.ptr(), s.bytes(), 1); zrt_host_close(f); }
 }
@@ -559,7 +563,7 @@ static void begin() {
     if ((e && *e && *e != '0') || (t && *t)) enable();
     if (st && e && *e && *e != '0') { st->summary = true; st->json = e[0] == 'j'; at_finish(summary); }
     if (st) if (const char* sk = hal_env("ZINC_PROFILE_SKIP")) { uint32_t v = 0; for (; *sk >= '0' && *sk <= '9'; sk++) v = v * 10 + (uint32_t)(*sk - '0'); st->skip = v; }
-    if (st && t && *t) { st->tracing = true; trace_file = t; at_finish(write_trace); }
+    if (st && t && *t) { st->tracing = true; trace_file = t; at_finish(write_trace); if (thread_trace) thread_trace(1, nullptr); }
   }
   if (!active()) return;
   st->frame_t0 = st->last = hal_time_us();
@@ -621,6 +625,7 @@ extern "C" void zrt_prof_info(const char* key, const char* val) {
 // Shown with ZINC_PERF_HUD=1 (zinc.json "dev": {"perfHud": true}) or toggled with Cmd/Ctrl+Shift+P. It is an overlay drawn after the
 // program's frame (the program's tree and layout never see it) and only its rectangle is repainted. Its numbers are the profiler's: the
 // per-phase times ZINC_PROFILE summarizes. Drag it anywhere; a click on its "-" (or on the badge) collapses (expands) it.
+const char* (*thread_trace)(int32_t op, size_t* n) = nullptr;
 const char* (*hud_info)() = nullptr;   // a line from the host: the engine and its counters (Zinc Next: objects, allocations per frame)
 namespace hud {
 enum { W = 248, H = 140, GRAPH_Y = 88, GRAPH_H = 48, FRAMES = 120, BADGE_W = 72, BADGE_H = 14 };   // in logical pixels
@@ -852,8 +857,8 @@ static raster::Rect damage_box() {
 }
 /** plugins/devtools Tracing.start (true: returns '') / Tracing.end (false: returns the trace events). */
 String trace(bool on) {
-  if (on) { prof::enable(); if (prof::st) { prof::st->tracing = true; prof::st->nspans = 0; } return String(); }
-  String s = prof::trace_json();
+  if (on) { prof::enable(); if (prof::st) { prof::st->tracing = true; prof::st->nspans = 0; } if (thread_trace) thread_trace(1, nullptr); return String(); }
+  String s = prof::trace_json(prof::trace_file ? 2 : 0);
   if (prof::st && !prof::trace_file) prof::st->tracing = false;
   return s;
 }

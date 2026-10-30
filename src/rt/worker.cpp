@@ -14,6 +14,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <time.h>
 
 #include "zn/alloc_stats.h"
 #include "zn/host.h"
@@ -24,6 +25,7 @@ namespace zn::rt::worker {
 
 bool gBytecode = false;
 TraceHook traceHook = nullptr;
+MachineHook machineHook = nullptr;
 
 namespace {
 
@@ -44,6 +46,7 @@ struct W {
   void* wakeMain = nullptr;                         // the owner's loop
   std::atomic<bool> stop{false}, idle{false};
   std::atomic<std::uint64_t> in{0}, out{0}, live{0};
+  std::atomic<double> cpuMs{0};
   pthread_t th{};
   bool joined = false;
 };
@@ -60,6 +63,13 @@ thread_local std::vector<std::shared_ptr<W>> tOwned;   // the workers this threa
 thread_local W* tSelf = nullptr;                       // on a worker's thread: its own record
 thread_local void* tWake = nullptr;                    // this thread's wake-up
 
+double threadCpuMs() {   // this thread's CPU time
+#ifdef CLOCK_THREAD_CPUTIME_ID
+  timespec ts{};
+  if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0) return static_cast<double>(ts.tv_sec) * 1e3 + static_cast<double>(ts.tv_nsec) / 1e6;
+#endif
+  return 0;
+}
 double nowMs() { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 void trace(Event e, const W& w, std::size_t bytes = 0) { if (TraceHook h = traceHook) h(e, w.id, w.entry.c_str(), bytes, nowMs()); }
 void wake(void* h) { if (h && loopBridge.wakeSend) loopBridge.wakeSend(h); }
@@ -108,10 +118,19 @@ void* body(void* arg) {
   std::string out;
   auto bind = [](Machine& m, const void* data) {   // as program.cpp binds a compiled program's functions
     const W* self = static_cast<const W*>(data);
-    m.registry = false;   // ponytail: as a compiled main program, its leftovers at the end are not walked (they are freed with the heap only at exit)
-    for (std::size_t i = 0; i < self->nativeCount && i < m.funcs.size(); ++i) m.funcs[i].native = self->natives[i];
+    if (self->natives) {
+      m.registry = false;   // ponytail: as a compiled main program, its leftovers at the end are not walked (they are freed with the heap only at exit)
+      for (std::size_t i = 0; i < self->nativeCount && i < m.funcs.size(); ++i) m.funcs[i].native = self->natives[i];
+    }
+    if (MachineHook h = machineHook) h(m, self->id, self->entry, true);
   };
-  Result r = runModuleHooked(*w->mod, out, false, w->natives ? +bind : nullptr, w.get(), nullptr, nullptr, 0, 0, true);
+  auto done = [](Machine& m, const void* data) {
+    const W* self = static_cast<const W*>(data);
+    if (MachineHook h = machineHook) h(m, self->id, self->entry, false);
+  };
+  const bool hooked = machineHook != nullptr;
+  Result r = runModuleHooked(*w->mod, out, false, w->natives || hooked ? +bind : nullptr, w.get(), hooked ? +done : nullptr, w.get(), 0, 0, true);
+  w->cpuMs.store(threadCpuMs(), std::memory_order_relaxed);
   if (!out.empty()) { std::lock_guard<std::mutex> g(gOutMu); std::fwrite(out.data(), 1, out.size(), stdout); std::fflush(stdout); }
   void* wm;
   bool failed = false;
@@ -231,6 +250,7 @@ void idleWait() {
 void deliver() {
   if (W* w = tSelf) {
     w->live.store(gAllocs - gFrees, std::memory_order_relaxed);
+    w->cpuMs.store(threadCpuMs(), std::memory_order_relaxed);
     bool any;
     { std::lock_guard<std::mutex> g(w->mu); any = !w->toWorker.empty() && !w->notifiedWorker; if (any) w->notifiedWorker = true; }
     if (any && loopBridge.push) loopBridge.push(0, 70);
@@ -360,6 +380,7 @@ std::vector<Info> snapshot() {
     i.messagesIn = w->in.load(std::memory_order_relaxed);
     i.messagesOut = w->out.load(std::memory_order_relaxed);
     i.liveBlocks = w->live.load(std::memory_order_relaxed);
+    i.cpuMs = w->cpuMs.load(std::memory_order_relaxed);
     std::lock_guard<std::mutex> g(w->mu);
     i.state = w->terminated ? 2 : w->ended ? 1 : 0;
     i.queuedIn = w->toWorker.size();
@@ -370,4 +391,108 @@ std::vector<Info> snapshot() {
   return v;
 }
 
+// ---- the trace of the workers (zn::host::threadTrace)
+namespace {
+
+struct Collector {
+  std::mutex mu;
+  std::uint64_t (*clock)() = nullptr;
+  std::string events;                // ",{...},{...}"
+  std::map<int, bool> named;         // the worker tracks named so far
+  // per direction (0 to a worker, 1 to the main program), per worker: the messages posted, received and handled so far (the flows' ids), a handler's start
+  std::map<int, std::uint64_t> posted[2], received[2], handled[2], open[2];
+  std::size_t count = 0;
+  std::string out;
+};
+Collector gTrace;
+
+std::string jq(const std::string& s) {
+  std::string r = "\"";
+  for (char c : s) { if (c == '"' || c == '\\') { r += '\\'; r += c; } else if (static_cast<unsigned char>(c) < 0x20) r += ' '; else r += c; }
+  return r + "\"";
+}
+
+// One event of traceHook: slices and flow steps on the track of the thread it happens on (a flow binds to the slice around it).
+void collect(Event e, int id, const char* entry, std::size_t bytes, double) {
+  Collector& c = gTrace;
+  const bool onWorker = tSelf != nullptr;
+  const int tid = onWorker ? 100 + id : 1;
+  std::lock_guard<std::mutex> g(c.mu);
+  if (!c.clock || c.count > 400000) return;   // ponytail: a bounded trace; a ring when long recordings need their end
+  ++c.count;
+  const std::uint64_t t = c.clock();
+  const std::string name = std::string(entry) + "#" + std::to_string(id);
+  auto ev = [&](const char* ph, const std::string& n, std::uint64_t ts, const std::string& extra) {
+    c.events += ",{\"name\":" + jq(n) + ",\"cat\":\"zinc.worker\",\"ph\":\"" + ph + "\",\"pid\":1,\"tid\":" + std::to_string(tid) + ",\"ts\":" + std::to_string(ts) + extra + "}";
+  };
+  if (onWorker && !c.named[id]) {
+    c.named[id] = true;
+    c.events += ",{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":" + std::to_string(tid) + ",\"args\":{\"name\":" + jq("zinc worker " + name) + "}}";
+  }
+  auto flowId = [&](int dir, std::uint64_t k) { return std::to_string((static_cast<std::uint64_t>(id) << 33) | (static_cast<std::uint64_t>(dir) << 32) | k); };
+  const std::string args = ",\"args\":{\"worker\":" + jq(name) + ",\"bytes\":" + std::to_string(bytes) + "}";
+  switch (e) {
+    case PostToWorker: case PostToMain: {
+      const int dir = e == PostToMain;
+      ev("X", dir ? "postMessage to main" : "postMessage to " + name, t, ",\"dur\":1" + args);
+      ev("s", "message", t, ",\"id\":" + flowId(dir, ++c.posted[dir][id]));
+      break;
+    }
+    case ReceiveInWorker: case ReceiveInMain: {
+      const int dir = e == ReceiveInMain;
+      ev("X", "receive", t, ",\"dur\":1" + args);
+      ev("t", "message", t, ",\"id\":" + flowId(dir, ++c.received[dir][id]));
+      break;
+    }
+    case HandlerBegin: c.open[onWorker ? 0 : 1][id] = t; break;
+    case HandlerEnd: {   // the handler's slice; the flow of its message ends at its start
+      const int dir = onWorker ? 0 : 1;
+      auto it = c.open[dir].find(id);
+      if (it == c.open[dir].end()) break;
+      const std::uint64_t t0 = it->second;
+      c.open[dir].erase(it);
+      ev("X", dir ? "onmessage " + name : "onmessage", t0, ",\"dur\":" + std::to_string(t > t0 ? t - t0 : 1) + ",\"args\":{\"worker\":" + jq(name) + "}");
+      ev("f", "message", t0, ",\"bp\":\"e\",\"id\":" + flowId(dir, ++c.handled[dir][id]));
+      break;
+    }
+    default: {   // start, terminate, error, end
+      static const char* const kNames[] = {"worker start", "", "", "", "", "", "", "worker terminate", "worker error", "worker end"};
+      ev("i", std::string(kNames[e]) + " " + name, t, ",\"s\":\"t\"");
+      break;
+    }
+  }
+}
+
+}  // namespace
+
+const char* traceThreads(int op, std::uint64_t (*clock)(), std::size_t* n) {
+  Collector& c = gTrace;
+  std::lock_guard<std::mutex> g(c.mu);
+  c.out.clear();
+  if (op == 1) {
+    c.clock = clock;
+    c.events.clear(); c.named.clear(); c.count = 0;
+    for (int d = 0; d < 2; ++d) { c.posted[d].clear(); c.received[d].clear(); c.handled[d].clear(); c.open[d].clear(); }
+    traceHook = collect;
+  } else if (op == 0 || op == 2) {
+    if (op == 0 && traceHook == collect) { traceHook = nullptr; c.clock = nullptr; }
+    c.out = c.events;
+  } else if (op == 3) {
+    c.out = "[";
+    for (const Info& i : snapshot()) {
+      char cpu[32];
+      std::snprintf(cpu, sizeof cpu, "%.1f", i.cpuMs);
+      c.out += std::string(c.out.size() > 1 ? "," : "") + "{\"id\":" + std::to_string(i.id) + ",\"name\":" + jq("zinc worker " + i.entry + "#" + std::to_string(i.id)) +
+               ",\"entry\":" + jq(i.entry) + ",\"state\":\"" + (i.state == 2 ? "terminated" : i.state == 1 ? "ended" : "running") + "\",\"queuedIn\":" + std::to_string(i.queuedIn) +
+               ",\"queuedOut\":" + std::to_string(i.queuedOut) + ",\"messagesIn\":" + std::to_string(i.messagesIn) + ",\"messagesOut\":" + std::to_string(i.messagesOut) +
+               ",\"liveBlocks\":" + std::to_string(i.liveBlocks) + ",\"cpuMs\":" + cpu + ",\"error\":" + jq(i.error) + "}";
+    }
+    c.out += "]";
+  }
+  if (n) *n = c.out.size();
+  return c.out.c_str();
+}
+
 }  // namespace zn::rt::worker
+
+namespace zn::host { const char* (*threadTrace)(int, std::uint64_t (*)(), std::size_t*) = zn::rt::worker::traceThreads; }
