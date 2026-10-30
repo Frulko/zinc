@@ -312,6 +312,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- On the Raspberry Pi image, an app started from the player is one `zinc device` knows: `apps` shows it running, `logs` reads its output and `stop` ends it (the player comes back, with no crash page).
 - The Raspberry Pi player no longer keeps a core busy on its home screen: its animation draws 12 frames a second and stops after a minute without a touch (it used a whole core of a Pi 3 and could trip its under-voltage limit); it reads the update status only in the settings.
 - museum-table runs when it is sent to another machine (`zinc device deploy`): its probe imported the devtools plugin by a path outside the project; it is now `zinc:devtools/cdp`.
 - Sending an app to a slow device (`zinc device install`, `deploy`) no longer slows down as the transfer grows: received data was moved once per 16 KB block.

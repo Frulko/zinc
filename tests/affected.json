@@ -56,6 +56,7 @@
     {"paths": ["image/builder/", "image/catalog.json", "tests/t1/pi_image_builder.sh", "tests/t1/pi_image_builder_log.sh", "tests/data/pi-image/", "tests/golden/pi-image-builder/"], "tests": ["pi_image_builder", "pi_image_builder_presets", "pi_image_presets", "pi_image_builder_log"]},
     {"paths": ["lib/std/nuxt/controls.tsx", "tests/t0/pi_image_presets.sh", "tests/t1/pi_image_builder_presets.sh"], "tests": ["pi_image_builder_presets", "pi_image_presets"]},
     {"paths": ["image/files/", "image/build.sh", "image/scripts/", "image/check.sh", "tools/pi-image", "tests/data/pi-image/test_updates.py", "tests/t0/pi_image_update.sh", "tools/package"], "tests": ["pi_image_update", "pi_image_updates"]},
+    {"paths": ["image/files/usr/lib/zinc/zinc-session", "tests/t0/pi_session_agent.sh"], "tests": ["pi_session_agent"]},
     {"paths": ["image/player/", "plugins/network/", "tests/t1/pi_image_player.sh", "tests/t1/player_launcher.sh", "tests/t1/pi_image_updates.sh", "tests/golden/pi-image-player/", "tests/golden/pi-image-updates/"], "tests": ["pi_image_player", "pi_image_updates", "player_launcher"]},
     {"paths": ["plugins/network/", "image/player/dev/bin/nmcli", "tests/t0/network_plugin.sh", "docs/plugins/network.md"], "tests": ["network_plugin"]},
     {"paths": ["lib/std/stage.ts", "tests/t0/stage.sh", "tests/golden/stage/"], "tests": ["stage", "music_tree_sonos"]},
