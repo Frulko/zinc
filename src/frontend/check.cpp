@@ -1435,7 +1435,11 @@ struct Checker {
         body = "  a.push(x);\n  for (let k: i32 = a.length - 1; k > 0; k--) a[k] = a[k - 1];\n  a[0] = x;\n  return a.length;\n";
       } else {
         const bool inserts = args.size() == 3;
-        for (std::size_t k = 0; k < (inserts ? 2 : args.size()); ++k) { TypeId t = expr(args[k]); if (!bad(t) && !isNum(t)) diag(kZNotAssignable, args[k], "diag.detail.assign", {{"from", name(t)}, {"to", "number"}}); }
+        for (std::size_t k = 0; k < (inserts ? 2 : args.size()); ++k) {
+          TypeId t = expr(args[k]);
+          if (!bad(t) && isDyn(t)) require(t, i32, args[k]);   // an `any` start or count (a JSON field) is a number, as in TypeScript
+          else if (!bad(t) && !isNum(t)) diag(kZNotAssignable, args[k], "diag.detail.assign", {{"from", name(t)}, {"to", "number"}});
+        }
         if (inserts) { TypeId it = expr(args[2], at); if (bad(it) || !require(it, at, args[2])) return tError; }
         if (args.size() < 2) { std::uint32_t id = newNode(N::Number, "2147483647", {}, i); out.nodeType[id] = i32; args.push_back(id); }
         result = at;
