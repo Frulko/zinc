@@ -21,10 +21,11 @@ export const DeviceMotionEvent = g.DeviceMotionEvent, DeviceOrientationEvent = g
 // types of web.ts: erased, but a program may name them in an import
 export const EncodeIntoResult = undefined, TextDecoderOptions = undefined, TextDecodeOptions = undefined, EventInit = undefined, CustomEventInit = undefined, ErrorEventInit = undefined,
   MessageEventInit = undefined, PromiseRejectionEventInit = undefined, EventListener = undefined, EventListenerOptions = undefined, AddEventListenerOptions = undefined, BlobPropertyBag = undefined,
-  FilePropertyBag = undefined, MediaTrackConstraints = undefined, MediaTrackAudioConstraints = undefined, MediaStreamConstraints = undefined, CameraBridge = undefined, MicrophoneBridge = undefined;
+  FilePropertyBag = undefined, MediaTrackConstraints = undefined, MediaTrackAudioConstraints = undefined, MediaStreamConstraints = undefined, CameraBridge = undefined, MicrophoneBridge = undefined, DisplayBridge = undefined, DisplayMediaStreamOptions = undefined;
 // the camera and microphone plugins of the web target open getUserMedia themselves: the bridges of the Zinc polyfill have nothing to connect
 export function setCameraBridge(_b: unknown): void {}
 export function setMicrophoneBridge(_b: unknown): void {}
+export function setDisplayBridge(_b: unknown): void {}
 // byte helpers web.ts exports for the rest of the standard library (programs rarely call them)
 export function base64Encode(b: number[] | Uint8Array): string { let s = ''; for (const v of b) s += String.fromCharCode(v); return g.btoa(s); }
 export function base64Decode(s: string): number[] { const r = g.atob(s), o: number[] = []; for (let i = 0; i < r.length; i++) o.push(r.charCodeAt(i)); return o; }

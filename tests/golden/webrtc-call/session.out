@@ -1,6 +1,7 @@
 camera off
 camera on
 camera Zinc Fake Camera
+camera Zinc Fake Camera
 devices: video Zinc Fake Camera, audio Zinc Fake Microphone
 echo connected
 echo connecting
@@ -10,6 +11,8 @@ hung up
 microphone off
 microphone on
 picture back: image, frames flowing
+screen back: 1152x720
+sharing 1152x720
 speaker off
 speaker on
 stats 640x480 codec audio opus bit rates

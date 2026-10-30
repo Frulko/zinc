@@ -1632,6 +1632,15 @@ export interface MicrophoneBridge {
 }
 let microphoneBridge: MicrophoneBridge | null = null;
 export function setMicrophoneBridge(b: MicrophoneBridge): void { microphoneBridge = b; }
+/** The same for zinc:screen-capture: a source id ('' for the main screen) opened as a video track. */
+export interface DisplayBridge {
+  open(id: string, width: i32, height: i32, fps: i32, cursor: boolean): Promise<MediaStreamTrack>;
+}
+let displayBridge: DisplayBridge | null = null;
+export function setDisplayBridge(b: DisplayBridge): void { displayBridge = b; }
+/** What getDisplayMedia takes: video true, or { width, height, frameRate, deviceId (a source of zinc:screen-capture's getSources(); the
+ *  main screen without it), cursor ('always' or 'never') }. No audio. */
+export interface DisplayMediaStreamOptions { video?: unknown; audio?: unknown }
 async function cameraList(b: CameraBridge): Promise<string[]> {
   try { return await b.devices(); } catch (e) { throw new DOMException(e instanceof Error ? e.message : '' + e, 'NotAllowedError'); }
 }
@@ -1698,6 +1707,24 @@ export class MediaDevices extends EventTarget {
     const track = await openTrack(b, id, c);
     if (audio === null) return new MediaStream([track]);
     try { return new MediaStream([track, await audioTrack(audio as MediaTrackAudioConstraints)]); } catch (e) { track.stop(); throw e; }
+  }
+  /** A stream with the video of a screen or a window (zinc:screen-capture): the main screen, or { video: { deviceId } } for a source of its
+   *  getSources(), from the program's own picker (there is no system picker). The frames fit width x height with the source's aspect.
+   *  @throws DOMException NotFoundError (no such source, no zinc:screen-capture import), NotAllowedError (screen recording not allowed:
+   *  the message says where to allow it; zinc.json permissions), NotSupportedError (audio, or video: false). */
+  async getDisplayMedia(options: DisplayMediaStreamOptions = { video: true }): Promise<MediaStream> {
+    if (options.audio !== undefined && options.audio !== false) throw new DOMException('getDisplayMedia: no audio capture yet', 'NotSupportedError');
+    if (options.video === false) throw new DOMException('getDisplayMedia needs video', 'NotSupportedError');
+    if (displayBridge === null) throw new DOMException("getDisplayMedia needs the screen-capture plugin: add `import 'zinc:screen-capture';` to the program", 'NotFoundError');
+    const c = trackConstraints(options.video === undefined ? true : options.video) as MediaTrackConstraints;
+    const o: any = options.video;
+    const cursor = !(o !== true && o !== undefined && typeof o.cursor === 'string' && (o.cursor as string) === 'never');
+    try {
+      return new MediaStream([await (displayBridge as DisplayBridge).open(c.deviceId ?? '', c.width ?? 0, c.height ?? 0, c.frameRate ?? 0, cursor)]);
+    } catch (e) {
+      const m = e instanceof Error ? e.message : '' + e;
+      throw m.indexOf('no source') >= 0 || m.indexOf('no screen') >= 0 || m.indexOf('no window') >= 0 ? new DOMException(m, 'NotFoundError') : readError(e);
+    }
   }
 }
 

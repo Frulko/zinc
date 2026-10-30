@@ -1,0 +1,15 @@
+{
+  "name": "screen-capture",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:screen-capture",
+  "entry": "index.ts",
+  "description": "Screen and window capture (ScreenCaptureKit on macOS): sources with thumbnails, a capture at a size and rate as a runtime image without copies, getDisplayMedia for zinc:webrtc; fake sources for tests",
+  "native": { "impl": { "macos": "native/screen.macos.mm" } },
+  "targets": {
+    "macos": { "frameworks": ["ScreenCaptureKit", "AppKit", "CoreMedia", "CoreVideo", "CoreGraphics", "Foundation"] },
+    "linux": {},
+    "windows": {}
+  },
+  "web": { "entry": "web/index.ts" }
+}

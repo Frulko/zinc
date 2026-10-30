@@ -2,14 +2,15 @@
 # The video call demo (examples/webrtc-call), on the fake camera and the fake microphone: its screen before a call renders to the recorded
 # frame hashes (tests/golden/webrtc-call/hashes.txt: mode, scheme, size, hash; deterministic, no call), a compiled run gives the
 # interpreter's hash of the first (QuickJS runs no JSX: tests/t1/webrtc_media.sh covers the tracks there); the scripted session in real time
-# (a call through the echo peer, the picture back, the stats, mute and video off, the camera picked again, the speaker, hang up) prints the
+# (a call through the echo peer, the picture back, the stats, mute and video off, the camera picked again, the fake screen shared and back,
+# the speaker, hang up) prints the
 # lines of session.out (sorted: the two peers race). No real device is opened, no system question asked, nothing listens once it has ended.
 # ZN_UPDATE_GOLDEN=1 records again.
 cd "$(dirname "$0")/../.." || exit 2
 command -v c++ >/dev/null || { echo "skipped: no C++ compiler"; exit 77; }
 app=$PWD/examples/webrtc-call; golden=$PWD/tests/golden/webrtc-call
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-export ZINC_HEADLESS=1 ZINC_BACKGROUND=1 ZINC_FAKE_CAMERA=1 ZINC_FAKE_MICROPHONE=1
+export ZINC_HEADLESS=1 ZINC_BACKGROUND=1 ZINC_FAKE_CAMERA=1 ZINC_FAKE_MICROPHONE=1 ZINC_FAKE_SCREEN=1
 fail=0
 hash() { echo "$1" | sed -n 's/^zinc: framehash [0-9]* [0-9x]* //p'; }
 shot() {   # shot <mode> <scheme> <size> [flags]: the frame hash of the screen before a call, deterministic

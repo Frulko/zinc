@@ -2,7 +2,7 @@
 // README.md.
 //   build/zinc run examples/webrtc-call
 // Keys: M mutes, V stops the video, C picks the next camera, S the stats, Enter calls, Esc hangs up then quits.
-// Test hooks: CALL_DEMO=1 runs the scripted session (call, mute, video off, a camera switch, the stats, hang up, quit), CALL_LOG=1 prints
+// Test hooks: CALL_DEMO=1 runs the scripted session (call, mute, video off, a camera switch, screen sharing, the stats, hang up, quit), CALL_LOG=1 prints
 // what happens (tests/t1/webrtc_call.sh), CALL_MODE=room starts on the room tab, CALL_SIGNAL=ws://host:port the signalling server,
 // ZINC_SCHEME=dark the dark scheme.
 import { render } from 'zinc:ui/react';
@@ -21,6 +21,7 @@ ui.onKey((e: ui.KeyEvent): void => {
   else if (k === 'v') c.toggleCamera();
   else if (k === 'c') { if (c.cameras.length > 0) c.pickCamera((c.which + 1) % c.cameras.length); }
   else if (k === 's') c.toggleStats();
+  else if (k === 'd') c.toggleShare();
   else return;
   e.preventDefault();
 });
@@ -29,7 +30,7 @@ function until(cond: () => boolean): Promise<void> {
   return new Promise<void>((done: () => void) => { const t = setInterval(() => { if (cond()) { clearInterval(t); done(); } }, 10); });
 }
 // The scripted session, in real time with the fake camera and microphone: a call in this window, the picture back, mute and unmute, video
-// off and on, the camera picked again, the stats, hang up, quit.
+// off and on, the camera picked again, the screen shared (the fake screen with ZINC_FAKE_SCREEN=1) and back, the stats, hang up, quit.
 async function script(): Promise<void> {
   const c = call;
   await c.start();
@@ -45,6 +46,10 @@ async function script(): Promise<void> {
   c.toggleMic();
   c.toggleCamera();
   await c.pickCamera(0);
+  await c.toggleShare();
+  await until(() => c.peerWidth() > 640);
+  c.log(`screen back: ${c.peerWidth()}x${c.peerHeight()}`);
+  await c.toggleShare();
   c.toggleStats(); c.toggleStats();
   c.toggleSpeaker(); c.toggleSpeaker();
   c.hangUp();

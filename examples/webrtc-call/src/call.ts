@@ -9,7 +9,8 @@ import { RTCPeerConnection, RTCTrackEvent, RTCStats, RTCPeerConnectionIceEvent, 
 import { devices, CameraDevice, Camera, requestPermission as askCamera } from 'zinc:camera';
 import { Microphone, requestPermission as askMicrophone } from 'zinc:microphone';
 import { stream, AudioStream } from 'zinc:audio';
-import { navigator, MediaStream, MediaStreamTrack } from 'zinc:web';
+import { permissionStatus as screenAccess, requestPermission as askScreen } from 'zinc:screen-capture';
+import { navigator, MediaStream, MediaStreamTrack, Event } from 'zinc:web';
 import { WebSocket, MessageEvent as WsMessage } from 'zinc:socket';
 import { env } from 'zinc:sys';
 
@@ -30,6 +31,7 @@ export class Call {
   which: number = 0;
   micOn: boolean = true;
   camOn: boolean = true;
+  sharing: boolean = false;       // the screen goes out instead of the camera
   speakerOn: boolean = false;     // off in this window: your own voice would come back through the speaker
   showStats: boolean = true;
   room: string = 'zinc';
@@ -53,6 +55,8 @@ export class Call {
   log(s: string): void { if (env('CALL_LOG') === '1') console.log(s); }
 
   get camera(): Camera | null { const l = this.local; if (l === null) return null; const v = l.getVideoTracks(); return v.length > 0 ? v[0].camera as Camera : null; }
+  /** What goes out as video: the camera's track, or the screen's while sharing. */
+  get localVideo(): MediaStreamTrack | null { const l = this.local; if (l === null) return null; const v = l.getVideoTracks(); return v.length > 0 ? v[0] : null; }
   get microphone(): Microphone | null { const l = this.local; if (l === null) return null; const a = l.getAudioTracks(); return a.length > 0 ? a[0].microphone as Microphone : null; }
   /** Your microphone's loudness, 0..1 (0 while muted). */
   micLevel(): number { const m = this.microphone; return m === null || !this.micOn ? 0 : m.level(); }
@@ -213,17 +217,36 @@ export class Call {
   /** The camera picker: another camera (or the same one, opened again) replaces the one sent, without a new negotiation (replaceTrack). */
   async pickCamera(i: number): Promise<void> {
     this.which = i;
-    const ls = this.local;
-    if (ls === null) { this.changed(); return; }
-    const l = ls as MediaStream, d = this.cameras[i];
+    if (this.local === null) { this.changed(); return; }
+    const d = this.cameras[i];
     const fresh = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, frameRate: 30, deviceId: d.id } });
-    const track = fresh.getVideoTracks()[0];
+    this.sharing = false;
+    await this.sendVideo(fresh.getVideoTracks()[0]);
+    this.log(`camera ${d.name}`);
+  }
+  /** Screen sharing: the main screen replaces the camera (replaceTrack, no new negotiation); pressed again, the camera comes back. macOS asks
+   *  once for screen recording; refused, the reason and where to allow it are shown. */
+  async toggleShare(): Promise<void> {
+    if (this.local === null) return;
+    if (this.sharing) { await this.pickCamera(this.which); return; }
+    if (screenAccess() !== 'granted') await askScreen();
+    try {
+      const track = (await navigator.mediaDevices.getDisplayMedia({ video: { width: 1280, height: 720, frameRate: 15 } })).getVideoTracks()[0];
+      track.addEventListener('ended', (_e: Event): void => { if (this.sharing) this.pickCamera(this.which); });   // the shared screen went away
+      this.why = '';
+      this.sharing = true;
+      await this.sendVideo(track);
+      this.log(`sharing ${track.getSettings().width}x${track.getSettings().height}`);
+    } catch (e) { this.why = (e as Error).message; this.log(`share failed: ${this.why}`); this.changed(); }
+  }
+  // a new video track goes out in place of the one sent (the old one stops)
+  private async sendVideo(track: MediaStreamTrack): Promise<void> {
+    const l = this.local as MediaStream;
     track.enabled = this.camOn;
     const s = this.videoSender;
     if (s !== null) await (s as RTCRtpSender).replaceTrack(track);
     for (const old of l.getVideoTracks()) { l.removeTrack(old); old.stop(); }
     l.addTrack(track);
-    this.log(`camera ${d.name}`);
     this.changed();
   }
 

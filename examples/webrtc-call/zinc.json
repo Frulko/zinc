@@ -11,7 +11,8 @@
   "permissions": [
     "net",
     "camera",
-    "microphone"
+    "microphone",
+    "screen"
   ],
   "targets": {
     "macos": {
@@ -35,6 +36,8 @@
     "moon",
     "phone",
     "phone-off",
+    "screen-share",
+    "screen-share-off",
     "shield-alert",
     "sun",
     "switch-camera",

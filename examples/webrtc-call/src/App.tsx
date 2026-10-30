@@ -35,11 +35,12 @@ function drawStage(x: i32, y: i32, w: i32, h: i32): void {
     drawText(BIG, x + (w - textWidth(BIG, t, 0)) / 2, y + h / 2 - 8, t, 0xA1A1AA, 255, 0);
   }
   // your preview, bottom right, with your microphone's meter
-  const cam = c.camera;
-  if (cam !== null && c.stage !== 'idle') {
+  const lv = c.localVideo, cam = c.sharing ? null : c.camera;   // the camera, or the shared screen's track
+  if (lv !== null && c.stage !== 'idle') {
+    const st = lv.getSettings(), img = cam !== null ? cam.image : lv.image;
     const pw = Math.round(Math.min(220, w * 0.3)), ph = Math.round(pw * 3 / 4), px = x + w - pw - 16, py = y + h - ph - 16;
     rrect(px - 2, py - 2, pw + 4, ph + 4, 12, 0xFFFFFF, 60);
-    if (c.camOn && cam.image >= 0) cover(cam.image as i32, cam.width, cam.height, px, py, pw, ph, 10);
+    if (c.camOn && img >= 0) cover(img as i32, cam !== null ? cam.width : st.width, cam !== null ? cam.height : st.height, px, py, pw, ph, 10);
     else { rrect(px, py, pw, ph, 10, 0x27272A, 255); drawText(HUD, px + 12, py + 12, 'Camera off', 0xD4D4D8, 255, 0); }
     meter(px + 10, py + ph - 14, pw - 20, c.micLevel(), !c.micOn);
     if (!c.micOn) { rrect(px + 8, py + 8, 64, 22, 11, 0xDC2626, 230); drawText(HUD, px + 16, py + 11, 'Muted', 0xFFFFFF, 255, 0); }
@@ -143,6 +144,7 @@ export default function App() {
           <Round icon={c.micOn ? 'mic' : 'mic-off'} label={c.micOn ? 'Mute' : 'Unmute'} on={c.micOn} onPress={() => c.toggleMic()} />
           <Round icon={c.camOn ? 'video' : 'video-off'} label={c.camOn ? 'Stop video' : 'Start video'} on={c.camOn} onPress={() => c.toggleCamera()} />
           <Round icon="switch-camera" label="Camera" on={true} onPress={() => { if (c.cameras.length > 0) c.pickCamera((c.which + 1) % c.cameras.length); }} />
+          <Round icon={c.sharing ? 'screen-share-off' : 'screen-share'} label={c.sharing ? 'Stop sharing' : 'Share screen'} on={!c.sharing} onPress={() => { c.toggleShare(); }} />
           <Round icon={c.speakerOn ? 'volume-2' : 'volume-x'} label={c.speakerOn ? 'Speaker' : 'Speaker off'} on={c.speakerOn} onPress={() => c.toggleSpeaker()} />
           <Round icon="activity" label="Stats" on={c.showStats} onPress={() => c.toggleStats()} />
           {inCall ? <Round icon="phone-off" label="Hang up" on={true} danger={true} onPress={() => c.hangUp()} />
