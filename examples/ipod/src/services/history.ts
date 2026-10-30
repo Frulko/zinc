@@ -12,6 +12,7 @@
 import { Database, Row } from 'zinc:sqlite';
 import * as fs from 'zinc:fs';
 import { fold } from '../search';
+import { Budget } from './slice';
 
 /** A listen more than this after the previous one starts a new session. */
 export const SESSION_GAP_S: number = 1800;
@@ -361,14 +362,22 @@ export class History {
     return out;
   }
 
-  /** Every listen of a track matched on the iPod `guid`, oldest first (services/genius.ts reads the sessions from it). */
-  podListens(guid: string): PodListen[] {
+  /** Every listen of a track matched on the iPod `guid`, oldest first (services/genius.ts reads the sessions from it), read a batch at
+   *  a time within the budget `b` (100,000 listens take most of a second). */
+  async podListens(guid: string, b: Budget = new Budget()): Promise<PodListen[]> {
     const out: PodListen[] = [];
-    for (const r of this.db.prepare('SELECT l.ts AS ts, m.track_id AS id, l.skipped AS skipped FROM listens l ' +
-      "JOIN matches m ON m.guid = ? AND m.track_key = l.track_key AND m.track_id <> '' ORDER BY l.ts").all([guid])) {
-      const p = new PodListen();
-      p.ts = r.number('ts'); p.trackId = str(r, 'id'); p.skipped = r.number('skipped') !== 0;
-      out.push(p);
+    // CROSS JOIN: the listens in the order of their time index, each looked up in the matches, so each batch reads only its rows
+    // (the planner's order, matches first, sorted all of them before the first row: a third of a second for 100,000)
+    const cur = this.db.prepare('SELECT l.ts AS ts, m.track_id AS id, l.skipped AS skipped FROM listens l ' +
+      "CROSS JOIN matches m ON m.guid = ? AND m.track_key = l.track_key AND m.track_id <> '' ORDER BY l.ts, l.rowid").cursor([guid]);
+    while (!cur.done) {
+      for (const r of cur.next(500)) {
+        const p = new PodListen();
+        const id = r[1];
+        p.ts = r[0] as number; p.trackId = typeof id === 'string' ? id as string : typeof id === 'number' ? `${id as number}` : ''; p.skipped = (r[2] as number) !== 0;
+        out.push(p);
+      }
+      await b.check();
     }
     return out;
   }

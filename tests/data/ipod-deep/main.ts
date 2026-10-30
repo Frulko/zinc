@@ -110,7 +110,7 @@ async function main(): Promise<void> {
   }
   const h = new History(db);
   const dir = `${backups}/history`;
-  const m: Model = buildModel(h, GUID, tracks, readArtistGraph(dir), loadWeights(dir));
+  const m: Model = await buildModel(h, GUID, tracks, await readArtistGraph(dir), loadWeights(dir));
   let alpha = '';
   for (const t of tracks) if (t.title === 'Alpha One Song 1') alpha = t.id;
 
@@ -153,7 +153,7 @@ async function main(): Promise<void> {
   for (const t of genius(m, alpha, 25)) if (t.artist === 'Charlie Four') charlieFour++;
   console.log('not analysed still picked', charlieFour);
   // near lists and the path, then the tier-2 shelves
-  const s = fy.signals(h, GUID, m, NOW);
+  const s = await fy.signals(h, GUID, m, NOW);
   const seeds = fy.soundsLikeSeeds(s);
   const asked = await muse.fetchNear(c, cacheDir, d, tracks, seeds, 50);
   const again = await muse.fetchNear(c, cacheDir, d, tracks, seeds, 50);
@@ -186,7 +186,7 @@ async function main(): Promise<void> {
   console.log('mood mixer without AudioMuse', mixer());
   attachDeep(m, d);
   console.log('mood mixer', mixer());
-  const shelves = fy.extraShelves(fy.signals(h, GUID, m, NOW));
+  const shelves = fy.extraShelves(await fy.signals(h, GUID, m, NOW));
   console.log('extra shelves', shelves.length);
   for (const sh of shelves) {
     const cards: string[] = [];
@@ -194,14 +194,14 @@ async function main(): Promise<void> {
     console.log('shelf', sh.title, '|', cards.join(' / '));
   }
   attachDeep(m, null);
-  console.log('tier 1 again', letters(genius(m, alpha, 12)) === letters(t1), 'shelves', fy.extraShelves(fy.signals(h, GUID, m, NOW)).length);
+  console.log('tier 1 again', letters(genius(m, alpha, 12)) === letters(t1), 'shelves', fy.extraShelves(await fy.signals(h, GUID, m, NOW)).length);
   // Settings › Recommendations: one line per source, from disk (the clock: three days after the similar artists' file was written)
   fs.writeText(`${dir}/similar-artists.jsonl`, '{"artist":"alpha one","at":1,"similar":[]}\n{"artist":"bravo one","at":1,"similar":[]}\n');
   const at = fs.stat(`${dir}/similar-artists.jsonl`).mtimeMs / 1000 + 3 * DAY;
   h.set('lastfm.newest', `${at - 2 * DAY}`);
   d.syncedAt = at - 3600;
   console.log(prep.historyLine(h, at));
-  console.log(prep.similarLine(dir, at));
+  console.log(prep.similarLine(await prep.similarKnown(dir), at));
   console.log(prep.museLine(d, tracks, true, at));
   console.log(prep.thousands(38882), prep.thousands(999), prep.thousands(1234567));
   h.close();

@@ -1,12 +1,14 @@
 // The mood mixer of For you: a mood chip (Chill, Focus, Party, Workout, Melancholy, Happy) sets the energy and tempo bars, and the list
 // (services/moods.ts) is made again at each click. Play plays it; Open shows it as a draft on the Playlists page (Play, Save to iPod).
-// Without AudioMuse's analysis the list comes from the genres and the BPM only, the energy bar is hidden and the line says so.
+// Without AudioMuse's analysis the list comes from the genres and the BPM only, the energy bar is hidden and the line says so. While
+// Genius' model is built (drafts.ts, a slice at a time) a turning ring says the songs are being picked.
 import * as ui from 'zinc:ui';
 import * as ipod from 'zinc:ipod';
 import { createSignal, createMemo } from 'zinc:ui/solid';
 import { openPlaylist } from '../../state';
 import { MOODS, Mood, moodMix } from '../../services/moods';
-import { Draft, currentModel, keepDrafts, play } from '../../drafts';
+import { Draft, currentModel, modelWorking, keepDrafts, play } from '../../drafts';
+import { Working } from '../../components/Working';
 import { Button } from '../../components/Button';
 import { count } from '../../format';
 import { bg, bd, fg, CARD, BORDER, HOVER, TEXT, MUTED, ACCENT, TRACK } from '../../constants';
@@ -64,8 +66,9 @@ function Body(props: { mx: Mixed }): i32 {
     </View>
     <View className="flex-row items-center gap-3">
       <View className="grow basis-0 min-w-0 flex-col">
-        <Text className={`text-[13px] font-semibold ${fg(TEXT)}`} numberOfLines={1}>
-          {d.tracks.length === 0 ? 'No songs for this mood yet' : `${d.name} · ${count(d.tracks.length, 'song', 'songs')}: ${shown}…`}</Text>
+        {d.tracks.length === 0 && modelWorking() ? <Working text={`Picking the ${d.name}…`} />
+          : <Text className={`text-[13px] font-semibold ${fg(TEXT)}`} numberOfLines={1}>
+          {d.tracks.length === 0 ? 'No songs for this mood yet' : `${d.name} · ${count(d.tracks.length, 'song', 'songs')}: ${shown}…`}</Text>}
         <Text className={`text-[12px] ${fg(MUTED)}`} numberOfLines={2}>{mx.deep ? 'By the moods, energy and tempo AudioMuse found in each song'
           : 'Without AudioMuse’s analysis: by genre and BPM only (Settings › Recommendations connects it)'}</Text>
       </View>

@@ -1,6 +1,7 @@
 // The playlists on the iPod (searched by name), and the tracks of the one picked, in its order (searched by title, artist and album);
 // a smart playlist shows its rules, read-only. Above them, "Genius & mixes": the last Genius list and the taste clusters of the listening
-// history (drafts.ts), not on the iPod until Save to iPod; Play hears them first (on this Mac or the Sonos group chosen).
+// history (drafts.ts), not on the iPod until Save to iPod; Play hears them first (on this Mac or the Sonos group chosen). While Genius'
+// model or the mixes are worked out (a slice at a time), a turning ring says so where they will show.
 // Picking one is an entry of the history; a right click on one plays it or queues it (menus.ts). The + beside the title makes a playlist
 // or a smart playlist (the editor, SmartEditor.tsx, shown here while it is open); a smart playlist's rules open in it with Edit rules, or,
 // when the editor cannot read them, the playlist is duplicated as a normal one.
@@ -19,7 +20,8 @@ import { SMART_EDITOR, SmartEdit, smartEdit, newSmart, editSmart, whyNotEditable
 import { SmartEditor } from './SmartEditor';
 import { busy } from '../../services/transfers';
 import { syncHistory, historyStarted } from '../../services/historyJobs';
-import { Draft, geniusDrafts, pathDrafts, mixDrafts, draftOf, isDraft, isGenius, play, refreshDraft, saveDraft } from '../../drafts';
+import { Draft, geniusDrafts, pathDrafts, mixDrafts, mixesWorking, picking, draftOf, isDraft, isGenius, play, refreshDraft, saveDraft } from '../../drafts';
+import { Working } from '../../components/Working';
 import { startRadio } from '../../radio';
 import { count } from '../../format';
 import { bg, bd, fg, color, BORDER, HOVER, SELECTED, TEXT, MUTED, ACCENT, ERROR } from '../../constants';
@@ -113,10 +115,13 @@ export function PlaylistsPage(): i32 {
       <View className="px-3 pb-3"><SearchField value={search()} onInput={(v: string) => setSearch(v)} placeholder="Search playlists" width={226} /></View>
       <ScrollView className="grow flex-col px-3 gap-0.5" scrollKey={scrollKey('playlists')}>
         {smartEdit() !== null ? <EditorRow e={smartEdit() as SmartEdit} /> : <View />}
-        {drafts().length > 0 ? <View className="flex-col gap-0.5">
+        {drafts().length > 0 || mixesWorking() ? <View className="flex-col gap-0.5">
           <Text className={`text-[11px] font-semibold px-3 pt-1 pb-1 ${fg(MUTED)}`}>GENIUS & MIXES</Text>
           {drafts().map((d: Draft) => <DraftRow d={d} />)}
-          <Text className={`text-[11px] font-semibold px-3 pt-3 pb-1 ${fg(MUTED)}`}>ON THE IPOD</Text>
+          {mixesWorking() ? <View className="flex-col gap-0.5">
+            <View className="h-[44] px-3 justify-center"><Working text="Working out your mixes…" /></View>
+            <Text className={`text-[11px] font-semibold px-3 pt-3 pb-1 ${fg(MUTED)}`}>ON THE IPOD</Text>
+          </View> : <Text className={`text-[11px] font-semibold px-3 pt-3 pb-1 ${fg(MUTED)}`}>ON THE IPOD</Text>}
           <NoPlaylist none={playlists().length === 0} noMatch={listed().length === 0} />
         </View> : <NoPlaylist none={playlists().length === 0} noMatch={listed().length === 0} />}
         {listed().map((p: ipod.Playlist) => <PlaylistRow p={p} />)}
@@ -124,8 +129,9 @@ export function PlaylistsPage(): i32 {
     </View>
     <View className="grow basis-0 flex-col min-h-0 min-w-0">
       {notice() !== '' ? <Text className={`text-[12px] px-8 pt-3 ${fg(ERROR)}`}>{notice()}</Text> : <View />}
+      {picking() !== '' ? <View className="px-8 pt-3"><Working text={picking()} /></View> : <View />}
       {playlistShown() === SMART_EDITOR && smartEdit() !== null ? <SmartEditor e={smartEdit() as SmartEdit} />
-        : shownDraft() !== null ? <DraftView d={shownDraft() as Draft} /> : shown() !== null ? <View className="grow flex-col min-h-0 min-w-0">
+        : shownDraft() !== null ? <DraftView d={shownDraft() as Draft} /> : picking() !== '' ? <View /> : shown() !== null ? <View className="grow flex-col min-h-0 min-w-0">
         <View className="flex-row items-end gap-3 px-8 pt-8 pb-4">
           <View className="grow basis-0 flex-col min-w-0">
             <Text className={`text-[22px] font-bold ${fg(TEXT)}`} numberOfLines={1}>{(shown() as ipod.Playlist).name}</Text>

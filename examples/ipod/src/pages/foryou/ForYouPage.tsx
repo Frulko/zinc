@@ -1,7 +1,8 @@
 // For you, as Spotify's home: shelves of cards worked out from the listening history (forYou.ts, services/forYou.ts). Each shelf
 // scrolls sideways (the trackpad, or its ‹ › buttons) and keeps its offset per entry of the history, as the page keeps its own. A draft
 // card opens its list on the Playlists page (Play, Save to iPod) and its play button plays it at once; an album, a playlist or an
-// artist opens its page; Your year opens the year in review. Until the shelves are read or worked out, grey cards hold their place;
+// artist opens its page; Your year opens the year in review. Until the shelves are read or worked out, grey cards hold their place
+// and breathe, and the header turns a ring (components/Working.tsx);
 // without a history the page invites to import one, and with few listens found on this iPod it says how many. The mood mixer
 // (MoodMixer) closes the page.
 import * as ui from 'zinc:ui';
@@ -16,6 +17,7 @@ import { geniusCards } from '../../drafts';
 import { AlbumCover } from '../../components/AlbumCover';
 import { Button } from '../../components/Button';
 import { MoodMixer } from './MoodMixer';
+import { Working, breathe } from '../../components/Working';
 import { bg, bd, fg, color, CARD, BORDER, HOVER, TEXT, MUTED, ACCENT, TRACK, SHELF_CARD_SIZE, PAGE_SETTINGS, PAGE_YEAR } from '../../constants';
 
 /** The album of each song of the open iPod. */
@@ -103,9 +105,11 @@ function ShelfRow(props: { shelf: Shelf; cards: Card[] }): i32 {
   </View>;
 }
 
-/** Grey cards while the first shelves are worked out. */
+/** Grey cards, breathing, while the first shelves are worked out. */
 function Skeleton(): i32 {
-  return <View className="flex-col">
+  const ref = createNodeRef();
+  breathe(ref);
+  return <View ref={ref} className="flex-col">
     {[0, 1, 2].map((k: i32) => <View className="flex-col gap-3 pb-6 px-10">
       <View className={`w-[220] h-[18] rounded-[5] ${bg(TRACK)}`} />
       <View className="flex-row gap-5">
@@ -128,7 +132,7 @@ function Banner(props: { text: string; button: string }): i32 {
 }
 
 function subtitle(d: ForYouData | null): string {
-  if (d === null) return working() ? 'Working out your shelves…' : '';
+  if (d === null) return '';
   const data = d as ForYouData;
   const deep = deepNote();
   const from = (data.listens === 0 ? 'From the play counts of this iPod' : `From ${data.listens} listens, ${data.matched} of them songs of this iPod`) + (deep !== '' ? ` · ${deep}` : '');
@@ -160,7 +164,8 @@ export function ForYouPage(): i32 {
       <View className="flex-row items-end gap-4 px-10 pt-8 pb-5">
         <View className="grow flex-col">
           <Text className={`text-[26px] font-bold ${fg(TEXT)}`}>For you</Text>
-          <Text className={`text-[13px] ${fg(MUTED)}`}>{subtitle(forYou())}</Text>
+          {forYou() === null && working() ? <Working text="Working out your shelves…" />
+            : <Text className={`text-[13px] ${fg(MUTED)}`}>{subtitle(forYou())}</Text>}
         </View>
         {forYou() !== null && (forYou() as ForYouData).year.listens > 0
           ? <Button icon="calendar-heart" label={`Your ${(forYou() as ForYouData).year.year}`} onPress={() => showPage(PAGE_YEAR)} /> : <View />}

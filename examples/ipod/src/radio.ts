@@ -9,7 +9,7 @@ import * as rd from './services/radio';
 import { playList, next, current } from './services/player';
 import { PodLibrary } from './services/ipod';
 import { library } from './state';
-import { currentModel } from './drafts';
+import { modelNow } from './drafts';
 import { prepareNear } from './deep';
 import { Model } from './services/genius';
 
@@ -24,19 +24,18 @@ let pending = false;
 function queuedIds(): string[] { return queue.entries().map((e: queue.Entry) => e.track.id); }
 
 /** "Start radio": the seed now, then songs close to it, without end. */
-export function startRadio(seed: ipod.Track): void {
+export async function startRadio(seed: ipod.Track): Promise<void> {
   const lib = library();
   if (lib === null) return;
-  prepareNear([seed.id]).then(() => {   // returns at once without AudioMuse
-    const m = currentModel();
-    if (m === null) return;
-    const r = rd.startRadio(m as Model, seed.id);
-    if (r === null) return;
-    const picks = rd.extend(m as Model, r as rd.Radio, [seed.id], MORE);
-    playList(lib as PodLibrary, [seed].concat(picks), 0, `Radio · ${seed.title !== '' ? seed.title : 'Untitled'}`);
-    radio = r; first = queue.entries()[0];
-    setRadioOn(true);
-  });
+  await prepareNear([seed.id]);   // returns at once without AudioMuse
+  const m = await modelNow();
+  if (m === null || library() !== lib) return;
+  const r = rd.startRadio(m as Model, seed.id);
+  if (r === null) return;
+  const picks = rd.extend(m as Model, r as rd.Radio, [seed.id], MORE);
+  playList(lib as PodLibrary, [seed].concat(picks), 0, `Radio · ${seed.title !== '' ? seed.title : 'Untitled'}`);
+  radio = r; first = queue.entries()[0];
+  setRadioOn(true);
 }
 
 function stopRadio(): void { radio = null; first = null; setRadioOn(false); }
@@ -47,22 +46,21 @@ function check(): void {
   if (radio === null) return;
   const list = queue.entries();
   if (list.length === 0 || list[0] !== first) { stopRadio(); return; }
-  if (list.length - 1 - queue.position() < LOW) top();
+  if (list.length - 1 - queue.position() < LOW) modelNow().then((m: Model | null) => { if (m !== null) top(m as Model); });
 }
 queue.onChange(() => { if (radio !== null && !pending) { pending = true; setTimeout(check, 0); } });
 
-function top(): void {
-  const m = currentModel();
-  if (m === null || radio === null) return;
+function top(m: Model): void {
+  if (radio === null) return;
   const more = rd.extend(m as Model, radio as rd.Radio, queuedIds(), MORE);
   if (more.length > 0) queue.extend(more);
 }
 
 /** The radio's songs after the hand-added ones are picked again (after a 👍 or a 👎). */
-function retune(): void {
+function retune(m: Model): void {
   const dropped = queue.dropUpcoming();
   rd.unqueue(radio as rd.Radio, dropped.map((t: ipod.Track) => t.id));
-  top();
+  top(m);
 }
 
 /** 👍 on the song playing: the next picks come closer to it. */
@@ -70,14 +68,17 @@ export function likeNow(): void {
   const t = current();
   if (radio === null || t === null) return;
   rd.like(radio as rd.Radio, (t as ipod.Track).id);
-  retune();
+  modelNow().then((m: Model | null) => { if (radio !== null && m !== null) retune(m as Model); });
 }
 
 /** 👎 on the song playing: skipped, the next picks move away from it, its artist is out of the radio. */
 export function dislikeNow(): void {
-  const t = current(), m = currentModel();
-  if (radio === null || t === null || m === null) return;
-  rd.dislike(m as Model, radio as rd.Radio, (t as ipod.Track).id);
-  retune();
-  next();
+  const t = current();
+  if (radio === null || t === null) return;
+  modelNow().then((m: Model | null) => {
+    if (radio === null || m === null) return;
+    rd.dislike(m as Model, radio as rd.Radio, (t as ipod.Track).id);
+    retune(m as Model);
+    next();
+  });
 }

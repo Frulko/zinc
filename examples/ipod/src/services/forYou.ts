@@ -17,6 +17,7 @@ import * as ipod from 'zinc:ipod';
 import { History, SESSION_GAP_S } from './history';
 import { Model, Mix, genius, mixes, path } from './genius';
 import { Deep, DeepPath, moodsOf, pathOf } from './audiomuse';
+import { Budget } from './slice';
 
 const DAY_S: number = 86400;
 export const MONTHS: string[] = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -111,25 +112,27 @@ export class Signals {
   }
 }
 
-/** The signals of the model `m`'s songs, from the history `h` (null: the iPod's counters only), at `now`. */
-export function signals(h: History | null, guid: string, m: Model, now: number): Signals {
+/** The signals of the model `m`'s songs, from the history `h` (null: the iPod's counters only), at `now`, within the budget `b`. */
+export async function signals(h: History | null, guid: string, m: Model, now: number, b: Budget = new Budget()): Promise<Signals> {
   const s = new Signals(m, now);
   const n = m.tracks.length;
   for (let i = 0; i < n; i++) { s.times.push([]); s.loved.push(false); s.last.push(m.tracks[i].lastPlayed); }
   if (h !== null) {
-    for (const l of (h as History).podListens(guid)) {
-      if (l.skipped || l.ts > now) continue;
+    const listens = await (h as History).podListens(guid, b);
+    await b.each(listens.length as i32, (x: i32) => {
+      const l = listens[x];
+      if (l.skipped || l.ts > now) return;
       const at = m.index.get(l.trackId);
-      if (at === undefined) continue;
+      if (at === undefined) return;
       const i = at as i32;
       s.times[i].push(l.ts);
       s.flatTs.push(l.ts); s.flatAt.push(i);
       if (l.ts > s.last[i]) s.last[i] = l.ts;
-    }
+    }, 1024);
     for (const id of (h as History).lovedOn(guid)) { const at = m.index.get(id); if (at !== undefined) s.loved[at as i32] = true; }
   }
   s.history = s.flatTs.length > 0;
-  for (let i: i32 = 0; i < n; i++) {
+  await b.each(n as i32, (i: i32) => {
     const t = m.tracks[i];
     let decayed = 0;
     for (const ts of s.times[i]) decayed += Math.pow(0.5, (now - ts) / DAY_S / 90);
@@ -137,7 +140,7 @@ export function signals(h: History | null, guid: string, m: Model, now: number):
     const heard = m.plays[i] + m.skips[i];
     let a = Math.log(1 + decayed) + (s.loved[i] ? 1.5 : 0) + (t.rating > 0 ? 0.5 * (t.rating - 3) : 0) - (heard > 0 ? 1.5 * m.skips[i] / heard : 0);
     s.aff.push(Math.max(0, a));
-  }
+  });
   return s;
 }
 
@@ -185,12 +188,13 @@ function ordered(s: Signals, list: i32[]): i32[] {
 
 // ---- the shelves
 
-/** Daily Mix 1..6 for `day` (2026-10-29): the same songs all day, others the next. */
-export function dailyMixes(s: Signals, day: string, size: i32 = 50): Card[] {
+/** Daily Mix 1..6 for `day` (2026-10-29): the same songs all day, others the next. Worked out within the budget `b`. */
+export async function dailyMixes(s: Signals, day: string, size: i32 = 50, b: Budget = new Budget()): Promise<Card[]> {
   const m = s.m;
   const out: Card[] = [];
-  const ms: Mix[] = mixes(m, 6, size, 5);
+  const ms: Mix[] = await mixes(m, 6, size, 5, b);
   for (let k = 0; k < ms.length; k++) {
+    await b.check();
     const mix = ms[k];
     const r = new Rng(`${day}:${k}`);
     const member = new Set<i32>();
@@ -216,11 +220,14 @@ export function dailyMixes(s: Signals, day: string, size: i32 = 50): Card[] {
     const anchorList = anchors.length > 0 ? anchors : members.slice(0, 10);
     const cands: i32[] = [];
     const score = zeros(m.tracks.length);
-    near(s, anchorList).forEach((i: i32) => {
+    await b.check();
+    const around = Array.from(near(s, anchorList).values());
+    await b.each(around.length as i32, (x: i32) => {
+      const i = around[x];
       if (member.has(i) || m.plays[i] > 1 || !m.pickable(i)) return;
       score[i] = closeness(s, i, anchorList);
       if (score[i] > 0) cands.push(i);
-    });
+    }, 64);
     const pool = topBy(s, cands, score, (size - fam.length) * 3);
     const disc: i32[] = [];
     while (disc.length < size - fam.length && pool.length > 0) { const at = Math.floor(r.next() * pool.length) as i32; disc.push(pool[at]); pool.splice(at, 1); }
@@ -228,6 +235,7 @@ export function dailyMixes(s: Signals, day: string, size: i32 = 50): Card[] {
     let first = fam[0];
     for (const i of fam) if (s.aff[i] > s.aff[first]) first = i;
     const list = [first].concat(fam.filter((i: i32) => i !== first)).concat(disc);
+    await b.check();
     out.push(card('draft', `daily:${k}`, `Daily Mix ${k + 1}`, mix.name, ids(s, ordered(s, list))));
   }
   return out;
@@ -319,8 +327,9 @@ export function repeatRewind(s: Signals, max: i32 = 30): Card[] {
   return list.length >= 5 ? [card('draft', 'repeat-rewind', 'Repeat Rewind', 'Songs you played on repeat, then left', ids(s, ordered(s, list)))] : [];
 }
 
-/** Rediscover: songs of the iPod heard at most once (or not for 18 months), closest to the 50 of highest affinity; 2 per artist. */
-export function rediscover(s: Signals, max: i32 = 30): Card[] {
+/** Rediscover: songs of the iPod heard at most once (or not for 18 months), closest to the 50 of highest affinity; 2 per artist.
+ *  Worked out within the budget `b`. */
+export async function rediscover(s: Signals, max: i32 = 30, b: Budget = new Budget()): Promise<Card[]> {
   const m = s.m;
   const anchors = topBy(s, all(s), s.aff, 50);
   if (anchors.length === 0) return [];
@@ -328,11 +337,13 @@ export function rediscover(s: Signals, max: i32 = 30): Card[] {
   for (const a of anchors) isAnchor.add(a);
   const old = s.now - 548 * DAY_S;
   const v = zeros(m.tracks.length), cands: i32[] = [];
-  near(s, anchors).forEach((i: i32) => {
+  const around = Array.from(near(s, anchors).values());
+  await b.each(around.length as i32, (x: i32) => {
+    const i = around[x];
     if (isAnchor.has(i) || !m.pickable(i) || !(m.plays[i] <= 1 || (s.last[i] > 0 && s.last[i] < old))) return;
     v[i] = closeness(s, i, anchors) + m.prior[i];
     if (v[i] > 0) cands.push(i);
-  });
+  }, 16);
   const perArtist = new Map<string, i32>();
   const list: i32[] = [];
   for (const i of topBy(s, cands, v, cands.length as i32)) {
@@ -345,24 +356,28 @@ export function rediscover(s: Signals, max: i32 = 30): Card[] {
   return list.length >= 5 ? [card('draft', 'rediscover', 'Rediscover', 'On your iPod, close to what you love, rarely played', ids(s, ordered(s, list)))] : [];
 }
 
-/** Time Capsule: the year 2 to 12 years ago with the most listens, its songs most heard and not heard for a year. */
-export function timeCapsule(s: Signals, max: i32 = 30): Card[] {
+/** Time Capsule: the year 2 to 12 years ago with the most listens, its songs most heard and not heard for a year. Worked out within
+ *  the budget `b`. */
+export async function timeCapsule(s: Signals, max: i32 = 30, b: Budget = new Budget()): Promise<Card[]> {
   const from = yearStart(s.now, -12), to = s.now - 730 * DAY_S;
   const perYear = new Map<i32, i32>();
-  for (const t of s.flatTs) if (t >= from && t < to) { const y = new Date(t * 1000).getFullYear() as i32; perYear.set(y, (perYear.has(y) ? perYear.get(y) as i32 : 0) + 1); }
+  await b.each(s.flatTs.length as i32, (k: i32) => {
+    const t = s.flatTs[k];
+    if (t >= from && t < to) { const y = new Date(t * 1000).getFullYear() as i32; perYear.set(y, (perYear.has(y) ? perYear.get(y) as i32 : 0) + 1); }
+  }, 1024);
   let year: i32 = 0, most: i32 = 0;
   perYear.forEach((n: i32, y: i32) => { if (n > most || (n === most && y > year)) { year = y; most = n; } });
   if (year === 0) return [];
-  const a = new Date(year, 0, 1).getTime() / 1000, b = new Date(year + 1, 0, 1).getTime() / 1000, recent = s.now - 365 * DAY_S;
+  const start = new Date(year, 0, 1).getTime() / 1000, end = new Date(year + 1, 0, 1).getTime() / 1000, recent = s.now - 365 * DAY_S;
   const v = zeros(s.m.tracks.length);
-  for (let i = 0; i < v.length; i++) if (s.last[i] < recent) v[i] = s.count(i as i32, a, b);
+  await b.each(v.length as i32, (i: i32) => { if (s.last[i] < recent) v[i] = s.count(i, start, end); }, 1024);
   const list = topBy(s, all(s), v, max);
   return list.length >= 5 ? [card('draft', 'time-capsule', 'Time Capsule', `Songs you loved in ${year}`, ids(s, ordered(s, list)))] : [];
 }
 
 /** Because you listened to X: the 3 songs heard most in the last 30 days (else 90), of different artists; for each a Genius list and
- *  the albums it goes through. Shelves `because:0..2`. */
-export function becauseYouListened(s: Signals, shelves: i32 = 3): Shelf[] {
+ *  the albums it goes through. Shelves `because:0..2`. Worked out within the budget `b`. */
+export async function becauseYouListened(s: Signals, shelves: i32 = 3, b: Budget = new Budget()): Promise<Shelf[]> {
   const m = s.m;
   const seeds: i32[] = [];
   const artists = new Set<string>();
@@ -377,6 +392,7 @@ export function becauseYouListened(s: Signals, shelves: i32 = 3): Shelf[] {
   }
   const out: Shelf[] = [];
   for (let k = 0; k < seeds.length; k++) {
+    await b.check();
     const seed = m.tracks[seeds[k]];
     const list = genius(m, seed.id, 25);
     if (list.length < 5) continue;
@@ -414,8 +430,8 @@ export function topArtists(h: History | null, from: number, to: number, max: i32
   return out;
 }
 
-/** The year of `now` in review. */
-export function yearReview(h: History | null, s: Signals, now: number): YearReview {
+/** The year of `now` in review, worked out within the budget `b`. */
+export async function yearReview(h: History | null, s: Signals, now: number, b: Budget = new Budget()): Promise<YearReview> {
   const from = yearStart(now), to = Math.min(yearStart(now, 1), now + 1);
   const y: YearReview = { year: new Date(now * 1000).getFullYear() as i32, listens: 0, minutes: 0, artists: [], songs: [], genres: [], months: [] };
   for (let k = 0; k < 12; k++) y.months.push(0);
@@ -423,22 +439,24 @@ export function yearReview(h: History | null, s: Signals, now: number): YearRevi
   const hh = h as History;
   const times = hh.times(from, to);
   y.listens = times.length as i32;
-  for (const t of times) y.months[new Date(t * 1000).getMonth()] += 1;
+  await b.each(times.length as i32, (k: i32) => { y.months[new Date(times[k] * 1000).getMonth()] += 1; }, 1024);
   for (const r of hh.topArtists(from, to, 5)) y.artists.push({ name: r.artist, detail: '', count: r.plays });
+  await b.check();
   for (const r of hh.topTracks(from, to, 5)) if (r.plays > 0) y.songs.push({ name: r.title, detail: r.artist, count: r.plays });
+  await b.check();
   // minutes and genres: the songs matched on the iPod count their own; the others the mean length of the iPod's songs
   const m = s.m;
   let ms = 0, matched = 0, lib = 0;
   for (const t of m.tracks) lib += t.durationMs;
   const mean = m.tracks.length > 0 ? lib / m.tracks.length : 210000;
   const genres = new Map<string, i32>(), shown = new Map<string, string>();
-  for (let k = 0; k < s.flatTs.length; k++) {
-    if (s.flatTs[k] < from || s.flatTs[k] >= to) continue;
+  await b.each(s.flatTs.length as i32, (k: i32) => {
+    if (s.flatTs[k] < from || s.flatTs[k] >= to) return;
     const i = s.flatAt[k], t = m.tracks[i];
     matched++;
     ms += t.durationMs > 0 ? t.durationMs : mean;
     if (m.genre[i] !== '') { genres.set(m.genre[i], (genres.has(m.genre[i]) ? genres.get(m.genre[i]) as i32 : 0) + 1); if (!shown.has(m.genre[i])) shown.set(m.genre[i], t.genre); }
-  }
+  }, 1024);
   ms += Math.max(0, y.listens - matched) * mean;
   y.minutes = Math.round(ms / 60000) as i32;
   const g: Named[] = [];

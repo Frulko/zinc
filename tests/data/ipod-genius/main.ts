@@ -83,7 +83,7 @@ async function main(): Promise<void> {
   const names: string[] = [];
   for (const t of tracks) if (names.indexOf(t.artist) < 0) names.push(t.artist);
   console.log('fetched without a key', await fetchSimilarArtists(dir, '', names));
-  const plain = buildModel(h, GUID, tracks, readArtistGraph(dir), w);
+  const plain = await buildModel(h, GUID, tracks, await readArtistGraph(dir), w);
   let seedId = '';
   for (const t of tracks) if (t.title === 'Alpha One Song 1') seedId = t.id;
   const g0 = genius(plain, seedId, 25);
@@ -91,7 +91,7 @@ async function main(): Promise<void> {
   console.log('genius', g0.length, letters(g0), 'seed first', g0[0].id === seedId, 'spread', spreadOk(g0.slice(0, 23), w.artistSpread));
   let rated = false;
   for (const t of g0) rated = rated || t.rating === 1 || t.rating === 2;
-  console.log('one star picked', rated, 'same again', ids(genius(buildModel(h, GUID, tracks, readArtistGraph(dir), w), seedId, 25)) === ids(g0));
+  console.log('one star picked', rated, 'same again', ids(genius(await buildModel(h, GUID, tracks, await readArtistGraph(dir), w), seedId, 25)) === ids(g0));
   const r1 = genius(plain, seedId, 25, 1);
   let alpha = 0;   // Refresh shakes the close songs by their ids (new on each fake iPod): only what holds whatever the ids
   for (const t of r1) if (t.artist[0] === 'A') alpha++;
@@ -101,8 +101,8 @@ async function main(): Promise<void> {
   let told = '';   // the progress, and a stop after two artists (Cancel in Transfers)
   console.log('stopped after', await fetchSimilarArtists(dir, 'apikey', names, 200, (done: i32, total: i32, artist: string): boolean => { told += `${done}/${total} `; return done < 2; }), told);
   console.log('fetched', await fetchSimilarArtists(dir, 'apikey', names), 'again', await fetchSimilarArtists(dir, 'apikey', names));
-  const graph = readArtistGraph(dir);
-  const m1 = buildModel(h, GUID, tracks, graph, w);
+  const graph = await readArtistGraph(dir);
+  const m1 = await buildModel(h, GUID, tracks, graph, w);
   const g1 = genius(m1, seedId, 25);
   console.log('genius with similar artists', letters(g1), 'spread', spreadOk(g1, w.artistSpread));
   // why each was picked: the reasons met per group, in the order of the list
@@ -117,9 +117,9 @@ async function main(): Promise<void> {
   const alphaOne = (graph.get('alpha one') as Map<string, number>).size;
   fs.writeText(`${dir}/similar-artists.json`, JSON.stringify([{ artist: 'old band', at: 1, similar: [{ artist: 'alpha one', match: 0.5 }] },
     { artist: 'alpha one', at: -1, similar: [] as { artist: string; match: number }[] }]));
-  const both = readArtistGraph(dir);
+  const both = await readArtistGraph(dir);
   const once = fs.readText(`${dir}/similar-artists.jsonl`).split('"old band"').length - 1;
-  const again = readArtistGraph(dir);
+  const again = await readArtistGraph(dir);
   console.log('old file moved', both.has('old band'), both.size === graph.size + 1, 'newer kept', (both.get('alpha one') as Map<string, number>).size === alphaOne,
     'gone', !fs.exists(`${dir}/similar-artists.json`), 'once', once === 1, again.size === both.size);
   radio(m1, tracks, seedId, w.artistSpread);
@@ -132,7 +132,7 @@ async function main(): Promise<void> {
   console.log('ten', short.length, letters(short));
 
   // the taste clusters
-  const ms = mixes(buildModel(h, GUID, tracks, graph, w));
+  const ms = await mixes(await buildModel(h, GUID, tracks, graph, w));
   console.log('mixes', ms.length);
   for (const mix of ms) {
     const groups: string[] = [];
@@ -140,8 +140,8 @@ async function main(): Promise<void> {
     console.log('mix', mix.name, '|', mix.members.length, mix.tracks.length, groups.join(''), 'spread', spreadOk(mix.tracks, w.artistSpread));
   }
   // no history: metadata and the iPod's counters only
-  const bare = mixes(buildModel(null, GUID, tracks, new Map<string, Map<string, number>>(), w));
-  const m0 = buildModel(null, GUID, tracks, new Map<string, Map<string, number>>(), w);
+  const bare = await mixes(await buildModel(null, GUID, tracks, new Map<string, Map<string, number>>(), w));
+  const m0 = await buildModel(null, GUID, tracks, new Map<string, Map<string, number>>(), w);
   const g8 = genius(m0, seedId, 8);
   const why0: string[] = [];
   for (const r of reasons(m0, seedId, g8)) if (why0.indexOf(r) < 0) why0.push(r);
@@ -199,7 +199,7 @@ function radio(m: Model, tracks: ipod.Track[], seedId: string, spread: i32): voi
   console.log('radio next', next(false), 'liked a C song', next(true));
 }
 
-function bench(): void {
+async function bench(): Promise<void> {
   const dir = env('GENIUS_DIR');
   const n = 10000;
   const tracks: ipod.Track[] = [];
@@ -229,13 +229,13 @@ function bench(): void {
   h.match('BENCH', libTracks(tracks), 'b');
   const filled = Date.now() - t0;
   t0 = Date.now();
-  const m: Model = buildModel(h, 'BENCH', tracks, new Map<string, Map<string, number>>(), loadWeights(dir));
+  const m: Model = await buildModel(h, 'BENCH', tracks, new Map<string, Map<string, number>>(), loadWeights(dir));
   const built = Date.now() - t0;
   t0 = Date.now();
   const g = genius(m, 't1234', 100);
   const picked = Date.now() - t0;
   t0 = Date.now();
-  const ms: Mix[] = mixes(m);
+  const ms: Mix[] = await mixes(m);
   const clustered = Date.now() - t0;
   console.log(`bench: history filled and matched ${filled} ms; model (100,000 listens, 10,000 songs) ${built} ms; Genius 100 songs ${picked} ms (${g.length}); mixes ${clustered} ms (${ms.length})`);
   h.close();

@@ -20,6 +20,7 @@ import { History, SESSION_GAP_S, normArtist } from './history';
 import { lastfm } from './historyImport';
 import { fold } from '../search';
 import { Deep, DeepPath, soundVectors, pathOf } from './audiomuse';
+import { Budget } from './slice';
 
 export class Weights {
   colisten: number = 0.45;
@@ -90,15 +91,15 @@ interface Similar { artist: string; match: number; }
 /** One artist asked: when (Unix seconds) and its similar artists (normalised names). */
 interface SimilarEntry { artist: string; at: number; similar: Similar[]; }
 
-function readSimilar(dir: string): SimilarEntry[] {
+async function readSimilar(dir: string, b: Budget): Promise<SimilarEntry[]> {
   const by = new Map<string, SimilarEntry>();
   const file = `${dir}/${SIMILAR_FILE}`;
-  try {
-    if (fs.exists(file)) for (const line of fs.readText(file).split('\n')) {
-      if (line === '') continue;
-      try { const e: SimilarEntry = JSON.parse(line); by.set(e.artist, e); } catch (e) { /* a line cut short by a crash: asked again */ }
-    }
-  } catch (e) { /* unreadable: fetched again */ }
+  let lines: string[] = [];
+  try { if (fs.exists(file)) lines = fs.readText(file).split('\n'); } catch (e) { /* unreadable: fetched again */ }
+  await b.each(lines.length as i32, (i: i32) => {
+    if (lines[i] === '') return;
+    try { const e: SimilarEntry = JSON.parse(lines[i]); by.set(e.artist, e); } catch (e) { /* a line cut short by a crash: asked again */ }
+  }, 32);
   // the first versions' file, one JSON array: its entries newer than the lines are appended once, then it is deleted
   const old = `${dir}/${SIMILAR_OLD}`;
   if (fs.exists(old)) {
@@ -120,14 +121,15 @@ function readSimilar(dir: string): SimilarEntry[] {
   return out;
 }
 
-/** The similar artists kept in `<dir>/similar-artists.jsonl` (empty when none were fetched). */
-export function readArtistGraph(dir: string): ArtistGraph {
+/** The similar artists kept in `<dir>/similar-artists.jsonl` (empty when none were fetched), read within the budget `b`. */
+export async function readArtistGraph(dir: string, b: Budget = new Budget()): Promise<ArtistGraph> {
   const g: ArtistGraph = new Map<string, Map<string, number>>();
-  for (const e of readSimilar(dir)) {
+  const list = await readSimilar(dir, b);
+  await b.each(list.length as i32, (i: i32) => {
     const m = new Map<string, number>();
-    for (const p of e.similar) m.set(p.artist, p.match);
-    g.set(e.artist, m);
-  }
+    for (const p of list[i].similar) m.set(p.artist, p.match);
+    g.set(list[i].artist, m);
+  }, 32);
   return g;
 }
 
@@ -139,7 +141,7 @@ export async function fetchSimilarArtists(dir: string, key: string, artists: str
   step: (done: i32, total: i32, artist: string) => boolean = (done: i32, total: i32, artist: string): boolean => true): Promise<i32> {
   if (key.trim() === '') return 0;
   const file = `${dir}/${SIMILAR_FILE}`;
-  const list = readSimilar(dir);
+  const list = await readSimilar(dir, new Budget());
   const known = new Map<string, SimilarEntry>();
   for (const e of list) known.set(e.artist, e);
   const now = Math.floor(Date.now() / 1000);
@@ -267,20 +269,20 @@ export class Model {
   pickable(i: i32): boolean { const r = this.tracks[i].rating; return r === 0 || r >= 3; }
 }
 
-/** The model of the iPod `guid`'s `tracks` with the history `h` (null: none) and the artist graph. */
-export function buildModel(h: History | null, guid: string, tracks: ipod.Track[], graph: ArtistGraph, w: Weights): Model {
+/** The model of the iPod `guid`'s `tracks` with the history `h` (null: none) and the artist graph, built within the budget `b`. */
+export async function buildModel(h: History | null, guid: string, tracks: ipod.Track[], graph: ArtistGraph, w: Weights, b: Budget = new Budget()): Promise<Model> {
   const music: ipod.Track[] = [];
   for (const t of tracks) if (t.mediaType === 'audio' || t.mediaType === '') music.push(t);
   const m = new Model(w, music, graph);
-  for (let i: i32 = 0; i < music.length; i++) {
+  await b.each(music.length as i32, (i: i32) => {
     const t = music[i];
     m.index.set(t.id, i);
     m.artist.push(normArtist(t.artist !== '' ? t.artist : t.albumArtist));
     m.genre.push(fold(t.genre).trim());
     m.plays.push(t.playCount); m.skips.push(t.skipCount);
     m.co.push(new Map<i32, number>());
-  }
-  if (h !== null) addHistory(m, h as History, guid);
+  });
+  if (h !== null) await addHistory(m, h as History, guid, b);
   attachDeep(m, null);
   let most = 1;
   for (const p of m.plays) if (p > most) most = p;
@@ -312,8 +314,8 @@ export function attachDeep(m: Model, d: Deep | null): void {
 }
 
 /** The history's plays and skips per track (the larger of them and the iPod's own counters: they overlap), and co-listening. */
-function addHistory(m: Model, h: History, guid: string): void {
-  const listens = h.podListens(guid);
+async function addHistory(m: Model, h: History, guid: string, b: Budget): Promise<void> {
+  const listens = await h.podListens(guid, b);
   if (listens.length === 0) return;
   const plays: number[] = [], skips: number[] = [];
   for (let i = 0; i < m.tracks.length; i++) { plays.push(0); skips.push(0); }
@@ -344,19 +346,22 @@ function addHistory(m: Model, h: History, guid: string): void {
     }
     cur = [];
   };
-  for (const l of listens) {
+  await b.each(listens.length as i32, (x: i32) => {
+    const l = listens[x];
     const at = m.index.get(l.trackId);
-    if (at === undefined) continue;
+    if (at === undefined) return;
     const i = at as i32;
-    if (l.skipped) { skips[i] += 1; continue; }
+    if (l.skipped) { skips[i] += 1; return; }
     plays[i] += 1;
     if (l.ts - last > SESSION_GAP_S) { close(); curTs = l.ts; }
     last = l.ts;
     if (cur.indexOf(i) < 0) cur.push(i);
-  }
+  }, 1024);
   close();
   for (let i = 0; i < n; i++) { if (plays[i] > m.plays[i]) m.plays[i] = plays[i]; if (skips[i] > m.skips[i]) m.skips[i] = skips[i]; }
-  shared.forEach((s: number, k: number) => {
+  const pairs = Array.from(shared.keys());
+  await b.each(pairs.length as i32, (x: i32) => {
+    const k = pairs[x], s = shared.get(k) as number;
     const i = Math.floor(k / n) as i32, j = (k - i * n) as i32;
     const p = s / total;
     if (p >= 1) return;   // in every session: says nothing
@@ -366,7 +371,7 @@ function addHistory(m: Model, h: History, guid: string): void {
     const c = together.get(k) as i32;
     const v = Math.min(1, npmi) * c / (c + m.w.shrink);
     m.co[i].set(j, v); m.co[j].set(i, v);
-  });
+  }, 2048);
 }
 
 // ---- Genius
@@ -514,8 +519,9 @@ function addEdge(adj: Map<i32, number>[], i: i32, j: i32, v: number): void {
 
 /** The taste clusters: the songs heard, joined by co-listening, by artist (each song to its artist's most played one, and those of
  *  similar artists together) and by genre, grouped by label propagation in a fixed order (the most played first); when nothing was
- *  heard, the genres. The `max` largest clusters by plays, with at least `minSize` songs, each a list of up to `size` songs. */
-export function mixes(m: Model, max: i32 = 6, size: i32 = 50, minSize: i32 = 5): Mix[] {
+ *  heard, the genres. The `max` largest clusters by plays, with at least `minSize` songs, each a list of up to `size` songs. Worked out
+ *  within the budget `b`. */
+export async function mixes(m: Model, max: i32 = 6, size: i32 = 50, minSize: i32 = 5, b: Budget = new Budget()): Promise<Mix[]> {
   const nodes: i32[] = [];
   let heard = false;
   for (let i: i32 = 0; i < m.tracks.length; i++) if (m.plays[i] > 0) { heard = true; break; }
@@ -535,37 +541,42 @@ export function mixes(m: Model, max: i32 = 6, size: i32 = 50, minSize: i32 = 5):
       if (!artistStar.has(m.artist[i])) artistStar.set(m.artist[i], i);
       if (m.genre[i] !== '' && !genreStar.has(m.genre[i])) genreStar.set(m.genre[i], i);
     }
-    for (const i of nodes) {
+    await b.each(nodes.length as i32, (k: i32) => {
+      const i = nodes[k];
       m.co[i].forEach((v: number, j: i32) => { if (isNode.has(j)) addEdge(adj, i, j, m.pair(i, j)); });
       const s = artistStar.get(m.artist[i]) as i32;
       addEdge(adj, i, s, m.pair(i, s));
       if (m.genre[i] !== '') addEdge(adj, i, genreStar.get(m.genre[i]) as i32, m.w.genre);
-    }
-    artistStar.forEach((i: i32, a: string) => {
-      const g = m.graph.get(a);
+    }, 64);
+    const stars = Array.from(artistStar.keys());
+    await b.each(stars.length as i32, (k: i32) => {
+      const i = artistStar.get(stars[k]) as i32, g = m.graph.get(stars[k]);
       if (g === undefined) return;
-      (g as Map<string, number>).forEach((v: number, b: string) => { const j = artistStar.get(b); if (j !== undefined) addEdge(adj, i, j as i32, m.w.artist * v); });
-    });
+      (g as Map<string, number>).forEach((v: number, other: string) => { const j = artistStar.get(other); if (j !== undefined) addEdge(adj, i, j as i32, m.w.artist * v); });
+    }, 32);
     // label propagation: each song takes the label its neighbours weigh most (ties: its own, else the first in the order)
     for (let k: i32 = 0; k < nodes.length; k++) label.set(nodes[k], k);
     for (let round = 0; round < 30; round++) {
       let moved = false;
-      for (const i of nodes) {
+      await b.each(nodes.length as i32, (k: i32) => {
+        const i = nodes[k];
         const sum = new Map<i32, number>();
         adj[i].forEach((v: number, j: i32) => { const l = label.get(j) as i32; const s = sum.get(l); sum.set(l, (s !== undefined ? s as number : 0) + v); });
         const own = label.get(i) as i32;
         let best = own, bestV = sum.has(own) ? sum.get(own) as number : 0;
         sum.forEach((v: number, l: i32) => { if (v > bestV + 1e-12 || (Math.abs(v - bestV) <= 1e-12 && best !== own && l < best)) { best = l; bestV = v; } });
         if (best !== own) { label.set(i, best); moved = true; }
-      }
+      }, 128);
       if (!moved) break;
     }
   }
   const groups = new Map<i32, i32[]>();
   for (const i of nodes) { if (!label.has(i)) continue; const l = label.get(i) as i32; const g = groups.get(l); if (g === undefined) groups.set(l, [i]); else (g as i32[]).push(i); }
   const out: Mix[] = [];
-  groups.forEach((members: i32[], l: i32) => {
-    if (members.length < minSize) return;
+  for (const l of groups.keys()) {
+    await b.check();
+    const members = groups.get(l) as i32[];
+    if (members.length < minSize) continue;
     const mix = new Mix();
     const byArtist = new Map<string, number>(), byGenre = new Map<string, number>();
     const shownArtist = new Map<string, string>(), shownGenre = new Map<string, string>();
@@ -592,7 +603,7 @@ export function mixes(m: Model, max: i32 = 6, size: i32 = 50, minSize: i32 = 5):
     for (const i of members) { score[i] = m.pair(members[0], i) + m.prior[i]; if (i !== members[0] && m.pickable(i)) pool.push(i); }
     for (const i of path(m, members[0], pool, score, size)) mix.tracks.push(m.tracks[i]);
     out.push(mix);
-  });
+  }
   out.sort((a: Mix, b: Mix) => b.plays - a.plays !== 0 ? b.plays - a.plays : a.name < b.name ? -1 : 1);
   return out.slice(0, max);
 }

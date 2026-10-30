@@ -1,5 +1,5 @@
 // The For you page's shelves in the app (services/forYou.ts works them out). Opening the page shows at once what was kept on disk for
-// this iPod (<cache>/<GUID>/foryou.json), then, off the first frame and a step at a time, checks the history's version and the
+// this iPod (<cache>/<GUID>/foryou.json), then, off the first frame and a slice at a time (services/slice.ts), checks the history's version and the
 // library's (and the deep analysis'): when one changed the shelves are worked out again and kept, but the daily mixes stay those of the day until the next day.
 // Every draft card is a draft (drafts.ts: heard through the queue on the output chosen, saved to the iPod as a playlist); a draft played
 // from the page is kept for Jump back in (<cache>/<GUID>/foryou-recent.json). IPOD_DEMO_NOW (Unix seconds or an ISO date) sets the clock.
@@ -12,12 +12,13 @@ import { PodLibrary } from './services/ipod';
 import { History } from './services/history';
 import { history, historyStarted, syncHistory, historyCounts } from './services/historyJobs';
 import * as fy from './services/forYou';
-import { Draft, keepDrafts, currentModel, play } from './drafts';
+import { Draft, keepDrafts, modelNow, play } from './drafts';
 import { log } from './services/log';
 import { deepKey, prepareNear } from './deep';
 import * as cache from './services/cache';
 import { PAGE_YEAR } from './constants';
 import { loadConfig, saveConfig } from './services/config';
+import { Budget, tick } from './services/slice';
 
 const FORMAT: i32 = 1;
 const PREFIX = 'draft:foryou:';
@@ -105,8 +106,6 @@ function show(data: ForYouData, rec: fy.Card[], lib: PodLibrary): void {
   setForYou(data);
 }
 
-function tick(): Promise<void> { return new Promise<void>((done: () => void) => { setTimeout(() => { done(); }, 0); }); }
-
 let running = false, again = false;
 
 /** Shows the shelves kept for the iPod open, then works them out again if the history or the library changed (or the day, for the
@@ -138,24 +137,28 @@ async function work(lib: PodLibrary): Promise<void> {
   const key = `${h !== null ? (h as History).version(guid) : 'none'}|${libKey(lib)}|${deepKey()}`;
   const old = page;
   if (old !== null && (old as ForYouData).key === key && (old as ForYouData).day === today) return;
-  const m = currentModel();
+  const m = await modelNow();
   if (m === null || library() !== lib) return;
-  await tick();
-  const s = fy.signals(h, guid, m, t);
-  await tick();
+  const b = new Budget();
+  const s = await fy.signals(h, guid, m, t, b);
   let daily: fy.Card[] = [];
   if (old !== null && (old as ForYouData).day === today) { for (const sh of (old as ForYouData).shelves) if (sh.id === 'daily') daily = sh.cards; }
-  else daily = fy.dailyMixes(s, today);
-  await tick();
-  const made = fy.onRepeat(s).concat(fy.repeatRewind(s)).concat(fy.rediscover(s)).concat(fy.timeCapsule(s));
-  await tick();
-  const because = fy.becauseYouListened(s);
-  await tick();
+  else daily = await fy.dailyMixes(s, today, 50, b);
+  const made = fy.onRepeat(s).concat(fy.repeatRewind(s));
+  await b.check();
+  for (const c of await fy.rediscover(s, 30, b)) made.push(c);
+  await b.check();
+  for (const c of await fy.timeCapsule(s, 30, b)) made.push(c);
+  await b.check();
+  const because = await fy.becauseYouListened(s, 3, b);
   const d = new Date(t * 1000);
-  const year = fy.yearReview(h, s, t);
+  const year = await fy.yearReview(h, s, t, b);
+  await b.check();
   const month = fy.MONTHS[d.getMonth()];
-  const tops = fy.topSongs(s, 'top-month', `Top songs · ${month}`, 'Your most played this month', fy.monthStart(t), t + 1, 50)
-    .concat(fy.topSongs(s, 'top-year', `Top songs · ${year.year}`, 'Your most played this year', fy.yearStart(t), t + 1, 100));
+  const tops = fy.topSongs(s, 'top-month', `Top songs · ${month}`, 'Your most played this month', fy.monthStart(t), t + 1, 50);
+  await b.check();
+  for (const c of fy.topSongs(s, 'top-year', `Top songs · ${year.year}`, 'Your most played this year', fy.yearStart(t), t + 1, 100)) tops.push(c);
+  await b.check();
   if (year.listens > 0) {
     const covers: string[] = [];
     for (const c of tops) if (c.id === 'top-year') for (const id of c.tracks.slice(0, 4)) covers.push(id);
@@ -166,15 +169,17 @@ async function work(lib: PodLibrary): Promise<void> {
     { id: 'daily', title: 'Your daily mixes', cards: daily },
     { id: 'made', title: 'Made for you', cards: made },
   ];
-  for (const b of because) shelves.push(b);
+  for (const sh of because) shelves.push(sh);
   shelves.push({ id: 'top', title: 'Your top songs', cards: tops });
   shelves.push({ id: 'artists-month', title: `Top artists · ${month}`, cards: fy.topArtists(h, fy.monthStart(t), t + 1, 12) });
+  await b.check();
   shelves.push({ id: 'artists-year', title: `Top artists · ${year.year}`, cards: fy.topArtists(h, fy.yearStart(t), t + 1, 12) });
   if (s.m.deep !== null) {   // tier 2: AudioMuse's near lists of the seeds, then the model with them
     await prepareNear(fy.soundsLikeSeeds(s), true);
     if (library() !== lib) return;
-    currentModel();   // attaches them to the same model
+    await modelNow();   // attaches them to the same model
   }
+  await b.check();
   for (const x of fy.extraShelves(s)) shelves.push(x);
   const counts = historyCounts();
   const data: ForYouData = { format: FORMAT, guid: guid, key: key, day: today, listens: counts.listens, matched: counts.matchedListens, shelves: shelves, year: year };

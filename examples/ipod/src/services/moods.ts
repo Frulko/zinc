@@ -57,6 +57,8 @@ export function moodMix(m: Model, mood: Mood, energy: number, tempo: number, n: 
     mean.forEach((v: number, k: string) => { mean.set(k, v / rows.length); });
     const sorted = energies.slice();
     sorted.sort((a: number, b: number) => a - b);
+    const rankOf = new Map<number, i32>();   // each energy's first place in the order
+    for (let k = sorted.length - 1; k >= 0; k--) rankOf.set(sorted[k], k as i32);
     const tempos = new Map<i32, number>();
     for (const t of d.tracks) { const i = m.index.get(t.id); if (i !== undefined) tempos.set(i as i32, t.tempo); }
     for (let k = 0; k < rows.length; k++) {
@@ -65,7 +67,7 @@ export function moodMix(m: Model, mood: Mood, energy: number, tempo: number, n: 
         const v = rows[k].get(mood.moods[j]);
         if (v !== undefined) s += mood.weights[j] * ((v as number) - (mean.get(mood.moods[j]) as number));
       }
-      const rank = sorted.length > 1 ? sorted.indexOf(energies[k]) / (sorted.length - 1) : 0.5;   // ponytail: indexOf per song, O(n²) for 10,000 analysed songs
+      const rank = sorted.length > 1 ? (rankOf.get(energies[k]) as i32) / (sorted.length - 1) : 0.5;
       s -= Math.abs(rank - energy) + tempoGap(tempos.get(at[k]) as number, tempo);
       score[at[k]] = s;
       pool.push(at[k]);

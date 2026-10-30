@@ -6,6 +6,7 @@ import * as ipod from 'zinc:ipod';
 import { Row } from 'zinc:sqlite';
 import { History } from './history';
 import { readArtistGraph } from './genius';
+import { Budget } from './slice';
 import { Deep } from './audiomuse';
 import { count } from '../format';
 
@@ -36,14 +37,29 @@ export function historyLine(h: History | null, now: number): string {
   return at > 0 ? `Last.fm history: ${thousands(n)} listens, imported ${ago(at, now)}` : n > 0 ? `Last.fm history: ${thousands(n)} listens` : 'Last.fm history: not imported yet';
 }
 
-/** "Similar artists: 1,376 known, updated 3 days ago", from the files in the history folder `dir`. */
-export function similarLine(dir: string, now: number): string {
-  const n = readArtistGraph(dir).size;
+export class Similar { n: number = 0; at: number = 0; }
+
+/** The similar artists kept in the history folder `dir`: how many artists, and when the file was written (Unix seconds); read within a
+ *  budget (a few thousand artists are megabytes of JSON). */
+export async function similarKnown(dir: string): Promise<Similar> {
+  const k = new Similar();
+  k.n = (await readArtistGraph(dir, new Budget())).size;
+  k.at = similarWritten(dir);
+  return k;
+}
+
+/** When the similar artists' file of `dir` was last written (Unix seconds), 0 when there is none: cheap, to know when to read it again. */
+export function similarWritten(dir: string): number {
   let at = 0;
   for (const f of [`${dir}/similar-artists.jsonl`, `${dir}/similar-artists.json`]) {
     try { if (fs.exists(f)) at = Math.max(at, fs.stat(f).mtimeMs / 1000); } catch (e) { /* unreadable: no date */ }
   }
-  return n > 0 ? `Similar artists: ${thousands(n)} known, updated ${ago(at, now)}` : 'Similar artists: none yet (they need the Last.fm API key)';
+  return at;
+}
+
+/** "Similar artists: 1,376 known, updated 3 days ago", from similarKnown. */
+export function similarLine(k: Similar, now: number): string {
+  return k.n > 0 ? `Similar artists: ${thousands(k.n)} known, updated ${ago(k.at, now)}` : 'Similar artists: none yet (they need the Last.fm API key)';
 }
 
 /** "AudioMuse: 2,131 of 2,334 songs analysed, synced 1 hour ago" for the iPod's `tracks`; `setUp` false: not set up. */

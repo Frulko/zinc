@@ -5,7 +5,8 @@ import { loadConfig } from '../../services/config';
 import { historyVersion, history, historyStarted, importLastfmNow } from '../../services/historyJobs';
 import { History } from '../../services/history';
 import { jobs } from '../../services/transfers';
-import { historyLine, similarLine, museLine } from '../../services/prepare';
+import { createSignal } from 'zinc:ui/solid';
+import { historyLine, similarLine, similarKnown, similarWritten, museLine, Similar } from '../../services/prepare';
 import { backupPlace } from '../../services/log';
 import { fetchArtistsNow } from '../../drafts';
 import { currentDeep, deepVersion, museSetUp, syncMuse } from '../../deep';
@@ -25,6 +26,16 @@ export function prepareAll(): void {
   if (museSetUp()) syncMuse();
 }
 
+const [similar, setSimilar] = createSignal<Similar>(new Similar());
+let similarRead = -1;
+
+/** The similar artists known, read again (off the frame, a slice at a time) when their file changed. */
+function similarNow(dir: string): Similar {
+  const at = similarWritten(dir);
+  if (at !== similarRead) { similarRead = at; setTimeout(() => { similarKnown(dir).then((k: Similar) => { setSimilar(k); }); }, 0); }
+  return similar();
+}
+
 export function PrepareFields(): i32 {
   const lines = (): string => {
     historyVersion(); deepVersion(); jobs();   // again when an import, a fetch or a sync ends
@@ -32,7 +43,7 @@ export function PrepareFields(): i32 {
     let h: History | null = null;
     try { if (historyStarted()) h = history(); } catch (e) { /* no history */ }
     const lib = library();
-    return [historyLine(h, now), similarLine(`${backupPlace()}/history`, now),
+    return [historyLine(h, now), similarLine(similarNow(`${backupPlace()}/history`), now),
       museLine(currentDeep(), lib !== null ? (lib as PodLibrary).tracks : [], museSetUp(), now)].join('\n');
   };
   return <View className="flex-col gap-3">

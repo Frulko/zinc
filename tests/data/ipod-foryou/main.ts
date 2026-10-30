@@ -9,11 +9,14 @@
 //   Ghost Artist                     5 listens 6 days ago of songs not on the iPod: in the month's top artists, not on this iPod
 // Without FORYOU_MODE it makes all that, then prints the shelves (names only: the ids are new on each fake iPod); =fill only makes it; =pod
 // only the songs (no history); =add adds listens to the history (FORYOU_ADD=gem: 3 of Hidden Gem Song 1 an hour ago; =ghost: 3,000 of songs
-// not on the iPod); =bench measures 10,000 songs and 100,000 listens. FORYOU_COVERS: a folder of <Artist-Name>.png covers.
+// not on the iPod); =bench measures 10,000 songs and 100,000 listens (each step's time and longest slice; GENIUS_DIR
+// holds bench.sqlite and an optional similar-artists.jsonl); =big puts that library and history on the fake iPod, to time the app on it. FORYOU_COVERS: a folder of <Artist-Name>.png covers.
 import * as ipod from 'zinc:ipod';
 import { env } from 'zinc:sys';
 import { History, Listen, LibTrack } from '../../../examples/ipod/src/services/history';
-import { loadWeights, readArtistGraph, buildModel, Model } from '../../../examples/ipod/src/services/genius';
+import { loadWeights, readArtistGraph, buildModel, mixes, genius, Model } from '../../../examples/ipod/src/services/genius';
+import { MOODS, moodMix } from '../../../examples/ipod/src/services/moods';
+import { Budget } from '../../../examples/ipod/src/services/slice';
 import * as fy from '../../../examples/ipod/src/services/forYou';
 
 const GUID = '000A27001234ABCD';
@@ -40,11 +43,12 @@ function listen(h: History, t: ipod.Track | null, ts: number, artist: string = '
 
 async function main(): Promise<void> {
   const mode = env('FORYOU_MODE');
-  if (mode === 'bench') { bench(); return; }
+  if (mode === 'bench') { await bench(); return; }
   const db = `${env('ZINC_IPOD_BACKUPS')}/history/history.sqlite`;
   let pod: ipod.Device | null = null;
   for (const p of await ipod.detect()) if (p.mountpoint.endsWith('/ZINCPOD')) pod = p;
   if (pod === null) { console.log('no fake iPod'); return; }
+  if (mode === 'big') { await big((pod as ipod.Device).mountpoint, db); return; }
   if (mode === 'add') {
     await ipod.open((pod as ipod.Device).mountpoint);
     const tracks = await ipod.tracks();
@@ -118,8 +122,8 @@ async function main(): Promise<void> {
 
   // the shelves, as the app works them out
   const dir = `${env('ZINC_IPOD_BACKUPS')}/history`;
-  const m: Model = buildModel(h, GUID, tracks, readArtistGraph(dir), loadWeights(dir));
-  const s = fy.signals(h, GUID, m, NOW);
+  const m: Model = await buildModel(h, GUID, tracks, await readArtistGraph(dir), loadWeights(dir));
+  const s = await fy.signals(h, GUID, m, NOW);
   const names = (c: fy.Card, sorted: boolean): string => {
     const out: string[] = [];
     for (const id of c.tracks) for (const t of tracks) if (t.id === id) out.push(t.title.replace(' Song ', ' '));
@@ -132,25 +136,25 @@ async function main(): Promise<void> {
   };
   show('on repeat', fy.onRepeat(s), false);
   show('repeat rewind', fy.repeatRewind(s), true);
-  show('time capsule', fy.timeCapsule(s), true);
-  show('rediscover', fy.rediscover(s), true);
+  show('time capsule', await fy.timeCapsule(s), true);
+  show('rediscover', await fy.rediscover(s), true);
   const jump = fy.jumpBackIn(s, playlists);
   const firstJump: string[] = [];
   for (const c of jump.slice(0, 3)) firstJump.push(`${c.kind} ${c.title}`);
   console.log('jump back in', jump.length, '|', firstJump.join(' / '));
-  const because = fy.becauseYouListened(s);
+  const because = await fy.becauseYouListened(s);
   console.log('because', because.length, '|', because[0].title, '|', because[0].cards[0].title, because[0].cards[0].tracks.length);
   show('top month', fy.topSongs(s, 'm', 'Top month', '', fy.monthStart(NOW), NOW + 1, 3), true);
   const artistsMonth: string[] = [];
   for (const c of fy.topArtists(h, fy.monthStart(NOW), NOW + 1, 4)) artistsMonth.push(`${c.title} (${c.subtitle})`);
   console.log('top artists month', artistsMonth.join(', '));
-  const y = fy.yearReview(h, s, NOW);
+  const y = await fy.yearReview(h, s, NOW);
   let monthSum = 0;
   for (const n of y.months) monthSum += n;
   console.log('year', y.year, 'listens', y.listens === in2026, 'months', monthSum === y.listens, y.months.slice(4, 6).join(' '), 'artists', y.artists.length,
     'songs', y.songs.length, 'genres', y.genres.length, 'minutes', y.minutes > 0);
   // the daily mixes: one per taste, the same all day, others the next day (8 songs: a pick of each group's 12)
-  const d1 = fy.dailyMixes(s, '2026-06-15', 8), again = fy.dailyMixes(fy.signals(h, GUID, m, NOW + 3600), '2026-06-15', 8), d2 = fy.dailyMixes(s, '2026-06-16', 8);
+  const d1 = await fy.dailyMixes(s, '2026-06-15', 8), again = await fy.dailyMixes(await fy.signals(h, GUID, m, NOW + 3600), '2026-06-15', 8), d2 = await fy.dailyMixes(s, '2026-06-16', 8);
   let same = d1.length === again.length, differs = false;
   for (let k = 0; k < d1.length; k++) { same = same && names(d1[k], false) === names(again[k], false); differs = differs || (k < d2.length && names(d1[k], false) !== names(d2[k], false)); }
   console.log('daily mixes', d1.length, 'same all day', same, 'others tomorrow', differs);
@@ -167,7 +171,37 @@ async function main(): Promise<void> {
   h.close();
 }
 
-function bench(): void {
+/** FORYOU_MODE=big: the bench's library (10,000 songs) on the fake iPod and its 100,000 listens in the history, to time the app on it. */
+async function big(mount: string, db: string): Promise<void> {
+  await ipod.open(mount, true, '', 'Zinc Pod');
+  const items: ipod.TrackInput[] = [];
+  const song = env('IPOD_SONG');
+  for (let i = 0; i < 10000; i++) {
+    const a = Math.floor(i / 10);
+    items.push({ file: song, title: `Song ${i}`, artist: `Artist ${a}`, album: `Album ${a}`, genre: `Genre ${a % 25}`, year: 1960 + a % 60, bpm: 80 + i % 80, rating: 0 });
+  }
+  const added = await ipod.addWith(items);
+  for (const r of added) if (r.error !== '') { console.log('refused', r.error); break; }
+  await ipod.save();
+  const tracks = await ipod.tracks();
+  await ipod.close();
+  const byTitle = new Map<string, ipod.Track>();
+  for (const t of tracks) byTitle.set(t.title, t);
+  const h = new History(db);
+  h.db.transaction(() => {
+    let ts = NOW - 10000 * DAY / 4;
+    for (let s = 0; s < 10000; s++) {
+      ts += DAY / 4;
+      const base = rnd(20) * 500;
+      for (let j = 0; j < 10; j++) listen(h, byTitle.get(`Song ${base + rnd(500)}`) as ipod.Track, ts + j * 240);
+    }
+  });
+  h.match(GUID, libTracks(tracks), 'm1');
+  h.close();
+  console.log('big', tracks.length);
+}
+
+async function bench(): Promise<void> {
   const dir = env('GENIUS_DIR');
   const n = 10000;
   const tracks: ipod.Track[] = [];
@@ -180,7 +214,7 @@ function bench(): void {
       startMs: 0, stopMs: 0, volume: 0, skipWhenShuffling: false, rememberPosition: false, lyrics: false, modified: 0 });
   }
   const h = new History(`${dir}/bench.sqlite`);
-  h.db.transaction(() => {
+  if (h.version('BENCH').startsWith('0:')) h.db.transaction(() => {   // filled once
     let ts = NOW - 10000 * DAY / 4;
     for (let s = 0; s < 10000; s++) {   // 10,000 sessions of 10 listens over 7 years, each within a taste of 500 songs
       ts += DAY / 4;
@@ -189,21 +223,34 @@ function bench(): void {
     }
   });
   h.match('BENCH', libTracks(tracks), 'b');
-  let t0 = Date.now();
-  const m: Model = buildModel(h, 'BENCH', tracks, new Map<string, Map<string, number>>(), loadWeights(dir));
-  const built = Date.now() - t0;
+  // each step: its time, and the longest slice it held the thread (services/slice.ts; a step that does not pause is one slice)
   const times: string[] = [];
-  const step = (name: string, f: () => i32): void => { const t = Date.now(); const k = f(); times.push(`${name} ${Date.now() - t} ms (${k})`); };
-  let s: fy.Signals = fy.signals(null, 'BENCH', m, NOW);
-  step('signals', (): i32 => { s = fy.signals(h, 'BENCH', m, NOW); return s.flatTs.length as i32; });
-  step('daily', (): i32 => fy.dailyMixes(s, '2026-06-15').length as i32);
-  step('jump', (): i32 => fy.jumpBackIn(s, []).length as i32);
-  step('made', (): i32 => (fy.onRepeat(s).length + fy.repeatRewind(s).length + fy.rediscover(s).length + fy.timeCapsule(s).length) as i32);
-  step('because', (): i32 => fy.becauseYouListened(s).length as i32);
-  step('tops', (): i32 => (fy.topSongs(s, 'a', '', '', fy.monthStart(NOW), NOW, 50).length + fy.topArtists(h, fy.yearStart(NOW), NOW, 12).length) as i32);
-  step('year', (): i32 => fy.yearReview(h, s, NOW).listens);
-  step('version', (): i32 => h.version('BENCH').length as i32);
-  console.log(`bench: model ${built} ms; ${times.join('; ')}`);
+  let b = new Budget(), t0 = performance.now();
+  const done = (name: string, k: number): void => {
+    const t = performance.now();
+    times.push(`${name} ${Math.round(t - t0)} ms, longest slice ${Math.round(Math.max(b.longest, b.since()))} ms (${k})`);
+    b = new Budget(); t0 = performance.now();
+  };
+  const graph = await readArtistGraph(dir, b);
+  done('artist graph', graph.size);
+  const m: Model = await buildModel(h, 'BENCH', tracks, graph, loadWeights(dir), b);
+  done('model', m.tracks.length);
+  const s = await fy.signals(h, 'BENCH', m, NOW, b);
+  done('signals', s.flatTs.length);
+  done('daily', (await fy.dailyMixes(s, '2026-06-15', 50, b)).length);
+  done('jump', fy.jumpBackIn(s, []).length);
+  done('on repeat', fy.onRepeat(s).length);
+  done('repeat rewind', fy.repeatRewind(s).length);
+  done('rediscover', (await fy.rediscover(s, 30, b)).length);
+  done('time capsule', (await fy.timeCapsule(s, 30, b)).length);
+  done('because', (await fy.becauseYouListened(s, 3, b)).length);
+  done('tops', fy.topSongs(s, 'a', '', '', fy.monthStart(NOW), NOW, 50).length + fy.topArtists(h, fy.yearStart(NOW), NOW, 12).length);
+  done('year', (await fy.yearReview(h, s, NOW, b)).listens);
+  done('version', h.version('BENCH').length);
+  done('mixes', (await mixes(m, 6, 50, 5, b)).length);
+  done('genius 100', genius(m, 't1234', 100).length);
+  for (const mood of MOODS) done(`mood ${mood.id}`, moodMix(m, mood, mood.energy, mood.tempo).tracks.length);
+  console.log(`bench:\n  ${times.join('\n  ')}`);
   h.close();
 }
 
