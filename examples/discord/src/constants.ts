@@ -10,10 +10,10 @@ export const GATEWAY_QUERY = '/?encoding=json&v=9';
 export const CDN_BASE = or('DISCORD_CDN', 'https://cdn.discordapp.com');
 
 // One coherent identity, sent in IDENTIFY, in X-Super-Properties and as the User-Agent (docs/reports/discord-client-research.md 2.3).
-// ponytail: the build number is baked in; DISCORD_BUILD_NUMBER overrides it until it is read from the live web client.
-export const BROWSER_VERSION = '136.0.0.0';
+// ponytail: Chrome and the build number as the web client sent them on 2026-10-30, baked in; DISCORD_BUILD_NUMBER overrides it until it is read from the live web client.
+export const BROWSER_VERSION = '156.0.0.0';
 export const USER_AGENT = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${BROWSER_VERSION} Safari/537.36`;
-export const CLIENT_BUILD_NUMBER = parseInt(or('DISCORD_BUILD_NUMBER', '396858'));
+export const CLIENT_BUILD_NUMBER = parseInt(or('DISCORD_BUILD_NUMBER', '657850'));
 export const LOCALE = 'en-US';
 // NO_AFFINE_USER_IDS, VERSIONED_READ_STATES, VERSIONED_USER_GUILD_SETTINGS, DEDUPE_USER_OBJECTS, MULTIPLE_GUILD_EXPERIMENT_POPULATIONS,
 // NON_CHANNEL_READ_STATES, CLIENT_STATE_V2: READY in one payload, settings as JSON (no protobuf), no token refresh to persist.

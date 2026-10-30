@@ -5,7 +5,7 @@ const launchId = crypto.randomUUID();
 
 export function clientProperties(): any {
   return {
-    os: 'Mac OS X', browser: 'Chrome', device: '', system_locale: LOCALE, browser_user_agent: USER_AGENT,
+    os: 'Mac OS X', browser: 'Chrome', device: '', device_model_name: '', system_locale: LOCALE, has_client_mods: false, browser_user_agent: USER_AGENT,
     browser_version: BROWSER_VERSION, os_version: '10.15.7', referrer: '', referring_domain: '', referrer_current: '',
     referring_domain_current: '', release_channel: 'stable', client_build_number: CLIENT_BUILD_NUMBER, client_event_source: null,
     client_launch_id: launchId, client_app_state: 'focused',
