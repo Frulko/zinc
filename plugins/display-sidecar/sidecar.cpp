@@ -228,6 +228,42 @@ static void handOver() {
   busy = true; cv.notify_one();
 }
 
+// --- the web views (plugins/webview): with no window of the app they live off screen; their pictures are laid into the frame here and the
+// touches that land on them go to them. Weak: an app without the web view plugin links these, which have no view.
+extern "C" __attribute__((weak)) int zn_webview_overlay(int, int, const uint32_t**, int*, int*, double*, double*, unsigned*) { return 0; }
+extern "C" __attribute__((weak)) int zn_webview_pointer(double, double, int, double, double) { return 0; }
+static unsigned webGen[16]; static int webBox[16][4];   // the picture last laid, and where (pixels)
+static void damage(int x0, int y0, int x1, int y1) {
+  if (dx1 <= dx0) { dx0 = x0; dy0 = y0; dx1 = x1; dy1 = y1; }
+  else { dx0 = std::min(dx0, x0); dy0 = std::min(dy0, y0); dx1 = std::max(dx1, x1); dy1 = std::max(dy1, y1); }
+}
+/** Lays each web view's newest picture over its clip of the frame when the picture is new or the app drew over it (fb then has the
+ *  app's pixels there); a view that went away leaves its box to the app's next frame. */
+static void layWebViews(bool drew, int fx0, int fy0, int fx1, int fy1) {
+  for (int i = 0; i < 16; i++) {
+    const uint32_t* px; int pw, ph; double b[4], c[4]; unsigned gen;
+    int* box = webBox[i];
+    if (!zn_webview_overlay(i, K, &px, &pw, &ph, b, c, &gen)) {
+      if (box[2] > box[0]) { webGen[i] = 0; box[0] = box[2] = 0; }
+      continue;
+    }
+    const int x0 = std::max(0, (int)(c[0] * K)), y0 = std::max(0, (int)(c[1] * K));
+    const int x1 = std::min(RW, (int)((c[0] + c[2]) * K)), y1 = std::min(RH, (int)((c[1] + c[3]) * K));
+    const bool moved = x0 != box[0] || y0 != box[1] || x1 != box[2] || y1 != box[3];
+    const bool under = drew && fx0 < x1 && fx1 > x0 && fy0 < y1 && fy1 > y0;
+    if (x1 <= x0 || y1 <= y0 || (gen == webGen[i] && !moved && !under)) continue;
+    const int ox = (int)(b[0] * K), oy = (int)(b[1] * K);   // the picture's top-left: its view's box, the clip may cut it
+    for (int y = y0; y < y1; y++) {
+      const int sy = y - oy;
+      if (sy < 0 || sy >= ph) continue;
+      const int sx0 = std::max(x0 - ox, 0), sx1 = std::min(x1 - ox, pw);
+      if (sx1 > sx0) memcpy(fb + (size_t)y * RW + ox + sx0, px + (size_t)sy * pw + sx0, (size_t)(sx1 - sx0) * 4);
+    }
+    webGen[i] = gen; box[0] = x0; box[1] = y0; box[2] = x1; box[3] = y1;
+    damage(x0, y0, x1, y1);
+  }
+}
+
 // --- the screen's answers, 16 bytes [kind][type][u16 id][i32 a][i32 b][i32 c]: ACKs, touches, pen, scrolls
 static void readAnswers() {
   uint8_t m[16];
@@ -242,12 +278,20 @@ static void readAnswers() {
     else if (m[0] == 2) {   // INPUT: 0x10 press, 0x11 release, 0x12 move, 0x13 hover; 0x20.. the pen, its pressure 0..4096 and tilt
       px = (float)a / K; py = (float)b / K;
       const int k = type & 15;
+      static bool toWeb;   // the press went to a web view: its moves and release follow it
+      if (type < 0x20 && (k <= 1 || (k == 2 && toWeb)) && (toWeb || k == 0)) {
+        const bool took = zn_webview_pointer(px, py, k, 0, 0);
+        toWeb = took && k != 1;
+        if (took) continue;
+      }
       if (k == 0) pdown = 1; else if (k == 1) pdown = 0;
       if (type >= 0x20) {
         HalPen p{px, py, c / 4096.0f, (float)(int8_t)(id & 255), (float)(int8_t)(id >> 8), k == 1 ? 0u : k == 3 ? (uint32_t)HAL_PEN_HOVER : (uint32_t)HAL_PEN_DOWN};
         hal_pen_push(&p);
       }
-    } else if (m[0] == 6) wheel += (float)b / K / 40;   // SCROLL: two fingers, in pixels; a wheel step is about 40 points
+    } else if (m[0] == 6) {
+      if (!zn_webview_pointer(px, py, 3, (double)a / K, (double)b / K)) wheel += (float)b / K / 40;
+    }   // SCROLL: two fingers, in pixels; a wheel step is about 40 points
   }
 }
 
@@ -267,9 +311,10 @@ static void s_present(const HalFrame* f) {
   stLoops++; stDamaged += f->x1 > f->x0;
   if (fd >= 0 && !gone && f->w == RW && f->h == RH && f->x1 > f->x0 && f->y1 > f->y0) {
     (f->render_damage ? f->render_damage : f->render)(fb + (size_t)f->y0 * RW, f->y0, f->y1);
-    if (dx1 <= dx0) { dx0 = f->x0; dy0 = f->y0; dx1 = f->x1; dy1 = f->y1; }
-    else { dx0 = std::min(dx0, (int)f->x0); dy0 = std::min(dy0, (int)f->y0); dx1 = std::max(dx1, (int)f->x1); dy1 = std::max(dy1, (int)f->y1); }
+    damage(f->x0, f->y0, f->x1, f->y1);
   }
+  const bool drew = f->x1 > f->x0 && f->y1 > f->y0;
+  if (fd >= 0 && !gone && f->w == RW && f->h == RH) layWebViews(drew, f->x0, f->y0, f->x1, f->y1);
   { std::lock_guard<std::mutex> l(mu); if (broken) gone = true; }
   if (fd >= 0 && !gone) handOver();
   uint64_t t = hal_time_us();

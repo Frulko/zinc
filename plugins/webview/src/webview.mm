@@ -134,12 +134,102 @@ static bool trusted(WKFrameInfo* f, NSInteger port) {
 
 static const int MAXV = 16;
 struct View { WKWebView* wv; ZincBridge* br; ZView* clip; double x, y, w, h, cx, cy, cw, ch; };
+// the snapshots of the off-screen web views (zn_webview_overlay): the newest picture of each, BGRA premultiplied, at `scale` pixels a point
+struct Shot { uint32_t* px = nullptr; int w = 0, h = 0; unsigned gen = 0; bool taking = false; };
 static View views[MAXV];
 static View* at(int32_t v) { return v >= 0 && v < MAXV && views[v].wv ? &views[v] : nullptr; }
+#if !TARGET_OS_IPHONE
+static NSWindow* offscreen;   // the web views' window when the app has none (offscreenView)
+static Shot shots[MAXV];
+static void snap(int i, int scale) {
+  View& v = views[i];
+  Shot& s = shots[i];
+  if (s.taking || v.w < 1 || v.h < 1) return;
+  s.taking = true;
+  WKSnapshotConfiguration* c = [[[WKSnapshotConfiguration alloc] init] autorelease];
+  c.snapshotWidth = @(v.w);   // points; the picture comes at the window's backing scale, redrawn below at `scale`
+  if (@available(macOS 10.15, *)) c.afterScreenUpdates = YES;
+  const int pw = (int)(v.w * scale), ph = (int)(v.h * scale);
+  [v.wv takeSnapshotWithConfiguration:c completionHandler:^(NSImage* img, NSError*) {
+    s.taking = false;
+    CGImageRef cg = img ? [img CGImageForProposedRect:nullptr context:nil hints:nil] : nullptr;
+    if (!cg || pw < 1 || ph < 1) return;
+    if (s.w != pw || s.h != ph) { free(s.px); s.px = (uint32_t*)malloc((size_t)pw * ph * 4); s.w = pw; s.h = ph; }
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx = CGBitmapContextCreate(s.px, pw, ph, 8, (size_t)pw * 4, cs, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+    CGContextDrawImage(ctx, CGRectMake(0, 0, pw, ph), cg);
+    CGContextRelease(ctx); CGColorSpaceRelease(cs);
+    s.gen++;
+  }];
+}
+/** Web view i's newest picture for a display driver: its box and clip in points, its pixels (w x h, `scale` a point), a number that
+ *  changes with each new picture; 0 when there is none (no such view, hidden, not taken yet). Asks for the next picture meanwhile. */
+extern "C" int zn_webview_overlay(int i, int scale, const uint32_t** px, int* pw, int* ph, double box[4], double clip[4], unsigned* gen) {
+  if (i < 0 || i >= MAXV || !views[i].wv || !offscreen || views[i].clip.hidden) return 0;
+  snap(i, scale);
+  const Shot& s = shots[i];
+  if (!s.px) return 0;
+  const View& v = views[i];
+  *px = s.px; *pw = s.w; *ph = s.h; *gen = s.gen;
+  box[0] = v.x; box[1] = v.y; box[2] = v.w; box[3] = v.h; clip[0] = v.cx; clip[1] = v.cy; clip[2] = v.cw; clip[3] = v.ch;
+  return 1;
+}
+/** A touch of the screen at (x, y) points for the off-screen web views: kind 0 press, 1 release, 2 drag, 3 scroll by (dx, dy) points.
+ *  1 when a web view takes it (the point is in its clip, or it holds the press), else 0: the app's. */
+extern "C" int zn_webview_pointer(double x, double y, int kind, double dx, double dy) {
+  static int held = -1;
+  if (!offscreen) return 0;
+  int hit = held;
+  if (hit < 0) for (int i = 0; i < MAXV; i++) {
+    const View& v = views[i];
+    if (v.wv && !v.clip.hidden && x >= v.cx && x < v.cx + v.cw && y >= v.cy && y < v.cy + v.ch) { hit = i; break; }
+  }
+  if (hit < 0) return 0;
+  @autoreleasepool {
+    const NSPoint at = NSMakePoint(x, offscreen.contentView.bounds.size.height - y);   // the window's coordinates: bottom-left origin
+    NSEvent* e = nil;
+    if (kind == 3) {
+      CGEventRef ce = CGEventCreateScrollWheelEvent(nullptr, kCGScrollEventUnitPixel, 2, (int32_t)dy, (int32_t)dx);
+      e = [NSEvent eventWithCGEvent:ce];
+      CFRelease(ce);
+      if (e) { NSView* target = [offscreen.contentView hitTest:at]; [target scrollWheel:e]; }
+      return 1;
+    }
+    const NSEventType t = kind == 0 ? NSEventTypeLeftMouseDown : kind == 1 ? NSEventTypeLeftMouseUp : NSEventTypeLeftMouseDragged;
+    e = [NSEvent mouseEventWithType:t location:at modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:offscreen.windowNumber
+                            context:nil eventNumber:0 clickCount:1 pressure:kind == 1 ? 0 : 1];
+    [offscreen sendEvent:e];
+  }
+  held = kind == 0 ? hit : kind == 1 ? -1 : held;
+  return 1;
+}
+#endif
 
+#if !TARGET_OS_IPHONE
+// No window of the app (a display driver shows it elsewhere: display-sidecar): the web views live in a window of their own, off every
+// screen, at the surface's size in points; their pictures are taken (WKWebView snapshots) and the driver lays them into its frames
+// (zn_webview_overlay), and sends them the screen's touches (zn_webview_pointer).
+static ZView* offscreenView() {
+  if (!offscreen) {
+    [NSApplication sharedApplication];
+    if (NSApp.activationPolicy == NSApplicationActivationPolicyRegular && !NSApp.isRunning) [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];   // no Dock icon
+    [NSApp finishLaunching];
+    int W = 1, H = 1;
+    hal_surface_size(&W, &H);
+    offscreen = [[NSWindow alloc] initWithContentRect:NSMakeRect(-30000, -30000, W, H) styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+    offscreen.releasedWhenClosed = NO;
+    [offscreen setFrameOrigin:NSMakePoint(-30000, -30000)];
+    [offscreen orderFrontRegardless];   // off every screen, but ordered in: WebKit paints and runs its timers only for a window that is
+  }
+  return offscreen.contentView;
+}
+#endif
 /** The view SDL draws the surface into: the window's content view (macOS), its view controller's view (iOS). */
 static ZView* hostView() {
   SDL_Window* sw = (SDL_Window*)hal_window_handle();
+#if !TARGET_OS_IPHONE
+  if (!sw && hal_display && !hal_display->host_window) return offscreenView();
+#endif
   if (!sw) return nil;
 #if TARGET_OS_IPHONE
   UIWindow* w = (UIWindow*)SDL_GetPointerProperty(SDL_GetWindowProperties(sw), SDL_PROP_WINDOW_UIKIT_WINDOW_POINTER, nullptr);
@@ -268,6 +358,13 @@ struct MacWebview : NativeWebview, zrt::Poller {
   bool poll() override {
     bool any = false;
     for (View& v : views) if (v.wv) { frameOf(v); any = true; }  // follows window resizes (letterbox, zoom)
+#if !TARGET_OS_IPHONE
+    // the off-screen window has no SDL to run the main loop: WebKit's loads, timers and snapshot answers are delivered here
+    if (offscreen) @autoreleasepool {
+      while (NSEvent* e = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:nil inMode:NSDefaultRunLoopMode dequeue:YES]) [NSApp sendEvent:e];
+      CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, true);
+    }
+#endif
     if (!queue.count) return any;
     @autoreleasepool {
       NSArray* evs = [[queue copy] autorelease];

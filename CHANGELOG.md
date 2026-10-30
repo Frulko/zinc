@@ -10,6 +10,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Added
 - `display-sidecar`: a Zinc app runs on an iPad, iPhone, Android or another Mac with the Sidecar app as its screen, with its own frames and no screen capture: `ZINC_DISPLAY=sidecar ZINC_SIDECAR=adb zinc run <app>` (or `usb`, or an address). Touches and the Apple Pencil drive the app.
+- `display-sidecar`: an app with a web view (`zinc:webview`) shows the page on the Sidecar screen too, and the page answers its touches.
 - `zinc:secure-store` keeps secrets (tokens, keys) in the macOS Keychain with Expo's API: `import * as SecureStore from 'expo-secure-store'`, then `getItemAsync`, `setItemAsync`, `deleteItemAsync`, `isAvailableAsync`. Where no keychain exists the calls reject; secrets are never written to a plain file.
 - `zinc:socket`: `new WebSocket(url, { headers: [[name, value], ...] })` sends extra headers (Origin, User-Agent...) in the opening handshake.
 - The site has a gallery of the graded examples (`/examples/`): filter them by style and by stars, open one and it runs in the page beside its source, with copy buttons for the code and for `zinc run example:<name>`. The two demos to play in the browser now load in a moment, without the reload they needed.

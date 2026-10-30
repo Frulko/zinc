@@ -27,5 +27,10 @@ as 24-bit rows with PNG's Sub filter and zstd level 1, compressed on every core 
 Measured (2026-10-30, Nexus 7 over adb, `examples/breakout`): 50 to 59 frames a second sent of 60 drawn, about 1 Mbit/s, 1 to 2 ms to encode
 a frame, on a Mac then loaded by other builds.
 
+Web views (`zinc:webview`) work on the screen too: with no window of the app, the plugin keeps them in a window off every screen, takes
+their pictures (WebKit snapshots, at the screen's scale) and the driver lays them into its frames; a touch that lands on a web view goes
+to it, the rest to the app. Measured with `examples/webview/hybrid` on the Nexus 7: about a fifth of a core on the Mac in all (the app
+and WebKit's processes). macOS only for now.
+
 Not yet: H.264 for a frame where most of the screen moves (the screens decode it: `+h264`), a second screen beside the app's window, the
 display list sent instead of pixels, UDP on the network.
