@@ -60,6 +60,9 @@ std::string spoken(std::string s) {
 struct Checker {
   Ast& a;
   Checked out;
+  // No cascade (ZN-774.34): an unknown name is reported once per file, and the name a failed import was probably meant to be (its
+  // did-you-mean) is not reported at all: the uses of `isDown` after `import { isDwon }` are the same mistake, already said.
+  std::map<std::uint32_t, std::set<std::string>> saidNames;
   using Scope = std::unordered_map<std::string_view, std::uint32_t>;
   // Scopes are shared so a snapshot (a generic declaration's) sees names declared in its scope later.
   std::vector<std::shared_ptr<Scope>> scopes;
@@ -1676,7 +1679,7 @@ struct Checker {
     else if (name == "window" || name == "alert" || name == "confirm" || name == "prompt" || name == "HTMLElement" || name == "HTMLCanvasElement")
       diag(kZCannotFindName, at, "diag.detail.noDom", {{"name", std::string(name)}});
     else if (name == "localStorage" || name == "sessionStorage") diag(kZCannotFindName, at, "diag.detail.noStorage", {{"name", std::string(name)}});
-    else diag(kZCannotFindName, at, "'" + std::string(name) + "'");
+    else if (saidNames[n(at).file].insert(std::string(name)).second) diag(kZCannotFindName, at, "'" + std::string(name) + "'");
   }
   bool replaceWith(std::uint32_t i, const std::string& text, const std::vector<std::vector<std::uint32_t>>& holes) {
     if (text == "__H0") { a.nodes[i] = a.nodes[holes[0][0]]; return true; }  // the argument itself (a lone hole would read as a statement hole)
@@ -5407,6 +5410,8 @@ struct Checker {
           std::vector<std::string> names;
           for (const auto& ex : exportsOf[im.from]) names.emplace_back(ex.first);
           std::string near = nearest(im.name, names);
+          if (!near.empty()) saidNames[n(im.node).file].insert(near);
+          saidNames[n(im.node).file].insert(std::string(im.local));
           diag(kZCannotFindName, im.node, near.empty() ? "diag.detail.notExported" : "diag.detail.notExportedNear", {{"name", std::string(im.name)}, {"module", a.modules[im.from].path}, {"guess", near}});
           continue;
         }

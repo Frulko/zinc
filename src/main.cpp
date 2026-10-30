@@ -519,6 +519,22 @@ static bool loadManifestPermissions(const char* path) {
   return true;
 }
 
+// The diagnostics on stderr. A command a person types (gHint: zinc run, build, check) gets each file relative to the working directory when
+// it is under it, the source line with a caret under the span, and the closing line (ZN-711, ZN-774.34); the stage commands keep one
+// line per diagnostic, with the full path, for the tools that read them.
+static void printDiags(const zn::frontend::Program& prog, const std::vector<zn::frontend::Diag>& diags) {
+  for (const auto& d : diags) {
+    std::string line = zn::frontend::formatDiag(prog, d);
+    if (gHint) {
+      const std::string& path = prog.files[d.file < prog.files.size() ? d.file : 0].path;
+      if (line.compare(0, path.size(), path) == 0) line.replace(0, path.size(), zn::frontend::personPath(path));
+      if (const std::string ex = zn::frontend::excerpt(prog, d); !ex.empty()) line += "\n" + ex;
+    }
+    std::fprintf(stderr, "%s\n", line.c_str());
+  }
+  if (gHint && !diags.empty()) std::fprintf(stderr, "%s\n", zn::frontend::hint(diags, zn::log::shortPath(prog.files[diags[0].file < prog.files.size() ? diags[0].file : 0].path)).c_str());
+}
+
 // zinc dev's hot mode (Fast Refresh, ZN-742): asked for with ZINC_HOT=1, never on by itself in zinc run, build, export or pack.
 static bool hotMode() { const char* h = std::getenv("ZINC_HOT"); return h && std::strcmp(h, "1") == 0; }
 
@@ -534,8 +550,7 @@ static bool loadChecked(const char* path, zn::frontend::Program& prog, zn::front
     checked = zn::frontend::check(prog.ast);
     diags = checked.diags;
   }
-  for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::formatDiag(prog, d).c_str());
-  if (gHint && !diags.empty()) std::fprintf(stderr, "%s\n", zn::frontend::hint(diags, zn::log::shortPath(prog.files[diags[0].file < prog.files.size() ? diags[0].file : 0].path)).c_str());
+  printDiags(prog, diags);
   return diags.empty();
 }
 
@@ -736,8 +751,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
       return 0;
     }
   }
-  for (const auto& d : diags) std::fprintf(stderr, "%s\n", zn::frontend::formatDiag(prog, d).c_str());
-  if (gHint && !diags.empty()) std::fprintf(stderr, "%s\n", zn::frontend::hint(diags, zn::log::shortPath(prog.files[diags[0].file < prog.files.size() ? diags[0].file : 0].path)).c_str());
+  printDiags(prog, diags);
   return 1;
 }
 

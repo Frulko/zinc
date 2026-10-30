@@ -1796,12 +1796,21 @@ struct Loader {
     return load(f, std::move(pending));
   }
 
+  // Where a diagnostic points: the node, or for a module that is not found the quoted name of the import, where the mistake is (ZN-774.34)
+  std::uint32_t at(const char* code, std::uint32_t file, std::uint32_t node) const {
+    if (node == kNone) return 0;
+    const std::uint32_t start = prog.ast.nodes[node].start;
+    if (code != kZModuleNotFound || file >= prog.files.size()) return start;
+    const std::string& t = prog.files[file].text;
+    const std::size_t q = t.find_first_of("'\";", start);
+    return q != std::string::npos && t[q] != ';' && q - start < 2000 ? static_cast<std::uint32_t>(q) : start;
+  }
   void diag(const char* code, std::uint32_t file, std::uint32_t node, std::string detail) {
-    prog.diags.push_back({code, node == kNone ? 0 : prog.ast.nodes[node].start, std::move(detail), file});
+    prog.diags.push_back({code, at(code, file, node), std::move(detail), file});
   }
   // a detail a beginner meets often: the message `key` of i18n/<lang>/diag.json, its English text kept for the tools (D159)
   void diag(const char* code, std::uint32_t file, std::uint32_t node, const char* key, std::vector<i18n::Arg> args) {
-    prog.diags.push_back({code, node == kNone ? 0 : prog.ast.nodes[node].start, i18n::message("en", key, args), file, key, std::move(args)});
+    prog.diags.push_back({code, at(code, file, node), i18n::message("en", key, args), file, key, std::move(args)});
   }
 
   // The module index for an import of `spec` (with quotes) from file `fromFile`, loading it first; kNone on error.
@@ -1952,7 +1961,7 @@ struct Loader {
       return m;
     }
     std::string near = nearestFile(base, false);
-    diag(kZModuleNotFound, fromFile, node, near.empty() ? "diag.detail.noFile" : "diag.detail.noFileNear", {{"spec", spec}, {"file", base}, {"guess", spec.substr(0, spec.rfind('/') + 1) + near}});
+    diag(kZModuleNotFound, fromFile, node, near.empty() ? "diag.detail.noFile" : "diag.detail.noFileNear", {{"spec", spec}, {"file", personPath(base)}, {"guess", spec.substr(0, spec.rfind('/') + 1) + near}});
     return kNone;
   }
 
@@ -3658,6 +3667,12 @@ std::string formatDiag(const Program& p, const Diag& d) {
   Diag o = d;   // a .tsx file: the line and column of the source the user wrote (ZN-371.03)
   o.pos = std::min<std::uint32_t>(sourceOffset(f.map, d.pos), static_cast<std::uint32_t>(f.original.size()));
   return format(o, f.original, f.path);
+}
+
+std::string excerpt(const Program& p, const Diag& d) {
+  const SourceFile& f = p.files[d.file < p.files.size() ? d.file : 0];
+  if (f.map.empty()) return excerpt(f.text, d.pos);
+  return excerpt(f.original, std::min<std::uint32_t>(sourceOffset(f.map, d.pos), static_cast<std::uint32_t>(f.original.size())));   // a .tsx file: the source the user wrote
 }
 
 

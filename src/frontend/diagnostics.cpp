@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 
 #include "frontend/lexer.h"
 #include "i18n/i18n.h"
@@ -73,6 +74,46 @@ std::string format(const Diag& d, std::string_view src, std::string_view file) {
                     (info ? text(*info, "title", info->title) : "unknown diagnostic");
   if (!d.detail.empty()) out += ": " + detail(d);
   return out;
+}
+
+std::string excerpt(std::string_view src, std::uint32_t at) {
+  const std::size_t pos = std::min<std::size_t>(at, src.size());
+  std::size_t start = pos;
+  while (start > 0 && src[start - 1] != '\n') --start;
+  std::size_t end = src.find('\n', pos);
+  if (end == std::string_view::npos) end = src.size();
+  if (end > start && src[end - 1] == '\r') --end;
+  if (end <= start) return "";   // an empty line, or the end of the file: nothing to point at
+  // the span: a name, a string, else one character
+  auto ident = [](unsigned char c) { return std::isalnum(c) || c == '_' || c == '$' || c >= 0x80; };
+  std::size_t stop = pos + 1;
+  if (pos < end && ident(static_cast<unsigned char>(src[pos]))) { stop = pos; while (stop < end && ident(static_cast<unsigned char>(src[stop]))) ++stop; }
+  else if (pos < end && (src[pos] == '\'' || src[pos] == '"' || src[pos] == '`')) { const std::size_t q = src.find(src[pos], pos + 1); stop = q == std::string_view::npos || q >= end ? end : q + 1; }
+  std::string under;
+  for (std::size_t i = start; i < pos; ++i)   // a tab stays a tab so the caret lines up; one space per character, not per byte
+    if ((static_cast<unsigned char>(src[i]) & 0xC0) != 0x80) under += src[i] == '\t' ? '\t' : ' ';
+  under += '^';
+  for (std::size_t i = pos + 1; i < stop && i < end; ++i)
+    if ((static_cast<unsigned char>(src[i]) & 0xC0) != 0x80) under += '^';
+  const std::string no = std::to_string(lineCol(src, static_cast<std::uint32_t>(pos)).line), gutter(no.size() + 2, ' ');
+  return " " + no + " | " + std::string(src.substr(start, end - start)) + "\n" + gutter + "| " + under;
+}
+
+std::string personPath(std::string_view path) {
+  std::error_code ec;
+  const std::string here = std::filesystem::current_path(ec).string() + "/";
+  if (ec) return std::string(path);
+  return path.compare(0, here.size(), here) == 0 ? std::string(path.substr(here.size())) : std::string(path);
+}
+
+std::string forPerson(const std::vector<Diag>& diags, std::string_view src, std::string_view file) {
+  std::string out;
+  for (const Diag& d : diags) {
+    out += format(d, src, personPath(file));
+    if (const std::string ex = excerpt(src, d.pos); !ex.empty()) out += "\n" + ex;
+    out += "\n";
+  }
+  return out + hint(diags, personPath(file));
 }
 
 std::string explain(std::string_view code) {

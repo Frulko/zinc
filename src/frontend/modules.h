@@ -77,5 +77,7 @@ std::set<std::string> jsxClassTags(const std::string& path, const std::string& t
 
 // `file:line:col: error Zxxxx: title: detail` for a diagnostic of the program.
 std::string formatDiag(const Program& p, const Diag& d);
+// excerpt() of diagnostics.h for a diagnostic of the program (its file, and the source the user wrote for a .tsx file).
+std::string excerpt(const Program& p, const Diag& d);
 
 }  // namespace zn::frontend

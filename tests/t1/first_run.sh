@@ -4,7 +4,8 @@
 #   stderr; the two servers listen until the timeout stops them);
 # - a first change (the text of the game template) changes the frame on screen;
 # - six beginner mistakes each print the file, the line and what to do next: tests/golden/first-run/<mistake>.txt, the project directory
-#   written <project> (FIRST_RUN_UPDATE=1 rewrites them);
+#   written <project> (FIRST_RUN_UPDATE=1 rewrites them); the path relative to the project, the source line with a caret under the span,
+#   one error for a misspelt import rather than its consequences, and the same lines on the compiled engine and QuickJS (ZN-774.34);
 # - the guide quotes the first line of each message;
 # - a bare `zinc`, `zinc --help` and a misspelt command lead to the list of commands, grouped (Start here, Build and ship);
 # - zinc new with no argument asks nothing, at a terminal or not: my-game, then my-game-2 (ZN-774.32); zinc new --pick: the usage and nothing
@@ -72,9 +73,16 @@ mistake() {
   grep -qF "$(sed -n 1p "$tmp/$name.txt" | sed 's|^<project>/||; s|<project>|my-game|g')" docs/guide/01-getting-started.md || { echo "mistake $name: docs/guide/01-getting-started.md does not quote its first line"; fail=1; }
   grep -Eq '^zinc: [0-9]+ errors?[.,].*zinc explain Z' "$tmp/$name.txt" || { echo "mistake $name: no closing line with the fix and zinc explain"; fail=1; }
 }
+# the same mistake on another engine prints the same lines (ZN-774.34): same <name> <project> <zinc arguments...>
+same() {
+  name=$1; proj=$2; shift 2
+  out=$(cd "$proj" && ZINC_FRAMES=2 "$Z" "$@" 2>&1 >/dev/null | sed "s|$proj|<project>|g")
+  [ "$out" = "$(cat "$gold/$name.txt")" ] || { echo "mistake $name with $*: $(printf '%s\n' "$out" | head -4)"; fail=1; }
+}
 # 1. a misspelt import: a name of a module, then the path of a file of the project
 sed 's/isDown, Btn/isDwon, Btn/' "$tmp/main.ts" > "$g/src/main.ts"
 mistake import-name "$g" run
+same import-name "$g" run --native   # one error, not its five consequences, on the compiled engine too
 echo 'export const speed = 120;' > "$g/src/config.ts"
 { echo "import { speed } from './confg';"; cat "$tmp/main.ts"; } > "$g/src/main.ts"
 mistake import-path "$g" run
@@ -93,6 +101,11 @@ cp "$r/src/main.tsx" "$tmp/main.tsx"
 sed 's|My app</Text>|My app|' "$tmp/main.tsx" > "$r/src/main.tsx"
 cmp -s "$tmp/main.tsx" "$r/src/main.tsx" && { echo "the remarkable template has no 'My app</Text>' to break"; fail=1; }
 mistake jsx-open "$r" run
+same jsx-open "$r" run src/main.tsx --engine quickjs   # QuickJS lowers the JSX with the same diagnostics
+printf 'let b = (1 + ;\n' > "$g/src/syntax.ts"   # and strips the types after the same parse
+[ "$(cd "$g" && "$Z" run src/syntax.ts --engine quickjs 2>&1)" = "$(cd "$g" && "$Z" run src/syntax.ts 2>&1)" ] \
+  && (cd "$g" && "$Z" run src/syntax.ts 2>&1) | grep -qxF "   | $(printf '%13s')^" || { echo "a syntax error on QuickJS: $(cd "$g" && "$Z" run src/syntax.ts --engine quickjs 2>&1 | head -3)"; fail=1; }
+rm "$g/src/syntax.ts"
 # 6. a file that is not there
 cp "$tmp/main.ts" "$g/src/main.ts"
 mistake missing-file "$g" run src/mian.ts

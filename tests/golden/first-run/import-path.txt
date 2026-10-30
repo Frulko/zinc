@@ -1,2 +1,4 @@
-<project>/src/main.ts:1:1: error Z0119: Cannot find module: './confg' (no file <project>/src/confg.ts or .tsx; did you mean './config'?)
+src/main.ts:1:23: error Z0119: Cannot find module: './confg' (no file src/confg.ts or .tsx; did you mean './config'?)
+ 1 | import { speed } from './confg';
+   |                       ^^^^^^^^^
 zinc: 1 error. Fix the path or create the file. `zinc explain Z0119` shows an example.

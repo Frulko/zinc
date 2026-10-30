@@ -241,6 +241,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Changed
 - `zinc new` alone asks nothing: it makes a game in `my-game` (`my-game-2`... when that folder is taken); `zinc new --pick` asks what to make, as bare `zinc new` did.
 - `zinc run` and `zinc dev` print one progress line at most (the first native build: `zinc: compiling for this machine, once`); `--verbose` (or `ZINC_STEPS=1`) shows every step as before.
+- Errors of `zinc run`, `zinc check` and `zinc dev` name the file from the folder you are in, show the line of your code with a `^^^` under the mistake (a missing module points at its name), and a misspelt name is reported once, not again at every place that uses it. `--engine quickjs` prints syntax and JSX errors the same way.
 - `zinc:ui`: `min-w-0` (in a row) and `min-h-0` (in a column) let a box shrink below its content as in CSS, so `flex-1 min-w-0` panes and texts stay inside the window; a `basis-*` now respects the box's `min-*`/`max-*` size.
 - On QuickJS (`--engine quickjs`), `performance.now()` reads the program's clock, the one `Date.now()` and the timers use, as on the Zinc engine: it is steady in tests and stops while the inspector pauses the program.
 - iPod demo: on a large library, For you no longer freezes the window for a second when it opens: the iPods' new listens are matched a little at a time and only what is new since the last time, and the listen counts are read in one quick pass.

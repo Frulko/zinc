@@ -315,7 +315,7 @@ bool stripTypes(std::string_view src, const std::string& file, std::string& out,
     return file + ":" + std::to_string(line) + ":" + std::to_string(col);
   };
   ParseResult pr = parse(src);
-  if (!pr.diags.empty()) { err = lineCol(pr.diags[0].pos) + ": " + pr.diags[0].detail; return false; }
+  if (!pr.diags.empty()) { err = forPerson({pr.diags[0]}, src, file); return false; }   // as the typed engines print it (ZN-774.34)
   Stripper st(src, pr.ast);
   st.run();
   if (!st.err.empty()) { err = lineCol(st.errPos) + ": " + st.err; return false; }
@@ -363,7 +363,7 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
   }
   if (!diags.empty()) {   // the lowering's own positions are in the source the user wrote
     err.clear();
-    for (const Diag& d : diags) err += (err.empty() ? "" : "\n") + format(d, original.empty() ? std::string_view(text) : std::string_view(original), file);
+    err = forPerson(diags, original.empty() ? std::string_view(text) : std::string_view(original), file);
     return false;
   }
   if (!ends("lib/std/web.ts") && !ends("lib/std/fetch.ts") && !ends("lib/std/subtle.ts")) {   // the web globals the typed loader imports for a file (navigator, fetch...)

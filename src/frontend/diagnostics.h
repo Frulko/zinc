@@ -12,6 +12,13 @@ namespace zn::frontend {
 // the title and the frequent details are printed in the person's language (D159), the rest of the details in English.
 std::string format(const Diag& d, std::string_view src, std::string_view file);
 
+// For a person (ZN-774.34): the source line of `at` and a caret line under its span (` 5 | code` / `   |   ^^^^`), "" on an empty line;
+// a path relative to the working directory when it is under it; and diagnostics of one file as `zinc run` prints them: each line with
+// its excerpt, then the closing line (what the QuickJS engine prints for a file it cannot strip, as the typed engines do).
+std::string excerpt(std::string_view src, std::uint32_t at);
+std::string personPath(std::string_view path);
+std::string forPerson(const std::vector<Diag>& diags, std::string_view src, std::string_view file);
+
 // Full entry for `zinc explain <code>`, in the person's language; empty if the code is unknown.
 std::string explain(std::string_view code);
 
