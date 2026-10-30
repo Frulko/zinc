@@ -39,6 +39,9 @@ export class CanvasRenderingContext2D {
     self._image = image;
     self._real = null;
     self._box = null;
+    // every field the methods use exists from the start: the proxy below sends a name the object lacks to the browser's context, so a field first set later
+    // (the screen canvas, the shown image) would land there and be lost
+    self._cv = undefined; self._scratch = undefined; self._shown = undefined; self._shownW = 0; self._shownH = 0;
     self.canvas = new CanvasSize();
     if (image >= 0) { self.canvas.width = imageWidth(image); self.canvas.height = imageHeight(image); }
     return new Proxy(self, {

@@ -346,6 +346,7 @@
     {"paths": ["src/host/sys_host.cpp", "src/host/permissions.cpp"], "tests": ["aot_assets", "permissions", "camera", "assets_groups"]},
     {"paths": ["targets/wasm/", "tools/wasm-export-test"], "tests": ["export_wasm"]},
     {"paths": ["targets/web/runtime.js", "targets/web/dom.js", "targets/web/browsers.json", "src/cli_web.cpp", "src/cli_web.h", "tools/web-browser-test", "lib/std/web.browser.ts", "lib/std/fetch.browser.ts", "lib/std/subtle.browser.ts", "docs/targets/web.md", "docs/reports/zinc-web-export.md"], "tests": ["web_export", "web_caps", "web_plugins", "web_dom", "web_sha256"]},
+    {"paths": ["plugins/canvas2d/web/"], "tests": ["web_canvas2d"]},
     {"paths": ["targets/web/dom.js", "targets/web/runtime.js", "tools/web-dom-test", "tools/web-compare", "tests/fixtures/web-dom/", "lib/std/ui-dom.ts", "lib/std/ui-dom.browser.ts", "lib/std/kit/form.tsx"], "tests": ["web_dom", "web_dom_visual"]},
     {"paths": ["plugins/video/web/", "plugins/video/plugin.json", "plugins/lottie/web/", "plugins/lottie/plugin.json", "tests/fixtures/web-video/", "tests/fixtures/web-lottie/", "tools/web-video-test", "tools/rangehttp.py"], "tests": ["web_video"]},
     {"paths": ["plugins/ipod/", "tests/native/ipod_core_test.cpp", "tests/t0/ipod.sh", "tests/t1/ipod_plugin.sh", "tests/data/ipod-app/"], "tests": ["ipod", "ipod_plugin", "ipod_demo"]},

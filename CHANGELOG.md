@@ -242,6 +242,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- Web: a `zinc:canvas` context drawn on the screen (`begin(x, y, w, h)` ... `end()`) shows in a page instead of throwing at `end()` (the canvas sketch demo).
 - Web: a page uses the assets folder `zinc.json` names (`"assets": "../platformer/assets"`), not always `assets/` (n3ds-platformer's sounds were missing).
 - `zinc dev --target web`: a module with `export function` inside a string or template literal no longer stops with a ReferenceError (ui/forms' script editor).
 - Web: `sha256()` of `zinc:web` works in a page (it threw ZnUnsupported); `sha1`, `sha384` and `sha512` still ask for `crypto.subtle.digest()`.
