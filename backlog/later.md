@@ -446,6 +446,11 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:worker (D191): a message interface that is not a record (no fixed class) gets "has no message form" at run time (would need candidate classes in the layout); i8/i16/u8/u16 fields travel as 32-bit, so a narrower receiver is not truncated; encode is ~40 ns per record, mostly rec::Writer's small vector inserts (a pre-sized buffer would halve it).
 - Inspector Info view: show the target frame rate (display refresh) next to vsync, count assets on disk and in packs (not only baked fonts and images), and the heap size on JSC, V8 and Hermes (no resourceStats provider there); a .zbc/.zapp run reports 0 source files.
 
+- Checker: an interface with only fields is treated as a record, so `class Tag implements Labeled { label: string }` assigned to `Labeled` is refused with Z0103; TypeScript accepts it.
+- Checker: the conversion of an `any` back to a base class lists the subclasses when it is generated, so one declared in a later module is not matched; same fix as the `__dynSub` route.
+- Inspector, zinc:stage: the tree is sent whole on DOM.getDocument with no DOM mutation events (nodes added later show on the next getDocument); the highlight ignores rotation and pivots; a program with a zinc:ui tree and a stage drawn in a `<Canvas>` shows only the zinc:ui tree.
+- devtools: with `ZINC_DEVTOOLS_PORT=0` the "zinc devtools:" line and zinc dev print port 0 instead of the port the system chose.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
