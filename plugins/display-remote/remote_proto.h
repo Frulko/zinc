@@ -20,6 +20,23 @@
 
 namespace zremote {
 enum : uint8_t { HELLO = 1, RECT = 2, FRAME = 3, PONG = 4, ACK = 16, POINTER = 17, WHEEL = 18, BUTTONS = 19, PING = 20, AUTH = 21 };
+// The local shell wire (D194, docs/reports/zinc-shell/03-design.md §4): plugins/display-shell (the app) and plugins/shell (zinc:shell, the
+// shell) over the Unix stream socket ZINC_SHELL_SOCKET, the same framing; fds ride with SCM_RIGHTS on the message that names them.
+// app -> shell
+//   SH_CONNECT  version u16 (1), pid u32, name bytes         first message; the name is the bar's title
+//   SH_FRAME    buffer u8, n u8, n x (x u16, y u16, w u16, h u16)   the buffer is complete; its damage (n = 0: all of it), n <= 8
+//   PONG        serial u32                                   answer to PING
+// shell -> app
+//   SH_BUFFERS  w u16, h u16, stride u32 (bytes), fourcc u32 (XR24), kind u8 (0 dmabuf, 1 shm), n u8 (3), + n fds   after CONNECT
+//               and on every resize: the earlier buffers are dropped, every new one is free, the app draws whole
+//   SH_RELEASE  buffer u8                                    the buffer left the screen: the app may draw into it again
+//   SH_INPUT    src/host/mirror.cpp's INPUT payload (x, y in 0..1 of the app's surface), then touches n u8, n x (id u8, x f32, y f32)
+//   SH_QUIT     reason u8 (0 Home, 1 replaced, 2 shutdown)  the app's quit request; the shell ends its group 2 s later
+//   PING        serial u32                                   every 2 s; no PONG within 6 s: "not responding"
+enum : uint8_t { SH_INPUT = 22, SH_CONNECT = 32, SH_FRAME = 33, SH_BUFFERS = 40, SH_RELEASE = 41, SH_QUIT = 42 };
+static const uint16_t SH_VERSION = 1;
+static const uint32_t SH_XR24 = 0x34325258;   // DRM_FORMAT_XRGB8888: the runtime's 0x00RRGGBB words
+static const int SH_MAX_BUFFERS = 3, SH_MAX_DAMAGE = 8;
 static const uint32_t MAX_TOKEN = 64;
 static const char* const GROUP = "239.255.90.1";
 static const int BEACON_PORT = 7701;
