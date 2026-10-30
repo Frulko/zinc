@@ -300,7 +300,7 @@ def pack_player(zinc, image, cross):
     image/player.zapp as it is, and packs player-source.tar.gz only for an older release without it."""
     with tempfile.TemporaryDirectory() as source:
         with tarfile.open(os.path.join(image, "player-source.tar.gz")) as bundle:
-            bundle.extractall(source, filter="data")
+            bundle.extractall(source)   # our own bundle, made above
         target = ["--target", cross + "-linux"] if cross else []
         run(zinc, "pack", source, *target, "-o", os.path.join(image, "player.zapp"))
 
