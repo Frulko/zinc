@@ -472,7 +472,13 @@ int serve(int port, const std::string& certPem, const std::string& keyPem) {
   l->tcp.data = l;
   sockaddr_in a;
   uv_ip4_addr("0.0.0.0", port, &a);
-  if (uv_tcp_bind(&l->tcp, reinterpret_cast<sockaddr*>(&a), 0) != 0 || uv_listen(reinterpret_cast<uv_stream_t*>(&l->tcp), 64, onConnection) != 0) {
+  int rc = uv_tcp_bind(&l->tcp, reinterpret_cast<sockaddr*>(&a), 0);
+  if (rc == 0) rc = uv_listen(reinterpret_cast<uv_stream_t*>(&l->tcp), 64, onConnection);   // libuv reports a busy port here, not at bind
+  if (rc != 0) {
+    const std::string p = std::to_string(port);
+    gError = rc == UV_EADDRINUSE ? "port " + p + " is already in use by another program: stop it, or listen on another port (0 lets the system pick a free one)"
+           : rc == UV_EACCES ? "cannot listen on port " + p + ": permission denied (ports below 1024 need administrator rights)"
+           : "cannot listen on port " + p + ": " + uv_strerror(rc);
     uv_close(reinterpret_cast<uv_handle_t*>(&l->tcp), [](uv_handle_t* h) { delete static_cast<Listener*>(h->data); });
     return 0;
   }

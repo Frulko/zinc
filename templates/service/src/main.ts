@@ -4,9 +4,9 @@ import { env } from 'zinc:sys';
 import { Store } from './store';
 import { handle } from './api';
 
-const port = env('PORT') === '' ? 3000 : parseInt(env('PORT'));
+const want = env('PORT') === '' ? 3000 : parseInt(env('PORT'));
 const store = new Store();
-serve(port, (req: Request): Reply => {
+const port = serve(want, (req: Request): Reply => {   // the port it listens on (PORT=0: a free one)
   const r = handle(store, req);
   console.log(`${req.method} ${req.path} ${r.status}`);
   return r;

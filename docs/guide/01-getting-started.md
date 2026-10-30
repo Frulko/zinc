@@ -118,7 +118,7 @@ start at once. Close the window to stop the program.
 | `dashboard` | stat cards, a line and a bar chart, alerts, fed by a data source you replace with yours |
 | `stage` | a scene of objects you tap and drag (`zinc:stage`, AS3 style), light on old tablets |
 | `cli` | a command-line program: its arguments and the platform |
-| `server` | an HTTP server on port 3000 with a telemetry counter (stop it with Ctrl-C) |
+| `server` | an HTTP server on port 3000 (`PORT=8080 zinc run` for another) with a telemetry counter (stop it with Ctrl-C) |
 | `service` | an HTTP JSON API with tests and a systemd unit for a Linux box or a Raspberry Pi |
 | `iot` | a button on GPIO 27 lights pin 17 and sends an OSC message, simulated off the board |
 | `iot-board` | an ESP32-S3 with a motion sensor and a small OLED (a bubble level), the sensor emulated on the desktop |

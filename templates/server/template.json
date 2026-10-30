@@ -1,6 +1,6 @@
 {
   "name": "server",
-  "description": "An HTTP server on port 3000 with a telemetry counter (zinc:net, zinc:telemetry).",
+  "description": "An HTTP server on port 3000 (PORT for another) with a telemetry counter (zinc:net, zinc:telemetry).",
   "tags": [
     "server",
     "net"
