@@ -54,3 +54,24 @@ bar with the message and the first stack lines, and `--sourcemap` writes the map
 
 The owner's report (few demos work, many errors on focus events) was not reproduced as such: no focus-event exception came out of the blur, focus and visibility sequences above. The most likely
 cause of "the app does not react after a while" is the resize bug (a real window resizes at load, with the scroll bars and the DevTools); it logged one `TypeError` and left the screen blank, which can read as "nothing reacts". The canvas pointer path itself (pointerdown, pointerup, click at ratio 2) worked in the trusted-input runs.
+
+## `zinc dev`, every example (2026-10-30)
+
+All 129 examples under `zinc dev --target web --render dom`, one at a time (`tools/web-real-test --dev`; three at once made the slow starters time out). The dev bridge
+(docs/targets/web.md, "The dev bridge") gives the page this machine's files, processes, sockets, servers, host events and cross-origin fetch, so a demo that runs under
+`zinc run` should run here. What still fails, and why:
+
+| Demos | Path | Why |
+|---|---|---|
+| 3d/cubes, 3d/model, 3d/orbit, animation-lab, godot-to-zinc, lantern-post, leapmotion, marble, pinball3d, tokyo, museum-table (its 3D view), blender-library, blender-world | none | `zinc:3d` (Render3D, and `Three.parse` for glTF) has no browser backend, and a side that draws is never bridged: a WebGL 2 backend of zinc:3d is the missing piece |
+| webgl-cube, webgl-studio, scripting/bench | bridge | `zinc:script` runs on the machine: no GL context there for three.js, and every call is an HTTP round trip (the bench does not end); an engine in the page is the missing piece |
+| esp32-wifi, esp32-espnow, esp32-ble/esp32 | none | board programs (`zinc:wifi`, `zinc:espnow`, `zinc:ble` exist in the ESP32 firmware only); the simulator in the page (ZN-863.04) |
+| carnet-nbe | none | the web's esbuild pre-bundle applies the `exports` of its `@nbe/*` packages (it imports `src/` paths) and does not know `loro-crdt` is a plugin module; `zinc run` resolves both |
+| js-gsap, js-p5, js-phaser, js-spline | page | they load a browser library by a path of the project or `~/.zinc/cache/test-libs` (the point of these demos is Zinc running those libraries natively) |
+| remarkable/notes, native-module | none | native modules of a device (RmppRefresh) or of the demo itself that no plugin provides |
+| carnet | page | needs its sync server on port 7311 (`zinc run app/carnet-sync`), as on the desktop |
+| ipod-web, modules-showcase, service/sensor-hub | bridge | run here; they failed only because their port (8686, 8787, 3000) was taken by another program on the test machine |
+| video/quad, video/bounce | by design | take video files on the command line |
+
+Fixed in this pass: pocket-hero (PocketJS host tags), ui/forms (an `export function` inside a template), canvas/sketch (zinc:canvas on screen), n3ds-platformer (`"assets": dir`),
+music and music-tree (UDP, Sonos over the bridge), notify-relay (`autostart.get`), hardware (missing sensors), platformer (built assets), hero (its video from `/__project/`).
