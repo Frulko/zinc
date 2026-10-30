@@ -186,3 +186,44 @@ export function phaseTotals(frames: TraceFrame[]): PhaseTotal[] {
 }
 /** µs as "850 µs" or "12.34 ms". */
 export function msText(us: number): string { return us < 1000 ? Math.round(us) + ' µs' : (Math.round(us / 10) / 100).toFixed(2) + ' ms'; }
+
+/** A thread of a recorded trace: its name (the trace's thread_name), its slices (start and length in µs, name), its busy time and the message
+ *  flows that start (post) and end (handler) on it. */
+export class Track { tid: i32 = 0; name: string = ''; ts: number[] = []; durs: number[] = []; names: string[] = []; busy: number = 0; flowsOut: i32 = 0; flowsIn: i32 = 0; }
+/** One track per thread of Tracing.dataCollected events, the main thread first; a worker's slices are its onmessage spans and its messages. */
+export function traceTracks(events: any[]): Track[] {
+  const out: Track[] = [];
+  const at = (tid: i32): Track => {
+    for (const t of out) if (t.tid === tid) return t;
+    const t = new Track(); t.tid = tid; t.name = tid === 1 ? 'main' : 'thread ' + tid; out.push(t);
+    return t;
+  };
+  for (const e of events) {
+    const ph: string = e.ph; const tid: i32 = e.tid; const name: string = e.name;
+    if (tid >= 10 && tid < 100) continue;   // the raster bands: part of the main thread's frames
+    if (ph === 'M') { if (name === 'thread_name' && tid !== 1) { const n: string = e.args.name; at(tid).name = n; } continue; }
+    const t = at(tid);
+    if (ph === 'X') {
+      const ts: number = e.ts; const dur: number = e.dur;
+      t.ts.push(ts); t.durs.push(dur); t.names.push(name);
+      if (name === 'zinc frame' || name.startsWith('onmessage')) t.busy += dur;
+    } else if (ph === 's') t.flowsOut++;
+    else if (ph === 'f') t.flowsIn++;
+  }
+  out.sort((a: Track, b: Track) => a.tid - b.tid);
+  return out;
+}
+
+/** A worker of Zinc.getThreads, as zn::rt::worker::snapshot() sees it. */
+export class ThreadInfo { id: i32 = 0; name: string = ''; state: string = ''; queuedIn: i32 = 0; queuedOut: i32 = 0; messagesIn: number = 0; messagesOut: number = 0; liveBlocks: number = 0; cpuMs: number = 0; error: string = ''; }
+export function threadsOf(result: any): ThreadInfo[] {
+  const out: ThreadInfo[] = [];
+  if (result.threads === undefined) return out;
+  for (const t of result.threads) {
+    const x = new ThreadInfo();
+    x.id = t.id; x.name = t.name; x.state = t.state; x.queuedIn = t.queuedIn; x.queuedOut = t.queuedOut;
+    x.messagesIn = t.messagesIn; x.messagesOut = t.messagesOut; x.liveBlocks = t.liveBlocks; x.cpuMs = t.cpuMs; x.error = t.error;
+    out.push(x);
+  }
+  return out;
+}

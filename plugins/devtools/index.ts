@@ -199,6 +199,7 @@ function handle(client: i32, msg: string): void {
   else if (method === 'Network.getResponseBody') result = orEmpty(Cdp.net(2, Cdp.str(msg, 'requestId')));
   else if (method === 'Network.getRequestPostData') result = orEmpty(Cdp.net(3, Cdp.str(msg, 'requestId')));
   else if (method === 'Zinc.getResourceStats') result = Cdp.resourceStats();
+  else if (method === 'Zinc.getThreads') { const t = Cdp.net(11, ''); result = `{"threads":${t.length > 0 ? t : '[]'}}`; }   // the workers: state, queues, messages, live blocks, CPU
   else if (method === 'Zinc.getInfo') result = `{"dev":${DEV},"width":${width()},"height":${height()}}`;
   else if (method === 'Zinc.getUnrendered') result = `{"nodeIds":[${unrendered().join(',')}]}`;
   else if (method === 'DOMStorage.enable') { storeOn = true; storeSnap = storeRead(); }

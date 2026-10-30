@@ -11,7 +11,8 @@ import * as sys from 'zinc:sys';
 import { quit, imageFromBytes, destroyImage, imageWidth, imageHeight, drawImage, rect } from 'zinc:gfx';
 import { base64Decode } from 'zinc:web';
 import { spawn, Process } from 'zinc:process';
-import { Target, Cdp, discover, TraceFrame, PhaseTotal, traceFrames, phaseTotals, msText } from './model';
+import { Target, Cdp, discover, TraceFrame, PhaseTotal, traceFrames, phaseTotals, msText, Track, traceTracks } from './model';
+import { ThreadsView, watchThreads, threads, threadLine } from './threads';
 import { conn, call, status, setStatus, view, setView, setDevRun, sleep, until } from './state';
 import { Btn } from './widgets';
 import { ElementsView, StylesPane, loadDocument, refreshRendered, renderedOnly, rows, dumpElements, select, styles, rules, box, target, setProp, label, TNode } from './elements';
@@ -34,6 +35,7 @@ const [traced, setTraced] = createSignal<TraceFrame[]>([]);
 const [totals, setTotals] = createSignal<PhaseTotal[]>([]);
 const [frameAt, setFrameAt] = createSignal<i32>(-1);   // the frame picked in the timeline
 const [traces, setTraces] = createSignal<i32>(0);   // traces received (the dump waits on it)
+const [tracks, setTracks] = createSignal<Track[]>([]);   // a track per thread: the main one, each worker
 let traceEvents: any[] = [];
 
 let reloading = false;
@@ -87,7 +89,7 @@ function onEvent(method: string, params: any): void {
     const fs = traceFrames(traceEvents);
     let slow = -1;
     for (let i = 0; i < fs.length; i++) if (slow < 0 || fs[i].dur > fs[slow].dur) slow = i;
-    setTraced(fs); setTotals(phaseTotals(fs)); setFrameAt(slow); setTraces(traces() + 1);
+    setTraced(fs); setTotals(phaseTotals(fs)); setFrameAt(slow); setTracks(traceTracks(traceEvents)); setTraces(traces() + 1);
   } else if (method === 'Page.screencastFrame') {   // the program's screen: decoded, shown, acknowledged so the next one comes
     const id = imageFromBytes(base64Decode(params.data));
     if (id >= 0) { if (frame() >= 0) destroyImage(frame()); setFrame(id); }
@@ -177,12 +179,35 @@ function FrameRow(p: { f: TraceFrame; i: i32 }): i32 {   // a frame of the timel
     <View className="flex-row h-3">{p.f.durs.map((d: number, k: i32) => <View className={'h-3 ' + phaseColor(p.f.phases[k])} style={{ width: Math.max(1, Math.round(d * 400 / slowest())) }} />)}</View>
   </Button>;
 }
+const LANE = 400;   // px of a track's lane: the whole recording
+function span(): number[] {   // the recording's first and last µs over every track
+  let a = -1, b = 0;
+  for (const t of tracks()) for (let i = 0; i < t.ts.length; i++) { if (a < 0 || t.ts[i] < a) a = t.ts[i]; if (t.ts[i] + t.durs[i] > b) b = t.ts[i] + t.durs[i]; }
+  return [a < 0 ? 0 : a, b > a ? b - a : 1];
+}
+function trackText(t: Track): string {
+  return msText(t.busy) + ' busy, ' + t.ts.length + ' slices' + (t.flowsOut + t.flowsIn > 0 ? ', messages ' + t.flowsOut + ' out / ' + t.flowsIn + ' in' : '');
+}
+function TrackRow(p: { t: Track }): i32 {   // a thread's lane: its slices to scale (frames on the main thread, handlers and messages on a worker's)
+  const s = span();
+  const shown: i32[] = [];
+  for (let i = 0; i < p.t.ts.length && shown.length < 400; i++) if (p.t.names[i] === 'zinc frame' || p.t.tid !== 1) shown.push(i);
+  return <View className="flex-row items-center gap-2 px-2 h-6">
+    <Text className="w-48 text-xs text-slate-800">{p.t.name}</Text>
+    <View className="h-3 bg-slate-100" style={{ width: LANE }}>
+      {shown.map((i: i32) => <View className={'absolute h-3 ' + (p.t.names[i].startsWith('onmessage') || p.t.names[i] === 'zinc frame' ? 'bg-amber-400' : 'bg-sky-600')}
+        style={{ left: Math.floor((p.t.ts[i] - s[0]) * LANE / s[1]), width: Math.max(1, Math.round(p.t.durs[i] * LANE / s[1])) }} />)}
+    </View>
+    <Text className="text-xs font-mono text-slate-600">{trackText(p.t)}</Text>
+  </View>;
+}
 function PerformanceView(): i32 {
   return <View className="flex-col flex-1">
     <View className="flex-row items-center gap-2 p-1 border-b">
       {recording() ? <Btn label="Stop" onClick={() => { stopRecording(); }} /> : <Btn label="Record" onClick={() => { record(); }} />}
       <Text className="text-xs text-slate-500">{recording() ? 'recording…' : traced().length > 0 ? traced().length + ' frames, the slowest ' + msText(slowest()) : 'Record, use the program, then Stop'}</Text>
     </View>
+    <View className="flex-col py-1 border-b">{tracks().map((t: Track) => <TrackRow t={t} />)}</View>
     <View className="flex-col gap-1 p-2 border-b">{totals().map((t: PhaseTotal) => <View className="flex-row items-center gap-2">
       <View className={'w-3 h-3 rounded ' + phaseColor(t.name)} />
       <Text className="w-16 text-xs text-slate-800">{t.name}</Text>
@@ -203,7 +228,7 @@ function frameLines(): string[] {   // the picked frame, phase by phase
 }
 
 function Tab(p: { id: string; label: string }): i32 {
-  return <Button className={'py-1 flex-row items-center h-7 px-3 rounded-md ' + (view() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { setView(p.id); screen(p.id === 'screen'); }}>
+  return <Button className={'py-1 flex-row items-center h-7 px-3 rounded-md ' + (view() === p.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { setView(p.id); screen(p.id === 'screen'); if (p.id === 'threads') watchThreads(); }}>
     <Text className="text-xs font-medium text-slate-900">{p.label}</Text>
   </Button>;
 }
@@ -227,12 +252,13 @@ function App(): i32 {
           <Tab id="storage" label="Storage" />
           <Tab id="sources" label="Sources" />
           <Tab id="performance" label="Performance" />
+          <Tab id="threads" label="Threads" />
           <Text className="flex-1 text-xs text-slate-600">{attached()}</Text>
         </View>
-        {view() === 'sources' ? <SourcesView /> : view() === 'performance' ? <PerformanceView /> : view() === 'network' ? <NetworkView /> : view() === 'storage' ? <StorageView /> :
+        {view() === 'sources' ? <SourcesView /> : view() === 'performance' ? <PerformanceView /> : view() === 'threads' ? <ThreadsView /> : view() === 'network' ? <NetworkView /> : view() === 'storage' ? <StorageView /> :
           view() === 'screen' ? <ScreenView /> : <ElementsView />}
       </View>
-      {view() === 'network' || view() === 'storage' ? <View /> : <View className="flex-col w-80 border-l">
+      {view() === 'network' || view() === 'storage' || view() === 'threads' ? <View /> : <View className="flex-col w-80 border-l">
         {view() === 'sources' ? <ScrollView className="flex-1"><DebugPane /></ScrollView> :
         view() === 'performance' ? <View className="flex-col gap-1 p-2">{frameLines().map((l: string) => <Text className="text-xs font-mono text-slate-800">{l}</Text>)}</View> : <StylesPane />}
       </View>}
@@ -251,6 +277,28 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the panels as t
   if (ts.length === 0) { quit(); return; }
   await attach(ts[0]);
   if (ts[0].type === 'node') { await dumpDebugger(); quit(); return; }
+  if (mode === 'threads') {   // the Threads view, then a recording's tracks
+    setView('threads');
+    watchThreads();
+    await until(() => threads().length > 0 && threads()[0].messagesOut > 0);
+    console.log('threads:');
+    for (const t of threads()) console.log('  ' + threadLine(t));
+    setView('performance');
+    const n = traces();
+    await record();
+    await sleep(1500);
+    await stopRecording();
+    await until(() => traces() > n);
+    console.log('tracks:');
+    for (const t of tracks()) {
+      let handlers = 0, posts = 0;
+      for (const s of t.names) { if (s.startsWith('onmessage')) handlers++; if (s.startsWith('postMessage')) posts++; }
+      console.log('  ' + t.name + ': ' + (t.tid === 1 ? traced().length + ' frames' : 'worker') + ', handlers ' + (handlers > 0) + ', posts ' + (posts > 0) +
+        ', flows out ' + (t.flowsOut > 0) + ', flows in ' + (t.flowsIn > 0));
+    }
+    quit();
+    return;
+  }
   if (mode === 'storage') {
     setView('storage');
     await dumpStorage(async (n: i32): Promise<void> => { await until(() => changes() > n); });

@@ -220,7 +220,7 @@ sets or removes a breakpoint (with the condition typed in the toolbar), Run star
 drive it; the right column shows the call stack, the scopes (objects and arrays unfold) and the watches, evaluated in the selected frame.
 The Performance view records the runtime's frames (Tracing.start / end, the same spans as `ZINC_TRACE`): the time of each phase over the
 recording, the frames as bars of their phases to scale, and the phases of the frame picked (the slowest at first). The runtime keeps the
-last 32768 spans (about 3600 frames).
+last 32768 spans (about 3600 frames). A program with workers gets a track per thread above the frames: the main thread, then each worker (`zinc worker <file>#<id>`) with its `onmessage` spans and its messages. The Threads view lists the workers (`Zinc.getThreads`, refreshed every second): state, the messages queued each way, the messages posted each way, the worker's live heap blocks, its CPU time and the error that ended it.
 
 Its panels (one file each in `app/inspector/`):
 
