@@ -454,11 +454,6 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   const std::string sysroot = gCross.on ? home() + "/sysroots/" + gCross.name : "";
   if (gCross.on && !ts.pkg.empty() && !fs::exists(sysroot)) { err = "plugin '" + m.name + "' needs the system library '" + ts.pkg[0] + "', which a cross build for " + gCross.name + " looks for in the sysroot " + sysroot + " (not there)"; return false; }
   std::string pc = "pkg-config";
-#ifdef __linux__
-  // the pinned zig compiles for its own target and does not search /usr/include or the multiarch libraries: pkg-config must keep the system paths
-  // it drops by default (2026-10-31: display-gl on a Pi found no GLES2/gl2.h)
-  if (!gCross.on) pc = "PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 pkg-config";
-#endif
   if (gCross.on) {
     std::string dirs;
     for (const auto& e : fs::directory_iterator(fs::path(sysroot) / "usr/lib", ec)) if (fs::exists(e.path() / "pkgconfig")) dirs += (e.path() / "pkgconfig").string() + ":";   // usr/lib/<multiarch triple>/pkgconfig
@@ -495,10 +490,18 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   // a cross build: what the device's compiler searches by itself in the sysroot, after zig's own headers: Debian's multiarch include directory
   // (ffi.h), usr/include for a plugin that names its library in `libs` without a pkg-config module (zinc:midi's ALSA), and the multiarch
   // library directory (libffi.pc says /usr/lib)
-  if (gCross.on && fs::exists(sysroot + "/usr/include")) {
-    cflags.push_back("-idirafter " + q(sysroot + "/usr/include"));
+  // A build on a Linux device itself is the same with / as its sysroot: the pinned zig searches neither /usr/include nor the multiarch
+  // directories (2026-10-31: display-gl on a Pi found no GLES2/gl2.h), and pkg-config drops those paths as the system's.
+#ifdef __linux__
+  const bool native_linux = !gCross.on && !packages.empty();
+#else
+  const bool native_linux = false;
+#endif
+  const std::string root = gCross.on ? sysroot : "";
+  if ((gCross.on || native_linux) && fs::exists(root + "/usr/include")) {
+    cflags.push_back("-idirafter " + q(root + "/usr/include"));
     auto multiarch = [&](const std::string& dir, const std::string& flag, std::vector<std::string>& to) {
-      for (const auto& e : fs::directory_iterator(sysroot + dir, ec))
+      for (const auto& e : fs::directory_iterator(root + dir, ec))
         if (e.path().filename().string().find("-linux-gnu") != std::string::npos) to.push_back(flag + q(e.path().string()));
     };
     multiarch("/usr/include", "-idirafter ", cflags);
