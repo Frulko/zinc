@@ -67,7 +67,7 @@ struct Handler {
   std::uint8_t reg = 0;
 };
 
-// Debug builds (zinc debug, ZN-371.01; never encoded): where a Line instruction's statement starts, and the register that holds a local's
+// Debug builds (zinc debug, ZN-371.01; encoded only in a trailing section, so a worker of a debug build keeps them): where a Line instruction's statement starts, and the register that holds a local's
 // current value (its home: written after each assignment; a reference there is retained until the next one or the return).
 struct LineInfo { std::uint32_t file = 0, offset = 0, line = 0, col = 0; };  // file: index in Module::files; offset: byte offset, line and column 1-based
 struct VarInfo { std::string name, type; VType vt; std::uint32_t reg = 0; };    // type: the source type's name (boolean, i32, number, string, a class...)

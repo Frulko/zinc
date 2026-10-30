@@ -434,6 +434,7 @@
     {"paths": ["docs/learn/", "docs/start/", "tests/t1/learn_samples.sh", "tests/data/learn_samples/", "lib/std/stage.ts", "plugins/canvas2d/"], "tests": ["learn_samples"]},
     {"paths": ["templates/canvas/", "templates/stage/", "tests/golden/templates/"], "tests": ["templates_kickstart", "first_run"]},
     {"paths": ["src/prof/", "src/rt/worker.cpp", "src/rt/worker.h", "tests/data/worker_profile/", "tests/t0/worker_profile.sh"], "tests": ["worker_profile"]},
-    {"paths": ["app/inspector/", "plugins/devtools/", "src/rt/worker.cpp", "runtime/gfx.cpp", "src/host/gfx_host.cpp", "src/host/sys_host.cpp", "tests/data/inspector_threads/", "tests/t1/inspector_threads.sh"], "tests": ["inspector_threads"]}
+    {"paths": ["app/inspector/", "plugins/devtools/", "src/rt/worker.cpp", "runtime/gfx.cpp", "src/host/gfx_host.cpp", "src/host/sys_host.cpp", "tests/data/inspector_threads/", "tests/t1/inspector_threads.sh"], "tests": ["inspector_threads"]},
+    {"paths": ["src/dbg/", "src/zbc/zbc.cpp", "src/rt/worker.cpp", "tests/cdp_worker_check.mjs", "tests/data/worker_profile/", "tests/t1/debug_worker.sh"], "tests": ["debug_worker"]}
   ]
 }

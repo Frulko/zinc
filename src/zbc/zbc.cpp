@@ -722,9 +722,22 @@ std::vector<std::uint8_t> encode(const Module& m) {
   for (const Native& n : m.natives) { w.str(n.module); w.str(n.name); w.str(n.sig); }
   w.str(m.profile);
   w.u32(m.heapBytes);
-  if (!m.workers.empty()) {   // only a program with workers carries the section: every other module keeps its bytes
+  if (!m.workers.empty() || !m.lines.empty()) {   // only a program with workers carries the section: every other module keeps its bytes
     w.u32(static_cast<std::uint32_t>(m.workers.size()));
     for (const auto& [key, mod] : m.workers) { w.str(key); w.str(std::string(mod.begin(), mod.end())); }
+  }
+  if (!m.lines.empty()) {   // a debug build's tables (a worker of zinc debug crosses as bytes): after the workers section
+    auto strs = [&](const std::vector<std::string>& v) { w.u32(static_cast<std::uint32_t>(v.size())); for (const std::string& s : v) w.str(s); };
+    strs(m.files);
+    w.u32(static_cast<std::uint32_t>(m.lines.size()));
+    for (const LineInfo& li : m.lines) { w.u32(li.file); w.u32(li.offset); w.u32(li.line); w.u32(li.col); }
+    for (const Function& f : m.functions) {
+      w.u32(static_cast<std::uint32_t>(f.vars.size()));
+      for (const VarInfo& v : f.vars) { w.str(v.name); w.str(v.type); w.vt(v.vt); w.u32(v.reg); }
+    }
+    for (const ClassInfo& c : m.classes) { strs(c.fieldNames); strs(c.fieldTypes); }
+    strs(m.globalNames);
+    strs(m.globalTypes);
   }
   return w.b;
 }
@@ -833,6 +846,28 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
       if (!r.str(key) || !r.str(mod)) return fail("truncated file (workers)");
       out.workers.emplace_back(std::move(key), std::vector<std::uint8_t>(mod.begin(), mod.end()));
     }
+  }
+  if (!r.bad && r.p < bytes.size()) {   // a debug build's tables
+    auto strs = [&](std::vector<std::string>& v) {
+      const std::size_t n = r.u32();
+      if (r.room(n, 4) != n) return false;
+      v.resize(n);
+      for (std::string& s : v) if (!r.str(s)) return false;
+      return true;
+    };
+    if (!strs(out.files)) return fail("truncated file (debug files)");
+    const std::size_t nl = r.u32();
+    if (r.bad || r.room(nl, 16) != nl) return fail("truncated file (debug lines)");
+    out.lines.resize(nl);
+    for (LineInfo& li : out.lines) { li.file = r.u32(); li.offset = r.u32(); li.line = r.u32(); li.col = r.u32(); }
+    for (Function& f : out.functions) {
+      const std::size_t nv = r.u32();
+      if (r.room(nv, 13) != nv) return fail("truncated file (debug locals)");
+      f.vars.resize(nv);
+      for (VarInfo& v : f.vars) if (!r.str(v.name) || !r.str(v.type) || !r.vt(v.vt)) return fail("truncated file (debug locals)"); else v.reg = r.u32();
+    }
+    for (ClassInfo& c : out.classes) if (!strs(c.fieldNames) || !strs(c.fieldTypes)) return fail("truncated file (debug fields)");
+    if (!strs(out.globalNames) || !strs(out.globalTypes)) return fail("truncated file (debug globals)");
   }
   if (r.bad) return fail("truncated file");
   if (r.p != bytes.size()) return fail("trailing bytes after the profile");

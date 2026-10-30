@@ -479,6 +479,13 @@ stack and Scope (locals, objects and arrays unfold through `Runtime.getPropertie
 into, out and pause. The program starts paused at its first statement when DevTools attaches (`Runtime.runIfWaitingForDebugger`), as
 `node --inspect-brk` does; its output stays on the terminal. `tests/cdp_debug_check.mjs` is a scripted client (`tests/t1/debug_cdp.sh`).
 
+Workers (`zinc:worker`) are targets of their own, as Chrome attaches a page's workers: after `Target.setAutoAttach` (flatten) each worker
+that starts is announced by `Target.attachedToTarget` with a session id, and waits for that session's `Runtime.runIfWaitingForDebugger`
+when `waitForDebuggerOnStart` was asked, so its breakpoints are set first. Each has its own debugger on its own thread: breakpoints,
+stepping, its locals, `Runtime.evaluate` in its frame, pause on exceptions; the main program runs or stops on its own meanwhile.
+`Target.detachedFromTarget` comes when the worker ends (`tests/cdp_worker_check.mjs`, `tests/t1/debug_worker.sh`). A debug build carries
+each worker's line table, locals and field names in its ZBC (a trailing section of the encoded worker).
+
 In a `.tsx` file the lines are the file's own, inside JSX elements as well (ZN-371.03): the JSX lowering starts each copied expression and
 each element's code on its source line and keeps where every piece of the lowered text comes from, which compile errors use for their
 line and column too. Arrow functions show as `<anonymous>` in the stack (an element's generated code among them).

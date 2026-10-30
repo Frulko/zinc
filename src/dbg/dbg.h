@@ -123,5 +123,9 @@ bool cdpStart(int port, const std::string& program);   // listens (port 0: any f
 void cdpReady(Debugger& d);      // the program is loaded: scripts for Debugger.enable; waits for a client's Runtime.runIfWaitingForDebugger
 Resume cdpPaused(Debugger& d);   // Debugger.paused, then the client's requests until it resumes or steps
 void cdpLog(const std::string& message);   // a logpoint's message: Runtime.consoleAPICalled
+// A worker of the program (rt::worker::machineHook, on its thread): a debugger of its own on its machine and a target of its own (a session
+// after Target.setAutoAttach, which waits for that session's Runtime.runIfWaitingForDebugger when asked); its end detaches it.
+void cdpWorkerStart(rt::Machine& m, int id, const std::string& entry, const std::vector<std::string>& sources);
+void cdpWorkerEnd(rt::Machine& m);
 
 }  // namespace zn::dbg

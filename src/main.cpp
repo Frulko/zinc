@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iterator>
+#include <map>
 #include <vector>
 #include <sstream>
 #include <string>
@@ -53,6 +54,7 @@
 #define HOSTLIBS
 #endif
 #include "rt/native_lazy.h"
+#include "rt/worker.h"
 static bool drawsOf(const zn::zbc::Module& zm);   // below: whether a program calls zinc:gfx
 #include "frontend/profile.h"
 int runTestCommand(const std::string& self, const zn::frontend::Profile& p, const std::string& engineRoot, std::string dir, const std::string& runner);   // src/test_cmd.cpp
@@ -522,6 +524,7 @@ static bool gDap = false;                      // zinc debug --dap (ZN-371.02): 
 static bool gCdp = false;                      // zinc debug --cdp[=port] (ZN-371.04): Chrome DevTools' Sources panel
 static bool gDebugNative = false;              // zinc build --debug (ZN-371.06): -g -O0, local symbols kept
 static std::vector<std::string> gDebugSources;  // the text of each file of the debug build (Module::files)
+static std::map<std::string, std::vector<std::string>> gWorkerSources;   // the same for each worker of the debug build, by its key
 static zn::dev::hot::Unit* gHotUnit = nullptr;   // zinc dev's child (ZN-742): the compile also fills the keys and modules of this unit
 static int compileToZbc(const char* path, zn::zbc::Module& out) {
   const auto t0 = std::chrono::steady_clock::now();
@@ -584,7 +587,7 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
         static int nested = 0;
         if (nested > 0) { std::fprintf(stderr, "%s: a worker cannot start another worker yet (start it from the main program)\n", path); return 1; }
         const auto workers = prog.workers;
-        auto sources = gSources; auto isLib = gSourceIsLib; auto paths = gSourcePaths; auto hostImports = gHostImports;
+        auto sources = gSources; auto isLib = gSourceIsLib; auto paths = gSourcePaths; auto hostImports = gHostImports; auto debugSources = gDebugSources;
         auto* hotUnit = gHotUnit;
         gHotUnit = nullptr;
         ++nested;
@@ -598,11 +601,13 @@ static int compileToZbc(const char* path, zn::zbc::Module& out) {
           }
           for (const std::string& p : gSourcePaths) if (std::find(paths.begin(), paths.end(), p) == paths.end()) paths.push_back(p);   // a change to a worker compiles the program again
           if (rc) break;
+          if (gDebug) gWorkerSources[key] = gDebugSources;   // zinc debug --cdp: the worker's files, for its own debugger
           out.workers.push_back({key, zn::zbc::encode(wm)});
         }
         --nested;
         gHotUnit = hotUnit;
         gSources = std::move(sources); gSourceIsLib = std::move(isLib); gSourcePaths = std::move(paths); gHostImports = std::move(hostImports);
+        gDebugSources = std::move(debugSources);
         if (rc) return rc;
       }
       zn::log::step("compile", std::to_string(prog.files.size()) + (prog.files.size() == 1 ? " file" : " files") + ", " + std::to_string(out.functions.size()) + " functions", zn::log::since(t0));
@@ -2546,6 +2551,12 @@ int main(int argc, char** argv) {
       if (hotRun) return runHot(std::move(hotUnit), zm, blob, absPath, out, trace, std::atoi(hotFd));
       if (!gDebug) return zn::vm::run(zm, out, trace);
       zn::dbg::Debugger d(zm, gDebugSources);
+      if (gCdp) zn::rt::worker::machineHook = [](zn::rt::Machine& m, int id, const std::string& entry, bool begin) {   // each worker: a debug target of its own
+        static const std::vector<std::string> none;
+        auto it = gWorkerSources.find(entry);
+        if (begin) zn::dbg::cdpWorkerStart(m, id, entry, it != gWorkerSources.end() ? it->second : none);
+        else zn::dbg::cdpWorkerEnd(m);
+      };
       d.paused = gDap ? zn::dbg::dapPaused : gCdp ? zn::dbg::cdpPaused : zn::dbg::commandLine;
       d.logged = gDap ? zn::dbg::dapLog : gCdp ? zn::dbg::cdpLog : zn::dbg::commandLineLog;
       return zn::vm::runHooked(zm, out, [](zn::rt::Machine& m, const void* p) {
