@@ -57,6 +57,8 @@ main();
 - **Client.** `new WebSocket('ws://host:port/path')` (or `wss://`, see below) has a browser-like API:
   - handlers `onopen`, `onmessage`, `onclose` and `onerror`, or `addEventListener`;
   - `send(text)`, `sendBytes(u8[])`, `close(code, reason)` and `readyState`.
+  - `new WebSocket(url, { headers: [['Origin', 'https://discord.com'], ['User-Agent', 'my-app/1']] })` adds headers to the opening
+    handshake (the option Bun takes); a name that is not a token or a value with a line break fails the socket before it connects.
 - **Server.** `serveWebSocket(port, (ws, req) => …)` answers the HTTP upgrade and gives you the same `WebSocket` object
   (`req.path`, `req.header(name)`). Requests that are not WebSocket upgrades get `426`.
 - **Messages.** A `MessageEvent` has `data` (text), `bytes` and `binary`. Fragmented messages are reassembled and

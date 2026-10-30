@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:socket`: `new WebSocket(url, { headers: [[name, value], ...] })` sends extra headers (Origin, User-Agent...) in the opening handshake.
 - `zinc:worker` runs on QuickJS (`zinc run --engine quickjs`): each worker gets a QuickJS runtime of its own on its own thread, with the same typed messages as the interpreter (a message whose type is generic, such as `workerPort`'s `Envelope<T>`, is copied as a structured clone); sprite-studio's live preview now draws there.
 - The sprite-studio demo (`examples/sprite-studio`): a pixel-art sprite editor in three windows, the zoomed canvas with pencil, eraser, fill, picker, frames, onion skin, undo and save; a floating tools and palette window that drives it over a `MessageChannel`; and a live preview whose scenes (x1, x2, x4 and a 3 x 3 tile check) a worker computes while the animation plays.
 - `zinc examples` lists the graded examples (one to four stars, by style: drawing, scene, canvas, interface), Atelier's and the lessons' in one list; `zinc run example:breakout` runs one, `zinc new my-ball --from example:bouncing-ball` copies one to change, and a misspelt name gets the closest. They ship with zinc, so the guide's examples and the lessons run in an installed zinc. Atelier's start view shows the same list.

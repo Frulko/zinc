@@ -1,9 +1,10 @@
 ---
 id: ZN-865
 title: 'zinc:socket WebSocket: custom handshake headers (Origin, User-Agent)'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-30 14:52'
+updated_date: '2026-10-30 14:58'
 labels:
   - net
   - size-S
@@ -20,7 +21,13 @@ The WebSocket client sends a fixed handshake. Discord's remote-auth gateway refu
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 `new WebSocket(url, { headers })` sends the given headers in the opening handshake, on the interpreter, AOT and QuickJS
-- [ ] #2 A T0 test checks the headers a local WebSocketServer receives
-- [ ] #3 docs/plugins/socket.md documents the option
+- [x] #1 `new WebSocket(url, { headers })` sends the given headers in the opening handshake, on the interpreter, AOT and QuickJS
+- [x] #2 A T0 test checks the headers a local WebSocketServer receives
+- [x] #3 docs/plugins/socket.md documents the option
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Option shape of Bun: { headers: [name, value][] } (pairs, as Zinc's Headers takes). Server-side sockets moved to the third constructor argument (devtools cdp, serveWebSocket). Header names must be tokens and values free of CR/LF, else the socket fails before it connects. Test: tests/golden/host/websocket_headers.ts in tests/t0/socket.sh on interpreter, AOT and QuickJS.
+<!-- SECTION:NOTES:END -->

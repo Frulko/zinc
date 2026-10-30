@@ -46,7 +46,7 @@ function request(s: Socket, head: string, rest: u8[]): void {
     s.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${base64Encode(sha1(utf8Encode(key + GUID)))}\r\n\r\n`);
     s.bytesCbs = [];
     s.closeCbs = [];
-    const ws = new WebSocket(path, s);
+    const ws = new WebSocket(path, null, s);
     const id: i32 = clients.length;
     clients.push(ws);
     ws.onmessage = (e: MessageEvent) => { const f = onMessage; if (f !== null && !e.binary) f(id, e.data); };

@@ -271,6 +271,9 @@ function headerValue(head: string, name: string): string {
 }
 function acceptKey(key: string): string { return base64Encode(sha1(utf8Encode(key + GUID))); }
 
+/** Options of a client WebSocket (the shape Bun takes): extra headers of the opening handshake, such as Origin or User-Agent. */
+export interface WebSocketOptions { headers?: [string, string][] }
+
 /** RFC 6455 WebSocket over zinc:socket (ws://, and wss:// over connectTls). Browser-style: set onopen / onmessage / onclose /
  *  onerror, or addEventListener('open' | 'message' | 'close' | 'error'). */
 export class WebSocket extends EventTarget {
@@ -291,7 +294,7 @@ export class WebSocket extends EventTarget {
   closeFired: boolean = false;
 
   /** Connects to ws://host[:port]/path or wss://host[:port]/path. Server-side sockets are created by serveWebSocket. */
-  constructor(url: string, server: Socket | null = null) {
+  constructor(url: string, options: WebSocketOptions | null = null, server: Socket | null = null) {
     super();
     this.url = url;
     this.client = server === null;
@@ -303,15 +306,21 @@ export class WebSocket extends EventTarget {
     if (!secure && u.protocol !== 'ws:') { this.fail(`unsupported scheme ${u.protocol} (ws: or wss:)`); return; }
     const port: i32 = u.port.length > 0 ? parseInt(u.port) : secure ? 443 : 80;
     const path = (u.pathname.length > 0 ? u.pathname : '/') + u.search;
+    let extra = '';
+    const headers = options !== null ? options.headers : undefined;
+    if (headers !== undefined) for (const h of headers) {
+      if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(h[0]) || /[\r\n]/.test(h[1])) { this.fail(`invalid handshake header ${JSON.stringify(h[0])}`); return; }
+      extra += `${h[0]}: ${h[1]}\r\n`;
+    }
     this.key = base64Encode(randomBytes(16));
-    this.start(u.hostname, port, u.host, path, secure);
+    this.start(u.hostname, port, u.host, path, secure, extra);
   }
-  async start(host: string, port: i32, hostHeader: string, path: string, secure: boolean): Promise<void> {
+  async start(host: string, port: i32, hostHeader: string, path: string, secure: boolean, extra: string): Promise<void> {
     let s: Socket;
     try { s = await (secure ? connectTls(host, port) : connect(host, port)); } catch (e) { this.fail(e.message); return; }
     if (this.readyState !== CONNECTING) { s.close(); return; }
     this.attach(s);
-    s.write(`GET ${path} HTTP/1.1\r\nHost: ${hostHeader}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${this.key}\r\nSec-WebSocket-Version: 13\r\n\r\n`);
+    s.write(`GET ${path} HTTP/1.1\r\nHost: ${hostHeader}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${this.key}\r\nSec-WebSocket-Version: 13\r\n${extra}\r\n`);
   }
   attach(s: Socket): void {
     this.sock = s;
@@ -482,7 +491,7 @@ export async function serveWebSocket(port: i32, onConnection: (ws: WebSocket, re
       s.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${acceptKey(key)}\r\n\r\n`);
       s.bytesCbs = [];
       s.closeCbs = [];
-      const ws = new WebSocket(first.length > 1 ? first[1] : '/', s);
+      const ws = new WebSocket(first.length > 1 ? first[1] : '/', null, s);
       onConnection(ws, new UpgradeRequest(first.length > 1 ? first[1] : '/', head));
       if (rest.length > 0) ws.receive(rest);
     });
