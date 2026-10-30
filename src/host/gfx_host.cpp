@@ -33,6 +33,7 @@ namespace zn::res {   // src/res/codec.cpp (no <vector> here: zrt.h clashes with
 uint8_t* encodePngAlloc(const uint8_t* px, int w, int h, int comp, size_t* n, void* (*alloc)(size_t));
 uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h);
 }
+namespace zn::host { const char* assetsRoot(); }   // sys_host.cpp: the directory zinc:assets reads
 namespace zrt { extern bool display_driver; }  // runtime/zrt.cpp: a plugins/display-* driver took over the screen
 namespace zrt { extern void (*mirror_input)(HalInput* in); }  // runtime/zrt.cpp: zinc device screen --live
 namespace zn::loop { void holdClock(bool on); void stepClock(double ms); }   // src/host/loop.cpp (zn/loop.h brings <vector>, which zrt.h clashes with)
@@ -129,13 +130,9 @@ int32_t loadFont(const zrt::String& name, double px) {
   return zrt::gfx::loadFont(name, px);
 }
 // zinc:gfx imageFromBytes (ZN-432): the bytes of an image file (one slot per byte) become a runtime image, with alpha when a pixel is not opaque; -1: not an image, or no room
-int32_t imageFromBytes(const uint64_t* slots, uint32_t n) {
-  uint8_t* file = static_cast<uint8_t*>(malloc(n ? n : 1));
-  if (!file) return -1;
-  for (uint32_t i = 0; i < n; i++) file[i] = static_cast<uint8_t>(slots[i]);
+int32_t imageFromFile(const uint8_t* file, size_t n) {   // the bytes of a PNG, JPEG or WebP file: a runtime image, -1 when they are not one
   int w = 0, h = 0;
   uint8_t* rgba = zn::res::decodeRgbaAlloc(file, n, &w, &h);
-  free(file);
   if (!rgba) return -1;
   const int32_t id = zrt::raster::dyn_create(w, h);
   if (uint32_t* px = zrt::raster::dyn_pixels(id)) {
@@ -149,6 +146,41 @@ int32_t imageFromBytes(const uint64_t* slots, uint32_t n) {
     zrt::raster::dyn_update(id, nullptr, 0);
   }
   free(rgba);
+  return id;
+}
+// A JPEG or WebP of the assets directory that was left as its file (zinc pack and the Linux exports bake no photographs: decoded pixels
+// weigh ten times the file, museum-table's 87 MB): decoded at its first image() call and kept, as a baked image is.
+// ponytail: 64 names, a linear scan; a map when a program shows more photographs than that
+int32_t photoFromAssets(const char* name, uint32_t n) {
+  static struct { char name[192]; int32_t id; } seen[64];
+  static int count = 0;
+  const char* dot = nullptr;
+  for (uint32_t i = 0; i < n; i++) if (name[i] == '.') { if (i + 1 < n && name[i + 1] == '.') return -1; dot = name + i; }   // no "..": the assets only
+  if (!dot || n >= sizeof seen[0].name) return -1;
+  const size_t el = n - static_cast<size_t>(dot - name);
+  if (!(el == 4 && !strncasecmp(dot, ".jpg", 4)) && !(el == 5 && (!strncasecmp(dot, ".jpeg", 5) || !strncasecmp(dot, ".webp", 5)))) return -1;
+  for (int i = 0; i < count; i++) if (!strncmp(seen[i].name, name, n) && !seen[i].name[n]) return seen[i].id;
+  char path[1024];
+  if (snprintf(path, sizeof path, "%s/%.*s", zn::host::assetsRoot(), static_cast<int>(n), name) >= static_cast<int>(sizeof path)) return -1;
+  FILE* f = fopen(path, "rb");
+  if (!f) return -1;
+  fseek(f, 0, SEEK_END);
+  const long size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  uint8_t* file = size > 0 ? static_cast<uint8_t*>(malloc(static_cast<size_t>(size))) : nullptr;
+  const bool read = file && fread(file, 1, static_cast<size_t>(size), f) == static_cast<size_t>(size);
+  fclose(f);
+  const int32_t id = read ? imageFromFile(file, static_cast<size_t>(size)) : -1;
+  free(file);
+  if (id >= 0 && count < 64) { memcpy(seen[count].name, name, n); seen[count].name[n] = 0; seen[count++].id = id; }
+  return id;
+}
+int32_t imageFromBytes(const uint64_t* slots, uint32_t n) {
+  uint8_t* file = static_cast<uint8_t*>(malloc(n ? n : 1));
+  if (!file) return -1;
+  for (uint32_t i = 0; i < n; i++) file[i] = static_cast<uint8_t>(slots[i]);
+  const int32_t id = imageFromFile(file, n);
+  free(file);
   return id;
 }
 
@@ -259,6 +291,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxImage: {   // baked, else an image entry of the mounted packs (a page of a sprite atlas, ZN-438)
       r->i = g::image(str(a[0]));
       if (r->i < 0) r->i = zn_asset_image(static_cast<const char*>(a[0].p), a[0].n);
+      if (r->i < 0) r->i = photoFromAssets(static_cast<const char*>(a[0].p), a[0].n);   // a photograph left as its file (zinc pack)
       break;
     }
     case Rt::HostGfxImageWidth: r->i = g::imageWidth(n(0)); break;

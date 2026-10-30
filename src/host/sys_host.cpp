@@ -1524,6 +1524,7 @@ std::string programInfoJson() {
          ",\"rssBytes\":" + std::to_string(rss) + ",\"cpuMs\":" + std::to_string(static_cast<long long>(cpuMs)) +
          ",\"headless\":" + (headless && *headless && *headless != '0' ? "true" : "false") + ",\"program\":" + (gProgramInfoSource ? gProgramInfoSource() : gProgramInfo) + ",\"gfx\":" + std::string(gfx, n) + "}";
 }
+const char* assetsRoot() { static const std::string d = assetsDir(); return d.c_str(); }   // for gfx_host.cpp, which has no std::string
 }  // namespace zn::host
 /** The same for the devtools plugin's native transport (plugins/devtools/native/cdp.host.cpp: QuickJS programs), as zn_resource_stats_json. */
 extern "C" const char* zn_program_info_json(void) { static std::string s; s = zn::host::programInfoJson(); return s.c_str(); }

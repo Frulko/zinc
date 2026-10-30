@@ -628,6 +628,9 @@ static std::string appNameEnv(const std::string& entry) {
 }
 
 // The baked fonts and images of the last program compiled, as one blob (src/res); assets are entryAssetsDir's.
+// zinc pack and the Linux exports: the photographs (JPEG, WebP) of the assets stay files, decoded when the program first draws them
+// (gfx_host.cpp photoFromAssets), not baked: their pixels weigh ten times the file. A console or a board keeps them baked.
+static bool gPhotosAsFiles = false;
 static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, std::string& err) {
   namespace fs = std::filesystem;
   zn::res::Options o;
@@ -648,7 +651,14 @@ static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, st
   if (!o.assetsDir.empty() && std::any_of(rules.begin(), rules.end(), [](const zn::assets::Rule& r) { return r.as == "texture"; }))
     for (auto it = fs::recursive_directory_iterator(o.assetsDir, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
       if (const std::string rel = it->path().lexically_relative(o.assetsDir).generic_string(); it->is_regular_file(ec) && zn::assets::importerFor(rel, rules) == "texture") o.leave.push_back(rel);
+  if (gPhotosAsFiles && !o.assetsDir.empty())
+    for (auto it = fs::recursive_directory_iterator(o.assetsDir, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+      std::string ext = it->path().extension().string();
+      for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+      if (it->is_regular_file(ec) && (ext == ".jpg" || ext == ".jpeg" || ext == ".webp")) o.leave.push_back(it->path().lexically_relative(o.assetsDir).generic_string());
+    }
   std::sort(o.leave.begin(), o.leave.end());
+  o.leave.erase(std::unique(o.leave.begin(), o.leave.end()), o.leave.end());
   std::vector<std::string> src = gSources;
   if (zn::frontend::uiPreset() == "react-native") src.push_back("text-[14px]");   // React Native's default text size under the preset (ZN-385)
   bool hit = false;   // through the asset cache (ZN-434): an unchanged program is not baked again
@@ -2419,6 +2429,7 @@ int main(int argc, char** argv) {
       return 0;
     }
     zn::zbc::Module zm;
+    gPhotosAsFiles = !gProfile;   // the engine there reads its assets/ (a console's core keeps them baked)
     gPackingConsole = gProfile && (!std::strcmp(gProfile->name, "psp") || !std::strcmp(gProfile->name, "vita") || !std::strcmp(gProfile->name, "n3ds"));
     if (int rc = compileToZbc(entry.c_str(), zm)) return rc;
     printPlugins();   // a stand-in packed in place of a plugin's native code says so (a build that failed would otherwise go unseen)
@@ -3030,6 +3041,7 @@ int main(int argc, char** argv) {
     if (draws && std::strstr(target->name, "-windows")) { std::fprintf(stderr, "zinc: --target %s builds console programs only for now: this one opens a window or uses a plugin (ZN-714)\n", target->name); return 1; }
     if (draws) {   // a program that draws: the graphics host cross-built for the target (headless null HAL), the fonts and images baked in, the surface size of the project for the target
       if (!zn::tc::ensureCrossLibs(zig, gRoot, argv[3], libsDir, err)) { std::fprintf(stderr, "zinc: %s\n", err.c_str()); return 1; }
+      gPhotosAsFiles = true;   // an export ships its assets/ beside the program
       if (!bakeResources(argv[4], blob, err)) { std::fprintf(stderr, "zinc: cannot bake the fonts and images: %s\n", err.c_str()); return 1; }
       std::string pdir = zn::frontend::findProjectFile(argv[4]);
       pdir = pdir.empty() ? "." : fs::path(pdir).parent_path().string();

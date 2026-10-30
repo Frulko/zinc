@@ -427,6 +427,7 @@
     {"paths": ["plugins/ble/", "examples/esp32-ble/mac/", "tests/data/ble/", "tests/t1/ble.sh"], "tests": ["ble"]},
     {"paths": ["plugins/osc/", "plugins/socket/", "examples/osc/", "tests/data/osc/"], "tests": ["osc_full"]},
     {"paths": ["templates/game-2d/"], "tests": ["templates_kickstart", "zapp", "fuse", "assets"]},
+    {"paths": ["src/host/gfx_host.cpp", "src/res/"], "tests": ["zapp_photos"]},
     {"paths": ["templates/plugin/", "tools/plugin-pack", ".github/workflows/plugin.yml"], "tests": ["plugin_starter", "templates", "templates_kickstart"]},
     {"paths": ["tests/data/plugins-table.txt"], "tests": ["plugin_manifest"]},
     {"paths": ["plugins/physics3d/", "src/qjs/native_js.cpp", "src/tc/plugin_build.cpp", "tests/data/physics3d/"], "tests": ["physics3d", "qjs_native", "pinball3d"]},

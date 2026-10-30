@@ -264,6 +264,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Zinc Inspector finds every program with the inspector, on any port (`ZINC_DEVTOOLS_PORT=0`, `zinc dev`): programs announce themselves in `<zinc home>/run/devtools`, the list refreshes every second, a program alone is attached at once, and when the attached program exits it says so and attaches again, on the same view, when it comes back (each save under `zinc dev`). Its `zinc devtools: chrome://inspect …` start line no longer shows as an error in the console.
 
 ### Changed
+- `zinc pack` and the Linux exports leave the photographs of `assets/` (JPEG, WebP) as their files, decoded when the program first draws them, instead of baking their pixels: museum-table's package goes from 99 MB to 24 MB.
 - `zinc device deploy` to a Raspberry Pi builds the app on your computer (a `.zapp` with its plugins cross-built for the Pi) and the Pi just runs it: no compiling on the Pi. The Pi needs the same zinc (`zinc device <pi> update --local`, or `update`); `--source` sends the sources as before.
 - `zinc new` alone asks nothing: it makes a game in `my-game` (`my-game-2`... when that folder is taken); `zinc new --pick` asks what to make, as bare `zinc new` did.
 - `zinc run` and `zinc dev` print one progress line at most (the first native build: `zinc: compiling for this machine, once`); `--verbose` (or `ZINC_STEPS=1`) shows every step as before.

@@ -12,7 +12,7 @@ fail=0
 "$Z" new game-2d "$tmp/game" >/dev/null && "$Z" new cli "$tmp/cli" >/dev/null || exit 2
 "$Z" pack "$tmp/game" -o "$tmp/a.zapp" >/dev/null && "$Z" pack "$tmp/game" -o "$tmp/b.zapp" >/dev/null || { echo "zinc pack failed"; exit 1; }
 cmp -s "$tmp/a.zapp" "$tmp/b.zapp" || { echo "two packs of the same project differ"; fail=1; }
-[ "$(tar tf "$tmp/a.zapp" | tr '\n' ' ')" = "manifest.json assets/coin.svg assets/coin.wav assets/player.svg packs/default.zpk program.zbc resources.bin zinc.json " ] || { echo "unexpected content: $(tar tf "$tmp/a.zapp" | tr '\n' ' ')"; fail=1; }
+[ "$(tar tf "$tmp/a.zapp" | tr '\n' ' ')" = "manifest.json assets/coin.svg assets/coin.wav assets/player.svg packs/default.zpk program.info program.zbc resources.bin zinc.json " ] || { echo "unexpected content: $(tar tf "$tmp/a.zapp" | tr '\n' ' ')"; fail=1; }
 frame() { ZINC_SIZE=640x400 ZINC_FRAMES=8 ZINC_FRAMEHASH=last "$Z" run "$1" 2>&1 | grep framehash; }
 [ "$(cd "$tmp/game" && frame .)" = "$(frame "$tmp/a.zapp")" ] || { echo "the packed game draws another frame: $(frame "$tmp/a.zapp")"; fail=1; }
 "$Z" pack "$tmp/cli" -o "$tmp/cli.zapp" >/dev/null || { echo "zinc pack cli failed"; fail=1; }
@@ -32,7 +32,7 @@ python3 - "$tmp" <<'PY' || exit 2
 import io, re, sys, tarfile
 tmp = sys.argv[1]
 data = bytearray(open(f'{tmp}/cli.zapp', 'rb').read())
-data[2000] ^= 0x55                                    # a byte of program.zbc
+data[data.index(b'program.zbc') + 612] ^= 0x55        # a byte of program.zbc (by its header: a fixed offset can fall in padding)
 open(f'{tmp}/corrupt.zapp', 'wb').write(data)
 def rewrite(out, edit):
     src = tarfile.open(f'{tmp}/cli.zapp')
@@ -57,7 +57,8 @@ check escape.zapp 'outside'
 # ZN-430: a launch reads only the headers and the manifest while the file is unchanged; a byte changed in place is checked again and refused
 cp "$tmp/cli.zapp" "$tmp/inplace.zapp"
 "$Z" run "$tmp/inplace.zapp" >/dev/null 2>&1 || { echo "inplace.zapp did not run"; fail=1; }
-python3 -c "import sys; f = open(sys.argv[1], 'r+b'); f.seek(2000); b = f.read(1); f.seek(2000); f.write(bytes([b[0] ^ 0x55]))" "$tmp/inplace.zapp"
+# a byte inside program.zbc (found by its header: a fixed offset may fall in the padding between two members, which changes no file)
+python3 -c "import sys; f = open(sys.argv[1], 'r+b'); d = f.read(); at = d.index(b'program.zbc') + 512 + 100; f.seek(at); f.write(bytes([d[at] ^ 0x55]))" "$tmp/inplace.zapp"
 check inplace.zapp 'corrupted'
 [ $fail -eq 0 ] && echo "zapp: ok"
 exit $fail
