@@ -815,8 +815,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-868: animated emoji show their first frame only.
 - ZN-868: the default avatar index needs the 64-bit shift (`(id >> 22) % 6`); check it against big ids.
 - ZN-868: the member list ignores the list id of GUILD_MEMBER_LIST_UPDATE; verify op 37 against the real gateway.
+- ZN-872: Opus loss concealment and FEC, and reordering in the jitter buffer: real calls over Wi-Fi will show whether gaps are audible.
+- ZN-872: DAVE verification codes (daveSessionGetPairwiseFingerprint) in the call bar, as the official client shows them.
+- ZN-872: READY_SUPPLEMENTAL's voice_states (capability bit 5 not asked): who is already in voice channels at start shows only after a VOICE_STATE_UPDATE.
 
 ## Cross-platform pass
+- ZN-872: the discord-voice plugin on Linux (ALSA/PulseAudio through miniaudio, BoringSSL without asm) and the zig cross build of its 431 sources.
 - ZN-864: `hal_win_ctl` on Linux (SDL3 HAL) and the n3ds HAL (weak default: nothing moves).
 - Threads profiler: check on Linux that `zinc profile` puts samples on each worker thread (SIGPROF delivery; older kernels favour the main thread).
 - Workers: worker.cpp is in the esp32, console and wasm source lists, unbuilt; prove pthread_attr_setstacksize and thread names there.
