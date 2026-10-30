@@ -505,13 +505,31 @@ static uint32_t next_cp(const char* s, uint32_t n, uint32_t& i) {
   return cp;
 }
 const ShapeHooks* shape_hooks = nullptr;
-static bool needs_shaping(const char* s, uint32_t n) {   // combining marks, Hebrew to Indic and Southeast Asian scripts, ZWJ and variation selectors, Arabic forms, emoji: not symbols, arrows or CJK
+static bool shaped_cp(uint32_t cp) {   // combining marks, Hebrew to Indic and Southeast Asian scripts, ZWJ and variation selectors, Arabic forms, emoji: not symbols, arrows or CJK
+  return (cp >= 0x300 && cp <= 0x36F) || (cp >= 0x590 && cp <= 0x1FFF) || cp == 0x200C || cp == 0x200D || (cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0xFB1D && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF) || cp >= 0x1F000;
+}
+static bool needs_shaping(const char* s, uint32_t n) {
   for (uint32_t i = 0; i < n;) {
     if ((uint8_t)s[i] < 0xCC) { i++; continue; }
-    uint32_t cp = next_cp(s, n, i);
-    if ((cp >= 0x300 && cp <= 0x36F) || (cp >= 0x590 && cp <= 0x1FFF) || cp == 0x200C || cp == 0x200D || (cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0xFB1D && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF) || cp >= 0x1F000) return true;
+    if (shaped_cp(next_cp(s, n, i))) return true;
   }
   return false;
+}
+/** The '?' drawn for a code point the font tables lack. Emoji and complex scripts are drawn by the shaping tier, which a program asks for
+ *  (zinc.json "text": "shaped", decision D32): without it the first such code point says so once, instead of a silent '?'. */
+static const Glyph* missing_glyph(int32_t font, const Font& f, uint32_t cp) {
+  static bool told = false;
+  if (!told && !shape_hooks && shaped_cp(cp) && cp != 0x200C && cp != 0x200D && !(cp >= 0xFE00 && cp <= 0xFE0F)) {
+    told = true;
+    static const char hex[] = "0123456789ABCDEF";
+    char msg[200] = "zinc: text has U+";
+    uint32_t k = 17, digits = cp > 0xFFFF ? 5 : 4;
+    for (uint32_t d = digits; d-- > 0;) msg[k++] = hex[(cp >> (4 * d)) & 0xF];
+    static const char tail[] = " (emoji or a complex script), drawn as '?': add \"text\": \"shaped\" to zinc.json\n";
+    for (uint32_t j = 0; tail[j]; j++) msg[k++] = tail[j];
+    hal_log_err(msg, k);
+  }
+  return glyph_of(font, f, '?');
 }
 int32_t text_advance(int32_t font, const char* s, uint32_t n, float tracking) {
   const Font* fp = font_at(font);
@@ -522,7 +540,7 @@ int32_t text_advance(int32_t font, const char* s, uint32_t n, float tracking) {
   for (uint32_t i = 0; i < n;) {
     const uint32_t cp = next_cp(s, n, i);
     const Glyph* g = glyph_of(font, f, cp);
-    if (!g && !ignorable_cp(cp)) g = glyph_of(font, f, '?');
+    if (!g && !ignorable_cp(cp)) g = missing_glyph(font, f, cp);
     if (g) pen += g->adv + f2i(tracking * 64);
   }
   return pen;
@@ -559,7 +577,7 @@ static void draw_text(const Target& t, const Cmd& c, const char* s) {
   for (uint32_t i = 0; i < c.n;) {
     const uint32_t cp = next_cp(s, c.n, i);
     const Glyph* g = glyph_of(c.res, f, cp);
-    if (!g && !ignorable_cp(cp)) g = glyph_of(c.res, f, '?');
+    if (!g && !ignorable_cp(cp)) g = missing_glyph(c.res, f, cp);
     if (!g) continue;
     int32_t gx = ((pen + 32) >> 6) + g->x0, gy = base + g->y0;
     // the glyph box clipped once (ZN-407), then an unchecked loop: the same pixels as clipping each one
@@ -1055,7 +1073,7 @@ static void xf_text(const Target& t, const Cmd& c, const char* s, const Xf& m) {
   for (uint32_t i = 0; i < c.n;) {
     const uint32_t cp = next_cp(s, c.n, i);
     const Glyph* g = glyph_of(c.res, f, cp);
-    if (!g && !ignorable_cp(cp)) g = glyph_of(c.res, f, '?');
+    if (!g && !ignorable_cp(cp)) g = missing_glyph(c.res, f, cp);
     if (!g) continue;
     const Glyph* b = gp ? glyph_of(gf, *gp, cp) : nullptr;
     if (b) xf_glyph(t, m, pen + b->x0 / q, base + b->y0 / q, b->w, b->h, gp->bitmap + b->off, nullptr, c.c1, c.alpha, q);

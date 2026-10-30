@@ -297,6 +297,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Fixed
 - A TLS 1.3 connection (`wss://`, `connectTls`, `https`) no longer hangs when the server's session tickets and its first reply arrive together, as Cloudflare's servers send them: about one connection in two to Discord's gateway waited forever.
+- Colour emoji: `ZINC_TEXT=shaped` now draws them in a windowed `zinc run` too (its compiled program drew `?`), and `"text": "shaped"` works for programs on QuickJS. Without it, a program that shows an emoji says once on the console to add `"text": "shaped"` to `zinc.json`, instead of a silent `?`.
 - A `Map<string, any>` and other values typed `any | undefined` no longer stop the build with "this type in the IR".
 - In a React-model app, a component file that does not import React (as React's automatic JSX runtime allows) is compiled in the React model, like the entry; it was compiled as Solid.
 - `undefined` given to an optional `unknown` property or parameter (`{ body: undefined }`, `{ b: c ? 'a' : undefined }`) is `undefined` on the interpreter and AOT, so `fetch(url, { method: 'GET', body: undefined })` no longer throws "Request with GET/HEAD method cannot have body".

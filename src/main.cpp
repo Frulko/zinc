@@ -1025,7 +1025,8 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
       if (at != std::string::npos && c.find(")ZNW") == std::string::npos) { text.insert(at + 2, "  setenv(\"ZINC_WINDOW_CONFIG\", R\"ZNW(" + c + ")ZNW\", 1);   // zinc.json app.window\n"); std::ofstream o(cpp); o << text; }
     }
 #endif
-    if (proj.text == "shaped") {
+    const char* zt = std::getenv("ZINC_TEXT");   // zinc run's ZINC_TEXT=shaped asks for the tier as zinc.json does: the compiled run must link it too
+    if (proj.text == "shaped" || (zt && !std::strcmp(zt, "shaped"))) {
       std::string text;
       { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
       std::size_t at = text.find("  zn::host::installGfx();\n"), mainAt = text.find("int main(");
@@ -2225,8 +2226,10 @@ int main(int argc, char** argv) {
         windowEnv(hostWindow(sp));   // the size and window settings of zinc.json, as `zinc run` gives the typed engines
         if (sp.perfHud) setenv("ZINC_PERF_HUD", "1", 0);
         splashEnv(sp, std::filesystem::path(pf).parent_path().string(), zn::tc::pluginTarget().c_str());
+        if (sp.text == "shaped") zn::text::installShapedGfx();   // "text": "shaped" (ZN-224), as on the typed engines
       }
     }
+    if (const char* zt = std::getenv("ZINC_TEXT"); zt && !std::strcmp(zt, "shaped")) zn::text::installShapedGfx();
     zn::host::showSplash();
     {
       std::vector<std::string> args;
