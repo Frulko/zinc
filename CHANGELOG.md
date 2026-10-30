@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `display-sidecar`: a Zinc app runs on an iPad, iPhone, Android or another Mac with the Sidecar app as its screen, with its own frames and no screen capture: `ZINC_DISPLAY=sidecar ZINC_SIDECAR=adb zinc run <app>` (or `usb`, or an address). Touches and the Apple Pencil drive the app.
 - `zinc:secure-store` keeps secrets (tokens, keys) in the macOS Keychain with Expo's API: `import * as SecureStore from 'expo-secure-store'`, then `getItemAsync`, `setItemAsync`, `deleteItemAsync`, `isAvailableAsync`. Where no keychain exists the calls reject; secrets are never written to a plain file.
 - `zinc:socket`: `new WebSocket(url, { headers: [[name, value], ...] })` sends extra headers (Origin, User-Agent...) in the opening handshake.
 - `zinc:worker` runs on QuickJS (`zinc run --engine quickjs`): each worker gets a QuickJS runtime of its own on its own thread, with the same typed messages as the interpreter (a message whose type is generic, such as `workerPort`'s `Envelope<T>`, is copied as a structured clone); sprite-studio's live preview now draws there.

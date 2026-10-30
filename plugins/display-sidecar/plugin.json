@@ -1,0 +1,10 @@
+{
+  "name": "display-sidecar",
+  "kind": "display",
+  "description": "A Sidecar screen (the iPad, iPhone, Android, Mac and Pi apps of app/sidecar) as the app's display: its own frames, no capture",
+  "options": { "host": "adb", "scale": 2, "fps": 60, "inflight": 2 },
+  "targets": {
+    "macos": { "sources": ["sidecar.cpp"], "flags": ["-I./../../third_party/zstd"], "linkFlags": ["-pthread"] },
+    "linux": { "sources": ["sidecar.cpp"], "flags": ["-I./../../third_party/zstd"], "linkFlags": ["-pthread"] }
+  }
+}
