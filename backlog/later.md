@@ -459,6 +459,9 @@ The next backlog review turns lines into tasks or deletes them.
 - Storage: AsyncStorage keys (`@async/…`) that JS-engine apps wrote to the shared `<zinc home>/storage.kv` stay there (only `<name>.` keys migrate), so fatty and other QuickJS apps start with an empty own store; a one-time migration needs a rule for keys no app owns.
 - Info view: the refresh rate is the display the window opened on (`SDL_EVENT_WINDOW_DISPLAY_CHANGED` would follow a move); the JSC heap reading walks the heap at each 1 s refresh (measure on a big program); assets are counted once per process (an asset added under `zinc dev` shows after a restart); a standalone `zinc build` executable has no `ZINC_PROGRAM_INFO` (bake it in as `ZINC_APP_NAME` is).
 
+- zinc:stage inspector: `name` and `visible` changes of unselected nodes are not pushed (the hidden label follows the 500 ms getUnrendered poll); rotation is assumed in radians (fatty/Starling), an AS3-degrees program gets a wrong highlight; in a hybrid program the stage highlight draws inside the Canvas clip, under later zinc:ui siblings (draw it in the overlay pass); the pick arrow does not pick stage nodes (hovering a stage selects the Canvas).
+- zinc dev port 0: the port is found free then closed before the child binds it; the child choosing it and reporting it over the dev socket would close the gap.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
