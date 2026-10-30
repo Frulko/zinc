@@ -1176,12 +1176,14 @@ struct Checker {
     if (hasDynMember(to) && !isDyn(from) && from != tNull && ty(from).k != TK::Union) { convertDyn(from, tDyn, node); return; }   // a value into `unknown | null` becomes a Dyn first  // (tAny, console.log's anything, takes a Dyn as it is)
     if (isDyn(to) && !isDyn(from) && !isDynFamily(from)) {
       if (from == tNull) { a.nodes[node].kind = N::Ident; a.nodes[node].text = "__null"; a.nodes[node].kids.clear(); out.nodeSym[node] = lookup("__null"); out.nodeType[node] = tDyn; return; }
-      if (!dynConvertible(out, from) || hasParam(from)) { diag(kZUnsupported, node, "conversion of '" + name(from) + "' to Dyn"); return; }
+      if (hasParam(from)) { out.nodeType[node] = tDyn; return; }   // a template over T: each instance converts its own type (checked per instance, D181's workers)
+      if (!dynConvertible(out, from)) { diag(kZUnsupported, node, "conversion of '" + name(from) + "' to Dyn"); return; }
       if (n(node).kind == N::FuncExpr) { diag(kZUnsupported, node, "a function as an `any` value"); return; }
       wrapNode(node, dynSym(from, true, node));
       out.nodeType[node] = tDyn;
     } else if (isDyn(from) && !isDyn(to) && !isDynFamily(to) && !hasDynMember(to)) {   // (an `unknown | null` already holds a Dyn: nothing to convert)
-      if (!dynConvertible(out, to) || hasParam(to)) { diag(kZUnsupported, node, "conversion of Dyn to '" + name(to) + "'"); return; }
+      if (hasParam(to)) { out.nodeType[node] = to; return; }   // a template over T: each instance converts to its own type
+      if (!dynConvertible(out, to)) { diag(kZUnsupported, node, "conversion of Dyn to '" + name(to) + "'"); return; }
       wrapNode(node, dynSym(to, false, node));
       out.nodeType[node] = to;
     }
@@ -1851,7 +1853,8 @@ struct Checker {
         TypeId at = expr(args[0]);
         if (bad(at)) return tError;
         if (at == tNull) return rewrite("'null'", {});
-        if (!jsonable(out, at) || hasParam(at)) { diag(kZUnsupported, args[0], "JSON.stringify of '" + name(at) + "'"); return tError; }
+        if (hasParam(at)) { out.nodeType[i] = tStr; return tStr; }   // a template over T: each instance serialises its own type
+        if (!jsonable(out, at)) { diag(kZUnsupported, args[0], "JSON.stringify of '" + name(at) + "'"); return tError; }
         std::uint32_t sym = jsonSym(at, i);
         std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
         out.nodeSym[id] = sym;
