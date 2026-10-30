@@ -1350,3 +1350,8 @@ read (not timed). Measured once by the batch E agent.
 100 {artist, match}), the minimum of 20 runs at a load of 8-15: interpreter JSON.parse 29.9 -> 14.7 ms, JSON.stringify 23.6 -> 17.4 ms,
 fs.writeText 19.6 -> 1.0 ms (std::ofstream wrote 4 KiB at a time; now one fwrite); QuickJS keeps its own JSON (parse 28.8, stringify
 64.0 ms) and gets the write fix (20.6 -> 3.7 ms). New fs.writeTextAsync/readTextAsync on libuv's pool. Measured by the engine agent.
+
+2026-10-30, memory footprint (ZN-885: heap trim every 2 s and before idle sleeps, mimalloc macOS decommit, per-class method tables, cached
+resources moved), Apple M1 Pro, examples/discord windowed 1200x760 @2x against the fake Discord, physical footprint: login 106 -> 84 MB,
+100 servers (3.5 MB READY) 204-233 -> 93 MB (165 MB peak during READY), voice call 120 -> 98 MB; tests/data/heap_trim.ts (27 MB of JSON
+parsed then dropped) 222 -> 8.5 MB. A trim costs 0.1-0.5 ms. The window's three full-size buffers (~45 MB) are now the largest holder.

@@ -576,6 +576,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-883: border-transparent seemed to draw a light border on a call tile; check the colour is honoured.
 - ZN-883: zinc:audio could list and choose output devices for every program, not only discord-voice.
 
+- ZN-885: present the raster through two CPU-written IOSurfaces (CALayer.contents) instead of a shared MTLBuffer plus two or three CAMetalLayer drawables: the window's three full-size buffers (~45 MB at 1200x760 @2x) are now the biggest part of a UI app's footprint.
+- ZN-885: zrt's TLSF heap never returns pages; madvise(MADV_FREE_REUSABLE) the inside of large free blocks (11 MB touched in a Discord call).
+- ZN-885: Discord's 618 Mach ports and 15 threads were not reproduced with the fake session; count ports per kind (lsmp) on a real session.
+- ZN-885: upgrade mimalloc from 2.1.7 to a release with the macOS MADV_FREE_REUSABLE decommit and drop the local prim.c patch.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -841,6 +846,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-886: give the fake Discord a 401, a captcha 400, a long 429 and op 9 d:false so the T1 session proves safe mode and the identify backoff.
 
 ## Cross-platform pass
+- ZN-885: the Linux trimHeap of src/host/loop.cpp (glibc malloc_trim(0)); check RSS drops after tests/data/heap_trim.ts on the Pi.
 - ZN-872: the discord-voice plugin on Linux (ALSA/PulseAudio through miniaudio, BoringSSL without asm) and the zig cross build of its 431 sources.
 - ZN-864: `hal_win_ctl` on Linux (SDL3 HAL) and the n3ds HAL (weak default: nothing moves).
 - Threads profiler: check on Linux that `zinc profile` puts samples on each worker thread (SIGPROF delivery; older kernels favour the main thread).
