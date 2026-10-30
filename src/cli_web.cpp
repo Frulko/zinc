@@ -25,13 +25,17 @@
 #include <sys/wait.h>
 #endif
 
+#include "cli_core.h"
 #include "cli_pm.h"
 #include "cli_web_deps.h"
 #include "frontend/profile.h"
+#include "frontend/project.h"
 #include "platform/platform.h"
+#include "res/codec.h"
 #include "platform/socket.h"
 #include "tc/tc.h"
 #include "yyjson.h"
+#include "zpk/zpk.h"
 
 namespace fs = std::filesystem;
 
@@ -515,6 +519,54 @@ std::vector<Asset> listAssets(const std::string& dir) {
   return out;
 }
 
+// The asset build of a project whose zinc.json has asset rules or groups (sprite atlases, tilemaps: what zinc run builds into build/assets/<target>), made for the
+// web target and its packs unpacked into `out`: the page reads each entry by its name, as zinc:assets does from a pack. Nothing for a project without rules.
+std::vector<Asset> builtAssets(const std::string& dir, const fs::path& out, std::string& err) {
+  std::vector<Asset> r;
+  const std::string pf = zn::frontend::findProjectFile(dir);
+  zn::frontend::Project p;
+  if (pf.empty() || !zn::frontend::parseProject(readAll(pf), p, err) || !p.assets.packed()) { err.clear(); return r; }
+  if (!buildAssets(dir, "web", false, err)) return r;
+  static const std::set<std::string> images = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"}, videos = {".mp4", ".m4v", ".mov", ".webm", ".ogv"};
+  std::error_code ec;
+  for (const auto& f : fs::directory_iterator(fs::path(dir) / "build" / "assets" / "web", ec)) {
+    if (f.path().extension() != ".zpk") continue;
+    const std::string data = readAll(f.path());
+    zn::zpk::Reader pack;
+    if (!pack.open(data.data(), data.size(), err)) { err = f.path().string() + ": " + err; return r; }
+    for (std::size_t i = 0; i < pack.count(); ++i) {
+      const zn::zpk::Entry e = pack.entry(i);
+      if (fs::exists(fs::path(dir) / p.assets.dir / std::string(e.name), ec)) continue;   // the source itself is an asset of the page already
+      std::string bytes;
+      if (!pack.read(i, bytes, err)) { err = f.path().string() + ": " + err; return r; }
+      bool image = false;
+      if (bytes.size() > 16 && bytes.compare(0, 4, "ZIM1") == 0 && bytes[4] == 1) {   // a cooked rgba8 picture (include/zn/zim.h): a PNG the browser decodes
+        auto* p = reinterpret_cast<const std::uint8_t*>(bytes.data());
+        const int w = static_cast<int>(p[8] | p[9] << 8 | p[10] << 16 | static_cast<std::uint32_t>(p[11]) << 24), h = static_cast<int>(p[12] | p[13] << 8 | p[14] << 16 | static_cast<std::uint32_t>(p[15]) << 24);
+        if (w > 0 && h > 0 && bytes.size() >= 16 + static_cast<std::size_t>(w) * h * 4) {
+          std::vector<std::uint8_t> px(p + 16, p + 16 + static_cast<std::size_t>(w) * h * 4);
+          if ((p[6] | p[7] << 8) & 1)   // premultiplied: a canvas takes straight alpha
+            for (std::size_t k = 0; k < px.size(); k += 4) if (px[k + 3] && px[k + 3] < 255) for (int c = 0; c < 3; ++c) px[k + c] = static_cast<std::uint8_t>(std::min(255, px[k + c] * 255 / px[k + 3]));
+          const std::vector<std::uint8_t> png = zn::res::encodePng(px.data(), w, h, 4);
+          bytes.assign(png.begin(), png.end());
+          image = true;
+        }
+      }
+      Asset a;
+      a.name = std::string(e.name);
+      a.file = (out / a.name).string();
+      fs::create_directories(fs::path(a.file).parent_path(), ec);
+      writeAll(a.file, bytes);
+      a.size = bytes.size();
+      const std::string x = lower(fs::path(a.name).extension().string());
+      a.image = image || images.count(x) > 0;
+      a.stream = videos.count(x) > 0;
+      r.push_back(a);
+    }
+  }
+  return r;
+}
+
 // zinc dev: the media files a program reads by their path in the project, outside assets/ (examples/hero's media/bbb.mp4), served at /__project/ with byte ranges
 std::vector<Asset> projectMedia(const std::string& dir) {
   std::vector<Asset> out;
@@ -717,8 +769,13 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
     const std::string n = publish(base == "runtime" ? "zinc" : base, ".js", readAll(mini));
     (base == "runtime" ? runtimeName : base == "dom" ? domName : nativeName) = n;
   }
-  // 4. the assets, named by their content
+  // 4. the assets, named by their content (and what the asset build made of them: atlases, tilemaps)
   std::vector<Asset> assets = listAssets(a.dir);
+  {
+    std::string berr;
+    for (Asset& as : builtAssets(a.dir, tmp / "built", berr)) assets.push_back(as);
+    if (!berr.empty()) { std::fprintf(stderr, "zinc export: the asset build: %s\n", berr.c_str()); return 1; }
+  }
   std::size_t assetBytes = 0;
   for (Asset& as : assets) {
     const std::string bytes = readAll(as.file);
@@ -1325,6 +1382,11 @@ int devWeb(const WebArgs& a) {
   std::vector<Asset> assets = listAssets(a.dir);
   for (Asset& as : assets) as.url = as.name;
   if (!a.lan) for (Asset& as : projectMedia(a.dir)) assets.push_back(as);
+  {
+    std::string berr;
+    for (Asset& as : builtAssets(a.dir, d.site / "built", berr)) { as.url = "built/" + as.name; assets.push_back(as); }
+    if (!berr.empty()) std::fprintf(stderr, "zinc dev: the asset build: %s\n", berr.c_str());
+  }
   std::string cfg = configJson(a, d.cm.cfg, d.cm, assets, "./stage/" + d.entry, a.prepare.empty(), dom ? "./dom.js" : "", "./hmr.js");
   if (!d.bridgeJson.empty() && !cfg.empty() && cfg.back() == '}') cfg.insert(cfg.size() - 1, ",\"bridge\":" + d.bridgeJson);
   std::string page = pageFor(d.cm.cfg, cfg, "", true, false, false, "", "./native.js");

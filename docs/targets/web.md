@@ -432,6 +432,12 @@ old function calls the new one, with no reload of the importers.
 The existing Fast Refresh of `zinc dev` (D122 to D124) maps live objects of the interpreter to new classes; that machinery is the interpreter's, so the web build reuses its program-side API
 (`import.meta.hot`, `_hotC`, `zinc:ui/solid`'s hooks) and not the swap itself. A save took 55 to 70 ms to reach the page in the fixture of `tests/t1/web_dev.sh`.
 
+### Built assets
+
+A project whose `zinc.json` has asset rules or groups (sprite atlases, LDtk tilemaps) gets the asset build `zinc run` makes, for the web target: `zinc export` and
+`zinc dev` unpack its packs into the page's assets, the cooked `rgba8` pictures (ZIM1) turned into PNG files the browser decodes; a source file that is already an asset
+of the page is not sent twice. So `zinc:sprite` and `zinc:tilemap` find their atlases by name (`examples/platformer`).
+
 ### The dev bridge
 
 A plugin whose native side has no browser backend (`zinc:process`, `zinc:lvgl`, `zinc:device`, `zinc:cdp`... the W0602 list) still works under `zinc dev --target web`: the dev

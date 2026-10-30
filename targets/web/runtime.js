@@ -757,6 +757,7 @@ const rows = {
   fsListName: (i) => listing[i] || '', fsListKind: () => 0,
   fsStat: (p) => !!fileBytes(p), fsStatD: () => 0, fsStatI: (i) => (i === 0 ? (lastBytes.length) : 0),
   assetsExists: (n) => !!assetBytes(n), assetsReadText: (n) => { fsErr = ''; const b = assetBytes(n); if (!b) { fsErr = 'ENOENT: asset ' + n; return ''; } return dec.decode(b); },
+  assetsStat: () => 0,   // (6: under zinc dev with assets rebuilt on save; a page reloads instead)
   assetsLoad: (n) => { fsErr = ''; const b = assetBytes(n); if (!b) { fsErr = 'ENOENT: asset ' + n; return 0; } lastBytes = b; return b.length; },
   assetsCount: () => [...assets.keys()].filter((k) => k.startsWith('assets/')).length, assetsName: (i) => [...assets.keys()].filter((k) => k.startsWith('assets/'))[i]?.slice(7) || '',
   storageGet: (k) => store.get(k), storageSet: (k, v) => store.set(k, v), storageRemove: (k) => store.remove(k), storageKeysCount: () => (storeKeys = store.keys()).length, storageKey: (i) => storeKeys[i] || '',
