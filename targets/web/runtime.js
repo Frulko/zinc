@@ -749,7 +749,7 @@ const rows = {
   fsReadText: (p) => { fsErr = ''; const b = fileBytes(p); if (!b) { fsErr = 'ENOENT: readText ' + p; return ''; } return dec.decode(b); },
   fsWriteText: (p, s) => { fsErr = ''; memfs.set(normName(p), enc.encode(s)); },
   fsAppendText: (p, s) => { fsErr = ''; const o = fileBytes(p) || new Uint8Array(0), a = enc.encode(s), r = new Uint8Array(o.length + a.length); r.set(o); r.set(a, o.length); memfs.set(normName(p), r); },
-  fsExists: (p) => !!fileBytes(p), fsLoad: (p) => { fsErr = ''; const b = fileBytes(p); if (!b) { fsErr = 'ENOENT: readBytes ' + p; return 0; } lastBytes = b; return b.length; },
+  fsExists: (p) => !!fileBytes(p) || assetUrl(p) !== '', fsLoad: (p) => { fsErr = ''; const b = fileBytes(p); if (!b) { fsErr = 'ENOENT: readBytes ' + p; return 0; } lastBytes = b; return b.length; },
   fsByte: (i) => lastBytes[i] || 0, fsWriteBytes: (p, b) => { fsErr = ''; memfs.set(normName(p), Uint8Array.from(b)); },
   fsAppendBytes: (p, b) => { fsErr = ''; const o = fileBytes(p) || new Uint8Array(0), r = new Uint8Array(o.length + b.length); r.set(o); r.set(b, o.length); memfs.set(normName(p), r); },
   fsRemove: (p) => memfs.delete(normName(p)), fsMkdir: () => true, fsTmpdir: () => '/tmp',
