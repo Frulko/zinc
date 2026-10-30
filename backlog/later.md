@@ -480,6 +480,9 @@ The next backlog review turns lines into tasks or deletes them.
 - A record literal with an optional field left out prints `note: undefined`; JavaScript omits the key. An `any` view does not show methods (`(o as any).greet` is undefined).
 - Inliner: mutually recursive functions are no longer inlined (D193); measure recursive-descent code with bench-gate.
 
+- Inspector Screen: while it streams, the program draws no highlight (also the hover of a pick started in the program's window); excluding only the overlay from the captured frame means keeping highlight commands out of it in runtime/gfx.cpp. `cdp.host.cpp` (exported builds) still sends a whole PNG per frame: reuse `src/host/screencast.cpp`. One frame in flight only (two, as mirror.cpp, would cut latency on a remote device). The view always asks 640x480 (ask its own size times the pixel scale for Retina). After a pick, Elements selects the node but does not scroll the list to it.
+- Inspector pick inside the program (Cmd+Shift+C, hover, swallowed click) has no automated test: headless has no pointer input; needs a scripted window session.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
