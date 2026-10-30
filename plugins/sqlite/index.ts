@@ -167,10 +167,11 @@ export class Database {
     this.dev = devDatabaseOpened(path, (sql: string, max: i32, write: boolean): string => this.inspect(sql, max, write));
   }
   private dev: i32 = 0;
-  /** The inspector's query (zinc:devhooks, dev runs): rows as JSON, writes refused by SQLite itself (PRAGMA query_only) unless `write`. */
+  /** The inspector's query (zinc:devhooks, dev runs): rows as JSON (a blob as {"blob":size,"hex":its first 16 bytes}), writes refused by
+   *  SQLite itself (PRAGMA query_only) unless `write`. */
   private inspect(sql: string, max: i32, write: boolean): string {
     const cell = (v: unknown): string => v === null ? 'null' : typeof v === 'number' ? (isFinite(v) ? `${v}` : 'null') : typeof v === 'string' ? JSON.stringify(v) :
-      v instanceof Blob ? JSON.stringify(`<blob ${v.data.length} bytes>`) : 'null';
+      v instanceof Blob ? `{"blob":${v.data.length},"hex":"${v.data.slice(0, 16).map((b: u8) => (b < 16 ? '0' : '') + b.toString(16)).join('')}"}` : 'null';   // its size and first bytes
     let st: Statement | null = null;
     try {
       if (!write) this.exec('PRAGMA query_only = 1');

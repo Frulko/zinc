@@ -1,8 +1,9 @@
 #!/bin/sh
 # The Storage panel of the Zinc Inspector against tests/data/inspector-storage (zinc:devtools on a free port, a fresh store): in a dev run
-# (ZINC_DEV=1) the AsyncStorage keys listed, one viewed as pretty JSON, edited and deleted (each change seen back as a DOMStorage event), the
-# program's own writes followed live; its in-memory SQLite database listed with its table, the schema, two pages of rows, a query, a write
-# refused by the read-only mode and run once confirmed. The same program not in a dev run: the edits refused, no database shown.
+# (ZINC_DEV=1) the stores listed, the AsyncStorage grid (sorted, filtered), values as JSON trees (one folded), a cell edited in place and
+# a row deleted (each change seen back as a DOMStorage event), the program's own writes followed live; its in-memory SQLite tables: columns,
+# typed cells (numbers, NULL, a blob), sort, filter and pages in SQL, the schema with its index, a query, a write refused by the read-only
+# mode and run once confirmed. The same program not in a dev run: the edits refused, no database shown.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'kill $target 2>/dev/null; rm -rf "$tmp"' EXIT
 set -- $(python3 tests/free_ports.py 2); port=$1; port2=$2
@@ -19,15 +20,23 @@ fail=0
 want() { grep -qF -- "$1" "$tmp/dump" || { echo "missing in the Storage panel: $1"; fail=1; }; }
 run $port 1
 want "storage: $tmp/store-$port"
-want 'AsyncStorage · theme = {"mode":"dark","accent":"rose"}'
-want 'view AsyncStorage · theme: {   "mode": "dark",   "accent": "rose" }'
-want 'edit: {"mode":"light"}'
+want 'stores: zinc:storage 0 | AsyncStorage 3 | :memory: covers songs'
+want 'columns: Key | Value'
+want '  theme | {"mode":"dark","accent":"rose"}'
+want 'sorted desc: weather.place theme count'
+want 'filtered: theme | {"mode":"dark","accent":"rose"}'
+want '    accent: "rose"'
+want 'folded weather.place: ▼ {name: "Paris", coords: {…}, tags: […]} /   name: "Paris" /   ▼ coords: {lat: 48.85, lon: 2.35} /     lat: 48.85 /     lon: 2.35 /   ▶ tags: Array(2)'
+want 'edit: theme = {"mode":"light"}'
 want 'delete: gone true'
-want 'live: AsyncStorage · count'
-want 'sqlite: :memory: tables songs'
-want 'schema: CREATE TABLE songs (id INTEGER PRIMARY KEY, title TEXT NOT NULL, plays INTEGER)'
-want 'rows: rows 1–50 | id,title,plays | 1,Song 1,3'
-want 'page 2: rows 51–100'
+want 'live: count'
+want 'table: id | title | plays | rows 1–50 of 120 | 1 | Song 1 | 3'
+want 'aligned: right left right'
+want 'sorted: 120 | Song 120 | 360'
+want 'filtered: rows 1–11 of 11'
+want 'page 2: rows 51–100 of 120'
+want 'schema: CREATE TABLE songs (id INTEGER PRIMARY KEY, title TEXT NOT NULL, plays INTEGER); CREATE INDEX songs_plays ON songs (plays);'
+want 'covers: 1 | <blob 18 B> 89504e470d0a1a0a0000000d49484452… | NULL | kinds num blob null'
 want 'query: n = 120'
 want 'read-only: attempt to write a readonly database'
 want 'write: 120 rows changed'
@@ -36,6 +45,6 @@ f0=$fail
 run $port2 0
 want 'edit: refused'
 want 'delete: refused'
-want 'sqlite:  tables'
+want 'sqlite: none'
 [ $fail -eq $f0 ] || cat "$tmp/dump"
 exit $fail
