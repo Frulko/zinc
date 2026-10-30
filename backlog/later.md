@@ -999,3 +999,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-884: a dyn_update_rect change should also reach the device path's diff_rects_sig (ZRT_COMPACT_PREV), which damages the whole image today.
 - ZN-884: zinc:shell listens as soon as the module loads, also under `zinc check` (a stderr line); listen on first use instead.
 - ZN-884: a display driver built against the old hal.h has a shorter HalDisplay; reading ->suspend reads past it. Check the driver's ABI version before using suspend.
+- ZN-888: the shell answers the GL file lease itself (suspend its display) instead of the session stopping and restarting it, which costs a cold start of the shell after each GL app.
+- ZN-888: the boot app under the shell is named `app`; use agent/apps/<name> when ZINC_APP points there, so `zinc device stop <name>` matches it.
+- ZN-888: shell.start should accept a .zapp file or a project directory, as the old zinc-session loop did, so a ZINC_APP that is not an app folder still starts.
+- ZN-888: a T1 test with the real player in shell mode (ZINC_FBDEV_SIM) and zinc device run/stop through the agent, instead of stand-in sockets.
