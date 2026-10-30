@@ -408,7 +408,11 @@ struct Desugar {
       }
       Holes h{{e}, {}, {}};
       std::string param = tmp, pre;
-      if (form == Ret) pre = vp ? "__p.resolveVoid(); " : "__p.resolveWith(" + tmp + "); ";
+      if (form == Ret) {   // `return await e`: inside try...finally the finally blocks run (innermost first) before the promise settles
+        pre = vp ? "__p.resolveVoid();" : "__p.resolveWith(" + tmp + ");";
+        for (const std::string& f : c.fins) pre = f + "((): void => { " + pre + " });";
+        pre += " ";
+      }
       else {
         h[1] = S(rest, c, tail);
         // a declaration stays a variable of the continuation, not its parameter: a const keeps its narrowing in the closures after it

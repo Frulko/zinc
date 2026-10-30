@@ -1291,7 +1291,10 @@ struct Checker {
     if (bad(from) || bad(to) || to == tAny || dynObjOf() == kNone) return;
     if (hasDynMember(to) && !isDyn(from) && from != tNull && ty(from).k != TK::Union) { convertDyn(from, tDyn, node); return; }   // a value into `unknown | null` becomes a Dyn first  // (tAny, console.log's anything, takes a Dyn as it is)
     if (isDyn(to) && !isDyn(from) && !isDynFamily(from)) {
-      if (from == tNull) { a.nodes[node].kind = N::Ident; a.nodes[node].text = "__null"; a.nodes[node].kids.clear(); out.nodeSym[node] = lookup("__null"); out.nodeType[node] = tDyn; return; }
+      if (from == tNull) {   // `undefined` written in a file without Dyn values is a null literal flagged undefined (modules.cpp): into a Dyn it is the Dyn undefined
+        const bool undef = n(node).kind == N::Literal && (n(node).flags & frontend::kFlagUndefined) && lookup("__undef") != kNone;
+        a.nodes[node].kind = N::Ident; a.nodes[node].text = undef ? "__undef" : "__null"; a.nodes[node].kids.clear(); out.nodeSym[node] = lookup(undef ? "__undef" : "__null"); out.nodeType[node] = tDyn; return;
+      }
       if (hasParam(from)) { out.nodeType[node] = tDyn; return; }   // a template over T: each instance converts its own type (checked per instance, D181's workers)
       if (!dynConvertible(out, from)) { diag(kZUnsupported, node, "conversion of '" + name(from) + "' to Dyn"); return; }
       if (n(node).kind == N::FuncExpr) { diag(kZUnsupported, node, "a function as an `any` value"); return; }

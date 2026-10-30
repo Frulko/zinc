@@ -88,7 +88,9 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
     case TK::Bool: body = to ? "  return new DynBool(v);\n" : "  return __dynToBool(d);\n"; break;
     case TK::Str: body = to ? "  return new DynStr(v);\n" : "  return __dynToStr(d);\n"; break;
     case TK::Array:
-      if (to) body = "  const r: any[] = [];\n  for (let i: i32 = 0; i < v.length; i++) r.push(" + toExpr(x.elem, "v[i]") + ");\n  return new DynArr(r);\n";
+      // any[] and a Dyn array share one array, as in JavaScript: a push through either is seen by the other (a copy would break aliasing)
+      if (c.types[x.elem].k == TK::Any) body = to ? "  return new DynArr(v);\n" : "  if (d instanceof DynArr) return d.items;\n  throw new TypeError('cannot convert Dyn (' + __dynTypeName(d) + ') to array');\n";
+      else if (to) body = "  const r: any[] = [];\n  for (let i: i32 = 0; i < v.length; i++) r.push(" + toExpr(x.elem, "v[i]") + ");\n  return new DynArr(r);\n";
       else body = "  if (d instanceof DynArr) {\n    const r: " + A + " = [];\n    for (let i: i32 = 0; i < d.items.length; i++) r.push(" + fromExpr(x.elem, "d.items[i]") + ");\n    return r;\n  }\n  throw new TypeError('cannot convert Dyn (' + __dynTypeName(d) + ') to array');\n";
       break;
     case TK::Union: {
@@ -368,6 +370,7 @@ function __dynLe(a: Dyn, b: Dyn): boolean {
 function __dynGe(a: Dyn, b: Dyn): boolean { return __dynLe(b, a); }
 function __dynSame(a: Dyn, b: Dyn): boolean {
   if (a instanceof DynRef && b instanceof DynRef) return a.identity() === b.identity();
+  if (a instanceof DynArr && b instanceof DynArr) return __identity(a.items) === __identity(b.items);   // two views of one any[]
   return __identity(a) === __identity(b);
 }
 function __dynSeq(a: Dyn, b: Dyn): boolean {

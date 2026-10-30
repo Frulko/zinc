@@ -34,6 +34,10 @@ async function g(): Promise<number> {
 async function h(): Promise<number> {
   try { try { await wait(1); return 1 } finally { console.log('h inner') } } finally { console.log('h outer') }
 }
+// `return await` inside try...finally: the finally blocks run before the promise settles (ZN-890)
+async function i(): Promise<number> {
+  try { try { return await wait(7) } finally { console.log('i inner') } } finally { console.log('i outer') }
+}
 async function main(): Promise<void> {
   await a()
   console.log('b', await b())
@@ -42,6 +46,7 @@ async function main(): Promise<void> {
   await f()
   console.log('g', await g())
   console.log('h', await h())
+  console.log('i', await i())
 }
 main()
 function* gen(): Generator<number> {
