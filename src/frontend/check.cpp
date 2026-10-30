@@ -1294,6 +1294,13 @@ struct Checker {
       if (!dynConvertible(out, to)) { diag(kZUnsupported, node, "conversion of Dyn to '" + name(to) + "'"); return; }
       wrapNode(node, dynSym(to, false, node));
       out.nodeType[node] = to;
+    } else if (isDyn(from) && hasDynMember(to) && ty(to).undef) {   // into `unknown | undefined`: the Dyn undefined is the slot's null, as a missing one (ZN-877)
+      if (n(node).kind == N::Ident && n(node).text == "__undef") {
+        a.nodes[node].kind = N::Literal; a.nodes[node].text = "null"; a.nodes[node].flags |= kFlagUndefined;
+        out.nodeSym[node] = kNone; out.nodeType[node] = tNull;
+      } else if (std::uint32_t s = lookup("__dynOpt"); s != kNone && !(fnStack.size() && n(fnStack.back()).text == "__dynOpt")) {   // (its own `return d`)
+        wrapNode(node, s);
+      }
     }
   }
 
@@ -2531,7 +2538,7 @@ struct Checker {
           if (isDyn(t)) { if (replaceWith(i, "__dynTypeof(__H0)", {{x.kids[0]}})) return expr0(i, expected); return tStr; }
           if (ty(t).k == TK::Union && hasNull(t)) {  // T | null: undefined or null when absent, else the typeof of the rest (a generated test: the operand may be a call)
             TypeId inner = withoutNull(t);
-            std::string it = inner == tStr ? "'string'" : (inner != kNoType && isNum(inner)) ? "'number'" : inner == tBool ? "'boolean'" : "'object'";
+            std::string it = inner == tStr ? "'string'" : (inner != kNoType && isNum(inner)) ? "'number'" : inner == tBool ? "'boolean'" : (inner != kNoType && isDyn(inner)) ? "__dynTypeof(v)" : "'object'";   // (`unknown | undefined`: the Dyn's own)
             std::uint32_t sym = helper("typeofN," + std::to_string(t), "function $F(v: " + inspectAliasName(t) + "): string {\n  return v === null ? " + std::string(ty(t).undef ? "'undefined'" : "'object'") + " : " + it + ";\n}\n", {t}, i);
             wrapNode(x.kids[0], sym);
             std::uint32_t callNode = x.kids[0];

@@ -94,7 +94,7 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
     case TK::Union: {
       TypeId member = kNoType;
       for (TypeId m : x.params) if (m != 5) member = m;
-      if (to) body = "  if (v === null) return __null;\n  return " + toExpr(member, "v") + ";\n";
+      if (to) body = "  if (v === null) return " + std::string(x.undef ? "__undef" : "__null") + ";\n  return " + toExpr(member, "v") + ";\n";
       else body = "  if (d.kind() <= 1) return null;\n  return " + fromExpr(member, "d") + ";\n";
       break;
     }
@@ -295,6 +295,11 @@ function __dynTruthy(d: Dyn): boolean {
 }
 function __dynIsNull(d: Dyn): boolean { return d.kind() === 1; }
 function __dynIsUndef(d: Dyn): boolean { return d.kind() === 0; }
+// A Dyn stored into an `unknown | undefined` slot (`b?: unknown`, `x?: unknown`): its undefined is the slot's null, what a missing one holds (ZN-877)
+function __dynOpt(d: Dyn): Dyn | undefined {
+  if (d.kind() === 0) return null;
+  return d;
+}
 function __dynIsNullish(d: Dyn): boolean { return d.kind() <= 1; }
 function __dynIsArray(d: Dyn): boolean { return d.kind() === 5; }
 function __dynIsTag(d: Dyn, t: i32): boolean { return d instanceof DynRef && d.hasTag(t); }
