@@ -6,6 +6,10 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
 
+- ZN-862: the imageio thumbnail cache is never pruned; a size cap or an LRU sweep, or a large library grows `cache/thumbnails` without end.
+- ZN-862: the portable imageio reader decodes the whole JPEG before downscaling (about 96 MB per 24 MP picture per worker, 2.8 s for 24); libjpeg-turbo's scaled decode would cut both on Linux and the Pi.
+- ZN-862: `trash()` returns false for a file on another disk (freedesktop's `$topdir/.Trash-$uid`) and on Windows (`IFileOperation`).
+- ZN-862: a headless run without `ZINC_DETERMINISTIC` runs its frames faster than real time, so a program waiting on threads or timers can end before their results arrive.
 - trieur (typed engine): trieur's TypeScript does not pass the interpreter/AOT checker yet: `import type` cycles (Z0005 on core/src/plugin.ts), index signatures and `Record<string, V>` as objects, object literals given to a method interface, generic arrows, `for await`; filling them lets examples/trieur leave QuickJS.
 - jsx: a style object built in another file (`style={tokens.card(on)}` imported) is not lowered (only the file's own functions and constants are); on QuickJS it fails as "cannot read property 'length' of undefined" in setStyles: say "a style must be a style object or StyleSheet entry" there.
 - QuickJS: a string colour in a runtime style (`ui.setNumber(n, 'backgroundColor', '#fff')`, `color: someString`) is ignored without a word.
@@ -641,6 +645,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ipod_deep: its auto-sync step polls in real time and fails under load; drive it by the virtual clock.
 
 ## Cross-platform pass
+
+- ZN-862: build plugins/imageio on Linux, Windows and iOS; check WebP and EXIF in a Linux AOT build (libwebp's symbols exported).
 - Run ipod_jukebox and ipod_satellite on Linux (afconvert is missing there; the test uses ffmpeg, else skips).
 - zinc:system/media: a Linux backend (MPRIS over D-Bus) and a Windows one (SystemMediaTransportControls), then turn on mediasession for those profiles.
 - iPod AudioMuse over the LAN from the Pi daemon, with the same client.
