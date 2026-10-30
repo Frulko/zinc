@@ -469,6 +469,11 @@ The next backlog review turns lines into tasks or deletes them.
 - Headless runs with ZINC_SHOT: unless shots are taken often, frames run unthrottled, so `ZINC_FRAMES=300` ends before a 500 ms `setTimeout` fires; scripted inspector shots needed `ZINC_FRAMES=30000`.
 - Inspector Storage, SQLite grid: no detail pane for a selected cell (full long text or blob), no in-place cell edit (writes go through the query bar), blob hex limited to 16 bytes; `app/inspector/table.tsx`'s Grid could become a kit DataTable in `lib/std/kit` with its own test.
 
+- Checker vs lowering: `zinc check` accepts a JSX child `{cond ? list.map(...) : <View />}` but compiling fails with "Z0005 this type in the IR"; check and compile must agree, and the mixed form should be supported.
+- zinc:ui `flex-1` only grows, while Tailwind's `flex-1` is `flex: 1 1 0%`: a plain `flex-1` text measures at full content width and overflows its row (`flex-1 min-w-0` too). Align with Tailwind and rerun the layout goldens.
+- `tests/t1/agent_inspect.sh` still expects the lowercase `"<view "` in the inspector dump.
+- Inspector Elements: badges sit at the row's right edge rather than right after the tag (needs inline boxes in wrapping text); arrow keys on keyword values could cycle through their keywords as Chrome's Styles pane does.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
