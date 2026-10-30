@@ -640,16 +640,67 @@ void opPull(Chan& c, const Val& req) {
   sendTree(c, path, files, bytes, err);
 }
 
+// A .zapp sent as a delta (zinc device deploy): `plan` is {"recipe": [{"new": n} | {"old": member}...], "sha", "size"}, the new archive as
+// runs of the bytes received (`payload`) and of the members of the installed one (`old`), checked whole by its SHA-256 and written in
+// place of `payload`. False with `err` when it does not rebuild: the workstation then sends the app whole.
+bool rebuildZapp(const std::string& old, const Doc& plan, const std::string& payload, std::string& err) {
+  std::vector<zn::zapp::TarSpan> spans;
+  std::map<std::string, const zn::zapp::TarSpan*> byName;
+  std::string patch, out;
+  if (!zn::zapp::tarSpans(old, spans, err) || !readFile(payload, patch)) { if (err.empty()) err = "the bytes received cannot be read"; return false; }
+  for (const auto& sp : spans) byName[sp.name] = &sp;
+  std::size_t at = 0;
+  out.reserve(static_cast<std::size_t>(plan.num("size")));
+  for (const Val& r : plan.items("recipe")) {
+    if (r.has("old")) {
+      const auto it = byName.find(r.str("old"));
+      if (it == byName.end()) { err = "the installed app has no " + r.str("old"); return false; }
+      out.append(old, it->second->at, it->second->size);
+    } else {
+      const auto n = static_cast<std::size_t>(r.num("new"));
+      if (n > patch.size() - at) { err = "fewer bytes came than the recipe names"; return false; }
+      out.append(patch, at, n);
+      at += n;
+    }
+  }
+  if (at != patch.size() || out.size() != static_cast<std::size_t>(plan.num("size")) || zn::tc::sha256Hex(out) != plan.str("sha")) {
+    err = "the app rebuilt from what changed does not match the one sent";
+    return false;
+  }
+  if (!writePrivate(payload, out)) { err = "cannot write " + payload; return false; }
+  return true;
+}
+
 void opInstall(State& s, Chan& c, const Val& req) {
   std::error_code ec;
   const std::string stage = s.home + "/apps/.incoming-" + hex(randomBytes(6));
-  fs::create_directories(stage, ec);
-  if (ec || !send(c, kJson, Obj().flag("ok", true).done())) { fs::remove_all(stage, ec); return; }
-  std::uint64_t files = 0, bytes = 0;
   std::string err, name = req.str("name").empty() ? std::string() : cleanName(req.str("name")), kind;
+  // A workstation that can send a .zapp as a delta asks with "delta": the answer holds the installed one's manifest (its members' SHA-256),
+  // "" when there is none, and a plan frame comes before the bytes ({} when they are the whole file).
+  const bool delta = req.flag("delta");
+  std::string old, manifest, planText;
+  std::vector<zn::zapp::TarSpan> spans;
+  if (delta && !name.empty() && readFile(s.home + "/apps/" + name + "/app.zapp", old) && zn::zapp::tarSpans(old, spans, err))
+    for (const auto& sp : spans) if (sp.name == "manifest.json") manifest = old.substr(sp.at, sp.size);
+  err.clear();
+  fs::create_directories(stage, ec);
+  Obj first;
+  first.flag("ok", true);
+  if (delta) first.str("manifest", manifest);
+  if (ec || !send(c, kJson, first.done())) { fs::remove_all(stage, ec); return; }
+  char type = 0;
+  if (delta && (!recv(c, type, planText, 120000) || type != kJson)) { fs::remove_all(stage, ec); return; }
+  const Doc plan(planText.empty() ? "{}" : planText);
+  std::uint64_t files = 0, bytes = 0;
   const std::string payload = stage + "/payload", app = stage + "/app";
   std::map<std::string, std::string> members;   // a .zapp's files: its zinc.json and icon for app.json
   bool ok = recvTree(c, payload, files, bytes, err);
+  if (ok && plan.has("recipe") && !rebuildZapp(old, plan, payload, err)) {   // the workstation sends it whole on this answer
+    fs::remove_all(stage, ec);
+    send(c, kJson, Obj().flag("ok", false).str("error", err).flag("whole", true).done());
+    return;
+  }
+  old = std::string();
   if (ok && fs::is_regular_file(payload, ec)) {   // a .zapp: checked as zinc run checks it, kept as the file it is
     // ponytail: the archive is read whole to check it; stream it through zapp::unpackTo when apps reach hundreds of megabytes
     std::string archive;

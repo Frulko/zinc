@@ -432,14 +432,61 @@ int install(Device& d, const std::string& path, std::string& name) {
   std::string answer, err, sig;
   readFile(path + ".sig", sig);   // the detached signature zinc sign wrote beside a .zapp: a signed app on the device asks for it
   while (!sig.empty() && (sig.back() == '\n' || sig.back() == ' ')) sig.pop_back();
-  std::unique_ptr<Chan> c = request(d, Obj().str("op", "install").str("name", name).str("base", baseName(path)).str("sig", sig).done(), answer);
-  if (!c) return 1;
-  std::uint64_t files = 0, bytes = 0;
-  char type = 0;
-  if (!sendTree(*c, path, files, bytes, err, progress(path))) return fail(err);
-  if (!recv(*c, type, answer, 120000) || type != kJson) return fail("the session with " + d.name + " ended early");
+  // A .zapp goes as a delta when the device holds a version of it: the members whose SHA-256 its manifest shares are taken from the
+  // installed archive there, the rest (headers, changed members) sent, the whole checked there by its SHA-256. An agent older than this
+  // answers without "manifest" and gets the file whole, as does any mismatch (the second pass). ZINC_DEPLOY_WHOLE=1 always sends it whole.
+  std::string archive, who = name;
+  std::vector<zn::zapp::TarSpan> spans;
+  std::map<std::string, std::string> sums;
+  if (fs::is_regular_file(path, ec) && !std::getenv("ZINC_DEPLOY_WHOLE") && readFile(path, archive) && zn::zapp::tarSpans(archive, spans, err))
+    for (const auto& sp : spans) if (sp.name == "manifest.json") {
+      const Doc m(archive.substr(sp.at, sp.size));
+      for (const auto& [n, sha] : m.pairs("files")) sums[n] = sha;
+      if (who.empty()) who = cleanName(m.str("name"));
+    }
+  err.clear();
+  for (bool delta = !sums.empty() && !who.empty();; delta = false) {
+    std::unique_ptr<Chan> c = request(d, Obj().str("op", "install").str("name", delta ? who : name).str("base", baseName(path)).str("sig", sig).flag("delta", delta).done(), answer);
+    if (!c) return 1;
+    std::uint64_t files = 0, bytes = 0;
+    char type = 0;
+    bool sentDelta = false;
+    if (delta && Doc(answer).has("manifest")) {
+      std::map<std::string, std::string> there;
+      for (const auto& [n, sha] : Doc(Doc(answer).str("manifest")).pairs("files")) there[n] = sha;
+      std::vector<std::string> recipe;
+      std::string patch;
+      std::size_t from = 0, kept = 0;
+      for (const auto& sp : spans) {
+        const auto t = there.find(sp.name), h = sums.find(sp.name);
+        if (!sp.file || sp.size == 0 || t == there.end() || h == sums.end() || t->second != h->second) continue;
+        if (sp.at > from) { recipe.push_back(Obj().num("new", static_cast<long long>(sp.at - from)).done()); patch.append(archive, from, sp.at - from); }
+        recipe.push_back(Obj().str("old", sp.name).done());
+        from = sp.at + sp.size;
+        ++kept;
+      }
+      if (from < archive.size()) { recipe.push_back(Obj().num("new", static_cast<long long>(archive.size() - from)).done()); patch.append(archive, from, std::string::npos); }
+      const std::string plan = Obj().raw("recipe", array(recipe)).str("sha", zn::tc::sha256Hex(archive)).num("size", static_cast<long long>(archive.size())).done();
+      sentDelta = kept > 0 && plan.size() < zn::kMaxAgentFrame / 2;
+      if (!send(*c, kJson, sentDelta ? plan : "{}")) return fail("the session with " + d.name + " ended early");
+      if (sentDelta) {
+        const std::string tmp = (fs::temp_directory_path(ec) / ("zinc-delta-" + std::to_string(::getpid()))).string();
+        if (!writePrivate(tmp, patch)) return fail("cannot write " + tmp);
+        const bool ok = sendTree(*c, tmp, files, bytes, err, progress(tmp));
+        fs::remove(tmp, ec);
+        if (!ok) return fail(err);
+        zn::log::step("send", "only what changed: " + human(static_cast<long long>(patch.size())) + " of " + human(static_cast<long long>(archive.size())) + ", " +
+                      std::to_string(kept) + " file" + (kept == 1 ? "" : "s") + " unchanged");
+      }
+    }
+    if (!sentDelta && !sendTree(*c, path, files, bytes, err, progress(path))) return fail(err);
+    if (!recv(*c, type, answer, 120000) || type != kJson) return fail("the session with " + d.name + " ended early");
+    const Doc a(answer);
+    if (sentDelta && a.flag("whole")) { zn::log::step("send", a.str("error") + ": sending it whole"); continue; }
+    if (!a.flag("ok")) return fail(a.str("error"));
+    break;
+  }
   const Doc a(answer);
-  if (!a.flag("ok")) return fail(a.str("error"));
   name = a.str("name");
   std::fprintf(stderr, "installed %s on %s (%s)\n", name.c_str(), d.name.c_str(), human(a.num("bytes")).c_str());
   return 0;

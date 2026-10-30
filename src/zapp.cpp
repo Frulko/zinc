@@ -106,8 +106,8 @@ std::string pack(const std::map<std::string, std::string>& files, const std::str
   return ustar(entries);
 }
 
-bool untar(const std::string& archive, std::map<std::string, std::string>& files, std::string& err) {
-  files.clear();
+bool tarSpans(const std::string& archive, std::vector<TarSpan>& spans, std::string& err) {
+  spans.clear();
   std::size_t at = 0;
   while (at + 512 <= archive.size()) {
     const char* h = archive.data() + at;
@@ -123,9 +123,17 @@ bool untar(const std::string& archive, std::map<std::string, std::string>& files
     const std::size_t size = std::strtoull(std::string(h + 124, 12).c_str(), nullptr, 8);
     if (name.empty() || name.find("..") != std::string::npos || name[0] == '/') { err = "the archive names a file outside it: " + name; return false; }
     if (at + 512 + size > archive.size()) { err = "the archive is truncated"; return false; }
-    if (h[156] == '0' || h[156] == 0) files[name] = archive.substr(at + 512, size);   // files; directories are implied by the names
+    spans.push_back({name, at + 512, size, h[156] == '0' || h[156] == 0});   // directories are implied by the names
     at += 512 + (size + 511) / 512 * 512;
   }
+  return true;
+}
+
+bool untar(const std::string& archive, std::map<std::string, std::string>& files, std::string& err) {
+  files.clear();
+  std::vector<TarSpan> spans;
+  if (!tarSpans(archive, spans, err)) return false;
+  for (const TarSpan& s : spans) if (s.file) files[s.name] = archive.substr(s.at, s.size);
   return true;
 }
 

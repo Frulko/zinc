@@ -9,6 +9,7 @@
 // program) it runs on any engine that reads that ZBC version and has that many runtime calls (the table only grows), whatever `engine` says:
 // an app is not tied to the version that packed it. Without `needs` (an older pack, a JavaScript project) a newer `engine` is refused.
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -29,6 +30,11 @@ std::string ar(const std::vector<std::pair<std::string, std::string>>& members);
 /** The archive of `files` (name -> bytes): manifest.json is made here from the others. `zbc` > 0: the program's ZBC version and the
  *  runtime calls it needs (zn::aot::rtNeeded), written as `needs`. */
 std::string pack(const std::map<std::string, std::string>& files, const std::string& name, const std::string& engine, unsigned zbc = 0, unsigned rt = 0);
+
+/** Where each member of a ustar archive lies: its name, its data at [at, at + size) of the archive, whether it is a file. Every header
+ *  checksum checked, names outside it refused (zinc device deploy sends only the members that changed). */
+struct TarSpan { std::string name; std::size_t at = 0, size = 0; bool file = true; };
+bool tarSpans(const std::string& archive, std::vector<TarSpan>& spans, std::string& err);
 
 /** The files of a ustar archive (`files`: name -> bytes; directories left out), every header checksum checked, names outside it refused. */
 bool untar(const std::string& archive, std::map<std::string, std::string>& files, std::string& err);
