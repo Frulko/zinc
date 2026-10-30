@@ -2,7 +2,8 @@
 // Scripted DevTools client for plugins/devtools (docs/dev-mode.md): discovery, DOM tree, computed style, class edit,
 // highlight, console mirroring, screenshot. Run it against a program started by `zinc dev` (or built with --devtools).
 // --styles checks the Styles panel instead (ZN-369) on tests/data/devtools_styles: the rules of a class-styled and a StyleSheet-styled box,
-// element.style edited as the box model does (CSS.setStyleTexts), the frame and the box after it, and the patch printed to the console.
+// element.style edited as the box model does (CSS.setStyleTexts), the frame and the box after it, and the patch printed to the console;
+// keyword properties (flex-direction, justify-content, font-weight) and a text changed with DOM.setNodeValue.
 // usage: node scripts/cdp-check.mjs [port] [--styles]   (Node's built-in WebSocket, no dependencies)
 const port = Number(process.argv[2] ?? 9229), stylesOnly = process.argv.includes('--styles');
 const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
@@ -98,4 +99,21 @@ async function styles() {
   await edit(sheet, '');
   await settle();
   check(((await left(sheet)).width) === 32, 'an empty element.style gives the StyleSheet box its own padding back');
+  // keyword properties (Elements lists them by the node's type): the computed style reads them back, the patch gives their classes
+  await edit(tagged, 'flex-direction: row; justify-content: center; font-weight: 600;');
+  await settle();
+  const comp = (await call('CSS.getComputedStyleForNode', { nodeId: tagged.nodeId })).computedStyle, val = k => comp.find(p => p.name === k)?.value;
+  check(val('flex-direction') === 'row' && val('justify-content') === 'center' && val('font-weight') === '600', `keyword edits read back: ${val('flex-direction')} ${val('justify-content')} ${val('font-weight')}`);
+  const patch2 = events.filter(e => e.method === 'Runtime.consoleAPICalled').map(e => e.params.args[0].value).filter(v => v.includes('style patch')).at(-1) ?? '';
+  check(patch2.includes('flex-row justify-center font-semibold'), `the patch gives the keyword classes: ${patch2.split('\n').find(l => l.includes('#' + tagged.nodeId))}`);
+  await edit(tagged, '');
+  // a text edited in Elements (DOM.setNodeValue): the program shows it, the tree reads it back
+  const text = nodes.find(n => n.nodeType === 3 && n.nodeValue === 'Hello');
+  await call('DOM.setNodeValue', { nodeId: text.nodeId, value: 'Edited' });
+  await settle();
+  const again = [];
+  const walk2 = n => { again.push(n); (n.children ?? []).forEach(walk2); };
+  walk2((await call('DOM.getDocument', { depth: -1 })).root);
+  check(again.some(n => n.nodeType === 3 && n.nodeValue === 'Edited') && events.some(e => e.method === 'DOM.characterDataModified' && e.params.characterData === 'Edited'),
+    'DOM.setNodeValue changes the text in the program');
 }

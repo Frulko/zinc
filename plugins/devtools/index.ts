@@ -7,7 +7,7 @@
 // (ZN-369). Unknown methods get an empty result so the frontend never waits. A program with a zinc:stage scene and no zinc:ui tree shows its
 // display tree instead, and a stage drawn in a <Canvas> shows under that Canvas (stage.ts).
 import Cdp from './native/cdp.spec';
-import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectHit, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
+import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectHit, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, setText, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
 import { width, height, pointerX, pointerY } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import { saveLocation } from 'zinc:hardware';
@@ -111,7 +111,10 @@ function style(n: UiNode): string {
     ['margin-top', px(n.mt)], ['margin-right', px(n.mr)], ['margin-bottom', px(n.mb)], ['margin-left', px(n.ml)], ['box-sizing', 'border-box'],
     ['border-top-width', px(bw)], ['border-right-width', px(bw)], ['border-bottom-width', px(bw)], ['border-left-width', px(bw)],
     ['flex-grow', `${n.grow}`], ['background-color', hex(n.bg)], ['color', hex(n.fg)], ['font-size', px(n.size)],
-    ['font-weight', n.bold ? 'bold' : 'normal'], ['border-radius', px(n.radius)], ['border-width', px(n.borderW < 0 ? 1 : n.borderW)], ['opacity', `${n.opacity}`],
+    ['font-weight', `${n.weight > 0 ? n.weight : n.bold ? 700 : 400}`], ['border-radius', px(n.radius)], ['border-width', px(n.borderW < 0 ? 1 : n.borderW)], ['opacity', `${n.opacity}`],
+    ['flex-wrap', keyword('flex-wrap', n.wrap ? (n.wrapRev ? 2 : 1) : 0)], ['justify-content', keyword('justify-content', n.justify)], ['align-items', keyword('align-items', n.align)],
+    ['line-height', n.leading > 0 ? px(n.leading) : 'normal'], ['letter-spacing', n.letterSpace > -99999 ? px(n.letterSpace) : 'normal'],
+    ['text-align', keyword('text-align', n.talign)], ['object-fit', keyword('object-fit', n.im.fit)], ['border-color', hex(n.borderColor)],
   ];
   return props.map((p: string[]) => `{"name":${q(p[0])},"value":${q(p[1])}}`).join(',');
 }
@@ -178,7 +181,7 @@ function handle(client: i32, msg: string): void {
   const h = handleOf(nodeId);
   const n = inspectNode(h);
   let result = '{}';
-  if (!DEV && (method === 'DOM.setAttributeValue' || method === 'DOM.setAttributesAsText' || method === 'CSS.setStyleTexts')) {
+  if (!DEV && (method === 'DOM.setAttributeValue' || method === 'DOM.setAttributesAsText' || method === 'CSS.setStyleTexts' || method === 'DOM.setNodeValue')) {
     Cdp.send(client, `{"id":${id},"error":{"code":-32000,"message":${q(NOT_DEV)}}}`);
     return;
   }
@@ -197,6 +200,10 @@ function handle(client: i32, msg: string): void {
       setClass(h, v);
       Cdp.send(-1, `{"method":"DOM.attributeModified","params":{"nodeId":${nodeId},"name":"class","value":${q(v)}}}`);
     }
+  } else if (method === 'DOM.setNodeValue' && n !== null && nodeId >= TEXT_BASE && n.tag === TEXT) {   // a text edited in Elements: shown at once, not written to the source
+    const v = Cdp.str(msg, 'value');
+    setText(h, v);
+    Cdp.send(-1, `{"method":"DOM.characterDataModified","params":{"nodeId":${nodeId},"characterData":${q(v)}}}`);
   } else if (method === 'DOM.pushNodesByBackendIdsToFrontend') {
     result = `{"nodeIds":[${Math.round(Cdp.num(msg, 'backendNodeIds'))}]}`;
   } else if (method === 'DOM.getBoxModel' && n !== null) result = boxModel(n);
@@ -328,7 +335,7 @@ function draws(h: i32, n: UiNode, clip: number[], out: i32[]): boolean {
 // The node's classes, style sheets and style numbers show as read-only rules (what each declares); element.style is the inspector's own
 // layer (ui.inspectStyle, applied over them) that the Styles panel and the box model edit; each edit prints to the console the patch to
 // paste back: the class string, or the properties to add to the style object, of every node edited in the session.
-/** CSS longhand, style key, class prefix, kind: 0 a length in px, 1 a colour, 2 a number. */
+/** CSS longhand, style key, class prefix, kind: 0 a length in px, 1 a colour, 2 a number, 3 a keyword of CSS_ENUMS. */
 const CSS_PROPS: string[][] = [
   ['padding-top', 'paddingTop', 'pt', '0'], ['padding-right', 'paddingRight', 'pr', '0'], ['padding-bottom', 'paddingBottom', 'pb', '0'], ['padding-left', 'paddingLeft', 'pl', '0'],
   ['margin-top', 'marginTop', 'mt', '0'], ['margin-right', 'marginRight', 'mr', '0'], ['margin-bottom', 'marginBottom', 'mb', '0'], ['margin-left', 'marginLeft', 'ml', '0'],
@@ -337,7 +344,31 @@ const CSS_PROPS: string[][] = [
   ['min-height', 'minHeight', 'min-h', '0'], ['max-height', 'maxHeight', 'max-h', '0'], ['border-radius', 'borderRadius', 'rounded', '0'],
   ['border-width', 'borderWidth', 'border', '0'], ['font-size', 'fontSize', 'text', '0'],
   ['background-color', 'backgroundColor', 'bg', '1'], ['color', 'color', 'text', '1'], ['border-color', 'borderColor', 'border', '1'], ['opacity', 'opacity', 'opacity', '2'],
+  ['line-height', 'lineHeight', 'leading', '0'], ['letter-spacing', 'letterSpacing', 'tracking', '0'], ['flex-grow', 'grow', 'grow', '2'],
+  ['flex-direction', 'flexDirection', 'flex', '3'], ['flex-wrap', 'flexWrap', 'flex', '3'], ['justify-content', 'justifyContent', 'justify', '3'],
+  ['align-items', 'alignItems', 'items', '3'], ['font-weight', 'fontWeight', 'font', '3'], ['text-align', 'textAlign', 'text', '3'], ['object-fit', 'objectFit', 'object', '3'],
 ];
+/** The keywords of a kind 3 longhand and their numbers, as the compiler maps them (src/frontend/jsx.cpp kStyleEnums); then each one's class. */
+const CSS_ENUMS: string[][] = [
+  ['flex-direction', 'column', '0', 'row', '1', 'column-reverse', '2', 'row-reverse', '3'], ['flex-wrap', 'nowrap', '0', 'wrap', '1', 'wrap-reverse', '2'],
+  ['justify-content', 'flex-start', '0', 'start', '0', 'center', '1', 'flex-end', '2', 'end', '2', 'space-between', '3', 'space-around', '4', 'space-evenly', '5'],
+  ['align-items', 'flex-start', '0', 'start', '0', 'center', '1', 'flex-end', '2', 'end', '2', 'stretch', '3', 'baseline', '4'],
+  ['font-weight', 'normal', '400', 'bold', '700', '100', '100', '200', '200', '300', '300', '400', '400', '500', '500', '600', '600', '700', '700', '800', '800', '900', '900'],
+  ['text-align', 'left', '0', 'start', '0', 'center', '1', 'right', '2', 'end', '2'],
+  ['object-fit', 'fill', '0', 'contain', '1', 'cover', '2', 'none', '3', 'scale-down', '4'],
+];
+const WEIGHTS: string[] = ['thin', 'extralight', 'light', 'normal', 'medium', 'semibold', 'bold', 'extrabold', 'black'];
+function enumOf(name: string): string[] { for (const e of CSS_ENUMS) if (e[0] === name) return e; return []; }
+/** The number of keyword v of longhand `name`, NaN when it has none. */
+function enumNumber(name: string, v: string): number { const e = enumOf(name); for (let i = 1; i + 1 < e.length; i += 2) if (e[i] === v) return Number(e[i + 1]); return NaN; }
+/** The first keyword of longhand `name` for number k (its computed value). */
+function keyword(name: string, k: number): string { const e = enumOf(name); for (let i = 1; i + 1 < e.length; i += 2) if (Number(e[i + 1]) === k) return e[i]; return `${k}`; }
+/** The class of a kind 3 declaration: justify-content: space-between is justify-between, font-weight: 600 font-semibold. */
+function enumClass(p: string[], v: string): string {
+  if (p[0] === 'font-weight') return 'font-' + WEIGHTS[Math.round(enumNumber(p[0], v) / 100) - 1];
+  if (p[0] === 'flex-direction' || p[0] === 'flex-wrap') return v === 'column' ? 'flex-col' : v === 'column-reverse' ? 'flex-col-reverse' : 'flex-' + v;
+  return p[2] + '-' + (v.startsWith('flex-') ? v.slice(5) : v.startsWith('space-') ? v.slice(6) : v);
+}
 function cssProp(name: string): string[] | null { for (const p of CSS_PROPS) if (p[0] === name) return p; return null; }
 /** A length in px ("12px" or "12"), NaN otherwise. */
 function length(v: string): number { const t = v.endsWith('px') ? v.slice(0, v.length - 2) : v; return t.length > 0 && !isNaN(Number(t)) ? Number(t) : NaN; }
@@ -362,6 +393,7 @@ function colour(v: string): i32 {
 /** The number a longhand's value sets (a colour as 0xRRGGBB), NaN when it is not one. */
 function cssNumber(p: string[], v: string): number {
   if (p[3] === '1') { const c = colour(v); return c < 0 ? NaN : c; }
+  if (p[3] === '3') return enumNumber(p[0], v.toLowerCase());
   return p[3] === '0' ? length(v) : (v.length > 0 && !isNaN(Number(v)) ? Number(v) : NaN);
 }
 /** Declarations [name, value, ...] of a style text: comments (disabled properties) and !important left out. */
@@ -480,9 +512,9 @@ function patchLine(h: i32, e: Edited): string {
     const l = longhands(e.decls[i], e.decls[i + 1]);
     for (let j = 0; j < l.length; j += 2) {
       const p = cssProp(l[j]) as string[], v = cssNumber(p, l[j + 1]);
-      const shown = p[3] === '1' ? hex(Math.round(v)) : `${v}`;
-      keys.push(`${p[1]}: ${p[3] === '1' ? q(shown) : shown}`);
-      toks.push(`${p[2]}-[${shown}${p[3] === '0' ? 'px' : ''}]`);
+      const shown = p[3] === '1' ? hex(Math.round(v)) : p[3] === '3' ? l[j + 1].toLowerCase() : `${v}`;
+      keys.push(`${p[1]}: ${p[3] === '1' || p[3] === '3' ? q(shown) : shown}`);
+      toks.push(p[3] === '3' ? enumClass(p, shown) : `${p[2]}-[${shown}${p[3] === '0' ? 'px' : ''}]`);
       set.push(l[j]);
     }
   }

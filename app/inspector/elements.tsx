@@ -1,10 +1,11 @@
 // The Elements panel of Zinc Inspector: the program's tree with its components (<AlbumGrid>, <NowPlaying>... around the host nodes they
-// render, dev runs), collapsible, searched (component, tag, className, text, id) and filtered (rendered only, components only, host
-// wrappers hidden); the selected node's component and props, its classes and element.style edited live in dev runs, its box and computed style.
+// render, dev runs), folded as Chrome's (the roots and the path to the selection open), searched (component, tag, className, text, id) and
+// filtered (rendered only, components only, host wrappers hidden); the selected node's component and props, its classes, element.style and
+// texts edited live in dev runs, its box and computed style. The tree's view is tree.tsx, the Styles pane styles.tsx.
 import { createSignal } from 'zinc:ui/solid';
 import { call, conn, status, setStatus, devRun, errorOf, sleep, until } from './state';
 import { styleLines, ruleLines, inlineOf, Inline } from './model';
-import { Btn, Flat, Toggle, Field, Mono } from './widgets';
+import { Field } from './widgets';
 
 /** A node of the tree as DOM.getDocument sends it. */
 export class TNode {
@@ -14,8 +15,12 @@ export class TNode {
   kids: TNode[] = []; parent: TNode | null = null;
   hay: string = '';   // what the search looks in, lower case
 }
-/** A row shown: a node at its depth; `match` when the search found it. */
-export class Row { node: TNode; depth: i32; match: boolean; constructor(node: TNode, depth: i32, match: boolean) { this.node = node; this.depth = depth; this.match = match; } }
+/** A row shown: a node at its depth; `match` when the search found it; `close` the closing tag of an open node, `leaf` an open node whose
+ *  children are all filtered out. */
+export class Row {
+  node: TNode; depth: i32; match: boolean; close: boolean = false; leaf: boolean = false;
+  constructor(node: TNode, depth: i32, match: boolean) { this.node = node; this.depth = depth; this.match = match; }
+}
 
 const HOSTS: string[] = ['view', 'View', 'text', 'Text', 'button', 'Button', 'image', 'Image', 'scroll', 'ScrollView', 'canvas', 'Canvas', 'fragment', 'Fragment',
   'input', 'Input', 'textarea', 'TextArea'];
@@ -71,6 +76,62 @@ export function label(n: TNode): string {
   if (n.stage) { const nm = stageAttr(n, 'name'); return '<' + n.tag + (nm.length > 0 ? ' name="' + nm + '"' : '') + (n.hidden ? ' hidden' : '') + '>'; }
   return '<' + n.tag + (n.cls.length > 0 ? ' className="' + n.cls + '"' : '') + (n.hidden ? ' hidden' : '') + '>';
 }
+// Chrome's colours: tag names and their brackets, attribute names, values, text; a component's name, and where it is called dimmed.
+export const C_TAG: i32 = 0x881280, C_ATTR: i32 = 0x994500, C_VALUE: i32 = 0x1a1aa6, C_TEXT: i32 = 0x1f2937, C_COMP: i32 = 0x0e7490, C_DIM: i32 = 0x94a3b8;
+/** A row's text with its colour runs (ui.setTextRuns: length, style, colour, ...). */
+export class Line {
+  text: string = ''; runs: i32[] = [];
+  add(s: string, color: i32): void { if (s.length === 0) return; this.text += s; this.runs.push(s.length); this.runs.push(0); this.runs.push(color); }
+  attr(name: string, value: string): void { this.add(' ' + name, C_ATTR); this.add('="', C_TAG); this.add(value, C_VALUE); this.add('"', C_TAG); }
+}
+/** A component's props as written (`title={page()} wide`), one each: split at the spaces outside quotes and braces. */
+function propList(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0, quote = '', cur = '';
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charAt(i);
+    if (quote.length > 0) { if (c === quote) quote = ''; }
+    else if (c === '"' || c === "'" || c === '`') quote = c;
+    else if (c === '{' || c === '(' || c === '[') depth++;
+    else if (c === '}' || c === ')' || c === ']') depth--;
+    else if (c === ' ' && depth === 0) { if (cur.length > 0) out.push(cur); cur = ''; continue; }
+    cur += c;
+  }
+  if (cur.length > 0) out.push(cur);
+  return out;
+}
+/** What a row shows, coloured as Chrome's Elements: `<View className="...">`, `<Text>Hello</Text>` (a lone text inline), `<Card title="x">`
+ *  and where it is called, `…</View>` on a folded node, `</View>` closing an open one, `"text"` for a text among elements. */
+export function lineOf(r: Row): Line {
+  const n = r.node, l = new Line();
+  if (n.text) { l.add('"' + n.value + '"', C_TEXT); return l; }
+  if (r.close) { l.add('</' + n.tag + '>', n.comp ? C_COMP : C_TAG); return l; }
+  const color = n.comp ? C_COMP : C_TAG;
+  l.add('<' + n.tag, color);
+  if (n.comp) for (const p of propList(n.props)) {
+    const e = p.indexOf('=');
+    if (e < 0) { l.add(' ' + p, C_ATTR); continue; }
+    l.add(' ' + p.slice(0, e), C_ATTR); l.add('=', C_TAG); l.add(p.slice(e + 1), C_VALUE);
+  }
+  else if (n.stage) { const nm = stageAttr(n, 'name'); if (nm.length > 0) l.attr('name', nm); }
+  else if (n.cls.length > 0) l.attr('className', n.cls);
+  if (n.hidden) l.add(' hidden', C_ATTR);
+  l.add('>', color);
+  const t = inlineText(n);
+  if (t !== null) { l.add((t as TNode).value, C_TEXT); l.add('</' + n.tag + '>', color); }
+  else if (r.leaf || n.kids.length === 0) l.add('</' + n.tag + '>', color);
+  else if (!isOpen(n) && query().trim().length === 0) { l.add('…', C_DIM); l.add('</' + n.tag + '>', color); }
+  if (n.comp && n.source.length > 0) l.add('  ' + n.source, C_DIM);
+  return l;
+}
+/** Chrome's badges after a tag: the layout a host node lays its children out with (flex, grid, wrap) when it has several. */
+export function badgeOf(n: TNode): string {
+  if (n.comp || n.stage || n.text || n.kids.length < 2) return '';
+  const c = ' ' + n.cls + ' ';
+  if (c.indexOf(' grid') >= 0) return 'grid';
+  if (c.indexOf(' flex-wrap ') >= 0) return 'wrap';
+  return c.indexOf(' flex-row ') >= 0 ? 'flex row' : 'flex';
+}
 /** A property of a zinc:stage node ('' when it has none). */
 export function stageAttr(n: TNode, name: string): string { for (let i = 0; i + 1 < n.attrs.length; i += 2) if (n.attrs[i] === name) return n.attrs[i + 1]; return ''; }
 /** A host node that only wraps one element (no class, no listener, no text): "hide host wrappers" shows its child in its place. */
@@ -82,7 +143,7 @@ function wrapper(n: TNode): boolean {
 // ---- state
 let byId = new Map<i32, TNode>();
 let roots: TNode[] = [];
-const collapsed = new Set<i32>();
+const opened = new Set<i32>(), closed = new Set<i32>();   // folds the user changed; otherwise the roots are open and the rest folded
 let unrendered = new Set<i32>();
 let unrenderedKey = '';
 export const [rows, setRows] = createSignal<Row[]>([]);
@@ -155,14 +216,23 @@ function walk(n: TNode, depth: i32, q: string, hit: Set<i32>, out: Row[]): void 
   if (renderedOnly() && unrendered.has(n.id)) return;
   if (q.length > 0 && !hit.has(n.id)) return;
   const shown = componentsOnly() ? n.comp : !(hideWrappers() && wrapper(n));
-  let d = depth;
-  if (shown) {
-    out.push(new Row(n, depth, q.length > 0 && n.hay.indexOf(q) >= 0));
-    d = depth + 1;
-    if (q.length === 0 && collapsed.has(n.id)) return;   // a search opens what it finds inside folded nodes
-  }
-  for (const k of n.kids) walk(k, d, q, hit, out);
+  if (!shown) { for (const k of n.kids) walk(k, depth, q, hit, out); return; }
+  const t = inlineText(n);
+  const row = new Row(n, depth, q.length > 0 && (n.hay.indexOf(q) >= 0 || (t !== null && (t as TNode).hay.indexOf(q) >= 0)));
+  out.push(row);
+  if (t !== null || n.kids.length === 0 || (q.length === 0 && !isOpen(n))) return;   // a search opens what it finds inside folded nodes
+  const at = out.length;
+  for (const k of n.kids) walk(k, depth + 1, q, hit, out);
+  if (out.length === at) { row.leaf = true; return; }
+  const c = new Row(n, depth, false); c.close = true;
+  out.push(c);
 }
+/** The text a host node shows inline (<Text>Hello</Text> on one row, as Chrome's), when it is its only child. */
+export function inlineText(n: TNode): TNode | null { return !n.comp && !n.stage && n.kids.length === 1 && n.kids[0].text ? n.kids[0] : null; }
+/** Whether node n shows its children: the roots open, the rest folded, until the user changes it. */
+export function isOpen(n: TNode): boolean { return closed.has(n.id) ? false : opened.has(n.id) || n.parent === null; }
+function setOpen(n: TNode, on: boolean): void { if (on) { opened.add(n.id); closed.delete(n.id); } else { closed.add(n.id); opened.delete(n.id); } }
+function setOpenAll(n: TNode, on: boolean): void { setOpen(n, on); for (const k of n.kids) setOpenAll(k, on); }
 /** The rows, from the tree and the filters. */
 export function refilter(): void {
   const q = query().trim().toLowerCase(), hit = new Set<i32>(), out: Row[] = [];
@@ -170,7 +240,35 @@ export function refilter(): void {
   for (const r of roots) walk(r, 0, q, hit, out);
   setRows(out);
 }
-export function toggleFold(id: i32): void { if (collapsed.has(id)) collapsed.delete(id); else collapsed.add(id); refilter(); }
+/** Opens or folds node `id`; `all` (Alt-click) its whole subtree with it, as Chrome's. */
+export function toggleFold(id: i32, all: boolean): void {
+  const n = nodeOf(id);
+  if (n === null) return;
+  const on = !isOpen(n as TNode);
+  if (all) setOpenAll(n as TNode, on); else setOpen(n as TNode, on);
+  refilter();
+}
+/** Opens node `id` (or folds it, `on` false) without touching its subtree; false when it already was. */
+export function setFold(id: i32, on: boolean): boolean {
+  const n = nodeOf(id);
+  if (n === null || isOpen(n as TNode) === on || (n as TNode).kids.length === 0) return false;
+  setOpen(n as TNode, on); refilter();
+  return true;
+}
+/** Opens the ancestors of node `id`, so its row shows (a node selected or picked in the program). */
+function reveal(id: i32): void {
+  const n = nodeOf(id);
+  if (n === null) return;
+  let changed = false;
+  for (let p = (n as TNode).parent; p !== null; p = (p as TNode).parent) if (!isOpen(p as TNode)) { setOpen(p as TNode, true); changed = true; }
+  if (changed) refilter();
+}
+/** The first node of the tree (folded or not) that `f` accepts, in document order. */
+export function findNode(f: (n: TNode) => boolean): TNode | null {
+  const look = (n: TNode): TNode | null => { if (f(n)) return n; for (const k of n.kids) { const x = look(k); if (x !== null) return x; } return null; };
+  for (const r of roots) { const x = look(r); if (x !== null) return x; }
+  return null;
+}
 export function nodeOf(id: i32): TNode | null { const n = byId.get(id); return n !== undefined ? n : null; }
 /** A component's first host node (what it draws), or null. */
 function firstHost(n: TNode): TNode | null {
@@ -180,10 +278,13 @@ function firstHost(n: TNode): TNode | null {
 function ownerOf(n: TNode): TNode | null { for (let p = n.parent; p !== null; p = (p as TNode).parent) if ((p as TNode).comp) return p; return null; }
 
 /** Selects a row: a component shows its props and styles its first host node; a host node shows the component that rendered it. */
-export async function select(id: i32): Promise<void> {
-  const n = nodeOf(id);
-  if (n === null) return;
-  setSelected(id);
+export async function select(at: i32): Promise<void> {
+  const x = nodeOf(at);
+  if (x === null) return;
+  const p = (x as TNode).parent;
+  const n: TNode = (x as TNode).text && p !== null && inlineText(p as TNode) === x ? p as TNode : x as TNode;   // a text shown inline: its element's row
+  reveal(n.id);
+  setSelected(n.id);
   const t = n.comp ? firstHost(n) : n.text ? n.parent : n;
   setComp(n.comp ? n : ownerOf(n));
   setTarget(t !== null ? (t as TNode).id : -1);
@@ -264,6 +365,50 @@ export async function toggleClass(c: string): Promise<boolean> {
   return await setClassList(on, off.filter((x: string) => x !== c));
 }
 export async function removeClass(c: string): Promise<boolean> { return await setClassList(onClasses().filter((x: string) => x !== c), offOf().filter((x: string) => x !== c)); }
+/** Class `c` becomes `to` where it is (Chrome's .cls pane edited in place); an empty `to` removes it, a switched-off class stays off. */
+export async function editClass(c: string, to: string): Promise<boolean> {
+  const t = to.trim();
+  if (t === c) return true;
+  if (t.length === 0) return await removeClass(c);
+  const sw = (l: string[]): string[] => { const out: string[] = []; for (const x of l) if (x === c) out.push(t); else if (x !== t) out.push(x); return out; };
+  return await setClassList(sw(onClasses()), sw(offOf()));
+}
+export function isOn(c: string): boolean { return onClasses().indexOf(c) >= 0; }
+/** The text of text node `id` becomes `value` in the program (DOM.setNodeValue, dev runs): shown at once, not written to the source. */
+export async function setTextOf(id: i32, value: string): Promise<boolean> {
+  const n = nodeOf(id);
+  if (n === null || !(n as TNode).text) return false;
+  const r = await call('DOM.setNodeValue', `{"nodeId":${id},"value":${JSON.stringify(value)}}`);
+  const e = errorOf(r);
+  if (e.length > 0) { setStatus(e); return false; }
+  (n as TNode).value = value; (n as TNode).hay = value.toLowerCase() + ' #' + id;
+  setStatus('text applied (not written to the source)');
+  setEdits(edits() + 1);
+  refilter();
+  return true;
+}
+// The properties the Styles pane lists for the node's type, as Chrome shows those that apply: a Text's font and alignment, a View's layout,
+// spacing, border and background, an Image's fit; each shows its computed value until element.style sets it.
+const TEXT_PROPS: string[] = ['font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-align', 'color', 'opacity', 'margin-top', 'margin-bottom'];
+const BOX_PROPS: string[] = ['flex-direction', 'justify-content', 'align-items', 'flex-wrap', 'flex-grow', 'gap', 'width', 'height', 'padding-top', 'padding-right',
+  'padding-bottom', 'padding-left', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left', 'border-width', 'border-color', 'border-radius', 'background-color', 'opacity'];
+const IMAGE_PROPS: string[] = ['object-fit', 'width', 'height', 'border-radius', 'opacity', 'margin-top', 'margin-bottom'];
+export function propsFor(tag: string): string[] {
+  if (tag === 'Text') return TEXT_PROPS;
+  if (tag === 'Image') return IMAGE_PROPS;
+  if (tag === 'Button' || tag === 'Input' || tag === 'TextArea') return BOX_PROPS.concat(['color', 'font-size']);
+  return BOX_PROPS;
+}
+/** A value stepped by the arrow keys as Chrome does: its number moved by `by` (1, 10 with Shift, 0.1 with Alt), the unit kept; unchanged
+ *  when it has no number (a keyword, a colour). */
+export function stepValue(v: string, by: number): string {
+  const t = v.trim();
+  let i = 0;
+  while (i < t.length && '-.0123456789'.indexOf(t.charAt(i)) >= 0) i++;
+  if (i === 0 || isNaN(Number(t.slice(0, i)))) return v;
+  const x = Math.round((Number(t.slice(0, i)) + by) * 10) / 10;
+  return `${x}` + t.slice(i);
+}
 /** The known classes that start with the last word typed (Zinc.completeClass). */
 export async function complete(text: string): Promise<void> {
   setClassDraft(text);
@@ -322,56 +467,9 @@ export async function setStageProp(name: string, value: string): Promise<boolean
   return true;
 }
 
-// ---- the views
-function TreeRow(p: { r: Row }): i32 {
-  const n = p.r.node;
-  const fold = n.kids.length > 0 && !n.text;
-  const color = n.text ? 'text-slate-700' : n.comp ? 'text-sky-800 font-medium' : 'text-purple-800';
-  return <View className={'flex-row items-center h-5 ' + (selected() === n.id ? 'bg-sky-100' : p.r.match ? 'bg-amber-50' : 'bg-white')} style={{ paddingLeft: 4 + p.r.depth * 12 }}>
-    <Button className="w-4 h-5 flex-row items-center justify-center bg-white" onClick={() => { if (fold) toggleFold(n.id); }}>
-      <Text className="text-xs text-slate-500">{fold ? (collapsed.has(n.id) && query().length === 0 ? '+' : '-') : ''}</Text>
-    </Button>
-    <Button className="flex-1 flex-row items-center justify-start h-5 bg-transparent" onClick={() => { select(n.id); }}>
-      <Text className={'text-xs font-mono ' + color}>{label(n)}</Text>
-      {n.comp && n.source.length > 0 ? <Text className="ml-2 text-xs text-slate-400">{n.source}</Text> : <View />}
-    </Button>
-  </View>;
-}
-
-export function ElementsView(): i32 {
-  return <View className="flex-col flex-1">
-    <View className="flex-row items-center gap-2 px-2 py-1 border-b">
-      <Field value={query} width="w-56" onInput={(v: string) => { setQuery(v); refilter(); }} onChange={(v: string) => {}} />
-      <Toggle label="Rendered only" on={renderedOnly()} onClick={() => { setRenderedOnly(!renderedOnly()); refilter(); }} />
-      <Toggle label="Components only" on={componentsOnly()} onClick={() => { setComponentsOnly(!componentsOnly()); refilter(); }} />
-      <Toggle label="Hide host wrappers" on={hideWrappers()} onClick={() => { setHideWrappers(!hideWrappers()); refilter(); }} />
-      <Text className="text-xs text-slate-500">{rows().length + ' nodes'}</Text>
-    </View>
-    <VirtualList count={rows().length} itemHeight={20} className="flex-1">
-      {(i: i32) => <TreeRow r={rows()[i]} />}
-    </VirtualList>
-  </View>;
-}
-
-function ClassChip(p: { c: string; on: boolean }): i32 {
-  return <View className={'flex-row items-center gap-1 h-6 px-1 rounded border ' + (p.on ? 'bg-white border-slate-300' : 'bg-slate-100 border-slate-200')}>
-    <Button className="flex-row items-center h-5 bg-transparent" onClick={() => { toggleClass(p.c); }}>
-      <Text className={'text-xs font-mono ' + (p.on ? 'text-slate-900' : 'text-slate-400 line-through')}>{p.c}</Text>
-    </Button>
-    <Button className="h-5 px-1 flex-row items-center bg-transparent" onClick={() => { removeClass(p.c); }}><Text className="text-xs text-slate-400">×</Text></Button>
-  </View>;
-}
-function DeclRow(p: { d: Decl }): i32 {
-  return <View className="flex-row items-center gap-1">
-    <Toggle label="" on={p.d.on} onClick={() => { toggleProp(p.d.name); }} />
-    <Text className={'text-xs font-mono ' + (p.d.on ? 'text-rose-700' : 'text-slate-400 line-through')}>{p.d.name + ':'}</Text>
-    <Field value={() => p.d.value} width="w-24" onInput={(v: string) => {}} onChange={(v: string) => { setProp(p.d.name, v); }} />
-    <Button className="h-5 px-1 flex-row items-center bg-transparent" onClick={() => { deleteProp(p.d.name); }}><Text className="text-xs text-slate-400">×</Text></Button>
-  </View>;
-}
-
+// ---- the views of the right column shared with styles.tsx (the tree is tree.tsx)
 /** The right column of Elements: component and props, live styling, box model and computed style. */
-function CompBox(p: { c: TNode }): i32 {   // the component selected (or the one that rendered the node): where it is called, its props as written
+export function CompBox(p: { c: TNode }): i32 {   // the component selected (or the one that rendered the node): where it is called, its props as written
   return <View className="flex-col gap-1 p-2 rounded bg-sky-50 border border-sky-100">
     <Text className="text-xs font-medium text-sky-900">{'<' + p.c.tag + '>' + (p.c.source.length > 0 ? ' · ' + p.c.source : '')}</Text>
     <Text className="text-xs font-mono text-slate-700">{p.c.props.length > 0 ? p.c.props : 'no props'}</Text>
@@ -385,7 +483,7 @@ function StageRow(p: { name: string; value: string }): i32 {
   </View>;
 }
 /** The right column for a zinc:stage node: its class and properties, edited live in dev runs. */
-function StageBox(): i32 {
+export function StageBox(): i32 {
   const rows = (): string[][] => { const a = stageAttrs(), out: string[][] = []; for (let i = 0; i + 1 < a.length; i += 2) out.push([a[i], a[i + 1]]); return out; };
   const n = nodeOf(target());
   return <View className="flex-col gap-1 p-2">
@@ -396,43 +494,21 @@ function StageBox(): i32 {
     <Text className="text-xs font-medium text-slate-600">{box() === '' ? 'Box' : 'Box · ' + box()}</Text>
   </View>;
 }
-export function StylesPane(): i32 {
-  return <ScrollView className="flex-1">
-    {stageAttrs().length > 0 ? <StageBox /> : <CssPane />}
-  </ScrollView>;
-}
-function CssPane(): i32 {
-  return <View className="flex-col">
-    <View className="flex-col gap-2 p-2">
-      {comp() !== null ? <CompBox c={comp() as TNode} /> : <View />}
-      <Text className={'text-xs ' + (devRun() ? 'text-emerald-700' : 'text-amber-700')}>{devRun() ? 'Live: edits apply at once and are not written to your source (the console prints the patch).' :
-        'Read-only: live styling needs a dev run (start the program with zinc dev).'}</Text>
-      <Text className="text-xs font-medium text-slate-600">className</Text>
-      <View className="flex-row flex-wrap gap-1">{classes().map((x: string) => <ClassChip c={x} on={onClasses().indexOf(x) >= 0} />)}</View>
-      <View className="flex-row items-center gap-1">
-        <Field value={classDraft} width="w-40" onInput={(v: string) => { complete(v); }} onChange={(v: string) => { addClass(v); }} />
-        <Btn label="Add class" onClick={() => { addClass(classDraft()); }} />
-      </View>
-      <View className="flex-row flex-wrap gap-1">{completions().map((x: string) => <Flat label={x} on={false} onClick={() => { addClass(x); }} />)}</View>
-      <Text className="text-xs font-medium text-slate-600">element.style</Text>
-      <View className="flex-col gap-1">{decls().map((d: Decl) => <DeclRow d={d} />)}</View>
-      <View className="flex-row items-center gap-1">
-        <Field value={propName} width="w-24" onInput={(v: string) => { setPropName(v); }} onChange={(v: string) => {}} />
-        <Field value={propValue} width="w-20" onInput={(v: string) => { setPropValue(v); }} onChange={(v: string) => { setProp(propName(), v); }} />
-        <Btn label="Set" onClick={() => { setProp(propName(), propValue()); }} />
-      </View>
-      <View className="flex-col">{rules().map((l: string) => <Mono text={l} color="text-slate-700" />)}</View>
-      <Text className="text-xs font-medium text-slate-600">{box() === '' ? 'Box model' : 'Box model · ' + box()}</Text>
-      <View className="flex-col">{boxLines().map((l: string) => <Mono text={l} color="text-slate-700" />)}</View>
-      <Text className="text-xs font-medium text-slate-600">Computed</Text>
-      <View className="flex-col">{styles().map((s: string) => <Mono text={s} color="text-slate-800" />)}</View>
-    </View>
-  </View>;
-}
-
 /** ZINC_INSPECTOR_DUMP: the tree under each filter, a component selected, and live styling (or its refusal), as text. */
 export async function dumpElements(): Promise<void> {
-  const show = (title: string): void => { console.log(title + ':'); for (const r of rows()) console.log('  '.repeat(r.depth + 1) + label(r.node)); };
+  const show = (title: string): void => {   // a node a line, its inline text on the next one
+    console.log(title + ':');
+    for (const r of rows()) if (!r.close) {
+      console.log('  '.repeat(r.depth + 1) + label(r.node));
+      const t = inlineText(r.node);
+      if (t !== null) console.log('  '.repeat(r.depth + 2) + label(t as TNode));
+    }
+  };
+  console.log('elements, folded:');   // as the panel opens: the roots open, the rest folded; then Alt-click on a root opens its whole subtree
+  for (const r of rows()) console.log('  '.repeat(r.depth + 1) + lineOf(r).text);
+  for (const r of roots) toggleFold(r.id, true);   // the roots were open: Alt-click folds them all, a second one opens everything
+  console.log('alt-click folds: ' + rows().length + ' rows');
+  for (const r of roots) toggleFold(r.id, true);
   show('elements');
   setRenderedOnly(false); refilter();
   show('elements, all');
@@ -483,7 +559,21 @@ export async function dumpElements(): Promise<void> {
   const s3 = computedValue('width');
   await deleteProp('width');
   console.log('style edit: width ' + s1 + ', off ' + s2 + ', on ' + s3 + ', deleted ' + computedValue('width') + ' | element.style ' + inline().text);
+  await editClass('w-8', 'w-12');   // a class edited in place (Chrome's .cls pane)
+  console.log('class edited in place: width ' + computedValue('width') + ' | ' + label(sq as TNode));
+  for (const r of rows()) { const t = inlineText(r.node); if (r.node.tag === 'Text' && t !== null) { await dumpTextStyles(r.node); break; } }
   await sleep(300);   // the patch reaches the console
+}
+/** A Text's properties in the Styles pane, its font size stepped up by the arrow key and its alignment set, then both removed. */
+async function dumpTextStyles(n: TNode): Promise<void> {
+  await select(n.id);
+  console.log('text properties: ' + propsFor(n.tag).join(' '));
+  const f0 = computedValue('font-size'), up = stepValue(f0, 10);
+  await setProp('font-size', up);
+  await setProp('text-align', 'center');
+  const f1 = computedValue('font-size'), a1 = computedValue('text-align');
+  await deleteProp('font-size'); await deleteProp('text-align');
+  console.log('text style edit: font-size ' + f0 + ' -> ' + f1 + ', text-align ' + a1 + ', removed ' + computedValue('font-size') + ' ' + computedValue('text-align'));
 }
 
 function hasNamed(n: TNode, nm: string): boolean { if (n.stage && stageAttr(n, 'name') === nm) return true; for (const k of n.kids) if (hasNamed(k, nm)) return true; return false; }

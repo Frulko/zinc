@@ -8,7 +8,9 @@
 # padding-left: 40px (the target's frame changes and its console gets the class patch), a frame of its screen. The console (log and error
 # lines, those from before the attach replayed). Network (ZN-373.03): the POST with its status, body, payload, headers, timing phases, JSON
 # preview, cURL, the filters, a WebSocket with its messages and the HAR export. ZN-373.05: half a second in the Performance view.
-# The same program not in a dev run: no component names, and the class and element.style edits refused with the message.
+# Chrome's tree: folded by default (Alt-click folds or opens a subtree), the long className of an iPod-like row wrapped, the arrow keys, a class
+# edited in place, a Text's properties (font size stepped, alignment), its text edited in its row (DOM.setNodeValue).
+# The same program not in a dev run: no component names, and the class, element.style and text edits refused with the message.
 # ZN-373.04: the Sources view against zinc debug --cdp: a breakpoint set on a line, the stop there with the stack, the locals (a Point
 # unfolded) and two watches, step into, over and out, the breakpoint removed and the program run to its end.
 cd "$(dirname "$0")/../.." || exit 2
@@ -46,6 +48,15 @@ grep -qF 'Never shown' "$tmp/all" && grep -qF '"Row 7"' "$tmp/all" || { echo "wi
 [ "$(section 'components only' | tr -d ' ' | tr '\n' ' ')" = "<Card> <Squares> " ] || { echo "components only: $(section 'components only')"; fail=1; }
 section "search rose" | grep -qF '<View className="w-4 h-4 bg-rose-600">' && ! section "search rose" | grep -qF 'bg-sky-600' || { echo "the search does not show its match alone with its ancestors"; fail=1; }
 want "dev run: true"
+section "elements, folded" | tr -d ' ' | tr '\n' ' ' | grep -qF '<View> <ViewclassName="flex-colgap-2p-4">…</View> </View>' || { echo "not folded by default: $(section 'elements, folded')"; fail=1; }   # the root open, the rest folded
+want "alt-click folds: 1 rows"
+want "long row: 3 lines"   # the iPod row's long className wraps under its tag, nothing clipped
+want "clipped false"
+want "class edited in place: width 48px | <View className=\"w-4 h-4 bg-rose-600 w-12\">"
+want "text properties: font-size font-weight line-height letter-spacing text-align color"
+want "text style edit: font-size 18px -> 28px, text-align center, removed 18px left"
+want "keys: down moves true, up comes back true"
+want "text edit: program text true"
 want 'class edit: width 16px -> 32px, off 16px, on 32px | <View className="w-4 h-4 bg-rose-600 w-8">'
 want "completion bg-ros: bg-rose-50 bg-rose-100 bg-rose-200"
 want "style edit: width 50px, off 32px, on 50px, deleted 32px | element.style "
@@ -94,6 +105,7 @@ want "dev run: false"
 want "class refused: live styling works in dev runs only (zinc dev): this program was not started by zinc dev, and nothing was changed"
 want "style refused: live styling works in dev runs only (zinc dev)"
 want "width still 16px"
+want "text edit: refused: live styling works in dev runs only"
 grep -qF '<Card>' "$tmp/dump" && { echo "a run that is not a dev run has component names"; fail=1; }
 [ $fail -eq $f0 ] || cat "$tmp/dump"
 kill $target 2>/dev/null

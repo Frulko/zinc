@@ -15,7 +15,9 @@ import { Target, Cdp, discover, TraceFrame, PhaseTotal, traceFrames, phaseTotals
 import { ThreadsView, watchThreads, threads, threadLine } from './threads';
 import { conn, call, status, setStatus, view, setView, setDevRun, sleep, until } from './state';
 import { Btn } from './widgets';
-import { ElementsView, StylesPane, loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, styles, rules, box, target, setProp, label, TNode } from './elements';
+import { ElementsView, dumpTree } from './tree';
+import { StylesPane } from './styles';
+import { loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, styles, rules, box, target, setProp, label, findNode, TNode } from './elements';
 import { NetworkView, onNetwork, onReload, dumpNetwork, reqs, pick, Req } from './network';
 import { StorageView, loadStorage, onStorage, changes, dumpStorage, items, pickItem, tables, openTable } from './storage';
 import { SourcesView, DebugPane, onDebugger, resetSources, setWaiting, setPaused, setEnded, dumpDebugger } from './sources';
@@ -324,6 +326,7 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the panels as t
   await until(() => rows().length > 0);
   await sleep(1200);
   await dumpElements();
+  await dumpTree();
   if (mode === 'elements') { quit(); return; }
   let pad: TNode | null = null;   // ZN-373.02: a node with a padding class, its rules, element.style edited, the program's frame before and after
   for (const r of rows()) if (r.node.cls.startsWith('p-') || r.node.cls.indexOf(' p-') >= 0) { pad = r.node; break; }
@@ -377,7 +380,8 @@ async function openView(v: string): Promise<void> {
   await sleep(500);
   if (v === 'network') { for (const r of reqs()) if (!r.ws()) { await pick(r); break; } return; }   // a request picked: its details show
   if (v === 'storage') { if (items().length > 0) pickItem(items()[items().length - 1].key); else if (tables().length > 0) await openTable(tables()[0], 0); return; }   // a key, else a table
-  for (const r of rows()) if (r.node.comp) { await select(r.node.id); break; }   // a component selected: its props and styles show
+  const c = findNode((n: TNode): boolean => n.comp);   // a component selected (its props and styles show), the path to it opened
+  if (c !== null) await select((c as TNode).id);
 }
 
 render(App, 0xffffff, (dt: number) => {});
