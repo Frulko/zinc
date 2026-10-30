@@ -19,7 +19,7 @@ import { ResizeHandle } from 'zinc:ui/kit';
 import { Btn, Flat } from './widgets';
 import { ElementsView, dumpTree, scrollToNode } from './tree';
 import * as ui from 'zinc:ui';
-import { StylesPane } from './styles';
+import { StylesPane, dumpStyles } from './styles';
 import { loadDocument, refreshRendered, refreshStage, renderedOnly, rows, dumpElements, select, selected, nodeOf, styles, rules, box, target, setProp, label, findNode, inlineText, TNode, Row } from './elements';
 import { NetworkView, onNetwork, onReload, dumpNetwork, reqs, pick, Req } from './network';
 import { StorageView, loadStorage, onStorage, changes, dumpStorage, items, pickItem, tables, openTable } from './storage';
@@ -558,6 +558,7 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the panels as t
   await sleep(1200);
   await dumpElements();
   await dumpTree();
+  await dumpStyles();
   if (mode === 'elements') { quit(); return; }
   let pad: TNode | null = null;   // ZN-373.02: a node with a padding class, its rules, element.style edited, the program's frame before and after
   for (const r of rows()) if (r.node.cls.startsWith('p-') || r.node.cls.indexOf(' p-') >= 0) { pad = r.node; break; }

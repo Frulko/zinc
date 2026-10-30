@@ -302,6 +302,7 @@ export async function select(at: i32): Promise<void> {
 export async function readStyles(): Promise<void> {
   const id = target();
   if (id < 0) { setStyles([]); setBox(''); setBoxLines([]); setRules([]); setClasses([]); setDecls([]); setStageAttrs([]); return; }
+  if (cssProps().length === 0) await loadCssProps();
   const sn = nodeOf(id);
   setStageAttrs(sn !== null && (sn as TNode).stage ? (sn as TNode).attrs.slice(0) : []);
   const computed = await call('CSS.getComputedStyleForNode', `{"nodeId":${id}}`);
@@ -316,9 +317,9 @@ export async function readStyles(): Promise<void> {
   setInline(i);
   if (!declsOf.has(id)) declsOf.set(id, parseDecls(i.text));
   setDecls((declsOf.get(id) as Decl[]).slice(0));
-  const n = nodeOf(id), off = offClasses.get(id);
-  const on = n !== null ? (n as TNode).cls.split(' ').filter((c: string) => c.length > 0) : [];
+  const off = offClasses.get(id), on = onClasses();
   setClasses(on.concat(off !== undefined ? off : []));
+  await readChanges();
 }
 /** The box model as Chrome draws it, in lines: margin, border, padding, content. */
 function boxModel(lines: string[], size: string): string[] {
@@ -341,27 +342,57 @@ function parseDecls(text: string): Decl[] {
 
 // ---- live styling (dev runs): classes and element.style
 /** The class attribute of the target becomes `on`; `off` are kept to switch on again. False (and the status says why) when refused. */
-async function setClassList(on: string[], off: string[]): Promise<boolean> {
+async function setClassList(on: string[], off: string[], rec: boolean = true): Promise<boolean> {
   const id = target(), n = nodeOf(id);
   if (n === null) return false;
+  const was = snap();
+  previewBase = null;
   const v = on.join(' ');
   const r = await call('DOM.setAttributeValue', `{"nodeId":${id},"name":"class","value":${JSON.stringify(v)}}`);
   const e = errorOf(r);
   if (e.length > 0) { setStatus(e); return false; }
   (n as TNode).cls = v; offClasses.set(id, off);
+  if (rec) remember(id, was);
   setStatus('className applied (not written to the source)');
   setEdits(edits() + 1);
   await readStyles();
   refilter();
   return true;
 }
-function onClasses(): string[] { const n = nodeOf(target()); return n !== null ? (n as TNode).cls.split(' ').filter((c: string) => c.length > 0) : []; }
+function onClasses(): string[] {
+  const n = nodeOf(target());
+  return (previewBase !== null ? previewBase as string : n !== null ? (n as TNode).cls : '').split(' ').filter((c: string) => c.length > 0);
+}
+/** The target's whole className (the .cls pane edited as text). */
+export function classText(): string { return onClasses().join(' '); }
+/** The className becomes `text` (the .cls pane's "edit as text"); the classes switched off and not in it stay off. */
+export async function setClassText(text: string): Promise<boolean> {
+  const on = text.split(' ').filter((c: string) => c.length > 0);
+  return await setClassList(on, offOf().filter((x: string) => on.indexOf(x) < 0));
+}
+// A class of the completion previewed on the node (arrowed through or hovered), as Chrome's: applied in the program without being a change
+// (no patch, no undo); the className before the preview comes back when none is chosen.
+let previewBase: string | null = null;
+/** Class `c` previewed on the target, added to its classes; null takes the preview away. */
+export async function previewClass(c: string | null): Promise<void> {
+  const id = target(), n = nodeOf(id);
+  if (n === null || (c === null && previewBase === null)) return;
+  if (previewBase === null) previewBase = (n as TNode).cls;
+  const base = previewBase as string;
+  const v = c === null ? base : onClasses().filter((x: string) => x !== c).concat([c as string]).join(' ');
+  if (c === null) previewBase = null;
+  await call('DOM.setAttributeValue', `{"nodeId":${id},"name":"class","value":${JSON.stringify(v)},"preview":true}`);
+  (n as TNode).cls = c === null ? base : (n as TNode).cls;
+}
+export function previewing(): boolean { return previewBase !== null; }
 function offOf(): string[] { const o = offClasses.get(target()); return o !== undefined ? o.slice(0) : []; }
+/** Adds the classes of `c` (several, separated by spaces, as Chrome's .cls field takes them). */
 export async function addClass(c: string): Promise<boolean> {
-  const t = c.trim();
-  if (t.length === 0) return false;
-  const on = onClasses().filter((x: string) => x !== t); on.push(t);
-  const ok = await setClassList(on, offOf().filter((x: string) => x !== t));
+  const add = c.split(' ').filter((x: string) => x.length > 0);
+  if (add.length === 0) return false;
+  const on = onClasses().filter((x: string) => add.indexOf(x) < 0);
+  for (const x of add) on.push(x);
+  const ok = await setClassList(on, offOf().filter((x: string) => add.indexOf(x) < 0));
   if (ok) { setClassDraft(''); setCompletions([]); }
   return ok;
 }
@@ -419,7 +450,7 @@ export function stepValue(v: string, by: number): string {
 /** The known classes that start with the last word typed (Zinc.completeClass). */
 export async function complete(text: string): Promise<void> {
   setClassDraft(text);
-  const w = text.trim();
+  const w = text.endsWith(' ') ? '' : text.slice(text.lastIndexOf(' ') + 1);
   if (w.length === 0) { setCompletions([]); return; }
   const r = await call('Zinc.completeClass', `{"prefix":${JSON.stringify(w)}}`);
   const out: string[] = [];
@@ -427,14 +458,16 @@ export async function complete(text: string): Promise<void> {
   setCompletions(out);
 }
 /** element.style of the target becomes the panel's properties (switched-off ones as comments, which apply nothing). */
-async function applyDecls(list: Decl[]): Promise<boolean> {
+async function applyDecls(list: Decl[], rec: boolean = true): Promise<boolean> {
   const id = target(), i = inline();
   if (id < 0 || i.sheet === '') return false;
+  const was = snap();
   const text = list.map((d: Decl) => d.on ? d.name + ': ' + d.value + ';' : '/* ' + d.name + ': ' + d.value + '; */').join(' ');
   const r = await call('CSS.setStyleTexts', `{"edits":[{"styleSheetId":${JSON.stringify(i.sheet)},"range":${i.range},"text":${JSON.stringify(text)}}]}`);
   const e = errorOf(r);
   if (e.length > 0) { setStatus(e); return false; }
   declsOf.set(id, list);
+  if (rec) remember(id, was);
   setStatus('element.style applied (not written to the source)');
   setEdits(edits() + 1);
   await readStyles();
@@ -452,8 +485,97 @@ export async function setProp(name: string, value: string): Promise<boolean> {
   if (ok) { setPropName(''); setPropValue(''); }
   return ok;
 }
+/** Several declarations at once ([name, value]...: a paste of `a: b; c: d`), one change. */
+export async function setProps(pairs: string[][]): Promise<boolean> {
+  const l = copyDecls();
+  for (const p of pairs) {
+    let found = false;
+    for (const d of l) if (d.name === p[0]) { d.value = p[1]; d.on = true; found = true; }
+    if (!found) { const d = new Decl(); d.name = p[0]; d.value = p[1]; l.push(d); }
+  }
+  return pairs.length > 0 && await applyDecls(l);
+}
+/** The declarations of a text (`padding: 4px; color: #f00`) as [name, value] pairs. */
+export function declPairs(text: string): string[][] { return parseDecls(text).map((d: Decl) => [d.name, d.value]).filter((p: string[]) => p[1].length > 0); }
+/** Property `from` of element.style renamed `to` where it is (its name edited in place); an empty name removes it. */
+export async function renameProp(from: string, to: string): Promise<boolean> {
+  const t = to.trim();
+  if (t === from) return true;
+  if (t.length === 0) return await deleteProp(from);
+  const l = copyDecls().filter((d: Decl) => d.name !== t);
+  for (const d of l) if (d.name === from) d.name = t;
+  return await applyDecls(l);
+}
 export async function toggleProp(name: string): Promise<boolean> { const l = copyDecls(); for (const d of l) if (d.name === name) d.on = !d.on; return await applyDecls(l); }
 export async function deleteProp(name: string): Promise<boolean> { return await applyDecls(copyDecls().filter((d: Decl) => d.name !== name)); }
+
+// ---- the properties element.style applies (Zinc.cssProperties: the program's own list), for the completion
+export class CssProp { name: string = ''; kind: string = ''; values: string[] = []; }
+export const [cssProps, setCssProps] = createSignal<CssProp[]>([]);
+async function loadCssProps(): Promise<void> {
+  const r = await call('Zinc.cssProperties', '{}');
+  const out: CssProp[] = [];
+  if (r.properties !== undefined) for (const x of r.properties) {
+    const p = new CssProp(); p.name = x.name; p.kind = x.kind;
+    for (const v of x.values) { const s: string = v; p.values.push(s); }
+    out.push(p);
+  }
+  setCssProps(out);
+}
+export function propInfo(name: string): CssProp | null { for (const p of cssProps()) if (p.name === name) return p; return null; }
+/** The property names for what is typed: those that start with it, then those that contain it. */
+export function nameCompletions(typed: string): string[] {
+  const t = typed.trim().toLowerCase(), a: string[] = [], b: string[] = [];
+  for (const p of cssProps()) if (p.name.startsWith(t)) a.push(p.name); else if (t.length > 0 && p.name.indexOf(t) >= 0) b.push(p.name);
+  return a.concat(b).slice(0, 12);
+}
+/** The keywords of property `name` for what is typed (all of them while the value is one of them or empty). */
+export function valueCompletions(name: string, typed: string): string[] {
+  const p = propInfo(name);
+  if (p === null) return [];
+  const t = typed.trim().toLowerCase(), vs = (p as CssProp).values;
+  return vs.indexOf(t) >= 0 ? vs.slice(0) : vs.filter((v: string) => v.startsWith(t));
+}
+
+// ---- undo and redo of the inspector's edits, per node (Cmd/Ctrl+Z, Shift+Cmd/Ctrl+Z): its classes, the ones switched off, element.style
+class Snap { on: string[] = []; off: string[] = []; decls: Decl[] = []; }
+const undos = new Map<i32, Snap[]>(), redos = new Map<i32, Snap[]>();
+export const [history, setHistory] = createSignal<i32>(0);   // bumped at each change of the stacks (the buttons follow)
+function snap(): Snap { const s = new Snap(); s.on = onClasses(); s.off = offOf(); s.decls = copyDecls(); return s; }
+function remember(id: i32, was: Snap): void {
+  const u = undos.get(id);
+  if (u !== undefined) u.push(was); else undos.set(id, [was]);
+  redos.delete(id);
+  setHistory(history() + 1);
+}
+export function canUndo(redo: boolean): boolean { const l = (redo ? redos : undos).get(target()); return l !== undefined && l.length > 0; }
+/** The target's last edit undone (or the last undone one done again, `redo`); false when there is none. */
+export async function undo(redo: boolean): Promise<boolean> {
+  const id = target(), from = redo ? redos : undos, to = redo ? undos : redos, l = from.get(id);
+  if (l === undefined || l.length === 0) return false;
+  const s = l.pop() as Snap, now = snap();
+  const t = to.get(id);
+  if (t !== undefined) t.push(now); else to.set(id, [now]);
+  setHistory(history() + 1);
+  if (s.on.join(' ') !== now.on.join(' ') || s.off.join(' ') !== now.off.join(' ')) { if (!(await setClassList(s.on, s.off, false))) return false; }
+  const text = (l: Decl[]): string => l.map((d: Decl) => (d.on ? '' : '!') + d.name + ':' + d.value).join(';');
+  if (text(s.decls) !== text(now.decls)) return await applyDecls(s.decls, false);
+  return true;
+}
+
+// ---- the patch of the session (Zinc.getStylePatch): what each edited node's source has and what to write instead; never written by us
+export class Change { where: string = ''; was: string = ''; now: string = ''; }
+export const [changes, setChanges] = createSignal<Change[]>([]);
+export async function readChanges(): Promise<void> {
+  const r = await call('Zinc.getStylePatch', '{}');
+  const out: Change[] = [];
+  if (r.changes !== undefined) for (const x of r.changes) { const c = new Change(); c.where = x.where; c.was = x.was; c.now = x.now; out.push(c); }
+  setChanges(out);
+}
+/** The changes as text to paste: each node, then its line before and after. */
+export function changesText(): string {
+  return changes().map((c: Change) => c.where + '\n' + (c.was === 'style' ? '' : '- ' + c.was + '\n') + '+ ' + c.now).join('\n\n');
+}
 
 // ---- live edits of a zinc:stage node (dev runs): its position, size, scale, rotation, alpha, visibility
 const STAGE_EDITABLE: string[] = ['x', 'y', 'width', 'height', 'scaleX', 'scaleY', 'rotation', 'alpha', 'visible'];

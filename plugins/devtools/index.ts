@@ -245,7 +245,10 @@ function handle(client: i32, msg: string): void {
     const name = Cdp.str(msg, 'name');
     if (name === 'class' || method === 'DOM.setAttributesAsText') {
       const v = method === 'DOM.setAttributeValue' ? Cdp.str(msg, 'value') : classFromText(Cdp.str(msg, 'text'));
+      if (wasOf(h) === null) classWas.set(h, new Was(n, cls(n)));
+      touch(h);
       setClass(h, v);
+      if (msg.indexOf('"preview":true') < 0) printPatch();   // a class previewed while the completion is arrowed through is not a change yet
       Cdp.send(-1, `{"method":"DOM.attributeModified","params":{"nodeId":${nodeId},"name":"class","value":${q(v)}}}`);
     }
   } else if (method === 'DOM.setNodeValue' && n !== null && nodeId >= TEXT_BASE && n.tag === TEXT) {   // a text edited in Elements: shown at once, not written to the source
@@ -327,6 +330,8 @@ function handle(client: i32, msg: string): void {
     pauseSync();
     result = `{"paused":${pausedShown}}`;
   }
+  else if (method === 'Zinc.getStylePatch') result = `{"changes":[${changes().map((c: string[]) => `{"where":${q(c[0])},"was":${q(c[1])},"now":${q(c[2])}}`).join(',')}]}`;
+  else if (method === 'Zinc.cssProperties') result = cssProperties();
   else if (method === 'Zinc.completeClass') result = `{"classes":[${knownClasses(Cdp.str(msg, 'prefix'), 40).map((c: string) => q(c)).join(',')}]}`;
   else if (method === 'Runtime.evaluate') result = '{"result":{"type":"string","value":"zinc: no JavaScript engine on the device (the console shows the program output)"}}';
   Cdp.send(client, `{"id":${id},"result":${result}}`);
@@ -404,6 +409,9 @@ const CSS_PROPS: string[][] = [
   ['line-height', 'lineHeight', 'leading', '0'], ['letter-spacing', 'letterSpacing', 'tracking', '0'], ['flex-grow', 'grow', 'grow', '2'],
   ['flex-direction', 'flexDirection', 'flex', '3'], ['flex-wrap', 'flexWrap', 'flex', '3'], ['justify-content', 'justifyContent', 'justify', '3'],
   ['align-items', 'alignItems', 'items', '3'], ['font-weight', 'fontWeight', 'font', '3'], ['text-align', 'textAlign', 'text', '3'], ['object-fit', 'objectFit', 'object', '3'],
+  ['align-self', 'alignSelf', 'self', '3'], ['align-content', 'alignContent', 'content', '3'], ['display', 'hidden', '', '3'], ['position', 'position', '', '3'],
+  ['overflow', 'overflow', 'overflow', '3'], ['flex-shrink', 'shrink', 'shrink', '2'],
+  ['top', 'top', 'top', '0'], ['right', 'right', 'right', '0'], ['bottom', 'bottom', 'bottom', '0'], ['left', 'left', 'left', '0'],
 ];
 /** The keywords of a kind 3 longhand and their numbers, as the compiler maps them (src/frontend/jsx.cpp kStyleEnums); then each one's class. */
 const CSS_ENUMS: string[][] = [
@@ -413,6 +421,9 @@ const CSS_ENUMS: string[][] = [
   ['font-weight', 'normal', '400', 'bold', '700', '100', '100', '200', '200', '300', '300', '400', '400', '500', '500', '600', '600', '700', '700', '800', '800', '900', '900'],
   ['text-align', 'left', '0', 'start', '0', 'center', '1', 'right', '2', 'end', '2'],
   ['object-fit', 'fill', '0', 'contain', '1', 'cover', '2', 'none', '3', 'scale-down', '4'],
+  ['align-self', 'auto', '-1', 'flex-start', '0', 'center', '1', 'flex-end', '2', 'stretch', '3', 'baseline', '4'],
+  ['align-content', 'flex-start', '0', 'center', '1', 'flex-end', '2', 'stretch', '3', 'space-between', '4', 'space-around', '5', 'space-evenly', '6'],
+  ['display', 'flex', '0', 'none', '1'], ['position', 'relative', '0', 'absolute', '1'], ['overflow', 'visible', '0', 'hidden', '1', 'scroll', '2'],
 ];
 const WEIGHTS: string[] = ['thin', 'extralight', 'light', 'normal', 'medium', 'semibold', 'bold', 'extrabold', 'black'];
 function enumOf(name: string): string[] { for (const e of CSS_ENUMS) if (e[0] === name) return e; return []; }
@@ -422,13 +433,39 @@ function enumNumber(name: string, v: string): number { const e = enumOf(name); f
 function keyword(name: string, k: number): string { const e = enumOf(name); for (let i = 1; i + 1 < e.length; i += 2) if (Number(e[i + 1]) === k) return e[i]; return `${k}`; }
 /** The class of a kind 3 declaration: justify-content: space-between is justify-between, font-weight: 600 font-semibold. */
 function enumClass(p: string[], v: string): string {
+  if (p[0] === 'display') return v === 'none' ? 'hidden' : 'flex';
+  if (p[0] === 'position') return v;
   if (p[0] === 'font-weight') return 'font-' + WEIGHTS[Math.round(enumNumber(p[0], v) / 100) - 1];
   if (p[0] === 'flex-direction' || p[0] === 'flex-wrap') return v === 'column' ? 'flex-col' : v === 'column-reverse' ? 'flex-col-reverse' : 'flex-' + v;
   return p[2] + '-' + (v.startsWith('flex-') ? v.slice(5) : v.startsWith('space-') ? v.slice(6) : v);
 }
+/** Zinc.cssProperties: the properties element.style applies, each with its kind (length, color, number, keyword) and its keywords, for the
+ *  inspector's completion (one list: what the engine applies). */
+function cssProperties(): string {
+  const kinds = ['length', 'color', 'number', 'keyword'], out: string[] = ['{"name":"padding","kind":"length","values":[]}', '{"name":"margin","kind":"length","values":[]}'];
+  for (const p of CSS_PROPS) {
+    const e = enumOf(p[0]), v: string[] = [];
+    for (let i = 1; i + 1 < e.length; i += 2) if (v.indexOf(e[i]) < 0) v.push(e[i]);
+    out.push(`{"name":${q(p[0])},"kind":${q(kinds[Math.round(Number(p[3]))])},"values":[${v.map((x: string) => q(x)).join(',')}]}`);
+  }
+  return `{"properties":[${out.join(',')}]}`;
+}
 function cssProp(name: string): string[] | null { for (const p of CSS_PROPS) if (p[0] === name) return p; return null; }
-/** A length in px ("12px" or "12"), NaN otherwise. */
-function length(v: string): number { const t = v.endsWith('px') ? v.slice(0, v.length - 2) : v; return t.length > 0 && !isNaN(Number(t)) ? Number(t) : NaN; }
+/** A length in px: "12px", "12", "1.5em" (em: the node's font size), "1rem" (16px); NaN otherwise. */
+function length(v: string, em: number): number {
+  const t = v.trim(), u = t.endsWith('rem') ? 3 : t.endsWith('px') || t.endsWith('em') ? 2 : 0, x = t.slice(0, t.length - u);
+  if (x.length === 0 || isNaN(Number(x))) return NaN;
+  return Number(x) * (u === 3 ? 16 : t.endsWith('em') ? em : 1);
+}
+/** What 1em is on node n: its font size from its classes, before the inspector's own font-size (which would compound). */
+function emOf(n: UiNode): number { return classStyle(n.tag, cls(n)).size; }
+/** The fraction of a percent width or height ("50%": 0.5), NaN for anything else. */
+function percent(p: string[], v: string): number {
+  const t = v.trim();
+  if ((p[0] !== 'width' && p[0] !== 'height') || !t.endsWith('%')) return NaN;
+  const x = t.slice(0, t.length - 1);
+  return x.length > 0 && !isNaN(Number(x)) ? Number(x) / 100 : NaN;
+}
 /** 0xRRGGBB of #rgb, #rrggbb, #rrggbbaa, rgb() or rgba(); -1 otherwise. */
 function colour(v: string): i32 {
   const t = v.toLowerCase();
@@ -448,10 +485,23 @@ function colour(v: string): i32 {
   return c;
 }
 /** The number a longhand's value sets (a colour as 0xRRGGBB), NaN when it is not one. */
-function cssNumber(p: string[], v: string): number {
+function cssNumber(p: string[], v: string, em: number): number {
   if (p[3] === '1') { const c = colour(v); return c < 0 ? NaN : c; }
   if (p[3] === '3') return enumNumber(p[0], v.toLowerCase());
-  return p[3] === '0' ? length(v) : (v.length > 0 && !isNaN(Number(v)) ? Number(v) : NaN);
+  return p[3] === '0' ? length(v, em) : (v.length > 0 && !isNaN(Number(v)) ? Number(v) : NaN);
+}
+/** The style keys and numbers declaration name: value sets on a node of font size em (a percent width as widthPercent); false when it sets none. */
+function styleOps(name: string, value: string, em: number, keys: string[], vals: number[]): boolean {
+  const l = longhands(name, value);
+  for (let i = 0; i < l.length; i += 2) {
+    const p = cssProp(l[i]);
+    if (p === null) return false;
+    const f = percent(p as string[], l[i + 1]), v = cssNumber(p as string[], l[i + 1], em);
+    if (!isNaN(f)) { keys.push((p as string[])[1] + 'Percent'); vals.push(f); }
+    else if (!isNaN(v)) { keys.push((p as string[])[1]); vals.push(v); }
+    else return false;
+  }
+  return true;
 }
 /** Declarations [name, value, ...] of a style text: comments (disabled properties) and !important left out. */
 function parseDecls(text: string): string[] {
@@ -477,11 +527,7 @@ function longhands(name: string, value: string): string[] {
   return [name + '-top', top, name + '-right', right, name + '-bottom', bottom, name + '-left', left];
 }
 /** Whether a declaration is one the inspector applies. */
-function applies(name: string, value: string): boolean {
-  const l = longhands(name, value);
-  for (let i = 0; i < l.length; i += 2) { const p = cssProp(l[i]); if (p === null || isNaN(cssNumber(p, l[i + 1]))) return false; }
-  return true;
-}
+function applies(name: string, value: string): boolean { return styleOps(name, value, 16, [], []); }
 function cssText(d: string[]): string { const s: string[] = []; for (let i = 0; i < d.length; i += 2) s.push(`${d[i]}: ${d[i + 1]};`); return s.join(' '); }
 function range(a: i32, b: i32): string { return `{"startLine":0,"startColumn":${a},"endLine":0,"endColumn":${b}}`; }
 /** CSSProperty objects of declarations; with ranges in the text cssText(d) when `ranged`. */
@@ -545,37 +591,38 @@ function setStyleText(sheet: string, text: string): string {
   if (n === null) return '{"styles":[]}';
   const d = parseDecls(text), keys: string[] = [], vals: number[] = [];
   for (let i = 0; i < d.length; i += 2) {
-    if (!applies(d[i], d[i + 1])) continue;
-    const l = longhands(d[i], d[i + 1]);
-    for (let j = 0; j < l.length; j += 2) { const p = cssProp(l[j]) as string[]; keys.push(p[1]); vals.push(cssNumber(p, l[j + 1])); }
+    const k: string[] = [], v: number[] = [];
+    if (styleOps(d[i], d[i + 1], emOf(n), k, v)) for (let j = 0; j < k.length; j++) { keys.push(k[j]); vals.push(v[j]); }
   }
   inspectStyle(h, keys, vals);
-  if (d.length === 0) edits.delete(h);
-  else { if (edited(h) === null) { const at = editOrder.indexOf(h); if (at >= 0) editOrder.splice(at, 1); editOrder.push(h); } edits.set(h, new Edited(n, d)); }
+  if (d.length === 0) edits.delete(h); else { touch(h); edits.set(h, new Edited(n, d)); }
   printPatch();
   return `{"styles":[${inline(h)}]}`;
 }
-/** Where node h is: its component (or the nearest one above it), its tag and its DevTools id. */
+/** Where node h is: its component (or the nearest one above it) with where that is called, its tag and its DevTools id. */
 function label(h: i32, n: UiNode): string {
   let p = h;
   while (p >= 0 && componentName(p).length === 0) p = parentOf(p);
-  return (p >= 0 ? `<${componentName(p)}> ` : '') + `${p === h ? '' : TAG_NAMES[n.tag] + ' '}#${h + 1}`;
+  const src = p >= 0 ? componentSource(p) : '';
+  return (p >= 0 ? `<${componentName(p)}> ` + (src.length > 0 ? src + ' ' : '') : '') + `${p === h ? '' : TAG_NAMES[n.tag] + ' '}#${h + 1}`;
 }
+/** A CSS name as a style object writes it (padding-left: paddingLeft). */
+function camel(name: string): string { let out = ''; for (const w of name.split('-')) out += out.length === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1); return out; }
 /** The patch of node h in its source's form: style object keys when it has style sheets or numbers, else its class string. */
-function patchLine(h: i32, e: Edited): string {
+function patchOf(h: i32, e: Edited): string {
   const n = e.node, keys: string[] = [], toks: string[] = [], set: string[] = [];
   for (let i = 0; i < e.decls.length; i += 2) {
     if (!applies(e.decls[i], e.decls[i + 1])) continue;
     const l = longhands(e.decls[i], e.decls[i + 1]);
     for (let j = 0; j < l.length; j += 2) {
-      const p = cssProp(l[j]) as string[], v = cssNumber(p, l[j + 1]);
-      const shown = p[3] === '1' ? hex(Math.round(v)) : p[3] === '3' ? l[j + 1].toLowerCase() : `${v}`;
-      keys.push(`${p[1]}: ${p[3] === '1' || p[3] === '3' ? q(shown) : shown}`);
-      toks.push(p[3] === '3' ? enumClass(p, shown) : `${p[2]}-[${shown}${p[3] === '0' ? 'px' : ''}]`);
+      const p = cssProp(l[j]) as string[], f = percent(p, l[j + 1]), v = cssNumber(p, l[j + 1], emOf(n));
+      const shown = !isNaN(f) ? `${Math.round(f * 10000) / 100}%` : p[3] === '1' ? hex(Math.round(v)) : p[3] === '3' ? l[j + 1].toLowerCase() : `${Math.round(v * 100) / 100}`;
+      keys.push(`${camel(p[0])}: ${p[3] === '1' || p[3] === '3' || !isNaN(f) ? q(shown) : shown}`);
+      toks.push(p[3] === '3' ? enumClass(p, shown) : `${p[2]}-[${shown}${p[3] === '0' && isNaN(f) ? 'px' : ''}]`);
       set.push(l[j]);
     }
   }
-  if (n.sheetKeys.length > 0 || n.styleKeys.length > 0) return `${label(h, n)}: style, add { ${keys.join(', ')} }`;
+  if (n.sheetKeys.length > 0 || n.styleKeys.length > 0) return `style, add { ${keys.join(', ')} }`;
   // a class that sets only properties the edit sets is replaced; one that sets more (p-4 for padding-left) stays, the new class after it wins
   const base = classStyle(n.tag, ''), kept: string[] = [];
   for (const t of cls(n).split(' ')) {
@@ -586,11 +633,29 @@ function patchLine(h: i32, e: Edited): string {
     if (!covered) kept.push(t);
   }
   for (const t of toks) kept.push(t);
-  return `${label(h, n)}: class="${kept.join(' ')}"`;
+  return `class="${kept.join(' ')}"`;
+}
+/** The class string a node had before the session's first class edit of it, kept with the node (handles are reused). */
+class Was { node: UiNode; cls: string; constructor(node: UiNode, cls: string) { this.node = node; this.cls = cls; } }
+const classWas = new Map<i32, Was>();
+function wasOf(h: i32): Was | null { const w = classWas.get(h); return w !== undefined && inspectNode(h) === w.node ? w : null; }
+/** Node h is edited: it joins the patch (the nodes in the order of their first edit). */
+function touch(h: i32): void { if (editOrder.indexOf(h) < 0) editOrder.push(h); }
+/** The changes of the session, one per node still edited: where it is, what its source has, what to write instead. */
+function changes(): string[][] {
+  const out: string[][] = [];
+  for (const h of editOrder) {
+    const n = inspectNode(h), e = edited(h), w = wasOf(h);
+    if (n === null || (e === null && w === null)) continue;
+    const before = `class="${w !== null ? w.cls : cls(n)}"`;
+    const after = e !== null ? patchOf(h, e) : `class="${cls(n)}"`;
+    if (after !== before) out.push([label(h, n), e !== null && after.startsWith('style') ? 'style' : before, after]);
+  }
+  return out;
 }
 function printPatch(): void {
   const lines: string[] = [];
-  for (const h of editOrder) { const e = edited(h); if (e !== null) lines.push('  ' + patchLine(h, e)); }
+  for (const c of changes()) lines.push(`  ${c[0]}: ${c[2]}`);
   // sent as a console message of its own: the console output of the program reaches DevTools on the prototype's host only
   const text = lines.length > 0 ? 'zinc:devtools: style patch, paste it into the source:\n' + lines.join('\n') : 'zinc:devtools: no style edits left';
   Cdp.send(-1, `{"method":"Runtime.consoleAPICalled","params":{"type":"info","args":[{"type":"string","value":${q(text)}}],"executionContextId":1,"timestamp":${Date.now()}}}`);

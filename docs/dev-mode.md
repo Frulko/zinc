@@ -242,9 +242,15 @@ Its panels (one file each in `app/inspector/`):
   first host node and shows its props. A search box finds a component, a tag, a class, a text or an id and opens the tree down to each
   match. Toggles: *Rendered only* (on by default: hides what draws nothing, such as `display: none` nodes and the rows a virtual list keeps
   outside its view), *Components only*, *Hide host wrappers*. The tree is a virtual list, so a tree of thousands of nodes stays fast.
-- **Live styling** (dev runs only; elsewhere the panel says why and changes nothing): the node's classes as chips (click to switch one off
-  and on, x to remove it), a field to add a class with completion of the known classes, `element.style` properties to add, change, switch
-  off and delete. The computed style and the box model follow at once. Nothing is written to the source: the console prints the patch.
+- **Live styling** (dev runs only; elsewhere the panel says why and changes nothing), as Chrome's Styles pane: `element.style` lists the
+  properties of the node's type; click a name or a value to edit it, or the empty line under them to add one (name, Tab or Enter, value;
+  Shift+Tab goes back; pasting `a: b; c: d` adds both; Escape cancels). Names and keywords complete in a dropdown (Up, Down, Enter, Tab), the
+  arrow keys step a number and keep its unit (`px`, `%` for a width or height, `em`, `rem`), a colour's swatch opens the kit's palette and a
+  hex field. The `.cls` pane: a checkbox per class, edited in place, a field that takes several classes, whose completion previews each class
+  on the node as you arrow or hover it (Escape takes it back), and *Edit as text* for the whole `className`. Cmd/Ctrl+Z and
+  Shift+Cmd/Ctrl+Z undo and redo the node's edits. The computed style and the box model follow at once. Nothing is written to the source:
+  *Changes* shows, per node, its component and `file:line`, the `className` it has and the one to write (or the style keys to add), with a
+  *Copy* button; the console prints the same patch (`Zinc.getStylePatch` and `Zinc.cssProperties` for other clients).
 - **Network**: the requests with status, method, type, size, time and a waterfall; filters by type (fetch, js, img, media, ws, other),
   text and status; *Preserve log*, *Clear*, *Export HAR* (to `~/Downloads`, or `ZINC_INSPECTOR_HAR`). A request shows its headers,
   query and payload, a preview (JSON as a foldable tree, text, an image), the response, the timing phases, *Copy as cURL*, and for a

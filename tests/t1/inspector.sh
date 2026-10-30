@@ -60,6 +60,19 @@ want "text properties: font-size font-weight line-height letter-spacing text-ali
 want "text style edit: font-size 18px -> 28px, text-align center, removed 18px left"
 want "keys: down moves true, up comes back true"
 want "text edit: program text true"
+# the Styles pane driven by its keys (styles.tsx dumpStyles): a declaration added with the completion, Tab, Shift+Tab and Enter, a keyword
+# from the dropdown, a pasted pair, units kept by the arrow keys, Escape; a class previewed and taken back, two classes in one field, the
+# className as text, undo and redo, and the Changes with the component's file:line
+want 'add declaration: "paddi" -> padding padding-top padding-right | Tab: nv padding | Shift+Tab: nn padding | Enter: padding-top 12px, editing ""'
+want "keywords: column row column-reverse row-reverse | chosen: flex-direction row"
+want "paste: margin-top 3px, opacity 0.5"
+want "units: width 51%, font-size 11em = 176px"
+want 'escape: editing "", declarations 6 -> 6'
+want "class preview: #0284c7 -> bg-emerald-50 #ecfdf5 -> Escape #0284c7 | w-4 h-4 bg-sky-600"
+want "two classes: w-4 h-4 bg-sky-600 rounded p-1"
+want "undo: w-4 h-4 bg-sky-600 rounded p-1 | redo: w-4 h-4 bg-sky-600 rounded-full"
+want "change: <Squares> tests/data/inspector/src/main.tsx:$(grep -n '<Squares' tests/data/inspector/src/main.tsx | cut -d: -f1) view #"
+want '| class="w-4 h-4 bg-sky-600" | class="h-4 bg-sky-600 rounded-full pt-[12px] pr-[12px] pb-[12px] pl-[12px] flex-row mt-[3px] opacity-[0.5] w-[51%] text-[176px]"'
 want 'class edit: width 16px -> 32px, off 16px, on 32px | <View className="w-4 h-4 bg-rose-600 w-8">'
 want "completion bg-ros: bg-rose-50 bg-rose-100 bg-rose-200"
 want "style edit: width 50px, off 32px, on 50px, deleted 32px | element.style "
