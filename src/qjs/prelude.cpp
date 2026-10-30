@@ -136,10 +136,12 @@ const char* kPrelude = R"JS(
   g.setTimeout = (f, ms, ...a) => { const id = nextId++; timers.push({ at: clock + Math.max(0, +ms || 0), ord: clock + Math.max(1, +ms || 0), seq: seq++, id, every: 0, f: () => f(...a) }); return id; };
   g.setInterval = (f, ms, ...a) => { const id = nextId++; ms = Math.max(1, +ms || 0); timers.push({ at: clock + ms, ord: clock + ms, seq: seq++, id, every: ms, f: () => f(...a) }); return id; };
   g.clearTimeout = g.clearInterval = id => { timers = timers.filter(t => t.id !== id); };
-  function earliest() { let b = -1; for (let i = 0; i < timers.length; i++) if (b < 0 || timers[i].ord < timers[b].ord || (timers[i].ord === timers[b].ord && timers[i].seq < timers[b].seq)) b = i; return b; }
-  // fire the timers that are due at `now` (a frame loop); returns after each so the host can run the promise jobs
+  function earliest(before = Infinity) { let b = -1; for (let i = 0; i < timers.length; i++) if (timers[i].seq < before && (b < 0 || timers[i].ord < timers[b].ord || (timers[i].ord === timers[b].ord && timers[i].seq < timers[b].seq))) b = i; return b; }
+  // fire the timers that are due at `now` (a frame loop); returns after each so the host can run the promise jobs. A timer set during this
+  // frame's pass waits for the next frame (passSeq, taken when the host sets the frame's clock): a setTimeout(0) that yields lets a frame through
+  let passSeq = Infinity;
   g.__dueTimer = now => {
-    const b = earliest();
+    const b = earliest(passSeq);
     if (b < 0 || timers[b].at > now) return null;
     const t = timers[b];
     timers.splice(b, 1);
@@ -156,7 +158,7 @@ const char* kPrelude = R"JS(
     if (t.every > 0) timers.push({ at: t.at + t.every, ord: t.ord + t.every, seq: seq++, id: t.id, every: t.every, f: t.f });
     return t.f;
   };
-  g.__setClock = ms => { clock = ms; };
+  g.__setClock = ms => { clock = ms; passSeq = seq; };
   // the host loop's events ("handle", "kind" and "data" joined by U+001F) for the modules that register a handler (zinc:osc, zinc:net), as the typed prelude's
   // __pollHost; the engine's turn calls it, and waits while the host loop is active (a server listening, a fetch in flight)
   const evHandlers = [];

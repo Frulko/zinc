@@ -223,6 +223,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- A `setTimeout(0)` set while timers run (a long computation that yields with `await` on a timer) now waits for the next frame, so the window keeps drawing and taking input; it used to run in the same frame.
 - Web: `fs.exists` is true for a video of `assets/` (streamed, never loaded); the video bounce demo found no clip in a page.
 - zinc:net: a `serveAsync` handler that takes more than 10 seconds to answer sends its reply; the server used to cut it with a 408.
 - zinc:ui: `width: pct(0)` (and `height: pct(0)`) is now no width, as 0% is on the web: a progress bar starts empty; it used to take the whole line.

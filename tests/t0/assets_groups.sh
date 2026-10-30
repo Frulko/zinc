@@ -57,9 +57,9 @@ want mem "$mem" "          assets: peak 155554 bytes resident, 0 at exit"
 frames() { (cd "$p" && env ZINC_FRAMES=40 ZINC_FRAMEHASH=all ZINC_ASSET_TURN=16384 "$@" "$Z" run frames.ts 2>&1); }
 a=$(frames); b=$(frames); c=$(frames ZINC_ASSET_THREADS=0)
 [ -n "$DEBUG" ] && echo "$a"
-want frames "$a" "frame 0: level1 65536 of 65548"
-want frames "$a" "frame 1: level2 30000 of 50000"
-want frames "$a" "frame 2: level2 loaded"
+want frames "$a" "frame 1: level1 65536 of 65548"   # a turn of decoding a frame: what a timer sets waits for the next one (timer_yield)
+want frames "$a" "frame 3: level2 30000 of 50000"
+want frames "$a" "frame 4: level2 loaded"
 [ "$(printf '%s\n' "$a" | grep -c framehash)" = 40 ] || { echo "assets_groups: frames: not 40 frame hashes"; fail=1; }
 [ "$a" = "$b" ] || { echo "assets_groups: frames: two deterministic runs differ"; printf '%s\n' "$a" > "$tmp/a"; printf '%s\n' "$b" > "$tmp/b"; diff "$tmp/a" "$tmp/b" | head; fail=1; }
 [ "$a" = "$c" ] || { echo "assets_groups: frames: the pool and the main thread differ"; printf '%s\n' "$a" > "$tmp/a"; printf '%s\n' "$c" > "$tmp/c"; diff "$tmp/a" "$tmp/c" | head; fail=1; }

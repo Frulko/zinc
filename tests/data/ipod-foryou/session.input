@@ -1,19 +1,19 @@
 31 move 60 176
 32 down
 33 up
-41 move 1086 136
-42 down
-43 up
-61 key [ meta
-62 move 250 420
-151 move 1126 183
-152 down
-153 up
-171 move 700 500
-172 wheel 0 -6
-200 move 250 420
-261 move 347 300
-262 down
-263 up
-291 key [ meta
-292 move 250 420
+51 move 1086 136
+52 down
+53 up
+71 key [ meta
+72 move 250 420
+161 move 1126 183
+162 down
+163 up
+181 move 700 500
+182 wheel 0 -6
+210 move 250 420
+271 move 347 300
+272 down
+273 up
+301 key [ meta
+302 move 250 420

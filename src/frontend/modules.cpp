@@ -2748,15 +2748,20 @@ function __drainJobs(): void {
 }
 let __frameHook: (() => void) | null = null;
 // One frame of a program with a frame loop (zinc:gfx): the timers due at the new clock fire in order of time then creation,
-// as in the old runtime; an interval is re-armed before it runs, so it can cancel itself.
+// as in the old runtime; an interval is re-armed before it runs, so it can cancel itself. A timer set during this pass (a setTimeout(0)
+// that yields inside a long computation) waits for the next frame, so the frame and the input get through.
 function __frameTimers(): void {
-  while (__timers.length > 0) {
-    let best: i32 = 0;
-    for (let i: i32 = 1; i < __timers.length; i++) {
+  const pass = __timerSeq;
+  for (;;) {
+    let best: i32 = -1;
+    for (let i: i32 = 0; i < __timers.length; i++) {
       const a = __timers[i];
+      if (a.seq > pass) continue;
+      if (best < 0) { best = i; continue; }
       const b = __timers[best];
       if (a.at < b.at || (a.at === b.at && a.id < b.id)) best = i;
     }
+    if (best < 0) return;
     const t = __timers[best];
     if (t.at > __now()) return;
     const rest: Timer[] = [];
