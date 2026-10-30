@@ -3077,7 +3077,14 @@ class AwaitJob<T> extends Job {
   }
 }
 function __await<T>(p: Promise<T>, k: (v: T) => void, rej: (e: Error) => void): void { p.subscribe(new AwaitJob<T>(p, k, rej)); }
-function __adopt<T>(r: Promise<T>, p: Promise<T>): void { __await(p, (v: T): void => { r.resolveWith(v); }, (e: Error): void => { r.rejectWith(e); }); }   // an async function that returns a promise settles as it does
+class AdoptJob<T> extends Job {   // not __await: with T = void the checker would send it to __awaitV, whose continuation takes no value
+  constructor(public p: Promise<T>, public r: Promise<T>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err !== null) this.r.rejectWith(err); else this.r.resolveWith(this.p.value);
+  }
+}
+function __adopt<T>(r: Promise<T>, p: Promise<T>): void { p.subscribe(new AdoptJob<T>(p, r)); }   // an async function that returns a promise settles as it does
 class AwaitJobV extends Job {   // await of a Promise<void>: the rest of the function takes no value (a plain number, the fastest to pass)
   constructor(public p: Promise<void>, public k: (v: i32) => void, public rej: (e: Error) => void) { super(); }
   run(): void {
