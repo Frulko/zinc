@@ -317,6 +317,53 @@ const preview = openWindow('Preview', 640, 360, (dt) => {
   A `ZINC_INPUT` script (one `<frame> <event>` per line: `move X Y`, `down`, `up`, `key NAME`, `text STRING`...; `down meta`, `key a meta` or `shift+meta` add the modifiers held) sends the
   events after `window N` in a frame to window N, and `close` closes that window, as the user would.
 
+### Windows as objects, and messages between them
+
+`zinc:system/window` wraps these windows the way Electron's `BrowserWindow` does, and `zinc:worker` carries messages between
+them as Electron's `ipcRenderer.invoke` / `ipcMain.handle` or the web's `MessageChannel` do:
+
+```ts
+import * as win from 'zinc:system/window';
+import { MessageChannel } from 'zinc:worker';
+
+interface Note { text: string; n: i32 }
+const tools = win.open({ title: 'Tools', width: 260, height: 400 }, (dt) => { /* draws the window */ });
+const preview = win.get(ui.mountWindow('Preview', 320, 240, previewRoot, 0xffffff));   // a zinc:ui tree
+tools.setPosition(40, 60); tools.setSize(300, 420); tools.focus();
+for (const w of win.list()) console.log(w.id, w.bounds().w);   // the open windows, the main one (id 0) first
+
+const ch = new MessageChannel<Note, Note>();                   // port1 posts the first type, port2 the second
+ch.port2.onmessage = (e) => console.log(e.data.text);
+ch.port2.handle((m) => ({ text: `${m.n} items`, n: m.n }));   // answers requests
+ch.port1.postMessage({ text: 'hello', n: 1 });
+const reply = await ch.port1.request({ text: 'count', n: 3 });
+```
+
+- **Windows.** `open(options, draw?)` returns an `AppWindow` (`id`, `close()`, `isOpen()`, `focus()`, `setTitle()`,
+  `setPosition()`, `setSize()`, `setBounds()`, `bounds()`); `get(id)` wraps a window opened another way (0 is the main
+  window); `list()` gives the open ones and `current()` the one being drawn. In headless runs the bounds are what was asked.
+  `focus()` does nothing in a program started in the background (`ZINC_BACKGROUND=1`).
+- **Messages.** A port posts one type and receives the other; messages are delivered as microtasks, never inside `postMessage`.
+  `request(m)` resolves with what the other side's `handle` returns, so a reply has the type the other side posts.
+- **A window run by a worker.** A worker cannot draw, but it can compute a window's scene: a `Scene` (a background and a list
+  of `Shape`s: `rect`, `rrect`, `text`, `line`) is plain data. Open the window without a draw callback and give it each
+  scene that arrives; a busy worker then leaves the other windows drawing at full rate, and its window keeps its last scene.
+
+```ts
+import { Worker, Envelope, workerPort } from 'zinc:worker';        // the program
+const port = workerPort<Cmd, Reply>(new Worker<Envelope<Cmd>, Envelope<Reply>>(new URL('./scene.worker.ts', import.meta.url)));
+const side = win.open({ title: 'Simulation', width: 400, height: 300 });
+port.onmessage = (e) => side.setScene(e.data.scene);
+
+import { parentPort } from 'zinc:worker';                           // scene.worker.ts
+import type { Scene } from 'zinc:system/window';
+const parent = parentPort<Reply, Cmd>();
+parent.onmessage = (e) => parent.postMessage({ scene: step(e.data) });
+```
+
+  The worker's port works on the interpreter and in compiled builds; QuickJS has no workers yet, its windows use
+  `MessageChannel`. A whole `zinc:ui` tree runs on the main thread only.
+
 ## The device
 
 `zinc:device-info` says what the program runs on, as Expo's `expo-device` does: a phone, a tablet, a desktop or a TV, its maker, its model and its

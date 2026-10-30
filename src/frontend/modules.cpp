@@ -136,6 +136,9 @@ export function closeWindow(id: i32): void { __host_gfxCloseWindow(id); }
 /** Whether window `id` is open (0: the main one). */
 export function windowOpen(id: i32): boolean { return __host_gfxWindowOpen(id) !== 0; }
 // ---- api: everything below is shared with the QuickJS engine (src/qjs), which brings its own frame loop
+/** The raw call behind zinc:system/window (ZN-864) on window `id` (0: the main one): op 0 move to a,b; 1 resize to a x b; 2 focus; 3 title s;
+ *  4..7 its x, y, w, h; 8 the last id opened; 9 the window being drawn. 0 when the window or the HAL cannot. */
+export function windowCtl(id: i32, op: i32, s: string, a: i32, b: i32): i32 { return __host_gfxWindowCtl(id, op, s, a, b); }
 export function width(): i32 { return __host_gfxWidth(); }
 export function height(): i32 { return __host_gfxHeight(); }
 export function pixelScale(): i32 { return __host_gfxPixelScale(); }

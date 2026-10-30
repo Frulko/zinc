@@ -1,0 +1,1 @@
+{ "name": "multiwin", "entry": "main.ts", "permissions": ["window"], "targets": { "macos": { "width": 320, "height": 240 } } }

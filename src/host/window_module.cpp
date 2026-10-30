@@ -23,6 +23,7 @@ struct Win {
   void (*setWindowConfig)(const HalWindowConfig*); void (*setResize)(int32_t); void (*setClose)(int (*)(void)); void (*setDrop)(void (*)(const char*, int));
   int32_t (*winOpen)(int32_t, const char*, int32_t, int32_t); void (*winClose)(int32_t); int32_t (*winState)(int32_t);
   void (*winInput)(int32_t, HalInput*, int32_t*, int32_t*); void (*winPresent)(int32_t, const uint32_t*, int32_t, int32_t); void (*winCurrent)(int32_t);
+  int32_t (*winCtl)(int32_t, int32_t, const char*, int32_t, int32_t);   // optional (ZN-864): an older module moves no window
 };
 Win w;
 int state;   // 0 not tried, 1 loaded, -1 missing
@@ -56,6 +57,7 @@ extern "C" int zn_window_load(void) {
     sym(h, "sdl_hal_win_close", w.winClose) && sym(h, "sdl_hal_win_state", w.winState) && sym(h, "sdl_hal_win_input", w.winInput) &&
     sym(h, "sdl_hal_win_present", w.winPresent) && sym(h, "sdl_hal_win_current", w.winCurrent);
   if (!ok) { fprintf(stderr, "zinc: no window (the program runs headless): %s is not zinc's window module\n", path.c_str()); return 0; }
+  sym(h, "sdl_hal_win_ctl", w.winCtl);
   state = 1;
   if (configSet) w.setWindowConfig(&config);
   if (resizeOn >= 0) w.setResize(resizeOn);
@@ -87,6 +89,7 @@ int32_t sdl_hal_win_state(int32_t id) { return w.winState(id); }
 void sdl_hal_win_input(int32_t id, HalInput* in, int32_t* ww, int32_t* hh) { w.winInput(id, in, ww, hh); }
 void sdl_hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) { w.winPresent(id, px, pw, ph); }
 void sdl_hal_win_current(int32_t id) { w.winCurrent(id); }
+int32_t sdl_hal_win_ctl(int32_t id, int32_t op, const char* s, int32_t a, int32_t b) { return w.winCtl ? w.winCtl(id, op, s, a, b) : 0; }
 void hal_set_window_config(const HalWindowConfig* c) { config = *c; configSet = true; if (state > 0) w.setWindowConfig(c); }
 void hal_set_resize(int32_t on) { resizeOn = on; if (state > 0) w.setResize(on); }
 extern int (*zn_null_close_handler)(void);   // src/host/hal_dispatch.cpp: the headless window's `close` (ZINC_INPUT) asks the handler too

@@ -2022,6 +2022,23 @@ void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) {
   SDL_RenderPresent(s->r);
 }
 void hal_win_current(int32_t id) { Sec* s = id ? sec_by_id(id) : nullptr; text_win = s ? s->w : nullptr; }
+int32_t hal_win_ctl(int32_t id, int32_t op, const char* title, int32_t a, int32_t b) {   // ZN-864: zinc:system/window on any window
+  Sec* s = id ? sec_by_id(id) : nullptr;
+  SDL_Window* w = id ? (s ? s->w : nullptr) : win;
+  if (!gfx_on || !w) return 0;
+  int x = 0, y = 0;
+  switch (op) {
+    case 0: return SDL_SetWindowPosition(w, a, b);
+    case 1: return SDL_SetWindowSize(w, a, b);
+    case 2:   // a program started in the background never takes the focus (AGENTS.md "Never take the focus")
+      if (getenv("ZINC_BACKGROUND") && getenv("ZINC_BACKGROUND")[0] != '0') return 1;
+      return SDL_RaiseWindow(w);
+    case 3: return SDL_SetWindowTitle(w, title);
+    case 4: case 5: SDL_GetWindowPosition(w, &x, &y); return op == 4 ? x : y;
+    case 6: case 7: SDL_GetWindowSize(w, &x, &y); return op == 6 ? x : y;
+  }
+  return 0;
+}
 // ZINC_CLIPBOARD=local (set by `zinc test`) or a deterministic run: a process-local clipboard, so test runs never
 // touch the user's one
 static char* clip_local;

@@ -813,6 +813,8 @@ void closeWindow(int32_t id);
 bool windowOpen(int32_t id);
 void beginWindow(int32_t id);
 void endWindow();
+/** Moves, resizes, focuses, retitles or reads window `id` (0: the main one) through the HAL; op codes of host.gfxWindowCtl (include/zn/runtime.h). */
+int32_t windowCtl(int32_t id, int32_t op, const String& s, int32_t a, int32_t b);
 double wheel();
 double pinch();
 int32_t touchCount();

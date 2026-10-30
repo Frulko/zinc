@@ -43,6 +43,7 @@ extern "C" __attribute__((weak)) void hal_win_input(int32_t, HalInput*, int32_t*
 extern "C" __attribute__((weak)) void hal_win_present(int32_t, const uint32_t*, int32_t, int32_t) {}
 extern "C" __attribute__((weak)) void hal_win_current(int32_t) {}
 extern "C" __attribute__((weak)) int32_t hal_win_draw(int32_t, const HalCmdList*, int32_t, int32_t) { return 0; }
+extern "C" __attribute__((weak)) int32_t hal_win_ctl(int32_t, int32_t, const char*, int32_t, int32_t) { return 0; }
 namespace zrt {
 namespace gfx {
 // The program draws in logical pixels; frames are rasterized at pw x ph physical pixels (pxk per logical pixel).
@@ -2082,6 +2083,15 @@ bool windowOpen(int32_t id) {
   if (hal_win_state(id)) return true;
   if (x) closeWindow(id);   // closed by the user: its pixels go
   return false;
+}
+int32_t windowCtl(int32_t id, int32_t op, const String& title, int32_t a, int32_t b) {
+  if (op == 8) return win_ids;
+  if (op == 9) return in_win ? in_win->id : 0;
+  if (id && !win_of(id)) return 0;
+  char t[256];
+  uint32_t n = title.bytes() < sizeof t - 1 ? title.bytes() : (uint32_t)sizeof t - 1;
+  __builtin_memcpy(t, title.ptr(), n); t[n] = 0;
+  return hal_win_ctl(id, op, t, a, b);
 }
 void beginWindow(int32_t id) {
   Win* x = win_of(id);

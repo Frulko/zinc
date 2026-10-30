@@ -386,7 +386,10 @@
   X(HostWorkerNext, "host.workerNext", "i>b", 2) X(HostWorkerPostRec, "string.#workerPostRec", "ixss>n", 2) X(HostWorkerRead, "string.#workerRead", "ssx>r", 2) \
   /* the inspector's pause (Zinc.setPaused, F8 in a dev run; src/host/gfx_host.cpp): what this frame is, asked after host.gfxPoll: 0 the program's, */ \
   /* 1 paused (no timer, no callback: the frame on screen is kept), 2 paused with a repaint asked (the frame callbacks with dt 0); graphics row, appended */ \
-  X(HostGfxPaused, "host.gfxPaused", ">i", 2)
+  X(HostGfxPaused, "host.gfxPaused", ">i", 2) \
+  /* zinc:gfx windowCtl (ZN-864, zinc:system/window): window id (0: the main one), op 0 move to a,b; 1 resize to a,b; 2 focus; 3 title s; */ \
+  /* 4..7 its x, y, w, h; 8 the last id opened; 9 the window being drawn (0: the main one); graphics row, appended */ \
+  X(HostGfxWindowCtl, "host.gfxWindowCtl", "iisii>i", 2)
 
 namespace zn {
 
@@ -417,7 +420,7 @@ inline constexpr bool isGlRow(Rt r) { return r >= Rt::HostGlCreate && r <= Rt::H
 inline constexpr bool isGfxTailRow(Rt r) {
   return r == Rt::HostGfxCommands || r == Rt::HostGfxCommandsFree || r == Rt::HostGfxSetResize || r == Rt::HostGfxSetTransform || r == Rt::HostGfxResetTransform || r == Rt::HostGfxDrawImageRect || r == Rt::HostGfxImageFromBytes ||
          (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont || r == Rt::HostGfxGradientPaint || r == Rt::HostGfxImageFromPixels ||
-         r == Rt::HostGfxUpdateImage || (r >= Rt::HostGfxShaderProgram && r <= Rt::HostGfxProfSection) || r == Rt::HostGfxPaused;
+         r == Rt::HostGfxUpdateImage || (r >= Rt::HostGfxShaderProgram && r <= Rt::HostGfxProfSection) || r == Rt::HostGfxPaused || r == Rt::HostGfxWindowCtl;
 }
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too. zinc:osc and the loop's events it arrives by.
 inline constexpr bool isSysTailRow(Rt r) {
@@ -474,7 +477,7 @@ inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
 // retained across them (ZN-413). The others only read their arguments: the string rows, the read-only Array, Map and Set members, the
 // graphics host (numbers, borrowed strings and arrays, no callbacks).
 inline bool rtMayRelease(Rt id) {
-  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont || id == Rt::HostGfxGradientPaint || id == Rt::HostGfxImageFromPixels || id == Rt::HostGfxUpdateImage || (id >= Rt::HostGfxShaderProgram && id <= Rt::HostGfxProfSection)) return false;
+  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont || id == Rt::HostGfxGradientPaint || id == Rt::HostGfxImageFromPixels || id == Rt::HostGfxUpdateImage || (id >= Rt::HostGfxShaderProgram && id <= Rt::HostGfxProfSection) || id == Rt::HostGfxWindowCtl) return false;
   if (id >= Rt::StrConcat && id <= Rt::FromCharCode) return id == Rt::JsonParse || id == Rt::DynGetFast || id == Rt::DynAddFast;
   switch (id) {
     case Rt::ArrSlice: case Rt::ArrIndexOf: case Rt::ArrIncludes: case Rt::MapGet: case Rt::MapHas: case Rt::MapKeys: case Rt::MapValues: case Rt::MapSize:

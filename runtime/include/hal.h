@@ -113,6 +113,9 @@ void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph);   
 struct HalCmdList;
 int32_t hal_win_draw(int32_t id, const HalCmdList* l, int32_t pw, int32_t ph);
 void hal_win_current(int32_t id);                                           // the window being drawn: text input follows it
+// Optional (ZN-864): window `id`'s frame and title. op 0 move to (a, b), 1 resize to a x b logical pixels, 2 focus, 3 title `s`; 4..7 return
+// its x, y, w, h (screen points). Returns 0 when the HAL cannot (the default: nothing moves, the frame reads 0).
+int32_t hal_win_ctl(int32_t id, int32_t op, const char* s, int32_t a, int32_t b);
 
 /** One frame to show. Pixels come from the shared software rasterizer: the HAL calls render() for the bands it
  *  needs (whole damage at once on hosts, a few lines at a time on SPI panels). Pixels are 0x00RRGGBB. */

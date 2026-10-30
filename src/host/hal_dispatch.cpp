@@ -29,6 +29,7 @@ void sdl_hal_text_input(int32_t, float, float, float, float); const char* sdl_ha
 void sdl_hal_set_cursor(int32_t); void sdl_hal_escape_by_app(int32_t); void sdl_hal_escape(void); int32_t sdl_hal_pixel_scale(void); void* sdl_hal_window_handle(void);
 int32_t sdl_hal_win_open(int32_t, const char*, int32_t, int32_t); void sdl_hal_win_close(int32_t); int32_t sdl_hal_win_state(int32_t);
 void sdl_hal_win_input(int32_t, HalInput*, int32_t*, int32_t*); void sdl_hal_win_present(int32_t, const uint32_t*, int32_t, int32_t); void sdl_hal_win_current(int32_t);
+int32_t sdl_hal_win_ctl(int32_t, int32_t, const char*, int32_t, int32_t);
 #endif
 
 static bool live = false;
@@ -152,7 +153,7 @@ int keyCode(const std::string& n) {
   return 0;
 }
 // The windows beside the main one in headless runs (ZN-663): their surfaces are the runtime's; the script drives their input.
-struct NullWin { int32_t id, w, h; bool open; HalInput in; float x, y; uint32_t held; };
+struct NullWin { int32_t id, w, h; bool open; HalInput in; float x, y; uint32_t held; int32_t sx, sy; };
 std::vector<NullWin> nullWins;
 bool nullMainHidden = false, nullQuit = false;
 NullWin* nullWin(int32_t id) { for (NullWin& w : nullWins) if (w.open && w.id == id) return &w; return nullptr; }
@@ -263,6 +264,29 @@ void applyScript(HalInput* in) {
   ++pollNo;
 }
 int32_t nullWinOpen(int32_t id, int32_t w, int32_t h) { NullWin n{}; n.id = id; n.w = w; n.h = h; n.open = true; n.in.pinch = 1; nullWins.push_back(n); return 1; }
+// The frame of a headless window (ZN-864): kept as asked; a resized window's surface follows, the main one's stays the run's surface.
+struct { int32_t x, y, w, h; bool sized; } nullMain{};
+int32_t nullWinCtl(int32_t id, int32_t op, int32_t a, int32_t b) {
+  NullWin* n = id ? nullWin(id) : nullptr;
+  if (id && !n) return 0;
+  int32_t& x = n ? n->sx : nullMain.x;
+  int32_t& y = n ? n->sy : nullMain.y;
+  int mw = nullMain.w, mh = nullMain.h;
+  if (!n && !nullMain.sized) nullSize(&mw, &mh);
+  switch (op) {
+    case 0: x = a; y = b; return 1;
+    case 1:
+      if (a < 1 || b < 1) return 0;
+      if (n) { n->w = a; n->h = b; } else { nullMain.w = a; nullMain.h = b; nullMain.sized = true; }
+      return 1;
+    case 2: case 3: return 1;
+    case 4: return x;
+    case 5: return y;
+    case 6: return n ? n->w : mw;
+    case 7: return n ? n->h : mh;
+  }
+  return 0;
+}
 int32_t nullWinState(int32_t id) { return id == 0 ? !nullMainHidden && !nullQuit : nullWin(id) != nullptr; }
 void nullWinInput(int32_t id, HalInput* in, int32_t* w, int32_t* h) {
   NullWin* n = nullWin(id);
@@ -315,6 +339,7 @@ __attribute__((weak)) int32_t sdl_hal_win_state(int32_t) { return 0; }
 __attribute__((weak)) void sdl_hal_win_input(int32_t, HalInput*, int32_t*, int32_t*) {}
 __attribute__((weak)) void sdl_hal_win_present(int32_t, const uint32_t*, int32_t, int32_t) {}
 __attribute__((weak)) void sdl_hal_win_current(int32_t) {}
+__attribute__((weak)) int32_t sdl_hal_win_ctl(int32_t, int32_t, const char*, int32_t, int32_t) { return 0; }
 __attribute__((weak)) void hal_set_resize(int32_t) {}
 #else
 __attribute__((weak)) int zn_window_load(void) { return 1; }   // the window host is in this library
@@ -346,6 +371,7 @@ int32_t hal_win_state(int32_t id) { return live ? sdl_hal_win_state(id) : nullWi
 void hal_win_input(int32_t id, HalInput* in, int32_t* w, int32_t* h) { if (live) sdl_hal_win_input(id, in, w, h); else nullWinInput(id, in, w, h); }
 void hal_win_present(int32_t id, const uint32_t* px, int32_t pw, int32_t ph) { if (live) sdl_hal_win_present(id, px, pw, ph); }
 void hal_win_current(int32_t id) { if (live) sdl_hal_win_current(id); }
+int32_t hal_win_ctl(int32_t id, int32_t op, const char* s, int32_t a, int32_t b) { return live ? sdl_hal_win_ctl(id, op, s, a, b) : nullWinCtl(id, op, a, b); }
 #else
 int zn_hal_wants_window(void) { return 0; }
 void hal_init(const HalConfig* c) { null_hal_init(c); }
@@ -371,5 +397,6 @@ int32_t hal_win_state(int32_t id) { return nullWinState(id); }
 void hal_win_input(int32_t id, HalInput* in, int32_t* w, int32_t* h) { nullWinInput(id, in, w, h); }
 void hal_win_present(int32_t, const uint32_t*, int32_t, int32_t) {}
 void hal_win_current(int32_t) {}
+int32_t hal_win_ctl(int32_t id, int32_t op, const char*, int32_t a, int32_t b) { return nullWinCtl(id, op, a, b); }
 #endif
 }

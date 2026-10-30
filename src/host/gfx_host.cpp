@@ -382,6 +382,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxWindowOpen: r->i = g::windowOpen(n(0)) ? 1 : 0; break;
     case Rt::HostGfxBeginWindow: g::beginWindow(n(0)); break;
     case Rt::HostGfxEndWindow: g::endWindow(); break;
+    case Rt::HostGfxWindowCtl: r->i = g::windowCtl(n(0), n(1), str(a[2]), n(3), n(4)); break;
     case Rt::HostGfxLoadFont: r->i = loadFont(str(a[0]), a[1].d); break;   // the SDL HAL has it; headless runs and other HALs keep their surface
     case Rt::HostGfxCommandsFree: r->i = g::commandsFree(); break;
     case Rt::HostGfxProfMark: if (g::profiling()) g::profMark(n(0)); zn_ui_log_mark(n(0)); break;

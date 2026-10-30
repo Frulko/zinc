@@ -2,6 +2,7 @@
 // time, keeps the close-to-tray handler, and saves and restores its position and size (the state file is plain JSON, the clamp to the displays is a pure function).
 import { call, on, preventClose, supports } from 'zinc:system';
 import * as fs from 'zinc:fs';
+import { openWindow, closeWindow, windowOpen, windowCtl, clear, rect, rrect, line, text } from 'zinc:gfx';
 
 export class Rect {
   x: number; y: number; w: number; h: number;
@@ -115,3 +116,74 @@ export function restore(dir: string): boolean {
   return true;
 }
 export function save(dir: string): void { fs.mkdir(dir, true); saveState(stateFile(dir), state()); }
+
+// ---- more windows (ZN-864): Electron's BrowserWindow, over zinc:gfx windows (D75). Window 0 is the main one; the others draw a frame callback,
+// a zinc:ui tree (`get(ui.mountWindow(...))`) or the last Scene a worker posted. Messages between them: MessageChannel and workerPort of zinc:worker.
+
+/** One shape of a Scene: 'rect', 'rrect' (r: the corner radius), 'text' (r: the scale, 1 to 4) or 'line' (from x,y to x+w,y+h). */
+export interface Shape { kind: string; x: number; y: number; w: number; h: number; r: number; color: u32; text: string }
+/** What a window draws when its scene comes from elsewhere (a worker computes it, the window draws the last one): plain data, so it crosses a thread. */
+export interface Scene { background: u32; shapes: Shape[] }
+export interface WindowOptions { title: string; width: i32; height: i32 }
+
+export function drawScene(s: Scene): void {
+  clear(s.background);
+  for (const p of s.shapes) {
+    if (p.kind === 'rect') rect(p.x, p.y, p.w, p.h, p.color);
+    else if (p.kind === 'rrect') rrect(p.x, p.y, p.w, p.h, p.r, p.color, 255);
+    else if (p.kind === 'text') text(p.x, p.y, p.text, p.color, p.r >= 1 ? Math.floor(p.r) as i32 : 1);
+    else if (p.kind === 'line') line(p.x, p.y, p.x + p.w, p.y + p.h, p.color);
+  }
+}
+
+export class AppWindow {
+  id: i32;
+  /** The scene a window opened without a draw callback shows (setScene). */
+  scene: Scene | null = null;
+  constructor(id: i32) { this.id = id; }
+  isOpen(): boolean { return windowOpen(this.id); }
+  /** Closes it; closing the last window ends the program. */
+  close(): void { closeWindow(this.id); }
+  focus(): void { windowCtl(this.id, 2, '', 0, 0); }
+  setTitle(title: string): void { windowCtl(this.id, 3, title, 0, 0); }
+  setPosition(x: i32, y: i32): void { windowCtl(this.id, 0, '', x, y); }
+  setSize(w: i32, h: i32): void { windowCtl(this.id, 1, '', w, h); }
+  setBounds(r: Rect): void { this.setPosition(r.x as i32, r.y as i32); this.setSize(r.w as i32, r.h as i32); }
+  /** Its frame on the screen, in points (headless: what was asked). */
+  bounds(): Rect { return new Rect(windowCtl(this.id, 4, '', 0, 0), windowCtl(this.id, 5, '', 0, 0), windowCtl(this.id, 6, '', 0, 0), windowCtl(this.id, 7, '', 0, 0)); }
+  /** What it draws from the next frame, when it was opened without a draw callback. */
+  setScene(s: Scene): void { this.scene = s; }
+}
+
+const known: Map<i32, AppWindow> = new Map<i32, AppWindow>();
+
+/** The window `id` (0: the main one), for a window opened elsewhere (zinc:gfx openWindow, zinc:ui mountWindow). */
+export function get(id: i32): AppWindow {
+  const w = known.get(id);
+  if (w !== undefined) return w;
+  const n = new AppWindow(id);
+  known.set(id, n);
+  return n;
+}
+/** Opens a window beside the main one. `draw` runs every frame with the window's surface and input; without it the window draws its scene.
+ *  Throws when no window can open (a target without more windows). */
+export function open(o: WindowOptions, draw: ((dt: number) => void) | null = null): AppWindow {
+  const w = new AppWindow(-1);
+  const f: (dt: number) => void = draw !== null ? draw : (dt: number) => { const s = w.scene; if (s !== null) drawScene(s); else clear(0); };
+  w.id = openWindow(o.title, o.width, o.height, f);
+  if (w.id < 0) throw new Error('zinc:system/window: no window can open here');
+  known.set(w.id, w);
+  return w;
+}
+/** The open windows, the main one first. */
+export function list(): AppWindow[] {
+  const out: AppWindow[] = [];
+  const last = windowCtl(0, 8, '', 0, 0);
+  for (let id: i32 = 0; id <= last; id++) {
+    if (windowOpen(id)) out.push(get(id));
+    else known.delete(id);
+  }
+  return out;
+}
+/** The window being drawn (inside a draw callback), else the main one. */
+export function current(): AppWindow { return get(windowCtl(0, 9, '', 0, 0)); }
