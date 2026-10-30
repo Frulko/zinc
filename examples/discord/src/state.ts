@@ -3,7 +3,10 @@
 import { Gateway, GatewayHandler } from './services/gateway';
 import { api, setToken, setRestLog, ApiError } from './services/rest';
 import { loadToken, saveToken, forgetToken } from './services/session';
-import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, MESSAGES_PAGE, MESSAGE_MAX, TYPING_EVERY_MS, TYPING_SHOWN_MS, ACK_DELAY_MS, DISCORD_EPOCH } from './constants';
+import { onPicture } from './services/cdn';
+import { Upload, readUpload, uploadFiles } from './services/upload';
+import { MemberRow, subscription, applyMemberListUpdate } from './members';
+import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, MESSAGES_PAGE, OLDER_PAGE, MESSAGE_MAX, TYPING_EVERY_MS, TYPING_SHOWN_MS, ACK_DELAY_MS, DISCORD_EPOCH, UPLOAD_MAX } from './constants';
 import { env } from 'zinc:sys';
 
 export class User { id = ''; name = ''; avatar = ''; }
@@ -12,10 +15,15 @@ export class Channel {
   /** Text channels and DMs open in the message view; voice, categories and forums are shown but not opened yet. */
   readable(): boolean { return this.type === CH_TEXT || this.type === CH_ANNOUNCEMENT || this.type === CH_DM || this.type === CH_GROUP_DM; }
 }
-export class Guild { id = ''; name = ''; icon = ''; channels: Channel[] = []; }
+export class Guild { id = ''; name = ''; icon = ''; channels: Channel[] = []; roles: Map<string, string> = new Map<string, string>(); }
+/** A file of a message: an image is shown (its size known before it loads, so the list does not jump), another file is a link. */
+export class Attachment {
+  id = ''; filename = ''; url = ''; width: i32 = 0; height: i32 = 0; size: i32 = 0;
+  image(): boolean { return this.width > 0 && this.height > 0 && this.url !== ''; }
+}
 export class Message {
   id = ''; channelId = ''; authorId = ''; author = ''; content = ''; timestamp = ''; edited = false;
-  attachments: string[] = []; replyTo = '';
+  attachments: Attachment[] = []; replyTo = '';
   /** Sent from here: the nonce that finds the server's echo; pending until the answer or the echo comes, failed when it was refused. */
   nonce = ''; pending = false; failed = false;
   /** Who it mentions (user ids) and whether it mentions everyone. */
@@ -44,7 +52,12 @@ export class Store implements GatewayHandler {
   editing: Message | null = null;
   /** Messages whose spoilers were clicked open. */
   revealed: Set<string> = new Set<string>();
+  /** The member list of the open server's open channel (members.ts), and the server it is of. */
+  members: MemberRow[] = [];
+  membersOf = '';
   private reads: Map<string, ReadState> = new Map<string, ReadState>();
+  private complete: Set<string> = new Set<string>();   // channels whose whole history is loaded
+  private older = '';                                   // the channel whose page before is on its way
   private typists: Map<string, Typist[]> = new Map<string, Typist[]>();
   private typingTimer = -1;
   private lastTypingAt: number = 0;
@@ -54,7 +67,11 @@ export class Store implements GatewayHandler {
   private listeners: (() => void)[] = [];
   private logging = env('DISCORD_LOG') === '1';
 
-  constructor() { this.gateway = new Gateway(this); setRestLog((line: string): void => { this.log(line); }); }
+  constructor() {
+    this.gateway = new Gateway(this);
+    setRestLog((line: string): void => { this.log(line); });
+    onPicture((): void => { this.changed(); }, (line: string): void => { this.log(line); });
+  }
   onChange(f: () => void): void { this.listeners.push(f); }
   changed(): void { for (const f of this.listeners) f(); }
   log(line: string): void { if (this.logging) console.log(line); }
@@ -78,6 +95,7 @@ export class Store implements GatewayHandler {
     this.gateway.stop();
     try { await forgetToken(); } catch (e) {}
     this.guilds = []; this.dms = []; this.messages.clear(); this.users.clear(); this.reads.clear(); this.typists.clear(); this.guildId = ''; this.channelId = '';
+    this.members = []; this.membersOf = ''; this.complete.clear();
     this.stage = 'login'; this.changed();
   }
   /** Drops the gateway connection (tests): it must resume. */
@@ -105,6 +123,7 @@ export class Store implements GatewayHandler {
     else if (t === 'MESSAGE_DELETE') this.messageDeleted(str(d.channel_id), str(d.id));
     else if (t === 'TYPING_START') this.typingStarted(d);
     else if (t === 'MESSAGE_ACK') this.acked(str(d.channel_id), str(d.message_id), d.mention_count ?? 0);
+    else if (t === 'GUILD_MEMBER_LIST_UPDATE') this.memberListUpdated(d);
     else return;
     this.changed();
   }
@@ -146,6 +165,8 @@ export class Store implements GatewayHandler {
     const p: any = g.properties !== undefined && g.properties !== null ? g.properties : g;   // CLIENT_STATE_V2 puts the fields in properties
     const out = new Guild();
     out.id = str(g.id); out.name = str(p.name); out.icon = str(p.icon);
+    const roles: any = Array.isArray(g.roles) ? g.roles : p.roles;
+    if (Array.isArray(roles)) for (const r of roles) out.roles.set(str(r.id), str(r.name));
     if (Array.isArray(g.channels)) for (const c of g.channels) out.channels.push(this.channel(c, out.id));
     sortChannels(out.channels);
     return out;
@@ -182,6 +203,9 @@ export class Store implements GatewayHandler {
   }
   private sortDms(): void { this.dms.sort((a: Channel, b: Channel) => compareIds(b.lastMessageId, a.lastMessageId)); }
   userName(id: string): string { const u = this.users.get(id); return u !== undefined ? u.name : 'unknown-user'; }
+  /** The user's avatar hash, '' when it has none. */
+  avatarOf(id: string): string { const u = this.users.get(id); return u !== undefined ? u.avatar : ''; }
+  roleName(id: string): string { const g = this.findGuild(this.guildId); const n = g !== null ? g.roles.get(id) : undefined; return n !== undefined ? n : 'unknown-role'; }
   findGuild(id: string): Guild | null { for (const g of this.guilds) if (g.id === id) return g; return null; }
   findChannel(id: string): Channel | null {
     for (const c of this.dms) if (c.id === id) return c;
@@ -198,7 +222,12 @@ export class Store implements GatewayHandler {
     out.edited = str(m.edited_timestamp) !== '';
     const a = this.user(m.author);
     out.authorId = a.id; out.author = a.name;
-    if (Array.isArray(m.attachments)) for (const f of m.attachments) out.attachments.push(str(f.filename));
+    if (Array.isArray(m.attachments)) for (const f of m.attachments) {
+      const a = new Attachment();
+      a.id = str(f.id); a.filename = str(f.filename); a.url = str(f.url); a.size = f.size ?? 0;
+      if (str(f.content_type).startsWith('image/')) { a.width = f.width ?? 0; a.height = f.height ?? 0; }
+      out.attachments.push(a);
+    }
     const r: any = m.referenced_message;
     if (r !== undefined && r !== null) out.replyTo = `${this.user(r.author).name}: ${str(r.content).slice(0, 80)}`;
     out.nonce = typeof m.nonce === 'string' ? m.nonce : '';
@@ -251,6 +280,7 @@ export class Store implements GatewayHandler {
   selectChannel(id: string): void {
     if (id !== this.channelId) { this.draft = ''; this.replyTo = null; this.editing = null; this.lastTypingAt = 0; }
     this.channelId = id;
+    this.subscribe(id);
     this.changed();
     if (id !== '' && !this.messages.has(id)) this.loadHistory(id);
     else if (id !== '') this.ack(id);
@@ -261,6 +291,7 @@ export class Store implements GatewayHandler {
       const page: any = await api('GET', `/channels/${id}/messages?limit=${MESSAGES_PAGE}`);
       const list: Message[] = [];
       if (Array.isArray(page)) for (let i = page.length - 1; i >= 0; i--) list.push(this.message(page[i]));   // newest first on the wire
+      if (list.length < MESSAGES_PAGE) this.complete.add(id);
       const live = this.messages.get(id);                 // messages that arrived while the page loaded
       if (live !== undefined) for (const m of live) if (list.every((x: Message) => x.id !== m.id)) list.push(m);
       this.messages.set(id, list);
@@ -271,6 +302,42 @@ export class Store implements GatewayHandler {
       this.log(`history ${id} failed: ${e.message}`);
     }
     this.loading = false; this.changed();
+  }
+
+  /** The page before the oldest message shown (the history scrolled to its top): how many came, 0 when none or one is on its way. */
+  async loadOlder(): Promise<i32> {
+    const ch = this.channelId, list = this.messages.get(ch);
+    if (list === undefined || list.length === 0 || this.older !== '' || this.complete.has(ch)) return 0;
+    this.older = ch;
+    let n = 0;
+    try {
+      const page: any = await api('GET', `/channels/${ch}/messages?before=${list[0].id}&limit=${OLDER_PAGE}`);
+      const add: Message[] = [];
+      if (Array.isArray(page)) for (let i = page.length - 1; i >= 0; i--) add.push(this.message(page[i]));
+      if (add.length < OLDER_PAGE) this.complete.add(ch);
+      const now = this.messages.get(ch);
+      if (now !== undefined && add.length > 0) { this.messages.set(ch, add.concat(now)); n = add.length; }
+      this.log(`older ${ch}: ${add.length} messages`);
+    } catch (e) { this.log(`older ${ch} failed: ${e.message}`); }
+    this.older = '';
+    if (n > 0) this.changed();
+    return n;
+  }
+  /** The whole history of the channel is loaded. */
+  allLoaded(ch: string): boolean { return this.complete.has(ch); }
+
+  // ------------------------------------------------------------------ the member list
+  /** Op 37 for a server's channel: its member list comes as GUILD_MEMBER_LIST_UPDATE. */
+  private subscribe(id: string): void {
+    const c = this.findChannel(id);
+    if (c === null || c.guildId === '') return;
+    this.members = []; this.membersOf = c.guildId;
+    this.gateway.subscribe(subscription(c.guildId, id));
+  }
+  private memberListUpdated(d: any): void {
+    if (str(d.guild_id) !== this.membersOf) return;
+    applyMemberListUpdate(this.members, d, (u: any): string => this.user(u).id);
+    this.log(`members ${this.membersOf}: ${this.members.map((r: MemberRow) => r.group !== '' ? `[${r.group} ${r.count}]` : `${this.userName(r.userId)}(${r.status})`).join(' ')}`);
   }
 
   // ------------------------------------------------------------------ writing
@@ -306,18 +373,44 @@ export class Store implements GatewayHandler {
       catch (e) { this.error = `Could not edit the message: ${e.message}`; this.changed(); }
       return;
     }
-    const m = new Message();
-    m.nonce = snowflakeNow(); m.pending = true; m.channelId = ch; m.authorId = this.me.id; m.author = this.me.name; m.content = text;
-    m.timestamp = new Date().toISOString();
+    const m = this.pendingMessage(ch, text);
     const body: any = { content: text, nonce: m.nonce, tts: false, flags: 0 };
     if (replyTo !== null) {
       m.replyTo = `${replyTo.author}: ${replyTo.content.slice(0, 80)}`;
       body.message_reference = { message_id: replyTo.id, channel_id: ch };
     }
+    await this.post(ch, m, body, []);
+  }
+  /** Sends files picked or dropped, with the composer's text (Discord's cloud upload: services/upload.ts). */
+  async sendFiles(paths: string[]): Promise<void> {
+    const ch = this.channelId;
+    if (ch === '' || paths.length === 0) return;
+    if (paths.length > UPLOAD_MAX) { this.error = `A message holds ${UPLOAD_MAX} files at most.`; this.changed(); return; }
+    const files: Upload[] = [];
+    try { for (const p of paths) files.push(readUpload(p)); }
+    catch (e) { this.error = `Could not read the file: ${e.message}`; this.changed(); return; }
+    const text = this.draft.trim();
+    this.draft = ''; this.replyTo = null; this.editing = null; this.error = '';
+    const m = this.pendingMessage(ch, text);
+    for (const f of files) { const a = new Attachment(); a.filename = f.filename; a.size = f.bytes.length; m.attachments.push(a); }
+    await this.post(ch, m, { content: text, nonce: m.nonce, tts: false, flags: 0 }, files);
+  }
+  private pendingMessage(ch: string, text: string): Message {
+    const m = new Message();
+    m.nonce = snowflakeNow(); m.pending = true; m.channelId = ch; m.authorId = this.me.id; m.author = this.me.name; m.content = text;
+    m.timestamp = new Date().toISOString();
+    return m;
+  }
+  /** Shows m at once, uploads its files, sends it; the server's echo (found by the nonce) replaces it. */
+  private async post(ch: string, m: Message, body: any, files: Upload[]): Promise<void> {
     const list = this.messages.get(ch);
     if (list !== undefined) list.push(m);
     this.changed();
     try {
+      if (files.length > 0) {
+        body.attachments = await uploadFiles(ch, files);
+        this.log(`uploaded ${files.map((f: Upload) => f.filename).join(', ')}`);
+      }
       const d: any = await api('POST', `/channels/${ch}/messages`, body);
       if (d !== null && m.pending) { this.messageCreated(d); this.changed(); }
     } catch (e) {

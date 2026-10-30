@@ -20,13 +20,13 @@ export const LOCALE = 'en-US';
 export const CAPABILITIES = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 6) | (1 << 7) | (1 << 10);
 
 export const SECRET_TOKEN_KEY = 'discord-token';
-export const MESSAGES_PAGE = 50;
+export const MESSAGES_PAGE = 50, OLDER_PAGE = 100;   // the first page of a channel, then the pages before it (100: the API's most)
 export const RECONNECT_MAX_MS = 60000;
 
 // Channel types (the API's numbers)
 export const CH_TEXT = 0, CH_DM = 1, CH_VOICE = 2, CH_GROUP_DM = 3, CH_CATEGORY = 4, CH_ANNOUNCEMENT = 5, CH_FORUM = 15;
 
-export const RAIL_W = 72, CHANNELS_W = 240;
+export const RAIL_W = 72, CHANNELS_W = 240, MEMBERS_W = 240;
 
 // Discord's dark theme, as classes
 export const BG_RAIL = 'bg-[#1e1f22]', BG_SIDE = 'bg-[#2b2d31]', BG_MAIN = 'bg-[#313338]', BG_INPUT = 'bg-[#383a40]';
@@ -39,3 +39,11 @@ export const TYPING_EVERY_MS = 8000, TYPING_SHOWN_MS = 10000;   // the web clien
 export const ACK_DELAY_MS = 300;
 export const DISCORD_EPOCH = 1420070400000;
 export const MENTION_BG = 'bg-[#f23f43]', TEXT_MENTION = 0xc9cdfb, TEXT_LINK = 0x00a8fc, TEXT_CODE = 0xdbdee1, SPOILER = 0x6d6f78;
+
+// Pictures (docs/reports/discord-client-research.md 3): the CDN's files are kept on disk (DISCORD_CACHE moves the folder, for the tests)
+export const CACHE_DIR = env('DISCORD_CACHE');
+export const AVATAR = 40, MEMBER_AVATAR = 32, EMOJI = 22, EMOJI_BIG = 48;
+export const MEDIA_MAX_W = 400, MEDIA_MAX_H = 300;
+export const ROW_ESTIMATE = 44;           // a message's height before it is laid out (the virtual list's estimate)
+export const OLDER_AT = 400;              // px from the top of the history where the page before is asked for
+export const UPLOAD_MAX = 10;             // files in one message

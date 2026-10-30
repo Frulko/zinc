@@ -3,19 +3,27 @@
 // Keys: Escape quits.
 // Test hooks: DISCORD_API, DISCORD_GATEWAY move the endpoints (a fake Discord, tests/t1/discord.sh), DISCORD_TOKEN logs in without the
 // keychain, DISCORD_LOG=1 prints what happens, DISCORD_DEMO=1 runs the scripted session (servers, a channel's history, a live message,
-// a dropped connection that resumes, a second live message, a DM, then the writing of write() below) and quits.
+// a dropped connection that resumes, a second live message, a DM, then the writing of write() and the pictures, files and members of
+// media() below) and quits; DISCORD_BENCH=1 loads the whole history of the open channel and scrolls it to the top and back (frame times:
+// ZINC_PROFILE=1). DISCORD_CACHE moves the pictures' folder, DISCORD_UPLOAD_FILE is the file media() sends.
+// Files dropped on the window are sent to the open channel.
 import { render } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
 import { quit } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import App from './App';
-import { store, Message } from './state';
+import { on } from 'zinc:system';
+import { store, Message, Attachment } from './state';
 import { parse, describe } from './markdown';
+import { picturesLoading } from './services/cdn';
+import { historyList } from './components/MessageView';
 
 ui.onKey((e: ui.KeyEvent): void => {
   if (e.primary || e.alt) return;
   if (e.key === 'Escape') { quit(); e.preventDefault(); }
 });
+// a file dropped on the window: sent to the open channel (a dropped text is not a file)
+on('drop', (args: string[]): void => { if (args.length > 0 && !(args.length > 1 && args[1] === 'text')) store.sendFiles([args[0]]); });
 
 function until(cond: () => boolean): Promise<void> {
   return new Promise<void>((done: () => void) => { const t = setInterval(() => { if (cond()) { clearInterval(t); done(); } }, 10); });
@@ -41,6 +49,7 @@ async function demo(): Promise<void> {
   await until(() => count(store.channelId) > 0);
   store.selectGuild(store.guilds[0].id);
   await write(id);
+  await media(id);
   setTimeout(() => { quit(); }, 300);
 }
 
@@ -78,3 +87,39 @@ async function write(id: string): Promise<void> {
 render(App, 0x313338, null);
 store.resume();
 if (env('DISCORD_DEMO') === '1') demo();
+
+const last = (ch: string): Message | null => { const l = store.messages.get(ch); return l !== undefined && l.length > 0 ? l[l.length - 1] : null; };
+
+/** Pictures, files and members: the member list (SYNC, then an INSERT and an UPDATE), the page of history before the first, a file sent
+ *  with the cloud upload, and every picture of the channel loaded (from the CDN, the disk, an expired attachment URL renewed). */
+async function media(id: string): Promise<void> {
+  await until(() => store.members.length >= 6);
+  const n = await store.loadOlder();
+  console.log(`older page: ${n} messages, all loaded ${store.allLoaded(id)}, ${count(id)} in the channel`);
+  store.typed('Here is the photo');
+  await store.sendFiles([env('DISCORD_UPLOAD_FILE')]);
+  await until(() => { const m = last(id); return m !== null && !m.pending && m.attachments.length === 1 && m.attachments[0].url !== ''; });
+  const m = last(id) as Message;
+  console.log(`sent a file: ${m.content}, ${m.attachments.map((a: Attachment) => `${a.filename} ${a.width}x${a.height}`).join(', ')}`);
+  await until(() => store.typingText(id) !== '');                              // Grace types back: in the last frame
+  await new Promise<void>((done: () => void) => { setTimeout(done, 100); });   // a frame shows the rows, which ask for their pictures
+  await until(() => picturesLoading() === 0);
+}
+
+/** DISCORD_BENCH: the open channel's whole history, then a scroll to its top and back, 60 px a frame. */
+async function bench(): Promise<void> {
+  await until(() => store.stage === 'ready' && count(store.channelId) > 0);
+  const id = store.channelId;
+  while (!store.allLoaded(id)) if (await store.loadOlder() === 0) await new Promise<void>((done: () => void) => { setTimeout(done, 50); });
+  console.log(`bench: ${count(id)} messages`);
+  await new Promise<void>((done: () => void) => { setTimeout(done, 300); });
+  let down = false, frames = 0;
+  const t = setInterval(() => {
+    const h = historyList();
+    if (h < 0) return;
+    frames++;
+    if (!down) { ui.scrollBy(h, 0, -60); if (ui.scrollTop(h) <= 0) down = true; }
+    else { const before = ui.scrollTop(h); ui.scrollBy(h, 0, 60); if (ui.scrollTop(h) === before) { clearInterval(t); console.log(`bench: ${frames} scroll steps`); quit(); } }
+  }, 16);
+}
+if (env('DISCORD_BENCH') === '1') bench();

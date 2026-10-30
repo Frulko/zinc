@@ -7,6 +7,7 @@ import { GATEWAY_URL, GATEWAY_QUERY, USER_AGENT, CAPABILITIES, RECONNECT_MAX_MS 
 import { clientProperties } from './identity';
 
 const OP_DISPATCH = 0, OP_HEARTBEAT = 1, OP_IDENTIFY = 2, OP_RESUME = 6, OP_RECONNECT = 7, OP_INVALID_SESSION = 9, OP_HELLO = 10, OP_ACK = 11;
+const OP_GUILD_SUBSCRIPTIONS_BULK = 37;
 const CLOSE_AUTH_FAILED = 4004;
 // close codes after which a new connection cannot help: bad shard, sharding, bad version, bad or disallowed intents
 const FATAL = [4010, 4011, 4012, 4013, 4014];
@@ -45,6 +46,8 @@ export class Gateway {
     this.ws = null;
     if (ws !== null) ws.close(1000, '');
   }
+  /** Op 37: what the open server sends this client (its member list, typing): lazy guilds (docs/reports/discord-client-research.md 2.5). */
+  subscribe(body: any): void { this.send(OP_GUILD_SUBSCRIPTIONS_BULK, body); }
   /** Drops the connection as a network failure would (tests): the next connection resumes. */
   drop(): void { const ws = this.ws; if (ws !== null) ws.close(4000, 'drop'); }
 

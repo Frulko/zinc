@@ -1,15 +1,15 @@
 // Discord's Markdown, as its clients draw a message: ``` code blocks, > and >>> quotes, # ## ### headings, -# subtext; inline
 // **bold**, *italic* and _italic_, __underline__, ~~strike~~, `code`, ||spoilers||, [masked](links) and bare links, mentions (<@id>,
-// <#id>, <@&id>) and custom emoji (<:name:id>, written :name: until ZN-868 draws them). A block is one text and its style runs, so the
-// screen draws it as one selectable Text (ui.setTextRuns).
+// <#id>, <@&id>) and custom emoji (<:name:id>: a run of their own, which the screen draws as the emoji's picture). A block is one text and
+// its style runs, so the screen draws it as one selectable Text (ui.setTextRuns); a block with custom emoji is cut into pieces around them.
 // Not lib/std/markdown (CommonMark-like: `__` is bold there, no spoiler, strike or mention) nor md4c (zinc:markdown: indented code,
 // setext headings and soft breaks that Discord does not have): Discord's dialect is its own (simple-markdown rules).
 // ponytail: lists stay text as written ("- item"); draw bullets when someone misses them.
 import * as ui from 'zinc:ui';
 
-export const K_TEXT = 0, K_QUOTE = 1, K_HEADING = 2, K_SUB = 3, K_CODE = 4;
-/** Colour roles of a run: the text's own, inline code, a link, a mention, a hidden spoiler. */
-export const R_TEXT = 0, R_CODE = 1, R_LINK = 2, R_MENTION = 3, R_SPOILER = 4;
+export const K_TEXT = 0, K_QUOTE = 1, K_HEADING = 2, K_SUB = 3, K_CODE = 4, K_EMOJI = 5;
+/** Colour roles of a run: the text's own, inline code, a link, a mention, a hidden spoiler, a custom emoji (its text is :name:). */
+export const R_TEXT = 0, R_CODE = 1, R_LINK = 2, R_MENTION = 3, R_SPOILER = 4, R_EMOJI = 5;
 const BOLD = ui.RUN_BOLD, ITALIC = ui.RUN_ITALIC, MONO = ui.RUN_MONO, UNDERLINE = ui.RUN_UNDERLINE, STRIKE = ui.RUN_STRIKE;
 
 export class MdBlock {
@@ -21,6 +21,8 @@ export class MdBlock {
   text = '';
   /** [length, style (ui.RUN_*), role (R_*)...] over text. */
   runs: i32[] = [];
+  /** The ids of the custom emoji, one per R_EMOJI run, in order. K_EMOJI: its own id. */
+  emoji: string[] = [];
   constructor(kind: i32) { this.kind = kind; }
 }
 
@@ -116,7 +118,10 @@ function inline(s: string, names: Names, reveal: boolean, b: MdBlock): void {
       const m = /^<(@!?|@&|#|a?:[A-Za-z0-9_]+:)(\d+)>/.exec(s.slice(i, i + 64));
       if (m !== null) {
         const k = m[1];
-        if (k.endsWith(':')) { cut(style, role()); add(k.startsWith('a') ? k.slice(1) : k); }    // custom emoji, as :name:
+        if (k.endsWith(':')) {                                               // custom emoji: its :name: in a run of its own
+          if (!(spoiler && !reveal)) b.emoji.push(m[2]);
+          span(k.startsWith('a') ? k.slice(1) : k, 0, R_EMOJI);
+        }
         else span(k === '#' ? '#' + names('#', m[2]) : '@' + names(k === '@&' ? '&' : '@', m[2]), 0, R_MENTION);
         i += m[0].length;
         continue;
@@ -169,9 +174,48 @@ export function describe(blocks: MdBlock[]): string {
       if (r === R_LINK) piece = '{' + piece + '}';
       if (r === R_MENTION) piece = '<' + piece + '>';
       if (r === R_SPOILER) piece = '▒' + piece + '▒';
+      if (r === R_EMOJI) piece = '[' + piece + ']';
       s += piece;
     }
     out.push(['text', 'quote', 'h' + b.level, 'sub'][b.kind] + ':' + s);
   }
   return out.join(' | ');
+}
+
+/** A block with custom emoji cut into its pieces: text (the block's kind, its runs) and emoji (K_EMOJI, the id in `emoji`), drawn in a row
+ *  that wraps. ponytail: a piece of text wraps on its own, not around the emoji as one paragraph would; inline pictures in a Text (as React
+ *  Native has them) would make it one. */
+export function pieces(b: MdBlock): MdBlock[] {
+  const out: MdBlock[] = [];
+  let at = 0, e = 0;
+  let cur: MdBlock | null = null;
+  for (let k = 0; k < b.runs.length; k += 3) {
+    const len = b.runs[k], piece = b.text.slice(at, at + len);
+    at += len;
+    if (b.runs[k + 2] === R_EMOJI && e < b.emoji.length) {
+      const x = new MdBlock(K_EMOJI);
+      x.text = piece; x.emoji.push(b.emoji[e++]);
+      out.push(x); cur = null;
+      continue;
+    }
+    if (cur === null) { const c = new MdBlock(b.kind); c.level = b.level; out.push(c); cur = c; }
+    const c = cur as MdBlock;
+    c.text += piece; c.runs.push(len); c.runs.push(b.runs[k + 1]); c.runs.push(b.runs[k + 2]);
+  }
+  return out;
+}
+/** Only custom emoji and spaces (at most 30): Discord draws them large. */
+export function onlyEmoji(blocks: MdBlock[]): boolean {
+  let n = 0;
+  for (const b of blocks) {
+    if (b.kind !== K_TEXT) return false;
+    let at = 0;
+    for (let k = 0; k < b.runs.length; k += 3) {
+      const piece = b.text.slice(at, at + b.runs[k]);
+      at += b.runs[k];
+      if (b.runs[k + 2] === R_EMOJI) n++;
+      else if (piece.trim() !== '') return false;
+    }
+  }
+  return n > 0 && n <= 30;
 }

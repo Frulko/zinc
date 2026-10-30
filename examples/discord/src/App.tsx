@@ -1,11 +1,12 @@
-// The screen: the login, or the three columns of Discord (servers, channels, messages). The state lives in state.ts; this file only
-// chooses what to show and re-renders when the state changes.
+// The screen: the login, or the columns of Discord (servers, channels, messages, a server's members). The state lives in state.ts; this
+// file only chooses what to show and re-renders when the state changes.
 import { useState, useEffect } from 'zinc:ui/react';
 import { store } from './state';
 import { Login } from './components/Login';
 import { GuildRail } from './components/GuildRail';
 import { ChannelList } from './components/ChannelList';
 import { MessageView } from './components/MessageView';
+import { MemberList } from './components/MemberList';
 import { BG_MAIN, TEXT_MUTED } from './constants';
 
 export default function App() {
@@ -21,5 +22,6 @@ export default function App() {
     <GuildRail />
     <ChannelList />
     <MessageView />
+    {store.guildId !== '' ? <MemberList /> : null}
   </View>;
 }
