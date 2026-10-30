@@ -132,7 +132,7 @@ message, hidden after 8 s), like React Native's LogBox.
 
 ## Inspector (plugins/devtools)
 
-`zinc dev` adds `plugins/devtools` to programs that use `zinc:ui` (on macos, linux, rpi1); elsewhere
+`zinc dev` adds `plugins/devtools` to programs with a frame loop (`zinc:ui`, `zinc:stage`, `onFrame`; not to scripts) (on macos, linux, rpi1); elsewhere
 `import 'zinc:devtools'` or `zinc build --devtools` opts in, `--no-devtools` opts out. The program listens on
 `127.0.0.1:9229` (`zinc.json` `plugins.devtools.port`, or `ZINC_DEVTOOLS_PORT` to run two programs at once: the variable wins, and `0` takes any free
 port; the line `zinc devtools: ...` on stderr names the port in use) and speaks a subset of the Chrome DevTools protocol:

@@ -4,7 +4,8 @@
 // screenshots (the native frame, captured by the runtime), Tracing (frame phases for the Performance panel), Network
 // (every fetch, WebSocket, MQTT client and outgoing TCP socket of the program, from the host's network log), and the Styles
 // panel: classes and style sheets as rules, element.style and the box model edited live with the patch printed to the console
-// (ZN-369). Unknown methods get an empty result so the frontend never waits.
+// (ZN-369). Unknown methods get an empty result so the frontend never waits. A program with a zinc:stage scene and no zinc:ui tree shows its
+// display tree instead (stage.ts).
 import Cdp from './native/cdp.spec';
 import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
 import { width, height } from 'zinc:gfx';
@@ -12,6 +13,8 @@ import { env } from 'zinc:sys';
 import { type as osType, release as osRelease, arch as osArch, cpus as osCpus, totalmem, hostname } from 'zinc:os';
 import { get as storeGet, set as storeSet, remove as storeRemove, keys as storeKeys } from 'zinc:storage';
 import { devDatabases, DevDatabase } from 'zinc:devhooks';
+import { DisplayObject } from 'zinc:stage';
+import { stageRoot, stageNode, stageDocument, stageUnrendered, stageHighlight, stageBoxModel, stageSet } from './stage';
 
 /** A dev run (zinc dev): the only one where the styles can be edited live; an exported or plain run refuses, with this message. */
 const DEV = env('ZINC_DEV') === '1';
@@ -160,6 +163,10 @@ function handle(client: i32, msg: string): void {
     Cdp.send(client, `{"id":${id},"error":{"code":-32000,"message":${q(NOT_DEV)}}}`);
     return;
   }
+  if (inspectRoot() < 0 && stageRoot() !== null) {   // a zinc:stage program: its display tree instead (stage.ts)
+    const r = stageAnswer(method, nodeId, msg);
+    if (r.length > 0) { Cdp.send(client, `{"id":${id},${r}}`); return; }
+  }
   if (method === 'DOM.getDocument') { result = `{"root":${documentNode()}}`; snaps.clear(); shownRoot = inspectRoot(); remember(inspectRoot()); }
   else if (method === 'DOM.requestChildNodes' && n !== null) {
     Cdp.send(client, `{"method":"DOM.setChildNodes","params":{"parentId":${nodeId},"nodes":[${children(h, n).join(',')}]}}`);
@@ -235,6 +242,21 @@ function handle(client: i32, msg: string): void {
   else if (method === 'Zinc.completeClass') result = `{"classes":[${knownClasses(Cdp.str(msg, 'prefix'), 40).map((c: string) => q(c)).join(',')}]}`;
   else if (method === 'Runtime.evaluate') result = '{"result":{"type":"string","value":"zinc: no JavaScript engine on the device (the console shows the program output)"}}';
   Cdp.send(client, `{"id":${id},"result":${result}}`);
+}
+/** The answer to a DOM, CSS or Overlay method on the zinc:stage tree ('"result":...' or '"error":...'), '' for the methods it leaves to handle. */
+function stageAnswer(method: string, nodeId: i32, msg: string): string {
+  const o = stageNode(nodeId);
+  if (method === 'DOM.getDocument') return `"result":{"root":${stageDocument(DOC)}}`;
+  if (method === 'Zinc.getUnrendered') return `"result":{"nodeIds":[${stageUnrendered().join(',')}]}`;
+  if (method === 'Overlay.highlightNode') { stageHighlight(o); return '"result":{}'; }
+  if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') { stageHighlight(null); return '"result":{}'; }
+  if (method === 'DOM.getBoxModel' && o !== null) return `"result":${stageBoxModel(o as DisplayObject)}`;
+  if (method === 'DOM.setAttributeValue' && o !== null) {
+    const why = stageSet(o as DisplayObject, Cdp.str(msg, 'name'), Cdp.str(msg, 'value'));
+    return why.length > 0 ? `"error":{"code":-32000,"message":${q(why)}}` : '"result":{}';
+  }
+  if (method.startsWith('DOM.') || method.startsWith('CSS.') || method.startsWith('Overlay.')) return '"result":{}';   // the rest of the tree's methods: nothing for a scene
+  return '';
 }
 
 // ---------------------------------------------------------------- what draws (the inspector's "rendered only" filter)

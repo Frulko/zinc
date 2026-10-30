@@ -10,6 +10,7 @@ import { Btn, Flat, Toggle, Field, Mono } from './widgets';
 export class TNode {
   id: i32 = 0; text: boolean = false; tag: string = ''; comp: boolean = false; cls: string = ''; value: string = '';
   source: string = ''; props: string = ''; hidden: boolean = false; on: string = '';
+  stage: boolean = false; attrs: string[] = [];   // a node of a zinc:stage scene: its class is `tag`, its properties `attrs` (name, value...)
   kids: TNode[] = []; parent: TNode | null = null;
   hay: string = '';   // what the search looks in, lower case
 }
@@ -41,9 +42,16 @@ export function build(d: any, parent: TNode | null, byId: Map<i32, TNode>, roots
     if (type === 3) { x.text = true; x.value = d.nodeValue; x.hay = x.value.toLowerCase() + ' #' + x.id; }
     else {
       const name: string = d.nodeName; const local: string = d.localName;
-      x.comp = name === local && name.length > 0 && name.charAt(0) !== name.charAt(0).toLowerCase();   // zinc:devtools names a component's wrapper as written
-      x.tag = x.comp ? name : hostName(local);
+      x.stage = hasAttr(d, 'stage');   // zinc:stage: the element is named after the node's class (Sprite, GameManager...)
+      x.comp = !x.stage && name === local && name.length > 0 && name.charAt(0) !== name.charAt(0).toLowerCase();   // zinc:devtools names a component's wrapper as written
+      x.tag = x.comp || x.stage ? name : hostName(local);
       x.cls = attr(d, 'class'); x.source = attr(d, 'source'); x.props = attr(d, 'props'); x.on = attr(d, 'on'); x.hidden = hasAttr(d, 'hidden');
+      if (x.stage) {
+        const at = d.attributes;
+        for (let i = 0; i + 1 < at.length; i += 2) { const k: string = at[i]; const v: string = at[i + 1]; if (k !== 'stage') { x.attrs.push(k); x.attrs.push(v); } }
+        x.hidden = attr(d, 'visible') === 'false';
+        x.props = x.attrs.join(' ');
+      }
       x.hay = (x.tag + ' ' + x.cls + ' #' + x.id + ' ' + x.source + ' ' + x.props).toLowerCase();
     }
     byId.set(x.id, x);
@@ -57,11 +65,14 @@ export function build(d: any, parent: TNode | null, byId: Map<i32, TNode>, roots
 export function label(n: TNode): string {
   if (n.text) return '"' + n.value + '"';
   if (n.comp) return '<' + n.tag + '>';
+  if (n.stage) { const nm = stageAttr(n, 'name'); return '<' + n.tag + (nm.length > 0 ? ' name="' + nm + '"' : '') + (n.hidden ? ' hidden' : '') + '>'; }
   return '<' + n.tag + (n.cls.length > 0 ? ' className="' + n.cls + '"' : '') + (n.hidden ? ' hidden' : '') + '>';
 }
+/** A property of a zinc:stage node ('' when it has none). */
+export function stageAttr(n: TNode, name: string): string { for (let i = 0; i + 1 < n.attrs.length; i += 2) if (n.attrs[i] === name) return n.attrs[i + 1]; return ''; }
 /** A host node that only wraps one element (no class, no listener, no text): "hide host wrappers" shows its child in its place. */
 function wrapper(n: TNode): boolean {
-  if (n.comp || n.text || n.cls.length > 0 || n.on.length > 0 || n.kids.length !== 1) return false;
+  if (n.comp || n.stage || n.text || n.cls.length > 0 || n.on.length > 0 || n.kids.length !== 1) return false;
   return !n.kids[0].text;
 }
 
@@ -91,6 +102,7 @@ export const [decls, setDecls] = createSignal<Decl[]>([]);
 export const [propName, setPropName] = createSignal<string>('');
 export const [propValue, setPropValue] = createSignal<string>('');
 export const [edits, setEdits] = createSignal<i32>(0);   // edits applied (the dump waits on it)
+export const [stageAttrs, setStageAttrs] = createSignal<string[]>([]);   // the target's properties when it is a zinc:stage node
 
 /** A property of element.style: name, value, and whether it applies (Chrome's checkbox). */
 export class Decl { name: string = ''; value: string = ''; on: boolean = true; }
@@ -164,8 +176,10 @@ export async function select(id: i32): Promise<void> {
 /** Computed style, box model, rules and element.style of the target, read again. */
 export async function readStyles(): Promise<void> {
   const id = target();
-  if (id < 0) { setStyles([]); setBox(''); setBoxLines([]); setRules([]); setClasses([]); setDecls([]); return; }
+  if (id < 0) { setStyles([]); setBox(''); setBoxLines([]); setRules([]); setClasses([]); setDecls([]); setStageAttrs([]); return; }
   call('Overlay.highlightNode', `{"nodeId":${id},"highlightConfig":{}}`);
+  const sn = nodeOf(id);
+  setStageAttrs(sn !== null && (sn as TNode).stage ? (sn as TNode).attrs.slice(0) : []);
   const computed = await call('CSS.getComputedStyleForNode', `{"nodeId":${id}}`);
   const lines = styleLines(computed);
   setStyles(lines);
@@ -273,6 +287,25 @@ export async function setProp(name: string, value: string): Promise<boolean> {
 export async function toggleProp(name: string): Promise<boolean> { const l = copyDecls(); for (const d of l) if (d.name === name) d.on = !d.on; return await applyDecls(l); }
 export async function deleteProp(name: string): Promise<boolean> { return await applyDecls(copyDecls().filter((d: Decl) => d.name !== name)); }
 
+// ---- live edits of a zinc:stage node (dev runs): its position, size, scale, rotation, alpha, visibility
+const STAGE_EDITABLE: string[] = ['x', 'y', 'width', 'height', 'scaleX', 'scaleY', 'rotation', 'alpha', 'visible'];
+export async function setStageProp(name: string, value: string): Promise<boolean> {
+  const id = target(), n = nodeOf(id), v = value.trim();
+  if (n === null || !(n as TNode).stage) return false;
+  const r = await call('DOM.setAttributeValue', `{"nodeId":${id},"name":${JSON.stringify(name)},"value":${JSON.stringify(v)}}`);
+  const e = errorOf(r);
+  if (e.length > 0) { setStatus(e); return false; }
+  const a = (n as TNode).attrs;
+  for (let i = 0; i + 1 < a.length; i += 2) if (a[i] === name) a[i + 1] = v;
+  if (name === 'visible') (n as TNode).hidden = v === 'false';
+  (n as TNode).props = a.join(' ');
+  setStatus(name + ' set (not written to your source)');
+  setEdits(edits() + 1);
+  await readStyles();
+  refilter();
+  return true;
+}
+
 // ---- the views
 function TreeRow(p: { r: Row }): i32 {
   const n = p.r.node;
@@ -328,8 +361,32 @@ function CompBox(p: { c: TNode }): i32 {   // the component selected (or the one
     <Text className="text-xs font-mono text-slate-700">{p.c.props.length > 0 ? p.c.props : 'no props'}</Text>
   </View>;
 }
+function StageRow(p: { name: string; value: string }): i32 {
+  return <View className="flex-row items-center gap-2">
+    <Text className="w-16 text-xs font-mono text-rose-700">{p.name + ':'}</Text>
+    {devRun() && STAGE_EDITABLE.indexOf(p.name) >= 0 ? <Field value={() => p.value} width="w-24" onInput={(v: string) => {}} onChange={(v: string) => { setStageProp(p.name, v); }} /> :
+      <Text className="text-xs font-mono text-slate-800">{p.value}</Text>}
+  </View>;
+}
+/** The right column for a zinc:stage node: its class and properties, edited live in dev runs. */
+function StageBox(): i32 {
+  const rows = (): string[][] => { const a = stageAttrs(), out: string[][] = []; for (let i = 0; i + 1 < a.length; i += 2) out.push([a[i], a[i + 1]]); return out; };
+  const n = nodeOf(target());
+  return <View className="flex-col gap-1 p-2">
+    <Text className="text-xs font-medium text-sky-900">{n !== null ? '<' + (n as TNode).tag + '>' : ''}</Text>
+    <Text className={'text-xs ' + (devRun() ? 'text-emerald-700' : 'text-amber-700')}>{devRun() ? 'Live: edits apply at once and are not written to your source.' :
+      'Read-only: live edits need a dev run (start the program with zinc dev).'}</Text>
+    <View className="flex-col gap-1">{rows().map((r: string[]) => <StageRow name={r[0]} value={r[1]} />)}</View>
+    <Text className="text-xs font-medium text-slate-600">{box() === '' ? 'Box' : 'Box · ' + box()}</Text>
+  </View>;
+}
 export function StylesPane(): i32 {
   return <ScrollView className="flex-1">
+    {stageAttrs().length > 0 ? <StageBox /> : <CssPane />}
+  </ScrollView>;
+}
+function CssPane(): i32 {
+  return <View className="flex-col">
     <View className="flex-col gap-2 p-2">
       {comp() !== null ? <CompBox c={comp() as TNode} /> : <View />}
       <Text className={'text-xs ' + (devRun() ? 'text-emerald-700' : 'text-amber-700')}>{devRun() ? 'Live: edits apply at once and are not written to your source (the console prints the patch).' :
@@ -354,7 +411,7 @@ export function StylesPane(): i32 {
       <Text className="text-xs font-medium text-slate-600">Computed</Text>
       <View className="flex-col">{styles().map((s: string) => <Mono text={s} color="text-slate-800" />)}</View>
     </View>
-  </ScrollView>;
+  </View>;
 }
 
 /** ZINC_INSPECTOR_DUMP: the tree under each filter, a component selected, and live styling (or its refusal), as text. */
@@ -378,6 +435,10 @@ export async function dumpElements(): Promise<void> {
     const t = nodeOf(target());
     console.log('component: <' + r.node.tag + '> ' + r.node.source + ' ' + r.node.props + ' | styles ' + (t !== null ? label(t as TNode) : 'none'));
     break;
+  }
+  for (const r of rows()) if (r.node.stage && stageAttr(r.node, 'alpha') !== '') {   // a zinc:stage scene: a node with a property of its own class (alpha), an edit of x
+    await dumpStage(r.node);
+    return;
   }
   let sq: TNode | null = null;   // live styling on the first square
   for (const r of rows()) if (r.node.cls.indexOf('w-4') >= 0) { sq = r.node; break; }
@@ -407,4 +468,22 @@ export async function dumpElements(): Promise<void> {
   await deleteProp('width');
   console.log('style edit: width ' + s1 + ', off ' + s2 + ', on ' + s3 + ', deleted ' + computedValue('width') + ' | element.style ' + inline().text);
   await sleep(300);   // the patch reaches the console
+}
+
+/** A zinc:stage node selected (its properties and box), then its x moved by 100: the box and the program's frame follow. */
+async function dumpStage(n: TNode): Promise<void> {
+  await select(n.id);
+  const left = async (): Promise<number> => { const b = await call('DOM.getBoxModel', `{"nodeId":${n.id}}`); const x: number = b.model !== undefined ? b.model.content[0] : -1; return x; };
+  const pairs: string[] = [];
+  for (let i = 0; i + 1 < stageAttrs().length; i += 2) pairs.push(stageAttrs()[i] + '=' + stageAttrs()[i + 1]);
+  console.log('stage node: ' + label(n) + ' ' + pairs.join(' ') + ' | box ' + box());
+  console.log('dev run: ' + devRun());
+  const x0 = stageAttr(n, 'x'), l0 = await left();
+  const before: string = (await call('Page.captureScreenshot', '{}')).data;
+  const ok = await setStageProp('x', `${Number(x0) + 100}`);
+  if (!ok) { console.log('stage edit refused: ' + status()); return; }
+  await sleep(300);
+  const after: string = (await call('Page.captureScreenshot', '{}')).data;
+  console.log('stage edit: x ' + x0 + ' -> ' + stageAttr(n, 'x') + ', box left ' + l0 + ' -> ' + (await left()) + ' | frame changed: ' + (before !== after));
+  console.log('bad edit: ' + ((await setStageProp('alpha', 'abc')) ? 'applied' : status()));
 }

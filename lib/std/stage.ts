@@ -723,6 +723,12 @@ export class DisplayObject {
 /** AS3's and OpenFL's name for a node that draws and holds children: the same as DisplayObject. */
 export class Sprite extends DisplayObject {}
 
+/** The Stages made, the first one first: the inspector (zinc:devtools) shows the first one's tree. */
+export const stages: Stage[] = [];
+let afterRender: (() => void) | null = null;
+/** Called after each drawing of a Stage (renderStage): the inspector draws its highlight over the scene there. */
+export function setAfterRender(f: (() => void) | null): void { afterRender = f; }
+
 /** The root of the scene: the window's size, laid out then drawn. */
 export class Stage extends DisplayObject {
   /** The background Stage.frame clears to (AS3's stage.color). */
@@ -731,6 +737,7 @@ export class Stage extends DisplayObject {
   constructor() {
     super('Stage');
     this.isOnStage = true;
+    stages.push(this);
   }
 
   /** Lays out and draws the scene in `screenWidth` x `screenHeight`. */
@@ -738,6 +745,7 @@ export class Stage extends DisplayObject {
     this.width = screenWidth;
     this.height = screenHeight;
     this.layoutAndRender(screenWidth, screenHeight, 0, 0);
+    if (afterRender !== null) (afterRender as () => void)();
   }
 
   /**

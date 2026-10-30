@@ -17,7 +17,7 @@ P
 waitfor() { # file pattern seconds
   n=0; while [ $n -lt $(( $3 * 20 )) ]; do grep -q "$2" "$1" 2>/dev/null && return 0; sleep 0.05; n=$((n+1)); done; return 1; }
 cd "$t" && "$Z" init app --template game >/dev/null && cd app || exit 2
-export ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=200000 ZINC_SIZE=64x48 ZINC_SHOT="$t/frame.png" ZINC_SHOT_FRAMES=3
+export ZINC_DEVTOOLS_PORT=0 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=200000 ZINC_SIZE=64x48 ZINC_SHOT="$t/frame.png" ZINC_SHOT_FRAMES=3
 ZINC_STEPS=1 "$Z" dev > "$t/dev.log" 2>&1 &
 dev=$!
 waitfor "$t/dev.log" "v1 started" 5 || { echo "dev did not start: $(cat "$t/dev.log")"; fail=1; }
@@ -70,6 +70,18 @@ printf "import { a } from './main';\nexport function b(): string { return a() + 
 "$Z" dev > "$t/dev3.log" 2>&1 &
 dev=$!
 waitfor "$t/dev3.log" "cycle ab" 5 || { echo "a quickjs project under dev: $(cat "$t/dev3.log")"; fail=1; }
+kill $dev; wait $dev 2>/dev/null
+grep -q "inspector on port" "$t/dev3.log" && { echo "a script (no frame loop) got the inspector: $(cat "$t/dev3.log")"; fail=1; }
+# 4c. a zinc:stage program on QuickJS gets the inspector, and reads the project's assets from dev's wrapper entry (examples/fatty)
+port=$(python3 "$root/tests/free_ports.py")
+mkdir -p "$t/stg/src" "$t/stg/assets" && cd "$t/stg" || exit 2
+printf '{"name":"stg","entry":"src/main.ts","engine":"quickjs","plugins":{"devtools":{"port":%s}}}\n' "$port" > zinc.json
+printf 'stage asset' > assets/note.txt
+printf "import { onFrame } from 'zinc:gfx';\nimport { Stage } from 'zinc:stage';\nimport { readText } from 'zinc:assets';\nconsole.log('read ' + readText('note.txt'));\nconst stage = new Stage();\nonFrame((dt: number) => stage.frame(dt));\n" > src/main.ts
+"$Z" dev > "$t/dev4.log" 2>&1 &
+dev=$!
+waitfor "$t/dev4.log" "read stage asset" 8 || { echo "a zinc:stage project on QuickJS under dev: $(cat "$t/dev4.log")"; fail=1; }
+grep -q "inspector on port $port" "$t/dev4.log" || { echo "the zinc:stage project has no inspector: $(cat "$t/dev4.log")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
 # 5. monitor: telemetry lines read from a file
 cat > "$t/tele.jsonl" <<'T'

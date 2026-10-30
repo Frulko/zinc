@@ -103,10 +103,10 @@ int assets(const std::vector<std::string>& args, const std::string& engineRoot);
 /** The asset build of the project in `dir` (zinc pack, build and export call it): <dir>/build/assets/<target>, the release profile compressing
  *  the packs. True with nothing done when the project has no assets directory; `summary` gets the line zinc assets build prints. */
 /** The entry of the project in `dir` with the inspector in front, as zinc dev runs it (and --inspect of pack, export and zinc device deploy): a file in
- *  build/.zinc-dev that imports 'zinc:devtools', then `entry`. A project that never names zinc:ui has nothing to inspect: `entry` itself. */
+ *  build/.zinc-dev that imports 'zinc:devtools', then `entry`. A project without a frame loop (a script) has nothing to inspect: `entry` itself. */
 std::string inspectEntry(const std::string& dir, const std::string& entry);
-/** Whether a source of the project in `dir` names zinc:ui (what inspectEntry checks): zinc dev --device then forwards its inspector here. */
-bool usesUi(const std::string& dir);
+/** Whether the project in `dir` has a frame loop (what inspectEntry checks): zinc dev --device then forwards its inspector here. */
+bool hasFrameLoop(const std::string& dir);
 bool buildAssets(const std::string& dir, const std::string& target, bool release, std::string& err, std::string* summary = nullptr);
 /** zinc.json app.icon (`icon`, relative to `dir`: a PNG, an SVG or any image zinc decodes) as the launcher tile of a .zapp and of the rmpp
  *  export: a kAppIconSize-square PNG, the picture fit and centred on a transparent square, its own alpha kept: AppLoad's launcher, card and

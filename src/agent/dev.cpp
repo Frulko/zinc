@@ -463,11 +463,11 @@ bool devRemote(std::vector<std::string>& args, const std::string& self, const st
   s->engine = engine;
   s->tmp = tmp;
   if (perf) s->env.push_back("ZINC_PERF_HUD=1");
-  std::string dir = ".";   // the project, to know whether it has an interface to inspect (zinc dev's own entry argument)
+  std::string dir = ".";   // the project, to know whether it has a frame loop to inspect (zinc dev's own entry argument)
   for (std::size_t i = 2; i < args.size() && args[i] != "--"; ++i) if (args[i][0] != '-') { dir = args[i]; break; }   // after "zinc dev"
   std::error_code ec;
   if (!fs::is_directory(dir, ec)) dir = fs::path(dir).parent_path().string();
-  s->inspect = std::find(args.begin(), args.end(), "--no-devtools") == args.end() && zn::cli::usesUi(dir.empty() ? "." : dir);
+  s->inspect = std::find(args.begin(), args.end(), "--no-devtools") == args.end() && zn::cli::hasFrameLoop(dir.empty() ? "." : dir);
   s->live = live;
   if (live) std::fprintf(stderr, "zinc dev: the screen of %s opens in a window here once the program shows a frame (close it to stop watching)\n", s->device.c_str());
   remote.start = [s](const std::string& dir, const std::vector<std::string>& a, bool over, std::string& out) { return s->start(dir, a, over, out); };
