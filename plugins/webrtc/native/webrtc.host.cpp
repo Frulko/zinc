@@ -30,6 +30,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+extern "C" long long zn_impair_wire_bytes(uint32_t ssrc);   // impair.cpp: the RTP bytes sent on the wire with an SSRC
 extern "C" int zn_host_permission(const char* feature, const char* detail, char* why, int n) __attribute__((weak));   // zinc.json "permissions" (src/host/permissions.cpp)
 
 // Runtime images of zinc:gfx (the remote video, the camera's frames): a headless program compiled without the rasterizer has none (-1);
@@ -1104,7 +1105,7 @@ struct HostWebRTC : NativeWebRTC {
     kv("bytesSent", num(s.bytesSent)); kv("packetsSent", num(s.packetsSent)); kv("framesEncoded", num(s.framesEncoded));
     kv("keyFramesEncoded", num(s.keyFramesEncoded)); kv("pliCount", num(s.pliReceived)); kv("totalEncodeTime", dbl(s.encodeUs / 1e6));
     kv("frameWidthSent", num(s.sentWidth)); kv("frameHeightSent", num(s.sentHeight)); kv("framesPerSecondSent", num((long long)s.sentTimes.size()));
-    kv("targetBitrate", num(s.targetBitrate)); kv("rembBitrate", num(s.rembBitrate)); kv("totalSamplesSent", num(s.samplesSent));
+    kv("targetBitrate", num(s.targetBitrate)); kv("rembBitrate", num(s.rembBitrate)); kv("wireBytesSent", num(zn_impair_wire_bytes(t->ssrc))); kv("totalSamplesSent", num(s.samplesSent));
     kv("bytesReceived", num(s.bytesReceived)); kv("packetsReceived", num(s.packetsReceived));
     kv("packetsLost", num(expected > s.packetsReceived ? expected - s.packetsReceived : 0)); kv("jitter", dbl(s.jitter / clock));
     kv("framesDecoded", num(s.framesDecoded)); kv("keyFramesDecoded", num(s.keyFramesDecoded)); kv("pliSent", num(s.pliSent));

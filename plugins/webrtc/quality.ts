@@ -24,6 +24,8 @@ export class RTCStats {
   totalSamplesReceived: number = 0; concealedSamples: number = 0; framesDropped: number = 0; availableOutgoingBitrate: number = 0;
   /** Zinc, outbound-rtp: the peer's REMB estimate for this stream (bit/s, 0 when it sends none). */
   rembBitrate: number = 0;
+  /** Zinc, outbound-rtp: the bytes of its RTP packets on the wire (IPv4, UDP, SRTP and RTP headers, payload, retransmissions included). */
+  wireBytesSent: number = 0;
   mimeType: string = ''; payloadType: number = 0; clockRate: number = 0; channels: number = 0; sdpFmtpLine: string = '';
   constructor(id: string, type: string) { this.id = id; this.type = type; this.timestamp = Date.now(); }
 }

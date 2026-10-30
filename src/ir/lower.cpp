@@ -2849,7 +2849,9 @@ struct Lowering::FnLower {
     }
   }
 
-  void compact() {  // dense value ids in definition order, for a stable dump
+  // dense value ids in definition order, for a stable dump. A value a refused construct never defined (Z0005 already reported) stays
+  // missing: the diagnostic is the outcome, not an abort
+  void compact() {
     std::vector<ValueId> remap(f.valueTypes.size(), kNoValue);
     std::vector<TypeId> types;
     auto def = [&](ValueId v) { remap[v] = static_cast<ValueId>(types.size()); types.push_back(f.valueTypes[v]); };
@@ -2860,8 +2862,8 @@ struct Lowering::FnLower {
     for (Block& b : f.blocks) {
       for (ValueId& p : b.params) p = remap[p];
       for (Inst& i : b.insts) {
-        for (ValueId& v : i.args) { if (v >= remap.size()) { std::fprintf(stderr, "internal error: instruction %s of @%s uses a missing value\n", opName(i.op), f.name.c_str()); std::abort(); } v = remap[v]; }
-        for (Edge& e : i.edges) for (ValueId& v : e.args) { if (v >= remap.size()) { std::fprintf(stderr, "internal error: a jump of @%s passes a missing value\n", f.name.c_str()); std::abort(); } v = remap[v]; }
+        for (ValueId& v : i.args) { if (v >= remap.size() && !L.diags.empty()) { v = kNoValue; continue; } if (v >= remap.size()) { std::fprintf(stderr, "internal error: instruction %s of @%s uses a missing value\n", opName(i.op), f.name.c_str()); std::abort(); } v = remap[v]; }
+        for (Edge& e : i.edges) for (ValueId& v : e.args) { if (v >= remap.size() && !L.diags.empty()) { v = kNoValue; continue; } if (v >= remap.size()) { std::fprintf(stderr, "internal error: a jump of @%s passes a missing value\n", f.name.c_str()); std::abort(); } v = remap[v]; }
         if (i.res != kNoValue) i.res = remap[i.res];
       }
     }

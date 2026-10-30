@@ -693,7 +693,7 @@ export class RTCPeerConnection extends EventTarget {
       o.kind = t.kind; o.mid = mid; o.ssrc = n('ssrc'); o.bytesSent = n('bytesSent'); o.packetsSent = n('packetsSent');
       o.framesEncoded = n('framesEncoded'); o.keyFramesEncoded = n('keyFramesEncoded'); o.framesPerSecond = n('framesPerSecondSent');
       o.frameWidth = n('frameWidthSent'); o.frameHeight = n('frameHeightSent'); o.pliCount = n('pliCount'); o.totalEncodeTime = n('totalEncodeTime');
-      o.targetBitrate = n('targetBitrate'); o.rembBitrate = n('rembBitrate');
+      o.targetBitrate = n('targetBitrate'); o.rembBitrate = n('rembBitrate'); o.wireBytesSent = n('wireBytesSent');
       const tr = t.sender.track;
       if (tr !== null) o.trackIdentifier = (tr as MediaStreamTrack).id;
       o.codecId = codec(t.sendCodec, 'sendPayloadType', 'sendClockRate', 'sendFmtp');
