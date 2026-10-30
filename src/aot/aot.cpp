@@ -58,10 +58,11 @@ struct FnEmitter {
   const std::set<std::string>& arith;
   const std::set<std::string>& divs;
   const std::vector<char>& typedFn;   // per function: compiled as a C function with typed parameters (ZN-144)
+  bool tablesOk;                       // zbc::verifyTables(m) is empty, checked once per module
   bool typed = false;                  // this one is
 
-  FnEmitter(const zbc::Module& mod, const zbc::Function& fn, std::size_t i, const std::set<std::string>& a, const std::set<std::string>& d, const std::vector<char>& tf)
-      : m(mod), f(fn), index(i), arith(a), divs(d), typedFn(tf) {}
+  FnEmitter(const zbc::Module& mod, const zbc::Function& fn, std::size_t i, const std::set<std::string>& a, const std::set<std::string>& d, const std::vector<char>& tf, bool tok)
+      : m(mod), f(fn), index(i), arith(a), divs(d), typedFn(tf), tablesOk(tok) {}
 
   std::string r(unsigned k) { return typed ? "r" + std::to_string(k) : "r[" + std::to_string(k) + "]"; }
   // The verifier's register classes before each instruction (ZN-409): a field access on a register of a known object class goes through that
@@ -183,7 +184,7 @@ struct FnEmitter {
     leaf = true;
     for (std::size_t pc = 0; pc < f.code.size(); pc += lengthOf(f.code[pc])) { std::string n = kOps[opOf(f.code[pc])].name; if (n == "Call" || n == "CallVirt" || n == "Rt" || n == "CallNative") leaf = false; }
     typed = typedFn[index] != 0;
-    if (!typed) types = zbc::registerTypes(m, index);
+    if (!typed && tablesOk) types = zbc::registerTypes(m, index, true);
     locals = !leaf && !typed;
     if (typed) {   // typed parameters and result, the registers are locals, a failure is a flag: no window, no status codes (ZN-144)
       std::string ps;
@@ -446,8 +447,9 @@ std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<
   s += declarations(mod, typedFn);
   std::vector<std::string> bodies(mod.functions.size());
   std::size_t total = 0;
+  const bool tablesOk = zbc::verifyTables(mod).empty();
   for (std::size_t i = 0; i < mod.functions.size(); ++i) {
-    FnEmitter fe(mod, mod.functions[i], i, arith, divs, typedFn);
+    FnEmitter fe(mod, mod.functions[i], i, arith, divs, typedFn, tablesOk);
     fe.emit();
     bodies[i] = std::move(fe.out);
     total += bodies[i].size();

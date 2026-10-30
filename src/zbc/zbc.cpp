@@ -89,7 +89,7 @@ std::uint32_t jumpTarget(const std::vector<std::uint32_t>& code, std::size_t pc)
 
 // ---- module-level checks
 
-std::string verifyTables(const Module& m) {
+std::string checkTables(const Module& m) {
   auto vtOk = [&](VType t) { return t.cls != Cls::R || t.ref < m.classes.size(); };
   if (m.classes.size() > kMaxClasses) return "too many classes";
   std::uint32_t nStr = 0;
@@ -620,9 +620,11 @@ std::string constText(const Const& c) {
 
 }  // namespace
 
-std::vector<std::vector<std::uint16_t>> registerTypes(const Module& m, std::size_t fn) {
+std::string verifyTables(const Module& m) { return checkTables(m); }
+
+std::vector<std::vector<std::uint16_t>> registerTypes(const Module& m, std::size_t fn, bool tablesChecked) {
   std::vector<std::vector<std::uint16_t>> out;
-  if (fn >= m.functions.size() || !verifyTables(m).empty()) return {};
+  if (fn >= m.functions.size() || (!tablesChecked && !checkTables(m).empty())) return {};
   out.resize(m.functions[fn].code.size());
   Verifier v(m, fn);
   v.trace = &out;
@@ -666,7 +668,7 @@ std::string verify(const Module& m) {
   if (m.functions.empty()) return "module has no functions";
   if (m.functions.size() > kMaxFunctions) return "too many functions";
   if (m.functions[0].name != "main" || !m.functions[0].params.empty()) return "function 0 must be main with no parameters";
-  if (std::string e = verifyTables(m); !e.empty()) return e;
+  if (std::string e = checkTables(m); !e.empty()) return e;
   for (std::size_t i = 0; i < m.functions.size(); ++i) {
     Verifier v(m, i);
     if (!v.run()) return v.err;

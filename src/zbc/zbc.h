@@ -113,7 +113,10 @@ EmitResult emit(const ir::Module& m);   // m.debug: Line instructions, homes of 
 std::string verify(const Module& m);
 // The class of every register before each instruction of function `fn`, as the verifier proves it (index = code word of an instruction's
 // start; other words stay empty): 0 none or unknown, 1 I, 2 S, 3 D, 4 + class id for a reference of that class. Empty when it does not verify.
-std::vector<std::vector<std::uint16_t>> registerTypes(const Module& m, std::size_t fn);
+// `tablesChecked`: the caller already found verifyTables(m) empty (the AOT asks for every function: checking the tables each time was quadratic).
+std::vector<std::vector<std::uint16_t>> registerTypes(const Module& m, std::size_t fn, bool tablesChecked = false);
+// Empty when the module's tables (classes, selectors, globals, natives...) are well formed: the part of verify() that is not per function.
+std::string verifyTables(const Module& m);
 // Run-length packing of an encoded module (ZN-603): zero and 0xFF runs (the dense vtables of ZBC 7 were mostly 0xFF). Tokens are varints:
 // an even one 2n is followed by n literal bytes, an odd one 2n+1 by one byte repeated n times. unpackRuns fails on a truncated stream.
 std::vector<std::uint8_t> packRuns(const std::vector<std::uint8_t>& in);
