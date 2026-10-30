@@ -6,6 +6,9 @@ The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
 
+- QuickJS: no Intl, so `toLocaleDateString('fr-FR', { month: 'long' })` gives the en-US form; examples/photo-sorter names its months itself (a `ponytail:` comment marks it).
+- zinc:ui: a width given as a string decided at run time (`width: `${n}%``) is not read as a percent; `pct(n)` is the way, and the diagnostic could say so.
+- photo-sorter: dropping folders on the window to add them as sources (`drop` events of zinc:system), and a grid to sort several pictures at once.
 - ZN-862: the imageio thumbnail cache is never pruned; a size cap or an LRU sweep, or a large library grows `cache/thumbnails` without end.
 - ZN-862: the portable imageio reader decodes the whole JPEG before downscaling (about 96 MB per 24 MP picture per worker, 2.8 s for 24); libjpeg-turbo's scaled decode would cut both on Linux and the Pi.
 - ZN-862: `trash()` returns false for a file on another disk (freedesktop's `$topdir/.Trash-$uid`) and on Windows (`IFileOperation`).
