@@ -26,6 +26,7 @@
 
 #include "cli_pm.h"
 #include "cli_web_deps.h"
+#include "frontend/profile.h"
 #include "platform/socket.h"
 #include "tc/tc.h"
 #include "yyjson.h"
@@ -963,7 +964,7 @@ void broadcast(Dev& d, const std::string& json) {
 bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& refreshable, bool first) {
   std::lock_guard<std::mutex> lock(d.m);
   const fs::path logFile = d.root / "stage.log";
-  const int rc = run(std::string(d.a.build ? "" : "ZINC_WEB_HOT=1 ") + "ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web bundle " + q(d.a.dir) + " --stage " + q(d.stage.string()) + (d.a.prepare.empty() ? "" : " --keep-packages") + " > " + q(logFile.string()) + " 2>&1");
+  const int rc = run(std::string(d.a.build ? "" : "ZINC_WEB_HOT=1 ") + "ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web " + (zn::frontend::force() ? "--force " : "") + "bundle " + q(d.a.dir) + " --stage " + q(d.stage.string()) + (d.a.prepare.empty() ? "" : " --keep-packages") + " > " + q(logFile.string()) + " 2>&1");
   log = readAll(logFile);
   if (rc != 0) return false;
   Json j(readAll(d.stage / "stage.json"));
