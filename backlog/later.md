@@ -919,3 +919,5 @@ The next backlog review turns lines into tasks or deletes them.
 - Info view: the refresh-rate key of Linux and Windows `hal_sdl`, and the `js.heap` provider of the JSC module on Linux (WebKitGTK).
 - Inspector Info: check by hand that moving the window to a screen of another refresh rate updates the rate (SDL_EVENT_WINDOW_DISPLAY_CHANGED, no automatic test).
 - Inspector discovery folder on Windows: uses `HOME`; needs `USERPROFILE`.
+- ZN-876: zinc:secure-store backends for Linux (libsecret) and Windows (Credential Manager); until then the non-Apple branch of securestore.abi.c refuses — run tests/t0/secure_store.sh's no-keychain path (isAvailableAsync false, calls reject) on Linux and Windows.
+
