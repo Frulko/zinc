@@ -1,0 +1,51 @@
+# Sprite Studio: window 0 is the canvas, 1 the tools, 2 the live preview (ZINC_SCALE=1).
+# Pause the preview from the tools window: its picture is then the frame the canvas shows.
+4 window 1
+4 move 68 594
+5 window 1
+5 down
+6 window 1
+6 up
+# Pick red in the tools window's palette.
+8 window 1
+8 move 177 293
+9 window 1
+9 down
+10 window 1
+10 up
+# A stroke on the canvas, from cell 2,2 to 12,2 and down to 12,6.
+12 move 91 93
+13 down
+14 move 161 93
+15 move 231 93
+16 move 231 149
+17 up
+# Edit the red in the tools window's colour field: the stroke turns orange on every window.
+20 window 1
+20 move 160 368
+21 window 1
+21 down
+22 window 1
+22 up
+23 window 1
+23 key a meta
+24 window 1
+24 text ffbe3b
+25 window 1
+25 key Enter
+# Add a frame on the canvas, then undo it.
+32 move 300 533
+33 down
+34 up
+36 key z meta
+# Save, then load.
+42 key s meta
+44 key o meta
+# Close the tools window, then reopen it from the canvas with T.
+46 window 1
+46 close
+48 key t
+# Close the preview, then reopen it from the canvas with P: the new window shows the last scene of the worker.
+50 window 2
+50 close
+52 key p
