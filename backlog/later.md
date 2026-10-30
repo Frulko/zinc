@@ -601,6 +601,9 @@ The next backlog review turns lines into tasks or deletes them.
 - deploy delta (`zinc device deploy` sends changed .zapp members): a t1 case in tests/t1/agent_deploy.sh (second send much smaller; a corrupt installed zapp falls back to the whole file).
 - deploy delta: stream the agent's rebuild through zapp::unpackTo instead of three in-memory copies (~70 MB for a 23 MiB app on a Pi).
 - deploy delta: describe the `delta` install exchange in docs/reports/zinc-next-agent.md; apply it per file to export directories (run.sh) as zinc dev's `there` map does.
+- D195: wire `zinc device <dev> update <bundle.raucb>` into src/agent: push the bundle and its .sig, run zinc-system-update install as root (sudoers rule), reconnect after the reboot and report status (updated or rolled back).
+- D195: commit the release CA certificate beside update.pub and build and sign a .raucb per release in CI (ZINC_UPDATE_SEED and the RAUC key as secrets).
+- D195: a data partition (apps, /home, network) grown on first boot instead of copying state at install time.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
@@ -1029,3 +1032,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-888: shell.start should accept a .zapp file or a project directory, as the old zinc-session loop did, so a ZINC_APP that is not an app folder still starts.
 - ZN-888: a T1 test with the real player in shell mode (ZINC_FBDEV_SIM) and zinc device run/stop through the agent, instead of stand-in sockets.
 - ZN-889: `zinc publish --target rpi --export` from the Mac, then on the Pi 3B+ install a .zapp and an export app from the hub over Wi-Fi, launch, Home; check that the `tar -h` player bundle of image/build.sh builds there.
+- D195 Pi A/B image: build an "ab": true image and its bundle (tools/pi-image keys, build, bundle); on a Pi 3B+ and a Pi 4/5 run zinc-system-update install: tryboot into B, mark-good commits config.txt, a failing session, pulled plug or watchdog in B returns to A; users, Wi-Fi, SSH keys, apps and pairing survive; verity bundles work on the Pi kernel.
