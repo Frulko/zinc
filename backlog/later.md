@@ -500,6 +500,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-864: run a whole zinc:ui tree in a worker window; today only a `Scene` display list crosses (gfx runtime per process, D75).
 - ZN-864: `zinc:system/window` `open()` takes no x/y in its options; the program calls `setPosition` after opening.
 - ZN-864: a closed `mountWindow` window leaves its zinc:ui Surface in the surfaces list; drop it.
+- ZN-864: a scene window (`open()` with no draw callback) runs `drawScene` every frame even when the scene is unchanged (sprite-studio's paused preview redraws ~2,000 shapes a frame).
+- ZN-864: no way to end the program when the main window closes (Electron's window-all-closed); closing sprite-studio's canvas leaves the tools and preview open.
+- ZN-864: sprite-studio reopens its tools window with `mountWindow` on the same root, one more stale Surface per reopen (see the closed-Surface line above).
+- ZN-864: test worker timers (`setTimeout` in a worker on the real clock); sprite-studio's preview relies on them.
+- sprite-studio: export a PNG sprite sheet or GIF; selection with move/copy/paste; zoom input in the preview once scene windows take input.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
 
 ## Demos
