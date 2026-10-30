@@ -464,6 +464,8 @@ struct Checker {
     declare(SymKind::Builtin, "__jsonNative", func({tStr, tDyn}, tDyn, 2), kNone, true, 0);  // JSON.parse in the runtime, for the Dyn prelude
     declare(SymKind::Builtin, "__recDecode", func({arrayOf(num(Num::u8)), tStr, tDyn}, tDyn, 3), kNone, true, 0);  // a native record's bytes as a Dyn tree (ZN-850, include/zn/rec.h)
     declare(SymKind::Builtin, "__recEncode", func({tDyn, tStr}, arrayOf(num(Num::u8)), 2), kNone, true, 0);       // a Dyn value as a native record's bytes
+    declare(SymKind::Builtin, "__recPost", func({num(Num::i32), tAny, tStr}, tVoid, 3), kNone, true, 0);   // zinc:worker: post a typed value by its record schema (checked in expr0)
+    declare(SymKind::Builtin, "__recRead", func({tStr}, tAny, 1), kNone, true, 0);                         // zinc:worker: the current message as __recRead<T>'s T
     declare(SymKind::Builtin, "__toNumber", func({tStr}, num(gNumber), 1), kNone, true, 0);  // Number(string), for generated code
     for (const char* nm : {"Boolean", "JSON", "Array", "Object"}) {  // namespaces whose calls the checker rewrites
       ObjInfo o;
@@ -2028,6 +2030,28 @@ struct Checker {
       std::string why, sc = recSchema(t, why);   // a type that is not data was reported where the Worker is made (Z5012)
       if (!replaceWith(i, "'" + sc + "'", {})) { diag(kZUnsupported, i, "internal error: schema rewrite did not parse"); return tError; }
       return expr0(i, kNoType);
+    }
+    if (!isNew && n(callee).kind == N::Ident && (n(callee).text == "__recPost" || n(callee).text == "__recRead")) {   // zinc:worker: the value keeps its own type (no Dyn view)
+      std::uint32_t bs = lookup(n(callee).text);
+      if (bs != kNone && out.syms[bs].kind == SymKind::Builtin) {
+        const bool post = n(callee).text == "__recPost";
+        expr(callee);
+        if (post ? argNodes.size() != 3 : (argNodes.size() != 1 || !a.targs.count(i) || a.targs[i].size() != 1)) { diag(kZWrongArgCount, i, post ? "__recPost(handle, value, schema)" : "__recRead<T>(schema)"); return tError; }
+        if (post) { expr(argNodes[0], num(Num::i32)); expr(argNodes[1]); expr(argNodes[2], tStr); out.nodeType[i] = tVoid; return tVoid; }
+        TypeId t = annotation(a.targs[i][0]);
+        expr(argNodes[0], tStr);
+        out.nodeType[i] = t;
+        return t;
+      }
+    }
+    if (!isNew && n(callee).kind == N::Member && n(callee).text == "postMessage" && !(n(callee).flags & kFlagOptional) && (argNodes.size() == 1 || argNodes.size() == 2) && lookup("__workerPost") != kNone) {
+      TypeId ot = expr(n(callee).kids[0]);   // zinc:worker's self.postMessage(v): a method cannot take its own type parameter, so the value's type travels by __workerPost<T>
+      if (!bad(ot) && ty(ot).k == TK::Object && lookupMember(ty(ot).obj, "__zincWorkerSelf", false)) {
+        std::vector<std::vector<std::uint32_t>> holes;
+        for (std::uint32_t an : argNodes) holes.push_back({an});
+        if (!replaceWith(i, argNodes.size() == 1 ? "__workerPost(__H0)" : "__workerPost(__H0, __H1)", holes)) return tError;
+        return expr0(i, kNoType);
+      }
     }
     if (isNew) {
       const Node& c = n(callee);

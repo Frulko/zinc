@@ -375,12 +375,15 @@
   /* zinc:fs appendBytes: bytes added at the end of a file (made when missing); system row, appended */ \
   X(HostFsAppendBytes, "host.fsAppendBytes", "sB>n", 2) \
   /* zinc:worker (D181, src/rt/worker.cpp, served by the runtime, not a host): start a worker of the build (entry key, the record schemas of what */ \
-  /* it receives and posts; 0 and workerError(0) when it fails), post the bytes of a record (handle 0: a worker to its parent), the next message */ \
-  /* (empty: none), the error that ended it ("" running, "<ended>" without error), terminate (0: self.close), the worker's schemas, onmessage */ \
+  /* it receives and posts; 0 and workerError(0) when it fails), workerPost and workerRecv (retired by the typed wire below: the runtime no longer */ \
+  /* serves them), the error that ended it ("" running, "<ended>" without error), terminate (0: self.close), the worker's schemas, onmessage */ \
   /* begin/end marks for the trace; appended */ \
   X(HostWorkerStart, "host.workerStart", "sss>i", 2) X(HostWorkerPost, "host.workerPost", "iB>n", 2) X(HostWorkerRecv, "host.workerRecv", "i>B", 2) \
   X(HostWorkerError, "host.workerError", "i>s", 2) X(HostWorkerClose, "host.workerClose", "i>n", 2) X(HostWorkerSchema, "host.workerSchema", "i>s", 2) \
-  X(HostWorkerMark, "host.workerMark", "ii>n", 2)
+  X(HostWorkerMark, "host.workerMark", "ii>n", 2) \
+  /* zinc:worker's typed wire (D173 bytes, no u8[] in between): whether a message waits (it becomes the current one), a value posted by its record */ \
+  /* schema and its type's layout (the lowering's recLayout), the current message read into the receiver's type (the class of the typed null); appended */ \
+  X(HostWorkerNext, "host.workerNext", "i>b", 2) X(HostWorkerPostRec, "string.#workerPostRec", "ixss>n", 2) X(HostWorkerRead, "string.#workerRead", "ssx>r", 2)
 
 namespace zn {
 
@@ -426,7 +429,7 @@ inline constexpr bool isSysTailRow(Rt r) {
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
 inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::RecDecode || r == Rt::RecEncode; }
 // zinc:worker's rows: declared as host functions (__host_worker*), served by the runtime's worker table (src/rt/worker.cpp).
-inline constexpr bool isWorkerRow(Rt r) { return r >= Rt::HostWorkerStart && r <= Rt::HostWorkerMark; }
+inline constexpr bool isWorkerRow(Rt r) { return r >= Rt::HostWorkerStart && r <= Rt::HostWorkerRead; }
 inline constexpr bool isHostRow(Rt r) { return ((r >= Rt::HostGfxFrames && r <= Rt::HostHostLast) || r >= Rt::HostLoopWait) && !isCoreTailRow(r); }
 inline constexpr bool isSysRow(Rt r) { return (r >= Rt::HostSysFirst && r <= Rt::HostHostLast && !(r >= Rt::HostGfxCreateImage && r <= Rt::HostGfxEndImage)) || (r >= Rt::HostLoopWait && !isGfxTailRow(r) && !isLayoutRow(r) && !isGlRow(r) && !isCoreTailRow(r)); }
 inline const RtInfo& rtInfo(Rt r) { return kRtInfo[static_cast<unsigned>(r)]; }

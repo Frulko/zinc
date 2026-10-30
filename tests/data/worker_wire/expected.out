@@ -1,0 +1,5 @@
+echo 1 same
+  n=-1.5 i=-2147483648 u=4294967295 b=true s=héllo ✓ bytes=0,7,255 nums=0.25,-3,1e+300 grid=[1,2][][-3] names=a||ü maybeN=42.5 maybeS=yes maybeI=m/9 maybeB=false inner=in/1 inners=x/2,y/-4.5 opt=3 optS=o
+echo 2 same
+sub n=-1 s=héllo ✓ inners=x:2:0 y:-4.5:0 added="" 0 0 0/0 null
+num 42.5

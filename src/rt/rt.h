@@ -260,6 +260,7 @@ struct Machine {
     if (traceFree) serials[o] = nextSerial++;
   }
   std::unique_ptr<MemStats> memStats;
+  std::shared_ptr<void> recPlans;   // zinc:worker: the typed wire's plans for this program's classes (src/rt/worker.cpp), made on the first post
   MemStats* mem = nullptr;
   void enableMem() { memStats = std::make_unique<MemStats>(); memStats->perClass.resize(classes.size()); mem = memStats.get(); }
   std::size_t objBytes(const Obj* o) const;                 // the fixed size of an object

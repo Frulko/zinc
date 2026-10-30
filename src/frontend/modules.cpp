@@ -1349,7 +1349,7 @@ std::string dynArgument(const Ast& a, const std::string& text, std::uint32_t ty,
 
 // zinc:worker (D181): `new Worker<In, Out>('./work.ts')` and `new Worker<In, Out>(new URL('./work.ts', import.meta.url))` name a second program of the
 // build. The argument becomes the worker's key (its path from the entry's directory), recorded in `workers` for the build to compile; any
-// other argument is Z5013. A file that imports zinc:worker also gets __workerOnMessage, which `self.onmessage = f` becomes (check.cpp).
+// other argument is Z5013. A file that imports zinc:worker also gets __workerOnMessage and __workerPost, which `self.onmessage = f` and `self.postMessage(v)` become (check.cpp).
 std::string lowerWorkerEntries(const std::string& text, const std::string& path, const std::string& entryDir, std::vector<Diag>& diags, std::uint32_t file,
                                std::vector<std::pair<std::string, std::string>>& workers) {
   namespace fs = std::filesystem;
@@ -1400,7 +1400,7 @@ std::string lowerWorkerEntries(const std::string& text, const std::string& path,
   }
   out += text.substr(from);
   if (path.find("lib/std/worker.ts") == std::string::npos) {   // and its event classes, which are not the web's (a generic MessageEvent<T>) when the file does not import them
-    std::string names = "__workerOnMessage";
+    std::string names = "__workerOnMessage, __workerPost";
     for (const char* nm : {"MessageEvent", "ErrorEvent"})
       if (std::regex_search(text, std::regex(std::string("\\b") + nm + "\\b")) && !std::regex_search(text, std::regex(std::string("import\\s*(type\\s*)?\\{[^}]*\\b") + nm + "\\b"))) names += std::string(", ") + nm;
     out += "\nimport { " + names + " } from 'zinc:worker';\n";

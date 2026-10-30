@@ -215,6 +215,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Changed
 - iPod demo: on a large library, For you no longer freezes the window for a second when it opens: the iPods' new listens are matched a little at a time and only what is new since the last time, and the listen counts are read in one quick pass.
+- `zinc:worker` messages are about 15 times faster to send and to receive: 100,000 records cost about 6 ms to `postMessage` and 7 ms to arrive in `onmessage` (they took about 100 ms each), so posting a large data set no longer freezes the window.
 - iPod demo: recommendations (For you, Genius, the mixes, the radio, the mood mixer) are worked out in a worker thread, so the window keeps drawing while they are recomputed.
 - Type checking a large program is faster: 1.5 s down to 0.3 s for the iPod demo, on every `zinc run`, `zinc build` and `zinc check` after an edit.
 - The first build of a plugin compiles its source files at once, half the cores at a time (`ZINC_JOBS` sets the number): zinc:ipod builds in 19 s instead of 72 s, and the iPod demo's first `zinc build` takes 75 s instead of 145 s.

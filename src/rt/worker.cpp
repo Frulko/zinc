@@ -18,6 +18,7 @@
 
 #include "zn/alloc_stats.h"
 #include "zn/host.h"
+#include "zn/rec.h"
 
 namespace zn::host { LoopBridge loopBridge; }
 
@@ -77,19 +78,314 @@ void* myWake() { if (!tWake && loopBridge.wakeNew) tWake = loopBridge.wakeNew();
 bool deterministic() { static const bool d = std::getenv("ZINC_DETERMINISTIC") && !std::getenv("ZINC_REALTIME"); return d; }
 W* owned(Slot h) { std::int64_t i = static_cast<std::int64_t>(h); return i >= 1 && static_cast<std::size_t>(i) <= tOwned.size() ? tOwned[static_cast<std::size_t>(i - 1)].get() : nullptr; }
 
-// The bytes of a u8[] as a vector, and back.
-std::vector<std::uint8_t> bytesOf(Slot s) {
-  auto* arr = reinterpret_cast<ArrObj*>(s);
-  std::vector<std::uint8_t> v(arr ? arr->v.size() : 0);
-  for (std::size_t i = 0; i < v.size(); ++i) v[i] = static_cast<std::uint8_t>(arr->v[i]);
-  return v;
-}
-const ClassRT* byteArrayClass(Machine& m) {
-  for (std::size_t c = 0; c < m.mod->classes.size(); ++c) {
-    const zbc::ClassInfo& ci = m.mod->classes[c];
-    if (ci.kind == zbc::CKind::Array && ci.elem.cls == zbc::Cls::I) return &m.classes[c];
+// ---- the typed wire: a message is encoded from the sender's own objects and decoded into the receiver's, by the record schema (the D173 wire,
+// include/zn/rec.h: the sender's field names, in declared order) matched once against the program's layout of the type (the lowering's
+// recLayout: the fields of each record in slot order). No Dyn tree, no JSON, no u8[]: one pass over the objects into the bytes, one back.
+
+struct Lay {   // a parsed layout (see recLayout in src/ir/lower.cpp)
+  char k = 0;
+  std::uint32_t cls = 0;            // # and {: the class
+  std::vector<std::string> names;   // {: the fields, in slot order
+  std::vector<Lay> kids;            // {: per field; * ? #: the one inside
+};
+bool parseLay(const char*& p, const char* e, Lay& out, int depth = 0) {
+  if (p >= e || depth > 40) return false;
+  out = Lay{*p++, 0, {}, {}};
+  auto cls = [&] {
+    if (p >= e || *p < '0' || *p > '9') return false;
+    for (out.cls = 0; p < e && *p >= '0' && *p <= '9'; ++p) out.cls = out.cls * 10 + static_cast<std::uint32_t>(*p - '0');
+    return p < e && *p++ == ':';
+  };
+  switch (out.k) {
+    case 'd': case 'f': case 'i': case 'u': case 'b': case 's': case 'B': case '-': return true;
+    case '#': if (!cls()) return false; [[fallthrough]];
+    case '*': case '?': out.kids.emplace_back(); return parseLay(p, e, out.kids.back(), depth + 1);
+    case '{':
+      if (!cls()) return false;
+      while (p < e && *p != '}') {
+        const char* eq = static_cast<const char*>(std::memchr(p, '=', static_cast<std::size_t>(e - p)));
+        if (!eq || eq == p) return false;
+        out.names.emplace_back(p, eq);
+        p = eq + 1;
+        out.kids.emplace_back();
+        if (!parseLay(p, e, out.kids.back(), depth + 1)) return false;
+        if (p < e && *p == ',') ++p;
+      }
+      return p++ < e;
+    default: return false;
   }
+}
+
+// How one value crosses: its letter on the wire against where it sits in memory.
+struct Plan {
+  char w = 0;              // the wire's letter (d i u b s B * {); 0 for a default only
+  bool opt = false;        // the wire has a presence byte (?T)
+  char st = 0;             // how it is stored: d f i u b s B * {
+  bool box = false;        // in a box (`number | null`): field 0 holds it
+  bool nullable = false;   // the stored reference may be null (?T, or a box)
+  std::uint32_t cls = 0;   // the record's or the box's class
+  const ClassRT* arr = nullptr;   // B and *: the array class a decoded one is made of
+  std::string where;       // the field, for the errors ("" for the message itself)
+  std::vector<Plan> kids;                          // *: [0] the item; {: one per wire field
+  std::vector<int> slot;                           // {: per wire field, its slot (-1: not in this type)
+  std::vector<const rec::Schema*> wire;            // {: per wire field, to skip one this type does not have
+  std::vector<std::pair<std::uint32_t, Plan>> defaults;   // { (decode): the fields that cannot stay null, with how to make their default
+};
+struct PlanEntry { rec::Schema schema; Lay lay; Plan plan; };
+using Plans = std::unordered_map<std::string, std::unique_ptr<PlanEntry>>;
+
+std::string named(const std::string& at) { return at.empty() ? "the message" : "'" + at + "'"; }
+const char* letterName(char k) {
+  switch (k) {
+    case 'd': case 'f': case 'i': case 'u': return "a number";
+    case 'b': return "a boolean";
+    case 's': return "a string";
+    case 'B': return "a u8[]";
+    case '*': return "an array";
+    case '{': return "a record";
+    default: return "not data";
+  }
+}
+// The class of a value of layout `l` as an array element, for the array class that holds it.
+bool elemType(Machine& m, const Lay& l, zbc::VType& vt);
+const ClassRT* arrayOf(Machine& m, const zbc::VType& e) {
+  for (std::size_t c = 0; c < m.mod->classes.size(); ++c)
+    if (m.mod->classes[c].kind == zbc::CKind::Array && m.mod->classes[c].elem == e) return &m.classes[c];
   return nullptr;
+}
+bool elemType(Machine& m, const Lay& l, zbc::VType& vt) {
+  switch (l.k) {
+    case 'd': vt = {zbc::Cls::D, 0}; return true;
+    case 'f': vt = {zbc::Cls::S, 0}; return true;
+    case 'i': case 'u': case 'b': vt = {zbc::Cls::I, 0}; return true;
+    case 's':
+      for (std::size_t c = 0; c < m.mod->classes.size(); ++c) if (m.mod->classes[c].kind == zbc::CKind::String) { vt = {zbc::Cls::R, static_cast<std::uint16_t>(c)}; return true; }
+      return false;
+    case 'B': case '*': {
+      zbc::VType e{zbc::Cls::I, 0};
+      if (l.k == '*' && !elemType(m, l.kids[0], e)) return false;
+      const ClassRT* a = arrayOf(m, e);
+      if (!a) return false;
+      vt = {zbc::Cls::R, static_cast<std::uint16_t>(a->id)};
+      return true;
+    }
+    case '?': return elemType(m, l.kids[0], vt);
+    case '#': case '{': vt = {zbc::Cls::R, static_cast<std::uint16_t>(l.cls)}; return true;
+    default: return false;
+  }
+}
+
+// The plan of wire `s` (null: a default only) against layout `l`; `dec` for a decoder (defaults, array classes; a field the wire lacks is skipped).
+bool build(Machine& m, const rec::Schema* s, const Lay& l, const std::string& at, bool dec, Plan& p, std::string& err) {
+  p.where = at;
+  const Lay* v = &l;
+  if (v->k == '?') { p.nullable = true; v = &v->kids[0]; }
+  else if (v->k == '#') { p.nullable = p.box = true; p.cls = v->cls; v = &v->kids[0]; }
+  p.st = v->k;
+  if (p.st == '-') { err = named(at) + " is not data (numbers, booleans, strings, u8[], arrays, T | null and records)"; return false; }
+  const std::uint32_t ncls = static_cast<std::uint32_t>(m.classes.size());
+  if (p.st == '{') {
+    p.cls = v->cls;
+    if (p.cls >= ncls || m.classes[p.cls].kind != zbc::CKind::Object || m.classes[p.cls].nfields != v->kids.size()) { err = "the layout of " + named(at) + " does not match its class"; return false; }
+  }
+  if (p.box && (p.cls >= ncls || m.classes[p.cls].nfields != 1)) { err = "the layout of " + named(at) + " does not match its class"; return false; }
+  if (dec && (p.st == 'B' || p.st == '*')) {
+    zbc::VType vt;
+    if (!elemType(m, *v, vt)) { err = "the program has no array class for " + named(at); return false; }
+    p.arr = &m.classes[vt.ref];
+  }
+  if (dec && p.st == '{')   // the fields that cannot stay null get their default when the wire has none
+    for (std::uint32_t j = 0; j < v->kids.size(); ++j) {
+      const char k = v->kids[j].k;
+      if (k != 's' && k != 'B' && k != '*' && k != '{' && k != '-') continue;
+      Plan d;
+      if (!build(m, nullptr, v->kids[j], at.empty() ? v->names[j] : at + "." + v->names[j], true, d, err)) return false;
+      p.defaults.emplace_back(j, std::move(d));
+    }
+  if (!s) return true;
+  if (s->k == '?') { p.opt = true; s = &s->kids[0]; }
+  p.w = s->k;
+  const auto numeric = [](char c) { return c == 'd' || c == 'f' || c == 'i' || c == 'u'; };
+  if (!(numeric(p.w) ? numeric(p.st) : p.w == p.st)) { err = named(at) + " is " + letterName(p.w) + " in the message and " + letterName(p.st) + " here"; return false; }
+  if (p.w == '*') { p.kids.emplace_back(); return build(m, &s->kids[0], v->kids[0], at + "[]", dec, p.kids[0], err); }
+  if (p.w != '{') return true;
+  p.kids.resize(s->kids.size());
+  for (std::size_t k = 0; k < s->kids.size(); ++k) {
+    int j = -1;
+    for (std::size_t q = 0; q < v->names.size(); ++q) if (v->names[q] == s->names[k]) { j = static_cast<int>(q); break; }
+    p.slot.push_back(j);
+    p.wire.push_back(&s->kids[k]);
+    const std::string f = at.empty() ? s->names[k] : at + "." + s->names[k];
+    if (j >= 0) { if (!build(m, &s->kids[k], v->kids[static_cast<std::size_t>(j)], f, dec, p.kids[k], err)) return false; }
+    else if (!dec && s->kids[k].k != '?') { err = "'" + f + "' is missing from the message"; return false; }
+  }
+  return true;
+}
+
+// The plan of a schema and a layout text, made once per program and kept on its Machine; null with `err`.
+const Plan* planFor(Machine& m, const StrObj* schema, const StrObj* layout, bool dec, std::string& err) {
+  if (!m.recPlans) m.recPlans = std::make_shared<Plans>();
+  Plans& all = *static_cast<Plans*>(m.recPlans.get());
+  std::string key;
+  key.reserve(schema->len + layout->len + 2);
+  key.append(dec ? "D" : "E").append(schema->data(), schema->len).append(1, '\n').append(layout->data(), layout->len);
+  auto it = all.find(key);
+  if (it != all.end()) return &it->second->plan;
+  auto e = std::make_unique<PlanEntry>();
+  const char* lp = layout->data();
+  if (layout->len == 0) { err = "the message's type has no message form (numbers, booleans, strings, u8[], arrays, T | null and records)"; return nullptr; }
+  if (!rec::parse(std::string(schema->data(), schema->len), e->schema) || !parseLay(lp, lp + layout->len, e->lay) || lp != layout->data() + layout->len) { err = "a schema or layout this engine cannot read"; return nullptr; }
+  if (!build(m, &e->schema, e->lay, "", dec, e->plan, err)) return nullptr;
+  return &all.emplace(std::move(key), std::move(e)).first->second->plan;
+}
+
+double numOf(Slot x, char st) {
+  switch (st) {
+    case 'd': return std::bit_cast<double>(x);
+    case 'f': return std::bit_cast<float>(static_cast<std::uint32_t>(x));
+    case 'i': return static_cast<std::int32_t>(x);
+    default: return static_cast<std::uint32_t>(x);
+  }
+}
+std::int64_t intOf(Slot x, char st) {   // the integer the wire's i or u carries (a fraction is dropped, as the Dyn encoder did)
+  if (st == 'i') return static_cast<std::int32_t>(x);
+  if (st == 'u') return static_cast<std::uint32_t>(x);
+  const double d = numOf(x, st);
+  return std::isfinite(d) && std::fabs(d) < 9.2e18 ? static_cast<std::int64_t>(d) : 0;
+}
+Slot storeNum(double d, char st) {
+  switch (st) {
+    case 'd': return std::bit_cast<Slot>(d);
+    case 'f': return std::bit_cast<std::uint32_t>(static_cast<float>(d));
+    case 'i': return static_cast<Slot>(static_cast<std::int64_t>(static_cast<std::int32_t>(std::isfinite(d) && std::fabs(d) < 9.2e18 ? static_cast<std::int64_t>(d) : 0)));
+    default: return static_cast<std::uint32_t>(std::isfinite(d) && std::fabs(d) < 9.2e18 ? static_cast<std::int64_t>(d) : 0);
+  }
+}
+
+bool encodeValue(Slot v, const Plan& p, rec::Writer& w, std::string& err) {
+  if (v == 0 && (p.nullable || p.st == 's' || p.st == 'B' || p.st == '*' || p.st == '{')) {
+    if (p.opt) { w.u8(0); return true; }
+    err = named(p.where) + " is null";
+    return false;
+  }
+  if (p.opt) w.u8(1);
+  const Slot x = p.box ? reinterpret_cast<Obj*>(v)->fields()[0] : v;
+  switch (p.w) {
+    case 'd': w.f64(numOf(x, p.st)); return true;
+    case 'i': w.i32(static_cast<std::int32_t>(intOf(x, p.st))); return true;
+    case 'u': w.u32(static_cast<std::uint32_t>(intOf(x, p.st))); return true;
+    case 'b': w.u8(x != 0); return true;
+    case 's': { const auto* s = reinterpret_cast<const StrObj*>(x); w.bytes(s->data(), s->len); return true; }
+    case 'B': {
+      const auto* a = reinterpret_cast<const ArrObj*>(x);
+      const std::size_t n = a->v.size(), at = w.out.size();
+      w.u32(static_cast<std::uint32_t>(n));
+      w.out.resize(at + 4 + n);
+      for (std::size_t i = 0; i < n; ++i) w.out[at + 4 + i] = static_cast<std::uint8_t>(a->v[i]);
+      return true;
+    }
+    case '*': {
+      const auto* a = reinterpret_cast<const ArrObj*>(x);
+      w.u32(static_cast<std::uint32_t>(a->v.size()));
+      for (Slot e : a->v) if (!encodeValue(e, p.kids[0], w, err)) return false;
+      return true;
+    }
+    default: {
+      auto* o = reinterpret_cast<Obj*>(x);
+      if (o->cls->id != p.cls) { err = named(p.where) + " is a " + o->cls->name + ", not the record its type names"; return false; }
+      const std::size_t at = w.begin();
+      for (std::size_t k = 0; k < p.kids.size(); ++k) {
+        if (p.slot[k] < 0) { w.u8(0); continue; }   // an optional field of the message this type does not have
+        if (!encodeValue(o->fields()[p.slot[k]], p.kids[k], w, err)) return false;
+      }
+      w.end(at);
+      return true;
+    }
+  }
+}
+
+bool skipValue(rec::Reader& r, const rec::Schema& s) {
+  double d; std::uint32_t u; std::uint8_t b; const std::uint8_t* at;
+  switch (s.k) {
+    case 'd': return r.f64(d);
+    case 'i': case 'u': return r.u32(u);
+    case 'b': return r.u8(b);
+    case 's': case 'B': return r.bytes(at, u);
+    case '*': if (!r.u32(u)) return false; while (u--) if (!skipValue(r, s.kids[0])) return false; return true;
+    case '?': return r.u8(b) && (!b || skipValue(r, s.kids[0]));
+    default: { rec::Reader body; return r.record(body); }
+  }
+}
+
+bool defaultValue(Machine& m, const Plan& p, Slot& out);
+bool fillDefaults(Machine& m, const Plan& p, Obj* o) {
+  for (const auto& [j, d] : p.defaults)
+    if (o->fields()[j] == 0 && !defaultValue(m, d, o->fields()[j])) return false;
+  return true;
+}
+bool defaultValue(Machine& m, const Plan& p, Slot& out) {   // what a field the wire does not carry holds: 0, false, "", [], null, a record of defaults
+  out = 0;
+  if (p.nullable) return true;
+  switch (p.st) {
+    case 's': out = reinterpret_cast<Slot>(m.newStr("", 0)); return true;
+    case 'B': case '*': out = reinterpret_cast<Slot>(m.newArr(p.arr)); return true;
+    case '{': if (op::newObject(m, p.cls, out)) return false; return fillDefaults(m, p, reinterpret_cast<Obj*>(out));
+    default: return true;
+  }
+}
+
+// One value from the wire into a new object of the receiver's type (owned by the caller); false when the bytes do not match.
+bool decodeValue(Machine& m, rec::Reader& r, const Plan& p, Slot& out) {
+  out = 0;
+  if (p.opt) { std::uint8_t b; if (!r.u8(b)) return false; if (!b) return defaultValue(m, p, out); }
+  Slot x = 0;
+  switch (p.w) {
+    case 'd': { double d; if (!r.f64(d)) return false; x = storeNum(d, p.st); break; }
+    case 'i': { std::int32_t i; if (!r.i32(i)) return false; x = p.st == 'i' ? static_cast<Slot>(static_cast<std::int64_t>(i)) : storeNum(i, p.st); break; }
+    case 'u': { std::uint32_t u; if (!r.u32(u)) return false; x = p.st == 'u' ? static_cast<Slot>(u) : storeNum(u, p.st); break; }
+    case 'b': { std::uint8_t b; if (!r.u8(b)) return false; x = b != 0; break; }
+    case 's': { const std::uint8_t* at; std::uint32_t n; if (!r.bytes(at, n)) return false; x = reinterpret_cast<Slot>(m.newStr(reinterpret_cast<const char*>(at), n)); break; }
+    case 'B': {
+      const std::uint8_t* at; std::uint32_t n;
+      if (!r.bytes(at, n)) return false;
+      ArrObj* a = m.newArr(p.arr);
+      a->v.assign(at, at + n);
+      x = reinterpret_cast<Slot>(a);
+      break;
+    }
+    case '*': {
+      std::uint32_t n;
+      if (!r.u32(n) || n > static_cast<std::uint64_t>(r.end - r.p)) return false;   // every item is at least one byte
+      ArrObj* a = m.newArr(p.arr);
+      a->v.reserve(n);
+      for (std::uint32_t i = 0; i < n; ++i) {
+        Slot e;
+        if (!decodeValue(m, r, p.kids[0], e)) { m.release(a); return false; }
+        a->v.push_back(e);
+      }
+      x = reinterpret_cast<Slot>(a);
+      break;
+    }
+    default: {
+      rec::Reader body;
+      if (!r.record(body) || op::newObject(m, p.cls, x)) return false;
+      auto* o = reinterpret_cast<Obj*>(x);
+      for (std::size_t k = 0; k < p.kids.size() && body.more(); ++k) {   // a field past the end of the body keeps its default (an older sender)
+        const bool ok = p.slot[k] < 0 ? skipValue(body, *p.wire[k]) : decodeValue(m, body, p.kids[k], o->fields()[p.slot[k]]);
+        if (!ok) { m.release(o); return false; }
+      }
+      if (!fillDefaults(m, p, o)) { m.release(o); return false; }
+      break;
+    }
+  }
+  if (p.box) {
+    Slot b;
+    if (op::newObject(m, p.cls, b)) { m.releaseSlot(x); return false; }
+    reinterpret_cast<Obj*>(b)->fields()[0] = x;
+    x = b;
+  }
+  out = x;
+  return true;
 }
 
 std::size_t stackBytes() {
@@ -232,6 +528,36 @@ std::string errorOf(Slot h) {   // main side: "" while it runs (or its end was a
   return w->error.empty() ? "<ended>" : w->error;
 }
 
+thread_local std::vector<std::uint8_t> tCurrent;   // the message HostWorkerNext took, read by HostWorkerRead
+
+const char* post(Slot h, std::vector<std::uint8_t>&& b) {   // a message's bytes onto its queue (handle 0: a worker to its parent), the receiver woken
+  const std::size_t n = b.size();
+  if (h == 0) {
+    W* w = tSelf;
+    if (!w) return "postMessage: this program is not a worker (use a Worker's postMessage)";
+    void* wm;
+    { std::lock_guard<std::mutex> g(w->mu); if (w->terminated) return nullptr; w->toMain.push_back(std::move(b)); wm = w->wakeMain; }
+    w->out.fetch_add(1, std::memory_order_relaxed);
+    trace(PostToMain, *w, n);
+    wake(wm);
+    return nullptr;
+  }
+  W* w = owned(h);
+  if (!w) return "postMessage: not a worker of this program";
+  void* ww;
+  {
+    std::lock_guard<std::mutex> g(w->mu);
+    if (w->terminated || w->ended) return nullptr;   // a message to a worker that is gone is dropped, as on the web
+    w->idle.store(false, std::memory_order_relaxed);
+    w->toWorker.push_back(std::move(b));
+    ww = w->wakeWorker;
+  }
+  w->in.fetch_add(1, std::memory_order_relaxed);
+  trace(PostToWorker, *w, n);
+  wake(ww);
+  return nullptr;
+}
+
 }  // namespace
 
 void addCompiled(const char* key, const unsigned char* packed, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count) {
@@ -286,51 +612,42 @@ const char* call(Machine& m, Rt id, Slot* a) {
       if (!startError.empty()) a[0] = 0;
       return nullptr;
     }
-    case Rt::HostWorkerPost: {
-      std::vector<std::uint8_t> b = bytesOf(a[1]);
-      const std::size_t n = b.size();
-      if (a[0] == 0) {   // a worker to its parent
-        W* w = tSelf;
-        if (!w) return "postMessage: this program is not a worker (use a Worker's postMessage)";
-        void* wm;
-        { std::lock_guard<std::mutex> g(w->mu); if (w->terminated) return nullptr; w->toMain.push_back(std::move(b)); wm = w->wakeMain; }
-        w->out.fetch_add(1, std::memory_order_relaxed);
-        trace(PostToMain, *w, n);
-        wake(wm);
-        return nullptr;
-      }
-      W* w = owned(a[0]);
-      if (!w) return "postMessage: not a worker of this program";
-      void* ww;
-      {
-        std::lock_guard<std::mutex> g(w->mu);
-        if (w->terminated || w->ended) return nullptr;   // a message to a worker that is gone is dropped, as on the web
-        w->idle.store(false, std::memory_order_relaxed);
-        w->toWorker.push_back(std::move(b));
-        ww = w->wakeWorker;
-      }
-      w->in.fetch_add(1, std::memory_order_relaxed);
-      trace(PostToWorker, *w, n);
-      wake(ww);
-      return nullptr;
+    case Rt::HostWorkerPostRec: {   // (handle, value, schema, layout): the value's bytes onto the receiver's queue
+      thread_local std::string err;
+      err.clear();
+      const Plan* p = planFor(m, reinterpret_cast<const StrObj*>(a[2]), reinterpret_cast<const StrObj*>(a[3]), false, err);
+      thread_local std::size_t lastSize = 0;   // the size of the last message: a program posts alike messages, so one allocation usually holds the next
+      rec::Writer w;
+      w.out.reserve(lastSize + lastSize / 8);
+      if (!p || !encodeValue(a[1], *p, w, err)) { err = "postMessage: " + err; return err.c_str(); }
+      lastSize = w.out.size();
+      return post(a[0], std::move(w.out));
     }
-    case Rt::HostWorkerRecv: {   // the next message, or an empty array (a message is never empty: a record has its length)
-      std::vector<std::uint8_t> b;
+    case Rt::HostWorkerNext: {   // the next message becomes the current one (HostWorkerRead decodes it): true, or false when none waits
       W* w = a[0] == 0 ? tSelf : owned(a[0]);
       bool got = false;
       if (w) {
         std::lock_guard<std::mutex> g(w->mu);
         auto& q = a[0] == 0 ? w->toWorker : w->toMain;
-        if (!q.empty()) { b = std::move(q.front()); q.pop_front(); got = true; }
+        if (!q.empty()) { tCurrent = std::move(q.front()); q.pop_front(); got = true; }
         else if (a[0] == 0) w->notifiedWorker = false;
         else w->notifiedMain = false;
       }
-      if (got) trace(a[0] == 0 ? ReceiveInWorker : ReceiveInMain, *w, b.size());
-      const ClassRT* cls = byteArrayClass(m);
-      if (!cls) return "zinc:worker: the program has no u8[] class";
-      ArrObj* arr = m.newArr(cls);
-      arr->v.assign(b.begin(), b.end());
-      a[0] = reinterpret_cast<Slot>(arr);
+      if (got) trace(a[0] == 0 ? ReceiveInWorker : ReceiveInMain, *w, tCurrent.size());
+      a[0] = got;
+      return nullptr;
+    }
+    case Rt::HostWorkerRead: {   // (schema, layout, a null of the receiver's type): the current message as a value of that type
+      thread_local std::string err;
+      err.clear();
+      const Plan* p = planFor(m, reinterpret_cast<const StrObj*>(a[0]), reinterpret_cast<const StrObj*>(a[1]), true, err);
+      if (!p) { err = "onmessage: " + err; return err.c_str(); }
+      rec::Reader r{tCurrent.data(), tCurrent.data() + tCurrent.size()};
+      Slot v;
+      const bool ok = decodeValue(m, r, *p, v);
+      std::vector<std::uint8_t>().swap(tCurrent);   // its bytes are not kept past the read
+      if (!ok) return "onmessage: the message's bytes do not match its type";
+      a[0] = v;
       return nullptr;
     }
     case Rt::HostWorkerError: {

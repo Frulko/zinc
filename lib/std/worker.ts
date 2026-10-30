@@ -23,7 +23,7 @@ __addEvHandler((h: i32, kind: i32, data: string) => {
   if (h === 0) {
     const f = __workerSelfPump;
     if (f !== null) f();
-    else while (__host_workerRecv(0).length > 0) {}   // no onmessage: the messages are dropped, as on the web
+    else while (__host_workerNext(0)) {}   // no onmessage: the messages are dropped, as on the web
     return;
   }
   const p = __workerPumps.get(h);
@@ -54,7 +54,7 @@ export class Worker<In, Out> {
 
   /** Sends a message to the worker; the u8[] arrays of `transfer` are moved (emptied here). */
   postMessage(message: In, transfer: u8[][] = []): void {
-    __host_workerPost(this.h, __recEnc(message, this.sIn));
+    __recPost(this.h, message, this.sIn);   // encoded from the objects themselves, by the schema (src/rt/worker.cpp)
     __detach(transfer);
   }
 
@@ -65,14 +65,12 @@ export class Worker<In, Out> {
   }
 
   private pump(): void {
-    for (;;) {
-      const b = __host_workerRecv(this.h);
-      if (b.length === 0) break;
+    while (__host_workerNext(this.h)) {
       const f = this.onmessage;
       if (f === null) continue;
-      const v: any = __recDec(b, this.sOut);
+      const v = __recRead<Out>(this.sOut);   // decoded into objects of Out, by the schema
       __host_workerMark(this.h, 1);
-      f(new MessageEvent<Out>(v as Out));
+      f(new MessageEvent<Out>(v));
       __host_workerMark(this.h, 2);
     }
     const err = __host_workerError(this.h);
@@ -86,29 +84,29 @@ export class Worker<In, Out> {
 }
 
 // The worker's side: `self` posts to the parent and receives its messages. `self.onmessage = (e: MessageEvent<T>) => ...` is turned into
-// __workerOnMessage(handler) by the checker (a setter cannot take its own type parameter).
+// __workerOnMessage(handler) and `self.postMessage(v)` into __workerPost(v) by the checker (a setter or a method cannot take its own type parameter).
 export class WorkerSelf {
   private __zincWorkerSelf: boolean = true;
   /** Posts a message to the parent; the u8[] arrays of `transfer` are moved (emptied here). */
-  postMessage(message: any, transfer: u8[][] = []): void {
-    __host_workerPost(0, __recEnc(message, __host_workerSchema(1)));
-    __detach(transfer);
-  }
+  postMessage(message: any, transfer: u8[][] = []): void { throw new Error('self.postMessage is rewritten by the checker'); }
   /** Ends the worker once its pending work is done. */
   close(): void { __host_workerClose(0); }
 }
 
 export const self: WorkerSelf = new WorkerSelf();
 
+export function __workerPost<T>(message: T, transfer: u8[][] = []): void {
+  __recPost(0, message, __host_workerSchema(1));   // the parent's schema of what it receives, matched by name against T
+  __detach(transfer);
+}
+
 export function __workerOnMessage<T>(f: (e: MessageEvent<T>) => void): void {
   const s = __host_workerSchema(0);
   __workerSelfPump = () => {
-    for (;;) {
-      const b = __host_workerRecv(0);
-      if (b.length === 0) break;
-      const v: any = __recDec(b, s);
+    while (__host_workerNext(0)) {
+      const v = __recRead<T>(s);
       __host_workerMark(0, 1);
-      f(new MessageEvent<T>(v as T));
+      f(new MessageEvent<T>(v));
       __host_workerMark(0, 2);
     }
   };

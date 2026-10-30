@@ -482,6 +482,55 @@ struct Lowering {
     return idx;
   }
 
+  // zinc:worker: how a value of frontend type `t` sits in memory, for the runtime that encodes and decodes it on the record wire without a Dyn
+  // view (src/rt/worker.cpp): d f i u b s (f64, f32, signed and unsigned integers, boolean, string), B (u8[]), *T (an array), ?T (a reference
+  // that may be null), #<box class>:T (a number or boolean that may be null, boxed), {<class>:name=T,...} (a record: its fields in slot order,
+  // `-` for a field that is not data). "" when the type has no such form.
+  std::string recLayout(frontend::TypeId t, int depth = 0) {
+    if (depth > 16) return "";
+    const frontend::Type& x = c.types[t];
+    switch (x.k) {
+      case frontend::TK::Num:
+        switch (x.num) {
+          case frontend::Num::f64: return "d";
+          case frontend::Num::f32: return "f";
+          case frontend::Num::i8: case frontend::Num::i16: case frontend::Num::i32: return "i";
+          case frontend::Num::u8: case frontend::Num::u16: case frontend::Num::u32: return "u";
+          default: return "";
+        }
+      case frontend::TK::Bool: return "b";
+      case frontend::TK::Str: return "s";
+      case frontend::TK::Array: {
+        if (c.types[x.elem].k == frontend::TK::Num && c.types[x.elem].num == frontend::Num::u8) return "B";
+        std::string e = recLayout(x.elem, depth + 1);
+        return e.empty() ? e : "*" + e;
+      }
+      case frontend::TK::Union: {
+        frontend::TypeId one = frontend::kNoType;
+        int others = 0;
+        for (frontend::TypeId mt : x.params) if (c.types[mt].k != frontend::TK::Null) { one = mt; ++others; }
+        if (others != 1 || x.params.size() != 2) return "";
+        std::string e = recLayout(one, depth + 1);
+        if (e.empty()) return e;
+        const frontend::TK k = c.types[one].k;
+        return k == frontend::TK::Num || k == frontend::TK::Bool ? "#" + std::to_string(boxClass(irType(one))) + ":" + e : "?" + e;
+      }
+      case frontend::TK::Object: {
+        const frontend::ObjInfo& o = c.objs[x.obj];
+        if (!o.isRecord || o.isTuple || classOfObj[x.obj] == kNil) return "";   // ponytail: a record is a final class; an interface that is not one (generic) has no fixed layout
+        std::string r = "{" + std::to_string(classOfObj[x.obj]) + ":";
+        bool first = true;
+        for (const auto& [nm, ft] : std::vector<std::pair<std::string, frontend::TypeId>>(layoutOf(x.obj))) {
+          std::string f = recLayout(ft, depth + 1);
+          r += (first ? "" : ",") + nm + "=" + (f.empty() ? "-" : f);
+          first = false;
+        }
+        return r + "}";
+      }
+      default: return "";
+    }
+  }
+
   std::uint32_t fnClassOf(frontend::TypeId ft) {
     auto it = fnClassOfType.find(ft);
     if (it != fnClassOfType.end()) return it->second;
@@ -1932,6 +1981,25 @@ struct Lowering::FnLower {
         for (std::size_t k = 1; k < x.kids.size(); ++k) vs.push_back(k == 2 ? exprTo(x.kids[k], m.strT()) : expr(x.kids[k]));   // the schema text is the second argument of both
         TypeId t = dec ? tv(vs[2]) : m.arrayT(m.numT(NumK::u8));   // a decoded tree has the class of the Dyn null it was given
         return emit(IrOp::Rt, t, std::move(vs), 0, 0, static_cast<std::uint32_t>(dec ? zn::Rt::RecDecode : zn::Rt::RecEncode));
+      }
+      if (s != kNil && c.syms[s].kind == SymKind::Builtin && (callee.text == "__recPost" || callee.text == "__recRead")) {   // zinc:worker's typed wire
+        const bool post = callee.text == "__recPost";
+        const frontend::TypeId ft = post ? c.nodeType[x.kids[2]] : c.nodeType[i];
+        const TypeId it = L.irType(ft, i);
+        const bool prim = ty(it).k == Type::K::Num || ty(it).k == Type::K::Bool;   // a number or boolean crosses in a box (the runtime reads references)
+        const TypeId rt = prim ? m.refT(L.boxClass(it)) : it;
+        std::string lay = L.recLayout(ft);
+        if (prim && !lay.empty()) lay = "#" + std::to_string(ty(rt).aux) + ":" + lay;
+        if (post) {
+          ValueId h = exprTo(x.kids[1], m.numT(NumK::i32));
+          ValueId v = coerce(expr(x.kids[2]), rt);
+          ValueId sc = exprTo(x.kids[3], m.strT());
+          return emit(IrOp::Rt, m.voidT(), {h, v, sc, constStr(lay)}, 0, 0, static_cast<std::uint32_t>(zn::Rt::HostWorkerPostRec));
+        }
+        ValueId sc = exprTo(x.kids[1], m.strT());
+        ValueId nul = ty(rt).k == Type::K::Ref ? emit(IrOp::Const, rt) : emit(IrOp::Const, rt, {}, kNullConst);   // its class is the result's
+        ValueId r = emit(IrOp::Rt, rt, {sc, constStr(lay), nul}, 0, 0, static_cast<std::uint32_t>(zn::Rt::HostWorkerRead));
+        return prim ? coerce(r, it) : r;
       }
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text.rfind("__host_", 0) == 0) {  // a function of the host (runtime.h, owner "host")
         for (const RtInfo& r : kRtInfo) {
