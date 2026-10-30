@@ -6,7 +6,7 @@ import { WebSocket, MessageEvent, CloseEvent } from 'zinc:socket';
 import { GATEWAY_URL, GATEWAY_QUERY, USER_AGENT, CAPABILITIES, RECONNECT_MAX_MS } from '../constants';
 import { clientProperties } from './identity';
 
-const OP_DISPATCH = 0, OP_HEARTBEAT = 1, OP_IDENTIFY = 2, OP_RESUME = 6, OP_RECONNECT = 7, OP_INVALID_SESSION = 9, OP_HELLO = 10, OP_ACK = 11;
+const OP_DISPATCH = 0, OP_HEARTBEAT = 1, OP_IDENTIFY = 2, OP_VOICE_STATE = 4, OP_RESUME = 6, OP_RECONNECT = 7, OP_INVALID_SESSION = 9, OP_HELLO = 10, OP_ACK = 11;
 const OP_GUILD_SUBSCRIPTIONS_BULK = 37;
 const CLOSE_AUTH_FAILED = 4004;
 // close codes after which a new connection cannot help: bad shard, sharding, bad version, bad or disallowed intents
@@ -48,6 +48,10 @@ export class Gateway {
   }
   /** Op 37: what the open server sends this client (its member list, typing): lazy guilds (docs/reports/discord-client-research.md 2.5). */
   subscribe(body: any): void { this.send(OP_GUILD_SUBSCRIPTIONS_BULK, body); }
+  /** Op 4: joins a voice channel or a DM call ('' guild: a DM), moves, or leaves ('' channel), with our mute and deafen. */
+  voiceState(guildId: string, channelId: string, mute: boolean, deaf: boolean): void {
+    this.send(OP_VOICE_STATE, { guild_id: guildId !== '' ? guildId : null, channel_id: channelId !== '' ? channelId : null, self_mute: mute, self_deaf: deaf, self_video: false });
+  }
   /** Drops the connection as a network failure would (tests): the next connection resumes. */
   drop(): void { const ws = this.ws; if (ws !== null) ws.close(4000, 'drop'); }
 

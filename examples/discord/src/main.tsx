@@ -1,10 +1,10 @@
 // discord: a native Discord client in the spirit of discord-lite (no web view, little memory). See README.md.
 //   build/zinc run examples/discord
-// Keys: Escape quits.
+// Keys: Escape quits; F8 (PTT_KEY) is push-to-talk, held, when it is switched on in the call bar.
 // Test hooks: DISCORD_API, DISCORD_GATEWAY move the endpoints (a fake Discord, tests/t1/discord.sh), DISCORD_TOKEN logs in without the
 // keychain, DISCORD_LOG=1 prints what happens, DISCORD_DEMO=1 runs the scripted session (servers, a channel's history, a live message,
 // a dropped connection that resumes, a second live message, a DM, then the writing of write() and the pictures, files and members of
-// media() below, then the servers switched in settings()) and quits; DISCORD_BENCH=1 loads the whole history of the open channel and scrolls it to the top and back (frame times:
+// media() below, then the servers switched in settings()) and quits; DISCORD_DEMO=voice runs the call of voice() (tests/t1/discord_voice.sh); DISCORD_BENCH=1 loads the whole history of the open channel and scrolls it to the top and back (frame times:
 // ZINC_PROFILE=1). DISCORD_CACHE moves the pictures' folder, DISCORD_UPLOAD_FILE is the file media() sends.
 // Files dropped on the window are sent to the open channel.
 import { render } from 'zinc:ui/react';
@@ -21,11 +21,14 @@ import { historyList } from './components/MessageView';
 import { startNotifications } from './services/notifications';
 import * as notifs from './services/notifications';
 import * as notification from 'zinc:system/notification';
+import { PTT_KEY } from './constants';
 
 ui.onKey((e: ui.KeyEvent): void => {
   if (e.primary || e.alt) return;
   if (e.key === 'Escape') { quit(); e.preventDefault(); }
+  if (e.key === PTT_KEY) { store.call.hold(true); e.preventDefault(); }
 });
+ui.onKeyUp((e: ui.KeyEvent): void => { if (e.key === PTT_KEY) store.call.hold(false); });
 // a file dropped on the window: sent to the open channel (a dropped text is not a file)
 on('drop', (args: string[]): void => { if (args.length > 0 && !(args.length > 1 && args[1] === 'text')) store.sendFiles([args[0]]); });
 
@@ -103,6 +106,51 @@ render(App, 0x313338, null);
 startNotifications();
 store.resume();
 if (env('DISCORD_DEMO') === '1') demo();
+if (env('DISCORD_DEMO') === 'voice') voice();
+
+const speaking = (): string => Array.from(store.call.speaking).map((id: string) => store.userName(id)).sort().join(', ');
+const pause = (ms: i32): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });
+
+/** A call: the voice channel Lounge joined (op 4, the voice gateway, IP discovery, the mode, Grace heard back), mute, push-to-talk held
+ *  and let go, deafen, hanging up; then a call in the DM with Grace, which rings her and asks for DAVE: our key package goes out, and no
+ *  frame while the group has no key. Prints only what is the same on every run. */
+async function voice(): Promise<void> {
+  await until(() => store.stage === 'ready');
+  await store.call.join('304', '200');
+  await until(() => store.call.state === 'connected');
+  console.log(`voice: connected to Lounge, ${store.call.mode()}`);
+  await until(() => store.call.speaking.has(store.me.id) && store.call.speaking.has('101'));
+  console.log(`voice: speaking ${speaking()}, in Lounge ${store.call.members('304').map((id: string) => store.userName(id)).sort().join(', ')}`);
+  await until(() => store.call.stats()[3] >= 25);
+  const s = store.call.stats();
+  console.log(`voice: heard 25 frames, ${s[2]} failures, mixed ${s[4] > 0}`);
+  store.call.toggleMute();
+  await until(() => !store.call.speaking.has(store.me.id) && !store.call.speaking.has('101'));   // Grace only echoes what we send
+  console.log(`voice: muted, speaking '${speaking()}'`);
+  store.call.setPushToTalk(true);   // before unmuting: no frame slips out between the two
+  store.call.toggleMute();
+  await pause(400);
+  console.log(`voice: push-to-talk, not held, speaking '${speaking()}'`);
+  store.call.hold(true);
+  await until(() => store.call.speaking.has(store.me.id));
+  console.log(`voice: push-to-talk held, speaking ${speaking()}`);
+  store.call.hold(false);
+  await until(() => !store.call.speaking.has(store.me.id));
+  store.call.toggleDeaf();          // before push-to-talk goes off: no frame slips out between the two
+  store.call.setPushToTalk(false);
+  console.log(`voice: deafened, mute ${store.call.mute || store.call.deaf}`);
+  store.call.toggleDeaf();
+  store.call.leave();
+  console.log(`voice: left, ${store.call.state}`);
+  await until(() => store.call.members('304').indexOf(store.me.id) < 0);
+  await store.call.join('400', '');
+  await until(() => store.call.state === 'connected');
+  await pause(500);   // DAVE: the fake makes no MLS group, so no key ever comes and nothing may leave unencrypted
+  console.log(`voice: DM call connected, end-to-end encrypted ${store.call.e2ee()}, packets sent without a key ${store.call.stats()[0]}`);
+  store.call.leave();
+  await pause(300);
+  quit();
+}
 
 const last = (ch: string): Message | null => { const l = store.messages.get(ch); return l !== undefined && l.length > 0 ? l[l.length - 1] : null; };
 

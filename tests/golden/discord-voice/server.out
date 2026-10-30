@@ -1,0 +1,23 @@
+identify token=true capabilities=1246 browser=Chrome
+rest POST /api/v9/channels/400/call/ring auth=true super=true recipients=null
+voice binary op 26: over 100 bytes
+voice closed 1000: 25 packets or more false, refused 0
+voice closed 1000: 25 packets or more true, refused 0
+voice gateway /?v=8
+voice gateway /?v=8
+voice identify server=200 user=100 session=voice-sess token=true dave=1
+voice identify server=400 user=100 session=voice-sess token=true dave=1
+voice select protocol=udp address=127.0.0.1 port=true mode=aead_aes256_gcm_rtpsize
+voice select protocol=udp address=127.0.0.1 port=true mode=aead_aes256_gcm_rtpsize
+voice speaking 0 ssrc=11
+voice speaking 0 ssrc=11
+voice speaking 1 ssrc=11
+voice speaking 1 ssrc=11
+voice state guild=200 channel=304 mute=false deaf=false
+voice state guild=200 channel=304 mute=false deaf=false
+voice state guild=200 channel=304 mute=false deaf=false
+voice state guild=200 channel=304 mute=true deaf=false
+voice state guild=200 channel=304 mute=true deaf=true
+voice state guild=200 channel=null mute=false deaf=false
+voice state guild=null channel=400 mute=false deaf=false
+voice state guild=null channel=null mute=false deaf=false

@@ -44,6 +44,9 @@ export const MENTION_BG = 'bg-[#f23f43]', TEXT_MENTION = 0xc9cdfb, TEXT_LINK = 0
 export const CACHE_DIR = env('DISCORD_CACHE');
 export const AVATAR = 40, MEMBER_AVATAR = 32, EMOJI = 22, EMOJI_BIG = 48;
 export const MEDIA_MAX_W = 400, MEDIA_MAX_H = 300;
+
+// Voice (call.ts): who speaks has a green ring; the push-to-talk key, held
+export const VOICE_AVATAR = 20, SPEAKING_RING = 'border-[#23a55a]', PTT_KEY = 'F8';
 export const ROW_ESTIMATE = 44;           // a message's height before it is laid out (the virtual list's estimate)
 export const OLDER_AT = 400;              // px from the top of the history where the page before is asked for
 export const UPLOAD_MAX = 10;             // files in one message

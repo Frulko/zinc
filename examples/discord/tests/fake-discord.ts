@@ -7,9 +7,14 @@
 // server icons and emoji; #general's photo has an expired signed URL, which only /attachments/refresh-urls makes valid. Upload: POST
 // /channels/302/attachments gives an upload_url on this server, the PUT there stores the bytes, and the message that names them carries an
 // image attachment. Op 37 for #general answers a member list SYNC, then an INSERT and an UPDATE. #general has FAKE_HISTORY messages before
-// its last three (67 by default: a first page of 50, then one of 20), paged by ?before=. Every request it gets is printed.
+// its last three (67 by default: a first page of 50, then one of 20), paged by ?before=. Voice (tests/t1/discord_voice.sh): op 4 answers
+// VOICE_STATE_UPDATE (ours and Grace's, who is in every call) and VOICE_SERVER_UPDATE naming a voice gateway v8 on this machine (Hello,
+// Ready with a UDP port, IP discovery, Session Description in the mode chosen, Speaking for Grace); Grace's audio is ours sent back: each
+// packet received is opened with the session's key and sent again as her SSRC. A DM call rings (POST /call/ring) and asks for DAVE
+// (dave_protocol_version 1): the key package is printed, no MLS group is made. Every request it gets is printed.
 import { serve, Request, Reply, Headers } from 'zinc:net';
-import { serveWebSocket, WebSocket, MessageEvent, UpgradeRequest } from 'zinc:socket';
+import { serveWebSocket, WebSocket, MessageEvent, CloseEvent, UpgradeRequest, udp, UdpSocket, Datagram } from 'zinc:socket';
+import { rtpHeader, seal, unseal } from 'zinc:discord-voice';
 import { env } from 'zinc:sys';
 import { writeText } from 'zinc:fs';
 
@@ -138,6 +143,10 @@ function rest(req: Request): Reply {
     const list: any[] = msgs[1] === '302' ? general : msgs[1] === '400' ? dmHistory : [];
     return json(200, JSON.stringify(page(list, query(req.path, 'before'), parseInt(query(req.path, 'limit')))));
   }
+  if (req.method === 'POST' && /^\/api\/v9\/channels\/\d+\/call\/ring$/.test(req.path)) {
+    console.log(`${line} recipients=${body.recipients}`);
+    return { status: 204, contentType: 'text/plain', body: '' };
+  }
   if (req.method === 'POST' && req.path === '/api/v9/attachments/refresh-urls') {
     const urls: any[] = [];
     for (const u of body.attachment_urls) {
@@ -234,7 +243,81 @@ function memberList(d: any): void {
   }, 300);
 }
 
+// ------------------------------------------------------------------ voice
+const VOICE_KEY: i32[] = [];
+for (let i = 0; i < 32; i++) VOICE_KEY.push((i * 13 + 5) & 255);
+const MY_SSRC = 11, GRACE_SSRC = 22;
+let voiceChannel = '';
+let voicePort: i32 = 0;
+let rtp: UdpSocket | null = null;
+let voiceMode = '';
+let received = 0, refused = 0, echoSeq = 0, echoTs: u32 = 0, echoCounter: u32 = 0;
+const keyBytes = (): u8[] => { const k: u8[] = []; for (const b of VOICE_KEY) k.push(b); return k; };
+
+/** Op 4: join (our voice state, Grace's, the voice server), a change of mute or deafen in the same channel, or leaving. */
+function voiceState(d: any): void {
+  const ch: string = d.channel_id !== null ? `${d.channel_id}` : '', guild: any = d.guild_id;
+  console.log(`voice state guild=${guild} channel=${d.channel_id} mute=${d.self_mute} deaf=${d.self_deaf}`);
+  const state = (user: string, c: string): any => ({ user_id: user, guild_id: guild, channel_id: c !== '' ? c : null, session_id: 'voice-sess', self_mute: d.self_mute, self_deaf: d.self_deaf });
+  if (ch === voiceChannel) { if (ch !== '') dispatch('VOICE_STATE_UPDATE', state('100', ch)); return; }
+  voiceChannel = ch;
+  dispatch('VOICE_STATE_UPDATE', state('100', ch));
+  if (ch === '') return;
+  dispatch('VOICE_STATE_UPDATE', state('101', ch));
+  dispatch('VOICE_SERVER_UPDATE', { token: 'voice-token', guild_id: guild, endpoint: `ws://127.0.0.1:${voicePort}` });
+}
+
+/** The voice gateway v8: every message carries `seq`. */
+function voiceGateway(ws: WebSocket, req: UpgradeRequest): void {
+  console.log(`voice gateway ${req.path}`);
+  let vseq = 0;
+  const send = (op: i32, d: any): void => { vseq++; ws.send(JSON.stringify({ op: op, d: d, seq: vseq })); };
+  ws.onmessage = (e: MessageEvent): void => {
+    if (e.binary) { console.log(`voice binary op ${e.bytes[0]}: ${e.bytes.length > 100 ? 'over' : 'under'} 100 bytes`); return; }   // op 26: the key package
+    const p: any = JSON.parse(e.data), d: any = p.d;
+    if (p.op === 0) {
+      console.log(`voice identify server=${d.server_id} user=${d.user_id} session=${d.session_id} token=${d.token === 'voice-token'} dave=${d.max_dave_protocol_version}`);
+      received = 0; refused = 0;
+      send(8, { heartbeat_interval: 13750 });
+      send(2, { ssrc: MY_SSRC, ip: '127.0.0.1', port: (rtp as UdpSocket).port, modes: ['aead_aes256_gcm_rtpsize', 'aead_xchacha20_poly1305_rtpsize', 'xsalsa20_poly1305'] });
+    } else if (p.op === 1) {
+      voiceMode = d.data.mode;
+      console.log(`voice select protocol=${d.protocol} address=${d.data.address} port=${d.data.port > 0} mode=${voiceMode}`);
+      send(4, { mode: voiceMode, secret_key: VOICE_KEY, dave_protocol_version: voiceChannel === '400' ? 1 : 0 });   // DAVE in the DM call
+      send(11, { user_ids: ['101'] });
+      send(5, { user_id: '101', ssrc: GRACE_SSRC, speaking: 1 });
+    } else if (p.op === 3) send(6, { t: d.t });
+    else if (p.op === 5) console.log(`voice speaking ${d.speaking} ssrc=${d.ssrc}`);
+    else console.log(`voice op ${p.op}`);
+  };
+  ws.onclose = (e: CloseEvent): void => { console.log(`voice closed ${e.code}: 25 packets or more ${received >= 25}, refused ${refused}`); };
+}
+
+/** UDP: IP discovery, then each packet of ours opened and sent back as Grace's. */
+function voiceUdp(m: Datagram): void {
+  const b = m.bytes;
+  if (b.length === 74 && b[1] === 1) {
+    const r: u8[] = [];
+    for (let i = 0; i < 74; i++) r.push(0);
+    r[1] = 2; r[3] = 70;
+    for (let i = 0; i < 4; i++) r[4 + i] = b[4 + i];
+    const ip = '127.0.0.1';
+    for (let i = 0; i < ip.length; i++) r[8 + i] = ip.charCodeAt(i);
+    r[72] = (m.port >> 8) & 255; r[73] = m.port & 255;
+    (rtp as UdpSocket).sendBytes(m.address, m.port, r);
+    return;
+  }
+  const opus = unseal(voiceMode, keyBytes(), b);
+  if (opus.length === 0) { refused++; return; }
+  received++;
+  const out = seal(voiceMode, keyBytes(), rtpHeader(echoSeq, echoTs, GRACE_SSRC), echoCounter, opus);
+  echoSeq = (echoSeq + 1) & 0xffff; echoTs += 960; echoCounter++;
+  (rtp as UdpSocket).sendBytes(m.address, m.port, out);
+}
+
 async function main(): Promise<void> {
+  rtp = (await udp(0, '127.0.0.1')).onMessage(voiceUdp);
+  voicePort = (await serveWebSocket(0, voiceGateway, '127.0.0.1')).port;
   api = serve(0, rest);
   shipping.attachments = [photo('801', '302/903/801/photo.png', false)];
   const gw = await serveWebSocket(0, (ws: WebSocket, req: UpgradeRequest) => {
@@ -254,6 +337,7 @@ async function main(): Promise<void> {
         dispatch('RESUMED', null);
         setTimeout(() => { dispatch('MESSAGE_CREATE', msg('905', '302', users[0], 'Back after the drop', 14)); }, 200);
       } else if (p.op === 37) memberList(p.d);
+      else if (p.op === 4) voiceState(p.d);
     };
   }, '127.0.0.1');
   gwPort = gw.port;

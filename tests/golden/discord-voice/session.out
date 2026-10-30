@@ -1,0 +1,9 @@
+voice: connected to Lounge, aead_aes256_gcm_rtpsize
+voice: deafened, mute true
+voice: DM call connected, end-to-end encrypted false, packets sent without a key 0
+voice: heard 25 frames, 0 failures, mixed true
+voice: left, idle
+voice: muted, speaking ''
+voice: push-to-talk held, speaking Ada, Grace
+voice: push-to-talk, not held, speaking ''
+voice: speaking Ada, Grace, in Lounge Ada, Grace

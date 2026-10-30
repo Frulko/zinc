@@ -1,0 +1,12 @@
+modes aead_aes256_gcm_rtpsize aead_xchacha20_poly1305_rtpsize
+rtp header ok
+aes-gcm seal ok
+xchacha seal ok
+aes-gcm open ok
+xchacha open ok
+aes-gcm open, extension ok
+xchacha open, extension ok
+aes-gcm header changed ok
+xchacha payload changed ok
+aes-gcm wrong key ok
+unknown mode ok

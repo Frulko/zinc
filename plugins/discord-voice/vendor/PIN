@@ -1,0 +1,27 @@
+DAVE, Discord's end-to-end encryption of calls (MLS through libdave), compiled by the plugin build (plugin.json lists the sources) from plain
+source lists, no CMake and no vcpkg. Only the sources below and the headers beside them are kept, unmodified; tests, tools, assembly and the
+parts not listed are not vendored. The crypto backend is BoringSSL built with OPENSSL_NO_ASM (the same C everywhere); see the decision in
+the notes of ZN-872 (BoringSSL scored above OpenSSL 3 and above a port of mlspp's hpke to mbedTLS). Its OpenSSL-named symbols (EVP_*, ...)
+cannot meet the engine's mbedTLS (mbedtls_*, psa_*), and live only in this plugin's library.
+
+libdave, commit 6396c90aedbb9a6ee117ea9ce1ce9832af6a3375 of discord/libdave (main, 2026-10-23; after the release v1.2.2/cpp), MIT
+  https://codeload.github.com/discord/libdave/tar.gz/6396c90aedbb9a6ee117ea9ce1ce9832af6a3375
+  archive sha256 37784dd0c1476738426f0968a6420dc8590e4b40cb8aae42e36df3c663e18cc5
+  kept: cpp/includes/, the 18 sources of cpp/src/ CMake builds with BoringSSL and PERSISTENT_KEYS off (boringssl_cryptor.cpp, not
+  openssl_cryptor.cpp; persisted_key_pair_null.cpp, not persisted_key_pair.cpp and mls/detail/; not bindings_wasm.cpp), the headers of
+  cpp/src/, LICENSE
+mlspp, commit 1cc50a124a3bc4e143a787ec934280dc70c1034d of cisco/mlspp (2025-04-26, the version libdave's vcpkg overlay port pins), BSD-2-Clause
+  https://codeload.github.com/cisco/mlspp/tar.gz/1cc50a124a3bc4e143a787ec934280dc70c1034d
+  archive sha256 7a9d6318627e548903bc65c3dc5a4de4a90290983efea9a49af8561ed3f999f5
+  kept: lib/bytes, lib/tls_syntax, lib/hpke and src/ (27 sources) with include/ and their headers, LICENSE; not lib/mls_ds and
+  lib/mls_vectors (the overlay port drops them too). gen/namespace.h stands for the file its CMake writes from cmake/namespace.h.in
+  (MLS_NAMESPACE mlspp, as libdave builds it); built with DISABLE_GREASE and WITH_BORINGSSL as the overlay port does
+BoringSSL, tag 0.20261020.0 (commit d3bf4795ad5b79d646cddf2fec687da5b9b502db, 2026-10-20) of google/boringssl, OpenSSL/ISC licence (LICENSE),
+fiat-crypto MIT (third_party/fiat/LICENSE)
+  https://codeload.github.com/google/boringssl/tar.gz/refs/tags/0.20261020.0
+  archive sha256 fb43aac7fbd323c9dfa1f45fe92a1c01142433c05b23fe34f61d6ba8b13b642e
+  kept: libcrypto only, the 246 sources of gen/sources.json's bcm.srcs and crypto.srcs (no ssl/, decrepit/, pki/, no assembly), include/,
+  the headers and .inc files of crypto/ and third_party/fiat/, both licences
+nlohmann/json 3.12.0, json.hpp (the single header of the release), MIT (LICENSE.MIT, from the tag v3.12.0), used by mlspp's hpke
+  https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp
+  sha256 aaf127c04cb31c406e5b04a63f1ae89369fccde6d8fa7cdda1ed4f32dfc5de63

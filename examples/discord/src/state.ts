@@ -11,6 +11,7 @@ import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
 import { windowFocused } from 'zinc:ui';
 import { NotifyRules, Where } from './notify';
+import { Call } from './call';
 
 export class User { id = ''; name = ''; avatar = ''; }
 export class Channel {
@@ -78,11 +79,15 @@ export class Store implements GatewayHandler {
   private ackTimer = -1;
   private users: Map<string, User> = new Map<string, User>();
   private gateway: Gateway;
+  /** The voice call (call.ts). */
+  call: Call;
   private listeners: (() => void)[] = [];
   private logging = env('DISCORD_LOG') === '1';
 
   constructor() {
     this.gateway = new Gateway(this);
+    this.call = new Call((): string => this.me.id, (g: string, c: string, mute: boolean, deaf: boolean): void => { this.gateway.voiceState(g, c, mute, deaf); },
+      (): void => { this.changed(); }, (line: string): void => { this.log(line); });
     setRestLog((line: string): void => { this.log(line); });
     onPicture((): void => { this.changed(); }, (line: string): void => { this.log(line); });
     const saved = storage.get(SERVERS_KEY);
@@ -113,6 +118,7 @@ export class Store implements GatewayHandler {
     this.connect(t);
   }
   async logout(): Promise<void> {
+    this.call.leave();
     this.gateway.stop();
     try { await forgetToken(); } catch (e) {}
     this.guilds = []; this.dms = []; this.messages.clear(); this.users.clear(); this.reads.clear(); this.typists.clear(); this.guildId = ''; this.channelId = '';
@@ -150,6 +156,9 @@ export class Store implements GatewayHandler {
     else if (t === 'TYPING_START') this.typingStarted(d);
     else if (t === 'MESSAGE_ACK') this.acked(str(d.channel_id), str(d.message_id), d.mention_count ?? 0);
     else if (t === 'GUILD_MEMBER_LIST_UPDATE') this.memberListUpdated(d);
+    else if (t === 'VOICE_STATE_UPDATE') this.call.stateUpdate(d);
+    else if (t === 'VOICE_SERVER_UPDATE') this.call.serverUpdate(d);
+    else if (t === 'CALL_CREATE' || t === 'CALL_UPDATE' || t === 'CALL_DELETE') this.call.callUpdate(t, d);
     else return;
     this.changed();
   }
@@ -171,7 +180,10 @@ export class Store implements GatewayHandler {
     this.rules.load(d);
     if (Array.isArray(d.users)) for (const u of d.users) this.user(u);
     this.guilds = [];
-    if (Array.isArray(d.guilds)) for (const g of d.guilds) if (g.unavailable !== true) this.guilds.push(this.guild(g));
+    if (Array.isArray(d.guilds)) for (const g of d.guilds) if (g.unavailable !== true) {
+      this.guilds.push(this.guild(g));
+      if (Array.isArray(g.voice_states)) for (const v of g.voice_states) this.call.stateUpdate(v);   // who is in the voice channels
+    }
     this.dms = [];
     if (Array.isArray(d.private_channels)) for (const c of d.private_channels) this.dms.push(this.channel(c, ''));
     this.sortDms();
