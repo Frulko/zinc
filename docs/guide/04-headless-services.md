@@ -15,10 +15,22 @@ curl localhost:3000/readings                         # {"seq":…,"tempC":…,"h
 
 ## HTTP server
 
-`zinc:net` gives you `serve(port, handler)` — a minimal HTTP/1.1 server whose handler runs on the event loop (no
-threads, one connection at a time drained by the poller). Bind is `0.0.0.0` (`ZINC_BIND=127.0.0.1` restricts it, e.g.
-behind a reverse proxy). Requests are limited: 16 KiB of headers, a 1 MiB body (`ZRT_HTTP_MAX_BODY`), 32 open
-connections, 10 s to send a request, 2 s for a client to take a reply; see [security](08-security.md) about exposure.
+`zinc:net` gives you `serve(port, handler)`: an HTTP/1.1 server on libuv and llhttp (Node's loop and parser) whose handler runs on
+the event loop. Connections are kept alive and pipelined requests are answered in order; on the development Mac it answers more
+requests per second than Node 24 (`tools/bench-http` compares it with Node and Bun). Bind is `0.0.0.0`; see [security](08-security.md)
+about exposure. The third argument, `ServeOptions`, holds `cert` and `key` (PEM: an https server) and the limits, each with its default:
+
+| Option | Default | Over it |
+|---|---|---|
+| `maxHeaderBytes` | 16 KiB | 431 |
+| `maxBodyBytes` | 64 MiB | 413 (a `Content-Length` over it is refused before the body comes) |
+| `maxConnections` | 10000, all servers of the program | the connection is closed |
+| `maxConnectionsPerIp` | 256 | the connection is closed |
+| `requestsPerSecondPerIp` | 0 (no limit) | 429 with `Retry-After: 1` |
+| `headersTimeoutMs` | 10 s from a request's first byte to the end of its headers (a client that trickles them) | 408 |
+| `requestTimeoutMs` | 10 s, the longest pause while a body arrives | 408 |
+| `keepAliveTimeoutMs` | 5 s without a request | the connection is closed |
+| `streamBody` | false | the body comes as `req.bodyStream` instead of `req.body` |
 
 ```ts
 import { serve, Request, Reply } from 'zinc:net';
@@ -33,6 +45,11 @@ a 500), so a handler can await a file, a plugin or another server. A reply with 
 blocks instead of `body` (a song, a video, a picture of any size: the next block is read once the last is written, so a slow
 client slows the reads), with `Accept-Ranges: bytes`; a request with one `Range` gets a 206 and its `Content-Range`, a range
 past the end a 416, a missing file a 404. Players and `<audio>`/`<video>` elements seek with these ranges.
+
+Streams both ways: with `streamBody: true` a handler reads a large upload as it arrives, `await req.bodyStream.each((chunk) => ...)`
+(raw bytes in strings; the connection stops reading while the program is 1 MiB behind). A reply with `stream: (w) => ...` writes its
+body in parts: `w.write(chunk)` returns false once 64 KiB wait in the socket, `w.onDrain(f)` says when to go on, `w.end()` finishes,
+`w.onClose(f)` tells that the client left; the reply is chunked unless its headers give a `Content-Length`.
 
 Both return the port they listen on: port 0 lets the system pick a free one (`const port = serveAsync(0, handler)`), for a
 server only this program hands its address out, such as a player that sends a speaker the URL of a song.

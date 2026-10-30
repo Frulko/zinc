@@ -52,6 +52,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **Fixed** museum-table runs when sent to another machine: it imported the devtools plugin by a path outside the project, and now uses `zinc:devtools/cdp`.
 
 ### Performance
+- **Faster** `zinc:net` servers keep connections alive and answer pipelined requests, three times faster than before and ahead of Node 24 on the same Mac (`tools/bench-http` measures zinc, Node and Bun with oha). `serve` and `serveAsync` take `ServeOptions`: header and body sizes, connections in all and per address, a request rate per address, header, body and keep-alive timeouts, each with a default that blocks slow or flooding clients (431, 413, 429, 408).
 - **Faster** Large programs build much faster after an edit (the iPod demo): type checking 1.5 s down to 0.3 s on every `zinc run`, `zinc build` and `zinc check`; writing the bytecode 1.3 s down to 0.24 s; writing the C++ of `zinc run` and `zinc build` about ten times faster, 13.7 s down to 1.4 s.
 - **Faster** The first build of a plugin compiles its files on half the cores at once (`ZINC_JOBS` sets the number): `zinc:ipod` builds in 19 s instead of 72 s, and the iPod demo's first `zinc build` takes 75 s instead of 145 s.
 - **Lighter** Apps give the memory they no longer use back to the system while they run: the Discord client after login with 100 servers takes 93 MB in Activity Monitor instead of 204 MB, and a program that parsed a large JSON document drops back to its size before it.
@@ -155,6 +156,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **Fixed** Windows that stayed hidden behind xochitl, blank widgets, a Marker ignored in widget cards, second copies of a running app, Web reloading long addresses, Read pictures shown as placeholders, Refresh in header mode, and a hub server catalog broken by one altered package.
 
 ### Plugins and modules
+- **New** `zinc:net` streams: `streamBody: true` hands a large upload to the handler as it arrives (`req.bodyStream.each`), and a reply with `stream: (w) => ...` writes its body in parts with back-pressure (`write` returns false, `onDrain`, `onClose`, `end`).
 - **New** `zinc:screen-capture` (macOS) lists screens and windows with thumbnails and app icons (`getSources`), captures one at a size and rate, and shares it in a call with `navigator.mediaDevices.getDisplayMedia` (permission `"screen"`); `zinc:screen-capture/picker`'s `pickScreen()` is a ready-made share dialog.
 - **New** `zinc:webrtc` shows call quality: `CallQuality` scores `getStats()` good / fair / poor with the bit rates, `setLowDataMode(pc, true)` sends Opus at 10 kbit/s and tiny or no video, the kit's `CallStats` panel shows it live, and `getStats()` reports `framesDropped` and `availableOutgoingBitrate`.
 - **New** `zinc:discord-voice`, a Discord voice connection for any program (voice gateway, UDP, both encryption modes, Opus, mixing, DAVE end-to-end encryption), with `inputDevices()`, `outputDevices()`, `setDevices()`, `setVolumes()`, `setUserVolume()` and `level()`.

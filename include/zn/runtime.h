@@ -391,7 +391,11 @@
   /* 4..7 its x, y, w, h; 8 the last id opened; 9 the window being drawn (0: the main one); graphics row, appended */ \
   X(HostGfxWindowCtl, "host.gfxWindowCtl", "iisii>i", 2) \
   /* zinc:sys execPath: the program's own executable, to start it again (a second process of the app); system row, appended */ \
-  X(HostSysExecPath, "host.sysExecPath", ">s", 2)
+  X(HostSysExecPath, "host.sysExecPath", ">s", 2) \
+  /* zinc:net ServeOptions (ZN-892): a limit or mode of the server on a port; a reply in parts (head, chunks, end), the chunk's call returns the bytes */ \
+  /* the socket still holds; system rows, appended */ \
+  X(HostHttpOption, "host.httpOption", "isd>i", 2) X(HostHttpReplyStart, "host.httpReplyStart", "iis>i", 2) X(HostHttpWrite, "host.httpWrite", "is>i", 2) \
+  X(HostHttpEnd, "host.httpEnd", "i>n", 2)
 
 namespace zn {
 
@@ -431,7 +435,7 @@ inline constexpr bool isSysTailRow(Rt r) {
          r == Rt::HostSigWatch || r == Rt::HostSigSend ||   // sys.onSignal, sys.kill
          (r >= Rt::HostFsSymlink && r <= Rt::HostOsNetField) ||   // zinc:fs symlink, readlink, chmod and zinc:os uid, gid, shell, cpus, networkInterfaces
          r == Rt::HostCrypto || r == Rt::HostCryptoError ||   // zinc:subtle
-         (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes ||   // zinc:net, its server too
+         (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes || (r >= Rt::HostHttpOption && r <= Rt::HostHttpEnd) ||   // zinc:net, its server too
          r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync || r == Rt::HostFsAppendBytes;
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.

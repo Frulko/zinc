@@ -93,11 +93,12 @@ void pump() {
   netlog::tick();   // the HAR file of `zinc run --har` follows the log while the program runs (ZN-636); a flag test otherwise
 }
 
+bool eventsQueued();
 void wait(double ms) {
 #ifdef ZN_APP_LIBRARY
   ms = 0;   // an app shell owns the run loop (ZN-620): a turn looks at the loop and returns, the next tick comes back
 #endif
-  if (ms <= 0) { pump(); return; }
+  if (ms <= 0 || eventsQueued()) { pump(); return; }   // events wait already (a request read while the last was answered): no sleep
   trimHeap(ms >= 100);
   netlog::tick(ms);   // nothing looks at the log while the process sleeps
   uv_timer_t t;
@@ -329,9 +330,12 @@ void closeStdin(int h) {
   if (p && p->inOpen) { p->inOpen = false; uv_close(reinterpret_cast<uv_handle_t*>(&p->in), onClose); }
 }
 void signalProcess(int h, int signal) { Proc* p = procAt(h); if (p && p->procOpen) uv_process_kill(&p->proc, signal); }
-bool eventReady() { pump(); return !gEvents.empty(); }
+bool eventsQueued() { return !gEvents.empty(); }
+// The queue is read before the loop is polled again: each poll is a kevent/epoll system call, two per event made a busy server spend two
+// thirds of its time in them (ZN-892). Events that wait are taken first; the loop is polled when the queue is empty.
+bool eventReady() { if (!gEvents.empty()) return true; pump(); return !gEvents.empty(); }
 bool nextEvent(Event& out) {
-  pump();
+  if (gEvents.empty()) pump();
   if (gEvents.empty()) return false;
   out = std::move(gEvents.front());
   gEvents.pop_front();

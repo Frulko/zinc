@@ -150,7 +150,7 @@ added (below, "Plugin distribution"). A plugin's native code is checked only whe
 
 | Service | Default bind | Authentication | Limits |
 | --- | --- | --- | --- |
-| `zinc:net` `serve(port, …)` | all interfaces (`ZINC_BIND=127.0.0.1` restricts) | none: put a reverse proxy in front for TLS and auth | 16 KiB headers, 1 MiB body (`ZRT_HTTP_MAX_BODY`), 32 connections, 10 s per request, 2 s per reply |
+| `zinc:net` `serve(port, …)` | all interfaces (`ZINC_BIND=127.0.0.1` restricts) | `cert`/`key` for https; no auth: the handler checks it | `ServeOptions` ([headless services](04-headless-services.md)): 16 KiB headers, 64 MiB body, 10000 connections, 256 per address, an optional request rate per address, 10 s for headers, 5 s keep-alive |
 | `zinc:osc` `listen(port, …)` | all interfaces (`ZINC_BIND`) | none; UDP senders can be spoofed | 2048-byte datagrams |
 | `zinc:mqtt` client | outbound, plaintext TCP | the broker's | 1 MiB packets (`ZRT_MQTT_MAX_PACKET`), fields checked against the packet |
 | `zinc:telemetry` | outbound UDP / stdout / file, plaintext | – | – |

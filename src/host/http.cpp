@@ -9,7 +9,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <map>
+#include <string_view>
 #include <memory>
 #include <vector>
 
@@ -303,134 +305,467 @@ void startConnection(Fetch* f) {
 }
 
 // ---------------------------------------------------------------- server
-constexpr size_t kHeadCap = 16384, kBodyCap = 64u << 20, kConnCap = 32;   // kBodyCap: an upload as large as the largest fetch body (a .zapp sent to app/hub-server, ZN-842)
-constexpr uint64_t kIdleMs = 10000;
-
+// A connection reads one request, hands it to the program (event 42) and waits for the reply; bytes that arrive meanwhile (a pipelining
+// client) wait in `pending` and are parsed once the reply is out. Keep-alive is HTTP/1.1's default; the reply is written with writev, and
+// with uv_try_write first: a reply that fits in the socket's buffer (nearly all) is not copied at all.
+struct Limits {
+  size_t headerBytes = 16384;        // request line and headers: 431 above
+  size_t bodyBytes = 64u << 20;      // 413 above (a .zapp uploaded to app/hub-server, ZN-842)
+  size_t conns = 10000;              // open connections of the program's servers: the next ones are closed at once
+  int connsPerIp = 256;              // open connections of one client address
+  double ratePerIp = 0;              // requests per second of one address (a bucket that size, refilled continuously); 0: no limit; 429 above
+  uint64_t headersMs = 10000;        // from a request's first byte to the end of its headers (a client that trickles them, slowloris): 408
+  uint64_t requestMs = 10000;        // the longest pause while a body arrives: 408
+  uint64_t keepAliveMs = 5000;       // a kept-alive connection with no request
+  bool streamBody = false;           // the body reaches the program in chunks (events 43, then 44) instead of with the request
+};
+struct FileSend;
+struct Listener { uv_tcp_t tcp; int port = 0; std::string certPem, keyPem; Limits lim; };   // certPem: an https server
+enum class St { Reading, Handling, Streaming, Idle };   // Streaming: a reply in parts (replyStart/write/end) or a file goes out
 struct SConn {
-  int id = 0;
+  int id = 0, port = 0;   // port: the listener's; the program's handler for that server answers
   uv_tcp_t tcp;
-  uv_timer_t idle;
+  uv_timer_t timer;
   llhttp_t parser;
-  llhttp_settings_t settings;
   Msg msg;
-  std::string target;
-  size_t seen = 0;
-  bool complete = false, answered = false, closed = false;
+  std::string target, ip, pending;
+  Limits lim;
+  St st = St::Reading;
+  size_t headBytes = 0, bodySeen = 0, queuedBody = 0;
+  int err = 0;   // the status a callback refused the request with (413, 429, 431)
+  FileSend* file = nullptr;   // a file being sent (replyFile)
+  bool complete = false, answered = false, closed = false, keepAlive = true, http10 = false, isHead = false, chunked = false, readPaused = false, wantDrain = false;
   tls::Conn* tls = nullptr;
   int closing = 0;
-  int port = 0;   // the listener's port: the program's handler for that server answers
 };
-struct Listener { uv_tcp_t tcp; int port = 0; std::string certPem, keyPem; };   // certPem: an https server
+struct Peer { int conns = 0; double tokens = 0; uint64_t at = 0; };
 std::map<int, Listener*> gListeners;   // by port: a program may serve several (the app's songs for a speaker, a Subsonic API...)
 std::map<int, SConn*> gConns;
+std::map<std::string, Peer> gPeers;    // by client address: its connections and its request bucket
 int gNextConn = 1;
+constexpr size_t kDrainBytes = 64u << 10, kPendingCap = 1u << 20, kQueuedBodyCap = 1u << 20;
+constexpr int kEvRequest = 42, kEvBody = 43, kEvBodyEnd = 44, kEvDrain = 45, kEvGone = 46;
 
+SConn* connAt(int id) { auto it = gConns.find(id); return it == gConns.end() || it->second->closed ? nullptr : it->second; }
+void fileDrop(SConn* c);
 void onSClosed(uv_handle_t* h) {
   auto* c = static_cast<SConn*>(h->data);
-  if (--c->closing == 0) { if (c->tls) tls::destroy(c->tls); delete c; }
+  if (--c->closing == 0) { if (c->tls) tls::destroy(c->tls); fileDrop(c); delete c; }
 }
 void closeConn(SConn* c) {
   if (c->closed) return;
   c->closed = true;
+  if (c->st == St::Handling || c->st == St::Streaming) loop::pushEvent(c->id, kEvGone, "");   // the program holds it: it learns the client is gone
   gConns.erase(c->id);
+  auto p = gPeers.find(c->ip);
+  if (p != gPeers.end() && --p->second.conns <= 0 && p->second.tokens >= c->lim.ratePerIp) gPeers.erase(p);   // a full bucket is a fresh one
   uv_read_stop(reinterpret_cast<uv_stream_t*>(&c->tcp));
-  uv_timer_stop(&c->idle);
+  uv_timer_stop(&c->timer);
   c->closing = 2;
-  uv_close(reinterpret_cast<uv_handle_t*>(&c->idle), onSClosed);
+  uv_close(reinterpret_cast<uv_handle_t*>(&c->timer), onSClosed);
   uv_close(reinterpret_cast<uv_handle_t*>(&c->tcp), onSClosed);
 }
-void writeAndClose(SConn* c, const std::string& dataIn) {
-  if (c->closed || c->answered) return;
-  c->answered = true;
-  std::string data = dataIn;
-  if (c->tls) {
-    if (!tls::write(c->tls, data)) { closeConn(c); return; }
-    tls::close(c->tls);
-    data = tls::takeOutput(c->tls);
+void onSTimer(uv_timer_t* t);
+void arm(SConn* c, uint64_t ms) { uv_timer_start(&c->timer, onSTimer, ms, 0); }
+
+// The Date header, made again when the second changes (RFC 9110 asks an origin server with a clock for it).
+const std::string& dateLine() {
+  static const char* const kDay[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+  static const char* const kMon[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+  thread_local std::string line;
+  thread_local time_t at = 0;
+  const time_t now = time(nullptr);
+  if (now != at || line.empty()) {
+    at = now;
+    struct tm g{};
+#ifdef _WIN32
+    gmtime_s(&g, &now);
+#else
+    gmtime_r(&now, &g);
+#endif
+    char b[64];
+    std::snprintf(b, sizeof b, "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", kDay[g.tm_wday], g.tm_mday, kMon[g.tm_mon], g.tm_year + 1900, g.tm_hour, g.tm_min, g.tm_sec);
+    line = b;
   }
-  auto* w = new WriteReq{{}, data, true};
-  w->req.data = c;
-  uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
-  if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&c->tcp), &b, 1, [](uv_write_t* r, int) { auto* x = reinterpret_cast<WriteReq*>(r); closeConn(static_cast<SConn*>(r->data)); delete x; }) != 0) { delete w; closeConn(c); }
-}
-void quick(SConn* c, int status) {
-  writeAndClose(c, std::string("HTTP/1.1 ") + std::to_string(status) + " " + reasonOf(status) + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+  return line;
 }
 
+enum class Then { More, End, Close };
+void nextRequest(SConn* c);
+struct FileSend;
+void sendBlock(FileSend* s);
+struct Out { uv_write_t req; std::string a, b; SConn* c; bool close; };
+void afterWrite(SConn* c) {   // a queued write is done: wake a program that waits for the socket to drain
+  if (c->wantDrain && c->tcp.write_queue_size < kDrainBytes / 2) { c->wantDrain = false; loop::pushEvent(c->id, kEvDrain, ""); }
+}
+void onWritten(uv_write_t* r, int status) {
+  auto* o = reinterpret_cast<Out*>(r);
+  SConn* c = o->c;
+  const bool close = o->close;
+  delete o;
+  if (c->closed) return;
+  if (status < 0 || close) { closeConn(c); return; }
+  afterWrite(c);
+  if (c->file && c->tcp.write_queue_size == 0) sendBlock(c->file);   // a file goes on
+}
+// Sends a then b (one writev); `then` says what follows: more of the same reply, its end (the next request, or the close), or the close.
+void send(SConn* c, std::string&& a, std::string_view b, Then then, bool raw = false, bool queue = false) {   // raw: bytes TLS made already; queue: no try_write
+  if (c->closed) return;
+  if (then != Then::More) c->st = St::Idle;   // the program no longer holds the connection
+  const bool close = then == Then::Close || (then == Then::End && !c->keepAlive);
+  if (c->tls && !raw) {
+    if ((!a.empty() && !tls::write(c->tls, a)) || (!b.empty() && !tls::write(c->tls, std::string(b)))) { closeConn(c); return; }
+    if (close) tls::close(c->tls);
+    a = tls::takeOutput(c->tls);
+    b = std::string_view();
+  }
+  uv_stream_t* s = reinterpret_cast<uv_stream_t*>(&c->tcp);
+  size_t skip = 0;   // bytes the socket took at once
+  if (c->tcp.write_queue_size == 0 && !queue) {
+    uv_buf_t bufs[2] = {uv_buf_init(a.data(), static_cast<unsigned>(a.size())), uv_buf_init(const_cast<char*>(b.data()), static_cast<unsigned>(b.size()))};
+    const int w = uv_try_write(s, bufs, b.empty() ? 1 : 2);
+    if (w >= 0) skip = static_cast<size_t>(w);
+    else if (w != UV_EAGAIN && w != UV_ENOSYS) { closeConn(c); return; }
+  }
+  if (skip == a.size() + b.size()) {
+    if (close) closeConn(c);
+    else if (then == Then::End) nextRequest(c);
+    return;
+  }
+  auto* o = new Out{{}, std::string(), std::string(), c, close};
+  if (skip < a.size()) { o->a = a.substr(skip); o->b.assign(b.data(), b.size()); }
+  else o->b.assign(b.data() + (skip - a.size()), b.size() - (skip - a.size()));
+  uv_buf_t bufs[2] = {uv_buf_init(o->a.data(), static_cast<unsigned>(o->a.size())), uv_buf_init(o->b.data(), static_cast<unsigned>(o->b.size()))};
+  if (o->a.empty()) bufs[0] = bufs[1];
+  if (uv_write(&o->req, s, bufs, o->a.empty() || o->b.empty() ? 1 : 2, onWritten) != 0) { delete o; closeConn(c); return; }
+  if (then == Then::End && !close) nextRequest(c);   // the next reply queues behind this one: the order holds
+}
+void quick(SConn* c, int status) {
+  if (c->closed) return;
+  if (c->answered) { closeConn(c); return; }
+  c->answered = true;
+  c->keepAlive = false;
+  std::string h = std::string("HTTP/1.1 ") + std::to_string(status) + " " + reasonOf(status) + "\r\n" + dateLine() +
+                  (status == 429 ? "Retry-After: 1\r\n" : "") + "Content-Length: 0\r\nConnection: close\r\n\r\n";
+  send(c, std::move(h), std::string_view(), Then::Close);
+}
+
+void parseRequest(SConn* c, const char* data, size_t n);
+void sAlloc(uv_handle_t*, size_t, uv_buf_t* b);
+void onSRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf);
+void nextRequest(SConn* c) {
+  c->msg.head.clear(); c->msg.field.clear(); c->msg.value.clear(); c->msg.inValue = false;
+  if (c->msg.body.capacity() > (64u << 10)) std::string().swap(c->msg.body); else c->msg.body.clear();   // a kept connection does not hold an upload's memory
+  c->target.clear();
+  c->headBytes = c->bodySeen = 0;
+  c->complete = c->answered = c->chunked = false;
+  c->st = St::Idle;
+  arm(c, c->lim.keepAliveMs);
+  llhttp_resume(&c->parser);
+  if (c->readPaused) { c->readPaused = false; uv_read_start(reinterpret_cast<uv_stream_t*>(&c->tcp), sAlloc, onSRead); }
+  if (!c->pending.empty()) {
+    std::string p = std::move(c->pending);
+    c->pending.clear();
+    parseRequest(c, p.data(), p.size());
+  }
+}
+void pauseReading(SConn* c) {
+  if (!c->readPaused) { c->readPaused = true; uv_read_stop(reinterpret_cast<uv_stream_t*>(&c->tcp)); }
+}
 void parseRequest(SConn* c, const char* data, size_t n) {
-  if (c->closed || c->complete) return;
-  c->seen += n;
-  llhttp_errno_t e = llhttp_execute(&c->parser, data, n);
-  if (e != HPE_OK && e != HPE_PAUSED && !c->complete) quick(c, c->msg.body.size() > kBodyCap ? 413 : 400);
-  else if (!c->complete && c->msg.head.size() + c->msg.field.size() + c->msg.value.size() > kHeadCap) quick(c, 431);
+  if (c->closed) return;
+  if (c->complete) {   // the program has the last request: the next ones wait
+    c->pending.append(data, n);
+    if (c->pending.size() > kPendingCap) pauseReading(c);
+    return;
+  }
+  const llhttp_errno_t e = llhttp_execute(&c->parser, data, n);
+  if (e == HPE_PAUSED) {
+    const char* at = llhttp_get_error_pos(&c->parser);
+    if (at && at >= data && at < data + n) c->pending.append(at, static_cast<size_t>(data + n - at));
+  } else if (e != HPE_OK && !c->closed) quick(c, c->err ? c->err : 400);
+}
+
+std::string requestEvent(SConn* c, llhttp_t* p, const std::string& body) {
+  const char* method = llhttp_method_name(static_cast<llhttp_method_t>(llhttp_get_method(p)));
+  const std::string port = std::to_string(c->port);
+  std::string d;
+  d.reserve(std::strlen(method) + c->target.size() + c->ip.size() + port.size() + c->msg.head.size() + body.size() + 5);
+  d += method; d += '\x1e'; d += c->target; d += '\x1e'; d += c->ip; d += '\x1e'; d += port; d += '\x1e'; d += c->msg.head; d += '\x1e'; d += body;
+  return d;
+}
+SConn* of(llhttp_t* p) { return static_cast<SConn*>(p->data); }
+bool headRoom(SConn* c, size_t n) {
+  c->headBytes += n;
+  if (c->headBytes <= c->lim.headerBytes) return true;
+  c->err = 431;
+  return false;
+}
+const llhttp_settings_t& serverSettings() {
+  static const llhttp_settings_t s = [] {
+    llhttp_settings_t x;
+    llhttp_settings_init(&x);
+    x.on_message_begin = [](llhttp_t* p) {
+      SConn* c = of(p);
+      c->st = St::Reading;
+      arm(c, c->lim.headersMs);
+      if (c->lim.ratePerIp > 0) {
+        Peer& peer = gPeers[c->ip];
+        const uint64_t now = uv_now(L());
+        peer.tokens = std::min(c->lim.ratePerIp, peer.tokens + c->lim.ratePerIp * static_cast<double>(now - peer.at) / 1000.0);
+        peer.at = now;
+        if (peer.tokens < 1) { c->err = 429; return -1; }
+        peer.tokens -= 1;
+      }
+      return 0;
+    };
+    x.on_url = [](llhttp_t* p, const char* at, size_t n) { if (!headRoom(of(p), n)) return -1; of(p)->target.append(at, n); return 0; };
+    x.on_header_field = [](llhttp_t* p, const char* at, size_t n) { if (!headRoom(of(p), n)) return -1; of(p)->msg.onField(at, n); return 0; };
+    x.on_header_value = [](llhttp_t* p, const char* at, size_t n) { if (!headRoom(of(p), n)) return -1; of(p)->msg.onValue(at, n); return 0; };
+    x.on_headers_complete = [](llhttp_t* p) {
+      SConn* c = of(p);
+      c->msg.flush();
+      c->http10 = p->http_major == 1 && p->http_minor == 0;
+      c->isHead = llhttp_get_method(p) == HTTP_HEAD;
+      c->keepAlive = llhttp_should_keep_alive(p) != 0;
+      if (p->content_length > c->lim.bodyBytes && (p->flags & F_CONTENT_LENGTH)) { c->err = 413; return -1; }   // refused before the body comes
+      arm(c, c->lim.requestMs);
+      if (c->lim.streamBody) { c->st = St::Handling; loop::pushEvent(c->id, kEvRequest, requestEvent(c, p, std::string())); }
+      return 0;
+    };
+    x.on_body = [](llhttp_t* p, const char* at, size_t n) {
+      SConn* c = of(p);
+      c->bodySeen += n;
+      if (c->bodySeen > c->lim.bodyBytes) { c->err = 413; return -1; }
+      if (c->lim.requestMs) arm(c, c->lim.requestMs);
+      if (c->lim.streamBody) {
+        if (c->answered) return 0;   // the program answered already: the rest is read and dropped
+        c->queuedBody += n;
+        loop::pushEvent(c->id, kEvBody, "", std::string(at, n));
+        if (c->queuedBody > kQueuedBodyCap) pauseReading(c);   // the program reads slower than the client sends
+      } else c->msg.body.append(at, n);
+      return 0;
+    };
+    x.on_message_complete = [](llhttp_t* p) {
+      SConn* c = of(p);
+      c->msg.flush();
+      c->complete = true;
+      uv_timer_stop(&c->timer);   // the request is all here: the program may answer later (serveAsync)
+      if (c->lim.streamBody) {
+        if (!c->answered) loop::pushEvent(c->id, kEvBodyEnd, "");   // else the reply went out before the body ended: the connection closes
+      } else {
+        c->st = St::Handling;
+        loop::pushEvent(c->id, kEvRequest, requestEvent(c, p, c->msg.body), c->msg.body);   // the payload: the body byte for byte (Request.rawBody)
+      }
+      return static_cast<int>(HPE_PAUSED);
+    };
+    return x;
+  }();
+  return s;
+}
+
+void onSTimer(uv_timer_t* t) {
+  auto* c = static_cast<SConn*>(t->data);
+  if (c->st == St::Reading && !c->answered) quick(c, 408); else closeConn(c);
+}
+void sAlloc(uv_handle_t*, size_t, uv_buf_t* b) {   // the bytes are parsed (or copied into TLS) before the next read: one buffer serves them all
+  thread_local char buf[64 << 10];
+  *b = uv_buf_init(buf, sizeof buf);
 }
 void onSRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
   auto* c = static_cast<SConn*>(s->data);
-  if (n > 0 && !c->closed && !c->complete) {
-    if (c->tls) {
-      tls::feed(c->tls, buf->base, static_cast<size_t>(n));
-      tls::State st = tls::step(c->tls);
-      std::string out = tls::takeOutput(c->tls);
-      if (!out.empty()) { auto* w = new WriteReq{{}, out, false}; uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size())); if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&c->tcp), &b, 1, [](uv_write_t* r, int) { delete reinterpret_cast<WriteReq*>(r); }) != 0) delete w; }
-      if (st == tls::State::Failed) closeConn(c);
-      else if (st == tls::State::Ready) {
-        std::string plain;
-        tls::State rs = tls::read(c->tls, plain);
-        if (!plain.empty()) parseRequest(c, plain.data(), plain.size());
-        if (rs == tls::State::Failed) closeConn(c);
-      }
-    } else parseRequest(c, buf->base, static_cast<size_t>(n));
-  } else if (n < 0) closeConn(c);
-  if (buf->base) std::free(buf->base);
+  if (c->closed) return;
+  if (n == UV_EOF && c->complete && !c->tls) {   // a client that half-closes after its request still gets the reply, then the close
+    uv_read_stop(s);
+    c->keepAlive = false;
+    if (c->st == St::Idle) closeConn(c);
+    return;
+  }
+  if (n < 0) { closeConn(c); return; }
+  if (n == 0) return;
+  if (!c->tls) { parseRequest(c, buf->base, static_cast<size_t>(n)); return; }
+  tls::feed(c->tls, buf->base, static_cast<size_t>(n));
+  const tls::State st = tls::step(c->tls);
+  std::string out = tls::takeOutput(c->tls);
+  if (!out.empty()) send(c, std::move(out), std::string_view(), Then::More, true);
+  if (c->closed) return;
+  if (st == tls::State::Failed) { closeConn(c); return; }
+  if (st != tls::State::Ready) return;
+  std::string plain;
+  const tls::State rs = tls::read(c->tls, plain);
+  if (!plain.empty()) parseRequest(c, plain.data(), plain.size());
+  if (!c->closed && (rs == tls::State::Failed || rs == tls::State::Closed)) closeConn(c);
+}
+std::string peerName(uv_tcp_t* t) {
+  sockaddr_storage a{};
+  int len = sizeof a;
+  char ip[64] = "";
+  if (uv_tcp_getpeername(t, reinterpret_cast<sockaddr*>(&a), &len) == 0) {
+    if (a.ss_family == AF_INET6) uv_ip6_name(reinterpret_cast<sockaddr_in6*>(&a), ip, sizeof ip);
+    else uv_ip4_name(reinterpret_cast<sockaddr_in*>(&a), ip, sizeof ip);
+  }
+  return ip;
 }
 void onConnection(uv_stream_t* srv, int status) {
   if (status != 0) return;
+  auto* li = static_cast<Listener*>(srv->data);
   auto* c = new SConn();
   uv_tcp_init(L(), &c->tcp);
-  uv_timer_init(L(), &c->idle);
-  c->tcp.data = c->idle.data = c;
-  if (uv_accept(srv, reinterpret_cast<uv_stream_t*>(&c->tcp)) != 0 || gConns.size() >= kConnCap) {
+  uv_timer_init(L(), &c->timer);
+  c->tcp.data = c->timer.data = c;
+  c->lim = li->lim;
+  if (gPeers.size() > 65536) for (auto it = gPeers.begin(); it != gPeers.end();) it = it->second.conns <= 0 ? gPeers.erase(it) : std::next(it);
+  bool ok = uv_accept(srv, reinterpret_cast<uv_stream_t*>(&c->tcp)) == 0 && gConns.size() < c->lim.conns;
+  if (ok) {
+    c->ip = peerName(&c->tcp);
+    Peer& peer = gPeers[c->ip];
+    if (peer.conns == 0 && peer.at == 0) { peer.tokens = c->lim.ratePerIp; peer.at = uv_now(L()); }
+    ok = peer.conns < c->lim.connsPerIp;
+    if (ok) peer.conns++;
+    else if (peer.conns == 0) gPeers.erase(c->ip);
+  }
+  if (!ok) {   // over a limit: closed before a byte is read, the cheapest answer to a flood
     c->closed = true;
     c->closing = 2;
-    uv_close(reinterpret_cast<uv_handle_t*>(&c->idle), onSClosed);
+    uv_close(reinterpret_cast<uv_handle_t*>(&c->timer), onSClosed);
     uv_close(reinterpret_cast<uv_handle_t*>(&c->tcp), onSClosed);
     return;
   }
   c->id = gNextConn++;
   gConns[c->id] = c;
-  auto* li = static_cast<Listener*>(srv->data);
   c->port = li->port;
+  uv_tcp_nodelay(&c->tcp, 1);
   if (!li->certPem.empty()) {
     std::string err;
     c->tls = tls::openServer(li->certPem, li->keyPem, err);
     if (!c->tls) { closeConn(c); return; }
   }
-  llhttp_settings_init(&c->settings);
-  c->settings.on_url = [](llhttp_t* p, const char* at, size_t n) { static_cast<SConn*>(p->data)->target.append(at, n); return 0; };
-  c->settings.on_header_field = [](llhttp_t* p, const char* at, size_t n) { static_cast<SConn*>(p->data)->msg.onField(at, n); return 0; };
-  c->settings.on_header_value = [](llhttp_t* p, const char* at, size_t n) { static_cast<SConn*>(p->data)->msg.onValue(at, n); return 0; };
-  c->settings.on_body = [](llhttp_t* p, const char* at, size_t n) {
-    auto* k = static_cast<SConn*>(p->data);
-    if (k->msg.body.size() + n > kBodyCap) return -1;
-    k->msg.body.append(at, n);
-    return 0;
-  };
-  c->settings.on_message_complete = [](llhttp_t* p) {
-    auto* k = static_cast<SConn*>(p->data);
-    k->msg.flush();
-    k->complete = true;
-    uv_timer_stop(&k->idle);   // the request is all here: the idle limit is for a client that stops sending, not for a handler that answers later (serveAsync)
-    sockaddr_storage a{};
-    int len = sizeof a;
-    char ip[64] = "";
-    if (uv_tcp_getpeername(&k->tcp, reinterpret_cast<sockaddr*>(&a), &len) == 0) uv_ip4_name(reinterpret_cast<sockaddr_in*>(&a), ip, sizeof ip);   // the listener is IPv4
-    loop::pushEvent(k->id, 42, std::string(llhttp_method_name(static_cast<llhttp_method_t>(llhttp_get_method(p)))) + '\x1e' + k->target + '\x1e' + ip + '\x1e' + std::to_string(k->port) + '\x1e' + k->msg.head + '\x1e' + k->msg.body, k->msg.body);   // the payload: the body byte for byte (Request.rawBody)
-    return static_cast<int>(HPE_PAUSED);
-  };
-  llhttp_init(&c->parser, HTTP_REQUEST, &c->settings);
+  llhttp_init(&c->parser, HTTP_REQUEST, &serverSettings());
   c->parser.data = c;
-  uv_timer_start(&c->idle, [](uv_timer_t* t) { auto* k = static_cast<SConn*>(t->data); if (!k->answered) quick(k, 408); else closeConn(k); }, kIdleMs, 0);
-  uv_read_start(reinterpret_cast<uv_stream_t*>(&c->tcp), alloc, onSRead);
+  arm(c, c->lim.headersMs);
+  uv_read_start(reinterpret_cast<uv_stream_t*>(&c->tcp), sAlloc, onSRead);
+}
+
+// The status line, the program's header lines (a line with a control character is dropped) and the Date; what the lines ask for.
+struct Head { std::string text; bool chunked = false, length = false, close = false; };
+bool nameIs(const char* p, size_t n, const char* name) {
+  const size_t k = std::strlen(name);
+  if (n < k + 1 || p[k] != ':') return false;
+  for (size_t i = 0; i < k; i++) if (std::tolower(static_cast<unsigned char>(p[i])) != name[i]) return false;
+  return true;
+}
+bool valueIs(const char* p, size_t n, size_t from, const char* v) {
+  while (from < n && p[from] == ' ') from++;
+  const size_t k = std::strlen(v);
+  if (n - from != k) return false;
+  for (size_t i = 0; i < k; i++) if (std::tolower(static_cast<unsigned char>(p[from + i])) != v[i]) return false;
+  return true;
+}
+Head headOf(int status, const std::string& headers) {
+  Head h;
+  h.text.reserve(96 + headers.size());
+  h.text += "HTTP/1.1 "; h.text += std::to_string(status); h.text += ' '; h.text += reasonOf(status); h.text += "\r\n";
+  for (size_t i = 0; i < headers.size();) {
+    size_t e = headers.find('\n', i);
+    if (e == std::string::npos) e = headers.size();
+    const char* line = headers.data() + i;
+    const size_t n = e - i;
+    i = e + 1;
+    if (n == 0 || std::memchr(line, '\r', n) || std::memchr(line, '\0', n)) continue;
+    if (nameIs(line, n, "transfer-encoding")) { h.chunked = valueIs(line, n, 18, "chunked"); if (h.chunked) continue; }   // added by the server below
+    else if (nameIs(line, n, "content-length")) { h.length = true; }
+    else if (nameIs(line, n, "connection")) { h.close = valueIs(line, n, 11, "close"); continue; }
+    h.text.append(line, n);
+    h.text += "\r\n";
+  }
+  h.text += dateLine();
+  return h;
+}
+void endHead(SConn* c, Head& h) {
+  if (h.close || !c->complete) c->keepAlive = false;   // a streamed body that is not all read: the connection cannot be reused
+  if (!c->keepAlive) h.text += "Connection: close\r\n";
+  else if (c->http10) h.text += "Connection: keep-alive\r\n";
+  h.text += "\r\n";
+}
+bool bodiless(SConn* c, int status) { return c->isHead || status == 204 || status == 304 || (status >= 100 && status < 200); }
+
+// A file as the body, read one block at a time into one buffer and written (uv_try_write: no copy while the socket takes it all); the next
+// block once the socket holds no more than this one, so a slow client slows the reads. A Range asks for one byte range. The reads are
+// libuv's synchronous file calls on the loop thread (a page-cache hit is microseconds; portable, no stdio buffer in between). ponytail: a
+// uv_fs read pool if a slow disk shows in other requests' latency, sendfile(2) if the copy shows in a profile.
+constexpr size_t kFileBlock = 256u << 10, kFileTurn = 1u << 20;   // kFileTurn: bytes written in one go before the loop gets its turn back
+void fileClose(uv_file fd) { uv_fs_t r; uv_fs_close(nullptr, &r, fd, nullptr); uv_fs_req_cleanup(&r); }
+// Files stay open between requests, checked by a stat (same inode, size and modification time) at each: on macOS an open and a close cost
+// 13 us, a stat 1.5 us, and the open was a quarter of a static file's time (ZN-892). A changed file is opened again.
+struct OpenFile {
+  uv_file fd = -1;
+  uint64_t ino = 0, size = 0, mtimeNs = 0;
+  ~OpenFile() { if (fd >= 0) fileClose(fd); }
+};
+std::map<std::string, std::shared_ptr<OpenFile>> gFiles;   // ponytail: 64 entries, the whole cache dropped when full; an LRU if a site serves more hot files
+std::shared_ptr<OpenFile> openFile(const std::string& path) {
+  uv_fs_t r;
+  if (uv_fs_stat(nullptr, &r, path.c_str(), nullptr) != 0) { uv_fs_req_cleanup(&r); gFiles.erase(path); return nullptr; }
+  const uv_stat_t st = r.statbuf;
+  uv_fs_req_cleanup(&r);
+  if ((st.st_mode & S_IFMT) != S_IFREG) return nullptr;
+  const uint64_t mt = static_cast<uint64_t>(st.st_mtim.tv_sec) * 1000000000u + static_cast<uint64_t>(st.st_mtim.tv_nsec);
+  auto it = gFiles.find(path);
+  if (it != gFiles.end() && it->second->ino == st.st_ino && it->second->size == st.st_size && it->second->mtimeNs == mt) return it->second;
+  const uv_file fd = uv_fs_open(nullptr, &r, path.c_str(), UV_FS_O_RDONLY, 0, nullptr);
+  uv_fs_req_cleanup(&r);
+  if (fd < 0) return nullptr;
+  auto f = std::make_shared<OpenFile>();   // not a copy of a temporary: its destructor would close the file
+  f->fd = fd; f->ino = st.st_ino; f->size = st.st_size; f->mtimeNs = mt;
+  if (gFiles.size() >= 64) gFiles.clear();
+  gFiles[path] = f;
+  return f;
+}
+struct FileSend { SConn* c; std::shared_ptr<OpenFile> file; uint64_t off, left; std::string head; };
+void fileDrop(SConn* c) { delete c->file; c->file = nullptr; }
+void sendBlock(FileSend* s) {
+  SConn* c = s->c;
+  thread_local std::unique_ptr<char[]> buf;
+  if (!buf) buf.reset(new char[kFileBlock]);
+  size_t turn = 0;
+  for (;;) {
+    const size_t want = static_cast<size_t>(std::min<uint64_t>(kFileBlock, s->left));
+    uv_buf_t b = uv_buf_init(buf.get(), static_cast<unsigned>(want));
+    uv_fs_t r;
+    const ssize_t n = want == 0 ? 0 : uv_fs_read(nullptr, &r, s->file->fd, &b, 1, static_cast<int64_t>(s->off), nullptr);
+    if (want) uv_fs_req_cleanup(&r);
+    if (want && n <= 0) { c->file = s; fileDrop(c); closeConn(c); return; }   // the file shrank or cannot be read: the client sees a short body
+    s->off += static_cast<uint64_t>(n);
+    s->left -= static_cast<uint64_t>(n);
+    std::string head = std::move(s->head);
+    s->head.clear();
+    if (s->left == 0) {
+      delete s;
+      c->file = nullptr;
+      send(c, std::move(head), std::string_view(buf.get(), static_cast<size_t>(n)), Then::End);
+      return;
+    }
+    turn += static_cast<size_t>(n);
+    c->file = s;   // owned by the connection while it goes: a close drops it
+    send(c, std::move(head), std::string_view(buf.get(), static_cast<size_t>(n)), Then::More, false, turn >= kFileTurn);
+    if (c->closed) return;
+    if (c->tcp.write_queue_size > 0) { arm(c, c->lim.requestMs); return; }   // onWritten goes on once the socket took it; idle that long: gone
+  }
+}
+/** "bytes=a-b", "bytes=a-", "bytes=-n" of a file of `size` bytes: false when it is not one satisfiable range. */
+bool byteRange(const std::string& h, uint64_t size, uint64_t& from, uint64_t& to) {
+  if (h.compare(0, 6, "bytes=") != 0 || size == 0) return false;
+  const std::string r = h.substr(6);
+  const size_t dash = r.find('-');
+  if (dash == std::string::npos || r.find(',') != std::string::npos) return false;
+  const std::string a = r.substr(0, dash), b = r.substr(dash + 1);
+  auto num = [](const std::string& t, uint64_t& v) { if (t.empty() || t.find_first_not_of("0123456789") != std::string::npos || t.size() > 18) return false; v = std::stoull(t); return true; };
+  uint64_t x = 0, y = 0;
+  if (a.empty()) { if (!num(b, y) || y == 0) return false; from = y >= size ? 0 : size - y; to = size - 1; return true; }
+  if (!num(a, x) || x >= size) return false;
+  from = x;
+  to = b.empty() ? size - 1 : (num(b, y) && y >= x ? std::min(y, size - 1) : UINT64_MAX);
+  return to != UINT64_MAX;
 }
 
 }  // namespace
@@ -473,7 +808,7 @@ int serve(int port, const std::string& certPem, const std::string& keyPem) {
   sockaddr_in a;
   uv_ip4_addr("0.0.0.0", port, &a);
   int rc = uv_tcp_bind(&l->tcp, reinterpret_cast<sockaddr*>(&a), 0);
-  if (rc == 0) rc = uv_listen(reinterpret_cast<uv_stream_t*>(&l->tcp), 64, onConnection);   // libuv reports a busy port here, not at bind
+  if (rc == 0) rc = uv_listen(reinterpret_cast<uv_stream_t*>(&l->tcp), 511, onConnection);   // libuv reports a busy port here, not at bind; 511: Node's backlog
   if (rc != 0) {
     const std::string p = std::to_string(port);
     gError = rc == UV_EADDRINUSE ? "port " + p + " is already in use by another program: stop it, or listen on another port (0 lets the system pick a free one)"
@@ -490,6 +825,23 @@ int serve(int port, const std::string& certPem, const std::string& keyPem) {
   loop::addActive(1);
   return l->port;
 }
+bool option(int port, const std::string& name, double v) {
+  auto it = gListeners.find(port);
+  if (it == gListeners.end() || v < 0) return false;
+  Limits& m = it->second->lim;
+  const auto n = static_cast<uint64_t>(v);
+  if (name == "maxHeaderBytes") m.headerBytes = n;
+  else if (name == "maxBodyBytes") m.bodyBytes = n;
+  else if (name == "maxConnections") m.conns = n;
+  else if (name == "maxConnectionsPerIp") m.connsPerIp = static_cast<int>(std::min<uint64_t>(n, 1u << 30));
+  else if (name == "requestsPerSecondPerIp") m.ratePerIp = v;
+  else if (name == "headersTimeoutMs") m.headersMs = n;
+  else if (name == "requestTimeoutMs") m.requestMs = n;
+  else if (name == "keepAliveTimeoutMs") m.keepAliveMs = n;
+  else if (name == "streamBody") m.streamBody = v != 0;
+  else return false;
+  return true;
+}
 const std::string& lastError() { return gError; }
 void stop(int port) {
   for (auto it = gListeners.begin(); it != gListeners.end();) {
@@ -498,142 +850,98 @@ void stop(int port) {
     it = gListeners.erase(it);
     loop::addActive(-1);
   }
+  if (gListeners.empty()) gFiles.clear();
 }
 void reply(int conn, int status, const std::string& headers, const std::string& body) {
-  auto it = gConns.find(conn);
-  if (it == gConns.end()) return;
-  std::string out = "HTTP/1.1 " + std::to_string(status) + " " + reasonOf(status) + "\r\n";
-  for (size_t i = 0; i < headers.size();) {   // lines are checked in Zinc; a stray control character is dropped here too
-    size_t e = headers.find('\n', i);
-    if (e == std::string::npos) e = headers.size();
-    std::string line = headers.substr(i, e - i);
-    if (!line.empty() && !hasCtl(line)) out += line + "\r\n";
-    i = e + 1;
-  }
-  bool chunked = false;   // a reply that asks for Transfer-Encoding: chunked is sent in 4 KiB chunks
-  for (size_t i = 0; i < headers.size();) {
-    size_t e = headers.find('\n', i);
-    if (e == std::string::npos) e = headers.size();
-    std::string line = headers.substr(i, e - i);
-    for (char& ch : line) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    if (line == "transfer-encoding: chunked") chunked = true;
-    i = e + 1;
-  }
-  if (!chunked) { out += "Content-Length: " + std::to_string(body.size()) + "\r\nConnection: close\r\n\r\n" + body; }
-  else {
-    out += "Connection: close\r\n\r\n";
+  SConn* c = connAt(conn);
+  if (!c || c->answered) return;
+  c->answered = true;
+  Head h = headOf(status, headers);
+  const bool none = bodiless(c, status);
+  std::string chunks;
+  if (h.chunked && !none) {   // the program asked for chunked transfer: the body goes in 4 KiB chunks
+    h.text += "Transfer-Encoding: chunked\r\n";
+    chunks.reserve(body.size() + body.size() / 4096 * 8 + 16);
     for (size_t i = 0; i < body.size(); i += 4096) {
-      size_t n = std::min<size_t>(4096, body.size() - i);
+      const size_t n = std::min<size_t>(4096, body.size() - i);
       char hex[16];
       std::snprintf(hex, sizeof hex, "%zx\r\n", n);
-      out += hex + body.substr(i, n) + "\r\n";
+      chunks += hex;
+      chunks.append(body, i, n);
+      chunks += "\r\n";
     }
-    out += "0\r\n\r\n";
+    chunks += "0\r\n\r\n";
+  } else if (!h.length && status != 204 && !(status >= 100 && status < 200)) {
+    h.text += "Content-Length: ";
+    h.text += std::to_string(body.size());
+    h.text += "\r\n";
   }
-  writeAndClose(it->second, out);
+  endHead(c, h);
+  send(c, std::move(h.text), none ? std::string_view() : h.chunked ? std::string_view(chunks) : std::string_view(body), Then::End);
 }
-
-
-// A file as the body, read and written one block at a time (the next block once the last is written: a slow client slows the reads),
-// with one byte range when the request asked for it. ponytail: the blocks are read on the loop thread; a uv_fs read pool if a slow disk
-// shows in other requests' latency.
-namespace {
-constexpr size_t kFileBlock = 256u << 10;
-struct FileSend { uv_write_t req; SConn* c; FILE* f; uint64_t left; std::string data; };
-void sendBlock(FileSend* s);
-void blockWritten(uv_write_t* r, int status) {
-  auto* s = reinterpret_cast<FileSend*>(r);
-  if (status < 0 || s->c->closed) { fclose(s->f); closeConn(s->c); delete s; return; }
-  sendBlock(s);
+bool replyStart(int conn, int status, const std::string& headers) {
+  SConn* c = connAt(conn);
+  if (!c || c->answered) return false;
+  c->answered = true;
+  Head h = headOf(status, headers);
+  c->chunked = !h.length && !bodiless(c, status);
+  if (c->chunked) h.text += "Transfer-Encoding: chunked\r\n";
+  if (c->http10 && c->chunked) c->keepAlive = false;   // HTTP/1.0 has no chunks: the end of the body is the close
+  endHead(c, h);
+  c->st = St::Streaming;
+  send(c, std::move(h.text), std::string_view(), Then::More);
+  return !c->closed;
 }
-void sendBlock(FileSend* s) {
-  SConn* c = s->c;
-  if (c->closed) { fclose(s->f); delete s; return; }
-  uv_timer_start(&c->idle, [](uv_timer_t* t) { closeConn(static_cast<SConn*>(t->data)); }, kIdleMs, 0);   // idle means no block written
-  if (s->left == 0) {   // the end: the TLS close, then the connection
-    fclose(s->f);
-    if (c->tls) {
-      tls::close(c->tls);
-      auto* w = new WriteReq{{}, tls::takeOutput(c->tls), true};
-      w->req.data = c;
-      uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
-      if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&c->tcp), &b, 1, [](uv_write_t* r, int) { auto* x = reinterpret_cast<WriteReq*>(r); closeConn(static_cast<SConn*>(r->data)); delete x; }) != 0) { delete w; closeConn(c); }
-    } else closeConn(c);
-    delete s;
-    return;
+int write(int conn, const std::string& data) {
+  SConn* c = connAt(conn);
+  if (!c || c->st != St::Streaming) return -1;
+  if (!data.empty() && !c->isHead) {
+    if (c->chunked) {
+      char hex[24];
+      std::snprintf(hex, sizeof hex, "%zx\r\n", data.size());
+      std::string framed;
+      framed.reserve(data.size() + 32);
+      framed += hex; framed += data; framed += "\r\n";
+      send(c, std::move(framed), std::string_view(), Then::More);
+    } else send(c, std::string(), data, Then::More);
   }
-  if (s->data.empty()) {   // the head was sent first; now a block of the file
-    std::string block(static_cast<size_t>(std::min<uint64_t>(kFileBlock, s->left)), '\0');
-    size_t n = fread(block.data(), 1, block.size(), s->f);
-    if (n == 0) { fclose(s->f); closeConn(c); delete s; return; }   // the file shrank or cannot be read: the client sees a short body
-    block.resize(n);
-    s->left -= n;
-    s->data = std::move(block);
-  }
-  if (c->tls) {
-    if (!tls::write(c->tls, s->data)) { fclose(s->f); closeConn(c); delete s; return; }
-    s->data = tls::takeOutput(c->tls);
-  }
-  std::string out = std::move(s->data);
-  s->data.clear();
-  auto* hold = new std::string(std::move(out));   // alive until the write completes
-  s->req.data = hold;
-  uv_buf_t b = uv_buf_init(hold->data(), static_cast<unsigned>(hold->size()));
-  if (uv_write(&s->req, reinterpret_cast<uv_stream_t*>(&c->tcp), &b, 1, [](uv_write_t* r, int st) { delete static_cast<std::string*>(r->data); blockWritten(r, st); }) != 0) {
-    delete hold; fclose(s->f); closeConn(c); delete s;
-  }
+  if (c->closed) return -1;
+  const int queued = static_cast<int>(std::min<size_t>(c->tcp.write_queue_size, INT32_MAX));
+  if (static_cast<size_t>(queued) >= kDrainBytes) c->wantDrain = true;
+  return queued;
 }
-/** "bytes=a-b", "bytes=a-", "bytes=-n" of a file of `size` bytes: false when it is not one satisfiable range. */
-bool byteRange(const std::string& h, uint64_t size, uint64_t& from, uint64_t& to) {
-  if (h.compare(0, 6, "bytes=") != 0 || size == 0) return false;
-  const std::string r = h.substr(6);
-  const size_t dash = r.find('-');
-  if (dash == std::string::npos || r.find(',') != std::string::npos) return false;
-  const std::string a = r.substr(0, dash), b = r.substr(dash + 1);
-  auto num = [](const std::string& t, uint64_t& v) { if (t.empty() || t.find_first_not_of("0123456789") != std::string::npos || t.size() > 18) return false; v = std::stoull(t); return true; };
-  uint64_t x = 0, y = 0;
-  if (a.empty()) { if (!num(b, y) || y == 0) return false; from = y >= size ? 0 : size - y; to = size - 1; return true; }
-  if (!num(a, x) || x >= size) return false;
-  from = x;
-  to = b.empty() ? size - 1 : (num(b, y) && y >= x ? std::min(y, size - 1) : UINT64_MAX);
-  return to != UINT64_MAX;
+void end(int conn) {
+  SConn* c = connAt(conn);
+  if (!c || c->st != St::Streaming) return;
+  send(c, c->chunked && !c->isHead ? std::string("0\r\n\r\n") : std::string(), std::string_view(), Then::End);
 }
-}  // namespace
+void bodyTaken(int conn, size_t n) {
+  SConn* c = connAt(conn);
+  if (!c) return;
+  c->queuedBody -= std::min(c->queuedBody, n);
+  if (c->readPaused && c->queuedBody < kQueuedBodyCap / 4 && c->pending.size() < kPendingCap) { c->readPaused = false; uv_read_start(reinterpret_cast<uv_stream_t*>(&c->tcp), sAlloc, onSRead); }
+}
 
 void replyFile(int conn, int status, const std::string& headers, const std::string& path, const std::string& range) {
-  auto it = gConns.find(conn);
-  if (it == gConns.end()) return;
-  SConn* c = it->second;
-  if (c->closed || c->answered) return;
-  FILE* f = fopen(path.c_str(), "rb");
-  struct stat st;
-  if (!f || fstat(fileno(f), &st) != 0 || !S_ISREG(st.st_mode)) { if (f) fclose(f); quick(c, 404); return; }
-  const uint64_t size = static_cast<uint64_t>(st.st_size);
+  SConn* c = connAt(conn);
+  if (!c || c->answered) return;
+  std::shared_ptr<OpenFile> f = openFile(path);
+  if (!f) { reply(conn, 404, "", ""); return; }
+  const uint64_t size = f->size;
   uint64_t from = 0, to = size == 0 ? 0 : size - 1;
   std::string extra;
   if (!range.empty()) {
-    if (!byteRange(range, size, from, to)) {
-      fclose(f);
-      writeAndClose(c, "HTTP/1.1 416 " + std::string(reasonOf(416)) + "\r\nContent-Range: bytes */" + std::to_string(size) + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
-      return;
-    }
+    if (!byteRange(range, size, from, to)) { reply(conn, 416, "Content-Range: bytes */" + std::to_string(size), ""); return; }
     status = 206;
     extra = "Content-Range: bytes " + std::to_string(from) + "-" + std::to_string(to) + "/" + std::to_string(size) + "\r\n";
   }
   const uint64_t length = size == 0 ? 0 : to - from + 1;
-  if (from > 0 && fseeko(f, static_cast<off_t>(from), SEEK_SET) != 0) { fclose(f); quick(c, 500); return; }
-  std::string head = "HTTP/1.1 " + std::to_string(status) + " " + reasonOf(status) + "\r\n";
-  for (size_t i = 0; i < headers.size();) {
-    size_t e = headers.find('\n', i);
-    if (e == std::string::npos) e = headers.size();
-    std::string line = headers.substr(i, e - i);
-    if (!line.empty() && !hasCtl(line)) head += line + "\r\n";
-    i = e + 1;
-  }
-  head += extra + "Accept-Ranges: bytes\r\nContent-Length: " + std::to_string(length) + "\r\nConnection: close\r\n\r\n";
   c->answered = true;
-  auto* s = new FileSend{{}, c, f, length, std::move(head)};
-  sendBlock(s);
+  Head h = headOf(status, headers);
+  h.text += extra + "Accept-Ranges: bytes\r\nContent-Length: " + std::to_string(length) + "\r\n";
+  endHead(c, h);
+  c->st = St::Streaming;
+  sendBlock(new FileSend{c, std::move(f), from, c->isHead ? 0 : length, std::move(h.text)});
 }
 
 }  // namespace zn::http

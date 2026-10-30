@@ -1,7 +1,10 @@
 #pragma once
 // HTTP/1.1 for zinc:net (ZN-087): a client (fetch) and a server on the libuv loop, parsed with llhttp (third_party/llhttp).
 // Results arrive as loop events (include/zn/loop.h): 40 a fetch finished, 41 a fetch failed (data = the reason, Node's words), 42 a request
-// reached a server (handle = the connection, data = method \x1e target \x1e client address \x1e server port \x1e "name: value\n" lines \x1e body).
+// reached a server (handle = the connection, data = method \x1e target \x1e client address \x1e server port \x1e "name: value\n" lines \x1e body,
+// payload = the body's bytes); with the option streamBody the request comes at the end of its headers, its body in events 43 (payload = a chunk)
+// and 44 (the end). 45: a reply in parts can be written again (write() returned kDrainBytes or more); 46: the client left while the program held
+// the request. Connections are kept alive (HTTP/1.1) and pipelined requests answered in order.
 #include <string>
 
 namespace zn::http {
@@ -19,7 +22,18 @@ void fetchFree(int h);
 // and key make it an https server.
 int serve(int port, const std::string& certPem = std::string(), const std::string& keyPem = std::string());
 const std::string& lastError();
+// Limits and modes of the server on `port` (zinc:net ServeOptions): maxHeaderBytes (431), maxBodyBytes (413), maxConnections (of all the
+// servers), maxConnectionsPerIp, requestsPerSecondPerIp (429; 0 no limit), headersTimeoutMs (the headers from their first byte: 408),
+// requestTimeoutMs (the longest pause in a body: 408), keepAliveTimeoutMs, streamBody (1). false for an unknown name or port.
+bool option(int port, const std::string& name, double value);
 void reply(int conn, int status, const std::string& headers, const std::string& body);
+// A reply in parts: the head now (chunked unless the headers give a Content-Length), the body by write(), end() last. write returns the
+// bytes the socket still holds (event 45 once they fall back after a write returned 64 KiB or more), -1 when the client is gone.
+bool replyStart(int conn, int status, const std::string& headers);
+int write(int conn, const std::string& data);
+void end(int conn);
+// The program took `bytes` of a streamed body (event 43): a connection paused for a slow reader reads again.
+void bodyTaken(int conn, size_t bytes);
 // The file at `path` as the body, sent in blocks; `range` is the request's Range header ('' for the whole file): one satisfiable byte
 // range gives a 206 with Content-Range, another a 416; a missing file a 404. Accept-Ranges and Content-Length are added.
 void replyFile(int conn, int status, const std::string& headers, const std::string& path, const std::string& range);

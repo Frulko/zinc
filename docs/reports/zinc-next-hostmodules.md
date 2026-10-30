@@ -12,7 +12,7 @@ the host library is linked: the interpreter, the AOT programs that use it, and `
 | `zinc:assets` | desktop | one directory: `ZINC_ASSETS` when set (`zinc run` sets it to the `assets` beside the entry file or above it); else, for a built program, `assets` beside the executable (`zinc export`) or one level above it (`<project>/build/<name>`), else the `assets` of the directory it is started in (not when it enforces permissions). The app's assets need no `fs` permission; a `..` out of them is checked as any path |
 | `zinc:os` | desktop | hostname, home, arch, memory, cpus; no network interfaces |
 | `zinc:process` | desktop | `spawn` a shell command line, non-blocking `read`, `status`, `kill` |
-| `zinc:net` | desktop, needs `curl` | `fetch(url, init?)` with method, body, headers; resolves with the status (0 when the transfer fails); `Headers`, `Response.text()` only |
+| `zinc:net` | desktop (libuv + llhttp, mbedTLS for https) | `fetch(url, init?)` with method, body, headers; `serve`/`serveAsync` with `ServeOptions` (ZN-892: keep-alive and pipelining, writev with `uv_try_write` first, a stat-checked cache of open files, limits per server and per address, streamed bodies both ways with events 43 to 46; the loop is polled only when its event queue is empty). `tools/bench-http` measures it against Node and Bun |
 | `zinc:native` | none | `requireNative` throws: the native C++ part of a plugin is not linked; plugins with a `x.next.ts` or `x.sim.ts` next to the `x.spec` run that instead |
 | plugins (`plugins/*`) | those with Zinc sources | `lottie` and `video` have `*.next.ts` sims written for this engine (the `*.sim.ts` uses TypeScript beyond the Zinc subset) |
 

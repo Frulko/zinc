@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""HTTP server throughput of zinc:net against Node and Bun on this machine, with oha (`brew install oha`).
+
+usage: tools/bench-http [--servers zinc,zinc-qjs,zinc-aot,node,bun] [--cases hello,json,file,close,tls,tls-close]
+                        [--secs 5] [--conns 50] [--json OUT]
+
+The three servers are tests/bench/http/{zinc.ts,node.mjs,bun.ts}: the same routes (`/` a 13-byte text, `/json` a JSON.stringify per
+request, `/file` a 64 KiB file from disk) on http and on https (a self-signed certificate made here with openssl).
+Cases: hello, json and file on keep-alive connections; close = hello with a new connection per request; tls = hello over https
+keep-alive; tls-close = a TLS handshake per request (handshakes per second).
+Each case: one second of warm-up, then `--secs` seconds with `--conns` connections. Printed per case and server: requests per second,
+p50 and p99 latency in ms, the server's peak RSS in MiB (ps, sampled every 0.2 s), the load average of the machine before the run.
+Numbers are only worth something on a quiet machine: the load average is printed next to each one for that reason.
+"""
+import argparse, json, os, shutil, signal, subprocess, sys, tempfile, threading, time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.join(ROOT, 'tests', 'bench', 'http')
+ZINC = os.environ.get('ZINC', os.path.join(ROOT, 'build', 'zinc'))
+NODE = shutil.which('node') or os.path.expanduser('~/.nvm/versions/node/v24.14.0/bin/node')
+BUN = shutil.which('bun') or os.path.expanduser('~/.bun/bin/bun')
+PORT, TPORT = 18901, 18902
+CASES = {   # path, https, keep-alive
+    'hello': ('/', False, True), 'json': ('/json', False, True), 'file': ('/file', False, True),
+    'close': ('/', False, False), 'tls': ('/', True, True), 'tls-close': ('/', True, False),
+}
+
+
+def certs(tmp):
+    cert, key = os.path.join(tmp, 'cert.pem'), os.path.join(tmp, 'key.pem')
+    subprocess.run(['openssl', 'req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes', '-days', '2',
+                    '-subj', '/CN=localhost', '-keyout', key, '-out', cert], check=True, capture_output=True)
+    return cert, key
+
+
+def command(server, tmp, file, cert, key):
+    args = [str(PORT), file, str(TPORT), cert, key]
+    if server == 'zinc': return [ZINC, 'run', os.path.join(HERE, 'zinc.ts'), '--', *args]
+    if server == 'zinc-qjs': return [ZINC, 'run', os.path.join(HERE, 'zinc.ts'), '--engine', 'quickjs', '--', *args]
+    if server == 'zinc-aot':
+        out = os.path.join(tmp, 'zinc-aot')
+        if not os.path.exists(out): subprocess.run([ZINC, 'build', os.path.join(HERE, 'zinc.ts'), '-o', out], check=True, capture_output=True)
+        return [out, *args]
+    if server == 'node': return [NODE, os.path.join(HERE, 'node.mjs'), *args]
+    if server == 'bun': return [BUN, os.path.join(HERE, 'bun.ts'), *args]
+    sys.exit('unknown server ' + server)
+
+
+def rss_mib(pid):
+    try: return int(subprocess.run(['ps', '-o', 'rss=', '-p', str(pid)], capture_output=True, text=True).stdout.strip() or 0) / 1024
+    except ValueError: return 0.0
+
+
+def oha(url, secs, conns, keep):
+    cmd = ['oha', '-z', f'{secs}s', '-c', str(conns), '--no-tui', '--output-format', 'json', '--insecure']
+    if not keep: cmd.append('--disable-keepalive')
+    out = subprocess.run(cmd + [url], capture_output=True, text=True)
+    return json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip() else None
+
+
+def run_case(proc, case, secs, conns):
+    path, tls, keep = CASES[case]
+    url = f"{'https' if tls else 'http'}://127.0.0.1:{TPORT if tls else PORT}{path}"
+    oha(url, 1, conns, keep)   # warm-up
+    load = os.getloadavg()[0]
+    peak, done = [0.0], threading.Event()
+
+    def sample():
+        while not done.wait(0.2): peak[0] = max(peak[0], rss_mib(proc.pid))
+    t = threading.Thread(target=sample); t.start()
+    r = oha(url, secs, conns, keep)
+    done.set(); t.join()
+    if r is None: return {'case': case, 'error': 'oha failed'}
+    s, p = r['summary'], r.get('latencyPercentiles', {})
+    codes = r.get('statusCodeDistribution', {})
+    return {'case': case, 'rps': round(s['requestsPerSec']), 'p50': round((p.get('p50') or 0) * 1000, 3), 'p99': round((p.get('p99') or 0) * 1000, 3),
+            'ok': s.get('successRate', 0), 'non200': sum(v for k, v in codes.items() if k != '200'), 'rss': round(peak[0], 1), 'load': round(load, 2)}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--servers', default='zinc,node,bun')
+    ap.add_argument('--cases', default='hello,json,file,close,tls,tls-close')
+    ap.add_argument('--secs', type=int, default=5)
+    ap.add_argument('--conns', type=int, default=50)
+    ap.add_argument('--json')
+    a = ap.parse_args()
+    if not shutil.which('oha'): sys.exit('bench-http: oha is missing (brew install oha)')
+    results = []
+    with tempfile.TemporaryDirectory() as tmp:
+        cert, key = certs(tmp)
+        file = os.path.join(tmp, 'file.bin')
+        with open(file, 'wb') as f: f.write(os.urandom(64 << 10))
+        for server in a.servers.split(','):
+            env = dict(os.environ, ZINC_BACKGROUND='1', ZINC_HEADLESS='1')
+            proc = subprocess.Popen(command(server, tmp, file, cert, key), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, text=True, start_new_session=True)
+            first = [proc.stdout.readline().strip() for _ in range(1)]
+            while first[-1] != 'ready' and first[-1] != '' and len(first) < 20: first.append(proc.stdout.readline().strip())   # a warning may come first
+            if first[-1] != 'ready': print(f'{server}: did not start: ' + ' | '.join(first)); os.killpg(proc.pid, signal.SIGTERM); continue
+            try:
+                for case in a.cases.split(','):
+                    r = run_case(proc, case, a.secs, a.conns)
+                    r['server'] = server
+                    results.append(r)
+                    print(f"{server:9} {case:10} " + (r.get('error') or f"{r['rps']:>8} req/s  p50 {r['p50']:>7.3f} ms  p99 {r['p99']:>7.3f} ms  rss {r['rss']:>6.1f} MiB  "
+                          f"ok {r['ok']:.3f} non-200 {r['non200']}  load {r['load']}"), flush=True)
+            finally:
+                os.killpg(proc.pid, signal.SIGTERM)
+                proc.wait(5)
+    if a.json:
+        with open(a.json, 'w') as f: json.dump({'date': time.strftime('%Y-%m-%d %H:%M'), 'secs': a.secs, 'conns': a.conns, 'results': results}, f, indent=1)
+
+
+if __name__ == '__main__':
+    main()

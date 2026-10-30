@@ -1286,7 +1286,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostProcSignal: zn::loop::signalProcess(n(0), n(1)); break;
     case Rt::HostEvNext: {  // "handle \x1f kind \x1f data", or "" when no event is ready
       zn::loop::Event e;
-      if (zn::loop::nextEvent(e)) { gPayload = std::move(e.payload); ret(r, std::to_string(e.handle) + "\x1f" + std::to_string(e.kind) + "\x1f" + e.data); } else ret(r, std::string());
+      if (zn::loop::nextEvent(e)) {
+        if (e.kind == 43) zn::http::bodyTaken(e.handle, e.payload.size());   // a chunk of a streamed request body reaches the program
+        gPayload = std::move(e.payload); ret(r, std::to_string(e.handle) + "\x1f" + std::to_string(e.kind) + "\x1f" + e.data); } else ret(r, std::string());
       break;
     }
     case Rt::HostEvReady: r->i = zn::loop::eventReady() ? 1 : 0; break;
@@ -1360,6 +1362,10 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostHttpStop: zn::http::stop(n(0)); break;
     case Rt::HostHttpReply: zn::http::reply(n(0), n(1), s(2), s(3)); break;
     case Rt::HostHttpReplyFile: zn::http::replyFile(n(0), n(1), s(2), s(3), s(4)); break;
+    case Rt::HostHttpOption: r->i = zn::http::option(n(0), s(1), a[2].d) ? 1 : 0; break;
+    case Rt::HostHttpReplyStart: r->i = zn::http::replyStart(n(0), n(1), s(2)) ? 1 : 0; break;
+    case Rt::HostHttpWrite: r->i = zn::http::write(n(0), s(1)); break;
+    case Rt::HostHttpEnd: zn::http::end(n(0)); break;
     case Rt::HostSockConnect: r->i = refused("net", s(0)) ? -1 : zn::sock::connectTcp(s(0), n(1)); break;   // zinc.json permissions (ZN-322)
     case Rt::HostSockConnectTls: r->i = refused("net", s(0)) ? -1 : zn::sock::connectTls(s(0), n(1)); break;
     case Rt::HostSockConnectUnix: r->i = refused("net", "unix:" + s(0)) ? -1 : zn::sock::connectUnix(s(0)); break;

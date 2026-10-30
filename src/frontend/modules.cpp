@@ -642,8 +642,56 @@ export class Response {
     try { return Promise.resolve(JSON.parse(this.body)); } catch (e) { return Promise.reject(e); }
   }
 }
-export interface Request { method: string; path: string; body: string; headers: Headers; rawBody?: string; remoteAddress?: string }
-export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string }
+/** The body of a request served with streamBody: its chunks as they arrive (raw bytes in strings). */
+export class BodyStream {
+  chunks: string[] = [];
+  ended: boolean = false;
+  gone: boolean = false;
+  sink: ((chunk: string) => void) | null = null;
+  done: (() => void) | null = null;
+  fail: ((e: Error) => void) | null = null;
+  constructor() {}
+  /** Calls f with each chunk, those that came already first; resolves at the end of the body, rejects when the client leaves. */
+  each(f: (chunk: string) => void): Promise<void> {
+    return new Promise<void>((resolve: () => void, reject: (e: Error) => void) => {
+      for (const c of this.chunks) f(c);
+      this.chunks = [];
+      if (this.ended) { resolve(); return; }
+      if (this.gone) { reject(new Error('net: the client left before the end of the body')); return; }
+      this.sink = f; this.done = resolve; this.fail = reject;
+    });
+  }
+}
+export interface Request { method: string; path: string; body: string; headers: Headers; rawBody?: string; remoteAddress?: string; bodyStream?: BodyStream }
+/** The body of a reply in parts (Reply.stream): chunked unless the headers give a Content-Length. write returns false once 64 KiB wait
+ *  in the socket: onDrain says when to go on. */
+export class ReplyWriter {
+  conn: i32;
+  closed: boolean = false;
+  drainCb: (() => void) | null = null;
+  closeCb: (() => void) | null = null;
+  constructor(conn: i32) { this.conn = conn; }
+  write(chunk: string): boolean {
+    if (this.closed) return false;
+    const q = __host_httpWrite(this.conn, chunk);
+    if (q < 0) { this.gone(); return false; }
+    return q < 65536;
+  }
+  end(): void { if (this.closed) return; this.closed = true; __netWriters.delete(this.conn); __host_httpEnd(this.conn); }
+  onDrain(f: () => void): void { this.drainCb = f; }
+  /** The client left before end(). */
+  onClose(f: () => void): void { this.closeCb = f; }
+  gone(): void {
+    if (this.closed) return;
+    this.closed = true;
+    __netWriters.delete(this.conn);
+    const f = this.closeCb;
+    if (f !== null) f();
+  }
+}
+export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string; stream?: (w: ReplyWriter) => void }
+const __netWriters = new Map<i32, ReplyWriter>();
+const __netBodies = new Map<i32, BodyStream>();
 
 function __ctl(s: string): boolean { return s.indexOf('\r') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\u0000') >= 0; }
 function __headerLines(h: Headers): string {
@@ -672,11 +720,12 @@ const __netCalls: NetCall[] = [];
 let __netHooked: boolean = false;
 // the servers' handlers by port (one of the two per port): a program may serve several ports at once
 const __netPorts: i32[] = [];
+const __netStreamed: boolean[] = [];   // the servers with ServeOptions.streamBody
 const __netHandlers: (((req: Request) => Reply) | null)[] = [];
 const __netAsyncHandlers: (((req: Request) => Promise<Reply>) | null)[] = [];
 function __netSet(port: i32, f: ((req: Request) => Reply) | null, af: ((req: Request) => Promise<Reply>) | null): void {
   let i = __netPorts.indexOf(port);
-  if (i < 0) { __netPorts.push(port); __netHandlers.push(null); __netAsyncHandlers.push(null); i = __netPorts.length - 1; }
+  if (i < 0) { __netPorts.push(port); __netHandlers.push(null); __netAsyncHandlers.push(null); __netStreamed.push(false); i = __netPorts.length - 1; }
   __netHandlers[i] = f;
   __netAsyncHandlers[i] = af;
 }
@@ -686,7 +735,13 @@ function __sendReply(h: i32, r: Reply, range: string): void {
   const ct = r.contentType.length > 0 && !__ctl(r.contentType) ? r.contentType : 'text/plain; charset=utf-8';
   lines += 'Content-Type: ' + ct + '\n';
   if (r.file !== undefined) __host_httpReplyFile(h, r.status, lines, r.file as string, range);   // the file's bytes, in blocks, with the Range asked
-  else __host_httpReply(h, r.status, lines, r.body);
+  else if (r.stream !== undefined) {
+    if (__host_httpReplyStart(h, r.status, lines) === 0) return;
+    const w = new ReplyWriter(h);
+    __netWriters.set(h, w);
+    const f = r.stream as (w: ReplyWriter) => void;
+    try { f(w); } catch (e) { w.end(); }
+  } else __host_httpReply(h, r.status, lines, r.body);
 }
 function __netHook(): void {
   if (__netHooked) return;
@@ -707,6 +762,20 @@ function __netHook(): void {
         c.resolve(r);
         return;
       }
+    } else if (kind === 43 || kind === 44 || kind === 46) {   // a chunk of a streamed body, its end, the client gone
+      const b = __netBodies.get(h);
+      if (b !== undefined) {
+        if (kind === 43) { const c = __host_evPayload(); const f = b.sink; if (f !== null) f(c); else b.chunks.push(c); }
+        else {
+          __netBodies.delete(h);
+          if (kind === 44) { b.ended = true; const f = b.done; if (f !== null) f(); }
+          else { b.gone = true; const f = b.fail; if (f !== null) f(new Error('net: the client left before the end of the body')); }
+        }
+      }
+      if (kind === 46) { const w = __netWriters.get(h); if (w !== undefined) w.gone(); }
+    } else if (kind === 45) {
+      const w = __netWriters.get(h);
+      if (w !== undefined && w.drainCb !== null) { const f = w.drainCb as () => void; f(); }
     } else if (kind === 42) {
       const i1 = data.indexOf('\u001e');
       const i2 = data.indexOf('\u001e', i1 + 1);
@@ -716,6 +785,7 @@ function __netHook(): void {
       const req: Request = { method: data.slice(0, i1), path: data.slice(i1 + 1, i2), body: data.slice(i5 + 1), headers: new Headers(), rawBody: __host_evPayload(), remoteAddress: data.slice(i2 + 1, i3) };
       __parseLines(data.slice(i4 + 1, i5), req.headers);
       const at = __netPorts.indexOf(parseInt(data.slice(i3 + 1, i4)) as i32);
+      if (at >= 0 && __netStreamed[at]) { const b = new BodyStream(); __netBodies.set(h, b); req.bodyStream = b; }
       const f = at < 0 ? null : __netHandlers[at];
       const af = at < 0 ? null : __netAsyncHandlers[at];
       if (af !== null) {   // serveAsync: the reply goes out when the promise settles
@@ -755,34 +825,46 @@ export function fetch(url: string, init?: RequestInit): Promise<Response> {
   });
 }
 export interface TlsOptions { cert: string; key: string }
-/** serve(port, handler, { cert, key }) with a PEM certificate chain and a PEM private key is an https server. Returns the port it
- *  listens on: port 0 lets the system pick a free one. */
-export function serve(port: i32, handler: (req: Request) => Reply, tls?: TlsOptions): i32 {
+/** Options of serve and serveAsync: cert and key (PEM) make an https server; the limits (a request over one gets 413, 429, 431 or 408, a
+ *  connection over one is closed) and streamBody (the body comes as req.bodyStream, not in req.body). */
+export interface ServeOptions {
+  cert?: string; key?: string;
+  maxHeaderBytes?: i32; maxBodyBytes?: i32; maxConnections?: i32; maxConnectionsPerIp?: i32; requestsPerSecondPerIp?: i32;
+  headersTimeoutMs?: i32; requestTimeoutMs?: i32; keepAliveTimeoutMs?: i32; streamBody?: boolean;
+}
+function __netListen(port: i32, o?: ServeOptions): i32 {
   __netHook();
   let bound: i32 = 0;
-  if (tls !== undefined) {
-    const t = tls as TlsOptions;
-    bound = __host_httpServeTls(port, t.cert, t.key);
-    if (bound === 0) throw new Error('net.serve: ' + __host_httpError());
-  } else {
-    bound = __host_httpServe(port);
-    if (bound === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
+  if (o !== undefined && o.cert !== undefined) bound = __host_httpServeTls(port, o.cert as string, o.key !== undefined ? o.key as string : '');
+  else bound = __host_httpServe(port);
+  if (bound === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
+  let streamed = false;
+  if (o !== undefined) {
+    if (o.maxHeaderBytes !== undefined) __host_httpOption(bound, 'maxHeaderBytes', o.maxHeaderBytes as i32);
+    if (o.maxBodyBytes !== undefined) __host_httpOption(bound, 'maxBodyBytes', o.maxBodyBytes as i32);
+    if (o.maxConnections !== undefined) __host_httpOption(bound, 'maxConnections', o.maxConnections as i32);
+    if (o.maxConnectionsPerIp !== undefined) __host_httpOption(bound, 'maxConnectionsPerIp', o.maxConnectionsPerIp as i32);
+    if (o.requestsPerSecondPerIp !== undefined) __host_httpOption(bound, 'requestsPerSecondPerIp', o.requestsPerSecondPerIp as i32);
+    if (o.headersTimeoutMs !== undefined) __host_httpOption(bound, 'headersTimeoutMs', o.headersTimeoutMs as i32);
+    if (o.requestTimeoutMs !== undefined) __host_httpOption(bound, 'requestTimeoutMs', o.requestTimeoutMs as i32);
+    if (o.keepAliveTimeoutMs !== undefined) __host_httpOption(bound, 'keepAliveTimeoutMs', o.keepAliveTimeoutMs as i32);
+    if (o.streamBody !== undefined && (o.streamBody as boolean)) { __host_httpOption(bound, 'streamBody', 1); streamed = true; }
   }
+  let i = __netPorts.indexOf(bound);
+  if (i < 0) { __netPorts.push(bound); __netHandlers.push(null); __netAsyncHandlers.push(null); __netStreamed.push(false); i = __netPorts.length - 1; }
+  __netStreamed[i] = streamed;
+  return bound;
+}
+/** serve(port, handler, { cert, key }) with a PEM certificate chain and a PEM private key is an https server. Returns the port it
+ *  listens on: port 0 lets the system pick a free one. */
+export function serve(port: i32, handler: (req: Request) => Reply, options?: ServeOptions): i32 {
+  const bound = __netListen(port, options);
   __netSet(bound, handler, null);
   return bound;
 }
 /** Like serve, for a handler that answers later: the reply is sent when the promise resolves (a rejection is a 500). */
-export function serveAsync(port: i32, handler: (req: Request) => Promise<Reply>, tls?: TlsOptions): i32 {
-  __netHook();
-  let bound: i32 = 0;
-  if (tls !== undefined) {
-    const t = tls as TlsOptions;
-    bound = __host_httpServeTls(port, t.cert, t.key);
-    if (bound === 0) throw new Error('net.serve: ' + __host_httpError());
-  } else {
-    bound = __host_httpServe(port);
-    if (bound === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
-  }
+export function serveAsync(port: i32, handler: (req: Request) => Promise<Reply>, options?: ServeOptions): i32 {
+  const bound = __netListen(port, options);
   __netSet(bound, null, handler);
   return bound;
 }

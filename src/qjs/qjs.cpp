@@ -605,9 +605,12 @@ bool timerLoop(Engine& e) {
       JSValue now = JS_NewFloat64(e.ctx, clock);
       fn = JS_Call(e.ctx, due, JS_UNDEFINED, 1, &now);
       if (JS_IsNull(fn)) {
-        if (e.worker) zn::host::workerBridge.idleWait();   // nothing to do: a deterministic parent may go on (src/rt/worker.cpp)
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        JSValue cv = JS_NewFloat64(e.ctx, clock + 1);
+        const double t0 = zn::loop::nowMs();
+        if (e.worker) {
+          zn::host::workerBridge.idleWait();   // nothing to do: a deterministic parent may go on (src/rt/worker.cpp)
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        } else zn::loop::wait(1);   // a millisecond, or less when the host loop has an event (a request): a sleep made a server wait for it (ZN-892)
+        JSValue cv = JS_NewFloat64(e.ctx, clock + (zn::loop::nowMs() - t0));
         JS_FreeValue(e.ctx, JS_Call(e.ctx, setClock, JS_UNDEFINED, 1, &cv));
         continue;
       }

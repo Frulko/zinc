@@ -1,0 +1,10 @@
+pipelined 3 ['GET /1 0HTTP/1.1 200 OK', 'POST /2 3HTTP/1.1 200 OK', 'GET /3 0']
+header HTTP/1.1 431 Request Header Fields Too Large
+body length HTTP/1.1 413 Payload Too Large
+body chunked HTTP/1.1 413 Payload Too Large
+fourth connection closed
+slow headers HTTP/1.1 408 Request Timeout within 2s
+keep-alive idle HTTP/1.1 200 OK closed after about 0.3s
+rate 200 200 200 429
+upload got 3145728 bytes in chunks
+download True 2621440
