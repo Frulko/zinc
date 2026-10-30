@@ -556,7 +556,7 @@ export async function dumpElements(): Promise<void> {
   await toggleClass('w-8');
   const w2 = computedValue('width');
   await toggleClass('w-8');
-  console.log('class edit: width ' + w0 + ' -> ' + w1 + ', off ' + w2 + ', on ' + computedValue('width') + ' | ' + label(sq as TNode));
+  console.log('class edit: width ' + w0 + ' -> ' + w1 + ', off ' + w2 + ', on ' + computedValue('width') + ' | ' + label(now(sq as TNode)));
   await complete('bg-ros');
   console.log('completion bg-ros: ' + completions().slice(0, 3).join(' '));
   await setProp('width', '50px');
@@ -568,10 +568,12 @@ export async function dumpElements(): Promise<void> {
   await deleteProp('width');
   console.log('style edit: width ' + s1 + ', off ' + s2 + ', on ' + s3 + ', deleted ' + computedValue('width') + ' | element.style ' + inline().text);
   await editClass('w-8', 'w-12');   // a class edited in place (Chrome's .cls pane)
-  console.log('class edited in place: width ' + computedValue('width') + ' | ' + label(sq as TNode));
+  console.log('class edited in place: width ' + computedValue('width') + ' | ' + label(now(sq as TNode)));
   for (const r of rows()) { const t = inlineText(r.node); if (r.node.tag === 'Text' && t !== null) { await dumpTextStyles(r.node); break; } }
   await sleep(300);   // the patch reaches the console
 }
+/** Node n as the tree holds it now: a DOM event reloads the document into new nodes. */
+function now(n: TNode): TNode { const x = nodeOf(n.id); return x !== null ? x as TNode : n; }
 /** A Text's properties in the Styles pane, its font size stepped up by the arrow key and its alignment set, then both removed. */
 async function dumpTextStyles(n: TNode): Promise<void> {
   await select(n.id);
