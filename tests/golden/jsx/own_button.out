@@ -8,3 +8,8 @@ node 0
   node 6
     node 1
       dynTextOf local
+  node 6
+    node 0
+      class p-1
+      node 8
+        str placeholder=wrapped

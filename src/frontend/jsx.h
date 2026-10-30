@@ -33,7 +33,7 @@ const std::map<std::string, std::string>& jsxLowercaseTags();
 // The names a source imports, to their module ("Button" -> "zinc:ui/kit"); `react` (when given) is set when it imports the React model.
 std::map<std::string, std::string> jsxImports(std::string_view src, const std::vector<Token>& tokens, bool* react = nullptr);
 // Whether <tag> is a host element of zinc:ui (View, Text, Button...) rather than a component, given the source's imports: a kit's Button is a component.
-bool jsxHostTag(const std::string& tag, const std::map<std::string, std::string>& imported);
+bool jsxHostTag(const std::string& tag, const std::map<std::string, std::string>& imported, std::size_t at = std::string::npos);   // at: the element's token
 
 // StyleSheet.create({...}) of a .ts or .tsx source (StyleSheet imported from zinc:ui): the CSS-like objects become style operations. The source unchanged when there is none.
 std::string lowerStyleSheets(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, bool tsx);

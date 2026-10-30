@@ -1108,7 +1108,7 @@ struct Lowering {
     }
     const std::string& tag = e.tag;
     bool upper = std::isupper(static_cast<unsigned char>(tag[0]));
-    if (upper && !jsxHostTag(tag, imported)) return component(e, out);
+    if (upper && !jsxHostTag(tag, imported, e.begin)) return component(e, out);
     auto tagIt = kTags.find(tag);
     if (tagIt == kTags.end()) fail(e.begin + 1, "unknown host component <" + tag + "> (View, Text, Button, Image, ScrollView, Canvas, Input, TextArea)");
     int tagNo = tagIt->second;
@@ -1207,7 +1207,7 @@ struct Lowering {
         for (char ch : jsxText(c.text)) { if (ch == '`' || ch == '\\' || ch == '$') tpl += '\\'; tpl += ch; }
       } else if (c.kind == 1 && c.ee > c.eb) { tpl += "${" + rw(c.eb, c.ee) + "}"; dynamic = true; }
       else if (c.kind == 1) {}
-      else if (c.el && !c.el->frag && c.el->tag == "Image" && jsxHostTag("Image", imported)) {
+      else if (c.el && !c.el->frag && c.el->tag == "Image" && jsxHostTag("Image", imported, c.el->begin)) {
         // an inline picture, as React Native's <Image> in a <Text>: the image node is a child of the text and an U+FFFC stands for it
         const std::string img = element(*c.el, out);
         out.push_back("_append(" + v + ", " + img + ");");
@@ -1442,26 +1442,57 @@ std::map<std::string, std::string> jsxImports(std::string_view s, const std::vec
       if (react && (spec == "zinc:ui/react" || spec == "react" || spec == "inferno")) *react = true;
     }
   }
-  // a component the file declares at its top level with a host tag's name (function Button, const Input = ...) is that component, as in
-  // React: it shadows the host tag; recorded with an empty module
+  // a component the file declares at its top level with a host tag's name (function Button, class Input, const Input = (...) => ...) is that
+  // component, as in React: it shadows the host tag; recorded with an empty module. Inside its own declaration the tag stays the host's (a
+  // wrapper such as zinc:ui/nuxt's Input draws the host Input: a call to itself would never end); the declaration's tokens are kept under
+  // "\x01<name>" as "first last". A constant that is not a function (react-native's `const View: i32 = ui.VIEW`) names the host tag.
   int depth = 0;
+  auto depthAt = [&](std::size_t i, int d) {
+    const Tok k = t[i].kind;
+    if (k == Tok::Punct) { const std::string p = tx(i); if (p == "{") ++d; else if (p == "}") --d; }
+    else if (k == Tok::TemplateHead) ++d;
+    else if (k == Tok::TemplateTail) --d;
+    return d;
+  };
   for (std::size_t i = 0; i + 1 < t.size(); ++i) {
     const Tok k = t[i].kind;
-    if (k == Tok::Punct) { const std::string p = tx(i); if (p == "{") ++depth; else if (p == "}") --depth; continue; }
-    if (k == Tok::TemplateHead) { ++depth; continue; }
-    if (k == Tok::TemplateTail) { --depth; continue; }
-    if (depth != 0 || (k != Tok::Keyword && k != Tok::Ident)) continue;
+    const int before = depth;
+    depth = depthAt(i, depth);
+    if (before != 0 || (k != Tok::Keyword && k != Tok::Ident)) continue;
     const std::string w = tx(i);
     if (w != "function" && w != "class" && w != "const" && w != "let" && w != "var") continue;
     const std::size_t n = i + 1;
-    if (t[n].kind == Tok::Ident && kTags.count(tx(n)) && !imported.count(tx(n))) imported[tx(n)] = "";
+    if (t[n].kind != Tok::Ident || !kTags.count(tx(n)) || imported.count(tx(n))) continue;
+    if ((w == "const" || w == "let" || w == "var") &&
+        !(n + 2 < t.size() && tx(n + 1) == "=" && (tx(n + 2) == "(" || tx(n + 2) == "function" || tx(n + 2) == "async" || (n + 3 < t.size() && t[n + 2].kind == Tok::Ident && tx(n + 3) == "=>")))) continue;
+    // the end of the declaration: a function's or a class's body closed outside the parameters (a parameter's type has braces too), else
+    // the statement's `;`, else the next declaration
+    std::size_t e = n + 1;
+    const bool body = w == "function" || w == "class";
+    for (int d = 0, parens = 0; e < t.size(); ++e) {
+      const int was = d;
+      d = depthAt(e, d);
+      if (t[e].kind == Tok::Punct) { const std::string p = tx(e); if (p == "(" || p == "[") ++parens; else if (p == ")" || p == "]") --parens; }
+      if (parens != 0) continue;
+      if ((body && was > 0 && d == 0) || (d == 0 && tx(e) == ";")) break;
+      if (was != 0 || (t[e].kind != Tok::Keyword && t[e].kind != Tok::Ident)) continue;
+      const std::string x = tx(e);
+      if (x == "function" || x == "class" || x == "const" || x == "let" || x == "var" || x == "export" || x == "import") break;
+    }
+    imported[tx(n)] = "";
+    imported["\x01" + tx(n)] = std::to_string(i) + " " + std::to_string(e);
   }
   return imported;
 }
 
-bool jsxHostTag(const std::string& tag, const std::map<std::string, std::string>& imported) {
+bool jsxHostTag(const std::string& tag, const std::map<std::string, std::string>& imported, std::size_t at) {
   if (!kTags.count(tag)) return false;
   auto it = imported.find(tag);
+  if (it != imported.end() && it->second.empty() && at != std::string::npos)   // inside the file's own component of that name: the host tag
+    if (auto r = imported.find("\x01" + tag); r != imported.end()) {
+      const std::size_t sp = r->second.find(' ');
+      if (at >= std::stoul(r->second.substr(0, sp)) && at <= std::stoul(r->second.substr(sp + 1))) return true;
+    }
   // only zinc:ui's own names are the host tags: the kits' Button, Input... and an app's (components/Button.tsx, or declared in the file) are components
   return it == imported.end() || (it->second.rfind("zinc:ui", 0) == 0 && it->second.rfind("zinc:ui/kit", 0) != 0 && it->second.rfind("zinc:ui/nuxt", 0) != 0) ||
          ((it->second == "zinc:react-native" || it->second == "@pocketjs/framework/solid/components") &&   // the host elements of zinc:react-native (ZN-367) and PocketJS
