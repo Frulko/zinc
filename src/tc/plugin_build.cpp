@@ -454,6 +454,11 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   const std::string sysroot = gCross.on ? home() + "/sysroots/" + gCross.name : "";
   if (gCross.on && !ts.pkg.empty() && !fs::exists(sysroot)) { err = "plugin '" + m.name + "' needs the system library '" + ts.pkg[0] + "', which a cross build for " + gCross.name + " looks for in the sysroot " + sysroot + " (not there)"; return false; }
   std::string pc = "pkg-config";
+#ifdef __linux__
+  // the pinned zig compiles for its own target and does not search /usr/include or the multiarch libraries: pkg-config must keep the system paths
+  // it drops by default (2026-10-31: display-gl on a Pi found no GLES2/gl2.h)
+  if (!gCross.on) pc = "PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 PKG_CONFIG_ALLOW_SYSTEM_LIBS=1 pkg-config";
+#endif
   if (gCross.on) {
     std::string dirs;
     for (const auto& e : fs::directory_iterator(fs::path(sysroot) / "usr/lib", ec)) if (fs::exists(e.path() / "pkgconfig")) dirs += (e.path() / "pkgconfig").string() + ":";   // usr/lib/<multiarch triple>/pkgconfig

@@ -434,7 +434,19 @@ static void installDisplayDriver(const std::string& projectDir, const char* entr
   }
   zn::tc::PluginLib lib;
   std::string err;
-  if (!zn::tc::buildPlugin(*hit, gRoot, project, target, lib, err) || !zn::tc::loadPlugin(lib, err)) { std::fprintf(stderr, "zinc: display driver '%s': %s\n", sel.driver.c_str(), err.c_str()); return; }
+  if (!zn::tc::buildPlugin(*hit, gRoot, project, target, lib, err) || !zn::tc::loadPlugin(lib, err)) {
+    std::fprintf(stderr, "zinc: display driver '%s': %s\n", sel.driver.c_str(), err.c_str());
+#ifdef __linux__
+    // a screen with no window system (a Pi's console): a desktop window cannot open there, the framebuffer driver can (2026-10-31: a failed
+    // display-gl fell through to SDL, which panicked)
+    if (sel.driver != "fbdev" && sel.driver != "display-fbdev" && !std::getenv("DISPLAY") && !std::getenv("WAYLAND_DISPLAY")) {
+      std::fprintf(stderr, "zinc: no window system here: the framebuffer driver (fbdev) shows the program instead\n");
+      setenv("ZINC_DISPLAY", "fbdev", 1);
+      installDisplayDriver(projectDir, entry);
+    }
+#endif
+    return;
+  }
   gPlugins.push_back(lib);
   gPluginDirs.push_back(hit->dir);
   gDisplayPlugin = hit->manifest.name;
