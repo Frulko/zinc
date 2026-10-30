@@ -42,6 +42,7 @@
     {"paths": ["runtime/raster.cpp", "runtime/gl_replay.cpp", "runtime/zrt_raster.h", "tests/t0/ignorable_glyphs.sh"], "tests": ["ignorable_glyphs"]},
     {"paths": ["examples/js-gsap/", "tests/t1/example_js_gsap.sh", "tools/test-lib"], "tests": ["example_js_gsap"]},
     {"paths": ["plugins/async-storage/", "tests/t0/async_storage.sh", "docs/plugins/async-storage.md"], "tests": ["async_storage"]},
+    {"paths": ["plugins/secure-store/", "tests/t0/secure_store.sh", "docs/plugins/secure-store.md"], "tests": ["secure_store"]},
     {"paths": ["src/frontend/plugin_manifest.cpp", "src/frontend/native_gen.cpp", "src/app/mobile_bridge.h", "src/app/ios/", "src/app/ios_glue.mm", "src/app/ios_a11y.mm", "tests/data/mobile-plugin/", "tests/data/mobile-sqlite/", "tests/golden/native_gen/mobile/"], "tests": ["export_android", "export_ios", "native_gen", "plugin_manifest"]},
     {"paths": ["plugins/system/", "lib/std/system/", "tests/data/mobile-services/", "tests/t0/system_phone.sh"], "tests": ["system_phone", "system_ops", "system_media", "macos_media"]},
     {"paths": ["plugins/leapmotion/", "tests/t0/leapmotion.sh", "tests/data/leapmotion/", "docs/plugins/leapmotion.md", "docs/reports/zinc-next-leapmotion.md"], "tests": ["leapmotion", "leapmotion_demo"]},

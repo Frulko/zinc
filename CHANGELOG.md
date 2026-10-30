@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:secure-store` keeps secrets (tokens, keys) in the macOS Keychain with Expo's API: `import * as SecureStore from 'expo-secure-store'`, then `getItemAsync`, `setItemAsync`, `deleteItemAsync`, `isAvailableAsync`. Where no keychain exists the calls reject; secrets are never written to a plain file.
 - `zinc:socket`: `new WebSocket(url, { headers: [[name, value], ...] })` sends extra headers (Origin, User-Agent...) in the opening handshake.
 - `zinc:worker` runs on QuickJS (`zinc run --engine quickjs`): each worker gets a QuickJS runtime of its own on its own thread, with the same typed messages as the interpreter (a message whose type is generic, such as `workerPort`'s `Envelope<T>`, is copied as a structured clone); sprite-studio's live preview now draws there.
 - `zinc learn`: the first five lessons as exercises, offline and in five languages. Each step says what to change, is checked each time you save, and gives a hint or the solution on request; Zinc Atelier opens the same lessons in a panel beside the code (*Help > Lessons*), with the same progress.

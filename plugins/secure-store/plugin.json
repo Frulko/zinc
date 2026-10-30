@@ -1,0 +1,15 @@
+{
+  "name": "secure-store",
+  "kind": "module",
+  "module": "zinc:secure-store",
+  "entry": "index.ts",
+  "description": "Secrets in the system keychain with Expo's API (expo-secure-store): the macOS Keychain; where no keychain exists the calls reject, never a plain file",
+  "modules": {
+    "expo-secure-store": "index.ts"
+  },
+  "targets": {
+    "macos": { "frameworks": ["Security", "CoreFoundation"] },
+    "linux": {},
+    "windows": {}
+  }
+}
