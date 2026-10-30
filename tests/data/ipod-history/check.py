@@ -101,6 +101,8 @@ def check(out):
     matched = sum(len(v) for k, v in by_id.items() if k != '')
     unmatched_keys = sorted(set((x['artist'], x['title']) for x in LF if WANT[key(x['artist'], x['title'])][0] == ''))
     eq('counts', o['counts'], [total, matched, len(set((x['artist'], x['title']) for x in LF + LB)) + 1, len(unmatched_keys) + 0, len(by_id.get('', []))])
+    eq('a second sync with nothing new', o['syncAgain'], 0)
+    eq('the last listen matched kept', o['syncMark'], True)
     for i, c in enumerate(CAT):
         eq('match of %s | %s' % (c[0], c[1]), o['matches'][c[0] + '|' + c[1]], '%s|%s' % WANT[i])
     eq('match of Björk | Jóga', o['matches']['Björk|Jóga'], 't10|exact')

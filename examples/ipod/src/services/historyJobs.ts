@@ -25,12 +25,18 @@ export function history(): History {
 /** A history was started (by the Settings page or an import): the pages that only read it leave it alone until then. */
 export function historyStarted(): boolean { return store !== null || fs.exists(`${backupPlace()}/history/history.sqlite`); }
 
-/** Brings in the iPods' new local listens and matches what is not matched yet (cheap when nothing changed: what shows the history
- *  is told only of a change). */
-export function syncHistory(): void {
-  let n: i32 = 0;
-  try { n = syncPods(history(), `${backupPlace()}/cache`); } catch (e) { log('Listening history', (e as Error).message, false); }
-  if (n > 0) setHistoryVersion(historyVersion() + 1);
+let syncing: Promise<void> | null = null;
+
+/** Brings in the iPods' new local listens and matches what is not matched yet, a slice at a time (cheap when nothing changed: what
+ *  shows the history is told only of a change). A call during a sync shares it. */
+export function syncHistory(): Promise<void> {
+  if (syncing === null) syncing = (async (): Promise<void> => {
+    let n: i32 = 0;
+    try { n = await syncPods(history(), `${backupPlace()}/cache`); } catch (e) { log('Listening history', (e as Error).message, false); }
+    syncing = null;
+    if (n > 0) setHistoryVersion(historyVersion() + 1);
+  })();
+  return syncing as Promise<void>;
 }
 
 /** True while an import runs. */
@@ -39,7 +45,7 @@ export function importing(): boolean { return busy('history'); }
 function start(label: string, work: (run: ImportRun) => Promise<string>): void {
   if (importing()) return;
   const run = new ImportRun();
-  const job = runBeside('history', label, async (): Promise<string> => { const line = await work(run); syncHistory(); setHistoryVersion(historyVersion() + 1); return line; }, () => { run.stopped = true; });
+  const job = runBeside('history', label, async (): Promise<string> => { const line = await work(run); await syncHistory(); setHistoryVersion(historyVersion() + 1); return line; }, () => { run.stopped = true; });
   run.progress = (done: i32, total: i32, added: i32) => {
     batch(() => { job.setDone(done); job.setTotal(total); job.setDetail(`pages · ${added} new listen${added === 1 ? '' : 's'}`); });
   };

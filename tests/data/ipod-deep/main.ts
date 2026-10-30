@@ -105,7 +105,7 @@ async function main(): Promise<void> {
         }
       }
     });
-    h.match(GUID, libTracks(tracks), 'm1');
+    await h.match(GUID, libTracks(tracks), 'm1');
     h.close();
   }
   const h = new History(db);

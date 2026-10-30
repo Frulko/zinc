@@ -214,6 +214,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `<ZoomView>` of `zinc:ui/kit`: pinch, pan, double tap and Ctrl/Cmd + wheel zoom for a page, a picture or any content. While the fingers move it scales the last picture instead of drawing the content again, and tells your app the new view once, when they lift (`onView`).
 
 ### Changed
+- iPod demo: on a large library, For you no longer freezes the window for a second when it opens: the iPods' new listens are matched a little at a time and only what is new since the last time, and the listen counts are read in one quick pass.
 - iPod demo: recommendations (For you, Genius, the mixes, the radio, the mood mixer) are worked out in a worker thread, so the window keeps drawing while they are recomputed.
 - Type checking a large program is faster: 1.5 s down to 0.3 s for the iPod demo, on every `zinc run`, `zinc build` and `zinc check` after an edit.
 - The first build of a plugin compiles its source files at once, half the cores at a time (`ZINC_JOBS` sets the number): zinc:ipod builds in 19 s instead of 72 s, and the iPod demo's first `zinc build` takes 75 s instead of 145 s.

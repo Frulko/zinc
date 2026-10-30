@@ -17,7 +17,7 @@ async function main(): Promise<void> {
   const file = `${dir}/history/history.sqlite`;
   const out = JSON.parse('{}');
   let h = new History(file);
-  syncPods(h, `${dir}/cache`);
+  await syncPods(h, `${dir}/cache`);
   out.localFirst = h.counts(GUID).listens;
 
   // Last.fm: stopped after 3 pages, then resumed by a new History on the same file (the app started again)
@@ -63,8 +63,10 @@ async function main(): Promise<void> {
   try { await importLastfmRetrying(h, 'apikey', 'ann', new ImportRun()); out.givenUp = 'no error'; } catch (e) { out.givenUp = (e as Error).message; }
   await net.fetch(`${stub}/fail?n=0`);
 
-  syncPods(h, `${dir}/cache`);
+  await syncPods(h, `${dir}/cache`);
   const c = h.counts(GUID);
+  out.syncAgain = await syncPods(h, `${dir}/cache`);   // nothing new: the listens and the library are not read again
+  out.syncMark = h.lastRow() > 0 && h.getNumber(`match.${GUID}.row`) === h.lastRow();   // the last listen matched is kept
   out.counts = [c.listens, c.matchedListens, c.songs, c.unmatchedSongs, c.unmatchedListens];
   const m = JSON.parse('{}');
   const cat = JSON.parse(fs.readText(`${dir}/history-data.json`)).catalog;

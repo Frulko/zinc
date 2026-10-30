@@ -58,7 +58,7 @@ async function main(): Promise<void> {
       if (env('FORYOU_ADD') === 'gem') { for (const t of tracks) if (t.title === 'Hidden Gem Song 1') for (let k = 0; k < 3; k++) listen(h, t, NOW - 3600 + k * 300); }
       else for (let k = 0; k < 3000; k++) listen(h, null, NOW - 40 * DAY + k * 600, `Ghost ${k % 7}`, `Ghost Song ${k}`);
     });
-    h.match(GUID, libTracks(tracks), 'm1');
+    await h.match(GUID, libTracks(tracks), 'm1');
     h.close();
     console.log('added');
     return;
@@ -117,7 +117,7 @@ async function main(): Promise<void> {
     for (let i = 0; i < 4; i++) { listen(h, of(`Electro ${NUM[i]} Song 1`), NOW - DAY + i * 240); in2026++; }
     for (let k = 0; k < 5; k++) { listen(h, null, NOW - 6 * DAY + k * 240, 'Ghost Artist', `Ghost Song ${k}`); in2026++; }
   });
-  h.match(GUID, libTracks(tracks), 'm1');
+  await h.match(GUID, libTracks(tracks), 'm1');
   if (mode === 'fill') { h.close(); console.log('filled'); return; }
 
   // the shelves, as the app works them out
@@ -202,7 +202,7 @@ async function big(mount: string, db: string): Promise<void> {
       for (let j = 0; j < 10; j++) listen(h, byTitle.get(`Song ${base + rnd(500)}`) as ipod.Track, ts + j * 240);
     }
   });
-  h.match(GUID, libTracks(tracks), 'm1');
+  await h.match(GUID, libTracks(tracks), 'm1');
   h.close();
   console.log('big', tracks.length);
 }
@@ -228,7 +228,7 @@ async function bench(): Promise<void> {
       for (let j = 0; j < 10; j++) listen(h, tracks[base + rnd(500)], ts + j * 240);
     }
   });
-  h.match('BENCH', libTracks(tracks), 'b');
+  await h.match('BENCH', libTracks(tracks), 'b');
   // each step: its time, and the longest slice it held the thread (services/slice.ts; a step that does not pause is one slice)
   const times: string[] = [];
   let b = new Budget(), t0 = performance.now();

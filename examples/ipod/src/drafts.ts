@@ -16,7 +16,7 @@ import { library, openPlaylist } from './state';
 import { PodLibrary, createPlaylistOf } from './services/ipod';
 import { Worker, MessageEvent, ErrorEvent } from 'zinc:worker';
 import { PodListen } from './services/history';
-import { history, historyStarted, historyVersion, setHistoryVersion } from './services/historyJobs';
+import { history, historyStarted, historyVersion, setHistoryVersion, syncHistory } from './services/historyJobs';
 import { fetchSimilarArtists } from './services/historyImport';
 import { RecJob, RecOut, MixOut, handle } from './services/recommend';
 import { deepVersion, prepareNear } from './deep';
@@ -159,6 +159,8 @@ export const [modelWorking, setModelWorking] = createSignal<boolean>(false);
 async function build(lib: PodLibrary, version: i32): Promise<void> {
   setModelWorking(true);
   try {
+    if (historyStarted()) await syncHistory();   // the iPods' new listens first: a model built before them would be built again
+    if (historyVersion() !== version || library() !== lib) return;   // modelNow builds the new one
     let listens: PodListen[] = [];
     try { if (historyStarted()) listens = await history().podListens(cache.podKey(), new Budget()); } catch (e) { /* no history: metadata and the iPod's counters */ }
     const j = job('model');

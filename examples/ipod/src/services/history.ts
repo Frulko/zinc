@@ -8,7 +8,8 @@
 //   loved     the loved tracks; top: the services' own top tracks and artists per period (a first impression before the history).
 //   matches   each distinct (artist, title) to a track of each iPod (by GUID): the track's id, the score and how it was found;
 //             unmatched pairs are kept too (track_id '') so that they are not searched again until that iPod's library changes.
-//   meta      the importers' checkpoints and how far each iPod's history.jsonl was read.
+//   meta      the importers' checkpoints, how far each iPod's history.jsonl was read, and per iPod the last listen (rowid) matched and
+//             the library.json (size and time) it was matched against: a sync with nothing new reads neither the listens nor the library.
 import { Database, Row } from 'zinc:sqlite';
 import * as fs from 'zinc:fs';
 import { SESSION_GAP_S, normArtist, normTitle, trackKey, artistVariants } from './norm';
@@ -96,6 +97,7 @@ export class History {
       CREATE INDEX IF NOT EXISTS listens_ts ON listens (ts);
       CREATE INDEX IF NOT EXISTS listens_artist ON listens (artist_key, ts);
       CREATE INDEX IF NOT EXISTS listens_track ON listens (track_key, ts);
+      CREATE INDEX IF NOT EXISTS listens_played ON listens (skipped, track_key);
       CREATE TABLE IF NOT EXISTS loved (track_key TEXT PRIMARY KEY, artist TEXT, title TEXT, track_mbid TEXT, ts INTEGER, source TEXT);
       CREATE TABLE IF NOT EXISTS top (source TEXT, kind TEXT, period TEXT, rank INTEGER, artist TEXT, title TEXT, plays INTEGER,
         PRIMARY KEY (source, kind, period, rank));
@@ -179,16 +181,23 @@ export class History {
 
   // ---- matching
 
-  /** Matches every song of the history not matched yet on the iPod `guid` to its `tracks`; all again when `signature` (the library's
-   *  marker) changed. Returns the songs looked at. */
-  match(guid: string, tracks: LibTrack[], signature: string): i32 {
-    const sigKey = `match.${guid}.signature`;
+  /** Matches every song of the listens added since the last call not matched yet on the iPod `guid` to its `tracks`; all again when
+   *  `signature` (the library's marker) changed. A batch at a time within the budget `b` (10,000 songs take a second). Returns the
+   *  songs looked at. */
+  async match(guid: string, tracks: LibTrack[], signature: string, b: Budget = new Budget()): Promise<i32> {
+    const sigKey = `match.${guid}.signature`, rowKey = `match.${guid}.row`;
     if (this.get(sigKey) !== signature) {
-      this.db.transaction(() => { this.db.prepare('DELETE FROM matches WHERE guid = ?').run([guid]); this.set(sigKey, signature); });
+      this.db.transaction(() => { this.db.prepare('DELETE FROM matches WHERE guid = ?').run([guid]); this.set(sigKey, signature); this.set(rowKey, '0'); this.set(`match.${guid}.file`, ''); });
     }
-    const pending = this.db.prepare('SELECT track_key, artist, title, album, track_mbid FROM listens WHERE track_key NOT IN ' +
-      '(SELECT track_key FROM matches WHERE guid = ?) GROUP BY track_key').all([guid]);
-    if (pending.length === 0) return 0;
+    await b.check();
+    // ponytail: a listen replaced (INSERT OR REPLACE) may get back a rowid under the mark; it is the same listen, so the same song
+    const last = this.lastRow();
+    // the new listens of songs not matched yet, a song per row; the cursor streams them in the order of listens_track
+    const pending = this.db.prepare('SELECT track_key, artist, title, album, track_mbid FROM listens WHERE rowid > ? AND track_key NOT IN ' +
+      '(SELECT track_key FROM matches WHERE guid = ?) GROUP BY track_key').cursor([this.getNumber(rowKey), guid]);
+    let rows = pending.next(100);
+    if (rows.length === 0) { this.set(rowKey, `${last}`); return 0; }
+    await b.check();
     // the library's indexes: by MBID, by exact key (artist, album artist and their first names), by the artist's first 3 letters
     const byMbid = new Map<string, LibTrack>();
     const byKey = new Map<string, LibTrack[]>();
@@ -197,22 +206,35 @@ export class History {
       const l = m.get(k);
       if (l === undefined) m.set(k, [t]); else if ((l as LibTrack[]).indexOf(t) < 0) (l as LibTrack[]).push(t);
     };
-    for (const t of tracks) {
+    await b.each(tracks.length, (i: i32) => {
+      const t = tracks[i];
       if (t.mbid !== '') byMbid.set(t.mbid, t);
       const title = normTitle(t.title);
       const names = artistVariants(t.artist);
       if (t.albumArtist !== '') for (const v of artistVariants(t.albumArtist)) if (names.indexOf(v) < 0) names.push(v);
       for (const a of names) { push(byKey, `${a}|${title}`, t); push(byBlock, a.slice(0, 3), t); }
-    }
-    const ins = this.db.prepare('INSERT OR REPLACE INTO matches (guid, track_key, track_id, score, method) VALUES (?, ?, ?, ?, ?)');
-    this.db.transaction(() => {
-      for (const r of pending) {
-        const m = matchOne(str(r, 'artist'), str(r, 'title'), str(r, 'album'), str(r, 'track_mbid'), byMbid, byKey, byBlock);
-        ins.run([guid, str(r, 'track_key'), m.trackId, m.score, m.method]);
-      }
     });
-    return pending.length;
+    const ins = this.db.prepare('INSERT OR REPLACE INTO matches (guid, track_key, track_id, score, method) VALUES (?, ?, ?, ?, ?)');
+    const text = (x: unknown): string => typeof x === 'string' ? x as string : '';
+    let n: i32 = 0;
+    while (rows.length > 0) {   // a transaction per batch: what was matched stays if the app quits
+      const batch = rows;
+      this.db.transaction(() => {
+        for (const r of batch) {
+          const m = matchOne(text(r[1]), text(r[2]), text(r[3]), text(r[4]), byMbid, byKey, byBlock);
+          ins.run([guid, text(r[0]), m.trackId, m.score, m.method]);
+        }
+      });
+      n += batch.length;
+      await b.check();
+      rows = pending.next(100);
+    }
+    this.set(rowKey, `${last}`);
+    return n;
   }
+
+  /** The rowid of the last listen added (0: none). */
+  lastRow(): number { const r = this.db.prepare('SELECT max(rowid) AS n FROM listens').get([]) as Row; return r.isNull('n') ? 0 : r.number('n'); }
 
   /** The match of the song (artist, title) on the iPod `guid`; method '' when it was not looked at yet. */
   matchOf(guid: string, artist: string, title: string): MatchResult {
@@ -224,15 +246,17 @@ export class History {
 
   // ---- queries (the For you page)
 
-  /** The listens (not skipped), and how many of them and of the songs are matched on the iPod `guid`. */
+  /** The listens (not skipped), and how many of them and of the songs are matched on the iPod `guid`: one pass over the songs
+   *  (the index listens_played), each looked up in the matches. */
   counts(guid: string): Counts {
     const c = new Counts();
-    const one = (sql: string, p: unknown[]): i32 => { const r = this.db.prepare(sql).get(p); return r !== null ? (r as Row).number('n') as i32 : 0; };
-    c.listens = one('SELECT count(*) AS n FROM listens WHERE skipped = 0', []);
-    c.songs = one('SELECT count(DISTINCT track_key) AS n FROM listens WHERE skipped = 0', []);
-    c.matchedListens = one("SELECT count(*) AS n FROM listens l JOIN matches m ON m.guid = ? AND m.track_key = l.track_key AND m.track_id <> '' WHERE l.skipped = 0", [guid]);
-    c.unmatchedSongs = one("SELECT count(DISTINCT l.track_key) AS n FROM listens l JOIN matches m ON m.guid = ? AND m.track_key = l.track_key AND m.track_id = '' WHERE l.skipped = 0", [guid]);
-    c.unmatchedListens = one("SELECT count(*) AS n FROM listens l JOIN matches m ON m.guid = ? AND m.track_key = l.track_key AND m.track_id = '' WHERE l.skipped = 0", [guid]);
+    const r = this.db.prepare("SELECT count(*) AS songs, sum(s.n) AS listens, sum(CASE WHEN m.track_id <> '' THEN s.n ELSE 0 END) AS matched, " +
+      "sum(CASE WHEN m.track_id = '' THEN 1 ELSE 0 END) AS unSongs, sum(CASE WHEN m.track_id = '' THEN s.n ELSE 0 END) AS unListens " +
+      'FROM (SELECT track_key, count(*) AS n FROM listens WHERE skipped = 0 GROUP BY track_key) s ' +
+      'LEFT JOIN matches m ON m.guid = ? AND m.track_key = s.track_key').get([guid]);
+    if (r === null) return c;
+    const n = (k: string): i32 => (r as Row).isNull(k) ? 0 : (r as Row).number(k) as i32;
+    c.listens = n('listens'); c.songs = n('songs'); c.matchedListens = n('matched'); c.unmatchedSongs = n('unSongs'); c.unmatchedListens = n('unListens');
     return c;
   }
 
@@ -396,8 +420,9 @@ function matchOne(artist: string, title: string, album: string, mbid: string, by
 function normAlbum(album: string): string { return normTitle(album); }
 
 /** The listen history.jsonl and the library.json of each iPod in `cacheDir` (services/cache.ts: one folder per GUID): the new lines
- *  imported, then the songs matched to that iPod's library. The lines read and songs looked at (0: nothing changed). */
-export function syncPods(h: History, cacheDir: string): i32 {
+ *  imported, then the songs matched to that iPod's library; the library is read only when it or the listens changed since the last
+ *  match, and matched a batch at a time within `b`. The lines read and songs looked at (0: nothing changed). */
+export async function syncPods(h: History, cacheDir: string, b: Budget = new Budget()): Promise<i32> {
   let n: i32 = 0;
   if (!fs.exists(cacheDir)) return n;
   for (const e of fs.readDir(cacheDir)) {
@@ -405,16 +430,21 @@ export function syncPods(h: History, cacheDir: string): i32 {
     const dir = `${cacheDir}/${e.name}`;
     try { n += h.importLocal(e.name, `${dir}/history.jsonl`); } catch (x) { console.error(`history: ${dir}/history.jsonl: ${(x as Error).message}`); }
     try {
-      if (!fs.exists(`${dir}/library.json`)) continue;
-      const snap = JSON.parse(fs.readText(`${dir}/library.json`));
+      const f = `${dir}/library.json`;
+      if (!fs.exists(f)) continue;
+      const st = fs.stat(f), stamp = `${st.size}:${Math.floor(st.mtimeMs)}`, fileKey = `match.${e.name}.file`;
+      if (h.get(fileKey) === stamp && h.lastRow() <= h.getNumber(`match.${e.name}.row`)) continue;   // nothing new
+      const snap = JSON.parse(fs.readText(f));
+      await b.check();
       const tracks: LibTrack[] = [];
       const list = snap.tracks;
-      for (let i = 0; i < list.length; i++) {
+      await b.each(list.length as i32, (i: i32) => {
         const t = list[i];
         tracks.push({ id: '' + t.id, artist: '' + t.artist, albumArtist: t.albumArtist !== undefined ? '' + t.albumArtist : '', title: '' + t.title,
           album: t.album !== undefined ? '' + t.album : '', mbid: t.mbid !== undefined ? '' + t.mbid : '' });
-      }
-      n += h.match(e.name, tracks, '' + snap.marker);
+      });
+      n += await h.match(e.name, tracks, '' + snap.marker, b);
+      h.set(fileKey, stamp);
     } catch (x) { console.error(`history: ${dir}/library.json: ${(x as Error).message}`); }
   }
   return n;

@@ -132,7 +132,7 @@ async function work(lib: PodLibrary): Promise<void> {
     else { setForYou(null); setRecent(readRecent()); }
   }
   await tick();   // the page is drawn first
-  syncHistory();
+  await syncHistory();
   const h: History | null = historyStarted() ? history() : null;
   const t = now(), today = fy.dayOf(t);
   const key = `${h !== null ? (h as History).version(guid) : 'none'}|${libKey(lib)}|${deepKey()}`;

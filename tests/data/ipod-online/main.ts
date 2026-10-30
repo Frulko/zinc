@@ -71,7 +71,7 @@ async function main(): Promise<void> {
   h.db.transaction(() => { listen('Daft Punk', 'One More Time', 30); listen('Air', 'Sexy Boy', 10); listen('Justice', 'Genesis', 5); listen('Missing Band', 'Gone Song', 8); });
   const lib: LibTrack[] = [];
   for (const t of tracks) lib.push({ id: t.id, artist: t.artist, albumArtist: t.albumArtist, title: t.title, album: t.album, mbid: '' });
-  h.match(GUID, lib, 'm1');
+  await h.match(GUID, lib, 'm1');
   h.close();
   const at = Math.floor(Date.now() / 1000);
   fs.writeText(`${backups}/history/similar-artists.jsonl`,

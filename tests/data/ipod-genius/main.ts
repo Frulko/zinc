@@ -78,7 +78,7 @@ async function main(): Promise<void> {
       }
     }
   });
-  h.match(GUID, libTracks(tracks), 'm1');
+  await h.match(GUID, libTracks(tracks), 'm1');
 
   const w = loadWeights(dir);
   console.log('weights', w.artistSpread, fs.exists(`${dir}/genius.json`));
@@ -228,7 +228,7 @@ async function bench(): Promise<void> {
       }
     }
   });
-  h.match('BENCH', libTracks(tracks), 'b');
+  await h.match('BENCH', libTracks(tracks), 'b');
   const filled = Date.now() - t0;
   t0 = Date.now();
   const m: Model = await buildModel(await h.podListens('BENCH'), tracks, new Map<string, Map<string, number>>(), loadWeights(dir));
