@@ -433,6 +433,10 @@ The next backlog review turns lines into tasks or deletes them.
 - Threads debugger (D185): `zinc debug` (command line) and `--dap` do not stop in workers yet (DAP could show each worker as a thread); the Inspector's Sources view does not open worker sessions yet (the protocol is there); a worker paused in the debugger keeps the main program from ending (resume or detach it at shutdown).
 - Threads profiler: in `zinc profile --trace`, sampled slices can overlap a worker's onmessage span edges by one sample period, and worker tracks get their name event twice.
 - Render thread, once it lands: record zn_frame_trace stages as a "zinc render" track at the hook point in runtime/gfx.cpp trace_json.
+- Types-only modules (D188): `import type` of a function, or a const used through `typeof`, from a module no value import loads is refused (needs ambient function and variable declarations in the types view); a types-only class drops an untyped field whose initializer is not a literal.
+- Covariant arrays (D188) copy instead of sharing: true aliasing (`Dog[]` as `Animal[]`) needs an array reference cast in the IR and AOT; `T[] | null` covariance is not handled yet.
+- Checker: Z0005 "async function without a Promise<T> return type" for async arrow functions and object-literal methods without an annotation (photo-sorter and trieur stop on it, now that their circular-import error is gone).
+- i18n: the German Z5012 and Z5013 entries are missing from i18n/de/diag.json.
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
