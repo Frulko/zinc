@@ -3,6 +3,7 @@
 // frames, ping/close). Sockets survive a hot reload: shutdown() leaves them open and names them in
 // ZINC_DEVTOOLS_FDS, the next version adopts them, so the DevTools window stays connected.
 #include "zinc_native_cdp.h"
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -155,7 +156,7 @@ struct HostCdp : NativeCdp, zrt::Poller {
     if (port == 0 && getsockname(lfd, (sockaddr*)&a, &al) == 0) port = ntohs(a.sin_port);   // ZINC_DEVTOOLS_PORT=0: the port the system chose
     if (report && zn_dev_report) { char line[32]; snprintf(line, sizeof line, "devtools %d", port); zn_dev_report(line); }
     announce(port);
-    fprintf(stderr, "zinc devtools: chrome://inspect (Discover network targets: localhost:%d) or ws://127.0.0.1:%d/zinc\n", port, port);
+    if (!getenv("ZINC_DEVTOOLS_QUIET")) fprintf(stderr, "zinc devtools: chrome://inspect (Discover network targets: localhost:%d) or ws://127.0.0.1:%d/zinc\n", port, port);   // QUIET: zinc dev said it at the first start
     return true;
   }
   static zrt::String context() {

@@ -3575,6 +3575,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
   std::string boundPort, devIn;   // the port the running version said, what it sent that is not a whole line yet
   fs::create_directories(fs::path(p.dir) / "build" / "shots", ec);
   zn::plat::Pid child = 0;
+  std::string lastSaved;   // the files of the save that starts the next version, for its line
   int version = 0, devFd = -1;   // devFd: our end of the running version's dev socket (asset hot reload)
   int hotFd = -1;                // our end of its hot channel (Fast Refresh, ZN-742): it swaps the code of a save in place
   bool hotReady = false;         // it said `hot ready`: its frame loop runs
@@ -3595,6 +3596,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     devIn.clear();
     if (anyPort) childEnv.push_back({"ZINC_DEVTOOLS_PORT", boundPort.empty() ? "0" : boundPort});
     if (anyPort && !boundPort.empty()) childEnv.push_back({"ZINC_DEVTOOLS_ANY", "1"});
+    if (version > 0) childEnv.push_back({"ZINC_DEVTOOLS_QUIET", "1"});   // the inspector's address was said at the first start: each restart does not say it again
     int sv[2] = {-1, -1};
     int hv[2] = {-1, -1};   // the hot channel: hot mode on the child only, never on zinc run, build, export or pack
 #ifndef _WIN32   // no socketpair on Windows yet: a save restarts the program there (no asset reload, no Fast Refresh)
@@ -3620,7 +3622,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     if (redbox) std::fprintf(stderr, "zinc dev: red box on screen (%ld ms after the save)\n", sinceSave);
     else {
       const std::string port = anyPort ? boundPort : inspectPort;   // any port: said when the version has bound it
-      const std::string after = version == 1 ? "" : " (" + std::to_string(sinceSave) + " ms after the save)";   // the first start follows no save
+      const std::string after = version == 1 ? "" : " (" + std::to_string(sinceSave) + " ms after the save" + (lastSaved.empty() ? "" : " of " + lastSaved) + ")";   // the first start follows no save
       std::fprintf(stderr, "zinc dev: v%d started%s%s\n", version, tools ? (" with the inspector" + (port.empty() ? std::string() : " on port " + port)).c_str() : "", after.c_str());
     }
     std::fflush(stderr);
@@ -3681,6 +3683,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     // why not when it cannot, and the save restarts it as before
     std::string why;
     const std::string saved = savedFiles(p.dir, was, now, why);
+    lastSaved = saved;
     if (child > 0 && hotFd >= 0) {
       std::string line;
       while (!hotReady && hotOff.empty() && hotLine(hotFd, hotBuf, line, 0)) {

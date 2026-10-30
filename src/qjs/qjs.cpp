@@ -595,7 +595,7 @@ bool timerLoop(Engine& e) {
 }
 
 // the walk of `collect`: the engine's own resolution, each module recorded with its transformed text
-struct Walk { Engine e; std::vector<Collected> mods; std::map<std::string, std::size_t> at; };
+struct Walk { Engine e; std::vector<Collected> mods; std::map<std::string, std::size_t> at; std::string err; };   // err: an imported module's diagnostics, as the compiler wrote them
 
 char* walkName(JSContext* ctx, const char* base, const char* name, void* opaque) {
   auto* w = static_cast<Walk*>(opaque);
@@ -612,7 +612,7 @@ JSModuleDef* walkLoad(JSContext* ctx, const char* name, void* opaque) {
   c.bare = (c.name.rfind("zinc:", 0) != 0 && c.name[0] != '/' && c.name[0] != '.') || c.name.find("/node_modules/") != std::string::npos || w->e.packageFiles.count(c.name);   // a package (CommonJS too): the linker reads it
   std::string err;
   if (c.bare) c.js = "export {};";
-  else if (!moduleText(w->e, c.name, c.js, err)) { JS_ThrowReferenceError(ctx, "%s", err.c_str()); return nullptr; }
+  else if (!moduleText(w->e, c.name, c.js, err)) { if (w->err.empty()) w->err = err; JS_ThrowReferenceError(ctx, "%s", err.c_str()); return nullptr; }
   w->at[c.name] = w->mods.size();
   w->mods.push_back(c);
   const std::string& js = w->mods.back().js;
@@ -666,7 +666,7 @@ bool collect(const std::string& entry, const std::string& stdRoot, const std::st
     w.mods.push_back(c);
     JSValue mv = JS_Eval(ctx, c.js.data(), c.js.size(), entry.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
     ok = !JS_IsException(mv) && JS_ResolveModule(ctx, mv) >= 0;   // loads every static import through walkLoad
-    if (!ok) err = exceptionText(ctx);
+    if (!ok) err = !w.err.empty() ? w.err : exceptionText(ctx);   // a compile error of an import: its diagnostics, not a "ReferenceError: " around them
     JS_FreeValue(ctx, mv);
   }
   JS_FreeContext(ctx);

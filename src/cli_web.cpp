@@ -981,11 +981,13 @@ struct Dev {
   std::vector<int> sockets;
   std::map<std::string, std::string> cache;       // "file?v" -> served text
   std::string lastError;
+  std::string reloadWhy;                          // why the last restage cannot swap modules in place (restage), for the one line of the save
   std::string depsDir, depsKey;                   // the pre-bundled packages of node_modules (cli_web_deps.h), served at /__deps/
   std::mutex bm;                                  // the bridge's process: a page load restarts it (connection), the watch loop checks it (serve)
   int port = 0;                                   // the port the dev server listens on (serve)
   zn::plat::Pid bridge = -1;                      // the dev bridge (startBridge), -1 when the page needs none or it ended
   int bridgePort = 0;
+  bool pageSeen = false;                          // the first page connected (said once)
   bool bridgeUsed = false;                        // a page was served since it started: the next page gets a new one
   std::string bridgeJson;                         // its address and token for the page's config: {"url":...,"token":...}
   std::vector<std::string> bridged;               // the native sides it answers
@@ -1084,6 +1086,7 @@ bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& 
   }
   changed.clear();
   refreshable = !first;
+  d.reloadWhy.clear();
   for (auto& [file, m] : next) {
     const std::string text = readAll(d.stage / file), h = zn::tc::sha256Hex(text);
     m.refreshable = refreshableModule(text);
@@ -1091,7 +1094,13 @@ bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& 
     if (!first && (old == d.hashes.end() || old->second != h)) {
       changed.push_back(file);
       d.versions[file]++;
-      if (!m.user || !m.refreshable || file == d.entry || old == d.hashes.end()) refreshable = false;
+      if (!m.user || !m.refreshable || file == d.entry || old == d.hashes.end()) {
+        refreshable = false;
+        if (d.reloadWhy.empty()) {
+          const std::string nm = m.user ? fs::path(m.name).lexically_relative(d.a.dir).generic_string() : m.name;
+          d.reloadWhy = !m.user ? "a package changed (" + nm + ")" : file == d.entry ? nm + " is the entry" : old == d.hashes.end() ? nm + " is new" : nm + " exports state";
+        }
+      }
     }
     d.hashes[file] = h;
   }
@@ -1101,7 +1110,7 @@ bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& 
     const DepsResult dr = prebundleDeps(d.a.dir, readAll(d.stage / "stage.json"));
     if (!dr.error.empty()) { log = dr.error; return false; }
     if (dr.built) std::fprintf(stderr, "zinc dev: packages of node_modules pre-bundled into %s\n", fs::path(dr.dir).lexically_relative(d.a.dir).string().c_str());
-    if (!first && dr.key != d.depsKey) { changed.push_back("(packages)"); refreshable = false; }
+    if (!first && dr.key != d.depsKey) { changed.push_back("(packages)"); refreshable = false; if (d.reloadWhy.empty()) d.reloadWhy = "the packages or the lockfile changed"; }
     d.depsDir = dr.dir;
     d.depsKey = dr.key;
   }
@@ -1255,7 +1264,7 @@ void connection(Dev* d, int fd) {
       std::lock_guard<std::mutex> lock(d->m);
       graph = "{\"type\":\"hello\",\"error\":" + jstr(d->lastError) + "}";
     }
-    { std::lock_guard<std::mutex> lock(d->wsm); sendAll(fd, wsFrame(graph)); d->sockets.push_back(fd); }
+    { std::lock_guard<std::mutex> lock(d->wsm); sendAll(fd, wsFrame(graph)); d->sockets.push_back(fd); if (!d->pageSeen) { d->pageSeen = true; std::fprintf(stderr, "zinc dev: the page is open; saves show there (Ctrl-C stops)\n"); } }
     for (;;) {   // the page says nothing we need; read until it goes (a close frame, or the socket)
       char b[512];
       const long n = zn::plat::sockRead(fd, b, sizeof b);
@@ -1364,19 +1373,22 @@ int serve(Dev& d, int port, bool lan) {
     std::string log;
     std::vector<std::string> changed;
     bool refreshable = false;
+    std::string saved;   // the files of this save, as the person named them
+    for (const std::string& f : files) { if (saved.size() > 60) { saved += ", ..."; break; } saved += (saved.empty() ? "" : ", ") + fs::path(f).lexically_relative(d.a.dir).generic_string(); }
     const bool ok = restage(d, log, changed, refreshable, false);
     const long ms = static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count());
     if (!ok) {
       d.lastError = log;
-      std::fprintf(stderr, "zinc dev: compile error (%ld ms)\n%s", ms, log.c_str());
+      std::fprintf(stderr, "zinc dev: %s saved: compile error (%ld ms)\n%s", saved.c_str(), ms, log.c_str());
       broadcast(d, "{\"type\":\"error\",\"message\":" + jstr(log) + "}");
       continue;
     }
     const bool wasBroken = !d.lastError.empty();
     d.lastError.clear();
-    if (codeOnly && changed.empty() && !wasBroken) { std::fprintf(stderr, "zinc dev: saved, nothing in the program changed (%ld ms)\n", ms); continue; }
+    if (codeOnly && changed.empty() && !wasBroken) { std::fprintf(stderr, "zinc dev: %s saved, nothing in the program changed (%ld ms)\n", saved.c_str(), ms); continue; }
     if (!codeOnly || changed.empty() || !refreshable) {
-      std::fprintf(stderr, "zinc dev: %s: reloading the page (%ld ms)\n", !codeOnly ? "a file that is not a module changed" : changed.empty() ? "the error is fixed" : "a package or the lockfile changed, a module exports state, is new or is the entry", ms);
+      const std::string why = !codeOnly ? "not a module" : changed.empty() ? "the error is fixed" : !d.reloadWhy.empty() ? d.reloadWhy : "the module cannot be swapped in place";
+      std::fprintf(stderr, "zinc dev: %s saved: reloading the page, %s (%ld ms)\n", saved.c_str(), why.c_str(), ms);
       broadcast(d, "{\"type\":\"reload\"}");
       continue;
     }
@@ -1385,7 +1397,7 @@ int serve(Dev& d, int port, bool lan) {
       std::lock_guard<std::mutex> lock(d.m);
       for (const std::string& f : changed) list += (list.empty() ? "" : ",") + std::string("{\"file\":") + jstr(f) + ",\"v\":" + std::to_string(d.versions[f]) + "}";
     }
-    std::fprintf(stderr, "zinc dev: %zu module(s) swapped in place (%ld ms)\n", changed.size(), ms);
+    std::fprintf(stderr, "zinc dev: %s saved: %zu module(s) swapped in place (%ld ms)\n", saved.c_str(), changed.size(), ms);
     broadcast(d, "{\"type\":\"update\",\"changed\":[" + list + "]}");
   }
   zn::plat::sockClose(lfd);

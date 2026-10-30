@@ -108,6 +108,10 @@ function connect() {
     else if (m.type === 'reload') location.reload();
     else if (m.type === 'update') applying = applying.then(() => apply(m.changed));
   };
-  socket.onclose = () => { reconnect = true; setTimeout(connect, 800); };
+  // the dev server went away: wait for it to come back, unless another server took the port (a 404 for the stage: an export served there)
+  socket.onclose = () => {
+    reconnect = true;
+    setTimeout(() => fetch('/stage/stage.json', { method: 'HEAD', cache: 'no-store' }).then((r) => { if (r.status !== 404) connect(); }, () => setTimeout(connect, 800)), 800);
+  };
 }
 connect();

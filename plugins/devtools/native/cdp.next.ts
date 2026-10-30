@@ -140,7 +140,7 @@ async function start(): Promise<void> {
     if (report) netLog(20, `${port}`);
     announce();
     // on stderr, not through console.error: the inspector's console would show it as an error
-    writeErr(`zinc devtools: chrome://inspect (Discover network targets: localhost:${port}) or ws://127.0.0.1:${port}/zinc\n`);
+    if (env('ZINC_DEVTOOLS_QUIET').length === 0) writeErr(`zinc devtools: chrome://inspect (Discover network targets: localhost:${port}) or ws://127.0.0.1:${port}/zinc\n`);   // QUIET: zinc dev said it at the first start
   } catch (e) { writeErr(`zinc devtools: port ${port} unavailable\n`); }
 }
 
