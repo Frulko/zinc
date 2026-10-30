@@ -1,7 +1,8 @@
 // "For you", tier 1 (docs/reports/ipod-genius.md, 5.4-5.5): the shelves of the home page, worked out from the listening history
-// (services/history.ts), the Genius model (services/genius.ts) and the iPod's own counters. No UI and no app state here: src/forYou.ts
-// runs these steps off the first frame, keeps the result on disk per history version and turns the cards into drafts; the iPod daemon
-// can call them the same way. Results are ids and names only (they are cached as JSON).
+// (services/history.ts), the Genius model (services/genius.ts) and the iPod's own counters. No UI, no app state and no SQL here: the
+// recommendation worker (services/recommend.ts) runs these steps for src/forYou.ts, which keeps the result on disk per history version
+// and turns the cards into drafts; the iPod daemon can call them the same way. Results are ids and names only (they are cached as JSON
+// and cross to the app as messages). The app reads the SQL parts (the top artists, the year's counts) and gives them here.
 //   affinity       aff(t) = log1p(Σ plays·0.5^(age_days/90)) + 1.5·loved + 0.5·(stars - 3) - 1.5·skip rate, at least 0
 //   Daily Mix 1..6 the taste clusters (genius.mixes); each 70% familiar songs sampled by affinity and 30% close songs heard at most
 //                  once, seeded by the day (the same all day, others tomorrow), in Genius' path order
@@ -14,7 +15,8 @@
 //   Top songs and artists of this month and year, and the year in review (Your year)
 //   Sounds like X, Mood mixes   tier 2, only when AudioMuse-AI analysed the iPod (extraShelves)
 import * as ipod from 'zinc:ipod';
-import { History, SESSION_GAP_S } from './history';
+import { PodListen, Ranked } from './history';
+import { SESSION_GAP_S } from './norm';
 import { Model, Mix, genius, mixes, path } from './genius';
 import { Deep, DeepPath, moodsOf, pathOf } from './audiomuse';
 import { Budget } from './slice';
@@ -112,13 +114,13 @@ export class Signals {
   }
 }
 
-/** The signals of the model `m`'s songs, from the history `h` (null: the iPod's counters only), at `now`, within the budget `b`. */
-export async function signals(h: History | null, guid: string, m: Model, now: number, b: Budget = new Budget()): Promise<Signals> {
+/** The signals of the model `m`'s songs, from the iPod's `listens` (History.podListens; []: the iPod's counters only) and the ids of
+ *  its songs loved (History.lovedOn), at `now`, within the budget `b`. */
+export async function signals(listens: PodListen[], loved: string[], m: Model, now: number, b: Budget = new Budget()): Promise<Signals> {
   const s = new Signals(m, now);
   const n = m.tracks.length;
   for (let i = 0; i < n; i++) { s.times.push([]); s.loved.push(false); s.last.push(m.tracks[i].lastPlayed); }
-  if (h !== null) {
-    const listens = await (h as History).podListens(guid, b);
+  if (listens.length > 0) {
     await b.each(listens.length as i32, (x: i32) => {
       const l = listens[x];
       if (l.skipped || l.ts > now) return;
@@ -129,8 +131,8 @@ export async function signals(h: History | null, guid: string, m: Model, now: nu
       s.flatTs.push(l.ts); s.flatAt.push(i);
       if (l.ts > s.last[i]) s.last[i] = l.ts;
     }, 1024);
-    for (const id of (h as History).lovedOn(guid)) { const at = m.index.get(id); if (at !== undefined) s.loved[at as i32] = true; }
   }
+  for (const id of loved) { const at = m.index.get(id); if (at !== undefined) s.loved[at as i32] = true; }
   s.history = s.flatTs.length > 0;
   await b.each(n as i32, (i: i32) => {
     const t = m.tracks[i];
@@ -422,28 +424,29 @@ export function topSongs(s: Signals, id: string, title: string, subtitle: string
   return list.length > 0 ? [card('draft', id, title, subtitle, ids(s, list))] : [];
 }
 
-/** The artists heard most between `from` and `to` (every listen, on the iPod or not), as artist cards: the name, the plays. */
-export function topArtists(h: History | null, from: number, to: number, max: i32): Card[] {
+/** The artists of `rows` (History.topArtists) as artist cards: the name, the plays. */
+export function topArtists(rows: Ranked[]): Card[] {
   const out: Card[] = [];
-  if (h === null) return out;
-  for (const r of (h as History).topArtists(from, to, max)) if (r.plays > 0) out.push(card('artist', r.artist, r.artist, `${r.plays} play${r.plays === 1 ? '' : 's'}`, []));
+  for (const r of rows) if (r.plays > 0) out.push(card('artist', r.artist, r.artist, `${r.plays} play${r.plays === 1 ? '' : 's'}`, []));
   return out;
 }
 
-/** The year of `now` in review, worked out within the budget `b`. */
-export async function yearReview(h: History | null, s: Signals, now: number, b: Budget = new Budget()): Promise<YearReview> {
-  const from = yearStart(now), to = Math.min(yearStart(now, 1), now + 1);
-  const y: YearReview = { year: new Date(now * 1000).getFullYear() as i32, listens: 0, minutes: 0, artists: [], songs: [], genres: [], months: [] };
+/** The year of `now` in review as the history counts it: `times`, its listens (History.times), and its top artists and songs
+ *  (History.topArtists, topTracks); yearReview adds the minutes and the genres. */
+export function yearCounts(now: number, times: number[], artists: Ranked[], songs: Ranked[]): YearReview {
+  const y: YearReview = { year: new Date(now * 1000).getFullYear() as i32, listens: times.length as i32, minutes: 0, artists: [], songs: [], genres: [], months: [] };
   for (let k = 0; k < 12; k++) y.months.push(0);
-  if (h === null) return y;
-  const hh = h as History;
-  const times = hh.times(from, to);
-  y.listens = times.length as i32;
-  await b.each(times.length as i32, (k: i32) => { y.months[new Date(times[k] * 1000).getMonth()] += 1; }, 1024);
-  for (const r of hh.topArtists(from, to, 5)) y.artists.push({ name: r.artist, detail: '', count: r.plays });
-  await b.check();
-  for (const r of hh.topTracks(from, to, 5)) if (r.plays > 0) y.songs.push({ name: r.title, detail: r.artist, count: r.plays });
-  await b.check();
+  for (const t of times) y.months[new Date(t * 1000).getMonth()] += 1;
+  for (const r of artists) y.artists.push({ name: r.artist, detail: '', count: r.plays });
+  for (const r of songs) if (r.plays > 0) y.songs.push({ name: r.title, detail: r.artist, count: r.plays });
+  return y;
+}
+
+/** The year of `now` in review: `y` (yearCounts: the listens, months, artists and songs from SQL) with its minutes
+ *  and genres worked out from the signals, within the budget `b`. */
+export async function yearReview(y: YearReview, s: Signals, now: number, b: Budget = new Budget()): Promise<YearReview> {
+  const from = yearStart(now), to = Math.min(yearStart(now, 1), now + 1);
+  if (y.listens === 0) return y;
   // minutes and genres: the songs matched on the iPod count their own; the others the mean length of the iPod's songs
   const m = s.m;
   let ms = 0, matched = 0, lib = 0;

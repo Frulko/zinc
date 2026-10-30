@@ -122,8 +122,8 @@ async function main(): Promise<void> {
 
   // the shelves, as the app works them out
   const dir = `${env('ZINC_IPOD_BACKUPS')}/history`;
-  const m: Model = await buildModel(h, GUID, tracks, await readArtistGraph(dir), loadWeights(dir));
-  const s = await fy.signals(h, GUID, m, NOW);
+  const m: Model = await buildModel(await h.podListens(GUID), tracks, await readArtistGraph(dir), loadWeights(dir));
+  const s = await fy.signals(await h.podListens(GUID), h.lovedOn(GUID), m, NOW);
   const names = (c: fy.Card, sorted: boolean): string => {
     const out: string[] = [];
     for (const id of c.tracks) for (const t of tracks) if (t.id === id) out.push(t.title.replace(' Song ', ' '));
@@ -146,15 +146,15 @@ async function main(): Promise<void> {
   console.log('because', because.length, '|', because[0].title, '|', because[0].cards[0].title, because[0].cards[0].tracks.length);
   show('top month', fy.topSongs(s, 'm', 'Top month', '', fy.monthStart(NOW), NOW + 1, 3), true);
   const artistsMonth: string[] = [];
-  for (const c of fy.topArtists(h, fy.monthStart(NOW), NOW + 1, 4)) artistsMonth.push(`${c.title} (${c.subtitle})`);
+  for (const c of fy.topArtists(h.topArtists(fy.monthStart(NOW), NOW + 1, 4))) artistsMonth.push(`${c.title} (${c.subtitle})`);
   console.log('top artists month', artistsMonth.join(', '));
-  const y = await fy.yearReview(h, s, NOW);
+  const y = await fy.yearReview(yearCounts(h, NOW), s, NOW);
   let monthSum = 0;
   for (const n of y.months) monthSum += n;
   console.log('year', y.year, 'listens', y.listens === in2026, 'months', monthSum === y.listens, y.months.slice(4, 6).join(' '), 'artists', y.artists.length,
     'songs', y.songs.length, 'genres', y.genres.length, 'minutes', y.minutes > 0);
   // the daily mixes: one per taste, the same all day, others the next day (8 songs: a pick of each group's 12)
-  const d1 = await fy.dailyMixes(s, '2026-06-15', 8), again = await fy.dailyMixes(await fy.signals(h, GUID, m, NOW + 3600), '2026-06-15', 8), d2 = await fy.dailyMixes(s, '2026-06-16', 8);
+  const d1 = await fy.dailyMixes(s, '2026-06-15', 8), again = await fy.dailyMixes(await fy.signals(await h.podListens(GUID), h.lovedOn(GUID), m, NOW + 3600), '2026-06-15', 8), d2 = await fy.dailyMixes(s, '2026-06-16', 8);
   let same = d1.length === again.length, differs = false;
   for (let k = 0; k < d1.length; k++) { same = same && names(d1[k], false) === names(again[k], false); differs = differs || (k < d2.length && names(d1[k], false) !== names(d2[k], false)); }
   console.log('daily mixes', d1.length, 'same all day', same, 'others tomorrow', differs);
@@ -172,6 +172,12 @@ async function main(): Promise<void> {
 }
 
 /** FORYOU_MODE=big: the bench's library (10,000 songs) on the fake iPod and its 100,000 listens in the history, to time the app on it. */
+/** The year's counts from the history, as src/forYou.ts reads them for the worker. */
+function yearCounts(h: History, now: number): fy.YearReview {
+  const from = fy.yearStart(now), to = Math.min(fy.yearStart(now, 1), now + 1);
+  return fy.yearCounts(now, h.times(from, to), h.topArtists(from, to, 5), h.topTracks(from, to, 5));
+}
+
 async function big(mount: string, db: string): Promise<void> {
   await ipod.open(mount, true, '', 'Zinc Pod');
   const items: ipod.TrackInput[] = [];
@@ -233,9 +239,9 @@ async function bench(): Promise<void> {
   };
   const graph = await readArtistGraph(dir, b);
   done('artist graph', graph.size);
-  const m: Model = await buildModel(h, 'BENCH', tracks, graph, loadWeights(dir), b);
+  const m: Model = await buildModel(await h.podListens('BENCH', b), tracks, graph, loadWeights(dir), b);
   done('model', m.tracks.length);
-  const s = await fy.signals(h, 'BENCH', m, NOW, b);
+  const s = await fy.signals(await h.podListens('BENCH', b), h.lovedOn('BENCH'), m, NOW, b);
   done('signals', s.flatTs.length);
   done('daily', (await fy.dailyMixes(s, '2026-06-15', 50, b)).length);
   done('jump', fy.jumpBackIn(s, []).length);
@@ -244,8 +250,8 @@ async function bench(): Promise<void> {
   done('rediscover', (await fy.rediscover(s, 30, b)).length);
   done('time capsule', (await fy.timeCapsule(s, 30, b)).length);
   done('because', (await fy.becauseYouListened(s, 3, b)).length);
-  done('tops', fy.topSongs(s, 'a', '', '', fy.monthStart(NOW), NOW, 50).length + fy.topArtists(h, fy.yearStart(NOW), NOW, 12).length);
-  done('year', (await fy.yearReview(h, s, NOW, b)).listens);
+  done('tops', fy.topSongs(s, 'a', '', '', fy.monthStart(NOW), NOW, 50).length + fy.topArtists(h.topArtists(fy.yearStart(NOW), NOW, 12)).length);
+  done('year', (await fy.yearReview(yearCounts(h, NOW), s, NOW, b)).listens);
   done('version', h.version('BENCH').length);
   done('mixes', (await mixes(m, 6, 50, 5, b)).length);
   done('genius 100', genius(m, 't1234', 100).length);

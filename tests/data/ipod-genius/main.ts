@@ -8,8 +8,10 @@ import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
 import { env } from 'zinc:sys';
 import { History, Listen, LibTrack } from '../../../examples/ipod/src/services/history';
-import { loadWeights, readArtistGraph, fetchSimilarArtists, buildModel, genius, reasons, mixes, savePlaylist, pathBetween, Model, Mix } from '../../../examples/ipod/src/services/genius';
+import { loadWeights, readArtistGraph, buildModel, genius, reasons, mixes, pathBetween, Model, Mix } from '../../../examples/ipod/src/services/genius';
+import { fetchSimilarArtists } from '../../../examples/ipod/src/services/historyImport';
 import { Radio, startRadio, extend, like, dislike, unqueue } from '../../../examples/ipod/src/services/radio';
+import { createPlaylistOf } from '../../../examples/ipod/src/services/ipod';
 
 const GUID = '000A27001234ABCD';
 const GROUPS: string[] = ['Alpha', 'Bravo', 'Charlie'];
@@ -83,7 +85,7 @@ async function main(): Promise<void> {
   const names: string[] = [];
   for (const t of tracks) if (names.indexOf(t.artist) < 0) names.push(t.artist);
   console.log('fetched without a key', await fetchSimilarArtists(dir, '', names));
-  const plain = await buildModel(h, GUID, tracks, await readArtistGraph(dir), w);
+  const plain = await buildModel(await h.podListens(GUID), tracks, await readArtistGraph(dir), w);
   let seedId = '';
   for (const t of tracks) if (t.title === 'Alpha One Song 1') seedId = t.id;
   const g0 = genius(plain, seedId, 25);
@@ -91,7 +93,7 @@ async function main(): Promise<void> {
   console.log('genius', g0.length, letters(g0), 'seed first', g0[0].id === seedId, 'spread', spreadOk(g0.slice(0, 23), w.artistSpread));
   let rated = false;
   for (const t of g0) rated = rated || t.rating === 1 || t.rating === 2;
-  console.log('one star picked', rated, 'same again', ids(genius(await buildModel(h, GUID, tracks, await readArtistGraph(dir), w), seedId, 25)) === ids(g0));
+  console.log('one star picked', rated, 'same again', ids(genius(await buildModel(await h.podListens(GUID), tracks, await readArtistGraph(dir), w), seedId, 25)) === ids(g0));
   const r1 = genius(plain, seedId, 25, 1);
   let alpha = 0;   // Refresh shakes the close songs by their ids (new on each fake iPod): only what holds whatever the ids
   for (const t of r1) if (t.artist[0] === 'A') alpha++;
@@ -102,7 +104,7 @@ async function main(): Promise<void> {
   console.log('stopped after', await fetchSimilarArtists(dir, 'apikey', names, 200, (done: i32, total: i32, artist: string): boolean => { told += `${done}/${total} `; return done < 2; }), told);
   console.log('fetched', await fetchSimilarArtists(dir, 'apikey', names), 'again', await fetchSimilarArtists(dir, 'apikey', names));
   const graph = await readArtistGraph(dir);
-  const m1 = await buildModel(h, GUID, tracks, graph, w);
+  const m1 = await buildModel(await h.podListens(GUID), tracks, graph, w);
   const g1 = genius(m1, seedId, 25);
   console.log('genius with similar artists', letters(g1), 'spread', spreadOk(g1, w.artistSpread));
   // why each was picked: the reasons met per group, in the order of the list
@@ -132,7 +134,7 @@ async function main(): Promise<void> {
   console.log('ten', short.length, letters(short));
 
   // the taste clusters
-  const ms = await mixes(await buildModel(h, GUID, tracks, graph, w));
+  const ms = await mixes(await buildModel(await h.podListens(GUID), tracks, graph, w));
   console.log('mixes', ms.length);
   for (const mix of ms) {
     const groups: string[] = [];
@@ -140,15 +142,15 @@ async function main(): Promise<void> {
     console.log('mix', mix.name, '|', mix.members.length, mix.tracks.length, groups.join(''), 'spread', spreadOk(mix.tracks, w.artistSpread));
   }
   // no history: metadata and the iPod's counters only
-  const bare = await mixes(await buildModel(null, GUID, tracks, new Map<string, Map<string, number>>(), w));
-  const m0 = await buildModel(null, GUID, tracks, new Map<string, Map<string, number>>(), w);
+  const bare = await mixes(await buildModel([], tracks, new Map<string, Map<string, number>>(), w));
+  const m0 = await buildModel([], tracks, new Map<string, Map<string, number>>(), w);
   const g8 = genius(m0, seedId, 8);
   const why0: string[] = [];
   for (const r of reasons(m0, seedId, g8)) if (why0.indexOf(r) < 0) why0.push(r);
   console.log('mixes without history', bare.length, g8.length, 'why', why0.join(' | '));
 
   // saved to the iPod as a normal playlist, read back after closing it
-  const id = await savePlaylist('Genius · Alpha One Song 1', g0);
+  const id = await createPlaylistOf('Genius · Alpha One Song 1', ids(g0).split(','));
   await ipod.close();
   await ipod.open((pod as ipod.Device).mountpoint);
   let back = '';
@@ -176,7 +178,7 @@ function radio(m: Model, tracks: ipod.Track[], seedId: string, spread: i32): voi
       let at = -1;
       for (let i = 0; i < more.length && at < 0; i++) if (more[i].artist[0] !== 'A') at = i;
       banned = more[at].artist;
-      dislike(m, r, more[at].id);
+      dislike(r, more[at].id);
       unqueue(r, more.slice(at + 1).map((t: ipod.Track) => t.id));
       queued = queued.concat(more.slice(0, at + 1));
     } else { queued = queued.concat(more); after += letters(more); }
@@ -229,7 +231,7 @@ async function bench(): Promise<void> {
   h.match('BENCH', libTracks(tracks), 'b');
   const filled = Date.now() - t0;
   t0 = Date.now();
-  const m: Model = await buildModel(h, 'BENCH', tracks, new Map<string, Map<string, number>>(), loadWeights(dir));
+  const m: Model = await buildModel(await h.podListens('BENCH'), tracks, new Map<string, Map<string, number>>(), loadWeights(dir));
   const built = Date.now() - t0;
   t0 = Date.now();
   const g = genius(m, 't1234', 100);

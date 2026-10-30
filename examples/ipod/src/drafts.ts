@@ -6,22 +6,26 @@
 // model (again when they change, without building it again) and Genius first asks it the songs closest to the seed. Every Genius list
 // asked is kept per iPod (<cache>/<GUID>/genius.json, newest first): For you shows them on a shelf, the Playlists page lists them.
 // "Path from here…" makes a draft "From A to B" (services/genius.ts pathBetween), listed there too for the rest of the run.
+// The model and the picks live in the recommendation worker (services/recommend.ts, D181): this file sends it jobs (ask) and turns
+// the ids it answers into the iPod's tracks; where there is no worker (QuickJS) the same handler runs here, a slice at a time.
 import { createSignal } from 'zinc:ui/solid';
 import * as fs from 'zinc:fs';
 import * as ipod from 'zinc:ipod';
 import { Card } from './services/forYou';
 import { library, openPlaylist } from './state';
 import { PodLibrary, createPlaylistOf } from './services/ipod';
-import { History } from './services/history';
+import { Worker, MessageEvent, ErrorEvent } from 'zinc:worker';
+import { PodListen } from './services/history';
 import { history, historyStarted, historyVersion, setHistoryVersion } from './services/historyJobs';
-import { Model, Mix, buildModel, attachDeep, genius, reasons, mixes, loadWeights, readArtistGraph, fetchSimilarArtists, pathBetween } from './services/genius';
-import { currentDeep, deepVersion, prepareNear } from './deep';
+import { fetchSimilarArtists } from './services/historyImport';
+import { RecJob, RecOut, MixOut, handle } from './services/recommend';
+import { deepVersion, prepareNear } from './deep';
 import { playList } from './services/player';
 import { enqueue, runBeside, busy, Job } from './services/transfers';
 import { allowed, refresh, setNotice } from './actions';
 import { loadConfig } from './services/config';
 import { backupPlace, log } from './services/log';
-import { Budget } from './services/slice';
+import { Budget, STALE } from './services/slice';
 import * as cache from './services/cache';
 import { count } from './format';
 
@@ -80,35 +84,88 @@ export function geniusDrafts(): Draft[] {
 
 function historyDir(): string { return `${backupPlace()}/history`; }
 
-let model: Model | null = null;
+// ---- the recommendation worker
+
+let worker: Worker<RecJob, RecOut> | null = null;
+let inline = false;
+let jobs: i32 = 0;
+const waiting = new Map<i32, (o: RecOut) => void>();
+
+function settle(o: RecOut): void {
+  const f = waiting.get(o.id);
+  if (f !== undefined) { waiting.delete(o.id); f(o); }
+}
+
+/** The worker, started once; null where there is none (QuickJS has no workers yet: the jobs run here). */
+function recommender(): Worker<RecJob, RecOut> | null {
+  if (worker !== null || inline) return worker;
+  try {
+    const w = new Worker<RecJob, RecOut>(new URL('./services/recommend.worker.ts', import.meta.url));
+    w.onmessage = (e: MessageEvent<RecOut>) => { settle(e.data); };
+    w.onerror = (e: ErrorEvent) => {   // its program ended: the jobs waiting fail, the next one starts a new worker (and model)
+      log('Genius', e.message, false);
+      worker = null; modelOf = null;
+      const left: i32[] = [];
+      waiting.forEach((f: (o: RecOut) => void, id: i32) => { left.push(id); });
+      for (const id of left) settle({ id: id, kind: '', error: e.message });
+    };
+    worker = w;
+  } catch (e) { inline = true; }
+  return worker;
+}
+
+/** A job of `kind` for the iPod open (its deep results as they are now). */
+export function job(kind: string): RecJob {
+  jobs++;
+  return { id: jobs, kind: kind, guid: cache.podKey(), deepDir: cache.cacheDir(), deepVersion: deepVersion() };
+}
+
+/** The answer to `j`, null when a newer job of its kind replaced it; throws when it failed. */
+export function ask(j: RecJob): Promise<RecOut | null> {
+  return new Promise<RecOut | null>((done: (o: RecOut | null) => void, fail: (e: Error) => void) => {
+    waiting.set(j.id, (o: RecOut) => { if (o.error === STALE) done(null); else if (o.error !== '') fail(new Error(o.error)); else done(o); });
+    const w = recommender();
+    if (w !== null) (w as Worker<RecJob, RecOut>).postMessage(j);
+    else handle(j, settle);
+  });
+}
+
+let byIdOf: PodLibrary | null = null;
+let byId = new Map<string, ipod.Track>();
+
+/** The open iPod's tracks of `ids`, in that order (those no longer on it left out). */
+export function tracksOf(ids: string[]): ipod.Track[] {
+  const lib = library();
+  if (lib === null) return [];
+  if (byIdOf !== lib) { byId = new Map<string, ipod.Track>(); for (const t of (lib as PodLibrary).tracks) byId.set(t.id, t); byIdOf = lib; }
+  const out: ipod.Track[] = [];
+  for (const id of ids) { const t = byId.get(id); if (t !== undefined) out.push(t as ipod.Track); }
+  return out;
+}
+
+// ---- the model
+
+/** The library and history version the worker's model was built for, and how many models were built. */
 let modelOf: PodLibrary | null = null;
 let modelVersion: i32 = -1;
-let modelDeep: i32 = -1;
+let models: i32 = 0;
 let askedArtists = '';
 let building: Promise<void> | null = null;
-/** Bumped when a model was built: what read currentModel() runs again. */
+/** Bumped when a model was built: what read modelReady() runs again. */
 const [modelTurn, setModelTurn] = createSignal<i32>(0);
-/** True while the model is built (a slice at a time: services/slice.ts). */
+/** True while the model is built (in the worker). */
 export const [modelWorking, setModelWorking] = createSignal<boolean>(false);
-
-/** The model when it is up to date for `lib` and the history's `version` (AudioMuse's results attached again when they changed). */
-function upToDate(lib: PodLibrary, version: i32): Model | null {
-  if (model === null || modelOf !== lib || modelVersion !== version) return null;
-  const deepNow = deepVersion();
-  if (modelDeep !== deepNow || (model as Model).deep !== currentDeep()) { attachDeep(model as Model, currentDeep()); modelDeep = deepNow; }
-  return model;
-}
 
 async function build(lib: PodLibrary, version: i32): Promise<void> {
   setModelWorking(true);
   try {
-    let h: History | null = null;
-    try { if (historyStarted()) h = history(); } catch (e) { /* no history: metadata and the iPod's counters */ }
-    const dir = historyDir(), b = new Budget();
-    const m = await buildModel(h, cache.podKey(), lib.tracks, await readArtistGraph(dir, b), loadWeights(dir), b);
-    if (library() !== lib) return;   // another iPod opened meanwhile
-    attachDeep(m, currentDeep());
-    model = m; modelOf = lib; modelVersion = version; modelDeep = deepVersion();
+    let listens: PodListen[] = [];
+    try { if (historyStarted()) listens = await history().podListens(cache.podKey(), new Budget()); } catch (e) { /* no history: metadata and the iPod's counters */ }
+    const j = job('model');
+    j.tracks = lib.tracks; j.listens = listens; j.historyDir = historyDir();
+    const o = await ask(j);
+    if (o === null || library() !== lib) return;   // a newer build, or another iPod opened meanwhile
+    modelOf = lib; modelVersion = version; models++;
     const key = loadConfig().lastfmKey;
     if (key !== '') fetchArtists(lib, key);
   } finally {
@@ -118,28 +175,28 @@ async function build(lib: PodLibrary, version: i32): Promise<void> {
   }
 }
 
-/** The model of the open iPod, built again (a slice at a time) when its library or the history changed; null without an iPod. */
-export async function modelNow(): Promise<Model | null> {
+/** True once the worker has the model of the open iPod, built again (in the worker) when its library or the history changed; false
+ *  without an iPod. AudioMuse's results go with every job, so a sync needs no new model. */
+export async function modelNow(): Promise<boolean> {
   for (;;) {
     const lib = library();
-    if (lib === null) return null;
+    if (lib === null) return false;
     const version = historyVersion();
-    const m = upToDate(lib as PodLibrary, version);
-    if (m !== null) return m;
+    if (modelOf === lib && modelVersion === version) return true;
     if (building === null) building = build(lib as PodLibrary, version);
     await building;   // then again: the history or the iPod may have changed meanwhile
   }
 }
 
-/** The model of the open iPod when it is up to date, else null while it is built (modelWorking): for what shows it, which runs again
- *  when it is ready. */
-export function currentModel(): Model | null {
+/** True when the model of the open iPod is up to date, else false while it is built (modelWorking): for what shows it, which runs
+ *  again when it is ready. */
+export function modelReady(): boolean {
   modelTurn();
   const lib = library();
-  if (lib === null) return null;
-  const m = upToDate(lib as PodLibrary, historyVersion());
-  if (m === null) setTimeout(() => { modelNow().catch((e: Error): Model | null => { log('Genius', e.message, false); return null; }); }, 0);   // not from inside a computation
-  return m;
+  if (lib === null) return false;
+  if (modelOf === lib && modelVersion === historyVersion()) return true;
+  setTimeout(() => { modelNow().catch((e: Error): boolean => { log('Genius', e.message, false); return false; }); }, 0);   // not from inside a computation
+  return false;
 }
 
 /** Settings › Recommendations: the similar artists of the iPod's artists not fetched yet (in the last 90 days), now, even when they
@@ -171,7 +228,7 @@ function fetchArtists(lib: PodLibrary, key: string): void {
   job = runBeside('genius', 'Similar artists from Last.fm', async (): Promise<string> => {
     await Promise.resolve();   // `job` is set: runBeside starts the work before it returns
     const n = await fetchSimilarArtists(historyDir(), key, names, names.length, step);   // all of them: Cancel keeps what was fetched
-    if (n > 0) { model = null; setHistoryVersion(historyVersion() + 1); }   // built again with them
+    if (n > 0) { modelOf = null; setHistoryVersion(historyVersion() + 1); }   // built again with them
     return `${n > 0 ? `${count(n, 'artist', 'artists')} fetched` : 'all known already'}${stopped ? ' (stopped)' : ''}`;
   }, () => { stopped = true; });
 }
@@ -184,7 +241,7 @@ export async function geniusFrom(seed: ipod.Track, size: i32): Promise<void> {
   const d = new Draft();
   d.id = `${GENIUS_PREFIX}${seed.id}:${size}`; d.seedId = seed.id; d.size = size;
   d.name = `Genius · ${seed.title !== '' ? seed.title : 'Untitled'}`;
-  if (currentModel() === null) { setPicking(`Picking ${size} songs from “${seed.title !== '' ? seed.title : 'Untitled'}”…`); openPlaylist(d.id); }
+  if (!modelReady()) { setPicking(`Picking ${size} songs from “${seed.title !== '' ? seed.title : 'Untitled'}”…`); openPlaylist(d.id); }
   await prepareNear([seed.id]);   // returns at once without AudioMuse
   const ok = await pick(d);
   setPicking('');
@@ -195,45 +252,51 @@ export async function geniusFrom(seed: ipod.Track, size: i32): Promise<void> {
 
 /** Picks the draft's songs again (with the history as it is now); false when the seed cannot seed a list (not music). */
 async function pick(d: Draft): Promise<boolean> {
-  const m = await modelNow();
-  if (m === null) return false;
-  d.tracks = genius(m as Model, d.seedId, d.size, d.round);
+  if (!(await modelNow())) return false;
+  const j = job('genius');
+  j.seed = d.seedId; j.size = d.size; j.round = d.round;
+  const o = await ask(j);
+  if (o === null) return false;
+  d.tracks = tracksOf(o.ids as string[]);
   if (d.tracks.length === 0) return false;
-  d.why = reasons(m as Model, d.seedId, d.tracks);
+  d.why = o.why as string[];
   lastGenius = d;
   keepGenius(d);
   return true;
 }
 
-let mixesOf: Model | null = null;
+let mixesOf: i32 = -1;
 let mixesLib: PodLibrary | null = null;
 let mixList: Draft[] = [];
 const [mixTurn, setMixTurn] = createSignal<i32>(0);
-/** True while the mixes are worked out (a slice at a time). */
+/** True while the mixes are worked out (in the worker). */
 export const [mixesWorking, setMixesWorking] = createSignal<boolean>(false);
 
 /** The mixes of the open iPod, as drafts: worked out when first shown and again when the model changed, off this call (the list
  *  follows when they are ready; until then the last ones, or none). */
 export function mixDrafts(): Draft[] {
   mixTurn();
-  const m = currentModel();
-  if (m !== null && m !== mixesOf && !mixesWorking()) setTimeout(() => { workOutMixes(m as Model); }, 0);   // not from inside a computation
+  if (modelReady() && models !== mixesOf && !mixesWorking()) setTimeout(() => { workOutMixes(); }, 0);   // not from inside a computation
   return mixesLib !== null && mixesLib === library() ? mixList : [];   // those of the model before, while the new ones are worked out
 }
 
-async function workOutMixes(m: Model): Promise<void> {
-  if (mixesWorking() || m === mixesOf) return;
+async function workOutMixes(): Promise<void> {
+  const of = models;
+  if (mixesWorking() || of === mixesOf) return;
   const lib = library();
   setMixesWorking(true);
   try {
-    const ms = await mixes(m, 6, 50, 5, new Budget());
-    const out: Draft[] = [];
-    for (let i = 0; i < ms.length; i++) {
-      const d = new Draft();
-      d.id = `${MIX_PREFIX}${i}`; d.name = (ms[i] as Mix).name; d.tracks = (ms[i] as Mix).tracks;
-      out.push(d);
+    const o = await ask(job('mixes'));
+    if (o !== null) {
+      const ms = o.mixes as MixOut[];
+      const out: Draft[] = [];
+      for (let i = 0; i < ms.length; i++) {
+        const d = new Draft();
+        d.id = `${MIX_PREFIX}${i}`; d.name = ms[i].name; d.tracks = tracksOf(ms[i].ids);
+        out.push(d);
+      }
+      mixesOf = of; mixesLib = lib; mixList = out;
     }
-    mixesOf = m; mixesLib = lib; mixList = out;
   } catch (e) { log('Mixes', (e as Error).message, false); }
   setMixesWorking(false);
   setMixTurn(mixTurn() + 1);
@@ -251,12 +314,15 @@ export function pathDrafts(): Draft[] { pathVersion(); return pathList; }
  *  Playlists page. Kept for this run only. */
 export async function pathFrom(a: ipod.Track, b: ipod.Track): Promise<void> {
   await prepareNear([a.id, b.id], true);   // returns at once without AudioMuse
-  const m = await modelNow();
-  if (m === null) return;
+  if (!(await modelNow())) return;
+  const j = job('path');
+  j.seed = a.id; j.to = b.id;
+  const o = await ask(j);
+  if (o === null) return;
   const d = new Draft();
   d.id = `${PATH_PREFIX}${a.id}:${b.id}`;
   d.name = `From ${a.title !== '' ? a.title : 'Untitled'} to ${b.title !== '' ? b.title : 'Untitled'}`;
-  d.tracks = pathBetween(m as Model, a.id, b.id);
+  d.tracks = tracksOf(o.ids as string[]);
   if (d.tracks.length < 2) { setNotice(`No path from “${a.title}” to “${b.title}”: both must be music on this iPod`); return; }
   const list: Draft[] = [d];
   for (const x of pathList) if (x.id !== d.id && list.length < PATH_MAX) list.push(x);
@@ -315,7 +381,7 @@ export function isGenius(d: Draft): boolean { return d.id.startsWith(GENIUS_PREF
 export function refreshDraft(d: Draft): void {
   const next = new Draft();
   next.id = d.id; next.name = d.name; next.seedId = d.seedId; next.size = d.size; next.round = d.round + 1;
-  model = null;
+  modelOf = null;   // with the history as it is now
   setPicking(`Picking ${d.size} songs again…`);
   pick(next).then((ok: boolean) => { setPicking(''); if (ok) play(next); });
 }

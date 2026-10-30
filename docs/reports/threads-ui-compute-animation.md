@@ -253,8 +253,12 @@ A worker is a program with no window. The frontend checks the worker's import cl
 
 ### 3.6 The first users (iPod app)
 
-- **Genius** (`examples/ipod/src/services/genius.ts` `buildModel`, called from `examples/ipod/src/drafts.ts:101`
-  `currentModel()`, synchronously on the UI thread):
+Done (D181 step 4, 2026-10-30): `services/recommend.ts` is one pure handler `handle(job, reply)`, run by
+`services/recommend.worker.ts` on its own thread; `drafts.ts` starts one worker and `ask(job)`s it, and on QuickJS,
+where `new Worker` throws, calls the same handler inline. Before, `buildModel` ran on the UI thread, a slice at a time.
+
+- **Genius** (`examples/ipod/src/services/genius.ts` `buildModel`, now built in the worker; `currentModel()` became
+  `modelReady()`):
   - The worker owns the `Model`.
   - The main side posts the `Track[]` (already records), the weights and the history once, then asks questions as
     messages (`genius(seed, n)`, `mixes()`, `pathBetween`) and gets ids back. The model, made of Maps of Maps, never

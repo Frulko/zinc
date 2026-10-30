@@ -18,6 +18,9 @@ import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
 import { History, Listen, Ranked } from './history';
 import { LASTFM_URL, LISTENBRAINZ_URL } from './scrobble';
+import { SIMILAR_FILE, SIMILAR_TTL_S, Similar, SimilarEntry, readSimilar } from './genius';
+import { normArtist } from './norm';
+import { Budget } from './slice';
 
 const PACE_MS: number = sys.env('IPOD_HISTORY_PACE_MS') !== '' ? Number(sys.env('IPOD_HISTORY_PACE_MS')) : 250;
 const TRIES: i32 = 6;
@@ -352,4 +355,56 @@ export async function importListenbrainzFile(h: History, file: string, run: Impo
     run.progress(done, names.length, added);
   }
   return `${added} new listen${added === 1 ? '' : 's'} from ${file.slice(file.lastIndexOf('/') + 1)}`;
+}
+
+// ---- the similar artists of services/genius.ts (Last.fm artist.getSimilar), here beside lastfm(): the model reads only the file
+
+/** Fetches Last.fm's similar artists of each of `artists` not fetched in the last 90 days (at most `max`, in the order given) into
+ *  `<dir>/similar-artists.jsonl`; the number fetched. Nothing without a `key`. An artist Last.fm does not know is kept with no
+ *  neighbours (not asked again); any other error stops the run (what was fetched is kept) and is thrown. `step` is told each artist
+ *  before it is asked (done of total); false stops the run there. */
+export async function fetchSimilarArtists(dir: string, key: string, artists: string[], max: i32 = 200,
+  step: (done: i32, total: i32, artist: string) => boolean = (done: i32, total: i32, artist: string): boolean => true): Promise<i32> {
+  if (key.trim() === '') return 0;
+  const file = `${dir}/${SIMILAR_FILE}`;
+  const list = await readSimilar(dir, new Budget());
+  const known = new Map<string, SimilarEntry>();
+  for (const e of list) known.set(e.artist, e);
+  const now = Math.floor(Date.now() / 1000);
+  let n: i32 = 0;
+  const seen = new Set<string>();
+  const due = new Set<string>();   // the artists this run asks, for the progress
+  for (const name of artists) {
+    const k = normArtist(name), old = known.get(k);
+    if (k !== '' && due.size < max && (old === undefined || now - (old as SimilarEntry).at >= SIMILAR_TTL_S)) due.add(k);
+  }
+  try {
+    for (const name of artists) {
+      const k = normArtist(name);
+      if (k === '' || seen.has(k)) continue;
+      seen.add(k);
+      const old = known.get(k);
+      if (old !== undefined && now - (old as SimilarEntry).at < SIMILAR_TTL_S) continue;
+      if (n >= max || !step(n, due.size, name)) break;
+      const entry: SimilarEntry = { artist: k, at: now, similar: [] };
+      try {
+        const j = await lastfm(`method=artist.getsimilar&artist=${encodeURIComponent(name)}&autocorrect=1&limit=100`, key);
+        const got = j.similarartists !== undefined ? j.similarartists.artist : undefined;
+        if (got !== undefined && got !== null) {
+          const items = Array.isArray(got) ? got : [got];
+          for (let i = 0; i < items.length; i++) {
+            const p: Similar = { artist: normArtist('' + items[i].name), match: Math.min(1, Number(items[i].match)) };
+            if (p.artist !== '' && p.artist !== k && p.match > 0) entry.similar.push(p);
+          }
+        }
+      } catch (e) {
+        if ((e as Error).message.indexOf('could not be found') < 0) throw e;   // error 6: an artist Last.fm does not know
+      }
+      if (n === 0) fs.mkdir(dir, true);
+      fs.appendText(file, JSON.stringify(entry) + '\n');
+      known.set(k, entry);
+      n++;
+    }
+  } finally { /* every artist asked is already on disk */ }
+  return n;
 }

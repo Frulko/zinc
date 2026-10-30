@@ -1,13 +1,16 @@
 // The mood mixer of For you: a mood chip (Chill, Focus, Party, Workout, Melancholy, Happy) sets the energy and tempo bars, and the list
 // (services/moods.ts) is made again at each click. Play plays it; Open shows it as a draft on the Playlists page (Play, Save to iPod).
 // Without AudioMuse's analysis the list comes from the genres and the BPM only, the energy bar is hidden and the line says so. While
-// Genius' model is built (drafts.ts, a slice at a time) a turning ring says the songs are being picked.
+// Genius' model is built (drafts.ts, in the recommendation worker) a turning ring says the songs are being picked; the list follows
+// the worker's answer.
 import * as ui from 'zinc:ui';
 import * as ipod from 'zinc:ipod';
-import { createSignal, createMemo } from 'zinc:ui/solid';
+import { createSignal, createEffect } from 'zinc:ui/solid';
 import { openPlaylist } from '../../state';
-import { MOODS, Mood, moodMix } from '../../services/moods';
-import { Draft, currentModel, modelWorking, keepDrafts, play } from '../../drafts';
+import { MOODS, Mood } from '../../services/moods';
+import { Draft, modelReady, modelWorking, keepDrafts, play, job, ask, tracksOf } from '../../drafts';
+import { deepVersion } from '../../deep';
+import { RecOut } from '../../services/recommend';
 import { Working } from '../../components/Working';
 import { Button } from '../../components/Button';
 import { count } from '../../format';
@@ -23,15 +26,30 @@ const [tempo, setTempo] = createSignal<number>(MOODS[0].tempo);
 
 class Mixed { d: Draft = new Draft(); deep: boolean = false; }
 
-const mixed = createMemo<Mixed>(() => {
-  const out = new Mixed(), m = currentModel();
-  out.d.id = `${PREFIX}${mood().id}`;
-  out.d.name = `${mood().name} mix`;
-  if (m === null) return out;
-  const mx = moodMix(m, mood(), energy(), tempo());
-  out.d.tracks = mx.tracks; out.deep = mx.deep;
+const [mixed, setMixed] = createSignal<Mixed>(new Mixed());
+let asked: i32 = 0;
+
+function empty(mo: Mood): Mixed {
+  const out = new Mixed();
+  out.d.id = `${PREFIX}${mo.id}`;
+  out.d.name = `${mo.name} mix`;
   return out;
-}, new Mixed());
+}
+
+createEffect(() => {
+  const mo = mood(), e = energy(), t = tempo();
+  deepVersion();
+  if (!modelReady()) { setMixed(empty(mo)); return; }
+  const j = job('mood');
+  j.mood = mo.id; j.energy = e; j.tempo = t;
+  const n = ++asked;
+  ask(j).then((o: RecOut | null) => {
+    if (o === null || n !== asked) return;   // a newer mix was asked meanwhile
+    const out = empty(mo);
+    out.d.tracks = tracksOf(o.ids as string[]); out.deep = o.deep as boolean;
+    setMixed(out);
+  }).catch((err: Error) => { setMixed(empty(mo)); });
+});
 
 function Chip(props: { m: Mood }): i32 {
   const on = mood().id === props.m.id;

@@ -12,7 +12,7 @@
 import * as net from 'zinc:net';
 import * as fs from 'zinc:fs';
 import * as ipod from 'zinc:ipod';
-import { normArtist, normTitle } from './history';
+import { normArtist, normTitle } from './norm';
 
 export const DEFAULT_URL = 'http://127.0.0.1:8000';
 const FORMAT: i32 = 1;

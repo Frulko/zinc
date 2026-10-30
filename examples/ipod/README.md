@@ -67,7 +67,9 @@ The plugin needs a few system libraries (`brew install glib libplist taglib libu
   sessions count more), the same or a similar artist (Last.fm's artist.getSimilar, only with a Last.fm API key, fetched once per
   artist into `history/similar-artists.jsonl`), genre and decade, and each song's plays, rating and skips. The weights are
   `history/genius.json`. The Playlists page also lists **mixes**: the taste clusters of the history (by genre when nothing was heard),
-  named by their artists and genre, played and saved the same way.
+  named by their artists and genre, played and saved the same way. The model, Genius, the mixes, the radio, the mood mixer and
+  For you are worked out in a worker thread (`services/recommend.ts`), so the window never waits for them (on `--engine quickjs`,
+  which has no workers yet, the same code runs in the app).
 - **Get Info, one song or many.** Cmd+I, a song's right-click menu › Get Info, or the Get Info button of the Songs page opens the
   Info window on the songs selected (Cmd-click adds one, Shift-click a range), on the Songs, Albums and Playlists pages. Its tabs are
   iTunes': Details (name, artist, album artist, album, grouping, composer, genre, year, BPM, track and disc numbers, compilation,
@@ -214,6 +216,7 @@ src/
 ├── services/genius.ts    # similarity (co-listening, artists, genre, decade, plays), Genius, the mixes; no UI (the daemon can use it)
 ├── services/forYou.ts    # the For you shelves: signals, affinity, daily mixes, On Repeat, Rewind, Rediscover, Time Capsule, tops, the year
 ├── drafts.ts             # Genius lists and mixes as drafts: played first, Refresh, Save to iPod
+├── services/recommend.ts # the recommendation worker's jobs (model, Genius, mixes, radio, mood, For you); recommend.worker.ts runs it
 ├── services/jukebox.ts   # jukebox's (or a Subsonic server's) client: browse, search, conversion, Range slices, the add
 ├── jukeboxAdd.ts         # the Transfers job of an add from jukebox
 ├── services/audiomuse.ts # AudioMuse-AI's client: reach, analyse, cancel, sync, near lists, paths, the deep.v1 cache; no UI

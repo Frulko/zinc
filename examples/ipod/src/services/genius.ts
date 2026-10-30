@@ -1,6 +1,6 @@
 // Genius without Apple, tier 1 (docs/reports/ipod-genius.md, 0b and 4.4-4.5): how close two songs of an iPod are, from what is
 // already on this computer, then "Genius from this song" and the taste clusters (the mixes). No UI here: the app
-// (services/geniusDrafts.ts) and the iPod daemon call it the same way.
+// (drafts.ts, through the recommendation worker: services/recommend.ts) and the iPod daemon call it the same way.
 //   co-listening  the open stand-in for Genius' crowd: two songs heard in the same session (services/history.ts, SESSION_GAP_S)
 //                 more often than chance. Normalised PMI over the sessions, each session weighted by its age (half-life), shrunk
 //                 for songs heard together only once or twice.
@@ -16,8 +16,8 @@
 // can get the PCM of an iPod's AAC/ALAC file yet (only the plugin's native fingerprint pass decodes them), see the report.
 import * as ipod from 'zinc:ipod';
 import * as fs from 'zinc:fs';
-import { History, SESSION_GAP_S, normArtist } from './history';
-import { lastfm } from './historyImport';
+import { PodListen } from './history';
+import { SESSION_GAP_S, normArtist } from './norm';
 import { fold } from '../search';
 import { Deep, DeepPath, soundVectors, pathOf } from './audiomuse';
 import { Budget } from './slice';
@@ -83,15 +83,15 @@ export type ArtistGraph = Map<string, Map<string, number>>;
 // One JSON line per artist asked, appended as it comes (rewriting the whole file every few artists stalled the frames: 80 ms at 1000
 // artists); a later line of an artist replaces an earlier one. The first versions kept one JSON array, similar-artists.json: moved
 // into the lines the first time it is read, then deleted.
-const SIMILAR_FILE = 'similar-artists.jsonl';
+export const SIMILAR_FILE = 'similar-artists.jsonl';
 const SIMILAR_OLD = 'similar-artists.json';
-const SIMILAR_TTL_S: number = 90 * 86400;
+export const SIMILAR_TTL_S: number = 90 * 86400;
 
-interface Similar { artist: string; match: number; }
+export interface Similar { artist: string; match: number; }
 /** One artist asked: when (Unix seconds) and its similar artists (normalised names). */
-interface SimilarEntry { artist: string; at: number; similar: Similar[]; }
+export interface SimilarEntry { artist: string; at: number; similar: Similar[]; }
 
-async function readSimilar(dir: string, b: Budget): Promise<SimilarEntry[]> {
+export async function readSimilar(dir: string, b: Budget): Promise<SimilarEntry[]> {
   const by = new Map<string, SimilarEntry>();
   const file = `${dir}/${SIMILAR_FILE}`;
   let lines: string[] = [];
@@ -131,56 +131,6 @@ export async function readArtistGraph(dir: string, b: Budget = new Budget()): Pr
     g.set(list[i].artist, m);
   }, 32);
   return g;
-}
-
-/** Fetches Last.fm's similar artists of each of `artists` not fetched in the last 90 days (at most `max`, in the order given) into
- *  `<dir>/similar-artists.jsonl`; the number fetched. Nothing without a `key`. An artist Last.fm does not know is kept with no
- *  neighbours (not asked again); any other error stops the run (what was fetched is kept) and is thrown. `step` is told each artist
- *  before it is asked (done of total); false stops the run there. */
-export async function fetchSimilarArtists(dir: string, key: string, artists: string[], max: i32 = 200,
-  step: (done: i32, total: i32, artist: string) => boolean = (done: i32, total: i32, artist: string): boolean => true): Promise<i32> {
-  if (key.trim() === '') return 0;
-  const file = `${dir}/${SIMILAR_FILE}`;
-  const list = await readSimilar(dir, new Budget());
-  const known = new Map<string, SimilarEntry>();
-  for (const e of list) known.set(e.artist, e);
-  const now = Math.floor(Date.now() / 1000);
-  let n: i32 = 0;
-  const seen = new Set<string>();
-  const due = new Set<string>();   // the artists this run asks, for the progress
-  for (const name of artists) {
-    const k = normArtist(name), old = known.get(k);
-    if (k !== '' && due.size < max && (old === undefined || now - (old as SimilarEntry).at >= SIMILAR_TTL_S)) due.add(k);
-  }
-  try {
-    for (const name of artists) {
-      const k = normArtist(name);
-      if (k === '' || seen.has(k)) continue;
-      seen.add(k);
-      const old = known.get(k);
-      if (old !== undefined && now - (old as SimilarEntry).at < SIMILAR_TTL_S) continue;
-      if (n >= max || !step(n, due.size, name)) break;
-      const entry: SimilarEntry = { artist: k, at: now, similar: [] };
-      try {
-        const j = await lastfm(`method=artist.getsimilar&artist=${encodeURIComponent(name)}&autocorrect=1&limit=100`, key);
-        const got = j.similarartists !== undefined ? j.similarartists.artist : undefined;
-        if (got !== undefined && got !== null) {
-          const items = Array.isArray(got) ? got : [got];
-          for (let i = 0; i < items.length; i++) {
-            const p: Similar = { artist: normArtist('' + items[i].name), match: Math.min(1, Number(items[i].match)) };
-            if (p.artist !== '' && p.artist !== k && p.match > 0) entry.similar.push(p);
-          }
-        }
-      } catch (e) {
-        if ((e as Error).message.indexOf('could not be found') < 0) throw e;   // error 6: an artist Last.fm does not know
-      }
-      if (n === 0) fs.mkdir(dir, true);
-      fs.appendText(file, JSON.stringify(entry) + '\n');
-      known.set(k, entry);
-      n++;
-    }
-  } finally { /* every artist asked is already on disk */ }
-  return n;
 }
 
 // ---- the model
@@ -269,8 +219,9 @@ export class Model {
   pickable(i: i32): boolean { const r = this.tracks[i].rating; return r === 0 || r >= 3; }
 }
 
-/** The model of the iPod `guid`'s `tracks` with the history `h` (null: none) and the artist graph, built within the budget `b`. */
-export async function buildModel(h: History | null, guid: string, tracks: ipod.Track[], graph: ArtistGraph, w: Weights, b: Budget = new Budget()): Promise<Model> {
+/** The model of an iPod's `tracks` with its `listens` (History.podListens; [] without a history) and the artist graph, built within
+ *  the budget `b`. */
+export async function buildModel(listens: PodListen[], tracks: ipod.Track[], graph: ArtistGraph, w: Weights, b: Budget = new Budget()): Promise<Model> {
   const music: ipod.Track[] = [];
   for (const t of tracks) if (t.mediaType === 'audio' || t.mediaType === '') music.push(t);
   const m = new Model(w, music, graph);
@@ -282,7 +233,7 @@ export async function buildModel(h: History | null, guid: string, tracks: ipod.T
     m.plays.push(t.playCount); m.skips.push(t.skipCount);
     m.co.push(new Map<i32, number>());
   });
-  if (h !== null) await addHistory(m, h as History, guid, b);
+  await addHistory(m, listens, b);
   attachDeep(m, null);
   let most = 1;
   for (const p of m.plays) if (p > most) most = p;
@@ -314,8 +265,7 @@ export function attachDeep(m: Model, d: Deep | null): void {
 }
 
 /** The history's plays and skips per track (the larger of them and the iPod's own counters: they overlap), and co-listening. */
-async function addHistory(m: Model, h: History, guid: string, b: Budget): Promise<void> {
-  const listens = await h.podListens(guid, b);
+async function addHistory(m: Model, listens: PodListen[], b: Budget): Promise<void> {
   if (listens.length === 0) return;
   const plays: number[] = [], skips: number[] = [];
   for (let i = 0; i < m.tracks.length; i++) { plays.push(0); skips.push(0); }
@@ -606,16 +556,4 @@ export async function mixes(m: Model, max: i32 = 6, size: i32 = 50, minSize: i32
   }
   out.sort((a: Mix, b: Mix) => b.plays - a.plays !== 0 ? b.plays - a.plays : a.name < b.name ? -1 : 1);
   return out.slice(0, max);
-}
-
-// ---- saving
-
-/** Writes `tracks` to the open iPod as a new normal playlist `name` and saves the database; the playlist's id. */
-export async function savePlaylist(name: string, tracks: ipod.Track[]): Promise<string> {
-  const ids: string[] = [];
-  for (const t of tracks) ids.push(t.id);
-  const id = await ipod.createPlaylist(name);
-  await ipod.setPlaylistTracks(id, ids);
-  await ipod.save();
-  return id;
 }

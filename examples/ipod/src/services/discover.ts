@@ -5,7 +5,8 @@
 // <history>/artist-top.jsonl, one JSON line per artist asked (a later line replaces an earlier one).
 import * as fs from 'zinc:fs';
 import { ArtistGraph } from './genius';
-import { Ranked, normArtist } from './history';
+import { Ranked } from './history';
+import { normArtist } from './norm';
 import { lastfm } from './historyImport';
 
 const TOP_FILE = 'artist-top.jsonl';
