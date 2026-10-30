@@ -2444,6 +2444,21 @@ int main(int argc, char** argv) {
     }
     if (have) files["zinc.json"] = ps.str();
     std::error_code ec;
+    std::vector<zn::tc::PluginLib> natives = gPlugins;
+    {   // a plugin the program uses that the compile did not load (zinc:video is "live": its stand-in may serve the compile) is built here, so
+        // the package carries its library all the same (a Pi has no compiler to build it from the sources)
+      std::vector<std::string> problems;
+      const auto all = zn::frontend::discoverPlugins(gRoot, projDir, problems);
+      for (const std::string& n : gUsedPlugins) {
+        if (std::any_of(natives.begin(), natives.end(), [&](const zn::tc::PluginLib& l) { return l.plugin == n; })) continue;
+        for (const auto& f : all) {
+          if (f.manifest.name != n || f.manifest.kind != "module" || !fs::is_directory(fs::path(f.dir) / "native", ec)) continue;
+          zn::tc::PluginLib lib; std::string berr;
+          if (zn::tc::buildPlugin(f, gRoot, projDir, zn::tc::pluginTarget(), lib, berr) && !lib.module.empty()) natives.push_back(lib);
+          else zn::log::warning("pack", "plugin '" + n + "' is left as sources: " + berr);
+        }
+      }
+    }
     std::vector<zn::frontend::FoundPlugin> found;
     if (cross) {
       std::vector<std::string> problems;
@@ -2452,7 +2467,7 @@ int main(int argc, char** argv) {
       if (!zn::tc::ensureZig(zig, zerr)) { std::fprintf(stderr, "zinc pack: %s\n", zerr.c_str()); return 1; }
       zn::tc::setCrossTarget(cross->name, cross->zigTarget, zig, true);   // the .so too: the library the device's engine loads
     }
-    for (const zn::tc::PluginLib& host : gPlugins) {   // the native plugins the program calls, built for this machine: a fused app loads them (ZN-652)
+    for (const zn::tc::PluginLib& host : natives) {   // the native plugins the program calls, built for this machine: a fused app loads them (ZN-652)
       if (host.display || host.module.empty()) continue;
       zn::tc::PluginLib lib = host;
       if (cross) {   // built again for the target, as zinc build --target does (the ones loaded here to compile are this machine's)
