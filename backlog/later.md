@@ -419,6 +419,17 @@ The next backlog review turns lines into tasks or deletes them.
 - Checker: `.then(async () => ...)` on a `Promise<void>` gives Z0103 (the async callback's Promise is not flattened).
 - Checker: destructuring in a `for (const [k, v] of ...)` whose body awaits gives Z0005.
 - Set and Map are not iterable directly in `for (const x of set)` as the slicing agent of the iPod demo met it (it went through Array.from): check and fix on every engine.
+- Workers (D183): QuickJS workers need one JSRuntime per thread (gMapFile, gTraceName, napi per thread) and a record codec in JS; then the untyped `Worker` for JS libraries.
+- Workers: plugins with `"worker": true` (a per-thread native registry and per-thread zn_native_poll queues); zero-copy transfer of `u8[]`; an inline mode for profiles without threads; `addEventListener('message')` and a global `onmessage`; a worker's console lines in the inspector's Console.
+- Workers: measure the cost of thread_local gAllocs/gFrees with tools/bench-gate on a quiet machine; re-run busy_spinner and busy_worker alone (measured at load 25-58).
+- `zbc_test` is not built by `tools/build zinc`.
+- Build speed (D184), the largest win left: stable C++ units after an edit. Adding one element to hero renumbers classes, strings and functions, so all 37 units recompile (13-25 s); keep the previous numbering (hot mode's Module::key) or emit table indexes as link-time constants, for 1-3 units (~3 s) per edit.
+- Build speed: build the plugins a project imports concurrently with each other and with the frontend (ipod cold 75 s toward ~30 s, sqlite3.c's 20 s the floor); the baked resources (~1.4 MB) in their own unit keyed by content, not in unit 0 (~1 s per rebuild).
+- Build speed: profile the frontend's single-threaded phases on ipod (parse 1.1 s, optimise 0.65 s, rc 0.38 s; std::map<std::string> lookups, isSubtype) and QuickJS's warm 'prepare' (0.3 s with every cache hit).
+- Build speed (owner's call, changes D43): run a stale native program on the interpreter at once while its native build continues in the background for the next run (hero edit-and-run ~1.5 s instead of 13-25 s).
+- Inspector (ZN-373): Network initiator file:line (needs per-call-site line tables in the interpreter and AOT); the console line at the Runtime.enable replay boundary shows twice; `zinc debug` does not set ZINC_DEV (no component names); component names on --engine quickjs untested; DOMStorage polls every 500 ms instead of a zinc:storage hook; class completion is a generated list, not the style engine's tables; no image request in the Network fixture.
+- UI fonts: no glyph fallback, so ▾▸↑↓ show as "?" in the UI font (the inspector uses + - >> << for now).
+- Headless runs: ZINC_REALTIME does not pace frames, so ZINC_FRAMES is not a duration for screenshot tooling.
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -657,8 +668,10 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod demo: Genius, For you and the cache parsing on a zinc:worker (D181 step 4) once workers land; the slices only spread the work over frames.
 - iPod demo: For you's final write (JSON.stringify of the shelves and the drafts) is not sliced; genius() and the mood mixes are still synchronous.
 - iPod demo: measure For you's frame gaps again now that a timer set in a frame waits for the next one (the slices were measured before that fix).
+- Inspector: measure the Elements tree and rendered-only filter on examples/ipod's Songs page (VirtualList) with the fake iPod env.
 
 ## Cross-platform pass
+- Workers: worker.cpp is in the esp32, console and wasm source lists, unbuilt; prove pthread_attr_setstacksize and thread names there.
 - threads (D181): RSS per idle worker and the Genius build time in a worker on the Pi 3B+ and the Nexus 7.
 
 - ZN-862: build plugins/imageio on Linux, Windows and iOS; check WebP and EXIF in a Linux AOT build (libwebp's symbols exported).
