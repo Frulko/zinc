@@ -485,6 +485,9 @@ The next backlog review turns lines into tasks or deletes them.
 
 - Failing on develop before today's inspector work (checked from 589e746a5 with the same result): `classic_rewrap` ("first line could take the next word", gap 1803) and `rn_showcase` (home light/dark frame hashes differ); bisect each on a quiet machine.
 
+- Inspector program list: the app icon as `faviconUrl`, served over HTTP by the devtools transport. Stage Image: a thumbnail in the right pane needs the texture region rendered to PNG on the program side.
+- Inspector discovery: the interpreter/AOT transport (`cdp.next.ts`) leaves its `<zinc home>/run/devtools/<pid>.json` behind at exit (no exit hook in zinc:sys) and no transport removes it on SIGTERM; the Inspector prunes them. An exit hook in zinc:sys would remove it.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -870,3 +873,4 @@ The next backlog review turns lines into tasks or deletes them.
 - Inspector Info card on Linux (/proc/self/statm, /proc/cpuinfo), Windows (GetProcessTimes, GetProcessMemoryInfo) and the Pi's GL path (gl_renderer, SDL_GL_GetSwapInterval vsync).
 - Info view: the refresh-rate key of Linux and Windows `hal_sdl`, and the `js.heap` provider of the JSC module on Linux (WebKitGTK).
 - Inspector Info: check by hand that moving the window to a screen of another refresh rate updates the rate (SDL_EVENT_WINDOW_DISPLAY_CHANGED, no automatic test).
+- Inspector discovery folder on Windows: uses `HOME`; needs `USERPROFILE`.
