@@ -94,6 +94,8 @@ for (const op of ['menu.setApp', 'menu.update', 'tray.create', 'tray.update', 't
   'window.setAlwaysOnTop', 'window.setOpacity', 'window.setMinSize', 'window.maximize', 'window.minimize', 'window.hide', 'window.setTitleBar', 'window.setTrafficLights', 'window.setVibrancy'])
   ops[op] = () => ok();
 
+ops['autostart.get'] = () => ok({ enabled: false });   // a true answer: a page never starts at login (enabling it stays unsupported)
+
 Z.registerNative('System', {
   setPermissions() {}, setApp() {}, setScopes() {},
   supports(feature) { const f = FEATURES[feature]; return !!(f && f()); },
