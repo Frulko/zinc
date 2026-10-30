@@ -5,6 +5,7 @@ status: Backlog
 assignee:
   - '@parallel'
 created_date: '2026-10-30 22:03'
+updated_date: '2026-10-30 22:27'
 labels:
   - size-L
   - pi
@@ -27,3 +28,9 @@ Phase of the Zinc shell (D194, docs/reports/zinc-shell/03-design.md §8).
 - [ ] #3 fbdev keeps the framebuffers of the last three picture serials (no ADDFB2/RMFB per app frame)
 - [ ] #4 on the Spark: debugfs state shows the app on a plane; app frame CPU measured shell vs direct
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Coded (4c9bce158 fbdev keeps the framebuffers of the last three pictures; fa8beb6a5 zinc:shell gives the app three dumb buffers exported as dmabufs, shm fallback, ZINC_SHELL_DMABUF=0 forces shm; ZINC_SHELL_START=<app dir> shows an app at start). Not proven on the Pi yet: debugfs XR24 plane at y=bar, ZINC_FBDEV_STATS ADDFB2/RMFB 3/0, CPU shell-planes vs soft vs direct.
+<!-- SECTION:NOTES:END -->

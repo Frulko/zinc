@@ -587,6 +587,7 @@ The next backlog review turns lines into tasks or deletes them.
 
 - ZN-869: zinc:subtle RSA keys could also import and export pkcs8 and jwk, for Web Crypto compatibility (spki and raw-private PKCS#1 today).
 - ZN-869: making the 2048-bit RSA key blocks the UI thread a moment when the login screen opens; measure it on a Pi and the handhelds.
+- ZN-887: the app writes into write-combined dumb buffers by a memcpy from its stage; measure it against fbdev's own conversion.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
