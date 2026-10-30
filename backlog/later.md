@@ -589,6 +589,16 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-869: making the 2048-bit RSA key blocks the UI thread a moment when the login screen opens; measure it on a Pi and the handhelds.
 - ZN-887: the app writes into write-combined dumb buffers by a memcpy from its stage; measure it against fbdev's own conversion.
 
+- ZN-873: video decoding runs on the call's second native thread; with several 720p cameras, measure CPU and give each decode its own queue.
+- ZN-873: answer NACK with RTX and send RTCP sender reports for our camera (lossy Wi-Fi repairs only by key frames today).
+- ZN-873: offer a low-quality simulcast layer of our camera when op 15 asks for little.
+- ZN-873: Z0105 refuses a method call on an any value (d.codecs.map); decide if intended, and if so the diagnostic should suggest a for-of loop.
+- ZN-873: docs/ui.md "System signals" should say that minimize and hide on desktop send background/foreground.
+- ZN-874: hand a screen capture's IOSurface to the GPU compositor and the VideoToolbox encoder without a CPU read (4K at 30 fps).
+- ZN-874: system audio in getDisplayMedia (ScreenCaptureKit capturesAudio), for Go Live with sound.
+- ZN-874: the web build of examples/webrtc-call shows "Camera off" in place of a shared screen's preview (browser tracks have no .image).
+- ZN-874: bring tests/data/plugins-table.txt and plugins-added-table.txt up to date (discord-voice, display shell and sidecar, imageio, secure-store, shell, trieur); plugin_manifest fails on develop.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -856,6 +866,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-869: try the QR and password+TOTP logins with a spare real account (AC1, AC2); check Discord still accepts remote-auth v2 and the Origin header.
 
 ## Cross-platform pass
+- ZN-873: H.264 decode and encode on Linux (V4L2 M2M or a vendored decoder) for discord-voice video.
+- ZN-874: screen capture on Linux (PipeWire portal) and Windows (Windows.Graphics.Capture) behind plugins/screen-capture/native/backend.h.
 - ZN-884: run the shell's suspend on a Pi 3 (KMS closed and reopened, evdev grabs released, a whole frame after) and the 3 s no-CONNECT rule on the sim framebuffer.
 - ZN-884: display_shell's stand-in on the Pi (rpi1 and arm64) with real dmabuf buffers from the shell's KMS (P2).
 - ZN-885: the Linux trimHeap of src/host/loop.cpp (glibc malloc_trim(0)); check RSS drops after tests/data/heap_trim.ts on the Pi.
