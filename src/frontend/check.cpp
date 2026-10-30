@@ -4941,13 +4941,20 @@ struct Checker {
     });
   }
 
-  void stmtList(const std::vector<std::uint32_t>& stmts) {
-    std::vector<std::function<void()>> mine;
-    auto* saved = defer;
-    defer = &mine;
-    // hoist classes and interfaces first (functions may mention them), then functions
+  // The names a statement list declares ahead of its statements: enums, type aliases, generic templates, classes and interfaces (their shapes are
+  // built after, by stmtRest). Modules that import each other's types hoist all their names before any of them goes further (Checker::run).
+  struct Hoisted {
     std::vector<std::pair<std::uint32_t, std::uint32_t>> classes;
     std::vector<std::uint32_t> genericSyms, aliasSyms;
+    std::vector<std::function<void()>> deferred;   // the statement list's bodies to check last
+    bool shaped = false;                           // its classes are linked and built (buildShapes)
+  };
+  void stmtList(const std::vector<std::uint32_t>& stmts) { Hoisted h = hoist(stmts); stmtRest(stmts, h); }
+  Hoisted hoist(const std::vector<std::uint32_t>& stmts) {
+    Hoisted h;
+    auto& classes = h.classes;
+    auto& genericSyms = h.genericSyms;
+    auto& aliasSyms = h.aliasSyms;
     for (std::uint32_t s : stmts) {  // numeric enums: the type is i32, the members are constants
       if (n(s).kind != N::Enum) continue;
       out.enumNames.push_back(std::string(n(s).text));
@@ -5026,20 +5033,36 @@ struct Checker {
       out.nodeSym[s] = declare(SymKind::Class, n(s).text, t, s, true, s);
       classes.push_back({s, oi});
     }
-    for (auto [s, oi] : classes) resolveHeritage(s, oi);
-    for (auto [s, oi] : classes) {  // a hierarchy that loops back on itself
+    return h;
+  }
+  // links the hoisted classes and interfaces to their bases; their members are collected when first needed (in their own scope and deferred list,
+  // as a base in another module of an import cycle may be) or by buildShapes
+  void linkShapes(Hoisted& h) {
+    for (auto [s, oi] : h.classes) resolveHeritage(s, oi);
+    for (auto [s, oi] : h.classes) {  // a hierarchy that loops back on itself
       std::uint32_t k = 0;
       for (std::uint32_t o = out.objs[oi].parent; o != kNoObj; o = out.objs[o].parent)
         if (o == oi || ++k > out.objs.size()) { diag(kZInvalidHierarchy, s, "circular inheritance"); out.objs[oi].parent = kNoObj; break; }
     }
-    for (auto [s, oi] : classes) {
-      pendingBuild[oi] = [this, s, oi]() {
+    for (auto [s, oi] : h.classes) {
+      pendingBuild[oi] = [this, s, oi, snap = scopes, list = &h.deferred]() {
+        auto sv = scopes; auto* sd = defer;
+        scopes = snap; defer = list;
         ensureBuilt(out.objs[oi].parent);
         for (std::uint32_t pi : out.objs[oi].ifaces) ensureBuilt(pi);
         classMembers(s, oi);
+        scopes = sv; defer = sd;
       };
     }
-    for (auto [s, oi] : classes) ensureBuilt(oi);
+  }
+  void buildShapes(Hoisted& h) { for (auto [s, oi] : h.classes) ensureBuilt(oi); h.shaped = true; }
+  void stmtRest(const std::vector<std::uint32_t>& stmts, Hoisted& h) {
+    auto& mine = h.deferred;   // the bodies to check after the declarations (a class's methods may already be there)
+    auto* saved = defer;
+    defer = &mine;
+    auto& genericSyms = h.genericSyms;
+    auto& aliasSyms = h.aliasSyms;
+    if (!h.shaped) { linkShapes(h); buildShapes(h); }
     for (std::uint32_t s : stmts) {
       if (n(s).kind != N::Function || a.tparams.count(s)) continue;
       std::vector<std::uint32_t> ps;
@@ -5159,24 +5182,47 @@ struct Checker {
     if (!a.prelude.empty()) { topList = &a.prelude; inPrelude = true; stmtList(a.prelude); inPrelude = false; }  // Error and friends, in the scope every module sees
     if (lookup("__fmtDyn") != kNone) preludeDone = jsonPreludeDone = true;  // the Dyn prelude carries the console.log and JSON helpers
     exportsOf.resize(a.modules.size());
-    // a module after the modules it imports: the load order, except for a type-only import, which the loader resolves last (Loader::finishTypes)
-    std::vector<std::uint32_t> order;
-    std::vector<char> seen(a.modules.size(), 0);
-    auto visit = [&](auto& self, std::uint32_t m) -> void {
-      if (seen[m]) return;
-      seen[m] = 1;
-      for (const ModuleImport& im : a.modules[m].imports) if (im.from < a.modules.size()) self(self, im.from);
-      for (const ModuleExport& e : a.modules[m].exports) if (e.from < a.modules.size()) self(self, e.from);
-      order.push_back(m);
+    // The modules in strongly connected components of the import graph (Tarjan), a component after the components it imports. Only type-only
+    // imports close a cycle (the loader refuses a cycle of value imports, D188): the modules of a component first hoist their type names and
+    // publish them (a partial export table), then bind each other's, and only then are checked further, a module after the ones whose values it imports.
+    const auto mcount = static_cast<std::uint32_t>(a.modules.size());
+    std::vector<std::uint32_t> comp(mcount, kNone), idx(mcount, kNone), low(mcount, 0), stack, finish(mcount, 0);
+    std::vector<std::vector<std::uint32_t>> sccs;
+    std::uint32_t counter = 0, finished = 0;
+    auto edges = [&](std::uint32_t m, auto&& f) {
+      for (const ModuleImport& im : a.modules[m].imports) if (im.from < mcount) f(im.from);
+      for (const ModuleExport& e : a.modules[m].exports) if (e.from < mcount) f(e.from);
     };
-    for (std::uint32_t m = 0; m < a.modules.size(); ++m) visit(visit, m);
-    for (std::uint32_t mi : order) {
-      tdzNames.clear();   // the flags are module-local
-      if (!inPreludeFile(a.modules[mi])) tdzPrepass(a.modules[mi].stmts, a.modules[mi].stmts.empty() ? a.root : a.modules[mi].stmts[0]);
+    auto connect = [&](auto& self, std::uint32_t m) -> void {
+      idx[m] = low[m] = counter++;
+      stack.push_back(m);
+      edges(m, [&](std::uint32_t t) {
+        if (idx[t] == kNone) { self(self, t); low[m] = std::min(low[m], low[t]); }
+        else if (comp[t] == kNone) low[m] = std::min(low[m], idx[t]);
+      });
+      finish[m] = finished++;   // the depth-first load order: a module after the modules it imports
+      if (low[m] != idx[m]) return;
+      std::vector<std::uint32_t> c;
+      std::uint32_t t;
+      do { t = stack.back(); stack.pop_back(); comp[t] = static_cast<std::uint32_t>(sccs.size()); c.push_back(t); } while (t != m);
+      std::sort(c.begin(), c.end(), [&](std::uint32_t x, std::uint32_t y) { return finish[x] < finish[y]; });
+      sccs.push_back(std::move(c));
+    };
+    for (std::uint32_t m = 0; m < mcount; ++m) if (idx[m] == kNone) connect(connect, m);
+    struct ModState { std::shared_ptr<Scope> scope; Hoisted h; std::set<std::string> tdz; std::vector<char> bound; char state = 0; };
+    std::vector<ModState> st(mcount);
+    const auto base = scopes;
+    auto enter = [&](std::uint32_t mi) { scopes = base; scopes.push_back(st[mi].scope); };
+    // binds a module's imports: those of other components (outer), those its component already exports (quiet: a missing name waits), or all the rest
+    enum class Bind { outer, quiet, rest };
+    auto bindImports = [&](std::uint32_t mi, Bind mode) {
       const ModuleInfo& mod = a.modules[mi];
-      push();
-      for (const ModuleImport& im : mod.imports) {
+      for (std::size_t ii = 0; ii < mod.imports.size(); ++ii) {
+        const ModuleImport& im = mod.imports[ii];
+        if (st[mi].bound[ii] || (mode == Bind::outer) != (comp[im.from] != comp[mi])) continue;
         auto it = exportsOf[im.from].find(im.name);
+        if (mode == Bind::quiet && it == exportsOf[im.from].end()) continue;
+        st[mi].bound[ii] = 1;
         if (it == exportsOf[im.from].end() && a.modules[im.from].typesOnly) {
           // a module only type-only imports reach has its types alone: a name of its code is no error for an import TypeScript elides (it is
           // read in types only, or not at all), and an `import type` of a class or function says how to get it
@@ -5197,18 +5243,21 @@ struct Checker {
         for (auto& [nm, sym] : exportsOf[im.from])
           if (nm.size() > dotted.size() && nm.compare(0, dotted.size(), dotted) == 0) (*scopes.back())[keep(std::string(im.local) + "." + std::string(nm.substr(dotted.size())))] = sym;
       }
-      topList = &mod.stmts;
-      stmtList(mod.stmts);
+    };
+    // the export table: partial after the hoisting (the names declared so far, quietly), whole after the module is checked
+    auto exportTable = [&](std::uint32_t mi, bool partial) {
+      const ModuleInfo& mod = a.modules[mi];
       auto& mine = exportsOf[mi];
+      mine.clear();
       auto add = [&](std::string_view nm, std::uint32_t sym, std::uint32_t node) {
-        if (!mine.emplace(nm, sym).second) diag(kZDuplicateDeclaration, node, "export '" + std::string(nm) + "'");
+        if (!mine.emplace(nm, sym).second && !partial) diag(kZDuplicateDeclaration, node, "export '" + std::string(nm) + "'");
       };
       for (const ModuleExport& e : mod.exports) {
         if (e.all) { for (auto& [nm, sym] : exportsOf[e.from]) mine.emplace(nm, sym); continue; }
         std::uint32_t sym = kNone;
         if (e.from == kNone) { auto f = scopes.back()->find(e.local); if (f != scopes.back()->end()) sym = f->second; }
         else { auto f = exportsOf[e.from].find(e.local); if (f != exportsOf[e.from].end()) sym = f->second; }
-        if (sym == kNone && mod.typesOnly) continue;   // a module read for its types exports its types only
+        if (sym == kNone && (mod.typesOnly || partial)) continue;   // a module read for its types exports its types only
         if (sym == kNone) { diag(kZCannotFindName, e.node, "'" + std::string(e.local) + "' " + (e.from == kNone ? "is not declared in this module" : "is not exported by '" + a.modules[e.from].path + "'")); continue; }
         add(e.name, sym, e.node);
         if (out.syms[sym].kind == SymKind::Class) {   // and its static generic methods (`Class.method`), so an importer can call them
@@ -5220,8 +5269,46 @@ struct Checker {
           if (e.from == kNone) statics(*scopes.back()); else statics(exportsOf[e.from]);
         }
       }
-      pop();
+    };
+    // checks a module whole, after the modules of its component whose values it imports (their names are not in the partial tables)
+    auto complete = [&](auto& self, std::uint32_t mi) -> void {
+      if (st[mi].state) return;
+      st[mi].state = 1;
+      const ModuleInfo& mod = a.modules[mi];
+      for (std::size_t ii = 0; ii < mod.imports.size(); ++ii) {
+        const ModuleImport& im = mod.imports[ii];
+        if (!st[mi].bound[ii] && comp[im.from] == comp[mi] && !exportsOf[im.from].count(im.name)) self(self, im.from);
+      }
+      enter(mi);
+      tdzNames = st[mi].tdz;
+      bindImports(mi, Bind::rest);
+      topList = &mod.stmts;
+      stmtRest(mod.stmts, st[mi].h);
+      exportTable(mi, false);
+    };
+    for (const auto& c : sccs) {
+      for (std::uint32_t mi : c) {
+        tdzNames.clear();   // the flags are module-local
+        if (!inPreludeFile(a.modules[mi])) tdzPrepass(a.modules[mi].stmts, a.modules[mi].stmts.empty() ? a.root : a.modules[mi].stmts[0]);
+        st[mi].tdz = tdzNames;
+        st[mi].scope = std::make_shared<Scope>();
+        st[mi].bound.assign(a.modules[mi].imports.size(), 0);
+        enter(mi);
+        bindImports(mi, Bind::outer);
+        topList = &a.modules[mi].stmts;
+        st[mi].h = hoist(a.modules[mi].stmts);
+        exportTable(mi, true);
+      }
+      for (std::uint32_t mi : c) { enter(mi); bindImports(mi, Bind::quiet); }
+      if (c.size() > 1) {   // the shapes of a cycle, before any body: a function of one module reads the fields of another's interface
+        auto* sd = defer;
+        for (std::uint32_t mi : c) { enter(mi); defer = &st[mi].h.deferred; linkShapes(st[mi].h); }
+        for (std::uint32_t mi : c) { enter(mi); defer = &st[mi].h.deferred; buildShapes(st[mi].h); }
+        defer = sd;
+      }
+      for (std::uint32_t mi : c) complete(complete, mi);
     }
+    scopes = base;
     pop();
   }
 };
