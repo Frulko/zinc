@@ -11,7 +11,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cdp import Chrome, find_chrome
 
 def parse(argv):
-    o = {"render": "canvas", "dev": False, "dpr": 2.0, "size": "1280x800", "headful": False, "expect_react": False, "click_text": "", "shot": "", "wait": 4.0, "allow": [], "no_grid": False, "shot0": "", "resize_shot": "", "keys_shot": "", "skip": "", "resize_to": ""}
+    # Chrome's own note when a page makes its AudioContext before the first gesture: zinc:audio does that on purpose (what the program plays waits
+    # for the first click or key, docs/targets/web.md), so it is not a problem of the page
+    o = {"render": "canvas", "dev": False, "dpr": 2.0, "size": "1280x800", "headful": False, "expect_react": False, "click_text": "", "shot": "", "wait": 4.0, "allow": [r"The AudioContext was not allowed to start"], "no_grid": False, "shot0": "", "resize_shot": "", "keys_shot": "", "skip": "", "resize_to": ""}
     a = list(argv); pos = []
     while a:
         k = a.pop(0)
