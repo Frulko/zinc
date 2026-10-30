@@ -36,8 +36,19 @@ async function narrowed(): Promise<void> {
   console.log('let reassigned', m === null ? 'null' : 'R');
 }
 
+async function doWhile(): Promise<void> {   // await in the body and in the test of a do...while; continue goes to the test
+  let i = 0, seen = '';
+  do {
+    i = (await maybe(i + 1) ?? { a: 0 }).a;
+    if (i === 2) continue;
+    seen += i;
+  } while ((await maybe(i)) !== null && i < 4);
+  console.log('do while', i, seen);
+}
+
 async function main(): Promise<void> {
   await narrowed();
+  await doWhile();
   const x = await maybe(2);
   console.log('maybe', x === null ? -1 : x.a);
   const y = await direct();

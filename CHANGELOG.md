@@ -258,6 +258,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Fixed
 - `zinc dev` with the inspector on port 0 (any free port): the program binds the port itself and zinc dev names it (`the inspector listens on port N`); the next versions keep it, and take another when it is taken, instead of a port chosen beforehand that another program could take first.
 - `zinc:ui`: a text that grows from a zero width in a row (`flex-1 w-0`) wraps at the width it gets instead of staying on one clipped line, with style runs too.
+- `await` inside a `do...while` loop (in its body or its condition) compiles instead of stopping with Z0005.
 - A class instance can be used where an interface of fields or an object type is expected (`const l: Labeled = new Tag()`, in arrays, as a parameter or a return value), as TypeScript allows: reads and writes go to the instance itself.
 - An interface of fields also accepts an interface value, a class whose getter supplies a field, a class without one of its optional fields (it reads `undefined`) and a field of a narrower type (a string literal, a member of a union, a subclass), as TypeScript does. Writing a field the class has only a getter for, or lacks, throws a TypeError.
 - `item.name = v` and `item.name += v` through an interface property work, as in TypeScript: they write the class's field or call its setter, and throw a TypeError when the class has only a getter. A `readonly` property is still refused.

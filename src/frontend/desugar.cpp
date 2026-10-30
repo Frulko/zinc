@@ -346,6 +346,13 @@ struct Desugar {
         R = r;
         return true;
       }
+      case N::DoWhile: {  // do body while (c)  =>  let f = true; while (true) { if (!f) { if (!(c)) break; } f = false; body }  (continue tests c)
+        std::string f = fresh("__dw");
+        Ids r = sn("let " + f + ": boolean = true; while (true) { if (!" + f + ") { if (!(__H0)) { break; } } " + f + " = false; __H1; }", {{n(s).kids[1]}, list(n(s).kids[0])});
+        if (r.empty()) return false;
+        R = r;
+        return true;
+      }
       case N::For: {
         if (susp(n(s).kids[2])) { unsupported(s, "'await' in the update of a 'for' loop"); return false; }
         Id cnd = n(s).kids[1];
