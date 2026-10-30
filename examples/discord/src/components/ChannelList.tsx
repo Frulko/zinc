@@ -1,20 +1,28 @@
-// The channels of the open server (categories as headers, voice and forum channels listed but not opened yet) or the DMs, and the user at
-// the bottom with the log-out button.
+// The channels of the open server (categories as headers, voice and forum channels listed but not opened yet) or the DMs, unread ones in
+// white with their count of mentions, and the user at the bottom with the log-out button.
 import { Icon } from 'zinc:icons';
 import { store, Channel } from '../state';
-import { CH_CATEGORY, CH_VOICE, CH_DM, CH_GROUP_DM, BG_SIDE, BG_SELECTED, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, CHANNELS_W } from '../constants';
+import { CH_CATEGORY, CH_VOICE, CH_DM, CH_GROUP_DM, BG_SIDE, BG_SELECTED, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, CHANNELS_W, MENTION_BG } from '../constants';
 
 function icon(c: Channel): string { return c.type === CH_VOICE ? 'volume-2' : c.type === CH_GROUP_DM ? 'users' : c.type === CH_DM ? 'at-sign' : 'hash'; }
 const MUTED = (): i32 => 0x949ba4;
 
+/** The red count of unread mentions. */
+export function Badge(p: { n: i32 }) {
+  return <View className={`min-w-[16] h-[16] px-1 rounded-full items-center justify-center ${MENTION_BG}`}>
+    <Text className="text-white text-[11px] font-bold">{p.n > 99 ? '99+' : `${p.n}`}</Text>
+  </View>;
+}
+
 function Row(p: { c: Channel }) {
   const c = p.c;
   if (c.type === CH_CATEGORY) return <Text className={`px-2 pt-4 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>{c.name}</Text>;
-  const on = c.id === store.channelId, open = c.readable();
+  const on = c.id === store.channelId, open = c.readable(), unread = open && !on && store.unread(c.id), mentions = store.mentions(c.id);
   return <View className={`mx-2 px-2 h-[32] flex-row items-center gap-1.5 rounded ${on ? BG_SELECTED : BG_HOVER}`} aria-label={c.name}
     onPress={() => { if (open) store.selectChannel(c.id); }}>
     <Icon name={icon(c)} size={18} color={MUTED} />
-    <Text className={`grow text-[15px] ${on ? TEXT_STRONG : open ? TEXT_MAIN : TEXT_MUTED}`} numberOfLines={1}>{c.name}</Text>
+    <Text className={`grow text-[15px] ${on || unread ? `${TEXT_STRONG} font-semibold` : open ? TEXT_MAIN : TEXT_MUTED}`} numberOfLines={1}>{c.name}</Text>
+    {mentions > 0 ? <Badge n={mentions} /> : null}
   </View>;
 }
 

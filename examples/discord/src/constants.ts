@@ -32,3 +32,10 @@ export const RAIL_W = 72, CHANNELS_W = 240;
 export const BG_RAIL = 'bg-[#1e1f22]', BG_SIDE = 'bg-[#2b2d31]', BG_MAIN = 'bg-[#313338]', BG_INPUT = 'bg-[#383a40]';
 export const BG_SELECTED = 'bg-[#404249]', BG_HOVER = 'hover:bg-[#35373c]', BG_ACCENT = 'bg-[#5865f2]';
 export const TEXT_MAIN = 'text-[#dbdee1]', TEXT_MUTED = 'text-[#949ba4]', TEXT_STRONG = 'text-[#f2f3f5]', TEXT_ERROR = 'text-[#fa777c]';
+
+// Writing (docs/reports/discord-client-research.md 2.6 and 3)
+export const MESSAGE_MAX = 2000;
+export const TYPING_EVERY_MS = 8000, TYPING_SHOWN_MS = 10000;   // the web client sends typing every 8 s; an indicator lasts 10 s
+export const ACK_DELAY_MS = 300;
+export const DISCORD_EPOCH = 1420070400000;
+export const MENTION_BG = 'bg-[#f23f43]', TEXT_MENTION = 0xc9cdfb, TEXT_LINK = 0x00a8fc, TEXT_CODE = 0xdbdee1, SPOILER = 0x6d6f78;

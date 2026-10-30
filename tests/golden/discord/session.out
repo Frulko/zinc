@@ -1,15 +1,35 @@
 channels Lounge, Text, general, random
+deleted 907
 dms Grace, Grace, linus
+edited 906: Hello **edited** ~~world~~ ||secret|| <@101> (edited)
 gateway closed (4000), again in 1000 ms
 history 3
 history 302: 3 messages
 history 400: 1 messages
+markdown h1:Notes | text:*bold* /it/ _under_ ~gone~ `code` ▒••••••▒ <@Grace> in <#general> :zinc: {https://zinc.dev} {_site_} | quote:quoted | code(ts):let x = 1;
 message in 302 from Grace: Back after the drop
+message in 302 from Grace: Got it, *thanks*
 message in 302 from linus: Live from the gateway
+rate limit: 429 on PATCH /channels/302/messages/:id, retry after its bucket
+rate limit: PATCH /channels/302/messages/:id waits for its bucket
+rate limit: POST /channels/302/messages waits for its bucket
+read 302: up to 902, 0 mentions
+read 311: up to 925, 2 mentions
+read 311: up to 930, 0 mentions
+read 400: up to 950, 0 mentions
+read: general unread false, Makers mentions 0
 ready Ada: 2 servers, 2 DMs
 resumed
+revealed text:a b c
+sent 906: Hello **world** ||secret|| <@101>
+sent 907: Replying, after the bucket
+sent once: 1 new, pending false
 servers Zinc Lab, Makers
+shown: Grace is typing…
 stage connecting
 stage ready
 stage ready
 stage reconnecting
+typing after her answer: ''
+typing in 302: Grace
+typing in 302: Grace

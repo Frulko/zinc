@@ -1,9 +1,9 @@
 // The app's state and its actions: the user, the servers and their channels, the DMs, the open channel and its messages. The gateway's
 // dispatches and the REST answers land here; the screen reads these fields and re-renders when changed() calls it back. No drawing.
 import { Gateway, GatewayHandler } from './services/gateway';
-import { api, setToken, ApiError } from './services/rest';
+import { api, setToken, setRestLog, ApiError } from './services/rest';
 import { loadToken, saveToken, forgetToken } from './services/session';
-import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, MESSAGES_PAGE } from './constants';
+import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, MESSAGES_PAGE, MESSAGE_MAX, TYPING_EVERY_MS, TYPING_SHOWN_MS, ACK_DELAY_MS, DISCORD_EPOCH } from './constants';
 import { env } from 'zinc:sys';
 
 export class User { id = ''; name = ''; avatar = ''; }
@@ -16,7 +16,14 @@ export class Guild { id = ''; name = ''; icon = ''; channels: Channel[] = []; }
 export class Message {
   id = ''; channelId = ''; authorId = ''; author = ''; content = ''; timestamp = ''; edited = false;
   attachments: string[] = []; replyTo = '';
+  /** Sent from here: the nonce that finds the server's echo; pending until the answer or the echo comes, failed when it was refused. */
+  nonce = ''; pending = false; failed = false;
+  /** Who it mentions (user ids) and whether it mentions everyone. */
+  mentions: string[] = []; mentionsEveryone = false;
 }
+/** A channel's read state: the last message read and how many mentions came since. */
+export class ReadState { lastId = ''; mentions: i32 = 0; }
+class Typist { userId = ''; name = ''; until: number = 0; }
 export type Stage = 'login' | 'connecting' | 'ready' | 'reconnecting' | 'failed';
 
 const str = (v: any): string => typeof v === 'string' ? v : '';
@@ -31,12 +38,23 @@ export class Store implements GatewayHandler {
   channelId = '';
   messages: Map<string, Message[]> = new Map<string, Message[]>();
   loading = false;
+  /** The composer: its text, the message it answers or edits (null: a new message). */
+  draft = '';
+  replyTo: Message | null = null;
+  editing: Message | null = null;
+  /** Messages whose spoilers were clicked open. */
+  revealed: Set<string> = new Set<string>();
+  private reads: Map<string, ReadState> = new Map<string, ReadState>();
+  private typists: Map<string, Typist[]> = new Map<string, Typist[]>();
+  private typingTimer = -1;
+  private lastTypingAt: number = 0;
+  private ackTimer = -1;
   private users: Map<string, User> = new Map<string, User>();
   private gateway: Gateway;
   private listeners: (() => void)[] = [];
   private logging = env('DISCORD_LOG') === '1';
 
-  constructor() { this.gateway = new Gateway(this); }
+  constructor() { this.gateway = new Gateway(this); setRestLog((line: string): void => { this.log(line); }); }
   onChange(f: () => void): void { this.listeners.push(f); }
   changed(): void { for (const f of this.listeners) f(); }
   log(line: string): void { if (this.logging) console.log(line); }
@@ -59,7 +77,7 @@ export class Store implements GatewayHandler {
   async logout(): Promise<void> {
     this.gateway.stop();
     try { await forgetToken(); } catch (e) {}
-    this.guilds = []; this.dms = []; this.messages.clear(); this.users.clear(); this.guildId = ''; this.channelId = '';
+    this.guilds = []; this.dms = []; this.messages.clear(); this.users.clear(); this.reads.clear(); this.typists.clear(); this.guildId = ''; this.channelId = '';
     this.stage = 'login'; this.changed();
   }
   /** Drops the gateway connection (tests): it must resume. */
@@ -85,6 +103,8 @@ export class Store implements GatewayHandler {
     else if (t === 'MESSAGE_CREATE') this.messageCreated(d);
     else if (t === 'MESSAGE_UPDATE') this.messageUpdated(d);
     else if (t === 'MESSAGE_DELETE') this.messageDeleted(str(d.channel_id), str(d.id));
+    else if (t === 'TYPING_START') this.typingStarted(d);
+    else if (t === 'MESSAGE_ACK') this.acked(str(d.channel_id), str(d.message_id), d.mention_count ?? 0);
     else return;
     this.changed();
   }
@@ -109,6 +129,16 @@ export class Store implements GatewayHandler {
     this.dms = [];
     if (Array.isArray(d.private_channels)) for (const c of d.private_channels) this.dms.push(this.channel(c, ''));
     this.sortDms();
+    this.reads.clear();
+    // VERSIONED_READ_STATES gives {entries}, older clients a list; NON_CHANNEL_READ_STATES adds entries of other types
+    const rs: any = d.read_state;
+    const entries: any = rs !== undefined && rs !== null && Array.isArray(rs.entries) ? rs.entries : rs;
+    if (Array.isArray(entries)) for (const e of entries) if ((e.read_state_type ?? 0) === 0) {
+      const r = new ReadState();
+      r.lastId = str(e.last_message_id); r.mentions = e.mention_count ?? 0;
+      this.reads.set(str(e.id), r);
+      this.log(`read ${str(e.id)}: up to ${r.lastId}, ${r.mentions} mentions`);
+    }
     this.log(`ready ${this.me.name}: ${this.guilds.length} servers, ${this.dms.length} DMs`);
     if (this.channelId === '') this.selectGuild(this.guilds.length > 0 ? this.guilds[0].id : '');
   }
@@ -151,6 +181,7 @@ export class Store implements GatewayHandler {
     if (this.guildId === id) this.selectGuild('');
   }
   private sortDms(): void { this.dms.sort((a: Channel, b: Channel) => compareIds(b.lastMessageId, a.lastMessageId)); }
+  userName(id: string): string { const u = this.users.get(id); return u !== undefined ? u.name : 'unknown-user'; }
   findGuild(id: string): Guild | null { for (const g of this.guilds) if (g.id === id) return g; return null; }
   findChannel(id: string): Channel | null {
     for (const c of this.dms) if (c.id === id) return c;
@@ -170,15 +201,27 @@ export class Store implements GatewayHandler {
     if (Array.isArray(m.attachments)) for (const f of m.attachments) out.attachments.push(str(f.filename));
     const r: any = m.referenced_message;
     if (r !== undefined && r !== null) out.replyTo = `${this.user(r.author).name}: ${str(r.content).slice(0, 80)}`;
+    out.nonce = typeof m.nonce === 'string' ? m.nonce : '';
+    if (Array.isArray(m.mentions)) for (const u of m.mentions) out.mentions.push(this.user(u).id);
+    out.mentionsEveryone = m.mention_everyone === true;
     return out;
   }
   private messageCreated(d: any): void {
     const m = this.message(d);
     const c = this.findChannel(m.channelId);
     if (c !== null) { c.lastMessageId = m.id; if (c.guildId === '') this.sortDms(); }
+    this.stopTyping(m.channelId, m.authorId);
+    // read state: what I write is read; another's message is read at once in the open channel, else counts when it is a DM or names me
+    const rs = this.read(m.channelId);
+    if (m.authorId === this.me.id) { rs.lastId = m.id; rs.mentions = 0; }
+    else if (m.channelId === this.channelId) this.ackSoon(m.channelId);
+    else if ((c !== null && c.guildId === '') || m.mentionsEveryone || m.mentions.indexOf(this.me.id) >= 0) rs.mentions++;
     const list = this.messages.get(m.channelId);
     if (list === undefined) return;            // never opened: its history is fetched when it is
-    for (const x of list) if (x.id === m.id) return;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].id === m.id) return;
+      if (m.nonce !== '' && list[i].pending && list[i].nonce === m.nonce) { list[i] = m; this.log(`sent ${m.id}: ${m.content}`); return; }   // the echo of what I sent
+    }
     list.push(m);
     this.log(`message in ${m.channelId} from ${m.author}: ${m.content}`);
   }
@@ -188,12 +231,14 @@ export class Store implements GatewayHandler {
     for (let i = 0; i < list.length; i++) if (list[i].id === str(d.id)) {
       if (d.author !== undefined) list[i] = this.message(d);      // a partial update (an embed resolved) keeps the message
       else if (typeof d.content === 'string') list[i].content = d.content;
+      this.log(`edited ${list[i].id}: ${list[i].content}${list[i].edited ? ' (edited)' : ''}`);
       return;
     }
   }
   private messageDeleted(channelId: string, id: string): void {
     const list = this.messages.get(channelId);
     if (list !== undefined) this.messages.set(channelId, list.filter((m: Message) => m.id !== id));
+    this.log(`deleted ${id}`);
   }
 
   // ------------------------------------------------------------------ navigation
@@ -204,9 +249,11 @@ export class Store implements GatewayHandler {
     this.selectChannel(first);
   }
   selectChannel(id: string): void {
+    if (id !== this.channelId) { this.draft = ''; this.replyTo = null; this.editing = null; this.lastTypingAt = 0; }
     this.channelId = id;
     this.changed();
     if (id !== '' && !this.messages.has(id)) this.loadHistory(id);
+    else if (id !== '') this.ack(id);
   }
   private async loadHistory(id: string): Promise<void> {
     this.loading = true; this.changed();
@@ -218,12 +265,165 @@ export class Store implements GatewayHandler {
       if (live !== undefined) for (const m of live) if (list.every((x: Message) => x.id !== m.id)) list.push(m);
       this.messages.set(id, list);
       this.log(`history ${id}: ${list.length} messages`);
+      if (this.channelId === id) this.ack(id);
     } catch (e) {
       this.error = e instanceof ApiError && e.status === 403 ? 'You cannot read this channel.' : `Could not load the messages: ${e.message}`;
       this.log(`history ${id} failed: ${e.message}`);
     }
     this.loading = false; this.changed();
   }
+
+  // ------------------------------------------------------------------ writing
+  /** The composer's text changed: Discord shows "typing" for 10 s, so it is sent again every 8 s while the person types. */
+  typed(text: string): void {
+    this.draft = text;
+    if (text === '' || this.editing !== null || this.channelId === '') return;
+    const now = Date.now();
+    if (now - this.lastTypingAt < TYPING_EVERY_MS) return;
+    this.lastTypingAt = now;
+    api('POST', `/channels/${this.channelId}/typing`).catch((e) => { this.log(`typing failed: ${e.message}`); });
+  }
+  reply(m: Message): void { this.editing = null; this.replyTo = m; this.changed(); }
+  /** Edits m in the composer (Up in an empty composer edits my last message). */
+  edit(m: Message): void { this.replyTo = null; this.editing = m; this.draft = m.content; this.changed(); }
+  cancel(): void { if (this.editing !== null) this.draft = ''; this.replyTo = null; this.editing = null; this.changed(); }
+  lastOwn(): Message | null {
+    const list = this.messages.get(this.channelId);
+    if (list !== undefined) for (let i = list.length - 1; i >= 0; i--) if (list[i].authorId === this.me.id && !list[i].pending) return list[i];
+    return null;
+  }
+  /** Sends the composer: a new message (with a nonce, shown at once and replaced by the server's echo), a reply, or an edit. */
+  async send(): Promise<void> {
+    const text = this.draft.trim(), ch = this.channelId;
+    if (text === '' || ch === '') return;
+    if (text.length > MESSAGE_MAX) { this.error = `A message holds ${MESSAGE_MAX} characters at most.`; this.changed(); return; }
+    const editing = this.editing, replyTo = this.replyTo;
+    this.draft = ''; this.editing = null; this.replyTo = null; this.lastTypingAt = 0; this.error = '';
+    if (editing !== null) {
+      this.changed();
+      if (text === editing.content) return;
+      try { await api('PATCH', `/channels/${ch}/messages/${editing.id}`, { content: text }); }
+      catch (e) { this.error = `Could not edit the message: ${e.message}`; this.changed(); }
+      return;
+    }
+    const m = new Message();
+    m.nonce = snowflakeNow(); m.pending = true; m.channelId = ch; m.authorId = this.me.id; m.author = this.me.name; m.content = text;
+    m.timestamp = new Date().toISOString();
+    const body: any = { content: text, nonce: m.nonce, tts: false, flags: 0 };
+    if (replyTo !== null) {
+      m.replyTo = `${replyTo.author}: ${replyTo.content.slice(0, 80)}`;
+      body.message_reference = { message_id: replyTo.id, channel_id: ch };
+    }
+    const list = this.messages.get(ch);
+    if (list !== undefined) list.push(m);
+    this.changed();
+    try {
+      const d: any = await api('POST', `/channels/${ch}/messages`, body);
+      if (d !== null && m.pending) { this.messageCreated(d); this.changed(); }
+    } catch (e) {
+      m.pending = false; m.failed = true;
+      this.error = `Could not send the message: ${e.message}`;
+      this.changed();
+    }
+  }
+  async remove(m: Message): Promise<void> {
+    if (m.pending) return;
+    if (m.failed) { this.messageDeleted(m.channelId, m.id); this.changed(); return; }
+    try { await api('DELETE', `/channels/${m.channelId}/messages/${m.id}`); }
+    catch (e) { this.error = `Could not delete the message: ${e.message}`; this.changed(); }
+  }
+  revealSpoilers(m: Message): void { this.revealed.add(m.id); this.changed(); }
+
+  // ------------------------------------------------------------------ typing
+  private typingStarted(d: any): void {
+    const ch = str(d.channel_id), id = str(d.user_id);
+    if (id === this.me.id) return;
+    let name = '';
+    const member: any = d.member;
+    if (member !== undefined && member !== null && member.user !== undefined) name = this.user(member.user).name;
+    else { const u = this.users.get(id); name = u !== undefined ? u.name : 'Someone'; }
+    const known = this.typists.get(ch);
+    const list = known !== undefined ? known.filter((t: Typist) => t.userId !== id) : [];
+    const t = new Typist();
+    t.userId = id; t.name = name; t.until = Date.now() + TYPING_SHOWN_MS;
+    list.push(t);
+    this.typists.set(ch, list);
+    this.log(`typing in ${ch}: ${name}`);
+    this.expireTyping();
+  }
+  private stopTyping(ch: string, userId: string): void {
+    const list = this.typists.get(ch);
+    if (list !== undefined) this.typists.set(ch, list.filter((t: Typist) => t.userId !== userId));
+  }
+  /** Drops the indicators that ran out, and comes back when the next one does (no timer while nobody types). */
+  private expireTyping(): void {
+    if (this.typingTimer >= 0) { clearTimeout(this.typingTimer); this.typingTimer = -1; }
+    const now = Date.now();
+    let next: number = 0;
+    this.typists.forEach((list: Typist[], ch: string): void => {
+      const left = list.filter((t: Typist) => t.until > now);
+      this.typists.set(ch, left);
+      for (const t of left) if (next === 0 || t.until < next) next = t.until;
+    });
+    if (next > 0) this.typingTimer = setTimeout(() => { this.typingTimer = -1; this.expireTyping(); this.changed(); }, next - now);
+  }
+  /** "Grace is typing…" for the channel, '' when nobody is. */
+  typingText(ch: string): string {
+    const list = this.typists.get(ch);
+    if (list === undefined || list.length === 0) return '';
+    if (list.length === 1) return `${list[0].name} is typing…`;
+    if (list.length <= 3) return `${list.slice(0, list.length - 1).map((t: Typist) => t.name).join(', ')} and ${list[list.length - 1].name} are typing…`;
+    return 'Several people are typing…';
+  }
+
+  // ------------------------------------------------------------------ read state
+  private read(ch: string): ReadState {
+    const known = this.reads.get(ch);
+    if (known !== undefined) return known;
+    const r = new ReadState();
+    const c = this.findChannel(ch);
+    if (c !== null) r.lastId = c.lastMessageId;                // no read state yet: nothing to read
+    this.reads.set(ch, r);
+    return r;
+  }
+  /** The channel has messages after the last one read. */
+  unread(ch: string): boolean {
+    const c = this.findChannel(ch);
+    return c !== null && c.lastMessageId !== '' && compareIds(c.lastMessageId, this.read(ch).lastId) > 0;
+  }
+  mentions(ch: string): i32 { return this.read(ch).mentions; }
+  guildMentions(g: Guild): i32 { let n = 0; for (const c of g.channels) n += this.mentions(c.id); return n; }
+  guildUnread(g: Guild): boolean { return g.channels.some((c: Channel) => c.readable() && this.unread(c.id)); }
+  dmMentions(): i32 { let n = 0; for (const c of this.dms) n += this.mentions(c.id); return n; }
+  /** MESSAGE_ACK: read here or on another device. */
+  private acked(ch: string, messageId: string, mentionCount: i32): void {
+    const r = this.read(ch);
+    if (messageId !== '' && compareIds(messageId, r.lastId) >= 0) r.lastId = messageId;
+    r.mentions = mentionCount;
+    this.log(`read ${ch}: up to ${r.lastId}, ${r.mentions} mentions`);
+  }
+  /** Marks the channel read up to its last message when it is not, as the web client does when it shows it. */
+  private ack(ch: string): void {
+    const c = this.findChannel(ch);
+    if (c === null || !this.unread(ch)) return;          // read already: no request
+    const r = this.read(ch);
+    r.lastId = c.lastMessageId; r.mentions = 0;
+    const lastViewed = Math.floor((Date.now() - DISCORD_EPOCH) / 86400000);
+    api('POST', `/channels/${ch}/messages/${c.lastMessageId}/ack`, { token: null, last_viewed: lastViewed })
+      .catch((e) => { this.log(`ack failed: ${e.message}`); });
+  }
+  /** Messages that arrive in the open channel are read: one ack for a burst. */
+  private ackSoon(ch: string): void {
+    if (this.ackTimer >= 0) return;
+    this.ackTimer = setTimeout(() => { this.ackTimer = -1; this.ack(ch); }, ACK_DELAY_MS);
+  }
+}
+
+/** A snowflake for now, as the web client's nonces: (ms since 2015) << 22, in decimal without BigInt (the low half carries). */
+function snowflakeNow(): string {
+  const ms = Math.max(0, Date.now() - DISCORD_EPOCH), hi = Math.floor(ms / 10000000), lo = ms % 10000000;
+  const low = lo * 4194304, carry = Math.floor(low / 10000000), rest = `${low % 10000000}`;
+  return `${hi * 4194304 + carry}${'0'.repeat(7 - rest.length)}${rest}`;
 }
 
 /** Snowflakes compared as numbers: a longer id is a later one. */

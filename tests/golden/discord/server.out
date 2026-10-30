@@ -1,6 +1,17 @@
 gateway /?encoding=json&v=9 agent=true
-identify token=true capabilities=1246 browser=Chrome
-rest GET /api/v9/channels/302/messages?limit=50 auth=true super=true
 gateway /?encoding=json&v=9 agent=true
-resume session=sess-1 seq=2
+identify token=true capabilities=1246 browser=Chrome
+rest DELETE /api/v9/channels/302/messages/907 auth=true super=true
+rest GET /api/v9/channels/302/messages?limit=50 auth=true super=true
 rest GET /api/v9/channels/400/messages?limit=50 auth=true super=true
+rest PATCH /api/v9/channels/302/messages/906 auth=true super=true -> 429
+rest PATCH /api/v9/channels/302/messages/906 auth=true super=true content="Hello **edited** ~~world~~ ||secret|| <@101>" waited=true
+rest POST /api/v9/channels/302/messages auth=true super=true content="Hello **world** ||secret|| <@101>" nonce=true reply= waited=first
+rest POST /api/v9/channels/302/messages auth=true super=true content="Replying, after the bucket" nonce=true reply=903 waited=true
+rest POST /api/v9/channels/302/messages/903/ack auth=true super=true last_viewed=true token=true
+rest POST /api/v9/channels/302/messages/904/ack auth=true super=true last_viewed=true token=true
+rest POST /api/v9/channels/302/messages/905/ack auth=true super=true last_viewed=true token=true
+rest POST /api/v9/channels/302/messages/908/ack auth=true super=true last_viewed=true token=true
+rest POST /api/v9/channels/302/typing auth=true super=true
+rest POST /api/v9/channels/302/typing auth=true super=true
+resume session=sess-1 seq=3
