@@ -138,6 +138,29 @@ class UpdatesTest(unittest.TestCase):
         self.assertTrue(any('ZINC_FRAMES=2' in args for args in calls))
         self.assertFalse((generation / 'source').exists())
 
+    def test_prepare_installs_the_packed_player_without_building(self):
+        generation = self.root / 'versions/packed'
+        generation.mkdir(parents=True)
+        worker = LocalUpdater(self.root, self.root / 'state')
+        def extract(archive, destination, strip_root=False):
+            destination.mkdir(parents=True)
+            (destination / 'share/zinc/image').mkdir(parents=True)
+            (destination / 'share/zinc/VERSION').write_text('0.7.2')
+            (destination / 'share/zinc/image/player.zapp').write_bytes(b'packed where the release was built')
+        calls = []
+        def run(args, **kwargs):
+            calls.append(args)
+            if args[-1] == '--version':
+                return 'zinc-next 0.7.2'
+            if 'ZINC_FRAMES=2' in args:
+                Path(next(arg.split('=', 1)[1] for arg in args if arg.startswith('ZINC_SHOT='))).write_bytes(b'frame')
+            return ''
+        with patch.object(worker, 'download', return_value=self.root / 'signed-engine.tar.gz'), patch.object(update, 'extract', extract), patch.object(worker, 'run', run):
+            worker.prepare('0.7.2', generation)
+        self.assertEqual((generation / 'player.zapp').read_bytes(), b'packed where the release was built')
+        self.assertFalse(any('pack' in args for args in calls))   # nothing is compiled on the device
+        self.assertTrue(any('ZINC_FRAMES=2' in args for args in calls))
+
     def test_userspace_architecture_and_catalog(self):
         self.assertEqual(update.architecture('armhf'), 'armhf')
         self.assertEqual(update.architecture('arm64'), 'aarch64')

@@ -200,27 +200,32 @@ class Updater:
         stamp = generation / 'engine/share/zinc/VERSION'
         if self.run([str(engine), '--version']) != 'zinc-next ' + requested or not stamp.is_file() or stamp.read_text().strip() != requested:
             raise ValueError('This engine does not start or reports another version.')
-        extract(self.player_source(generation), generation / 'source')
-        self.report('preparing', 'Building the player for Zinc ' + requested + '…')
+        packed = generation / 'engine/share/zinc/image/player.zapp'
         with tempfile.TemporaryDirectory(prefix='zinc-player-') as temp:
             work = Path(temp)
             self.run(['chown', 'zinc:zinc', str(work)])
             user_env = ['runuser', '-u', 'zinc', '--', 'env', '-i', 'PATH=' + ENV['PATH'], 'HOME=/var/lib/zinc',
                         'ZINC_HOME=/var/lib/zinc/.zinc', 'ZINC_NO_UPDATE_CHECK=1', 'ZINC_HEADLESS=1', 'ZINC_DISPLAY=fbdev',
                         'ZINC_PLAYER_UPDATE_CHECK=0', 'ZINC_ADMIN=/usr/bin/false']
-            self.run(user_env + [str(engine), 'pack', str(generation / 'source'), '-o', str(work / 'player.zapp')])
-            # zinc owns the output directory: never let root follow a link it could replace.
-            fd = os.open(work / 'player.zapp', os.O_RDONLY | os.O_NOFOLLOW)
-            with os.fdopen(fd, 'rb') as source, (generation / 'player.zapp').open('xb') as out:
-                if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
-                    raise ValueError('The player build produced no ordinary bundle.')
-                shutil.copyfileobj(source, out)
+            if packed.is_file() and not packed.is_symlink():
+                # packed where the release was built, inside the signed archive: nothing is compiled here
+                shutil.copyfile(packed, generation / 'player.zapp')
+            else:   # a release older than its packed player: build it from its sources, as before
+                extract(self.player_source(generation), generation / 'source')
+                self.report('preparing', 'Building the player for Zinc ' + requested + '…')
+                self.run(user_env + [str(engine), 'pack', str(generation / 'source'), '-o', str(work / 'player.zapp')])
+                # zinc owns the output directory: never let root follow a link it could replace.
+                fd = os.open(work / 'player.zapp', os.O_RDONLY | os.O_NOFOLLOW)
+                with os.fdopen(fd, 'rb') as source, (generation / 'player.zapp').open('xb') as out:
+                    if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                        raise ValueError('The player build produced no ordinary bundle.')
+                    shutil.copyfileobj(source, out)
             # ZINC_DISPLAY explicitly loads fbdev even headless: probe a file, never the active player's real screen/input.
             self.run(user_env + ['ZINC_FRAMES=2', 'ZINC_FBDEV_SIM=' + str(work / 'framebuffer'), 'ZINC_FBDEV_SIM_FORMAT=800x480x32',
                                  'ZINC_SHOT=' + str(work / 'frame.png'), str(engine), 'run', str(generation / 'player.zapp')])
             if not (work / 'frame.png').is_file():
-                raise ValueError('The rebuilt player did not draw its test frame.')
-        shutil.rmtree(generation / 'source')
+                raise ValueError('The player did not draw its test frame.')
+        shutil.rmtree(generation / 'source', ignore_errors=True)
 
     def player_source(self, generation):
         source = generation / 'engine/share/zinc/image/player-source.tar.gz'

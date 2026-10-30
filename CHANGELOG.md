@@ -320,6 +320,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `zinc pack --target rpi` (and `zinc device deploy` to a Pi) carries the libraries of plugins the program loads at their first call, such as `zinc:video`, so the app no longer tries to compile them on the device.
+- Updating a Raspberry Pi image no longer compiles the player on the Pi: a release carries it ready to run (the update that failed on a Pi 3 with "cannot read the library of plugin"). The player of a release now includes `zinc:shell`.
 - Apps give the memory of what they no longer use back to the system while they run: the Discord client demo after login with 100 servers takes 93 MB in Activity Monitor instead of 204 MB, and a program that parsed a large JSON document drops back to its size before it.
 - A plugin linked into a project's `plugins/` (a symbolic link to a plugin elsewhere) builds its native code where it lives, so its includes of neighbouring files are found.
 - A class field initialised from a constant imported from another module (`key = PTT_KEY`) gets its type, instead of error Z0109 asking for an annotation.

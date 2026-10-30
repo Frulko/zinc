@@ -84,7 +84,8 @@ def payload(share):
         shutil.copy2(os.path.join(REPO, "image", "files", source), destination)
     with tempfile.TemporaryDirectory() as source:
         copy_tree(os.path.join(REPO, "image", "player"), source, lambda r: not r.startswith(('dist/', 'build/', 'dev/')))
-        copy_tree(os.path.join(REPO, "plugins", "network"), os.path.join(source, "plugins", "network"))
+        for plugin in ("network", "shell"):   # the player's plugins/ are links into the repository's
+            copy_tree(os.path.join(REPO, "plugins", plugin), os.path.join(source, "plugins", plugin))
         with tarfile.open(os.path.join(share, "image", "player-source.tar.gz"), "w:gz") as bundle:
             for name in sorted(os.listdir(source)):
                 bundle.add(os.path.join(source, name), arcname=name)
@@ -292,6 +293,15 @@ def package_macos(build, out):
     run("ditto", "-c", "-k", "--keepParent", app, zipped)  # ditto keeps the bundle's metadata and symlinks
     return [("macos-cli", cli), ("macos-app", zipped)], without
 
+def pack_player(zinc, image, cross):
+    """The Pi player packed here, its plugins built for the device (OTA research 2026-10-27: never build on the device): the updater installs
+    image/player.zapp as it is, and packs player-source.tar.gz only for an older release without it."""
+    with tempfile.TemporaryDirectory() as source:
+        with tarfile.open(os.path.join(image, "player-source.tar.gz")) as bundle:
+            bundle.extractall(source, filter="data")
+        target = ["--target", cross + "-linux"] if cross else []
+        run(zinc, "pack", source, *target, "-o", os.path.join(image, "player.zapp"))
+
 def package_linux(build, out, arch=None):
     """arch: a cross build from another machine (tools/build-linux): nothing of it runs here, so no ldd; this machine's zinc cross-builds the plugins."""
     cross = arch is not None
@@ -319,6 +329,7 @@ def package_linux(build, out, arch=None):
     host = os.environ.get("ZINC") or os.path.join(NEXT, "build", "zinc")
     if cross and not os.path.exists(host): sys.exit("tools/package --linux-arch: no zinc for this machine at %s to cross-build the plugins (build it, or set ZINC)" % host)
     without = prebuild_plugins(host if cross else os.path.join(build, "zinc"), os.path.join(root, "share", "zinc"), "linux", arch if cross else None)
+    pack_player(host if cross else os.path.join(build, "zinc"), os.path.join(root, "share", "zinc", "image"), arch if cross else None)
     archive = os.path.join(out, name + ".tar.gz")
     with tarfile.open(archive, "w:gz", compresslevel=9) as t:
         t.add(root, arcname=name)
