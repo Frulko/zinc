@@ -6,12 +6,17 @@
 // gained or lost children (setTreeWatch), and their changes go out as DOM mutations ten times a second (stageEvents), never a diff of the whole tree;
 // renames and hides are found by looking at a slice of the sent nodes each time (stageAttributeEvents). The pick mode and DOM.getNodeForLocation
 // hit-test the scene through each node's turned box (stageHit).
+// What a node shows is read the same way, so any scene library's classes show it without code of their own: its text (the first string field
+// of TEXT_FIELDS: a TextField, a Label, a Button's caption) as the element's text child, as Chrome shows a <p>'s text, edited in place in dev runs;
+// its image as the attribute src (a string field `src`, else the string `name` of its `texture`, as Starling's and PixiJS's textures carry).
 import { stages, Stage, DisplayObject, uiState, setAfterRender, setTreeWatch } from 'zinc:stage';
 import { polygon, line, resetTransform, pointerX, pointerY, pointerDown, buttonEventCount, buttonEventDown } from 'zinc:gfx';
 import { drawingNode, repaint, setAfterPaint } from 'zinc:ui';
 
-/** Node ids of the display tree, apart from the zinc:ui handles and text ids of index.ts. */
+/** Node ids of the display tree, apart from the zinc:ui handles and text ids of index.ts; a node's text child is its id + STAGE_TEXT. */
 export const STAGE_BASE: i32 = 100000000;
+const STAGE_TEXT: i32 = 200000000;
+const TEXT_FIELDS: string[] = ['text', 'label', 'htmlText', 'caption'];
 const PROPS: string[] = ['x', 'y', 'width', 'height', 'scaleX', 'scaleY', 'rotation', 'pivotX', 'pivotY', 'alpha', 'visible'];
 let ids = new Map<DisplayObject, i32>();
 let prev = new Map<DisplayObject, i32>();   // the ids before the last DOM.getDocument: a node still in the tree keeps its id (the selection stays)
@@ -24,6 +29,8 @@ const canvasOf = new Map<Stage, i32>();         // a stage drawn in a zinc:ui Ca
 // The name and visible of the nodes sent, as sent: stageAttributeEvents looks at a slice of them each time, in turn, so a program's renames
 // and hides reach the inspector without hooks on the fields and without walking a big tree at once.
 const names = new Map<DisplayObject, string>();
+const texts = new Map<DisplayObject, string>();   // the text and src of the nodes sent that have them, as sent
+const srcs = new Map<DisplayObject, string>();
 const hidden = new Set<DisplayObject>();
 const watch: DisplayObject[] = [];
 const watched = new Set<DisplayObject>();   // the nodes in `watch`
@@ -52,7 +59,7 @@ export function stageId(o: DisplayObject): i32 { return idOf(o); }
 /** A new DOM.getDocument: what was sent is forgotten, the ids of the nodes sent again are kept. */
 export function stageReset(): void {
   prev = ids; ids = new Map<DisplayObject, i32>(); nodes = new Map<i32, DisplayObject>(); sent.clear(); dirty.clear();
-  names.clear(); hidden.clear(); watched.clear(); watch.length = 0; cursor = 0;
+  names.clear(); texts.clear(); srcs.clear(); hidden.clear(); watched.clear(); watch.length = 0; cursor = 0;
 }
 
 /** A property as text: numbers rounded to 3 decimals, '' when the node has no such property. */
@@ -63,9 +70,38 @@ function prop(o: DisplayObject, name: string): string {
   const s = `${v}`, n = Number(s);
   return s === 'true' || s === 'false' || isNaN(n) ? s : `${Math.round(n * 1000) / 1000}`;
 }
+/** The field of TEXT_FIELDS the node holds its text in, '' when it has none. */
+function textField(o: DisplayObject): string {
+  const d: any = o;
+  for (const f of TEXT_FIELDS) { const v: any = d[f]; if (typeof v === 'string') return f; }
+  return '';
+}
+function textOf(o: DisplayObject, f: string): string { const d: any = o; const v: string = d[f]; return v; }
+/** The name of the node's image ('' when it shows none): its `src`, else its texture's `name`. */
+function srcOf(o: DisplayObject): string {
+  const d: any = o;
+  const s: any = d['src'];
+  if (typeof s === 'string') return s;
+  const t: any = d['texture'];
+  if (t === undefined || t === null) return '';
+  const n: any = t['name'];
+  return typeof n === 'string' ? n : '';
+}
+/** The node of a DevTools text id (a node's text child), or null. */
+export function stageTextNode(id: i32): DisplayObject | null {
+  if (id < STAGE_BASE + STAGE_TEXT) return null;
+  const o = nodes.get(id - STAGE_TEXT);
+  return o !== undefined && textField(o).length > 0 ? o : null;
+}
+function textJson(o: DisplayObject, f: string): string {
+  const id = idOf(o) + STAGE_TEXT;
+  return `{"nodeId":${id},"backendNodeId":${id},"nodeType":3,"nodeName":"#text","localName":"","nodeValue":${q(textOf(o, f))}}`;
+}
 function num(o: DisplayObject, name: string, none: number): number { const v = prop(o, name); return v.length > 0 ? Number(v) : none; }
 function attrs(o: DisplayObject): string[] {
   const a: string[] = ['stage', '', 'name', o.name];
+  const src = srcOf(o);
+  if (src.length > 0) { a.push('src'); a.push(src); }
   for (const p of PROPS) { const v = prop(o, p); if (v.length > 0) { a.push(p); a.push(v); } }
   a.push('children'); a.push(`${o.children.length}`);
   return a;
@@ -75,10 +111,14 @@ export function stageAttributes(o: DisplayObject): string { return `{"attributes
 /** The element of a node and its subtree, as DOM.getDocument and DOM.childNodeInserted send it; what is sent is remembered. */
 export function stageElement(o: DisplayObject): string {
   const kids: string[] = [];
+  const f = textField(o);
+  if (f.length > 0) { kids.push(textJson(o, f)); texts.set(o, textOf(o, f)); }
   for (const c of o.children) kids.push(stageElement(c));
   const id = idOf(o), cls = o.constructor.name;
   sent.set(id, o.children.slice(0));
   names.set(o, o.name);
+  const src = srcOf(o);
+  if (src.length > 0) srcs.set(o, src);
   if (o.visible) hidden.delete(o); else hidden.add(o);
   if (!watched.has(o)) { watched.add(o); watch.push(o); }
   return `{"nodeId":${id},"backendNodeId":${id},"nodeType":1,"nodeName":${q(cls)},"localName":${q(cls)},"nodeValue":"",` +
@@ -97,10 +137,11 @@ function forget(o: DisplayObject): void {
   if (id === undefined) return;
   const kids = sent.get(id);
   if (kids !== undefined) for (const k of kids) forget(k);
-  sent.delete(id); ids.delete(o); prev.delete(o); nodes.delete(id); names.delete(o);
+  sent.delete(id); ids.delete(o); prev.delete(o); nodes.delete(id); names.delete(o); texts.delete(o); srcs.delete(o);
 }
 
-/** DOM.attributeModified for the sent nodes whose name or visible changed, looking at `max` of them (the next ones at the next call). */
+/** DOM.attributeModified for the sent nodes whose name, visible or src changed, DOM.characterDataModified for those whose text changed,
+ *  looking at `max` of them (the next ones at the next call). */
 export function stageAttributeEvents(max: i32): string[] {
   const out: string[] = [];
   for (let n = 0; n < max && watch.length > 0; n++) {
@@ -121,6 +162,16 @@ export function stageAttributeEvents(max: i32): string[] {
     if (hidden.has(o) === o.visible) {
       if (o.visible) hidden.delete(o); else hidden.add(o);
       out.push(`{"method":"DOM.attributeModified","params":{"nodeId":${idOf(o)},"name":"visible","value":"${o.visible ? 'true' : 'false'}"}}`);
+    }
+    const t = texts.get(o);
+    if (t !== undefined) {
+      const now = textOf(o, textField(o));
+      if (now !== t) { texts.set(o, now); out.push(`{"method":"DOM.characterDataModified","params":{"nodeId":${idOf(o) + STAGE_TEXT},"characterData":${q(now)}}}`); }
+    }
+    const s = srcs.get(o);
+    if (s !== undefined) {
+      const now = srcOf(o);
+      if (now !== s) { srcs.set(o, now); out.push(`{"method":"DOM.attributeModified","params":{"nodeId":${idOf(o)},"name":"src","value":${q(now)}}}`); }
     }
   }
   return out;
@@ -151,7 +202,7 @@ export function stageEvents(): string[] {
   }
   for (let i = 0; i < ps.length; i++) {   // 2. insertions, after the previous sibling (0: first)
     const p = ps[i], id = idOf(p);
-    let before: i32 = 0;
+    let before: i32 = texts.has(p) ? id + STAGE_TEXT : 0;   // after the node's text
     for (const k of p.children) {
       if (!stays[i].includes(k)) out.push(`{"method":"DOM.childNodeInserted","params":{"parentNodeId":${id},"previousNodeId":${before},"node":${stageElement(k)}}}`);
       before = idOf(k);
@@ -300,4 +351,13 @@ export function stageSet(o: DisplayObject, name: string, value: string): string 
   uiState.dirty = true;
   repaint();
   return '';
+}
+
+/** DOM.setNodeValue on a node's text child: the node's text field set, the scene drawn again. */
+export function stageSetText(o: DisplayObject, value: string): void {
+  const d: any = o;
+  d[textField(o)] = value;
+  texts.set(o, value);
+  uiState.dirty = true;
+  repaint();
 }

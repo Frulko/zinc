@@ -30,6 +30,7 @@ export function loadImage(path: string): number {
   return id;
 }
 export class Texture {
+  name = '';   // its name in the atlas: the Zinc Inspector shows it as the src of the Image that draws it
   x = 0; y = 0; width = 0; height = 0;
   frameX = 0; frameY = 0; frameWidth = 0; frameHeight = 0;
   constructor(public image: number) {}
@@ -42,6 +43,7 @@ export class TextureAtlas {
     if (!entries) throw new Error('Fatty: missing atlas ' + xmlPath);
     for (const entry of entries) {
       const texture = new Texture(image);
+      texture.name = entry.name;
       texture.x = Number(entry.x); texture.y = Number(entry.y);
       texture.width = Number(entry.width); texture.height = Number(entry.height);
       texture.frameX = Number(entry.frameX || 0); texture.frameY = Number(entry.frameY || 0);

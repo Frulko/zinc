@@ -224,6 +224,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The web relay runs on a server (a NAS, a Pi, a VPS) as a Docker image with Chromium (`app/web-relay/docker`), so the tablet reads the web without the Mac; `--block-private` refuses pages of the local network, `--tls-cert`/`--tls-key` serve HTTPS, `--no-sandbox` runs Chromium in a container.
 - Typing on the reMarkable Paper Pro: the Type Folio and AppLoad's on-screen keyboard type into Zinc apps' text fields (letters, accents, arrows, Backspace, Return, shortcuts). `"display": { "keyboard": true }` in zinc.json makes `zinc-tile` ask AppLoad to show its keyboard for the app.
 - `<ZoomView>` of `zinc:ui/kit`: pinch, pan, double tap and Ctrl/Cmd + wheel zoom for a page, a picture or any content. While the fingers move it scales the last picture instead of drawing the content again, and tells your app the new view once, when they lift (`onView`).
+- Zinc Inspector on a `zinc:stage` scene: a node's text shows inside it as Chrome shows a paragraph's (`<TextField>Score: 12</TextField>`, a Button's caption: any string field `text`, `label`, `htmlText` or `caption`), follows the program and, in a dev run, is edited by double-click; an image shows its `src` (a `src` field, or its texture's `name`).
 
 ### Changed
 - iPod demo: on a large library, For you no longer freezes the window for a second when it opens: the iPods' new listens are matched a little at a time and only what is new since the last time, and the listen counts are read in one quick pass.

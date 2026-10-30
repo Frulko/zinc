@@ -15,7 +15,7 @@ import { type as osType, release as osRelease, arch as osArch, cpus as osCpus, t
 import { get as storeGet, set as storeSet, remove as storeRemove, keys as storeKeys } from 'zinc:storage';
 import { devDatabases, DevDatabase } from 'zinc:devhooks';
 import { DisplayObject } from 'zinc:stage';
-import { stageRoot, stageNode, stageDocument, stageUnrendered, stageHighlight, stageBoxModel, stageSet, stageIn, stageId, stageElement, stageReset, stageEvents, stageAttributes, stageCanvases, stageHit, stagePick, stageAttributeEvents, STAGE_BASE } from './stage';
+import { stageRoot, stageNode, stageDocument, stageUnrendered, stageHighlight, stageBoxModel, stageSet, stageIn, stageId, stageElement, stageReset, stageEvents, stageAttributes, stageCanvases, stageHit, stagePick, stageAttributeEvents, stageTextNode, stageSetText, STAGE_BASE } from './stage';
 
 /** A dev run (zinc dev): the only one where the styles can be edited live; an exported or plain run refuses, with this message. */
 const DEV = env('ZINC_DEV') === '1';
@@ -204,7 +204,7 @@ function handle(client: i32, msg: string): void {
     return;
   }
   const pure = inspectRoot() < 0 && stageRoot() !== null;   // a zinc:stage program: its display tree instead (stage.ts)
-  if (pure || stageNode(nodeId) !== null) {   // or a node of a stage drawn in a Canvas
+  if (pure || stageNode(nodeId) !== null || stageTextNode(nodeId) !== null) {   // or a node of a stage drawn in a Canvas, or its text
     const r = stageAnswer(method, nodeId, msg, pure);
     if (r.length > 0) { Cdp.send(client, `{"id":${id},${r}}`); return; }
   }
@@ -305,6 +305,13 @@ function stageAnswer(method: string, nodeId: i32, msg: string, pure: boolean): s
   if (method === 'DOM.getAttributes' && o !== null) return `"result":${stageAttributes(o as DisplayObject)}`;
   if (method === 'Overlay.hideHighlight' || method === 'DOM.hideHighlight') { light(0); return '"result":{}'; }
   if (method === 'DOM.getBoxModel' && o !== null) return `"result":${stageBoxModel(o as DisplayObject)}`;
+  const t = stageTextNode(nodeId);
+  if (method === 'DOM.setNodeValue' && t !== null) {   // a TextField's text edited in Elements: shown at once
+    const v = Cdp.str(msg, 'value');
+    stageSetText(t as DisplayObject, v);
+    Cdp.send(-1, `{"method":"DOM.characterDataModified","params":{"nodeId":${nodeId},"characterData":${q(v)}}}`);
+    return '"result":{}';
+  }
   if (method === 'DOM.setAttributeValue' && o !== null) {
     const why = stageSet(o as DisplayObject, Cdp.str(msg, 'name'), Cdp.str(msg, 'value'));
     return why.length > 0 ? `"error":{"code":-32000,"message":${q(why)}}` : '"result":{}';

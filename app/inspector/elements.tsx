@@ -73,7 +73,10 @@ function stageValues(x: TNode, at: any): void {
 export function label(n: TNode): string {
   if (n.text) return '"' + n.value + '"';
   if (n.comp) return '<' + n.tag + '>';
-  if (n.stage) { const nm = stageAttr(n, 'name'); return '<' + n.tag + (nm.length > 0 ? ' name="' + nm + '"' : '') + (n.hidden ? ' hidden' : '') + '>'; }
+  if (n.stage) {
+    const nm = stageAttr(n, 'name'), src = stageAttr(n, 'src');
+    return '<' + n.tag + (nm.length > 0 ? ' name="' + nm + '"' : '') + (src.length > 0 ? ' src="' + src + '"' : '') + (n.hidden ? ' hidden' : '') + '>';
+  }
   return '<' + n.tag + (n.cls.length > 0 ? ' className="' + n.cls + '"' : '') + (n.hidden ? ' hidden' : '') + '>';
 }
 // Chrome's colours: tag names and their brackets, attribute names, values, text; a component's name, and where it is called dimmed.
@@ -113,7 +116,11 @@ export function lineOf(r: Row): Line {
     if (e < 0) { l.add(' ' + p, C_ATTR); continue; }
     l.add(' ' + p.slice(0, e), C_ATTR); l.add('=', C_TAG); l.add(p.slice(e + 1), C_VALUE);
   }
-  else if (n.stage) { const nm = stageAttr(n, 'name'); if (nm.length > 0) l.attr('name', nm); }
+  else if (n.stage) {   // its name and image inline, the rest (x, y...) in the pane
+    const nm = stageAttr(n, 'name'), src = stageAttr(n, 'src');
+    if (nm.length > 0) l.attr('name', nm);
+    if (src.length > 0) l.attr('src', src);
+  }
   else if (n.cls.length > 0) l.attr('className', n.cls);
   if (n.hidden) l.add(' hidden', C_ATTR);
   l.add('>', color);
@@ -227,8 +234,9 @@ function walk(n: TNode, depth: i32, q: string, hit: Set<i32>, out: Row[]): void 
   const c = new Row(n, depth, false); c.close = true;
   out.push(c);
 }
-/** The text a host node shows inline (<Text>Hello</Text> on one row, as Chrome's), when it is its only child. */
-export function inlineText(n: TNode): TNode | null { return !n.comp && !n.stage && n.kids.length === 1 && n.kids[0].text ? n.kids[0] : null; }
+/** The text a host node or a zinc:stage node shows inline (<Text>Hello</Text>, <TextField>Score: 12</TextField> on one row, as Chrome's),
+ *  when it is its only child. */
+export function inlineText(n: TNode): TNode | null { return !n.comp && n.kids.length === 1 && n.kids[0].text ? n.kids[0] : null; }
 /** Whether node n shows its children: the roots open, the rest folded, until the user changes it. */
 export function isOpen(n: TNode): boolean { return closed.has(n.id) ? false : opened.has(n.id) || n.parent === null; }
 function setOpen(n: TNode, on: boolean): void { if (on) { opened.add(n.id); closed.delete(n.id); } else { closed.add(n.id); opened.delete(n.id); } }
@@ -595,6 +603,19 @@ async function dumpStage(n: TNode): Promise<void> {
   const after: string = (await call('Page.captureScreenshot', '{}')).data;
   console.log('stage edit: x ' + x0 + ' -> ' + stageAttr(n, 'x') + ', box left ' + l0 + ' -> ' + (await left()) + ' | frame changed: ' + (before !== after));
   console.log('bad edit: ' + ((await setStageProp('alpha', 'abc')) ? 'applied' : status()));
+  for (const r of rows()) if (r.node.stage && stageAttr(r.node, 'src') !== '') { console.log('stage image: ' + lineOf(r).text); break; }
+  for (const r of rows()) {   // a node's text as its inline child, edited in place: the program draws the new one
+    const t = inlineText(r.node);
+    if (!r.node.stage || t === null) continue;
+    console.log('stage text: ' + lineOf(r).text);
+    const was: string = (await call('Page.captureScreenshot', '{}')).data;
+    const done = await setTextOf((t as TNode).id, 'Score: 99');
+    await sleep(300);
+    const now: string = (await call('Page.captureScreenshot', '{}')).data;
+    const back = await call('DOM.getDocument', '{"depth":-1}');
+    console.log('stage text edit: ' + (done ? 'program text ' + (JSON.stringify(back).indexOf('"Score: 99"') >= 0) + ' | frame changed: ' + (was !== now) : 'refused: ' + status()));
+    break;
+  }
   // the program answers the move (tests/data/inspector_stage): a node joins, another leaves, the ball drops; the tree and its values follow
   if (!ghost) return;
   const live = await until(() => named('spark') && !named('ghost'));

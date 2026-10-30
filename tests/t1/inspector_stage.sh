@@ -7,6 +7,8 @@
 # Then a scripted client (probe): a point of the window picks the turned node (DOM.getNodeForLocation, the pick mode's hit test), a node the
 # program renames and hides is pushed without being selected, and in the hybrid program the highlight is drawn over a zinc:ui box that
 # covers the scene, and a point picks the scene's node or that box.
+# What a node shows: a Label's text as its inline text child, edited in place (the program draws it, and its own change is pushed), a
+# Picture's texture name as src.
 # The devtools line names the port the system chose for ZINC_DEVTOOLS_PORT=0, on QuickJS too.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); trap 'kill $target 2>/dev/null; rm -rf "$tmp"' EXIT
@@ -41,9 +43,11 @@ if mode == "stage":
     ev = []
     def pushed(e):
         m = [x["params"] for x in e if x.get("method") == "DOM.attributeModified" and x["params"]["nodeId"] == tag]
-        return any(x["name"] == "name" and x["value"] == "renamed" for x in m) and any(x["name"] == "visible" and x["value"] == "false" for x in m)
+        t = [x["params"] for x in e if x.get("method") == "DOM.characterDataModified"]
+        return any(x["name"] == "name" and x["value"] == "renamed" for x in m) and any(x["name"] == "visible" and x["value"] == "false" for x in m) and \
+            any(x["characterData"] == "Score: 1" for x in t)
     call("DOM.setAttributeValue", {"nodeId": ball, "name": "x", "value": "300"}, pushed, ev)
-    print("pushed without selection: name renamed, visible false")
+    print("pushed without selection: name renamed, visible false, text Score: 1")
     print("pick turned:", at(200, 85), "| beside it:", at(215, 100))
 else:
     root, _ = call("DOM.getDocument")
@@ -74,7 +78,10 @@ want 'stage edit: x 40 -> 140, box left 40 -> 140 | frame changed: true'
 want 'bad edit: alpha is a number'
 want 'live: spark inserted, ghost removed true | selected y follows true'
 want 'turned: <Spin name="spin"> quad 210,80,210,120,190,120,190,80 | 40 × 20'
-want 'pushed without selection: name renamed, visible false'
+want 'stage image: <Picture name="pic" src="ball.png"></Picture>'
+want 'stage text: <Label name="score">Score: 0</Label>'
+want 'stage text edit: program text true | frame changed: true'
+want 'pushed without selection: name renamed, visible false, text Score: 1'
 want 'pick turned: Spin#spin | beside it: GameManager#game'
 [ $fail = 0 ] || { echo "--- dump:"; head -c 3000 "$tmp/dump"; }
 inspect tests/data/inspector_stage/src/hybrid.tsx hybrid
