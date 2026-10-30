@@ -2014,6 +2014,7 @@ struct Checker {
   // f?.(args) with f of type `(...) => R | null`: the call when f is there, null (or nothing, for R void) when it is not
   bool pureCallee(std::uint32_t c) const {
     const Node& x = n(c);
+    if (x.kind == N::Call && !x.kids.empty() && n(x.kids[0]).kind == N::Ident && n(x.kids[0]).text == "__tdzChk") return true;   // a variable read with its dead-zone check
     return x.kind == N::Ident || x.kind == N::This || (x.kind == N::Member && !(x.flags & kFlagOptional) && pureCallee(x.kids[0])) || (x.kind == N::Member && pureCallee(x.kids[0]));
   }
   bool optionalCall(std::uint32_t i, TypeId expected, TypeId& result) {

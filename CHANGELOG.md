@@ -263,6 +263,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `item.name = v` and `item.name += v` through an interface property work, as in TypeScript: they write the class's field or call its setter, and throw a TypeError when the class has only a getter. A `readonly` property is still refused.
 - A class instance shared as an interface of fields prints, serialises to JSON and reads as `any` with its class and all its fields (`Tag { label: 'x', n: 2 }`), as JavaScript shows it; it showed the interface's fields only.
 - An interface that extends an interface of fields from another module is an interface of fields too, so object literals and classes fit it.
+- `list.length = 0` in a function declared above `list` no longer stops the compile with "internal error: invalid IR ... field access on a non-ref".
 - A record that holds itself (`next: Link | null`) can be printed and serialised: the compile no longer stops with "function needs more than 256 registers".
 - Converting an `any` back to a class finds an instance of a subclass declared in a later module instead of throwing a TypeError.
 - Programs on QuickJS, JavaScriptCore, V8 and Hermes (and so every such program under `zinc dev`) keep their `zinc:storage` and AsyncStorage keys in their own store, `<zinc home>/apps/<zinc.json name>/storage.kv`, instead of the store shared by all apps; Zinc Inspector's Storage panel names the store it lists.
