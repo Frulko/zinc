@@ -12,11 +12,16 @@
 // Ready with a UDP port, IP discovery, Session Description in the mode chosen, Speaking for Grace); Grace's audio is ours sent back: each
 // packet received is opened with the session's key and sent again as her SSRC. A DM call rings (POST /call/ring) and asks for DAVE
 // (dave_protocol_version 1): the key package is printed, no MLS group is made. Every request it gets is printed.
+// #showcase holds one message of each kind of content
+// (showcase.ts): once its history is asked for, the preview of a link arrives as a partial MESSAGE_UPDATE and Grace and Ada react; a
+// reaction PUT or DELETE and a poll vote are answered 204 and echoed, Linus votes too; the thread #release-talk has its history, the forum
+// #ideas its posts (threads/search), after which a new thread is created (THREAD_CREATE). Every request it gets is printed.
 import { serve, Request, Reply, Headers } from 'zinc:net';
 import { serveWebSocket, WebSocket, MessageEvent, CloseEvent, UpgradeRequest, udp, UdpSocket, Datagram } from 'zinc:socket';
 import { rtpHeader, seal, unseal } from 'zinc:discord-voice';
 import { env } from 'zinc:sys';
 import { writeText } from 'zinc:fs';
+import * as show from './showcase';
 
 const TOKEN = 'test-token';
 const ASSETS = env('FAKE_ASSETS');
@@ -29,7 +34,8 @@ const guilds: any[] = [
     { id: '302', type: 0, name: 'general', position: 0, parent_id: '301', last_message_id: '903' },
     { id: '303', type: 0, name: 'random', position: 1, parent_id: '301' },
     { id: '304', type: 2, name: 'Lounge', position: 0 },
-  ] },
+    show.channels[0], show.channels[1],
+  ], threads: show.threads },
   { id: '201', name: 'Makers', icon: null, channels: [{ id: '311', type: 0, name: 'welcome', position: 0, last_message_id: '930' }] },
 ];
 const dms: any[] = [{ id: '400', type: 1, recipient_ids: ['101'], last_message_id: '950' }, { id: '401', type: 3, recipient_ids: ['101', '102'], last_message_id: '940' }];
@@ -71,7 +77,8 @@ const query = (path: string, name: string): string => { const m = new RegExp(`[?
 
 let live: WebSocket | null = null;
 let seq = 0;
-let pushedFirst = false, ackedElsewhere = false, refusedEdit = false, listed = false;
+let pushedFirst = false, ackedElsewhere = false, refusedEdit = false, listed = false, showcaseShown = false, postsShown = false;
+let showcaseList: any[] = [];
 let subscriptions = 0;
 let nextId = 906;
 let bucketEmptiedAt: number = 0, refusedAt: number = 0;
@@ -108,7 +115,8 @@ function files(req: Request): Reply | null {
     let file = '';
     if (key.startsWith('avatars/')) file = 'avatar.png';
     else if (key.startsWith('icons/')) file = 'icon.png';
-    else if (key.startsWith('emojis/')) file = 'emoji.png';
+    else if (key.startsWith('emojis/') || key.startsWith('stickers/')) file = 'emoji.png';
+    else if (key.startsWith('external/')) file = 'photo.png';
     else if (key.startsWith('attachments/')) file = query(req.path, 'hm') === 'sig2' && parseInt(query(req.path, 'ex'), 16) > now() ? 'photo.png' : '';
     console.log(`cdn GET ${key} ${file !== '' ? 200 : 404}`);
     if (file === '') return { status: 404, contentType: 'text/plain', body: 'expired' };
@@ -140,7 +148,16 @@ function rest(req: Request): Reply {
       pushedFirst = true;
       setTimeout(() => { dispatch('MESSAGE_CREATE', msg('904', '302', users[1], 'Live from the gateway', 13)); }, 200);
     }
-    const list: any[] = msgs[1] === '302' ? general : msgs[1] === '400' ? dmHistory : [];
+    if (msgs[1] === '305' && !showcaseShown) {
+      showcaseShown = true;
+      setTimeout(() => {
+        dispatch('MESSAGE_UPDATE', show.linkPreview(cdn()));
+        dispatch('MESSAGE_REACTION_ADD', { user_id: '101', channel_id: '305', message_id: '1007', guild_id: '200', emoji: { id: null, name: '🎉' }, burst: false, type: 0 });
+        dispatch('MESSAGE_REACTION_REMOVE', { user_id: '100', channel_id: '305', message_id: '1007', guild_id: '200', emoji: { id: null, name: '👍' }, burst: false, type: 0 });
+      }, 200);
+    }
+    if (msgs[1] === '306') return json(200, JSON.stringify(show.threadHistory()));
+    const list: any[] = msgs[1] === '302' ? general : msgs[1] === '400' ? dmHistory : msgs[1] === '305' ? showcaseList : [];
     return json(200, JSON.stringify(page(list, query(req.path, 'before'), parseInt(query(req.path, 'limit')))));
   }
   if (req.method === 'POST' && /^\/api\/v9\/channels\/\d+\/call\/ring$/.test(req.path)) {
@@ -196,6 +213,26 @@ function rest(req: Request): Reply {
     h.set('X-RateLimit-Remaining', bucketEmptiedAt === 0 ? '0' : '4'); h.set('X-RateLimit-Reset-After', '0.5');
     if (bucketEmptiedAt === 0) bucketEmptiedAt = Date.now();
     return json(200, JSON.stringify(m), h);
+  }
+  const reaction = /^\/api\/v9\/channels\/(\d+)\/messages\/(\d+)\/reactions\/([^/]+)\/@me\?location=Message&type=0$/.exec(req.path);
+  if ((req.method === 'PUT' || req.method === 'DELETE') && reaction !== null) {
+    console.log(line);
+    const e = decodeURIComponent(reaction[3]), colon = e.indexOf(':');
+    const emoji: any = colon > 0 ? { id: e.slice(colon + 1), name: e.slice(0, colon) } : { id: null, name: e };
+    dispatch(req.method === 'PUT' ? 'MESSAGE_REACTION_ADD' : 'MESSAGE_REACTION_REMOVE', { user_id: '100', channel_id: reaction[1], message_id: reaction[2], guild_id: '200', emoji: emoji, burst: false, type: 0 });
+    return { status: 204, contentType: 'text/plain', body: '' };
+  }
+  const vote = /^\/api\/v9\/channels\/(\d+)\/polls\/(\d+)\/answers\/@me$/.exec(req.path);
+  if (req.method === 'PUT' && vote !== null) {
+    console.log(`${line} answers=${JSON.stringify(body.answer_ids)}`);
+    for (const id of body.answer_ids) dispatch('MESSAGE_POLL_VOTE_ADD', { user_id: '100', channel_id: vote[1], message_id: vote[2], guild_id: '200', answer_id: parseInt(id) });
+    setTimeout(() => { dispatch('MESSAGE_POLL_VOTE_ADD', { user_id: '102', channel_id: vote[1], message_id: vote[2], guild_id: '200', answer_id: 2 }); }, 50);
+    return { status: 204, contentType: 'text/plain', body: '' };
+  }
+  if (req.method === 'GET' && /^\/api\/v9\/channels\/307\/threads\/search\?/.test(req.path)) {
+    console.log(line);
+    if (!postsShown) { postsShown = true; setTimeout(() => { dispatch('THREAD_CREATE', show.newThread); }, 100); }
+    return json(200, JSON.stringify(show.posts()));
   }
   if (req.method === 'PATCH' && msgs !== null && one !== '') {
     if (!refusedEdit) {
@@ -320,6 +357,7 @@ async function main(): Promise<void> {
   voicePort = (await serveWebSocket(0, voiceGateway, '127.0.0.1')).port;
   api = serve(0, rest);
   shipping.attachments = [photo('801', '302/903/801/photo.png', false)];
+  showcaseList = show.showcase(cdn(), now());
   const gw = await serveWebSocket(0, (ws: WebSocket, req: UpgradeRequest) => {
     console.log(`gateway ${req.path} agent=${(req.header('user-agent')).indexOf('Chrome') > 0}`);
     live = ws;

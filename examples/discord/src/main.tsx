@@ -4,7 +4,8 @@
 // Test hooks: DISCORD_API, DISCORD_GATEWAY move the endpoints (a fake Discord, tests/t1/discord.sh), DISCORD_TOKEN logs in without the
 // keychain, DISCORD_LOG=1 prints what happens, DISCORD_DEMO=1 runs the scripted session (servers, a channel's history, a live message,
 // a dropped connection that resumes, a second live message, a DM, then the writing of write() and the pictures, files and members of
-// media() below, then the servers switched in settings()) and quits; DISCORD_DEMO=voice runs the call of voice() (tests/t1/discord_voice.sh); DISCORD_BENCH=1 loads the whole history of the open channel and scrolls it to the top and back (frame times:
+// media() below, then the servers switched in settings()) and quits; DISCORD_DEMO=voice runs the call of voice() (tests/t1/discord_voice.sh),
+// DISCORD_DEMO=showcase every kind of message content (showcase.ts); DISCORD_BENCH=1 loads the whole history of the open channel and scrolls it to the top and back (frame times:
 // ZINC_PROFILE=1). DISCORD_CACHE moves the pictures' folder, DISCORD_UPLOAD_FILE is the file media() sends.
 // Files dropped on the window are sent to the open channel.
 import { render } from 'zinc:ui/react';
@@ -18,6 +19,7 @@ import { store, Message, Attachment, Guild } from './state';
 import { parse, describe } from './markdown';
 import { picturesLoading } from './services/cdn';
 import { historyList } from './components/MessageView';
+import { showcase } from './showcase';
 import { startNotifications } from './services/notifications';
 import * as notifs from './services/notifications';
 import * as notification from 'zinc:system/notification';
@@ -107,6 +109,7 @@ startNotifications();
 store.resume();
 if (env('DISCORD_DEMO') === '1') demo();
 if (env('DISCORD_DEMO') === 'voice') voice();
+if (env('DISCORD_DEMO') === 'showcase') showcase();
 
 const speaking = (): string => Array.from(store.call.speaking).map((id: string) => store.userName(id)).sort().join(', ');
 const pause = (ms: i32): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });

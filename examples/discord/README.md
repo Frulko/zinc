@@ -27,8 +27,14 @@ a server channel shows on the right, grouped (online, offline, roles), with each
 message offers **Reply**, and on yours **Edit** and **Delete** (click twice); **Up** in an empty box edits your last message, **Escape**
 cancels a reply or an edit. Who is typing shows under the box, and you are shown typing to the others while you type. Unread channels are
 white, with their count of mentions (servers in the rail too); opening a channel marks it read, as reading it on another device does.
-Messages are drawn in Discord's Markdown: bold, italic, underline, strike, inline code and code blocks, quotes, headings, links,
-mentions, and spoilers (click to show). Discord's rate limits are honoured: a request waits while its bucket is empty, and a 429 waits
+Messages are drawn in Discord's Markdown: bold, italic, underline, strike, inline code and code blocks, quotes, headings, lists, links,
+mentions, slash commands, timestamps (`<t:...>`, in your time zone), and spoilers (click to show). What a message carries is drawn too:
+link previews and bots' cards (embeds), GIFs and videos as their picture with a play mark (they open in the browser), videos, sounds,
+voice messages and other files with their size, spoiler pictures, stickers, reactions (press one to add yours or take it back; the
+thumb under the pointer adds a 👍), polls (press an answer to vote), buttons and menus of bots (shown only: pressing them would send an
+interaction), replies (and replies to a deleted message), forwarded messages, answers to slash commands, and system messages (joins,
+pins, boosts, calls, threads) as one line; a type the app does not know says "Unsupported message". Threads are listed under their
+channel and open like a channel; a forum opens on its posts. Discord's rate limits are honoured: a request waits while its bucket is empty, and a 429 waits
 `retry_after`. Not yet: animated emoji and avatars show their first frame, the member list shows its first 100 members. Coming in order
 (milestone M28): QR code and password login (ZN-869), notifications (ZN-870), voice (ZN-872), video (ZN-873), screen sharing (ZN-875).
 
@@ -39,7 +45,9 @@ mentions, and spoilers (click to show). Discord's rate limits are honoured: a re
 | `main.tsx` | mounts the app, Escape, the scripted test session |
 | `constants.ts` | endpoints (moved by env for the tests), the client identity, channel types, colours |
 | `state.ts` | the servers, channels, DMs, messages, read states, who is typing, the member list and the actions (send, reply, edit, delete, ack, send files, older pages); the gateway's dispatches land here |
-| `markdown.ts` | Discord's Markdown: blocks and the style runs of their text, custom emoji |
+| `markdown.ts` | Discord's Markdown: blocks and the style runs of their text, custom emoji, timestamps |
+| `content.ts` | what a message carries besides its text: embeds, reactions, stickers, polls, buttons, threads, system messages |
+| `showcase.ts` | the scripted session of #showcase (every kind of content) |
 | `members.ts` | the member list: the subscription (op 37) and `GUILD_MEMBER_LIST_UPDATE` (SYNC, INSERT, UPDATE, DELETE, INVALIDATE) |
 | `services/cdn.ts` | pictures from the CDN: the disk cache, expired attachment URLs renewed (`attachments/refresh-urls`) |
 | `services/upload.ts` | file upload: `POST /channels/{id}/attachments`, then a `PUT` of the bytes to the URL it gives |
@@ -47,7 +55,7 @@ mentions, and spoilers (click to show). Discord's rate limits are honoured: a re
 | `services/rest.ts` | the HTTP API with the token and identity headers, and the rate-limit buckets |
 | `services/identity.ts` | the client properties (IDENTIFY and `X-Super-Properties`) |
 | `services/session.ts` | the token in the keychain |
-| `components/` | the login, the server rail, the channel list, the messages and the composer, avatars, the member list |
+| `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`) and content (`Content.tsx`), avatars, the member list |
 
 ## Test
 

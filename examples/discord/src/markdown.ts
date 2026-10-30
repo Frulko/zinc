@@ -1,21 +1,28 @@
-// Discord's Markdown, as its clients draw a message: ``` code blocks, > and >>> quotes, # ## ### headings, -# subtext; inline
-// **bold**, *italic* and _italic_, __underline__, ~~strike~~, `code`, ||spoilers||, [masked](links) and bare links, mentions (<@id>,
-// <#id>, <@&id>) and custom emoji (<:name:id>: a run of their own, which the screen draws as the emoji's picture). A block is one text and
-// its style runs, so the screen draws it as one selectable Text (ui.setTextRuns), its custom emoji as pictures in the lines.
+// Discord's Markdown, as its clients draw a message: ``` code blocks, > and >>> quotes, # ## ### headings, -# subtext, - * and 1. lists
+// (two levels); inline **bold**, *italic* and _italic_, __underline__, ~~strike~~, `code`, ||spoilers||, [masked](links) (also
+// [t](<url>) and [t](url "title")), bare links and <autolinks>, mentions (<@id>, <#id>, <@&id>, @everyone, @here), slash commands
+// (</name sub:id>), server links (<id:customize>), timestamps (<t:seconds:style>, in the reader's time zone) and custom emoji (<:name:id>:
+// a run of their own, which the screen draws as the emoji's picture). A block is one text and its style runs, so the screen draws it as
+// one selectable Text (ui.setTextRuns), its custom emoji as pictures in the lines.
 // Not lib/std/markdown (CommonMark-like: `__` is bold there, no spoiler, strike or mention) nor md4c (zinc:markdown: indented code,
 // setext headings and soft breaks that Discord does not have): Discord's dialect is its own (simple-markdown rules).
-// ponytail: lists stay text as written ("- item"); draw bullets when someone misses them.
 import * as ui from 'zinc:ui';
+import { formatStamp } from './content';
 
-export const K_TEXT = 0, K_QUOTE = 1, K_HEADING = 2, K_SUB = 3, K_CODE = 4;
-/** Colour roles of a run: the text's own, inline code, a link, a mention, a hidden spoiler, a custom emoji (its text is :name:). */
-export const R_TEXT = 0, R_CODE = 1, R_LINK = 2, R_MENTION = 3, R_SPOILER = 4, R_EMOJI = 5;
+export const K_TEXT = 0, K_QUOTE = 1, K_HEADING = 2, K_SUB = 3, K_CODE = 4, K_LIST = 5;
+/** Colour roles of a run: the text's own, inline code, a link, a mention, a hidden spoiler, a custom emoji (its text is :name:), a
+ *  timestamp. */
+export const R_TEXT = 0, R_CODE = 1, R_LINK = 2, R_MENTION = 3, R_SPOILER = 4, R_EMOJI = 5, R_TIME = 6;
+const SERVER_LINKS: Map<string, string> = new Map<string, string>([['customize', 'Channels & Roles'], ['browse', 'Browse Channels'],
+  ['guide', 'Server Guide'], ['home', 'Server Home'], ['linked-roles', 'Linked Roles']]);
 const BOLD = ui.RUN_BOLD, ITALIC = ui.RUN_ITALIC, MONO = ui.RUN_MONO, UNDERLINE = ui.RUN_UNDERLINE, STRIKE = ui.RUN_STRIKE;
 
 export class MdBlock {
   kind: i32;
-  /** K_HEADING: 1..3. K_CODE: unused. */
+  /** K_HEADING: 1..3. K_LIST: the depth, 0 or 1. */
   level: i32 = 0;
+  /** K_LIST: the item's mark, "•" or its number ("2."). */
+  marker = '';
   /** K_CODE: the fence's language. */
   lang = '';
   text = '';
@@ -57,27 +64,29 @@ function lines(text: string, names: Names, reveal: boolean, out: MdBlock[]): voi
   let src = text;
   while (src.endsWith('\n')) src = src.slice(0, src.length - 1);   // the line break before a code block
   if (src === '') return;
-  let kind = -1, level = 0, body: string[] = [], quoteRest = false;
+  let kind = -1, level = 0, marker = '', body: string[] = [], quoteRest = false;
   const flush = (): void => {
     if (kind < 0) return;
     const b = new MdBlock(kind);
-    b.level = level;
+    b.level = level; b.marker = marker;
     inline(body.join('\n'), names, reveal, b);
     out.push(b);
     kind = -1; body = [];
   };
   for (const line of src.split('\n')) {
-    let k = K_TEXT, lv = 0, t = line;
+    let k = K_TEXT, lv = 0, mk = '', t = line;
+    const li = /^( *)([-*]|\d{1,2}\.) (.*)$/.exec(line);
     if (quoteRest) k = K_QUOTE;
     else if (line.startsWith('>>> ')) { k = K_QUOTE; t = line.slice(4); quoteRest = true; }
     else if (line.startsWith('> ') || line === '>') { k = K_QUOTE; t = line.slice(2); }
     else if (line.startsWith('-# ')) { k = K_SUB; t = line.slice(3); }
+    else if (li !== null) { k = K_LIST; lv = li[1].length >= 2 ? 1 : 0; mk = li[2].endsWith('.') ? li[2] : '•'; t = li[3]; }
     else {
       const h = /^(#{1,3}) (.*)$/.exec(line);
       if (h !== null) { k = K_HEADING; lv = h[1].length; t = h[2]; }
     }
-    if (k !== kind || k === K_HEADING) flush();
-    kind = k; level = lv; body.push(t);
+    if (k !== kind || k === K_HEADING || k === K_LIST) flush();
+    kind = k; level = lv; marker = mk; body.push(t);
   }
   flush();
 }
@@ -115,6 +124,16 @@ function inline(s: string, names: Names, reveal: boolean, b: MdBlock): void {
       if (end > i + ticks) { span(s.slice(i + ticks, end), MONO, R_CODE); i = end + ticks; continue; }
     }
     if (c === '<') {
+      const head = s.slice(i, i + 160);
+      const t = /^<t:(-?\d{1,13})(?::([tTdDfFRsS]))?>/.exec(head);
+      if (t !== null) { span(formatStamp(parseInt(t[1]), t.length > 2 && typeof t[2] === 'string' ? t[2] : 'f', Date.now()), 0, R_TIME); i += t[0].length; continue; }
+      const cmd = /^<\/([^:<>\n]+):\d+>/.exec(head);
+      if (cmd !== null) { span('/' + cmd[1], 0, R_MENTION); i += cmd[0].length; continue; }
+      const nav = /^<id:([a-z-]+)>/.exec(head);
+      const navName = nav !== null ? SERVER_LINKS.get(nav[1]) : undefined;
+      if (nav !== null && navName !== undefined) { span(navName, 0, R_MENTION); i += nav[0].length; continue; }
+      const auto = /^<(https?:\/\/[^>\s]+)>/.exec(head);
+      if (auto !== null) { span(auto[1], 0, R_LINK); i += auto[0].length; continue; }
       const m = /^<(@!?|@&|#|a?:[A-Za-z0-9_]+:)(\d+)>/.exec(s.slice(i, i + 64));
       if (m !== null) {
         const k = m[1];
@@ -128,13 +147,17 @@ function inline(s: string, names: Names, reveal: boolean, b: MdBlock): void {
       }
     }
     if (c === '[') {
-      const m = /^\[([^\]\[]+)\]\((https?:\/\/[^)\s]+)\)/.exec(s.slice(i));
+      const m = /^\[([^\]\[]+)\]\(<?(https?:\/\/[^)\s>]+)>?(?: +"[^"]*")?\)/.exec(s.slice(i));
       if (m !== null) { span(m[1], UNDERLINE, R_LINK); i += m[0].length; continue; }
     }
     if (c === 'h' && (s.startsWith('https://', i) || s.startsWith('http://', i))) {
       let e = i;
       while (e < s.length && ' \n<>'.indexOf(s.charAt(e)) < 0) e++;
       span(s.slice(i, e), 0, R_LINK); i = e; continue;
+    }
+    if (c === '@' && (s.startsWith('@everyone', i) || s.startsWith('@here', i))) {
+      const w = s.startsWith('@everyone', i) ? 9 : 5;
+      span(s.slice(i, i + w), 0, R_MENTION); i += w; continue;
     }
     if (two === '||' && (spoiler || closes(s, '||', i + 2))) { spoiler = !spoiler; cut(style, role()); i += 2; continue; }
     if (two === '**' && ((style & BOLD) !== 0 || closes(s, '**', i + 2))) { toggle(BOLD); i += 2; continue; }
@@ -156,7 +179,7 @@ function inline(s: string, names: Names, reveal: boolean, b: MdBlock): void {
 }
 
 /** The plain text of the blocks with the marks of their runs, for the test log: *b* bold, /i/ italic, `m` mono, _u_ underline,
- *  ~s~ strike, {link}, <mention>, ▒hidden spoiler▒. */
+ *  ~s~ strike, {link}, <mention>, ▒hidden spoiler▒, [emoji], ⟨timestamp⟩; a list item is li<depth><mark>. */
 export function describe(blocks: MdBlock[]): string {
   const out: string[] = [];
   for (const b of blocks) {
@@ -175,9 +198,10 @@ export function describe(blocks: MdBlock[]): string {
       if (r === R_MENTION) piece = '<' + piece + '>';
       if (r === R_SPOILER) piece = '▒' + piece + '▒';
       if (r === R_EMOJI) piece = '[' + piece + ']';
+      if (r === R_TIME) piece = '⟨' + piece + '⟩';
       s += piece;
     }
-    out.push(['text', 'quote', 'h' + b.level, 'sub'][b.kind] + ':' + s);
+    out.push((b.kind === K_LIST ? `li${b.level}${b.marker}` : ['text', 'quote', 'h' + b.level, 'sub'][b.kind]) + ':' + s);
   }
   return out.join(' | ');
 }

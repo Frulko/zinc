@@ -6,24 +6,34 @@ import { loadToken, saveToken, forgetToken } from './services/session';
 import { onPicture } from './services/cdn';
 import { Upload, readUpload, uploadFiles } from './services/upload';
 import { MemberRow, subscription, applyMemberListUpdate } from './members';
-import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, MESSAGES_PAGE, OLDER_PAGE, MESSAGE_MAX, TYPING_EVERY_MS, TYPING_SHOWN_MS, ACK_DELAY_MS, DISCORD_EPOCH, UPLOAD_MAX } from './constants';
+import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, CH_FORUM, CH_MEDIA, isThread, MESSAGES_PAGE, OLDER_PAGE, MESSAGE_MAX, TYPING_EVERY_MS, TYPING_SHOWN_MS, ACK_DELAY_MS, DISCORD_EPOCH, UPLOAD_MAX } from './constants';
 import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
 import { windowFocused } from 'zinc:ui';
 import { NotifyRules, Where } from './notify';
 import { Call } from './call';
+import { Embed, Reaction, Sticker, Poll, Component, ThreadRef, embeds, reactions, stickers, poll, pollVoted, componentRows, threadRef,
+  interactionLine, systemText, reactionAdded, reactionRemoved, reactionPath, T_THREAD_STARTER } from './content';
 
 export class User { id = ''; name = ''; avatar = ''; }
 export class Channel {
   id = ''; guildId = ''; type: i32 = CH_TEXT; name = ''; position: i32 = 0; parentId = ''; lastMessageId = '';
-  /** Text channels and DMs open in the message view; voice, categories and forums are shown but not opened yet. */
-  readable(): boolean { return this.type === CH_TEXT || this.type === CH_ANNOUNCEMENT || this.type === CH_DM || this.type === CH_GROUP_DM; }
+  /** A thread: its count of messages and its tags (ids); a forum: the names of its tags by id. */
+  messageCount: i32 = 0; tags: string[] = []; tagNames: Map<string, string> = new Map<string, string>();
+  /** Text channels, threads and DMs open in the message view, forums as their list of posts; voice and categories are shown only. */
+  readable(): boolean { return this.type === CH_TEXT || this.type === CH_ANNOUNCEMENT || this.type === CH_DM || this.type === CH_GROUP_DM || isThread(this.type) || this.forum(); }
+  forum(): boolean { return this.type === CH_FORUM || this.type === CH_MEDIA; }
 }
 export class Guild { id = ''; name = ''; icon = ''; channels: Channel[] = []; roles: Map<string, string> = new Map<string, string>(); }
-/** A file of a message: an image is shown (its size known before it loads, so the list does not jump), another file is a link. */
+/** A file of a message: an image is shown (its size known before it loads, so the list does not jump), a video as its first frame, a sound
+ *  or a voice message with its length, another file as a link with its size. */
 export class Attachment {
   id = ''; filename = ''; url = ''; width: i32 = 0; height: i32 = 0; size: i32 = 0;
-  image(): boolean { return this.width > 0 && this.height > 0 && this.url !== ''; }
+  /** image, video, audio, voice or file; Discord's resizing copy (the media proxy); the alt text; hidden until clicked. */
+  kind = 'file'; proxyUrl = ''; description = ''; spoiler = false;
+  /** A voice message: its seconds and its waveform (base64, a byte a sample). */
+  duration: number = 0; waveform = '';
+  image(): boolean { return this.kind === 'image' && this.width > 0 && this.height > 0 && this.url !== ''; }
 }
 export class Message {
   id = ''; channelId = ''; authorId = ''; author = ''; content = ''; timestamp = ''; edited = false;
@@ -32,6 +42,11 @@ export class Message {
   nonce = ''; pending = false; failed = false;
   /** Who it mentions (user ids) and whether it mentions everyone. */
   mentions: string[] = []; mentionsEveryone = false;
+  /** What else it carries (content.ts): its type and flags, written by a bot, the sentence of a system message, "Grace used /roll", a reply
+   *  to a deleted message, embeds, reactions, stickers, a poll, rows of buttons, its thread, and the message it forwards. */
+  type: i32 = 0; flags: i32 = 0; bot = false; system = ''; interaction = ''; replyDeleted = false;
+  embeds: Embed[] = []; reactions: Reaction[] = []; stickers: Sticker[] = []; poll: Poll | null = null; rows: Component[][] = [];
+  thread: ThreadRef | null = null; forwarded: Message | null = null;
 }
 /** A channel's read state: the last message read and how many mentions came since. */
 export class ReadState { lastId = ''; mentions: i32 = 0; }
@@ -153,6 +168,12 @@ export class Store implements GatewayHandler {
     else if (t === 'MESSAGE_CREATE') this.messageCreated(d);
     else if (t === 'MESSAGE_UPDATE') this.messageUpdated(d);
     else if (t === 'MESSAGE_DELETE') this.messageDeleted(str(d.channel_id), str(d.id));
+    else if (t === 'MESSAGE_DELETE_BULK') { if (Array.isArray(d.ids)) for (const id of d.ids) this.messageDeleted(str(d.channel_id), str(id)); }
+    else if (t.startsWith('MESSAGE_REACTION_')) this.reacted(t, d);
+    else if (t === 'MESSAGE_POLL_VOTE_ADD' || t === 'MESSAGE_POLL_VOTE_REMOVE') this.pollVote(t === 'MESSAGE_POLL_VOTE_ADD', d);
+    else if (t === 'THREAD_CREATE' || t === 'THREAD_UPDATE') this.putChannel(this.channel(d, str(d.guild_id)));
+    else if (t === 'THREAD_DELETE') this.removeChannel(str(d.id));
+    else if (t === 'THREAD_LIST_SYNC') { if (Array.isArray(d.threads)) for (const c of d.threads) this.putChannel(this.channel(c, str(d.guild_id))); }
     else if (t === 'TYPING_START') this.typingStarted(d);
     else if (t === 'MESSAGE_ACK') this.acked(str(d.channel_id), str(d.message_id), d.mention_count ?? 0);
     else if (t === 'GUILD_MEMBER_LIST_UPDATE') this.memberListUpdated(d);
@@ -208,6 +229,7 @@ export class Store implements GatewayHandler {
     const roles: any = Array.isArray(g.roles) ? g.roles : p.roles;
     if (Array.isArray(roles)) for (const r of roles) out.roles.set(str(r.id), str(r.name));
     if (Array.isArray(g.channels)) for (const c of g.channels) out.channels.push(this.channel(c, out.id));
+    if (Array.isArray(g.threads)) for (const c of g.threads) out.channels.push(this.channel(c, out.id));   // the active threads
     sortChannels(out.channels);
     return out;
   }
@@ -215,6 +237,9 @@ export class Store implements GatewayHandler {
     const out = new Channel();
     out.id = str(c.id); out.guildId = guildId; out.type = c.type; out.position = c.position ?? 0;
     out.parentId = str(c.parent_id); out.lastMessageId = str(c.last_message_id); out.name = str(c.name);
+    out.messageCount = c.message_count ?? 0;
+    if (Array.isArray(c.applied_tags)) for (const t of c.applied_tags) out.tags.push(str(t));
+    if (Array.isArray(c.available_tags)) for (const t of c.available_tags) out.tagNames.set(str(t.id), str(t.name));
     if (out.name === '' && (out.type === CH_DM || out.type === CH_GROUP_DM)) {
       const names: string[] = [];
       if (Array.isArray(c.recipients)) for (const r of c.recipients) names.push(this.user(r).name);
@@ -316,23 +341,48 @@ export class Store implements GatewayHandler {
 
   // ------------------------------------------------------------------ messages
   private message(m: any): Message {
+    const r: any = m.referenced_message;
+    if (m.type === T_THREAD_STARTER && r !== undefined && r !== null) {   // a thread's first row: the message it was started from
+      const s = this.message(r);
+      s.id = str(m.id); s.channelId = str(m.channel_id); s.type = T_THREAD_STARTER;
+      return s;
+    }
     const out = new Message();
     out.id = str(m.id); out.channelId = str(m.channel_id); out.content = str(m.content); out.timestamp = str(m.timestamp);
     out.edited = str(m.edited_timestamp) !== '';
-    const a = this.user(m.author);
-    out.authorId = a.id; out.author = a.name;
-    if (Array.isArray(m.attachments)) for (const f of m.attachments) {
-      const a = new Attachment();
-      a.id = str(f.id); a.filename = str(f.filename); a.url = str(f.url); a.size = f.size ?? 0;
-      if (str(f.content_type).startsWith('image/')) { a.width = f.width ?? 0; a.height = f.height ?? 0; }
-      out.attachments.push(a);
+    if (m.author !== undefined && m.author !== null) {                  // a forwarded message's copy has none
+      const a = this.user(m.author);
+      out.authorId = a.id; out.author = a.name; out.bot = m.author.bot === true;
     }
-    const r: any = m.referenced_message;
-    if (r !== undefined && r !== null) out.replyTo = `${this.user(r.author).name}: ${str(r.content).slice(0, 80)}`;
+    out.attachments = attachments(m.attachments);
+    const ref: any = m.message_reference;
+    const reply = ref !== undefined && ref !== null && (ref.type ?? 0) === 0 && (m.type === 19 || m.type === 20 || m.type === 23);
+    if (r !== undefined && r !== null) out.replyTo = `${this.user(r.author).name}: ${replyText(r)}`;
+    else if (r === null && reply) { out.replyTo = 'Original message was deleted'; out.replyDeleted = true; }
     out.nonce = typeof m.nonce === 'string' ? m.nonce : '';
     if (Array.isArray(m.mentions)) for (const u of m.mentions) out.mentions.push(this.user(u).id);
     out.mentionsEveryone = m.mention_everyone === true;
+    out.type = m.type ?? 0; out.flags = m.flags ?? 0;
+    this.content(out, m);
+    out.interaction = interactionLine(m, (u: any): string => this.user(u).name);
+    const g = this.findGuild(str(m.guild_id) !== '' ? str(m.guild_id) : this.guildId);
+    out.system = systemText(m, out.author, out.mentions.length > 0 ? this.userName(out.mentions[0]) : '', g !== null ? g.name : '', this.me.id);
+    const snaps: any = m.message_snapshots;
+    if (ref !== undefined && ref !== null && ref.type === 1 && Array.isArray(snaps) && snaps.length > 0) {
+      const f = this.message(snaps[0].message);
+      f.id = out.id + '-fwd'; f.channelId = str(ref.channel_id);
+      out.forwarded = f;
+    }
     return out;
+  }
+  /** The fields an update can change without the rest (an embed resolved, a poll's results, a thread's count). */
+  private content(out: Message, m: any): void {
+    if (m.embeds !== undefined) out.embeds = embeds(m.embeds);
+    if (m.reactions !== undefined) out.reactions = reactions(m.reactions);
+    if (m.sticker_items !== undefined) out.stickers = stickers(m.sticker_items);
+    if (m.poll !== undefined) out.poll = poll(m.poll);
+    if (m.components !== undefined) out.rows = componentRows(m.components);
+    if (m.thread !== undefined) out.thread = threadRef(m.thread);
   }
   private messageCreated(d: any): void {
     const m = this.message(d);
@@ -359,8 +409,16 @@ export class Store implements GatewayHandler {
     const list = this.messages.get(str(d.channel_id));
     if (list === undefined) return;
     for (let i = 0; i < list.length; i++) if (list[i].id === str(d.id)) {
-      if (d.author !== undefined) list[i] = this.message(d);      // a partial update (an embed resolved) keeps the message
-      else if (typeof d.content === 'string') list[i].content = d.content;
+      const was = list[i];
+      if (d.author !== undefined) {                                // a whole message, but without its reactions
+        list[i] = this.message(d);
+        if (d.reactions === undefined) list[i].reactions = was.reactions;
+      } else {                                                     // a partial update (an embed resolved, a poll ended) keeps the rest
+        if (typeof d.content === 'string') was.content = d.content;
+        if (typeof d.flags === 'number') was.flags = d.flags;
+        if (d.attachments !== undefined) was.attachments = attachments(d.attachments);
+        this.content(was, d);
+      }
       this.log(`edited ${list[i].id}: ${list[i].content}${list[i].edited ? ' (edited)' : ''}`);
       return;
     }
@@ -382,8 +440,33 @@ export class Store implements GatewayHandler {
     this.channelId = id;
     this.subscribe(id);
     this.changed();
-    if (id !== '' && !this.messages.has(id)) this.loadHistory(id);
+    const c = this.findChannel(id);
+    if (c !== null && c.forum()) { if (!this.postsOf.has(id)) this.loadPosts(c); }
+    else if (id !== '' && !this.messages.has(id)) this.loadHistory(id);
     else if (id !== '') this.ack(id);
+  }
+
+  // ------------------------------------------------------------------ forums
+  /** The first message of each forum post (its preview), by thread id. */
+  previews: Map<string, Message> = new Map<string, Message>();
+  private postsOf: Set<string> = new Set<string>();
+  /** A forum's posts: its threads, the latest active first. */
+  posts(forumId: string): Channel[] {
+    const g = this.findGuild(this.guildId);
+    if (g === null) return [];
+    return g.channels.filter((c: Channel) => c.parentId === forumId && isThread(c.type)).sort((a: Channel, b: Channel) => compareIds(b.lastMessageId, a.lastMessageId));
+  }
+  /** The open posts of a forum, as the web client asks for them (threads/search), with their first messages. */
+  private async loadPosts(forum: Channel): Promise<void> {
+    this.loading = true; this.changed();
+    try {
+      const r: any = await api('GET', `/channels/${forum.id}/threads/search?archived=false&sort_by=last_message_time&sort_order=desc&limit=25&offset=0`);
+      if (r !== null && Array.isArray(r.threads)) for (const t of r.threads) this.putChannel(this.channel(t, forum.guildId));
+      if (r !== null && Array.isArray(r.first_messages)) for (const m of r.first_messages) this.previews.set(str(m.channel_id), this.message(m));
+      this.postsOf.add(forum.id);
+      this.log(`posts ${forum.id}: ${this.posts(forum.id).map((c: Channel) => `${c.name} [${c.tags.map((t: string) => forum.tagNames.get(t) ?? t).join(',')}] ${c.messageCount}`).join('; ')}`);
+    } catch (e) { this.error = `Could not load the posts: ${e.message}`; }
+    this.loading = false; this.changed();
   }
   private async loadHistory(id: string): Promise<void> {
     this.loading = true; this.changed();
@@ -527,6 +610,57 @@ export class Store implements GatewayHandler {
   }
   revealSpoilers(m: Message): void { this.revealed.add(m.id); this.changed(); }
 
+  // ------------------------------------------------------------------ reactions and polls
+  findMessage(ch: string, id: string): Message | null {
+    const l = this.messages.get(ch);
+    if (l !== undefined) for (const m of l) if (m.id === id) return m;
+    return null;
+  }
+  /** Adds my reaction or takes it off (r null: a 👍); shown at once, the gateway's echo changes nothing. */
+  async react(m: Message, r: Reaction | null): Promise<void> {
+    const emoji: any = r !== null ? { id: r.id, name: r.name } : { id: '', name: '👍' };
+    let on = true;
+    for (const x of m.reactions) if ((emoji.id !== '' ? x.id === emoji.id : x.name === emoji.name) && x.me) on = false;
+    const path = reactionPath(emoji.id, emoji.name);
+    if (on) reactionAdded(m.reactions, emoji, true); else reactionRemoved(m.reactions, emoji, true, false);
+    this.log(`react ${m.id} ${emoji.name} ${on ? 'on' : 'off'}`);
+    this.changed();
+    try { await api(on ? 'PUT' : 'DELETE', `/channels/${m.channelId}/messages/${m.id}/reactions/${path}/@me?location=Message&type=0`); }
+    catch (e) { this.error = `Could not react: ${e.message}`; this.changed(); }
+  }
+  private reacted(t: string, d: any): void {
+    const m = this.findMessage(str(d.channel_id), str(d.message_id));
+    if (m === null) return;
+    const mine = str(d.user_id) === this.me.id;
+    if (t === 'MESSAGE_REACTION_ADD') reactionAdded(m.reactions, d.emoji, mine);
+    else if (t === 'MESSAGE_REACTION_REMOVE') reactionRemoved(m.reactions, d.emoji, mine, false);
+    else if (t === 'MESSAGE_REACTION_REMOVE_EMOJI') reactionRemoved(m.reactions, d.emoji, false, true);
+    else if (t === 'MESSAGE_REACTION_REMOVE_ALL') m.reactions = [];
+    this.log(`reactions ${m.id}: ${m.reactions.map((r: Reaction) => `${r.name}${r.count}${r.me ? '*' : ''}`).join(' ')}`);
+  }
+  /** Votes for an answer of a poll, or takes the vote back (one answer, or several when the poll allows it). */
+  async vote(m: Message, answerId: i32): Promise<void> {
+    const p = m.poll;
+    if (p === null || p.finalized) return;
+    const chosen: string[] = [];
+    for (const a of p.answers) {
+      const on = a.id === answerId ? !a.mine : p.multi && a.mine;
+      if (on !== a.mine) pollVoted(p, a.id, true, on);
+      if (on) chosen.push(`${a.id}`);
+    }
+    this.log(`vote ${m.id}: ${chosen.join(',')}`);
+    this.changed();
+    try { await api('PUT', `/channels/${m.channelId}/polls/${m.id}/answers/@me`, { answer_ids: chosen }); }
+    catch (e) { this.error = `Could not vote: ${e.message}`; this.changed(); }
+  }
+  private pollVote(add: boolean, d: any): void {
+    const m = this.findMessage(str(d.channel_id), str(d.message_id));
+    const p = m !== null ? m.poll : null;
+    if (p === null) return;
+    pollVoted(p, d.answer_id ?? 0, str(d.user_id) === this.me.id, add);
+    this.log(`poll ${str(d.message_id)}: ${p.answers.map((a) => `${a.text} ${a.count}${a.mine ? '*' : ''}`).join(', ')}`);
+  }
+
   // ------------------------------------------------------------------ typing
   private typingStarted(d: any): void {
     const ch = str(d.channel_id), id = str(d.user_id);
@@ -619,6 +753,30 @@ function snowflakeNow(): string {
   return `${hi * 4194304 + carry}${'0'.repeat(7 - rest.length)}${rest}`;
 }
 
+function attachments(list: any): Attachment[] {
+  const out: Attachment[] = [];
+  if (Array.isArray(list)) for (const f of list) {
+    const a = new Attachment();
+    a.id = str(f.id); a.filename = str(f.filename); a.url = str(f.url); a.proxyUrl = str(f.proxy_url); a.size = f.size ?? 0;
+    a.description = str(f.description); a.spoiler = a.filename.startsWith('SPOILER_') || ((f.flags ?? 0) & 8) !== 0;
+    const type = str(f.content_type), ext = a.filename.slice(a.filename.lastIndexOf('.') + 1).toLowerCase();
+    a.kind = type.startsWith('image/') || (type === '' && /^(png|jpe?g|gif|webp)$/.test(ext)) ? 'image'
+      : type.startsWith('video/') || (type === '' && /^(mp4|mov|webm)$/.test(ext)) ? 'video'
+      : typeof f.duration_secs === 'number' ? 'voice'
+      : type.startsWith('audio/') || (type === '' && /^(mp3|ogg|wav|flac|m4a)$/.test(ext)) ? 'audio' : 'file';
+    if (a.kind === 'image' || a.kind === 'video') { a.width = f.width ?? 0; a.height = f.height ?? 0; }
+    if (a.kind === 'voice') { a.duration = f.duration_secs; a.waveform = str(f.waveform); }
+    out.push(a);
+  }
+  return out;
+}
+/** The line over a reply: the start of the message it answers, or what it holds when it has no text. */
+function replyText(r: any): string {
+  const text = str(r.content);
+  if (text !== '') return text.slice(0, 80);
+  return Array.isArray(r.attachments) && r.attachments.length > 0 || Array.isArray(r.embeds) && r.embeds.length > 0 ? 'Click to see attachment' : '';
+}
+
 /** A channel as the notification rules see it. */
 function where(c: Channel): Where { const w = new Where(); w.id = c.id; w.guildId = c.guildId; w.type = c.type; w.parentId = c.parentId; return w; }
 
@@ -628,14 +786,20 @@ function compareIds(a: string, b: string): i32 { return a.length !== b.length ? 
 /** Discord's sidebar order: channels without a category first, then each category followed by its channels, by position. */
 function sortChannels(list: Channel[]): void {
   const byPos = (a: Channel, b: Channel): i32 => a.position !== b.position ? a.position - b.position : compareIds(a.id, b.id);
-  const cats = list.filter((c: Channel) => c.type === CH_CATEGORY).sort(byPos);
+  const threads = list.filter((c: Channel) => isThread(c.type));
+  const channels = list.filter((c: Channel) => !isThread(c.type));
+  const cats = channels.filter((c: Channel) => c.type === CH_CATEGORY).sort(byPos);
   const inCategory = (c: Channel): boolean => cats.some((cat: Channel) => cat.id === c.parentId);
-  const loose = list.filter((c: Channel) => c.type !== CH_CATEGORY && !inCategory(c)).sort(byPos);
-  const out: Channel[] = loose.slice();
+  const loose = channels.filter((c: Channel) => c.type !== CH_CATEGORY && !inCategory(c)).sort(byPos);
+  const ordered: Channel[] = loose.slice();
   for (const cat of cats) {
-    out.push(cat);
-    for (const c of list.filter((x: Channel) => x.parentId === cat.id && x.type !== CH_CATEGORY).sort(byPos)) out.push(c);
+    ordered.push(cat);
+    for (const c of channels.filter((x: Channel) => x.parentId === cat.id && x.type !== CH_CATEGORY).sort(byPos)) ordered.push(c);
   }
+  // each channel's active threads under it, the newest first; a thread whose channel is not listed goes last
+  const out: Channel[] = [];
+  for (const c of ordered) { out.push(c); for (const t of threads.filter((x: Channel) => x.parentId === c.id).sort((a: Channel, b: Channel) => compareIds(b.id, a.id))) out.push(t); }
+  for (const t of threads) if (!ordered.some((c: Channel) => c.id === t.parentId)) out.push(t);
   list.length = 0;
   for (const c of out) list.push(c);
 }

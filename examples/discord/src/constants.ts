@@ -24,7 +24,9 @@ export const MESSAGES_PAGE = 50, OLDER_PAGE = 100;   // the first page of a chan
 export const RECONNECT_MAX_MS = 60000;
 
 // Channel types (the API's numbers)
-export const CH_TEXT = 0, CH_DM = 1, CH_VOICE = 2, CH_GROUP_DM = 3, CH_CATEGORY = 4, CH_ANNOUNCEMENT = 5, CH_FORUM = 15;
+export const CH_TEXT = 0, CH_DM = 1, CH_VOICE = 2, CH_GROUP_DM = 3, CH_CATEGORY = 4, CH_ANNOUNCEMENT = 5, CH_FORUM = 15, CH_MEDIA = 16;
+export const CH_ANNOUNCEMENT_THREAD = 10, CH_PRIVATE_THREAD = 12;
+export const isThread = (type: i32): boolean => type >= CH_ANNOUNCEMENT_THREAD && type <= CH_PRIVATE_THREAD;
 
 export const RAIL_W = 72, CHANNELS_W = 240, MEMBERS_W = 240;
 
@@ -47,6 +49,7 @@ export const MEDIA_MAX_W = 400, MEDIA_MAX_H = 300;
 
 // Voice (call.ts): who speaks has a green ring; the push-to-talk key, held
 export const VOICE_AVATAR = 20, SPEAKING_RING = 'border-[#23a55a]', PTT_KEY = 'F8';
+export const EMBED_W = 432, THUMB = 80, STICKER = 160;   // an embed card at most, its thumbnail, a sticker
 export const ROW_ESTIMATE = 44;           // a message's height before it is laid out (the virtual list's estimate)
 export const OLDER_AT = 400;              // px from the top of the history where the page before is asked for
 export const UPLOAD_MAX = 10;             // files in one message

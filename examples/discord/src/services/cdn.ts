@@ -31,6 +31,23 @@ export function attachmentKey(url: string): string {
 export function cdnPicture(key: string): i32 { return picture(key, `${CDN_BASE}/${key}?size=${CDN_SIZE}`); }
 /** The picture of an attachment's URL, -1 until it is loaded. */
 export function attachmentPicture(url: string): i32 { return picture(attachmentKey(url), url); }
+/** A picture of Discord's media proxy (an attachment's or an embed's proxy_url) at twice the w x h drawn, as WebP: the proxy resizes it
+ *  (a 4000 px photo comes as 800 px), and its still frame stands for a video or a GIF. Kept under its path without the signature. */
+export function mediaPicture(url: string, w: i32, h: i32): i32 {
+  const q = url.indexOf('?'), sep = q < 0 ? '?' : url.endsWith('&') || url.endsWith('?') ? '' : '&';
+  return picture(`media/${hashOf(q < 0 ? url : url.slice(0, q))}-${w}x${h}`, `${url}${sep}width=${w * 2}&height=${h * 2}&format=webp`);
+}
+/** A sticker (PNG, APNG: its first frame, GIF) at 160 px. */
+export function stickerPicture(id: string, gif: boolean): i32 {
+  const key = `stickers/${id}.${gif ? 'gif' : 'png'}`;
+  return picture(key, `${CDN_BASE}/${key}?size=160`);
+}
+/** A short name for a URL's file (a 32-bit polynomial hash). */
+function hashOf(s: string): string {
+  let h: number = 7;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 4294967296;
+  return h.toString(16);
+}
 
 function picture(key: string, url: string): i32 {
   const known = images.get(key);

@@ -1,0 +1,37 @@
+edited 1001: https://zinc.dev/blog/v1
+reactions 1007: 👍3* zinc1 🎉1
+reactions 1007: 👍2 zinc1 🎉1
+react 1007 🎉 on
+reactions 1007: 👍2 zinc1 🎉2*
+vote 1009: 1
+poll 1009: Pizza 3*, Sushi 1
+poll 1009: Pizza 3*, Sushi 2
+show 1000: app; text "text:Build finished"; embed rich "Release 1.2" fields 3 thumb image
+show 1001: text "text:{https://zinc.dev/blog/v1}"; embed article "Zinc 1.0" (zinc.dev) fields 0 thumb
+show 1002: text "text:{https://tenor.com/view/cat-12345}"; embed gifv "" (Tenor) fields 0 thumb video
+show 1003: text "text:Watch this {https://www.youtube.com/watch?v=dQw4w9WgXcQ}"; embed video "Zinc in 100 seconds" (YouTube) fields 0 thumb video
+show 1004: text "text:Files of the release"; video demo.mp4 1280x720; audio theme.mp3 0x0; file notes.pdf 0x0; image screen.png 160x120 alt "The new settings screen"
+show 1005: image SPOILER_photo.png 160x120 spoiler
+show 1006: voice voice-message.ogg 0x0 4.2s
+show 1007: text "text:Reactions here"; reactions 👍2 zinc1 🎉2*
+show 1008: sticker wave/1; sticker dance/2; sticker party/3; sticker cat/4
+show 1009: poll "Lunch?" Pizza 3*, Sushi 2
+show 1010: embed poll_result "" fields 4
+show 1011: system "text:*Katherine* joined the server."
+show 1012: system "text:*linus* just boosted the server!"
+show 1013: system "text:*Grace* pinned a message to this channel."
+show 1014: system "text:*Grace* started a thread: *release talk*."; thread release talk 2
+show 1015: system "text:You missed a call from *Grace*."
+show 1016: system "text:*linus* changed the channel name: *showcase*"
+show 1017: reply "CI: Build finished"; text "text:Great release!"
+show 1018: reply "Original message was deleted" (deleted); text "text:Answering a message that is gone"
+show 1019: forwarded "Shipping the gateway today." 1 files from 302
+show 1020: command "Grace used /roll"; app; text "text:Rolled *4* 🎲"
+show 1021: app; text "text:Again?"; row button Roll again/1, button Docs/5, button Delete/4 off; row menu Pick a die/0
+show 1022: text "h1:Plan | h2:Today | li0•:lists | li1•:nested | li01.:one | li02.:two | text:At ⟨9:20 AM⟩ on ⟨October 30, 2026⟩, ⟨in 3 hours⟩: run </roll dice>, read {_the docs_}, see {https://zinc.dev} and <Channels & Roles>, <@everyone> | sub:small print | quote:quoted
+show 1023: system "text:/Unsupported message/"
+sidebar Lounge, general, random, showcase, ↳release talk, ideas(forum)
+thread 306: 3 messages, first by Grace: Let us talk about the release here. (type 21)
+posts 307: Plugins for MIDI [feature] 1; Dark mode everywhere [feature,ui] 5
+forum 307: Plugins for MIDI, Dark mode everywhere; preview "What if every app had a dark theme by default?"
+sidebar Lounge, general, random, showcase, ↳hotfix, ↳release talk, ideas(forum)
