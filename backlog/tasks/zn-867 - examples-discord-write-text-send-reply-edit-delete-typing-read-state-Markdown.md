@@ -4,7 +4,8 @@ title: >-
   examples/discord: write text: send, reply, edit, delete, typing, read state,
   Markdown
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 14:52'
 labels:
   - net
