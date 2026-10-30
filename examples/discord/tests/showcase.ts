@@ -102,7 +102,7 @@ export function showcase(cdn: string, now: number): any[] {
   const buttons = add(msg('1021', '305', rollbot, 'Again?', 21));
   buttons.components = [{ type: 1, components: [{ type: 2, style: 1, label: 'Roll again', custom_id: 'again' }, { type: 2, style: 5, label: 'Docs', url: 'https://zinc.dev/docs' },
     { type: 2, style: 4, label: 'Delete', custom_id: 'del', disabled: true }] }, { type: 1, components: [{ type: 3, custom_id: 'die', placeholder: 'Pick a die', options: [] }] }];
-  add(msg('1022', '305', grace, `# Plan\n## Today\n- lists\n  - nested\n1. one\n2. two\nAt <t:1793352000:t> on <t:1793352000:D>, <t:${Math.floor(now + 11400)}:R>: run </roll dice:555>, read [the docs](<https://zinc.dev/docs> "Docs"), see <https://zinc.dev> and <id:customize>, @everyone\n-# small print\n> quoted\n> twice`, 22));
+  add(msg('1022', '305', grace, `# Plan\n## Today\n- lists\n  - nested\n1. one\n2. two\nAt <t:1793352000:t> on <t:1793352000:D>, <t:${Math.floor(now + 11400)}:R>: run </roll dice:555>, read [the docs](<https://zinc.dev/docs> "Docs"), see <https://zinc.dev> and <id:customize>, @everyone\n-# small print\n> quoted\n> twice\n\`\`\`ts\nconst answer = 42;\n\`\`\``, 22));
   const unknown = add(msg('1023', '305', linus, '', 23)); unknown.type = 99;
   return out;
 }

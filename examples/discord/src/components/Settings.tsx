@@ -1,4 +1,4 @@
-// The settings, in place of the messages, in two panes as Discord has them. Servers: which servers show, one switch per server; a server
+// The settings, in place of the messages, in two panes as Discord has them. Appearance: the themes (Appearance.tsx). Servers: which servers show, one switch per server; a server
 // joined after the choice was made comes off and marked new. Voice & audio: the microphone and the speakers, their volumes, the input mode
 // (voice activity with its sensitivity over a live meter, or push-to-talk on a chosen key), the camera's quality, the ultra low data mode and each user's volume. Both stay on this
 // machine (state.ts, call.ts), never sent to Discord. Account safety: AccountSafety.tsx.
@@ -11,6 +11,7 @@ import { VoiceSettings, decibels } from '../call';
 import { MUTED } from './ChannelList';
 import { Avatar } from './Avatar';
 import { AccountSafety } from './AccountSafety';
+import { Appearance } from './Appearance';
 import { cdnPicture, iconKey } from '../services/cdn';
 import { BG_MAIN, BG_SIDE, BG_HOVER, BG_SELECTED, BG_ACCENT, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG } from '../constants';
 
@@ -138,22 +139,23 @@ function Tab(p: { id: string; label: string }) {
 }
 
 export function Settings() {
-  const voice = store.settingsTab === 'voice', safety = store.settingsTab === 'safety';
+  const tab = store.settingsTab, voice = tab === 'voice', safety = tab === 'safety';
   return <View className={`grow basis-0 flex-row ${BG_MAIN}`}>
     <View className={`w-[180] px-2 py-4 gap-[2] ${BG_SIDE}`}>
       <Text className={`px-2.5 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>Settings</Text>
       <Tab id="servers" label="Servers" />
       <Tab id="voice" label="Voice & audio" />
       <Tab id="safety" label="Account safety" />
+      <Tab id="appearance" label="Appearance" />
     </View>
     <View className="grow basis-0">
-      <View className="h-[48] px-4 flex-row items-center border-b border-[#1f2023]">
-        <Text className={`grow font-semibold ${TEXT_STRONG}`}>{voice ? 'Voice & audio' : safety ? 'Account safety' : 'Servers'}</Text>
+      <View className="h-[48] px-4 flex-row items-center border-b border-[var(--dc-divider)]">
+        <Text className={`grow font-semibold ${TEXT_STRONG}`}>{voice ? 'Voice & audio' : safety ? 'Account safety' : tab === 'appearance' ? 'Appearance' : 'Servers'}</Text>
         <View className={`p-1 rounded ${BG_HOVER}`} onPress={() => store.showSettings(false)} aria-label="Close the settings">
           <Icon name="x" size={20} color={MUTED} />
         </View>
       </View>
-      <ScrollView className="grow">{voice ? <Voice /> : safety ? <AccountSafety /> : <Servers />}</ScrollView>
+      <ScrollView className="grow">{voice ? <Voice /> : safety ? <AccountSafety /> : tab === 'appearance' ? <Appearance /> : <Servers />}</ScrollView>
     </View>
   </View>;
 }

@@ -11,7 +11,7 @@
 # badge: the calls of the zinc:system simulator); then the last frame's hash. A second run (DISCORD_DEMO=showcase, a window tall enough
 # for the whole channel) shows #showcase, one message of each kind of content Discord sends (embeds, files by kind, stickers, reactions,
 # a poll, system messages, replies, a forward, a command's answer, buttons, the remaining Markdown), reacts, votes, opens a thread and a
-# forum; its last frame is the golden picture (ZINC_SHOT=file.png saves it to look at).
+# forum; its last frame is the golden picture (ZINC_SHOT=file.png saves it to look at, and the first run's as file-session.png).
 # What the app logs and what the fake server received (both sorted: the acks race the scripted session) are compared with
 # tests/golden/discord. ZN_UPDATE_GOLDEN=1 records again.
 cd "$(dirname "$0")/../.." || exit 2
@@ -29,7 +29,7 @@ fake=$!
 for _ in $(seq 100); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
 [ -s "$tmp/ports" ] || { echo "discord: the fake server did not start"; exit 1; }
 read -r api gw < "$tmp/ports"
-(cd examples/discord && env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=1200x760 ZINC_FRAMES=1000000 ZINC_FRAMEHASH=last ${ZINC_SHOT:+ZINC_SHOT=$ZINC_SHOT} \
+(cd examples/discord && env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=1200x760 ZINC_FRAMES=1000000 ZINC_FRAMEHASH=last ${ZINC_SHOT:+ZINC_SHOT=${ZINC_SHOT%.png}-session.png} \
   DISCORD_API="http://127.0.0.1:$api/api/v9" DISCORD_GATEWAY="ws://127.0.0.1:$gw" DISCORD_CDN="http://127.0.0.1:$api/cdn" \
   DISCORD_CACHE="$tmp/cache" ZINC_STORAGE="$tmp/storage.kv" ZINC_SYSTEM_LOG="$tmp/system" DISCORD_UPLOAD_FILE="$tmp/notes.png" DISCORD_TOKEN=test-token DISCORD_DEMO=1 DISCORD_LOG=1 \
   timeout 60 "$ZINC" run . > "$tmp/app" 2>&1) || { echo "discord: the session failed"; tail -8 "$tmp/app"; exit 1; }

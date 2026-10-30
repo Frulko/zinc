@@ -50,6 +50,19 @@ last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a
 [docs/reports/discord-client-requests.md](../../docs/reports/discord-client-requests.md). Not yet: animated emoji and avatars show their first frame, your own status is not shown. Coming in order
 (milestone M28): notifications (ZN-870), voice (ZN-872), video (ZN-873), screen sharing (ZN-875).
 
+## Themes
+
+Settings, **Appearance** lists the themes: Discord dark (the default) and light, a Slack-like dark aubergine and a Teams-like light, look-alikes
+in colour and density only. A theme is a JSON file: `name`, `scheme` (`dark` or `light`: the colours left out and the switches of
+Settings), `colors` (25 named colours as `#rrggbb`: `rail`, `sidebar`, `main`, `text`, `muted`, `accent`, `link`...), `radius` (px of the
+message box and code blocks), `font` (a family the app ships, `assets/<Family>.ttf`), `textSize` and `density` (`cozy` or `compact`).
+[`assets/themes/theme.schema.json`](assets/themes/theme.schema.json) describes every field; the shipped files in `assets/themes/` are
+examples. Put your own in the folder the pane shows (`<data dir>/themes`; a file named like a shipped one replaces it) and press
+**Reload the themes**. A click uses a theme at once; the choice stays on this computer.
+
+Code blocks show their language and a **Copy** button; the `<>` button of the message box inserts a fenced block in the language you pick,
+the cursor on its empty line. (Highlighting comes with zinc:editor's read-only code view, in `components/CodeBlock.tsx`.)
+
 ## Layout of `src/`
 
 | File | What it holds |
@@ -59,6 +72,7 @@ last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a
 | `state.ts` | the servers, channels, DMs, messages, read states, who is typing, the member list and the actions (send, reply, edit, delete, ack, send files, older pages); the gateway's dispatches land here |
 | `markdown.ts` | Discord's Markdown: blocks and the style runs of their text, custom emoji, timestamps |
 | `content.ts` | what a message carries besides its text: embeds, reactions, stickers, polls, buttons, threads, system messages |
+| `theme.ts` | the themes: the JSON files read, their colours as scheme variables (`bg-[var(--dc-main)]`), the one chosen |
 | `showcase.ts` | the scripted session of #showcase (every kind of content) |
 | `safety-session.ts` | the scripted session of the safety model (`DISCORD_DEMO=safety`, `tests/t1/discord_safety.sh`) |
 | `members.ts` | the member list: the subscription (op 37) and `GUILD_MEMBER_LIST_UPDATE` (SYNC, INSERT, UPDATE, DELETE, INVALIDATE) |
@@ -70,7 +84,7 @@ last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a
 | `services/identity.ts` | the client properties (IDENTIFY and `X-Super-Properties`) |
 | `services/auth.ts` | the QR code login (the remote-auth gateway, its RSA-OAEP key exchange) and the password login with its two-factor code |
 | `services/session.ts` | the token in the keychain |
-| `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`) and content (`Content.tsx`), avatars, the member list, the pins or a thread beside the messages (`SidePane.tsx`) |
+| `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`, code blocks in `CodeBlock.tsx`, the code button in `CodeInsert.tsx`) and content (`Content.tsx`), avatars, the member list, the pins or a thread beside the messages (`SidePane.tsx`), the settings (`Appearance.tsx`: the themes) |
 
 ## Test
 

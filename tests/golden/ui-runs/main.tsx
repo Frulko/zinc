@@ -9,7 +9,7 @@ ui.setClass(root, 'flex-col gap-3 p-3 w-full bg-white');
 const plain = ui.createNode(ui.TEXT); ui.setClass(plain, 'self-start max-w-[180] text-base text-slate-900 select-text'); ui.setText(plain, TEXT);
 const styled = ui.createNode(ui.TEXT); ui.setClass(styled, 'self-start max-w-[180] text-base text-slate-900 select-text'); ui.setText(styled, TEXT);
 ui.setTextRuns(styled, [8, 0, -1, 5, ui.RUN_BOLD, -1, 6, 0, -1, 8, ui.RUN_MONO, 0xc2410c, 15, 0, -1, 3, ui.RUN_UNDERLINE, 0x2563eb]);
-const mono = ui.createNode(ui.TEXT); ui.setClass(mono, 'font-mono text-xs text-slate-500'); ui.setText(mono, 'mono');   // a font-mono class: the program bakes the mono face
+const mono = ui.createNode(ui.TEXT); ui.setClass(mono, 'font-mono text-xs text-[var(--ink)]'); ui.setText(mono, 'mono');   // a font-mono class: the program bakes the mono face
 const LONG = 'see orchestrator/src/components/chat.ts:198 now';
 const long = ui.createNode(ui.TEXT); ui.setClass(long, 'self-start max-w-[120] text-base text-slate-900 break-words'); ui.setText(long, LONG);
 ui.setTextRuns(long, [4, 0, -1, 39, ui.RUN_MONO, 0xc2410c, 4, 0, -1]);
@@ -29,6 +29,7 @@ ui.mount(root, 0xffffff, (dt: number) => {
   if (f === 3) {
     ui.defineScheme('light', ['ink'], [0x2563eb]);
     console.log('scheme colour', ui.schemeColor('ink'), ui.schemeColor('none'));   // a scheme variable, an unknown name (the text's colour)
+    console.log('restyled', ui.schemeRestyled());   // the scheme shown got new colours: its node (mono) takes them at once
     ui.setTextRuns(styled, []);
   }
   if (f === 4) { console.log('cleared', JSON.stringify(ui.textLines(styled))); quit(); }

@@ -1,6 +1,7 @@
 // Every literal used twice: endpoints, the client identity, colours and sizes. The endpoints can be moved by env for the tests (a fake
 // Discord on 127.0.0.1, tests/t1/discord.sh).
 import { env } from 'zinc:sys';
+import { v, runColor } from './theme';
 
 const or = (name: string, fallback: string): string => { const v = env(name); return v !== '' ? v : fallback; };
 
@@ -33,15 +34,15 @@ export const isThread = (type: i32): boolean => type >= CH_ANNOUNCEMENT_THREAD &
 
 export const RAIL_W = 72, CHANNELS_W = 240, MEMBERS_W = 240, PANE_W = 360;   // PANE_W: the pins or a thread beside the messages
 
-// Discord's dark theme, as classes
-export const BG_RAIL = 'bg-[#1e1f22]', BG_SIDE = 'bg-[#2b2d31]', BG_MAIN = 'bg-[#313338]', BG_INPUT = 'bg-[#383a40]';
-export const BG_SELECTED = 'bg-[#404249]', BG_HOVER = 'hover:bg-[#35373c]', BG_ACCENT = 'bg-[#5865f2]';
-export const TEXT_MAIN = 'text-[#dbdee1]', TEXT_MUTED = 'text-[#949ba4]', TEXT_STRONG = 'text-[#f2f3f5]', TEXT_ERROR = 'text-[#fa777c]';
+// The theme's colours, as classes (theme.ts: the scheme variables a theme file sets)
+export const BG_RAIL = `bg-${v('rail')}`, BG_SIDE = `bg-${v('sidebar')}`, BG_MAIN = `bg-${v('main')}`, BG_INPUT = `bg-${v('input')}`;
+export const BG_SELECTED = `bg-${v('selected')}`, BG_HOVER = `hover:bg-${v('hover')}`, BG_ACCENT = `bg-${v('accent')}`;
+export const TEXT_MAIN = `text-${v('text')}`, TEXT_MUTED = `text-${v('muted')}`, TEXT_STRONG = `text-${v('strong')}`, TEXT_ERROR = `text-${v('error')}`;
 
 // Writing (docs/reports/discord-client-research.md 2.6 and 3)
 export const TYPING_SHOWN_MS = 10000;   // an indicator lasts 10 s (when "typing" is sent: src/safety/policy.ts)
 export const DISCORD_EPOCH = 1420070400000;
-export const MENTION_BG = 'bg-[#f23f43]', TEXT_MENTION = 0xc9cdfb, TEXT_LINK = 0x00a8fc, TEXT_CODE = 0xdbdee1, SPOILER = 0x6d6f78;
+export const MENTION_BG = `bg-${v('badge')}`, TEXT_MENTION = runColor('mention'), TEXT_LINK = runColor('link'), TEXT_CODE = runColor('text'), SPOILER = runColor('spoiler');
 
 // Pictures (docs/reports/discord-client-research.md 3): the CDN's files are kept on disk (DISCORD_CACHE moves the folder, for the tests)
 export const CACHE_DIR = env('DISCORD_CACHE');

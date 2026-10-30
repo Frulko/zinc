@@ -93,7 +93,7 @@ export class Store implements GatewayHandler {
   presences: Map<string, Presence> = new Map<string, Presence>();
   /** The settings screen is open (in place of the messages). */
   settingsOpen = false;
-  /** The settings' pane: 'servers' or 'voice' (Voice & audio). */
+  /** The settings' pane: 'servers', 'voice' (Voice & audio) or 'appearance' (the themes). */
   settingsTab = 'servers';
   /** The servers shown, chosen in the settings and kept on this machine (zinc:storage), never sent to Discord: null until a choice is
    *  made (every server shows), then an allowlist. `known`: the servers the settings listed, so one joined after is new (and off). */

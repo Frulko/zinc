@@ -4,9 +4,10 @@ import { useRef, useEffect } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
 import { store } from '../state';
 import { parse, onlyEmoji, MdBlock, K_QUOTE, K_HEADING, K_SUB, K_CODE, K_LIST, R_CODE, R_LINK, R_MENTION, R_SPOILER, R_EMOJI, R_TIME } from '../markdown';
-import { CodeView } from 'zinc:editor';
 import { cdnPicture, emojiKey } from '../services/cdn';
-import { BG_SIDE, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_MENTION, TEXT_LINK, TEXT_CODE, SPOILER, EMOJI, EMOJI_BIG } from '../constants';
+import { CodeBlock } from './CodeBlock';
+import { TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_MENTION, TEXT_LINK, TEXT_CODE, SPOILER, EMOJI, EMOJI_BIG } from '../constants';
+import { runColor } from '../theme';
 
 /** Names for the mentions of a message. */
 export function names(kind: string, id: string): string {
@@ -15,7 +16,7 @@ export function names(kind: string, id: string): string {
   return store.userName(id);
 }
 
-const TIME = 0xf2f3f5;   // a timestamp: brighter than the text (Discord draws it on a light box)
+const TIME = runColor('strong');   // a timestamp: brighter than the text (Discord draws it on a light box)
 const color = (role: i32): i32 => role === R_CODE ? TEXT_CODE : role === R_LINK ? TEXT_LINK : role === R_MENTION ? TEXT_MENTION
   : role === R_SPOILER ? SPOILER : role === R_TIME ? TIME : -1;
 
@@ -47,10 +48,8 @@ function Paragraph(p: { b: MdBlock; className: string; big: boolean }) {
 
 function Block(p: { b: MdBlock; big: boolean; size: string }) {
   const b = p.b;
-  if (b.kind === K_CODE) return <View className="my-1 rounded border border-[#1e1f22]">
-    <CodeView code={b.text} lang={b.lang} className={`text-[13px] leading-[18] px-3 py-2 rounded ${BG_SIDE} ${TEXT_MAIN}`} />
-  </View>;
-  if (b.kind === K_QUOTE) return <View className="flex-row gap-3"><View className="w-[4] rounded bg-[#4e5058]" /><View className="grow basis-0"><Paragraph b={b} big={false} className={`${p.size} ${TEXT_MAIN}`} /></View></View>;
+  if (b.kind === K_CODE) return <CodeBlock code={b.text} lang={b.lang} />;
+  if (b.kind === K_QUOTE) return <View className="flex-row gap-3"><View className="w-[4] rounded bg-[var(--dc-faint)]" /><View className="grow basis-0"><Paragraph b={b} big={false} className={`${p.size} ${TEXT_MAIN}`} /></View></View>;
   if (b.kind === K_HEADING) return <Paragraph b={b} big={false} className={`mt-1 font-bold ${TEXT_STRONG} ${b.level === 1 ? 'text-[24px]' : b.level === 2 ? 'text-[20px]' : 'text-[16px]'}`} />;
   if (b.kind === K_SUB) return <Paragraph b={b} big={false} className={`text-xs ${TEXT_MUTED}`} />;
   if (b.kind === K_LIST) return <View className={`flex-row ${b.level > 0 ? 'pl-6' : ''}`}>

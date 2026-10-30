@@ -33,6 +33,7 @@ import * as guard from './safety/index';
 import * as win from 'zinc:system/window';
 import * as sys from 'zinc:sys';
 import { safety } from './safety-session';
+import { startThemes, allThemes, themeErrors, Theme } from './theme';
 
 ui.onKey((e: ui.KeyEvent): void => {
   const call = store.call;
@@ -129,6 +130,7 @@ win.onCloseRequested((): void => { store.suspend(); });
 sys.onSignal('SIGINT', leave);
 sys.onSignal('SIGTERM', leave);
 
+startThemes();   // the theme chosen last, before the first frame
 render(App, 0x313338, null);
 startNotifications();
 // one instance (so one session of the account): a second launch brings the first to the front and ends
@@ -380,7 +382,7 @@ async function notifications(id: string): Promise<void> {
 }
 
 /** The settings: a server switched off leaves the rail and its counts, one joined after the choice comes off and new, the DMs stay; the
- *  choice is kept (zinc:storage). The screen stays open for the last frame. */
+ *  choice is kept (zinc:storage). Then the themes found; their pane stays open for the last frame. */
 function settings(): void {
   const rail = (): string => store.shownGuilds().map((g: Guild) => `${g.name}(${store.guildUnread(g) ? 'unread' : 'read'} ${store.guildMentions(g)})`).join(' ');
   store.showSettings(true);
@@ -393,6 +395,8 @@ function settings(): void {
   const later = store.findGuild('202') as Guild;
   console.log(`settings: rail ${rail()}, joined later shown ${store.shown(later)} new ${store.isNew(later)}, dms ${store.dms.length}, open ${store.guildId}`);
   console.log(`settings: kept ${storage.get('servers')}`);
+  console.log(`themes: ${allThemes().map((t: Theme) => `${t.id} (${t.scheme}, ${t.density})`).join(', ')}; errors ${themeErrors().length}`);
+  store.showSettingsTab('appearance');   // the last frame: the themes
 }
 
 /** DISCORD_BENCH: the open channel's whole history, then a scroll to its top and back, 60 px a frame. */

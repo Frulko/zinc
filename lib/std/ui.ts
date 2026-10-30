@@ -2123,7 +2123,8 @@ function schemeVar(name: string): i32 {
   const v = varNames.indexOf(name), s = schemeNames.indexOf(scheme);
   return v < 0 || s < 0 ? -2 : schemeVals[s][v];
 }
-/** Defines the variables of one scheme: names ('card'), colours (0xRRGGBB, -1 transparent). Several calls with the same names add schemes. */
+/** Defines the variables of one scheme: names ('card'), colours (0xRRGGBB, -1 transparent). Several calls with the same names add schemes;
+ *  calling it again for the scheme shown recolours the nodes that use its variables. */
 export function defineScheme(name: string, names: string[], colors: i32[]): void {
   let s = schemeNames.indexOf(name);
   if (s < 0) { s = schemeNames.length; schemeNames.push(name); schemeVals.push([]); }
@@ -2133,6 +2134,7 @@ export function defineScheme(name: string, names: string[], colors: i32[]): void
     while (schemeVals[s].length <= v) schemeVals[s].push(-2);
     schemeVals[s][v] = colors[i];
   }
+  if (name === scheme) schemeCount = restyleMedia(16);   // new colours for the scheme shown (a theme chosen): its nodes take them now
 }
 function applyScheme(name: string): void {
   if (name === scheme) return;

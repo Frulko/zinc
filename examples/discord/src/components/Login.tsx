@@ -23,13 +23,13 @@ function drawQr(x: i32, y: i32, w: i32, h: i32): void {
 }
 
 function Button(props: { label: string; busy: boolean; onPress: () => void }) {
-  return <View className={`h-[44] items-center justify-center rounded ${BG_ACCENT} active:bg-[#4752c4]`} aria-label={props.label}
+  return <View className={`h-[44] items-center justify-center rounded ${BG_ACCENT} active:bg-[var(--dc-accent-pressed)]`} aria-label={props.label}
     onPress={() => { if (!props.busy) props.onPress(); }}>
     <Text className="text-white font-semibold">{props.busy ? 'Logging in…' : props.label}</Text>
   </View>;
 }
 function Link(props: { label: string; onPress: () => void }) {
-  return <Text className="text-sm text-[#00a8fc]" onPress={props.onPress}>{props.label}</Text>;
+  return <Text className="text-sm text-[var(--dc-link)]" onPress={props.onPress}>{props.label}</Text>;
 }
 const label = (t: string) => <Text className={`text-xs font-bold uppercase ${TEXT_MUTED}`}>{t}</Text>;
 const field = `w-full h-[40] px-3 rounded border-0 ${BG_INPUT} ${TEXT_MAIN}`;

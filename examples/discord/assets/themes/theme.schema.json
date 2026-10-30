@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A theme of the Zinc Discord client",
+  "description": "Put the file in the app's themes folder (Settings, Appearance, Open the themes folder) and choose it in Settings. A colour left out takes Discord's own (dark or light, by scheme).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": { "type": "string", "description": "Shown in Settings; the file name when missing." },
+    "scheme": { "enum": ["dark", "light"], "default": "dark", "description": "The base: the colours left out, and the switches and sliders of Settings." },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" } },
+      "properties": {
+        "rail": { "description": "The server rail on the left; the background of menus and spoilers." },
+        "sidebar": { "description": "The channel list, the member list, embeds and code blocks." },
+        "main": { "description": "The messages and the settings." },
+        "footer": { "description": "Your name and the call bar under the channel list." },
+        "input": { "description": "The message box and the fields." },
+        "hover": { "description": "A channel or a button under the pointer." },
+        "rowHover": { "description": "A message under the pointer, or the one you reply to or edit." },
+        "selected": { "description": "The open channel, the chosen tab." },
+        "divider": { "description": "The lines under the headers." },
+        "border": { "description": "The outline of cards, files and code blocks." },
+        "faint": { "description": "Quote bars, quiet buttons, empty poll bars." },
+        "text": { "description": "The text of messages." },
+        "muted": { "description": "Secondary text: times, read channels, hints; the icons of the sidebar." },
+        "strong": { "description": "Names, headers, unread channels, timestamps in messages." },
+        "icon": { "description": "The icons of message actions and attachments." },
+        "error": { "description": "Errors." },
+        "link": { "description": "Links." },
+        "mention": { "description": "Mentions of users, channels and roles in the text." },
+        "spoiler": { "description": "A hidden spoiler." },
+        "accent": { "description": "Buttons, the chosen server, your reactions, avatars without a picture." },
+        "accentPressed": { "description": "A button pressed." },
+        "accentSoft": { "description": "Your reactions' background." },
+        "accentSoftText": { "description": "Your reactions' count." },
+        "danger": { "description": "Delete and other buttons that destroy." },
+        "badge": { "description": "The count of mentions." }
+      }
+    },
+    "radius": { "type": "integer", "minimum": 0, "maximum": 24, "default": 8, "description": "px of the rounded corners of the message box and code blocks." },
+    "font": { "type": "string", "default": "", "description": "A font family the app ships (assets/<Family>.ttf) for messages; empty for the default." },
+    "textSize": { "type": "integer", "minimum": 11, "maximum": 22, "default": 15, "description": "px of the text of messages." },
+    "density": { "enum": ["cozy", "compact"], "default": "cozy", "description": "compact: closer messages." }
+  }
+}

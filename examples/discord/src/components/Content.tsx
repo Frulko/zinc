@@ -10,10 +10,11 @@ import { Embed, EmbedField, EmbedMedia, Reaction, Sticker, PollAnswer, Component
 import { Markdown } from './Markdown';
 import { cdnPicture, emojiKey, attachmentPicture, mediaPicture, stickerPicture } from '../services/cdn';
 import { BG_SIDE, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_LINK, MEDIA_MAX_W, MEDIA_MAX_H, EMBED_W, THUMB, STICKER } from '../constants';
+import { color } from '../theme';
 
-const LINK = (): i32 => TEXT_LINK;
+const LINK = (): i32 => color('link');
 const WHITE = (): i32 => 0xffffff;
-const MUTED = (): i32 => 0xb5bac1;
+const MUTED = (): i32 => color('icon');
 const open = (url: string): void => { if (url !== '') openUrl(url); };
 const hex = (rgb: i32): string => { const s = rgb.toString(16); return '0'.repeat(6 - s.length) + s; };
 
@@ -36,17 +37,17 @@ function Play(p: { w: i32; h: i32 }) {
 
 /** A picture hidden behind "SPOILER" until clicked. */
 function Spoiler(p: { w: i32; h: i32; m: Message }) {
-  return <View className={`mt-1 w-[${p.w}] h-[${p.h}] rounded-lg bg-[#1e1f22] items-center justify-center`} aria-label="Spoiler" onPress={() => store.revealSpoilers(p.m)}>
+  return <View className={`mt-1 w-[${p.w}] h-[${p.h}] rounded-lg bg-[var(--dc-rail)] items-center justify-center`} aria-label="Spoiler" onPress={() => store.revealSpoilers(p.m)}>
     <Text className="px-3 py-1 rounded-full bg-[#000000]/60 text-sm font-bold text-white">SPOILER</Text>
   </View>;
 }
 
 function FileCard(p: { a: Attachment; icon: string }) {
   const a = p.a;
-  return <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg border border-[#1e1f22] ${BG_SIDE}`} onPress={() => open(a.url)}>
+  return <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg border border-[var(--dc-border)] ${BG_SIDE}`} onPress={() => open(a.url)}>
     <Icon name={p.icon} size={24} color={LINK} />
     <View>
-      <Text className="text-sm text-[#00a8fc]">{a.filename}</Text>
+      <Text className="text-sm text-[var(--dc-link)]">{a.filename}</Text>
       <Text className={`text-xs ${TEXT_MUTED}`}>{a.url === '' ? 'sending…' : sizeText(a.size)}</Text>
     </View>
   </View>;
@@ -58,10 +59,10 @@ const BARS = 40;
 /** A voice message: a play button, its waveform and its length (played in the browser: the app does not decode Opus yet). */
 function Voice(p: { a: Attachment }) {
   const a = p.a;
-  return <View className="mt-1 self-start h-[48] px-3 flex-row items-center gap-3 rounded-full bg-[#2b2d31]" aria-label="Voice message" onPress={() => open(a.url)}>
-    <View className="w-[32] h-[32] rounded-full bg-[#5865f2] items-center justify-center"><Icon name="play" size={16} color={WHITE} /></View>
+  return <View className="mt-1 self-start h-[48] px-3 flex-row items-center gap-3 rounded-full bg-[var(--dc-sidebar)]" aria-label="Voice message" onPress={() => open(a.url)}>
+    <View className="w-[32] h-[32] rounded-full bg-[var(--dc-accent)] items-center justify-center"><Icon name="play" size={16} color={WHITE} /></View>
     <View className="h-[28] flex-row items-center gap-[2]">
-      {waveform(a.waveform, BARS).map((v: number, i: i32) => <View key={`${i}`} className={`w-[3] h-[${4 + Math.round(v * 22)}] rounded-full bg-[#b5bac1]`} />)}
+      {waveform(a.waveform, BARS).map((v: number, i: i32) => <View key={`${i}`} className={`w-[3] h-[${4 + Math.round(v * 22)}] rounded-full bg-[var(--dc-icon)]`} />)}
     </View>
     <Text className={`text-sm ${TEXT_MAIN}`}>{clock(a.duration)}</Text>
   </View>;
@@ -78,7 +79,7 @@ export function Media(p: { a: Attachment; m: Message }) {
     if (a.spoiler && !store.revealed.has(p.m.id)) return <Spoiler w={b.w} h={b.h} m={p.m} />;
     const picture = a.proxyUrl !== '' ? mediaPicture(a.proxyUrl, b.w, b.h) : a.kind === 'image' ? attachmentPicture(a.url) : -1;
     const alt = a.description !== '' ? a.description : a.filename;
-    if (a.kind === 'image') return <Image image={picture} className={`mt-1 w-[${b.w}] h-[${b.h}] rounded-lg bg-[#2b2d31] object-cover`} aria-label={alt} />;
+    if (a.kind === 'image') return <Image image={picture} className={`mt-1 w-[${b.w}] h-[${b.h}] rounded-lg bg-[var(--dc-sidebar)] object-cover`} aria-label={alt} />;
     return <View className={`mt-1 w-[${b.w}] h-[${b.h}] rounded-lg bg-[#000000]`} aria-label={alt} onPress={() => open(a.url)}>
       <Image image={picture} className={`w-[${b.w}] h-[${b.h}] rounded-lg object-cover`} />
       <Play w={b.w} h={b.h} />
@@ -99,7 +100,7 @@ function StickerView(p: { s: Sticker }) {
 /** An embed's picture: drawn large, with a play mark when it stands for a video or a GIF (which open in the browser). */
 function EmbedPicture(p: { media: EmbedMedia; video: boolean; url: string; maxW: i32 }) {
   const b = fit(p.media.width, p.media.height, p.maxW, MEDIA_MAX_H);
-  const img = <Image image={mediaPicture(p.media.url, b.w, b.h)} className={`w-[${b.w}] h-[${b.h}] rounded bg-[#1e1f22] object-cover`} />;
+  const img = <Image image={mediaPicture(p.media.url, b.w, b.h)} className={`w-[${b.w}] h-[${b.h}] rounded bg-[var(--dc-rail)] object-cover`} />;
   if (!p.video) return <View className="mt-2">{img}</View>;
   return <View className={`mt-2 w-[${b.w}] h-[${b.h}]`} aria-label="Play" onPress={() => open(p.url)}>{img}<Play w={b.w} h={b.h} /></View>;
 }
@@ -116,7 +117,7 @@ const field = (e: Embed, name: string): string => { for (const f of e.fields) if
 function PollResult(p: { e: Embed }) {
   const e = p.e, votes = parseInt(field(e, 'victor_answer_votes')), total = parseInt(field(e, 'total_votes'));
   const won = field(e, 'victor_answer_text');
-  return <View className={`mt-1 self-start w-[${EMBED_W}] px-4 py-3 flex-row items-center gap-3 rounded-lg border border-[#1e1f22] ${BG_SIDE}`}>
+  return <View className={`mt-1 self-start w-[${EMBED_W}] px-4 py-3 flex-row items-center gap-3 rounded-lg border border-[var(--dc-border)] ${BG_SIDE}`}>
     <Icon name="chart-bar" size={24} color={MUTED} />
     <View className="grow basis-0">
       <Text className={`text-[15px] font-semibold ${TEXT_STRONG}`}>{`${field(e, 'poll_question_text')}: the poll has closed`}</Text>
@@ -140,7 +141,7 @@ function EmbedCard(p: { e: Embed }) {
         <View className="shrink gap-1">
           {e.provider !== '' ? <Text className={`text-xs ${TEXT_MUTED}`}>{e.provider}</Text> : null}
           {e.author !== '' ? <Text className={`text-sm font-semibold ${TEXT_STRONG}`}>{e.author}</Text> : null}
-          {e.title !== '' ? <Text className={`text-[15px] font-semibold ${e.url !== '' ? 'text-[#00a8fc]' : TEXT_STRONG}`} onPress={() => open(e.url)}>{e.title}</Text> : null}
+          {e.title !== '' ? <Text className={`text-[15px] font-semibold ${e.url !== '' ? 'text-[var(--dc-link)]' : TEXT_STRONG}`} onPress={() => open(e.url)}>{e.title}</Text> : null}
           {e.description !== '' ? <Markdown text={e.description} revealed={true} size="text-sm" /> : null}
           {e.fields.length > 0 ? <View className="mt-1 flex-row flex-wrap gap-x-2 gap-y-2">{e.fields.map((f: EmbedField, i: i32) => <Field key={`${i}`} f={f} />)}</View> : null}
         </View>
@@ -163,19 +164,19 @@ function PollView(p: { m: Message }) {
   const m = p.m, poll = m.poll;
   if (poll === null) return null;
   const total = poll.total(), shown = poll.voted() || poll.finalized, closed = poll.finalized || left(poll.expiry) === 'Poll closed';
-  return <View className={`mt-1 w-[${EMBED_W}] p-4 gap-2 rounded-lg border border-[#1e1f22] ${BG_SIDE}`}>
+  return <View className={`mt-1 w-[${EMBED_W}] p-4 gap-2 rounded-lg border border-[var(--dc-border)] ${BG_SIDE}`}>
     <Text className={`text-[17px] font-semibold ${TEXT_STRONG}`}>{poll.question}</Text>
     <Text className={`text-sm ${TEXT_MUTED}`}>{poll.multi ? 'Select one or more answers' : 'Select one answer'}</Text>
     {poll.answers.map((a: PollAnswer) => {
       const pct = total > 0 ? Math.round(a.count * 100 / total) : 0;
-      return <View key={`${a.id}`} className={`h-[44] rounded-lg border ${a.mine ? 'border-[#5865f2]' : 'border-[#383a40]'} bg-[#383a40]`}
+      return <View key={`${a.id}`} className={`h-[44] rounded-lg border ${a.mine ? 'border-[var(--dc-accent)]' : 'border-[var(--dc-input)]'} bg-[var(--dc-input)]`}
         aria-label={a.text} onPress={() => { if (!closed) store.vote(m, a.id); }}>
-        {shown ? <View className={`absolute left-0 top-0 bottom-0 w-[${pct}%] rounded-lg ${a.mine ? 'bg-[#5865f2]/40' : 'bg-[#4e5058]'}`} /> : null}
+        {shown ? <View className={`absolute left-0 top-0 bottom-0 w-[${pct}%] rounded-lg ${a.mine ? 'bg-[#5865f2]/40' : 'bg-[var(--dc-faint)]'}`} /> : null}
         <View className="grow px-3 flex-row items-center gap-2">
           {a.emojiId !== '' ? <Image image={cdnPicture(emojiKey(a.emojiId))} className="w-[20] h-[20]" /> : a.emoji !== '' ? <Text className="text-[16px]">{a.emoji}</Text> : null}
           <Text className={`grow basis-0 text-[15px] font-semibold ${TEXT_MAIN}`} numberOfLines={1}>{a.text}</Text>
           {shown ? <Text className={`text-sm font-semibold ${TEXT_STRONG}`}>{`${a.count} • ${pct}%`}</Text>
-            : <View className={`w-[20] h-[20] rounded-full border-2 border-[#b5bac1]`} />}
+            : <View className={`w-[20] h-[20] rounded-full border-2 border-[var(--dc-icon)]`} />}
         </View>
       </View>;
     })}
@@ -183,12 +184,12 @@ function PollView(p: { m: Message }) {
   </View>;
 }
 
-const STYLE_BG = ['bg-[#4e5058]', 'bg-[#5865f2]', 'bg-[#4e5058]', 'bg-[#248046]', 'bg-[#da373c]', 'bg-[#4e5058]', 'bg-[#4e5058]'];
+const STYLE_BG = ['bg-[var(--dc-faint)]', 'bg-[var(--dc-accent)]', 'bg-[var(--dc-faint)]', 'bg-[#248046]', 'bg-[var(--dc-danger)]', 'bg-[var(--dc-faint)]', 'bg-[var(--dc-faint)]'];
 /** A button or a menu of a bot's message. Only a link button does something (it opens its page): the others would send an interaction,
  *  which a user client must not fake. */
 function Control(p: { c: Component }) {
   const c = p.c;
-  if (c.type !== 2) return <View className={`w-[${EMBED_W - 32}] h-[40] px-3 flex-row items-center rounded border border-[#1e1f22] bg-[#1e1f22] ${c.disabled ? 'opacity-50' : ''}`} aria-label={c.label}>
+  if (c.type !== 2) return <View className={`w-[${EMBED_W - 32}] h-[40] px-3 flex-row items-center rounded border border-[var(--dc-border)] bg-[var(--dc-rail)] ${c.disabled ? 'opacity-50' : ''}`} aria-label={c.label}>
     <Text className={`grow text-[15px] ${TEXT_MUTED}`} numberOfLines={1}>{c.label}</Text>
     <Icon name="chevron-down" size={18} color={MUTED} />
   </View>;
@@ -203,10 +204,10 @@ function Control(p: { c: Component }) {
 /** A reaction: its emoji and count, mine outlined; a press adds mine or takes it back. */
 function ReactionPill(p: { r: Reaction; m: Message }) {
   const r = p.r;
-  return <View className={`h-[26] px-[6] flex-row items-center gap-1 rounded-lg border ${r.me ? 'bg-[#3b405a] border-[#5865f2]' : 'bg-[#2b2d31] border-[#2b2d31]'}`}
+  return <View className={`h-[26] px-[6] flex-row items-center gap-1 rounded-lg border ${r.me ? 'bg-[var(--dc-accent-soft)] border-[var(--dc-accent)]' : 'bg-[var(--dc-sidebar)] border-[var(--dc-sidebar)]'}`}
     aria-label={`${r.name} ${r.count}`} onPress={() => store.react(p.m, r)}>
     {r.id !== '' ? <Image image={cdnPicture(emojiKey(r.id))} className="w-[16] h-[16]" /> : <Text className="text-[14px]">{r.name}</Text>}
-    <Text className={`text-sm font-semibold ${r.me ? 'text-[#dee0fc]' : TEXT_MUTED}`}>{`${r.count}`}</Text>
+    <Text className={`text-sm font-semibold ${r.me ? 'text-[var(--dc-accent-soft-text)]' : TEXT_MUTED}`}>{`${r.count}`}</Text>
   </View>;
 }
 
@@ -222,7 +223,7 @@ export function Content(p: { m: Message }) {
     {t !== null ? <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg ${BG_SIDE}`} aria-label={`Thread ${t.name}`} onPress={() => store.openThread(t.id)}>
       <Icon name="message-square" size={16} color={MUTED} />
       <Text className={`text-sm font-semibold ${TEXT_STRONG}`}>{t.name}</Text>
-      <Text className="text-sm text-[#00a8fc]">{`${t.count} message${t.count === 1 ? '' : 's'}`}</Text>
+      <Text className="text-sm text-[var(--dc-link)]">{`${t.count} message${t.count === 1 ? '' : 's'}`}</Text>
     </View> : null}
     {m.reactions.length > 0 ? <View className="mt-1 flex-row flex-wrap gap-1">{m.reactions.map((r: Reaction, i: i32) => <ReactionPill key={`${i}`} r={r} m={m} />)}</View> : null}
   </View>;

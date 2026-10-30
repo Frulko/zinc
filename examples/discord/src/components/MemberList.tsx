@@ -14,10 +14,10 @@ const hex = (c: i32): string => { const h = c.toString(16); return '#' + '000000
 
 function Member(p: { r: MemberRow }) {
   const r = p.r, name = r.nick !== '' ? r.nick : store.userName(r.userId), hash = store.avatarOf(r.userId), color = store.roleColor(r);
-  return <View className={`h-[${ROW}] px-2 flex-row items-center gap-3 rounded hover:bg-[#35373c] ${r.status === 'offline' ? 'opacity-40' : ''}`} aria-label={name}>
+  return <View className={`h-[${ROW}] px-2 flex-row items-center gap-3 rounded hover:bg-[var(--dc-hover)] ${r.status === 'offline' ? 'opacity-40' : ''}`} aria-label={name}>
     <View>
       <Avatar picture={hash !== '' ? cdnPicture(avatarKey(r.userId, hash)) : -1} name={name} size={MEMBER_AVATAR} round={true} />
-      <Status status={r.status} mobile={r.mobile} offline={false} ring="border-[#2b2d31]" />
+      <Status status={r.status} mobile={r.mobile} offline={false} ring="border-[var(--dc-sidebar)]" />
     </View>
     <Text className={`grow text-[15px] ${color !== 0 ? `text-[${hex(color)}]` : TEXT_MAIN}`} numberOfLines={1}>{name}</Text>
   </View>;
