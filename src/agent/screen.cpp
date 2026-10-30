@@ -55,6 +55,22 @@ std::string liveShell() {
   return live ? path : "";
 }
 
+/** The process is a Zinc shell (the player in shell mode, started by the agent): its environment names a shell socket and no shell display. */
+static bool isShell(long pid) {
+  std::string env;
+  if (!readFile("/proc/" + std::to_string(pid) + "/environ", env)) return false;
+  bool socket = false, display = false;
+  for (size_t at = 0; at < env.size();) {
+    const size_t end = env.find('\0', at);
+    const std::string v = env.substr(at, end == std::string::npos ? std::string::npos : end - at);
+    if (v.rfind("ZINC_SHELL_SOCKET=", 0) == 0 && v.size() > 18) socket = true;
+    if (v == "ZINC_DISPLAY=shell") display = true;
+    if (end == std::string::npos) break;
+    at = end + 1;
+  }
+  return socket && !display;
+}
+
 bool handoffScreen(long pid, int fd, std::string& err, bool lease) {
   const std::string dir = screenDir(), mine = std::to_string(pid);
   bool ready = dir.empty() || !lease;
@@ -64,7 +80,7 @@ bool handoffScreen(long pid, int fd, std::string& err, bool lease) {
     std::error_code ec;
     for (const auto& file : std::filesystem::directory_iterator(tc::home() + "/agent/run", ec))
       if (file.path().extension() == ".pid") old.insert(std::atol(firstLine(file.path().string()).c_str()));
-    for (const long other : old) if (other > 1 && other != pid) {
+    for (const long other : old) if (other > 1 && other != pid && !(!lease && isShell(other))) {   // an app shown in a shell leaves the shell running
       ::kill(-other, SIGTERM);
       for (int i = 0; i < 60 && ::kill(other, 0) == 0; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
       ::kill(-other, SIGKILL);
