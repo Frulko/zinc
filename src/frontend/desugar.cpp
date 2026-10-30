@@ -47,6 +47,23 @@ struct Desugar {
     for (Id k : x.kids) if (susp(k)) return true;
     return false;
   }
+  // Can the statements assign the variable `name`? Conservative: any assignment or update whose target names it, in nested functions too.
+  bool target(Id t, std::string_view name) {
+    if (t == kNone) return false;
+    const Node& x = n(t);
+    if (x.kind == N::Ident) return x.text == name;
+    if (x.kind == N::Member || x.kind == N::Index) return false;
+    for (Id k : x.kids) if (target(k, name)) return true;
+    return false;
+  }
+  bool assigned(Id i, std::string_view name) {
+    if (i == kNone) return false;
+    const Node& x = n(i);
+    if ((x.kind == N::Assign || x.kind == N::UpdatePre || x.kind == N::UpdatePost) && target(x.kids[0], name)) return true;
+    for (Id k : x.kids) if (assigned(k, name)) return true;
+    return false;
+  }
+  bool assigned(const Ids& l, std::string_view name) { for (Id s : l) if (assigned(s, name)) return true; return false; }
   Ids list(Id s) { if (s == kNone) return {}; if (n(s).kind == N::Block) return n(s).kids; return {s}; }
 
   std::string callK(const std::string& k) { return gen ? "__g.cont = " + k + "; return;" : k + "(); return;"; }
@@ -387,8 +404,9 @@ struct Desugar {
       if (form == Ret) pre = vp ? "__p.resolveVoid(); " : "__p.resolveWith(" + tmp + "); ";
       else {
         h[1] = S(rest, c, tail);
-        if (form == Decl && !isLet) { param = name + (ann != kNone ? ": __H2" : ""); if (ann != kNone) h[2] = {ann}; }
-        else if (form == Decl) { pre = "let " + name + (ann != kNone ? ": __H2" : "") + " = " + tmp + "; "; if (ann != kNone) h[2] = {ann}; }
+        // a declaration stays a variable of the continuation, not its parameter: a const keeps its narrowing in the closures after it
+        // (the next await's continuation), and a let never assigned after it is one too
+        if (form == Decl) { pre = std::string(isLet && assigned(rest, name) ? "let " : "const ") + name + (ann != kNone ? ": __H2" : "") + " = " + tmp + "; "; if (ann != kNone) h[2] = {ann}; }
         else if (form == Assign) { pre = "__H2 " + op + " " + tmp + "; "; h[2] = {target}; }
         pre += wrap(c, "__H1;");
       }
