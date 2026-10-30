@@ -29,7 +29,7 @@ read -r api gw < "$tmp/ports"
   DISCORD_API="http://127.0.0.1:$api/api/v9" DISCORD_GATEWAY="ws://127.0.0.1:$gw" DISCORD_CDN="http://127.0.0.1:$api/cdn" \
   DISCORD_CACHE="$tmp/cache" ZINC_STORAGE="$tmp/storage.kv" DISCORD_UPLOAD_FILE="$tmp/notes.png" DISCORD_TOKEN=test-token DISCORD_DEMO=1 DISCORD_LOG=1 \
   timeout 60 "$ZINC" run . > "$tmp/app" 2>&1) || { echo "discord: the session failed"; tail -8 "$tmp/app"; exit 1; }
-{ grep -v '^zinc' "$tmp/app"; ls "$tmp/cache" | sed 's/^/cached /'; } | sort > "$tmp/session"   # sorted: the scripted session races the history request
+{ grep -v '^zinc' "$tmp/app" | grep -v '^timing: '; ls "$tmp/cache" | sed 's/^/cached /'; } | sort > "$tmp/session"   # sorted: the scripted session races the history request
 grep -v '^zinc' "$tmp/fake" | sort > "$tmp/server"
 sed -n 's/^zinc: framehash [0-9]* [0-9x]* //p' "$tmp/app" | tail -1 > "$tmp/hash"
 if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$tmp/session" "$golden/session.out"; cp "$tmp/server" "$golden/server.out"; cp "$tmp/hash" "$golden/hash.txt"; echo "discord: goldens recorded"; exit 0; fi

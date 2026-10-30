@@ -56,7 +56,15 @@ export class Gateway {
     this.handler.status(this.sessionId !== '' ? 'reconnecting' : 'connecting');
     const ws = new WebSocket(base + GATEWAY_QUERY, { headers: [['User-Agent', USER_AGENT]] });
     this.ws = ws;
-    ws.onmessage = (e: MessageEvent): void => { if (this.ws === ws) this.receive(JSON.parse(e.data)); };
+    const opened = Date.now();
+    ws.onopen = (): void => { this.handler.log(`timing: socket open after ${Date.now() - opened} ms`); };
+    ws.onmessage = (e: MessageEvent): void => {
+      if (this.ws !== ws) return;
+      if (e.data.length < 65536) { this.receive(JSON.parse(e.data)); return; }
+      const t = Date.now(), m: any = JSON.parse(e.data), parsed = Date.now();
+      this.receive(m);
+      this.handler.log(`timing: ${m.t ?? m.op} of ${Math.round(e.data.length / 1024)} KB at ${t - opened} ms, parsed in ${parsed - t} ms, handled in ${Date.now() - parsed} ms`);
+    };
     ws.onclose = (e: CloseEvent): void => { if (this.ws === ws) this.closed(e.code); };
   }
   private send(op: i32, d: any): void { const ws = this.ws; if (ws !== null) ws.send(JSON.stringify({ op: op, d: d })); }
