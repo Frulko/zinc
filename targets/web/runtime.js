@@ -138,6 +138,24 @@ function devBridge({ url, token, natives }) {
 }
 
 // ---------------------------------------------------------------- environment the bundle expects
+// The Generic Sensor API is missing from most browsers (Firefox, Safari, desktop Chrome without a flag): a sensor the browser lacks is built all the
+// same and fails as the specification says a sensor with no device does, an `error` event with a NotReadableError after start()
+if (!('deviceInfo' in navigator)) Object.defineProperty(navigator, 'deviceInfo', { value: null });   // zinc:web's DeviceInfo | null: a page does not know the machine
+if (!G.SensorErrorEvent) G.SensorErrorEvent = class SensorErrorEvent extends Event { constructor(type, init) { super(type); this.error = init.error; } };
+for (const name of ['Sensor', 'Accelerometer', 'LinearAccelerationSensor', 'GravitySensor', 'Gyroscope', 'Magnetometer', 'AbsoluteOrientationSensor', 'RelativeOrientationSensor', 'AmbientLightSensor']) {
+  if (G[name]) continue;
+  G[name] = class extends EventTarget {
+    constructor() { super(); this.activated = false; this.hasReading = false; this.timestamp = null; this.onreading = null; this.onerror = null; this.onactivate = null; }
+    start() {
+      queueMicrotask(() => {
+        const e = new G.SensorErrorEvent('error', { error: new DOMException(name + ' is not available in this browser', 'NotReadableError') });
+        if (this.onerror) this.onerror(e);
+        this.dispatchEvent(e);
+      });
+    }
+    stop() {}
+  };
+}
 G.process = G.process || { env: {}, argv: ['zinc'], platform: 'browser', exit() {}, stdout: { write: (s) => console.log(String(s).replace(/\n$/, '')) }, stderr: { write: (s) => console.error(String(s).replace(/\n$/, '')) } };
 
 // ---------------------------------------------------------------- the surface

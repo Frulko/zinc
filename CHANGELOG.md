@@ -237,6 +237,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- Web: a sensor the browser lacks (`AmbientLightSensor`, `Gyroscope`...) reports a NotReadableError `error` event after `start()` instead of stopping the program, and `navigator.deviceInfo` is `null` in a page (the hardware demo crashed).
 - Web: `font('grid', px)` measures the face `gfx.text` draws with, so text centred with `textWidth` is centred in a page (it measured 0).
 - Web: a project with asset rules (sprite atlases, tilemaps) runs in a page, in `zinc export` and `zinc dev`; the asset build was skipped there (platformer stopped on "the atlas game has no animation hero_idle").
 - A `setTimeout(0)` set while timers run (a long computation that yields with `await` on a timer) now waits for the next frame, so the window keeps drawing and taking input; it used to run in the same frame.
