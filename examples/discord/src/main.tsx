@@ -25,6 +25,7 @@ import * as notifs from './services/notifications';
 import * as notification from 'zinc:system/notification';
 import { VoiceSettings, decibels } from './call';
 import { AudioDevice } from 'zinc:discord-voice';
+import { API_BASE } from './constants';
 
 ui.onKey((e: ui.KeyEvent): void => {
   const call = store.call;
@@ -116,9 +117,13 @@ async function write(id: string): Promise<void> {
 render(App, 0x313338, null);
 startNotifications();
 store.resume();
-if (env('DISCORD_DEMO') === '1') demo();
-if (env('DISCORD_DEMO') === 'voice') voice();
-if (env('DISCORD_DEMO') === 'showcase') showcase();
+// The scripted sessions send messages, react, vote, call and page through whole histories: they run only against a fake Discord on this
+// machine (DISCORD_API on 127.0.0.1 or localhost), never on a real account.
+const fakeDiscord = API_BASE.startsWith('http://127.0.0.1:') || API_BASE.startsWith('http://localhost:');
+if ((env('DISCORD_DEMO') !== '' || env('DISCORD_BENCH') !== '') && !fakeDiscord) console.log('discord: DISCORD_DEMO and DISCORD_BENCH run only against a fake Discord on 127.0.0.1');
+if (fakeDiscord && env('DISCORD_DEMO') === '1') demo();
+if (fakeDiscord && env('DISCORD_DEMO') === 'voice') voice();
+if (fakeDiscord && env('DISCORD_DEMO') === 'showcase') showcase();
 
 const speaking = (): string => Array.from(store.call.speaking).map((id: string) => store.userName(id)).sort().join(', ');
 const pause = (ms: i32): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });
@@ -270,4 +275,4 @@ async function bench(): Promise<void> {
     else { const before = ui.scrollTop(h); ui.scrollBy(h, 0, 60); if (ui.scrollTop(h) === before) { clearInterval(t); console.log(`bench: ${frames} scroll steps`); quit(); } }
   }, 16);
 }
-if (env('DISCORD_BENCH') === '1') bench();
+if (fakeDiscord && env('DISCORD_BENCH') === '1') bench();

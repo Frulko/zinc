@@ -1,7 +1,7 @@
 // The app's state and its actions: the user, the servers and their channels, the DMs, the open channel and its messages. The gateway's
 // dispatches and the REST answers land here; the screen reads these fields and re-renders when changed() calls it back. No drawing.
 import { Gateway, GatewayHandler } from './services/gateway';
-import { api, setToken, setRestLog, ApiError } from './services/rest';
+import { api, setToken, setRestLog, onSafeMode, ApiError } from './services/rest';
 import { loadToken, saveToken, forgetToken } from './services/session';
 import { onPicture } from './services/cdn';
 import { Upload, readUpload, uploadFiles } from './services/upload';
@@ -76,6 +76,7 @@ export class Store implements GatewayHandler {
   /** The member list of the open server's open channel (members.ts), and the server it is of. */
   members: MemberRow[] = [];
   membersOf = '';
+  private subscribedTo = '';    // the channel op 37 last asked for on this session: asked again only when it changes
   /** The settings screen is open (in place of the messages). */
   settingsOpen = false;
   /** The settings' pane: 'servers' or 'voice' (Voice & audio). */
@@ -106,6 +107,7 @@ export class Store implements GatewayHandler {
     this.call = new Call((): string => this.me.id, (g: string, c: string, mute: boolean, deaf: boolean): void => { this.gateway.voiceState(g, c, mute, deaf); },
       (): void => { this.changed(); }, (line: string): void => { this.log(line); });
     setRestLog((line: string): void => { this.log(line); });
+    onSafeMode((message: string, unauthorized: boolean): void => { if (unauthorized) this.authFailed(); else { this.error = message; this.changed(); } });
     onPicture((): void => { this.changed(); }, (line: string): void => { this.log(line); });
     const saved = storage.get(SERVERS_KEY);
     if (saved !== '') {
@@ -153,11 +155,13 @@ export class Store implements GatewayHandler {
   }
   authFailed(): void {
     this.log('auth failed');
+    this.gateway.stop();
     forgetToken().catch((): void => {});
     this.stage = 'login'; this.error = 'Discord refused this token: log in again.'; this.changed();
   }
   dispatch(t: string, d: any): void {
     if (t === 'READY') this.ready(d);
+    else if (t === 'RESUMED') this.subscribedTo = '';   // the next view of a channel asks for its member list again, once
     else if (t === 'GUILD_CREATE') {
       this.removeGuild(str(d.id)); this.guilds.push(this.guild(d));
       const p: any = d.properties !== undefined && d.properties !== null ? d.properties : d;
@@ -199,6 +203,7 @@ export class Store implements GatewayHandler {
   }
   private ready(d: any): void {
     this.users.clear();
+    this.subscribedTo = '';
     this.me = this.user(d.user);
     this.rules.load(d);
     if (Array.isArray(d.users)) for (const u of d.users) this.user(u);
@@ -523,8 +528,8 @@ export class Store implements GatewayHandler {
   /** Op 37 for a server's channel: its member list comes as GUILD_MEMBER_LIST_UPDATE. */
   private subscribe(id: string): void {
     const c = this.findChannel(id);
-    if (c === null || c.guildId === '') return;
-    this.members = []; this.membersOf = c.guildId;
+    if (c === null || c.guildId === '' || id === this.subscribedTo) return;
+    this.members = []; this.membersOf = c.guildId; this.subscribedTo = id;
     this.gateway.subscribe(subscription(c.guildId, id));
   }
   private memberListUpdated(d: any): void {
@@ -541,7 +546,7 @@ export class Store implements GatewayHandler {
     const now = Date.now();
     if (now - this.lastTypingAt < TYPING_EVERY_MS) return;
     this.lastTypingAt = now;
-    api('POST', `/channels/${this.channelId}/typing`).catch((e) => { this.log(`typing failed: ${e.message}`); });
+    api('POST', `/channels/${this.channelId}/typing`, undefined, true).catch((e) => { this.log(`typing failed: ${e.message}`); });
   }
   reply(m: Message): void { this.editing = null; this.replyTo = m; this.changed(); }
   /** Edits m in the composer (Up in an empty composer edits my last message). */
@@ -746,7 +751,7 @@ export class Store implements GatewayHandler {
     const r = this.read(ch);
     r.lastId = c.lastMessageId; r.mentions = 0;
     const lastViewed = Math.floor((Date.now() - DISCORD_EPOCH) / 86400000);
-    api('POST', `/channels/${ch}/messages/${c.lastMessageId}/ack`, { token: null, last_viewed: lastViewed })
+    api('POST', `/channels/${ch}/messages/${c.lastMessageId}/ack`, { token: null, last_viewed: lastViewed }, true)
       .catch((e) => { this.log(`ack failed: ${e.message}`); });
   }
   /** Messages that arrive in the open channel are read: one ack for a burst. */

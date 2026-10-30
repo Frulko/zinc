@@ -34,8 +34,10 @@ voice messages and other files with their size, spoiler pictures, stickers, reac
 thumb under the pointer adds a 👍), polls (press an answer to vote), buttons and menus of bots (shown only: pressing them would send an
 interaction), replies (and replies to a deleted message), forwarded messages, answers to slash commands, and system messages (joins,
 pins, boosts, calls, threads) as one line; a type the app does not know says "Unsupported message". Threads are listed under their
-channel and open like a channel; a forum opens on its posts. Discord's rate limits are honoured: a request waits while its bucket is empty, and a 429 waits
-`retry_after`. Not yet: animated emoji and avatars show their first frame, the member list shows its first 100 members. Coming in order
+channel and open like a channel; a forum opens on its posts. Discord's rate limits are honoured: a request waits while its bucket is empty or 50 went in the
+last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a minute, and a refusal (a captcha, a verification, a long
+429) is shown plainly and pauses the background requests; every request the app makes is listed in
+[docs/reports/discord-client-requests.md](../../docs/reports/discord-client-requests.md). Not yet: animated emoji and avatars show their first frame, the member list shows its first 100 members. Coming in order
 (milestone M28): QR code and password login (ZN-869), notifications (ZN-870), voice (ZN-872), video (ZN-873), screen sharing (ZN-875).
 
 ## Layout of `src/`
@@ -53,6 +55,7 @@ channel and open like a channel; a forum opens on its posts. Discord's rate limi
 | `services/upload.ts` | file upload: `POST /channels/{id}/attachments`, then a `PUT` of the bytes to the URL it gives |
 | `services/gateway.ts` | the gateway: HELLO, heartbeats and the zombie check, IDENTIFY or RESUME, reconnection with backoff |
 | `services/rest.ts` | the HTTP API with the token and identity headers, and the rate-limit buckets |
+| `services/limits.ts` | the sliding windows of the global and gateway limits, the plain errors and when safe mode starts |
 | `services/identity.ts` | the client properties (IDENTIFY and `X-Super-Properties`) |
 | `services/session.ts` | the token in the keychain |
 | `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`) and content (`Content.tsx`), avatars, the member list |

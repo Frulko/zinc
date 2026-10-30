@@ -113,10 +113,26 @@ async function download(url: string): Promise<u8[]> {
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return await r.bytes();
 }
-/** A signed attachment URL renewed (1 to 50 at once on Discord; one here, as each picture is asked for when it is shown). */
+/** A signed attachment URL renewed. The pictures of one frame ask together: their URLs go in one request, 50 at most each (Discord's
+ *  limit), instead of one request a picture. */
+let toRefresh: string[] = [];
+let refreshing: Promise<Map<string, string>> | null = null;
+async function refreshAll(): Promise<Map<string, string>> {
+  await new Promise<void>((done: () => void) => { setTimeout(done, 16); });
+  const urls = toRefresh;
+  toRefresh = []; refreshing = null;
+  const out = new Map<string, string>();
+  for (let i = 0; i < urls.length; i += 50) {
+    const r: any = await api('POST', '/attachments/refresh-urls', { attachment_urls: urls.slice(i, i + 50) }, true);
+    if (r !== null && Array.isArray(r.refreshed_urls)) for (const x of r.refreshed_urls) if (typeof x.original === 'string' && typeof x.refreshed === 'string') out.set(x.original, x.refreshed);
+  }
+  return out;
+}
 async function refresh(url: string): Promise<string> {
-  const r: any = await api('POST', '/attachments/refresh-urls', { attachment_urls: [url] });
+  if (toRefresh.indexOf(url) < 0) toRefresh.push(url);
+  if (refreshing === null) refreshing = refreshAll();
+  const done = await (refreshing as Promise<Map<string, string>>);
   log(`refreshed ${attachmentKey(url)}`);
-  if (r !== null && Array.isArray(r.refreshed_urls)) for (const x of r.refreshed_urls) if (x.original === url && typeof x.refreshed === 'string') return x.refreshed;
-  return url;
+  const u = done.get(url);
+  return u !== undefined ? u : url;
 }
