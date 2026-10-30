@@ -439,6 +439,9 @@ The next backlog review turns lines into tasks or deletes them.
 - i18n: the German Z5012 and Z5013 entries are missing from i18n/de/diag.json.
 - Covariant promise (D189): the converted promise settles one microtask later than Node's; share the instance if the IR gets a reference cast.
 - iPod worker (D181 step 4): drafts.ts posts 10k tracks as full Track records once per model, so measure the main thread's encode cost (a subset interface may be cheaper); run the Genius bench (GENIUS_BENCH) in the worker and compare the 20-seed ids with the main-thread build.
+- Unions of primitives (`string | number`, `boolean | string`) have no IR type: a variable, parameter, return or field of such a type is refused on the interpreter and AOT (Z0005 "this type in the IR") while TypeScript and QuickJS accept it; needs a representation (tagged box, or Dyn) with conversion and narrowing in the lowering (shared core). Then drop the console.log branch-text special case of D190 (it prints -0 as 0).
+- Checker: a method call on a union of classes sharing the method (`(Dog | Cat).name()`) is refused as "must be narrowed first"; the IR already types the union as the common base class.
+- D190: an `export * from` a module of the same import cycle copies its partial export table, so values it declares later are not re-exported.
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
