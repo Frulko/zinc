@@ -158,7 +158,7 @@ function Card(p: { s: Section }): i32 {
     <Text className="text-sm font-bold text-slate-900">{p.s.title}</Text>
     {p.s.labels.map((l: string, i: i32) => <View className="flex-row gap-2">
       <Text className="w-28 text-xs text-slate-500">{l}</Text>
-      <Text className="flex-1 text-xs text-slate-900">{p.s.values[i]}</Text>
+      <Text className="flex-1 min-w-0 text-xs text-slate-900 break-all">{p.s.values[i]}</Text>
     </View>)}
   </View>;
 }

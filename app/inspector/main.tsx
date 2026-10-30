@@ -14,7 +14,8 @@ import { base64Decode } from 'zinc:web';
 import { spawn, Process } from 'zinc:process';
 import { Target, Cdp, discover, TraceFrame, PhaseTotal, traceFrames, phaseTotals, msText, Track, traceTracks } from './model';
 import { ThreadsView, watchThreads, threads, threadLine } from './threads';
-import { conn, call, status, setStatus, view, setView, setDevRun, sleep, until } from './state';
+import { conn, call, status, setStatus, view, setView, setDevRun, sleep, until, sideW, setSideW, rightW, setRightW, consoleH, setConsoleH } from './state';
+import { ResizeHandle } from 'zinc:ui/kit';
 import { Btn, Flat } from './widgets';
 import { ElementsView, dumpTree } from './tree';
 import { StylesPane } from './styles';
@@ -24,6 +25,7 @@ import { StorageView, loadStorage, onStorage, changes, dumpStorage, items, pickI
 import { SourcesView, DebugPane, onDebugger, resetSources, setWaiting, setPaused, setEnded, dumpDebugger } from './sources';
 import { ConsolePane, onConsole, logs, setLogs } from './console';
 import { InfoView, watchInfo, loadInfo, dumpInfo, infoLoads, setInfoDevice } from './info';
+import { dumpLayout } from './layoutcheck';
 
 const args = sys.args();
 // The ports looked at: those given (`announced`: the ports the programs announce, model.ts), else 9229, 9222 and the announced ones.
@@ -311,12 +313,12 @@ function TrackRow(p: { t: Track }): i32 {   // a thread's lane: its slices to sc
   </View>;
 }
 function PerformanceView(): i32 {
-  return <View className="flex-col flex-1">
-    <View className="flex-row items-center gap-2 p-1 border-b">
+  return <View className="flex-col flex-1 min-h-0">
+    <View className="flex-row flex-wrap items-center gap-2 p-1 border-b">
       {recording() ? <Btn label="Stop" onClick={() => { stopRecording(); }} /> : <Btn label="Record" onClick={() => { record(); }} />}
       <Text className="text-xs text-slate-500">{recording() ? 'recording…' : traced().length > 0 ? traced().length + ' frames, the slowest ' + msText(slowest()) : 'Record, use the program, then Stop'}</Text>
     </View>
-    <View className="flex-col py-1 border-b">{tracks().map((t: Track) => <TrackRow t={t} />)}</View>
+    <View className="flex-col py-1 border-b overflow-x-auto">{tracks().map((t: Track) => <TrackRow t={t} />)}</View>
     <View className="flex-col gap-1 p-2 border-b">{totals().map((t: PhaseTotal) => <View className="flex-row items-center gap-2">
       <View className={'w-3 h-3 rounded ' + phaseColor(t.name)} />
       <Text className="w-16 text-xs text-slate-800">{t.name}</Text>
@@ -342,19 +344,22 @@ function Tab(p: { id: string; label: string }): i32 {
   </Button>;
 }
 
+// The window as Chrome DevTools': no pane grows past it (min-w-0 / min-h-0, a long content scrolls or wraps inside its pane), the splitters
+// between the program list, the view, the right column and the console resize them, the tab bar scrolls sideways when narrow.
 function App(): i32 {
   return <View className="flex-col w-full h-full bg-white">
-    <View className="flex-row flex-1">
-      <View className="flex-col w-60 gap-2 p-2 bg-slate-100 border-r">
+    <View className="flex-row flex-1 min-h-0">
+      <View className="flex-col gap-2 p-2 bg-slate-100 shrink min-w-[120px] overflow-hidden" style={{ width: sideW() }}>
         <Text className="text-lg font-bold text-slate-900">Zinc Inspector</Text>
         <Btn label="Find programs" onClick={() => { refresh(); }} />
         <ScrollView className="flex-1">
           <View className="flex-col gap-2">{targets().map((t: Target) => <TargetRow t={t} />)}</View>
         </ScrollView>
-        <Text className="text-xs text-slate-500">{status()}</Text>
+        <Text className="text-xs text-slate-500 break-all">{status()}</Text>
       </View>
-      <View className="flex-col flex-1 w-0 overflow-hidden">
-        <View className="flex-row items-center gap-1 px-2 py-1 border-b">
+      <ResizeHandle vertical size={sideW} onResize={setSideW} min={120} max={600} />
+      <View className="flex-col flex-1 basis-0 min-w-[200px] overflow-hidden">
+        <View className="flex-row items-center gap-1 px-2 py-1 border-b overflow-x-auto">
           <Tab id="info" label="Info" />
           <Tab id="elements" label="Elements" />
           <Tab id="screen" label="Screen" />
@@ -364,16 +369,19 @@ function App(): i32 {
           <Tab id="performance" label="Performance" />
           <Tab id="threads" label="Threads" />
           <Flat label={picking() ? 'Pick: on' : 'Pick'} on={picking()} onClick={() => { setPick(!picking()); }} />
-          <Text className="flex-1 text-xs text-slate-600">{attached()}</Text>
+          <Text className="flex-1 text-xs text-slate-600 whitespace-nowrap">{attached()}</Text>
         </View>
         {view() === 'sources' ? <SourcesView /> : view() === 'performance' ? <PerformanceView /> : view() === 'threads' ? <ThreadsView /> : view() === 'network' ? <NetworkView /> : view() === 'storage' ? <StorageView /> :
           view() === 'screen' ? <ScreenView /> : view() === 'info' ? <InfoView /> : <ElementsView />}
       </View>
-      {view() === 'network' || view() === 'storage' || view() === 'threads' || view() === 'info' ? <View /> : <View className="flex-col w-80 border-l">
+      {view() === 'network' || view() === 'storage' || view() === 'threads' || view() === 'info' ? <View /> : <ResizeHandle vertical after size={rightW} onResize={setRightW} min={160} max={800} />}
+      {view() === 'network' || view() === 'storage' || view() === 'threads' || view() === 'info' ? <View /> :
+        <View className="flex-col shrink min-w-[160px] overflow-hidden" style={{ width: rightW() }}>
         {view() === 'sources' ? <ScrollView className="flex-1"><DebugPane /></ScrollView> :
-        view() === 'performance' ? <View className="flex-col gap-1 p-2">{frameLines().map((l: string) => <Text className="text-xs font-mono text-slate-800">{l}</Text>)}</View> : <StylesPane />}
+        view() === 'performance' ? <ScrollView className="flex-1"><View className="flex-col gap-1 p-2">{frameLines().map((l: string) => <Text className="text-xs font-mono text-slate-800">{l}</Text>)}</View></ScrollView> : <StylesPane />}
       </View>}
     </View>
+    <ResizeHandle after size={consoleH} onResize={setConsoleH} min={60} max={800} />
     <ConsolePane />
   </View>;
 }
@@ -409,6 +417,7 @@ async function dump(): Promise<void> {   // ZINC_INSPECTOR_DUMP: the panels as t
     quit();
     return;
   }
+  if (mode === 'layout') { await dumpLayout(); quit(); return; }   // tests/t1/inspector_layout.sh
   setView('elements');
   if (mode === 'screenfps') {   // two seconds of an animated program's screen: frames per second, size, decoding, latency
     setView('screen');

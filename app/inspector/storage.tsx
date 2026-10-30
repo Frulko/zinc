@@ -223,7 +223,7 @@ export async function runQuery(write: boolean): Promise<string> {
 function TreeItem(p: { id: string; label: string; depth: i32; count: string; onClick: () => void }): i32 {
   return <Button className={'h-6 flex-row items-center justify-start gap-1 pr-2 ' + (node() === p.id ? 'bg-sky-100' : 'bg-transparent hover:bg-slate-100')}
     style={{ paddingLeft: 8 + p.depth * 14 }} onClick={p.onClick}>
-    <Text className="flex-1 text-xs text-slate-800 truncate">{p.label}</Text>
+    <Text className="flex-1 min-w-0 text-xs text-slate-800 truncate">{p.label}</Text>
     <Text className="text-xs text-slate-400">{p.count}</Text>
   </Button>;
 }
@@ -231,7 +231,7 @@ function Heading(p: { label: string }): i32 { return <Text className="px-2 pt-2 
 function count(isAsync: boolean): string { return '' + items().filter((i: Item) => inStore(i.key, isAsync)).length; }
 function baseName(path: string): string { return path.slice(path.lastIndexOf('/') + 1); }
 function StoreTree(): i32 {
-  return <ScrollView className="w-52 border-r bg-slate-50"><View className="flex-col pb-2">
+  return <ScrollView className="w-52 shrink min-w-[80px] border-r bg-slate-50"><View className="flex-col pb-2">
     <Heading label="Key/values" />
     <TreeItem id="kv:zinc" label="zinc:storage" depth={1} count={count(false)} onClick={() => { setNode('kv:zinc'); kv.setSelected([]); setKey(''); }} />
     <TreeItem id="kv:async" label="AsyncStorage" depth={1} count={count(true)} onClick={() => { setNode('kv:async'); kv.setSelected([]); setKey(''); }} />
@@ -244,13 +244,13 @@ function StoreTree(): i32 {
   </View></ScrollView>;
 }
 
-const BAR = 'flex-row items-center gap-1 px-2 py-1 border-b h-8';
+const BAR = 'flex-row flex-wrap items-center gap-1 px-2 py-1 border-b min-h-8';   // a toolbar wraps when the pane is narrow
 
 function shownVal(): string { return shownValue(key(), valueOf(key())); }
 function ValuePane(): i32 {
   return <View className="flex-col h-56 border-t">
     <View className="flex-row items-center gap-1 px-2 h-7 border-b bg-slate-50">
-      <Text className="flex-1 text-xs font-mono text-slate-700 truncate">{rowKey(key())}</Text>
+      <Text className="flex-1 min-w-0 text-xs font-mono text-slate-700 truncate">{rowKey(key())}</Text>
       <Flat label="Tree" on={!raw()} onClick={() => { setRaw(false); }} />
       <Flat label="Raw" on={raw()} onClick={() => { setDraft(pretty(shownVal())); setRaw(true); }} />
       {raw() ? <Btn label="Save" onClick={() => { saveItem(key(), draft()); }} /> : <View />}
@@ -263,7 +263,7 @@ function ValuePane(): i32 {
   </View>;
 }
 function KvView(): i32 {
-  return <View className="flex-col flex-1">
+  return <View className="flex-col flex-1 basis-0 min-w-[120px]">
     <View className={BAR}>
       <Flat label="Refresh" on={false} onClick={() => { readItems(); }} />
       <Text className="text-xs text-slate-500 pl-1">Filter</Text>
@@ -271,7 +271,7 @@ function KvView(): i32 {
       <Flat label="Add" on={false} onClick={() => { addRow(); }} />
       <Flat label="Delete" on={false} onClick={() => { deleteSelected(); }} />
       <Flat label="Clear all" on={false} onClick={() => { clearItems(); }} />
-      <Text className="flex-1 text-xs text-slate-500 truncate text-right">{storeAt()}</Text>
+      <Text className="flex-1 min-w-0 text-xs text-slate-500 break-all text-right">{storeAt()}</Text>
     </View>
     <GridView g={kv} />
     {items().filter((i: Item) => i.key === key()).length > 0 ? <ValuePane /> : <View />}
@@ -285,29 +285,29 @@ function QueryBar(): i32 {
   </View>;
 }
 function TableView(): i32 {
-  return <View className="flex-col flex-1">
+  return <View className="flex-col flex-1 basis-0 min-w-[120px]">
     <QueryBar />
     <View className={BAR}>
       <Flat label="Refresh" on={false} onClick={() => { openTable(table(), page()); }} />
       <Text className="text-xs text-slate-500 pl-1">Filter</Text>
       <Field value={tbl.filter} width="w-48" onInput={(v: string) => { tbl.setFilter(v); }} onChange={(v: string) => { openTable(table(), 0); }} />
-      <Text className="flex-1 text-xs text-slate-600">{result()}</Text>
+      <Text className="flex-1 text-xs text-slate-600 whitespace-nowrap">{result()}</Text>
       <Flat label="‹" on={false} onClick={() => { if (page() > 0) openTable(table(), page() - 1); }} />
       <Flat label="›" on={false} onClick={() => { if ((page() + 1) * PAGE < total()) openTable(table(), page() + 1); }} />
     </View>
     <GridView g={tbl} />
-    <ScrollView className="h-32 border-t bg-slate-50"><Text className="p-2 text-xs font-mono text-slate-700 whitespace-pre-wrap">{schema()}</Text></ScrollView>
+    <ScrollView className="h-32 border-t bg-slate-50"><Text className="p-2 text-xs font-mono text-slate-700 whitespace-pre-wrap break-all">{schema()}</Text></ScrollView>
   </View>;
 }
 function QueryView(): i32 {
-  return <View className="flex-col flex-1">
+  return <View className="flex-col flex-1 basis-0 min-w-[120px]">
     <QueryBar />
     <Text className="px-2 py-1 text-xs text-slate-600 border-b">{result().length > 0 ? result() : 'Type SQL, then Run (read-only) or Run as write.'}</Text>
     <GridView g={res} />
   </View>;
 }
 export function StorageView(): i32 {
-  return <View className="flex-row flex-1">
+  return <View className="flex-row flex-1 min-h-0">
     <StoreTree />
     {node().startsWith('kv:') ? <KvView /> : node().startsWith('tbl:') ? <TableView /> : <QueryView />}
   </View>;

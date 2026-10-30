@@ -112,13 +112,13 @@ function SourceLine(p: { n: i32; text: string }): i32 {
   return <Button className={'px-2 py-1 flex-row items-center justify-start h-5 ' + (here() ? 'bg-amber-100' : 'bg-white')} onClick={() => { toggleBp(p.n); }}>
     <Text className={'w-5 text-xs ' + (bp() ? 'text-red-600' : 'text-white')}>●</Text>
     <Text className="w-8 text-xs font-mono text-slate-400">{'' + p.n}</Text>
-    <Text className="text-xs font-mono text-slate-800">{p.text}</Text>
+    <Text className="text-xs font-mono text-slate-800 whitespace-pre">{p.text}</Text>
   </Button>;
 }
 
 export function SourcesView(): i32 {
-  return <View className="flex-col flex-1">
-    <View className="flex-row items-center gap-1 p-1 border-b">
+  return <View className="flex-col flex-1 min-h-0">
+    <View className="flex-row flex-wrap items-center gap-1 p-1 border-b">
       {waiting() ? <Btn label="Run" onClick={() => { run(); }} /> : <View />}
       <Btn label="Resume" onClick={() => { command('Debugger.resume'); }} />
       <Btn label="Over" onClick={() => { command('Debugger.stepOver'); }} />
@@ -128,8 +128,8 @@ export function SourcesView(): i32 {
       <Input className="bg-slate-800 border-slate-600 py-1.5 text-slate-100 w-40 h-7 px-2 text-xs font-mono border rounded" value={cond()} onInput={(v: string) => { setCond(v); }} />
       <Text className="text-xs text-slate-500">{ended() ? 'ended' : paused() ? 'paused' : waiting() ? 'waiting' : 'running'}</Text>
     </View>
-    <View className="flex-row gap-1 px-1 border-b">{scripts().map((s: Script) => <Button className={'py-1 h-6 px-2 rounded ' + (script() === s.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { openScript(s.id); }}><Text className="text-xs text-slate-800">{s.name()}</Text></Button>)}</View>
-    <ScrollView className="flex-1">
+    <View className="flex-row flex-wrap gap-1 px-1 border-b">{scripts().map((s: Script) => <Button className={'py-1 h-6 px-2 rounded ' + (script() === s.id ? 'bg-slate-300' : 'bg-slate-50')} onClick={() => { openScript(s.id); }}><Text className="text-xs text-slate-800">{s.name()}</Text></Button>)}</View>
+    <ScrollView className="flex-1 overflow-auto">
       <View className="flex-col">{source().map((t: string, i: i32) => <SourceLine n={i + 1} text={t} />)}</View>
     </ScrollView>
   </View>;

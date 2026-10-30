@@ -83,14 +83,14 @@ function CssPane(): i32 {
       'Read-only: live styling needs a dev run (start the program with zinc dev).'}</Text>
     <Text className="text-xs font-medium text-slate-600">element.style</Text>
     <View className="flex-col">{propRows().map((r: PRow) => <PropRow r={r} />)}</View>
-    <View className="flex-row items-center gap-1">
+    <View className="flex-row flex-wrap items-center gap-1">
       <Field value={propName} width="w-28" onInput={(v: string) => { setPropName(v); }} onChange={(v: string) => {}} />
       <Field value={propValue} width="w-20" onInput={(v: string) => { setPropValue(v); }} onChange={(v: string) => { setProp(propName(), v); }} />
       <Btn label="Add" onClick={() => { setProp(propName(), propValue()); }} />
     </View>
     <Text className="text-xs font-medium text-slate-600">.cls</Text>
     <View className="flex-col">{classes().map((x: string) => <ClassRow c={x} />)}</View>
-    <View className="flex-row items-center gap-1">
+    <View className="flex-row flex-wrap items-center gap-1">
       <Field value={classDraft} width="w-40" onInput={(v: string) => { complete(v); }} onChange={(v: string) => { addClass(v); }} />
       <Btn label="Add class" onClick={() => { addClass(classDraft()); }} />
     </View>

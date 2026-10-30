@@ -21,13 +21,13 @@ export function Toggle(p: { label: string; on: boolean; onClick: () => void }): 
   </Button>;
 }
 
-/** A text field; `value` is read in the field (a signal's getter), so typing does not mount it again. */
+/** A text field; `value` is read in the field (a signal's getter), so typing does not mount it again. It narrows in a pane too small for it (min-w-0). */
 export function Field(p: { value: () => string; width: string; onInput: (v: string) => void; onChange: (v: string) => void }): i32 {
-  return <Input className={'bg-white border-slate-300 py-1 text-slate-900 h-6 px-2 text-xs font-mono border rounded ' + p.width} value={p.value()}
+  return <Input className={'bg-white border-slate-300 py-1 text-slate-900 h-6 px-2 text-xs font-mono border rounded min-w-0 ' + p.width} value={p.value()}
     onInput={p.onInput} onChange={p.onChange} />;
 }
 
 /** One line of small monospaced text. */
 export function Mono(p: { text: string; color: string }): i32 {
-  return <Text className={'text-xs font-mono ' + p.color}>{p.text}</Text>;
+  return <Text className={'text-xs font-mono break-all ' + p.color}>{p.text}</Text>;
 }

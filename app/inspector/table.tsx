@@ -1,8 +1,9 @@
 // The data grid and the JSON tree of the Storage panel, after Chrome DevTools' Application panel: a header of columns (click: sort, drag the
 // right edge: resize), rows of typed cells cut with an ellipsis (NULL dimmed, numbers right-aligned, blobs as their size and first bytes),
 // row selection (click, Cmd/Ctrl-click, Shift-click; arrows; Delete), a double-click edits a cell in place; and a value's JSON shown as a
-// tree whose objects and arrays fold.
-import { createSignal, createNodeRef, onMount } from 'zinc:ui/solid';
+// tree whose objects and arrays fold. The grid stays inside its pane: wider than it, it scrolls sideways with its header; its rows are a
+// virtual list, so a big page costs only the rows in view.
+import { createSignal, createMemo, createNodeRef, onMount, NodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 
 export const TEXT: i32 = 0;
@@ -32,6 +33,8 @@ export class Grid {
   onSelect: (id: string) => void = (id: string): void => {};
   onCommit: (id: string, col: i32, text: string) => void = (id: string, col: i32, text: string): void => {};
   onDelete: () => void = (): void => {};
+  scroller: NodeRef = createNodeRef();   // the box that scrolls sideways (the header and the rows)
+  list: NodeRef = createNodeRef();       // the rows' virtual list
   constructor() {
     const [a, b] = createSignal<string[]>([]); this.cols = a; this.setCols = b;
     const [c, d] = createSignal<Cell[][]>([]); this.rows = c; this.setRows = d;
@@ -85,7 +88,9 @@ export class Grid {
     if (ids.length === 0) return;
     const s = this.selected();
     const at = s.length > 0 ? ids.indexOf(s[s.length - 1]) : -1;
-    this.pick(ids[Math.max(0, Math.min(ids.length - 1, at < 0 ? 0 : at + by))], false, false);
+    const to = Math.max(0, Math.min(ids.length - 1, at < 0 ? 0 : at + by));
+    this.pick(ids[to], false, false);
+    if (this.list.node >= 0) ui.scrollToRow(this.list.node, to);   // kept in view
   }
   startEdit(id: string, col: i32, text: string): void { if (!this.editable) return; this.setDraft(text); this.setEdit(id + '\n' + col); }
   commit(): void {
@@ -109,40 +114,43 @@ function cellColor(k: i32): string { return k === NULL ? 'text-slate-400 italic'
 function EditCell(p: { g: Grid }): i32 {
   const r = createNodeRef();
   onMount(() => { ui.focusNode(r.node); });
-  return <Input ref={r} className="flex-1 h-5 px-1 text-xs font-mono text-slate-900 bg-white border border-sky-500" value={p.g.draft()}
+  return <Input ref={r} className="flex-1 min-w-0 h-5 px-1 text-xs font-mono text-slate-900 bg-white border border-sky-500" value={p.g.draft()}
     onInput={(v: string) => { p.g.setDraft(v); }} onChange={(v: string) => { p.g.setDraft(v); p.g.commit(); }}
     onKeyDown={(e: ui.KeyEvent) => { if (e.key === 'Escape') { p.g.setEdit(''); e.preventDefault(); } }} />;
 }
 
 // Component bodies run once (untracked): what follows a signal is read inside the JSX.
 function CellBody(p: { g: Grid; id: string; col: i32; c: Cell }): i32 {
-  return <View className="flex-1 h-5 flex-row items-center" onPointerDown={(e: ui.PointerEvent) => {
+  return <View className="flex-1 min-w-0 h-5 flex-row items-center" onPointerDown={(e: ui.PointerEvent) => {
       if (e.clicks === 2) p.g.startEdit(p.id, p.col, p.c.kind === NULL ? '' : p.c.text);
       else if (e.button === 0) p.g.pick(p.id, e.meta || e.ctrl, e.shift);
     }}>
     {p.g.edit() === p.id + '\n' + p.col ? <EditCell g={p.g} /> :
-      <Text className={'flex-1 text-xs font-mono truncate ' + cellColor(p.c.kind) + (p.c.kind === NUM ? ' text-right' : '')}>{p.c.text}</Text>}
+      <Text className={'flex-1 min-w-0 text-xs font-mono truncate ' + cellColor(p.c.kind) + (p.c.kind === NUM ? ' text-right' : '')}>{p.c.text}</Text>}
   </View>;
 }
 function GridCell(p: { g: Grid; id: string; col: i32; c: Cell; last: boolean }): i32 {
-  if (p.last && p.g.fill) return <View className="flex-1 h-5 px-1.5 flex-row"><CellBody g={p.g} id={p.id} col={p.col} c={p.c} /></View>;
+  if (p.last && p.g.fill) return <View className="flex-1 min-w-0 h-5 px-1.5 flex-row"><CellBody g={p.g} id={p.id} col={p.col} c={p.c} /></View>;
   return <View className="h-5 px-1.5 flex-row border-r border-slate-200" style={{ width: p.g.width(p.col) }}><CellBody g={p.g} id={p.id} col={p.col} c={p.c} /></View>;
 }
 
-function GridRow(p: { g: Grid; r: i32; n: i32 }): i32 {
-  const id = p.g.idOf(p.r), cs = p.g.rows()[p.r];
-  return <View className={'flex-row h-5 ' + (p.g.isSelected(id) ? 'bg-sky-100' : p.n % 2 === 1 ? 'bg-slate-50' : 'bg-white')}>
-    {cs.map((c: Cell, k: i32) => <GridCell g={p.g} id={id} col={k} c={c} last={k === cs.length - 1} />)}
+// A row of the virtual list is its n-th shown row: read in the JSX, so the row follows a new page, sort or filter in place.
+function GridRow(p: { g: Grid; order: () => i32[]; n: i32 }): i32 {
+  const r = (): i32 => { const o = p.order(); return p.n < o.length && o[p.n] < p.g.rows().length ? o[p.n] : -1; };
+  const id = (): string => r() >= 0 ? p.g.idOf(r()) : '';
+  const cells = (): Cell[] => r() >= 0 ? p.g.rows()[r()] : [];
+  return <View className={'flex-row h-5 ' + (p.g.isSelected(id()) ? 'bg-sky-100' : p.n % 2 === 1 ? 'bg-slate-50' : 'bg-white')}>
+    {cells().map((c: Cell, k: i32) => <GridCell g={p.g} id={id()} col={k} c={c} last={k === cells().length - 1} />)}
   </View>;
 }
 
 function HeaderLabel(p: { g: Grid; col: i32; name: string }): i32 {
-  return <Button className="flex-1 h-6 px-1.5 flex-row items-center justify-start bg-transparent hover:bg-slate-200" onClick={() => { p.g.sortBy(p.col); }}>
-    <Text className="flex-1 text-xs font-medium text-slate-700 truncate">{p.name + (p.g.sortCol() === p.col ? (p.g.desc() ? ' ▼' : ' ▲') : '')}</Text>
+  return <Button className="flex-1 min-w-0 h-6 px-1.5 flex-row items-center justify-start bg-transparent hover:bg-slate-200" onClick={() => { p.g.sortBy(p.col); }}>
+    <Text className="flex-1 min-w-0 text-xs font-medium text-slate-700 truncate">{p.name + (p.g.sortCol() === p.col ? (p.g.desc() ? ' ▼' : ' ▲') : '')}</Text>
   </Button>;
 }
 function HeaderCell(p: { g: Grid; col: i32; name: string; last: boolean }): i32 {
-  if (p.last && p.g.fill) return <View className="flex-1 h-6 flex-row"><HeaderLabel g={p.g} col={p.col} name={p.name} /></View>;
+  if (p.last && p.g.fill) return <View className="flex-1 min-w-0 h-6 flex-row"><HeaderLabel g={p.g} col={p.col} name={p.name} /></View>;
   let start = 0;
   return <View className="h-6 flex-row items-center" style={{ width: p.g.width(p.col) }}>
     <HeaderLabel g={p.g} col={p.col} name={p.name} />
@@ -156,13 +164,16 @@ function HeaderCell(p: { g: Grid; col: i32; name: string; last: boolean }): i32 
   </View>;
 }
 
-/** The grid: its header and rows (vertical scroll; horizontal too when the columns are fixed widths). */
+/** The grid: its header and rows, scrolled sideways together inside the pane when the columns are wider than it, the rows a virtual list. */
 export function GridView(p: { g: Grid }): i32 {
-  const body = <View className="flex-col flex-1">
+  const order = createMemo<i32[]>(() => p.g.shown(), []);
+  const body = <View ref={p.g.scroller} className="flex-col flex-1 min-h-0 overflow-x-auto">
     <View className="flex-row bg-slate-100 border-b border-slate-300">{p.g.cols().map((c: string, k: i32) => <HeaderCell g={p.g} col={k} name={c} last={k === p.g.cols().length - 1} />)}</View>
-    <ScrollView className="flex-1"><View className="flex-col">{p.g.shown().map((r: i32, n: i32) => <GridRow g={p.g} r={r} n={n} />)}</View></ScrollView>
+    <VirtualList ref={p.g.list} count={order().length} itemHeight={20} className="flex-1">
+      {(i: i32) => <GridRow g={p.g} order={order} n={i} />}
+    </VirtualList>
   </View>;
-  return <View className={'flex-col flex-1 ' + (p.g.fill ? '' : 'overflow-x-auto')} focusable onKeyDown={(e: ui.KeyEvent) => {
+  return <View className="flex-col flex-1 min-w-0 min-h-0" focusable onKeyDown={(e: ui.KeyEvent) => {
     if (p.g.edit().length > 0) return;
     if (e.key === 'ArrowDown') { p.g.step(1); e.preventDefault(); }
     else if (e.key === 'ArrowUp') { p.g.step(-1); e.preventDefault(); }
@@ -220,11 +231,11 @@ export function lineText(l: JLine): string {
   return '  '.repeat(l.depth) + (l.fold === 1 ? '▼ ' : l.fold === 2 ? '▶ ' : '') + (l.key.length > 0 ? l.key + ': ' : '') + l.text;
 }
 function JRow(p: { l: JLine }): i32 {
-  return <View className="flex-row items-center h-4" style={{ paddingLeft: 4 + p.l.depth * 14 }}
+  return <View className="flex-row items-start" style={{ paddingLeft: 4 + p.l.depth * 14 }}
     onPointerDown={(e: ui.PointerEvent) => { if (p.l.fold > 0) toggleFold(p.l.path); }}>
     <Text className="w-3 text-[9px] text-slate-500">{p.l.fold === 1 ? '▼' : p.l.fold === 2 ? '▶' : ''}</Text>
     {p.l.key.length > 0 ? <Text className="text-xs font-mono text-purple-800">{p.l.key + ': '}</Text> : <View />}
-    <Text className={'flex-1 text-xs font-mono truncate ' + (p.l.fold > 0 ? 'text-slate-600' : p.l.kind === TEXT ? 'text-red-700' : cellColor(p.l.kind))}>{p.l.text}</Text>
+    <Text className={'flex-1 min-w-0 text-xs font-mono break-all ' + (p.l.fold > 0 ? 'text-slate-600' : p.l.kind === TEXT ? 'text-red-700' : cellColor(p.l.kind))}>{p.l.text}</Text>
   </View>;
 }
 export function JsonTree(p: { text: string }): i32 {

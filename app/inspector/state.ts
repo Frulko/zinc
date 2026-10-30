@@ -25,3 +25,7 @@ export async function until(f: () => boolean): Promise<boolean> {
   for (let k = 0; k < 250; k++) { if (f()) return true; await sleep(20); }
   return false;
 }
+// The panes' sizes, set by their splitters and kept for the session: the program list, the right column, the console.
+export const [sideW, setSideW] = createSignal<number>(240);
+export const [rightW, setRightW] = createSignal<number>(320);
+export const [consoleH, setConsoleH] = createSignal<number>(160);

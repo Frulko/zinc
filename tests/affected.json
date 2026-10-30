@@ -158,6 +158,7 @@
     {"paths": ["app/inspector/", "tests/data/inspector_screen/", "tests/t1/inspector_screen.sh", "plugins/devtools/", "src/host/screencast.cpp"], "tests": ["inspector_screen"]},
     {"paths": ["src/main.cpp", "tests/t0/assets_wrapper.sh"], "tests": ["assets_wrapper"]},
     {"paths": ["app/inspector/", "tests/data/inspector-storage/", "tests/t1/inspector_storage.sh", "plugins/devtools/", "plugins/sqlite/index.ts", "plugins/async-storage/", "lib/std/devhooks.ts"], "tests": ["inspector_storage"]},
+    {"paths": ["app/inspector/", "tests/data/inspector-storage/", "tests/t1/inspector_layout.sh", "lib/std/kit/separator.tsx"], "tests": ["inspector_layout"]},
     {"paths": ["app/atelier/", "tests/t1/atelier_ide.sh", "tests/t0/atelier.sh", "tests/golden/atelier/"], "tests": ["atelier_ide", "atelier"]},
     {"paths": ["src/lsp/", "tests/lsp/", "tests/t1/lsp.sh"], "tests": ["lsp", "atelier_ide"]},
     {"paths": ["src/main.cpp", "src/host/gfx_host.cpp", "targets/macos/hal_sdl.cpp", "tests/t1/run_app_name.sh", "tests/data/app_name/"], "tests": ["run_app_name"]},

@@ -45,11 +45,12 @@ function Row(p: { t: ThreadInfo }): i32 {
 }
 
 export function ThreadsView(): i32 {
-  return <View className="flex-col flex-1">
-    <View className="flex-row items-center gap-2 p-1 border-b">
+  return <View className="flex-col flex-1 min-h-0">
+    <View className="flex-row flex-wrap items-center gap-2 p-1 border-b">
       <Btn label="Refresh" onClick={() => { loadThreads(); }} />
       <Text className="text-xs text-slate-500">{threads().length === 0 ? 'no worker running (the main thread only)' : threads().length + (threads().length === 1 ? ' worker' : ' workers')}</Text>
     </View>
+    <View className="flex-col flex-1 min-h-0 overflow-x-auto">
     <View className="flex-row items-center gap-2 px-2 py-1 border-b bg-slate-50">
       <Text className="text-xs text-slate-500 w-64">thread</Text>
       <Text className="text-xs text-slate-500 w-20">state</Text>
@@ -59,5 +60,6 @@ export function ThreadsView(): i32 {
       <Text className="text-xs text-slate-500 w-20">CPU</Text>
     </View>
     <ScrollView className="flex-1"><View className="flex-col">{threads().map((t: ThreadInfo) => <Row t={t} />)}</View></ScrollView>
+    </View>
   </View>;
 }

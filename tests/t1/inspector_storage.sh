@@ -20,7 +20,7 @@ fail=0
 want() { grep -qF -- "$1" "$tmp/dump" || { echo "missing in the Storage panel: $1"; fail=1; }; }
 run $port 1
 want "storage: $tmp/store-$port"
-want 'stores: zinc:storage 0 | AsyncStorage 3 | :memory: covers songs'
+want 'stores: zinc:storage 0 | AsyncStorage 3 | :memory: covers songs tracks'
 want 'columns: Key | Value'
 want '  theme | {"mode":"dark","accent":"rose"}'
 want 'sorted desc: weather.place theme count'

@@ -61,8 +61,8 @@ function TreeRow(p: { r: Row }): i32 {
 }
 
 export function ElementsView(): i32 {
-  return <View className="flex-col flex-1">
-    <View className="flex-row items-center gap-2 px-2 py-1 border-b">
+  return <View className="flex-col flex-1 min-h-0">
+    <View className="flex-row flex-wrap items-center gap-2 px-2 py-1 border-b">
       <Field value={query} width="w-56" onInput={(v: string) => { setQuery(v); refilter(); }} onChange={(v: string) => {}} />
       <Toggle label="Rendered only" on={renderedOnly()} onClick={() => { setRenderedOnly(!renderedOnly()); refilter(); }} />
       <Toggle label="Components only" on={componentsOnly()} onClick={() => { setComponentsOnly(!componentsOnly()); refilter(); }} />

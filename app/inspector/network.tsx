@@ -241,7 +241,7 @@ function Detail(p: { q: Req; body: string; tab: string; folds: i32 }): i32 {
   const jl: string[] = [], jp: string[] = [];
   if (isJson) jsonLines(json, '', 0, '', folded, jl, jp);
   return <View className="flex-col flex-1">
-    <View className="flex-row items-center gap-1 px-1 border-b">
+    <View className="flex-row flex-wrap items-center gap-1 px-1 border-b">
       {['headers', 'payload', 'preview', 'response', 'timing'].concat(q.ws() ? ['messages'] : []).map((t: string) => <Flat label={t} on={tab() === t} onClick={() => { setTab(t); }} />)}
       <Flat label="Copy as cURL" on={false} onClick={() => { setClipboardText(curlOf(q)); setStatus('copied as cURL'); }} />
     </View>
@@ -260,7 +260,7 @@ function Detail(p: { q: Req; body: string; tab: string; folds: i32 }): i32 {
           rect(x, y, w, h, 0xf1f5f9);
           const iw = imageWidth(image()), ih = imageHeight(image()), k = Math.min(1, Math.min(w / Math.max(1, iw), h / Math.max(1, ih)));
           drawImage(image(), x, y, iw * k, ih * k, 255, 0);
-        }} /> : isJson ? <View className="flex-col">{jl.map((l: string, i: i32) => <Button className="h-4 flex-row items-center justify-start bg-white" onClick={() => {
+        }} /> : isJson ? <View className="flex-col">{jl.map((l: string, i: i32) => <Button className="min-h-4 flex-row items-center justify-start bg-white" onClick={() => {
           if (jp[i].length > 0 || i === 0) { if (folded.has(jp[i])) folded.delete(jp[i]); else folded.add(jp[i]); setFolds(folds() + 1); }
         }}><Mono text={l} color="text-slate-800" /></Button>)}</View> : <Mono text={bodyB64() ? '(binary, ' + body().length + ' base64 characters)' : body()} color="text-slate-800" />)
         : tab() === 'response' ? <Mono text={body()} color="text-slate-800" />
@@ -271,8 +271,8 @@ function Detail(p: { q: Req; body: string; tab: string; folds: i32 }): i32 {
   </View>;
 }
 export function NetworkView(): i32 {
-  return <View className="flex-col flex-1">
-    <View className="flex-row items-center gap-1 px-2 py-1 border-b">
+  return <View className="flex-col flex-1 min-h-0">
+    <View className="flex-row flex-wrap items-center gap-1 px-2 py-1 border-b">
       <Btn label="Clear" onClick={() => { clearLog(); }} />
       <Toggle label="Preserve log" on={preserve()} onClick={() => { setPreserve(!preserve()); }} />
       <Field value={textFilter} width="w-40" onInput={(v: string) => { setTextFilter(v); }} onChange={(v: string) => {}} />
@@ -281,7 +281,7 @@ export function NetworkView(): i32 {
       <Btn label="Export HAR" onClick={() => { exportHar(harPath()); }} />
       <Text className="text-xs text-slate-500">{shown().length + ' / ' + reqs().length + ' requests'}</Text>
     </View>
-    <ScrollView className="h-48 border-b">
+    <ScrollView className="h-48 border-b overflow-auto">
       <View className="flex-col">{shown().map((r: Req) => <NetRow r={r} />)}</View>
     </ScrollView>
     {pickedReq() !== null ? <Detail q={pickedReq() as Req} body={body()} tab={tab()} folds={folds()} /> : <Text className="p-2 text-xs text-slate-500">Select a request</Text>}
