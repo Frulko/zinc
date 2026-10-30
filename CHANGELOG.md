@@ -332,6 +332,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Updating a Raspberry Pi image no longer compiles the player on the Pi: a release carries it ready to run (the update that failed on a Pi 3 with "cannot read the library of plugin"). The player of a release now includes `zinc:shell`.
 - JSX: a component declared in the same file with the name of a built-in one (`function Button(props) {...}`) is used as that component, as in React, instead of being refused with "unknown attribute".
 - JSX: an element kept in a variable assigned after its declaration (`let form; if (a) form = <View/>; else form = <Text/>;`) is shown by `{form}`, instead of a number.
+- An optional `unknown` field compared with a value (`o.video === false`) no longer stops the program with an internal error.
 - Apps give the memory of what they no longer use back to the system while they run: the Discord client demo after login with 100 servers takes 93 MB in Activity Monitor instead of 204 MB, and a program that parsed a large JSON document drops back to its size before it.
 - A plugin linked into a project's `plugins/` (a symbolic link to a plugin elsewhere) builds its native code where it lives, so its includes of neighbouring files are found.
 - A class field initialised from a constant imported from another module (`key = PTT_KEY`) gets its type, instead of error Z0109 asking for an annotation.

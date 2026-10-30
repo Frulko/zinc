@@ -939,7 +939,11 @@ struct Checker {
     if (!rawDyn() && op == "+" && ((l == tStr && isDyn(r)) || (isDyn(l) && r == tStr))) {   // '' + any is a string, as in TypeScript (the Dyn helper's own concatenation)
       if (replaceWith(i, l == tStr ? "__H0 + __dynString(__dynPrim(__H1))" : "__dynString(__dynPrim(__H0)) + __H1", {{le}, {re}})) return expr0(i, expected0);
     }
-    if (!rawDyn() && (isDyn(l) || isDyn(r)) && !bad(l) && !bad(r)) {  // an operand is any or unknown: the operation is a call of the Dyn helper
+    // an operand is any or unknown (an optional one too, `unknown | undefined`, unless it is tested against null or undefined, a plain null
+    // test): the operation is a call of the Dyn helper
+    auto nullTest = [&]() { for (std::uint32_t k : {le, re}) if ((n(k).kind == N::Literal && n(k).text == "null") || (n(k).kind == N::Ident && n(k).text == "__undef")) return true; return false; };
+    auto dynish = [&](TypeId t) { return isDyn(t) || (!bad(t) && ty(t).k == TK::Union && hasNull(t) && isDyn(withoutNull(t)) && !nullTest()); };
+    if (!rawDyn() && (dynish(l) || dynish(r)) && !bad(l) && !bad(r)) {
       auto isLit = [&](std::uint32_t k, const char* text) { return n(k).kind == N::Literal && n(k).text == text; };
       auto isUndef = [&](std::uint32_t k) { return n(k).kind == N::Ident && n(k).text == "__undef"; };
       bool strictOp = op == "===" || op == "!==", eqOp2 = strictOp || op == "==" || op == "!=";
