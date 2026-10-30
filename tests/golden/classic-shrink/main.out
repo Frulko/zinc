@@ -1,3 +1,6 @@
 pane fits
 text wraps in the pane
+flex-1 min-w-0 fits beside the sidebar
+flex-1 min-h-0 fits under the header
+basis-0 min-w-[300px] keeps 300 px inside the window
 bad 0 out 0

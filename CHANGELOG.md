@@ -229,6 +229,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Zinc Inspector finds every program with the inspector, on any port (`ZINC_DEVTOOLS_PORT=0`, `zinc dev`): programs announce themselves in `<zinc home>/run/devtools`, the list refreshes every second, a program alone is attached at once, and when the attached program exits it says so and attaches again, on the same view, when it comes back (each save under `zinc dev`). Its `zinc devtools: chrome://inspect …` start line no longer shows as an error in the console.
 
 ### Changed
+- `zinc:ui`: `min-w-0` (in a row) and `min-h-0` (in a column) let a box shrink below its content as in CSS, so `flex-1 min-w-0` panes and texts stay inside the window; a `basis-*` now respects the box's `min-*`/`max-*` size.
 - iPod demo: on a large library, For you no longer freezes the window for a second when it opens: the iPods' new listens are matched a little at a time and only what is new since the last time, and the listen counts are read in one quick pass.
 - `zinc:worker` messages are about 15 times faster to send and to receive: 100,000 records cost about 6 ms to `postMessage` and 7 ms to arrive in `onmessage` (they took about 100 ms each), so posting a large data set no longer freezes the window.
 - iPod demo: recommendations (For you, Genius, the mixes, the radio, the mood mixer) are worked out in a worker thread, so the window keeps drawing while they are recomputed.

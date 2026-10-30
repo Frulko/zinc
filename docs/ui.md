@@ -788,7 +788,10 @@ In `classic`, flex-shrink is opt-in (`shrink`, `shrink-[n]`): in a row too narro
 proportion to shrink x width, an item that reaches its `min-w-*` (0 without one) stays there and the others share the rest, as CSS does.
 Each shrunk item is then laid out again at the width it gets, and so is a child wider than its column, so the texts in them wrap at
 that width and the row takes the height that gives: a pane between two fixed panels wraps its paragraphs inside its own edge
-(`tests/golden/classic-shrink`).
+(`tests/golden/classic-shrink`). `min-w-0` on a child of a row (`min-h-0` on a child of a column) gives it CSS's default flex-shrink 1
+without a `shrink` class, so Tailwind's `flex-1 min-w-0` pane narrows to the room left beside its siblings instead of passing the
+window's edge; an explicit `shrink-*` wins. A `basis-*` counts inside the child's `min-*`/`max-*` sizes when the line shares its room
+(`flex-1 basis-0 min-w-[200px]` takes 200 px from siblings that shrink), as CSS's hypothetical main size does.
 
 ## Gestures: PanResponder and Animated.event
 

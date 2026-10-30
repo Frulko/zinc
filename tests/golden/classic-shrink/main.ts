@@ -21,6 +21,36 @@ function widest(t: i32): number { let w = 0; for (const l of textLines(t)) w = M
   destroy(root);
 }
 
+// Tailwind's `flex-1 min-w-0` without `shrink`: min-w-0 gives the CSS default flex-shrink back (a pane beside a fixed sidebar, its long text
+// wrapped inside it), and `flex-1 min-h-0` in a column: a list taller than the window gets the room left under a header, not its content's height
+{
+  const root = createNode(VIEW);
+  setClass(root, 'flex flex-row w-full h-full');
+  const side = createNode(VIEW), pane = createNode(VIEW), head = createNode(VIEW), list = createNode(VIEW);
+  setClass(side, 'w-[240px]'); setClass(pane, 'flex flex-col flex-1 min-w-0'); setClass(head, 'h-[100px]'); setClass(list, 'flex flex-col flex-1 min-h-0 overflow-hidden');
+  const t = createText('a text long enough to run well past the pane when it is measured at the width of the whole row, as classic offers each child');
+  insert(root, side, -1); insert(root, pane, -1); insert(pane, t, -1); insert(pane, head, -1); insert(pane, list, -1);
+  for (let i = 0; i < 40; i++) { const r = createNode(VIEW); setClass(r, 'h-[20px]'); insert(list, r, -1); }
+  setRoot(root);
+  const W = screenBox(root)[2], H = screenBox(root)[3], p = screenBox(pane), b = screenBox(t), l = screenBox(list);
+  console.log('flex-1 min-w-0 ' + (p[0] + p[2] <= W + 0.5 && b[0] + Math.max(b[2], widest(t)) <= W + 1 ? 'fits beside the sidebar' : 'runs out: pane ' + p[2] + ', text ' + Math.ceil(widest(t)) + ' in ' + W));
+  console.log('flex-1 min-h-0 ' + (l[1] + l[3] <= H + 0.5 ? 'fits under the header' : 'runs out: ' + (l[1] + l[3]) + ' in ' + H));
+  destroy(root);
+}
+// a basis inside the box's min size, as CSS's hypothetical main size: `flex-1 basis-0 min-w-[300px]` between two panels that shrink keeps
+// its 300 px, the panels give it up
+{
+  const root = createNode(VIEW);
+  setClass(root, 'flex flex-row w-full h-full');
+  const a = createNode(VIEW), mid = createNode(VIEW), b = createNode(VIEW);
+  setClass(a, 'w-[500px] shrink min-w-[100px]'); setClass(mid, 'flex-1 basis-0 min-w-[300px]'); setClass(b, 'w-[400px] shrink min-w-[100px]');
+  insert(root, a, -1); insert(root, mid, -1); insert(root, b, -1);
+  setRoot(root);
+  const W = screenBox(root)[2], m = screenBox(mid), e = screenBox(b);
+  console.log('basis-0 min-w-[300px] ' + (Math.abs(m[2] - 300) <= 1 && e[0] + e[2] <= W + 0.5 ? 'keeps 300 px inside the window' : 'is ' + m[2] + ' wide, the last panel ends at ' + (e[0] + e[2]) + ' in ' + W));
+  destroy(root);
+}
+
 let seed = 11;
 function rand(n: i32): i32 { seed = (seed * 1103515245 + 12345) % 2147483648; return Math.floor(seed / 65536) % n; }
 // every box can shrink (flex-shrink is opt-in in classic): nothing but a word longer than its box may pass the window's edge

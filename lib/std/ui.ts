@@ -3168,11 +3168,16 @@ function orderKids(kids: UiNode[]): void {
     kids[j + 1] = c;
   }
 }
-/** flex-basis replaces the measured main size of a child (px, or a fraction of the container's main size). */
+/** flex-basis replaces the measured main size of a child (px, or a fraction of the container's main size), inside its min and max size as
+ *  CSS's hypothetical main size is: `flex-1 basis-0 min-w-[200px]` counts as 200 px when the line shares its room, so its siblings shrink for it. */
 function applyBasis(c: UiNode, row: boolean, mainAvail: number): void {
   if (c.basis < 0 && c.basisFrac <= 0) return;
   const b: number = c.basis >= 0 ? c.basis : Math.round(mainAvail * c.basisFrac);
-  if (row) c.lw = Math.max(b, c.pl + c.pr); else c.lh = Math.max(b, c.pt + c.pb);   // a box is never smaller than its padding (CSS border-box)
+  const lo = row ? c.minW : c.minH, hi = row ? c.maxW : c.maxH;
+  let v: number = Math.max(b, row ? c.pl + c.pr : c.pt + c.pb);   // a box is never smaller than its padding (CSS border-box)
+  if (hi >= 0 && v > hi) v = hi;
+  if (lo >= 0 && v < lo) v = lo;
+  if (row) c.lw = v; else c.lh = v;
 }
 function gapMain(n: UiNode): number { return n.row ? (n.gapX >= 0 ? n.gapX : n.gap) : (n.gapY >= 0 ? n.gapY : n.gap); }
 function gapCross(n: UiNode): number { return n.row ? (n.gapY >= 0 ? n.gapY : n.gap) : (n.gapX >= 0 ? n.gapX : n.gap); }
@@ -3305,26 +3310,30 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
   if (ownH >= 0) n.lh = Math.max(ownH, n.pt + n.pb);
   if (n.maxW >= 0 || n.minW >= 0 || n.maxH >= 0 || n.minH >= 0 || n.aspect > 0) { constrainSize(n, n.lw, n.lh); n.lw = csW; n.lh = csH; }
 }
+/** A child's flex-shrink along its parent's main axis. Shrinking is opt-in in classic (-1: never), but `min-w-0` in a row (`min-h-0` in a column)
+ *  gives the CSS default back, flex-shrink 1, as Tailwind's `flex-1 min-w-0` means: the item may get narrower than its content (a pane beside
+ *  fixed panels, a text that wraps or truncates), down to 0. An explicit shrink class wins. */
+function shrinkOf(c: UiNode, row: boolean): number { return c.shrink >= 0 ? c.shrink : (row ? c.minW : c.minH) === 0 ? 1 : 0; }
 /** The widths flex-shrink leaves kids[start, end) in a row of `inner` px, CSS's loop: an item that reaches its min-width (0 without one) is frozen
  *  there and the others share the rest of the overflow, weighted by shrink x width. null when nothing shrinks. */
 function shrunk(kids: UiNode[], start: i32, end: i32, inner: number, gm: number): number[] | null {
   const t: number[] = [], done: boolean[] = [];
   let any = false;
-  for (let i = start; i < end; i++) { t.push(kids[i].lw); done.push(kids[i].shrink <= 0); if (kids[i].shrink > 0) any = true; }
+  for (let i = start; i < end; i++) { t.push(kids[i].lw); done.push(shrinkOf(kids[i], true) <= 0); if (shrinkOf(kids[i], true) > 0) any = true; }
   if (!any) return null;
   for (let it = start; it < end; it++) {
     let room: number = inner - gm * (end - start - 1), st: number = 0;
     for (let i = start; i < end; i++) {
       const c = kids[i], k = i - start;
       room -= (done[k] ? t[k] : c.lw) + c.ml + c.mr;
-      if (!done[k]) st += c.shrink * c.lw;
+      if (!done[k]) st += shrinkOf(c, true) * c.lw;
     }
     if (room >= 0 || st <= 0) break;
     let clamped = false;
     for (let i = start; i < end; i++) {
       const c = kids[i], k = i - start;
       if (done[k]) continue;
-      const lo: number = c.minW >= 0 ? c.minW : 0, v = c.lw + room * c.shrink * c.lw / st;
+      const lo: number = c.minW >= 0 ? c.minW : 0, v = c.lw + room * shrinkOf(c, true) * c.lw / st;
       if (v < lo) { t[k] = lo; done[k] = true; clamped = true; } else t[k] = v > c.lw - 1 ? c.lw : Math.floor(v);   // less than a pixel: kept (a row of tabs would wrap for it)
     }
     if (!clamped) break;
@@ -3460,7 +3469,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     const count = end - start;
     // flex-shrink (opt-in: a child without it never shrinks): the overflow is taken from the children that have it, weighted by shrink x size
     let shrinkTotal: number = 0;
-    if (free < 0) for (let i = start; i < end; i++) { const c = kids[i]; if (c.shrink > 0) shrinkTotal += c.shrink * (n.row ? c.lw : c.lh); }
+    if (free < 0) for (let i = start; i < end; i++) { const c = kids[i], k = shrinkOf(c, n.row); if (k > 0) shrinkTotal += k * (n.row ? c.lw : c.lh); }
     let pos: number = 0, between: number = gm;
     // auto margins on the main axis take the free space of the line (they win over justify-content, like CSS)
     let autos: i32 = 0;
@@ -3482,7 +3491,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       const g = c.grow > 0 ? c.grow : (n.row ? c.fullW : c.fullH) ? 1 : 0;
       if (frozen !== null && g > 0) cm = (frozen as number[])[i - start];
       else if (grows > 0 && free > 0 && g > 0) cm += Math.floor(free * g / grows);
-      else if (free < 0 && shrinkTotal > 0 && c.shrink > 0) cm = Math.max(0, cm + Math.floor(free * c.shrink * cm / shrinkTotal));
+      else if (free < 0 && shrinkTotal > 0 && shrinkOf(c, n.row) > 0) cm = Math.max(0, cm + Math.floor(free * shrinkOf(c, n.row) * cm / shrinkTotal));
       let cc: number = n.row ? c.lh : c.lw;
       const marginCross = n.row ? c.mt + c.mb : c.ml + c.mr;
       let off: number = 0;
