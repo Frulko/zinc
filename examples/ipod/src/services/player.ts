@@ -390,7 +390,7 @@ export function setVolume(v: i32): void {
 
 /** This computer's volume, 0..1 (the Sonos group's is setVolume). */
 export function localVolume(): number { return localVol; }
-export function setLocalVolume(v: number): void { localVol = v; if (music !== null) { const m = music as Music; m.volume = v; } }
+export function setLocalVolume(v: number): void { localVol = v; if (music !== null) (music as Music).volume = v; }
 
 /** Stops and forgets the queue (the iPod was closed or another one opened). */
 export function stop(): void {
