@@ -7,7 +7,7 @@
 
 import { createSignal, batch } from 'zinc:ui/solid';
 import { resolveLayout, angleOf, voronoi, inPolygon, en, fr } from '@trieur/core';
-import { locale } from 'zinc:sys';
+import { language } from './lang';
 import type { Advisor, DeckPlugin, DeckText, Layout, LayoutBox, PlacedZone, Point, Polygon, Prediction, SortRecord, Zone } from '@trieur/core';
 
 const DEFAULT_KEYS = 'asdfghjklqwertyuiopzxcvbnm';
@@ -69,7 +69,8 @@ type Listener = (detail: any) => void;
 
 export class DeckState<T = any> {
   readonly opts: DeckConfig<T>;
-  readonly text: DeckText;
+  /** the labels, in the language shown (lang.ts), with the host's own over them */
+  get text(): DeckText { return { ...(language() === 'fr' ? fr : en), ...this.opts.text }; }
   // what the view reads
   readonly items: () => T[];
   private readonly zonesS: () => PlacedZone[];
@@ -117,7 +118,6 @@ export class DeckState<T = any> {
 
   constructor(opts: DeckConfig<T> = {}) {
     this.opts = { threshold: 90, holdDelay: 420, cardW: 260, cardH: 300, tile: 104, ...opts };
-    this.text = { ...(locale().startsWith('fr') ? fr : en), ...opts.text };   // the computer's language: trieur speaks English and French
     this.zoneDefs = opts.zones ?? [];
     [this.items, this.setItems_] = createSignal<T[]>([...(opts.items ?? [])]);
     [this.zonesS, this.setZones_] = createSignal<PlacedZone[]>([]);

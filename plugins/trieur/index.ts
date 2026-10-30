@@ -8,3 +8,5 @@ export type { DeckProps, TileState } from './view';
 export { THEME, setTheme, setScheme, isDark, colorOf } from './theme';
 export type { Palette } from './theme';
 export { kvStore } from './store';
+export { language, setLanguage } from './lang';
+export type { Language } from './lang';

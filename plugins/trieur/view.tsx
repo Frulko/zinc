@@ -279,16 +279,16 @@ function glyph(z: PlacedZone): any {
 
 /** Count, the model's suggestion, skip, undo, and the multi-zone toggle. */
 export function Bar<T>(p: { deck: DeckState<T> }): any {
-  const deck = p.deck, t = deck.text;
-  const chip = (label: string, key: string, icon: string, run: () => void, on?: () => boolean): any =>
+  const deck = p.deck;
+  const chip = (label: () => string, key: () => string, icon: string, run: () => void, on?: () => boolean): any =>
     <Button onClick={run} className="h-[34] px-3 rounded-[10] flex-row items-center gap-2"
       style={{ backgroundColor: on && on() ? THEME.multi : THEME.chip }}>
       <Icon name={icon} size={15} color={() => (on && on() ? THEME.multiInk : THEME.ink)} />
-      <Text className="text-[13px] font-medium" style={{ color: on && on() ? THEME.multiInk : THEME.ink }}>{label}</Text>
-      <Text className="text-[10px] font-mono" style={{ color: on && on() ? THEME.multiInk : THEME.dim }}>{key}</Text>
+      <Text className="text-[13px] font-medium" style={{ color: on && on() ? THEME.multiInk : THEME.ink }}>{label()}</Text>
+      <Text className="text-[10px] font-mono" style={{ color: on && on() ? THEME.multiInk : THEME.dim }}>{key()}</Text>
     </Button>;
   return <View className="h-[58] shrink-0 flex-row items-center gap-2 px-4">
-    <Text className="text-[13px] font-semibold" style={{ color: THEME.dim }}>{t.count(deck.items().length)}</Text>
+    <Text className="text-[13px] font-semibold" style={{ color: THEME.dim }}>{deck.text.count(deck.items().length)}</Text>
     <Show when={deck.prediction !== null}>
       <View className="h-[28] px-3 rounded-full flex-row items-center gap-2" style={{ backgroundColor: THEME.accentSoft }}>
         <Icon name="sparkles" size={14} color={() => THEME.accent} />
@@ -298,10 +298,10 @@ export function Bar<T>(p: { deck: DeckState<T> }): any {
       </View>
     </Show>
     <View className="grow" />
-    {deck.opts.multi ? chip(deck.picks().length ? t.sortMany(deck.picks().length) : t.multi, '⇧', 'layers', () => {
+    {deck.opts.multi ? chip(() => (deck.picks().length ? deck.text.sortMany(deck.picks().length) : deck.text.multi), () => '⇧', 'layers', () => {
       if (deck.picks().length) void deck.commitMany(); else deck.setMultiMode(deck.multi() ? null : 'latch');
     }, () => deck.multi() !== null) : null}
-    {chip(t.skip, t.space, 'skip-forward', () => deck.skip())}
-    {chip(t.undo, '⌫', 'undo-2', () => void deck.undo())}
+    {chip(() => deck.text.skip, () => deck.text.space, 'skip-forward', () => deck.skip())}
+    {chip(() => deck.text.undo, () => '⌫', 'undo-2', () => void deck.undo())}
   </View>;
 }
