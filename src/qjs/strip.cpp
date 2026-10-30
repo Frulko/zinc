@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <set>
 #include <sstream>
@@ -16,6 +17,7 @@
 #include "frontend/parser.h"
 #include "frontend/profile.h"
 #include "frontend/project.h"
+#include "frontend/resolve.h"
 
 namespace zn::qjs {
 namespace {
@@ -238,6 +240,72 @@ struct Stripper {
   }
 };
 
+// ---- zinc:worker's typed messages on QuickJS (ZN-587): the record schemas the typed engines' checker computes from `new Worker<In, Out>` and
+// from `self.onmessage = (e: MessageEvent<T>) => ...`, written into the program from the same types: `new Worker<In, Out>(__recTypes('<In>',
+// '<Out>', entry))` and `self.onmessage = __recAs('<T>', handler)` (src/qjs/worker_js.cpp takes them). The types are looked up syntactically
+// in the file and the files it imports by a relative path; one the schema text cannot name gives '' and the messages are cloned untyped.
+
+// The interfaces and type aliases of `text` and of the files it imports by a relative path (theirs first: the file's own win).
+void declarations(const std::string& text, const std::string& file, std::set<std::string>& seen, std::string& out, int depth = 0) {
+  ParseResult pr = parse(text);
+  if (pr.ast.root == kNone || depth > 8) return;
+  const Ast& a = pr.ast;
+  for (std::uint32_t st : a.nodes[a.root].kids) {
+    const Node& im = a.nodes[st];
+    if (im.kind != N::Import || im.text.size() < 4 || im.text[1] != '.') continue;
+    const std::string base = normalize(dirOf(file) + "/" + std::string(im.text.substr(1, im.text.size() - 2)));
+    for (const char* ext : {"", ".ts", ".tsx", "/index.ts"}) {
+      std::ifstream in(base + ext, std::ios::binary);
+      if (!in || !std::filesystem::is_regular_file(base + ext)) continue;
+      if (seen.insert(base + ext).second) { std::stringstream ss; ss << in.rdbuf(); declarations(ss.str(), base + ext, seen, out, depth + 1); }
+      break;
+    }
+  }
+  for (std::uint32_t st : a.nodes[a.root].kids) {
+    std::uint32_t d = st;
+    if (a.nodes[d].kind == N::Export && !a.nodes[d].kids.empty() && a.nodes[d].kids[0] != kNone) d = a.nodes[d].kids[0];
+    if (a.nodes[d].kind == N::Interface || a.nodes[d].kind == N::TypeAlias) out += text.substr(a.nodes[d].start, a.nodes[d].end - a.nodes[d].start) + "\n";
+  }
+}
+
+std::string workerTypesForJs(const std::string& text, const std::string& file) {
+  ParseResult pr = parse(text);
+  if (pr.ast.root == kNone || !pr.diags.empty()) return text;
+  const Ast& a = pr.ast;
+  std::string decls;
+  std::set<std::string> seen{file};
+  bool any = false;
+  std::vector<std::pair<std::uint32_t, std::string>> ins;   // (position, text to insert)
+  auto schema = [&](std::uint32_t ty) {
+    if (!any) { declarations(text, file, seen, decls); any = true; }
+    return schemaOfType(decls, text.substr(a.nodes[ty].start, a.nodes[ty].end - a.nodes[ty].start));
+  };
+  for (std::uint32_t i = 0; i < a.nodes.size(); ++i) {
+    const Node& x = a.nodes[i];
+    if (x.kind == N::New && x.kids.size() == 2 && a.nodes[x.kids[0]].kind == N::Ident && a.nodes[x.kids[0]].text == "Worker") {
+      auto t = a.targs.find(i);
+      if (t == a.targs.end() || t->second.size() != 2) continue;
+      const Node& arg = a.nodes[x.kids[1]];
+      ins.push_back({arg.start, "__recTypes('" + schema(t->second[0]) + "', '" + schema(t->second[1]) + "', "});
+      ins.push_back({arg.end, ")"});
+    } else if (x.kind == N::Assign && x.text == "=" && x.kids.size() == 2) {
+      const Node& lhs = a.nodes[x.kids[0]];
+      const Node& fn = a.nodes[x.kids[1]];
+      if (lhs.kind != N::Member || lhs.text != "onmessage" || a.nodes[lhs.kids[0]].kind != N::Ident || a.nodes[lhs.kids[0]].text != "self") continue;
+      if (fn.kind != N::FuncExpr || fn.kids.size() < 3 || a.nodes[fn.kids[2]].kids.empty()) continue;
+      const std::uint32_t pt = a.nodes[fn.kids[2]].kids[0];
+      if (pt == kNone || a.nodes[pt].kind != N::TypeRef || a.nodes[pt].text != "MessageEvent" || a.nodes[pt].kids.size() != 1) continue;
+      ins.push_back({fn.start, "__recAs('" + schema(a.nodes[pt].kids[0]) + "', "});
+      ins.push_back({fn.end, ")"});
+    }
+  }
+  if (ins.empty()) return text;
+  std::stable_sort(ins.begin(), ins.end(), [](const auto& p, const auto& q) { return p.first > q.first; });
+  std::string out = text;
+  for (const auto& [at, t] : ins) out.insert(at, t);
+  return out;
+}
+
 }  // namespace
 
 bool stripTypes(std::string_view src, const std::string& file, std::string& out, std::string& err) {
@@ -280,7 +348,8 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
   std::vector<Diag> diags;
   std::vector<SrcPiece> map;
   if (uiPreset() == "react-native") text = rewriteReactNativeImports(text, tsx);   // as the typed loader does (ZN-367.05)
-  if (text.find("requireNative<") != std::string::npos) text = recordSchemasForJs(text);   // the record schemas of a native spec (ZN-850), before the types are erased
+  if (text.find("requireNative<") != std::string::npos) text = recordSchemasForJs(text);
+  if (text.find("zinc:worker") != std::string::npos) text = workerTypesForJs(text, file);   // the message schemas of zinc:worker (ZN-587), before the types are erased   // the record schemas of a native spec (ZN-850), before the types are erased
   if (text.find("StyleSheet") != std::string::npos) text = lowerStyleSheets(text, diags, 0, tsx);
   if (tsx && diags.empty()) {
     original = text;

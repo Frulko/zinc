@@ -392,6 +392,17 @@ std::string recordSchemasForJs(const std::string& text) {
   return table.empty() ? text : text.substr(0, qb + 1) + ", { " + table + " }" + text.substr(qb + 1);
 }
 
+std::string schemaOfType(const std::string& decls, const std::string& type) {
+  const std::string text = decls + "\ntype __ZnMessage = " + type + ";\n";
+  ParseResult pr = parse(text);
+  if (pr.ast.root == kNone || !pr.diags.empty()) return "";
+  Records r(pr.ast, text);
+  auto it = r.aliases.find("__ZnMessage");
+  if (it == r.aliases.end()) return "";
+  std::string s = r.type(it->second);
+  return r.err.empty() ? s : "";
+}
+
 std::string nativeLetter(const Ast& a, const std::string& text, std::uint32_t ty, bool result, bool dyn) {
   if (ty == kNone) return "n";
   const Node& x = a.nodes[ty];

@@ -2,8 +2,8 @@
 # examples/sprite-studio, three windows that talk: a scripted headless session on the interpreter pauses the preview and picks and edits a
 # colour from the tools window (MessageChannel to the canvas), draws a stroke on the canvas, adds a frame and undoes it, saves and loads,
 # closes and reopens both side windows. Goldens: the canvas, the tools and the worker's preview (one each), and the canvas after the undo.
-# Then the idle check, and a few frames on the AOT and QuickJS compared with the interpreter (QuickJS has no workers: its preview window
-# says so, and only the canvas and the tools are compared there). UPDATE=1 rewrites the goldens.
+# Then the idle check, and a few frames of the three windows on the AOT and QuickJS compared with the interpreter (the preview drawn by
+# the worker on each engine). UPDATE=1 rewrites the goldens.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")
 gold=tests/golden/sprite-studio
@@ -44,9 +44,7 @@ for r in native quickjs; do
   if [ $r = native ]; then set -- --native; else set -- --engine quickjs; fi
   ZINC_FRAMES=4 ZINC_SHOT="$tmp/$r.png" ZINC_SHOT_FRAMES=3 timeout "$((3 * limit))" "$Z" run examples/sprite-studio "$@" >"$tmp/$r.log" 2>&1 ||
     { echo "$r: exit $?: $(tail -c 400 "$tmp/$r.log")"; fail=1; continue; }
-  for w in "" -w1; do cmp -s "$tmp/$r-3$w.png" "$tmp/s-3$w.png" || { echo "$r: window${w:-0} differs from the interpreter's"; fail=1; }; done
+  for w in "" -w1 -w2; do cmp -s "$tmp/$r-3$w.png" "$tmp/s-3$w.png" || { echo "$r: window${w:-0} differs from the interpreter's"; fail=1; }; done
 done
-cmp -s "$tmp/native-3-w2.png" "$tmp/s-3-w2.png" || { echo "native: the worker's preview differs from the interpreter's"; fail=1; }
-want quickjs "preview: Error: zinc:worker runs on the Zinc engine (zinc run, zinc build); QuickJS has no workers yet"
 [ $fail = 0 ] && echo 'sprite_studio: session, three windows, save/load, reopen, idle, AOT and QuickJS ok'
 exit $fail

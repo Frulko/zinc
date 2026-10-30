@@ -58,5 +58,5 @@ src/
 ## Notes
 
 - The canvas and the thumbnails are lazy `Canvas` nodes: nothing repaints while nothing changes (the T1 test checks 300 idle frames).
-- QuickJS (`--engine quickjs`) has no workers yet: the canvas and the tools work, and the preview window says why it is empty.
+- On QuickJS (`--engine quickjs`) the preview worker runs in a QuickJS runtime of its own, on its own thread.
 - The test: `tests/t1/sprite_studio.sh` (a scripted session on the three windows, their goldens, the idle check, AOT and QuickJS).

@@ -36,6 +36,7 @@ bool qjs_lre_check_stack_overflow(void*, size_t);
 #include "frontend/tsconfig.h"
 #include "qjs/strip.h"
 #include "zn/host.h"
+#include "zn/worker_bridge.h"
 #include "zn/native.h"
 #include "zn/resource_stats.h"
 #include "zn/runtime.h"
@@ -56,6 +57,7 @@ struct Engine {
   struct Rejection { JSValue promise, reason; };
   std::vector<Rejection> rejected;   // promises rejected with no handler yet: reported once the jobs have drained, when nobody caught them (ZN-566)
   void* entryPromise = nullptr;      // the entry module's own promise: its rejection is the program's uncaught exception
+  bool worker = false;               // a zinc:worker program (runWorker): no native modules, frames or web environment
 };
 
 bool readFile(const std::string& path, std::string& out) {
@@ -97,6 +99,12 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
     if (p) { std::fwrite(p, 1, n, id == zn::Rt::HostSysWrite ? stdout : stderr); JS_FreeCString(ctx, p); }
     return JS_UNDEFINED;
   }
+  if (zn::host::workerBridge.onWorker()) {   // as the typed engines' runtime calls (src/rt/rtcalls.cpp)
+    if (!sys || zn::isLayoutRow(id)) return JS_ThrowTypeError(ctx, "this module draws or lays out: it is not available in a worker (do the drawing on the main side and post the result)");
+    if (zn::host::workerBridge.stopping()) return JS_ThrowInternalError(ctx, "terminated");
+  }
+  if (id == zn::Rt::HostEvReady) zn::host::workerBridge.deliver();   // the messages of zinc:worker become events of this loop
+  else if (id == zn::Rt::HostLoopWait) zn::host::workerBridge.idleWait();
   zn::host::HostCall call = zn::isLayoutRow(static_cast<zn::Rt>(id)) ? zn::host::hostLayout : sys ? zn::host::hostSys : zn::host::hostGfx;
   if (!call) return JS_ThrowInternalError(ctx, "%s is not available in this build", ri.name);
   HostArg args[zn::kMaxHostParams], res;
@@ -297,7 +305,9 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   // the transform stage of the bundler (.tsx too), cached by content: the source, its name and what the transform reads besides (the UI preset and
   // layout of zinc.json; the directory is per build of the engine)
   std::string cached;
-  if (!e.cacheDir.empty()) {
+  // ponytail: a module that uses zinc:worker is transformed at each run: its message schemas come from the types of the files it imports
+  // (workerTypesForJs), which the content hash does not cover
+  if (!e.cacheDir.empty() && src.find("zinc:worker") == std::string::npos) {
     std::uint64_t h = 1469598103934665603ull;
     for (const std::string& part : {src, file, zn::frontend::uiPreset(), zn::frontend::uiLayout(), std::string(std::getenv("ZINC_WEB_HOT") ? "hot" : ""), std::string(zn::frontend::currentProfile() ? zn::frontend::currentProfile()->name : "")})
       for (unsigned char c : part + '\0') { h ^= c; h *= 1099511628211ull; }
@@ -310,7 +320,7 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
   if (!cached.empty()) {   // written aside then renamed: two programs starting at once never read half a file
     std::error_code ec;
     std::filesystem::create_directories(e.cacheDir, ec);
-    const std::string tmp = cached + "." + std::to_string(getpid());
+    const std::string tmp = cached + "." + std::to_string(getpid()) + "." + std::to_string(std::hash<std::thread::id>()(std::this_thread::get_id()));   // a worker's thread may write the same module
     { std::ofstream out(tmp, std::ios::binary); out << js; }
     std::filesystem::rename(tmp, cached, ec);
   }
@@ -361,6 +371,7 @@ JSModuleDef* loadModule(JSContext* ctx, const char* name, void* opaque) {
   auto* e = static_cast<Engine*>(opaque);
   std::string js, err;
   if (!moduleText(*e, name, js, err)) { JS_ThrowReferenceError(ctx, "%s", err.c_str()); return nullptr; }
+  if (std::strcmp(name, "zinc:worker") == 0) js += kWorkerSelfJs;
   JSValue v = JS_Eval(ctx, js.data(), js.size(), name, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
   if (JS_IsException(v)) return nullptr;
   auto* m = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(v));
@@ -392,9 +403,15 @@ std::size_t stackBudget() {
 // A bundle run with its source map beside it (zinc bundle --sourcemap): the traces name the files and lines the user wrote
 std::string gMapFile, gMapJson;
 std::string gTraceName;   // the name a bundle's bytecode was compiled under, when it runs (its frames carry it)
+thread_local std::string* tWorkerError = nullptr;   // on a worker's thread: where its first uncaught error goes (its parent's onerror), not stderr
 
 void report(JSContext* ctx, JSValue ex, const char* what = "Uncaught") {
   const char* s = JS_ToCString(ctx, ex);
+  if (tWorkerError) {
+    if (tWorkerError->empty()) *tWorkerError = std::string(what) + " " + (s ? s : "exception");
+    if (s) JS_FreeCString(ctx, s);
+    return;
+  }
   JSValue st = JS_GetPropertyStr(ctx, ex, "stack");
   const char* stack = JS_IsUndefined(st) ? nullptr : JS_ToCString(ctx, st);
   std::fflush(stdout);
@@ -463,6 +480,7 @@ bool nativeTurn(Engine& e) {
   const bool ok = callFn(e, poll, JS_UNDEFINED, false);
   JS_FreeValue(e.ctx, poll);
   if (!ok) return false;
+  if (e.worker) return true;   // the native registry is the main program's (D183)
   zn_native_poll(0);
   return zn_native_drain() == 0 || drain(e);
 }
@@ -550,9 +568,10 @@ bool timerLoop(Engine& e) {
   bool ok = true;
   while (ok && !wantsFrames(e)) {
     std::fflush(stdout);   // as in the frame loop
+    if (e.worker && zn::host::workerBridge.stopping()) break;   // terminate()
     if (!nativeTurn(e)) { ok = false; break; }
     JSValue fn;
-    if (zn_native_pending() > 0 || zn::loop::active()) {   // a native operation or a host one (a server listening, a fetch) is in flight: the clock follows the wall clock, so its answer comes before a later timer
+    if ((!e.worker && zn_native_pending() > 0) || zn::loop::active()) {   // a native operation or a host one (a server listening, a fetch) is in flight: the clock follows the wall clock, so its answer comes before a later timer
       double clock = 0;
       JSValue c = JS_Call(e.ctx, clockFn, JS_UNDEFINED, 0, nullptr);
       JS_ToFloat64(e.ctx, &clock, c);
@@ -560,6 +579,7 @@ bool timerLoop(Engine& e) {
       JSValue now = JS_NewFloat64(e.ctx, clock);
       fn = JS_Call(e.ctx, due, JS_UNDEFINED, 1, &now);
       if (JS_IsNull(fn)) {
+        if (e.worker) zn::host::workerBridge.idleWait();   // nothing to do: a deterministic parent may go on (src/rt/worker.cpp)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
         JSValue cv = JS_NewFloat64(e.ctx, clock + 1);
         JS_FreeValue(e.ctx, JS_Call(e.ctx, setClock, JS_UNDEFINED, 1, &cv));
@@ -680,6 +700,74 @@ bool compileBytecode(const std::string& js, const std::string& name, std::string
   return ok;
 }
 
+namespace {
+
+// A context on e.rt with the host calls, zinc:worker's globals, the native modules (not in a worker), the prelude, the web shims and the defines.
+bool context(Engine& e, const std::string& mainDir) {
+  e.ctx = JS_NewContext(e.rt);
+  JS_SetMemoryLimit(e.rt, 0);
+  if (const std::size_t n = stackBudget()) JS_SetMaxStackSize(e.rt, n);
+  JS_SetHostPromiseRejectionTracker(e.rt, trackRejection, &e);
+  JS_SetModuleLoaderFunc(e.rt, normalizeName, loadModule, &e);
+  installHost(e.ctx);
+  installWorker(e.ctx, mainDir);
+  if (!e.worker) {
+    installNative(zn::qjs::napiEnv(e.ctx));
+    zn::qjs::runContextHooks(zn::qjs::napiEnv(e.ctx));   // native classes of other modules (WebGL), ZN-203.03
+  }
+  JSValue pre = JS_Eval(e.ctx, kPrelude, std::strlen(kPrelude), "<prelude>", JS_EVAL_TYPE_GLOBAL);
+  if (JS_IsException(pre)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); return false; }
+  JS_FreeValue(e.ctx, pre);
+  JSValue shims = JS_Eval(e.ctx, kWebShims, std::strlen(kWebShims), "<web-shims>", JS_EVAL_TYPE_GLOBAL);
+  if (JS_IsException(shims)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); return false; }
+  JS_FreeValue(e.ctx, shims);
+  {   // what a bundle has folded in (zinc bundle --define), as globals: the same program runs bundled or not
+    const std::string caps = capsJson(e.stdRoot + "/../../targets/capabilities.json");
+    const std::string defs = "globalThis.__ZINC_ENGINE__ = 'quickjs'; globalThis.__ZINC_CAPS__ = " + caps +
+                             "; globalThis.__ZINC_TARGET__ = __ZINC_CAPS__.TARGET; globalThis.__ZINC_PROFILE__ = __ZINC_CAPS__.PROFILE;" +
+                             "globalThis.__zincWallBase = " + std::to_string(wallBaseMs()) + ";";
+    JS_FreeValue(e.ctx, JS_Eval(e.ctx, defs.data(), defs.size(), "<defines>", JS_EVAL_TYPE_GLOBAL));
+  }
+  return true;
+}
+
+const Engine* gMain = nullptr;   // the main program's engine: a worker loads its modules the same way (set before any worker starts, then only read)
+
+}  // namespace
+
+bool runWorker(const std::string& entry, std::string& error) {
+  Engine e;
+  e.worker = true;
+  if (gMain) { e.stdRoot = e.res.stdRoot = gMain->stdRoot; e.cacheDir = gMain->cacheDir; e.imports = gMain->imports; e.modules = gMain->modules; }
+  e.entry = entry;
+  tWorkerError = &error;
+  e.rt = JS_NewRuntime();
+  JS_SetInterruptHandler(e.rt, [](JSRuntime*, void*) { return zn::host::workerBridge.stopping() ? 1 : 0; }, nullptr);   // terminate() stops a busy loop too
+  bool ok = context(e, "");
+  JSValue res = JS_UNDEFINED;
+  if (ok) {
+    std::string js, err;
+    if (!moduleText(e, entry, js, err)) { error = err; ok = false; }
+    else {
+      JSValue mod = JS_Eval(e.ctx, js.data(), js.size(), entry.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+      if (!JS_IsException(mod)) setMeta(e.ctx, static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(mod)), entry);
+      res = JS_IsException(mod) ? mod : JS_EvalFunction(e.ctx, mod);
+      if (JS_IsException(res)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); JS_FreeValue(e.ctx, ex); ok = false; }
+      else {
+        e.entryPromise = JS_VALUE_GET_PTR(res);
+        ok = drain(e) && timerLoop(e);
+      }
+    }
+  }
+  std::fflush(stdout);
+  tWorkerError = nullptr;
+  JS_FreeValue(e.ctx, res);
+  for (const Engine::Rejection& x : e.rejected) { JS_FreeValue(e.ctx, x.promise); JS_FreeValue(e.ctx, x.reason); }
+  JS_FreeContext(e.ctx);
+  JS_FreeRuntime(e.rt);
+  return ok || !error.empty() ? ok : (error = "the worker failed", false);
+}
+
 int run(const Options& o) {
   const auto startedAt = std::chrono::steady_clock::now();
   zn::log::step("context", "initialise QuickJS and host services...");
@@ -691,35 +779,15 @@ int run(const Options& o) {
 #ifdef ZN_QJS_PROFILE
   if (o.profileHz || std::getenv("ZN_QJS_DUMP")) profileStart(e.rt, o.profileHz);   // a dump alone (tools/qjs2c) prints no report
 #endif
-  e.ctx = JS_NewContext(e.rt);
+  std::string entry = o.entry;
+  if (!entry.empty() && !pathAbs(entry)) { char b[4096]; if (getcwd(b, sizeof b)) entry = normalize(std::string(b) + "/" + entry); }
+  if (!context(e, dirOf(entry))) return 101;
   static ZnResourceStatsRegistration heap("js.heap", [](void* rt) {   // the inspector's Info view, as the other engines' (src/engine)
     JSMemoryUsage u;
     JS_ComputeMemoryUsage(static_cast<JSRuntime*>(rt), &u);
     return ZnResourceStats{static_cast<uint64_t>(u.obj_count), static_cast<uint64_t>(u.malloc_size), 0, 0, 0};
   }, e.rt);
-  JS_SetMemoryLimit(e.rt, 0);
-  if (const std::size_t n = stackBudget()) JS_SetMaxStackSize(e.rt, n);
-  JS_SetHostPromiseRejectionTracker(e.rt, trackRejection, &e);
-  JS_SetModuleLoaderFunc(e.rt, normalizeName, loadModule, &e);
-  installHost(e.ctx);
-  installNative(zn::qjs::napiEnv(e.ctx));
-  zn::qjs::runContextHooks(zn::qjs::napiEnv(e.ctx));   // native classes of other modules (WebGL), ZN-203.03
-  JSValue pre = JS_Eval(e.ctx, kPrelude, std::strlen(kPrelude), "<prelude>", JS_EVAL_TYPE_GLOBAL);
-  if (JS_IsException(pre)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); return 101; }
-  JS_FreeValue(e.ctx, pre);
-  JSValue shims = JS_Eval(e.ctx, kWebShims, std::strlen(kWebShims), "<web-shims>", JS_EVAL_TYPE_GLOBAL);
-  if (JS_IsException(shims)) { JSValue ex = JS_GetException(e.ctx); report(e.ctx, ex); return 101; }
-  JS_FreeValue(e.ctx, shims);
-  {   // what a bundle has folded in (zinc bundle --define), as globals: the same program runs bundled or not
-    const std::string caps = capsJson(o.stdRoot + "/../../targets/capabilities.json");
-    const std::string defs = "globalThis.__ZINC_ENGINE__ = 'quickjs'; globalThis.__ZINC_CAPS__ = " + caps +
-                             "; globalThis.__ZINC_TARGET__ = __ZINC_CAPS__.TARGET; globalThis.__ZINC_PROFILE__ = __ZINC_CAPS__.PROFILE;" +
-                             "globalThis.__zincWallBase = " + std::to_string(wallBaseMs()) + ";";
-    JS_FreeValue(e.ctx, JS_Eval(e.ctx, defs.data(), defs.size(), "<defines>", JS_EVAL_TYPE_GLOBAL));
-  }
-
-  std::string entry = o.entry;
-  if (!entry.empty() && !pathAbs(entry)) { char b[4096]; if (getcwd(b, sizeof b)) entry = normalize(std::string(b) + "/" + entry); }
+  gMain = &e;
   // a bundle's bytecode (zinc build, zinc export, zinc bundle --bytecode): <name>.qbc beside <name>.js runs instead of the source while it is not
   // older than the bundle and this QuickJS reads it (its version byte and checksum); otherwise the bundle runs, with no error (ZN-773.09)
   std::string qbc;
@@ -793,6 +861,8 @@ int run(const Options& o) {
     JS_FreeValue(e.ctx, res);
   }
   JS_FreeValue(e.ctx, stage);
+  zn::host::workerBridge.shutdown();   // the workers it started end with it
+  gMain = nullptr;
   std::fflush(stdout);
   zn::log::step("exit", "QuickJS-ng, status " + std::to_string(rc), zn::log::since(startedAt));
   return rc;

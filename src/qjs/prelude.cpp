@@ -7,8 +7,8 @@ namespace zn::qjs {
 const char* kPrelude = R"JS(
 (function (g) {
   const write = g.__host_sysWrite, writeErr = g.__host_sysWriteErr;
-  // zinc:worker (D181) runs on the Zinc engine; a QuickJS runtime per worker thread is a later step
-  g.__recSchemaOf = function () { throw new Error('zinc:worker runs on the Zinc engine (zinc run, zinc build); QuickJS has no workers yet'); };
+  // zinc:worker (D181): QuickJS installs its own (src/qjs/worker_js.cpp); the engines that share this prelude (JavaScriptCore, V8, Hermes) have none yet
+  if (!g.__recSchemaOf) g.__recSchemaOf = function () { throw new Error('zinc:worker runs on the Zinc engine and QuickJS; this engine has no workers yet'); };
   function quote(s) {
     const q = s.indexOf("'") < 0 ? "'" : s.indexOf('"') < 0 ? '"' : s.indexOf('`') < 0 ? '`' : "'";
     let r = q;

@@ -3,3 +3,4 @@ done 1 sum 5056 ONE size 3 tags a,b note none
 done 2 sum 55 TWO size 0 tags a,b note second
 error: Uncaught Error: job 3 failed
 terminated
+the main loop goes on

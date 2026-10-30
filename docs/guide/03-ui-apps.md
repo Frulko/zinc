@@ -361,8 +361,7 @@ const parent = parentPort<Reply, Cmd>();
 parent.onmessage = (e) => parent.postMessage({ scene: step(e.data) });
 ```
 
-  The worker's port works on the interpreter and in compiled builds; QuickJS has no workers yet, its windows use
-  `MessageChannel`. A whole `zinc:ui` tree runs on the main thread only.
+  The worker's port works on the interpreter, in compiled builds and on QuickJS. A whole `zinc:ui` tree runs on the main thread only.
 
 ## The device
 

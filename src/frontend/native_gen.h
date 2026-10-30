@@ -19,6 +19,9 @@ std::string recordSchema(const Ast& a, const std::string& text, std::uint32_t ty
 // The JavaScript engines (src/qjs): `requireNative<Spec>('X')` of a spec file with records becomes `requireNative<Spec>('X', { member: ['<schema of each
 // parameter>', ..., '<schema of the result>'] })` ('' for a value that is not a record), so 'zinc:native' encodes and decodes those members.
 std::string recordSchemasForJs(const std::string& text);
+// zinc:worker on QuickJS (ZN-587): the schema text of `type` (a TypeScript type: a scalar, string, u8[], arrays, T | null or an interface) against
+// `decls`, the source of the interfaces and type aliases it may name; "" when it has no record form (a generic interface, a class, a union).
+std::string schemaOfType(const std::string& decls, const std::string& type);
 
 struct NativeGen {
   std::string name;        // 'Sensor' in requireNative<Spec>('Sensor')

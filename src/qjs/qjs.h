@@ -75,6 +75,13 @@ bool webEnv(napi_env env, const std::string& stdRoot, const std::string& mode, c
 std::string webMode(const std::string& entry);
 std::string webBase(const std::string& entry);
 
+// src/qjs/worker_js.cpp, zinc:worker (ZN-587): the globals its module calls (the record wire, the Rt::HostWorker* rows over zn::host::workerBridge),
+// installed in every context; `mainDir` (the main program's) is where a relative worker entry is read. kWorkerSelfJs follows the module's own code.
+void installWorker(JSContext* ctx, const std::string& mainDir);
+extern const char* kWorkerSelfJs;
+// src/qjs/qjs.cpp: a worker's program on the calling thread, in its own runtime and context, to its end; false with the error onerror receives.
+bool runWorker(const std::string& entry, std::string& error);
+
 extern const char* kPrelude;
 extern const char* kWebShims;   // TextEncoder, TextDecoder, AbortController: evaluated in every context (the main program and zinc:script)
 

@@ -553,7 +553,7 @@ add_library(zn_script STATIC src/qjs/script_native.cpp)
 target_link_libraries(zn_script PUBLIC zn_quickjs zn_native zn_qjs_ext)
 target_include_directories(zn_script PUBLIC include)
 
-add_library(zn_qjs STATIC src/qjs/qjs.cpp src/qjs/bundle.cpp src/qjs/strip.cpp src/qjs/prelude.cpp src/qjs/native_js.cpp src/qjs/webenv.cpp src/qjs/canvas2d.cpp)
+add_library(zn_qjs STATIC src/qjs/qjs.cpp src/qjs/bundle.cpp src/qjs/strip.cpp src/qjs/prelude.cpp src/qjs/native_js.cpp src/qjs/webenv.cpp src/qjs/canvas2d.cpp src/qjs/worker_js.cpp)
 target_link_libraries(zn_qjs PUBLIC zn_quickjs zn_frontend zn_qjs_ext zn_native)
 target_compile_definitions(zn_qjs PRIVATE ZN_NAPI_INLINE)
 target_link_libraries(zn_qjs PRIVATE zn_text)   # canvas2d.cpp: the web environment's Canvas 2D shapes its text with the text tier (ZN-570)

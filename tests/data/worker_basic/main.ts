@@ -1,4 +1,4 @@
-// zinc:worker on every engine: messages both ways, a moved buffer, an error, terminate (tests/t0/worker_basic.sh).
+// zinc:worker on every engine: messages both ways, a moved buffer, an error that the main loop outlives, terminate (tests/t0/worker_basic.sh).
 import { Worker, MessageEvent, ErrorEvent } from 'zinc:worker';
 import { Job, Done } from './types';
 
@@ -14,6 +14,7 @@ w.onerror = (e: ErrorEvent) => {
   console.log('error: ' + e.message);
   w.terminate();
   console.log('terminated');
+  setTimeout(() => { console.log('the main loop goes on'); }, 20);   // the worker's crash did not stop the program
 };
 const buf: u8[] = [1, 2, 3];
 w.postMessage({ id: 1, n: 100, label: 'one', bytes: buf, fail: false }, [buf]);
