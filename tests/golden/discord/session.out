@@ -1,0 +1,15 @@
+channels Lounge, Text, general, random
+dms Grace, Grace, linus
+gateway closed (4000), again in 1000 ms
+history 3
+history 302: 3 messages
+history 400: 1 messages
+message in 302 from Grace: Back after the drop
+message in 302 from linus: Live from the gateway
+ready Ada: 2 servers, 2 DMs
+resumed
+servers Zinc Lab, Makers
+stage connecting
+stage ready
+stage ready
+stage reconnecting

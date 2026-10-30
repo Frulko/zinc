@@ -1,0 +1,6 @@
+gateway /?encoding=json&v=9 agent=true
+identify token=true capabilities=1246 browser=Chrome
+rest GET /api/v9/channels/302/messages?limit=50 auth=true super=true
+gateway /?encoding=json&v=9 agent=true
+resume session=sess-1 seq=2
+rest GET /api/v9/channels/400/messages?limit=50 auth=true super=true
