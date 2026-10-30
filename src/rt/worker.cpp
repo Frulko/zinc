@@ -33,6 +33,8 @@ struct W {
   int id = 0;
   std::string entry, sIn, sOut;
   std::shared_ptr<const zbc::Module> mod;
+  int (*const* natives)(Machine&, Slot*) = nullptr;   // a compiled program: the worker's functions
+  std::size_t nativeCount = 0;
   std::mutex mu;                                    // guards the queues, the wake-ups and the end
   std::deque<std::vector<std::uint8_t>> toWorker, toMain;
   bool ended = false, endTaken = false, terminated = false, closedSelf = false;
@@ -50,6 +52,8 @@ std::mutex gRegMu;
 std::vector<std::shared_ptr<W>> gAll;               // every worker started and not yet joined: the registry of snapshot()
 std::mutex gModMu;
 std::map<std::string, std::shared_ptr<const zbc::Module>> gMods;   // decoded worker programs, by the bytes' address and key: N instances share one
+struct Compiled { std::string key; const unsigned char* packed; std::size_t size; int (*const* natives)(Machine&, Slot*); std::size_t count; };
+std::vector<Compiled>& compiled() { static std::vector<Compiled> v; return v; }   // filled by static initialisers, before main
 std::mutex gOutMu;                                  // a worker's console lines go out whole, between the main program's
 
 thread_local std::vector<std::shared_ptr<W>> tOwned;   // the workers this thread started: handle = index + 1
@@ -102,7 +106,12 @@ void* body(void* arg) {
   { std::lock_guard<std::mutex> g(w->mu); w->wakeWorker = myWake(); }
   if (loopBridge.active) loopBridge.active(1);   // the parent's port keeps the worker's loop running until terminate() or self.close()
   std::string out;
-  Result r = runModuleHooked(*w->mod, out, false, nullptr, nullptr, nullptr, nullptr, 0, 0, true);
+  auto bind = [](Machine& m, const void* data) {   // as program.cpp binds a compiled program's functions
+    const W* self = static_cast<const W*>(data);
+    m.registry = false;   // ponytail: as a compiled main program, its leftovers at the end are not walked (they are freed with the heap only at exit)
+    for (std::size_t i = 0; i < self->nativeCount && i < m.funcs.size(); ++i) m.funcs[i].native = self->natives[i];
+  };
+  Result r = runModuleHooked(*w->mod, out, false, w->natives ? +bind : nullptr, w.get(), nullptr, nullptr, 0, 0, true);
   if (!out.empty()) { std::lock_guard<std::mutex> g(gOutMu); std::fwrite(out.data(), 1, out.size(), stdout); std::fflush(stdout); }
   void* wm;
   bool failed = false;
@@ -122,21 +131,25 @@ const char* start(Machine& m, Slot* a, std::string& err) {
   auto str = [](Slot s) { auto* o = reinterpret_cast<StrObj*>(s); return o ? std::string(o->data(), o->len) : std::string(); };
   std::string key = str(a[0]);
   if (gOnWorker) { err = "a worker cannot start another worker yet (start it from the main program)"; return nullptr; }
-  if (!gBytecode) { err = "workers run on the interpreter in this build: run the program with zinc run --interp"; return nullptr; }
   if (!loopBridge.wakeNew) { err = "workers need the system host (an event loop) in this build"; return nullptr; }
+  const Compiled* comp = nullptr;
+  for (const Compiled& c : compiled()) if (c.key == key) comp = &c;
   const std::vector<std::uint8_t>* bytes = nullptr;
-  for (const auto& [k, b] : m.mod->workers) if (k == key) bytes = &b;
-  if (!bytes) { err = "the worker '" + key + "' is not part of this build (its entry must be a literal path, compiled with the program)"; return nullptr; }
+  if (!comp) for (const auto& [k, b] : m.mod->workers) if (k == key) bytes = &b;
+  if (!comp && (!bytes || !gBytecode)) { err = "the worker '" + key + "' is not part of this build (its entry must be a literal path, compiled with the program)"; return nullptr; }
   std::shared_ptr<const zbc::Module> mod;
   {
     std::lock_guard<std::mutex> g(gModMu);
-    std::string ck = std::to_string(reinterpret_cast<std::uintptr_t>(bytes->data())) + ":" + key;
+    std::string ck = std::to_string(reinterpret_cast<std::uintptr_t>(comp ? comp->packed : bytes->data())) + ":" + key;
     auto it = gMods.find(ck);
     if (it != gMods.end()) mod = it->second;
     else {
       auto zm = std::make_shared<zbc::Module>();
       std::string why;
-      if (!zbc::decode(*bytes, *zm, why) || !(why = zbc::verify(*zm)).empty()) { err = "the worker '" + key + "' is damaged: " + why; return nullptr; }
+      std::vector<std::uint8_t> unpacked;
+      if (comp && !zbc::unpackRuns(comp->packed, comp->size, unpacked)) why = "its tables do not unpack";
+      else if (!zbc::decode(comp ? unpacked : *bytes, *zm, why) || !(why = zbc::verify(*zm)).empty()) {}
+      if (!why.empty()) { err = "the worker '" + key + "' is damaged: " + why; return nullptr; }
       mod = gMods[ck] = zm;
     }
   }
@@ -146,6 +159,7 @@ const char* start(Machine& m, Slot* a, std::string& err) {
   w->sIn = str(a[1]);
   w->sOut = str(a[2]);
   w->mod = mod;
+  if (comp) { w->natives = comp->natives; w->nativeCount = comp->count; }
   w->wakeMain = myWake();
   pthread_attr_t at;
   pthread_attr_init(&at);
@@ -200,6 +214,10 @@ std::string errorOf(Slot h) {   // main side: "" while it runs (or its end was a
 }
 
 }  // namespace
+
+void addCompiled(const char* key, const unsigned char* packed, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count) {
+  compiled().push_back({key, packed, size, natives, count});
+}
 
 bool stopping() { return tSelf && tSelf->stop.load(std::memory_order_relaxed); }
 

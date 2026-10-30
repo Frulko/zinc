@@ -23,8 +23,10 @@ void idleWait();
 bool stopping();
 // The main program returned: its workers are terminated and their threads joined (one busy in a long loop finishes it first).
 void shutdown();
-// The engine runs bytecode (src/vm sets it): a worker program can run. A compiled program (AOT) has no code for its workers yet.
+// The engine runs bytecode (src/vm sets it): a worker program can run from its bytecode.
 extern bool gBytecode;
+// A compiled program (AOT, src/aot) registers each worker's compiled code at start: its packed tables and its functions, by its key.
+void addCompiled(const char* key, const unsigned char* packed, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count);
 
 // ---- for the profiler, the debugger and DevTools (read from the main thread; cheap when nothing listens)
 struct Info {

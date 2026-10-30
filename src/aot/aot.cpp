@@ -418,24 +418,32 @@ std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<
                   "#define ZSTACK(n) if (__builtin_expect(op::stackLow(m) || (win + (n) > m.stackEnd && win >= m.stack && win < m.stackEnd), 0)) { m.error = \"stack overflow\"; return 2; }\n\n";
   // The module the program loads keeps its tables (classes, selectors, strings, globals, signatures) but not the code of its functions: every
   // function is compiled below, so its words would only be decoded and verified at each launch (ZN-603). One Trap stands for each body.
-  zbc::Module tables = mod;
-  for (zbc::Function& fn : tables.functions) { fn.code.assign(1, static_cast<std::uint32_t>(zn::Op::Trap)); fn.consts.clear(); fn.handlers.clear(); }
-  auto bytes = zbc::packRuns(zbc::encode(tables));
+  auto tablesOf = [](const zbc::Module& m) {
+    zbc::Module tables = m;
+    tables.workers.clear();   // a worker's code is compiled below, in its own namespace
+    for (zbc::Function& fn : tables.functions) { fn.code.assign(1, static_cast<std::uint32_t>(zn::Op::Trap)); fn.consts.clear(); fn.handlers.clear(); }
+    return zbc::packRuns(zbc::encode(tables));
+  };
+  auto bytes = tablesOf(mod);
+  // one struct per object class with fields (ZN-409): the same layout as Obj + Slot fields[], f64 fields typed double; then the functions' declarations
+  auto declarations = [&](const zbc::Module& m, const std::vector<char>& typed) {
+    std::string d;
+    for (std::size_t c = 0; c < m.classes.size(); ++c) {
+      const zbc::ClassInfo& ci = m.classes[c];
+      if (!FnEmitter::hasStruct(ci)) continue;
+      const std::string n = "Z_C" + std::to_string(c);
+      d += "struct " + n + " { const ClassRT* cls; std::uint32_t rc, pad;";
+      for (std::size_t k = 0; k < ci.fields.size(); ++k) d += std::string(ci.fields[k].cls == zbc::Cls::D ? " double" : " Slot") + " f" + std::to_string(k) + ";";
+      d += " };\nstatic_assert(sizeof(" + n + ") == sizeof(Obj) + " + std::to_string(ci.fields.size()) + " * sizeof(Slot), \"" + n + " layout\");\n";
+    }
+    for (std::size_t i = 0; i < m.functions.size(); ++i) {
+      d += "ZFN int " + fname(m, 'f', i) + "(Machine& m, Slot* r);\n";
+      if (typed[i]) { d += "ZFN Slot " + fname(m, 't', i) + "(Machine& m"; for (std::size_t k = 0; k < m.functions[i].params.size(); ++k) d += ", Slot"; d += ");\n"; }
+    }
+    return d + "\n";
+  };
   const std::vector<char> typedFn = typedFunctions(mod, arith, divs);
-  // one struct per object class with fields (ZN-409): the same layout as Obj + Slot fields[], f64 fields typed double
-  for (std::size_t c = 0; c < mod.classes.size(); ++c) {
-    const zbc::ClassInfo& ci = mod.classes[c];
-    if (!FnEmitter::hasStruct(ci)) continue;
-    const std::string n = "Z_C" + std::to_string(c);
-    s += "struct " + n + " { const ClassRT* cls; std::uint32_t rc, pad;";
-    for (std::size_t k = 0; k < ci.fields.size(); ++k) s += std::string(ci.fields[k].cls == zbc::Cls::D ? " double" : " Slot") + " f" + std::to_string(k) + ";";
-    s += " };\nstatic_assert(sizeof(" + n + ") == sizeof(Obj) + " + std::to_string(ci.fields.size()) + " * sizeof(Slot), \"" + n + " layout\");\n";
-  }
-  for (std::size_t i = 0; i < mod.functions.size(); ++i) {
-    s += "ZFN int " + fname(mod, 'f', i) + "(Machine& m, Slot* r);\n";
-    if (typedFn[i]) { s += "ZFN Slot " + fname(mod, 't', i) + "(Machine& m"; for (std::size_t k = 0; k < mod.functions[i].params.size(); ++k) s += ", Slot"; s += ");\n"; }
-  }
-  s += "\n";
+  s += declarations(mod, typedFn);
   std::vector<std::string> bodies(mod.functions.size());
   std::size_t total = 0;
   for (std::size_t i = 0; i < mod.functions.size(); ++i) {
@@ -460,6 +468,24 @@ std::vector<std::string> emitCppParts(const zbc::Module& mod, const std::vector<
   }
   else for (std::string& b : bodies) out[0] += b;
   s = std::move(out[0]);
+  // zinc:worker (D181): each worker program compiled in a namespace of its own, registered at start for src/rt/worker.cpp to run on its thread
+  for (std::size_t w = 0; w < mod.workers.size(); ++w) {
+    zbc::Module wm;
+    std::string werr;
+    if (!zbc::decode(mod.workers[w].second, wm, werr)) continue;   // the build verified it; the program then says the worker is not part of it
+    const std::vector<char> wt = typedFunctions(wm, arith, divs);
+    const std::string ns = "zw" + std::to_string(w);
+    s += "#include \"rt/worker.h\"\nnamespace " + ns + " {   // the worker '" + mod.workers[w].first + "'\n" + declarations(wm, wt);
+    for (std::size_t i = 0; i < wm.functions.size(); ++i) { FnEmitter fe(wm, wm.functions[i], i, arith, divs, wt); fe.emit(); s += fe.out; }
+    auto wb = tablesOf(wm);
+    s += "static const char kModule[] = \n  ";
+    appendBytes(s, wb.data(), wb.size());
+    s += ";\nstatic int (*const kNatives[])(Machine&, Slot*) = {";
+    for (std::size_t i = 0; i < wm.functions.size(); ++i) s += (i ? ", " : "") + fname(wm, 'f', i);
+    std::string key;
+    appendBytes(key, reinterpret_cast<const std::uint8_t*>(mod.workers[w].first.data()), mod.workers[w].first.size());
+    s += "};\nstatic const bool kAdded = (zn::rt::worker::addCompiled(" + key + ", reinterpret_cast<const unsigned char*>(kModule), " + std::to_string(wb.size()) + ", kNatives, " + std::to_string(wm.functions.size()) + "), true);\n}  // namespace " + ns + "\n\n";
+  }
   s += "static const char kModule[] = \n  ";
   appendBytes(s, bytes.data(), bytes.size());
   s += ";\nstatic const unsigned kModuleSize = " + std::to_string(bytes.size()) + ";\n\n";

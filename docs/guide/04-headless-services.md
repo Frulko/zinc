@@ -176,7 +176,7 @@ w.postMessage({ query: 'jazz', limit: 50 });
 - A worker cannot draw (`zinc:gfx`, `zinc:ui`, `zinc:gl`) or use a plugin's native code; files, the network, timers and `fetch` work.
   It cannot start another worker yet.
 - Under `ZINC_DETERMINISTIC` the app waits at each loop turn for its workers to be idle, so replies arrive at the same turn on every run.
-- Workers run on the interpreter (`zinc run`, the default); a compiled build (`--native`, `zinc build`) refuses to start one for now.
+- Workers run on the Zinc interpreter (`zinc run`) and in compiled builds (`zinc build` compiles each worker into the binary); QuickJS (`--engine quickjs`) has no workers yet.
 
 ## Running as a systemd service
 
