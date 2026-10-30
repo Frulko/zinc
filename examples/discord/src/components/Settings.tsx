@@ -22,6 +22,12 @@ export function Settings() {
   return <View className={`grow basis-0 ${BG_MAIN}`}>
     <View className="h-[48] px-4 flex-row items-center border-b border-[#1f2023]">
       <Text className={`grow font-semibold ${TEXT_STRONG}`}>Servers</Text>
+      <View className={`mr-2 px-2 py-1 rounded ${BG_HOVER}`} onPress={() => store.setAllShown(false)} aria-label="Hide all servers">
+        <Text className={`text-sm ${TEXT_MAIN}`}>Hide all</Text>
+      </View>
+      <View className={`mr-3 px-2 py-1 rounded ${BG_HOVER}`} onPress={() => store.setAllShown(true)} aria-label="Show all servers">
+        <Text className={`text-sm ${TEXT_MAIN}`}>Show all</Text>
+      </View>
       <View className={`p-1 rounded ${BG_HOVER}`} onPress={() => store.showSettings(false)} aria-label="Close the settings">
         <Icon name="x" size={20} color={MUTED} />
       </View>

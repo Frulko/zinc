@@ -248,6 +248,16 @@ export class Store implements GatewayHandler {
     if (!on && this.guildId === id) this.selectGuild('');
     this.changed();
   }
+  /** Every server on or off at once (then pick the few to keep). */
+  setAllShown(on: boolean): void {
+    const a = new Set<string>();
+    for (const g of this.guilds) { this.known.add(g.id); if (on) a.add(g.id); }
+    this.allowed = a;
+    this.saveServers();
+    this.log(`servers shown: ${this.shownGuilds().map((g: Guild) => g.name).join(', ')}`);
+    if (this.guildId !== '' && !on) this.selectGuild('');
+    this.changed();
+  }
   /** Closing the settings: the servers they listed are no longer new. */
   showSettings(open: boolean): void {
     if (!open && this.allowed !== null) { for (const g of this.guilds) this.known.add(g.id); this.saveServers(); }

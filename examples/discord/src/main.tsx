@@ -114,6 +114,9 @@ function settings(): void {
   const rail = (): string => store.shownGuilds().map((g: Guild) => `${g.name}(${store.guildUnread(g) ? 'unread' : 'read'} ${store.guildMentions(g)})`).join(' ');
   store.showSettings(true);
   console.log(`settings: rail ${rail()}`);
+  store.setAllShown(false);
+  console.log(`settings: all hidden, rail ${rail()}`);
+  store.setShown('201', true);
   store.setShown('200', false);                                                  // Zinc Lab off: it was open
   store.dispatch('GUILD_CREATE', { id: '202', name: 'Joined later', icon: null, channels: [{ id: '321', type: 0, name: 'hello', position: 0, last_message_id: '960' }] });
   const later = store.findGuild('202') as Guild;
