@@ -4,7 +4,7 @@ import * as ui from 'zinc:ui';
 import { quit } from 'zinc:gfx';
 const toks = [
   'p-4', 'px-2', 'pt-1', 'm-2', 'mx-3', 'mt-1', 'ml-6', '-mt-2', '-m-4', '-mx-1', '-ml-px', 'mx-auto', 'ml-auto', 'mr-auto', 'mt-auto', 'm-auto', 'my-auto',
-  'gap-2', 'gap-x-4', 'gap-y-2', 'gap-[10px]', 'inset-0', 'inset-4', 'inset-x-2', 'inset-y-1', 'inset-[8px]', 'top-2', 'left-3', 'right-1', 'bottom-0',
+  'gap-2', 'gap-x-4', 'gap-y-2', 'gap-[10px]', 'inset-0', 'inset-4', 'inset-x-2', 'inset-y-1', 'inset-[8px]', 'top-2', 'left-3', 'right-1', 'bottom-0', '-top-2', '-right-[6px]', '-bottom-x',
   'w-4', 'h-8', 'w-full', 'w-1/2', 'h-1/3', 'w-[50%]', 'h-[25%]', 'w-[2rem]', 'h-[1.5rem]', 'w-[100px]', 'h-[10vh]', 'w-[10vw]',
   'flex-row', 'flex-wrap', 'items-center', 'justify-between', 'grow', 'hidden', 'absolute', 'rounded-lg', 'border', 'opacity-50', 'bg-white', 'text-lg',
   'min-w-0', 'max-w-md', 'max-w-full', 'max-h-[300px]', 'min-h-screen', 'aspect-video', 'aspect-square', 'aspect-[4/3]', 'aspect-auto', 'w-screen', 'h-screen', 'size-8', 'max-w-bogus', 'aspect-foo', 'min-x-4',

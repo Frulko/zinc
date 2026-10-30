@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:ui`: negative offsets `-top-2`, `-right-[6px]`, `-bottom-1`, `-left-px` place an absolute box past its parent's edge, as in Tailwind.
 - `zinc:ui`: `ui.RUN_STRIKE` strikes a run of `setTextRuns` through, as `RUN_UNDERLINE` underlines it.
 - The Discord client demo (`examples/discord`): a native client in the spirit of discord-lite, no web view; log in with a token kept in the keychain, browse your servers, channels and DMs, read a channel's history and new, edited and deleted messages live; a dropped connection resumes. Unofficial: try it with a spare account.
 - `zinc export --target web` runs `zinc:3d` programs: the scene draws on the browser's WebGL 2, as the desktop's GPU renderer does (worlds not yet), and the 3d example of the site's gallery runs in its page.

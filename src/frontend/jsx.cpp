@@ -100,6 +100,7 @@ bool validClass(const std::string& c) {
       std::regex(R"(^cursor-(default|auto|text|pointer|move|ew-resize|col-resize|ns-resize|row-resize|crosshair|grab|grabbing|not-allowed)$)"),
       std::regex("^(p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|gap-x|gap-y|w|h|top|left|right|bottom|leading|inset|inset-x|inset-y)-" + num + "$"),
       std::regex("^-(m|mx|my|mt|mr|mb|ml)-" + num + "$"),                       // negative margins
+      std::regex("^-(top|left|right|bottom)-" + num + "$"),                     // negative offsets
       std::regex(R"(^(m|mx|my|mt|mr|mb|ml)-auto$)"),
       std::regex("^(min|max)-(w|h)-(" + num + R"(|xs|sm|md|lg|xl|[2-7]xl|full|none|screen)$)"),   // size limits
       std::regex(R"(^(grow|shrink)(-\d+(\.\d+)?|-\[\d+(\.\d+)?\])?$)"), std::regex(R"(^self-(auto|start|center|end|stretch)$)"), std::regex(R"(^order-(first|last|none|\d+)$)"),

@@ -2741,6 +2741,13 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
   if (tok === 'w-screen') { n.w = width(); n.wFrac = 0; n.fullW = false; n.responsive = true; return true; }
   if (tok === 'h-screen') { n.h = height(); n.hFrac = 0; n.fullH = false; n.responsive = true; return true; }
   if (tok.startsWith('size-')) { const v = num(tok.slice(5)); if (v !== v) return false; n.w = Math.round(v); n.h = Math.round(v); return true; }
+  // negative offsets: -top-2, -right-[6px] (Tailwind's spelling)
+  if (tok.startsWith('-top-') || tok.startsWith('-left-') || tok.startsWith('-right-') || tok.startsWith('-bottom-')) {
+    const k = tok.slice(1), d = k.indexOf('-'), v = num(k.slice(d + 1)), w: i32 = -Math.round(v);
+    if (v !== v) return false;
+    if (d === 3) n.top = w; else if (d === 4) n.left = w; else if (d === 5) n.right = w; else n.bottom = w;
+    return true;
+  }
   if (tok.startsWith('top-')) { const v = num(tok.slice(4)); if (v !== v) return false; n.top = Math.round(v); return true; }
   if (tok.startsWith('left-')) { const v = num(tok.slice(5)); if (v !== v) return false; n.left = Math.round(v); return true; }
   if (tok.startsWith('right-')) { const v = num(tok.slice(6)); if (v !== v) return false; n.right = Math.round(v); return true; }
