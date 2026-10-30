@@ -1,6 +1,7 @@
 #!/bin/sh
 # The dev bridge of zinc dev --target web (docs/targets/web.md, "The dev bridge"): tests/fixtures/web-bridge uses zinc:process, which has no browser backend; its native side
-# runs on this machine and the page gets a child's line (a callback) and a run() result (a promise); a request without the token is refused; the bridge stops with zinc dev.
+# runs on this machine and the page gets a child's line (a callback) and a run() result (a promise); a request without the token or with another Host or Origin is refused;
+# a reload gets a new bridge, a bridge killed is reported and started again; the bridge stops with zinc dev.
 # tools/web-bridge-test drives headless Chrome. Skipped (77) without Chrome or python3.
 cd "$(dirname "$0")/../.." || exit 2
 Z=$(cd "$(dirname "$ZINC")" && pwd)/$(basename "$ZINC")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The dev bridge of zinc dev --target web in headless Chrome (docs/targets/web.md, "The dev bridge"; tests/t1/web_bridge.sh).
 Serves tests/fixtures/web-bridge (zinc:process, which has no browser backend), opens the page and waits for a child's line (a callback) and a
-run() result (a promise) that came through the bridge, a zinc:net server of the page that answers a request from this machine, a zinc:net fetch whose end comes back as an event of the machine's loop, a cross-origin fetch made by the machine, and a UDP datagram of zinc:socket (its native module under zinc dev); then checks that a request without the token is refused and that the bridge stops with zinc dev.
+run() result (a promise) that came through the bridge, a zinc:net server of the page that answers a request from this machine, a zinc:net fetch whose end comes back as an event of the machine's loop, a cross-origin fetch made by the machine, and a UDP datagram of zinc:socket (its native module under zinc dev); then checks that a request without the token, or with another Host or Origin (DNS rebinding), is refused, that a reload gets a new bridge (the old page's server gone), that a bridge killed is said on the terminal and started again by the next load, and that the bridge stops with zinc dev.
 usage: web-bridge-test <zinc> <project-dir>   Prints one JSON line; exit 1 on a failed step, 77 without Chrome."""
 import json, os, re, socket, subprocess, sys, threading, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -28,7 +28,7 @@ while time.monotonic() - t0 < 60 and not any("http://127.0.0.1:%d" % port in l f
 if not any("through the dev bridge" in l for l in log): fail("zinc dev did not start the bridge")
 cfg = open(os.path.join(project, "build", ".zinc-web-dev", "site", "index.html")).read()
 url = json.loads(re.search(r'"bridge":(\{[^}]*\})', cfg).group(1))["url"]
-import urllib.request
+import urllib.request, urllib.error
 try: asset = urllib.request.urlopen("http://127.0.0.1:%d/assets/hello.txt" % port, timeout=10).read().decode()
 except Exception as e: fail("no asset from the folder zinc.json names (\"assets\": \"data\"): %s" % e)
 if '"assets/hello.txt"' not in cfg or not asset.startswith("an asset"): fail("the page does not list or serve data/hello.txt as assets/hello.txt")
@@ -62,6 +62,40 @@ with Chrome(["--window-size=800,500"]) as c:
     st = c.eval("fetch(%s + '/call', {method: 'POST', body: '{}'}).then(r => r.status, e => 'error')" % json.dumps(url))
     if st != 403: fail("a request without the token got %r" % st)
     steps["token"] = True
+    # DNS rebinding: a page of another domain that resolves to 127.0.0.1 sends its own Host; the dev server, its reload socket and the bridge refuse it
+    token = json.loads(re.search(r'"bridge":(\{[^}]*\})', cfg).group(1))["token"]
+    def status(u, headers, data=None):
+        try: return urllib.request.urlopen(urllib.request.Request(u, data=data, headers=headers), timeout=10).status
+        except urllib.error.HTTPError as e: return e.code
+    bport = int(url.rsplit(":", 1)[1])
+    got = [status("http://127.0.0.1:%d/" % port, {"Host": "rebind.example:%d" % port}),
+           status("http://127.0.0.1:%d/__zinc/ws" % port, {"Upgrade": "websocket", "Connection": "Upgrade", "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==", "Sec-WebSocket-Version": "13", "Origin": "http://evil.example"}),
+           status(url + "/call", {"Host": "rebind.example:%d" % bport, "x-zinc-token": token}, b'{"m":"__rows","k":"sysEnv","a":["HOME"]}'),
+           status(url + "/call", {"x-zinc-token": token}, b'{"m":"__rows","k":"sysEnv","a":["HOME"]}')]
+    if got != [403, 403, 403, 200]: fail("another Host or Origin was not refused (dev server, its socket, the bridge; then the right one): %r" % got)
+    steps["rebinding"] = True
+    # a reload starts a new bridge: the page's server of the load before is gone (no listener left behind), the new page gets its callback again
+    old = int(m.group(1))
+    c.console.clear()
+    c.call("Page.reload")
+    end = time.monotonic() + 20
+    while time.monotonic() < end and not ("stdout: bridge-line" in c.console and any("serving: " in l for l in c.console)): c._recv(-1, 0.2)
+    if "stdout: bridge-line" not in c.console: fail("no child line after a reload", c.console)
+    try: socket.create_connection(("127.0.0.1", old), 1).close(); fail("the page's server of the load before still listens after a reload")
+    except OSError: steps["reload"] = True
+    # a bridge that ends is said on the terminal; the next page load starts it again
+    kids = subprocess.run(["pgrep", "-P", str(dev.pid)], capture_output=True, text=True).stdout.split()
+    if not kids: fail("no bridge process under zinc dev")
+    for k in kids: os.kill(int(k), 9)
+    end = time.monotonic() + 5
+    while time.monotonic() < end and not any("the dev bridge ended" in l for l in log): time.sleep(0.1)
+    if not any("the dev bridge ended (killed by a signal)" in l for l in log): fail("zinc dev did not say the bridge ended")
+    c.console.clear()
+    c.call("Page.reload")
+    end = time.monotonic() + 20
+    while time.monotonic() < end and "stdout: bridge-line" not in c.console: c._recv(-1, 0.2)
+    if "stdout: bridge-line" not in c.console: fail("the bridge did not start again with the next page load", c.console)
+    steps["ended"] = True
 stop()
 try:
     socket.create_connection(("127.0.0.1", int(url.rsplit(":", 1)[1])), 1).close(); fail("the bridge still listens after zinc dev stopped")

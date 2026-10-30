@@ -982,7 +982,11 @@ struct Dev {
   std::map<std::string, std::string> cache;       // "file?v" -> served text
   std::string lastError;
   std::string depsDir, depsKey;                   // the pre-bundled packages of node_modules (cli_web_deps.h), served at /__deps/
-  zn::plat::Pid bridge = -1;                      // the dev bridge (startBridge), -1 when the page needs none
+  std::mutex bm;                                  // the bridge's process: a page load restarts it (connection), the watch loop checks it (serve)
+  int port = 0;                                   // the port the dev server listens on (serve)
+  zn::plat::Pid bridge = -1;                      // the dev bridge (startBridge), -1 when the page needs none or it ended
+  int bridgePort = 0;
+  bool bridgeUsed = false;                        // a page was served since it started: the next page gets a new one
   std::string bridgeJson;                         // its address and token for the page's config: {"url":...,"token":...}
   std::vector<std::string> bridged;               // the native sides it answers
 };
@@ -1107,6 +1111,31 @@ bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& 
 // The dev bridge (targets/web/bridge-host.mjs, docs/targets/web.md): the native sides the page has no browser backend for run on this machine,
 // on QuickJS with the plugins' real native code, and the page calls them over loopback with a token. zinc dev only: an export never gets one.
 // ponytail: the set of native sides is read once at start; a save that adds a plugin needs zinc dev restarted.
+// Starts build/.zinc-web-dev/bridge-host.mjs and waits until it listens on d.bridgePort; false (and nothing running) when it did not.
+bool spawnBridge(Dev& d) {
+  zn::plat::SpawnOptions o;
+  o.newGroup = true;
+  o.cwd = d.a.dir;
+  o.env = {{"ZINC_BACKGROUND", "1"}, {"ZINC_STEPS", "0"}};
+  d.bridge = zn::plat::spawn({selfExe(), "run", (d.root / "bridge-host.mjs").string()}, o);
+  for (int k = 0; k < 750 && d.bridge > 0; ++k) {   // up to 15 s: a plugin's native library may be built on first use
+    int code = 0;
+    if (zn::plat::wait(d.bridge, code, false)) { d.bridge = -1; break; }
+    const int s = static_cast<int>(::socket(AF_INET, SOCK_STREAM, 0));
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    a.sin_port = htons(static_cast<std::uint16_t>(d.bridgePort));
+    const bool up = ::connect(s, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0;
+    zn::plat::sockClose(s);
+    if (up) return true;
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+  if (d.bridge > 0) zn::plat::stop(d.bridge);
+  d.bridge = -1;
+  return false;
+}
+
 void startBridge(Dev& d) {
   std::set<std::string> claimed;
   for (const WebPlugin& p : d.cm.used) if (!p.native.empty() && !p.impl.empty()) claimed.insert(p.native);
@@ -1145,38 +1174,38 @@ void startBridge(Dev& d) {
   int i = 0;
   for (const auto& [n, f] : specs) { js += "import M" + std::to_string(i) + " from " + jstr(f) + ";\n"; mods += (mods.empty() ? "" : ", ") + jstr(n) + ": M" + std::to_string(i); ++i; }
   js += "const mods = { " + mods + " }, PORT = " + std::to_string(port) + ", TOKEN = " + jstr(token) + ";\n" + readAll(fs::path(runtimeDir(d.a)) / "bridge-host.mjs");
-  const fs::path host = d.root / "bridge-host.mjs";
-  writeAll(host, js);
-  zn::plat::SpawnOptions o;
-  o.newGroup = true;
-  o.cwd = d.a.dir;
-  o.env = {{"ZINC_BACKGROUND", "1"}, {"ZINC_STEPS", "0"}};
-  d.bridge = zn::plat::spawn({selfExe(), "run", host.string()}, o);
-  for (int k = 0; k < 150 && d.bridge > 0; ++k) {   // up to 15 s: a plugin's native library may be built on first use
-    int code = 0;
-    if (zn::plat::wait(d.bridge, code, false)) { d.bridge = -1; break; }
-    const int s = static_cast<int>(::socket(AF_INET, SOCK_STREAM, 0));
-    sockaddr_in a{};
-    a.sin_family = AF_INET;
-    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    a.sin_port = htons(static_cast<std::uint16_t>(port));
-    const bool up = ::connect(s, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0;
-    zn::plat::sockClose(s);
-    if (up) {
-      std::string list;
-      for (const std::string& n : d.bridged) list += (list.empty() ? "" : ",") + jstr(n);
-      d.bridgeJson = "{\"url\":" + jstr("http://127.0.0.1:" + std::to_string(port)) + ",\"token\":" + jstr(token) + ",\"natives\":[" + list + "],\"rows\":" + (rows ? "true" : "false") + "}";
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
-  if (d.bridgeJson.empty()) {
-    if (d.bridge > 0) zn::plat::stop(d.bridge);
-    d.bridge = -1;
+  writeAll(d.root / "bridge-host.mjs", js);
+  d.bridgePort = port;
+  if (!spawnBridge(d)) {
     std::fprintf(stderr, "zinc dev: the dev bridge (%s) did not start (its output is above); their calls throw ZnUnsupported\n", names.c_str());
     return;
   }
+  std::string list;
+  for (const std::string& n : d.bridged) list += (list.empty() ? "" : ",") + jstr(n);
+  d.bridgeJson = "{\"url\":" + jstr("http://127.0.0.1:" + std::to_string(port)) + ",\"token\":" + jstr(token) + ",\"natives\":[" + list + "],\"rows\":" + (rows ? "true" : "false") + "}";
   std::fprintf(stderr, "zinc dev: %s run on this machine through the dev bridge (zinc dev only: an export has no bridge)\n", names.c_str());
+}
+
+// A page load gets a new bridge (the same port and token): what the page before it left there (its servers, sockets, children, callbacks whose
+// numbers the new page gives again) ends with that process, as a new `zinc run` starts clean. A bridge that ended by itself starts again too.
+void renewBridge(Dev& d) {
+  std::lock_guard<std::mutex> hold(d.bm);
+  if (d.bridgeJson.empty()) return;
+  if (d.bridge > 0 && !d.bridgeUsed) { d.bridgeUsed = true; return; }
+  if (d.bridge > 0) zn::plat::stop(d.bridge);
+  d.bridge = -1;
+  if (!spawnBridge(d)) std::fprintf(stderr, "zinc dev: the dev bridge did not start again (its output is above); its calls fail until the next page load\n");
+  d.bridgeUsed = true;
+}
+
+// The watch loop's check: a bridge that ended while a page used it is said once, with how it ended (its own output, if any, is above)
+void checkBridge(Dev& d) {
+  std::lock_guard<std::mutex> hold(d.bm);
+  int code = 0;
+  if (d.bridge <= 0 || !zn::plat::wait(d.bridge, code, false)) return;
+  d.bridge = -1;
+  std::fprintf(stderr, "zinc dev: the dev bridge ended (%s): the page's native calls fail; reload the page to start it again\n",
+               code < 0 ? "killed by a signal" : ("exit code " + std::to_string(code)).c_str());
 }
 
 void connection(Dev* d, int fd) {
@@ -1207,6 +1236,18 @@ void connection(Dev* d, int fd) {
     sendAll(fd, "HTTP/1.1 " + std::to_string(code) + " " + text + "\r\nContent-Type: " + type + "\r\nContent-Length: " + std::to_string(body.size()) + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n" + body);
     zn::plat::sockClose(fd);
   };
+  // on loopback, a request must name this server as the browser reached it: a DNS rebinding page (its own domain resolved to 127.0.0.1) would
+  // otherwise read the bridge's token from the page and the project's files; and the reload socket answers this page only, as a WebSocket
+  // has no same-origin rule of its own
+  if (!d->a.lan) {
+    const std::string host = lower(header("Host")), origin = lower(header("Origin")), p = ":" + std::to_string(d->port);
+    const bool hostOk = host == "127.0.0.1" + p || host == "localhost" + p || host == "[::1]" + p;
+    if (!hostOk || (!origin.empty() && origin != "http://" + host)) {
+      sendAll(fd, "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nContent-Length: 34\r\nConnection: close\r\n\r\nzinc dev serves this machine only\n");
+      zn::plat::sockClose(fd);
+      return;
+    }
+  }
   if (path == "/__zinc/ws" && lower(header("Upgrade")) == "websocket") {
     sendAll(fd, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + sha1b64(header("Sec-WebSocket-Key")) + "\r\n\r\n");
     std::string graph;
@@ -1228,6 +1269,7 @@ void connection(Dev* d, int fd) {
   if (method != "GET" && method != "HEAD") { reply(400, "text/plain", "bad request"); return; }
   if (path.find("..") != std::string::npos) { reply(400, "text/plain", "bad path"); return; }
   if (path == "/") path = "/index.html";
+  if (path == "/index.html") renewBridge(*d);
   if (path.rfind("/stage/", 0) == 0) {
     const std::string file = path.substr(7);
     std::lock_guard<std::mutex> lock(d->m);
@@ -1269,8 +1311,18 @@ void connection(Dev* d, int fd) {
   zn::plat::sockClose(fd);
 }
 
+// the bridge is started again from a connection's thread: without this it would inherit the server's socket and that connection's
+void keepFromChildren(int fd) {
+#ifndef _WIN32
+  ::fcntl(fd, F_SETFD, FD_CLOEXEC);
+#else
+  (void)fd;
+#endif
+}
+
 int serve(Dev& d, int port, bool lan) {
   const int lfd = ::socket(AF_INET, SOCK_STREAM, 0);
+  keepFromChildren(lfd);
   const int one = 1;
   setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&one), sizeof one);   // Winsock takes const char*
   sockaddr_in addr{};
@@ -1282,11 +1334,13 @@ int serve(Dev& d, int port, bool lan) {
     if (::bind(lfd, reinterpret_cast<sockaddr*>(&addr), sizeof addr) == 0) bound = port + k;
   }
   if (!bound || ::listen(lfd, 16) != 0) { std::fprintf(stderr, "zinc dev: cannot listen on port %d\n", port); return 1; }
+  d.port = bound;
   std::fprintf(stderr, "zinc dev: %s on http://%s:%d/ (%s render; saves reload the page, or swap modules in place where they can)\n", d.a.name.c_str(), lan ? "0.0.0.0" : "127.0.0.1", bound, d.cm.cfg.render.c_str());
   std::thread([&d, lfd] {
     for (;;) {
       const int c = static_cast<int>(::accept(lfd, nullptr, nullptr));
       if (c < 0) { if (gStop) return; continue; }
+      keepFromChildren(c);
       const timeval wait{5, 0};
       setsockopt(c, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&wait), sizeof wait);   // Winsock takes const char*
       std::thread(connection, &d, c).detach();
@@ -1295,6 +1349,7 @@ int serve(Dev& d, int port, bool lan) {
   Snapshot seen = snapshotOf(d.a.dir);
   while (!gStop) {
     std::this_thread::sleep_for(std::chrono::milliseconds(120));
+    checkBridge(d);
     Snapshot now = snapshotOf(d.a.dir);
     if (now == seen) continue;
     std::this_thread::sleep_for(std::chrono::milliseconds(40));   // an editor writes in steps
@@ -1405,6 +1460,7 @@ int devWeb(const WebArgs& a) {
   writeAll(d.site / "index.html", page);
   if (!a.prepare.empty()) return 0;
   const int rc = serve(d, a.port, a.lan);
+  std::lock_guard<std::mutex> hold(d.bm);
   if (d.bridge > 0) zn::plat::stop(d.bridge);
   return rc;
 }

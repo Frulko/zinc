@@ -4,7 +4,8 @@
 // settled promises) that came before it, which the page runs before the call returns, so they keep this side's order (a handle freed by an
 // exit event and given again by the next call). GET /wait answers once there are events, GET /drain takes them. A function argument travels as
 // {$cb: id}, a typed array as {$ta: type, d: [...]}.
-// Loopback only, every request carries the token the page got from the dev server; zinc dev only, never an export.
+// Loopback only, every request carries the token the page got from the dev server; zinc dev only, never an export. zinc dev starts a new
+// bridge for each page load, so what a page left (servers, sockets, children, callbacks) goes with it.
 import { serveAsync, stop, Headers } from 'zinc:net';
 import { fetch } from 'zinc:web/fetch';
 import { Blob } from 'zinc:web';
@@ -60,7 +61,11 @@ function reply(req, status, body) {
   h.set('Cache-Control', 'no-store');
   return { status, body: JSON.stringify(body), contentType: 'application/json', headers: h };
 }
+// zinc:net listens on every interface: a request from another machine, or one whose Host is not this loopback port (a DNS rebinding page that
+// names its own domain), is refused before anything else
+const hosts = new Set(['127.0.0.1', 'localhost', '[::1]'].map((h) => h + ':' + PORT));
 async function handle(req) {
+  if (!String(req.remoteAddress || '').startsWith('127.') || !hosts.has(String(req.headers.get('host') || '').toLowerCase())) return reply(req, 403, { e: 'not this machine' });
   if (req.method === 'OPTIONS') return reply(req, 204, '');
   if (req.headers.get('x-zinc-token') !== TOKEN) return reply(req, 403, { e: 'bad token' });
   if (req.path === '/wait') {

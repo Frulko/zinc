@@ -446,8 +446,12 @@ calls it. `zinc dev` says which sides it runs (`the native sides Lvgl, Device ru
 
 - A call is a synchronous request to `http://127.0.0.1:<port>/call`, as a native call is synchronous; a promise result settles later. The callbacks and settled promises come
   back in the order the native side made them, each as a task of its own, never inside a call (as on the native event loop).
-- It listens on loopback only, and every request carries a token the dev server writes into the page; a request without it gets 403. With `--lan` there is no bridge (the
+- It answers this machine only, and every request carries a token the dev server writes into the page; a request without it gets 403. With `--lan` there is no bridge (the
   page would serve other machines) and those calls throw ZnUnsupported.
+- The dev server and the bridge refuse a request whose `Host` is not `127.0.0.1`, `localhost` or `[::1]` with their port, and the reload socket one whose `Origin` is
+  another site's: a page of another domain resolved to 127.0.0.1 (DNS rebinding) cannot read the token or call the bridge.
+- Each page load gets a new bridge: the servers, sockets, children and callbacks the page before left on this machine end with the old one, as a new `zinc run` starts
+  clean. A module swapped in place keeps the bridge. A bridge that ends by itself is said on the terminal (`the dev bridge ended`), and the next page load starts it again.
 - It is for development on your own machine. An export never has one: a page hosted online gets no processes, files or devices from a server, so those calls throw
   ZnUnsupported there (the online demos use browser backends instead).
 - The program's file system (`zinc:fs`), its environment (`env()`) and the host services a page lacks (processes, raw sockets, signals...) are this machine's too, from the

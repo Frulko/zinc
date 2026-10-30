@@ -402,6 +402,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A string read from bytes that are not UTF-8 (a binary upload read as text) no longer crashes `slice`, `charAt` and `substring`: each invalid byte reads as U+FFFD. The app hub crashed on a 39 MB engine upload.
 - `JSON.stringify` of a long string with accents or other non-ASCII characters is linear: it took 19 s for 90 KB, it now takes a millisecond.
 - reMarkable: tapping the tile of an app that is already running (hidden or minimised) now replaces it instead of starting a second copy, so a page sent to Zinc Web opens in the one you see.
+- `zinc dev --target web`: each page load gets a new dev bridge, so a reload no longer leaves the previous page's servers, sockets and children running on your machine, nor sends their callbacks to the new page; a bridge that ends is now said on the terminal (`the dev bridge ended`) and the next page load starts it again.
+
+### Security
+- `zinc dev --target web`: the dev server and the dev bridge refuse requests that name another host (DNS rebinding) or come from another machine, and the reload socket refuses other sites' pages: a website could otherwise read the bridge's token and run processes or read files on your machine while `zinc dev` ran.
 
 ## [0.9.1] - 2026-10-26
 
