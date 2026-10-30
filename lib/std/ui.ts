@@ -3168,16 +3168,20 @@ function orderKids(kids: UiNode[]): void {
     kids[j + 1] = c;
   }
 }
-/** flex-basis replaces the measured main size of a child (px, or a fraction of the container's main size), inside its min and max size as
- *  CSS's hypothetical main size is: `flex-1 basis-0 min-w-[200px]` counts as 200 px when the line shares its room, so its siblings shrink for it. */
+/** flex-basis replaces the measured main size of a child (px, or a fraction of the container's main size). */
 function applyBasis(c: UiNode, row: boolean, mainAvail: number): void {
   if (c.basis < 0 && c.basisFrac <= 0) return;
   const b: number = c.basis >= 0 ? c.basis : Math.round(mainAvail * c.basisFrac);
+  if (row) c.lw = Math.max(b, c.pl + c.pr); else c.lh = Math.max(b, c.pt + c.pb);   // a box is never smaller than its padding (CSS border-box)
+}
+/** A child's main size inside its min and max size, CSS's hypothetical main size: whether a line overflows is decided with it, so a
+ *  `flex-1 basis-0 min-w-[200px]` pane counts as 200 px and the siblings that shrink make room for it (its base, 0, still shares a free room). */
+function hypMain(c: UiNode, row: boolean): number {
+  let v: number = row ? c.lw : c.lh;
   const lo = row ? c.minW : c.minH, hi = row ? c.maxW : c.maxH;
-  let v: number = Math.max(b, row ? c.pl + c.pr : c.pt + c.pb);   // a box is never smaller than its padding (CSS border-box)
   if (hi >= 0 && v > hi) v = hi;
   if (lo >= 0 && v < lo) v = lo;
-  if (row) c.lw = v; else c.lh = v;
+  return v;
 }
 function gapMain(n: UiNode): number { return n.row ? (n.gapX >= 0 ? n.gapX : n.gap) : (n.gapY >= 0 ? n.gapY : n.gap); }
 function gapCross(n: UiNode): number { return n.row ? (n.gapY >= 0 ? n.gapY : n.gap) : (n.gapX >= 0 ? n.gapX : n.gap); }
@@ -3319,7 +3323,7 @@ function shrinkOf(c: UiNode, row: boolean): number { return c.shrink >= 0 ? c.sh
 function shrunk(kids: UiNode[], start: i32, end: i32, inner: number, gm: number): number[] | null {
   const t: number[] = [], done: boolean[] = [];
   let any = false;
-  for (let i = start; i < end; i++) { t.push(kids[i].lw); done.push(shrinkOf(kids[i], true) <= 0); if (shrinkOf(kids[i], true) > 0) any = true; }
+  for (let i = start; i < end; i++) { const k = shrinkOf(kids[i], true); t.push(k > 0 ? kids[i].lw : hypMain(kids[i], true)); done.push(k <= 0); if (k > 0) any = true; }
   if (!any) return null;
   for (let it = start; it < end; it++) {
     let room: number = inner - gm * (end - start - 1), st: number = 0;
@@ -3440,7 +3444,9 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     // A child placed narrower than it was measured at (flex-shrink in a row; a column narrower than its child) is measured again at the width it gets, so
     // the texts in it wrap there and its height follows, as CSS lays a flex item out at its final size: a row is measured with each child offered the
     // whole width, and a pane beside two panels kept the lines of that width, clipped at its edge.
-    if (n.row && innerMain - used < -0.5) {
+    let hyp0: number = used;   // the same line at its hypothetical sizes (hypMain)
+    if (n.row) { hyp0 = 0; for (let i = start; i < end; i++) hyp0 += (i > start ? gm : 0) + hypMain(kids[i], true) + kids[i].ml + kids[i].mr; }
+    if (n.row && innerMain - Math.max(used, hyp0) < -0.5) {
       const t = shrunk(kids, start, end, innerMain, gm);
       if (t !== null) {
         for (let i = start; i < end; i++) { const c = kids[i]; if (t[i - start] < c.lw - 0.5) { measure(c, t[i - start], ih); c.lw = t[i - start]; } }
@@ -3465,7 +3471,9 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
     }
     if (!n.wrap) lineCross = innerCross;
     lineCross += acStretch;
-    const free = innerMain - used;
+    let usedHyp: number = 0;   // the line at its hypothetical sizes (min/max applied): when they overflow it, the shrinking children make the room
+    for (let i = start; i < end; i++) usedHyp += (i > start ? gm : 0) + hypMain(kids[i], n.row) + (n.row ? kids[i].ml + kids[i].mr : kids[i].mt + kids[i].mb);
+    const free = usedHyp > innerMain + 0.5 ? innerMain - usedHyp : innerMain - used;
     const count = end - start;
     // flex-shrink (opt-in: a child without it never shrinks): the overflow is taken from the children that have it, weighted by shrink x size
     let shrinkTotal: number = 0;
