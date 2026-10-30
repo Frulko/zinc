@@ -831,6 +831,17 @@ if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host s
   G.__host_fsByte = (i) => (viaBridge ? loaded[i] || 0 : rows.fsByte(i));
   for (const n of ['fsStat']) G['__host_' + n] = (p, ...a) => ((viaBridge = !mine(p)) ? Z.bridge.call('__rows', n, [p, ...a]) : rows[n](p, ...a));
   for (const n of ['fsStatD', 'fsStatI']) G['__host_' + n] = (...a) => (viaBridge ? Z.bridge.call('__rows', n, a) : rows[n](...a));
+  // zinc:net's servers listen on this machine: a request reaches the page as zinc:net's request event (42), its reply goes back through the bridge
+  const evHandlers = [];
+  let payload = [];
+  G.__addEvHandler = (f) => { evHandlers.push(f); };
+  G.__host_evPayload = () => payload;
+  const request = (id, data, raw) => { payload = raw; for (const f of evHandlers) f(id, 42, data); };
+  G.__host_httpServe = (port) => Z.bridge.call('__net', 'serve', [port, request]);
+  G.__host_httpError = () => '';
+  G.__host_httpReply = (h, status, lines, body) => Z.bridge.call('__net', 'reply', [h, status, lines, body]);
+  G.__host_httpReplyFile = (h, status, lines, file) => Z.bridge.call('__net', 'replyFile', [h, status, lines, file]);
+  G.__host_httpStop = (port) => Z.bridge.call('__net', 'stop', [port]);
 }
 
 // ---------------------------------------------------------------- WebAssembly for the plugins that need native code

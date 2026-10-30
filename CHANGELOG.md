@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc dev --target web`: a `zinc:net` server (`serve`, `serveAsync`) of the page listens on your machine through the dev bridge and answers with the page's handler (ipod-web, modules-showcase).
 - `zinc dev --target web` serves the project's videos and sounds outside `assets/` (with seeking), so `zinc:video` plays them in the page by their path (the hero demo's video).
 - `zinc dev --target web` runs the plugins that have no browser backend (zinc:process, zinc:lvgl, zinc:device...), the file system and the environment on your machine through a local bridge, so apps that need them (kanban, carnet, ipod) work in the page during development; an export still has none.
 - Zinc Inspector, Elements: in a dev run (`zinc dev`) the tree shows your components (`<Card> src/main.tsx:30`) around the nodes they render, foldable; clicking one shows its props. A search finds a component, tag, class, text or id and opens the tree to each match; toggles show only what is rendered (on by default), only components, or hide host wrappers.

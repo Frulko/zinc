@@ -5,3 +5,8 @@ import { spawn, run } from 'zinc:process';
 const p = spawn('echo', ['bridge-line'], {});
 p.onStdout((line: string) => { console.log('stdout: ' + line); });
 run('echo', ['bridge-run'], {}).then((r) => { console.log('run: ' + r.code + ' ' + r.stdout.trim()); });
+
+// zinc:net's server listens on this machine; the request reaches the page's handler and its reply goes back
+import { serve } from 'zinc:net';
+const port = serve(0, (req) => ({ status: 200, body: 'page answers ' + req.path, contentType: 'text/plain' }));
+console.log('serving: ' + port);
