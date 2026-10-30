@@ -85,6 +85,7 @@ const Z = (G.__zincWeb = {
 // from a synchronous drain after a long poll says there are some, so they keep the order that side made them; they run as a task of their own,
 // never inside a call, as on the native loop. ponytail: a plugin that gives a freed handle again at once could see an old event reach the new
 // owner (the handle is freed there before the page has run the event); zinc:process rotates its handles for that reason.
+const pageFetch = G.fetch.bind(G);   // the browser's own fetch: the runtime's requests (assets, wasm, the bridge's poll) never go through the dev bridge
 function devBridge({ url, token, natives }) {
   const fns = new Map(), ids = new WeakMap(), pending = new Map();
   let polling = false;
@@ -119,7 +120,7 @@ function devBridge({ url, token, natives }) {
   async function poll() {
     for (;;) {
       try {
-        await fetch(url + '/wait', { headers: { 'x-zinc-token': token } });
+        await pageFetch(url + '/wait', { headers: { 'x-zinc-token': token } });
         run(request('GET', '/drain', null).ev);
       } catch (e) { await new Promise((res) => setTimeout(res, 1000)); }
     }
@@ -847,6 +848,24 @@ if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host s
   G.__host_httpStop = (port) => Z.bridge.call('__net', 'stop', [port]);
 }
 
+// zinc dev: the program's fetch to another origin is made by this machine, as under zinc run (a LAN device or a site that sends no CORS headers answers);
+// a request to the page's own origin stays the browser's
+if (Z.bridge) {
+  const empty = new Set([101, 204, 205, 304]);
+  G.fetch = async (input, init = {}) => {
+    const req = input instanceof Request ? input : null;
+    const u = new URL(req ? req.url : String(input), location.href);
+    if (u.origin === location.origin || !/^https?:$/.test(u.protocol)) return pageFetch(input, init);
+    const r = new Request(input, init), headers = [];
+    r.headers.forEach((v, k) => headers.push([k, v]));
+    const body = r.method === 'GET' || r.method === 'HEAD' ? null : Array.from(new Uint8Array(await r.arrayBuffer()));
+    const a = await Z.bridge.call('__fetch', 'fetch', [u.href, r.method, headers, body, init.timeoutMs || 0]);
+    const res = new Response(empty.has(a.status) ? null : new Uint8Array(a.body), { status: a.status, statusText: a.statusText, headers: a.headers });
+    Object.defineProperty(res, 'url', { value: u.href });
+    return res;
+  };
+}
+
 // ---------------------------------------------------------------- WebAssembly for the plugins that need native code
 // A plugin whose native side is C or C++ (sqlite, box2d...) is compiled to wasm by `zinc export` (plugin.json "web": { "wasm": ... }); the page compiles it
 // before the app starts, and the plugin's browser backend makes an instance synchronously, so its native calls stay synchronous as on a desktop.
@@ -929,7 +948,7 @@ async function preload() {
   const list = (CFG.assets || []).filter((a) => !a.stream);   // (a video is streamed by its <video> element from its url)
   let done = 0, total = list.reduce((s, a) => s + (a.size || 0), 0) || 1, got = 0;
   const jobs = list.map(async (a) => {
-    const r = await fetch(a.url);
+    const r = await pageFetch(a.url);
     if (!r.ok) throw new Error(`cannot load ${a.name}: ${r.status}`);
     const buf = await r.arrayBuffer();
     assets.set(a.name, buf);
@@ -949,7 +968,7 @@ async function preload() {
       try { const ff = new FontFace(a.font, buf); await ff.load(); document.fonts.add(ff); } catch (e) { console.warn('zinc: cannot load font ' + a.font, e); }
     }
   });
-  for (const w of CFG.wasm || []) jobs.push((async () => { const r = await fetch(w.url); if (!r.ok) throw new Error(`cannot load ${w.name}: ${r.status}`); Z.wasm[w.name] = await WebAssembly.compile(await r.arrayBuffer()); })());
+  for (const w of CFG.wasm || []) jobs.push((async () => { const r = await pageFetch(w.url); if (!r.ok) throw new Error(`cannot load ${w.name}: ${r.status}`); Z.wasm[w.name] = await WebAssembly.compile(await r.arrayBuffer()); })());
   await Promise.all(jobs);
 }
 async function boot() {

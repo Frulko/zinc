@@ -16,3 +16,6 @@ netFetch('http://127.0.0.1:' + port + '/self').then((r) => r.text()).then((t) =>
 // zinc:socket asks for its native module under zinc dev ("web": {"dev": "native"}): a UDP datagram to itself, which a page cannot send
 import { udp } from 'zinc:socket';
 udp(0, '127.0.0.1').then((s) => { s.onMessage((m) => { console.log('udp: ' + m.text); }); s.send('127.0.0.1', s.port, 'bridge-datagram'); });
+
+// the program's fetch to another origin (the page's server above is one: another port, and it sends no CORS headers) is made by this machine
+fetch('http://127.0.0.1:' + port + '/cors', { method: 'POST', body: 'x' }).then((r) => r.text()).then((t) => { console.log('cross-origin: ' + t); });

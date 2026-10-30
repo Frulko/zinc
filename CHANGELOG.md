@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc dev --target web`: the program's `fetch` to another origin is made by your machine, so devices of the local network and sites without CORS headers answer as under `zinc run` (the music demo's Sonos speakers).
 - `zinc dev --target web`: `zinc:socket` (TCP, UDP, servers) works in the page through the dev bridge, and the events of `zinc:net`'s fetch, `zinc:osc` and the other host services reach the page (the music demo's UDP remote).
 - `zinc dev --target web`: a `zinc:net` server (`serve`, `serveAsync`) of the page listens on your machine through the dev bridge and answers with the page's handler (ipod-web, modules-showcase).
 - `zinc profile` samples every thread of a program with workers: one table per thread, one speedscope profile per thread, the worker's stacks under its name in `--folded`, and `--trace file.json`, a Chrome trace (Perfetto, chrome://tracing) with a named track per thread and each message drawn as an arrow from `postMessage` to the handler that ran it. `ZINC_TRACE` and the Performance panel get the worker tracks and arrows too.

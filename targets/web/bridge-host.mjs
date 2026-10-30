@@ -6,6 +6,8 @@
 // {$cb: id}, a typed array as {$ta: type, d: [...]}.
 // Loopback only, every request carries the token the page got from the dev server; zinc dev only, never an export.
 import { serveAsync, stop, Headers } from 'zinc:net';
+import { fetch } from 'zinc:web/fetch';
+import { Blob } from 'zinc:web';
 
 // the engine's host rows (__host_fsReadText...) for the page's zinc:fs and the rows it lacks; `__fs.load` reads a whole file at once (the rows read it byte by byte)
 mods.__rows = new Proxy({}, { get: (t, k) => globalThis['__host_' + String(k)] });
@@ -24,6 +26,14 @@ function answer(id, status, lines, more) {
 // this side's event loop serves the page's modules: what they asked for through the rows (a fetch, an OSC listener, a signal) comes back as their event, with its
 // payload; a request to a page's server (42) is __net's
 __addEvHandler((h, kind, data) => { if (kind === 42) return; const pl = __host_evPayload(); push({ ev: [h, kind, data, typeof pl === 'string' ? pl : Array.from(pl || [])] }); });
+// the page's fetch to another origin: made here, as under zinc run (no CORS); the body comes back as bytes
+mods.__fetch = {
+  async fetch(url, method, headers, body, timeoutMs) {
+    const r = await fetch(url, { method, headers, body: body === null ? undefined : Blob.fromBytes(body, ''), timeoutMs });
+    const h = []; r.headers.forEach((v, k) => { h.push([k, v]); });
+    return { status: r.status, statusText: r.statusText, headers: h, body: Array.from(await r.bytes()) };
+  },
+};
 const served = [];
 mods.__net = {
   serve: (port, cb) => { const bound = serveAsync(port, (req) => new Promise((res) => {

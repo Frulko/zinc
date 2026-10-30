@@ -457,6 +457,8 @@ calls it. `zinc dev` says which sides it runs (`the native sides Lvgl, Device ru
 - The events of this machine's loop that the page's modules asked for (a `zinc:net` fetch that ends, an OSC message, a signal) come back to the page's handlers.
 - A plugin whose browser version cannot do what its native one does (`zinc:socket`: TCP, UDP, a server) says `"web": {"dev": "native"}` in plugin.json: under `zinc dev` the
   page gets the native module and its native side runs through the bridge; an export keeps the browser version.
+- The program's `fetch` to another origin is made by this machine, as under `zinc run`: a speaker on the local network or a site that sends no CORS headers answers. A
+  request to the page's own origin stays the browser's.
 - A `zinc:net` server (`serve`, `serveAsync`) listens on this machine: each request goes to the page's handler and its reply comes back through the bridge, so a phone
   or a `curl` reaches the program on its port as under `zinc run`.
 - The media files of the project outside `assets/` (videos, sounds, such as `examples/hero`'s `media/bbb.mp4`) are served by `zinc dev` at `/__project/<path>` with byte
