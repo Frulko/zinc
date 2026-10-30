@@ -9,7 +9,7 @@
 #include "zrt_raster.h"
 #include "hal.h"
 #include "mod/sock.h"
-#include "../../display-remote/remote_proto.h"
+#include "remote_proto.h"   // a link to display-remote's wire, so a copy of this plugin alone builds
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/un.h>
