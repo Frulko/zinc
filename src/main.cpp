@@ -375,6 +375,29 @@ static void printPlugins() {
 
 // A display driver (zinc.json `display`, the board's, or ZINC_DISPLAY): build its plugin into the cache and load it, so that it registers with the HAL (ZN-104). Not in a headless or
 // deterministic run (golden tests, captures) unless the driver was asked for with ZINC_DISPLAY. A driver that cannot be built is reported and the host window keeps the screen.
+// The drivers of zinc.json "displays" are linked too, on demand: a second process of the app takes one with ZINC_DISPLAY (hal_display_register).
+static void installDisplayDriver(const std::string& projectDir, const char* entry);
+static void installDisplayDrivers(const std::string& projectDir, const char* entry) {
+  installDisplayDriver(projectDir, entry);
+  std::string dir = projectDir;
+  if (dir.empty()) { std::string pf = zn::frontend::findProjectFile(entry); if (!pf.empty()) dir = std::filesystem::path(pf).parent_path().string(); }
+  if (dir.empty()) return;
+  const auto extra = zn::frontend::onDemandDisplays(dir);
+  if (extra.empty()) return;
+  std::vector<std::string> problems;
+  auto found = zn::frontend::discoverPlugins(gRoot, dir, problems);
+  for (const std::string& d : extra) {
+    const zn::frontend::FoundPlugin* hit = nullptr;
+    for (const auto& f : found) if (f.manifest.kind == "display" && (f.manifest.name == d || f.manifest.name == "display-" + d)) hit = &f;
+    if (!hit) { std::fprintf(stderr, "zinc: display driver '%s' of \"displays\" not found (zinc plugins lists them)\n", d.c_str()); continue; }
+    if (hit->manifest.name == gDisplayPlugin) continue;   // the app's screen already
+    zn::tc::PluginLib lib;
+    std::string err;
+    if (!zn::tc::buildPlugin(*hit, gRoot, dir, zn::tc::pluginTarget(), lib, err) || !zn::tc::loadPlugin(lib, err)) { std::fprintf(stderr, "zinc: display driver '%s': %s\n", d.c_str(), err.c_str()); continue; }
+    gPlugins.push_back(lib);
+    gPluginDirs.push_back(hit->dir);
+  }
+}
 static void installDisplayDriver(const std::string& projectDir, const char* entry) {
   namespace fs = std::filesystem;
   auto set = [](const char* n) { const char* v = std::getenv(n); return v && *v && *v != '0'; };
@@ -2193,7 +2216,7 @@ int main(int argc, char** argv) {
     qo.cacheDir = qjsCacheDir();
     qo.profileHz = qjsProfileHz;
     if (!loadManifestPermissions(argv[2])) return 2;   // zinc.json "ui" (UI_LAYOUT of zinc:platform) and the permissions, as for the typed engines
-    installDisplayDriver("", argv[2]);   // zinc.json "display" (display-gl for zinc:mapping), before the window opens, as for the typed engines
+    installDisplayDrivers("", argv[2]);   // zinc.json "display" (display-gl for zinc:mapping), before the window opens, as for the typed engines
 #ifdef ZN_HOST_GFX
     if (const std::string pf = zn::frontend::findProjectFile(argv[2]); !pf.empty()) {   // the splash (ZN-446), before the parse, the bake and the plugins
       std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf();
@@ -2595,7 +2618,7 @@ int main(int argc, char** argv) {
 #else
     zn::log::step("engine", "Zinc interpreter");
 #endif
-    installDisplayDriver(projectDir, path.c_str());
+    installDisplayDrivers(projectDir, path.c_str());
     windowEnv(window);
 #ifdef ZN_HOST_GFX
     if (shapedText || (std::getenv("ZINC_TEXT") && !std::strcmp(std::getenv("ZINC_TEXT"), "shaped"))) zn::text::installShapedGfx();   // ZN-224
@@ -3076,7 +3099,7 @@ int main(int argc, char** argv) {
     zn::log::step("engine", "Zinc, C++ AOT");
     zn::zbc::Module zm;
     if (int rc = compileToZbc(argv[2], zm)) return rc;
-    installDisplayDriver("", argv[2]);   // a board or a display driver of the project: the driver is linked into the program
+    installDisplayDrivers("", argv[2]);   // a board or a display driver of the project: the driver is linked into the program
     return buildNative(argv[0], argv[2], argv[4], zm, tBuild);
   }
   if (argc == 3 && !std::strcmp(argv[1], "--emit=cpp")) {  // zinc --emit=cpp <file>: the C++ of the AOT build

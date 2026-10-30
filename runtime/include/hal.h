@@ -3,6 +3,8 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
 
@@ -242,6 +244,18 @@ struct HalDisplay {
   void (*surface_size)(int32_t* w, int32_t* h);
 };
 extern HalDisplay* hal_display;
+// A driver's registration: `static int reg = hal_display_register(&d, "sidecar");`. A driver linked on demand (zinc.json "displays": the
+// app can be switched to it, it is not its screen; built with ZN_DISPLAY_ON_DEMAND) takes the screen only when ZINC_DISPLAY names it at run time.
+static inline int hal_display_register(HalDisplay* d, const char* name) {
+#ifdef ZN_DISPLAY_ON_DEMAND
+  const char* e = getenv("ZINC_DISPLAY");
+  if (!e || (strcmp(e, name) != 0 && !(strncmp(e, "display-", 8) == 0 && strcmp(e + 8, name) == 0))) return 0;
+#else
+  (void)name;
+#endif
+  hal_display = d;
+  return 1;
+}
 // Pictures laid over the frames of a display driver that shows the app with no window of it (display-sidecar): the web views of
 // zinc:webview, kept off screen. A plugin that has such pictures registers this from a static constructor, as a driver does.
 struct HalOverlays {

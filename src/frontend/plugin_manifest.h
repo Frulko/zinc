@@ -76,6 +76,8 @@ std::vector<PluginOption> pluginOptions(const FoundPlugin& p, const std::string&
 // with the board file (`board`) supplying defaults; and the program surface the board says (`width`, `height`, 0 when none). Empty driver: the host window.
 struct DisplaySelection { std::string driver; int width = 0, height = 0; };
 DisplaySelection selectDisplay(const std::string& projectDir, const std::string& engineRoot, const std::string& target);
+// zinc.json "displays": the drivers the app can be switched to at run time (ZINC_DISPLAY), linked beside its own screen.
+std::vector<std::string> onDemandDisplays(const std::string& projectDir);
 
 // ZP_<PLUGIN>_<KEY>=<value> for each option, then ZP_<PLUGIN>=1.
 std::vector<std::string> pluginDefines(const FoundPlugin& p, const std::string& projectDir, const std::string& engineRoot, const std::string& target);

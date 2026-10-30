@@ -340,5 +340,5 @@ static void s_poll(HalInput* in) {
 static void s_shutdown() { if (fd >= 0) shutdown(fd, SHUT_RDWR); }   // the sender thread may be writing: the socket is shut, not closed
 
 static HalDisplay sidecar_display = {s_init, s_present, s_poll, s_shutdown, 0, 0, s_scale, nullptr, s_size, nullptr, s_size};
-static int registered = (hal_display = &sidecar_display, 0);
+static int registered = hal_display_register(&sidecar_display, "sidecar");
 

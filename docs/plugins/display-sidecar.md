@@ -33,7 +33,8 @@ to it, the rest to the app. Measured with `examples/webview/hybrid` on the Nexus
 and WebKit's processes); the page counts as shown (`document.hidden` false, `requestAnimationFrame` runs). macOS only for now.
 
 The app's window and the tablet at once: a second process of the app (`sys.execPath()`, `zinc:process`) runs with `ZINC_DISPLAY=sidecar`
-and the window drives it over its stdin. `examples/webview/sidecar-browser` does this: a small browser whose "Stream to" button sends the
+and the window drives it over its stdin. The project lists the driver in `zinc.json` (`"displays": ["sidecar"]`): it is linked into the
+app but takes the screen only in the process started with `ZINC_DISPLAY=sidecar`. `examples/webview/sidecar-browser` does this: a small browser whose "Stream to" button sends the
 page to the tablet, the window becoming its remote (an address bar that opens pages on the tablet).
 
 Not yet: H.264 for a frame where most of the screen moves (the screens decode it: `+h264`), a second screen beside the app's window, the

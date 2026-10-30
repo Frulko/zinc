@@ -371,11 +371,27 @@ DisplaySelection selectDisplay(const std::string& projectDir, const std::string&
   return sel;
 }
 
+std::vector<std::string> onDemandDisplays(const std::string& projectDir) {
+  std::vector<std::string> out;
+  JsonFile zj;
+  zj.open(projectDir + "/zinc.json");
+  yyjson_val* a = member(zj.root(), "displays");
+  for (size_t i = 0; a && yyjson_is_arr(a) && i < yyjson_arr_size(a); i++)
+    if (yyjson_val* v = yyjson_arr_get(a, i); yyjson_is_str(v)) out.push_back(yyjson_get_str(v));
+  return out;
+}
+
 std::vector<std::string> pluginDefines(const FoundPlugin& p, const std::string& projectDir, const std::string& engineRoot, const std::string& target) {
   auto id = [](const std::string& s) { std::string r; for (char c : s) r += std::isalnum(static_cast<unsigned char>(c)) ? static_cast<char>(std::toupper(static_cast<unsigned char>(c))) : '_'; return r; };
   std::vector<std::string> out;
   for (const PluginOption& o : pluginOptions(p, projectDir, engineRoot, target)) out.push_back("ZP_" + id(p.manifest.name) + "_" + id(o.key) + "=" + o.cpp);
   out.push_back("ZP_" + id(p.manifest.name) + "=1");
+  if (p.manifest.kind == "display") {   // listed in "displays" and not the app's screen: it waits for ZINC_DISPLAY (hal_display_register)
+    const std::string driver = selectDisplay(projectDir, engineRoot, target).driver;
+    const bool chosen = p.manifest.name == driver || p.manifest.name == "display-" + driver;
+    for (const std::string& d : onDemandDisplays(projectDir))
+      if (!chosen && (p.manifest.name == d || p.manifest.name == "display-" + d)) { out.push_back("ZN_DISPLAY_ON_DEMAND=1"); break; }
+  }
   return out;
 }
 

@@ -55,14 +55,21 @@ export function startStream(host: string): void {
   setStreaming(true); setConnected(false); setStatus(`Connecting to ${host}...`);
   web.hide();
   p.onStdout((line: string) => {
-    if (line === 'ready') { setConnected(true); p.write('go ' + urlOf(typed() === '' ? START_URL : typed()) + '\n'); onReady(); }
+    if (line === 'ready') { p.write('go ' + urlOf(typed() === '' ? START_URL : typed()) + '\n'); onReady(); }
     else if (line.startsWith('load ')) { setTabletUrl(line.substring(5)); setTyped(line.substring(5)); }
   });
-  p.onStderr((line: string) => { if (line.startsWith('display-sidecar: ')) setStatus(line.substring(17)); });
+  p.onStderr((line: string) => {
+    if (!line.startsWith('display-sidecar: ')) return;
+    setStatus(line.substring(17));
+    if (line.indexOf(' pixels, ') > 0) setConnected(true);   // "adb, 1280x800 pixels, the app at 640x400 points": the tablet answered
+    // no screen: the driver gave up and the process would show the page in a window of its own on the Mac
+    if (line.indexOf('no Sidecar screen') > 0 || line.indexOf('not a colour Sidecar screen') > 0) p.kill(15);
+  });
   p.onExit((code: i32) => {
     tablet = null;
     setStreaming(false); setConnected(false);
     if (code !== 0 && code !== 143) setStatus(`The tablet's side stopped (code ${code}). ${status()}`);
+    else if (code === 143) setStatus(`${status()} Open the Sidecar app on the tablet, then stream again.`);
     web.show();
   });
 }

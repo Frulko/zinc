@@ -624,7 +624,7 @@ bool parseProject(const std::string& text, Project& out, std::string& err) {
     size_t i, n; yyjson_val *k, *v;
     yyjson_obj_foreach(t, i, n, k, v) if (yyjson_val* pm = yyjson_obj_get(v, "permissions")) if (!permissionList(pm, out.targetPermissions[yyjson_get_str(k)], "targets.<name>.permissions")) return false;
   }
-  static const char* known[] = {"3d", "app", "permissions", "permissionStrings", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "engine", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher", "player"};
+  static const char* known[] = {"3d", "app", "permissions", "permissionStrings", "scopes", "name", "entry", "main", "assets", "version", "id", "icon", "crash", "display", "displays", "plugins", "pluginDirs", "targets", "board", "requires", "text", "scheme", "webgl", "web", "engine", "keyboard", "bench", "description", "profile", "ui", "icons", "template", "update", "signing", "lock", "pluginCompiler", "dependencies", "policy", "dev", "splash", "loading", "launcher", "player"};
   size_t i, n;
   yyjson_val *k, *v;
   yyjson_obj_foreach(root, i, n, k, v) {

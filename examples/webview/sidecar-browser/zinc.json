@@ -2,6 +2,7 @@
   "name": "sidecar-browser",
   "entry": "src/main.tsx",
   "app": { "name": "Sidecar Browser", "id": "dev.zinc.sidecar-browser", "version": "0.1.0" },
+  "displays": ["sidecar"],
   "targets": {
     "macos": { "width": 1000, "height": 640 }
   }
