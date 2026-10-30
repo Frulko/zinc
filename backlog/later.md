@@ -512,6 +512,11 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod web: the Songs page renders every row (2400 songs = 34k DOM nodes, heap 16→105 MB); use a virtual list.
 - iPod remote: "Read the library again: cannot convert Dyn (undefined) to string" against the running daemon on 8686 (a field the old daemon lacks); make the remote decode tolerate a missing field.
 - Web dev: the old page's pending `/wait` logs `net::ERR_EMPTY_RESPONSE` once per reload (the bridge restarts before the page unloads).
+- ZN-587: the web environment's global Worker (Blob URL entries, structured clone with ArrayBuffer transfer, webenv in the worker) for PixiJS `preferWorkers` and Tone.js (criteria #1 and #2).
+- ZN-587: QuickJS worker schemas cannot name generic interfaces (`Envelope<T>`), interfaces with `extends` or `zinc:` types; such messages are cloned untyped, without receiver-side truncation and defaults.
+- ZN-587: `process.exit` inside a QuickJS worker exits the whole process; on the typed engines it ends only the worker.
+- ZN-587: QuickJS `.js` programs have no `URL` global, so `new Worker(new URL('./w.js', import.meta.url))` fails in plain JS.
+- ZN-587: `zinc bundle`/`zinc export` for QuickJS does not bundle a worker's entry file.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
 
 ## Demos
