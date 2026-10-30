@@ -16,7 +16,7 @@ const r1 = (v: number): number => Math.round(v * 10) / 10;
 
 class Totals {
   audioBytes: number = 0; audioWire: number = 0; audioPackets: number = 0; videoBytes: number = 0; videoWire: number = 0;
-  received: number = 0; concealed: number = 0; lost: number = 0; jitter: number = 0; frames: number = 0; width: number = 0; plis: number = 0; rtt: number = 0;
+  received: number = 0; concealed: number = 0; fec: number = 0; dred: number = 0; lost: number = 0; jitter: number = 0; frames: number = 0; width: number = 0; plis: number = 0; rtt: number = 0;
 }
 async function totals(a: RTCPeerConnection, b: RTCPeerConnection): Promise<Totals> {
   const t = new Totals();
@@ -26,7 +26,7 @@ async function totals(a: RTCPeerConnection, b: RTCPeerConnection): Promise<Total
     if (x.type === 'remote-inbound-rtp' && x.kind === 'audio') t.rtt = x.roundTripTime;
   });
   (await b.getStats()).forEach((x: RTCStats) => {
-    if (x.type === 'inbound-rtp' && x.kind === 'audio') { t.received = x.totalSamplesReceived; t.concealed = x.concealedSamples; t.lost = x.packetsLost; t.jitter = x.jitter; }
+    if (x.type === 'inbound-rtp' && x.kind === 'audio') { t.received = x.totalSamplesReceived; t.concealed = x.concealedSamples; t.fec = x.fecSamples; t.dred = x.dredSamples; t.lost = x.packetsLost; t.jitter = x.jitter; }
     if (x.type === 'inbound-rtp' && x.kind === 'video') { t.frames = x.framesDecoded; t.plis = x.pliCount; }
   });
   return t;
@@ -77,11 +77,13 @@ async function main(): Promise<void> {
   const t1 = await totals(a, b), at1 = Date.now();
   if (video && lastFrameAt >= 0 && at1 - lastFrameAt > maxFreeze) { maxFreeze = at1 - lastFrameAt; if (maxFreeze > 500) freezes++; }
   const kbps = (bytes: number, ms: number): number => r1(bytes * 8 / ms);
-  const samples = t1.received - t0.received + t1.concealed - t0.concealed;
+  const samples = t1.received - t0.received + t1.concealed - t0.concealed + t1.fec - t0.fec + t1.dred - t0.dred;
   const sentPackets = t1.audioPackets - t0.audioPackets;
   const line = new Map<string, number>();
   line.set('seconds', r1((at1 - at0) / 1000));
   line.set('concealedPct', samples > 0 ? r1((t1.concealed - t0.concealed) * 100 / samples) : 100);
+  line.set('fecPct', samples > 0 ? r1((t1.fec - t0.fec) * 100 / samples) : 0);
+  line.set('dredPct', samples > 0 ? r1((t1.dred - t0.dred) * 100 / samples) : 0);
   line.set('maxGapMs', maxGap);
   line.set('audioLossPct', sentPackets > 0 ? r1((t1.lost - t0.lost) * 100 / sentPackets) : 0);
   line.set('jitterMs', r1(t1.jitter * 1000));

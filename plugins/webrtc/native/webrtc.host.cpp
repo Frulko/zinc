@@ -83,7 +83,7 @@ std::vector<std::string> split(const std::string& s, char c) {
 }
 
 // ---- SDP: the media sections of a description, and the ones this file writes
-struct Codec { int pt = -1; std::string name; int clock = 0, channels = 0; std::string fmtp; };
+struct Codec { int pt = -1; std::string name; int clock = 0, channels = 0; std::string fmtp; int maxptime = 0; };   // maxptime: the section's a=maxptime (ms, 0: none)
 struct Section { std::string kind, mid, direction = "sendrecv", stream, track; bool removed = false; std::vector<Codec> codecs; double bps = 0; };
 
 std::vector<Section> sections(const std::string& sdp) {
@@ -107,6 +107,7 @@ std::vector<Section> sections(const std::string& sdp) {
     const std::string a = line.substr(2);
     auto codec = [&](int pt) -> Codec* { for (Codec& c : s.codecs) if (c.pt == pt) return &c; return nullptr; };
     if (a.compare(0, 4, "mid:") == 0) s.mid = a.substr(4);
+    else if (a.compare(0, 8, "maxptime") == 0 && a.size() > 9) { const int mp = atoi(a.c_str() + 9); for (Codec& c : s.codecs) c.maxptime = mp; }
     else if (a == "sendrecv" || a == "sendonly" || a == "recvonly" || a == "inactive") s.direction = a;
     else if (a.compare(0, 5, "msid:") == 0) { std::vector<std::string> f = split(a.substr(5), ' '); s.stream = f[0]; if (f.size() > 1) s.track = f[1]; }
     else if (a.compare(0, 7, "rtpmap:") == 0) {
@@ -148,7 +149,7 @@ Codec ours(const std::string& name) {
   const std::string n = lower(name);
   if (n == "vp8") { c.pt = 96; c.name = "VP8"; c.clock = 90000; }
   else if (n == "h264") { c.pt = 102; c.name = "H264"; c.clock = 90000; c.fmtp = "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"; }
-  else if (n == "opus") { c.pt = 111; c.name = "opus"; c.clock = 48000; c.channels = 2; c.fmtp = "minptime=10;useinbandfec=1"; }
+  else if (n == "opus") { c.pt = 111; c.name = "opus"; c.clock = 48000; c.channels = 2; c.fmtp = "minptime=10;useinbandfec=1;x-zinc-dred=1"; }   // x-zinc-dred: this side decodes Opus DRED (other peers ignore the key)
   return c;
 }
 std::vector<std::string> defaults(bool video) {
@@ -168,12 +169,14 @@ struct Stats {
   int sentWidth = 0, sentHeight = 0, targetBitrate = 0, rembBitrate = 0;
   // received
   long long bytesReceived = 0, packetsReceived = 0, framesDecoded = 0, keyFramesDecoded = 0, pliSent = 0, samplesReceived = 0, concealed = 0, framesDropped = 0;
+  long long fecSamples = 0, fecPackets = 0, dredSamples = 0;   // audio rebuilt from the in-band FEC and the deep redundancy (not concealed)
   int recvWidth = 0, recvHeight = 0;
   int64_t baseSeq = -1, maxSeq = -1;
   double jitter = 0, transit = 0;
   bool haveTransit = false;
   // the peer's receiver reports on what this side sends
   double rtt = -1, fractionLost = 0, remoteJitter = 0;
+  double lossHeld = 0;   // fractionLost held at its peaks: up at once, down by a tenth of the gap per report (the FEC and DRED size)
   long long remoteLost = 0;
   std::deque<int64_t> sentTimes, decodedTimes;   // the last second of frames, for framesPerSecond
 };
@@ -363,6 +366,7 @@ void* RTC_API onIntercept(int pc, const char* msg, int size, void*) {
         if (t->ssrc != ssrc) continue;
         std::lock_guard<std::mutex> l(t->m);
         t->st.fractionLost = r[4] / 256.0;
+        t->st.lossHeld = t->st.fractionLost > t->st.lossHeld ? t->st.fractionLost : t->st.lossHeld + (t->st.fractionLost - t->st.lossHeld) / 10;
         t->st.remoteLost = (r[5] << 16 | r[6] << 8 | r[7]);
         const uint32_t jit = (uint32_t)r[12] << 24 | r[13] << 16 | r[14] << 8 | r[15];
         t->st.remoteJitter = t->send.clock > 0 ? jit / (double)t->send.clock : 0;
@@ -388,13 +392,39 @@ int videoBitrate(Tx& t, int w, int h, int fps) {
   if (r > 0 && bps > r) bps = r < 50000 ? 50000 : r;
   return bps;
 }
+// The audio of `lost` packets missing before `frame` (each as long as it), into t.audio: the last packet from the in-band FEC of this one,
+// the earlier ones from its deep redundancy (DRED) as far back as it reaches, the rest concealed (deep PLC). Called with t.m held.
+const int kDredMs = 200;   // the past each packet carries for a Zinc peer: a burst of 3 packets of 60 ms
+void recoverAudio(Tx& t, media::OpusDec* adec, const std::vector<uint8_t>& frame, int lost, float* buf) {
+  int dur = media::opusSamples(frame.data(), (int)frame.size());
+  if (dur <= 0 || dur > 5760) dur = 960;
+  const int gap = lost * dur;
+  const bool fec = media::opusHasFec(frame.data(), (int)frame.size());
+  const int dred = gap > dur || !fec ? media::opusDredParse(adec, frame.data(), (int)frame.size(), gap) : 0;
+  for (int pos = 0; pos < gap;) {
+    const int left = gap - pos;   // samples between here and the packet: the DRED offset
+    int n;
+    if (left <= dur && fec) {   // the packet just before this one: its LBRR copy rides in this packet
+      n = media::opusDecode(adec, frame.data(), (int)frame.size(), buf, left, true);
+      if (n > 0) { t.st.fecSamples += n; t.st.fecPackets++; }
+    } else {
+      const int room = fec ? left - dur : left, c = room < 960 ? room : 960;   // up to the FEC part, by 20 ms
+      if (dred >= left) { n = media::opusDredDecode(adec, left, buf, c); if (n > 0) t.st.dredSamples += n; }
+      else { n = media::opusDecode(adec, nullptr, 0, buf, c); if (n > 0) t.st.concealed += n; }
+    }
+    if (n <= 0) break;
+    t.audio.insert(t.audio.end(), buf, buf + n);
+    pos += n;
+  }
+}
 void work(std::shared_ptr<Tx> tp) {
   Tx& t = *tp;
   std::unique_ptr<media::VideoEncoder> enc;
   std::unique_ptr<media::VideoDecoder> dec;
   std::unique_ptr<media::Reassembler> rs;
   media::OpusEnc* aenc = nullptr;
-  int aencBps = 0;
+  int aencBps = 0, aencLoss = -1;
+  bool aencDred = false;
   media::OpusDec* adec = nullptr;
   std::string encName;
   int decPt = -1;
@@ -457,23 +487,36 @@ void work(std::shared_ptr<Tx> tp) {
         }
       }
     }
-    // audio out: 20 ms frames of Opus
+    // audio out: Opus in packets of 20 ms, or 40 and 60 ms on a thin link, where the 58 bytes of headers per packet (IPv4, UDP, RTP, SRTP)
+    // cost more than the voice: at 10 kbit/s, 23 kbit/s of headers at 20 ms and 8 at 60 (docs/reports/webrtc-selfhost-design.md 6.1)
     if (!t.video && sendC.pt >= 0 && pcm.size() >= 960) {
       const int bps = t.maxBitrate > 0 ? (int)t.maxBitrate : 32000;   // setParameters' maxBitrate, live (the low data mode: 6 to 16 kbit/s)
+      int ptime = bps <= 16000 ? 60 : bps <= 24000 ? 40 : 20;
+      if (sendC.maxptime >= 20 && ptime > sendC.maxptime) ptime = sendC.maxptime / 20 * 20;   // the peer's a=maxptime
+      const int frameN = ptime * 48;
       if (!aenc) aenc = media::opusEncoder(1, bps);
       else if (bps != aencBps) media::opusSetBitrate(aenc, bps);
       aencBps = bps;
+      if (aenc) {
+        int lossPct;
+        { std::lock_guard<std::mutex> l(t.m); lossPct = (int)(t.st.lossHeld * 100 + 0.5); }
+        if (lossPct < 2) lossPct = 2;   // the FEC follows the loss the peer reports, a little of it always (the first loss is covered)
+        if (lossPct != aencLoss) { media::opusSetLoss(aenc, lossPct); aencLoss = lossPct; }
+        static const bool noDred = getenv("ZINC_WEBRTC_DRED") && !strcmp(getenv("ZINC_WEBRTC_DRED"), "0");   // off, to measure without it
+        const bool dred = !noDred && fmtpValue(sendC.fmtp, "x-zinc-dred") == "1";   // a Zinc peer decodes the deep redundancy; others would only pay for it
+        if (dred != aencDred) { aencDred = dred; media::opusSetDred(aenc, dred ? kDredMs : 0); }
+      }
       size_t at = 0;
-      for (; aenc && at + 960 <= pcm.size(); at += 960) {
+      for (; aenc && at + frameN <= pcm.size(); at += frameN) {
         bytes.resize(1500);
-        const int n = media::opusEncode(aenc, pcm.data() + at, bytes.data(), (int)bytes.size());
+        const int n = media::opusEncode(aenc, pcm.data() + at, bytes.data(), (int)bytes.size(), frameN);
         if (n > 2 || (n > 0 && bps > 16000)) {   // 1 or 2 bytes under DTX: a frame of silence, not sent (as browsers do); the timestamp moves on
           bytes.resize((size_t)n);
           sendFrame(t, bytes, audioTs);
           std::lock_guard<std::mutex> l(t.m);
-          t.st.bytesSent += n; t.st.packetsSent++; t.st.samplesSent += 960; t.st.targetBitrate = bps;
+          t.st.bytesSent += n; t.st.packetsSent++; t.st.samplesSent += frameN; t.st.targetBitrate = bps;
         }
-        audioTs += 960;
+        audioTs += frameN;
       }
       pcm.erase(pcm.begin(), pcm.begin() + (long)(aenc ? at : pcm.size()));
     } else if (sendC.pt < 0) pcm.clear();
@@ -530,10 +573,7 @@ void work(std::shared_ptr<Tx> tp) {
         } else if (!t.video && adec) {
           float buf[5760];
           std::lock_guard<std::mutex> l(t.m);
-          for (int i = 0; i < lost; i++) {   // concealment of the frames lost before this one; the last from this packet's FEC
-            const int n = i == lost - 1 ? media::opusDecode(adec, frame.data(), (int)frame.size(), buf, 960, true) : media::opusDecode(adec, nullptr, 0, buf, 960);
-            if (n > 0) { t.audio.insert(t.audio.end(), buf, buf + n); t.st.concealed += n; }
-          }
+          if (lost > 0) recoverAudio(t, adec, frame, lost, buf);
           const int n = media::opusDecode(adec, frame.data(), (int)frame.size(), buf, 5760);
           if (n > 0) { t.audio.insert(t.audio.end(), buf, buf + n); t.st.samplesReceived += n; }
           if (t.audio.size() > 48000) t.audio.erase(t.audio.begin(), t.audio.begin() + (long)(t.audio.size() - 48000));   // a second at most
@@ -1110,7 +1150,7 @@ struct HostWebRTC : NativeWebRTC {
     kv("packetsLost", num(expected > s.packetsReceived ? expected - s.packetsReceived : 0)); kv("jitter", dbl(s.jitter / clock));
     kv("framesDecoded", num(s.framesDecoded)); kv("keyFramesDecoded", num(s.keyFramesDecoded)); kv("pliSent", num(s.pliSent));
     kv("frameWidth", num(s.recvWidth)); kv("frameHeight", num(s.recvHeight)); kv("framesPerSecond", num((long long)s.decodedTimes.size()));
-    kv("totalSamplesReceived", num(s.samplesReceived)); kv("concealedSamples", num(s.concealed)); kv("framesDropped", num(s.framesDropped));
+    kv("totalSamplesReceived", num(s.samplesReceived)); kv("concealedSamples", num(s.concealed)); kv("fecPacketsReceived", num(s.fecPackets)); kv("fecSamples", num(s.fecSamples)); kv("dredSamples", num(s.dredSamples)); kv("framesDropped", num(s.framesDropped));
     kv("roundTripTime", dbl(s.rtt)); kv("fractionLost", dbl(s.fractionLost)); kv("remotePacketsLost", num(s.remoteLost)); kv("remoteJitter", dbl(s.remoteJitter));
     kv("sendPayloadType", num(t->send.pt)); kv("recvPayloadType", num(t->recv.pt));
     kv("sendClockRate", num(t->send.clock)); kv("recvClockRate", num(t->recv.clock));

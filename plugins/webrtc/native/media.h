@@ -34,19 +34,33 @@ bool h264Available();
 VideoEncoder* h264Encoder(int w, int h, int bps, int fps);
 VideoDecoder* h264Decoder();
 
-/** Opus at 48 kHz in 20 ms frames (960 samples per channel). */
+/** Opus at 48 kHz, in packets of 20, 40 or 60 ms (960, 1920 or 2880 samples per channel). */
 struct OpusEnc;
 struct OpusDec;
 OpusEnc* opusEncoder(int channels, int bps);
-/** A new target: at 16 kbit/s and under (the low data mode) voice-only, wideband at most, DTX (silence sends a frame every 400 ms) and
- *  in-band FEC tuned for 15% loss; above, the defaults (FEC for 5%). */
+/** A new target: at 16 kbit/s and under (the low data mode) voice-only, wideband at most, DTX (silence sends a frame every 400 ms);
+ *  above, the defaults. In-band FEC stays on, sized by opusSetLoss. */
 void opusSetBitrate(OpusEnc* e, int bps);
-int opusEncode(OpusEnc* e, const float* pcm, uint8_t* out, int max);
+/** The loss the peer reports, in per cent: the in-band FEC is sized for it (OPUS_SET_PACKET_LOSS_PERC). */
+void opusSetLoss(OpusEnc* e, int pct);
+/** Deep redundancy (DRED, Opus 1.5+): up to `ms` of the past in every packet, for a peer that decodes it; 0 turns it off. False when this
+ *  build has no DRED. */
+bool opusSetDred(OpusEnc* e, int ms);
+/** One packet of `samples` (960, 1920 or 2880) into out; its size, < 0 on error. */
+int opusEncode(OpusEnc* e, const float* pcm, uint8_t* out, int max, int samples = 960);
 void opusFree(OpusEnc* e);
 OpusDec* opusDecoder();
-/** One frame of mono samples into pcm (960 for 20 ms), or concealment when data is null; with fec, the frame before this packet from its
- *  in-band FEC (concealment when it has none). The count, < 0 on error. */
+/** The samples of one packet (48 kHz), < 0 when it is not Opus. */
+int opusSamples(const uint8_t* data, int n);
+/** True when the packet carries an in-band FEC copy (LBRR) of the one before it. */
+bool opusHasFec(const uint8_t* data, int n);
+/** One packet of mono samples into pcm, or `max` samples of concealment (deep PLC where built) when data is null; with fec, the `max`
+ *  samples before this packet from its in-band FEC (concealment for what it does not hold). The count, < 0 on error. */
 int opusDecode(OpusDec* d, const uint8_t* data, int n, float* pcm, int max, bool fec = false);
+/** The deep redundancy of a packet: how many samples before it can be rebuilt (0: none, or no DRED in this build). */
+int opusDredParse(OpusDec* d, const uint8_t* data, int n, int maxSamples);
+/** `samples` samples rebuilt from the last parsed redundancy, starting `offset` samples before the packet. The count, < 0 on error. */
+int opusDredDecode(OpusDec* d, int offset, float* pcm, int samples);
 void opusFree(OpusDec* d);
 
 /** BGRX -> I420 (BT.601, limited range) and back; odd sizes round the chroma planes up. */

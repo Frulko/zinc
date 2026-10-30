@@ -708,7 +708,7 @@ export class RTCPeerConnection extends EventTarget {
       i.kind = t.kind; i.mid = mid; i.bytesReceived = n('bytesReceived'); i.packetsReceived = n('packetsReceived'); i.packetsLost = n('packetsLost');
       i.jitter = n('jitter'); i.framesDecoded = n('framesDecoded'); i.keyFramesDecoded = n('keyFramesDecoded'); i.framesPerSecond = n('framesPerSecond');
       i.frameWidth = n('frameWidth'); i.frameHeight = n('frameHeight'); i.totalSamplesReceived = n('totalSamplesReceived');
-      i.concealedSamples = n('concealedSamples'); i.framesDropped = n('framesDropped'); i.pliCount = n('pliSent'); i.trackIdentifier = t.receiver.track.id;
+      i.concealedSamples = n('concealedSamples'); i.fecPacketsReceived = n('fecPacketsReceived'); i.fecSamples = n('fecSamples'); i.dredSamples = n('dredSamples'); i.framesDropped = n('framesDropped'); i.pliCount = n('pliSent'); i.trackIdentifier = t.receiver.track.id;
       i.codecId = codec(t.recvCodec, 'recvPayloadType', 'recvClockRate', 'recvFmtp');
       out.set(i.id, i);
     }

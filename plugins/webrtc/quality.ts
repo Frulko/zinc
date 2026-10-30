@@ -26,6 +26,9 @@ export class RTCStats {
   rembBitrate: number = 0;
   /** Zinc, outbound-rtp: the bytes of its RTP packets on the wire (IPv4, UDP, SRTP and RTP headers, payload, retransmissions included). */
   wireBytesSent: number = 0;
+  /** inbound-rtp audio: packets rebuilt from the next packet's in-band FEC; Zinc: the samples those gave, and the samples rebuilt from
+   *  Opus deep redundancy (DRED, between Zinc peers). Neither counts in concealedSamples. */
+  fecPacketsReceived: number = 0; fecSamples: number = 0; dredSamples: number = 0;
   mimeType: string = ''; payloadType: number = 0; clockRate: number = 0; channels: number = 0; sdpFmtpLine: string = '';
   constructor(id: string, type: string) { this.id = id; this.type = type; this.timestamp = Date.now(); }
 }

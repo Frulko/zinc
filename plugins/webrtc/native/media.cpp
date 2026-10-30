@@ -161,14 +161,21 @@ VideoEncoder* h264Encoder(int, int, int, int) { return nullptr; }
 VideoDecoder* h264Decoder() { return nullptr; }
 #endif
 
-// ---- Opus
+// ---- Opus. Deep PLC and DRED where the build has them (ENABLE_DEEP_PLC, ENABLE_DRED: plugins/webrtc; zinc:discord-voice builds without).
 struct OpusEnc { OpusEncoder* e; int ch; };
-struct OpusDec { OpusDecoder* d; };
+struct OpusDec {
+  OpusDecoder* d;
+#ifdef ENABLE_DRED
+  OpusDREDDecoder* dd = nullptr;
+  OpusDRED* dred = nullptr;
+#endif
+};
 OpusEnc* opusEncoder(int channels, int bps) {
   int err = 0;
   OpusEncoder* e = opus_encoder_create(48000, channels, OPUS_APPLICATION_VOIP, &err);
   if (!e || err != OPUS_OK) return nullptr;
   opus_encoder_ctl(e, OPUS_SET_INBAND_FEC(1));
+  opus_encoder_ctl(e, OPUS_SET_PACKET_LOSS_PERC(5));
   OpusEnc* r = new OpusEnc{e, channels};
   opusSetBitrate(r, bps);
   return r;
@@ -177,22 +184,67 @@ void opusSetBitrate(OpusEnc* e, int bps) {
   const bool low = bps <= 16000;
   opus_encoder_ctl(e->e, OPUS_SET_BITRATE(bps));
   opus_encoder_ctl(e->e, OPUS_SET_DTX(low ? 1 : 0));
-  opus_encoder_ctl(e->e, OPUS_SET_PACKET_LOSS_PERC(low ? 15 : 5));
   opus_encoder_ctl(e->e, OPUS_SET_SIGNAL(low ? OPUS_SIGNAL_VOICE : OPUS_AUTO));
   opus_encoder_ctl(e->e, OPUS_SET_MAX_BANDWIDTH(low ? OPUS_BANDWIDTH_WIDEBAND : OPUS_BANDWIDTH_FULLBAND));
 }
-int opusEncode(OpusEnc* e, const float* pcm, uint8_t* out, int max) { return opus_encode_float(e->e, pcm, 960, out, max); }
+void opusSetLoss(OpusEnc* e, int pct) { opus_encoder_ctl(e->e, OPUS_SET_PACKET_LOSS_PERC(pct < 0 ? 0 : pct > 100 ? 100 : pct)); }
+bool opusSetDred(OpusEnc* e, int ms) {
+#ifdef ENABLE_DRED
+  return opus_encoder_ctl(e->e, OPUS_SET_DRED_DURATION(ms / 10)) == OPUS_OK;
+#else
+  (void)e; (void)ms;
+  return false;
+#endif
+}
+int opusEncode(OpusEnc* e, const float* pcm, uint8_t* out, int max, int samples) { return opus_encode_float(e->e, pcm, samples, out, max); }
 void opusFree(OpusEnc* e) { if (e) { opus_encoder_destroy(e->e); delete e; } }
 OpusDec* opusDecoder() {
   int err = 0;
   OpusDecoder* d = opus_decoder_create(48000, 1, &err);
   if (!d || err != OPUS_OK) return nullptr;
-  return new OpusDec{d};
+  OpusDec* r = new OpusDec{d};
+#ifdef ENABLE_DEEP_PLC
+  opus_decoder_ctl(d, OPUS_SET_COMPLEXITY(5));   // 5 and up: the concealment is the neural one (deep PLC)
+#endif
+#ifdef ENABLE_DRED
+  r->dd = opus_dred_decoder_create(&err);
+  r->dred = opus_dred_alloc(&err);
+#endif
+  return r;
 }
+int opusSamples(const uint8_t* data, int n) { return opus_packet_get_nb_samples(data, n, 48000); }
+bool opusHasFec(const uint8_t* data, int n) { return opus_packet_has_lbrr(data, n) > 0; }
 int opusDecode(OpusDec* d, const uint8_t* data, int n, float* pcm, int max, bool fec) {
-  return opus_decode_float(d->d, data, data ? n : 0, pcm, fec ? 960 : max, fec ? 1 : 0);
+  return opus_decode_float(d->d, data, data ? n : 0, pcm, max, fec ? 1 : 0);
 }
-void opusFree(OpusDec* d) { if (d) { opus_decoder_destroy(d->d); delete d; } }
+int opusDredParse(OpusDec* d, const uint8_t* data, int n, int maxSamples) {
+#ifdef ENABLE_DRED
+  if (!d->dd || !d->dred) return 0;
+  int end = 0;
+  const int r = opus_dred_parse(d->dd, d->dred, data, n, maxSamples, 48000, &end, 0);
+  return r > 0 ? r : 0;
+#else
+  (void)d; (void)data; (void)n; (void)maxSamples;
+  return 0;
+#endif
+}
+int opusDredDecode(OpusDec* d, int offset, float* pcm, int samples) {
+#ifdef ENABLE_DRED
+  return opus_decoder_dred_decode_float(d->d, d->dred, offset, pcm, samples);
+#else
+  (void)d; (void)offset; (void)pcm; (void)samples;
+  return -1;
+#endif
+}
+void opusFree(OpusDec* d) {
+  if (!d) return;
+#ifdef ENABLE_DRED
+  if (d->dd) opus_dred_decoder_destroy(d->dd);
+  if (d->dred) opus_dred_free(d->dred);
+#endif
+  opus_decoder_destroy(d->d);
+  delete d;
+}
 
 // ---- reassembly
 void Reassembler::push(const uint8_t* p, size_t n, int64_t nowMs) {
