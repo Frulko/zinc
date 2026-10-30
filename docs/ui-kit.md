@@ -67,6 +67,7 @@ Conventions, identical in both UI models:
 | `CardContent`, `CardFooter` | `className?`, children | column / row, padded like the header |
 | `Badge` | `label`, `variant?` (`default` `secondary` `outline` `destructive` `success` `warning` `accent`), `className?` | |
 | `Separator` | `vertical?`, `className?` | one-pixel hairline |
+| `ResizeHandle` | `size: () => number`, `onResize`, `vertical?`, `after?`, `min?`, `max?`, `className?` | shadcn's ResizableHandle: a bar between two panes that resizes one when dragged (`vertical`: between columns; `after`: the pane follows the bar); the size is your signal, kept within `[min, max]` |
 | `Stat` | `label`, `value: () => string`, `unit?`, `hint?`, `className?`, children | metric tile; children sit on the label row (a `Badge`) |
 | `Tabs` | `items: string[]`, `selected: () => i32`, `onSelect`, `className?` | segmented control; switch the panels yourself: `{tab() === 0 ? <A/> : <B/>}` |
 | `Switch` | `checked: () => boolean`, `onChange`, `label?` | never flips itself: `onChange` decides |

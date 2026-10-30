@@ -9,7 +9,7 @@ export { Button, ButtonProps } from './button';
 export { Form, FormProps } from './form';
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './card';
 export { Badge } from './badge';
-export { Separator } from './separator';
+export { Separator, ResizeHandle } from './separator';
 export { Kbd } from './kbd';
 export { Keyboard, KeyboardProps } from './keyboard';
 export { KeyboardLayout, registerLayout, layoutOf, layoutIds } from './keyboard-layouts';
