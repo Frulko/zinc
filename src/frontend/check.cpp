@@ -368,6 +368,19 @@ struct Checker {
       wrapNode(node, sym);
       return true;
     }
+    if (node != kNone && promiseKind(from) == 1 && promiseKind(to) == 1 && out.objs[ty(from).obj].typeArgs.size() == 1 && out.objs[ty(to).obj].typeArgs.size() == 1) {
+      // a promise is covariant in its value, as in TypeScript (`Promise<R>` as `Promise<R | null>`): each instance is its own class, so this is a
+      // new promise settled as the first one is, its value converted as one value is (one microtask later, as a `then` would)
+      const TypeId fe = out.objs[ty(from).obj].typeArgs[0], te = out.objs[ty(to).obj].typeArgs[0];
+      if (!bad(fe) && !bad(te) && (assignable(fe, te, kNone) || recordWidenable(fe, te))) {
+        if (out.objs[ty(from).obj].isTemplate || out.objs[ty(to).obj].isTemplate) return true;
+        const std::string F = inspectAliasName(fe), T = inspectAliasName(te);
+        std::uint32_t sym = helper("promwiden," + std::to_string(from) + "," + std::to_string(to),
+            "function $F(p: " + inspectAliasName(from) + "): " + inspectAliasName(to) + " {\n  return __then(p, (v: " + F + "): " + T + " => v);\n}\n", {from, to, fe, te}, node);
+        wrapNode(node, sym);
+        return true;
+      }
+    }
     diag(kZNotAssignable, node, "diag.detail.assign", {{"from", name(from)}, {"to", name(to)}});
     return false;
   }
@@ -1951,7 +1964,8 @@ struct Checker {
         && n(x.kids[1]).kind != N::Array && n(x.kids[1]).kind != N::ObjectLit) {   // `return p` in an async function (the desugared `__p.resolveWith(p)`): settles as p does (a literal is no promise: it waits for T, `return []`)
       const std::uint32_t self = n(x.kids[0]).kids[0], arg = x.kids[1];
       const TypeId pt = expr(self), at = expr(arg);
-      if (!bad(at) && promiseKind(at) == 1 && at == pt && replaceWith(i, "__adopt(__H0, __H1)", {{self}, {arg}})) return expr0(i, kNoType);
+      const bool same = at == pt || (!bad(at) && promiseKind(at) == 1 && promiseKind(pt) == 1 && require(at, pt, arg));   // a Promise<R> where Promise<R | null> is returned: converted first
+      if (!bad(at) && promiseKind(at) == 1 && same && replaceWith(i, "__adopt(__H0, __H1)", {{self}, {arg}})) return expr0(i, kNoType);
     }
     if (isNew && x.kids.size() == 2 && n(x.kids[0]).kind == N::Ident && n(x.kids[0]).text == "Date" && lookup("Date") != kNone && out.syms[lookup("Date")].kind == SymKind::Class) {   // new Date(string) and new Date(date)
       TypeId at = expr(x.kids[1]);
@@ -4695,6 +4709,17 @@ struct Checker {
       if (bad(lt) || !unify(g, f.params[k], lt, bound, argNodes[k])) return {};
     }
     fromExpected();
+    if (genericExpected != kNoType && promiseKind(genericExpected) == 1 && std::find(bound.begin(), bound.end(), kNoType) == bound.end() &&
+        std::none_of(argNodes.begin(), argNodes.end(), [&](std::uint32_t k) { return n(k).kind == N::FuncExpr; })) {
+      // a promise made where a wider one is wanted takes the wanted type, as TypeScript infers it from the return: `Promise.resolve(r)` or
+      // `Promise.resolve(null)` where a Promise<R | null> is expected is one, with no conversion (the arguments convert as values)
+      std::vector<TypeId> b2(bound.size(), kNoType);
+      std::size_t before = out.diags.size();
+      bool ok = unify(g, f.elem, genericExpected, b2, callNode);
+      if (out.diags.size() > before) out.diags.resize(before);
+      for (std::size_t k = 0; ok && k < bound.size(); ++k) ok = b2[k] != kNoType && !bad(b2[k]) && (b2[k] == bound[k] || assignable(bound[k], b2[k], kNone));
+      if (ok) bound = b2;
+    }
     for (std::size_t i = 0; i < bound.size(); ++i)
       if (bound[i] == kNoType && n(g.tp[i]).kids.size() > 1 && n(g.tp[i]).kids[1] != kNone) bound[i] = annotation(n(g.tp[i]).kids[1]);  // not inferred: the default
       else if (bound[i] == kNoType) { diag(kZCannotInfer, callNode, "type argument '" + out.tparams[ty(g.selfParams[i]).obj].name + "'"); return {}; }

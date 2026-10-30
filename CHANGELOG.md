@@ -344,6 +344,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - reMarkable: an app pinned to the sidebar shows its icon instead of a black square: the tile icon `zinc pack` makes keeps its transparency.
 - A `const` (or a `let` never assigned again) set from an `await` keeps its narrowing after a later `await`: `const o = await f(); if (o === null) return; await g(); o.a` no longer fails with Z0107.
 - `then` on a `Promise<void>` with an async callback (`p.then(async () => { ... }).then(...)`) compiles and runs in Node's order: it stopped with Z0103 in `<prelude>`.
+- A `Promise<R>` is accepted where a `Promise<R | null>` (or a promise of a wider type) is expected, as in TypeScript: returned, passed or from an async function. `Promise.resolve(x)` and `Promise.resolve(null)` take the type the code expects.
 - reMarkable Web: a page with a long address (reddit) no longer loads over and over and blocks the app; long tab titles and addresses wrap instead of running off the screen.
 - reMarkable: the Marker works in an app's widget card (it only reacted to a finger), and a minimized app no longer receives taps from the Marker used elsewhere on the tablet.
 - reMarkable Read: pictures from the web (http/https, downloaded once and kept for offline reading, also for Notion pages at sync), inline `data:` pictures and file names with spaces or `%20` now show instead of a "[picture: …]" placeholder.
