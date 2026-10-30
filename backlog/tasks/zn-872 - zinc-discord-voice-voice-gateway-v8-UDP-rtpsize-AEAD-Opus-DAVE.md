@@ -2,8 +2,10 @@
 id: ZN-872
 title: 'zinc:discord-voice: voice gateway v8, UDP, rtpsize AEAD, Opus, DAVE'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 14:54'
+updated_date: '2026-10-30 19:08'
 labels:
   - net
   - media
@@ -11,8 +13,7 @@ labels:
 milestone: m-28
 dependencies:
   - ZN-866
-  - ZN-871
-ordinal: 164
+ordinal: 140
 ---
 
 ## Description
