@@ -550,7 +550,28 @@ static std::vector<std::string> gSources;  // the texts of the files of the last
 static std::vector<bool> gSourceIsLib;     // per file of gSources: one of the engine's own modules (ZN-428)
 static std::vector<std::string> gSourcePaths;   // the files of gSources that are files on disk: inputs of a compiled run (ZN-605)
 
-// The baked fonts and images of the last program compiled, as one blob (src/res); assets are the `assets` directory beside the entry file or above it.
+// The assets of a program run from `entry`: those of its project (zinc.json "assets", beside the zinc.json), else the `assets` directory beside
+// the project's entry or above it (beside `entry` without a project). From the project, not from `entry`: zinc dev runs a wrapper entry,
+// build/.zinc-dev/main.ts, above which lies build/assets, the packs.
+static std::string entryAssetsDir(const std::string& entry) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  std::string from = entry;
+  if (const std::string pf = zn::frontend::findProjectFile(entry); !pf.empty()) {
+    zn::frontend::Project proj;
+    std::string err, text;
+    if (readFile(pf, text) && zn::frontend::parseProject(text, proj, err)) {
+      const fs::path d = (fs::path(pf).parent_path() / proj.assets.dir).lexically_normal();
+      if (fs::is_directory(d, ec)) return d.string();
+      if (const std::string e = zn::frontend::entryOf(fs::path(pf).parent_path().string(), &proj); !e.empty()) from = e;
+    }
+  }
+  const fs::path dir = fs::absolute(from, ec).parent_path();
+  for (const fs::path& d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d, ec)) return d.string();
+  return "";
+}
+
+// The baked fonts and images of the last program compiled, as one blob (src/res); assets are entryAssetsDir's.
 static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, std::string& err) {
   namespace fs = std::filesystem;
   zn::res::Options o;
@@ -566,8 +587,7 @@ static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, st
     if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); if (zn::frontend::parseProject(ss.str(), proj, perr) && proj.text == "shaped") o.wholeFonts = true; }
     for (const auto& r : proj.assets.rules) rules.push_back({r.match, r.as, r.options});
   }
-  fs::path dir = fs::absolute(entry).parent_path();
-  for (fs::path d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d)) { o.assetsDir = d.string(); break; }
+  o.assetsDir = entryAssetsDir(entry);
   std::error_code ec;   // the images texture rules take are drawn from the packs, in their GPU formats (ZN-439): not baked
   if (!o.assetsDir.empty() && std::any_of(rules.begin(), rules.end(), [](const zn::assets::Rule& r) { return r.as == "texture"; }))
     for (auto it = fs::recursive_directory_iterator(o.assetsDir, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
@@ -866,7 +886,7 @@ static void assetsEnv(const std::string& entry) {
   namespace fs = std::filesystem;
   const fs::path dir = fs::absolute(entry).parent_path();
   std::error_code ec;
-  for (const fs::path& d : {dir / "assets", dir.parent_path() / "assets"}) if (fs::is_directory(d, ec)) { ownEnv("ZINC_ASSETS", d.string()); break; }
+  if (const std::string a = entryAssetsDir(entry); !a.empty()) ownEnv("ZINC_ASSETS", a);
   if (fs::is_directory(dir / "packs", ec)) ownEnv("ZINC_PACKS", (dir / "packs").string());
   if (const std::string pf = zn::frontend::findProjectFile(entry); !pf.empty()) {
     std::string packs, err;
@@ -1139,8 +1159,7 @@ static void write(const fs::path& file, const std::string& signature, const std:
     in.insert(d.string());
     for (auto it = fs::recursive_directory_iterator(d, fs::directory_options::skip_permission_denied, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) in.insert(it->path().string());
   };
-  const fs::path ed = fs::absolute(entry).parent_path();
-  for (const fs::path& d : {ed / "assets", ed.parent_path() / "assets"}) if (fs::is_directory(d)) { tree(d); break; }   // as bakeResources finds them
+  if (const std::string a = entryAssetsDir(entry); !a.empty()) tree(fs::path(a));   // as bakeResources finds them
   tree(fs::path(gRoot + "/lib/fonts"));
   tree(fs::path(gRoot + "/lib/std"));      // zinc:* modules are read from here at every compile
   tree(fs::path(gRoot + "/lib/compat"));
