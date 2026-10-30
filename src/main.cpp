@@ -571,6 +571,24 @@ static std::string entryAssetsDir(const std::string& entry) {
   return "";
 }
 
+// The name the program carries (window title, app menu, process list) and the one of its own store, <zinc home>/apps/<name>/: zinc.json
+// "name" of the project above `entry` (so zinc dev's wrapper build/.zinc-dev/main.ts is its project's), else the project's folder, else the
+// file (ZN-733). Set as ZINC_APP_NAME, over the name of the app that starts this one (Atelier runs sketches), on every engine.
+static std::string appNameEnv(const std::string& entry) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path file = fs::absolute(entry, ec);
+  const std::string stem = file.stem().string();
+  std::string nm = stem == "main" || stem == "index" ? file.parent_path().filename().string() : stem;
+  if (const std::string pf = zn::frontend::findProjectFile(entry); !pf.empty()) {
+    zn::frontend::Project proj;
+    std::string err, text;
+    nm = readFile(pf, text) && zn::frontend::parseProject(text, proj, err) && !proj.name.empty() ? proj.name : fs::path(pf).parent_path().filename().string();
+  }
+  if (!nm.empty()) setenv("ZINC_APP_NAME", nm.c_str(), 1);
+  return nm;
+}
+
 // The baked fonts and images of the last program compiled, as one blob (src/res); assets are entryAssetsDir's.
 static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, std::string& err) {
   namespace fs = std::filesystem;
@@ -2137,6 +2155,7 @@ int main(int argc, char** argv) {
       argv[2] = bundleOfBytecode.data();
     }
     qo.entry = argv[2];
+    appNameEnv(argv[2]);   // its own store and data folder, as on the typed engines
     if (zn::log::steps()) std::fprintf(stderr, "zinc run %s\n", zn::log::shortPath(std::filesystem::absolute(qo.entry).string()).c_str());
     zn::log::step("engine", std::string(engineName) + " (JavaScript)");
     const auto preparedAt = std::chrono::steady_clock::now();
@@ -2456,11 +2475,8 @@ int main(int argc, char** argv) {
         if (zn::frontend::parseProject(ss.str(), project, err)) { have = true; projectDir = fs::path(projFile).parent_path().string(); for (const std::string& w : project.warnings) std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), w.c_str()); }
         else { std::fprintf(stderr, "zinc: %s: %s\n", projFile.c_str(), err.c_str()); if (project.fatal) return 2; }
       }
-      {   // the name the program carries (window title, app menu, process list): zinc.json "name", else its folder, else its file (ZN-733)
-        const fs::path file = fs::absolute(path);
-        const std::string stem = file.stem().string();
-        std::string nm = have && !project.name.empty() ? project.name : have ? fs::path(projectDir).filename().string() : stem == "main" || stem == "index" ? file.parent_path().filename().string() : stem;
-        if (!nm.empty()) setenv("ZINC_APP_NAME", nm.c_str(), 1);   // over the name of the app that starts this one (Atelier runs sketches)
+      {
+        const std::string nm = appNameEnv(path);
 #ifdef __APPLE__
         // macOS names an app after its executable file (the menu bar, the Dock, the process list), whatever the process says of itself: when a
         // window may open, the engine starts again, once, through a link that carries the program's name. The native program has its own link.

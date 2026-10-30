@@ -10,6 +10,7 @@ import Cdp from './native/cdp.spec';
 import { inspectRoot, inspectNode, inspectHighlight, inspectPick, inspectState, inspectStyle, classStyle, sheetStyle, componentName, componentSource, componentProps, parentOf, setClass, screenBox, knownClasses, TAG_NAMES, TEXT, UiNode, Handlers } from 'zinc:ui';
 import { width, height } from 'zinc:gfx';
 import { env } from 'zinc:sys';
+import { saveLocation } from 'zinc:hardware';
 import { type as osType, release as osRelease, arch as osArch, cpus as osCpus, totalmem, hostname } from 'zinc:os';
 import { get as storeGet, set as storeSet, remove as storeRemove, keys as storeKeys } from 'zinc:storage';
 import { devDatabases, DevDatabase } from 'zinc:devhooks';
@@ -222,7 +223,7 @@ function handle(client: i32, msg: string): void {
   else if (method === 'Zinc.getUnrendered') result = `{"nodeIds":[${unrendered().join(',')}]}`;
   else if (method === 'DOMStorage.enable') { storeOn = true; storeSnap = storeRead(); }
   else if (method === 'DOMStorage.disable') storeOn = false;
-  else if (method === 'DOMStorage.getDOMStorageItems') result = `{"entries":[${storeRead().map((e: string[]) => `[${q(e[0])},${q(e[1])}]`).join(',')}]}`;
+  else if (method === 'DOMStorage.getDOMStorageItems') result = `{"entries":[${storeRead().map((e: string[]) => `[${q(e[0])},${q(e[1])}]`).join(',')}],"location":${q(saveLocation())}}`;   // the store shown: the program's own file
   else if (method === 'DOMStorage.setDOMStorageItem' || method === 'DOMStorage.removeDOMStorageItem' || method === 'DOMStorage.clear') {
     if (!DEV) { Cdp.send(client, `{"id":${id},"error":{"code":-32000,"message":${q(NOT_DEV_STORE)}}}`); return; }
     if (method === 'DOMStorage.setDOMStorageItem') storeSet(Cdp.str(msg, 'key'), Cdp.str(msg, 'value'));

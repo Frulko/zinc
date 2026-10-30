@@ -20,6 +20,7 @@ export const [items, setItems] = createSignal<Item[]>([]);
 export const [key, setKey] = createSignal<string>('');
 export const [draft, setDraft] = createSignal<string>('');
 export const [newKey, setNewKey] = createSignal<string>('');
+export const [storeAt, setStoreAt] = createSignal<string>('');   // the store listed: the program's own file (an older program does not say)
 export class Db { id: i32 = 0; path: string = ''; }
 export const [dbs, setDbs] = createSignal<Db[]>([]);
 export const [db, setDb] = createSignal<i32>(0);
@@ -49,6 +50,7 @@ async function readItems(): Promise<void> {
   const r = await call('DOMStorage.getDOMStorageItems', STORE + '}');
   const l: Item[] = [];
   if (r.entries !== undefined) for (const e of r.entries) { const i = new Item(); i.key = e[0]; i.value = e[1]; l.push(i); }
+  if (r.location !== undefined) setStoreAt(r.location);
   l.sort((a: Item, b: Item) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
   setItems(l);
 }
@@ -141,6 +143,7 @@ export function StorageView(): i32 {
         <Btn label="Add" onClick={() => { if (newKey().length > 0) { saveItem(newKey(), '""'); setNewKey(''); } }} />
         <Btn label="Clear all" onClick={() => { clearItems(); }} />
       </View>
+      {storeAt().length > 0 ? <Text className="px-2 py-0.5 border-b text-xs font-mono text-slate-500">{storeAt()}</Text> : <View />}
       <ScrollView className="flex-1"><View className="flex-col">{items().map((i: Item) => <ItemRow i={i} />)}</View></ScrollView>
       {key().length > 0 ? <View className="flex-col gap-1 p-2 border-t h-48">
         <Text className="text-xs font-medium text-slate-700">{shownKey(key())}</Text>
@@ -178,7 +181,7 @@ export function StorageView(): i32 {
 
 /** ZINC_INSPECTOR_DUMP: the key/values, an edit, a delete and a write of the program seen live; a table browsed and queries. */
 export async function dumpStorage(waitChange: (n: i32) => Promise<void>): Promise<void> {
-  console.log('storage:');
+  console.log('storage: ' + storeAt());
   for (const i of items()) console.log('  ' + shownKey(i.key) + ' = ' + shownValue(i.key, i.value));
   const theme = items().filter((i: Item) => i.key.endsWith('theme'));
   if (theme.length > 0) {

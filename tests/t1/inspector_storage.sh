@@ -18,6 +18,7 @@ run() {   # run <port> <ZINC_DEV>: the target, then the inspector's Storage dump
 fail=0
 want() { grep -qF -- "$1" "$tmp/dump" || { echo "missing in the Storage panel: $1"; fail=1; }; }
 run $port 1
+want "storage: $tmp/store-$port"
 want 'AsyncStorage · theme = {"mode":"dark","accent":"rose"}'
 want 'view AsyncStorage · theme: {   "mode": "dark",   "accent": "rose" }'
 want 'edit: {"mode":"light"}'
