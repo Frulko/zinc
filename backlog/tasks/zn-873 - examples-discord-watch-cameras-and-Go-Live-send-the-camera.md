@@ -2,7 +2,8 @@
 id: ZN-873
 title: 'examples/discord: watch cameras and Go Live, send the camera'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 14:55'
 labels:
   - net

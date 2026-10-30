@@ -2,7 +2,8 @@
 id: ZN-869
 title: 'examples/discord: QR code login and password login with 2FA'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 14:53'
 labels:
   - net

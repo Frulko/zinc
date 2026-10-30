@@ -2,7 +2,8 @@
 id: ZN-874
 title: 'Screen and window capture source on macOS (ScreenCaptureKit) for zinc:webrtc'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 14:56'
 labels:
   - media
