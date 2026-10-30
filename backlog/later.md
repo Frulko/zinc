@@ -462,6 +462,8 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:stage inspector: `name` and `visible` changes of unselected nodes are not pushed (the hidden label follows the 500 ms getUnrendered poll); rotation is assumed in radians (fatty/Starling), an AS3-degrees program gets a wrong highlight; in a hybrid program the stage highlight draws inside the Canvas clip, under later zinc:ui siblings (draw it in the overlay pass); the pick arrow does not pick stage nodes (hovering a stage selects the Canvas).
 - zinc dev port 0: the port is found free then closed before the child binds it; the child choosing it and reporting it over the dev socket would close the gap.
 
+- Inspector Info: QuickJS's heap reading (`JS_ComputeMemoryUsage`) walks every object and was not measured; throttle it like JavaScriptCore's (kept 1000x its cost) if it costs more than ~1 ms on a big heap. The entry and project baked into a `zinc build` executable are the build machine's paths: show them relative or labelled as where it was built.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -846,3 +848,4 @@ The next backlog review turns lines into tasks or deletes them.
 - tokyo 3DS: confirm on the real Old 3DS that the white ground blocks are gone (ZINC_PROFILE=1 counters `draws without their picture`, `chunk loads held back`); Azahar never showed them.
 - Inspector Info card on Linux (/proc/self/statm, /proc/cpuinfo), Windows (GetProcessTimes, GetProcessMemoryInfo) and the Pi's GL path (gl_renderer, SDL_GL_GetSwapInterval vsync).
 - Info view: the refresh-rate key of Linux and Windows `hal_sdl`, and the `js.heap` provider of the JSC module on Linux (WebKitGTK).
+- Inspector Info: check by hand that moving the window to a screen of another refresh rate updates the rate (SDL_EVENT_WINDOW_DISPLAY_CHANGED, no automatic test).
