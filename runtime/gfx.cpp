@@ -397,6 +397,8 @@ struct State {
   uint64_t band[ZRT_PROF_BANDS][2];  // raster band spans of this frame (SDL HAL worker threads)
   uint64_t frame_t0, last, prev_t0;
   uint32_t interval[ZRT_PROF_FRAMES];   // microseconds between the start of a frame and the start of the one before it (0 for the first)
+  uint32_t presented[ZRT_PROF_FRAMES];  // microseconds between the end of a frame's present and the end of the one before (0 for the first): the pace the user sees
+  uint64_t prev_end;
   uint64_t sec_t0;                      // when the section's first frame ended: the warm-up skip ends after 1.5 s whatever the frame count (a scene at 1 fps would never record)
   uint32_t skip, seen;                  // ZINC_PROFILE_SKIP: the first frames (shader builds, glyph uploads) are not recorded
   bool summary, tracing, hud, json;
@@ -451,7 +453,7 @@ static void sort_us(uint32_t* v, uint32_t n) {   // shell sort: no libc
     for (uint32_t i = gap; i < n; i++) for (uint32_t j = i; j >= gap && v[j - gap] > v[j]; j -= gap) { uint32_t t = v[j]; v[j] = v[j - gap]; v[j - gap] = t; }
 }
 static void jstr(StrBuilder& sb, const char* s) { sb.ch('"'); for (; *s; s++) { if (*s == '"' || *s == '\\') sb.ch('\\'); if ((unsigned char)*s >= 0x20) sb.ch(*s); } sb.ch('"'); }
-/** One column as {"p50":us,"p90":us,"p95":us,"p99":us,"max":us,"mean":us} (microseconds; col N: work, col N + 1: the interval between frames). */
+/** One column as {"p50":us,"p99":us,"max":us,"mean":us} (microseconds; col N: work, col N + 1: the interval between frame starts, N + 2: between presents). */
 static void json_col(StrBuilder& sb, int32_t col) {
   uint32_t n = st->nframes < ZRT_PROF_FRAMES ? st->nframes : ZRT_PROF_FRAMES;
   uint32_t* v = (uint32_t*)hal_alloc((n ? n : 1) * sizeof(uint32_t));
@@ -459,7 +461,7 @@ static void json_col(StrBuilder& sb, int32_t col) {
   uint64_t sum = 0;
   for (uint32_t i = 0; i < n; i++) {
     uint32_t x = 0;
-    if (col == N + 1) x = st->interval[i]; else if (col < N) x = st->us[i][col]; else for (int32_t p = 0; p < PRESENT; p++) x += st->us[i][p];
+    if (col == N + 2) x = st->presented[i]; else if (col == N + 1) x = st->interval[i]; else if (col < N) x = st->us[i][col]; else for (int32_t p = 0; p < PRESENT; p++) x += st->us[i][p];
     v[i] = x; sum += x;
   }
   sort_us(v, n);
@@ -474,7 +476,7 @@ static uint32_t over(int32_t col, uint32_t us) {
   uint32_t n = st->nframes < ZRT_PROF_FRAMES ? st->nframes : ZRT_PROF_FRAMES, k = 0;
   for (uint32_t i = 0; i < n; i++) {
     uint32_t x = 0;
-    if (col == N + 1) x = st->interval[i]; else for (int32_t p = 0; p < PRESENT; p++) x += st->us[i][p];
+    if (col == N + 2) x = st->presented[i]; else if (col == N + 1) x = st->interval[i]; else for (int32_t p = 0; p < PRESENT; p++) x += st->us[i][p];
     if (x > us) k++;
   }
   return k;
@@ -495,12 +497,13 @@ static void summary_json() {
   sb.cstr(",\"skipped\":"); to_s(sb, st->skip < st->seen ? st->skip : st->seen);
   sb.cstr(",\"window\":["); to_s(sb, (uint32_t)width()); sb.ch(','); to_s(sb, (uint32_t)height()); sb.cstr("],\"phases\":{");
   for (int32_t p = 0; p < N; p++) { jstr(sb, NAMES[p]); sb.ch(':'); json_col(sb, p); sb.ch(','); }
-  sb.cstr("\"work\":"); json_col(sb, N); sb.cstr(",\"interval\":"); json_col(sb, N + 1);
+  sb.cstr("\"work\":"); json_col(sb, N); sb.cstr(",\"interval\":"); json_col(sb, N + 1); sb.cstr(",\"present_interval\":"); json_col(sb, N + 2);
   sb.cstr("},\"late\":{\"work_gt_8_3\":"); to_s(sb, over(N, 8333)); sb.cstr(",\"work_gt_16_7\":"); to_s(sb, over(N, 16667));
   sb.cstr(",\"work_gt_33_3\":"); to_s(sb, over(N, 33333)); sb.cstr(",\"work_gt_50\":"); to_s(sb, over(N, 50000));
   sb.cstr(",\"interval_gt_16_7\":"); to_s(sb, over(N + 1, 16667)); sb.cstr(",\"interval_gt_25\":"); to_s(sb, over(N + 1, 25000));
   sb.cstr(",\"interval_gt_33_3\":"); to_s(sb, over(N + 1, 33333)); sb.cstr(",\"interval_gt_50\":"); to_s(sb, over(N + 1, 50000));
-  sb.cstr(",\"interval_gt_100\":"); to_s(sb, over(N + 1, 100000)); sb.cstr("},\"info\":{");
+  sb.cstr(",\"interval_gt_100\":"); to_s(sb, over(N + 1, 100000));
+  sb.cstr(",\"present_gt_16_7\":"); to_s(sb, over(N + 2, 16667)); sb.cstr(",\"present_gt_100\":"); to_s(sb, over(N + 2, 100000)); sb.cstr("},\"info\":{");
   if (zrt_gl_info_hook) zrt_gl_info_hook();
   for (uint32_t i = 0; i < g_ninfo; i++) { if (i) sb.ch(','); jstr(sb, g_info[i][0]); sb.ch(':'); jstr(sb, g_info[i][1]); }
   sb.cstr("}}\n");
@@ -581,12 +584,15 @@ static void end() {
   span(st->frame_t0, t, N, 1);
   uint32_t gap = st->prev_t0 ? (uint32_t)(st->frame_t0 - st->prev_t0) : 0;
   st->prev_t0 = st->frame_t0;
+  const uint32_t shown = st->prev_end ? (uint32_t)(t - st->prev_end) : 0;
+  st->prev_end = t;
   if (st->seen++ < st->skip) {   // warm-up frames are not part of the numbers: at most 1.5 s of them
     if (!st->sec_t0) st->sec_t0 = t;
     if (t - st->sec_t0 < 1500000) return;
   }
   __builtin_memcpy(st->us[st->nframes % ZRT_PROF_FRAMES], st->acc, sizeof st->acc);
   st->interval[st->nframes % ZRT_PROF_FRAMES] = gap;
+  st->presented[st->nframes % ZRT_PROF_FRAMES] = shown;
   st->nframes++;
 }
 }  // namespace prof
