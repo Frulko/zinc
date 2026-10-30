@@ -682,6 +682,8 @@ The next backlog review turns lines into tasks or deletes them.
 - iPod demo: measure For you's frame gaps again now that a timer set in a frame waits for the next one (the slices were measured before that fix).
 - Inspector: measure the Elements tree and rendered-only filter on examples/ipod's Songs page (VirtualList) with the fake iPod env.
 - iPod demo: a T1 frame-gap check of For you on the FORYOU_MODE=big fixture (10k songs, 100k listens); it needs a paced windowed run (headless frames are unpaced; ZINC_TRACE keeps only the last spans).
+- iPod demo: For you's SQL step before the worker job (times, top artists and tracks, yearCounts, lovedOn) takes ~100 ms on the UI thread with 100k listens, mostly the JS side (rows to objects, yearCounts): slice it or count in the worker.
+- iPod demo: the first sync after a library change parses library.json (10k tracks) in one 40 ms JSON.parse.
 
 ## Cross-platform pass
 - Threads profiler: check on Linux that `zinc profile` puts samples on each worker thread (SIGPROF delivery; older kernels favour the main thread).
