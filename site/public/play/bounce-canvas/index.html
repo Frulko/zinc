@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>bounce-canvas</title>
+<meta name="theme-color" content="#111111">
+<link rel="icon" href="data:,">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="modulepreload" href="zinc.e525243356.js">
+<link rel="modulepreload" href="app.6f83a92227.js">
+<link rel="modulepreload" href="native.95b2e008ab.js">
+<style>html,body{margin:0;height:100%;background:#ffffff;overscroll-behavior:none}#zinc-root{position:fixed;inset:0;overflow:hidden;outline:none}#zinc-splash{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:16px system-ui,sans-serif;color:#888;pointer-events:none}#zinc-progress{width:min(240px,50vw);height:4px;accent-color:#111111}</style>
+<script type="importmap">{"imports":{"zinc:native":"./native.95b2e008ab.js"}}</script>
+</head>
+<body>
+<div id="zinc-root" tabindex="-1"></div>
+<div id="zinc-splash"><progress id="zinc-progress" max="100" value="0" aria-label="loading"></progress></div>
+<script>if(location.protocol==='file:'){var z=document.getElementById('zinc-splash');z.style.cssText+=';pointer-events:auto;text-align:center;padding:24px;color:#444';z.textContent='This app cannot start from a file: browsers refuse ES modules there. Run python3 serve.py in this folder (or any static web server) and open the address it prints.'}</script>
+<noscript>This app needs JavaScript.</noscript>
+<script nomodule>document.body.textContent='This browser is too old for this app (it needs ES modules and import maps).'</script>
+<script id="zinc-config" type="application/json">{"name":"bounce-canvas","id":"com.example.styles.canvas","title":"bounce-canvas","version":"0.1.0","render":"canvas","scroll":"app","entry":"./app.6f83a92227.js","unsupported":[],"wasm":[],"scripts":{},"fonts":[],"assets":[]}</script>
+<script type="module" src="zinc.e525243356.js"></script>
+<script>if('serviceWorker' in navigator&&isSecureContext)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))</script>
+</body>
+</html>

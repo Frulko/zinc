@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""The programs the site's gallery of graded examples runs (ZN-774.36): site-examples [--check] [zinc].
+Every entry of learn/catalog.txt is exported with `zinc export --target web` (the program as JavaScript on the page's own engine, the plugins'
+browser backends) into site/public/play/<name>/, which the gallery's page of that example shows in a frame beside the source. The site's CI has no
+zinc, so the folders are committed: run this after a change to an example, the catalogue or the web target, and commit site/public/play.
+site/public/play/examples.txt keeps, per example, a hash of its sources and the native sides that have no browser backend (W0602: the page says
+the example runs at home only). --check compares the hashes and names the examples changed since (tests/t1/site_examples.sh)."""
+import hashlib, os, re, shutil, subprocess, sys, tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PLAY = os.path.join(ROOT, "site", "public", "play")
+MANIFEST = os.path.join(PLAY, "examples.txt")
+SKIP_DIRS = ("assets", "build", "node_modules", "dist", ".zinc")
+CODE = (".ts", ".tsx", ".js", ".jsx", ".json")
+
+
+def catalog():
+    for line in open(os.path.join(ROOT, "learn", "catalog.txt"), encoding="utf-8"):
+        if line.strip() and not line.startswith("#"):
+            f = line.rstrip("\n").split("|")
+            yield f[0], f[3]
+
+
+def digest(path):   # the files the gallery shows (site/src/data/catalog.ts reads the same ones) and the assets the program loads
+    d, h = os.path.join(ROOT, path), hashlib.sha256()
+    for base, dirs, files in os.walk(d):
+        dirs[:] = sorted(x for x in dirs if x not in SKIP_DIRS[1:])
+        for f in sorted(files):
+            p = os.path.join(base, f)
+            h.update(os.path.relpath(p, d).encode() + b"\0" + open(p, "rb").read() + b"\0")
+    return h.hexdigest()[:16]
+
+
+def main():
+    args = sys.argv[1:]
+    if args[:1] == ["--check"]:
+        old = {l.split()[0]: l.split()[1] for l in open(MANIFEST) if not l.startswith("#")} if os.path.exists(MANIFEST) else {}
+        stale = [n for n, p in catalog() if old.get(n) != digest(p)]
+        if stale: print("site-examples: changed since the last export: %s (run tools/site-examples, commit site/public/play)" % " ".join(stale)); return 1
+        return 0
+    zinc = args[0] if args else os.path.join(ROOT, "build", "zinc")
+    tmp = tempfile.mkdtemp()
+    try:
+        lines = []
+        shutil.rmtree(PLAY, ignore_errors=True)
+        os.makedirs(PLAY)
+        for name, path in catalog():
+            # a copy: a sketch of app/atelier/examples has no zinc.json of its own and would take Atelier's (which requires the file system)
+            src = os.path.join(tmp, "src", name)
+            shutil.copytree(os.path.join(ROOT, path), src, ignore=shutil.ignore_patterns(*SKIP_DIRS[1:]))
+            out = os.path.join(PLAY, name)
+            r = subprocess.run([zinc, "export", src, "--target", "web", "-o", out], capture_output=True, text=True)
+            if r.returncode != 0: print("site-examples: %s: the export failed\n%s" % (name, r.stderr[-800:])); return 1
+            for base, _, files in os.walk(out):   # the host compresses; the folder is served by the site, not by itself
+                for f in files:
+                    if f.endswith((".br", ".gz")) or (base == out and f in ("serve.py", "README.txt", "_headers")): os.remove(os.path.join(base, f))
+            missing = sorted(set(re.findall(r"W0602: the native side '([^']+)'", r.stderr)))
+            lines.append("%s %s%s\n" % (name, digest(path), "".join(" " + m for m in missing)))
+        open(MANIFEST, "w").write("# name, hash of its sources, the native sides with no browser backend (tools/site-examples)\n" + "".join(lines))
+        print("site-examples: %d examples in site/public/play%s" % (len(lines), "".join("; %s runs at home only (%s)" % (l.split()[0], ", ".join(l.split()[2:])) for l in lines if len(l.split()) > 2)))
+        return 0
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+sys.exit(main())

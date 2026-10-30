@@ -1,0 +1,36 @@
+# name, hash of its sources, the native sides with no browser backend (tools/site-examples)
+hello e0abea9d0cc12bb0
+01-window-and-shape 0af88c9698222a46
+shapes c1ecc9851b1b75d3
+02-colours-and-movement 110451b771790a3d
+animation 44870cea879fa5cc
+03-keyboard b29fbca9512e64a3
+keys 3f46ef97b826de5b
+04-mouse-and-touch 2a838e86b1ad5afb
+pointer f8e12294298dd3a3
+text 7690014c58180f97
+05-text-and-images 933a84e5b4ba1ac3
+06-sound 156b16c9f23a3470
+sound 2fd6e872048633f1
+bounce-drawing 79595cb685a01772
+bouncing-ball 1fcbee30466fb36c
+3d c06d889b36e52c45 Render3D
+breakout 3f05cd97ff153eac
+13-a-stage-and-a-sprite 399e2c4e6a18a318
+bounce-scene d3b584facbe1f9e9
+14-children-and-local-coordinates 3692323388d66b84
+15-taps-and-drags 4b3037faf7971520
+16-layout-and-scrolling f2404d09d77391cc
+17-paths-and-fills 31028ee91547b2f7
+bounce-canvas 0abc8da8748d1e7a
+18-transforms 72ead66ad199c05a
+19-animation 6f738491f11470b9
+20-text-and-gradients 3571a2e187e3f6e9
+interface f314d767abb11349
+07-components b81d7eec20bbd13c
+bounce-interface 808c6a52983d6e96
+08-state 0c16cd0fbfa02f19
+09-events f5fb07d77ef6877c
+10-styles 7a954f913b0f1713
+11-drawing-in-an-interface 2e0c850567205304
+12-a-small-app fc12da70057e1c29

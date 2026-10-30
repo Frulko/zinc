@@ -1,0 +1,58 @@
+---
+import Base from '../../layouts/Base.astro';
+import { examples, modules, stars } from '../../data/catalog';
+const b = import.meta.env.BASE_URL;
+---
+<Base title="Examples" description="The graded examples of Zinc, from one star (the first hour) to four (a whole program): each one runs in the browser beside its source.">
+  <div class="wrap page-head">
+    <span class="eyebrow">Examples</span>
+    <h1>Learn from small programs</h1>
+    <p class="lead">One idea per example, graded from ★☆☆☆ (the first hour) to ★★★★ (a whole program to read). Open one: it runs here, its source beside it. At home: <code>zinc examples</code>.</p>
+  </div>
+  <div class="wrap" style="padding-bottom:72px">
+    <div class="ex-filters" role="group" aria-label="Filter the examples">
+      <span><button type="button" class="chip on" data-module="">All</button>{modules.map((m) => <button type="button" class="chip" data-module={m}>{m}</button>)}</span>
+      <span><button type="button" class="chip on" data-stars="">Any grade</button>{[1, 2, 3, 4].map((n) => <button type="button" class="chip" data-stars={String(n)} aria-label={`${n} stars`}>{stars(n)}</button>)}</span>
+    </div>
+    <ul class="ex-list" id="ex-list">
+      {examples.map((e) => (
+        <li data-module={e.module} data-stars={String(e.stars)}>
+          <a href={`${b}examples/${e.name}/`}><b>{e.title}</b><span class="ex-stars" aria-label={`${e.stars} stars`}>{stars(e.stars)}</span></a>
+          <p>{e.line}</p>
+          <small>{e.module} · <code>{e.name}</code></small>
+        </li>
+      ))}
+    </ul>
+    <p id="ex-none" hidden>No example matches.</p>
+  </div>
+  <style>
+    .ex-filters { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-bottom: 24px; }
+    .ex-filters span { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { background: var(--surface); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; font: 500 .9rem var(--sans); cursor: pointer; }
+    .chip.on { background: var(--accent-soft); color: var(--ink); border-color: var(--accent-text); }
+    .ex-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 14px; }
+    .ex-list li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+    .ex-list a { display: flex; justify-content: space-between; gap: 8px; color: var(--ink); }
+    .ex-list p { margin: 6px 0; color: var(--muted); font-size: .92rem; }
+    .ex-list small { color: var(--muted); }
+    .ex-stars { color: var(--accent-2); white-space: nowrap; font-size: .85rem; }
+  </style>
+  <script is:inline>
+    (function () {
+      var f = { module: '', stars: '' };
+      document.querySelectorAll('.ex-filters .chip').forEach(function (c) {
+        c.onclick = function () {
+          var k = 'module' in c.dataset ? 'module' : 'stars';
+          f[k] = c.dataset[k];
+          document.querySelectorAll('.chip[data-' + k + ']').forEach(function (o) { o.classList.toggle('on', o === c); });
+          var shown = 0;
+          document.querySelectorAll('#ex-list li').forEach(function (li) {
+            var ok = (!f.module || li.dataset.module === f.module) && (!f.stars || li.dataset.stars === f.stars);
+            li.hidden = !ok; if (ok) shown++;
+          });
+          document.getElementById('ex-none').hidden = shown > 0;
+        };
+      });
+    })();
+  </script>
+</Base>

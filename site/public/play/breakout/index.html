@@ -1,12 +1,28 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>breakout · Zinc in the browser</title>
-<style>html,body{margin:0;background:#111318;color:#ECE8DF;font:15px system-ui,sans-serif;text-align:center}canvas{display:block;margin:24px auto 8px;width:min(96vw,960px);height:auto;image-rendering:pixelated;border-radius:12px;outline:none}a{color:#C8F25A}pre{color:#9AA0A8;white-space:pre-wrap}</style></head>
-<body><canvas id="c" width="480" height="320" tabindex="0"></canvas>
-<p>Arrow keys, Space, or the mouse. <a href="../../demos/">All demos</a></p><pre id="log"></pre>
-<script>
-if (crossOriginIsolated) import('./app.js');
-else if ('serviceWorker' in navigator && !sessionStorage.zincCoi) {
-  sessionStorage.zincCoi = '1';
-  navigator.serviceWorker.register('../coi-sw.js').then(() => location.reload());
-} else document.getElementById('log').textContent = 'This page needs a browser with service workers and SharedArrayBuffer.';
-</script></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>breakout</title>
+<meta name="theme-color" content="#111111">
+<link rel="icon" href="data:,">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="modulepreload" href="zinc.e525243356.js">
+<link rel="modulepreload" href="app.8d990d69d1.js">
+<link rel="modulepreload" href="native.95b2e008ab.js">
+<style>html,body{margin:0;height:100%;background:#ffffff;overscroll-behavior:none}#zinc-root{position:fixed;inset:0;overflow:hidden;outline:none}#zinc-splash{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:16px system-ui,sans-serif;color:#888;pointer-events:none}#zinc-progress{width:min(240px,50vw);height:4px;accent-color:#111111}</style>
+<script type="importmap">{"imports":{"zinc:native":"./native.95b2e008ab.js"}}</script>
+</head>
+<body>
+<div id="zinc-root" tabindex="-1"></div>
+<div id="zinc-splash"><progress id="zinc-progress" max="100" value="0" aria-label="loading"></progress></div>
+<script>if(location.protocol==='file:'){var z=document.getElementById('zinc-splash');z.style.cssText+=';pointer-events:auto;text-align:center;padding:24px;color:#444';z.textContent='This app cannot start from a file: browsers refuse ES modules there. Run python3 serve.py in this folder (or any static web server) and open the address it prints.'}</script>
+<noscript>This app needs JavaScript.</noscript>
+<script nomodule>document.body.textContent='This browser is too old for this app (it needs ES modules and import maps).'</script>
+<script id="zinc-config" type="application/json">{"name":"breakout","id":"breakout","title":"breakout","version":"0.1.0","render":"canvas","scroll":"app","entry":"./app.8d990d69d1.js","unsupported":[],"wasm":[],"scripts":{},"fonts":[],"assets":[{"name":"assets/kenney/License.txt","url":"assets/kenney/License.1b937a994f.txt","size":540},{"name":"assets/kenney/SOURCE.txt","url":"assets/kenney/SOURCE.524fcee8f7.txt","size":180},{"name":"assets/kenney/ballGrey.png","url":"assets/kenney/ballGrey.f03c9c2ad5.png","size":495,"image":true},{"name":"assets/kenney/element_blue_rectangle_glossy.png","url":"assets/kenney/element_blue_rectangle_glossy.c09fd6660f.png","size":490,"image":true},{"name":"assets/kenney/element_green_rectangle_glossy.png","url":"assets/kenney/element_green_rectangle_glossy.00bd57d3af.png","size":481,"image":true},{"name":"assets/kenney/element_grey_rectangle_glossy.png","url":"assets/kenney/element_grey_rectangle_glossy.97d4447803.png","size":400,"image":true},{"name":"assets/kenney/element_purple_rectangle_glossy.png","url":"assets/kenney/element_purple_rectangle_glossy.e0f858d2c3.png","size":470,"image":true},{"name":"assets/kenney/element_red_rectangle.png","url":"assets/kenney/element_red_rectangle.8d62d5884f.png","size":247,"image":true},{"name":"assets/kenney/element_red_rectangle_glossy.png","url":"assets/kenney/element_red_rectangle_glossy.2bb01eb4fa.png","size":478,"image":true},{"name":"assets/kenney/element_yellow_rectangle.png","url":"assets/kenney/element_yellow_rectangle.5d4f798a1c.png","size":256,"image":true},{"name":"assets/kenney/element_yellow_rectangle_glossy.png","url":"assets/kenney/element_yellow_rectangle_glossy.9b6954e205.png","size":489,"image":true},{"name":"assets/kenney/paddleRed.png","url":"assets/kenney/paddleRed.83d8f4b9d7.png","size":578,"image":true},{"name":"assets/kenney/particleSmallStar.png","url":"assets/kenney/particleSmallStar.fdb7b62a45.png","size":173,"image":true}]}</script>
+<script type="module" src="zinc.e525243356.js"></script>
+<script>if('serviceWorker' in navigator&&isSecureContext)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))</script>
+</body>
+</html>

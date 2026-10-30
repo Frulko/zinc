@@ -1,0 +1,61 @@
+---
+// One graded example: the program running in a frame (public/play/<name>/, its web export by tools/site-examples), its source beside it.
+import Base from '../../layouts/Base.astro';
+import { examples, sources, stars } from '../../data/catalog';
+import { strings } from '../../i18n';
+export function getStaticPaths() { return examples.map((e) => ({ params: { name: e.name }, props: { e } })); }
+const { e } = Astro.props;
+const b = import.meta.env.BASE_URL, s = strings('en');
+const files = sources(e);
+const run = `zinc run example:${e.name}`, copy = `zinc new my-${e.name} --from example:${e.name}`;
+---
+<Base title={e.title} description={`${e.line} A Zinc example (${e.module}), running in the browser beside its source.`}>
+  <div class="wrap page-head">
+    <span class="eyebrow"><a href={`${b}examples/`}>Examples</a> · {e.module} · <span class="ex-stars" aria-label={`${e.stars} stars`}>{stars(e.stars)}</span></span>
+    <h1>{e.title}</h1>
+    <p class="lead">{e.line}{e.lessonPage && <> Lesson <a href={`${b}docs/learn/${e.lessonPage}/`}>{e.lesson}</a> explains it.</>}</p>
+  </div>
+  <div class="wrap ex-play">
+    <div class="ex-run">
+      {e.missing.length === 0
+        ? <div class="ex-frame" style={`aspect-ratio:${e.width}/${e.height}`} data-w={e.width}>
+            <iframe id="ex-app" src={`${b}play/${e.name}/`} title={e.title} width={e.width} height={e.height} allow="autoplay; fullscreen"></iframe>
+          </div>
+        : <p class="ex-home">This one runs at home only: its {e.missing.join(', ')} side has no browser version yet.</p>}
+      <p class="ex-hint">Click the program first: it takes the keys, the mouse and touch. <a href={`${b}play/${e.name}/`}>Full page</a></p>
+      <div class="ex-cmd"><code>{run}</code><button class="copy" type="button" data-copy={run}>{s.copy}</button></div>
+      <div class="ex-cmd"><code>{copy}</code><button class="copy" type="button" data-copy={copy}>{s.copy}</button></div>
+    </div>
+    <div class="ex-src">
+      {files.map((f) => (
+        <figure>
+          <figcaption><code>{f.file}</code><button class="copy" type="button" data-copy={f.text}>{s.copy}</button></figcaption>
+          <pre><code>{f.text}</code></pre>
+        </figure>
+      ))}
+    </div>
+  </div>
+  <style>
+    .ex-play { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; padding-bottom: 72px; align-items: start; }
+    @media (max-width: 860px) { .ex-play { grid-template-columns: minmax(0, 1fr); } }
+    @media (min-width: 861px) { .ex-run { position: sticky; top: 76px; } }
+    .ex-frame { position: relative; overflow: hidden; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); }
+    .ex-frame iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; }
+    .ex-home { padding: 24px; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); }
+    .ex-hint { color: var(--muted); font-size: .88rem; margin: 8px 0; }
+    .ex-cmd, .ex-src figcaption { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+    .ex-cmd code { overflow-x: auto; white-space: nowrap; }
+    .ex-src figure { margin: 0 0 18px; }
+    .ex-src pre { margin: 0; max-height: 70vh; font-size: .82rem; }
+    .ex-stars { color: var(--accent-2); }
+  </style>
+  <script is:inline>
+    // the program keeps the window size it was written for; the frame scales it to the column
+    (function () {
+      var box = document.querySelector('.ex-frame'); if (!box) return;
+      var f = box.querySelector('iframe'), w = Number(box.dataset.w);
+      function fit() { f.style.transform = 'scale(' + box.clientWidth / w + ')'; }
+      fit(); addEventListener('resize', fit);
+    })();
+  </script>
+</Base>
