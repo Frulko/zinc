@@ -1,7 +1,8 @@
 // A virtual list whose rows are components (tests/t0/virtual_rows.sh): scrolled over 2,000 rows and back, then rendered again, it keeps
 // the instances of the rows it shows only: a row that scrolls out is unmounted (componentWillUnmount runs), as a list rendered again
-// unmounts the rows it made before.
-import { render, useRef, useState, MutableRef, Component } from 'zinc:ui/react';
+// unmounts the rows it made before. A list whose component is replaced (another key) goes with its rows (they unmount too) and with its
+// onScroll handler (the handle of a new node must not call it).
+import { render, useRef, useState, useEffect, MutableRef, Component } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
 import { quit } from 'zinc:gfx';
 
@@ -14,11 +15,19 @@ class Row extends Component<{ i: i32 }, i32> {
 }
 let list: MutableRef<i32> | null = null;
 let again: (n: i32) => void = (n: i32): void => {};
-function App() {
+let swap: (n: i32) => void = (n: i32): void => {};
+let oldScrolls = 0;
+function Rows(p: { v: i32, k: i32 }) {
   const ref = useRef<i32>(-1);
+  list = ref;
+  useEffect((): void => { const k = p.k; ui.onScroll(ref.current, (e: ui.ResponderEvent, g: ui.GestureState): void => { if (k === 1 && frame > 416) oldScrolls++; }); }, []);
+  return <VirtualList ref={ref} count={2000} itemHeight={24} className="h-[120]">{(i: i32) => <Row i={i + p.v * 0} />}</VirtualList>;
+}
+function App() {
   const [v, setV] = useState<i32>(0);
-  list = ref; again = setV;
-  return <VirtualList ref={ref} count={2000} itemHeight={24} className="h-[120]">{(i: i32) => <Row i={i + v * 0} />}</VirtualList>;
+  const [k, setK] = useState<i32>(0);
+  again = setV; swap = setK;
+  return <View className="grow">{k >= 0 ? <Rows key={`list${k}`} v={v} k={k} /> : null}</View>;
 }
 let frame = 0, rows = 0;
 render(App, 0x000000, (dt: number): void => {
@@ -32,6 +41,16 @@ render(App, 0x000000, (dt: number): void => {
   if (frame === 410) {
     console.log(`rows mounted as at the start: ${mounted === rows && rows > 0}`);
     console.log(`rows made over the scroll: ${made > 1000}`);
+    swap(1);                                                                              // another list in its place
+  }
+  if (frame === 415) {
+    console.log(`a replaced list unmounts its rows: ${mounted === rows}`);
+    swap(-1);                                                                             // no list, then another: it takes the freed handles
+  }
+  if (frame === 417) swap(2);
+  if (frame === 419) ui.scrollTo(r.current, 0, 480);                                       // and it scrolls
+  if (frame === 422) {
+    console.log(`its onScroll is gone: ${oldScrolls === 0}`);
     quit();
   }
 });

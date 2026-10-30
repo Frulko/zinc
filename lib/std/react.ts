@@ -72,6 +72,9 @@ function unmount(inst: Instance): void {
   if (c !== null) { c.componentWillUnmount(); c.inst = null; }
   for (const h of inst.hooks) if (h instanceof EffectHook) { const c = h.cleanup; if (c !== null) c(); }
   for (const kid of inst.kids) unmount(kid);
+  // its nodes go with it: kept, a list it showed stayed alive out of the tree, measured its rows at no height and scrolled on its own
+  for (const n of inst.nodes) ui.destroy(n);
+  inst.nodes = []; inst.tags = [];
   inst.hooks = []; inst.kids = []; inst.render = () => -1; inst.dead = true;
 }
 /** Next host node of the component being rendered: reused when the previous render had the same tag there. */

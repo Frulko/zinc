@@ -596,6 +596,12 @@ function release(h: i32): void {
   const n = node(h);
   if (!n.alive) return;
   if (n.skey !== '') { if (!dropRestore(h)) keepScroll(n); n.skey = ''; }
+  if (scrollWatch.indexOf(h) >= 0) forgetScrolls(h);   // its onScroll goes with it: the handle comes back as another node
+  if (n.virt !== null) {   // a virtual list goes with its rows: what they made is let go as when they scroll out
+    const v = n.virt as Virtual, d = v.drop;
+    n.virt = null;
+    if (d !== null) v.rows.forEach((row: i32, i: i32) => { d(row); });
+  }
   for (const c of n.children) release(c);
   if (n.rn !== null) {
     LY.destroy(h); n.rn = null;
@@ -919,6 +925,9 @@ const scrollWatch: i32[] = [], scrollFns: ResponderHandler[] = [], scrollSeen: n
 const noGesture = new GestureState();
 /** onScroll: f gets nativeEvent.contentOffset once per frame in which the offset of scroll node h moved. */
 export function onScroll(h: i32, f: ResponderHandler): void { scrollWatch.push(h); scrollFns.push(f); scrollSeen.push(node(h).sx); scrollSeen.push(node(h).sy); }
+function forgetScrolls(h: i32): void {
+  for (let i = scrollWatch.length - 1; i >= 0; i--) if (scrollWatch[i] === h) { scrollWatch.splice(i, 1); scrollFns.splice(i, 1); scrollSeen.splice(2 * i, 2); }
+}
 function fireScrolls(): void {
   for (let i = 0; i < scrollWatch.length; i++) {
     const n = nodes[scrollWatch[i]];
