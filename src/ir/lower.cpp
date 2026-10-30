@@ -11,6 +11,7 @@
 #include <unordered_map>
 
 #include "frontend/check.h"
+#include "frontend/inspect.h"
 #include "ir/ir.h"
 #include "zn/native_sig.h"
 
@@ -1016,6 +1017,32 @@ struct Lowering::FnLower {
   }
   ValueId constBool(bool b) { return emit(IrOp::Const, m.boolT(), {}, b ? 1 : 0); }
   ValueId constStr(const std::string& s) { return emit(IrOp::Const, m.strT(), {}, L.internStr(s)); }
+  // o.constructor.name: the name of the object's class at run time, tested from the most derived class of the closed world down to its static one
+  ValueId className(std::uint32_t objNode) {
+    const std::uint32_t obj = c.types[c.nodeType[objNode]].obj;
+    const ValueId v = expr(objNode);
+    auto nameOf = [&](std::uint32_t o) { const frontend::ObjInfo& oi = c.objs[o]; return oi.isRecord ? std::string("Object") : oi.name.substr(0, oi.name.find('<')); };
+    std::vector<std::uint32_t> cands;
+    for (std::uint32_t o : frontend::implementations(c, obj)) if (L.classOfObj[o] != kNil) cands.push_back(o);
+    if (c.objs[obj].isRecord || cands.empty()) return constStr(nameOf(obj));
+    BlockId join = newBlock();
+    ValueId jp = newValue(m.strT());
+    f.blocks[join].params.push_back(jp);
+    const bool last = c.objs[obj].isInterface || c.objs[obj].isAbstract;   // no instance of the static class itself: the last candidate is what is left
+    for (std::size_t k = 0; k < cands.size(); ++k) {
+      if (last && k + 1 == cands.size()) { br(join, {constStr(nameOf(cands[k]))}); break; }
+      BlockId hit = newBlock(), next = newBlock();
+      condbr(emit(IrOp::InstOf, m.boolT(), {v}, 0, 0, L.classOfObj[cands[k]]), hit, next);
+      sealed[hit] = sealed[next] = 1;
+      cur = hit;
+      br(join, {constStr(nameOf(cands[k]))});
+      cur = next;
+      if (k + 1 == cands.size()) br(join, {constStr(nameOf(obj))});
+    }
+    seal(join);
+    cur = join;
+    return jp;
+  }
   ValueId coerce(ValueId v, TypeId to) {
     if (v == kNoValue || tv(v) == to) return v;
     if (ty(tv(v)).k == Type::K::Num && ty(to).k == Type::K::Num) return emit(IrOp::Conv, to, {v});
@@ -1674,6 +1701,7 @@ struct Lowering::FnLower {
       case N::New: return newObject(i, x);
       case N::Member: {
         const Node& on = n(x.kids[0]);
+        if (x.text == "name" && on.kind == N::Member && on.text == "constructor" && !(on.flags & frontend::kFlagOptional)) return className(on.kids[0]);
         std::uint32_t os = on.kind == N::Ident ? c.nodeSym[x.kids[0]] : kNil;
         if (os != kNil && c.syms[os].kind == SymKind::Builtin) {
           return constNum(m.numT(static_cast<NumK>(frontend::numberAlias())), x.text == "PI" ? 3.14159265358979323846 : 2.71828182845904523536);
@@ -1833,6 +1861,32 @@ struct Lowering::FnLower {
     return emit(IrOp::Call, cf.ret, std::move(vs), 0, 0, fn);
   }
 
+  // __dynSub<t>(v) (dyn.cpp): the `any` view of the subclass of t that v is an instance of, most derived first; v of t itself: the call
+  // as written (undefined), and the caller makes t's own view
+  ValueId dynSubView(frontend::TypeId t, const Node& x, std::uint32_t fallback) {
+    const ValueId v = expr(x.kids[1]);
+    const TypeId ret = m.functions[fallback].ret;
+    BlockId join = newBlock();
+    ValueId jp = newValue(ret);
+    f.blocks[join].params.push_back(jp);
+    for (std::uint32_t so : frontend::implementations(c, c.types[t].obj)) {
+      auto to = c.dynTos.end();
+      for (auto it = c.dynTos.begin(); it != c.dynTos.end(); ++it) if (c.types[it->first].k == frontend::TK::Object && c.types[it->first].obj == so) { to = it; break; }
+      const std::uint32_t cls = L.classOfObj[so];
+      if (to == c.dynTos.end() || cls == kNil || !L.funcOfNode.count(to->second)) continue;
+      const std::uint32_t fn = L.funcOfNode[to->second];
+      BlockId hit = newBlock(), next = newBlock();
+      condbr(emit(IrOp::InstOf, m.boolT(), {v}, 0, 0, cls), hit, next);
+      sealed[hit] = sealed[next] = 1;
+      cur = hit;
+      br(join, {coerce(emit(IrOp::Call, m.functions[fn].ret, {emit(IrOp::RefCast, m.refT(cls), {v})}, 0, 0, fn), ret)});
+      cur = next;
+    }
+    br(join, {emit(IrOp::Call, ret, {v}, 0, 0, fallback)});
+    seal(join);
+    cur = join;
+    return jp;
+  }
   ValueId builtin(Builtin b, std::vector<ValueId> args, TypeId ret) { return emit(IrOp::Builtin, ret, std::move(args), 0, 0, static_cast<std::uint32_t>(b)); }
 
   // The IR type a letter of the runtime table (zn/runtime.h) stands for, given the receiver's IR type.
@@ -1959,6 +2013,7 @@ struct Lowering::FnLower {
     }
     if (callee.kind == N::Ident) {
       std::uint32_t s = c.nodeSym[x.kids[0]];
+      if (s != kNil && c.syms[s].kind == SymKind::Func) if (auto ds = c.dynSubs.find(c.syms[s].decl); ds != c.dynSubs.end()) return dynSubView(ds->second, x, L.funcOfNode[c.syms[s].decl]);
       if (s != kNil && c.syms[s].kind == SymKind::Func && !L.closureFns.count(c.syms[s].decl)) return callFunction(L.funcOfNode[c.syms[s].decl], {}, x.kids, 1);
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__jsonOut") return emit(IrOp::Rt, m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(zn::Rt::JsonOut));
       if (s != kNil && c.syms[s].kind == SymKind::Builtin && callee.text == "__jsonQuoteNative") return emit(IrOp::Rt, m.strT(), {expr(x.kids[1])}, 0, 0, static_cast<std::uint32_t>(zn::Rt::StrJsonQuote));

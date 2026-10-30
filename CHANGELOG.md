@@ -247,6 +247,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- `o.constructor.name` gives the name of the object's class on every engine (it was refused with Z0106), and an `any` that holds an object of a subclass reads and writes that subclass's own fields, as JavaScript does, even when a library module made the `any` from the base class.
 - `zinc dev` runs a project whose `zinc.json` says `"engine": "quickjs"` on QuickJS, as `zinc run` does, instead of the interpreter (which refused examples/fatty's circular imports).
 - Zinc Inspector opens in a 1280×800 window that resizes, instead of a 320×240 one blown up to fit.
 - Modules that import each other's types (`import type` both ways, or a module whose types the entry it is imported by declares) check as TypeScript does, instead of failing with `Cannot find name` or `is not exported`.

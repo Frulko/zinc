@@ -16,6 +16,9 @@ std::string inspectLogName(TypeId t);    // __log<id>: (v) => string, the functi
 std::string inspectAliasName(TypeId t);  // __T<id>
 std::string inspectClassName(TypeId t);  // __C<id>: the class, for instanceof
 
+// The concrete classes that can be the dynamic type of a value of class or interface `obj`, most derived first.
+std::vector<std::uint32_t> implementations(const Checked& c, std::uint32_t obj);
+
 // Helpers shared by every formatter (quoting, grouping, line breaking), as source text.
 const char* inspectPrelude();
 

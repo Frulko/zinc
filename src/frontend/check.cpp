@@ -1170,8 +1170,31 @@ struct Checker {
     declareSource(text, at);
     std::uint32_t sym = (*genScope)[keep(to ? dynToName(t) : dynFromName(t))];
     restoreCtx(sv);
-    for (auto& u : closure) dynSyms[u] = (*genScope)[keep(u.second ? dynToName(u.first) : dynFromName(u.first))];
+    for (auto& u : closure) {
+      dynSyms[u] = (*genScope)[keep(u.second ? dynToName(u.first) : dynFromName(u.first))];
+      if (!u.second) continue;
+      out.dynTos[u.first] = out.syms[dynSyms[u]].decl;
+      if (auto sub = genScope->find(keep(dynSubName(u.first))); sub != genScope->end()) { out.dynSubs[out.syms[sub->second].decl] = u.first; dynSubAt[u.first] = at; }
+    }
     return sym;
+  }
+  // The `any` view of an object is its own class's (JavaScript reads the object): each class's __dynTo calls __dynSub, which the lowering turns
+  // into the view of the subclass the object is an instance of. A subclass can be declared after its base's view was made (a library module is
+  // checked before the program's classes): once every module is checked, every subclass of those classes gets its view.
+  std::map<TypeId, std::uint32_t> dynSubAt;   // class type -> a node where its view was asked
+  void finishDynViews() {
+    std::vector<std::function<void()>> late;
+    auto* sd = defer;
+    defer = &late;
+    for (bool more = true; more;) {
+      more = false;
+      for (auto [t, at] : std::map<TypeId, std::uint32_t>(dynSubAt))
+        for (std::uint32_t so : implementations(out, ty(t).obj))
+          if (!dynSyms.count({objType(so), true})) { dynSym(objType(so), true, at); more = true; }
+      for (std::size_t k = 0; k < late.size(); ++k) late[k]();   // the bodies, which may ask for more views
+      late.clear();
+    }
+    defer = sd;
   }
   // The node `node` becomes a call of `sym` on a copy of what it was.
   void wrapNode(std::uint32_t node, std::uint32_t sym) {
@@ -2716,6 +2739,16 @@ struct Checker {
             if (m->method && i != calleeNode) out.staticMethodValueUses.push_back(i);   // Easing.inOut(Easing.ease): a static method passed as a function
             return m->type;
           }
+        }
+        if (x.text == "name" && on.kind == N::Member && on.text == "constructor" && !(on.flags & kFlagOptional)) {   // o.constructor.name: the class of the object, read at run time
+          TypeId ct = expr(on.kids[0]);
+          if (bad(ct)) return tError;
+          if (ty(ct).k != TK::Object || out.objs[ty(ct).obj].isTuple || out.objs[ty(ct).obj].isTemplate) {
+            diag(kZUnsupported, i, "'constructor.name' of '" + name(ct) + "': only an object of a class has one");
+            return tError;
+          }
+          out.nodeType[x.kids[0]] = tStr;   // the node `o.constructor` has no type of its own; the lowering reads the object under it
+          return tStr;
         }
         bool exemptHere = pendingExempt;
         pendingExempt = false;  // only the property being written is exempt, not the object it is read from
@@ -5231,6 +5264,7 @@ struct Checker {
       push();
       topList = &n(a.root).kids;
       stmtList(*topList);
+      finishDynViews();
       pop();
       pop();
       return;
@@ -5365,6 +5399,7 @@ struct Checker {
       for (std::uint32_t mi : c) complete(complete, mi);
     }
     scopes = base;
+    finishDynViews();
     pop();
   }
 };

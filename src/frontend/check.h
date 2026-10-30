@@ -107,6 +107,10 @@ struct Checked {
   // Numeric enums: members and values per enum symbol; the enum's type is i32.
   std::unordered_map<std::uint32_t, std::vector<std::pair<std::string, std::int64_t>>> enumMembers;
   std::vector<std::string> enumNames;  // an enum's type is an i32 Type with obj = 1 + its index here: assignable only from itself
+  // The `any` view of an object (dyn.cpp): a __dynSub<t> declaration node -> its class type t, whose calls the lowering turns into the view of
+  // the subclass the object is an instance of, through dynTos (type -> declaration node of its __dynTo<t>).
+  std::unordered_map<std::uint32_t, TypeId> dynSubs;
+  std::unordered_map<TypeId, std::uint32_t> dynTos;
 };
 
 // Checks the program. Generic declarations are instantiated by cloning their nodes into `ast`.

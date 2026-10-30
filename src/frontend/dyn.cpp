@@ -65,6 +65,7 @@ bool convertibleRec(const Checked& c, TypeId t, std::set<TypeId>& seen) {
 
 std::string dynToName(TypeId t) { return "__dynTo" + std::to_string(t); }
 std::string dynFromName(TypeId t) { return "__dynFrom" + std::to_string(t); }
+std::string dynSubName(TypeId t) { return "__dynSub" + std::to_string(t); }
 
 bool dynConvertible(const Checked& c, TypeId t) {
   std::set<TypeId> seen;
@@ -80,7 +81,7 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
   auto toExpr = [&](TypeId ct, const std::string& v) { return isDynT(ct) ? v : toCall(ct, v); };
   auto fromExpr = [&](TypeId ct, const std::string& v) { return isDynT(ct) ? v : fromCall(ct, v); };
   std::string head = to ? "function " + dynToName(t) + "(v: " + A + "): any {\n" : "function " + dynFromName(t) + "(d: any): " + A + " {\n";
-  std::string body;
+  std::string body, extra;   // extra: a function declared with it (__dynSub)
   switch (x.k) {
     case TK::Num: body = to ? "  return new DynNum(v);\n" : "  return __dynToNum(d);\n"; break;
     case TK::Bool: body = to ? "  return new DynBool(v);\n" : "  return __dynToBool(d);\n"; break;
@@ -133,7 +134,12 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
         get += "    }\n    return __undef;\n  }";
         set += "    }\n  }";
         if (!hasExpr.empty()) has = "(n: string): boolean => " + hasExpr;
-        body = "  const o: " + A + " = v;\n  return new DynRefT<" + A + ">(o, " + tagList + ", '" + cname + "', " + get + ", " + set + ", " + has + ",\n    " +
+        const bool sub = oi.isClass && !oi.isRecord && !oi.isTemplate;
+        if (sub) {   // an instance of a subclass: its own view, with its fields
+          body = "  const sub: any = " + dynSubName(t) + "(v);\n  if (sub.kind() !== 0) return sub;\n";
+          extra = "function " + dynSubName(t) + "(v: " + A + "): any {\n  return __undef;\n}\n";
+        }
+        body += "  const o: " + A + " = v;\n  return new DynRefT<" + A + ">(o, " + tagList + ", '" + cname + "', " + get + ", " + set + ", " + has + ",\n    " +
                (fmtOk ? "(c: i64[], lvl: i32): string => " + inspectFmtName(t) + "(o, c, lvl)" : "(c: i64[], lvl: i32): string => '[Object]'") + ",\n    " +
                (jsonOk ? "(): string => " + jsonName(t) + "(o)" : "(): string => '{}'") + ");\n";
       } else {
@@ -160,7 +166,7 @@ std::string dynConverter(const Checked& c, TypeId t, bool to, std::vector<std::p
     }
     default: body = "  throw new TypeError('no conversion');\n"; break;
   }
-  return head + body + "}\n";
+  return head + body + "}\n" + extra;
 }
 
 const char* dynPrelude() {

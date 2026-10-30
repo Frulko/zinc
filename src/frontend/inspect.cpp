@@ -30,7 +30,8 @@ void fieldsOf(const Checked& c, std::uint32_t obj, std::vector<const Member*>& o
   for (const Member& m : c.objs[obj].members) if (!m.method && !m.isStatic) out.push_back(&m);
 }
 
-// The concrete classes that can be the dynamic type of a value of class or interface `obj`, most derived first.
+}  // namespace
+
 std::vector<std::uint32_t> implementations(const Checked& c, std::uint32_t obj) {
   std::vector<std::uint32_t> r;
   for (std::uint32_t o = 0; o < c.objs.size(); ++o) {
@@ -41,6 +42,8 @@ std::vector<std::uint32_t> implementations(const Checked& c, std::uint32_t obj) 
   std::stable_sort(r.begin(), r.end(), [&](std::uint32_t x, std::uint32_t y) { return depthOf(c, x) > depthOf(c, y); });
   return r;
 }
+
+namespace {
 
 bool isFloatNum(Num n) { return n == Num::f64 || n == Num::f32 || n == Num::fx12 || n == Num::fx16; }
 
