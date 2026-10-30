@@ -319,6 +319,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- A plugin linked into a project's `plugins/` (a symbolic link to a plugin elsewhere) builds its native code where it lives, so its includes of neighbouring files are found.
 - A class field initialised from a constant imported from another module (`key = PTT_KEY`) gets its type, instead of error Z0109 asking for an annotation.
 - On the Raspberry Pi image, an app started from the player is one `zinc device` knows: `apps` shows it running, `logs` reads its output and `stop` ends it (the player comes back, with no crash page).
 - The Raspberry Pi player no longer keeps a core busy on its home screen: its animation draws 12 frames a second and stops after a minute without a touch (it used a whole core of a Pi 3 and could trip its under-voltage limit); it reads the update status only in the settings.
