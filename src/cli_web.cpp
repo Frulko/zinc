@@ -907,7 +907,7 @@ except KeyboardInterrupt: pass
   }
   std::printf("web: %s render, %zu file(s), %s (javascript %s, gzip %s%s)%s\n", cm.cfg.render.c_str(), out.size(), humanKb(total).c_str(), humanKb(js).c_str(), gz ? humanKb(gz).c_str() : "-",
               br ? (", brotli " + humanKb(br)).c_str() : "", pwa ? ", offline cache" : "");
-  zn::log::step("next", zn::log::shortPath((fs::absolute(outDir) / "serve.py").string()) + ", then open the address it prints; or copy the folder to a static host");
+  std::fflush(stdout); zn::log::step("next", zn::log::shortPath((fs::absolute(outDir) / "serve.py").string()) + ", then open the address it prints; or copy the folder to a static host");
   std::printf("%s\n", outDir.string().c_str());
   return 0;
 }
