@@ -41,7 +41,7 @@ NXT = os.path.dirname(HERE)
 REPO = NXT
 ZINC = os.environ.get("ZINC", os.path.join(NXT, "build", "zinc"))
 OUT = os.path.join(REPO, "docs", "reports", "bench")
-SCENES = ["fill_opaque", "fill_blend", "quads_10k", "rounded_shadow", "gradients", "text_static", "text_churn", "clip_nested", "poly", "scroll_list", "image_update", "image_fill_only", "image_upload_only", "damage_small",
+SCENES = ["fill_opaque", "fill_blend", "quads_10k", "rounded_shadow", "gradients", "text_static", "text_churn", "clip_nested", "poly", "scroll_list", "image_update", "card_small", "card_big", "card_zoom", "image_fill_only", "image_upload_only", "damage_small",
           "ui_scroll_fling", "ui_scroll_wheel", "ui_anim_transform", "ui_anim_layout", "ui_list_update"]
 SUITES = {
     "render": {"project": os.path.join(NXT, "tests", "bench", "render_suite"), "app_id": "dev.zinc.bench.rendersuite", "name": "render_suite", "scenes": SCENES, "devices": ["mac", "android", "webos", "ios", "pi", "agent"]},

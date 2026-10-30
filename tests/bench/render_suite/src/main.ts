@@ -2,7 +2,7 @@
 // deterministic (seeded, driven by the frame number, never by the clock) and draws the same commands on every backend, so a difference between
 // two runs is the renderer's, not the program's. The engine's own profiler measures the frames: ZINC_PROFILE=json ZINC_PROFILE_SKIP=<warm-up>
 // ZINC_FRAMES=<n> (tools/zbench sets them). ZB_SCENE=list prints the ids.
-import { quit, onFrame, clear, rect, rrect, border, shadow, clip, unclip, font, drawText, gradient, line, polygon, width, height, imageFromPixels, updateImage, drawImage, profSection } from 'zinc:gfx';
+import { quit, onFrame, clear, rect, rrect, border, shadow, clip, unclip, font, drawText, gradient, line, polygon, width, height, imageFromPixels, updateImage, drawImage, profSection, setTransform, resetTransform } from 'zinc:gfx';
 import * as sys from 'zinc:sys';
 import { startUi, startUiSequence } from './ui_scenes';
 import { openReport, closeSection } from './report';
@@ -23,7 +23,7 @@ function geometry(): void {
   for (let i = 0; i < N; i++) { qx.push(rnd(W)); qy.push(rnd(H)); qw.push(20 + rnd(40)); qh.push(20 + rnd(40)); qc.push(0x202020 + rnd(0xdfdfdf)); }
 }
 
-const ids: string[] = ['fill_opaque', 'fill_blend', 'quads_10k', 'rounded_shadow', 'gradients', 'text_static', 'text_churn', 'clip_nested', 'poly', 'scroll_list', 'image_update', 'image_fill_only', 'image_upload_only', 'damage_small', 'ui_scroll_fling', 'ui_scroll_wheel', 'ui_anim_transform', 'ui_anim_layout', 'ui_list_update'];
+const ids: string[] = ['fill_opaque', 'fill_blend', 'quads_10k', 'rounded_shadow', 'gradients', 'text_static', 'text_churn', 'clip_nested', 'poly', 'scroll_list', 'image_update', 'card_small', 'card_big', 'card_zoom', 'image_fill_only', 'image_upload_only', 'damage_small', 'ui_scroll_fling', 'ui_scroll_wheel', 'ui_anim_transform', 'ui_anim_layout', 'ui_list_update'];
 
 // texture upload: one 256 x 256 image changes every frame (a GPU display uploads only that image), drawn four times
 const pix: u8[] = [];
@@ -32,6 +32,23 @@ let img = -1;
 
 // every frame differs from the one before by one colour bit, so the whole frame is damaged and repainted (the worst case a screen can ask)
 function bg(c: number, f: number): number { return c ^ (f & 1); }
+
+// a photo card of examples/museum-table (a shadow, the paper, a 1024 x 768 photo), turned, drawn through one transform at `k` screens wide
+let photo = -1;
+function card(f: number, k: number): void {
+  clear(bg(0x30302c, f));
+  if (photo < 0) {
+    const px: u8[] = [];
+    for (let y = 0; y < 768; y++) for (let x = 0; x < 1024; x++) px.push(((x * 255) / 1024) as u8, ((y * 255) / 768) as u8, ((x ^ y) & 255) as u8, 255);
+    photo = imageFromPixels(px, 1024, 768);
+  }
+  const d = (W * k) / 1044, a = 0.12 + f * 0.001, cos = Math.cos(a) * d, sin = Math.sin(a) * d;
+  setTransform(cos, sin, -sin, cos, W / 2, H / 2);
+  shadow(-522, -381, 1044, 860, 2, 14, 0x000000, 150);
+  rrect(-522, -384, 1044, 860, 2, 0xf4efe6, 255);
+  drawImage(photo, -512, -374, 1024, 768, 255, 0);
+  resetTransform();
+}
 
 function scene(id: string, f: number): void {
   switch (id) {
@@ -81,6 +98,10 @@ function scene(id: string, f: number): void {
       for (let k = 0; k < 4; k++) drawImage(img, 20 + k * 270, 20, 256, 256, 255, 0);
       break;
     }
+    // a turned photo card (museum-table): a third of the screen, twice the screen, and growing from a fifth to three screens wide
+    case 'card_small': card(f, 0.35); break;
+    case 'card_big': card(f, 2); break;
+    case 'card_zoom': card(f, 0.2 + (f % 240) / 240 * 2.8); break;
     case 'image_update': {
       clear(bg(0x202020, f));
       if (img < 0) img = imageFromPixels(pix, 256, 256);

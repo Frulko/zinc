@@ -1111,8 +1111,9 @@ static void xf_text(const Target& t, const Cmd& c, const char* s, const Xf& m) {
   }
 }
 /** The colour and alpha (0..1) of image `res` at (u, v) in [0, 1]: bilinear, or nearest when asked; dyn images are opaque unless they carry alpha. */
-static bool xf_sample(int32_t res, float u, float v, bool nearest, uint32_t& rgb, float& a) {
-  const Dyn* d = dyn_at(res);
+static bool xf_sample_at(const Dyn* d, int32_t res, float u, float v, bool nearest, uint32_t& rgb, float& a);
+static bool xf_sample(int32_t res, float u, float v, bool nearest, uint32_t& rgb, float& a) { return xf_sample_at(dyn_at(res), res, u, v, nearest, rgb, a); }
+static bool xf_sample_at(const Dyn* d, int32_t res, float u, float v, bool nearest, uint32_t& rgb, float& a) {
   int32_t w, h;
   if (d) { if (!d->px) return false; w = d->w; h = d->h; }
   else if (res >= 0 && res < image_count) { w = images[res].w; h = images[res].h; }
@@ -1151,8 +1152,132 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
   const Box ib = image_box(in);
   if (boxed && !(ib.w != 0 && ib.h != 0 && ib.w - ib.w == 0 && ib.h - ib.h == 0 && ib.x - ib.x == 0 && ib.y - ib.y == 0)) return;
   const float ibw = fabsf_(ib.w) * 0.5f, ibh = fabsf_(ib.h) * 0.5f, ibx = ib.x + ib.w * 0.5f, iby = ib.y + ib.h * 0.5f;
-  for (int32_t y = b.y0; y < b.y1; y++)
-    for (int32_t x = b.x0; x < b.x1; x++) {
+  // Each row in three parts (2026-10-31: a turned photo the size of the screen cost a whole frame on a Pi 3): the pixels outside the shape are
+  // skipped, the pixels inside it by a margin (coverage exactly 1 below) take the fast loop, and only the edge goes through the distance per pixel.
+  // The same arithmetic in both: a pixel is the same whichever loop paints it.
+  const float px1 = 1.0f / (m.sc > 1e-6f ? m.sc : 1e-6f);   // one pixel in the shape's units
+  const bool sh = in.kind == SHADOW;
+  const float outer = (sh ? blur : 0.5f * px1) + 2 * px1;   // beyond hw + outer, hh + outer: nothing is painted (d > outer)
+  float inner = -1;                                         // within hw - inner, hh - inner: the whole pixel is inside (-1: no fast loop)
+  if (in.kind == RECT && !in.grad) inner = (r > 0.5f * px1 ? r : 0.5f * px1) + 2 * px1;
+  else if (sh) inner = (r > 0.5f * blur ? r : 0.5f * blur) + 2 * px1;
+  else if (in.kind == BORDER) { const float e = (ri > 0.5f * px1 ? ri : 0.5f * px1) + 2 * px1; if (hw - bw - e > 0 && hh - bw - e > 0) inner = bw + e; }
+  else if (in.kind == IMAGE && !boxed) inner = (r > 0.5f * px1 ? r : 0.5f * px1) + 2 * px1;
+  float ihw = hw - inner, ihh = hh - inner;
+  if (boxed && in.kind == IMAGE) {   // the box's edge and the image's: inside both
+    const float e = (r > 0.5f * px1 ? r : 0.5f * px1) + 2 * px1 + (in.w > in.h ? in.w : in.h) * 1e-4f;
+    if (ib.x <= in.x && ib.y <= in.y && ib.x + ib.w >= in.x + in.w && ib.y + ib.h >= in.y + in.h && ib.w > 0 && ib.h > 0) { inner = e; ihw = hw - e; ihh = hh - e; }
+  }
+  if (inner < 0 || ihw <= 0 || ihh <= 0) inner = -1;
+  // the x (as a real) where lo <= g(x) = A x + B <= hi, intersected with [x0, x1]
+  auto range = [](float A, float B, float lo, float hi, float& x0, float& x1) {
+    if (fabsf_(A) < 1e-12f) { if (B < lo || B > hi) x1 = x0 - 1; return; }
+    float a = (lo - B) / A, c = (hi - B) / A;
+    if (a > c) { const float t = a; a = c; c = t; }
+    if (a > x0) x0 = a;
+    if (c < x1) x1 = c;
+  };
+  uint32_t fill = 0, fill_a = 0;   // RECT and SHADOW: one colour inside
+  if (inner >= 0 && in.kind == RECT) { fill = color_at(in, cx, cy); fill_a = in.alpha; }
+  if (inner >= 0 && sh) { fill = in.c1; fill_a = (uint32_t)(1.0f * in.alpha); }
+  for (int32_t y = b.y0; y < b.y1; y++) {
+    // lx = m.ia (x + 0.5 - e) + m.ic (y + 0.5 - f): a line in x
+    float l0, k0, l1, k1;
+    xf_back(m, 0.5f, y + 0.5f, l0, k0);
+    xf_back(m, 1.5f, y + 0.5f, l1, k1);
+    const float Ax = l1 - l0, Ay = k1 - k0;
+    float o0 = (float)b.x0, o1 = (float)(b.x1 - 1);
+    range(Ax, l0, cx - hw - outer, cx + hw + outer, o0, o1);
+    range(Ay, k0, cy - hh - outer, cy + hh + outer, o0, o1);
+    if (o1 < o0) continue;
+    const int32_t xs = (int32_t)__builtin_floorf(o0) - 1 > b.x0 ? (int32_t)__builtin_floorf(o0) - 1 : b.x0;
+    const int32_t xe = (int32_t)__builtin_ceilf(o1) + 2 < b.x1 ? (int32_t)__builtin_ceilf(o1) + 2 : b.x1;
+    int32_t is = xe, ie = xe;   // the fast part [is, ie)
+    if (inner >= 0) {
+      float i0 = (float)xs, i1 = (float)(xe - 1);
+      range(Ax, l0, cx - ihw, cx + ihw, i0, i1);
+      range(Ay, k0, cy - ihh, cy + ihh, i0, i1);
+      if (i1 >= i0) { is = (int32_t)__builtin_ceilf(i0) + 1; ie = (int32_t)__builtin_floorf(i1); if (is < xs) is = xs; if (ie > xe) ie = xe; if (ie <= is) is = ie = xe; }
+    }
+    for (int32_t x = xs; x < xe; x++) {
+      if (x == is) {
+        uint32_t* row = &at(t, 0, y);
+        switch (in.kind) {
+          case RECT: case SHADOW:
+            if (fill_a >= 255) fill_row(row + is, ie - is, fill);
+            else for (int32_t q = is; q < ie; q++) blend(row[q], fill, fill_a);
+            break;
+          case IMAGE: {
+            const Dyn* dd = dyn_at(in.res);
+            int32_t iw = 0, ih = 0;
+            if (dd) { if (dd->px) { iw = dd->w; ih = dd->h; } } else if (in.res >= 0 && in.res < image_count) { iw = images[in.res].w; ih = images[in.res].h; }
+            if (!boxed && iw > 0 && ih > 0 && ib.w != 0 && ib.h != 0) {
+              // texel position fx = u w - 0.5 is a line in q: bilinear in integers, the weights in 1/256 (within one level of the float sampler)
+              float l0q, k0q;
+              xf_back(m, is + 0.5f, y + 0.5f, l0q, k0q);
+              const float sx = iw / ib.w, sy = ih / ib.h;
+              const float fx0 = (l0q - ib.x) * sx - 0.5f, fy0 = (k0q - ib.y) * sy - 0.5f, dfx = m.ia * sx, dfy = m.ib * sy;
+              const bool nearest = in.grad == 1, plain = mode == BLEND_NORMAL && tint == 0xFFFFFF;
+              const uint32_t ia = in.alpha;
+              for (int32_t q = is; q < ie; q++) {
+                const float fx = fx0 + (q - is) * dfx, fy = fy0 + (q - is) * dfy;
+                uint32_t rgb, a8;
+                if (nearest) {
+                  int32_t tx = ifloor_fast(fx + 0.5f), ty = ifloor_fast(fy + 0.5f);
+                  tx = tx < 0 ? 0 : tx >= iw ? iw - 1 : tx; ty = ty < 0 ? 0 : ty >= ih ? ih - 1 : ty;
+                  uint32_t p;
+                  if (dd) { p = dd->px[(size_t)ty * dd->stride + tx]; if (!dd->alpha) p |= 0xFF000000u; }
+                  else { const uint8_t* b8 = images[in.res].rgba + ((size_t)ty * iw + tx) * 4; p = ((uint32_t)b8[3] << 24) | ((uint32_t)b8[0] << 16) | ((uint32_t)b8[1] << 8) | b8[2]; }
+                  rgb = p & 0xFFFFFF; a8 = p >> 24;
+                } else {
+                  const int32_t x0 = ifloor_fast(fx), y0 = ifloor_fast(fy);
+                  const uint32_t wx = (uint32_t)((fx - x0) * 256), wy = (uint32_t)((fy - y0) * 256);
+                  const int32_t xa = x0 < 0 ? 0 : x0 >= iw ? iw - 1 : x0, xb = x0 + 1 < 0 ? 0 : x0 + 1 >= iw ? iw - 1 : x0 + 1;
+                  const int32_t ya = y0 < 0 ? 0 : y0 >= ih ? ih - 1 : y0, yb = y0 + 1 < 0 ? 0 : y0 + 1 >= ih ? ih - 1 : y0 + 1;
+                  uint32_t p00, p01, p10, p11;
+                  if (dd) {
+                    const uint32_t* r0 = dd->px + (size_t)ya * dd->stride; const uint32_t* r1 = dd->px + (size_t)yb * dd->stride;
+                    p00 = r0[xa]; p01 = r0[xb]; p10 = r1[xa]; p11 = r1[xb];
+                    if (!dd->alpha) { p00 |= 0xFF000000u; p01 |= 0xFF000000u; p10 |= 0xFF000000u; p11 |= 0xFF000000u; }
+                  } else {
+                    const uint8_t* px8 = images[in.res].rgba;
+                    auto get = [&](int32_t X, int32_t Y) { const uint8_t* b8 = px8 + ((size_t)Y * iw + X) * 4; return ((uint32_t)b8[3] << 24) | ((uint32_t)b8[0] << 16) | ((uint32_t)b8[1] << 8) | b8[2]; };
+                    p00 = get(xa, ya); p01 = get(xb, ya); p10 = get(xa, yb); p11 = get(xb, yb);
+                  }
+                  // two channels at once: (r, b) and (a, g) in 0x00FF00FF lanes
+                  auto lerp2 = [](uint32_t p, uint32_t q2, uint32_t w) { return ((p * (256 - w) + q2 * w) >> 8) & 0x00FF00FFu; };
+                  const uint32_t rb = lerp2(lerp2(p00 & 0x00FF00FFu, p01 & 0x00FF00FFu, wx), lerp2(p10 & 0x00FF00FFu, p11 & 0x00FF00FFu, wx), wy);
+                  const uint32_t ag = lerp2(lerp2((p00 >> 8) & 0x00FF00FFu, (p01 >> 8) & 0x00FF00FFu, wx), lerp2((p10 >> 8) & 0x00FF00FFu, (p11 >> 8) & 0x00FF00FFu, wx), wy);
+                  rgb = rb | ((ag & 0xFFu) << 8); a8 = ag >> 16;
+                }
+                const uint32_t al = (a8 * ia + 127) / 255;
+                if (al >= 255 && plain) row[q] = rgb;
+                else if (al >= 1) blend_as(row[q], tinted(rgb, tint), al, mode);
+              }
+              break;
+            }
+            for (int32_t q = is; q < ie; q++) {
+              float lx, ly;
+              xf_back(m, q + 0.5f, y + 0.5f, lx, ly);
+              float u = (lx - ib.x) / (ib.w != 0 ? ib.w : 1), v = (ly - ib.y) / (ib.h != 0 ? ib.h : 1);
+              if (boxed) {
+                const float ex = in.w * 1e-4f, ey = in.h * 1e-4f;
+                u = clampf((clampf(lx, in.x + ex, in.x + in.w - ex) - ib.x) / ib.w, -1, 2);
+                v = clampf((clampf(ly, in.y + ey, in.y + in.h - ey) - ib.y) / ib.h, -1, 2);
+              }
+              uint32_t rgb; float a;
+              if (xf_sample_at(dd, in.res, u, v, in.grad == 1, rgb, a)) {
+                const float al = a * 1.0f * in.alpha;
+                if (al >= 1) blend_as(row[q], tinted(rgb, tint), (uint32_t)al, mode);
+              }
+            }
+            break;
+          }
+          default: break;   // BORDER: nothing inside its inner edge
+        }
+        x = ie - 1;
+        continue;
+      }
       float lx, ly;
       xf_back(m, x + 0.5f, y + 0.5f, lx, ly);
       const float d = rr_sdf(lx, ly, cx, cy, hw, hh, r);
@@ -1201,6 +1326,7 @@ static void draw_xform(const Target& t, const Cmd& c, const float* p, const char
         default: break;
       }
     }
+  }
 }
 
 // ---------------------------------------------------------------- frame rendering and damage
