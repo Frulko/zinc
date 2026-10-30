@@ -13,6 +13,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc pack --target rpi` (or `rpi1`, `rpi2`, `aarch64-linux`, `armhf-linux`, `x86_64-linux`) packs a `.zapp` for another Linux machine, its native plugins cross-built for it.
 - `zinc:ui`: negative offsets `-top-2`, `-right-[6px]`, `-bottom-1`, `-left-px` place an absolute box past its parent's edge, as in Tailwind.
 - `zinc:ui`: `ui.RUN_STRIKE` strikes a run of `setTextRuns` through, as `RUN_UNDERLINE` underlines it.
+- `zinc:ui`: an `<Image>` inside a `<Text>` flows with the words and wraps with them, as in React Native; `ui.pictureRun(w, h)` puts a picture in a run of `setTextRuns`.
+- The Discord client demo draws custom emoji inside the message text: an emoji at the end of a long message no longer sits alone on a line of its own.
 - The Discord client demo (`examples/discord`): a native client in the spirit of discord-lite, no web view; log in with a token kept in the keychain, browse your servers, channels and DMs, read a channel's history and new, edited and deleted messages live; a dropped connection resumes. Unofficial: try it with a spare account.
 - The Discord client demo writes: send, reply, edit and delete messages, typing indicators both ways, unread channels and mention counts that follow what you read here or on another device, messages drawn in Discord's Markdown (spoilers, mentions, code blocks), and Discord's rate limits honoured.
 - The Discord client demo shows pictures and people: avatars, server icons, custom emoji and image attachments from Discord's CDN, kept on disk (expired attachment links are renewed); colour Unicode emoji; files sent with the + button or dropped on the window; the member list of the open channel, live; older messages load as you scroll up, in a list that stays smooth over thousands of messages.
@@ -310,6 +312,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - museum-table runs when it is sent to another machine (`zinc device deploy`): its probe imported the devtools plugin by a path outside the project; it is now `zinc:devtools/cdp`.
 - Sending an app to a slow device (`zinc device install`, `deploy`) no longer slows down as the transfer grows: received data was moved once per 16 KB block.
 - Bitwise operators (`& | ^ << >> >>>` and `&=`...) on an `any` value compile, as in TypeScript, instead of error Z0005.
+- A conditional whose branches are an integer (`i32`) and a `number`, with no declared type around it (`w += c ? n : 2.5`, `const v = c ? n : x`), is a `number`: it was cut to an integer when the integer branch came first.
 - macOS: the arguments of `zinc run` (the project's path) are no longer delivered to the app as a file dropped on its window at launch.
 - `zinc:socket` WebSocket receives a large message about seven times faster (6 MB: 5.1 s down to 0.7 s), so the Discord demo connects much sooner.
 - With `"text": "shaped"`, a typographic quote (’ “ ”), a symbol or a text-style emoji (⛔) the built-in font lacks is drawn from the system fonts instead of a '?'.

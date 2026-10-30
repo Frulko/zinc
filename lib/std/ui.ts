@@ -536,6 +536,12 @@ export function setText(h: i32, s: string): void {
 }
 /** Style of a run of setTextRuns: bold, italic, monospace, underlined, struck through (an or of them; 0 the text's own). */
 export const RUN_BOLD: i32 = 1, RUN_ITALIC: i32 = 2, RUN_MONO: i32 = 4, RUN_UNDERLINE: i32 = 8, RUN_STRIKE: i32 = 16;
+/** A run drawn as a picture instead of its text: its style is pictureRun(w, h), its colour slot the image (-1: the room is kept, nothing is
+ *  drawn, as while the picture loads). The picture takes w x h in the line and the lines are at least h high (React Native's inline image). */
+export const RUN_PICTURE: i32 = 32;
+export function pictureRun(w: i32, h: i32): i32 { return RUN_PICTURE | (imax(0, imin(w, 1023)) << 6) | (imax(0, imin(h, 1023)) << 16); }
+function picW(style: i32): i32 { return (style >> 6) & 1023; }
+function picH(style: i32): i32 { return (style >> 16) & 1023; }
 /**
  * Styles parts of one text node: `runs` is [length, style, color, ...] over its text, in order (style: RUN_* or-ed, color 0xRRGGBB, -1 for
  * the text's colour, or schemeColor('name') to follow the scheme; what the runs do not cover keeps the text's style). The text still wraps at its spaces and still selects and copies as
@@ -3010,7 +3016,7 @@ function runsWidth(n: UiNode, a: i32, b: i32): number {
   while (at < b) {
     const len = k < r.length ? r[k] : b - at, style = k < r.length ? r[k + 1] : 0;
     const s0 = imax(a, at), s1 = imin(b, at + len);
-    if (s1 > s0) w += textWidth(runFace(n, style), n.text.slice(s0, s1), tr);
+    if (s1 > s0) w += (style & RUN_PICTURE) !== 0 ? (s0 === at ? picW(style) : 0) : textWidth(runFace(n, style), n.text.slice(s0, s1), tr);
     at += len; k += 3;
   }
   return w;
@@ -3043,7 +3049,55 @@ function fontOf(n: UiNode): i32 {
   n.fontId = faceOf(n, n.size);
   return n.fontId;
 }
-function lineHeightOf(n: UiNode): number { return n.leading > 0 ? n.leading : Math.round(n.size * 1.4); }
+function lineHeightOf(n: UiNode): number {
+  const lh = n.leading > 0 ? n.leading : Math.round(n.size * 1.4);
+  if (n.runs === null || !runsOn(n)) return lh;
+  // ponytail: every line takes the tallest picture's height, not only its own line (a per-line height if tall pictures sit in long paragraphs)
+  const r = n.runs as i32[];
+  let h: number = lh;
+  for (let k = 0; k < r.length; k += 3) if ((r[k + 1] & RUN_PICTURE) !== 0 && picH(r[k + 1]) > h) h = picH(r[k + 1]);
+  return h;
+}
+/** The top of a picture of height ph in a line of height lh: its bottom on the baseline, or the line's top when it is taller than that. */
+function picTop(n: UiNode, lh: number, ph: number): number { return Math.max(0, Math.round((lh - n.size * 1.21) / 2) + fontAscent(n.fontId) - ph); }
+/** A text's <Image> children are pictures in its lines (React Native's inline images): each takes the place of one U+FFFC of the text, in
+ *  order, as a picture run of the image's measured size; the image node is placed there and paints itself. */
+function picKids(n: UiNode, maxW: number, maxH: number): void {
+  const r: i32[] = [];
+  let at: i32 = 0, found = false;
+  for (const c of n.children) {
+    const m = nodes[c];
+    if (m.tag !== IMAGE) continue;
+    const i = n.text.indexOf('\uFFFC', at);
+    if (i < 0) break;
+    measure(m, maxW, maxH);
+    if (i > at) { r.push(i - at); r.push(0); r.push(-1); }
+    r.push(1); r.push(pictureRun(Math.round(m.lw), Math.round(m.lh))); r.push(-1);
+    at = i + 1; found = true;
+  }
+  if (!found) return;
+  const old = n.runs;
+  let same = old !== null && (old as i32[]).length === r.length;
+  for (let k = 0; same && k < r.length; k++) same = (old as i32[])[k] === r[k];
+  if (!same) { n.runs = r; n.wk = null; }
+}
+/** Places the <Image> children of a laid out text on their picture runs. */
+function placePics(n: UiNode): void {
+  const r = n.runs as i32[], la = n.lineAt as i32[], lh = lineHeightOf(n);
+  let line: i32 = 0, kid: i32 = 0, at: i32 = 0;
+  for (let k = 0; k < r.length; k += 3) {
+    const st = r[k + 1];
+    if ((st & RUN_PICTURE) !== 0) {
+      while (kid < n.children.length && nodes[n.children[kid]].tag !== IMAGE) kid++;
+      if (kid >= n.children.length) return;
+      const m = nodes[n.children[kid++]];
+      while (line + 1 < la.length && la[line + 1] <= at) line++;
+      const free = n.lw - n.pl - n.pr - n.lineW[line], al = talignOf(n), off = al === 1 ? Math.floor(free / 2) : al === 2 ? free : 0;
+      place(m, n.x + n.pl + off + runsWidth(n, la[line], at), n.y + n.pt + line * lh + picTop(n, lh, picH(st)), picW(st), picH(st));
+    }
+    at += r[k];
+  }
+}
 function trackPx(n: UiNode): number { return n.tracking * n.size; }
 function shownText(n: UiNode): string {
   if (n.transform === 1) return n.text.toUpperCase();
@@ -3149,7 +3203,13 @@ function drawRunsLine(n: UiNode, i: i32, x: number, y: number, fg: i32, alpha: i
     const len = k < r.length ? r[k] : b - at, style = k < r.length ? r[k + 1] : 0, c = k < r.length ? r[k + 2] : -1;
     const sv = c <= -2 ? schemeVar(varNames[-2 - c]) : -1, col = c >= 0 ? c : sv >= 0 ? sv : fg;
     const s0 = imax(a, at), s1 = imin(b, at + len);
-    if (s1 > s0) {
+    if (s1 > s0 && (style & RUN_PICTURE) !== 0) {
+      if (s0 === at) {
+        const lh = lineHeightOf(n), ph = picH(style);
+        if (c >= 0) drawImage(c, cx, y - Math.round((lh - n.size * 1.21) / 2) + picTop(n, lh, ph), picW(style), ph, alpha, 0);
+        cx += picW(style);
+      }
+    } else if (s1 > s0) {
       const f = runFace(n, style), piece = n.text.slice(s0, s1), w = textWidth(f, piece, tr);
       drawText(f, cx, y, piece, col, alpha, tr);
       if ((style & RUN_UNDERLINE) !== 0) rrect(cx, y + asc + Math.round(n.size * 0.1), w, Math.max(1, Math.round(n.size / 14)), 0, col, alpha);
@@ -3222,6 +3282,7 @@ function measure(n: UiNode, maxW: number, maxH: number): void {
   const ownH: number = n.h >= 0 ? n.h : n.hFrac > 0 ? Math.round(maxH * n.hFrac) : -1;
   if (n.tag === TEXT) {
     inheritText(n);
+    if (n.children.length > 0) picKids(n, maxW, maxH);
     wrapText(n, ownW >= 0 ? ownW : maxW);
     let widest: number = 0;
     for (const w of n.lineW) if (w > widest) widest = w;
@@ -3413,6 +3474,7 @@ function place(n: UiNode, x: number, y: number, vw: number, vh: number): void {
       const inner = vw - n.pl - n.pr, at = (k as WrapKey).avail;
       if ((n.lines.length > 1 && inner > at + 0.5) || (n.ellipsis && Math.abs(inner - at) > 0.5)) wrapText(n, vw);
     }
+    if (n.lineAt !== null && n.children.length > 0) placePics(n);
     return;
   }
   // scroll containers lay their content out at its natural size; the viewport only clips and offsets it

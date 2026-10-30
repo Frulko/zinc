@@ -7,7 +7,7 @@ import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
 import * as dialog from 'zinc:system/dialog';
 import { store, Message, Attachment } from '../state';
-import { parse, pieces, onlyEmoji, MdBlock, K_QUOTE, K_HEADING, K_SUB, K_CODE, K_EMOJI, R_CODE, R_LINK, R_MENTION, R_SPOILER } from '../markdown';
+import { parse, onlyEmoji, MdBlock, K_QUOTE, K_HEADING, K_SUB, K_CODE, R_CODE, R_LINK, R_MENTION, R_SPOILER, R_EMOJI } from '../markdown';
 import { Avatar } from './Avatar';
 import { cdnPicture, avatarKey, emojiKey, attachmentPicture } from '../services/cdn';
 import { BG_MAIN, BG_INPUT, BG_SIDE, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR, TEXT_MENTION, TEXT_LINK, TEXT_CODE, SPOILER,
@@ -24,37 +24,30 @@ function names(kind: string, id: string): string {
   return store.userName(id);
 }
 
-/** One piece of text: one node, its runs coloured by role. */
-function Runs(p: { b: MdBlock; className: string }) {
+/** A block of text: one node, its runs coloured by role and its custom emoji drawn as pictures in its lines (large in a message of only
+ *  emoji), so they wrap with the words. */
+function Paragraph(p: { b: MdBlock; className: string; big: boolean }) {
   const ref = useRef<i32>(-1);
   const b = p.b;
   useEffect((): void => {
     if (ref.current < 0) return;
     const r: i32[] = [];
-    let plain = true;
+    let plain = true, e = 0;
     for (let k = 0; k < b.runs.length; k += 3) {
       const role = b.runs[k + 2];
       if (b.runs[k + 1] !== 0 || role !== 0) plain = false;
-      r.push(b.runs[k]); r.push(b.runs[k + 1]);
+      r.push(b.runs[k]);
+      if (role === R_EMOJI && e < b.emoji.length) {
+        const s = p.big ? EMOJI_BIG : EMOJI;
+        r.push(ui.pictureRun(s, s)); r.push(cdnPicture(emojiKey(b.emoji[e++])));
+        continue;
+      }
+      r.push(b.runs[k + 1]);
       r.push(role === R_CODE ? TEXT_CODE : role === R_LINK ? TEXT_LINK : role === R_MENTION ? TEXT_MENTION : role === R_SPOILER ? SPOILER : -1);
     }
     ui.setTextRuns(ref.current, plain ? [] : r);
   }, null);
   return <Text ref={ref} className={`select-text ${p.className}`}>{b.text}</Text>;
-}
-
-function Emoji(p: { id: string; size: i32 }) {
-  return <Image image={cdnPicture(emojiKey(p.id))} className={`w-[${p.size}] h-[${p.size}] object-contain`} />;
-}
-
-/** A block of text, cut around its custom emoji when it has some (a row that wraps). */
-function Paragraph(p: { b: MdBlock; className: string; big: boolean }) {
-  const b = p.b;
-  if (b.emoji.length === 0) return <Runs b={b} className={p.className} />;
-  return <View className="flex-row flex-wrap items-center">
-    {pieces(b).map((x: MdBlock, i: i32) => x.kind === K_EMOJI ? <Emoji key={`${i}`} id={x.emoji[0]} size={p.big ? EMOJI_BIG : EMOJI} />
-      : <Runs key={`${i}`} b={x} className={p.className} />)}
-  </View>;
 }
 
 function Block(p: { b: MdBlock; big: boolean }) {

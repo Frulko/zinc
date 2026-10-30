@@ -106,6 +106,16 @@ than the line (a path, a URL) where it stops fitting. Otherwise plain wrapping o
 a text shadow is not drawn under runs. A face is only there if the program bakes it: `RUN_MONO` needs a `font-mono` somewhere in the
 program. `setTextRuns(h, [])` removes them.
 
+## Pictures in a text
+
+An `<Image>` inside a `<Text>` sits in its lines, as React Native's inline images do: it takes its own width and height (`w-[20] h-[20]`,
+or the picture's size), wraps with the words around it, and the lines are as high as the tallest picture (its bottom on the baseline when
+it fits above it). `<Text>Done <Image image={check} className="w-[16] h-[16]" /> today</Text>`, in the React and the Solid model. The
+image node keeps its classes, events and hit testing; in the text it stands for one U+FFFC character. Code that builds runs draws a
+picture over a run of the text with `ui.pictureRun(w, h)` as its style and the image as its colour: `[6, ui.pictureRun(22, 22), img]`
+shows `img` in place of those six characters, which still copy as text (a Discord `:emoji:`); `-1` keeps the room and draws nothing (a
+picture still loading). Same limits as the runs above; every line takes the tallest picture's height (`tests/t1/ui_pictures.sh`).
+
 ## Pointer events
 
 On any node: `onPointerDown`, `onPointerMove`, `onPointerUp`, `onDoubleClick`, `onContextMenu` (right click),

@@ -1198,7 +1198,13 @@ struct Lowering {
         for (char ch : jsxText(c.text)) { if (ch == '`' || ch == '\\' || ch == '$') tpl += '\\'; tpl += ch; }
       } else if (c.kind == 1 && c.ee > c.eb) { tpl += "${" + rw(c.eb, c.ee) + "}"; dynamic = true; }
       else if (c.kind == 1) {}
-      else fail(c.tok, "<Text> can only contain text and {expressions}");
+      else if (c.el && !c.el->frag && c.el->tag == "Image" && jsxHostTag("Image", imported)) {
+        // an inline picture, as React Native's <Image> in a <Text>: the image node is a child of the text and an U+FFFC stands for it
+        const std::string img = element(*c.el, out);
+        out.push_back("_append(" + v + ", " + img + ");");
+        tpl += "\xEF\xBF\xBC";
+      }
+      else fail(c.tok, "<Text> can only contain text, {expressions} and <Image>");
     }
     if (tpl.empty()) return;
     out.push_back(dynamic && !react ? "_dynTextOf(" + v + ", () => `" + tpl + "`);" : "_textOf(" + v + ", `" + tpl + "`);");

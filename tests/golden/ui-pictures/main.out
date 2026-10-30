@@ -1,0 +1,7 @@
+view 0,0 180x150
+  view 0,0 180x150
+    text 8,8 150x48 "Ship it today ￼|then rest well ￼"
+      image 107,8 20x20
+      image 114,32 24x24
+    text 8,64 150x24 "Built by the runs :done:"
+zinc: framehash 4 180x150 f984a2f2c1ff888f

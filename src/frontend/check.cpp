@@ -2763,6 +2763,15 @@ struct Checker {
             if (require(shape, named, pAnon ? x.kids[1] : x.kids[2])) return named;   // the literal is converted to the declared type (an error says what is missing)
           }
         }
+        {   // `c ? anI32 : aNumber` is a number, whichever branch comes first (it was the first branch's i32: `w += c ? i : 2.5` added 2)
+          const Type &tp = ty(p), &tq = ty(q);
+          if (tp.k == TK::Num && tq.k == TK::Num && tp.obj == 0 && tq.obj == 0 && !isFx(tp.num) && !isFx(tq.num) && isFloat(tp.num) != isFloat(tq.num)) {
+            const bool pf = isFloat(tp.num);
+            const std::uint32_t fk = pf ? x.kids[1] : x.kids[2];   // an integer literal there takes the integer's kind, as in arithmetic (`c ? i : 0` stays an i32)
+            const TypeId f = pf ? p : q;
+            if (!(isIntLit(a, fk) && litFits(a, fk, pf ? tq.num : tp.num)) && assignable(p, f, x.kids[1]) && assignable(q, f, x.kids[2])) return f;
+          }
+        }
         if (assignable(q, p, x.kids[2])) { convertDyn(q, p, x.kids[2]); return p; }   // (a class in the branch of an `unknown` becomes a Dyn)
         if (assignable(p, q, x.kids[1])) { convertDyn(p, q, x.kids[1]); return q; }
         if (name(p) == "NeverPromise" && promiseKind(q) != 0) { require(p, q, x.kids[1]); return q; }  // a branch that only rejects takes the other branch's promise type
