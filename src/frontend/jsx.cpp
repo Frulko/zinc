@@ -1375,6 +1375,11 @@ struct Lowering {
       std::string args;
       for (std::size_t k = 0; k < props.size(); ++k) args += (k ? ", " : "") + props[k];
       std::string call = tag + "(" + (props.empty() ? "" : "{ " + args + " }") + ")";
+      if (react && !props.empty() && !classTags.count(tag)) {   // React: the props are evaluated once, here, where what they read is narrowed
+        const std::string pv = "__p" + std::to_string(counter++);
+        out.push_back("const " + pv + " = _props(" + tag + ", { " + args + " });");
+        call = tag + "(" + pv + ")";
+      }
       if (hot && !react && lib == "zinc:ui/solid" && tag.find('.') == std::string::npos) {   // a component of the project: its Fast Refresh proxy
         auto im = imported.find(tag);
         if (im == imported.end() || im->second.rfind("./", 0) == 0 || im->second.rfind("../", 0) == 0) call = "_hotC('@hot:" + tag + "', () => " + call + ")";
@@ -1707,6 +1712,7 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
     if (out.find("_dynImgH(") != std::string::npos) helpers += ", _dynImgH";
     if (out.find("_submit(") != std::string::npos) helpers += ", _submit";
     if (out.find("_flat(") != std::string::npos) helpers += ", _flat";
+    if (out.find("_props(") != std::string::npos) helpers += ", _props";
     if (out.find("_comp(") != std::string::npos) helpers += ", _comp, _u";
     if (out.find("_hotC(") != std::string::npos) helpers += ", _hotC";
     if (out.find("_cn(") != std::string::npos) helpers += ", _cn";

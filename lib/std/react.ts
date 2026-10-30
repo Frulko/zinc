@@ -258,12 +258,15 @@ export function _rc(host: i32, render: () => i32 | null, name: string = '', key:
   if (parent !== null) parent.nextKids.push(inst);
   rerender(inst);
 }
+/** The props of a component, evaluated once where it is written (as React does) and typed by the component (the JSX lowering: a prop
+ *  that reads a value narrowed there, `m.reply !== null ? <Reply m={m.reply} /> : null`, keeps the narrowing). */
+export function _props<P, R>(component: (p: P) => R, p: P): P { return p; }
 export function render(app: () => i32, background: i32, onTick: ((dt: number) => void) | null): void {
   const root = ui.createNode(ui.VIEW);
   const host = ui.createNode(ui.FRAGMENT);
   ui.insert(root, host, -1);
   const first = instances.length;   // the root instance comes first, its children after it
-  _rc(host, app, 'App', '');
+  _rc(host, () => app(), 'App', '');
   if (import.meta.hot) {   // zinc dev: the entry running again replaces the tree it mounted; an update renders the tree again
     const last = hotRoot;
     if (last !== null) { unmount(last); ui.destroy(hotNode); }

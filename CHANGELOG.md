@@ -309,17 +309,20 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Writing with the pen in Zinc Web, Read and PDF is as fluid as in notes: the page and your finished strokes are kept as one picture and only the new bit of the stroke is drawn. `Ink.drawOver` of `zinc:ink` does the same for your own app's ink over a page.
 
 ### Changed (breaking)
+- React model (`zinc:ui/react`): a component's props are evaluated once, where the component is written, as React does; a re-render of the component for its own state no longer reads them again (a prop that should follow a value comes from a parent that renders again, or from the component's own state).
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
 - On the Raspberry Pi image, an app started from the player is one `zinc device` knows: `apps` shows it running, `logs` reads its output and `stop` ends it (the player comes back, with no crash page).
 - The Raspberry Pi player no longer keeps a core busy on its home screen: its animation draws 12 frames a second and stops after a minute without a touch (it used a whole core of a Pi 3 and could trip its under-voltage limit); it reads the update status only in the settings.
+- React model (`zinc:ui/react`): what a condition narrows reaches the elements and the props of its branch (`m.reply !== null ? <Reply m={m.reply} /> : null` was refused with Z0103 or Z0107), and a component that returns `null` can be used in a conditional.
 - museum-table runs when it is sent to another machine (`zinc device deploy`): its probe imported the devtools plugin by a path outside the project; it is now `zinc:devtools/cdp`.
 - Sending an app to a slow device (`zinc device install`, `deploy`) no longer slows down as the transfer grows: received data was moved once per 16 KB block.
 - Bitwise operators (`& | ^ << >> >>>` and `&=`...) on an `any` value compile, as in TypeScript, instead of error Z0005.
 - A conditional whose branches are an integer (`i32`) and a `number`, with no declared type around it (`w += c ? n : 2.5`, `const v = c ? n : x`), is a `number`: it was cut to an integer when the integer branch came first.
 - macOS: the arguments of `zinc run` (the project's path) are no longer delivered to the app as a file dropped on its window at launch.
 - Text taken apart one character at a time (`s.charAt(i)` over an emoji) and joined again is the same text: on the interpreter and in built apps the emoji came back as two replacement marks.
+- A function without a return type may return an element on one path and `c ? x : null` on another: its type is the union, as in TypeScript, instead of an error.
 - `zinc:socket` WebSocket receives a large message about seven times faster (6 MB: 5.1 s down to 0.7 s), so the Discord demo connects much sooner.
 - With `"text": "shaped"`, a typographic quote (’ “ ”), a symbol or a text-style emoji (⛔) the built-in font lacks is drawn from the system fonts instead of a '?'.
 - A TLS 1.3 connection (`wss://`, `connectTls`, `https`) no longer hangs when the server's session tickets and its first reply arrive together, as Cloudflare's servers send them: about one connection in two to Discord's gateway waited forever.

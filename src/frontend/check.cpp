@@ -2055,6 +2055,10 @@ struct Checker {
   TypeId callExpr(std::uint32_t i, const Node& x, bool isNew) {
     TypeId myExpected = callExpected;
     callExpected = kNoType;
+    // `(() => ...)()`, which the JSX lowering writes for every element: it runs right here, so what is narrowed here stays narrowed in it,
+    // as in TypeScript. ponytail: an assignment inside it to a narrowed variable outside is not seen after it (TypeScript sees it).
+    if (!isNew && x.kids.size() == 1 && n(x.kids[0]).kind == N::FuncExpr && n(x.kids[0]).kids.size() == 2 && !(n(x.kids[0]).flags & (kFlagAsync | kFlagGenerator)))
+      iifeLambda = x.kids[0];
     if (!isNew && (x.flags & kFlagOptional) && !n(i).kids.empty()) {
       TypeId r;
       if (optionalCall(i, kNoType, r)) return r;
@@ -2226,6 +2230,20 @@ struct Checker {
       const Node& cn = n(callee);
       if (cn.kind == N::Ident && cn.text == "__await" && !argNodes.empty() && promiseKind(expr(argNodes[0])) == 2) a.nodes[callee].text = "__awaitV";   // await of a Promise<void>
       if (cn.kind == N::Ident && cn.text == "__rejectedP" && !a.targs.count(i) && (myExpected == kNoType || bad(myExpected) || promiseKind(myExpected) != 1)) a.nodes[callee].text = "__rejectedN";  // Promise.reject(e) with no type to give it: a promise that only rejects, which fits any Promise<T>
+      if (cn.kind == N::Ident && cn.text == "_props" && argNodes.size() == 2 && n(argNodes[0]).kind == N::Ident) {   // the props of a generic component (FlatList<T>): typed by the call that infers T
+        const std::uint32_t xs = lookup(n(argNodes[0]).text);
+        if (xs != kNone && out.syms[xs].kind == SymKind::GenericFunc) {
+          const std::uint32_t obj = argNodes[1];
+          auto r = snippet(a, "__H0(__H1);", {{argNodes[0]}, {obj}}, i);
+          out.nodeType.resize(a.nodes.size(), kNoType);
+          out.nodeSym.resize(a.nodes.size(), kNone);
+          if (r.empty() || n(r[0]).kind != N::ExprStmt) return tError;
+          if (bad(expr(n(r[0]).kids[0]))) return tError;
+          a.nodes[i] = a.nodes[obj];   // the props themselves, typed against the instantiated parameter
+          rewritten.insert(i);
+          return out.nodeType[i] = out.nodeType[obj];
+        }
+      }
       std::uint32_t gs = cn.kind == N::Ident ? lookup(cn.text) : kNone;
       if (gs != kNone && out.syms[gs].kind == SymKind::GenericFunc) {
         if (const Node& gd = n(generics[gs].node); (gd.kind == N::Function || gd.kind == N::Method) && gd.kids.size() > 2 && (n(gd.kids.back()).flags & kFlagRest)) {  // the type arguments are inferred from the array the rest parameter takes
@@ -3450,7 +3468,7 @@ struct Checker {
           if (x.kids[0] == kNone) { if (inferredRet == kNoType) inferredRet = tVoid; break; }
           TypeId rt = expr(x.kids[0]);
           if (inferredRet == kNoType) inferredRet = rt;
-          else if (!bad(rt) && !bad(inferredRet) && !assignable(rt, inferredRet, x.kids[0]) && (rt == tNull || inferredRet == tNull || (ty(rt).k == TK::Object && ty(inferredRet).k == TK::Object) || ty(inferredRet).k == TK::Union)) inferredRet = unionOf({inferredRet, rt});  // null and an object, or several objects: their union
+          else if (!bad(rt) && !bad(inferredRet) && !assignable(rt, inferredRet, x.kids[0]) && (rt == tNull || inferredRet == tNull || (ty(rt).k == TK::Object && ty(inferredRet).k == TK::Object) || ty(inferredRet).k == TK::Union || (ty(rt).k == TK::Union && hasNull(rt)))) inferredRet = unionOf({inferredRet, rt});  // null and an object, several objects, or a value then the same or null (`return c ? x : null`): their union
           else require(rt, inferredRet, x.kids[0]);
           break;
         }
@@ -3955,6 +3973,7 @@ struct Checker {
     if (!nestedBuilt) { nestedBuilt = true; markNested(a.root, false); for (std::uint32_t pre : a.prelude) markNested(pre, false); }
     return nestedFuncs.count(node) != 0;
   }
+  std::uint32_t iifeLambda = kNone;  // the arrow function of `(() => ...)()` being checked (callExpr sets it, funcExpr reads it)
   bool padCallbacks = true;  // a function with fewer parameters than the function type it is given to gets unused ones; off for the arguments of the library's array methods, which keep their arity
   TypeId funcExpr(std::uint32_t i, TypeId expected) {
     if (a.tparams.count(i)) { diag(kZUnsupported, i, "generic arrow functions"); return tError; }
@@ -4042,6 +4061,7 @@ struct Checker {
     narrowing.clear();
     // a const narrowed where the closure is written stays narrowed inside it, as in TypeScript: nothing can assign it afterwards
     for (const Fact& f : savedNarrowing) if (out.syms[f.first].kind == SymKind::Var && out.syms[f.first].isConst) narrowing.push_back(f);
+    if (i == iifeLambda) { iifeLambda = kNone; narrowing = savedNarrowing; }   // called where it is written: everything narrowed here holds
     curRet = ret == kNoType ? kInferRet : ret;
     inferredRet = kNoType;
     loops = 0;
