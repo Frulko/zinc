@@ -33,6 +33,7 @@ A profile (`tools/pi-image profile p.json` prints the merged result, secrets hid
 | `libraries`, `packages` | catalog groups (FFmpeg, gphoto2, GStreamer, libcamera, libuv, compilers) and more Debian packages |
 | `app` | a Zinc project or `.zapp` started at boot (relative to the profile's directory); none: the player |
 | `agent`, `bluetooth`, `debug` | the Zinc agent on, Bluetooth on, boot messages on screen |
+| `ab` | `true`: an A/B image, two system slots updated whole with `zinc-system-update` (see "System updates"); needs `tools/pi-image keys` once |
 | `base`, `zinc` | the Raspberry Pi OS image and the Zinc release (URL and SHA-256), pinned in `image/profile.json` |
 
 ## Downloadable CI images
@@ -107,6 +108,38 @@ The update helper and its trusted key belong to the image; this menu updates the
 **Restart network** in Wi-Fi resets failed NetworkManager/wpa_supplicant units and restarts them, then scans again. It asks for a
 second press because remote connections can drop. This is recovery from a service failure, not proof that the known first-boot
 problem is fixed. The real Pi 3 B+ first boot and vc4 display handover remain listed in `backlog/later.md`.
+
+## System updates (A/B image)
+
+A profile with `"ab": true` builds an image that can replace its whole system (Raspberry Pi OS, kernel, Zinc) and come
+back by itself when the new one does not start. The card holds the shared boot partition, slot A (the image's root, sized
+by `growMiB`; the card is not grown on the first boot) and slot B of the same size, empty until the first update. The
+firmware boots the slot `os_prefix=a/` or `b/` names in `config.txt` (each slot's kernel, device trees, overlays and
+`cmdline.txt` in `/boot/firmware/a` and `/b`); `tryboot.txt` names the other slot for a single boot. This is the scheme
+Ubuntu uses on every 64-bit Pi (3, Zero 2, 4, 5); the image is arm64 only, so the Pi 1 and Zero (U-Boot) are not
+concerned.
+
+RAUC (Debian's `rauc` and `rauc-service`) writes the bundles, with `/usr/lib/zinc/zinc-ab-boot` as its bootloader backend:
+
+```sh
+tools/pi-image keys                                  # once: ~/.zinc/keys/rauc (ca.pem goes into the images)
+tools/pi-image build my-ab.json                      # {"ab": true, ...}
+ZINC_UPDATE_SEED=<seed> tools/pi-image bundle dist/<name>.img.xz   # dist/<name>.raucb and .raucb.sig
+# on the Pi, as root:
+zinc-system-update install /path/<name>.raucb        # or an https:// URL (its .sig beside it)
+zinc-system-update status                            # booted=, committed=, trial=, bad=
+```
+
+`install` checks the bundle's Ed25519 signature (`zinc verify` with `/etc/zinc/update.pub`, the key of the engine
+updates), then RAUC checks its X.509 signature against `/etc/rauc/keyring.pem` and writes the slot that is not running.
+Its post-install step puts the slot's boot files in place and carries the device's state into it: the people's
+accounts and group memberships, the device name, the Wi-Fi networks, SSH host keys and settings, `/home`,
+`/var/lib/zinc` (apps, pairing) and the services turned on. Then the Pi reboots once into the new slot
+(`systemctl reboot '0 tryboot'`). `zinc-system-confirm.service` waits for the session (`zinc-shell.service` active 30 s,
+never restarted, within 3 min) and runs `rauc status mark-good`, which makes the slot the one the Pi boots; otherwise
+it marks it bad and reboots. A kernel panic (`panic=10`), a hang (the watchdog) or a power cut during the trial boot
+also return to the previous slot, since the firmware forgets the trial flag on any reset. Engine updates (above)
+still work inside a slot; a system update brings the bundle's own engine.
 
 ## Layout
 

@@ -8,6 +8,9 @@
 #   tools/pi-image configure <boot-dir> [profile.json]  apply it after Etcher, before the first boot
 #   tools/pi-image catalog                  the boards, displays and libraries a profile can name
 #   tools/pi-image player [--crash]         the image's player on this computer, against a pretend Pi (image/player/dev)
+#   tools/pi-image keys                     the RAUC certificates of the A/B image, once (ZINC_RAUC_KEYS, ~/.zinc/keys/rauc)
+#   tools/pi-image bundle <image.img.xz>    dist/<name>.raucb from an A/B image ("ab": true), signed by RAUC and, with
+#                                           ZINC_UPDATE_SEED, by Zinc's update key (.raucb.sig): zinc-system-update installs it
 #
 # A profile is a JSON object laid over image/profile.json (the defaults): board, display, hostname, user, ssh, wifi,
 # libraries, packages, app (a Zinc project or .zapp, started at boot)... Needs Docker (Docker Desktop, OrbStack).
@@ -15,6 +18,7 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 CACHE=${ZINC_HOME:-$HOME/.zinc}/cache/pi-image
+KEYS=${ZINC_RAUC_KEYS:-${ZINC_HOME:-$HOME/.zinc}/keys/rauc}
 cmd=${1:-help}
 profile=${2:-}
 
@@ -65,6 +69,10 @@ case $cmd in
     # plugins the player links to from plugins/ (zinc:network)
     cp -RL "$ROOT/image" "$tmp/image"
     cp "$ROOT/update.pub" "$tmp/image/update.pub"
+    if [ "$(jq -r '.ab // false' "$tmp/profile.json")" = true ]; then
+      [ -f "$KEYS/ca.pem" ] || { echo "::error an A/B image needs the RAUC certificates: tools/pi-image keys" >&2; exit 1; }
+      cp "$KEYS/ca.pem" "$tmp/image/rauc-keyring.pem"
+    fi
     # ponytail: the 0.6.2 release ships display-fbdev, the screen's driver, without its source (tools/package left out a plugin
     # whose prebuild failed); the image takes it from the pinned release's tag until a release carries it
     tag=$(jq -r .zinc.url "$tmp/profile.json" | grep -o '/v[0-9][^/]*/' | tr -d /)
@@ -94,6 +102,33 @@ case $cmd in
     # no network: the player must start as on a first boot, before the network is up
     docker run --rm --privileged --network none -v "$ROOT/image:/src/image:ro" -v "$image:/src/image.img.xz:ro" -v "$(dirname "$image"):/out" \
       zinc-pi-image bash /src/image/check.sh
+    ;;
+  keys)
+    # a CA (the keyring the image trusts) and a signing certificate it issued; openssl, RAUC's documented recipe
+    if [ -f "$KEYS/ca.pem" ]; then echo "::done the RAUC certificates are in $KEYS"; exit 0; fi
+    mkdir -p "$KEYS" && chmod 700 "$KEYS"
+    ( cd "$KEYS" && umask 077 &&
+      openssl req -x509 -newkey rsa:4096 -nodes -days 36500 -subj "/O=Zinc/CN=Zinc system update CA" -keyout ca.key -out ca.pem 2>/dev/null &&
+      openssl req -newkey rsa:4096 -nodes -subj "/O=Zinc/CN=Zinc system update signing" -keyout signing.key -out signing.csr 2>/dev/null &&
+      openssl x509 -req -in signing.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 3650 -out signing.pem 2>/dev/null &&
+      rm signing.csr )
+    echo "::done RAUC certificates in $KEYS: ca.pem goes into A/B images, signing.* signs the bundles (keep ca.key offline)"
+    ;;
+  bundle)
+    [ -f "$profile" ] || { echo "::error no image at '$profile': tools/pi-image bundle dist/<name>.img.xz" >&2; exit 1; }
+    image=$(cd "$(dirname "$profile")" && pwd)/$(basename "$profile")
+    out=$(dirname "$image")
+    docker build -q -t zinc-pi-image "$ROOT/image" >/dev/null
+    docker run --rm --network none -v "$ROOT/image:/src/image:ro" -v "$image:/src/image.img.xz:ro" -v "$KEYS:/keys:ro" -v "$out:/out" \
+      zinc-pi-image bash /src/image/ab/bundle.sh
+    bundle=$out/$(basename "$image" .img.xz).raucb
+    if [ -n "${ZINC_UPDATE_SEED:-}" ]; then
+      "${ZINC:-zinc}" sign "$bundle" "$ZINC_UPDATE_SEED" >/dev/null
+      echo "::done $bundle and $bundle.sig"
+    else
+      echo "::error $bundle is not signed with Zinc's update key: set ZINC_UPDATE_SEED (zinc-system-update refuses it without $bundle.sig)" >&2
+      exit 1
+    fi
     ;;
   *) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; [ "$cmd" = help ] ;;
 esac

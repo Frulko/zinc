@@ -12,6 +12,8 @@ R=/mnt/root
 q() { jq -r "$1" "$P"; }
 fail() { echo "::error $*" >&2; exit 1; }
 SCRIPTS=(/src/image/scripts/*.sh)
+AB=$(q '.ab // false')   # two system slots and RAUC: image/ab/build-ab.sh
+. /src/image/ab/build-ab.sh
 TOTAL=$((10 + ${#SCRIPTS[@]}))
 n=1 # step 1 is tools/pi-image's
 step() { n=$((n + 1)); echo "::step $n/$TOTAL $*"; }
@@ -89,6 +91,7 @@ echo ", +" | sfdisk -q -N 2 --no-reread --no-tell-kernel "$IMG"
 part() { sfdisk -J "$IMG" | jq -r ".partitiontable.partitions[$1] | \"\(.start * 512) \(.size * 512)\""; }
 read -r ROFF RSIZE < <(part 1)
 read -r BOFF BSIZE < <(part 0)
+[ "$AB" != true ] || ab_partition
 RLOOP=$(losetup -f --show -o "$ROFF" --sizelimit "$RSIZE" "$IMG")
 BLOOP=
 cleanup() {
@@ -131,6 +134,7 @@ jq '.user.password = "" | .wifi.password = ""' "$P" >"$R/etc/zinc/image.json"
 export DEBIAN_FRONTEND=noninteractive
 export ZI_PACKAGES ZI_CONFIG ZI_COUNTRY ZI_BLUETOOTH ZI_DEBUG ZI_CAMERA
 ZI_PACKAGES=$(jq -r --slurpfile c "$C" '[.libraries[] as $l | $c[0].libraries[] | select(.key == $l) | .apt[]] + .packages | join(" ")' "$P")
+[ "$AB" != true ] || ZI_PACKAGES="$ZI_PACKAGES rauc rauc-service"
 ZI_CONFIG=$(jq -r --slurpfile c "$C" '. as $p | [($c[0].boards[] | select(.key == $p.board)), ($c[0].displays[] | select(.key == $p.display)) | .config[]] | join("\n")' "$P")
 ZI_COUNTRY=$(q .wifi.country)
 ZI_BLUETOOTH=$(q .bluetooth)
@@ -148,6 +152,7 @@ step "Writing the first-boot settings"
 # rewrite them when it flashes); zinc-firstboot deletes them afterwards. JSON is YAML, so jq writes them.
 FW=$R/boot/firmware
 bash /src/image/configure-boot.sh "$P" "$FW"
+[ "$AB" != true ] || ab_boot
 
 step "Cleaning up"
 chroot "$R" dpkg-query -W -f='${Package} ${Version}\n' >"/dist/$NAME.packages.txt"

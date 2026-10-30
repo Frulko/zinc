@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- Raspberry Pi image: `"ab": true` in a `tools/pi-image` profile builds an A/B image whose whole system is replaced by a signed bundle (`tools/pi-image keys`, `tools/pi-image bundle`, then `zinc-system-update install` on the Pi); it boots the new system once and goes back to the previous one if the session does not start.
 - `zinc publish --target rpi` (rpi2, rpi1, or a Linux target) publishes a .zapp packed for that machine, and `--export` publishes the export of `zinc export --target` with its engine; the manifest names the target (`target=`, `kind=`, signed with the app), and a Zinc hub keeps one package per channel and target.
 - The Raspberry Pi's player installs apps from a Zinc hub: the + of its top bar pairs with the hub by the code it prints, lists the apps made for this Pi and installs them beside the apps sent with `zinc device` (the catalog, the publisher's signature and the SHA-256 checked as on the reMarkable).
 - The Discord client demo shows the cameras of a call in the participants' tiles and sends yours (the Camera button): only the cameras on screen are received and decoded, at the size of their tile, and none while the window is minimized.

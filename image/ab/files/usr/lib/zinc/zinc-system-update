@@ -1,0 +1,165 @@
+#!/bin/bash
+# Whole-system updates of the A/B image (level L1 of docs/reports/ota-update-research-2026-10-27.md), run as root.
+# RAUC writes a signed bundle (a root file system image) into the slot that is not running; the Pi boots it once
+# (tryboot); zinc-system-confirm.service marks it good once the session runs, which makes it the slot the Pi boots,
+# otherwise marks it bad and reboots into the old slot. Any reset during the trial boot also returns to the old slot.
+#
+#   zinc-system-update install <bundle.raucb|https://...raucb> [--no-reboot]
+#       checks <bundle>.sig with Zinc's Ed25519 update key (/etc/zinc/update.pub), then RAUC checks the bundle's own
+#       X.509 signature (/etc/rauc/keyring.pem) and installs it; reboots into it once unless --no-reboot
+#   zinc-system-update status       booted=, committed=, trial=, bad= lines (then `rauc status`)
+#   zinc-system-update mark-good    the running slot becomes the one the Pi boots
+#   zinc-system-update mark-bad     the running slot is not booted again; reboot to leave it
+#   zinc-system-update confirm      zinc-system-confirm.service: after a trial boot, waits for a healthy session
+#   zinc-system-update post-install RAUC's post-install handler (also when RAUC runs it with no argument): boot files,
+#                                   fstab and the device's state to the new slot
+set -euo pipefail
+FW=${ZINC_AB_FW:-/boot/firmware}
+BOOT=${ZINC_AB_BOOT:-/usr/lib/zinc/zinc-ab-boot}
+die() { echo "zinc-system-update: $*" >&2; exit 1; }
+lower() { echo "$1" | tr AB ab; }
+
+# The device's own state, carried from the running slot into the new one. Users and groups are merged (the new image
+# keeps its system accounts and gains the people's accounts and group memberships); these files and directories replace
+# the image's. ponytail: a copy at install time, no data partition; what changes between install and reboot is lost.
+STATE_FILES=(/etc/hostname /etc/hosts /etc/timezone /etc/localtime /etc/default/keyboard /etc/default/locale
+  /etc/machine-id /etc/zinc/device-name /etc/zinc/session.conf /etc/cloud/cloud-init.disabled)
+STATE_DIRS=(/home /var/lib/zinc /etc/NetworkManager/system-connections /etc/netplan /etc/sudoers.d /etc/ssh/sshd_config.d)
+
+# merge_accounts old new: users with uid 1000-65533 and their groups from old/etc into new/etc; group members united
+merge_accounts() {
+  local old=$1 new=$2 users
+  users=$(awk -F: 'FNR==NR { have[$1]; next } !($1 in have) && $3 >= 1000 && $3 < 65534 { print $1 }' "$new/etc/passwd" "$old/etc/passwd")
+  merge() { # file members-field key-file: new's lines with old's members added, then old's lines named in key-file
+    awk -F: -v OFS=: -v f="$2" -v keys="$3" '
+      BEGIN { while ((getline k < keys) > 0) want[k] }
+      FNR == NR { old[$1] = $0; next }
+      { if ($1 in old && f) { split(old[$1], o, ":"); n = split(o[f], m, ","); for (i = 1; i <= n; i++)
+          if (m[i] != "" && ("," $f ",") !~ ("," m[i] ",")) $f = ($f == "" ? m[i] : $f "," m[i]) }
+        seen[$1]; print }
+      END { for (k in old) if (!(k in seen) && k in want) print old[k] }' "$old/etc/$1" "$new/etc/$1" >"$new/etc/$1.zinc"
+    cat "$new/etc/$1.zinc" >"$new/etc/$1" && rm "$new/etc/$1.zinc"   # cat: keeps the file's owner and mode
+  }
+  local keys groups
+  keys=$(mktemp); groups=$(mktemp)
+  printf '%s\n' $users >"$keys"
+  merge passwd 0 "$keys"
+  merge shadow 0 "$keys"
+  awk -F: 'FNR==NR { have[$1]; next } !($1 in have) && $3 >= 1000 && $3 < 65534 { print $1 }' "$new/etc/group" "$old/etc/group" >"$groups"
+  merge group 4 "$groups"
+  merge gshadow 4 "$groups"
+  for f in subuid subgid; do [ ! -f "$old/etc/$f" ] || merge "$f" 0 "$keys"; done
+  rm -f "$keys" "$groups"
+}
+
+post_install() {
+  local cur n dev name x mnt uuid
+  cur=$("$BOOT" get-current)
+  for n in ${RAUC_TARGET_SLOTS:?}; do
+    dev=$(eval echo "\${RAUC_SLOT_DEVICE_$n}"); name=$(eval echo "\${RAUC_SLOT_BOOTNAME_$n}")
+    [[ $name =~ ^[AB]$ ]] || continue
+    x=$(lower "$name")
+    # bundles carry a shrunk file system: give it the whole partition
+    e2fsck -fy "$dev" >/dev/null || [ $? -le 1 ]
+    resize2fs "$dev" >/dev/null 2>&1
+    mnt=$(mktemp -d)
+    mount "$dev" "$mnt"
+    trap 'umount "$mnt" 2>/dev/null || true' EXIT
+    [ -d "$mnt/usr/lib/zinc/boot" ] || die "the bundle's system has no /usr/lib/zinc/boot: not a Zinc A/B image"
+    uuid=$(blkid -s PARTUUID -o value "$dev")
+    # the slot's kernel, device trees and overlays, in /boot/firmware/<slot> (never the running slot's directory)
+    rm -rf "$FW/$x.new"
+    cp -r "$mnt/usr/lib/zinc/boot" "$FW/$x.new"
+    sed -E "s/(^| )root=[^ ]*/\1root=PARTUUID=$uuid/; s/(^| )rauc\.slot=[AB]/\1rauc.slot=$name/" \
+      "$FW/$(lower "$cur")/cmdline.txt" >"$FW/$x.new/cmdline.txt"
+    rm -rf "$FW/$x"
+    mv "$FW/$x.new" "$FW/$x"
+    sync
+    sed -i -E "s|^[^#[:space:]]+([[:space:]]+/[[:space:]])|PARTUUID=$uuid\1|" "$mnt/etc/fstab"
+    install -D -m 644 /etc/rauc/system.conf "$mnt/etc/rauc/system.conf"
+    merge_accounts / "$mnt"
+    local f d
+    for f in "${STATE_FILES[@]}"; do [ ! -e "$f" ] || { mkdir -p "$mnt$(dirname "$f")"; cp -a "$f" "$mnt$f"; }; done
+    rm -f "$mnt"/etc/ssh/ssh_host_*
+    cp -a /etc/ssh/ssh_host_* "$mnt/etc/ssh/" 2>/dev/null || true
+    for d in "${STATE_DIRS[@]}"; do
+      [ -d "$d" ] || continue
+      rm -rf "$mnt$d"; mkdir -p "$mnt$(dirname "$d")"; cp -a "$d" "$mnt$d"
+    done
+    # services turned on here (ssh, the agent) stay on; the new image's own stay too
+    for d in /etc/systemd/system/*.wants; do mkdir -p "$mnt$d"; cp -an "$d/." "$mnt$d/"; done
+    umount "$mnt"; rmdir "$mnt"; trap - EXIT
+  done
+}
+
+status() {
+  echo "booted=$("$BOOT" get-current)"
+  echo "committed=$(sed -n 's|^os_prefix=\([ab]\)/.*|\1|p' "$FW/config.txt" | tail -1 | tr ab AB)"
+  echo "trial=$([ ! -f "$FW/tryboot.txt" ] || sed -n 's|^os_prefix=\([ab]\)/.*|\1|p' "$FW/tryboot.txt" | tail -1 | tr ab AB)"
+  echo "bad=$(tr '\n' ' ' <"$FW/zinc-ab-bad" 2>/dev/null | sed 's/ $//')"
+}
+
+# after a trial boot: the session must come up and stay up (no restart) for STABLE seconds within TIMEOUT
+confirm() {
+  local booted committed timeout=${ZINC_AB_TIMEOUT:-180} stable=${ZINC_AB_STABLE:-30} unit=${ZINC_AB_UNIT:-zinc-shell.service}
+  booted=$("$BOOT" get-current); committed=$(status | sed -n 's/^committed=//p')
+  [ -n "$booted" ] && [ "$booted" != "$committed" ] || exit 0
+  local start=$SECONDS up=-1 state restarts
+  while [ $((SECONDS - start)) -lt "$timeout" ]; do
+    state=$(systemctl show -p ActiveState --value "$unit")
+    restarts=$(systemctl show -p NRestarts --value "$unit")
+    [ "${restarts:-0}" = 0 ] || break
+    if [ "$state" = active ]; then
+      [ "$up" -ge 0 ] || up=$SECONDS
+      if [ $((SECONDS - up)) -ge "$stable" ]; then
+        rauc status mark-good
+        echo "zinc-system-update: slot $booted is healthy and is now the system"
+        exit 0
+      fi
+    else up=-1; fi
+    sleep 2
+  done
+  echo "zinc-system-update: slot $booted did not start the session ($unit: ${state:-?}, ${restarts:-?} restarts); back to slot $committed" >&2
+  rauc status mark-bad
+  systemctl reboot
+}
+
+install_bundle() {
+  local src=${1:-} reboot=1 bundle work
+  [ "${2:-}" != --no-reboot ] || reboot=0
+  [ -n "$src" ] || die "install <bundle.raucb|url> [--no-reboot]"
+  [ "$(id -u)" = 0 ] || die "run as root"
+  work=/var/tmp/zinc-system-update
+  if [[ $src = https://* ]]; then
+    rm -rf "$work"; mkdir -p "$work"
+    bundle=$work/$(basename "$src")
+    curl -fL --retry 3 -o "$bundle" "$src" || die "cannot download $src"
+    curl -fsL --retry 3 -o "$bundle.sig" "$src.sig" || die "no signature at $src.sig"
+  else
+    bundle=$src
+  fi
+  [ -f "$bundle" ] || die "no bundle at $bundle"
+  [ -f "$bundle.sig" ] || die "no $bundle.sig: a system bundle is signed with Zinc's update key (zinc sign)"
+  # the root of trust is Zinc's Ed25519 key; RAUC's X.509 check (in rauc install) comes on top
+  zinc verify "$bundle" --key "$(tr -d '[:space:]' </etc/zinc/update.pub)" >/dev/null ||
+    die "$bundle: its signature does not match Zinc's update key; nothing was installed"
+  rauc install "$bundle"
+  [[ $src != https://* ]] || rm -rf "$work"
+  if [ "$reboot" = 1 ]; then
+    echo "zinc-system-update: installed; rebooting into it once (the old system comes back if it does not start)"
+    systemctl reboot '0 tryboot'
+  else
+    echo "zinc-system-update: installed; it boots once on: systemctl reboot '0 tryboot'"
+  fi
+}
+
+case ${1:-} in
+  install) shift; install_bundle "$@" ;;
+  status) status; command -v rauc >/dev/null && rauc status 2>/dev/null || true ;;
+  mark-good) rauc status mark-good ;;
+  mark-bad) rauc status mark-bad ;;
+  confirm) confirm ;;
+  post-install) post_install ;;
+  '') if [ -n "${RAUC_TARGET_SLOTS:-}" ]; then post_install; else sed -n '2,16s/^# \{0,1\}//p' "$0"; fi ;;
+  *) sed -n '2,16s/^# \{0,1\}//p' "$0"; exit 2 ;;
+esac

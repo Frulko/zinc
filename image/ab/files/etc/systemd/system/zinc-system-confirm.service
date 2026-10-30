@@ -1,0 +1,14 @@
+# Maintained by Zinc (A/B image). After a trial boot of a new system slot (tryboot), marks it good once the session
+# runs, which makes it the slot the Pi boots; otherwise marks it bad and reboots into the previous slot. A normal boot
+# does nothing.
+[Unit]
+Description=Confirm a newly installed Zinc system
+After=zinc-shell.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/zinc/zinc-system-update confirm
+TimeoutStartSec=10min
+
+[Install]
+WantedBy=multi-user.target

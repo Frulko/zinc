@@ -11,7 +11,9 @@ fi
 sed -i 's/^auto_initramfs=.*/auto_initramfs=0/' $FW/config.txt
 rm -f $FW/initramfs8 $FW/initramfs_2712
 sed -i 's/^update_initramfs=.*/update_initramfs=no/' /etc/initramfs-tools/update-initramfs.conf
-sed -i 's/ ds=nocloud[^ ]*//; s/ resize\b//' $FW/cmdline.txt
+for f in $FW/cmdline.txt $FW/a/cmdline.txt $FW/b/cmdline.txt; do   # a/ b/: the A/B image's slots
+  [ ! -f "$f" ] || sed -i 's/ ds=nocloud[^ ]*//; s/ resize\b//' "$f"
+done
 touch /etc/cloud/cloud-init.disabled
 # they held a Wi-Fi key and a password hash, and are applied
 rm -f $FW/user-data $FW/network-config

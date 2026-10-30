@@ -1,0 +1,51 @@
+#!/bin/bash
+# RAUC's custom bootloader backend for the A/B image (bootloader-custom-backend in /etc/rauc/system.conf).
+# The Pi firmware picks the slot: config.txt says os_prefix=a/ or b/ (kernel, dtbs, overlays and cmdline.txt of that
+# slot, in /boot/firmware/a or /b); a one-shot `reboot "0 tryboot"` makes the firmware read tryboot.txt instead, which
+# names the other slot. The tryboot flag is cleared on read: any reset (watchdog, panic=10, power) boots config.txt's
+# slot again. Committing a slot is rewriting config.txt. Slots marked bad are listed in zinc-ab-bad.
+# This is the scheme Ubuntu uses on every Pi it supports (Pi 3, Zero 2, 4, 5): os_prefix + tryboot.txt, one boot FAT.
+set -euo pipefail
+FW=${ZINC_AB_FW:-/boot/firmware}
+CMDLINE=${ZINC_AB_CMDLINE:-/proc/cmdline}
+BAD=$FW/zinc-ab-bad
+
+slot_of() { sed -n 's|^os_prefix=\([ab]\)/[[:space:]]*$|\1|p' "$1" 2>/dev/null | tail -1 | tr ab AB; }
+committed() { slot_of "$FW/config.txt"; }
+current() { tr ' ' '\n' <"$CMDLINE" | sed -n 's/^rauc\.slot=\([AB]\)$/\1/p'; }
+lower() { echo "$1" | tr AB ab; }
+check() { [[ $1 =~ ^[AB]$ ]] || { echo "zinc-ab-boot: unknown slot '$1'" >&2; exit 2; }; }
+# a new file then a rename: FAT has no atomic write, this is the best it offers (the old file stays whole until then)
+put() { cat >"$1.new" && sync "$1.new" 2>/dev/null; mv -f "$1.new" "$1"; sync; }
+with_prefix() { sed "s|^os_prefix=.*|os_prefix=$(lower "$1")/|" "$FW/config.txt"; }
+commit() { with_prefix "$1" | put "$FW/config.txt"; rm -f "$FW/tryboot.txt"; }
+unbad() { [ ! -f "$BAD" ] || grep -vx "$1" "$BAD" | put "$BAD" || true; }
+
+cmd=${1:-}
+case $cmd in
+  get-primary)
+    if [ -f "$FW/tryboot.txt" ]; then slot_of "$FW/tryboot.txt"; else committed; fi ;;
+  get-current) current ;;
+  set-primary)
+    check "${2:-}"
+    if [ "$2" = "$(committed)" ]; then rm -f "$FW/tryboot.txt"
+    elif [ "$2" = "$(current)" ]; then commit "$2"
+    else with_prefix "$2" | put "$FW/tryboot.txt"; fi   # booted once by `reboot "0 tryboot"`
+    unbad "$2" ;;
+  get-state)
+    check "${2:-}"
+    if [ -f "$BAD" ] && grep -qx "$2" "$BAD"; then echo bad; else echo good; fi ;;
+  set-state)
+    check "${2:-}"
+    case ${3:-} in
+      good)
+        unbad "$2"
+        # the trial slot came up healthy: it becomes the slot the Pi boots
+        if [ "$2" = "$(current)" ] && [ "$2" != "$(committed)" ]; then commit "$2"; fi ;;
+      bad)
+        { [ ! -f "$BAD" ] || grep -vx "$2" "$BAD" || true; echo "$2"; } | put "$BAD"
+        if [ "$(slot_of "$FW/tryboot.txt")" = "$2" ]; then rm -f "$FW/tryboot.txt"; fi ;;
+      *) echo "zinc-ab-boot: set-state <A|B> good|bad" >&2; exit 2 ;;
+    esac ;;
+  *) echo "usage: zinc-ab-boot get-primary|get-current|set-primary <slot>|get-state <slot>|set-state <slot> good|bad" >&2; exit 2 ;;
+esac

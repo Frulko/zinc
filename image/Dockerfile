@@ -2,5 +2,5 @@
 # native on an arm64 machine, through the host's qemu binfmt elsewhere).
 FROM debian:trixie
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl jq xz-utils fdisk e2fsprogs dosfstools openssl \
+ && apt-get install -y --no-install-recommends ca-certificates curl jq xz-utils fdisk e2fsprogs dosfstools openssl rauc squashfs-tools \
  && rm -rf /var/lib/apt/lists/*
