@@ -846,6 +846,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-886: give the fake Discord a 401, a captcha 400, a long 429 and op 9 d:false so the T1 session proves safe mode and the identify backoff.
 
 ## Cross-platform pass
+- ZN-884: run the shell's suspend on a Pi 3 (KMS closed and reopened, evdev grabs released, a whole frame after) and the 3 s no-CONNECT rule on the sim framebuffer.
+- ZN-884: display_shell's stand-in on the Pi (rpi1 and arm64) with real dmabuf buffers from the shell's KMS (P2).
 - ZN-885: the Linux trimHeap of src/host/loop.cpp (glibc malloc_trim(0)); check RSS drops after tests/data/heap_trim.ts on the Pi.
 - ZN-872: the discord-voice plugin on Linux (ALSA/PulseAudio through miniaudio, BoringSSL without asm) and the zig cross build of its 431 sources.
 - ZN-864: `hal_win_ctl` on Linux (SDL3 HAL) and the n3ds HAL (weak default: nothing moves).
@@ -992,4 +994,8 @@ The next backlog review turns lines into tasks or deletes them.
 - Inspector Info: check by hand that moving the window to a screen of another refresh rate updates the rate (SDL_EVENT_WINDOW_DISPLAY_CHANGED, no automatic test).
 - Inspector discovery folder on Windows: uses `HOME`; needs `USERPROFILE`.
 - ZN-876: zinc:secure-store backends for Linux (libsecret) and Windows (Credential Manager); until then the non-Apple branch of securestore.abi.c refuses — run tests/t0/secure_store.sh's no-keychain path (isAvailableAsync false, calls reject) on Linux and Windows.
-
+- ZN-884: display-shell renders into a staging copy, then copies the damage into the buffer; rendering straight into the free buffer (render_box, stride w*4) saves a copy per frame. Measure on a Pi 3 first.
+- ZN-884: zinc:shell routes touches by position each frame; route each touch id by where it started, as the pointer is.
+- ZN-884: a dyn_update_rect change should also reach the device path's diff_rects_sig (ZRT_COMPACT_PREV), which damages the whole image today.
+- ZN-884: zinc:shell listens as soon as the module loads, also under `zinc check` (a stderr line); listen on first use instead.
+- ZN-884: a display driver built against the old hal.h has a shorter HalDisplay; reading ->suspend reads past it. Check the driver's ABI version before using suspend.
