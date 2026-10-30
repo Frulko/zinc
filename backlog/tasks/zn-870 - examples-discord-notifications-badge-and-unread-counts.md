@@ -23,6 +23,7 @@ Phase 2: the mention, mute and suppress rules of section 6 of the research repor
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 A DM and a mention notify; a muted channel or server does not; the focused channel does not
+- [ ] #5 A server switched off in the app's settings (ZN-878) never notifies
 - [ ] #2 Clicking a notification opens its channel
 - [ ] #3 The Dock badge shows the mention count and clears on read
 - [ ] #4 The rules have a demo test over recorded events
