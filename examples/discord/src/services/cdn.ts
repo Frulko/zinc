@@ -9,6 +9,8 @@ import { dataDir } from 'zinc:system/window';
 import { CDN_BASE, CACHE_DIR } from '../constants';
 import { api } from './rest';
 
+const CDN_SIZE = 128;   // px: the largest shown (48 pt) on a 2x screen; without it the CDN sends the picture as uploaded, up to 1024 px
+const AT_ONCE = 6;      // downloads at a time, as a browser per host: 93 servers' icons at once were 93 TLS handshakes on the loop
 const images: Map<string, i32> = new Map<string, i32>();   // key -> picture; -1 while it loads, or when it failed
 let folder = '';
 let loaded: () => void = (): void => {};
@@ -26,7 +28,7 @@ export function attachmentKey(url: string): string {
 }
 
 /** The picture of a CDN path (avatars/..., icons/..., emojis/...), -1 until it is loaded. */
-export function cdnPicture(key: string): i32 { return picture(key, `${CDN_BASE}/${key}`); }
+export function cdnPicture(key: string): i32 { return picture(key, `${CDN_BASE}/${key}?size=${CDN_SIZE}`); }
 /** The picture of an attachment's URL, -1 until it is loaded. */
 export function attachmentPicture(url: string): i32 { return picture(attachmentKey(url), url); }
 
@@ -49,10 +51,14 @@ let loading: i32 = 0;
 /** Pictures on their way (the tests wait for none). */
 export function picturesLoading(): i32 { return loading; }
 
+const waiting: string[][] = [];   // [key, url] of the downloads past AT_ONCE: the last asked (the last shown) goes first
+let downloading: i32 = 0;
 async function load(key: string, url: string): Promise<void> {
   loading++;
-  await fetchPicture(key, url);
+  if (exists(fileOf(key)) || downloading < AT_ONCE) await fetchPicture(key, url);
+  else { waiting.push([key, url]); return; }
   loading--;
+  while (waiting.length > 0 && downloading < AT_ONCE) { const w = waiting.pop() as string[]; loading--; load(w[0], w[1]); }
 }
 async function fetchPicture(key: string, url: string): Promise<void> {
   await Promise.resolve();   // after the render that asked for it
@@ -60,7 +66,11 @@ async function fetchPicture(key: string, url: string): Promise<void> {
   let bytes: u8[] = [];
   try {
     if (exists(file)) { bytes = readBytes(file); log(`picture ${key}: from the disk`); }
-    else { bytes = await download(url); writeBytes(file, bytes); log(`picture ${key}: from the CDN`); }
+    else {
+      downloading++;
+      try { bytes = await download(url); } finally { downloading--; }
+      writeBytes(file, bytes); log(`picture ${key}: from the CDN`);
+    }
   } catch (e) { log(`picture ${key} failed: ${e.message}`); return; }
   const img = imageFromBytes(bytes);
   if (img < 0) { log(`picture ${key}: not a picture`); return; }
