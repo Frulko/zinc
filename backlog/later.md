@@ -451,6 +451,11 @@ The next backlog review turns lines into tasks or deletes them.
 - Inspector, zinc:stage: the tree is sent whole on DOM.getDocument with no DOM mutation events (nodes added later show on the next getDocument); the highlight ignores rotation and pivots; a program with a zinc:ui tree and a stage drawn in a `<Canvas>` shows only the zinc:ui tree.
 - devtools: with `ZINC_DEVTOOLS_PORT=0` the "zinc devtools:" line and zinc dev print port 0 instead of the port the system chose.
 
+- Open records (D192): an instance assigned to an interface of fields prints, serialises to JSON and views as `any` with the record's fields only; JavaScript shows the class and all its fields (`Tag { label: 'x', n: 2 }`). Route it like `__dynSub` and the inspect formatters.
+- Structural assignment to a record does not accept an interface value, a class whose getter supplies the field, a missing optional field or a narrower field type; TypeScript accepts all four.
+- An open record's literal class gets no vtable getter entries for non-record interfaces with properties it satisfies (rare).
+- Writing through a non-record interface property (`iface.prop = v`) is refused (interface properties are read-only getters); TypeScript allows it, it needs a setter selector.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
