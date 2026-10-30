@@ -19,6 +19,18 @@ export interface Spec extends NativeModule {
   start(h: i32, mode: string, key: u8[]): boolean;
   /** mute: send nothing; deaf: play nothing; ptt: push-to-talk mode, then `held` says when to send (else the voice activity decides). */
   controls(h: i32, mute: boolean, deaf: boolean, ptt: boolean, held: boolean): void;
+  /** The microphones (output false) or the speakers (true) as records "id\u001fname": ids as zinc:microphone's devices() writes them.
+   *  With the fake microphone (ZINC_FAKE_MICROPHONE=1, where no device is opened) "Zinc Fake Microphone" and "Zinc Fake Speakers". */
+  devices(output: boolean): string;
+  /** The microphone and the speakers to use ('' the system's default; one that is gone falls back to it); during a call, at once. */
+  setDevices(h: i32, input: string, output: string): void;
+  /** Gains of the microphone (before the voice activity) and of the whole output (1: as is, 2: twice), and the voice activity threshold:
+   *  the RMS level 0..1 under which nothing is sent. */
+  setAudio(h: i32, inputGain: f64, outputGain: f64, threshold: f64): void;
+  /** One user's gain in the mix (1: as is). */
+  setUserVolume(h: i32, user: string, gain: f64): void;
+  /** The microphone's level now (RMS 0..1, after its gain), sent or not: a meter reads it. */
+  level(h: i32): f64;
   /** The SSRC <-> user binding of the voice gateway's Speaking (op 5), so a stream can be told apart before it is heard. */
   bind(h: i32, ssrc: u32, user: string): void;
   /** Who is heard now: records "user or ssrc\u001flevel 0..1"; "me" is us while we send. */

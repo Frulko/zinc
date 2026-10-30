@@ -5043,6 +5043,12 @@ struct Checker {
             if (!bad(it) && it != tNull && it != tVoid) t = it;
           }
           if (t == tError && in.kind == N::Ident) t = moduleConstType(in.text);  // `private fill = BLACK`: the type of a module-level const, found in the list of top statements
+          if (t == tError && in.kind == N::Ident) {   // `key = PTT_KEY` imported from another module: its symbol is typed already
+            std::size_t before = out.diags.size();
+            TypeId it = expr(mn.kids[1]);
+            if (out.diags.size() > before) out.diags.resize(before);
+            if (!bad(it) && it != tNull && it != tVoid) t = it;
+          }
           if (t == tError) diag(kZCannotInfer, m, "field '" + std::string(mn.text) + "'");
         } else diag(kZCannotInfer, m, "field '" + std::string(mn.text) + "'");
         out.nodeType[m] = t;

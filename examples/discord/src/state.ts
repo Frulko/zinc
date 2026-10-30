@@ -78,6 +78,8 @@ export class Store implements GatewayHandler {
   membersOf = '';
   /** The settings screen is open (in place of the messages). */
   settingsOpen = false;
+  /** The settings' pane: 'servers' or 'voice' (Voice & audio). */
+  settingsTab = 'servers';
   /** The servers shown, chosen in the settings and kept on this machine (zinc:storage), never sent to Discord: null until a choice is
    *  made (every server shows), then an allowlist. `known`: the servers the settings listed, so one joined after is new (and off). */
   private allowed: Set<string> | null = null;
@@ -329,7 +331,14 @@ export class Store implements GatewayHandler {
   /** Closing the settings: the servers they listed are no longer new. */
   showSettings(open: boolean): void {
     if (!open && this.allowed !== null) { for (const g of this.guilds) this.known.add(g.id); this.saveServers(); }
-    this.settingsOpen = open; this.changed();
+    this.settingsOpen = open;
+    this.call.meterOn(open && this.settingsTab === 'voice');
+    this.changed();
+  }
+  showSettingsTab(tab: string): void {
+    this.settingsTab = tab;
+    this.call.meterOn(this.settingsOpen && tab === 'voice');
+    this.changed();
   }
   private saveServers(): void {
     const a = this.allowed;
@@ -442,6 +451,7 @@ export class Store implements GatewayHandler {
     this.changed();
     const c = this.findChannel(id);
     if (c !== null && c.forum()) { if (!this.postsOf.has(id)) this.loadPosts(c); }
+    else if (c !== null && !c.readable()) { /* a voice channel: its call shows (App.tsx) */ }
     else if (id !== '' && !this.messages.has(id)) this.loadHistory(id);
     else if (id !== '') this.ack(id);
   }

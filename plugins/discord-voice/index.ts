@@ -64,6 +64,10 @@ export class VoiceConnection {
   private held = false;
   private dave: i32 = 0;                                    // the DAVE protocol version of the call (0: none)
   private transitions: Map<i32, i32> = new Map<i32, i32>();   // transition id -> the protocol version it moves to
+  private input = '';
+  private output = '';
+  private gains: number[] = [1, 1, 0.01];                     // microphone, output, voice activity threshold
+  private userGains: Map<string, number> = new Map<string, number>();
 
   constructor(server: VoiceServer) {
     this.server = server;
@@ -75,12 +79,26 @@ export class VoiceConnection {
   /** Push-to-talk: only send while held(true); off, the voice activity decides. */
   setPushToTalk(on: boolean): void { this.ptt = on; this.controls(); }
   hold(down: boolean): void { this.held = down; this.controls(); }
+  /** The microphone and the speakers by id (inputDevices(), outputDevices(); '' the system's default), switched at once during a call. */
+  setDevices(input: string, output: string): void { this.input = input; this.output = output; this.audio(); }
+  /** Gains of the microphone and of everything heard (0 to 2, 1 as is), and the voice activity threshold: the microphone's RMS level
+   *  (0..1, level()) under which nothing is sent. Push-to-talk ignores the threshold. */
+  setVolumes(input: number, output: number, threshold: number): void { this.gains = [input, output, threshold]; this.audio(); }
+  /** How loud one user is heard (0 to 2, 1 as is). */
+  setUserVolume(user: string, gain: number): void { this.userGains.set(user, gain); if (this.h >= 0) S.setUserVolume(this.h, user, gain); }
+  /** The microphone's level now, RMS 0..1 after its gain, sent or not (a meter against the threshold). */
+  level(): number { return this.h >= 0 ? S.level(this.h) : 0; }
   /** [packets sent, received, decryption failures, frames decoded, frames mixed, late or lost] */
   stats(): number[] { return this.h >= 0 ? S.stats(this.h) : [0, 0, 0, 0, 0, 0]; }
   /** Leaves: the voice socket closes with 1000 and the media stops. The program also sends op 4 with a null channel. */
   close(): void { this.end('left'); }
 
   private controls(): void { if (this.h >= 0) S.controls(this.h, this.mute, this.deaf, this.ptt, this.held); }
+  private audio(): void {
+    if (this.h < 0) return;
+    S.setDevices(this.h, this.input, this.output);
+    S.setAudio(this.h, this.gains[0], this.gains[1], this.gains[2]);
+  }
   private url(): string {
     const e = this.server.endpoint;
     return (e.startsWith('ws://') || e.startsWith('wss://') ? e : `wss://${e}`) + '/?v=8';
@@ -133,6 +151,8 @@ export class VoiceConnection {
     if (h < 0) { this.end(S.error()); return; }
     this.h = h;
     this.controls();
+    this.audio();
+    for (const [u, g] of this.userGains) S.setUserVolume(h, u, g);
     const t = setInterval(() => {
       if (this.h !== h) { clearInterval(t); return; }
       const got = S.discovered(h);
@@ -234,6 +254,17 @@ export class VoiceConnection {
     if (this.heard !== '') { this.heard = ''; this.onSpeaking([]); }
   }
 }
+
+export interface AudioDevice { id: string; name: string }
+function audioDevices(output: boolean): AudioDevice[] {
+  const out: AudioDevice[] = [];
+  for (const r of S.devices(output).split('\u001e')) if (r !== '') { const f = r.split('\u001f'); out.push({ id: f[0], name: f[1] }); }
+  return out;
+}
+/** The microphones a call can use (the ids of zinc:microphone's devices()); with ZINC_FAKE_MICROPHONE=1, the fake one only. */
+export function inputDevices(): AudioDevice[] { return audioDevices(false); }
+/** The speakers and headphones a call can play to; with ZINC_FAKE_MICROPHONE=1, "Zinc Fake Speakers" only (nothing is played). */
+export function outputDevices(): AudioDevice[] { return audioDevices(true); }
 
 /** The encryption modes this side supports, best first. */
 export function modes(): string[] { return S.modes().split('\u001f'); }

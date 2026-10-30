@@ -8,7 +8,8 @@ import { ChannelList } from './components/ChannelList';
 import { MessageView } from './components/MessageView';
 import { MemberList } from './components/MemberList';
 import { Settings } from './components/Settings';
-import { BG_MAIN, TEXT_MUTED } from './constants';
+import { CallView } from './components/CallView';
+import { BG_MAIN, TEXT_MUTED, CH_VOICE } from './constants';
 
 /** No conversation open: the server or the DMs are shown, one is chosen in the list. */
 function Pick() {
@@ -26,10 +27,17 @@ export default function App() {
   if (store.stage === 'login') return <Login />;
   if (store.stage === 'connecting' && store.guilds.length === 0 && store.dms.length === 0)
     return <View className={`grow items-center justify-center ${BG_MAIN}`}><Text className={TEXT_MUTED}>Connecting…</Text></View>;
+  // the call view: in place of a voice channel's messages, or above those of the DM the call is in
+  const call = store.call, open = store.findChannel(store.channelId);
+  const callHere = call.channelId !== '' && call.channelId === store.channelId && !store.settingsOpen;
+  const voiceRoom = open !== null && open.type === CH_VOICE;
+  call.watch(callHere);
   return <View className="grow flex-row">
     <GuildRail />
     <ChannelList />
-    {store.settingsOpen ? <Settings /> : store.channelId === '' ? <Pick /> : <MessageView />}
+    {store.settingsOpen ? <Settings /> : voiceRoom ? (callHere ? <CallView compact={false} /> : <Pick />)
+      : callHere ? <View className="grow basis-0"><CallView compact={true} /><MessageView /></View>
+      : store.channelId === '' ? <Pick /> : <MessageView />}
     {store.guildId !== '' && store.channelId !== '' && !store.settingsOpen ? <MemberList /> : null}
   </View>;
 }

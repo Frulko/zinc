@@ -1,5 +1,5 @@
 // The channels of the open server (categories as headers, each channel's active threads under it, forums open on their posts) or the DMs,
-// unread ones in white with their count of mentions; a voice channel joins its call when pressed and lists who is in it (a green ring:
+// unread ones in white with their count of mentions; a voice channel joins its call when pressed (and shows it, CallView.tsx) and lists who is in it (a green ring:
 // speaking), a DM has a call button (green while it rings us). At the bottom the call bar while in a call, and the user with mute, deafen
 // and log out.
 import { Icon } from 'zinc:icons';
@@ -27,7 +27,7 @@ function Row(p: { c: Channel }) {
   if (c.type === CH_CATEGORY) return <Text className={`px-2 pt-4 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>{c.name}</Text>;
   const on = c.id === store.channelId, open = c.readable(), unread = open && !on && store.unread(c.id), mentions = store.mentions(c.id);
   return <View className={`mx-2 px-2 h-[32] flex-row items-center gap-1.5 rounded ${isThread(c.type) ? 'ml-6' : ''} ${on ? BG_SELECTED : BG_HOVER}`} aria-label={c.name}
-    onPress={() => { if (open) store.selectChannel(c.id); else if (c.type === CH_VOICE) store.call.join(c.id, c.guildId); }}>
+    onPress={() => { if (open || c.type === CH_VOICE) store.selectChannel(c.id); if (c.type === CH_VOICE) store.call.join(c.id, c.guildId); }}>
     <Icon name={icon(c)} size={18} color={MUTED} />
     <Text className={`grow text-[15px] ${on || unread ? `${TEXT_STRONG} font-semibold` : open ? TEXT_MAIN : TEXT_MUTED}`} numberOfLines={1}>{c.name}</Text>
     {mentions > 0 ? <Badge n={mentions} /> : null}
@@ -66,7 +66,7 @@ function CallBar() {
       {call.error !== '' ? <Text className={`text-xs ${TEXT_ERROR}`}>{call.error}</Text> : null}
     </View>
     {call.channelId !== '' ? <View className={`px-1.5 py-0.5 rounded ${call.ptt ? 'bg-[#5865f2]' : BG_HOVER}`} onPress={() => call.setPushToTalk(!call.ptt)}
-      aria-label={call.ptt ? 'Push to talk on (hold F8)' : 'Push to talk off'}>
+      aria-label={call.ptt ? `Push to talk on (hold ${call.settings.pttKey})` : 'Push to talk off'}>
       <Text className={`text-xs ${call.ptt ? 'text-white' : TEXT_MUTED}`}>PTT</Text>
     </View> : null}
     {call.channelId !== '' ? <View className={`p-1 rounded ${BG_HOVER}`} onPress={() => call.leave()} aria-label="Disconnect">

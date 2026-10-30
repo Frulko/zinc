@@ -11,11 +11,15 @@ voice select protocol=udp address=127.0.0.1 port=true mode=aead_aes256_gcm_rtpsi
 voice select protocol=udp address=127.0.0.1 port=true mode=aead_aes256_gcm_rtpsize
 voice speaking 0 ssrc=11
 voice speaking 0 ssrc=11
+voice speaking 0 ssrc=11
 voice speaking 1 ssrc=11
 voice speaking 1 ssrc=11
+voice speaking 1 ssrc=11
 voice state guild=200 channel=304 mute=false deaf=false
 voice state guild=200 channel=304 mute=false deaf=false
 voice state guild=200 channel=304 mute=false deaf=false
+voice state guild=200 channel=304 mute=false deaf=false
+voice state guild=200 channel=304 mute=true deaf=false
 voice state guild=200 channel=304 mute=true deaf=false
 voice state guild=200 channel=304 mute=true deaf=true
 voice state guild=200 channel=null mute=false deaf=false

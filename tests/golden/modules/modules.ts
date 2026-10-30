@@ -11,3 +11,5 @@ console.log(inc(), count);
 const p: Pair = [1, 2];
 console.log(p[0] + p[1]);
 console.log(Box.pick('a', 'b', false), Crate.pick(1, 2, true));   // static generic methods through a re-export and an alias
+class Circle { tau = PI2; }   // a field typed by an imported const
+console.log(new Circle().tau);

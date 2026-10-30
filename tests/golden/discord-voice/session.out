@@ -6,4 +6,7 @@ voice: left, idle
 voice: muted, speaking ''
 voice: push-to-talk held, speaking Ada, Grace
 voice: push-to-talk, not held, speaking ''
+voice: sensitivity -10 dB, level under it true, speaking ''
+voice: sensitivity -40 dB, input volume 80%, level -15 dB, speaking Ada, Grace
+voice: settings kept true: {"input":"zinc:fake-microphone","output":"zinc:fake-speakers","inputVolume":80,"outputVolume":100,"users":{"101":150},"mode":"voice","sensitivity":-40,"pttKey":"F8"}
 voice: speaking Ada, Grace, in Lounge Ada, Grace

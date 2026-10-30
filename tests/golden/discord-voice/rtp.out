@@ -10,3 +10,5 @@ aes-gcm header changed ok
 xchacha payload changed ok
 aes-gcm wrong key ok
 unknown mode ok
+inputs Zinc Fake Microphone (zinc:fake-microphone)
+outputs Zinc Fake Speakers (zinc:fake-speakers)

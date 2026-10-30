@@ -1,8 +1,9 @@
 // zinc:discord-voice's RTP framing and transport encryption against vectors recorded with Node's crypto (OpenSSL), not with the plugin's
 // libraries (plugins/discord-voice/tests/vectors.mjs, which also checks its HChaCha20 against draft-irtf-cfrg-xchacha): a voice packet in
 // aead_aes256_gcm_rtpsize and aead_xchacha20_poly1305_rtpsize as the client sends it, the same opened, a received packet with a header
-// extension (authenticated header, encrypted body skipped), and a packet with one flipped bit or the wrong key refused. tests/t1/discord_voice.sh.
-import { rtpHeader, seal, unseal, modes } from 'zinc:discord-voice';
+// extension (authenticated header, encrypted body skipped), and a packet with one flipped bit or the wrong key refused; then the audio devices
+// a call can choose (the fake ones: ZINC_FAKE_MICROPHONE=1). tests/t1/discord_voice.sh, on the three engines.
+import { rtpHeader, seal, unseal, modes, inputDevices, outputDevices, AudioDevice } from 'zinc:discord-voice';
 
 const GCM = 'aead_aes256_gcm_rtpsize', XCHACHA = 'aead_xchacha20_poly1305_rtpsize';
 const bytes = (h: string): u8[] => { const out: u8[] = []; for (let i = 0; i < h.length; i += 2) out.push(parseInt(h.substring(i, i + 2), 16)); return out; };
@@ -34,3 +35,6 @@ check('xchacha payload changed', hex(unseal(XCHACHA, key, body)), '');
 const other = bytes('030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dd');
 check('aes-gcm wrong key', hex(unseal(GCM, other, bytes(gcm))), '');
 check('unknown mode', hex(seal('xsalsa20_poly1305', key, header, 1, bytes(opus))), '');
+const names = (l: AudioDevice[]): string => l.map((d: AudioDevice) => `${d.name} (${d.id})`).join(', ');
+console.log(`inputs ${names(inputDevices())}`);
+console.log(`outputs ${names(outputDevices())}`);

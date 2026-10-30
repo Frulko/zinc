@@ -48,7 +48,7 @@ export const AVATAR = 40, MEMBER_AVATAR = 32, EMOJI = 22, EMOJI_BIG = 48;
 export const MEDIA_MAX_W = 400, MEDIA_MAX_H = 300;
 
 // Voice (call.ts): who speaks has a green ring; the push-to-talk key, held
-export const VOICE_AVATAR = 20, SPEAKING_RING = 'border-[#23a55a]', PTT_KEY = 'F8';
+export const VOICE_AVATAR = 20, CALL_AVATAR = 64, SPEAKING_RING = 'border-[#23a55a]', PTT_KEY = 'F8';
 export const EMBED_W = 432, THUMB = 80, STICKER = 160;   // an embed card at most, its thumbnail, a sticker
 export const ROW_ESTIMATE = 44;           // a message's height before it is laid out (the virtual list's estimate)
 export const OLDER_AT = 400;              // px from the top of the history where the page before is asked for

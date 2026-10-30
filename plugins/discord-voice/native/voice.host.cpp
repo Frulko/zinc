@@ -39,7 +39,7 @@ namespace {
 const char FS = '\x1f', RS = '\x1e';
 const int RATE = 48000, CH = 2, FRAME = 960;            // 20 ms of stereo at 48 kHz
 const int PT_OPUS = 0x78;
-const double VAD_LEVEL = 0.01, VAD_HOLD_MS = 300;         // voice activity: above this RMS, and for this long after
+const double VAD_LEVEL = 0.01, VAD_HOLD_MS = 300;         // voice activity: above this RMS (the default, setAudio's threshold), and for this long after
 const int SILENCE_FRAMES = 5;                             // sent after speech, as the official clients do
 const uint8_t SILENCE[3] = {0xF8, 0xFF, 0xFE};
 const size_t JITTER_MAX = 8;                              // frames kept per speaker (160 ms); older ones are dropped
@@ -63,6 +63,23 @@ inline void put32(uint8_t* p, uint32_t v) { p[0] = (uint8_t)(v >> 24); p[1] = (u
 double nowMs() { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 int modeOf(const std::string& m) { for (int i = 0; i < 2; i++) if (m == MODE_NAMES[i]) return i; return NONE; }
 bool fakeMic() { const char* v = getenv("ZINC_FAKE_MICROPHONE"); return v && *v && strcmp(v, "0") != 0; }
+const char* FAKE_IN = "zinc:fake-microphone\x1fZinc Fake Microphone\x1e", *FAKE_OUT = "zinc:fake-speakers\x1fZinc Fake Speakers\x1e";
+// The devices: one miniaudio context for the listing and the opening, ids as zinc:microphone writes them (the same backend's name for a
+// device), so an id of its devices() opens the same microphone here.
+ma_context ctx;
+bool ctxOk = false, ctxTried = false;
+ma_context* context() {
+  if (!ctxTried) { ctxTried = true; ctxOk = ma_context_init(nullptr, 0, nullptr, &ctx) == MA_SUCCESS; }
+  return ctxOk ? &ctx : nullptr;
+}
+std::string idOf(const ma_device_info& d, int i) {
+  switch (ctx.backend) {
+    case ma_backend_coreaudio: return d.id.coreaudio;
+    case ma_backend_pulseaudio: return d.id.pulse;
+    case ma_backend_alsa: return d.id.alsa;
+    default: return "device:" + std::to_string(i);
+  }
+}
 double rms(const float* s, int n) { double a = 0; for (int i = 0; i < n; i++) a += (double)s[i] * s[i]; return n ? sqrt(a / n) : 0; }
 
 // ---------------------------------------------------------------- the transport encryption
@@ -166,8 +183,13 @@ struct Conn {
   long long tone = 0;                  // the fake microphone's next sample
   std::map<uint32_t, Speaker> speakers;
   // the devices and their buffers (under amu)
-  bool fake = false, capOn = false, playOn = false;
+  bool fake = false, capOn = false;
+  std::atomic<bool> playOn{false};
   ma_device cap, play;
+  // the program's audio choices (under mu): the devices ('' the system's default), the gains, the voice activity threshold, a gain per user
+  std::string inDev, outDev;
+  double inGain = 1, outGain = 1, threshold = VAD_LEVEL, level = 0;
+  std::map<std::string, double> userGain;
   std::mutex amu;
   std::vector<float> captured, toPlay;
   // DAVE (under mu): the MLS session, our encryptor, a decryptor per user, the users of the last commit or welcome
@@ -260,10 +282,13 @@ bool Conn::frame(float* pcm) {
 void Conn::tick(double now) {
   float pcm[FRAME * CH];
   bool m, d, p, h;
-  { std::lock_guard<std::mutex> g(mu); m = mute; d = deaf; p = ptt; h = held; }
+  double gin, gout, gate;
+  { std::lock_guard<std::mutex> g(mu); m = mute; d = deaf; p = ptt; h = held; gin = inGain; gout = outGain; gate = threshold; }
   if (frame(pcm)) {
+    if (gin != 1) for (float& v : pcm) v = std::max(-1.0f, std::min(1.0f, (float)(v * gin)));
     myLevel = rms(pcm, FRAME * CH);
-    if (myLevel > VAD_LEVEL) voiceAt = now;
+    { std::lock_guard<std::mutex> g(mu); level = myLevel; }
+    if (myLevel > gate) voiceAt = now;
     const bool send = !m && (p ? h : now - voiceAt < VAD_HOLD_MS);
     uint8_t opus[1500];
     int n = 0;
@@ -301,7 +326,10 @@ void Conn::tick(double now) {
       if (s.primed && s.frames.empty()) s.primed = false;
       if (!s.primed) continue;
       const std::vector<float>& f = s.frames.front();
-      for (int i = 0; i < FRAME * CH; i++) out[i] += f[(size_t)i];
+      double k = gout;
+      auto u = users.find(id);
+      if (u != users.end()) { auto ug = userGain.find(u->second); if (ug != userGain.end()) k *= ug->second; }
+      for (int i = 0; i < FRAME * CH; i++) out[i] += (float)(f[(size_t)i] * k);
       s.frames.pop_front();
       stats[4]++;
     }
@@ -362,6 +390,32 @@ void onPlay(ma_device* dv, void* out, const void*, ma_uint32 n) {
   memcpy(o, c->toPlay.data(), have * sizeof(float));
   memset(o + have, 0, (want - have) * sizeof(float));
   c->toPlay.erase(c->toPlay.begin(), c->toPlay.begin() + (long)have);
+}
+
+/** Opens (or opens again, on a change of device) the microphone and the speakers chosen ('' or one not found: the system's default); no
+ *  device is not fatal (we still hear, or still speak). Called on the program's thread; the worker only reads playOn and the buffers. */
+void openDevices(Conn* c) {
+  if (c->capOn) { ma_device_uninit(&c->cap); c->capOn = false; }
+  if (c->playOn) { c->playOn = false; ma_device_uninit(&c->play); }
+  if (c->fake || !context()) return;
+  std::string in, out;
+  { std::lock_guard<std::mutex> g(c->mu); in = c->inDev; out = c->outDev; }
+  ma_device_info *plays = nullptr, *caps = nullptr;
+  ma_uint32 np = 0, nc = 0;
+  const ma_device_id *pin = nullptr, *pout = nullptr;
+  if (ma_context_get_devices(&ctx, &plays, &np, &caps, &nc) == MA_SUCCESS) {
+    for (ma_uint32 i = 0; i < nc; i++) if (!in.empty() && idOf(caps[i], (int)i) == in) pin = &caps[i].id;
+    for (ma_uint32 i = 0; i < np; i++) if (!out.empty() && idOf(plays[i], (int)i) == out) pout = &plays[i].id;
+  }
+  ma_device_config cc = ma_device_config_init(ma_device_type_capture);
+  cc.capture.pDeviceID = pin; cc.capture.format = ma_format_f32; cc.capture.channels = CH; cc.sampleRate = RATE; cc.dataCallback = onCapture; cc.pUserData = c;
+  c->capOn = ma_device_init(&ctx, &cc, &c->cap) == MA_SUCCESS;
+  if (c->capOn && ma_device_start(&c->cap) != MA_SUCCESS) { ma_device_uninit(&c->cap); c->capOn = false; }
+  ma_device_config pc = ma_device_config_init(ma_device_type_playback);
+  pc.playback.pDeviceID = pout; pc.playback.format = ma_format_f32; pc.playback.channels = CH; pc.sampleRate = RATE; pc.dataCallback = onPlay; pc.pUserData = c;
+  bool on = ma_device_init(&ctx, &pc, &c->play) == MA_SUCCESS;
+  if (on && ma_device_start(&c->play) != MA_SUCCESS) { ma_device_uninit(&c->play); on = false; }
+  c->playOn = on;
 }
 
 Conn* conns[8];
@@ -439,16 +493,7 @@ struct HostDiscordVoice : NativeDiscordVoice {
     opus_encoder_ctl(enc, OPUS_SET_INBAND_FEC(1));
     opus_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(5));
     c->fake = fakeMic();
-    if (!c->fake) {   // devices first, then the worker uses them: no device is not fatal (we still hear, or still speak)
-      ma_device_config cc = ma_device_config_init(ma_device_type_capture);
-      cc.capture.format = ma_format_f32; cc.capture.channels = CH; cc.sampleRate = RATE; cc.dataCallback = onCapture; cc.pUserData = c;
-      c->capOn = ma_device_init(nullptr, &cc, &c->cap) == MA_SUCCESS;
-      if (c->capOn && ma_device_start(&c->cap) != MA_SUCCESS) { ma_device_uninit(&c->cap); c->capOn = false; }
-      ma_device_config pc = ma_device_config_init(ma_device_type_playback);
-      pc.playback.format = ma_format_f32; pc.playback.channels = CH; pc.sampleRate = RATE; pc.dataCallback = onPlay; pc.pUserData = c;
-      c->playOn = ma_device_init(nullptr, &pc, &c->play) == MA_SUCCESS;
-      if (c->playOn && ma_device_start(&c->play) != MA_SUCCESS) { ma_device_uninit(&c->play); c->playOn = false; }
-    }
+    openDevices(c);   // devices first, then the worker uses them
     std::lock_guard<std::mutex> g(c->mu);
     if (c->started) { opus_encoder_destroy(enc); err = "discord-voice: already started"; return false; }
     if (!c->cipher.init(m, vec(key))) { opus_encoder_destroy(enc); err = "discord-voice: the key must be 32 bytes"; return false; }
@@ -462,6 +507,46 @@ struct HostDiscordVoice : NativeDiscordVoice {
     if (!c) return;
     std::lock_guard<std::mutex> g(c->mu);
     c->mute = mute; c->deaf = deaf; c->ptt = ptt; c->held = held;
+  }
+  zrt::String devices(bool output) override {
+    if (fakeMic()) return str(output ? FAKE_OUT : FAKE_IN);
+    std::string out;
+    ma_device_info *plays = nullptr, *caps = nullptr;
+    ma_uint32 np = 0, nc = 0;
+    if (context() && ma_context_get_devices(&ctx, &plays, &np, &caps, &nc) == MA_SUCCESS) {
+      ma_device_info* l = output ? plays : caps;
+      for (ma_uint32 i = 0, n = output ? np : nc; i < n; i++) out += idOf(l[i], (int)i) + FS + l[i].name + RS;
+    }
+    return str(out);
+  }
+  void setDevices(int32_t h, zrt::String input, zrt::String output) override {
+    Conn* c = at(h);
+    if (!c) return;
+    bool again;
+    {
+      std::lock_guard<std::mutex> g(c->mu);
+      again = c->started && (c->inDev != cstr(input) || c->outDev != cstr(output));
+      c->inDev = cstr(input); c->outDev = cstr(output);
+    }
+    if (again) openDevices(c);
+  }
+  void setAudio(int32_t h, double inputGain, double outputGain, double threshold) override {
+    Conn* c = at(h);
+    if (!c) return;
+    std::lock_guard<std::mutex> g(c->mu);
+    c->inGain = std::max(0.0, inputGain); c->outGain = std::max(0.0, outputGain); c->threshold = std::max(0.0, threshold);
+  }
+  void setUserVolume(int32_t h, zrt::String user, double gain) override {
+    Conn* c = at(h);
+    if (!c) return;
+    std::lock_guard<std::mutex> g(c->mu);
+    if (gain == 1) c->userGain.erase(cstr(user)); else c->userGain[cstr(user)] = std::max(0.0, gain);
+  }
+  double level(int32_t h) override {
+    Conn* c = at(h);
+    if (!c) return 0;
+    std::lock_guard<std::mutex> g(c->mu);
+    return c->level;
   }
   void bind(int32_t h, uint32_t ssrc, zrt::String user) override {
     Conn* c = at(h);

@@ -4,13 +4,17 @@ A Discord voice connection: what a program needs once it has joined a voice chan
 `plugins/discord-voice/`; the protocol is in `docs/reports/discord-client-research.md` (section 4); `examples/discord` uses it.
 
 ```ts
-import { VoiceConnection } from 'zinc:discord-voice';
+import { VoiceConnection, inputDevices, outputDevices } from 'zinc:discord-voice';
 
 // after op 4 on the main gateway: VOICE_STATE_UPDATE gave session_id, VOICE_SERVER_UPDATE gave token and endpoint
 const call = new VoiceConnection({ endpoint, token, serverId: guildId, channelId, userId, sessionId });
 call.onState = (s) => console.log(s, call.e2ee ? 'end-to-end encrypted' : '');   // connecting, connected, reconnecting, closed
 call.onSpeaking = (who) => console.log('speaking', who);                          // user ids, 'me' while we send
 call.setMute(true); call.setDeaf(false); call.setPushToTalk(true); call.hold(true);
+call.setDevices(inputDevices()[0].id, '');   // a microphone and the default speakers ('': the system's default), switched live
+call.setVolumes(1.0, 1.5, 0.01);              // input gain, output gain, voice activity threshold (RMS 0..1; nothing is sent under it)
+call.setUserVolume('101', 0.5);               // one user at half volume
+call.level();                                 // the microphone's RMS now, sent or not: a meter
 call.close();   // then op 4 with a null channel
 ```
 
@@ -25,7 +29,7 @@ call.close();   // then op 4 with a null channel
 - **DAVE**, Discord's end-to-end encryption (mandatory since March 2026): libdave (MIT) on mlspp (BSD-2) and a vendored BoringSSL,
   `plugins/discord-voice/vendor/PIN`. The connection runs the protocol's ops 21 to 31; each Opus frame is encrypted by the group's key
   before the transport encryption, and no frame leaves while the group has no key. `e2ee` is the lock of the official client.
-- **Tests.** `ZINC_FAKE_MICROPHONE=1`: a 440 Hz tone and no audio device. `rtpHeader`, `seal` and `unseal` give the framing and the transport
+- **Tests.** `ZINC_FAKE_MICROPHONE=1`: a 440 Hz tone and no audio device; `inputDevices()` and `outputDevices()` give "Zinc Fake Microphone" and "Zinc Fake Speakers". `rtpHeader`, `seal` and `unseal` give the framing and the transport
   encryption alone (`tests/golden/host/discord_voice_rtp.ts`, vectors recorded with Node by `plugins/discord-voice/tests/vectors.mjs`);
   `tests/t1/discord_voice.sh` runs a call against the fake Discord of `examples/discord/tests`.
 - **Not yet.** Packet reordering and loss concealment (Opus PLC/FEC), video and Go Live, DAVE's verification codes (pairwise fingerprints).

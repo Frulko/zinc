@@ -1,6 +1,6 @@
 // discord: a native Discord client in the spirit of discord-lite (no web view, little memory). See README.md.
 //   build/zinc run examples/discord
-// Keys: Escape quits; F8 (PTT_KEY) is push-to-talk, held, when it is switched on in the call bar.
+// Keys: Escape quits; push-to-talk's key (F8 until another is chosen in Voice & audio) is held to speak when that input mode is on.
 // Test hooks: DISCORD_API, DISCORD_GATEWAY move the endpoints (a fake Discord, tests/t1/discord.sh), DISCORD_TOKEN logs in without the
 // keychain, DISCORD_LOG=1 prints what happens, DISCORD_DEMO=1 runs the scripted session (servers, a channel's history, a live message,
 // a dropped connection that resumes, a second live message, a DM, then the writing of write() and the pictures, files and members of
@@ -10,7 +10,7 @@
 // Files dropped on the window are sent to the open channel.
 import { render } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
-import { quit } from 'zinc:gfx';
+import { quit, capture } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
 import App from './App';
@@ -23,14 +23,23 @@ import { showcase } from './showcase';
 import { startNotifications } from './services/notifications';
 import * as notifs from './services/notifications';
 import * as notification from 'zinc:system/notification';
-import { PTT_KEY } from './constants';
+import { VoiceSettings, decibels } from './call';
+import { AudioDevice } from 'zinc:discord-voice';
 
 ui.onKey((e: ui.KeyEvent): void => {
+  const call = store.call;
+  if (call.recordingKey) {   // the settings wait for push-to-talk's key: this one (Escape keeps the old one)
+    call.recordingKey = false;
+    if (e.key !== 'Escape') call.set((s: VoiceSettings): void => { s.pttKey = e.key; });
+    else store.changed();
+    e.preventDefault();
+    return;
+  }
   if (e.primary || e.alt) return;
   if (e.key === 'Escape') { quit(); e.preventDefault(); }
-  if (e.key === PTT_KEY) { store.call.hold(true); e.preventDefault(); }
+  if (e.key === call.settings.pttKey) { call.hold(true); e.preventDefault(); }
 });
-ui.onKeyUp((e: ui.KeyEvent): void => { if (e.key === PTT_KEY) store.call.hold(false); });
+ui.onKeyUp((e: ui.KeyEvent): void => { if (e.key === store.call.settings.pttKey) store.call.hold(false); });
 // a file dropped on the window: sent to the open channel (a dropped text is not a file)
 on('drop', (args: string[]): void => { if (args.length > 0 && !(args.length > 1 && args[1] === 'text')) store.sendFiles([args[0]]); });
 
@@ -114,28 +123,52 @@ if (env('DISCORD_DEMO') === 'showcase') showcase();
 const speaking = (): string => Array.from(store.call.speaking).map((id: string) => store.userName(id)).sort().join(', ');
 const pause = (ms: i32): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });
 
-/** A call: the voice channel Lounge joined (op 4, the voice gateway, IP discovery, the mode, Grace heard back), mute, push-to-talk held
- *  and let go, deafen, hanging up; then a call in the DM with Grace, which rings her and asks for DAVE: our key package goes out, and no
- *  frame while the group has no key. Prints only what is the same on every run. */
+/** Saves the frame shown now as DISCORD_SHOTS/<name>.png (tests/t1/discord_voice.sh compares them), once its pictures are in. */
+async function shot(name: string): Promise<void> {
+  await pause(150);
+  await until(() => picturesLoading() === 0);
+  await pause(150);
+  if (env('DISCORD_SHOTS') !== '') capture(`${env('DISCORD_SHOTS')}/${name}.png`);
+}
+const dB = (): number => Math.round(decibels(store.call.level()));
+
+/** A call: the voice channel Lounge opened and joined (op 4, the voice gateway, IP discovery, the mode, Grace heard back), its call view;
+ *  the sensitivity raised above our voice (nothing sent) and lowered again with a lower input volume, mute (the call view's frame),
+ *  push-to-talk held and let go, deafen, the Voice & audio settings (devices, Grace's volume: their frame, then kept), hanging up; then a
+ *  call in the DM with Grace, which rings her and asks for DAVE: our key package goes out, and no frame while the group has no key. Prints
+ *  only what is the same on every run. */
 async function voice(): Promise<void> {
   await until(() => store.stage === 'ready');
-  await store.call.join('304', '200');
-  await until(() => store.call.state === 'connected');
-  console.log(`voice: connected to Lounge, ${store.call.mode()}`);
-  await until(() => store.call.speaking.has(store.me.id) && store.call.speaking.has('101'));
-  console.log(`voice: speaking ${speaking()}, in Lounge ${store.call.members('304').map((id: string) => store.userName(id)).sort().join(', ')}`);
-  await until(() => store.call.stats()[3] >= 25);
-  const s = store.call.stats();
+  const call = store.call;
+  store.selectGuild('200');
+  store.selectChannel('304');
+  await call.join('304', '200');
+  await until(() => call.state === 'connected');
+  console.log(`voice: connected to Lounge, ${call.mode()}`);
+  await until(() => call.speaking.has(store.me.id) && call.speaking.has('101'));
+  console.log(`voice: speaking ${speaking()}, in Lounge ${call.members('304').map((id: string) => store.userName(id)).sort().join(', ')}`);
+  await until(() => call.stats()[3] >= 25);
+  const s = call.stats();
   console.log(`voice: heard 25 frames, ${s[2]} failures, mixed ${s[4] > 0}`);
-  store.call.toggleMute();
-  await until(() => !store.call.speaking.has(store.me.id) && !store.call.speaking.has('101'));   // Grace only echoes what we send
+  call.set((v: VoiceSettings): void => { v.sensitivity = -10; });   // our tone is at -13 dB: under it, nothing leaves
+  await until(() => !call.speaking.has(store.me.id) && !call.speaking.has('101'));
+  await pause(400);
+  console.log(`voice: sensitivity -10 dB, level under it ${dB() < -10}, speaking '${speaking()}'`);   // -13.5 dB: not rounded, at the edge
+  call.set((v: VoiceSettings): void => { v.sensitivity = -40; v.inputVolume = 80; });
+  await until(() => call.speaking.has(store.me.id));
+  console.log(`voice: sensitivity -40 dB, input volume 80%, level ${dB()} dB, speaking ${speaking()}`);
+  call.toggleMute();
+  await until(() => !call.speaking.has(store.me.id) && !call.speaking.has('101'));   // Grace only echoes what we send
   console.log(`voice: muted, speaking '${speaking()}'`);
+  call.since = Date.now() - 64500;   // the frame shows 1:04 whenever it runs
+  store.changed();
+  await shot('call');
   store.call.setPushToTalk(true);   // before unmuting: no frame slips out between the two
   store.call.toggleMute();
   await pause(400);
   console.log(`voice: push-to-talk, not held, speaking '${speaking()}'`);
   store.call.hold(true);
-  await until(() => store.call.speaking.has(store.me.id));
+  await until(() => store.call.speaking.has(store.me.id) && store.call.speaking.has('101'));   // and Grace echoes it
   console.log(`voice: push-to-talk held, speaking ${speaking()}`);
   store.call.hold(false);
   await until(() => !store.call.speaking.has(store.me.id));
@@ -143,6 +176,18 @@ async function voice(): Promise<void> {
   store.call.setPushToTalk(false);
   console.log(`voice: deafened, mute ${store.call.mute || store.call.deaf}`);
   store.call.toggleDeaf();
+  store.call.toggleMute();          // muted for the settings' frame: nobody speaks, the meter still moves
+  store.showSettings(true);
+  store.showSettingsTab('voice');
+  const fake = (l: AudioDevice[]): string => l.length > 0 ? l[0].id : '';
+  call.set((v: VoiceSettings): void => { v.input = fake(call.inputs()); v.output = fake(call.outputs()); });
+  call.setUserVolume('101', 150);
+  await shot('settings');
+  const kept = new VoiceSettings();
+  kept.load(storage.get('voice'));
+  console.log(`voice: settings kept ${kept.text() === call.settings.text()}: ${kept.text()}`);
+  store.showSettings(false);
+  store.call.toggleMute();
   store.call.leave();
   console.log(`voice: left, ${store.call.state}`);
   await until(() => store.call.members('304').indexOf(store.me.id) < 0);
