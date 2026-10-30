@@ -490,6 +490,11 @@ The next backlog review turns lines into tasks or deletes them.
 - zinc:ui classic: a plain `flex-1` (without `min-w-0`) still grows from its content width, not Tailwind's `flex: 1 1 0%` (`flex-1 min-w-0` works since f3dc85238); align it and rerun the layout goldens.
 - Inspector: a table wider than its pane has its vertical scrollbar at the content's right edge inside the horizontal scroller (needs a header synced by onScroll beside a body scrolling both ways); the tab bar scrolls sideways with no sign of hidden tabs (a » menu as Chrome); pane sizes are kept per session only. Kit `ResizeHandle`: no keyboard resizing, no `aria-valuenow`.
 - Inspector pause: the program's own sockets and fetches still deliver events while paused (holding them needs telling the inspector's socket apart); the Node-API engine loop (src/engine/driver.cpp: JSC/V8/Hermes) does not check `host.gfxPaused` (clock and input freeze, frames keep running); the badge was checked headless only (check it in a real macOS window with ZINC_BACKGROUND=1); on QuickJS headless the timers' clock moves a fixed dt per frame, so the clock-jump check runs on the interpreter only.
+- Inspector pick: ArrowUp/ArrowDown to the parent is not routed in a zinc:stage scene drawn alone (stage.ts pickInput reads no keys).
+- Inspector Changes patch: `padding: 12px` lists the four sides; fold them into `p-[12px]` / `px` / `py`.
+- Inspector Styles: the "+ add a declaration" line shows with no node selected; hide it.
+- Inspector Screen view: name the hovered node in a tooltip on the canvas, as Chrome's device view, not on a line under the picture.
+- Inspector Styles: blurring an edited field into the palette's hex field leaves the edit open instead of applying it.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
 
 ## Demos
