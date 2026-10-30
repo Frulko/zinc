@@ -26,7 +26,7 @@ export const PAGE_REFRESH_INTERVAL_MS = 8000;
 /** How often the clock is looked at (it is redrawn only when its minute changes). */
 export const CLOCK_INTERVAL_MS = 1000;
 /** The home page's animation stops after this long without a touch, a click or a key, and starts again at the next. */
-export const ANIMATION_PAUSE_AFTER_IDLE_SECONDS = 900;
+export const ANIMATION_PAUSE_AFTER_IDLE_SECONDS = 60;
 
 export const BYTES_PER_MIB = 1048576;
 

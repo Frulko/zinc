@@ -1,6 +1,6 @@
 #!/bin/sh
 # image/player, the screen of the Zinc Pi image when its app does not run, headless, on a pretend Pi (the zinc-admin and
-# nmcli of image/player/dev). Run 1: the home page with remote access off (frame 150, its animation drawn at 30 of the 60
+# nmcli of image/player/dev). Run 1: the home page with remote access off (frame 150, its animation drawn at 12 of the 60
 # frames), "Turn on" shows the pairing code (350), the gear opens the Wi-Fi list (600), "Atelier" asks for its password
 # with the on-screen keyboard, two keys typed on it (900), the rest from the computer's keyboard and Enter join it (1200);
 # the settings page then draws at most 2 of 300 frames. Run 2: zinc-session left a crash report (frame 100); "Dismiss"
@@ -27,7 +27,7 @@ mkdir -p "$tmp/run"
 { tap 160 641 325; tap 400 766 28; tap 700 400 206; tap 820 320 391; tap 828 677 277
   printf '910 text "rrect horse"\n920 key Enter\n'; } > "$tmp/wifi.input"
 player wifi 1500 150,350,600,900,1200 || { echo "pi-image player: run 1 failed: $(tail -5 "$tmp/wifi.out")"; exit 1; }
-n=$(drawn wifi 1 150); [ "$n" -ge 70 ] && [ "$n" -le 85 ] || { echo "pi-image player: the home page drew $n of frames 1-150, not about 75 (30 fps)"; fail=1; }
+n=$(drawn wifi 1 150); [ "$n" -ge 26 ] && [ "$n" -le 40 ] || { echo "pi-image player: the home page drew $n of frames 1-150, not about 30 (12 fps)"; fail=1; }
 n=$(drawn wifi 1200 1499); [ "$n" -le 2 ] || { echo "pi-image player: the idle settings page drew $n of 300 frames"; fail=1; }
 grep -q -- '--wait 45 device wifi connect Atelier password correct horse' "$tmp/pi/calls.log" || { echo "pi-image player: the join did not reach nmcli"; fail=1; }
 

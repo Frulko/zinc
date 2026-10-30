@@ -10,7 +10,7 @@
 import { rrect, shadow, stroke } from 'zinc:gfx';
 import { COLOR_WHITE } from '../constants';
 
-export const ANIMATION_FRAMES_PER_SECOND = 30;
+export const ANIMATION_FRAMES_PER_SECOND = 12;
 const ORB_COUNT: i32 = 4;
 const POINT_COUNT: i32 = 34;
 /** Pixels per second of a point: slow on purpose. */

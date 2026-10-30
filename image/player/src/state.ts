@@ -189,7 +189,8 @@ function readPairing(): PairingState {
 
 /** Reads the machine again; the screen is redrawn only when what the page shows changed. */
 export function refreshSystem(): void {
-  refreshUpdates();
+  // the update status costs a Python start: only the settings show it, and an update under way is followed
+  if (appState.page === PAGE_SETTINGS || appState.updates.isBusy()) refreshUpdates();
   const installed = fs.exists(appPath);
   if (installed !== appState.isAppInstalled) {
     appState.isAppInstalled = installed;
