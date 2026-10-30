@@ -1355,3 +1355,4 @@ fs.writeText 19.6 -> 1.0 ms (std::ofstream wrote 4 KiB at a time; now one fwrite
 resources moved), Apple M1 Pro, examples/discord windowed 1200x760 @2x against the fake Discord, physical footprint: login 106 -> 84 MB,
 100 servers (3.5 MB READY) 204-233 -> 93 MB (165 MB peak during READY), voice call 120 -> 98 MB; tests/data/heap_trim.ts (27 MB of JSON
 parsed then dropped) 222 -> 8.5 MB. A trim costs 0.1-0.5 ms. The window's three full-size buffers (~45 MB) are now the largest holder.
+- 2026-10-30 ZN-887 Pi 3B+ Spark 800x480, zinc:shell with KMS planes: bouncing-ball on its own XR24 plane at 800x448+0+32 (debugfs), app 1.4% and shell player 4.2% of a core (top, 5 s).
