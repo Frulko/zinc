@@ -383,7 +383,7 @@ std::string nativeJs(const std::vector<WebPlugin>& used, const std::vector<std::
       "    if (typeof k !== 'string') return undefined;\n"
       "    if (k in t) return t[k];\n"
       "    const e = Z.nativeOf(name), f = e && e.impl[k];\n"
-      "    if (!e && Z.bridge) return t[k] = (...a) => Z.bridge.call(name, k, a);   // zinc dev: the native side on this machine\n"
+      "    if (!e && Z.bridge && Z.bridge.has(name)) return t[k] = (...a) => Z.bridge.call(name, k, a);   // zinc dev: the native side on this machine\n"
       "    return t[k] = typeof f === 'function' ? f.bind(e.impl) : () => { throw new Z.ZnUnsupported('plugin ' + name + '.' + k, e ? 'its browser backend does not have it' : 'the plugin has no browser backend (docs/targets/web.md, \"The dev bridge\")'); };\n"
       "  } });\n"
       "}\n";
@@ -967,10 +967,11 @@ void broadcast(Dev& d, const std::string& json) {
 }
 
 // builds the stage; the files that changed since the last build and whether they can be swapped one by one
+// zinc.json "requires" is not checked here (--force) unless --lan: the dev bridge gives the page this machine's file system, processes and native sides.
 bool restage(Dev& d, std::string& log, std::vector<std::string>& changed, bool& refreshable, bool first) {
   std::lock_guard<std::mutex> lock(d.m);
   const fs::path logFile = d.root / "stage.log";
-  const int rc = run(std::string(d.a.build ? "" : "ZINC_WEB_HOT=1 ") + "ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web " + (zn::frontend::force() ? "--force " : "") + "bundle " + q(d.a.dir) + " --stage " + q(d.stage.string()) + (d.a.prepare.empty() ? "" : " --keep-packages") + " > " + q(logFile.string()) + " 2>&1");
+  const int rc = run(std::string(d.a.build ? "" : "ZINC_WEB_HOT=1 ") + "ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web " + (zn::frontend::force() || !d.a.lan ? "--force " : "") + "bundle " + q(d.a.dir) + " --stage " + q(d.stage.string()) + (d.a.prepare.empty() ? "" : " --keep-packages") + " > " + q(logFile.string()) + " 2>&1");
   log = readAll(logFile);
   if (rc != 0) return false;
   Json j(readAll(d.stage / "stage.json"));
@@ -1034,9 +1035,12 @@ void startBridge(Dev& d) {
     yyjson_val* b = w ? yyjson_obj_get(w, "bridge") : nullptr;
     if (yyjson_is_bool(b) && !yyjson_get_bool(b)) it = specs.erase(it); else ++it;
   }
-  if (specs.empty()) return;
+  bool rows = !d.cm.unsupported.empty();   // the host rows the page lacks (processes, sockets...) and the file system: this machine's, as under zinc run
+  for (const auto& [file, m] : d.mods) if (!rows && readAll(d.stage / file).find("__host_fs") != std::string::npos) rows = true;
+  if (specs.empty() && !rows) return;
   std::string names;
   for (const auto& [n, f] : specs) { names += (names.empty() ? "" : ", ") + n; d.bridged.push_back(n); }
+  if (rows) names += std::string(names.empty() ? "" : ", ") + "the file system and the host services the page lacks";
   if (d.a.lan) { std::fprintf(stderr, "zinc dev: --lan: the native sides %s have no dev bridge (it serves this machine only); their calls throw ZnUnsupported\n", names.c_str()); return; }
   int port = 0;
   {
@@ -1071,16 +1075,21 @@ void startBridge(Dev& d) {
     a.sin_port = htons(static_cast<std::uint16_t>(port));
     const bool up = ::connect(s, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0;
     zn::plat::sockClose(s);
-    if (up) { d.bridgeJson = "{\"url\":" + jstr("http://127.0.0.1:" + std::to_string(port)) + ",\"token\":" + jstr(token) + "}"; break; }
+    if (up) {
+      std::string list;
+      for (const std::string& n : d.bridged) list += (list.empty() ? "" : ",") + jstr(n);
+      d.bridgeJson = "{\"url\":" + jstr("http://127.0.0.1:" + std::to_string(port)) + ",\"token\":" + jstr(token) + ",\"natives\":[" + list + "],\"rows\":" + (rows ? "true" : "false") + "}";
+      break;
+    }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
   if (d.bridgeJson.empty()) {
     if (d.bridge > 0) zn::plat::stop(d.bridge);
     d.bridge = -1;
-    std::fprintf(stderr, "zinc dev: the dev bridge for %s did not start (its output is above); their calls throw ZnUnsupported\n", names.c_str());
+    std::fprintf(stderr, "zinc dev: the dev bridge (%s) did not start (its output is above); their calls throw ZnUnsupported\n", names.c_str());
     return;
   }
-  std::fprintf(stderr, "zinc dev: the native sides %s run on this machine through the dev bridge (zinc dev only: an export has no bridge)\n", names.c_str());
+  std::fprintf(stderr, "zinc dev: %s run on this machine through the dev bridge (zinc dev only: an export has no bridge)\n", names.c_str());
 }
 
 void connection(Dev* d, int fd) {

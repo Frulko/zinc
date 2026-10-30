@@ -7,6 +7,9 @@
 // Loopback only, every request carries the token the page got from the dev server; zinc dev only, never an export.
 import { serveAsync, Headers } from 'zinc:net';
 
+// the engine's host rows (__host_fsReadText...) for the page's zinc:fs and the rows it lacks; `__fs.load` reads a whole file at once (the rows read it byte by byte)
+mods.__rows = new Proxy({}, { get: (t, k) => globalThis['__host_' + String(k)] });
+mods.__fs = { load(p) { const n = __host_fsLoad(p), b = new Uint8Array(n); for (let i = 0; i < n; i++) b[i] = __host_fsByte(i); return b; } };
 const TA = { Uint8Array, Int8Array, Uint16Array, Int16Array, Uint32Array, Int32Array, Float32Array, Float64Array };
 const enc = (v) => (ArrayBuffer.isView(v) ? { $ta: v.constructor.name, d: Array.from(v) } : v);
 let queue = [], waiter = null, promises = 0;
@@ -26,7 +29,7 @@ async function handle(req) {
   if (req.method === 'OPTIONS') return reply(req, 204, '');
   if (req.headers.get('x-zinc-token') !== TOKEN) return reply(req, 403, { e: 'bad token' });
   if (req.path === '/wait') {
-    if (!queue.length) await new Promise((res) => { if (waiter) waiter(); waiter = res; setTimeout(res, 20000); });   // a newer page takes the place of the older one
+    if (!queue.length) await new Promise((res) => { if (waiter) waiter(); waiter = res; setTimeout(res, 8000); });   // a newer page takes the place of the older one; under the 10 s after which zinc:net answers 408 by itself
     return reply(req, 200, {});
   }
   if (req.path === '/drain') return reply(req, 200, { ev: queue.splice(0) });

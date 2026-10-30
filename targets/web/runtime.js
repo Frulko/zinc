@@ -85,7 +85,7 @@ const Z = (G.__zincWeb = {
 // from a synchronous drain after a long poll says there are some, so they keep the order that side made them; they run as a task of their own,
 // never inside a call, as on the native loop. ponytail: a plugin that gives a freed handle again at once could see an old event reach the new
 // owner (the handle is freed there before the page has run the event); zinc:process rotates its handles for that reason.
-function devBridge({ url, token }) {
+function devBridge({ url, token, natives }) {
   const fns = new Map(), ids = new WeakMap(), pending = new Map();
   let polling = false;
   const enc = (v) => typeof v === 'function' ? { $cb: ids.get(v) ?? (ids.set(v, fns.size + 1), fns.set(fns.size + 1, v), fns.size) }
@@ -124,6 +124,7 @@ function devBridge({ url, token }) {
     }
   }
   return {
+    has: (name) => natives.includes(name),
     call(name, k, args) {
       let r;
       try { r = request('POST', '/call', JSON.stringify({ m: name, k, a: args.map(enc) })); } catch (e) { throw new ZnUnsupported('plugin ' + name + '.' + k, 'the dev bridge does not answer (zinc dev stopped?)'); }
@@ -795,6 +796,14 @@ const UNSUPPORTED = CFG.unsupported || [];
 const why = (n) => (/^(sock|net|http|tls|mqtt|osc|dns)/i.test(n) ? 'raw sockets and TLS: use fetch or WebSocket (docs/targets/web.md)' : /^(proc|sig|stdin)/i.test(n) ? 'processes and signals' : /^(ev|loop)/i.test(n) ? 'the native event loop' : /^layout/.test(n) ? 'the React Native layout engine (Yoga) is not built for the web target yet; use the classic layout' : /^assets/.test(n) ? 'asset groups and packs' : 'a native service');
 for (const n of UNSUPPORTED) G['__host_' + n] = function () { throw new ZnUnsupported(n, why(n)); };
 for (const [n, f] of Object.entries(rows)) G['__host_' + n] = f;
+G.__addEvHandler = G.__addEvHandler || (() => {});   // the native event loop's handlers (signals, stdin, plugin events): none of those events reach a page
+if (Z.bridge && CFG.bridge.rows) {   // zinc dev: the file system and the host services the page lacks are this machine's, as under zinc run (the dev bridge)
+  const local = /^(ev|loop|layout|assets|gfx|sys|storage)/;
+  for (const n of [...UNSUPPORTED.filter((n) => !local.test(n)), ...Object.keys(rows).filter((n) => n.startsWith('fs')), 'sysEnv']) G['__host_' + n] = (...a) => Z.bridge.call('__rows', n, a);
+  let loaded = new Uint8Array(0);
+  G.__host_fsLoad = (p) => { loaded = Z.bridge.call('__fs', 'load', [p]); return loaded.length; };
+  G.__host_fsByte = (i) => loaded[i] || 0;
+}
 
 // ---------------------------------------------------------------- WebAssembly for the plugins that need native code
 // A plugin whose native side is C or C++ (sqlite, box2d...) is compiled to wasm by `zinc export` (plugin.json "web": { "wasm": ... }); the page compiles it

@@ -444,6 +444,9 @@ calls it. `zinc dev` says which sides it runs (`the native sides Lvgl, Device ru
   page would serve other machines) and those calls throw ZnUnsupported.
 - It is for development on your own machine. An export never has one: a page hosted online gets no processes, files or devices from a server, so those calls throw
   ZnUnsupported there (the online demos use browser backends instead).
+- The program's file system (`zinc:fs`), its environment (`env()`) and the host services a page lacks (processes, raw sockets, signals...) are this machine's too, from the
+  project's folder, as under `zinc run`; so `zinc.json` "requires" (fs, process) is not checked under `zinc dev` unless `--lan`. What the page does itself (drawing, layout,
+  input, audio, storage) stays the page's.
 - A side that draws (`zinc:3d`, the `zinc:three` subset) is never bridged: it would draw on your machine, not in the page. Its plugin.json says so with `"web": {"bridge": false}`; it keeps its W0602.
 - The set of native sides is read when `zinc dev` starts: a save that adds such a plugin needs `zinc dev` restarted.
 
