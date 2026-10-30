@@ -541,6 +541,7 @@ The next backlog review turns lines into tasks or deletes them.
 - Frontend: in a module read only for its types, a method with no return type that returns a value (or an async one) still fails with Z0109 once its body is dropped; the shape could keep the type the full check infers.
 - Tests: sidecar_stream/sidecar_session left three `zinc run <tmp>/sidecar` orphans (29 h, SIGTERM ignored) that make tour's "still running" check fail; make the sidecar program end on SIGTERM and the tests kill what they start, and scope tour's pgrep to its own folder.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
+- ZN-877: `{ b: null }` into `b?: unknown` stores null and reads back as undefined (typeof 'undefined'); the `Dyn | null` slot cannot tell null from undefined, so null should be stored as `__null` and `=== null` on that union taught to see it.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
