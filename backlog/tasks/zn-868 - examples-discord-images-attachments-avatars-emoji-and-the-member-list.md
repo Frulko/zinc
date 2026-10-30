@@ -2,7 +2,8 @@
 id: ZN-868
 title: 'examples/discord: images, attachments, avatars, emoji and the member list'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 14:53'
 labels:
   - net
