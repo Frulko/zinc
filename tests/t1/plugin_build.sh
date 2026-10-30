@@ -30,6 +30,12 @@ echo '/* a setting */' > "$tmp/proj/plugins/qrcode/zn_conf.h"
 out=$("$ZINC" plugin-build qrcode "$tmp/proj" 2>&1)
 echo "$out" | grep -q "^qrcode built " || { echo "a new configuration header does not relink the plugin: $out"; fail=1; }
 [ "$(ls -d "$ZINC_HOME"/cache/*/plugins/qrcode-vendor-* | wc -l | tr -d ' ')" = 2 ] || { echo "a new configuration header does not rebuild the vendored library"; fail=1; }
+# the sources compile at once: a source that does not compile is named with the compiler's error, and no library is left in the cache
+libs=$(ls "$ZINC_HOME"/cache/*/plugins/qrcode-*/plugin.dylib "$ZINC_HOME"/cache/*/plugins/qrcode-*/plugin.so 2>/dev/null | wc -l)
+echo "this is not C;" >> "$tmp/proj/plugins/qrcode/native/qrcode.abi.c"
+out=$("$ZINC" plugin-build qrcode "$tmp/proj" 2>&1) && { echo "a plugin whose source does not compile builds"; fail=1; }
+echo "$out" | grep -q "the C compiler on qrcode.abi.c failed" && echo "$out" | grep -q "qrcode.abi.c:.*error" || { echo "a failed source is not named with its error: $(echo "$out" | tail -3)"; fail=1; }
+[ "$(ls "$ZINC_HOME"/cache/*/plugins/qrcode-*/plugin.dylib "$ZINC_HOME"/cache/*/plugins/qrcode-*/plugin.so 2>/dev/null | wc -l)" = "$libs" ] && ! ls "$ZINC_HOME"/cache/*/plugins/qrcode-*/*.log >/dev/null 2>&1 || { echo "a failed build left a library or its logs in the cache"; fail=1; }
 # the interpreter loads it with dlopen, an AOT program links the archives and needs no dlopen
 cat > "$tmp/t.ts" <<'TS'
 import { Database } from 'zinc:sqlite';
