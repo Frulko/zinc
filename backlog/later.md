@@ -534,6 +534,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-774.36: each gallery export carries its own `zinc.<hash>.js` runtime (38 KB) and ~210 KB of `zinc:ui`; one shared copy would cut `site/public/play` by about two thirds.
 - ZN-774.36: the browser interpreter (`zinc export --target wasm`) lacks Canvas2D and Audio (8 of the 35 graded examples), which `--target web` runs.
 - ZN-774.36: `zinc export --target web` of a folder with no `zinc.json` takes a parent's (Atelier's sketches pick up Atelier's `requires fs`).
+- ZN-563.03: zinc:3d worlds in the browser (worldOpen/worldSelect/worldDraw in plugins/3d/web/render3d.js answer nothing), for a web program that streams a world.
+- ZN-563.03: plugin options (zinc.json "plugins": {"3d": {msaa, filter}}) do not reach a web export's page; render3d.js uses 4x MSAA and mipmaps.
+- ZN-563.03: zinc:3d in the semantic DOM render (render: dom) is untested; only the canvas render ran in Chrome.
+- ZN-563.03: web_3d's SSIM is measured with headless Chrome's GL; check it on a CI runner before the release tier, or list it in tests/ci/off.txt like three_gpu.
 - Frontend: in a module read only for its types, a method with no return type that returns a value (or an async one) still fails with Z0109 once its body is dropped; the shape could keep the type the full check infers.
 - Tests: sidecar_stream/sidecar_session left three `zinc run <tmp>/sidecar` orphans (29 h, SIGTERM ignored) that make tour's "still running" check fail; make the sidecar program end on SIGTERM and the tests kill what they start, and scope tour's pgrep to its own folder.
 - `nuxt_ui` (3 frame hashes) fails on develop with and without the min-w-0 change; bisect on a quiet machine.
