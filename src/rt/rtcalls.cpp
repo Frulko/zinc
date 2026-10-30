@@ -390,7 +390,7 @@ std::string toFixed(double v, int digits) {
   for (int i = 0; i < digits && i < 22; i++) p *= 10;
   double y = m * p;  // an exact tie gives exactly k + 0.5 here
   if (digits <= 22 && y < 4503599627370496.0 && y - static_cast<double>(static_cast<long long>(y)) != 0.5) return b;
-  static char ex[1100];
+  thread_local char ex[1100];
   int en = std::snprintf(ex, sizeof ex, "%.1074f", m);
   const char* dot = std::strchr(ex, '.');
   if (en <= 0 || en >= static_cast<int>(sizeof ex) || !dot) return b;
@@ -795,6 +795,7 @@ void redrawFrame() {
 }  // namespace
 
 const char* gStop = nullptr;
+thread_local bool gOnWorker = false;
 bool gExitEndsRun = false;
 const char* gDeviceProfile = nullptr;
 
@@ -808,14 +809,15 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
   if (gStop) return gStop;
   if (id == Rt::HostSysExit) {
     m.flushOut();
-    if (gExitEndsRun) { static std::string why; why = "exit " + std::to_string(static_cast<std::int32_t>(a[0])); return why.c_str(); }
+    if (gExitEndsRun || gOnWorker) { thread_local std::string why; why ="exit " + std::to_string(static_cast<std::int32_t>(a[0])); return why.c_str(); }
     std::exit(static_cast<int>(static_cast<std::int32_t>(a[0])));
   }
   // a turn of the event loop begins (the timer loop and the frame loop of the prelude both ask for the host's events first) or the program waits:
   // what it printed goes out now, so the lines of a running program reach the terminal, the file or the pipe before it exits (ZN-638)
+  if (gOnWorker && (!sys || isLayoutRow(id) || isGlRow(id))) return "this module draws or lays out: it is not available in a worker (do the drawing on the main side and post the result)";
   if ((id == Rt::HostEvReady || id == Rt::HostLoopWait) && m.outLive && !m.out->empty()) m.flushOut();
   if (!call && gDeviceProfile) {
-    static std::string why;
+    thread_local std::string why;
     why = std::string(isLayoutRow(id) ? "the rn layout engine" : isGlRow(id) ? "zinc:gl" : sys ? "the system modules" : "zinc:gfx") + " is not available on this device (profile " + gDeviceProfile + ")";
     return why.c_str();
   }
@@ -838,7 +840,7 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
     call(static_cast<int>(id), args, &res);
     gRedraw = saved;
     if (!gRedrawError.empty()) {
-      static std::string msg;
+      thread_local std::string msg;
       msg = gRedrawError.rfind("panic: ", 0) == 0 ? gRedrawError.substr(7) : gRedrawError;
       gRedrawError.clear();
       return msg.c_str();
@@ -867,13 +869,13 @@ struct CbEntry {
 };
 struct PromiseEntry { std::uint64_t resolve, reject; char of; };
 
-std::unordered_map<std::uint64_t, CbEntry> gCbs;
-std::unordered_map<std::uint64_t, PromiseEntry> gPromises;
-std::uint64_t gCbNext = 1;
-std::string gCbError;   // the message of the last closure that threw
+thread_local std::unordered_map<std::uint64_t, CbEntry> gCbs;   // per thread: each worker runs its own Machine (D181)
+thread_local std::unordered_map<std::uint64_t, PromiseEntry> gPromises;
+thread_local std::uint64_t gCbNext = 1;
+thread_local std::string gCbError;   // the message of the last closure that threw
 const char* cbError(void*) { return gCbError.c_str(); }
-Machine* gMachine = nullptr;
-Slot* gScratch = nullptr;   // the frame above the running call: where a callback's own frame goes
+thread_local Machine* gMachine = nullptr;
+thread_local Slot* gScratch = nullptr;   // the frame above the running call: where a callback's own frame goes
 
 void cbUnref(std::uint64_t h) {
   auto it = gCbs.find(h);
@@ -940,7 +942,7 @@ std::int32_t runClosure(void*, std::uint64_t h, const ZnVal* args, std::uint32_t
       case 'i': ret->i = static_cast<std::int32_t>(frame[0]); break;
       case 'u': ret->i = static_cast<std::uint32_t>(frame[0]); break;
       case 'b': ret->i = frame[0] != 0; break;
-      case 's': { StrObj* s = S(frame[0]); static std::string keep; keep.assign(s ? s->data() : "", s ? s->len : 0); ret->s.p = keep.data(); ret->s.n = static_cast<std::uint32_t>(keep.size()); m.releaseSlot(frame[0]); break; }
+      case 's': { StrObj* s = S(frame[0]); thread_local std::string keep; keep.assign(s ? s->data() : "", s ? s->len : 0); ret->s.p = keep.data(); ret->s.n = static_cast<std::uint32_t>(keep.size()); m.releaseSlot(frame[0]); break; }
       default: break;
     }
   }
@@ -1020,6 +1022,7 @@ void nativeEnd(Machine& m) {
 
 // The loop's turn for the native modules: their pollers, the queued posts and completions (the callbacks run here); whether native work is still pending.
 std::int32_t nativePoll(Machine& m, Slot* scratch, bool run) {
+  if (gOnWorker) return 0;   // the native registry (its sink, queue and resources) is the main program's: no plugin runs in a worker yet (D181)
   installSink(m);
   gScratch = scratch;
   if (run) {
@@ -1027,7 +1030,7 @@ std::int32_t nativePoll(Machine& m, Slot* scratch, bool run) {
     // A deterministic run has no wall clock to race: an asynchronous native call (a camera scan on a thread) completes before the next frame, as it does in the prototype's runtime.
     // ZN-223: bounded by a budget for the whole run, so a promise that waits for the outside world cannot stall every frame.
     static const bool det = std::getenv("ZINC_DETERMINISTIC") && !std::getenv("ZINC_REALTIME");
-    static std::int64_t budgetMs = 3000;
+    static std::int64_t budgetMs = 3000;   // the main thread's only (workers return above)
     for (; det && !gPromises.empty() && budgetMs > 0; --budgetMs) {
 #ifndef __wasi__
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -1040,6 +1043,7 @@ std::int32_t nativePoll(Machine& m, Slot* scratch, bool run) {
 
 const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch) {
   const zbc::Native& nt = m.mod->natives[idx];
+  if (gOnWorker) { m.error = "native " + nt.module + "." + nt.name + ": native modules run on the main thread only, not in a worker"; return m.error.c_str(); }
   nsig::Sig sg;
   nsig::parse(nt.sig.c_str(), sg);   // the verifier checked the signature
   installSink(m);
@@ -1144,7 +1148,7 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch) {
 // as bytes. The spec's wrapper converts the tree to the declared type (the checked Dyn conversion), and gives a typed value as a Dyn view to encode.
 namespace {
 const rec::Schema* recSchema(const StrObj* text) {   // parsed once per schema text of the program
-  static std::unordered_map<std::string, rec::Schema> cache;
+  thread_local std::unordered_map<std::string, rec::Schema> cache;   // per thread: workers decode their messages by it
   std::string k(text->data(), text->len);
   auto it = cache.find(k);
   if (it != cache.end()) return &it->second;
@@ -1622,7 +1626,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       }
       RecDyn d{m, 0, {}};
       rec::Writer w;
-      static std::string err;
+      thread_local std::string err;
       if (!d.encode(a[0], *s, w, err, "")) { err = "native record: " + err; return err.c_str(); }
       const ClassRT* cls = arrayClassFor(m, 'B');
       if (!cls) return "native record: the program has no u8[] class";

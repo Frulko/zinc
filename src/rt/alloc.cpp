@@ -7,6 +7,7 @@
 #else
 inline std::size_t mi_usable_size(const void*) { return 0; }   // WASI, ESP-IDF and the console cores: the plain allocator, no heap budget (a browser tab, the device's heap have their own limit)
 #endif
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <new>
@@ -18,14 +19,14 @@ inline std::size_t mi_usable_size(const void*) { return 0; }   // WASI, ESP-IDF 
 namespace zn::rt {
 bool gHeapBudgetOn = false;
 static std::size_t gHeapBudget = 0, gHeapLimit = 0;
-static std::int64_t gHeapUsed = 0;
+static std::atomic<std::int64_t> gHeapUsed{0};   // every thread of the program (workers, D181) counts against the one budget
 void heapAccount(void* p, bool add) {
   if (!p) return;
   std::int64_t n = static_cast<std::int64_t>(mi_usable_size(p));
-  if (!add) { gHeapUsed -= n; return; }
-  gHeapUsed += n;
-  if (gHeapUsed > static_cast<std::int64_t>(gHeapLimit)) {
-    std::fprintf(stderr, "panic: out of memory (heap budget %zu bytes, asked %lld, in use %lld)\n", gHeapBudget, static_cast<long long>(n), static_cast<long long>(gHeapUsed - n));
+  if (!add) { gHeapUsed.fetch_sub(n, std::memory_order_relaxed); return; }
+  const std::int64_t used = gHeapUsed.fetch_add(n, std::memory_order_relaxed) + n;
+  if (used > static_cast<std::int64_t>(gHeapLimit)) {
+    std::fprintf(stderr, "panic: out of memory (heap budget %zu bytes, asked %lld, in use %lld)\n", gHeapBudget, static_cast<long long>(n), static_cast<long long>(used - n));
     std::fflush(stderr);
     std::_Exit(101);
   }

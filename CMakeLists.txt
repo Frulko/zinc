@@ -16,6 +16,7 @@ set(ZN_REPO_DIR "${CMAKE_CURRENT_SOURCE_DIR}")   # the checkout; the compiler co
 add_compile_options("-ffile-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=build" "-ffile-prefix-map=${ZN_REPO_DIR}=zinc")
 option(ZN_REPRODUCIBLE "do not compile the checkout's path into zinc (release packages; a build-tree zinc then needs ZINC_ROOT)" OFF)
 option(ZN_SANITIZE "Build with ASan and UBSan" OFF)
+option(ZN_TSAN "Build with ThreadSanitizer (workers, D181): cmake -S . -B build-tsan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DZN_TSAN=ON -DZN_WEBGL=OFF -DZN_WASM=OFF, then BUILD_DIR=build-tsan tools/build zinc" OFF)
 option(ZN_FUZZ "Build the libFuzzer targets of tests/fuzz (needs a clang with libFuzzer: Homebrew llvm; see docs/reports/zinc-next-fuzzing.md)" OFF)
 
 add_compile_options(-Wall -Wextra -ffp-contract=off)  # no fused multiply-add: the interpreter, the AOT programs and every host must round the same way
@@ -28,6 +29,10 @@ if(ZN_SANITIZE)
   if(ZN_FUZZ)
     add_compile_options(-fsanitize=fuzzer-no-link)   # coverage instrumentation of every library; only the targets link the engine
   endif()
+endif()
+if(ZN_TSAN)
+  add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=thread)
 endif()
 
 # Dependency direction: include/zn <- frontend <- ir <- zbc <- rt <- vm (see ARCHITECTURE.md).
@@ -140,8 +145,8 @@ target_compile_options(zn_mimalloc PRIVATE -w -O2)
 
 add_library(zn_rt STATIC src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp src/rt/unicode.cpp)
 target_link_libraries(zn_rt PUBLIC zn_zbc zn_mimalloc zn_regexp)   # libunicode: case mapping, normalization, collation
-if(ZN_SANITIZE)
-  target_compile_definitions(zn_rt PUBLIC ZN_NO_MIMALLOC)   # keep ASan's own allocator checks
+if(ZN_SANITIZE OR ZN_TSAN)
+  target_compile_definitions(zn_rt PUBLIC ZN_NO_MIMALLOC)   # keep the sanitizer's own allocator (ASan's checks, TSan's view of malloc and free across threads)
 else()
   target_sources(zn_rt PRIVATE src/rt/alloc.cpp)            # the heap budget (mimalloc serves the runtime's objects)
   add_library(zn_rt_new STATIC src/rt/alloc_new.cpp)        # mimalloc serves global operator new/delete: a separate archive, linked into compiled programs only when they need the budget (ZN-146)
@@ -631,6 +636,9 @@ if(TARGET zn_host_gfx)
     target_compile_definitions(zinc PRIVATE ZN_HOST_LIBS="${ZN_HOST_LIBS_LINE}")  # linked into the programs zinc build writes
   endif()
   target_link_libraries(zinc PRIVATE zn_host_gfx)
+  add_executable(threads_test tests/unit/threads_test.cpp)   # two Machines on two threads (tests/t0/threads_two.sh; the race check under -DZN_TSAN=ON)
+  target_link_libraries(threads_test PRIVATE zn_vm zn_host_gfx zn_native)
+  set_target_properties(threads_test PROPERTIES EXCLUDE_FROM_ALL ON)
   # the device agent (ZN-729): zinc agent and zinc device, compiled into zinc like the rest of its commands. Its TLS sessions are those of
   # src/host/tls.cpp (zn_host_gfx); discovery is mjansson/mdns (third_party/mdns, one header). On Windows the daemon is
   # the POSIX pass yet (a serial server, termios, a pty): its commands say it (docs/targets/windows.md).
@@ -750,7 +758,7 @@ if(TARGET zn_host_gfx AND SDL3_FOUND)
     target_link_libraries(zn_app_host PUBLIC GLESv2)
   endif()
   add_library(zn_app STATIC src/app/app.cpp src/app/embed.cpp src/rt/machine.cpp src/rt/rtcalls.cpp src/rt/program.cpp src/rt/unicode.cpp src/zbc/zbc.cpp)   # the shell, src/app/shell_sdl.cpp, goes into the app itself
-  if(NOT ZN_SANITIZE)
+  if(NOT ZN_SANITIZE AND NOT ZN_TSAN)
     target_sources(zn_app PRIVATE src/rt/alloc.cpp)
   endif()
   if(ANDROID)   # a phone's system signals and commands (docs/ui.md "System signals"); the shell calls zn_mobile_glue_init

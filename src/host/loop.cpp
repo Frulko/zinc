@@ -21,7 +21,7 @@ namespace zn::loop {
 namespace {
 
 uv_loop_t* loop() {
-  static uv_loop_t* l = [] {
+  thread_local uv_loop_t* l = [] {   // one loop per thread: each worker (zinc:worker, D181) runs its own (ponytail: never closed, a worker thread's loop lives as long as the process)
     auto* x = new uv_loop_t;
     uv_loop_init(x);
     return x;
@@ -36,7 +36,7 @@ struct Child {
   int code = -1;
   bool procOpen = false, outOpen = false;
 };
-std::vector<std::unique_ptr<Child>> gChildren;
+thread_local std::vector<std::unique_ptr<Child>> gChildren;
 
 void onClose(uv_handle_t*) {}
 void onExit(uv_process_t* p, int64_t status, int signal) {
@@ -63,7 +63,7 @@ Child* childAt(int h) { return h >= 0 && static_cast<size_t>(h) < gChildren.size
 
 void pump() {
   // uv_run polls only while some handle is active, and the signal and stdin watchers are unreferenced: an active zero timer makes one polling round happen
-  static uv_timer_t* t = [] { auto* x = new uv_timer_t; uv_timer_init(loop(), x); return x; }();
+  thread_local uv_timer_t* t = [] { auto* x = new uv_timer_t; uv_timer_init(loop(), x); return x; }();
   uv_timer_start(t, onTimer, 0, 0);
   uv_run(loop(), UV_RUN_NOWAIT);
   uv_timer_stop(t);
@@ -152,11 +152,11 @@ struct Proc {
   bool procOpen = false, inOpen = false, outOpen = false, errOpen = false, exited = false, reported = false;
   int code = 0;
 };
-std::vector<std::unique_ptr<Proc>> gProcs;
-std::deque<Event> gEvents;
-std::string gError;
-int gWatched = 0;
-bool gStdin = false;
+thread_local std::vector<std::unique_ptr<Proc>> gProcs;
+thread_local std::deque<Event> gEvents;   // per thread, as the loop: a worker's events are its own
+thread_local std::string gError;
+thread_local int gWatched = 0;
+thread_local bool gStdin = false;
 
 void maybeReport(Proc* p) {  // the exit is reported once the output has been delivered
   if (p->exited && !p->outOpen && !p->errOpen && !p->reported) {
@@ -176,8 +176,8 @@ void onProcExit(uv_process_t* h, int64_t status, int signal) {
 // the child then blocks on its full pipe. Without it a child that writes faster than the program reads (a 200 MB tool output on a slow
 // machine) piles up in gEvents, since every look at the queue pumps libuv again.
 constexpr size_t kProcQueueCap = 4u << 20;
-size_t gProcQueued = 0;
-bool gProcPaused = false;
+thread_local size_t gProcQueued = 0;
+thread_local bool gProcPaused = false;
 void onStreamRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf);
 void setProcReading(bool on) {
   gProcPaused = !on;
@@ -314,7 +314,7 @@ bool nextEvent(Event& out) {
 namespace {
 uv_udp_t* gOscRx = nullptr;   // one per listen: a closing handle may not be reused
 uv_udp_t gOscTx;
-bool gOscRxOpen = false, gOscTxOpen = false;
+thread_local bool gOscRxOpen = false, gOscTxOpen = false;
 void onOscClosed(uv_handle_t* h) { delete reinterpret_cast<uv_udp_t*>(h); }
 void onOscAlloc(uv_handle_t*, size_t, uv_buf_t* buf) {
   static char mem[65536];
@@ -325,7 +325,7 @@ void onOscRecv(uv_udp_t*, ssize_t n, const uv_buf_t* buf, const sockaddr* from, 
   if (n <= 0 || !from) return;
   for (std::string& m : osc::decode(reinterpret_cast<const uint8_t*>(buf->base), static_cast<size_t>(n))) gEvents.push_back({0, 20, std::move(m)});
 }
-int gExtra = 0;
+thread_local int gExtra = 0;
 }  // namespace
 
 void* uvLoop() { return loop(); }
