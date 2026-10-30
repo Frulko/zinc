@@ -3,6 +3,7 @@
 #include <cstring>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -144,6 +145,9 @@ const Rendered* shape(int32_t font, std::string_view text, float tracking) {
 }
 
 int32_t run(int32_t font, const char* s, uint32_t n, float tracking, void (*emit)(void*, const ShapedGlyph&), void* user) {
+  // the script measures while the render thread (D182) and the raster bands draw: one cache, one lock, held while its entry is read
+  static std::mutex mu;
+  std::lock_guard<std::mutex> lock(mu);
   const Rendered* r = shape(font, std::string_view(s, n), tracking);
   if (!r) return -1;
   if (emit) for (const ShapedGlyph& g : r->glyphs) emit(user, g);

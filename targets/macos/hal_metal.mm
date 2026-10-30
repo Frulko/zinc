@@ -5,6 +5,7 @@
 // at every frame (5.6 to 6.8 ms p50 on the iPhone 17 simulator). hal_sdl.cpp keeps that path for ZINC_PRESENT=texture.
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
+#import <QuartzCore/CATransaction.h>
 #include <SDL3/SDL.h>
 #include <TargetConditionals.h>
 #include <stdint.h>
@@ -58,7 +59,13 @@ extern "C" uint32_t* hal_mtl_pixels(int w, int h) {
 extern "C" void hal_mtl_present(void) {
   @autoreleasepool {
     if (!frame) return;
-    if (layer.drawableSize.width != fw || layer.drawableSize.height != fh) layer.drawableSize = CGSizeMake(fw, fh);   // SDL's view sets it from its bounds
+    if (layer.drawableSize.width != fw || layer.drawableSize.height != fh) {   // SDL's view sets it from its bounds
+      // an explicit transaction: the present may run on the render thread (D182), which has no run loop to commit an implicit one
+      [CATransaction begin];
+      [CATransaction setDisableActions:YES];
+      layer.drawableSize = CGSizeMake(fw, fh);
+      [CATransaction commit];
+    }
     id<CAMetalDrawable> d = [layer nextDrawable];
     if (!d) return;
     const NSUInteger w = SDL_min((NSUInteger)fw, d.texture.width), h = SDL_min((NSUInteger)fh, d.texture.height);   // a drawable of the old size, mid-rotation

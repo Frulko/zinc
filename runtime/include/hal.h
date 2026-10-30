@@ -168,6 +168,9 @@ void hal_frame_begin(void);
 void hal_frame_end(void);
 void hal_poll_input(HalInput* in);
 void hal_present(const HalFrame* f);
+// Optional (weak default 0, runtime/gfx.cpp): 1 when this frame's hal_present may run on the render thread (D182) instead of the
+// script thread that polls the input; asked before each frame is handed over.
+int32_t hal_present_async(void);
 void hal_surface_size(int* w, int* h);
 // Physical pixels per logical pixel for zinc:gfx frames (HiDPI). Optional: 1 when a HAL does not define it.
 int32_t hal_pixel_scale(void);

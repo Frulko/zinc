@@ -206,6 +206,11 @@ static bool gl_window(const char* title, int ww, int wh, bool full = false) {
     win = nullptr;
     return false;
   }
+#ifdef SDL_HINT_MAC_OPENGL_ASYNC_DISPATCH
+  // the context's update after a resize is sent to the main thread when the render thread swaps (D182): without waiting, since the main
+  // thread may be waiting for that render thread (a resize)
+  SDL_SetHint(SDL_HINT_MAC_OPENGL_ASYNC_DISPATCH, "1");
+#endif
   glctx = SDL_GL_CreateContext(win);
   const char* r = glctx && SDL_GL_MakeCurrent(win, glctx) && zgl_load() ? (const char*)glGetString(GL_RENDERER) : nullptr;
   const bool soft = r && (strstr(r, "llvmpipe") || strstr(r, "softpipe") || strstr(r, "Software"));
@@ -300,7 +305,15 @@ struct GlCurrent {
 };
 #endif
 
+// The render thread (runtime/gfx.cpp, D182) presents while this thread polls: whatever a present reads (the surface size, fb, the
+// replay's size, the Metal buffer) changes only once it is done. A weak reference: null when the engine has no render thread.
+extern "C" __attribute__((weak)) void zrt_render_idle(void);
+static void render_idle() { if (zrt_render_idle) zrt_render_idle(); }
+#ifdef __APPLE__
+static void background_pending();
+#endif
 static void alloc_surface() {
+  render_idle();
   surface_ok = true;
 #ifdef ZN_HAL_GL
   if (gl_on) {   // the software rows (frames without command lists) and the replay follow the surface
@@ -346,6 +359,7 @@ static void apply_size() {
   if (k < 1) k = 1;
   while (k > 1 && (long)nw * k * nh * k > 3840L * 2400L) k--;
   if (nw == W && nh == H && k == K && surface_ok) return;
+  render_idle();
   W = nw; H = nh; K = k; PW = W * K; PH = H * K;
   alloc_surface();
 }
@@ -619,6 +633,7 @@ void hal_init(const HalConfig* cfg) {
 }
 void hal_shutdown(void) {
   if (!gfx_on) return;
+  render_idle();
 #ifdef ZN_HAL_GL
   if (glctx) SDL_GL_DestroyContext(glctx);
 #endif
@@ -944,7 +959,7 @@ static void sim_turned() {
   (void)base_fill;
   // the surface: the device's own size, its sides swapped when the program follows a quarter turn
   const int sw = follow && (turn & 1) ? base_h : base_w, sh = follow && (turn & 1) ? base_w : base_h;
-  if (sw != W || sh != H) { W = sw; H = sh; PW = W * K; PH = H * K; alloc_surface(); }
+  if (sw != W || sh != H) { render_idle(); W = sw; H = sh; PW = W * K; PH = H * K; alloc_surface(); }
   // the window: the picture as the device shows it (turned or not), scaled down to fit the screen, never from its current size
   const int pw = (turn & 1) ? base_h : base_w, ph = (turn & 1) ? base_w : base_h;
   float s = (float)zoom;
@@ -996,6 +1011,9 @@ static void live_resize_sim(int n) {
 
 void hal_poll_input(HalInput* in) {
   in->nkeys = 0; in->ntext = 0; in->nbtn = 0; in->wheel_x = 0;
+#ifdef __APPLE__
+  if (gfx_on && win) background_pending();
+#endif
   if (resize_pending) { resize_pending = false; apply_size(); }
   sim_turned();
   static const int live_steps = getenv("ZINC_LIVE_RESIZE") ? atoi(getenv("ZINC_LIVE_RESIZE")) : 0;
@@ -1816,6 +1834,7 @@ static void layers_follow(const HalFrame* f) {
 #ifdef __APPLE__
 // The window's own colour follows the frame's background (its first command: a CLEAR, or an opaque rectangle over the whole surface): AppKit
 // shows it at a growing edge before the frame of the new size is in, instead of white or black (Electron's backgroundColor)
+static uint32_t bg_pending;   // a colour found by the render thread (bit 24 set), applied by the main thread
 static void window_background(const HalFrame* f) {
   static uint32_t bg = 0xFFFFFFFFu;
   if (!f->frames || (wcfg_set && wcfg.transparent)) return;
@@ -1825,9 +1844,29 @@ static void window_background(const HalFrame* f) {
   const bool whole = c.kind == zrt::raster::CLEAR || (c.kind == zrt::raster::RECT && c.alpha == 255 && !c.grad && c.x <= 0 && c.y <= 0 && c.x + c.w >= W && c.y + c.h >= H);
   if (!whole || (c.c1 & 0xFFFFFFu) == bg) return;
   bg = c.c1 & 0xFFFFFFu;
+  if (!SDL_IsMainThread()) { __atomic_store_n(&bg_pending, bg | 0x1000000u, __ATOMIC_RELEASE); return; }   // AppKit: the main thread's next poll
   hal_sdl_window_background(SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr), bg);
 }
+static void background_pending() {
+  const uint32_t b = __atomic_exchange_n(&bg_pending, 0u, __ATOMIC_ACQ_REL);
+  if (b) hal_sdl_window_background(SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr), b & 0xFFFFFFu);
+}
 #endif
+// The present may run on the render thread (runtime/gfx.cpp, D182) once the window is shown (its first present shows it, an AppKit call),
+// outside a live resize (AppKit holds this thread and redraws from the poll) and on the Metal or GL window of macOS: CAMetalLayer's
+// drawables and an NSOpenGLContext may be used from another thread, SDL_Renderer may not. ponytail: macOS only; Linux (GL), Android and
+// iOS in the cross-platform pass.
+int32_t hal_present_async(void) {
+#if defined(SDL_PLATFORM_MACOS)
+  bool ok = mtl_on;
+#ifdef ZN_HAL_GL
+  ok = ok || gl_on;
+#endif
+  return gfx_on && shown && !in_watch && !main_hidden && ok;
+#else
+  return 0;
+#endif
+}
 // The shared rasterizer renders only the damaged rows; the texture is updated for those rows.
 void hal_present(const HalFrame* f) {
   if (!gfx_on) return;
@@ -1890,6 +1929,20 @@ static void present_frame(const HalFrame* f) {
     if (f->move && f->render_box) apply_move(f, fb);
     else render_rows_parallel(f->render_damage ? f->render_damage : f->render, f->y0, f->y1);
     ps_mark(PS_RASTER);
+    // ZINC_PRESENT_VERIFY=1: fb (the damage drawn over the frames before) against a full redraw of this frame: a wrong damage or a frame
+    // handed to the render thread before it was complete leaves stale pixels (counted on stderr, a line per bad frame and every 60)
+    static const bool verify = getenv("ZINC_PRESENT_VERIFY") && atoi(getenv("ZINC_PRESENT_VERIFY")) != 0;
+    if (verify) {
+      uint32_t* full = (uint32_t*)malloc((size_t)PW * PH * 4);
+      f->render(full, 0, PH);
+      int bad = 0;
+      for (size_t i = 0; i < (size_t)PW * PH; i++) bad += (fb[i] & 0xFFFFFF) != (full[i] & 0xFFFFFF);
+      free(full);
+      static int frames, frames_bad;
+      frames++; frames_bad += bad != 0;
+      char m[160]; const int n = snprintf(m, sizeof m, "zinc present verify: frame %d: %d stale pixels (%d of %d frames had some)%s\n", frames, bad, frames_bad, frames, SDL_IsMainThread() ? "" : " [render thread]");
+      if (bad || frames % 60 == 0) hal_log_err(m, (size_t)n);
+    }
     hal_mtl_present();
     ps_mark(PS_DRAW);
     ps_end();

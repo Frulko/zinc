@@ -33,6 +33,98 @@ static void present(const HalFrame* f) {
   if (first_present) { void (*f1)() = first_present; first_present = nullptr; f1(); }
 }
 }  // namespace zrt
+#if __has_include("zn/frame_trace.h")
+#include "zn/frame_trace.h"
+extern "C" { void (*zn_frame_trace)(int32_t, uint64_t, uint64_t, int64_t, int64_t) = nullptr; }
+#define ZRT_FT(k, t0, t1, a, b) do { if (zn_frame_trace) zn_frame_trace(k, t0, t1, a, b); } while (0)
+#else
+#define ZRT_FT(k, t0, t1, a, b) do {} while (0)
+#endif
+
+// ---------- the render thread (D182, docs/reports/threads-ui-compute-animation.md step 5) ----------
+// The script stays on the OS main thread; a thread named "zinc render" runs the HAL's present (the raster bands or the GL replay, and the
+// swap) of the frame the script committed, while the script builds the next one into the other command buffer. The handoff blocks: the
+// script waits at the start of its next end_frame until the render thread is done (zrt_render_idle), so the overlays, the damage list and
+// `shown` are written only while nothing reads them, the frame time is max(script + diff, render) and no frame is ever dropped (so no
+// damage has to be merged). Two command buffers are enough for that: the third slot of the report would only let the script run ahead of
+// the display and throw frames away. Everything that changes what a present reads from the script thread (fonts, runtime glyphs, images,
+// the surface size, the overlays) calls zrt_render_idle first. The HAL says per frame whether its present may run on another thread
+// (hal_present_async: the macOS window once shown, outside a live resize); otherwise the present runs inline, as it always did.
+// ZINC_RENDER_THREAD=0 turns it off, =1 forces it on (even in deterministic runs and captures, to prove the pixels are the same);
+// by default it is on except in deterministic, recorded, replayed, headless and capture runs (D182: those stay synchronous).
+extern "C" __attribute__((weak)) int32_t hal_present_async(void) { return 0; }
+#ifdef ZRT_RENDER_THREAD
+#include <pthread.h>
+namespace zrt { namespace rthread {
+static int mode = -1;   // -1 not read, 0 off, 1 auto, 2 forced
+static bool started = false, busy = false, failed = false;
+static pthread_t th, script;
+static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
+static HalFrame job;
+static HalMove move;
+static int32_t slot;
+static uint64_t r0, r1, prev_r0;   // the last render's span, the start of the one before
+static void* loop(void*) {
+#ifdef __APPLE__
+  pthread_setname_np("zinc render");
+#else
+  pthread_setname_np(pthread_self(), "zinc render");
+#endif
+  for (;;) {
+    pthread_mutex_lock(&mu);
+    while (!busy) pthread_cond_wait(&cv, &mu);
+    pthread_mutex_unlock(&mu);
+    const uint64_t t0 = hal_time_us();
+    present(&job);
+    const uint64_t t1 = hal_time_us();
+    ZRT_FT(ZN_FT_RENDER, t0, t1, slot, 1);
+    if (prev_r0) ZRT_FT(ZN_FT_PRESENT, prev_r0, t0, (int64_t)(t0 - prev_r0), 0);
+    pthread_mutex_lock(&mu);
+    prev_r0 = t0; r0 = t0; r1 = t1;
+    busy = false;
+    pthread_cond_broadcast(&cv);
+    pthread_mutex_unlock(&mu);
+  }
+  return nullptr;
+}
+static bool env_on(const char* n) { const char* e = hal_env(n); return e && *e && *e != '0'; }
+/** This frame's present goes to the render thread. */
+static bool wanted() {
+  if (mode < 0) {
+    const char* e = hal_env("ZINC_RENDER_THREAD");
+    if (e && *e) mode = *e == '0' ? 0 : 2;
+    else mode = env_on("ZINC_DETERMINISTIC") || hal_env("ZINC_RECORD") || hal_env("ZINC_REPLAY") || env_on("ZINC_HEADLESS") || hal_env("ZINC_SHOT") ||
+                hal_env("ZINC_SHOT_FRAMES") || hal_env("ZINC_SHOT_EVERY") || env_on("ZINC_FRAMEHASH") || hal_env("ZINC_SCENE_DUMP") ? 0 : 1;
+  }
+  if (!mode || failed || display_driver || mirror_present || !hal_present_async()) return false;
+  if (!started) {
+    script = pthread_self();
+    pthread_attr_t a;
+    pthread_attr_init(&a);
+    pthread_attr_setstacksize(&a, 1 << 20);   // the raster's scratch is on the heap (per thread), the GL replay's tables are static
+    failed = pthread_create(&th, &a, loop, nullptr) != 0;
+    pthread_attr_destroy(&a);
+    if (failed) return false;
+    pthread_detach(th);
+    started = true;
+    at_finish([] { zrt_render_idle(); });   // the last frame is on the screen before the shots and the exit
+  }
+  return true;
+}
+}}  // namespace zrt::rthread
+/** Waits until the render thread presented the frame it was given. A no-op on any other thread than the script's (the render thread
+ *  itself and the raster bands call the same functions) and while no thread runs. */
+extern "C" void zrt_render_idle(void) {
+  using namespace zrt::rthread;
+  if (!started || !pthread_equal(pthread_self(), script)) return;
+  pthread_mutex_lock(&mu);
+  while (busy) pthread_cond_wait(&cv, &mu);
+  pthread_mutex_unlock(&mu);
+}
+#else
+extern "C" void zrt_render_idle(void) {}
+#endif
 // HiDPI: physical pixels per logical pixel (the SDL HAL reports Retina density x window magnification)
 extern "C" __attribute__((weak)) int32_t hal_pixel_scale(void) { return 1; }
 // More windows (ZN-663): a HAL without them has the main window only, and closing it ends the program
@@ -68,6 +160,7 @@ void sync_surface() {
   // frame then presented the empty buffer: a black window)
   const int32_t k = scale_now();
   if (w == surf_w && h == surf_h && k == pxk) return;
+  zrt_render_idle();   // the render thread presents at the old size until it is done
   surf_w = w; surf_h = h; pxk = 0;
   init_scale();
   first_frame();
@@ -194,6 +287,7 @@ static void banner_expire() {
 }
 /** Shows the red box for `text` ("message\n    at f (file:line)..."); null clears it. False: no screen. */
 bool crash_screen(const char* text, uint32_t n) {
+  zrt_render_idle();
   rbox.ncmd = rbox.ntext = 0;
   ovl_changed = true;
   if (!text) return true;
@@ -223,6 +317,7 @@ bool crash_screen(const char* text, uint32_t n) {
 }
 /** console.warn/error in dev builds: a yellow strip at the bottom, hidden after 8 s. */
 void log_banner(int, const char* s, uint32_t n) {
+  zrt_render_idle();
   int32_t k = ovl_k();
   float h = 14.0f * k, y = (float)ph - h;
   uint32_t len = 0;
@@ -395,6 +490,8 @@ struct State {
   uint32_t acc[N];
   Span spans[ZRT_PROF_SPANS];
   uint64_t band[ZRT_PROF_BANDS][2];  // raster band spans of this frame (SDL HAL worker threads)
+  uint64_t rband[ZRT_PROF_BANDS][2]; // with the render thread: the bands of the frame it presented last (take_render)
+  uint64_t r0, r1, wait;             // with the render thread: its last present, and how long the script waited for it
   uint64_t frame_t0, last, prev_t0;
   uint32_t interval[ZRT_PROF_FRAMES];   // microseconds between the start of a frame and the start of the one before it (0 for the first)
   uint32_t presented[ZRT_PROF_FRAMES];  // microseconds between the end of a frame's present and the end of the one before (0 for the first): the pace the user sees
@@ -523,7 +620,8 @@ static void summary() {
 static String trace_json(int32_t threads_op) {
   StrBuilder sb;
   sb.cstr("[{\"name\":\"process_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"zinc\"}},"
-          "{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"CrRendererMain\"}}");
+          "{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":1,\"args\":{\"name\":\"CrRendererMain\"}},"
+          "{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":2,\"args\":{\"name\":\"zinc render\"}}");
   for (int32_t b = 0; b < ZRT_PROF_BANDS; b++) {
     sb.cstr(",{\"name\":\"thread_name\",\"ph\":\"M\",\"pid\":1,\"tid\":"); to_s(sb, 10 + b);
     sb.cstr(",\"args\":{\"name\":\"raster band "); to_s(sb, b); sb.cstr("\"}}");
@@ -568,22 +666,51 @@ static void begin() {
   if (!active()) return;
   st->frame_t0 = st->last = hal_time_us();
   __builtin_memset(st->acc, 0, sizeof st->acc);
+#ifdef ZRT_RENDER_THREAD
+  if (rthread::started) return;   // the render thread writes the bands now: take_render reads them once it is done
+#endif
   __builtin_memset(st->band, 0, sizeof st->band);
 }
+#ifdef ZRT_RENDER_THREAD
+/** The script waited `wait` us for the render thread, which is done: its bands and its span become this frame's raster and present. */
+static void take_render(uint64_t wait) {
+  __builtin_memcpy(st->rband, st->band, sizeof st->band);
+  __builtin_memset(st->band, 0, sizeof st->band);
+  st->r0 = rthread::r0; st->r1 = rthread::r1; st->wait = wait;
+}
+#endif
 /** After present(): raster = the span of the bands the HAL reported, present = the rest of the call. */
+/** With the render thread (D182) the raster is the bands of the frame it presented last, on its own track (tid 2), and present is
+ *  its present without the raster plus the script's wait for it: one frame late, the frame's own cost on the threads that paid it. */
 static void end() {
   uint64_t t = hal_time_us(), r0 = 0, r1 = 0;
+  bool threaded = false;
+#ifdef ZRT_RENDER_THREAD
+  threaded = rthread::started;
+#endif
+  uint64_t (*bands)[2] = threaded ? st->rband : st->band;
   for (int32_t b = 0; b < ZRT_PROF_BANDS; b++) {
-    if (!st->band[b][1]) continue;
-    if (!r0 || st->band[b][0] < r0) r0 = st->band[b][0];
-    if (st->band[b][1] > r1) r1 = st->band[b][1];
-    span(st->band[b][0], st->band[b][1], RASTER, 10 + b);
+    if (!bands[b][1]) continue;
+    if (!r0 || bands[b][0] < r0) r0 = bands[b][0];
+    if (bands[b][1] > r1) r1 = bands[b][1];
+    span(bands[b][0], bands[b][1], RASTER, 10 + b);
   }
   uint32_t raster = r1 > r0 ? (uint32_t)(r1 - r0) : 0;
-  if (raster) span(r0, r1, RASTER, 1);
-  span(st->last, t, PRESENT, 1);
-  st->acc[RASTER] += raster;
-  st->acc[PRESENT] += (uint32_t)(t - st->last) - raster;
+  if (threaded) {
+    __builtin_memset(st->rband, 0, sizeof st->rband);
+    if (raster) span(r0, r1, RASTER, 2);
+    if (st->r1 > st->r0) span(st->r0, st->r1, PRESENT, 2);
+    span(st->last, t, PRESENT, 1);
+    const uint32_t rp = st->r1 > st->r0 ? (uint32_t)(st->r1 - st->r0) : 0;
+    st->acc[RASTER] += raster;
+    st->acc[PRESENT] += (rp > raster ? rp - raster : 0) + (uint32_t)st->wait;
+    st->r0 = st->r1 = st->wait = 0;
+  } else {
+    if (raster) span(r0, r1, RASTER, 1);
+    span(st->last, t, PRESENT, 1);
+    st->acc[RASTER] += raster;
+    st->acc[PRESENT] += (uint32_t)(t - st->last) - raster;
+  }
   st->last = t;
   span(st->frame_t0, t, N, 1);
   uint32_t gap = st->prev_t0 ? (uint32_t)(st->frame_t0 - st->prev_t0) : 0;
@@ -642,6 +769,7 @@ static const uint32_t COLORS[prof::N] = {0x60a5fa, 0xa78bfa, 0xf472b6, 0xfbbf24,
 static const char* const SHORT[prof::N] = {"app", "inp", "anim", "lay", "pnt", "fx", "diff", "ras", "pre"};
 
 static bool show() {
+  zrt_render_idle();
   if (!hud_ovl) {
     hud_ovl = (HudOverlay*)hal_alloc(sizeof(HudOverlay));
     sorted = (uint32_t*)hal_alloc(ZRT_PROF_FRAMES * sizeof(uint32_t));
@@ -657,6 +785,7 @@ static bool show() {
   return true;
 }
 static void hide() {
+  zrt_render_idle();
   state = 0;
   relayout = true;
   if (prof::st) prof::st->hud = false;
@@ -1185,6 +1314,7 @@ static void after_present() {
 }
 /** Presents the last frame with the overlay (the red box loop, while the program is stopped). */
 void present_overlay() {
+  zrt_render_idle();
   init_scale();
   banner_expire();
   if (ovl_changed) set_full_damage(); else ndmg = 0;
@@ -1425,9 +1555,79 @@ static bool bulk_mode = false;
 static uint32_t bulk_n = 0;
 static raster::Rect all_box[2];
 static bool all_ok[2];
-void begin_frame() { Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; n_plugin = 0; tx = ty = 0; xf_on = false; kept = false; all_ok[cur] = false; devbar::frame_start(); hud::frame_start(); prof::begin(); }
+static uint64_t build_t0;   // the frame's build began (trace)
+#if __has_include("zn/frame_trace.h")
+static uint64_t inline_r0;   // the start of the last inline present (trace: the present interval)
+#endif
+/** The script thread before it writes what a present reads (the overlays, the damage list, `shown`): the render thread is done. */
+static void handoff_wait() {
+#ifdef ZRT_RENDER_THREAD
+  if (!rthread::started) return;
+  const uint64_t t0 = hal_time_us();
+  zrt_render_idle();
+  const uint64_t t1 = hal_time_us();
+  ZRT_FT(ZN_FT_HANDOFF, t0, t1, cur, 1);
+  if (prof::active()) prof::take_render(t1 - t0);
+#endif
+}
+#ifdef ZRT_RENDER_THREAD
+/** The glyphs of the frame's runtime fonts are rasterized now, on the script thread: the render thread only reads the glyph tables (a
+ *  glyph rasterized there would move a table the script reads while it measures text). Baked fonts never change. */
+static void glyphs_ready(const Buf& b) {
+  for (uint32_t i = 0; i < b.ncmd; i++) {
+    const Cmd& c = b.cmds[i];
+    int32_t font = c.res;
+    uint32_t off = c.off, n = c.n;
+    if (c.kind == raster::XFORM && b.pts[c.off] == (float)raster::TEXT) {
+      const float* p = b.pts + c.off;
+      if (p[11] >= 1) font = (int32_t)p[11] - 1;
+      __builtin_memcpy(&off, p + 13, 4); __builtin_memcpy(&n, p + 14, 4);
+    } else if (c.kind != raster::TEXT) continue;
+    if (!raster::runtime_font(font)) continue;
+    const char* s = b.text + off;
+    for (uint32_t k = 0; k < n;) {
+      const uint8_t ch = (uint8_t)s[k];
+      const uint32_t w = ch < 0x80 ? 1 : ch < 0xE0 ? 2 : ch < 0xF0 ? 3 : 4;
+      uint32_t cp = ch < 0x80 ? ch : ch < 0xE0 ? ch & 0x1F : ch < 0xF0 ? ch & 0x0F : ch & 0x07;
+      for (uint32_t j = 1; j < w && k + j < n; j++) cp = (cp << 6) | ((uint8_t)s[k + j] & 0x3F);
+      k += w;
+      if (!raster::runtime_glyph(font, cp)) raster::runtime_glyph(font, '?');
+    }
+  }
+}
+#endif
+/** Presents `f`: on the render thread when the HAL takes it there (the script goes on at once), else here. */
+static void hand_over(const HalFrame& f) {
+#ifdef ZRT_RENDER_THREAD
+  if (rthread::wanted()) {
+    if (shown) glyphs_ready(*shown);
+    rthread::job = f;
+    if (f.move) { rthread::move = *f.move; rthread::job.move = &rthread::move; }
+    rthread::slot = cur;
+    pthread_mutex_lock(&rthread::mu);
+    rthread::busy = true;
+    pthread_cond_broadcast(&rthread::cv);
+    pthread_mutex_unlock(&rthread::mu);
+    return;
+  }
+#endif
+#if __has_include("zn/frame_trace.h")
+  if (zn_frame_trace) {
+    const uint64_t t0 = hal_time_us();
+    present(&f);
+    ZRT_FT(ZN_FT_RENDER, t0, hal_time_us(), cur, 0);
+    if (inline_r0) ZRT_FT(ZN_FT_PRESENT, inline_r0, t0, (int64_t)(t0 - inline_r0), 0);
+    inline_r0 = t0;
+    return;
+  }
+#endif
+  present(&f);
+}
+void begin_frame() { if (zn_frame_trace) build_t0 = hal_time_us(); Buf& b = bufs[cur]; b.ncmd = 0; b.ntext = 0; b.npts = 0; n_plugin = 0; tx = ty = 0; xf_on = false; kept = false; all_ok[cur] = false; devbar::frame_start(); hud::frame_start(); prof::begin(); }
 void keep() { kept = true; }
 void end_frame() {
+  if (build_t0) { ZRT_FT(ZN_FT_BUILD, build_t0, hal_time_us(), cur, 0); build_t0 = 0; }
+  handoff_wait();
   init_scale();
   vis_init();
   const bool prof_on = prof::active();
@@ -1444,7 +1644,7 @@ void end_frame() {
     const raster::Rect d = damage_box();
     HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay || raster::shader_holes ? render_holes : nullptr, render_box};
     ovl_changed = false;
-    present(&f);
+    hand_over(f);
     if (prof_on) prof::end();
     after_present();
     return;
@@ -1512,7 +1712,7 @@ void end_frame() {
   __atomic_store_n(&tiles_state, 0, __ATOMIC_RELEASE);
   stats.draw_cmds = now.ncmd;
   HalFrame f = {pw, ph, d.x0, d.y0, d.x1, d.y1, render_rows, render_damage, frame_lists, nlay || raster::shader_holes ? render_holes : nullptr, render_box, moved ? &hm : nullptr};
-  present(&f);
+  hand_over(f);
   if (prof_on) prof::end();
   after_present();
   cur ^= 1;

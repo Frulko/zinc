@@ -3,6 +3,7 @@
   "default": ["checker", "lang"],
   "map": [
     {"paths": ["examples/photo-sorter/", "tests/golden/photo-sorter/", "tests/t1/photo_sorter.sh", "plugins/imageio/"], "tests": ["photo_sorter"]},
+    {"paths": ["runtime/gfx.cpp", "runtime/ttf.cpp", "targets/macos/hal_sdl.cpp", "targets/macos/hal_metal.mm", "src/host/window_module.cpp", "src/text/shaped_gfx.cpp", "include/zn/frame_trace.h", "tests/t1/render_thread.sh"], "tests": ["render_thread"]},
     {"paths": ["plugins/trieur/", "third_party/trieur/", "examples/trieur/", "tests/golden/trieur/", "tests/t1/trieur.sh"], "tests": ["trieur"]},
     {"paths": ["tests/data/ui-keyup/", "tests/t0/ui_keyup.sh", "src/host/hal_dispatch.cpp"], "tests": ["ui_keyup"]},
     {"paths": ["plugins/carplay/", "tests/golden/carplay/", "tests/t0/carplay.sh"], "tests": ["carplay", "carplay_demo"]},

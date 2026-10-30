@@ -291,6 +291,7 @@ static Glyph* slot(RFont& r, uint32_t cp) {
   return &r.glyphs[i];
 }
 static const Glyph* rasterize(RFont& r, uint32_t cp) {
+  zrt_render_idle();   // the glyph table and bitmap may move; a present reads them
   if (r.nglyph * 2 >= r.capglyph) {  // rehash
     Glyph* old = r.glyphs; int32_t oc = r.capglyph;
     r.capglyph = oc ? oc * 2 : 256;
@@ -349,6 +350,7 @@ static TtfFile extra[8];
 static int32_t nextra = 0;
 static const TtfFile* file_at(int32_t i) { return i < ttf_count ? &ttf_files[i] : i - ttf_count < nextra ? &extra[i - ttf_count] : nullptr; }
 int32_t add_font_file(const char* name, uint32_t name_len, const uint8_t* data, uint32_t len) {
+  zrt_render_idle();
   if (nextra == 8 || ttf_count + nextra >= MAX_TTF) return -1;
   const Ttf t = parse(data, len);
   if (!t.ok) return -1;   // not a TrueType file with glyf outlines (a CFF OpenType file has none for this rasterizer)
@@ -370,7 +372,7 @@ const Glyph* runtime_glyph(int32_t id, uint32_t cp) {
  *  first. -1 when no file has that name. */
 static int32_t from_file(const char* name, uint32_t name_len, int32_t px, bool baked_first, bool scaled = false) {
   static uint32_t gen = 0;
-  if (gen != font_gen) {   // another program's files at the same indices: its runtime fonts start again (ponytail: the old glyphs are not freed)
+  if (gen != font_gen) {   zrt_render_idle();   // another program's files at the same indices: its runtime fonts start again (ponytail: the old glyphs are not freed)
     gen = font_gen;
     nrfonts = nscaled = 0;
     for (Ttf& t : ttfs) t.ok = false;
@@ -391,6 +393,7 @@ static int32_t from_file(const char* name, uint32_t name_len, int32_t px, bool b
     if (!ttfs[i].ok) ttfs[i] = parse(file.data, file.len);
     const Ttf& t = ttfs[i];
     if (!t.ok) return -1;
+    zrt_render_idle();
     RFont& r = rfonts[nrfonts];
     r = RFont{};
     const double s = (double)px / t.upem;   // the baker's metrics: Math.round of the scaled values

@@ -6,6 +6,9 @@
 #include <stddef.h>
 #include "include/hal.h"   // HalPicture (found beside this file, whatever the include path)
 
+/** Waits until the render thread (runtime/gfx.cpp, D182) presented its frame, before the script thread changes what a present reads
+ *  (fonts, glyphs, images, the surface); a no-op on other threads and without one. */
+extern "C" void zrt_render_idle(void);
 namespace zrt { namespace raster {
 
 struct Glyph { uint32_t cp; int16_t x0, y0; uint16_t w, h; int32_t adv; uint32_t off; };

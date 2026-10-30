@@ -17,7 +17,7 @@
 namespace {
 struct Win {
   void (*init)(const HalConfig*); void (*shutdown)(void); void (*frameBegin)(void); void (*frameEnd)(void); void (*pollInput)(HalInput*);
-  void (*present)(const HalFrame*); void (*surfaceSize)(int*, int*); double (*fixedDt)(void); void (*textInput)(int32_t, float, float, float, float);
+  void (*present)(const HalFrame*); int32_t (*presentAsync)(void); void (*surfaceSize)(int*, int*); double (*fixedDt)(void); void (*textInput)(int32_t, float, float, float, float);
   const char* (*clipboardGet)(void); void (*clipboardSet)(const char*, size_t); void (*setCursor)(int32_t); void (*escapeByApp)(int32_t);
   void (*escape)(void); int32_t (*pixelScale)(void); void* (*windowHandle)(void);
   void (*setWindowConfig)(const HalWindowConfig*); void (*setResize)(int32_t); void (*setClose)(int (*)(void)); void (*setDrop)(void (*)(const char*, int));
@@ -56,6 +56,7 @@ extern "C" int zn_window_load(void) {
     sym(h, "sdl_hal_win_close", w.winClose) && sym(h, "sdl_hal_win_state", w.winState) && sym(h, "sdl_hal_win_input", w.winInput) &&
     sym(h, "sdl_hal_win_present", w.winPresent) && sym(h, "sdl_hal_win_current", w.winCurrent);
   if (!ok) { fprintf(stderr, "zinc: no window (the program runs headless): %s is not zinc's window module\n", path.c_str()); return 0; }
+  sym(h, "sdl_hal_present_async", w.presentAsync);   // optional: an older module presents on the script thread
   state = 1;
   if (configSet) w.setWindowConfig(&config);
   if (resizeOn >= 0) w.setResize(resizeOn);
@@ -71,6 +72,7 @@ void sdl_hal_frame_begin(void) { w.frameBegin(); }
 void sdl_hal_frame_end(void) { w.frameEnd(); }
 void sdl_hal_poll_input(HalInput* in) { w.pollInput(in); }
 void sdl_hal_present(const HalFrame* f) { w.present(f); }
+int32_t sdl_hal_present_async(void) { return w.presentAsync ? w.presentAsync() : 0; }
 void sdl_hal_surface_size(int* a, int* b) { w.surfaceSize(a, b); }
 double sdl_hal_fixed_dt(void) { return w.fixedDt(); }
 void sdl_hal_text_input(int32_t on, float x, float y, float ww, float hh) { w.textInput(on, x, y, ww, hh); }
