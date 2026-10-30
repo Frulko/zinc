@@ -466,6 +466,7 @@ static void signal_event(const SDL_Event& e) {
   if (e.type == SDL_EVENT_WINDOW_DISPLAY_CHANGED || e.type == SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED) publish_refresh();
   if (e.type == SDL_EVENT_SYSTEM_THEME_CHANGED) signal_theme();
   else if (e.type == SDL_EVENT_WINDOW_SAFE_AREA_CHANGED || e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) signal_safe_area();
+  else if (e.type == SDL_EVENT_WINDOW_FOCUS_GAINED || e.type == SDL_EVENT_WINDOW_FOCUS_LOST) sys_signal(e.type == SDL_EVENT_WINDOW_FOCUS_GAINED ? "focus 1" : "focus 0");
   else if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_AC_BACK && !e.key.repeat) sys_signal("back");
   else if (e.type == SDL_EVENT_SCREEN_KEYBOARD_HIDDEN) sys_signal("keyboard 0");   // its height comes from the phone's glue (src/app)
   else if (e.type == SDL_EVENT_TEXT_EDITING) { std::string c = "compose "; c += e.edit.text ? e.edit.text : ""; sys_signal(c.c_str()); }
@@ -648,6 +649,7 @@ void hal_init(const HalConfig* cfg) {
   SDL_AddEventWatch(watch, nullptr);
   signal_theme();
   signal_safe_area();
+  sys_signal(SDL_GetWindowFlags(win) & SDL_WINDOW_INPUT_FOCUS ? "focus 1" : "focus 0");   // a window opened in the background (ZINC_BACKGROUND) has no focus
 }
 void hal_shutdown(void) {
   if (!gfx_on) return;

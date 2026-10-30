@@ -2155,6 +2155,9 @@ export function platformStyle(): string { const p = platform(); return p === 'an
 let fontScale: number = 1, reduceMotion = false, appActive = true;
 /** 'active', or 'background' between the OS's `background` and `foreground` signals (home, another app, the screen locked): nothing is drawn then. */
 export function appState(): string { return appActive ? 'active' : 'background'; }
+let windowFocus = true;
+/** The window has the keyboard focus (desktop: it is the front window of the front app); false while another app or window is in front. */
+export function windowFocused(): boolean { return windowFocus && appActive; }
 const signalFns: ((kind: string, arg: string) => void)[] = [];
 const backFns: (() => boolean)[] = [], forwardFns: (() => boolean)[] = [];
 /** The OS's text size setting (Dynamic Type, Android's font size): 1 by default. rem lengths, text classes and fontSize scale with it. */
@@ -2195,6 +2198,7 @@ export function systemSignal(line: string): void {
   else if (kind === 'fontscale') setFontScale(parseFloat(arg));
   else if (kind === 'reducemotion') reduceMotion = arg === '1' || arg === 'true';
   else if (kind === 'background' || kind === 'foreground') appActive = kind === 'foreground';
+  else if (kind === 'focus') windowFocus = arg === '1';
   else if (kind === 'keyboard') setKeyboardInset(Math.max(0, parseFloat(arg)));
   else if (kind === 'compose') composeText(arg);
   else if (kind === 'commit') { if (focus >= 0) typeInto(focus, arg); }

@@ -9,6 +9,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Added
+- `zinc:ui` `windowFocused()` says whether the window has the focus (another app or window in front makes it false); the `focus 0|1` system signal sets it in tests.
 - `zinc pack --target rpi` (or `rpi1`, `rpi2`, `aarch64-linux`, `armhf-linux`, `x86_64-linux`) packs a `.zapp` for another Linux machine, its native plugins cross-built for it.
 - `zinc:ui`: negative offsets `-top-2`, `-right-[6px]`, `-bottom-1`, `-left-px` place an absolute box past its parent's edge, as in Tailwind.
 - `zinc:ui`: `ui.RUN_STRIKE` strikes a run of `setTextRuns` through, as `RUN_UNDERLINE` underlines it.

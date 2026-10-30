@@ -496,6 +496,7 @@ What a phone's OS tells an app reaches zinc:ui as **signals**, one line each, `k
 | `backstart left\|right`, `backprogress P`, `backcancel` | Android 14 predictive back (`OnBackAnimationCallback`) | the navigation stack's predictive back |
 | `orientation portrait\|landscape` | SDL | listeners only (rotation is a resize) |
 | `background`, `foreground` | SDL's lifecycle (home, another app, the screen locked; the return) | `ui.appState()`: nothing is drawn in between; listeners hear `background` before the app stops (the moment to save; React Native's `AppState`) |
+| `focus 1`, `focus 0` | the window gains or loses the keyboard focus (another app or window in front), and its state when it opens | `ui.windowFocused()`: a chat skips the notification of the channel shown in a focused window |
 | `compose TEXT`, `commit TEXT`, `imedelete B A`, `imeselect S E`, `imeaction NAME` | SDL `SDL_EVENT_TEXT_EDITING`, the text input connection | see "Text input on phones" |
 | `a11y 0\|1`, `a11yactivate ID`, `a11yfocus ID`, `a11yscroll ID 1\|-1` | VoiceOver, TalkBack and the other accessibility clients | see "Screen readers" |
 
