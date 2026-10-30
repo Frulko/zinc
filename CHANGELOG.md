@@ -304,6 +304,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Fixed
+- Bitwise operators (`& | ^ << >> >>>` and `&=`...) on an `any` value compile, as in TypeScript, instead of error Z0005.
 - macOS: the arguments of `zinc run` (the project's path) are no longer delivered to the app as a file dropped on its window at launch.
 - `zinc:socket` WebSocket receives a large message about seven times faster (6 MB: 5.1 s down to 0.7 s), so the Discord demo connects much sooner.
 - With `"text": "shaped"`, a typographic quote (’ “ ”), a symbol or a text-style emoji (⛔) the built-in font lacks is drawn from the system fonts instead of a '?'.

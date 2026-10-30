@@ -344,6 +344,12 @@ function __dynMul(a: Dyn, b: Dyn): any { return new DynNum(__dynNumber(a) * __dy
 function __dynDiv(a: Dyn, b: Dyn): any { return new DynNum(__dynNumber(a) / __dynNumber(b)); }
 function __dynMod(a: Dyn, b: Dyn): any { return new DynNum(__dynNumber(a) % __dynNumber(b)); }
 function __dynPow(a: Dyn, b: Dyn): any { return new DynNum(Math.pow(__dynNumber(a), __dynNumber(b))); }
+function __dynBitAnd(a: Dyn, b: Dyn): any { return new DynNum(__dynNumber(a) & __dynNumber(b)); }
+function __dynBitOr(a: Dyn, b: Dyn): any { return new DynNum(__dynNumber(a) | __dynNumber(b)); }
+function __dynBitXor(a: Dyn, b: Dyn): any { return new DynNum(__dynNumber(a) ^ __dynNumber(b)); }
+function __dynShl(a: Dyn, b: Dyn): any { return new DynNum(__dynNumber(a) << __dynNumber(b)); }
+function __dynShr(a: Dyn, b: Dyn): any { return new DynNum(__dynNumber(a) >> __dynNumber(b)); }
+function __dynUshr(a: Dyn, b: Dyn): any { return new DynNum(__dynNumber(a) >>> __dynNumber(b)); }
 function __dynNeg(a: Dyn): any { return new DynNum(-__dynNumber(a)); }
 function __dynPos(a: Dyn): any { return new DynNum(__dynNumber(a)); }
 function __dynLt(a: Dyn, b: Dyn): boolean {

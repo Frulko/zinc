@@ -951,7 +951,8 @@ struct Checker {
       } else {
         static const std::pair<const char*, const char*> kOps[] = {{"+", "__dynAdd"}, {"-", "__dynSub"}, {"*", "__dynMul"}, {"/", "__dynDiv"}, {"%", "__dynMod"}, {"**", "__dynPow"},
                                                                   {"<", "__dynLt"}, {"<=", "__dynLe"}, {">", "__dynGt"}, {">=", "__dynGe"}, {"==", "__dynEq"}, {"!=", "__dynEq"},
-                                                                  {"===", "__dynSeq"}, {"!==", "__dynSeq"}};
+                                                                  {"===", "__dynSeq"}, {"!==", "__dynSeq"}, {"&", "__dynBitAnd"}, {"|", "__dynBitOr"}, {"^", "__dynBitXor"},
+                                                                  {"<<", "__dynShl"}, {">>", "__dynShr"}, {">>>", "__dynUshr"}};
         for (auto [o, fn] : kOps) if (op == o) call = std::string(neg ? "!" : "") + fn + "(__H0, __H1)";
         if (op == "&&") call = "__dynAnd(__H0, (): any => __H1)";
         if (op == "||") call = "__dynOr(__H0, (): any => __H1)";
@@ -4167,7 +4168,8 @@ struct Checker {
       std::string o2 = hole(cloneNode(obj, false));
       std::string k2 = key == kNone ? k : hole(cloneNode(key, false));
       std::string cur = "__dynGet" + suffix + "(" + o2 + ", " + k2 + ")";
-      static const std::pair<const char*, const char*> kOps[] = {{"+", "__dynAdd"}, {"-", "__dynSub"}, {"*", "__dynMul"}, {"/", "__dynDiv"}, {"%", "__dynMod"}, {"**", "__dynPow"}};
+      static const std::pair<const char*, const char*> kOps[] = {{"+", "__dynAdd"}, {"-", "__dynSub"}, {"*", "__dynMul"}, {"/", "__dynDiv"}, {"%", "__dynMod"}, {"**", "__dynPow"},
+                                                                {"&", "__dynBitAnd"}, {"|", "__dynBitOr"}, {"^", "__dynBitXor"}, {"<<", "__dynShl"}, {">>", "__dynShr"}, {">>>", "__dynUshr"}};
       const char* fn = nullptr;
       for (auto [b, f] : kOps) if (op == b) fn = f;
       if (!fn) { diag(kZUnsupported, i, "operator '" + op + "=' on a Dyn property"); return true; }
