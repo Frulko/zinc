@@ -17,7 +17,7 @@
 <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-<img src="docs/img/hero.png" alt="A Zinc app: an intro, screens, transitions and a gallery" width="820">
+<img src="docs/img/hero-wide.jpg" alt="Three Zinc apps: a code editor, a 3D city and a museum touch table" width="900">
 
 </div>
 
@@ -120,24 +120,22 @@ are tested by hand on real hardware. See [docs/targets](docs/targets/) for what 
 
 <table>
 <tr>
-<td width="33%"><img src="docs/img/zed-editor.png" alt="A code editor in the style of Zed"><br><b>Code editor</b><br><code>examples/zed-editor</code></td>
-<td width="33%"><img src="docs/img/museum-table-full.jpg" alt="A museum's multi-touch table showing a collection"><br><b>Museum touch table</b><br><code>examples/museum-table</code></td>
-<td width="33%"><img src="docs/img/pinball3d-play.png" alt="A 3D pinball table in play"><br><b>3D pinball</b><br><code>examples/pinball3d</code></td>
+<td width="50%"><img src="docs/img/showcase-pinball.jpg" alt="A 3D pinball table"><br><b>3D pinball</b><br>A full game with physics, lighting and a scoreboard.<br><code>zinc run examples/pinball3d</code></td>
+<td width="50%"><img src="docs/img/showcase-marble.jpg" alt="Marble Terraces, a 3D tilt game"><br><b>Marble Terraces</b><br>A 3D tilt game written once for the desktop and four consoles.<br><code>zinc run examples/marble</code></td>
 </tr>
 <tr>
-<td><img src="docs/img/navigation.png" alt="Turn-by-turn navigation through Paris"><br><b>Offline GPS navigation</b><br><code>examples/maps/navigation</code></td>
-<td><img src="examples/js-three/screenshot.png" alt="A lighthouse at night made with three.js"><br><b>three.js, unmodified</b><br><code>examples/js-three</code></td>
-<td><img src="docs/img/video-mapper.png" alt="Video layers warped onto surfaces"><br><b>Video mapping</b><br><code>examples/video/mapper</code></td>
+<td><img src="docs/img/showcase-navigation.jpg" alt="Turn-by-turn navigation through Paris"><br><b>Offline GPS navigation</b><br>Vector maps, routing and turn-by-turn guidance.<br><code>zinc run examples/maps/navigation</code></td>
+<td><img src="docs/img/showcase-three.jpg" alt="A lighthouse at night made with three.js"><br><b>three.js, unmodified</b><br>A real three.js scene on Zinc's own 3D renderer.<br><code>zinc run examples/js-three</code></td>
 </tr>
 <tr>
-<td><img src="docs/img/remarkable-notes.png" alt="A handwriting notebook on e-ink"><br><b>E-ink notebook</b><br><code>examples/remarkable/notes</code></td>
-<td><img src="docs/img/esp32-2432s022-home.png" alt="A widgets tour on a 2.2 inch ESP32 screen"><br><b>ESP32 touch screen</b><br><code>examples/boards/esp32-2432s022</code></td>
-<td><img src="docs/img/music-touchpad.png" alt="A Sonos remote on an HP TouchPad"><br><b>Sonos remote on a 2011 tablet</b><br><code>examples/music</code></td>
+<td><img src="docs/img/showcase-touchpad.jpg" alt="A Sonos remote on an HP TouchPad"><br><b>A Sonos remote on a 2011 tablet</b><br>The same code, running on an HP TouchPad.<br><code>examples/music</code></td>
+<td><img src="docs/img/showcase-mapper.jpg" alt="Video layers warped onto surfaces"><br><b>GPU video mapping</b><br>Video layers warped onto surfaces, driven by OSC.<br><code>zinc run examples/video/mapper</code></td>
 </tr>
 </table>
 
-Run any of them with `zinc run <path>`. The [examples](examples/) folder holds over a hundred more, from a Discord client to
-React Native and Nuxt UI showcases.
+The top of this page shows a code editor, a 3D city and a museum touch table. Run any of the examples with `zinc run <path>`: the
+[examples](examples/) folder holds over a hundred, from a Discord client to React Native and Nuxt UI showcases, an e-ink notebook
+and a 2.2-inch ESP32 touch screen.
 
 ## How it works
 
