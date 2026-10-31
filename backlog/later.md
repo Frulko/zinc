@@ -944,6 +944,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-911: an icon name written inside an expression (`<Icon name={on ? 'a' : 'b'}>`) is not picked up from the sources, so the icon draws nothing unless it is in `zinc.json` "icons"; scan the string literals of the expression or warn.
 - ZN-911: the share dialog could update its thumbnails in place when the sources are the same, instead of rebuilding the list every 1.5 s (cheaper on modest machines).
 - ZN-911: the safe mode shield of the user bar is icon-only; a tooltip or a small label would help first-time users.
+- ZN-912: discord-voice: map received RTX (PT 102 on a stream's `rtx_ssrc`) back to its primary SSRC and original sequence before the reassembler; today they are counted and dropped.
+- ZN-912: discord-voice: header-extension IDs experiment (`DISCORD_VIDEO_EXT=6`, RID ID 11) if the official client still does not show our camera after a call log.
+- ZN-912: discord-voice: handle op 24 with epoch > 1 and echo `experiments: ['fixed_keyframe_interval']` in Select Protocol when Ready lists it.
+- ZN-912: discord-voice: a DAVE test with real libdave vectors (two-epoch group, a third member joins) if an MLS fixture can be generated.
+- ZN-912: examples/discord: check the main gateway's fresh IDENTIFY versus RESUME against `Voice disconnected` in `call.ts`.
 
 ## Cross-platform pass
 - ZN-892/893: zinc:net server, WebSocket and ACME on Linux and Windows (net_limits, net_ws, net_acme with a Pebble for that OS).
