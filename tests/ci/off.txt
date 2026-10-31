@@ -42,3 +42,4 @@ photo_sorter         # on the hosted macOS runner the scripted clicks land elsew
 headless_close       # gave an empty output once on a hosted runner while its trace shows it passing; timing of the 20 s timeout
 inspector_pause      # on QuickJS the inspector once stopped answering right after Zinc.setPaused (20 s without a handshake); never seen on the Mac
 device_screen        # "the session with screen ended early" once on a hosted runner; its traced rerun on the same runner passed
+web_real             # "canvas: no frames" once on a hosted runner (headless Chrome); its traced rerun on the same runner passed
