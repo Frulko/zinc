@@ -648,6 +648,13 @@ The next backlog review turns lines into tasks or deletes them.
 - Release 0.10: inspector_pause hung once on a hosted runner (v0.10.4 run 41169674268): with --engine quickjs, the first DOM.getDocument after Zinc.setPaused got no WebSocket handshake for 20 s; the paused loop may not serve the inspector at pause entry. Off the CI until found.
 - Release 0.10: photo_sorter (clicks land elsewhere on the hosted macOS runner) and headless_close (one empty output) are off the CI; find why and put them back.
 
+- ZN-899: revise targets 1 and 2 of `docs/reports/webrtc-selfhost-design.md` 6.1 (20 kbit/s at 10% loss is out of reach for libopus; proposal: thin link <= 11% concealed with deep PLC, or a ViSQOL score).
+- ZN-899: RFC 2198 RED for Opus, sent and decoded, so a browser peer survives burst loss (FEC alone repairs one packet per run).
+- ZN-899: a 120 ms Opus packet at 15 kbit/s with LBRR was 100% concealed by our receiver in an experiment; check the decode path in case a peer sends it.
+- ZN-899: the first second of a lossy call goes unrepaired until the first receiver report; send reports sooner.
+- ZN-871: `getUserMedia({ audio: { echoCancellation, noiseSuppression, autoGainControl } })` constraints, on by default as in browsers, with `played` wired automatically; use the processing in the Discord voice plugin.
+- ZN-871: Speex's gain control can amplify residual echo; consider AGC2 or freezing the gain while the far end talks.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -951,6 +958,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-912: examples/discord: check the main gateway's fresh IDENTIFY versus RESUME against `Voice disconnected` in `call.ts`.
 
 ## Cross-platform pass
+- ZN-871: SpeexDSP and the `played` tap on Linux, the Pi and iOS; the speaker-to-microphone delay on Bluetooth and on the Pi, and a real call on laptop speakers.
 - ZN-892/893: zinc:net server, WebSocket and ACME on Linux and Windows (net_limits, net_ws, net_acme with a Pebble for that OS).
 - ZN-894: check that the -include impair.h hook builds on linux, rpi and ios.
 - ZN-875: zinc:screen-capture/picker and app icons on the Linux and Windows backends.
