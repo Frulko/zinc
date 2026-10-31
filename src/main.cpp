@@ -1927,6 +1927,7 @@ int main(int argc, char** argv) {
       argc -= 2;
       break;
     }
+  if (argc > 1 && !std::strncmp(argv[1], "--emit=", 7)) setenv("ZINC_STEPS", "0", 0);   // a dump is the output: no step lines around it
   for (int k = 1; k < argc; ++k) {   // -v / --verbose, -vv, --log-format json (ZN-368): set ZINC_LOG / ZINC_LOG_FORMAT, which child zincs inherit; `--` ends the options
     if (!std::strcmp(argv[k], "--")) break;
     int drop = 0;

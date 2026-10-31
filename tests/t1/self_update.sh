@@ -71,7 +71,7 @@ unchanged "a read-only install"
 
 # the notice: needs a terminal (script gives one), once the background check has written ~/.zinc/update-check.json
 printf 'console.log("hi");\n' > "$tmp/hi.ts"
-tty() { script -q /dev/null "$@" < /dev/null 2>&1 | tr -d '\r'; }
+tty() { script -q /dev/null "$@" < /dev/null 2>&1 | tr -d '\r\010' | sed 's/^^D//'; }   # script echoes the EOF of /dev/null as ^D and two backspaces
 rm -f "$ZINC_HOME/update-check.json"   # what --check wrote: the result below comes from the background check
 out=$(tty "$L" run "$tmp/hi.ts")
 n=0; while ! grep -q '"latest": "99.0.0"' "$ZINC_HOME/update-check.json" 2>/dev/null && [ $n -lt 50 ]; do sleep 0.1; n=$((n+1)); done

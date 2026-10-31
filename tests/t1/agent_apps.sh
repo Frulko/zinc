@@ -44,7 +44,7 @@ cp image/player/icon.png "$tmp/ui/icon.png"
 out=$(dev deploy "$tmp/ui" --no-logs --env ZINC_DEVTOOLS_PORT=$inspector --env ZINC_HEADLESS=1 --env ZINC_REALTIME=1 --env ZINC_FRAMES=100000000 2>&1) || bad "deploy of the UI app: $out"
 # what the player's launcher reads (ZN-820): the title, the icon kept beside the app, when it came, not from zinc dev
 meta=$(cat "$D/agent/apps/inspected/app.json" 2>&1)
-case $meta in *'"title":"Inspected","icon":"icon.png","sent":'*'"dev":false'*) ;; *) bad "app.json of the deployed app: $meta";; esac
+case $meta in *'"title":"Inspected","icon":"icon.png",'*'"sent":'*'"dev":false'*) ;; *) bad "app.json of the deployed app: $meta";; esac
 # the .zapp carries app.icon as its launcher tile (docs/zapp.md): a 150 x 150 PNG
 python3 -c "import struct,sys; d=open(sys.argv[1],'rb').read(24); sys.exit(not (d[:8]==b'\x89PNG\r\n\x1a\n' and struct.unpack('>II',d[16:24])==(150,150)))" \
   "$D/agent/apps/inspected/icon.png" 2>/dev/null || bad "the deployed app's icon tile was not kept beside it"
