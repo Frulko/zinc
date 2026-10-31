@@ -26,3 +26,4 @@ export { List, ListItem } from './list';
 export { Tooltip, TooltipProps, Popover, PopoverProps, DropdownMenu, DropdownMenuProps, MenuItem, Dialog, DialogProps, toast, keyLabel } from './overlays';
 export { MenuBar, MenuBarProps, ContextMenu, ContextMenuProps, MenuEntry } from './menubar';
 export { ZoomView, ZoomViewProps, zoomViewDraws } from './zoomview';
+export { ViewerItem, ViewerOptions, openImageViewer, closeImageViewer, imageViewerOpen, imageViewerState } from './imageviewer';

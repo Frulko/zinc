@@ -34,6 +34,7 @@ import * as guard from './safety/index';
 import * as win from 'zinc:system/window';
 import * as sys from 'zinc:sys';
 import { safety } from './safety-session';
+import { viewerSession } from './viewer-session';
 import { startThemes, allThemes, themeErrors, Theme } from './theme';
 import { openPicker, closePicker, pickEmoji, pickerTab } from './components/Picker';
 import { searchEmoji, recentEmoji } from './emoji';
@@ -171,6 +172,7 @@ if (fakeDiscord && env('DISCORD_DEMO') === '1') demo();
 if (fakeDiscord && env('DISCORD_DEMO') === 'voice') voice();
 if (fakeDiscord && env('DISCORD_DEMO') === 'showcase') showcase();
 if (fakeDiscord && env('DISCORD_DEMO') === 'code') codeSession();
+if (fakeDiscord && env('DISCORD_DEMO') === 'viewer') viewerSession();
 
 const speaking = (): string => Array.from(store.call.speaking).map((id: string) => store.userName(id)).sort().join(', ');
 const pause = (ms: i32): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });
