@@ -617,6 +617,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-891: map zinc:webrtc/quality in plugins/webrtc's web.modules so it resolves on the web target.
 - ZN-891: tests/t1/webrtc_call.sh should make ZINC absolute, as discord_voice.sh does; tests/run keeps only the last --only when given several.
 
+- Atelier: `<Row />` with every prop optional fails with Z0104 (a component whose props are all optional should take no attribute); fix in the checker, then drop the empty props Atelier passes.
+- Atelier/agent: pairing with a wrong code reports "SSL alert" instead of "wrong code"; map the TLS PSK failure to the plain message.
+- GPU on the Pi 3: `zbench --set ZINC_DISPLAY=gl` gave no result for any scene (2026-10-31), the report says software raster; the GL display path under KMS on a Pi 3 needs a session of its own (EGL on GBM, the vc4 driver).
+- Package size: macOS packages are 48-51 MB (budget raised to 55 on 2026-10-31); discord-voice (5.7 MB) and webrtc (7.1 MB) could be fetched on first use instead of shipped.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
