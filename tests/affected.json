@@ -42,6 +42,7 @@
     {"paths": ["lib/std/markdown", "examples/agents/src/services/markdown.ts", "examples/agents/src/components/Markdown.tsx", "tests/t0/markdown.sh"], "tests": ["markdown", "kanban", "agents_markdown"]},
     {"paths": ["examples/discord/", "tests/golden/discord/", "tests/t1/discord.sh", "plugins/secure-store/"], "tests": ["discord", "discord_notify", "discord_ratelimit", "discord_login"]},
     {"paths": ["examples/discord/", "tests/golden/discord-safety/", "tests/t1/discord_safety.sh"], "tests": ["discord_safety", "discord_ratelimit"]},
+    {"paths": ["examples/discord/src/components/Code", "examples/discord/src/code-session.ts", "tests/golden/discord-code/", "tests/t1/discord_code.sh", "plugins/editor/"], "tests": ["discord_code", "editor"]},
     {"paths": ["examples/discord/", "plugins/discord-voice/", "tests/golden/discord-voice/", "tests/golden/host/discord_voice_rtp.ts", "tests/t1/discord_voice.sh"], "tests": ["discord_voice"]},
     {"paths": ["examples/discord/src/call.ts", "examples/discord/tests/call-logic.ts", "plugins/discord-voice/index.ts", "plugins/discord-voice/native/video_policy.h", "tests/golden/host/discord_voice_policy.cpp"], "tests": ["discord_call_logic"]},
     {"paths": ["examples/kanban/", "tests/data/kanban/", "tests/golden/kanban/", "tests/t1/kanban.sh", "tests/demo/kanban_logic.sh"], "tests": ["kanban", "kanban_logic"]},

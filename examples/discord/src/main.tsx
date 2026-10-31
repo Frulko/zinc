@@ -38,6 +38,8 @@ import { startThemes, allThemes, themeErrors, Theme } from './theme';
 import { openPicker, closePicker, pickEmoji, pickerTab } from './components/Picker';
 import { searchEmoji, recentEmoji } from './emoji';
 import { gifs, Gif } from './services/gifs';
+import { codeSession } from './code-session';
+import { stepCode } from './components/CodeInsert';
 import { animationsPlaying, animationFrames } from './components/Animated';
 import { CDN_BASE, API_BASE } from './constants';
 import { TransferSettings, saveTransferSettings, saveTransferKey } from './services/transfer';
@@ -148,7 +150,7 @@ sys.onSignal('SIGINT', leave);
 sys.onSignal('SIGTERM', leave);
 
 startThemes();   // the theme chosen last, before the first frame
-render(App, 0x313338, null);
+render(App, 0x313338, (dt: number): void => { stepCode(); });
 startNotifications();
 // one instance (so one session of the account): a second launch brings the first to the front and ends
 guard.single().then((first: boolean): void => {
@@ -168,6 +170,7 @@ if (fakeDiscord && env('DISCORD_DEMO') === 'restart') until(() => store.stage ==
 if (fakeDiscord && env('DISCORD_DEMO') === '1') demo();
 if (fakeDiscord && env('DISCORD_DEMO') === 'voice') voice();
 if (fakeDiscord && env('DISCORD_DEMO') === 'showcase') showcase();
+if (fakeDiscord && env('DISCORD_DEMO') === 'code') codeSession();
 
 const speaking = (): string => Array.from(store.call.speaking).map((id: string) => store.userName(id)).sort().join(', ');
 const pause = (ms: i32): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });

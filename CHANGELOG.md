@@ -10,6 +10,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Apps and examples
 #### New
+- The Discord code button opens a real editor (the shared `zinc:editor`) above the message box, with a language choice, highlighting, copy and paste; sending joins your message and the code as a fenced block with its language. Long code blocks you read are folded by default with a "Show code" row that unfolds them smoothly, and keep their copy button.
 - The Discord example has a safe mode switch in the user bar, opens the call's quality details (score, loss, round trip, jitter, bit rates, codecs) from the signal bars beside "Voice Connected", and its themes now colour the switches, dialogs and call view too (new `success`, `warning`, `stage` colours).
 #### Changed
 - The screen-share dialog keeps its place while you scroll the screens and windows, and has a search field to find one by name.

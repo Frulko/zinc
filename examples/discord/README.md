@@ -110,7 +110,7 @@ the others (SwissTransfer, WeTransfer...) are not offered: [docs/reports/discord
 | `services/identity.ts` | the client properties (IDENTIFY and `X-Super-Properties`) |
 | `services/auth.ts` | the QR code login (the remote-auth gateway, its RSA-OAEP key exchange) and the password login with its two-factor code |
 | `services/session.ts` | the token in the keychain |
-| `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`, code blocks in `CodeBlock.tsx`, the code button in `CodeInsert.tsx`, the pickers in `Picker.tsx`, animations in `Animated.tsx`), the transfer window (`Transfer.tsx`) and content (`Content.tsx`), avatars, the member list, the pins or a thread beside the messages (`SidePane.tsx`), the settings (`Appearance.tsx`: the themes) |
+| `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`, code blocks in `CodeBlock.tsx`, the code tab, a `zinc:editor` editor above the message box, in `CodeInsert.tsx`, the pickers in `Picker.tsx`, animations in `Animated.tsx`), the transfer window (`Transfer.tsx`) and content (`Content.tsx`), avatars, the member list, the pins or a thread beside the messages (`SidePane.tsx`), the settings (`Appearance.tsx`: the themes) |
 
 ## Test
 

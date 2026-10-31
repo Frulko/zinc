@@ -1,0 +1,5 @@
+code tab open true
+code tab open after send false
+sent 906: Here is the helper
+sent "Here is the helper\n```ts\ninterface Point" block lines 11
+unfolded true

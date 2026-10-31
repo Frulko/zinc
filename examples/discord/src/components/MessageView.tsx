@@ -17,7 +17,7 @@ import { cdnPicture, avatarKey } from '../services/cdn';
 import { cannotSend, countdown } from '../safety/index';
 import { BG_MAIN, BG_INPUT, BG_SIDE, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR, AVATAR, ROW_ESTIMATE, OLDER_AT } from '../constants';
 import { color, rounded, textClass, compact, currentTheme } from '../theme';
-import { CodeInsert } from './CodeInsert';
+import { CodeInsert, CodePanel, sendWithCode } from './CodeInsert';
 import { Picker, PickerButtons, pickerTab, openPicker } from './Picker';
 
 const MUTED = (): i32 => color('icon');
@@ -149,7 +149,7 @@ async function pickFiles(): Promise<void> {
 
 function Composer(p: { name: string }) {
   const keys = (e: ui.KeyEvent): void => {
-    if (e.key === 'Enter' && !e.shift) { store.send(); e.preventDefault(); }
+    if (e.key === 'Enter' && !e.shift) { sendWithCode(); e.preventDefault(); }
     else if (e.key === 'Escape' && (store.replyTo !== null || store.editing !== null)) { store.cancel(); e.preventDefault(); }
     else if (e.key === 'ArrowUp' && store.draft === '') { const m = store.lastOwn(); if (m !== null) { store.edit(m); e.preventDefault(); } }
   };
@@ -166,13 +166,14 @@ function Composer(p: { name: string }) {
       <Text className={`grow text-sm ${TEXT_MUTED}`} numberOfLines={1}>{r !== null ? `Replying to ${r.author}` : 'Editing a message: Enter saves, Escape cancels'}</Text>
       <View className="p-1" aria-label="Cancel" onPress={() => store.cancel()}><Icon name="x" size={16} color={MUTED} /></View>
     </View> : null}
+    <CodePanel />
     <View className={`pr-4 flex-row items-start ${r !== null || ed !== null ? `rounded-b-[${radius}]` : rounded()} ${BG_INPUT}`}>
       <View className="px-4 py-[12]" aria-label="Send files" onPress={() => { pickFiles(); }}><Icon name="circle-plus" size={20} color={MUTED} /></View>
       <View className="grow basis-0 py-[11]">
         <TextArea ref={field} rows={0} className={`w-full ${textClass()} ${TEXT_MAIN}`} value={store.draft} placeholder={`Message ${p.name}`}
           onInput={(v: string) => store.typed(v)} onKeyDown={keys} aria-label="Message" />
       </View>
-      <CodeInsert field={() => field.current} />
+      <CodeInsert />
       <PickerButtons />
     </View>
     <Text className={`h-[22] text-xs font-semibold ${TEXT_MAIN}`} numberOfLines={1}>{typing !== '' ? typing : wait}</Text>
