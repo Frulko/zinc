@@ -1370,3 +1370,5 @@ concealed 12.9 -> 8.0% with DRED; clean link target 40 ms, mouth-to-ear 73 ms; 3
 interpreter, 84.7k AOT, 57.0k QuickJS; Node 24 55.8k, Bun 83.6k. JSON AOT 77.3k (Node 58.3k, Bun 85.0k); TLS keep-alive AOT 48.9k (Node
 18.4k, Bun 66.5k); TLS handshakes/s ~880 (Node 2.77k, Bun 2.94k: mbedTLS portable P-256); WebSocket echo AOT 122.8k msg/s (Node ws 68.2k,
 Bun 91.7k), wss 62.8k (Bun 74.2k); RSS AOT 4-9 MiB (Node 74-289, Bun 27-42). p50/p99 hello AOT 0.58/1.33 ms (Node 0.78/2.68, Bun 0.55/1.18).
+
+2026-10-31, audio on lossy links (ZN-899), Apple M1 Pro, `webrtc_impair` 20 s runs (load 5-12, approximate): burst 20% in runs of 3, two Zinc peers: concealed 8.0 -> 3.2% (2.8% second half), payload 37 -> 71 kbit/s, mouth-to-ear 200 -> 258 ms; 10% random loss 3.7 -> 1.0% (32.7 -> 62 kbit/s); without DRED (browser peer) 19.7%; thin link 10.2% unchanged. Echo cancellation (ZN-871, SpeexDSP): ERLE 25.8 dB (24.1 dB echo cancellation alone), second voice -2.2 dB, plugin +84 KB.
