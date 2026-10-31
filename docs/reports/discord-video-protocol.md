@@ -64,7 +64,21 @@ is ours for video or speaking, and a Go Live watching connection never sent eith
 How the redaction was checked: the scripted call against the fake Discord runs with `DISCORD_LOG=1`, and `tests/t1/discord_voice.sh`
 fails if the log holds the fake's voice token, its session id or any run of its secret key, or lacks a redacted field.
 
-## Open (needs the owner's real call)
+## Who polices quality (and how we lock it)
+
+An announced quality is our word, not a grant. Op 12 (`max_bitrate`, `max_framerate`, `max_resolution`) tells the SFU what we
+intend to send; no Ready or Session Description field grants quality tiers back, and the SFU can police the actual send rate
+against what we announced (the SFU-forwarding research above already reads `max_bitrate` as a possible ceiling for allocation).
+What a client mod does on the wire is one visible thing: an op 12 above the account's tier, soon followed by a send rate above
+`max_bitrate` — both server-side observable, so nothing is gained that a server does not see at once.
+
+Our lock (2026-10-31): `VoiceConnection.ceiling` (`plugins/discord-voice/index.ts`, `clampQuality`) defaults to the free tier
+(720p 30) and every `setCamera` announce is clamped to it and logged (`over the ceiling`); a simulated bypass needs no network
+(`examples/discord/tests/call-logic.ts`). The example raises Go Live's ceiling to 1080p 60 only when the account has Nitro
+(`premium_type` of READY, `streamCeiling` in `examples/discord/src/call.ts`; cameras stay at the ceiling of the free tier,
+whatever the hardware mode). The UI: choices above the tier are shown as Nitro in the picker (`streamAllowed`), and a boosted
+server's higher tier is granted to everyone by Discord itself. For one's own servers the lesson is the same read the other way:
+police at the relay, never trust the client — what the client announces is what to police.
 
 - The playout-delay ID (5 as [B], or 6 as [A]'s table). If the log shows our camera's packets reaching the server (no close) but the
   official client shows nothing, try 6.

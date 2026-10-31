@@ -67,6 +67,13 @@ export const DM_TOO_FAST_MS = 3600000;
 /** In a server joined less than NEW_MEMBER_MS ago: no link and no mention (and nothing at all when the server's verification level is
  *  High, as Discord holds new members 10 minutes; Medium wants an account older than ACCOUNT_MIN_MS). */
 export const NEW_MEMBER_MS = 600000, ACCOUNT_MIN_MS = 300000;
+/** Video (call.ts): the ceiling an announce may not go above, sent to zinc:discord-voice's VoiceConnection.ceiling (its default is
+ *  already the free tier). A camera's hardware mode or a capture above it is clamped and logged there; Go Live rises to 1080p 60 only
+ *  with Nitro (premium_type of the account, state.ts). docs/reports/discord-video-protocol.md: an announce over the tier is the one
+ *  thing a client mod does that Discord's servers see at once, so nothing here ever sends one. A server with the right boost tier
+ *  grants the higher quality to everyone, which the picker offers instead of a fake tier. */
+export const QUALITY_FREE = { width: 1280, height: 720, fps: 30 };
+export const QUALITY_NITRO = { width: 1920, height: 1080, fps: 60 };
 /** The same reaction on the same message put on or taken off more than REACTION_TOGGLES times a minute is refused. */
 export const REACTION_TOGGLES = 4;
 /** LOGIN_FAILURES refused passwords or codes within an hour stop the password login for LOGIN_PAUSE_MS. */

@@ -95,6 +95,15 @@ export function sentQuality(q: VideoQuality, limits: number[] | null): { width: 
   return e;
 }
 
+/** The quality ceiling of a free account (camera and Go Live 720p 30 fps; the example raises Go Live to 1080p 60 only with Nitro, from
+ *  the account's premium_type). A VoiceConnection refuses to announce above its ceiling (docs/reports/discord-video-protocol.md:
+ *  the over-announce is the one thing a client mod does that Discord's servers see at once, so we never send one). */
+export const QUALITY_CEILING: VideoQuality = { width: 1280, height: 720, fps: 30 };
+/** A quality not above the ceiling, each dimension taken at most. */
+export function clampQuality(q: VideoQuality, ceiling: VideoQuality): VideoQuality {
+  return { width: Math.min(q.width, ceiling.width), height: Math.min(q.height, ceiling.height), fps: Math.min(q.fps, ceiling.fps) };
+}
+
 /** What the main gateway gave: VOICE_SERVER_UPDATE's endpoint and token, VOICE_STATE_UPDATE's session id. */
 export interface VoiceServer {
   endpoint: string;    // host[:port], or a ws:// or wss:// URL (a test server)
@@ -155,6 +164,8 @@ export class VoiceConnection {
   private keyframeMs = 0;                                     // Session Description's keyframe_interval (0: key frames on PLI only)
   private camera = false;
   private quality: VideoQuality = { width: 640, height: 360, fps: 30 };
+  /** The ceiling an announced quality is clamped to (QUALITY_CEILING by default); the example raises Go Live's with Nitro's tiers. */
+  ceiling: VideoQuality = QUALITY_CEILING;
   private wants = '';                                         // the last op 15 sent
   private watched: Map<string, u32> = new Map<string, u32>();   // user -> the SSRC decoded for them
   private lowData = false;
@@ -238,7 +249,15 @@ export class VoiceConnection {
 
   /** Sends our camera, or our screen on a Go Live connection (op 12 describes the stream at `q`, then each sendImage() frame goes out,
    *  encoded at videoBitrate(q)), or stops it (op 12 with no stream). The program also tells the main gateway (op 4 self_video). */
-  setCamera(on: boolean, q: VideoQuality | null = null): void { this.camera = on; if (q !== null) this.quality = q; this.describeVideo(); }
+  setCamera(on: boolean, q: VideoQuality | null = null): void {
+    this.camera = on;
+    if (q !== null) {
+      const c = clampQuality(q, this.ceiling);
+      if (c.width !== q.width || c.height !== q.height || c.fps !== q.fps) this.log(`voice quality ${q.width}x${q.height} ${q.fps} fps is over the ceiling, sent ${c.width}x${c.height} ${c.fps} fps`);
+      this.quality = c;
+    }
+    this.describeVideo();
+  }
   /** A frame of our camera (a runtime image: zinc:camera's `image`), encoded and sent on the media thread. */
   sendImage(image: i32): void { if (this.h >= 0 && this.camera && image >= 0) S.sendImage(this.h, image); }
   /** The cameras shown and their size in pixels (user id -> [width, height]); the others are not decoded, and the server is asked for

@@ -2,8 +2,8 @@
 // voice gateway close codes resume, identify again or end the call, which simulcast layer is decoded for a tile, and the order of
 // STREAM_CREATE and STREAM_SERVER_UPDATE (either one first connects once both arrived; a null endpoint drops the connection). Prints
 // "ok" or the first check that failed; tests/t0/discord_call_logic.sh.
-import { closeAction, pickLayer, sentQuality, Layer } from 'zinc:discord-voice';
-import { Live, streamStep } from '../src/call';
+import { closeAction, pickLayer, sentQuality, clampQuality, QUALITY_CEILING, Layer } from 'zinc:discord-voice';
+import { Live, streamStep, streamAllowed, streamCeiling } from '../src/call';
 
 let failed = '';
 function check(name: string, ok: boolean): void { if (!ok && failed === '') failed = name; }
@@ -42,5 +42,18 @@ check('full quality is announced whole', full.width === 1280 && full.height === 
 check('low data announces what it sends', low.width === 640 && low.height === 360 && low.fps === 5 && low.bps === 150000);
 const cam = sentQuality({ width: 640, height: 360, fps: 30 }, [4, 5, 60000]);
 check('a low data camera is 160x90', cam.width === 160 && cam.height === 90 && cam.bps === 60000);
+
+// the quality ceiling (docs/reports/discord-video-protocol.md): what a Vencord-class bypass does on the wire is an op 12 over the
+// account's tier; simulated here, without a network. The plugin clamps it (its default is the free tier), the example raises Go
+// Live's only with Nitro, so nothing over the tier is ever announced (the thing a server sees at once).
+const modded = { width: 1920, height: 1080, fps: 60 };
+const clamped = clampQuality(modded, QUALITY_CEILING);
+check('a modded 1080p 60 announce is clamped to 720p 30', clamped.width === 1280 && clamped.height === 720 && clamped.fps === 30);
+check('a quality within the ceiling is untouched', clampQuality({ width: 640, height: 360, fps: 30 }, QUALITY_CEILING).fps === 30 && clampQuality({ width: 640, height: 360, fps: 30 }, QUALITY_CEILING).width === 640);
+const free = streamCeiling(false), nitro = streamCeiling(true);
+check('Go Live free stays at 720p 30', free.width === 1280 && free.height === 720 && free.fps === 30);
+check('Go Live nitro is 1080p 60', nitro.width === 1920 && nitro.height === 1080 && nitro.fps === 60);
+check('1080p needs Nitro', !streamAllowed(false, '1080', 30) && !streamAllowed(false, 'source', 30) && !streamAllowed(false, '720', 60));
+check('720p 30 and Nitro choices allowed', streamAllowed(false, '720', 30) && streamAllowed(true, '1080', 60) && streamAllowed(true, 'source', 30));
 
 console.log(failed === '' ? 'ok' : `FAIL ${failed}`);

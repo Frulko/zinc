@@ -17,6 +17,7 @@ import { pixelScale } from 'zinc:gfx';
 import { addSignalListener, appState, repaint } from 'zinc:ui';
 import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
+import { QUALITY_FREE, QUALITY_NITRO } from './safety/policy';
 import * as guard from './safety/index';
 import { PTT_KEY, TILE_W, TILE_H, FULL_W, FULL_H } from './constants';
 import { tr } from './i18n';
@@ -76,6 +77,11 @@ export const decibels = (level: number): number => level <= 0.00001 ? -100 : Mat
 
 /** Go Live's choices without Nitro: 720p at 15 or 30 fps (Discord's limit for everyone else). */
 export const streamAllowed = (nitro: boolean, res: string, fps: number): boolean => nitro || (res === '720' && fps <= 30);
+/** Go Live's quality ceiling: Nitro's 1080p 60 only with Nitro (the account's premium_type); a camera stays at the free tier's. */
+export function streamCeiling(nitro: boolean): VideoQuality {
+  const q: VideoQuality = nitro ? QUALITY_NITRO : QUALITY_FREE;
+  return q;
+}
 /** A snowflake minus one (decimal strings: they do not fit a double): the DAVE group of a Go Live stream is its rtc_server_id - 1. */
 export function snowflakeMinus1(id: string): string {
   const d = id.split('');
@@ -439,6 +445,7 @@ export class Call {
     const conn = new VoiceConnection({ endpoint: endpoint, token: token, serverId: l.rtc, channelId: snowflakeMinus1(l.rtc), userId: this.me(),
       sessionId: this.sessionId, stream: true });
     l.conn = conn;
+    conn.ceiling = streamCeiling(this.nitro);   // Go Live's ceiling: Nitro's only with Nitro
     conn.log = this.log;
     const ours = l === this.sharing;
     if (ours) conn.setCamera(true, this.screenQ);   // op 12 once connected, then the capture's frames
@@ -549,6 +556,7 @@ export class Call {
     const conn = new VoiceConnection({ endpoint: `${s.endpoint}`, token: `${s.token}`, serverId: s.guild_id !== null && s.guild_id !== undefined ? `${s.guild_id}` : this.channelId,
       channelId: this.channelId, userId: this.me(), sessionId: this.sessionId });
     this.conn = conn;
+    conn.ceiling = QUALITY_FREE;   // a camera: 720p 30 at the most, whatever the hardware mode
     conn.log = this.log;
     conn.onState = (st: VoiceState): void => {
       if (this.conn !== conn) return;

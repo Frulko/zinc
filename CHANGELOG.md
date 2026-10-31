@@ -8,12 +8,20 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Performance
+
+#### Faster
+
+- Large software-rendered shadows reserve memory for the distinct alpha rows they use, instead of their entire area.
+- Compiled apps release the encoded module before execution and copy only the required arguments when calling native plugins. Native calls allocate temporary array storage only when they need it.
+
 ### UI
 #### Fixed
 - Selecting text with `select-text` works across several lines and several `Text` blocks, like a browser: drag from one paragraph into the next (in a `ScrollView` too, the list scrolls near its edge), the whole span is highlighted and Cmd/Ctrl+C copies it with its line breaks.
 
 ### Apps and examples
 #### New
+- `examples/pro-threads` runs Kubai’s animated light-thread lettering through native WebGL 2, with nine palettes, seven effects, editable letters and an alphabet view.
 - **Fixed** Discord video (camera and Go Live) from Zinc now opens in the web client: the video's parameter set carries the frame-reordering limits Chrome would otherwise add itself, which shifted the bytes the end-to-end encryption relies on and made the viewer drop every frame. `DISCORD_VIDEO_SPS=orig` goes back to the encoder's own.
 - **New** The Discord client speaks English and French (system language, or the *Language* row of Settings > Appearance, kept between runs), and every icon-only button has a tooltip, also when you reach it with Tab. In `zinc:ui/kit` a `Tooltip` shows on keyboard focus and hides on press, `ImageViewer` and `CallStats` take a `labels` map for their words, and `attachTooltip` gives a tooltip to a node made by code.
 - The Discord client has a faithful Slack theme (white window, aubergine sidebar with a blue open channel, outlined message box, light code cards; the old dark one is *Slack dark*), and themes can now colour the channel list, member list and cards apart (`sidebarText`, `sidebarMuted`, `sidebarStrong`, `sidebarHover`, `sidebarSelected`, `sidebarSelectedText`, `surface`, `composerBorder`). The Teams theme gets its outlined white message box.
@@ -24,10 +32,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The screen-share dialog keeps its place while you scroll the screens and windows, and has a search field to find one by name.
 - The screen-share dialog (Discord's Go Live, the call example) looks like Discord's: tabs Applications and Entire screen, a two-column grid of large previews with the application's icon and name under each, and a preset line (SD 720p 30 fps or HD 1080p 60 fps) with an SD/HD switch and a settings button for the resolution, frame rate and pointer. Apps can add a Devices tab for cameras.
 #### Fixed
+- On macOS, apps with an `app.id` use their own application name in system tools even without permissions, including JavaScript and WebGL apps.
 - **Fixed** pictures sent to a Discord conversation (and the ones you upload) no longer stay an empty grey block: the app could not read the WebP that Discord's image proxy sends (`imageFromBytes` of `zinc:gfx` now decodes WebP everywhere), a picture shows a box of its own shape while it loads, and an error message with an icon when it cannot load.
 - The previews of the screen-share dialog no longer flash black every time they refresh.
 - The Discord client no longer cuts anything at narrow widths: the side columns shrink or give way to the messages (the member list hides under 960 px, the pins and threads open over the messages under 800 px), the emoji and GIF picker and the cards, polls and pictures fit the room they have, and the user bar wraps its buttons.
 - Closing the Discord client during a call leaves the call, stops your Go Live and the stream you watch first, so nobody sees you stuck in the channel.
+- The Discord client cannot be talked into a quality Discord did not grant: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro), logs a clamp as "over the ceiling", and the example's tests simulate the over-tier announce a client mod would send.
 - **Fixed** Discord calls: a still screen in Go Live (or a stalled camera) keeps sending its last picture at least four times a second, nothing is sent before the call's encryption is keyed (the first picture the viewer gets is a key frame that opens), and in the ultra low data mode the call announces the reduced size and bitrate it really sends. `DISCORD_LOG=1` prints the size, frames, key frames and target of each outgoing video every second.
 - Discord calls: your camera and Go Live send a key frame every second (and again when the call's encryption key changes or someone starts watching) so the others no longer wait forever on a black tile; a third person joining no longer silences the people already there; a small tile shows the camera's lower quality layer; a Go Live you watch connects whichever of the two server messages comes first; and the call survives a network blip instead of ending with "voice gateway closed".
 
@@ -81,6 +91,10 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **Fixed** Apps no longer stall for up to 170 ms once a second: the screen's driver looks for keyboards, mice and HDMI inputs only when one is plugged in, instead of reopening them all every second.
 - **Fixed** An app started from the player is one `zinc device` knows: `apps` shows it running, `logs` reads its output and `stop` ends it (the player comes back, with no crash page).
 - **Fixed** On a Pi without a desktop, an app whose display driver cannot start falls back to the framebuffer instead of stopping; GL plugins build on the Pi itself; `zinc device run` no longer ends the shell when it starts an app; an app under the shell keeps 60 frames a second where it fell to 40 (four buffers instead of three).
+
+### Legacy iPhone
+#### New
+- `tools/build-ios-legacy --aot` builds an experimental app for a jailbroken iPhone 4 on iOS 7.1.2, with GLES2 graphics, touch and the native keyboard. `tools/ios-legacy-device` provides USB deployment, app input, screenshots and profiling. `rn-showcase` runs, but animations and scrolling still need optimization.
 
 ### Devices, deploy and packaging
 - **Changed** `zinc device deploy` to a Raspberry Pi builds the app on your computer (a `.zapp` with its plugins cross-built for the Pi) and the Pi just runs it. An app compiled by a newer zinc says so when it starts there, with the way out (`zinc device <pi> update --local`); `--source` sends the sources as before.
