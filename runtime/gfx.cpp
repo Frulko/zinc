@@ -1838,7 +1838,12 @@ void line(double x1, double y1, double x2, double y2, uint32_t color) {
   const double q[8] = {x1 + nx + 0.5, y1 + ny + 0.5, x2 + nx + 0.5, y2 + ny + 0.5, x2 - nx + 0.5, y2 - ny + 0.5, x1 - nx + 0.5, y1 - ny + 0.5};
   polygon(q, 8, color, 255);
 }
-int32_t font(const String& name, int32_t px) { return raster::find_font(name.ptr(), name.bytes(), px); }
+// the closest baked size; a family with no baked size (a plugin's font-mono: its classes do not decide what is baked) comes from its TrueType file,
+// as the text of zinc:ui does, so its widths are not 0
+int32_t font(const String& name, int32_t px) {
+  const int32_t f = raster::find_font(name.ptr(), name.bytes(), px);
+  return f >= 0 ? f : raster::render_font(name.ptr(), name.bytes(), px);
+}
 /** A font at exactly `px` pixels from a TrueType file chosen at run time (ZN-669): a family the program bakes or embeds ("sans", "sans-bold", "mono",
  *  the stem of a .ttf of its assets), the path of a file of its assets (its stem when that file is embedded), or a file the host added
  *  (raster::add_font_file). Its glyphs are the baker's at that size. Without TrueType files (small targets), the closest baked size; -1: none. */
