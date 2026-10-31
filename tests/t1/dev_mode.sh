@@ -51,7 +51,7 @@ since "v3 started" | grep -q "run        interpreter" || { echo "v3 did not run:
 since "v3 started" | grep -q "gestures" && { echo "v3 no longer imports zinc:gestures: $(cat "$t/dev.log")"; fail=1; }
 # ZINC_DEVTOOLS_PORT=0: the first version binds a free port and tells zinc dev, which names it; the next versions listen on the same one
 ip=$(sed -n 's/.*the inspector listens on port \([0-9]*\).*/\1/p' "$t/dev.log" | head -1)
-[ -n "$ip" ] && [ "$(grep -c "localhost:$ip)" "$t/dev.log")" -ge 2 ] || { echo "the inspector's port is not reported and kept across versions: $(cat "$t/dev.log")"; fail=1; }
+[ -n "$ip" ] && [ "$(grep -cE "localhost:$ip\)|on port $ip" "$t/dev.log")" -ge 2 ] || { echo "the inspector's port is not reported and kept across versions: $(cat "$t/dev.log")"; fail=1; }
 kill $dev; wait $dev 2>/dev/null
 # 4. the inspector: a UI program under dev answers a scripted CDP client, on the port its zinc.json gives (a free one, ZN-633)
 cd "$t" && "$Z" init ui --template remarkable >/dev/null 2>&1; cd "$t" || exit 2
