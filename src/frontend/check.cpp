@@ -2832,6 +2832,10 @@ struct Checker {
           }
           return tStr;
         }
+        // two arrays of numbers (`c ? toScreen(x, y) : [x, y]`: an f64[] and a number[] that is an f32[] on --profile esp32) are one array type in
+        // TypeScript: the second converts to the first, as before the union join (an array union could not be indexed into arithmetic)
+        auto numArr = [&](TypeId t) { return ty(t).k == TK::Array && ty(ty(t).elem).k == TK::Num; };
+        if (numArr(p) && numArr(q)) { require(q, p, x.kids[2]); return p; }
         if (const TypeId u = unionOf({p, q}); !bad(u) && ty(u).k == TK::Union && assignable(p, u, x.kids[1]) && assignable(q, u, x.kids[2])) { convertDyn(p, u, x.kids[1]); convertDyn(q, u, x.kids[2]); return u; }
         require(q, p, x.kids[2]);  // conversions (a thunk, a promise that only rejects) or the error
         return p;

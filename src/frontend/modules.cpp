@@ -1707,7 +1707,8 @@ struct Loader {
     return false;
   }
   // A class of a module read for its types is its shape: abstract, no constructor, methods without bodies, fields without initializers
-  // (a field typed by its initializer keeps a literal one; another is left out); nothing of it runs, since nothing can construct it.
+  // (a field typed by its initializer keeps a literal one, `new C()` gives it the type C; another is left out); nothing of it runs, since nothing
+  // can construct it.
   // A method with no return type that returns no value (a setter, `stop() { ... }`) is given `void`, which its body said.
   static void classShape(Ast& A, std::uint32_t cls) {
     if (A.nodes[cls].kind != N::Class) return;
@@ -1721,6 +1722,17 @@ struct Loader {
         Node v{N::TypeRef, m.start, m.start, "void", {}, 0, m.file};
         A.nodes.push_back(std::move(v));
         A.nodes[all[k]].kids[0] = static_cast<std::uint32_t>(A.nodes.size() - 1);
+      }
+      if (A.nodes[all[k]].kind == N::Field && A.nodes[all[k]].kids.size() > 1 && A.nodes[all[k]].kids[0] == kNone && A.nodes[all[k]].kids[1] != kNone
+          && !(A.nodes[all[k]].flags & kFlagSynthetic)) {   // `palm = new Vec3()`: typed as the class it constructs, as TypeScript infers it
+        const Node& in = A.nodes[A.nodes[all[k]].kids[1]];
+        if (in.kind == N::New && !in.kids.empty() && A.nodes[in.kids[0]].kind == N::Ident) {
+          std::vector<std::uint32_t> targs;
+          if (auto t = A.targs.find(A.nodes[all[k]].kids[1]); t != A.targs.end()) targs = t->second;
+          Node r{N::TypeRef, in.start, in.end, A.nodes[in.kids[0]].text, std::move(targs), 0, in.file};
+          A.nodes.push_back(std::move(r));
+          A.nodes[all[k]].kids[0] = static_cast<std::uint32_t>(A.nodes.size() - 1);
+        }
       }
       Node& m = A.nodes[all[k]];
       if (m.kind == N::Method) {
