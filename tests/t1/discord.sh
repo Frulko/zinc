@@ -25,10 +25,10 @@ export ZINC_DETERMINISTIC=0   # a networked session: the rate-limit waits and th
 assets=$PWD/examples/discord/tests/assets
 mkdir -p "$tmp/cache" && cp "$assets/emoji.png" "$tmp/cache/emojis_78.png" && cp "$assets/photo.png" "$tmp/notes.png"
 head -c 11600000 /dev/zero > "$tmp/big.bin"   # above the 10 MB a free account sends: the transfer window takes it
-FAKE_ASSETS=$assets FAKE_PORTS_FILE=$tmp/ports timeout 120 "$ZINC" run --interp examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>/dev/null &
+FAKE_ASSETS=$assets FAKE_PORTS_FILE=$tmp/ports timeout 360 "$ZINC" run --interp examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>/dev/null &
 fake=$!
-for _ in $(seq 600); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
-[ -s "$tmp/ports" ] || { echo "discord: the fake server did not start"; exit 1; }
+for _ in $(seq 2400); do [ -s "$tmp/ports" ] && break; kill -0 $fake 2>/dev/null || break; sleep 0.1; done   # a cold cache builds zinc:discord-voice first
+[ -s "$tmp/ports" ] || { echo "discord: the fake server did not start"; tail -5 "$tmp/fake"; exit 1; }
 read -r api gw < "$tmp/ports"
 (cd examples/discord && env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=1200x760 ZINC_FRAMES=1000000 ZINC_FRAMEHASH=last ${ZINC_SHOT:+ZINC_SHOT=${ZINC_SHOT%.png}-session.png} \
   DISCORD_API="http://127.0.0.1:$api/api/v9" DISCORD_GATEWAY="ws://127.0.0.1:$gw" DISCORD_CDN="http://127.0.0.1:$api/cdn" \
