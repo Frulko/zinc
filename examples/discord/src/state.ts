@@ -153,7 +153,9 @@ export class Store implements GatewayHandler {
     this.connect(t, last[0] as guard.Saved);
   }
   /** Quitting (every way out of the app comes here): the session is kept for a quick restart. */
+  /** Quitting: the call and any stream are left first (op 19, op 4 with no channel), so nobody sees us stuck in it; the session is kept. */
   suspend(): void {
+    this.call.leave();
     guard.keepSession(this.gateway.saved());
     this.gateway.suspend();
   }

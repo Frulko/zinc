@@ -133,9 +133,16 @@ async function write(id: string): Promise<void> {
   console.log(`revealed ${describe(parse('a ||b|| c', (k: string, x: string): string => x, true))}`);
 }
 
-/** Every way out (Escape, the window closed, Ctrl+C, kill) keeps the session for a quick restart (the guard's layer 6). */
-function leave(): void { store.suspend(); quit(); }
-win.onCloseRequested((): void => { store.suspend(); });
+/** Every way out (Escape, the window closed, Ctrl+C, kill) leaves the call and its streams, then keeps the session for a quick restart (the
+ *  guard's layer 6). In a call the window hides and the gateway gets half a second to send the goodbyes before the app ends. */
+function leave(): void {
+  const inCall = store.call.channelId !== '';
+  store.suspend();
+  if (!inCall) { quit(); return; }
+  win.hide();
+  setTimeout(() => { quit(); }, 500);
+}
+win.onCloseRequested((): void => { win.keepOpen(); leave(); });
 sys.onSignal('SIGINT', leave);
 sys.onSignal('SIGTERM', leave);
 

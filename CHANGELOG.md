@@ -11,6 +11,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Raspberry Pi and the shell
 - **Fixed** Under the shell, an app started with `zinc device run` comes to the screen even over another page, and `zinc device stop` or a newer app replacing it no longer leaves an "app stopped (exit -1)" page.
 
+### Apps and demos
+- **Fixed** Closing the Discord client during a call leaves the call, stops your Go Live and the stream you watch first, so nobody sees you stuck in the channel.
+
 ## [0.10.6] - 2026-10-31
 
 This release turns the Raspberry Pi into a small Zinc computer: a shell that runs apps under its own bar, apps built on your Mac and sent ready to run, an image that updates itself safely and a renderer several times faster on its cores. Sidecar makes an iPad, a phone, a Pi, another Mac or a reMarkable a screen for your Mac, the reMarkable gets an app store, a web reader and zooming that follows the fingers, and Zinc Inspector now looks and works like Chrome DevTools.
