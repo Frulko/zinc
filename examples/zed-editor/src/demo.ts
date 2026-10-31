@@ -9,7 +9,7 @@ import * as fs from 'zinc:fs';
 import { quit } from 'zinc:gfx';
 import { root } from './app/project';
 import { openFile, active, Buffer, edited, buffers, closeBuffer } from './app/workspace';
-import { setTheme, LIGHT } from './app/theme';
+import { setTheme, ONE_LIGHT as LIGHT } from 'zinc:editor';
 import { openPalette, PAL_COMMANDS, PAL_FILES } from './app/commands';
 import { openFind } from './app/search';
 import { setSoftWrap, zoom, showTerminal, togglePanel, panelWidth } from './app/settings';

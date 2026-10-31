@@ -1,60 +1,43 @@
-// Command palette (⌘⇧P) and file finder (⌘P): one floating list with a query field. Items are fuzzy-matched and
-// the matched characters are drawn in the accent colour; ↑↓ choose, Enter runs, Esc closes. The panel fades and
-// grows in (paletteT).
-import { createSignal, createMemo, createNodeRef, createEffect } from 'zinc:ui/solid';
-import * as ui from 'zinc:ui';
-import { theme, bg, fg, bd } from '../app/theme';
-import { COMMANDS, paletteMode, paletteT, closePalette, PAL_CLOSED, PAL_FILES } from '../app/commands';
+// Command palette (⌘⇧P) and file finder (⌘P): zinc:command-palette's floating list with a query field, in Zed's denser look.
+// Items are fuzzy-matched (a file by its path, its name first); the panel fades and grows in (paletteT).
+import { Palette as PaletteView, PaletteItem, fuzzy, Fuzzy, ranked } from 'zinc:command-palette';
+import { theme } from 'zinc:editor';
+import { COMMANDS, paletteMode, paletteT, closePalette, PAL_FILES } from '../app/commands';
 import { allFiles, Entry, root } from '../app/project';
 import { buffers, openFile, focusLater } from '../app/workspace';
-import { fuzzy, segments, Fuzzy } from '../app/fuzzy';
 import { drawFileIcon } from './icons';
 import { Kbd } from './Controls';
 
-class Item {
-  label: string; detail: string; keys: string; path: string;
-  labelHits: i32[]; detailHits: i32[]; score: number;
-  run: () => void;
-  constructor(label: string, detail: string, keys: string, path: string, run: () => void) {
-    this.label = label; this.detail = detail; this.keys = keys; this.path = path; this.run = run;
-    this.labelHits = []; this.detailHits = []; this.score = 0;
-  }
-}
+const MAX_ITEMS: i32 = 60;
 
-const [query, setQuery] = createSignal<string>('');
-const [cursor, setCursor] = createSignal<i32>(0);
-const inputRef = createNodeRef(), listRef = createNodeRef();
-const ROW: i32 = 30, MAX_ROWS: i32 = 12, MAX_ITEMS: i32 = 60;
-
-function fileItem(e: Entry): Item {
-  const rel = e.rel(), slash = rel.lastIndexOf('/');
-  return new Item(e.name, slash < 0 ? '' : rel.slice(0, slash), '', e.path, () => { openFile(e.path, e.name, false); });
+function dirOf(path: string): string {
+  const rel = path.startsWith(root.path + '/') ? path.slice(root.path.length + 1) : path;
+  const s = rel.lastIndexOf('/');
+  return s < 0 ? '' : rel.slice(0, s);
 }
 
 /** Items for the current mode and query, best first. */
-const items = createMemo<Item[]>(() => {
-  const mode = paletteMode(), q = query().trim();
-  if (mode === PAL_CLOSED) return [];
-  const out: Item[] = [];
-  if (mode === PAL_FILES) {
+function items(q: string): PaletteItem[] {
+  const out: PaletteItem[] = [];
+  if (paletteMode() === PAL_FILES) {
     // open files first when there is no query (most recent tab order), then the whole project
     const seen = new Set<string>();
-    if (q === '') for (const b of buffers()) { seen.add(b.path); out.push(new Item(b.name, dirOf(b.path), '', b.path, () => { openFile(b.path, b.name, false); })); }
+    if (q === '') for (const b of buffers()) { seen.add(b.path); out.push(new PaletteItem(b.name, dirOf(b.path), '', b.path, () => { openFile(b.path, b.name, false); })); }
     for (const e of allFiles()) {
       if (seen.has(e.path)) continue;
-      const it = fileItem(e);
+      const rel = e.rel(), cut = rel.length - e.name.length;
+      const it = new PaletteItem(e.name, cut > 0 ? rel.slice(0, cut - 1) : '', '', e.path, () => { openFile(e.path, e.name, false); });
       if (q !== '') {
-        const rel = e.rel(), m = fuzzy(q, rel, rel.length - e.name.length);
+        const m = fuzzy(q, rel, cut);
         if (m === null) continue;
-        const f = m as Fuzzy, cut = rel.length - e.name.length;
-        it.score = f.score;
-        for (const h of f.hits) { if (h >= cut) it.labelHits.push(h - cut); else it.detailHits.push(h); }
+        it.score = (m as Fuzzy).score;
+        for (const h of (m as Fuzzy).hits) { if (h >= cut) it.labelHits.push(h - cut); else it.detailHits.push(h); }
       }
       out.push(it);
     }
   } else {
     for (const c of COMMANDS) {
-      const it = new Item(c.name, '', c.keys, '', c.run);
+      const it = new PaletteItem(c.name, '', c.keys, '', c.run);
       if (q !== '') {
         const m = fuzzy(q, c.name, 0);
         if (m === null) continue;
@@ -63,89 +46,13 @@ const items = createMemo<Item[]>(() => {
       out.push(it);
     }
   }
-  if (q !== '') out.sort((a: Item, b: Item): number => b.score - a.score);
-  return out.length > MAX_ITEMS ? out.slice(0, MAX_ITEMS) : out;
-}, []);
-
-function dirOf(path: string): string {
-  const rel = path.startsWith(root.path + '/') ? path.slice(root.path.length + 1) : path;
-  const s = rel.lastIndexOf('/');
-  return s < 0 ? '' : rel.slice(0, s);
+  return ranked(out, q, MAX_ITEMS);
 }
-
-function run(it: Item): void { closePalette(); it.run(); }
-
-function select(i: i32): void {
-  const n = items().length;
-  if (n === 0) return;
-  const k = ((i % n) + n) % n;
-  setCursor(k);
-  const sc = listRef.node;
-  if (sc < 0) return;
-  const top = ui.scrollTop(sc), y = k * ROW, h = Math.min(n, MAX_ROWS) * ROW;
-  if (y < top) ui.scrollTo(sc, 0, y);
-  else if (y + ROW > top + h) ui.scrollTo(sc, 0, y + ROW - h);
-}
-
-function paletteKey(e: ui.KeyEvent): void {
-  if (e.key === 'ArrowDown') select(cursor() + 1);
-  else if (e.key === 'ArrowUp') select(cursor() - 1);
-  else if (e.key === 'Enter') { const l = items(); if (l.length > 0) run(l[Math.min(cursor(), l.length - 1)]); }
-  else if (e.key === 'Escape') closePalette();
-  else return;
-  e.preventDefault();
-}
-
-/** Text with its matched characters highlighted: alternating plain / matched segments. */
-function Highlighted(props: { text: string; hits: i32[]; color: i32; size: string }): i32 {
-  const segs = segments(props.text, props.hits);
-  return <View className="flex-row">
-    {segs.map((s: string, i: i32) => <Text className={`${props.size} ${i % 2 === 1 ? `font-semibold ${fg(theme().accent)}` : fg(props.color)}`}>{s}</Text>)}
-  </View>;
-}
-
-function Row(props: { it: Item }): i32 {
-  const it = props.it;
-  const on = (): boolean => items().indexOf(it) === cursor();
-  return <View className={`flex-row items-center h-[30] px-2.5 gap-2 rounded-md cursor-pointer ${on() ? bg(theme().selected) : ''}`}
-    onPointerDown={(e: ui.PointerEvent) => run(it)} onPointerEnter={(e: ui.PointerEvent) => setCursor(items().indexOf(it))}>
-    {it.path !== '' && <Canvas style={{ width: 16, height: 16, lazy: 1 }}
-      onDraw={(x: i32, y: i32, w: i32, h: i32) => drawFileIcon(it.label, false, false, x, y, w, theme())} />}
-    <Highlighted text={it.label} hits={it.labelHits} color={theme().text} size="text-[13px]" />
-    <Highlighted text={it.detail} hits={it.detailHits} color={theme().faint} size="text-[12px]" />
-    <View className="grow" />
-    {it.keys !== '' && <Kbd keys={it.keys} />}
-  </View>;
-}
-
-/** Called when the palette opens: empty query, first row, the caret in the field. */
-createEffect(() => {
-  if (paletteMode() === PAL_CLOSED) return;
-  setQuery(''); setCursor(0);
-  if (listRef.node >= 0) ui.scrollTo(listRef.node, 0, 0);
-  focusLater(inputRef.node);
-});
 
 export function Palette(): i32 {
-  const t = (): number => paletteT.get();
-  const n = (): i32 => Math.min(items().length, MAX_ROWS);
-  return <View className="absolute inset-0 items-center pt-[64]" style={{ hidden: paletteMode() === PAL_CLOSED ? 1 : 0 }}>
-    <View className="absolute inset-0" onPointerDown={() => closePalette()} />
-    <View className={`flex-col w-[580] rounded-xl border shadow-xl overflow-hidden ${bg(theme().elevated)} ${bd(theme().border)}`}
-      style={{ opacity: t(), scale: 0.96 + 0.04 * t(), translateX: (1 - (0.96 + 0.04 * t())) * 290, translateY: (1 - t()) * -8 }}
-      onPointerDown={() => {}}>
-      <View className={`flex-row items-center h-[42] px-3 border-b ${bd(theme().borderSoft)}`}>
-        <Input ref={inputRef} className={`border-slate-600 grow text-[14px] border-0 rounded-none bg-transparent p-0 ${fg(theme().text)} focus:${bd(theme().elevated)}`}
-          placeholder={paletteMode() === PAL_FILES ? 'Search project files…' : 'Execute a command…'}
-          value={query()} onInput={(v: string) => { setQuery(v); setCursor(0); if (listRef.node >= 0) ui.scrollTo(listRef.node, 0, 0); }}
-          onKeyDown={paletteKey} />
-      </View>
-      <ScrollView ref={listRef} className="flex-col p-1" style={{ height: n() * ROW + 8 }}>
-        {items().map((it: Item) => <Row it={it} />)}
-      </ScrollView>
-      {items().length === 0 && <View className="h-[40] px-4 justify-center">
-        <Text className={`text-[13px] ${fg(theme().faint)}`}>No matches</Text>
-      </View>}
-    </View>
-  </View>;
+  return <PaletteView dense mode={() => paletteMode()} progress={() => paletteT.get()} items={items} onClose={() => closePalette()}
+    focus={(h: i32) => focusLater(h)} kbd={(keys: string) => <Kbd keys={keys} />}
+    icon={(it: PaletteItem, x: i32, y: i32, size: i32) => drawFileIcon(it.label, false, false, x, y, size, theme())}
+    placeholder={() => paletteMode() === PAL_FILES ? 'Search project files…' : 'Execute a command…'}
+    empty={() => 'No matches'} />;
 }

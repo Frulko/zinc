@@ -3,7 +3,7 @@
 // parent, Enter open, Space preview. The right edge is a drag handle that resizes the panel.
 import { createNodeRef, For } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 import { Entry, rows, selected, setSelected, toggle, setOpen, root } from '../app/project';
 import { active, buffers, Buffer, openFile } from '../app/workspace';
 import { panelW, panelWidth, setPanelWidth } from '../app/settings';

@@ -5,7 +5,7 @@ import { Tween, easeOut, easeInOut } from './motion';
 import { active, activate, Buffer, buffers, closeBuffer, cycle, save, say } from './workspace';
 import { togglePanel, toggleTerminal, showTerminal, zoom, setFontIndex, DEFAULT_FONT, softWrap, setSoftWrap, minimapOn, setMinimapOn } from './settings';
 import { openFind } from './search';
-import { toggleTheme, theme } from './theme';
+import { toggleTheme, theme, editCommand } from 'zinc:editor';
 import { reveal } from './project';
 import { runProject, clearTerminal, check } from './tools';
 
@@ -37,6 +37,18 @@ export const COMMANDS: Command[] = [
   new Command('task: run project', '⌘R', () => { showTerminal(true); runProject(); }),
   new Command('terminal: clear', '', () => clearTerminal()),
   new Command('diagnostics: check file', '', withBuffer((b: Buffer) => check(b))),
+  new Command('editor: toggle comments', '⌘/', () => { editCommand(active(), 'comment'); }),
+  new Command('editor: select next', '⌘D', () => { editCommand(active(), 'select-next'); }),
+  new Command('editor: add selection above', '⌥⌘↑', () => { editCommand(active(), 'cursor-above'); }),
+  new Command('editor: add selection below', '⌥⌘↓', () => { editCommand(active(), 'cursor-below'); }),
+  new Command('editor: move line up', '⌥↑', () => { editCommand(active(), 'line-up'); }),
+  new Command('editor: move line down', '⌥↓', () => { editCommand(active(), 'line-down'); }),
+  new Command('editor: duplicate line down', '⌘⇧D', () => { editCommand(active(), 'line-duplicate'); }),
+  new Command('editor: delete line', '⌘⇧K', () => { editCommand(active(), 'line-delete'); }),
+  new Command('editor: indent', '⇥', () => { editCommand(active(), 'indent'); }),
+  new Command('editor: outdent', '⇧⇥', () => { editCommand(active(), 'outdent'); }),
+  new Command('editor: undo', '⌘Z', () => { editCommand(active(), 'undo'); }),
+  new Command('editor: redo', '⌘⇧Z', () => { editCommand(active(), 'redo'); }),
   new Command('theme selector: toggle light / dark', '', () => { toggleTheme(); say(theme().name); }),
 ];
 

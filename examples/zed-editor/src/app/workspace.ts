@@ -4,38 +4,28 @@
 import { createSignal, NodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as fs from 'zinc:fs';
-import { Doc } from './document';
-import { langOf } from './syntax';
+import { EditorState, Diagnostic, edited, setOnEdited, langOf } from 'zinc:editor';
+export { Diagnostic, edited };
 
-export class Diagnostic {
-  line: i32; col: i32; severity: i32; message: string;   // 0-based line / column; severity 1 error, 2 warning
-  constructor(line: i32, col: i32, severity: i32, message: string) { this.line = line; this.col = col; this.severity = severity; this.message = message; }
-}
-
-export class Buffer {
-  path: string; name: string;
-  doc: Doc;
-  text: () => string; setText: (v: string) => void;
+/** An open file: the editor's state (zinc:editor), its path, its tab name, the text last saved and whether it is a preview. */
+export class Buffer extends EditorState {
+  name: string;
   saved: () => string; setSaved: (v: string) => void;
   preview: () => boolean; setPreview: (v: boolean) => void;
-  diagnostics: () => Diagnostic[]; setDiagnostics: (v: Diagnostic[]) => void;
   crlf: boolean;
-  ref: NodeRef = new NodeRef();   // the buffer's textarea (each buffer keeps its own: caret, scroll, undo)
-  caret: i32 = -1;                // last caret seen by the frame loop (decorations follow it)
   constructor(path: string, name: string, text: string, preview: boolean) {
-    this.path = path; this.name = name;
-    this.crlf = text.indexOf('\r\n') >= 0;
-    const t = this.crlf ? text.replaceAll('\r\n', '\n') : text;
-    this.doc = new Doc(langOf(path));
-    this.doc.setText(t);
-    const [a, sa] = createSignal<string>(t); this.text = a; this.setText = sa;
+    const crlf = text.indexOf('\r\n') >= 0;
+    const t = crlf ? text.replaceAll('\r\n', '\n') : text;
+    super(path, t, langOf(path));
+    this.name = name;
+    this.crlf = crlf;
     const [b, sb] = createSignal<string>(t); this.saved = b; this.setSaved = sb;
     const [c, sc] = createSignal<boolean>(preview); this.preview = c; this.setPreview = sc;
-    const [d, sd] = createSignal<Diagnostic[]>([]); this.diagnostics = d; this.setDiagnostics = sd;
   }
   modified(): boolean { return this.text() !== this.saved(); }
-  node(): i32 { return this.ref.node; }
 }
+// a buffer edited by the user is no longer a preview
+setOnEdited((s: EditorState) => { const b = s as Buffer; if (b.preview() && b.modified()) b.setPreview(false); });
 
 export const [buffers, setBuffers] = createSignal<Buffer[]>([]);
 export const [active, setActiveSignal] = createSignal<Buffer | null>(null);
@@ -124,12 +114,6 @@ export function save(b: Buffer): void {
   onSaved(b);
 }
 
-/** A buffer edited by the user: tracked for the modified dot, and no longer a preview. */
-export function edited(b: Buffer, v: string): void {
-  b.doc.setText(v);
-  b.setText(v);
-  if (b.preview() && b.modified()) b.setPreview(false);
-}
 
 /** Next / previous tab (⌃Tab, ⌘⇧[ ]). */
 export function cycle(step: i32): void {

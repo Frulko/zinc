@@ -1,12 +1,12 @@
 // Status bar: panel toggles and diagnostics on the left; caret position, language, encoding, line endings, font
 // size and soft wrap on the right; short notices ('Saved stats.ts') in between.
 import * as ui from 'zinc:ui';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 import { active, Buffer, notice } from '../app/workspace';
 import { panelOpen, togglePanel, terminalOpen, toggleTerminal, fontSize, softWrap, setSoftWrap, fontIndex, DEFAULT_FONT, setFontIndex } from '../app/settings';
-import { langLabel } from '../app/syntax';
+import { langLabel } from 'zinc:editor';
 import { openPalette, PAL_COMMANDS } from '../app/commands';
-import { caretInfo } from './Editor';
+import { caretInfo } from 'zinc:editor';
 import { IconButton, Glyph } from './Controls';
 import { I_SIDEBAR, I_TERMINAL, I_ERROR, I_WARNING } from './icons';
 

@@ -1,6 +1,6 @@
 // Small shared controls: a drawn glyph, a ghost icon button (Zed's toolbar style) and a key hint.
 import * as ui from 'zinc:ui';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 import { drawIcon } from './icons';
 
 /** One of icons.ts's glyphs on a lazy canvas (redrawn with the rest of the window, not every frame). */

@@ -7,7 +7,7 @@ import * as sys from 'zinc:sys';
 import * as proc from 'zinc:process';
 import { root } from './project';
 import { Buffer, Diagnostic, say } from './workspace';
-import { L_TS } from './syntax';
+import { L_TS } from 'zinc:editor';
 
 function findCli(): string {
   const env = sys.env('ZINC_ROOT');

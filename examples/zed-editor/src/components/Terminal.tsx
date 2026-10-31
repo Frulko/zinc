@@ -2,7 +2,7 @@
 // ⌘R runs the project.
 import { createNodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { theme, bg, fg, bd, mix } from '../app/theme';
+import { theme, bg, fg, bd, mix } from 'zinc:editor';
 import { terminalH, showTerminal } from '../app/settings';
 import { termLines, TermLine, Span, running, runProject, stopProject, clearTerminal, takeFollow } from '../app/tools';
 import { IconButton, Glyph } from './Controls';

@@ -1,7 +1,7 @@
 // Icons drawn with zinc:gfx strokes and shapes in a 16 x 16 design box, scaled to the canvas: file types by
 // extension, folders, the tree chevron and the toolbar / status bar glyphs.
 import { stroke, polygon, rrect, border, drawText, font, textWidth } from 'zinc:gfx';
-import { Theme } from '../app/theme';
+import { Theme } from 'zinc:editor';
 
 export const I_SIDEBAR: i32 = 0, I_TERMINAL: i32 = 1, I_SEARCH: i32 = 2, I_SUN: i32 = 3, I_MOON: i32 = 4, I_WRAP: i32 = 5,
   I_CLOSE: i32 = 6, I_PLAY: i32 = 7, I_ERROR: i32 = 8, I_WARNING: i32 = 9, I_BRANCH: i32 = 10, I_STOP: i32 = 11,

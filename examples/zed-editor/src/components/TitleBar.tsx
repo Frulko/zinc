@@ -1,5 +1,5 @@
 // Title bar: the project name and the active file on the left, the toolbar on the right.
-import { theme, bg, fg, bd, toggleTheme } from '../app/theme';
+import { theme, bg, fg, bd, toggleTheme } from 'zinc:editor';
 import { root } from '../app/project';
 import { active, Buffer } from '../app/workspace';
 import { panelOpen, togglePanel, terminalOpen, toggleTerminal, showTerminal, softWrap, setSoftWrap, minimapOn, setMinimapOn } from '../app/settings';

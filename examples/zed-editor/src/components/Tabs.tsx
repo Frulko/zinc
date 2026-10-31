@@ -3,7 +3,7 @@
 // horizontally (wheel or trackpad) when the tabs do not fit, and keeps the active tab in view.
 import { createSignal, createNodeRef, For } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 import { active, activate, buffers, Buffer, closeBuffer } from '../app/workspace';
 import { drawFileIcon, I_CLOSE } from './icons';
 import { Glyph } from './Controls';

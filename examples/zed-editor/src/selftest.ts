@@ -2,13 +2,13 @@
 // matching, search, ANSI colours and `zinc check --json` parsing. Prints one line per check; exits 1 on a failure.
 //   zinc run examples/zed-editor/src/selftest.ts --target sim      (or the default target)
 import * as sys from 'zinc:sys';
-import { fuzzy, segments, Fuzzy } from './app/fuzzy';
+import { fuzzy, segments, Fuzzy } from 'zinc:command-palette';
 import { tokenize, L_TS, L_CSS, L_MD, L_JSON, S_NORMAL, S_COMMENT, S_TEMPLATE, S_FENCE, S_CSS_RULE, T_COMMENT, T_KEYWORD, T_STRING,
-  T_TYPE, T_FN, T_PROPERTY, T_TAG, T_ATTR, T_HEADING, T_NUMBER } from './app/syntax';
-import { Doc, matchBracket } from './app/document';
+  T_TYPE, T_FN, T_PROPERTY, T_TAG, T_ATTR, T_HEADING, T_NUMBER } from 'zinc:editor';
+import { Doc, matchBracket } from 'zinc:editor';
 import { parseAnsi, parseDiagnostics } from './app/tools';
 import { findAll } from './app/search';
-import { DARK } from './app/theme';
+import { ONE_DARK as DARK } from 'zinc:editor';
 
 let failures: i32 = 0;
 function check(ok: boolean, what: string): void {

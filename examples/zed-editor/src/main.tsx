@@ -1,6 +1,6 @@
 // zed-editor: a code editor in the style of Zed, written in Zinc with zinc:ui (Solid model), drawn by the software
-// renderer. A project tree read with zinc:fs, tabs with preview semantics, a code editor with syntax highlighting,
-// decorations and a minimap, a command palette and a fuzzy file finder, find in file, diagnostics from
+// renderer. A project tree read with zinc:fs, tabs with preview semantics, a code editor (zinc:editor: several cursors, undo,
+// syntax highlighting, decorations, a minimap), a command palette and a fuzzy file finder, find in file, diagnostics from
 // `zinc check`, and a terminal panel running the project. See README.md for the shortcuts.
 //
 //   zinc run examples/zed-editor                     the bundled sample project
@@ -9,7 +9,7 @@
 import { render } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { stepMotion } from './app/motion';
-import { theme } from './app/theme';
+import { theme, stepCursors } from 'zinc:editor';
 import { initProject, root } from './app/project';
 import { active, Buffer, buffers, save, closeBuffer, cycle, openFile, setHooks, applyFocus, focusLater, stepNotice } from './app/workspace';
 import { togglePanel, toggleTerminal, showTerminal, zoom, setFontIndex, DEFAULT_FONT } from './app/settings';
@@ -87,6 +87,7 @@ function tick(dt: number): void {
   stepMotion(dt);
   stepNotice(dt);
   applyFocus();
+  stepCursors(active());
   stepEditor();
   stepTerminal();
   stepDemo(dt);
