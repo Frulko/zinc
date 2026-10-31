@@ -629,6 +629,11 @@ The next backlog review turns lines into tasks or deletes them.
 
 - Compiler: a closure call is devirtualized speculatively to the program's only lambda of that type even when that lambda's function is never reached (knownClasses' `add` pulled the class parser into every UI program, 2026-10-31); count only reachable lambdas.
 
+- Engine (QuickJS): a number assigned to an i32 is not truncated on QuickJS (`let z: i32 = 1; z = 7 / 2` prints 3.5, the interpreter 3); the strip pass has no types, so inferred i32 locals need the checker's types. qjs_demos is off the CI until then (webcam frame 1px off).
+- zinc dev / devtools: a zinc:stage program that imports zinc:devtools gets a 320x240 headless surface despite `ZINC_SIZE=640x400` (`width()` says 640); asset_reload is off the CI until fixed. Repro: `import 'zinc:devtools'; import '../src/main';` in a game-2d project, `ZINC_HEADLESS=1 ZINC_FRAMES=2 ZINC_FRAMEHASH=last zinc run other/y.ts`.
+- webenv: Phaser sees the scripted pointerdown and keydown one frame earlier than tests/golden (plain rAF timing unchanged); webenv_phaser is off the CI until explained.
+- webrtc: `pc.close()` fires the data channels' close events with setTimeout(0), so a program that quits right after loses them ("A chat closed"); webrtc_chat is off the CI until the close events fire before close() returns.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.

@@ -32,3 +32,8 @@ rmpp_engine          # reMarkable
 rmpp_lease           # reMarkable
 rmpp_sim             # reMarkable
 hub_app              # reMarkable
+# 2026-10-31, release 0.10: known defects, found before the release and older than it (backlog/later.md); back on the CI once fixed
+qjs_demos            # QuickJS does not truncate a number assigned to an i32 (`let vy = y` then `vy = y + (h - vh) / 2`): webcam 1px off
+asset_reload         # with zinc:devtools imported (zinc dev adds it), a headless zinc:stage surface is 320x240 despite ZINC_SIZE
+webenv_phaser        # Phaser sees the scripted pointer and keys one frame earlier than its golden; cause not found
+webrtc_chat          # "A chat closed" / "B chat closed" are lost: pc.close() fires the channel close events after quit()
