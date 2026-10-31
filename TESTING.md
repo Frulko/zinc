@@ -27,6 +27,8 @@ Pushes to `develop` and `main` run nothing. A release (`make release`) and a man
 
 Owner rule (2026-10-25): a test that is ambiguous or likely to break on a hosted runner (timing, an emulator, the network, a browser) leaves the CI instead of holding a release: its name and the reason go in `tests/ci/off.txt`, which `tests/run` skips under `ZINC_CI`; it still runs on the development Mac.
 
+On the CI (`ZINC_CI`) `tests/run` also runs a failed test a second time at once: one that passes then counts as passed and is listed in `.logs/flaky.log` (a server slow to start, a lost timing on a hosted runner); one that fails twice is a failure. A test that fails this way often goes to `tests/ci/off.txt`.
+
 Owner exception (2026-10-23): `notify_relay` exits 77 under `ZINC_CI` because its intermittent hosted stall remains unresolved. It stays runnable locally with `tests/run --only notify_relay` and `ZINC_CI` unset. The `notify_relay_unit` and `notify_capture` checks remain enabled in CI; this exception does not disable the relay app.
 
 ## Test tiers
