@@ -941,6 +941,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-904: animated WebP/APNG off macOS (vendor libwebp demux and an APNG reader); animated custom emoji inside text; Tenor mp4 renditions through zinc:video; standard sticker packs; a GIF sticker downloaded twice.
 - ZN-905: switching themes live was proven only through the scripted session.
 - ZN-906: reopen the transfer window when Discord refuses a file (413 / 40005); Gokapi chunked upload, Zipline, cancelling an upload; Discord's free limit reported as 20 MB since Aug 2026 (unconfirmed).
+- ZN-911: an icon name written inside an expression (`<Icon name={on ? 'a' : 'b'}>`) is not picked up from the sources, so the icon draws nothing unless it is in `zinc.json` "icons"; scan the string literals of the expression or warn.
+- ZN-911: the share dialog could update its thumbnails in place when the sources are the same, instead of rebuilding the list every 1.5 s (cheaper on modest machines).
+- ZN-911: the safe mode shield of the user bar is icon-only; a tooltip or a small label would help first-time users.
 
 ## Cross-platform pass
 - ZN-892/893: zinc:net server, WebSocket and ACME on Linux and Windows (net_limits, net_ws, net_acme with a Pebble for that OS).
