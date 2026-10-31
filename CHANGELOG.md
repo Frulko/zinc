@@ -8,6 +8,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.10.6] - 2026-10-31
+
 This release turns the Raspberry Pi into a small Zinc computer: a shell that runs apps under its own bar, apps built on your Mac and sent ready to run, an image that updates itself safely and a renderer several times faster on its cores. Sidecar makes an iPad, a phone, a Pi, another Mac or a reMarkable a screen for your Mac, the reMarkable gets an app store, a web reader and zooming that follows the fingers, and Zinc Inspector now looks and works like Chrome DevTools.
 
 Under the hood, Zinc accepts much more of the TypeScript people actually write, workers run on every engine, and large programs type-check, compile and start several times faster. Two showcase apps came out of it: a native Discord client and an iPod manager with its own Genius.
@@ -1007,7 +1009,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.6...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -1029,3 +1031,4 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 [0.8.0]: https://github.com/Frulko/zinc/compare/v0.7.6...v0.8.0
 [0.8.2]: https://github.com/Frulko/zinc/compare/v0.8.0...v0.8.2
 [0.9.1]: https://github.com/Frulko/zinc/compare/v0.8.2...v0.9.1
+[0.10.6]: https://github.com/Frulko/zinc/compare/v0.9.1...v0.10.6
