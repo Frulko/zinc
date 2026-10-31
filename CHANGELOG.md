@@ -66,7 +66,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **Fixed** A `setTimeout(0)` set while timers run (a long computation that yields with `await` on a timer) waits for the next frame, so the window keeps drawing and taking input.
 
 ### UI and kits
-- **Fixed** `font(name, px)` of `zinc:gfx` for a face or size the program's own files do not name (a plugin's `font-mono`) gives the TrueType face instead of -1, so `textWidth` measures it.
+- **Fixed** A plugin that calls `font('mono', n)` itself (the code editor of Atelier and zed-editor) gets the monospace face baked into the app, so its caret and columns line up.
 - **Changed** A border takes room as in CSS and React Native: the content sits inside it, so `rounded-full border-2` around an avatar draws a ring, a box sized by its content grows by its border, and `box-content` adds padding and border to the size it is given. Bordered inputs, cards and buttons are a pixel or two larger.
 - **Changed** `min-w-0` (in a row) and `min-h-0` (in a column) let a box shrink below its content as in CSS, so `flex-1 min-w-0` panes and texts stay inside the window; a `basis-*` respects the box's `min-*`/`max-*` size.
 - **New** Negative offsets (`-top-2`, `-right-[6px]`, `-bottom-1`, `-left-px`) place an absolute box past its parent's edge, as in Tailwind.
