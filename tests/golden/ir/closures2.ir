@@ -9,10 +9,10 @@ selector .make() -> ref "fn () => i32"
 class Counter { step: i32, total: i32 }
   sel .make -> @Counter.make
 class "[() => i32, () => void]" { 0: ref "fn () => i32", 1: ref "fn () => void" }
-interface "fn (i32) => (i32) => i32"
-  sel .call#1
 interface "fn (i32) => i32"
   sel .call
+interface "fn (i32) => (i32) => i32"
+  sel .call#1
 interface "fn (i32) => void"
   sel .call#2
 interface "fn () => i32"

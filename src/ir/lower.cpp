@@ -266,6 +266,7 @@ struct Lowering {
   }
 
   std::uint32_t selectorFor(const std::string& name, frontend::TypeId ft) {
+    if (name == "call") ft = fnRep(ft);
     std::string key = name + "#" + std::to_string(ft);
     auto it = selectorIds.find(key);
     if (it != selectorIds.end()) return it->second;
@@ -557,6 +558,16 @@ struct Lowering {
     }
   }
   std::unordered_map<frontend::TypeId, std::uint32_t> fnClassOfType;              // function type -> IR interface
+  std::unordered_map<std::string, frontend::TypeId> fnShapes;                     // a function type's parameters and result -> the first such type
+  // One IR function class and one `call` selector per shape: `(p?: P) => R` and `(p: P) => R` differ only in how many arguments a direct call may
+  // leave out, and a value of the first is passed as the second (calls through the class pass every argument).
+  frontend::TypeId fnRep(frontend::TypeId ft) {
+    const frontend::Type& t = c.types[ft];
+    if (t.k != frontend::TK::Func) return ft;
+    std::string shape = std::to_string(irType(t.elem)) + (t.variadic ? "v" : "") + (t.rest ? "r" : "");   // the IR's types: `null | P` and `P | null` are one
+    for (frontend::TypeId p : t.params) shape += "," + std::to_string(irType(p));
+    return fnShapes.emplace(shape, ft).first->second;
+  }
   std::unordered_map<std::uint32_t, std::pair<std::uint32_t, std::uint32_t>> thunkOfSym;  // function symbol -> {class, function}
   std::unordered_map<std::string, std::pair<std::uint32_t, std::uint32_t>> thunkOfStatic;  // "obj:name" of a static method used as a value -> {class, function}
   std::unordered_map<TypeId, std::uint32_t> cellOfType;
@@ -642,6 +653,7 @@ struct Lowering {
   std::uint32_t fnClassOf(frontend::TypeId ft) {
     auto it = fnClassOfType.find(ft);
     if (it != fnClassOfType.end()) return it->second;
+    if (const frontend::TypeId r = fnRep(ft); r != ft) return fnClassOfType[ft] = fnClassOf(r);
     Class cl;
     cl.name = "fn " + frontend::typeName(c, ft);
     cl.isInterface = true;

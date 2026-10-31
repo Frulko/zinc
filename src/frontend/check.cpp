@@ -253,6 +253,13 @@ struct Checker {
       return widens(f.num, t.num) || (!isFx(f.num) && !isFx(t.num));  // machine numbers convert among themselves (truncating), like the number type they alias
     }
     if (f.k == TK::Object && t.k == TK::Object) return objAssignable(f.obj, t.obj) || classToRecord(f.obj, t.obj);
+    // a function whose last parameters are optional where one that takes them all is expected (`Button(props?: P)` as a `(p: P | null) => i32`):
+    // its callers pass every argument
+    if (f.k == TK::Func && t.k == TK::Func && f.params.size() == t.params.size() && f.variadic == t.variadic && f.rest == t.rest && f.minArgs <= t.minArgs && f.minArgs != t.minArgs) {
+      auto same = [&](TypeId x, TypeId y) { return x == y || (assignable(x, y, kNone) && assignable(y, x, kNone)); };   // `null | P` and `P | null`
+      for (std::size_t k = 0; k < f.params.size(); ++k) if (!same(f.params[k], t.params[k])) return false;
+      return same(f.elem, t.elem);
+    }
     return false;
   }
   // An instance of class `a` (or a value of interface `a`) where record `b` is expected, as TypeScript's structural typing allows: the instance is
