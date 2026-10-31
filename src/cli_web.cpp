@@ -527,6 +527,23 @@ std::vector<Asset> listAssets(const std::string& dir) {
   }
   return out;
 }
+// zinc:i18n reads the engine's catalogs (i18n/<lang>/<area>.json): a program that imports it gets them as files of the page, under the same names
+std::vector<Asset> catalogAssets(const WebArgs& a, const fs::path& stage) {
+  std::vector<Asset> out;
+  if (readAll(stage / "stage.json").find("\"name\":\"zinc:i18n\"") == std::string::npos) return out;
+  const fs::path root = fs::path(a.engineRoot) / "i18n";
+  std::error_code ec;
+  for (auto it = fs::recursive_directory_iterator(root, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    if (!it->is_regular_file() || it->path().extension() != ".json") continue;
+    Asset as;
+    as.name = "i18n/" + it->path().lexically_relative(root).generic_string();
+    as.file = it->path().string();
+    as.size = static_cast<std::size_t>(fs::file_size(it->path(), ec));
+    out.push_back(as);
+  }
+  std::sort(out.begin(), out.end(), [](const Asset& x, const Asset& y) { return x.name < y.name; });
+  return out;
+}
 
 // The asset build of a project whose zinc.json has asset rules or groups (sprite atlases, tilemaps: what zinc run builds into build/assets/<target>), made for the
 // web target and its packs unpacked into `out`: the page reads each entry by its name, as zinc:assets does from a pack. Nothing for a project without rules.
@@ -726,13 +743,13 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
   fs::remove_all(tmp, ec);
   fs::create_directories(tmp, ec);
   // 1. what the program uses, from the staged modules (unminified)
-  if (run("ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web bundle " + q(a.dir) + " --stage " + q((tmp / "stage").string()) + " > " + q((tmp / "stage.log").string()) + " 2>&1") == 3) {
+  if (run("ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web " + (zn::frontend::force() ? "--force " : "") + "bundle " + q(a.dir) + " --stage " + q((tmp / "stage").string()) + " > " + q((tmp / "stage.log").string()) + " 2>&1") == 3) {
     // a package of node_modules: the scan reads the bundle instead (its names are minified there, so the plugin report is thinner)
     fs::create_directories(tmp / "stage", ec);
   }
   // 2. the bundle: its reachable code names the host rows the program calls
   const std::string appJs = (tmp / "app.js").string();
-  if (run("ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web bundle " + q(a.dir) + " --minify" + (a.sourcemap ? " --sourcemap" : "") + " -o " + q(appJs)) != 0) { std::fprintf(stderr, "zinc export: the bundle failed\n"); return 1; }
+  if (run("ZINC_BACKGROUND=1 " + q(selfExe()) + " --profile web " + (zn::frontend::force() ? "--force " : "") + "bundle " + q(a.dir) + " --minify" + (a.sourcemap ? " --sourcemap" : "") + " -o " + q(appJs)) != 0) { std::fprintf(stderr, "zinc export: the bundle failed\n"); return 1; }
   Common cm = analyse(a, tmp / "stage", readAll(appJs));
   cm.report += videoReport(a, cm.browsersJson, !a.browsers.empty() ? a.browsers : cm.cfg.browsers);
   std::fputs(cm.report.c_str(), stderr);
@@ -780,6 +797,7 @@ int exportSite(const WebArgs& a, const std::string& tmpName) {
   }
   // 4. the assets, named by their content (and what the asset build made of them: atlases, tilemaps)
   std::vector<Asset> assets = listAssets(a.dir);
+  for (Asset& as : catalogAssets(a, tmp / "stage")) assets.push_back(as);
   {
     std::string berr;
     for (Asset& as : builtAssets(a.dir, tmp / "built", berr)) assets.push_back(as);
@@ -1306,6 +1324,7 @@ void connection(Dev* d, int fd) {
     f = fs::path(dir) / path.substr(8);
   } else if (path.rfind("/assets/", 0) == 0) f = assetsRoot(d->a.dir) / path.substr(8);
   else if (path.rfind("/__project/", 0) == 0 && !d->a.lan) f = fs::path(d->a.dir) / path.substr(11);
+  else if (path.rfind("/i18n/", 0) == 0 && path.find("..") == std::string::npos) f = fs::path(d->a.engineRoot) / path.substr(1);   // zinc:i18n's catalogs (catalogAssets)
   else f = d->site / path.substr(1);
   std::error_code ec;
   if (!fs::is_regular_file(f, ec)) { reply(404, "text/plain", "not found: " + path); return; }
@@ -1467,6 +1486,7 @@ int devWeb(const WebArgs& a) {
     d.cm.scriptOut.push_back({name, name + ".js"});
   }
   std::vector<Asset> assets = listAssets(a.dir);
+  for (Asset& as : catalogAssets(a, d.stage)) assets.push_back(as);
   for (Asset& as : assets) as.url = as.name;
   if (!a.lan) for (Asset& as : projectMedia(a.dir)) assets.push_back(as);
   {

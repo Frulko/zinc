@@ -11,10 +11,11 @@
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 
-/** The folder of the catalogs: ZINC_I18N_DIR, else the engine's i18n/ (this file is lib/std/i18n.ts of the engine). */
+/** The folder of the catalogs: ZINC_I18N_DIR, else the engine's i18n/ (this file is lib/std/i18n.ts of the engine), on the web the page's i18n/. */
 export function root(): string {
   const d = sys.env('ZINC_I18N_DIR');
-  return d !== '' ? d : import.meta.dirname + '/../../i18n';
+  if (d !== '') return d;
+  return sys.platform() === 'web' ? 'i18n' : import.meta.dirname + '/../../i18n';   // a web build ships the catalogs as files i18n/<lang>/<area>.json of the page
 }
 /** Zinc's own folder for settings and caches: $ZINC_HOME, else ~/.zinc. */
 export function home(): string { const h = sys.env('ZINC_HOME'); return h !== '' ? h : sys.env('HOME') + '/.zinc'; }

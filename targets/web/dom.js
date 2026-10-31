@@ -64,6 +64,10 @@ export function makeDomHost(env) {
     '.z:focus:not(:focus-visible){outline:none}',
     '.zn-ring-none:focus-visible,.zi:not(.zb).zn-ring-none:focus-visible{outline:none}',   // outline-none, outlineStyle 'none': no keyboard ring (a bordered field keeps its focus border)
     '.zv{display:block;flex:0 0 auto;height:0;width:1px}',
+    // a code editor field the page paints (paintField): a canvas, and a hidden textarea at the caret that holds the focus and takes the keys, IME and paste
+    '.zpe{overflow:hidden;cursor:text;outline:none;-webkit-user-select:none;user-select:none}',
+    '.zpc{position:absolute;left:0;top:0;width:100%;height:100%;display:block;pointer-events:none}',
+    '.zph{position:absolute;left:0;top:0;width:2px;height:16px;opacity:0;border:0;padding:0;margin:0;resize:none;overflow:hidden;background:transparent;color:transparent;caret-color:transparent;outline:none;font-size:16px;pointer-events:none;white-space:pre}',
     'dialog.zd{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:transparent;color:inherit;overflow:visible}',
     'dialog.zd::backdrop{background:var(--zn-backdrop,transparent)}',
     '.zl{position:fixed;inset:0;pointer-events:none}',
@@ -223,13 +227,16 @@ export function makeDomHost(env) {
     else {
       const stretchW = par !== null && !parRow && (par.align === 3 && n.selfAlign < 0 || n.selfAlign === 3);   // a column's cross axis stretches a child with no width
       const stretchH = par !== null && parRow && (par.align === 3 && n.selfAlign < 0 || n.selfAlign === 3);
+      const spanW = n.abs && n.left !== UNSET && n.right !== UNSET, spanH = n.abs && n.top !== UNSET && n.bottom !== UNSET;   // absolute inset-0: its offsets size it, not a field's default
       if (n.w >= 0) d('width', px(n.w)); else if (n.wFrac > 0) d('width', r3(n.wFrac * 100) + '%');
       else if (n.fullW && !(par !== null && parRow)) { if (!n.abs) d('align-self', 'stretch'); else d('width', '100%'); }
-      else if (field && !stretchW && !n.fullW) d('width', px(200 + n.pl + n.pr));
+      else if (field && !stretchW && !n.fullW && !spanW) d('width', px(200 + n.pl + n.pr));
       else if (tag === IMAGE && n.img >= 0 && !stretchW && !n.fullW && n.h < 0) d('width', px(Z.imageSize(n.img)[0]));
       if (n.h >= 0) d('height', px(n.h)); else if (n.hFrac > 0) d('height', r3(n.hFrac * 100) + '%');
       else if (n.fullH && !(par !== null && !parRow)) { if (n.abs) d('height', '100%'); }
+      else if (field && spanH) { /* its top and bottom */ }
       else if (field && !n.ed.multi) d('height', px(lineHeight(n) + n.pt + n.pb));
+      else if (field && n.ed.rows === 0) d('height', px(n.lh));   // as tall as its content: the rows zinc:ui laid out
       else if (field) d('height', px(n.ed.rows * lineHeight(n) + n.pt + n.pb));
       else if (tag === IMAGE && n.img >= 0 && !stretchH && !n.fullH && n.w < 0) d('height', px(Z.imageSize(n.img)[1]));
       else if (tag === IMAGE && n.img >= 0 && n.w >= 0) d('height', 'auto');
@@ -435,7 +442,7 @@ export function makeDomHost(env) {
   function tagFor(n, h) {
     const as = attrOf(n, 'as');
     if (n.tag === INPUT) return 'input';
-    if (n.tag === TEXTAREA) return 'textarea';
+    if (n.tag === TEXTAREA) return ui.domPainted(h) ? 'div' : 'textarea';
     if (n.tag === IMAGE) return n.surface ? 'canvas' : 'img';
     if (n.tag === CANVAS) return 'div';   // a box that holds a <canvas> or an inline <svg> (see drawNode)
     if (as && HINT_TAGS.has(as)) return as;
@@ -497,7 +504,7 @@ export function makeDomHost(env) {
       st.list = list;
     }
     const list = st.list || [];
-    const base = tag === 'canvas' || tag === 'img' || tag === 'input' || tag === 'textarea' ? (n.tag === INPUT || n.tag === TEXTAREA ? (n.borderW !== 0 ? 'zr zi zb' : 'zr zi') : 'zr') : n.tag === TEXT ? 'zt' : 'z';
+    const base = tag === 'div' && n.tag === TEXTAREA ? 'zr zpe' : tag === 'canvas' || tag === 'img' || tag === 'input' || tag === 'textarea' ? (n.tag === INPUT || n.tag === TEXTAREA ? (n.borderW !== 0 ? 'zr zi zb' : 'zr zi') : 'zr') : n.tag === TEXT ? 'zt' : 'z';
     let c = base + (n.tag === SCROLL || n.scroll ? ' zs' : '') + (n.virt !== null ? ' zvl' : '') + (base === 'z' && interactive(n) ? ' zk' : '') + (n.onClick !== null && !(n.hs !== null && n.hs.noPress) ? ' zpf' : '') + (n.group ? ' zg' : '') + (n.peer ? ' zp' : '') + (n.rg.outNone ? ' zn-ring-none' : '') + (n.hs !== null && (n.hs.drag !== null || n.hs.down !== null || n.hs.pinch !== null) ? ' zdrag' : '');
     if (list.length) c += ' ' + list.join(' ');
     if (c !== st.cls) { st.cls = c; el.className = c; changed++; }
@@ -548,7 +555,8 @@ export function makeDomHost(env) {
     A('lang', attrOf(n, 'lang') || null);
     A('dir', attrOf(n, 'dir') || null);
     if (tag === 'img') { A('decoding', 'async'); A('draggable', 'false'); }
-    if (n.ed !== null) fieldAttrs(st, el, n, h, tag);
+    if (n.ed !== null && tag !== 'div') fieldAttrs(st, el, n, h, tag);
+    else if (n.ed !== null) { A('tabindex', null); A('role', 'textbox'); A('aria-multiline', 'true'); A('aria-readonly', n.ed.readOnly ? 'true' : null); }   // the focus goes to its hidden textarea
     for (const k of HINT_ATTRS) void k;
   }
   const TYPE_OF_MODE = ['text', 'text', 'text', 'tel', 'email', 'url', 'search'];
@@ -596,6 +604,7 @@ export function makeDomHost(env) {
     }
     if (tag === 'canvas') { surfaceDraw(st, el, n); return; }
     if (tag === 'input' || tag === 'textarea') return;
+    if (n.tag === TEXTAREA) { painted.push([h, st]); return; }
     // children
     const want = [];
     if (n.tag === CANVAS || n.onDraw !== null) { want.push(drawNode(st, el, n, h)); }
@@ -637,7 +646,7 @@ export function makeDomHost(env) {
 
   // ---------------------------------------------------------------- what Zinc draws itself: canvases and inline SVG
   const drawn = new Set();
-  const ro = new ResizeObserver((entries) => { for (const e of entries) if (e.target._st) { e.target._st.cw = -1; e.target._st.redraw = true; } });
+  const ro = new ResizeObserver((entries) => { for (const e of entries) if (e.target._st) { e.target._st.cw = -1; e.target._st.redraw = true; if (e.target._st.ta && ui) ui.repaint(); } });
   const io = new IntersectionObserver((entries) => { for (const e of entries) if (e.target._st) { e.target._st.vis = e.isIntersecting; if (e.isIntersecting) e.target._st.redraw = true; } }, { rootMargin: '100px' });
   const pending = [];
   function drawNode(st, el, n, h) {
@@ -703,6 +712,77 @@ export function makeDomHost(env) {
     if (el.width !== im.canvas.width || el.height !== im.canvas.height) { el.width = im.canvas.width; el.height = im.canvas.height; st.rev = -1; }
     if (st.rev !== (im.rev || 0) || (im.live && true)) { st.rev = im.rev || 0; el.getContext('2d').drawImage(im.canvas, 0, 0); }
     void k;
+  }
+  // ---------------------------------------------------------------- code editor fields: painted by zinc:ui, typed into through one hidden textarea
+  // A field with line numbers, highlighting or marks cannot be a <textarea> (it shows plain text). As Monaco and the canvas render do, the page draws it
+  // (paintEdit on a canvas) and one hidden <textarea> placed at the caret holds the focus: keys, text, IME composition, dead keys and paste reach
+  // zinc:ui's own editing through the runtime's input queue, and the pointer goes there too, in zinc:ui's coordinates.
+  const painted = [];
+  function paintFieldInit(h, st) {
+    const el = st.el, cv = document.createElement('canvas'), ta = document.createElement('textarea');
+    cv.className = 'zpc'; ta.className = 'zph';
+    ta.setAttribute('aria-label', 'code'); ta.setAttribute('autocapitalize', 'off'); ta.setAttribute('autocomplete', 'off'); ta.setAttribute('autocorrect', 'off'); ta.spellcheck = false;
+    el.textContent = ''; el.append(cv, ta);
+    st.cv = cv; st.ta = ta; st.cw = -1; el._st = st; ro.observe(el);
+    const I = Z.input, btn = Z.btnOf;
+    const at = (e) => {
+      const o = ui.domOrigin(h), r = el.getBoundingClientRect();
+      I.px = o[0] + (e.clientX - r.left) * o[2]; I.py = o[1] + (e.clientY - r.top) * o[2]; I.mods = modsOf(e);
+      e.stopPropagation();
+    };
+    el.addEventListener('pointerdown', (e) => {
+      at(e); const b = btn(e);
+      I.pbuttons |= 1 << b; I.down = true; I.btn.push({ x: I.px, y: I.py, button: b, down: 1 });
+      try { el.setPointerCapture(e.pointerId); } catch { /* gone */ }
+      e.preventDefault(); ta.focus({ preventScroll: true });
+    }, { passive: false });
+    el.addEventListener('pointermove', at);
+    const up = (e) => { at(e); const b = btn(e); I.pbuttons &= ~(1 << b); I.down = I.pbuttons !== 0; I.btn.push({ x: I.px, y: I.py, button: b, down: 0 }); };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('wheel', (e) => {
+      at(e); const k = e.deltaMode === 1 ? 1 / 3 : e.deltaMode === 2 ? 10 : 1 / 40;
+      I.wheel += -e.deltaY * k; I.wheelX += e.deltaX * k; e.preventDefault();
+    }, { passive: false });
+    ta.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.isComposing || e.keyCode === 229) return;
+      const m = modsOf(e), low = e.key.toLowerCase(), cmd = e.ctrlKey || e.metaKey;
+      I.mods = m;
+      if (cmd && low === 'v') return;   // the paste event brings the text
+      I.keys.push({ kind: e.repeat ? 2 : 0, name: e.key.length === 1 ? low : e.key === 'Esc' ? 'Escape' : e.key, mods: m });
+      const browser = (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) || e.key === 'F5' || e.key === 'F12' || (cmd && (low === 'r' || low === 'q' || low === 'w' || low === 't'));
+      if (!browser && (cmd || e.key.length > 1)) e.preventDefault();   // Tab, Enter, arrows, shortcuts: zinc:ui's; printable keys come back as input
+    });
+    ta.addEventListener('keyup', (e) => { e.stopPropagation(); I.mods = modsOf(e); I.keys.push({ kind: 1, name: e.key.length === 1 ? e.key.toLowerCase() : e.key, mods: modsOf(e) }); });
+    ta.addEventListener('input', (e) => {
+      e.stopPropagation();
+      if (e.isComposing) return;
+      const v = ta.value; ta.value = '';
+      if (v && e.inputType !== 'insertLineBreak') I.keys.push({ kind: 3, name: v, mods: 0 });
+    });
+    ta.addEventListener('compositionend', (e) => { e.stopPropagation(); if (e.data) I.keys.push({ kind: 3, name: e.data, mods: 0 }); ta.value = ''; });
+    ta.addEventListener('paste', (e) => {
+      const t = e.clipboardData && e.clipboardData.getData('text/plain');
+      e.preventDefault(); e.stopPropagation();
+      if (t) { I.clip = t; I.keys.push({ kind: 0, name: 'v', mods: 2 }); }
+    });
+  }
+  function paintField(h, st) {
+    const n = ui.inspectNode(h);
+    if (!n || n.ed === null) return;
+    if (!st.ta) paintFieldInit(h, st);
+    const el = st.el, cv = st.cv, ta = st.ta;
+    if (st.cw < 0) { st.cw = el.clientWidth; st.ch = el.clientHeight; }
+    const w = Math.round(st.cw), hh = Math.round(st.ch);
+    ta.readOnly = n.ed.readOnly;
+    if (w <= 0 || hh <= 0) return;
+    const k = dpr(), pw = Math.max(1, Math.round(w * k)), ph = Math.max(1, Math.round(hh * k));
+    if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
+    let car = null;
+    mode = 'canvas';
+    try { drawInto(cv, k, () => { car = ui.domPaintEdit(h, w, hh); }); } finally { mode = 'off'; }
+    if (car) { ta.style.left = Math.max(0, Math.min(w - 2, car[0])) + 'px'; ta.style.top = Math.max(0, Math.min(hh - car[2], car[1])) + 'px'; ta.style.height = car[2] + 'px'; }   // the IME's window opens at the caret
+    if (ui.focused() === h && document.activeElement !== ta) ta.focus({ preventScroll: true });
   }
   let mode = 'off', rec = null;
   // the painter the runtime's rows reach: nothing is painted by the rows; they only feed a Canvas node while it draws, and the images the program makes
@@ -782,7 +862,7 @@ export function makeDomHost(env) {
     if (rawOn) { rawOn = false; env.leaveRaw(); }
     const rh = ui.inspectRoot();
     if (rh < 0) return;
-    changed = 0; pending.length = 0;
+    changed = 0; pending.length = 0; painted.length = 0;
     const e = sync(rh, null, false, false);
     if (e && rootEl !== e) { rootEl = e; if (e.parentNode !== root) { root.textContent = ''; root.appendChild(e); } }
     layers();
@@ -803,6 +883,7 @@ export function makeDomHost(env) {
     }
     for (const h of pendingScroll.splice(0)) { const st = E[h], n = ui.inspectNode(h); if (st && n) st.el.scrollTo({ left: n.sx, top: n.sy, behavior: 'instant' }); }
     for (const [h, st] of pending) runDraw(h, st);
+    for (const [h, st] of painted) paintField(h, st);
     const sch = ui.currentScheme();
     if (sch !== lastScheme) { lastScheme = sch; document.documentElement.style.colorScheme = sch === 'dark' ? 'dark' : 'light'; }
     const dir = ui.direction();

@@ -524,8 +524,9 @@ const input = {
 };
 const modsOf = (e) => (e.shiftKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0);
 const pos = (e) => { const r = root.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-const SDLBTN = [1, 2, 3, 4, 5];   // DOM button 0 left, 1 middle, 2 right -> SDL 1, 2, 3
-Z.input = input;
+// buttons as zinc:gfx numbers them on every HAL (hal_sdl.cpp): 0 left, 1 middle, 2 right, 3 back, 4 forward, the DOM's own numbers; a finger or a pen is the left button
+const btnOf = (e) => (e.pointerType === 'touch' || e.pointerType === 'pen' ? 0 : e.button >= 0 && e.button <= 4 ? e.button : 0);
+Z.input = input; Z.btnOf = btnOf;
 function pointerEvent(e, down) {
   const [x, y] = pos(e);
   input.px = x; input.py = y; input.mods = modsOf(e);
@@ -545,8 +546,8 @@ function installCanvasInput(el) {
   const opt = { passive: false };
   el.addEventListener('pointerdown', (e) => {
     pointerEvent(e, true);
-    const b = e.pointerType === 'touch' || e.pointerType === 'pen' ? 1 : SDLBTN[e.button] || 1;
-    input.pbuttons |= 1 << (b - 1); input.down = true;
+    const b = btnOf(e);
+    input.pbuttons |= 1 << b; input.down = true;
     input.btn.push({ x: input.px, y: input.py, button: b, down: 1 });
     try { el.setPointerCapture(e.pointerId); } catch {}
     e.preventDefault(); el.focus({ preventScroll: true });
@@ -555,8 +556,8 @@ function installCanvasInput(el) {
   el.addEventListener('pointermove', (e) => { pointerEvent(e, null); }, opt);
   const up = (e) => {
     pointerEvent(e, false);
-    const b = e.pointerType === 'touch' || e.pointerType === 'pen' ? 1 : SDLBTN[e.button] || 1;
-    input.pbuttons &= ~(1 << (b - 1));
+    const b = btnOf(e);
+    input.pbuttons &= ~(1 << b);
     input.btn.push({ x: input.px, y: input.py, button: b, down: 0 });
     if (!input.pbuttons) input.down = false;
   };
@@ -630,7 +631,7 @@ function startTextInput(x, y, w, h) {
   if (!textField) {
     textField = document.createElement('textarea');
     textField.setAttribute('aria-label', 'text input'); textField.autocapitalize = 'off'; textField.autocomplete = 'off'; textField.spellcheck = false;
-    textField.style.cssText = 'position:absolute;opacity:0.01;border:0;padding:0;margin:0;resize:none;overflow:hidden;background:transparent;color:transparent;caret-color:transparent;z-index:2;font-size:16px';
+    textField.style.cssText = 'position:absolute;opacity:0.01;border:0;padding:0;margin:0;resize:none;overflow:hidden;background:transparent;color:transparent;caret-color:transparent;z-index:2;font-size:16px;outline:none;pointer-events:none';   // (the canvas under it takes the pointer: a click places the caret)
     textField.addEventListener('input', (e) => {
       if (e.isComposing) return;
       const v = textField.value; textField.value = '';

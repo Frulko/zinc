@@ -7460,6 +7460,29 @@ export function domKeys(): boolean {
   for (let p = focus; p >= 0; p = nodes[p].parent) { const s = nodes[p].hs; if (s !== null && (s as Handlers).key !== null) return true; }
   return false;
 }
+/**
+ * Whether the page paints field h itself (a code editor: line numbers, highlighting, marks or editor colours): the browser's own <textarea>
+ * cannot show those, so the DOM host draws it with paintEdit on a canvas and sends the keys and the pointer through zinc:ui, as the canvas render does.
+ */
+export function domPainted(h: i32): boolean {
+  const e = nodes[h].ed;
+  if (e === null) return false;
+  const d = e as Edit;
+  return d.multi && (d.lineNumbers || d.highlight !== null || d.highlightAt !== null || d.marks.length > 0 || d.colors.length > 0);
+}
+/** Paints field h at (0, 0) of the canvas being drawn, for a box of w x hh the page laid out; returns the caret's box [x, y, height] in it. */
+export function domPaintEdit(h: i32, w: number, hh: number): number[] {
+  const n = nodes[h], e = n.ed as Edit;
+  const lw = n.lw, lh = n.lh;
+  if (Math.abs(lw - w) > 0.5) e.rowsW = -1;   // wrapped rows follow the page's width
+  n.lw = w; n.lh = hh;
+  paintEdit(h, n, e, 0, 0, 1, 255);
+  const r = rowOf(e, e.caret), out = [inL(n) + e.gutter + xIn(n, e, r, e.caret) - e.sx, editTop(n, e) + r * lineHeightOf(n) - e.sy, lineHeightOf(n)];
+  n.lw = lw; n.lh = lh;
+  return out;
+}
+/** The surface position and scale of h's box [x, y, k]: the page turns a point in its element into the one zinc:ui's pointer input expects. */
+export function domOrigin(h: i32): number[] { boxOf(h); return [boxX, boxY, boxK]; }
 /** Escape or the browser's cancel of a dialog: closes h through its onDismiss, or the top overlay. */
 export function domDismiss(h: i32): boolean {
   for (const o of overlays) if (o.node === h && o.dismiss !== null) { const f = o.dismiss; if (f !== null) f(); paintDirty = true; return true; }
