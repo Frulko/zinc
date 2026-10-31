@@ -17,6 +17,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 #### Fixed
 - The previews of the screen-share dialog no longer flash black every time they refresh.
 - Closing the Discord client during a call leaves the call, stops your Go Live and the stream you watch first, so nobody sees you stuck in the channel.
+- **Fixed** Discord calls: a still screen in Go Live (or a stalled camera) keeps sending its last picture at least four times a second, nothing is sent before the call's encryption is keyed (the first picture the viewer gets is a key frame that opens), and in the ultra low data mode the call announces the reduced size and bitrate it really sends. `DISCORD_LOG=1` prints the size, frames, key frames and target of each outgoing video every second.
 - Discord calls: your camera and Go Live send a key frame every second (and again when the call's encryption key changes or someone starts watching) so the others no longer wait forever on a black tile; a third person joining no longer silences the people already there; a small tile shows the camera's lower quality layer; a Go Live you watch connects whichever of the two server messages comes first; and the call survives a network blip instead of ending with "voice gateway closed".
 
 ### Plugins and modules

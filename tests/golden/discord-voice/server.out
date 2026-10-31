@@ -46,6 +46,8 @@ voice stream watch guild:200:304:101
 voice video ssrc=0 rtx=0 streams=0
 voice video ssrc=0 rtx=0 streams=0
 voice video ssrc=0 rtx=0 streams=0
+voice video ssrc=12 rtx=13 streams=1 160x90
+voice video ssrc=12 rtx=13 streams=1 640x360
 voice video ssrc=12 rtx=13 streams=1 640x360
 voice wants {"33":0,"pixelCounts":{}}
 voice wants {"33":100,"pixelCounts":{"33":36864}}

@@ -71,6 +71,7 @@ const int SILENCE_FRAMES = 5;                             // sent after speech, 
 const uint8_t SILENCE[3] = {0xF8, 0xFF, 0xFE};
 const size_t JITTER_MAX = 8;                              // frames kept per speaker (160 ms); older ones are dropped
 const size_t JITTER_START = 2;                            // frames buffered before a speaker is played
+const double REPEAT_MS = 250;                            // a still source's last video frame is sent again after this long
 const int AUDIO_BPS = 64000;                              // Opus at full quality; setLimits() lowers it
 const double RTX_KEEP_MS = 500;                          // how long a sent video packet can be asked for again
 const double REPORT_MS = 1000;                            // RTCP sender and receiver reports
@@ -323,6 +324,7 @@ struct Conn {
   std::vector<uint32_t> pend;
   int pw = 0, ph = 0;
   bool hasPend = false, forceKey = false;
+  bool resetLast = false;               // videoSend(): the video thread forgets its last frame (a new stream, maybe another size)
   std::thread vth;
   // the video thread's own
   std::unique_ptr<media::VideoEncoder> venc;
@@ -670,6 +672,14 @@ void Conn::pli(uint32_t source) {
 }
 /** One camera frame: encoded, end-to-end encrypted, cut into RTP packets (RFC 6184: single NAL units and FU-A) and sent (video thread). */
 void Conn::sendVideo(const std::vector<uint32_t>& px, int w, int h, bool key) {
+  {   // end-to-end encryption on and no key yet: nothing is encoded (the viewers could not open it); the key frame waits for the key
+    std::lock_guard<std::mutex> g(mu);
+    if (daveVersion > 0 && !(daveEnc && daveEncryptorHasKeyRatchet(daveEnc))) {
+      daveStats[0]++;
+      std::lock_guard<std::mutex> v(vmu); forceKey = true;
+      return;
+    }
+  }
   int bps, fps;
   {
     std::lock_guard<std::mutex> v(vmu);
@@ -793,18 +803,28 @@ void Conn::decodeAll(Watch& x) {
   }
 }
 void Conn::videoLoop() {
-  std::vector<uint32_t> px;
+  std::vector<uint32_t> px, last;   // last: the newest frame sent, repeated while the source sends none
+  int lw = 0, lh = 0;
+  double lastAt = -1e9;
   while (run) {
     std::vector<std::shared_ptr<Watch>> ws;
     int w = 0, h = 0;
-    bool have = false, key = false;
+    bool have = false, key = false, repeat = false;
     {
       std::unique_lock<std::mutex> l(vmu);
       vcv.wait_for(l, std::chrono::milliseconds(20));
+      if (resetLast) { resetLast = false; last.clear(); }
       if (hasPend) { px.swap(pend); w = pw; h = ph; hasPend = false; key = forceKey; forceKey = false; have = vssrc != 0; }
+      // a still screen (ScreenCaptureKit sends a frame only when something changes) or a stalled camera: the last frame again, at
+      // least 4 a second, so the viewers' decoder keeps its frames and the key frame of each second has a picture to carry
+      else if (vssrc != 0 && !last.empty() && nowMs() - lastAt >= REPEAT_MS) { have = repeat = true; key = forceKey; forceKey = false; }
       for (auto& [id, x] : watches) ws.push_back(x);
     }
-    if (have) sendVideo(px, w, h, key);
+    if (have) {
+      if (repeat) sendVideo(last, lw, lh, key);
+      else { sendVideo(px, w, h, key); last.swap(px); lw = w; lh = h; }
+      lastAt = nowMs();
+    }
     for (auto& x : ws) decodeAll(*x);
     std::lock_guard<std::mutex> l(vmu);
     if (!hasPend) pend.swap(px);   // the buffer goes back for the next frame
@@ -1035,7 +1055,7 @@ struct HostDiscordVoice : NativeDiscordVoice {
     if (ssrc && c->daveEnc) daveEncryptorAssignSsrcToCodec(c->daveEnc, ssrc, DAVE_CODEC_H264);
     std::lock_guard<std::mutex> v(c->vmu);
     c->vrtx = ssrc ? rtxSsrc : 0; c->sentRing.clear();
-    c->vssrc = ssrc; c->vbps = bitrate; c->vfps = fps > 0 ? fps : 30; c->keyMs = std::max(0, keyframeMs); c->forceKey = true; c->hasPend = false;
+    c->vssrc = ssrc; c->vbps = bitrate; c->vfps = fps > 0 ? fps : 30; c->keyMs = std::max(0, keyframeMs); c->forceKey = true; c->hasPend = false; c->resetLast = true;
   }
   void keyFrame(int32_t h) override {
     Conn* c = at(h);

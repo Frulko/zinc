@@ -2,7 +2,7 @@
 // voice gateway close codes resume, identify again or end the call, which simulcast layer is decoded for a tile, and the order of
 // STREAM_CREATE and STREAM_SERVER_UPDATE (either one first connects once both arrived; a null endpoint drops the connection). Prints
 // "ok" or the first check that failed; tests/t0/discord_call_logic.sh.
-import { closeAction, pickLayer, Layer } from 'zinc:discord-voice';
+import { closeAction, pickLayer, sentQuality, Layer } from 'zinc:discord-voice';
 import { Live, streamStep } from '../src/call';
 
 let failed = '';
@@ -36,5 +36,11 @@ check('update first: create connects', streamStep(b, 'STREAM_CREATE', create) ==
 check('a moved server connects again', streamStep(b, 'STREAM_SERVER_UPDATE', { stream_key: 'k', endpoint: 'y.discord.media:443', token: 'u' }) === 'connect' && b.endpoint === 'y.discord.media:443');
 check('a null endpoint drops', streamStep(b, 'STREAM_SERVER_UPDATE', { stream_key: 'k', endpoint: null, token: null }) === 'drop' && b.endpoint === '');
 check('and the next update connects', streamStep(b, 'STREAM_SERVER_UPDATE', update) === 'connect');
+
+const full = sentQuality({ width: 1280, height: 720, fps: 30 }, null), low = sentQuality({ width: 1280, height: 720, fps: 30 }, [2, 5, 150000]);
+check('full quality is announced whole', full.width === 1280 && full.height === 720 && full.fps === 30 && full.bps === 2211840);
+check('low data announces what it sends', low.width === 640 && low.height === 360 && low.fps === 5 && low.bps === 150000);
+const cam = sentQuality({ width: 640, height: 360, fps: 30 }, [4, 5, 60000]);
+check('a low data camera is 160x90', cam.width === 160 && cam.height === 90 && cam.bps === 60000);
 
 console.log(failed === '' ? 'ok' : `FAIL ${failed}`);

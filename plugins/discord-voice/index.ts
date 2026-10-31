@@ -65,6 +65,16 @@ export function videoBitrate(q: VideoQuality): i32 { return Math.round(Math.max(
 export const LOW_DATA_AUDIO_BPS = 10000;
 const LOW_CAMERA = [4, 5, 60000], LOW_STREAM = [2, 5, 150000];
 
+/** What the encoder really sends for a quality: the low data mode's size divisor, rate and bitrate caps applied (what op 12 announces,
+ *  so the server's pixel counts and our stream agree). `bps` is the bitrate, never above `cap` when the cap is non-zero. */
+export function sentQuality(q: VideoQuality, limits: number[] | null): { width: number; height: number; fps: number; bps: number } {
+  if (limits === null) return { width: q.width, height: q.height, fps: q.fps, bps: videoBitrate(q) };
+  const k = Math.max(1, limits[0]);
+  const e = { width: (Math.floor(q.width / k)) & ~1, height: (Math.floor(q.height / k)) & ~1, fps: limits[1] > 0 ? Math.min(q.fps, limits[1]) : q.fps, bps: 0 };
+  e.bps = Math.min(videoBitrate(q), limits[2] > 0 ? limits[2] : videoBitrate(q));
+  return e;
+}
+
 /** What the main gateway gave: VOICE_SERVER_UPDATE's endpoint and token, VOICE_STATE_UPDATE's session id. */
 export interface VoiceServer {
   endpoint: string;    // host[:port], or a ws:// or wss:// URL (a test server)
@@ -129,6 +139,7 @@ export class VoiceConnection {
   private watched: Map<string, u32> = new Map<string, u32>();   // user -> the SSRC decoded for them
   private lowData = false;
   private diagAt = 0;
+  private videoAt = 0; private lastFrames = 0; private lastKeys = 0;
   private layers: Map<string, Layer[]> = new Map<string, Layer[]>();   // user -> the simulcast layers of their camera (op 12 streams)
   private sinkWanted = 0;                                     // the most the server asked of our stream in its last op 15
   private identifiedAt = 0;                                   // when a new Identify replaced a lost session (once a minute at most)
@@ -203,7 +214,7 @@ export class VoiceConnection {
   }
   /** The ultra low data mode for a poor connection (LOW_DATA_AUDIO_BPS and the video caps above), or back to full quality. Nothing is
    *  negotiated again: the encoders change, the server and the others see smaller packets. */
-  setLowDataMode(on: boolean): void { this.lowData = on; this.limits(); }
+  setLowDataMode(on: boolean): void { const was = this.lowData; this.lowData = on; this.limits(); if (was !== on && this.camera) this.describeVideo(); }   // the announcement follows the cap
 
   /** Sends our camera, or our screen on a Go Live connection (op 12 describes the stream at `q`, then each sendImage() frame goes out,
    *  encoded at videoBitrate(q)), or stops it (op 12 with no stream). The program also tells the main gateway (op 4 self_video). */
@@ -280,9 +291,21 @@ export class VoiceConnection {
     ws.send(text);
   }
   private trace(line: string): void { if (TRACE) this.log(`voice-gw[${this.kind()}] ${line}`); }
+  /** Each second of an outgoing video (DISCORD_LOG=1): the encoded size, frames and key frames of that second, the target bit rate. */
+  private videoLine(now: number): void {
+    for (const rec of S.report(this.h).split('\u001e')) {
+      const f = rec.split('\u001f');
+      if (f[0] !== 'out' || f[1] !== 'video') continue;
+      const frames = Number(f[6]), keys = Number(f[10]), secs = this.videoAt > 0 ? (now - this.videoAt) / 1000 : 1;
+      this.log(`voice-rtp[${this.kind()}] video ${f[7]}x${f[8]} ${((frames - this.lastFrames) / secs).toFixed(1)} fps target ${f[5]} bit/s keys ${keys - this.lastKeys}`);
+      this.lastFrames = frames; this.lastKeys = keys;
+    }
+    this.videoAt = now;
+  }
   /** The diagnostic's counters (DISCORD_LOG=1, every DIAG_MS): per stream sent and received (native report()), the totals and DAVE's. */
   private diagnose(): void {
     const now = Date.now();
+    if (TRACE && this.camera && now - this.videoAt >= 1000) this.videoLine(now);
     if (!TRACE || now - this.diagAt < DIAG_MS) return;
     this.diagAt = now;
     const k = `voice-rtp[${this.kind()}]`, st = this.stats(), v = this.videoStats(), dave = S.daveState(this.h).split('\u001f');
@@ -431,7 +454,9 @@ export class VoiceConnection {
   /** Op 12 from us: our stream, before its first packet (else the server drops the connection: invalid SSRC), or none. */
   private describeVideo(): void {
     if (this.h < 0 || this.state !== 'connected' || this.videoSsrc === 0) return;
-    const on = this.camera, q = this.quality, bps = videoBitrate(q);
+    const on = this.camera, e = sentQuality(this.quality, this.lowData ? (this.server.stream === true ? LOW_STREAM : LOW_CAMERA) : null), bps = e.bps;
+    const q = { width: e.width, height: e.height, fps: e.fps };
+    if (this.lowData) this.log(`voice video ${this.kind()} announced ${q.width}x${q.height} ${q.fps} fps ${bps} bit/s (low data mode)`);
     S.videoSend(this.h, on ? this.videoSsrc : 0, on ? this.rtxSsrc : 0, bps, q.fps, this.keyframeMs);
     // a Go Live connection is speaking (soundshare) while it streams, as Discord-video-stream's StreamConnection says
     if (this.server.stream === true) this.send(OP_SPEAKING, { speaking: on ? SPEAKING_SOUNDSHARE : 0, delay: 0, ssrc: this.ssrc });
