@@ -532,7 +532,7 @@ export function createText(s: string): i32 {
 }
 export function setText(h: i32, s: string): void {
   const n = node(h);
-  if (n.text !== s) { n.text = s; layoutDirty = true; if (tsNode === h) tsNode = -1; }
+  if (n.text !== s) { n.text = s; layoutDirty = true; if (tsNode === h || tsEnd === h) tsNode = -1; }
 }
 /** Style of a run of setTextRuns: bold, italic, monospace, underlined, struck through (an or of them; 0 the text's own). */
 export const RUN_BOLD: i32 = 1, RUN_ITALIC: i32 = 2, RUN_MONO: i32 = 4, RUN_UNDERLINE: i32 = 8, RUN_STRIKE: i32 = 16;
@@ -630,7 +630,7 @@ function release(h: i32): void {
   if (dimNode === h) dimNode = -1;
   if (capture === h) capture = -1;
   if (selecting === h) selecting = -1;
-  if (tsNode === h) tsNode = -1;
+  if (tsNode === h || tsEnd === h) tsNode = -1;
   for (const a of anims) if (a.node === h) a.node = -1;
   nodes[h] = DEAD;
   free.push(h);
@@ -4417,8 +4417,8 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
         const free = n.lw - inL(n) - inR(n) - n.lineW[i];
         const off = talignOf(n) === 1 ? Math.floor(free / 2) : talignOf(n) === 2 ? free : 0;
         const tx = x + (inL(n) + off) * kk, ty = y + (inT(n) + i * lh + top + n.vshift * n.size) * kk;
-        if (tsNode === h && tsA !== tsB) {   // the selected part of this line, under the text
-          const ls = tsStart(n, i), a0 = imax(imin(tsA, tsB), ls), b0 = imin(imax(tsA, tsB), ls + n.lines[i].length);
+        if (tsNode >= 0 && n.selectable && tsSpan(h, n)) {   // the selected part of this line, under the text
+          const ls = tsStart(n, i), a0 = imax(tsS, ls), b0 = imin(tsE, ls + n.lines[i].length);
           if (b0 > a0) { const x0 = linePrefixW(n, i, a0 - ls), x1 = linePrefixW(n, i, b0 - ls); rrect(tx + x0 * kk, y + (inT(n) + i * lh) * kk, (x1 - x0) * kk, lh * kk, 0, n.selBg >= 0 ? n.selBg : SEL_FOCUSED, 110); }
         }
         const jx = n.talign === 3 && i < n.lines.length - 1 && spaces(n.lines[i]) > 0 ? (n.lw - inL(n) - inR(n) - n.lineW[i]) / spaces(n.lines[i]) : 0;   // justify: the free width goes to the spaces
@@ -5594,7 +5594,7 @@ function pointerMove(px: number, py: number): void {
     const ly = Math.max(inT(n) - lh / 2, Math.min(n.lh - inB(n) + lh / 2, (py - boxY) / boxK));
     moveTo(e, offAt(n, e, (px - boxX) / boxK, ly), true);
   }
-  if (tsDrag && tsNode >= 0 && (held & 1) !== 0) { boxOf(tsNode); const nb = tsPosAt(nodes[tsNode], (px - boxX) / boxK, (py - boxY) / boxK); if (nb !== tsB) { tsB = nb; paintDirty = true; } }
+  if (tsDrag && tsNode >= 0 && (held & 1) !== 0) tsDragTo(px, py);
   if (capture >= 0) { fire(capture, PMOVE, px, py, -1); return; }
   if (grabKind !== 0) return;   // a gesture took this press: raw handlers got onPointerCancel
   const t = bubble(hit(px, py, HIT_ANY), PMOVE, false);
@@ -5602,7 +5602,7 @@ function pointerMove(px: number, py: number): void {
 }
 function keepsFocus(h: i32): boolean { for (let p = h; p >= 0; p = nodes[p].parent) if (nodes[p].keepFocus) return true; return false; }
 // ---- selection of static text (select-text, ZN-270): positions run over the displayed lines laid end to end
-let tsNode: i32 = -1, tsA: i32 = 0, tsB: i32 = 0, tsDrag = false;
+let tsNode: i32 = -1, tsA: i32 = 0, tsB: i32 = 0, tsDrag = false, tsEnd: i32 = -1, tsIa: i32 = 0, tsIb: i32 = 0, tsList: i32[] = [];
 function tsStart(n: UiNode, line: i32): i32 { let k = 0; for (let i = 0; i < line; i++) k += n.lines[i].length; return k; }
 function tsPosAt(n: UiNode, lx: number, ly: number): i32 {
   if (n.lines.length === 0) return 0;
@@ -5618,15 +5618,75 @@ function tsPosAt(n: UiNode, lx: number, ly: number): i32 {
   }
   return tsStart(n, line) + col;
 }
-/** The selected text of the static text node, lines of a wrapped paragraph joined by a space. */
+let tsS: i32 = 0, tsE: i32 = 0;
+/** The selectable text nodes in document order (the unit a selection runs over, as a browser's text nodes). */
+function tsCollect(h: i32): void {
+  const n = nodes[h];
+  if (!n.alive) return;
+  if (n.tag === TEXT && n.selectable) tsList.push(h);
+  for (const c of n.children) tsCollect(c);
+}
+/** The selected part [tsS, tsE) of text node h (offsets over its lines laid end to end); false when none of it is selected. */
+function tsSpan(h: i32, n: UiNode): boolean {
+  if (tsNode < 0) return false;
+  if (tsEnd === tsNode) { if (tsA === tsB || h !== tsNode) return false; tsS = imin(tsA, tsB); tsE = imax(tsA, tsB); return true; }
+  const i = tsList.indexOf(h), fwd = tsIa < tsIb, lo = fwd ? tsIa : tsIb, hi = fwd ? tsIb : tsIa;
+  if (i < lo || i > hi) return false;
+  const pLo = fwd ? tsA : tsB, pHi = fwd ? tsB : tsA, tot = tsStart(n, n.lines.length);
+  tsS = i === lo ? pLo : 0; tsE = i === hi ? pHi : tot;
+  return tsE > tsS;
+}
+/** The drag reached (px, py): the selection's end moves to the selectable text under it, or to the nearest one above or below (a gap between
+ *  blocks, the margin), and a scroll container holding it scrolls when the pointer is near its edge. */
+function tsDragTo(px: number, py: number): void {
+  let h = hit(px, py, HIT_ANY);
+  if (h < 0 || nodes[h].tag !== TEXT || !nodes[h].selectable) {
+    h = -1;
+    let best = 1e9;
+    for (const c of tsList) {
+      if (!nodes[c].alive) continue;
+      boxOf(c);
+      const top = boxY, bot = boxY + nodes[c].lh * boxK;
+      const d = py < top ? top - py : py > bot ? py - bot : 0;   // vertical distance to its box
+      if (d < best) { best = d; h = c; }
+    }
+    if (h < 0) return;
+  }
+  boxOf(h);
+  const n = nodes[h];
+  const nb = py < boxY ? 0 : py > boxY + n.lh * boxK ? tsStart(n, n.lines.length) : tsPosAt(n, (px - boxX) / boxK, (py - boxY) / boxK);
+  if (nb !== tsB || h !== tsEnd) { tsEnd = h; tsB = nb; tsIb = tsList.indexOf(h); paintDirty = true; }
+  for (let p = nodes[h].parent; p >= 0; p = nodes[p].parent) {   // near the edge of the scroll container: scroll it
+    const s = nodes[p];
+    if ((s.scroll & 1) === 0 || maxScrollY(s) <= 0) continue;
+    boxOf(p);
+    const top = boxY, bot = boxY + s.lh * boxK, band = 24;
+    if (py < top + band) scrollTo(p, s.sx, s.sy - Math.min(40, top + band - py));
+    else if (py > bot - band) scrollTo(p, s.sx, s.sy + Math.min(40, py - (bot - band)));
+    break;
+  }
+}
+/** The selected text: a wrapped line joins the next with a space, a newline of the text stays one, blocks are separated by a newline. */
 function tsSelected(): string {
-  if (tsNode < 0 || !nodes[tsNode].alive || tsA === tsB) return '';
-  const n = nodes[tsNode], a = imin(tsA, tsB), b = imax(tsA, tsB);
-  let out = '', at = 0;
-  for (let i = 0; i < n.lines.length; i++) {
-    const t = n.lines[i], s0 = imax(a, at), s1 = imin(b, at + t.length);
-    if (s1 > s0) out += (out.length > 0 ? ' ' : '') + t.slice(s0 - at, s1 - at);
-    at += t.length;
+  if (tsNode < 0 || !nodes[tsNode].alive || !nodes[tsEnd].alive) return '';
+  const single = tsEnd === tsNode, first = single ? 0 : imin(tsIa, tsIb), last = single ? 0 : imax(tsIa, tsIb);
+  let out = '';
+  for (let k = first; k <= last; k++) {
+    const h = single ? tsNode : tsList[k], n = nodes[h];
+    if (!n.alive || !tsSpan(h, n)) continue;
+    const src = shownText(n);
+    let part = '', at = 0, from = 0;
+    for (let i = 0; i < n.lines.length; i++) {
+      const t = n.lines[i], s0 = imax(tsS, at), s1 = imin(tsE, at + t.length);
+      const f = src.indexOf(t, from);
+      if (s1 > s0) {
+        const sep = part.length > 0 && f > 0 && src.slice(from, f).indexOf('\n') >= 0 ? '\n' : ' ';
+        part += (part.length > 0 ? sep : '') + t.slice(s0 - at, s1 - at);
+      }
+      if (f >= 0) from = f + t.length;
+      at += t.length;
+    }
+    out += (out.length > 0 ? '\n' : '') + part;
   }
   return out;
 }
@@ -5802,7 +5862,8 @@ function pressAt(px: number, py: number, button: i32): void {
   if (tsNode >= 0 && tsNode !== t) { tsNode = -1; paintDirty = true; }
   if (t >= 0 && nodes[t].selectable && nodes[t].tag === TEXT) {
     boxOf(t);
-    tsNode = t; tsA = tsB = tsPosAt(nodes[t], (px - boxX) / boxK, (py - boxY) / boxK); tsDrag = true; paintDirty = true;
+    tsNode = t; tsEnd = t; tsA = tsB = tsPosAt(nodes[t], (px - boxX) / boxK, (py - boxY) / boxK); tsDrag = true; paintDirty = true;
+    tsList = []; if (root >= 0) tsCollect(root); tsIa = tsIb = tsList.indexOf(t);
   }
   if (keepsFocus(t)) {
     // a virtual keyboard key: it activates on release like a button, but the focused field keeps the focus
@@ -6435,7 +6496,7 @@ class Surface {
   capture: i32 = -1; captureBtn: i32 = 0; selecting: i32 = -1; ptrX: number = -1; ptrY: number = -1; held: i32 = 0; curMods: i32 = 0;
   clicks: i32 = 0; lastBtn: i32 = -1; lastDownAt: number = -100000; lastDownX: number = 0; lastDownY: number = 0;
   hoverOnA = true; hoverA: i32[] = []; hoverB: i32[] = []; hoverDirty = true; cursorShown: i32 = -1; textOn: i32 = -1; blinkShown: number = -1;
-  tsNode: i32 = -1; tsA: i32 = 0; tsB: i32 = 0; tsDrag = false; padScroller: i32 = -1; padEdit: i32 = -1; padAxis: i32 = 0;
+  tsNode: i32 = -1; tsA: i32 = 0; tsB: i32 = 0; tsDrag = false; tsEnd: i32 = -1; tsIa: i32 = 0; tsIb: i32 = 0; tsList: i32[] = []; padScroller: i32 = -1; padEdit: i32 = -1; padAxis: i32 = 0;
   navKeys: i32 = 0; navBack = false; dropText = false; grabber: i32 = -1; grabKind: i32 = 0; dragCands: i32[] = [];
   pressX: number = 0; pressY: number = 0; pressMs: number = 0; gHit: i32 = -1; tapNode: i32 = -1; longNode: i32 = -1; longFired = false;
   primaryId: i32 = -1; fIds: i32[] = []; fXs: number[] = []; fYs: number[] = []; pinching = false; pinchD0: number = 1; pinchA0: number = 0;
@@ -6494,6 +6555,10 @@ function swapSurface(s: Surface): void {
   i = tsA; tsA = s.tsA; s.tsA = i;
   i = tsB; tsB = s.tsB; s.tsB = i;
   b = tsDrag; tsDrag = s.tsDrag; s.tsDrag = b;
+  i = tsEnd; tsEnd = s.tsEnd; s.tsEnd = i;
+  i = tsIa; tsIa = s.tsIa; s.tsIa = i;
+  i = tsIb; tsIb = s.tsIb; s.tsIb = i;
+  { const l = tsList; tsList = s.tsList; s.tsList = l; }
   i = padScroller; padScroller = s.padScroller; s.padScroller = i;
   i = padEdit; padEdit = s.padEdit; s.padEdit = i;
   i = padAxis; padAxis = s.padAxis; s.padAxis = i;

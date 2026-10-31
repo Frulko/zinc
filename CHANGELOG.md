@@ -8,6 +8,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### UI
+#### Fixed
+- Selecting text with `select-text` works across several lines and several `Text` blocks, like a browser: drag from one paragraph into the next (in a `ScrollView` too, the list scrolls near its edge), the whole span is highlighted and Cmd/Ctrl+C copies it with its line breaks.
+
 ### Apps and examples
 #### New
 - The Discord client has a faithful Slack theme (white window, aubergine sidebar with a blue open channel, outlined message box, light code cards; the old dark one is *Slack dark*), and themes can now colour the channel list, member list and cards apart (`sidebarText`, `sidebarMuted`, `sidebarStrong`, `sidebarHover`, `sidebarSelected`, `sidebarSelectedText`, `surface`, `composerBorder`). The Teams theme gets its outlined white message box.
