@@ -10,6 +10,7 @@
 import * as ui from 'zinc:ui';
 import { icon } from 'zinc:icons';
 import { Svg } from 'zinc:svg';
+import { attachTooltip } from './tooltip';
 
 export interface ViewerItem {
   image: i32; width: i32; height: i32;
@@ -25,6 +26,8 @@ export interface ViewerOptions {
   /** Where the picture is on screen now, [x, y, w, h] of item i (ui.screenBox of its node), null when it is not (scrolled away): the viewer then fades. */
   origin?: (i: i32) => number[] | null;
   onClose?: () => void;
+  /** The words of the viewer in the app's language, by name: viewer, zoomOut, zoomIn, copy, save, close, previous, next (English for the ones left out). Each button has them as its label and tooltip. */
+  labels?: Map<string, string>;
 }
 
 const MAX_ZOOM = 8, DBL_ZOOM = 2.5, OPEN_MS = 300, CLOSE_MS = 240, FADE_DOWN = 220, SWIPE_X = 90, DISMISS_Y = 110, BAR = 64;
@@ -50,7 +53,7 @@ class Viewer {
 
   constructor(o: ViewerOptions) {
     this.o = o; this.at = Math.max(0, Math.min(o.items.length - 1, o.index));
-    this.root = ui.createNode(ui.VIEW); ui.setClass(this.root, 'absolute inset-0 overflow-hidden'); ui.setRole(this.root, 'dialog'); ui.setLabel(this.root, 'Image viewer');
+    this.root = ui.createNode(ui.VIEW); ui.setClass(this.root, 'absolute inset-0 overflow-hidden'); ui.setRole(this.root, 'dialog'); ui.setLabel(this.root, this.word('viewer', 'Image viewer'));
     this.back = this.el(ui.VIEW, 'absolute inset-0 bg-black', this.root); ui.setNumber(this.back, 'opacity', 0);
     this.stage = this.el(ui.VIEW, 'absolute inset-0', this.root);
     this.img = this.el(ui.IMAGE, 'absolute left-0 top-0', this.stage);
@@ -59,14 +62,14 @@ class Viewer {
     this.title = this.el(ui.TEXT, 'text-base font-semibold text-white', cap);
     this.detail = this.el(ui.TEXT, 'text-xs text-[#c4c9d4]', cap);
     this.count = this.el(ui.TEXT, 'px-2 text-sm text-[#c4c9d4]', this.bar);
-    this.zout = this.button('zoom-out', 'Zoom out', this.bar, () => { this.zoomBy(1 / 1.5, this.W / 2, this.H / 2); });
-    this.zin = this.button('zoom-in', 'Zoom in', this.bar, () => { this.zoomBy(1.5, this.W / 2, this.H / 2); });
-    this.cp = this.button('copy', 'Copy', this.bar, () => { const f = this.o.items[this.at].copy; if (f !== undefined) f(); });
-    this.sv = this.button('download', 'Save', this.bar, () => { const f = this.o.items[this.at].save; if (f !== undefined) f(); });
-    this.button('x', 'Close', this.bar, () => { this.close(); });
+    this.zout = this.button('zoom-out', this.word('zoomOut', 'Zoom out'), this.bar, () => { this.zoomBy(1 / 1.5, this.W / 2, this.H / 2); });
+    this.zin = this.button('zoom-in', this.word('zoomIn', 'Zoom in'), this.bar, () => { this.zoomBy(1.5, this.W / 2, this.H / 2); });
+    this.cp = this.button('copy', this.word('copy', 'Copy'), this.bar, () => { const f = this.o.items[this.at].copy; if (f !== undefined) f(); });
+    this.sv = this.button('download', this.word('save', 'Save'), this.bar, () => { const f = this.o.items[this.at].save; if (f !== undefined) f(); });
+    this.button('x', this.word('close', 'Close'), this.bar, () => { this.close(); });
     const left = this.el(ui.VIEW, 'absolute left-4 top-0 bottom-0 justify-center', this.root), right = this.el(ui.VIEW, 'absolute right-4 top-0 bottom-0 justify-center', this.root);
-    this.prev = this.button('chevron-left', 'Previous picture', left, () => { this.go(-1); });
-    this.next = this.button('chevron-right', 'Next picture', right, () => { this.go(1); });
+    this.prev = this.button('chevron-left', this.word('previous', 'Previous picture'), left, () => { this.go(-1); });
+    this.next = this.button('chevron-right', this.word('next', 'Next picture'), right, () => { this.go(1); });
     ui.setNumber(this.prev, 'opacity', 0); ui.setNumber(this.next, 'opacity', 0);
     ui.onPointer(this.stage, ui.PWHEEL, (e: ui.PointerEvent) => { this.wheel(e); });
     ui.onPointer(this.stage, ui.PDBL, (e: ui.PointerEvent) => { this.toggle(e.x, e.y); });
@@ -79,6 +82,8 @@ class Viewer {
     ui.onKeyDown(this.root, (e: ui.KeyEvent) => { this.key(e); });
     this.show(false);
   }
+  /** A word of the viewer, in the language the app gave. */
+  word(key: string, english: string): string { const l = this.o.labels; if (l === undefined) return english; const w = (l as Map<string, string>).get(key); return w === undefined ? english : w as string; }
   el(tag: i32, cls: string, parent: i32): i32 { const n = ui.createNode(tag); ui.setClass(n, cls); ui.insert(parent, n, -1); return n; }
   /** A round icon button: a canvas drawing the icon, the node itself takes the press. */
   button(name: string, label: string, parent: i32, f: () => void): i32 {
@@ -86,6 +91,7 @@ class Viewer {
     const c = this.el(ui.CANVAS, 'w-[24] h-[24]', b);
     ui.draw(c, (x: i32, y: i32, w: i32, h: i32) => { const s: Svg | null = icon(name, WHITE, 2); if (s !== null) (s as Svg).draw(x, y, w, h, 255); });
     ui.setRole(b, 'button'); ui.setLabel(b, label); ui.listen(b, f);
+    attachTooltip(b, label, 'bottom');
     return b;
   }
   stageBox(): number[] { return ui.screenBox(this.stage); }

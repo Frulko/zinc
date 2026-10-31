@@ -5,6 +5,7 @@ import { Rule, RULES, GLOBAL_PER_MINUTE, GLOBAL_PER_HOUR, GLOBAL_PER_DAY, WRITES
   MENTIONS_MAX, LINKS_MAX, INVITES_MAX, INVITE_CHANNELS_MAX, INVITE_WINDOW_MS, SAME_TEXT_MS, SHORT_TEXT, SHORT_REPEATS, COLD_DMS_MAX,
   COLD_DM_WINDOW_MS, COLD_DM_PAUSE_MS, REACTION_TOGGLES, SAFE_MODE_MS, SAFE_MODES_BEFORE_LONG, SAFE_MODE_LONG_MS } from './policy';
 import { DISCORD_EPOCH } from '../constants';
+import { tr } from '../i18n';
 
 /** A sliding window: what was counted in the last `ms`. */
 export class Window {
@@ -101,20 +102,20 @@ export class Budgets {
    *  of the actions are not checked, the caps are). */
   check(kind: string, now: number, human: boolean, front: boolean, safe: boolean, scripted: boolean): string {
     const r = RULES.get(kind);
-    if (r === undefined) return `Not sent: "${kind}" is not something this client does.`;
-    if (safe && !r.essential) return 'Not sent: safe mode.';
-    if (!scripted && r.human && !human) return 'Not sent: only something you do yourself (a key or a click in this window) sends this.';
-    if (!scripted && r.focused && !front) return 'Not sent: this window is not in front.';
+    if (r === undefined) return tr('discord.guard.unknown', ['kind', kind]);
+    if (safe && !r.essential) return tr('discord.guard.safe_mode');
+    if (!scripted && r.human && !human) return tr('discord.guard.human');
+    if (!scripted && r.focused && !front) return tr('discord.guard.front');
     const t = this.track(kind), g = this.global;
     const wait = this.waitMs(kind, now);
-    if (wait > 0) return `Slow down: wait ${secs(wait)} s.`;
+    if (wait > 0) return tr('discord.guard.slow_down', ['secs', secs(wait)]);
     const soon = (!scripted || r.quiet) && now - t.last < r.gapMs;
     const perDay = this.cap(kind, r.perDay);
-    if (r.perDay > 0 && this.todayCount(kind, now) >= perDay) return r.quiet ? 'Not sent: too soon.' : `Not sent: ${perDay} a day is the most for this; it goes again tomorrow.`;
-    if (this.todayCount('', now) >= GLOBAL_PER_DAY) return r.quiet ? 'Not sent: too soon.' : `Not sent: this client sent ${GLOBAL_PER_DAY} requests today; it rests until tomorrow.`;
+    if (r.perDay > 0 && this.todayCount(kind, now) >= perDay) return r.quiet ? tr('discord.guard.too_soon') : tr('discord.guard.per_day', ['count', perDay]);
+    if (this.todayCount('', now) >= GLOBAL_PER_DAY) return r.quiet ? tr('discord.guard.too_soon') : tr('discord.guard.global_day', ['count', GLOBAL_PER_DAY]);
     if (soon || t.minute.count(now) >= this.cap(kind, r.perMinute) || t.hour.count(now) >= this.cap(kind, r.perHour))
-      return r.quiet ? 'Not sent: too soon.' : `Slow down: wait ${secs(this.strike(kind, now))} s.`;
-    if (g.minute.count(now) >= GLOBAL_PER_MINUTE || g.hour.count(now) >= GLOBAL_PER_HOUR) return `Slow down: wait ${secs(this.strike('', now))} s.`;
+      return r.quiet ? tr('discord.guard.too_soon') : tr('discord.guard.slow_down', ['secs', secs(this.strike(kind, now))]);
+    if (g.minute.count(now) >= GLOBAL_PER_MINUTE || g.hour.count(now) >= GLOBAL_PER_HOUR) return tr('discord.guard.slow_down', ['secs', secs(this.strike('', now))]);
     t.last = now; t.minute.add(now); t.hour.add(now); g.minute.add(now); g.hour.add(now);
     this.today.set(kind, this.todayCount(kind, now) + 1); this.todayAll++;
     return '';
@@ -139,25 +140,25 @@ export class Spam {
   private sent: Sent[] = [];
   /** '' when the text may go to the channel, else why not; an edit is not compared with what was sent. */
   check(text: string, channel: string, now: number, edit: boolean): string {
-    if (mentions(text) > MENTIONS_MAX) return `Not sent: a message mentions ${MENTIONS_MAX} people or roles at most here.`;
-    if (links(text) > LINKS_MAX) return `Not sent: a message holds ${LINKS_MAX} links at most here.`;
+    if (mentions(text) > MENTIONS_MAX) return tr('discord.guard.mentions', ['count', MENTIONS_MAX]);
+    if (links(text) > LINKS_MAX) return tr('discord.guard.links', ['count', LINKS_MAX]);
     const inv = invites(text);
-    if (inv.length > INVITES_MAX) return `Not sent: a message holds ${INVITES_MAX} invite link at most here.`;
+    if (inv.length > INVITES_MAX) return tr('discord.guard.invites', ['count', INVITES_MAX]);
     this.sent = this.sent.filter((s: Sent) => now - s.at < Math.max(SAME_TEXT_MS, INVITE_WINDOW_MS));
     for (const code of inv) {
       const where: string[] = [channel];
       for (const s of this.sent) if (now - s.at < INVITE_WINDOW_MS && s.invites.indexOf(code) >= 0 && where.indexOf(s.channel) < 0) where.push(s.channel);
-      if (where.length > INVITE_CHANNELS_MAX) return `Not sent: the same invite in more than ${INVITE_CHANNELS_MAX} conversations looks like advertising.`;
+      if (where.length > INVITE_CHANNELS_MAX) return tr('discord.guard.advertising', ['count', INVITE_CHANNELS_MAX]);
     }
     if (edit) return '';
     const same = sameText(text);
     if (same.length >= SHORT_TEXT) {
       for (const s of this.sent) if (s.text === same && now - s.at < SAME_TEXT_MS)
-        return s.channel === channel ? 'Not sent: you sent this message already.' : 'Not sent: the same message in several conversations looks like spam.';
+        return s.channel === channel ? tr('discord.guard.already') : tr('discord.guard.spam');
     } else if (same !== '') {
       let n = 0;
       for (const s of this.sent) if (s.text === same && s.channel === channel && now - s.at < 60000) n++;
-      if (n >= SHORT_REPEATS - 1) return 'Not sent: you sent this message already.';
+      if (n >= SHORT_REPEATS - 1) return tr('discord.guard.already');
     }
     return '';
   }
@@ -173,9 +174,9 @@ export class Spam {
 /** Layer 2, the text where it goes: `strangerDm`, the first message of a DM with someone who is not a friend (no link, no invite);
  *  `newMember`, a server joined a moment ago (no link, no mention); `mayEveryone`, MENTION_EVERYONE here (else no @everyone, @here). */
 export function placeCheck(text: string, strangerDm: boolean, newMember: boolean, mayEveryone: boolean): string {
-  if (!mayEveryone && text.match(/@everyone|@here/) !== null) return 'Not sent: you may not mention @everyone or @here in this channel.';
-  if (strangerDm && (links(text) > 0 || invites(text).length > 0)) return 'Not sent: no links in a first message to someone who is not your friend.';
-  if (newMember && (links(text) > 0 || mentions(text) > 0)) return 'Not sent: you joined this server a moment ago; links and mentions wait 10 minutes.';
+  if (!mayEveryone && text.match(/@everyone|@here/) !== null) return tr('discord.guard.everyone');
+  if (strangerDm && (links(text) > 0 || invites(text).length > 0)) return tr('discord.guard.stranger_links');
+  if (newMember && (links(text) > 0 || mentions(text) > 0)) return tr('discord.guard.new_member');
   return '';
 }
 
@@ -186,7 +187,7 @@ export class ColdDms {
   pausedUntil: number = 0;
   /** '' when a message may go to the DM (`cold`: nobody wrote in it for a month; '' a new DM), else why not. */
   check(channel: string, cold: boolean, now: number): string {
-    const paused = 'Not sent: you wrote to many people you had not talked to in a while; new conversations wait 10 minutes.';
+    const paused = tr('discord.guard.cold_dms');
     if (!cold || this.at.has(channel)) return '';
     if (now < this.pausedUntil) return paused;
     for (const k of Array.from(this.at.keys())) if (now - (this.at.get(k) as number) >= COLD_DM_WINDOW_MS) this.at.delete(k);
@@ -206,7 +207,7 @@ export class Toggles {
   }
   /** '' when the reaction (message and emoji) may change now, else why not. */
   check(key: string, now: number): string {
-    return this.window(key).count(now) < REACTION_TOGGLES ? '' : 'Not sent: this reaction went on and off too often; leave it a minute.';
+    return this.window(key).count(now) < REACTION_TOGGLES ? '' : tr('discord.guard.reaction_toggles');
   }
   /** The reaction changed. */
   remember(key: string, now: number): void { this.window(key).add(now); }
@@ -275,11 +276,11 @@ function verification(status: i32, body: any): boolean {
 }
 /** The plain sentence for a refused request, from its status and body ('' when the API's own message says it best). */
 export function plainError(status: i32, body: any, retryAfter: number): string {
-  if (captcha(body)) return 'Discord asks for a captcha, which this client does not show: log in with the QR code, or once in the official Discord app.';
-  if (status === 401) return 'Discord refused the token: log in again.';
-  if (dmsTooFast(body)) return 'Discord says you are opening DMs too fast: wait an hour.';
-  if (verification(status, body)) return 'Discord wants this account verified (email or phone): do it in the official Discord app, then try again here.';
-  if (status === 429) return `Discord is limiting how fast this client can go: try again in ${Math.max(1, Math.ceil(retryAfter))} s.`;
+  if (captcha(body)) return tr('discord.guard.captcha');
+  if (status === 401) return tr('discord.guard.token_refused');
+  if (dmsTooFast(body)) return tr('discord.guard.dms_fast');
+  if (verification(status, body)) return tr('discord.guard.verify');
+  if (status === 429) return tr('discord.guard.limited', ['secs', Math.max(1, Math.ceil(retryAfter))]);
   return '';
 }
 /** Whether a refused request puts the client in safe mode: a 401, a verification or a captcha asked for, 40003, or a 429 the client

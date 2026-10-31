@@ -12,6 +12,7 @@ import { subtle, CryptoKey } from 'zinc:subtle';
 import { base64Encode, base64Decode, TextDecoder } from 'zinc:web';
 import { api, begin, setToken, ApiError } from '../safety/index';
 import { REMOTE_AUTH_URL, WEB_ORIGIN, QR_LINK, USER_AGENT } from '../constants';
+import { tr } from '../i18n';
 
 const OAEP = { name: 'RSA-OAEP', hash: 'SHA-256' };
 
@@ -57,7 +58,7 @@ export class QrLogin {
       ws.onmessage = (e: MessageEvent): void => {
         if (this.ws === ws) this.receive(JSON.parse(e.data), spki).catch((err: Error): void => { this.end('expired', err.message); });
       };
-      ws.onclose = (e: CloseEvent): void => { if (this.ws === ws) this.end('expired', this.stage === 'starting' ? `The QR code service closed (${e.code}).` : ''); };
+      ws.onclose = (e: CloseEvent): void => { if (this.ws === ws) this.end('expired', this.stage === 'starting' ? tr('discord.login.qr_closed', ['code', e.code]) : ''); };
     } catch (e) { if (gen === this.gen) this.end('expired', (e as Error).message); }
   }
   /** Closes the gateway (the login screen left, or a new code asked for). */
@@ -90,7 +91,7 @@ export class QrLogin {
       const token = utf8(await decrypt(key, r.encrypted_token as string));
       this.stage = 'done'; this.changed();
       this.loggedIn(token);
-    } else if (m.op === 'cancel') this.end('expired', 'The login was cancelled on the phone.');
+    } else if (m.op === 'cancel') this.end('expired', tr('discord.login.qr_cancelled'));
   }
 }
 
@@ -116,7 +117,7 @@ export async function passwordLogin(login: string, password: string, mfa: Mfa): 
   const r: any = await api('login', 'POST', '/auth/login', { login: login, password: password, undelete: false, login_source: null, gift_code_sku_id: null });
   if (typeof r.token === 'string' && r.token !== '') return r.token as string;
   if (r.mfa === true && typeof r.ticket === 'string') { mfa.ticket = r.ticket as string; mfa.totp = r.totp === true; mfa.sms = r.sms === true; return ''; }
-  throw new Error('Discord did not log in: finish in the official Discord app, or use the QR code.');
+  throw new Error(tr('discord.login.not_logged_in'));
 }
 /** Sends the SMS code; the phone it went to (masked by Discord). */
 export async function sendSms(mfa: Mfa): Promise<string> {

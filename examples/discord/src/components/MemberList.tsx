@@ -4,6 +4,7 @@
 import { useRef, useEffect } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
 import { store } from '../state';
+import { tr } from '../i18n';
 import { MemberRow } from '../members';
 import { Avatar, Status } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';

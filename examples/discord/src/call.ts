@@ -19,6 +19,7 @@ import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
 import * as guard from './safety/index';
 import { PTT_KEY, TILE_W, TILE_H, FULL_W, FULL_H } from './constants';
+import { tr } from './i18n';
 
 export type CallState = VoiceState | 'idle';
 const VOICE_KEY = 'voice';
@@ -267,11 +268,11 @@ export class Call {
   async toggleVideo(): Promise<void> {
     if (this.video) { this.cameraOff(); this.apply(); return; }
     if (env('ZINC_FAKE_CAMERA') === '' && await cameraPermission() !== 'granted') {
-      this.error = 'Camera access is off for this app (System Settings > Privacy & Security > Camera).'; this.changed(); return;
+      this.error = tr('discord.error.camera_off'); this.changed(); return;
     }
     let cam: Camera;
     const hd = this.settings.camera === 720;
-    try { cam = await Camera.open('', { width: hd ? 1280 : 640, height: hd ? 720 : 360, fps: 30 }); } catch (e) { this.error = `Camera: ${e.message}`; this.changed(); return; }
+    try { cam = await Camera.open('', { width: hd ? 1280 : 640, height: hd ? 720 : 360, fps: 30 }); } catch (e) { this.error = tr('discord.error.camera', ['error', e.message]); this.changed(); return; }
     if (this.channelId === '' || this.cam !== null) { cam.close(); return; }
     this.cam = cam; this.video = true;
     cam.onFrame((i: number): void => {
@@ -343,16 +344,16 @@ export class Call {
     const s = this.settings;
     let picked: ShareChoice | null = null;
     try {
-      picked = await pickScreen({ title: 'Go Live', shareLabel: 'Go Live', resolution: s.streamRes, frameRate: s.streamFps, lockedNote: 'Nitro',
+      picked = await pickScreen({ title: tr('discord.call.go_live'), shareLabel: tr('discord.call.go_live'), resolution: s.streamRes, frameRate: s.streamFps, lockedNote: 'Nitro',
         allowed: (res: string, fps: number): boolean => streamAllowed(this.nitro, res, fps) });
-    } catch (e) { this.error = `Screen sharing: ${e.message}`; this.changed(); return; }
+    } catch (e) { this.error = tr('discord.error.screen', ['error', e.message]); this.changed(); return; }
     if (picked === null || this.channelId === '') return;
     const c: ShareChoice = picked;
     if (c.resolution !== s.streamRes || c.frameRate !== s.streamFps) this.set((v: VoiceSettings): void => { v.streamRes = c.resolution; v.streamFps = c.frameRate; });
     this.stopLive();
     let cap: ScreenCapture;
     try { cap = await ScreenCapture.open(c.sourceId, { width: c.width, height: c.height, frameRate: c.frameRate, cursor: c.cursor }); }
-    catch (e) { this.error = `Screen sharing: ${e.message}`; this.changed(); return; }
+    catch (e) { this.error = tr('discord.error.screen', ['error', e.message]); this.changed(); return; }
     if (this.channelId === '' || this.sharing !== null) { cap.close(); return; }
     const l = new Live();
     l.key = this.keyOf(this.me()); l.user = this.me();
@@ -363,7 +364,7 @@ export class Call {
       if (sc !== null) sc.sendImage(cap.image);
       if (this.viewOn && appState() === 'active') repaint();   // our stream's tile shows the capture
     });
-    cap.onEnded((why: string): void => { if (this.sharing === l) { this.stopLive(); this.error = `Screen sharing ended: ${why}`; } });
+    cap.onEnded((why: string): void => { if (this.sharing === l) { this.stopLive(); this.error = tr('discord.error.screen_ended', ['why', why]); } });
     this.log(`voice go live ${cap.width}x${cap.height} ${cap.fps} fps`);
     this.gw(18, { type: this.guildId !== '' ? 'guild' : 'call', guild_id: this.guildId !== '' ? this.guildId : null, channel_id: this.channelId, preferred_region: null });
     this.setPaused(l, false);   // right behind op 18, as Discord-video-stream's signalStream does (and again once the stream's connection is up)
@@ -421,7 +422,7 @@ export class Call {
     // the server pauses a stream nobody watches (and keeps it paused until its owner resumes): ours resumes whenever it is paused
     if (l === own && (t === 'STREAM_CREATE' || t === 'STREAM_UPDATE') && d.paused === true && l.conn !== null && l.resumes++ < 5) this.setPaused(l, false);   // ponytail: five tries, then a server that insists wins
     this.log(`stream ${t.substring(7).toLowerCase().replace('_', ' ')} ${key.replace(/[0-9]{6,}/g, '<id>')} ${l === own ? 'ours' : 'watched'} rtc ${l.rtc !== ''} endpoint ${l.endpoint !== ''} -> ${t === 'STREAM_DELETE' ? 'end' : step}`);
-    if (t === 'STREAM_DELETE') { this.endLive(l); if (l === own && d.reason !== 'user_requested') this.error = `Your stream ended (${d.reason})`; }
+    if (t === 'STREAM_DELETE') { this.endLive(l); if (l === own && d.reason !== 'user_requested') this.error = tr('discord.error.stream_ended', ['reason', d.reason]); }
     else if (step === 'connect') this.streamConnect(l, l.endpoint, l.token);
     else if (step === 'drop') { const c = l.conn; l.conn = null; if (c !== null) c.close(); this.changed(); }
   }
@@ -445,7 +446,7 @@ export class Call {
     conn.onState = (st: VoiceState): void => {
       if (l.conn !== conn) return;
       if (st === 'connected' && ours) this.setPaused(l, false);
-      if (st === 'closed') { l.conn = null; if (conn.reason !== 'left') this.error = `Stream disconnected: ${conn.reason}`; }
+      if (st === 'closed') { l.conn = null; if (conn.reason !== 'left') this.error = tr('discord.error.stream_disconnected', ['reason', conn.reason]); }
       this.changed();
     };
     conn.onVideo = (): void => { if (l.conn === conn) { this.videoWatch(); this.changed(); } };
@@ -475,7 +476,7 @@ export class Call {
     this.error = '';
     if (env('ZINC_FAKE_MICROPHONE') === '') {   // the system's question, once; the fake microphone needs none
       const p = await requestPermission();
-      if (p === 'denied') { this.error = 'Microphone access is off for this app (System Settings > Privacy & Security > Microphone).'; this.changed(); return; }
+      if (p === 'denied') { this.error = tr('discord.error.mic_off'); this.changed(); return; }
     }
     this.channelId = channelId; this.guildId = guildId; this.state = 'connecting';
     this.op4(guildId, channelId, this.mute, this.deaf, this.video);
@@ -553,7 +554,7 @@ export class Call {
       if (this.conn !== conn) return;
       this.state = st;
       if (st === 'connected' && this.since === 0) this.since = Date.now();
-      if (st === 'closed') { this.error = conn.reason !== 'left' ? `Voice disconnected: ${conn.reason}` : ''; this.conn = null; this.speaking.clear(); }
+      if (st === 'closed') { this.error = conn.reason !== 'left' ? tr('discord.error.voice_disconnected', ['reason', conn.reason]) : ''; this.conn = null; this.speaking.clear(); }
       this.changed();
     };
     conn.onVideo = (): void => { if (this.conn === conn) { this.videoWatch(); this.changed(); } };

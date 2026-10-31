@@ -3,6 +3,8 @@
 // speaking), a DM has a call button (green while it rings us). At the bottom the call bar while in a call, and the user with mute, deafen
 // and log out.
 import { Icon } from 'zinc:icons';
+import { Tooltip } from 'zinc:ui/kit';
+import { tr } from '../i18n';
 import { store, Channel } from '../state';
 import { Avatar, Status } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
@@ -43,9 +45,9 @@ function Row(p: { c: Channel }) {
     {c.type === CH_DM && c.recipientId !== '' ? <DmAvatar c={c} /> : <Icon name={icon(c)} size={18} color={MUTED} />}
     <Text className={`grow text-[15px] ${on ? `${SB_SELECTED_TEXT} font-semibold` : unread ? `${SB_STRONG} font-semibold` : open ? SB_TEXT : SB_MUTED}`} numberOfLines={1}>{c.name}</Text>
     {mentions > 0 ? <Badge n={mentions} /> : null}
-    {c.type === CH_DM || c.type === CH_GROUP_DM ? <View className="p-0.5 rounded hover:bg-[var(--dc-sidebar-selected)]" aria-label={`Call ${c.name}`} onPress={() => store.joinCall(c.id, '')}>
+    {c.type === CH_DM || c.type === CH_GROUP_DM ? <Tooltip label={tr('discord.channels.call', ['name', c.name])}><View className="p-0.5 rounded hover:bg-[var(--dc-sidebar-selected)]" aria-label={tr('discord.channels.call', ['name', c.name])} onPress={() => store.joinCall(c.id, '')}>
       <Icon name="phone" size={16} color={() => store.call.ringing.has(c.id) || store.call.members(c.id).length > 0 ? color('success') : color('muted')} />
-    </View> : null}
+    </View></Tooltip> : null}
   </View>;
 }
 
@@ -55,7 +57,7 @@ function Voices(p: { c: Channel }) {
   if (users.length === 0) return null;
   return <View className="pl-9 pr-2 pb-1 gap-[2]">{users.map((id: string) => {
     const name = store.userName(id), hash = store.avatarOf(id), talking = store.call.speaking.has(id);
-    return <View key={id} className="h-[28] flex-row items-center gap-2" aria-label={talking ? `${name}, speaking` : name}>
+    return <View key={id} className="h-[28] flex-row items-center gap-2" aria-label={talking ? tr('discord.channels.speaking', ['name', name]) : name}>
       <View className={`rounded-full border-2 ${talking ? SPEAKING_RING : 'border-transparent'}`}>
         <Avatar picture={hash !== '' ? cdnPicture(avatarKey(id, hash)) : -1} name={name} size={VOICE_AVATAR} round={true} />
       </View>
@@ -70,38 +72,38 @@ function CallBar() {
   if (call.channelId === '' && call.error === '') return null;
   const c = store.findChannel(call.channelId), g = store.findGuild(call.guildId);
   const where = c === null ? '' : g !== null ? `${c.name} / ${g.name}` : c.name;
-  const label = call.state === 'connected' ? 'Voice Connected' : call.state === 'reconnecting' ? 'Reconnecting…' : call.state === 'closed' ? 'Disconnected' : 'Connecting…';
+  const label = call.state === 'connected' ? tr('discord.call.connected') : call.state === 'reconnecting' ? tr('discord.call.reconnecting') : call.state === 'closed' ? tr('discord.call.closed') : tr('discord.call.connecting');
   return <View className="px-2 py-2 flex-row items-center gap-1 bg-[var(--dc-footer)] border-b border-[var(--dc-divider)]">
     {call.state === 'connected' ? <Bars /> : null}
     <View className="grow basis-0">
-      {call.channelId !== '' ? <Text className={`text-sm font-semibold ${call.state === 'connected' ? TEXT_SUCCESS : TEXT_WARNING}`}>{call.e2ee() ? `${label} · End-to-end encrypted` : label}</Text> : null}
+      {call.channelId !== '' ? <Text className={`text-sm font-semibold ${call.state === 'connected' ? TEXT_SUCCESS : TEXT_WARNING}`}>{call.e2ee() ? tr('discord.call.with_e2ee', ['state', label]) : label}</Text> : null}
       {call.channelId !== '' ? <Text className={`text-xs ${SB_MUTED}`} numberOfLines={1}>{where}</Text> : null}
       {call.error !== '' ? <Text className={`text-xs ${TEXT_ERROR}`}>{call.error}</Text> : null}
     </View>
     {call.channelId !== '' ? <View className={`px-1.5 py-0.5 rounded ${call.ptt ? 'bg-[var(--dc-accent)]' : SB_HOVER}`} onPress={() => call.setPushToTalk(!call.ptt)}
-      aria-label={call.ptt ? `Push to talk on (hold ${call.settings.pttKey})` : 'Push to talk off'}>
-      <Text className={`text-xs ${call.ptt ? 'text-[var(--dc-accent-text)]' : SB_MUTED}`}>PTT</Text>
+      aria-label={call.ptt ? tr('discord.channels.ptt_on', ['key', call.settings.pttKey]) : tr('discord.channels.ptt_off')}>
+      <Text className={`text-xs ${call.ptt ? 'text-[var(--dc-accent-text)]' : SB_MUTED}`}>{tr('discord.channels.ptt')}</Text>
     </View> : null}
-    {call.channelId !== '' ? <View className={`p-1 rounded ${SB_HOVER}`} onPress={() => call.leave()} aria-label="Disconnect">
+    {call.channelId !== '' ? <Tooltip label={tr('discord.call.disconnect')}><View className={`p-1 rounded ${SB_HOVER}`} onPress={() => call.leave()} aria-label={tr('discord.call.disconnect')}>
       <Icon name="phone-off" size={18} color={MUTED} />
-    </View> : null}
+    </View></Tooltip> : null}
   </View>;
 }
 
 /** Safe mode's shield: lit while it is on (chosen, or started by Discord pushing back); a press switches the chosen one. */
 function SafeMode() {
   const on = guard.safeModeOn(), end = guard.safeModeEnd();
-  const label = end > 0 ? `Safe mode on until ${guard.clock(end)}: Discord pushed back` : on ? 'Safe mode on: turn it off' : 'Safe mode off: turn it on';
-  return <View className={`p-1 rounded ${on ? 'bg-[var(--dc-accent-soft)]' : SB_HOVER}`} onPress={() => guard.chooseSafeMode(!guard.safeModeChosen())} aria-label={label}>
+  const label = end > 0 ? tr('discord.channels.safe_until', ['time', guard.clock(end)]) : on ? tr('discord.channels.safe_on') : tr('discord.channels.safe_off');
+  return <Tooltip label={label}><View className={`p-1 rounded ${on ? 'bg-[var(--dc-accent-soft)]' : SB_HOVER}`} onPress={() => guard.chooseSafeMode(!guard.safeModeChosen())} aria-label={label}>
     <Icon name={on ? 'shield-check' : 'shield'} size={18} color={() => guard.safeModeOn() ? color('accentSoftText') : color('muted')} />
-  </View>;
+  </View></Tooltip>;
 }
 
 export function ChannelList() {
   const g = store.findGuild(store.guildId);
   return <View className={`w-[${channelsW()}] ${BG_SIDE}`}>
     <View className="h-[48] px-4 justify-center border-b border-[var(--dc-footer)]">
-      <Text className={`font-semibold ${SB_STRONG}`} numberOfLines={1}>{g !== null ? g.name : 'Direct messages'}</Text>
+      <Text className={`font-semibold ${SB_STRONG}`} numberOfLines={1}>{g !== null ? g.name : tr('discord.rail.dm')}</Text>
     </View>
     <ScrollView className="grow">
       <View className="py-2 gap-[2]">{store.channels().filter(listed).map((c: Channel) => c.type === CH_VOICE
@@ -110,19 +112,19 @@ export function ChannelList() {
     <CallBar />
     <View className="min-h-[52] px-3 py-2 flex-row flex-wrap items-center gap-1 bg-[var(--dc-footer)]">
       <Text className={`grow min-w-[56] text-sm font-semibold ${store.call.speaking.has(store.me.id) ? TEXT_SUCCESS : SB_STRONG}`} numberOfLines={1}>{store.me.name}</Text>
-      <View className={`p-1 rounded ${SB_HOVER}`} onPress={() => store.call.toggleMute()} aria-label={store.call.mute ? 'Unmute' : 'Mute'}>
+      <Tooltip label={store.call.mute ? tr('discord.call.unmute') : tr('discord.call.mute')}><View className={`p-1 rounded ${SB_HOVER}`} onPress={() => store.call.toggleMute()} aria-label={store.call.mute ? tr('discord.call.unmute') : tr('discord.call.mute')}>
         <Icon name={store.call.mute || store.call.deaf ? 'mic-off' : 'mic'} size={18} color={() => store.call.mute || store.call.deaf ? color('danger') : color('muted')} />
-      </View>
-      <View className={`p-1 rounded ${SB_HOVER}`} onPress={() => store.call.toggleDeaf()} aria-label={store.call.deaf ? 'Undeafen' : 'Deafen'}>
+      </View></Tooltip>
+      <Tooltip label={store.call.deaf ? tr('discord.call.undeafen') : tr('discord.call.deafen')}><View className={`p-1 rounded ${SB_HOVER}`} onPress={() => store.call.toggleDeaf()} aria-label={store.call.deaf ? tr('discord.call.undeafen') : tr('discord.call.deafen')}>
         <Icon name={store.call.deaf ? 'headphone-off' : 'headphones'} size={18} color={() => store.call.deaf ? color('danger') : color('muted')} />
-      </View>
+      </View></Tooltip>
       <SafeMode />
-      <View className={`p-1 rounded ${SB_HOVER}`} onPress={() => store.showSettings(!store.settingsOpen)} aria-label="Settings">
+      <Tooltip label={tr('discord.channels.settings')}><View className={`p-1 rounded ${SB_HOVER}`} onPress={() => store.showSettings(!store.settingsOpen)} aria-label={tr('discord.channels.settings')}>
         <Icon name="settings" size={18} color={MUTED} />
-      </View>
-      <View className={`p-1 rounded ${SB_HOVER}`} onPress={() => store.logout()} aria-label="Log out">
+      </View></Tooltip>
+      <Tooltip label={tr('discord.channels.log_out')}><View className={`p-1 rounded ${SB_HOVER}`} onPress={() => store.logout()} aria-label={tr('discord.channels.log_out')}>
         <Icon name="log-out" size={18} color={MUTED} />
-      </View>
+      </View></Tooltip>
     </View>
   </View>;
 }

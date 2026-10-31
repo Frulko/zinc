@@ -3,7 +3,8 @@
 // (voice activity with its sensitivity over a live meter, or push-to-talk on a chosen key), the camera's quality, the ultra low data mode and each user's volume. Both stay on this
 // machine (state.ts, call.ts), never sent to Discord. Account safety: AccountSafety.tsx.
 import { Icon } from 'zinc:icons';
-import { Switch, Slider, Tabs } from 'zinc:ui/kit';
+import { Switch, Slider, Tabs, Tooltip } from 'zinc:ui/kit';
+import { tr } from '../i18n';
 import { rect } from 'zinc:gfx';
 import { AudioDevice } from 'zinc:discord-voice';
 import { store, Guild } from '../state';
@@ -21,7 +22,7 @@ function Row(p: { g: Guild }) {
   return <View className="h-[48] flex-row items-center gap-3">
     <Avatar picture={g.icon !== '' ? cdnPicture(iconKey(g.id, g.icon)) : -1} name={g.name} size={32} round={true} />
     <Text className={`grow basis-0 text-[15px] ${TEXT_MAIN}`} numberOfLines={1}>{g.name}</Text>
-    {store.isNew(g) ? <View className={`px-1.5 rounded ${BG_ACCENT}`}><Text className="text-white text-[11px] font-bold">NEW</Text></View> : null}
+    {store.isNew(g) ? <View className={`px-1.5 rounded ${BG_ACCENT}`}><Text className="text-white text-[11px] font-bold">{tr('discord.settings.new')}</Text></View> : null}
     <Switch checked={() => store.shown(g)} onChange={(on: boolean) => store.setShown(g.id, on)} accessibilityLabel={g.name} />
   </View>;
 }
@@ -29,12 +30,12 @@ function Row(p: { g: Guild }) {
 function Servers() {
   return <View className="px-6 py-4">
     <View className="pb-3 flex-row items-center gap-2">
-      <Text className={`grow basis-0 text-sm ${TEXT_MUTED}`}>Only the servers switched on show in the sidebar, count unread messages and notify. Direct messages always show. This choice stays on this computer.</Text>
-      <View className={`px-2 py-1 rounded ${BG_HOVER}`} onPress={() => store.setAllShown(false)} aria-label="Hide all servers">
-        <Text className={`text-sm ${TEXT_MAIN}`}>Hide all</Text>
+      <Text className={`grow basis-0 text-sm ${TEXT_MUTED}`}>{tr('discord.settings.servers_hint')}</Text>
+      <View className={`px-2 py-1 rounded ${BG_HOVER}`} onPress={() => store.setAllShown(false)} aria-label={tr('discord.settings.hide_all_label')}>
+        <Text className={`text-sm ${TEXT_MAIN}`}>{tr('discord.settings.hide_all')}</Text>
       </View>
-      <View className={`px-2 py-1 rounded ${BG_HOVER}`} onPress={() => store.setAllShown(true)} aria-label="Show all servers">
-        <Text className={`text-sm ${TEXT_MAIN}`}>Show all</Text>
+      <View className={`px-2 py-1 rounded ${BG_HOVER}`} onPress={() => store.setAllShown(true)} aria-label={tr('discord.settings.show_all_label')}>
+        <Text className={`text-sm ${TEXT_MAIN}`}>{tr('discord.settings.show_all')}</Text>
       </View>
     </View>
     {store.guilds.map((g: Guild) => <Row key={g.id} g={g} />)}
@@ -52,7 +53,7 @@ function Device(p: { d: AudioDevice; on: boolean; pick: (id: string) => void }) 
   </View>;
 }
 function Devices(p: { title: string; list: AudioDevice[]; chosen: string; pick: (id: string) => void }) {
-  const all: AudioDevice[] = [{ id: '', name: 'Default' }];
+  const all: AudioDevice[] = [{ id: '', name: tr('discord.settings.default') }];
   for (const d of p.list) all.push(d);
   return <View className="grow basis-0">
     <Heading text={p.title} />
@@ -90,40 +91,40 @@ function Voice() {
   for (const id of s.users.keys()) if (users.indexOf(id) < 0) users.push(id);
   return <View className="px-6 pb-6">
     <View className="flex-row gap-6">
-      <Devices title="Input device" list={call.inputs()} chosen={s.input} pick={(id: string) => set((v: VoiceSettings): void => { v.input = id; })} />
-      <Devices title="Output device" list={call.outputs()} chosen={s.output} pick={(id: string) => set((v: VoiceSettings): void => { v.output = id; })} />
+      <Devices title={tr('discord.settings.input_device')} list={call.inputs()} chosen={s.input} pick={(id: string) => set((v: VoiceSettings): void => { v.input = id; })} />
+      <Devices title={tr('discord.settings.output_device')} list={call.outputs()} chosen={s.output} pick={(id: string) => set((v: VoiceSettings): void => { v.output = id; })} />
     </View>
     <View className="flex-row gap-6">
-      <Volume label="Input volume" value={() => s.inputVolume} set={(n: number) => set((v: VoiceSettings): void => { v.inputVolume = n; })} />
-      <Volume label="Output volume" value={() => s.outputVolume} set={(n: number) => set((v: VoiceSettings): void => { v.outputVolume = n; })} />
+      <Volume label={tr('discord.settings.input_volume')} value={() => s.inputVolume} set={(n: number) => set((v: VoiceSettings): void => { v.inputVolume = n; })} />
+      <Volume label={tr('discord.settings.output_volume')} value={() => s.outputVolume} set={(n: number) => set((v: VoiceSettings): void => { v.outputVolume = n; })} />
     </View>
-    <Heading text="Input mode" />
-    <Tabs items={['Voice Activity', 'Push to Talk']} selected={() => s.mode === 'ptt' ? 1 : 0} onSelect={(i: i32) => set((v: VoiceSettings): void => { v.mode = i === 1 ? 'ptt' : 'voice'; })} className="w-[320]" />
+    <Heading text={tr('discord.settings.input_mode')} />
+    <Tabs items={[tr('discord.settings.voice_activity'), tr('discord.settings.push_to_talk')]} selected={() => s.mode === 'ptt' ? 1 : 0} onSelect={(i: i32) => set((v: VoiceSettings): void => { v.mode = i === 1 ? 'ptt' : 'voice'; })} className="w-[320]" />
     {s.mode === 'voice' ? <View>
-      <Heading text="Input sensitivity" />
-      <Text className={`pb-2 text-sm ${TEXT_MUTED}`}>{`Nothing is sent while the microphone stays under ${s.sensitivity} dB. Speak to see the bar: green is sent.`}</Text>
+      <Heading text={tr('discord.settings.sensitivity')} />
+      <Text className={`pb-2 text-sm ${TEXT_MUTED}`}>{tr('discord.settings.sensitivity_hint', ['db', `${s.sensitivity}`])}</Text>
       <Slider value={() => s.sensitivity} onChange={(n: number) => set((v: VoiceSettings): void => { v.sensitivity = n; })} min={-100} max={0} step={1} />
       <View className="pt-1 pr-4"><Meter /></View>
     </View> : <View>
-      <Heading text="Shortcut" />
+      <Heading text={tr('discord.settings.shortcut')} />
       <View className="flex-row items-center gap-3">
-        <View className={`px-3 h-[32] justify-center rounded ${BG_SURFACE}`}><Text className={`text-sm ${TEXT_STRONG}`}>{call.recordingKey ? 'Press a key…' : s.pttKey}</Text></View>
-        <View className={`px-3 h-[32] justify-center rounded ${BG_ACCENT}`} onPress={() => { call.recordingKey = true; store.changed(); }} aria-label="Record keybind">
-          <Text className="text-sm text-white">{call.recordingKey ? 'Recording' : 'Record keybind'}</Text>
+        <View className={`px-3 h-[32] justify-center rounded ${BG_SURFACE}`}><Text className={`text-sm ${TEXT_STRONG}`}>{call.recordingKey ? tr('discord.settings.press_key') : s.pttKey}</Text></View>
+        <View className={`px-3 h-[32] justify-center rounded ${BG_ACCENT}`} onPress={() => { call.recordingKey = true; store.changed(); }} aria-label={tr('discord.settings.record')}>
+          <Text className="text-sm text-white">{call.recordingKey ? tr('discord.settings.recording') : tr('discord.settings.record')}</Text>
         </View>
       </View>
-      <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>Nothing is sent unless the key is held.</Text>
+      <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>{tr('discord.settings.ptt_hint')}</Text>
     </View>}
-    <Heading text="Camera quality" />
+    <Heading text={tr('discord.settings.camera_quality')} />
     <Tabs items={['360p', '720p']} selected={() => s.camera === 720 ? 1 : 0} onSelect={(i: i32) => set((v: VoiceSettings): void => { v.camera = i === 1 ? 720 : 360; })} className="w-[200]" />
-    <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>From the next time the camera is turned on. Go Live's quality is chosen when sharing.</Text>
-    <Heading text="Poor connection" />
+    <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>{tr('discord.settings.camera_hint')}</Text>
+    <Heading text={tr('discord.settings.poor_connection')} />
     <View className="gap-2">
-      <Switch checked={() => s.lowData} onChange={(on: boolean) => call.setLowData(on)} label="Ultra low data" />
-      <Switch checked={() => s.autoLowData} onChange={(on: boolean) => set((v: VoiceSettings): void => { v.autoLowData = on; })} label="Switch on after 5 poor seconds" />
+      <Switch checked={() => s.lowData} onChange={(on: boolean) => call.setLowData(on)} label={tr('discord.call.low_data')} />
+      <Switch checked={() => s.autoLowData} onChange={(on: boolean) => set((v: VoiceSettings): void => { v.autoLowData = on; })} label={tr('discord.settings.auto_low')} />
     </View>
-    <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>Voice at 10 kbit/s, the camera at a quarter of its size and 5 frames a second, Go Live at half its size and 5 frames a second.</Text>
-    {users.length > 0 ? <Heading text="User volume" /> : null}
+    <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>{tr('discord.settings.low_hint')}</Text>
+    {users.length > 0 ? <Heading text={tr('discord.settings.user_volume')} /> : null}
     {users.map((id: string) => <View key={id} className="h-[36] flex-row items-center gap-3">
       <Text className={`w-[140] text-sm ${TEXT_MAIN}`} numberOfLines={1}>{store.userName(id)}</Text>
       <Slider value={() => call.userVolume(id)} onChange={(n: number) => call.setUserVolume(id, n)} min={0} max={200} step={5} className="grow basis-0" />
@@ -143,18 +144,18 @@ export function Settings() {
   const tab = store.settingsTab, voice = tab === 'voice', safety = tab === 'safety';
   return <View className={`grow basis-0 flex-row ${BG_MAIN}`}>
     <View className={`w-[180] px-2 py-4 gap-[2] ${BG_SURFACE}`}>
-      <Text className={`px-2.5 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>Settings</Text>
-      <Tab id="servers" label="Servers" />
-      <Tab id="voice" label="Voice & audio" />
-      <Tab id="safety" label="Account safety" />
-      <Tab id="appearance" label="Appearance" />
+      <Text className={`px-2.5 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>{tr('discord.channels.settings')}</Text>
+      <Tab id="servers" label={tr('discord.settings.servers')} />
+      <Tab id="voice" label={tr('discord.settings.voice')} />
+      <Tab id="safety" label={tr('discord.settings.safety')} />
+      <Tab id="appearance" label={tr('discord.settings.appearance')} />
     </View>
     <View className="grow basis-0">
       <View className="h-[48] px-4 flex-row items-center border-b border-[var(--dc-divider)]">
-        <Text className={`grow font-semibold ${TEXT_STRONG}`}>{voice ? 'Voice & audio' : safety ? 'Account safety' : tab === 'appearance' ? 'Appearance' : 'Servers'}</Text>
-        <View className={`p-1 rounded ${BG_HOVER}`} onPress={() => store.showSettings(false)} aria-label="Close the settings">
+        <Text className={`grow font-semibold ${TEXT_STRONG}`}>{voice ? tr('discord.settings.voice') : safety ? tr('discord.settings.safety') : tab === 'appearance' ? tr('discord.settings.appearance') : tr('discord.settings.servers')}</Text>
+        <Tooltip label={tr('discord.settings.close')} placement="bottom-end"><View className={`p-1 rounded ${BG_HOVER}`} onPress={() => store.showSettings(false)} aria-label={tr('discord.settings.close')}>
           <Icon name="x" size={20} color={MUTED} />
-        </View>
+        </View></Tooltip>
       </View>
       <ScrollView className="grow">{voice ? <Voice /> : safety ? <AccountSafety /> : tab === 'appearance' ? <Appearance /> : <Servers />}</ScrollView>
     </View>

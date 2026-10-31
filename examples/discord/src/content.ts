@@ -3,6 +3,7 @@
 // (components/Content.tsx). No drawing, no request.
 
 const str = (v: any): string => typeof v === 'string' ? v : '';
+import { tr, trn } from './i18n';
 const num = (v: any): i32 => typeof v === 'number' ? v : 0;
 const has = (v: any): boolean => v !== undefined && v !== null;
 
@@ -134,7 +135,7 @@ export function componentRows(list: any): Component[][] {
     for (const v of row.components) {
       const c = new Component();
       c.type = num(v.type); c.style = num(v.style); c.url = str(v.url); c.disabled = v.disabled === true;
-      c.label = c.type === 2 ? str(v.label) : str(v.placeholder) !== '' ? str(v.placeholder) : 'Make a selection';
+      c.label = c.type === 2 ? str(v.label) : str(v.placeholder) !== '' ? str(v.placeholder) : tr('discord.content.select');
       if (has(v.emoji)) c.emoji = str(v.emoji.name);
       r.push(c);
     }
@@ -156,7 +157,7 @@ export function interactionLine(m: any, userName: (u: any) => string): string {
   if (!has(i) || !has(i.user)) return '';
   const name = str(i.name) !== '' ? str(i.name) : has(m.interaction) ? str(m.interaction.name) : '';
   if (name === '') return '';
-  return `${userName(i.user)} used ${m.type === T_CONTEXT_MENU ? '' : '/'}${name}`;
+  return tr('discord.system.used', ['user', userName(i.user), 'command', `${m.type === T_CONTEXT_MENU ? '' : '/'}${name}`]);
 }
 
 const esc = (s: string): string => s.replace(/([\\*_~`|<>\[\]])/g, '\\$1');
@@ -166,35 +167,35 @@ export function systemText(m: any, author: string, mentioned: string, guild: str
   const type = num(m.type);
   if (isBody(type) || type === T_POLL_RESULT || type === 24 || type === 47 || type === 64) return '';
   const a = `**${esc(author)}**`, c = esc(str(m.content));
-  if (type === 1) return `${a} added **${esc(mentioned)}** to the group.`;
-  if (type === 2) return mentioned === '' || mentioned === author ? `${a} left the group.` : `${a} removed **${esc(mentioned)}** from the group.`;
+  if (type === 1) return tr('discord.system.added', ['a', a, 'who', esc(mentioned)]);
+  if (type === 2) return mentioned === '' || mentioned === author ? tr('discord.system.left', ['a', a]) : tr('discord.system.removed', ['a', a, 'who', esc(mentioned)]);
   if (type === 3) {
     const call: any = m.call, ended = has(call) ? str(call.ended_timestamp) : '';
     let joined = false;
     if (has(call) && Array.isArray(call.participants)) for (const p of call.participants) if (str(p) === meId) joined = true;
-    if (ended !== '' && !joined) return `You missed a call from ${a}.`;
-    if (ended === '') return `${a} started a call.`;
+    if (ended !== '' && !joined) return tr('discord.system.missed_call', ['a', a]);
+    if (ended === '') return tr('discord.system.call_started', ['a', a]);
     const minutes = Math.max(1, Math.round((Date.parse(ended) - Date.parse(str(m.timestamp))) / 60000));
-    return `${a} started a call that lasted ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+    return tr('discord.system.call_lasted', ['a', a, 'minutes', trn('discord.system.minutes', minutes)]);
   }
-  if (type === 4) return `${a} changed the channel name: **${c}**`;
-  if (type === 5) return `${a} changed the group icon.`;
-  if (type === 6) return `${a} pinned a message to this channel.`;
-  if (type === 7) return `${a} joined the server.`;
-  if (type === 8) return `${a} just boosted the server${c !== '' && c !== '1' ? ` **${c}** times` : ''}!`;
-  if (type >= 9 && type <= 11) return `${a} just boosted the server! **${esc(guild)}** has achieved **Level ${type - 8}!**`;
-  if (type === 12) return `${a} has added **${c}** to this channel. Its most important updates will show up here.`;
-  if (type === 18) return `${a} started a thread: **${c}**.`;
-  if (type === 22) return 'Wondering who to invite? Start by inviting anyone who can help you build the server!';
-  if (type === 27) return `${a} started **${c}**.`;
-  if (type === 28) return `${a} ended **${c}**.`;
-  if (type === 29) return `${a} is now a speaker.`;
-  if (type === 30) return `${a} requested to speak.`;
-  if (type === 31) return `${a} changed the Stage topic: **${c}**`;
-  if (type === 55) return `${a}'s HD streaming was activated.`;
-  if (type === 65) return `${a} started a voice session.`;
-  if (type === 67) return `${a} and you are now friends!`;
-  return '*Unsupported message*';
+  if (type === 4) return tr('discord.system.renamed', ['a', a, 'name', c]);
+  if (type === 5) return tr('discord.system.icon', ['a', a]);
+  if (type === 6) return tr('discord.system.pinned', ['a', a]);
+  if (type === 7) return tr('discord.system.joined', ['a', a]);
+  if (type === 8) return c !== '' && c !== '1' ? tr('discord.system.boost_times', ['a', a, 'count', c]) : tr('discord.system.boost', ['a', a]);
+  if (type >= 9 && type <= 11) return tr('discord.system.boost_level', ['a', a, 'guild', esc(guild), 'level', type - 8]);
+  if (type === 12) return tr('discord.system.follow', ['a', a, 'name', c]);
+  if (type === 18) return tr('discord.system.thread', ['a', a, 'name', c]);
+  if (type === 22) return tr('discord.system.invite_prompt');
+  if (type === 27) return tr('discord.system.stage_started', ['a', a, 'name', c]);
+  if (type === 28) return tr('discord.system.stage_ended', ['a', a, 'name', c]);
+  if (type === 29) return tr('discord.system.speaker', ['a', a]);
+  if (type === 30) return tr('discord.system.request_speak', ['a', a]);
+  if (type === 31) return tr('discord.system.stage_topic', ['a', a, 'name', c]);
+  if (type === 55) return tr('discord.system.hd', ['a', a]);
+  if (type === 65) return tr('discord.system.voice_session', ['a', a]);
+  if (type === 67) return tr('discord.system.friends', ['a', a]);
+  return tr('discord.system.unsupported');
 }
 /** The icon of a system row. */
 export function systemIcon(type: i32): string {
@@ -208,40 +209,43 @@ export function systemIcon(type: i32): string {
   return 'info';
 }
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+// the names of the months and days, the order of date and time and the 12 or 24 hour clock come from the catalog (discord.time.*)
+const MONTHS = (): string[] => tr('discord.time.months').split(',');
+const DAYS = (): string[] => tr('discord.time.days').split(',');
 const two = (n: number): string => n < 10 ? `0${n}` : `${n}`;
 /** A Discord timestamp <t:seconds:style> as the en-US web client writes it, in the reader's time zone; R is relative to now (ms). */
 export function formatStamp(seconds: number, style: string, now: number): string {
   const d = new Date(seconds * 1000);
-  const h = d.getHours() % 12 === 0 ? 12 : d.getHours() % 12, ampm = d.getHours() < 12 ? 'AM' : 'PM';
-  const t = `${h}:${two(d.getMinutes())} ${ampm}`, tt = `${h}:${two(d.getMinutes())}:${two(d.getSeconds())} ${ampm}`;
-  const date = `${two(d.getMonth() + 1)}/${two(d.getDate())}/${d.getFullYear()}`, long = `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  const clock12 = tr('discord.time.clock12') === '1';
+  const h = clock12 ? (d.getHours() % 12 === 0 ? 12 : d.getHours() % 12) : d.getHours(), ampm = clock12 ? ` ${d.getHours() < 12 ? tr('discord.time.am') : tr('discord.time.pm')}` : '';
+  const hh = clock12 ? `${h}` : two(h);
+  const t = `${hh}:${two(d.getMinutes())}${ampm}`, tt = `${hh}:${two(d.getMinutes())}:${two(d.getSeconds())}${ampm}`;
+  const date = tr('discord.time.date', ['m', two(d.getMonth() + 1), 'd', two(d.getDate()), 'y', `${d.getFullYear()}`]);
+  const long = tr('discord.time.long', ['month', MONTHS()[d.getMonth()], 'd', `${d.getDate()}`, 'y', `${d.getFullYear()}`]);
   if (style === 't') return t;
   if (style === 'T') return tt;
   if (style === 'd') return date;
   if (style === 'D') return long;
-  if (style === 'F') return `${DAYS[d.getDay()]}, ${long} at ${t}`;
-  if (style === 's') return `${date}, ${t}`;
-  if (style === 'S') return `${date}, ${tt}`;
+  if (style === 'F') return tr('discord.time.full', ['day', DAYS()[d.getDay()], 'long', long, 't', t]);
+  if (style === 's') return tr('discord.time.date_time', ['date', date, 't', t]);
+  if (style === 'S') return tr('discord.time.date_time', ['date', date, 't', tt]);
   if (style === 'R') return relative(seconds * 1000 - now);
-  return `${long} at ${t}`;
+  return tr('discord.time.at', ['long', long, 't', t]);
 }
 /** "in 3 hours", "2 months ago", "a few seconds ago" (moment.js's words, which Discord uses). */
 function relative(ms: number): string {
   const s = Math.abs(ms) / 1000;
-  const say = (n: number, unit: string): string => n === 1 ? `${unit === 'hour' ? 'an' : 'a'} ${unit}` : `${n} ${unit}s`;
-  const words = s < 45 ? 'a few seconds' : s < 90 ? 'a minute' : s < 2700 ? say(Math.round(s / 60), 'minute') : s < 5400 ? 'an hour'
-    : s < 79200 ? say(Math.round(s / 3600), 'hour') : s < 129600 ? 'a day' : s < 2160000 ? say(Math.round(s / 86400), 'day')
-    : s < 3888000 ? 'a month' : s < 29808000 ? say(Math.round(s / 2592000), 'month') : say(Math.max(1, Math.round(s / 31536000)), 'year');
-  return ms >= 0 ? `in ${words}` : `${words} ago`;
+  const words = s < 45 ? tr('discord.rel.seconds') : s < 90 ? trn('discord.rel.minutes', 1) : s < 2700 ? trn('discord.rel.minutes', Math.round(s / 60)) : s < 5400 ? trn('discord.rel.hours', 1)
+    : s < 79200 ? trn('discord.rel.hours', Math.round(s / 3600)) : s < 129600 ? trn('discord.rel.days', 1) : s < 2160000 ? trn('discord.rel.days', Math.round(s / 86400))
+    : s < 3888000 ? trn('discord.rel.months', 1) : s < 29808000 ? trn('discord.rel.months', Math.round(s / 2592000)) : trn('discord.rel.years', Math.max(1, Math.round(s / 31536000)));
+  return ms >= 0 ? tr('discord.rel.future', ['words', words]) : tr('discord.rel.past', ['words', words]);
 }
 
 /** A size in Discord's words: 512 bytes, 12.3 KB, 2.50 MB. */
 export function sizeText(bytes: number): string {
-  if (bytes < 1024) return `${bytes} bytes`;
-  if (bytes < 1048576) return `${Math.round(bytes / 102.4) / 10} KB`;
-  return `${(bytes / 1048576).toFixed(2)} MB`;
+  if (bytes < 1024) return tr('discord.size.bytes', ['n', `${bytes}`]);
+  if (bytes < 1048576) return tr('discord.size.kb', ['n', `${Math.round(bytes / 102.4) / 10}`]);
+  return tr('discord.size.mb', ['n', (bytes / 1048576).toFixed(2)]);
 }
 /** A voice message's waveform (base64, one byte a sample): `bars` heights 0..1. */
 export function waveform(b64: string, bars: i32): number[] {

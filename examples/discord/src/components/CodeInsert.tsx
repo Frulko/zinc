@@ -3,6 +3,8 @@
 // Markdown: the text, then a fenced block with its language.
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
+import { Tooltip } from 'zinc:ui/kit';
+import { tr } from '../i18n';
 import { clipboardText, setClipboardText } from 'zinc:gfx';
 import { EditorState, CodeEditor, stepEditor, stepCursors, drawCursors, setText, langNamed, setTheme, theme, ONE_DARK, ONE_LIGHT } from 'zinc:editor';
 import { store } from '../state';
@@ -78,9 +80,10 @@ function paste(): void {
 
 /** The code button of the composer. */
 export function CodeInsert() {
-  return <View className={`px-2 py-[12] ${isOpen ? 'opacity-100' : ''}`} aria-label={isOpen ? 'Close the code editor' : 'Write code'} onPress={toggle}>
+  const label = isOpen ? tr('discord.code.close_editor') : tr('discord.code.write');
+  return <Tooltip label={label}><View className={`px-2 py-[12] ${isOpen ? 'opacity-100' : ''}`} aria-label={label} onPress={toggle}>
     <Icon name="code" size={20} color={() => isOpen ? color('strong') : color('icon')} />
-  </View>;
+  </View></Tooltip>;
 }
 
 /** The editor above the message field: language, copy, paste and send, and the code itself. */
@@ -91,17 +94,17 @@ export function CodePanel() {
   const btn = `h-[28] px-2 flex-row items-center gap-1 rounded ${BG_HOVER}`;
   return <View className={`mb-2 ${rounded()} border border-[var(--dc-border)] ${BG_SURFACE} overflow-hidden`}>
     <View className="h-[36] pl-3 pr-1 flex-row items-center gap-1">
-      <View className={btn} aria-label="Code language" onPress={() => { picking = !picking; store.changed(); }}>
-        <Text className={`text-sm font-mono ${TEXT_MAIN}`} numberOfLines={1}>{lang === '' ? 'plain' : lang}</Text>
+      <View className={btn} aria-label={tr('discord.code.language')} onPress={() => { picking = !picking; store.changed(); }}>
+        <Text className={`text-sm font-mono ${TEXT_MAIN}`} numberOfLines={1}>{lang === '' ? tr('discord.code.plain_short') : lang}</Text>
         <Icon name="chevron-down" size={14} color={() => color('muted')} />
       </View>
       <View className="grow basis-0" />
-      <View className={btn} aria-label="Paste into the code" onPress={paste}><Icon name="clipboard" size={14} color={() => color('muted')} /></View>
-      <View className={btn} aria-label="Copy the code" onPress={() => setClipboardText(codeText())}><Icon name="copy" size={14} color={() => color('muted')} /></View>
-      <View className={`h-[28] px-2 flex-row items-center gap-1 rounded bg-[var(--dc-accent)]`} aria-label="Send with the code" onPress={() => sendWithCode()}>
-        <Icon name="arrow-right" size={14} color={() => 0xffffff} /><Text className="text-sm font-semibold text-white">Send</Text>
+      <Tooltip label={tr('discord.code.paste')}><View className={btn} aria-label={tr('discord.code.paste')} onPress={paste}><Icon name="clipboard" size={14} color={() => color('muted')} /></View></Tooltip>
+      <Tooltip label={tr('discord.code.copy_the_code')}><View className={btn} aria-label={tr('discord.code.copy_the_code')} onPress={() => setClipboardText(codeText())}><Icon name="copy" size={14} color={() => color('muted')} /></View></Tooltip>
+      <View className={`h-[28] px-2 flex-row items-center gap-1 rounded bg-[var(--dc-accent)]`} aria-label={tr('discord.code.send_with')} onPress={() => sendWithCode()}>
+        <Icon name="arrow-right" size={14} color={() => 0xffffff} /><Text className="text-sm font-semibold text-white">{tr('discord.common.send')}</Text>
       </View>
-      <View className={btn} aria-label="Close the code editor" onPress={toggle}><Icon name="x" size={14} color={() => color('muted')} /></View>
+      <Tooltip label={tr('discord.code.close_editor')}><View className={btn} aria-label={tr('discord.code.close_editor')} onPress={toggle}><Icon name="x" size={14} color={() => color('muted')} /></View></Tooltip>
     </View>
     <View className={`relative h-[${EDITOR_H}] overflow-hidden`}>
       <CodeEditor state={b} visible={() => true}
@@ -110,8 +113,8 @@ export function CodePanel() {
       <Canvas className="absolute inset-0 pointer-events-none" style={{ lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => drawCursors(b, x, y, w, h)} />
     </View>
     {picking ? <View className={`absolute left-2 right-2 top-[38] p-2 flex-row flex-wrap gap-1 ${rounded()} border border-[var(--dc-border)] ${BG_INPUT}`}>
-      {LANGS.map((l: string) => <View key={l} className={`px-2 py-1 rounded ${l === lang ? 'bg-[var(--dc-selected)]' : BG_HOVER}`} aria-label={`Code language ${l === '' ? 'plain' : l}`} onPress={() => choose(l)}>
-        <Text className={`text-sm font-mono ${TEXT_MAIN}`}>{l === '' ? 'plain' : l}</Text>
+      {LANGS.map((l: string) => <View key={l} className={`px-2 py-1 rounded ${l === lang ? 'bg-[var(--dc-selected)]' : BG_HOVER}`} aria-label={tr('discord.code.language_named', ['name', l === '' ? tr('discord.code.plain_short') : l])} onPress={() => choose(l)}>
+        <Text className={`text-sm font-mono ${TEXT_MAIN}`}>{l === '' ? tr('discord.code.plain_short') : l}</Text>
       </View>)}
     </View> : null}
   </View>;

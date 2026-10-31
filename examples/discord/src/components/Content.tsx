@@ -7,6 +7,7 @@ import { Icon } from 'zinc:icons';
 import { useRef, useEffect } from 'zinc:ui/react';
 import { openUrl } from 'zinc:system/opener';
 import { store, Message, Attachment } from '../state';
+import { tr, trn } from '../i18n';
 import { Embed, EmbedField, EmbedMedia, Reaction, Sticker, PollAnswer, Component, STICKER_LOTTIE, STICKER_GIF, F_SUPPRESS_EMBEDS,
   sizeText, waveform } from '../content';
 import { Markdown } from './Markdown';
@@ -50,8 +51,8 @@ function Play(p: { w: i32; h: i32 }) {
 
 /** A picture hidden behind "SPOILER" until clicked. */
 function Spoiler(p: { w: i32; h: i32; m: Message }) {
-  return <View className={`mt-1 w-[${p.w}] h-[${p.h}] rounded-lg bg-[var(--dc-rail)] items-center justify-center`} aria-label="Spoiler" onPress={() => store.revealSpoilers(p.m)}>
-    <Text className="px-3 py-1 rounded-full bg-[#000000]/60 text-sm font-bold text-white">SPOILER</Text>
+  return <View className={`mt-1 w-[${p.w}] h-[${p.h}] rounded-lg bg-[var(--dc-rail)] items-center justify-center`} aria-label={tr('discord.content.spoiler')} onPress={() => store.revealSpoilers(p.m)}>
+    <Text className="px-3 py-1 rounded-full bg-[#000000]/60 text-sm font-bold text-white">{tr('discord.content.spoiler_badge')}</Text>
   </View>;
 }
 
@@ -61,7 +62,7 @@ function FileCard(p: { a: Attachment; icon: string }) {
     <Icon name={p.icon} size={24} color={LINK} />
     <View>
       <Text className="text-sm text-[var(--dc-link)]">{a.filename}</Text>
-      <Text className={`text-xs ${TEXT_MUTED}`}>{a.url === '' ? 'sending…' : sizeText(a.size)}</Text>
+      <Text className={`text-xs ${TEXT_MUTED}`}>{a.url === '' ? tr('discord.content.sending') : sizeText(a.size)}</Text>
     </View>
   </View>;
 }
@@ -72,7 +73,7 @@ const BARS = 40;
 /** A voice message: a play button, its waveform and its length (played in the browser: the app does not decode Opus yet). */
 function Voice(p: { a: Attachment }) {
   const a = p.a;
-  return <View className="mt-1 self-start h-[48] px-3 flex-row items-center gap-3 rounded-full bg-[var(--dc-surface)]" aria-label="Voice message" onPress={() => open(a.url)}>
+  return <View className="mt-1 self-start h-[48] px-3 flex-row items-center gap-3 rounded-full bg-[var(--dc-surface)]" aria-label={tr('discord.content.voice')} onPress={() => open(a.url)}>
     <View className="w-[32] h-[32] rounded-full bg-[var(--dc-accent)] items-center justify-center"><Icon name="play" size={16} color={WHITE} /></View>
     <View className="h-[28] flex-row items-center gap-[2]">
       {waveform(a.waveform, BARS).map((v: number, i: i32) => <View key={`${i}`} className={`w-[3] h-[${4 + Math.round(v * 22)}] rounded-full bg-[var(--dc-icon)]`} />)}
@@ -101,8 +102,8 @@ export function Media(p: { a: Attachment; m: Message }) {
     if (a.kind === 'image' && a.filename.toLowerCase().endsWith('.gif') && a.size <= GIF_MAX)
       return <Animated file={attachmentKey(a.url)} url={a.url} still={picture} w={b.w} h={b.h} className={cls} label={alt} />;
     const failed = a.proxyUrl !== '' ? mediaFailed(a.proxyUrl, b.w, b.h) : attachmentFailed(a.url);
-    if (failed && picture < 0) return <View className={`${cls} items-center justify-center gap-1`} aria-label={`${alt}, could not load`} onPress={() => open(a.url)}>
-      <Icon name="image-off" size={24} color={MUTED} /><Text className={`text-xs ${TEXT_MUTED}`}>Could not load the picture</Text>
+    if (failed && picture < 0) return <View className={`${cls} items-center justify-center gap-1`} aria-label={tr('discord.content.could_not_load_named', ['name', alt])} onPress={() => open(a.url)}>
+      <Icon name="image-off" size={24} color={MUTED} /><Text className={`text-xs ${TEXT_MUTED}`}>{tr('discord.content.could_not_load')}</Text>
     </View>;
     if (a.kind === 'image') return <Image ref={ref} image={picture} className={`${cls} ${picture >= 0 ? 'cursor-pointer' : ''}`} aria-label={alt} onPress={view} />;
     return <View className={`mt-1 w-[${b.w}] h-[${b.h}] rounded-lg bg-[#000000]`} aria-label={alt} onPress={() => open(a.url)}>
@@ -131,10 +132,10 @@ function StickerView(p: { s: Sticker }) {
 function EmbedPicture(p: { media: EmbedMedia; video: boolean; url: string; maxW: i32 }) {
   const b = fit(p.media.width, p.media.height, p.maxW, MEDIA_MAX_H);
   const cls = `w-[${b.w}] h-[${b.h}] rounded bg-[var(--dc-rail)] object-cover`, still = mediaPicture(p.media.url, b.w, b.h), gif = tenorGif(p.media.url);
-  if (gif !== '') return <View className="mt-2" aria-label="GIF"><Animated file={`tenor/${gif.split('/').slice(3).join('_')}`} url={gif} still={still} w={b.w} h={b.h} className={cls} label="GIF" /></View>;
+  if (gif !== '') return <View className="mt-2" aria-label={tr('discord.picker.gif_badge')}><Animated file={`tenor/${gif.split('/').slice(3).join('_')}`} url={gif} still={still} w={b.w} h={b.h} className={cls} label={tr('discord.picker.gif_badge')} /></View>;
   const img = <Image image={still} className={cls} />;
   if (!p.video) return <View className="mt-2">{img}</View>;
-  return <View className={`mt-2 w-[${b.w}] h-[${b.h}]`} aria-label="Play" onPress={() => open(p.url)}>{img}<Play w={b.w} h={b.h} /></View>;
+  return <View className={`mt-2 w-[${b.w}] h-[${b.h}]`} aria-label={tr('discord.content.play')} onPress={() => open(p.url)}>{img}<Play w={b.w} h={b.h} /></View>;
 }
 
 function Field(p: { f: EmbedField }) {
@@ -152,8 +153,8 @@ function PollResult(p: { e: Embed }) {
   return <View className={`mt-1 self-start w-full max-w-[${Math.min(EMBED_W, colW())}] px-4 py-3 flex-row items-center gap-3 rounded-lg border border-[var(--dc-border)] ${BG_SURFACE}`}>
     <Icon name="chart-bar" size={24} color={MUTED} />
     <View className="grow basis-0">
-      <Text className={`text-[15px] font-semibold ${TEXT_STRONG}`}>{`${field(e, 'poll_question_text')}: the poll has closed`}</Text>
-      <Text className={`text-sm ${TEXT_MUTED}`}>{won !== '' ? `${won} won with ${votes} vote${votes === 1 ? '' : 's'} (${total > 0 ? Math.round(votes * 100 / total) : 0}%)` : 'No votes'}</Text>
+      <Text className={`text-[15px] font-semibold ${TEXT_STRONG}`}>{tr('discord.poll.has_closed', ['question', field(e, 'poll_question_text')])}</Text>
+      <Text className={`text-sm ${TEXT_MUTED}`}>{won !== '' ? tr('discord.poll.won', ['answer', won, 'votes', trn('discord.poll.votes', votes), 'percent', `${total > 0 ? Math.round(votes * 100 / total) : 0}`]) : tr('discord.poll.no_votes')}</Text>
     </View>
   </View>;
 }
@@ -185,20 +186,21 @@ function EmbedCard(p: { e: Embed }) {
   </View>;
 }
 
+const ended = (expiry: string): boolean => !(Date.parse(expiry) - Date.now() > 0);
 const left = (expiry: string): string => {
   const ms = Date.parse(expiry) - Date.now();
-  if (!(ms > 0)) return 'Poll closed';
+  if (!(ms > 0)) return tr('discord.poll.closed');
   const h = Math.floor(ms / 3600000);
-  return h >= 24 ? `${Math.floor(h / 24)}d left` : h >= 1 ? `${h}h left` : `${Math.max(1, Math.floor(ms / 60000))}m left`;
+  return h >= 24 ? tr('discord.poll.days_left', ['n', `${Math.floor(h / 24)}`]) : h >= 1 ? tr('discord.poll.hours_left', ['n', `${h}`]) : tr('discord.poll.minutes_left', ['n', `${Math.max(1, Math.floor(ms / 60000))}`]);
 };
 /** A poll: the question, an answer per row (pressed: my vote, again: taken back), and once voted or ended the share of each. */
 function PollView(p: { m: Message }) {
   const m = p.m, poll = m.poll;
   if (poll === null) return null;
-  const total = poll.total(), shown = poll.voted() || poll.finalized, closed = poll.finalized || left(poll.expiry) === 'Poll closed';
+  const total = poll.total(), shown = poll.voted() || poll.finalized, closed = poll.finalized || ended(poll.expiry);
   return <View className={`mt-1 w-full max-w-[${Math.min(EMBED_W, colW())}] p-4 gap-2 rounded-lg border border-[var(--dc-border)] ${BG_SURFACE}`}>
     <Text className={`text-[17px] font-semibold ${TEXT_STRONG}`}>{poll.question}</Text>
-    <Text className={`text-sm ${TEXT_MUTED}`}>{poll.multi ? 'Select one or more answers' : 'Select one answer'}</Text>
+    <Text className={`text-sm ${TEXT_MUTED}`}>{poll.multi ? tr('discord.poll.multi_choice') : tr('discord.poll.single_choice')}</Text>
     {poll.answers.map((a: PollAnswer) => {
       const pct = total > 0 ? Math.round(a.count * 100 / total) : 0;
       return <View key={`${a.id}`} className={`h-[44] rounded-lg border ${a.mine ? 'border-[var(--dc-accent)]' : 'border-[var(--dc-input)]'} bg-[var(--dc-input)]`}
@@ -212,7 +214,7 @@ function PollView(p: { m: Message }) {
         </View>
       </View>;
     })}
-    <Text className={`text-xs ${TEXT_MUTED}`}>{`${total} vote${total === 1 ? '' : 's'} • ${poll.finalized ? 'Poll closed' : left(poll.expiry)}`}</Text>
+    <Text className={`text-xs ${TEXT_MUTED}`}>{`${trn('discord.poll.votes', total)} • ${poll.finalized ? tr('discord.poll.closed') : left(poll.expiry)}`}</Text>
   </View>;
 }
 
@@ -252,10 +254,10 @@ export function Content(p: { m: Message }) {
     {(m.flags & F_SUPPRESS_EMBEDS) === 0 ? m.embeds.map((e: Embed, i: i32) => <EmbedCard key={`${i}`} e={e} />) : null}
     {m.poll !== null ? <PollView m={m} /> : null}
     {m.rows.map((row: Component[], i: i32) => <View key={`${i}`} className="mt-1 flex-row flex-wrap gap-2">{row.map((c: Component, k: i32) => <Control key={`${k}`} c={c} />)}</View>)}
-    {t !== null ? <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg ${BG_SURFACE}`} aria-label={`Thread ${t.name}`} onPress={() => store.openThread(t.id)}>
+    {t !== null ? <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg ${BG_SURFACE}`} aria-label={tr('discord.content.thread', ['name', t.name])} onPress={() => store.openThread(t.id)}>
       <Icon name="message-square" size={16} color={MUTED} />
       <Text className={`text-sm font-semibold ${TEXT_STRONG}`}>{t.name}</Text>
-      <Text className="text-sm text-[var(--dc-link)]">{`${t.count} message${t.count === 1 ? '' : 's'}`}</Text>
+      <Text className="text-sm text-[var(--dc-link)]">{trn('discord.content.messages', t.count)}</Text>
     </View> : null}
     {m.reactions.length > 0 ? <View className="mt-1 flex-row flex-wrap gap-1">{m.reactions.map((r: Reaction, i: i32) => <ReactionPill key={`${i}`} r={r} m={m} />)}</View> : null}
   </View>;

@@ -25,6 +25,7 @@ import { Rule, RULES, HUMAN_S, FILES_MAX, GET_CACHE_MS, OFFLINE_FIRST_MS, OFFLIN
   YOUNG_ACCOUNT_MS } from './policy';
 import { Window, Budgets, Spam, Buckets, ColdDms, Toggles, routeOf, plainError, startsSafeMode, placeCheck, dmsTooFast, safeModeMs } from './core';
 import { Access, ATTACH_FILES, ADD_REACTIONS, CONNECT, SPEAK, MOVE_MEMBERS, MENTION_EVERYONE } from './access';
+import { tr } from '../i18n';
 
 export { ApiError };
 /** Picture URLs renewed in one request at most. */
@@ -92,7 +93,7 @@ function actionCheck(kind: string, d: Details | null, now: number): string {
   if ((kind === 'login' || kind === 'mfa') && now < loginStopUntil)
     return `${LOGIN_FAILURES} logins failed this hour: the password login waits until ${clock(loginStopUntil)}. The QR code still works.`;
   if (kind === 'dm') {
-    if (access.limited(now)) return `Not sent: new DMs wait until your account is ${YOUNG_ACCOUNT_MS / 86400000} days old and its email verified.`;
+    if (access.limited(now)) return tr('discord.guard.young', ['days', YOUNG_ACCOUNT_MS / 86400000]);
     if (now < dmPausedUntil) return plainError(0, { code: 40003 }, 0);
     const no = cold.check('', true, now);
     if (no !== '') return no;
@@ -101,12 +102,12 @@ function actionCheck(kind: string, d: Details | null, now: number): string {
   if (d === null) return '';
   const ch = d.channel;
   const writes = kind === 'send' || kind === 'upload' || kind === 'edit' || kind === 'react' || kind === 'vote' || kind === 'delete';
-  if (writes && !online) return 'Not connected to Discord: try again in a moment.';
+  if (writes && !online) return tr('discord.guard.offline');
   if (kind === 'send' || kind === 'upload' || kind === 'typing') {
     const no = access.cannotSend(ch, now);
     if (no !== '') return no;
     const slow = slowLeft(ch, now);
-    if (slow > 0) return `Slowmode: you can send again in ${Math.ceil(slow / 1000)} s.`;
+    if (slow > 0) return tr('discord.guard.slowmode', ['secs', Math.ceil(slow / 1000)]);
     const wait = access.verificationWait(ch, now);
     if (wait !== '') return wait;
   }
@@ -115,15 +116,15 @@ function actionCheck(kind: string, d: Details | null, now: number): string {
     if (no !== '') return no;
   }
   if (kind === 'send' || kind === 'edit') {
-    if (d.text.length > access.messageMax()) return `A message holds ${access.messageMax()} characters at most.`;
+    if (d.text.length > access.messageMax()) return tr('discord.guard.max_chars', ['count', access.messageMax()]);
     const place = textCheck(d.text, ch, now);
     return place !== '' ? place : spam.check(d.text, ch, now, kind === 'edit');
   }
   if (kind === 'upload') {
-    if (access.lacks(ch, ATTACH_FILES, now)) return 'You do not have permission to send files here.';
-    if (d.sizes.length > FILES_MAX) return `A message holds ${FILES_MAX} files at most.`;
+    if (access.lacks(ch, ATTACH_FILES, now)) return tr('discord.guard.no_files');
+    if (d.sizes.length > FILES_MAX) return tr('discord.guard.max_files', ['count', FILES_MAX]);
     const max = access.uploadMax(ch);
-    for (const n of d.sizes) if (n > max) return `A file is larger than the ${Math.round(max / MB)} MB you may send here.`;
+    for (const n of d.sizes) if (n > max) return tr('discord.guard.file_large', ['mb', Math.round(max / MB)]);
     const place = d.text !== '' ? textCheck(d.text, ch, now) : '';
     return place !== '' || d.text === '' ? place : spam.check(d.text, ch, now, false);
   }
@@ -131,13 +132,13 @@ function actionCheck(kind: string, d: Details | null, now: number): string {
     const no = toggles.check(d.target, now);
     if (no !== '') return no;
   }
-  if (kind === 'react' && d.author !== '' && access.isBlocked(d.author)) return 'You blocked this person: no reactions to their messages.';
-  if (kind === 'react' && d.newReaction && access.lacks(ch, ADD_REACTIONS, now)) return 'You do not have permission to add reactions here.';
-  if (kind === 'pin' && !access.mayPin(ch, now)) return 'You do not have permission to pin messages here.';
+  if (kind === 'react' && d.author !== '' && access.isBlocked(d.author)) return tr('discord.guard.blocked_react');
+  if (kind === 'react' && d.newReaction && access.lacks(ch, ADD_REACTIONS, now)) return tr('discord.guard.no_react');
+  if (kind === 'pin' && !access.mayPin(ch, now)) return tr('discord.guard.no_pin');
   if (kind === 'call') {
-    if (access.lacks(ch, CONNECT, now)) return 'You do not have permission to join this voice channel.';
+    if (access.lacks(ch, CONNECT, now)) return tr('discord.guard.no_join');
     const limit = access.userLimit(ch);
-    if (limit > 0 && d.inCall >= limit && access.lacks(ch, MOVE_MEMBERS, now)) return 'This voice channel is full.';
+    if (limit > 0 && d.inCall >= limit && access.lacks(ch, MOVE_MEMBERS, now)) return tr('discord.guard.full');
   }
   return '';
 }
@@ -219,10 +220,10 @@ export function safetyState(): SafetyState {
   if (access.createdAt > 0) s.ageDays = Math.floor((now - access.createdAt) / 86400000);
   if (now < safeUntil) { s.safeUntil = safeUntil; s.safeReason = safeReason; }
   s.safeChosen = chosen;
-  if (now < dmPausedUntil) s.pauses.push(`New DMs until ${clock(dmPausedUntil)}: Discord said you opened DMs too fast.`);
-  if (now < cold.pausedUntil) s.pauses.push(`New conversations until ${clock(cold.pausedUntil)}: you wrote to many people you had not talked to in a while.`);
-  if (now < holdUntil) s.pauses.push(`Reconnecting until ${clock(holdUntil)}: the connection kept dropping.`);
-  if (now < loginStopUntil) s.pauses.push(`The password login until ${clock(loginStopUntil)}: ${LOGIN_FAILURES} logins failed.`);
+  if (now < dmPausedUntil) s.pauses.push(tr('discord.guard.pause_dms', ['time', clock(dmPausedUntil)]));
+  if (now < cold.pausedUntil) s.pauses.push(tr('discord.guard.pause_cold', ['time', clock(cold.pausedUntil)]));
+  if (now < holdUntil) s.pauses.push(tr('discord.guard.pause_reconnect', ['time', clock(holdUntil)]));
+  if (now < loginStopUntil) s.pauses.push(tr('discord.guard.pause_login', ['time', clock(loginStopUntil), 'count', LOGIN_FAILURES]));
   for (const kind of RULES.keys()) {
     const r = RULES.get(kind) as Rule, wait = budgets.waitMs(kind, now);
     if (!r.quiet && wait > 0) s.pauses.push(`${kind}: ${Math.ceil(wait / 1000)} s, after going faster than a person.`);
@@ -240,7 +241,7 @@ export function countdown(ch: string): string {
   const now = Date.now(), slow = slowLeft(ch, now), wait = budgets.waitMs('send', now);
   if (slow <= 0 && wait <= 0) return '';
   if (ticking < 0) ticking = setTimeout(() => { ticking = -1; changed(); }, 1000);
-  return slow >= wait ? `Slowmode: you can send again in ${Math.ceil(slow / 1000)} s` : `Slow down: you can send again in ${Math.ceil(wait / 1000)} s`;
+  return slow >= wait ? tr('discord.guard.slowmode_wait', ['secs', Math.ceil(slow / 1000)]) : tr('discord.guard.slow_wait', ['secs', Math.ceil(wait / 1000)]);
 }
 let ticking = -1;
 /** Runs f once ACK_BURST_MS after the first call of a burst (the read marker of messages arriving in the open channel). */
@@ -273,7 +274,7 @@ export function setToken(t: string): void { setTransportToken(t); tokenRefused =
 
 /** One HTTP request under a verdict of begin(); a refused verdict (or none) sends nothing and throws its message. */
 export async function request(v: Verdict, method: string, path: string, body: any): Promise<any> {
-  if (!spend(v)) throw new ApiError(0, v.message !== '' ? v.message : 'Not sent: the guard did not let it through.');
+  if (!spend(v)) throw new ApiError(0, v.message !== '' ? v.message : tr('discord.guard.blocked_by_guard'));
   const background = !(RULES.get(v.kind) as Rule).essential;
   if (method !== 'GET') return http(v, method, path, body, background);
   const known = cache.get(path);
@@ -300,7 +301,7 @@ async function http(v: Verdict, method: string, path: string, body: any, backgro
     if (tokenRefused) throw new ApiError(401, plainError(401, null, 0));
     if (background && safe(Date.now())) throw new ApiError(0, 'safe mode: not sent');
     if (background && Date.now() < offlineUntil) throw new ApiError(0, 'offline: not sent');
-    if (invalid.count(Date.now()) >= INVALID_MAX) throw new ApiError(0, 'Discord refused too many requests from this client: it waits a few minutes before asking again.');
+    if (invalid.count(Date.now()) >= INVALID_MAX) throw new ApiError(0, tr('discord.guard.too_many_refused'));
     let told = false;
     for (;;) {   // Discord's bucket of the route, and 50 a second
       const now = Date.now();
@@ -316,7 +317,7 @@ async function http(v: Verdict, method: string, path: string, body: any, backgro
     catch (e) {
       log(`offline: ${route} failed (${e.message}), background requests wait ${offlineWait / 1000} s`);
       offlineUntil = Date.now() + offlineWait; offlineWait = Math.min(offlineWait * 2, OFFLINE_MAX_MS);
-      throw new ApiError(0, 'No connection to Discord: try again in a moment.');
+      throw new ApiError(0, tr('discord.guard.no_connection'));
     }
     const r = got as Response;
     offlineWait = OFFLINE_FIRST_MS;
@@ -335,7 +336,7 @@ async function http(v: Verdict, method: string, path: string, body: any, backgro
       budgets.strike(v.kind, Date.now());
       if (r.status === 429) budgets.strike('', Date.now());
       const why = plainError(r.status, j, wait);
-      const told = why !== '' ? why : `Discord refused a request (HTTP ${r.status}): this client slows down for a while.`;
+      const told = why !== '' ? why : tr('discord.guard.refused_http', ['status', r.status]);
       if (r.status === 401) tokenRefused = true; else startSafeMode(told);
       if (dmsTooFast(j)) dmPausedUntil = Date.now() + DM_TOO_FAST_MS;
       log(`safe mode: ${r.status} on ${route}`);
@@ -359,7 +360,7 @@ async function http(v: Verdict, method: string, path: string, body: any, backgro
       if (message === '') message = j !== null && typeof j.message === 'string' ? j.message : `HTTP ${r.status}`;
       // a message refused here is not tried again in this channel (a DM closed to me, a permission READY did not show)
       if (r.status === 403 && (v.kind === 'send' || v.kind === 'upload') && v.channel !== '')
-        access.refusedIn.set(v.channel, j !== null && j.code === 50007 ? 'This person does not take messages from you.' : `Discord refused messages here: ${message}`);
+        access.refusedIn.set(v.channel, j !== null && j.code === 50007 ? tr('discord.guard.no_messages_from_you') : tr('discord.guard.refused_here', ['message', message]));
       throw new ApiError(r.status, message, j);
     }
     return text.length > 0 ? JSON.parse(text) : null;
@@ -368,13 +369,13 @@ async function http(v: Verdict, method: string, path: string, body: any, backgro
 
 /** A file's bytes PUT to the storage URL Discord gave for it (no token goes there), under the upload's verdict. */
 export async function storagePut(v: Verdict, url: string, body: Blob): Promise<Response> {
-  if (!spend(v)) throw new ApiError(0, 'Not sent: the guard did not let it through.');
+  if (!spend(v)) throw new ApiError(0, tr('discord.guard.blocked_by_guard'));
   return await fetch(url, { method: 'PUT', body: body });
 }
 
 /** A file sent to a transfer service the person chose (services/transfer.ts), under a 'transfer' verdict: no Discord token goes there. */
 export async function transferSend(v: Verdict, url: string, init: net.RequestInit): Promise<net.Response> {
-  if (!spend(v)) throw new ApiError(0, 'Not sent: the guard did not let it through.');
+  if (!spend(v)) throw new ApiError(0, tr('discord.guard.blocked_by_guard'));
   return await net.fetch(url, init);
 }
 /** The largest file the person may send in the channel (their Nitro, the server's boosts): a larger one goes through a transfer service. */
@@ -465,7 +466,7 @@ export function reconnectDelay(): number[] {
   if (reconnects.take(Date.now()) > 0) {   // rule 24: a flapping network does not reconnect every minute all day
     holdUntil = Date.now() + RECONNECT_HOLD_MS;
     log(`gateway: ${RECONNECTS_MAX} reconnections this hour, the next waits ${RECONNECT_HOLD_MS / 60000} minutes`);
-    safeMode(`The connection keeps dropping: this client tries again at ${clock(holdUntil)}.`, false);
+    safeMode(tr('discord.guard.dropping', ['time', clock(holdUntil)]), false);
     reconnects.add(Date.now());   // the hold's own reconnection counts
     return [RECONNECT_HOLD_MS, RECONNECT_HOLD_MS];
   }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tools/i18n-check [repo]: the message catalogs of i18n/<lang>/<area>.json (D159, docs/reports/onboarding-i18n-research.md section 5.5).
 
-Every area file found under any language (cli, diag, atelier...) is compared with English's:
+Every area file found under any language (cli, diag, atelier...) is compared with English's (an OPTIONAL area, an app's like discord, only in the languages that have its file):
   - valid UTF-8 JSON, one flat object of non-empty NFC strings, every key starting with its area ("cli.");
   - the same messages as English; a message with a number (key_one, key_other...) has at least `one` and `other`
     (`many` missing in fr, es, it is a warning: it only matters from a million);
@@ -18,6 +18,7 @@ base = os.path.join(root, "i18n")
 errors, warnings = [], []
 PLURAL = re.compile(r"^(.*)_(zero|one|two|few|many|other)$")
 PROTECTED = re.compile(r"Z\d{4}|`[^`]+`|\bzinc [a-z][a-z0-9-]*|(?<![\w-])--[a-z][a-z0-9-]*")
+OPTIONAL = {"discord"}   # an app's catalog: a language that has no file for it reads English (the others are complete in every language)
 MANY = {"fr", "es", "it"}   # CLDR: these have a `many` category (exact millions)
 
 def placeholders(text):
@@ -74,6 +75,7 @@ for area in areas:
         if None not in forms and not {"one", "other"} <= set(forms): errors.append(f"i18n/en/{area}.json: {b}: a plural message needs _one and _other")
     for lang in langs:
         if lang == "en": continue
+        if area in OPTIONAL and not os.path.exists(os.path.join(base, lang, area + ".json")): continue
         rel = f"i18n/{lang}/{area}.json"
         tm = messages(load(lang, area))
         for b in sorted(set(tm) - set(em)): errors.append(f"{rel}: {b}: not in English")

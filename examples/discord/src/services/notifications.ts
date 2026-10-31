@@ -4,6 +4,7 @@ import * as notification from 'zinc:system/notification';
 import * as dock from 'zinc:system/dock';
 import * as win from 'zinc:system/window';
 import { store, Message, Channel } from '../state';
+import { tr } from '../i18n';
 
 let badge = '';
 /** The last notification shown (the tests click it). */
@@ -19,7 +20,7 @@ function where(c: Channel): string {
 function body(m: Message): string {
   let t = m.content;
   for (const id of m.mentions) t = t.split(`<@${id}>`).join(`@${store.userName(id)}`).split(`<@!${id}>`).join(`@${store.userName(id)}`);
-  if (t === '' && m.attachments.length > 0) t = m.attachments.length === 1 ? `Sent ${m.attachments[0].filename}` : `Sent ${m.attachments.length} files`;
+  if (t === '' && m.attachments.length > 0) t = m.attachments.length === 1 ? tr('discord.notify.sent_file', ['name', m.attachments[0].filename]) : tr('discord.notify.sent_files', ['count', `${m.attachments.length}`]);
   return t.length > 200 ? `${t.slice(0, 199)}…` : t;
 }
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'zinc:ui/react';
 import { stat } from 'zinc:fs';
 import { store } from '../state';
+import { tr, trn } from '../i18n';
 import * as guard from '../safety/index';
 import { PROVIDERS, Provider, TransferSettings, transferSettings, saveTransferSettings, transferKey, saveTransferKey, transferFile } from '../services/transfer';
 import { BG_SURFACE, BG_INPUT, BG_HOVER, BG_SELECTED, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG } from '../constants';
@@ -11,7 +12,7 @@ import { rounded } from '../theme';
 const MB = 1024 * 1024;
 const sizeOf = (p: string): number => { try { return stat(p).size; } catch (e) { return 0; } };
 const nameOf = (p: string): string => { const s = p.split('/'); return s[s.length - 1]; };
-const mb = (n: number): string => `${(n / MB).toFixed(n < 10 * MB ? 1 : 0)} MB`;
+const mb = (n: number): string => tr('discord.unit.mb', ['n', (n / MB).toFixed(n < 10 * MB ? 1 : 0)]);
 
 let shownLinks: string[] = [];
 /** The links of the last transfer (the tests). */
@@ -47,35 +48,35 @@ export function Transfer() {
       steps++;
       setSent(each.reduce((a: number, b: number) => a + b, 0));
     }))).then((l: string[]) => { shownLinks = l; setLinks(l); })
-      .catch((e: Error) => { setError(`The transfer failed: ${e.message}`); });
+      .catch((e: Error) => { setError(tr('discord.transfer.failed', ['error', e.message])); });
   };
   const close = (): void => { store.transferPaths = []; store.changed(); };
   const pct = total > 0 && sent > 0 ? Math.min(100, Math.round(sent * 100 / total)) : 0;
   return <View className="absolute inset-0 items-center justify-center bg-[#000000]/60">
-    <View className={`w-[520] p-5 gap-3 ${rounded()} ${BG_SURFACE}`} aria-label="Send large files">
-      <Text className={`text-lg font-bold ${TEXT_STRONG}`}>Too large for Discord</Text>
-      <Text className={`text-sm ${TEXT_MUTED}`}>{`You may send ${mb(max)} a file here. Send ${paths.length === 1 ? 'this file' : 'these files'} through a transfer service, then post the link.`}</Text>
+    <View className={`w-[520] p-5 gap-3 ${rounded()} ${BG_SURFACE}`} aria-label={tr('discord.transfer.label')}>
+      <Text className={`text-lg font-bold ${TEXT_STRONG}`}>{tr('discord.transfer.title')}</Text>
+      <Text className={`text-sm ${TEXT_MUTED}`}>{trn('discord.transfer.intro', paths.length, ['max', mb(max)])}</Text>
       {paths.map((p: string) => <Text key={p} className={`text-sm ${TEXT_MAIN}`} numberOfLines={1}>{`${nameOf(p)}  ${mb(sizeOf(p))}`}</Text>)}
       {sent < 0 ? <View className="gap-1">
-        {PROVIDERS.map((p: Provider) => <View key={p.id} className={`p-2 rounded ${p.id === t.provider ? BG_SELECTED : BG_HOVER}`} aria-label={p.name} onPress={() => choose(p.id)}>
-          <Text className={`text-sm font-semibold ${TEXT_STRONG}`}>{p.name}</Text>
-          <Text className={`text-xs ${TEXT_MUTED}`}>{p.note}</Text>
+        {PROVIDERS.map((p: Provider) => <View key={p.id} className={`p-2 rounded ${p.id === t.provider ? BG_SELECTED : BG_HOVER}`} aria-label={tr(`discord.transfer.name_${p.id}`)} onPress={() => choose(p.id)}>
+          <Text className={`text-sm font-semibold ${TEXT_STRONG}`}>{tr(`discord.transfer.name_${p.id}`)}</Text>
+          <Text className={`text-xs ${TEXT_MUTED}`}>{tr(`discord.transfer.note_${p.id}`)}</Text>
         </View>)}
-        {provider.url ? <Input className={`h-[32] px-2 rounded border-0 ${BG_INPUT} ${TEXT_MAIN}`} value={t.url} placeholder="https://share.example.org" aria-label="Server address"
+        {provider.url ? <Input className={`h-[32] px-2 rounded border-0 ${BG_INPUT} ${TEXT_MAIN}`} value={t.url} placeholder="https://share.example.org" aria-label={tr('discord.transfer.server')}
           onInput={(s: string) => { const n = new TransferSettings(); n.provider = t.provider; n.url = s; setT(n); }} /> : null}
-        {provider.key ? <Input type="password" className={`h-[32] px-2 rounded border-0 ${BG_INPUT} ${TEXT_MAIN}`} value={key} placeholder="API key (kept in the keychain)" aria-label="API key"
+        {provider.key ? <Input type="password" className={`h-[32] px-2 rounded border-0 ${BG_INPUT} ${TEXT_MAIN}`} value={key} placeholder={tr('discord.transfer.key_hint')} aria-label={tr('discord.transfer.key')}
           onInput={(s: string) => setKey(s)} /> : null}
       </View> : <View className="gap-1">
         <View className={`h-[8] rounded-full ${BG_INPUT} overflow-hidden`}><View className={`h-[8] w-[${pct}%] bg-[var(--dc-accent)]`} /></View>
-        <Text className={`text-xs ${TEXT_MUTED}`}>{links.length > 0 ? 'Sent.' : `${mb(sent)} of ${mb(total)} to ${provider.name}`}</Text>
+        <Text className={`text-xs ${TEXT_MUTED}`}>{links.length > 0 ? tr('discord.transfer.sent') : tr('discord.transfer.progress', ['sent', mb(sent), 'total', mb(total), 'name', tr(`discord.transfer.name_${provider.id}`)])}</Text>
         {links.map((l: string) => <Text key={l} className="text-sm text-[var(--dc-link)]" numberOfLines={1}>{l}</Text>)}
       </View>}
       {error !== '' ? <Text className="text-sm text-[var(--dc-error)]">{error}</Text> : null}
       <View className="flex-row justify-end gap-2">
-        <View className={`px-4 h-[34] justify-center rounded ${BG_HOVER}`} aria-label="Cancel" onPress={close}><Text className={`text-sm ${TEXT_MAIN}`}>{busy ? 'Hide' : 'Cancel'}</Text></View>
+        <View className={`px-4 h-[34] justify-center rounded ${BG_HOVER}`} aria-label={tr('discord.common.cancel')} onPress={close}><Text className={`text-sm ${TEXT_MAIN}`}>{busy ? tr('discord.transfer.hide') : tr('discord.common.cancel')}</Text></View>
         {links.length > 0
-          ? <View className="px-4 h-[34] justify-center rounded bg-[var(--dc-accent)]" aria-label="Post the links" onPress={() => { store.sendLinks(links); }}><Text className="text-sm text-white font-semibold">Post the links</Text></View>
-          : !busy ? <View className="px-4 h-[34] justify-center rounded bg-[var(--dc-accent)]" aria-label="Upload" onPress={start}><Text className="text-sm text-white font-semibold">Upload</Text></View> : null}
+          ? <View className="px-4 h-[34] justify-center rounded bg-[var(--dc-accent)]" aria-label={tr('discord.transfer.post')} onPress={() => { store.sendLinks(links); }}><Text className="text-sm text-white font-semibold">{tr('discord.transfer.post')}</Text></View>
+          : !busy ? <View className="px-4 h-[34] justify-center rounded bg-[var(--dc-accent)]" aria-label={tr('discord.transfer.upload')} onPress={start}><Text className="text-sm text-white font-semibold">{tr('discord.transfer.upload')}</Text></View> : null}
       </View>
     </View>
   </View>;

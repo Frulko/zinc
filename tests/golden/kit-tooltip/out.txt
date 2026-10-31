@@ -1,0 +1,9 @@
+start: Save as false, Open it false
+pointer rests on the first: Save as true, Open it false
+pressed: Save as false, Open it false
+first pressed
+pointer gone: Save as false, Open it false
+Tab 1: Save as false, Open it true
+Tab 2: Save as true, Open it false
+hint inside the window true
+Tab 3 (around again): Save as false, Open it true

@@ -8,6 +8,7 @@ import { CH_DM, CH_GROUP_DM, isThread } from '../constants';
 import { MESSAGE_MAX, MESSAGE_MAX_NITRO, UPLOAD_FREE, UPLOAD_BASIC, UPLOAD_TIER2, UPLOAD_TIER3, UPLOAD_NITRO, YOUNG_ACCOUNT_MS, COLD_DM_QUIET_MS,
   NEW_MEMBER_MS, ACCOUNT_MIN_MS } from './policy';
 import { snowflakeTime } from './core';
+import { tr } from '../i18n';
 
 export class Perms { lo: number = 0; hi: number = 0; }
 /** A permission string ("1071698660929") as its two halves, exactly (no float past 2^53). */
@@ -186,8 +187,8 @@ export class Access {
   isFriend(userId: string): boolean { return this.friends.has(userId); }
   /** Rule 12: why a new DM with the person may not be opened ('' when it may): only friends and people sharing a server. */
   cannotOpenDm(userId: string): string {
-    if (this.blocked.has(userId)) return 'You blocked this person.';
-    return this.friends.has(userId) || this.sharing.has(userId) ? '' : 'Not sent: new DMs go only to friends and people who share a server with you.';
+    if (this.blocked.has(userId)) return tr('discord.guard.blocked');
+    return this.friends.has(userId) || this.sharing.has(userId) ? '' : tr('discord.guard.new_dms');
   }
   /** Rule 14: a DM where nobody wrote for COLD_DM_QUIET_MS. */
   coldDm(ch: string, now: number): boolean {
@@ -212,8 +213,8 @@ export class Access {
   verificationWait(ch: string, now: number): string {
     const s = this.serverOf(ch);
     if (s === null) return '';
-    if (s.verification >= 3 && now - s.joinedAt < NEW_MEMBER_MS) return 'This server lets new members write 10 minutes after joining.';
-    if (s.verification >= 2 && this.createdAt > 0 && now - this.createdAt < ACCOUNT_MIN_MS) return 'This server lets accounts write 5 minutes after they are made.';
+    if (s.verification >= 3 && now - s.joinedAt < NEW_MEMBER_MS) return tr('discord.guard.verify_member');
+    if (s.verification >= 2 && this.createdAt > 0 && now - this.createdAt < ACCOUNT_MIN_MS) return tr('discord.guard.verify_account');
     return '';
   }
 
@@ -234,8 +235,8 @@ export class Access {
     if (c === undefined) return '';
     const refused = this.refusedIn.get(ch);
     if (refused !== undefined) return refused;
-    if (c.type === CH_DM) for (const id of c.recipients) if (this.blocked.has(id)) return 'You blocked this person: unblock them in Discord to write here.';
-    if (this.lacks(ch, isThread(c.type) ? SEND_MESSAGES_IN_THREADS : SEND_MESSAGES, now)) return 'You do not have permission to send messages here.';
+    if (c.type === CH_DM) for (const id of c.recipients) if (this.blocked.has(id)) return tr('discord.guard.blocked_dm');
+    if (this.lacks(ch, isThread(c.type) ? SEND_MESSAGES_IN_THREADS : SEND_MESSAGES, now)) return tr('discord.guard.no_send');
     return '';
   }
   /** Whether I may pin and unpin in the channel: always in a DM; in a server, with Manage Messages or Pin Messages (the owner and

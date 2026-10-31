@@ -2,6 +2,8 @@
 // the pin unpins it when allowed), or a thread or forum post read beside its channel (its messages and what they carry; the button at the
 // top opens it as the channel, to write in it).
 import { Icon } from 'zinc:icons';
+import { Tooltip } from 'zinc:ui/kit';
+import { tr } from '../i18n';
 import { store, Message } from '../state';
 import { Markdown } from './Markdown';
 import { Content } from './Content';
@@ -22,9 +24,9 @@ function PaneMessage(p: { m: Message; jump: boolean }) {
     <View className="grow basis-0">
       <View className="flex-row items-center gap-2">
         <Text className={`grow font-semibold text-sm ${TEXT_STRONG}`} numberOfLines={1}>{m.author}</Text>
-        {p.jump && store.canPin(m.channelId) ? <View className="p-0.5 rounded hover:bg-[var(--dc-selected)]" aria-label="Unpin" onPress={() => { store.pin(m); }}>
+        {p.jump && store.canPin(m.channelId) ? <Tooltip label={tr('discord.pane.unpin')}><View className="p-0.5 rounded hover:bg-[var(--dc-selected)]" aria-label={tr('discord.pane.unpin')} onPress={() => { store.pin(m); }}>
           <Icon name="x" size={14} color={MUTED} />
-        </View> : null}
+        </View></Tooltip> : null}
       </View>
       <Text className={`text-[11px] ${TEXT_MUTED}`}>{m.system !== '' ? m.system : time(m.timestamp)}</Text>
       {m.content !== '' ? <Markdown text={m.content} revealed={store.revealed.has(m.id)} size="text-sm" /> : null}
@@ -37,12 +39,12 @@ function Header(p: { title: string; icon: string; open: string }) {
   return <View className="h-[48] px-3 flex-row items-center gap-2 border-b border-[var(--dc-divider)]">
     <Icon name={p.icon} size={18} color={MUTED} />
     <Text className={`grow font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{p.title}</Text>
-    {p.open !== '' ? <View className="p-1 rounded hover:bg-[var(--dc-selected)]" aria-label="Open as a channel" onPress={() => store.selectChannel(p.open)}>
+    {p.open !== '' ? <Tooltip label={tr('discord.pane.open')}><View className="p-1 rounded hover:bg-[var(--dc-selected)]" aria-label={tr('discord.pane.open')} onPress={() => store.selectChannel(p.open)}>
       <Icon name="arrow-right" size={16} color={MUTED} />
-    </View> : null}
-    <View className="p-1 rounded hover:bg-[var(--dc-selected)]" aria-label="Close" onPress={() => { if (store.pane === 'pins') store.togglePins(); else store.openThread(''); }}>
+    </View></Tooltip> : null}
+    <Tooltip label={tr('discord.common.close')}><View className="p-1 rounded hover:bg-[var(--dc-selected)]" aria-label={tr('discord.common.close')} onPress={() => { if (store.pane === 'pins') store.togglePins(); else store.openThread(''); }}>
       <Icon name="x" size={16} color={MUTED} />
-    </View>
+    </View></Tooltip>
   </View>;
 }
 
@@ -50,16 +52,16 @@ export function SidePane() {
   if (store.pane === 'pins') {
     const pins = store.pins.get(store.channelId);
     return <View className={`w-[${paneW()}] h-full overflow-hidden ${BG_SURFACE}`}>
-      <Header title="Pinned messages" icon="pin" open="" />
-      {pins === undefined ? <Text className={`p-4 ${TEXT_MUTED}`}>Loading…</Text>
-        : pins.length === 0 ? <Text className={`p-4 ${TEXT_MUTED}`}>This channel has no pinned messages yet.</Text>
+      <Header title={tr('discord.pins.title')} icon="pin" open="" />
+      {pins === undefined ? <Text className={`p-4 ${TEXT_MUTED}`}>{tr('discord.common.loading')}</Text>
+        : pins.length === 0 ? <Text className={`p-4 ${TEXT_MUTED}`}>{tr('discord.pins.empty')}</Text>
         : <ScrollView className="grow"><View className="p-2 gap-1">{pins.map((m: Message) => <PaneMessage key={m.id} m={m} jump={true} />)}</View></ScrollView>}
     </View>;
   }
   const id = store.threadId, t = store.findChannel(id), list = store.messages.get(id);
   return <View className={`w-[${paneW()}] h-full overflow-hidden ${BG_MAIN} border-l border-[var(--dc-divider)]`}>
-    <Header title={t !== null ? t.name : 'Thread'} icon="message-square" open={id} />
-    {list === undefined ? <Text className={`p-4 ${TEXT_MUTED}`}>Loading…</Text>
+    <Header title={t !== null ? t.name : tr('discord.thread.title')} icon="message-square" open={id} />
+    {list === undefined ? <Text className={`p-4 ${TEXT_MUTED}`}>{tr('discord.common.loading')}</Text>
       : <VirtualList count={list.length} estimatedItemHeight={ROW_ESTIMATE} className="grow" stickToBottom>
         {(i: i32) => <PaneMessage key={list[i].id} m={list[i]} jump={false} />}
       </VirtualList>}

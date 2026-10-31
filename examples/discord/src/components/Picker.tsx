@@ -4,6 +4,8 @@
 // GIF or a sticker is sent at once. Custom emoji and stickers of another server than the open one need Nitro, as on Discord.
 import { useState, useEffect } from 'zinc:ui/react';
 import { Icon } from 'zinc:icons';
+import { Tooltip } from 'zinc:ui/kit';
+import { tr } from '../i18n';
 import { store, Message, Guild, CustomEmoji } from '../state';
 import { Reaction, Sticker, STICKER_LOTTIE, STICKER_GIF } from '../content';
 import { emojiGroups, searchEmoji, recentEmoji, usedEmoji, customParts, EmojiGroup } from '../emoji';
@@ -66,10 +68,10 @@ function emojiRows(query: string): EmojiRow[] {
   if (q !== '') {
     const custom: string[] = [];
     for (const g of usable()) for (const e of g.emojis) if (e.name.toLowerCase().indexOf(q) >= 0) custom.push(customOf(e));
-    add('Results', custom.concat(searchEmoji(q, 90)));
+    add(tr('discord.picker.results'), custom.concat(searchEmoji(q, 90)));
     return rows;
   }
-  add('Recent', recentEmoji());
+  add(tr('discord.picker.recent'), recentEmoji());
   for (const g of usable()) add(g.name, g.emojis.map(customOf));
   for (const g of emojiGroups()) add(g.name, g.chars);
   return rows;
@@ -77,7 +79,7 @@ function emojiRows(query: string): EmojiRow[] {
 
 function Emojis(p: { query: string }) {
   const rows = emojiRows(p.query);
-  if (rows.length === 0) return <Text className={`p-4 text-sm ${TEXT_MUTED}`}>No emoji found.</Text>;
+  if (rows.length === 0) return <Text className={`p-4 text-sm ${TEXT_MUTED}`}>{tr('discord.picker.no_emoji')}</Text>;
   return <VirtualList count={rows.length} estimatedItemHeight={CELL} className="grow">
     {(i: i32) => rows[i].heading !== ''
       ? <Text key={`h${i}`} className={`px-2 pt-2 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>{rows[i].heading}</Text>
@@ -88,9 +90,9 @@ function Emojis(p: { query: string }) {
 function Stickers() {
   const list: Sticker[] = [];
   for (const g of usable()) for (const s of g.stickers) if (s.format !== STICKER_LOTTIE) list.push(s);
-  if (list.length === 0) return <Text className={`p-4 text-sm ${TEXT_MUTED}`}>No stickers in this server.</Text>;
+  if (list.length === 0) return <Text className={`p-4 text-sm ${TEXT_MUTED}`}>{tr('discord.picker.no_stickers')}</Text>;
   return <ScrollView className="grow"><View className="p-2 flex-row flex-wrap gap-2">
-    {list.map((s: Sticker) => <View key={s.id} className={`p-1 rounded ${BG_HOVER}`} aria-label={`Sticker ${s.name}`} onPress={() => { closePicker(); store.sendSticker(s); }}>
+    {list.map((s: Sticker) => <View key={s.id} className={`p-1 rounded ${BG_HOVER}`} aria-label={tr('discord.picker.sticker', ['name', s.name])} onPress={() => { closePicker(); store.sendSticker(s); }}>
       <Image image={stickerPicture(s.id, s.format === STICKER_GIF)} className="w-[88] h-[88] object-contain" />
     </View>)}
   </View></ScrollView>;
@@ -102,7 +104,7 @@ function Gifs(p: { query: string; edits: i32 }) {
   const [error, setError] = useState<string>('');
   useEffect((): (() => void) => {
     const t = setTimeout(() => {
-      gifs(p.query).then((l: Gif[]) => { setShown(l); setError(''); }).catch((e: Error) => { setError(`Could not load the GIFs: ${e.message}`); });
+      gifs(p.query).then((l: Gif[]) => { setShown(l); setError(''); }).catch((e: Error) => { setError(tr('discord.picker.gifs_failed', ['error', e.message])); });
     }, p.query === '' ? 0 : SEARCH_PAUSE_MS);
     return (): void => { clearTimeout(t); };
   }, [p.edits]);   // each edit of the search waits for the next pause
@@ -115,7 +117,7 @@ function Gifs(p: { query: string; edits: i32 }) {
 
 function GifCell(p: { g: Gif }) {
   const g = p.g, h = g.width > 0 ? Math.round(g.height * GIF_W / g.width) : GIF_W;
-  return <View className="mb-2 rounded overflow-hidden" aria-label={`GIF ${g.title}`} onPress={() => { closePicker(); store.sendLink(g.url); }}>
+  return <View className="mb-2 rounded overflow-hidden" aria-label={tr('discord.picker.gif', ['title', g.title])} onPress={() => { closePicker(); store.sendLink(g.url); }}>
     <Image image={urlPicture(g.preview)} className={`w-[${GIF_W}] h-[${h}] bg-[var(--dc-rail)] object-cover`} />
   </View>;
 }
@@ -134,14 +136,14 @@ export function Picker() {
   return <View className={`absolute right-4 bottom-[64] w-[${fit()}] h-[${Math.max(220, Math.min(H, win.h - 150))}] ${rounded()} border border-[var(--dc-border)] ${BG_SURFACE}`}>
     <View className="p-2 gap-2">
       <View className="flex-row gap-1">
-        {state.target === null ? <Tab id="gif" label="GIFs" /> : null}
-        {state.target === null ? <Tab id="sticker" label="Stickers" /> : null}
-        <Tab id="emoji" label="Emoji" />
+        {state.target === null ? <Tab id="gif" label={tr('discord.picker.gifs')} /> : null}
+        {state.target === null ? <Tab id="sticker" label={tr('discord.picker.stickers')} /> : null}
+        <Tab id="emoji" label={tr('discord.picker.emoji')} />
         <View className="grow" />
-        <View className="p-1" aria-label="Close" onPress={() => closePicker()}><Icon name="x" size={16} color={() => color('muted')} /></View>
+        <Tooltip label={tr('discord.common.close')}><View className="p-1" aria-label={tr('discord.common.close')} onPress={() => closePicker()}><Icon name="x" size={16} color={() => color('muted')} /></View></Tooltip>
       </View>
       {tab !== 'sticker' ? <Input className={`w-full h-[32] px-2 rounded border-0 ${BG_INPUT} ${TEXT_MAIN}`} value={query} onInput={(v: string) => { setQuery(v); setEdits(edits + 1); }}
-        placeholder={tab === 'gif' ? 'Search Tenor' : 'Find the perfect emoji'} aria-label="Search" /> : null}
+        placeholder={tab === 'gif' ? tr('discord.picker.search_gif') : tr('discord.picker.search_emoji')} aria-label={tr('discord.picker.search')} /> : null}
     </View>
     {tab === 'gif' ? <Gifs query={query} edits={edits} /> : tab === 'sticker' ? <Stickers /> : <Emojis query={query} />}
   </View>;
@@ -151,10 +153,10 @@ export function Picker() {
 export function PickerButtons() {
   const tint = (t: string) => (): i32 => state.tab === t && state.target === null ? color('strong') : color('icon');
   return <View className="flex-row items-center">
-    <View className="px-1.5 py-[12]" aria-label="GIFs" onPress={() => openPicker('gif', null)}>
-      <Text className={`px-1 rounded border-2 text-[10px] font-bold ${state.tab === 'gif' ? TEXT_STRONG : TEXT_MUTED} border-[var(--dc-icon)]`}>GIF</Text>
-    </View>
-    <View className="px-1.5 py-[12]" aria-label="Stickers" onPress={() => openPicker('sticker', null)}><Icon name="sticker" size={20} color={tint('sticker')} /></View>
-    <View className="px-1.5 py-[12]" aria-label="Emoji" onPress={() => openPicker('emoji', null)}><Icon name="face-slightly-smiling" size={20} color={tint('emoji')} /></View>
+    <Tooltip label={tr('discord.picker.gifs')}><View className="px-1.5 py-[12]" aria-label={tr('discord.picker.gifs')} onPress={() => openPicker('gif', null)}>
+      <Text className={`px-1 rounded border-2 text-[10px] font-bold ${state.tab === 'gif' ? TEXT_STRONG : TEXT_MUTED} border-[var(--dc-icon)]`}>{tr('discord.picker.gif_badge')}</Text>
+    </View></Tooltip>
+    <Tooltip label={tr('discord.picker.stickers')}><View className="px-1.5 py-[12]" aria-label={tr('discord.picker.stickers')} onPress={() => openPicker('sticker', null)}><Icon name="sticker" size={20} color={tint('sticker')} /></View></Tooltip>
+    <Tooltip label={tr('discord.picker.emoji')}><View className="px-1.5 py-[12]" aria-label={tr('discord.picker.emoji')} onPress={() => openPicker('emoji', null)}><Icon name="face-slightly-smiling" size={20} color={tint('emoji')} /></View></Tooltip>
   </View>;
 }

@@ -10,6 +10,7 @@ import { readBytes, writeBytes } from 'zinc:fs';
 import { store, Message, Attachment } from '../state';
 import { cdnFile, attachmentKey, attachmentFailed } from '../services/cdn';
 import { sizeText } from '../content';
+import { tr } from '../i18n';
 
 /** The image node of each picture on screen, by "message id/attachment id" (the rows keep it while they are drawn). */
 export class Thumb { ref: { current: i32 }; picture: i32 = -1; constructor(ref: { current: i32 }) { this.ref = ref; } }
@@ -38,7 +39,9 @@ export function openViewer(m: Message, a: Attachment, shown: i32): void {
     item.save = (): void => { save(x); };
     items.push(item);
   });
-  openImageViewer({ items: items, index: at, origin: (i: i32): number[] | null => { const t = thumbs.get(keyOf(list[i].m, list[i].a)); return t === undefined || t.ref.current < 0 ? null : ui.screenBox(t.ref.current); } });
+  const labels = new Map<string, string>([['viewer', tr('discord.viewer.title')], ['zoomOut', tr('discord.viewer.zoom_out')], ['zoomIn', tr('discord.viewer.zoom_in')], ['copy', tr('discord.viewer.copy')],
+    ['save', tr('discord.viewer.save')], ['close', tr('discord.common.close')], ['previous', tr('discord.viewer.previous')], ['next', tr('discord.viewer.next')]]);
+  openImageViewer({ labels: labels, items: items, index: at, origin: (i: i32): number[] | null => { const t = thumbs.get(keyOf(list[i].m, list[i].a)); return t === undefined || t.ref.current < 0 ? null : ui.screenBox(t.ref.current); } });
 }
 
 /** The picture the list draws for an entry (-1 when its row is not drawn: the viewer shows it once the whole file is decoded). */

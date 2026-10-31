@@ -2,6 +2,7 @@
 // folded by default (their first lines and a "Show code" row) and unfold with an eased height. The one place a code block is drawn.
 import { useState } from 'zinc:ui/react';
 import { Icon } from 'zinc:icons';
+import { tr, trn } from '../i18n';
 import { CodeView } from 'zinc:editor';
 import { setClipboardText } from 'zinc:gfx';
 import { BG_SURFACE, BG_HOVER, TEXT_MAIN, TEXT_MUTED } from '../constants';
@@ -25,18 +26,18 @@ export function CodeBlock(p: { code: string; lang: string }) {
   const copy = (): void => { setClipboardText(p.code); setCopied(true); setTimeout(() => { setCopied(false); }, COPIED_MS); };
   return <View className={`my-1 max-w-full ${rounded()} border border-[var(--dc-border)] ${BG_SURFACE} overflow-hidden`}>
     <View className="h-[28] pl-3 pr-1 flex-row items-center gap-1">
-      <Text className={`grow basis-0 text-[11px] ${TEXT_MUTED}`} numberOfLines={1}>{p.lang === '' ? 'plain text' : p.lang}</Text>
-      <View className={`h-[22] px-1.5 flex-row items-center gap-1 rounded ${BG_HOVER}`} aria-label="Copy code" onPress={copy}>
+      <Text className={`grow basis-0 text-[11px] ${TEXT_MUTED}`} numberOfLines={1}>{p.lang === '' ? tr('discord.code.plain') : p.lang}</Text>
+      <View className={`h-[22] px-1.5 flex-row items-center gap-1 rounded ${BG_HOVER}`} aria-label={tr('discord.code.copy_code')} onPress={copy}>
         <Icon name={copied ? 'check' : 'copy'} size={12} color={() => color('muted')} />
-        <Text className={`text-[11px] ${TEXT_MUTED}`}>{copied ? 'Copied' : 'Copy'}</Text>
+        <Text className={`text-[11px] ${TEXT_MUTED}`}>{copied ? tr('discord.code.copied') : tr('discord.code.copy')}</Text>
       </View>
     </View>
     <View className={`overflow-hidden transition-all duration-200 h-[${folded ? FOLD_LINES * LINE : n * LINE + PAD}]`}>
       <CodeView code={p.code} lang={p.lang} className={`px-3 pb-2 text-[13px] leading-[18] ${TEXT_MAIN}`} />
     </View>
-    {foldable ? <View className={`h-[28] px-3 flex-row items-center gap-1 border-t border-[var(--dc-border)] ${BG_HOVER}`} aria-label={open ? 'Hide code' : 'Show code'} onPress={() => setOpen(!open)}>
+    {foldable ? <View className={`h-[28] px-3 flex-row items-center gap-1 border-t border-[var(--dc-border)] ${BG_HOVER}`} aria-label={open ? tr('discord.code.hide') : tr('discord.code.show')} onPress={() => setOpen(!open)}>
       <Icon name={open ? 'chevron-up' : 'chevron-down'} size={14} color={() => color('muted')} />
-      <Text className={`text-xs ${TEXT_MUTED}`}>{open ? 'Hide code' : `Show code (${n - FOLD_LINES} more lines)`}</Text>
+      <Text className={`text-xs ${TEXT_MUTED}`}>{open ? tr('discord.code.hide') : trn('discord.code.show_more', n - FOLD_LINES)}</Text>
     </View> : null}
   </View>;
 }

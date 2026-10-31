@@ -7,6 +7,8 @@
 import { useRef, useEffect, useState } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
+import { Tooltip } from 'zinc:ui/kit';
+import { tr, trn } from '../i18n';
 import * as dialog from 'zinc:system/dialog';
 import { store, Message, Channel, compareIds } from '../state';
 import { isBody, systemIcon } from '../content';
@@ -32,8 +34,8 @@ function Body(p: { m: Message }) {
   const m = p.m;
   const inner = <View className={m.pending ? 'opacity-50' : ''}>
     {m.content !== '' && !linkShownByEmbed(m) ? <Markdown text={m.content} revealed={store.revealed.has(m.id)} size={textClass()} /> : null}
-    {m.edited ? <Text className={`text-[11px] ${TEXT_MUTED}`}>(edited)</Text> : null}
-    {m.failed ? <Text className={`text-xs ${TEXT_ERROR}`}>Not sent.</Text> : null}
+    {m.edited ? <Text className={`text-[11px] ${TEXT_MUTED}`}>{tr('discord.message.edited')}</Text> : null}
+    {m.failed ? <Text className={`text-xs ${TEXT_ERROR}`}>{tr('discord.message.not_sent')}</Text> : null}
   </View>;
   // a click shows the spoilers
   return m.content.indexOf('||') >= 0 && !store.revealed.has(m.id) ? <View onPress={() => store.revealSpoilers(m)}>{inner}</View> : inner;
@@ -45,18 +47,18 @@ function Forwarded(p: { f: Message }) {
   return <View className="mt-1 flex-row gap-3">
     <View className="w-[4] rounded bg-[var(--dc-faint)]" />
     <View className="grow basis-0">
-      <View className="flex-row items-center gap-1"><Icon name="forward" size={14} color={MUTED} /><Text className={`text-xs italic ${TEXT_MUTED}`}>Forwarded</Text></View>
+      <View className="flex-row items-center gap-1"><Icon name="forward" size={14} color={MUTED} /><Text className={`text-xs italic ${TEXT_MUTED}`}>{tr('discord.message.forwarded')}</Text></View>
       <Body m={f} />
       <Content m={f} />
-      <Text className={`mt-1 text-xs ${TEXT_MUTED}`}>{`${from !== null ? '#' + from.name : 'another channel'} • ${time(f.timestamp)}`}</Text>
+      <Text className={`mt-1 text-xs ${TEXT_MUTED}`}>{`${from !== null ? '#' + from.name : tr('discord.message.another_channel')} • ${time(f.timestamp)}`}</Text>
     </View>
   </View>;
 }
 
 function Action(p: { icon: string; label: string; danger: boolean; onPress: () => void }) {
-  return <View className={`w-8 h-8 items-center justify-center ${p.danger ? 'bg-[var(--dc-danger)]' : BG_HOVER}`} aria-label={p.label} onPress={p.onPress}>
+  return <Tooltip label={p.label}><View className={`w-8 h-8 items-center justify-center ${p.danger ? 'bg-[var(--dc-danger)]' : BG_HOVER}`} aria-label={p.label} onPress={p.onPress}>
     <Icon name={p.icon} size={16} color={MUTED} />
-  </View>;
+  </View></Tooltip>;
 }
 
 /** Something that happened (a join, a pin, a boost, a call...): an icon and one line with the names in bold, no avatar. */
@@ -77,7 +79,7 @@ function SystemRow(p: { m: Message; last: boolean }) {
 /** The line above the first message not read when the channel was opened. */
 function NewLine() {
   return <View className="mx-4 mt-2 h-[1] bg-[var(--dc-badge)]">
-    <Text className="absolute right-0 -top-[7] px-1 rounded-sm bg-[var(--dc-badge)] text-[10px] font-bold text-white">NEW</Text>
+    <Text className="absolute right-0 -top-[7] px-1 rounded-sm bg-[var(--dc-badge)] text-[10px] font-bold text-white">{tr('discord.message.new')}</Text>
   </View>;
 }
 
@@ -100,7 +102,7 @@ function Row(p: { m: Message; head: boolean; last: boolean }) {
       <View className="grow basis-0">
         {head ? <View className="flex-row items-center gap-2">
           <Text className={`font-semibold ${TEXT_STRONG}`}>{m.author}</Text>
-          {m.bot ? <Text className="px-[4] rounded bg-[var(--dc-accent)] text-[10px] font-bold text-white">APP</Text> : null}
+          {m.bot ? <Text className="px-[4] rounded bg-[var(--dc-accent)] text-[10px] font-bold text-white">{tr('discord.message.app')}</Text> : null}
           <Text className={`text-xs ${TEXT_MUTED}`}>{time(m.timestamp)}</Text>
         </View> : null}
         {isBody(m.type) || m.content !== '' ? <Body m={m} /> : null}
@@ -109,12 +111,12 @@ function Row(p: { m: Message; head: boolean; last: boolean }) {
       </View>
     </View>
     {m.pending ? null : <View className={`absolute -top-2 right-4 flex-row rounded border border-[var(--dc-border)] ${BG_MAIN} opacity-0 group-hover:opacity-100`}>
-      {m.failed ? null : <Action icon="thumbs-up" label="Add reaction" danger={false} onPress={() => store.react(m, null)} />}
-      {m.failed ? null : <Action icon="face-slightly-smiling-plus" label="React" danger={false} onPress={() => openPicker('emoji', m)} />}
-      {m.failed ? null : <Action icon="corner-up-left" label="Reply" danger={false} onPress={() => store.reply(m)} />}
-      {!m.failed && store.canPin(m.channelId) ? <Action icon="pin" label={m.pinned ? 'Unpin' : 'Pin'} danger={false} onPress={() => { store.pin(m); }} /> : null}
-      {mine && !m.failed ? <Action icon="pencil" label="Edit" danger={false} onPress={() => store.edit(m)} /> : null}
-      {mine ? <Action icon="trash-2" label={confirm ? 'Delete: click again' : 'Delete'} danger={confirm}
+      {m.failed ? null : <Action icon="thumbs-up" label={tr('discord.message.add_reaction')} danger={false} onPress={() => store.react(m, null)} />}
+      {m.failed ? null : <Action icon="face-slightly-smiling-plus" label={tr('discord.message.react')} danger={false} onPress={() => openPicker('emoji', m)} />}
+      {m.failed ? null : <Action icon="corner-up-left" label={tr('discord.message.reply')} danger={false} onPress={() => store.reply(m)} />}
+      {!m.failed && store.canPin(m.channelId) ? <Action icon="pin" label={m.pinned ? tr('discord.pane.unpin') : tr('discord.message.pin')} danger={false} onPress={() => { store.pin(m); }} /> : null}
+      {mine && !m.failed ? <Action icon="pencil" label={tr('discord.message.edit')} danger={false} onPress={() => store.edit(m)} /> : null}
+      {mine ? <Action icon="trash-2" label={confirm ? tr('discord.message.delete_again') : tr('discord.message.delete')} danger={confirm}
         onPress={() => { if (confirm) store.remove(m); else setConfirm(true); }} /> : null}
     </View>}
   </View>;
@@ -142,7 +144,7 @@ function Forum(p: { c: Channel }) {
 /** Picks files and sends them (the system's open dialog). */
 async function pickFiles(): Promise<void> {
   const o = new dialog.OpenOptions();
-  o.title = 'Send files'; o.multiple = true;
+  o.title = tr('discord.composer.send_files'); o.multiple = true;
   const paths = await dialog.open(o);
   if (paths !== null) store.sendFiles(paths);
 }
@@ -163,15 +165,15 @@ function Composer(p: { name: string }) {
   </View>;
   return <View className="px-4">
     {r !== null || ed !== null ? <View className={`h-[32] px-4 flex-row items-center rounded-t-[${radius}] ${BG_SURFACE}`}>
-      <Text className={`grow text-sm ${TEXT_MUTED}`} numberOfLines={1}>{r !== null ? `Replying to ${r.author}` : 'Editing a message: Enter saves, Escape cancels'}</Text>
-      <View className="p-1" aria-label="Cancel" onPress={() => store.cancel()}><Icon name="x" size={16} color={MUTED} /></View>
+      <Text className={`grow text-sm ${TEXT_MUTED}`} numberOfLines={1}>{r !== null ? tr('discord.composer.replying', ['name', r.author]) : tr('discord.composer.editing')}</Text>
+      <Tooltip label={tr('discord.common.cancel')}><View className="p-1" aria-label={tr('discord.common.cancel')} onPress={() => store.cancel()}><Icon name="x" size={16} color={MUTED} /></View></Tooltip>
     </View> : null}
     <CodePanel />
     <View className={`pr-4 flex-row items-start ${currentTheme().composerBorder ? 'border border-[var(--dc-border)]' : ''} ${r !== null || ed !== null ? `rounded-b-[${radius}]` : rounded()} ${BG_INPUT}`}>
-      <View className="px-4 py-[12]" aria-label="Send files" onPress={() => { pickFiles(); }}><Icon name="circle-plus" size={20} color={MUTED} /></View>
+      <Tooltip label={tr('discord.composer.send_files')}><View className="px-4 py-[12]" aria-label={tr('discord.composer.send_files')} onPress={() => { pickFiles(); }}><Icon name="circle-plus" size={20} color={MUTED} /></View></Tooltip>
       <View className="grow basis-0 py-[11]">
-        <TextArea ref={field} rows={0} className={`w-full ${textClass()} ${TEXT_MAIN}`} value={store.draft} placeholder={`Message ${p.name}`}
-          onInput={(v: string) => store.typed(v)} onKeyDown={keys} aria-label="Message" />
+        <TextArea ref={field} rows={0} className={`w-full ${textClass()} ${TEXT_MAIN}`} value={store.draft} placeholder={tr('discord.composer.message_to', ['name', p.name])}
+          onInput={(v: string) => store.typed(v)} onKeyDown={keys} aria-label={tr('discord.composer.message')} />
       </View>
       <CodeInsert />
       <PickerButtons />
@@ -226,28 +228,28 @@ function Present() {
   const older = store.showingOlder(), n = store.newWhileUp;
   if (!older && (store.atEnd || n === 0)) return null;
   return <View className="mx-4 h-[28] px-3 flex-row items-center rounded-t-lg bg-[var(--dc-accent)]">
-    <Text className="grow text-sm font-semibold text-white" numberOfLines={1}>{older ? 'You are viewing older messages' : `${n} new message${n === 1 ? '' : 's'}`}</Text>
-    <Text className="text-sm font-semibold text-white" aria-label="Jump to present"
-      onPress={() => { if (!older && shown >= 0) ui.scrollTo(shown, 0, 1e9); store.jumpToPresent(); }}>Jump to present</Text>
+    <Text className="grow text-sm font-semibold text-white" numberOfLines={1}>{older ? tr('discord.message.older') : trn('discord.message.new_messages', n)}</Text>
+    <Text className="text-sm font-semibold text-white" aria-label={tr('discord.message.jump')}
+      onPress={() => { if (!older && shown >= 0) ui.scrollTo(shown, 0, 1e9); store.jumpToPresent(); }}>{tr('discord.message.jump')}</Text>
   </View>;
 }
 
 export function MessageView() {
   const c = store.findChannel(store.channelId);
   const list = store.messages.get(store.channelId);
-  const banner = store.stage === 'reconnecting' ? 'Connection lost, reconnecting…' : store.stage === 'failed' ? 'Disconnected.' : '';
+  const banner = store.stage === 'reconnecting' ? tr('discord.message.reconnecting') : store.stage === 'failed' ? tr('discord.message.disconnected') : '';
   const title = c !== null ? (c.guildId !== '' ? '#' : '@') + c.name : '';
   return <View className={`grow basis-0 ${BG_MAIN}`}>
     <View className="h-[48] px-4 flex-row items-center border-b border-[var(--dc-divider)]">
       <Text className={`grow font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{title}</Text>
-      {c !== null && !c.forum() ? <View className={`p-1 rounded ${store.pane === 'pins' ? 'bg-[var(--dc-selected)]' : BG_HOVER}`} aria-label="Pinned messages" onPress={() => store.togglePins()}>
+      {c !== null && !c.forum() ? <Tooltip label={tr('discord.pins.title')} placement="bottom-end"><View className={`p-1 rounded ${store.pane === 'pins' ? 'bg-[var(--dc-selected)]' : BG_HOVER}`} aria-label={tr('discord.pins.title')} onPress={() => store.togglePins()}>
         <Icon name="pin" size={20} color={MUTED} />
-      </View> : null}
+      </View></Tooltip> : null}
     </View>
     {banner !== '' ? <Text className="px-4 py-1 text-sm text-white bg-[var(--dc-danger)]">{banner}</Text> : null}
     {store.error !== '' ? <Text className={`px-4 py-1 text-sm ${TEXT_ERROR}`}>{store.error}</Text> : null}
     {c !== null && c.forum() ? <Forum c={c} />
-      : list === undefined ? <Text className={`grow p-4 ${TEXT_MUTED}`}>{c === null ? 'No channel open.' : 'Loading…'}</Text> : <History key={store.channelId} list={list} />}
+      : list === undefined ? <Text className={`grow p-4 ${TEXT_MUTED}`}>{c === null ? tr('discord.message.no_channel') : tr('discord.common.loading')}</Text> : <History key={store.channelId} list={list} />}
     {c !== null && !c.forum() ? <Present /> : null}
     {c !== null && !c.forum() ? <Composer name={title} /> : null}
     {pickerTab() !== '' && c !== null && !c.forum() ? <Picker /> : null}

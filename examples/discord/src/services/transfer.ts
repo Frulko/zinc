@@ -12,15 +12,17 @@ import { RequestInit, Headers } from 'zinc:net';
 import { btoa } from 'zinc:web';
 import * as guard from '../safety/index';
 import { API_BASE } from '../constants';
+import { tr } from '../i18n';
 
+/** A service: `name` and `note` are catalog keys unless they are a brand (Litterbox, pixeldrain), shown by the transfer window through tr(). */
 export class Provider {
   id = ''; name = ''; note = ''; key = false; url = false;
   constructor(id: string, name: string, note: string, key: boolean, url: boolean) { this.id = id; this.name = name; this.note = note; this.key = key; this.url = url; }
 }
 export const PROVIDERS: Provider[] = [
-  new Provider('litterbox', 'Litterbox', 'Anonymous, deleted after 72 hours, up to about 1 GB. No published terms.', false, false),
-  new Provider('pixeldrain', 'pixeldrain', 'Your pixeldrain account: its API key (pixeldrain.com, Account, API keys).', true, false),
-  new Provider('gokapi', 'Gokapi (your own server)', 'A Gokapi server: its address and an API key with the Upload permission.', true, true),
+  new Provider('litterbox', 'Litterbox', 'discord.transfer.note_litterbox', false, false),
+  new Provider('pixeldrain', 'pixeldrain', 'discord.transfer.note_pixeldrain', true, false),
+  new Provider('gokapi', 'discord.transfer.name_gokapi', 'discord.transfer.note_gokapi', true, true),
 ];
 const LITTERBOX = 'https://litterbox.catbox.moe/resources/internals/api.php', PIXELDRAIN = 'https://pixeldrain.com';
 
@@ -65,22 +67,22 @@ export async function transferFile(v: guard.Verdict, t: TransferSettings, key: s
     const f = form([['reqtype', 'fileupload'], ['time', '72h']], 'fileToUpload', name);
     url = LITTERBOX; init.bodyPrefix = f.prefix; init.bodySuffix = f.suffix; init.contentType = f.type;
   } else if (t.provider === 'pixeldrain') {
-    if (key === '') throw new Error('pixeldrain needs your API key.');
+    if (key === '') throw new Error(tr('discord.transfer.needs_key'));
     url = `${PIXELDRAIN}/api/file/${encodeURIComponent(name)}`; init.method = 'PUT'; init.contentType = 'application/octet-stream';
     const h = new Headers(); h.set('Authorization', `Basic ${btoa(`:${key}`)}`); init.headers = h;
   } else if (t.provider === 'gokapi') {
-    if (t.url === '' || key === '') throw new Error('Gokapi needs your server\'s address and an API key.');
+    if (t.url === '' || key === '') throw new Error(tr('discord.transfer.needs_server'));
     const f = form([['allowedDownloads', '0'], ['expiryDays', '14']], 'file', name);
     url = `${t.url.replace(/\/+$/, '')}/api/files/add`; init.bodyPrefix = f.prefix; init.bodySuffix = f.suffix; init.contentType = f.type;
     const h = new Headers(); h.set('apikey', key); init.headers = h;
-  } else throw new Error(`Unknown transfer service ${t.provider}.`);
+  } else throw new Error(tr('discord.transfer.unknown_service', ['name', t.provider]));
   const r = await guard.transferSend(v, url, init);
   const text = r.body;
-  if (r.status < 200 || r.status > 299) throw new Error(`${name}: the service answered ${r.status} ${text.slice(0, 120)}`);
+  if (r.status < 200 || r.status > 299) throw new Error(tr('discord.transfer.answered', ['name', name, 'status', `${r.status}`, 'text', text.slice(0, 120)]));
   if (t.provider === 'litterbox') { const link = text.trim(); if (!link.startsWith('https://')) throw new Error(`${name}: ${link.slice(0, 120)}`); return link; }
   const j: any = JSON.parse(text);
   if (t.provider === 'pixeldrain') return `${PIXELDRAIN}/u/${j.id}`;
   const link = j.FileInfo !== undefined && j.FileInfo !== null ? `${j.FileInfo.UrlDownload}` : '';
-  if (link === '' || link === 'undefined') throw new Error(`${name}: no link in the answer`);
+  if (link === '' || link === 'undefined') throw new Error(tr('discord.transfer.no_link', ['name', name]));
   return link;
 }

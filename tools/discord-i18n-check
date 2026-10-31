@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""tools/discord-i18n-check [dir]: the Discord client (examples/discord/src) keeps its words in the catalog and its icon buttons tooltipped (ZN-922).
+
+Parses every components/*.tsx and App.tsx (real JSX: tags, attributes, children, JSX inside expressions) and reports, one line each:
+  - a visible string literal that is not a catalog entry: JSX text with letters, a literal `placeholder`, `aria-label`, `label`, `title`, `text`,
+    `alt` or `description` attribute, a quoted literal that starts like a word ('Servers', `Copy code (${n})`) anywhere in a component;
+    a line ending with `// i18n-ok` is let through (a name, a brand, a technical word);
+  - an icon-only button (an element with onPress or onClick that holds an <Icon> and no Text, Image or Input), or a kit <Button icon=...> without
+    a label, that is not inside a <Tooltip>;
+  - a tr('discord.key') or trn('discord.key', n) of any source file that i18n/en/discord.json does not hold (trn: key_other).
+Exit 1 when there is a problem, 0 otherwise."""
+import json, os, re, sys
+
+root = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+src = os.path.join(root, "examples/discord/src")
+problems = []
+KEYS = ("Enter", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace", "Tab")   # key names, not words
+
+class El:
+    def __init__(self, tag, line):
+        self.tag, self.line, self.attrs, self.kids, self.text = tag, line, {}, [], ""
+
+def skip_string(s, i):
+    q = s[i]; i += 1
+    while i < len(s) and s[i] != q:
+        i += 2 if s[i] == "\\" else 1
+    return i + 1
+
+def skip_template(s, i):   # s[i] == '`'; returns the index after the closing backtick
+    i += 1
+    while i < len(s) and s[i] != "`":
+        if s[i] == "\\": i += 2
+        elif s[i] == "$" and s[i + 1:i + 2] == "{": i = skip_braces(s, i + 1)
+        else: i += 1
+    return i + 1
+
+def skip_braces(s, i):   # s[i] == '{'; returns the index after the matching '}'
+    depth = 0
+    while i < len(s):
+        c = s[i]
+        if c in "'\"": i = skip_string(s, i); continue
+        if c == "`": i = skip_template(s, i); continue
+        if s.startswith("//", i): i = s.find("\n", i) if s.find("\n", i) >= 0 else len(s); continue
+        if s.startswith("/*", i): i = s.find("*/", i) + 2; continue
+        if c == "{": depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0: return i + 1
+        i += 1
+    return i
+
+def jsx_start(s, i):
+    """Whether the '<' at s[i] opens JSX (not a generic or a comparison): a tag name or '>' follows, and what comes before is an operator."""
+    if not re.match(r"<(?:[A-Za-z]|>)", s[i:i + 2]): return False
+    j = i - 1
+    while j >= 0 and s[j] in " \t\n": j -= 1
+    if j < 0: return True
+    if s[j] in "(,=?:{[&|>;}": return s[j] != "=" or s[j - 1:j + 1] == "=>" or True
+    return s[max(0, j - 5):j + 1] == "return"
+
+def line_of(s, i): return s.count("\n", 0, i) + 1
+
+def find_jsx(s, lo, hi, out):
+    """Every top-level JSX element between lo and hi (strings, templates and comments skipped) appended to out."""
+    i = lo
+    while i < hi:
+        c = s[i]
+        if c in "'\"": i = skip_string(s, i); continue
+        if c == "`":
+            end = skip_template(s, i)
+            k = i
+            while k < end:   # JSX inside a ${} of a template
+                if s[k] == "$" and s[k + 1:k + 2] == "{":
+                    e = skip_braces(s, k + 1); find_jsx(s, k + 2, e - 1, out); k = e
+                else: k += 1
+            i = end; continue
+        if s.startswith("//", i): i = s.find("\n", i) if s.find("\n", i) >= 0 else hi; continue
+        if s.startswith("/*", i): i = s.find("*/", i) + 2; continue
+        if c == "<" and jsx_start(s, i):
+            el, j = parse_el(s, i)
+            if el is not None: out.append(el); i = j; continue
+        i += 1
+
+def parse_el(s, i):
+    line = line_of(s, i)
+    m = re.match(r"<([A-Za-z][A-Za-z0-9_.]*)?", s[i:])
+    el = El(m.group(1) or "", line); i += m.end()
+    while True:   # attributes
+        while i < len(s) and s[i] in " \t\r\n": i += 1
+        if s.startswith("/>", i): return el, i + 2
+        if s[i] == ">": i += 1; break
+        if s[i] == "{":   # {...spread}
+            e = skip_braces(s, i); find_jsx(s, i + 1, e - 1, el.kids); i = e; continue
+        m = re.match(r"[A-Za-z_][A-Za-z0-9_.:-]*", s[i:])
+        if not m: return None, i + 1
+        name = m.group(0); i += m.end(); val = None
+        while i < len(s) and s[i] in " \t\r\n": i += 1
+        if s[i:i + 1] == "=":
+            i += 1
+            while i < len(s) and s[i] in " \t\r\n": i += 1
+            if s[i] in "'\"": e = skip_string(s, i); val = ("lit", s[i + 1:e - 1], line_of(s, i)); i = e
+            elif s[i] == "{": e = skip_braces(s, i); val = ("expr", s[i + 1:e - 1], line_of(s, i)); find_jsx(s, i + 1, e - 1, el.kids); i = e
+            else: return None, i + 1
+        el.attrs[name] = val if val is not None else ("lit", "true", line)
+    if el.tag in ("", ) or True:   # children until the closing tag
+        while i < len(s):
+            if s.startswith("</", i):
+                e = s.find(">", i); return el, e + 1
+            if s[i] == "<" and jsx_start(s, i):
+                kid, j = parse_el(s, i)
+                if kid is not None: el.kids.append(kid); i = j; continue
+            if s[i] == "{":
+                e = skip_braces(s, i); find_jsx(s, i + 1, e - 1, el.kids); el.text += "{}"; i = e; continue
+            j = i
+            while j < len(s) and s[j] not in "<{": j += 1
+            el.text += s[i:j]
+            if re.search(r"[A-Za-z]{2}", s[i:j]): problems_text.append((line_of(s, i), s[i:j].strip()))
+            i = j
+    return el, i
+
+problems_text = []
+
+def walk(el, f):
+    f(el)
+    for k in el.kids: walk(k, f)
+
+def has(el, tags):
+    found = []
+    walk(el, lambda e: found.append(e.tag in tags))
+    return any(found)
+
+def check_file(path, rel):
+    global problems_text
+    s = open(path, encoding="utf-8").read()
+    lines = s.split("\n")
+    ok = lambda ln: "i18n-ok" in lines[ln - 1]
+    problems_text = []
+    els = []
+    find_jsx(s, 0, len(s), els)
+    # visible text and attributes
+    for ln, t in problems_text:
+        if not ok(ln): problems.append(f"{rel}:{ln}: visible text outside the catalog: {t!r}")
+    ATTRS = ("placeholder", "aria-label", "label", "title", "text", "alt", "description")
+    def attrs_and_buttons(e, under_tip):
+        for name in ATTRS:
+            v = e.attrs.get(name)
+            if v is not None and v[0] == "lit" and re.search(r"[A-Za-z]{2}", v[1]) and not v[1].startswith("http") and not ok(v[2]):
+                problems.append(f"{rel}:{v[2]}: {name}=\"{v[1]}\" is not a catalog entry")
+        tip = under_tip or e.tag == "Tooltip"
+        pressable = "onPress" in e.attrs or "onClick" in e.attrs
+        if pressable and not tip and has(e, ("Icon",)) and not has(e, ("Text", "Image", "Input", "TextArea")) and not ok(e.line):
+            problems.append(f"{rel}:{e.line}: an icon-only button without a Tooltip")
+        if e.tag == "Button" and "icon" in e.attrs and "label" not in e.attrs and not tip and not ok(e.line):
+            problems.append(f"{rel}:{e.line}: an icon-only <Button> without a label or a Tooltip")
+        for k in e.kids: attrs_and_buttons(k, tip)
+    for e in els: attrs_and_buttons(e, False)
+    # a literal that starts like a word, in the code of a component (outside comments and imports)
+    code = re.sub(r"/\*.*?\*/", lambda m: re.sub(r"[^\n]", " ", m.group(0)), s, flags=re.S)
+    for n, l in enumerate(code.split("\n"), 1):
+        l = re.sub(r"//.*$", "", l) if not re.search(r"['\"`][^'\"`]*//", l) else l
+        if l.lstrip().startswith("import ") or ok(n): continue
+        for m in re.finditer(r"""(?<![\w$])(['"])([A-Z][a-z][^'"]*)\1|`([A-Z][a-z][^`]*)`""", l):
+            lit = m.group(2) or m.group(3)
+            if lit in KEYS: continue
+            problems.append(f"{rel}:{n}: literal {lit[:40]!r} is not a catalog entry")
+
+for d, _, files in os.walk(src):
+    for f in sorted(files):
+        p = os.path.join(d, f); rel = os.path.relpath(p, root)
+        if f.endswith(".tsx") and (d.endswith("components") or f == "App.tsx"): check_file(p, rel)
+
+# every key a source file asks for is in English's catalog
+en = json.load(open(os.path.join(root, "i18n/en/discord.json"), encoding="utf-8"))
+for d, _, files in os.walk(src):
+    for f in sorted(files):
+        if not f.endswith((".ts", ".tsx")): continue
+        p = os.path.join(d, f); rel = os.path.relpath(p, root)
+        for n, l in enumerate(open(p, encoding="utf-8").read().split("\n"), 1):
+            for m in re.finditer(r"\b(trn?)\('(discord\.[A-Za-z0-9_.-]+)'", l):
+                k = m.group(2)
+                if m.group(1) == "trn" and k + "_other" not in en: problems.append(f"{rel}:{n}: {k}_other is not in i18n/en/discord.json")
+                elif m.group(1) == "tr" and k not in en: problems.append(f"{rel}:{n}: {k} is not in i18n/en/discord.json")
+
+for p in problems: print(p)
+sys.exit(1 if problems else 0)

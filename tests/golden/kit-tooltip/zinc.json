@@ -1,0 +1,1 @@
+{"name":"kit-tooltip","entry":"main.tsx","targets":{"macos":{"width":400,"height":200},"sim":{"width":400,"height":200},"linux":{"width":400,"height":200}}}

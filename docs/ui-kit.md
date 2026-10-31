@@ -69,7 +69,7 @@ Conventions, identical in both UI models:
 | `Separator` | `vertical?`, `className?` | one-pixel hairline |
 | `ResizeHandle` | `size: () => number`, `onResize`, `vertical?`, `after?`, `min?`, `max?`, `className?` | shadcn's ResizableHandle: a bar between two panes that resizes one when dragged (`vertical`: between columns; `after`: the pane follows the bar); the size is your signal, kept within `[min, max]` |
 | `Stat` | `label`, `value: () => string`, `unit?`, `hint?`, `className?`, children | metric tile; children sit on the label row (a `Badge`) |
-| `CallStats` | `sample: () => CallStatsSample`, `history: () => CallStatsSample[]`, `className?`, children | a call's health: a good / fair / poor badge with its MOS, loss, round trip, bit rates, jitter, and sparklines of the loss, round trip and outgoing bit rate; zinc:webrtc's `CallQuality` fills it (`sample={() => q.last} history={() => q.history}`); children go under the numbers |
+| `CallStats` | `sample: () => CallStatsSample`, `history: () => CallStatsSample[]`, `className?`, children | a call's health: a good / fair / poor badge with its MOS, loss, round trip, bit rates, jitter, and sparklines of the loss, round trip and outgoing bit rate; zinc:webrtc's `CallQuality` fills it (`sample={() => q.last} history={() => q.history}`); `labels?: Map<string,string>` replaces its words (title, measuring, good, fair, poor, loss, roundTrip, out, in, jitter); children go under the numbers |
 | `Tabs` | `items: string[]`, `selected: () => i32`, `onSelect`, `className?` | segmented control; switch the panels yourself: `{tab() === 0 ? <A/> : <B/>}` |
 | `Switch` | `checked: () => boolean`, `onChange`, `label?` | never flips itself: `onChange` decides |
 | `Progress` | `value: () => number` (0–100), `accent?`, `className?` | |
@@ -99,7 +99,7 @@ toast('Saved', 'All changes are on disk.');
 
 | Component | Props | Notes |
 | --- | --- | --- |
-| `Tooltip` | `label`, `action?` (its shortcut is shown), `placement?` (`top` default), `delay?` (500 ms), `className?`, children | shows while the pointer rests on the children |
+| `Tooltip` | `label`, `action?` (its shortcut is shown), `placement?` (`top` default), `delay?` (500 ms), `className?`, children | shows while the pointer rests on the children, and at once when Tab focuses them; a press hides it; `attachTooltip(node, label)` (`zinc:ui/kit`) does the same for a node made by code |
 | `Popover` | `label` (the trigger button), `variant?`, `placement?` (`bottom-start`), `className?` (the panel), children | focus moves into the panel and comes back when it closes |
 | `DropdownMenu` | `label`, `items: MenuItem[]` (`label`, `action?`, `onSelect?`, `disabled?`), `variant?`, `placement?`, `className?` | opens focused on its first item; arrows move (trapped), Enter picks; actions show their shortcut (`keyLabel`) |
 | `Dialog` | `open: () => boolean`, `onOpenChange`, `title?`, `description?`, `className?`, children, `footer?` | modal, dims the page (the dim fades, the panel fades and grows from 96%, both ways), traps the focus, focuses its first control, gives the focus back |

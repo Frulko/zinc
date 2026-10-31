@@ -8,13 +8,14 @@
 // setext headings and soft breaks that Discord does not have): Discord's dialect is its own (simple-markdown rules).
 import * as ui from 'zinc:ui';
 import { formatStamp } from './content';
+import { tr } from './i18n';
 
 export const K_TEXT = 0, K_QUOTE = 1, K_HEADING = 2, K_SUB = 3, K_CODE = 4, K_LIST = 5;
 /** Colour roles of a run: the text's own, inline code, a link, a mention, a hidden spoiler, a custom emoji (its text is :name:), a
  *  timestamp. */
 export const R_TEXT = 0, R_CODE = 1, R_LINK = 2, R_MENTION = 3, R_SPOILER = 4, R_EMOJI = 5, R_TIME = 6;
-const SERVER_LINKS: Map<string, string> = new Map<string, string>([['customize', 'Channels & Roles'], ['browse', 'Browse Channels'],
-  ['guide', 'Server Guide'], ['home', 'Server Home'], ['linked-roles', 'Linked Roles']]);
+/** The names of Discord's server links (<id:browse>...), by the key of their catalog entry (discord.link.<key>). */
+const SERVER_LINKS: string[] = ['customize', 'browse', 'guide', 'home', 'linked-roles'];
 const BOLD = ui.RUN_BOLD, ITALIC = ui.RUN_ITALIC, MONO = ui.RUN_MONO, UNDERLINE = ui.RUN_UNDERLINE, STRIKE = ui.RUN_STRIKE;
 
 export class MdBlock {
@@ -130,8 +131,7 @@ function inline(s: string, names: Names, reveal: boolean, b: MdBlock): void {
       const cmd = /^<\/([^:<>\n]+):\d+>/.exec(head);
       if (cmd !== null) { span('/' + cmd[1], 0, R_MENTION); i += cmd[0].length; continue; }
       const nav = /^<id:([a-z-]+)>/.exec(head);
-      const navName = nav !== null ? SERVER_LINKS.get(nav[1]) : undefined;
-      if (nav !== null && navName !== undefined) { span(navName, 0, R_MENTION); i += nav[0].length; continue; }
+      if (nav !== null && SERVER_LINKS.indexOf(nav[1]) >= 0) { span(tr(`discord.link.${nav[1]}`), 0, R_MENTION); i += nav[0].length; continue; }
       const auto = /^<(https?:\/\/[^>\s]+)>/.exec(head);
       if (auto !== null) { span(auto[1], 0, R_LINK); i += auto[0].length; continue; }
       const m = /^<(@!?|@&|#|a?:[A-Za-z0-9_]+:)(\d+)>/.exec(s.slice(i, i + 64));

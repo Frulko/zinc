@@ -20,9 +20,12 @@ export interface CallStatsProps {
   /** The last readings, oldest first, for the sparklines. */
   history: () => CallStatsSample[];
   className?: string;
+  /** The words in the app's language, by name: title, measuring, good, fair, poor, loss, roundTrip, out, in, jitter (English for the ones left out). */
+  labels?: Map<string, string>;
   children?: () => i32;   // more rows under the numbers (the codecs, a low data switch)
 }
 
+function word(l: Map<string, string> | undefined, key: string, english: string): string { if (l === undefined) return english; const w = (l as Map<string, string>).get(key); return w === undefined ? english : w as string; }
 function badge(q: string): string { return q === 'good' ? 'success' : q === 'fair' ? 'warning' : q === 'poor' ? 'destructive' : 'secondary'; }
 
 /** A line of the values over the box, scaled to their largest (at least `floor`); nothing drawn for fewer than two. */
@@ -48,20 +51,20 @@ function Row(p: { label: string; value: () => string; values: () => number[]; fl
 export function CallStats(props: CallStatsProps): i32 {
   const t = theme();
   const s = (): CallStatsSample => props.sample();
-  const label = (): string => { const q = s().quality; return q === 'unknown' ? 'Measuring…' : q.substring(0, 1).toUpperCase() + q.substring(1); };
+  const label = (): string => { const q = s().quality; return q === 'unknown' ? word(props.labels, 'measuring', 'Measuring…') : word(props.labels, q, q.substring(0, 1).toUpperCase() + q.substring(1)); };
   const v = (f: (x: CallStatsSample) => number): (() => number[]) => () => props.history().map(f);
-  return <View className={`flex-col gap-2 p-4 rounded-xl border border-${t.border} bg-${t.card} ${props.className ?? ''}`} aria-label="Call quality">
+  return <View className={`flex-col gap-2 p-4 rounded-xl border border-${t.border} bg-${t.card} ${props.className ?? ''}`} aria-label={word(props.labels, 'title', 'Call quality')}>
     <View className="flex-row items-center justify-between gap-2">
-      <Text className={`text-sm font-medium text-${t.mutedForeground}`}>Call quality</Text>
+      <Text className={`text-sm font-medium text-${t.mutedForeground}`}>{word(props.labels, 'title', 'Call quality')}</Text>
       <Badge label={s().mos > 0 ? `${label()} · ${s().mos.toFixed(1)}` : label()} variant={badge(s().quality)} />
     </View>
-    <Row label="Loss" value={() => `${s().lossPct.toFixed(1)} %`} values={v((x: CallStatsSample) => x.lossPct)} floor={5} color="rose-500" />
-    <Row label="Round trip" value={() => s().rttMs < 0 ? '--' : s().rttMs < 10 ? `${s().rttMs.toFixed(1)} ms` : `${Math.round(s().rttMs)} ms`} values={v((x: CallStatsSample) => x.rttMs)} floor={100} color="sky-500" />
-    <Row label="Out" value={() => `${Math.round(s().sendKbps)} kbit/s`} values={v((x: CallStatsSample) => x.sendKbps)} floor={50} color="emerald-500" />
+    <Row label={word(props.labels, 'loss', 'Loss')} value={() => `${s().lossPct.toFixed(1)} %`} values={v((x: CallStatsSample) => x.lossPct)} floor={5} color="rose-500" />
+    <Row label={word(props.labels, 'roundTrip', 'Round trip')} value={() => s().rttMs < 0 ? '--' : s().rttMs < 10 ? `${s().rttMs.toFixed(1)} ms` : `${Math.round(s().rttMs)} ms`} values={v((x: CallStatsSample) => x.rttMs)} floor={100} color="sky-500" />
+    <Row label={word(props.labels, 'out', 'Out')} value={() => `${Math.round(s().sendKbps)} kbit/s`} values={v((x: CallStatsSample) => x.sendKbps)} floor={50} color="emerald-500" />
     <View className="flex-row items-center gap-3">
-      <Text className={`w-16 text-xs text-${t.mutedForeground}`}>In</Text>
+      <Text className={`w-16 text-xs text-${t.mutedForeground}`}>{word(props.labels, 'in', 'In')}</Text>
       <Text className={`w-20 text-sm font-semibold text-${t.foreground}`}>{`${Math.round(s().recvKbps)} kbit/s`}</Text>
-      <Text className={`text-xs text-${t.mutedForeground}`}>{`jitter ${s().jitterMs.toFixed(0)} ms`}</Text>
+      <Text className={`text-xs text-${t.mutedForeground}`}>{`${word(props.labels, 'jitter', 'jitter')} ${s().jitterMs.toFixed(0)} ms`}</Text>
     </View>
     {renderSlot(props.children)}
   </View>;

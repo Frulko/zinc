@@ -5529,8 +5529,17 @@ function setFocusTo(h: i32): void {
   if (h >= 0) { const e = nodes[h].ed; if (e !== null) { e.blinkAt = clock; e.reveal = true; } }
   paintDirty = true;
   for (const f of focusHandlers) f(h);
+  for (let i = withinRoots.length - 1; i >= 0; i--) {
+    const r = withinRoots[i];
+    if (!nodes[r].alive) { withinRoots.splice(i, 1); withinFns.splice(i, 1); withinOn.splice(i, 1); continue; }
+    const inside = h >= 0 && isAncestor(r, h), on = inside && keyboardFocus;
+    if (on !== withinOn[i] || (inside && !on)) { withinOn[i] = on; withinFns[i](on); }   // a press that focuses it calls f(false): a hint goes away when its button is pressed
+  }
 }
 const focusHandlers: ((h: i32) => void)[] = [];
+const withinRoots: i32[] = [], withinFns: ((on: boolean) => void)[] = [], withinOn: boolean[] = [];
+/** Calls `f(true)` when the keyboard moves the focus into `root` or below it (Tab, arrows), and `f(false)` when it leaves or a press puts it there; dropped with the node. */
+export function onFocusWithin(root: i32, f: (on: boolean) => void): void { withinRoots.push(root); withinFns.push(f); withinOn.push(false); }
 /** Called with the new focused node (-1: none) whenever the focus moves (virtual keyboards show / hide on it). */
 export function onFocusChange(f: (h: i32) => void): void { focusHandlers.push(f); }
 // A subtree rendered again (a component whose props changed) keeps the focus: holdFocus notes the focused node's path under the

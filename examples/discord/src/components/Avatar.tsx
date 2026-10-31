@@ -1,6 +1,7 @@
 // A round picture from the CDN (a user's avatar, a server's icon), or the initials on a colour until it is loaded or when there is none.
 // ponytail: no default avatar from the CDN (its index comes from the id shifted by 22, a 64-bit number); the initial stands in for it.
 import { BG_ACCENT } from '../constants';
+import { tr } from '../i18n';
 
 export function initials(name: string): string {
   let out = '';
@@ -27,7 +28,7 @@ function dot(status: string): string {
 export function Status(p: { status: string; mobile: boolean; offline: boolean; ring: string }) {
   if (p.status === 'offline' && !p.offline) return null;
   if (p.mobile && p.status === 'online')
-    return <View className={`absolute -right-0.5 -bottom-0.5 w-[10] h-[14] rounded-[3] border-2 ${p.ring} bg-[var(--dc-success)]`} aria-label="On mobile" />;
+    return <View className={`absolute -right-0.5 -bottom-0.5 w-[10] h-[14] rounded-[3] border-2 ${p.ring} bg-[var(--dc-success)]`} aria-label={tr('discord.status.mobile')} />;
   return <View className={`absolute -right-0.5 -bottom-0.5 w-[12] h-[12] rounded-full border-2 ${p.ring} ${dot(p.status)}`}
-    aria-label={p.status === 'dnd' ? 'Do not disturb' : p.status === 'idle' ? 'Idle' : p.status === 'online' ? 'Online' : 'Offline'} />;
+    aria-label={tr(`discord.status.${p.status === 'dnd' || p.status === 'idle' || p.status === 'online' ? p.status : 'offline'}`)} />;
 }

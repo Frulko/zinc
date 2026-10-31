@@ -17,6 +17,7 @@ import { NotifyRules, Where } from './notify';
 import { Call } from './call';
 import { Embed, Reaction, Sticker, Poll, Component, ThreadRef, embeds, reactions, stickers, poll, pollVoted, componentRows, threadRef,
   interactionLine, systemText, reactionAdded, reactionRemoved, reactionPath, T_THREAD_STARTER } from './content';
+import { tr } from './i18n';
 
 export class User { id = ''; name = ''; avatar = ''; }
 export class Channel {
@@ -161,11 +162,11 @@ export class Store implements GatewayHandler {
   }
   async login(token: string): Promise<void> {
     const t = token.trim();
-    if (t === '') { this.error = 'Paste your token first.'; this.changed(); return; }
+    if (t === '') { this.error = tr('discord.error.paste_token'); this.changed(); return; }
     this.error = '';
     guard.forgetSession();
     if (env('DISCORD_TOKEN') === '') {
-      try { await saveToken(t); } catch (e) { this.error = `The token could not be kept in the keychain: ${e.message}`; this.changed(); return; }
+      try { await saveToken(t); } catch (e) { this.error = tr('discord.error.keychain', ['error', e.message]); this.changed(); return; }
     }
     this.connect(t, null);
   }
@@ -215,7 +216,7 @@ export class Store implements GatewayHandler {
     this.gateway.stop();
     if (env('DISCORD_TOKEN') === '') forgetToken().catch((): void => {});
     guard.forgetSession();
-    this.stage = 'login'; this.error = 'Discord refused this token: log in again.'; this.changed();
+    this.stage = 'login'; this.error = tr('discord.error.token_refused'); this.changed();
   }
   dispatch(t: string, d: any): void {
     if (t === 'READY') this.ready(d);
@@ -459,7 +460,7 @@ export class Store implements GatewayHandler {
     const ref: any = m.message_reference;
     const reply = ref !== undefined && ref !== null && (ref.type ?? 0) === 0 && (m.type === 19 || m.type === 20 || m.type === 23);
     if (r !== undefined && r !== null) out.replyTo = `${this.user(r.author).name}: ${replyText(r)}`;
-    else if (r === null && reply) { out.replyTo = 'Original message was deleted'; out.replyDeleted = true; }
+    else if (r === null && reply) { out.replyTo = tr('discord.message.original_deleted'); out.replyDeleted = true; }
     if (reply || r !== undefined && r !== null) out.replyId = ref !== undefined && ref !== null ? str(ref.message_id) : str(r.id);
     out.pinned = m.pinned === true;
     out.nonce = typeof m.nonce === 'string' ? m.nonce : '';
@@ -575,7 +576,7 @@ export class Store implements GatewayHandler {
       if (r !== null && Array.isArray(r.first_messages)) for (const m of r.first_messages) this.previews.set(str(m.channel_id), this.message(m));
       this.postsOf.add(forum.id);
       this.log(`posts ${forum.id}: ${this.posts(forum.id).map((c: Channel) => `${c.name} [${c.tags.map((t: string) => forum.tagNames.get(t) ?? t).join(',')}] ${c.messageCount}`).join('; ')}`);
-    } catch (e) { this.error = `Could not load the posts: ${e.message}`; }
+    } catch (e) { this.error = tr('discord.error.posts', ['error', e.message]); }
     this.loading = false; this.changed();
   }
   private async loadHistory(id: string): Promise<void> {
@@ -591,7 +592,7 @@ export class Store implements GatewayHandler {
       this.log(`history ${id}: ${list.length} messages`);
       if (this.channelId === id || this.threadId === id) this.ack(id);
     } catch (e) {
-      this.error = e instanceof ApiError && e.status === 403 ? 'You cannot read this channel.' : `Could not load the messages: ${e.message}`;
+      this.error = e instanceof ApiError && e.status === 403 ? tr('discord.error.cannot_read') : tr('discord.error.messages', ['error', e.message]);
       this.log(`history ${id} failed: ${e.message}`);
     }
     this.loading = false; this.changed();
@@ -645,7 +646,7 @@ export class Store implements GatewayHandler {
     this.log(`members ${this.membersOf}: ${known.slice(0, 12).map((r: MemberRow) => r.group !== '' ? `[${this.groupName(r.group)} ${r.count}]` : `${r.nick !== '' ? r.nick : this.userName(r.userId)}(${r.status}${r.mobile ? ' mobile' : ''}${this.roleColor(r) !== 0 ? ' coloured' : ''})`).join(' ')}${known.length > 12 ? ' …' : ''}, ${known.length} of ${this.members.length} rows`);
   }
   /** A header's name: a role's, Online or Offline. */
-  groupName(id: string): string { return id === 'online' ? 'Online' : id === 'offline' ? 'Offline' : this.roleName(id); }
+  groupName(id: string): string { return id === 'online' ? tr('discord.status.online') : id === 'offline' ? tr('discord.status.offline') : this.roleName(id); }
   /** The colour of a member's name: that of their highest role with one, 0 when none. */
   roleColor(r: MemberRow): i32 {
     const g = this.findGuild(this.membersOf);
@@ -707,7 +708,7 @@ export class Store implements GatewayHandler {
     if (editing !== null) {
       this.changed();
       try { await guard.request(v, 'PATCH', `/channels/${ch}/messages/${editing.id}`, { content: text }); }
-      catch (e) { this.error = `Could not edit the message: ${e.message}`; this.changed(); }
+      catch (e) { this.error = tr('discord.error.edit', ['error', e.message]); this.changed(); }
       return;
     }
     const m = this.pendingMessage(ch, text);
@@ -729,7 +730,7 @@ export class Store implements GatewayHandler {
     if (paths.length === 0) return;
     const files: Upload[] = [];
     try { for (const p of paths) files.push(readUpload(p)); }
-    catch (e) { this.error = `Could not read the file: ${e.message}`; this.changed(); return; }
+    catch (e) { this.error = tr('discord.error.read_file', ['error', e.message]); this.changed(); return; }
     const text = this.draft.trim();
     const d = new guard.Details();
     d.channel = ch; d.text = text;
@@ -791,7 +792,7 @@ export class Store implements GatewayHandler {
       if (d !== null && m.pending) { this.messageCreated(d); this.changed(); }
     } catch (e) {
       m.pending = false; m.failed = true;
-      this.error = `Could not send the message: ${e.message}`;
+      this.error = tr('discord.error.send', ['error', e.message]);
       this.changed();
     }
   }
@@ -803,7 +804,7 @@ export class Store implements GatewayHandler {
     const v = guard.begin('delete', d);
     if (!v.ok) { this.refuse(v.message); return; }
     try { await guard.request(v, 'DELETE', `/channels/${m.channelId}/messages/${m.id}`, undefined); }
-    catch (e) { this.error = `Could not delete the message: ${e.message}`; this.changed(); }
+    catch (e) { this.error = tr('discord.error.delete', ['error', e.message]); this.changed(); }
   }
   revealSpoilers(m: Message): void { this.revealed.add(m.id); this.changed(); }
 
@@ -828,7 +829,7 @@ export class Store implements GatewayHandler {
     this.log(`react ${m.id} ${emoji.name} ${on ? 'on' : 'off'}`);
     this.changed();
     try { await guard.request(v, on ? 'PUT' : 'DELETE', `/channels/${m.channelId}/messages/${m.id}/reactions/${path}/@me?location=Message&type=0`, undefined); }
-    catch (e) { this.error = `Could not react: ${e.message}`; this.changed(); }
+    catch (e) { this.error = tr('discord.error.react', ['error', e.message]); this.changed(); }
   }
   private reacted(t: string, d: any): void {
     const m = this.findMessage(str(d.channel_id), str(d.message_id));
@@ -857,7 +858,7 @@ export class Store implements GatewayHandler {
     this.log(`vote ${m.id}: ${chosen.join(',')}`);
     this.changed();
     try { await guard.request(v, 'PUT', `/channels/${m.channelId}/polls/${m.id}/answers/@me`, { answer_ids: chosen }); }
-    catch (e) { this.error = `Could not vote: ${e.message}`; this.changed(); }
+    catch (e) { this.error = tr('discord.error.vote', ['error', e.message]); this.changed(); }
   }
   private pollVote(add: boolean, d: any): void {
     const m = this.findMessage(str(d.channel_id), str(d.message_id));
@@ -874,7 +875,7 @@ export class Store implements GatewayHandler {
     let name = '';
     const member: any = d.member;
     if (member !== undefined && member !== null && member.user !== undefined) name = this.user(member.user).name;
-    else { const u = this.users.get(id); name = u !== undefined ? u.name : 'Someone'; }
+    else { const u = this.users.get(id); name = u !== undefined ? u.name : tr('discord.typing.someone'); }
     const known = this.typists.get(ch);
     const list = known !== undefined ? known.filter((t: Typist) => t.userId !== id) : [];
     const t = new Typist();
@@ -904,9 +905,9 @@ export class Store implements GatewayHandler {
   typingText(ch: string): string {
     const list = this.typists.get(ch);
     if (list === undefined || list.length === 0) return '';
-    if (list.length === 1) return `${list[0].name} is typing…`;
-    if (list.length <= 3) return `${list.slice(0, list.length - 1).map((t: Typist) => t.name).join(', ')} and ${list[list.length - 1].name} are typing…`;
-    return 'Several people are typing…';
+    if (list.length === 1) return tr('discord.typing.one', ['name', list[0].name]);
+    if (list.length <= 3) return tr('discord.typing.few', ['names', list.slice(0, list.length - 1).map((t: Typist) => t.name).join(', '), 'last', list[list.length - 1].name]);
+    return tr('discord.typing.several');
   }
 
   // ------------------------------------------------------------------ read state
@@ -996,13 +997,13 @@ export class Store implements GatewayHandler {
       const got: Message[] = [];
       if (Array.isArray(page)) for (let i = page.length - 1; i >= 0; i--) got.push(this.message(page[i]));
       const list = this.messages.get(ch);
-      if (got.length === 0 || got.every((m: Message) => m.id !== id)) this.error = 'That message is gone.';
+      if (got.length === 0 || got.every((m: Message) => m.id !== id)) this.error = tr('discord.error.gone');
       else if (list !== undefined && list.length > 0 && compareIds(got[got.length - 1].id, list[0].id) >= 0) {   // it reaches what is loaded: one list
         this.messages.set(ch, got.filter((m: Message) => compareIds(m.id, list[0].id) < 0).concat(list));
       } else { this.messages.set(ch, got); this.detached.add(ch); this.complete.delete(ch); }
       if (this.error === '') this.jumpId = id;
       this.log(`jump ${ch}: ${id} (fetched, ${got.length} around${this.detached.has(ch) ? ', older than the present' : ''})`);
-    } catch (e) { this.error = `Could not load that message: ${e.message}`; }
+    } catch (e) { this.error = tr('discord.error.load_message', ['error', e.message]); }
     this.loading = false; this.changed();
   }
 
@@ -1021,7 +1022,7 @@ export class Store implements GatewayHandler {
       if (r !== null && Array.isArray(r.items)) for (const it of r.items) { const m = this.message(it.message); m.pinned = true; out.push(m); }
       this.pins.set(ch, out);
       this.log(`pins ${ch}: ${out.map((m: Message) => m.id).join(', ')}`);
-    } catch (e) { this.error = `Could not load the pins: ${e.message}`; }
+    } catch (e) { this.error = tr('discord.error.pins', ['error', e.message]); }
     this.changed();
   }
   /** Pins m or unpins it: shown at once (and in the pins when they are loaded); Discord's echo is a MESSAGE_UPDATE. */
@@ -1038,7 +1039,7 @@ export class Store implements GatewayHandler {
     this.changed();
     if (kept !== undefined) this.pinning.add(ch);
     try { await guard.request(v, on ? 'PUT' : 'DELETE', `/channels/${ch}/messages/pins/${m.id}`, undefined); }
-    catch (e) { m.pinned = !on; this.pins.delete(ch); this.pinning.delete(ch); this.error = `Could not ${on ? 'pin' : 'unpin'} the message: ${e.message}`; this.changed(); }
+    catch (e) { m.pinned = !on; this.pins.delete(ch); this.pinning.delete(ch); this.error = tr(on ? 'discord.error.pin' : 'discord.error.unpin', ['error', e.message]); this.changed(); }
   }
   /** Reads a thread or a forum post beside the channel (its history fetched the first time); '' closes it. */
   openThread(id: string): void {
@@ -1078,7 +1079,7 @@ function attachments(list: any): Attachment[] {
 function replyText(r: any): string {
   const text = str(r.content);
   if (text !== '') return text.slice(0, 80);
-  return Array.isArray(r.attachments) && r.attachments.length > 0 || Array.isArray(r.embeds) && r.embeds.length > 0 ? 'Click to see attachment' : '';
+  return Array.isArray(r.attachments) && r.attachments.length > 0 || Array.isArray(r.embeds) && r.embeds.length > 0 ? tr('discord.message.see_attachment') : '';
 }
 
 /** A channel as the notification rules see it. */

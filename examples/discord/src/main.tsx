@@ -40,6 +40,7 @@ import { openPicker, closePicker, pickEmoji, pickerTab } from './components/Pick
 import { searchEmoji, recentEmoji } from './emoji';
 import { gifs, Gif } from './services/gifs';
 import { codeSession } from './code-session';
+import { tipsSession } from './tips-session';
 import { stepCode } from './components/CodeInsert';
 import { animationsPlaying, animationFrames } from './components/Animated';
 import { CDN_BASE, API_BASE } from './constants';
@@ -173,6 +174,7 @@ if (fakeDiscord && env('DISCORD_DEMO') === 'voice') voice();
 if (fakeDiscord && env('DISCORD_DEMO') === 'showcase') showcase();
 if (fakeDiscord && env('DISCORD_DEMO') === 'code') codeSession();
 if (fakeDiscord && env('DISCORD_DEMO') === 'viewer') viewerSession();
+if (fakeDiscord && env('DISCORD_DEMO') === 'tips') tipsSession();
 
 const speaking = (): string => Array.from(store.call.speaking).map((id: string) => store.userName(id)).sort().join(', ');
 const pause = (ms: i32): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });

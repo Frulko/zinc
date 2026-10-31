@@ -53,14 +53,16 @@ export interface TooltipProps {
   className?: string;
   children: () => i32;
 }
-/** A hint that shows while the pointer rests on its children. */
+/** A hint that shows while the pointer rests on its children (not while one is pressed: a button that opens a popover keeps the tip away)
+ *  or the keyboard focus is on one of them. */
 export function Tooltip(props: TooltipProps): i32 {
   const wrap = createNodeRef(), tip = createNodeRef();
   const t = theme(), keys = shortcutOf(props.action);
   let timer: i32 = -1;
   const node = <View ref={wrap} className={`flex-col ${props.className ?? ''}`}
     onPointerEnter={(e: ui.PointerEvent) => { if (timer >= 0) clearTimeout(timer); timer = setTimeout(() => { timer = -1; show(tip.node, true); }, props.delay ?? 500); }}
-    onPointerLeave={(e: ui.PointerEvent) => { if (timer >= 0) clearTimeout(timer); timer = -1; show(tip.node, false); }}>
+    onPointerLeave={(e: ui.PointerEvent) => { if (timer >= 0) clearTimeout(timer); timer = -1; show(tip.node, false); }}
+    onPointerDown={(e: ui.PointerEvent) => { if (timer >= 0) clearTimeout(timer); timer = -1; show(tip.node, false); }}>
     {props.children()}
     <View ref={tip} className={`flex-row items-center gap-2 px-2 py-1 rounded-md bg-${t.primary}`} hidden={1}>
       <Text className={`text-xs text-${t.primaryForeground}`}>{props.label}</Text>
@@ -69,6 +71,7 @@ export function Tooltip(props: TooltipProps): i32 {
   </View>;
   ui.openLayer(tip.node, { priority: 300 });
   ui.anchor(tip.node, wrap.node, props.placement ?? 'top', 6);
+  ui.onFocusWithin(wrap.node, (on: boolean) => show(tip.node, on));   // Tab shows it at once, as the pointer does after its delay
   return node;
 }
 
