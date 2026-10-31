@@ -61,6 +61,7 @@ import {
   isShell,
   startRefreshing,
   startShell,
+  followConnectedApp,
   submitForm,
   typeIntoForm,
 } from './state';
@@ -278,6 +279,7 @@ onFrame((deltaSeconds: number) => {
   const screenHeight = height();
   syncMountedPage(screenWidth, screenHeight);
   stage.updateTree(deltaSeconds);
+  if (isShell) followConnectedApp();
   // the shown app sent a frame: the shell draws it
   if (isShell && appState.page === PAGE_APP && shell.serial() !== shownSerial) {
     shownSerial = shell.serial();

@@ -327,7 +327,8 @@ export function goHome(): void {
   navigateTo(PAGE_HOME);
 }
 
-/** The shown app ended: back to the hub, or its crash page when it failed (143: stopped by SIGTERM). */
+/** The shown app ended: back to the hub, or its crash page when it failed (143: stopped by SIGTERM; -1: an app the agent started left or was
+ *  replaced, whose status is the agent's: `zinc device logs` has it). */
 function onAppExit(name: string, status: number): void {
   if (shell.mode() === 'kiosk' && name === appState.shownAppName) {   // a kiosk app is never left: it starts again
     const directory = appState.shownAppDirectory, title = appState.shownAppTitle;
@@ -336,7 +337,7 @@ function onAppExit(name: string, status: number): void {
   }
   shell.clearMode();
   appState.shownAppName = '';
-  if (status === 0 || status === 143) {
+  if (status === 0 || status === 143 || status === -1) {
     if (appState.page === PAGE_APP) navigateTo(PAGE_HOME);
     uiState.dirty = true;
     return;
@@ -351,6 +352,19 @@ function onAppExit(name: string, status: number): void {
   report.output = tail.length === 0 ? ['It printed nothing.'] : tail;
   appState.crashReport = report;
   navigateTo(PAGE_CRASH);
+}
+
+let connectedApp = '';
+/** An app that connected by itself (`zinc device run`: the agent starts it with the shell's socket) is shown at once, over any page. */
+export function followConnectedApp(): void {
+  const current = shell.current();
+  if (current === connectedApp) return;
+  connectedApp = current;
+  if (current === '' || current === appState.shownAppName) return;
+  appState.shownAppName = current;
+  appState.shownAppDirectory = '';
+  appState.shownAppTitle = shell.title();
+  navigateTo(PAGE_APP);
 }
 
 /** The shell's start: zinc-session (ZINC_SHELL=1) leaves the boot app to it (ZINC_BOOT_APP=1, not during an update). */
