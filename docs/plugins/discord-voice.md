@@ -51,6 +51,12 @@ call.close();   // then op 4 with a null channel
   under 50 kbit/s); under 2% it climbs back 8% a report. `setLowDataMode(true)`: Opus at 10 kbit/s with DTX, voice, wideband and FEC for
   15% loss (the encoder settings of zinc:webrtc's low data mode), a camera at a quarter of its size, 5 fps and 60 kbit/s, a Go Live
   stream at half its size, 5 fps and 150 kbit/s. Whether Discord's servers answer our sender reports has not been checked on a real call.
+- **Diagnostic.** `DISCORD_LOG=1` sends to the connection's `log`: every voice gateway message in and out but the heartbeats
+  (`voice-gw[video]` for the call, `voice-gw[screen]` for a Go Live connection) with `token`, `session_id`, `secret_key` and the IP
+  addresses replaced by `<redacted>` (DAVE's binary MLS messages: opcode and size only), and every 5 s the counters of each stream
+  (`voice-rtp[...]`): sent (packets, bytes, bitrate, key frames, NAL types), received per SSRC (packets, bytes, lost, jitter, key
+  frames, NAL types, transport decryption, DAVE and decoder failures), packets of other payload types (RTX, a codec we do not take) and
+  DAVE's state. `examples/discord` prints it on standard output. The protocol it is checked against: `docs/reports/discord-video-protocol.md`.
 - **Tests.** `ZINC_FAKE_MICROPHONE=1`: a 440 Hz tone and no audio device; `inputDevices()` and `outputDevices()` give "Zinc Fake Microphone" and "Zinc Fake Speakers". `rtpHeader`, `seal` and `unseal` give the framing and the transport
   encryption alone (`tests/golden/host/discord_voice_rtp.ts`, vectors recorded with Node by `plugins/discord-voice/tests/vectors.mjs`);
   `tests/t1/discord_voice.sh` runs a call against the fake Discord of `examples/discord/tests`.

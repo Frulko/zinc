@@ -421,6 +421,12 @@ let voicePort: i32 = 0;
 let rtp: UdpSocket | null = null;
 let voiceMode = '';
 let received = 0, refused = 0, echoSeq = 0, echoTs: u32 = 0, echoCounter: u32 = 0, videoIn = 0, plis = 0;
+// Discord drops a connection that sends or receives media before one Speaking (op 5) and one Video (op 12) payload (Invalid SSRC,
+// docs.discord.food Voice Connections): the connections, by audio SSRC, that sent each; media of the others is dropped and counted
+const spoke = new Set<i32>(), described = new Set<i32>();
+let early = 0;
+/** Whether the connection of the audio SSRC `a` may carry media now; counts the packets it may not. */
+function announced(a: i32): boolean { if (spoke.has(a) && described.has(a)) return true; early++; return false; }
 const keyBytes = (): u8[] => { const k: u8[] = []; for (const b of VOICE_KEY) k.push(b); return k; };
 
 /** Op 4: join (our voice state, Grace's, the voice server), a change of mute or deafen in the same channel, or leaving. */
@@ -464,6 +470,8 @@ function voiceGateway(ws: WebSocket, req: UpgradeRequest): void {
   ws.onmessage = (e: MessageEvent): void => {
     if (e.binary) { console.log(`voice binary op ${e.bytes[0]}: ${e.bytes.length > 100 ? 'over' : 'under'} 100 bytes`); return; }   // op 26: the key package
     const p: any = JSON.parse(e.data), d: any = p.d;
+    if (p.op === 5) spoke.add(d.ssrc);
+    if (p.op === 12) described.add(d.audio_ssrc);
     if (p.op === 0) {
       kind = d.token === 'stream-token' ? 'stream' : d.token === 'watch-token' ? 'watch' : 'voice';
       if (kind !== 'voice') {   // Go Live: the stream's own server (rtc_server_id), our voice session
@@ -475,7 +483,7 @@ function voiceGateway(ws: WebSocket, req: UpgradeRequest): void {
         return;
       }
       console.log(`voice identify server=${d.server_id} user=${d.user_id} session=${d.session_id} token=${d.token === 'voice-token'} dave=${d.max_dave_protocol_version} video=${d.video} streams=${JSON.stringify(d.streams)}`);
-      received = 0; refused = 0; videoIn = 0; plis = 0;
+      received = 0; refused = 0; videoIn = 0; plis = 0; early = 0; spoke.clear(); described.clear();
       send(8, { heartbeat_interval: 13750 });
       send(2, { ssrc: MY_SSRC, ip: '127.0.0.1', port: (rtp as UdpSocket).port, modes: ['aead_aes256_gcm_rtpsize', 'aead_xchacha20_poly1305_rtpsize', 'xsalsa20_poly1305'],
         streams: [{ type: 'video', rid: '100', ssrc: MY_VIDEO_SSRC, rtx_ssrc: MY_VIDEO_SSRC + 1, quality: 100, active: false }] });
@@ -507,7 +515,7 @@ function voiceGateway(ws: WebSocket, req: UpgradeRequest): void {
     } else if (p.op === 15) console.log(`voice wants ${JSON.stringify(d)}`);
     else console.log(`voice op ${p.op}`);
   };
-  ws.onclose = (e: CloseEvent): void => { if (kind !== 'voice') { console.log(`voice ${kind} closed ${e.code}`); return; } console.log(`voice closed ${e.code}: 25 packets or more ${received >= 25}, refused ${refused}, video ${videoIn > 0}, key frames asked ${plis > 0}`); };
+  ws.onclose = (e: CloseEvent): void => { if (kind !== 'voice') { console.log(`voice ${kind} closed ${e.code}`); return; } console.log(`voice closed ${e.code}: 25 packets or more ${received >= 25}, refused ${refused}, video ${videoIn > 0}, key frames asked ${plis > 0}, media before op 5 and 12 ${early}`); };
 }
 
 /** A sender report of ours: the receiver report a server answers with (one block on the sender's stream: its time back with no delay, so
@@ -544,7 +552,7 @@ function voiceUdp(m: Datagram): void {
   if (b.length >= 8 && b[1] >= 200 && b[1] <= 206 && b[7] === WATCH_SSRC) { if (streamPort > 0) (rtp as UdpSocket).sendBytes(streamAddr, streamPort, b); return; }
   if (b.length >= 8 && b[1] >= 200 && b[1] <= 206) { plis++; (rtp as UdpSocket).sendBytes(m.address, m.port, b); return; }
   if (b.length >= 12 && (b[1] & 0x7f) === 101 && b[11] === STREAM_VIDEO_SSRC) {   // our stream: on to the watcher as Grace's
-    if (watchPort === 0) return;
+    if (watchPort === 0 || !announced(STREAM_SSRC) || !announced(WATCH_SSRC)) return;
     const frame = unseal(voiceMode, keyBytes(), b);
     if (frame.length === 0) return;
     const h: u8[] = [0x80, b[1], b[2], b[3], b[4], b[5], b[6], b[7], 0, 0, 0, GRACE_STREAM_SSRC];
@@ -553,6 +561,7 @@ function voiceUdp(m: Datagram): void {
     return;
   }
   if (b.length >= 12 && (b[1] & 0x7f) === 101) {
+    if (!announced(MY_SSRC)) return;
     const frame = unseal(voiceMode, keyBytes(), b);
     if (frame.length === 0) { refused++; return; }
     videoIn++;
@@ -561,6 +570,7 @@ function voiceUdp(m: Datagram): void {
     echoCounter++;
     return;
   }
+  if (b.length >= 12 && !announced(MY_SSRC)) return;
   const opus = unseal(voiceMode, keyBytes(), b);
   if (opus.length === 0) { refused++; return; }
   received++;

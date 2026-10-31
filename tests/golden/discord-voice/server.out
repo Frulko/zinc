@@ -1,8 +1,8 @@
 identify token=true capabilities=1246 browser=Chrome
 rest POST /api/v9/channels/400/call/ring auth=true super=true recipients=null
 voice binary op 26: over 100 bytes
-voice closed 1000: 25 packets or more false, refused 0, video false, key frames asked false
-voice closed 1000: 25 packets or more true, refused 0, video true, key frames asked true
+voice closed 1000: 25 packets or more false, refused 0, video false, key frames asked false, media before op 5 and 12 0
+voice closed 1000: 25 packets or more true, refused 0, video true, key frames asked true, media before op 5 and 12 0
 voice gateway /?v=8
 voice gateway /?v=8
 voice gateway /?v=8
@@ -11,6 +11,8 @@ voice identify server=200 user=100 session=voice-sess token=true dave=1 video=tr
 voice identify server=400 user=100 session=voice-sess token=true dave=1 video=true streams=[{"type":"video","rid":"100","quality":100}]
 voice select protocol=udp address=127.0.0.1 port=true mode=aead_aes256_gcm_rtpsize codecs=opus/120,H264/101
 voice select protocol=udp address=127.0.0.1 port=true mode=aead_aes256_gcm_rtpsize codecs=opus/120,H264/101
+voice speaking 0 ssrc=11
+voice speaking 0 ssrc=11
 voice speaking 0 ssrc=11
 voice speaking 0 ssrc=11
 voice speaking 0 ssrc=11
@@ -34,10 +36,15 @@ voice stream create type=guild guild=200 channel=304
 voice stream delete guild:200:304:100
 voice stream delete guild:200:304:101
 voice stream identify server=1000 session=voice-sess video=true streams=[{"type":"screen","rid":"100","quality":100}]
+voice stream op 5
+voice stream op 5
 voice stream paused=false guild:200:304:100
 voice stream select protocol=udp mode=aead_aes256_gcm_rtpsize
+voice stream video ssrc=0
 voice stream video ssrc=42 screen 1152x720 30 fps 1990656 bps
 voice stream watch guild:200:304:101
+voice video ssrc=0 rtx=0 streams=0
+voice video ssrc=0 rtx=0 streams=0
 voice video ssrc=0 rtx=0 streams=0
 voice video ssrc=12 rtx=13 streams=1 640x360
 voice wants {"33":0,"pixelCounts":{}}
@@ -46,7 +53,9 @@ voice wants {"33":50,"pixelCounts":{"33":36864}}
 voice wants {"pixelCounts":{}}
 voice watch closed 1000
 voice watch identify server=1000 session=voice-sess video=true streams=[{"type":"screen","rid":"100","quality":100}]
+voice watch op 5
 voice watch select protocol=udp mode=aead_aes256_gcm_rtpsize
+voice watch video ssrc=0
 voice watch wants {"63":100,"pixelCounts":{"63":518400}}
 voice watch wants {"63":50,"pixelCounts":{"63":36864}}
 voice watch wants {"63":50,"pixelCounts":{"63":36864}}

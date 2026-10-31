@@ -35,9 +35,14 @@ for _ in $(seq 300); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
 read -r api gw < "$tmp/ports"
 (cd examples/discord && env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=1200x760 ZINC_FRAMES=1000000 \
   DISCORD_API="http://127.0.0.1:$api/api/v9" DISCORD_GATEWAY="ws://127.0.0.1:$gw" DISCORD_CDN="http://127.0.0.1:$api/cdn" \
-  DISCORD_CACHE="$tmp/cache" ZINC_STORAGE="$tmp/storage.kv" ZINC_SYSTEM_LOG="$tmp/system" DISCORD_TOKEN=test-token DISCORD_DEMO=voice DISCORD_SHOTS="$tmp/shots" \
+  DISCORD_CACHE="$tmp/cache" ZINC_STORAGE="$tmp/storage.kv" ZINC_SYSTEM_LOG="$tmp/system" DISCORD_TOKEN=test-token DISCORD_LOG=1 DISCORD_DEMO=voice DISCORD_SHOTS="$tmp/shots" \
   timeout 60 "$ZINC" run . > "$tmp/app" 2>&1) || { echo "discord_voice: the session failed"; tail -8 "$tmp/app"; exit 1; }
-grep '^voice' "$tmp/app" | sort > "$tmp/session"
+grep '^voice:' "$tmp/app" | sort > "$tmp/session"
+# the diagnostic (DISCORD_LOG=1) prints the voice gateway and the streams' counters, never a token, a session id or a key
+if grep -qE 'test-token|voice-token|stream-token|watch-token|voice-sess|"secret_key":\[' "$tmp/app" || ! grep -q '"secret_key":"<redacted>"' "$tmp/app" ||
+  ! grep -q '^voice-rtp\[video\] in video ssrc 33 .* keys [1-9]' "$tmp/app"; then
+  echo "discord_voice: the diagnostic leaks a secret or lacks its counters"; grep -nE 'token|sess|secret|voice-rtp' "$tmp/app" | head -8; fail=1
+fi
 grep '^measured:' "$tmp/app"   # the bit rates, normal and ultra low data (not compared)
 [ -z "$DISCORD_VOICE_SHOTS" ] || cp "$tmp/shots/"*.png "$DISCORD_VOICE_SHOTS/"
 sleep 0.3   # the last voice socket's close reaches the fake

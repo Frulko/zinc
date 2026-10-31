@@ -12,6 +12,7 @@
 // low data mode.
 import { WebSocket, MessageEvent, CloseEvent } from 'zinc:socket';
 import { RTCStats } from 'zinc:webrtc/quality';
+import { env } from 'zinc:sys';
 import S from './native/voice.spec';
 
 const OP_IDENTIFY = 0, OP_SELECT_PROTOCOL = 1, OP_READY = 2, OP_HEARTBEAT = 3, OP_SESSION_DESCRIPTION = 4, OP_SPEAKING = 5,
@@ -22,7 +23,7 @@ const OP_IDENTIFY = 0, OP_SELECT_PROTOCOL = 1, OP_READY = 2, OP_HEARTBEAT = 3, O
 const OP_DAVE_PREPARE_TRANSITION = 21, OP_DAVE_EXECUTE_TRANSITION = 22, OP_DAVE_TRANSITION_READY = 23, OP_DAVE_PREPARE_EPOCH = 24,
   OP_DAVE_EXTERNAL_SENDER = 25, OP_DAVE_KEY_PACKAGE = 26, OP_DAVE_PROPOSALS = 27, OP_DAVE_COMMIT_WELCOME = 28, OP_DAVE_ANNOUNCE_COMMIT = 29,
   OP_DAVE_WELCOME = 30, OP_DAVE_INVALID_COMMIT_WELCOME = 31;
-const SPEAKING_MICROPHONE = 1;
+const SPEAKING_MICROPHONE = 1, SPEAKING_SOUNDSHARE = 2;
 // close codes after which the session cannot go on: authentication, session no longer valid, timed out, disconnected (kicked, the
 // channel deleted), unknown encryption mode
 const FINAL = [4004, 4006, 4009, 4014, 4016];
@@ -32,6 +33,15 @@ const CODECS: any[] = [{ name: 'opus', type: 'audio', priority: 1000, payload_ty
   { name: 'H264', type: 'video', priority: 1000, payload_type: 101, rtx_payload_type: 102, encode: true, decode: true }];
 // the quality op 15 asks for a stream shown at 640x360 or more (100), smaller (50)
 const CAMERA_W = 640, CAMERA_H = 360;
+
+// DISCORD_LOG=1: the diagnostic an owner can send back (docs/plugins/discord-voice.md): every voice gateway message in and out but the
+// heartbeats, redacted, and the counters of each stream every DIAG_MS through `log`
+const TRACE = env('DISCORD_LOG') === '1', DIAG_MS = 5000;
+/** A voice gateway message as the diagnostic prints it: the credentials (token, session_id), the transport key (secret_key) and the IP
+ *  addresses replaced. DAVE's MLS messages are binary and only their opcode and size are printed. */
+export function redact(json: string): string {
+  return json.replace(/"(token|session_id|secret_key|address|ip)":("[^"]*"|\[[^\]]*\]|-?[0-9.]+|null)/g, '"$1":"<redacted>"');
+}
 
 /** A video stream's size and rate: what op 12 announces and what the encoder is given. */
 export interface VideoQuality { width: number; height: number; fps: number }
@@ -97,11 +107,14 @@ export class VoiceConnection {
   private userGains: Map<string, number> = new Map<string, number>();
   private videoSsrc: u32 = 0;                                 // our camera's stream (Ready's streams), its RTX
   private rtxSsrc: u32 = 0;
+  private streamType = 'video';                               // Ready's type of that stream, what op 12 describes
+  private keyframeMs = 0;                                     // Session Description's keyframe_interval (0: key frames on PLI only)
   private camera = false;
   private quality: VideoQuality = { width: 640, height: 360, fps: 30 };
   private wants = '';                                         // the last op 15 sent
   private watched: Map<string, u32> = new Map<string, u32>();   // user -> the SSRC decoded for them
   private lowData = false;
+  private diagAt = 0;
 
   constructor(server: VoiceServer) {
     this.server = server;
@@ -225,17 +238,48 @@ export class VoiceConnection {
       else this.send(OP_IDENTIFY, { server_id: this.server.serverId, user_id: this.server.userId, session_id: this.server.sessionId,
         token: this.server.token, max_dave_protocol_version: S.daveVersion(), video: true, streams: [{ type: this.kind(), rid: '100', quality: 100 }] });
     };
-    ws.onmessage = (e: MessageEvent): void => { if (this.ws === ws) { if (e.binary) this.binary(e.bytes); else this.receive(JSON.parse(e.data)); } };
+    ws.onmessage = (e: MessageEvent): void => {
+      if (this.ws !== ws) return;
+      if (e.binary) { this.trace(`in binary op ${e.bytes.length > 2 ? e.bytes[2] : -1}, ${e.bytes.length} bytes`); this.binary(e.bytes); return; }
+      const m: any = JSON.parse(e.data);
+      if (m.op !== OP_HEARTBEAT_ACK) this.trace(`in ${redact(e.data)}`);
+      this.receive(m);
+    };
     ws.onclose = (e: CloseEvent): void => { if (this.ws === ws) this.closed(e.code); };
   }
   private kind(): string { return this.server.stream === true ? 'screen' : 'video'; }
-  private send(op: i32, d: any): void { const ws = this.ws; if (ws !== null) ws.send(JSON.stringify({ op: op, d: d })); }
+  /** Every message to the voice gateway goes out here. */
+  private send(op: i32, d: any): void {
+    const ws = this.ws;
+    if (ws === null) return;
+    const text = JSON.stringify({ op: op, d: d });
+    if (op !== OP_HEARTBEAT) this.trace(`out ${redact(text)}`);
+    ws.send(text);
+  }
+  private trace(line: string): void { if (TRACE) this.log(`voice-gw[${this.kind()}] ${line}`); }
+  /** The diagnostic's counters (DISCORD_LOG=1, every DIAG_MS): per stream sent and received (native report()), the totals and DAVE's. */
+  private diagnose(): void {
+    const now = Date.now();
+    if (!TRACE || now - this.diagAt < DIAG_MS) return;
+    this.diagAt = now;
+    const k = `voice-rtp[${this.kind()}]`, st = this.stats(), v = this.videoStats(), dave = S.daveState(this.h).split('\u001f');
+    this.log(`${k} voice sent ${st[0]} received ${st[1]} undecryptable ${st[2]} decoded ${st[3]}; video frames encoded ${v[0]} packets ${v[1]} decoded ${v[2]} pli out ${v[3]} in ${v[4]}; dave v${dave[0]} keyed ${dave[1]} unencrypted-held ${dave[2]} undecryptable ${dave[3]}`);
+    for (const rec of S.report(this.h).split('\u001e')) {
+      if (rec === '') continue;
+      const f = rec.split('\u001f');
+      if (f[0] === 'out') this.log(`${k} out ${f[1]} ssrc ${f[2]} bytes ${f[3]} packets ${f[4]} target ${f[5]} bit/s${f[1] === 'video' ? ` frames ${f[6]} ${f[7]}x${f[8]} pli-in ${f[9]} keys ${f[10]} nal [${f[11]}]` : ''}`);
+      else if (f[0] === 'remote') this.log(`${k} remote ${f[1]} ssrc ${f[2]} fraction-lost ${f[3]} lost ${f[4]} jitter ${f[5]} rtt ${f[6]}`);
+      else if (f[0] === 'in') this.log(`${k} in ${f[1]} ssrc ${f[2]} user ${f[3]} bytes ${f[4]} packets ${f[5]} lost ${f[6]} jitter ${f[7]}${f[1] === 'video' ? ` decoded ${f[8]} dropped ${f[9]} keys ${f[10]} nal [${f[11]}] transport-fail ${f[12]} dave-fail ${f[13]} decoder-errors ${f[14]}` : ''}`);
+      else if (f[0] === 'other') this.log(`${k} other payload type ${f[1]} ssrc ${f[2]} packets ${f[3]}`);
+    }
+  }
   /** A binary message: the opcode, then the payload. */
   private sendBinary(op: i32, payload: u8[]): void {
     const ws = this.ws;
     if (ws === null) return;
     const b: u8[] = [op];
     for (const x of payload) b.push(x);
+    this.trace(`out binary op ${op}, ${b.length} bytes`);
     ws.sendBytes(b);
   }
   private setState(s: VoiceState): void { if (this.state !== s) { this.state = s; this.log(`voice ${s}`); this.onState(s); } }
@@ -262,7 +306,14 @@ export class VoiceConnection {
   /** Ready: our SSRC and the UDP endpoint. IP discovery runs on the native side; its answer selects the protocol. */
   private ready(d: any): void {
     this.ssrc = d.ssrc;
-    if (Array.isArray(d.streams) && d.streams.length > 0) { this.videoSsrc = d.streams[0].ssrc; this.rtxSsrc = d.streams[0].rtx_ssrc ?? this.videoSsrc + 1; }
+    if (Array.isArray(d.streams) && d.streams.length > 0) {
+      this.videoSsrc = d.streams[0].ssrc; this.rtxSsrc = d.streams[0].rtx_ssrc ?? this.videoSsrc + 1;
+      if (typeof d.streams[0].type === 'string') this.streamType = d.streams[0].type;
+    }
+    // before any media either way, or the server drops the connection (Invalid SSRC): one Video payload (no stream yet, as
+    // Discord-video-stream sends it on Ready) and one Speaking payload (docs.discord.food, Voice Connections: Speaking, Video)
+    this.send(OP_VIDEO, { audio_ssrc: this.ssrc, video_ssrc: 0, rtx_ssrc: 0, streams: [] });
+    this.send(OP_SPEAKING, { speaking: 0, delay: 0, ssrc: this.ssrc });
     this.serverModes = [];
     for (const x of d.modes) this.serverModes.push(`${x}`);
     const h = S.connect(`${d.ip}`, d.port, this.ssrc);
@@ -290,6 +341,7 @@ export class VoiceConnection {
     this.mode = `${d.mode}`;
     if (!S.start(this.h, this.mode, key, this.server.stream !== true)) { this.end(S.error()); return; }
     this.dave = d.dave_protocol_version ?? 0;
+    if (typeof d.keyframe_interval === 'number') this.keyframeMs = d.keyframe_interval;
     if (this.dave > 0) this.keyPackage();
     this.setState('connected');
     if (this.camera) this.describeVideo();   // a camera turned on while connecting, or a resumed session
@@ -311,6 +363,7 @@ export class VoiceConnection {
     const e2ee = st[0] !== '0' && st[1] === '1';
     if (st.length > 4 && st[4] !== '') this.log(`voice dave: ${st[4]}`);
     if (e2ee !== this.e2ee) { this.e2ee = e2ee; this.log(`voice end-to-end encrypted ${e2ee}`); this.onState(this.state); }
+    this.diagnose();
   }
   // ------------------------------------------------------------------ video
   /** Op 12 from the server: someone's camera started (a video SSRC) or stopped (0, or no active stream). */
@@ -329,9 +382,12 @@ export class VoiceConnection {
   private describeVideo(): void {
     if (this.h < 0 || this.state !== 'connected' || this.videoSsrc === 0) return;
     const on = this.camera, q = this.quality, bps = videoBitrate(q);
-    S.videoSend(this.h, on ? this.videoSsrc : 0, bps, q.fps);
+    S.videoSend(this.h, on ? this.videoSsrc : 0, bps, q.fps, this.keyframeMs);
+    // a Go Live connection is speaking (soundshare) while it streams, as Discord-video-stream's StreamConnection says
+    if (this.server.stream === true) this.send(OP_SPEAKING, { speaking: on ? SPEAKING_SOUNDSHARE : 0, delay: 0, ssrc: this.ssrc });
+    // the stream's type is Ready's ('video' for a camera and for Go Live alike); Identify offered 'screen' for Go Live
     this.send(OP_VIDEO, { audio_ssrc: this.ssrc, video_ssrc: on ? this.videoSsrc : 0, rtx_ssrc: on ? this.rtxSsrc : 0,
-      streams: on ? [{ type: this.kind(), rid: '100', ssrc: this.videoSsrc, rtx_ssrc: this.rtxSsrc, active: true, quality: 100,
+      streams: on ? [{ type: this.streamType, rid: '100', ssrc: this.videoSsrc, rtx_ssrc: this.rtxSsrc, active: true, quality: 100,
         max_bitrate: bps, max_framerate: q.fps, max_resolution: { type: 'fixed', width: q.width, height: q.height } }] : [] });
   }
   // ------------------------------------------------------------------ DAVE
