@@ -41,7 +41,9 @@ awk -v r="$(num clean rttMs)" -v s="$(num thin rttMs)" 'BEGIN { exit !(s >= r + 
 # thin: 60 ms packets keep the low data mode under the 20 kbit/s link (no queue loss), and nothing goes silent for 120 ms
 awk -v w="$(num thin audioWireKbps)" -v g="$(num thin maxGapMs)" 'BEGIN { exit !(w < 20 && g < 120) }' || { echo "thin: $(num thin audioWireKbps) kbit/s on the wire, longest gap $(num thin maxGapMs) ms"; fail=1; }
 # burst: the losses are rebuilt from the FEC and the deep redundancy (DRED), not only concealed
-awk -v f="$(num burst fecPct)" -v d="$(num burst dredPct)" -v c="$(num burst concealedPct)" 'BEGIN { exit !(f > 0 && d > 0 && c < f + d) }' || { echo "burst: FEC $(num burst fecPct)%, DRED $(num burst dredPct)%, concealed $(num burst concealedPct)%"; fail=1; }
+# (the audio rate rises with the reported loss so DRED reaches back far enough; once it has, the second half conceals about 3%)
+awk -v f="$(num burst fecPct)" -v d="$(num burst dredPct)" -v c="$(num burst concealedPct)" -v c2="$(num burst concealedPct2)" 'BEGIN { exit !(f > 0 && d > 0 && c < f + d && c2 < 4.5) }' ||
+  { echo "burst: FEC $(num burst fecPct)%, DRED $(num burst dredPct)%, concealed $(num burst concealedPct)% ($(num burst concealedPct2)% in the second half)"; fail=1; }
 # jitter: the target near 2 x the jitter, nothing concealed or silent while it resizes, mouth to ear within 250 ms; calm: back to 40 ms
 awk -v t="$(num jitter jbTargetEndMs)" -v c="$(num jitter concealedPct)" -v g="$(num jitter maxGapMs)" -v m="$(num jitter mouthToEarMs)" 'BEGIN { exit !(t >= 50 && t <= 85 && c == 0 && g == 0 && m > 0 && m <= 250) }' ||
   { echo "jitter: target $(num jitter jbTargetEndMs) ms, concealed $(num jitter concealedPct)%, gap $(num jitter maxGapMs) ms, mouth to ear $(num jitter mouthToEarMs) ms"; fail=1; }

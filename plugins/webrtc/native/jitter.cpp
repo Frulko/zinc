@@ -10,7 +10,8 @@ namespace {
 inline uint16_t be16(const uint8_t* p) { return (uint16_t)(p[0] << 8 | p[1]); }
 inline uint32_t be32(const uint8_t* p) { return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3]; }
 const int kWindowMs = 5000;                  // the jitter of the last 5 s sets the target
-const int kMinTarget = 40, kMaxTarget = 300, kMaxBurst = 120;
+const int kMinTarget = 40, kMaxTarget = 300;
+const int kMaxBurst = 200;   // the longest run of losses the delay covers: as far back as a Zinc peer's DRED reaches (kDredMs)
 const float kFaster = 1.15f, kSlower = 0.9f;   // 15% of the time taken away, or 10% added, while the delay moves toward the target
 }  // namespace
 

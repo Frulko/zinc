@@ -396,6 +396,7 @@ int videoBitrate(Tx& t, int w, int h, int fps) {
   if (r > 0 && bps > r) bps = r < 50000 ? 50000 : r;
   return bps;
 }
+const int kAudioMaxBps = 64000;   // the most the loss raises the audio to
 const int kDredMs = 200;   // the past each packet carries for a Zinc peer: a burst of 3 packets of 60 ms
 // When each sent audio packet was captured, by (SSRC, RTP timestamp): the receiving side of a call in this process (the loopback) measures
 // mouth to ear with it. The last 20 s of packets.
@@ -488,7 +489,15 @@ void work(std::shared_ptr<Tx> tp) {
     // audio out: Opus in packets of 20 ms, or 40 and 60 ms on a thin link, where the 58 bytes of headers per packet (IPv4, UDP, RTP, SRTP)
     // cost more than the voice: at 10 kbit/s, 23 kbit/s of headers at 20 ms and 8 at 60 (docs/reports/webrtc-selfhost-design.md 6.1)
     if (!t.video && sendC.pt >= 0 && pcm.size() >= 960) {
-      const int bps = t.maxBitrate > 0 ? (int)t.maxBitrate : 32000;   // setParameters' maxBitrate, live (the low data mode: 6 to 16 kbit/s)
+      int lossPct;
+      { std::lock_guard<std::mutex> l(t.m); lossPct = (int)(t.st.lossHeld * 100 + 0.5); }
+      if (lossPct < 2) lossPct = 2;   // the FEC follows the loss the peer reports, a little of it always (the first loss is covered)
+      static const bool noDred = getenv("ZINC_WEBRTC_DRED") && !strcmp(getenv("ZINC_WEBRTC_DRED"), "0");   // off, to measure without it
+      const bool dred = !noDred && fmtpValue(sendC.fmtp, "x-zinc-dred") == "1";   // a Zinc peer decodes the deep redundancy; others would only pay for it
+      int bps = t.maxBitrate > 0 ? (int)t.maxBitrate : 32000;   // setParameters' maxBitrate, live (the low data mode: 6 to 16 kbit/s)
+      // under loss, with no cap set, a Zinc peer gets more bits: libopus gives DRED a share of the rate above 20 kbit/s, so at 32 kbit/s it
+      // reaches back too little to rebuild a run of lost packets (libwebrtc's loss-based controller raises the audio rate the same way)
+      if (t.maxBitrate <= 0 && dred && lossPct >= 5) bps = std::min(kAudioMaxBps, 32000 + lossPct * 1600);
       int ptime = bps <= 16000 ? 60 : bps <= 24000 ? 40 : 20;
       if (sendC.maxptime >= 20 && ptime > sendC.maxptime) ptime = sendC.maxptime / 20 * 20;   // the peer's a=maxptime
       const int frameN = ptime * 48;
@@ -496,12 +505,7 @@ void work(std::shared_ptr<Tx> tp) {
       else if (bps != aencBps) media::opusSetBitrate(aenc, bps);
       aencBps = bps;
       if (aenc) {
-        int lossPct;
-        { std::lock_guard<std::mutex> l(t.m); lossPct = (int)(t.st.lossHeld * 100 + 0.5); }
-        if (lossPct < 2) lossPct = 2;   // the FEC follows the loss the peer reports, a little of it always (the first loss is covered)
         if (lossPct != aencLoss) { media::opusSetLoss(aenc, lossPct); aencLoss = lossPct; }
-        static const bool noDred = getenv("ZINC_WEBRTC_DRED") && !strcmp(getenv("ZINC_WEBRTC_DRED"), "0");   // off, to measure without it
-        const bool dred = !noDred && fmtpValue(sendC.fmtp, "x-zinc-dred") == "1";   // a Zinc peer decodes the deep redundancy; others would only pay for it
         if (dred != aencDred) { aencDred = dred; media::opusSetDred(aenc, dred ? kDredMs : 0); }
       }
       size_t at = 0;

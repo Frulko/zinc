@@ -87,6 +87,9 @@ async function main(): Promise<void> {
   const line = new Map<string, number>();
   line.set('seconds', r1((at1 - at0) / 1000));
   line.set('concealedPct', samples > 0 ? r1((t1.concealed - t0.concealed) * 100 / samples) : 100);
+  // the second half alone: the steady state, once the receiver reports have set the sender's FEC, DRED and rate (an RTCP report a second)
+  const samples2 = t1.received - tm.received + t1.concealed - tm.concealed + t1.fec - tm.fec + t1.dred - tm.dred;
+  line.set('concealedPct2', samples2 > 0 ? r1((t1.concealed - tm.concealed) * 100 / samples2) : 100);
   line.set('fecPct', samples > 0 ? r1((t1.fec - t0.fec) * 100 / samples) : 0);
   line.set('dredPct', samples > 0 ? r1((t1.dred - t0.dred) * 100 / samples) : 0);
   line.set('maxGapMs', maxGap);
