@@ -1,0 +1,27 @@
+SpeexDSP 1.2.1 (2022-06-16, the latest release), BSD-3-Clause (COPYING), for zinc:microphone's echo cancellation, noise suppression and
+gain control (plugins/microphone/native/voice.cpp).
+  https://downloads.xiph.org/releases/speex/speexdsp-1.2.1.tar.gz
+  archive sha256 8c777343e4a6399569c72abc38a95b24db56882c83dbdb6c6424a5f4aeb54d3d
+  kept, unmodified: COPYING, AUTHORS, the echo canceller (mdf.c), the preprocessor (preprocess.c, filterbank.c/.h), the FFT they use
+  (fftwrap.c/.h, smallft.c/.h) and their headers (arch.h, math_approx.h, os_support.h, pseudofloat.h, include/speex/speex_echo.h,
+  speex_preprocess.h, speexdsp_types.h); not the resampler, jitter buffer, ring buffer, KISS FFT, fixed-point headers or the tests.
+  ours: include/speex/speexdsp_config_types.h, written by hand in place of configure's .in (stdint types).
+  built with FLOATING_POINT, USE_SMALLFT and an empty EXPORT (plugin.json); +84 KB in the macOS arm64 plugin (1054864 -> 1140608 bytes).
+sha256 of the kept files (vendor/speexdsp/):
+  2654a4264b2bfe298dedc508748d140111840c315cc8eb646a3a68c13fa75b01  COPYING
+  6e5a9d92c5f9ccd28fe0b15ad59443fbf435bfc6ab2221f532006d3717ddf642  AUTHORS
+  ab18db97564a241c9e06d723351c2155bf04a23ac30e0c27a3d86dcc04de3426  include/speex/speex_echo.h
+  87066ed01639bbc8d3297bb58dbd55bfe1b9cd6e26fc68a1b7f87aa9b61fa9c3  include/speex/speex_preprocess.h
+  4f97187c057fd8493c787f2526752859cf57007d50fef8d2e03c9b79b2fed490  include/speex/speexdsp_types.h
+  a096297873dfd0a07509028d2cdd02d12edf8f1d03319fcecedda003d18d22a8  libspeexdsp/mdf.c
+  f2579e284dc4ec49e2252901966fa4a93e62245969617e740affe8fda5051a7a  libspeexdsp/preprocess.c
+  da21ffc079092566fc3a7297611cc86b9d08a8f5a91ae81e3427f0b14ad98463  libspeexdsp/filterbank.c
+  8b86cc1f52c52abe5685c751e30c91b2e24a5a60d30893027445886c30d0d249  libspeexdsp/filterbank.h
+  a59ec583e5660207da9cf3c1ddd6a7ff1ed91382eb40df2a4e77d5cddfe14c52  libspeexdsp/fftwrap.c
+  fd289dcc47b9ddb2b33039c1990c4644bb279c9413ede6e74fdb2742c3888ee5  libspeexdsp/fftwrap.h
+  25bcc6e38baeca23e828bfcbbb1cc0a0d3f6f898d9e02c95cbb4b4c0fb4b3df7  libspeexdsp/smallft.c
+  715352e7efe55cb671f37fa341610ce7df893016625506e22175d9f1b1b817e9  libspeexdsp/smallft.h
+  102f6a14a95f8ae0bcfc69270f3a9e3fbba08b63bba688ca524f71e3faa48c23  libspeexdsp/arch.h
+  a024693b0d29dc4e904021a1b442908c1fa726b18f5d31b0935e38646f2701ff  libspeexdsp/math_approx.h
+  5ab9c979e8ac1f72c7441d24e39e7840828dd9356aac49a31eabeddb808bf1d3  libspeexdsp/os_support.h
+  0bd544dbed0096e02da2fd800d673bafb19bd97f56e268b98402ad641726daae  libspeexdsp/pseudofloat.h

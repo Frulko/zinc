@@ -19,6 +19,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - **Fixed** Under the shell, an app started with `zinc device run` comes to the screen even over another page, and `zinc device stop` or a newer app replacing it no longer leaves an "app stopped (exit -1)" page.
 
 ### Calls and media
+- **New** Calls without headphones: a microphone opened with `echoCancellation`, `noiseSuppression` and `autoGainControl` takes the far end's voice coming out of the speakers away (give it zinc:audio's `played` as `reference`), quiets steady noise and levels the voice. The call example uses it.
 - Calls between two Zinc apps hold up on lossy links: under loss the voice gets more bits for its deep redundancy and the receiver waits for it, so a link losing a quarter of its packets in bursts loses about 3% of the sound instead of 8%.
 
 ## [0.10.6] - 2026-10-31

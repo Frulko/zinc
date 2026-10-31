@@ -2,7 +2,7 @@
 
 Microphones: list them, open one at a sample rate and a channel count, receive the samples in blocks, read a level for a meter. Capture
 goes through miniaudio (the copy `zinc:audio` vendors), so the same code runs on Core Audio, PulseAudio and ALSA. Sources:
-`plugins/microphone/`. Sending audio to a peer (WebRTC audio tracks) is not there yet: see [webrtc](webrtc.md).
+`plugins/microphone/`. A call sends it with [webrtc](webrtc.md), its echo and noise taken away (below).
 
 ```ts
 import { devices, requestPermission, Microphone } from 'zinc:microphone';
@@ -26,10 +26,30 @@ mic.close();
 | `level()` | RMS of the last block, 0 to 1 |
 | `frameIndex`, `isOpen` | frames received so far; false once closed |
 | `close()` | stops the capture |
+| `setProcessing({ echoCancellation, noiseSuppression, autoGainControl, reference, referenceRate })` | voice processing for a call, from the next block (the same keys in `Microphone.open`'s options): see below |
 
 `navigator.mediaDevices` covers it too once the program imports the plugin: `enumerateDevices()` lists the microphones as `audioinput`,
 `getUserMedia({ audio: true })` (or `{ audio: { sampleRate, channelCount, deviceId } }`, with or without `video`) gives a `MediaStream` whose
 audio track holds the `Microphone` (`track.microphone as Microphone`); `track.stop()` closes it.
+
+## Echo cancellation, noise suppression, gain control
+
+A call without headphones: the far end comes out of the speakers and back into the microphone. `echoCancellation` takes it away, given what
+the speakers played: `reference` is called before each block and returns the samples played since its last call, mono at `referenceRate`
+(48000 by default); with zinc:audio playing the far end it is zinc:audio's `played`. `noiseSuppression` takes away steady noise (fans, hum),
+`autoGainControl` levels the voice (a quiet one is raised up to 30 dB, a loud one brought down to about -24 dBFS).
+
+```ts
+import { played } from 'zinc:audio';
+const mic = await Microphone.open('', { echoCancellation: true, noiseSuppression: true, autoGainControl: true, reference: played });
+// or on a getUserMedia track: (track.microphone as Microphone).setProcessing({ ... })
+```
+
+It is SpeexDSP 1.2.1 (`vendor/speexdsp`, BSD-3-Clause): its echo canceller with a 250 ms filter (the speaker's latency, the room and the
+microphone's latency together must stay under it), then its preprocessor (the echo left, the noise, the gain), on frames of 10 ms: the
+processed blocks come 10 ms late, and two channels are processed as their mix. Measured (`tests/t0/voice_aec.sh`): a recorded voice in a
+simulated room is cancelled by 25.8 dB after 6 s, and a near voice talking over it comes through 2.2 dB down. All off by default (browsers
+turn them on); not in a run without native code. On the web the browser's own processing is used and `reference` is not called.
 
 ## Backends
 

@@ -53,6 +53,7 @@ export default {
   voiceStop(voice: i32, delay: f64): void { if (voice > 0 && voice <= ends.length) ends[voice - 1] = Math.min(ends[voice - 1], clock + Math.max(0, delay)); },
   voiceSet(voice: i32, volume: f64, rate: f64, pan: f64): void {},
   voicePlaying(voice: i32): boolean { return voice > 0 && voice <= ends.length && clock < ends[voice - 1]; },
+  played(): f64[] { return []; },
   time(): f64 { return clock; },
   pcm(samples: f64[], channels: i32, rate: i32): i32 {
     if ((channels == 1 || channels == 2) && rate >= 8000 && rate <= 192000 && samples.length >= channels) return add(Math.floor(samples.length / channels) / rate);

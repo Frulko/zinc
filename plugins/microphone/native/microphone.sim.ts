@@ -47,6 +47,8 @@ export default {
     m.lvl = Math.min(1, Math.sqrt(sum / out.length));
     return out;
   },
+  processing: (_h: i32, _what: i32): void => {},   // ponytail: no voice processing without native code (SpeexDSP is C)
+  reference: (_h: i32, _s: number[], _rate: i32): void => {},
   level: (h: i32): number => { const m = at(h); return m === null ? 0 : m.lvl; },
   close: (h: i32): void => { if (at(h) !== null) mics[h] = null; },
 };

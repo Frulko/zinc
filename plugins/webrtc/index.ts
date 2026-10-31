@@ -4,7 +4,7 @@
 // a connection or a channel lives, then fires the events on the program's thread. The same timer hands the frames of the tracks sent to
 // the native side and takes the peer's decoded frames and samples.
 // On the Zinc engines the names are globals (the compiler adds the import); on QuickJS import them from 'zinc:webrtc'.
-// Not here yet: simulcast and SVC, echo cancellation, screen sharing, insertable streams, DTMF, restartIce, setConfiguration, certificates.
+// Not here yet: simulcast and SVC, screen sharing, insertable streams, DTMF, restartIce, setConfiguration, certificates.
 import S from './native/webrtc.spec';
 import { Event, EventTarget, DOMException, MessageEvent, ErrorEvent, Blob, reportError, MediaStream, MediaStreamTrack, MediaTrackSettings, crypto } from 'zinc:web';
 import { RTCStats } from './quality';

@@ -18,6 +18,11 @@ export interface Spec extends NativeModule {
   format(h: i32): f64[];
   /** The samples captured since the last call, channels interleaved, -1..1; [] when none. The fake microphone makes one 20 ms block per call. */
   read(h: i32): f64[];
+  /** Voice processing of an open microphone from its next block (native/voice.cpp, SpeexDSP): 1 echo cancellation, 2 noise suppression,
+   *  4 gain control, or'ed; 0 turns it off. The processed blocks come 10 ms late. */
+  processing(h: i32, what: i32): void;
+  /** The far end for the echo canceller: what the speakers play, mono at `rate`, in order (about every 20 ms). */
+  reference(h: i32, samples: f64[], rate: i32): void;
   /** RMS of the last block read() returned, 0..1. */
   level(h: i32): f64;
   close(h: i32): void;

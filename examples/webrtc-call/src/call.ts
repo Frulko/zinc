@@ -8,7 +8,7 @@
 import { RTCPeerConnection, RTCTrackEvent, RTCStats, RTCPeerConnectionIceEvent, RTCIceCandidate, RTCRtpSender, RemoteVideo, RemoteAudio, CallQuality, setLowDataMode } from 'zinc:webrtc';
 import { devices, CameraDevice, Camera, requestPermission as askCamera } from 'zinc:camera';
 import { Microphone, requestPermission as askMicrophone } from 'zinc:microphone';
-import { stream, AudioStream } from 'zinc:audio';
+import { stream, played, AudioStream } from 'zinc:audio';
 import { pickScreen } from 'zinc:screen-capture/picker';
 import { navigator, MediaStream, MediaStreamTrack, Event } from 'zinc:web';
 import { WebSocket, MessageEvent as WsMessage } from 'zinc:socket';
@@ -101,6 +101,9 @@ export class Call {
   private async openDevices(): Promise<void> {
     const id = this.which < this.cameras.length ? this.cameras[this.which].id : '';
     this.local = await navigator.mediaDevices.getUserMedia({ video: id === '' ? { width: 640, height: 480, frameRate: 30 } : { width: 640, height: 480, frameRate: 30, deviceId: id }, audio: true });
+    // no headphones: the far end comes out of the speakers into the microphone; the canceller takes it away with what the speakers played
+    const mic = this.microphone;
+    if (mic !== null) mic.setProcessing({ echoCancellation: true, noiseSuppression: true, autoGainControl: true, reference: played });
     this.applyMute();
     this.log(`devices: ${(this.local as MediaStream).getTracks().map((t: MediaStreamTrack) => `${t.kind} ${t.label}`).join(', ')}`);
   }

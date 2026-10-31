@@ -94,6 +94,7 @@ Z.registerNative('Audio', {
   channels(h) { const s = sounds.get(h); return s && s.buffer ? s.buffer.numberOfChannels : 0; },
   rate(h) { const s = sounds.get(h); return s && s.buffer ? s.buffer.sampleRate : 0; },
   samples(h, ch) { const s = sounds.get(h); return s && s.buffer && ch < s.buffer.numberOfChannels ? Array.from(s.buffer.getChannelData(ch)) : []; },
+  played() { return []; },   // the browser cancels its own echo
   time() { return ctx ? ctx.currentTime : 0; },
   streamOpen(channels, rate) {
     try {

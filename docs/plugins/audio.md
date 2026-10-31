@@ -65,6 +65,9 @@ setVolume(0.8);                       // the whole mix
 | `mix(frames): number[]` | `null` backend only: the next `frames` frames of the mix, stereo and interleaved, 1 being full scale. `[]` when a device plays the mix. |
 | `stream(channels = 1, rate = 48000): AudioStream` | Samples played as they are written: the peer's audio of a call (zinc:webrtc's `RemoteAudio.onData`), a synthesizer, an emulator. `write(samples)` appends (channels interleaved); it starts once 60 ms are buffered, plays silence and waits for 60 ms again when it runs dry (`underruns`), and drops what is beyond 180 ms when the writer runs ahead of the device (`dropped`), so the delay stays short when two clocks drift. `buffered` (seconds), `volume`, `close()`. A second at most is kept. |
 
+`played(): number[]` gives what the output device played since the last call, mono at 48 kHz (a second at most; the first call starts
+keeping it and returns `[]`; `[]` headless): the reference of a microphone's echo canceller (`reference: played` in zinc:microphone).
+
 ## In the web environment
 
 A JavaScript program run on the web environment (`"web": true` in `zinc.json`) has `AudioContext` and the audio element

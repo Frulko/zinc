@@ -445,6 +445,7 @@
     {"paths": ["plugins/webrtc/", "plugins/audio/", "plugins/screen-capture/", "examples/webrtc-call/", "tests/golden/webrtc-call/"], "tests": ["webrtc_call"]},
     {"paths": ["plugins/screen-capture/", "tests/t1/screen_capture.sh", "tests/t1/screen_picker.sh", "tests/golden/screen-picker/"], "tests": ["screen_capture", "screen_picker"]},
     {"paths": ["plugins/microphone/", "tests/golden/host/microphone_session.ts", "tests/golden/host/microphone_session.out"], "tests": ["microphone_sim", "microphone", "webcam"]},
+    {"paths": ["plugins/microphone/", "plugins/audio/native/", "tests/native/voice_aec_test.cpp", "tests/t0/voice_aec.sh", "tests/golden/host/microphone_voice.ts", "tests/t1/microphone_voice.sh"], "tests": ["voice_aec", "microphone_voice"]},
     {"paths": ["plugins/location/", "examples/geo/", "tests/golden/host/location_session.ts", "tests/golden/host/location_session.out"], "tests": ["location"]},
     {"paths": ["plugins/serial/", "examples/serial/", "tests/data/serial/"], "tests": ["serial"]},
     {"paths": ["plugins/ble/", "examples/esp32-ble/mac/", "tests/data/ble/", "tests/t1/ble.sh"], "tests": ["ble"]},

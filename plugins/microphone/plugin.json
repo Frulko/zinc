@@ -4,16 +4,16 @@
   "deterministic": true,
   "module": "zinc:microphone",
   "entry": "index.ts",
-  "description": "Microphones (Core Audio, PulseAudio, ALSA through miniaudio): list, open at a rate and channel count, samples in blocks, a level for a meter; a generated fake microphone when there is none",
+  "description": "Microphones (Core Audio, PulseAudio, ALSA through miniaudio): list, open at a rate and channel count, samples in blocks, a level for a meter; echo cancellation, noise suppression and gain control (SpeexDSP 1.2.1); a generated fake microphone when there is none",
   "options": { "fake": false },
   "requires": ["microphone"],
   "native": { "impl": { "macos": "native/microphone.macos.mm", "ios": "native/microphone.ios.mm" } },
   "targets": {
-    "macos": { "sources": ["../audio/vendor/miniaudio_impl.c"], "flags": ["-g0"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "frameworks": ["AVFoundation", "Foundation"] },
-    "linux": { "sources": ["../audio/vendor/miniaudio_impl.c"], "flags": ["-g0"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "libs": ["m", "dl"], "linkFlags": ["-pthread"] },
-    "windows": { "sources": ["../audio/vendor/miniaudio_impl.c"], "flags": ["-g0"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"] },
-    "rpi1": { "sources": ["../audio/vendor/miniaudio_impl.c"], "flags": ["-g0"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "libs": ["m", "dl"], "linkFlags": ["-pthread"] },
-    "ios": { "sources": ["../audio/native/miniaudio.ios.m"], "flags": ["-g0"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER"], "frameworks": ["AudioToolbox", "AVFoundation", "CoreAudio", "Foundation"], "plist": { "NSMicrophoneUsageDescription": "Uses the microphone for calls and recordings." } }
+    "macos": { "sources": ["../audio/vendor/miniaudio_impl.c", "native/voice.cpp", "vendor/speexdsp/libspeexdsp/mdf.c", "vendor/speexdsp/libspeexdsp/preprocess.c", "vendor/speexdsp/libspeexdsp/filterbank.c", "vendor/speexdsp/libspeexdsp/fftwrap.c", "vendor/speexdsp/libspeexdsp/smallft.c"], "flags": ["-g0", "-I./vendor/speexdsp/include"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER", "FLOATING_POINT", "USE_SMALLFT", "EXPORT="], "frameworks": ["AVFoundation", "Foundation"] },
+    "linux": { "sources": ["../audio/vendor/miniaudio_impl.c", "native/voice.cpp", "vendor/speexdsp/libspeexdsp/mdf.c", "vendor/speexdsp/libspeexdsp/preprocess.c", "vendor/speexdsp/libspeexdsp/filterbank.c", "vendor/speexdsp/libspeexdsp/fftwrap.c", "vendor/speexdsp/libspeexdsp/smallft.c"], "flags": ["-g0", "-I./vendor/speexdsp/include"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER", "FLOATING_POINT", "USE_SMALLFT", "EXPORT="], "libs": ["m", "dl"], "linkFlags": ["-pthread"] },
+    "windows": { "sources": ["../audio/vendor/miniaudio_impl.c", "native/voice.cpp", "vendor/speexdsp/libspeexdsp/mdf.c", "vendor/speexdsp/libspeexdsp/preprocess.c", "vendor/speexdsp/libspeexdsp/filterbank.c", "vendor/speexdsp/libspeexdsp/fftwrap.c", "vendor/speexdsp/libspeexdsp/smallft.c"], "flags": ["-g0", "-I./vendor/speexdsp/include"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER", "FLOATING_POINT", "USE_SMALLFT", "EXPORT="] },
+    "rpi1": { "sources": ["../audio/vendor/miniaudio_impl.c", "native/voice.cpp", "vendor/speexdsp/libspeexdsp/mdf.c", "vendor/speexdsp/libspeexdsp/preprocess.c", "vendor/speexdsp/libspeexdsp/filterbank.c", "vendor/speexdsp/libspeexdsp/fftwrap.c", "vendor/speexdsp/libspeexdsp/smallft.c"], "flags": ["-g0", "-I./vendor/speexdsp/include"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER", "FLOATING_POINT", "USE_SMALLFT", "EXPORT="], "libs": ["m", "dl"], "linkFlags": ["-pthread"] },
+    "ios": { "sources": ["../audio/native/miniaudio.ios.m", "native/voice.cpp", "vendor/speexdsp/libspeexdsp/mdf.c", "vendor/speexdsp/libspeexdsp/preprocess.c", "vendor/speexdsp/libspeexdsp/filterbank.c", "vendor/speexdsp/libspeexdsp/fftwrap.c", "vendor/speexdsp/libspeexdsp/smallft.c"], "flags": ["-g0", "-I./vendor/speexdsp/include"], "defines": ["MA_NO_ENCODING", "MA_NO_RESOURCE_MANAGER", "FLOATING_POINT", "USE_SMALLFT", "EXPORT="], "frameworks": ["AudioToolbox", "AVFoundation", "CoreAudio", "Foundation"], "plist": { "NSMicrophoneUsageDescription": "Uses the microphone for calls and recordings." } }
   },
   "web": { "entry": "web/index.ts", "needs": ["getUserMedia", "audio"] }
 }

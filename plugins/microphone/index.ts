@@ -10,7 +10,15 @@ const RS = '\u001e', FS = '\u001f';
 
 export type PermissionStatus = 'granted' | 'denied' | 'undetermined';
 export interface MicrophoneDevice { id: string; name: string }
-export interface MicrophoneOptions { sampleRate?: number; channels?: number }
+export interface MicrophoneOptions extends VoiceProcessing { sampleRate?: number; channels?: number }
+/** The voice processing of a call (SpeexDSP: its echo canceller, denoiser and gain control), as getUserMedia names it. The echo canceller
+ *  needs what the speakers play: `reference` is called before each block and gives the samples played since its last call, mono at
+ *  `referenceRate` (48000 by default): `played` of zinc:audio when the far end plays through it. The processed blocks come 10 ms late; two
+ *  channels are processed as their mix. Not in a run without native code (ZINC_NATIVE=sim). */
+export interface VoiceProcessing {
+  echoCancellation?: boolean; noiseSuppression?: boolean; autoGainControl?: boolean;
+  reference?: () => number[]; referenceRate?: number;
+}
 
 const status = (s: i32): PermissionStatus => s === 1 ? 'granted' : s === 2 ? 'denied' : 'undetermined';
 
@@ -57,13 +65,17 @@ export class Microphone {
   private timer: i32 = -1;
   private frames: number = 0;
   private cbs: ((samples: number[], frameIndex: number) => void)[] = [];
+  private ref: (() => number[]) | null = null;
+  private refRate: i32 = 48000;
 
   /** Opens a microphone (an id of devices(), '' or nothing for the first one). Defaults: 48000 Hz, one channel. Rejects with the reason
    *  (no such microphone, access not granted: requestPermission() first, zinc.json "permissions"). */
   static open(id: string = '', o: MicrophoneOptions = {}): Promise<Microphone> {
     const h = S.open(id, o.sampleRate ?? 0, o.channels ?? 0);
     if (h < 0) return Promise.reject(new Error(S.error()));
-    return Promise.resolve(new Microphone(h, id));
+    const m = new Microphone(h, id);
+    m.setProcessing(o);
+    return Promise.resolve(m);
   }
   private constructor(h: i32, id: string) {
     const f = S.format(h);
@@ -73,6 +85,8 @@ export class Microphone {
   }
   private tick(): void {
     if (this.h < 0) return;
+    const ref = this.ref;
+    if (ref !== null) { const r = ref(); if (r.length > 0) S.reference(this.h, r, this.refRate); }
     const s = S.read(this.h);
     if (s.length === 0) return;
     const first = this.frames;
@@ -82,6 +96,13 @@ export class Microphone {
   /** Each block of samples as it arrives (about every 20 ms), channels interleaved, -1..1, with the index of its first frame since open
    *  (frameIndex / sampleRate is its time in seconds). */
   onData(cb: (samples: number[], frameIndex: number) => void): void { this.cbs.push(cb); }
+  /** Turns the echo cancellation, noise suppression and gain control on or off from the next block (all off when the options name none). */
+  setProcessing(p: VoiceProcessing): void {
+    if (this.h < 0) return;
+    S.processing(this.h, (p.echoCancellation === true ? 1 : 0) | (p.noiseSuppression === true ? 2 : 0) | (p.autoGainControl === true ? 4 : 0));
+    this.ref = p.echoCancellation === true && p.reference !== undefined ? p.reference as () => number[] : null;
+    this.refRate = Math.trunc(p.referenceRate ?? 48000);
+  }
   /** Loudness of the last block: its RMS, 0 (silence) to 1. A meter reads it each frame. */
   level(): number { return this.h < 0 ? 0 : S.level(this.h); }
   /** Frames received so far. */
@@ -92,7 +113,7 @@ export class Microphone {
     if (this.h < 0) return;
     clearInterval(this.timer);
     S.close(this.h);
-    this.h = -1; this.cbs = [];
+    this.h = -1; this.cbs = []; this.ref = null;
   }
 }
 

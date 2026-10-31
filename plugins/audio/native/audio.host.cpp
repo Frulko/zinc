@@ -258,11 +258,25 @@ void render(void* out, ma_uint32 frames) {
   ma_engine_read_pcm_frames(&eng, out, frames, nullptr);
   if (ma_engine_get_time_in_pcm_frames(&eng) < t + frames) ma_engine_set_time_in_pcm_frames(&eng, t + frames);
 }
+// What the device played, mono, for a microphone's echo canceller (played()): kept from the first call on, a second at most.
+pthread_mutex_t tapMu = PTHREAD_MUTEX_INITIALIZER;
+bool tapOn;
+float tap[RATE];
+ma_uint32 tapHead, tapCount;
+void keep_played(const float* out, ma_uint32 frames) {
+  pthread_mutex_lock(&tapMu);   // ponytail: a lock on the device's thread, held for a copy of one period; a lock-free ring if it ever shows
+  for (ma_uint32 i = 0; i < frames; i++) {
+    tap[(tapHead + tapCount) % RATE] = (out[2 * i] + out[2 * i + 1]) * 0.5f;
+    if (tapCount < RATE) tapCount++; else tapHead = (tapHead + 1) % RATE;
+  }
+  pthread_mutex_unlock(&tapMu);
+}
 // While the inspector pauses the program (zinc dev, src/host/gfx_host.cpp) the device gets silence and the mix stands still, so it goes on where it stopped.
 extern "C" int zn_dev_paused(void) __attribute__((weak));
 void pull(ma_device*, void* out, const void*, ma_uint32 frames) {
   if (zn_dev_paused && zn_dev_paused()) { memset(out, 0, (size_t)frames * 2 * sizeof(float)); return; }
   render(out, frames);
+  if (tapOn) keep_played((const float*)out, frames);
 }
 // The default playback device, asked for the mixer's format (miniaudio converts when the hardware has another).
 // On its own thread: starting Core Audio took 90 to 520 ms on the development Mac, a frozen frame if a game paid it
@@ -588,6 +602,16 @@ struct HostAudio : NativeAudio {
   zrt::String musicError(int32_t h) override { Music* m = music_at(h); return str(m ? m->err : "no such music"); }
   void musicSetVolume(int32_t h, double volume) override { if (Music* m = music_at(h)) ma_sound_set_volume(&m->sound, (float)volume); }
   void musicClose(int32_t h) override { close_music(h); }
+  zrt::Array<double> played() override {
+    pthread_mutex_lock(&tapMu);
+    tapOn = true;
+    zrt::Array<double> r = zrt::Array<double>::with_cap((int32_t)tapCount);
+    for (ma_uint32 i = 0; i < tapCount; i++) r.a->data[i] = tap[(tapHead + i) % RATE];
+    r.a->len = (int32_t)tapCount;
+    tapHead = tapCount = 0;
+    pthread_mutex_unlock(&tapMu);
+    return r;
+  }
   double time() override { return opened ? (double)ma_engine_get_time_in_pcm_frames(&eng) / RATE : 0; }
   void setMasterVolume(double volume) override { if (ma_engine* e = engine()) ma_engine_set_volume(e, (float)volume); }
   zrt::Array<double> mix(int32_t frames) override {

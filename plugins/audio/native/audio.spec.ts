@@ -51,6 +51,9 @@ export interface Spec extends NativeModule {
   rate(sound: i32): i32;
   /** The samples of one channel of a sound ([] for a channel it does not have). */
   samples(sound: i32, channel: i32): f64[];
+  /** What the output device played since the last call, mono at 48 kHz (a second at most; the first call starts keeping it, and gives []).
+   *  [] when nothing plays (headless, the null backend). A microphone's echo canceller takes it as its reference. */
+  played(): f64[];
   /** Seconds of mix rendered so far: by the device, or by mix() on the null backend. Never waits. */
   time(): f64;
   /** A stream: samples written as they come (a call's audio), 1 or 2 channels at `rate`, played from when 60 ms are buffered; an

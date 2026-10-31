@@ -94,7 +94,7 @@ role (`a=setup:active`): mbedTLS cannot be the server for Chrome, whose ClientHe
 
 ## Not supported (yet)
 
-- Simulcast and SVC (one encoding per sender), echo cancellation and noise suppression (use a headset), screen sharing
+- Simulcast and SVC (one encoding per sender), screen sharing
   (`getDisplayMedia`), insertable streams and encoded transforms, DTMF, transport-cc and send-side bandwidth estimation (the bit rate
   follows REMB and `maxBitrate`), RTX and FEC for video (a loss costs a key frame), header extensions (abs-send-time, MID).
 - H.264 on Linux and the Pi (V4L2 M2M), Windows (Media Foundation) and Android (MediaCodec), AV1 and VP9: see `backlog/later.md`.

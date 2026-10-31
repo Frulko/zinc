@@ -113,6 +113,10 @@ export class AudioStream {
   set volume(v: number) { this.vol = level(v); if (this.h >= 0) A.streamSetVolume(this.h, this.vol); }
   close(): void { if (this.h >= 0) { A.streamClose(this.h); this.h = -1; } }
 }
+/** What the speakers played since the last call, mono at 48 kHz: the reference of a microphone's echo canceller
+ *  (`Microphone.open(id, { echoCancellation: true, reference: played })` of zinc:microphone). The first call starts keeping it and gives [];
+ *  [] when nothing plays (headless, the web, where the browser cancels its own echo). */
+export function played(): number[] { return A.played(); }
 /** A stream of `channels` (1 or 2) at `rate` frames per second, playing at once (silent until samples come). */
 export function stream(channels: i32 = 1, rate: i32 = 48000): AudioStream {
   const h = A.streamOpen(channels, rate);

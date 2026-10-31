@@ -9,6 +9,7 @@
 #define ZRT_HOSTED_CPP
 #include "zinc_native_microphone.h"
 #include "../../audio/vendor/miniaudio.h"
+#include "voice.h"
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -40,6 +41,7 @@ struct Mic {
   ma_device dev;
   pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
   std::vector<float> pending;   // captured, not read yet (at most one second)
+  voice::Proc* proc = nullptr;  // echo cancellation, noise suppression, gain control (processing())
 };
 Mic* mics[16];
 std::string err;
@@ -201,6 +203,7 @@ struct HostMicrophone : NativeMicrophone {
       pthread_mutex_unlock(&m->mu);
     }
     if (got.empty()) return nums(nullptr, 0);
+    if (m->proc) voice::process(m->proc, got.data(), (int)(got.size() / m->ch), m->ch);
     zrt::Array<double> r = zrt::Array<double>::with_cap((int32_t)got.size());
     double sum = 0;
     for (size_t i = 0; i < got.size(); i++) { const double s = got[i]; r.a->data[i] = s; sum += s * s; }
@@ -209,11 +212,24 @@ struct HostMicrophone : NativeMicrophone {
     if (m->lvl > 1) m->lvl = 1;
     return r;
   }
+  void processing(int32_t h, int32_t what) override {
+    Mic* m = at(h);
+    if (!m) return;
+    voice::close(m->proc);
+    m->proc = voice::open(m->rate, what);
+  }
+  void reference(int32_t h, zrt::Array<double> s, int32_t rate) override {
+    Mic* m = at(h);
+    if (!m || !m->proc || !s.a || s.a->len <= 0 || rate <= 0) return;
+    std::vector<float> f(s.a->data, s.a->data + s.a->len);
+    voice::reference(m->proc, f.data(), (int)f.size(), rate);
+  }
   double level(int32_t h) override { Mic* m = at(h); return m ? m->lvl : 0; }
   void close(int32_t h) override {
     Mic* m = at(h);
     if (!m) return;
     if (m->started) ma_device_uninit(&m->dev);   // stops it and waits for the callback
+    voice::close(m->proc);
     delete m;
     mics[h] = nullptr;
   }

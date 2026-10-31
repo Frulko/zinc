@@ -6,7 +6,12 @@ const Z = g.__zincWeb;
 
 export type PermissionStatus = 'granted' | 'denied' | 'undetermined';
 export interface MicrophoneDevice { id: string; name: string }
-export interface MicrophoneOptions { sampleRate?: number; channels?: number }
+export interface MicrophoneOptions extends VoiceProcessing { sampleRate?: number; channels?: number }
+/** The browser's own voice processing (its echo canceller knows what the page plays: `reference` is not needed and not called). */
+export interface VoiceProcessing {
+  echoCancellation?: boolean; noiseSuppression?: boolean; autoGainControl?: boolean;
+  reference?: () => number[]; referenceRate?: number;
+}
 
 let state: PermissionStatus = 'undetermined';
 function need(): void { Z.require('getUserMedia', 'a microphone needs getUserMedia, which browsers offer on https pages and on localhost only'); Z.require('audio', 'Web Audio'); }
@@ -47,7 +52,7 @@ export class Microphone {
 
   static async open(id: string = '', o: MicrophoneOptions = {}): Promise<Microphone> {
     need();
-    const audio: any = { channelCount: o.channels || 1, echoCancellation: true, noiseSuppression: true };
+    const audio: any = { channelCount: o.channels || 1, echoCancellation: o.echoCancellation ?? true, noiseSuppression: o.noiseSuppression ?? true, autoGainControl: o.autoGainControl ?? true };
     if (o.sampleRate) audio.sampleRate = o.sampleRate;
     if (id !== '') audio.deviceId = { exact: id };
     let s: MediaStream;
@@ -101,6 +106,11 @@ export class Microphone {
     for (const cb of this.cbs.slice()) cb(samples, first);
   }
   onData(cb: (samples: number[], frameIndex: number) => void): void { this.cbs.push(cb); }
+  /** Changes the browser's echo cancellation, noise suppression and gain control (applyConstraints on the track). */
+  setProcessing(p: VoiceProcessing): void {
+    const t: any = this.stream.getAudioTracks()[0];
+    if (t) t.applyConstraints({ echoCancellation: p.echoCancellation === true, noiseSuppression: p.noiseSuppression === true, autoGainControl: p.autoGainControl === true }).catch(() => {});
+  }
   level(): number { return this.closed ? 0 : this.lvl; }
   get frameIndex(): number { return this.frames; }
   get isOpen(): boolean { return !this.closed; }
