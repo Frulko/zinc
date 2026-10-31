@@ -16,7 +16,7 @@ golden=tests/golden/pi-image-player
 tap() { printf '%d move %d %d\n%d down\n%d up\n' "$1" "$2" "$3" $(($1 + 1)) $(($1 + 3)); }
 player() { # player <name> <frames> <shots>, input in $tmp/<name>.input
   env PATH="$root/image/player/dev/bin:$PATH" ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_FRAMES="$2" ZINC_SHOT="$tmp/$1.png" ZINC_SHOT_FRAMES="$3" \
-    ZINC_INPUT="$tmp/$1.input" ZINC_PLAYER_POLL_MS=2 ZINC_PLAYER_TRACE_FRAMES=1 ZINC_VERSION=0.0.0 \
+    ZINC_INPUT="$tmp/$1.input" ZINC_PLAYER_POLL_MS=2 ZINC_PLAYER_TRACE_FRAMES=1 ZINC_VERSION=0.0.0 ZINC_PLAYER_VERSION=0.0.0 \
     ZINC_ADMIN="$root/image/player/dev/zinc-admin" ZINC_FAKE_PI="$tmp/pi" ZINC_PLAYER_AGENT_DIR="$tmp/pi/agent" \
     ZINC_PLAYER_CONFIG="$tmp/player.json" ZINC_RUN="$tmp/run" ZINC_APP="$tmp/app" timeout 120 "$Z" run image/player > "$tmp/$1.out" 2>&1
 }

@@ -6356,21 +6356,25 @@ const CLASS_WORDS: string[] = ['flex', 'flex-row', 'flex-col', 'flex-wrap', 'fle
   'items-start', 'items-center', 'items-end', 'items-stretch', 'justify-start', 'justify-center', 'justify-end', 'justify-between', 'justify-around', 'self-center',
   'overflow-hidden', 'rounded', 'rounded-sm', 'rounded-md', 'rounded-lg', 'rounded-xl', 'rounded-2xl', 'rounded-full', 'border', 'border-2', 'border-4',
   'border-t', 'border-b', 'border-l', 'border-r', 'shadow', 'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-xl', 'font-normal', 'font-medium', 'font-semibold', 'font-bold', 'font-mono',
-  'italic', 'underline', 'uppercase', 'truncate', 'text-left', 'text-center', 'text-right', 'text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl',
-  'text-3xl', 'text-4xl', 'opacity-0', 'opacity-25', 'opacity-50', 'opacity-75', 'opacity-100', 'bg-transparent'];
+  'italic', 'underline', 'uppercase', 'truncate', 'text-left', 'text-center', 'text-right', 'opacity-0', 'opacity-25', 'opacity-50', 'opacity-75', 'opacity-100', 'bg-transparent'];
 const CLASS_SPACED: string[] = ['p', 'px', 'py', 'pt', 'pr', 'pb', 'pl', 'm', 'mx', 'my', 'mt', 'mr', 'mb', 'ml', 'gap', 'gap-x', 'gap-y', 'w', 'h', 'min-w', 'min-h',
   'max-w', 'max-h', 'top', 'left', 'right', 'bottom', 'size'];
+// the text sizes as suffixes: written as whole class names, the font baker would read them as uses and bake every size into every UI program
+const CLASS_TEXT_SIZES: string[] = ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl'];
 const CLASS_SCALE: string[] = ['0', 'px', '0.5', '1', '1.5', '2', '2.5', '3', '4', '5', '6', '8', '10', '12', '16', '20', '24', '32', '40', '48', '64', '96', 'full', 'auto', '1/2', '1/3', '2/3', '1/4', '3/4'];
 /** Whether `tok` is a class the engine applies (on a view). */
 export function classKnown(tok: string): boolean { const s = new UiNode(VIEW); defaults(s); return applyToken(s, tok, ''); }
 /** The known classes that start with `prefix`, at most `max` (the inspector's completion). */
 export function knownClasses(prefix: string, max: i32): string[] {
   initColors();
+  // ponytail: the names first, then one filter loop; a local closure here would be the program's only (string) => void lambda, which the
+  // compiler then calls speculatively from every such call site and so links the class parser into programs that give no class
+  const all: string[] = CLASS_WORDS.slice();
+  for (const z of CLASS_TEXT_SIZES) all.push('text-' + z);
+  for (const p of CLASS_SPACED) for (const v of CLASS_SCALE) all.push(p + '-' + v);
+  for (const p of ['bg', 'text', 'border']) for (const c of COLORS.keys()) all.push(p + '-' + c);
   const out: string[] = [];
-  const add = (t: string): void => { if (out.length < max && t.startsWith(prefix) && out.indexOf(t) < 0 && classKnown(t)) out.push(t); };
-  for (const w of CLASS_WORDS) add(w);
-  for (const p of CLASS_SPACED) for (const v of CLASS_SCALE) add(p + '-' + v);
-  for (const p of ['bg', 'text', 'border']) for (const c of COLORS.keys()) add(p + '-' + c);
+  for (const t of all) if (out.length < max && t.startsWith(prefix) && out.indexOf(t) < 0 && classKnown(t)) out.push(t);
   return out;
 }
 /** Such a node with what node h's style sheets declare (numbers false), or its style numbers (true). */

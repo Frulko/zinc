@@ -76,6 +76,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **New** In `zinc:ui/kit`: `ZoomView` (pinch, pan, double tap and Ctrl/Cmd + wheel zoom for any content, scaling the last picture while the fingers move and telling `onView` once they lift), `ResizeHandle` (shadcn's ResizableHandle), `ProgressRing` (a small ring filling clockwise), and `Switch` takes `accessibilityLabel` for a screen reader.
 - **Fixed** Layout: a text that grows from a zero width (`flex-1 w-0`) wraps at the width it gets, style runs too; `width: pct(0)` is no width, as 0% on the web; `w-full max-w-[760] self-center` (or `self-end`) centres the box once max-width makes it narrower, as Yoga does; a child growing from `basis-0` that holds wrapping content, even deeper in a column, is as tall as that content once wrapped, and a `flex-wrap` row there wraps at the page's width.
 - **Fixed** Lists: a `VirtualList` whose rows are components scrolls again (its rows piled up out of sight) and keeps their side margins; a row whose class changes keeps its place; `<VirtualList stickToBottom>` and the other scroll flags of `<ScrollView>` take effect, so a chat opens at its end and follows new messages; rows of their own heights stay in place when the list renders again; an unknown attribute on `<VirtualList>` is an error.
+- **Fixed** A UI app no longer carries a 12 px font it does not use: the app was larger, and `zinc:gfx`'s default font (`textWidth(0, ...)`) was that 12 px face instead of the 16 px one.
 - **Fixed** Scroll snap: a trackpad swipe released in a `snap-x` or `snap-y` container glides straight to its snap point instead of gliding on and jumping back.
 - **Fixed** Text and emoji: with `"text": "shaped"`, a typographic quote, a symbol or a text-style emoji (⛔) the built-in font lacks is drawn from the system fonts; colour emoji draw in a windowed `zinc run` and on QuickJS, and a program that shows an emoji without `"text": "shaped"` says once to add it instead of a silent `?`.
 - **Fixed** `"growDrawCommands": true` in a target of `zinc.json` lets a frame's text grow too, so a long list or log no longer loses its text past 32 KB, and the "text pool is full" warning says how to fix it.
@@ -194,6 +195,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **New** `zinc doc` makes a static documentation site of a project, a plugin or the engine (`--std`), as `cargo doc` does: API from doc comments, Markdown and MDX pages, search, themes and your own `docs/theme.css`; `--out` exports it, `--serve` serves it with reload; nothing is downloaded. `zinc doc --cheatsheet` puts every engine function on one page.
 
 ### Language and engine
+- **Fixed** A class read only through `import type` keeps its fields typed by `new` (`palm = new Vec3()`), so reading them no longer fails with "Property does not exist"; `c ? f() : [x, y]` with two arrays of numbers compiles again under `--profile esp32`.
 - **Fixed** A function with optional parameters can be passed where a callback takes them all: a screen that uses two components named `Button` from different kits (`zinc:ui/kit` and `zinc:react-native`) compiles again.
 - **Fixed** `for (const x of c ? anyValue : [y])` (an `any` and an array literal as a loop's iterable) compiles instead of failing with "Cannot find name: '__dynTo…'".
 - **Fixed** Three things that worked in TypeScript now work the same: `return await` inside `try`/`finally` of an async function runs the `finally` first; an `any[]` read out of an `any` value is the same array, not a copy; `undefined` passed to an `any` parameter stays `undefined` instead of arriving as `null`.
@@ -211,6 +213,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **Fixed** QuickJS: `setTimeout` and `setInterval` wait for the real time outside a deterministic run, as on the other engines; a program with no native call in flight used to run its timers as fast as the CPU went.
 
 ### Tools and CLI
+- **New** Editor types: `Required`, `Pick`, `Omit`, `Exclude`, `Object.keys`, `JSON.stringify` with an indent, and `new Map(entries)` / `new Set(items)` are declared in `zinc.d.ts`.
 - **New** `zinc publish` reads the app's key and the hub's token from `ZINC_UPDATE_SEED` and `ZINC_HUB_TOKEN` when `--key` and `--token` are not given, so they never appear on a command line; a published package gets a safe file name.
 - **Changed** `zinc new` alone asks nothing and makes a game in `my-game` (`my-game-2`... when taken); `zinc new --pick` asks what to make.
 - **Changed** `zinc run` and `zinc dev` print one progress line at most (the first native build: `zinc: compiling for this machine, once`); `--verbose` (or `ZINC_STEPS=1`) shows every step.

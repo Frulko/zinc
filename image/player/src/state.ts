@@ -52,7 +52,8 @@ const configPath = fromEnv('ZINC_PLAYER_CONFIG', zincHome + '/player.json');
 /** The version of the engine running the player, with its commit (0.9.1+708.gbace6c038); an older engine: the one zinc-session passes on
  *  (the last word of `zinc --version`). */
 const versionWords = sys.env('ZINC_VERSION').trim().split(' ');
-export const zincVersion = fromEnv('ZINC_ENGINE_VERSION', versionWords[versionWords.length - 1]);
+// ZINC_PLAYER_VERSION pins it (a test: the engine sets ZINC_ENGINE_VERSION in every run, and its commit changes with each one)
+export const zincVersion = fromEnv('ZINC_PLAYER_VERSION', fromEnv('ZINC_ENGINE_VERSION', versionWords[versionWords.length - 1]));
 /** The player is the shell (D194): it starts the apps itself and shows them below its bar, instead of exiting for zinc-session. */
 export const isShell = sys.env('ZINC_SHELL_SOCKET') !== '' && sys.env('ZINC_DISPLAY') !== 'shell';   // shown by a shell: an app, not a shell
 /** The last lines of an app's log a crash page shows. */

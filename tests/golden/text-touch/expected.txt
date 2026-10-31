@@ -8,9 +8,9 @@ f75 clipboard "wide world你" handles
 keyboard-traits type=text secure=0 multiline=0
 haptic selection
 textinput mirrors: 8
-frame 7 75aabe3c4b4ba9f7
-frame 56 e13e895eab37cd5f
-frame 64 77a7a7717b9e7b92
+frame 7 41cbbede6c465a0f
+frame 56 a402eba7484000e0
+frame 64 a823277b915fa156
 == android
 f6 value "hello wide worldn" composing 16,17
 f9 value "hello wide worldni" composing 16,18
@@ -21,6 +21,6 @@ f75 clipboard "wide world你" handles
 keyboard-traits type=text secure=0 multiline=0
 haptic impact heavy
 textinput mirrors: 8
-frame 7 75aabe3c4b4ba9f7
-frame 56 cad046b2cfb54882
-frame 64 7dc2aa658ee6cc5a
+frame 7 41cbbede6c465a0f
+frame 56 ddaa8e12ccba99a2
+frame 64 d1cd872d738e25a1

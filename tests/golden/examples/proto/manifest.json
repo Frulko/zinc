@@ -31,8 +31,8 @@
   "tol": 0,
   "max_diff": 0,
   "known": {
-   "over": 400,
-   "reason": "ulp-level float differences in icon path coordinates (the prototype's C++ fuses multiply-add on arm64, this engine does not): edge anti-aliasing only, same commands and geometry (ZN-223)"
+   "over": 9135,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves; and ulp-level float differences in icon path coordinates (the prototype's C++ fuses multiply-add on arm64, this engine does not): edge anti-aliasing only, same commands and geometry (ZN-223)"
   }
  },
  {
@@ -143,7 +143,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 10122,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "canvas/sketch/main.tsx",
@@ -159,7 +163,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 76504,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "chataigne/src/main.tsx#demo",
@@ -175,8 +183,8 @@
    "ZINC_CHATAIGNE_DEMO": "1"
   },
   "known": {
-   "over": 26328,
-   "reason": "max-w-[240px] on the chat bubbles is honoured (ZN-252 arbitrary values: the bubble is 240 wide, its text wraps to more lines and the bubbles below move down); the prototype ignored the value and drew them wider"
+   "over": 114169,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves; and max-w-[240px] on the chat bubbles is honoured (ZN-252 arbitrary values: the bubble is 240 wide, its text wraps to more lines and the bubbles below move down); the prototype ignored the value and drew them wider"
   }
  },
  {
@@ -202,7 +210,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 14247,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "inferno-todo/src/main.tsx",
@@ -210,7 +222,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 3079,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "iot-panel/src/main.tsx",
@@ -218,7 +234,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 19320,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "iot-panel/src/main.tsx#press",
@@ -231,6 +251,10 @@
   "max_diff": 0,
   "env": {
    "ZINC_GPIO_SCRIPT": "27:0@500,27:1@1500"
+  },
+  "known": {
+   "over": 21336,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
   }
  },
  {
@@ -275,7 +299,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 12435,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "maps/navigation/src/main.tsx",
@@ -283,7 +311,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 24478,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "maps/svg-gallery/src/main.tsx",
@@ -291,7 +323,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 71712,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "modules-showcase/src/main.tsx",
@@ -328,8 +364,8 @@
   "tol": 0,
   "max_diff": 0,
   "known": {
-   "over": 350,
-   "reason": "ulp-level float differences in icon path coordinates (the prototype's C++ fuses multiply-add on arm64, this engine does not): edge anti-aliasing only, same commands and geometry (ZN-223)"
+   "over": 8409,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves; and ulp-level float differences in icon path coordinates (the prototype's C++ fuses multiply-add on arm64, this engine does not): edge anti-aliasing only, same commands and geometry (ZN-223)"
   }
  },
  {
@@ -429,8 +465,8 @@
   "tol": 0,
   "max_diff": 0,
   "known": {
-   "over": 422,
-   "reason": "the status line prints measured timings (eval and draw ms), which differ from run to run"
+   "over": 7233,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves; and the status line prints measured timings (eval and draw ms), which differ from run to run"
   }
  },
  {
@@ -448,7 +484,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 8119,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "text/src/main-solid.tsx",
@@ -456,7 +496,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 8116,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "three/cubes/main.ts",
@@ -488,7 +532,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 33986,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "ui/gl-check/src/main.ts",
@@ -504,7 +552,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 24470,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "ui/kit-gallery/src/main.tsx",
@@ -512,7 +564,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 61747,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "ui/lottie-gallery/src/main.tsx",
@@ -520,7 +576,11 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 27901,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  },
  {
   "entry": "video/bounce/src/main.ts",
@@ -586,6 +646,10 @@
    30
   ],
   "tol": 0,
-  "max_diff": 0
+  "max_diff": 0,
+  "known": {
+   "over": 1594,
+   "reason": "borders take layout space as in CSS and Yoga since 2026-10-30 (78c2d81a2): bordered boxes are their border wider than the prototype's, and what follows them moves"
+  }
  }
 ]

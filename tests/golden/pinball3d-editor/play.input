@@ -3,7 +3,7 @@
 4 key v
 # B, then a click on the top view above the first bumper (17.5, 20 cm): a ball is dropped there, and the game plays it.
 8 key b
-10 move 520 288
+10 move 519 288
 11 down
 12 up
 # P pauses the game and O steps it by a frame, twice; W opens the game's own window; P lets the game go on.
