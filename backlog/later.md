@@ -644,6 +644,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-893: permessage-deflate and UTF-8 validation of text frames (1007); memory per idle WebSocket (~10 KiB, wslay's buffers); TLS handshakes ~3x slower than Node and Bun (mbedTLS portable P-256: an assembly P-256 PSA driver); bulk u8[] for binary payloads (one host call per byte today); net_acme on QuickJS and AOT.
 - ZN-906: the fetch bodyFile row still reads the whole file into memory in the host; stream it from disk.
 - webrtc_chat dies with "stack overflow (in @hostNode)" on develop.
+- ZN-904: the checker refuses `() => void | (() => void)` (React's EffectCallback spelling: Z0110, then "not callable" after a `!== undefined` test) and accepts a `(): void =>` callback where `() => X | undefined` is expected, which tsc refuses; support the union, then drop the leniency (return_undefined lost its two void cases for oracle_diff).
+- Release 0.10: photo_sorter (clicks land elsewhere on the hosted macOS runner) and headless_close (one empty output) are off the CI; find why and put them back.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
