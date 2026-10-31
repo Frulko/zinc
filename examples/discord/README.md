@@ -72,6 +72,14 @@ each query once a session; a click sends the GIF's link. Stickers: your servers'
 stickers of another server need Nitro, as on Discord. GIF attachments (up to 8 MB), GIF and APNG stickers and Tenor GIFs play while they are
 on screen and the app is in front, decoded at the size drawn (`zinc:imageio` `frames()`, off the main thread); a row scrolled away frees its frames.
 
+## Large files
+
+Discord takes files up to your limit (10 MB, 50 MB with Nitro Basic or Classic or in a server boosted to level 2, 100 MB at level 3,
+500 MB with Nitro) and 10 a message. A larger file opens the transfer window: choose **Litterbox** (anonymous, kept 72 hours), your
+**pixeldrain** account (its API key) or your own **Gokapi** server (its address and an API key), press **Upload** and watch the
+progress, then **Post the links**. Only the files you chose go; the keys stay in the keychain. Which services were considered and why
+the others (SwissTransfer, WeTransfer...) are not offered: [docs/reports/discord-file-transfer.md](../../docs/reports/discord-file-transfer.md).
+
 ## Layout of `src/`
 
 | File | What it holds |
@@ -88,6 +96,7 @@ on screen and the app is in front, decoded at the size drawn (`zinc:imageio` `fr
 | `members.ts` | the member list: the subscription (op 37) and `GUILD_MEMBER_LIST_UPDATE` (SYNC, INSERT, UPDATE, DELETE, INVALIDATE) |
 | `services/cdn.ts` | pictures from the CDN: the disk cache, expired attachment URLs renewed (`attachments/refresh-urls`) |
 | `services/gifs.ts` | the GIF picker's search: Discord's GIF routes, each query asked once |
+| `services/transfer.ts` | files too large for Discord: Litterbox, pixeldrain and Gokapi uploads with their progress, the keys in the keychain |
 | `services/upload.ts` | file upload: `POST /channels/{id}/attachments`, then a `PUT` of the bytes to the URL it gives |
 | `services/gateway.ts` | the gateway protocol: HELLO, heartbeats and the zombie check, IDENTIFY or RESUME (its socket is sent through the guard) |
 | `services/rest.ts` | the HTTP transport with the token and identity headers, called only by the guard |
@@ -95,7 +104,7 @@ on screen and the app is in front, decoded at the size drawn (`zinc:imageio` `fr
 | `services/identity.ts` | the client properties (IDENTIFY and `X-Super-Properties`) |
 | `services/auth.ts` | the QR code login (the remote-auth gateway, its RSA-OAEP key exchange) and the password login with its two-factor code |
 | `services/session.ts` | the token in the keychain |
-| `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`, code blocks in `CodeBlock.tsx`, the code button in `CodeInsert.tsx`, the pickers in `Picker.tsx`, animations in `Animated.tsx`) and content (`Content.tsx`), avatars, the member list, the pins or a thread beside the messages (`SidePane.tsx`), the settings (`Appearance.tsx`: the themes) |
+| `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`, code blocks in `CodeBlock.tsx`, the code button in `CodeInsert.tsx`, the pickers in `Picker.tsx`, animations in `Animated.tsx`), the transfer window (`Transfer.tsx`) and content (`Content.tsx`), avatars, the member list, the pins or a thread beside the messages (`SidePane.tsx`), the settings (`Appearance.tsx`: the themes) |
 
 ## Test
 

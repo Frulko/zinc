@@ -627,7 +627,10 @@ export class Headers {
   keys(): string[] { const r: string[] = this.names.slice(); r.sort((a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)); return r; }
   forEach(f: (value: string, name: string) => void): void { for (const k of this.keys()) f(this.get(k), k); }
 }
-export interface RequestInit { method?: string; body?: string; bodyBytes?: u8[]; contentType?: string; headers?: Headers; timeoutMs?: i32; maxBytes?: i32 }
+export interface RequestInit { method?: string; body?: string; bodyBytes?: u8[]; contentType?: string; headers?: Headers; timeoutMs?: i32; maxBytes?: i32;
+  bodyFile?: string; bodyPrefix?: string; bodySuffix?: string; onProgress?: (sent: number, total: number) => void }
+// bodyFile: the body is that file, read by the engine (not held by the program), between bodyPrefix and bodySuffix (a multipart form's parts);
+// onProgress: called as a body over 64 KB is sent, with the bytes on the wire so far and in all
 export class Response {
   status: i32;
   ok: boolean;
@@ -754,6 +757,7 @@ class NetCall {
   handle: i32;
   resolve: (v: Response) => void;
   reject: (e: Error) => void;
+  progress: ((sent: number, total: number) => void) | null = null;
   constructor(handle: i32, resolve: (v: Response) => void, reject: (e: Error) => void) { this.handle = handle; this.resolve = resolve; this.reject = reject; }
 }
 const __netCalls: NetCall[] = [];
@@ -788,6 +792,10 @@ function __netHook(): void {
   if (__netHooked) return;
   __netHooked = true;
   __addEvHandler((h: i32, kind: i32, data: string) => {
+    if (kind === 43) {   // a large body on its way: "sent total"
+      for (const c of __netCalls) if (c.handle === h && c.progress !== null) { const sp = data.indexOf(' '); (c.progress as (s: number, t: number) => void)(parseInt(data.slice(0, sp)), parseInt(data.slice(sp + 1))); }
+      return;
+    }
     if (kind === 40 || kind === 41) {
       for (let i: i32 = 0; i < __netCalls.length; i++) {
         const c = __netCalls[i];
@@ -889,8 +897,12 @@ export function fetch(url: string, init?: RequestInit): Promise<Response> {
       if (init.timeoutMs !== undefined) timeout = init.timeoutMs as i32;
       if (init.maxBytes !== undefined) max = init.maxBytes as i32;
     }
-    const h = bytes !== null ? __host_httpFetchBytes(url, method, lines, bytes as u8[], timeout, max) : __host_httpFetch(url, method, lines, body, timeout, max);
-    __netCalls.push(new NetCall(h, resolve, reject));
+    const file = init !== undefined && init.bodyFile !== undefined ? init.bodyFile as string : '';
+    const h = file !== '' ? __host_httpFetchFile(url, method, lines, file, init !== undefined && init.bodyPrefix !== undefined ? init.bodyPrefix as string : '', init !== undefined && init.bodySuffix !== undefined ? init.bodySuffix as string : '', timeout, max)
+      : bytes !== null ? __host_httpFetchBytes(url, method, lines, bytes as u8[], timeout, max) : __host_httpFetch(url, method, lines, body, timeout, max);
+    const call = new NetCall(h, resolve, reject);
+    if (init !== undefined && init.onProgress !== undefined) call.progress = init.onProgress as (sent: number, total: number) => void;
+    __netCalls.push(call);
   });
 }
 export interface TlsOptions { cert: string; key: string }

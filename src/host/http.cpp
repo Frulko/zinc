@@ -42,7 +42,7 @@ const char* reasonOf(int s) {
 }
 uv_loop_t* L() { return static_cast<uv_loop_t*>(loop::uvLoop()); }
 void alloc(uv_handle_t*, size_t n, uv_buf_t* b) { b->base = static_cast<char*>(std::malloc(n)); b->len = static_cast<unsigned>(b->base ? n : 0); }
-struct WriteReq { uv_write_t req; std::string data; bool closeAfter; };
+struct WriteReq { uv_write_t req; std::string data; bool closeAfter; int fetch = 0; };
 bool hasCtl(const std::string& s) { return s.find_first_of(std::string("\r\0", 2)) != std::string::npos; }
 
 // Both sides collect a message the same way.
@@ -71,6 +71,8 @@ struct Fetch {
   bool tooBig = false, finished = false, restart = false, released = false, tcpOpen = false, timerOpen = false;
   bool tls12 = false, answered = false;   // tls12: the retry of a server that dropped a TLS 1.3 session; answered: response bytes came
   bool secure = false, reqSent = false;
+  bool progress = false;               // a large body: its upload is reported (event 43) as the socket takes it
+  uint64_t wireTotal = 0, wireSent = 0;
   tls::Conn* tls = nullptr;
   int closing = 0;
   int log = 0;   // the entry of this hop in the network log (netlog.h), 0 when nobody records
@@ -196,11 +198,20 @@ void onComplete(Fetch* f) {
   finish(f, true, "");
 }
 
+constexpr size_t kUploadBlock = 256 << 10;   // a large body goes in blocks: each one written is a step of its progress
 void rawWrite(Fetch* f, const std::string& bytes) {
   if (bytes.empty() || f->finished || !f->tcpOpen) return;
-  auto* w = new WriteReq{{}, bytes, false};
-  uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
-  if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&f->tcp), &b, 1, [](uv_write_t* r2, int) { delete reinterpret_cast<WriteReq*>(r2); }) != 0) delete w;
+  f->wireTotal += bytes.size();
+  for (size_t at = 0; at < bytes.size(); at += kUploadBlock) {
+    auto* w = new WriteReq{{}, bytes.substr(at, kUploadBlock), false, f->progress ? f->handle : 0};
+    uv_buf_t b = uv_buf_init(w->data.data(), static_cast<unsigned>(w->data.size()));
+    if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&f->tcp), &b, 1, [](uv_write_t* r2, int st) {
+          auto* x = reinterpret_cast<WriteReq*>(r2);
+          Fetch* g = x->fetch > 0 ? fetchAt(x->fetch) : nullptr;
+          if (g && st == 0 && !g->finished) { g->wireSent += x->data.size(); loop::pushEvent(g->handle, 43, std::to_string(g->wireSent) + " " + std::to_string(g->wireTotal)); }
+          delete x;
+        }) != 0) { delete w; return; }
+  }
 }
 // Plain bytes of the response into llhttp.
 void parseBytes(Fetch* f, const char* data, size_t n) {
@@ -864,7 +875,7 @@ std::string base64(const unsigned char* p, size_t n) {
 
 }  // namespace
 
-int fetchOpen(const std::string& url, const std::string& method, const std::string& headers, const std::string& body, int timeoutMs, int maxBytes) {
+int fetchOpen(const std::string& url, const std::string& method, const std::string& headers, const std::string& body, int timeoutMs, int maxBytes, const std::string& fail) {
   auto f = std::make_unique<Fetch>();
   Fetch* p = f.get();
   gFetches.push_back(std::move(f));
@@ -872,6 +883,7 @@ int fetchOpen(const std::string& url, const std::string& method, const std::stri
   p->method = method.empty() ? "GET" : method;
   p->headers = headers;
   p->reqBody = body;
+  p->progress = body.size() > (64u << 10);
   p->timeoutMs = timeoutMs > 0 ? static_cast<uint64_t>(timeoutMs) : 120000;
   p->maxBytes = maxBytes > 0 ? maxBytes : 64 << 20;
   p->startMs = uv_now(L());
@@ -880,7 +892,8 @@ int fetchOpen(const std::string& url, const std::string& method, const std::stri
   p->timer.data = p;
   p->timerOpen = true;
   std::string why;
-  if (!splitUrl(url, p, &why)) finish(p, false, "fetch failed: " + why);
+  if (!fail.empty()) finish(p, false, "fetch failed: " + fail);
+  else if (!splitUrl(url, p, &why)) finish(p, false, "fetch failed: " + why);
   else if (std::string deny = zn::host::perm::check("net", p->host); !deny.empty()) finish(p, false, "fetch failed: " + deny);   // zinc.json permissions (ZN-322)
   else { logOpen(p); startConnection(p); }
   return p->handle;

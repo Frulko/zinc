@@ -10,6 +10,7 @@
 // The app asks begin(kind, details) for a Verdict (ok, or the message and the wait to show), then request(verdict, ...) or
 // send(verdict, op, d). The UI reads countdown() and cannotSend() from here.
 import { windowFocused } from 'zinc:ui';
+import * as net from 'zinc:net';
 import * as power from 'zinc:system/power';
 import * as storage from 'zinc:storage';
 import { lock } from 'zinc:system/instance';
@@ -353,6 +354,14 @@ export async function storagePut(v: Verdict, url: string, body: Blob): Promise<R
   if (!spend(v)) throw new ApiError(0, 'Not sent: the guard did not let it through.');
   return await fetch(url, { method: 'PUT', body: body });
 }
+
+/** A file sent to a transfer service the person chose (services/transfer.ts), under a 'transfer' verdict: no Discord token goes there. */
+export async function transferSend(v: Verdict, url: string, init: net.RequestInit): Promise<net.Response> {
+  if (!spend(v)) throw new ApiError(0, 'Not sent: the guard did not let it through.');
+  return await net.fetch(url, init);
+}
+/** The largest file the person may send in the channel (their Nitro, the server's boosts): a larger one goes through a transfer service. */
+export function uploadMax(ch: string): number { return access.uploadMax(ch); }
 
 /** A picture of the CDN (no token): CDN_AT_ONCE downloads at a time, the last asked first (the last shown). */
 export async function download(url: string): Promise<Response> {

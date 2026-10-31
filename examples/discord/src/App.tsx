@@ -10,6 +10,7 @@ import { MemberList } from './components/MemberList';
 import { SidePane } from './components/SidePane';
 import { Settings } from './components/Settings';
 import { CallView } from './components/CallView';
+import { Transfer } from './components/Transfer';
 import { BG_MAIN, TEXT_MUTED, CH_VOICE } from './constants';
 
 /** No conversation open: the server or the DMs are shown, one is chosen in the list. */
@@ -40,5 +41,6 @@ export default function App() {
       : callHere ? <View className="grow basis-0"><CallView compact={true} /><MessageView /></View>
       : store.channelId === '' ? <Pick /> : <MessageView />}
     {store.settingsOpen || store.channelId === '' ? null : store.pane !== 'members' ? <SidePane /> : store.guildId !== '' ? <MemberList /> : null}
+    {store.transferPaths.length > 0 ? <Transfer /> : null}
   </View>;
 }

@@ -10,7 +10,9 @@
 namespace zn::http {
 
 // Starts a request; `headers` holds "Name: value\n" lines. Redirects are followed (20 at most). Returns a handle (>= 1).
-int fetchOpen(const std::string& url, const std::string& method, const std::string& headers, const std::string& body, int timeoutMs, int maxBytes);
+// fail: a reason the request cannot start (the body's file unreadable); it fails like a refused connection. A body over 64 KB reports
+// its upload as it goes (loop event 43, "sent total" in bytes on the wire).
+int fetchOpen(const std::string& url, const std::string& method, const std::string& headers, const std::string& body, int timeoutMs, int maxBytes, const std::string& fail = "");
 int fetchStatus(int h);
 std::string fetchHead(int h);   // the reason phrase, then "name: value\n" lines
 std::string fetchBody(int h);

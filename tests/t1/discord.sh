@@ -24,6 +24,7 @@ export ZINC_BACKGROUND=1 ZINC_SYSTEM_RUNTIME_DIR=$tmp   # the app's single-insta
 export ZINC_DETERMINISTIC=0   # a networked session: the rate-limit waits and the nonces read the real clock, not the virtual one of tests/run
 assets=$PWD/examples/discord/tests/assets
 mkdir -p "$tmp/cache" && cp "$assets/emoji.png" "$tmp/cache/emojis_78.png" && cp "$assets/photo.png" "$tmp/notes.png"
+head -c 11600000 /dev/zero > "$tmp/big.bin"   # above the 10 MB a free account sends: the transfer window takes it
 FAKE_ASSETS=$assets FAKE_PORTS_FILE=$tmp/ports timeout 120 "$ZINC" run examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>/dev/null &
 fake=$!
 for _ in $(seq 100); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
@@ -31,7 +32,7 @@ for _ in $(seq 100); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
 read -r api gw < "$tmp/ports"
 (cd examples/discord && env ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=1200x760 ZINC_FRAMES=1000000 ZINC_FRAMEHASH=last ${ZINC_SHOT:+ZINC_SHOT=${ZINC_SHOT%.png}-session.png} \
   DISCORD_API="http://127.0.0.1:$api/api/v9" DISCORD_GATEWAY="ws://127.0.0.1:$gw" DISCORD_CDN="http://127.0.0.1:$api/cdn" \
-  DISCORD_CACHE="$tmp/cache" ZINC_STORAGE="$tmp/storage.kv" ZINC_SYSTEM_LOG="$tmp/system" DISCORD_UPLOAD_FILE="$tmp/notes.png" DISCORD_TOKEN=test-token DISCORD_DEMO=1 DISCORD_LOG=1 \
+  DISCORD_CACHE="$tmp/cache" ZINC_STORAGE="$tmp/storage.kv" ZINC_SYSTEM_LOG="$tmp/system" DISCORD_UPLOAD_FILE="$tmp/notes.png" DISCORD_TRANSFER_FILE="$tmp/big.bin" DISCORD_TOKEN=test-token DISCORD_DEMO=1 DISCORD_LOG=1 \
   timeout 60 "$ZINC" run . > "$tmp/app" 2>&1) || { echo "discord: the session failed"; tail -8 "$tmp/app"; exit 1; }
 # TZ: the Discord timestamps <t:...> are drawn in the reader's time zone
 (cd examples/discord && env TZ=UTC ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=1200x4800 ZINC_FRAMES=1000000 ZINC_FRAMEHASH=last ${ZINC_SHOT:+ZINC_SHOT=$ZINC_SHOT} \

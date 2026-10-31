@@ -18,6 +18,7 @@ export const RULES: Map<string, Rule> = new Map<string, Rule>([
   // writes: a person's action, at a person's pace
   ['send',      new Rule(1000,   10,  300,  1500,  H, E, F, _)],
   ['upload',    new Rule(1000,    5,   60,     0,  H, E, F, _)],   // the files of a message (then its 'send')
+  ['transfer',  new Rule(1000,    5,   30,     0,  H, _, F, _)],   // a file too large for Discord, sent to the transfer service the person chose
   ['edit',      new Rule(1000,   10,  120,   300,  H, E, F, _)],
   ['delete',    new Rule(1000,   10,   60,   200,  H, E, F, _)],
   ['react',     new Rule(500,    15,  200,  1000,  H, E, F, _)],

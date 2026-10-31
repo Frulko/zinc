@@ -1,11 +1,12 @@
 #!/bin/sh
 # zinc:net fetch's RequestInit.bodyBytes sent byte for byte (tests/golden/host/net_body_bytes.ts): a server on the interpreter writes the
-# body it gets; the interpreter, QuickJS and the compiled program each post eight bytes, three of them 0x80 and above. Port 18844.
+# body it gets; the interpreter, QuickJS and the compiled program each post eight bytes, three of them 0x80 and above, then a 300 KB file by
+# RequestInit.bodyFile with a prefix, a suffix and its progress reported. Port 18844.
 cd "$(dirname "$0")/../.." || exit 2
 tmp=$(mktemp -d); pid=''
 trap '[ -n "$pid" ] && kill $pid 2>/dev/null; rm -rf "$tmp"' EXIT
 export NET_BYTES_DIR=$tmp
-want='200 82,0,0,255,128,7,0,200'
+want='200 82,0,0,255,128,7,0,200 200 true true'
 NET_BYTES_SERVE=1 timeout 120 "$ZINC" run --interp tests/golden/host/net_body_bytes.ts >"$tmp/server" 2>&1 &
 pid=$!
 "$ZINC" build tests/golden/host/net_body_bytes.ts -o "$tmp/app" >"$tmp/log" 2>&1 || { echo "the program does not build: $(tail -c 300 "$tmp/log")"; exit 1; }

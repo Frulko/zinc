@@ -38,7 +38,9 @@ import { openPicker, closePicker, pickEmoji, pickerTab } from './components/Pick
 import { searchEmoji, recentEmoji } from './emoji';
 import { gifs, Gif } from './services/gifs';
 import { animationsPlaying, animationFrames } from './components/Animated';
-import { CDN_BASE } from './constants';
+import { CDN_BASE, API_BASE } from './constants';
+import { TransferSettings, saveTransferSettings, saveTransferKey } from './services/transfer';
+import { transferLinks, transferSteps } from './components/Transfer';
 
 ui.onKey((e: ui.KeyEvent): void => {
   const call = store.call;
@@ -94,6 +96,7 @@ async function demo(): Promise<void> {
   await media(id);
   await present(id);
   await pickers(id);
+  await transfer(id);
   await notifications(id);
   settings();
   setTimeout(() => { quit(); }, 300);
@@ -405,6 +408,26 @@ async function pickers(id: string): Promise<void> {
   const shown = animationFrames();
   await until(() => animationFrames() >= shown + 2);   // it plays: the next frames come at the GIF's delays
   console.log(`a GIF plays: ${animationsPlaying()} on screen`);
+}
+
+/** A file over the 10 MB of a free account: the transfer window takes it, to a Gokapi server (the fake's), with its progress; the link is
+ *  posted by the window's button. */
+async function transfer(id: string): Promise<void> {
+  const t = new TransferSettings();
+  t.provider = 'gokapi'; t.url = `${API_BASE.split('/api/')[0]}/gokapi`;
+  saveTransferSettings(t);
+  await saveTransferKey('gokapi', 'gk-key');
+  await store.sendFiles([env('DISCORD_TRANSFER_FILE')]);
+  console.log(`too large for Discord: ${store.transferPaths.length} file in the transfer window`);
+  await until(() => ui.find('Upload') >= 0);
+  await pause(100);   // its saved key read
+  await shot('transfer');
+  ui.click(ui.find('Upload'));
+  await until(() => ui.find('Post the links') >= 0);
+  console.log(`transferred: ${transferLinks().join(', ')}, progress in steps ${transferSteps() > 2}`);
+  ui.click(ui.find('Post the links'));
+  await until(() => { const m = last(id); return m !== null && !m.pending && m.content === transferLinks()[0]; });
+  console.log(`posted: ${(last(id) as Message).content}, window ${store.transferPaths.length > 0 ? 'open' : 'closed'}`);
 }
 
 /** Notifications: none for the channel shown in the focused window, one for a DM while the window is behind another, a click on it opens

@@ -103,6 +103,7 @@ Each kind has a minimum interval, a cap a minute and a cap an hour (`policy.ts` 
 | pins (a channel's pins opened) | 1 s | 10 | 100 | yes | | yes | |
 | profile | 1 s | 10 | 100 | yes | | yes | |
 | search | 2 s | 5 | 60 | yes | | yes | |
+| transfer (a file too large for Discord, to the transfer service chosen; not a Discord request) | 1 s | 5 | 30 | yes | | yes | |
 | gifs (the GIF picker opened, a search once the typing pauses; each query once a session) | 0.5 s | 20 | 200 | yes | | yes | |
 | refresh | | 10 | 200 | | | | yes |
 

@@ -82,6 +82,10 @@ Pictures (avatars, server icons, emoji, stickers, attachments, the GIF picker's 
 time through `guard.download`) and the upload `PUT` goes to the storage URL Discord gives; neither carries the token. No channel's history
 is fetched before it is opened: no prefetch, no crawl, no polling.
 
+Outside Discord: a file larger than the person may send goes, from the **Upload** button of the transfer window, to the service they
+chose (Litterbox, pixeldrain or their Gokapi server; `services/transfer.ts`, verdict `transfer`), once per file; the link is posted by a
+second click (**Post the links**: a `send`). No Discord token goes there.
+
 ### User actions without a request
 
 Links and invites open only from a click (`Content.tsx` `openUrl`), never by themselves. There is no bulk action anywhere (no bulk

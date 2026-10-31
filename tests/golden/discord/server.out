@@ -54,6 +54,7 @@ rest POST /api/v9/channels/302/attachments auth=true super=true file=notes.png s
 rest POST /api/v9/channels/302/messages auth=true super=true content="" nonce=true reply= waited=true stickers=880
 rest POST /api/v9/channels/302/messages auth=true super=true content="Hello **world** ||secret|| <@101>" nonce=true reply= waited=first
 rest POST /api/v9/channels/302/messages auth=true super=true content="Here is the photo" nonce=true reply= waited=true attachments=0:notes.png:u0/notes.png stored=true
+rest POST /api/v9/channels/302/messages auth=true super=true content="https://share.example.org/d?id=big1" nonce=true reply= waited=true
 rest POST /api/v9/channels/302/messages auth=true super=true content="https://tenor.com/view/cats-1" nonce=true reply= waited=true
 rest POST /api/v9/channels/302/messages auth=true super=true content="Replying, after the bucket" nonce=true reply=903 waited=true
 rest POST /api/v9/channels/302/messages/903/ack auth=true super=true last_viewed=true token=true
@@ -81,4 +82,5 @@ subscribe guild=200 channel=302 ranges=[[0,99]] typing=true
 subscribe guild=200 channel=305 ranges=[[0,99]] typing=true
 subscribe guild=200 channel=305 ranges=[[0,99]] typing=true
 subscribe guild=200 channel=307 ranges=[[0,99]] typing=true
+transfer POST /gokapi/api/files/add apikey=true multipart=true bytes=true
 upload PUT /upload/u0/notes.png bytes=276 token=false

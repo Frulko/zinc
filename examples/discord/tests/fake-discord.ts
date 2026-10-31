@@ -17,6 +17,7 @@
 // /users/@me/remote-auth/login turns into the encrypted token), and /auth/login with a TOTP or SMS code, a wrong password and a captcha.
 // Pickers: Zinc Lab has two custom emoji and a sticker; /gifs/trending-gifs and /gifs/search answer two GIFs; a message may name stickers;
 // an attachment named .gif is an animated GIF of three frames (assets/anim.gif).
+// Transfer: /gokapi/api/files/add is a Gokapi server (API key gk-key) that answers a fixed share link.
 // #showcase holds one message of each kind of content
 // (showcase.ts): once its history is asked for, the preview of a link arrives as a partial MESSAGE_UPDATE and Grace and Ada react; a
 // reaction PUT or DELETE and a poll vote are answered 204 and echoed, Linus votes too; the thread #release-talk has its history, the forum
@@ -168,6 +169,13 @@ function files(req: Request): Reply | null {
     console.log(`cdn GET ${key} ${file !== '' ? 200 : 404}`);
     if (file === '') return { status: 404, contentType: 'text/plain', body: 'expired' };
     return { status: 200, contentType: file.endsWith('.gif') ? 'image/gif' : 'image/png', body: '', file: `${ASSETS}/${file}` };
+  }
+  if (path === '/gokapi/api/files/add' && req.method === 'POST') {   // a Gokapi server (the transfer of a file too large for Discord)
+    const body = req.rawBody ?? req.body, key = req.headers.get('apikey') === 'gk-key';
+    const named = body.indexOf('name="file"; filename="big.bin"') >= 0 && body.indexOf('name="expiryDays"') >= 0;
+    console.log(`transfer POST ${path} apikey=${key} multipart=${named} bytes=${body.length > 11 * 1024 * 1024}`);
+    if (!key) return { status: 401, contentType: 'application/json', body: '{"Result":"error","ErrorMessage":"Unauthorized"}' };
+    return { status: 200, contentType: 'application/json', body: '{"Result":"OK","FileInfo":{"Id":"big1","Name":"big.bin","UrlDownload":"https://share.example.org/d?id=big1"}}' };
   }
   if (path.startsWith('/upload/')) {
     uploaded = (req.rawBody ?? req.body).length;

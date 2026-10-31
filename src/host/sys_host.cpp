@@ -1349,6 +1349,17 @@ void call(int id, const HostArg* a, HostArg* r) {
       r->i = zn::http::fetchOpen(s(0), s(1), s(2), body, n(4), n(5));
       break;
     }
+    case Rt::HostHttpFetchFile: {   // the body: s(4), the file's bytes, s(5); a file that cannot be read fails the fetch
+      std::string body = s(4), why;
+      if (FILE* fp = std::fopen(s(3).c_str(), "rb")) {
+        char buf[65536];
+        for (std::size_t k; (k = std::fread(buf, 1, sizeof buf, fp)) > 0;) body.append(buf, k);
+        std::fclose(fp);
+      } else why = "cannot read " + s(3);
+      body += s(5);
+      r->i = zn::http::fetchOpen(s(0), s(1), s(2), body, n(6), n(7), why);
+      break;
+    }
     case Rt::HostHttpStatus: r->i = zn::http::fetchStatus(n(0)); break;
     case Rt::HostHttpHead: ret(r, zn::http::fetchHead(n(0))); break;
     case Rt::HostHttpBody: ret(r, zn::http::fetchBody(n(0))); break;

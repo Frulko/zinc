@@ -11,6 +11,8 @@ import { CH_TEXT, CH_DM, CH_GROUP_DM, CH_CATEGORY, CH_ANNOUNCEMENT, CH_FORUM, CH
 import { env } from 'zinc:sys';
 import * as storage from 'zinc:storage';
 import { windowFocused } from 'zinc:ui';
+import { stat } from 'zinc:fs';
+import { LINKS_MAX } from './safety/policy';
 import { NotifyRules, Where } from './notify';
 import { Call } from './call';
 import { Embed, Reaction, Sticker, Poll, Component, ThreadRef, embeds, reactions, stickers, poll, pollVoted, componentRows, threadRef,
@@ -715,9 +717,14 @@ export class Store implements GatewayHandler {
     await this.post(ch, m, body, [], v, null);
   }
   /** Sends files picked or dropped, with the composer's text (Discord's cloud upload: services/upload.ts). */
-  async sendFiles(paths: string[]): Promise<void> {
+  async sendFiles(chosen: string[]): Promise<void> {
     const ch = this.channelId;
-    if (ch === '' || paths.length === 0) return;
+    if (ch === '' || chosen.length === 0) return;
+    // a file larger than the person may send here goes through a transfer service, in its window (components/Transfer.tsx)
+    const max = guard.uploadMax(ch), paths: string[] = [], big: string[] = [];
+    for (const p of chosen) { let n = 0; try { n = stat(p).size; } catch (e) {} if (n > max) big.push(p); else paths.push(p); }
+    if (big.length > 0) { this.transferPaths = big; this.changed(); }
+    if (paths.length === 0) return;
     const files: Upload[] = [];
     try { for (const p of paths) files.push(readUpload(p)); }
     catch (e) { this.error = `Could not read the file: ${e.message}`; this.changed(); return; }
@@ -736,6 +743,15 @@ export class Store implements GatewayHandler {
   }
   /** The pickers: an emoji (or a custom one's <:name:id>) added to the composer's text. */
   insert(text: string): void { this.draft = this.draft === '' || this.draft.endsWith(' ') || this.draft.endsWith('\n') ? this.draft + text : `${this.draft} ${text}`; this.changed(); }
+  /** Files too large for Discord, waiting in the transfer window (empty: closed). */
+  transferPaths: string[] = [];
+  /** Posts the links of files sent through a transfer service (a click of the transfer window): LINKS_MAX in the message, the guard's
+   *  spam rule; more wait in the message box for the next. */
+  async sendLinks(links: string[]): Promise<void> {
+    this.transferPaths = [];
+    if (links.length > LINKS_MAX) this.insert(links.slice(LINKS_MAX).join('\n'));
+    await this.sendAlone(links.slice(0, LINKS_MAX).join('\n'), {}, null);
+  }
   /** Sends a sticker to the open channel, as its own message. */
   async sendSticker(s: Sticker): Promise<void> { await this.sendAlone('', { sticker_ids: [s.id] }, s); }
   /** Sends a link alone (a GIF chosen in the picker: Discord shows its embed). */

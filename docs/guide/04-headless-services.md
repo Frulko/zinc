@@ -106,7 +106,9 @@ by hand: new connections get it, open ones keep theirs. Port 80 needs administra
 are fetched, following at most 20 redirects; on hosts, a redirect to another scheme, host or port drops the `Authorization`,
 `Proxy-Authorization` and `Cookie` headers. A request times out after `timeoutMs` (default 120000; connecting takes
 at most 30 s). A response body larger than `maxBytes` (default: a quarter of the heap, at most 64 MiB) is refused with
-`fetch failed: response too large`. The handler receives
+`fetch failed: response too large`. To send a file, `bodyFile: path` lets the engine read it (the program never holds it),
+between `bodyPrefix` and `bodySuffix` (a multipart form's parts); `onProgress(sent, total)` is called as a body over 64 KiB
+goes out (bytes on the wire), for an upload bar. The handler receives
 `method`, `path`, `body`; there is no routing framework — branch on `req.path` yourself.
 
 ## MQTT, OSC, telemetry
