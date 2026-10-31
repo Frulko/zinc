@@ -74,3 +74,4 @@ discord              # Discord example
 discord_call_logic   # Discord example
 discord_login        # Discord example
 discord_ratelimit    # Discord example
+hub_server          # "the manifest is not signed by its publisher" once on a hosted runner; its traced rerun passed
