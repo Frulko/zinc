@@ -14,7 +14,7 @@ import { AccountSafety } from './AccountSafety';
 import { Appearance } from './Appearance';
 import { color } from '../theme';
 import { cdnPicture, iconKey } from '../services/cdn';
-import { BG_MAIN, BG_SIDE, BG_HOVER, BG_SELECTED, BG_ACCENT, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG } from '../constants';
+import { BG_MAIN, BG_SURFACE, BG_HOVER, BG_SELECTED, BG_ACCENT, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG } from '../constants';
 
 function Row(p: { g: Guild }) {
   const g = p.g;
@@ -107,7 +107,7 @@ function Voice() {
     </View> : <View>
       <Heading text="Shortcut" />
       <View className="flex-row items-center gap-3">
-        <View className={`px-3 h-[32] justify-center rounded ${BG_SIDE}`}><Text className={`text-sm ${TEXT_STRONG}`}>{call.recordingKey ? 'Press a key…' : s.pttKey}</Text></View>
+        <View className={`px-3 h-[32] justify-center rounded ${BG_SURFACE}`}><Text className={`text-sm ${TEXT_STRONG}`}>{call.recordingKey ? 'Press a key…' : s.pttKey}</Text></View>
         <View className={`px-3 h-[32] justify-center rounded ${BG_ACCENT}`} onPress={() => { call.recordingKey = true; store.changed(); }} aria-label="Record keybind">
           <Text className="text-sm text-white">{call.recordingKey ? 'Recording' : 'Record keybind'}</Text>
         </View>
@@ -142,7 +142,7 @@ function Tab(p: { id: string; label: string }) {
 export function Settings() {
   const tab = store.settingsTab, voice = tab === 'voice', safety = tab === 'safety';
   return <View className={`grow basis-0 flex-row ${BG_MAIN}`}>
-    <View className={`w-[180] px-2 py-4 gap-[2] ${BG_SIDE}`}>
+    <View className={`w-[180] px-2 py-4 gap-[2] ${BG_SURFACE}`}>
       <Text className={`px-2.5 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>Settings</Text>
       <Tab id="servers" label="Servers" />
       <Tab id="voice" label="Voice & audio" />

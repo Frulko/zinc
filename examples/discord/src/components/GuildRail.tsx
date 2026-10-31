@@ -4,15 +4,15 @@ import { store, Guild } from '../state';
 import { Badge } from './ChannelList';
 import { Avatar, initials } from './Avatar';
 import { cdnPicture, iconKey } from '../services/cdn';
-import { BG_RAIL, BG_ACCENT, TEXT_STRONG, RAIL_W } from '../constants';
+import { BG_RAIL, BG_ACCENT, SB_STRONG, RAIL_W } from '../constants';
 
 function Pill(p: { label: string; picture: i32; on: boolean; unread: boolean; mentions: i32; onPress: () => void }) {
   return <View className="w-full items-center">
     {p.unread && !p.on ? <View className="absolute left-0 top-[20] w-[4] h-[8] rounded-r bg-white" /> : null}
     {p.picture >= 0 ? <View onPress={p.onPress} aria-label={p.label}><Avatar picture={p.picture} name={p.label} size={48} round={!p.on} /></View>
-      : <View className={`w-12 h-12 items-center justify-center ${p.on ? `rounded-2xl ${BG_ACCENT}` : 'rounded-full bg-[var(--dc-main)] hover:rounded-2xl hover:bg-[var(--dc-accent)]'}`}
+      : <View className={`w-12 h-12 items-center justify-center ${p.on ? `rounded-2xl ${BG_ACCENT}` : 'rounded-full bg-[var(--dc-sidebar)] hover:rounded-2xl hover:bg-[var(--dc-accent)]'}`}
         onPress={p.onPress} aria-label={p.label}>
-        <Text className={`${p.on ? 'text-white' : TEXT_STRONG} text-sm font-semibold`}>{p.label === 'Direct messages' ? 'DM' : initials(p.label)}</Text>
+        <Text className={`${p.on ? 'text-white' : SB_STRONG} text-sm font-semibold`}>{p.label === 'Direct messages' ? 'DM' : initials(p.label)}</Text>
       </View>}
     {p.mentions > 0 ? <View className="absolute right-[10] -bottom-0.5"><Badge n={p.mentions} /></View> : null}
   </View>;

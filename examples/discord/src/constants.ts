@@ -45,6 +45,10 @@ export const paneW = (): i32 => win.w < 960 ? 280 : 360;
 // The theme's colours, as classes (theme.ts: the scheme variables a theme file sets)
 export const BG_RAIL = `bg-${v('rail')}`, BG_SIDE = `bg-${v('sidebar')}`, BG_MAIN = `bg-${v('main')}`, BG_INPUT = `bg-${v('input')}`;
 export const BG_SELECTED = `bg-${v('selected')}`, BG_HOVER = `hover:bg-${v('hover')}`, BG_ACCENT = `bg-${v('accent')}`;
+// the channel list and the server rail: their own text and hover colours (a theme may give them a dark surface in a light window)
+export const SB_TEXT = `text-${v('sidebarText')}`, SB_MUTED = `text-${v('sidebarMuted')}`, SB_STRONG = `text-${v('sidebarStrong')}`;
+export const SB_HOVER = `hover:bg-${v('sidebarHover')}`, SB_SELECTED = `bg-${v('sidebarSelected')}`, SB_SELECTED_TEXT = `text-${v('sidebarSelectedText')}`;
+export const BG_SURFACE = `bg-${v('surface')}`;   // cards, code blocks, popovers: the sidebar's colour unless a theme says otherwise
 export const BG_STAGE = `bg-${v('stage')}`, BG_TILE = `bg-${v('stageTile')}`, TEXT_SUCCESS = `text-${v('success')}`, TEXT_WARNING = `text-${v('warning')}`;
 export const TEXT_MAIN = `text-${v('text')}`, TEXT_MUTED = `text-${v('muted')}`, TEXT_STRONG = `text-${v('strong')}`, TEXT_ERROR = `text-${v('error')}`;
 

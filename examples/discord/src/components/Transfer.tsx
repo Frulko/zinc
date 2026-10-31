@@ -5,7 +5,7 @@ import { stat } from 'zinc:fs';
 import { store } from '../state';
 import * as guard from '../safety/index';
 import { PROVIDERS, Provider, TransferSettings, transferSettings, saveTransferSettings, transferKey, saveTransferKey, transferFile } from '../services/transfer';
-import { BG_SIDE, BG_INPUT, BG_HOVER, BG_SELECTED, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG } from '../constants';
+import { BG_SURFACE, BG_INPUT, BG_HOVER, BG_SELECTED, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG } from '../constants';
 import { rounded } from '../theme';
 
 const MB = 1024 * 1024;
@@ -52,7 +52,7 @@ export function Transfer() {
   const close = (): void => { store.transferPaths = []; store.changed(); };
   const pct = total > 0 && sent > 0 ? Math.min(100, Math.round(sent * 100 / total)) : 0;
   return <View className="absolute inset-0 items-center justify-center bg-[#000000]/60">
-    <View className={`w-[520] p-5 gap-3 ${rounded()} ${BG_SIDE}`} aria-label="Send large files">
+    <View className={`w-[520] p-5 gap-3 ${rounded()} ${BG_SURFACE}`} aria-label="Send large files">
       <Text className={`text-lg font-bold ${TEXT_STRONG}`}>Too large for Discord</Text>
       <Text className={`text-sm ${TEXT_MUTED}`}>{`You may send ${mb(max)} a file here. Send ${paths.length === 1 ? 'this file' : 'these files'} through a transfer service, then post the link.`}</Text>
       {paths.map((p: string) => <Text key={p} className={`text-sm ${TEXT_MAIN}`} numberOfLines={1}>{`${nameOf(p)}  ${mb(sizeOf(p))}`}</Text>)}

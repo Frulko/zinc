@@ -6,7 +6,7 @@ import { Icon } from 'zinc:icons';
 import { clipboardText, setClipboardText } from 'zinc:gfx';
 import { EditorState, CodeEditor, stepEditor, stepCursors, drawCursors, setText, langNamed, setTheme, theme, ONE_DARK, ONE_LIGHT } from 'zinc:editor';
 import { store } from '../state';
-import { BG_SIDE, BG_HOVER, BG_INPUT, TEXT_MAIN, TEXT_MUTED } from '../constants';
+import { BG_SURFACE, BG_HOVER, BG_INPUT, TEXT_MAIN, TEXT_MUTED } from '../constants';
 import { color, rounded, currentTheme } from '../theme';
 
 /** The languages offered ('' a block without one): those Discord's highlighter knows that people paste most. */
@@ -89,7 +89,7 @@ export function CodePanel() {
   syncCodeTheme();
   const b = editor(), t = theme();
   const btn = `h-[28] px-2 flex-row items-center gap-1 rounded ${BG_HOVER}`;
-  return <View className={`mb-2 ${rounded()} border border-[var(--dc-border)] ${BG_SIDE} overflow-hidden`}>
+  return <View className={`mb-2 ${rounded()} border border-[var(--dc-border)] ${BG_SURFACE} overflow-hidden`}>
     <View className="h-[36] pl-3 pr-1 flex-row items-center gap-1">
       <View className={btn} aria-label="Code language" onPress={() => { picking = !picking; store.changed(); }}>
         <Text className={`text-sm font-mono ${TEXT_MAIN}`} numberOfLines={1}>{lang === '' ? 'plain' : lang}</Text>

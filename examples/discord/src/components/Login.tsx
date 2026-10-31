@@ -6,7 +6,7 @@ import { encode, QrCode } from 'zinc:qrcode';
 import { env } from 'zinc:sys';
 import { store } from '../state';
 import { QrLogin, Mfa, passwordLogin, sendSms, mfaLogin, loginError } from '../services/auth';
-import { BG_MAIN, BG_SIDE, BG_INPUT, BG_ACCENT, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR } from '../constants';
+import { BG_MAIN, BG_SURFACE, BG_INPUT, BG_ACCENT, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR } from '../constants';
 
 const qr = new QrLogin((): void => { store.changed(); }, (token: string): void => { store.login(token); });
 store.onChange((): void => { if (store.stage !== 'login' && qr.stage !== 'idle') qr.cancel(); });
@@ -96,7 +96,7 @@ export function Login() {
   </View>;
 
   return <View className={`grow items-center justify-center ${BG_MAIN}`}>
-    <View className={`w-[780] flex-row gap-8 p-8 rounded-lg ${BG_SIDE}`}>
+    <View className={`w-[780] flex-row gap-8 p-8 rounded-lg ${BG_SURFACE}`}>
       <View className="grow basis-0 gap-3">
         <Text className={`text-2xl font-bold text-center ${TEXT_STRONG}`}>Welcome back</Text>
         <Text className={`text-sm text-center ${TEXT_MUTED}`}>An unofficial client: Discord's terms do not allow it. Try it with a spare account.</Text>

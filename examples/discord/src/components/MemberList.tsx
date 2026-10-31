@@ -7,19 +7,19 @@ import { store } from '../state';
 import { MemberRow } from '../members';
 import { Avatar, Status } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
-import { BG_SIDE, TEXT_MAIN, TEXT_MUTED, MEMBERS_W, MEMBER_AVATAR } from '../constants';
+import { BG_SIDE, SB_TEXT, SB_MUTED, MEMBERS_W, MEMBER_AVATAR } from '../constants';
 
 const ROW = 42;
 const hex = (c: i32): string => { const h = c.toString(16); return '#' + '000000'.slice(h.length) + h; };
 
 function Member(p: { r: MemberRow }) {
   const r = p.r, name = r.nick !== '' ? r.nick : store.userName(r.userId), hash = store.avatarOf(r.userId), color = store.roleColor(r);
-  return <View className={`h-[${ROW}] px-2 flex-row items-center gap-3 rounded hover:bg-[var(--dc-hover)] ${r.status === 'offline' ? 'opacity-40' : ''}`} aria-label={name}>
+  return <View className={`h-[${ROW}] px-2 flex-row items-center gap-3 rounded hover:bg-[var(--dc-sidebar-hover)] ${r.status === 'offline' ? 'opacity-40' : ''}`} aria-label={name}>
     <View>
       <Avatar picture={hash !== '' ? cdnPicture(avatarKey(r.userId, hash)) : -1} name={name} size={MEMBER_AVATAR} round={true} />
       <Status status={r.status} mobile={r.mobile} offline={false} ring="border-[var(--dc-sidebar)]" />
     </View>
-    <Text className={`grow text-[15px] ${color !== 0 ? `text-[${hex(color)}]` : TEXT_MAIN}`} numberOfLines={1}>{name}</Text>
+    <Text className={`grow text-[15px] ${color !== 0 ? `text-[${hex(color)}]` : SB_TEXT}`} numberOfLines={1}>{name}</Text>
   </View>;
 }
 
@@ -29,7 +29,7 @@ function Row(p: { r: MemberRow }) {
     <View className={`w-[${MEMBER_AVATAR}] h-[${MEMBER_AVATAR}] rounded-full bg-[var(--dc-input)]`} /><View className="w-[120] h-[10] rounded bg-[var(--dc-input)]" />
   </View>;
   if (r.group !== '') return <View className={`h-[${ROW}] px-2 pb-1 justify-end`}>
-    <Text className={`text-xs font-bold uppercase ${TEXT_MUTED}`} numberOfLines={1}>{`${store.groupName(r.group)} — ${r.count}`}</Text>
+    <Text className={`text-xs font-bold uppercase ${SB_MUTED}`} numberOfLines={1}>{`${store.groupName(r.group)} — ${r.count}`}</Text>
   </View>;
   return <Member r={r} />;
 }

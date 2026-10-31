@@ -42,12 +42,20 @@
         "success": { "description": "Online, speaking, Voice Connected, a good connection." },
         "warning": { "description": "Idle, connecting, a fair connection." },
         "stage": { "description": "The call view behind the tiles (a dark surface: its text is white)." },
-        "stageTile": { "description": "A participant's tile and the round buttons of the call." }
+        "stageTile": { "description": "A participant's tile and the round buttons of the call." },
+        "sidebarText": { "description": "Channels you have read in the channel list and the user bar; the text colour when left out." },
+        "sidebarMuted": { "description": "Categories, icons and the unread-free text of the channel list; the muted colour when left out." },
+        "sidebarStrong": { "description": "The server name, unread channels, your name and the server rail's initials; the strong colour when left out." },
+        "sidebarHover": { "description": "A channel or a button of the channel list under the pointer; the hover colour when left out." },
+        "sidebarSelected": { "description": "The open channel in the channel list; the selected colour when left out." },
+        "surface": { "description": "Cards, code blocks, popovers and the settings' menu; the sidebar colour when left out." },
+        "sidebarSelectedText": { "description": "The text of the open channel in the channel list; the strong colour when left out." }
       }
     },
     "radius": { "type": "integer", "minimum": 0, "maximum": 24, "default": 8, "description": "px of the rounded corners of the message box and code blocks." },
     "font": { "type": "string", "default": "", "description": "A font family the app ships (assets/<Family>.ttf) for messages; empty for the default." },
     "textSize": { "type": "integer", "minimum": 11, "maximum": 22, "default": 15, "description": "px of the text of messages." },
+    "composerBorder": { "type": "boolean", "default": false, "description": "An outline around the message box (Slack's)." },
     "density": { "enum": ["cozy", "compact"], "default": "cozy", "description": "compact: closer messages." }
   }
 }

@@ -106,7 +106,7 @@ stage connecting
 stage ready
 stage ready
 stage reconnecting
-themes: discord-dark (dark, cozy), discord-light (light, cozy), slack (dark, compact), teams (light, compact); errors 0
+themes: discord-dark (dark, cozy), discord-light (light, cozy), slack (light, compact), slack-dark (dark, compact), teams (light, compact); errors 0
 too large for Discord: 1 file in the transfer window
 transferred: https://share.example.org/d?id=big1, progress in steps true
 typing after her answer: ''

@@ -1,16 +1,19 @@
 {
   "$schema": "./theme.schema.json",
-  "name": "Slack-like (dark aubergine)",
-  "scheme": "dark",
+  "name": "Slack (aubergine)",
+  "scheme": "light",
   "colors": {
-    "rail": "#2c0b2d", "sidebar": "#19171d", "main": "#1a1d21", "footer": "#121016", "input": "#222529",
-    "hover": "#27242c", "rowHover": "#222529", "selected": "#1164a3", "divider": "#2c2d30", "border": "#35373b", "faint": "#565856",
-    "text": "#d1d2d3", "muted": "#ababad", "strong": "#ffffff", "icon": "#d1d2d3", "error": "#e96699", "link": "#1d9bd1",
-    "mention": "#e8912d", "spoiler": "#565856",
-    "accent": "#007a5a", "accentPressed": "#148567", "accentSoft": "#1d3a33", "accentSoftText": "#a6e3cf", "danger": "#e01e5a", "badge": "#cd2553",
-    "accentText": "#ffffff", "success": "#2bac76", "warning": "#ecb22e", "stage": "#121016", "stageTile": "#27242c"
+    "rail": "#350d36", "sidebar": "#3f0e40", "main": "#ffffff", "footer": "#3f0e40", "input": "#ffffff",
+    "hover": "#f0f0f0", "rowHover": "#f8f8f8", "selected": "#e8f5fa", "divider": "#dddddd", "border": "#a6a6a6", "faint": "#d0d0d0",
+    "text": "#1d1c1d", "muted": "#616061", "strong": "#1d1c1d", "icon": "#616061", "error": "#e01e5a", "link": "#1264a3",
+    "mention": "#1264a3", "spoiler": "#c8c8c8",
+    "accent": "#007a5a", "accentPressed": "#148567", "accentSoft": "#e8f5fa", "accentSoftText": "#0b4c8c", "danger": "#e01e5a", "badge": "#cd2553",
+    "accentText": "#ffffff", "success": "#2eb67d", "warning": "#ecb22e", "stage": "#1d1c1d", "stageTile": "#350d36",
+    "sidebarText": "#d9c9da", "sidebarMuted": "#b9a3ba", "sidebarStrong": "#ffffff", "sidebarHover": "#350d36",
+    "sidebarSelected": "#1164a3", "sidebarSelectedText": "#ffffff", "surface": "#f8f8f8"
   },
-  "radius": 6,
+  "radius": 8,
   "textSize": 15,
-  "density": "compact"
+  "density": "compact",
+  "composerBorder": true
 }

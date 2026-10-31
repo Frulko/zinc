@@ -10,7 +10,7 @@ import { Embed, EmbedField, EmbedMedia, Reaction, Sticker, PollAnswer, Component
   sizeText, waveform } from '../content';
 import { Markdown } from './Markdown';
 import { cdnPicture, emojiKey, attachmentPicture, attachmentKey, mediaPicture, stickerPicture, urlPicture } from '../services/cdn';
-import { BG_SIDE, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_LINK, MEDIA_MAX_W, MEDIA_MAX_H, EMBED_W, THUMB, STICKER, CDN_BASE, mainW, paneW } from '../constants';
+import { BG_SURFACE, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_LINK, MEDIA_MAX_W, MEDIA_MAX_H, EMBED_W, THUMB, STICKER, CDN_BASE, mainW, paneW } from '../constants';
 import { Animated } from './Animated';
 import { color } from '../theme';
 
@@ -55,7 +55,7 @@ function Spoiler(p: { w: i32; h: i32; m: Message }) {
 
 function FileCard(p: { a: Attachment; icon: string }) {
   const a = p.a;
-  return <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg border border-[var(--dc-border)] ${BG_SIDE}`} onPress={() => open(a.url)}>
+  return <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg border border-[var(--dc-border)] ${BG_SURFACE}`} onPress={() => open(a.url)}>
     <Icon name={p.icon} size={24} color={LINK} />
     <View>
       <Text className="text-sm text-[var(--dc-link)]">{a.filename}</Text>
@@ -70,7 +70,7 @@ const BARS = 40;
 /** A voice message: a play button, its waveform and its length (played in the browser: the app does not decode Opus yet). */
 function Voice(p: { a: Attachment }) {
   const a = p.a;
-  return <View className="mt-1 self-start h-[48] px-3 flex-row items-center gap-3 rounded-full bg-[var(--dc-sidebar)]" aria-label="Voice message" onPress={() => open(a.url)}>
+  return <View className="mt-1 self-start h-[48] px-3 flex-row items-center gap-3 rounded-full bg-[var(--dc-surface)]" aria-label="Voice message" onPress={() => open(a.url)}>
     <View className="w-[32] h-[32] rounded-full bg-[var(--dc-accent)] items-center justify-center"><Icon name="play" size={16} color={WHITE} /></View>
     <View className="h-[28] flex-row items-center gap-[2]">
       {waveform(a.waveform, BARS).map((v: number, i: i32) => <View key={`${i}`} className={`w-[3] h-[${4 + Math.round(v * 22)}] rounded-full bg-[var(--dc-icon)]`} />)}
@@ -90,7 +90,7 @@ export function Media(p: { a: Attachment; m: Message }) {
     if (a.spoiler && !store.revealed.has(p.m.id)) return <Spoiler w={b.w} h={b.h} m={p.m} />;
     const picture = a.proxyUrl !== '' ? mediaPicture(a.proxyUrl, b.w, b.h) : a.kind === 'image' ? attachmentPicture(a.url) : -1;
     const alt = a.description !== '' ? a.description : a.filename;
-    const cls = `mt-1 w-[${b.w}] h-[${b.h}] rounded-lg bg-[var(--dc-sidebar)] object-cover`;
+    const cls = `mt-1 w-[${b.w}] h-[${b.h}] rounded-lg bg-[var(--dc-surface)] object-cover`;
     if (a.kind === 'image' && a.filename.toLowerCase().endsWith('.gif') && a.size <= GIF_MAX)
       return <Animated file={attachmentKey(a.url)} url={a.url} still={picture} w={b.w} h={b.h} className={cls} label={alt} />;
     if (a.kind === 'image') return <Image image={picture} className={cls} aria-label={alt} />;
@@ -105,7 +105,7 @@ export function Media(p: { a: Attachment; m: Message }) {
 /** A sticker: its picture at 160 px; a Lottie one (an animation the app does not play yet) as its name. */
 function StickerView(p: { s: Sticker }) {
   const s = p.s;
-  if (s.format === STICKER_LOTTIE) return <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg ${BG_SIDE}`}>
+  if (s.format === STICKER_LOTTIE) return <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg ${BG_SURFACE}`}>
     <Icon name="sticker" size={18} color={MUTED} /><Text className={`text-sm ${TEXT_MUTED}`}>{`:${s.name}:`}</Text>
   </View>;
   const gif = s.format === STICKER_GIF, still = stickerPicture(s.id, gif), cls = `mt-1 w-[${STICKER}] h-[${STICKER}] object-contain`;
@@ -138,7 +138,7 @@ const field = (e: Embed, name: string): string => { for (const f of e.fields) if
 function PollResult(p: { e: Embed }) {
   const e = p.e, votes = parseInt(field(e, 'victor_answer_votes')), total = parseInt(field(e, 'total_votes'));
   const won = field(e, 'victor_answer_text');
-  return <View className={`mt-1 self-start w-full max-w-[${Math.min(EMBED_W, colW())}] px-4 py-3 flex-row items-center gap-3 rounded-lg border border-[var(--dc-border)] ${BG_SIDE}`}>
+  return <View className={`mt-1 self-start w-full max-w-[${Math.min(EMBED_W, colW())}] px-4 py-3 flex-row items-center gap-3 rounded-lg border border-[var(--dc-border)] ${BG_SURFACE}`}>
     <Icon name="chart-bar" size={24} color={MUTED} />
     <View className="grow basis-0">
       <Text className={`text-[15px] font-semibold ${TEXT_STRONG}`}>{`${field(e, 'poll_question_text')}: the poll has closed`}</Text>
@@ -155,7 +155,7 @@ function EmbedCard(p: { e: Embed }) {
   const pic = e.picture();
   if (e.pictureOnly()) return pic !== null ? <View className="self-start"><EmbedPicture media={pic} video={e.type === 'gifv'} url={e.url} maxW={Math.min(MEDIA_MAX_W, colW() - 20)} /></View> : null;
   const thumb = e.image === null && e.type !== 'video' ? e.thumbnail : null;
-  return <View className={`mt-1 self-start max-w-[${Math.min(EMBED_W, colW())}] flex-row rounded ${BG_SIDE}`}>
+  return <View className={`mt-1 self-start max-w-[${Math.min(EMBED_W, colW())}] flex-row rounded ${BG_SURFACE}`}>
     <View className={`w-[4] rounded-l bg-[#${e.color >= 0 ? hex(e.color) : '1e1f22'}]`} />
     <View className="shrink px-3 pt-2 pb-3">
       <View className="flex-row gap-3">
@@ -185,7 +185,7 @@ function PollView(p: { m: Message }) {
   const m = p.m, poll = m.poll;
   if (poll === null) return null;
   const total = poll.total(), shown = poll.voted() || poll.finalized, closed = poll.finalized || left(poll.expiry) === 'Poll closed';
-  return <View className={`mt-1 w-full max-w-[${Math.min(EMBED_W, colW())}] p-4 gap-2 rounded-lg border border-[var(--dc-border)] ${BG_SIDE}`}>
+  return <View className={`mt-1 w-full max-w-[${Math.min(EMBED_W, colW())}] p-4 gap-2 rounded-lg border border-[var(--dc-border)] ${BG_SURFACE}`}>
     <Text className={`text-[17px] font-semibold ${TEXT_STRONG}`}>{poll.question}</Text>
     <Text className={`text-sm ${TEXT_MUTED}`}>{poll.multi ? 'Select one or more answers' : 'Select one answer'}</Text>
     {poll.answers.map((a: PollAnswer) => {
@@ -225,7 +225,7 @@ function Control(p: { c: Component }) {
 /** A reaction: its emoji and count, mine outlined; a press adds mine or takes it back. */
 function ReactionPill(p: { r: Reaction; m: Message }) {
   const r = p.r;
-  return <View className={`h-[26] px-[6] flex-row items-center gap-1 rounded-lg border ${r.me ? 'bg-[var(--dc-accent-soft)] border-[var(--dc-accent)]' : 'bg-[var(--dc-sidebar)] border-[var(--dc-sidebar)]'}`}
+  return <View className={`h-[26] px-[6] flex-row items-center gap-1 rounded-lg border ${r.me ? 'bg-[var(--dc-accent-soft)] border-[var(--dc-accent)]' : 'bg-[var(--dc-surface)] border-[var(--dc-sidebar)]'}`}
     aria-label={`${r.name} ${r.count}`} onPress={() => store.react(p.m, r)}>
     {r.id !== '' ? <Image image={cdnPicture(emojiKey(r.id))} className="w-[16] h-[16]" /> : <Text className="text-[14px]">{r.name}</Text>}
     <Text className={`text-sm font-semibold ${r.me ? 'text-[var(--dc-accent-soft-text)]' : TEXT_MUTED}`}>{`${r.count}`}</Text>
@@ -241,7 +241,7 @@ export function Content(p: { m: Message }) {
     {(m.flags & F_SUPPRESS_EMBEDS) === 0 ? m.embeds.map((e: Embed, i: i32) => <EmbedCard key={`${i}`} e={e} />) : null}
     {m.poll !== null ? <PollView m={m} /> : null}
     {m.rows.map((row: Component[], i: i32) => <View key={`${i}`} className="mt-1 flex-row flex-wrap gap-2">{row.map((c: Component, k: i32) => <Control key={`${k}`} c={c} />)}</View>)}
-    {t !== null ? <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg ${BG_SIDE}`} aria-label={`Thread ${t.name}`} onPress={() => store.openThread(t.id)}>
+    {t !== null ? <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg ${BG_SURFACE}`} aria-label={`Thread ${t.name}`} onPress={() => store.openThread(t.id)}>
       <Icon name="message-square" size={16} color={MUTED} />
       <Text className={`text-sm font-semibold ${TEXT_STRONG}`}>{t.name}</Text>
       <Text className="text-sm text-[var(--dc-link)]">{`${t.count} message${t.count === 1 ? '' : 's'}`}</Text>

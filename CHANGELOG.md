@@ -10,6 +10,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Apps and examples
 #### New
+- The Discord client has a faithful Slack theme (white window, aubergine sidebar with a blue open channel, outlined message box, light code cards; the old dark one is *Slack dark*), and themes can now colour the channel list, member list and cards apart (`sidebarText`, `sidebarMuted`, `sidebarStrong`, `sidebarHover`, `sidebarSelected`, `sidebarSelectedText`, `surface`, `composerBorder`). The Teams theme gets its outlined white message box.
 - The Discord code button opens a real editor (the shared `zinc:editor`) above the message box, with a language choice, highlighting, copy and paste; sending joins your message and the code as a fenced block with its language. Long code blocks you read are folded by default with a "Show code" row that unfolds them smoothly, and keep their copy button.
 - The Discord example has a safe mode switch in the user bar, opens the call's quality details (score, loss, round trip, jitter, bit rates, codecs) from the signal bars beside "Voice Connected", and its themes now colour the switches, dialogs and call view too (new `success`, `warning`, `stage` colours).
 #### Changed

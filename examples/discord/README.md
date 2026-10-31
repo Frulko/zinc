@@ -52,7 +52,7 @@ last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a
 
 ## Themes
 
-Settings, **Appearance** lists the themes: Discord dark (the default) and light, a Slack-like dark aubergine and a Teams-like light, look-alikes
+Settings, **Appearance** lists the themes: Discord dark (the default) and light, a Slack look-alike (white window, aubergine sidebar) and its dark one, and a Teams-like light, look-alikes
 in colour and density only. A theme is a JSON file: `name`, `scheme` (`dark` or `light`: the colours left out and the switches of
 Settings), `colors` (30 named colours as `#rrggbb`: `rail`, `sidebar`, `main`, `text`, `muted`, `accent`, `link`, `success`, `stage` (the
 call view)...; the switches, sliders, dialogs and call statistics take them too), `radius` (px of the

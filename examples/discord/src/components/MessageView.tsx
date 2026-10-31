@@ -15,7 +15,7 @@ import { Content } from './Content';
 import { Avatar } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
 import { cannotSend, countdown } from '../safety/index';
-import { BG_MAIN, BG_INPUT, BG_SIDE, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR, AVATAR, ROW_ESTIMATE, OLDER_AT } from '../constants';
+import { BG_MAIN, BG_INPUT, BG_SURFACE, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR, AVATAR, ROW_ESTIMATE, OLDER_AT } from '../constants';
 import { color, rounded, textClass, compact, currentTheme } from '../theme';
 import { CodeInsert, CodePanel, sendWithCode } from './CodeInsert';
 import { Picker, PickerButtons, pickerTab, openPicker } from './Picker';
@@ -127,7 +127,7 @@ function Forum(p: { c: Channel }) {
     <View className="p-4 gap-2">
       {store.posts(c.id).map((t: Channel) => {
         const first = store.previews.get(t.id);
-        return <View key={t.id} className={`px-4 py-3 gap-1 rounded-lg ${BG_SIDE} ${BG_HOVER}`} aria-label={t.name} onPress={() => store.openThread(t.id)}>
+        return <View key={t.id} className={`px-4 py-3 gap-1 rounded-lg ${BG_SURFACE} ${BG_HOVER}`} aria-label={t.name} onPress={() => store.openThread(t.id)}>
           <Text className={`text-[16px] font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{t.name}</Text>
           {t.tags.length > 0 ? <View className="flex-row gap-1">{t.tags.map((id: string) =>
             <Text key={id} className={`px-2 rounded-full bg-[var(--dc-input)] text-xs ${TEXT_MAIN}`}>{c.tagNames.get(id) ?? id}</Text>)}</View> : null}
@@ -162,12 +162,12 @@ function Composer(p: { name: string }) {
     <Text className={`h-[22] text-xs font-semibold ${TEXT_MAIN}`} numberOfLines={1}>{typing}</Text>
   </View>;
   return <View className="px-4">
-    {r !== null || ed !== null ? <View className={`h-[32] px-4 flex-row items-center rounded-t-[${radius}] ${BG_SIDE}`}>
+    {r !== null || ed !== null ? <View className={`h-[32] px-4 flex-row items-center rounded-t-[${radius}] ${BG_SURFACE}`}>
       <Text className={`grow text-sm ${TEXT_MUTED}`} numberOfLines={1}>{r !== null ? `Replying to ${r.author}` : 'Editing a message: Enter saves, Escape cancels'}</Text>
       <View className="p-1" aria-label="Cancel" onPress={() => store.cancel()}><Icon name="x" size={16} color={MUTED} /></View>
     </View> : null}
     <CodePanel />
-    <View className={`pr-4 flex-row items-start ${r !== null || ed !== null ? `rounded-b-[${radius}]` : rounded()} ${BG_INPUT}`}>
+    <View className={`pr-4 flex-row items-start ${currentTheme().composerBorder ? 'border border-[var(--dc-border)]' : ''} ${r !== null || ed !== null ? `rounded-b-[${radius}]` : rounded()} ${BG_INPUT}`}>
       <View className="px-4 py-[12]" aria-label="Send files" onPress={() => { pickFiles(); }}><Icon name="circle-plus" size={20} color={MUTED} /></View>
       <View className="grow basis-0 py-[11]">
         <TextArea ref={field} rows={0} className={`w-full ${textClass()} ${TEXT_MAIN}`} value={store.draft} placeholder={`Message ${p.name}`}

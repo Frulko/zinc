@@ -4,7 +4,7 @@ import { useState } from 'zinc:ui/react';
 import { Icon } from 'zinc:icons';
 import { CodeView } from 'zinc:editor';
 import { setClipboardText } from 'zinc:gfx';
-import { BG_SIDE, BG_HOVER, TEXT_MAIN, TEXT_MUTED } from '../constants';
+import { BG_SURFACE, BG_HOVER, TEXT_MAIN, TEXT_MUTED } from '../constants';
 import { color, rounded } from '../theme';
 import { syncCodeTheme } from './CodeInsert';
 
@@ -23,7 +23,7 @@ export function CodeBlock(p: { code: string; lang: string }) {
   syncCodeTheme();
   const n = lineCount(p.code), foldable = n > FOLD_OVER, folded = foldable && !open;
   const copy = (): void => { setClipboardText(p.code); setCopied(true); setTimeout(() => { setCopied(false); }, COPIED_MS); };
-  return <View className={`my-1 max-w-full ${rounded()} border border-[var(--dc-border)] ${BG_SIDE} overflow-hidden`}>
+  return <View className={`my-1 max-w-full ${rounded()} border border-[var(--dc-border)] ${BG_SURFACE} overflow-hidden`}>
     <View className="h-[28] pl-3 pr-1 flex-row items-center gap-1">
       <Text className={`grow basis-0 text-[11px] ${TEXT_MUTED}`} numberOfLines={1}>{p.lang === '' ? 'plain text' : p.lang}</Text>
       <View className={`h-[22] px-1.5 flex-row items-center gap-1 rounded ${BG_HOVER}`} aria-label="Copy code" onPress={copy}>

@@ -7,18 +7,24 @@ import * as assets from 'zinc:assets';
 import { readText, list, exists, mkdir } from 'zinc:fs';
 import { dataDir } from 'zinc:system/window';
 import * as storage from 'zinc:storage';
+import { env } from 'zinc:sys';
 
 /** The colour tokens of a theme file, in the order of their scheme variables (dc- and the name in kebab case: rowHover -> --dc-row-hover). */
 export const TOKENS: string[] = ['rail', 'sidebar', 'main', 'footer', 'input', 'hover', 'rowHover', 'selected', 'divider', 'border', 'faint',
   'text', 'muted', 'strong', 'icon', 'error', 'link', 'mention', 'spoiler', 'accent', 'accentPressed', 'accentSoft',
-  'accentSoftText', 'danger', 'badge', 'accentText', 'success', 'warning', 'stage', 'stageTile'];
+  'accentSoftText', 'danger', 'badge', 'accentText', 'success', 'warning', 'stage', 'stageTile',
+  'sidebarText', 'sidebarMuted', 'sidebarStrong', 'sidebarHover', 'sidebarSelected', 'sidebarSelectedText', 'surface'];
+/** The tokens of the channel list and the server rail that follow another token until a theme sets them (a dark sidebar on a light theme sets them). */
+const FOLLOW: string[][] = [['sidebarText', 'text'], ['sidebarMuted', 'muted'], ['sidebarStrong', 'strong'], ['sidebarHover', 'hover'], ['sidebarSelected', 'selected'], ['sidebarSelectedText', 'strong'], ['surface', 'sidebar']];
 // Discord's dark theme: every colour a theme leaves out comes from here (or from DISCORD_LIGHT for a light theme)
 const DISCORD_DARK: i32[] = [0x1e1f22, 0x2b2d31, 0x313338, 0x232428, 0x383a40, 0x35373c, 0x2e3035, 0x404249, 0x1f2023, 0x1e1f22, 0x4e5058,
   0xdbdee1, 0x949ba4, 0xf2f3f5, 0xb5bac1, 0xfa777c, 0x00a8fc, 0xc9cdfb, 0x6d6f78, 0x5865f2, 0x4752c4, 0x3b405a,
-  0xdee0fc, 0xda373c, 0xf23f43, 0xffffff, 0x23a55a, 0xf0b232, 0x111214, 0x2b2d31];
+  0xdee0fc, 0xda373c, 0xf23f43, 0xffffff, 0x23a55a, 0xf0b232, 0x111214, 0x2b2d31,
+  0xdbdee1, 0x949ba4, 0xf2f3f5, 0x35373c, 0x404249, 0xf2f3f5, 0x2b2d31];
 const DISCORD_LIGHT: i32[] = [0xe3e5e8, 0xf2f3f5, 0xffffff, 0xebedef, 0xebedef, 0xe8e9ec, 0xf7f7f8, 0xd4d7dc, 0xe1e2e4, 0xe3e5e8, 0xc4c9ce,
   0x313338, 0x5c5e66, 0x060607, 0x4e5058, 0xda373c, 0x006ce7, 0x505cdc, 0xc4c9ce, 0x5865f2, 0x4752c4, 0xe6e8fd,
-  0x3c45a5, 0xda373c, 0xf23f43, 0xffffff, 0x23a55a, 0xf0b232, 0x111214, 0x2b2d31];
+  0x3c45a5, 0xda373c, 0xf23f43, 0xffffff, 0x23a55a, 0xf0b232, 0x111214, 0x2b2d31,
+  0x313338, 0x5c5e66, 0x060607, 0xe8e9ec, 0xd4d7dc, 0x060607, 0xf2f3f5];
 const varName = (t: string): string => `dc-${t.replace(/[A-Z]/g, (c: string): string => `-${c.toLowerCase()}`)}`;
 // zinc:ui/kit's variables (its Switch, CallStats, the screen-share picker...) from a theme's tokens, so the kit's parts wear the theme too;
 // the kit's soft tints keep their own
@@ -47,6 +53,8 @@ export class Theme {
   textSize: i32 = 15;
   /** 'cozy' (Discord's) or 'compact' (closer rows). */
   density = 'cozy';
+  /** The message box has an outline (Slack's). */
+  composerBorder = false;
   /** shipped, or the user's own folder */
   own = false;
 }
@@ -63,18 +71,21 @@ export function parseTheme(id: string, text: string): Theme {
   if (j.scheme !== undefined && j.scheme !== 'dark' && j.scheme !== 'light') throw new Error(`${id}: "scheme" is "dark" or "light"`);
   t.scheme = j.scheme === 'light' ? 'light' : 'dark';
   t.colors = (t.scheme === 'light' ? DISCORD_LIGHT : DISCORD_DARK).slice();
-  const c: any = j.colors;
+  const c: any = j.colors, set: string[] = [];
   if (c !== undefined && c !== null) for (const k of Object.keys(c)) {
     const i = TOKENS.indexOf(k), col = hex(c[k]);
     if (i < 0) throw new Error(`${id}: unknown colour "${k}"`);
     if (col < 0) throw new Error(`${id}: colour "${k}" is not #rrggbb`);
     t.colors[i] = col;
+    set.push(k);
   }
+  for (const f of FOLLOW) if (set.indexOf(f[0]) < 0) t.colors[TOKENS.indexOf(f[0])] = t.colors[TOKENS.indexOf(f[1])];
   if (typeof j.radius === 'number') t.radius = Math.max(0, Math.min(24, Math.round(j.radius)));
   if (typeof j.font === 'string') t.font = j.font;
   if (typeof j.textSize === 'number') t.textSize = Math.max(11, Math.min(22, Math.round(j.textSize)));
   if (j.density !== undefined && j.density !== 'cozy' && j.density !== 'compact') throw new Error(`${id}: "density" is "cozy" or "compact"`);
   if (j.density === 'compact') t.density = 'compact';
+  if (j.composerBorder === true) t.composerBorder = true;
   return t;
 }
 
@@ -125,7 +136,7 @@ export function useTheme(id: string): void {
 /** At start, before the first render: the themes, and the one chosen last (Discord dark the first time). */
 export function startThemes(): void {
   loadThemes();
-  const saved = storage.get(KEY);
+  const saved = env('DISCORD_THEME') !== '' ? env('DISCORD_THEME') : storage.get(KEY);   // DISCORD_THEME: a theme chosen for a frame or a test
   useTheme(saved !== '' ? saved : 'discord-dark');
 }
 
