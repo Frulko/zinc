@@ -627,6 +627,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-894: the IR has no type for primitive unions (string | number, Z0005); support them.
 - ZN-900: src/engine/driver.cpp (napi timer loop) jumps to the next timer like QuickJS did; check whether it needs the wall-clock fix.
 
+- Compiler: a closure call is devirtualized speculatively to the program's only lambda of that type even when that lambda's function is never reached (knownClasses' `add` pulled the class parser into every UI program, 2026-10-31); count only reachable lambdas.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
