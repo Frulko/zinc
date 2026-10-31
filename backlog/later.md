@@ -659,6 +659,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-902: prove the Galène criterion once ZN-897 and ZN-895 land (publish `sendEncodings [{rid:'h'},{rid:'l',scaleResolutionDownBy:2,maxBitrate:100000}]`, a second client asks `video-low`, check its inbound `frameWidth`); simulcast with H.264; a Zinc-to-Zinc peer taking the rid streams.
 - ZN-901: `tests/t1/webrtc_bwe.sh` measures time: run it alone on a quiet machine to trust its numbers.
 - ZN-917: auto-scroll while selecting advances only on pointer moves (a timer while the pointer rests at the edge would match browsers); a drag from a Text into an input is not handled and Cmd+A does not select static text; only the root tree is walked, so Text in overlay layers and virtualized rows not built is out of reach of a drag.
+- ZN-918: `imageFromBytes` decodes on the calling thread (`attachmentPicture`, `mediaPicture` in cdn.ts): decode thumbnails with `zinc:imageio` `load` too, on modest machines.
+- ZN-919: cap the enlargement of a small picture and hide the thumbnail while the viewer is open; preload neighbour pictures; tests for drag-down dismiss, swipe, save and copy through the gesture API and simulated dialogs; the `thumbs` map can keep a stale key when a message id changes.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
@@ -971,6 +973,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-916: Slack theme lacks square avatars, the Lato font and the 3-section sidebar (Channels / Direct messages / Apps) with a workspace menu; Teams lacks its left activity rail and the purple selected-channel bar.
 
 ## Cross-platform pass
+- ZN-918: check that `zn_webp_dec` links in the AOT and export builds on Windows and the cross targets (`tests/t0/webp_bytes.sh` runs AOT on the Mac only).
 - ZN-871: SpeexDSP and the `played` tap on Linux, the Pi and iOS; the speaker-to-microphone delay on Bluetooth and on the Pi, and a real call on laptop speakers.
 - ZN-892/893: zinc:net server, WebSocket and ACME on Linux and Windows (net_limits, net_ws, net_acme with a Pebble for that OS).
 - ZN-894: check that the -include impair.h hook builds on linux, rpi and ios.
