@@ -258,7 +258,13 @@ struct Checker {
     // a function whose last parameters are optional where one that takes them all is expected (`Button(props?: P)` as a `(p: P | null) => i32`):
     // its callers pass every argument
     if (f.k == TK::Func && t.k == TK::Func && f.params.size() == t.params.size() && f.variadic == t.variadic && f.rest == t.rest && f.minArgs <= t.minArgs && f.minArgs != t.minArgs) {
-      auto same = [&](TypeId x, TypeId y) { return x == y || (assignable(x, y, kNone) && assignable(y, x, kNone)); };   // `null | P` and `P | null`
+      std::function<bool(TypeId, TypeId)> same = [&](TypeId x, TypeId y) {   // `null | P` and `P | null`; never i16 and i32, which convert but are other machine types
+        if (x == y) return true;
+        const Type& a = ty(x); const Type& b = ty(y);
+        if (a.k != TK::Union || b.k != TK::Union || a.params.size() != b.params.size()) return false;
+        for (TypeId m : a.params) if (std::none_of(b.params.begin(), b.params.end(), [&](TypeId n) { return same(m, n); })) return false;
+        return true;
+      };
       for (std::size_t k = 0; k < f.params.size(); ++k) if (!same(f.params[k], t.params[k])) return false;
       return same(f.elem, t.elem);
     }
