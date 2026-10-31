@@ -2,7 +2,8 @@
 id: ZN-871
 title: 'zinc:microphone: echo cancellation, noise suppression and gain control'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 14:54'
 labels:
   - media

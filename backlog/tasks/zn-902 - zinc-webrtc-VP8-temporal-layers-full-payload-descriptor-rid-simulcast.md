@@ -2,7 +2,8 @@
 id: ZN-902
 title: 'zinc:webrtc: VP8 temporal layers, full payload descriptor, rid simulcast'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 22:59'
 labels:
   - media

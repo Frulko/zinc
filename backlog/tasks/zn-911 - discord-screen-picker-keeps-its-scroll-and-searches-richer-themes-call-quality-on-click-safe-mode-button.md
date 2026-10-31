@@ -4,7 +4,8 @@ title: >-
   discord: screen picker keeps its scroll and searches, richer themes, call
   quality on click, safe mode button
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-31 07:51'
 labels:
   - discord

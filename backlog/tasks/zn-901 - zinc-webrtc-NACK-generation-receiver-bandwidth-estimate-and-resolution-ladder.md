@@ -4,7 +4,8 @@ title: >-
   zinc:webrtc: NACK generation, receiver bandwidth estimate and resolution
   ladder
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-10-30 22:58'
 labels:
   - media
