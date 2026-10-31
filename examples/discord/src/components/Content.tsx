@@ -190,7 +190,7 @@ function PollView(p: { m: Message }) {
       const pct = total > 0 ? Math.round(a.count * 100 / total) : 0;
       return <View key={`${a.id}`} className={`h-[44] rounded-lg border ${a.mine ? 'border-[var(--dc-accent)]' : 'border-[var(--dc-input)]'} bg-[var(--dc-input)]`}
         aria-label={a.text} onPress={() => { if (!closed) store.vote(m, a.id); }}>
-        {shown ? <View className={`absolute left-0 top-0 bottom-0 w-[${pct}%] rounded-lg ${a.mine ? 'bg-[#5865f2]/40' : 'bg-[var(--dc-faint)]'}`} /> : null}
+        {shown ? <View className={`absolute left-0 top-0 bottom-0 w-[${pct}%] rounded-lg ${a.mine ? 'bg-[var(--dc-accent-soft)]' : 'bg-[var(--dc-faint)]'}`} /> : null}
         <View className="grow px-3 flex-row items-center gap-2">
           {a.emojiId !== '' ? <Image image={cdnPicture(emojiKey(a.emojiId))} className="w-[20] h-[20]" /> : a.emoji !== '' ? <Text className="text-[16px]">{a.emoji}</Text> : null}
           <Text className={`grow basis-0 text-[15px] font-semibold ${TEXT_MAIN}`} numberOfLines={1}>{a.text}</Text>

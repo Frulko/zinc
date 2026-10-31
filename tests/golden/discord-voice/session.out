@@ -2,6 +2,7 @@ voice: camera off, Grace's camera -1
 voice: camera on, sent true, Grace's camera 256x144, ours true
 voice: connected to Lounge, aead_aes256_gcm_rtpsize
 voice: deafened, mute true
+voice: details from the call bar true, MOS true, codec line 'opus'
 voice: DM call connected, end-to-end encrypted false, packets sent without a key 0
 voice: full view 864x540
 voice: heard 25 frames, 0 failures, mixed true

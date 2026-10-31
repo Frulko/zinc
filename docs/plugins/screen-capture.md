@@ -31,7 +31,7 @@ the newest one (no copy), and `zinc:webrtc` encodes from it. `close()` (or `trac
 ## The share dialog (`zinc:screen-capture/picker`)
 
 The dialog a call app opens on "Share screen", written once for every app: the screens, then the windows grouped by application (its icon
-and name), each with a thumbnail refreshed every 1.5 s while it is open; one selected (a ring); the quality to send: resolution 720p, 1080p or
+and name), each with a thumbnail refreshed every 1.5 s while it is open (the list keeps its scroll), a search field that filters them by name; one selected (a ring); the quality to send: resolution 720p, 1080p or
 Source (the source's own size), 15, 30 or 60 frames a second, the pointer drawn or not; Share and Cancel (Escape or a press outside cancels).
 It asks for screen recording first when needed (never in a background run), sits on its own modal layer in the kit theme's colours, and works
 the same under the Solid and the React models: nothing to mount.
@@ -56,4 +56,4 @@ if (c !== null) {
 Used by `examples/discord` (Go Live) and `examples/webrtc-call` (Share screen).
 
 Tests: `ZINC_FAKE_SCREEN=1`, and every deterministic run, list only "Zinc Fake Screen" (1280 x 800) and "Zinc Fake Window" (800 x 600), a
-moving pattern (the window's application, "Zinc", has a small blurple icon): no test captures the screen of the person at the machine (`tests/t1/screen_capture.sh`).
+moving pattern (the window's application, "Zinc", has a small blurple icon); `ZINC_FAKE_WINDOWS=n` lists n windows ("Zinc Fake Window 2"...), a list long enough to scroll: no test captures the screen of the person at the machine (`tests/t1/screen_capture.sh`, `tests/t1/screen_picker.sh`).

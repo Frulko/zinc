@@ -224,7 +224,7 @@ function History(p: { list: Message[] }) {
 function Present() {
   const older = store.showingOlder(), n = store.newWhileUp;
   if (!older && (store.atEnd || n === 0)) return null;
-  return <View className="mx-4 h-[28] px-3 flex-row items-center rounded-t-lg bg-[#5865f2]">
+  return <View className="mx-4 h-[28] px-3 flex-row items-center rounded-t-lg bg-[var(--dc-accent)]">
     <Text className="grow text-sm font-semibold text-white" numberOfLines={1}>{older ? 'You are viewing older messages' : `${n} new message${n === 1 ? '' : 's'}`}</Text>
     <Text className="text-sm font-semibold text-white" aria-label="Jump to present"
       onPress={() => { if (!older && shown >= 0) ui.scrollTo(shown, 0, 1e9); store.jumpToPresent(); }}>Jump to present</Text>

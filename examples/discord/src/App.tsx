@@ -9,9 +9,9 @@ import { MessageView } from './components/MessageView';
 import { MemberList } from './components/MemberList';
 import { SidePane } from './components/SidePane';
 import { Settings } from './components/Settings';
-import { CallView } from './components/CallView';
+import { CallView, StatsPanel } from './components/CallView';
 import { Transfer } from './components/Transfer';
-import { BG_MAIN, TEXT_MUTED, CH_VOICE } from './constants';
+import { BG_MAIN, TEXT_MUTED, CH_VOICE, RAIL_W } from './constants';
 
 /** No conversation open: the server or the DMs are shown, one is chosen in the list. */
 function Pick() {
@@ -42,5 +42,6 @@ export default function App() {
       : store.channelId === '' ? <Pick /> : <MessageView />}
     {store.settingsOpen || store.channelId === '' ? null : store.pane !== 'members' ? <SidePane /> : store.guildId !== '' ? <MemberList /> : null}
     {store.transferPaths.length > 0 ? <Transfer /> : null}
+    {call.statsOpen && call.state === 'connected' && !callHere ? <StatsPanel at={`bottom-[112] left-[${RAIL_W + 8}]`} /> : null}
   </View>;
 }

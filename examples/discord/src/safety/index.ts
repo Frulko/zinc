@@ -149,7 +149,23 @@ const issued: Set<Verdict> = new Set<Verdict>();
 const VERDICT_MS = 60000;   // a message's files may take a while between its two requests
 let tokenRefused = false;   // a 401: nothing more with this token
 let safeUntil: number = 0, safeReason = '';
-const safe = (now: number): boolean => now < safeUntil;
+const CHOSEN_KEY = 'safe-mode';   // the person's own safe mode, kept across launches until switched off
+let chosen = storage.get(CHOSEN_KEY) === '1';
+const safe = (now: number): boolean => chosen || now < safeUntil;
+/** Safe mode is on: chosen by the person (the shield of the user bar), or started by Discord pushing back (until safeModeEnd()). */
+export function safeModeOn(): boolean { return safe(Date.now()); }
+/** The person chose it (the switch's state). */
+export function safeModeChosen(): boolean { return chosen; }
+/** When the safe mode Discord started ends (0: none in force): switching the chosen one off does not end it before. */
+export function safeModeEnd(): number { return Date.now() < safeUntil ? safeUntil : 0; }
+/** The person's switch: on, only the essential kinds go (policy.ts: what the person does, no typing, acks, presence or extra pages); off again, unless Discord's is in force. */
+export function chooseSafeMode(on: boolean): void {
+  if (chosen === on) return;
+  chosen = on;
+  storage.set(CHOSEN_KEY, on ? '1' : '');
+  log(`guard: safe mode ${on ? 'on' : 'off'} (chosen)`);
+  changed();
+}
 /** Times kept across launches (zinc:storage) under a key: those of the last `ms`, and one more when `add` is not 0. */
 function keptTimes(key: string, ms: number, add: number): number[] {
   const now = Date.now(), kept: number[] = [];
@@ -195,13 +211,14 @@ export class Today { kind = ''; count: i32 = 0; cap: i32 = 0; }
 /** What the Settings page "Account safety" shows, read from the guard: the account (email verified, age in days, the lower caps of a
  *  young or unverified one), safe mode (until when, why), the pauses in force (plain sentences) and today's counts against their caps. */
 export class SafetyState {
-  verified = true; ageDays: i32 = -1; limited = false; safeUntil: number = 0; safeReason = ''; pauses: string[] = []; today: Today[] = [];
+  verified = true; ageDays: i32 = -1; limited = false; safeUntil: number = 0; safeReason = ''; safeChosen = false; pauses: string[] = []; today: Today[] = [];
 }
 export function safetyState(): SafetyState {
   const s = new SafetyState(), now = Date.now();
   s.verified = access.verified; s.limited = access.limited(now);
   if (access.createdAt > 0) s.ageDays = Math.floor((now - access.createdAt) / 86400000);
-  if (safe(now)) { s.safeUntil = safeUntil; s.safeReason = safeReason; }
+  if (now < safeUntil) { s.safeUntil = safeUntil; s.safeReason = safeReason; }
+  s.safeChosen = chosen;
   if (now < dmPausedUntil) s.pauses.push(`New DMs until ${clock(dmPausedUntil)}: Discord said you opened DMs too fast.`);
   if (now < cold.pausedUntil) s.pauses.push(`New conversations until ${clock(cold.pausedUntil)}: you wrote to many people you had not talked to in a while.`);
   if (now < holdUntil) s.pauses.push(`Reconnecting until ${clock(holdUntil)}: the connection kept dropping.`);

@@ -11,18 +11,29 @@ import * as storage from 'zinc:storage';
 /** The colour tokens of a theme file, in the order of their scheme variables (dc- and the name in kebab case: rowHover -> --dc-row-hover). */
 export const TOKENS: string[] = ['rail', 'sidebar', 'main', 'footer', 'input', 'hover', 'rowHover', 'selected', 'divider', 'border', 'faint',
   'text', 'muted', 'strong', 'icon', 'error', 'link', 'mention', 'spoiler', 'accent', 'accentPressed', 'accentSoft',
-  'accentSoftText', 'danger', 'badge'];
+  'accentSoftText', 'danger', 'badge', 'accentText', 'success', 'warning', 'stage', 'stageTile'];
 // Discord's dark theme: every colour a theme leaves out comes from here (or from DISCORD_LIGHT for a light theme)
 const DISCORD_DARK: i32[] = [0x1e1f22, 0x2b2d31, 0x313338, 0x232428, 0x383a40, 0x35373c, 0x2e3035, 0x404249, 0x1f2023, 0x1e1f22, 0x4e5058,
   0xdbdee1, 0x949ba4, 0xf2f3f5, 0xb5bac1, 0xfa777c, 0x00a8fc, 0xc9cdfb, 0x6d6f78, 0x5865f2, 0x4752c4, 0x3b405a,
-  0xdee0fc, 0xda373c, 0xf23f43];
+  0xdee0fc, 0xda373c, 0xf23f43, 0xffffff, 0x23a55a, 0xf0b232, 0x111214, 0x2b2d31];
 const DISCORD_LIGHT: i32[] = [0xe3e5e8, 0xf2f3f5, 0xffffff, 0xebedef, 0xebedef, 0xe8e9ec, 0xf7f7f8, 0xd4d7dc, 0xe1e2e4, 0xe3e5e8, 0xc4c9ce,
   0x313338, 0x5c5e66, 0x060607, 0x4e5058, 0xda373c, 0x006ce7, 0x505cdc, 0xc4c9ce, 0x5865f2, 0x4752c4, 0xe6e8fd,
-  0x3c45a5, 0xda373c, 0xf23f43];
+  0x3c45a5, 0xda373c, 0xf23f43, 0xffffff, 0x23a55a, 0xf0b232, 0x111214, 0x2b2d31];
 const varName = (t: string): string => `dc-${t.replace(/[A-Z]/g, (c: string): string => `-${c.toLowerCase()}`)}`;
+// zinc:ui/kit's variables (its Switch, CallStats, the screen-share picker...) from a theme's tokens, so the kit's parts wear the theme too;
+// the kit's soft tints keep their own
+const KIT: string[][] = [['background', 'main'], ['foreground', 'text'], ['card', 'main'], ['muted', 'input'], ['mutedForeground', 'muted'],
+  ['border', 'border'], ['input', 'faint'], ['primary', 'accent'], ['primaryForeground', 'accentText'], ['primaryFocus', 'accentPressed'],
+  ['primaryPressed', 'accentPressed'], ['secondary', 'input'], ['secondaryForeground', 'text'], ['secondaryPressed', 'hover'], ['subtle', 'hover'],
+  ['accent', 'accent'], ['accentForeground', 'accentText'], ['accentSoft', 'accentSoft'], ['accentSoftForeground', 'accentSoftText'],
+  ['destructive', 'danger'], ['destructiveForeground', 'accentText'], ['destructivePressed', 'danger'], ['success', 'success']];
+function defineColors(scheme: string, colors: i32[]): void {
+  ui.defineScheme(scheme, TOKENS.map(varName), colors);
+  ui.defineScheme(scheme, KIT.map((k: string[]): string => k[0]), KIT.map((k: string[]): i32 => colors[TOKENS.indexOf(k[1])]));
+}
 // the variables exist from the start (Discord's colours), so runColor() names them before a theme is read
-ui.defineScheme('light', TOKENS.map(varName), DISCORD_LIGHT);
-ui.defineScheme('dark', TOKENS.map(varName), DISCORD_DARK);
+defineColors('light', DISCORD_LIGHT);
+defineColors('dark', DISCORD_DARK);
 /** The class colour of a token: `bg-${v('main')}` is `bg-[var(--dc-main)]`. */
 export const v = (token: string): string => `[var(--${varName(token)})]`;
 
@@ -106,7 +117,7 @@ export function useTheme(id: string): void {
   for (const x of themes) if (x.id === id) t = x;
   const chosen = t !== null ? t : fallback();
   theme = chosen;
-  ui.defineScheme(chosen.scheme, TOKENS.map(varName), chosen.colors);
+  defineColors(chosen.scheme, chosen.colors);
   ui.setScheme(chosen.scheme);
   if (t !== null) storage.set(KEY, id);
 }

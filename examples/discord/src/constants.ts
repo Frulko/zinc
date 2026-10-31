@@ -37,6 +37,7 @@ export const RAIL_W = 72, CHANNELS_W = 240, MEMBERS_W = 240, PANE_W = 360;   // 
 // The theme's colours, as classes (theme.ts: the scheme variables a theme file sets)
 export const BG_RAIL = `bg-${v('rail')}`, BG_SIDE = `bg-${v('sidebar')}`, BG_MAIN = `bg-${v('main')}`, BG_INPUT = `bg-${v('input')}`;
 export const BG_SELECTED = `bg-${v('selected')}`, BG_HOVER = `hover:bg-${v('hover')}`, BG_ACCENT = `bg-${v('accent')}`;
+export const BG_STAGE = `bg-${v('stage')}`, BG_TILE = `bg-${v('stageTile')}`, TEXT_SUCCESS = `text-${v('success')}`, TEXT_WARNING = `text-${v('warning')}`;
 export const TEXT_MAIN = `text-${v('text')}`, TEXT_MUTED = `text-${v('muted')}`, TEXT_STRONG = `text-${v('strong')}`, TEXT_ERROR = `text-${v('error')}`;
 
 // Writing (docs/reports/discord-client-research.md 2.6 and 3)
@@ -54,7 +55,7 @@ export const MEDIA_MAX_W = 400, MEDIA_MAX_H = 300;
 export const TILE_W = 256, TILE_H = 144;
 /** A watched Go Live stream in full view. */
 export const FULL_W = 960, FULL_H = 540;
-export const VOICE_AVATAR = 20, CALL_AVATAR = 64, SPEAKING_RING = 'border-[#23a55a]', PTT_KEY = 'F8';
+export const VOICE_AVATAR = 20, CALL_AVATAR = 64, SPEAKING_RING = `border-${v('success')}`, PTT_KEY = 'F8';
 export const EMBED_W = 432, THUMB = 80, STICKER = 160;   // an embed card at most, its thumbnail, a sticker
 export const ROW_ESTIMATE = 44;           // a message's height before it is laid out (the virtual list's estimate)
 export const OLDER_AT = 400;              // px from the top of the history where the page before is asked for

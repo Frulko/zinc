@@ -1,0 +1,5 @@
+open true
+scrolled true
+after the refresh: same list true, same place true
+search: screen hidden, window 2 hidden, window 8 shown
+shared zinc:fake-window-8

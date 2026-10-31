@@ -37,7 +37,12 @@
         "accentSoft": { "description": "Your reactions' background." },
         "accentSoftText": { "description": "Your reactions' count." },
         "danger": { "description": "Delete and other buttons that destroy." },
-        "badge": { "description": "The count of mentions." }
+        "badge": { "description": "The count of mentions; do not disturb." },
+        "accentText": { "description": "Text and icons on the accent: buttons, push to talk." },
+        "success": { "description": "Online, speaking, Voice Connected, a good connection." },
+        "warning": { "description": "Idle, connecting, a fair connection." },
+        "stage": { "description": "The call view behind the tiles (a dark surface: its text is white)." },
+        "stageTile": { "description": "A participant's tile and the round buttons of the call." }
       }
     },
     "radius": { "type": "integer", "minimum": 0, "maximum": 24, "default": 8, "description": "px of the rounded corners of the message box and code blocks." },

@@ -20,6 +20,12 @@ async function write(text: string): Promise<string> { store.error = ''; store.ty
 export async function safety(): Promise<void> {
   await until(() => store.stage === 'ready');
   say(`ready, identifies today ${guard.identifiesToday()}`);
+  // safe mode by choice (the shield of the user bar): only the essential kinds go, until switched off
+  guard.chooseSafeMode(true);
+  const chosen = accountNow().filter((r: string[]) => r[0] === 'Safe mode')[0][1];
+  say(`safe mode chosen: on ${guard.safeModeOn()}, typing '${guard.begin('typing').message}', account now '${chosen}'`);
+  guard.chooseSafeMode(false);
+  say(`safe mode switched off: on ${guard.safeModeOn()}`);
   // layer 2: what Discord would refuse is not sent
   store.selectGuild('200');
   store.selectChannel('321');

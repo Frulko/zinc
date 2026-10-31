@@ -19,6 +19,7 @@ import { store, Message, Attachment, Guild } from './state';
 import { parse, describe } from './markdown';
 import { picturesLoading } from './services/cdn';
 import { historyList } from './components/MessageView';
+import { codecLine } from './components/CallView';
 import { memberList } from './components/MemberList';
 import { showcase } from './showcase';
 import { startNotifications } from './services/notifications';
@@ -201,6 +202,14 @@ async function quality(): Promise<void> {
   console.log(`voice: quality ${q.quality}, round trip measured ${q.rttMs >= 0}, loss ${q.lossPct}%, codec ${q.audioCodec}`);
   call.toggleStats();
   await shot('stats');
+  call.toggleStats();
+  store.selectChannel('303');   // a text channel while in the call: the bars of the call bar open the same details (above the bar)
+  call.toggleStats();
+  await shot('stats-bar');
+  console.log(`voice: details from the call bar ${ui.find('Call quality') >= 0}, MOS ${call.quality.last.mos > 0}, codec line '${codecLine().split(' · ')[0]}'`);
+  call.toggleStats();
+  store.selectChannel('304');
+  call.toggleStats();
   const normal = await audioKbps();
   call.setLowData(true);
   await pause(500);

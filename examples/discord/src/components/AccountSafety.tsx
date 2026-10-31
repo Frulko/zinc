@@ -1,6 +1,7 @@
 // Settings, Account safety: what the app does to keep the account safe, what the person should do, and the account now, read live from the
 // guard (src/safety): the email and the account's age, safe mode, the pauses in force and today's counts against their caps. The text is
 // docs/reports/discord-account-safety-rules.md's; nothing here holds a number of its own.
+import { Switch } from 'zinc:ui/kit';
 import * as guard from '../safety/index';
 import { TEXT_MAIN, TEXT_MUTED, TEXT_STRONG } from '../constants';
 
@@ -48,13 +49,25 @@ function Fact(p: { label: string; value: string }) {
   </View>;
 }
 
+/** Safe mode, switched by the person: only what the person does goes out while it is on (the shield of the user bar too). */
+export function SafeModeSwitch() {
+  const end = guard.safeModeEnd();
+  return <View className="pt-4 flex-row items-center gap-3">
+    <View className="grow basis-0">
+      <Text className={`text-sm font-semibold ${TEXT_STRONG}`}>Safe mode</Text>
+      <Text className={`text-xs ${TEXT_MUTED}`}>{end > 0 ? `Discord pushed back: on until ${guard.clock(end)}.` : 'Only what you do yourself goes out: no typing indicator, read marks, presence, GIFs, pins or older pages.'}</Text>
+    </View>
+    <Switch checked={() => guard.safeModeOn()} onChange={(on: boolean) => guard.chooseSafeMode(on)} label="Safe mode" />
+  </View>;
+}
+
 /** The lines of "Your account now", as the page shows them (the safety session prints them too). */
 export function accountNow(): string[][] {
   const s = guard.safetyState();
   const rows: string[][] = [];
   rows.push(['Email', s.verified ? 'verified' : 'not verified (verify it in the official app)']);
   rows.push(['Account age', s.ageDays < 0 ? 'not known yet' : `${s.ageDays} days${s.limited ? ' (lower limits for now)' : ''}`]);
-  rows.push(['Safe mode', s.safeUntil > 0 ? `on until ${guard.clock(s.safeUntil)} (${s.safeReason})` : 'off']);
+  rows.push(['Safe mode', s.safeUntil > 0 ? `on until ${guard.clock(s.safeUntil)} (${s.safeReason})` : s.safeChosen ? 'on (your choice)' : 'off']);
   for (const p of s.pauses) rows.push(['Paused', p]);
   for (const t of s.today) { const n = NAMES.get(t.kind); rows.push([`${n !== undefined ? n : t.kind} today`, `${t.count} of ${t.cap}`]); }
   return rows;
@@ -64,6 +77,7 @@ export function AccountSafety() {
   return <View className="px-6 pb-6">
     <Text className={`pt-4 text-sm ${TEXT_MAIN}`}>This app talks to Discord as you, with your account. Discord does not approve third-party apps, and its rules forbid bots that run a person's account. It acts on accounts that behave like bots or spammers. This app keeps you to a person's pace; the rest is up to you.</Text>
     <Text className={`pt-2 text-sm ${TEXT_MAIN}`}>Honestly: Discord's terms forbid unauthorised software and automated access, and the authors of other third-party clients say plainly that using one is against them. They also report that Discord rarely acts on the client itself, but on behaviour that looks like a bot, and that third-party clients trip its spam filter more easily. This app does not pretend to be the official one. Use it at your own risk.</Text>
+    <SafeModeSwitch />
     <Heading text="What this app does for you" />
     {DOES.map((t: string) => <Line key={t} text={t} />)}
     <Heading text="What you should do" />

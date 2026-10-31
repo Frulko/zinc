@@ -51,6 +51,7 @@ voice wants {"33":0,"pixelCounts":{}}
 voice wants {"33":50,"pixelCounts":{"33":36864}}
 voice wants {"33":50,"pixelCounts":{"33":36864}}
 voice wants {"pixelCounts":{}}
+voice wants {"pixelCounts":{}}
 voice watch closed 1000
 voice watch identify server=1000 session=voice-sess video=true streams=[{"type":"screen","rid":"100","quality":100}]
 voice watch op 5

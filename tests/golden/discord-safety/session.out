@@ -4,6 +4,8 @@ second restart: ready, identifies today 1
 again discord: already running, the open window comes to the front
 session: resumed from the last launch
 safety: ready, identifies today 1
+safety: safe mode chosen: on true, typing 'Not sent: safe mode.', account now 'on (your choice)'
+safety: safe mode switched off: on false
 safety: read-only: You do not have permission to send messages here. / You do not have permission to send messages here.
 safety: blocked: You blocked this person: unblock them in Discord to write here.
 safety: slowmode: first '', second 'Slowmode: you can send again in 30 s.', countdown true

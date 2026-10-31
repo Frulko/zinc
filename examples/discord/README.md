@@ -54,11 +54,17 @@ last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a
 
 Settings, **Appearance** lists the themes: Discord dark (the default) and light, a Slack-like dark aubergine and a Teams-like light, look-alikes
 in colour and density only. A theme is a JSON file: `name`, `scheme` (`dark` or `light`: the colours left out and the switches of
-Settings), `colors` (25 named colours as `#rrggbb`: `rail`, `sidebar`, `main`, `text`, `muted`, `accent`, `link`...), `radius` (px of the
+Settings), `colors` (30 named colours as `#rrggbb`: `rail`, `sidebar`, `main`, `text`, `muted`, `accent`, `link`, `success`, `stage` (the
+call view)...; the switches, sliders, dialogs and call statistics take them too), `radius` (px of the
 message box and code blocks), `font` (a family the app ships, `assets/<Family>.ttf`), `textSize` and `density` (`cozy` or `compact`).
 [`assets/themes/theme.schema.json`](assets/themes/theme.schema.json) describes every field; the shipped files in `assets/themes/` are
 examples. Put your own in the folder the pane shows (`<data dir>/themes`; a file named like a shipped one replaces it) and press
 **Reload the themes**. A click uses a theme at once; the choice stays on this computer.
+
+The shield in the user bar switches **safe mode** on and off: while it is on, only what you do yourself goes out (no typing indicator, read
+marks, presence, GIFs or older pages). It also lights up when Discord pushes back and the app goes quiet on its own (Settings, **Account
+safety**). The signal bars beside **Voice Connected** open the call's quality: the score (MOS), loss, round trip, jitter, bit rates and codecs,
+with the ultra low data switches.
 
 Code blocks show their language and a **Copy** button; the `<>` button of the message box inserts a fenced block in the language you pick,
 the cursor on its empty line. (Highlighting comes with zinc:editor's read-only code view, in `components/CodeBlock.tsx`.)

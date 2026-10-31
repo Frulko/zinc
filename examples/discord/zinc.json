@@ -7,7 +7,7 @@
   "requires": ["display", "pointer|touch"],
   "permissions": ["net", "fs", "dialog", "window", "notification", "dock", "microphone", "camera", "screen", "opener", "power", "instance"],
   "scopes": { "opener": { "allow": ["https://*"] } },
-  "icons": ["arrow-right", "at-sign", "check", "code", "copy", "circle-plus", "corner-up-left", "eye-off", "face-slightly-smiling", "face-slightly-smiling-plus", "file", "hash", "headphone-off", "headphones", "info", "message-square", "messages-square", "mic", "mic-off", "music", "paperclip", "pencil", "phone", "phone-off", "pin", "rocket", "screen-share", "screen-share-off", "settings", "square-pen", "sticker", "thumbs-up", "trash-2", "user-minus", "users", "video", "video-off", "volume-2", "x"],
+  "icons": ["arrow-right", "at-sign", "check", "code", "copy", "circle-plus", "corner-up-left", "eye-off", "face-slightly-smiling", "face-slightly-smiling-plus", "file", "hash", "headphone-off", "headphones", "info", "message-square", "messages-square", "mic", "mic-off", "music", "paperclip", "pencil", "phone", "phone-off", "pin", "rocket", "screen-share", "screen-share-off", "settings", "shield", "shield-check", "square-pen", "sticker", "thumbs-up", "trash-2", "user-minus", "users", "video", "video-off", "volume-2", "x"],
   "targets": {
     "macos": { "width": 1200, "height": 760, "resize": "fill" },
     "linux": { "width": 1200, "height": 760 }

@@ -1,6 +1,7 @@
 // zinc:screen-capture/picker — the share dialog of a call app (docs/plugins/screen-capture.md): the screens, then the windows grouped by
-// application (its icon and name), each with a thumbnail refreshed while the dialog is open; one selected; the quality to send (resolution
-// 720p, 1080p or Source; 15, 30 or 60 frames a second; the pointer or not); Share or Cancel. pickScreen() resolves with what was chosen,
+// application (its icon and name), each with a thumbnail refreshed while the dialog is open (the list keeps its scroll), a search field filtering
+// them by name; one selected; the quality to send (resolution 720p, 1080p or Source; 15, 30 or 60 frames a second; the pointer or not);
+// Share or Cancel. pickScreen() resolves with what was chosen,
 // ready for ScreenCapture.open(c.sourceId, c) or getDisplayMedia({ video: { deviceId: c.sourceId, ... } }), or null when cancelled.
 // Built with zinc:ui's nodes on its own modal layer, in the kit theme's colours, so it works the same under the Solid and the React models
 // and needs nothing mounted.
@@ -42,8 +43,11 @@ class Picker {
   res: string;
   fps: number;
   cursor: boolean;
+  query = '';
   root: i32;
   body: i32;
+  list: i32;   // kept across rebuilds: the scroll offset stays while the thumbnails refresh and the search filters
+  rest: i32;
   timer = -1;
   listing = false;
   done: (c: ShareChoice | null) => void;
@@ -59,6 +63,16 @@ class Picker {
     ui.setLabel(this.root, o.title ?? 'Share your screen');
     this.body = ui.createNode(ui.VIEW);
     ui.insert(this.root, this.body, -1);
+    const t = theme(), b = this.body;
+    ui.setClass(b, `flex-col gap-4 p-6 w-[640px] rounded-lg border border-${t.border} bg-${t.card} shadow-lg`);
+    const head = this.el(ui.VIEW, 'flex-row items-center gap-4', b);
+    this.text(o.title ?? 'Share your screen', `grow text-lg font-semibold tracking-tight text-${t.foreground}`, head);
+    const search = this.el(ui.INPUT, `w-[220] h-[32] px-3 rounded-md text-sm border border-${t.input} bg-${t.background} text-${t.foreground}`, head);
+    ui.setPlaceholder(search, 'Search screens and windows');
+    ui.setLabel(search, 'Search screens and windows');
+    ui.onText(search, false, (v: string) => { this.query = v; this.build(); });
+    this.list = this.el(ui.SCROLL, 'h-[300] flex-col', b);
+    this.rest = this.el(ui.VIEW, 'flex-col gap-4', b);
     this.build();
     ui.openLayer(this.root, { priority: 200, modal: true, backdrop: 0x000000, backdropAlpha: 128, motion: 'scale' });
     ui.focusScope(this.root, { trap: true, restore: true, autoFocus: true });
@@ -89,30 +103,35 @@ class Picker {
     this.done(c);
   }
   share(): void {
+    if (this.shown().length === 0) return;
     const src = this.sources.find((x: CaptureSource) => x.id === this.picked);
     if (src === undefined) return;
     const box = resolutionBox(this.res, src);
     this.close({ sourceId: src.id, width: box[0], height: box[1], frameRate: this.fps, cursor: this.cursor, resolution: this.res });
   }
 
-  // ---------------------------------------------------------------- the nodes, built again on each change (a small tree)
+  // ---------------------------------------------------------------- the list and the quality, built again on each change (a small tree)
   private el(tag: i32, cls: string, parent: i32): i32 { const n = ui.createNode(tag); ui.setClass(n, cls); ui.insert(parent, n, -1); return n; }
   private text(s: string, cls: string, parent: i32): i32 { const n = this.el(ui.TEXT, cls, parent); ui.setText(n, s); return n; }
+  /** The sources the search keeps: its words found in the name or the application's, any case. */
+  shown(): CaptureSource[] {
+    const q = this.query.trim().toLowerCase();
+    return q === '' ? this.sources : this.sources.filter((s: CaptureSource) => `${s.name} ${s.appName}`.toLowerCase().indexOf(q) >= 0);
+  }
   private build(): void {
-    const t = theme(), b = this.body;
+    const t = theme(), b = this.rest, list = this.list, shown = this.shown();
+    if (shown.length > 0 && shown.find((x: CaptureSource) => x.id === this.picked) === undefined) this.picked = shown[0].id;
+    ui.clearChildren(list);
     ui.clearChildren(b);
-    ui.setClass(b, `flex-col gap-4 p-6 w-[640px] rounded-lg border border-${t.border} bg-${t.card} shadow-lg`);
-    this.text(this.o.title ?? 'Share your screen', `text-lg font-semibold tracking-tight text-${t.foreground}`, b);
-    const list = this.el(ui.SCROLL, 'h-[300] flex-col', b);
-    const screens = this.sources.filter((s: CaptureSource) => s.kind === 'screen');
+    const screens = shown.filter((s: CaptureSource) => s.kind === 'screen');
     if (screens.length > 0) this.group('Screens', -1, screens, list);
     const apps: string[] = [];
-    for (const s of this.sources) if (s.kind === 'window' && apps.indexOf(s.appName) < 0) apps.push(s.appName);
+    for (const s of shown) if (s.kind === 'window' && apps.indexOf(s.appName) < 0) apps.push(s.appName);
     for (const a of apps) {
-      const ws = this.sources.filter((s: CaptureSource) => s.kind === 'window' && s.appName === a);
+      const ws = shown.filter((s: CaptureSource) => s.kind === 'window' && s.appName === a);
       this.group(a !== '' ? a : 'Windows', ws[0].appIcon, ws, list);
     }
-    if (this.sources.length === 0) this.text('Nothing can be shared now.', `text-sm text-${t.mutedForeground}`, list);
+    if (shown.length === 0) this.text(this.sources.length === 0 ? 'Nothing can be shared now.' : `Nothing named "${this.query.trim()}".`, `text-sm text-${t.mutedForeground}`, list);
     // the quality
     const q = this.el(ui.VIEW, 'flex-row items-center gap-2', b);
     this.text('Resolution', `w-[84] text-sm text-${t.mutedForeground}`, q);
@@ -127,7 +146,7 @@ class Picker {
     this.text('Cancel', `text-sm text-${t.foreground}`, cancel);
     ui.setRole(cancel, 'button');
     ui.listen(cancel, () => { this.close(null); });
-    const can = this.picked !== '';
+    const can = this.picked !== '' && shown.length > 0;
     const go = this.el(ui.VIEW, `h-[36] px-4 rounded-md items-center justify-center bg-${t.primary} ${can ? `hover:bg-${t.primaryFocus}` : 'opacity-50'}`, foot);
     this.text(this.o.shareLabel ?? 'Share', `text-sm font-medium text-${t.primaryForeground}`, go);
     ui.setRole(go, 'button');

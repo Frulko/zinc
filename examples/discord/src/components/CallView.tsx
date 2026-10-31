@@ -10,7 +10,8 @@ import { store } from '../state';
 import { VoiceSettings } from '../call';
 import { Avatar } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
-import { BG_SIDE, TEXT_MUTED, TEXT_STRONG, SPEAKING_RING, CALL_AVATAR, TILE_W, TILE_H, FULL_W, FULL_H } from '../constants';
+import { v, color } from '../theme';
+import { BG_STAGE, BG_TILE, BG_ACCENT, TEXT_MUTED, TEXT_SUCCESS, TEXT_WARNING, SPEAKING_RING, CALL_AVATAR, TILE_W, TILE_H, FULL_W, FULL_H } from '../constants';
 
 /** 75 -> "1:15", 3725 -> "1:02:05". */
 export function duration(seconds: number): string {
@@ -24,14 +25,14 @@ function Tile(p: { id: string }) {
   const name = store.userName(id), hash = store.avatarOf(id);
   const f = call.flagsOf(id), mute = me ? call.mute || call.deaf : f.mute, deaf = me ? call.deaf : f.deaf;
   const talking = call.speaking.has(id) && !mute, video = call.hasVideo(id), img = video ? call.videoOf(id) : -1;
-  return <View className={`w-[${TILE_W}] h-[${TILE_H}] rounded-lg border-2 overflow-hidden ${talking ? SPEAKING_RING : 'border-[#2b2d31]'} ${BG_SIDE} items-center justify-center`}
+  return <View className={`w-[${TILE_W}] h-[${TILE_H}] rounded-lg border-2 overflow-hidden ${talking ? SPEAKING_RING : `border-${v('stageTile')}`} ${BG_TILE} items-center justify-center`}
     aria-label={`${name}${video ? ', camera on' : ''}${talking ? ', speaking' : ''}${mute ? ', muted' : ''}${deaf ? ', deafened' : ''}`}>
     {img >= 0 ? <Image image={img} className="absolute inset-0 object-cover" />
       : <Avatar picture={hash !== '' ? cdnPicture(avatarKey(id, hash)) : -1} name={name} size={CALL_AVATAR} round={true} />}
     <View className="absolute left-2 bottom-2 px-1.5 py-0.5 rounded flex-row items-center gap-1 bg-[#1e1f22]">
       <Text className="text-white text-xs font-semibold" numberOfLines={1}>{name}</Text>
-      {mute ? <Icon name="mic-off" size={12} color={() => 0xf23f43} /> : null}
-      {deaf ? <Icon name="headphone-off" size={12} color={() => 0xf23f43} /> : null}
+      {mute ? <Icon name="mic-off" size={12} color={() => color('danger')} /> : null}
+      {deaf ? <Icon name="headphone-off" size={12} color={() => color('danger')} /> : null}
     </View>
   </View>;
 }
@@ -40,13 +41,13 @@ function Tile(p: { id: string }) {
 function StreamTile(p: { id: string }) {
   const call = store.call, id = p.id, me = id === store.me.id, name = store.userName(id);
   const watched = call.watching !== null && call.watching.user === id, img = call.streamOf(id);
-  return <View className={`w-[${TILE_W}] h-[${TILE_H}] rounded-lg border-2 border-[#2b2d31] overflow-hidden bg-black items-center justify-center`}
+  return <View className={`w-[${TILE_W}] h-[${TILE_H}] rounded-lg border-2 border-${v('stageTile')} overflow-hidden bg-black items-center justify-center`}
     onPress={() => { if (watched) call.focus(true); else if (!me) call.watchStream(id); }}
     aria-label={me ? 'Your stream' : watched ? `${name}'s stream, open in full view` : `Watch ${name}'s stream`}>
     {img >= 0 ? <Image image={img} className="absolute inset-0 object-contain" />
-      : <View className={`px-3 py-1.5 rounded ${me || watched ? '' : 'bg-[#5865f2]'}`}><Text className="text-white text-sm font-semibold">{me || watched ? 'Connecting…' : 'Watch Stream'}</Text></View>}
+      : <View className={`px-3 py-1.5 rounded ${me || watched ? '' : BG_ACCENT}`}><Text className="text-white text-sm font-semibold">{me || watched ? 'Connecting…' : 'Watch Stream'}</Text></View>}
     <View className="absolute left-2 bottom-2 px-1.5 py-0.5 rounded flex-row items-center gap-1 bg-[#1e1f22]">
-      <View className="px-1 rounded-sm bg-[#f23f43]"><Text className="text-white text-[10px] font-bold">LIVE</Text></View>
+      <View className={`px-1 rounded-sm bg-${v('danger')}`}><Text className="text-white text-[10px] font-bold">LIVE</Text></View>
       <Text className="text-white text-xs font-semibold" numberOfLines={1}>{me ? 'Your stream' : name}</Text>
     </View>
   </View>;
@@ -62,24 +63,33 @@ function FullStream() {
   </View>;
 }
 
-const QUALITY_COLOR: Map<string, string> = new Map<string, string>([['good', '#23a55a'], ['fair', '#f0b232'], ['poor', '#f23f43'], ['unknown', '#80848e']]);
+const QUALITY_COLOR: Map<string, string> = new Map<string, string>([['good', v('success')], ['fair', v('warning')], ['poor', v('danger')], ['unknown', v('faint')]]);
 /** The connection's quality as Discord's bars: three for good, two for fair, one for poor (lit in its colour). */
-function Bars() {
+export function Bars() {
   const call = store.call, q = call.quality.last.quality, lit = q === 'good' ? 3 : q === 'fair' ? 2 : q === 'poor' ? 1 : 0;
-  const color = QUALITY_COLOR.get(q) ?? '#80848e';
-  return <View className="h-[24] px-1 flex-row items-end gap-[2] rounded hover:bg-[#2b2d31]" onPress={() => call.toggleStats()}
+  const lit_ = QUALITY_COLOR.get(q) ?? v('faint');
+  return <View className="h-[24] px-1 flex-row items-end gap-[2] rounded hover:bg-[var(--dc-hover)]" onPress={() => call.toggleStats()}
     aria-label={`Connection ${q === 'unknown' ? 'being measured' : q}${call.lowData() ? ', ultra low data' : ''}, show the call's statistics`}>
-    {[0, 1, 2].map((i: i32) => <View key={`${i}`} className={`w-[4] h-[${6 + i * 5}] mb-[4] rounded-sm bg-[${i < lit ? color : '#4e5058'}]`} />)}
+    {[0, 1, 2].map((i: i32) => <View key={`${i}`} className={`w-[4] h-[${6 + i * 5}] mb-[4] rounded-sm bg-${i < lit ? lit_ : v('faint')}`} />)}
   </View>;
 }
 
-/** The call's statistics (zinc:ui/kit's CallStats over the connections' RTCP reports) and the ultra low data switches. */
-function StatsPanel() {
+/** The codecs and the pictures of the call, and the ultra low data state: "opus · VP8 1280×720 30 fps · ultra low data". */
+export function codecLine(): string {
+  const call = store.call, q = call.quality.last;
+  const video = q.videoCodec !== '' ? ` · ${q.videoCodec}${q.video !== '' ? ` ${q.video}` : ''}` : '';
+  const room = q.availableKbps > 0 ? ` · ${Math.round(q.availableKbps)} kbit/s available` : '';
+  return `${q.audioCodec === '' ? 'opus' : q.audioCodec}${video}${room}${call.lowData() ? ` · ultra low data${call.autoLow ? ' (poor connection)' : ''}` : ''}`;
+}
+
+/** The call's statistics (zinc:ui/kit's CallStats over the connections' RTCP reports: MOS, loss, round trip, jitter, bit rates), the codecs
+ *  and the ultra low data switches; `at` places it (under the call's header, or above the call bar of the channel list). */
+export function StatsPanel(p: { at: string }) {
   const call = store.call, s = call.settings;
-  return <View className="absolute top-[48] right-4 w-[340]">
+  return <View className={`absolute ${p.at} w-[340]`}>
     <CallStats sample={() => call.quality.last} history={() => call.quality.history}>
       <View className="gap-2 pt-1">
-        <Text className={`text-xs ${TEXT_MUTED}`}>{`${call.quality.last.audioCodec === '' ? 'opus' : call.quality.last.audioCodec}${call.lowData() ? ' · ultra low data' : ''}${call.autoLow ? ' (poor connection)' : ''}`}</Text>
+        <Text className={`text-xs ${TEXT_MUTED}`}>{codecLine()}</Text>
         <Switch checked={() => call.lowData()} onChange={(on: boolean) => call.setLowData(on)} label="Ultra low data" />
         <Switch checked={() => s.autoLowData} onChange={(on: boolean) => call.set((v: VoiceSettings): void => { v.autoLowData = on; })} label="Switch on when poor" />
       </View>
@@ -89,7 +99,7 @@ function StatsPanel() {
 
 /** A round button of the bar: red when its state is on (mute, deafen) or for hanging up. */
 function Round(p: { icon: string; label: string; red: boolean; onPress: () => void }) {
-  return <View className={`w-[48] h-[48] rounded-full items-center justify-center ${p.red ? 'bg-[#f23f43]' : 'bg-[#2b2d31] hover:bg-[#35373c]'}`}
+  return <View className={`w-[48] h-[48] rounded-full items-center justify-center ${p.red ? `bg-${v('danger')}` : `${BG_TILE} hover:bg-${v('faint')}`}`}
     onPress={p.onPress} aria-label={p.label}>
     <Icon name={p.icon} size={22} color={() => 0xffffff} />
   </View>;
@@ -99,13 +109,13 @@ export function CallView(p: { compact: boolean }) {
   const call = store.call, c = store.findChannel(call.channelId);
   const label = call.state === 'connected' ? (call.e2ee() ? 'Voice Connected · End-to-end encrypted' : 'Voice Connected') : call.state === 'reconnecting' ? 'Reconnecting…' : 'Connecting…';
   const time = call.since > 0 ? duration((Date.now() - call.since) / 1000) : '';
-  return <View className={`${p.compact ? 'h-[320]' : 'grow basis-0'} bg-[#111214]`}>
+  return <View className={`${p.compact ? 'h-[320]' : 'grow basis-0'} ${BG_STAGE}`}>
     <View className="h-[48] px-4 flex-row items-center gap-2">
       <Icon name="volume-2" size={20} color={() => 0x949ba4} />
-      <Text className={`grow font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{c !== null ? c.name : ''}</Text>
+      <Text className="grow font-semibold text-white" numberOfLines={1}>{c !== null ? c.name : ''}</Text>
       {call.state === 'connected' ? <Bars /> : null}
-      <Text className={`text-sm ${call.state === 'connected' ? 'text-[#23a55a]' : 'text-[#f0b232]'}`}>{label}</Text>
-      <Text className={`text-sm ${TEXT_MUTED}`} aria-label="Call duration">{time}</Text>
+      <Text className={`text-sm ${call.state === 'connected' ? TEXT_SUCCESS : TEXT_WARNING}`}>{label}</Text>
+      <Text className="text-sm text-[#949ba4]" aria-label="Call duration">{time}</Text>
     </View>
     {call.focused ? <FullStream /> : <View className="grow basis-0 items-center justify-center px-4">
       <View className="flex-row flex-wrap justify-center gap-4">
@@ -122,6 +132,6 @@ export function CallView(p: { compact: boolean }) {
       {call.watching !== null ? <Round icon="eye-off" label="Stop Watching" red={false} onPress={() => call.stopWatching()} /> : null}
       <Round icon="phone-off" label="Disconnect" red={true} onPress={() => call.leave()} />
     </View>
-    {call.statsOpen && call.state === 'connected' ? <StatsPanel /> : null}
+    {call.statsOpen && call.state === 'connected' ? <StatsPanel at="top-[48] right-4" /> : null}
   </View>;
 }

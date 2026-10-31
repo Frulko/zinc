@@ -12,6 +12,7 @@ import { MUTED } from './ChannelList';
 import { Avatar } from './Avatar';
 import { AccountSafety } from './AccountSafety';
 import { Appearance } from './Appearance';
+import { color } from '../theme';
 import { cdnPicture, iconKey } from '../services/cdn';
 import { BG_MAIN, BG_SIDE, BG_HOVER, BG_SELECTED, BG_ACCENT, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG } from '../constants';
 
@@ -47,7 +48,7 @@ function Device(p: { d: AudioDevice; on: boolean; pick: (id: string) => void }) 
   return <View className={`h-[32] px-2 flex-row items-center gap-2 rounded ${p.on ? BG_SELECTED : BG_HOVER}`} onPress={() => p.pick(p.d.id)}
     aria-label={p.d.name} aria-selected={p.on ? 'true' : 'false'}>
     <Text className={`grow basis-0 text-sm ${p.on ? TEXT_STRONG : TEXT_MAIN}`} numberOfLines={1}>{p.d.name}</Text>
-    {p.on ? <Icon name="check" size={16} color={() => 0x23a55a} /> : null}
+    {p.on ? <Icon name="check" size={16} color={() => color('success')} /> : null}
   </View>;
 }
 function Devices(p: { title: string; list: AudioDevice[]; chosen: string; pick: (id: string) => void }) {

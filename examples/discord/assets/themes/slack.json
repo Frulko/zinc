@@ -7,7 +7,8 @@
     "hover": "#27242c", "rowHover": "#222529", "selected": "#1164a3", "divider": "#2c2d30", "border": "#35373b", "faint": "#565856",
     "text": "#d1d2d3", "muted": "#ababad", "strong": "#ffffff", "icon": "#d1d2d3", "error": "#e96699", "link": "#1d9bd1",
     "mention": "#e8912d", "spoiler": "#565856",
-    "accent": "#007a5a", "accentPressed": "#148567", "accentSoft": "#1d3a33", "accentSoftText": "#a6e3cf", "danger": "#e01e5a", "badge": "#cd2553"
+    "accent": "#007a5a", "accentPressed": "#148567", "accentSoft": "#1d3a33", "accentSoftText": "#a6e3cf", "danger": "#e01e5a", "badge": "#cd2553",
+    "accentText": "#ffffff", "success": "#2bac76", "warning": "#ecb22e", "stage": "#121016", "stageTile": "#27242c"
   },
   "radius": 6,
   "textSize": 15,

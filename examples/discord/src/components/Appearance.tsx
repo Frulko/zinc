@@ -2,7 +2,7 @@
 // shown with a button to read it again after a file was added or changed, and what was wrong with a file that could not be read.
 import { Icon } from 'zinc:icons';
 import { store } from '../state';
-import { Theme, allThemes, currentTheme, useTheme, loadThemes, themeErrors, userThemesDir, TOKENS } from '../theme';
+import { Theme, allThemes, currentTheme, useTheme, loadThemes, themeErrors, userThemesDir, TOKENS, color } from '../theme';
 import { BG_HOVER, BG_SELECTED, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR } from '../constants';
 
 const hex = (c: i32): string => `#${c.toString(16).padStart(6, '0')}`;
@@ -19,7 +19,7 @@ function Row(p: { t: Theme }) {
       <Text className={`text-[15px] ${on ? TEXT_STRONG : TEXT_MAIN}`} numberOfLines={1}>{t.name}</Text>
       <Text className={`text-xs ${TEXT_MUTED}`}>{`${t.scheme}, ${t.density}, ${t.textSize} px${t.own ? ', yours' : ''}`}</Text>
     </View>
-    {on ? <Icon name="check" size={18} color={() => 0x23a55a} /> : null}
+    {on ? <Icon name="check" size={18} color={() => color('success')} /> : null}
   </View>;
 }
 

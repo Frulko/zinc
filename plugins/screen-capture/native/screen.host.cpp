@@ -80,9 +80,19 @@ void pattern(uint32_t* px, int w, int h, int idx) {
       px[(size_t)y * w + x] = c;
     }
 }
-struct Fake { const char* id; const char* kind; const char* name; int w, h; };
-const Fake FAKES[2] = {{"zinc:fake-screen", "screen", "Zinc Fake Screen", 1280, 800}, {"zinc:fake-window", "window", "Zinc Fake Window", 800, 600}};
-const Fake* fake_of(const std::string& id) { for (const Fake& f : FAKES) if (id == f.id) return &f; return nullptr; }
+struct Fake { std::string id, kind, name; int w, h; };
+/** The fake screen and window, and ZINC_FAKE_WINDOWS=n windows in all ("Zinc Fake Window 2"...: a list long enough to scroll). */
+const std::vector<Fake>& fakes() {
+  static std::vector<Fake> all;
+  if (all.empty()) {
+    all.push_back({"zinc:fake-screen", "screen", "Zinc Fake Screen", 1280, 800});
+    all.push_back({"zinc:fake-window", "window", "Zinc Fake Window", 800, 600});
+    const int n = atoi(env("ZINC_FAKE_WINDOWS"));
+    for (int i = 2; i <= n && i <= 64; i++) all.push_back({"zinc:fake-window-" + std::to_string(i), "window", "Zinc Fake Window " + std::to_string(i), 800, 600});
+  }
+  return all;
+}
+const Fake* fake_of(const std::string& id) { for (const Fake& f : fakes()) if (id == f.id) return &f; return nullptr; }
 void clear_thumbs() { for (int32_t t : thumbs) zrt::raster::dyn_destroy(t); thumbs.clear(); }
 std::string record(const ScSource& s, int32_t thumb, int32_t icon) {
   return s.id + FS + s.kind + FS + s.name + FS + s.app + FS + std::to_string(s.w) + FS + std::to_string(s.h) + FS + std::to_string(thumb) + FS + std::to_string(icon) + RS;
@@ -134,11 +144,11 @@ struct HostScreenCapture : NativeScreenCapture {
     clear_thumbs();
     if (refused()) { listing = -1; return false; }
     if (fake_only()) {
-      for (const Fake& f : FAKES) {
-        if (!(strcmp(f.kind, "screen") ? windows : screens)) continue;
+      for (const Fake& f : fakes()) {
+        if (!(f.kind != "screen" ? windows : screens)) continue;
         ScSource s; s.id = f.id; s.kind = f.kind; s.name = f.name; s.app = "Zinc"; s.w = f.w; s.h = f.h;
         if (tw > 0 && th > 0) { s.tw = tw; s.th = th; sc_fit(f.w, f.h, s.tw, s.th); s.thumb.resize((size_t)s.tw * s.th); pattern(s.thumb.data(), s.tw, s.th, 0); }
-        if (!strcmp(f.kind, "window")) fake_icon(s);
+        if (f.kind == "window") fake_icon(s);
         listed += record(s, thumb_of(s), icon_of(s));
       }
       listing = 1;
@@ -167,7 +177,7 @@ struct HostScreenCapture : NativeScreenCapture {
     Cap c;
     c.fps = fps;
     if (fake_only()) {
-      const Fake* f = fake_of(id.empty() ? FAKES[0].id : id);
+      const Fake* f = fake_of(id.empty() ? fakes()[0].id : id);
       if (!f) { err = "screen capture: no source '" + id + "' (only the fake sources with ZINC_FAKE_SCREEN or in a deterministic run)"; return -1; }
       c.fake = true; c.w = w; c.h = h;
       sc_fit(f->w, f->h, c.w, c.h);

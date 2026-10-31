@@ -2,7 +2,7 @@
 // (Electron's desktopCapturer.getSources), capture one at a size and rate (a runtime image of zinc:gfx kept on the newest frame, without
 // copies), or as a MediaStreamTrack through navigator.mediaDevices.getDisplayMedia, which zinc:webrtc sends like a camera's.
 // The native side (native/screen.spec.ts) captures on its own thread (ScreenCaptureKit on macOS); this file calls frame() on a timer.
-// With ZINC_FAKE_SCREEN=1, and in a deterministic run, the sources are "Zinc Fake Screen" and "Zinc Fake Window": a moving pattern, so tests
+// With ZINC_FAKE_SCREEN=1, and in a deterministic run, the sources are "Zinc Fake Screen" and "Zinc Fake Window" (ZINC_FAKE_WINDOWS=n: n windows): a moving pattern, so tests
 // never capture the screen of the person at the machine.
 import S from './native/screen.spec';
 import { Event, MediaStreamTrack, MediaTrackSettings, setDisplayBridge } from 'zinc:web';
