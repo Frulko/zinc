@@ -11,6 +11,8 @@ struct NativeWebview : zrt::Object {
   virtual void navigate(int32_t v, zrt::String url) = 0;
   virtual void loadHtml(int32_t v, zrt::String html, zrt::String baseUrl) = 0;
   virtual void eval(int32_t v, zrt::String js) = 0;
+  virtual void setZoom(int32_t v, double factor) = 0;
+  virtual void key(int32_t v, bool down, zrt::String code, zrt::String text, int32_t mods) = 0;
   virtual void post(int32_t v, zrt::String data) = 0;
   virtual void reply(int32_t v, int32_t id, bool ok, zrt::String result) = 0;
   virtual void close(int32_t v) = 0;

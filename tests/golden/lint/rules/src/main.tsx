@@ -12,4 +12,5 @@ function App(): i32 {
     <Keyboard />
   </View>;
 }
+const usedPlugins = [typeof open, typeof play];   // used, so the plugins are loaded as code, not only as types
 render(App, 0xffffff, null);

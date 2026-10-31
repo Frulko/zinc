@@ -972,8 +972,9 @@ int serve(const std::function<bool(std::string&, std::size_t&)>& rebuild, const 
   struct Client { int fd; std::string req; std::chrono::steady_clock::time_point since; };
   std::vector<Client> clients;
   for (;;) {
-    std::vector<pollfd> fds{{fd, POLLIN, 0}};
-    for (const auto& c : clients) fds.push_back({c.fd, POLLIN, 0});
+    using Sock = decltype(pollfd::fd);   // a SOCKET on Windows
+    std::vector<pollfd> fds{{static_cast<Sock>(fd), POLLIN, 0}};
+    for (const auto& c : clients) fds.push_back({static_cast<Sock>(c.fd), POLLIN, 0});
     if (zn::plat::sockPoll(fds.data(), static_cast<unsigned>(fds.size()), 300) > 0) {
       for (std::size_t i = fds.size(); i-- > 1;) {
         if (!(fds[i].revents & (POLLIN | POLLHUP | POLLERR))) continue;

@@ -119,7 +119,7 @@ for path, i, call in ids("src", r'"((?:%s)\.[a-z0-9_-]+\.[A-Za-z0-9_.-]+)"' % "|
     if i not in english and i not in plural_bases: errors.append(f"{path}: \"{i}\" is not in i18n/en/{i.split('.')[0]}.json")
 if os.path.isdir(os.path.join(root, "app", "atelier")):
     for path, i, call in ids(os.path.join("app", "atelier"), r"\bt\(\s*['\"](atelier\.[A-Za-z0-9_.-]+)['\"]", (".ts", ".tsx")):
-        if i.endswith('.'): continue   # ponytail: a prefix completed at run time (t('atelier.menu.' + name)) is not checked
+        if i.endswith(('.', '_')): continue   # ponytail: a prefix completed at run time (t('atelier.menu.' + name)) is not checked
         if i not in english and i not in plural_bases: errors.append(f"{path}: t('{i}') is not in i18n/en/atelier.json")
 
 for w in warnings: print("warning: " + w)
