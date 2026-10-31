@@ -9,6 +9,7 @@
 #   wifi-country <CC>      the Wi-Fi country (two capital letters)
 #   ssh on|off             SSH now and at boot
 #   agent on|off           the Zinc agent now and at boot
+#   shell on|off           the player as the shell (ZINC_SHELL in /etc/zinc/session.conf), then the session starts again
 #   hostname <name>        the name on the network (<name>.local)
 #   pair                   a new pairing code of the Zinc agent (the player reads it from the agent's pairing.json)
 #   mac-usb                lets a Mac's USB-C cable be a network link (builds cdc_ncm for this kernel: zinc-mac-usb)
@@ -112,6 +113,13 @@ PY_IDENTITY
       off) rm -f /var/lib/zinc/agent.enabled /boot/firmware/zinc-agent && systemctl stop zinc-agent.service ;;
       *) die "agent on or agent off" ;;
     esac
+    ;;
+  shell)
+    case ${2:-} in on) v=1 ;; off) v=0 ;; *) die "shell on or shell off" ;; esac
+    conf=/etc/zinc/session.conf
+    mkdir -p /etc/zinc && touch "$conf"
+    { grep -v '^[[:space:]]*ZINC_SHELL=' "$conf"; echo "ZINC_SHELL=$v"; } > "$conf.tmp" && chmod 644 "$conf.tmp" && mv -f "$conf.tmp" "$conf"
+    systemctl restart zinc-shell.service
     ;;
   hostname)
     name=${2:-}
