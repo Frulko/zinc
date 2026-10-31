@@ -21,6 +21,12 @@ export class Profile {
   bluetooth: boolean = false;
   agent: boolean = false;
   debugConsole: boolean = false;
+  /** Boot into the Zinc shell (top bar, app hub, store): ZINC_SHELL=1 in /etc/zinc/session.conf. */
+  shell: boolean = false;
+  /** Two system slots and safe updates (RAUC). */
+  ab: boolean = false;
+  /** Free space added to the system partition, in MiB. */
+  growMiB: string = '1536';
   libraries: string[] = [];
   /** More Debian packages, separated by spaces. */
   packages: string = '';
@@ -29,6 +35,7 @@ export class Profile {
 }
 
 function stringOf(o: any, key: string, fallback: string): string { return typeof o[key] === 'string' ? o[key] as string : fallback; }
+function numberText(o: any, key: string, fallback: string): string { return typeof o[key] === 'number' ? '' + (o[key] as number) : fallback; }
 function booleanOf(o: any, key: string, fallback: boolean): boolean { return typeof o[key] === 'boolean' ? o[key] as boolean : fallback; }
 function stringsOf(o: any, key: string): string[] {
   const values: string[] = [];
@@ -63,6 +70,9 @@ export function decodeProfile(text: string): Profile {
   profile.bluetooth = booleanOf(o, 'bluetooth', false);
   profile.agent = booleanOf(o, 'agent', false);
   profile.debugConsole = booleanOf(o, 'debug', false);
+  profile.shell = booleanOf(o, 'shell', false);
+  profile.ab = booleanOf(o, 'ab', false);
+  profile.growMiB = numberText(o, 'growMiB', profile.growMiB);
   profile.libraries = stringsOf(o, 'libraries');
   profile.packages = stringsOf(o, 'packages').join(' ');
   profile.app = stringOf(o, 'app', '');
@@ -93,6 +103,10 @@ export function encodeProfile(profile: Profile, previousText: string): string {
   o.bluetooth = profile.bluetooth;
   o.agent = profile.agent;
   o.debug = profile.debugConsole;
+  o.shell = profile.shell;
+  o.ab = profile.ab;
+  const grow = parseInt(profile.growMiB);
+  o.growMiB = grow > 0 ? grow : 1536;
   o.libraries = profile.libraries;
   o.packages = wordsOf(profile.packages, ' ');
   o.app = profile.app;

@@ -20,10 +20,10 @@ function fill(): i32 {
   throw new Error('missing progress bar');
 }
 function fraction(): number { return ui.getNumber(fill(), 'widthPercent'); }
-function App(): i32 { return <View className="w-full h-full bg-[#20362b]"><BuildPage /></View>; }
+function App(): i32 { return <View className="w-full h-full bg-[#f5f5f7]"><BuildPage /></View>; }
 setColorMode('light');
 let f = 0, angle = 0;
-render(App, 0x20362b, (dt: number) => {
+render(App, 0xf5f5f7, (dt: number) => {
   f++;
   if (f === 2) expect(loading() < 0, 'spinner mounted while idle');
   if (f === 3) { setStatus('running'); setStepTotal(4); setStepIndex(1); }

@@ -93,6 +93,13 @@ export function toggleLibrary(key: string, on: boolean): void {
   });
 }
 
+export type Page = 'device' | 'network' | 'apps' | 'build';
+/** The step of the guided flow on screen; the build takes the whole window while it runs. */
+export const [page, setPage] = createSignal<Page>('device');
+export const [logOpen, setLogOpen] = createSignal<boolean>(false);
+/** The label each step reported (index 0 is step 1); '' for one not reached yet. */
+export const [stepLabels, setStepLabels] = createSignal<string[]>([]);
+
 export const [status, setStatus] = createSignal<BuildStatus>('idle');
 export const [stepIndex, setStepIndex] = createSignal<i32>(0);
 export const [stepTotal, setStepTotal] = createSignal<i32>(0);
@@ -123,6 +130,10 @@ class StateListener implements BuildListener {
     setStepIndex(index);
     if (total > 0) setStepTotal(total);
     setStepLabel(label);
+    const labels = stepLabels().slice();
+    while (labels.length < index) labels.push('');
+    if (index > 0) labels[index - 1] = label;
+    setStepLabels(labels);
     setStepProgress(-1); setStepDetail('');
   }
   onProgress(percent: i32, text: string): void { setStepProgress(percent); setStepDetail(text); }
@@ -140,6 +151,7 @@ export function startBuild(): void {
   if (running !== null) return;
   if (!persistProfile()) { setErrorMessage(saveError()); return; }
   readImageEngine();
+  setPage('build'); setLogOpen(false); setStepLabels([]);
   setLogLines([]); setErrorMessage(''); setImagePath(''); setStepIndex(0); setStepTotal(0); setStepLabel(''); setStepProgress(-1); setStepDetail('');
   try {
     running = new BuildRun(buildTool(), profileFile(), repositoryRoot(), new StateListener());
@@ -177,6 +189,11 @@ export function useMySshKey(): void {
     return;
   }
   setNotice('No public key in ~/.ssh: make one with ssh-keygen -t ed25519');
+}
+
+/** The finished image's size as '812 MiB', '' when it cannot be read. */
+export function imageSize(): string {
+  try { return Math.round(fs.stat(imagePath()).size / 1048576) + ' MiB'; } catch (e) { return ''; }
 }
 
 export function revealImage(): void { opener.reveal(imagePath()); }

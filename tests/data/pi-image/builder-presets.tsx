@@ -50,7 +50,7 @@ render(Workspace, 0xf5f6f0, (dt: number) => {
   if (f === 8) { expect(profile().display === 'dsi-touch2', 'screen selection'); click('Raspberry Pi 5 / 500'); }
   if (f === 9) ui.sendKey('Escape');
   if (f === 10) { expect(ui.domLayers().length === 0, 'Escape did not close select'); click('Raspberry Pi 5 / 500'); }
-  if (f === 11) { ui.pointerAt(1000, 700, true); ui.pointerAt(1000, 700, false); }
+  if (f === 11) { ui.pointerAt(1120, 700, true); ui.pointerAt(1120, 700, false); }
   if (f === 12) { expect(ui.domLayers().length === 0, 'outside press did not close select'); click('Save as…'); }
   if (f === 26) ui.typeText(nameField(), 'Bench Pi');
   if (f === 30) ui.sendKey('Enter');
@@ -78,7 +78,7 @@ render(Workspace, 0xf5f6f0, (dt: number) => {
       const n = ui.inspectNode(h);
       if (n !== null) {
         expect(n.role !== 'switch', 'builder still uses mobile-style switches');
-        if (n.label === 'Image settings') ui.scrollTo(h, 0, 100000);
+        if (n.label === 'Image settings') ui.scrollTo(h, 0, 0);
       }
     }
   }

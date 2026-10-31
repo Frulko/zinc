@@ -13,6 +13,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - **New** The Discord example has a safe mode switch in the user bar, opens the call's quality details (score, loss, round trip, jitter, bit rates, codecs) from the signal bars beside "Voice Connected", and its themes now colour the switches, dialogs and call view too (new `success`, `warning`, `stage` colours).
 
 ### Raspberry Pi and the shell
+- **New** The Pi image builder is redesigned: a calm, Apple-like window with a short guided flow (device, network and account, apps), basics first and the rest behind *Advanced*, and a live build view with every step, its progress and time left, a result card with the next steps, and the failed step with *Retry*. It also offers the Zinc shell (`"shell": true` in a profile boots to the shell), A/B system updates, the Zinc agent and the app to start at boot.
 - **Fixed** Under the shell, an app started with `zinc device run` comes to the screen even over another page, and `zinc device stop` or a newer app replacing it no longer leaves an "app stopped (exit -1)" page.
 
 ### Apps and demos

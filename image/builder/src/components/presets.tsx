@@ -1,6 +1,5 @@
 import { createSignal, Show } from 'zinc:ui/solid';
 import { theme, hex, Input, Select, Button, Modal } from 'zinc:ui/nuxt';
-import { Icon } from 'zinc:icons';
 import {
   presetNames, selectedPreset, loadPreset, openPresetDialog, presetDialogOpen, closePresetDialog,
   presetName, setPresetName, presetError, savePreset, saveError,
@@ -10,15 +9,13 @@ const [listOpen, setListOpen] = createSignal<boolean>(false);
 
 export function Presets(): i32 {
   return <View className="flex-col gap-2">
-    <View className="flex-col gap-2 rounded-[8px] bg-[#eef1e8] p-4">
-      <View className="flex-row items-center gap-2"><Icon name="bookmark" size={15} color={() => 0x6b7c5e} /><Text className="text-xs font-semibold text-[#53634b]">Your presets</Text></View>
-      <View className="flex-row items-center gap-2">
-        <Select items={presetNames()} modelValue={selectedPreset} onUpdate={loadPreset} placeholder="Last settings"
-          open={listOpen} onOpen={setListOpen} className="grow basis-0" />
-        <Button label="Save as…" icon="save" color="neutral" variant="outline" onClick={openPresetDialog} />
-      </View>
-      <Text className={`text-xs text-${hex(saveError() === '' ? theme().textMuted : theme().error)}`}>
-        {saveError() === '' ? 'Changes are saved automatically and restored next time.' : saveError()}
+    <View className="flex-col gap-2">
+      <Text className="text-xs font-semibold text-[#6e6e73] px-1">Presets</Text>
+      <Select items={presetNames()} modelValue={selectedPreset} onUpdate={loadPreset} placeholder="Last settings"
+        open={listOpen} onOpen={setListOpen} className="w-full" />
+      <Button label="Save as…" icon="save" color="neutral" variant="outline" size="sm" onClick={openPresetDialog} />
+      <Text className={`text-[11px] leading-[15px] px-1 text-${hex(saveError() === '' ? '#8e8e93' : theme().error)}`}>
+        {saveError() === '' ? 'Changes are saved automatically.' : saveError()}
       </Text>
       <Show when={presetError() !== '' && !presetDialogOpen()}><Text className={`text-xs text-${hex(theme().error)}`}>{presetError()}</Text></Show>
     </View>
