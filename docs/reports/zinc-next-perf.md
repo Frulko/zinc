@@ -1372,3 +1372,5 @@ interpreter, 84.7k AOT, 57.0k QuickJS; Node 24 55.8k, Bun 83.6k. JSON AOT 77.3k 
 Bun 91.7k), wss 62.8k (Bun 74.2k); RSS AOT 4-9 MiB (Node 74-289, Bun 27-42). p50/p99 hello AOT 0.58/1.33 ms (Node 0.78/2.68, Bun 0.55/1.18).
 
 2026-10-31, audio on lossy links (ZN-899), Apple M1 Pro, `webrtc_impair` 20 s runs (load 5-12, approximate): burst 20% in runs of 3, two Zinc peers: concealed 8.0 -> 3.2% (2.8% second half), payload 37 -> 71 kbit/s, mouth-to-ear 200 -> 258 ms; 10% random loss 3.7 -> 1.0% (32.7 -> 62 kbit/s); without DRED (browser peer) 19.7%; thin link 10.2% unchanged. Echo cancellation (ZN-871, SpeexDSP): ERLE 25.8 dB (24.1 dB echo cancellation alone), second voice -2.2 dB, plugin +84 KB.
+
+2026-10-31, video on bad links (ZN-901/902), Apple M1 Pro, load 7-15 (not quiet): VP8 640x360 at 5% loss over 20 s: 2 freezes (max 665 ms, 23 PLIs) -> 0 freezes (max 315 ms, 0 PLIs); a 2 Mbit/s to 300 kbit/s step is under the cap in 1148 ms and back to full in 7880 ms (H.264 1105 / 8499). Encode at 1280x720, VP8 about 2.45 Mbit/s: one layer 10.4-11.9 ms per frame, two temporal layers 8.9-9.8 ms, simulcast 1280x720 (8.9 ms) plus 640x360 (2.4 ms), about 27% more.

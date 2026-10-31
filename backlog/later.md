@@ -655,6 +655,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-871: `getUserMedia({ audio: { echoCancellation, noiseSuppression, autoGainControl } })` constraints, on by default as in browsers, with `played` wired automatically; use the processing in the Discord voice plugin.
 - ZN-871: Speex's gain control can amplify residual echo; consider AGC2 or freezing the gain while the far end talks.
 
+- ZN-901: transport-cc with an acked bitrate instead of REMB-only, to cut the 2-4 s freezes at big rate steps; parse the H.264 slice QP in the VideoToolbox encoder for the ladder; libdatachannel's receiver report shows a spurious 50% loss once early in a call.
+- ZN-902: prove the Galène criterion once ZN-897 and ZN-895 land (publish `sendEncodings [{rid:'h'},{rid:'l',scaleResolutionDownBy:2,maxBitrate:100000}]`, a second client asks `video-low`, check its inbound `frameWidth`); simulcast with H.264; a Zinc-to-Zinc peer taking the rid streams.
+- ZN-901: `tests/t1/webrtc_bwe.sh` measures time: run it alone on a quiet machine to trust its numbers.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
