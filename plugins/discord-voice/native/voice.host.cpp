@@ -23,6 +23,7 @@
 #include "opus.h"
 #include "dave/dave.h"
 #include "../../webrtc/native/media.h"
+#include <cmath>
 #include "video_policy.h"
 #include <dlfcn.h>
 #include <stdio.h>
@@ -62,9 +63,8 @@ namespace {
 const char FS = '\x1f', RS = '\x1e';
 const int RATE = 48000, CH = 2, FRAME = 960;            // 20 ms of stereo at 48 kHz
 const int PT_OPUS = 0x78;
-const int PT_RTX = 102;                                  // H.264's RTX: resent video packets (NACK)
-const int PT_H264 = 101;                                  // what Select Protocol's codecs declare (index.ts); its RTX (102) is not read
-const size_t VIDEO_MTU = 1100;                            // payload bytes per video packet
+const int PT_RTX = envInt("DISCORD_VIDEO_PT", 101) + 1;                                  // H.264's RTX: resent video packets (NACK)
+const int PT_H264 = envInt("DISCORD_VIDEO_PT", 101);                                  // what Select Protocol's codecs declare (index.ts); its RTX (102) is not read
 const double PLI_EVERY_MS = 1000;                         // at most one key frame asked per stream and second
 const double VAD_LEVEL = 0.01, VAD_HOLD_MS = 300;         // voice activity: above this RMS (the default, setAudio's threshold), and for this long after
 const int SILENCE_FRAMES = 5;                             // sent after speech, as the official clients do
@@ -331,9 +331,10 @@ struct Conn {
   int encBps = 0, encFps = 0;
   uint16_t vseq = 0;
   uint32_t vrtx = 0;                    // our stream's RTX SSRC (0: none), its sequence, and the last ~500 ms of packets for NACK (under mu)
-  uint16_t rtxSeq = 0;
+  uint16_t rtxSeq = 0, twccSeq = 0;
   struct Sent { uint16_t seq; uint32_t ts; bool marker; double at; std::vector<uint8_t> body; };
   std::deque<Sent> sentRing;
+  VideoExt vx = videoExtElements(getenv("DISCORD_VIDEO_EXT"), false), vxr = videoExtElements(getenv("DISCORD_VIDEO_EXT"), true);   // the extension elements on our video packets
 
   ~Conn() {
     if (daveEnc) daveEncryptorDestroy(daveEnc);
@@ -607,13 +608,14 @@ void Conn::resend(uint16_t seq) {
   if (vrtx == 0) return;
   for (const Sent& s : sentRing) {
     if (s.seq != seq) continue;
-    uint8_t hdr[16] = {0x90, (uint8_t)(PT_RTX | (s.marker ? 0x80 : 0)), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xBE, 0xDE, 0, 1};
+    std::vector<uint8_t> hdr = videoRtpHeader(vxr.bytes, PT_RTX, s.marker);
     hdr[2] = (uint8_t)(rtxSeq >> 8); hdr[3] = (uint8_t)rtxSeq; rtxSeq++;
-    put32(hdr + 4, s.ts); put32(hdr + 8, vrtx);
-    std::vector<uint8_t> body(s.body.begin(), s.body.begin() + 4);   // the extension element, then the original sequence, then the payload
+    put32(hdr.data() + 4, s.ts); put32(hdr.data() + 8, vrtx);
+    std::vector<uint8_t> body(vxr.bytes);   // the extension elements (the repaired stream id), then the original sequence, then the payload
+    vxr.fill(body, twccSeq++, 0);
     body.push_back((uint8_t)(seq >> 8)); body.push_back((uint8_t)seq);
-    body.insert(body.end(), s.body.begin() + 4, s.body.end());
-    const std::vector<uint8_t> pkt = cipher.seal(hdr, sizeof hdr, counter++, body.data(), body.size());
+    body.insert(body.end(), s.body.begin() + vx.bytes.size(), s.body.end());
+    const std::vector<uint8_t> pkt = cipher.seal(hdr.data(), hdr.size(), counter++, body.data(), body.size());
     rtxSent++;
     sendRaw(pkt.data(), pkt.size());
     return;
@@ -720,48 +722,27 @@ void Conn::sendVideo(const std::vector<uint32_t>& px, int w, int h, bool key) {
   vstats[0]++;
   if (isKey) { keysSent++; keyAt = nowMs(); }
   nalsSent |= nalTypes(au);
-  // the NAL units between start codes (00 00 01; the one leading zero of a 4-byte one is not part of the unit before it, as WebRTC's
-  // FindNaluIndices splits: a DAVE-encrypted unit may end in zero bytes of its own, and they must reach the receiver)
-  std::vector<std::pair<size_t, size_t>> nals;
-  size_t start = std::string::npos;
-  for (size_t i = 0; i < au.size(); i++) {
-    if (!(i + 3 <= au.size() && au[i] == 0 && au[i + 1] == 0 && au[i + 2] == 1)) continue;
-    if (start != std::string::npos) { size_t end = i; if (end > start && au[end - 1] == 0) end--; if (end > start) nals.push_back({start, end - start}); }
-    start = i + 3;
-    i += 2;
-  }
-  if (start != std::string::npos && start < au.size()) nals.push_back({start, au.size() - start});
   // the header, with the playout-delay extension the clients put on every video packet (one-byte form: id 5 and length-1 = 2, then min
   // and max delay 0 in 12 bits each: 3 bytes, as Discord-video-stream sends it; WebRTC ignores the 2-byte form): its 4-byte header is
   // authenticated, its body travels encrypted with the payload
-  uint8_t hdr[16] = {0x90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xBE, 0xDE, 0, 1};
-  put32(hdr + 4, ts); put32(hdr + 8, vs);
+  std::vector<uint8_t> hdr = videoRtpHeader(vx.bytes, PT_H264, false);
+  put32(hdr.data() + 4, ts); put32(hdr.data() + 8, vs);
   std::vector<uint8_t> body;
   auto packet = [&](const uint8_t* a, size_t an, const uint8_t* b, size_t bn, bool marker) {
     hdr[1] = (uint8_t)(PT_H264 | (marker ? 0x80 : 0));
     hdr[2] = (uint8_t)(vseq >> 8); hdr[3] = (uint8_t)vseq; vseq++;
-    body.assign({0x52, 0, 0, 0});
+    body.assign(vx.bytes.begin(), vx.bytes.end());
+    vx.fill(body, twccSeq++, (uint32_t)(std::fmod(nowMs() / 1000.0, 64.0) * 262144.0) & 0xFFFFFF);
     body.insert(body.end(), a, a + an);
     if (bn) body.insert(body.end(), b, b + bn);
-    const std::vector<uint8_t> pkt = cipher.seal(hdr, sizeof hdr, counter++, body.data(), body.size());
+    const std::vector<uint8_t> pkt = cipher.seal(hdr.data(), hdr.size(), counter++, body.data(), body.size());
     vstats[1]++;
     sentBytes[1] += (double)body.size();
     sentRing.push_back({(uint16_t)(vseq - 1), ts, marker, nowMs(), body});
     while (!sentRing.empty() && nowMs() - sentRing.front().at > RTX_KEEP_MS) sentRing.pop_front();
     sendRaw(pkt.data(), pkt.size());
   };
-  for (size_t k = 0; k < nals.size(); k++) {
-    const uint8_t* d = au.data() + nals[k].first;
-    const size_t len = nals[k].second;
-    const bool last = k + 1 == nals.size();
-    if (len <= VIDEO_MTU) { packet(d, len, nullptr, 0, last); continue; }
-    for (size_t o = 1; o < len;) {   // FU-A: the indicator, then the header with S on the first fragment and E on the last
-      const size_t take = std::min(VIDEO_MTU - 2, len - o);
-      const uint8_t fu[2] = {(uint8_t)((d[0] & 0xE0) | 28), (uint8_t)((d[0] & 0x1F) | (o == 1 ? 0x80 : 0) | (o + take == len ? 0x40 : 0))};
-      packet(fu, 2, d + o, take, last && o + take == len);
-      o += take;
-    }
-  }
+  for (const auto& [payload, marker] : rtpPayloads(au, VIDEO_MTU)) packet(payload.data(), payload.size(), nullptr, 0, marker);
 }
 /** Every whole frame of a watched stream: end-to-end decrypted, decoded at its fit into `back`, handed over as `ready` (video thread). */
 void Conn::decodeAll(Watch& x) {

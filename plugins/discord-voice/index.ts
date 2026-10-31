@@ -34,8 +34,28 @@ export function closeAction(code: i32): string {
 const REIDENTIFY_MS = 60000;
 const POLL_MS = 50;
 // what Select Protocol offers: Opus, and H.264 (VideoToolbox on both sides, the server's default video codec); RTX is declared, not used
+// Experiment switches for a Go Live that stays black on the viewer's side (docs/plugins/discord-voice.md), all off by default and logged at
+// connect (DISCORD_LOG=1): DISCORD_VIDEO_PT the H.264 payload type (101; its RTX is the next), DISCORD_VIDEO_CODECS=h264,vp8 also offers VP8
+// (not encoded or decoded by us), DISCORD_VIDEO_EXT=legacy|none|-rid,-ct,... the extensions of our video packets (native side; see video_policy.h: the default is the native id table),
+// DISCORD_VIDEO_ACTIVE=false|late op 12's `active` (false: never true; late: false first, true a second later), DISCORD_VIDEO_TYPE=screen
+// the stream type op 12 carries (Ready's, 'video', by default).
+/** A random version 4 UUID: Select Protocol's rtc_connection_id (the id of this connection in the client's own telemetry; not a secret). */
+function uuid(): string {
+  const hex = '0123456789abcdef';
+  let out = '';
+  for (let i = 0; i < 36; i++) {
+    if (i === 8 || i === 13 || i === 18 || i === 23) out += '-';
+    else if (i === 14) out += '4';
+    else if (i === 19) out += hex[8 + Math.floor(Math.random() * 4)];
+    else out += hex[Math.floor(Math.random() * 16)];
+  }
+  return out;
+}
+const VIDEO_PT = parseInt(env('DISCORD_VIDEO_PT') || '101');
 const CODECS: any[] = [{ name: 'opus', type: 'audio', priority: 1000, payload_type: 120 },
-  { name: 'H264', type: 'video', priority: 1000, payload_type: 101, rtx_payload_type: 102, encode: true, decode: true }];
+  { name: 'H264', type: 'video', priority: 1000, payload_type: VIDEO_PT, rtx_payload_type: VIDEO_PT + 1, encode: true, decode: true }];
+if ((env('DISCORD_VIDEO_CODECS') || '').indexOf('vp8') >= 0) CODECS.push({ name: 'VP8', type: 'video', priority: 2000, payload_type: 103, rtx_payload_type: 104, encode: false, decode: false });
+const VARIANT = `pt ${VIDEO_PT} codecs ${CODECS.filter((c: any) => c.type === 'video').map((c: any) => c.name).join('+')} ext ${env('DISCORD_VIDEO_EXT') || 'native: twcc 5, playout-delay 6, content-type 7, rid 11 (rtx 12)'} active ${env('DISCORD_VIDEO_ACTIVE') || 'true'} type ${env('DISCORD_VIDEO_TYPE') || 'ready'}`;
 // the quality op 15 asks for a stream shown at 640x360 or more (100), smaller (50)
 const CAMERA_W = 640, CAMERA_H = 360;
 
@@ -391,7 +411,7 @@ export class VoiceConnection {
       const mode = S.modes().split('\u001f').find((x: string) => this.serverModes.indexOf(x) >= 0);
       if (mode === undefined) { this.end(`no shared encryption mode (the server offers ${this.serverModes.join(', ')})`); return; }
       this.log(`voice discovered ${address}:${port}, mode ${mode}`);
-      this.send(OP_SELECT_PROTOCOL, { protocol: 'udp', data: { address: address, port: parseInt(port), mode: mode }, codecs: CODECS });
+      this.send(OP_SELECT_PROTOCOL, { protocol: 'udp', data: { address: address, port: parseInt(port), mode: mode }, codecs: CODECS, rtc_connection_id: uuid() });
     }, 10);
   }
   private described(d: any): void {
@@ -403,6 +423,7 @@ export class VoiceConnection {
     if (typeof d.keyframe_interval === 'number') this.keyframeMs = d.keyframe_interval;
     if (this.dave > 0) this.keyPackage();
     this.setState('connected');
+    if (this.server.stream === true) this.log(`voice video variant: ${VARIANT}`);
     if (this.fresh) { this.fresh = false; this.wants = ''; this.watched.clear(); this.onVideo(); }   // a new native connection: nothing is watched on it yet
     if (this.camera) this.describeVideo();   // a camera turned on while connecting, or a resumed session
     if (this.poll < 0) this.poll = setInterval(() => { this.tick(); }, POLL_MS);
@@ -451,6 +472,9 @@ export class VoiceConnection {
     this.log(`voice camera ${user} ${ssrc !== 0 ? 'on' : 'off'} layers ${layers.map((l: Layer) => `${l.ssrc}@${l.quality}`).join(',')}`);
     this.onVideo();
   }
+  /** The type op 12 carries: Ready's ('video', what Discord-video-stream v7 announces too); DISCORD_VIDEO_TYPE=screen is the experiment
+   *  (Identify offers 'screen', and Discord-video-stream v5's UDP sender announced it). */
+  private videoType(): string { return env('DISCORD_VIDEO_TYPE') || this.streamType; }
   /** Op 12 from us: our stream, before its first packet (else the server drops the connection: invalid SSRC), or none. */
   private describeVideo(): void {
     if (this.h < 0 || this.state !== 'connected' || this.videoSsrc === 0) return;
@@ -461,9 +485,14 @@ export class VoiceConnection {
     // a Go Live connection is speaking (soundshare) while it streams, as Discord-video-stream's StreamConnection says
     if (this.server.stream === true) this.send(OP_SPEAKING, { speaking: on ? SPEAKING_SOUNDSHARE : 0, delay: 0, ssrc: this.ssrc });
     // the stream's type is Ready's ('video' for a camera and for Go Live alike); Identify offered 'screen' for Go Live
-    this.send(OP_VIDEO, { audio_ssrc: this.ssrc, video_ssrc: on ? this.videoSsrc : 0, rtx_ssrc: on ? this.rtxSsrc : 0,
-      streams: on ? [{ type: this.streamType, rid: '100', ssrc: this.videoSsrc, rtx_ssrc: this.rtxSsrc, active: true, quality: 100,
-        max_bitrate: bps, max_framerate: q.fps, max_resolution: { type: 'fixed', width: q.width, height: q.height } }] : [] });
+    const mode = env('DISCORD_VIDEO_ACTIVE') || 'true';
+    const announce = (active: boolean): void => {
+      this.send(OP_VIDEO, { audio_ssrc: this.ssrc, video_ssrc: on ? this.videoSsrc : 0, rtx_ssrc: on ? this.rtxSsrc : 0,
+        streams: on ? [{ type: this.videoType(), rid: '100', ssrc: this.videoSsrc, rtx_ssrc: this.rtxSsrc, active: active, quality: 100,
+          max_bitrate: bps, max_framerate: q.fps, max_resolution: { type: 'fixed', width: q.width, height: q.height } }] : [] });
+    };
+    announce(mode === 'false' || (mode === 'late' && on) ? false : true);
+    if (mode === 'late' && on) setTimeout(() => { if (this.state === 'connected') announce(true); }, 1000);
   }
   // ------------------------------------------------------------------ DAVE
   /** Our key package for a new group (op 26). */

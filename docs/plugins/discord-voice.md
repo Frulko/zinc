@@ -62,3 +62,11 @@ call.close();   // then op 4 with a null channel
   `tests/t1/discord_voice.sh` runs a call against the fake Discord of `examples/discord/tests`.
 - **Not yet.** Packet reordering and loss concealment (Opus PLC/FEC), RTX and NACK, REMB and transport-wide congestion control, simulcast layers of our camera, VP8/AV1,
   DAVE's verification codes (pairwise fingerprints).
+- **Go Live experiments (ZN-921).** All off by default; the connect line `voice video variant: ...` (DISCORD_LOG=1) names the active ones, and
+  the main gateway logs `stream op 22 sent paused ...` and `stream update paused <flag> viewers <n>`. Our video packets carry the native
+  extension ids of docs.discord.food (transport-wide sequence number 5, playout-delay 6, content type 7, stream id "100" 11, repaired
+  stream id 12 on RTX); `DISCORD_VIDEO_EXT` changes them: `legacy` (playout-delay alone on id 5, the old layout), `none`, or a list such as
+  `-rid,-ct`, `pd=5`, `abs=2` (`twcc|pd|ct|rid|abs`, a `-` removes one). `DISCORD_VIDEO_PT=<n>` the H.264 payload type (RTX is n+1),
+  `DISCORD_VIDEO_CODECS=h264,vp8` also declares VP8 (never encoded), `DISCORD_VIDEO_ACTIVE=false|late` op 12's `active` (`late`: false,
+  then true a second later), `DISCORD_VIDEO_TYPE=screen` the type op 12 carries (Ready's `video` by default). Select Protocol carries a
+  random `rtc_connection_id`. `tests/t0/discord_voice_dave.sh` proves our encrypted frames open with a second DAVE member's decryptor.

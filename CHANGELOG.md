@@ -42,6 +42,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Calls and media
 #### New
 - Calls without headphones: a microphone opened with `echoCancellation`, `noiseSuppression` and `autoGainControl` takes the far end's voice coming out of the speakers away (give it zinc:audio's `played` as `reference`), quiets steady noise and levels the voice. The call example uses it.
+#### Fixed
+- Go Live from the Discord example sends its video the way Discord's servers read it (their native header-extension ids, the stream id on every packet, a sequence number for congestion control), asks to resume the stream as soon as it is created and each time Discord pauses it, and logs the stream's pause state with `DISCORD_LOG=1`; `DISCORD_VIDEO_EXT`, `DISCORD_VIDEO_PT`, `DISCORD_VIDEO_CODECS`, `DISCORD_VIDEO_ACTIVE` and `DISCORD_VIDEO_TYPE` switch the variants for experiments.
 #### Changed
 - Calls between two Zinc apps hold up on lossy links: under loss the voice gets more bits for its deep redundancy and the receiver waits for it, so a link losing a quarter of its packets in bursts loses about 3% of the sound instead of 8%.
 

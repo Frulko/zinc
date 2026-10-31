@@ -662,6 +662,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-918: `imageFromBytes` decodes on the calling thread (`attachmentPicture`, `mediaPicture` in cdn.ts): decode thumbnails with `zinc:imageio` `load` too, on modest machines.
 - ZN-919: cap the enlargement of a small picture and hide the thumbnail while the viewer is open; preload neighbour pictures; tests for drag-down dismiss, swipe, save and copy through the gesture API and simulated dialogs; the `thumbs` map can keep a stale key when a message id changes.
 
+- ZN-921: the engine refuses `'xxxxxxxx-xxxx'.replace(/[xy]/g, (c: string): string => {...})` in a plugin (internal error "invalid IR after reference counting: const of a non-scalar type" in the lambda); written as a loop for now, reproduce in the smallest program and fix on every engine.
+- ZN-921: Go Live next experiments if the native extension ids do not unblock the viewer: Opus on audio_ssrc with speaking 2, log of the server's RTCP (transport feedback, REMB) and op 4/op 14 video_codec, an op 12 with the cap above our real bit rate, the stream preview thumbnail (POST /streams/<key>/preview), the SPS VUI rewrite of Discord-video-stream, `protocol: webrtc` (SDP, DTLS-SRTP) as Discord-video-stream v7 does.
+- ZN-921: audit the plain camera path (`voice video` in a call) with the same native extension ids: the camera sends them too (same code), check a viewer sees it.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.

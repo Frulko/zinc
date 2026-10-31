@@ -93,6 +93,7 @@ export class Live {
   rtc = '';
   endpoint = '';   // STREAM_SERVER_UPDATE's server and token, kept until STREAM_CREATE arrives (the two come in either order)
   token = '';
+  resumes = 0;     // op 22 resumes sent because the server said paused
   conn: VoiceConnection | null = null;
 }
 
@@ -365,6 +366,7 @@ export class Call {
     cap.onEnded((why: string): void => { if (this.sharing === l) { this.stopLive(); this.error = `Screen sharing ended: ${why}`; } });
     this.log(`voice go live ${cap.width}x${cap.height} ${cap.fps} fps`);
     this.gw(18, { type: this.guildId !== '' ? 'guild' : 'call', guild_id: this.guildId !== '' ? this.guildId : null, channel_id: this.channelId, preferred_region: null });
+    this.setPaused(l, false);   // right behind op 18, as Discord-video-stream's signalStream does (and again once the stream's connection is up)
     this.changed();
   }
   /** Stops sharing: op 19, the capture and the encoder stop, the stream's connection closes. */
@@ -414,10 +416,19 @@ export class Call {
     const l = own !== null && own.key === key ? own : w !== null && w.key === key ? w : null;
     if (l === null) return;
     const step = streamStep(l, t, d);
+    const viewers = Array.isArray(d.viewer_ids) ? d.viewer_ids.length : -1;
+    if (t !== 'STREAM_SERVER_UPDATE' && t !== 'STREAM_DELETE') this.log(`stream ${t.substring(7).toLowerCase()} paused ${d.paused} viewers ${viewers}`);
+    // the server pauses a stream nobody watches (and keeps it paused until its owner resumes): ours resumes whenever it is paused
+    if (l === own && (t === 'STREAM_CREATE' || t === 'STREAM_UPDATE') && d.paused === true && l.conn !== null && l.resumes++ < 5) this.setPaused(l, false);   // ponytail: five tries, then a server that insists wins
     this.log(`stream ${t.substring(7).toLowerCase().replace('_', ' ')} ${key.replace(/[0-9]{6,}/g, '<id>')} ${l === own ? 'ours' : 'watched'} rtc ${l.rtc !== ''} endpoint ${l.endpoint !== ''} -> ${t === 'STREAM_DELETE' ? 'end' : step}`);
     if (t === 'STREAM_DELETE') { this.endLive(l); if (l === own && d.reason !== 'user_requested') this.error = `Your stream ended (${d.reason})`; }
     else if (step === 'connect') this.streamConnect(l, l.endpoint, l.token);
     else if (step === 'drop') { const c = l.conn; l.conn = null; if (c !== null) c.close(); this.changed(); }
+  }
+  /** Op 22 (STREAM_SET_PAUSED, the owner only). */
+  private setPaused(l: Live, paused: boolean): void {
+    this.log(`stream op 22 sent paused ${paused}`);
+    this.gw(22, { stream_key: l.key, paused: paused });
   }
   private streamConnect(l: Live, endpoint: string, token: string): void {
     const old = l.conn;
@@ -433,7 +444,7 @@ export class Call {
     conn.setLowDataMode(this.lowData());
     conn.onState = (st: VoiceState): void => {
       if (l.conn !== conn) return;
-      if (st === 'connected' && ours) this.gw(22, { stream_key: l.key, paused: false });
+      if (st === 'connected' && ours) this.setPaused(l, false);
       if (st === 'closed') { l.conn = null; if (conn.reason !== 'left') this.error = `Stream disconnected: ${conn.reason}`; }
       this.changed();
     };

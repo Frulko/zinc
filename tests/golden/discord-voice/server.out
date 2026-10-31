@@ -39,6 +39,7 @@ voice stream identify server=1000 session=voice-sess video=true streams=[{"type"
 voice stream op 5
 voice stream op 5
 voice stream paused=false guild:200:304:100
+voice stream paused=false guild:200:304:100
 voice stream select protocol=udp mode=aead_aes256_gcm_rtpsize
 voice stream video ssrc=0
 voice stream video ssrc=42 screen 1152x720 30 fps 1990656 bps
