@@ -13,6 +13,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 from model import digest
+from identity import profile
 
 MAX_IMAGE = 256 * 1024 * 1024
 
@@ -178,6 +179,8 @@ def scan():
                           filesystem='non monté', scheme='inconnu', size=0, blockSize=0, model='inconnu', firmware='',
                           family=0, identity='unknown', physical='Non déterminé', evidence=['Descripteur USB Apple'],
                           warnings=['Aucun volume associé : diagnostic USB uniquement.'], private=dict(usb=[u], mount='')))
+    for device in found:
+        device['profile'] = profile(device, device.get('private', {}).get('info'))
     return found
 
 

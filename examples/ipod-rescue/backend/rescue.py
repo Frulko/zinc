@@ -9,6 +9,8 @@ import traceback
 
 from host import inspect_firmware, scan
 from model import plan, sample
+from identity import profile
+import syscfg
 from session import Session, rehearse
 
 
@@ -21,6 +23,9 @@ class Rescue:
         self.session = session
         self.devices = []
         self.firmware = None
+        self.current_syscfg = None
+        self.reference_syscfg = None
+        self.syscfg_device = ''
 
     def selected(self, request):
         matches = [d for d in self.devices if d['id'] == request.get('deviceId')]
@@ -38,6 +43,11 @@ class Rescue:
         self.session.begin(command)
         if command == 'scan':
             self.devices = []
+            self.current_syscfg = None
+            self.reference_syscfg = None
+            self.syscfg_device = ''
+            self.session.write('devices.json', [])
+            self.session.write('syscfg.json', dict(status='not-read'))
             mode = request.get('mode', 'hardware')
             if mode not in ('hardware', 'simulation'):
                 raise ValueError('Mode inconnu.')
@@ -56,6 +66,35 @@ class Rescue:
             emit(dict(type='firmware', firmware=self.firmware))
             self.session.end('ok', 'Archive inspectée ; installation matérielle toujours bloquée.', sha256=self.firmware['sha256'],
                              bytes=self.firmware['size'], entries=len(self.firmware['entries']), authenticated=False)
+        elif command in ('syscfg', 'reference'):
+            device = self.selected(request)
+            if command == 'reference' and (self.current_syscfg is None or self.syscfg_device != device['id']):
+                raise ValueError('Analyser d’abord le dump courant pour cet appareil.')
+            if command == 'syscfg':
+                self.current_syscfg = None
+                self.reference_syscfg = None
+                self.syscfg_device = ''
+            else:
+                self.reference_syscfg = None
+            device['profile'] = profile(device, device.get('private', {}).get('info'), self.current_syscfg)
+            self.session.write('devices.json', self.devices)
+            emit(dict(type='devices', devices=[{k: v for k, v in d.items() if k != 'private'} for d in self.devices]))
+            self.session.write('syscfg.json', dict(deviceId=device['id'], status='awaiting-valid-input'))
+            parsed = syscfg.read(request.get('path', ''))
+            if command == 'syscfg':
+                self.current_syscfg = parsed
+                self.reference_syscfg = None
+                self.syscfg_device = device['id']
+            else:
+                self.reference_syscfg = parsed
+            device['profile'] = profile(device, device.get('private', {}).get('info'), self.current_syscfg, self.reference_syscfg)
+            self.session.write('devices.json', self.devices)
+            self.session.write('syscfg.json', dict(deviceId=device['id'], profile=device['profile'],
+                               currentSha256=self.current_syscfg['sha256'],
+                               referenceSha256=self.reference_syscfg['sha256'] if self.reference_syscfg else ''))
+            emit(dict(type='devices', devices=[{k: v for k, v in d.items() if k != 'private'} for d in self.devices]))
+            self.session.end('ok', device['profile']['status'] + ' : ' + device['profile']['detail'],
+                             changed=device['profile']['changed'])
         elif command == 'plan':
             device = self.selected(request)
             result = plan(device, request.get('filesystem', 'FAT32'), self.firmware)

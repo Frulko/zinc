@@ -1,6 +1,7 @@
 """Recovery planning shared by the UI, CLI and rehearsals; no device I/O."""
 import hashlib
 import json
+from identity import profile
 
 STEPS = [
     ('identify', 'Identifier et verrouiller la cible'),
@@ -21,14 +22,16 @@ def digest(value):
 
 
 def sample(converted=True):
-    return dict(id='sim-converted' if converted else 'sim-stock', name='Classic converti' if converted else 'Classic 6G d’origine',
+    device = dict(id='sim-converted' if converted else 'sim-stock', name='Classic converti' if converted else 'Classic 6G d’origine',
                 mode='simulation', connection='disk', filesystem='FAT32', scheme='MBR',
                 size=128_000_000_000, blockSize=4096 if converted else 512,
-                model='MC297 (identité déclarée)' if converted else 'MB147',
+                model='MC297' if converted else 'MB147',
                 firmware='2.0.2' if converted else '1.1.2', family=35 if converted else 24,
                 identity='converted' if converted else 'stock', physical='6G / 6.5G non déterminé' if converted else '6G (fixture)',
                 evidence=['Appareil fictif : aucun périphérique USB ne sera modifié.',
                           'Le SysCFG actuel sera conservé octet pour octet.'], warnings=[])
+    device['profile'] = profile(device)
+    return device
 
 
 def plan(device, filesystem, firmware=None):

@@ -119,7 +119,7 @@ class Session:
             return value
         output = self.path / ('support-' + uuid.uuid4().hex[:8] + '.zip')
         with zipfile.ZipFile(output, 'x', zipfile.ZIP_DEFLATED) as archive:
-            for name in ('devices.json', 'firmware.json', 'plan.json', 'result.json'):
+            for name in ('devices.json', 'firmware.json', 'plan.json', 'syscfg.json', 'result.json'):
                 p = self.path / name
                 if p.exists():
                     archive.writestr(name, json.dumps(public(json.loads(p.read_text())), indent=2, ensure_ascii=False))

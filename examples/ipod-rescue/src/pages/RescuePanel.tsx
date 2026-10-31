@@ -2,6 +2,7 @@
 import { Icon } from 'zinc:icons';
 import { Device, RecoveryPlan, Firmware, LogEntry, RecoveryStep } from '../models';
 import { Action, Choice, Fact } from '../components/Controls';
+import { IdentityDetails } from '../components/IdentityDetails';
 import { INK, MUTED, BORDER, CARD, FAULT_IDS, FAULT_LABELS } from '../constants';
 import { devices, selected, selectedId, selectDevice, mode, chooseMode, scan, filesystem, chooseFormat,
   busy, ready, notice, failed, logs, workflow, fault, setFault, makePlan, recoveryPlan, firmware,
@@ -39,11 +40,10 @@ function DeviceDetails(props: { device: Device }): i32 {
     </View>
     <View className="flex-col">
       <Fact label="Firmware déclaré" value={d.firmware || 'Inconnu'} />
-      <Fact label="Matériel physique" value={d.physical} />
-      <Fact label="Volume actuel" value={d.filesystem + ' · ' + d.scheme} />
-      <Fact label="Capacité exposée" value={d.size > 0 ? (d.size / 1000000000).toFixed(1) + ' Go' : 'Non disponible'} />
-      <Fact label="Blocs logiques" value={d.blockSize > 0 ? '' + d.blockSize + ' octets' : 'Non déterminés'} />
+      <Fact label="Maximum connu" value={d.profile.maximum} />
+
     </View>
+    <IdentityDetails device={d} />
     {d.evidence.map((s: string) => <Text className={`text-[11px] ${MUTED}`} numberOfLines={2}>{'• ' + s}</Text>)}
     {d.warnings.map((s: string) => <Text className="text-[11px] text-[#946426]" numberOfLines={3}>{s}</Text>)}
     {d.mode === 'hardware' ? <Action label="Sauvegarder les métadonnées" icon="archive" disabled={busy() || d.connection !== 'disk'} onPress={backup} /> : <View />}

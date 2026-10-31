@@ -3,7 +3,7 @@ import * as dialog from 'zinc:system/dialog';
 import * as opener from 'zinc:system/opener';
 import * as sys from 'zinc:sys';
 import { start, send, stop } from './services/backend';
-import { Device, RecoveryPlan, Firmware, LogEntry, RecoveryStep, steps } from './models';
+import { Device, RecoveryPlan, Firmware, LogEntry, RecoveryStep, steps, IdentityProfile, Specification } from './models';
 
 export const [devices, setDevices] = createSignal<Device[]>([]);
 export const [selectedId, setSelectedId] = createSignal<string>('');
@@ -49,6 +49,14 @@ export async function inspectArchive(): Promise<void> {
   const picked = await dialog.open(o);
   if (picked !== null && (picked as string[]).length === 1) { setFirmware(null); setRecoveryPlan(null); request('inspect', (picked as string[])[0]); }
 }
+export function inspectSyscfgFile(path: string, reference: boolean): void { request(reference ? 'reference' : 'syscfg', path); }
+export async function inspectSyscfg(reference: boolean): Promise<void> {
+  if (busy() || selected() === null) return;
+  const o = new dialog.OpenOptions();
+  o.title = reference ? 'Choisir une référence SysCFG à comparer' : 'Analyser un dump SysCFG courant (8 Ko maximum)';
+  const picked = await dialog.open(o);
+  if (picked !== null && (picked as string[]).length === 1) inspectSyscfgFile((picked as string[])[0], reference);
+}
 export async function rehearse(): Promise<void> {
   const d = selected();
   if (busy() || d === null || (d as Device).mode !== 'simulation') return;
@@ -76,11 +84,26 @@ function receive(line: string): void {
         d.id = '' + v.id; d.name = '' + v.name; d.mode = '' + v.mode; d.connection = '' + v.connection;
         d.filesystem = '' + v.filesystem; d.scheme = '' + v.scheme; d.size = Number(v.size); d.blockSize = Number(v.blockSize);
         d.model = '' + v.model; d.firmware = '' + v.firmware; d.identity = '' + v.identity; d.physical = '' + v.physical;
+        const p = new IdentityProfile(), a = v.profile;
+        if (a !== undefined) {
+          p.typeName = '' + a.typeName; p.generation = '' + a.generation; p.maximum = '' + a.maximum;
+          p.factoryMaximum = '' + a.factoryMaximum; p.advice = '' + a.advice; p.status = '' + a.status; p.detail = '' + a.detail;
+          for (let j = 0; j < a.changed.length; j++) p.changed.push('' + a.changed[j]);
+          for (let j = 0; j < a.hints.length; j++) p.hints.push('' + a.hints[j]);
+          for (let j = 0; j < a.specs.length; j++) p.specs.push(new Specification('' + a.specs[j].label, '' + a.specs[j].value));
+          for (let j = 0; j < a.fields.length; j++) p.fields.push(new Specification('' + a.fields[j].label, '' + a.fields[j].value));
+        }
+        d.profile = p;
         for (let j = 0; j < v.evidence.length; j++) d.evidence.push('' + v.evidence[j]);
         for (let j = 0; j < v.warnings.length; j++) d.warnings.push('' + v.warnings[j]);
         next.push(d);
       }
-      setDevices(next); setSelectedId(next.length > 0 && (next.length === 1 || mode() === 'simulation') ? next[0].id : '');
+      const previous = selectedId();
+      setDevices(next);
+      let preserved = false;
+      for (const d of next) if (d.id === previous) preserved = true;
+      setSelectedId(preserved ? previous : next.length > 0 && (next.length === 1 || mode() === 'simulation') ? next[0].id : '');
+      setRecoveryPlan(null);
     } else if (type === 'plan') {
       const p = new RecoveryPlan(), v = value.plan;
       p.filesystem = '' + v.filesystem; p.firmware = '' + v.firmware; p.sha256 = '' + v.sha256;

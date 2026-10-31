@@ -30,6 +30,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - **New** `ImageViewer` in `zinc:ui/kit` (`openImageViewer`): a picture opens over the app the way PhotoSwipe does it, growing from the thumbnail and going back on close (Escape, a click outside, a drag down), with wheel and pinch zoom around the pointer, drag to pan, double click to zoom, Left and Right (keys, buttons, swipe) through the pictures, a caption and copy and save buttons. In the Discord client, click a picture to open it over the pictures of the channel.
 - `examples/ipod-rescue` adds a recovery workshop with read-only Mac diagnostics, local firmware inspection, metadata backups and a restoration simulator.
   Physical erase and firmware writes stay locked until qualified.
+- The iPod recovery workshop shows Classic specifications and known firmware branches, and compares SysCFG dumps against a supplied reference.
+  It distinguishes reported identity and comparison evidence from an authenticated factory state.
 #### Changed
 - The screen-share dialog keeps its place while you scroll the screens and windows, and has a search field to find one by name.
 - The screen-share dialog (Discord's Go Live, the call example) looks like Discord's: tabs Applications and Entire screen, a two-column grid of large previews with the application's icon and name under each, and a preset line (SD 720p 30 fps or HD 1080p 60 fps) with an SD/HD switch and a settings button for the resolution, frame rate and pointer. Apps can add a Devices tab for cameras.

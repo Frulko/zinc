@@ -1,6 +1,6 @@
 # iPod Rescue — recovery workshop
 
-A standalone native Zinc demo, in French, for investigating an iPod and rehearsing recovery. Its reusable backend and embeddable UI are independent of the music manager.
+A standalone native Zinc demo, in French, for investigating an iPod and rehearsing recovery. Its reusable backend and embeddable UI are independent of the music manager. The device sheet separates reported identity, catalog specifications, firmware admission limits and SysCFG comparison evidence.
 
 **This version cannot erase or flash a physical iPod.** The Mac USB/SCSI restoration transport, firmware authentication and model-specific layouts are not qualified. The UI and backend both enforce this limit. A completed rehearsal is not evidence of hardware restoration.
 
@@ -17,6 +17,9 @@ IPOD_RESCUE_MODE=simulation build/zinc run examples/ipod-rescue
 When running headless or inside the test runner, set `ZINC_NATIVE=real` to use the actual process and system plugins. The helper still refuses physical writes. Use `ZINC_BACKGROUND=1` for agent-started visible runs.
 
 - **Appareils réels:** passive macOS `diskutil` / IORegistry diagnostics, mounted identity and declared firmware, partition scheme, capacity and logical block size. DFU/recovery USB entries appear even without a mounted library. Reported identity is never equated to original hardware. Ambiguous disks are not automatically selected.
+- **Identité & SysCFG:** analyze a local Classic SysCFG dump (at most 8192 bytes), then optionally compare a reference. Report exactly which records differ, including serial/model/hardware/firmware fields, without exposing serial values in support exports. A coherent dump can be modified; matching a reference does not authenticate its factory origin. Different hardware IDs warn about a potentially unrelated reference. This is file analysis, never a direct NOR read. A failed import invalidates the earlier comparison.
+- **Spécifications:** a small sourced catalog of the eight standard Classic 6G/6.5G/7G model numbers shows nominal capacity, color, display, connector and audio formats, separately from measured volume capacity and block size. An unknown model remains unknown; DFU alone does not identify its physical generation.
+- **Firmwares:** show the last known original branch (1.1.2, 2.0.1, or 2.0.4/2.0.5 by revision), separately from the reported running version and the admission limit suggested by an imported HwVr. Family 35 is not indiscriminately offered 2.0.5. FwId, actual board, revision and image authenticity remain unverified; a candidate maximum is not installation permission. Original-model limits based on a reference are explicitly conditional on that unverified reference.
 - **Sauvegarder les métadonnées:** copy and SHA-256 readback of available SysInfo files and library database. A root `syscfg` file, if present, is copied as an unverified file. This excludes music, artwork, partition table, disk firmware and live NOR. It is **not** a complete recovery backup. The target is re-enumerated before/after; changed or incomplete copies retain an `INCOMPLETE` marker.
 - **Inspecter un fichier IPSW:** inspect a local ZIP/IPSW, check its entries/CRC and SHA-256 without extracting or executing it. Reject traversal, duplicates, symlinks, encrypted entries and excessive sizes/expansion. This does **not** verify Apple signatures or establish compatibility. No automatic download or installation.
 - **Établir le plan:** preserve current identity, keep the reported version as the candidate and display missing prerequisites. FAT32 and HFS+ are separate choices; HFS+ excludes Rockbox and requires its own hardware qualification.
@@ -29,7 +32,7 @@ Sessions are private host folders under `~/.zinc/ipod-rescue/session-*`. `IPOD_R
 
 ## The same backend without the UI
 
-The helper is a persistent JSONL service: one JSON object per stdin line, typed events/results on stdout. It accepts only `scan`, `inspect`, `plan`, `backup`, `rehearse`, `export`. There is no raw device or shell-command escape hatch.
+The helper is a persistent JSONL service: one JSON object per stdin line, typed events/results on stdout. It accepts only `scan`, `inspect`, `syscfg`, `reference`, `plan`, `backup`, `rehearse`, `export`. There is no raw device or shell-command escape hatch.
 
 ```sh
 python3 -u examples/ipod-rescue/backend/rescue.py <<'JSONL'
@@ -39,6 +42,8 @@ python3 -u examples/ipod-rescue/backend/rescue.py <<'JSONL'
 {"command":"export"}
 JSONL
 ```
+
+To analyze existing dumps in that same session, send `{"command":"syscfg","deviceId":"sim-converted","path":"/absolute/path/to/current.syscfg"}`, then `{"command":"reference","deviceId":"sim-converted","path":"/absolute/path/to/original.syscfg"}`. The reference is bound to the currently analyzed device; a new scan discards imported analysis. Neither file is written or flashed.
 
 For real diagnostics, send `{"command":"scan","mode":"hardware"}`. Use a device ID from that service's current result for subsequent requests; never invent a BSD path. Keep stdin open to retain the same session and selection. Exit closes the service. The helper uses no elevated privileges and never invokes a device formatter, DFU writer or flasher.
 
@@ -57,6 +62,7 @@ Do not hand an existing library handle or a remembered `/dev/diskN` to a future 
 - `src/services/backend.ts`: streamed child process, path discovery and cleanup.
 - `src/components`, `src/pages`: native Zinc views and controls.
 - `backend/host.py`: passive Mac evidence, no-follow source reading, bounded archive inspection.
+- `backend/identity.py`, `backend/syscfg.py`: sourced Classic profiles, conservative admission limits, bounded binary record decoding and reference comparisons.
 - `backend/model.py`: planning, immutable identity policy and simulation fixtures.
 - `backend/session.py`: private host artifacts, verified metadata copy, explicit simulation and support export.
 - `backend/rescue.py`: shared protocol and operation boundary.
@@ -70,3 +76,12 @@ tests/run --tier t1 --only ipod_rescue_ui
 The UI test waits for the real Python/process exchange to finish before starting its headless frame budget; it normalizes displayed timing only. It never enumerates or modifies real USB devices. The behavior test covers identity preservation, both simulated formats, injected failures, command rejection, archive attacks, symlink rejection, bounded metadata backup and redacted failure export. Real firmware restoration and actual FAT32/HFS+ formatting remain untested and unavailable.
 
 Research, sources and the qualification plan: [restoration assistant report](../../docs/reports/ipod-restore-assistant-2026-10-31.md).
+
+## Identity sources and limits
+
+- Model numbers, nominal capacities, colors and serial suffix hints: [libgpod device table](https://github.com/fadingred/libgpod/blob/master/src/itdb_device.c). These mutable identifiers cannot certify the original board.
+- Common Classic display, connector and audio specifications: [Apple Classic 160 GB technical specifications](https://support.apple.com/en-us/112601), and [Apple’s original Classic announcement](https://www.apple.com/newsroom/2007/09/05Apple-Introduces-New-iPod-classic/).
+- Original 6G/6.5G branches, conversion implications, and HwVr / FwId / SwVr distinctions: [Olsro’s first-hand guide](https://github.com/Olsro/reddit-ipod-guides/blob/main/guides/ipod6g-flash-more-recent-firmwares.md). Its observations are not Apple certification; 2.0.5 requires a different identity profile and is not the default upgrade for a converted device.
+- SysCfg record layout: [RepriseOS’s documented reader](https://github.com/lgreitis/osos-lab/blob/main/host/crates/reprise-device/src/syscfg.rs). Our decoder uses Python’s standard `struct` library; no external code or dependency is bundled.
+
+Catalog reviewed 2026-10-31. The catalog covers Classics here, not every Nano/Shuffle/Video. Catalog and dump evidence never authorize physical restore operations in this demo.

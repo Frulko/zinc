@@ -1,8 +1,18 @@
+export class Specification {
+  label: string; value: string;
+  constructor(label: string, value: string) { this.label = label; this.value = value; }
+}
+export class IdentityProfile {
+  typeName: string = 'iPod — modèle hors catalogue'; generation: string = 'Indéterminée';
+  maximum: string = 'Indéterminé'; factoryMaximum: string = 'Indéterminé'; advice: string = '';
+  status: string = 'Non lu'; detail: string = ''; changed: string[] = []; hints: string[] = [];
+  specs: Specification[] = []; fields: Specification[] = [];
+}
 export class Device {
   id: string = ''; name: string = ''; mode: string = ''; connection: string = '';
   filesystem: string = ''; scheme: string = ''; size: number = 0; blockSize: number = 0;
   model: string = ''; firmware: string = ''; identity: string = ''; physical: string = '';
-  evidence: string[] = []; warnings: string[] = [];
+  evidence: string[] = []; warnings: string[] = []; profile: IdentityProfile = new IdentityProfile();
 }
 export class RecoveryPlan {
   filesystem: string = ''; firmware: string = ''; sha256: string = '';

@@ -15,6 +15,9 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'examples/ipod-rescue/backend'))
 from host import inspect_firmware, read_relative, metadata
 from model import plan, sample
+from identity import profile
+from syscfg import parse
+from syscfg_fixtures import make_syscfg
 from rescue import Rescue
 from session import Session, rehearse
 
@@ -212,6 +215,82 @@ class RecoveryTest(unittest.TestCase):
         info, extended, warnings = metadata(mount)
         self.assertEqual(extended, dict(VisibleBuildID='2.0.2'))
         self.assertTrue(any('non standard' in w for w in warnings))
+
+    def test_coherent_modified_identity_is_not_mistaken_for_factory_state(self):
+        p = profile(sample(), current=parse(make_syscfg()))
+        self.assertEqual(p['status'], 'Dump analysé')
+        self.assertIn('aucune preuve', p['detail'])
+        self.assertIn('2.0.4', p['maximum'])
+
+    def test_compare_reports_conversion_fields_without_claiming_factory_authentication(self):
+        p = profile(sample(), current=parse(make_syscfg()), reference=parse(make_syscfg(False)))
+        self.assertEqual(p['status'], 'Différent de la référence')
+        self.assertEqual(p['changed'], ['FwId', 'HwVr', 'Mod#', 'SrNm', 'SwVr'])
+        self.assertIn('n’est pas authentifiée', p['detail'])
+        self.assertIn('2.0.1', p['factoryMaximum'])
+        self.assertNotIn('TEST00009ZU', json.dumps(p))
+
+    def test_unknown_syscfg_fields_are_compared_and_hardware_conflicts_flagged(self):
+        import struct
+        current = parse(make_syscfg(TEST=b'EXTRA-RECORD', HwVr=b'\0' * 4 + struct.pack('<I', 0x130000)))
+        p = profile(sample(), current=current)
+        self.assertEqual(p['status'], 'Incohérences détectées')
+        compared = profile(sample(), current=current, reference=parse(make_syscfg()))
+        self.assertEqual(compared['changed'], ['HwVr', 'TEST'])
+
+    def test_equal_fields_with_different_padding_are_not_called_identical_files(self):
+        raw = make_syscfg()
+        p = profile(sample(), current=parse(raw), reference=parse(raw + b'\xff' * 16))
+        self.assertEqual(p['changed'], [])
+        self.assertIn('binaires diffèrent', p['detail'])
+
+    def test_reference_from_another_board_is_flagged(self):
+        p = profile(sample(), current=parse(make_syscfg()), reference=parse(make_syscfg(False, HwId=b'OTHER-BOARD')))
+        self.assertTrue(any('autre appareil' in x for x in p['hints']))
+        self.assertNotIn('modèle de référence', p['factoryMaximum'])
+
+    def test_invalid_syscfg_header_truncation_duplicates_and_text(self):
+        import struct
+        good = make_syscfg()
+        duplicate = bytearray(good); duplicate[44:48] = duplicate[24:28]
+        for raw in (good[:23], good[:-1], b'broken' + good[6:], bytes(duplicate), make_syscfg(**{'Mod#': b'X\0BAD'}), good + b'X' * 8192):
+            with self.subTest(size=len(raw)), self.assertRaises(ValueError):
+                parse(raw)
+
+    def test_model_firmware_and_serial_inconsistencies_are_only_hints(self):
+        d = sample(False); d['firmware'] = '2.0.2'
+        p = profile(d, dict(pszSerialNumber='TEST00009ZU'))
+        self.assertEqual(p['status'], 'Incohérences détectées')
+        self.assertIn('1.1.2', p['factoryMaximum'])
+        self.assertIn('pas une preuve', p['detail'])
+
+    def test_catalog_does_not_offer_205_to_every_classic(self):
+        d = sample()
+        self.assertIn('2.0.4', profile(d)['maximum'])
+        self.assertNotIn('2.0.5', profile(d)['maximum'])
+        d['family'] = 38
+        self.assertIn('2.0.5', profile(d)['maximum'])
+        d['model'] = 'UNKNOWN'
+        self.assertIn('Indéterminé', profile(d)['maximum'])
+
+    def test_service_syscfg_import_requires_selected_current_dump_and_clears_failed_import(self):
+        service = Rescue(self.s); service.devices = [sample(), sample(False)]
+        current = self.root / 'current.syscfg'; current.write_bytes(make_syscfg())
+        reference = self.root / 'reference.syscfg'; reference.write_bytes(make_syscfg(False))
+        with patch('rescue.emit'):
+            with self.assertRaises(ValueError):
+                service.handle(dict(command='reference', deviceId='sim-converted', path=str(reference)))
+            service.handle(dict(command='syscfg', deviceId='sim-converted', path=str(current)))
+            service.handle(dict(command='reference', deviceId='sim-converted', path=str(reference)))
+            self.assertEqual(service.devices[0]['profile']['status'], 'Différent de la référence')
+            with self.assertRaises(ValueError):
+                service.handle(dict(command='reference', deviceId='sim-stock', path=str(reference)))
+            current.write_bytes(b'bad')
+            with self.assertRaises(ValueError):
+                service.handle(dict(command='syscfg', deviceId='sim-converted', path=str(current)))
+            self.assertIsNone(service.current_syscfg)
+            self.assertEqual(service.devices[0]['profile']['status'], 'Non lu')
+            self.assertEqual(json.loads((self.s.path / 'syscfg.json').read_text())['status'], 'awaiting-valid-input')
 
     def test_jsonl_service_rehearsal_and_export(self):
         commands = [dict(command='scan', mode='simulation'),

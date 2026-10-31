@@ -7,6 +7,8 @@ tmp=$(mktemp -d)
 trap '[ -z "${KEEP:-}" ] || { mkdir -p "$KEEP"; cp "$tmp"/*.png "$tmp"/*.out "$KEEP/" 2>/dev/null || true; }; rm -rf "$tmp"' EXIT
 export ZINC_NATIVE=real ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1220x900 IPOD_RESCUE_MODE=simulation
 export IPOD_RESCUE_BACKEND="$PWD/examples/ipod-rescue/backend/rescue.py" IPOD_RESCUE_OUTPUT="$tmp/sessions"
+python3 tests/data/ipod-rescue/syscfg_fixtures.py "$tmp/dumps"
+export IPOD_RESCUE_TEST_DUMPS="$tmp/dumps" IPOD_RESCUE_TEST_TAB=identity
 limit=$((45 * ${ZN_WAIT_SCALE:-1}))
 timeout "$limit" "$Z" check examples/ipod-rescue > "$tmp/check.out" 2>&1 || { cat "$tmp/check.out"; exit 1; }
 for engine in interp quickjs native; do
@@ -22,6 +24,15 @@ for engine in interp quickjs native; do
   [ "$hash" = "$(cat tests/golden/ipod-rescue/hash.txt)" ] || { echo "$engine recovery screen differs: $hash"; exit 1; }
   grep -q 'zinc profile: paint p50=0.00 p99=0.00 ' "$tmp/$engine.out" || { echo "$engine repaints while idle"; tail -10 "$tmp/$engine.out"; exit 1; }
 done
+for tab in specs firmware; do
+  IPOD_RESCUE_TEST_TAB="$tab" ZINC_FRAMES=3 ZINC_SHOT="$tmp/$tab.png" ZINC_FRAMEHASH=last timeout "$limit" "$Z" run tests/data/ipod-rescue --interp > "$tmp/$tab.out" 2>&1 || { tail -15 "$tmp/$tab.out"; exit 1; }
+  hash=$(awk '$2 == "framehash" {print $5}' "$tmp/$tab.out" | tail -1)
+  if [ "${UPDATE:-0}" = 1 ]; then
+    printf '%s\n' "$hash" > "tests/golden/ipod-rescue/$tab-hash.txt"
+    cp "$tmp/$tab.png" "tests/golden/ipod-rescue/$tab.png"
+  fi
+  [ "$hash" = "$(cat "tests/golden/ipod-rescue/$tab-hash.txt")" ] || { echo "$tab screen differs"; exit 1; }
+done
 IPOD_RESCUE_TEST_FAULT=short-write ZINC_FRAMES=30 ZINC_SHOT="$tmp/failure.png" ZINC_FRAMEHASH=last timeout "$limit" "$Z" run tests/data/ipod-rescue --interp > "$tmp/failure.out" 2>&1 || { tail -15 "$tmp/failure.out"; exit 1; }
 grep -q '^rescue-ui: rejected rehearsal, no false success, no hardware writes$' "$tmp/failure.out" || { cat "$tmp/failure.out"; exit 1; }
 hash=$(awk '$2 == "framehash" {print $5}' "$tmp/failure.out" | tail -1)
@@ -33,8 +44,8 @@ fi
 python3 - "$tmp/sessions" <<'PY'
 import json, pathlib, sys
 results = [json.loads(p.read_text()) for p in pathlib.Path(sys.argv[1]).glob('session-*/result.json')]
-assert len(results) == 4, results
-assert sum(bool(r.get('simulated') and r.get('identityPreserved')) for r in results) == 3, results
+assert len(results) == 6, results
+assert sum(bool(r.get('simulated') and r.get('identityPreserved')) for r in results) == 5, results
 assert sum(r['status'] == 'failed' for r in results) == 1, results
 PY
 echo 'ipod-rescue: typed UI, Python/process protocol, three engines, identity preservation, pixels and idle verified'

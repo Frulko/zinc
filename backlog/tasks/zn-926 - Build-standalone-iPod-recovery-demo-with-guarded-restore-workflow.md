@@ -22,6 +22,7 @@ Owner request: build a separate iPod rescue demo, keeping future integration int
 - [x] #2 Reusable backend validates firmware archives and models identity-preserving FAT32 and HFS+ recovery with injected failures
 - [x] #3 Unqualified destructive hardware operations are refused and covered by regression tests
 - [x] #4 Document app integration and remaining hardware qualification
+- [x] #5 Owner follow-up: show sourced Classic type/specifications/firmware branches and compare SysCFG dumps with explicit evidence limits
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -42,3 +43,12 @@ Owner request: build a separate iPod rescue demo, keeping future integration int
 ## Handover
 
 Run `build/zinc run examples/ipod-rescue`, or prefix `IPOD_RESCUE_MODE=simulation` for a hardware-free demonstration. Source-demo requirements and integration lifecycle are in its README. Packaged Python/helper distribution and physical restoration qualification remain future work; do not unlock them through the UI.
+
+## Owner follow-up — identity, specifications and firmware branches
+
+- Added a sourced eight-model Classic catalog and three views: identity/SysCFG, specifications, firmware branches. Nominal capacity/color/display/connector/audio are separated from measured volume geometry and unknown physical-board identity.
+- Added a bounded read-only SysCFG file decoder and reference comparison. The UI lists changed records, warns about conflicting identities or hardware IDs, and never treats a coherent dump or arbitrary reference as authenticated factory state. No direct NOR read was added.
+- Classic family 35 describes a 2.0.4 admission branch, not an automatic 2.0.5 upgrade. HwVr-based limits remain conditional on FwId/revision checks. Unknown profiles remain unknown; current working firmware is not replaced by a catalog maximum.
+- Failed imports and rescans clear earlier comparison state. Device selection is preserved when analysis publishes updated evidence. Raw serial values and dumps are excluded from support exports.
+- `build/zinc check examples/ipod-rescue`: PASS, 8 files/imports. `tests/run --tier demo --only ipod_rescue`: PASS, 28 cases. `tests/run --only ipod_rescue_ui`: PASS; imported synthetic dump/reference on all three engines, matching identity pixels, specification and firmware screenshots, failure golden, idle paint checks. Reviewed all views visually.
+- Live passive inspection reports the connected xC297 / 2.0.2 as declared Classic 7G, family 35, with SysCFG status Non lu. This does not detect the known conversion automatically: a live NOR dump or a supplied comparison is still missing. The owner's already running app was left alone and needs relaunching for the new UI.
