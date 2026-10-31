@@ -2,7 +2,7 @@
 // demand a hint, the solution (written into the editor) and the lesson's page. State and commands: app/lesson.ts.
 import * as ui from 'zinc:ui';
 import * as opener from 'zinc:system/opener';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 import { lesson, LessonState, hintOpen, setHintOpen, solveStep, closeLesson, checkLesson } from '../app/lesson';
 import { saveAll } from '../app/workspace';
 import { IconButton } from './Controls';

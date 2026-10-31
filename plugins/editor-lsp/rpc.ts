@@ -1,7 +1,8 @@
-// What Atelier and `zinc lsp` say to each other, as plain functions (no process, no window: selftest.ts checks them):
-// the framing of JSON-RPC over a pipe (`Content-Length: <bytes of UTF-8>`, a blank line, the body), file URIs, and the
+// What an editor and a language server (`zinc lsp`) say to each other, as plain functions (no process, no window): the
+// framing of JSON-RPC over a pipe (`Content-Length: <bytes of UTF-8>`, a blank line, the body), file URIs, and the
 // answers read into small classes: completion items and their filtering, a signature, a hover, diagnostics, a place.
-import { fuzzy, Fuzzy } from './fuzzy';
+import { fuzzy, Fuzzy } from 'zinc:command-palette';
+import { isIdent, wordStart } from 'zinc:editor';
 
 /** Bytes of `s` in UTF-8 (strings are UTF-16 here; the protocol counts bytes). */
 export function utf8Length(s: string): i32 {
@@ -78,12 +79,7 @@ export function pathOf(uri: string): string {
   return out;
 }
 
-// ---------------------------------------------------------------- words
-export function isIdent(c: i32): boolean { return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c === 36; }
-/** Where the identifier that ends at `caret` starts (`caret` itself when no identifier ends there). */
-export function wordStart(text: string, caret: i32): i32 { let i = caret; while (i > 0 && isIdent(text.charCodeAt(i - 1))) i--; return i; }
-/** Where the identifier around `p` ends. */
-export function wordEnd(text: string, p: i32): i32 { let i = p; while (i < text.length && isIdent(text.charCodeAt(i))) i++; return i; }
+// ---------------------------------------------------------------- words (isIdent, wordStart, wordEnd: zinc:editor)
 /** Inside the quotes of an import (`from 'zinc:`): where the module name starts, else -1. */
 export function specStart(text: string, caret: i32): i32 {
   let i = caret;

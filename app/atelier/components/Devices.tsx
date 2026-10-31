@@ -4,7 +4,7 @@
 // What changes with the machine and the moment (addresses, figures) is in the right column, of a fixed width.
 import { createNodeRef, createEffect } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 import { focusLater } from '../app/workspace';
 import { device } from '../app/tools';
 import { devices, listed, devicesOpen, closeDevices, figures, note, noteBad, who, setWho, code, setCode, pairing, pair, choose, refresh, isPaired, stateText, none } from '../app/devices';

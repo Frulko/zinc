@@ -1,7 +1,7 @@
 // The parts of the pages of the sidebar (Settings, Devices, Share), after macOS's System Settings: a title, then groups of rows
 // on a white card with hairlines between them, the label on the left and its control on the right.
 import * as ui from 'zinc:ui';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 
 /** A page over the content area, shown while `shown` says so: a title, a line under it, and its groups in one centred column. */
 export function Page(props: { shown: () => boolean; title: () => string; subtitle?: () => string; children: () => i32 }): i32 {

@@ -1,12 +1,19 @@
-// Syntax highlighting for TypeScript / TSX / JavaScript, JSON, Markdown and CSS.
-// A tokenizer turns one line into runs [length, token, length, token...] and returns the state the next line starts
-// in (inside a block comment, a template string, a fenced code block, a CSS rule), so constructs that span lines
-// are coloured correctly. Buffers keep the state at the start of each line (see highlight.ts).
+// Syntax highlighting with a language registry. A tokenizer turns one line into runs [length, token, length, token...]
+// and returns the state the next line starts in (inside a block comment, a template string, a fenced code block, a CSS
+// rule), so constructs that span lines are coloured correctly; Doc keeps the state at the start of each line.
+// Built in: TypeScript / TSX / JavaScript, JSON, Markdown and CSS. `registerLanguage` adds one: its name, its file
+// extensions and its tokenizer (`pushRun` appends a run the way the built-in ones do).
+
+/** Tokenizes one line starting in `state`; appends runs to `out`, returns the next line's state. */
+export type Tokenizer = (line: string, state: i32, out: i32[]) => i32;
 
 export const L_PLAIN: i32 = 0, L_TS: i32 = 1, L_JSON: i32 = 2, L_MD: i32 = 3, L_CSS: i32 = 4;
-export const LANG_NAMES: string[] = ['Plain Text', 'TypeScript', 'JSON', 'Markdown', 'CSS'];
+/** The name of each registered language, by id. */
+export const LANG_NAMES: string[] = [];
+const LANG_EXTS: string[][] = [];
+const TOKENIZERS: Tokenizer[] = [];
 
-/** Token kinds; theme.ts maps them to colours (tokenColor in highlight.ts). */
+/** Token kinds; Theme has a colour for each (tokenColor in document.ts). */
 export const T_TEXT: i32 = 0, T_KEYWORD: i32 = 1, T_STRING: i32 = 2, T_NUMBER: i32 = 3, T_COMMENT: i32 = 4, T_FN: i32 = 5,
   T_TYPE: i32 = 6, T_PROPERTY: i32 = 7, T_CONSTANT: i32 = 8, T_PUNCT: i32 = 9, T_TAG: i32 = 10, T_ATTR: i32 = 11,
   T_HEADING: i32 = 12, T_LINK: i32 = 13;
@@ -14,14 +21,22 @@ export const T_TEXT: i32 = 0, T_KEYWORD: i32 = 1, T_STRING: i32 = 2, T_NUMBER: i
 /** Line states. CSS combines S_CSS_RULE with S_COMMENT. */
 export const S_NORMAL: i32 = 0, S_COMMENT: i32 = 1, S_TEMPLATE: i32 = 2, S_FENCE: i32 = 4, S_CSS_RULE: i32 = 8;
 
+/** Adds a language (or replaces the one of that name): its id, for `new Doc(id)` and `tokenize`. Extensions are lower case, without the dot. */
+export function registerLanguage(name: string, exts: string[], tok: Tokenizer): i32 {
+  let id: i32 = LANG_NAMES.indexOf(name);
+  if (id < 0) { id = LANG_NAMES.length; LANG_NAMES.push(name); LANG_EXTS.push(exts); TOKENIZERS.push(tok); }
+  else { LANG_EXTS[id] = exts; TOKENIZERS[id] = tok; }
+  return id;
+}
+/** The language of a file extension or a language name ('ts', 'tsx', 'json', 'Markdown', 'css'); L_PLAIN when none has it. */
+export function langNamed(name: string): i32 {
+  const n = name.toLowerCase();
+  for (let i = 0; i < LANG_EXTS.length; i++) if (LANG_EXTS[i].indexOf(n) >= 0 || LANG_NAMES[i].toLowerCase() === n) return i;
+  return L_PLAIN;
+}
 export function langOf(path: string): i32 {
   const dot = path.lastIndexOf('.');
-  const ext = dot < 0 ? '' : path.slice(dot + 1).toLowerCase();
-  if (ext === 'ts' || ext === 'tsx' || ext === 'js' || ext === 'jsx' || ext === 'mjs' || ext === 'cjs') return L_TS;
-  if (ext === 'json') return L_JSON;
-  if (ext === 'md' || ext === 'markdown') return L_MD;
-  if (ext === 'css') return L_CSS;
-  return L_PLAIN;
+  return dot < 0 ? L_PLAIN : langNamed(path.slice(dot + 1));
 }
 /** Language shown in the status bar ('TSX' for .tsx files). */
 export function langLabel(path: string): string {
@@ -37,7 +52,8 @@ const KEYWORDS: string[] = ['const', 'let', 'var', 'function', 'return', 'if', '
   'declare', 'namespace', 'keyof', 'delete'];
 const CONSTANTS: string[] = ['true', 'false', 'null', 'undefined', 'NaN', 'Infinity'];
 
-/** Appends a run, merging it with the previous one when the token is the same. */
+/** Appends a run, merging it with the previous one when the token is the same (for the tokenizers of `registerLanguage`). */
+export function pushRun(out: i32[], len: i32, tok: i32): void { push(out, len, tok); }
 function push(out: i32[], len: i32, tok: i32): void {
   if (len <= 0) return;
   if (out.length >= 2 && out[out.length - 1] === tok) out[out.length - 2] += len;
@@ -61,10 +77,7 @@ function stringEnd(s: string, i: i32, q: i32): i32 {
 
 /** Tokenizes `line` of language `lang` starting in `state`; appends runs to `out`, returns the next line's state. */
 export function tokenize(lang: i32, line: string, state: i32, out: i32[]): i32 {
-  if (lang === L_TS) return tsLine(line, state, out);
-  if (lang === L_JSON) { jsonLine(line, out); return S_NORMAL; }
-  if (lang === L_MD) return mdLine(line, state, out);
-  if (lang === L_CSS) return cssLine(line, state, out);
+  if (lang > 0 && lang < TOKENIZERS.length) return TOKENIZERS[lang](line, state, out);
   push(out, line.length, T_TEXT);
   return S_NORMAL;
 }
@@ -232,3 +245,11 @@ function cssLine(s: string, state: i32, out: i32[]): i32 {
   }
   return (rule ? S_CSS_RULE : 0) | (comment ? S_COMMENT : 0);
 }
+
+function plainLine(s: string, state: i32, out: i32[]): i32 { push(out, s.length, T_TEXT); return S_NORMAL; }
+function jsonTok(s: string, state: i32, out: i32[]): i32 { jsonLine(s, out); return S_NORMAL; }
+registerLanguage('Plain Text', ['txt', 'text'], plainLine);
+registerLanguage('TypeScript', ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'mts', 'cts', 'typescript', 'javascript'], tsLine);
+registerLanguage('JSON', ['json', 'jsonc'], jsonTok);
+registerLanguage('Markdown', ['md', 'markdown'], mdLine);
+registerLanguage('CSS', ['css'], cssLine);

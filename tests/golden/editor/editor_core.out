@@ -1,0 +1,18 @@
+ts 5,1,3,0,1,9,1,0,3,2,1,9,1,0,4,4
+json 1,9,3,7,1,9,1,0,1,3,1,9
+langs 1 3 0 TSX
+ini by extension 4,1,1,0,4,2 | 6,4
+doc 3 lines, line of 20: 1, line 2 starts in a comment: true
+colors 3,10167187,3,-1,1,6052961,1,-1,1,6052961,1,1835215,1,6052961,1,-1,1,1835215,2,6052961
+bracket 8,13 number colour true
+cursors "(a\n(b\n(c" 1,1,4,4,7,7
+comment "// (a\n// (b\n// (c"
+undo true
+select-next 0,1,4,5,6,7
+newline "if (a) {\n  "
+indent "  a\n  b"
+state let x = 2; let x = 2; edits 1 caret 0
+theme Dark
+fuzzy 4,9 |m|ain.|t|s|
+ranked save file
+rpc {"id":1} / {"é":2} file:///a%20b/%C3%A9.ts 4

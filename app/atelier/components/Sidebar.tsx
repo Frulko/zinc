@@ -3,7 +3,7 @@
 import { For } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { Icon } from 'zinc:icons';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 import { active, activate, buffers, Buffer, sketchDir, sketchName, sketchFiles, openFile, tabName } from '../app/workspace';
 import { project } from '../app/project';
 import { Project } from '../model';

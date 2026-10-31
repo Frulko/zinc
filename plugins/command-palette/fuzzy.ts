@@ -1,4 +1,4 @@
-// Fuzzy matching for the file finder and the command palette, in the spirit of Zed's: the query's characters must
+// Fuzzy matching for a file finder and the command palette, in the spirit of Zed's: the query's characters must
 // appear in order (case-insensitive); matches at word starts, consecutive runs and matches in the file name score
 // higher. `hits` are the matched character positions, drawn highlighted in the lists.
 

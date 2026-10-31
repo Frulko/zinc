@@ -5,42 +5,24 @@ import { createSignal, NodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
-import { Doc } from './document';
-import { langOf } from './syntax';
-import { History } from './edit';
+import { EditorState, Diagnostic, edited, langOf } from 'zinc:editor';
 import { t } from './text';
+export { Diagnostic, edited };
 
-export class Diagnostic {
-  line: i32; col: i32; severity: i32; message: string;   // 0-based line / column; severity 1 error, 2 warning
-  constructor(line: i32, col: i32, severity: i32, message: string) { this.line = line; this.col = col; this.severity = severity; this.message = message; }
-}
-
-export class Buffer {
-  path: string; name: string;
-  doc: Doc;
-  text: () => string; setText: (v: string) => void;
+/** An open file: the editor's state (zinc:editor), its path, its tab name and the text last saved. */
+export class Buffer extends EditorState {
+  name: string;
   saved: () => string; setSaved: (v: string) => void;
-  diagnostics: () => Diagnostic[]; setDiagnostics: (v: Diagnostic[]) => void;
   crlf: boolean;
-  ref: NodeRef = new NodeRef();   // the buffer's textarea (each buffer keeps its own: caret, scroll)
-  caret: i32 = -1;
-  // the selections (flat [anchor, head...], see edit.ts) and the undo history; the text field shows the main one
-  sels: i32[] = [0, 0]; main: i32 = 0;
-  hist: History = new History();
-  goal: i32[] = [];   // the columns the cursors aim at while they move up and down (edit.ts move)
-  addNext: boolean = false; dragAdd: boolean = false; collapse: boolean = false;   // what the next pointer-made selection does (Editor.tsx)
   constructor(path: string, name: string, text: string) {
-    this.path = path; this.name = name;
-    this.crlf = text.indexOf('\r\n') >= 0;
-    const t = this.crlf ? text.replaceAll('\r\n', '\n') : text;
-    this.doc = new Doc(langOf(path));
-    this.doc.setText(t);
-    const [a, sa] = createSignal<string>(t); this.text = a; this.setText = sa;
+    const crlf = text.indexOf('\r\n') >= 0;
+    const t = crlf ? text.replaceAll('\r\n', '\n') : text;
+    super(path, t, langOf(path));
+    this.name = name;
+    this.crlf = crlf;
     const [b, sb] = createSignal<string>(t); this.saved = b; this.setSaved = sb;
-    const [d, sd] = createSignal<Diagnostic[]>([]); this.diagnostics = d; this.setDiagnostics = sd;
   }
   modified(): boolean { return this.text() !== this.saved(); }
-  node(): i32 { return this.ref.node; }
 }
 
 export const [buffers, setBuffers] = createSignal<Buffer[]>([]);
@@ -113,8 +95,6 @@ export function save(b: Buffer): boolean {
 }
 export function saveAll(): void { for (const b of buffers()) if (b.modified()) save(b); }
 
-/** A buffer edited by the user. */
-export function edited(b: Buffer, v: string): void { b.doc.setText(v); b.setText(v); }
 
 /** Next / previous tab (⌃Tab, ⌘⇧[ ]). */
 export function cycle(step: i32): void {

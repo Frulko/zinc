@@ -1,7 +1,7 @@
 // The app's icon (zinc.json app.icon), for the sidebar and the Settings page; the sketch glyph when it has none.
 import { imageFromBytes, drawImage, rrect } from 'zinc:gfx';
 import * as fs from 'zinc:fs';
-import { theme, bg, fg } from '../app/theme';
+import { theme, bg, fg } from 'zinc:editor';
 import { iconPath } from '../app/project';
 import { Glyph } from './Controls';
 import { I_GRID } from './icons';

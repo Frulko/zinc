@@ -20,14 +20,15 @@ import * as system from 'zinc:system';
 import * as menu from 'zinc:system/menu';
 import { quit, clipboardText } from 'zinc:gfx';
 import { stepMotion } from './app/motion';
-import { theme, bg, setTheme, DARK } from './app/theme';
-import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile, newSketch, sketchDir, saveAll } from './app/workspace';
+import { theme, bg, useThemes, LIGHT, DARK, EditorState } from 'zinc:editor';
+import * as proc from 'zinc:process';
+import { Buffer, setHooks, applyFocus, stepNotice, openSketch, lastSketch, openFile, newSketch, sketchDir, saveAll, buffers, active, say } from './app/workspace';
 import { findOpen, closeFind } from './app/search';
 import { COMMANDS, MENUS, Command, command, commandOf, paletteMode, closePalette, PAL_CLOSED, startOpen, setStartOpen, promptLabel, answer, shareOpen, setShareOpen } from './app/commands';
-import { check, stepTools, setJump, stopAll, consoleText, status, newProject } from './app/tools';
+import { check, stepTools, setJump, stopAll, consoleText, status, newProject, spawnZinc, problems } from './app/tools';
 import { devicesOpen, closeDevices, setWho, setCode, pair, choose, panelText, refresh } from './app/devices';
-import { stepCursors, stepMenuKeys, jumpTo, setMenuKeys, menuKey, noteKey } from './app/cursors';
-import { stepLsp, setGo, stopLsp } from './app/lsp';
+import { stepCursors, stepMenuKeys, jumpTo, setMenuKeys, menuKey, noteKey } from 'zinc:editor';
+import { stepLsp, stopLsp, useLsp, LspConfig } from 'zinc:editor-lsp';
 import { Header, EngineMenu, engineOpen, setEngineOpen, TabStrip } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { SettingsPage } from './components/Settings';
@@ -152,10 +153,21 @@ system.on('window', (a: string[]) => { if (a.length > 0 && a[0] === 'close-reque
 setHooks((b: Buffer) => {}, (b: Buffer) => { check(); checkLesson(); });
 createEffect(() => sketchOpened(sketchDir()));   // a lesson's folder opens with its panel
 loadLessons(() => { buildMenu(); for (const l of lessonList()) menu.onClick('lesson:' + l.id, (source: string) => openLesson(l.id)); });
-setJump(jumpTo);
-setGo((path: string, line: i32, col: i32) => { const b = openFile(path); if (b !== null) jumpTo(b as Buffer, line, col); });
+setJump((b: Buffer, line: i32, col: i32) => jumpTo(b, line, col));
+// the language server (zinc:editor-lsp): one `zinc lsp` per sketch, its words in Atelier's language
+const lsp = new LspConfig();
+lsp.buffers = (): EditorState[] => buffers();
+lsp.active = (): EditorState | null => active();
+lsp.root = (): string => sketchDir();
+lsp.spawn = (dir: string): proc.Process => spawnZinc(['lsp'], dir);
+lsp.say = (what: string, name: string) => { say(what === 'stopped' ? t('atelier.lsp.stopped') : what === 'no-definition' ? t('atelier.lsp.no_definition') : t('atelier.lsp.outside', ['name', name])); };
+lsp.onDiagnostics = (b: EditorState) => { problems(); };
+lsp.go = (path: string, line: i32, col: i32) => { const b = openFile(path); if (b !== null) jumpTo(b as Buffer, line, col); };
+lsp.sync = sys.env('ZINC_ATELIER_SYNC') !== '';
+lsp.echo = sys.env('ZINC_ATELIER_ECHO') !== '';
+useLsp(lsp);
 installMenu();
-if (sys.env('ZINC_ATELIER_THEME') === 'dark') setTheme(DARK);
+useThemes(LIGHT, DARK, sys.env('ZINC_ATELIER_THEME') === 'dark');
 
 const args = sys.args();
 let opened = false;
@@ -232,7 +244,7 @@ render(App, 0xffffff, (dt: number) => {
   stepMotion(dt);
   stepNotice(dt);
   applyFocus();
-  stepCursors();
+  stepCursors(active());
   stepLsp(dt);
   stepEditor();
   stepTools();

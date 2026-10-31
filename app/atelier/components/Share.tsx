@@ -4,7 +4,7 @@
 // is shown under its action.
 import * as sys from 'zinc:sys';
 import * as proc from 'zinc:process';
-import { theme, fg } from '../app/theme';
+import { theme, fg } from 'zinc:editor';
 import { sketchDir, say } from '../app/workspace';
 import { build, pack, made, device, run, phase, IDLE } from '../app/tools';
 import { hub, HERE, PUBLISH_TARGETS, publishTarget, setPublishTarget, publishChannel, setPublishChannel, publishMissing, publishApp } from '../app/project';

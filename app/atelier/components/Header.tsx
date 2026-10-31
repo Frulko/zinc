@@ -5,7 +5,7 @@ import { createSignal, createNodeRef, For } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { rrect } from 'zinc:gfx';
 import { Icon } from 'zinc:icons';
-import { theme, bg, fg, bd, toggleTheme } from '../app/theme';
+import { theme, bg, fg, bd, toggleTheme } from 'zinc:editor';
 import { active, activate, buffers, Buffer, closeBuffer } from '../app/workspace';
 import { phase, stage, seconds, debugging, run, stop, IDLE, BUILDING, ENGINE_IDS, engineName, engine, setEngine, device, setDevice } from '../app/tools';
 import { devices, isPaired, choose } from '../app/devices';

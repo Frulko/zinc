@@ -1,0 +1,8 @@
+{
+  "name": "command-palette",
+  "kind": "module",
+  "module": "zinc:command-palette",
+  "entry": "index.tsx",
+  "description": "A command palette on zinc:ui: fuzzy matching in the manner of Zed's (word starts, runs, the file name first) and the floating list with its query field, keys and highlighted matches",
+  "targets": { "macos": {}, "linux": {}, "windows": {}, "android": {}, "ios": {}, "rpi1": {}, "wasm": {} }
+}

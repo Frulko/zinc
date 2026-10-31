@@ -4,7 +4,7 @@
 // A plain sketch (no zinc.json) gets the offer to make it a project.
 import { createSignal, createEffect, createNodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 import { sketchDir, sketchName, mainFile } from '../app/workspace';
 import { project, projectOpen, sizeHere, plugins, assetsText, HERE, setName, setVersion, setId, setSize, setResize, setFullscreen, setShell,
   togglePermission, makeProject, openJson, showFolder, permissionText, chooseIcon, hub, setHub, seed, makeKey } from '../app/project';

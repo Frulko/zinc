@@ -9,13 +9,13 @@ import { Tween, easeOut, easeInOut } from './motion';
 import { active, activate, Buffer, closeBuffer, cycle, saveAll, say, newSketch, openSketch, newFile, renameFile, deleteFile,
   sketchDir, sketchbook, mainFile, openFile, baseName, freeName } from './workspace';
 import { openFind } from './search';
-import { toggleTheme } from './theme';
+import { toggleTheme } from 'zinc:editor';
 import { openProject, projectOpen, setProjectOpen, publishApp } from './project';
 import { pack, run, stop, build, check, inspect, copyConsole, showConsole, consoleOpen, clearConsole, loadLibraries, loadTemplates, newProject, importLine, setEngine, setDevice, ENGINE_IDS, engineName, ZINC, updates, updateReady, reference } from './tools';
 import { openDevices, closeDevices, devicesOpen } from './devices';
 import { startTour } from './tour';
-import { editCommand, setText, menuKey, goDefinition } from './cursors';
-import { suggest } from './lsp';
+import { editCommand, setText, menuKey, goDefinition } from 'zinc:editor';
+import { suggest } from 'zinc:editor-lsp';
 import { t } from './text';
 
 export class Command {
@@ -165,18 +165,18 @@ add('file', 'close', 'CmdOrCtrl+W', withBuffer((b: Buffer) => closeBuffer(b)));
 add('edit', 'undo', 'CmdOrCtrl+Z', () => menuKey('z', ui.META));
 add('edit', 'redo', 'CmdOrCtrl+Shift+Z', () => menuKey('z', ui.META | ui.SHIFT));
 add('edit', 'find', 'CmdOrCtrl+F', () => openFind(), true);
-add('edit', 'comment', 'CmdOrCtrl+Slash', () => { editCommand('comment'); }, true);
-add('edit', 'indent', '', () => { editCommand('indent'); });
-add('edit', 'outdent', '', () => { editCommand('outdent'); });
-add('edit', 'line-up', 'Alt+Up', () => { editCommand('line-up'); }, true);
-add('edit', 'line-down', 'Alt+Down', () => { editCommand('line-down'); });
-add('edit', 'line-duplicate', 'CmdOrCtrl+Shift+D', () => { editCommand('line-duplicate'); });
-add('edit', 'line-delete', 'CmdOrCtrl+Shift+K', () => { editCommand('line-delete'); });
-add('edit', 'select-next', 'CmdOrCtrl+D', () => { editCommand('select-next'); }, true);
-add('edit', 'cursor-above', 'CmdOrCtrl+Alt+Up', () => { editCommand('cursor-above'); });
-add('edit', 'cursor-below', 'CmdOrCtrl+Alt+Down', () => { editCommand('cursor-below'); });
+add('edit', 'comment', 'CmdOrCtrl+Slash', () => { editCommand(active(), 'comment'); }, true);
+add('edit', 'indent', '', () => { editCommand(active(), 'indent'); });
+add('edit', 'outdent', '', () => { editCommand(active(), 'outdent'); });
+add('edit', 'line-up', 'Alt+Up', () => { editCommand(active(), 'line-up'); }, true);
+add('edit', 'line-down', 'Alt+Down', () => { editCommand(active(), 'line-down'); });
+add('edit', 'line-duplicate', 'CmdOrCtrl+Shift+D', () => { editCommand(active(), 'line-duplicate'); });
+add('edit', 'line-delete', 'CmdOrCtrl+Shift+K', () => { editCommand(active(), 'line-delete'); });
+add('edit', 'select-next', 'CmdOrCtrl+D', () => { editCommand(active(), 'select-next'); }, true);
+add('edit', 'cursor-above', 'CmdOrCtrl+Alt+Up', () => { editCommand(active(), 'cursor-above'); });
+add('edit', 'cursor-below', 'CmdOrCtrl+Alt+Down', () => { editCommand(active(), 'cursor-below'); });
 add('edit', 'suggest', 'Ctrl+Space', withBuffer((b: Buffer) => suggest(b)), true);
-add('edit', 'definition', 'F12', () => goDefinition());
+add('edit', 'definition', 'F12', () => goDefinition(active()));
 
 add('sketch', 'run', 'CmdOrCtrl+R', () => run(false));
 add('sketch', 'stop', 'CmdOrCtrl+Period', () => stop());

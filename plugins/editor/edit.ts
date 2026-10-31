@@ -435,3 +435,10 @@ export class History {
   back(now: Ed): Ed | null { this.typing = false; if (this.undo.length === 0) return null; this.redo.push(now); return this.undo.pop(); }
   forward(now: Ed): Ed | null { this.typing = false; if (this.redo.length === 0) return null; this.undo.push(now); return this.redo.pop(); }
 }
+
+// ---------------------------------------------------------------- words
+export function isIdent(c: i32): boolean { return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c === 36; }
+/** Where the identifier that ends at `caret` starts (`caret` itself when no identifier ends there). */
+export function wordStart(text: string, caret: i32): i32 { let i = caret; while (i > 0 && isIdent(text.charCodeAt(i - 1))) i--; return i; }
+/** Where the identifier around `p` ends. */
+export function wordEnd(text: string, p: i32): i32 { let i = p; while (i < text.length && isIdent(text.charCodeAt(i))) i++; return i; }

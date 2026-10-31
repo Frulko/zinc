@@ -1,0 +1,8 @@
+{
+  "name": "editor-lsp",
+  "kind": "module",
+  "module": "zinc:editor-lsp",
+  "entry": "index.ts",
+  "description": "A language server client for zinc:editor: JSON-RPC framing over a child process, completion, signature help, hover, definition and diagnostics (zinc lsp, or any server that speaks LSP over stdio)",
+  "targets": { "macos": {}, "linux": {}, "windows": {} }
+}

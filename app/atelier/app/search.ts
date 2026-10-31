@@ -4,7 +4,7 @@ import { createSignal, createMemo, createNodeRef } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { Tween, easeOut, easeInOut } from './motion';
 import { active, activate, focusLater, Buffer } from './workspace';
-import { Doc } from './document';
+import { Doc } from 'zinc:editor';
 
 export const [findOpen, setFindOpen] = createSignal<boolean>(false);
 export const [query, setQuery] = createSignal<string>('');

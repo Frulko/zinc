@@ -1,22 +1,56 @@
-// The language server beside the editor: one `zinc lsp` child per sketch, spoken to in JSON-RPC over its stdin and stdout
-// (rpc.ts has the framing and reads the answers). Every code tab is opened in it, changed (the whole text, once typing
-// pauses or a request needs it) and closed; it answers completion, signature help, hover and definition, and sends the
-// diagnostics of a file each time that file changes.
+// The language server beside zinc:editor: one child per workspace folder (`zinc lsp`, or any server that speaks LSP over
+// stdio), spoken to in JSON-RPC over its stdin and stdout (rpc.ts has the framing and reads the answers). Every open code
+// editor is opened in it, changed (the whole text, once typing pauses or a request needs it) and closed; it answers
+// completion, signature help, hover and definition, and sends the diagnostics of a file each time that file changes.
 // Nothing here waits: a request is written and the editor goes on; an answer that comes after a newer request of its
-// kind, or after its popup closed, is dropped. The child is restarted once if it dies; it ends when another sketch
-// opens, and with Atelier (its stdin closes).
+// kind, or after its popup closed, is dropped. The child is restarted once if it dies; it ends when the folder changes,
+// and with the app (its stdin closes). The app says what is open and how to start the server with `useLsp(config)`,
+// then calls `stepLsp(dt)` once a frame; the editor's assistant (completion keys, hover) is plugged in by useLsp.
 import { createSignal } from 'zinc:ui/solid';
 import * as sys from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import * as proc from 'zinc:process';
-import { Buffer, Diagnostic, buffers, active, sketchDir, say } from './workspace';
-import { spawnZinc, problems } from './tools';
-import { T_COMMENT, T_STRING } from './syntax';
-import { t } from './text';
-import { Reader, frame, uriOf, Item, itemsOf, filterItems, Sig, sigOf, hoverOf, problemsOf, Problem, placeOf, isIdent, wordStart, specStart, callStart } from './rpc';
+import { EditorState as Buffer, Diagnostic, T_COMMENT, T_STRING, Assist, setAssist } from 'zinc:editor';
+import { isIdent, wordStart } from 'zinc:editor';
+import { Reader, frame, uriOf, Item, itemsOf, filterItems, Sig, sigOf, hoverOf, problemsOf, Problem, placeOf, specStart, callStart } from './rpc';
 
-const sync: boolean = sys.env('ZINC_ATELIER_SYNC') !== '';   // tests: a frame waits for the server's answers
-const echo: boolean = sys.env('ZINC_ATELIER_ECHO') !== '';
+/** What the client needs from the app. */
+export class LspConfig {
+  /** The open editors (their `path` names the document) and the active one. */
+  buffers: () => Buffer[] = (): Buffer[] => [];
+  active: () => Buffer | null = (): Buffer | null => null;
+  /** The folder the server serves ('' for none: no server). */
+  root: () => string = (): string => '';
+  /** Starts the server in a folder. */
+  spawn: (dir: string) => proc.Process = (dir: string): proc.Process => proc.spawn('zinc', ['lsp'], { cwd: dir });
+  /** A message for the status line: 'stopped' (the server died twice), 'no-definition', 'outside' (`name` is a file outside the folder). */
+  say: (what: string, name: string) => void = (what: string, name: string) => {};
+  /** The diagnostics of an editor changed. */
+  onDiagnostics: (b: Buffer) => void = (b: Buffer) => {};
+  /** Opens a file of the folder at a line and column, 1-based (the editor owns the caret): a definition. */
+  go: (path: string, line: i32, col: i32) => void = (path: string, line: i32, col: i32) => {};
+  /** Which files are sent to the server. */
+  isCode: (path: string) => boolean = (path: string): boolean => path.endsWith('.ts') || path.endsWith('.tsx') || path.endsWith('.js');
+  /** Tests: every frame waits for the server's answers. */
+  sync: boolean = false;
+  /** Tests: the answers are printed ([lsp] lines). */
+  echo: boolean = false;
+}
+let cfg: LspConfig = new LspConfig();
+let sync: boolean = false, echo: boolean = false;
+function buffers(): Buffer[] { return cfg.buffers(); }
+function active(): Buffer | null { return cfg.active(); }
+function isCode(path: string): boolean { return cfg.isCode(path); }
+
+/** Plugs the client into the app and into the editor (completion keys, hover, definition, what is typed). */
+export function useLsp(c: LspConfig): void {
+  cfg = c; sync = c.sync; echo = c.echo;
+  const a = new Assist();
+  a.typed = typed; a.suggest = suggest; a.popupKey = popupKey; a.accepted = accepted; a.popupSpec = popupSpec;
+  a.closePopup = closePopup; a.hideHover = hideHover; a.definition = definition; a.pointerOver = pointerOver;
+  setAssist(a);
+}
+
 const PAUSE: number = 0.15;   // seconds without a keystroke before the text goes to the server
 const REST: number = 0.35;    // seconds the pointer rests on a name before its card shows
 
@@ -43,13 +77,12 @@ function at(b: Buffer, off: i32): string {
   const l = b.doc.lineOf(off);
   return `{"textDocument":{"uri":${q(uriOf(b.path))}},"position":{"line":${l},"character":${off - b.doc.starts[l]}}}`;
 }
-function isCode(path: string): boolean { return path.endsWith('.ts') || path.endsWith('.tsx') || path.endsWith('.js'); }
 
 function start(): void {
   reader = new Reader(); sentPaths = []; sentTexts = []; waiting = 0;
   compId = -1; sigId = -1; hoverId = -1; defId = -1;
   try {
-    const p = spawnZinc(['lsp'], dir);
+    const p = cfg.spawn(dir);
     child = p;
     if (echo) console.log(`[lsp] started ${p.pid}`);
     p.onData((chunk: string, stderr: boolean) => { if (!stderr && child === p) for (const body of reader.push(chunk)) receive(body); });
@@ -57,7 +90,7 @@ function start(): void {
       if (child !== p) return;   // ended by stop()
       child = null; waiting = 0;
       closePopup(); setSig(null); setHover([]);
-      if (!restarted) { restarted = true; start(); } else say(t('atelier.lsp.stopped'));
+      if (!restarted) { restarted = true; start(); } else cfg.say('stopped', '');
     });
     request('initialize', `{"processId":null,"rootUri":${q(uriOf(dir))},"capabilities":{}}`);
     notify('initialized', '{}');
@@ -105,7 +138,7 @@ function diagnostics(params: any): void {
     const list: Diagnostic[] = problemsOf(params).map((p: Problem) => new Diagnostic(p.line, p.col, p.severity, p.message));
     if (list.length === 0 && b.diagnostics().length === 0) return;
     b.setDiagnostics(list);
-    problems();
+    cfg.onDiagnostics(b);
     return;
   }
 }
@@ -113,7 +146,7 @@ function diagnostics(params: any): void {
 let seenText: string = '', seenCaret: i32 = -1, quiet: number = 0;
 /** Once per frame: the child follows the sketch, the documents follow the tabs, the popup follows the typing. */
 export function stepLsp(dt: number): void {
-  const d = sketchDir();
+  const d = cfg.root();
   if (d !== dir) { stop(); dir = d; restarted = false; if (d !== '') start(); }
   if (child === null) return;
   const list = buffers(), a = active();
@@ -230,6 +263,8 @@ export function popupKey(key: string, plain: boolean): i32 {
 }
 export function accepted(): string { const rows = popup(); return rows.length > 0 ? rows[Math.min(popupRow(), rows.length - 1)].label : ''; }
 export function popupSpec(): boolean { return popSpec; }
+/** The editor the popup completes in. */
+export function popupEditor(): Buffer | null { return popOpen ? popBuf : null; }
 /** Offset where the name the popup completes starts (the popup hangs under it). */
 export function popupFrom(): i32 {
   if (!popOpen || popBuf === null) return -1;
@@ -273,9 +308,6 @@ function trackHover(dt: number): void {
 }
 
 // ---------------------------------------------------------------- definition
-let go: (path: string, line: i32, col: i32) => void = (path: string, line: i32, col: i32) => {};
-/** `f` opens a file of the sketch at a line and column (the editor owns the caret). */
-export function setGo(f: (path: string, line: i32, col: i32) => void): void { go = f; }
 /** Goes to where the name at `off` is declared (F12, Cmd+click). */
 export function definition(b: Buffer, off: i32): void {
   if (child === null || !isCode(b.path)) return;
@@ -283,13 +315,13 @@ export function definition(b: Buffer, off: i32): void {
   defId = request('textDocument/definition', at(b, off));
 }
 function goPlace(p: string[]): void {
-  if (p.length === 0) { say(t('atelier.lsp.no_definition')); if (echo) console.log('[lsp] no definition'); return; }
+  if (p.length === 0) { cfg.say('no-definition', ''); if (echo) console.log('[lsp] no definition'); return; }
   let path = p[0];
   for (const b of buffers()) if (b.path === path || sameFile(b.path, path)) path = b.path;
   if (echo) console.log(`[lsp] definition ${path.slice(path.lastIndexOf('/') + 1)}:${p[1]}:${p[2]}`);
   let real = dir;
   try { real = fs.realpath(dir); } catch (e) { }
-  if (path.startsWith(dir + '/') || path.startsWith(real + '/')) go(path, parseInt(p[1]), parseInt(p[2]));
-  else say(t('atelier.lsp.outside', ['name', path.slice(path.lastIndexOf('/') + 1)]));   // the standard library is not opened for editing
+  if (path.startsWith(dir + '/') || path.startsWith(real + '/')) cfg.go(path, parseInt(p[1]), parseInt(p[2]));
+  else cfg.say('outside', path.slice(path.lastIndexOf('/') + 1));   // the standard library is not opened for editing
 }
 function sameFile(a: string, b: string): boolean { try { return fs.realpath(a) === fs.realpath(b); } catch (e) { return false; } }

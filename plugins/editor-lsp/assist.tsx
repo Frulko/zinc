@@ -1,18 +1,16 @@
 // What the language server says, over the editor: the completion popup under the name being typed (a kind mark and the
 // label per row, the signature and the description of the selected row under the list), the signature of the call the
 // caret is in above its line (the argument being typed in the accent colour, its description under it), and the card of
-// the name the pointer rests on (its type, its doc). `stepAssist` places them once per frame from the editor's geometry.
+// the name the pointer rests on (its type, its doc). `stepAssist` places them once per frame from the editor's geometry;
+// the app lays `<Popup />`, `<Signature />` and `<Hover />` over its editors.
 import { createSignal } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
 import { font, textWidth } from 'zinc:gfx';
-import { theme, bg, fg, bd, Theme } from '../app/theme';
-import { Buffer } from '../app/workspace';
-import { popup, popupRow, setPopupRow, popupFrom, sig, hover, hoverFrom } from '../app/lsp';
-import { Item, Sig, kindMark } from '../app/rpc';
-import { segments } from '../app/fuzzy';
-import { acceptCompletion } from '../app/cursors';
+import { theme, bg, fg, bd, Theme, EditorState as Buffer, acceptCompletion } from 'zinc:editor';
+import { segments } from 'zinc:command-palette';
+import { popup, popupRow, setPopupRow, popupFrom, sig, hover, hoverFrom, popupEditor } from './lsp';
+import { Item, Sig, kindMark } from './rpc';
 
-const FONT_PX: i32 = 14, PAD_LEFT: i32 = 14, PAD_TOP: i32 = 10;   // the editor's (Editor.tsx)
 const ROW: i32 = 26, ROWS: i32 = 8, POPUP_W: i32 = 380, LABEL_X: i32 = 37;   // LABEL_X: where a row's label starts in the popup
 
 // [left, top] of each card in the editor's pane, and the pane's size
@@ -40,8 +38,8 @@ function sigDoc(s: Sig): string { return s.paramDoc !== '' ? s.paramDoc : s.doc;
 export function stepAssist(b: Buffer): void {
   const rows = popup(), s = sig(), hv = hover();
   if (rows.length === 0 && s === null && hv.length === 0) return;
-  const h = b.node(), v = ui.editView(h), box = ui.screenBox(h), doc = b.doc, f = font('mono', FONT_PX), f12 = font('mono', 12);
-  const paneH = v[3] + PAD_TOP, paneW = box[3] > 0 ? box[2] * paneH / box[3] : 800, lh = v[4];
+  const h = b.node(), v = ui.editView(h), box = ui.screenBox(h), doc = b.doc, f = font('mono', b.fontPx()), f12 = font('mono', 12);
+  const PAD_LEFT = b.padLeft, PAD_TOP = b.padTop, paneH = v[3] + PAD_TOP, paneW = box[3] > 0 ? box[2] * paneH / box[3] : 800, lh = v[4];
   const xy = (off: i32): number[] => {
     const line = doc.lineOf(off);
     return [PAD_LEFT + v[6] + textWidth(f, doc.lines[line].slice(0, off - doc.starts[line]), 0) - v[0], PAD_TOP + line * lh - v[1]];
@@ -72,7 +70,7 @@ function Row(props: { it: Item }): i32 {
   const it = props.it, on = (): boolean => popup().indexOf(it) === popupRow();
   const segs = segments(it.label, it.hits);
   return <View className={`flex-row items-center h-[26] px-1.5 gap-2 rounded-lg cursor-pointer ${on() ? bg(theme().selected) : ''}`}
-    onPointerDown={(e: ui.PointerEvent) => { setPopupRow(popup().indexOf(it)); acceptCompletion(); }}>
+    onPointerDown={(e: ui.PointerEvent) => { setPopupRow(popup().indexOf(it)); const ed = popupEditor(); if (ed !== null) acceptCompletion(ed as Buffer); }}>
     <View className={`w-[18] h-[18] rounded-md items-center justify-center ${bg(on() ? theme().elevated : theme().hover)}`}>
       <Text className={`text-[11px] font-semibold ${fg(markColor(theme(), it.kind))}`}>{kindMark(it.kind)}</Text>
     </View>

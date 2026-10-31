@@ -8,7 +8,7 @@ import * as ui from 'zinc:ui';
 import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import { imageFromBytes, drawImage, rrect, border } from 'zinc:gfx';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 import { newSketch, openCopy, sketchbook, say, APP_HOME, ENGINE_ROOT, STYLES } from '../app/workspace';
 import { startOpen, setStartOpen, openDocs, fromTemplate, openPalette, PAL_TEMPLATES } from '../app/commands';
 import { Glyph } from './Controls';

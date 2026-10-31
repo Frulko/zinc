@@ -4,12 +4,12 @@
 // step is left with it). The language card comes first on a first launch.
 import { createSignal, createEffect, createNodeRef, untrack } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 import { STEPS, tourStep, stepId, nextStep, backStep, endTour } from '../app/tour';
 import { active, Buffer, sketchDir, saveAll } from '../app/workspace';
 import { check, runCount } from '../app/tools';
 import { setStartOpen, openDocs } from '../app/commands';
-import { setText } from '../app/cursors';
+import { setText } from 'zinc:editor';
 import { t, LANGUAGES, languageName, lang, setLanguage } from '../app/text';
 import { runRef, engineRef, paletteRef } from './Header';
 import { examplesRef, helloRef, stylesRef, templatesRef, openExample } from './Start';

@@ -1,11 +1,11 @@
-// Self-check of the editor's logic that needs no window: the editing commands of app/edit.ts (indent, several cursors,
-// comments, pairs, line commands, word and line deletion, undo) and the language server's protocol of app/rpc.ts (framing,
+// Self-check of the editor's logic that needs no window: the editing commands of zinc:editor (indent, several cursors,
+// comments, pairs, line commands, word and line deletion, undo) and the language server's protocol of zinc:editor-lsp (framing,
 // URIs, the answers and the filtering of completion items). One line per check; exits 1 on a failure.
 //   zinc run app/atelier/selftest.ts
 import * as sys from 'zinc:sys';
 import { Ed, norm, typeText, paste, copyText, erase, newline, indent, outdent, toggleComment, deleteLines, duplicateLines, moveLines,
-  single, addSel, selectNext, addCursorV, move, eraseTo, complete, occurrences, History, M_LEFT, M_RIGHT, M_WORD_LEFT, M_WORD_RIGHT, M_HOME, M_END, M_UP, M_DOWN } from './app/edit';
-import { utf8Length, frame, Reader, uriOf, pathOf, wordStart, specStart, callStart, Item, itemsOf, filterItems, Sig, sigOf, hoverOf, Problem, problemsOf, placeOf } from './app/rpc';
+  single, addSel, selectNext, addCursorV, move, eraseTo, complete, occurrences, History, M_LEFT, M_RIGHT, M_WORD_LEFT, M_WORD_RIGHT, M_HOME, M_END, M_UP, M_DOWN, wordStart } from 'zinc:editor';
+import { utf8Length, frame, Reader, uriOf, pathOf, specStart, callStart, Item, itemsOf, filterItems, Sig, sigOf, hoverOf, Problem, problemsOf, placeOf } from 'zinc:editor-lsp';
 
 let failures: i32 = 0;
 /** A state from a picture: `|` is a cursor, `«…»` a selection (the last mark is the main one). */

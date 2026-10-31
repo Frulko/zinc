@@ -5,12 +5,12 @@
 // Atelier ever needs (a file name).
 import { createNodeRef, createEffect, untrack } from 'zinc:ui/solid';
 import * as ui from 'zinc:ui';
-import { theme, bg, fg, bd } from '../app/theme';
+import { theme, bg, fg, bd } from 'zinc:editor';
 import { active, Buffer, notice, focusLater } from '../app/workspace';
 import { lines, Line, K_OUT, K_ERR, jump, explain, consoleH, consoleOpen, showConsole, takeFollow, copyConsole, status, statusKind, phase, IDLE, BUILDING, inspectorPort, openInspector, reference } from '../app/tools';
 import { promptLabel, promptValue, setPromptValue, answer, openReference } from '../app/commands';
-import { jumpTo } from '../app/cursors';
-import { caretInfo } from './Editor';
+import { jumpTo } from 'zinc:editor';
+import { caretInfo } from 'zinc:editor';
 import { Glyph, IconButton, Kbd } from './Controls';
 import { t as tr, tn } from '../app/text';
 import { I_DOWN, I_UP, I_DOT } from './icons';

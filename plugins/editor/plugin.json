@@ -1,0 +1,8 @@
+{
+  "name": "editor",
+  "kind": "module",
+  "module": "zinc:editor",
+  "entry": "index.ts",
+  "description": "A code editor on zinc:ui (Atelier's): document model, several cursors, undo and redo, syntax highlighting with a language registry, theme tokens, the CodeEditor and Minimap views and CodeView, a read-only highlighted snippet",
+  "targets": { "macos": {}, "linux": {}, "windows": {}, "android": {}, "ios": {}, "rpi1": {}, "wasm": {} }
+}

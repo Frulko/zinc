@@ -3,13 +3,38 @@
 // then shown: the text set in the field, the main selection given to it, the others drawn by the editor.
 // What the field does by itself (typed characters, its paste and cut, the pointer) is read back: `nativeInput` repeats
 // typed text at the other cursors and closes brackets, `sync` follows a selection made with the pointer or the arrows.
+// An assistant (a language server: zinc:editor-lsp) plugs in with `setAssist`: it hears what is typed, and its completion
+// popup takes the keys it wants first.
 import * as ui from 'zinc:ui';
 import * as sys from 'zinc:sys';
 import { clipboardText, setClipboardText } from 'zinc:gfx';
-import { Buffer, active, edited } from './workspace';
-import { typed, suggest, popupKey, accepted, popupSpec, closePopup, hideHover, definition } from './lsp';
+import { EditorState as Buffer, edited } from './state';
 import { Ed, one, typeText, paste, copyText, erase, eraseTo, complete, newline, indent, outdent, toggleComment, deleteLines, duplicateLines, moveLines,
   single, addSel, setMain, selectNext, addCursorV, move, M_LEFT, M_RIGHT, M_WORD_LEFT, M_WORD_RIGHT, M_HOME, M_END, M_UP, M_DOWN, M_TOP, M_BOTTOM } from './edit';
+
+/** What the editor asks of an assistant (completion, signature, hover, definition). The default does nothing. */
+export class Assist {
+  /** One character (or a paste) was typed in `b`. */
+  typed: (b: Buffer, s: string) => void = (b: Buffer, s: string) => {};
+  /** Ctrl+Space: open the completion list at the caret. */
+  suggest: (b: Buffer) => void = (b: Buffer) => {};
+  /** A key while the popup shows: 0 not for it, 1 done, 2 accept the selected row (`accepted`). */
+  popupKey: (key: string, plain: boolean) => i32 = (key: string, plain: boolean): i32 => 0;
+  /** The label of the selected row ('' for none) and whether it completes an import's module name. */
+  accepted: () => string = (): string => '';
+  popupSpec: () => boolean = (): boolean => false;
+  closePopup: () => void = () => {};
+  hideHover: () => void = () => {};
+  /** Go to where the name at `off` is declared. */
+  definition: (b: Buffer, off: i32) => void = (b: Buffer, off: i32) => {};
+  /** The pointer is over the name that starts at `off` (-1: over none). */
+  pointerOver: (b: Buffer, off: i32) => void = (b: Buffer, off: i32) => {};
+}
+let assist: Assist = new Assist();
+export function setAssist(a: Assist): void { assist = a; }
+export function getAssist(): Assist { return assist; }
+function closePopup(): void { assist.closePopup(); }
+function hideHover(): void { assist.hideHover(); }
 
 /** True when the desktop menu takes the shortcuts of its items (macOS): the editor then leaves them to it, else each would run twice. */
 let menuKeys = false;
@@ -74,7 +99,7 @@ export function nativeInput(b: Buffer, v: string): void {
   b.collapse = false; b.addNext = false;
   keepPopup = typing;
   show(b, r, before, typing);
-  if (typing) typed(b, v.slice(m0, caret));
+  if (typing) assist.typed(b, v.slice(m0, caret));
 }
 
 /** Replaces the whole text of a buffer as one edit that undo takes back (a library's import line). */
@@ -86,9 +111,8 @@ export function undo(b: Buffer, redo: boolean): void {
   if (to !== null) show(b, to as Ed, null, false);
 }
 
-/** The editing commands of the menu and the palette, by id; false when `id` is not one. */
-export function editCommand(id: string): boolean {
-  const b = active();
+/** The editing commands of the menu and the palette, by id, on editor `b` (the active one); false when `id` is not one. */
+export function editCommand(b: Buffer | null, id: string): boolean {
   if (b === null || (b as Buffer).node() < 0) return false;
   const buf = b as Buffer;
   sync(buf);
@@ -112,11 +136,11 @@ export function editCommand(id: string): boolean {
 }
 
 /** The selected row of the completion popup replaces the name being typed, at every cursor. */
-export function acceptCompletion(): void {
-  const a = active(), label = accepted();
-  if (a === null || label === '') return;
-  const st = state(a as Buffer);
-  show(a as Buffer, complete(st, label, popupSpec()), st, false);
+export function acceptCompletion(b: Buffer): void {
+  const label = assist.accepted();
+  if (label === '') return;
+  const st = state(b);
+  show(b, complete(st, label, assist.popupSpec()), st, false);
 }
 
 /** The shortcut of an editing command that the menu also lists ('' for another key). */
@@ -142,14 +166,14 @@ export function editorKey(b: Buffer, e: ui.KeyEvent, escape: () => void): boolea
   const st = state(b), multi = st.count() > 1, k = e.key, cmd = e.primary, plain = !cmd && !e.alt && !e.ctrl;
   hideHover();
   // the completion popup first: arrows choose, Enter and Tab accept at every cursor, Escape closes
-  const pk = popupKey(k, plain && !e.shift);
+  const pk = assist.popupKey(k, plain && !e.shift);
   if (pk === 1) return true;
-  if (pk === 2) { acceptCompletion(); return true; }
-  if (e.ctrl && k === ' ') { suggest(b); return true; }
+  if (pk === 2) { acceptCompletion(b); return true; }
+  if (e.ctrl && k === ' ') { assist.suggest(b); return true; }
   const c = menuCommand(e);
   if (c !== '') {
     // undo and redo are the buffer's, never the field's; the others are the menu's on macOS
-    if (c === 'undo' || c === 'redo' || !menuKeys) editCommand(c);
+    if (c === 'undo' || c === 'redo' || !menuKeys) editCommand(b, c);
     return true;
   }
   let r: Ed | null = null;
@@ -189,20 +213,18 @@ export function editorPress(b: Buffer, alt: boolean, meta: boolean = false): voi
 
 let defNext = false;   // the press under way is a Cmd+click: once the field has put its caret there, go to the definition
 /** F12: goes to where the name at the caret is declared. */
-export function goDefinition(): void {
-  const a = active();
-  if (a === null || (a as Buffer).node() < 0) return;
-  sync(a as Buffer);
-  definition(a as Buffer, (a as Buffer).sels[2 * (a as Buffer).main + 1]);
+export function goDefinition(b: Buffer | null): void {
+  if (b === null || (b as Buffer).node() < 0) return;
+  sync(b as Buffer);
+  assist.definition(b as Buffer, (b as Buffer).caret());
 }
 
 /** Puts the caret at a line and column (1-based) of a buffer, once its field exists: a click on an error, a diagnostic. */
 let jumpBuf: Buffer | null = null, jumpLine: i32 = 0, jumpCol: i32 = 0;
 export function jumpTo(b: Buffer, line: i32, col: i32): void { jumpBuf = b; jumpLine = line; jumpCol = col; }
 
-/** Once per frame: follows the field of the active buffer and makes the jump asked. */
-export function stepCursors(): void {
-  const a = active();
+/** Once per frame, with the active editor: follows its field and makes the jump asked. */
+export function stepCursors(a: Buffer | null): void {
   if (a === null || (a as Buffer).node() < 0) return;
   const b = a as Buffer;
   if (jumpBuf === b) {
@@ -214,7 +236,7 @@ export function stepCursors(): void {
     return;
   }
   sync(b);
-  if (defNext) { defNext = false; definition(b, b.sels[2 * b.main + 1]); }
+  if (defNext) { defNext = false; assist.definition(b, b.caret()); }
 }
 
 // ---------------------------------------------------------------- the Edit menu's standard items and their keys
