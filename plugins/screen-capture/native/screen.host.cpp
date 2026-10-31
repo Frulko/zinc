@@ -48,6 +48,7 @@ struct Cap {
 };
 std::vector<Cap> caps;
 std::vector<int32_t> thumbs;          // the runtime images of the last list
+std::vector<int32_t> prev_thumbs;     // the list before it: still shown until the new one is, freed at the next list
 std::string err;
 int listing = 0;                      // the last list: 0 running, 1 done, -1 failed
 std::string listed;                   // its records
@@ -93,7 +94,9 @@ const std::vector<Fake>& fakes() {
   return all;
 }
 const Fake* fake_of(const std::string& id) { for (const Fake& f : fakes()) if (id == f.id) return &f; return nullptr; }
-void clear_thumbs() { for (int32_t t : thumbs) zrt::raster::dyn_destroy(t); thumbs.clear(); }
+/** A new list frees the images of the list before the last, never the last: a dialog still draws those until it has the new ones (freeing them
+ *  at once made every preview flash black between two refreshes). */
+void clear_thumbs() { for (int32_t t : prev_thumbs) zrt::raster::dyn_destroy(t); prev_thumbs.swap(thumbs); thumbs.clear(); }
 std::string record(const ScSource& s, int32_t thumb, int32_t icon) {
   return s.id + FS + s.kind + FS + s.name + FS + s.app + FS + std::to_string(s.w) + FS + std::to_string(s.h) + FS + std::to_string(thumb) + FS + std::to_string(icon) + RS;
 }

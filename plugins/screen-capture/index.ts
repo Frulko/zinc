@@ -15,7 +15,7 @@ export type SourceKind = 'screen' | 'window';
 export type PermissionStatus = 'granted' | 'denied';
 
 /** A screen or a window. `thumbnail`: a runtime image (gfx.drawImage, <Image source>) of the size asked, -1 without one; it lives until the
- *  next getSources(). */
+ *  getSources() after the next one (so a screen still showing it while the next listing runs never flashes black). */
 export interface CaptureSource { id: string; kind: SourceKind; name: string; appName: string; width: number; height: number; thumbnail: number;
   /** A window's application icon (a runtime image, 32 pixels square, with alpha), -1 for none (screens); it lives as long as `thumbnail`. */
   appIcon: number }

@@ -1,6 +1,6 @@
 // The share dialog of zinc:screen-capture/picker (ZN-911; owner, 2026-10-31: scrolling the list of screens and windows jumped back to the
 // top). Eight fake windows (ZINC_FAKE_WINDOWS=8) make the list longer than its box: scrolled with the wheel, it keeps its place while the
-// thumbnails refresh (every 1.5 s); the search field filters by name, and Share sends the one left.
+// thumbnails refresh (every 1.5 s); the search field filters by name, and the Entire screen tab shows the screen, HD carries the app's note, and Share sends the one chosen.
 import * as ui from 'zinc:ui';
 import { render } from 'zinc:ui/solid';
 import { pickScreen, pickerOpen, confirmPicker, ShareChoice } from 'zinc:screen-capture/picker';
@@ -12,10 +12,10 @@ const shown = (name: string): string => ui.find(name) >= 0 ? 'shown' : 'hidden';
 let frames = 0, list = -1, top = 0;
 render(App, 0xffffff, (dt: number) => {
   frames++;
-  if (frames === 2) pickScreen({ title: 'Share your screen' }).then((c: ShareChoice | null) => { console.log(`shared ${c !== null ? c.sourceId : 'nothing'}`); });
+  if (frames === 2) pickScreen({ title: 'Share your screen', lockedNote: 'Nitro', allowed: (r: string, f: number): boolean => r === '720' && f <= 30 }).then((c: ShareChoice | null) => { console.log(`shared ${c !== null ? c.sourceId : 'nothing'}`); });
   if (frames === 10) {
-    console.log(`open ${pickerOpen()}`);
-    const b = ui.screenBox(ui.find('Zinc Fake Screen'));
+    console.log(`open ${pickerOpen()}, tabs ${shown('Applications')} ${shown('Entire screen')}, screen ${shown('Zinc Fake Screen')}`);
+    const b = ui.screenBox(ui.find('Zinc Fake Window 2'));
     for (let k = 0; k < 3; k++) ui.wheelAt(b[0] + 20, b[1] + 20, -3);
   }
   if (frames === 60) {
@@ -29,7 +29,12 @@ render(App, 0xffffff, (dt: number) => {
     ui.typeText(ui.focused(), 'window 8');
   }
   if (frames === 310) {
-    console.log(`search: screen ${shown('Zinc Fake Screen')}, window 2 ${shown('Zinc Fake Window 2')}, window 8 ${shown('Zinc Fake Window 8')}`);
-    confirmPicker();
+    console.log(`search: window 2 ${shown('Zinc Fake Window 2')}, window 8 ${shown('Zinc Fake Window 8')}`);
+    console.log(`banner ${shown('Stream in high resolution with Nitro')}`);
+    ui.click(ui.find('Entire screen'));
+  }
+  if (frames === 320) {
+    console.log(`tab: window 8 ${shown('Zinc Fake Window 8')}`);
+    confirmPicker('zinc:fake-window-8');
   }
 });
