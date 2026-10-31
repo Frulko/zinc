@@ -8,6 +8,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.10.13] - 2026-10-31
+
 ### UI
 #### Fixed
 - Selecting text with `select-text` works across several lines and several `Text` blocks, like a browser: drag from one paragraph into the next (in a `ScrollView` too, the list scrolls near its edge), the whole span is highlighted and Cmd/Ctrl+C copies it with its line breaks.
@@ -1048,7 +1050,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.6...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.13...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -1071,3 +1073,4 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 [0.8.2]: https://github.com/Frulko/zinc/compare/v0.8.0...v0.8.2
 [0.9.1]: https://github.com/Frulko/zinc/compare/v0.8.2...v0.9.1
 [0.10.6]: https://github.com/Frulko/zinc/compare/v0.9.1...v0.10.6
+[0.10.13]: https://github.com/Frulko/zinc/compare/v0.10.6...v0.10.13
