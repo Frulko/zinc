@@ -75,3 +75,16 @@ discord_call_logic   # Discord example
 discord_login        # Discord example
 discord_ratelimit    # Discord example
 hub_server          # "the manifest is not signed by its publisher" once on a hosted runner; its traced rerun passed
+# 2026-10-31, owner: everything about the hub and WebRTC leaves the CI (fake servers, sockets and timing on hosted runners); it still runs on the Mac
+hub_running            # hub / WebRTC
+webrtc                 # hub / WebRTC
+webrtc_bwe             # hub / WebRTC
+webrtc_bwe_sim         # hub / WebRTC
+webrtc_call            # hub / WebRTC
+webrtc_impair          # hub / WebRTC
+webrtc_interop         # hub / WebRTC
+webrtc_media           # hub / WebRTC
+webrtc_quality         # hub / WebRTC
+webrtc_simulcast       # hub / WebRTC
+voice_aec              # hub / WebRTC
+discord_voice_dave     # hub / WebRTC
