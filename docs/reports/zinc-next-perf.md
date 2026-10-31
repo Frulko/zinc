@@ -1364,3 +1364,9 @@ Sonic), Apple M1 Pro, fake microphone over loopback, 16-20 s runs: thin link (20
 concealed 34.5 -> 10.2%, RTT 432 -> 175 ms, mouth-to-ear 264 ms; 10% random loss at 32 kbit/s concealed 3.9%; 20% loss in bursts of 3
 concealed 12.9 -> 8.0% with DRED; clean link target 40 ms, mouth-to-ear 73 ms; 30 ms jitter target 60 ms, nothing concealed. Plugin
 +2.1 MB (deep PLC and DRED).
+
+2026-10-31, zinc:net server (ZN-892/893: keep-alive, pipelining, limits, wslay WebSocket, TLS tickets), Apple M1 Pro, tools/bench-http
+(oha, 50 connections, 4 s; a Bun client for WebSocket), load average 13-19 (not quiet): requests/s hello 18.9k (79% ok) -> 72.8k
+interpreter, 84.7k AOT, 57.0k QuickJS; Node 24 55.8k, Bun 83.6k. JSON AOT 77.3k (Node 58.3k, Bun 85.0k); TLS keep-alive AOT 48.9k (Node
+18.4k, Bun 66.5k); TLS handshakes/s ~880 (Node 2.77k, Bun 2.94k: mbedTLS portable P-256); WebSocket echo AOT 122.8k msg/s (Node ws 68.2k,
+Bun 91.7k), wss 62.8k (Bun 74.2k); RSS AOT 4-9 MiB (Node 74-289, Bun 27-42). p50/p99 hello AOT 0.58/1.33 ms (Node 0.78/2.68, Bun 0.55/1.18).

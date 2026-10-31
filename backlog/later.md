@@ -634,6 +634,17 @@ The next backlog review turns lines into tasks or deletes them.
 - webenv: Phaser sees the scripted pointerdown and keydown one frame earlier than tests/golden (plain rAF timing unchanged); webenv_phaser is off the CI until explained.
 - webrtc: `pc.close()` fires the data channels' close events with setTimeout(0), so a program that quits right after loses them ("A chat closed"); webrtc_chat is off the CI until the close events fire before close() returns.
 
+- ZN-904: `{list.map(fn)}` with a named function returning JSX renders node ids as numbers (React accepts it): an engine gap the Discord pickers worked around with an inline component; fix it in the engine and undo the workaround.
+- ZN-904: method calls on an any value (.map, .filter, .join) are refused with Z0105; Discord's state.ts, emoji.ts and the fake use loops instead.
+- ZN-905: the class checker's var(--...) regex accepts only lowercase and hyphens; accept the CSS identifier set.
+- ZN-908: a DOM-render code-editor case in tools/web-dom-test (click sets the caret, typing, no outline).
+- ZN-908: `zinc export --target web` of app/atelier stops on the zinc.json name "Zinc Atelier"; take the file name from app.id or a slug.
+- ZN-908: zed-editor could use zinc:editor-lsp for completion and diagnostics, as Atelier does.
+- ZN-892: sendfile for Reply.file; dual-stack listening by default; ZINC_BIND documented but not implemented in serve; per-listener IP buckets; a uv_fs pool for file replies.
+- ZN-893: permessage-deflate and UTF-8 validation of text frames (1007); memory per idle WebSocket (~10 KiB, wslay's buffers); TLS handshakes ~3x slower than Node and Bun (mbedTLS portable P-256: an assembly P-256 PSA driver); bulk u8[] for binary payloads (one host call per byte today); net_acme on QuickJS and AOT.
+- ZN-906: the fetch bodyFile row still reads the whole file into memory in the host; stream it from disk.
+- webrtc_chat dies with "stack overflow (in @hostNode)" on develop.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -924,7 +935,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-910: "shares a server" knows only people seen this session; a cold DM is judged by the channel's last message, not mine.
 - ZN-910: show the Account safety page at the first login too.
 
+- ZN-904: animated WebP/APNG off macOS (vendor libwebp demux and an APNG reader); animated custom emoji inside text; Tenor mp4 renditions through zinc:video; standard sticker packs; a GIF sticker downloaded twice.
+- ZN-905: switching themes live was proven only through the scripted session.
+- ZN-906: reopen the transfer window when Discord refuses a file (413 / 40005); Gokapi chunked upload, Zipline, cancelling an upload; Discord's free limit reported as 20 MB since Aug 2026 (unconfirmed).
+
 ## Cross-platform pass
+- ZN-892/893: zinc:net server, WebSocket and ACME on Linux and Windows (net_limits, net_ws, net_acme with a Pebble for that OS).
 - ZN-894: check that the -include impair.h hook builds on linux, rpi and ios.
 - ZN-875: zinc:screen-capture/picker and app icons on the Linux and Windows backends.
 - ZN-873: H.264 decode and encode on Linux (V4L2 M2M or a vendored decoder) for discord-voice video.
