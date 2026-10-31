@@ -25,7 +25,7 @@ export ZINC_DETERMINISTIC=0   # a networked session: the rate-limit waits and th
 assets=$PWD/examples/discord/tests/assets
 mkdir -p "$tmp/cache" && cp "$assets/emoji.png" "$tmp/cache/emojis_78.png" && cp "$assets/photo.png" "$tmp/notes.png"
 head -c 11600000 /dev/zero > "$tmp/big.bin"   # above the 10 MB a free account sends: the transfer window takes it
-FAKE_ASSETS=$assets FAKE_PORTS_FILE=$tmp/ports timeout 120 "$ZINC" run examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>/dev/null &
+FAKE_ASSETS=$assets FAKE_PORTS_FILE=$tmp/ports timeout 120 "$ZINC" run --interp examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>/dev/null &
 fake=$!
 for _ in $(seq 600); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
 [ -s "$tmp/ports" ] || { echo "discord: the fake server did not start"; exit 1; }

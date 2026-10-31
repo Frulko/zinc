@@ -8,7 +8,7 @@ tmp=$(mktemp -d)
 cleanup() { [ -n "$fake" ] && { kill "$fake" 2>/dev/null; wait "$fake" 2>/dev/null; }; rm -rf "$tmp"; }
 trap cleanup EXIT
 export ZINC_DETERMINISTIC=0   # real sockets and timers
-FAKE_ASSETS=$PWD/examples/discord/tests/assets FAKE_PORTS_FILE=$tmp/ports timeout 60 "$ZINC" run examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>&1 &
+FAKE_ASSETS=$PWD/examples/discord/tests/assets FAKE_PORTS_FILE=$tmp/ports timeout 60 "$ZINC" run --interp examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>&1 &
 fake=$!
 for _ in $(seq 600); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
 [ -s "$tmp/ports" ] || { echo "discord_login: the fake server did not start"; exit 1; }

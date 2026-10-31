@@ -28,7 +28,7 @@ cmp -s "$tmp/rtp" "$tmp/rtp2" || { echo "discord_voice: the interpreter differs 
 timeout 120 "$ZINC" run tests/golden/host/discord_voice_rtp.ts --engine quickjs 2>&1 | grep -E '^(inputs|outputs) ' > "$tmp/rtp3"
 grep -E '^(inputs|outputs) ' "$tmp/rtp" | cmp -s - "$tmp/rtp3" || { echo "discord_voice: QuickJS lists other devices"; cat "$tmp/rtp3"; fail=1; }
 mkdir -p "$tmp/shots"
-FAKE_ASSETS=$PWD/examples/discord/tests/assets FAKE_PORTS_FILE=$tmp/ports timeout 120 "$ZINC" run examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>/dev/null &
+FAKE_ASSETS=$PWD/examples/discord/tests/assets FAKE_PORTS_FILE=$tmp/ports timeout 120 "$ZINC" run --interp examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>/dev/null &
 fake=$!
 for _ in $(seq 300); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
 [ -s "$tmp/ports" ] || { echo "discord_voice: the fake server did not start"; exit 1; }

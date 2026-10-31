@@ -13,7 +13,7 @@ cleanup() { for p in $fake $app; do kill "$p" 2>/dev/null; wait "$p" 2>/dev/null
 trap cleanup EXIT
 export ZINC_BACKGROUND=1 ZINC_DETERMINISTIC=0 ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_SIZE=1200x760 ZINC_FRAMES=1000000
 export ZINC_SYSTEM_RUNTIME_DIR=$tmp ZINC_STORAGE=$tmp/storage.kv ZINC_SYSTEM_LOG=$tmp/system DISCORD_CACHE=$tmp/cache DISCORD_TOKEN=test-token DISCORD_LOG=1
-FAKE_GUARDS=1 FAKE_ASSETS=$PWD/examples/discord/tests/assets FAKE_PORTS_FILE=$tmp/ports timeout 90 "$ZINC" run examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>/dev/null &
+FAKE_GUARDS=1 FAKE_ASSETS=$PWD/examples/discord/tests/assets FAKE_PORTS_FILE=$tmp/ports timeout 90 "$ZINC" run --interp examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>/dev/null &
 fake=$!
 for _ in $(seq 600); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
 [ -s "$tmp/ports" ] || { echo "discord_safety: the fake server did not start"; exit 1; }
