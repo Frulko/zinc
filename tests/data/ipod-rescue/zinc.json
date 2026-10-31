@@ -1,0 +1,37 @@
+{
+  "name": "ipod-rescue-test",
+  "entry": "ui.tsx",
+  "scheme": "light",
+  "text": "shaped",
+  "targets": {
+    "macos": {
+      "width": 1220,
+      "height": 900,
+      "resize": "fill"
+    }
+  },
+  "permissions": [
+    "fs",
+    "process",
+    "dialog",
+    "opener",
+    "window"
+  ],
+  "requires": [
+    "keyboard",
+    "pointer",
+    "fs"
+  ],
+  "icons": [
+    "hard-drive",
+    "usb",
+    "shield-check",
+    "archive",
+    "file-search",
+    "list-checks",
+    "route",
+    "play",
+    "life-buoy",
+    "refresh-cw"
+  ]
+}

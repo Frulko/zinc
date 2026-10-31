@@ -1,0 +1,11 @@
+{
+  "name": "ipod-rescue",
+  "entry": "src/main.tsx",
+  "scheme": "light",
+  "text": "shaped",
+  "app": { "name": "iPod Rescue", "id": "dev.zinc.ipod-rescue", "version": "0.1.0", "icon": "assets/icon.svg", "orientation": "landscape" },
+  "targets": { "macos": { "width": 1220, "height": 900, "resize": "fill" } },
+  "permissions": ["fs", "process", "dialog", "opener", "window"],
+  "requires": ["keyboard", "pointer", "fs"],
+  "icons": ["hard-drive", "usb", "shield-check", "archive", "file-search", "list-checks", "route", "play", "life-buoy", "refresh-cw"]
+}
