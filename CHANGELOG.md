@@ -8,6 +8,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Raspberry Pi and the shell
+- **Fixed** Under the shell, an app started with `zinc device run` comes to the screen even over another page, and `zinc device stop` or a newer app replacing it no longer leaves an "app stopped (exit -1)" page.
+
 ## [0.10.6] - 2026-10-31
 
 This release turns the Raspberry Pi into a small Zinc computer: a shell that runs apps under its own bar, apps built on your Mac and sent ready to run, an image that updates itself safely and a renderer several times faster on its cores. Sidecar makes an iPad, a phone, a Pi, another Mac or a reMarkable a screen for your Mac, the reMarkable gets an app store, a web reader and zooming that follows the fingers, and Zinc Inspector now looks and works like Chrome DevTools.
@@ -27,7 +30,6 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 ### Raspberry Pi and the shell
 - **New** An app's `zinc.json` `"shell": "fullscreen"` shows it without the top bar (Home still quits it); `"kiosk"` also takes away Home and Ctrl+Alt+Backspace and restarts the app if it ends. `ZINC_SHELL_START=<app folder>` in `/etc/zinc/session.conf` shows that app when the Pi starts. Any other value is an error naming the line.
 - **New** A shell for the Pi: `ZINC_SHELL=1` in `/etc/zinc/session.conf` runs the player as a shell that starts the boot app and the tiles' apps below its bar; `zinc device run` shows an app through it and `zinc device stop` returns to the hub. An app whose `zinc.json` says `"display": "gl"` still takes the whole screen. If the shell fails twice within a minute, the Pi falls back to the old player for that boot and says why in `/run/zinc/zinc-report.txt`.
-- **Fixed** Under the shell, an app started with `zinc device run` comes to the screen even over another page, and `zinc device stop` or a newer app replacing it no longer leaves an "app stopped (exit -1)" page.
 - **New** `sudo zinc-admin shell on` (or `off`) switches a Pi to the shell and back, and restarts its session.
 - **Faster** An app under the shell renders on every core and draws straight into buffers of the display, shown on a plane of its own: the shell copies nothing and draws nothing for that frame. `ZINC_SHELL_DMABUF=0` goes back to shared memory.
 - **Faster** The software rasterizer paints turned and zoomed images and shapes several times faster: a photo card the size of the screen on a Raspberry Pi 3 goes from 7 to 40 frames a second.
