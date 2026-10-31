@@ -2460,8 +2460,8 @@ int main(int argc, char** argv) {
     if (have) files["zinc.json"] = ps.str();
     std::error_code ec;
     std::vector<zn::tc::PluginLib> natives = gPlugins;
-    {   // a plugin the program uses that the compile did not load (zinc:video is "live": its stand-in may serve the compile) is built here, so
-        // the package carries its library all the same (a Pi has no compiler to build it from the sources)
+    if (cross) {   // a plugin the program uses that the compile did not load (zinc:video is "live": its stand-in may serve the compile) is built here, so
+        // the package carries its library all the same (a Pi has no compiler to build it from the sources); this machine's engine has its own
       std::vector<std::string> problems;
       const auto all = zn::frontend::discoverPlugins(gRoot, projDir, problems);
       for (const std::string& n : gUsedPlugins) {

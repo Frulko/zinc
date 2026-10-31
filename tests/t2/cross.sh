@@ -12,5 +12,5 @@ import struct, sys
 d = open(sys.argv[1], 'rb').read(64)
 assert d[:4] == b'\x7fELF' and d[4] == 2 and struct.unpack('<H', d[18:20])[0] == 183  # ELF64, EM_AARCH64
 PY
-[ -f "$ZINC_HOME/toolchains/zig-"*"-0.15.2/SHA256" ] || { echo "the verified checksum was not recorded"; fail=1; }
+ls "$ZINC_HOME/toolchains/zig-"*"-0.15.2/SHA256" >/dev/null 2>&1 || { echo "the verified checksum was not recorded"; fail=1; }
 exit $fail

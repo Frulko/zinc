@@ -19,7 +19,7 @@ NEXT = os.path.dirname(HERE)
 REPO = NEXT
 VERSION = os.environ.get("ZINC_VERSION", "")   # default: what the binary says (CMake ZN_VERSION); the archive, share/zinc/VERSION and zinc update agree
 # size budgets in MB of the download (the archive); a package over its budget fails the script
-BUDGET_MB = {"macos-cli": 45, "macos-app": 45, "linux": 40, "windows": 40, "windows-app": 40}   # 2026-10-16, arm64: the CLI 27.1 MB, the app 28.0 MB; 2026-10-22: 35 to 40 on macOS, every plugin prebuilt (webrtc +4 MB); 2026-10-26: 45 on macOS, x86_64 0.9.0 was 40.4 and 41.4 MB (photos, location)
+BUDGET_MB = {"macos-cli": 55, "macos-app": 55, "linux": 40, "windows": 40, "windows-app": 40}   # 2026-10-16, arm64: the CLI 27.1 MB, the app 28.0 MB; 2026-10-22: 35 to 40 on macOS, every plugin prebuilt (webrtc +4 MB); 2026-10-26: 45 on macOS, x86_64 0.9.0 was 40.4 and 41.4 MB (photos, location); 2026-10-31: 55, x86_64 50.1 and 51.4 MB (discord-voice 5.7 MB, imageio, carplay-local-ui)
 # the plugins a package ships without a library on purpose; any other one left without (but for a system library) fails a macOS package, as zinc:link did in 0.6.0
 NO_PREBUILT = {"script": "built into the engine (src/qjs/script_native.cpp)",
                "imu-qmi8658": "its spec returns an f32, which the C ABI cannot carry; on a computer imu.sim.ts stands in for a sensor it has not"}
