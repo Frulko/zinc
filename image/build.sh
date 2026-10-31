@@ -117,6 +117,8 @@ chmod 755 "$R/usr/sbin/policy-rc.d"
 step "Installing Zinc and the player"
 cp -r --preserve=mode,timestamps /src/image/files/. "$R/"
 mkdir -p "$R/usr/lib/zinc/versions/factory/engine" "$R/var/lib/zinc" "$R/etc/zinc"
+# the shell (a top bar, the app hub, the store): the session reads ZINC_SHELL from here (zinc-admin shell on|off changes it later)
+[ "$(q '.shell // false')" != true ] || { echo ZINC_SHELL=1 >"$R/etc/zinc/session.conf"; chmod 644 "$R/etc/zinc/session.conf"; }
 ln -s versions/factory "$R/usr/lib/zinc/current"
 ln -s current/engine "$R/usr/lib/zinc/engine"
 tar xzf "$ZINC" -C "$R/usr/lib/zinc/engine" --strip-components=1 --no-same-owner

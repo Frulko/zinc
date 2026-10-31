@@ -13,7 +13,8 @@
 #                                           ZINC_UPDATE_SEED, by Zinc's update key (.raucb.sig): zinc-system-update installs it
 #
 # A profile is a JSON object laid over image/profile.json (the defaults): board, display, hostname, user, ssh, wifi,
-# libraries, packages, app (a Zinc project or .zapp, started at boot)... Needs Docker (Docker Desktop, OrbStack).
+# libraries, packages, app (a Zinc project or .zapp, started at boot), shell (true: the Zinc shell, ZINC_SHELL=1 in
+# /etc/zinc/session.conf), ab... Needs Docker (Docker Desktop, OrbStack).
 # Lines that start with "::" are for the apps that follow a build: "::step n/total label", "::error text", "::done file".
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)

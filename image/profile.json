@@ -23,5 +23,6 @@
   "packages": [],
   "app": "",
   "growMiB": 1536,
-  "ab": false
+  "ab": false,
+  "shell": false
 }
