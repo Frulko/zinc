@@ -17,16 +17,21 @@ import S from './native/voice.spec';
 
 const OP_IDENTIFY = 0, OP_SELECT_PROTOCOL = 1, OP_READY = 2, OP_HEARTBEAT = 3, OP_SESSION_DESCRIPTION = 4, OP_SPEAKING = 5,
   OP_HEARTBEAT_ACK = 6, OP_RESUME = 7, OP_HELLO = 8, OP_RESUMED = 9, OP_CLIENTS_CONNECT = 11, OP_VIDEO = 12, OP_CLIENT_DISCONNECT = 13,
-  OP_MEDIA_SINK_WANTS = 15;
+  OP_MEDIA_SINK_WANTS = 15, OP_SESSION_UPDATE = 14;
 // DAVE (daveprotocol.com): JSON 21 prepare transition, 22 execute transition, 23 transition ready, 24 prepare epoch, 31 invalid commit or
 // welcome; binary 25 external sender, 26 key package, 27 proposals, 28 commit and welcome, 29 announce commit, 30 welcome
 const OP_DAVE_PREPARE_TRANSITION = 21, OP_DAVE_EXECUTE_TRANSITION = 22, OP_DAVE_TRANSITION_READY = 23, OP_DAVE_PREPARE_EPOCH = 24,
   OP_DAVE_EXTERNAL_SENDER = 25, OP_DAVE_KEY_PACKAGE = 26, OP_DAVE_PROPOSALS = 27, OP_DAVE_COMMIT_WELCOME = 28, OP_DAVE_ANNOUNCE_COMMIT = 29,
   OP_DAVE_WELCOME = 30, OP_DAVE_INVALID_COMMIT_WELCOME = 31;
 const SPEAKING_MICROPHONE = 1, SPEAKING_SOUNDSHARE = 2;
-// close codes after which the session cannot go on: authentication, session no longer valid, timed out, disconnected (kicked, the
-// channel deleted), unknown encryption mode
-const FINAL = [4004, 4006, 4009, 4014, 4016];
+// the voice gateway's close codes (docs.discord.food, Voice Close Event Codes): only below 4000, and 4013 (the server's WebRTC crashed)
+// and 4015 (voice server crashed), allow a resume; 4006 (session no longer valid) and 4009 (session timed out) allow one new Identify with
+// the same token; every other code (authentication, kicked, rate limited, call ended, E2EE required...) ends the call
+export function closeAction(code: i32): string {
+  if (code < 4000 || code === 4013 || code === 4015) return 'resume';
+  return code === 4006 || code === 4009 ? 'identify' : 'end';
+}
+const REIDENTIFY_MS = 60000;
 const POLL_MS = 50;
 // what Select Protocol offers: Opus, and H.264 (VideoToolbox on both sides, the server's default video codec); RTX is declared, not used
 const CODECS: any[] = [{ name: 'opus', type: 'audio', priority: 1000, payload_type: 120 },
@@ -41,6 +46,13 @@ const TRACE = env('DISCORD_LOG') === '1', DIAG_MS = 5000;
  *  addresses replaced. DAVE's MLS messages are binary and only their opcode and size are printed. */
 export function redact(json: string): string {
   return json.replace(/"(token|session_id|secret_key|address|ip)":("[^"]*"|\[[^\]]*\]|-?[0-9.]+|null)/g, '"$1":"<redacted>"');
+}
+
+/** The layer of a camera to show for a wanted quality: the best one not above it, else the lowest there is (layers sorted best first). */
+export function pickLayer(layers: Layer[], quality: i32): Layer | null {
+  let low: Layer | null = null;
+  for (const l of layers) { if (l.quality <= quality) return l; low = l; }
+  return low;
 }
 
 /** A video stream's size and rate: what op 12 announces and what the encoder is given. */
@@ -64,6 +76,8 @@ export interface VoiceServer {
   /** A Go Live connection (STREAM_SERVER_UPDATE): video only, no microphone or speakers; its stream is a 'screen'. */
   stream?: boolean;
 }
+/** One simulcast layer of someone's camera: its SSRC (and RTX SSRC) and its quality (100 full size, 50 reduced). */
+export interface Layer { ssrc: u32; rtx: u32; quality: i32 }
 export type VoiceState = 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
 export class VoiceConnection {
@@ -115,6 +129,10 @@ export class VoiceConnection {
   private watched: Map<string, u32> = new Map<string, u32>();   // user -> the SSRC decoded for them
   private lowData = false;
   private diagAt = 0;
+  private layers: Map<string, Layer[]> = new Map<string, Layer[]>();   // user -> the simulcast layers of their camera (op 12 streams)
+  private sinkWanted = 0;                                     // the most the server asked of our stream in its last op 15
+  private identifiedAt = 0;                                   // when a new Identify replaced a lost session (once a minute at most)
+  private fresh = false;
 
   constructor(server: VoiceServer) {
     this.server = server;
@@ -197,15 +215,20 @@ export class VoiceConnection {
   watch(shown: Map<string, number[]>): void {
     if (this.h < 0) return;
     const want: any = {}, pixels: any = {};
-    for (const [user, ssrc] of this.cameras) {
+    for (const [user, layers] of this.layers) {
       const s = shown.get(user);
       const w: i32 = s !== undefined ? Math.round(s[0]) : 0, ht: i32 = s !== undefined ? Math.round(s[1]) : 0;
-      want[`${ssrc}`] = w > 0 ? (w * ht >= CAMERA_W * CAMERA_H ? 100 : 50) : 0;
-      if (w > 0) pixels[`${ssrc}`] = w * ht;
-      S.watch(this.h, ssrc, user, w, ht);
-      if (w > 0) this.watched.set(user, ssrc); else this.watched.delete(user);
+      const pick = w > 0 ? pickLayer(layers, w * ht >= CAMERA_W * CAMERA_H ? 100 : 50) : null;
+      // every layer is named, so the server forwards the picked one under the SSRC we decode, and none of the others
+      for (const l of layers) {
+        const on = pick !== null && l.ssrc === pick.ssrc;
+        want[`${l.ssrc}`] = on ? l.quality : 0;
+        if (on) pixels[`${l.ssrc}`] = w * ht;
+        S.watch(this.h, l.ssrc, user, on ? w : 0, on ? ht : 0);
+      }
+      if (pick !== null) this.watched.set(user, pick.ssrc); else this.watched.delete(user);
     }
-    for (const [user, ssrc] of this.watched) if (this.cameras.get(user) !== ssrc) { S.watch(this.h, ssrc, user, 0, 0); this.watched.delete(user); }
+    for (const [user] of this.watched) if (!this.layers.has(user)) { this.watched.delete(user); }
     want.pixelCounts = pixels;
     const text = JSON.stringify(want);
     if (text !== this.wants) { this.wants = text; this.send(OP_MEDIA_SINK_WANTS, want); }
@@ -267,7 +290,7 @@ export class VoiceConnection {
     for (const rec of S.report(this.h).split('\u001e')) {
       if (rec === '') continue;
       const f = rec.split('\u001f');
-      if (f[0] === 'out') this.log(`${k} out ${f[1]} ssrc ${f[2]} bytes ${f[3]} packets ${f[4]} target ${f[5]} bit/s${f[1] === 'video' ? ` frames ${f[6]} ${f[7]}x${f[8]} pli-in ${f[9]} keys ${f[10]} nal [${f[11]}]` : ''}`);
+      if (f[0] === 'out') this.log(`${k} out ${f[1]} ssrc ${f[2]} bytes ${f[3]} packets ${f[4]} target ${f[5]} bit/s${f[1] === 'video' ? ` frames ${f[6]} ${f[7]}x${f[8]} pli-in ${f[9]} keys ${f[10]} nal [${f[11]}] nack-in ${f[12]} fir-in ${f[13]} rtx-out ${f[14]}` : ''}`);
       else if (f[0] === 'remote') this.log(`${k} remote ${f[1]} ssrc ${f[2]} fraction-lost ${f[3]} lost ${f[4]} jitter ${f[5]} rtt ${f[6]}`);
       else if (f[0] === 'in') this.log(`${k} in ${f[1]} ssrc ${f[2]} user ${f[3]} bytes ${f[4]} packets ${f[5]} lost ${f[6]} jitter ${f[7]}${f[1] === 'video' ? ` decoded ${f[8]} dropped ${f[9]} keys ${f[10]} nal [${f[11]}] transport-fail ${f[12]} dave-fail ${f[13]} decoder-errors ${f[14]}` : ''}`);
       else if (f[0] === 'other') this.log(`${k} other payload type ${f[1]} ssrc ${f[2]} packets ${f[3]}`);
@@ -294,14 +317,27 @@ export class VoiceConnection {
     else if (op === OP_SESSION_DESCRIPTION) this.described(d);
     else if (op === OP_SPEAKING) { if (this.h >= 0 && d.user_id !== undefined) S.bind(this.h, d.ssrc, `${d.user_id}`); }
     else if (op === OP_CLIENTS_CONNECT) { for (const id of d.user_ids) this.users.add(`${id}`); }
-    else if (op === OP_CLIENT_DISCONNECT) { this.users.delete(`${d.user_id}`); if (this.cameras.delete(`${d.user_id}`)) this.onVideo(); }
+    else if (op === OP_CLIENT_DISCONNECT) { this.users.delete(`${d.user_id}`); this.layers.delete(`${d.user_id}`); if (this.cameras.delete(`${d.user_id}`)) this.onVideo(); }
     else if (op === OP_VIDEO) this.video(d);
-    else if (op === OP_MEDIA_SINK_WANTS) {}   // what the server wants of our stream: one layer, sent as it is
+    else if (op === OP_HEARTBEAT) this.send(OP_HEARTBEAT, { t: Date.now(), seq_ack: this.seq });   // the server asks for one now
+    else if (op === OP_MEDIA_SINK_WANTS) this.sinkWants(d);
     else if (op === OP_RESUMED) this.setState('connected');
     else if (op === OP_DAVE_PREPARE_TRANSITION) this.prepare(d.transition_id, d.protocol_version);
     else if (op === OP_DAVE_EXECUTE_TRANSITION) this.execute(d.transition_id);
     else if (op === OP_DAVE_PREPARE_EPOCH) { if (d.epoch === 1) { this.dave = d.protocol_version; this.keyPackage(); } }
+    else if (op === OP_SESSION_UPDATE) { if (typeof d.keyframe_interval === 'number') this.keyframeMs = d.keyframe_interval; }
     else if (op !== OP_HEARTBEAT_ACK) this.log(`voice op ${op}`);
+  }
+  /** Op 15 from the server: what a viewer wants of our stream (a quality per SSRC, 0: nobody). When it goes from nothing to something,
+   *  a viewer just subscribed and needs a key frame to start from (it may have missed the one sent when we began). */
+  private sinkWants(d: any): void {
+    let most = 0;
+    if (d !== null && typeof d === 'object') for (const k of Object.keys(d)) {
+      if (k !== 'any' && k !== `${this.videoSsrc}`) continue;
+      if (typeof d[k] === 'number' && d[k] > most) most = d[k];
+    }
+    if (most > 0 && this.sinkWanted === 0 && this.h >= 0 && this.camera) { S.keyFrame(this.h); this.log(`voice key frame for a new viewer (op 15 ${most})`); }
+    this.sinkWanted = most;
   }
   /** Ready: our SSRC and the UDP endpoint. IP discovery runs on the native side; its answer selects the protocol. */
   private ready(d: any): void {
@@ -344,6 +380,7 @@ export class VoiceConnection {
     if (typeof d.keyframe_interval === 'number') this.keyframeMs = d.keyframe_interval;
     if (this.dave > 0) this.keyPackage();
     this.setState('connected');
+    if (this.fresh) { this.fresh = false; this.wants = ''; this.watched.clear(); this.onVideo(); }   // a new native connection: nothing is watched on it yet
     if (this.camera) this.describeVideo();   // a camera turned on while connecting, or a resumed session
     if (this.poll < 0) this.poll = setInterval(() => { this.tick(); }, POLL_MS);
   }
@@ -371,18 +408,31 @@ export class VoiceConnection {
     const user = `${d.user_id}`;
     if (user === this.server.userId || d.user_id === undefined) return;
     if (this.h >= 0 && typeof d.audio_ssrc === 'number' && d.audio_ssrc !== 0) S.bind(this.h, d.audio_ssrc, user);
-    let ssrc: u32 = typeof d.video_ssrc === 'number' ? d.video_ssrc : 0;
-    if (Array.isArray(d.streams)) for (const st of d.streams) if (st.active === false && st.ssrc === ssrc) ssrc = 0;
-    if (ssrc !== 0) { if (this.cameras.get(user) === ssrc) return; this.cameras.set(user, ssrc); }
-    else if (!this.cameras.delete(user)) return;
-    this.log(`voice camera ${user} ${ssrc !== 0 ? 'on' : 'off'}`);
+    // every active layer of the camera (a simulcast stream per quality) belongs to the user, RTX SSRCs too; the program's `cameras`
+    // names the best one
+    const layers: Layer[] = [];
+    if (Array.isArray(d.streams)) for (const st of d.streams) {
+      if (st.active === false || typeof st.ssrc !== 'number' || st.ssrc === 0) continue;
+      layers.push({ ssrc: st.ssrc, rtx: typeof st.rtx_ssrc === 'number' ? st.rtx_ssrc : 0, quality: typeof st.quality === 'number' ? st.quality : 100 });
+    }
+    if (layers.length === 0 && typeof d.video_ssrc === 'number' && d.video_ssrc !== 0 && !(Array.isArray(d.streams) && d.streams.length > 0)) {
+      layers.push({ ssrc: d.video_ssrc, rtx: typeof d.rtx_ssrc === 'number' ? d.rtx_ssrc : 0, quality: 100 });
+    }
+    if (this.h >= 0) for (const l of layers) { S.bind(this.h, l.ssrc, user); if (l.rtx !== 0) S.bind(this.h, l.rtx, user); }
+    if (this.h >= 0) for (const o of this.layers.get(user) ?? []) if (!layers.some((l: Layer) => l.ssrc === o.ssrc)) { S.watch(this.h, o.ssrc, user, 0, 0); if (this.watched.get(user) === o.ssrc) this.watched.delete(user); }
+    layers.sort((a: Layer, b: Layer): number => b.quality - a.quality);
+    const ssrc: u32 = layers.length > 0 ? layers[0].ssrc : 0;
+    const before = JSON.stringify(this.layers.get(user) ?? []), after = JSON.stringify(layers);
+    if (ssrc !== 0) { if (before === after && this.cameras.get(user) === ssrc) return; this.layers.set(user, layers); this.cameras.set(user, ssrc); }
+    else { this.layers.delete(user); if (!this.cameras.delete(user)) return; }
+    this.log(`voice camera ${user} ${ssrc !== 0 ? 'on' : 'off'} layers ${layers.map((l: Layer) => `${l.ssrc}@${l.quality}`).join(',')}`);
     this.onVideo();
   }
   /** Op 12 from us: our stream, before its first packet (else the server drops the connection: invalid SSRC), or none. */
   private describeVideo(): void {
     if (this.h < 0 || this.state !== 'connected' || this.videoSsrc === 0) return;
     const on = this.camera, q = this.quality, bps = videoBitrate(q);
-    S.videoSend(this.h, on ? this.videoSsrc : 0, bps, q.fps, this.keyframeMs);
+    S.videoSend(this.h, on ? this.videoSsrc : 0, on ? this.rtxSsrc : 0, bps, q.fps, this.keyframeMs);
     // a Go Live connection is speaking (soundshare) while it streams, as Discord-video-stream's StreamConnection says
     if (this.server.stream === true) this.send(OP_SPEAKING, { speaking: on ? SPEAKING_SOUNDSHARE : 0, delay: 0, ssrc: this.ssrc });
     // the stream's type is Ready's ('video' for a camera and for Go Live alike); Identify offered 'screen' for Go Live
@@ -432,7 +482,20 @@ export class VoiceConnection {
   private closed(code: i32): void {
     this.ws = null;
     if (this.state === 'closed') return;
-    if (FINAL.indexOf(code) >= 0 || this.h < 0) { this.end(`voice gateway closed (${code})`); return; }
+    const what = closeAction(code);
+    if (what === 'end' || this.h < 0 || (what === 'identify' && Date.now() - this.identifiedAt < REIDENTIFY_MS)) { this.end(`voice gateway closed (${code})`); return; }
+    if (what === 'identify') {   // the session is gone: one new Identify with the same token and a new UDP connection
+      this.log(`voice gateway closed (${code}), identifying again`);
+      this.identifiedAt = Date.now();
+      if (this.beat >= 0) { clearInterval(this.beat); this.beat = -1; }
+      if (this.poll >= 0) { clearInterval(this.poll); this.poll = -1; }
+      S.close(this.h); this.h = -1;
+      this.ssrc = 0; this.seq = -1; this.mode = ''; this.transitions.clear(); this.dave = 0; this.fresh = true;
+      this.setState('reconnecting');
+      this.resumed = false;
+      setTimeout(() => { if (this.state === 'reconnecting') this.open(); }, 500);
+      return;
+    }
     // the media keeps flowing over UDP; the gateway resumes
     this.log(`voice gateway closed (${code}), resuming`);
     this.setState('reconnecting');
@@ -447,6 +510,7 @@ export class VoiceConnection {
     if (this.h >= 0) { S.close(this.h); this.h = -1; }   // and the images of the cameras
     this.watched.clear();
     this.wants = '';
+    this.layers.clear();
     if (this.cameras.size > 0) { this.cameras.clear(); this.onVideo(); }
     const ws = this.ws;
     this.ws = null;

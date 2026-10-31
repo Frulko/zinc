@@ -40,8 +40,10 @@ export interface Spec extends NativeModule {
   stats(h: i32): f64[];
   /** Video, H.264 (VideoToolbox; none elsewhere yet): our camera's or screen's stream, its SSRC from Ready's `streams` (0: we send no
    *  video), the encoder's bitrate in bit/s (0: from the frame's size) and frame rate, and a key frame at least every keyframeMs (Session
-   *  Description's keyframe_interval; 0: only when asked, by a PLI). */
-  videoSend(h: i32, ssrc: u32, bitrate: i32, fps: i32, keyframeMs: i32): void;
+   *  Description's keyframe_interval; 0: every second, 2 s on a capped link); rtxSsrc: Ready's RTX SSRC, where NACKed packets are resent. */
+  videoSend(h: i32, ssrc: u32, rtxSsrc: u32, bitrate: i32, fps: i32, keyframeMs: i32): void;
+  /** The next frame sent is a key frame (the server's op 15 asked for our stream, a FIR or PLI relayed some other way). */
+  keyFrame(h: i32): void;
   /** The newest frame of a runtime image (a zinc:camera Camera's) to encode and send on the media thread; false when it cannot be read. */
   sendImage(h: i32, image: i32): boolean;
   /** Decodes the camera of the stream `ssrc` (someone's, from op 12) at most width x height pixels (the decoder scales it); 0 x 0 stops

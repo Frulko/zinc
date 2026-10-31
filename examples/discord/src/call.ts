@@ -91,7 +91,20 @@ export class Live {
   key = '';
   user = '';
   rtc = '';
+  endpoint = '';   // STREAM_SERVER_UPDATE's server and token, kept until STREAM_CREATE arrives (the two come in either order)
+  token = '';
   conn: VoiceConnection | null = null;
+}
+
+/** What a STREAM_CREATE or STREAM_SERVER_UPDATE does to a stream: it keeps what the event gave and says 'connect' once both the
+ *  rtc server and the voice server are known (whichever came last), 'drop' when the voice server went away (a null endpoint). */
+export function streamStep(l: Live, t: string, d: any): string {
+  if (t === 'STREAM_CREATE') { if (d.rtc_server_id !== null && d.rtc_server_id !== undefined) l.rtc = `${d.rtc_server_id}`; }
+  else if (t === 'STREAM_SERVER_UPDATE') {
+    if (d.endpoint === null || d.endpoint === undefined) { l.endpoint = ''; l.token = ''; return 'drop'; }
+    l.endpoint = `${d.endpoint}`; l.token = `${d.token}`;
+  } else return 'none';
+  return l.rtc !== '' && l.endpoint !== '' ? 'connect' : 'none';
 }
 
 /** What the others show of themselves on VOICE_STATE_UPDATE. */
@@ -400,9 +413,11 @@ export class Call {
     const key = `${d.stream_key}`, own = this.sharing, w = this.watching;
     const l = own !== null && own.key === key ? own : w !== null && w.key === key ? w : null;
     if (l === null) return;
-    if (t === 'STREAM_CREATE' && d.rtc_server_id !== null && d.rtc_server_id !== undefined) l.rtc = `${d.rtc_server_id}`;
-    else if (t === 'STREAM_SERVER_UPDATE' && l.rtc !== '' && d.endpoint !== null && d.endpoint !== undefined) this.streamConnect(l, `${d.endpoint}`, `${d.token}`);
-    else if (t === 'STREAM_DELETE') { this.endLive(l); if (l === own && d.reason !== 'user_requested') this.error = `Your stream ended (${d.reason})`; }
+    const step = streamStep(l, t, d);
+    this.log(`stream ${t.substring(7).toLowerCase().replace('_', ' ')} ${key.replace(/[0-9]{6,}/g, '<id>')} ${l === own ? 'ours' : 'watched'} rtc ${l.rtc !== ''} endpoint ${l.endpoint !== ''} -> ${t === 'STREAM_DELETE' ? 'end' : step}`);
+    if (t === 'STREAM_DELETE') { this.endLive(l); if (l === own && d.reason !== 'user_requested') this.error = `Your stream ended (${d.reason})`; }
+    else if (step === 'connect') this.streamConnect(l, l.endpoint, l.token);
+    else if (step === 'drop') { const c = l.conn; l.conn = null; if (c !== null) c.close(); this.changed(); }
   }
   private streamConnect(l: Live, endpoint: string, token: string): void {
     const old = l.conn;

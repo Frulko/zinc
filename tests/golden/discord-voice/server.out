@@ -48,8 +48,8 @@ voice video ssrc=0 rtx=0 streams=0
 voice video ssrc=0 rtx=0 streams=0
 voice video ssrc=12 rtx=13 streams=1 640x360
 voice wants {"33":0,"pixelCounts":{}}
-voice wants {"33":50,"pixelCounts":{"33":36864}}
-voice wants {"33":50,"pixelCounts":{"33":36864}}
+voice wants {"33":100,"pixelCounts":{"33":36864}}
+voice wants {"33":100,"pixelCounts":{"33":36864}}
 voice wants {"pixelCounts":{}}
 voice wants {"pixelCounts":{}}
 voice watch closed 1000
@@ -57,6 +57,6 @@ voice watch identify server=1000 session=voice-sess video=true streams=[{"type":
 voice watch op 5
 voice watch select protocol=udp mode=aead_aes256_gcm_rtpsize
 voice watch video ssrc=0
+voice watch wants {"63":100,"pixelCounts":{"63":36864}}
+voice watch wants {"63":100,"pixelCounts":{"63":36864}}
 voice watch wants {"63":100,"pixelCounts":{"63":518400}}
-voice watch wants {"63":50,"pixelCounts":{"63":36864}}
-voice watch wants {"63":50,"pixelCounts":{"63":36864}}

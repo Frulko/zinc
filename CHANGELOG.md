@@ -18,6 +18,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Apps and demos
 - **Fixed** Closing the Discord client during a call leaves the call, stops your Go Live and the stream you watch first, so nobody sees you stuck in the channel.
+- **Fixed** Discord calls: your camera and Go Live send a key frame every second (and again when the call's encryption key changes or someone starts watching) so the others no longer wait forever on a black tile; a third person joining no longer silences the people already there; a small tile shows the camera's lower quality layer; a Go Live you watch connects whichever of the two server messages comes first; and the call survives a network blip instead of ending with "voice gateway closed".
 
 ## [0.10.6] - 2026-10-31
 

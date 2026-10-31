@@ -43,6 +43,7 @@
     {"paths": ["examples/discord/", "tests/golden/discord/", "tests/t1/discord.sh", "plugins/secure-store/"], "tests": ["discord", "discord_notify", "discord_ratelimit", "discord_login"]},
     {"paths": ["examples/discord/", "tests/golden/discord-safety/", "tests/t1/discord_safety.sh"], "tests": ["discord_safety", "discord_ratelimit"]},
     {"paths": ["examples/discord/", "plugins/discord-voice/", "tests/golden/discord-voice/", "tests/golden/host/discord_voice_rtp.ts", "tests/t1/discord_voice.sh"], "tests": ["discord_voice"]},
+    {"paths": ["examples/discord/src/call.ts", "examples/discord/tests/call-logic.ts", "plugins/discord-voice/index.ts", "plugins/discord-voice/native/video_policy.h", "tests/golden/host/discord_voice_policy.cpp"], "tests": ["discord_call_logic"]},
     {"paths": ["examples/kanban/", "tests/data/kanban/", "tests/golden/kanban/", "tests/t1/kanban.sh", "tests/demo/kanban_logic.sh"], "tests": ["kanban", "kanban_logic"]},
     {"paths": ["plugins/gsap/", "tests/t1/gsap.sh", "tests/golden/gsap/", "docs/plugins/gsap.md"], "tests": ["gsap"]},
     {"paths": ["runtime/raster.cpp", "runtime/gl_replay.cpp", "runtime/zrt_raster.h", "tests/t0/ignorable_glyphs.sh"], "tests": ["ignorable_glyphs"]},

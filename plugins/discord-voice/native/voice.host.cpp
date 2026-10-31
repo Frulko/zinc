@@ -23,6 +23,7 @@
 #include "opus.h"
 #include "dave/dave.h"
 #include "../../webrtc/native/media.h"
+#include "video_policy.h"
 #include <dlfcn.h>
 #include <stdio.h>
 #include <psa/crypto.h>
@@ -42,6 +43,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -60,6 +62,7 @@ namespace {
 const char FS = '\x1f', RS = '\x1e';
 const int RATE = 48000, CH = 2, FRAME = 960;            // 20 ms of stereo at 48 kHz
 const int PT_OPUS = 0x78;
+const int PT_RTX = 102;                                  // H.264's RTX: resent video packets (NACK)
 const int PT_H264 = 101;                                  // what Select Protocol's codecs declare (index.ts); its RTX (102) is not read
 const size_t VIDEO_MTU = 1100;                            // payload bytes per video packet
 const double PLI_EVERY_MS = 1000;                         // at most one key frame asked per stream and second
@@ -69,6 +72,7 @@ const uint8_t SILENCE[3] = {0xF8, 0xFF, 0xFE};
 const size_t JITTER_MAX = 8;                              // frames kept per speaker (160 ms); older ones are dropped
 const size_t JITTER_START = 2;                            // frames buffered before a speaker is played
 const int AUDIO_BPS = 64000;                              // Opus at full quality; setLimits() lowers it
+const double RTX_KEEP_MS = 500;                          // how long a sent video packet can be asked for again
 const double REPORT_MS = 1000;                            // RTCP sender and receiver reports
 const int MIN_VIDEO_BPS = 50000;                          // the loss-based bitrate does not go under this
 enum Mode { NONE = -1, AES_GCM = 0, XCHACHA = 1 };
@@ -295,11 +299,12 @@ struct Conn {
   DAVESessionHandle dave = nullptr;
   DAVEEncryptorHandle daveEnc = nullptr;
   std::map<std::string, DAVEDecryptorHandle> daveDec;
-  std::vector<std::string> roster;
+  std::set<std::string> roster;         // every member of the group now, kept across epochs (libdave hands out only the change)
   std::string me, daveFailure;
   int daveVersion = 0;
   double daveStats[2] = {0, 0};        // frames that could not be encrypted, frames that could not be decrypted
   double vstats[5] = {0, 0, 0, 0, 0};  // videoStats()
+  double nackIn = 0, firIn = 0, rtxSent = 0;   // the diagnostic: feedback asked of us, packets resent
   double keysSent = 0;                 // the diagnostic (report()): our key frames, the NAL types we sent, packets of other payload types
   uint32_t nalsSent = 0;
   std::map<uint32_t, std::pair<int, double>> otherPt;   // SSRC -> its payload type, packets
@@ -323,6 +328,10 @@ struct Conn {
   std::unique_ptr<media::VideoEncoder> venc;
   int encBps = 0, encFps = 0;
   uint16_t vseq = 0;
+  uint32_t vrtx = 0;                    // our stream's RTX SSRC (0: none), its sequence, and the last ~500 ms of packets for NACK (under mu)
+  uint16_t rtxSeq = 0;
+  struct Sent { uint16_t seq; uint32_t ts; bool marker; double at; std::vector<uint8_t> body; };
+  std::deque<Sent> sentRing;
 
   ~Conn() {
     if (daveEnc) daveEncryptorDestroy(daveEnc);
@@ -348,6 +357,7 @@ struct Conn {
   void videoLoop();
   void videoPacket(const uint8_t* p, size_t n, double now);
   void rtcp(const uint8_t* p, size_t n);
+  void resend(uint16_t seq);
   void report(double now);
   int videoCap(int w, int h) const;
   void sendVideo(const std::vector<uint32_t>& px, int w, int h, bool key);
@@ -549,7 +559,19 @@ void Conn::rtcp(const uint8_t* p, size_t n) {
     const size_t len = std::min(all.size() - at, 4 * ((size_t)be16(q + 2) + 1));
     const int count = q[0] & 0x1f;
     at += len;
-    if (q[1] == 206 && count == 1) { vstats[4]++; std::lock_guard<std::mutex> g(vmu); forceKey = true; continue; }
+    if (q[1] == 206 && (count == 1 || count == 4)) {   // PLI, or FIR (RFC 5104): the SFU may relay either
+      if (count == 1) vstats[4]++; else firIn++;
+      std::lock_guard<std::mutex> g(vmu); forceKey = true; continue;
+    }
+    if (q[1] == 205 && count == 1 && len >= 16) {   // Generic NACK: PID and a bitmask of the 16 packets after it, resent as RTX
+      nackIn++;
+      for (size_t f = 12; f + 4 <= len; f += 4) {
+        const uint16_t pid = be16(q + f), blp = be16(q + f + 2);
+        resend(pid);
+        for (int b = 0; b < 16; b++) if (blp >> b & 1) resend((uint16_t)(pid + b + 1));
+      }
+      continue;
+    }
     if (q[1] != 200 && q[1] != 201) continue;
     size_t b = 8;
     if (q[1] == 200) {
@@ -578,6 +600,23 @@ void Conn::rtcp(const uint8_t* p, size_t n) {
     }
   }
 }
+/** One packet of our video again, as RTX (RFC 4588: its own SSRC, type and sequence, the original sequence first in the payload); mu held. */
+void Conn::resend(uint16_t seq) {
+  if (vrtx == 0) return;
+  for (const Sent& s : sentRing) {
+    if (s.seq != seq) continue;
+    uint8_t hdr[16] = {0x90, (uint8_t)(PT_RTX | (s.marker ? 0x80 : 0)), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xBE, 0xDE, 0, 1};
+    hdr[2] = (uint8_t)(rtxSeq >> 8); hdr[3] = (uint8_t)rtxSeq; rtxSeq++;
+    put32(hdr + 4, s.ts); put32(hdr + 8, vrtx);
+    std::vector<uint8_t> body(s.body.begin(), s.body.begin() + 4);   // the extension element, then the original sequence, then the payload
+    body.push_back((uint8_t)(seq >> 8)); body.push_back((uint8_t)seq);
+    body.insert(body.end(), s.body.begin() + 4, s.body.end());
+    const std::vector<uint8_t> pkt = cipher.seal(hdr, sizeof hdr, counter++, body.data(), body.size());
+    rtxSent++;
+    sendRaw(pkt.data(), pkt.size());
+    return;
+  }
+}
 /** The most our video may use at w x h: videoSend's bitrate (0: from the size), under setLimits()'s cap (under vmu). */
 int Conn::videoCap(int w, int h) const {
   const int base = vbps > 0 ? vbps : std::max(300000, std::min(2500000, w * h * 3));   // about 0.1 bit per pixel at 30 fps
@@ -590,10 +629,10 @@ void Conn::report(double now) {
   uint32_t vs;
   { std::lock_guard<std::mutex> v(vmu); vs = vssrc; }
   const uint64_t ntp = ntpNow();
-  auto sr = [&](uint32_t from, uint32_t rtpTs, double packets, double bytes, bool blocks) {
+  auto sr = [&](uint32_t from, uint32_t rtpTs, double packets, double bytes, bool blocks, bool rr = false) {
     std::vector<uint8_t> body;
     auto u32 = [&](uint32_t v) { uint8_t b[4]; put32(b, v); body.insert(body.end(), b, b + 4); };
-    u32((uint32_t)(ntp >> 32)); u32((uint32_t)ntp); u32(rtpTs); u32((uint32_t)packets); u32((uint32_t)bytes);
+    if (!rr) { u32((uint32_t)(ntp >> 32)); u32((uint32_t)ntp); u32(rtpTs); u32((uint32_t)packets); u32((uint32_t)bytes); }
     int count = 0;
     if (blocks) for (auto& [id, r] : rx) {
       if (count == 31) break;
@@ -607,7 +646,7 @@ void Conn::report(double now) {
       u32(r.lsr); u32(r.lsr != 0 ? (uint32_t)((now - r.lsrAt) / 1000 * 65536) : 0);
       count++;
     }
-    uint8_t hdr[8] = {(uint8_t)(0x80 | count), 200, 0, 0};
+    uint8_t hdr[8] = {(uint8_t)(0x80 | count), (uint8_t)(rr ? 201 : 200), 0, 0};
     const size_t words = (8 + body.size()) / 4 - 1;
     hdr[2] = (uint8_t)(words >> 8); hdr[3] = (uint8_t)words;
     put32(hdr + 4, from);
@@ -617,7 +656,7 @@ void Conn::report(double now) {
   const uint32_t vts = (uint32_t)(int64_t)(now * 90);
   if (audio) sr(ssrc, ts, stats[0], sentBytes[0], true);
   if (vs != 0) sr(vs, vts, vstats[1], sentBytes[1], !audio);
-  else if (!audio) sr(ssrc, 0, 0, 0, true);   // watching only: the blocks ride on an empty sender report
+  else if (!audio) sr(ssrc, 0, 0, 0, true, true);   // watching only: a receiver report (we send no media there)
 }
 /** Asks the sender of the stream `source` for a key frame (RTCP PLI; video thread). */
 void Conn::pli(uint32_t source) {
@@ -646,9 +685,9 @@ void Conn::sendVideo(const std::vector<uint32_t>& px, int w, int h, bool key) {
   } else if (encBps != bps) { venc->setRate(bps, fps); encBps = bps; }   // the loss reports: no new encoder, no key frame
   std::vector<uint8_t> au;
   bool isKey = false;
-  int every;
-  { std::lock_guard<std::mutex> v(vmu); every = keyMs; }
-  if (every > 0 && nowMs() - keyAt >= every) key = true;
+  int every, capped;
+  { std::lock_guard<std::mutex> v(vmu); every = keyMs; capped = capBps; }
+  if (keyDue(nowMs(), keyAt, every, capped > 0)) key = true;
   if (!venc || !venc->encode(px.data(), w, h, (int64_t)nowMs(), key, au, isKey)) return;
   for (size_t i = 0; i + 4 <= au.size();) { const size_t len = be32(&au[i]); au[i] = au[i + 1] = au[i + 2] = 0; au[i + 3] = 1; i += 4 + len; }   // AVCC -> Annex B, in place
   const uint32_t ts = (uint32_t)(int64_t)(nowMs() * 90);   // the 90 kHz clock
@@ -660,7 +699,11 @@ void Conn::sendVideo(const std::vector<uint32_t>& px, int w, int h, bool key) {
   if (daveVersion > 0) {   // end-to-end first: libdave leaves the NAL headers readable and keeps start codes out of what it encrypts
     std::vector<uint8_t> e(daveEncryptorGetMaxCiphertextByteSize(daveEnc, DAVE_MEDIA_TYPE_VIDEO, au.size()));
     size_t wr = 0;
-    if (daveEncryptorEncrypt(daveEnc, DAVE_MEDIA_TYPE_VIDEO, vs, au.data(), au.size(), e.data(), e.size(), &wr) != DAVE_ENCRYPTOR_RESULT_CODE_SUCCESS) { daveStats[0]++; return; }
+    if (daveEncryptorEncrypt(daveEnc, DAVE_MEDIA_TYPE_VIDEO, vs, au.data(), au.size(), e.data(), e.size(), &wr) != DAVE_ENCRYPTOR_RESULT_CODE_SUCCESS) {   // no key ratchet yet: the next frame is a key frame again, not a P-frame nobody can start from
+      daveStats[0]++;
+      std::lock_guard<std::mutex> v(vmu); forceKey = true;
+      return;
+    }
     e.resize(wr);
     au.swap(e);
   }
@@ -693,6 +736,8 @@ void Conn::sendVideo(const std::vector<uint32_t>& px, int w, int h, bool key) {
     const std::vector<uint8_t> pkt = cipher.seal(hdr, sizeof hdr, counter++, body.data(), body.size());
     vstats[1]++;
     sentBytes[1] += (double)body.size();
+    sentRing.push_back({(uint16_t)(vseq - 1), ts, marker, nowMs(), body});
+    while (!sentRing.empty() && nowMs() - sentRing.front().at > RTX_KEEP_MS) sentRing.pop_front();
     sendRaw(pkt.data(), pkt.size());
   };
   for (size_t k = 0; k < nals.size(); k++) {
@@ -827,11 +872,23 @@ void daveLog(DAVELoggingSeverity sev, const char* file, int line, const char* ms
   if (sev >= DAVE_LOGGING_SEVERITY_WARNING && sev != DAVE_LOGGING_SEVERITY_NONE && getenv("DISCORD_LOG")) fprintf(stderr, "dave: %s (%s:%d)\n", msg, file, line);
 }
 /** The users of a commit's or a welcome's roster, as decimal snowflakes. */
-std::vector<std::string> rosterOf(uint64_t* ids, size_t n) {
-  std::vector<std::string> out;
-  for (size_t i = 0; i < n; i++) out.push_back(std::to_string(ids[i]));
+void signatureOf(DAVECommitResultHandle r, uint64_t id, uint8_t** sig, size_t* n) { daveCommitResultGetRosterMemberSignature(r, id, sig, n); }
+void signatureOf(DAVEWelcomeResultHandle r, uint64_t id, uint8_t** sig, size_t* n) { daveWelcomeResultGetRosterMemberSignature(r, id, sig, n); }
+/** Folds a commit's or a welcome's result into the group's members: libdave gives the change since the last epoch (added members with
+ *  a signature, removed ones with none), not the roster, so the members already there must stay (they all need the new epoch's key). */
+template <class R> void changeOf(Conn* c, R r, uint64_t* ids, size_t n, bool replace) {
+  std::vector<std::string> who;
+  std::vector<bool> has;
+  for (size_t i = 0; i < n; i++) {
+    uint8_t* sig = nullptr;
+    size_t sn = 0;
+    signatureOf(r, ids[i], &sig, &sn);
+    if (sig) daveFree(sig);
+    who.push_back(std::to_string(ids[i]));
+    has.push_back(sn > 0);
+  }
   if (ids) daveFree(ids);
-  return out;
+  applyRosterChange(c->roster, who, has, replace);
 }
 void passthrough(Conn* c) {
   c->daveVersion = 0;
@@ -971,13 +1028,20 @@ struct HostDiscordVoice : NativeDiscordVoice {
     delete c;
     conns[h] = nullptr;
   }
-  void videoSend(int32_t h, uint32_t ssrc, int32_t bitrate, int32_t fps, int32_t keyframeMs) override {
+  void videoSend(int32_t h, uint32_t ssrc, uint32_t rtxSsrc, int32_t bitrate, int32_t fps, int32_t keyframeMs) override {
     Conn* c = at(h);
     if (!c) return;
     std::lock_guard<std::mutex> g(c->mu);
     if (ssrc && c->daveEnc) daveEncryptorAssignSsrcToCodec(c->daveEnc, ssrc, DAVE_CODEC_H264);
     std::lock_guard<std::mutex> v(c->vmu);
+    c->vrtx = ssrc ? rtxSsrc : 0; c->sentRing.clear();
     c->vssrc = ssrc; c->vbps = bitrate; c->vfps = fps > 0 ? fps : 30; c->keyMs = std::max(0, keyframeMs); c->forceKey = true; c->hasPend = false;
+  }
+  void keyFrame(int32_t h) override {
+    Conn* c = at(h);
+    if (!c) return;
+    std::lock_guard<std::mutex> v(c->vmu);
+    c->forceKey = true;
   }
   bool sendImage(int32_t h, int32_t image) override {
     Conn* c = at(h);
@@ -1052,7 +1116,7 @@ struct HostDiscordVoice : NativeDiscordVoice {
     auto row = [&](std::initializer_list<std::string> f) { if (!out.empty()) out += RS; bool first = true; for (const std::string& x : f) { if (!first) out += FS; out += x; first = false; } };
     if (c->audio) row({"out", "audio", n(c->ssrc), n(c->sentBytes[0]), n(c->stats[0]), n(c->audioBps), "0", "0", "0", "0"});
     if (c->vssrc) row({"out", "video", n(c->vssrc), n(c->sentBytes[1]), n(c->vstats[1]), n(c->curBps), n(c->vstats[0]), n(c->curW), n(c->curH), n(c->vstats[4]),
-                       n(c->keysSent), nalList(c->nalsSent)});
+                       n(c->keysSent), nalList(c->nalsSent), n(c->nackIn), n(c->firIn), n(c->rtxSent)});
     for (int k = 0; k < 2; k++) {
       const Remote& x = c->remote[k];
       if (x.seen && (k == 0 ? c->audio : c->vssrc != 0)) row({"remote", k ? "video" : "audio", n(k ? c->vssrc : c->ssrc), n(x.fraction), n(x.lost), n(x.jitter), n(x.rtt)});
@@ -1140,7 +1204,7 @@ struct HostDiscordVoice : NativeDiscordVoice {
     DAVECommitResultHandle r = daveSessionProcessCommit(c->dave, b.data(), b.size());
     if (!r) return -1;
     const int32_t res = daveCommitResultIsFailed(r) ? -1 : daveCommitResultIsIgnored(r) ? 0 : 1;
-    if (res == 1) { uint64_t* ids = nullptr; size_t n = 0; daveCommitResultGetRosterMemberIds(r, &ids, &n); c->roster = rosterOf(ids, n); }
+    if (res == 1) { uint64_t* ids = nullptr; size_t n = 0; daveCommitResultGetRosterMemberIds(r, &ids, &n); changeOf(c, r, ids, n, false); }
     daveCommitResultDestroy(r);
     return res;
   }
@@ -1157,7 +1221,7 @@ struct HostDiscordVoice : NativeDiscordVoice {
     uint64_t* rid = nullptr;
     size_t n = 0;
     daveWelcomeResultGetRosterMemberIds(r, &rid, &n);
-    c->roster = rosterOf(rid, n);
+    changeOf(c, r, rid, n, true);   // a welcome starts a group: its change is everyone
     daveWelcomeResultDestroy(r);
     return 1;
   }
@@ -1169,8 +1233,10 @@ struct HostDiscordVoice : NativeDiscordVoice {
     c->daveVersion = version;
     daveEncryptorSetPassthroughMode(c->daveEnc, false);
     // the key ratchets of the new epoch: ours for the encryptor, each other member's for its decryptor
-    std::vector<std::string> who = c->roster;
-    if (std::find(who.begin(), who.end(), c->me) == who.end()) who.push_back(c->me);
+    std::set<std::string> who = c->roster;
+    who.insert(c->me);
+    for (auto& [u, d] : c->daveDec) who.insert(u);   // decryptors already made: the key ratchet is null for a user who left
+    { std::lock_guard<std::mutex> v(c->vmu); c->forceKey = true; }   // our encryptor has a new key: a key frame the viewers can start from
     for (const std::string& u : who) {
       DAVEKeyRatchetHandle k = daveSessionGetKeyRatchet(c->dave, u.c_str());
       if (!k) continue;
