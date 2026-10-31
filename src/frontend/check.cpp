@@ -2803,6 +2803,7 @@ struct Checker {
         if (assignable(q, p, x.kids[2])) { convertDyn(q, p, x.kids[2]); return p; }   // (a class in the branch of an `unknown` becomes a Dyn)
         if (assignable(p, q, x.kids[1])) { convertDyn(p, q, x.kids[1]); return q; }
         if (name(p) == "NeverPromise" && promiseKind(q) != 0) { require(p, q, x.kids[1]); return q; }  // a branch that only rejects takes the other branch's promise type
+        if (name(q) == "NeverPromise" && promiseKind(p) != 0) { require(q, p, x.kids[2]); return p; }
         // branches of unrelated types join to their union, as in TypeScript (`c ? 'x' : 1` is a string | number). Two promises join to the promise
         // of the union (`Promise<null> | Promise<R>` is read as a `Promise<R | null>`, which both convert to: a union of promises could not be awaited)
         if (promiseKind(p) == 1 && promiseKind(q) == 1 && out.objs[ty(p).obj].typeArgs.size() == 1 && out.objs[ty(q).obj].typeArgs.size() == 1 && out.objs[ty(p).obj].genericSym != kNoObj) {
