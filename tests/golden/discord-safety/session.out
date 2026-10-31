@@ -10,10 +10,28 @@ safety: slowmode: first '', second 'Slowmode: you can send again in 30 s.', coun
 safety: repeat: first '', again 'Not sent: you sent this message already.'
 safety: pasted elsewhere: 'Not sent: the same message in several conversations looks like spam.'
 safety: mentions: 'Not sent: a message mentions 5 people or roles at most here.'
-safety: reaction burst: 15 of 20 sent, then 'Slow down: wait 5 s.'
+safety: @everyone: 'Not sent: you may not mention @everyone or @here in this channel.'
+safety: invites: 'Not sent: a message holds 1 invite link at most here.'
+safety: reaction toggles: 4 of 6 sent, then 'Not sent: this reaction went on and off too often; leave it a minute.'
+safety: reaction burst: 11 of 20 sent, then 'Slow down: wait 5 s.'
 safety: history loop: 1 page asked, 14 refused
 safety: captcha: 'Could not send the message: Discord asks for a captcha, which this client does not show: log in with the QR code, or once in the official Discord app.'
 safety: long 429: 'Could not edit the message: Discord is limiting how fast this client can go: try again in 60 s.'
 safety: after the breaker: refused true
 safety: op 9: identified again after 1 to 5 s true, identifies today 2
+safety: 40003: 'Could not send the message: Discord says you are opening DMs too fast: wait an hour.', then a new DM: 'Discord says you are opening DMs too fast: wait an hour.'
+safety: account now: safe mode for the day true, DM pause 1
+safety:   Email: verified
+safety:   Safe mode: on until HH:MM (Discord says you are opening DMs too fast: wait an hour.)
+safety:   Messages today: 4 of 1500
+safety:   Edits today: 1 of 300
+safety:   Deletes today: 0 of 200
+safety:   Reactions today: 15 of 1000
+safety:   New DMs today: 0 of 20
+safety:   Friend requests today: 0 of 5
+safety:   Servers joined today: 0 of 5
+safety:   Servers left today: 0 of 5
+safety:   Profile changes today: 0 of 5
+safety:   Older pages today: 1 of 1500
+safety:   Logins to the gateway today: 2 of 50
 safety: 401: back to the login, 'Could not delete the message: Discord refused the token: log in again.'; then a message: 'Discord refused the token: log in again.'

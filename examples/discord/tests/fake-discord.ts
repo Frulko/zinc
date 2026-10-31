@@ -65,7 +65,7 @@ for (let g = 0; g < (env('FAKE_GUILDS') !== '' ? parseInt(env('FAKE_GUILDS')) : 
 }
 // FAKE_GUARDS=1 (tests/t1/discord_safety.sh): what the safety model must see and meet. READY carries @everyone's permissions, my member
 // object (no roles), a slowmode channel #slow (30 s), a read-only #announcements (@everyone may not send), Mallory blocked and her DM; a
-// message "fault:captcha" is answered with a captcha, an edit to "fault:429" with a 429 of 60 s followed by op 9 d:false, a message's delete with 401.
+// message "fault:captcha" is answered with a captcha, "fault:40003" with 40003 (DMs opened too fast), an edit to "fault:429" with a 429 of 60 s followed by op 9 d:false, a message's delete with 401.
 const GUARDS = env('FAKE_GUARDS') === '1';
 const mallory: any = { id: '104', username: 'mallory', global_name: 'Mallory', avatar: null };
 if (GUARDS) {
@@ -300,6 +300,10 @@ function rest(req: Request): Reply {
   if (GUARDS && req.method === 'POST' && msgs !== null && one === '' && body.content === 'fault:captcha') {
     console.log(`${line} -> 400 captcha`);
     return json(400, '{"captcha_key":["captcha-required"],"captcha_sitekey":"site","captcha_service":"hcaptcha"}');
+  }
+  if (GUARDS && req.method === 'POST' && msgs !== null && one === '' && body.content === 'fault:40003') {
+    console.log(`${line} -> 400 40003`);
+    return json(400, '{"message":"You are opening direct messages too fast.","code":40003}');
   }
   if (GUARDS && req.method === 'PATCH' && msgs !== null && body.content === 'fault:429') {
     console.log(`${line} -> 429 for 60 s, then op 9`);

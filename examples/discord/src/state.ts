@@ -766,7 +766,7 @@ export class Store implements GatewayHandler {
     let on = true;
     for (const x of m.reactions) if ((emoji.id !== '' ? x.id === emoji.id : x.name === emoji.name) && x.me) on = false;
     const d = new guard.Details();
-    d.channel = m.channelId; d.author = on ? m.authorId : '';
+    d.channel = m.channelId; d.author = on ? m.authorId : ''; d.target = `${m.id} ${emoji.id !== '' ? emoji.id : emoji.name}`;
     d.newReaction = on && m.reactions.every((x: Reaction) => emoji.id !== '' ? x.id !== emoji.id : x.name !== emoji.name);
     const v = guard.begin('react', d);
     if (!v.ok) { this.refuse(v.message); return; }

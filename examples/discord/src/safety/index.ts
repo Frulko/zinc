@@ -18,11 +18,12 @@ import { readText, writeTextAsync, exists, remove } from 'zinc:fs';
 import { API_BASE } from '../constants';
 import { transport, setToken as setTransportToken, ApiError } from '../services/rest';
 import { Rule, RULES, HUMAN_S, FILES_MAX, GET_CACHE_MS, OFFLINE_FIRST_MS, OFFLINE_MAX_MS, GLOBAL_PER_SECOND, INVALID_MAX, INVALID_WINDOW_MS,
-  LONGEST_WAIT_S, RETRIES_429, SAFE_MODE_MS, GATEWAY_SENDS_MAX, IDENTIFY_MAX, IDENTIFY_SPACING_MS, RECONNECT_FIRST_MS, RECONNECT_MAX_MS,
+  LONGEST_WAIT_S, RETRIES_429, GATEWAY_SENDS_MAX, IDENTIFY_MAX, IDENTIFY_SPACING_MS, RECONNECT_FIRST_MS, RECONNECT_MAX_MS,
   INVALID_SESSION_MS, INVALID_SESSION_SPREAD_MS, RESUME_FRESH_MS, RESUME_SESSION_MS, ACK_BURST_MS, IDLE_AFTER_S, PRESENCE_CHECK_MS,
-  CDN_AT_ONCE, REFRESH_BATCH as BATCH } from './policy';
-import { Window, Budgets, Spam, Buckets, routeOf, plainError, startsSafeMode } from './core';
-import { Access, ATTACH_FILES, ADD_REACTIONS, CONNECT, SPEAK, MOVE_MEMBERS } from './access';
+  CDN_AT_ONCE, REFRESH_BATCH as BATCH, GLOBAL_PER_DAY, DM_TOO_FAST_MS, LOGIN_FAILURES, LOGIN_PAUSE_MS, RECONNECTS_MAX, RECONNECT_HOLD_MS,
+  YOUNG_ACCOUNT_MS } from './policy';
+import { Window, Budgets, Spam, Buckets, ColdDms, Toggles, routeOf, plainError, startsSafeMode, placeCheck, dmsTooFast, safeModeMs } from './core';
+import { Access, ATTACH_FILES, ADD_REACTIONS, CONNECT, SPEAK, MOVE_MEMBERS, MENTION_EVERYONE } from './access';
 
 export { ApiError };
 /** Picture URLs renewed in one request at most. */
@@ -31,6 +32,11 @@ export const REFRESH_BATCH = BATCH;
 const budgets = new Budgets();
 const spam = new Spam();
 const access = new Access();
+const cold = new ColdDms();
+const toggles = new Toggles();
+let dmPausedUntil: number = 0;   // Discord's 40003
+const loginFailures = new Window(LOGIN_FAILURES, LOGIN_PAUSE_MS);
+let loginStopUntil: number = 0;   // ponytail: in memory only (a test's wrong passwords must not lock the next run); kept across launches if restarts are abused
 const sleep = (ms: number): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });
 let log: (line: string) => void = (line: string): void => {};
 let listeners: (() => void)[] = [];
@@ -57,8 +63,9 @@ function human(): boolean {
 /** What an action is about, for the checks of layer 2. */
 export class Details {
   channel = ''; text = ''; edit = false;
-  /** Files: their sizes. A reaction: the message's author, and whether the emoji is new on it. A call: who is in the channel now. */
-  sizes: number[] = []; author = ''; newReaction = false; inCall: i32 = 0;
+  /** Files: their sizes. A reaction: the message's author, whether the emoji is new on it, and `target` the message and emoji. A call:
+   *  who is in the channel now. A new DM: `author` the person. */
+  sizes: number[] = []; author = ''; newReaction = false; inCall: i32 = 0; target = '';
 }
 const lastSentIn: Map<string, number> = new Map<string, number>();
 let online = false;   // the gateway's session is up
@@ -76,7 +83,20 @@ export function mustMute(ch: string): boolean { return access.lacks(ch, SPEAK, D
 /** Whether pinning is offered in the channel (the pin button); the 'pin' kind is refused where it is not. */
 export function mayPin(ch: string): boolean { return access.mayPin(ch, Date.now()); }
 const MB = 1048576;
+/** The text where it goes (rules 6, 7, 18): @everyone, links in a first DM to a stranger, links and mentions of a new member. */
+function textCheck(text: string, ch: string, now: number): string {
+  return placeCheck(text, access.strangerDm(ch, now), access.newMember(ch, now), !access.lacks(ch, MENTION_EVERYONE, now));
+}
 function actionCheck(kind: string, d: Details | null, now: number): string {
+  if ((kind === 'login' || kind === 'mfa') && now < loginStopUntil)
+    return `${LOGIN_FAILURES} logins failed this hour: the password login waits until ${clock(loginStopUntil)}. The QR code still works.`;
+  if (kind === 'dm') {
+    if (access.limited(now)) return `Not sent: new DMs wait until your account is ${YOUNG_ACCOUNT_MS / 86400000} days old and its email verified.`;
+    if (now < dmPausedUntil) return plainError(0, { code: 40003 }, 0);
+    const no = cold.check('', true, now);
+    if (no !== '') return no;
+    return d !== null ? access.cannotOpenDm(d.author) : '';
+  }
   if (d === null) return '';
   const ch = d.channel;
   const writes = kind === 'send' || kind === 'upload' || kind === 'edit' || kind === 'react' || kind === 'vote' || kind === 'delete';
@@ -86,17 +106,29 @@ function actionCheck(kind: string, d: Details | null, now: number): string {
     if (no !== '') return no;
     const slow = slowLeft(ch, now);
     if (slow > 0) return `Slowmode: you can send again in ${Math.ceil(slow / 1000)} s.`;
+    const wait = access.verificationWait(ch, now);
+    if (wait !== '') return wait;
+  }
+  if (kind === 'send' || kind === 'upload') {
+    const no = cold.check(ch, access.coldDm(ch, now), now);
+    if (no !== '') return no;
   }
   if (kind === 'send' || kind === 'edit') {
     if (d.text.length > access.messageMax()) return `A message holds ${access.messageMax()} characters at most.`;
-    return spam.check(d.text, ch, now, kind === 'edit');
+    const place = textCheck(d.text, ch, now);
+    return place !== '' ? place : spam.check(d.text, ch, now, kind === 'edit');
   }
   if (kind === 'upload') {
     if (access.lacks(ch, ATTACH_FILES, now)) return 'You do not have permission to send files here.';
     if (d.sizes.length > FILES_MAX) return `A message holds ${FILES_MAX} files at most.`;
     const max = access.uploadMax(ch);
     for (const n of d.sizes) if (n > max) return `A file is larger than the ${Math.round(max / MB)} MB you may send here.`;
-    return d.text !== '' ? spam.check(d.text, ch, now, false) : '';
+    const place = d.text !== '' ? textCheck(d.text, ch, now) : '';
+    return place !== '' || d.text === '' ? place : spam.check(d.text, ch, now, false);
+  }
+  if (kind === 'react' && d.target !== '') {
+    const no = toggles.check(d.target, now);
+    if (no !== '') return no;
   }
   if (kind === 'react' && d.author !== '' && access.isBlocked(d.author)) return 'You blocked this person: no reactions to their messages.';
   if (kind === 'react' && d.newReaction && access.lacks(ch, ADD_REACTIONS, now)) return 'You do not have permission to add reactions here.';
@@ -115,8 +147,25 @@ export class Verdict { ok = false; message = ''; waitMs: number = 0; kind = ''; 
 const issued: Set<Verdict> = new Set<Verdict>();
 const VERDICT_MS = 60000;   // a message's files may take a while between its two requests
 let tokenRefused = false;   // a 401: nothing more with this token
-let safeUntil: number = 0;
+let safeUntil: number = 0, safeReason = '';
 const safe = (now: number): boolean => now < safeUntil;
+/** Times kept across launches (zinc:storage) under a key: those of the last `ms`, and one more when `add` is not 0. */
+function keptTimes(key: string, ms: number, add: number): number[] {
+  const now = Date.now(), kept: number[] = [];
+  try { const v: any = JSON.parse(storage.get(key)); if (Array.isArray(v)) for (const at of v) if (now - at < ms) kept.push(at); } catch (e) {}
+  if (add !== 0) { kept.push(add); storage.set(key, JSON.stringify(kept)); }
+  return kept;
+}
+/** Safe mode starts (rule 30: the third in a day lasts the day). */
+function startSafeMode(reason: string): void {
+  const now = Date.now();
+  safeUntil = now + safeModeMs(keptTimes('safe-modes', 86400000, 0).length);
+  keptTimes('safe-modes', 86400000, now);
+  safeReason = reason;
+}
+// the day's counts of the budgets, kept across launches (rule 26)
+const DAY_KEY = 'day';
+budgets.loadDay(storage.get(DAY_KEY), Date.now());
 
 /** Whether one action or request of the kind may go now, after every layer; `uses`: the requests it covers. */
 export function begin(kind: string, d: Details | null = null, uses: i32 = 1): Verdict {
@@ -124,6 +173,7 @@ export function begin(kind: string, d: Details | null = null, uses: i32 = 1): Ve
   v.kind = kind; v.channel = d !== null ? d.channel : '';
   const logsIn = kind === 'login' || kind === 'mfa' || kind === 'qr' || kind === 'ticket';   // a refused token still lets a person log in
   let why = tokenRefused && !logsIn ? plainError(401, null, 0) : actionCheck(kind, d, now);
+  budgets.limited = access.limited(now);
   if (why === '') why = budgets.check(kind, now, human(), windowFocused(), safe(now), scripted);
   if (why !== '') {
     v.message = why; v.waitMs = budgets.waitMs(kind, now);
@@ -132,10 +182,41 @@ export function begin(kind: string, d: Details | null = null, uses: i32 = 1): Ve
     return v;
   }
   if (kind === 'send' && d !== null) { spam.remember(d.text, d.channel, now); lastSentIn.set(d.channel, now); budgets.again('typing'); }
+  if ((kind === 'send' || kind === 'upload') && d !== null && access.coldDm(d.channel, now)) cold.remember(d.channel, now);
+  if (kind === 'react' && d !== null && d.target !== '') toggles.remember(d.target, now);
+  storage.set(DAY_KEY, budgets.dayText());
   v.ok = true; v.uses = uses; v.at = now;
   if (uses > 0) issued.add(v);   // 0: an action counted and checked that sends nothing itself (a call: its op 4 has its own verdict)
   return v;
 }
+/** One line of today's counts: a kind ('all': every request; 'identify': the gateway's logins) and its cap a day. */
+export class Today { kind = ''; count: i32 = 0; cap: i32 = 0; }
+/** What the Settings page "Account safety" shows, read from the guard: the account (email verified, age in days, the lower caps of a
+ *  young or unverified one), safe mode (until when, why), the pauses in force (plain sentences) and today's counts against their caps. */
+export class SafetyState {
+  verified = true; ageDays: i32 = -1; limited = false; safeUntil: number = 0; safeReason = ''; pauses: string[] = []; today: Today[] = [];
+}
+export function safetyState(): SafetyState {
+  const s = new SafetyState(), now = Date.now();
+  s.verified = access.verified; s.limited = access.limited(now);
+  if (access.createdAt > 0) s.ageDays = Math.floor((now - access.createdAt) / 86400000);
+  if (safe(now)) { s.safeUntil = safeUntil; s.safeReason = safeReason; }
+  if (now < dmPausedUntil) s.pauses.push(`New DMs until ${clock(dmPausedUntil)}: Discord said you opened DMs too fast.`);
+  if (now < cold.pausedUntil) s.pauses.push(`New conversations until ${clock(cold.pausedUntil)}: you wrote to many people you had not talked to in a while.`);
+  if (now < holdUntil) s.pauses.push(`Reconnecting until ${clock(holdUntil)}: the connection kept dropping.`);
+  if (now < loginStopUntil) s.pauses.push(`The password login until ${clock(loginStopUntil)}: ${LOGIN_FAILURES} logins failed.`);
+  for (const kind of RULES.keys()) {
+    const r = RULES.get(kind) as Rule, wait = budgets.waitMs(kind, now);
+    if (!r.quiet && wait > 0) s.pauses.push(`${kind}: ${Math.ceil(wait / 1000)} s, after going faster than a person.`);
+    if (r.perDay > 0) { const t = new Today(); t.kind = kind; t.count = budgets.todayCount(kind, now); t.cap = budgets.cap(kind, r.perDay); s.today.push(t); }
+  }
+  const all = new Today(); all.kind = 'all'; all.count = budgets.todayCount('', now); all.cap = GLOBAL_PER_DAY; s.today.push(all);
+  const ids = new Today(); ids.kind = 'identify'; ids.count = identifiesToday(); ids.cap = IDENTIFY_MAX; s.today.push(ids);
+  return s;
+}
+/** HH:MM of a time, for the person. */
+export function clock(t: number): string { const d = new Date(t), two = (n: i32): string => n < 10 ? `0${n}` : `${n}`; return `${two(d.getHours())}:${two(d.getMinutes())}`; }
+
 /** The composer's countdown (the slowmode, or the cooldown of messages), '' when none; the screen is called again each second. */
 export function countdown(ch: string): string {
   const now = Date.now(), slow = slowLeft(ch, now), wait = budgets.waitMs('send', now);
@@ -235,10 +316,12 @@ async function http(v: Verdict, method: string, path: string, body: any, backgro
       // the circuit breaker: the kind's cooldown grows, the whole client's after a 429; safe mode stops what is not essential
       budgets.strike(v.kind, Date.now());
       if (r.status === 429) budgets.strike('', Date.now());
-      if (r.status === 401) tokenRefused = true; else safeUntil = Date.now() + SAFE_MODE_MS;
       const why = plainError(r.status, j, wait);
+      const told = why !== '' ? why : `Discord refused a request (HTTP ${r.status}): this client slows down for a while.`;
+      if (r.status === 401) tokenRefused = true; else startSafeMode(told);
+      if (dmsTooFast(j)) dmPausedUntil = Date.now() + DM_TOO_FAST_MS;
       log(`safe mode: ${r.status} on ${route}`);
-      safeMode(why !== '' ? why : `Discord refused a request (HTTP ${r.status}): this client slows down for a while.`, r.status === 401);
+      safeMode(told, r.status === 401);
       changed();
     }
     if (retry) {
@@ -248,6 +331,10 @@ async function http(v: Verdict, method: string, path: string, body: any, backgro
       else if (!buckets.empty(route, until)) await sleep(until - Date.now());
       log(`rate limit: 429 on ${route}, retry after ${global ? 'the global limit' : 'its bucket'}`);
       continue;
+    }
+    if (!r.ok && (v.kind === 'login' || v.kind === 'mfa') && (r.status === 400 || r.status === 401)) {   // rule 23: a refused password or code
+      loginFailures.add(Date.now());
+      if (loginFailures.count(Date.now()) >= LOGIN_FAILURES) loginStopUntil = Date.now() + LOGIN_PAUSE_MS;
     }
     if (!r.ok) {
       let message = plainError(r.status, j, wait);
@@ -346,7 +433,16 @@ export function identifiesToday(): i32 { return identifies.count(Date.now()); }
 let reconnectWait: number = RECONNECT_FIRST_MS, invalidInARow = 0;
 /** The wait before the next connection after a drop: doubling to 60 s, with jitter (50 to 100%) so clients cut off together do not come
  *  back together. Returns [the wait, the step logged]. */
+const reconnects = new Window(RECONNECTS_MAX, 3600000);
+let holdUntil: number = 0;
 export function reconnectDelay(): number[] {
+  if (reconnects.take(Date.now()) > 0) {   // rule 24: a flapping network does not reconnect every minute all day
+    holdUntil = Date.now() + RECONNECT_HOLD_MS;
+    log(`gateway: ${RECONNECTS_MAX} reconnections this hour, the next waits ${RECONNECT_HOLD_MS / 60000} minutes`);
+    safeMode(`The connection keeps dropping: this client tries again at ${clock(holdUntil)}.`, false);
+    reconnects.add(Date.now());   // the hold's own reconnection counts
+    return [RECONNECT_HOLD_MS, RECONNECT_HOLD_MS];
+  }
   const step = reconnectWait;
   reconnectWait = Math.min(reconnectWait * 2, RECONNECT_MAX_MS);
   return [Math.round(step * (0.5 + Math.random() / 2)), step];

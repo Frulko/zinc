@@ -2,11 +2,6 @@ identify token=true capabilities=1246 browser=Chrome
 identify token=true capabilities=1246 browser=Chrome
 rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
 rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
-rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
-rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
-rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
-rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
-rest DELETE /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
 rest DELETE /api/v9/channels/302/messages/907 auth=true super=true -> 401
 rest GET /api/v9/channels/302/messages?before=100000&limit=100 auth=true super=true
 rest PATCH /api/v9/channels/302/messages/907 auth=true super=true -> 429 for 60 s, then op 9
@@ -18,13 +13,19 @@ rest POST /api/v9/channels/302/typing auth=true super=true
 rest POST /api/v9/channels/302/typing auth=true super=true
 rest POST /api/v9/channels/320/messages auth=true super=true content="First in the slow channel" nonce=true reply= waited=first
 rest POST /api/v9/channels/320/typing auth=true super=true
+rest POST /api/v9/channels/400/messages auth=true super=true -> 400 40003
 rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
 rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
-rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
-rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
-rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
-rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
-rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
-rest PUT /api/v9/channels/302/messages/903/reactions/%F0%9F%91%8D/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/e0/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/e1/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/e10/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/e2/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/e3/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/e4/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/e5/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/e6/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/e7/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/e8/@me?location=Message&type=0 auth=true super=true
+rest PUT /api/v9/channels/302/messages/903/reactions/e9/@me?location=Message&type=0 auth=true super=true
 resume session=sess-1 seq=1
 resume session=sess-1 seq=1

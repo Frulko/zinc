@@ -152,6 +152,31 @@ sends the person back to the login and nothing more is sent).
 Proved by: `discord_safety.sh` (a second launch resumes `sess-1` without IDENTIFY; a launch while the session runs says "already running";
 op 9 re-identifies after 1 to 7 s with the day's count).
 
+## Account safety rules (ZN-910)
+
+The twelve additions of `discord-account-safety-rules.md` ("Rules to add to the module"), each a `policy.ts` entry, logic in `core.ts`
+or `access.ts`, wired in `index.ts`, and a check in `tests/rate-limits.ts` (and `discord_safety.sh` where it runs end to end):
+
+| Rule | What the guard does | Policy |
+|---|---|---|
+| 13, 40003 | "Opening direct messages too fast" starts safe mode and refuses `dm` for an hour, with "wait an hour". | `DM_TOO_FAST_MS` |
+| 26, day caps | Each `Rule` has a `/day` column (0: none): send 1500, react 1000, edit 300, delete 200, dm 20, friend 5, older 1500, join and leave 5, profile-edit 5; every kind together 6000. The UTC day's counts are kept across launches in `zinc:storage` (`day`). A day cap refuses without a cooldown. | `Rule.perDay`, `GLOBAL_PER_DAY` |
+| 19, young or unverified | READY's `user.verified` (and `USER_UPDATE`) and the account's age from its id's snowflake: an account younger than 7 days or with no verified email gets half the minute, hour and day caps of every write kind, and no new DM. | `YOUNG_ACCOUNT_MS`, `WRITES` |
+| 12 and 14, new DMs | A new DM goes only to a friend or someone seen in one of my servers (members in READY and GUILD_CREATE, message authors, the member list). A DM is cold when its last message is over 30 days old: writing in more than 5 cold DMs within 10 minutes pauses new DMs and cold DMs 10 minutes. | `COLD_DM_*` |
+| 7, invites | One invite link (`discord.gg/`, `discord.com/invite/`) a message; the same invite in at most 2 conversations in 10 minutes; no link or invite in the first message of a cold DM with no friend in it. | `INVITES_MAX`, `INVITE_*` |
+| 6, mentions | `@everyone`, `@here` and roles count in the 5; `@everyone`/`@here` need MENTION_EVERYONE in the channel (else refused, rather than a ping Discord drops). | `MENTIONS_MAX` |
+| 24, reconnect storm | More than 20 reconnections in an hour hold the next 5 minutes and tell the person the connection keeps dropping. | `RECONNECTS_MAX`, `RECONNECT_HOLD_MS` |
+| 30, third safe mode | Safe-mode starts are kept across launches; the third within a day lasts 24 hours (essential kinds only). | `SAFE_MODES_BEFORE_LONG`, `SAFE_MODE_LONG_MS` |
+| 18, new member | In a server joined less than 10 minutes ago (`joined_at`), no link and no mention; a server at verification level High holds every message 10 minutes, Medium wants an account older than 5 minutes. | `NEW_MEMBER_MS`, `ACCOUNT_MIN_MS` |
+| 11, reaction toggles | The same emoji on the same message put on or off more than 4 times a minute is refused. | `REACTION_TOGGLES` |
+| 23, failed logins | 3 refused passwords or codes (400, 401 on `login`, `mfa`) within an hour stop the password login an hour; the QR code still works. Kept in memory only, so a test's wrong passwords do not lock the next run. | `LOGIN_FAILURES`, `LOGIN_PAUSE_MS` |
+| 17 and 28 | `join`, `leave` (60 s, 1 a minute, 2 an hour, 5 a day) and `profile-edit` (60 s, 1 a minute, 5 an hour, 5 a day) are in the table for when a code path is written; none exists. | `RULES` |
+
+**Settings, Account safety** (`components/AccountSafety.tsx`, a third tab next to Servers and Voice & audio): the report's text (what the
+app does for you, what you should do, Discord's rules on third-party clients stated honestly) and "Your account now", read live from
+`guard.safetyState()`: the email, the account's age (and the lower limits), safe mode until when and why, each pause in force with its
+reason, and today's counts against their caps (IDENTIFY included). `discord_safety.sh` prints those lines after a 40003.
+
 ## Sources
 
 Discord developer documentation, read 2026-10-30 (see `discord-client-requests.md` for the details): rate limits (global 50 a second,
