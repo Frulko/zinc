@@ -6306,7 +6306,7 @@ export function inspectRoot(): i32 { return root; }
 let drawing: i32 = -1;
 /** The Canvas whose onDraw runs now, -1 outside one (the inspector nests a zinc:stage scene drawn there under it). */
 export function drawingNode(): i32 { return drawing; }
-export function inspectNode(h: i32): UiNode | null { return h >= 0 && h < nodes.length && nodes[h].alive ? nodes[h] : null; }
+export function inspectNode(h: i32): UiNode | null { if (layoutDirty) layout(); return h >= 0 && h < nodes.length && nodes[h].alive ? nodes[h] : null; }
 let afterPaint: (() => void) | null = null;
 /** Called after each paint of the main window, over everything, where the highlight is drawn: the inspector draws a zinc:stage node's
  *  highlight there in window coordinates (null: nothing is called). */
