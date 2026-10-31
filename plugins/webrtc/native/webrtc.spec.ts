@@ -65,6 +65,9 @@ export interface Spec extends NativeModule {
   setSender(tx: i32, streams: string, track: string): void;
   /** maxBitrate (bit/s, 0: chosen from the size), maxFramerate (0: the source's), scaleResolutionDownBy (1 or more), active. */
   setEncoding(tx: i32, maxBitrate: f64, maxFramerate: f64, scaleDown: f64, active: boolean): void;
+  /** Simulcast and temporal layers (VP8): rids 'h,l' (the two encodings' rids, '' for one encoding), layers 2 for two temporal layers
+   *  (L1T2), and the second encoding's maxBitrate (0: 100 kbit/s), maxFramerate, scaleResolutionDownBy and active. */
+  setSimulcast(tx: i32, rids: string, layers: i32, maxBitrate: f64, maxFramerate: f64, scaleDown: f64, active: boolean): void;
   stopTransceiver(tx: i32): void;
   /** Sends the frame a runtime image of zinc:gfx holds (a camera's image), black when not enabled; false when the image cannot be read
    *  (a program without the rasterizer: sendPixels). */

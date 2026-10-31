@@ -1,7 +1,8 @@
 // zinc:webrtc against a browser (tools/webrtc-interop drives it with headless Chrome): the fake camera and microphone sent to the page and
 // the page's fake camera and microphone received. The signalling is two files in INTEROP_DIR: this program writes offer.json (every
 // candidate in it), the driver writes answer.json. INTEROP_CODEC=video/VP8 or video/H264 puts that codec first; INTEROP_ROLE=answer
-// waits for the page's offer.json and writes answer.json instead. Prints what it received; the driver reads what the page received.
+// waits for the page's offer.json and writes answer.json instead. INTEROP_SIMULCAST=1 (offering) sends the video as two rid encodings, which
+// a browser declines: the first goes out alone, in two VP8 temporal layers. Prints what it received; the driver reads what the page received.
 import { RTCPeerConnection, RTCTrackEvent, RTCStats, RTCRtpReceiver, RTCRtpCodec, RTCRtpCapabilities, RTCRtpTransceiver, RTCSessionDescription,
          RemoteVideo, RemoteAudio } from 'zinc:webrtc';
 import 'zinc:camera';
@@ -10,7 +11,7 @@ import { navigator, MediaStreamTrack } from 'zinc:web';
 import * as fs from 'zinc:fs';
 import { env } from 'zinc:sys';
 
-const dir = env('INTEROP_DIR'), codec = env('INTEROP_CODEC'), answering = env('INTEROP_ROLE') === 'answer';
+const dir = env('INTEROP_DIR'), codec = env('INTEROP_CODEC'), answering = env('INTEROP_ROLE') === 'answer', simulcast = env('INTEROP_SIMULCAST') === '1';
 function until(cond: () => boolean): Promise<void> {
   return new Promise<void>((done: () => void) => { const t = setInterval(() => { if (cond()) { clearInterval(t); done(); } }, 20); });
 }
@@ -27,7 +28,10 @@ async function main(): Promise<void> {
   pc.ontrack = (e: RTCTrackEvent) => { got.push(e.track); };
   const desc = (): string => { const d = pc.localDescription; return d === null ? '' : JSON.stringify((d as RTCSessionDescription).toJSON()); };
   if (!answering) {
-    for (const t of local.getTracks()) pc.addTrack(t, local);
+    for (const t of local.getTracks()) {
+      if (simulcast && t.kind === 'video') pc.addTransceiver(t, { streams: [local], sendEncodings: [{ rid: 'h' }, { rid: 'l', scaleResolutionDownBy: 2, maxBitrate: 100000 }] });
+      else pc.addTrack(t, local);
+    }
     for (const t of pc.getTransceivers()) prefer(t);
     await pc.setLocalDescription(await pc.createOffer());
     await until(() => pc.iceGatheringState === 'complete');
@@ -57,7 +61,9 @@ async function main(): Promise<void> {
   (await pc.getStats()).forEach((s: RTCStats) => { if (s.type === 'remote-inbound-rtp' && s.roundTripTime > 0) rtt = s.roundTripTime; });
   console.log(`zinc: round trip from the page's reports ${rtt > 0 ? 'measured' : 'not measured'}`);
   const t =pc.getTransceivers().filter((x: RTCRtpTransceiver) => x.receiver.track.kind === 'video')[0];
-  console.log(`zinc: received video ${video.width}x${video.height} (${t.recvCodec}), audio ${heard >= 48000 ? 'one second' : 'less'}, ${loudest > 0.01 ? 'not silent' : 'silent'}; sending ${t.sendCodec}`);
+  let rids = '';
+  (await t.sender.getStats()).forEach((s: RTCStats) => { if (s.type === 'outbound-rtp' && s.packetsSent > 0) rids += (rids === '' ? '' : ',') + (s.rid === '' ? '-' : s.rid); });
+  console.log(`zinc: received video ${video.width}x${video.height} (${t.recvCodec}), audio ${heard >= 48000 ? 'one second' : 'less'}, ${loudest > 0.01 ? 'not silent' : 'silent'}; sending ${t.sendCodec}${simulcast ? ' (rids sent: ' + rids + ')' : ''}`);
   fs.writeText(dir + '/zinc.done', 'ok');
   await until(() => fs.exists(dir + '/page.done'));
   pc.close();

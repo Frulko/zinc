@@ -19,6 +19,10 @@ struct VideoEncoder {
   /** The quantizer of the last frame, 0 (finest) to 127 (coarsest; VP8's scale, as libwebrtc's quality scaler reads it), -1 unknown. */
   virtual int qp() { return -1; }
   int w = 0, h = 0;
+  /** The temporal layer of the last frame (VP8 with two layers; 0 otherwise): its TID, sync (it refers to the base layer only), nonref (no
+   *  later frame refers to it). */
+  int tid = 0;
+  bool sync = false, nonref = false;
 };
 /** A video decoder: VP8 (libvpx) or H.264 (VideoToolbox; it takes Annex B: 00 00 00 01 before each NAL unit). */
 struct VideoDecoder {
@@ -29,7 +33,9 @@ struct VideoDecoder {
   virtual void fit(int w, int h) { (void)w; (void)h; }
 };
 
-VideoEncoder* vp8Encoder(int w, int h, int bps, int fps);
+/** layers 2: two temporal layers (the base at half the frame rate and 60% of the rate, the frames between that nothing refers to), for an SFU
+ *  to forward the base alone to a slow receiver. */
+VideoEncoder* vp8Encoder(int w, int h, int bps, int fps, int layers = 1);
 VideoDecoder* vp8Decoder();
 /** H.264 constrained baseline in hardware (VideoToolbox on macOS); nullptr where there is none. */
 bool h264Available();

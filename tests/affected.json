@@ -441,6 +441,7 @@
     {"paths": ["plugins/webrtc/", "tests/golden/host/webrtc_media.ts", "tests/golden/host/webrtc_media.out"], "tests": ["webrtc_media"]},
     {"paths": ["plugins/webrtc/", "tests/golden/host/webrtc_impair.ts", "tests/t1/webrtc_impair.sh"], "tests": ["webrtc_impair"]},
     {"paths": ["plugins/webrtc/", "plugins/camera/native/camera.host.cpp", "tests/golden/host/webrtc_bwe.ts", "tests/data/webrtc_bwe/", "tests/t0/webrtc_bwe_sim.sh", "tests/t1/webrtc_bwe.sh"], "tests": ["webrtc_bwe_sim", "webrtc_bwe"]},
+    {"paths": ["plugins/webrtc/", "tests/golden/host/webrtc_simulcast.ts", "tests/t1/webrtc_simulcast.sh"], "tests": ["webrtc_simulcast"]},
     {"paths": ["plugins/webrtc/", "lib/std/kit/callstats.tsx", "tests/golden/host/webrtc_quality.ts", "tests/golden/host/webrtc_quality.out"], "tests": ["webrtc_quality"]},
     {"paths": ["plugins/webrtc/", "tests/data/webrtc_interop.ts", "tools/webrtc-interop", "tools/cdp.py"], "tests": ["webrtc_interop"]},
     {"paths": ["plugins/webrtc/", "plugins/audio/", "plugins/screen-capture/", "examples/webrtc-call/", "tests/golden/webrtc-call/"], "tests": ["webrtc_call"]},

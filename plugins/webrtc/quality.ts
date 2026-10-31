@@ -15,8 +15,8 @@ export class RTCStats {
   bytesSent: number = 0; bytesReceived: number = 0; messagesSent: number = 0; messagesReceived: number = 0;
   dataChannelsOpened: number = 0; dataChannelsClosed: number = 0;
   localAddress: string = ''; remoteAddress: string = ''; state: string = '';
-  /** 'audio' or 'video' for the RTP types. */
-  kind: string = ''; mid: string = ''; ssrc: number = 0; codecId: string = ''; localId: string = ''; remoteId: string = ''; trackIdentifier: string = '';
+  /** 'audio' or 'video' for the RTP types; rid: the simulcast stream of an outbound-rtp ('' without simulcast). */
+  kind: string = ''; mid: string = ''; rid: string = ''; ssrc: number = 0; codecId: string = ''; localId: string = ''; remoteId: string = ''; trackIdentifier: string = '';
   packetsSent: number = 0; packetsReceived: number = 0; packetsLost: number = 0; jitter: number = 0; fractionLost: number = 0;
   roundTripTime: number = 0; currentRoundTripTime: number = 0;
   framesEncoded: number = 0; framesDecoded: number = 0; keyFramesEncoded: number = 0; keyFramesDecoded: number = 0; framesPerSecond: number = 0;

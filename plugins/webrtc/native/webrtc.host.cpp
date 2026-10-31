@@ -37,6 +37,11 @@ extern "C" long long zn_impair_wire_bytes(uint32_t ssrc);   // impair.cpp: the R
 extern "C" int zn_rtc_chain_rtcp_out(int tr);                // vendor/capi_zinc.cpp: an RTCP packet of ours on a track (the NACKs)
 extern "C" int zn_rtc_send_rtcp(int tr, const char* data, int size);
 extern "C" void zn_rtc_forget_rtcp(int tr);
+extern "C" int zn_rtc_set_vp8_out(int tr, const rtcPacketizerInit* h, const rtcPacketizerInit* l, int midExt, const char* mid, int ridExt,
+                                  const char* ridH, const char* ridL, int layered);   // vendor/capi_zinc.cpp: our VP8 packetizer, simulcast
+extern "C" int zn_rtc_send_vp8(int tr, int stream, const char* data, int size, uint32_t ts, int tid, int sync, int nonref);
+extern "C" int zn_rtc_chain_vp8_nack(int tr);
+extern "C" void zn_rtc_forget_vp8(int tr);
 extern "C" int zn_host_permission(const char* feature, const char* detail, char* why, int n) __attribute__((weak));   // zinc.json "permissions" (src/host/permissions.cpp)
 
 // Runtime images of zinc:gfx (the remote video, the camera's frames): a headless program compiled without the rasterizer has none (-1);
@@ -92,7 +97,11 @@ std::vector<std::string> split(const std::string& s, char c) {
 
 // ---- SDP: the media sections of a description, and the ones this file writes
 struct Codec { int pt = -1; std::string name; int clock = 0, channels = 0; std::string fmtp; int maxptime = 0; };   // maxptime: the section's a=maxptime (ms, 0: none)
-struct Section { std::string kind, mid, direction = "sendrecv", stream, track; bool removed = false; std::vector<Codec> codecs; double bps = 0; };
+struct Section {
+  std::string kind, mid, direction = "sendrecv", stream, track; bool removed = false; std::vector<Codec> codecs; double bps = 0;
+  bool simulcastRecv = false;   // a=simulcast:recv (an SFU's answer to our rids)
+  int midExt = 0, ridExt = 0;   // the ids of the mid and rid (rtp-stream-id) header extensions
+};
 
 std::vector<Section> sections(const std::string& sdp) {
   std::vector<Section> out;
@@ -115,6 +124,14 @@ std::vector<Section> sections(const std::string& sdp) {
     const std::string a = line.substr(2);
     auto codec = [&](int pt) -> Codec* { for (Codec& c : s.codecs) if (c.pt == pt) return &c; return nullptr; };
     if (a.compare(0, 4, "mid:") == 0) s.mid = a.substr(4);
+    else if (a.compare(0, 15, "simulcast:recv ") == 0) s.simulcastRecv = true;
+    else if (a.compare(0, 7, "extmap:") == 0) {
+      const size_t sp = a.find(' ');
+      if (sp == std::string::npos) continue;
+      const std::string uri = a.substr(sp + 1, a.find(' ', sp + 1) - sp - 1);
+      if (uri == "urn:ietf:params:rtp-hdrext:sdes:mid") s.midExt = atoi(a.c_str() + 7);
+      else if (uri == "urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id") s.ridExt = atoi(a.c_str() + 7);
+    }
     else if (a.compare(0, 8, "maxptime") == 0 && a.size() > 9) { const int mp = atoi(a.c_str() + 9); for (Codec& c : s.codecs) c.maxptime = mp; }
     else if (a == "sendrecv" || a == "sendonly" || a == "recvonly" || a == "inactive") s.direction = a;
     else if (a.compare(0, 5, "msid:") == 0) { std::vector<std::string> f = split(a.substr(5), ' '); s.stream = f[0]; if (f.size() > 1) s.track = f[1]; }
@@ -192,6 +209,10 @@ struct Stats {
   std::set<uint16_t> nacked;   // the sequence numbers the peer NACKed since its last receiver report
   long long packetsAtReport = 0;
   int rembSent = 0;   // the receive estimate this side last sent (REMB, bit/s)
+  // the second simulcast stream (rid l)
+  long long lowBytes = 0, lowPackets = 0, lowFrames = 0, lowKeyFrames = 0, lowEncodeUs = 0;
+  int lowWidth = 0, lowHeight = 0, lowTarget = 0;
+  std::deque<int64_t> lowTimes;
   std::deque<int64_t> sentTimes, decodedTimes;   // the last second of frames, for framesPerSecond
   std::deque<std::pair<int64_t, size_t>> sentBytes;   // video: the frames of the last second and their bytes
   size_t sentSum = 0;
@@ -212,8 +233,15 @@ struct Tx {
   Codec send, recv;                           // negotiated (pt -1: none)
   std::map<int, Codec> recvByPt;              // what the peer may send, by payload type
   int chainPt = -2;                           // the payload type the media handlers were set for (-1: receive only)
+  bool chainSimulcast = false;                // and whether with the second stream
   double maxBitrate = 0, maxFramerate = 0, scaleDown = 1;
   bool active = true;
+  // simulcast (addTransceiver's sendEncodings with rids): the second stream's encoding, sent once the peer's answer takes the rids
+  std::string rids[2];
+  int layers = 1;                             // VP8 temporal layers of each stream (scalabilityMode L1T2: 2)
+  double lowBitrate = 100000, lowFramerate = 0, lowScale = 2;
+  bool lowActive = true, simulcast = false;   // simulcast: negotiated; under m
+  uint32_t lowSsrc = 0;
   int64_t lastSent = 0;
   std::atomic<bool> wantKey{false};
   std::atomic<int> remb{0};
@@ -281,6 +309,8 @@ std::string describe(Tx& t, const Section* remote, bool answer) {
   std::string s = std::string("m=") + (t.video ? "video" : "audio") + (removed ? " 0" : " 9") + " UDP/TLS/RTP/SAVPF";
   for (const Codec& c : cs) s += " " + num(c.pt);
   s += "\r\nc=IN IP4 0.0.0.0\r\na=mid:" + t.mid + "\r\na=" + (removed ? "inactive" : dir) + "\r\na=rtcp-mux\r\na=rtcp-rsize\r\n";
+  const bool rids = t.video && !t.rids[0].empty() && !answer && !removed && sends(dir);   // our offer's simulcast (RFC 8853)
+  if (rids) s += "a=extmap:4 urn:ietf:params:rtp-hdrext:sdes:mid\r\na=extmap:10 urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id\r\n";
   for (const Codec& c : cs) {
     s += "a=rtpmap:" + num(c.pt) + " " + c.name + "/" + num(c.clock) + (c.channels ? "/" + num(c.channels) : "") + "\r\n";
     if (!c.fmtp.empty()) s += "a=fmtp:" + num(c.pt) + " " + c.fmtp + "\r\n";
@@ -289,6 +319,9 @@ std::string describe(Tx& t, const Section* remote, bool answer) {
   if (!removed && sends(dir)) {
     const std::string stream = t.streams.empty() ? "-" : split(t.streams, ',')[0], track = t.trackId.empty() ? "-" : t.trackId;
     s += "a=ssrc:" + num(t.ssrc) + " cname:" + t.cname + "\r\na=ssrc:" + num(t.ssrc) + " msid:" + stream + " " + track + "\r\na=msid:" + stream + " " + track + "\r\n";
+    // the rids (libdatachannel writes a=simulcast:send from them and leaves the a=ssrc lines out of the text, keeping them to route the
+    // RTCP of both streams to this track)
+    if (rids) s += "a=ssrc:" + num(t.lowSsrc) + " cname:" + t.cname + "\r\na=rid:" + t.rids[0] + " send\r\na=rid:" + t.rids[1] + " send\r\n";
   }
   return s;
 }
@@ -467,8 +500,12 @@ int64_t captureOf(uint32_t ssrc, uint32_t ts) {
 }
 void work(std::shared_ptr<Tx> tp) {
   Tx& t = *tp;
-  std::unique_ptr<media::VideoEncoder> enc;
+  std::unique_ptr<media::VideoEncoder> enc, lowEnc;   // lowEnc: the simulcast stream
   std::unique_ptr<media::VideoDecoder> dec;
+  bool wantKey = false, lowWantKey = false;
+  int64_t lastLowMs = -1000;
+  std::vector<uint32_t> lowPx;
+  std::vector<uint8_t> lowBytes;
   std::unique_ptr<media::Reassembler> rs;
   media::OpusEnc* aenc = nullptr;
   int aencBps = 0, aencLoss = -1;
@@ -483,6 +520,8 @@ void work(std::shared_ptr<Tx> tp) {
   bwe::NackList nack;              // video in: the packets to ask again
   bwe::RemoteEstimator estimator;  // video in: the REMB this side sends
   uint32_t mediaSsrc = 0;
+  uint32_t inSsrc = 0;             // the one stream this track decodes
+  int64_t inSsrcAt = 0;
   int rttMs = 100;
   double qpAvg = -1;               // video out: the encoder's quantizer, averaged over about ten frames
   std::vector<uint32_t> px, scaled, out;
@@ -504,6 +543,43 @@ void work(std::shared_ptr<Tx> tp) {
       in.swap(t.rtp);
       sendC = t.send; recvC = t.recv; byPt = t.recvByPt;
     }
+    // video out, the simulcast stream (rid l): its own size, rate and frame rate, from the same frames, before the ladder skips any
+    bool simulcast, lowActive, active;
+    { std::lock_guard<std::mutex> l(t.m); simulcast = t.simulcast; lowActive = t.lowActive; active = t.active; }
+    const bool vp8 = lower(sendC.name) == "vp8";
+    if (t.wantKey.exchange(false)) wantKey = lowWantKey = true;   // a PLI: a key frame on both streams
+    int lowBps = 0;
+    if (havePx && t.video && sendC.pt >= 0 && simulcast && lowActive) {
+      lowBps = (int)t.lowBitrate;
+      const int lw = std::max(16, (int)(w / t.lowScale)) & ~1, lh = std::max(16, (int)(h / t.lowScale)) & ~1;
+      const int lfps = t.lowFramerate > 0 ? (int)t.lowFramerate : t.maxFramerate > 0 ? (int)t.maxFramerate : 30;
+      if (ms - lastLowMs >= 1000 / lfps - 5) {
+        lastLowMs = ms;
+        lowPx.resize((size_t)lw * lh);
+        media::scale(px.data(), w, h, lowPx.data(), lw, lh);
+        if (!lowEnc || lowEnc->w != lw || lowEnc->h != lh) lowEnc.reset(media::vp8Encoder(lw, lh, lowBps, lfps, 2));
+        if (lowEnc) {
+          lowEnc->setRate(lowBps, lfps);
+          bool key = false;
+          if (firstMs < 0) firstMs = ms;
+          const auto t0 = std::chrono::steady_clock::now();
+          if (lowEnc->encode(lowPx.data(), lw, lh, ms - firstMs, lowWantKey, lowBytes, key)) {
+            lowWantKey = false;
+            const long long us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count();
+            zn_rtc_send_vp8(t.id, 1, (const char*)lowBytes.data(), (int)lowBytes.size(), ts0 + (uint32_t)((ms - firstMs) * 90), lowEnc->tid, lowEnc->sync, lowEnc->nonref);
+            std::lock_guard<std::mutex> l(t.m);
+            Stats& st = t.st;
+            st.lowFrames++; st.lowEncodeUs += us; st.lowKeyFrames += key; st.lowBytes += (long long)lowBytes.size();
+            st.lowPackets += ((long long)lowBytes.size() + 1193) / 1194;
+            st.lowWidth = lw; st.lowHeight = lh; st.lowTarget = lowBps;
+            const int64_t now = nowMs();
+            st.lowTimes.push_back(now);
+            while (!st.lowTimes.empty() && now - st.lowTimes.front() > 1000) st.lowTimes.pop_front();
+          }
+        }
+      }
+    }
+    if (!active) havePx = false;
     // video out: the size and frame rate of the ladder's rung for the rate the peer allows (bwe.cpp), under setParameters' scale and rate
     int ow = 0, oh = 0, fps = 0, bps = 0;
     if (havePx && t.video && sendC.pt >= 0) {
@@ -515,6 +591,7 @@ void work(std::shared_ptr<Tx> tp) {
       {
         std::lock_guard<std::mutex> l(t.m);
         bps = t.rate.available(full);
+        if (lowBps > 0) bps = std::max(50000, std::min(full, t.rate.available(full + lowBps) - lowBps));   // the estimate covers both streams
         const int was = t.rate.rung;
         on = t.rate.choose(sw, sh, srcFps, full, bps, enc ? (int)qpAvg : -1, ms, ow, oh, fps);
         if (bweLog() && t.rate.rung != was) fprintf(stderr, "bwe %lld: rung %d -> %d (%dx%d %d fps) at %d bit/s, qp %.0f\n", (long long)ms % 100000, was, t.rate.rung, ow, oh, fps, bps, qpAvg);
@@ -530,7 +607,7 @@ void work(std::shared_ptr<Tx> tp) {
         src = scaled.data();
       }
       if (!enc || enc->w != ow || enc->h != oh || encName != sendC.name) {
-        enc.reset(lower(sendC.name) == "h264" ? media::h264Encoder(ow, oh, bps, fps) : media::vp8Encoder(ow, oh, bps, fps));
+        enc.reset(vp8 ? media::vp8Encoder(ow, oh, bps, fps, simulcast || t.layers == 2 ? 2 : 1) : media::h264Encoder(ow, oh, bps, fps));
         encName = sendC.name;
       }
       if (enc) {
@@ -538,11 +615,14 @@ void work(std::shared_ptr<Tx> tp) {
         bool key = false;
         if (firstMs < 0) firstMs = ms;
         const auto t0 = std::chrono::steady_clock::now();
-        if (enc->encode(src, ow, oh, ms - firstMs, t.wantKey.exchange(false), bytes, key)) {
+        if (enc->encode(src, ow, oh, ms - firstMs, wantKey, bytes, key)) {
+          wantKey = false;
           const int q = enc->qp();
           if (q >= 0 && !key) qpAvg = qpAvg < 0 ? q : qpAvg + (q - qpAvg) / 10;
           const long long us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count();
-          sendFrame(t, bytes, ts0 + (uint32_t)((ms - firstMs) * 90));
+          const uint32_t ts = ts0 + (uint32_t)((ms - firstMs) * 90);
+          if (vp8) zn_rtc_send_vp8(t.id, 0, (const char*)bytes.data(), (int)bytes.size(), ts, enc->tid, enc->sync, enc->nonref);
+          else sendFrame(t, bytes, ts);
           std::lock_guard<std::mutex> l(t.m);
           t.st.framesEncoded++; t.st.encodeUs += us;
           if (key) t.st.keyFramesEncoded++;
@@ -599,6 +679,11 @@ void work(std::shared_ptr<Tx> tp) {
       const int pt = p[1] & 0x7F;
       auto c = byPt.find(pt);
       if (c == byPt.end()) continue;
+      // One stream per track: a second one (simulcast sent to a peer that is not a media server) is left out while the first goes on
+      const uint32_t ssrc = (uint32_t)p[8] << 24 | (uint32_t)p[9] << 16 | (uint32_t)p[10] << 8 | p[11];
+      if (inSsrc != 0 && ssrc != inSsrc && k.at - inSsrcAt < 1000) continue;
+      if (ssrc != inSsrc) { if (inSsrc != 0) decPt = -1; inSsrc = ssrc; }   // another stream: a new reassembler and decoder
+      inSsrcAt = k.at;
       if (pt != decPt) {   // the first packet, or the peer changed codecs
         const std::string n = lower(c->second.name);
         if (t.video) rs.reset(new media::Reassembler(n == "vp8" ? media::Reassembler::VP8 : media::Reassembler::H264));
@@ -617,7 +702,7 @@ void work(std::shared_ptr<Tx> tp) {
         const uint16_t sq = (uint16_t)(p[2] << 8 | p[3]);
         const int16_t step = nack.highest < 0 ? 0 : (int16_t)(uint16_t)(sq - (uint16_t)nack.highest);
         if (nack.highest >= 0 && (step > 3000 || step < -3000)) nack = bwe::NackList();   // new sequence numbers (a new codec)
-        if (!nack.push(nack.highest < 0 ? sq : nack.highest + step, k.at)) t.wantKey = true;
+        nack.push(nack.highest < 0 ? sq : nack.highest + step, k.at);   // a gap too long to ask for: the reassembler asks a key frame
         mediaSsrc = (uint32_t)p[8] << 24 | p[9] << 16 | p[10] << 8 | p[11];
         rembNow = estimator.packet((uint32_t)p[4] << 24 | p[5] << 16 | p[6] << 8 | p[7], k.at, k.p.size() > hl ? k.p.size() - hl : 0);
       }
@@ -695,6 +780,7 @@ std::shared_ptr<Tx> makeTx(int pc, int tr, bool video, const std::string& mid) {
   auto t = std::make_shared<Tx>();
   t->id = tr; t->pc = pc; t->video = video; t->mid = mid;
   t->ssrc = (uint32_t)rng() | 1;
+  t->lowSsrc = (uint32_t)rng() | 1;
   {
     std::lock_guard<std::mutex> l(txMu);
     t->cname = pcInfo[pc].cname;
@@ -710,6 +796,7 @@ void endTx(const std::shared_ptr<Tx>& t) {
   if (t->th.joinable()) t->th.join();
   if (t->img >= 0) zrt::raster::dyn_destroy(t->img);
   zn_rtc_forget_rtcp(t->id);
+  zn_rtc_forget_vp8(t->id);
   std::lock_guard<std::mutex> l(txMu);
   txs.erase(t->id);
 }
@@ -737,15 +824,16 @@ void negotiated(int pc) {
       t->send = !removed && sends(l->direction) ? send : none;
       t->recvByPt = byPt;
       if (t->send.pt < 0) t->pend.clear(), t->hasPend = false;
+      t->simulcast = !removed && t->video && !t->rids[0].empty() && lower(send.name) == "vp8" && r->simulcastRecv && r->ridExt > 0;
     }
     if (removed) t->stopped = true;
     const int want = t->send.pt >= 0 ? t->send.pt : -1;
-    if (removed || want == t->chainPt) continue;
+    if (removed || (want == t->chainPt && t->simulcast == t->chainSimulcast)) continue;
     if (want < 0) {   // receive only: the RTCP session alone, once; a track that sent keeps its handlers (and its sequence numbers) for later
       if (t->chainPt == -2) { rtcChainRtcpReceivingSession(t->id); zn_rtc_chain_rtcp_out(t->id); t->chainPt = -1; }
       continue;
     }
-    t->chainPt = want;
+    t->chainPt = want; t->chainSimulcast = t->simulcast;
     {
       rtcPacketizerInit init;
       memset(&init, 0, sizeof init);
@@ -753,12 +841,17 @@ void negotiated(int pc) {
       init.sequenceNumber = (uint16_t)rng(); init.timestamp = (uint32_t)rng(); init.maxFragmentSize = 1200;
       init.nalSeparator = RTC_NAL_SEPARATOR_LENGTH;
       const std::string n = lower(t->send.name);
-      if (n == "h264") rtcSetH264Packetizer(t->id, &init);
-      else if (n == "vp8") rtcSetVP8Packetizer(t->id, &init);
+      if (n == "vp8") {   // our packetizer (vendor/capi_zinc.cpp): the whole descriptor, temporal layers, the simulcast stream
+        rtcPacketizerInit low = init;
+        low.ssrc = t->lowSsrc; low.sequenceNumber = (uint16_t)rng();
+        zn_rtc_set_vp8_out(t->id, &init, t->simulcast ? &low : nullptr, r->midExt, t->mid.c_str(), r->ridExt, t->rids[0].c_str(), t->rids[1].c_str(),
+                           t->layers == 2 || t->simulcast);
+      } else if (n == "h264") rtcSetH264Packetizer(t->id, &init);
       else rtcSetOpusPacketizer(t->id, &init);
       rtcChainRtcpReceivingSession(t->id);   // processed last on the way in: it takes the RTCP the handlers below read first
       rtcChainRtcpSrReporter(t->id);
-      rtcChainRtcpNackResponder(t->id, 512);
+      if (n == "vp8") zn_rtc_chain_vp8_nack(t->id);   // per stream (the stock responder keeps packets by sequence number alone)
+      else rtcChainRtcpNackResponder(t->id, 512);
       if (t->video) { rtcChainPliHandler(t->id, onPli); rtcChainRembHandler(t->id, onRemb); }
       zn_rtc_chain_rtcp_out(t->id);   // last: the NACKs of what this track receives
     }
@@ -1116,6 +1209,17 @@ struct HostWebRTC : NativeWebRTC {
     t->scaleDown = scaleDown >= 1 ? scaleDown : 1;
     t->active = active;
   }
+  void setSimulcast(int32_t tx, zrt::String rids, int32_t layers, double maxBitrate, double maxFramerate, double scaleDown, bool active) override {
+    auto t = txOf(tx);
+    if (!t) return;
+    const std::vector<std::string> r = split(cstr(rids), ',');
+    t->rids[0] = r.size() == 2 ? r[0] : ""; t->rids[1] = r.size() == 2 ? r[1] : "";
+    t->layers = layers == 2 ? 2 : 1;
+    t->lowBitrate = maxBitrate > 0 ? maxBitrate : 100000;
+    t->lowFramerate = maxFramerate > 0 ? maxFramerate : 0;
+    t->lowScale = scaleDown >= 1 ? scaleDown : 2;
+    t->lowActive = active;
+  }
   void stopTransceiver(int32_t tx) override {
     auto t = txOf(tx);
     if (!t) return;
@@ -1126,7 +1230,7 @@ struct HostWebRTC : NativeWebRTC {
   }
   // A frame to send, taken by the worker; a frame not taken yet is replaced by the newer one.
   bool queue(Tx& t, const uint32_t* px, int w, int h, int stride, bool enabled) {
-    if (!t.active || t.stopped || t.send.pt < 0 || w <= 0 || h <= 0) return false;
+    if (!(t.active || (t.simulcast && t.lowActive)) || t.stopped || t.send.pt < 0 || w <= 0 || h <= 0) return false;
     const int64_t now = nowMs();
     if (t.maxFramerate > 0 && now - t.lastSent < 1000 / t.maxFramerate - 2) return false;
     t.lastSent = now;
@@ -1259,6 +1363,10 @@ struct HostWebRTC : NativeWebRTC {
     kv("nackSent", num(s.nackSent)); kv("nackReceived", num(s.nackReceived)); kv("nackRecovered", num(s.nackRecovered)); kv("rembSent", num(s.rembSent));
     kv("qualityLimitationReason", t->video && t->rate.rung > 0 ? "bandwidth" : "none");
     kv("roundTripTime", dbl(s.rtt)); kv("fractionLost", dbl(s.fractionLost)); kv("remotePacketsLost", num(s.remoteLost)); kv("remoteJitter", dbl(s.remoteJitter));
+    kv("rid", t->simulcast ? t->rids[0] : ""); kv("lowRid", t->simulcast ? t->rids[1] : ""); kv("lowSsrc", num(t->lowSsrc));
+    kv("lowBytesSent", num(s.lowBytes)); kv("lowPacketsSent", num(s.lowPackets)); kv("lowFramesEncoded", num(s.lowFrames));
+    kv("lowKeyFramesEncoded", num(s.lowKeyFrames)); kv("lowTotalEncodeTime", dbl(s.lowEncodeUs / 1e6)); kv("lowTargetBitrate", num(s.lowTarget));
+    kv("lowFrameWidth", num(s.lowWidth)); kv("lowFrameHeight", num(s.lowHeight)); kv("lowFramesPerSecond", num((long long)s.lowTimes.size()));
     kv("sendPayloadType", num(t->send.pt)); kv("recvPayloadType", num(t->recv.pt));
     kv("sendClockRate", num(t->send.clock)); kv("recvClockRate", num(t->recv.clock));
     kv("sendFmtp", t->send.fmtp); kv("recvFmtp", t->recv.fmtp);

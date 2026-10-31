@@ -21,6 +21,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Plugins and modules
 - **New** `zinc:webrtc` video holds up on bad links: a lost packet is asked for again (NACK) instead of freezing the picture until the next key frame, the receiver measures the link and tells the sender (REMB), and the sender steps its picture down a ladder (720p30, 360p30, 360p15, 180p15, 90p7) and back up as the rate allows. `getStats()` gains `nackCount` and `qualityLimitationReason`; `ZINC_WEBRTC_BWE_LOG=1` prints the rate decisions, and `ZINC_FAKE_CAMERA_NOISE` adds grain to the fake camera to test it.
+- **New** `zinc:webrtc` simulcast for a media server such as Galène: `addTransceiver(track, { sendEncodings: [{ rid: 'h' }, { rid: 'l', scaleResolutionDownBy: 2 }] })` sends a full and a small stream, and `scalabilityMode: 'L1T2'` sends VP8 in two temporal layers, so the server can give each viewer the stream its link carries.
 
 ### Raspberry Pi and the shell
 #### New

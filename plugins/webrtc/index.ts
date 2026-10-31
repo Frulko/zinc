@@ -78,12 +78,31 @@ export class RTCDataChannelEvent extends Event {
 /** A codec: mimeType 'video/VP8', 'video/H264', 'audio/opus'. */
 export interface RTCRtpCodec { mimeType: string; clockRate: number; channels?: number; sdpFmtpLine?: string }
 export interface RTCRtpCapabilities { codecs: RTCRtpCodec[]; headerExtensions: string[] }
-/** One encoding (no simulcast: a sender has one). maxBitrate in bit/s; scaleResolutionDownBy 2 sends half the width and height. */
-export interface RTCRtpEncodingParameters { active?: boolean; maxBitrate?: number; maxFramerate?: number; scaleResolutionDownBy?: number }
+/** One encoding. maxBitrate in bit/s; scaleResolutionDownBy 2 sends half the width and height; rid names it when a video sender has two
+ *  (simulcast, for a media server: the second one smaller, 100 kbit/s by default); scalabilityMode 'L1T2' sends VP8 in two temporal
+ *  layers (the default with simulcast), 'L1T1' in one. */
+export interface RTCRtpEncodingParameters {
+  active?: boolean; maxBitrate?: number; maxFramerate?: number; scaleResolutionDownBy?: number; rid?: string; scalabilityMode?: string
+}
 export interface RTCRtpSendParameters { transactionId: string; encodings: RTCRtpEncodingParameters[]; codecs: RTCRtpCodec[] }
 export interface RTCRtpReceiveParameters { codecs: RTCRtpCodec[] }
 /** direction 'sendrecv' (the default), 'sendonly', 'recvonly', 'inactive'; streams: the streams the track belongs to at the peer. */
 export interface RTCRtpTransceiverInit { direction?: string; streams?: MediaStream[]; sendEncodings?: RTCRtpEncodingParameters[] }
+
+// A sender's encodings to the plugin: the first as the stream the ladder sizes, the second as the simulcast one.
+function setEncodings(id: i32, e: RTCRtpEncodingParameters[]): void {
+  for (const x of e) {
+    if ((x.scaleResolutionDownBy ?? 1) < 1) throw new RangeError('scaleResolutionDownBy must be 1 or more.');
+    const m = x.scalabilityMode ?? '';
+    if (m !== '' && m !== 'L1T1' && m !== 'L1T2') throw new RangeError(`scalabilityMode '${m}' is not one this sender has ('L1T1', 'L1T2').`);
+  }
+  const a = e[0];
+  S.setEncoding(id, a.maxBitrate ?? 0, a.maxFramerate ?? 0, a.scaleResolutionDownBy ?? 1, a.active ?? true);
+  const two = e.length === 2, mode = a.scalabilityMode ?? (two ? 'L1T2' : 'L1T1');
+  const b = two ? e[1] : a;
+  S.setSimulcast(id, two ? (a.rid ?? '') + ',' + (b.rid ?? '') : '', mode === 'L1T2' ? 2 : 1, two ? b.maxBitrate ?? 0 : 0, two ? b.maxFramerate ?? 0 : 0,
+    two ? b.scaleResolutionDownBy ?? 2 : 2, two ? b.active ?? true : true);
+}
 
 function capabilities(kind: string): RTCRtpCapabilities | null {
   if (kind !== 'audio' && kind !== 'video') return null;
@@ -174,7 +193,7 @@ export class RemoteAudio {
 export class RTCRtpSender {
   track: MediaStreamTrack | null = null;
   readonly owner: RTCRtpTransceiver;
-  private enc: RTCRtpEncodingParameters = { active: true };
+  encs: RTCRtpEncodingParameters[] = [{ active: true }];
   private lastFrame: number = -1;
   private unsub: (() => void) | null = null;
   streamIds: string[] = [];
@@ -194,16 +213,16 @@ export class RTCRtpSender {
     this.native();
   }
   getParameters(): RTCRtpSendParameters {
-    return { transactionId: crypto.randomUUID(), encodings: [this.enc], codecs: codecOf(this.owner.sendCodec) };
+    return { transactionId: crypto.randomUUID(), encodings: this.encs.slice(), codecs: codecOf(this.owner.sendCodec) };
   }
-  /** Changes maxBitrate, maxFramerate, scaleResolutionDownBy and active of the one encoding (no negotiation).
-   *  @throws DOMException InvalidModificationError for another number of encodings. */
+  /** Changes maxBitrate, maxFramerate, scaleResolutionDownBy, active and scalabilityMode of the encodings (no negotiation).
+   *  @throws DOMException InvalidModificationError for another number of encodings or other rids. */
   async setParameters(p: RTCRtpSendParameters): Promise<void> {
-    if (p.encodings.length !== 1) throw new DOMException('setParameters: a sender has one encoding (no simulcast).', 'InvalidModificationError');
-    const e = p.encodings[0];
-    if ((e.scaleResolutionDownBy ?? 1) < 1) throw new RangeError('scaleResolutionDownBy must be 1 or more.');
-    this.enc = e;
-    S.setEncoding(this.owner.id, e.maxBitrate ?? 0, e.maxFramerate ?? 0, e.scaleResolutionDownBy ?? 1, e.active ?? true);
+    const e = p.encodings;
+    if (e.length !== this.encs.length) throw new DOMException(`setParameters: this sender has ${this.encs.length} encoding(s), set at addTransceiver.`, 'InvalidModificationError');
+    for (let i = 0; i < e.length; i++) if ((e[i].rid ?? '') !== (this.encs[i].rid ?? '')) throw new DOMException('setParameters: the rids cannot change.', 'InvalidModificationError');
+    setEncodings(this.owner.id, e);
+    this.encs = e.slice();
   }
   /** The outbound-rtp, remote-inbound-rtp and codec stats of this sender. */
   async getStats(): Promise<Map<string, RTCStats>> {
@@ -604,22 +623,25 @@ export class RTCPeerConnection extends EventTarget {
     else if (t.direction === 'sendonly') t.setDirectionQuietly('inactive');
     this.needNegotiation();
   }
-  /** A new media section of a kind ('audio', 'video') or for a track. init: direction ('sendrecv' by default), streams, sendEncodings (one:
-   *  maxBitrate, maxFramerate, scaleResolutionDownBy, active). @throws TypeError for another kind; RangeError for several encodings. */
+  /** A new media section of a kind ('audio', 'video') or for a track. init: direction ('sendrecv' by default), streams, sendEncodings (one,
+   *  or two with rids for video: simulcast, sent when the peer's answer takes it, as a media server's does). @throws TypeError for another
+   *  kind; RangeError for more encodings, or two without distinct rids. */
   addTransceiver(trackOrKind: unknown, init: RTCRtpTransceiverInit = {}): RTCRtpTransceiver {
     this.open('addTransceiver');
     const track: MediaStreamTrack | null = typeof trackOrKind === 'string' ? null : trackOrKind as MediaStreamTrack;
     const kind = track !== null ? (track as MediaStreamTrack).kind : trackOrKind as string;
     if (kind !== 'audio' && kind !== 'video') throw new TypeError(`addTransceiver: '${kind}' is not a kind ('audio' or 'video').`);
     const enc = init.sendEncodings ?? [];
-    if (enc.length > 1) throw new RangeError('addTransceiver: one encoding at most (no simulcast).');
+    if (enc.length > 2 || (enc.length === 2 && kind !== 'video')) throw new RangeError('addTransceiver: one encoding, or two for video (simulcast).');
+    if (enc.length === 2 && ((enc[0].rid ?? '') === '' || (enc[1].rid ?? '') === '' || enc[0].rid === enc[1].rid))
+      throw new RangeError('addTransceiver: the two encodings of simulcast need two different rids.');
     const dir = init.direction ?? 'sendrecv';
     const id = S.addTransceiver(this.h, kind, dir);
     if (id < 0) throw fail('OperationError');
     const t = new RTCRtpTransceiver(id, kind, dir, this);
     this.txs.push(t);
     t.sender.streamIds = (init.streams ?? []).map((m: MediaStream) => m.id);
-    if (enc.length === 1) S.setEncoding(id, enc[0].maxBitrate ?? 0, enc[0].maxFramerate ?? 0, enc[0].scaleResolutionDownBy ?? 1, enc[0].active ?? true);
+    if (enc.length > 0) { setEncodings(id, enc); t.sender.encs = enc.slice(); }
     t.sender.attach(track);
     this.needNegotiation();
     return t;
@@ -694,7 +716,7 @@ export class RTCPeerConnection extends EventTarget {
       o.framesEncoded = n('framesEncoded'); o.keyFramesEncoded = n('keyFramesEncoded'); o.framesPerSecond = n('framesPerSecondSent');
       o.frameWidth = n('frameWidthSent'); o.frameHeight = n('frameHeightSent'); o.pliCount = n('pliCount'); o.totalEncodeTime = n('totalEncodeTime');
       o.targetBitrate = n('targetBitrate'); o.rembBitrate = n('rembBitrate'); o.wireBytesSent = n('wireBytesSent');
-      o.nackCount = n('nackReceived'); o.qualityLimitationReason = s('qualityLimitationReason');
+      o.nackCount = n('nackReceived'); o.qualityLimitationReason = s('qualityLimitationReason'); o.rid = s('rid');
       const tr = t.sender.track;
       if (tr !== null) o.trackIdentifier = (tr as MediaStreamTrack).id;
       o.codecId = codec(t.sendCodec, 'sendPayloadType', 'sendClockRate', 'sendFmtp');
@@ -703,6 +725,14 @@ export class RTCPeerConnection extends EventTarget {
       r.roundTripTime = Math.max(0, n('roundTripTime')); r.fractionLost = n('fractionLost'); r.packetsLost = n('remotePacketsLost'); r.jitter = n('remoteJitter');
       o.remoteId = r.id;
       out.set(o.id, o); out.set(r.id, r);
+      if (s('lowRid') !== '') {   // the simulcast stream
+        const l = new RTCStats(o.id + '_' + s('lowRid'), 'outbound-rtp');
+        l.kind = t.kind; l.mid = mid; l.rid = s('lowRid'); l.ssrc = n('lowSsrc'); l.codecId = o.codecId; l.trackIdentifier = o.trackIdentifier;
+        l.bytesSent = n('lowBytesSent'); l.packetsSent = n('lowPacketsSent'); l.framesEncoded = n('lowFramesEncoded'); l.keyFramesEncoded = n('lowKeyFramesEncoded');
+        l.totalEncodeTime = n('lowTotalEncodeTime'); l.targetBitrate = n('lowTargetBitrate'); l.framesPerSecond = n('lowFramesPerSecond');
+        l.frameWidth = n('lowFrameWidth'); l.frameHeight = n('lowFrameHeight');
+        out.set(l.id, l);
+      }
     }
     if (received && (n('packetsReceived') > 0 || t.recvCodec !== '')) {
       const i = new RTCStats('IT' + t.kind + mid, 'inbound-rtp');
@@ -822,7 +852,7 @@ function description(s: string): RTCSessionDescription | null {
 /** The ultra low data mode's audio bit rate: Opus at 10 kbit/s, voice, wideband, DTX and in-band FEC (the encoder switches those on at
  *  16 kbit/s and under). */
 export const LOW_DATA_AUDIO_BPS = 10000;
-const saved = new Map<RTCRtpSender, RTCRtpEncodingParameters>();
+const saved = new Map<RTCRtpSender, RTCRtpEncodingParameters[]>();
 /** The ultra low data mode for a poor connection, on or off: the audio goes out as Opus at LOW_DATA_AUDIO_BPS with DTX and FEC; the video
  *  stops ('off') or goes out at a quarter of its size, 5 frames a second and 60 kbit/s at most ('tiny'). Off puts back the encodings the
  *  senders had. It is setParameters on each sender: no new negotiation, the peer needs nothing. */
@@ -833,12 +863,15 @@ export async function setLowDataMode(pc: RTCPeerConnection, on: boolean, video: 
     const p = s.getParameters(), was = saved.get(s);
     if (!on) {
       if (was === undefined) continue;
-      p.encodings = [was as RTCRtpEncodingParameters];
+      p.encodings = was as RTCRtpEncodingParameters[];
       saved.delete(s);
     } else {
-      if (was === undefined) saved.set(s, p.encodings[0]);
-      p.encodings = [(t as MediaStreamTrack).kind === 'audio' ? { active: true, maxBitrate: LOW_DATA_AUDIO_BPS }
-        : video === 'off' ? { active: false } : { active: true, maxBitrate: 60000, maxFramerate: 5, scaleResolutionDownBy: 4 }];
+      if (was === undefined) saved.set(s, p.encodings);
+      const low: RTCRtpEncodingParameters = (t as MediaStreamTrack).kind === 'audio' ? { active: true, maxBitrate: LOW_DATA_AUDIO_BPS }
+        : video === 'off' ? { active: false } : { active: true, maxBitrate: 60000, maxFramerate: 5, scaleResolutionDownBy: 4 };
+      low.rid = p.encodings[0].rid;
+      // simulcast: the first stream carries the tiny picture, the second stops
+      p.encodings = p.encodings.map((e: RTCRtpEncodingParameters, i: number): RTCRtpEncodingParameters => i === 0 ? low : { active: false, rid: e.rid });
     }
     await s.setParameters(p);
   }

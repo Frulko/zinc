@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """zinc:webrtc against headless Chrome: audio and video both ways, no real device (Chrome's and Zinc's fake camera and microphone).
 
-  tools/webrtc-interop [--zinc build/zinc] [--codec video/VP8|video/H264] [--role offer|answer]
+  tools/webrtc-interop [--zinc build/zinc] [--codec video/VP8|video/H264] [--role offer|answer] [--simulcast]
 
 The Zinc side is tests/data/webrtc_interop.ts; the signalling is two files in a temporary directory (offer.json, answer.json), carried to and
 from the page through the DevTools protocol (tools/cdp.py). --role offer: Zinc offers and the page answers; answer: the page offers.
+--simulcast: Zinc offers its video as two rid encodings (the page declines them: one stream in VP8 temporal layers).
 Prints what each side received; exits 0 when both decoded the other's video and heard its audio, 77 without Chrome."""
 import json, os, subprocess, sys, tempfile, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -77,6 +78,7 @@ def main():
         while time.monotonic() < end and c.eval("document.readyState") != "complete": time.sleep(0.1)
         c.eval(PAGE)
         if "--verbose" in sys.argv: env["ZINC_WEBRTC_LOG"] = "1"
+        if "--simulcast" in sys.argv: env["INTEROP_SIMULCAST"] = "1"
         z = subprocess.Popen([zinc, "run", os.path.join(HERE, "tests", "data", "webrtc_interop.ts")], env=env, stdout=subprocess.PIPE, stderr=open(os.path.join(d, "zinc.err"), "w"), text=True)
         try:
             def wait_file(name, secs):

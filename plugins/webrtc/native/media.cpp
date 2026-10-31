@@ -67,8 +67,10 @@ struct Vp8Enc : VideoEncoder {
   vpx_codec_enc_cfg_t cfg;
   vpx_image_t img;
   bool ok = false;
-  Vp8Enc(int w_, int h_, int bps, int fps) {
-    w = w_; h = h_;
+  int layers = 1;
+  unsigned count = 0;   // frames since the last key frame: the layer pattern (TL0, TL1, TL0, ...)
+  Vp8Enc(int w_, int h_, int bps, int fps, int layers_) {
+    w = w_; h = h_; layers = layers_ == 2 ? 2 : 1;
     if (vpx_codec_enc_config_default(vpx_codec_vp8_cx(), &cfg, 0)) return;
     cfg.g_w = (unsigned)w; cfg.g_h = (unsigned)h;
     cfg.g_timebase.num = 1; cfg.g_timebase.den = 1000;   // milliseconds
@@ -84,6 +86,12 @@ struct Vp8Enc : VideoEncoder {
     cfg.kf_mode = VPX_KF_AUTO;
     cfg.kf_max_dist = (unsigned)(fps > 0 ? fps * 10 : 300);   // a key frame every 10 s at most; a PLI asks for one sooner
     cfg.g_threads = w * h >= 640 * 480 ? 2 : 1;
+    if (layers == 2) {   // libvpx's two-layer pattern (examples/vpx_temporal_svc_encoder.c, mode 1); libwebrtc splits the rate 60/40 too
+      cfg.ts_number_layers = 2; cfg.ts_periodicity = 2;
+      cfg.ts_layer_id[0] = 0; cfg.ts_layer_id[1] = 1;
+      cfg.ts_rate_decimator[0] = 2; cfg.ts_rate_decimator[1] = 1;
+      layerRates(bps);
+    }
     if (vpx_codec_enc_init(&ctx, vpx_codec_vp8_cx(), &cfg, 0)) return;
     // ponytail: -8 is libvpx's real-time speed for a generic C build (no SIMD); a desktop keeps 640x480 at 30 fps, a Pi 3 does not.
     vpx_codec_control(&ctx, VP8E_SET_CPUUSED, -8);
@@ -99,13 +107,25 @@ struct Vp8Enc : VideoEncoder {
     out.clear(); key = false;
     if (!ok) return false;
     toI420(px, w, h, w, img.planes[0], img.stride[0], img.planes[1], img.stride[1], img.planes[2], img.stride[2]);
-    if (vpx_codec_encode(&ctx, &img, ms, 1, forceKey ? VPX_EFLAG_FORCE_KF : 0, VPX_DL_REALTIME)) return false;
+    vpx_enc_frame_flags_t flags = forceKey ? VPX_EFLAG_FORCE_KF : 0;
+    if (forceKey) count = 0;
+    tid = layers == 2 ? (int)(count & 1) : 0;
+    if (layers == 2) {
+      // TL0 refers to and updates the last frame only; TL1 refers to it and updates nothing, so dropping it loses nothing that follows
+      flags |= VP8_EFLAG_NO_REF_GF | VP8_EFLAG_NO_REF_ARF | VP8_EFLAG_NO_UPD_GF | VP8_EFLAG_NO_UPD_ARF;
+      if (tid == 1) flags |= VP8_EFLAG_NO_UPD_LAST | VP8_EFLAG_NO_UPD_ENTROPY;
+      vpx_codec_control(&ctx, VP8E_SET_TEMPORAL_LAYER_ID, tid);
+    }
+    if (vpx_codec_encode(&ctx, &img, ms, 1, flags, VPX_DL_REALTIME)) return false;
     vpx_codec_iter_t it = nullptr;
     while (const vpx_codec_cx_pkt_t* p = vpx_codec_get_cx_data(&ctx, &it))
       if (p->kind == VPX_CODEC_CX_FRAME_PKT) {
         out.insert(out.end(), (const uint8_t*)p->data.frame.buf, (const uint8_t*)p->data.frame.buf + p->data.frame.sz);
         key = key || (p->data.frame.flags & VPX_FRAME_IS_KEY);
       }
+    if (key) { tid = 0; count = 0; }
+    sync = tid > 0; nonref = tid > 0;
+    count++;
     return !out.empty();
   }
   int qp() override {
@@ -116,8 +136,10 @@ struct Vp8Enc : VideoEncoder {
   void setRate(int bps, int) override {
     if (!ok || cfg.rc_target_bitrate == (unsigned)(bps / 1000)) return;
     cfg.rc_target_bitrate = (unsigned)(bps / 1000);
+    if (layers == 2) layerRates(bps);
     vpx_codec_enc_config_set(&ctx, &cfg);
   }
+  void layerRates(int bps) { cfg.ts_target_bitrate[0] = (unsigned)(bps * 6 / 10000); cfg.ts_target_bitrate[1] = (unsigned)(bps / 1000); }
 };
 struct Vp8Dec : VideoDecoder {
   vpx_codec_ctx_t ctx;
@@ -144,8 +166,8 @@ struct Vp8Dec : VideoDecoder {
 };
 }  // namespace
 
-VideoEncoder* vp8Encoder(int w, int h, int bps, int fps) {
-  Vp8Enc* e = new Vp8Enc(w, h, bps, fps);
+VideoEncoder* vp8Encoder(int w, int h, int bps, int fps, int layers) {
+  Vp8Enc* e = new Vp8Enc(w, h, bps, fps, layers);
   if (!e->ok) { delete e; return nullptr; }
   return e;
 }
@@ -156,7 +178,7 @@ VideoDecoder* vp8Decoder() {
 }
 
 #else
-VideoEncoder* vp8Encoder(int, int, int, int) { return nullptr; }
+VideoEncoder* vp8Encoder(int, int, int, int, int) { return nullptr; }
 VideoDecoder* vp8Decoder() { return nullptr; }
 #endif
 

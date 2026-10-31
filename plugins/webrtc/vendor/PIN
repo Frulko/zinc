@@ -59,5 +59,6 @@ Ported, not vendored: native/bwe.cpp holds libwebrtc's receive-side bandwidth es
   modules/congestion_controller/goog_cc/trendline_estimator.cc, link_capacity_estimator.cc (their constants kept; the differences are
   commented where they are: the trendline in place of the older Kalman filter, a faster climb back to a rate the link carried)
 vendor/capi_zinc.cpp is ours, not vendored: it compiles libdatachannel's src/capi.cpp unmodified (in its place in plugin.json) and adds
-  zn_rtc_send_rtcp, an RTCP packet of ours on a track (the receiver's NACKs), which the C API lacks.
+  zn_rtc_send_rtcp, an RTCP packet of ours on a track (the receiver's NACKs), and our VP8 packetizer with its simulcast streams
+  (zn_rtc_set_vp8_out, zn_rtc_send_vp8: RFC 7741's whole descriptor, NACKs answered per SSRC), which the C API lacks.
 Not vendored: nlohmann/json (WebSocket), libnice, OpenH264 (H.264 is VideoToolbox's on macOS; see docs/reports/zinc-webrtc.md).

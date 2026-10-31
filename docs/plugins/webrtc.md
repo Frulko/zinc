@@ -59,11 +59,11 @@ pc.ontrack = (e: RTCTrackEvent) => {
 | | |
 |---|---|
 | `addTrack(track, ...streams)` | sends a track of `getUserMedia` (zinc:camera, zinc:microphone), or a track received from another peer. A transceiver of its kind made by the peer's offer and not sending yet takes it, else a new `sendrecv` one. The same track twice: `InvalidAccessError`. Calls for a negotiation (`negotiationneeded`) |
-| `addTransceiver(kind \| track, { direction, streams, sendEncodings })` | a media section: `direction` `sendrecv` (default), `sendonly`, `recvonly`, `inactive`; one encoding at most (no simulcast: `RangeError`) |
+| `addTransceiver(kind \| track, { direction, streams, sendEncodings })` | a media section: `direction` `sendrecv` (default), `sendonly`, `recvonly`, `inactive`; one encoding, or two with distinct `rid`s for video: simulcast for a media server (Galène), the second one smaller (`scaleResolutionDownBy` 2, 100 kbit/s by default), sent when the answer takes the rids (`a=simulcast:recv`), else the first goes out alone; more: `RangeError` |
 | `removeTrack(sender)` | stops sending (the transceiver turns `recvonly` or `inactive`); the next negotiation tells the peer |
 | `getTransceivers()`, `getSenders()`, `getReceivers()` | |
 | `ontrack` | an `RTCTrackEvent` (`track`, `streams` with the peer's stream ids, `receiver`, `transceiver`) when a negotiation makes a transceiver receive |
-| `RTCRtpSender` | `track`, `replaceTrack(track \| null)` (another camera, no negotiation; the other kind: `TypeError`), `getParameters()` / `setParameters()` with one encoding: `maxBitrate` (bit/s), `maxFramerate`, `scaleResolutionDownBy`, `active`; `setStreams()`, `getStats()`, `RTCRtpSender.getCapabilities(kind)` |
+| `RTCRtpSender` | `track`, `replaceTrack(track \| null)` (another camera, no negotiation; the other kind: `TypeError`), `getParameters()` / `setParameters()` with the encodings of `addTransceiver` (one by default): `maxBitrate` (bit/s), `maxFramerate`, `scaleResolutionDownBy`, `active`, `scalabilityMode` (`'L1T2'`: VP8 in two temporal layers, the default with simulcast; `'L1T1'`); `getStats()` gives one `outbound-rtp` per simulcast stream, with its `rid`; `setStreams()`, `getStats()`, `RTCRtpSender.getCapabilities(kind)` |
 | `RTCRtpReceiver` | `track` (from the start; frames once the peer sends), `getParameters()`, `getStats()`, `RTCRtpReceiver.getCapabilities(kind)`; Zinc's `requestKeyFrame()` asks the peer for a key frame (a PLI) |
 | `RTCRtpTransceiver` | `mid`, `direction` (setting it calls for a negotiation), `currentDirection`, `stop()`, `setCodecPreferences(codecs)` (an unknown codec: `InvalidModificationError`) |
 | a muted track | `track.enabled = false` sends black frames or silence, as browsers do |
@@ -94,7 +94,7 @@ role (`a=setup:active`): mbedTLS cannot be the server for Chrome, whose ClientHe
 
 ## Not supported (yet)
 
-- Simulcast and SVC (one encoding per sender), screen sharing
+- Spatial SVC and more than two simulcast streams, simulcast with H.264; a Zinc peer with audio and video does not take the unsignalled streams of a simulcast offer (send simulcast to a media server only), screen sharing
   (`getDisplayMedia`), insertable streams and encoded transforms, DTMF, transport-cc and send-side bandwidth estimation (the bit rate
   follows REMB and `maxBitrate`), RTX and FEC for video (a loss costs a key frame), header extensions (abs-send-time, MID).
 - H.264 on Linux and the Pi (V4L2 M2M), Windows (Media Foundation) and Android (MediaCodec), AV1 and VP9: see `backlog/later.md`.
