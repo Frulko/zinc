@@ -622,6 +622,11 @@ The next backlog review turns lines into tasks or deletes them.
 - GPU on the Pi 3: `zbench --set ZINC_DISPLAY=gl` gave no result for any scene (2026-10-31), the report says software raster; the GL display path under KMS on a Pi 3 needs a session of its own (EGL on GBM, the vc4 driver).
 - Package size: macOS packages are 48-51 MB (budget raised to 55 on 2026-10-31); discord-voice (5.7 MB) and webrtc (7.1 MB) could be fetched on first use instead of shipped.
 
+- ZN-899: under loss, raise the audio bitrate above the DRED/LBRR thresholds (~20 kbit/s) instead of lowering it: the remaining route to <=3% concealed at 10% loss.
+- ZN-894: score call audio with ViSQOL, not only concealed-sample counts; a step profile with a busier video source.
+- ZN-894: the IR has no type for primitive unions (string | number, Z0005); support them.
+- ZN-900: src/engine/driver.cpp (napi timer loop) jumps to the next timer like QuickJS did; check whether it needs the wall-clock fix.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -908,7 +913,12 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-909: playout-delay extension ID 5 vs 6 (docs.discord.food table): settle it from the owner's DISCORD_LOG of a real call.
 - ZN-909: read RTX (PT 102, OSN) and answer NACK with RTX instead of only asking for key frames.
 
+- ZN-910: keep failed logins across launches in zinc:storage (memory only now).
+- ZN-910: "shares a server" knows only people seen this session; a cold DM is judged by the channel's last message, not mine.
+- ZN-910: show the Account safety page at the first login too.
+
 ## Cross-platform pass
+- ZN-894: check that the -include impair.h hook builds on linux, rpi and ios.
 - ZN-875: zinc:screen-capture/picker and app icons on the Linux and Windows backends.
 - ZN-873: H.264 decode and encode on Linux (V4L2 M2M or a vendored decoder) for discord-voice video.
 - ZN-874: screen capture on Linux (PipeWire portal) and Windows (Windows.Graphics.Capture) behind plugins/screen-capture/native/backend.h.

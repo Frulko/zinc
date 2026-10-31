@@ -1358,3 +1358,9 @@ parsed then dropped) 222 -> 8.5 MB. A trim costs 0.1-0.5 ms. The window's three 
 - 2026-10-30 ZN-887 Pi 3B+ Spark 800x480, zinc:shell with KMS planes: bouncing-ball on its own XR24 plane at 800x448+0+32 (debugfs), app 1.4% and shell player 4.2% of a core (top, 5 s).
 - 2026-10-31 Pi 3B+ Spark 800x480 direct (fbdev, 4 bands), zbench card scenes (museum-table photo card, turned): card_big 135 -> 70 ms (interior span without per-pixel edges) -> 25 ms (integer bilinear inside); card_zoom 133 -> 26 ms; card_small 30 -> 16.4 ms (60 fps, vsync).
 - 2026-10-31 Pi 3B+ Spark, app under the Pi shell (zbench through the agent, dmabuf planes): card_small 38 -> 60 fps, fill_blend 43 -> 60 fps, card_big 32 -> 42 fps (bands on 4 cores in display-shell, player keep() for plane frames, 4 buffers instead of 3: a replaced buffer comes back two shell frames later). Shared memory (ZINC_SHELL_DMABUF=0) was already at 60.
+
+2026-10-31, call audio on bad links (ZN-894 impairment harness, ZN-899 Opus FEC/DRED/60 ms packets, ZN-900 NetEQ-style jitter buffer with
+Sonic), Apple M1 Pro, fake microphone over loopback, 16-20 s runs: thin link (20 kbit/s, 10% loss, 100 ms RTT) wire 30 -> 16.6 kbit/s,
+concealed 34.5 -> 10.2%, RTT 432 -> 175 ms, mouth-to-ear 264 ms; 10% random loss at 32 kbit/s concealed 3.9%; 20% loss in bursts of 3
+concealed 12.9 -> 8.0% with DRED; clean link target 40 ms, mouth-to-ear 73 ms; 30 ms jitter target 60 ms, nothing concealed. Plugin
++2.1 MB (deep PLC and DRED).
