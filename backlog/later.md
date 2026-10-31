@@ -965,6 +965,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-913: run the real macOS listing once with `zinc run examples/discord` for the two-generation thumbnail change.
 - ZN-920: Go Live ignores op 15 `pixelCounts`, so it cannot scale down for a small viewer; delay op 12 active until DAVE is keyed (only the encoding is held now); a T1 check with a static fake screen source that must yield at least 4 fps and a key frame per second.
 - ZN-920: show the ultra low data state plainly in the call bar (the owner's real call ran in it without noticing: 640x360 at 5 fps, 150 kbit/s).
+- ZN-914: zinc:editor tokenizes only TS/JS, JSON, Markdown and CSS: add py, rust, c/cpp, go, sh, sql, html, diff (proven grammars, e.g. Prism or highlight.js) so the picker's other languages highlight; the code panel is a fixed 160 px (grow with its lines) and the folded block assumes 18 px lines.
+- ZN-915: the real minimum window size (`zinc.json` `minWidth`) and widths below 640 px are unverified; CallView and Settings were not reviewed at narrow widths.
+- ZN-916: Slack theme lacks square avatars, the Lato font and the 3-section sidebar (Channels / Direct messages / Apps) with a workspace menu; Teams lacks its left activity rail and the purple selected-channel bar.
 
 ## Cross-platform pass
 - ZN-871: SpeexDSP and the `played` tap on Linux, the Pi and iOS; the speaker-to-microphone delay on Bluetooth and on the Pi, and a real call on laptop speakers.
