@@ -4,6 +4,7 @@ import { useRef, useEffect } from 'zinc:ui/react';
 import * as ui from 'zinc:ui';
 import { store } from '../state';
 import { parse, onlyEmoji, MdBlock, K_QUOTE, K_HEADING, K_SUB, K_CODE, K_LIST, R_CODE, R_LINK, R_MENTION, R_SPOILER, R_EMOJI, R_TIME } from '../markdown';
+import { CodeView } from 'zinc:editor';
 import { cdnPicture, emojiKey } from '../services/cdn';
 import { BG_SIDE, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_MENTION, TEXT_LINK, TEXT_CODE, SPOILER, EMOJI, EMOJI_BIG } from '../constants';
 
@@ -46,8 +47,8 @@ function Paragraph(p: { b: MdBlock; className: string; big: boolean }) {
 
 function Block(p: { b: MdBlock; big: boolean; size: string }) {
   const b = p.b;
-  if (b.kind === K_CODE) return <View className={`my-1 px-3 py-2 rounded border border-[#1e1f22] ${BG_SIDE}`}>
-    <Text className={`select-text font-mono text-[13px] whitespace-pre-wrap ${TEXT_MAIN}`}>{b.text}</Text>
+  if (b.kind === K_CODE) return <View className="my-1 rounded border border-[#1e1f22]">
+    <CodeView code={b.text} lang={b.lang} className={`text-[13px] leading-[18] px-3 py-2 rounded ${BG_SIDE} ${TEXT_MAIN}`} />
   </View>;
   if (b.kind === K_QUOTE) return <View className="flex-row gap-3"><View className="w-[4] rounded bg-[#4e5058]" /><View className="grow basis-0"><Paragraph b={b} big={false} className={`${p.size} ${TEXT_MAIN}`} /></View></View>;
   if (b.kind === K_HEADING) return <Paragraph b={b} big={false} className={`mt-1 font-bold ${TEXT_STRONG} ${b.level === 1 ? 'text-[24px]' : b.level === 2 ? 'text-[20px]' : 'text-[16px]'}`} />;

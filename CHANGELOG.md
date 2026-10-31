@@ -17,6 +17,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - `zinc:sonos`: `soap()` returns the answer's element (`zinc:xml`), not its text: read a value with `r.textOf('Name')`.
 
 ### Zinc Atelier
+- **Fixed** In a web build Atelier's editor fills its pane, colours the code and takes clicks, typing, IME and paste without a browser focus ring, and its buttons show their words instead of keys such as `atelier.header.run`.
 - **Changed** Atelier looks and works like a Mac app: a sidebar with your app, its pages (Code, Settings, Devices, Share) and its files, a toolbar with Run and where the app runs, flat panes, the system blue and a matching dark theme. Settings opens with ⌘,.
 - **New** Settings writes `zinc.json` as you change it: icon, name, version, identifier, window size and resizing, full screen, how a Raspberry Pi shows the app (window, full screen or kiosk), permissions, the hub and the app's signing key.
 - **New** Share builds the Mac app, packs a `.zapp`, runs the app on a paired device and publishes it to a Zinc hub, for any machine or a Raspberry Pi.
@@ -65,6 +66,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **Fixed** A `setTimeout(0)` set while timers run (a long computation that yields with `await` on a timer) waits for the next frame, so the window keeps drawing and taking input.
 
 ### UI and kits
+- **Fixed** `font(name, px)` of `zinc:gfx` for a face or size the program's own files do not name (a plugin's `font-mono`) gives the TrueType face instead of -1, so `textWidth` measures it.
 - **Changed** A border takes room as in CSS and React Native: the content sits inside it, so `rounded-full border-2` around an avatar draws a ring, a box sized by its content grows by its border, and `box-content` adds padding and border to the size it is given. Bordered inputs, cards and buttons are a pixel or two larger.
 - **Changed** `min-w-0` (in a row) and `min-h-0` (in a column) let a box shrink below its content as in CSS, so `flex-1 min-w-0` panes and texts stay inside the window; a `basis-*` respects the box's `min-*`/`max-*` size.
 - **New** Negative offsets (`-top-2`, `-right-[6px]`, `-bottom-1`, `-left-px`) place an absolute box past its parent's edge, as in Tailwind.
@@ -103,6 +105,8 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **Fixed** With the inspector on port 0, the program binds the port itself and `zinc dev` names it (`the inspector listens on port N`), keeping it across versions when free; the `zinc devtools:` line names the port in use and no longer shows as an error in the console.
 
 ### Apps and demos
+- **New** zed-editor uses Atelier's editor: several cursors (⌘D, ⌘⌥↑↓, Alt+click), undo and redo of every cursor's edit, moving and duplicating lines, from the keys or its command palette; its settings, minimap, soft wrap and font zoom stay.
+- **New** Discord's code blocks are coloured by language (```ts, ```json, ```css...) and can be selected and copied.
 - **New** A native Discord client (`examples/discord`), in the spirit of discord-lite, no web view (unofficial: try it with a spare account). Log in with a token kept in the keychain, a QR code scanned with the phone app, or email and password with an authenticator or SMS code (a captcha sends you to the QR code); browse servers, channels and DMs, read history and live new, edited and deleted messages; a dropped connection resumes.
 - **New** Discord: write, reply, edit and delete; typing indicators both ways; unread channels and mention counts that follow what you read here or elsewhere; Discord's Markdown, timestamps, lists and subtext; every kind of content (link previews and embeds, video, audio, voice and file attachments, spoilers, stickers, reactions, polls, system messages, forwarded and replied-to messages, bot commands and buttons, threads and forum posts) and custom emoji inside the text.
 - **New** Discord: avatars, server icons, emoji and pictures from Discord's CDN kept on disk (loaded six at a time, at the size shown), colour emoji, files sent with + or dropped on the window, the live member list, and older messages loading as you scroll up in a list that stays smooth over thousands of messages. Choosing a server shows its list; nothing is loaded or marked read until you pick a conversation.
@@ -157,6 +161,8 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **Fixed** Windows that stayed hidden behind xochitl, blank widgets, a Marker ignored in widget cards, second copies of a running app, Web reloading long addresses, Read pictures shown as placeholders, Refresh in header mode, and a hub server catalog broken by one altered package.
 
 ### Plugins and modules
+- **New** Statements that do not use `this` may come before `super(...)` in a derived class's constructor (TypeScript 4.6); using `this` before it is error Z0118.
+- **New** `zinc:editor`: Atelier's code editor for any app. `<CodeEditor>` edits an `EditorState` with several cursors, undo, brackets that close themselves and line numbers; `<CodeView code lang>` shows highlighted, selectable code; `registerLanguage` adds a language; four themes (`LIGHT`, `DARK`, `ONE_LIGHT`, `ONE_DARK`). `zinc:command-palette` gives the fuzzy `<Palette>` and `fuzzy()`, `zinc:editor-lsp` a language server client (completion, signature, hover, definition, diagnostics). See `docs/plugins/editor.md`.
 - **New** `zinc:net/acme` gets certificates from Let's Encrypt (or another ACME server) with the http-01 challenge: `certificate({ domains, email, dir })` keeps one while it has 30 days left, `keepRenewed(port, options)` renews it and swaps it into the running https server. `setCertificate(port, cert, key)` swaps one by hand, and `hostname` in `ServeOptions` chooses the address a server listens on (`127.0.0.1`, `::1`, `::`).
 - **New** `zinc:net` serves WebSockets on the same port as its HTTP routes: `webSocket` in `ServeOptions` (`upgrade`, `open`, `message`, `drain`, `close` handlers, as Bun's), `ServerWebSocket` `send`, `sendBytes`, `close`, `ping`, with a message size limit (1009), an idle ping then close, a back-pressure limit (1008), and `wss://` with `cert` and `key`. `zinc:socket`'s `serveWebSocket` runs on it and takes the same limits and `cert`/`key`.
 - **New** `zinc:net` streams: `streamBody: true` hands a large upload to the handler as it arrives (`req.bodyStream.each`), and a reply with `stream: (w) => ...` writes its body in parts with back-pressure (`write` returns false, `onDrain`, `onClose`, `end`).
@@ -187,6 +193,8 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **Fixed** `zinc export --target wasm` builds again; a program that starts a worker there gets an error saying workers need threads.
 
 ### Web
+- **Fixed** With `--render dom`, a code editor (a `TextArea` with line numbers or highlighting) is drawn by Zinc and fills its box: it shows its colours, places the caret where you click and takes keys, IME and paste through one hidden field, without the yellow focus ring. An absolute `TextArea` placed with `inset-0` takes the size of its offsets instead of four rows.
+- **Fixed** In a page, a click inside a focused text field places the caret, the right and middle buttons are no longer read as back and forward, and programs that use `zinc:i18n` get its translations (they were shown as keys).
 - **New** `zinc export --target web` runs `zinc:3d` programs on WebGL 2 (worlds not yet), and the site's 3d example runs in its page.
 - **New** `zinc dev --target web` runs on your machine what a page cannot: cross-origin `fetch`, `zinc:socket`, `zinc:net` servers, the other host services and their events, plugins without a browser backend (`zinc:process`, `zinc:lvgl`, `zinc:device`...: kanban, carnet and ipod work in the page), the file system and the environment; it serves videos and sounds outside `assets/` with seeking. An export still has none of this.
 - **Fixed** Each page load gets a new dev bridge, so a reload no longer leaves servers and children running; `--force` starts a project that needs a feature the web lacks; a module with `export function` inside a string loads.
