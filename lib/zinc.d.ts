@@ -61,6 +61,10 @@ interface ImportMeta { readonly url: string; readonly dirname: string; readonly 
 type Partial<T> = { [P in keyof T]?: T[P] };
 type Readonly<T> = { readonly [P in keyof T]: T[P] };
 type Record<K extends keyof any, T> = { [P in K]: T };
+type Required<T> = { [P in keyof T]-?: T[P] };
+type Exclude<T, U> = T extends U ? never : T;
+type Pick<T, K extends keyof T> = { [P in K]: T[P] };
+type Omit<T, K extends keyof any> = Pick<T, Exclude<keyof T, K>>;
 interface ClassDecoratorContext<Class = unknown> { readonly kind: 'class'; readonly name: string | undefined; }
 interface ClassFieldDecoratorContext<This = unknown, Value = unknown> { readonly kind: 'field'; readonly name: string | symbol; readonly static: boolean; readonly private: boolean; }
 
@@ -203,7 +207,7 @@ interface Map<K, V> {
   entries(): [K, V][];
   [Symbol.iterator](): MapIterator<[K, V]>;
 }
-interface MapConstructor { new <K, V>(): Map<K, V>; }
+interface MapConstructor { new <K, V>(entries?: Iterable<readonly [K, V]> | null): Map<K, V>; }
 declare var Map: MapConstructor;
 interface Set<T> {
   readonly size: i32;
@@ -217,7 +221,7 @@ interface Set<T> {
   entries(): [T, T][];
   [Symbol.iterator](): SetIterator<T>;
 }
-interface SetConstructor { new <T>(): Set<T>; }
+interface SetConstructor { new <T>(values?: Iterable<T> | null): Set<T>; }
 declare var Set: SetConstructor;
 
 // ---- Math ----
@@ -246,7 +250,8 @@ interface Console {
   assert(cond: boolean, ...args: unknown[]): void; table<T>(rows: T[]): void;
 }
 interface JSON {
-  stringify<T>(v: T): string;
+  /** `space`: an indent of that many spaces (at most 10) or that string; the replacer must be null. */
+  stringify<T>(v: T, replacer?: null, space?: string | number): string;
   /**
    * Untyped JSON becomes a Dyn tree (DYN-09): gradual profile only.
    * @throws on invalid input
@@ -254,6 +259,11 @@ interface JSON {
   parse(text: string): any;
 }
 declare var JSON: JSON;
+interface ObjectConstructor {
+  /** The keys of a JSON value (Dyn) in insertion order, integer-like keys first. */
+  keys(o: any): string[];
+}
+declare var Object: ObjectConstructor;
 declare function queueMicrotask(f: () => void): void;
 
 // ---- Promise (LNG-16): futures resolved by the event loop ----
@@ -264,6 +274,7 @@ interface PromiseLike<T> {
 interface Promise<T> {
   then<U>(f: (v: T) => Promise<U>): Promise<U>;
   then<U>(f: (v: T) => U): Promise<U>;
+  then<U>(f: (v: T) => Promise<U>, onRejected: (reason: Error) => Promise<U>): Promise<U>;
   then<U>(f: (v: T) => U, onRejected: (reason: Error) => U): Promise<U>;
   catch(f: (reason: Error) => Promise<T>): Promise<T>;
   catch(f: (reason: Error) => T): Promise<T>;

@@ -330,7 +330,7 @@ Every function of the engine's modules on one page: its signature and what it do
 - `Math.clz32(x: i32): i32`
 - `Math.random(): number` Deterministic xorshift32; same sequence on sim and native.
 - `Math.seed(s: u32): void` Zinc extension: reseed Math.random.
-- `JSON.stringify<T>(v: T): string`
+- `JSON.stringify<T>(v: T, replacer?: null, space?: string | number): string` `space`: an indent of that many spaces (at most 10) or that string; the replacer must be null.
 - `JSON.parse(text: string): any` Untyped JSON becomes a Dyn tree (DYN-09): gradual profile only.
 - `queueMicrotask(f: () => void): void`
 - `weak(target: undefined, ctx: ClassFieldDecoratorContext): void` MEM-13: weak back-reference, does not keep the target alive.

@@ -1,6 +1,6 @@
 #!/bin/sh
 # zinc:shell (plugins/shell, docs/reports/zinc-shell/03-design.md): a headless shell program starts a stand-in app (tests/golden/shell/standin.py,
-# the app's side of the wire in Python) through shell.start(): the app gets three shared buffers, its first frame is drawn below the bar,
+# the app's side of the wire in Python) through shell.start(): the app gets four shared buffers (SH_MAX_BUFFERS), its first frame is drawn below the bar,
 # a scripted tap below the bar reaches it shifted by the bar and is not seen by the shell's program (a tap on the bar is), Home asks it to
 # quit and, as it ignores that and SIGTERM, kills it within 3 s; the agent's pid file lives while it runs, its log ends with [exited 137].
 cd "$(dirname "$0")/../.." || exit 2
@@ -30,7 +30,7 @@ if m:
     need(bar == min(56, max(32, round(H / 15))), 'bar height %d for a screen %d high' % (bar, H))
     need(m[4] == 'Stand-in' and m[5] == 'standin' and m[6] == 'true', 'title/current/responding: ' + m[0])
     need('display shell' in app and 'pidfile True' in app, 'the app\'s environment or pid file: ' + app[:200])
-    need('buffers %d %d %d 34325258 1 3' % (W, H - bar, W * 4) in app, 'the buffers sent: ' + app[:300])
+    need('buffers %d %d %d 34325258 1 4' % (W, H - bar, W * 4) in app, 'the buffers sent: ' + app[:300])
     b = open(tmp + '/shot.bmp', 'rb').read()
     off, bw, bh, bpp = struct.unpack_from('<I', b, 10)[0], *struct.unpack_from('<iiHH', b, 18)[:2], struct.unpack_from('<H', b, 28)[0]
     def px(x, y):

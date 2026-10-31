@@ -1,6 +1,6 @@
-local light d0f7cb3106585195
-local dark 868987e5021ec58f
-paste light 2e6384f41842b5b2
-paste dark 765ce1dca82e1f1b
-room light 86d8d5a5ea28bcea
-room dark 64c424cd176b5408
+local light 35249d8038d07961
+local dark be97b6fe49c58983
+paste light 9b357475445d7186
+paste dark 56cd17f0317f0c87
+room light ab3dab6a917c3e0e
+room dark 7d811fb5eb95174c

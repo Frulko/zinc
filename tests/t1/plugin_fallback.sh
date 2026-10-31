@@ -2,7 +2,8 @@
 # ZN-720: unavailable native modules explain their fallback, even on cached AOT/ZBC runs.
 cd "$(dirname "$0")/../.." || exit 2
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
-unset ZINC_DETERMINISTIC ZINC_STEPS ZINC_NATIVE
+unset ZINC_DETERMINISTIC ZINC_NATIVE
+export ZINC_STEPS=1   # the steps say what was cached and simulated (a run prints one line without them)
 export ZINC_HOME="$t/home" ZINC_HEADLESS=1 ZINC_FRAMES=1
 mkdir -p "$t/project/plugins/probe/native"
 cat > "$t/project/plugins/probe/plugin.json" <<'JSON'
