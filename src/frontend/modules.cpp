@@ -792,7 +792,7 @@ function __netHook(): void {
   if (__netHooked) return;
   __netHooked = true;
   __addEvHandler((h: i32, kind: i32, data: string) => {
-    if (kind === 43) {   // a large body on its way: "sent total"
+    if (kind === 47) {   // a large body on its way: "sent total"
       for (const c of __netCalls) if (c.handle === h && c.progress !== null) { const sp = data.indexOf(' '); (c.progress as (s: number, t: number) => void)(parseInt(data.slice(0, sp)), parseInt(data.slice(sp + 1))); }
       return;
     }

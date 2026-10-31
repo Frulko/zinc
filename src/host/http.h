@@ -4,7 +4,8 @@
 // reached a server (handle = the connection, data = method \x1e target \x1e client address \x1e server port \x1e "name: value\n" lines \x1e body,
 // payload = the body's bytes); with the option streamBody the request comes at the end of its headers, its body in events 43 (payload = a chunk)
 // and 44 (the end). 45: a reply in parts can be written again (write() returned kDrainBytes or more); 46: the client left while the program held
-// the request. Connections are kept alive (HTTP/1.1) and pipelined requests answered in order.
+// the request; 47: a large fetch body on its way (data = "sent total"). Connections are kept alive (HTTP/1.1) and pipelined requests answered
+// in order.
 #include <string>
 
 namespace zn::http {

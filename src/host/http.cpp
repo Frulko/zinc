@@ -208,7 +208,7 @@ void rawWrite(Fetch* f, const std::string& bytes) {
     if (uv_write(&w->req, reinterpret_cast<uv_stream_t*>(&f->tcp), &b, 1, [](uv_write_t* r2, int st) {
           auto* x = reinterpret_cast<WriteReq*>(r2);
           Fetch* g = x->fetch > 0 ? fetchAt(x->fetch) : nullptr;
-          if (g && st == 0 && !g->finished) { g->wireSent += x->data.size(); loop::pushEvent(g->handle, 43, std::to_string(g->wireSent) + " " + std::to_string(g->wireTotal)); }
+          if (g && st == 0 && !g->finished) { g->wireSent += x->data.size(); loop::pushEvent(g->handle, 47, std::to_string(g->wireSent) + " " + std::to_string(g->wireTotal)); }
           delete x;
         }) != 0) { delete w; return; }
   }
