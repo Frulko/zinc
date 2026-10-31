@@ -682,9 +682,9 @@ Lesson: [guide/02-language](guide/02-language.md)
 
 ## Z0118: Invalid super call
 
-A derived class constructor must start with `super(...)`, and `super` is only valid in a derived class.
+A derived class constructor must call `super(...)` at its top level, the statements before it must not use `this` (TypeScript 4.6), and `super` is only valid in a derived class.
 
-Fix: Call super(...) as the first statement of the constructor.
+Fix: Call super(...) at the top level of the constructor, before any use of this.
 
 ```ts
 class A { }

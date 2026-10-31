@@ -13,4 +13,9 @@ for f in tests/golden/checker/errors/*.ts; do
   got=$("$ZINC" check --check "$f" 2>&1 | sed -E 's/^[^:]*:([0-9]+:[0-9]+): error (Z[0-9]+):.*/\2 \1/')
   [ "$got" = "$(cat "${f%.ts}.expect")" ] || { echo "fixture $(basename "$f"): got '$got'"; fail=1; }
 done
+# statements before super(...) (TypeScript 4.6) run in order: the IR (the interpreter and AOT share its lowering) and QuickJS
+for e in "" "--engine quickjs"; do
+  got=$("$ZINC" run tests/golden/checker/ok/super_after_statements.ts $e 2>&1)
+  [ "$got" = "a+3 3" ] || { echo "super_after_statements ${e:-interpreter}: got '$got'"; fail=1; }
+done
 exit $fail

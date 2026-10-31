@@ -90,8 +90,8 @@
     "Use a public member or access it from inside the class.",                                                        \
     "class A { private x: i32 = 1; }\nconst a = new A();\nconsole.log(a.x);")                                          \
   X(BadSuperCall, "Z0118", "Invalid super call",                                                                       \
-    "A derived class constructor must start with `super(...)`, and `super` is only valid in a derived class.",        \
-    "Call super(...) as the first statement of the constructor.",                                                     \
+    "A derived class constructor must call `super(...)` at its top level, the statements before it must not use `this` (TypeScript 4.6), and `super` is only valid in a derived class.", \
+    "Call super(...) at the top level of the constructor, before any use of this.",                                   \
     "class A { }\nclass B extends A {\n  x: i32 = 1;\n  constructor() { this.x = 2; }\n}")                       \
   X(ModuleNotFound, "Z0119", "Cannot find module",                                                                     \
     "An import must name a file relative to the importing file ('./x' or '../x'); `.ts`, `.tsx` and `/index.ts` are "  \

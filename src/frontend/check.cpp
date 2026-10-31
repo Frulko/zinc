@@ -5128,11 +5128,22 @@ struct Checker {
             const Member* impl = lookupMember(objIdx, am.name, false);
             if (!impl || impl->isAbstract) { diag(kZAbstractViolation, cls, "abstract '" + am.name + "' is not implemented"); break; }
           }
-      // a derived class constructor must start with super(...)
+      // a derived class constructor calls super(...) at its top level; the statements before it (TypeScript 4.6) must not
+      // use `this` or `super`, nested functions included: the object does not exist yet
       if (par != kNoObj && ctorNode != kNone && n(ctorNode).kids[1] != kNone) {
         const auto& body = n(n(ctorNode).kids[1]).kids;
-        bool ok = !body.empty() && n(body[0]).kind == N::ExprStmt && n(n(body[0]).kids[0]).kind == N::Call && n(n(n(body[0]).kids[0]).kids[0]).kind == N::Super;
-        if (!ok) diag(kZBadSuperCall, ctorNode, "a derived class constructor must start with super(...)");
+        auto isSuper = [&](std::uint32_t st) { return n(st).kind == N::ExprStmt && n(n(st).kids[0]).kind == N::Call && n(n(n(st).kids[0]).kids[0]).kind == N::Super; };
+        std::function<bool(std::uint32_t)> usesThis = [&](std::uint32_t x) {
+          if (x == kNone) return false;
+          if (n(x).kind == N::This || n(x).kind == N::Super) return true;
+          for (std::uint32_t k : n(x).kids) if (usesThis(k)) return true;
+          return false;
+        };
+        std::size_t k = 0;
+        while (k < body.size() && !isSuper(body[k])) ++k;
+        bool ok = k < body.size();
+        for (std::size_t i = 0; ok && i < k; ++i) if (usesThis(body[i])) ok = false;
+        if (!ok) diag(kZBadSuperCall, ctorNode, "a derived class constructor must call super(...) at its top level, and the statements before it must not use 'this'");
       }
       // strictPropertyInitialization: an instance field without initializer must be assigned at the top level of the constructor
       for (std::uint32_t m : mems) {

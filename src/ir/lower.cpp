@@ -2925,9 +2925,15 @@ struct Lowering::FnLower {
             emit(IrOp::Call, m.functions[it->second].ret, std::move(vs), 0, 0, it->second);
           }
         }
-      } else if (par != kNil && body && !body->empty() && isSuperCall((*body)[0])) {
-        stmt((*body)[0]);
-        idx = 1;
+      } else if (par != kNil && body && !body->empty()) {
+        // the statements before super(...) (they do not use `this`: the checker made sure), then the call
+        std::size_t k = 0;
+        while (k < body->size() && !isSuperCall((*body)[k])) ++k;
+        if (k < body->size()) {
+          for (std::size_t i = 0; i < k; ++i) stmt((*body)[i]);
+          stmt((*body)[k]);
+          idx = k + 1;
+        }
       }
       while (body && idx < body->size() && (n((*body)[idx]).flags & frontend::kFlagSynthetic)) stmt((*body)[idx++]);
       const Node& cls = n(job.classNode);
