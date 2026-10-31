@@ -25,6 +25,7 @@
 #include "../../webrtc/native/media.h"
 #include <cmath>
 #include "video_policy.h"
+#include "h264_sps.h"
 #include <dlfcn.h>
 #include <stdio.h>
 #include <psa/crypto.h>
@@ -306,7 +307,8 @@ struct Conn {
   double daveStats[2] = {0, 0};        // frames that could not be encrypted, frames that could not be decrypted
   double vstats[5] = {0, 0, 0, 0, 0};  // videoStats()
   double nackIn = 0, firIn = 0, rtxSent = 0;   // the diagnostic: feedback asked of us, packets resent
-  double keysSent = 0;                 // the diagnostic (report()): our key frames, the NAL types we sent, packets of other payload types
+  int spsLogLevel = -1; bool spsLogRew = false;   // the last SPS logged (one line per change)
+  double keysSent = 0;                // the diagnostic (report()): our key frames, the NAL types we sent, packets of other payload types
   uint32_t nalsSent = 0;
   std::map<uint32_t, std::pair<int, double>> otherPt;   // SSRC -> its payload type, packets
   // video (under vmu): the streams watched by SSRC, our camera's SSRC and its newest frame; vmu is taken after mu, never before
@@ -702,6 +704,14 @@ void Conn::sendVideo(const std::vector<uint32_t>& px, int w, int h, bool key) {
   if (keyDue(nowMs(), keyAt, every, capped > 0)) key = true;
   if (!venc || !venc->encode(px.data(), w, h, (int64_t)nowMs(), key, au, isKey)) return;
   for (size_t i = 0; i + 4 <= au.size();) { const size_t len = be32(&au[i]); au[i] = au[i + 1] = au[i + 2] = 0; au[i + 3] = 1; i += 4 + len; }   // AVCC -> Annex B, in place
+  if (isKey && !(getenv("DISCORD_VIDEO_SPS") && !strcmp(getenv("DISCORD_VIDEO_SPS"), "orig"))) {   // ZN-924: the SPS libwebrtc's receiver would rewrite (no VUI) is written with its VUI here, before DAVE: no byte shifts in the viewer
+    discord::sps::Info si;
+    au = discord::sps::rewriteAnnexB(au, &si);
+    if (getenv("DISCORD_LOG") && (si.level != spsLogLevel || si.rewritten != spsLogRew)) {
+      spsLogLevel = si.level; spsLogRew = si.rewritten;
+      fprintf(stderr, "video sps: %dx%d profile %d level %d refs %d vui %d (added by us: %d)\n", w, h, si.profile, si.level, si.refs, (int)si.vui, (int)si.rewritten);
+    }
+  }
   const uint32_t ts = (uint32_t)(int64_t)(nowMs() * 90);   // the 90 kHz clock
   std::lock_guard<std::mutex> g(mu);
   if (!started) return;
