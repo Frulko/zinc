@@ -900,6 +900,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-907: show my own status on my avatar in the user bar (the status picker stays in the official app).
 - ZN-907: guild channels whose permissions differ share one member list (Discord's list id is not read).
 
+- ZN-909: playout-delay extension ID 5 vs 6 (docs.discord.food table): settle it from the owner's DISCORD_LOG of a real call.
+- ZN-909: read RTX (PT 102, OSN) and answer NACK with RTX instead of only asking for key frames.
+
 ## Cross-platform pass
 - ZN-875: zinc:screen-capture/picker and app icons on the Linux and Windows backends.
 - ZN-873: H.264 decode and encode on Linux (V4L2 M2M or a vendored decoder) for discord-voice video.
