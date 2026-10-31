@@ -24,6 +24,10 @@ export class RTCStats {
   totalSamplesReceived: number = 0; concealedSamples: number = 0; framesDropped: number = 0; availableOutgoingBitrate: number = 0;
   /** Zinc, outbound-rtp: the peer's REMB estimate for this stream (bit/s, 0 when it sends none). */
   rembBitrate: number = 0;
+  /** As on the Web: inbound-rtp, the packets this side asked again (generic NACK); outbound-rtp, the packets the peer asked again. */
+  nackCount: number = 0;
+  /** outbound-rtp video, as on the Web: 'bandwidth' while the rate sends a smaller picture or fewer frames than the source's, else 'none'. */
+  qualityLimitationReason: string = '';
   /** Zinc, outbound-rtp: the bytes of its RTP packets on the wire (IPv4, UDP, SRTP and RTP headers, payload, retransmissions included). */
   wireBytesSent: number = 0;
   /** inbound-rtp audio: packets rebuilt from the next packet's in-band FEC; Zinc: the samples those gave, and the samples rebuilt from

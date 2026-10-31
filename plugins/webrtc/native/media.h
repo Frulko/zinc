@@ -16,6 +16,8 @@ struct VideoEncoder {
   virtual bool encode(const uint32_t* px, int w, int h, int64_t ms, bool forceKey, std::vector<uint8_t>& out, bool& key) = 0;
   /** Target bits per second and frames per second. */
   virtual void setRate(int bps, int fps) = 0;
+  /** The quantizer of the last frame, 0 (finest) to 127 (coarsest; VP8's scale, as libwebrtc's quality scaler reads it), -1 unknown. */
+  virtual int qp() { return -1; }
   int w = 0, h = 0;
 };
 /** A video decoder: VP8 (libvpx) or H.264 (VideoToolbox; it takes Annex B: 00 00 00 01 before each NAL unit). */
@@ -84,6 +86,8 @@ struct Reassembler {
   Codec codec;
   /** Video frames thrown away whole: incomplete, or waiting for a key frame (framesDropped). */
   long long dropped = 0;
+  /** How long a gap may take to fill (ms): 0 is 100 for video and 60 for audio; the host sets it from the round trip while NACKs repair. */
+  int waitMs = 0;
  private:
   struct Pkt { uint32_t ts; bool marker; int64_t at; std::vector<uint8_t> payload; };
   std::map<int64_t, Pkt> q;   // by extended sequence number

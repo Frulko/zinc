@@ -694,6 +694,7 @@ export class RTCPeerConnection extends EventTarget {
       o.framesEncoded = n('framesEncoded'); o.keyFramesEncoded = n('keyFramesEncoded'); o.framesPerSecond = n('framesPerSecondSent');
       o.frameWidth = n('frameWidthSent'); o.frameHeight = n('frameHeightSent'); o.pliCount = n('pliCount'); o.totalEncodeTime = n('totalEncodeTime');
       o.targetBitrate = n('targetBitrate'); o.rembBitrate = n('rembBitrate'); o.wireBytesSent = n('wireBytesSent');
+      o.nackCount = n('nackReceived'); o.qualityLimitationReason = s('qualityLimitationReason');
       const tr = t.sender.track;
       if (tr !== null) o.trackIdentifier = (tr as MediaStreamTrack).id;
       o.codecId = codec(t.sendCodec, 'sendPayloadType', 'sendClockRate', 'sendFmtp');
@@ -712,6 +713,7 @@ export class RTCPeerConnection extends EventTarget {
       i.jitterBufferDelay = n('jitterBufferDelay'); i.jitterBufferTargetDelay = n('jitterBufferTargetDelay'); i.jitterBufferEmittedCount = n('jitterBufferEmittedCount');
       i.insertedSamplesForDeceleration = n('insertedSamplesForDeceleration'); i.removedSamplesForAcceleration = n('removedSamplesForAcceleration');
       i.totalMouthToEarDelay = n('totalMouthToEarDelay'); i.mouthToEarCount = n('mouthToEarCount'); i.framesDropped = n('framesDropped'); i.pliCount = n('pliSent'); i.trackIdentifier = t.receiver.track.id;
+      i.nackCount = n('nackSent');
       i.codecId = codec(t.recvCodec, 'recvPayloadType', 'recvClockRate', 'recvFmtp');
       out.set(i.id, i);
     }

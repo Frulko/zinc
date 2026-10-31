@@ -16,6 +16,7 @@
 #include "rtc/rtc.h"
 #include "media.h"
 #include "jitter.h"
+#include "bwe.h"
 #include <dlfcn.h>
 #include <math.h>
 #include <atomic>
@@ -26,12 +27,16 @@
 #include <memory>
 #include <mutex>
 #include <random>
+#include <set>
 #include <stdlib.h>
 #include <string.h>
 #include <string>
 #include <thread>
 #include <vector>
 extern "C" long long zn_impair_wire_bytes(uint32_t ssrc);   // impair.cpp: the RTP bytes sent on the wire with an SSRC
+extern "C" int zn_rtc_chain_rtcp_out(int tr);                // vendor/capi_zinc.cpp: an RTCP packet of ours on a track (the NACKs)
+extern "C" int zn_rtc_send_rtcp(int tr, const char* data, int size);
+extern "C" void zn_rtc_forget_rtcp(int tr);
 extern "C" int zn_host_permission(const char* feature, const char* detail, char* why, int n) __attribute__((weak));   // zinc.json "permissions" (src/host/permissions.cpp)
 
 // Runtime images of zinc:gfx (the remote video, the camera's frames): a headless program compiled without the rasterizer has none (-1);
@@ -61,6 +66,8 @@ zrt::String str(const std::string& s) { return zrt::String::from(s.data(), (uint
 std::string cstr(const zrt::String& s) { return std::string(s.ptr(), s.bytes()); }
 std::string num(long long v) { return std::to_string(v); }
 std::string dbl(double v) { char b[40]; snprintf(b, sizeof b, "%.6g", v); return b; }
+// ZINC_WEBRTC_BWE_LOG=1: the video rate control's decisions on stderr (REMB in and out, receiver reports, the ladder's rungs).
+bool bweLog() { static const bool on = getenv("ZINC_WEBRTC_BWE_LOG") && strcmp(getenv("ZINC_WEBRTC_BWE_LOG"), "0") != 0; return on; }
 int64_t nowMs() { return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 void push(std::string rec, const char* data = nullptr, int size = 0) {
   std::lock_guard<std::mutex> l(mu);
@@ -181,7 +188,18 @@ struct Stats {
   double rtt = -1, fractionLost = 0, remoteJitter = 0;
   double lossHeld = 0;   // fractionLost held at its peaks: up at once, down by a tenth of the gap per report (the FEC and DRED size)
   long long remoteLost = 0;
+  long long nackSent = 0, nackReceived = 0, nackRecovered = 0;   // sequence numbers asked again by this side, NACKed by the peer, repaired
+  std::set<uint16_t> nacked;   // the sequence numbers the peer NACKed since its last receiver report
+  long long packetsAtReport = 0;
+  int rembSent = 0;   // the receive estimate this side last sent (REMB, bit/s)
   std::deque<int64_t> sentTimes, decodedTimes;   // the last second of frames, for framesPerSecond
+  std::deque<std::pair<int64_t, size_t>> sentBytes;   // video: the frames of the last second and their bytes
+  size_t sentSum = 0;
+  /** What the encoder really sent over the last second (bit/s): under its target when the picture needs less. */
+  int sentBps(int64_t now) {
+    while (!sentBytes.empty() && now - sentBytes.front().first > 1000) { sentSum -= sentBytes.front().second; sentBytes.pop_front(); }
+    return (int)(sentSum * 8);
+  }
 };
 struct Tx {
   int id = -1, pc = -1;
@@ -199,6 +217,7 @@ struct Tx {
   int64_t lastSent = 0;
   std::atomic<bool> wantKey{false};
   std::atomic<int> remb{0};
+  bwe::SendRate rate;                         // video: what to send (REMB, the peer's losses), the ladder; under m
   // the worker
   std::thread th;
   std::mutex m;
@@ -345,7 +364,14 @@ void RTC_API onTrackMessage(int tr, const char* msg, int size, void*) {
 void RTC_API onPli(int tr, void*) {
   if (auto t = txOf(tr)) { t->wantKey = true; std::lock_guard<std::mutex> l(t->m); t->st.pliReceived++; }
 }
-void RTC_API onRemb(int tr, unsigned int bitrate, void*) { if (auto t = txOf(tr)) t->remb = (int)bitrate; }
+void RTC_API onRemb(int tr, unsigned int bitrate, void*) {
+  if (auto t = txOf(tr)) {
+    if (bweLog() && (int)bitrate != t->remb) fprintf(stderr, "bwe %lld: REMB in %u\n", (long long)nowMs() % 100000, bitrate);
+    t->remb = (int)bitrate;
+    std::lock_guard<std::mutex> l(t->m);
+    t->rate.remb((int)bitrate, nowMs());
+  }
+}
 // Every incoming RTP and RTCP packet of a connection, decrypted, before the tracks: the receiver reports of the peer (RR or SR report
 // blocks) give the round trip time, the loss and the jitter of what this side sends.
 // The return value is a copy, never `msg`: libdatachannel's MediaInterceptor (capi.cpp at the pinned commit) moves a message it is given
@@ -354,7 +380,7 @@ void RTC_API onRemb(int tr, unsigned int bitrate, void*) { if (auto t = txOf(tr)
 void* RTC_API onIntercept(int pc, const char* msg, int size, void*) {
   void* copy = rtcCreateOpaqueMessage((void*)msg, size);
   const uint8_t* p = (const uint8_t*)msg;
-  if (size < 8 || (p[0] >> 6) != 2 || p[1] < 200 || p[1] > 206) return copy;
+  if (size < 8 || (p[0] >> 6) != 2 || p[1] < 200 || p[1] > 206) return copy;   // RTCP only (SR, RR, SDES, BYE, APP, RTPFB, PSFB)
   const uint64_t ntp = (uint64_t)((std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count() + 2208988800.0) * 4294967296.0);
   const uint32_t now = (uint32_t)(ntp >> 16);
   for (int o = 0; o + 8 <= size;) {
@@ -375,7 +401,27 @@ void* RTC_API onIntercept(int pc, const char* msg, int size, void*) {
         const uint32_t jit = (uint32_t)r[12] << 24 | r[13] << 16 | r[14] << 8 | r[15];
         t->st.remoteJitter = t->send.clock > 0 ? jit / (double)t->send.clock : 0;
         if (lsr != 0) { const uint32_t d = now - lsr - dlsr; if (d < 0x7FFFFFFF) t->st.rtt = d / 65536.0; }
+        if (t->video) {
+          // The loss of what the peer reports, or of what it NACKed if more: retransmissions go on the same SSRC, so a receiver report
+          // counts a repaired packet as received, and a full queue (a constant delay, which the delay-based estimate cannot see) shows only
+          // there.
+          const long long sent = t->st.packetsSent - t->st.packetsAtReport;
+          const double nackLoss = sent > 0 ? std::min(1.0, (double)t->st.nacked.size() / (double)sent) : 0;
+          t->st.nacked.clear(); t->st.packetsAtReport = t->st.packetsSent;
+          t->rate.report(std::max(t->st.fractionLost, nackLoss), nowMs(), t->st.sentBps(nowMs()));
+          if (bweLog()) fprintf(stderr, "bwe %lld: report lost %.3f, loss-based %.0f\n", (long long)nowMs() % 100000, t->st.fractionLost, t->rate.lossBased);
+        }
       }
+    }
+    if (h[1] == 205 && rc == 1 && len >= 16) {   // a generic NACK of the peer: how many of our packets it asks again
+      const uint32_t media = (uint32_t)h[8] << 24 | h[9] << 16 | h[10] << 8 | h[11];
+      std::vector<uint16_t> seqs;
+      for (int f = 12; f + 4 <= len; f += 4) {
+        const uint16_t pid = (uint16_t)(h[f] << 8 | h[f + 1]), blp = (uint16_t)(h[f + 2] << 8 | h[f + 3]);
+        seqs.push_back(pid);
+        for (int b = 0; b < 16; b++) if (blp & (1 << b)) seqs.push_back((uint16_t)(pid + b + 1));
+      }
+      for (auto& t : txsOf(pc)) if (t->ssrc == media) { std::lock_guard<std::mutex> l(t->m); t->st.nackReceived += (long long)seqs.size(); t->st.nacked.insert(seqs.begin(), seqs.end()); }
     }
     o += len;
   }
@@ -387,16 +433,21 @@ void sendFrame(Tx& t, const std::vector<uint8_t>& data, uint32_t ts) {
   rtcSetTrackRtpTimestamp(t.id, ts);
   rtcSendMessage(t.id, (const char*)data.data(), (int)data.size());
 }
-int videoBitrate(Tx& t, int w, int h, int fps) {
+// The rate a picture of w x h at fps frames a second is sent at when nothing limits it, under setParameters' maxBitrate.
+int fullBitrate(Tx& t, int w, int h, int fps) {
   int bps = (int)((double)w * h * fps / 10);   // 640x480 at 30 fps: about 920 kbit/s
   if (bps < 150000) bps = 150000;
   if (bps > 2500000) bps = 2500000;
   if (t.maxBitrate > 0 && bps > t.maxBitrate) bps = (int)t.maxBitrate;
-  const int r = t.remb;
-  if (r > 0 && bps > r) bps = r < 50000 ? 50000 : r;
   return bps;
 }
 const int kAudioMaxBps = 64000;   // the most the loss raises the audio to
+// The receiver's round trip for its NACKs: the one this connection measures on what it sends (receiver reports), else 100 ms.
+int rttMsOf(int pc) {
+  double rtt = -1;
+  for (auto& t : txsOf(pc)) { std::lock_guard<std::mutex> l(t->m); if (t->st.rtt > rtt) rtt = t->st.rtt; }
+  return rtt > 0 ? (int)(rtt * 1000) : 100;
+}
 const int kDredMs = 200;   // the past each packet carries for a Zinc peer: a burst of 3 packets of 60 ms
 // When each sent audio packet was captured, by (SSRC, RTP timestamp): the receiving side of a call in this process (the loopback) measures
 // mouth to ear with it. The last 20 s of packets.
@@ -427,8 +478,13 @@ void work(std::shared_ptr<Tx> tp) {
   int64_t pcmEnd = 0;
   std::string encName;
   int decPt = -1;
-  int64_t firstMs = -1, lastKeyAsk = 0;
+  int64_t firstMs = -1, lastKeyAsk = 0, lastEncMs = -1000, lastRttAt = -1000;
   uint32_t ts0 = (uint32_t)rng(), audioTs = ts0;
+  bwe::NackList nack;              // video in: the packets to ask again
+  bwe::RemoteEstimator estimator;  // video in: the REMB this side sends
+  uint32_t mediaSsrc = 0;
+  int rttMs = 100;
+  double qpAvg = -1;               // video out: the encoder's quantizer, averaged over about ten frames
   std::vector<uint32_t> px, scaled, out;
   std::vector<float> pcm;
   std::vector<uint8_t> bytes, frame;
@@ -448,20 +504,31 @@ void work(std::shared_ptr<Tx> tp) {
       in.swap(t.rtp);
       sendC = t.send; recvC = t.recv; byPt = t.recvByPt;
     }
-    // video out
+    // video out: the size and frame rate of the ladder's rung for the rate the peer allows (bwe.cpp), under setParameters' scale and rate
+    int ow = 0, oh = 0, fps = 0, bps = 0;
     if (havePx && t.video && sendC.pt >= 0) {
-      int ow = w, oh = h;
+      int sw = w, sh = h;
+      if (t.scaleDown > 1) { sw = (int)(w / t.scaleDown) & ~1; sh = (int)(h / t.scaleDown) & ~1; }
+      const int srcFps = t.maxFramerate > 0 ? (int)t.maxFramerate : 30;
+      const int full = fullBitrate(t, sw, sh, srcFps);
+      bool on;
+      {
+        std::lock_guard<std::mutex> l(t.m);
+        bps = t.rate.available(full);
+        const int was = t.rate.rung;
+        on = t.rate.choose(sw, sh, srcFps, full, bps, enc ? (int)qpAvg : -1, ms, ow, oh, fps);
+        if (bweLog() && t.rate.rung != was) fprintf(stderr, "bwe %lld: rung %d -> %d (%dx%d %d fps) at %d bit/s, qp %.0f\n", (long long)ms % 100000, was, t.rate.rung, ow, oh, fps, bps, qpAvg);
+      }
+      if (!on || ms - lastEncMs < 1000 / fps - 5) havePx = false;   // off, or a frame the rung's frame rate leaves out
+    }
+    if (havePx && t.video && sendC.pt >= 0) {
+      lastEncMs = ms;
       const uint32_t* src = px.data();
-      if (t.scaleDown > 1) {
-        ow = (int)(w / t.scaleDown) & ~1; oh = (int)(h / t.scaleDown) & ~1;
-        if (ow < 16) ow = 16;
-        if (oh < 16) oh = 16;
+      if (ow != w || oh != h) {
         scaled.resize((size_t)ow * oh);
         media::scale(px.data(), w, h, scaled.data(), ow, oh);
         src = scaled.data();
       }
-      const int fps = t.maxFramerate > 0 ? (int)t.maxFramerate : 30;
-      const int bps = videoBitrate(t, ow, oh, fps);
       if (!enc || enc->w != ow || enc->h != oh || encName != sendC.name) {
         enc.reset(lower(sendC.name) == "h264" ? media::h264Encoder(ow, oh, bps, fps) : media::vp8Encoder(ow, oh, bps, fps));
         encName = sendC.name;
@@ -472,6 +539,8 @@ void work(std::shared_ptr<Tx> tp) {
         if (firstMs < 0) firstMs = ms;
         const auto t0 = std::chrono::steady_clock::now();
         if (enc->encode(src, ow, oh, ms - firstMs, t.wantKey.exchange(false), bytes, key)) {
+          const int q = enc->qp();
+          if (q >= 0 && !key) qpAvg = qpAvg < 0 ? q : qpAvg + (q - qpAvg) / 10;
           const long long us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count();
           sendFrame(t, bytes, ts0 + (uint32_t)((ms - firstMs) * 90));
           std::lock_guard<std::mutex> l(t.m);
@@ -482,6 +551,7 @@ void work(std::shared_ptr<Tx> tp) {
           t.st.sentWidth = ow; t.st.sentHeight = oh; t.st.targetBitrate = bps; t.st.rembBitrate = t.remb;
           const int64_t now = nowMs();
           t.st.sentTimes.push_back(now);
+          t.st.sentBytes.push_back({now, bytes.size()}); t.st.sentSum += bytes.size();
           while (!t.st.sentTimes.empty() && now - t.st.sentTimes.front() > 1000) t.st.sentTimes.pop_front();
         }
       }
@@ -540,7 +610,18 @@ void work(std::shared_ptr<Tx> tp) {
       }
       size_t hl = 12 + 4 * (p[0] & 15);
       if ((p[0] & 0x10) && k.p.size() >= hl + 4) hl += 4 + 4 * (size_t)((p[hl + 2] << 8) | p[hl + 3]);
-      if (rs) rs->push(p, k.p.size(), k.at);
+      bool rembNow = false;
+      if (rs) {
+        rs->push(p, k.p.size(), k.at);
+        // the NACK list and the receive estimate (bwe.cpp) see every packet, retransmissions too
+        const uint16_t sq = (uint16_t)(p[2] << 8 | p[3]);
+        const int16_t step = nack.highest < 0 ? 0 : (int16_t)(uint16_t)(sq - (uint16_t)nack.highest);
+        if (nack.highest >= 0 && (step > 3000 || step < -3000)) nack = bwe::NackList();   // new sequence numbers (a new codec)
+        if (!nack.push(nack.highest < 0 ? sq : nack.highest + step, k.at)) t.wantKey = true;
+        mediaSsrc = (uint32_t)p[8] << 24 | p[9] << 16 | p[10] << 8 | p[11];
+        rembNow = estimator.packet((uint32_t)p[4] << 24 | p[5] << 16 | p[6] << 8 | p[7], k.at, k.p.size() > hl ? k.p.size() - hl : 0);
+      }
+      if (rembNow) { rtcRequestBitrate(t.id, estimator.estimate()); std::lock_guard<std::mutex> l(t.m); t.st.rembSent = (int)estimator.estimate(); }
       if (jb) jb->push(p, k.p.size(), k.at);
       std::lock_guard<std::mutex> l(t.m);
       Stats& s = t.st;
@@ -562,6 +643,18 @@ void work(std::shared_ptr<Tx> tp) {
     in.clear();
     if (rs) {
       const int64_t now = nowMs();
+      // NACKs: ask again for what is missing every round trip while it can still make its frame; past that the reassembler gives the gap
+      // up and asks for a key frame (PLI)
+      if (now - lastRttAt >= 1000) { lastRttAt = now; rttMs = rttMsOf(t.pc); estimator.setRtt(rttMs); }
+      rs->waitMs = std::min(600, std::max(100, rttMs * 3 + 40));
+      const std::vector<int64_t> ask = nack.due(now, rttMs, rs->waitMs);
+      if (!ask.empty() && mediaSsrc != 0) {
+        const std::vector<uint8_t> pkt = bwe::nackPacket(t.ssrc, mediaSsrc, ask);
+        if (zn_rtc_send_rtcp(t.id, (const char*)pkt.data(), (int)pkt.size()) > 0) { std::lock_guard<std::mutex> l(t.m); t.st.nackSent += (long long)ask.size(); }
+      }
+      uint32_t est = 0;
+      if (estimator.process(now, est)) { rtcRequestBitrate(t.id, est); std::lock_guard<std::mutex> l(t.m); t.st.rembSent = (int)est; }
+      { std::lock_guard<std::mutex> l(t.m); t.st.nackRecovered = nack.recovered; }
       int lost = 0;
       bool key = false;
       while (rs->pop(frame, now, lost, key)) {
@@ -577,7 +670,7 @@ void work(std::shared_ptr<Tx> tp) {
         }
       }
       if (t.video) { std::lock_guard<std::mutex> l(t.m); t.st.framesDropped += rs->dropped; rs->dropped = 0; }
-      if (rs->needKey() && now - lastKeyAsk > 300) {
+      if (rs->needKey() && now - lastKeyAsk >= 1000) {   // a key frame a second at most: on a full link each one costs more loss
         lastKeyAsk = now;
         rtcRequestKeyframe(t.id);
         std::lock_guard<std::mutex> l(t.m);
@@ -616,6 +709,7 @@ void endTx(const std::shared_ptr<Tx>& t) {
   t->cv.notify_one();
   if (t->th.joinable()) t->th.join();
   if (t->img >= 0) zrt::raster::dyn_destroy(t->img);
+  zn_rtc_forget_rtcp(t->id);
   std::lock_guard<std::mutex> l(txMu);
   txs.erase(t->id);
 }
@@ -648,7 +742,7 @@ void negotiated(int pc) {
     const int want = t->send.pt >= 0 ? t->send.pt : -1;
     if (removed || want == t->chainPt) continue;
     if (want < 0) {   // receive only: the RTCP session alone, once; a track that sent keeps its handlers (and its sequence numbers) for later
-      if (t->chainPt == -2) { rtcChainRtcpReceivingSession(t->id); t->chainPt = -1; }
+      if (t->chainPt == -2) { rtcChainRtcpReceivingSession(t->id); zn_rtc_chain_rtcp_out(t->id); t->chainPt = -1; }
       continue;
     }
     t->chainPt = want;
@@ -666,6 +760,7 @@ void negotiated(int pc) {
       rtcChainRtcpSrReporter(t->id);
       rtcChainRtcpNackResponder(t->id, 512);
       if (t->video) { rtcChainPliHandler(t->id, onPli); rtcChainRembHandler(t->id, onRemb); }
+      zn_rtc_chain_rtcp_out(t->id);   // last: the NACKs of what this track receives
     }
   }
 }
@@ -1161,6 +1256,8 @@ struct HostWebRTC : NativeWebRTC {
     kv("jitterBufferDelay", dbl(s.jb.delay)); kv("jitterBufferTargetDelay", dbl(s.jb.target)); kv("jitterBufferEmittedCount", num(s.jb.emitted));
     kv("insertedSamplesForDeceleration", num(s.jb.inserted)); kv("removedSamplesForAcceleration", num(s.jb.removed));
     kv("totalMouthToEarDelay", dbl(s.jb.mouthToEar)); kv("mouthToEarCount", num(s.jb.mouthToEarCount)); kv("jitterBufferTarget", num(s.jbTargetMs)); kv("framesDropped", num(s.framesDropped));
+    kv("nackSent", num(s.nackSent)); kv("nackReceived", num(s.nackReceived)); kv("nackRecovered", num(s.nackRecovered)); kv("rembSent", num(s.rembSent));
+    kv("qualityLimitationReason", t->video && t->rate.rung > 0 ? "bandwidth" : "none");
     kv("roundTripTime", dbl(s.rtt)); kv("fractionLost", dbl(s.fractionLost)); kv("remotePacketsLost", num(s.remoteLost)); kv("remoteJitter", dbl(s.remoteJitter));
     kv("sendPayloadType", num(t->send.pt)); kv("recvPayloadType", num(t->recv.pt));
     kv("sendClockRate", num(t->send.clock)); kv("recvClockRate", num(t->recv.clock));

@@ -108,6 +108,11 @@ struct Vp8Enc : VideoEncoder {
       }
     return !out.empty();
   }
+  int qp() override {
+    int q = -1;
+    if (ok) vpx_codec_control(&ctx, VP8E_GET_LAST_QUANTIZER, &q);
+    return q;
+  }
   void setRate(int bps, int) override {
     if (!ok || cfg.rc_target_bitrate == (unsigned)(bps / 1000)) return;
     cfg.rc_target_bitrate = (unsigned)(bps / 1000);
@@ -320,7 +325,7 @@ bool Reassembler::payload(const Pkt& p, std::vector<uint8_t>& out, bool first, b
 
 bool Reassembler::pop(std::vector<uint8_t>& frame, int64_t nowMs, int& lost, bool& key) {
   lost = 0;
-  const int64_t wait = codec == OPUS ? 60 : 100;   // ms a gap may take to fill (reordering, a retransmission)
+  const int64_t wait = waitMs > 0 ? waitMs : codec == OPUS ? 60 : 100;   // ms a gap may take to fill (reordering, a retransmission)
   while (!q.empty()) {
     auto it = q.begin();
     if (it->first != next) {   // a gap before the oldest packet

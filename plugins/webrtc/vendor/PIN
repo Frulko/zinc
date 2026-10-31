@@ -52,4 +52,12 @@ Sonic (commit b93885dcb70aae50c6f76b0fe4e0868f029a077e of waywardgeek/sonic, 202
 The network impairment harness (native/impair.cpp, ZINC_WEBRTC_IMPAIR) reaches libdatachannel without a change to it: plugin.json's
   vendorFlags force-include ../impair.h into the vendored C++, which renames its calls to juice_create, juice_send_diffserv and
   juice_destroy to the harness's hooks; the C sources (libjuice) skip the header and keep the real functions.
+Ported, not vendored: native/bwe.cpp holds libwebrtc's receive-side bandwidth estimate rewritten in a few hundred lines (BSD-3-Clause,
+  Copyright (c) 2011 The WebRTC project authors; https://webrtc.googlesource.com/src/+/LICENSE), from commit
+  da453efd537448020ae05dfd9c7772650169aa80 of webrtc.googlesource.com/src (main, 2026-10-31):
+  modules/remote_bitrate_estimator/inter_arrival.cc, aimd_rate_control.cc, remote_bitrate_estimator_single_stream.cc;
+  modules/congestion_controller/goog_cc/trendline_estimator.cc, link_capacity_estimator.cc (their constants kept; the differences are
+  commented where they are: the trendline in place of the older Kalman filter, a faster climb back to a rate the link carried)
+vendor/capi_zinc.cpp is ours, not vendored: it compiles libdatachannel's src/capi.cpp unmodified (in its place in plugin.json) and adds
+  zn_rtc_send_rtcp, an RTCP packet of ours on a track (the receiver's NACKs), which the C API lacks.
 Not vendored: nlohmann/json (WebSocket), libnice, OpenH264 (H.264 is VideoToolbox's on macOS; see docs/reports/zinc-webrtc.md).

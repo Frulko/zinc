@@ -126,6 +126,22 @@ void pattern(uint32_t* px, int w, int h, int idx) {
       px[y * w + x] = c;
     }
 }
+// ZINC_FAKE_CAMERA_NOISE=<0 to 128>: grain of that amplitude on every channel, new each frame (a hash of the pixel and the index), so a
+// video encoder spends its bits as on a real camera's picture: the bandwidth tests of zinc:webrtc. Not drawn by camera.sim.ts.
+void grain(uint32_t* px, int w, int h, int idx) {
+  static const int amp = atoi(env("ZINC_FAKE_CAMERA_NOISE"));
+  if (amp <= 0) return;
+  for (int i = 0; i < w * h; i++) {
+    uint32_t x = (uint32_t)i * 2654435761u ^ (uint32_t)idx * 2246822519u;
+    x ^= x >> 15; x *= 2246822519u; x ^= x >> 13;
+    uint32_t c = 0;
+    for (int k = 0; k < 3; k++) {
+      int v = (int)((px[i] >> (k * 8)) & 255) + (int)((x >> (k * 8)) & 255) * amp / 128 - amp;
+      c |= (uint32_t)(v < 0 ? 0 : v > 255 ? 255 : v) << (k * 8);
+    }
+    px[i] = c;
+  }
+}
 // ZINC_FAKE_CAMERA_IMAGE=<file.png>: the fake camera holds this picture up instead of the pattern (fitted, on grey): a QR code for a scanner's
 // test (Zinc Go's home screen, ZN-631), a document, a face. False when it is not set or cannot be read.
 bool picture(uint32_t* px, int w, int h) {
@@ -249,7 +265,7 @@ struct HostCamera : NativeCamera {
   int32_t frame(int32_t h) override {
     Cam* c = at(h);
     if (!c) return -1;
-    if (c->fake) { ++c->index; if (!picture(c->src.data(), c->w, c->h)) pattern(c->src.data(), c->w, c->h, c->index); present(*c); }
+    if (c->fake) { ++c->index; if (!picture(c->src.data(), c->w, c->h)) pattern(c->src.data(), c->w, c->h, c->index); grain(c->src.data(), c->w, c->h, c->index); present(*c); }
     else if (cam_backend_take(c->be, c->src.data(), c->w, c->h, &c->seq)) { c->index++; present(*c); }
     return c->index;
   }

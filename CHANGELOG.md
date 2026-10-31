@@ -19,6 +19,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Closing the Discord client during a call leaves the call, stops your Go Live and the stream you watch first, so nobody sees you stuck in the channel.
 - Discord calls: your camera and Go Live send a key frame every second (and again when the call's encryption key changes or someone starts watching) so the others no longer wait forever on a black tile; a third person joining no longer silences the people already there; a small tile shows the camera's lower quality layer; a Go Live you watch connects whichever of the two server messages comes first; and the call survives a network blip instead of ending with "voice gateway closed".
 
+### Plugins and modules
+- **New** `zinc:webrtc` video holds up on bad links: a lost packet is asked for again (NACK) instead of freezing the picture until the next key frame, the receiver measures the link and tells the sender (REMB), and the sender steps its picture down a ladder (720p30, 360p30, 360p15, 180p15, 90p7) and back up as the rate allows. `getStats()` gains `nackCount` and `qualityLimitationReason`; `ZINC_WEBRTC_BWE_LOG=1` prints the rate decisions, and `ZINC_FAKE_CAMERA_NOISE` adds grain to the fake camera to test it.
+
 ### Raspberry Pi and the shell
 #### New
 - The Pi image builder is redesigned: a calm, Apple-like window with a short guided flow (device, network and account, apps), basics first and the rest behind *Advanced*, and a live build view with every step, its progress and time left, a result card with the next steps, and the failed step with *Retry*. It also offers the Zinc shell (`"shell": true` in a profile boots to the shell), A/B system updates, the Zinc agent and the app to start at boot.

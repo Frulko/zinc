@@ -4,7 +4,8 @@
 //   loss=10        per cent of packets lost, at random;
 //   burst=3        the mean length of a run of losses (Gilbert-Elliott: two states, the bad one loses all), 1 by default (independent);
 //   rate=20k       a bottleneck of that many bits per second (k, M), its queue dropping what would wait over queue= ms (300 by default);
-//   step=10:300k   the rate changes to 300k ten seconds after the connection's first packet;
+//   step=10:300k   the rate changes to 300k ten seconds after the connection's first packet; several steps, each its own key or joined
+//                  (step=10:300k:20:2M), change it at each time;
 //   delay=50       one-way delay in ms (a loopback call at delay=50 has a 100 ms round trip);
 //   jitter=30      plus a uniform random 0 to 30 ms per packet (packets may arrive out of order, as with netem);
 //   calm=10        the jitter stops ten seconds after the connection's first packet;
@@ -30,7 +31,7 @@
 #include <vector>
 
 namespace {
-struct Profile { double loss = 0, burst = 1, rate = 0, stepAt = -1, stepRate = 0, delay = 0, jitter = 0, calmAt = -1, queue = 300; unsigned seed = 1; bool on = false, log = false; };
+struct Profile { double loss = 0, burst = 1, rate = 0, delay = 0, jitter = 0, calmAt = -1, queue = 300; std::vector<std::pair<double, double>> steps; unsigned seed = 1; bool on = false, log = false; };
 double rateOf(const char* s) {
   char* e = nullptr;
   double v = strtod(s, &e);
@@ -58,7 +59,8 @@ const Profile& profile() {
       if (k == "loss") r.loss = atof(v) / 100;
       else if (k == "burst") r.burst = atof(v) < 1 ? 1 : atof(v);
       else if (k == "rate") r.rate = rateOf(v);
-      else if (k == "step") { const char* c = strchr(v, ':'); if (c) { r.stepAt = atof(v) * 1000; r.stepRate = rateOf(c + 1); } }
+      else if (k == "step")   // at:rate pairs, in the order of their times
+        for (const char* c = v; c && *c;) { const char* r2 = strchr(c, ':'); if (!r2) break; r.steps.push_back({atof(c) * 1000, rateOf(r2 + 1)}); c = strchr(r2 + 1, ':'); if (c) c++; }
       else if (k == "delay") r.delay = atof(v);
       else if (k == "jitter") r.jitter = atof(v);
       else if (k == "calm") r.calmAt = atof(v) * 1000;
@@ -160,7 +162,8 @@ extern "C" int zn_impair_send(juice_agent_t* agent, const char* data, size_t siz
   if (!rtcp && k.decisions < 256) { k.digest = (k.digest ^ (lost ? 1u : 0u)) * 16777619u; k.decisions++; }
   if (lost) { k.lost++; return (int)size; }   // gone on the way: the sender cannot tell
   double at = now;
-  const double rate = p.stepAt >= 0 && now - k.start >= p.stepAt ? p.stepRate : p.rate;
+  double rate = p.rate;
+  for (const auto& st : p.steps) if (now - k.start >= st.first) rate = st.second;
   if (rate > 0) {   // the bottleneck: one packet at a time, (IPv4 + UDP + the datagram) * 8 / rate each
     const double start = k.free > now ? k.free : now, done = start + ((double)size + 28) * 8000 / rate;
     if (done - now > p.queue) { k.queueDrops++; return (int)size; }   // the queue is full: dropped at its tail
