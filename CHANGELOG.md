@@ -194,6 +194,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **New** `zinc doc` makes a static documentation site of a project, a plugin or the engine (`--std`), as `cargo doc` does: API from doc comments, Markdown and MDX pages, search, themes and your own `docs/theme.css`; `--out` exports it, `--serve` serves it with reload; nothing is downloaded. `zinc doc --cheatsheet` puts every engine function on one page.
 
 ### Language and engine
+- **Fixed** A function with optional parameters can be passed where a callback takes them all: a screen that uses two components named `Button` from different kits (`zinc:ui/kit` and `zinc:react-native`) compiles again.
 - **Fixed** `for (const x of c ? anyValue : [y])` (an `any` and an array literal as a loop's iterable) compiles instead of failing with "Cannot find name: '__dynTo…'".
 - **Fixed** Three things that worked in TypeScript now work the same: `return await` inside `try`/`finally` of an async function runs the `finally` first; an `any[]` read out of an `any` value is the same array, not a copy; `undefined` passed to an `any` parameter stays `undefined` instead of arriving as `null`.
 - **New** TypeScript's utility types (`Partial`, `Required`, `Readonly`, `Pick`, `Omit`, `Record<'a' | 'b', V>`), generic arrow functions (`<T>(v: T): T => v`), `n.toString(radix)`, strings and numbers as conditions (`''`, `0` and `NaN` are false), and a React or Solid component may return `null`.
