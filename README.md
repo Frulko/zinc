@@ -1,307 +1,201 @@
 <div align="center">
 
-# ⚡ Zinc
+<h1>Zinc</h1>
 
-**Write it once in TypeScript. Run it natively everywhere, from a Mac to an ESP32.**
+<p><strong>Native apps in TypeScript, from a Mac to a Raspberry Pi to an ESP32.</strong></p>
 
-Desktop and mobile apps the way Electron makes them, without shipping a browser.<br>
-UI, games, 3D, video and hardware, from one strict, typed subset of TypeScript and JSX.
+<p>
+<a href="https://github.com/Frulko/zinc/releases/latest"><img src="https://img.shields.io/github/v/release/Frulko/zinc?include_prereleases&label=release&color=0a7cc1" alt="Latest release"></a>
+<img src="https://img.shields.io/badge/status-preview-orange" alt="Status: preview">
+</p>
 
-[Architecture](#️-architecture) · [Quick start](#-quick-start) · [The CLI](#-the-cli) · [What's new](#-whats-new) · [Demos](#-demos) · [Plugins](#-plugins) · [AI](#-a-note-on-ai) · [Guide](docs/guide/README.md)
+<p>
+<a href="docs/guide/01-getting-started.md">Getting started</a> ·
+<a href="docs/guide/README.md">Guide</a> ·
+<a href="#showcase">Showcase</a> ·
+<a href="docs/plugins/">Plugins</a> ·
+<a href="CHANGELOG.md">Changelog</a>
+</p>
 
-<img src="docs/img/hero.png" alt="The hero demo: an app with an intro, screens, transitions and a gallery" width="820">
+<img src="docs/img/hero.png" alt="A Zinc app: an intro, screens, transitions and a gallery" width="820">
 
 </div>
 
-> [!WARNING]
-> **Zinc is under active construction. Nothing here is stable or final.**
-> The language subset, the `zinc` CLI, the plugin ABI, the file formats, the APIs and the release packages change without notice and
-> without a deprecation period, and a version may break what the previous one ran. Releases are early previews (`0.x`), not signed or
-> notarized yet, and only macOS is built and tested today; other platforms are goals, not promises.
-> Expect rough edges, missing documentation and failing tests. Do not build anything you cannot afford to rewrite on it yet.
-> Feedback and bug reports are welcome in the [issues](../../issues).
+<br>
 
-## ✨ Why Zinc
+Zinc lets you build desktop apps, games, kiosks and device interfaces the way you would with Electron or React Native,
+without shipping a browser. You write a strict, typed subset of TypeScript and JSX. Zinc interprets it while you work and
+compiles it to a native executable when you ship. The same program runs on a laptop, a Raspberry Pi, an e-ink tablet or a
+microcontroller.
 
-- 🚀 **Native, not embedded.** Your program is interpreted while you work and compiled to C++ when you ship: one executable, no
-  JavaScript engine or browser inside, a fast start on modest hardware.
-- 🧠 **Any JavaScript engine.** Plain JavaScript and npm packages run on QuickJS (built in), JavaScriptCore, V8 or Hermes: one
-  flag, the same program, plugins and WebGL. The engines you do not use are not shipped; they download, signed, the first time.
-- 🌍 **One program, every screen.** A Mac, Windows, Linux, every Raspberry Pi, an iPhone, a reMarkable, an HP TouchPad from 2011, an ESP32, a PSP, a Vita, a 3DS, a PS2.
-- ⚡ **Fast Refresh.** `zinc dev` swaps each save into the running program: the window stays and so does the state (the page you were on,
-  what you typed, the game round in progress). A save shows up in a fraction of a second, and nothing of it ends up in what you ship.
-- 🧰 **Batteries included.** One `zinc` command builds, runs, debugs, tests, packages and flashes; cross builds need no Docker and no SDK.
-- 🎨 **UI people already know.** Solid or React models, Tailwind-like classes, a shadcn-style kit, Nuxt UI 4 and React Native components,
-  drawn by a GPU renderer that also runs on a Pi's VideoCore IV.
-- 🔌 **Web APIs on real devices.** `fetch`, WebSocket, `crypto.subtle`, `localStorage`, and the battery, sensors, vibration, orientation and
-  notifications of the device the program runs on.
-- 📦 **63 plugins.** three.js, video, webcams, microphones, WebRTC, sound, MIDI, maps, physics, SQLite, Sonos, Spotify, AsyncStorage, and drivers for LED matrices,
-  e-ink and OLED screens.
+> [!NOTE]
+> Zinc is an early preview (`0.x`). The language subset, the CLI and the APIs still change between releases, and macOS is the
+> reference platform. Bug reports and feedback are welcome in the [issues](../../issues).
 
-## 🆕 What's new
+## A first look
 
-Since the last release (details in [CHANGELOG.md](CHANGELOG.md)):
+```tsx
+import { render, createSignal } from 'zinc:ui/solid';
 
-- 📓 **reMarkable Paper Pro.** Zinc runs on the tablet itself: `tools/rmpp-engine` installs the engine, `zinc pack` makes a `.zapp`, and
-  `zinc run app.zapp` draws through AppLoad. Pen ink has modes (`"display": { "ink": "native" }` or `"session"`), the screen refreshes
-  itself after many partial updates, and apps can minimize to **Accueil** and show a small widget there
-  ([docs/targets/remarkable-paper-pro.md](docs/targets/remarkable-paper-pro.md)).
-- 🏪 **Zinc Hub.** An app store for the tablet (`app/hub`) and a server for your own apps (`zinc run app/hub-server`). `zinc publish --hub <url>`
-  uploads a version; catalogs and apps are signed and checked before install, with updates, rollback and a stable or beta channel.
-- 🌐 **Zinc Web.** Read web pages on the tablet: `zinc run app/web-relay` on a Mac renders them, `app/web` shows them, with links, zoom and
-  pen notes you can export. Also new: `examples/remarkable/dashboard`.
-- 📱 **Zinc Go on a real iPhone.** `tools/zinc-go-iphone` builds it, signs it with your Apple team (a free Personal Team works) and installs
-  it. Zinc Go keeps the apps `zinc device deploy` sends and can put one on the home screen as an icon. New iOS plugins: `zinc:photos`,
-  `zinc:location` (`examples/photos`, `examples/geo`), and `zinc:microphone` and `zinc:webrtc` now build for iPhone and iPad.
-- 🎮 **Consoles.** PSP and PS Vita read asset packs from the memory stick like the 3DS; `examples/tokyo` flies over Tokyo on the PSP,
-  Vita and 3DS; `tools/build-console-core --aot` compiles the program into the console build.
-- 🔐 **Network and crypto.** `crypto.subtle` signs and verifies with Ed25519, and a `zinc:net` server accepts bodies up to 64 MiB.
+const [count, setCount] = createSignal(0);
 
-## 🏗️ Architecture
+function App(): i32 {
+  return (
+    <View className="flex-1 items-center justify-center gap-4">
+      <Text className="text-5xl font-bold">{count()}</Text>
+      <Button className="rounded-lg bg-sky-600 px-5 py-2" onClick={() => setCount(count() + 1)}>
+        <Text className="text-white">Add one</Text>
+      </Button>
+    </View>
+  );
+}
 
-<p align="center"><img src="docs/img/architecture.svg" alt="Zinc in layers: program, standard library, compiler, three engines over one shared runtime, host and HAL, with plugins on the side and the zinc CLI under everything" width="880"></p>
-
-One program goes down the stack, and each layer only knows the one below it:
-
-- **Core** (L3 and L2): the compiler turns your TypeScript into a typed IR and one bytecode (ZBC); the shared runtime and `include/zn` define every value and operation once, so every engine behaves the same, byte for byte.
-- **Engines** (L2): the interpreter runs while you work (`zinc run`, `zinc dev`), the AOT compiler writes C++ for a native executable (`zinc build`), a JavaScript engine runs plain JavaScript (QuickJS built in; JavaScriptCore, V8 or Hermes on request, all bound through Node-API). Pick one, the program does not change.
-- **Host and HAL** (L1): the host gives programs a screen, sound, network, files and an inspector; a thin HAL per target (macOS, Windows, Linux, Raspberry Pi, webOS, ESP32, the web...) is all that changes from one machine to the next.
-- **Plugins** (side): a plugin is a `plugin.json`, some Zinc code and optional native code. Its Zinc side extends the standard library, its native side loads into the host; the engine itself stays small and agnostic.
-- **Toolchain** (under everything): the `zinc` CLI and a pinned `zig` build, cross-compile and package, with no Docker and no SDK to install.
-
-## 🧠 JavaScript engines
-
-Typed Zinc compiles to native code and needs no JavaScript engine. A program that wants the JavaScript ecosystem (npm packages, three.js,
-PixiJS, Phaser) runs on the engine you pick, unchanged:
-
-```sh
-zinc run main.js                         # QuickJS-ng, built into zinc
-zinc run examples/hero --engine jsc      # JavaScriptCore, the one in macOS
-zinc run examples/hero --engine v8       # V8, downloaded and checked the first time
-zinc run examples/hero --engine hermes   # Hermes, React Native's engine (experimental)
+render(App, 0xffffff, null);
 ```
 
-Every engine is bound through one interface, **Node-API**, so Zinc's host, its web environment, WebGL, WebAssembly and the plugins'
-native modules are written once for all of them. Engines other than QuickJS are modules zinc loads on demand; V8 and Hermes come as
-**engine packs** from Zinc's signed index (`zinc engine list | install | update | remove`), so zinc stays small.
-
-| | QuickJS | JavaScriptCore | V8 | Hermes |
-|---|---|---|---|---|
-| Comes from | built in | macOS | pack, 14 MB | pack, 2 MB |
-| Call into Zinc | 70 ns | 115 ns | 52 ns | 50 ns |
-| hero, CPU for 600 frames | 1.04 s | 0.94 s | 0.53 s | 0.89 s |
-| hero, memory | ~50 MB | ~140 MB | ~80 MB | ~70 MB |
-| Debugger (`--inspect`) | | Safari | Chrome DevTools | Chrome DevTools |
-| Bytecode at `zinc build` | `.qbc` | | | `.hbc` |
-
-QuickJS for the smallest footprint and every platform, V8 for speed, JavaScriptCore with nothing to download on a Mac, Hermes where a JIT is
-not allowed. V8 and Hermes packs exist for Apple silicon Macs today. The guide: [docs/guide/12-js-engines.md](docs/guide/12-js-engines.md).
-
-## 🚀 Quick start
-
-From the sources (CMake 3.20+ and a C++20 compiler; every library is vendored, Node.js is not needed):
-
 ```sh
-git clone https://github.com/Frulko/zinc && cd zinc
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && tools/build zinc
-build/zinc doctor                             # what this machine can do
-build/zinc new desktop-app ../my-app && cd ../my-app
-../build/zinc dev                        # a window opens; edit, save: it updates and keeps its state
+zinc dev                          # a window opens; every save updates it and keeps its state
+zinc build                        # one native executable, no JavaScript engine inside
+zinc build --target aarch64-linux # the same app for a Raspberry Pi, cross-compiled from your Mac
 ```
 
-Or, from a release, nothing to compile, with [Homebrew](https://brew.sh) on macOS or Linux (`brew update && brew upgrade zinc` installs each new release):
+## Install
+
+With [Homebrew](https://brew.sh) on macOS or Linux:
 
 ```sh
 brew install frulko/zinc/zinc
 ```
 
-Without Homebrew, the `zinc` CLI on your `PATH` with one command (`-s -- --atelier` adds the Zinc Atelier app on a Mac):
+Or with the install script, which puts `zinc` on your `PATH` (add `-s -- --atelier` for the Zinc Atelier app on a Mac):
 
 ```sh
 curl -fsSL https://github.com/Frulko/zinc/releases/latest/download/install.sh | sh
 ```
 
-Then `zinc update` installs each new release (`--check`, `--rollback`, `--channel beta`: [Updating](docs/guide/01-getting-started.md#updating)).
+Then create a project and run it:
 
-Each release has two downloads per Mac (arm64, Intel): `zinc-<version>-macos-<arch>.tar.gz`, the CLI, and
-`Zinc-Atelier-<version>-macos-<arch>.zip`, the app ([docs/guide/07-distribution.md](docs/guide/07-distribution.md#the-two-downloads-of-a-release)).
+```sh
+zinc new desktop-app my-app && cd my-app
+zinc dev
+```
 
-A first app, step by step: [docs/guide/01-getting-started.md](docs/guide/01-getting-started.md).
+`zinc doctor` tells you what your machine can build and run, and `zinc update` installs each new release. To build from the
+sources, see [Building Zinc](#building-from-source).
 
-## 🧑‍💻 The CLI
+## Features
 
-Everything goes through one command.
+- **Native output.** Your program is compiled to C++ and then to one executable. There is no browser and no JavaScript engine
+  inside, so it starts fast and runs on modest hardware.
+- **Fast Refresh.** `zinc dev` swaps every save into the running app. The page you were on, what you typed and the game in
+  progress all stay, and DevTools inspect the UI live.
+- **UI you already know.** Solid or React models, Tailwind-style classes, and component kits modelled on shadcn/ui, Nuxt UI
+  and React Native. A GPU renderer draws them, down to a Raspberry Pi's VideoCore IV.
+- **The JavaScript ecosystem, too.** Plain JavaScript and npm packages such as three.js, PixiJS and Phaser run unchanged on
+  QuickJS (built in), JavaScriptCore, V8 or Hermes.
+- **Web APIs on real devices.** `fetch`, WebSocket, `crypto.subtle` and `localStorage`, plus the battery, sensors, camera,
+  microphone and notifications of the machine the app runs on.
+- **One tool.** `zinc` creates, runs, debugs, tests, packages, signs, publishes and flashes. Cross builds use a pinned
+  toolchain, with no Docker and no SDK to install.
+- **Devices from your desk.** `zinc agent` turns a Pi or a Mac into a device you deploy to, inspect and update over the network.
+  `zinc run --simulate` tries an app on hardware you do not have.
+- **78 plugins.** 3D and three.js, video, WebRTC, audio and MIDI, maps, physics, SQLite, and drivers for e-ink, LCD, OLED
+  and LED-matrix screens. A program only carries the ones it imports.
 
-| I want to… | Command |
+## Runs on
+
+| | |
 |---|---|
-| start a project from one of 13 templates (game, 3D, dashboard, IoT, e-ink, service…) | `zinc new game my-game` |
-| run it, with Fast Refresh and a DevTools inspector | `zinc run` · `zinc dev` |
-| run plain JavaScript (three.js, PixiJS, Phaser) as it is | `zinc run app.js --engine quickjs` |
-| set breakpoints in VS Code or Chrome | `zinc debug --dap` · `zinc debug --cdp` |
-| understand an error | `zinc explain Z0104` |
-| test on the interpreter, in native code, on QuickJS or a simulated device | `zinc test --runner aot` |
-| try it on a device I do not have | `zinc run --simulate hp-touchpad` |
-| build a native executable, for this machine or another | `zinc build` · `zinc build --target aarch64-linux` |
-| flash a board | `zinc flash --target esp32` |
-| drive a Pi or a Mac from my desk (shell, files, apps, logs) | `zinc agent` on it, `zinc device` here |
-| ship a .app, a single executable or a `.zapp` | `zinc export` · `zinc pack` |
-| publish a version and signed updates | `zinc publish` |
-| add a plugin from the signed index | `zinc add <plugin>` |
-| capture frames, measure speed | `zinc capture` · `zinc bench` |
+| **Desktop** | macOS (Apple silicon and Intel), Linux, Windows |
+| **Raspberry Pi** | every model from the Pi 1 and Zero to the Pi 5, on its desktop or straight on the screen, with a boot shell and app hub |
+| **Tablets and phones** | reMarkable Paper Pro, iPhone and iPad (Zinc Go), Android, HP TouchPad |
+| **Microcontrollers** | ESP32 boards with LCD, OLED or LED-matrix screens |
+| **Handhelds and consoles** | PSP, PS Vita, Nintendo 3DS, PlayStation 2 |
+| **Web** | WebAssembly, with WebGL |
 
-<details>
-<summary>🎯 Cross-build targets</summary>
+macOS is built and tested on every release. Linux and Windows packages come out of the same release, and the devices above
+are tested by hand on real hardware. See [docs/targets](docs/targets/) for what each one supports.
 
-`zinc build --target <target>` uses a pinned zig toolchain that `zinc toolchain` downloads:
-
-| Target | Machines |
-|---|---|
-| `aarch64-macos` · `x86_64-macos` | Mac, Apple silicon and Intel |
-| `x86_64-windows` | Windows 10 and 11 (console programs for now) |
-| `x86_64-linux` | PCs and servers |
-| `aarch64-linux` | Raspberry Pi 3, 4 and 5 (64-bit), reMarkable Paper Pro |
-| `armhf-linux` | every 32-bit Raspberry Pi OS, Pi 1 and Zero included |
-| `armv7-linux` | NTC CHIP and PocketCHIP |
-| `armv7-webos` | HP TouchPad on webOS 3 |
-| `esp32` | flashes the board, or runs it in Espressif's QEMU |
-
-</details>
-
-## 🎮 Demos
-
-From a desktop app to a microcontroller, the same engine and the same language:
+## Showcase
 
 <table>
 <tr>
-<td width="33%"><img src="docs/img/zed-editor.png" alt="A Zed-style code editor"><br><b>A code editor, Zed style</b><br><code>zinc run examples/zed-editor</code></td>
-<td width="33%"><img src="docs/img/museum-table-full.jpg" alt="A museum's multi-touch table showing a collection"><br><b>A museum touch table</b><br><code>zinc run examples/museum-table</code></td>
-<td width="33%"><img src="docs/img/pinball3d-play.png" alt="A 3D pinball table in play"><br><b>3D pinball</b><br><code>zinc run examples/pinball3d</code></td>
+<td width="33%"><img src="docs/img/zed-editor.png" alt="A code editor in the style of Zed"><br><b>Code editor</b><br><code>examples/zed-editor</code></td>
+<td width="33%"><img src="docs/img/museum-table-full.jpg" alt="A museum's multi-touch table showing a collection"><br><b>Museum touch table</b><br><code>examples/museum-table</code></td>
+<td width="33%"><img src="docs/img/pinball3d-play.png" alt="A 3D pinball table in play"><br><b>3D pinball</b><br><code>examples/pinball3d</code></td>
 </tr>
 <tr>
-<td><img src="docs/img/navigation.png" alt="Turn-by-turn navigation through Paris"><br><b>Offline GPS navigation</b><br><code>zinc run examples/maps/navigation</code></td>
-<td><img src="examples/js-three/screenshot.png" alt="A lighthouse at night made with three.js"><br><b>three.js, unmodified</b><br><code>zinc run examples/js-three</code></td>
-<td><img src="docs/img/video-mapper.png" alt="Video layers warped onto surfaces"><br><b>GPU video mapping</b><br><code>zinc run examples/video/mapper</code></td>
+<td><img src="docs/img/navigation.png" alt="Turn-by-turn navigation through Paris"><br><b>Offline GPS navigation</b><br><code>examples/maps/navigation</code></td>
+<td><img src="examples/js-three/screenshot.png" alt="A lighthouse at night made with three.js"><br><b>three.js, unmodified</b><br><code>examples/js-three</code></td>
+<td><img src="docs/img/video-mapper.png" alt="Video layers warped onto surfaces"><br><b>Video mapping</b><br><code>examples/video/mapper</code></td>
 </tr>
 <tr>
-<td><img src="docs/img/remarkable-notes.png" alt="A handwriting notebook on e-ink"><br><b>e-ink notebook (reMarkable)</b><br><code>zinc run examples/remarkable/notes</code></td>
-<td><img src="docs/img/esp32-2432s022-home.png" alt="A widgets tour on a 2.2 inch ESP32 screen"><br><b>A 2.2" ESP32 touch screen</b><br><code>zinc run examples/boards/esp32-2432s022</code></td>
-<td><img src="docs/img/music-touchpad.png" alt="The Musique app on an HP TouchPad"><br><b>A Sonos remote on a 2011 tablet</b><br><code>examples/music/install.sh</code></td>
+<td><img src="docs/img/remarkable-notes.png" alt="A handwriting notebook on e-ink"><br><b>E-ink notebook</b><br><code>examples/remarkable/notes</code></td>
+<td><img src="docs/img/esp32-2432s022-home.png" alt="A widgets tour on a 2.2 inch ESP32 screen"><br><b>ESP32 touch screen</b><br><code>examples/boards/esp32-2432s022</code></td>
+<td><img src="docs/img/music-touchpad.png" alt="A Sonos remote on an HP TouchPad"><br><b>Sonos remote on a 2011 tablet</b><br><code>examples/music</code></td>
 </tr>
 </table>
 
-More: `examples/hero` (a complete app), `examples/nuxt-ui`, `examples/rn-showcase`, `examples/js-phaser` (Phaser, unmodified),
-`examples/leapmotion` (hand tracking games), `examples/remarkable/dashboard` (a tablet dashboard), `examples/webcam` (a camera app on `zinc:camera`), `examples/webrtc-call` (a video call on `zinc:webrtc`), `examples/hardware` (the device web APIs; try `--simulate hp-touchpad`).
+Run any of them with `zinc run <path>`. The [examples](examples/) folder holds over a hundred more, from a Discord client to
+React Native and Nuxt UI showcases.
 
-## 🔌 Plugins
+## How it works
 
-Plugins live in `plugins/`, one directory each, and are compiled into a program only when it imports them. **Native** ones hold C/C++
-code or a library; **Zinc** ones are written in Zinc and run wherever the modules they use do. `zinc plugins` lists them for your project;
-the guides are in [docs/plugins/](docs/plugins/). Abbreviations: Pi = Raspberry Pi, rM = reMarkable Paper Pro, Web = WebAssembly.
+<p align="center"><img src="docs/img/architecture.svg" alt="Zinc in layers: the program, the standard library, the compiler, three engines over one runtime, the host and the HAL, with plugins on the side and the zinc CLI underneath" width="820"></p>
 
-<details>
-<summary><b>38 modules</b>: 3D, video, sound, maps, physics, storage, network, desktop, hardware</summary>
+The compiler turns your program into a typed intermediate form and one bytecode. Three engines share a single runtime, so they
+behave the same byte for byte:
 
-| Plugin | What it does | Code | Platforms |
-|---|---|---|---|
-| `zinc:3d` | 3D: meshes, materials, lights, camera, scene graph; software or GPU | Native | macOS, Linux, Pi, ESP32, Web |
-| `three` | three.js API subset on `zinc:3d` (GLTFLoader, OrbitControls) | Native | macOS, Linux, Pi, Web |
-| `zinc:canvas` | HTML Canvas 2D-style context | Native | macOS, Linux, Pi, rM, Web, ESP32 |
-| `zinc:svg` | SVG rendered at run time | Native | macOS, Linux, Pi, Web |
-| `zinc:lottie` | Lottie animations, `<Lottie/>` | Native | macOS, Linux, Pi, rM, Web, PS2, ESP32 |
-| `zinc:map` | Vector maps (Mapbox tiles, MapLibre styles) | Native | macOS, Linux, Pi |
-| `zinc:mapping` | GPU video mapping (warp, masks, blends) driven by OSC | Native | macOS, Pi |
-| `zinc:video` | Video: FFmpeg (VideoToolbox, V4L2), GStreamer and the hardware decoder on webOS | Native | macOS, Linux, Pi, webOS |
-| `zinc:audio` | Sounds and music (WAV, FLAC, MP3, Ogg) on miniaudio | Native | macOS, Linux |
-| `zinc:midi` | MIDI in and out (RtMidi) | Native | macOS, Linux |
-| `zinc:osc/full` | Open Sound Control over UDP | Zinc | macOS, Linux, Pi, rM |
-| `zinc:physics2d` | 2D physics (Box2D 3.1) | Native | macOS, Linux |
-| `zinc:physics3d` | 3D physics (Jolt 5.6) | Native | macOS, Linux |
-| `zinc:gestures` | Pan, pinch, rotate, tap | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
-| `zinc:ink` | Handwriting: pressure, eraser, SVG/JSON export | Zinc | macOS, Linux, Pi, Web, rM |
-| `zinc:sprite` | Sprite animations from packed atlases | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
-| `zinc:tilemap` | Tiled and LDtk levels | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
-| `zinc:pixelfont` | 5x7 and 3x5 bitmap fonts for LED matrices | Zinc | macOS, Linux, Pi, ESP32, Web, PS2 |
-| `zinc:loader` | Loading screens (bar, splash, `<Loader>`) | Zinc | macOS, Linux, Pi, Web, ESP32, PS2 |
-| `zinc:sqlite` | SQLite 3.53 databases | Native | macOS, Linux, Pi, rM |
-| `gsap` | GSAP's core API in typed Zinc (tweens, timelines, eases, staggers), compiled by `zinc build`; the whole library runs on the QuickJS engine | Zinc | macOS, Linux, Windows, Pi, rM, webOS, Web, ESP32 |
-| `zinc:async-storage` | React Native's AsyncStorage on `zinc:storage` | Zinc | macOS, Linux, Windows, Pi, rM, webOS, ESP32 |
-| `zinc:socket` | TCP, UDP and Unix sockets, DNS, WebSocket client and server | Native | macOS, Linux, Pi, rM |
-| `zinc:webrtc` | WebRTC (`RTCPeerConnection`): data channels, audio and video tracks (Opus, VP8, H.264 in hardware on macOS), stats, STUN/TURN (libdatachannel) | Native | macOS, iOS, Linux, Pi |
-| `zinc:link` | Two programs find each other (DNS-SD), pair once with a 6-digit code and talk over an encrypted channel (JSON and bytes, reconnecting): zinc agent's protocol | Native | macOS, Linux, Android |
-| `zinc:process` | Child processes (args, streams, kill) | Native | macOS, Linux, Pi |
-| `zinc:ffi` | C functions of shared libraries (libffi) | Native | macOS, Linux |
-| `zinc:script` | Sandboxed JavaScript at run time (QuickJS-ng) | Native | macOS, Linux, Pi, rM |
-| `zinc:wasm` | WebAssembly on wasm3 | Native | macOS, Linux, Pi, rM |
-| `zinc:system` | Desktop integration: notifications, menus, tray, dialogs, shortcuts, clipboard | Native | macOS, Linux |
-| `zinc:webview` | Embedded web views (WKWebView), Tauri-like messages | Native | macOS |
-| `zinc:devtools` | UI inspector for Chrome DevTools | Native | macOS, Linux, Pi |
-| `zinc:serial` | Serial ports (Arduino and other boards) | Native | macOS, Linux |
-| `zinc:camera` | Webcams and built-in cameras: frames as an image, snapshots, a fake camera (AVFoundation, V4L2) | Native | macOS, Linux, Pi |
-| `zinc:microphone` | Microphones: samples in blocks, a level meter, a fake microphone (miniaudio: Core Audio, ALSA) | Native | macOS, iOS, Linux, Pi |
-| `zinc:photos` | The photo library: albums, pictures newest first, thumbnails, saving | Native | iOS, macOS |
-| `zinc:location` | The device's position: permission, current position, a watch, a fake path for tests | Native | iOS, macOS |
-| `zinc:gphoto2` | Camera remote control over USB (libgphoto2) | Native | macOS, Linux, Pi |
-| `zinc:leapmotion` | Ultraleap hand tracking (LeapC) | Native | macOS |
-| `zinc:imu` | QMI8658 motion sensor | Native | ESP32, macOS, Linux |
-| `zinc:device` | Board services: backlight, chip, heap | Native | ESP32, macOS, Linux |
-| `zinc:remarkable` | reMarkable status bar (clock, battery, exit) | Native | rM, macOS, Linux |
-| `zinc:remote` | View and drive a `display-remote` app | Native | macOS, Linux, Pi |
-| `zinc:webos` | webOS services (Luna bus through PDL), root helper, notifications | Native | macOS, Linux |
-| `zinc:sonos` | Sonos speakers (UPnP): rooms, groups, playback, volume, radios | Zinc | macOS, Linux, Pi, rM |
-| `zinc:spotify` | Spotify Web API: paged lists, search, playback | Zinc | macOS, Linux, Pi, rM |
+- **The interpreter** runs while you work (`zinc run`, `zinc dev`).
+- **The native compiler** writes C++ for the executable you ship (`zinc build`).
+- **A JavaScript engine** runs plain JavaScript, with QuickJS built in and JavaScriptCore, V8 or Hermes on demand.
 
-</details>
+Below them, a thin hardware layer per platform is all that changes from one machine to the next. Plugins add native code and
+modules without growing the engine. More detail is in [ARCHITECTURE.md](ARCHITECTURE.md) and the
+[guide on JavaScript engines](docs/guide/12-js-engines.md).
 
-<details>
-<summary><b>9 display drivers</b>: GPU, framebuffer, e-ink, LCD, OLED, LED matrices</summary>
+## The `zinc` command
 
-| Plugin | What it does | Platforms |
-|---|---|---|
-| display-gl | GPU screen: OpenGL (SDL3) on macOS, KMS/EGL/GLES 2 on Pi and Linux, GLES 2 through Palm's SDL on webOS | macOS, Pi, Linux, webOS |
-| display-webos | First TouchPad driver: SDL 1.2, software frames, multitouch | Linux |
-| display-fbdev | Linux framebuffer (`/dev/fb0`) with keyboard, mouse and touch | Linux, Pi |
-| display-remote | Headless: streams frames over TCP to `zinc:remote` viewers | macOS, Linux, Pi |
-| display-rmpp | reMarkable Paper Pro e-ink, pen and touch | rM (emulated on macOS, Linux) |
-| display-st7789 | ST7789 and ILI9341 LCDs over SPI, CST820 touch | ESP32, macOS |
-| display-ssd1306 | SSD1306 OLEDs over I2C | ESP32, Pi, Linux, macOS |
-| display-ws2812 | WS2812 (NeoPixel) LED matrices | ESP32, Pi, Linux, macOS |
-| display-scrollphat | Pimoroni Scroll pHAT (11x5 LEDs) over I2C | Pi, Linux, macOS |
+| To… | Run |
+|---|---|
+| start a project from a template (app, game, 3D, dashboard, e-ink, IoT, service…) | `zinc new game my-game` |
+| run it with Fast Refresh and an inspector | `zinc dev` |
+| debug in VS Code or Chrome DevTools | `zinc debug --dap` · `zinc debug --cdp` |
+| understand an error | `zinc explain Z0104` |
+| test on every engine, or on a simulated device | `zinc test` · `zinc run --simulate hp-touchpad` |
+| build for this machine or another | `zinc build` · `zinc build --target armhf-linux` |
+| deploy to a Pi or a Mac on the network | `zinc device deploy` |
+| ship a Mac app, a single executable or a `.zapp` package | `zinc export` · `zinc pack` |
+| publish a version with signed updates | `zinc publish` |
+| flash a board | `zinc flash --target esp32` |
 
-</details>
+## Documentation
 
-Sonos, Spotify and `zinc:webos` also run on the TouchPad (`examples/music`), though their manifests do not list `webos` yet; Windows is
-declared by `async-storage` only and not yet proven anywhere.
+- [Developer guide](docs/guide/README.md): getting started, the language, UI apps, services, plugins, testing, distribution
+- UI: [the basics](docs/ui.md), [the component kit](docs/ui-kit.md), [Nuxt UI](docs/nuxt-ui.md), [React Native](docs/react-native.md)
+- [Plugins](docs/plugins/), [targets](docs/targets/) and [boards](docs/boards.md)
+- [Changelog](CHANGELOG.md)
 
-## 🤖 A note on AI
+## Building from source
 
-Zinc has been a project of several years, and of many failures: attempts that went nowhere, designs that had to be thrown away. It
-exists today thanks to intensive help from AI. A large part of the code, tests and documentation of Zinc Next was written with AI
-coding agents, working through a backlog of precise tasks under rules a person sets and checks: [AGENTS.md](AGENTS.md) and
-[RULES.md](RULES.md) are the instructions they follow. The direction, the design choices and the tests on real hardware stay
-human. Mistakes remain possible; every behaviour is meant to be proven by a test, and reports of what is wrong are welcome.
+You need CMake 3.20 or later and a C++20 compiler. Every library is vendored, and Node.js is not required.
 
-## 📚 Documentation
-
-- 📖 [Developer guide](docs/guide/README.md): getting started, language, UI apps, services, plugins, testing, distribution, security, web APIs
-- 🎨 UI: [ui](docs/ui.md), [kit](docs/ui-kit.md), [Nuxt UI](docs/nuxt-ui.md), [React Native](docs/react-native.md) · 🎯 [targets](docs/targets/) · 🔧 [boards](docs/boards.md)
-- 🛠 Working on Zinc: [AGENTS.md](AGENTS.md), [architecture](ARCHITECTURE.md), [rules](RULES.md), [testing](TESTING.md),
-  [decisions](docs/reports/zinc-next-decisions.md), [performance log](docs/reports/zinc-next-perf.md), [hardware notes](docs/reports/hardware/)
-- 🧪 [The prototype](docs/prototype.md): the first generation (TypeScript to C++17 on Node), removed; its code is under the git tag `prototype-final`
-
-<details>
-<summary>🗂 Repository layout</summary>
-
-```
-src/         the engine: frontend, ir, zbc, vm, aot, rt, host, qjs, gl, text, tc, dev, lsp; include/zn its definitions
-runtime/     zrt, the raster, the GL replay, the HAL headers
-tests/, tools/, backlog/, app/, corpus/, third_party/   tests, tools, the backlog, Zinc Atelier and the inspector, the frozen corpus, vendored libraries
-lib/         the standard library in Zinc (std/, the UI kits); zinc.d.ts
-plugins/     optional modules and display drivers, one directory each (plugin.json)
-examples/    the demos every engine must run unchanged
-templates/   the projects of `zinc new`
-targets/, boards/, devices/   target capabilities, board presets, simulated devices
-docs/        guides, plugin and target docs, reports, decisions
-packages/, integrations/, site/    the Vite plugin, the reMarkable integration, the web site
+```sh
+git clone https://github.com/Frulko/zinc && cd zinc
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+tools/build zinc
+build/zinc doctor
 ```
 
-</details>
+## Contributing
+
+Issues and pull requests are welcome. Before changing the engine, read [ARCHITECTURE.md](ARCHITECTURE.md) for how the code is
+laid out and [TESTING.md](TESTING.md) for the tests to run. Work in progress lives on `develop`; `main` holds the last release.
+
+### A note on AI
+
+Zinc has been a project of several years, and of many failed attempts and discarded designs. It exists today thanks to
+intensive help from AI. A large part of its code, tests and documentation was written by AI coding agents working through a
+backlog of precise tasks, under rules a person sets and checks ([AGENTS.md](AGENTS.md), [RULES.md](RULES.md)). The direction,
+the design choices and the testing on real hardware stay human. Every behaviour is meant to be proven by a test, and reports
+of anything wrong are welcome.
