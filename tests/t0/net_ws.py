@@ -102,6 +102,7 @@ w.frame(8, p[:2]); print('after close', w.recv()[0])
 
 # back-pressure: 4 MiB in 60000-byte messages while the client reads nothing for a while, then everything
 w = WS('/flood')
+w.s.settimeout(30)   # QuickJS on a hosted runner can pause longer than 5 s while it sends 4 MiB
 w.frame(1, b'flood')
 time.sleep(0.3)
 total, last = 0, b''
