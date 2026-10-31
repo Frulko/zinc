@@ -15,6 +15,7 @@
 #include "zinc_native_webrtc.h"
 #include "rtc/rtc.h"
 #include "media.h"
+#include "jitter.h"
 #include <dlfcn.h>
 #include <math.h>
 #include <atomic>
@@ -169,7 +170,9 @@ struct Stats {
   int sentWidth = 0, sentHeight = 0, targetBitrate = 0, rembBitrate = 0;
   // received
   long long bytesReceived = 0, packetsReceived = 0, framesDecoded = 0, keyFramesDecoded = 0, pliSent = 0, samplesReceived = 0, concealed = 0, framesDropped = 0;
-  long long fecSamples = 0, fecPackets = 0, dredSamples = 0;   // audio rebuilt from the in-band FEC and the deep redundancy (not concealed)
+  long long fecSamples = 0, fecPackets = 0, dredSamples = 0;
+  media::JitterStats jb;   // the audio jitter buffer's counters
+  int jbTargetMs = 0;   // audio rebuilt from the in-band FEC and the deep redundancy (not concealed)
   int recvWidth = 0, recvHeight = 0;
   int64_t baseSeq = -1, maxSeq = -1;
   double jitter = 0, transit = 0;
@@ -206,6 +209,7 @@ struct Tx {
   int64_t pms = 0;
   bool hasPend = false;
   std::vector<float> pcm;                     // samples to send, 48 kHz mono
+  int64_t pcmEndMs = 0;                       // when the last of them came (sendAudio)
   struct In { std::vector<uint8_t> p; int64_t at; };
   std::deque<In> rtp;                         // received packets
   // results, for the program's thread
@@ -392,30 +396,22 @@ int videoBitrate(Tx& t, int w, int h, int fps) {
   if (r > 0 && bps > r) bps = r < 50000 ? 50000 : r;
   return bps;
 }
-// The audio of `lost` packets missing before `frame` (each as long as it), into t.audio: the last packet from the in-band FEC of this one,
-// the earlier ones from its deep redundancy (DRED) as far back as it reaches, the rest concealed (deep PLC). Called with t.m held.
 const int kDredMs = 200;   // the past each packet carries for a Zinc peer: a burst of 3 packets of 60 ms
-void recoverAudio(Tx& t, media::OpusDec* adec, const std::vector<uint8_t>& frame, int lost, float* buf) {
-  int dur = media::opusSamples(frame.data(), (int)frame.size());
-  if (dur <= 0 || dur > 5760) dur = 960;
-  const int gap = lost * dur;
-  const bool fec = media::opusHasFec(frame.data(), (int)frame.size());
-  const int dred = gap > dur || !fec ? media::opusDredParse(adec, frame.data(), (int)frame.size(), gap) : 0;
-  for (int pos = 0; pos < gap;) {
-    const int left = gap - pos;   // samples between here and the packet: the DRED offset
-    int n;
-    if (left <= dur && fec) {   // the packet just before this one: its LBRR copy rides in this packet
-      n = media::opusDecode(adec, frame.data(), (int)frame.size(), buf, left, true);
-      if (n > 0) { t.st.fecSamples += n; t.st.fecPackets++; }
-    } else {
-      const int room = fec ? left - dur : left, c = room < 960 ? room : 960;   // up to the FEC part, by 20 ms
-      if (dred >= left) { n = media::opusDredDecode(adec, left, buf, c); if (n > 0) t.st.dredSamples += n; }
-      else { n = media::opusDecode(adec, nullptr, 0, buf, c); if (n > 0) t.st.concealed += n; }
-    }
-    if (n <= 0) break;
-    t.audio.insert(t.audio.end(), buf, buf + n);
-    pos += n;
-  }
+// When each sent audio packet was captured, by (SSRC, RTP timestamp): the receiving side of a call in this process (the loopback) measures
+// mouth to ear with it. The last 20 s of packets.
+std::mutex captureMu;
+std::map<uint64_t, int64_t> captures;
+std::deque<uint64_t> captureOrder;
+void noteCapture(uint32_t ssrc, uint32_t ts, int64_t ms) {
+  std::lock_guard<std::mutex> l(captureMu);
+  const uint64_t k = (uint64_t)ssrc << 32 | ts;
+  if (captures.emplace(k, ms).second) captureOrder.push_back(k);
+  while (captureOrder.size() > 1000) { captures.erase(captureOrder.front()); captureOrder.pop_front(); }
+}
+int64_t captureOf(uint32_t ssrc, uint32_t ts) {
+  std::lock_guard<std::mutex> l(captureMu);
+  auto it = captures.find((uint64_t)ssrc << 32 | ts);
+  return it == captures.end() ? -1 : it->second;
 }
 void work(std::shared_ptr<Tx> tp) {
   Tx& t = *tp;
@@ -425,7 +421,9 @@ void work(std::shared_ptr<Tx> tp) {
   media::OpusEnc* aenc = nullptr;
   int aencBps = 0, aencLoss = -1;
   bool aencDred = false;
-  media::OpusDec* adec = nullptr;
+  std::unique_ptr<media::AudioJitterBuffer> jb;
+  std::vector<float> played;
+  int64_t pcmEnd = 0;
   std::string encName;
   int decPt = -1;
   int64_t firstMs = -1, lastKeyAsk = 0;
@@ -442,10 +440,10 @@ void work(std::shared_ptr<Tx> tp) {
     std::map<int, Codec> byPt;
     {
       std::unique_lock<std::mutex> l(t.m);
-      t.cv.wait_for(l, std::chrono::milliseconds(20), [&] { return t.quit || t.hasPend || t.pcm.size() >= 960 || !t.rtp.empty(); });
+      t.cv.wait_for(l, std::chrono::milliseconds(t.video ? 20 : 10), [&] { return t.quit || t.hasPend || t.pcm.size() >= 960 || !t.rtp.empty(); });
       if (t.quit) break;
       if (t.hasPend) { px.swap(t.pend); w = t.pw; h = t.ph; ms = t.pms; t.hasPend = false; havePx = true; }
-      if (t.pcm.size() >= 960) { pcm.insert(pcm.end(), t.pcm.begin(), t.pcm.end()); t.pcm.clear(); }
+      if (t.pcm.size() >= 960) { pcm.insert(pcm.end(), t.pcm.begin(), t.pcm.end()); t.pcm.clear(); pcmEnd = t.pcmEndMs; }
       in.swap(t.rtp);
       sendC = t.send; recvC = t.recv; byPt = t.recvByPt;
     }
@@ -512,6 +510,7 @@ void work(std::shared_ptr<Tx> tp) {
         const int n = media::opusEncode(aenc, pcm.data() + at, bytes.data(), (int)bytes.size(), frameN);
         if (n > 2 || (n > 0 && bps > 16000)) {   // 1 or 2 bytes under DTX: a frame of silence, not sent (as browsers do); the timestamp moves on
           bytes.resize((size_t)n);
+          noteCapture(t.ssrc, audioTs, pcmEnd - (int64_t)(pcm.size() - at) / 48);
           sendFrame(t, bytes, audioTs);
           std::lock_guard<std::mutex> l(t.m);
           t.st.bytesSent += n; t.st.packetsSent++; t.st.samplesSent += frameN; t.st.targetBitrate = bps;
@@ -528,16 +527,17 @@ void work(std::shared_ptr<Tx> tp) {
       if (c == byPt.end()) continue;
       if (pt != decPt) {   // the first packet, or the peer changed codecs
         const std::string n = lower(c->second.name);
-        rs.reset(new media::Reassembler(n == "vp8" ? media::Reassembler::VP8 : n == "h264" ? media::Reassembler::H264 : media::Reassembler::OPUS));
+        if (t.video) rs.reset(new media::Reassembler(n == "vp8" ? media::Reassembler::VP8 : media::Reassembler::H264));
+        else if (!jb) jb.reset(new media::AudioJitterBuffer(captureOf));
         dec.reset(n == "vp8" ? media::vp8Decoder() : n == "h264" ? media::h264Decoder() : nullptr);
-        if (!t.video && !adec) adec = media::opusDecoder();
         decPt = pt;
         std::lock_guard<std::mutex> l(t.m);
         t.recv = c->second;
       }
       size_t hl = 12 + 4 * (p[0] & 15);
       if ((p[0] & 0x10) && k.p.size() >= hl + 4) hl += 4 + 4 * (size_t)((p[hl + 2] << 8) | p[hl + 3]);
-      rs->push(p, k.p.size(), k.at);
+      if (rs) rs->push(p, k.p.size(), k.at);
+      if (jb) jb->push(p, k.p.size(), k.at);
       std::lock_guard<std::mutex> l(t.m);
       Stats& s = t.st;
       const uint16_t seq = (uint16_t)(p[2] << 8 | p[3]);
@@ -570,13 +570,6 @@ void work(std::shared_ptr<Tx> tp) {
           t.st.recvWidth = fw; t.st.recvHeight = fh;
           t.st.decodedTimes.push_back(now);
           while (!t.st.decodedTimes.empty() && now - t.st.decodedTimes.front() > 1000) t.st.decodedTimes.pop_front();
-        } else if (!t.video && adec) {
-          float buf[5760];
-          std::lock_guard<std::mutex> l(t.m);
-          if (lost > 0) recoverAudio(t, adec, frame, lost, buf);
-          const int n = media::opusDecode(adec, frame.data(), (int)frame.size(), buf, 5760);
-          if (n > 0) { t.audio.insert(t.audio.end(), buf, buf + n); t.st.samplesReceived += n; }
-          if (t.audio.size() > 48000) t.audio.erase(t.audio.begin(), t.audio.begin() + (long)(t.audio.size() - 48000));   // a second at most
         }
       }
       if (t.video) { std::lock_guard<std::mutex> l(t.m); t.st.framesDropped += rs->dropped; rs->dropped = 0; }
@@ -587,9 +580,18 @@ void work(std::shared_ptr<Tx> tp) {
         t.st.pliSent++;
       }
     }
+    if (jb) {   // the peer's audio by the clock, out of the jitter buffer
+      played.clear();
+      jb->pull(nowMs(), played);
+      std::lock_guard<std::mutex> l(t.m);
+      t.audio.insert(t.audio.end(), played.begin(), played.end());
+      if (t.audio.size() > 48000) t.audio.erase(t.audio.begin(), t.audio.begin() + (long)(t.audio.size() - 48000));   // a second at most
+      const media::JitterStats& j = jb->st;
+      t.st.samplesReceived = j.samples; t.st.concealed = j.concealed; t.st.fecPackets = j.fecPackets; t.st.fecSamples = j.fecSamples;
+      t.st.dredSamples = j.dredSamples; t.st.jb = j; t.st.jbTargetMs = jb->targetMs;
+    }
   }
   media::opusFree(aenc);
-  media::opusFree(adec);
 }
 
 std::shared_ptr<Tx> makeTx(int pc, int tr, bool video, const std::string& mid) {
@@ -1075,6 +1077,7 @@ struct HostWebRTC : NativeWebRTC {
       t->pcm.push_back((float)(mono[(size_t)a] + (mono[(size_t)b] - mono[(size_t)a]) * (x - a)));
     }
     if (t->pcm.size() > 48000) t->pcm.erase(t->pcm.begin(), t->pcm.begin() + (long)(t->pcm.size() - 48000));
+    t->pcmEndMs = nowMs();
     t->cv.notify_one();
   }
   int32_t remoteFrame(int32_t tx) override {
@@ -1150,7 +1153,10 @@ struct HostWebRTC : NativeWebRTC {
     kv("packetsLost", num(expected > s.packetsReceived ? expected - s.packetsReceived : 0)); kv("jitter", dbl(s.jitter / clock));
     kv("framesDecoded", num(s.framesDecoded)); kv("keyFramesDecoded", num(s.keyFramesDecoded)); kv("pliSent", num(s.pliSent));
     kv("frameWidth", num(s.recvWidth)); kv("frameHeight", num(s.recvHeight)); kv("framesPerSecond", num((long long)s.decodedTimes.size()));
-    kv("totalSamplesReceived", num(s.samplesReceived)); kv("concealedSamples", num(s.concealed)); kv("fecPacketsReceived", num(s.fecPackets)); kv("fecSamples", num(s.fecSamples)); kv("dredSamples", num(s.dredSamples)); kv("framesDropped", num(s.framesDropped));
+    kv("totalSamplesReceived", num(s.samplesReceived)); kv("concealedSamples", num(s.concealed)); kv("fecPacketsReceived", num(s.fecPackets)); kv("fecSamples", num(s.fecSamples)); kv("dredSamples", num(s.dredSamples));
+    kv("jitterBufferDelay", dbl(s.jb.delay)); kv("jitterBufferTargetDelay", dbl(s.jb.target)); kv("jitterBufferEmittedCount", num(s.jb.emitted));
+    kv("insertedSamplesForDeceleration", num(s.jb.inserted)); kv("removedSamplesForAcceleration", num(s.jb.removed));
+    kv("totalMouthToEarDelay", dbl(s.jb.mouthToEar)); kv("mouthToEarCount", num(s.jb.mouthToEarCount)); kv("jitterBufferTarget", num(s.jbTargetMs)); kv("framesDropped", num(s.framesDropped));
     kv("roundTripTime", dbl(s.rtt)); kv("fractionLost", dbl(s.fractionLost)); kv("remotePacketsLost", num(s.remoteLost)); kv("remoteJitter", dbl(s.remoteJitter));
     kv("sendPayloadType", num(t->send.pt)); kv("recvPayloadType", num(t->recv.pt));
     kv("sendClockRate", num(t->send.clock)); kv("recvClockRate", num(t->recv.clock));

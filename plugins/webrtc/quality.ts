@@ -29,6 +29,13 @@ export class RTCStats {
   /** inbound-rtp audio: packets rebuilt from the next packet's in-band FEC; Zinc: the samples those gave, and the samples rebuilt from
    *  Opus deep redundancy (DRED, between Zinc peers). Neither counts in concealedSamples. */
   fecPacketsReceived: number = 0; fecSamples: number = 0; dredSamples: number = 0;
+  /** inbound-rtp audio, as on the Web: seconds x samples spent in the jitter buffer and aimed at, the samples given out, and the samples
+   *  time-scaling added or took away while the buffer moved toward its target. */
+  jitterBufferDelay: number = 0; jitterBufferTargetDelay: number = 0; jitterBufferEmittedCount: number = 0;
+  insertedSamplesForDeceleration: number = 0; removedSamplesForAcceleration: number = 0;
+  /** Zinc, inbound-rtp audio: seconds from capture to playout summed over mouthToEarCount packets; known only for a call between two peer
+   *  connections of one process (the loopback). */
+  totalMouthToEarDelay: number = 0; mouthToEarCount: number = 0;
   mimeType: string = ''; payloadType: number = 0; clockRate: number = 0; channels: number = 0; sdpFmtpLine: string = '';
   constructor(id: string, type: string) { this.id = id; this.type = type; this.timestamp = Date.now(); }
 }

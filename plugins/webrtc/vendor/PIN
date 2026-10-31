@@ -45,6 +45,10 @@ libvpx 1.17.0 (tag v1.17.0 of webmproject/libvpx), BSD-3-Clause with the WebM pa
   --disable-install-docs --disable-install-bins --disable-install-libs --enable-realtime-only --enable-multithread --disable-webm-io
   --disable-libyuv --enable-pic --disable-debug --size-limit=4096x4096
   (generic C, no SIMD: the same files on every target; real-time VP8 at 640x480 on a desktop, a smaller size on a Pi)
+Sonic (commit b93885dcb70aae50c6f76b0fe4e0868f029a077e of waywardgeek/sonic, 2026-03-14), Apache-2.0
+  https://github.com/waywardgeek/sonic/archive/b93885dcb70aae50c6f76b0fe4e0868f029a077e.tar.gz
+  archive sha256 b76d832649306b53e716c271014c0b8f89f6bcefc43e5068a2eca3cf1946324c
+  kept: sonic.c, sonic.h and LICENSE, unmodified: the time scaling of the audio jitter buffer (native/jitter.cpp)
 The network impairment harness (native/impair.cpp, ZINC_WEBRTC_IMPAIR) reaches libdatachannel without a change to it: plugin.json's
   vendorFlags force-include ../impair.h into the vendored C++, which renames its calls to juice_create, juice_send_diffserv and
   juice_destroy to the harness's hooks; the C sources (libjuice) skip the header and keep the real functions.

@@ -7,6 +7,7 @@
 //   step=10:300k   the rate changes to 300k ten seconds after the connection's first packet;
 //   delay=50       one-way delay in ms (a loopback call at delay=50 has a 100 ms round trip);
 //   jitter=30      plus a uniform random 0 to 30 ms per packet (packets may arrive out of order, as with netem);
+//   calm=10        the jitter stops ten seconds after the connection's first packet;
 //   seed=1         the random sequence: each connection draws from seed and its order of creation, RTP, RTCP and the jitter from separate
 //                  sequences, so the same packets meet the same fate on every run.
 // Each connection (libjuice agent) is one direction of the link: in a loopback call both directions are impaired alike.
@@ -29,7 +30,7 @@
 #include <vector>
 
 namespace {
-struct Profile { double loss = 0, burst = 1, rate = 0, stepAt = -1, stepRate = 0, delay = 0, jitter = 0, queue = 300; unsigned seed = 1; bool on = false, log = false; };
+struct Profile { double loss = 0, burst = 1, rate = 0, stepAt = -1, stepRate = 0, delay = 0, jitter = 0, calmAt = -1, queue = 300; unsigned seed = 1; bool on = false, log = false; };
 double rateOf(const char* s) {
   char* e = nullptr;
   double v = strtod(s, &e);
@@ -60,9 +61,10 @@ const Profile& profile() {
       else if (k == "step") { const char* c = strchr(v, ':'); if (c) { r.stepAt = atof(v) * 1000; r.stepRate = rateOf(c + 1); } }
       else if (k == "delay") r.delay = atof(v);
       else if (k == "jitter") r.jitter = atof(v);
+      else if (k == "calm") r.calmAt = atof(v) * 1000;
       else if (k == "queue") r.queue = atof(v);
       else if (k == "seed") r.seed = (unsigned)atoi(v);
-      else fprintf(stderr, "zinc:webrtc: ZINC_WEBRTC_IMPAIR: unknown key '%s' (loss, burst, rate, step, delay, jitter, queue, seed)\n", k.c_str());
+      else fprintf(stderr, "zinc:webrtc: ZINC_WEBRTC_IMPAIR: unknown key '%s' (loss, burst, rate, step, delay, jitter, calm, queue, seed)\n", k.c_str());
     }
     r.on = true;
     return r;
@@ -166,7 +168,7 @@ extern "C" int zn_impair_send(juice_agent_t* agent, const char* data, size_t siz
     at = done;
   }
   at += p.delay;
-  if (p.jitter > 0) at += std::uniform_real_distribution<double>(0, p.jitter)(k.jitRng);
+  if (p.jitter > 0 && (p.calmAt < 0 || now - k.start < p.calmAt)) at += std::uniform_real_distribution<double>(0, p.jitter)(k.jitRng);
   if (at <= now) { l.unlock(); return juice_send_diffserv(agent, data, size, ds); }
   s.due.push(new Pending{at, s.order++, agent, ds, std::vector<char>(data, data + size)});
   if (!s.thread) { s.thread = true; std::thread(deliver).detach(); }

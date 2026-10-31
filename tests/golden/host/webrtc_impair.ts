@@ -16,7 +16,8 @@ const r1 = (v: number): number => Math.round(v * 10) / 10;
 
 class Totals {
   audioBytes: number = 0; audioWire: number = 0; audioPackets: number = 0; videoBytes: number = 0; videoWire: number = 0;
-  received: number = 0; concealed: number = 0; fec: number = 0; dred: number = 0; lost: number = 0; jitter: number = 0; frames: number = 0; width: number = 0; plis: number = 0; rtt: number = 0;
+  received: number = 0; concealed: number = 0; fec: number = 0; dred: number = 0;
+  jbDelay: number = 0; jbTarget: number = 0; emitted: number = 0; inserted: number = 0; removed: number = 0; m2e: number = 0; m2eCount: number = 0; lost: number = 0; jitter: number = 0; frames: number = 0; width: number = 0; plis: number = 0; rtt: number = 0;
 }
 async function totals(a: RTCPeerConnection, b: RTCPeerConnection): Promise<Totals> {
   const t = new Totals();
@@ -26,7 +27,9 @@ async function totals(a: RTCPeerConnection, b: RTCPeerConnection): Promise<Total
     if (x.type === 'remote-inbound-rtp' && x.kind === 'audio') t.rtt = x.roundTripTime;
   });
   (await b.getStats()).forEach((x: RTCStats) => {
-    if (x.type === 'inbound-rtp' && x.kind === 'audio') { t.received = x.totalSamplesReceived; t.concealed = x.concealedSamples; t.fec = x.fecSamples; t.dred = x.dredSamples; t.lost = x.packetsLost; t.jitter = x.jitter; }
+    if (x.type === 'inbound-rtp' && x.kind === 'audio') { t.received = x.totalSamplesReceived; t.concealed = x.concealedSamples; t.fec = x.fecSamples; t.dred = x.dredSamples;
+      t.jbDelay = x.jitterBufferDelay; t.jbTarget = x.jitterBufferTargetDelay; t.emitted = x.jitterBufferEmittedCount;
+      t.inserted = x.insertedSamplesForDeceleration; t.removed = x.removedSamplesForAcceleration; t.m2e = x.totalMouthToEarDelay; t.m2eCount = x.mouthToEarCount; t.lost = x.packetsLost; t.jitter = x.jitter; }
     if (x.type === 'inbound-rtp' && x.kind === 'video') { t.frames = x.framesDecoded; t.plis = x.pliCount; }
   });
   return t;
@@ -73,7 +76,9 @@ async function main(): Promise<void> {
   const half = seconds * 500;
   await wait(half);
   const tm = await totals(a, b), atm = Date.now();
-  await wait(seconds * 1000 - half);
+  await wait(seconds * 1000 - half - 3000);
+  const t2 = await totals(a, b);
+  await wait(3000);
   const t1 = await totals(a, b), at1 = Date.now();
   if (video && lastFrameAt >= 0 && at1 - lastFrameAt > maxFreeze) { maxFreeze = at1 - lastFrameAt; if (maxFreeze > 500) freezes++; }
   const kbps = (bytes: number, ms: number): number => r1(bytes * 8 / ms);
@@ -85,6 +90,13 @@ async function main(): Promise<void> {
   line.set('fecPct', samples > 0 ? r1((t1.fec - t0.fec) * 100 / samples) : 0);
   line.set('dredPct', samples > 0 ? r1((t1.dred - t0.dred) * 100 / samples) : 0);
   line.set('maxGapMs', maxGap);
+  // the jitter buffer: its target over the second half and the last 3 s, the delay of the samples, mouth to ear, the time scaling
+  const avgMs = (sum: number, count: number): number => count > 0 ? Math.round(sum * 1000 / count) : 0;
+  line.set('jbTargetMs', avgMs(t1.jbTarget - tm.jbTarget, t1.emitted - tm.emitted));
+  line.set('jbTargetEndMs', avgMs(t1.jbTarget - t2.jbTarget, t1.emitted - t2.emitted));
+  line.set('jbDelayMs', avgMs(t1.jbDelay - t0.jbDelay, t1.received - t0.received));
+  line.set('mouthToEarMs', avgMs(t1.m2e - t0.m2e, t1.m2eCount - t0.m2eCount));
+  line.set('stretchPct', samples > 0 ? r1((t1.inserted - t0.inserted + t1.removed - t0.removed) * 100 / samples) : 0);
   line.set('audioLossPct', sentPackets > 0 ? r1((t1.lost - t0.lost) * 100 / sentPackets) : 0);
   line.set('jitterMs', r1(t1.jitter * 1000));
   line.set('rttMs', Math.round(t1.rtt * 1000));
