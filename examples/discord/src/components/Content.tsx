@@ -10,11 +10,13 @@ import { Embed, EmbedField, EmbedMedia, Reaction, Sticker, PollAnswer, Component
   sizeText, waveform } from '../content';
 import { Markdown } from './Markdown';
 import { cdnPicture, emojiKey, attachmentPicture, attachmentKey, mediaPicture, stickerPicture, urlPicture } from '../services/cdn';
-import { BG_SIDE, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_LINK, MEDIA_MAX_W, MEDIA_MAX_H, EMBED_W, THUMB, STICKER, CDN_BASE } from '../constants';
+import { BG_SIDE, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_LINK, MEDIA_MAX_W, MEDIA_MAX_H, EMBED_W, THUMB, STICKER, CDN_BASE, mainW, paneW } from '../constants';
 import { Animated } from './Animated';
 import { color } from '../theme';
 
 const LINK = (): i32 => color('link');
+/** The width a card may take: the messages' column, or the pane's when the message is read there. */
+const colW = (): i32 => store.pane !== 'members' ? paneW() - 90 : mainW() - 100;
 const WHITE = (): i32 => 0xffffff;
 const MUTED = (): i32 => color('icon');
 const open = (url: string): void => { if (url !== '') openUrl(url); };
@@ -84,7 +86,7 @@ export function Media(p: { a: Attachment; m: Message }) {
   if (a.kind === 'voice') return <Voice a={a} />;
   if (a.kind === 'audio') return <FileCard a={a} icon="music" />;
   if (a.kind === 'video' || a.image()) {
-    const b = fit(a.width, a.height, MEDIA_MAX_W, MEDIA_MAX_H);
+    const b = fit(a.width, a.height, Math.min(MEDIA_MAX_W, colW() - 20), MEDIA_MAX_H);
     if (a.spoiler && !store.revealed.has(p.m.id)) return <Spoiler w={b.w} h={b.h} m={p.m} />;
     const picture = a.proxyUrl !== '' ? mediaPicture(a.proxyUrl, b.w, b.h) : a.kind === 'image' ? attachmentPicture(a.url) : -1;
     const alt = a.description !== '' ? a.description : a.filename;
@@ -136,7 +138,7 @@ const field = (e: Embed, name: string): string => { for (const f of e.fields) if
 function PollResult(p: { e: Embed }) {
   const e = p.e, votes = parseInt(field(e, 'victor_answer_votes')), total = parseInt(field(e, 'total_votes'));
   const won = field(e, 'victor_answer_text');
-  return <View className={`mt-1 self-start w-[${EMBED_W}] px-4 py-3 flex-row items-center gap-3 rounded-lg border border-[var(--dc-border)] ${BG_SIDE}`}>
+  return <View className={`mt-1 self-start w-full max-w-[${Math.min(EMBED_W, colW())}] px-4 py-3 flex-row items-center gap-3 rounded-lg border border-[var(--dc-border)] ${BG_SIDE}`}>
     <Icon name="chart-bar" size={24} color={MUTED} />
     <View className="grow basis-0">
       <Text className={`text-[15px] font-semibold ${TEXT_STRONG}`}>{`${field(e, 'poll_question_text')}: the poll has closed`}</Text>
@@ -151,9 +153,9 @@ function EmbedCard(p: { e: Embed }) {
   const e = p.e;
   if (e.type === 'poll_result') return <PollResult e={e} />;
   const pic = e.picture();
-  if (e.pictureOnly()) return pic !== null ? <View className="self-start"><EmbedPicture media={pic} video={e.type === 'gifv'} url={e.url} maxW={MEDIA_MAX_W} /></View> : null;
+  if (e.pictureOnly()) return pic !== null ? <View className="self-start"><EmbedPicture media={pic} video={e.type === 'gifv'} url={e.url} maxW={Math.min(MEDIA_MAX_W, colW() - 20)} /></View> : null;
   const thumb = e.image === null && e.type !== 'video' ? e.thumbnail : null;
-  return <View className={`mt-1 self-start max-w-[${EMBED_W}] flex-row rounded ${BG_SIDE}`}>
+  return <View className={`mt-1 self-start max-w-[${Math.min(EMBED_W, colW())}] flex-row rounded ${BG_SIDE}`}>
     <View className={`w-[4] rounded-l bg-[#${e.color >= 0 ? hex(e.color) : '1e1f22'}]`} />
     <View className="shrink px-3 pt-2 pb-3">
       <View className="flex-row gap-3">
@@ -166,7 +168,7 @@ function EmbedCard(p: { e: Embed }) {
         </View>
         {thumb !== null ? <Image image={mediaPicture(thumb.url, THUMB, THUMB)} className={`mt-1 w-[${THUMB}] h-[${THUMB}] rounded object-cover`} /> : null}
       </View>
-      {pic !== null ? <EmbedPicture media={pic} video={e.type === 'video'} url={e.url} maxW={EMBED_W - 32} /> : null}
+      {pic !== null ? <EmbedPicture media={pic} video={e.type === 'video'} url={e.url} maxW={Math.min(EMBED_W, colW()) - 32} /> : null}
       {e.footer !== '' || e.timestamp !== '' ? <Text className={`mt-2 text-xs ${TEXT_MUTED}`}>{[e.footer, e.timestamp.slice(0, 10)].filter((s: string) => s !== '').join(' • ')}</Text> : null}
     </View>
   </View>;
@@ -183,7 +185,7 @@ function PollView(p: { m: Message }) {
   const m = p.m, poll = m.poll;
   if (poll === null) return null;
   const total = poll.total(), shown = poll.voted() || poll.finalized, closed = poll.finalized || left(poll.expiry) === 'Poll closed';
-  return <View className={`mt-1 w-[${EMBED_W}] p-4 gap-2 rounded-lg border border-[var(--dc-border)] ${BG_SIDE}`}>
+  return <View className={`mt-1 w-full max-w-[${Math.min(EMBED_W, colW())}] p-4 gap-2 rounded-lg border border-[var(--dc-border)] ${BG_SIDE}`}>
     <Text className={`text-[17px] font-semibold ${TEXT_STRONG}`}>{poll.question}</Text>
     <Text className={`text-sm ${TEXT_MUTED}`}>{poll.multi ? 'Select one or more answers' : 'Select one answer'}</Text>
     {poll.answers.map((a: PollAnswer) => {
@@ -208,7 +210,7 @@ const STYLE_BG = ['bg-[var(--dc-faint)]', 'bg-[var(--dc-accent)]', 'bg-[var(--dc
  *  which a user client must not fake. */
 function Control(p: { c: Component }) {
   const c = p.c;
-  if (c.type !== 2) return <View className={`w-[${EMBED_W - 32}] h-[40] px-3 flex-row items-center rounded border border-[var(--dc-border)] bg-[var(--dc-rail)] ${c.disabled ? 'opacity-50' : ''}`} aria-label={c.label}>
+  if (c.type !== 2) return <View className={`w-full max-w-[${Math.min(EMBED_W, colW()) - 32}] h-[40] px-3 flex-row items-center rounded border border-[var(--dc-border)] bg-[var(--dc-rail)] ${c.disabled ? 'opacity-50' : ''}`} aria-label={c.label}>
     <Text className={`grow text-[15px] ${TEXT_MUTED}`} numberOfLines={1}>{c.label}</Text>
     <Icon name="chevron-down" size={18} color={MUTED} />
   </View>;

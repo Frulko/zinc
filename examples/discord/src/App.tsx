@@ -11,7 +11,8 @@ import { SidePane } from './components/SidePane';
 import { Settings } from './components/Settings';
 import { CallView, StatsPanel } from './components/CallView';
 import { Transfer } from './components/Transfer';
-import { BG_MAIN, TEXT_MUTED, CH_VOICE, RAIL_W } from './constants';
+import { useWindowDimensions } from 'zinc:react-native';
+import { BG_MAIN, TEXT_MUTED, CH_VOICE, RAIL_W, win, membersShown } from './constants';
 
 /** No conversation open: the server or the DMs are shown, one is chosen in the list. */
 function Pick() {
@@ -22,6 +23,8 @@ function Pick() {
 
 export default function App() {
   const [, setVersion] = useState<number>(0);
+  const dim = useWindowDimensions();
+  win.w = dim.width; win.h = dim.height;
   useEffect((): void => {
     let v = 0;
     store.onChange((): void => { v++; setVersion(v); });
@@ -40,7 +43,7 @@ export default function App() {
     {store.settingsOpen ? <Settings /> : voiceRoom ? (callHere ? <CallView compact={false} /> : <Pick />)
       : callHere ? <View className="grow basis-0"><CallView compact={true} /><MessageView /></View>
       : store.channelId === '' ? <Pick /> : <MessageView />}
-    {store.settingsOpen || store.channelId === '' ? null : store.pane !== 'members' ? <SidePane /> : store.guildId !== '' ? <MemberList /> : null}
+    {store.settingsOpen || store.channelId === '' ? null : store.pane !== 'members' ? (win.w < 800 ? <View className="absolute right-0 top-0 bottom-0 border-l border-[var(--dc-divider)]"><SidePane /></View> : <SidePane />) : store.guildId !== '' && membersShown() ? <MemberList /> : null}
     {store.transferPaths.length > 0 ? <Transfer /> : null}
     {call.statsOpen && call.state === 'connected' && !callHere ? <StatsPanel at={`bottom-[112] left-[${RAIL_W + 8}]`} /> : null}
   </View>;

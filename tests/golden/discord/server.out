@@ -5,6 +5,7 @@ cdn GET attachments/302/960/803/dance.gif 200
 cdn GET attachments/302/960/803/dance.gif 200
 cdn GET attachments/305/1104/screen.png 200
 cdn GET attachments/305/1105/demo.mp4 200
+cdn GET attachments/305/1105/demo.mp4 200
 cdn GET attachments/305/1110/photo.png 200
 cdn GET avatars/101/av101.png 200
 cdn GET avatars/101/av101.png 200
@@ -15,10 +16,13 @@ cdn GET emojis/77.png 200
 cdn GET emojis/78.png 200
 cdn GET emojis/79.png 200
 cdn GET external/banner.png 200
+cdn GET external/banner.png 200
 cdn GET external/og.png 200
+cdn GET external/tenor.png 200
 cdn GET external/tenor.png 200
 cdn GET external/trending-1.png 200
 cdn GET external/trending-2.png 200
+cdn GET external/yt.png 200
 cdn GET external/yt.png 200
 cdn GET icons/200/ic200.png 200
 cdn GET icons/200/ic200.png 200

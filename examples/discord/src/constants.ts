@@ -32,7 +32,15 @@ export const CH_TEXT = 0, CH_DM = 1, CH_VOICE = 2, CH_GROUP_DM = 3, CH_CATEGORY 
 export const CH_ANNOUNCEMENT_THREAD = 10, CH_PRIVATE_THREAD = 12;
 export const isThread = (type: i32): boolean => type >= CH_ANNOUNCEMENT_THREAD && type <= CH_PRIVATE_THREAD;
 
-export const RAIL_W = 72, CHANNELS_W = 240, MEMBERS_W = 240, PANE_W = 360;   // PANE_W: the pins or a thread beside the messages
+export const RAIL_W = 72, MEMBERS_W = 240;
+/** The window's width, set by App at each render: the side columns give way to the messages as it narrows (nothing is ever cut). */
+export const win = { w: 1200, h: 760 };
+export const channelsW = (): i32 => win.w < 800 ? 176 : 240;
+export const membersShown = (): boolean => win.w >= 960;
+/** The pins or a thread beside the messages. */
+/** The width the messages have (a pane beside them takes more: popovers are clamped to it). */
+export const mainW = (): i32 => win.w - RAIL_W - channelsW() - (membersShown() ? MEMBERS_W : 0);
+export const paneW = (): i32 => win.w < 960 ? 280 : 360;
 
 // The theme's colours, as classes (theme.ts: the scheme variables a theme file sets)
 export const BG_RAIL = `bg-${v('rail')}`, BG_SIDE = `bg-${v('sidebar')}`, BG_MAIN = `bg-${v('main')}`, BG_INPUT = `bg-${v('input')}`;

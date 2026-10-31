@@ -9,10 +9,13 @@ import { Reaction, Sticker, STICKER_LOTTIE, STICKER_GIF } from '../content';
 import { emojiGroups, searchEmoji, recentEmoji, usedEmoji, customParts, EmojiGroup } from '../emoji';
 import { Gif, gifs } from '../services/gifs';
 import { cdnPicture, emojiKey, stickerPicture, urlPicture } from '../services/cdn';
-import { BG_SIDE, BG_INPUT, BG_HOVER, BG_SELECTED, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG } from '../constants';
+import { BG_SIDE, BG_INPUT, BG_HOVER, BG_SELECTED, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, win, mainW } from '../constants';
 import { color, rounded } from '../theme';
 
-const W = 420, H = 440, PER_ROW = 9, CELL = 42, GIF_W = 190, SEARCH_PAUSE_MS = 400;
+const W = 420, H = 440, CELL = 42, SEARCH_PAUSE_MS = 400;
+// the popover is clamped to the messages' column and the window's height; its emoji per row and GIF width follow
+let PER_ROW = 9, GIF_W = 190;
+const fit = (): i32 => { const w = Math.max(240, Math.min(W, mainW() - 24)); PER_ROW = Math.max(4, Math.floor((w - 16) / CELL)); GIF_W = Math.floor((w - 28) / 2); return w; };
 
 class PickerState { tab = ''; target: Message | null = null; }
 const state = new PickerState();
@@ -128,7 +131,7 @@ export function Picker() {
   const [query, setQuery] = useState<string>('');
   const [edits, setEdits] = useState<i32>(0);
   const tab = state.tab;
-  return <View className={`absolute right-4 bottom-[64] w-[${W}] h-[${H}] ${rounded()} border border-[var(--dc-border)] ${BG_SIDE}`}>
+  return <View className={`absolute right-4 bottom-[64] w-[${fit()}] h-[${Math.max(220, Math.min(H, win.h - 150))}] ${rounded()} border border-[var(--dc-border)] ${BG_SIDE}`}>
     <View className="p-2 gap-2">
       <View className="flex-row gap-1">
         {state.target === null ? <Tab id="gif" label="GIFs" /> : null}

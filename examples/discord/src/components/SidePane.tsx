@@ -7,7 +7,7 @@ import { Markdown } from './Markdown';
 import { Content } from './Content';
 import { Avatar } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
-import { BG_SIDE, BG_MAIN, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, MEMBER_AVATAR, PANE_W, ROW_ESTIMATE } from '../constants';
+import { BG_SIDE, BG_MAIN, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, MEMBER_AVATAR, paneW, ROW_ESTIMATE } from '../constants';
 import { color } from '../theme';
 
 const MUTED = (): i32 => color('icon');
@@ -49,7 +49,7 @@ function Header(p: { title: string; icon: string; open: string }) {
 export function SidePane() {
   if (store.pane === 'pins') {
     const pins = store.pins.get(store.channelId);
-    return <View className={`w-[${PANE_W}] overflow-hidden ${BG_SIDE}`}>
+    return <View className={`w-[${paneW()}] h-full overflow-hidden ${BG_SIDE}`}>
       <Header title="Pinned messages" icon="pin" open="" />
       {pins === undefined ? <Text className={`p-4 ${TEXT_MUTED}`}>Loading…</Text>
         : pins.length === 0 ? <Text className={`p-4 ${TEXT_MUTED}`}>This channel has no pinned messages yet.</Text>
@@ -57,7 +57,7 @@ export function SidePane() {
     </View>;
   }
   const id = store.threadId, t = store.findChannel(id), list = store.messages.get(id);
-  return <View className={`w-[${PANE_W}] overflow-hidden ${BG_MAIN} border-l border-[var(--dc-divider)]`}>
+  return <View className={`w-[${paneW()}] h-full overflow-hidden ${BG_MAIN} border-l border-[var(--dc-divider)]`}>
     <Header title={t !== null ? t.name : 'Thread'} icon="message-square" open={id} />
     {list === undefined ? <Text className={`p-4 ${TEXT_MUTED}`}>Loading…</Text>
       : <VirtualList count={list.length} estimatedItemHeight={ROW_ESTIMATE} className="grow" stickToBottom>

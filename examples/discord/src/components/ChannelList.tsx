@@ -6,7 +6,7 @@ import { Icon } from 'zinc:icons';
 import { store, Channel } from '../state';
 import { Avatar, Status } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
-import { CH_CATEGORY, CH_VOICE, CH_DM, CH_GROUP_DM, isThread, BG_SIDE, BG_SELECTED, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR, TEXT_SUCCESS, TEXT_WARNING, CHANNELS_W, MENTION_BG, SPEAKING_RING, VOICE_AVATAR } from '../constants';
+import { CH_CATEGORY, CH_VOICE, CH_DM, CH_GROUP_DM, isThread, BG_SIDE, BG_SELECTED, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR, TEXT_SUCCESS, TEXT_WARNING, channelsW, MENTION_BG, SPEAKING_RING, VOICE_AVATAR } from '../constants';
 import { color } from '../theme';
 import * as guard from '../safety/index';
 import { Bars } from './CallView';
@@ -99,7 +99,7 @@ function SafeMode() {
 
 export function ChannelList() {
   const g = store.findGuild(store.guildId);
-  return <View className={`w-[${CHANNELS_W}] ${BG_SIDE}`}>
+  return <View className={`w-[${channelsW()}] ${BG_SIDE}`}>
     <View className="h-[48] px-4 justify-center border-b border-[var(--dc-divider)]">
       <Text className={`font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{g !== null ? g.name : 'Direct messages'}</Text>
     </View>
@@ -108,8 +108,8 @@ export function ChannelList() {
         ? <View key={c.id}><Row c={c} /><Voices c={c} /></View> : <Row key={c.id} c={c} />)}</View>
     </ScrollView>
     <CallBar />
-    <View className="h-[52] px-3 flex-row items-center gap-1 bg-[var(--dc-footer)]">
-      <Text className={`grow text-sm font-semibold ${store.call.speaking.has(store.me.id) ? TEXT_SUCCESS : TEXT_STRONG}`} numberOfLines={1}>{store.me.name}</Text>
+    <View className="min-h-[52] px-3 py-2 flex-row flex-wrap items-center gap-1 bg-[var(--dc-footer)]">
+      <Text className={`grow min-w-[56] text-sm font-semibold ${store.call.speaking.has(store.me.id) ? TEXT_SUCCESS : TEXT_STRONG}`} numberOfLines={1}>{store.me.name}</Text>
       <View className={`p-1 rounded ${BG_HOVER}`} onPress={() => store.call.toggleMute()} aria-label={store.call.mute ? 'Unmute' : 'Mute'}>
         <Icon name={store.call.mute || store.call.deaf ? 'mic-off' : 'mic'} size={18} color={() => store.call.mute || store.call.deaf ? color('danger') : color('muted')} />
       </View>
@@ -120,8 +120,8 @@ export function ChannelList() {
       <View className={`p-1 rounded ${BG_HOVER}`} onPress={() => store.showSettings(!store.settingsOpen)} aria-label="Settings">
         <Icon name="settings" size={18} color={MUTED} />
       </View>
-      <View className={`px-2 py-1 rounded ${BG_HOVER}`} onPress={() => store.logout()} aria-label="Log out">
-        <Text className={`text-xs ${TEXT_MUTED}`}>Log out</Text>
+      <View className={`p-1 rounded ${BG_HOVER}`} onPress={() => store.logout()} aria-label="Log out">
+        <Icon name="log-out" size={18} color={MUTED} />
       </View>
     </View>
   </View>;
