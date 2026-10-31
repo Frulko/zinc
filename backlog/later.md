@@ -658,6 +658,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-901: transport-cc with an acked bitrate instead of REMB-only, to cut the 2-4 s freezes at big rate steps; parse the H.264 slice QP in the VideoToolbox encoder for the ladder; libdatachannel's receiver report shows a spurious 50% loss once early in a call.
 - ZN-902: prove the Galène criterion once ZN-897 and ZN-895 land (publish `sendEncodings [{rid:'h'},{rid:'l',scaleResolutionDownBy:2,maxBitrate:100000}]`, a second client asks `video-low`, check its inbound `frameWidth`); simulcast with H.264; a Zinc-to-Zinc peer taking the rid streams.
 - ZN-901: `tests/t1/webrtc_bwe.sh` measures time: run it alone on a quiet machine to trust its numbers.
+- ZN-917: auto-scroll while selecting advances only on pointer moves (a timer while the pointer rests at the edge would match browsers); a drag from a Text into an input is not handled and Cmd+A does not select static text; only the root tree is walked, so Text in overlay layers and virtualized rows not built is out of reach of a drag.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
