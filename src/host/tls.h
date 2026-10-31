@@ -21,6 +21,12 @@ Conn* openClient(const std::string& serverName, std::string& err, bool tls12 = f
 bool isTls13(Conn* c);                              // the handshake is done and chose TLS 1.3
 // A server with a PEM certificate chain and a PEM private key.
 Conn* openServer(const std::string& certPem, const std::string& keyPem, std::string& err);
+// A server's certificate chain, key and settings, parsed once and shared by its connections, with session tickets (TLS 1.2 tickets and TLS 1.3
+// resumption: a returning client skips the certificate signature and key exchange). nullptr and `err` when the certificate or key is bad.
+struct Server;
+Server* serverNew(const std::string& certPem, const std::string& keyPem, std::string& err);
+void serverFree(Server* s);   // after the last connection opened from it
+Conn* openServer(Server* s, std::string& err);
 // The sessions of the device agent (ZN-729.01), without certificates. A session keyed by a secret both ends hold: TLS 1.3 with a pre-shared key
 // and an ephemeral key exchange (forward secrecy). `lookup` gives the key of the identity a client presents, empty to refuse it.
 Conn* openPskClient(const std::string& identity, const std::string& key, std::string& err);

@@ -59,8 +59,10 @@ main();
   - `send(text)`, `sendBytes(u8[])`, `close(code, reason)` and `readyState`.
   - `new WebSocket(url, { headers: [['Origin', 'https://discord.com'], ['User-Agent', 'my-app/1']] })` adds headers to the opening
     handshake (the option Bun takes); a name that is not a token or a value with a line break fails the socket before it connects.
-- **Server.** `serveWebSocket(port, (ws, req) => …)` answers the HTTP upgrade and gives you the same `WebSocket` object
-  (`req.path`, `req.header(name)`). Requests that are not WebSocket upgrades get `426`.
+- **Server.** `serveWebSocket(port, (ws, req) => …, host?, options?)` answers the HTTP upgrade and gives you the same `WebSocket`
+  object (`req.path`, `req.header(name)`). Requests that are not WebSocket upgrades get `426`. It runs on the WebSocket server of
+  `zinc:net` (native framing, ping/pong, back-pressure): `options` takes its limits (`maxPayloadBytes`, `idleTimeoutMs`,
+  `backpressureLimit`) and `cert`/`key` for `wss://`.
 - **Messages.** A `MessageEvent` has `data` (text), `bytes` and `binary`. Fragmented messages are reassembled and
   pings are answered.
 - **Close.** The closing handshake reports `CloseEvent.code`, `reason` and `wasClean`. A dropped connection reports
@@ -71,8 +73,8 @@ main();
 - **TLS on Zinc Next only.** `wss://` and `connectTls(host, port)` use the engine's mbedTLS, as `fetch` does for https: the
   server's certificate is verified against the system's roots (`ZINC_CA_FILE` names a PEM bundle instead) and the host
   name is sent as SNI; there is no way to switch verification off. A certificate that does not verify fails the
-  connection (`tls UNABLE_TO_VERIFY_LEAF_SIGNATURE host:port`). The prototype's engine has no TLS socket, and there is
-  no TLS server (`serveWebSocket` speaks `ws://`).
+  connection (`tls UNABLE_TO_VERIFY_LEAF_SIGNATURE host:port`). The prototype's engine has no TLS socket. `serveWebSocket`
+  speaks `wss://` when given `cert` and `key`.
 - **DNS blocks.** `lookup` and `connect` resolve names with getaddrinfo on the loop thread. That is instant for
   literals, `localhost` and cached names, and blocks the loop on a slow DNS server.
 - **At most 256 sockets.** Frames are limited to 2 GiB.

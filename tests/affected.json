@@ -423,6 +423,8 @@
     {"paths": ["examples/touch-check/", "plugins/lvgl/index.ts", "plugins/device/", "tests/t1/touch_check.sh"], "tests": ["touch_check"]},
     {"paths": ["src/host/http.cpp", "src/host/http.h", "src/frontend/modules.cpp", "src/qjs/qjs.cpp", "src/qjs/prelude.cpp", "tests/golden/host/net_file.ts", "tests/t0/net_file.sh", "tests/golden/host/net_body_bytes.ts", "tests/t0/net_body_bytes.sh", "tests/golden/host/net_user_agent.ts", "tests/t0/net_user_agent.sh"], "tests": ["net_file", "net", "net_body_bytes", "net_user_agent", "net_limits"]},
     {"paths": ["src/host/http.cpp", "src/host/http.h", "src/host/loop.cpp", "src/qjs/qjs.cpp", "tests/golden/host/net_limits.ts", "tests/t0/net_limits.sh", "tests/t0/net_limits.py"], "tests": ["net_limits"]},
+    {"paths": ["src/host/http.cpp", "src/host/http.h", "third_party/wslay/", "plugins/socket/index.ts", "tests/golden/host/net_ws.ts", "tests/t0/net_ws.sh", "tests/t0/net_ws.py"], "tests": ["net_ws", "socket"]},
+    {"paths": ["lib/std/acme.ts", "src/host/crypto.cpp", "tests/golden/host/net_acme.ts", "tests/t1/net_acme.sh"], "tests": ["net_acme"]},
     {"paths": ["src/host/netlog.cpp", "src/host/netlog.h", "src/host/http.cpp", "src/host/mqtt.cpp", "src/host/sock.cpp", "plugins/devtools/", "tools/cdp-probe", "tools/har-chrome", "tests/netlog_check.py", "tests/netlog_servers.py", "tests/golden/host/netlog.tsx"], "tests": ["netlog", "netlog_kill", "devtools_port", "socket", "net", "mqtt"]},
     {"paths": ["tests/free_ports.py"], "tests": ["devtools_port", "netlog", "socket", "dev_mode"]},
     {"paths": ["plugins/devtools/", "scripts/cdp-check.mjs", "tests/data/devtools_styles/", "tests/t1/devtools_styles.sh"], "tests": ["devtools_styles", "dev_mode"]},

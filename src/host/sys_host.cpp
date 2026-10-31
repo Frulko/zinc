@@ -1293,6 +1293,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     case Rt::HostEvReady: r->i = zn::loop::eventReady() ? 1 : 0; break;
     case Rt::HostEvPayload: ret(r, gPayload); break;
+    case Rt::HostEvPayloadSize: r->i = static_cast<int64_t>(gPayload.size()); break;
+    case Rt::HostEvPayloadByte: { const size_t i = static_cast<size_t>(n(0)); r->i = i < gPayload.size() ? static_cast<unsigned char>(gPayload[i]) : -1; break; }
     case Rt::HostEvActive: r->i = zn::loop::active() ? 1 : 0; break;
     case Rt::HostSigWatch: r->i = zn::loop::watchSignal(s(0)) ? 1 : 0; break;
     case Rt::HostSigSend: r->i = zn::loop::sendSignal(n(0), s(1)) ? 1 : 0; break;
@@ -1352,10 +1354,10 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostHttpBody: ret(r, zn::http::fetchBody(n(0))); break;
     case Rt::HostHttpUrl: ret(r, zn::http::fetchUrl(n(0))); break;
     case Rt::HostHttpFree: zn::http::fetchFree(n(0)); break;
-    case Rt::HostHttpServe: case Rt::HostHttpServeTls: {   // listening needs "net" (or "net:*"): zinc.json permissions (ZN-322)
+    case Rt::HostHttpServe: case Rt::HostHttpServeTls: case Rt::HostHttpServeAt: {   // listening needs "net" (or "net:*"): zinc.json permissions (ZN-322)
       gServeDenied = zn::host::perm::check("net", "*");
       if (!gServeDenied.empty()) { r->i = 0; break; }
-      r->i = static_cast<Rt>(id) == Rt::HostHttpServe ? zn::http::serve(n(0)) : zn::http::serve(n(0), s(1), s(2));   // the port bound, 0 on failure
+      r->i = static_cast<Rt>(id) == Rt::HostHttpServe ? zn::http::serve(n(0)) : static_cast<Rt>(id) == Rt::HostHttpServeTls ? zn::http::serve(n(0), s(1), s(2)) : zn::http::serve(n(0), s(2), s(3), s(1));   // the port bound, 0 on failure
       break;
     }
     case Rt::HostHttpError: if (!gServeDenied.empty()) { ret(r, gServeDenied); gServeDenied.clear(); } else ret(r, zn::http::lastError()); break;
@@ -1366,6 +1368,12 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostHttpReplyStart: r->i = zn::http::replyStart(n(0), n(1), s(2)) ? 1 : 0; break;
     case Rt::HostHttpWrite: r->i = zn::http::write(n(0), s(1)); break;
     case Rt::HostHttpEnd: zn::http::end(n(0)); break;
+    case Rt::HostWsAccept: r->i = zn::http::wsAccept(n(0), s(1)) ? 1 : 0; break;
+    case Rt::HostWsSend: r->i = zn::http::wsSend(n(0), s(1), n(2) != 0); break;
+    case Rt::HostWsClose: zn::http::wsClose(n(0), n(1), s(2)); break;
+    case Rt::HostWsPing: zn::http::wsPing(n(0)); break;
+    case Rt::HostHttpSetCert: r->i = zn::http::setCertificate(n(0), s(1), s(2)) ? 1 : 0; break;
+    case Rt::HostWsSendBytes: r->i = zn::http::wsSend(n(0), rawBytes(a[1]), true); break;
     case Rt::HostSockConnect: r->i = refused("net", s(0)) ? -1 : zn::sock::connectTcp(s(0), n(1)); break;   // zinc.json permissions (ZN-322)
     case Rt::HostSockConnectTls: r->i = refused("net", s(0)) ? -1 : zn::sock::connectTls(s(0), n(1)); break;
     case Rt::HostSockConnectUnix: r->i = refused("net", "unix:" + s(0)) ? -1 : zn::sock::connectUnix(s(0)); break;

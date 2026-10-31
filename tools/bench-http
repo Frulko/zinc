@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """HTTP server throughput of zinc:net against Node and Bun on this machine, with oha (`brew install oha`).
 
-usage: tools/bench-http [--servers zinc,zinc-qjs,zinc-aot,node,bun] [--cases hello,json,file,close,tls,tls-close]
+usage: tools/bench-http [--servers zinc,zinc-qjs,zinc-aot,node,bun] [--cases hello,json,file,close,tls,tls-close,resume,ws,wss,ws-idle]
                         [--secs 5] [--conns 50] [--json OUT]
 
 The three servers are tests/bench/http/{zinc.ts,node.mjs,bun.ts}: the same routes (`/` a 13-byte text, `/json` a JSON.stringify per
 request, `/file` a 64 KiB file from disk) on http and on https (a self-signed certificate made here with openssl).
 Cases: hello, json and file on keep-alive connections; close = hello with a new connection per request; tls = hello over https
-keep-alive; tls-close = a TLS handshake per request (handshakes per second).
+keep-alive; tls-close = a TLS handshake per request (handshakes per second, 50 clients); resume = one client in a loop (Python's ssl,
+TLS 1.3): full handshakes per second, then resumed ones (the session ticket of the first), each followed by one request.
+ws / wss = WebSocket echo (tests/bench/http/ws-client.ts under Bun: --conns connections, each sends a 32-byte text and waits for the echo:
+messages per second, p50 and p99 of the round trip); ws-idle = the server's RSS growth for 1000 idle WebSocket connections, KiB each.
+Node's server needs the `ws` package: WS_MODULE=<dir>/node_modules/ws (npm install ws in a scratch directory).
 Each case: one second of warm-up, then `--secs` seconds with `--conns` connections. Printed per case and server: requests per second,
 p50 and p99 latency in ms, the server's peak RSS in MiB (ps, sampled every 0.2 s), the load average of the machine before the run.
 Numbers are only worth something on a quiet machine: the load average is printed next to each one for that reason.
 """
-import argparse, json, os, shutil, signal, subprocess, sys, tempfile, threading, time
+import argparse, json, os, shutil, signal, socket, ssl, subprocess, sys, tempfile, threading, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HERE = os.path.join(ROOT, 'tests', 'bench', 'http')
@@ -58,7 +62,55 @@ def oha(url, secs, conns, keep):
     return json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip() else None
 
 
+def handshakes(secs, resume):
+    ctx = ssl.create_default_context()
+    ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
+    if ssl.HAS_TLSv1_3: ctx.minimum_version = ssl.TLSVersion.TLSv1_3   # else (an old LibreSSL python) TLS 1.2 and its tickets
+    session, n, reused, end = None, 0, 0, time.time() + secs
+    while time.time() < end:
+        with socket.create_connection(('127.0.0.1', TPORT)) as raw:
+            with ctx.wrap_socket(raw, server_hostname='localhost', session=session if resume else None) as s:
+                s.sendall(b'GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n')
+                try:
+                    while s.recv(4096): pass   # the ticket comes after the handshake: read to the end
+                except (ssl.SSLError, OSError):
+                    pass
+                if resume and session is None: session = s.session
+                n += 1
+                reused += s.session_reused
+    return n / secs, reused
+
+
+def ws_case(proc, case, secs, conns):
+    client = os.path.join(HERE, 'ws-client.ts')
+    load = os.getloadavg()[0]
+    if case == 'ws-idle':
+        n = 1000
+        time.sleep(0.5)
+        before = rss_mib(proc.pid)
+        c = subprocess.Popen([BUN, client, 'idle', f'ws://127.0.0.1:{PORT}/', str(n)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        line = c.stdout.readline().strip()
+        time.sleep(1.0)
+        after = rss_mib(proc.pid)
+        c.stdin.close(); c.wait(10)
+        if line != 'open': return {'case': case, 'error': 'idle client failed'}
+        return {'case': case, 'kib_per_conn': round((after - before) * 1024 / n, 1), 'rss': round(after, 1), 'load': round(load, 2)}
+    url = f'wss://127.0.0.1:{TPORT}/' if case == 'wss' else f'ws://127.0.0.1:{PORT}/'
+    env = dict(os.environ, NODE_TLS_REJECT_UNAUTHORIZED='0')
+    subprocess.run([BUN, client, 'echo', url, str(conns), '1', '32'], capture_output=True, env=env)   # warm-up
+    out = subprocess.run([BUN, client, 'echo', url, str(conns), str(secs), '32'], capture_output=True, text=True, env=env)
+    try: r = json.loads(out.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError): return {'case': case, 'error': 'client failed: ' + out.stderr.strip()[-200:]}
+    return {'case': case, 'rps': r['mps'], 'p50': r['p50'], 'p99': r['p99'], 'ok': 1.0, 'non200': 0, 'rss': round(rss_mib(proc.pid), 1), 'load': round(load, 2)}
+
+
 def run_case(proc, case, secs, conns):
+    if case.startswith('ws') or case == 'wss': return ws_case(proc, case, secs, conns)
+    if case == 'resume':
+        load = os.getloadavg()[0]
+        full, _ = handshakes(secs, False)
+        res, reused = handshakes(secs, True)
+        return {'case': case, 'full': round(full), 'resumed': round(res), 'reused': reused, 'tls': 'TLS 1.3' if ssl.HAS_TLSv1_3 else 'TLS 1.2', 'load': round(load, 2)}
     path, tls, keep = CASES[case]
     url = f"{'https' if tls else 'http'}://127.0.0.1:{TPORT if tls else PORT}{path}"
     oha(url, 1, conns, keep)   # warm-up
@@ -80,7 +132,7 @@ def run_case(proc, case, secs, conns):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--servers', default='zinc,node,bun')
-    ap.add_argument('--cases', default='hello,json,file,close,tls,tls-close')
+    ap.add_argument('--cases', default='hello,json,file,close,tls,tls-close,resume')
     ap.add_argument('--secs', type=int, default=5)
     ap.add_argument('--conns', type=int, default=50)
     ap.add_argument('--json')
@@ -102,6 +154,12 @@ def main():
                     r = run_case(proc, case, a.secs, a.conns)
                     r['server'] = server
                     results.append(r)
+                    if case == 'ws-idle':
+                        print(f"{server:9} {case:10} " + (r.get('error') or f"{r['kib_per_conn']:>8} KiB per idle connection  rss {r['rss']:>6.1f} MiB  load {r['load']}"), flush=True)
+                        continue
+                    if case == 'resume':
+                        print(f"{server:9} {case:10} {r['full']:>8} full/s {r['resumed']:>8} resumed/s ({r['reused']} reused, {r['tls']})  load {r['load']}", flush=True)
+                        continue
                     print(f"{server:9} {case:10} " + (r.get('error') or f"{r['rps']:>8} req/s  p50 {r['p50']:>7.3f} ms  p99 {r['p99']:>7.3f} ms  rss {r['rss']:>6.1f} MiB  "
                           f"ok {r['ok']:.3f} non-200 {r['non200']}  load {r['load']}"), flush=True)
             finally:

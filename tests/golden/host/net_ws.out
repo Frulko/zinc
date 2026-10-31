@@ -1,0 +1,14 @@
+http plain http /hello
+refused HTTP/1.1 403 Forbidden
+handshake True
+text (1, b'echo:hello')
+binary (2, b'\x00\x01\xff\xc3bin')
+fragments (1, b'echo:fragmented')
+ping (10, b'p1')
+client close 8 (1000, 'done') eof
+too big 8 1009
+server close 8 (4000, 'asked')
+after close eof
+flood True flood done 4200000 bytes, drained yes
+idle ping 9
+idle close eof

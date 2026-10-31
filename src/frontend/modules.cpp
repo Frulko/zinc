@@ -692,6 +692,46 @@ export class ReplyWriter {
 export interface Reply { status: i32; body: string; contentType: string; headers?: Headers; file?: string; stream?: (w: ReplyWriter) => void }
 const __netWriters = new Map<i32, ReplyWriter>();
 const __netBodies = new Map<i32, BodyStream>();
+/** What a server does with its WebSocket connections (ServeOptions.webSocket). upgrade decides on a request (true accepts, the default;
+ *  false refuses it with a 403); open, message (a text message in data with bytes null; a binary one in bytes, data ''), close (code and reason; 1006 when the
+ *  connection was lost without a close frame) and drain (the bytes that waited are written: send again) follow. */
+export interface WebSocketHandlers {
+  upgrade?: (req: Request) => boolean;
+  open?: (ws: ServerWebSocket) => void;
+  message?: (ws: ServerWebSocket, data: string, bytes: u8[] | null) => void;
+  close?: (ws: ServerWebSocket, code: i32, reason: string) => void;
+  drain?: (ws: ServerWebSocket) => void;
+}
+/** A WebSocket connection of a server: send and sendBytes return the bytes waiting to be written (64 KiB or more: wait for the drain
+ *  handler), -1 when the connection is closed. readyState is 1 open, 2 closing, 3 closed. */
+export class ServerWebSocket {
+  id: i32;
+  path: string;
+  headers: Headers;
+  remoteAddress: string;
+  readyState: i32 = 1;
+  handlers: WebSocketHandlers;
+  constructor(id: i32, req: Request, handlers: WebSocketHandlers) {
+    this.id = id; this.path = req.path; this.headers = req.headers; this.handlers = handlers;
+    this.remoteAddress = req.remoteAddress !== undefined ? req.remoteAddress as string : '';
+  }
+  send(text: string): i32 { return this.readyState === 1 ? __host_wsSend(this.id, text, 0) : -1; }
+  sendBytes(bytes: u8[]): i32 { return this.readyState === 1 ? __host_wsSendBytes(this.id, bytes) : -1; }
+  close(code: i32 = 1000, reason: string = ''): void { if (this.readyState !== 1) return; this.readyState = 2; __host_wsClose(this.id, code, reason); }
+  ping(): void { if (this.readyState === 1) __host_wsPing(this.id); }
+}
+const __netSockets = new Map<i32, ServerWebSocket>();
+const __netChallenges = new Map<string, string>();
+/** ACME http-01 (zinc:net/acme): every server answers GET /.well-known/acme-challenge/<token> with `answer` until it is cleared. */
+export function setChallenge(token: string, answer: string): void { __netChallenges.set(token, answer); }
+export function clearChallenge(token: string): void { __netChallenges.delete(token); }
+/** True while this program serves on `port`. */
+export function serving(port: i32): boolean { const i = __netPorts.indexOf(port); return i >= 0 && (__netHandlers[i] !== null || __netAsyncHandlers[i] !== null); }
+/** Replaces the certificate of the https server on `port` (a renewal): new connections get it, open ones keep theirs. Throws on a bad PEM. */
+export function setCertificate(port: i32, cert: string, key: string): void {
+  if (__host_httpSetCert(port, cert, key) === 0) throw new Error('net.setCertificate: ' + __host_httpError());
+}
+function __netPayloadBytes(): u8[] { const n = __host_evPayloadSize(); const r: u8[] = []; for (let i: i32 = 0; i < n; i++) r.push(__host_evPayloadByte(i) as u8); return r; }   // ponytail: a host call per byte, a bulk copy when binary traffic matters
 
 function __ctl(s: string): boolean { return s.indexOf('\r') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\u0000') >= 0; }
 function __headerLines(h: Headers): string {
@@ -721,11 +761,12 @@ let __netHooked: boolean = false;
 // the servers' handlers by port (one of the two per port): a program may serve several ports at once
 const __netPorts: i32[] = [];
 const __netStreamed: boolean[] = [];   // the servers with ServeOptions.streamBody
+const __netWsHandlers: (WebSocketHandlers | null)[] = [];   // their ServeOptions.webSocket
 const __netHandlers: (((req: Request) => Reply) | null)[] = [];
 const __netAsyncHandlers: (((req: Request) => Promise<Reply>) | null)[] = [];
 function __netSet(port: i32, f: ((req: Request) => Reply) | null, af: ((req: Request) => Promise<Reply>) | null): void {
   let i = __netPorts.indexOf(port);
-  if (i < 0) { __netPorts.push(port); __netHandlers.push(null); __netAsyncHandlers.push(null); __netStreamed.push(false); i = __netPorts.length - 1; }
+  if (i < 0) { __netPorts.push(port); __netHandlers.push(null); __netAsyncHandlers.push(null); __netStreamed.push(false); __netWsHandlers.push(null); i = __netPorts.length - 1; }
   __netHandlers[i] = f;
   __netAsyncHandlers[i] = af;
 }
@@ -776,6 +817,19 @@ function __netHook(): void {
     } else if (kind === 45) {
       const w = __netWriters.get(h);
       if (w !== undefined && w.drainCb !== null) { const f = w.drainCb as () => void; f(); }
+      const ws = __netSockets.get(h);
+      if (ws !== undefined && ws.handlers.drain !== undefined) { const f = ws.handlers.drain as (ws: ServerWebSocket) => void; f(ws); }
+    } else if (kind === 80 || kind === 81 || kind === 82) {   // a WebSocket opened, a message, the connection closed
+      const ws = __netSockets.get(h);
+      if (ws === undefined) return;
+      if (kind === 80) { if (ws.handlers.open !== undefined) { const f = ws.handlers.open as (ws: ServerWebSocket) => void; f(ws); } }
+      else if (kind === 81) { if (ws.handlers.message !== undefined) { const f = ws.handlers.message as (ws: ServerWebSocket, data: string, bytes: u8[] | null) => void; if (data === 'b') f(ws, '', __netPayloadBytes()); else f(ws, __host_evPayload(), null); } }
+      else {
+        __netSockets.delete(h);
+        ws.readyState = 3;
+        const sep = data.indexOf('\u001e');
+        if (ws.handlers.close !== undefined) { const f = ws.handlers.close as (ws: ServerWebSocket, code: i32, reason: string) => void; f(ws, parseInt(data.slice(0, sep)) as i32, data.slice(sep + 1)); }
+      }
     } else if (kind === 42) {
       const i1 = data.indexOf('\u001e');
       const i2 = data.indexOf('\u001e', i1 + 1);
@@ -784,8 +838,23 @@ function __netHook(): void {
       const i5 = data.indexOf('\u001e', i4 + 1);
       const req: Request = { method: data.slice(0, i1), path: data.slice(i1 + 1, i2), body: data.slice(i5 + 1), headers: new Headers(), rawBody: __host_evPayload(), remoteAddress: data.slice(i2 + 1, i3) };
       __parseLines(data.slice(i4 + 1, i5), req.headers);
+      if (__netChallenges.size > 0 && req.path.startsWith('/.well-known/acme-challenge/')) {   // an ACME http-01 check, on whichever server it reaches
+        const answer = __netChallenges.get(req.path.slice(28));
+        if (answer !== undefined) { __host_httpReply(h, 200, 'Content-Type: text/plain\n', answer); return; }
+      }
       const at = __netPorts.indexOf(parseInt(data.slice(i3 + 1, i4)) as i32);
       if (at >= 0 && __netStreamed[at]) { const b = new BodyStream(); __netBodies.set(h, b); req.bodyStream = b; }
+      const wh = at < 0 ? null : __netWsHandlers[at];
+      if (wh !== null && req.headers.get('upgrade').toLowerCase() === 'websocket') {   // the server's WebSocket handlers take it
+        const hs = wh as WebSocketHandlers;
+        let ok = true;
+        if (hs.upgrade !== undefined) { const u = hs.upgrade as (req: Request) => boolean; try { ok = u(req); } catch (e) { ok = false; } }
+        if (!ok) { __host_httpReply(h, 403, 'Content-Type: text/plain; charset=utf-8\n', 'forbidden'); return; }
+        const ws = new ServerWebSocket(h, req, hs);
+        __netSockets.set(h, ws);
+        if (__host_wsAccept(h, '') === 0) __netSockets.delete(h);
+        return;
+      }
       const f = at < 0 ? null : __netHandlers[at];
       const af = at < 0 ? null : __netAsyncHandlers[at];
       if (af !== null) {   // serveAsync: the reply goes out when the promise settles
@@ -831,11 +900,17 @@ export interface ServeOptions {
   cert?: string; key?: string;
   maxHeaderBytes?: i32; maxBodyBytes?: i32; maxConnections?: i32; maxConnectionsPerIp?: i32; requestsPerSecondPerIp?: i32;
   headersTimeoutMs?: i32; requestTimeoutMs?: i32; keepAliveTimeoutMs?: i32; streamBody?: boolean;
+  /** WebSocket upgrades go to these handlers; maxPayloadBytes (16 MiB: a larger message closes with 1009), idleTimeoutMs (120 s without a
+   *  frame: a ping, then the close), backpressureLimit (16 MiB waiting for a client that does not read: closed with 1008). */
+  webSocket?: WebSocketHandlers; maxPayloadBytes?: i32; idleTimeoutMs?: i32; backpressureLimit?: i32;
+  /** The address to listen on: 127.0.0.1 or ::1 for this machine only, :: for every IPv6 and IPv4 one (every IPv4 address by default). */
+  hostname?: string;
 }
 function __netListen(port: i32, o?: ServeOptions): i32 {
   __netHook();
   let bound: i32 = 0;
-  if (o !== undefined && o.cert !== undefined) bound = __host_httpServeTls(port, o.cert as string, o.key !== undefined ? o.key as string : '');
+  if (o !== undefined && o.hostname !== undefined) bound = __host_httpServeAt(port, o.hostname as string, o.cert !== undefined ? o.cert as string : '', o.key !== undefined ? o.key as string : '');
+  else if (o !== undefined && o.cert !== undefined) bound = __host_httpServeTls(port, o.cert as string, o.key !== undefined ? o.key as string : '');
   else bound = __host_httpServe(port);
   if (bound === 0) { const why = __host_httpError(); throw new Error('net.serve: ' + (why === '' ? 'cannot listen' : why)); }
   let streamed = false;
@@ -849,10 +924,14 @@ function __netListen(port: i32, o?: ServeOptions): i32 {
     if (o.requestTimeoutMs !== undefined) __host_httpOption(bound, 'requestTimeoutMs', o.requestTimeoutMs as i32);
     if (o.keepAliveTimeoutMs !== undefined) __host_httpOption(bound, 'keepAliveTimeoutMs', o.keepAliveTimeoutMs as i32);
     if (o.streamBody !== undefined && (o.streamBody as boolean)) { __host_httpOption(bound, 'streamBody', 1); streamed = true; }
+    if (o.maxPayloadBytes !== undefined) __host_httpOption(bound, 'wsMaxPayloadBytes', o.maxPayloadBytes as i32);
+    if (o.idleTimeoutMs !== undefined) __host_httpOption(bound, 'wsIdleTimeoutMs', o.idleTimeoutMs as i32);
+    if (o.backpressureLimit !== undefined) __host_httpOption(bound, 'wsBackpressureBytes', o.backpressureLimit as i32);
   }
   let i = __netPorts.indexOf(bound);
-  if (i < 0) { __netPorts.push(bound); __netHandlers.push(null); __netAsyncHandlers.push(null); __netStreamed.push(false); i = __netPorts.length - 1; }
+  if (i < 0) { __netPorts.push(bound); __netHandlers.push(null); __netAsyncHandlers.push(null); __netStreamed.push(false); __netWsHandlers.push(null); i = __netPorts.length - 1; }
   __netStreamed[i] = streamed;
+  __netWsHandlers[i] = o !== undefined && o.webSocket !== undefined ? o.webSocket as WebSocketHandlers : null;
   return bound;
 }
 /** serve(port, handler, { cert, key }) with a PEM certificate chain and a PEM private key is an https server. Returns the port it
@@ -1758,7 +1837,7 @@ constexpr StdModule kStdModules[] = {
     {"zinc:ui/dnd", "dnd.ts", {}}, {"zinc:react-native", "react-native.tsx", {}}, {"zinc:react-native/linking", "react-native-linking.ts", {}},
     {"zinc:ui/nuxt", "nuxt/index.ts", {}}, {"zinc:ui/platform", "platform/index.ts", {}}, {"zinc:ui/navigation", "navigation.tsx", {}}, {"zinc:ui/history", "history.ts", {}},
     {"zinc:haptics", "haptics.ts", {}}, {"zinc:device-info", "device-info.ts", {}}, {"zinc:hardware", "hardware.ts", {}}, {"zinc:signals", "signals.ts", {}},
-    {"zinc:path", "path.ts", {}}, {"zinc:worker", "worker.ts", {}}, {"zinc:xml", "xml.ts", {}}, {"zinc:assert", "assert.ts", {}}, {"zinc:hot", "hot.ts", {}}, {"zinc:devhooks", "devhooks.ts", {}}, {"zinc:i18n", "i18n.ts", {}}, {"zinc:stage", "stage.ts", {}}, {"zinc:system", "system/index.ts", {}},
+    {"zinc:path", "path.ts", {}}, {"zinc:net/acme", "acme.ts", {}}, {"zinc:worker", "worker.ts", {}}, {"zinc:xml", "xml.ts", {}}, {"zinc:assert", "assert.ts", {}}, {"zinc:hot", "hot.ts", {}}, {"zinc:devhooks", "devhooks.ts", {}}, {"zinc:i18n", "i18n.ts", {}}, {"zinc:stage", "stage.ts", {}}, {"zinc:system", "system/index.ts", {}},
     {"zinc:system/notification", "system/notification.ts", {}}, {"zinc:system/menu", "system/menu.ts", {}}, {"zinc:system/tray", "system/tray.ts", {}},
     {"zinc:system/dialog", "system/dialog.ts", {}}, {"zinc:system/window", "system/window.ts", {}}, {"zinc:system/shortcut", "system/shortcut.ts", {}},
     {"zinc:system/instance", "system/instance.ts", {}}, {"zinc:system/deeplink", "system/deeplink.ts", {}}, {"zinc:system/autostart", "system/autostart.ts", {}},

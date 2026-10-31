@@ -58,9 +58,12 @@ foreach(line IN LISTS ZN_UV_LINES)
     list(APPEND ZN_UV_SOURCES third_party/libuv/${line})
   endif()
 endforeach()
-# llhttp (third_party/llhttp): the HTTP/1.1 parser of zinc:net
-add_library(zn_llhttp STATIC third_party/llhttp/src/api.c third_party/llhttp/src/http.c third_party/llhttp/src/llhttp.c)
-target_include_directories(zn_llhttp PUBLIC third_party/llhttp/include)
+# llhttp (third_party/llhttp): the HTTP/1.1 parser of zinc:net; and wslay (third_party/wslay), the WebSocket frames of its server (ZN-893),
+# in the same library so that every link line that has the parser has the frames
+add_library(zn_llhttp STATIC third_party/llhttp/src/api.c third_party/llhttp/src/http.c third_party/llhttp/src/llhttp.c
+  third_party/wslay/lib/wslay_event.c third_party/wslay/lib/wslay_frame.c third_party/wslay/lib/wslay_net.c third_party/wslay/lib/wslay_queue.c)
+target_include_directories(zn_llhttp PUBLIC third_party/llhttp/include third_party/wslay/lib/includes PRIVATE third_party/wslay/lib)
+target_compile_definitions(zn_llhttp PRIVATE $<IF:$<BOOL:${WIN32}>,HAVE_WINSOCK2_H,HAVE_ARPA_INET_H> $<$<STREQUAL:${CMAKE_C_BYTE_ORDER},BIG_ENDIAN>:WORDS_BIGENDIAN>)
 
 # mbedTLS 4.0.0 with TF-PSA-Crypto (third_party/mbedtls): TLS 1.2/1.3 and the PSA crypto API (zinc:net https, zinc:mqtt over TLS, crypto.subtle). Our own build: no CMake of the library.
 option(ZN_TLS "link mbedTLS: https, TLS for zinc:mqtt, crypto.subtle (off: smaller binary, those report an error)" ON)

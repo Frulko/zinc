@@ -17,8 +17,8 @@ curl localhost:3000/readings                         # {"seq":…,"tempC":…,"h
 
 `zinc:net` gives you `serve(port, handler)`: an HTTP/1.1 server on libuv and llhttp (Node's loop and parser) whose handler runs on
 the event loop. Connections are kept alive and pipelined requests are answered in order; on the development Mac it answers more
-requests per second than Node 24 (`tools/bench-http` compares it with Node and Bun). Bind is `0.0.0.0`; see [security](08-security.md)
-about exposure. The third argument, `ServeOptions`, holds `cert` and `key` (PEM: an https server) and the limits, each with its default:
+requests per second than Node 24 (`tools/bench-http` compares it with Node and Bun). Bind is `0.0.0.0` unless `hostname` says otherwise
+(`127.0.0.1` or `::1` for this machine only, `::` for IPv6 and IPv4); see [security](08-security.md) about exposure. The third argument, `ServeOptions`, holds `cert` and `key` (PEM: an https server) and the limits, each with its default:
 
 | Option | Default | Over it |
 |---|---|---|
@@ -31,6 +31,9 @@ about exposure. The third argument, `ServeOptions`, holds `cert` and `key` (PEM:
 | `requestTimeoutMs` | 10 s, the longest pause while a body arrives | 408 |
 | `keepAliveTimeoutMs` | 5 s without a request | the connection is closed |
 | `streamBody` | false | the body comes as `req.bodyStream` instead of `req.body` |
+| `maxPayloadBytes` | 16 MiB, a WebSocket message | the socket closes with 1009 |
+| `idleTimeoutMs` | 120 s without a WebSocket frame | a ping; silent as long again, the socket closes |
+| `backpressureLimit` | 16 MiB waiting for a WebSocket client that does not read | the socket closes with 1008 |
 
 ```ts
 import { serve, Request, Reply } from 'zinc:net';
@@ -60,6 +63,44 @@ serveAsync(3000, async (req: Request): Promise<Reply> => {
   return { status: 404, contentType: 'text/plain', body: 'not found' };
 });
 ```
+
+### WebSocket
+
+`webSocket` in `ServeOptions` makes the same server answer WebSocket upgrades (RFC 6455; frames by wslay, in native code, with the
+limits above), on `ws://` or, with `cert` and `key`, `wss://`. Plain HTTP requests still go to the handler. The handlers follow Bun's:
+
+```ts
+import { serve, Request, Reply, ServerWebSocket } from 'zinc:net';
+serve(8080, (req: Request): Reply => ({ status: 200, contentType: 'text/plain', body: 'hello' }), {
+  webSocket: {
+    upgrade: (req: Request): boolean => req.path === '/chat',   // false: a 403
+    open: (ws: ServerWebSocket) => { ws.send('welcome'); },
+    message: (ws: ServerWebSocket, data: string, bytes: u8[] | null) => { if (bytes === null) ws.send('echo ' + data); },
+    drain: (ws: ServerWebSocket) => { /* send again */ },
+    close: (ws: ServerWebSocket, code: i32, reason: string) => {},   // 1006 when the client left without a close frame
+  },
+});
+```
+
+`ws.send(text)` and `ws.sendBytes(bytes)` return the bytes still waiting to be written: at 64 KiB or more, wait for `drain`.
+`ws.close(code, reason)`, `ws.ping()`, `ws.path`, `ws.headers`, `ws.remoteAddress` and `ws.readyState` complete it. `zinc:socket`'s
+`serveWebSocket` runs on this server.
+
+### Certificates from Let's Encrypt (`zinc:net/acme`)
+
+```ts
+import { serve } from 'zinc:net';
+import { certificate, keepRenewed } from 'zinc:net/acme';
+const o = { domains: ['example.org'], email: 'me@example.org', dir: '/var/lib/myapp/acme' };
+const c = await certificate(o);                 // the kept one while it has 30 days left, else a new one (http-01 on port 80)
+serve(443, handler, { cert: c.cert, key: c.key });
+keepRenewed(443, o);                            // checks twice a day and swaps a renewed certificate into the running server
+```
+
+`certificate` answers the http-01 challenge on `challengePort` (80): through the program's own server on that port when it has one,
+else through one it starts for the order. `directory` names another ACME server (`LETS_ENCRYPT_STAGING` while trying things out).
+`dir` keeps `account.key`, `cert.pem` and `key.pem` (mode 600). `setCertificate(port, cert, key)` of `zinc:net` swaps a certificate
+by hand: new connections get it, open ones keep theirs. Port 80 needs administrator rights or a forwarded port.
 
 `fetch(url, init?)` is the client side (libcurl on hosts, `esp_http_client` on ESP32). Only `http:` and `https:` URLs
 are fetched, following at most 20 redirects; on hosts, a redirect to another scheme, host or port drops the `Authorization`,

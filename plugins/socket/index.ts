@@ -1,9 +1,11 @@
 // zinc:socket — TCP, Unix domain and UDP sockets, DNS lookup, and WebSocket client / server (docs/plugins/socket.md).
 // Everything runs on the event loop: the native side (native/socket.spec.ts) polls non-blocking sockets and reports
-// events by handle; this file turns them into objects. WebSocket framing (RFC 6455) is written here in Zinc.
+// events by handle; this file turns them into objects. The WebSocket client's framing (RFC 6455) is written here in Zinc; the server is
+// zinc:net's (native framing by wslay, limits, back-pressure, wss), wrapped in the same WebSocket class.
 import S from './native/socket.spec';
 import { utf8Encode, utf8Decode, randomBytes } from 'zinc:sys';
 import { URL, sha1, base64Encode, EventTarget, Event } from 'zinc:web';
+import { serve, stop, Request, Reply, ServerWebSocket, ServeOptions } from 'zinc:net';
 
 const DATA = 0, OPEN = 1, ACCEPT = 2, CLOSE = 3, ERROR = 4, DGRAM = 5, LOOKUP = 6, LOOKUP_ERROR = 7;
 
@@ -297,11 +299,14 @@ export class WebSocket extends EventTarget {
   fragOp: i32 = 0;
   closeSent: boolean = false;
   closeFired: boolean = false;
+  /** A server-side socket: zinc:net's connection (serveWebSocket). */
+  native: ServerWebSocket | null = null;
 
   /** Connects to ws://host[:port]/path or wss://host[:port]/path. Server-side sockets are created by serveWebSocket. */
-  constructor(url: string, options: WebSocketOptions | null = null, server: Socket | null = null) {
+  constructor(url: string, options: WebSocketOptions | null = null, server: Socket | null = null, native: ServerWebSocket | null = null) {
     super();
     this.url = url;
+    if (native !== null) { this.client = false; this.handshaking = false; this.native = native; this.readyState = OPEN_STATE; return; }
     this.client = server === null;
     this.handshaking = this.client;
     if (server !== null) { this.attach(server); this.readyState = OPEN_STATE; return; }
@@ -354,14 +359,24 @@ export class WebSocket extends EventTarget {
     this.clearListeners();
   }
   /** Sends a text message; false unless open. */
-  send(text: string): boolean { return this.frame(1, utf8Encode(text)); }
+  send(text: string): boolean {
+    const n = this.native;
+    if (n !== null) return this.readyState === OPEN_STATE && n.send(text) >= 0;
+    return this.frame(1, utf8Encode(text));
+  }
   /** Sends a binary message. */
-  sendBytes(b: u8[]): boolean { return this.frame(2, b); }
+  sendBytes(b: u8[]): boolean {
+    const n = this.native;
+    if (n !== null) return this.readyState === OPEN_STATE && n.sendBytes(b) >= 0;
+    return this.frame(2, b);
+  }
   /** Starts the closing handshake (code 1000 by default). */
   close(code: i32 = 1000, reason: string = ''): void {
     if (this.readyState === CONNECTING) { this.readyState = CLOSED; this.finish(1006, '', false); return; }
     if (this.readyState !== OPEN_STATE) return;
     this.readyState = CLOSING;
+    const n = this.native;
+    if (n !== null) { n.close(code, reason); return; }
     this.sendClose(code, reason);
   }
   sendClose(code: i32, reason: string): void {
@@ -473,40 +488,52 @@ export class UpgradeRequest {
   header(name: string): string { return headerValue(this.headers, name.toLowerCase()); }
 }
 export class WebSocketServer {
-  server: Server;
-  constructor(server: Server) { this.server = server; }
-  get port(): i32 { return this.server.port; }
-  close(): void { this.server.close(); }
+  port: i32;
+  constructor(port: i32) { this.port = port; }
+  close(): void { stop(this.port); }
 }
-/** WebSocket server: answers the HTTP upgrade on `port` (0: any free port) and hands each connection over. Requests
- *  that are not WebSocket upgrades get 426. Rejects when the port cannot be bound. */
-export async function serveWebSocket(port: i32, onConnection: (ws: WebSocket, req: UpgradeRequest) => void, host: string = ''): Promise<WebSocketServer> {
-  const srv = await listen(port, (s: Socket) => {
-    let buf: u8[] = [];
-    let done = false;
-    s.onBytes((b: u8[]) => {
-      if (done) return;
-      buf = concat(buf, b);
-      let end = -1;
-      for (let i = 0; i + 3 < buf.length; i++) if (buf[i] === 13 && buf[i + 1] === 10 && buf[i + 2] === 13 && buf[i + 3] === 10) { end = i; break; }
-      if (end < 0) return;
-      done = true;
-      const head = utf8Decode(buf.slice(0, end));
-      const rest = buf.slice(end + 4);
-      const first = head.split('\r\n')[0].split(' ');
-      const key = headerValue(head, 'sec-websocket-key');
-      if (first[0] !== 'GET' || headerValue(head, 'upgrade').toLowerCase() !== 'websocket' || key.length === 0) {
-        s.write('HTTP/1.1 426 Upgrade Required\r\nContent-Length: 0\r\nConnection: close\r\n\r\n');
-        s.end();
-        return;
-      }
-      s.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${acceptKey(key)}\r\n\r\n`);
-      s.bytesCbs = [];
-      s.closeCbs = [];
-      const ws = new WebSocket(first.length > 1 ? first[1] : '/', null, s);
-      onConnection(ws, new UpgradeRequest(first.length > 1 ? first[1] : '/', head));
-      if (rest.length > 0) ws.receive(rest);
-    });
-  }, host);
-  return new WebSocketServer(srv);
+/** serveWebSocket's options: zinc:net's limits (maxPayloadBytes 16 MiB, idleTimeoutMs 120 s, backpressureLimit 16 MiB), and cert/key
+ *  for wss://. */
+export interface WebSocketServeOptions { cert?: string; key?: string; maxPayloadBytes?: i32; idleTimeoutMs?: i32; backpressureLimit?: i32 }
+function emitMessage(ws: WebSocket, e: MessageEvent): void {
+  const f = ws.onmessage;
+  if (f !== null) f(e);
+  ws.dispatchEvent(e);
+}
+/** WebSocket server: answers the HTTP upgrade on `port` (0: any free port) and hands each connection over; `host` the address to listen
+ *  on ('' every IPv4 one). Requests that are not WebSocket upgrades get 426. Rejects when the port cannot be bound. zinc:net serves it
+ *  (frames, ping/pong, limits and back-pressure in native code). */
+export async function serveWebSocket(port: i32, onConnection: (ws: WebSocket, req: UpgradeRequest) => void, host: string = '',
+                                     options: WebSocketServeOptions | null = null): Promise<WebSocketServer> {
+  const sockets = new Map<i32, WebSocket>();
+  const o: ServeOptions = {
+    webSocket: {
+      open: (n: ServerWebSocket) => {
+        let head = '';
+        n.headers.forEach((v: string, k: string) => { head += k + ': ' + v + '\r\n'; });
+        const ws = new WebSocket(n.path, null, null, n);
+        sockets.set(n.id, ws);
+        onConnection(ws, new UpgradeRequest(n.path, head));
+      },
+      message: (n: ServerWebSocket, data: string, bytes: u8[] | null) => {
+        const ws = sockets.get(n.id);
+        if (ws === undefined) return;
+        emitMessage(ws, bytes === null ? new MessageEvent(data, [], false) : new MessageEvent('', bytes as u8[], true));
+      },
+      close: (n: ServerWebSocket, code: i32, reason: string) => {
+        const ws = sockets.get(n.id);
+        if (ws === undefined) return;
+        sockets.delete(n.id);
+        ws.native = null;
+        ws.finish(code, reason, code !== 1006);
+      },
+    },
+  };
+  if (host.length > 0) o.hostname = host;
+  if (options !== null) {
+    o.cert = options.cert; o.key = options.key;
+    o.maxPayloadBytes = options.maxPayloadBytes; o.idleTimeoutMs = options.idleTimeoutMs; o.backpressureLimit = options.backpressureLimit;
+  }
+  const bound = serve(port, (req: Request): Reply => ({ status: 426, body: 'a WebSocket server: send an Upgrade request', contentType: 'text/plain' }), o);   // throws when the port cannot be bound
+  return new WebSocketServer(bound);
 }

@@ -1,0 +1,11 @@
+ready
+open /chat alice
+close /chat 1000 "done" 3
+open /big py
+close /big 1009 "" 3
+open /bye py
+close /bye 4000 "" 3
+open /flood py
+close /flood 1000 "" 3
+open /idle py
+close /idle 1006 "" 3

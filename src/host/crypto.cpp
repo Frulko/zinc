@@ -18,6 +18,10 @@ std::string run(const std::string& op, const std::string& a, const std::string& 
 
 #include <psa/crypto.h>
 #include <mbedtls/pk.h>
+#include <mbedtls/x509_crt.h>
+#include <mbedtls/x509_csr.h>
+
+#include <ctime>
 
 #include <cstring>
 #include <vector>
@@ -285,6 +289,66 @@ std::string run(const std::string& op, const std::string& a, const std::string& 
     if (st != PSA_SUCCESS) return fail(err, enc ? "rsa-oaep-encrypt" : "rsa-oaep-decrypt", st);
     out.resize(len);
     return out;
+  }
+  if (head == "ec-csr" || head == "ec-key-pem") {   // a = P-256 private scalar; ec-csr: b = the DNS names "a.example,b.example", the CSR DER (ACME, ZN-893)
+    Key k(PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1), PSA_KEY_USAGE_SIGN_HASH | PSA_KEY_USAGE_SIGN_MESSAGE | PSA_KEY_USAGE_EXPORT,
+          PSA_ALG_ECDSA(PSA_ALG_SHA_256), a);
+    if (k.st != PSA_SUCCESS) return fail(err, "ec-csr: key", k.st);
+    mbedtls_pk_context pk;
+    mbedtls_pk_init(&pk);
+    int rc = mbedtls_pk_copy_from_psa(k.id, &pk);
+    std::string out(4096, '\0');
+    if (rc == 0 && head == "ec-key-pem") {   // SEC1 "EC PRIVATE KEY" PEM, the key file a TLS server reads
+      rc = mbedtls_pk_write_key_pem(&pk, reinterpret_cast<unsigned char*>(out.data()), out.size());
+      mbedtls_pk_free(&pk);
+      if (rc != 0) { err = "ec-key-pem (" + std::to_string(rc) + ")"; return std::string(); }
+      out.resize(std::strlen(out.c_str()));
+      return out;
+    }
+    std::vector<std::string> names;
+    for (size_t at = 0; at <= b.size();) {
+      size_t comma = b.find(',', at);
+      if (comma == std::string::npos) comma = b.size();
+      if (comma > at) names.push_back(b.substr(at, comma - at));
+      at = comma + 1;
+    }
+    if (rc == 0 && names.empty()) rc = -1;
+    std::vector<mbedtls_x509_san_list> san(names.size());
+    for (size_t i = 0; i < names.size(); ++i) {
+      san[i] = {};
+      san[i].node.type = MBEDTLS_X509_SAN_DNS_NAME;
+      san[i].node.san.unstructured_name.p = reinterpret_cast<unsigned char*>(names[i].data());
+      san[i].node.san.unstructured_name.len = names[i].size();
+      san[i].next = i + 1 < names.size() ? &san[i + 1] : nullptr;
+    }
+    mbedtls_x509write_csr csr;
+    mbedtls_x509write_csr_init(&csr);
+    if (rc == 0) {
+      mbedtls_x509write_csr_set_md_alg(&csr, MBEDTLS_MD_SHA256);
+      mbedtls_x509write_csr_set_key(&csr, &pk);
+      rc = mbedtls_x509write_csr_set_subject_name(&csr, ("CN=" + names[0]).c_str());
+    }
+    if (rc == 0) rc = mbedtls_x509write_csr_set_subject_alternative_name(&csr, san.data());
+    int len = rc == 0 ? mbedtls_x509write_csr_der(&csr, reinterpret_cast<unsigned char*>(out.data()), out.size()) : rc;   // written at the end
+    mbedtls_x509write_csr_free(&csr);
+    mbedtls_pk_free(&pk);
+    if (len <= 0) { err = names.empty() ? "ec-csr: no DNS name" : "ec-csr (" + std::to_string(len) + ")"; return std::string(); }
+    return out.substr(out.size() - static_cast<size_t>(len));
+  }
+  if (head == "x509-not-after") {   // a = a PEM certificate (chain): its first certificate's expiry, seconds since 1970 as decimal text
+    mbedtls_x509_crt crt;
+    mbedtls_x509_crt_init(&crt);
+    int rc = mbedtls_x509_crt_parse(&crt, bytes(a), a.size() + 1);   // the PEM parser wants the terminating NUL counted
+    if (rc < 0 || crt.version == 0) { mbedtls_x509_crt_free(&crt); err = "x509-not-after: not a certificate (" + std::to_string(rc) + ")"; return std::string(); }
+    std::tm t{};
+    t.tm_year = crt.valid_to.year - 1900; t.tm_mon = crt.valid_to.mon - 1; t.tm_mday = crt.valid_to.day;
+    t.tm_hour = crt.valid_to.hour; t.tm_min = crt.valid_to.min; t.tm_sec = crt.valid_to.sec;
+    mbedtls_x509_crt_free(&crt);
+#ifdef _WIN32
+    return std::to_string(static_cast<long long>(_mkgmtime(&t)));
+#else
+    return std::to_string(static_cast<long long>(timegm(&t)));
+#endif
   }
   if (head == "random") {
     std::string out(static_cast<size_t>(n), '\0');

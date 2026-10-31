@@ -5,6 +5,9 @@ namespace zn::TLS_NS {
 Conn* openClient(const std::string&, std::string& err, bool) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
 bool isTls13(Conn*) { return false; }
 Conn* openServer(const std::string&, const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
+Server* serverNew(const std::string&, const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
+void serverFree(Server*) {}
+Conn* openServer(Server*, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
 Conn* openPskClient(const std::string&, const std::string&, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
 Conn* openPskServer(std::function<std::string(const std::string&)>, std::string& err) { err = "this build has no TLS (ZN_TLS=OFF)"; return nullptr; }
 const std::string& pskIdentity(Conn*) { static const std::string e; return e; }
@@ -24,6 +27,7 @@ const std::string& error(Conn*) { static const std::string e = "this build has n
 #include <mbedtls/error.h>
 #include <mbedtls/pk.h>
 #include <mbedtls/ssl.h>
+#include <mbedtls/ssl_ticket.h>
 #include <psa/crypto.h>
 // The console player (targets/console/mbedtls_console.h) builds mbedTLS without X.509: only the agent's sessions (PSK, EC J-PAKE) then,
 // and the clients and servers with certificates say they are missing.
@@ -207,6 +211,9 @@ Conn* make(bool server, std::string& err) {
 #ifndef TLS_CERTS
 Conn* openClient(const std::string&, std::string& err, bool) { err = "this build has no certificates (the console player's TLS)"; return nullptr; }
 Conn* openServer(const std::string&, const std::string&, std::string& err) { err = "this build has no certificates (the console player's TLS)"; return nullptr; }
+Server* serverNew(const std::string&, const std::string&, std::string& err) { err = "this build has no certificates (the console player's TLS)"; return nullptr; }
+void serverFree(Server*) {}
+Conn* openServer(Server*, std::string& err) { err = "this build has no certificates (the console player's TLS)"; return nullptr; }
 #else
 Conn* openClient(const std::string& serverName, std::string& err, bool tls12) {
   Conn* c = make(false, err);
@@ -235,6 +242,60 @@ Conn* openServer(const std::string& certPem, const std::string& keyPem, std::str
   if (rc == 0) rc = mbedtls_ssl_conf_own_cert(&c->conf, &c->own, &c->key);
   if (rc == 0) rc = mbedtls_ssl_setup(&c->ssl, &c->conf);
   if (rc != 0) { err = "TLS: bad certificate or key (" + describe(c, rc) + ")"; destroy(c); return nullptr; }
+  mbedtls_ssl_set_bio(&c->ssl, c, sendCb, recvCb, nullptr);
+  return c;
+}
+
+struct Server {
+  mbedtls_ssl_config conf;
+  mbedtls_x509_crt own;
+  mbedtls_pk_context key;
+  mbedtls_ssl_ticket_context ticket;
+};
+Server* serverNew(const std::string& certPem, const std::string& keyPem, std::string& err) {
+  if (!psaReady()) { err = "TLS: crypto did not start"; return nullptr; }
+  auto* s = new Server();
+  mbedtls_ssl_config_init(&s->conf);
+  mbedtls_x509_crt_init(&s->own);
+  mbedtls_pk_init(&s->key);
+  mbedtls_ssl_ticket_init(&s->ticket);
+  const std::string cert = certPem + '\0', key = keyPem + '\0';   // PEM input counts its terminator
+  int rc = mbedtls_ssl_config_defaults(&s->conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT);
+  if (rc == 0) rc = mbedtls_x509_crt_parse(&s->own, reinterpret_cast<const unsigned char*>(cert.data()), cert.size());
+  if (rc == 0) rc = mbedtls_pk_parse_key(&s->key, reinterpret_cast<const unsigned char*>(key.data()), key.size(), nullptr, 0);
+  if (rc == 0) rc = mbedtls_ssl_conf_own_cert(&s->conf, &s->own, &s->key);
+  if (rc != 0) {
+    char buf[160];
+    mbedtls_strerror(rc, buf, sizeof buf);
+    err = std::string("TLS: bad certificate or key (") + buf + ")";
+    serverFree(s);
+    return nullptr;
+  }
+  // tickets sealed with AES-256-GCM under a key made here and rotated by mbedTLS each lifetime (a day); a ticket that cannot be made only
+  // costs the resumption, so a failure here is not an error
+  if (mbedtls_ssl_ticket_setup(&s->ticket, PSA_ALG_GCM, PSA_KEY_TYPE_AES, 256, 86400) == 0)
+    mbedtls_ssl_conf_session_tickets_cb(&s->conf, mbedtls_ssl_ticket_write, mbedtls_ssl_ticket_parse, &s->ticket);
+  mbedtls_ssl_conf_tls13_key_exchange_modes(&s->conf, MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_ALL);   // resumption is a PSK with a fresh key exchange
+  return s;
+}
+void serverFree(Server* s) {
+  if (!s) return;
+  mbedtls_ssl_ticket_free(&s->ticket);
+  mbedtls_ssl_config_free(&s->conf);
+  mbedtls_x509_crt_free(&s->own);
+  mbedtls_pk_free(&s->key);
+  delete s;
+}
+Conn* openServer(Server* s, std::string& err) {
+  if (!s) { err = "TLS: no server"; return nullptr; }
+  auto* c = new Conn();
+  c->server = true;
+  mbedtls_ssl_init(&c->ssl);
+  mbedtls_ssl_config_init(&c->conf);   // unused: the server's is shared
+  mbedtls_x509_crt_init(&c->own);
+  mbedtls_pk_init(&c->key);
+  const int rc = mbedtls_ssl_setup(&c->ssl, &s->conf);
+  if (rc != 0) { err = describe(c, rc); destroy(c); return nullptr; }
   mbedtls_ssl_set_bio(&c->ssl, c, sendCb, recvCb, nullptr);
   return c;
 }

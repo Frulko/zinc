@@ -395,7 +395,11 @@
   /* zinc:net ServeOptions (ZN-892): a limit or mode of the server on a port; a reply in parts (head, chunks, end), the chunk's call returns the bytes */ \
   /* the socket still holds; system rows, appended */ \
   X(HostHttpOption, "host.httpOption", "isd>i", 2) X(HostHttpReplyStart, "host.httpReplyStart", "iis>i", 2) X(HostHttpWrite, "host.httpWrite", "is>i", 2) \
-  X(HostHttpEnd, "host.httpEnd", "i>n", 2)
+  X(HostHttpEnd, "host.httpEnd", "i>n", 2) \
+  /* zinc:net WebSocket server (ZN-893): accept an upgrade request (101), send a text or binary message (the bytes still queued back), close, ping; */ \
+  /* system rows, appended */ \
+  X(HostWsAccept, "host.wsAccept", "is>i", 2) X(HostWsSend, "host.wsSend", "isi>i", 2) X(HostWsClose, "host.wsClose", "iis>n", 2) X(HostWsPing, "host.wsPing", "i>n", 2) \
+  X(HostEvPayloadSize, "host.evPayloadSize", ">i", 2) X(HostEvPayloadByte, "host.evPayloadByte", "i>i", 2) X(HostWsSendBytes, "host.wsSendBytes", "iB>i", 2) X(HostHttpServeAt, "host.httpServeAt", "isss>i", 2) X(HostHttpSetCert, "host.httpSetCert", "iss>i", 2) /* serve on a host address (ServeOptions.hostname) */ /* the payload as bytes: a binary message intact on every engine */
 
 namespace zn {
 
@@ -435,7 +439,7 @@ inline constexpr bool isSysTailRow(Rt r) {
          r == Rt::HostSigWatch || r == Rt::HostSigSend ||   // sys.onSignal, sys.kill
          (r >= Rt::HostFsSymlink && r <= Rt::HostOsNetField) ||   // zinc:fs symlink, readlink, chmod and zinc:os uid, gid, shell, cpus, networkInterfaces
          r == Rt::HostCrypto || r == Rt::HostCryptoError ||   // zinc:subtle
-         (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes || (r >= Rt::HostHttpOption && r <= Rt::HostHttpEnd) ||   // zinc:net, its server too
+         (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostSysBytesToString || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes || (r >= Rt::HostHttpOption && r <= Rt::HostHttpSetCert) ||   // zinc:net, its server too
          r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync || r == Rt::HostFsAppendBytes;
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.

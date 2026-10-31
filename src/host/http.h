@@ -20,7 +20,9 @@ void fetchFree(int h);
 // The port it listens on (port 0: a free one the system picks), 0 when the port cannot be bound (or the certificate is bad: lastError());
 // several servers may listen at once (a request's event names its port); serving a port again replaces its server. A PEM certificate chain
 // and key make it an https server.
-int serve(int port, const std::string& certPem = std::string(), const std::string& keyPem = std::string());
+// Replaces the certificate of the https server on `port` (a renewal): new connections get it, open ones keep the old one.
+bool setCertificate(int port, const std::string& certPem, const std::string& keyPem);
+int serve(int port, const std::string& certPem = std::string(), const std::string& keyPem = std::string(), const std::string& host = std::string());   // host: the address to bind ('' every IPv4 one)
 const std::string& lastError();
 // Limits and modes of the server on `port` (zinc:net ServeOptions): maxHeaderBytes (431), maxBodyBytes (413), maxConnections (of all the
 // servers), maxConnectionsPerIp, requestsPerSecondPerIp (429; 0 no limit), headersTimeoutMs (the headers from their first byte: 408),
@@ -34,6 +36,16 @@ int write(int conn, const std::string& data);
 void end(int conn);
 // The program took `bytes` of a streamed body (event 43): a connection paused for a slow reader reads again.
 void bodyTaken(int conn, size_t bytes);
+// WebSocket (RFC 6455, ZN-893; frames by wslay): the program accepts an upgrade request (its event 42 had Upgrade: websocket) with
+// wsAccept, which answers 101 with `headers` added; false and a 400 when the request is not a WebSocket handshake. Then events 80 (open),
+// 81 (a message: data "t" text or "b" binary, payload its bytes), 82 (closed: data "code \x1e reason"; 1006 without a close frame) and 45
+// (drain). wsSend returns the bytes waiting to be written (a drain event follows once it was 64 KiB or more), -1 when the connection is
+// closed or over its backpressure limit. Options: wsMaxPayloadBytes (16 MiB, 1009 above), wsIdleTimeoutMs (120 s: a ping, then the
+// close), wsBackpressureBytes (16 MiB, 1008 above).
+bool wsAccept(int conn, const std::string& headers);
+int wsSend(int conn, const std::string& data, bool binary);
+void wsClose(int conn, int code, const std::string& reason);
+void wsPing(int conn);
 // The file at `path` as the body, sent in blocks; `range` is the request's Range header ('' for the whole file): one satisfiable byte
 // range gives a 206 with Content-Range, another a 416; a missing file a 404. Accept-Ranges and Content-Length are added.
 void replyFile(int conn, int status, const std::string& headers, const std::string& path, const std::string& range);

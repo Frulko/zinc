@@ -2,6 +2,7 @@
 #include "host/permissions.h"
 
 #include <llhttp.h>
+#include <wslay/wslay.h>
 #include <uv.h>
 
 #include <algorithm>
@@ -15,6 +16,7 @@
 #include <memory>
 #include <vector>
 
+#include "crypto.h"
 #include "netlog.h"
 #include "tls.h"
 #include "zn/loop.h"
@@ -27,7 +29,7 @@ namespace {
 
 const char* reasonOf(int s) {
   switch (s) {
-    case 100: return "Continue"; case 200: return "OK"; case 201: return "Created"; case 202: return "Accepted"; case 204: return "No Content";
+    case 100: return "Continue"; case 101: return "Switching Protocols"; case 200: return "OK"; case 201: return "Created"; case 202: return "Accepted"; case 204: return "No Content";
     case 206: return "Partial Content"; case 301: return "Moved Permanently"; case 302: return "Found"; case 303: return "See Other";
     case 304: return "Not Modified"; case 307: return "Temporary Redirect"; case 308: return "Permanent Redirect"; case 400: return "Bad Request";
     case 401: return "Unauthorized"; case 403: return "Forbidden"; case 404: return "Not Found"; case 405: return "Method Not Allowed";
@@ -318,10 +320,13 @@ struct Limits {
   uint64_t requestMs = 10000;        // the longest pause while a body arrives: 408
   uint64_t keepAliveMs = 5000;       // a kept-alive connection with no request
   bool streamBody = false;           // the body reaches the program in chunks (events 43, then 44) instead of with the request
+  uint64_t wsPayloadBytes = 16u << 20;      // a WebSocket message: above it the connection closes with 1009
+  uint64_t wsIdleMs = 120000;               // a WebSocket without a frame that long gets a ping, then the close when it stays silent as long
+  size_t wsBackpressureBytes = 16u << 20;   // bytes waiting for a WebSocket client that does not read: above it the connection closes (1008)
 };
 struct FileSend;
-struct Listener { uv_tcp_t tcp; int port = 0; std::string certPem, keyPem; Limits lim; };   // certPem: an https server
-enum class St { Reading, Handling, Streaming, Idle };   // Streaming: a reply in parts (replyStart/write/end) or a file goes out
+struct Listener { uv_tcp_t tcp; int port = 0; std::shared_ptr<tls::Server> tls; Limits lim; };   // tls: an https server (its connections share it)
+enum class St { Reading, Handling, Streaming, Idle, WebSocket };   // Streaming: a reply in parts (replyStart/write/end) or a file goes out
 struct SConn {
   int id = 0, port = 0;   // port: the listener's; the program's handler for that server answers
   uv_tcp_t tcp;
@@ -336,6 +341,11 @@ struct SConn {
   FileSend* file = nullptr;   // a file being sent (replyFile)
   bool complete = false, answered = false, closed = false, keepAlive = true, http10 = false, isHead = false, chunked = false, readPaused = false, wantDrain = false;
   tls::Conn* tls = nullptr;
+  std::shared_ptr<tls::Server> tlsServer;   // kept while the connection lives: a stopped server's settings outlive it
+  wslay_event_context_ptr ws = nullptr;     // an upgraded connection (wsAccept)
+  std::string wsKey, wsIn, wsOut;           // wsKey: the request's Sec-WebSocket-Key
+  size_t wsInAt = 0;
+  bool wsPinged = false, wsReported = false, wsCloseAfterWrite = false;
   int closing = 0;
 };
 struct Peer { int conns = 0; double tokens = 0; uint64_t at = 0; };
@@ -350,12 +360,17 @@ SConn* connAt(int id) { auto it = gConns.find(id); return it == gConns.end() || 
 void fileDrop(SConn* c);
 void onSClosed(uv_handle_t* h) {
   auto* c = static_cast<SConn*>(h->data);
-  if (--c->closing == 0) { if (c->tls) tls::destroy(c->tls); fileDrop(c); delete c; }
+  if (--c->closing == 0) { if (c->tls) tls::destroy(c->tls); if (c->ws) wslay_event_context_free(c->ws); fileDrop(c); delete c; }
 }
 void closeConn(SConn* c) {
   if (c->closed) return;
   c->closed = true;
   if (c->st == St::Handling || c->st == St::Streaming) loop::pushEvent(c->id, kEvGone, "");   // the program holds it: it learns the client is gone
+  if (c->ws && !c->wsReported) {   // a WebSocket gone without the close handshake: the code the server sent (1009, 1008...), else 1006
+    c->wsReported = true;
+    const uint16_t sent = wslay_event_get_status_code_sent(c->ws);
+    loop::pushEvent(c->id, 82, std::to_string(sent && sent != WSLAY_CODE_NO_STATUS_RCVD ? sent : 1006) + "\x1e");
+  }
   gConns.erase(c->id);
   auto p = gPeers.find(c->ip);
   if (p != gPeers.end() && --p->second.conns <= 0 && p->second.tokens >= c->lim.ratePerIp) gPeers.erase(p);   // a full bucket is a fresh one
@@ -407,6 +422,7 @@ void onWritten(uv_write_t* r, int status) {
   if (status < 0 || close) { closeConn(c); return; }
   afterWrite(c);
   if (c->file && c->tcp.write_queue_size == 0) sendBlock(c->file);   // a file goes on
+  if (c->wsCloseAfterWrite && c->tcp.write_queue_size == 0) closeConn(c);   // the close handshake is out
 }
 // Sends a then b (one writev); `then` says what follows: more of the same reply, its end (the next request, or the close), or the close.
 void send(SConn* c, std::string&& a, std::string_view b, Then then, bool raw = false, bool queue = false) {   // raw: bytes TLS made already; queue: no try_write
@@ -472,8 +488,10 @@ void nextRequest(SConn* c) {
 void pauseReading(SConn* c) {
   if (!c->readPaused) { c->readPaused = true; uv_read_stop(reinterpret_cast<uv_stream_t*>(&c->tcp)); }
 }
+void wsFeed(SConn* c, const char* data, size_t n);
 void parseRequest(SConn* c, const char* data, size_t n) {
   if (c->closed) return;
+  if (c->ws) { wsFeed(c, data, n); return; }
   if (c->complete) {   // the program has the last request: the next ones wait
     c->pending.append(data, n);
     if (c->pending.size() > kPendingCap) pauseReading(c);
@@ -529,6 +547,13 @@ const llhttp_settings_t& serverSettings() {
       c->isHead = llhttp_get_method(p) == HTTP_HEAD;
       c->keepAlive = llhttp_should_keep_alive(p) != 0;
       if (p->content_length > c->lim.bodyBytes && (p->flags & F_CONTENT_LENGTH)) { c->err = 413; return -1; }   // refused before the body comes
+      if (p->upgrade) {   // the connection is the program's to upgrade (wsAccept) or closes after the reply
+        c->keepAlive = false;
+        c->wsKey.clear();
+        std::string up = headerOf(c->msg.head, "upgrade");
+        for (char& ch : up) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        if (up == "websocket" && headerOf(c->msg.head, "sec-websocket-version") == "13" && llhttp_get_method(p) == HTTP_GET) c->wsKey = headerOf(c->msg.head, "sec-websocket-key");
+      }
       arm(c, c->lim.requestMs);
       if (c->lim.streamBody) { c->st = St::Handling; loop::pushEvent(c->id, kEvRequest, requestEvent(c, p, std::string())); }
       return 0;
@@ -566,6 +591,13 @@ const llhttp_settings_t& serverSettings() {
 
 void onSTimer(uv_timer_t* t) {
   auto* c = static_cast<SConn*>(t->data);
+  if (c->st == St::WebSocket) {   // silent for the idle time: a ping; silent again: gone
+    if (c->wsPinged) { closeConn(c); return; }
+    c->wsPinged = true;
+    wsPing(c->id);
+    if (!c->closed) arm(c, c->lim.wsIdleMs);
+    return;
+  }
   if (c->st == St::Reading && !c->answered) quick(c, 408); else closeConn(c);
 }
 void sAlloc(uv_handle_t*, size_t, uv_buf_t* b) {   // the bytes are parsed (or copied into TLS) before the next read: one buffer serves them all
@@ -604,6 +636,7 @@ std::string peerName(uv_tcp_t* t) {
     if (a.ss_family == AF_INET6) uv_ip6_name(reinterpret_cast<sockaddr_in6*>(&a), ip, sizeof ip);
     else uv_ip4_name(reinterpret_cast<sockaddr_in*>(&a), ip, sizeof ip);
   }
+  if (std::strncmp(ip, "::ffff:", 7) == 0 && std::strchr(ip + 7, '.')) return ip + 7;   // an IPv4 client of the dual-stack socket
   return ip;
 }
 void onConnection(uv_stream_t* srv, int status) {
@@ -635,9 +668,10 @@ void onConnection(uv_stream_t* srv, int status) {
   gConns[c->id] = c;
   c->port = li->port;
   uv_tcp_nodelay(&c->tcp, 1);
-  if (!li->certPem.empty()) {
+  if (li->tls) {
     std::string err;
-    c->tls = tls::openServer(li->certPem, li->keyPem, err);
+    c->tlsServer = li->tls;
+    c->tls = tls::openServer(li->tls.get(), err);
     if (!c->tls) { closeConn(c); return; }
   }
   llhttp_init(&c->parser, HTTP_REQUEST, &serverSettings());
@@ -768,6 +802,66 @@ bool byteRange(const std::string& h, uint64_t size, uint64_t& from, uint64_t& to
   return to != UINT64_MAX;
 }
 
+// ---------------------------------------------------------------- WebSocket (ZN-893)
+// An upgraded connection: wslay (third_party/wslay) reads and writes the frames (masking, fragments, ping/pong, the close handshake, the
+// message size limit); bytes go through send() like an HTTP reply, so TLS (wss) and the drain events work the same. Events: 80 open,
+// 81 message (data "t" or "b", payload the bytes), 82 closed (data "code \x1e reason"), 45 drain.
+constexpr int kEvWsOpen = 80, kEvWsMessage = 81, kEvWsClose = 82;
+ssize_t wsRecv(wslay_event_context_ptr ctx, uint8_t* buf, size_t len, int, void* user) {
+  auto* c = static_cast<SConn*>(user);
+  const size_t left = c->wsIn.size() - c->wsInAt;
+  if (left == 0) { wslay_event_set_error(ctx, WSLAY_ERR_WOULDBLOCK); return -1; }
+  const size_t k = std::min(len, left);
+  std::memcpy(buf, c->wsIn.data() + c->wsInAt, k);
+  c->wsInAt += k;
+  return static_cast<ssize_t>(k);
+}
+ssize_t wsSendCb(wslay_event_context_ptr, const uint8_t* data, size_t len, int, void* user) {
+  static_cast<SConn*>(user)->wsOut.append(reinterpret_cast<const char*>(data), len);   // gathered, written once by wsFlush
+  return static_cast<ssize_t>(len);
+}
+void wsMsg(wslay_event_context_ptr, const wslay_event_on_msg_recv_arg* a, void* user) {
+  auto* c = static_cast<SConn*>(user);
+  if (a->opcode == WSLAY_TEXT_FRAME || a->opcode == WSLAY_BINARY_FRAME)
+    loop::pushEvent(c->id, kEvWsMessage, a->opcode == WSLAY_TEXT_FRAME ? "t" : "b", std::string(reinterpret_cast<const char*>(a->msg), a->msg_length));
+  else if (a->opcode == WSLAY_CONNECTION_CLOSE && !c->wsReported) {
+    c->wsReported = true;
+    loop::pushEvent(c->id, kEvWsClose, std::to_string(a->status_code ? a->status_code : 1005) + '\x1e' +
+                                       (a->msg_length > 2 ? std::string(reinterpret_cast<const char*>(a->msg) + 2, a->msg_length - 2) : std::string()));   // msg starts with the code
+  }
+}
+// Writes what wslay has to say, and closes the connection once the close handshake is over (or wslay failed).
+void wsFlush(SConn* c) {
+  if (c->closed || !c->ws) return;
+  if (wslay_event_send(c->ws) != 0) { closeConn(c); return; }
+  if (!c->wsOut.empty()) {
+    std::string out;
+    out.swap(c->wsOut);
+    send(c, std::move(out), std::string_view(), Then::More);
+  }
+  if (!c->closed && !wslay_event_want_read(c->ws) && !wslay_event_want_write(c->ws)) {
+    if (c->tcp.write_queue_size == 0) closeConn(c);
+    else c->wsCloseAfterWrite = true;
+  }
+}
+void wsFeed(SConn* c, const char* data, size_t n) {
+  if (c->wsInAt == c->wsIn.size()) { c->wsIn.clear(); c->wsInAt = 0; }
+  c->wsIn.append(data, n);
+  c->wsPinged = false;
+  if (c->lim.wsIdleMs) arm(c, c->lim.wsIdleMs);
+  if (wslay_event_recv(c->ws) != 0) { closeConn(c); return; }   // a protocol error: wslay queued the close frame it owes, the socket goes
+  wsFlush(c);
+}
+std::string base64(const unsigned char* p, size_t n) {
+  static const char* k = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string o;
+  for (size_t i = 0; i < n; i += 3) {
+    const uint32_t v = static_cast<uint32_t>(p[i]) << 16 | (i + 1 < n ? static_cast<uint32_t>(p[i + 1]) << 8 : 0) | (i + 2 < n ? p[i + 2] : 0);
+    o += k[v >> 18 & 63]; o += k[v >> 12 & 63]; o += i + 1 < n ? k[v >> 6 & 63] : '='; o += i + 2 < n ? k[v & 63] : '=';
+  }
+  return o;
+}
+
 }  // namespace
 
 int fetchOpen(const std::string& url, const std::string& method, const std::string& headers, const std::string& body, int timeoutMs, int maxBytes) {
@@ -797,17 +891,26 @@ std::string fetchBody(int h) { Fetch* f = fetchAt(h); return f ? f->msg.body : "
 std::string fetchUrl(int h) { Fetch* f = fetchAt(h); return f ? f->url : ""; }
 void fetchFree(int h) { Fetch* f = fetchAt(h); if (f) { f->released = true; maybeFree(f); } }
 
-int serve(int port, const std::string& certPem, const std::string& keyPem) {
+int serve(int port, const std::string& certPem, const std::string& keyPem, const std::string& host) {
   if (port != 0) stop(port);   // the same port again replaces its server
-  if (!certPem.empty()) { std::string err; tls::Conn* probe = tls::openServer(certPem, keyPem, err); if (!probe) { gError = err; return 0; } tls::destroy(probe); }
+  std::shared_ptr<tls::Server> secure;
+  if (!certPem.empty()) {   // parsed once: a handshake no longer parses the certificate and key again (849 to N handshakes/s, ZN-893)
+    std::string err;
+    tls::Server* t = tls::serverNew(certPem, keyPem, err);
+    if (!t) { gError = err; return 0; }
+    secure.reset(t, tls::serverFree);
+  }
   auto* l = new Listener;
-  l->certPem = certPem;
-  l->keyPem = keyPem;
+  l->tls = std::move(secure);
   uv_tcp_init(L(), &l->tcp);
   l->tcp.data = l;
-  sockaddr_in a;
-  uv_ip4_addr("0.0.0.0", port, &a);
-  int rc = uv_tcp_bind(&l->tcp, reinterpret_cast<sockaddr*>(&a), 0);
+  // Every IPv4 address by default, or the address the program gives (127.0.0.1, ::1, or :: for IPv6 and IPv4). ponytail: not :: by default:
+  // on macOS a bind of :: succeeds while another program holds the IPv4 port, which then gets the IPv4 clients; two sockets would fix it.
+  sockaddr_storage a{};
+  const std::string h = host.empty() ? std::string("0.0.0.0") : host;
+  int rc = h.find(':') != std::string::npos ? uv_ip6_addr(h.c_str(), port, reinterpret_cast<sockaddr_in6*>(&a)) : uv_ip4_addr(h.c_str(), port, reinterpret_cast<sockaddr_in*>(&a));
+  if (rc != 0) { gError = "cannot listen on " + h + ": not an IP address"; uv_close(reinterpret_cast<uv_handle_t*>(&l->tcp), [](uv_handle_t* x) { delete static_cast<Listener*>(x->data); }); return 0; }
+  rc = uv_tcp_bind(&l->tcp, reinterpret_cast<sockaddr*>(&a), 0);
   if (rc == 0) rc = uv_listen(reinterpret_cast<uv_stream_t*>(&l->tcp), 511, onConnection);   // libuv reports a busy port here, not at bind; 511: Node's backlog
   if (rc != 0) {
     const std::string p = std::to_string(port);
@@ -817,10 +920,10 @@ int serve(int port, const std::string& certPem, const std::string& keyPem) {
     uv_close(reinterpret_cast<uv_handle_t*>(&l->tcp), [](uv_handle_t* h) { delete static_cast<Listener*>(h->data); });
     return 0;
   }
-  sockaddr_in bound{};
+  sockaddr_storage bound{};
   int len = sizeof bound;
   uv_tcp_getsockname(&l->tcp, reinterpret_cast<sockaddr*>(&bound), &len);
-  l->port = ntohs(bound.sin_port);
+  l->port = ntohs(bound.ss_family == AF_INET6 ? reinterpret_cast<sockaddr_in6*>(&bound)->sin6_port : reinterpret_cast<sockaddr_in*>(&bound)->sin_port);
   gListeners[l->port] = l;
   loop::addActive(1);
   return l->port;
@@ -839,10 +942,22 @@ bool option(int port, const std::string& name, double v) {
   else if (name == "requestTimeoutMs") m.requestMs = n;
   else if (name == "keepAliveTimeoutMs") m.keepAliveMs = n;
   else if (name == "streamBody") m.streamBody = v != 0;
+  else if (name == "wsMaxPayloadBytes") m.wsPayloadBytes = n;
+  else if (name == "wsIdleTimeoutMs") m.wsIdleMs = n;
+  else if (name == "wsBackpressureBytes") m.wsBackpressureBytes = n;
   else return false;
   return true;
 }
 const std::string& lastError() { return gError; }
+bool setCertificate(int port, const std::string& certPem, const std::string& keyPem) {   // new connections use it, open ones keep theirs
+  auto it = gListeners.find(port);
+  if (it == gListeners.end() || !it->second->tls) { gError = "no https server on port " + std::to_string(port); return false; }
+  std::string err;
+  tls::Server* t = tls::serverNew(certPem, keyPem, err);
+  if (!t) { gError = err; return false; }
+  it->second->tls.reset(t, tls::serverFree);
+  return true;
+}
 void stop(int port) {
   for (auto it = gListeners.begin(); it != gListeners.end();) {
     if (port != 0 && it->first != port) { ++it; continue; }
@@ -942,6 +1057,62 @@ void replyFile(int conn, int status, const std::string& headers, const std::stri
   endHead(c, h);
   c->st = St::Streaming;
   sendBlock(new FileSend{c, std::move(f), from, c->isHead ? 0 : length, std::move(h.text)});
+}
+
+bool wsAccept(int conn, const std::string& headers) {
+  SConn* c = connAt(conn);
+  if (!c || c->answered) return false;
+  if (c->wsKey.empty()) { reply(conn, 400, "", "not a WebSocket request"); return false; }
+  std::string err;
+  const std::string digest = crypto::run("digest:sha-1", c->wsKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", "", "", "", 0, 0, err);   // RFC 6455 4.2.2
+  if (digest.size() != 20) { reply(conn, 500, "", "WebSocket: " + err); return false; }
+  c->answered = true;
+  Head h = headOf(101, headers);
+  h.text += "Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + base64(reinterpret_cast<const unsigned char*>(digest.data()), digest.size()) + "\r\n\r\n";
+  static const wslay_event_callbacks cbs = {wsRecv, wsSendCb, nullptr, nullptr, nullptr, nullptr, wsMsg};
+  if (wslay_event_context_server_init(&c->ws, &cbs, c) != 0) { closeConn(c); return false; }
+  wslay_event_config_set_max_recv_msg_length(c->ws, c->lim.wsPayloadBytes);
+  send(c, std::move(h.text), std::string_view(), Then::More);
+  if (c->closed) return false;
+  c->st = St::WebSocket;
+  if (c->lim.wsIdleMs) arm(c, c->lim.wsIdleMs); else uv_timer_stop(&c->timer);
+  loop::pushEvent(c->id, kEvWsOpen, "");
+  if (!c->pending.empty()) {   // frames that came with the request
+    std::string p = std::move(c->pending);
+    c->pending.clear();
+    wsFeed(c, p.data(), p.size());
+  }
+  return !c->closed;
+}
+int wsSend(int conn, const std::string& data, bool binary) {
+  SConn* c = connAt(conn);
+  if (!c || !c->ws || !wslay_event_get_write_enabled(c->ws)) return -1;
+  const wslay_event_msg m = {static_cast<uint8_t>(binary ? WSLAY_BINARY_FRAME : WSLAY_TEXT_FRAME), reinterpret_cast<const uint8_t*>(data.data()), data.size()};
+  if (wslay_event_queue_msg(c->ws, &m) != 0) return -1;
+  wsFlush(c);
+  if (c->closed) return -1;
+  const size_t queued = c->tcp.write_queue_size + wslay_event_get_queued_msg_length(c->ws);
+  if (queued > c->lim.wsBackpressureBytes) {   // a client that does not read: the connection goes rather than the memory
+    wslay_event_queue_close(c->ws, 1008, reinterpret_cast<const uint8_t*>("backpressure"), 12);
+    wsFlush(c);
+    closeConn(c);
+    return -1;
+  }
+  if (queued >= kDrainBytes) c->wantDrain = true;
+  return static_cast<int>(std::min<size_t>(queued, INT32_MAX));
+}
+void wsClose(int conn, int code, const std::string& reason) {
+  SConn* c = connAt(conn);
+  if (!c || !c->ws) return;
+  wslay_event_queue_close(c->ws, static_cast<uint16_t>(code), reinterpret_cast<const uint8_t*>(reason.data()), std::min<size_t>(reason.size(), 123));
+  wsFlush(c);
+}
+void wsPing(int conn) {
+  SConn* c = connAt(conn);
+  if (!c || !c->ws) return;
+  const wslay_event_msg m = {WSLAY_PING, nullptr, 0};
+  wslay_event_queue_msg(c->ws, &m);
+  wsFlush(c);
 }
 
 }  // namespace zn::http
