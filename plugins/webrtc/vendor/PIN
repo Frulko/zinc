@@ -33,7 +33,7 @@ opus 1.6.1 (downloads.xiph.org release tarball), BSD-3-Clause
   kept: the sources of OPUS_SOURCES, OPUS_SOURCES_FLOAT, CELT_SOURCES, SILK_SOURCES and SILK_SOURCES_FLOAT (opus_sources.mk,
   celt_sources.mk, silk_sources.mk), the headers of include/, src/, celt/, silk/ and silk/float/, COPYING, unmodified: floating point,
   no SIMD (no x86/ or arm/ code); with deep PLC and DRED (ENABLE_DEEP_PLC, ENABLE_DRED: the sources of DEEP_PLC_SOURCES and DRED_SOURCES of
-  lpcnet_sources.mk with their models, the headers of DEEP_PLC_HEAD and DRED_HEAD, celt/x86/x86_arch_macros.h; the generic C neural
+  lpcnet_sources.mk with their models, the headers of DEEP_PLC_HEAD and DRED_HEAD, celt/x86/x86_arch_macros.h and x86cpu.h; the generic C neural
   network, which vec_neon.h speeds up on ARM), no OSCE: +2.1 MB to the plugin on macOS arm64 (4.99 to 7.08 MB)
 libvpx 1.17.0 (tag v1.17.0 of webmproject/libvpx), BSD-3-Clause with the WebM patent grant (PATENTS)
   https://github.com/webmproject/libvpx/archive/refs/tags/v1.17.0.tar.gz
