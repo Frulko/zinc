@@ -69,3 +69,8 @@ web_relay_extension  # drives headless Chrome
 web_video            # drives headless Chrome
 web_vite             # drives headless Chrome
 discord_safety      # "the first launch failed" once on a hosted runner (the fake server was up); its traced rerun passed
+# 2026-10-31, owner: the Discord example's tests leave the CI (they start a fake server and a client, and flake on hosted runners); they still run on the Mac
+discord              # Discord example
+discord_call_logic   # Discord example
+discord_login        # Discord example
+discord_ratelimit    # Discord example
