@@ -108,6 +108,7 @@ time.sleep(0.3)
 total, last = 0, b''
 while True:
     op, p = w.recv()
+    if op == 9: w.frame(10, p); continue   # the idle ping (idleTimeoutMs 400) can come during a slow flood: answer it as a browser does
     if op != 1: break
     if p.startswith(b'flood done'): last = p; break
     total += len(p)
