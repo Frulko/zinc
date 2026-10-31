@@ -206,6 +206,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **Fixed** QuickJS: TypeScript as libraries write it loads, `Date.now()` and `performance.now()` read the right clocks, and `zinc:platform` constants, `zinc:process`, `zinc:os`, `zinc:fs` links, `sys.onSignal` and `sys.kill` work.
 - **New** Native plugins: a spec can pass records (interfaces, in lists, optional or nested) as plain C++ structs safe on a worker thread, a stand-in can import its spec's types, and `Promise<void>` methods are accepted; plugins linked by a symbolic link build where they live and rebuild when an outside header changes, and a failed build is reported once.
 - **Fixed** A `Map` of a union of primitives (`Map<string, string | number>`) read in a closure no longer aborts the build with "internal error: a jump passes a missing value": it gets the Z0005 error that names the type.
+- **Fixed** QuickJS: `setTimeout` and `setInterval` wait for the real time outside a deterministic run, as on the other engines; a program with no native call in flight used to run its timers as fast as the CPU went.
 
 ### Tools and CLI
 - **New** `zinc publish` reads the app's key and the hub's token from `ZINC_UPDATE_SEED` and `ZINC_HUB_TOKEN` when `--key` and `--token` are not given, so they never appear on a command line; a published package gets a safe file name.

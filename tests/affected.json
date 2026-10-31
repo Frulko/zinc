@@ -102,6 +102,7 @@
     {"paths": ["examples/notify-relay/", "plugins/link/", "plugins/sqlite/", "tests/data/notify-relay/", "tests/t1/notify_relay.sh", "tests/t0/notify_relay_unit.sh", "tests/t0/notify_capture.sh"], "tests": ["notify_relay", "notify_relay_unit", "notify_capture"]},
     {"paths": ["src/frontend/modules.cpp", "tests/data/late_frame.ts", "tests/t0/late_frame.sh"], "tests": ["late_frame"]},
     {"paths": ["src/frontend/modules.cpp", "src/qjs/prelude.cpp", "tests/data/timer-yield/", "tests/t0/timer_yield.sh"], "tests": ["timer_yield"]},
+    {"paths": ["src/qjs/qjs.cpp", "src/qjs/prelude.cpp", "runtime/zrt.cpp", "tests/t0/timers_wall_clock.sh"], "tests": ["timers_wall_clock"]},
     {"paths": ["tests/data/busy_spinner/", "tests/t1/busy_spinner.sh"], "tests": ["busy_spinner"]},
     {"paths": ["src/host/loop.cpp", "third_party/mimalloc/", "tests/data/heap_trim.ts", "tests/t0/heap_trim.sh"], "tests": ["heap_trim"]},
     {"paths": ["src/rt/", "src/host/loop.cpp", "include/zn/alloc_stats.h", "tests/unit/threads_test.cpp", "tests/data/threads_two.ts", "tests/t0/threads_two.sh"], "tests": ["threads_two"]},

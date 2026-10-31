@@ -489,10 +489,13 @@ bool wantsFrames(Engine& e) { JSValue cb = global(e, "__zincFrameCb"); const boo
 
 // Date.now's origin: the wall clock when the program starts, or 0 in deterministic mode (the rule of zrt's det_init), so Date.now gives Unix
 // milliseconds as on the typed engine and the virtual clock in a test
-long long wallBaseMs() {
+bool virtualClock() {
   auto set = [](const char* k) { const char* v = std::getenv(k); return v && *v; };
   const char* d = std::getenv("ZINC_DETERMINISTIC");
-  if (set("ZINC_REPLAY") || set("ZINC_RECORD") || (d && *d && *d != '0')) return 0;
+  return set("ZINC_REPLAY") || set("ZINC_RECORD") || (d && *d && *d != '0');
+}
+long long wallBaseMs() {
+  if (virtualClock()) return 0;
   return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
@@ -562,16 +565,39 @@ bool frameLoop(Engine& e) {
   return ok;
 }
 
-// no frame loop yet: timers in order, the clock jumping to each, until none is left or the program asks for frames (onFrame after an await, ZN-566)
+// no frame loop yet: timers in order until none is left or the program asks for frames (onFrame after an await, ZN-566). A deterministic
+// run's clock jumps to each timer; a real one waits for it on the wall clock, as the typed engine does (runtime/zrt.cpp loop_once), so a
+// setInterval of 20 ms runs 50 times a second, not as fast as the CPU goes
 bool timerLoop(Engine& e) {
-  JSValue next = global(e, "__nextTimer"), due = global(e, "__dueTimer"), clockFn = global(e, "__clock"), setClock = global(e, "__setClock");
+  JSValue next = global(e, "__nextTimer"), due = global(e, "__dueTimer"), clockFn = global(e, "__clock"), setClock = global(e, "__setClock"), nextAt = global(e, "__nextAt");
   bool ok = true;
+  const bool real = !virtualClock();
+  const auto start = std::chrono::steady_clock::now();
+  double clock0 = 0;
+  { JSValue c = JS_Call(e.ctx, clockFn, JS_UNDEFINED, 0, nullptr); JS_ToFloat64(e.ctx, &clock0, c); JS_FreeValue(e.ctx, c); }
+  auto wall = [&] { return clock0 + std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count(); };
   while (ok && !wantsFrames(e)) {
     std::fflush(stdout);   // as in the frame loop
     if (e.worker && zn::host::workerBridge.stopping()) break;   // terminate()
     if (!nativeTurn(e)) { ok = false; break; }
     JSValue fn;
-    if ((!e.worker && zn_native_pending() > 0) || zn::loop::active()) {   // a native operation or a host one (a server listening, a fetch) is in flight: the clock follows the wall clock, so its answer comes before a later timer
+    if (real) {
+      const bool busy = (!e.worker && zn_native_pending() > 0) || zn::loop::active();
+      double at = -1;
+      { JSValue a = JS_Call(e.ctx, nextAt, JS_UNDEFINED, 0, nullptr); JS_ToFloat64(e.ctx, &at, a); JS_FreeValue(e.ctx, a); }
+      if (at < 0 && !busy) break;   // nothing left to wait for
+      double now = wall();
+      if (at < 0 || at > now) {   // wait: 1 ms at a time while native work may answer, else until the timer (a second at most)
+        if (e.worker) zn::host::workerBridge.idleWait();
+        const double ms = busy || at < 0 ? 1 : std::min(at - now, 1000.0);
+        std::this_thread::sleep_for(std::chrono::microseconds((long long)(ms * 1000)));
+        now = wall();
+      }
+      JSValue cv = JS_NewFloat64(e.ctx, now);
+      JS_FreeValue(e.ctx, JS_Call(e.ctx, setClock, JS_UNDEFINED, 1, &cv));
+      fn = JS_Call(e.ctx, due, JS_UNDEFINED, 1, &cv);
+      if (JS_IsNull(fn)) continue;
+    } else if ((!e.worker && zn_native_pending() > 0) || zn::loop::active()) {   // a native operation or a host one (a server listening, a fetch) is in flight: the clock follows the wall clock, so its answer comes before a later timer
       double clock = 0;
       JSValue c = JS_Call(e.ctx, clockFn, JS_UNDEFINED, 0, nullptr);
       JS_ToFloat64(e.ctx, &clock, c);
@@ -590,7 +616,7 @@ bool timerLoop(Engine& e) {
     ok = callFn(e, fn, JS_UNDEFINED, false);
     JS_FreeValue(e.ctx, fn);
   }
-  JS_FreeValue(e.ctx, next); JS_FreeValue(e.ctx, due); JS_FreeValue(e.ctx, clockFn); JS_FreeValue(e.ctx, setClock);
+  JS_FreeValue(e.ctx, next); JS_FreeValue(e.ctx, due); JS_FreeValue(e.ctx, clockFn); JS_FreeValue(e.ctx, setClock); JS_FreeValue(e.ctx, nextAt);
   return ok;
 }
 

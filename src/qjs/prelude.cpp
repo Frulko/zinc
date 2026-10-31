@@ -133,7 +133,7 @@ const char* kPrelude = R"JS(
   g.__zincWallBase = 0;
   let timers = [];
   g.__clock = () => clock;
-  Date.now = () => g.__zincWallBase + clock;   // the wall clock at start (0 in deterministic mode, set by the host) moved by the virtual one, as the typed engine's now_ms
+  Date.now = () => g.__zincWallBase + Math.floor(clock);   // the wall clock at start (0 in deterministic mode, set by the host) moved by the virtual one, as the typed engine's now_ms
   g.performance = { now: () => clock, get timeOrigin() { return g.__zincWallBase; }, mark() {}, measure() {}, getEntriesByName: () => [] };   // the timers' clock, as the typed engine's (QuickJS-ng's own now is read-only, on the wall clock): it stops while the inspector pauses the program
   for (const f of ['FullYear', 'Month', 'Date', 'Day', 'Hours', 'Minutes', 'Seconds', 'Milliseconds']) Date.prototype['get' + f] = Date.prototype['getUTC' + f];  // no time zones, like the typed engine
   g.setTimeout = (f, ms, ...a) => { const id = nextId++; timers.push({ at: clock + Math.max(0, +ms || 0), ord: clock + Math.max(1, +ms || 0), seq: seq++, id, every: 0, f: () => f(...a) }); return id; };
@@ -162,6 +162,7 @@ const char* kPrelude = R"JS(
     return t.f;
   };
   g.__setClock = ms => { clock = ms; passSeq = seq; };
+  g.__nextAt = () => { const b = earliest(); return b < 0 ? -1 : timers[b].at; };   // when the next timer is due, -1 when none is left
   // the host loop's events ("handle", "kind" and "data" joined by U+001F) for the modules that register a handler (zinc:osc, zinc:net), as the typed prelude's
   // __pollHost; the engine's turn calls it, and waits while the host loop is active (a server listening, a fetch in flight)
   const evHandlers = [];
