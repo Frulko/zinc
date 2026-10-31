@@ -152,6 +152,8 @@ struct Checker {
   const Type& ty(TypeId t) const { return out.types[t]; }
   bool isNum(TypeId t) const { return ty(t).k == TK::Num; }
   bool bad(TypeId t) const { return ty(t).k == TK::Error; }
+  // a return type that holds undefined (`F | undefined`) may end without a return, as in TypeScript 5.1: React's effect returns its cleanup or nothing
+  bool mayFallOff(TypeId t) const { return t < out.types.size() && ty(t).k == TK::Union && hasNull(t); }   // t may be a marker (a return still to infer)
   // ---- Dyn (`any` is tDyn, `unknown` is the class Dyn of the prelude; both are references to the classes of dyn.cpp)
   bool generating = false;       // declaring generated code: its `any` is not the program's
   bool inPrelude = false;        // checking the prelude: `any` there is the class Dyn itself
@@ -3495,7 +3497,7 @@ struct Checker {
           else require(rt, inferredRet, x.kids[0]);
           break;
         }
-        if (x.kids[0] == kNone) { if (curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any) diag(kZNotAssignable, s, "diag.detail.assign", {{"from", "void"}, {"to", name(curRet)}}); break; }
+        if (x.kids[0] == kNone) { if (curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any && !mayFallOff(curRet)) diag(kZNotAssignable, s, "diag.detail.assign", {{"from", "void"}, {"to", name(curRet)}}); break; }
         TypeId t = expr(x.kids[0], curRet);
         require(t, curRet, x.kids[0]);
         break;
@@ -3724,7 +3726,7 @@ struct Checker {
     }
     stmtList(n(f.kids[1]).kids);
     pop();
-    if (!isCtor && !infer && curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any && !terminates(f.kids[1])) diag(kZMissingReturn, fn, "'" + std::string(f.text) + "'");
+    if (!isCtor && !infer && curRet != tVoid && !bad(curRet) && ty(curRet).k != TK::Any && !mayFallOff(curRet) && !terminates(f.kids[1])) diag(kZMissingReturn, fn, "'" + std::string(f.text) + "'");
     curRet = savedRet; loops = savedLoops; immediate = savedImmediate;
     labels = std::move(savedLabels);
     narrowing = std::move(savedNarrowing);
@@ -4075,6 +4077,7 @@ struct Checker {
     if (restF && !bad(ps.back()) && ty(ps.back()).k != TK::Array) { diag(kZNotAssignable, x.kids[1 + np], "a rest parameter must be an array, not '" + name(ps.back()) + "'"); ps.back() = tError; }
     for (std::size_t k = 0; k + 1 < np; ++k) if (n(x.kids[2 + k]).flags & kFlagRest) diag(kZNotAllowedHere, x.kids[2 + k], "a rest parameter that is not the last one");
     TypeId ret = x.kids[0] != kNone ? annotation(x.kids[0]) : haveExpected ? et.elem : kNoType;
+    if (ret == tVoid && x.kids[0] != kNone && haveExpected && mayFallOff(et.elem)) ret = et.elem;   // `(): void => {...}` where `F | undefined` is expected (React's effect): it ends with undefined
     if (haveExpected && et.params.size() != np && x.kids[0] == kNone) { /* the arity is checked by the caller's assignability */ }
     // check the body in the scope where the lambda appears
     TypeId savedRet = curRet, savedInferred = inferredRet;
@@ -4122,7 +4125,7 @@ struct Checker {
     fnStack.pop_back();
     if (named) pop();
     if (ret == kNoType) ret = inferredRet != kNoType ? inferredRet : tVoid;
-    if (ret != tVoid && !bad(ret) && ty(ret).k != TK::Any && !terminates(x.kids[1])) diag(kZMissingReturn, i, "function expression");
+    if (ret != tVoid && !bad(ret) && ty(ret).k != TK::Any && !mayFallOff(ret) && !terminates(x.kids[1])) diag(kZMissingReturn, i, "function expression");
     curRet = savedRet; inferredRet = savedInferred; loops = savedLoops; immediate = savedImmediate;
     labels = std::move(savedLabels);
     narrowing = std::move(savedNarrowing);

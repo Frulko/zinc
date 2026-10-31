@@ -26,7 +26,7 @@ function Member(p: { r: MemberRow }) {
 function Row(p: { r: MemberRow }) {
   const r = p.r;
   if (!r.known) return <View className={`h-[${ROW}] px-2 flex-row items-center gap-3`}>
-    <View className={`w-[${MEMBER_AVATAR}] h-[${MEMBER_AVATAR}] rounded-full bg-[#383a40]`} /><View className="w-[120] h-[10] rounded bg-[#383a40]" />
+    <View className={`w-[${MEMBER_AVATAR}] h-[${MEMBER_AVATAR}] rounded-full bg-[var(--dc-input)]`} /><View className="w-[120] h-[10] rounded bg-[var(--dc-input)]" />
   </View>;
   if (r.group !== '') return <View className={`h-[${ROW}] px-2 pb-1 justify-end`}>
     <Text className={`text-xs font-bold uppercase ${TEXT_MUTED}`} numberOfLines={1}>{`${store.groupName(r.group)} — ${r.count}`}</Text>

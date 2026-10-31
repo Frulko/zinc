@@ -34,6 +34,11 @@ import * as win from 'zinc:system/window';
 import * as sys from 'zinc:sys';
 import { safety } from './safety-session';
 import { startThemes, allThemes, themeErrors, Theme } from './theme';
+import { openPicker, closePicker, pickEmoji, pickerTab } from './components/Picker';
+import { searchEmoji, recentEmoji } from './emoji';
+import { gifs, Gif } from './services/gifs';
+import { animationsPlaying, animationFrames } from './components/Animated';
+import { CDN_BASE } from './constants';
 
 ui.onKey((e: ui.KeyEvent): void => {
   const call = store.call;
@@ -88,6 +93,7 @@ async function demo(): Promise<void> {
   await write(id);
   await media(id);
   await present(id);
+  await pickers(id);
   await notifications(id);
   settings();
   setTimeout(() => { quit(); }, 300);
@@ -360,6 +366,45 @@ async function present(id: string): Promise<void> {
   store.jumpToPresent();
   await until(() => store.atEnd && !store.unread(id));
   console.log(`at the present: ${store.newWhileUp} new, unread ${store.unread(id)}`);
+}
+
+/** The pickers: an emoji found by name and a custom one put in the message box, a reaction from the picker, the trending GIFs and a search
+ *  asked once however often it is shown, a GIF and a sticker sent, and a GIF attachment that plays while it is on screen. */
+async function pickers(id: string): Promise<void> {
+  openPicker('emoji', null);
+  pickEmoji(searchEmoji('grinning face', 1)[0]);
+  pickEmoji('<:zinc:77>');
+  await shot('emoji-picker');
+  console.log(`emoji: draft "${store.draft}", recent ${recentEmoji().slice(0, 2).join(' ')}, picker ${pickerTab()}`);
+  closePicker();
+  store.typed('');
+  const target = last(id) as Message;
+  openPicker('emoji', target);
+  pickEmoji('<:zinc:77>');
+  await until(() => target.reactions.some((r) => r.id === '77' && r.me));
+  console.log(`reacted from the picker: ${target.reactions.map((r) => `${r.name} ${r.count}`).join(', ')}, picker "${pickerTab()}"`);
+  openPicker('gif', null);
+  const trending = await gifs('');
+  const cats = await gifs('cats');
+  const again = await gifs('Cats ');   // the same query: no second request
+  await shot('gif-picker');
+  console.log(`gifs: trending ${trending.length}, cats ${cats.map((g: Gif) => g.title).join(', ')}, again ${again.length}`);
+  closePicker();
+  await store.sendLink(cats[0].url);
+  await until(() => { const m = last(id); return m !== null && !m.pending && m.content === cats[0].url; });
+  const g = store.guilds.find((x: Guild) => x.id === '200') as Guild;
+  await store.sendSticker(g.stickers[0]);
+  await until(() => { const m = last(id); return m !== null && !m.pending && m.stickers.length === 1; });
+  console.log(`sent: a gif link and the sticker ${(last(id) as Message).stickers[0].name}`);
+  const ex = (Math.floor(Date.now() / 1000) + 86400).toString(16), is = (Math.floor(Date.now() / 1000) - 7200).toString(16);
+  const grace: any = { id: '101', username: 'grace', global_name: 'Grace', avatar: 'av101' };
+  store.dispatch('MESSAGE_CREATE', { id: '960', channel_id: id, author: grace, content: '', timestamp: '2026-10-30T09:39:00.000000+00:00', mentions: [],
+    attachments: [{ id: '803', filename: 'dance.gif', size: 5000, width: 12, height: 6, content_type: 'image/gif',
+      url: `${CDN_BASE}/attachments/${id}/960/803/dance.gif?ex=${ex}&is=${is}&hm=sig2&`, proxy_url: `${CDN_BASE}/attachments/${id}/960/803/dance.gif?ex=${ex}&is=${is}&hm=sig2&` }] });
+  await until(() => animationsPlaying() > 0);
+  const shown = animationFrames();
+  await until(() => animationFrames() >= shown + 2);   // it plays: the next frames come at the GIF's delays
+  console.log(`a GIF plays: ${animationsPlaying()} on screen`);
 }
 
 /** Notifications: none for the channel shown in the focused window, one for a DM while the window is behind another, a click on it opens

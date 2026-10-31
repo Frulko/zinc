@@ -231,6 +231,7 @@ bool appleInfo(const std::string& path, Meta& m) {
   CFRelease(s);
   return ok;
 }
+bool drawImage(CGImageRef img, Pixels& out);   // the image as straight RGBA (it releases img)
 // the picture upright, its longest side `side` pixels at most (never enlarged): ImageIO decodes only what that size needs
 bool appleDecode(const std::string& path, int side, Pixels& out, std::string& why) {
   CGImageSourceRef s = openSource(path);
@@ -243,6 +244,46 @@ bool appleDecode(const std::string& path, int side, Pixels& out, std::string& wh
   CGImageRef img = CGImageSourceCreateThumbnailAtIndex(s, 0, o);
   CFRelease(o); CFRelease(n); CFRelease(s);
   if (!img) { why = "imageio: cannot decode " + path; return false; }
+  if (!drawImage(img, out)) { why = "imageio: cannot draw " + path; return false; }
+  return true;
+}
+// an animation's frames (GIF, APNG, animated WebP: ImageIO gives each one whole, its disposal done), the longest side `side` at most, and
+// how long each shows (ms); a still picture is one frame
+bool appleFrames(const std::string& path, int side, int most, std::vector<Pixels>& out, std::vector<int>& delays, std::string& why) {
+  CGImageSourceRef s = openSource(path);
+  if (!s) { why = "imageio: not an image it can read: " + path; return false; }
+  const int count = std::min((int)CGImageSourceGetCount(s), most);
+  int sideV = side;
+  CFNumberRef n = CFNumberCreate(nullptr, kCFNumberIntType, &sideV);
+  const void* k[] = {kCGImageSourceCreateThumbnailFromImageAlways, kCGImageSourceCreateThumbnailWithTransform, kCGImageSourceShouldCacheImmediately, kCGImageSourceThumbnailMaxPixelSize};
+  const void* v[] = {kCFBooleanTrue, kCFBooleanTrue, kCFBooleanTrue, n};
+  CFDictionaryRef o = CFDictionaryCreate(nullptr, k, v, 4, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+  for (int i = 0; i < count; i++) {
+    CGImageRef img = CGImageSourceCreateThumbnailAtIndex(s, i, o);
+    Pixels px;
+    if (!img || !drawImage(img, px)) break;   // drawImage releases img
+    double sec = 0;
+    if (CFDictionaryRef p = CGImageSourceCopyPropertiesAtIndex(s, i, nullptr)) {
+      const CFStringRef dicts[][3] = {{kCGImagePropertyGIFDictionary, kCGImagePropertyGIFUnclampedDelayTime, kCGImagePropertyGIFDelayTime},
+                                      {kCGImagePropertyPNGDictionary, kCGImagePropertyAPNGUnclampedDelayTime, kCGImagePropertyAPNGDelayTime},
+                                      {kCGImagePropertyWebPDictionary, kCGImagePropertyWebPUnclampedDelayTime, kCGImagePropertyWebPDelayTime}};
+      for (auto& d : dicts) {
+        CFDictionaryRef f = (CFDictionaryRef)CFDictionaryGetValue(p, d[0]);
+        if (!f) continue;
+        sec = num(f, d[1]);
+        if (sec <= 0) sec = num(f, d[2]);
+        break;
+      }
+      CFRelease(p);
+    }
+    out.push_back(std::move(px));
+    delays.push_back((int)(sec * 1000 + 0.5));
+  }
+  CFRelease(o); CFRelease(n); CFRelease(s);
+  if (out.empty()) { why = "imageio: cannot decode " + path; return false; }
+  return true;
+}
+bool drawImage(CGImageRef img, Pixels& out) {
   out.w = (int)CGImageGetWidth(img); out.h = (int)CGImageGetHeight(img);
   out.rgba.assign((size_t)out.w * out.h * 4, 0);
   CGColorSpaceRef cs = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);   // a Display P3 HEIC lands in sRGB, what the screen is drawn in
@@ -254,7 +295,7 @@ bool appleDecode(const std::string& path, int side, Pixels& out, std::string& wh
     CGContextRelease(ctx);
   }
   CGImageRelease(img);
-  if (!ctx) { why = "imageio: cannot draw " + path; return false; }
+  if (!ctx) return false;
   unpremultiply(out);
   return true;
 }
@@ -323,6 +364,38 @@ bool portableDecode(const std::string& path, int side, Pixels& out, std::string&
   orient(out, m.orient);
   return true;
 }
+bool portableFrames(const std::string& path, int side, int most, std::vector<Pixels>& out, std::vector<int>& delays, std::string& why) {
+  std::vector<uint8_t> f;
+  if (!readFile(path, f)) { why = "imageio: cannot read " + path + ": " + strerror(errno); return false; }
+  if (sniff(f.data(), f.size()) != "gif") {   // ponytail: animated WebP and APNG show their first frame here (no libwebp demux, no APNG in stb)
+    Pixels p;
+    if (!portableDecode(path, side, p, why)) return false;
+    out.push_back(std::move(p)); delays.push_back(0);
+    return true;
+  }
+  int* ms = nullptr; int w = 0, h = 0, z = 0, c = 0;
+  uint8_t* d = stbi_load_gif_from_memory(f.data(), (int)f.size(), &ms, &w, &h, &z, &c, 4);
+  if (!d) { why = "imageio: cannot decode " + path; return false; }
+  for (int i = 0; i < std::min(z, most); i++) {
+    Pixels p;
+    p.w = w; p.h = h;
+    p.rgba.assign(d + (size_t)i * w * h * 4, d + (size_t)(i + 1) * w * h * 4);
+    fit(p, side);
+    out.push_back(std::move(p));
+    delays.push_back(ms ? ms[i] : 0);
+  }
+  stbi_image_free(d);
+  if (ms) free(ms);
+  return true;
+}
+bool decodeFrames(const std::string& path, int side, int most, std::vector<Pixels>& out, std::vector<int>& delays, std::string& why) {
+#ifdef __APPLE__
+  if (!portableFirst()) return appleFrames(path, side, most, out, delays, why);
+  return portableFrames(path, side, most, out, delays, why) || appleFrames(path, side, most, out, delays, why);
+#else
+  return portableFrames(path, side, most, out, delays, why);
+#endif
+}
 bool decode(const std::string& path, int side, Pixels& out, std::string& why) {
 #ifdef __APPLE__
   if (!portableFirst()) return appleDecode(path, side, out, why);
@@ -384,6 +457,9 @@ void cacheWrite(const std::string& dir, const std::string& base, const Pixels& p
 struct Job {
   int32_t id = 0;
   bool thumb = false;
+  int most = 0;                     // a frames job: how many frames at most (0: not one)
+  std::vector<Pixels> frames;       // its frames after the first (which is px), and how long each shows (ms)
+  std::vector<int> delays;
   std::string path, cache;
   int a = 0, b = 0;                 // a thumbnail: the side; a load: the box
   std::atomic<int> state{0};        // 0 waiting or running, 1 done, -1 failed
@@ -414,7 +490,12 @@ void run(Job& j) {
     const int bw = j.a > 0 ? j.a : FULL, bh = j.b > 0 ? j.b : FULL;
     const double s = std::min(1.0, std::min(bw / dw, bh / dh));
     const int side = std::max(1, (int)(std::max(dw, dh) * s + 0.5));
-    if (!decode(j.path, side, j.px, j.why)) { j.state.store(-1, std::memory_order_release); return; }
+    if (j.most > 0) {
+      if (!decodeFrames(j.path, side, j.most, j.frames, j.delays, j.why)) { j.state.store(-1, std::memory_order_release); return; }
+      if (j.delays.size() > 1) for (int& d : j.delays) if (d < 20) d = 100;   // as browsers: a GIF that asks for less than 20 ms shows each frame 100 ms
+      j.px = std::move(j.frames[0]);
+      j.frames.erase(j.frames.begin());
+    } else if (!decode(j.path, side, j.px, j.why)) { j.state.store(-1, std::memory_order_release); return; }
   }
   j.state.store(1, std::memory_order_release);
 }
@@ -457,9 +538,9 @@ zrt::Array<double> nums(const std::vector<double>& v) {
   r.a->len = (uint32_t)v.size();
   return r;
 }
-int32_t start(bool thumb, const std::string& path, int a, int b, const std::string& cache) {
+int32_t start(bool thumb, const std::string& path, int a, int b, const std::string& cache, int most = 0) {
   auto j = std::make_shared<Job>();
-  j->id = nextId++; j->thumb = thumb; j->path = path; j->a = a; j->b = b; j->cache = cache;
+  j->id = nextId++; j->thumb = thumb; j->path = path; j->a = a; j->b = b; j->cache = cache; j->most = most;
   jobs[j->id] = j;
   submit(j);
   return j->id;
@@ -510,13 +591,22 @@ struct HostImageio : NativeImageio {
     const bool ok = j && j->state.load(std::memory_order_acquire) == 1;
     return nums({ok ? (double)j->px.w : 0, ok ? (double)j->px.h : 0});
   }
-  bool copy(int32_t id, int32_t image) override {
+  bool copy(int32_t id, int32_t image) override { return copyFrame(id, 0, image); }
+  int32_t frames(zrt::String path, int32_t w, int32_t h, int32_t most) override { return start(false, cstr(path), std::max(0, w), std::max(0, h), "", std::max(1, most)); }
+  int32_t frameCount(int32_t id) override { Job* j = at(id); return j && j->state.load(std::memory_order_acquire) == 1 ? 1 + (int32_t)j->frames.size() : 0; }
+  int32_t frameDelay(int32_t id, int32_t i) override {
     Job* j = at(id);
-    uint32_t* d = j && j->state.load(std::memory_order_acquire) == 1 && !j->px.rgba.empty() ? zrt::raster::dyn_pixels(image) : nullptr;
+    return j && j->state.load(std::memory_order_acquire) == 1 && i >= 0 && i < (int32_t)j->delays.size() ? j->delays[i] : 0;
+  }
+  bool copyFrame(int32_t id, int32_t i, int32_t image) override {
+    Job* j = at(id);
+    if (!j || j->state.load(std::memory_order_acquire) != 1 || i < 0 || i > (int32_t)j->frames.size()) return false;
+    const Pixels& f = i == 0 ? j->px : j->frames[i - 1];
+    uint32_t* d = !f.rgba.empty() ? zrt::raster::dyn_pixels(image) : nullptr;
     if (!d) return false;
     bool alpha = false;
-    const uint8_t* s = j->px.rgba.data();
-    for (size_t i = 0, n = (size_t)j->px.w * j->px.h; i < n; i++, s += 4) {
+    const uint8_t* s = f.rgba.data();
+    for (size_t i = 0, n = (size_t)f.w * f.h; i < n; i++, s += 4) {
       d[i] = (uint32_t)s[3] << 24 | (uint32_t)s[0] << 16 | (uint32_t)s[1] << 8 | s[2];
       alpha |= s[3] != 255;
     }

@@ -63,6 +63,9 @@ the heartbeats waits in the guard's queue while 110 were sent in the last minute
 | `POST /channels/{id}/messages` | Enter, or files sent | per message | send |
 | `PATCH`/`DELETE /channels/{id}/messages/{m}` | edit, delete (twice-clicked) | per action | edit, delete |
 | `PUT`/`DELETE .../reactions/{emoji}/@me` | pressing a reaction or the thumb | per press | react |
+| `GET /gifs/trending-gifs?media_format=mp4&provider=tenor&locale=..` | opening the GIF picker | once per session (kept in memory) | gifs |
+| `GET /gifs/search?q=..&media_format=mp4&provider=tenor&locale=..` | typing in the GIF picker, once it pauses 400 ms | once per query per session (kept in memory) | gifs |
+| `POST /channels/{id}/messages` with `sticker_ids`, or a GIF's link | a sticker or a GIF picked | per pick | send |
 | `PUT /channels/{id}/polls/{m}/answers/@me` | pressing a poll answer | per press | vote |
 | `POST /channels/{id}/attachments`, then the storage `PUT`s | sending files | per message with files | upload (one verdict for all its requests) |
 | `POST /attachments/refresh-urls` | pictures whose signed URL expired come on screen | one request for the pictures of a frame, 50 URLs each | refresh |
@@ -75,7 +78,7 @@ the heartbeats waits in the guard's queue while 110 were sent in the last minute
 profile and searches nothing yet.
 
 At startup the client makes **no HTTP API request**: READY carries the servers, channels, DMs, read states, settings and voice states.
-Pictures (avatars, server icons, emoji, stickers, attachments) come from the CDN (`cdn.discordapp.com`, kept on disk, 6 downloads at a
+Pictures (avatars, server icons, emoji, stickers, attachments, the GIF picker's previews and the GIFs that play, from Tenor's media server) come from the CDN (`cdn.discordapp.com`, kept on disk, 6 downloads at a
 time through `guard.download`) and the upload `PUT` goes to the storage URL Discord gives; neither carries the token. No channel's history
 is fetched before it is opened: no prefetch, no crawl, no polling.
 

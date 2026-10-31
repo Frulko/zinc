@@ -3,21 +3,30 @@
 [system] dock.setBadge {"text":"1"}
 [system] dock.setBadge {"text":"2"}
 [system] notification.notify {"id":"channel-400","title":"Grace","subtitle":"Grace","body":"Are you there? @Ada","icon":"","group":"400","actions":[],"reply":""}
+a GIF plays: 1 on screen
 at the present: 0 new, unread false
 cached attachments_302_903_801_photo.png
 cached attachments_302_909_802_notes.png
+cached attachments_302_960_803_dance.gif
 cached avatars_101_av101.png
 cached avatars_103_av103.png
 cached emojis_77.png
 cached emojis_78.png
+cached emojis_79.png
+cached ext_7eae11e
+cached ext_7f8f89f
 cached icons_200_ic200.png
+cached media_be89ed36-12x6
+cached stickers_880.png
 channels Lounge, Text, general, random, showcase, release talk, ideas, Dark mode everywhere, open ''
 clicked: open 400, badge 0
 deleted 907
 dms Grace, Grace, linus
 dms open: ''
 edited 906: Hello **edited** ~~world~~ ||secret|| <@101> (edited)
+emoji: draft "😀 <:zinc:77>", recent <:zinc:77> 😀, picker emoji
 gateway closed (4000), again in 1000 ms
+gifs: trending 2, cats cats 1, cats 2, again 2
 history 302: 50 messages
 history 400: 1 messages
 history 50
@@ -29,6 +38,7 @@ members 200: [maintainers 1] Ada(online coloured) [Online 1] Grace(online) [Offl
 members 200: [maintainers 1] Ada(online coloured) [Online 2] Grace(idle) Katherine(online mobile) [Offline 151] linus(offline) member0(offline) member1(offline) member2(offline) member3(offline) member4(offline) …, 101 of 157 rows
 members 200: [maintainers 1] Ada(online coloured) [Online 2] Grace(idle) Katherine(online mobile) [Offline 151] linus(offline) member0(offline) member1(offline) member2(offline) member3(offline) member4(offline) …, 157 of 157 rows
 members 200: [maintainers 1] Ada(online coloured) [Online 2] Grace(idle) Katherine(online mobile) [Offline 151] linus(offline) member0(offline) member1(offline) member2(offline) member3(offline) member4(offline) …, 157 of 157 rows
+message in 302 from Grace: 
 message in 302 from Grace: Back after the drop
 message in 302 from Grace: Got it, *thanks*
 message in 302 from Grace: Seen here, no notification
@@ -42,11 +52,17 @@ older 302: 20 messages
 older page: 20 messages, all loaded true, 74 in the channel
 picture attachments/302/903/801/photo.png: from the CDN
 picture attachments/302/909/802/notes.png: from the CDN
+picture attachments/302/960/803/dance.gif: from the CDN
 picture avatars/101/av101.png: from the CDN
 picture avatars/103/av103.png: from the CDN
 picture emojis/77.png: from the CDN
 picture emojis/78.png: from the disk
+picture emojis/79.png: from the CDN
+picture ext/7eae11e: from the CDN
+picture ext/7f8f89f: from the CDN
 picture icons/200/ic200.png: from the CDN
+picture media/be89ed36-12x6: from the CDN
+picture stickers/880.png: from the CDN
 presence Grace: online mobile
 presence linus: dnd
 presence linus: idle
@@ -54,6 +70,9 @@ presences: Grace idle, linus offline, Katherine online (mobile), Ada's name 3498
 rate limit: 429 on PATCH /channels/302/messages/:id, retry after its bucket
 rate limit: PATCH /channels/302/messages/:id waits for its bucket
 rate limit: POST /channels/302/messages waits for its bucket
+react 965 zinc on
+reacted from the picker: zinc 1, picker ""
+reactions 965: zinc1*
 read 302: up to 902, 0 mentions
 read 311: up to 925, 2 mentions
 read 311: up to 930, 0 mentions
@@ -67,8 +86,11 @@ scrolled up: 1 new, unread true
 sent 906: Hello **world** ||secret|| <@101>
 sent 907: Replying, after the bucket
 sent 909: Here is the photo
+sent 910: https://tenor.com/view/cats-1
+sent 911: 
 sent a file: Here is the photo, notes.png 160x120
 sent once: 1 new, pending false
+sent: a gif link and the sticker wave
 servers shown: 
 servers shown: Makers
 servers shown: Makers

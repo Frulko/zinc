@@ -2,7 +2,7 @@
 // is decoded once and kept in memory, and its file is kept on disk under a key without the URL's query: an attachment's signed URL expires
 // (its ex= parameter, hex seconds), its file does not. An expired URL, or one the CDN refuses, is renewed with POST /attachments/refresh-urls.
 // ponytail: decoded pictures stay in memory for the session; evict the least recently shown when a long session's memory matters.
-// ponytail: animated avatars and emoji are asked as .png, their first frame.
+// ponytail: animated avatars and emoji are asked as .png, their first frame (stickers and GIFs play: components/Animated.tsx).
 import { imageFromBytes } from 'zinc:gfx';
 import { readBytes, writeBytes, exists, mkdir } from 'zinc:fs';
 import { dataDir } from 'zinc:system/window';
@@ -34,12 +34,28 @@ export function attachmentPicture(url: string): i32 { return picture(attachmentK
  *  (a 4000 px photo comes as 800 px), and its still frame stands for a video or a GIF. Kept under its path without the signature. */
 export function mediaPicture(url: string, w: i32, h: i32): i32 {
   const q = url.indexOf('?'), sep = q < 0 ? '?' : url.endsWith('&') || url.endsWith('?') ? '' : '&';
-  return picture(`media/${hashOf(q < 0 ? url : url.slice(0, q))}-${w}x${h}`, `${url}${sep}width=${w * 2}&height=${h * 2}&format=webp`);
+  return picture(`media/${hashOf(pathOf(q < 0 ? url : url.slice(0, q)))}-${w}x${h}`, `${url}${sep}width=${w * 2}&height=${h * 2}&format=webp`);
 }
 /** A sticker (PNG, APNG: its first frame, GIF) at 160 px. */
 export function stickerPicture(id: string, gif: boolean): i32 {
   const key = `stickers/${id}.${gif ? 'gif' : 'png'}`;
   return picture(key, `${CDN_BASE}/${key}?size=160`);
+}
+/** A picture of another site (a GIF's preview from Tenor), at its own size, -1 until it is loaded. */
+export function urlPicture(url: string): i32 { return picture(`ext/${hashOf(pathOf(url))}`, url); }
+/** A URL without its scheme and host: the key of its file is the same whichever host serves it (the tests' fake on a random port). */
+const pathOf = (url: string): string => { const at = url.indexOf('/', url.indexOf('//') + 2); return at < 0 ? url : url.slice(at); };
+/** The file of a picture on the disk, downloaded when it is not there yet (the frames of an animation are decoded from it). */
+const fetching: Map<string, Promise<string>> = new Map<string, Promise<string>>();
+export function cdnFile(key: string, url: string): Promise<string> {
+  const file = fileOf(key);
+  if (exists(file)) return Promise.resolve(file);
+  const known = fetching.get(key);
+  if (known !== undefined) return known;   // asked again while it downloads (the row drawn again): one request
+  const p = download(url).then((bytes: u8[]): string => { writeBytes(file, bytes); log(`picture ${key}: from the CDN`); fetching.delete(key); return file; });
+  fetching.set(key, p);
+  p.catch((e: Error): string => { fetching.delete(key); return ''; });   // a failed download is asked again next time
+  return p;
 }
 /** A short name for a URL's file (a 32-bit polynomial hash). */
 function hashOf(s: string): string {

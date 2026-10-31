@@ -1,21 +1,30 @@
 // What a message shows under its text (docs/reports/discord-message-content.md): its files by kind (pictures, videos, sounds, voice
 // messages, other files, spoilers), stickers, embeds (link previews, rich cards, GIFs and videos as their picture with a play mark), a
 // poll, rows of buttons and menus (drawn only: pressing one would send an interaction, a bot's request), its thread and its reactions.
-// Pictures come from Discord's media proxy at the size drawn (services/cdn.ts); a video, a GIF or a link opens in the browser.
+// Pictures come from Discord's media proxy at the size drawn (services/cdn.ts); GIFs and animated stickers play while shown (Animated.tsx);
+// a video or a link opens in the browser.
 import { Icon } from 'zinc:icons';
 import { openUrl } from 'zinc:system/opener';
 import { store, Message, Attachment } from '../state';
 import { Embed, EmbedField, EmbedMedia, Reaction, Sticker, PollAnswer, Component, STICKER_LOTTIE, STICKER_GIF, F_SUPPRESS_EMBEDS,
   sizeText, waveform } from '../content';
 import { Markdown } from './Markdown';
-import { cdnPicture, emojiKey, attachmentPicture, mediaPicture, stickerPicture } from '../services/cdn';
-import { BG_SIDE, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_LINK, MEDIA_MAX_W, MEDIA_MAX_H, EMBED_W, THUMB, STICKER } from '../constants';
+import { cdnPicture, emojiKey, attachmentPicture, attachmentKey, mediaPicture, stickerPicture, urlPicture } from '../services/cdn';
+import { BG_SIDE, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_LINK, MEDIA_MAX_W, MEDIA_MAX_H, EMBED_W, THUMB, STICKER, CDN_BASE } from '../constants';
+import { Animated } from './Animated';
 import { color } from '../theme';
 
 const LINK = (): i32 => color('link');
 const WHITE = (): i32 => 0xffffff;
 const MUTED = (): i32 => color('icon');
 const open = (url: string): void => { if (url !== '') openUrl(url); };
+const GIF_MAX = 8 * 1024 * 1024;   // ponytail: a GIF attachment larger than this stays still (its frames would weigh too much)
+const STICKER_APNG = 2;
+/** A Tenor GIF's own .gif from the still picture of its embed (Tenor names its renditions by the end of the id: AAAAe a PNG, AAAAC the GIF). */
+export function tenorGif(still: string): string {
+  const m = /media\.tenor\.com\/([A-Za-z0-9_-]+)AAAAe\/([^?\/]+)\.png/.exec(still);   // also inside a media proxy's URL
+  return m !== null ? `https://media.tenor.com/${m[1]}AAAAC/${m[2]}.gif` : '';
+}
 const hex = (rgb: i32): string => { const s = rgb.toString(16); return '0'.repeat(6 - s.length) + s; };
 
 /** w x h fitted in maxW x maxH, keeping the shape (a picture of unknown size takes a 16:9 box). */
@@ -79,7 +88,10 @@ export function Media(p: { a: Attachment; m: Message }) {
     if (a.spoiler && !store.revealed.has(p.m.id)) return <Spoiler w={b.w} h={b.h} m={p.m} />;
     const picture = a.proxyUrl !== '' ? mediaPicture(a.proxyUrl, b.w, b.h) : a.kind === 'image' ? attachmentPicture(a.url) : -1;
     const alt = a.description !== '' ? a.description : a.filename;
-    if (a.kind === 'image') return <Image image={picture} className={`mt-1 w-[${b.w}] h-[${b.h}] rounded-lg bg-[var(--dc-sidebar)] object-cover`} aria-label={alt} />;
+    const cls = `mt-1 w-[${b.w}] h-[${b.h}] rounded-lg bg-[var(--dc-sidebar)] object-cover`;
+    if (a.kind === 'image' && a.filename.toLowerCase().endsWith('.gif') && a.size <= GIF_MAX)
+      return <Animated file={attachmentKey(a.url)} url={a.url} still={picture} w={b.w} h={b.h} className={cls} label={alt} />;
+    if (a.kind === 'image') return <Image image={picture} className={cls} aria-label={alt} />;
     return <View className={`mt-1 w-[${b.w}] h-[${b.h}] rounded-lg bg-[#000000]`} aria-label={alt} onPress={() => open(a.url)}>
       <Image image={picture} className={`w-[${b.w}] h-[${b.h}] rounded-lg object-cover`} />
       <Play w={b.w} h={b.h} />
@@ -94,13 +106,20 @@ function StickerView(p: { s: Sticker }) {
   if (s.format === STICKER_LOTTIE) return <View className={`mt-1 self-start px-3 py-2 flex-row items-center gap-2 rounded-lg ${BG_SIDE}`}>
     <Icon name="sticker" size={18} color={MUTED} /><Text className={`text-sm ${TEXT_MUTED}`}>{`:${s.name}:`}</Text>
   </View>;
-  return <Image image={stickerPicture(s.id, s.format === STICKER_GIF)} className={`mt-1 w-[${STICKER}] h-[${STICKER}] object-contain`} aria-label={s.name} />;
+  const gif = s.format === STICKER_GIF, still = stickerPicture(s.id, gif), cls = `mt-1 w-[${STICKER}] h-[${STICKER}] object-contain`;
+  if (gif || s.format === STICKER_APNG) {
+    const key = `stickers/${s.id}.${gif ? 'gif' : 'png'}`;
+    return <Animated file={key} url={`${CDN_BASE}/${key}?size=${STICKER}`} still={still} w={STICKER} h={STICKER} className={cls} label={s.name} />;
+  }
+  return <Image image={still} className={cls} aria-label={s.name} />;
 }
 
 /** An embed's picture: drawn large, with a play mark when it stands for a video or a GIF (which open in the browser). */
 function EmbedPicture(p: { media: EmbedMedia; video: boolean; url: string; maxW: i32 }) {
   const b = fit(p.media.width, p.media.height, p.maxW, MEDIA_MAX_H);
-  const img = <Image image={mediaPicture(p.media.url, b.w, b.h)} className={`w-[${b.w}] h-[${b.h}] rounded bg-[var(--dc-rail)] object-cover`} />;
+  const cls = `w-[${b.w}] h-[${b.h}] rounded bg-[var(--dc-rail)] object-cover`, still = mediaPicture(p.media.url, b.w, b.h), gif = tenorGif(p.media.url);
+  if (gif !== '') return <View className="mt-2" aria-label="GIF"><Animated file={`tenor/${gif.split('/').slice(3).join('_')}`} url={gif} still={still} w={b.w} h={b.h} className={cls} label="GIF" /></View>;
+  const img = <Image image={still} className={cls} />;
   if (!p.video) return <View className="mt-2">{img}</View>;
   return <View className={`mt-2 w-[${b.w}] h-[${b.h}]`} aria-label="Play" onPress={() => open(p.url)}>{img}<Play w={b.w} h={b.h} /></View>;
 }

@@ -43,7 +43,7 @@ export function info(path: string): ImageInfo | null {
     location: f[15] === '' ? null : { latitude: parseFloat(f[15]), longitude: parseFloat(f[16]) } };
 }
 
-interface Waiter { job: i32; path: string; resolve: (image: number) => void; reject: (e: Error) => void }
+interface Waiter { job: i32; path: string; resolve: (image: number) => void; reject: (e: Error) => void; frames?: (f: Frames) => void }
 const waiting = new Map<i32, Waiter>();
 let timer: i32 = -1;
 
@@ -51,6 +51,19 @@ function settle(w: Waiter): void {
   waiting.delete(w.job);
   if (S.state(w.job) !== 1) { const why = S.result(w.job); S.release(w.job); w.reject(new Error(why)); return; }
   const sz = S.size(w.job);
+  const take = w.frames;
+  if (take !== undefined) {   // a frames job: one image per frame
+    const out: Frames = { images: [], delays: [], width: sz[0], height: sz[1] };
+    for (let i = 0; i < S.frameCount(w.job); i++) {
+      const f = createImage(sz[0], sz[1]);
+      if (f < 0 || !S.copyFrame(w.job, i, f)) { if (f >= 0) destroyImage(f); break; }
+      out.images.push(f); out.delays.push(S.frameDelay(w.job, i));
+    }
+    S.release(w.job);
+    if (out.images.length > 0) take(out);
+    else w.reject(new Error('imageio: no image to draw the frames into (zinc:gfx)'));
+    return;
+  }
   const img = createImage(sz[0], sz[1]);
   const ok = img >= 0 && S.copy(w.job, img);
   S.release(w.job);
@@ -91,6 +104,20 @@ export function thumbnail(path: string, maxSide: number = 256): Promise<number> 
 /** The picture at `path` fitted in maxWidth x maxHeight (never enlarged; 0, 0: the whole picture, 4096 at most), upright, as a new runtime
  *  image, for a viewer. Decoded off the program's thread. */
 export function load(path: string, maxWidth: number = 0, maxHeight: number = 0): Promise<number> { return wait(S.load(path, maxWidth, maxHeight), path); }
+
+/** An animation's frames as runtime images of one size, and how long each shows (ms). Free each image with destroyImage. */
+export interface Frames { images: number[]; delays: number[]; width: number; height: number }
+
+/** The frames of an animated GIF (and on macOS an APNG or an animated WebP; elsewhere those, and any still picture, are one frame), each
+ *  fitted in maxWidth x maxHeight (0, 0: the whole picture), `most` frames at most. Decoded off the program's thread: decode at the size
+ *  shown, and only while it is shown, since every frame is kept. */
+export function frames(path: string, maxWidth: number = 0, maxHeight: number = 0, most: number = 300): Promise<Frames> {
+  const job = S.frames(path, maxWidth, maxHeight, most);
+  return new Promise<Frames>((resolve: (f: Frames) => void, reject: (e: Error) => void) => {
+    waiting.set(job, { job: job, path: path, resolve: (_: number): void => {}, reject: reject, frames: resolve });
+    if (timer < 0) timer = setInterval(pump, 8);
+  });
+}
 
 /** Drops the requests for `path` that have not started (a cell that scrolled away): they reject with 'cancelled'. */
 export function cancel(path: string): void {

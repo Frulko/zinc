@@ -120,17 +120,24 @@ export function useReducer<S, A>(reducer: (s: S, a: A) => S, init: S): [S, (a: A
   const h = inst.hooks[i] as StateHook<S>;
   return [h.value, (a: A) => { h.value = reducer(h.value, a); schedule(inst); }];
 }
-export function useEffect(fn: () => void, deps: number[] | null): void {
+/** Runs `fn` after the render when `deps` changed (null: after every render). What it returns, its cleanup, runs before it runs again and when
+ *  the component goes. */
+export function useEffect(fn: () => (() => void) | undefined, deps: number[] | null): void {
   const inst = instance();
   const i = inst.index++;
   if (i >= inst.hooks.length) inst.hooks.push(new EffectHook());
   const h = inst.hooks[i] as EffectHook;
   const key = depsKey(deps);
-  if (key === h.deps) return;   // not again in a Fast Refresh pass: effects have no cleanup here, a second run would stack subscriptions
+  if (key === h.deps) return;   // not again in a Fast Refresh pass: a second run would stack subscriptions
   h.deps = key;
-  inst.effects.push(fn);
+  inst.effects.push(() => {
+    const old = h.cleanup;
+    if (old !== null) { h.cleanup = null; old(); }
+    const c = fn();
+    if (c !== undefined) h.cleanup = c;
+  });
 }
-export function useLayoutEffect(fn: () => void, deps: number[] | null): void { useEffect(fn, deps); }
+export function useLayoutEffect(fn: () => (() => void) | undefined, deps: number[] | null): void { useEffect(fn, deps); }
 export function useMemo<T>(fn: () => T, deps: number[]): T {
   const inst = instance();
   const i = inst.index++;

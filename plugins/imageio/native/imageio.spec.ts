@@ -14,6 +14,15 @@ export interface Spec extends NativeModule {
   thumbnail(path: string, maxSide: i32, cacheDir: string): i32;
   /** Starts loading the picture fitted in maxW x maxH (0, 0: the whole picture), never enlarged. A job id. */
   load(path: string, maxW: i32, maxH: i32): i32;
+  /** Starts decoding an animation (GIF, APNG, animated WebP; a still picture is one frame), each frame fitted in maxW x maxH, `most` frames
+   *  at most. A job id; its frames are frameCount(), their delays frameDelay() (ms), copyFrame() draws one. */
+  frames(path: string, maxW: i32, maxH: i32, most: i32): i32;
+  /** The frames of a done frames job (1 for any other job). */
+  frameCount(job: i32): i32;
+  /** How long frame i shows, in ms (0 for a still picture). */
+  frameDelay(job: i32, i: i32): i32;
+  /** Copies frame i of a done job into `image` (a createImage of size()); false when it cannot. */
+  copyFrame(job: i32, i: i32, image: i32): boolean;
   /** A job that has not started is dropped (it fails with 'cancelled'); a running one ends as usual. */
   cancel(job: i32): void;
   /** The jobs that ended since the last call. */

@@ -261,7 +261,7 @@ export class Dimensions {
     return new Subscription((): void => { const i = dimFns.indexOf(f); if (i >= 0) dimFns.splice(i, 1); if (dimFns.length === 0) ui.removeWatcher(dimStep); });
   }
 }
-/** The window size; the component renders again when it changes. ponytail: the subscription lives as long as the program (useEffect has no cleanup). */
+/** The window size; the component renders again when it changes. ponytail: the subscription lives as long as the program (an effect cleanup could end it). */
 export function useWindowDimensions(): ScaledSize {
   const [s, setS] = useState<ScaledSize>(size());
   const subscribed = useRef<boolean>(false);

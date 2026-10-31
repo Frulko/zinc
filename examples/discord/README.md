@@ -47,7 +47,7 @@ pins, boosts, calls, threads) as one line; a type the app does not know says "Un
 channel and open like a channel; a forum opens on its posts. Discord's rate limits are honoured: a request waits while its bucket is empty or 50 went in the
 last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a minute, and a refusal (a captcha, a verification, a long
 429) is shown plainly and pauses the background requests. Every request and action goes through one guard (`src/safety/`) that keeps to a person's pace: your own key or click, permissions, slowmode, spam checks, caps a minute and an hour with growing cooldowns, one instance, a quick restart that resumes ([docs/reports/discord-safety-model.md](../../docs/reports/discord-safety-model.md)); every request the app makes is listed in
-[docs/reports/discord-client-requests.md](../../docs/reports/discord-client-requests.md). Not yet: animated emoji and avatars show their first frame, your own status is not shown. Coming in order
+[docs/reports/discord-client-requests.md](../../docs/reports/discord-client-requests.md). Not yet: animated custom emoji inside a line of text and animated avatars show their first frame, your own status is not shown. Coming in order
 (milestone M28): notifications (ZN-870), voice (ZN-872), video (ZN-873), screen sharing (ZN-875).
 
 ## Themes
@@ -63,6 +63,15 @@ examples. Put your own in the folder the pane shows (`<data dir>/themes`; a file
 Code blocks show their language and a **Copy** button; the `<>` button of the message box inserts a fenced block in the language you pick,
 the cursor on its empty line. (Highlighting comes with zinc:editor's read-only code view, in `components/CodeBlock.tsx`.)
 
+## Pickers and animations
+
+The message box has a **GIF**, a sticker and an emoji button. Emoji: the ones you used last, your servers' custom emoji, Unicode's by group
+(`assets/emoji.txt`, written by `tools/emoji.py` from Unicode's emoji-test.txt), and a search by name; the smile on a message's row reacts
+with the emoji you pick. GIFs come from Discord's own GIF search (`/gifs/trending-gifs`, `/gifs/search`): asked once the typing pauses,
+each query once a session; a click sends the GIF's link. Stickers: your servers' (Lottie ones are not offered). Custom emoji and
+stickers of another server need Nitro, as on Discord. GIF attachments (up to 8 MB), GIF and APNG stickers and Tenor GIFs play while they are
+on screen and the app is in front, decoded at the size drawn (`zinc:imageio` `frames()`, off the main thread); a row scrolled away frees its frames.
+
 ## Layout of `src/`
 
 | File | What it holds |
@@ -72,11 +81,13 @@ the cursor on its empty line. (Highlighting comes with zinc:editor's read-only c
 | `state.ts` | the servers, channels, DMs, messages, read states, who is typing, the member list and the actions (send, reply, edit, delete, ack, send files, older pages); the gateway's dispatches land here |
 | `markdown.ts` | Discord's Markdown: blocks and the style runs of their text, custom emoji, timestamps |
 | `content.ts` | what a message carries besides its text: embeds, reactions, stickers, polls, buttons, threads, system messages |
+| `emoji.ts` | the emoji picker's data: Unicode's groups, the search by name, the ones used last |
 | `theme.ts` | the themes: the JSON files read, their colours as scheme variables (`bg-[var(--dc-main)]`), the one chosen |
 | `showcase.ts` | the scripted session of #showcase (every kind of content) |
 | `safety-session.ts` | the scripted session of the safety model (`DISCORD_DEMO=safety`, `tests/t1/discord_safety.sh`) |
 | `members.ts` | the member list: the subscription (op 37) and `GUILD_MEMBER_LIST_UPDATE` (SYNC, INSERT, UPDATE, DELETE, INVALIDATE) |
 | `services/cdn.ts` | pictures from the CDN: the disk cache, expired attachment URLs renewed (`attachments/refresh-urls`) |
+| `services/gifs.ts` | the GIF picker's search: Discord's GIF routes, each query asked once |
 | `services/upload.ts` | file upload: `POST /channels/{id}/attachments`, then a `PUT` of the bytes to the URL it gives |
 | `services/gateway.ts` | the gateway protocol: HELLO, heartbeats and the zombie check, IDENTIFY or RESUME (its socket is sent through the guard) |
 | `services/rest.ts` | the HTTP transport with the token and identity headers, called only by the guard |
@@ -84,7 +95,7 @@ the cursor on its empty line. (Highlighting comes with zinc:editor's read-only c
 | `services/identity.ts` | the client properties (IDENTIFY and `X-Super-Properties`) |
 | `services/auth.ts` | the QR code login (the remote-auth gateway, its RSA-OAEP key exchange) and the password login with its two-factor code |
 | `services/session.ts` | the token in the keychain |
-| `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`, code blocks in `CodeBlock.tsx`, the code button in `CodeInsert.tsx`) and content (`Content.tsx`), avatars, the member list, the pins or a thread beside the messages (`SidePane.tsx`), the settings (`Appearance.tsx`: the themes) |
+| `components/` | the login, the server rail, the channel list, the messages and the composer (`MessageView.tsx`), their Markdown (`Markdown.tsx`, code blocks in `CodeBlock.tsx`, the code button in `CodeInsert.tsx`, the pickers in `Picker.tsx`, animations in `Animated.tsx`) and content (`Content.tsx`), avatars, the member list, the pins or a thread beside the messages (`SidePane.tsx`), the settings (`Appearance.tsx`: the themes) |
 
 ## Test
 

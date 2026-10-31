@@ -8,8 +8,9 @@ import { Content } from './Content';
 import { Avatar } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
 import { BG_SIDE, BG_MAIN, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, MEMBER_AVATAR, PANE_W, ROW_ESTIMATE } from '../constants';
+import { color } from '../theme';
 
-const MUTED = (): i32 => 0xb5bac1;
+const MUTED = (): i32 => color('icon');
 function time(iso: string): string { return iso.length >= 16 ? iso.slice(0, 10) + ' ' + iso.slice(11, 16) : iso; }
 
 /** A message in the pane: its author, time, text and content; `jump` (a pin): a click shows it in the channel, the cross unpins it. */
@@ -21,7 +22,7 @@ function PaneMessage(p: { m: Message; jump: boolean }) {
     <View className="grow basis-0">
       <View className="flex-row items-center gap-2">
         <Text className={`grow font-semibold text-sm ${TEXT_STRONG}`} numberOfLines={1}>{m.author}</Text>
-        {p.jump && store.canPin(m.channelId) ? <View className="p-0.5 rounded hover:bg-[#404249]" aria-label="Unpin" onPress={() => { store.pin(m); }}>
+        {p.jump && store.canPin(m.channelId) ? <View className="p-0.5 rounded hover:bg-[var(--dc-selected)]" aria-label="Unpin" onPress={() => { store.pin(m); }}>
           <Icon name="x" size={14} color={MUTED} />
         </View> : null}
       </View>
@@ -33,13 +34,13 @@ function PaneMessage(p: { m: Message; jump: boolean }) {
 }
 
 function Header(p: { title: string; icon: string; open: string }) {
-  return <View className="h-[48] px-3 flex-row items-center gap-2 border-b border-[#1e1f22]">
+  return <View className="h-[48] px-3 flex-row items-center gap-2 border-b border-[var(--dc-divider)]">
     <Icon name={p.icon} size={18} color={MUTED} />
     <Text className={`grow font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{p.title}</Text>
-    {p.open !== '' ? <View className="p-1 rounded hover:bg-[#404249]" aria-label="Open as a channel" onPress={() => store.selectChannel(p.open)}>
+    {p.open !== '' ? <View className="p-1 rounded hover:bg-[var(--dc-selected)]" aria-label="Open as a channel" onPress={() => store.selectChannel(p.open)}>
       <Icon name="arrow-right" size={16} color={MUTED} />
     </View> : null}
-    <View className="p-1 rounded hover:bg-[#404249]" aria-label="Close" onPress={() => { if (store.pane === 'pins') store.togglePins(); else store.openThread(''); }}>
+    <View className="p-1 rounded hover:bg-[var(--dc-selected)]" aria-label="Close" onPress={() => { if (store.pane === 'pins') store.togglePins(); else store.openThread(''); }}>
       <Icon name="x" size={16} color={MUTED} />
     </View>
   </View>;
@@ -56,7 +57,7 @@ export function SidePane() {
     </View>;
   }
   const id = store.threadId, t = store.findChannel(id), list = store.messages.get(id);
-  return <View className={`w-[${PANE_W}] overflow-hidden ${BG_MAIN} border-l border-[#1e1f22]`}>
+  return <View className={`w-[${PANE_W}] overflow-hidden ${BG_MAIN} border-l border-[var(--dc-divider)]`}>
     <Header title={t !== null ? t.name : 'Thread'} icon="message-square" open={id} />
     {list === undefined ? <Text className={`p-4 ${TEXT_MUTED}`}>Loading…</Text>
       : <VirtualList count={list.length} estimatedItemHeight={ROW_ESTIMATE} className="grow" stickToBottom>

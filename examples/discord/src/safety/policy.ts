@@ -49,6 +49,7 @@ export const RULES: Map<string, Rule> = new Map<string, Rule>([
   ['pins',      new Rule(1000,   10,  100,     0,  H, _, F, _)],   // a channel's pins opened
   ['profile',   new Rule(1000,   10,  100,     0,  H, _, F, _)],   // no code path yet
   ['search',    new Rule(2000,    5,   60,     0,  H, _, F, _)],   // no code path yet
+  ['gifs',      new Rule(500,    20,  200,     0,  H, _, F, _)],   // the GIF picker opened, a search once the typing pauses (each query once)
   ['refresh',   new Rule(0,      10,  200,     0,  _, _, _, Q)],   // expired picture URLs on screen
 ]);
 /** Every kind together (the day's count kept across launches: about five busy hours). */

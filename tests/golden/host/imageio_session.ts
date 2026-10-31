@@ -1,15 +1,18 @@
 // zinc:imageio on the fixtures of tests/data/imageio (tests/t1/imageio.sh, IMAGEIO_DIR=<copy of them>): headers and EXIF, thumbnails and
-// downscaled loads turned upright (the loads are drawn, the test reads their pixels), errors, and a burst of requests cancelled.
+// downscaled loads turned upright (the loads are drawn, the test reads their pixels), an animated GIF's frames, errors, and a burst of
+// requests cancelled.
 import * as gfx from 'zinc:gfx';
 import { env } from 'zinc:sys';
-import { info, thumbnail, load, cancel, ImageInfo } from 'zinc:imageio';
+import { info, thumbnail, load, cancel, frames, Frames, ImageInfo } from 'zinc:imageio';
 
 const dir = env('IMAGEIO_DIR');
 let tall = -1, wide = -1;
+let shown: number[] = [];
 gfx.onFrame((_dt: number) => {
   gfx.clear(0x404040);
   if (tall >= 0) gfx.drawImage(tall, 0, 0, gfx.imageWidth(tall), gfx.imageHeight(tall), 255, 0);
   if (wide >= 0) gfx.drawImage(wide, 30, 0, gfx.imageWidth(wide), gfx.imageHeight(wide), 255, 0);
+  for (let i = 0; i < shown.length; i++) gfx.drawImage(shown[i], i * 10, 50, gfx.imageWidth(shown[i]), gfx.imageHeight(shown[i]), 255, 0);
 });
 
 function show(name: string): void {
@@ -37,6 +40,13 @@ async function main(): Promise<void> {
   const small = await load(dir + '/photo.webp', 8, 8);
   console.log(`fitted ${size(small)}`);
   gfx.destroyImage(small);
+  // an animated GIF at half size: its three frames (red, green, blue) and their delays; a still picture is one frame
+  const anim: Frames = await frames(dir + '/anim.gif', 6, 6);
+  console.log(`frames ${anim.width}x${anim.height} ${anim.images.length}: ${anim.delays.join(',')} ms`);
+  shown = anim.images;   // drawn side by side under the loads: the test reads their colours
+  const still: Frames = await frames(dir + '/plain.png', 10, 10);
+  console.log(`still ${still.images.length} ${still.delays.join(',')}`);
+  gfx.destroyImage(still.images[0]);
   try { await thumbnail(dir + '/notes.txt'); } catch (e) { console.log(`bad ${(e as Error).message.split(dir).join('<dir>')}`); }
   // a grid's burst: 40 requests, then the cell scrolled away; every one settles, as a picture or 'cancelled'
   const all: Promise<number>[] = [];

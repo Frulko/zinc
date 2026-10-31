@@ -2748,7 +2748,8 @@ struct Lowering::FnLower {
         break;
       }
       case N::Return: {
-        if (x.kids[0] == kNil) { runCleanups(0); terminate(IrOp::Ret, {}, {}); }
+        if (x.kids[0] == kNil && ty(f.ret).k != Type::K::Void) { runCleanups(0); terminate(IrOp::Ret, {nullConst(f.ret)}, {}); }   // `return;` in a function of `F | undefined`
+        else if (x.kids[0] == kNil) { runCleanups(0); terminate(IrOp::Ret, {}, {}); }
         else if (ty(f.ret).k == Type::K::Void) { expr(x.kids[0]); runCleanups(0); terminate(IrOp::Ret, {}, {}); }  // `return voidCall();`
         else { ValueId rv = exprTo(x.kids[0], f.ret); runCleanups(0); terminate(IrOp::Ret, {rv}, {}); }
         startDead();
@@ -2951,7 +2952,9 @@ struct Lowering::FnLower {
       if (a.runLoop != kNil) stmt(a.runLoop);
     }
     if (open()) {
-      if (ty(f.ret).k == Type::K::Void) terminate(IrOp::Ret, {}, {});
+      const Type::K rk = ty(f.ret).k;
+      if (rk == Type::K::Void) terminate(IrOp::Ret, {}, {});
+      else if (rk == Type::K::Ref || rk == Type::K::Str || rk == Type::K::Array || rk == Type::K::Map || rk == Type::K::Set) terminate(IrOp::Ret, {nullConst(f.ret)}, {});   // `F | undefined` ended without a return (the checker allows only that): undefined
       else terminate(IrOp::Unreachable, {}, {});
     }
     removeUnreachable();

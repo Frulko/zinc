@@ -5,7 +5,7 @@ from its header alone, and thumbnails and downscaled pictures as runtime images 
 upright. Sources: `plugins/imageio/`. For the phone's or the Mac's photo library (PhotoKit), see [zinc:photos](photos.md).
 
 ```ts
-import { info, thumbnail, load, cancel } from 'zinc:imageio';
+import { info, thumbnail, load, frames, cancel } from 'zinc:imageio';
 import { destroyImage } from 'zinc:gfx';
 
 const i = info('/Users/me/Pictures/IMG_0042.HEIC');   // null when it is not an image
@@ -13,6 +13,7 @@ const i = info('/Users/me/Pictures/IMG_0042.HEIC');   // null when it is not an 
 //   lens: '...', iso: 50, exposureTime: 0.008, fNumber: 1.6, focalLength: 6.1, location: { latitude: 48.85, longitude: 2.29 }, ... }
 const t = await thumbnail(path, 256);   // a runtime image: <Image image={t} />, gfx.drawImage; destroyImage(t) when done
 const big = await load(path, 1920, 1080);   // fitted in the box, for a viewer
+const gif = await frames(path, 160, 160);   // { images, delays (ms), width, height }: play them, destroy them when hidden
 cancel(path);                               // a grid cell scrolled away: its waiting request is dropped
 ```
 
@@ -21,6 +22,7 @@ cancel(path);                               // a grid cell scrolled away: its wa
 | `info(path): ImageInfo \| null` | Synchronous, header only (nothing is decoded). `width`, `height` as shown (orientation 5 to 8 swap them), `pixelWidth`, `pixelHeight` as stored, `orientation` (EXIF, 1 to 8), `format` (`jpeg` `png` `heic` `webp` `gif` `tiff` `bmp` `avif` `raw`, or the system's type name), `fileSize`, `date` (when it was taken, ISO 8601 in the camera's local time, `''` when unknown), `make`, `model`, `lens`, `iso`, `exposureTime` (seconds), `fNumber`, `focalLength` (mm), `location` (`{ latitude, longitude }` or `null`). Strings are `''` and numbers `0` when the file does not say. |
 | `thumbnail(path, maxSide = 256): Promise<number>` | The picture fitted in a square of `maxSide`, upright, as a new runtime image. Kept in the thumbnail cache. |
 | `load(path, maxWidth = 0, maxHeight = 0): Promise<number>` | The picture fitted in the box, never enlarged, upright; `0, 0` is the whole picture, 4096 pixels at most. Not cached. |
+| `frames(path, maxWidth = 0, maxHeight = 0, most = 300): Promise<Frames>` | An animation's frames, each whole (its disposal done) and fitted in the box, as runtime images of one size: `{ images, delays, width, height }`, delays in ms (under 20 ms counts as 100 ms, as browsers do). Animated GIF everywhere; APNG and animated WebP with ImageIO (macOS, iOS), their first frame elsewhere; a still picture is one frame. Every frame is kept: decode at the size shown, while it is shown, and destroy the images after. |
 | `cancel(path)` | Drops the requests for `path` that have not started; they reject with `Error('cancelled')`. |
 | `thumbnailCacheDir()`, `setCacheDir(dir)` | Where thumbnails are kept: `<app data>/cache/thumbnails` (`zinc:sys` `dataDir()`); `''` turns the cache off. |
 

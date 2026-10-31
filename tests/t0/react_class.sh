@@ -4,6 +4,8 @@ cd "$(dirname "$0")/../.." || exit 2
 fail=0
 out=$(ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 "$ZINC" run tests/golden/react 2>&1)
 [ "$out" = "$(cat tests/golden/react/class_component.out)" ] || { echo "class component output differs:"; echo "$out"; fail=1; }
+out=$(ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 "$ZINC" run tests/golden/react-effects 2>&1)   # effect cleanups (ZN-904)
+[ "$out" = "$(cat tests/golden/react-effects/main.out)" ] || { echo "effect cleanup output differs:"; echo "$out"; fail=1; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 cat > "$tmp/join.ts" <<'T'
 interface Todo { id: i32; text: string; done: boolean }

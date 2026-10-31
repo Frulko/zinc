@@ -15,6 +15,8 @@
 // (dave_protocol_version 1): the key package is printed, no MLS group is made. Every request it gets is printed.
 // Login (tests/t1/discord_login.sh): the remote-auth gateway at /ra (the key exchange, a fingerprint, the user, a ticket that
 // /users/@me/remote-auth/login turns into the encrypted token), and /auth/login with a TOTP or SMS code, a wrong password and a captcha.
+// Pickers: Zinc Lab has two custom emoji and a sticker; /gifs/trending-gifs and /gifs/search answer two GIFs; a message may name stickers;
+// an attachment named .gif is an animated GIF of three frames (assets/anim.gif).
 // #showcase holds one message of each kind of content
 // (showcase.ts): once its history is asked for, the preview of a link arrives as a partial MESSAGE_UPDATE and Grace and Ada react; a
 // reaction PUT or DELETE and a poll vote are answered 204 and echoed, Linus votes too; the thread #release-talk has its history, the forum
@@ -46,7 +48,10 @@ const guilds: any[] = [
     { id: '303', type: 0, name: 'random', position: 1, parent_id: '301' },
     { id: '304', type: 2, name: 'Lounge', position: 0 },
     show.channels[0], show.channels[1],
-  ], threads: show.threads },
+  ], threads: show.threads,
+  // the pickers (ZN-904): two custom emoji (one animated) and a sticker of the server
+  emojis: [{ id: '77', name: 'zinc', animated: false, available: true }, { id: '79', name: 'dance', animated: true, available: true }],
+  stickers: [{ id: '880', name: 'wave', format_type: 1, available: true }] },
   { id: '201', name: 'Makers', icon: null, roles: [{ id: '201', name: '@everyone', permissions: EVERYONE }], channels: [{ id: '311', type: 0, name: 'welcome', position: 0, last_message_id: '930' }] },
 ];
 const dms: any[] = [{ id: '400', type: 1, recipient_ids: ['101'], last_message_id: '950' }, { id: '401', type: 3, recipient_ids: ['101', '102'], last_message_id: '940' }];
@@ -137,6 +142,11 @@ function created(channel: string, body: any): any {
     for (const h of general) if (h.id === body.message_reference.message_id) m.referenced_message = h;
     m.message_reference = body.message_reference;
   }
+  if (Array.isArray(body.sticker_ids)) {
+    const items: any[] = [];
+    for (const id of body.sticker_ids) items.push({ id: `${id}`, name: 'wave', format_type: 1 });
+    m.sticker_items = items;
+  }
   const files: any[] = [];
   if (Array.isArray(body.attachments)) for (const a of body.attachments) files.push(photo('802', `${channel}/${m.id}/802/${a.filename}`, true));
   m.attachments = files;
@@ -154,10 +164,10 @@ function files(req: Request): Reply | null {
     else if (key.startsWith('icons/')) file = 'icon.png';
     else if (key.startsWith('emojis/') || key.startsWith('stickers/')) file = 'emoji.png';
     else if (key.startsWith('external/')) file = 'photo.png';
-    else if (key.startsWith('attachments/')) file = query(req.path, 'hm') === 'sig2' && parseInt(query(req.path, 'ex'), 16) > now() ? 'photo.png' : '';
+    else if (key.startsWith('attachments/')) file = query(req.path, 'hm') !== 'sig2' || parseInt(query(req.path, 'ex'), 16) <= now() ? '' : key.endsWith('.gif') && query(req.path, 'format') !== 'webp' ? 'anim.gif' : 'photo.png';   // the media proxy's WebP is a still
     console.log(`cdn GET ${key} ${file !== '' ? 200 : 404}`);
     if (file === '') return { status: 404, contentType: 'text/plain', body: 'expired' };
-    return { status: 200, contentType: 'image/png', body: '', file: `${ASSETS}/${file}` };
+    return { status: 200, contentType: file.endsWith('.gif') ? 'image/gif' : 'image/png', body: '', file: `${ASSETS}/${file}` };
   }
   if (path.startsWith('/upload/')) {
     uploaded = (req.rawBody ?? req.body).length;
@@ -265,6 +275,15 @@ function rest(req: Request): Reply {
     console.log(`${line} recipients=${body.recipients}`);
     return { status: 204, contentType: 'text/plain', body: '' };
   }
+  const gifs = /^\/api\/v9\/gifs\/(search|trending-gifs)\?/.exec(req.path);
+  if (req.method === 'GET' && gifs !== null) {
+    console.log(line);
+    const q = gifs[1] === 'search' ? decodeURIComponent(query(req.path, 'q')) : 'trending';
+    const out: any[] = [];
+    for (let i = 1; i <= 2; i++) out.push({ id: `${q}-${i}`, title: `${q} ${i}`, url: `https://tenor.com/view/${q}-${i}`, src: `${cdn()}/external/${q}-${i}.mp4`,
+      gif_src: `${cdn()}/external/${q}-${i}.gif`, width: 220, height: 160, preview: `${cdn()}/external/${q}-${i}.png` });
+    return json(200, JSON.stringify(out));
+  }
   if (req.method === 'POST' && req.path === '/api/v9/attachments/refresh-urls') {
     const urls: any[] = [];
     for (const u of body.attachment_urls) {
@@ -324,7 +343,9 @@ function rest(req: Request): Reply {
     const named: string[] = [];
     if (Array.isArray(body.attachments)) for (const a of body.attachments) named.push(`${a.id}:${a.filename}:${a.uploaded_filename}`);
     const files = named.length > 0 ? ` attachments=${named.join(',')} stored=${uploaded > 0}` : '';
-    console.log(`${line} content=${JSON.stringify(body.content)} nonce=${nonceOk} reply=${reply} waited=${waited}${files}`);
+    let stickers = '';
+    if (Array.isArray(body.sticker_ids)) for (const id of body.sticker_ids) stickers += stickers === '' ? ` stickers=${id}` : `,${id}`;
+    console.log(`${line} content=${JSON.stringify(body.content)} nonce=${nonceOk} reply=${reply} waited=${waited}${files}${stickers}`);
     const m = created(msgs[1], body);
     dispatch('MESSAGE_CREATE', m);                                 // the echo, before the answer as on Discord
     if (reply !== '') setTimeout(() => { dispatch('MESSAGE_CREATE', msg(`${nextId++}`, msgs[1], users[0], 'Got it, *thanks*', 21)); }, 300);

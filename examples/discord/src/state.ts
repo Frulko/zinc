@@ -31,7 +31,10 @@ export class Guild {
   id = ''; name = ''; icon = ''; channels: Channel[] = []; roles: Map<string, string> = new Map<string, string>();
   /** The roles' colours (0: none) and positions: a member's name takes the colour of their highest coloured role. */
   roleColors: Map<string, i32> = new Map<string, i32>(); rolePositions: Map<string, i32> = new Map<string, i32>();
+  /** Its custom emoji and stickers (the pickers). */
+  emojis: CustomEmoji[] = []; stickers: Sticker[] = [];
 }
+export class CustomEmoji { id = ''; name = ''; animated = false; }
 /** Someone's presence: 'online', 'idle', 'dnd' or 'offline', and on a phone only. */
 export class Presence { status = 'offline'; mobile = false; }
 /** A file of a message: an image is shown (its size known before it loads, so the list does not jump), a video as its first frame, a sound
@@ -220,6 +223,7 @@ export class Store implements GatewayHandler {
     }
     else if (t === 'USER_GUILD_SETTINGS_UPDATE') this.rules.update(d)
     else if (t === 'GUILD_DELETE') this.removeGuild(str(d.id));
+    else if (t === 'GUILD_EMOJIS_UPDATE' || t === 'GUILD_STICKERS_UPDATE') { const g = this.findGuild(str(d.guild_id)); if (g !== null) this.guildPicks(g, d.emojis, d.stickers); }
     else if (t === 'CHANNEL_CREATE' || t === 'CHANNEL_UPDATE') this.putChannel(this.channel(d, str(d.guild_id)));
     else if (t === 'CHANNEL_DELETE') this.removeChannel(str(d.id));
     else if (t === 'MESSAGE_CREATE') this.messageCreated(d);
@@ -300,9 +304,21 @@ export class Store implements GatewayHandler {
       out.roleColors.set(str(r.id), r.color ?? 0); out.rolePositions.set(str(r.id), r.position ?? 0);
     }
     if (Array.isArray(g.channels)) for (const c of g.channels) out.channels.push(this.channel(c, out.id));
+    this.guildPicks(out, Array.isArray(g.emojis) ? g.emojis : p.emojis, Array.isArray(g.stickers) ? g.stickers : p.stickers);
     if (Array.isArray(g.threads)) for (const c of g.threads) out.channels.push(this.channel(c, out.id));   // the active threads
     sortChannels(out.channels);
     return out;
+  }
+  /** A server's custom emoji and stickers, those it can use (available). */
+  private guildPicks(g: Guild, emojis: any, list: any): void {
+    if (Array.isArray(emojis)) {
+      g.emojis = [];
+      for (const e of emojis) if (e.available !== false) { const x = new CustomEmoji(); x.id = str(e.id); x.name = str(e.name); x.animated = e.animated === true; g.emojis.push(x); }
+    }
+    if (Array.isArray(list)) {
+      g.stickers = stickers(list);
+      for (let i = list.length - 1; i >= 0; i--) if (list[i].available === false) g.stickers.splice(i, 1);
+    }
   }
   private channel(c: any, guildId: string): Channel {
     const out = new Channel();
@@ -717,6 +733,25 @@ export class Store implements GatewayHandler {
     const m = this.pendingMessage(ch, text);
     for (const f of files) { const a = new Attachment(); a.filename = f.filename; a.size = f.bytes.length; m.attachments.push(a); }
     await this.post(ch, m, { content: text, nonce: m.nonce, tts: false, flags: 0 }, files, v, up);
+  }
+  /** The pickers: an emoji (or a custom one's <:name:id>) added to the composer's text. */
+  insert(text: string): void { this.draft = this.draft === '' || this.draft.endsWith(' ') || this.draft.endsWith('\n') ? this.draft + text : `${this.draft} ${text}`; this.changed(); }
+  /** Sends a sticker to the open channel, as its own message. */
+  async sendSticker(s: Sticker): Promise<void> { await this.sendAlone('', { sticker_ids: [s.id] }, s); }
+  /** Sends a link alone (a GIF chosen in the picker: Discord shows its embed). */
+  async sendLink(url: string): Promise<void> { await this.sendAlone(url, {}, null); }
+  private async sendAlone(text: string, extra: any, sticker: Sticker | null): Promise<void> {
+    const ch = this.channelId;
+    if (ch === '') return;
+    const d = new guard.Details();
+    d.channel = ch; d.text = text;
+    const v = guard.begin('send', d);
+    if (!v.ok) { this.refuse(v.message); return; }
+    const m = this.pendingMessage(ch, text);
+    if (sticker !== null) m.stickers = [sticker];
+    const body: any = { content: text, nonce: m.nonce, tts: false, flags: 0 };
+    if (sticker !== null) body.sticker_ids = [sticker.id];
+    await this.post(ch, m, body, [], v, null);
   }
   private pendingMessage(ch: string, text: string): Message {
     const m = new Message();

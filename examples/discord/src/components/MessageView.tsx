@@ -18,6 +18,7 @@ import { cannotSend, countdown } from '../safety/index';
 import { BG_MAIN, BG_INPUT, BG_SIDE, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR, AVATAR, ROW_ESTIMATE, OLDER_AT } from '../constants';
 import { color, rounded, textClass, compact, currentTheme } from '../theme';
 import { CodeInsert } from './CodeInsert';
+import { Picker, PickerButtons, pickerTab, openPicker } from './Picker';
 
 const MUTED = (): i32 => color('icon');
 function time(iso: string): string { return iso.length >= 16 ? iso.slice(0, 10) + ' ' + iso.slice(11, 16) : iso; }
@@ -75,8 +76,8 @@ function SystemRow(p: { m: Message; last: boolean }) {
 
 /** The line above the first message not read when the channel was opened. */
 function NewLine() {
-  return <View className="mx-4 mt-2 h-[1] bg-[#f23f43]">
-    <Text className="absolute right-0 -top-[7] px-1 rounded-sm bg-[#f23f43] text-[10px] font-bold text-white">NEW</Text>
+  return <View className="mx-4 mt-2 h-[1] bg-[var(--dc-badge)]">
+    <Text className="absolute right-0 -top-[7] px-1 rounded-sm bg-[var(--dc-badge)] text-[10px] font-bold text-white">NEW</Text>
   </View>;
 }
 
@@ -109,6 +110,7 @@ function Row(p: { m: Message; head: boolean; last: boolean }) {
     </View>
     {m.pending ? null : <View className={`absolute -top-2 right-4 flex-row rounded border border-[var(--dc-border)] ${BG_MAIN} opacity-0 group-hover:opacity-100`}>
       {m.failed ? null : <Action icon="thumbs-up" label="Add reaction" danger={false} onPress={() => store.react(m, null)} />}
+      {m.failed ? null : <Action icon="face-slightly-smiling-plus" label="React" danger={false} onPress={() => openPicker('emoji', m)} />}
       {m.failed ? null : <Action icon="corner-up-left" label="Reply" danger={false} onPress={() => store.reply(m)} />}
       {!m.failed && store.canPin(m.channelId) ? <Action icon="pin" label={m.pinned ? 'Unpin' : 'Pin'} danger={false} onPress={() => { store.pin(m); }} /> : null}
       {mine && !m.failed ? <Action icon="pencil" label="Edit" danger={false} onPress={() => store.edit(m)} /> : null}
@@ -171,6 +173,7 @@ function Composer(p: { name: string }) {
           onInput={(v: string) => store.typed(v)} onKeyDown={keys} aria-label="Message" />
       </View>
       <CodeInsert field={() => field.current} />
+      <PickerButtons />
     </View>
     <Text className={`h-[22] text-xs font-semibold ${TEXT_MAIN}`} numberOfLines={1}>{typing !== '' ? typing : wait}</Text>
   </View>;
@@ -236,7 +239,7 @@ export function MessageView() {
   return <View className={`grow basis-0 ${BG_MAIN}`}>
     <View className="h-[48] px-4 flex-row items-center border-b border-[var(--dc-divider)]">
       <Text className={`grow font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{title}</Text>
-      {c !== null && !c.forum() ? <View className={`p-1 rounded ${store.pane === 'pins' ? 'bg-[#404249]' : BG_HOVER}`} aria-label="Pinned messages" onPress={() => store.togglePins()}>
+      {c !== null && !c.forum() ? <View className={`p-1 rounded ${store.pane === 'pins' ? 'bg-[var(--dc-selected)]' : BG_HOVER}`} aria-label="Pinned messages" onPress={() => store.togglePins()}>
         <Icon name="pin" size={20} color={MUTED} />
       </View> : null}
     </View>
@@ -246,5 +249,6 @@ export function MessageView() {
       : list === undefined ? <Text className={`grow p-4 ${TEXT_MUTED}`}>{c === null ? 'No channel open.' : 'Loading…'}</Text> : <History key={store.channelId} list={list} />}
     {c !== null && !c.forum() ? <Present /> : null}
     {c !== null && !c.forum() ? <Composer name={title} /> : null}
+    {pickerTab() !== '' && c !== null && !c.forum() ? <Picker /> : null}
   </View>;
 }

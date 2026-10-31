@@ -1,6 +1,6 @@
 #!/bin/sh
 # zinc:imageio (plugins/imageio) on the fixtures of tests/data/imageio: a JPEG stored on its side (EXIF orientation 6, date, camera, lens,
-# exposure, GPS), a PNG, a WebP turned over (orientation 3), a HEIC (ImageIO only) and a text file. The session (headers and EXIF, a
+# exposure, GPS), a PNG, a WebP turned over (orientation 3), a HEIC (ImageIO only), an animated GIF (its frames) and a text file. The session (headers and EXIF, a
 # thumbnail and loads turned upright, a refused file, a cancelled burst) prints the same lines on the interpreter with the portable reader
 # (deterministic), with ImageIO (macOS), and on QuickJS; the drawn loads have the right colours in the right places; the thumbnail cache is
 # written, and read back on a second run while the picture itself cannot be read.
@@ -23,6 +23,8 @@ thumb 5x10
 load 20x40
 webp 16x8
 fitted 8x4
+frames 6x3 3: 100,200,300 ms
+still 1 0
 bad imageio: not an image it can read: <dir>/notes.txt
 burst 40"
 # the drawn loads: the JPEG upright (its left half, red, on top), the WebP turned over (its yellow left half now on the right)
@@ -31,11 +33,17 @@ pixels() {
   python3 -c "import sys; got = [int(v) for p in sys.argv[1].split() for v in p.split(',')]; want = [255,0,0, 0,0,255, 0,0,0, 255,255,0]
 sys.exit(len(got) != 12 or any(abs(a - b) > 6 for a, b in zip(got, want)))" "$px" || { echo "$2: the loads are not drawn upright (pixels $px)"; fail=1; }
 }
+# the GIF's frames drawn side by side: red, green, blue
+frames() {
+  px=$(python3 tests/data/bmp_pixel.py "$1" 3,51 13,51 23,51 2>&1 | tr '\n' ' ')
+  python3 -c "import sys; got = [int(v) for p in sys.argv[1].split() for v in p.split(',')]; want = [255,0,0, 0,255,0, 0,0,255]
+sys.exit(len(got) != 9 or any(abs(a - b) > 6 for a, b in zip(got, want)))" "$px" || { echo "$2: the GIF's frames are not drawn (pixels $px)"; fail=1; }
+}
 session() {   # name, then the environment and the engine flags
   name=$1; shift
   got=$(env IMAGEIO_DIR="$tmp/img" IMAGEIO_HEIC=$heic ZINC_FRAMES=30 ZINC_SHOT="$tmp/$name.bmp" "$@" 2>&1)
   [ "$got" = "$want" ] || { echo "the session differs on $name: $(echo "$got" | head -12)"; fail=1; return; }
-  case "$name" in quickjs) ;; *) pixels "$tmp/$name.bmp" "$name";; esac
+  case "$name" in quickjs) ;; *) pixels "$tmp/$name.bmp" "$name"; frames "$tmp/$name.bmp" "$name";; esac
 }
 session portable ZINC_DETERMINISTIC=1 timeout 60 "$ZINC" run tests/golden/host/imageio_session.ts
 [ -n "$heic" ] && session imageio ZINC_DETERMINISTIC=1 ZINC_IMAGEIO=system timeout 60 "$ZINC" run tests/golden/host/imageio_session.ts
