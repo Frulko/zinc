@@ -40,3 +40,4 @@ webrtc_chat          # "A chat closed" / "B chat closed" are lost: pc.close() fi
 discord_voice        # the fake Discord server can take more than 30 s to start on a hosted runner (its rerun passed)
 photo_sorter         # on the hosted macOS runner the scripted clicks land elsewhere (frames differ, nothing filed); passes on the Mac
 headless_close       # gave an empty output once on a hosted runner while its trace shows it passing; timing of the 20 s timeout
+inspector_pause      # on QuickJS the inspector once stopped answering right after Zinc.setPaused (20 s without a handshake); never seen on the Mac
