@@ -956,6 +956,9 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-912: discord-voice: handle op 24 with epoch > 1 and echo `experiments: ['fixed_keyframe_interval']` in Select Protocol when Ready lists it.
 - ZN-912: discord-voice: a DAVE test with real libdave vectors (two-epoch group, a third member joins) if an MLS fixture can be generated.
 - ZN-912: examples/discord: check the main gateway's fresh IDENTIFY versus RESUME against `Voice disconnected` in `call.ts`.
+- ZN-913: examples/discord passes no `devices`, so Go Live has no Devices tab; wiring cameras into it needs the call to send a camera as a stream.
+- ZN-913: the share dialog's Settings button is a text label and the screen card icon a drawn rectangle: use real gear and monitor icons; Discord's HD banner also has Get Nitro and heart buttons.
+- ZN-913: run the real macOS listing once with `zinc run examples/discord` for the two-generation thumbnail change.
 
 ## Cross-platform pass
 - ZN-871: SpeexDSP and the `played` tap on Linux, the Pi and iOS; the speaker-to-microphone delay on Bluetooth and on the Pi, and a real call on laptop speakers.
