@@ -15,7 +15,7 @@ export ZINC_BACKGROUND=1 ZINC_DETERMINISTIC=0 ZINC_HEADLESS=1 ZINC_SCALE=1 ZINC_
 export ZINC_SYSTEM_RUNTIME_DIR=$tmp ZINC_STORAGE=$tmp/storage.kv ZINC_SYSTEM_LOG=$tmp/system DISCORD_CACHE=$tmp/cache DISCORD_TOKEN=test-token DISCORD_LOG=1
 FAKE_GUARDS=1 FAKE_ASSETS=$PWD/examples/discord/tests/assets FAKE_PORTS_FILE=$tmp/ports timeout 90 "$ZINC" run examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>/dev/null &
 fake=$!
-for _ in $(seq 100); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
+for _ in $(seq 600); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
 [ -s "$tmp/ports" ] || { echo "discord_safety: the fake server did not start"; exit 1; }
 read -r api gw < "$tmp/ports"
 export DISCORD_API="http://127.0.0.1:$api/api/v9" DISCORD_GATEWAY="ws://127.0.0.1:$gw" DISCORD_CDN="http://127.0.0.1:$api/cdn"

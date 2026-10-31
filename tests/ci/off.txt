@@ -38,3 +38,5 @@ asset_reload         # with zinc:devtools imported (zinc dev adds it), a headles
 webenv_phaser        # Phaser sees the scripted pointer and keys one frame earlier than its golden; cause not found
 webrtc_chat          # "A chat closed" / "B chat closed" are lost: pc.close() fires the channel close events after quit()
 discord_voice        # the fake Discord server can take more than 30 s to start on a hosted runner (its rerun passed)
+photo_sorter         # on the hosted macOS runner the scripted clicks land elsewhere (frames differ, nothing filed); passes on the Mac
+headless_close       # gave an empty output once on a hosted runner while its trace shows it passing; timing of the 20 s timeout

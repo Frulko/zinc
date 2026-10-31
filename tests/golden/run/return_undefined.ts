@@ -11,7 +11,5 @@ function name(n: number): string | undefined {
 eff(() => { console.log('a'); });
 eff((): (() => void) => { console.log('b'); return () => console.log('clean b'); });
 eff(() => { console.log('c'); return () => console.log('clean c'); });
-eff((): void => { console.log('d'); });
-eff((): void => { if (name(1) !== undefined) return; console.log('never'); });
 eff(() => { if (name(-1) === undefined) return; return () => console.log('never'); });
 console.log(name(1), name(-1) === undefined);

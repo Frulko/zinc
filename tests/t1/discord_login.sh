@@ -10,7 +10,7 @@ trap cleanup EXIT
 export ZINC_DETERMINISTIC=0   # real sockets and timers
 FAKE_ASSETS=$PWD/examples/discord/tests/assets FAKE_PORTS_FILE=$tmp/ports timeout 60 "$ZINC" run examples/discord/tests/fake-discord.ts > "$tmp/fake" 2>&1 &
 fake=$!
-for _ in $(seq 100); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
+for _ in $(seq 600); do [ -s "$tmp/ports" ] && break; sleep 0.1; done
 [ -s "$tmp/ports" ] || { echo "discord_login: the fake server did not start"; exit 1; }
 read -r api gw < "$tmp/ports"
 out=$(env DISCORD_API="http://127.0.0.1:$api/api/v9" DISCORD_REMOTE_AUTH="ws://127.0.0.1:$gw/ra?v=2" timeout 30 "$ZINC" run examples/discord/tests/login.ts 2>&1 | grep -v '^zinc')
