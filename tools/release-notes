@@ -27,20 +27,32 @@ def body(text, version):
 
 
 def entries(text):
+    """The items of a section by (theme heading, kind heading): `### Theme`, then `#### New`, `#### Fixed`... above the bullets."""
     groups = {}
-    heading = ''
-    for block in re.split(r'(?=^### |^- )', text.strip(), flags=re.M):
+    heading = kind = ''
+    for block in re.split(r'(?=^#{3,4} |^- )', text.strip(), flags=re.M):
         block = block.strip()
-        if block.startswith('### '):
+        if block.startswith('#### '):
+            kind, _, block = block.partition('\n')
+        elif block.startswith('### '):
             heading, _, block = block.partition('\n')
+            kind = ''
         if block.strip():
-            groups.setdefault(heading, []).append(block.strip())
+            groups.setdefault((heading, kind), []).append(block.strip())
     return groups
 
 
 def render(groups):
-    return '\n\n'.join((heading + '\n' if heading else '') + '\n'.join(items)
-                       for heading, items in groups.items() if items)
+    themes = list(dict.fromkeys(heading for (heading, _), items in groups.items() if items))
+    parts = []
+    for theme in themes:
+        lines = [theme] if theme else []
+        for (heading, kind), items in groups.items():
+            if heading == theme and items:
+                lines += ([kind] if kind else []) + items
+        if lines:
+            parts.append('\n'.join(lines))
+    return '\n\n'.join(parts)
 
 
 def archive(text, snapshot, version, base, date):
@@ -55,15 +67,17 @@ def archive(text, snapshot, version, base, date):
         return text
     begin, start, end = section(text, 'Unreleased')
     pending = entries(text[start:end])
-    for heading, items in entries(published).items():
-        remove = collections.Counter(items)
+    gone = collections.defaultdict(collections.Counter)   # what the release published, by theme: a line may have moved to another kind
+    for (heading, _), items in entries(published).items():
+        gone[heading].update(items)
+    for key in pending:
         kept = []
-        for item in pending.get(heading, []):
-            if remove[item]:
-                remove[item] -= 1
+        for item in pending[key]:
+            if gone[key[0]][item]:
+                gone[key[0]][item] -= 1
             else:
                 kept.append(item)
-        pending[heading] = kept
+        pending[key] = kept
     previous = re.search(r'^## \[([^\]]+)\]', text[end:], re.M)
     rest = text[end:]
     text = (text[:begin] + '## [Unreleased]\n\n' +

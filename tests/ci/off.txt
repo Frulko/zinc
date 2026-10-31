@@ -68,3 +68,4 @@ web_relay            # drives headless Chrome
 web_relay_extension  # drives headless Chrome
 web_video            # drives headless Chrome
 web_vite             # drives headless Chrome
+discord_safety      # "the first launch failed" once on a hosted runner (the fake server was up); its traced rerun passed
