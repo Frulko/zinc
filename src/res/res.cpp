@@ -584,6 +584,8 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
       if (line.find("font(") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reFontCall); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
       if (line.find("px") != std::string::npos) for (auto it = std::sregex_iterator(line.begin(), line.end(), reCanvas); it != std::sregex_iterator(); ++it) sizes.insert(std::atoi((*it)[1].str().c_str()));
       if (!ellipsisUsed && (line.find("truncate") != std::string::npos || line.find("text-ellipsis") != std::string::npos || line.find("line-clamp") != std::string::npos || line.find("textOverflow") != std::string::npos)) ellipsisUsed = true;
+      // a library or plugin calling font('mono', n) itself (zinc:editor) uses the face: unlike a style table's font-mono, the call is a use
+      if (!fontMono && (line.find("font('mono'") != std::string::npos || line.find("font(\"mono\"") != std::string::npos)) fontMono = true;
       if (lib) continue;
       if (!caseUsed && (line.find("uppercase") != std::string::npos || line.find("lowercase") != std::string::npos || line.find("capitalize") != std::string::npos || line.find("textTransform") != std::string::npos)) caseUsed = true;
       if (!italicUsed && (line.find("italic") != std::string::npos || line.find("fontStyle") != std::string::npos)) italicUsed = true;   // a style object's fontStyle is a number once lowered
