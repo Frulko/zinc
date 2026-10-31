@@ -37,3 +37,4 @@ qjs_demos            # QuickJS does not truncate a number assigned to an i32 (`l
 asset_reload         # with zinc:devtools imported (zinc dev adds it), a headless zinc:stage surface is 320x240 despite ZINC_SIZE
 webenv_phaser        # Phaser sees the scripted pointer and keys one frame earlier than its golden; cause not found
 webrtc_chat          # "A chat closed" / "B chat closed" are lost: pc.close() fires the channel close events after quit()
+discord_voice        # the fake Discord server can take more than 30 s to start on a hosted runner (its rerun passed)
