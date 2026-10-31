@@ -846,6 +846,7 @@ bool decode(const std::vector<std::uint8_t>& bytes, Module& out, std::string& er
       if (!r.str(key) || !r.str(mod)) return fail("truncated file (workers)");
       out.workers.emplace_back(std::move(key), std::vector<std::uint8_t>(mod.begin(), mod.end()));
     }
+    if (nw == 0 && r.p >= bytes.size()) return fail("an empty workers section");   // written only before a debug build's tables: one spelling
   }
   if (!r.bad && r.p < bytes.size()) {   // a debug build's tables
     auto strs = [&](std::vector<std::string>& v) {
