@@ -327,14 +327,21 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
 endif()
 
 # libwebp 1.5.0 (BSD-3): decoder and encoder of .webp assets and captures (ZN-226); no demux/mux. The SIMD files compile to nothing unless the compiler targets their instruction set.
-file(GLOB ZN_WEBP_SRC third_party/libwebp/src/dec/*.c third_party/libwebp/src/dsp/*.c third_party/libwebp/src/enc/*.c third_party/libwebp/src/utils/*.c third_party/libwebp/sharpyuv/*.c)
+# The decoder (dec, dsp, utils) is its own library: programs link it through zn_codec (a WebP from the network is decoded at run time); the encoder (and sharpyuv) is zn_webp, the CLI's.
+file(GLOB ZN_WEBP_DEC_SRC third_party/libwebp/src/dec/*.c third_party/libwebp/src/dsp/*.c third_party/libwebp/src/utils/*.c)
+add_library(zn_webp_dec STATIC ${ZN_WEBP_DEC_SRC})
+target_include_directories(zn_webp_dec PUBLIC third_party/libwebp third_party/libwebp/src)
+set_target_properties(zn_webp_dec PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
+target_compile_options(zn_webp_dec PRIVATE -w -O2)
+file(GLOB ZN_WEBP_SRC third_party/libwebp/src/enc/*.c third_party/libwebp/sharpyuv/*.c)
 add_library(zn_webp STATIC ${ZN_WEBP_SRC})
-target_include_directories(zn_webp PUBLIC third_party/libwebp third_party/libwebp/src)
+target_link_libraries(zn_webp PUBLIC zn_webp_dec)
 set_target_properties(zn_webp PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_webp PRIVATE -w -O2)
 add_library(zn_res STATIC src/res/res.cpp)
 add_library(zn_codec STATIC src/res/codec.cpp)   # encoders (stb_image_write); screenshots and zinc capture use it
 target_include_directories(zn_codec PUBLIC src PRIVATE third_party/stb)
+target_link_libraries(zn_codec PUBLIC zn_webp_dec)   # decodeRgbaAlloc reads WebP too
 set_target_properties(zn_codec PROPERTIES CXX_STANDARD 20 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_codec PRIVATE -w -O2)
 target_include_directories(zn_res PUBLIC include src PRIVATE third_party/stb)
@@ -800,7 +807,7 @@ if(TARGET zn_host_gfx AND SDL3_FOUND)
   target_link_libraries(zn_app_player PUBLIC zn_yyjson)
   # the archives an embedder links, in order, for a link outside CMake (tests/t0/app_library.sh); one configuration only (an Xcode project has several)
   if(NOT CMAKE_CONFIGURATION_TYPES)
-    file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/zn_app.link CONTENT "$<TARGET_FILE:zn_app>\n$<TARGET_FILE:zn_app_host>\n$<TARGET_FILE:zn_layout>\n$<TARGET_FILE:zn_yoga>\n$<TARGET_FILE:zn_native>\n$<TARGET_FILE:zn_mimalloc>\n$<TARGET_FILE:zn_regexp>\n$<TARGET_FILE:zn_uv>\n$<TARGET_FILE:zn_llhttp>\n$<TARGET_FILE:zn_mbedtls>\n$<TARGET_FILE:zn_codec>\n$<TARGET_FILE:zn_zpk>\n$<TARGET_FILE:zn_lz4>\n$<TARGET_FILE:zn_zstd>\n$<TARGET_FILE:zn_sha256>\n$<TARGET_FILE:zn_yyjson>\n${ZN_SDL_LIB}\n")
+    file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/zn_app.link CONTENT "$<TARGET_FILE:zn_app>\n$<TARGET_FILE:zn_app_host>\n$<TARGET_FILE:zn_layout>\n$<TARGET_FILE:zn_yoga>\n$<TARGET_FILE:zn_native>\n$<TARGET_FILE:zn_mimalloc>\n$<TARGET_FILE:zn_regexp>\n$<TARGET_FILE:zn_uv>\n$<TARGET_FILE:zn_llhttp>\n$<TARGET_FILE:zn_mbedtls>\n$<TARGET_FILE:zn_codec>\n$<TARGET_FILE:zn_webp_dec>\n$<TARGET_FILE:zn_zpk>\n$<TARGET_FILE:zn_lz4>\n$<TARGET_FILE:zn_zstd>\n$<TARGET_FILE:zn_sha256>\n$<TARGET_FILE:zn_yyjson>\n${ZN_SDL_LIB}\n")
   endif()
 endif()
 # glTF cross-check (ZN-119): cgltf reads the models independently of the three plugin's reader, meshoptimizer's vertex cache optimiser must keep their triangles.

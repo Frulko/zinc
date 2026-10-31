@@ -21,6 +21,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The screen-share dialog keeps its place while you scroll the screens and windows, and has a search field to find one by name.
 - The screen-share dialog (Discord's Go Live, the call example) looks like Discord's: tabs Applications and Entire screen, a two-column grid of large previews with the application's icon and name under each, and a preset line (SD 720p 30 fps or HD 1080p 60 fps) with an SD/HD switch and a settings button for the resolution, frame rate and pointer. Apps can add a Devices tab for cameras.
 #### Fixed
+- **Fixed** pictures sent to a Discord conversation (and the ones you upload) no longer stay an empty grey block: the app could not read the WebP that Discord's image proxy sends (`imageFromBytes` of `zinc:gfx` now decodes WebP everywhere), a picture shows a box of its own shape while it loads, and an error message with an icon when it cannot load.
 - The previews of the screen-share dialog no longer flash black every time they refresh.
 - The Discord client no longer cuts anything at narrow widths: the side columns shrink or give way to the messages (the member list hides under 960 px, the pins and threads open over the messages under 800 px), the emoji and GIF picker and the cards, polls and pictures fit the room they have, and the user bar wraps its buttons.
 - Closing the Discord client during a call leaves the call, stops your Go Live and the stream you watch first, so nobody sees you stuck in the channel.

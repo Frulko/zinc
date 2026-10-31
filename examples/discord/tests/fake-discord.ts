@@ -95,7 +95,7 @@ const cdn = (): string => `http://127.0.0.1:${api}/cdn`;
 /** A signed attachment URL: expired (ex in the past, signature old) or valid. */
 const signedUrl = (path: string, valid: boolean): string => `${cdn()}/attachments/${path}?ex=${hex(valid ? now() + 86400 : now() - 3600)}&is=${hex(now() - 7200)}&hm=${valid ? 'sig2' : 'sig1'}&`;
 const photo = (id: string, path: string, valid: boolean): any =>
-  ({ id: id, filename: path.split('/').pop(), size: 120, content_type: 'image/png', width: 160, height: 120, url: signedUrl(path, valid) });
+  ({ id: id, filename: path.split('/').pop(), size: 120, content_type: 'image/png', width: 160, height: 120, url: signedUrl(path, valid), proxy_url: signedUrl(path, valid) });   // proxy_url: the media proxy, which sends WebP
 
 // #general: FAKE_HISTORY older messages, then the three of the scripted session
 const older = env('FAKE_HISTORY') !== '' ? parseInt(env('FAKE_HISTORY')) : 67;
@@ -165,10 +165,10 @@ function files(req: Request): Reply | null {
     else if (key.startsWith('icons/')) file = 'icon.png';
     else if (key.startsWith('emojis/') || key.startsWith('stickers/')) file = 'emoji.png';
     else if (key.startsWith('external/')) file = 'photo.png';
-    else if (key.startsWith('attachments/')) file = query(req.path, 'hm') !== 'sig2' || parseInt(query(req.path, 'ex'), 16) <= now() ? '' : key.endsWith('.gif') && query(req.path, 'format') !== 'webp' ? 'anim.gif' : 'photo.png';   // the media proxy's WebP is a still
+    else if (key.startsWith('attachments/')) file = query(req.path, 'hm') !== 'sig2' || parseInt(query(req.path, 'ex'), 16) <= now() ? '' : query(req.path, 'format') === 'webp' ? 'photo.webp' : key.endsWith('.gif') ? 'anim.gif' : 'photo.png';   // the media proxy's WebP is a still, a real WebP file
     console.log(`cdn GET ${key} ${file !== '' ? 200 : 404}`);
     if (file === '') return { status: 404, contentType: 'text/plain', body: 'expired' };
-    return { status: 200, contentType: file.endsWith('.gif') ? 'image/gif' : 'image/png', body: '', file: `${ASSETS}/${file}` };
+    return { status: 200, contentType: file.endsWith('.gif') ? 'image/gif' : file.endsWith('.webp') ? 'image/webp' : 'image/png', body: '', file: `${ASSETS}/${file}` };
   }
   if (path === '/gokapi/api/files/add' && req.method === 'POST') {   // a Gokapi server (the transfer of a file too large for Discord)
     const body = req.rawBody ?? req.body, key = req.headers.get('apikey') === 'gk-key';

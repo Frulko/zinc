@@ -9,6 +9,7 @@
 #define STBI_ONLY_JPEG
 #define STBI_NO_STDIO
 #include "stb_image.h"
+#include "webp/decode.h"
 
 namespace zn::res {
 namespace {
@@ -29,6 +30,10 @@ uint8_t* encodePngAlloc(const uint8_t* px, int w, int h, int comp, size_t* n, vo
 }
 uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h) {
   int comp = 0;
+  if (size >= 12 && !__builtin_memcmp(data, "RIFF", 4) && !__builtin_memcmp(data + 8, "WEBP", 4)) {   // WebP: libwebp (what the media proxy of a CDN sends)
+    if (size > 0x7fffffff || !WebPGetInfo(data, size, w, h) || static_cast<uint64_t>(*w) * static_cast<uint64_t>(*h) > (1u << 24)) return nullptr;
+    return WebPDecodeRGBA(data, size, w, h);   // libwebp's allocator is malloc: the caller frees it
+  }
   // a few hundred bytes can declare a 16384 x 16384 image: the header is read first, and at most 2^24 pixels (4096 x 4096) are decoded
   if (size > 0x7fffffff || !stbi_info_from_memory(data, static_cast<int>(size), w, h, &comp) || static_cast<uint64_t>(*w) * static_cast<uint64_t>(*h) > (1u << 24)) return nullptr;
   return stbi_load_from_memory(data, static_cast<int>(size), w, h, &comp, 4);   // stb's allocator is malloc

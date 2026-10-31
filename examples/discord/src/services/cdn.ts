@@ -11,6 +11,7 @@ import * as guard from '../safety/index';
 
 const CDN_SIZE = 128;   // px: the largest shown (48 pt) on a 2x screen; without it the CDN sends the picture as uploaded, up to 1024 px
 const images: Map<string, i32> = new Map<string, i32>();   // key -> picture; -1 while it loads, or when it failed
+const broken: Set<string> = new Set<string>();   // keys whose picture failed to download or to decode (an error state, not a placeholder)
 let folder = '';
 let loaded: () => void = (): void => {};
 let log: (line: string) => void = (line: string): void => {};
@@ -34,8 +35,11 @@ export function attachmentPicture(url: string): i32 { return picture(attachmentK
  *  (a 4000 px photo comes as 800 px), and its still frame stands for a video or a GIF. Kept under its path without the signature. */
 export function mediaPicture(url: string, w: i32, h: i32): i32 {
   const q = url.indexOf('?'), sep = q < 0 ? '?' : url.endsWith('&') || url.endsWith('?') ? '' : '&';
-  return picture(`media/${hashOf(pathOf(q < 0 ? url : url.slice(0, q)))}-${w}x${h}`, `${url}${sep}width=${w * 2}&height=${h * 2}&format=webp`);
+  return picture(mediaKey(url, w, h), `${url}${sep}width=${w * 2}&height=${h * 2}&format=webp`);
 }
+/** True once the picture of mediaPicture(url, w, h) or attachmentPicture(url) failed (the file is gone, refused, or not a picture). */
+export const mediaFailed = (url: string, w: i32, h: i32): boolean => broken.has(mediaKey(url, w, h));
+export const attachmentFailed = (url: string): boolean => broken.has(attachmentKey(url));
 /** A sticker (PNG, APNG: its first frame, GIF) at 160 px. */
 export function stickerPicture(id: string, gif: boolean): i32 {
   const key = `stickers/${id}.${gif ? 'gif' : 'png'}`;
@@ -45,6 +49,7 @@ export function stickerPicture(id: string, gif: boolean): i32 {
 export function urlPicture(url: string): i32 { return picture(`ext/${hashOf(pathOf(url))}`, url); }
 /** A URL without its scheme and host: the key of its file is the same whichever host serves it (the tests' fake on a random port). */
 const pathOf = (url: string): string => { const at = url.indexOf('/', url.indexOf('//') + 2); return at < 0 ? url : url.slice(at); };
+function mediaKey(url: string, w: i32, h: i32): string { const q = url.indexOf('?'); return `media/${hashOf(pathOf(q < 0 ? url : url.slice(0, q)))}-${w}x${h}`; }
 /** The file of a picture on the disk, downloaded when it is not there yet (the frames of an animation are decoded from it). */
 const fetching: Map<string, Promise<string>> = new Map<string, Promise<string>>();
 export function cdnFile(key: string, url: string): Promise<string> {
@@ -99,12 +104,14 @@ async function fetchPicture(key: string, url: string): Promise<void> {
       bytes = await download(url);   // the guard queues the downloads (a few at a time)
       writeBytes(file, bytes); log(`picture ${key}: from the CDN`);
     }
-  } catch (e) { log(`picture ${key} failed: ${e.message}`); return; }
+  } catch (e) { log(`picture ${key} failed: ${e.message}`); fail(key); return; }
   const img = imageFromBytes(bytes);
-  if (img < 0) { log(`picture ${key}: not a picture`); return; }
+  if (img < 0) { log(`picture ${key}: not a picture`); fail(key); return; }
   images.set(key, img);
-  if (!told) { told = true; setTimeout(() => { told = false; loaded(); }, 16); }   // one redraw for the pictures of a frame
+  redraw();
 }
+function fail(key: string): void { broken.add(key); redraw(); }
+function redraw(): void { if (!told) { told = true; setTimeout(() => { told = false; loaded(); }, 16); } }   // one redraw for the pictures of a frame
 let told = false;
 
 /** The value of a query parameter, '' when the URL has none. */

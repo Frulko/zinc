@@ -9,7 +9,7 @@ import { store, Message, Attachment } from '../state';
 import { Embed, EmbedField, EmbedMedia, Reaction, Sticker, PollAnswer, Component, STICKER_LOTTIE, STICKER_GIF, F_SUPPRESS_EMBEDS,
   sizeText, waveform } from '../content';
 import { Markdown } from './Markdown';
-import { cdnPicture, emojiKey, attachmentPicture, attachmentKey, mediaPicture, stickerPicture, urlPicture } from '../services/cdn';
+import { cdnPicture, emojiKey, attachmentPicture, attachmentKey, mediaPicture, mediaFailed, attachmentFailed, stickerPicture, urlPicture } from '../services/cdn';
 import { BG_SURFACE, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_LINK, MEDIA_MAX_W, MEDIA_MAX_H, EMBED_W, THUMB, STICKER, CDN_BASE, mainW, paneW } from '../constants';
 import { Animated } from './Animated';
 import { color } from '../theme';
@@ -93,6 +93,10 @@ export function Media(p: { a: Attachment; m: Message }) {
     const cls = `mt-1 w-[${b.w}] h-[${b.h}] rounded-lg bg-[var(--dc-surface)] object-cover`;
     if (a.kind === 'image' && a.filename.toLowerCase().endsWith('.gif') && a.size <= GIF_MAX)
       return <Animated file={attachmentKey(a.url)} url={a.url} still={picture} w={b.w} h={b.h} className={cls} label={alt} />;
+    const failed = a.proxyUrl !== '' ? mediaFailed(a.proxyUrl, b.w, b.h) : attachmentFailed(a.url);
+    if (failed && picture < 0) return <View className={`${cls} items-center justify-center gap-1`} aria-label={`${alt}, could not load`} onPress={() => open(a.url)}>
+      <Icon name="image-off" size={24} color={MUTED} /><Text className={`text-xs ${TEXT_MUTED}`}>Could not load the picture</Text>
+    </View>;
     if (a.kind === 'image') return <Image image={picture} className={cls} aria-label={alt} />;
     return <View className={`mt-1 w-[${b.w}] h-[${b.h}] rounded-lg bg-[#000000]`} aria-label={alt} onPress={() => open(a.url)}>
       <Image image={picture} className={`w-[${b.w}] h-[${b.h}] rounded-lg object-cover`} />

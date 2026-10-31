@@ -5,8 +5,6 @@
 [system] notification.notify {"id":"channel-400","title":"Grace","subtitle":"Grace","body":"Are you there? @Ada","icon":"","group":"400","actions":[],"reply":""}
 a GIF plays: 1 on screen
 at the present: 0 new, unread false
-cached attachments_302_903_801_photo.png
-cached attachments_302_909_802_notes.png
 cached attachments_302_960_803_dance.gif
 cached avatars_101_av101.png
 cached avatars_103_av103.png
@@ -16,7 +14,9 @@ cached emojis_79.png
 cached ext_7eae11e
 cached ext_7f8f89f
 cached icons_200_ic200.png
+cached media_75baaca1-160x120
 cached media_be89ed36-12x6
+cached media_c3820df7-160x120
 cached stickers_880.png
 channels Lounge, Text, general, random, showcase, release talk, ideas, Dark mode everywhere, open ''
 clicked: open 400, badge 0
@@ -50,8 +50,6 @@ notified: badge 1
 notify 400: yes
 older 302: 20 messages
 older page: 20 messages, all loaded true, 74 in the channel
-picture attachments/302/903/801/photo.png: from the CDN
-picture attachments/302/909/802/notes.png: from the CDN
 picture attachments/302/960/803/dance.gif: from the CDN
 picture avatars/101/av101.png: from the CDN
 picture avatars/103/av103.png: from the CDN
@@ -61,7 +59,9 @@ picture emojis/79.png: from the CDN
 picture ext/7eae11e: from the CDN
 picture ext/7f8f89f: from the CDN
 picture icons/200/ic200.png: from the CDN
+picture media/75baaca1-160x120: from the CDN
 picture media/be89ed36-12x6: from the CDN
+picture media/c3820df7-160x120: from the CDN
 picture stickers/880.png: from the CDN
 posted: https://share.example.org/d?id=big1, window closed
 presence Grace: online mobile
