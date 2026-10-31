@@ -2413,6 +2413,10 @@ struct Checker {
       case N::Super: diag(kZBadSuperCall, i, "'super' must be called or used with a property access"); return tError;
       case N::Ident: {
         std::uint32_t s = lookup(x.text);
+        if (s == kNone && genScope && x.text.rfind("__", 0) == 0) {   // a generated function's name in a subtree cloned and checked again (a Dyn conversion inside a for...of's iterable)
+          auto g = genScope->find(keep(std::string(x.text)));
+          if (g != genScope->end()) s = g->second;
+        }
         if (s == kNone && x.text == "undefined" && lookup("__undef") != kNone) { a.nodes[i].text = "__undef"; return expr0(i, expected); }  // the Dyn undefined
         if (s == kNone || (out.syms[s].forward && out.syms[s].ownerFn == (fnStack.empty() ? kNone : fnStack.back()))) { unknownName(i, x.text); return tError; }  // a forward variable is only visible to other functions
         if (!autoVars.empty() && autoVars.count(s)) { diag(kZCannotInfer, i, "'" + std::string(x.text) + "' is read before its first assignment, which gives its type"); return tError; }
