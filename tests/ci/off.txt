@@ -42,4 +42,29 @@ photo_sorter         # on the hosted macOS runner the scripted clicks land elsew
 headless_close       # gave an empty output once on a hosted runner while its trace shows it passing; timing of the 20 s timeout
 inspector_pause      # on QuickJS the inspector once stopped answering right after Zinc.setPaused (20 s without a handshake); never seen on the Mac
 device_screen        # "the session with screen ended early" once on a hosted runner; its traced rerun on the same runner passed
-web_real             # "canvas: no frames" once on a hosted runner (headless Chrome); its traced rerun on the same runner passed
+web_real             # drives headless Chrome ("canvas: no frames" once on a hosted runner, its rerun passed)
+# 2026-10-31, the owner's rule applied whole: every test that drives a browser (headless Chrome) leaves the CI and still runs on the Mac
+export_wasm          # drives headless Chrome
+image_rect_wasm      # drives headless Chrome
+ipod_web             # drives headless Chrome
+layout_fuzz          # drives headless Chrome
+oklab_tints          # drives headless Chrome
+site_examples        # drives headless Chrome
+wasm_browser         # drives headless Chrome
+web_3d               # drives headless Chrome
+web_bridge           # drives headless Chrome
+web_canvas2d         # drives headless Chrome
+web_caps             # drives headless Chrome
+web_dev              # drives headless Chrome
+web_dom              # drives headless Chrome
+web_dom_visual       # drives headless Chrome
+web_export           # drives headless Chrome
+web_gl               # drives headless Chrome
+web_libs             # drives headless Chrome
+web_npm              # drives headless Chrome
+web_physics2d        # drives headless Chrome
+web_plugins          # drives headless Chrome
+web_relay            # drives headless Chrome
+web_relay_extension  # drives headless Chrome
+web_video            # drives headless Chrome
+web_vite             # drives headless Chrome
