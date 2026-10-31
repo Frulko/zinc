@@ -963,6 +963,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-913: examples/discord passes no `devices`, so Go Live has no Devices tab; wiring cameras into it needs the call to send a camera as a stream.
 - ZN-913: the share dialog's Settings button is a text label and the screen card icon a drawn rectangle: use real gear and monitor icons; Discord's HD banner also has Get Nitro and heart buttons.
 - ZN-913: run the real macOS listing once with `zinc run examples/discord` for the two-generation thumbnail change.
+- ZN-920: Go Live ignores op 15 `pixelCounts`, so it cannot scale down for a small viewer; delay op 12 active until DAVE is keyed (only the encoding is held now); a T1 check with a static fake screen source that must yield at least 4 fps and a key frame per second.
+- ZN-920: show the ultra low data state plainly in the call bar (the owner's real call ran in it without noticing: 640x360 at 5 fps, 150 kbit/s).
 
 ## Cross-platform pass
 - ZN-871: SpeexDSP and the `played` tap on Linux, the Pi and iOS; the speaker-to-microphone delay on Bluetooth and on the Pi, and a real call on laptop speakers.
