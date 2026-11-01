@@ -131,12 +131,12 @@ inline bool quantize(Panel& p, Rect r, Mode mode, bool dither) {
 }
 
 /** The app's request for a region (zinc:gfx refreshRect, "x,y,w,h,fast|quality|full"): false when it does not parse or the rect is outside the panel. */
-inline bool parse_hint(const Panel& p, const char* arg, Rect& r, Mode& m) {
+inline bool parse_hint(int pw, int ph, const char* arg, Rect& r, Mode& m) {   // r in the app's pixels, clamped to its pw x ph surface
   int x = 0, y = 0, w = 0, h = 0, n = 0;
   if (!arg || sscanf(arg, "%d,%d,%d,%d,%n", &x, &y, &w, &h, &n) != 4 || n == 0) return false;
   const char* s = arg + n;
   m = !strcmp(s, "fast") ? FAST : !strcmp(s, "quality") ? QUALITY : !strcmp(s, "full") ? FULL : NONE;
-  r = {x < 0 ? 0 : x, y < 0 ? 0 : y, x + w > p.w ? p.w : x + w, y + h > p.h ? p.h : y + h};
+  r = {x < 0 ? 0 : x, y < 0 ? 0 : y, x + w > pw ? pw : x + w, y + h > ph ? ph : y + h};
   return m != NONE && !empty(r);
 }
 

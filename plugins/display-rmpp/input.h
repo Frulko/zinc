@@ -25,6 +25,7 @@ static int pen_fd = -1, wake[2] = {-1, -1};
 static Axis ax_x, ax_y, ax_p, ax_tx, ax_ty;
 static int pen_rot = ZP_DISPLAY_RMPP_PEN_ROTATE;
 static float W = 1, H = 1;          // the panel, portrait
+static int K = 1;                   // physical pixels per logical pixel: the app's coordinates are the panel's divided by K
 static int turn = 0, LW = 0, LH = 0;   // landscape: the app's surface is the panel turned 90 or 270 degrees (0: portrait), LW x LH
 /** The panel pixel of the app's pixel (x, y) when the surface is turned: 90 puts the app's top-left corner at the panel's top-right. */
 static void panel_of(int x, int y, int* px, int* py) {
@@ -34,6 +35,7 @@ static void panel_of(int x, int y, int* px, int* py) {
 static void app_of(float* x, float* y) {
   const float px = *x, py = *y;
   if (turn == 90) { *x = py; *y = W - 1 - px; } else if (turn == 270) { *x = H - 1 - py; *y = px; }
+  *x /= K; *y /= K;
 }
 static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
 static HalPen q[2048];

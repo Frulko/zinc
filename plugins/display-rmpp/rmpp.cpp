@@ -374,6 +374,7 @@ void wake_lock(bool on) {  // autosleep would suspend the SoC (and the digitizer
   if (FILE* f = fopen(on ? "/sys/power/wake_lock" : "/sys/power/wake_unlock", "w")) { fputs("zinc", f); fclose(f); }
 }
 
+int32_t K = 1;   // physical pixels per logical pixel (see rm_init)
 int rm_init(const HalConfig* cfg) {
   if (cfg->title) snprintf(app_title, sizeof app_title, "%s", cfg->title);
   const char* codename = rmm::machine();
@@ -381,15 +382,25 @@ int rm_init(const HalConfig* cfg) {
   const bool known = row != nullptr;
   // Landscape: the app's surface is the panel turned a quarter (ZINC_RMPP_ROTATE 90 or 270, 90 by default); the panel, AppLoad's buffer and
   // every update stay portrait, rm_present rotates the frame and rin turns the pen and the fingers back.
-  if (!row) row = rmm::model_by_size(cfg->width, cfg->height);
-  if (!row) row = rmm::model_by_size(cfg->height, cfg->width);
+  // Density: an app may size its surface as a whole fraction of the panel (1080x810 for the Paper Pro's 2160x1620 landscape): the runtime then
+  // rasterizes K physical pixels per logical one (HalDisplay.pixel_scale), so the UI is the right size at 229 ppi and stays crisp.
+  const int32_t aw = cfg->width, ah = cfg->height;
+  for (int t = 1; t <= 4 && K == 1; t++) {
+    const rmm::Model* r = row ? row : rmm::model_by_size(aw * t, ah * t);
+    if (!r) r = rmm::model_by_size(ah * t, aw * t);
+    if (r && ((aw * t == r->w && ah * t == r->h) || (aw * t == r->h && ah * t == r->w))) { K = t; row = r; }
+  }
+  rin::K = K;
+  const int32_t cw = aw * K, ch = ah * K;
+  if (!row) row = rmm::model_by_size(cw, ch);
+  if (!row) row = rmm::model_by_size(ch, cw);
   if (!known) fprintf(stderr, "display-rmpp: unknown model '%s'; fast ink off, qtfb only\n", codename);
-  if (row && cfg->width == row->h && cfg->height == row->w && row->w != row->h) {
+  if (row && cw == row->h && ch == row->w && row->w != row->h) {
     const char* r = getenv("ZINC_RMPP_ROTATE");
     rin::turn = r && atoi(r) == 270 ? 270 : 90;
-    rin::LW = cfg->width; rin::LH = cfg->height;
-    fprintf(stderr, "display-rmpp: landscape, the %s turned %d degrees\n", row->name, rin::turn);
-  } else if (!row || cfg->width != row->w || cfg->height != row->h) {
+    rin::LW = cw; rin::LH = ch;
+    fprintf(stderr, "display-rmpp: landscape, the %s turned %d degrees, %d physical pixel(s) per pixel\n", row->name, rin::turn, K);
+  } else if (!row || cw != row->w || ch != row->h) {
     fprintf(stderr, "display-rmpp: profile must be %dx%d on the %s; running headless\n", row ? row->w : rmm::models[0].w,
             row ? row->h : rmm::models[0].h, row ? row->name : rmm::models[0].name);
     return 0;
@@ -686,7 +697,13 @@ const char* rm_device(const char* query, const char* arg) {
   // the app names: FAST the pen's, QUALITY the UI one, FULL a full refresh of the page. "1" when taken.
   if (strcmp(query, "display.rect") == 0) {
     eink::Rect r; eink::Mode m;
-    if (!eink::parse_hint(panel, arg, r, m)) return "0";
+    if (!eink::parse_hint(rin::turn ? rin::LW / rin::K : panel.w / rin::K, rin::turn ? rin::LH / rin::K : panel.h / rin::K, arg, r, m)) return "0";
+    // the app's pixels to the panel's: K physical pixels each, then the turn of a landscape surface
+    r = {r.x0 * rin::K, r.y0 * rin::K, r.x1 * rin::K, r.y1 * rin::K};
+    if (rin::turn) {
+      int a, b, c, d; rin::panel_of(r.x0, r.y0, &a, &b); rin::panel_of(r.x1 - 1, r.y1 - 1, &c, &d);
+      r = {std::min(a, c), std::min(b, d), std::max(a, c) + 1, std::max(b, d) + 1};
+    }
     if (layer == L2) { native::fast = m == eink::FAST; if (m == eink::FULL) native::full_now = true; return "1"; }
     if (layer == RM2) { rm2fb::fast = m == eink::FAST; return "1"; }
     eink::unite(pending, r);
@@ -758,7 +775,8 @@ void rm_present(const HalFrame* f) {
   }
   present_phys(&pf);
 }
-HalDisplay rmpp = {rm_init, rm_present, rm_poll, rm_shutdown, 0, 0, nullptr, nullptr, nullptr, rm_device};
+int32_t rm_scale() { return K; }
+HalDisplay rmpp = {rm_init, rm_present, rm_poll, rm_shutdown, 0, 0, rm_scale, nullptr, nullptr, rm_device};
 int reg = (hal_display = &rmpp, 0);
 }  // namespace
 

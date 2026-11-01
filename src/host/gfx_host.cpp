@@ -209,18 +209,6 @@ int32_t imageFromPixels(const uint64_t* slots, uint32_t n, int32_t w, int32_t h)
   return id;
 }
 
-static void (*frameEnd[4])();   // zn::host::onFrameEnd
-static int nFrameEnd = 0;
-#ifdef ZN_APP_LIBRARY
-static constexpr bool kAppShell = true;    // the shell paces the frames (its tick, the display's vsync), ZN-620
-#else
-static constexpr bool kAppShell = false;
-#endif
-// zinc.json app.window for the window HAL, before the window exists: ZINC_WINDOW_CONFIG, written by zinc run and baked by zinc build
-// (src/main.cpp appWindowConfig): has_position x y min_w min_h max_w max_h borderless always_on_top transparent not_resizable key aspect|title
-extern "C" __attribute__((weak)) void hal_set_window_config(const HalWindowConfig*) {}   // the SDL HAL overrides it; the headless HAL has none (a bare weak reference does not link on Mach-O)
-static void windowConfig() {
-  const char* t = getenv("ZINC_WINDOW_CONFIG");
 // zinc:gfx updatePixels: one u32 a pixel, red in the low byte (the bytes of an RGBA picture), into the image's ARGB.
 static bool putPacked(int32_t id, const uint64_t* slots, uint32_t n, bool forceOpaque) {
   const uint32_t* cur; int32_t w = 0, h = 0, stride = 0;
@@ -240,6 +228,19 @@ static bool putPacked(int32_t id, const uint64_t* slots, uint32_t n, bool forceO
   zrt::raster::dyn_update(id, nullptr, 0);
   return true;
 }
+
+static void (*frameEnd[4])();   // zn::host::onFrameEnd
+static int nFrameEnd = 0;
+#ifdef ZN_APP_LIBRARY
+static constexpr bool kAppShell = true;    // the shell paces the frames (its tick, the display's vsync), ZN-620
+#else
+static constexpr bool kAppShell = false;
+#endif
+// zinc.json app.window for the window HAL, before the window exists: ZINC_WINDOW_CONFIG, written by zinc run and baked by zinc build
+// (src/main.cpp appWindowConfig): has_position x y min_w min_h max_w max_h borderless always_on_top transparent not_resizable key aspect|title
+extern "C" __attribute__((weak)) void hal_set_window_config(const HalWindowConfig*) {}   // the SDL HAL overrides it; the headless HAL has none (a bare weak reference does not link on Mach-O)
+static void windowConfig() {
+  const char* t = getenv("ZINC_WINDOW_CONFIG");
   if (!t || !*t) return;
   HalWindowConfig c = {};
   if (sscanf(t, "%d %d %d %d %d %d %d %d %d %d %d %u %f", &c.has_position, &c.x, &c.y, &c.min_w, &c.min_h, &c.max_w, &c.max_h, &c.borderless,
@@ -333,12 +334,12 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxWidth: r->i = g::width(); break;
     case Rt::HostGfxHeight: r->i = g::height(); break;
     case Rt::HostGfxPixelScale: r->i = g::pixelScale(); break;
+    case Rt::HostGfxUpdatePixels: putPacked(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n, a[2].i != 0); break;
     case Rt::HostGfxPoll: {  // the start of a frame as the runtime's loop does it: input, then the time step (fixed headless, measured with a window)
       hal_frame_begin();
       zrt::prev_input = zrt::input;
       zrt::input.wheel = 0; zrt::input.pinch = 1;
       hal_poll_input(&zrt::input);
-    case Rt::HostGfxUpdatePixels: putPacked(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n, a[2].i != 0); break;
       for (const HalGamepad& p : zrt::input.pad) zrt::input.buttons |= hal_gamepad_buttons(&p);   // a gamepad is also the zinc:gfx buttons (ZN-574)
       if (zrt::display_driver && hal_display->poll) hal_display->poll(&zrt::input);   // the driver's own input and its ZINC_FRAMES / ZINC_SHOT counting
       if (zrt::mirror_input) zrt::mirror_input(&zrt::input);   // zinc device screen --live (src/host/mirror.cpp)

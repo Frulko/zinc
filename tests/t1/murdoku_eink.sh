@@ -5,7 +5,7 @@
 cd "$(dirname "$0")/../.." || exit 2
 d=tests/golden/murdoku-eink
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-for size in 1620x2160 2160x1620 1404x1872; do
+for size in 1620x2160 2160x1620 1404x1872 1080x810; do   # 1080x810: the Paper Pro landscape as the app sizes it (zinc.json), drawn at 2 physical pixels each
   out=$(ZINC_EINK=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=$size ZINC_FRAMES=8 ZINC_FRAMEHASH=last ZINC_SHOT="$tmp/$size.png" "$ZINC" run examples/murdoku 2>&1) || { echo "murdoku eink $size: $out"; exit 1; }
   h=$(echo "$out" | grep framehash)
   python3 - "$tmp/$size.png" <<'PY' || { echo "murdoku eink $size: the frame has a tint"; exit 1; }

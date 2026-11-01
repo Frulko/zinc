@@ -95,6 +95,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 #### New
 
+- A reMarkable app can size its surface as a whole fraction of the panel (810x1080 for the Paper Pro, 1080x810 in landscape): the driver draws it at two physical pixels per pixel, so the UI has the right size at 229 ppi and stays sharp. Murdoku uses it, and the pen's `refreshRect` regions follow the landscape turn.
 - A reMarkable app can run in landscape: set `"orientation": "landscape"` in `app` of `zinc.json` and the app draws on the panel turned a quarter (`ZINC_RMPP_ROTATE=270` for the other side), with the Marker and the fingers following the turn.
 
 #### Fixed

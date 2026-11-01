@@ -313,7 +313,7 @@ static ssize_t zn_recv(int s, void* b, size_t n, int flags) { return recv(s, b, 
 // the model counts the frames the driver is handed, and holds the Marker down over ZN_RMPP_SIM_PEN's frame ranges
 static void (*qsim_present)(const HalFrame*) = nullptr;
 static void (*qsim_poll)(HalInput*) = nullptr;
-static void qsim_counted(const HalFrame* f) { std::lock_guard<std::recursive_mutex> g(qsim::model); qsim::frames++; qsim_present(f); }
+static void qsim_counted(const HalFrame* f) { std::lock_guard<std::recursive_mutex> g(qsim::model); if (!getenv("ZN_RMPP_SIM_POLLS")) qsim::frames++; qsim_present(f); }
 // ZN_RMPP_SIM_TAP=frame:x,y[;...]: AppLoad's MESSAGE_USERINPUT for a finger, INPUT_TOUCH_PRESS at that frame and INPUT_TOUCH_RELEASE two
 // frames later (frame:x,y>y2 also moves to y2 at the next frame: a swipe), in framebuffer pixels (src/qtfb/FBController.cpp touchEvent); frame:px,y is the Marker (INPUT_PEN_PRESS/RELEASE), as
 // AppLoad forwards it inside a widget card
@@ -462,6 +462,7 @@ static void qsim_cells(const HalInput* in) {
 }
 static void qsim_polled(HalInput* in) {
   std::lock_guard<std::recursive_mutex> g(qsim::model);
+  if (getenv("ZN_RMPP_SIM_POLLS")) qsim::frames++;   // the clock is the app's frames, not the presented ones: a still app (a board game) presents nothing
   qsim_marker();
   qsim_taps(); qsim_hold();
   qsim_keys();
