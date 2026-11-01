@@ -6,7 +6,8 @@ import { TILE, HOUSE, ROLE_FISHER } from '../constants';
 import { world, tileX, tileY } from '../world/world';
 import { tufts, bakeCount, bakeInfo, shiftColors } from './scenery';
 import { settings } from '../settings';
-import { appealMarks, drawMarks } from './overlay';
+import { appealMarks, drawMarks, bubbleColor, drawBubble } from './overlay';
+import { ST_SLEEP } from '../constants';
 import { models, MODEL_HOUSE } from './models';
 import { camera, ZOOM_VIEW } from './camera';
 import { computeHints, Hint } from '../rules/hints';
@@ -20,7 +21,7 @@ const FOAM = rgb(143, 177, 146), PEBBLE = rgb(77, 139, 122);
 const OK = rgb(255, 214, 10), BAD = rgb(214, 84, 70);
 // Attention hints: a bobbing arrow over the tile, red for the severe, yellow, then teal. At most six, none in the far zoom-out levels (they would be specks).
 const ARROW_COLORS: u32[] = [rgb(120, 190, 200), rgb(120, 190, 200), rgb(255, 214, 10), rgb(214, 84, 70)];
-const ARROWS_MAX = 6, ARROWS_MAX_VIEW = 1.5;
+const ARROWS_MAX = 6, ARROWS_MAX_VIEW = 1.5, BUBBLES_MAX = 14;
 const ROOF: number[] = [2.9, 2.4, 2.8, 2.0];     // height of each building type's model (arrow tip sits above); other types use ROOF_DEFAULT
 const ROOF_DEFAULT = 2.7, GATE_TOP = 2.6;
 function arrowTop(tile: number): { x: number; y: number; z: number } {
@@ -146,6 +147,15 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
     arrowAt.push(a.sx, a.sy, h.severity);
     addRect(dirty, a.sx, a.sy, 9, 18, 9, 4);
   }
+  const bubbleAt: number[] = [];                                  // sx, sy, colour of each thought bubble: the people who are not content, at most BUBBLES_MAX, in the near zoom levels only
+  if (settings.thoughts && ZOOM_VIEW[camera.level] <= ARROWS_MAX_VIEW) for (const p of world.people) {
+    const c = bubbleColor(p.feel);
+    if (c === 0 || p.state === ST_SLEEP || bubbleAt.length >= BUBBLES_MAX * 3) continue;
+    const a = project(p.x, p.y, 1.95);
+    if (a.sx < -8 || a.sx > W + 8 || a.sy < -4 || a.sy > H + 20) continue;
+    bubbleAt.push(a.sx, a.sy, c);
+    addRect(dirty, a.sx, a.sy, 6, 12, 6, 6);
+  }
   const marks = settings.appeal ? appealMarks() : [];            // the desirability overlay
   for (let k = 0; k < marks.length; k += 4) addRect(dirty, marks[k], marks[k + 1], 3, 3, 3, 3);
   const rects = merge(prevRects.concat(dirty));
@@ -174,6 +184,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   drawFxSparks(time);
   if (hover >= 0) outline(hover, ok ? OK : BAD);
   drawMarks(marks);
+  for (let k = 0; k < bubbleAt.length; k += 3) drawBubble(bubbleAt[k], bubbleAt[k + 1], bubbleAt[k + 2]);
   for (let k = 0; k < arrowAt.length; k += 3) drawArrow(arrowAt[k], arrowAt[k + 1], time, ARROW_COLORS[clamp(arrowAt[k + 2], 0, 3)]);
   // what to send: the pixels restored from last frame's runs, plus every run and rectangle of this one
   const spans = rows.concat(prevLoose).concat(loose).concat(shadowSpans);

@@ -129,20 +129,21 @@ function volume(id: string, label: string, v: number, x: number, y: number): voi
   text(kit.body, x + 126, y + 5, label, col('ink'));
 }
 function options(): void {
-  const m = modal(420, 400, 'Options');
-  parchment(m.x + 12, m.y + 34, 396, 320);
+  const m = modal(420, 436, 'Options');
+  parchment(m.x + 12, m.y + 34, 396, 356);
   const x = m.x + 24;
   toggle('opt:sound', 'Son', !muted, x, m.y + 46);
   toggle('opt:edge', 'Défilement au bord de l’écran', settings.edgePan, x, m.y + 82);
   toggle('opt:hints', 'Flèches d’aide sur les bâtiments', settings.hints, x, m.y + 118);
-  toggle('opt:unlimited', 'Arbres et gibier sans limite', world.unlimited, x, m.y + 154);
-  labelButton('opt:skin', x, m.y + 190, 120, 26, skinNames()[kit.skin], 'Changer le style de l’interface');
-  text(kit.body, x + 130, m.y + 195, 'Style de l’interface', col('ink'));
-  toggle('opt:appeal', 'Désirabilité sur la carte [V]', settings.appeal, x, m.y + 226);
-  volume('vol:ambience', 'Volume de l’ambiance', settings.ambienceVolume, x, m.y + 262);
-  volume('vol:sfx', 'Volume des bruitages', settings.sfxVolume, x, m.y + 298);
-  textC(kit.small, m.x + 210, m.y + 338, 'F2 : réglages du développeur', col('muted'));
-  labelButton('menu:back', m.x + 12, m.y + 366, 100, 26, 'Retour');
+  toggle('opt:thoughts', 'Bulles d’humeur sur les habitants', settings.thoughts, x, m.y + 154);
+  toggle('opt:unlimited', 'Arbres et gibier sans limite', world.unlimited, x, m.y + 190);
+  labelButton('opt:skin', x, m.y + 226, 120, 26, skinNames()[kit.skin], 'Changer le style de l’interface');
+  text(kit.body, x + 130, m.y + 231, 'Style de l’interface', col('ink'));
+  toggle('opt:appeal', 'Désirabilité sur la carte [V]', settings.appeal, x, m.y + 262);
+  volume('vol:ambience', 'Volume de l’ambiance', settings.ambienceVolume, x, m.y + 298);
+  volume('vol:sfx', 'Volume des bruitages', settings.sfxVolume, x, m.y + 334);
+  textC(kit.small, m.x + 210, m.y + 374, 'F2 : réglages du développeur', col('muted'));
+  labelButton('menu:back', m.x + 12, m.y + 402, 100, 26, 'Retour');
 }
 function fresh(): void {
   const m = modal(420, 290, 'Nouveau hameau');
@@ -191,6 +192,7 @@ export function menuClick(id: string): boolean {
   if (id === 'opt:sound') { toggleSound(); savePrefs(); return true; }
   if (id === 'opt:edge') { settings.edgePan = !settings.edgePan; savePrefs(); return true; }
   if (id === 'opt:hints') { settings.hints = !settings.hints; savePrefs(); return true; }
+  if (id === 'opt:thoughts') { settings.thoughts = !settings.thoughts; savePrefs(); return true; }
   if (id === 'opt:unlimited') { world.unlimited = !world.unlimited; world.saveDirty = true; return true; }
   if (id === 'opt:appeal') { settings.appeal = !settings.appeal; return true; }
   if (id === 'opt:skin') { setSkin((kit.skin + 1) % skinNames().length); savePrefs(); return true; }

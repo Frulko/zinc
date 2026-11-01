@@ -17,6 +17,7 @@ import { advisorClick, openAdvisor } from './Advisors';
 import { campaignClick, openCampaign } from './Campaign';
 import { treeClick, openTree } from './Tree';
 import { dateText, SEASONS, season } from './clock';
+import { villageWord } from '../rules/needs';
 
 // The frame of the game: the top bar (what the village holds, its date, the speed) and the control column on the right (overview map, tools, messages).
 const SLOTS = 128;
@@ -45,6 +46,13 @@ export function topBar(): void {
   well(x, 5, pw, 24); drawGlyph('person', x + 4, 7, 18);
   text(kit.body, x + 26, 8, String(people), flashColor(flash(100, people)));
   addHit('top:pop', x, 5, pw, 24, 'Habitants');
+  x += pw + 5;
+  if (people > 0) {                                        // the village's mood: a coloured badge and the average satisfaction
+    const mood = world.mood, mc = mood >= 55 ? col('good') : mood >= 40 ? col('warn') : col('bad'), label = mood + ' %', mw = 34 + Math.max(measure('000 %'), measure(label));
+    well(x, 5, mw, 24); rect(x + 6, 11, 12, 12, mc);
+    text(kit.body, x + 26, 8, label, flashColor(flash(101, mood)));
+    addHit('top:mood', x, 5, mw, 24, 'Humeur du hameau : ' + villageWord(mood) + '\nSatisfaction moyenne des habitants, ' + world.jobless + ' % sans travail');
+  }
   // right side: speed buttons, then the date and the season
   let r = w - 8;
   r -= 30; glyphButton('speed:pause', r, 4, 30, 26, 'pause', 'Pause [P]', true, ui.paused);

@@ -4,6 +4,7 @@ import {
 import { noise } from './noise';
 import { terrain, TerrainParams, TerrainLayers } from '../gen/terrain';
 import { placeDeposits, DepositRule } from '../gen/deposits';
+import { SPECIES } from '../rules/species';
 import { economy, Resource, Service, Goal, BuildingDef } from './economy';
 
 /** Anything that walks the tile grid. A class, not an interface: the walking code takes a Mover and must change the person itself (interfaces are copied records). */
@@ -11,6 +12,7 @@ export class Mover { x: number = 0; y: number = 0; yaw: number = 0; path: number
 /** A building: what it holds (`stock`, per resource of economy.json) and what its workers are doing (`state`, and `waitFor`, the resource it lacks). */
 export class Building {
   type: number = 0; i: number = 0; j: number = 0; alive: boolean = true; residents: number = 0; workers: number = 0; timer: number = 2;
+  happy: number = 60;                                    // houses: how content the people are, 0..100, moving at most 2 a day toward what the house offers (rules/needs.ts)
   level: number = 0; streak: number = 0; fed: number[] = [];   // houses: level, days in a row meeting the next level (+) or failing this one (-), per food days of meals left
   cover: number[] = [];                                  // per service: days left of its coverage (houses only)
   stock: number[] = []; reserved: number[] = []; incoming: number[] = [];   // reserved: leaving with a porter; incoming: promised by one
@@ -20,16 +22,21 @@ export class Person extends Mover {
   load: number = 0; src: number = -1; dst: number = -1; res: number = -1; want: number = 0;   // a transport: from building src to building dst, `want` units of res promised, `load` in hand
                         // the load in hand (carry: its resource + 1, load: how many) and the building it goes to
   role: number = 0; home: number = -1; job: number = -1; state: number = 0; timer: number = 0; target: number = -1; carry: number = 0; hair: number = 0;
+  mood: number = 60; fatigue: number = 0; fun: number = 0; feel: number = 0;   // satisfaction 0..100, tiredness 0..100, days left of the lift a visit to the market or tavern gave, the plain state of rules/needs.ts
   shotX: number = 0; shotY: number = 0;
+  rate: number = 0; variant: number = -1;   // the swing's phase speed while working (rules/harvest.ts), and the variant of the source just worked (tree species, doe or stag)
 }
 /** One line of the peddler's offer: he `sell`s qty of a resource to the village for `coins`, or `buy`s it from the village. */
 export class Offer { resource: number = 0; qty: number = 0; side: string = ''; coins: number = 0; taken: boolean = false; }
-  rate: number = 0; variant: number = -1;   // the swing's phase speed while working (rules/harvest.ts), and the variant of the source just worked (tree species, doe or stag)
 /** An expedition under way: the adventure, the days left, and the house each member comes from (members leave the people list while away). */
 export class Expedition { adventure: number = 0; left: number = 0; homes: number[] = []; }
 /** A decision applied to the village and logged with its tick (rules/commands.ts). */
 export class Command { tick: number = 0; kind: string = ''; a: number = 0; b: number = 0; }
-export class Deer extends Mover { state: number = 0; timer: number = 0; hunted: boolean = false; stag: boolean = false; }
+/** A wild animal (engine/deer.ts, species in rules/species.ts): `id` is stable while the slot may be reused, `leader` the id of the herd's leader (-1: it leads or is alone), `errand` 1 going to drink. */
+export class Deer extends Mover {
+  state: number = 0; timer: number = 0; hunted: boolean = false; stag: boolean = false;
+  id: number = 0; species: number = 0; age: number = 0; leader: number = -1; thirst: number = 0; moves: number = 0; errand: number = 0; cooldown: number = 0; threatX: number = 0; threatY: number = 0;
+}
 
 /** The whole game state: plain data, no drawing, no side effect at import. */
 export interface World {
@@ -43,6 +50,8 @@ export interface World {
   revision: number;                 // bumped when the baked scenery must be redone
   saveDirty: boolean; lastSave: number; autosave: boolean;
   deerTimer: number; waitingForFood: boolean;
+  deerSeq: number;                  // ids given to wild animals
+  mood: number; jobless: number;    // the village's average satisfaction 0..100 and the share of people without work in percent (engine/mood.ts, daily)
   appeal: number[];                 // desirability per tile, recomputed daily (rules/appeal.ts)
   goals: number[];                  // per goal: 1 when done (rules/goals.ts); unlocked: per building type 1 when it may be built
   unlocked: number[]; progression: boolean; news: string[]; log: Command[];   // progression: the campaign layers (locked buildings, the peddler, adventures) are on; the new-village flow turns it on, a plain sandbox or a test leaves it off; news: lines for the UI to show and clear; log: the commands issued
@@ -80,7 +89,7 @@ export const world: World = {
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, appeal: [], goals: [], unlocked: [], progression: false, news: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), priority: [],
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], goals: [], unlocked: [], progression: false, news: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), priority: [],
 };
 
 // ---- tiles ----
@@ -126,13 +135,15 @@ export function isOpen(t: number): boolean {
   return world.terrain[t] === TERRAIN_GRASS && world.tree[t] === 0 && world.rock[t] === 0 && world.build[t] < 0 && world.road[t] === 0;
 }
 
-export function spawnDeer(t: number): void {
+export function spawnDeer(t: number): Deer {
   let slot = -1;
   for (let k = 0; k < world.deer.length; k++) if (world.deer[k].state === DEER_GONE) { slot = k; break; }
   const deer = new Deer();
   deer.x = tileX(t); deer.y = tileY(t); deer.yaw = random() * 6.28; deer.phase = random() * 6;
   deer.state = DEER_GRAZE; deer.timer = 1 + random() * 3; deer.stag = random() < .4;
+  deer.id = world.deerSeq++; deer.age = SPECIES[0].adultDays + Math.floor(random() * SPECIES[0].lifeDays / 2); deer.thirst = random() * SPECIES[0].drinkEvery;
   if (slot < 0) world.deer.push(deer); else world.deer[slot] = deer;
+  return deer;
 }
 
 /** A new random village: forest, rocks, a pond, flowers and a few deer. */
@@ -143,7 +154,7 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
   world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.build = zeros(size); world.claimed = zeros(size); world.lode = zeros(size);
   world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.stock = [];
   world.buildings = []; world.people = []; world.deer = []; world.felledCount = 0; world.treeTimer = 0;
-  world.deerTimer = 0; world.waitingForFood = false; world.priority = []; world.appeal = zeros(size); resetGoals(); world.lastSave = 0; world.saveDirty = false;
+  world.deerTimer = 0; world.deerSeq = 0; world.mood = 70; world.jobless = 0; world.waitingForFood = false; world.priority = []; world.appeal = zeros(size); resetGoals(); world.lastSave = 0; world.saveDirty = false;
   seedRandom(seed);
   world.params = params;
   params.tile = TILE; params.clearI = GATE_I; params.clearJ = Math.floor(size / 2); params.clearR = 2;

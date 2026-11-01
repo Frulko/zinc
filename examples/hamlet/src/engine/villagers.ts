@@ -17,6 +17,8 @@ import { BLOW_ANGLE, TAU, harvestFor, sourceOf, cycleSeconds, succeeds, depletes
 import { rankOf } from '../rules/labour';
 import { capacityOf } from '../rules/housing';
 import { startRoam, roamTick } from './services';
+import { routine, freeTime } from './routine';
+import { arrivalFactor, workPace } from '../rules/needs';
 import { findLoad, haulOut, fetchInput, hasRoomFor, readyBatch, exportsOk, pickUp, putDown, cancelTransport } from './transport';
 
 const gap = (ax: number, ay: number, bx: number, by: number): number => Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
@@ -88,12 +90,14 @@ function updateSettlers(dt: number): void {
     const needsFood = population() >= housing.free;
     let food = -1;
     for (const k of housing.eats) if (food < 0 && world.stock[k] >= 1) food = k;
+    const arrival = arrivalFactor(world.mood);                // an unhappy village draws nobody
+    if (arrival === 0) { b.timer = 2; continue; }
     if (needsFood && food < 0) { world.waitingForFood = true; b.timer = 1; continue; }
     const settler = newPerson(ROLE_SETTLER, world.buildings.indexOf(b), world.gate);
     settler.state = ST_WALK_IN;
     if (!planPath(settler, buildingTile(b))) { b.timer = 2; continue; }
     if (needsFood) take(food, 1);
-    b.residents++; b.timer = SETTLER_INTERVAL; world.people.push(settler); world.saveDirty = true;
+    b.residents++; b.timer = SETTLER_INTERVAL * arrival; world.people.push(settler); world.saveDirty = true;
   }
 }
 export function createResident(houseId: number): void {
@@ -310,6 +314,7 @@ function startWork(p: Person, site: Building, def: BuildingDef): boolean {
 }
 
 function updateWorker(p: Person, dt: number): void {
+  dt *= workPace(p);                                         // the discontented and the tired work slower
   const site = world.buildings[p.job], def = defOf(site);
   const speed = WALK_SPEED * settings.walkSpeed;
   switch (p.state) {
@@ -465,12 +470,12 @@ function updateWorker(p: Person, dt: number): void {
       game.state = DEER_GONE; game.hunted = false;
       p.target = -1; goDeliver(p, kind);
       break;
+    }
     case ST_TO_SITE:
       if (!walk(p, dt, speed)) break;
       if (isNear(p, buildingTile(site))) deliver(p); else { p.carry = 0; p.load = 0; }
       p.state = ST_SEEK; p.timer = .3;
       break;
-    }
     default:
       p.state = ST_SEEK;
   }
@@ -478,6 +483,7 @@ function updateWorker(p: Person, dt: number): void {
 
 function updatePerson(p: Person, dt: number): void {
   if (p.role === ROLE_PEDDLER) return;                       // stands at the gate while his offers last (engine/trade.ts)
+  if (p.role !== ROLE_SETTLER && routine(p, dt)) return;     // sleeping, walking home, off to a free-time place
   if (p.role === ROLE_SETTLER) {
     if (walk(p, dt, WALK_SPEED * settings.walkSpeed)) { p.role = ROLE_RESIDENT; p.state = ST_IDLE; p.timer = 1 + random() * 3; }
   } else if (p.role === ROLE_RESIDENT) {
@@ -487,6 +493,7 @@ function updatePerson(p: Person, dt: number): void {
     }
     p.timer -= dt;
     if (p.timer > 0) return;
+    if (freeTime(p)) return;
     const home = world.buildings[p.home];
     const t = tileIndex(Math.max(0, Math.min(11, home.i + Math.floor(random() * 5) - 2)), Math.max(0, Math.min(11, home.j + Math.floor(random() * 5) - 2)));
     if (isWalkable(t) && planPath(p, t)) p.state = ST_STROLL; else p.timer = 1 + random() * 2;

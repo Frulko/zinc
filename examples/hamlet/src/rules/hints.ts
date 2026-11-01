@@ -2,6 +2,7 @@ import { HOUSE, BS_WAITING, BS_FULL, BS_ISOLATED, ROLE_SETTLER, ROLE_RESIDENT } 
 import { world, neighbor } from '../world/world';
 import { economy, ServiceDef, Service } from '../world/economy';
 import { housingReport } from './housing';
+import { worksites, servicesOffered, houseNeeds, HouseNeeds } from './needs';
 import { flowersAround } from './meadow';
 
 // Attention hints: what the player should look at, as a pure function of the world (no drawing, no state). The view draws an arrow over each tile.
@@ -15,6 +16,8 @@ export const HINT_BUILD_NEXT = 'build_next';        // first run: the village ha
 export const HINT_NO_SERVICE = 'no_service';        // a house is outside the reach of a service the village does offer (`no_service:<service id>`)
 export const HINT_HOUSE_NEEDS = 'house_needs';      // a house lacks one thing for its next level, or is about to fall back: `housingReport(house).text` says what
 export const HINT_NO_FLOWERS = 'no_flowers';        // a hive with no flower around it: the bees gather little
+export const HINT_JOBLESS = 'jobless';              // a quarter of the people or more have no work: more workplaces
+export const HINT_UNHAPPY = 'unhappy';              // the village's mood is low: newcomers stay away or people leave (`unhappy:<the gap most houses share>`)
 export const MAX_HINTS = 12;
 
 /** `reason` is a short key the HUD maps to text: the kind, or `kind:resource id` when a resource is concerned. */
@@ -64,6 +67,19 @@ export function computeHints(): Hint[] {
     const home = world.buildings[firstIdleHome];
     out.push(make(HINT_IDLE_WORKERS, home.j * world.size + home.i, HINT_IDLE_WORKERS + ':home', 1));
   }
+  if (world.jobless >= 25 && worksites() > 0 && firstIdleHome >= 0 && world.buildings[firstIdleHome] !== undefined) {
+    const home = world.buildings[firstIdleHome];
+    out.push(make(HINT_JOBLESS, home.j * world.size + home.i, HINT_JOBLESS, 2));
+  }
+  if (world.mood < 45 && world.people.length > 0) {
+    const offered2 = servicesOffered();
+    let low = -1, lowHappy = 101, lack = '';
+    for (let id = 0; id < world.buildings.length; id++) {
+      const b = world.buildings[id];
+      if (b.alive && b.type === HOUSE && b.residents > 0 && b.happy < lowHappy) { lowHappy = b.happy; low = id; lack = (houseNeeds(b, offered2) as HouseNeeds).lack; }
+    }
+    if (low >= 0) out.push(make(HINT_UNHAPPY, world.buildings[low].j * world.size + world.buildings[low].i, HINT_UNHAPPY + ':' + lack, 3));
+  }
   if (built === 0) out.push(make(HINT_BUILD_NEXT, world.gate, HINT_BUILD_NEXT, 2));
   out.sort((a: Hint, b: Hint): number => b.severity - a.severity || a.tile - b.tile);
   return out.length > MAX_HINTS ? out.slice(0, MAX_HINTS) : out;
@@ -73,6 +89,12 @@ export function computeHints(): Hint[] {
 export function hintText(h: Hint): string {
   const colon = h.reason.indexOf(':'), key = colon < 0 ? h.reason : h.reason.slice(0, colon), res = colon < 0 ? '' : h.reason.slice(colon + 1);
   if (key === HINT_HOUSE_NEEDS) { const id = world.build[h.tile]; return id >= 0 ? housingReport(world.buildings[id]).text : ''; }
+  if (key === HINT_JOBLESS) return world.jobless + ' % des habitants n’ont pas de travail : posez de nouveaux ateliers, ou ils partiront.';
+  if (key === HINT_UNHAPPY) {
+    const k = res === '' || res === 'food' || res === 'jobs' || res === 'appeal' ? -1 : economy.serviceOf(res);
+    const why = res === 'food' ? 'la nourriture manque' : res === 'jobs' ? 'trop de chômage' : res === 'appeal' ? 'le quartier est triste' : k >= 0 ? economy.services[k].label.toLowerCase() + ' manque' : 'rien ne va';
+    return 'Le hameau est mécontent (' + why + ') : personne ne vient, certains partent.';
+  }
   const label = res === '' || res === 'site' || res === 'home' ? '' : key === HINT_NO_SERVICE ? economy.services[economy.serviceOf(res)].label : economy.resources[economy.resourceOf(res)].label;
   if (key === HINT_NO_ROAD) return 'Aucune route ne relie ce bâtiment à un entrepôt.';
   if (key === HINT_NO_INPUT) return 'Il manque : ' + label + '. Posez de quoi en produire.';

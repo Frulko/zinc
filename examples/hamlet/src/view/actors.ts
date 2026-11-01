@@ -1,8 +1,9 @@
 import { Color, Palette, Pose, Vec3, figure, dynamicAdd, capsule, sphere, plot, rgb, lerp, castShadow, ripple, Atlas, AtlasAxes, AtlasEntry, AtlasDef, bakeAtlas, headerKey, headerOf } from '../pixel';
 import {
   ROLE_LUMBERJACK, ST_FISH, ST_CHOP, ST_MINE, ST_WORK, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
-  DEER_GRAZE, DEER_FLEE, DEER_DEAD, DEER_GONE,
+  DEER_GRAZE, DEER_FLEE, DEER_DEAD, DEER_GONE, DEER_DRINK,
 } from '../constants';
+import { sleepsIndoors } from '../engine/routine';
 import { Person, Deer } from '../world/world';
 import { isMoving } from '../engine/path';
 import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, FORAGER_PALETTE, SMITH_PALETTE, BEEKEEPER_PALETTE, CHANDLER_PALETTE, BREWER_PALETTE, INNKEEPER_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
@@ -168,6 +169,7 @@ function personShadow(x: number, y: number): void {
 
 /** People are the same lit volumes as the rest of the diorama (figure() of the shared renderer), never flat sprites: live bone by bone, or stamped from the atlas. */
 export function drawPerson(p: Person, time: number, atlas: Atlas | null): void {
+  if (sleepsIndoors(p)) return;                                       // asleep in his house
   const kind = kindOf(p), hairTone = p.hair;
   if (atlas === null) {
     const look = lookOf(p.role, kind, kind === KIND_CHOP ? p.phase * 4.2 : p.phase, Math.sin(time * 1.6 + p.hair * 2) * .01);
@@ -231,7 +233,7 @@ function deerEntry(): AtlasEntry {
 
 export function drawDeer(d: Deer, time: number, atlas: Atlas | null): void {
   if (d.state === DEER_GONE) return;
-  const dead = d.state === DEER_DEAD, flee = d.state === DEER_FLEE, grazing = d.state === DEER_GRAZE;
+  const dead = d.state === DEER_DEAD, flee = d.state === DEER_FLEE, grazing = d.state === DEER_GRAZE || d.state === DEER_DRINK;
   const mode = dead ? DM_DEAD : flee ? DM_FLEE : !grazing && d.path.length > 0 ? DM_WALK : DM_STILL;
   const head = grazing ? Math.max(0, Math.sin(time * .7 + d.phase)) * GRAZE_HEAD : 0;     // now and then the head goes down to the grass
   if (atlas === null) paintDeer(d.x, d.y, d.yaw, d.stag, mode, d.phase, head);

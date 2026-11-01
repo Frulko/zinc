@@ -98,6 +98,9 @@ export const ST_ROAM = 18;             // a service walker on its round of the r
 export const ST_ROAM_BACK = 19;
 export const ST_TO_LODE = 20;          // walking to a deposit
 export const ST_MINE = 21;             // working it        // ... on its way home
+export const ST_SLEEP = 22;            // asleep at home (not drawn): night, rules/needs.ts
+export const ST_HOME = 23;             // walking home for the night
+export const ST_FREE = 24;             // walking to the market, the well or the tavern in free time
 export const BS_IDLE = 0;              // building states: what its workers are doing, for the hints
 export const BS_WORKING = 1;
 export const BS_WAITING = 2;          // an input is missing (Building.waitFor)
@@ -120,6 +123,9 @@ export const DEER_WALK = 1;
 export const DEER_FLEE = 2;
 export const DEER_DEAD = 3;
 export const DEER_GONE = 4;             // free slot
+export const DEER_REST = 5;             // lying up: night, or the long rest between two moves
+export const DEER_DRINK = 6;            // at the water's edge
+export const DEER_ALERT = 7;            // head up, frozen: someone is near (a hunter being stalked stands here until the shot)
 
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';

@@ -8,10 +8,11 @@ import { HOUSE } from '../constants';
 import { drawResource, drawBuilding } from './icons';
 import { kit, col, window_, parchment, text, textR, textC, meter, labelButton, glyphButton, block, well } from './kit';
 import { ui, viewport, WIN_NONE, WIN_ADVISOR } from './state';
+import { FEEL_WORDS, FEEL_CONTENT, houseNeeds, servicesOffered, villageWord, arrivalFactor, leavingToday } from '../rules/needs';
 import { monthIndex, year } from './clock';
 
 // The advisors: labour, food, housing and a population chart, each reading the live world. Labour is also where the player orders who is staffed first.
-const TABS = ['Travail', 'Vivres', 'Logement', 'Population'];
+const TABS = ['Travail', 'Vivres', 'Logement', 'Humeur', 'Population'];
 const history: number[] = [];                 // one population sample per game month (the last 36 are drawn)
 let lastMonth = -1;
 export function sampleHistory(): void {
@@ -28,9 +29,9 @@ export function drawAdvisors(): void {
   const vp = viewport(), x = vp.x + Math.floor((vp.w - W) / 2), y = vp.y + Math.max(8, Math.floor((vp.h - H) / 2));
   window_(x, y, W, H, 'Conseillers'); block(x - 6, y - 6, W + 12, H + 12);
   glyphButton('adv:close', x + W - 24, y + 2, 20, 18, 'close', 'Fermer [Échap]');
-  for (let i = 0; i < TABS.length; i++) labelButton('adv:tab:' + i, x + 10 + i * 128, y + 30, 122, 26, TABS[i], '', true, ui.advisor === i);
+  for (let i = 0; i < TABS.length; i++) labelButton('adv:tab:' + i, x + 10 + i * 104, y + 30, 100, 26, TABS[i], '', true, ui.advisor === i);
   parchment(x + 10, y + 62, W - 20, H - 72);
-  if (ui.advisor === 0) labour(x + 22, y + 72); else if (ui.advisor === 1) food(x + 22, y + 72); else if (ui.advisor === 2) housing(x + 22, y + 72); else chart(x + 22, y + 72);
+  if (ui.advisor === 0) labour(x + 22, y + 72); else if (ui.advisor === 1) food(x + 22, y + 72); else if (ui.advisor === 2) housing(x + 22, y + 72); else if (ui.advisor === 3) mood(x + 22, y + 72); else chart(x + 22, y + 72);
 }
 function labour(x: number, y: number): void {
   let jobs = 0, filled = 0, idle = 0;
@@ -90,6 +91,32 @@ function housing(x: number, y: number): void {
   for (let i = 0; i < need.length; i++) {
     const k = economy.serviceOf(need[i]), label = need[i] === 'food' ? 'la nourriture' : need[i] === 'appeal' ? 'un quartier plus agréable' : k >= 0 ? economy.services[k].label.toLowerCase() : need[i];
     text(kit.body, x, ry, '• ' + needN[i] + ' maison(s) : ' + label, col('warn')); ry += 22;
+  }
+}
+function mood(x: number, y: number): void {
+  const total = world.people.length, counts: number[] = FEEL_WORDS.map((_w: string): number => 0), lacks: string[] = [], lackN: number[] = [], offered = servicesOffered();
+  for (const p of world.people) counts[p.feel]++;
+  for (const b of world.buildings) {
+    if (!b.alive || b.type !== HOUSE || b.residents === 0) continue;
+    const l = houseNeeds(b, offered).lack;
+    if (l === '') continue;
+    const at = lacks.indexOf(l); if (at < 0) { lacks.push(l); lackN.push(1); } else lackN[at]++;
+  }
+  text(kit.body, x, y, 'Humeur du hameau : ' + world.mood + ' % · ' + villageWord(world.mood) + ' · ' + world.jobless + ' % sans travail', world.mood >= 50 ? col('ink') : col('bad'));
+  const arrive = arrivalFactor(world.mood), leaving = leavingToday(world.mood, total);
+  text(kit.small, x, y + 22, leaving > 0 ? 'Des habitants quittent le hameau.' : arrive === 0 ? 'Personne ne vient s’installer tant que le hameau est mécontent.' : arrive < 1 ? 'Les nouveaux venus arrivent vite.' : arrive === 1 ? 'Les nouveaux venus arrivent à un rythme normal.' : 'Les nouveaux venus se font attendre.', leaving > 0 || arrive === 0 ? col('bad') : col('muted'));
+  for (let i = 0; i < FEEL_WORDS.length; i++) {
+    const ry = y + 52 + i * 26;
+    text(kit.body, x, ry, FEEL_WORDS[i], i <= 1 ? col('ink') : col('warn'));
+    meter(x + 190, ry + 2, 150, 14, total === 0 ? 0 : counts[i] / total, i === FEEL_CONTENT ? col('good') : i <= 1 ? col('gold') : col('warn'));
+    text(kit.small, x + 350, ry + 2, counts[i] + ' habitant(s)', col('ink'));
+  }
+  let ry = y + 62 + FEEL_WORDS.length * 26;
+  text(kit.small, x, ry, lacks.length === 0 ? 'Aucune maison ne se plaint d’un manque.' : 'Ce qui pèse sur les maisons :', col('muted')); ry += 22;
+  for (let i = 0; i < lacks.length; i++) {
+    const k = lacks[i] === 'food' || lacks[i] === 'jobs' || lacks[i] === 'appeal' ? -1 : economy.serviceOf(lacks[i]);
+    const label = lacks[i] === 'food' ? 'la nourriture' : lacks[i] === 'jobs' ? 'le chômage' : lacks[i] === 'appeal' ? 'un quartier triste' : k >= 0 ? economy.services[k].label.toLowerCase() : lacks[i];
+    text(kit.body, x, ry, '• ' + lackN[i] + ' maison(s) : ' + label, col('warn')); ry += 22;
   }
 }
 function chart(x: number, y: number): void {

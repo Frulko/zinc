@@ -32,6 +32,12 @@ import { flowersAround, resting, workScale } from '../../../examples/hamlet/src/
 import { MONTH_SECONDS } from '../../../examples/hamlet/src/rules/season';
 import { litBonus } from '../../../examples/hamlet/src/rules/housing';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
+import { dailyAnimals } from '../../../examples/hamlet/src/engine/deer';
+import { dailyMood } from '../../../examples/hamlet/src/engine/mood';
+import { SPECIES } from '../../../examples/hamlet/src/rules/species';
+import { Deer } from '../../../examples/hamlet/src/world/world';
+import { personTarget, feelFrom, thoughtOf, workPace, arrivalFactor, leavingToday, FEEL_ANGRY, FEEL_HOMELESS, FEEL_HUNGRY, FEEL_TIRED, FEEL_JOBLESS, FEEL_CONTENT } from '../../../examples/hamlet/src/rules/needs';
+import { DEER_GRAZE, DEER_GONE, DEER_DEAD, DEER_ALERT, DEER_FLEE, DEER_REST, DEER_DRINK, ST_SLEEP, ST_HOME, DAY_TICKS } from '../../../examples/hamlet/src/constants';
 
 const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');   // the test runs from the repository root
 loadEconomy(ECONOMY_TEXT, MODEL_IDS, ROLE_NAMES);
@@ -507,6 +513,104 @@ for (let k = 0; k < 60 * 32; k++) {
 console.log('hamlet rules: harvesthash ' + harvested.join('.') + ':' + world.rng + ':' + world.stock.join('.'));   // compared across the three engines by hamlet.sh
 check('a felling cycle lasts the species time and strikes the blows of that time', chops >= 4 && timeOk && blowsOk);
 generate(1234, 16); rich(); seedRandom(11);
+// ---- wild animals: alert, flee, a hunter's quarry stands, night rest, drinking, breeding up to the cap, old age ----
+generate(4242, 16); world.people = []; world.progression = false;
+const deerOf = (): Deer => world.deer.filter((d) => d.state !== DEER_GONE)[0];
+const house0 = addBuilding(HOUSE, at(2, 7)); createResident(house0);
+const watcher = world.people[0]; watcher.state = ST_SLEEP + 100;      // a state no routine touches: a statue
+const freeze = (d: Deer): void => { d.state = DEER_GRAZE; d.timer = 1e6; d.path = []; d.step = 0; d.thirst = 0; d.hunted = false; };
+let d0 = deerOf(); freeze(d0); world.tick = 0;
+watcher.x = d0.x + 6; watcher.y = d0.y;
+for (let k = 0; k < 8; k++) stepWorld();
+check('a deer freezes when a person is within the alert radius', d0.state === DEER_ALERT);
+freeze(d0); watcher.x = d0.x + 2.5; watcher.y = d0.y;
+for (let k = 0; k < 8; k++) stepWorld();
+check('a deer flees when a person comes within the fear radius', d0.state === DEER_FLEE && d0.path.length > 0);
+const fleeFrom = Math.abs(d0.x - watcher.x) + Math.abs(d0.y - watcher.y);
+for (let k = 0; k < 20; k++) stepWorld();
+check('a fleeing deer runs away from the threat', Math.abs(d0.x - watcher.x) + Math.abs(d0.y - watcher.y) > fleeFrom + 1);
+freeze(d0); d0.hunted = true; watcher.x = d0.x + 2.5; watcher.y = d0.y;
+for (let k = 0; k < 8; k++) stepWorld();
+check('a hunter\'s quarry stands still instead of fleeing', d0.state === DEER_ALERT);
+d0.hunted = false; watcher.x = -1000; watcher.y = -1000;
+for (let k = 0; k < 90; k++) stepWorld();
+check('a deer goes back to grazing when the person leaves', d0.state !== DEER_FLEE && d0.state !== DEER_ALERT);
+freeze(d0); d0.timer = 0; world.tick = Math.floor(DAY_TICKS * .8);
+for (let k = 0; k < 6; k++) stepWorld();
+check('a deer lies up at night', d0.state === DEER_REST);
+world.tick = 0; freeze(d0); d0.timer = 0; d0.thirst = 1e6;
+let drank = !world.hasWater;
+for (let k = 0; k < 40 * 32 && !drank; k++) { stepWorld(); if (d0.state === DEER_DRINK) drank = true; world.tick = world.tick % 300; }
+check('a thirsty deer walks to the water and drinks', drank);
+{ // breeding
+  const herd = world.deer.filter((d) => d.state !== DEER_GONE);
+  herd.forEach((d, i) => { d.stag = i === 0; d.age = 20; d.cooldown = 0; d.x = herd[0].x; d.y = herd[0].y; });
+  world.tick = 1;
+  const before = world.deer.filter((d) => d.state !== DEER_GONE).length;
+  for (let day = 0; day < 40; day++) dailyAnimals();
+  const after = world.deer.filter((d) => d.state !== DEER_GONE).length, cap = Math.round(SPECIES[0].perArea * world.size * world.size / 144);
+  check('does breed in season, fawns follow the herd, up to the cap of the area', after > before && after <= cap && world.deer.some((d) => d.age === 0 || d.leader >= 0));
+  for (const d of world.deer) { d.age = 5; d.cooldown = 0; }
+  world.tick = Math.floor(DAY_TICKS * 9 * 3 * 1.5);                    // a winter day: no breeding
+  const winter = world.deer.filter((d) => d.state !== DEER_GONE).length;
+  for (let day = 0; day < 10; day++) dailyAnimals();
+  check('nothing breeds out of season', world.deer.filter((d) => d.state !== DEER_GONE).length <= winter);
+  for (const d of world.deer) d.age = SPECIES[0].lifeDays + 30;
+  for (let day = 0; day < 30; day++) dailyAnimals();
+  check('deer die of old age', world.deer.every((d) => d.state === DEER_GONE || d.state === DEER_DEAD));
+}
+// ---- residents: needs, mood, jobs, the daily round, newcomers and leavers ----
+generate(555, 16); rich(); world.progression = false;
+for (const t of [at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8), at(2, 7), at(4, 7), at(3, 9), at(5, 9)]) { world.tree[t] = 0; world.rock[t] = 0; }
+for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, tileIndex(i, 8));
+const hA = addBuilding(HOUSE, at(2, 7)), hB = addBuilding(HOUSE, at(4, 7));
+for (const h of [hA, hB]) { for (let n = 0; n < 4; n++) createResident(h); world.buildings[h].residents = 4; world.buildings[h].timer = 1e9; }
+dailyMood();
+check('people without a workplace anywhere are not jobless', world.jobless === 0 && world.people.every((p) => p.feel !== FEEL_JOBLESS));
+applyTool(toolOf('lumberhut'), at(3, 9)); run(4);
+dailyMood();
+check('with workplaces filled, the rest are jobless: 8 people, 4 posts (2 cutters, 2 porters)', world.jobless === 50 && world.people.filter((p) => p.feel === FEEL_JOBLESS).length === 4);
+check('the jobless hint appears', computeHints().some((h) => h.kind === 'jobless'));
+check('a house\'s contentment moves at most 2 a day', Math.abs(world.buildings[hA].happy - 60) <= 4);
+const worker = world.people.find((p) => p.job >= 0)!, idler = world.people.find((p) => p.job < 0)!;
+check('a working person is better off than a jobless one', personTarget(worker, world.buildings[hA], true) > personTarget(idler, world.buildings[hA], true));
+check('feelings: worst first', feelFrom(10, 0, true, true, true) === FEEL_ANGRY && feelFrom(60, 0, true, true, true) === FEEL_HOMELESS && feelFrom(60, 0, true, true, false) === FEEL_HUNGRY && feelFrom(60, 90, true, false, false) === FEEL_TIRED && feelFrom(60, 0, true, false, false) === FEEL_JOBLESS && feelFrom(60, 0, false, false, false) === FEEL_CONTENT);
+check('thoughts are said in French', thoughtOf(FEEL_HUNGRY, '') === 'J’ai faim.' && thoughtOf(FEEL_JOBLESS, '') === 'Pas de travail pour moi.');
+idler.mood = 20; idler.fatigue = 90; worker.mood = 80; worker.fatigue = 0;
+check('discontent and tiredness slow the work', workPace(idler) < .6 && workPace(worker) === 1);
+check('newcomers: faster when happy, none when unhappy', arrivalFactor(80) < 1 && arrivalFactor(55) === 1 && arrivalFactor(45) === 0);
+check('nobody leaves a small or content village; the unhappy leave', leavingToday(10, 5) === 0 && leavingToday(60, 40) === 0 && leavingToday(25, 40) >= 1);
+{ // the daily round: sleep at home at night, up at dawn
+  world.tick = 0; for (const p of world.people) { p.fatigue = 0; p.mood = 60; }
+  const jobsBefore = world.people.filter((p) => p.job >= 0).length;
+  run(15.5);                                                           // dusk
+  const resting = world.people.filter((p) => p.state === ST_SLEEP || p.state === ST_HOME).length;
+  check('at night people go home to sleep', resting >= 6);
+  run(4.4);
+  check('asleep, they recover', world.people.every((p) => p.fatigue < 40));
+  run(1.2);
+  check('at dawn they wake up and go back to what they do', world.people.every((p) => p.state !== ST_SLEEP && p.state !== ST_HOME));
+  check('workers keep their job through the night', world.people.filter((p) => p.job >= 0).length === jobsBefore);
+}
+{ // newcomers and leavers follow the mood
+  setStock(economy.resourceOf('fish'), 80);
+  world.buildings[hA].level = 1; world.buildings[hB].level = 1;           // room for four each
+  world.buildings[hA].timer = 1; world.buildings[hB].timer = 1; world.mood = 30;
+  for (const p of world.people) p.mood = 15; for (const h of [hA, hB]) world.buildings[h].happy = 15;     // pinned low: the daily average is recomputed from these
+  const n0 = population(); world.buildings[hA].residents = 2; world.buildings[hB].residents = 2; world.people.length = 4;   // room in both houses
+  run(30);
+  check('an unhappy village draws no newcomers', world.people.length === 4);
+  world.mood = 80; world.buildings[hA].timer = 1; world.buildings[hB].timer = 1;
+  for (const p of world.people) p.mood = 95; for (const h of [hA, hB]) world.buildings[h].happy = 95;
+  run(40);
+  check('a happy village does', world.people.length > 4 && n0 === 8);
+  for (const p of world.people) p.mood = 5; for (const h of [hA, hB]) world.buildings[h].happy = 5;
+  const crowd = world.people.length; world.news = [];
+  for (let k = 0; k < 3; k++) dailyMood();
+  check('an unhappy village loses people, and says so', world.people.length < crowd && world.news.some((l) => l.indexOf('quitte') >= 0 || l.indexOf('quittent') >= 0));
+}
+const moodHash = world.people.map((p) => Math.round(p.mood) + ':' + Math.round(p.fatigue)).join('.') + '|' + world.mood + '|' + world.jobless + '|' + world.deer.map((d) => d.state + ':' + d.age).join('.');
+console.log('hamlet rules: moodhash ' + moodHash + ':' + world.rng);        // compared across the three engines by hamlet.sh
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; }

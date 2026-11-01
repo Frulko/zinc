@@ -34,8 +34,8 @@ src/
 ├── palettes.ts             every colour (diorama and HUD)
 ├── pixel.ts                the single door to the shared Pixel Plays renderer, audio and models
 ├── world/                  state (world.ts: tiles, people, deer, generation) and the save (save.ts, one line of text)
-├── rules/build.ts          what a tool may do on a tile, costs, placing and demolishing
-├── engine/                 path.ts (cheapest path, roads first), villagers.ts (jobs and daily life), deer.ts, simulate.ts (one step)
+├── rules/build.ts          what a tool may do on a tile, costs, placing and demolishing; rules/needs.ts (residents' needs and mood), rules/species.ts (the animal table)
+├── engine/                 path.ts (cheapest path, roads first), villagers.ts (jobs and daily life), routine.ts (sleep, free time), mood.ts (contentment, newcomers and leavers), deer.ts (the wild animals), simulate.ts (one step)
 └── view/                   models.ts (lit objects baked once), scenery.ts (ground and static layer), actors.ts (people, deer), frame.ts (one picture)
 ```
 
