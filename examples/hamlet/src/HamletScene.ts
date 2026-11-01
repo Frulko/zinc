@@ -30,12 +30,13 @@ import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
 import { drawInfo, pickAt, closeInfo, infoDragging, infoDragStart, infoDragMove, infoDragEnd } from './ui/Info';
 import { look, record, beginGroup, endGroup, undo, drawPlacementLabel, reasonText } from './ui/Placement';
-import { WIN_INFO, WIN_MAIN, WIN_ADVISOR, WIN_CAMPAIGN, WIN_NONE } from './ui/state';
+import { WIN_INFO, WIN_MAIN, WIN_ADVISOR, WIN_CAMPAIGN, WIN_TREE, WIN_NONE } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
 import { loadPrefs, savePrefs } from './ui/prefs';
 import { drawOverlay, drawReach, drawOverlayMenu, drawLegend } from './ui/Overlays';
 import { drawAdvisors, sampleHistory, openAdvisor } from './ui/Advisors';
 import { drawCampaign, openCampaign } from './ui/Campaign';
+import { drawTree, openTree, treeScroll, treeDrag } from './ui/Tree';
 import { drawMenus, isModal, closeMenus, openNew, openMenu, typeKey } from './ui/Menu';
 import { refreshModels, jumpTo } from './view/scenery';
 import { camera, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY, fit, setFit, windowWidth, windowHeight } from './view/camera';
@@ -171,7 +172,7 @@ export class HamletScene extends Sprite {
     if (name === '+' || name === '=') { stepZoom(1); this.baked = world.revision; }
     else if (name === '-' || name === '_') { stepZoom(-1); this.baked = world.revision; }
     else if (name === '0' || name === 'Home') { resetView(); this.baked = world.revision; }
-    else if (name === 'Escape') { if (closeMenus()) { /* a menu closed */ } else if (ui.overlayMenu) ui.overlayMenu = false; else if (ui.category >= 0) ui.category = -1; else if (ui.window === WIN_INFO) closeInfo(); else if (ui.window === WIN_ADVISOR || ui.window === WIN_CAMPAIGN) ui.window = WIN_NONE; else if (this.panel.closeMenu()) { /* the dev panel's list closed */ } else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; else openMenu(); }
+    else if (name === 'Escape') { if (closeMenus()) { /* a menu closed */ } else if (ui.overlayMenu) ui.overlayMenu = false; else if (ui.category >= 0) ui.category = -1; else if (ui.window === WIN_INFO) closeInfo(); else if (ui.window === WIN_ADVISOR || ui.window === WIN_CAMPAIGN || ui.window === WIN_TREE) ui.window = WIN_NONE; else if (this.panel.closeMenu()) { /* the dev panel's list closed */ } else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; else openMenu(); }
     else if (name === '[' || name === ']') { const i = this.tools.indexOf(this.tool); this.tool = this.tools[(Math.max(0, i) + (name === ']' ? 1 : this.tools.length - 1)) % this.tools.length]; }
     else if (name >= '1' && name <= '9' && Number(name) <= this.tools.length) this.tool = this.tools[Number(name) - 1];
     else if (name === 'p' || name === 'P') { this.paused = !this.paused; this.dragging = false; pauseSound(this.paused); }
@@ -179,6 +180,7 @@ export class HamletScene extends Sprite {
     else if (name === 'h' || name === 'H') settings.hints = !settings.hints;
     else if (name === 'f' || name === 'F') openAdvisor(ui.advisor);
     else if (name === 'c' || name === 'C') openCampaign();
+    else if (name === 't' || name === 'T') openTree();
     else if (name === 'v' || name === 'V') { settings.appeal = !settings.appeal; this.say(settings.appeal ? 'Désirabilité : points verts et rouges sur la carte.' : 'Désirabilité masquée.'); }
     else if (name === 'o' || name === 'O') ui.overlayMenu = !ui.overlayMenu;
     else if (name === 'n' || name === 'N' || name === 'g' || name === 'G') openNew();
@@ -268,6 +270,7 @@ export class HamletScene extends Sprite {
     if (events === 0 && held !== this.held) this.press(x, y, held);
     else if (events === 0 && held && this.dragging) this.drag(x, y, false);
     if (held && this.panel.dragging()) { this.panel.drag(x); uiState.dirty = true; }
+    if (held && pointer.down === 'tree:pan') { treeDrag(x, y); uiState.dirty = true; }
     if (held && this.onMap) { minimapClick(x, y); uiState.dirty = true; }
     const where = x * 10000 + y;
     if (this.pointerStart < 0) this.pointerStart = where; else if (where !== this.pointerStart) this.pointerMoved = true;
@@ -297,6 +300,7 @@ export class HamletScene extends Sprite {
     if (this.paused) return;
     let dx = ((this.panRight ? 1 : 0) - (this.panLeft ? 1 : 0)) * PAN_SPEED * dt, dy = ((this.panDown ? 1 : 0) - (this.panUp ? 1 : 0)) * PAN_SPEED * dt;
     if (this.panning) { dx += (this.panX - x) / this.surface.scale; dy += (this.panY - y) / this.surface.scale; this.panX = x; this.panY = y; }
+    if (ui.window === WIN_TREE) { if (scrollPhase() !== 0) { treeScroll(-scrollDX(), -scrollDY()); uiState.dirty = true; } else if (wheel() !== 0) { treeScroll(0, -wheel() * 40); uiState.dirty = true; } return; }
     if (scrollPhase() !== 0) { dx -= scrollDX() / this.surface.scale; dy -= scrollDY() / this.surface.scale; }
     else if (wheel() !== 0) { stepZoom(wheel() > 0 ? 1 : -1); this.baked = world.revision; uiState.dirty = true; }
     if (pinch() !== 1) { stepZoom(pinch() > 1 ? 1 : -1); this.baked = world.revision; uiState.dirty = true; }
@@ -322,7 +326,7 @@ export class HamletScene extends Sprite {
     clip(this.surface.x, this.surface.y, this.frame.cropWidth * this.surface.scale, this.frame.cropHeight * this.surface.scale);
     drawOverlay(); drawReach(this.tool, this.hover);
     unclip(); drawLegend();
-    topBar(); column(); drawFlyout(); drawOverlayMenu(); drawInfo(); drawAdvisors(); drawCampaign();
+    topBar(); column(); drawFlyout(); drawOverlayMenu(); drawInfo(); drawAdvisors(); drawCampaign(); drawTree();
     drawBanner(vp.x + vp.w / 2, vp.y + 8);
     const note = this.time < this.messageUntil;
     statusStrip(note ? this.message : adviceLine(), note ? col('gold') : 0);
