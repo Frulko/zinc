@@ -4,8 +4,12 @@
   "app": {
     "name": "Minuit au manoir",
     "id": "dev.zinc.murdoku",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "orientation": "landscape"
+  },
+  "display": {
+    "driver": "rmpp",
+    "refresh_mode": "ui"
   },
   "targets": {
     "macos": {
@@ -13,13 +17,9 @@
       "height": 900,
       "resize": "fill"
     },
-    "rmpp": {
+    "linux": {
       "width": 1620,
-      "height": 2160,
-      "display": {
-        "driver": "rmpp",
-        "refresh_mode": "ui"
-      }
+      "height": 2160
     }
   },
   "permissions": [],
