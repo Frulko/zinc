@@ -24,7 +24,7 @@ function arrowTop(tile: number): { x: number; y: number; z: number } {
   const id = world.build[tile];
   return { x: tileX(tile), y: tileY(tile), z: (tile === world.gate && id < 0 ? GATE_TOP : id < 0 ? 1 : world.buildings[id].type < ROOF.length ? ROOF[world.buildings[id].type] : ROOF_DEFAULT) + .3 };
 }
-const CHIMNEY: number[][] = [[.47, -.28, 2.6], [.43, -.3, 2.5], [.43, -.3, 2.45], [.46, -.2, 1.9], [.5, -.3, 2.2]];   // house, sawmill, lodge smoke origins (x, y, z)
+const CHIMNEY: number[][] = [[.47, -.28, 2.6], [.43, -.3, 2.5], [.43, -.3, 2.45], [.46, -.2, 1.9], [.5, -.3, 2.2], [.4, -.2, 2.25]];   // house, sawmill, lodge smoke origins (x, y, z)
 
 /** Pixels the wind redrew this frame, as one-pixel runs (row, column, column): put back from the static picture at the next frame. */
 const touched: number[] = [];

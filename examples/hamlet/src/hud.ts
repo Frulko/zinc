@@ -1,6 +1,6 @@
 import { HOUSE, BS_WAITING, BS_FULL, BS_ISOLATED } from './constants';
 import { world } from './world/world';
-import { economy } from './world/economy';
+import { economy, BuildingDef } from './world/economy';
 import { population, isConnected } from './engine/villagers';
 
 function count(type: number): number {
@@ -34,8 +34,11 @@ export function adviceLine(): string {
     if (b.state === BS_FULL) return label + ' est plein : posez un entrepôt au bord de la route.';
   }
   let open = 0, jobs = 0;
-  for (let type = 1; type < economy.buildings.length; type++) {
+  const byOrder: number[] = economy.buildings.map((_d: BuildingDef, type: number): number => type);
+  byOrder.sort((a: number, b: number): number => economy.buildings[a].order - economy.buildings[b].order);
+  for (const type of byOrder) {
     const def = economy.buildings[type];
+    if (type === HOUSE) continue;
     if (def.hint !== '' && count(type) === 0 && (def.gather !== 'shore' || world.hasWater)) return def.hint;
   }
   for (const b of world.buildings) if (b.alive && b.type !== HOUSE) { open += economy.buildings[b.type].workers - b.workers; jobs += economy.buildings[b.type].workers; }

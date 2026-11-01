@@ -1,6 +1,6 @@
 import { Color, Palette, Pose, Vec3, figure, dynamicAdd, capsule, sphere, plot, rgb, lerp, castShadow, ripple, Atlas, AtlasAxes, AtlasEntry, AtlasDef, bakeAtlas, headerKey, headerOf } from '../pixel';
 import {
-  ROLE_SETTLER, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_FISHER, ROLE_SAWYER, ROLE_SMOKER, ROLE_PORTER, ST_FISH, ST_CHOP, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
+  ROLE_SETTLER, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_FISHER, ROLE_SAWYER, ROLE_SMOKER, ROLE_PORTER, ST_FISH, ST_CHOP, ST_WORK, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
   DEER_GRAZE, DEER_FLEE, DEER_DEAD, DEER_GONE,
 } from '../constants';
 import { Person, Deer } from '../world/world';
@@ -8,7 +8,7 @@ import { isMoving } from '../engine/path';
 import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
 
 const SCALE = .62;
-const LOG: Color = [150, 112, 72], LOG_END: Color = [214, 186, 134], STEEL: Color = [176, 182, 180], ARROW: Color = [226, 212, 176];
+const PLANK: Color = [214, 180, 120], LOG: Color = [150, 112, 72], LOG_END: Color = [214, 186, 134], STEEL: Color = [176, 182, 180], ARROW: Color = [226, 212, 176];
 const solid = (c: Color): ((z: number) => Color) => (): Color => c;
 
 function paletteOf(role: number, hairTone: number): Palette {
@@ -46,7 +46,7 @@ function lookOf(role: number, kind: number, a: number, idleZ: number): Look {
 }
 function kindOf(p: Person): number {
   if (isMoving(p)) return KIND_WALK;
-  return p.state === ST_CHOP ? KIND_CHOP : p.state === ST_AIM || p.state === ST_SHOT ? KIND_AIM : p.state === ST_FISH ? KIND_FISH : p.state === ST_PICK ? KIND_PICK : KIND_IDLE;
+  return p.state === ST_CHOP || p.state === ST_WORK ? KIND_CHOP : p.state === ST_AIM || p.state === ST_SHOT ? KIND_AIM : p.state === ST_FISH ? KIND_FISH : p.state === ST_PICK ? KIND_PICK : KIND_IDLE;
 }
 const stepOf = (angle: number, steps: number): number => { const k = Math.round(angle / TAU * steps) % steps; return k < 0 ? k + steps : k; };
 function slotOf(p: Person, kind: number): number {
@@ -97,6 +97,10 @@ function paintProps(p: Person, yaw: number, hand: Vec3): void {
   }
   if (p.carry === 3) {                                                // the catch in hand
     capsule([p.x + fx * .35 + sx * .3, p.y + fy * .35 + sy * .3, .75], [p.x + fx * .55 + sx * .3, p.y + fy * .55 + sy * .3, .7], .07, .04, solid([150, 178, 166]), 'solid');
+  }
+  if (p.carry === 4) {                                                // a bundle of planks held in front
+    capsule([p.x + fx * .4 + sx * .2, p.y + fy * .4 + sy * .2, .85], [p.x + fx * .4 - sx * .2, p.y + fy * .4 - sy * .2, .85], .1, .1, solid(PLANK), 'solid');
+    capsule([p.x + fx * .4 + sx * .2, p.y + fy * .4 + sy * .2, .98], [p.x + fx * .4 - sx * .2, p.y + fy * .4 - sy * .2, .98], .1, .1, solid(PLANK), 'solid');
   }
   if (p.carry === 1) {                                                // a log across the shoulder
     const a: Vec3 = [p.x + sx * .55, p.y + sy * .55, 1.5], b: Vec3 = [p.x - sx * .55, p.y - sy * .55, 1.42];

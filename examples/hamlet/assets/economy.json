@@ -1,26 +1,29 @@
 {
   "version": 1,
   "resources": [
-    { "id": "wood", "label": "Bois", "carry": "log" },
+    { "id": "log", "label": "Bois", "carry": "log" },
     { "id": "meat", "label": "Gibier", "carry": "deer" },
-    { "id": "fish", "label": "Poisson", "carry": "fish" }
+    { "id": "fish", "label": "Poisson", "carry": "fish" },
+    { "id": "plank", "label": "Planches", "carry": "plank" }
   ],
-  "start": { "wood": 24 },
+  "start": { "log": 20, "plank": 10 },
   "hall": "storehouse",
   "buildings": [
-    { "id": "house", "label": "Maison", "order": 1, "model": "house", "cost": { "wood": 5 },
+    { "id": "house", "label": "Maison", "order": 1, "model": "house", "cost": { "plank": 3 },
       "housing": { "capacity": 2, "free": 4, "eats": ["meat", "fish"] } },
-    { "id": "sawmill", "label": "Scierie", "order": 2, "model": "sawmill", "cost": { "wood": 8 },
-      "workers": 2, "role": "lumberjack", "gather": "tree", "outputs": { "wood": 1 }, "seconds": 2.6,
-      "hint": "Les habitants ne font rien : posez une scierie pour qu’ils coupent du bois." },
-    { "id": "lodge", "label": "Atelier de chasse", "short": "Chasse", "order": 3, "model": "lodge", "cost": { "wood": 8 },
+    { "id": "sawmill", "label": "Scierie", "order": 3, "model": "sawmill", "cost": { "plank": 2, "log": 6 },
+      "workers": 2, "role": "sawyer", "inputs": { "log": 2 }, "outputs": { "plank": 1 }, "seconds": 6,
+      "hint": "Une scierie scie les troncs en planches : elles servent à construire." },
+    { "id": "lodge", "label": "Atelier de chasse", "short": "Chasse", "order": 4, "model": "lodge", "cost": { "plank": 3, "log": 3 },
       "workers": 2, "role": "hunter", "gather": "deer", "outputs": { "meat": 3 }, "seconds": 1,
       "hint": "Un atelier de chasse forme des chasseurs qui rapportent du gibier." },
-    { "id": "fishery", "label": "Atelier de pêche", "short": "Pêche", "order": 4, "model": "fishery", "cost": { "wood": 8 },
+    { "id": "fishery", "label": "Atelier de pêche", "short": "Pêche", "order": 6, "model": "fishery", "cost": { "plank": 3, "log": 3 },
       "workers": 2, "role": "fisher", "gather": "shore", "outputs": { "fish": 2 }, "seconds": 4.5,
-      "hint": "Un étang : posez un atelier de pêche au bord de l’eau, près d’une route." }
-  ,
-    { "id": "storehouse", "label": "Entrepôt", "order": 5, "model": "storehouse", "cost": { "wood": 10 },
-      "workers": 2, "role": "porter", "store": true, "stockCap": 40 }
+      "hint": "Un étang : posez un atelier de pêche au bord de l’eau, près d’une route." },
+    { "id": "storehouse", "label": "Entrepôt", "order": 7, "model": "storehouse", "cost": { "plank": 4, "log": 4 },
+      "workers": 2, "role": "porter", "store": true, "stockCap": 40 },
+    { "id": "lumberhut", "label": "Cabane de bûcheron", "short": "Bûcheron", "order": 2, "model": "lumberhut", "cost": { "plank": 2, "log": 2 },
+      "workers": 2, "role": "lumberjack", "gather": "tree", "outputs": { "log": 1 }, "seconds": 2.6,
+      "hint": "Les habitants ne font rien : posez une cabane de bûcheron pour qu’ils coupent du bois." }
   ]
 }
