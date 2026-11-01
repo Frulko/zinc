@@ -261,7 +261,7 @@ async function pair(req: Request): Promise<Reply> {
 }
 
 async function publish(req: Request): Promise<Reply> {
-  const all = sys.utf8Encode(req.rawBody ?? req.body);   // byte for byte (a server always sets rawBody): the body is the manifest then the .zapp
+  const all = req.rawBytes ?? sys.utf8Encode(req.rawBody ?? req.body);   // byte for byte (a server always sets rawBody): the body is the manifest then the .zapp
   const n: i32 = parseInt(req.headers.get('x-manifest-length'));
   if (!(n > 0) || n > all.length || n > 65536) return reply(400, 'X-Manifest-Length is the size of the manifest at the start of the body\n');
   const m = parseManifest(sys.utf8Decode(all.slice(0, n)));
@@ -294,7 +294,7 @@ async function publish(req: Request): Promise<Reply> {
 function posInt(t: string): boolean { return t.length > 0 && t.length < 10 && parseInt(t).toString() === t && parseInt(t) > 0; }
 /** The bundle of tools/rmpp-engine: a gzip, a version newer than the current one, the numbers of its engine.json (positive integers). */
 async function publishEngine(req: Request): Promise<Reply> {
-  const body = sys.utf8Encode(req.rawBody ?? req.body);
+  const body = req.rawBytes ?? sys.utf8Encode(req.rawBody ?? req.body);
   const version = req.headers.get('x-engine-version').trim(), zbc = req.headers.get('x-engine-zbc').trim(), rt = req.headers.get('x-engine-rt').trim();
   if (!safe(version) || !posInt(zbc) || !posInt(rt)) return reply(400, 'X-Engine-Version, X-Engine-Zbc and X-Engine-Rt are the version, zbc and rt of the bundle\'s engine.json\n');
   if (body.length < 2 || body[0] !== 0x1f || body[1] !== 0x8b) return reply(400, 'refused: the body is not a gzip (zinc-rmpp.tar.gz of tools/rmpp-engine)\n');

@@ -671,7 +671,7 @@ export class BodyStream {
     });
   }
 }
-export interface Request { method: string; path: string; body: string; headers: Headers; rawBody?: string; remoteAddress?: string; bodyStream?: BodyStream }
+export interface Request { method: string; path: string; body: string; headers: Headers; rawBody?: string; rawBytes?: u8[]; remoteAddress?: string; bodyStream?: BodyStream }
 /** The body of a reply in parts (Reply.stream): chunked unless the headers give a Content-Length. write returns false once 64 KiB wait
  *  in the socket: onDrain says when to go on. */
 export class ReplyWriter {
@@ -852,6 +852,7 @@ function __netHook(): void {
       const i5 = data.indexOf('\u001e', i4 + 1);
       const req: Request = { method: data.slice(0, i1), path: data.slice(i1 + 1, i2), body: data.slice(i5 + 1), headers: new Headers(), rawBody: __host_evPayload(), remoteAddress: data.slice(i2 + 1, i3) };
       __parseLines(data.slice(i4 + 1, i5), req.headers);
+      if (__host_sysUtf8Len(req.rawBody as string) !== __host_evPayloadSize()) req.rawBytes = __netPayloadBytes();   // a string joins the halves of a surrogate pair: the bytes then
       if (__netChallenges.size > 0 && req.path.startsWith('/.well-known/acme-challenge/')) {   // an ACME http-01 check, on whichever server it reaches
         const answer = __netChallenges.get(req.path.slice(28));
         if (answer !== undefined) { __host_httpReply(h, 200, 'Content-Type: text/plain\n', answer); return; }
