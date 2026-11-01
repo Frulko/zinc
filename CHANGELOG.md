@@ -24,6 +24,9 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A plugin's native `Promise<T>` export written on the C ABI (`native/*.abi.c`) is no longer refused at load: `zinc native-gen --c` writes the result type of the promise.
 
 ### UI
+#### New
+- E-ink mode for `zinc:ui` (on a reMarkable, or `ZINC_EINK=1` on a Mac): colours snap to black, white and the panel's primaries, shadows, gradients and opacity are left out, and `pattern-hatch`, `pattern-cross`, `pattern-dots` and `pattern-stripes` fill a box with ink where a tint would be.
+
 #### Fixed
 - Selecting text with `select-text` works across several lines and several `Text` blocks, like a browser: drag from one paragraph into the next (in a `ScrollView` too, the list scrolls near its edge), the whole span is highlighted and Cmd/Ctrl+C copies it with its line breaks.
 - `{list.map(row)}` with a named function that returns JSX shows the rows, as it does with an inline arrow, instead of printing numbers.

@@ -97,6 +97,7 @@ bool validClass(const std::string& c) {
   static const std::string color = R"(([a-z]+-\d+|white|black|transparent|current|\[#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\]|\[(rgb|rgba|hsl|hsla)\([0-9., %]+\)\]|\[var\(--[a-z0-9-]+\)\])(/\d+)?)";
   static const std::vector<std::regex> rules = {
       std::regex(R"(^font-\[[A-Za-z0-9_.,-]+\]$)"),
+      std::regex(R"(^pattern-(hatch|cross|dots|stripes)$)"),   // ZN-929
       std::regex(R"(^cursor-(default|auto|text|pointer|move|ew-resize|col-resize|ns-resize|row-resize|crosshair|grab|grabbing|not-allowed)$)"),
       std::regex("^(p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|gap-x|gap-y|w|h|top|left|right|bottom|leading|inset|inset-x|inset-y)-" + num + "$"),
       std::regex("^-(m|mx|my|mt|mr|mb|ml)-" + num + "$"),                       // negative margins

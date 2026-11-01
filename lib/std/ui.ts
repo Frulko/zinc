@@ -3,11 +3,11 @@
 // pointer + focus input (UI-11). Written in Zinc: the same code is compiled to C++ and to the sim.
 // Idle frames cost nothing: when no node, animation or canvas changed, the previous frame is kept (gfx.keep).
 import {
-  onFrame, onResize, clear, rrect, gradient, gradientPaint, border, shadow, drawText, setTransform, resetTransform, drawImage, drawImageRect, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, beginImage, endImage, commandCount, commandsFree,
+  onFrame, onResize, clear, rrect as g_rrect, gradient as g_gradient, gradientPaint as g_gradientPaint, border as g_border, shadow as g_shadow, drawText as g_drawText, setTransform, resetTransform, drawImage as g_drawImage, drawImageRect, font, fontAscent, textWidth, image, imageWidth, imageHeight, createImage, destroyImage, beginImage, endImage, commandCount, commandsFree,
   clip, unclip, width, height, pointerX, pointerY, pointerDown, wasPressed, keep, Btn, wheel,
   wheelX, pinch, pointerButtons, modifiers, keyCount, keyKind, keyMods, keyName, buttonEventCount, buttonEventX, buttonEventY,
   buttonEventButton, buttonEventDown, startTextInput, stopTextInput, clipboardText, setClipboardText, setCursor, Cursor, KeyKind,
-  escapeByApp, escapeDefault, stroke, polygon,
+  escapeByApp, escapeDefault, stroke as g_stroke, polygon as g_polygon,
   scrollDX, scrollDY, scrollPhase, touchCount, touchX, touchY, touchId,
 } from 'zinc:gfx';
 import { profiling, profMark, pixelScale } from 'zinc:gfx';   // frame phases (docs/dev-mode.md, profiling)
@@ -18,9 +18,72 @@ import { platform, env, device } from 'zinc:sys';
 import { signalCount, signalNext } from 'zinc:gfx';   // the system's signals (safe area, theme, back...)
 import { PALETTE, SHADES } from './palette';
 import * as OS from './overscroller';   // Android's fling and stretch overscroll (ANDROID_SCROLL)
-import { UI_LAYOUT, UI_PRESET, HEAP_BYTES, TIER } from 'zinc:platform';
+import { UI_LAYOUT, UI_PRESET, HEAP_BYTES, TIER, EINK as EINK_CAP } from 'zinc:platform';
 import * as LY from 'zinc:__layout';
 import { DOM, commit as domCommit } from 'zinc:ui/dom';   // the semantic DOM of the web target (ui-dom.browser.ts); on every other target DOM is false
+// ---- e-ink style mode (ZN-929): on a panel (capabilities eink) or with ZINC_EINK=1 every colour snaps to black, white or a Gallery 3
+// primary, a command with alpha under half is dropped and any other is opaque, and gradients, shadows and opacity are not drawn (a
+// gradient is its first stop, flat). Tints are replaced by `pattern-hatch|cross|dots|stripes` (black ink). Apps do not branch: the same tree.
+export const EINK: boolean = EINK_CAP || env('ZINC_EINK') === '1';
+const EINK_PAL: u32[] = [0xffffff, 0x000000, 0xff0000, 0x00aa00, 0x0000ff, 0xffff00];
+let einkDropped: i32 = 0;   // test hook: the shadows and the translucent commands left out
+export function einkSnap(c: u32): u32 {
+  let best: u32 = 0xffffff, bd: i32 = 1 << 30;
+  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+  if (Math.max(r, g, b) - Math.min(r, g, b) < 90) return (r * 77 + g * 150 + b * 29) >> 8 < 140 ? 0x000000 : 0xffffff;   // greys and slates are not colours: black or white, never a green
+  for (let i = 0; i < EINK_PAL.length; i++) {
+    const p = EINK_PAL[i], dr = r - ((p >> 16) & 255), dg = g - ((p >> 8) & 255), db = b - (p & 255), d = dr * dr + dg * dg + db * db;
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+/** How many shadows and translucent commands e-ink mode left out. */
+export function einkDroppedCount(): i32 { return einkDropped; }
+function einkOff(alpha: i32): boolean { if (alpha < 128) { einkDropped++; return true; } return false; }
+function rrect(x: number, y: number, w: number, h: number, r: number, color: u32, alpha: i32): void {
+  if (!EINK) { g_rrect(x, y, w, h, r, color, alpha); return; }
+  if (einkOff(alpha)) return;
+  g_rrect(x, y, w, h, r, einkSnap(color), 255);
+}
+function gradient(x: number, y: number, w: number, h: number, r: number, c1: u32, c2: u32, vertical: boolean, alpha: i32): void {
+  if (!EINK) { g_gradient(x, y, w, h, r, c1, c2, vertical, alpha); return; }
+  if (einkOff(alpha)) return;
+  g_rrect(x, y, w, h, r, einkSnap(c1), 255);
+}
+function gradientPaint(x: number, y: number, w: number, h: number, r: number, paint: number[], alpha: i32): void {
+  if (!EINK) { g_gradientPaint(x, y, w, h, r, paint, alpha); return; }
+  if (einkOff(alpha)) return;
+  g_rrect(x, y, w, h, r, einkSnap(paint[9] as u32), 255);   // the record: 7 numbers, the stop count, then t, colour, alpha per stop
+}
+function border(x: number, y: number, w: number, h: number, r: number, bw: number, color: u32, alpha: i32): void {
+  if (!EINK) { g_border(x, y, w, h, r, bw, color, alpha); return; }
+  if (einkOff(alpha)) return;
+  g_border(x, y, w, h, r, bw, einkSnap(color), 255);
+}
+function shadow(x: number, y: number, w: number, h: number, r: number, blur: number, color: u32, alpha: i32): void {
+  if (!EINK) { g_shadow(x, y, w, h, r, blur, color, alpha); return; }
+  einkDropped++;
+}
+function drawText(font: i32, x: number, y: number, s: string, color: u32, alpha: i32, tracking: number): void {
+  if (!EINK) { g_drawText(font, x, y, s, color, alpha, tracking); return; }
+  if (einkOff(alpha)) return;
+  g_drawText(font, x, y, s, einkSnap(color), 255, tracking);
+}
+function drawImage(img: i32, x: number, y: number, w: number, h: number, alpha: i32, radius: number): void {
+  if (!EINK) { g_drawImage(img, x, y, w, h, alpha, radius); return; }
+  if (einkOff(alpha)) return;
+  g_drawImage(img, x, y, w, h, 255, radius);
+}
+function polygon(points: number[], color: u32, alpha: i32): void {
+  if (!EINK) { g_polygon(points, color, alpha); return; }
+  if (einkOff(alpha)) return;
+  g_polygon(points, einkSnap(color), 255);
+}
+function stroke(points: number[], width: number, color: u32, alpha: i32, closed: boolean): void {
+  if (!EINK) { g_stroke(points, width, color, alpha, closed); return; }
+  if (einkOff(alpha)) return;
+  g_stroke(points, width, einkSnap(color), 255, closed);
+}
 const DEFAULT_TEXT: i32 = UI_PRESET === 'react-native' ? 14 : 16;   // the default text size: React Native's Text is 14 px (ZN-385)
 const BORDER_DEFAULT: i32 = UI_PRESET === 'react-native' || UI_LAYOUT === 'rn' ? 0x000000 : 0xe5e7eb;   // a border width with no colour: Tailwind's grey-200; black with React Native's style defaults (RN_STYLE below), as React Native draws it
 
@@ -384,6 +447,7 @@ export class UiNode {
   k: number = 1;                       // style scale: zooms the node and its subtree (origin: top-left corner)
   tf: TransformX | null = null;        // React Native's transform array: rotate, skew, scaleX/Y around the centre (ZN-361)
   cursor: i32 = -1;                    // cursor-* class (gfx Cursor), -1 inherited
+  pattern: i32 = 0;                    // pattern-* class (ZN-929): 1 hatch, 2 cross, 3 dots, 4 stripes, drawn over the background in black ink
   
     // ring-* / outline-* (ZN-258)
     // the focus: / focus-visible: set
@@ -2453,6 +2517,12 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     if (n.ed !== null) (n.ed as Edit).caretC = c;
     return true;
   }
+  if (tok.startsWith('pattern-')) {   // a fill that works in black and white: lines or dots in place of a tint (e-ink mode, and anywhere)
+    const i = PATTERNS.indexOf(tok.slice(8));
+    if (i < 0) return false;
+    n.pattern = i + 1;
+    return true;
+  }
   if (tok.startsWith('cursor-')) {
     const i = CURSORS.indexOf(tok.slice(7));
     if (i < 0) return false;
@@ -2829,7 +2899,7 @@ function resetStyle(n: UiNode): void {
   n.bg = -1; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0; n.shAlpha = 255;
   n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = BORDER_DEFAULT; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = -1; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.decoC = -1; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
-  n.cursor = -1;
+  n.cursor = -1; n.pattern = 0;
   if (n.ed !== null) { const e = n.ed as Edit; e.phC = -1; e.caretC = -1; }
   n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX; n.im = DEF_IMGX;   // the cold records: back to the shared defaults
   if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; o.transMask = -1; o.transDelay = 0; o.transEase = 7; }   // curBg, fromBg, transStart and the tr* fields stay: a transition goes on across a class change
@@ -4340,10 +4410,23 @@ function paintTiles(h: i32, n: UiNode, zp: i32[] | null, x: number, y: number, a
   for (const t of shown) drawImage(tImg[t], vx + tI[t] * TILE, vy + tJ[t] * TILE, TILE, TILE, ai, 0);
   return true;
 }
+const PATTERNS: string[] = ['hatch', 'cross', 'dots', 'stripes'];
+/** A pattern fill (ZN-929): 10 px apart, 2 px thick, black, inside the box (and its corners). ponytail: one command per line or dot (a cell is about 20); a Layer (ZN-930) caches it. */
+function paintPattern(kind: i32, x: number, y: number, w: number, hh: number, r: number, kk: number): void {
+  const s = Math.max(3, 10 * kk), lw = Math.max(1, 2 * kk);
+  clip(x, y, w, hh, r);
+  if (kind === 1 || kind === 2) {
+    for (let d = -hh; d < w; d += s) g_stroke([x + d, y + hh, x + d + hh, y], lw, 0x000000, 255, false);
+    if (kind === 2) for (let d = 0; d < w + hh; d += s) g_stroke([x + d, y + hh, x + d - hh, y], lw, 0x000000, 255, false);
+  } else if (kind === 3) {
+    for (let j = s / 2; j < hh; j += s) for (let i = s / 2 + (Math.round(j / s) % 2 === 0 ? 0 : s / 2); i < w; i += s) g_rrect(x + i - lw / 2, y + j - lw / 2, lw, lw, lw / 2, 0x000000, 255);
+  } else for (let j = s / 2; j < hh; j += s) g_rrect(x, y + j - lw / 2, w, lw, 0, 0x000000, 255);
+  unclip();
+}
 function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   const n = node(h);
   if (n.hidden || n.invisible || (n.layer && h !== layerPass)) return;
-  const a = alpha * n.opacity * n.fade * (h === dimNode ? 1 - (1 - PRESS_OPACITY) * dimT : 1);
+  const a = EINK ? (n.opacity > 0.004 && n.fade > 0.004 ? alpha : 0) : alpha * n.opacity * n.fade * (h === dimNode ? 1 - (1 - PRESS_OPACITY) * dimT : 1);   // e-ink: no opacity, a node is there or not
   if (a <= 0.004) return;
   let x = (n.x + n.tx) * k + ox, y = (n.y + n.ty + (n.sticky ? stickyDy(n) : 0)) * k + oy, kk = k * n.k;
   if (n.tf !== null) { const s = tfK(n); x += n.lw * kk * (1 - s) / 2; y += n.lh * kk * (1 - s) / 2; kk *= s; }
@@ -4370,6 +4453,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
       const flip = n.grad === 3 || n.grad === 4;
       gradient(x, y, w, hh, r, flip ? n.gradTo : n.gradFrom, flip ? n.gradFrom : n.gradTo, n.grad === 1 || n.grad === 3, ai);
     } else if (gr) paintGradient(h, n, x, y, w, hh, r, kk, ai);
+    if (n.pattern > 0) paintPattern(n.pattern, x, y, w, hh, r, kk);
     const focused = h === focus;
     let bc = focused && n.it.focusBorder >= 0 ? n.it.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.it.withinBorder >= 0 && focus >= 0 && isAncestor(h, focus) ? n.it.withinBorder : n.hovered && n.it.hoverBorder >= 0 ? n.it.hoverBorder : n.borderColor;
     const bw = n.borderW < 0 ? 1 : n.borderW;

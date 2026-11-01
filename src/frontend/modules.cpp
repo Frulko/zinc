@@ -1449,6 +1449,7 @@ std::string platformModuleSource(const std::string& capsFile) {
   }
   // a profile with no row in targets/capabilities.json (the Next-only handhelds: psp, vita...) still has to compile zinc:ui, which reads TIER: the lowest drawing tier
   if (src.find("export const TIER:") == std::string::npos) src += "export const TIER: i32 = 1;\n";
+  if (src.find("export const EINK:") == std::string::npos) src += "export const EINK: boolean = false;\n";   // zinc:ui reads it (ZN-929)
   return src;
 }
 
