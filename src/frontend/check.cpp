@@ -315,6 +315,36 @@ struct Checker {
     return differs;
   }
   // `DynFunction` (the alias of the Dyn prelude): a typed function passed where it is expected, e.g. `(r: i32, name: string) => void`, gets an adapter that converts each
+  // An object literal (or any record) where an interface of methods is expected, as TypeScript allows: each method of the interface is a function
+  // property of the record (taking the interface's parameters, or fewer). The record is wrapped in a class that implements the interface and
+  // forwards each call, so later changes to the record's properties are seen.
+  bool recordAsInterface(TypeId from, TypeId to, std::uint32_t node) {
+    if (bad(from) || bad(to) || ty(from).k != TK::Object || ty(to).k != TK::Object) return false;
+    const ObjInfo &fo = out.objs[ty(from).obj], &io = out.objs[ty(to).obj];
+    if (!fo.isRecord || fo.isTemplate || io.isTemplate || !io.isInterface || io.isRecord || io.members.empty()) return false;
+    std::string methods;
+    std::vector<TypeId> aliases{from, to};
+    for (const Member& im : io.members) {
+      if (!im.method || im.isStatic || im.getter || im.ifaceSetter || im.optional) return false;
+      const Member* fm = findMember(fo, im.name);
+      if (!fm || fm->method || fm->optional || fm->type == kNoType) return false;
+      if (fm->type != im.type && !fewerParams(out, fm->type, im.type)) return false;
+      const Type& t = ty(im.type);
+      std::string ps, call;
+      for (std::size_t k = 0; k < t.params.size(); ++k) {
+        ps += (k ? ", p" : "p") + std::to_string(k) + ": " + inspectAliasName(t.params[k]);
+        if (k < ty(fm->type).params.size()) call += (call.empty() ? "p" : ", p") + std::to_string(k);
+        aliases.push_back(t.params[k]);
+      }
+      aliases.push_back(t.elem);
+      methods += "  " + im.name + "(" + ps + "): " + inspectAliasName(t.elem) + " { " + (t.elem == tVoid ? "" : "return ") + "this.r." + im.name + "(" + call + "); }\n";
+    }
+    std::string R = inspectAliasName(from), I = inspectAliasName(to);
+    std::uint32_t sym = helper("recAsIface," + std::to_string(from) + "," + std::to_string(to),
+        "class $F_C implements " + I + " {\n  r: " + R + ";\n  constructor(r: " + R + ") { this.r = r; }\n" + methods + "}\nfunction $F(r: " + R + "): " + I + " {\n  return new $F_C(r);\n}\n", aliases, node);
+    wrapNode(node, sym);
+    return true;
+  }
   // argument JavaScript-style (ToNumber then the machine type, String(x), truthiness; `unknown` as it is; a missing argument is undefined) and boxes the result.
   bool isDynFunction(TypeId t) {
     std::uint32_t al = lookup("DynFunction");
@@ -393,6 +423,7 @@ struct Checker {
     }
     if (node != kNone && dynFunctionAdapter(from, to, node)) return true;
     if (node != kNone && recordWidenable(from, to) && (out.objs[ty(from).obj].isTemplate || out.objs[ty(to).obj].isTemplate)) return true;   // checked over type parameters, lowered per instance
+    if (node != kNone && recordAsInterface(from, to, node)) return true;
     if (node != kNone && recordWidenable(from, to)) {   // a record with more fields where a record with fewer is expected: a copy of the fields asked for
       std::string body;
       for (const Member& m : out.objs[ty(to).obj].members) {
@@ -1068,7 +1099,13 @@ struct Checker {
   void declareSource(const std::string& text, std::uint32_t at) {
     struct Gen { bool& f; Gen(bool& x) : f(x) { f = true; } ~Gen() { f = false; } } gen(generating);
     if (std::getenv("ZN_DUMP_GEN")) std::fputs(text.c_str(), stderr);
-    for (std::uint32_t s : mergeSource(text, at)) {  // declare every function first: their bodies refer to each other
+    std::vector<std::uint32_t> all = mergeSource(text, at), classes, funcs;
+    for (std::uint32_t s : all) (n(s).kind == N::Class ? classes : funcs).push_back(s);
+    if (!classes.empty()) {   // a generated class (`recordAsInterface`): declared like a block's, before the functions that use it
+      stmtList(classes);
+      for (std::uint32_t s : classes) { out.instances.push_back(s); out.nodeNames[s] = std::string(n(s).text); }
+    }
+    for (std::uint32_t s : funcs) {  // declare every function first: their bodies refer to each other
       std::vector<std::uint32_t> ps;
       TypeId sig = signature(s, 2, false, ps);
       out.nodeType[s] = sig;
@@ -4467,11 +4504,16 @@ struct Checker {
     bool bad_ = false;
     for (std::uint32_t p : props) {
       const Node& pn = n(p);
-      TypeId vt = expr(pn.kids[0]);
+      const Member* ctx = ifx != kNone ? lookupMember(ifx, pn.text, false) : nullptr;
+      const TypeId ctxType = ctx && ctx->method ? ctx->type : kNoType;   // a copy: expr may grow out.objs
+      TypeId vt = expr(pn.kids[0], ctxType);
       if (bad(vt) || vt == tNull || vt == tVoid) { if (!bad(vt)) diag(kZCannotInfer, p, "property '" + std::string(pn.text) + "'"); bad_ = true; continue; }
       bool dup = false;
       for (auto& e : shape) dup = dup || e.first == pn.text;
       if (dup) { diag(kZDuplicateDeclaration, p, "property '" + std::string(pn.text) + "'"); bad_ = true; continue; }
+    // an interface of methods expected: its method types type the literal's parameters (`{ cb(x, y) { ... } }`)
+    const std::uint32_t ifx = expected != kNoType && !bad(expected) && ty(expected).k == TK::Object && out.objs[ty(expected).obj].isInterface && !out.objs[ty(expected).obj].isRecord ? ty(expected).obj : kNone;
+    if (ifx != kNone) ensureBuilt(ifx);
       shape.push_back({std::string(pn.text), vt});
     }
     return bad_ ? tError : recordOf(shape);
@@ -5127,7 +5169,7 @@ struct Checker {
       // an override must keep the base member's kind and type
       if (!mem.isStatic && par != kNoObj) {
         const Member* pm = lookupMember(par, mem.name, false);
-        if (pm && (!mem.method || !pm->method || pm->type != mem.type || pm->access == 2 || pm->getter != mem.getter)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' does not match the base class member");
+        if (pm && (!mem.method || !pm->method || (pm->type != mem.type && !fewerParams(out, mem.type, pm->type)) || pm->access == 2 || pm->getter != mem.getter)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' does not match the base class member");
         else if (!pm && (fl & frontend::kFlagOverride)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' overrides nothing");
       } else if (!par && (fl & frontend::kFlagOverride)) diag(kZInvalidHierarchy, m, "'" + mem.name + "' overrides nothing");
       out.objs[objIdx].members.push_back(std::move(mem));
@@ -5152,7 +5194,7 @@ struct Checker {
             if (im.ifaceSetter) continue;
             const Member* m = lookupMember(objIdx, im.name, false);
             if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && ty(im.type).elem == m->type) continue;  // a property satisfied by a field
-            if (!m || !m->method || m->type != im.type || m->access != 0) diag(kZMissingInterfaceMember, r, "'" + im.name + "' of '" + out.objs[io].name + "'");
+            if (!m || !m->method || (m->type != im.type && !fewerParams(out, m->type, im.type)) || m->access != 0) diag(kZMissingInterfaceMember, r, "'" + im.name + "' of '" + out.objs[io].name + "'");
           }
         }
       // a concrete class must implement every abstract member in its chain
@@ -5632,8 +5674,16 @@ static bool structuralMatch(const Checked& c, std::uint32_t obj, std::uint32_t i
     if (im.isStatic || im.ifaceSetter) continue;
     const Member* m = lookupMember(c, obj, im.name, false);
     if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && c.types[im.type].elem == m->type) continue;  // a property satisfied by a field
-    if (!m || !m->method || m->type != im.type || m->access != 0) return false;
+    if (!m || !m->method || (m->type != im.type && !fewerParams(c, m->type, im.type)) || m->access != 0) return false;
   }
+bool fewerParams(const Checked& c, TypeId impl, TypeId want) {
+  if (impl == want || impl == kNoType || want == kNoType) return false;
+  const Type &f = c.types[impl], &t = c.types[want];
+  if (f.k != TK::Func || t.k != TK::Func || f.variadic || t.variadic || f.rest || t.rest || f.params.size() >= t.params.size() || f.elem != t.elem) return false;
+  for (std::size_t k = 0; k < f.params.size(); ++k) if (f.params[k] != t.params[k]) return false;
+  return true;
+}
+
   return true;
 }
 

@@ -155,6 +155,7 @@
     {"paths": ["tools/build-linux", "tools/linux-sysroot", "cmake/zig-linux.cmake"], "tests": ["tc", "release_workflow"]},
     {"paths": ["src/frontend/check.cpp", "src/frontend/modules.cpp", "tests/data/array_from_filled/", "tests/t0/array_from_filled.sh"], "tests": ["array_from_filled"]},
     {"paths": ["src/frontend/check.cpp", "tests/data/callback_fewer_params/", "tests/t0/callback_fewer_params.sh"], "tests": ["callback_fewer_params"]},
+    {"paths": ["src/frontend/check.cpp", "src/ir/lower.cpp", "tests/data/method_fewer_params/", "tests/t0/method_fewer_params.sh"], "tests": ["method_fewer_params"]},
     {"paths": ["tests/t1/first_run.sh", "tests/golden/first-run/", "templates/", "src/frontend/diagnostics", "include/zn/diagnostics.h", "docs/guide/01-getting-started.md"], "tests": ["first_run"]},
     {"paths": ["learn/", "src/cli_examples.cpp", "tests/t1/examples_catalog.sh", "docs/learn/samples/", "app/atelier/components/Start.tsx", "app/atelier/app/workspace.ts"], "tests": ["examples_catalog", "atelier_styles"]},
     {"paths": ["plugins/3d/web/", "plugins/three/web/", "tests/t1/web_3d.sh"], "tests": ["web_3d"]},

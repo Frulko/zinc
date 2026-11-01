@@ -294,6 +294,7 @@ struct Lowering {
       std::uint32_t fn = resolveMethod(k, name);
       if (fn == kNil) return false;
       if (found != kNil && found != fn) return false;
+      if (const frontend::Member* rm = frontend::lookupMember(c, recvObj, name, false); rm && c.types[rm->type].k == frontend::TK::Func && m.functions[fn].params.size() != c.types[rm->type].params.size() + 1) return false;   // an implementation that ignores trailing arguments is called through its adapter
       found = fn;
     }
     fnOut = found;
@@ -448,6 +449,35 @@ struct Lowering {
     return fn;
   }
   // The open records an instance of class `o` can be shared as (Checked::openRecords)
+  // A vtable entry for a method that takes fewer parameters than its selector (an implementation or override that ignores trailing arguments):
+  // it receives them all and calls `target` with the first ones.
+  std::uint32_t arityAdapter(std::uint32_t cls, std::uint32_t target, const Selector& s) {
+    std::vector<TypeId> ps{m.refT(cls)};
+    ps.insert(ps.end(), s.params.begin(), s.params.end());
+    const std::uint32_t fn = addFunction(m.classes[cls].name + "." + s.name + " adapter", ps, s.ret);
+    Function& f = m.functions[fn];
+    f.blocks.emplace_back();
+    f.blocks[0].params = f.params;
+    auto add = [&](IrOp op, TypeId t, std::vector<ValueId> args, std::uint32_t sym) {
+      Inst i;
+      i.op = op; i.ty = t; i.args = std::move(args); i.sym = sym;
+      if (m.types[t].k != Type::K::Void) { f.valueTypes.push_back(t); i.res = static_cast<ValueId>(f.valueTypes.size() - 1); }
+      f.blocks[0].insts.push_back(std::move(i));
+      return f.blocks[0].insts.back().res;
+    };
+    const Function& tf = m.functions[target];
+    std::vector<ValueId> args;
+    for (std::size_t k = 0; k < tf.params.size(); ++k) {
+      TypeId want = tf.valueTypes[tf.params[k]];
+      args.push_back(f.valueTypes[f.params[k]] == want ? f.params[k] : add(IrOp::RefCast, want, {f.params[k]}, 0));
+    }
+    const ValueId r = add(IrOp::Call, tf.ret, args, target);
+    Inst ret;
+    ret.op = IrOp::Ret; ret.ty = m.voidT();
+    if (m.types[s.ret].k != Type::K::Void) ret.args = {r};
+    f.blocks[0].insts.push_back(std::move(ret));
+    return fn;
+  }
   std::vector<std::uint32_t> openRecordsOf(std::uint32_t o) const {
     std::vector<std::uint32_t> r;
     for (const auto& [rec, lit] : litClassOfObj)
@@ -481,6 +511,18 @@ struct Lowering {
           if (std::find(cl.selectors.begin(), cl.selectors.end(), sel) == cl.selectors.end()) cl.selectors.push_back(sel);
         }
       std::vector<std::uint32_t> sels = m.classes[classOfObj[o]].selectors;
+      if (c.objs[o].isClass)   // the methods of the interfaces `o` satisfies with fewer parameters: their selector gets an adapter (see `fill`)
+        for (std::uint32_t i = 0; i < c.objs.size(); ++i) {
+          if (i == o || !c.objs[i].isInterface || c.objs[i].isRecord || classOfObj[i] == kNil || !frontend::objAssignable(c, o, i)) continue;
+          for (std::uint32_t q = i, k = 0; q != kNil && k < 1000; q = c.objs[q].parent, ++k)
+            for (const frontend::Member& mem : c.objs[q].members) {
+              if (!mem.method || mem.isStatic) continue;
+              const frontend::Member* rm = frontend::lookupMember(c, o, mem.name, false);
+              if (!rm || !rm->method || !frontend::fewerParams(c, rm->type, mem.type)) continue;
+              std::uint32_t sel = selectorFor(mem.name, mem.type);
+              if (std::find(cl.selectors.begin(), cl.selectors.end(), sel) == cl.selectors.end()) cl.selectors.push_back(sel);
+            }
+        }
       if (!m.classes[classOfObj[o]].isInterface) {  // the properties of the interfaces a class satisfies: read through a getter selector
         propertySelectors(o, false, sels);
         if (!litClassOfObj.empty() && c.objs[o].isClass && !c.objs[o].isRecord) propertySelectors(o, true, sels);
@@ -498,6 +540,7 @@ struct Lowering {
         const Selector s = m.selectors[sel];
         std::uint32_t fn = resolveMethod(o, s.name);
         const bool set = s.name.rfind("__set_", 0) == 0;
+        if (fn != kNil && m.functions[fn].params.size() < s.params.size() + 1) fn = arityAdapter(cls, fn, s);
         if (fn == kNil) fn = set ? accessor(o, cls, s.name.substr(6), true, s.params.empty() ? s.ret : s.params[0]) : accessor(o, cls, s.name, false, s.ret);
         m.classes[cls].vtable[sel] = fn;
       }
