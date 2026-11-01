@@ -341,7 +341,7 @@ target_compile_options(zn_webp PRIVATE -w -O2)
 add_library(zn_res STATIC src/res/res.cpp)
 add_library(zn_codec STATIC src/res/codec.cpp)   # encoders (stb_image_write); screenshots and zinc capture use it
 target_include_directories(zn_codec PUBLIC src PRIVATE third_party/stb)
-target_link_libraries(zn_codec PUBLIC zn_webp_dec)   # decodeRgbaAlloc reads WebP too
+target_link_libraries(zn_codec PUBLIC zn_webp_dec zn_zstd)   # decodeRgbaAlloc reads WebP too; zstd: the fast-load container of a packed PNG
 set_target_properties(zn_codec PROPERTIES CXX_STANDARD 20 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_codec PRIVATE -w -O2)
 target_include_directories(zn_res PUBLIC include src PRIVATE third_party/stb)
