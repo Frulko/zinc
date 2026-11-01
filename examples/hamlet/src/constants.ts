@@ -37,8 +37,11 @@ export const ROLE_RESIDENT = 1;
 export const ROLE_LUMBERJACK = 2;
 export const ROLE_HUNTER = 3;
 export const ROLE_FISHER = 4;
+export const ROLE_SAWYER = 5;
+export const ROLE_SMOKER = 6;
+export const ROLE_PORTER = 7;
 /** The job names economy.json may give (index = ROLE_*). */
-export const ROLE_NAMES: string[] = ['settler', 'resident', 'lumberjack', 'hunter', 'fisher'];
+export const ROLE_NAMES: string[] = ['settler', 'resident', 'lumberjack', 'hunter', 'fisher', 'sawyer', 'smoker', 'porter'];
 export const WALK_SPEED = 2.1;          // world units per second
 export const ROAD_SPEED = 1.35;         // multiplier on a road
 export const ROAD_COST = 0.6;           // path cost of a road tile (grass is 1)
@@ -68,6 +71,8 @@ export const BS_IDLE = 0;              // building states: what its workers are 
 export const BS_WORKING = 1;
 export const BS_WAITING = 2;          // an input is missing (Building.waitFor)
 export const BS_FULL = 3;              // the output has no room
+export const BS_ISOLATED = 4;          // no road leads from it to a store: nothing leaves it (and nothing comes)
+export const BATCH = 4;                // most a porter carries at once
 export const FISH_CATCH_CHANCE = .85;
 
 // ---- no-limit mode: nature refills itself below a threshold ----
@@ -88,5 +93,5 @@ export const DEER_GONE = 4;             // free slot
 
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';
-export const SAVE_VERSION = 'H6';
+export const SAVE_VERSION = 'H7';
 export const SAVE_DELAY = 2;            // seconds between two writes

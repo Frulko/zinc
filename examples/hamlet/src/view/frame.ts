@@ -13,7 +13,7 @@ const GRASS_LIT = GRASS.map((c: number[]): u32 => rgbColor(c));
 const GRASS_DARK = GRASS.map((c: number[]): u32 => rgb(c[0] * .54, c[1] * .52, c[2] * .72));
 const FOAM = rgb(143, 177, 146), PEBBLE = rgb(77, 139, 122);
 const OK = rgb(255, 214, 10), BAD = rgb(214, 84, 70);
-const CHIMNEY: number[][] = [[.47, -.28, 2.6], [.43, -.3, 2.5], [.43, -.3, 2.45], [.46, -.2, 1.9]];   // house, sawmill, lodge smoke origins (x, y, z)
+const CHIMNEY: number[][] = [[.47, -.28, 2.6], [.43, -.3, 2.5], [.43, -.3, 2.45], [.46, -.2, 1.9], [.5, -.3, 2.2]];   // house, sawmill, lodge smoke origins (x, y, z)
 
 /** Pixels the wind redrew this frame, as one-pixel runs (row, column, column): put back from the static picture at the next frame. */
 const touched: number[] = [];

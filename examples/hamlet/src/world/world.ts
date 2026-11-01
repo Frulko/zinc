@@ -2,17 +2,19 @@ import {
   DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, DEER_START, DEER_GRAZE, DEER_GONE,
 } from '../constants';
 import { hash, noise } from './noise';
-import { economy } from './economy';
+import { economy, Resource } from './economy';
 
 /** Anything that walks the tile grid. A class, not an interface: the walking code takes a Mover and must change the person itself (interfaces are copied records). */
 export class Mover { x: number = 0; y: number = 0; yaw: number = 0; path: number[] = []; step: number = 0; phase: number = 0; }
 /** A building: what it holds (`stock`, per resource of economy.json) and what its workers are doing (`state`, and `waitFor`, the resource it lacks). */
 export class Building {
   type: number = 0; i: number = 0; j: number = 0; alive: boolean = true; residents: number = 0; workers: number = 0; timer: number = 2;
-  stock: number[] = []; state: number = 0; waitFor: number = -1;
+  stock: number[] = []; reserved: number[] = []; incoming: number[] = [];   // reserved: leaving with a porter; incoming: promised by one
+  state: number = 0; waitFor: number = -1; fixed: boolean = false;       // fixed: stands from the start (the hall) and cannot be demolished
 }
 export class Person extends Mover {
-  load: number = 0; dst: number = -1;                       // the load in hand (carry: its resource + 1, load: how many) and the building it goes to
+  load: number = 0; src: number = -1; dst: number = -1; res: number = -1; want: number = 0;   // a transport: from building src to building dst, `want` units of res promised, `load` in hand
+                        // the load in hand (carry: its resource + 1, load: how many) and the building it goes to
   role: number = 0; home: number = -1; job: number = -1; state: number = 0; timer: number = 0; target: number = -1; carry: number = 0; hair: number = 0;
   shotX: number = 0; shotY: number = 0;
 }
@@ -30,6 +32,20 @@ export interface World {
   revision: number;                 // bumped when the baked scenery must be redone
   saveDirty: boolean; lastSave: number; autosave: boolean;
   deerTimer: number; waitingForFood: boolean;
+}
+
+/** A new building of a type on a tile, empty. The rules add buildings the same way (rules/build.ts). */
+export function newBuilding(type: number, t: number): number {
+  const id = world.buildings.length, b = new Building(), none = (): number[] => economy.resources.map((_r: Resource): number => 0);
+  b.type = type; b.i = tileI(t); b.j = tileJ(t); b.stock = none(); b.reserved = none(); b.incoming = none();
+  world.buildings.push(b);
+  world.build[t] = id; world.deco[t] = 0;
+  return id;
+}
+/** world.stock: what the stores (every alive building that stores) hold, per resource. What a producer still holds or a porter carries is not counted yet. */
+export function recount(): void {
+  world.stock = economy.resources.map((_r: Resource): number => 0);
+  for (const b of world.buildings) if (b.alive && economy.buildings[b.type].store) for (let k = 0; k < b.stock.length; k++) world.stock[k] += b.stock[k];
 }
 
 const zeros = (size: number = DEFAULT_SIZE): number[] => Array.from({ length: size * size }, (): number => 0);
@@ -99,7 +115,7 @@ export function tileCount(): number { return world.size * world.size; }
 export function generate(seed: number, size: number = DEFAULT_SIZE): void {
   world.seed = seed; world.size = size; world.half = size * TILE / 2; world.gate = Math.floor(size / 2) * size + GATE_I;
   world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.build = zeros(size); world.claimed = zeros(size);
-  world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.stock = economy.start.slice();
+  world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.stock = [];
   world.buildings = []; world.people = []; world.deer = []; world.felledCount = 0; world.treeTimer = 0;
   world.deerTimer = 0; world.waitingForFood = false; world.lastSave = 0; world.saveDirty = false;
   seedRandom(seed);
@@ -122,6 +138,13 @@ export function generate(seed: number, size: number = DEFAULT_SIZE): void {
     else { const d = hash(i * 5, j * 11 + seed); world.deco[t] = d > .9 ? 2 : d > .78 ? 1 : 0; }
   }
   world.road[world.gate] = 1;
+  if (economy.hall >= 0) {                                    // the village store stands by the entrance, next to the gate road, holding what the village starts with
+    const t = world.gate - size;
+    world.terrain[t] = TERRAIN_GRASS; world.tree[t] = 0; world.rock[t] = 0;
+    const id = newBuilding(economy.hall, t);
+    world.buildings[id].fixed = true; world.buildings[id].stock = economy.start.slice();
+  }
+  recount();
   world.hasWater = world.terrain.some((v: number): boolean => v === TERRAIN_WATER);
   for (let n = 0; n < Math.round(DEER_START * size * size / REFERENCE_AREA); n++) {
     for (let tries = 0; tries < 30; tries++) {

@@ -1,6 +1,6 @@
 import { HOUSE, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER } from '../constants';
-import { world, Building, tileI, tileJ, tileIndex, neighbor, isOpen, waterNeighbor } from '../world/world';
-import { economy, Resource } from '../world/economy';
+import { world, newBuilding, recount, tileIndex, neighbor, isOpen, waterNeighbor } from '../world/world';
+import { economy } from '../world/economy';
 import { releaseWorkers, removeResidents } from '../engine/villagers';
 import { canPay, pay } from './stock';
 
@@ -15,7 +15,7 @@ function hasRoadNeighbor(t: number): boolean {
 /** Why a tool cannot act on a tile (PLACE_OK when it can). */
 export function checkTool(tool: number, t: number): number {
   if (t < 0) return PLACE_BLOCKED;
-  if (tool === TOOL_ERASE) return (world.build[t] >= 0 || (world.road[t] && t !== world.gate)) ? PLACE_OK : PLACE_BLOCKED;
+  if (tool === TOOL_ERASE) return ((world.build[t] >= 0 && !world.buildings[world.build[t]].fixed) || (world.road[t] && t !== world.gate)) ? PLACE_OK : PLACE_BLOCKED;
   if (!isOpen(t)) return PLACE_BLOCKED;
   if (tool === TOOL_ROAD) return PLACE_OK;
   const def = economy.buildings[tool - TOOL_HOUSE];
@@ -24,14 +24,7 @@ export function checkTool(tool: number, t: number): number {
   return canPay(def.cost) ? PLACE_OK : PLACE_NO_STOCK;
 }
 
-export function addBuilding(type: number, t: number): number {
-  const id = world.buildings.length;
-  const b = new Building();
-  b.type = type; b.i = tileI(t); b.j = tileJ(t); b.stock = economy.resources.map((_r: Resource): number => 0);
-  world.buildings.push(b);
-  world.build[t] = id; world.deco[t] = 0;
-  return id;
-}
+export function addBuilding(type: number, t: number): number { return newBuilding(type, t); }
 export function destroyBuilding(id: number): void {
   const b = world.buildings[id];
   if (b.type === HOUSE) removeResidents(id); else releaseWorkers(id);
@@ -50,6 +43,7 @@ export function applyTool(tool: number, t: number): number {
     pay(economy.buildings[tool - TOOL_HOUSE].cost);
     addBuilding(tool - TOOL_HOUSE, t);
   }
+  recount();
   world.revision++; world.saveDirty = true;
   return PLACE_OK;
 }

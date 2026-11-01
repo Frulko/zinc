@@ -1,4 +1,4 @@
-import { HOUSE } from './constants';
+import { HOUSE, BS_WAITING, BS_FULL, BS_ISOLATED } from './constants';
 import { world } from './world/world';
 import { economy } from './world/economy';
 import { population, isConnected } from './engine/villagers';
@@ -26,6 +26,13 @@ export function adviceLine(): string {
   for (const b of world.buildings) if (b.alive && b.type === HOUSE && isConnected(b)) linked = true;
   if (!linked) return 'La maison doit être reliée à la porte du hameau par la route.';
   if (population() === 0) return 'Les premiers habitants arrivent par la route…';
+  for (const b of world.buildings) {                       // what a building says is wrong with it
+    if (!b.alive || b.type === HOUSE || b.workers === 0) continue;
+    const label = economy.buildings[b.type].label;
+    if (b.state === BS_ISOLATED) return label + ' : aucune route ne le relie à un entrepôt.';
+    if (b.state === BS_WAITING && b.waitFor >= 0) return label + ' attend : ' + economy.resources[b.waitFor].label + '.';
+    if (b.state === BS_FULL) return label + ' est plein : posez un entrepôt au bord de la route.';
+  }
   let open = 0, jobs = 0;
   for (let type = 1; type < economy.buildings.length; type++) {
     const def = economy.buildings[type];

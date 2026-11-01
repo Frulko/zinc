@@ -1,18 +1,18 @@
 import { Color, Palette, Pose, Vec3, figure, dynamicAdd, capsule, sphere, plot, rgb, lerp, castShadow, ripple, Atlas, AtlasAxes, AtlasEntry, AtlasDef, bakeAtlas, headerKey, headerOf } from '../pixel';
 import {
-  ROLE_SETTLER, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_FISHER, ST_FISH, ST_CHOP, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
+  ROLE_SETTLER, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_FISHER, ROLE_SAWYER, ROLE_SMOKER, ROLE_PORTER, ST_FISH, ST_CHOP, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
   DEER_GRAZE, DEER_FLEE, DEER_DEAD, DEER_GONE,
 } from '../constants';
 import { Person, Deer } from '../world/world';
 import { isMoving } from '../engine/path';
-import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
+import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
 
 const SCALE = .62;
 const LOG: Color = [150, 112, 72], LOG_END: Color = [214, 186, 134], STEEL: Color = [176, 182, 180], ARROW: Color = [226, 212, 176];
 const solid = (c: Color): ((z: number) => Color) => (): Color => c;
 
 function paletteOf(role: number, hairTone: number): Palette {
-  const base = role === ROLE_SETTLER ? SETTLER_PALETTE : role === ROLE_LUMBERJACK ? LUMBERJACK_PALETTE : role === ROLE_HUNTER ? HUNTER_PALETTE : role === ROLE_FISHER ? FISHER_PALETTE : RESIDENT_PALETTE;
+  const base = role === ROLE_SETTLER ? SETTLER_PALETTE : role === ROLE_LUMBERJACK ? LUMBERJACK_PALETTE : role === ROLE_HUNTER ? HUNTER_PALETTE : role === ROLE_FISHER ? FISHER_PALETTE : role === ROLE_SAWYER ? SAWYER_PALETTE : role === ROLE_SMOKER ? SMOKER_PALETTE : role === ROLE_PORTER ? PORTER_PALETTE : RESIDENT_PALETTE;
   return { shirt: base.shirt, stripe: base.stripe, legs: base.legs, skin: base.skin, hair: HAIR_TONES[hairTone] };
 }
 
@@ -21,7 +21,7 @@ function paletteOf(role: number, hairTone: number): Palette {
 const KIND_WALK = 0, KIND_CHOP = 1, KIND_AIM = 2, KIND_FISH = 3, KIND_PICK = 4, KIND_IDLE = 5;
 const WALK_FRAMES = 8, CHOP_FRAMES = 6, YAW_STEPS = 8, TAU = Math.PI * 2;
 const SLOT_WALK = 0, SLOT_CHOP = WALK_FRAMES, SLOT_AIM = SLOT_CHOP + CHOP_FRAMES, SLOT_FISH = SLOT_AIM + 1, SLOT_PICK = SLOT_FISH + 1, SLOT_IDLE = SLOT_PICK + 1, PERSON_POSES = SLOT_IDLE + 1;
-const HAIRS = HAIR_TONES.length, ROLES = 5;
+const HAIRS = HAIR_TONES.length, ROLES = 8;
 interface Look { pose: Pose; axe: boolean; fishing: boolean; }
 
 /** `a` is the walk phase for KIND_WALK and the chop angle (phase * 4.2) for KIND_CHOP; `idleZ` the breathing offset. */

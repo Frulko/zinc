@@ -9,6 +9,10 @@ export const LUMBERJACK_PALETTE: Palette = { shirt: [174, 84, 62], stripe: [210,
 export const FISHER_PALETTE: Palette = { shirt: [92, 128, 146], stripe: [200, 206, 190], legs: [78, 82, 78], hair: HAIR_TONES[0], skin: SKIN };
 export const HUNTER_PALETTE: Palette = { shirt: [96, 116, 76], stripe: [130, 118, 80], legs: [92, 74, 56], hair: HAIR_TONES[0], skin: SKIN };
 
+export const SAWYER_PALETTE: Palette = { shirt: [196, 160, 98], stripe: [230, 214, 170], legs: [96, 78, 62], hair: HAIR_TONES[0], skin: SKIN };
+export const SMOKER_PALETTE: Palette = { shirt: [118, 104, 96], stripe: [170, 150, 130], legs: [70, 62, 56], hair: HAIR_TONES[0], skin: SKIN };
+export const PORTER_PALETTE: Palette = { shirt: [150, 118, 150], stripe: [206, 184, 200], legs: [86, 76, 70], hair: HAIR_TONES[0], skin: SKIN };
+
 export const GRASS_TONES: number[][] = [[53, 78, 49], [76, 100, 52], [104, 124, 63], [138, 150, 85]];
 export const WATER_TONES: number[][] = [[43, 99, 103], [58, 119, 114], [75, 137, 122], [99, 154, 133]];
 export const SAND_TONES: number[][] = [[196, 180, 132], [210, 194, 146], [222, 206, 160]];

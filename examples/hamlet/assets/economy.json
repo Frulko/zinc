@@ -6,6 +6,7 @@
     { "id": "fish", "label": "Poisson", "carry": "fish" }
   ],
   "start": { "wood": 24 },
+  "hall": "storehouse",
   "buildings": [
     { "id": "house", "label": "Maison", "order": 1, "model": "house", "cost": { "wood": 5 },
       "housing": { "capacity": 2, "free": 4, "eats": ["meat", "fish"] } },
@@ -18,5 +19,8 @@
     { "id": "fishery", "label": "Atelier de pêche", "short": "Pêche", "order": 4, "model": "fishery", "cost": { "wood": 8 },
       "workers": 2, "role": "fisher", "gather": "shore", "outputs": { "fish": 2 }, "seconds": 4.5,
       "hint": "Un étang : posez un atelier de pêche au bord de l’eau, près d’une route." }
+  ,
+    { "id": "storehouse", "label": "Entrepôt", "order": 5, "model": "storehouse", "cost": { "wood": 10 },
+      "workers": 2, "role": "porter", "store": true, "stockCap": 40 }
   ]
 }

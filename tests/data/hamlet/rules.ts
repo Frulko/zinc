@@ -7,10 +7,13 @@ import { population, createResident } from '../../../examples/hamlet/src/engine/
 import { seedFromText, parseSeedRequest } from '../../../examples/hamlet/src/world/seed';
 import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
 import { stateHash } from '../../../examples/hamlet/src/world/hash';
-import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES } from '../../../examples/hamlet/src/constants';
+import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED } from '../../../examples/hamlet/src/constants';
 import * as fs from 'zinc:fs';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
-import { MODEL_IDS } from '../../../examples/hamlet/src/view/models';
+// the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
+const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse'];
+import { setStock } from '../../../examples/hamlet/src/rules/stock';
+import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine/transport';
 import { toolOf } from '../../../examples/hamlet/src/rules/build';
 
 const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');   // the test runs from the repository root
@@ -44,8 +47,10 @@ check('the sawmill takes two idle residents', world.people.filter((p) => p.role 
 const before = world.stock[WOOD];
 run(90);
 check('lumberjacks deliver wood and fell trees', world.stock[WOOD] > before && world.felledCount > 0);
+applyTool(TOOL_HOUSE, at(4, 5)); world.tree[at(4, 5)] = 0;
+run(20);
 applyTool(TOOL_LODGE, at(5, 5));
-run(5);
+run(20);
 check('the lodge takes the two others as hunters', world.people.filter((p) => p.role === ROLE_HUNTER).length === 2);
 run(300);
 check('hunters bring game', world.stock[MEAT] > 0);
@@ -60,10 +65,10 @@ world.unlimited = true;
 const text = snapshot();
 const roads = world.road.filter((v) => v === 1).length;
 check('the save restores the same village (trees and mode)', restore(text) && world.unlimited && snapshot() === text && world.road.filter((v) => v === 1).length === roads);
-applyTool(TOOL_ERASE, at(3, 5)); applyTool(TOOL_ERASE, at(2, 5));
+applyTool(TOOL_ERASE, at(3, 5)); applyTool(TOOL_ERASE, at(2, 5)); applyTool(TOOL_ERASE, at(4, 5));
 check('demolishing the houses sends their people away', population() === 0 && world.people.length === 0);
 // ---- the fishing hut: needs a pond, then fishers bring fish ----
-generate(7916, 12); world.stock[WOOD] = 100;
+generate(7916, 12); setStock(WOOD, 100);
 let shore = -1, inland = -1;
 for (let t = 0; t < 144 && (shore < 0 || inland < 0); t++) {
   if (!isOpen(t)) continue;
@@ -76,6 +81,7 @@ let homeTile = -1;
 for (let t = 0; t < 144 && homeTile < 0; t++) if (isOpen(t) && waterNeighbor(t) < 0 && Math.abs(tileIndex(0, 0) - t) > 30) homeTile = t;
 const home = addBuilding(HOUSE, homeTile);
 createResident(home); createResident(home); world.buildings[home].residents = 2;
+for (let d = 0; d < 4; d++) { const r = neighbor(shore, d); if (r >= 0 && world.road[r]) for (let e = 0; e < 4; e++) { const v = neighbor(r, e); if (v >= 0 && v !== shore && isOpen(v) && waterNeighbor(v) < 0) { addBuilding(economy.typeOf('storehouse'), v); break; } } }
 check('a fishing hut by the pond is allowed', applyTool(TOOL_FISHERY, shore) === PLACE_OK);
 run(120);
 check('fishers bring fish', world.stock[FISH] > 0);
@@ -106,19 +112,38 @@ const cut2 = withWorks.lastIndexOf(']');
 loadEconomy(withWorks.slice(0, cut2) + ', { "id": "plankworks", "label": "Planches", "model": "plankworks", "cost": { "wood": 4 }, "workers": 2, "role": "lumberjack", "inputs": { "wood": 2 }, "outputs": { "plank": 1 }, "seconds": 3 }' + withWorks.slice(cut2), MODEL_IDS.concat(['plankworks']), ROLE_NAMES);
 const PLANK = economy.resourceOf('plank'), WORKS_ID = economy.typeOf('plankworks');
 generate(1234, 16);
-for (const t of [at(2, 7), at(4, 7), at(5, 9)]) { world.tree[t] = 0; world.rock[t] = 0; }
+for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; world.rock[t] = 0; }
 for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, at(i, 8));
 applyTool(TOOL_HOUSE, at(2, 7)); applyTool(toolOf('plankworks'), at(5, 9));
-world.stock[WOOD] = 0;
+setStock(WOOD, 0);
 run(40);
 const works = world.buildings.filter((b) => b.type === WORKS_ID)[0];
 check('a building without input waits and says what it lacks', works.workers === 2 && works.state === 2 && works.waitFor === WOOD);
-world.stock[WOOD] = 12;
+setStock(WOOD, 12);
 run(60);
-check('given input, the workers fetch it and make planks (2 wood -> 1 plank)', world.stock[PLANK] >= 3 && world.stock[WOOD] <= 6);
+check('given input, the workers fetch it and make planks (2 wood -> 1 plank)', world.stock[PLANK] + works.stock[PLANK] >= 3 && world.stock[WOOD] + works.stock[WOOD] <= 6);
 loadEconomy(ECONOMY_TEXT, MODEL_IDS, ROLE_NAMES);
+// ---- stores and porters: two producers, one store (the hall): nothing is lost or made twice; a building with no road to a store does not send ----
+generate(1234, 16); setStock(WOOD, 100);
+for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8), at(12, 12), at(12, 13)]) { world.tree[t] = 0; world.rock[t] = 0; }
+for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, at(i, 8));
+applyTool(TOOL_HOUSE, at(2, 7)); applyTool(TOOL_HOUSE, at(4, 7)); applyTool(TOOL_SAWMILL, at(5, 9)); applyTool(TOOL_SAWMILL, at(3, 9));
+world.road[at(12, 12)] = 1; world.revision++; applyTool(TOOL_SAWMILL, at(12, 13));
+const allWood = (): number => {                    // every wood in the village: stores, producers, loads in hand
+  let n = 0;
+  for (let id = 0; id < world.buildings.length; id++) if (world.buildings[id].alive) n += stockWithCarried(id)[WOOD];
+  for (const p of world.people) if (p.carry === WOOD + 1 && p.state === ST_TO_SITE) n += p.load;
+  return n;
+};
+const start = allWood(), felled = world.felledCount;
+run(80);
+check('totals are conserved: every felled tree is one wood somewhere', allWood() === start + world.felledCount - felled && world.felledCount > felled + 5);
+check('the hall received wood from the producers', world.stock[WOOD] > 40);
+const lone = world.buildings[world.build[at(12, 13)]];
+check('a building with no road to a store does not send', !exportsOk(lone) && lone.state === BS_ISOLATED && lone.stock[WOOD] >= 0 && world.buildings[world.build[at(5, 9)]].state !== BS_ISOLATED);
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
-generate(1234, 16); world.stock[WOOD] = 100;
+generate(1234, 16); setStock(WOOD, 100);
+for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; }
 for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, tileIndex(i, 8));
 applyTool(TOOL_HOUSE, tileIndex(2, 7)); applyTool(TOOL_HOUSE, tileIndex(4, 7)); applyTool(TOOL_SAWMILL, tileIndex(5, 9)); applyTool(TOOL_LODGE, tileIndex(3, 9));
 for (let k = 0; k < 600; k++) stepWorld();

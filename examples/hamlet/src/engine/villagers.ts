@@ -1,16 +1,17 @@
 import {
   HOUSE, ST_TO_SHORE, ST_FISH, FISH_CATCH_CHANCE, ROLE_SETTLER, ROLE_RESIDENT,
   ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_WORK, ST_FETCH, ST_BRING,
-  BS_IDLE, BS_WORKING, BS_WAITING, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, WORK_RADIUS, SETTLER_INTERVAL,
+  BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, WORK_RADIUS, SETTLER_INTERVAL,
   DEER_DEAD, DEER_FLEE, DEER_GONE, WALK_SPEED,
 } from '../constants';
 import { Housing, BuildingDef } from '../world/economy';
-import { world, Person, Building, random, tileAt, tileX, tileY, tileIndex, tileI, tileJ, neighbor, waterNeighbor } from '../world/world';
+import { world, recount, Person, Building, random, tileAt, tileX, tileY, tileIndex, tileI, tileJ, neighbor, waterNeighbor } from '../world/world';
 import { fieldFrom, approachTile, pathTo, planPath, walk, isWalkable, isMoving, UNREACHABLE } from './path';
-import { sound } from '../pixel';
+import { sound } from '../audio';
 import { settings } from '../settings';
 import { economy } from '../world/economy';
-import { add } from '../rules/stock';
+import { take } from '../rules/stock';
+import { findLoad, haulOut, fetchInput, hasRoomFor, readyBatch, exportsOk, pickUp, putDown, cancelTransport } from './transport';
 
 const gap = (ax: number, ay: number, bx: number, by: number): number => Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
 const buildingTile = (b: Building): number => tileIndex(b.i, b.j);
@@ -74,7 +75,7 @@ function updateSettlers(dt: number): void {
     const settler = newPerson(ROLE_SETTLER, world.buildings.indexOf(b), world.gate);
     settler.state = ST_WALK_IN;
     if (!planPath(settler, buildingTile(b))) { b.timer = 2; continue; }
-    if (needsFood) world.stock[food] -= 1;
+    if (needsFood) take(food, 1);
     b.residents++; b.timer = SETTLER_INTERVAL; world.people.push(settler); world.saveDirty = true;
   }
 }
@@ -87,13 +88,29 @@ export function createResident(houseId: number): void {
   p.state = ST_IDLE;
   world.people.push(p);
 }
+/** A porter who is not carrying anything goes back to being an idle resident, so that a workshop can have him. */
+function reclaimPorter(): void {
+  for (const p of world.people) {
+    if (p.job < 0 || !economy.buildings[world.buildings[p.job].type].store || p.state !== ST_SEEK) continue;
+    world.buildings[p.job].workers--;
+    p.job = -1; p.role = ROLE_RESIDENT; p.state = ST_IDLE; p.path = []; p.step = 0; p.timer = 1;
+    return;
+  }
+}
 function assignJobs(): void {
-  for (let id = 0; id < world.buildings.length; id++) {
+  for (const b of world.buildings) if (b.alive && b.type !== HOUSE && !economy.buildings[b.type].store) {   // the hint: no road to a store
+    if (!exportsOk(b)) b.state = BS_ISOLATED; else if (b.state === BS_ISOLATED) b.state = BS_IDLE;
+  }
+  let producers = 0, vacancies = 0;
+  for (const b of world.buildings) if (b.alive && b.type !== HOUSE && !economy.buildings[b.type].store) { producers++; vacancies += economy.buildings[b.type].workers - b.workers; }
+  for (let pass = 0; pass < 2; pass++) for (let id = 0; id < world.buildings.length; id++) {   // producers are staffed first; porters only once something produces and no producer lacks hands
+    if (pass === 1 && (producers === 0 || vacancies > 0)) break;
     const site = world.buildings[id];
-    if (!site.alive || site.type === HOUSE) continue;
+    if (!site.alive || site.type === HOUSE || economy.buildings[site.type].store !== (pass === 1)) continue;
     const def = economy.buildings[site.type];
     while (site.workers < def.workers) {
       let best: Person | null = null, bestDist = 1e9;
+      if (pass === 0) reclaimPorter();                          // a producer lacking hands takes a porter back before it waits for a newcomer
       for (const p of world.people) {
         if (p.role !== ROLE_RESIDENT || p.job >= 0 || (p.state !== ST_IDLE && p.state !== ST_STROLL)) continue;
         const d = gap(p.x, p.y, tileX(buildingTile(site)), tileY(buildingTile(site)));
@@ -101,7 +118,7 @@ function assignJobs(): void {
       }
       if (best === null) break;
       best.role = def.roleId;
-      best.job = id; site.workers++; best.state = ST_GO_WORK;
+      best.job = id; site.workers++; best.state = ST_GO_WORK; if (pass === 0) vacancies--;
       if (!planPath(best, buildingTile(site))) best.timer = 0;
     }
   }
@@ -111,7 +128,7 @@ function assignJobs(): void {
 export function releaseWorkers(siteId: number): void {
   for (const p of world.people) {
     if (p.job !== siteId) continue;
-    releaseClaims(p);
+    releaseClaims(p); cancelTransport(p);
     p.job = -1; p.role = ROLE_RESIDENT; p.carry = 0; p.load = 0; p.state = ST_IDLE; p.path = []; p.step = 0; p.timer = 1;
   }
   world.buildings[siteId].workers = 0;
@@ -121,7 +138,7 @@ export function removeResidents(houseId: number): void {
   const kept: Person[] = [];
   for (const p of world.people) {
     if (p.home !== houseId) { kept.push(p); continue; }
-    releaseClaims(p);
+    releaseClaims(p); cancelTransport(p);
     if (p.job >= 0) world.buildings[p.job].workers--;
   }
   world.people = kept;
@@ -184,10 +201,10 @@ function releaseClaims(p: Person): void {
   if (kind === 'deer' && p.target >= 0 && p.state >= ST_STALK && p.state <= ST_PICK && p.state !== ST_TO_SITE) world.deer[p.target].hunted = false;
   p.target = -1;
 }
-/** The gathered load goes to the workplace, which holds it. */
+/** The gathered load goes to the workplace, which holds it until a porter (or the worker) takes it to a store. */
 function deliver(p: Person): void {
-  const site = world.buildings[p.job];
-  add(defOf(site).outputs);
+  const site = world.buildings[p.job], out = defOf(site).outputs;
+  for (let k = 0; k < out.length; k++) site.stock[k] += out[k];
   p.carry = 0; p.load = 0; world.saveDirty = true;
   sound('point', .3);
 }
@@ -196,18 +213,6 @@ function goDeliver(p: Person): void {
   p.carry = firstOutput(defOf(site)) + 1; p.load = 1;
   p.state = ST_TO_SITE;
   if (!planPath(p, buildingTile(site))) { p.carry = 0; p.state = ST_SEEK; p.timer = 1; }
-}
-/** Takes the first missing input to the building: walk to where it lies, pick it up, bring it back. False when nothing can be fetched (the building waits for it). */
-function fetchInput(p: Person, site: Building, def: BuildingDef): boolean {
-  for (let k = 0; k < def.inputs.length; k++) {
-    if (def.inputs[k] === 0 || site.stock[k] >= def.inputs[k]) continue;
-    if (world.stock[k] < 1) { site.state = BS_WAITING; site.waitFor = k; return false; }
-    p.carry = k + 1; p.load = 0; p.dst = p.job;
-    if (!planPath(p, world.gate)) return false;
-    p.state = ST_FETCH;
-    return true;
-  }
-  return true;
 }
 function startWork(p: Person, site: Building, def: BuildingDef): boolean {
   for (let k = 0; k < def.inputs.length; k++) if (site.stock[k] < def.inputs[k]) return false;
@@ -228,35 +233,32 @@ function updateWorker(p: Person, dt: number): void {
       p.timer -= dt;
       if (p.timer > 0) break;
       let found = false;
-      if (def.gather === 'tree') found = nearestTree(p);
+      if (def.store) found = findLoad(p);                        // a porter
+      else if (!hasRoomFor(site, def.outputs)) { site.state = BS_FULL; found = haulOut(p, p.job); }   // full: the worker carries it to a store itself
+      else if (readyBatch(site, def.outputs) && haulOut(p, p.job)) found = true;                       // a batch is ready and no porter came: carry it
+      else if (def.gather === 'tree') found = nearestTree(p);
       else if (def.gather === 'shore') found = nearestShore(p);
       else if (def.gather === 'deer') found = nearestGame(p);
       else {
-        site.state = BS_IDLE;
-        found = startWork(p, site, def) || fetchInput(p, site, def);
+        if (site.state === BS_FULL || site.state === BS_ISOLATED) site.state = BS_IDLE;
+        found = startWork(p, site, def) || fetchInput(p, p.job);
       }
-      if (!found) p.timer = 2;
+      if (!found) p.timer = def.store ? 1.5 : 2;
       break;
     }
     case ST_WORK:
       p.phase += dt * 6.2;
       p.timer -= dt;
       if (p.timer > 0) break;
-      add(def.outputs); world.saveDirty = true; sound('point', .3);
+      for (let k = 0; k < def.outputs.length; k++) site.stock[k] += def.outputs[k];
+      world.saveDirty = true; sound('point', .3);
       site.state = BS_IDLE; p.state = ST_SEEK; p.timer = .2;
       break;
     case ST_FETCH:
-      if (!walk(p, dt, speed)) break;
-      p.load = Math.min(def.inputs[p.carry - 1] * 2 - site.stock[p.carry - 1], world.stock[p.carry - 1]);
-      if (p.load < 1) { p.carry = 0; p.state = ST_SEEK; p.timer = 1; break; }
-      world.stock[p.carry - 1] -= p.load;
-      p.state = ST_BRING;
-      if (!planPath(p, buildingTile(site))) { world.stock[p.carry - 1] += p.load; p.carry = 0; p.load = 0; p.state = ST_SEEK; p.timer = 1; }
+      if (walk(p, dt, speed)) pickUp(p);
       break;
     case ST_BRING:
-      if (!walk(p, dt, speed)) break;
-      site.stock[p.carry - 1] += p.load; p.carry = 0; p.load = 0;
-      p.state = ST_SEEK; p.timer = 0;
+      if (walk(p, dt, speed)) putDown(p);
       break;
     case ST_TO_TREE:
       if (!walk(p, dt, speed)) break;
