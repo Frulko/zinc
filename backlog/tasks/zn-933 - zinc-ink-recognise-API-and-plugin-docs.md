@@ -2,7 +2,8 @@
 id: ZN-933
 title: 'zinc:ink recognise API and plugin docs'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 12:12'
 labels:
   - ink

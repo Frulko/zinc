@@ -2,7 +2,8 @@
 id: ZN-927
 title: 'rmpp: pen-aware palm rejection and tilt in the input path'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 12:10'
 labels:
   - rmpp

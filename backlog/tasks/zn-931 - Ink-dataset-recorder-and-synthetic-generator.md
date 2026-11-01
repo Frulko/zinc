@@ -2,7 +2,8 @@
 id: ZN-931
 title: Ink dataset recorder and synthetic generator
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 12:11'
 labels:
   - ink

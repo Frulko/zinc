@@ -2,7 +2,8 @@
 id: ZN-928
 title: 'rmpp: landscape rotation of the panel, pen and touch'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 12:11'
 labels:
   - rmpp

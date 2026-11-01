@@ -2,7 +2,8 @@
 id: ZN-929
 title: 'zinc:ui: eink style mode (b&w and Gallery 3 colours, patterns)'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 12:11'
 labels:
   - ui

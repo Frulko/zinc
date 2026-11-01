@@ -2,7 +2,8 @@
 id: ZN-930
 title: 'zinc:ui Layer cache and zinc:gfx refreshRect for e-ink'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 12:11'
 labels:
   - ui

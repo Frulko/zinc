@@ -2,7 +2,8 @@
 id: ZN-932
 title: 'zinc:ink stroke grouping and $Q shape/letter matcher'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 12:11'
 labels:
   - ink
