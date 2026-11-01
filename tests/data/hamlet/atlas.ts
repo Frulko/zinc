@@ -1,5 +1,8 @@
 // Headless proofs of the hamlet's baked models and atlas (CachedModel box and round trip). No window.
-import { W, H, pix, zb, setView, configureRenderer, beginModel, captureModel, setFullModelScan, CachedModel, box, capsule, sphere, plot, rgb, setLighting, project, bakeAtlas, hashNumbers, hashText, headerKey, AtlasDef } from '../../../examples/hamlet/src/pixel';
+import { W, H, pix, zb, setView, configureRenderer, beginModel, captureModel, setFullModelScan, CachedModel, box, capsule, sphere, plot, rgb, setLighting, project, bakeAtlas, hashNumbers, hashText, headerKey, AtlasDef, pendingShadows, shadowMask } from '../../../examples/hamlet/src/pixel';
+import { Person, Deer } from '../../../examples/hamlet/src/world/world';
+import { drawPerson, drawDeer, actorAtlas } from '../../../examples/hamlet/src/view/actors';
+import { ST_CHOP, ST_AIM, ST_FISH, ST_PICK, ST_IDLE, DEER_GRAZE, DEER_WALK, DEER_FLEE, DEER_DEAD } from '../../../examples/hamlet/src/constants';
 import { models, useModels, resetModels } from '../../../examples/hamlet/src/view/models';
 
 let failures = 0;
@@ -81,5 +84,49 @@ setLighting([20, 20, 60], [255, 200, 120]);
 check('a new light stales the atlas (the hash differs)', atlas.stale() && atlas.header.lighting !== 0 && before !== 0);
 setLighting([46, 38, 84], [255, 232, 180]);
 check('the same light is fresh again', !atlas.stale());
+
+// people and deer: the stamp equals the live figure (same pixels, same depth) at a whole-pixel position, quantised heading and animation step
+function clearScene(): void { pix.fill(0); zb.fill(-1e9); pendingShadows.length = 0; shadowMask.fill(0); }
+function sceneDiff(live: () => void, baked: () => void): number {
+  clearScene(); live(); const a = pix.slice(), az = zb.slice();
+  clearScene(); baked(); let n = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] !== pix[i] || Math.abs(az[i] - zb[i]) > 1e-6) n++;
+  clearScene();
+  return n;
+}
+const actors = actorAtlas();
+const gx = 6 / (Math.SQRT2 * .5 * 10), gy = gx;
+let personDiff = 0, personFrames = 0, personWorst = 0;
+for (let role = 0; role < 5; role++) for (let yaw8 = 0; yaw8 < 8; yaw8++) for (let look = 0; look < 6; look++) {
+  const p = new Person();
+  p.role = role; p.x = gx; p.y = gy; p.yaw = yaw8 * Math.PI / 4; p.hair = look === 5 ? 0 : role % 4;     // the live idle breathes by hair-dependent hundredths of a unit: not stamped
+  if (look === 0) { p.path = [1, 2]; p.step = 0; p.phase = 3 * Math.PI / 4; }
+  else if (look === 1) { p.state = ST_CHOP; p.phase = 2 * Math.PI / 4.2 / 6 * 2; }
+  else if (look === 2) p.state = ST_AIM;
+  else if (look === 3) p.state = ST_FISH;
+  else if (look === 4) p.state = ST_PICK;
+  else p.state = ST_IDLE;
+  const pd = sceneDiff((): void => drawPerson(p, 0, null), (): void => drawPerson(p, 0, actors));
+  personDiff += pd; if (pd > personWorst) personWorst = pd;
+  personFrames++;
+}
+// two bones of equal depth tie differently once the figure is shifted by a whole number of pixels (float rounding): a few pixels at most
+check('people: stamps equal live figures, ' + personFrames + ' cases (pixels differing: ' + personDiff + ', worst case ' + personWorst + ')', personWorst <= 4);
+let deerDiff = 0, deerFrames = 0;
+for (let stag = 0; stag < 2; stag++) for (let yaw8 = 0; yaw8 < 8; yaw8++) for (let look = 0; look < 5; look++) {
+  const d = new Deer();
+  d.x = gx; d.y = gy; d.yaw = yaw8 * Math.PI / 4; d.stag = stag === 1;
+  if (look === 0) { d.state = DEER_WALK; d.path = [1, 2]; d.phase = 3 * Math.PI / 4; }
+  else if (look === 1) { d.state = DEER_FLEE; d.path = [1, 2]; d.phase = 2 * Math.PI / 6 * 2; }
+  else if (look === 2) { d.state = DEER_GRAZE; d.phase = 0; }
+  else if (look === 3) { d.state = DEER_WALK; }
+  else d.state = DEER_DEAD;
+  deerDiff += sceneDiff((): void => drawDeer(d, 0, null), (): void => drawDeer(d, 0, actors));
+  deerFrames++;
+}
+check('deer: stamps equal live deer, ' + deerFrames + ' cases (pixels differing: ' + deerDiff + ')', deerDiff === 0);
+const b0 = Date.now(); const all = actorAtlas(); all.bakeAll(); const bakeAllMs = Date.now() - b0;
+console.log('hamlet atlas: all ' + all.baked + ' people and deer frames baked in ' + bakeAllMs + ' ms');
+check('the whole actor atlas bakes within 6 s', bakeAllMs < 6000);
 
 console.log(failures === 0 ? 'hamlet atlas: ALL PASS' : 'hamlet atlas: ' + failures + ' FAIL');

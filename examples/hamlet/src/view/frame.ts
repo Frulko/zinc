@@ -7,7 +7,7 @@ import { world, tileX, tileY } from '../world/world';
 import { tufts, bakeCount } from './scenery';
 import { settings } from '../settings';
 import { models, MODEL_HOUSE } from './models';
-import { drawPerson, drawDeer, drawSmoke } from './actors';
+import { drawPerson, drawDeer, drawSmoke, actorAtlas } from './actors';
 
 const GRASS_LIT = GRASS.map((c: number[]): u32 => rgbColor(c));
 const GRASS_DARK = GRASS.map((c: number[]): u32 => rgb(c[0] * .54, c[1] * .52, c[2] * .72));
@@ -120,8 +120,9 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   if (settings.shadows) setTrackShadows(true); else { setTrackShadows(false); shadowMask.fill(0); }
   drawTufts(time * settings.wind); drawPond(time * settings.wind);
   const loose: number[] = touched.slice();
-  for (const d of world.deer) drawDeer(d, time);
-  for (const p of world.people) drawPerson(p, time);
+  const atlas = settings.atlas ? actorAtlas() : null;
+  for (const d of world.deer) drawDeer(d, time, atlas);
+  for (const p of world.people) drawPerson(p, time, atlas);
   if (preview >= 0 && hover >= 0 && Math.floor(time * 3) % 2 === 0) models[MODEL_HOUSE + preview].drawAt(tileX(hover), tileY(hover), 0);
   if (settings.shadows) { flushShadows(); applyShadows(bakedZ); } else pendingShadows.length = 0;
   if (settings.edges) for (let k = 0; k < rects.length; k += 4) shadeEdgesRect(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);

@@ -15,6 +15,7 @@ export interface Settings {
   animFps: number;          // poses per second of the village picture
   wind: number;             // speed of the grass and water glints
   shadows: boolean;
+  atlas: boolean;           // people and deer are stamped from baked frames (off: every bone is drawn live, slower)
   edges: boolean;           // the dark and warm outlines drawn from depth
   walkSpeed: number;        // multiplier on people's walking speed
   treeMin: number;          // no-limit mode: below this many trees (on a 12 x 12 map; scaled by area) one grows back
@@ -31,7 +32,7 @@ export interface Settings {
 }
 
 export const settings: Settings = {
-  simSpeed: 1, animFps: 24, wind: 1, shadows: true, edges: true, walkSpeed: 1,
+  simSpeed: 1, animFps: 24, wind: 1, shadows: true, atlas: true, edges: true, walkSpeed: 1,
   treeMin: TREE_MIN, treeRegrow: TREE_REGROW, deerMin: DEER_MIN, deerRespawn: DEER_RESPAWN,
   lod: 0, resample: 1, pauseOnMove: true, edgePan: true, minimapCorner: 3, minimapSize: 2, minimapUnits: true,
 };
