@@ -2247,7 +2247,19 @@ struct Lowering::FnLower {
       ValueId fv = coerce(expr(x.kids[0]), L.irType(ftype));
       const Selector& sg = m.selectors[L.selectorFor("call", ftype)];
       std::vector<ValueId> vs{fv};
-      for (std::size_t k = 0; k < sg.params.size(); ++k) vs.push_back(k + 1 < x.kids.size() ? exprTo(x.kids[k + 1], sg.params[k]) : nullConst(sg.params[k]));  // an optional parameter left out is null
+      // a nested function declaration called by name: a parameter left out takes its default, evaluated here at the call (as callFunction does)
+      std::uint32_t declN = kNil;
+      if (callee.kind == N::Ident && c.nodeSym[x.kids[0]] != kNil && c.syms[c.nodeSym[x.kids[0]]].kind == SymKind::Func && L.closureFns.count(c.syms[c.nodeSym[x.kids[0]]].decl)) declN = c.syms[c.nodeSym[x.kids[0]]].decl;
+      for (std::size_t k = 0; k < sg.params.size(); ++k) {
+        if (k + 1 < x.kids.size()) { vs.push_back(exprTo(x.kids[k + 1], sg.params[k])); continue; }
+        std::uint32_t d = declN != kNil && n(declN).kind == N::Function && 2 + k < n(declN).kids.size() ? n(n(declN).kids[2 + k]).kids[1] : kNil;
+        if (d == kNil) { vs.push_back(nullConst(sg.params[k])); continue; }   // an optional parameter left out is null
+        std::unordered_map<std::uint32_t, ValueId> saved = paramSubst;   // a default may read the parameters before it
+        for (std::size_t j = 0; j < k; ++j) { std::uint32_t ps = c.nodeSym[n(declN).kids[2 + j]]; if (ps != kNil) paramSubst[ps] = vs[1 + j]; }
+        ValueId dv = exprTo(d, sg.params[k]);
+        paramSubst = std::move(saved);
+        vs.push_back(dv);
+      }
       return emit(IrOp::CallVirt, sg.ret, std::move(vs), 0, 0, L.selectorFor("call", ftype));
     }
     if (callee.kind == N::Super) {  // super(args): the base class constructor, if it has a function

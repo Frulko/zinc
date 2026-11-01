@@ -3,6 +3,8 @@ import { rect, line, setTransform, image, drawImageRect } from 'zinc:gfx';
 import { puzzle } from '../state';
 import { room, EMPTY } from '../puzzle';
 import { neighbors } from '../architecture';
+import { INK } from '../skin';
+import { inkFloor, inkWindow, inkDecor } from './InkPlan';
 export const MANOR_BLEED = 20;
 // Official room colours, washed toward ivory so the furniture and people carry the eye.
 function soften(c: number): number { const m = (s: number): number => Math.round(((c >> s) & 255)*0.5+0xf4*0.5); return (m(16) << 16) | (m(8) << 8) | m(0); }
@@ -14,6 +16,7 @@ function wall(x: number, y: number, side: number, window: boolean): void {
  if (vertical) rect(x-thickness/2,y-thickness/2,thickness,80+thickness,0x000000);
  else rect(x-thickness/2,y-thickness/2,80+thickness,thickness,0x000000);
  if (!window) return;
+ if (INK) { inkWindow(x,y,vertical); return; }
  // Frames straddle the wall center; only the sill changes to face the room.
  if (vertical) {
   const wx = x-6;
@@ -47,10 +50,11 @@ class Floor extends Sprite {
   if (this.floors < 0) this.floors = image('manor-floors.png');
   const p = puzzle();
   const off = 14/this.scale;
-  for (let c = 0; c < p.columns*p.rows; c++) if (room(p,c) >= 0) rect(c%p.columns*80+off,Math.floor(c/p.columns)*80+off,80,80,0xc4c2cc);
+  for (let c = 0; c < p.columns*p.rows; c++) if (room(p,c) >= 0 && !INK) rect(c%p.columns*80+off,Math.floor(c/p.columns)*80+off,80,80,0xc4c2cc);
   for (let c = 0; c < p.columns*p.rows; c++) {
    const r = room(p,c); if (r < 0) continue;
    const col = c%p.columns, row = Math.floor(c/p.columns), x = col*80, y = row*80;
+   if (INK) { inkFloor(r,x,y); rect(x,y,80,0.8,0x000000); rect(x,y,0.8,80,0x000000); if (p.decor[c] !== EMPTY) inkDecor(p.decor[c],x,y); continue; }
    rect(x,y,80,80,FLOOR_COLORS[r]);
    const tile = p.themes[r] === 2 ? 1 : p.themes[r] === 7 ? 3 : p.themes[r] === 4 ? 2 : 0;
    if (this.floors >= 0) drawImageRect(this.floors,tile*128,0,128,128,x,y,80,80,36);

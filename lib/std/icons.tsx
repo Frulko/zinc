@@ -2,6 +2,7 @@
 // with zinc:svg; only the icons the project names are compiled in (zinc:icons/lucide is generated from `<Icon name="...">`, `icon('...')` and zinc.json
 // "icons": ["a", "b"] or ["*"]). A name decided at run time must be listed in zinc.json.
 import { Svg } from 'zinc:svg';
+import { EINK, einkSnap } from 'zinc:ui';
 import { lucide, NAMES } from 'zinc:icons/lucide';
 
 const cache = new Map<string, Svg>();
@@ -31,7 +32,8 @@ export function Icon(p: { name: string; size?: number; color?: () => i32; stroke
   const size = p.size ?? 24;
   let lastColor: i32 = -1, last: Svg | null = null;
   return <Canvas style={{ width: size, height: size, lazy: 1 }} onDraw={(x: i32, y: i32, w: i32, h: i32) => {
-    const c = p.color !== undefined ? (p.color as () => i32)() : 0x000000;
+    let c = p.color !== undefined ? (p.color as () => i32)() : 0x000000;
+    if (EINK) c = einkSnap(c as u32) as i32;   // the panel's palette, as every other command of zinc:ui (ZN-929)
     if (c !== lastColor || last === null) { last = icon(p.name, c, p.strokeWidth ?? 2); lastColor = c; }
     const s = last;
     if (s !== null) (s as Svg).draw(x, y, w, h, 255);

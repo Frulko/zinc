@@ -2,6 +2,8 @@ import { image, imageWidth, imageHeight, drawImageRect, rrect } from 'zinc:gfx';
 import { Character } from '../characters';
 import { puzzle } from '../state';
 import { witnessColor } from './LetterBadge';
+import { INK } from '../skin';
+import { personLetter } from '../puzzle';
 const atlasNames = ['cast-man.png','cast-woman.png'];
 const atlasIds: i32[] = [-1,-1];
 export function drawCharacter(c: Character, x: number, y: number, size: number, bg: number = 0xf2f2f7): void {
@@ -12,5 +14,6 @@ export function drawCharacter(c: Character, x: number, y: number, size: number, 
  drawImageRect(atlas,c.hair*sw,c.skin*sh,sw,sh,x+2,y+2,size-4,size-4,255);
 }
 export function Portrait(props: { person: number; size: number }): i32 {
+ if (INK) return <View style={{ width: props.size, height: props.size, borderRadius: props.size/2 }} className="border-[3] border-black bg-white items-center justify-center"><Text style={{ fontSize: Math.round(props.size*0.5) }} className="font-black text-black">{personLetter(puzzle(),props.person)}</Text></View>;
  return <Canvas style={{ width: props.size, height: props.size, lazy: 1 }} onDraw={(x: i32,y: i32,w: i32,h: i32) => drawCharacter(puzzle().characters[props.person],x,y,Math.min(w,h),witnessColor(props.person))} />;
 }

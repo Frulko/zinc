@@ -12,6 +12,11 @@
       "width": 1320,
       "height": 900,
       "resize": "fill"
+    },
+    "rmpp": {
+      "width": 1620,
+      "height": 2160,
+      "display": { "driver": "rmpp", "refresh_mode": "ui" }
     }
   },
   "permissions": [],
