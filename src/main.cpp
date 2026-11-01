@@ -377,6 +377,7 @@ static void printPlugins() {
 // A display driver (zinc.json `display`, the board's, or ZINC_DISPLAY): build its plugin into the cache and load it, so that it registers with the HAL (ZN-104). Not in a headless or
 // deterministic run (golden tests, captures) unless the driver was asked for with ZINC_DISPLAY. A driver that cannot be built is reported and the host window keeps the screen.
 // The drivers of zinc.json "displays" are linked too, on demand: a second process of the app takes one with ZINC_DISPLAY (hal_display_register).
+#include "yyjson.h"
 static void installDisplayDriver(const std::string& projectDir, const char* entry);
 static void installDisplayDrivers(const std::string& projectDir, const char* entry) {
   installDisplayDriver(projectDir, entry);
@@ -450,6 +451,20 @@ static void installDisplayDriver(const std::string& projectDir, const char* entr
   gPlugins.push_back(lib);
   gPluginDirs.push_back(hit->dir);
   gDisplayPlugin = hit->manifest.name;
+  // a panel driver whose name is a capability row with eink (rmpp) makes the program an e-ink app whatever the pack's target (a Linux pack on the
+  // tablet is profile "linux", eink false): zinc:ui reads ZINC_EINK; ZINC_EINK=0 still shows the colour app
+  {
+    std::string row = hit->manifest.name;
+    if (row.rfind("display-", 0) == 0) row = row.substr(8);
+    std::ifstream in(gRoot + "/targets/capabilities.json");
+    std::stringstream ss;
+    ss << in.rdbuf();
+    const std::string text = ss.str();
+    if (yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0)) {
+      if (yyjson_is_true(yyjson_obj_get(yyjson_obj_get(yyjson_doc_get_root(doc), row.c_str()), "eink"))) setenv("ZINC_EINK", "1", 0);
+      yyjson_doc_free(doc);
+    }
+  }
 }
 
 #ifdef ZN_HOST_GFX

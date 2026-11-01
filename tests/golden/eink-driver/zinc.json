@@ -1,0 +1,1 @@
+{ "name": "eink-driver", "entry": "main.tsx", "display": { "driver": "rmpp" } }

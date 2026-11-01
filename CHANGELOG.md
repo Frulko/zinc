@@ -104,6 +104,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 #### Fixed
 
 - An app docked under the reMarkable header in landscape, or on a surface drawn at two pixels per pixel, now pads by the header's real size on the right side (it was a full-size top margin).
+- An app that names the `rmpp` display driver in `zinc.json` now gets the e-ink look on the Paper Pro even when it is published as a Linux or Pi build (Murdoku showed its desktop colours there); `ZINC_EINK=0` still shows the colour app.
 - A palm that lands while the Marker is near the glass, or in the 300 ms after it left, no longer reaches the app as a touch (`ZINC_RMPP_PALM_MS` changes the delay).
 
 ## [0.10.6] - 2026-10-31
