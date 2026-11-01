@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""Installs a locally built Zinc on a Raspberry Pi running the Zinc image, next to the release it runs, and switches to it (or back).
+
+  tools/pi-install-dev <user@host> [<zinc-...-linux-aarch64.tar.gz>]     install (the newest dist/linux-*/ tarball by default) and switch
+  tools/pi-install-dev <user@host> --rollback                            switch back to the release that was running before
+
+The tarball is `tools/build-linux`'s: the engine AND its plugins (the display driver and the shell are plugins: replacing only bin/zinc leaves
+the old driver in place, which cost a night once), the player and the system files. They go to /usr/lib/zinc/versions/dev-<id>/ as a release
+does, `current` is switched atomically, the system files replaced by the ones of the tarball (the previous ones are kept in
+/usr/lib/zinc/dev-backup/), the session and the agent restarted. The release stays on the card: --rollback is one symlink and the saved files.
+The Pi's user needs `sudo -n`. The transfer is rate limited (--rate, kbit/s, 6000 by default) and the unpacking runs at the lowest priority: a Pi
+on a weak power supply browns out under a burst of network and card writes (the cut that started this tool)."""
+import argparse, glob, os, shutil, subprocess, sys, tarfile, tempfile
+
+SYSTEM = {  # file of share/zinc/image -> where it lives on the Pi
+    'zinc-admin': '/usr/lib/zinc/zinc-admin', 'zinc-session': '/usr/lib/zinc/zinc-session', 'zinc-power-guard': '/usr/lib/zinc/zinc-power-guard',
+    'zinc-shell.service': '/etc/systemd/system/zinc-shell.service', 'zinc-power-guard.service': '/etc/systemd/system/zinc-power-guard.service',
+    'zinc-agent.service': '/etc/systemd/system/zinc-agent.service', 'zinc-journal.conf': '/etc/systemd/journald.conf.d/zinc.conf'}
+MODES = {'zinc-admin': '0755', 'zinc-session': '0755', 'zinc-power-guard': '0755'}
+
+
+def run(cmd, **kw):
+    print('  $', ' '.join(cmd) if isinstance(cmd, list) else cmd, flush=True)
+    return subprocess.run(cmd, check=True, **kw)
+
+
+def ssh(host, script):
+    return subprocess.run(['ssh', '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes', host, script], check=True, capture_output=True, text=True).stdout
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    ap.add_argument('host')
+    ap.add_argument('tarball', nargs='?')
+    ap.add_argument('--rollback', action='store_true')
+    ap.add_argument('--rate', type=int, default=6000, help='scp limit in kbit/s (6000: about 0.7 MB/s)')
+    a = ap.parse_args()
+    if a.rollback:
+        out = ssh(a.host, 'readlink /usr/lib/zinc/previous-dev 2>/dev/null || true').strip()
+        if not out: sys.exit('pi-install-dev: nothing to go back to (no previous-dev link on the device)')
+        ssh(a.host, 'set -e; S="sudo -n"; B=/usr/lib/zinc/dev-backup\n'
+                    'if [ -d $B/system ]; then for f in zinc-admin zinc-session zinc-power-guard; do [ -e $B/system/$f ] && $S install -m 0755 $B/system/$f /usr/lib/zinc/$f; done; '
+                    '[ -e $B/system/zinc-shell.service ] && $S install -m 0644 $B/system/zinc-shell.service /etc/systemd/system/zinc-shell.service; fi\n'
+                    '$S ln -sfn "' + out + '" /usr/lib/zinc/current; $S systemctl daemon-reload; $S systemctl restart zinc-agent zinc-shell')
+        print('back on', out)
+        return
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    tarball = a.tarball or max(glob.glob(os.path.join(root, 'dist', 'linux-aarch64', 'zinc-*-linux-aarch64.tar.gz')), key=os.path.getmtime, default=None)
+    if not tarball or not os.path.exists(tarball): sys.exit('pi-install-dev: no tarball (run tools/build-linux, or name one)')
+    name = os.path.basename(tarball)[:-len('.tar.gz')]
+    ident = 'dev-' + name.split('zinc-', 1)[1].split('-linux', 1)[0].replace('+', '-')
+    print('installing', name, 'as', ident, 'on', a.host)
+    with tempfile.TemporaryDirectory() as tmp:
+        d = os.path.join(tmp, 'v'); os.makedirs(os.path.join(d, 'engine')); os.makedirs(os.path.join(d, 'system'))
+        with tarfile.open(tarball) as t:
+            for m in t.getmembers():  # the engine tree, without the tarball's own top directory
+                parts = m.name.split('/', 1)
+                if len(parts) < 2 or not parts[1]: continue
+                m.name = 'engine/' + parts[1]
+                t.extract(m, d)
+        image = os.path.join(d, 'engine', 'share', 'zinc', 'image')
+        shutil.copy(os.path.join(image, 'player.zapp'), os.path.join(d, 'player.zapp'))
+        for f in SYSTEM:
+            if os.path.exists(os.path.join(image, f)): shutil.copy(os.path.join(image, f), os.path.join(d, 'system', f))
+        pack = os.path.join(tmp, ident + '.tar')
+        run(['tar', '-C', d, '--no-xattrs', '-cf', pack, '.']) if sys.platform == 'darwin' else run(['tar', '-C', d, '-cf', pack, '.'])
+        print('  %.0f MB to send' % (os.path.getsize(pack) / 1e6))
+        run(['scp', '-q', '-l', str(a.rate), pack, a.host + ':/var/tmp/' + ident + '.tar'])
+    ssh(a.host, 'set -e; S="sudo -n"; V=/usr/lib/zinc/versions/' + ident + '; B=/usr/lib/zinc/dev-backup\n'
+                '$S rm -rf $V; $S mkdir -p $V; $S nice -n 19 ionice -c3 tar -xf /var/tmp/' + ident + '.tar -C $V 2>/dev/null; $S chown -R root:root $V; rm -f /var/tmp/' + ident + '.tar\n'
+                '[ -x $V/engine/bin/zinc ] && $V/engine/bin/zinc --version >/dev/null\n'
+                '$S mkdir -p $B/system; for f in zinc-admin zinc-session zinc-power-guard; do [ -e /usr/lib/zinc/$f ] && $S cp -a /usr/lib/zinc/$f $B/system/; done; '
+                '[ -e /etc/systemd/system/zinc-shell.service ] && $S cp -a /etc/systemd/system/zinc-shell.service $B/system/\n'
+                'cur=$(readlink /usr/lib/zinc/current); case "$cur" in versions/dev-*) ;; *) $S ln -sfn "$cur" /usr/lib/zinc/previous-dev;; esac\n'
+                'for f in ' + ' '.join(SYSTEM) + '; do [ -e $V/system/$f ] || continue; case $f in\n'
+                ' zinc-admin|zinc-session|zinc-power-guard) $S install -m 0755 $V/system/$f /usr/lib/zinc/$f;;\n'
+                ' zinc-journal.conf) $S mkdir -p /etc/systemd/journald.conf.d; $S install -m 0644 $V/system/$f /etc/systemd/journald.conf.d/zinc.conf;;\n'
+                ' *.service) $S install -m 0644 $V/system/$f /etc/systemd/system/$f;; esac; done\n'
+                '$S ln -sfn versions/' + ident + ' /usr/lib/zinc/current\n'
+                '$S systemctl daemon-reload; [ -e /etc/systemd/system/zinc-power-guard.service ] && $S systemctl enable --now zinc-power-guard.service >/dev/null 2>&1 || true')
+    # restarting the services ends the ssh session's journal stream on some images: its own call, its status not trusted, the state checked after
+    subprocess.run(['ssh', '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes', a.host, 'sudo -n systemctl restart systemd-journald; sudo -n systemctl restart zinc-agent zinc-shell'], capture_output=True)
+    print(ssh(a.host, 'sleep 10; systemctl is-active zinc-shell zinc-agent; zinc --version; readlink /usr/lib/zinc/current').strip())
+    print('installed. Back to the release: tools/pi-install-dev', a.host, '--rollback')
+
+
+if __name__ == '__main__':
+    main()
