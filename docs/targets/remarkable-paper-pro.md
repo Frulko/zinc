@@ -110,8 +110,14 @@ Its `full_every`, `upgrade_ms` and `dither` options do **not** control the devic
 Finger events come from AppLoad's `MESSAGE_USERINPUT`, already mapped to framebuffer coordinates;
 quick press/release pairs are delivered on separate UI frames, and the pointer stays where the finger or the Marker
 left the glass, so the release lands on the button that was pressed (`tests/t1/rmpp_sim.sh` taps the dashboard's buttons
-through the fake qtfb). Fingers are ignored while the Marker is in range
-(palm rejection). Pen orientation override: `ZINC_RMPP_PEN_ROTATE` (0/90/180/270).
+through the fake qtfb). Palm rejection: a finger that lands while the Marker is in range (hover or down) or within 300 ms of it leaving
+is dropped with its moves and release (`ZINC_RMPP_PALM_MS` sets the delay); a finger already down when the Marker arrives goes on.
+Pen orientation override: `ZINC_RMPP_PEN_ROTATE` (0/90/180/270).
+
+**Landscape**: an app whose surface is the panel turned (2160x1620 on the Paper Pro, which `app.orientation: "landscape"` of `zinc.json` gives
+a project that sizes its target 1620x2160) is drawn turned 90 degrees clockwise by the driver (`ZINC_RMPP_ROTATE=270` turns it the other way);
+AppLoad's buffer and every update stay portrait, the Marker and the fingers are turned back to the app's pixels. The top-edge swipe stays on
+the panel's physical top; widgets, docking and the ghost zoom are portrait features for now.
 The app holds `/sys/power/wake_lock` while running. Notes has **Save & quit** (stays open if saving fails);
 dashboard has **Quit**. AppLoad disconnect and SIGTERM also exit the app.
 

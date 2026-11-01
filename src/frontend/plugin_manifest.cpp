@@ -4,6 +4,7 @@
 #include <charconv>
 #include <cctype>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <set>
@@ -357,7 +358,16 @@ DisplaySelection selectDisplay(const std::string& projectDir, const std::string&
   };
   sel.width = num("width");
   sel.height = num("height");
-  if (const char* e = std::getenv("ZINC_DISPLAY"); e && *e) { sel.driver = e; return sel; }
+  // app.orientation turns the surface the project sized for a display driver (a panel that is portrait by build, as the reMarkable's): a project
+  // that names its own width and height (no board) and an orientation the size does not have gets them swapped.
+  auto turned = [&] {
+    yyjson_val* o = member(j, "app", "orientation");
+    const char* v = o && yyjson_is_str(o) ? yyjson_get_str(o) : "";
+    if (!bv && !sel.driver.empty() && sel.width > 0 && sel.height > 0 && ((!std::strcmp(v, "landscape") && sel.width < sel.height) || (!std::strcmp(v, "portrait") && sel.width > sel.height)))
+      std::swap(sel.width, sel.height);
+    return sel;
+  };
+  if (const char* e = std::getenv("ZINC_DISPLAY"); e && *e) { sel.driver = e; return turned(); }
   yyjson_val* eff = nullptr;
   std::string driver;
   for (yyjson_val* l : {member(bv, "all", "display"), member(member(bv, "targets"), target.c_str(), "display"), member(member(j, "targets"), target.c_str(), "display")}) {
@@ -371,7 +381,7 @@ DisplaySelection selectDisplay(const std::string& projectDir, const std::string&
     else if (yyjson_is_obj(top)) if (yyjson_val* d = yyjson_obj_get(top, "driver"); d && yyjson_is_str(d)) driver = yyjson_get_str(d);
   }
   sel.driver = driver;
-  return sel;
+  return turned();
 }
 
 std::vector<std::string> onDemandDisplays(const std::string& projectDir) {

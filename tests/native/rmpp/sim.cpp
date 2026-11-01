@@ -424,8 +424,45 @@ static void qsim_collapse() {
   qsim::line("%8.1f ms %s", qsim::virtualNow() / 1000.0, qsim::collapsed ? "collapse" : "expand");
   qsim::ServerMsg st = {}; st.type = qsim::MSG_STATE_CHANGED; st.state.reason = 1; st.state.value = qsim::collapsed ? 0 : 2; send(qsim::qtfb, &st, sizeof st, 0);
 }
+// ZN_RMPP_SIM_HOVER / ZN_RMPP_SIM_NIB=a-b[,c-d]: the evdev Marker samples the reader thread would push, hovering or touching the glass during
+// those frames, and one out-of-range sample the frame after (the palm rejection's input)
+static void qsim_marker() {
+  static bool in_range = false;
+  const char* names[2] = {"ZN_RMPP_SIM_HOVER", "ZN_RMPP_SIM_NIB"};
+  int flags = 0;
+  for (int k = 0; k < 2; k++) {
+    const char* p = getenv(names[k]);
+    for (const char* s = p ? p : ""; *s;) {
+      char* e; long a = strtol(s, &e, 10), b = *e == '-' ? strtol(e + 1, &e, 10) : a;
+      if ((long)qsim::frames >= a && (long)qsim::frames < b) flags = k ? HAL_PEN_DOWN : HAL_PEN_HOVER;
+      s = *e ? e + 1 : e;
+    }
+  }
+  if (!flags && !in_range) return;
+  // ZN_RMPP_SIM_NIBAT=x,y: where the Marker is, in panel pixels (the digitizer's position goes through the reader's own mapping, rin::place)
+  int ax = 800, ay = 1000;
+  if (const char* at = getenv("ZN_RMPP_SIM_NIBAT")) sscanf(at, "%d,%d", &ax, &ay);
+  HalPen pen = {}; rin::place(ax / (rin::W - 1), ay / (rin::H - 1), 0, &pen.x, &pen.y); pen.flags = flags; pen.pressure = flags == HAL_PEN_DOWN ? 0.5f : 0;
+  rin::push(pen);
+  in_range = flags != 0;
+}
+// The 3x3 cell of the app's surface (ZINC_SIZE) that a finger or the Marker lands on, logged when it lands: the same panel point must give the
+// same cell for both, in either orientation
+static void qsim_cells(const HalInput* in) {
+  static int touching = 0; static bool nib = false;
+  if (!getenv("ZN_RMPP_SIM_CELLS")) return;
+  int w = qsim::W, h = qsim::H;
+  if (const char* z = getenv("ZINC_SIZE")) sscanf(z, "%dx%d", &w, &h);
+  auto cell = [&](const char* who, float x, float y) { qsim::line("%8.1f ms %s cell %d,%d", qsim::virtualNow() / 1000.0, who, (int)(y * 3 / h), (int)(x * 3 / w)); };
+  if (in->ntouch > touching) cell("touch", in->touch[0].x, in->touch[0].y);
+  touching = in->ntouch;
+  const bool down = (rin::last_pen.flags & HAL_PEN_DOWN) != 0;
+  if (down && !nib) cell("pen", rin::last_pen.x, rin::last_pen.y);
+  nib = down;
+}
 static void qsim_polled(HalInput* in) {
   std::lock_guard<std::recursive_mutex> g(qsim::model);
+  qsim_marker();
   qsim_taps(); qsim_hold();
   qsim_keys();
   qsim_collapse();
@@ -433,6 +470,7 @@ static void qsim_polled(HalInput* in) {
   qsim_headerbar();
   qsim_restore();
   qsim_poll(in);
+  qsim_cells(in);
   if (const char* p = getenv("ZN_RMPP_SIM_PEN")) {
     bool down = false;
     for (const char* s = p; *s;) {

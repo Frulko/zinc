@@ -20,7 +20,7 @@ run() {
   ln -s "$src/src" "$proj/src"; [ -d "$src/native" ] && ln -s "$src/native" "$proj/native"
   # the option as a project sets it; under ZINC_DISPLAY (needed headless) it is read from plugins.<driver> of zinc.json
   opt=""; [ "$ink" != - ] && opt=" \"plugins\": { \"display-rmpp-sim\": { \"ink\": \"$ink\" } },"
-  sz=""; [ -n "$size" ] && sz="-e s/1620/${size%x*}/ -e s/2160/${size#*x}/"   # $size=WxH: another model's panel
+  sz=""; [ -n "$size" ] && sz="-e s/1620/@W@/ -e s/2160/@H@/ -e s/@W@/${size%x*}/ -e s/@H@/${size#*x}/"   # $size=WxH: another model's panel
   sed $sz -e "1s/{/{$opt/" -e 's/"driver": "rmpp"/"driver": "rmpp-sim"/' "$src/zinc.json" > "$proj/zinc.json"
   sed "s|\"RMPP_DRIVER\"|\"$root/plugins/display-rmpp/rmpp.cpp\"|" tests/native/rmpp/sim.cpp > "$proj/plugins/display-rmpp-sim/sim.cpp"
   # the plugin cache keys on this source and its neighbours: the driver's own files go in as a hash, so an edited header is rebuilt
@@ -244,6 +244,37 @@ if run touch dashboard 360 - ZINC_RMPP_REFRESH_MODE=fast "ZN_RMPP_SIM_TAP=80:136
   grep -v " touch " "$tmp/touch/out/trace.txt" | diff -q - tests/golden/sim/rmpp-dashboard.trace >/dev/null ||
     { echo "touch: qtfb taps do not press the dashboard's buttons as the golden's taps do"; grep -v " touch " "$tmp/touch/out/trace.txt" | diff - tests/golden/sim/rmpp-dashboard.trace | head -6; fail=1; }
 fi
+taps=
+
+# Palm rejection: a finger that lands while the Marker hovers or touches, or within 300 ms (ZINC_RMPP_PALM_MS) after it left, is dropped with one
+# journal line (its release too); a finger after that, or with no Marker, reaches the app as the golden's taps do
+taps=1
+if run palmhover dashboard 120 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_HOVER=70-100 "ZN_RMPP_SIM_TAP=80:1360,456"; then has palmhover log 1 "palm: finger"; fi
+if run palmdown dashboard 120 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_NIB=70-100 "ZN_RMPP_SIM_TAP=80:1360,456"; then has palmdown log 1 "palm: finger"; fi
+if run palmlate dashboard 120 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_HOVER=70-75 "ZN_RMPP_SIM_TAP=80:1360,456"; then has palmlate log 1 "palm: finger"; fi
+if run palmafter dashboard 160 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_HOVER=70-75 "ZN_RMPP_SIM_TAP=110:1360,456"; then has palmafter log 0 "palm: finger"; fi
+if run palmms dashboard 120 - ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_HOVER=70-75 ZINC_RMPP_PALM_MS=20 "ZN_RMPP_SIM_TAP=80:1360,456"; then has palmms log 0 "palm: finger"; fi
+taps=
+
+# Landscape (ZN-928): an app sized 2160x1620 on the Paper Pro is the panel turned a quarter. The updates the model sees stay portrait and inside
+# the panel (its error count is checked by run), the glass is the notes demo turned (a golden), and a finger and the Marker put on the same
+# panel point land on the same cell of the app's surface (3x3 cells, row,col) for both turns: 90 and 270
+size=2160x1620
+if run land notes 170 - NOTES_DEMO=1 ZINC_RMPP_REFRESH_MODE=fast "$ferrari"; then
+  has land log 1 "landscape, the Paper Pro turned 90 degrees"  if [ -n "$ZN_UPDATE_GOLDEN" ]; then cp "$tmp/land/out/trace.txt" tests/golden/sim/rmpp-notes-landscape.trace; cp "$tmp/land/out/glass.ppm" tests/golden/sim/rmpp-notes-landscape.ppm
+  else
+    diff -q "$tmp/land/out/trace.txt" tests/golden/sim/rmpp-notes-landscape.trace >/dev/null || { echo "land: trace differs from tests/golden/sim/rmpp-notes-landscape.trace"; diff "$tmp/land/out/trace.txt" tests/golden/sim/rmpp-notes-landscape.trace | head -6; fail=1; }
+    cmp -s "$tmp/land/out/glass.ppm" tests/golden/sim/rmpp-notes-landscape.ppm || { echo "land: glass differs from tests/golden/sim/rmpp-notes-landscape.ppm"; fail=1; }
+  fi
+fi
+taps=1
+point="ZN_RMPP_SIM_CELLS=1 ZN_RMPP_SIM_NIB=40-45 ZN_RMPP_SIM_NIBAT=1300,1700 ZN_RMPP_SIM_TAP=100:1300,1700"
+size=
+if run cellp tests/data/rmpp-penmode 140 - "$ferrari" $point; then has cellp trace 1 "pen cell 2,2"; has cellp trace 1 "touch cell 2,2"; fi
+size=2160x1620
+if run cell90 tests/data/rmpp-penmode 140 - "$ferrari" $point; then has cell90 trace 1 "pen cell 0,2"; has cell90 trace 1 "touch cell 0,2"; fi
+if run cell270 tests/data/rmpp-penmode 140 - "$ferrari" ZINC_RMPP_ROTATE=270 $point; then has cell270 trace 1 "pen cell 2,0"; has cell270 trace 1 "touch cell 2,0"; fi
+size=
 taps=
 
 # L0 keys (AppLoad's MESSAGE_USERINPUT, INPUT_BTN_*: the Type Folio): Qt key codes, with Shift held, reach the focused field as text and

@@ -88,6 +88,16 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A regex `replace` whose replacer function calls `n.toString(16)`, `Math.max(...)` and the like compiles, instead of failing with an internal error.
 - Array methods on an `any` value (`data.codecs.map(...)`, `.filter`, `.join`, `.some`, `.includes`...) work, as in TypeScript, instead of failing with "cannot be called".
 
+### reMarkable
+
+#### New
+
+- A reMarkable app can run in landscape: set `"orientation": "landscape"` in `app` of `zinc.json` and the app draws on the panel turned a quarter (`ZINC_RMPP_ROTATE=270` for the other side), with the Marker and the fingers following the turn.
+
+#### Fixed
+
+- A palm that lands while the Marker is near the glass, or in the 300 ms after it left, no longer reaches the app as a touch (`ZINC_RMPP_PALM_MS` changes the delay).
+
 ## [0.10.6] - 2026-10-31
 
 This release turns the Raspberry Pi into a small Zinc computer: a shell that runs apps under its own bar, apps built on your Mac and sent ready to run, an image that updates itself safely and a renderer several times faster on its cores. Sidecar makes an iPad, a phone, a Pi, another Mac or a reMarkable a screen for your Mac, the reMarkable gets an app store, a web reader and zooming that follows the fingers, and Zinc Inspector now looks and works like Chrome DevTools.

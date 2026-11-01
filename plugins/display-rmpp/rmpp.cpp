@@ -379,9 +379,17 @@ int rm_init(const HalConfig* cfg) {
   const char* codename = rmm::machine();
   row = rmm::model(codename);
   const bool known = row != nullptr;
+  // Landscape: the app's surface is the panel turned a quarter (ZINC_RMPP_ROTATE 90 or 270, 90 by default); the panel, AppLoad's buffer and
+  // every update stay portrait, rm_present rotates the frame and rin turns the pen and the fingers back.
   if (!row) row = rmm::model_by_size(cfg->width, cfg->height);
+  if (!row) row = rmm::model_by_size(cfg->height, cfg->width);
   if (!known) fprintf(stderr, "display-rmpp: unknown model '%s'; fast ink off, qtfb only\n", codename);
-  if (!row || cfg->width != row->w || cfg->height != row->h) {
+  if (row && cfg->width == row->h && cfg->height == row->w && row->w != row->h) {
+    const char* r = getenv("ZINC_RMPP_ROTATE");
+    rin::turn = r && atoi(r) == 270 ? 270 : 90;
+    rin::LW = cfg->width; rin::LH = cfg->height;
+    fprintf(stderr, "display-rmpp: landscape, the %s turned %d degrees\n", row->name, rin::turn);
+  } else if (!row || cfg->width != row->w || cfg->height != row->h) {
     fprintf(stderr, "display-rmpp: profile must be %dx%d on the %s; running headless\n", row ? row->w : rmm::models[0].w,
             row ? row->h : rmm::models[0].h, row ? row->name : rmm::models[0].name);
     return 0;
@@ -398,16 +406,16 @@ int rm_init(const HalConfig* cfg) {
     fprintf(stderr, "display-rmpp: invalid refresh mode '%s', using ui\n", mode); mode = "ui";
   }
   wanted_mode = strcmp(ink, "qtfb") || !strcmp(mode, "fast") ? MODE_FAST : MODE_UI;
-  if (!eink::init(panel, cfg->width, cfg->height)) return 0;
+  if (!eink::init(panel, row->w, row->h)) return 0;
   free(panel.out); panel.out = nullptr;  // the device sends original RGB; only the emulator quantizes
   signal(SIGPIPE, SIG_IGN);
   if (ZP_DISPLAY_RMPP_PEN_ROTATE == 0) rin::pen_rot = row->pen_rotate;  // ZINC_RMPP_PEN_ROTATE still wins (rin::start)
   if (row->backend == rmm::RM2FB) {
     if (strcmp(ink, "qtfb")) fprintf(stderr, "display-rmpp: no ink lane or session on the %s; rm2fb's DU waveform draws the ink\n", row->name);
-    if (!rm2fb::open(cfg->width, cfg->height)) return 0;
+    if (!rm2fb::open(row->w, row->h)) return 0;
     rm2fb::fast = wanted_mode == MODE_FAST;
     layer = RM2; refresh_mode = wanted_mode;
-    rin::start(cfg->width, cfg->height);
+    rin::start(row->w, row->h);
     if (!rin::open_touch()) fprintf(stderr, "display-rmpp: no evdev touch found\n");
     wake_lock(true);
     return 1;
@@ -417,7 +425,7 @@ int rm_init(const HalConfig* cfg) {
     if (!native::open(*row)) exit(3);
     native::fast = wanted_mode == MODE_FAST;
     layer = L2; refresh_mode = wanted_mode;
-    rin::start(cfg->width, cfg->height);
+    rin::start(row->w, row->h);
     if (!rin::open_touch()) fprintf(stderr, "display-rmpp: no evdev touch found\n");
     return 1;
   }
@@ -433,7 +441,7 @@ int rm_init(const HalConfig* cfg) {
   if (!set_mode(layer == L1 ? MODE_UI : wanted_mode)) { close(sock); sock = -1; lane::close_lane(); return 0; }
   fprintf(stderr, "display-rmpp: %s on qtfb%s, partial updates capped at %llu Hz\n", refresh_mode == MODE_FAST ? "fast" : "ui",
           layer == L1 ? " with the ink lane" : "", (unsigned long long)(1000000 / update_interval()));
-  rin::start(cfg->width, cfg->height);
+  rin::start(row->w, row->h);
   wake_lock(true);
   return 1;
 }
@@ -486,15 +494,14 @@ void ghost_restore() {
   }
 }
 
-void rm_present(const HalFrame* f) {
+void present_phys(const HalFrame* f) {
   // Diff the rendered RGB frame directly: no monochrome conversion or delayed colour upgrade.
   eink::Rect r = {0, 0, 0, 0};
   if (f->y1 > f->y0 && f->x1 > f->x0) {
     // scratch persists between frames, so the runtime can leave undamaged pixels untouched.
     auto render = f->render_damage ? f->render_damage : f->render;
     render(panel.scratch + (size_t)f->y0 * panel.w, f->y0, f->y1);
-    r = eink::changed(panel, f->y0, f->y1);
-  }
+    r = eink::changed(panel, f->y0, f->y1);  }
   const bool first = panel.first;
   if (panel.first) { r = {0, 0, panel.w, panel.h}; panel.first = false; }
   if (stream::ended.exchange(false)) { r = {0, 0, panel.w, panel.h}; full_asked = true; native::full_now = layer == L2; }   // the sidecar left: the app's whole frame, then a full refresh
@@ -731,6 +738,26 @@ const char* rm_device(const char* query, const char* arg) {
   return "0";
 }
 
+// Landscape: the app's frame (LW x LH) is rendered into lbuf, the rows it damaged are turned into rbuf (the panel, portrait), and the panel
+// path above gets the turned rectangle. Widgets, docking and the ghost zoom are portrait features (their rectangles are the panel's).
+std::vector<uint32_t> lbuf, rbuf;
+void rows_of_rbuf(uint32_t* rows, int32_t y0, int32_t y1) { memcpy(rows, rbuf.data() + (size_t)y0 * panel.w, (size_t)(y1 - y0) * panel.w * 4); }
+void rm_present(const HalFrame* f) {
+  if (!rin::turn) { present_phys(f); return; }
+  const int32_t pw = panel.w, ph = panel.h;  if (lbuf.empty()) { lbuf.assign((size_t)rin::LW * rin::LH, 0xFFFFFF); rbuf.assign((size_t)pw * ph, 0xFFFFFF); }
+  HalFrame pf = {pw, ph, 0, 0, 0, 0, rows_of_rbuf};
+  if (f->y1 > f->y0 && f->x1 > f->x0) {
+    (f->render_damage ? f->render_damage : f->render)(lbuf.data() + (size_t)f->y0 * rin::LW, f->y0, f->y1);
+    for (int32_t y = f->y0; y < f->y1; y++)
+      for (int32_t x = f->x0; x < f->x1; x++) {
+        int px, py; rin::panel_of(x, y, &px, &py);
+        rbuf[(size_t)py * pw + px] = lbuf[(size_t)y * rin::LW + x];
+      }
+    int a, b, c, d; rin::panel_of(f->x0, f->y0, &a, &b); rin::panel_of(f->x1 - 1, f->y1 - 1, &c, &d);
+    pf.x0 = std::min(a, c); pf.x1 = std::max(a, c) + 1; pf.y0 = std::min(b, d); pf.y1 = std::max(b, d) + 1;
+  }
+  present_phys(&pf);
+}
 HalDisplay rmpp = {rm_init, rm_present, rm_poll, rm_shutdown, 0, 0, nullptr, nullptr, nullptr, rm_device};
 int reg = (hal_display = &rmpp, 0);
 }  // namespace

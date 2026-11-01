@@ -1,0 +1,5 @@
+     0.0 ms init key 7 fmt 1 (RGB888 1620x2160)
+     0.0 ms mode FAST (qtfb sleeps 1000 ms)
+  1100.0 ms update PARTIAL 0,0 1620x2160 glass a7d6d64107ddc30f
+  2833.4 ms terminate
+# 1 updates, 1 mode changes, 0 errors, 3499200 pixels announced

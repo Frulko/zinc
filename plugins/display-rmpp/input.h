@@ -24,7 +24,17 @@ struct Axis { float min = 0, max = 1, res = 0; };
 static int pen_fd = -1, wake[2] = {-1, -1};
 static Axis ax_x, ax_y, ax_p, ax_tx, ax_ty;
 static int pen_rot = ZP_DISPLAY_RMPP_PEN_ROTATE;
-static float W = 1, H = 1;
+static float W = 1, H = 1;          // the panel, portrait
+static int turn = 0, LW = 0, LH = 0;   // landscape: the app's surface is the panel turned 90 or 270 degrees (0: portrait), LW x LH
+/** The panel pixel of the app's pixel (x, y) when the surface is turned: 90 puts the app's top-left corner at the panel's top-right. */
+static void panel_of(int x, int y, int* px, int* py) {
+  if (turn == 90) { *px = (int)W - 1 - y; *py = x; } else { *px = y; *py = (int)H - 1 - x; }
+}
+/** The app's position of a panel position (the inverse of panel_of). */
+static void app_of(float* x, float* y) {
+  const float px = *x, py = *y;
+  if (turn == 90) { *x = py; *y = W - 1 - px; } else if (turn == 270) { *x = H - 1 - py; *y = px; }
+}
 static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
 static HalPen q[2048];
 static int qn = 0;
@@ -37,6 +47,13 @@ static bool pen_down = false;       // the Marker touches the glass: a stroke fo
 // app takes the pen only as AppLoad forwards it inside the widget card (already in framebuffer pixels), as a pointer: no ink samples.
 static bool pen_from_appload = false;
 enum { PEN_TOUCH_ID = -2 };         // AppLoad's pen, kept among the touches so it presses and releases like a finger
+// Palm rejection: a finger that lands while the Marker is in range (hover or down) or within palm_ms of it leaving is a palm, not a touch.
+// Its id is kept in `dropped` until it lifts, so its moves and release never reach the app either. ZINC_RMPP_PALM_MS overrides the 300 ms.
+static int palm_ms = 300;
+static volatile sig_atomic_t pen_pulse = 0;   // the reader saw the Marker since the last poll (it may have come and gone between two frames)
+static uint64_t pen_seen_us = 0;
+static bool pen_seen_any = false;
+static int dropped[HAL_MAX_TOUCH * 2], ndropped = 0;
 // The power key is never opened here: under a lease (L2) the supervisor owns it for its escape, and in AppLoad xochitl does.
 
 static bool has(int fd, int type, int code) {
@@ -50,11 +67,25 @@ static Axis axis(int fd, int code) {
   return Axis{(float)a.minimum, (float)(a.maximum > a.minimum ? a.maximum : a.minimum + 1), (float)a.resolution};
 }
 static float norm(float v, const Axis& a) { float t = (v - a.min) / (a.max - a.min); return t < 0 ? 0 : t > 1 ? 1 : t; }
+static bool palm_near() {
+  if (pen_from_appload) return false;   // that pen is AppLoad's, one more finger
+  if (last_pen.flags || pen_pulse) return true;
+  return pen_seen_any && hal_time_us() - pen_seen_us < (uint64_t)palm_ms * 1000;
+}
+static int dropped_at(int id) { for (int i = 0; i < ndropped; i++) if (dropped[i] == id) return i; return -1; }
+/** true when the finger `id` is (or, new, becomes) a palm: its events are not the app's. */
+static bool palm(int id, bool is_new) {
+  int i = dropped_at(id);
+  if (i < 0 && is_new && palm_near() && ndropped < HAL_MAX_TOUCH * 2) { dropped[ndropped++] = id; i = ndropped - 1; fprintf(stderr, "display-rmpp: palm: finger %d dropped (the Marker is near)\n", id); }
+  return i >= 0;
+}
+static void palm_release(int id) { int i = dropped_at(id); if (i >= 0) dropped[i] = dropped[--ndropped]; }
 /** Device-normalized (u, v) to screen pixels for a panel rotation. */
 static void place(float u, float v, int rot, float* x, float* y) {
   float a = u, b = v;
   if (rot == 90) { a = 1 - v; b = u; } else if (rot == 180) { a = 1 - u; b = 1 - v; } else if (rot == 270) { a = v; b = 1 - u; }
   *x = a * (W - 1); *y = b * (H - 1);
+  app_of(x, y);
 }
 /** evdev tilt to degrees: resolution is units/radian when the driver sets it, else the range maps to +-90. */
 static float degrees(float v, const Axis& a) { return a.res > 0 ? v / a.res * 57.29578f : v / (a.max > -a.min ? a.max : -a.min) * 90; }
@@ -63,6 +94,7 @@ static void push(const HalPen& s) {
   pthread_mutex_lock(&mu);
   q[qn < 2048 ? qn++ : 2047] = s;  // ponytail: a full queue keeps the newest sample (pen up survives)
   last_pen = s;
+  if (s.flags) pen_pulse = 1;
   pthread_mutex_unlock(&mu);
   char c = 1; (void)!write(wake[1], &c, 1);
 }
@@ -101,6 +133,7 @@ static void on_signal(int) { quit_flag = 1; }
 static bool start(int32_t w, int32_t h) {
   W = (float)w; H = (float)h;
   if (const char* r = getenv("ZINC_RMPP_PEN_ROTATE")) pen_rot = atoi(r);
+  if (const char* r = getenv("ZINC_RMPP_PALM_MS")) palm_ms = atoi(r);
   char path[32];
   for (int i = 0; i < 32; i++) {
     snprintf(path, sizeof path, "/dev/input/event%d", i);
@@ -158,11 +191,18 @@ static void touch_set(int id, int x, int y) {
   int i = 0;
   while (i < ntouch && touches[i].id != id) i++;
   if (i == ntouch) { if (ntouch == HAL_MAX_TOUCH) return; ntouch++; }
-  touches[i] = {id, (float)x, (float)y};
+  float fx = (float)x, fy = (float)y;
+  app_of(&fx, &fy);
+  touches[i] = {id, fx, fy};
 }
 static bool touch_event(int type, int id, int x, int y) {
   if (type >= 0x20 && type <= 0x22) { if (!pen_from_appload) return true; type -= 0x10; id = PEN_TOUCH_ID; }
   if (type < 0x10 || type > 0x12) return false;
+  if (id != PEN_TOUCH_ID) {
+    const bool lifted = type == 0x11, gone = palm(id, type == 0x10);
+    if (lifted) palm_release(id);
+    if (gone) return true;
+  }
   if (edge_event(type, id, x, y)) return true;
   int i = 0;
   while (i < ntouch && touches[i].id != id) i++;
@@ -216,6 +256,8 @@ static bool key_event(int type, int qt) {
 /** HalDisplay.poll: pen samples to the runtime queue; the first finger (or else the pen) drives the UI pointer. */
 static void poll_input(HalInput* in) {
   pthread_mutex_lock(&mu);
+  if (pen_pulse || last_pen.flags) { pen_seen_us = hal_time_us(); pen_seen_any = true; }
+  pen_pulse = 0;
   if (!pen_from_appload) for (int i = 0; i < qn; i++) hal_pen_push(&q[i]);   // else the strokes are xochitl's
   qn = 0;
   const bool pen_near = !pen_from_appload && last_pen.flags != 0;
@@ -280,8 +322,18 @@ static void poll_touch() {
         else if (e.code == ABS_MT_POSITION_Y) contacts[slot].y = e.value;
       }
     } else if (e.type == EV_SYN && e.code == SYN_REPORT) {
+      int prev[HAL_MAX_TOUCH], nprev = ntouch;
+      for (int i = 0; i < nprev; i++) prev[i] = touches[i].id;
       ntouch = 0;
+      for (int i = ndropped - 1; i >= 0; i--) {
+        bool held = false;
+        for (const auto& c : contacts) held = held || c.id == dropped[i];
+        if (!held) dropped[i] = dropped[--ndropped];
+      }
       for (const auto& c : contacts) if (c.id >= 0 && ntouch < HAL_MAX_TOUCH) {
+        bool known = false;
+        for (int i = 0; i < nprev; i++) known = known || prev[i] == c.id;
+        if (!known && palm(c.id, true)) continue;
         float x, y; place(norm(c.x, tx), norm(c.y, ty), pen_rot, &x, &y);
         touches[ntouch++] = {c.id, x, y};
       }
