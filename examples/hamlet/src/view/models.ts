@@ -1,4 +1,4 @@
-import { W, H, pix, zb, setView, Color, CachedModel, rgb, beginModel, captureModel, touchModelBuffer, box, capsule, sphere, plot, rampOf, hash, shadowMask, pine } from '../pixel';
+import { W, H, pix, zb, setView, Color, CachedModel, rgb, beginModel, captureModel, touchModelBuffer, box, capsule, sphere, plot, rampOf, hash, shadowMask, pine, Atlas, AtlasAxes, AtlasDef, AtlasEntry, bakeAtlas, hashNumbers } from '../pixel';
 import { ZOOM_SCALES } from './camera';
 import { settings } from '../settings';
 import { STONE, WOOD_HONEY, WOOD_BROWN, BARK, TERRACOTTA } from '../palettes';
@@ -17,7 +17,7 @@ export const MODEL_ROCK = 9;            // 2 variants: 9..10
 export const TREE_HEIGHT: number[] = [2.8, 3.3, 3.8, 3.2];
 /** The models of the zoom level in use. Each level has its own set, baked once (the stamp depends on pixels per unit). */
 export const models: CachedModel[] = [];
-const modelSets: CachedModel[][] = ZOOM_SCALES.map((_s: number): CachedModel[] => []);
+const levelAtlases: (Atlas | null)[] = ZOOM_SCALES.map((_s: number): Atlas | null => null);
 
 const flat = (c: Color): ((z: number) => Color) => (): Color => c;
 
@@ -180,26 +180,41 @@ function reduceBuffer(f: number, ox: number, oy: number): void {
 }
 
 /** Forgets the baked sets (the detail mode changed). */
-export function resetModels(): void { for (let i = 0; i < modelSets.length; i++) modelSets[i] = []; }
+export function resetModels(): void { for (let i = 0; i < levelAtlases.length; i++) levelAtlases[i] = null; }
 
 /**
- * Makes `models` the set of a zoom level, baking it first if needed. `reduceFrom` is the scale of the sharp set to shrink instead of
- * lighting again at this level (0 = light it at its own scale). The caller points the renderer back at the camera afterwards.
+ * The static models, in model-id order: [name, variants, draw]. Add an object: write its draw function, add a line here and give it an id above (an id is the
+ * index of its first variant in this list, variants counted). They are baked through the atlas, so one cache and one invalidation serve all.
+ */
+const MODEL_DEFS: [string, number, (variant: number) => void][] = [
+  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['gate', 1, gate], ['tree', 4, tree], ['rock', 2, rock],
+];
+
+/** The atlas definition: one entry per model, one frame each (a static model has a single heading and pose). `reduceFrom` > 0 shrinks the sharp bake for the fixed-detail mode. */
+function modelDef(scale: number, reduceFrom: number): AtlasDef {
+  const entries: AtlasEntry[] = MODEL_DEFS.map((m: [string, number, (variant: number) => void]): AtlasEntry => ({
+    name: m[0], variants: m[1], yaws: 1, poses: 1,
+    // a static model is drawn at the bake origin; the stamp places it, so the position is not used
+    draw: (a: AtlasAxes, _x: number, _y: number, _z: number): void => {
+      m[2](a.variant);
+      if (reduceFrom > 0) { reduceBuffer(scale / reduceFrom, W / 2, H * .6); setView(scale, W / 2, H * .6); }
+      shadowMask.fill(0);                       // some models (pines) cast shadows while they are drawn
+    },
+  }));
+  return { version: hashNumbers([1, scale, reduceFrom, settings.resample]), season: 0, entries };
+}
+
+/**
+ * Makes `models` the set of a zoom level, baking it first if needed or when the light changed (the atlas header says so). `reduceFrom` is the scale of the sharp set
+ * to shrink instead of lighting again at this level (0 = light it at its own scale). The caller points the renderer back at the camera afterwards.
  */
 export function useModels(level: number, scale: number, reduceFrom: number): void {
-  if (modelSets[level].length === 0) {
-    const bakeScale = reduceFrom > 0 ? reduceFrom : scale;
-    const set = modelSets[level];
-    const bake = (draw: () => void): void => {
-      setView(bakeScale, W / 2, H * .6);            // bake in the middle of the buffer; a stamp only keeps offsets from the origin
-      beginModel(); draw();
-      if (reduceFrom > 0) { reduceBuffer(scale / reduceFrom, W / 2, H * .6); setView(scale, W / 2, H * .6); }
-      set.push(captureModel()); shadowMask.fill(0);
-    };
-    bake(house); bake(sawmill); bake(lodge); bake(fishery); bake(gate);
-    for (let v = 0; v < 4; v++) bake((): void => tree(v));
-    for (let v = 0; v < 2; v++) bake((): void => rock(v));
-  }
+  setView(reduceFrom > 0 ? reduceFrom : scale, W / 2, H * .6);       // bake in the middle of the buffer; a stamp only keeps offsets from the origin
+  let atlas = levelAtlases[level];
+  if (atlas === null || atlas.stale()) { atlas = bakeAtlas(modelDef(scale, reduceFrom)); levelAtlases[level] = atlas; }
   models.length = 0;
-  for (const m of modelSets[level]) models.push(m);
+  for (const m of MODEL_DEFS) for (let v = 0; v < m[1]; v++) {
+    const frame = atlas.bake(m[0], { variant: v, yaw8: 0, pose: 0 });
+    if (frame !== null) models.push(frame);
+  }
 }

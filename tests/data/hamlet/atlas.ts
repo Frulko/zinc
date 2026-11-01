@@ -48,6 +48,14 @@ for (let k = 0; k < models.length; k++) if (!same(models[k], wholeSet[k])) model
 check('the ' + models.length + ' hamlet models are the same with the box', modelsEqual);
 console.log('hamlet atlas: bake of the hamlet models ' + bakeMs + ' ms with the box, ' + wholeMs + ' ms reading the whole buffer (the first version)');
 
+// a new light invalidates the model atlas and re-bakes, the same light gives the same models back
+useModels(5, 10, 0); const lit = models[0].toArrays();
+setLighting([20, 20, 60], [255, 200, 120]); useModels(5, 10, 0);
+const relit = models[0].toArrays(); let lightChanged = relit.colors.length !== lit.colors.length;
+for (let k = 0; k < relit.colors.length && !lightChanged; k++) if (relit.colors[k] !== lit.colors[k]) lightChanged = true;
+setLighting([46, 38, 84], [255, 232, 180]); useModels(5, 10, 0);
+check('another light re-bakes the models, the first light gives them back', lightChanged && same(CachedModel.fromArrays(lit), models[0]));
+
 // the packed arrays round trip exactly, and stamp the same pixels
 const round = CachedModel.fromArrays(models[0].toArrays());
 check('toArrays / fromArrays round trip', same(round, models[0]));
