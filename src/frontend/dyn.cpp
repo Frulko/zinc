@@ -470,6 +470,8 @@ function __dynIter(d: Dyn): any[] {
   if (d instanceof DynStr) { const r: any[] = []; for (let i: i32 = 0; i < d.v.length; i++) r.push(new DynStr(d.v.charAt(i))); return r; }
   throw new TypeError(__dynTypeName(d) + ' is not iterable');
 }
+function __dynMap<U>(d: Dyn, f: (v: any, i: i32) => U): U[] { const a = __dynIter(d); const r: U[] = []; for (let i: i32 = 0; i < a.length; i++) r.push(f(a[i], i)); return r; }
+function __dynFilter(d: Dyn, f: (v: any, i: i32) => boolean): any[] { const a = __dynIter(d); const r: any[] = []; for (let i: i32 = 0; i < a.length; i++) if (f(a[i], i)) r.push(a[i]); return r; }
 // for...in over a Dyn: the keys JavaScript lists, array indices first in ascending order, then the other keys in insertion order
 function __dynKeys(d: Dyn): string[] {
   const r: string[] = [];

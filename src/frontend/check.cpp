@@ -1336,6 +1336,15 @@ struct Checker {
     return (k == TK::Array || k == TK::Map || k == TK::Set || k == TK::Object || k == TK::Union || k == TK::Func || t == tDyn) && !hasParam(t) && inspectable(out, t);
   }
 
+  static bool dynArrayMethod(std::string_view m) {
+    return m == "map" || m == "filter" || m == "forEach" || m == "some" || m == "every" || m == "find" || m == "findIndex" || m == "join" || m == "includes" || m == "indexOf" || m == "slice";
+  }
+  // the receiver of a method call is a variable-like expression of type any (not `Math` or a class)
+  bool dynReceiver(std::uint32_t r) {
+    if (n(r).kind == N::Super) return false;
+    if (n(r).kind == N::Ident) { std::uint32_t sy = lookup(n(r).text); if (sy == kNone || !trackable(sy)) return false; }
+    return isDyn(expr(r));
+  }
   static bool isHofName(std::string_view m) {
     for (std::string_view h : {"map", "filter", "some", "every", "forEach", "reduce", "reduceRight", "concat", "findIndex", "find", "findLast", "findLastIndex", "at", "indexOf", "lastIndexOf", "includes", "fill", "join", "splice", "shift", "unshift"}) if (m == h) return true;
     return false;
@@ -2320,6 +2329,14 @@ struct Checker {
         return mapForEach(i);
       } else if (cn.kind == N::Member && isHofName(cn.text) && n(cn.kids[0]).kind != N::Super && ty(expr(cn.kids[0])).k == TK::Array && !(cn.text == "join" && ty(ty(out.nodeType[cn.kids[0]]).elem).k == TK::Str)) {  // string arrays join through the runtime
         return arrayHof(i, cn.text);
+      } else if (cn.kind == N::Member && !rawDyn() && !(cn.flags & kFlagOptional) && dynArrayMethod(cn.text) && dynReceiver(cn.kids[0])) {
+        // `d.codecs.map(f)` on an any value: the array method of the elements it holds (the Dyn array of a copy), as TypeScript allows on any
+        const std::string m(cn.text);
+        std::string call = m == "map" || m == "filter" ? "__dyn" + std::string(m == "map" ? "Map" : "Filter") + "(__H0, " : "__dynIter(__H0)." + m + "(";
+        std::vector<std::vector<std::uint32_t>> holes{{cn.kids[0]}};
+        for (std::size_t k = 1; k < x.kids.size(); ++k) { call += (k > 1 ? ", " : "") + std::string("__H") + std::to_string(k); holes.push_back({x.kids[k]}); }
+        call += ")";
+        return replaceWith(i, call, holes) ? expr0(i, kNoType) : tError;
       } else { calleeNode = callee; ct = expr(callee); calleeNode = kNone; }
       if (bad(ct)) { for (std::size_t k = 1; k < x.kids.size(); ++k) if (!preEvaluated) expr(x.kids[k]); return tError; }
       if (ty(ct).k != TK::Func) {
