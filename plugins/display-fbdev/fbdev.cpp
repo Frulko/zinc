@@ -136,7 +136,7 @@ static Latch mouse_btn, touch_btn;
 static bool quit_key;
 static float wheel, wheel_x;
 static int slot;
-static struct { int id; float x, y; bool fresh, gone; } slots[HAL_MAX_TOUCH];   // fresh, gone: as Latch, for a finger
+static struct { int id; float x, y; int32_t rx, ry; bool fresh, gone; } slots[HAL_MAX_TOUCH];   // fresh, gone: as Latch, for a finger
 
 // ZINC_FBDEV_SIM=<file> (ZN-129): the framebuffer is a plain file with a fixed screeninfo, so the format conversion and the letterbox run anywhere, on a Mac too.
 //   ZINC_FBDEV_SIM_FORMAT=<w>x<h>x<bpp> (default 640x480x32; 16 = RGB565, 24 = RGB888 in BGR byte order, 32 = XRGB8888 with alpha 0xFF)
@@ -258,8 +258,10 @@ static bool read_dev(Dev& d, HalInput* in) {
           auto& s = slots[slot];
           if (v.value >= 0) { s.id = v.value; s.fresh = true; s.gone = false; } else if (s.fresh) s.gone = true; else s.id = -1;
         }
-        else if (v.code == ABS_MT_POSITION_X) { float y; to_surface(d, v.value, 0, &slots[slot].x, &y); }
-        else if (v.code == ABS_MT_POSITION_Y) { float x; to_surface(d, 0, v.value, &x, &slots[slot].y); }
+        // a finger's two axes arrive as two events, and a turned screen mixes them (at 90 or 270 degrees x on the screen is the panel's y): keep
+        // the panel's coordinates of the finger and convert both every time
+        else if (v.code == ABS_MT_POSITION_X) { auto& s = slots[slot]; s.rx = v.value; to_surface(d, s.rx, s.ry, &s.x, &s.y); }
+        else if (v.code == ABS_MT_POSITION_Y) { auto& s = slots[slot]; s.ry = v.value; to_surface(d, s.rx, s.ry, &s.x, &s.y); }
         else if (!d.mt && v.code == ABS_X) { ax = v.value; to_surface(d, ax, ay, &px, &py); }
         else if (!d.mt && v.code == ABS_Y) { ay = v.value; to_surface(d, ax, ay, &px, &py); }
       }

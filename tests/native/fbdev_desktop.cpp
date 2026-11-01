@@ -160,6 +160,24 @@ int main(int argc, char** argv) {
     float sx, sy; to_surface(d, 0, 0, &sx, &sy);
     const float ex[3] = {0, (float)W, (float)W}, ey[3] = {(float)H, (float)H, 0};
     assert(std::abs(sx - ex[k]) < 1.5f && std::abs(sy - ey[k]) < 1.5f);
+    // a finger on a multi-touch panel (the Pi's 7" ft5x06): its X and Y arrive as two events, and a turned screen mixes the two axes
+    // (90 and 270 degrees: the surface's x comes from the panel's y), so the finger lands where a touch at those panel coordinates is
+    {
+      const std::string events = root + "/mt-events";
+      if (FILE* f = fopen(events.c_str(), "wb")) {
+        auto put = [&](int type, int code, int value) { input_event ev{}; ev.type = type; ev.code = code; ev.value = value; fwrite(&ev, sizeof ev, 1, f); };
+        put(EV_ABS, ABS_MT_SLOT, 0); put(EV_ABS, ABS_MT_TRACKING_ID, 7); put(EV_ABS, ABS_MT_POSITION_X, 600); put(EV_ABS, ABS_MT_POSITION_Y, 100); put(EV_SYN, SYN_REPORT, 0);
+        fclose(f);
+      }
+      Dev m{open(events.c_str(), O_RDONLY), 0, 799, 0, 479, true, true};
+      assert(m.fd >= 0);
+      HalInput in{};
+      read_dev(m, &in);
+      float wx, wy; to_surface(m, 600, 100, &wx, &wy);
+      assert(std::abs(slots[0].x - wx) < 1.5f && std::abs(slots[0].y - wy) < 1.5f);
+      close(m.fd);
+      slots[0] = {};
+    }
     fb_shutdown();
   }
   unsetenv("ZINC_ROTATE");
