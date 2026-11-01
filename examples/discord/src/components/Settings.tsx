@@ -115,6 +115,9 @@ function Voice() {
       </View>
       <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>{tr('discord.settings.ptt_hint')}</Text>
     </View>}
+    <Heading text={tr('discord.settings.echo')} />
+    <Switch checked={() => s.echoOn()} onChange={(on: boolean) => set((v: VoiceSettings): void => { v.echo = on; })} label={tr('discord.settings.echo_cancel')} />
+    <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>{tr('discord.settings.echo_hint')}</Text>
     <Heading text={tr('discord.settings.camera_quality')} />
     <Tabs items={['360p', '720p']} selected={() => s.camera === 720 ? 1 : 0} onSelect={(i: i32) => set((v: VoiceSettings): void => { v.camera = i === 1 ? 720 : 360; })} className="w-[200]" />
     <Text className={`pt-2 text-sm ${TEXT_MUTED}`}>{tr('discord.settings.camera_hint')}</Text>

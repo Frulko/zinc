@@ -156,6 +156,7 @@ export class VoiceConnection {
   private transitions: Map<i32, i32> = new Map<i32, i32>();   // transition id -> the protocol version it moves to
   private input = '';
   private output = '';
+  private echo = false;
   private gains: number[] = [1, 1, 0.01];                     // microphone, output, voice activity threshold
   private userGains: Map<string, number> = new Map<string, number>();
   private videoSsrc: u32 = 0;                                 // our camera's stream (Ready's streams), its RTX
@@ -191,6 +192,9 @@ export class VoiceConnection {
   /** Gains of the microphone and of everything heard (0 to 2, 1 as is), and the voice activity threshold: the microphone's RMS level
    *  (0..1, level()) under which nothing is sent. Push-to-talk ignores the threshold. */
   setVolumes(input: number, output: number, threshold: number): void { this.gains = [input, output, threshold]; this.audio(); }
+  /** Echo cancellation: what the speakers play is the reference the microphone is cleaned with before it is sent (SpeexDSP, the canceller of
+   *  zinc:microphone). For speakers; headphones do not need it (see isHeadphones). Off until asked. */
+  setEchoCancellation(on: boolean): void { this.echo = on; this.audio(); }
   /** How loud one user is heard (0 to 2, 1 as is). */
   setUserVolume(user: string, gain: number): void { this.userGains.set(user, gain); if (this.h >= 0) S.setUserVolume(this.h, user, gain); }
   /** The microphone's level now, RMS 0..1 after its gain, sent or not (a meter against the threshold). */
@@ -298,6 +302,7 @@ export class VoiceConnection {
     if (this.h < 0) return;
     S.setDevices(this.h, this.input, this.output);
     S.setAudio(this.h, this.gains[0], this.gains[1], this.gains[2]);
+    S.setEchoCancellation(this.h, this.echo);
   }
   private url(): string {
     const e = this.server.endpoint;
@@ -603,6 +608,10 @@ function audioDevices(output: boolean): AudioDevice[] {
 export function inputDevices(): AudioDevice[] { return audioDevices(false); }
 /** The speakers and headphones a call can play to; with ZINC_FAKE_MICROPHONE=1, "Zinc Fake Speakers" only (nothing is played). */
 export function outputDevices(): AudioDevice[] { return audioDevices(true); }
+
+/** Whether an output device is headphones (by its name: headphones, headset, earbuds, AirPods, Buds...): they cannot feed the microphone, so
+ *  the echo cancellation is not needed. '' (the system's default) and unknown names count as speakers. */
+export function isHeadphones(d: AudioDevice): boolean { return /head ?(phone|set)|earbud|earphone|airpods|\bbuds\b|\bpods\b/i.test(d.name); }
 
 /** The encryption modes this side supports, best first. */
 export function modes(): string[] { return S.modes().split('\u001f'); }

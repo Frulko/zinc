@@ -7,7 +7,7 @@
 // watched one at a time, decoded only while shown, at their tile's size or the full view's. Quality: the connections' RTCP counters read
 // each second (CallQuality: good, fair, poor), and the ultra low data mode, chosen in the settings or switched on after 5 poor seconds.
 // No drawing.
-import { VoiceConnection, VoiceState, AudioDevice, VideoQuality, inputDevices, outputDevices } from 'zinc:discord-voice';
+import { VoiceConnection, VoiceState, AudioDevice, VideoQuality, inputDevices, outputDevices, isHeadphones } from 'zinc:discord-voice';
 import { CallQuality, RTCStats } from 'zinc:webrtc/quality';
 import { ScreenCapture } from 'zinc:screen-capture';
 import { pickScreen, ShareChoice } from 'zinc:screen-capture/picker';
@@ -44,6 +44,8 @@ export class VoiceSettings {
   /** The ultra low data mode (zinc:discord-voice's setLowDataMode), always on, or switched on for a call after 5 poor seconds. */
   lowData = false;
   autoLowData = true;
+  /** Echo cancellation: null follows the speakers (on, off for headphones), true or false is the person's choice. */
+  echo: boolean | null = null;
 
   load(text: string): void {
     if (text === '') return;
@@ -60,6 +62,7 @@ export class VoiceSettings {
     if (v.streamFps === 15 || v.streamFps === 30 || v.streamFps === 60) this.streamFps = v.streamFps;
     if (typeof v.lowData === 'boolean') this.lowData = v.lowData;
     if (typeof v.autoLowData === 'boolean') this.autoLowData = v.autoLowData;
+    if (typeof v.echo === 'boolean') this.echo = v.echo;
     if (v.users !== null && typeof v.users === 'object') for (const k of Object.keys(v.users)) this.users.set(k, v.users[k] as number);
   }
   text(): string {
@@ -67,7 +70,13 @@ export class VoiceSettings {
     for (const [k, n] of this.users) users[k] = n;
     return JSON.stringify({ input: this.input, output: this.output, inputVolume: this.inputVolume, outputVolume: this.outputVolume, users: users,
       mode: this.mode, sensitivity: this.sensitivity, pttKey: this.pttKey, camera: this.camera, streamRes: this.streamRes, streamFps: this.streamFps,
-      lowData: this.lowData, autoLowData: this.autoLowData });
+      lowData: this.lowData, autoLowData: this.autoLowData, echo: this.echo });
+  }
+  /** Whether the echo is cancelled: the choice, or by default on unless the chosen output is headphones. */
+  echoOn(): boolean {
+    if (this.echo !== null) return this.echo;
+    for (const d of outputDevices()) if (d.id === this.output) return !isHeadphones(d);
+    return true;
   }
   /** The sensitivity as the RMS level of the voice activity (zinc:discord-voice's threshold). */
   threshold(): number { return Math.pow(10, this.sensitivity / 20); }
@@ -585,6 +594,7 @@ export class Call {
       c.setMute(this.mute || this.deaf); c.setDeaf(this.deaf); c.setPushToTalk(this.ptt);
       c.setDevices(s.input, s.output);
       c.setVolumes(s.inputVolume / 100, s.outputVolume / 100, s.threshold());
+      c.setEchoCancellation(s.echoOn());
       for (const [u, v] of s.users) c.setUserVolume(u, v / 100);
     }
     for (const x of this.conns()) x.setLowDataMode(this.lowData());

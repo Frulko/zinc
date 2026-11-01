@@ -28,6 +28,8 @@ export interface Spec extends NativeModule {
   /** Gains of the microphone (before the voice activity) and of the whole output (1: as is, 2: twice), and the voice activity threshold:
    *  the RMS level 0..1 under which nothing is sent. */
   setAudio(h: i32, inputGain: f64, outputGain: f64, threshold: f64): void;
+  /** Echo cancellation of the microphone against what the speakers play (SpeexDSP, as zinc:microphone's echoCancellation). Off by default. */
+  setEchoCancellation(h: i32, on: boolean): void;
   /** One user's gain in the mix (1: as is). */
   setUserVolume(h: i32, user: string, gain: f64): void;
   /** The microphone's level now (RMS 0..1, after its gain), sent or not: a meter reads it. */

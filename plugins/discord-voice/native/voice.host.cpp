@@ -24,6 +24,7 @@
 #include "dave/dave.h"
 #include "../../webrtc/native/media.h"
 #include <cmath>
+#include "echo.h"
 #include "video_policy.h"
 #include "h264_sps.h"
 #include <dlfcn.h>
@@ -297,6 +298,7 @@ struct Conn {
   std::map<std::string, double> userGain;
   std::mutex amu;
   std::vector<float> captured, toPlay;
+  EchoPath echo;                       // the echo canceller (under amu): the played frames in, the microphone frames cleaned
   // DAVE (under mu): the MLS session, our encryptor, a decryptor per user, the users of the last commit or welcome
   DAVESessionHandle dave = nullptr;
   DAVEEncryptorHandle daveEnc = nullptr;
@@ -434,6 +436,7 @@ bool Conn::frame(float* pcm) {
   if (captured.size() < (size_t)FRAME * CH) return false;
   memcpy(pcm, captured.data(), sizeof(float) * FRAME * CH);
   captured.erase(captured.begin(), captured.begin() + FRAME * CH);
+  echo.process(pcm, FRAME, RATE);
   return true;
 }
 
@@ -836,6 +839,7 @@ void onPlay(ma_device* dv, void* out, const void*, ma_uint32 n) {
   memcpy(o, c->toPlay.data(), have * sizeof(float));
   memset(o + have, 0, (want - have) * sizeof(float));
   c->toPlay.erase(c->toPlay.begin(), c->toPlay.begin() + (long)have);
+  c->echo.played(o, (int)n);   // silence included: the reference keeps the time of the speakers
 }
 
 /** Opens (or opens again, on a change of device) the microphone and the speakers chosen ('' or one not found: the system's default); no
@@ -991,6 +995,12 @@ struct HostDiscordVoice : NativeDiscordVoice {
     if (!c) return;
     std::lock_guard<std::mutex> g(c->mu);
     c->inGain = std::max(0.0, inputGain); c->outGain = std::max(0.0, outputGain); c->threshold = std::max(0.0, threshold);
+  }
+  void setEchoCancellation(int32_t h, bool on) override {
+    Conn* c = at(h);
+    if (!c) return;
+    std::lock_guard<std::mutex> g(c->amu);
+    c->echo.set(on, RATE);
   }
   void setUserVolume(int32_t h, zrt::String user, double gain) override {
     Conn* c = at(h);
