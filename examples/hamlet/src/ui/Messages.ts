@@ -2,7 +2,6 @@ import { sound } from '../audio';
 import { world, tileX, tileY } from '../world/world';
 import { computeHints, hintText } from '../rules/hints';
 import { population } from '../engine/villagers';
-import { scenarioWon } from '../rules/goals';
 import { kit, col, parchment, text, wrap, addHit } from './kit';
 import { ui, act } from './state';
 import { focus } from '../view/focus';
@@ -14,7 +13,7 @@ export class Message { kind: number = 0; text: string = ''; tile: number = -1; r
 export const log: Message[] = [];
 export const banner = { text: '', until: 0, tile: -1 };
 const known: string[] = [];
-let lastPeople = 0, lastScan = -10, lastMilestone = 0, lastWon = -1;   // lastWon: -1 before the first scan (a won save does not cheer again at load)
+let lastPeople = 0, lastScan = -10, lastMilestone = 0;
 
 export function post(kind: number, message: string, tile: number): void {
   for (let i = 0; i < log.length && i < 8; i++) if (log[i].text === message && log[i].tile === tile) return;   // the same event again: one line
@@ -33,9 +32,6 @@ export function scanEvents(): void {
     if (a.kind === 'fire' || a.kind === 'collapse') sound(a.kind, .9);
   }
   world.alerts = [];
-  const won = world.progression && scenarioWon() ? 1 : 0;
-  if (won === 1 && lastWon === 0) { post(MSG_URGENT, 'Victoire ! Le hameau est devenu un village prospère : tous les objectifs sont atteints.', world.gate); sound('fanfare', .9); }
-  lastWon = won;
   if (world.time - lastScan < 1 && world.time >= lastScan) return;
   lastScan = world.time;
   const hints = computeHints(), now: string[] = [];

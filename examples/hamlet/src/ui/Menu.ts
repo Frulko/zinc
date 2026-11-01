@@ -11,7 +11,7 @@ import { settings } from '../settings';
 import { rgb } from '../pixel';
 import { muted, toggleSound, refreshVolume, sound } from '../audio';
 import { kit, col, setSkin, skinNames, window_, winOrigin, parchment, text, textC, labelButton, block, addHit, measure } from './kit';
-import { ui, act, WIN_NONE, WIN_MENU, WIN_OPTIONS, WIN_MAIN, WIN_SAVES, WIN_NEW } from './state';
+import { ui, act, WIN_NONE, WIN_MENU, WIN_OPTIONS, WIN_MAIN, WIN_SAVES, WIN_NEW, WIN_END } from './state';
 import { dateText } from './clock';
 import { savePrefs } from './prefs';
 import { PRESETS } from '../gen/presets';
@@ -33,11 +33,11 @@ for (let i = 0; i < SLOTS; i++) slots.push(new Slot());
 let loadMode = true;                       // the slot window: choosing a slot to load, or to save into
 const form = { seed: '', size: DEFAULT_SIZE, campaign: false, risks: false, preset: 0, difficulty: -1 };
 
-export function isModal(): boolean { return ui.window >= WIN_MENU && ui.window <= WIN_NEW; }
+export function isModal(): boolean { return ui.window >= WIN_MENU && ui.window <= WIN_END; }
 export function closeMenus(): boolean {
   if (!isModal()) return false;
   if (ui.editing) { ui.editing = false; stopTextInput(); }
-  ui.window = ui.window === WIN_MENU || ui.window === WIN_MAIN || ui.back === WIN_NONE ? WIN_NONE : ui.back;
+  ui.window = ui.window === WIN_MENU || ui.window === WIN_MAIN || ui.window === WIN_END || ui.back === WIN_NONE ? WIN_NONE : ui.back;
   return true;
 }
 export function openMenu(): void { ui.window = WIN_MENU; }
@@ -89,7 +89,7 @@ function drawThumb(s: Slot, x: number, y: number, size: number): void {
 }
 
 // ---- drawing ----
-function modal(w: number, h: number, title: string): { x: number; y: number } {
+export function modal(w: number, h: number, title: string): { x: number; y: number } {
   rrect(0, 0, width(), height(), 0, 0x000000, 130);
   block(0, 0, width(), height());
   const o = winOrigin('modal', Math.floor((width() - w) / 2), Math.floor((height() - h) / 2), w, h), x = o.x, y = o.y;

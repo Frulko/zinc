@@ -2,8 +2,8 @@ import { width, height } from 'zinc:gfx';
 import { TOOL_NONE } from '../constants';
 import { TerrainParams } from '../gen/terrain';
 
-// What the interface itself remembers (the game state is `world`): the tool in hand, the speed, which window is open. Nothing here is simulation.
-export const WIN_NONE = 0, WIN_INFO = 1, WIN_ADVISOR = 2, WIN_MENU = 3, WIN_OPTIONS = 4, WIN_MAIN = 5, WIN_SAVES = 6, WIN_NEW = 7, WIN_CAMPAIGN = 8, WIN_TREE = 9;
+// What the interface itself remembers (the game state is `world`): the tool in hand, the speed, which windows are open. Nothing here is simulation.
+export const WIN_NONE = 0, WIN_MENU = 3, WIN_OPTIONS = 4, WIN_MAIN = 5, WIN_SAVES = 6, WIN_NEW = 7, WIN_END = 10;
 export const SPEEDS: number[] = [.5, 1, 2, 4];
 export const ui = {
   tool: TOOL_NONE as number,
@@ -11,7 +11,8 @@ export const ui = {
   speed: 1,                 // index in SPEEDS
   category: -1,             // the open build flyout (index of categories()), -1 none
   collapsed: false,         // the control column folded to a handle
-  window: WIN_NONE,
+  window: WIN_NONE,         // the modal dialog (menu, slots, new game, the ending); the windows below stack, any number open
+  info: false, advisors: false, campaign: false, tree: false,
   overlay: 0,
   overlayMenu: false,               // index of the overlay on the map (0: none)
   selKind: 0,               // 1 a building, 2 a person

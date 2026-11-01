@@ -5,7 +5,7 @@ import { economy } from '../world/economy';
 import { HOUSE, TILE, TOOL_HOUSE, TOOL_ERASE, TERRAIN_GRASS } from '../constants';
 import { appealTiles } from '../rules/appeal';
 import { foodKinds } from '../rules/housing';
-import { kit, col, slab, parchment, button, text, block, addHit, measure } from './kit';
+import { kit, col, window_, winOrigin, parchment, button, text, addHit, measure } from './kit';
 import { ui, mapView, viewport, columnX, STATUS_H } from './state';
 
 // Map overlays: tiles tinted from the shared simulation data (appeal grid, house coverage, staffing, food), a legend, and the reach of a service building under the pointer.
@@ -94,11 +94,11 @@ export function drawReach(tool: number, hover: number): void {
 /** The overlay chooser, level with its button. */
 export function drawOverlayMenu(): void {
   if (!ui.overlayMenu) return;
-  const names = overlayNames(), w = 190, h = names.length * 30 + 12, x = columnX() - w - 4, y = Math.min(height() - h - STATUS_H - 4, 120);
-  slab(x, y, w, h); block(x, y, w, h);
+  const names = overlayNames(), w = 190, h = names.length * 30 + 38, o = winOrigin('overlays', columnX() - w - 10, Math.min(height() - h - STATUS_H - 10, 120), w, h), x = o.x, y = o.y;
+  window_(x, y, w, h, 'Calques', 'overlays', (): void => { ui.overlayMenu = false; });
   for (let i = 0; i < names.length; i++) {
-    button('ov:' + i, x + 8, y + 8 + i * 30, w - 16, 26, '', true, ui.overlay === i);
-    text(kit.body, x + 16, y + 11 + i * 30, names[i], col('barText'));
+    button('ov:' + i, x + 8, y + 32 + i * 30, w - 16, 26, '', true, ui.overlay === i);
+    text(kit.body, x + 16, y + 35 + i * 30, names[i], col('barText'));
   }
 }
 export function overlayClick(id: string): boolean {

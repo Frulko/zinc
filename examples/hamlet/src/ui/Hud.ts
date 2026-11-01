@@ -6,7 +6,7 @@ import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE } from '../constants';
 import { resourceShown } from '../hud';
 import { drawResource, drawGlyph, drawBuilding } from './icons';
 import { kit, col, winClick, slab, well, block, button, text, textR, textC, measure, glyphButton, labelButton, addHit, parchment, BTN_PRESSED } from './kit';
-import { ui, act, WIN_MENU, WIN_TREE, TOP_H, STATUS_H, COL_W, COL_FOLDED, SPEEDS, columnX, viewport } from './state';
+import { ui, act, WIN_MENU, TOP_H, STATUS_H, COL_W, COL_FOLDED, SPEEDS, columnX, viewport } from './state';
 import { drawMinimap } from './Minimap';
 import { categories, flyAnchor, buildClick } from './BuildMenu';
 import { drawMessages, unread, messageClick } from './Messages';
@@ -16,6 +16,7 @@ import { overlayClick } from './Overlays';
 import { advisorClick, openAdvisor } from './Advisors';
 import { campaignClick, openCampaign } from './Campaign';
 import { debugClick } from './Debug';
+import { endingClick } from './Ending';
 import { treeClick, openTree } from './Tree';
 import { dateText, SEASONS, season } from './clock';
 import { villageWord } from '../rules/needs';
@@ -104,7 +105,7 @@ export function column(): void {
   items.push('win:tree'); labels.push('Arbre'); glyphs2.push('log');
   for (let i = 0; i < items.length; i++) {
     const bx = x + pad + (i % 2) * (bw + 6), by = y + Math.floor(i / 2) * 32, id = items[i];
-    const selected = id === 'win:tree' ? ui.window === WIN_TREE : id.startsWith('tool:') ? ui.tool === Number(id.slice(5)) : ui.category === Number(id.slice(4));
+    const selected = id === 'win:tree' ? ui.tree : id.startsWith('tool:') ? ui.tool === Number(id.slice(5)) : ui.category === Number(id.slice(4));
     button(id, bx, by, bw, 28, labels[i] === 'Info' ? 'Cliquer un bâtiment ou un habitant pour le voir' : '', true, selected);
     drawGlyph(glyphs2[i], bx + 5, by + 5, 18);
     text(kit.small, bx + 27, by + 7, labels[i], col('barText'));
@@ -123,7 +124,7 @@ export function statusStrip(text_: string, color: number): void {
 
 /** A click on a widget of the frame (the id the widget registered). */
 export function hudClick(id: string): void {
-  if (winClick(id) || buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id) || advisorClick(id) || campaignClick(id) || debugClick(id) || treeClick(id) || overlayClick(id)) return;
+  if (winClick(id) || buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id) || advisorClick(id) || campaignClick(id) || endingClick(id) || debugClick(id) || treeClick(id) || overlayClick(id)) return;
   if (id.startsWith('tool:')) { act.setTool(Number(id.slice(5))); ui.category = -1; return; }
   if (id.startsWith('cat:')) { const i = Number(id.slice(4)); ui.category = ui.category === i ? -1 : i; return; }
   if (id === 'win:advisor') { openAdvisor(ui.advisor); return; }

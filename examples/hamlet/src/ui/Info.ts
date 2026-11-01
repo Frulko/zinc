@@ -5,12 +5,12 @@ import { housingReport } from '../rules/housing';
 import { sourceOf, harvestLines } from '../rules/harvest';
 import { applyTool } from '../rules/build';
 import {
-  TOOL_ERASE, BS_ISOLATED, BS_WAITING, BS_FULL, BS_WORKING, ROLE_NAMES,
+  TOOL_ERASE, BS_ISOLATED, BS_WAITING, BS_FULL, BS_NO_SOURCE, BS_WORKING, ROLE_NAMES,
   ST_SLEEP, ST_HOME, ST_FREE, ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_TO_SHORE, ST_FISH, ST_WORK, ST_FETCH, ST_BRING, ST_ROAM, ST_ROAM_BACK,
 } from '../constants';
 import { drawBuilding, drawResource, drawGlyph } from './icons';
-import { kit, col, window_, winOrigin, text, textR, wrap, meter, labelButton, glyphButton, block, addHit } from './kit';
-import { ui, act, WIN_NONE, WIN_INFO, viewport } from './state';
+import { kit, col, winRaise, window_, winOrigin, text, textR, wrap, meter, labelButton, glyphButton, block, addHit } from './kit';
+import { ui, act, viewport } from './state';
 import { thoughtOf, houseNeeds, servicesOffered, FEEL_WORDS, FEEL_CONTENT, FEEL_SOSO } from '../rules/needs';
 import { sleepsIndoors } from '../engine/routine';
 
@@ -39,9 +39,9 @@ function stateText(state: number): string {
   return 'Occupé';
 }
 
-export function selectBuilding(id: number): void { ui.selKind = 1; ui.selId = id; ui.window = WIN_INFO; }
-export function selectPerson(id: number): void { ui.selKind = 2; ui.selId = id; ui.window = WIN_INFO; }
-export function closeInfo(): void { if (ui.window === WIN_INFO) ui.window = WIN_NONE; ui.selKind = 0; ui.selId = -1; }
+export function selectBuilding(id: number): void { ui.selKind = 1; ui.selId = id; ui.info = true; winRaise('info'); }
+export function selectPerson(id: number): void { ui.selKind = 2; ui.selId = id; ui.info = true; winRaise('info'); }
+export function closeInfo(): void { ui.info = false; ui.selKind = 0; ui.selId = -1; }
 /** The building on a tile, or the person nearest the ground point (within a body's reach); opens its window. False when there is nothing there. */
 export function pickAt(gx: number, gy: number, tile: number): boolean {
   let best = -1, bestD = 1.1;
@@ -60,6 +60,7 @@ export function whyIdle(id: number): string {
   if (def.needsRoad && !def.store && b.state === BS_ISOLATED) return 'Inactif : aucune route ne le relie à un entrepôt.';
   if (def.workers > 0 && b.workers === 0) return 'Inactif : personne n’y travaille.';
   if (b.state === BS_WAITING && b.waitFor >= 0) return 'Attend : ' + economy.resources[b.waitFor].label.toLowerCase() + '.';
+  if (b.state === BS_NO_SOURCE) return def.gather === 'tree' ? 'Plus d’arbre à portée : abattez ceux qui ferment la route (gomme) ou prolongez la route.' : 'Rien à portée : rapprochez ce bâtiment de sa ressource.';
   if (b.state === BS_FULL) return 'Plein : posez un entrepôt au bord de la route.';
   if (def.workers > 0 && b.workers < def.workers) return 'Il manque ' + (def.workers - b.workers) + ' ouvrier(s).';
   if (b.state === BS_WORKING) return 'Au travail.';
@@ -79,7 +80,7 @@ function riskText(b: Building): string {
 const WIN_W = 330;
 function origin(h: number): { x: number; y: number } { const vp = viewport(); return winOrigin('info', vp.x + 22, vp.y + 22, WIN_W, h); }
 export function drawInfo(): void {
-  if (ui.window !== WIN_INFO) return;
+  if (!ui.info) return;
   if (ui.selKind === 1) building();
   else if (ui.selKind === 2) person();
 }

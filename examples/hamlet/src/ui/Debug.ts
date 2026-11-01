@@ -143,8 +143,12 @@ export function drawDebug(): void {
     const x = vp.x + 8, y = vp.y + 8, w = 300, h = 12 + lines.length * 14;
     parchment(x, y, w, h); block(x, y, w, h);
     for (let i = 0; i < lines.length; i++) text(kit.small, x + 8, y + 6 + i * 14, lines[i], col('ink'));
-    return;
   }
+}
+/** The full window (mode 2), drawn with the other windows. */
+export function drawDebugWindow(): void {
+  if (debug.mode !== 2) return;
+  const vp = viewport();
   const o = winOrigin('debug', vp.x + Math.floor((vp.w - WW) / 2), vp.y + Math.max(8, Math.floor((vp.h - WH) / 2)), WW, WH), x = o.x, y = o.y;
   window_(x, y, WW, WH, 'Informations techniques [F3]', 'debug', (): void => { debug.mode = 0; frames.length = 0; });
   for (let i = 0; i < TABS.length; i++) labelButton('dbg:tab:' + i, x + 8 + i * 82, y + 28, 78, 24, TABS[i], '', true, tab === i);

@@ -3,13 +3,14 @@ import { economy } from '../world/economy';
 import { models } from '../view/models';
 import { rgb } from '../pixel';
 
-// Small pixel icons. Resource icons are 9x9 bitmaps keyed by the resource's `carry` kind in economy.json (an unknown kind gets a coin);
+// Small pixel icons. Resource icons are 9x9 bitmaps named by the resource's id in economy.json, else by its `carry` kind (an unknown one gets a coin);
 // building icons are baked from the lit models the view already holds, so a new building has an icon without any art.
 const PALETTE = new Map<string, number>();
 function P(c: string, r: number, g: number, b: number): void { PALETTE.set(c, rgb(r, g, b)); }
 P('k', 44, 34, 24); P('b', 132, 92, 56); P('B', 190, 142, 88); P('t', 226, 196, 138); P('g', 70, 124, 60); P('G', 128, 176, 84); P('r', 176, 64, 52);
 P('R', 222, 112, 92); P('y', 236, 190, 60); P('w', 246, 240, 224); P('s', 150, 156, 160); P('n', 70, 118, 160); P('N', 130, 176, 208); P('o', 214, 130, 50); P('p', 206, 150, 130);
-P('O', 236, 160, 80); P('P', 222, 140, 120); P('Y', 255, 230, 120);
+P('c', 172, 98, 66); P('C', 206, 130, 94); P('S', 100, 106, 112); P('v', 110, 48, 104); P('V', 162, 86, 146); P('a', 226, 150, 30); P('h', 250, 206, 90);
+P('W', 240, 226, 170); P('i', 205, 98, 48); P('O', 236, 160, 80); P('P', 222, 140, 120); P('Y', 255, 230, 120);
 const GLYPHS = new Map<string, string[]>();
 function G(name: string, rows: string[]): void { GLYPHS.set(name, rows); }
 G('log', ['.........', '.kkkkkkk.', 'kbBbBbbbk', 'kBbBbBBbk', 'kbBkkkbBk', 'kBbkBkBbk', 'kbBkkkBbk', '.kkkkkkk.', '.........']);
@@ -40,6 +41,19 @@ G('close', ['.........', '.kk...kk.', '.kwk.kwk.', '..kwkwk..', '...kwk...', '..
 G('undo', ['.........', '..kkk....', '.kwwwkk..', 'kwwkkwwk.', 'kwk..kwwk', 'kwwk.kwwk', '.kwwkwwk.', '..kkkkk..', '.........']);
 G('scroll', ['.kkkkkkk.', 'kwwwwwwwk', '.kwkkkwk.', '.kwwwwwk.', '.kwkkkwk.', '.kwwwwwk.', '.kwkkwwk.', 'kwwwwwwwk', '.kkkkkkk.']);
 G('person', ['.........', '..kkkk...', '.kpppk...', '.kpppk...', '..kkk....', '.kbbbk...', 'kbbbbbk..', 'kb.k.bk..', '.kk.kk...']);
+G('stone', ['.........', '...kkkk..', '..kwwsSk.', '.kwwsssSk', 'kwsssssSk', 'ksssssSSk', 'kSsssSSSk', '.kkSSSkk.', '.........']);
+G('clay', ['.........', '..kkkkk..', '.kCCCCck.', 'kCCcCCcck', 'kccccccck', 'kkkkkkkkk', 'kCCCcCCck', 'kcccckcck', 'kkkkkkkkk']);
+G('iron_ore', ['.........', '...kkkk..', '..kSSSSk.', '.kSiSSSSk', 'kSSSSiSSk', 'kSiSSSSSk', 'kSSSSSiSk', '.kkSSSkk.', '.........']);
+G('berries', ['....kg...', '...kgGk..', '.kkk.kkk.', 'kvVvkvVvk', 'kvvvkvvvk', '.kkk.kkk.', '..kvVvk..', '..kvvvk..', '...kkk...']);
+G('tools', ['.kkkkkkk.', 'kswwwwwsk', 'kskkBkksk', '.k.kBbk.k', '...kBbk..', '...kBbk..', '...kBbk..', '...kBbk..', '...kkkk..']);
+G('honey', ['..kkkkk..', '..kBBBk..', '.kkkkkkk.', 'khhhhhhhk', 'kahwhhhak', 'kaaahhhak', 'kaaaaaaak', '.kaaaaak.', '..kkkkk..']);
+G('wax', ['.........', '.kkkkkkk.', 'kWWWWWWWk', 'kWwwWWWtk', 'kWWWWWttk', 'kttttttBk', 'kkkkkkkkk', '.........', '.........']);
+G('candle', ['....o....', '...oYo...', '...oYo...', '....k....', '...kWwk..', '...kWWk..', '...kWWk..', '.kBBBBBk.', '.kkkkkkk.']);
+G('mead', ['.........', '.kwwwwwk.', '.kwaaawk.', '.kaaYaakk', '.kaaaaakk', '.kaaaaak.', '.kaaaaak.', '.kkkkkkk.', '.........']);
+G('wheat', ['..y.y.y..', '.ytyyyty.', '.yoyyyoy.', '..y.y.y..', '..g.g.g..', '...ggg...', '....g....', '....g....', '.........']);
+G('flour', ['..kkkkk..', '...kBk...', '..kwwwwk.', '.kwwwwwwk', 'kwwwswwwk', 'kwwwwwwsk', 'kwwwwwwwk', '.kwwwwwk.', '..kkkkk..']);
+G('leather', ['.........', '.kkkkkkk.', 'kOOOOOOOk', 'kooooooOk', 'koYoYoYok', 'kooooooOk', 'kOOOOOOOk', '.kkkkkkk.', '.........']);
+GLYPHS.set('meat', GLYPHS.get('deer') as string[]); GLYPHS.set('smoked_meat', GLYPHS.get('ham') as string[]);
 
 const cache = new Map<string, i32>();
 function glyphImage(name: string): i32 {
@@ -52,9 +66,11 @@ function glyphImage(name: string): i32 {
   return image;
 }
 
+/** True when a resource id has an icon of its own (the test checks every resource of economy.json: none falls back to the coin). */
+export function hasResourceIcon(id: string): boolean { return GLYPHS.has(id); }
 /** The icon of a resource (index in economy.json), `size` screen pixels wide. */
 export function drawResource(k: number, x: number, y: number, size: number = 18): void {
-  drawImageRect(glyphImage(economy.resources[k].carry), 0, 0, 9, 9, x, y, size, size, 255, ImageFlag.Nearest);
+  drawImageRect(glyphImage(GLYPHS.has(economy.resources[k].id) ? economy.resources[k].id : economy.resources[k].carry), 0, 0, 9, 9, x, y, size, size, 255, ImageFlag.Nearest);
 }
 export function drawGlyph(name: string, x: number, y: number, size: number = 18): void {
   drawImageRect(glyphImage(name), 0, 0, 9, 9, x, y, size, size, 255, ImageFlag.Nearest);

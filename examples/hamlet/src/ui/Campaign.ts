@@ -6,17 +6,17 @@ import { adventureLines, expeditionLines, canStart } from '../rules/adventure';
 import { issue } from '../rules/commands';
 import { sound } from '../audio';
 import { kit, col, window_, winOrigin, parchment, text, wrap, labelButton, glyphButton, block, addHit } from './kit';
-import { ui, viewport, WIN_NONE, WIN_CAMPAIGN } from './state';
+import { ui, viewport } from './state';
 
 // The campaign window: goals, the peddler's offers and the adventures. Every action is a command (rules/commands.ts), so it is logged and replays.
 const TABS = ['Objectifs', 'Colporteur', 'Aventures'];
 const W = 560, H = 440;
 let tab = 0;
-export function openCampaign(): void { ui.window = ui.window === WIN_CAMPAIGN ? WIN_NONE : WIN_CAMPAIGN; }
+export function openCampaign(): void { ui.campaign = !ui.campaign; }
 export function drawCampaign(): void {
-  if (ui.window !== WIN_CAMPAIGN) return;
+  if (!ui.campaign) return;
   const vp = viewport(), o = winOrigin('campaign', vp.x + Math.floor((vp.w - W) / 2), vp.y + Math.max(8, Math.floor((vp.h - H) / 2)), W, H), x = o.x, y = o.y;
-  window_(x, y, W, H, 'Campagne', 'campaign', (): void => { ui.window = WIN_NONE; });
+  window_(x, y, W, H, 'Campagne', 'campaign', (): void => { ui.campaign = false; });
   for (let i = 0; i < TABS.length; i++) labelButton('camp:tab:' + i, x + 10 + i * 128, y + 30, 122, 26, TABS[i], '', true, tab === i);
   parchment(x + 10, y + 62, W - 20, H - 72);
   const px = x + 22, py = y + 72, lw = W - 44;

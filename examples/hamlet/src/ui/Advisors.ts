@@ -7,7 +7,7 @@ import { normalizePriority, movePriority } from '../rules/labour';
 import { HOUSE } from '../constants';
 import { drawResource, drawBuilding } from './icons';
 import { kit, col, window_, winOrigin, parchment, text, textR, textC, meter, labelButton, glyphButton, block, well } from './kit';
-import { ui, viewport, WIN_NONE, WIN_ADVISOR } from './state';
+import { ui, viewport } from './state';
 import { FEEL_WORDS, FEEL_CONTENT, houseNeeds, servicesOffered, villageWord, arrivalFactor, leavingToday } from '../rules/needs';
 import { monthIndex, year } from './clock';
 
@@ -21,13 +21,13 @@ export function sampleHistory(): void {
   lastMonth = m; history.push(population());
   if (history.length > 36) history.shift();
 }
-export function openAdvisor(tab: number): void { ui.advisor = tab; ui.window = ui.window === WIN_ADVISOR && ui.advisor === tab ? WIN_NONE : WIN_ADVISOR; }
+export function openAdvisor(tab: number): void { ui.advisor = tab; ui.advisors = !ui.advisors; }
 
 const W = 540, H = 460;
 export function drawAdvisors(): void {
-  if (ui.window !== WIN_ADVISOR) return;
+  if (!ui.advisors) return;
   const vp = viewport(), o = winOrigin('advisors', vp.x + Math.floor((vp.w - W) / 2), vp.y + Math.max(8, Math.floor((vp.h - H) / 2)), W, H), x = o.x, y = o.y;
-  window_(x, y, W, H, 'Conseillers', 'advisors', (): void => { ui.window = WIN_NONE; });
+  window_(x, y, W, H, 'Conseillers', 'advisors', (): void => { ui.advisors = false; });
   for (let i = 0; i < TABS.length; i++) labelButton('adv:tab:' + i, x + 10 + i * 104, y + 30, 100, 26, TABS[i], '', true, ui.advisor === i);
   parchment(x + 10, y + 62, W - 20, H - 72);
   if (ui.advisor === 0) labour(x + 22, y + 72); else if (ui.advisor === 1) food(x + 22, y + 72); else if (ui.advisor === 2) housing(x + 22, y + 72); else if (ui.advisor === 3) mood(x + 22, y + 72); else chart(x + 22, y + 72);

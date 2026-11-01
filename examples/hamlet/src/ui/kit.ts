@@ -88,7 +88,8 @@ export function well(x: number, y: number, w: number, h: number): void {
 }
 // ---- windows ----
 // One behaviour for every window: a stone title bar that drags the window (its place is remembered per id, clamped in the viewport, forgotten when the
-// window is resized), a close button, Esc for the topmost one. They are exclusive or stacked by draw order: the last drawn is on top and gets Esc first.
+// window is resized), a close button, Esc for the topmost one. Several windows can be open at once: `winRaise` brings one to the front (opening it, or a press
+// on it), `drawWindows` draws them back to front, so the last drawn is on top, owns the click and gets Esc first.
 class WinRec { x: number = 0; y: number = 0; w: number = 0; h: number = 0; close: (() => void) | null = null; }
 const winPos = new Map<string, number[]>();          // id -> [x, y] the player dragged it to
 const winShown = new Map<string, WinRec>();          // id -> where it was drawn this frame
@@ -97,10 +98,24 @@ function winClamp(x: number, y: number, w: number, h: number): number[] {
   const vp = viewport();
   return [Math.max(vp.x, Math.min(vp.x + vp.w - w, x)), Math.max(vp.y, Math.min(vp.y + vp.h - Math.min(h, 40), y))];
 }
+const winDraw = new Map<string, () => void>();       // id -> its draw function (each one draws nothing while closed)
+const winZ: string[] = [];                           // every registered window, bottom to top
+const CASCADE = ['info', 'campaign', 'tree', 'advisors', 'debug'];    // first places are shifted so windows opened together do not hide each other
+/** Registers a window's draw function; it starts at the back. */
+export function winRegister(id: string, draw: () => void): void { winDraw.set(id, draw); if (winZ.indexOf(id) < 0) winZ.push(id); }
+/** Brings a window to the front. */
+export function winRaise(id: string): void { const i = winZ.indexOf(id); if (i >= 0 && i < winZ.length - 1) { winZ.splice(i, 1); winZ.push(id); } }
+/** Draws every registered window, back to front. */
+export function drawWindows(): void { for (const id of winZ.slice()) { const f = winDraw.get(id); if (f !== undefined) f(); } }
+/** The topmost window drawn last frame under a point ('' over none). */
+export function winAt(px: number, py: number): string {
+  for (let i = winDrawn.length - 1; i >= 0; i--) { const r = winShown.get(winDrawn[i]); if (r !== undefined && px >= r.x - 6 && py >= r.y - 6 && px < r.x + r.w + 6 && py < r.y + r.h + 6) return winDrawn[i]; }
+  return '';
+}
 /** Where a window stands: its dragged place when it has one, else the default. Call before drawing it. */
 export function winOrigin(id: string, x: number, y: number, w: number, h: number): { x: number; y: number } {
   const p = winPos.get(id);
-  if (p === undefined) return { x, y };
+  if (p === undefined) { const k = CASCADE.indexOf(id), c = k > 0 ? winClamp(x + k * 26, y + k * 26, w, h) : [x, y]; return { x: c[0], y: c[1] }; }
   const c = winClamp(p[0], p[1], w, h);
   return { x: c[0], y: c[1] };
 }
@@ -110,12 +125,16 @@ export function window_(x: number, y: number, w: number, h: number, title: strin
   parchment(x, y, w, h);
   rect(x, y, w, 22, col('stoneDark')); rect(x, y + 22, w, 1, col('stoneDeep'));
   text(kit.body, x + 8, y + 3, title, col('barText'));
+  winFrame(x, y, w, h, id, onClose);
+}
+/** The behaviour of a window without its look (a window drawn by something else, like the dev panel): it swallows clicks, drags by a 22 px title strip, closes with the [x]. */
+export function winFrame(x: number, y: number, w: number, h: number, id: string, onClose: (() => void) | null): void {
   addHit('', x - 6, y - 6, w + 12, h + 12, '', Cursor.Default);       // the world below gets no click
   if (id === '') return;
   let rec = winShown.get(id);
   if (rec === undefined) { rec = new WinRec(); winShown.set(id, rec); }
   rec.x = x; rec.y = y; rec.w = w; rec.h = h; rec.close = onClose;
-  if (winPrev.indexOf(id) < 0) sound('open', .5);
+  if (winPrev.indexOf(id) < 0) { sound('open', .5); winRaise(id); }     // a window that just opened comes to the front (next frame)
   winDrawn.push(id);
   addHit('win:drag:' + id, x, y, w - (onClose !== null ? 28 : 0), 22, '', Cursor.Grab);
   if (onClose !== null) glyphButton('win:close:' + id, x + w - 24, y + 2, 20, 18, 'close', 'Fermer');

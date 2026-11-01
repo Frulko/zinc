@@ -7,7 +7,7 @@ import { harvestLines } from '../rules/harvest';
 import { buildingTip } from './BuildMenu';
 import { drawBuilding, drawResource } from './icons';
 import { kit, col, mix, window_, winOrigin, parchment, text, labelButton, glyphButton, block, addHit, pointer } from './kit';
-import { ui, act, viewport, WIN_NONE, WIN_TREE } from './state';
+import { ui, act, viewport } from './state';
 
 // The tree window: the economy drawn as a graph, left to right, read from economy.json (nothing here lists a building).
 // Tab 1, the goods: raw sources -> workshops -> goods -> houses and services. Tab 2, the progression: goals -> buildings they unlock -> house levels.
@@ -22,7 +22,7 @@ let tab = 0, scrollX = 0, scrollY = 0, lastX = -1, lastY = -1, contentW = 0, con
 let nodes: TNode[] = [], edges: TEdge[] = [];
 let signature = '';
 
-export function openTree(): void { ui.window = ui.window === WIN_TREE ? WIN_NONE : WIN_TREE; scrollX = 0; scrollY = 0; }
+export function openTree(): void { ui.tree = !ui.tree; scrollX = 0; scrollY = 0; }
 export function treeScroll(dx: number, dy: number): void { scrollX += dx; scrollY += dy; }
 export function treeDrag(x: number, y: number): void { if (lastX >= 0) { scrollX += lastX - x; scrollY += lastY - y; } lastX = x; lastY = y; }
 
@@ -167,11 +167,11 @@ function rebuild(): void {
 }
 
 export function drawTree(): void {
-  if (ui.window !== WIN_TREE) return;
+  if (!ui.tree) return;
   if (pointer.down !== 'tree:pan') { lastX = -1; lastY = -1; }
   rebuild(); paint();
   const vp = viewport(), w = Math.min(W, vp.w - 16), h = Math.min(H, vp.h - 16), o = winOrigin('tree', vp.x + Math.floor((vp.w - w) / 2), vp.y + Math.max(8, Math.floor((vp.h - h) / 2)), w, h), x = o.x, y = o.y;
-  window_(x, y, w, h, 'Arbre de l’économie', 'tree', (): void => { ui.window = WIN_NONE; });
+  window_(x, y, w, h, 'Arbre de l’économie', 'tree', (): void => { ui.tree = false; });
   for (let i = 0; i < TABS.length; i++) labelButton('tree:tab:' + i, x + 10 + i * 128, y + 30, 122, 26, TABS[i], '', true, tab === i);
   const cx = x + 10, cy = y + 62, cw = w - 20, ch = h - 72 - 22;
   parchment(cx, cy, cw, ch);
@@ -202,7 +202,7 @@ export function treeClick(id: string): boolean {
   if (id.startsWith('tree:tab:')) { tab = Number(id.slice(9)); signature = ''; return true; }
   if (id.startsWith('tree:n:')) {
     const n = nodes[Number(id.slice(7))];
-    if (n.kind === 'bld' && isUnlocked(n.id)) { act.setTool(TOOL_HOUSE + n.id); ui.window = WIN_NONE; }
+    if (n.kind === 'bld' && isUnlocked(n.id)) { act.setTool(TOOL_HOUSE + n.id); ui.tree = false; }
     return true;
   }
   return false;

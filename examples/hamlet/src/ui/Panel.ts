@@ -107,7 +107,7 @@ export class Panel {
       }
     }
     if (!this.contains(px, py)) return false;
-    if (py < this.y + ROW + GAP) { this.open = !this.open; return true; }
+    if (py < this.y + ROW + GAP) return true;          // the title strip belongs to the window manager (drag, close)
     const i = this.rowAt(py);
     if (i < 0) return true;
     const row = this.rows[i];
@@ -119,6 +119,7 @@ export class Panel {
     return true;
   }
   /** Closes an open select; true when there was one (Escape). */
+  menuOpen(): boolean { return this.dropdown >= 0; }
   closeMenu(): boolean { const was = this.dropdown >= 0; this.dropdown = -1; return was; }
   drag(px: number): void { if (this.active >= 0) this.setNumber(this.rows[this.active], px); }
   release(): void { this.active = -1; }
