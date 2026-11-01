@@ -9,7 +9,8 @@ the old driver in place, which cost a night once), the player and the system fil
 does, `current` is switched atomically, the system files replaced by the ones of the tarball (the previous ones are kept in
 /usr/lib/zinc/dev-backup/), the session and the agent restarted. The release stays on the card: --rollback is one symlink and the saved files.
 The Pi's user needs `sudo -n`. The transfer is rate limited (--rate, kbit/s, 6000 by default) and the unpacking runs at the lowest priority: a Pi
-on a weak power supply browns out under a burst of network and card writes (the cut that started this tool)."""
+on a weak power supply browns out under a burst of network and card writes (the cut that started this tool): no chown over the tree, files renamed into
+place so a cut never leaves an empty system file, a sync after each stage."""
 import argparse, glob, os, shutil, subprocess, sys, tarfile, tempfile
 
 SYSTEM = {  # file of share/zinc/image -> where it lives on the Pi
@@ -67,16 +68,16 @@ def main():
         print('  %.0f MB to send' % (os.path.getsize(pack) / 1e6))
         run(['scp', '-q', '-l', str(a.rate), pack, a.host + ':/var/tmp/' + ident + '.tar'])
     ssh(a.host, 'set -e; S="sudo -n"; V=/usr/lib/zinc/versions/' + ident + '; B=/usr/lib/zinc/dev-backup\n'
-                '$S rm -rf $V; $S mkdir -p $V; $S nice -n 19 ionice -c3 tar -xf /var/tmp/' + ident + '.tar -C $V 2>/dev/null; $S chown -R root:root $V; rm -f /var/tmp/' + ident + '.tar\n'
+                '$S rm -rf $V; $S mkdir -p $V; $S nice -n 19 ionice -c3 tar -xf /var/tmp/' + ident + '.tar -C $V --no-same-owner 2>/dev/null; rm -f /var/tmp/' + ident + '.tar; sync\n'
                 '[ -x $V/engine/bin/zinc ] && $V/engine/bin/zinc --version >/dev/null\n'
                 '$S mkdir -p $B/system; for f in zinc-admin zinc-session zinc-power-guard; do [ -e /usr/lib/zinc/$f ] && $S cp -a /usr/lib/zinc/$f $B/system/; done; '
                 '[ -e /etc/systemd/system/zinc-shell.service ] && $S cp -a /etc/systemd/system/zinc-shell.service $B/system/\n'
                 'cur=$(readlink /usr/lib/zinc/current); case "$cur" in versions/dev-*) ;; *) $S ln -sfn "$cur" /usr/lib/zinc/previous-dev;; esac\n'
                 'for f in ' + ' '.join(SYSTEM) + '; do [ -e $V/system/$f ] || continue; case $f in\n'
-                ' zinc-admin|zinc-session|zinc-power-guard) $S install -m 0755 $V/system/$f /usr/lib/zinc/$f;;\n'
-                ' zinc-journal.conf) $S mkdir -p /etc/systemd/journald.conf.d; $S install -m 0644 $V/system/$f /etc/systemd/journald.conf.d/zinc.conf;;\n'
-                ' *.service) $S install -m 0644 $V/system/$f /etc/systemd/system/$f;; esac; done\n'
-                '$S ln -sfn versions/' + ident + ' /usr/lib/zinc/current\n'
+                ' zinc-admin|zinc-session|zinc-power-guard) $S install -m 0755 $V/system/$f /usr/lib/zinc/$f.new && $S mv -f /usr/lib/zinc/$f.new /usr/lib/zinc/$f;;\n'
+                ' zinc-journal.conf) $S mkdir -p /etc/systemd/journald.conf.d; $S install -m 0644 $V/system/$f /etc/systemd/journald.conf.d/zinc.conf.new && $S mv -f /etc/systemd/journald.conf.d/zinc.conf.new /etc/systemd/journald.conf.d/zinc.conf;;\n'
+                ' *.service) $S install -m 0644 $V/system/$f /etc/systemd/system/$f.new && $S mv -f /etc/systemd/system/$f.new /etc/systemd/system/$f;; esac; done; sync\n'
+                '$S ln -sfn versions/' + ident + ' /usr/lib/zinc/current; sync\n'
                 '$S systemctl daemon-reload; [ -e /etc/systemd/system/zinc-power-guard.service ] && $S systemctl enable --now zinc-power-guard.service >/dev/null 2>&1 || true')
     # restarting the services ends the ssh session's journal stream on some images: its own call, its status not trusted, the state checked after
     subprocess.run(['ssh', '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes', a.host, 'sudo -n systemctl restart systemd-journald; sudo -n systemctl restart zinc-agent zinc-shell'], capture_output=True)
