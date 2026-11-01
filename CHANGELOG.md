@@ -13,6 +13,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The player fits a narrow screen (the Pi's panel turned to portrait): home tiles wrap into a grid, the cards stack their button under the text, Settings sections become a row of tabs, and a very small screen keeps the tiles only.
 #### Faster
 - An idle Pi shell costs less: the home animation rests after 20 seconds without a touch, an unchanged screen no longer asks the display for a refresh every frame, and a turned screen stores each changed pixel directly.
+#### Fixed
+- `zinc device <pi> screen --live` shows a screen that does not move: while someone watches, the whole screen is sent again every 2 seconds, so a viewer that connects to a still screen sees it.
 
 ### Performance
 #### Faster
