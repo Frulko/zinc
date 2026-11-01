@@ -99,9 +99,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - A reMarkable app can size its surface as a whole fraction of the panel (810x1080 for the Paper Pro, 1080x810 in landscape): the driver draws it at two physical pixels per pixel, so the UI has the right size at 229 ppi and stays sharp. Murdoku uses it, and the pen's `refreshRect` regions follow the landscape turn.
 - A reMarkable app can run in landscape: set `"orientation": "landscape"` in `app` of `zinc.json` and the app draws on the panel turned a quarter (`ZINC_RMPP_ROTATE=270` for the other side), with the Marker and the fingers following the turn.
+- Murdoku has its own reMarkable layout with nothing to scroll: in landscape the plan on the left with big suspect letters and tool buttons under it and the six testimonies in a column on the right, in portrait the plan on top and the testimonies below; selected things are filled or thick-bordered, and it docks under the tablet's own header.
 
 #### Fixed
 
+- An app docked under the reMarkable header in landscape, or on a surface drawn at two pixels per pixel, now pads by the header's real size on the right side (it was a full-size top margin).
 - A palm that lands while the Marker is near the glass, or in the 300 ms after it left, no longer reaches the app as a touch (`ZINC_RMPP_PALM_MS` changes the delay).
 
 ## [0.10.6] - 2026-10-31

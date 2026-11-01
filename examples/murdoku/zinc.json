@@ -9,7 +9,8 @@
   },
   "display": {
     "driver": "rmpp",
-    "refresh_mode": "ui"
+    "refresh_mode": "ui",
+    "header": "remarkable"
   },
   "targets": {
     "macos": {

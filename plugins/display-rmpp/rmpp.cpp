@@ -86,6 +86,7 @@ bool action_read = false;   // the app asked "window.action" (zinc:remarkable): 
 char app_title[96] = "";   // HalConfig's title (zinc.json "name"): the header bar's title (MSG_SET_TITLE)
 // how long this connection is busy after a mode switch or a full refresh: qtfb's second, or a few ms with 0006
 uint64_t switch_pause() { return instant_mode ? 30000 : 1100000; }
+int32_t K = 1;   // physical pixels per logical pixel (see rm_init)
 eink::Rect dock_rect() { return {0, std::min(std::max(dock_top, 0), panel.h), panel.w, panel.h}; }
 
 extern "C" void zn_hal_signal(const char* line);   // the host's system signals (src/host/hal_dispatch.cpp): zinc:ui's safe area
@@ -94,11 +95,14 @@ void window_changed() {
   rin::pen_from_appload = hidden || as_widget || docked;   // docked too: evdev's Marker would also write on xochitl's header
   if (rin::pen_from_appload) rin::touch_event(0x11, rin::PEN_TOUCH_ID, 0, 0);   // no stale press across the change
   rin::edge_top = hidden || as_widget ? -1 : docked ? dock_top : 0;
+  // The header is a strip of the panel's physical top, in the app's logical pixels (panel / K): the top of a portrait surface, the left of a
+  // landscape one turned 90 degrees, its right when turned 270.
   static int inset = 0;
-  const int now = docked ? dock_top : 0;
+  const int now = docked ? (dock_top + K - 1) / K : 0;
   if (now == inset) return;
   inset = now;
-  char b[48]; snprintf(b, sizeof b, "safearea %d 0 0 0", now);
+  const int turned = rin::turn;
+  char b[48]; snprintf(b, sizeof b, "safearea %d %d 0 %d", turned ? 0 : now, turned == 270 ? now : 0, turned == 90 ? now : 0);
   zn_hal_signal(b);
 }
 
@@ -374,7 +378,6 @@ void wake_lock(bool on) {  // autosleep would suspend the SoC (and the digitizer
   if (FILE* f = fopen(on ? "/sys/power/wake_lock" : "/sys/power/wake_unlock", "w")) { fputs("zinc", f); fclose(f); }
 }
 
-int32_t K = 1;   // physical pixels per logical pixel (see rm_init)
 int rm_init(const HalConfig* cfg) {
   if (cfg->title) snprintf(app_title, sizeof app_title, "%s", cfg->title);
   const char* codename = rmm::machine();

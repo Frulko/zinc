@@ -11,6 +11,7 @@ import { WitnessList } from './components/WitnessList';
 import { HelpPanel } from './components/HelpPanel';
 import { MobileTabs } from './components/MobileTabs';
 import { GameControls } from './components/GameControls';
+import { InkApp } from './components/InkApp';
 import { penStep } from './pen';
 import { replayStep } from './replay';
 function App(): i32 {
@@ -59,4 +60,4 @@ ui.onKey((e: ui.KeyEvent) => {
  if (k === 'enter') { verify(); e.preventDefault(); }
 });
 ui.onTwoFingerTap(() => undo());   // a two-finger tap takes the last move back, recognised pen marks included
-render(App,INK ? 0xffffff : 0xf2f0f7,(dt: number) => { replayStep(); penStep(dt); const safe = ui.safeArea(); const current = width()-safe[1]-safe[3]; if (current !== viewport()) setViewport(current); const currentHeight = height()-safe[0]-safe[2]; if (currentHeight !== viewportHeight()) setViewportHeight(currentHeight); });
+render(INK ? InkApp : App,INK ? 0xffffff : 0xf2f0f7,(dt: number) => { replayStep(); penStep(dt); const safe = ui.safeArea(); const current = width()-safe[1]-safe[3]; if (current !== viewport()) setViewport(current); const currentHeight = height()-safe[0]-safe[2]; if (currentHeight !== viewportHeight()) setViewportHeight(currentHeight); });
