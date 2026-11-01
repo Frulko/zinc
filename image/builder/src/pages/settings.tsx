@@ -44,7 +44,7 @@ function DevicePage(): i32 {
           onUpdate={(label: string) => editProfile((p: Profile) => { p.display = keyOf(catalog.displays, label); })}
           open={displayListOpen} onOpen={setDisplayListOpen} className="w-full" />
       </Row>
-      <Row label="Rotation" hint="Turns the whole screen clockwise, touch included (also in Settings, Display)">
+      <Row label="Rotation" hint="Turns the screen clockwise, touch too">
         <Select items={ROTATIONS} modelValue={() => profile().rotation + '°'}
           onUpdate={(label: string) => editProfile((p: Profile) => { p.rotation = parseInt(label, 10); })}
           open={rotationListOpen} onOpen={setRotationListOpen} className="w-full" />

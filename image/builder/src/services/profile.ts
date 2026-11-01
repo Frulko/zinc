@@ -73,7 +73,8 @@ export function decodeProfile(text: string): Profile {
   profile.agent = booleanOf(o, 'agent', false);
   profile.debugConsole = booleanOf(o, 'debug', false);
   profile.shell = booleanOf(o, 'shell', false);
-  profile.rotation = [90, 180, 270].indexOf(o.rotation) >= 0 ? o.rotation : 0;
+  const turn: number = typeof o.rotation === 'number' ? o.rotation : 0;
+  profile.rotation = turn === 90 || turn === 180 || turn === 270 ? turn : 0;
   profile.ab = booleanOf(o, 'ab', false);
   profile.growMiB = numberText(o, 'growMiB', profile.growMiB);
   profile.libraries = stringsOf(o, 'libraries');
