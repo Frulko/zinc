@@ -1,5 +1,6 @@
 import { width, height } from 'zinc:gfx';
 import { TOOL_NONE } from '../constants';
+import { TerrainParams } from '../gen/terrain';
 
 // What the interface itself remembers (the game state is `world`): the tool in hand, the speed, which window is open. Nothing here is simulation.
 export const WIN_NONE = 0, WIN_INFO = 1, WIN_ADVISOR = 2, WIN_MENU = 3, WIN_OPTIONS = 4, WIN_MAIN = 5, WIN_SAVES = 6, WIN_NEW = 7, WIN_CAMPAIGN = 8, WIN_TREE = 9;
@@ -37,7 +38,7 @@ export const act = {
   togglePause: (): void => {},
   setSpeed: (i: number): void => {},
   rebake: (): void => {},
-  newVillage: (seed: number, size: number, campaign: boolean, risks: boolean): void => {},
+  newVillage: (seed: number, size: number, campaign: boolean, risks: boolean, params: TerrainParams): void => {},
   save: (): void => {},
   quit: (): void => {},
   loaded: (): void => {},

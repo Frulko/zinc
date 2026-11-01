@@ -2,7 +2,7 @@ import {
   W, H, R2, COS, pix, zb, ground, groundZ, kinds, bakedPix, bakedZ, shadowMask, staticShadow, KIND_GRASS,
   configureRenderer, resizeBuffer, setView, copyInto, project, unproject, rgb, rgbColor, rampOf, noise, hash, clamp, castShadow, bakeOcclusion, applyShadows, sphere, PX, PY, S, setClip, clearClip, setPixelOrigin, CX0, CY0, CX1, CY1,
 } from '../pixel';
-import { TILE, TERRAIN_VOID } from '../constants';
+import { TILE, TERRAIN_VOID, TERRAIN_WATER } from '../constants';
 import { GRASS_TONES, WATER_TONES, SAND_TONES, ROAD_COLOR } from '../palettes';
 import { world, waterField, tileX, tileY, tileAt, tileCount, neighbor } from '../world/world';
 import { models, modelOf, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, resetModels, TREE_HEIGHT } from './models';
@@ -65,18 +65,42 @@ function resizeLayer(base: Layer, level: number): Layer {
   return layer;
 }
 
+/** Per tile: 1 a water tile that is not the pond (river, sea), 2 a land tile next to one of those, else 0. Made once per bake: the ground is painted per pixel. */
+function shoreTiles(): number[] {
+  const out: number[] = [], isRiver = (t: number): boolean => world.terrain[t] === TERRAIN_WATER && waterField(tileX(t), tileY(t)) >= 1;
+  for (let t = 0; t < tileCount(); t++) {
+    if (isRiver(t)) { out.push(1); continue; }
+    let near = 0;
+    for (let d = 0; d < 4 && near === 0; d++) { const v = neighbor(t, d); if (v >= 0 && isRiver(v)) near = 2; }
+    out.push(near);
+  }
+  return out;
+}
+/** Rivers and the sea are tiles, not a blob: .9 inside them, 1.1 on their bank (within a third of a tile). The edge is wobbled so it follows no grid line. */
+function tileWater(shore: number[], x: number, y: number): number {
+  const half = world.half, wx = clamp(x + (noise(x * 1.1 + 9, y * 1.1) - .5) * .9, -half + .01, half - .01), wy = clamp(y + (noise(x * 1.1, y * 1.1 + 9) - .5) * .9, -half + .01, half - .01);
+  const t = tileAt(wx, wy);
+  if (t < 0 || shore[t] === 0) return 9;
+  if (shore[t] === 1) return .9;
+  for (let d = 0; d < 4; d++) {
+    const v = neighbor(t, d);
+    if (v >= 0 && shore[v] === 1 && Math.max(Math.abs(wx - tileX(v)), Math.abs(wy - tileY(v))) - TILE / 2 < TILE * .33) return 1.1;
+  }
+  return 9;
+}
+
 /** Bakes the ground of the current village at a zoom level: grass, sand and pond painted per pixel, with a dissolved border like the Pixel Plays dioramas. */
 function bakeLayer(level: number): Layer {
   if (isFixed(level)) return resizeLayer(bakeLayer(DEFAULT_ZOOM), level);
   const layer = new Layer(layerWidth(level), layerHeight(level));
   setView(scaleOf(level), layerOriginX(level), layerOriginY(level)); setPixelOrigin(0, 0);
-  const half = world.half;
+  const half = world.half, shore = shoreTiles();
   for (let iy = 0; iy < layer.height; iy++) for (let ix = 0; ix < layer.width; ix++) {
     const p = unproject(ix + .5, iy + .5), i = iy * layer.width + ix;
-    const edge = Math.pow(Math.pow(Math.abs(p.x) / half, 4) + Math.pow(Math.abs(p.y) / half, 4), .25);
+    const edge = Math.sqrt(Math.sqrt(Math.pow(Math.abs(p.x) / half, 4) + Math.pow(Math.abs(p.y) / half, 4)));
     const rough = edge + (noise(p.x, p.y) - .5) * .07;
     if (rough > 1.03 || rough > .95 && hash(ix, iy) < (rough - .95) / .08) continue;
-    const field = waterField(p.x, p.y);
+    const field = Math.min(waterField(p.x, p.y), tileWater(shore, p.x, p.y));
     let color: number[], kind: number;
     if (field < 1) { kind = KIND_WATER; color = WATER_TONES[clamp(Math.floor(.8 + noise(p.x * .4, p.y * .35) * 2.3 + hash(ix, iy) * .2), 0, 3)]; }
     else if (field < 1.2) { kind = KIND_SAND; color = SAND_TONES[clamp(Math.floor(noise(p.x * .8, p.y * .8) * 3 + hash(ix, iy) * .4), 0, 2)]; }

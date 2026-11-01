@@ -8,23 +8,40 @@ export function isWalkable(t: number): boolean {
   return world.terrain[t] === TERRAIN_GRASS && world.tree[t] === 0 && world.rock[t] === 0 && world.build[t] < 0;
 }
 
-/** Cheapest walking cost from start to every tile (roads are cheaper than grass). 144 tiles: a plain scan is enough. */
+/** Cheapest walking cost from start to every tile (roads are cheaper than grass). A binary heap on (cost, tile): ties go to the lowest tile, as the plain scan it replaced did, so paths do not change. */
 export function fieldFrom(start: number): Field {
   const n = world.size * world.size;
   const dist = Array.from({ length: n }, (): number => UNREACHABLE);
   const prev = Array.from({ length: n }, (): number => -1);
   const done = Array.from({ length: n }, (): number => 0);
-  dist[start] = 0;
-  for (;;) {
-    let u = -1, best = UNREACHABLE;
-    for (let t = 0; t < n; t++) if (!done[t] && dist[t] < best) { best = dist[t]; u = t; }
-    if (u < 0) break;
+  const hk: number[] = [], ht: number[] = [];                     // the heap: cost and tile, parallel arrays (entries go stale when a cost improves: skipped on pop)
+  const less = (a: number, b: number): boolean => hk[a] < hk[b] || (hk[a] === hk[b] && ht[a] < ht[b]);
+  const swap = (a: number, b: number): void => { const k = hk[a], t = ht[a]; hk[a] = hk[b]; ht[a] = ht[b]; hk[b] = k; ht[b] = t; };
+  const push = (k: number, t: number): void => {
+    hk.push(k); ht.push(t);
+    let c = hk.length - 1;
+    while (c > 0) { const q = (c - 1) >> 1; if (!less(c, q)) break; swap(c, q); c = q; }
+  };
+  dist[start] = 0; push(0, start);
+  while (hk.length > 0) {
+    const u = ht[0], last = hk.length - 1;
+    swap(0, last); hk.pop(); ht.pop();
+    let c = 0;
+    for (;;) {
+      const l = 2 * c + 1, r = l + 1;
+      let m = c;
+      if (l < hk.length && less(l, m)) m = l;
+      if (r < hk.length && less(r, m)) m = r;
+      if (m === c) break;
+      swap(c, m); c = m;
+    }
+    if (done[u]) continue;
     done[u] = 1;
     for (let d = 0; d < 4; d++) {
       const v = neighbor(u, d);
       if (v < 0 || !isWalkable(v)) continue;
       const cost = dist[u] + (world.road[v] ? ROAD_COST : 1);
-      if (cost < dist[v]) { dist[v] = cost; prev[v] = u; }
+      if (cost < dist[v]) { dist[v] = cost; prev[v] = u; push(cost, v); }
     }
   }
   return { dist, prev };

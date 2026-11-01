@@ -25,6 +25,7 @@ import { ST_CHOP } from '../../../examples/hamlet/src/constants';
 import { seedRandom } from '../../../examples/hamlet/src/world/world';
 import { housingReport, capacityOf } from '../../../examples/hamlet/src/rules/housing';
 import { computeAppeal, appealTiles } from '../../../examples/hamlet/src/rules/appeal';
+import { PRESETS } from '../../../examples/hamlet/src/gen/presets';
 import { terrain, TerrainParams, TerrainLayers } from '../../../examples/hamlet/src/gen/terrain';
 import { issue, replayAt } from '../../../examples/hamlet/src/rules/commands';
 import { canStart } from '../../../examples/hamlet/src/rules/adventure';
@@ -121,7 +122,7 @@ check('the same seed and size give the same village', world.terrain.join('') + w
 generate(424243, 24);
 check('another seed gives another village', world.terrain.join('') + world.tree.join('') + world.rock.join('') + world.deco.join('') + world.deer.length + ':' + world.pondX !== first);
 check('a text seed is hashed like Java hashCode', seedFromText('hello') === 99162322 && seedFromText('7916') === 7916);
-check('name@size sets the size, kept in range', parseSeedRequest('foret@32').size === 32 && parseSeedRequest('x@99').size === 32 && parseSeedRequest('x@3').size === 12 && parseSeedRequest('foret@32').seed === seedFromText('foret'));
+check('name@size sets the size, kept in range', parseSeedRequest('foret@32').size === 32 && parseSeedRequest('x@999').size === 96 && parseSeedRequest('x@3').size === 12 && parseSeedRequest('foret@32').seed === seedFromText('foret'));
 check('the default size is 24, the gate is in the middle of the west edge', parseSeedRequest('a').size === 24 && world.gate === 12 * 24 && world.size === 24);
 // ---- the economy file: every rule of the validator refuses a file that breaks it, and the chain report names makers and users ----
 const bad = (from: string, to: string): string[] => parseEconomy(ECONOMY_TEXT.split(from).join(to), MODEL_IDS, ROLE_NAMES, new Economy());
@@ -715,4 +716,35 @@ const hashed = stateHash();
 console.log('hamlet rules: statehash ' + hashed);
 const rngBefore = world.rng;
 check('the save restores the state hash and the generator', restore(snapshot()) && stateHash() === hashed && world.rng === rngBefore);
+// ---- map presets: deterministic on every engine, a plain default, every required deposit reachable on foot from the gate, params kept by a save ----
+check('the first preset is the default village', JSON.stringify(PRESETS[0].params) === JSON.stringify(new TerrainParams()));
+let presetHash = 2166136261;
+for (const pr of PRESETS) for (const size of [24, 40]) {
+  const copy = (): TerrainParams => { const q = new TerrainParams(); q.waterAmount = pr.params.waterAmount; q.river = pr.params.river; q.forestDensity = pr.params.forestDensity; q.rockDensity = pr.params.rockDensity; q.biome = pr.params.biome; q.coast = pr.params.coast; q.outcrop = pr.params.outcrop; q.flowers = pr.params.flowers; q.biomes = pr.params.biomes; return q; };
+  generate(3, size, copy());
+  const first = stateHash();
+  for (let t = 0; t < size * size; t++) presetHash = Math.imul(presetHash ^ (world.terrain[t] + world.tree[t] * 4 + world.rock[t] * 64 + world.deco[t] * 1024 + world.lode[t] * 4096), 16777619);
+  generate(3, size, copy());
+  check('preset ' + pr.label + ' ' + size + ': the same seed gives the same village', stateHash() === first);
+  const seen: number[] = Array.from({ length: size * size }, (): number => 0), queue: number[] = [world.gate];
+  seen[world.gate] = 1;
+  while (queue.length > 0) {
+    const t = queue.pop() as number;
+    for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && seen[v] === 0 && world.terrain[v] === 0 && world.tree[v] === 0 && world.rock[v] === 0) { seen[v] = 1; queue.push(v); } }
+  }
+  let missing = '';
+  for (let k = 0; k < economy.deposits.length; k++) {
+    if (!economy.deposits[k].required || !economy.deposits[k].active) continue;
+    let ok = false;
+    for (let t = 0; t < size * size && !ok; t++) {
+      if (world.rock[t] !== ROCK_DEPOSIT + k || Math.abs(tileI(t) - tileI(world.gate)) + Math.abs(tileJ(t) - tileJ(world.gate)) > LODE_REACH) continue;
+      for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && seen[v] === 1) ok = true; }
+    }
+    if (!ok) missing += ' ' + economy.deposits[k].resource;
+  }
+  check('preset ' + pr.label + ' ' + size + ': required deposits reachable from the gate' + missing, missing === '');
+  const before = stateHash(), p = world.params;
+  check('preset ' + pr.label + ' ' + size + ': a save keeps the params', restore(snapshot()) && stateHash() === before && world.params.coast === p.coast && world.params.outcrop === p.outcrop && world.params.river === p.river && world.params.biomes === p.biomes && world.params.waterAmount === p.waterAmount);
+}
+console.log('hamlet rules: presethash ' + (presetHash >>> 0));
 console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');

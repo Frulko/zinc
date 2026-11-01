@@ -14,13 +14,22 @@ import { ui, act, WIN_NONE, WIN_MENU, WIN_OPTIONS, WIN_MAIN, WIN_SAVES, WIN_NEW 
 import { dateText } from './clock';
 import { savePrefs } from './prefs';
 
+import { PRESETS } from '../gen/presets';
+import { TerrainParams } from '../gen/terrain';
+
+/** The generator keeps the object it is given (world.params): a new village gets its own copy of the preset. */
+function copyParams(a: TerrainParams): TerrainParams {
+  const p = new TerrainParams();
+  p.waterAmount = a.waterAmount; p.river = a.river; p.forestDensity = a.forestDensity; p.rockDensity = a.rockDensity; p.biome = a.biome; p.coast = a.coast; p.outcrop = a.outcrop; p.flowers = a.flowers; p.biomes = a.biomes;
+  return p;
+}
 // The menus: the main menu at launch (when a village is waiting), the game menu, the options, the save slots and the new-village form.
 export const SLOTS = 3;
 class Slot { used: boolean = false; name: string = ''; clock: string = ''; people: number = 0; seed: number = 0; size: number = 0; thumb: string = ''; image: i32 = -1; }
 const slots: Slot[] = [];
 for (let i = 0; i < SLOTS; i++) slots.push(new Slot());
 let loadMode = true;                       // the slot window: choosing a slot to load, or to save into
-const form = { seed: '', size: DEFAULT_SIZE, campaign: false, risks: false };
+const form = { seed: '', size: DEFAULT_SIZE, campaign: false, risks: false, preset: 0 };
 
 export function isModal(): boolean { return ui.window >= WIN_MENU && ui.window <= WIN_NEW; }
 export function closeMenus(): boolean {
@@ -30,7 +39,7 @@ export function closeMenus(): boolean {
   return true;
 }
 export function openMenu(): void { ui.window = WIN_MENU; }
-export function openNew(): void { ui.back = ui.window; form.seed = ''; ui.window = WIN_NEW; ui.editing = true; startTextInput(width() / 2 - 180, height() / 2, 360, 30); }
+export function openNew(): void { ui.back = ui.window; form.seed = ''; form.preset = 0; ui.window = WIN_NEW; ui.editing = true; startTextInput(width() / 2 - 180, height() / 2, 360, 30); }
 function go(w: number): void { ui.back = ui.window; ui.window = w; }
 
 // ---- slots ----
@@ -147,17 +156,19 @@ function options(): void {
   labelButton('menu:back', m.x + 12, m.y + 438, 100, 26, 'Retour');
 }
 function fresh(): void {
-  const m = modal(420, 326, 'Nouveau hameau');
+  const m = modal(420, 410, 'Nouveau hameau');
   text(kit.body, m.x + 24, m.y + 38, 'Graine (un nombre ou un mot, vide : au hasard)', col('ink'));
   parchment(m.x + 24, m.y + 62, 372, 30);
   text(kit.body, m.x + 32, m.y + 68, form.seed + (Math.floor(ui.time * 2) % 2 === 0 ? '_' : ''), col('ink'));
   text(kit.body, m.x + 24, m.y + 108, 'Taille de la carte', col('ink'));
   labelButton('new:smaller', m.x + 24, m.y + 132, 34, 28, '-'); labelButton('new:bigger', m.x + 126, m.y + 132, 34, 28, '+');
   textC(kit.body, m.x + 92, m.y + 137, form.size + ' × ' + form.size, col('ink'));
-  toggle('new:campaign', 'Campagne (objectifs, colporteur, aventures)', form.campaign, m.x + 24, m.y + 172);
-  toggle('new:risks', 'Risques (incendie, effondrement, vols)', form.risks, m.x + 24, m.y + 208);
-  labelButton('new:create', m.x + 24, m.y + 266, 180, 32, 'Créer le hameau');
-  labelButton('menu:back', m.x + 216, m.y + 266, 180, 32, 'Annuler');
+  text(kit.body, m.x + 24, m.y + 172, 'Paysage', col('ink'));
+  for (let k = 0; k < PRESETS.length; k++) labelButton('new:preset:' + k, m.x + 24 + (k % 4) * 94, m.y + 194 + Math.floor(k / 4) * 32, 88, 26, PRESETS[k].label, '', true, k === form.preset);
+  toggle('new:campaign', 'Campagne (objectifs, colporteur, aventures)', form.campaign, m.x + 24, m.y + 262);
+  toggle('new:risks', 'Risques (incendie, effondrement, vols)', form.risks, m.x + 24, m.y + 298);
+  labelButton('new:create', m.x + 24, m.y + 350, 180, 32, 'Créer le hameau');
+  labelButton('menu:back', m.x + 216, m.y + 350, 180, 32, 'Annuler');
 }
 
 // ---- input ----
@@ -170,7 +181,7 @@ export function typeKey(kind: KeyKind, name: string): void {
 }
 function create(): void {
   const request = form.seed === '' ? parseSeedRequest(String(randomSeed()) + '@' + form.size) : parseSeedRequest(form.seed.indexOf('@') < 0 ? form.seed + '@' + form.size : form.seed);
-  ui.window = WIN_NONE; ui.editing = false; stopTextInput(); act.newVillage(request.seed, request.size, form.campaign, form.risks);
+  ui.window = WIN_NONE; ui.editing = false; stopTextInput(); act.newVillage(request.seed, request.size, form.campaign, form.risks, copyParams(PRESETS[form.preset].params));
 }
 export function menuClick(id: string): boolean {
   if (id === 'menu:resume') { ui.window = WIN_NONE; return true; }
@@ -182,8 +193,9 @@ export function menuClick(id: string): boolean {
   if (id === 'menu:quit') { act.quit(); return true; }
   if (id.startsWith('slot:load:')) { loadSlot(Number(id.slice(10))); return true; }
   if (id.startsWith('slot:save:')) { saveSlot(Number(id.slice(10))); closeMenus(); return true; }
-  if (id === 'new:smaller') { form.size = Math.max(MIN_SIZE, form.size - 2); return true; }
-  if (id === 'new:bigger') { form.size = Math.min(MAX_SIZE, form.size + 2); return true; }
+  if (id === 'new:smaller') { form.size = Math.max(MIN_SIZE, form.size - (form.size > 32 ? 8 : 2)); return true; }
+  if (id === 'new:bigger') { form.size = Math.min(MAX_SIZE, form.size + (form.size >= 32 ? 8 : 2)); return true; }
+  if (id.startsWith('new:preset:')) { form.preset = Number(id.slice(11)); return true; }
   if (id === 'new:campaign') { form.campaign = !form.campaign; form.risks = form.campaign; return true; }      // the campaign brings its risks, which can then be switched off
   if (id === 'new:risks') { form.risks = !form.risks; return true; }
   if (id === 'new:create') { create(); return true; }

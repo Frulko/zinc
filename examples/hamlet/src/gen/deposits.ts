@@ -33,14 +33,12 @@ function hasOpenSide(l: TerrainLayers, taken: number[], t: number): boolean {
   }
   return false;
 }
-/** How many tiles a walker standing on `from` reaches over tiles that are neither water, border, rock, tree, nor a deposit already placed. */
-function reach(l: TerrainLayers, placed: number[], from: number): number {
+/** The tiles a walker standing on `from` reaches (1, else 0) over tiles that are neither water, border, rock, tree, nor a deposit already placed. */
+function walkable(l: TerrainLayers, placed: number[], from: number): number[] {
   const w = l.width, h = l.height, seen: number[] = Array.from({ length: w * h }, (): number => 0), queue: number[] = [from];
   seen[from] = 1;
-  let count = 0;
   while (queue.length > 0) {
     const t = queue.pop() as number, i = t % w, j = Math.floor(t / w);
-    count++;
     for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const a = i + di, b = j + dj;
       if (a < 0 || b < 0 || a >= w || b >= h) continue;
@@ -49,7 +47,21 @@ function reach(l: TerrainLayers, placed: number[], from: number): number {
       seen[u] = 1; queue.push(u);
     }
   }
+  return seen;
+}
+function reach(l: TerrainLayers, placed: number[], from: number): number {
+  let count = 0;
+  for (const v of walkable(l, placed, from)) count += v;
   return count;
+}
+/** Is a walker on `seen` next to t? */
+function touches(l: TerrainLayers, seen: number[], t: number): boolean {
+  const w = l.width, h = l.height, i = t % w, j = Math.floor(t / w);
+  for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const a = i + di, b = j + dj;
+    if (a >= 0 && b >= 0 && a < w && b < h && seen[b * w + a] === 1) return true;
+  }
+  return false;
 }
 /** Placing on t must not wall off part of the map from the gate: the walkable tiles reachable from it shrink by t alone. */
 function opens(l: TerrainLayers, placed: number[], t: number, gate: number): boolean {
@@ -74,16 +86,24 @@ export function placeDeposits(l: TerrainLayers, seed: number, rules: DepositRule
     for (let t = 0; t < n; t++) {
       if (!free(l, taken, t) || !nearby(l, t, rule.near) || hash(t * 7 + k * 131 + seed, 977 + k) >= rule.density / 100 || !opens(l, placed, t, gate)) continue;
       out[t] = k + 1; taken[t] = 1; placed[t] = 1;
-      if (dist(t) <= reachTiles) near++;
     }
-    if (!rule.required || near > 0) continue;
-    for (let relax = 0; relax < 2 && near === 0; relax++) {          // none within reach: the nearest tile that fits, near its kind of feature first, anywhere second
+    if (!rule.required) continue;
+    const reached = walkable(l, placed, gate);                       // one counts only when a walker from the gate can stand beside it
+    for (let t = 0; t < n; t++) if (out[t] === k + 1 && dist(t) <= reachTiles && touches(l, reached, t)) near++;
+    if (near > 0) continue;
+    for (let relax = 0; relax < 3 && near === 0; relax++) {          // none within reach: the nearest tile a walker from the gate can stand beside: near its kind of feature first, anywhere second, and last by felling a tree or clearing a rock
+      const seen = walkable(l, placed, gate);
       let best = -1;
       for (let t = 0; t < n; t++) {
-        if (!free(l, taken, t) || !hasOpenSide(l, taken, t) || (relax === 0 && !nearby(l, t, rule.near)) || (best >= 0 && dist(t) >= dist(best)) || !opens(l, placed, t, gate)) continue;
+        if (taken[t] === 1 || l.outside[t] === 1 || l.water[t] === 1 || (best >= 0 && dist(t) >= dist(best)) || !touches(l, seen, t)) continue;
+        if (relax < 2 ? !free(l, taken, t) || !hasOpenSide(l, taken, t) || (relax === 0 && !nearby(l, t, rule.near)) || !opens(l, placed, t, gate) : l.forest[t] === 0 && l.rock[t] === 0) continue;
         best = t;
       }
-      if (best >= 0) { out[best] = k + 1; taken[best] = 1; placed[best] = 1; near++; }
+      if (best >= 0 && (relax > 0 || dist(best) <= reachTiles)) {
+        l.forest[best] = 0; l.rock[best] = 0;
+        out[best] = k + 1; taken[best] = 1; placed[best] = 1;
+        if (dist(best) <= reachTiles) near++;
+      }
     }
   }
   return out;

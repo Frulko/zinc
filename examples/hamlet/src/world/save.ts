@@ -16,11 +16,13 @@ function numbers(text: string): number[] {
   return out;
 }
 
-/** The generator's request, as water,river,forest,rock,biome (numbers). */
-function paramsText(): string { const p = world.params; return [p.waterAmount, p.river ? 1 : 0, p.forestDensity, p.rockDensity, p.biome].join(','); }
+/** The generator's request, as water,river,forest,rock,biome,coast,outcrop,flowers (numbers). */
+function paramsText(): string { const p = world.params; return [p.waterAmount, p.river ? 1 : 0, p.forestDensity, p.rockDensity, p.biome, p.coast, p.outcrop, p.flowers, p.biomes].join(','); }
 function paramsOf(text: string): TerrainParams {
   const p = new TerrainParams(), v = numbers(text);
   p.waterAmount = v[0]; p.river = v[1] === 1; p.forestDensity = v[2]; p.rockDensity = v[3]; p.biome = v[4];
+  if (v.length >= 8) { p.coast = v[5]; p.outcrop = v[6]; p.flowers = v[7]; }
+  if (v.length >= 9) p.biomes = v[8];          // saves from before the presets have five numbers
   return p;
 }
 

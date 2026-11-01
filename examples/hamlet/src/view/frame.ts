@@ -3,7 +3,8 @@ import {
   copyInto, flushShadows, applyShadows, shadeEdgesRect, setTrackShadows, shadowSpans, rgbColor, rgb, clamp, hash, project, drawDots, haloDots, drawArrow, waterPoint, KIND_GRASS,
 } from '../pixel';
 import { TILE, HOUSE, ROLE_FISHER } from '../constants';
-import { world, tileX, tileY, Building } from '../world/world';
+import { world, tileX, tileY, waterField, Building } from '../world/world';
+import { TERRAIN_WATER } from '../constants';
 import { economy } from '../world/economy';
 import { isNight } from '../rules/needs';
 import { tufts, bakeCount, bakeInfo, shiftColors } from './scenery';
@@ -53,10 +54,32 @@ function drawTufts(time: number): void {
 
 /** Slow glints on the pond: positions drift with time, so the water breathes without renewing noise everywhere. */
 function drawPond(time: number): void {
+  if (world.pondR < .1) return;                                   // no pond on this map
   for (let k = 0; k < 90; k++) {
     const a = hash(k, 21) * 6.283, r = Math.sqrt(hash(k, 22)) * world.pondR * .85;
     const drift = (time * (.08 + hash(k, 23) * .12)) % 1;
     waterPoint(world.pondX + Math.cos(a) * r + drift * .4, world.pondY + Math.sin(a) * r * .9, hash(k, 24) > .4 ? FOAM : PEBBLE);
+  }
+}
+
+/** The water tiles that are not the pond (river, sea): found again when the village changes. */
+let streamFor: number[] = [], stream: number[] = [];
+function streamTiles(): number[] {
+  if (streamFor === world.terrain) return stream;
+  streamFor = world.terrain; stream = [];
+  for (let t = 0; t < world.terrain.length; t++) if (world.terrain[t] === TERRAIN_WATER && waterField(tileX(t), tileY(t)) >= 1) stream.push(t);
+  return stream;
+}
+/** The same slow glints on every river and sea tile in view: two per tile, drifting. */
+function drawStream(time: number, rects: number[] | null): void {
+  for (const t of streamTiles()) {
+    const c = project(tileX(t), tileY(t), 0);
+    if (c.sx < -TILE * S || c.sx > W + TILE * S || c.sy < -TILE * S || c.sy > H + TILE * S) continue;
+    if (rects !== null) { addRect(rects, c.sx, c.sy, TILE * S, TILE * S * .6, TILE * S, TILE * S * .6); continue; }
+    for (let k = 0; k < 2; k++) {
+      const drift = (time * (.08 + hash(t, k + 23) * .12)) % 1;
+      waterPoint(tileX(t) + (hash(t, k + 21) - .5) * TILE * .8 + drift * .4, tileY(t) + (hash(k + 22, t) - .5) * TILE * .8, hash(t, k + 24) > .4 ? FOAM : PEBBLE);
+    }
   }
 }
 
@@ -144,8 +167,8 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   fireDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
   drainFx(time);
   fxDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
-  const pond = project(world.pondX + .2, world.pondY, 0);
-  addRect(dirty, pond.sx, pond.sy, world.pondR * S * 1.5, world.pondR * S * .8, world.pondR * S * 1.5, world.pondR * S * .8);
+  if (world.pondR >= .1) { const pond = project(world.pondX + .2, world.pondY, 0); addRect(dirty, pond.sx, pond.sy, world.pondR * S * 1.5, world.pondR * S * .8, world.pondR * S * 1.5, world.pondR * S * .8); }
+  drawStream(0, dirty);
   const hints: Hint[] = settings.hints && ZOOM_VIEW[camera.level] <= ARROWS_MAX_VIEW ? computeHints().slice(0, ARROWS_MAX) : [];
   const arrowAt: number[] = [];                                   // sx, sy, colour of each arrow
   for (const h of hints) {
@@ -177,7 +200,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   touched.length = 0;
   pendingShadows.length = 0;
   if (settings.shadows) setTrackShadows(true); else { setTrackShadows(false); shadowMask.fill(0); }
-  drawTufts(time * settings.wind); drawPond(time * settings.wind);
+  drawTufts(time * settings.wind); drawPond(time * settings.wind); drawStream(time * settings.wind, null);
   const loose: number[] = touched.slice();
   const atlas = settings.atlas ? actorAtlas() : null;
   for (const d of world.deer) drawDeer(d, time, atlas);

@@ -3,7 +3,7 @@
 // ---- map ----
 export const DEFAULT_SIZE = 24;         // tiles per side of a new village (the size itself is world.size, saved with the village)
 export const MIN_SIZE = 12;             // smallest and largest village a seed may ask for
-export const MAX_SIZE = 32;
+export const MAX_SIZE = 96;
 export const TILE = 2;                  // world units per tile
 export const REFERENCE_AREA = 144;      // the 12 x 12 map the counts below were tuned on; they scale with the area
 export const GATE_I = 0;                // the entrance is on this column, in the middle of it: where settlers arrive
