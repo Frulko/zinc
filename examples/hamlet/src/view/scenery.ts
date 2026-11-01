@@ -259,7 +259,7 @@ let bakedSig: number[] = [];
 let nextBand: number[] | null = null, pendingBands: number[] = [], pendingChunks: number[] = [];     // the season changed: the window is painted again a band at a time, a band a frame
 const MARGIN_PX = 6;                    // pixels re-baked around a strip or a change: the occlusion of a pixel reads four pixels around it
 export const trace = { on: false, scrub: 0 };       // ZINC_HAMLET_TRACE=1 (debugStart.ts): the bake times go to the console
-export const bakeStats = { full: 0, partial: 0, lastMs: 0, chunks: 0, groundMs: 0, seasonMs: 0 };
+export const bakeStats = { full: 0, partial: 0, lastMs: 0, chunks: 0, groundMs: 0, seasonMs: 0, warm: 0 };
 
 /** The next rebake is a full one (the models, the zoom or the village itself changed). */
 export function forceFullBake(): void { forceFull = true; }
@@ -495,7 +495,7 @@ export function stepSeason(): void {
     }
     return;
   }
-  if (pendingBands.length === 0 && pendingChunks.length === 0) { warmTrees(curSeason); return; }
+  if (pendingBands.length === 0 && pendingChunks.length === 0) { warmTrees(curSeason); warmGround(); return; }
   if (pendingBands.length > 0) {
     const started = Date.now();
     nextBand = [0, pendingBands[0] - MARGIN_PX, W, pendingBands[1] + MARGIN_PX]; pendingBands = pendingBands.slice(2);      // a band is baked with the margin the occlusion reads, like a strip
@@ -538,6 +538,42 @@ export function resizeWindow(): void {
   ensureLevel(camera.level);
   centerOn(centre.x, centre.y);
   rebakeStatic();
+}
+
+/**
+ * While the camera rests, the ground under the window is painted a few chunks a frame at the zoom levels next to this one (the layer is made, empty, if need be), so a zoom step
+ * finds it done: painting the ground was the largest part of a step. At most WARM_MS of work a frame; the fixed detail mode (lod 1) resizes a whole layer and is left out.
+ */
+const WARM_MS = 4, WARM_REST = 20;
+let warmAt = -1e9, restFrames = 0, restSig = 0, warmList: number[] = [], warmLevel = -1, warmSig = 0;
+export function warmGround(): void {
+  const sig = camera.x * 7919 + camera.y * 31 + camera.level * 100003 + W;
+  if (sig !== restSig) { restSig = sig; restFrames = 0; return; }
+  if (++restFrames < WARM_REST) return;
+  if (warmList.length === 0) {
+    if (warmSig === sig) return;                                   // everything next to this view is done
+    for (const near of [camera.level - 1, camera.level + 1]) {
+      const art = artLevel(near);
+      if (near < 0 || near >= ZOOM_SCALES.length || art === artLevel(camera.level) || isFixed(art)) continue;
+      const centre = centerPoint(), sc = scaleOf(near), w = windowWidth(near), h = windowHeight(near);
+      const x0 = Math.max(0, Math.round(layerOriginX(near) + (centre.x - centre.y) / R2 * sc - w / 2)), y0 = Math.max(0, Math.round(layerOriginY(near) + (centre.x + centre.y) / R2 * SIN * sc - h / 2));
+      if (layers[art] === null) layers[art] = bakeLayer(art);
+      const layer = layers[art] as Layer;
+      for (let cy = Math.floor(y0 / CHUNK); cy <= Math.min(Math.floor((layer.height - 1) / CHUNK), Math.floor((y0 + h - 1) / CHUNK)); cy++) {
+        for (let cx = Math.floor(x0 / CHUNK); cx <= Math.min(layer.columns - 1, Math.floor((x0 + w - 1) / CHUNK)); cx++) if (layer.stamp[cy * layer.columns + cx] !== curSeason) warmList.push(art, cx, cy);
+      }
+    }
+    warmSig = sig;
+    if (warmList.length === 0) return;
+  }
+  const started = Date.now();
+  while (warmList.length > 0 && Date.now() - started < WARM_MS) {
+    const art = warmList[0], cx = warmList[1], cy = warmList[2], layer = layers[art];
+    warmList = warmList.slice(3);
+    if (layer === null || layer.stamp[cy * layer.columns + cx] === curSeason) continue;
+    if (layer.shore.length === 0) { layer.shore = shoreTiles(); layer.rivers = layer.shore.some((v: number): boolean => v === 1); }
+    paintChunk(layer, cx, cy, curSeason); bakeStats.warm++;
+  }
 }
 
 /** Switches the zoom level, keeping the same point at the centre of the window. */

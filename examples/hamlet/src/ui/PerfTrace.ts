@@ -1,16 +1,19 @@
 import { env } from 'zinc:sys';
 import { bakeStats, bakeCount } from '../view/scenery';
 import { camera } from '../view/camera';
+import { frameDirty } from '../view/frame';
+import { world } from '../world/world';
+import { W, H } from '../pixel';
 
 // ZINC_HAMLET_PERF=<frames per report> (e.g. 300): prints frame-time percentiles, hitches (frames over twice the median) and the split of each frame
 // (update, village picture, upload, interface) to the console. Off by default and free then (perf.on is checked first).
 export const perf = { on: false };
 const SLOTS = ['update', 'village', 'upload', 'ui'];
 let every = 300, last = 0, count = 0, started = 0;
-let frames: number[] = [];
+let frames: number[] = [], all: number[] = [];
 const slots: number[][] = [[], [], [], []];
 const cur: number[] = [0, 0, 0, 0];
-let mark = 0;
+let mark = 0, dirtyPx = 0;
 
 export function perfStart(): void { const n = Number(env('ZINC_HAMLET_PERF')); if (n > 0) { perf.on = true; every = n; } }
 /** Starts a slot's clock; perfEnd adds the time since. */
@@ -24,6 +27,7 @@ export function perfFrame(): void {
   const now = performance.now();
   if (last > 0) { frames.push(now - last); for (let k = 0; k < 4; k++) { slots[k].push(cur[k]); } }
   for (let k = 0; k < 4; k++) cur[k] = 0;
+  for (let k = 0; k < frameDirty.spans.length; k += 3) dirtyPx += Math.max(0, frameDirty.spans[k + 2] - frameDirty.spans[k + 1] + 1);
   last = now; count++;
   if (started === 0) started = now;
   if (frames.length >= every) {
@@ -31,7 +35,12 @@ export function perfFrame(): void {
     let hitches = 0, worst = 0; for (const f of frames) { if (f > 2 * med) hitches++; if (f > worst) worst = f; }
     const parts: string[] = [];
     for (let k = 0; k < 4; k++) { const t = slots[k].slice().sort((a: number, b: number): number => a - b); parts.push(SLOTS[k] + ' p50 ' + r(pct(t, .5)) + ' p99 ' + r(pct(t, .99))); }
-    console.log('perf@' + count + ' z' + camera.level + ' frame p50 ' + r(med) + ' p95 ' + r(pct(s, .95)) + ' p99 ' + r(pct(s, .99)) + ' max ' + r(worst) + ' hitches ' + hitches + ' | ' + parts.join(' | ') + ' | bakes ' + bakeCount + ' full ' + bakeStats.full + ' last ' + r(bakeStats.lastMs) + ' ms');
+    console.log('perf@' + count + ' z' + camera.level + ' frame p50 ' + r(med) + ' p95 ' + r(pct(s, .95)) + ' p99 ' + r(pct(s, .99)) + ' max ' + r(worst) + ' hitches ' + hitches + ' | ' + parts.join(' | ') + ' | dirty ' + Math.round(dirtyPx / frames.length) + ' of ' + W * H + ' px, people ' + world.people.length + ', deer ' + world.deer.length + ' | bakes ' + bakeCount + ' full ' + bakeStats.full + ' last ' + r(bakeStats.lastMs) + ' ms');
+    dirtyPx = 0;
+    for (const f of frames) all.push(f);
+    const a = all.slice().sort((x: number, y: number): number => x - y), am = pct(a, .5);
+    let ah = 0; for (const f of all) if (f > 2 * am) ah++;
+    console.log('perf-total n ' + a.length + ' p50 ' + r(am) + ' p95 ' + r(pct(a, .95)) + ' p99 ' + r(pct(a, .99)) + ' max ' + r(a[a.length - 1]) + ' hitches ' + ah + ' over50 ' + a.filter((f: number): boolean => f > 50).length);
     frames = []; for (let k = 0; k < 4; k++) slots[k] = [];
   }
 }
