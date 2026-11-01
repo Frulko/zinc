@@ -2,7 +2,8 @@
 id: ZN-935
 title: 'Murdoku pen input: circled letter places, bare letter notes, X crosses'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 12:12'
 labels:
   - demo
