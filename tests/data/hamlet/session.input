@@ -1,33 +1,32 @@
+1 move 450 450
 2 key g
 4 text 3
 6 key Enter
-10 key ArrowLeft
-40 keyup ArrowLeft
 50 key 1
-52 move 360 277
+52 move 355 380
 53 down
-55 move 399 296
-57 move 436 277
-59 move 475 296
-61 move 512 315
-63 move 550 334
-65 move 588 353
-67 move 626 372
-69 move 664 391
+55 move 394 399
+57 move 431 380
+59 move 470 399
+61 move 507 418
+63 move 545 437
+65 move 583 456
+67 move 621 475
+69 move 659 494
 73 up
 77 key 2
-79 move 512 277
+79 move 507 380
 80 down
 82 up
-85 move 550 296
+85 move 545 399
 86 down
 88 up
 91 key 3
-93 move 588 315
+93 move 583 418
 94 down
 96 up
 1400 key 4
-1402 move 550 372
+1402 move 545 475
 1403 down
 1405 up
 2300 key -

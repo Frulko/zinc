@@ -333,7 +333,7 @@ export function bakeVillage(): void {
   rebakeStatic();
 }
 /** Where a new village opens: between the gate and the middle, so the gate and the first houses are in view. */
-export function startPoint(): { x: number; y: number } { return { x: tileX(world.gate) * .8, y: tileY(world.gate) * .8 }; }
+export function startPoint(): { x: number; y: number } { return { x: tileX(world.gate) * .65, y: tileY(world.gate) * .65 }; }
 /** The area for the map changed (the window was resized): the picture window follows it, keeping the same centre. */
 export function resizeWindow(): void {
   const centre = centerPoint();
