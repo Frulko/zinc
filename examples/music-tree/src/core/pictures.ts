@@ -14,6 +14,7 @@
 import {
   drawImage,
   drawImageRect,
+  rrect,
   imageFromBytes,
   destroyImage,
   createImage,
@@ -23,6 +24,7 @@ import {
   setTransform,
   imageWidth,
   imageHeight,
+  pixelScale,
 } from 'zinc:gfx';
 import {
   MAX_CACHED_PICTURES,
@@ -58,9 +60,78 @@ let activeDownloadsCount: i32 = 0;
 let totalDecodedCount: number = 0;
 let totalDecodeDurationMs: number = 0;
 
+/**
+ * Pictures redrawn at the size they are shown at. Scaling a 400 px cover down to 280 px costs about 100 ns a pixel on a Raspberry Pi 3
+ * (12 ms of CPU a frame for the player's cover, drawn again at every frame of a slide); a copy made once at the shown size is a row copy.
+ */
+const scaledPicturesByKey = new Map<string, i32>();
+const scaledLastUsedByKey = new Map<string, number>();
+const MAX_SCALED_PIXELS = 1500000;
+let scaledPixels = 0;
+let scaledMadeThisFrame = 0;
+
 /** Advances the picture cache's internal clock (called once per frame). */
 export function tickPicturesClock(): void {
   currentFrameTick++;
+  scaledMadeThisFrame = 0;
+}
+
+function dropLeastRecentScaledPicture(): void {
+  let oldestKey = '';
+  let oldestTick = currentFrameTick + 1;
+  scaledLastUsedByKey.forEach((tick: number, key: string) => {
+    if (tick < oldestTick) {
+      oldestTick = tick;
+      oldestKey = key;
+    }
+  });
+  const imageId = scaledPicturesByKey.get(oldestKey);
+  if (imageId !== undefined) {
+    destroyImage(imageId);
+    const side = parseInt(oldestKey.slice(oldestKey.lastIndexOf('|') + 1), 10);
+    scaledPixels -= side * side;
+  }
+  scaledPicturesByKey.delete(oldestKey);
+  scaledLastUsedByKey.delete(oldestKey);
+}
+
+/**
+ * Returns a copy of picture `sourceImage` (of `url`) at `size` x `size` pixels, made once, or `sourceImage` itself when it already has that
+ * size or when a copy cannot be made now (at most two a frame, so a grid scrolling into view never stalls a frame).
+ * `onLightTile`: for a station's logo, the copy is the whole tile, the logo contained in a light square.
+ */
+export function getPictureAtSize(url: string, sourceImage: i32, size: i32, onLightTile: boolean = false): i32 {
+  // Only where pixels are the unit of layout: a scaled-up screen (a Retina window) shows the copy blurrier than the picture, and its CPU is fast
+  if (pixelScale() !== 1 || (!onLightTile && imageWidth(sourceImage) === size && imageHeight(sourceImage) === size)) return sourceImage;
+  const key = url + (onLightTile ? '|tile|' : '|') + size;
+  const made = scaledPicturesByKey.get(key);
+  if (made !== undefined) {
+    scaledLastUsedByKey.set(key, currentFrameTick);
+    return made;
+  }
+  if (scaledMadeThisFrame >= 2 || size * size > MAX_SCALED_PIXELS / 2) return sourceImage;
+  while (scaledPixels + size * size > MAX_SCALED_PIXELS && scaledPicturesByKey.size > 0) {
+    dropLeastRecentScaledPicture();
+  }
+  const copy = createImage(size, size);
+  if (copy < 0) return sourceImage;
+  // Drawn at identity: beginImage keeps the matrix in force, and the node's offset would put the picture outside the texture
+  resetTransform();
+  beginImage(copy);
+  if (onLightTile) {
+    // an image made by beginImage is opaque: the tile's light square is part of the copy
+    rrect(0, 0, size, size, 0, 0xf2f2f7, 255);
+    drawPictureContained(sourceImage, size * 0.14, size * 0.14, size * 0.72, size * 0.72, 4);
+  } else {
+    drawImage(sourceImage, 0, 0, size, size, 255, 0);
+  }
+  endImage();
+  setTransform(1, 0, 0, 1, uiState.offsetX, uiState.offsetY);
+  scaledPicturesByKey.set(key, copy);
+  scaledLastUsedByKey.set(key, currentFrameTick);
+  scaledPixels += size * size;
+  scaledMadeThisFrame++;
+  return copy;
 }
 
 /** Returns `[number of pictures decoded, cumulated time in ms]` for profiling. */
@@ -253,45 +324,58 @@ export function getPictureFadeAlpha(url: string): i32 {
 // Blurred atmospheric background (the player's backdrop)
 // ----------------------------------------------------------------------------
 let cachedBlurUrl: string = '';
+let cachedBlurWidth: i32 = 0;
+let cachedBlurHeight: i32 = 0;
 let cachedBlurTexture: i32 = -1;
 
 /**
- * Draws a very softened and darkened copy of the cover full screen.
- * The hardware trick is to shrink the picture into a 12x12 texture then stretch it
- * with the GPU's bilinear sampling.
+ * Draws a very softened and darkened copy of the cover over the screen (`screenWidth` x `screenHeight`, its top left at `(0, -originY)` of
+ * the node: the status bar sits above it).
+ * The cover is shrunk into a 12x12 texture and stretched with bilinear sampling, once, into a picture of the screen's size with the
+ * darkening already in it; every frame is then a row copy (the stretch alone cost 11 ms of CPU a frame on a Raspberry Pi 3, the darkening
+ * 5 more, and a slide redraws the backdrop at every frame).
  */
-export function drawBlurredBackdrop(url: string, screenWidth: number, screenHeight: number): boolean {
+export function drawBlurredBackdrop(url: string, screenWidth: number, screenHeight: number, originY: number): boolean {
   const sourceImage = getPicture(url);
   if (sourceImage < 0) return false;
+  const width = Math.round(screenWidth) as i32;
+  const height = Math.round(screenHeight) as i32;
 
-  if (cachedBlurUrl !== url) {
-    if (cachedBlurTexture < 0) {
-      cachedBlurTexture = createImage(12, 12);
-    }
-    // Drawn at identity: beginImage keeps the matrix in force, and the node's offset would put the picture outside the 12x12 texture
+  if (cachedBlurUrl !== url || cachedBlurWidth !== width || cachedBlurHeight !== height) {
+    if (cachedBlurTexture >= 0) destroyImage(cachedBlurTexture);
+    cachedBlurTexture = createImage(width, height);
+    if (cachedBlurTexture < 0) return false;
+    const tinyImage = createImage(12, 12);
+    // Drawn at identity: beginImage keeps the matrix in force, and the node's offset would put the picture outside the texture
     resetTransform();
-    beginImage(cachedBlurTexture);
+    beginImage(tinyImage);
     drawImage(sourceImage, 0, 0, 12, 12, 255, 0);
     endImage();
+    beginImage(cachedBlurTexture);
+    // Skip the edge texels (1..10) to avoid any dark outline
+    drawImageRect(
+      tinyImage,
+      1,
+      1,
+      10,
+      10,
+      -width * 0.1,
+      originY - height * 0.1,
+      width * 1.2,
+      height * 1.2,
+      255,
+      0,
+      0,
+      0x8c8c8c
+    );
+    rrect(0, 0, width, height, 0, 0x000000, 110);
+    endImage();
     setTransform(1, 0, 0, 1, uiState.offsetX, uiState.offsetY);
+    destroyImage(tinyImage);
     cachedBlurUrl = url;
+    cachedBlurWidth = width;
+    cachedBlurHeight = height;
   }
-
-  // Skip the edge texels (1..10) to avoid any dark outline
-  drawImageRect(
-    cachedBlurTexture,
-    1,
-    1,
-    10,
-    10,
-    -screenWidth * 0.1,
-    -screenHeight * 0.1,
-    screenWidth * 1.2,
-    screenHeight * 1.2,
-    255,
-    0,
-    0,
-    0x8c8c8c
-  );
+  drawImage(cachedBlurTexture, 0, -originY, width, height, 255, 0);
   return true;
 }

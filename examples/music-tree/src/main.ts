@@ -1048,6 +1048,8 @@ onFrame((deltaSeconds: number) => {
       uiState.dirty = true;
     } else if (pointerIdleSeconds > 1 && warmRenderQueue.length > 0) {
       warmRenderSinglePageOffscreen(screenWidth, screenHeight);
+      // one page, then a pause: a page costs 60 to 90 ms on a Raspberry Pi 3, and twelve in a row held the screen for a second
+      pointerIdleSeconds = 0.4;
     } else if (pointerIdleSeconds > 1.5) {
       prefetchNextIdleArtwork();
     }
