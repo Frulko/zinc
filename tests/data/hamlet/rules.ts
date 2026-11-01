@@ -11,9 +11,10 @@ import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLA
 import * as fs from 'zinc:fs';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
-const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut'];
+const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse'];
 import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine/transport';
+import { adviceLine } from '../../../examples/hamlet/src/hud';
 import { toolOf } from '../../../examples/hamlet/src/rules/build';
 
 const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');   // the test runs from the repository root
@@ -129,6 +130,23 @@ check('the hut is paid in planks and logs', world.stock[PLANK] === 0 && world.st
 run(150);
 console.log('hamlet chain 1: after 150 s from the start stock: ' + world.stock[PLANK] + ' planks, ' + world.stock[WOOD] + ' logs, ' + world.felledCount + ' trees felled');
 check('the first chain makes at least 5 planks', world.stock[PLANK] >= 5);
+// ---- chain 2: the lodge makes meat and hides, the smokehouse smokes meat (burning a log), houses past the free settlers eat smoked meat ----
+const MEAT2 = economy.resourceOf('meat'), SMOKED = economy.resourceOf('smoked_meat'), HIDE = economy.resourceOf('hide');
+const clearRow = (): void => { for (const t of [at(2, 7), at(4, 7), at(6, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8), at(7, 8)]) { world.tree[t] = 0; world.rock[t] = 0; } for (let i = 1; i <= 7; i++) applyTool(TOOL_ROAD, at(i, 8)); };
+generate(1234, 16); rich(); clearRow();
+applyTool(TOOL_HOUSE, at(2, 7)); applyTool(TOOL_HOUSE, at(4, 7)); applyTool(TOOL_LODGE, at(3, 9)); applyTool(toolOf('smokehouse'), at(5, 9));
+run(20);
+applyTool(TOOL_HOUSE, at(6, 7));
+run(400);
+console.log('hamlet chain 2: after 400 s: ' + population() + ' inhabitants, ' + world.stock[MEAT2] + ' meat, ' + world.stock[SMOKED] + ' smoked meat, ' + world.stock[HIDE] + ' hides');
+check('the lodge brings meat and hides', world.stock[MEAT2] + world.stock[SMOKED] > 0 && world.stock[HIDE] > 0);
+check('a third house settles beyond the free settlers, fed with smoked meat', population() >= 5);
+generate(1234, 16); rich(); clearRow();
+applyTool(TOOL_HOUSE, at(2, 7)); applyTool(toolOf('smokehouse'), at(5, 9));
+setStock(MEAT2, 10); setStock(WOOD, 0);
+run(40);
+const smoke = world.buildings.filter((b) => b.alive && b.type === economy.typeOf('smokehouse'))[0];
+check('without fuel the smokehouse stops and says what it lacks', smoke.state === 2 && smoke.waitFor === WOOD && adviceLine().indexOf('attend') >= 0 && world.stock[SMOKED] + smoke.stock[SMOKED] === 0);
 // ---- stores and porters: two producers, one store (the hall): nothing is lost or made twice; a building with no road to a store does not send ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8), at(12, 12), at(12, 13)]) { world.tree[t] = 0; world.rock[t] = 0; }

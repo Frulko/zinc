@@ -1,6 +1,6 @@
 import { HOUSE, BS_WAITING, BS_FULL, BS_ISOLATED } from './constants';
 import { world } from './world/world';
-import { economy, BuildingDef } from './world/economy';
+import { economy, BuildingDef, Housing } from './world/economy';
 import { population, isConnected } from './engine/villagers';
 
 function count(type: number): number {
@@ -43,6 +43,6 @@ export function adviceLine(): string {
   }
   for (const b of world.buildings) if (b.alive && b.type !== HOUSE) { open += economy.buildings[b.type].workers - b.workers; jobs += economy.buildings[b.type].workers; }
   if (open > 0 && population() < jobs) return 'Il manque des bras : posez une maison de plus au bord de la route.';
-  if (world.waitingForFood) return 'Les nouveaux venus attendent de quoi manger avant de s’installer.';
+  if (world.waitingForFood) return 'Les nouveaux venus attendent : ' + economy.resources[(economy.buildings[HOUSE].housing as Housing).eats[0]].label.toLowerCase() + ' ou poisson.';
   return 'Le hameau vit. Ajoutez des maisons et des routes pour l’agrandir.';
 }

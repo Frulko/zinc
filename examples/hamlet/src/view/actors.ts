@@ -98,6 +98,11 @@ function paintProps(p: Person, yaw: number, hand: Vec3): void {
   if (p.carry === 3) {                                                // the catch in hand
     capsule([p.x + fx * .35 + sx * .3, p.y + fy * .35 + sy * .3, .75], [p.x + fx * .55 + sx * .3, p.y + fy * .55 + sy * .3, .7], .07, .04, solid([150, 178, 166]), 'solid');
   }
+  if (p.carry === 5 || p.carry === 6) {                              // a folded hide, or a ham, held in front
+    const hide = p.carry === 5, c = solid(hide ? [186, 150, 108] : [168, 92, 72]);
+    capsule([p.x + fx * .45 + sx * .15, p.y + fy * .45 + sy * .15, .85], [p.x + fx * .45 - sx * .15, p.y + fy * .45 - sy * .15, .85], hide ? .13 : .1, hide ? .13 : .08, c, 'solid');
+    if (!hide) sphere(p.x + fx * .45 - sx * .2, p.y + fy * .45 - sy * .2, .85, .12, [150, 78, 62], 'solid');
+  }
   if (p.carry === 4) {                                                // a bundle of planks held in front
     capsule([p.x + fx * .4 + sx * .2, p.y + fy * .4 + sy * .2, .85], [p.x + fx * .4 - sx * .2, p.y + fy * .4 - sy * .2, .85], .1, .1, solid(PLANK), 'solid');
     capsule([p.x + fx * .4 + sx * .2, p.y + fy * .4 + sy * .2, .98], [p.x + fx * .4 - sx * .2, p.y + fy * .4 - sy * .2, .98], .1, .1, solid(PLANK), 'solid');
