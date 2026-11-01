@@ -8,6 +8,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.10.18] - 2026-11-01
+
 ### Rendering and performance
 #### New
 - `startImageDecode`, `pollImageDecode` and `cancelImageDecode` in `zinc:gfx` decode a PNG, JPEG or WebP on a background thread, so a cover or a photo no longer holds a frame for 40 to 100 ms on a Raspberry Pi.
@@ -1116,7 +1118,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.16...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.18...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -1142,3 +1144,4 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 [0.10.13]: https://github.com/Frulko/zinc/compare/v0.10.6...v0.10.13
 [0.10.15]: https://github.com/Frulko/zinc/compare/v0.10.13...v0.10.15
 [0.10.16]: https://github.com/Frulko/zinc/compare/v0.10.15...v0.10.16
+[0.10.18]: https://github.com/Frulko/zinc/compare/v0.10.16...v0.10.18
