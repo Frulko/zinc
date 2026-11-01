@@ -13,7 +13,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - `startImageDecode`, `pollImageDecode` and `cancelImageDecode` in `zinc:gfx` decode a PNG, JPEG or WebP on a background thread, so a cover or a photo no longer holds a frame for 40 to 100 ms on a Raspberry Pi.
 
 #### Faster
-- The smooth stretch of a small picture over a large area (the lava lamp clock of Musique) draws about three times faster on a Raspberry Pi.
+- The smooth stretch of a small picture over a large area (the lava lamp clock of Musique) draws noticeably faster on a Raspberry Pi (a full-screen lamp took 14 ms of drawing, now under 10).
 - A program that draws nothing now wakes 60 times a second instead of 125, which saves battery and CPU on idle screens and keeps the frames in step with the display.
 
 ### Apps and examples
