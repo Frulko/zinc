@@ -1,5 +1,5 @@
 // Headless proofs of the hamlet's baked models and atlas (CachedModel box and round trip). No window.
-import { W, H, pix, zb, setView, configureRenderer, beginModel, captureModel, setFullModelScan, CachedModel, box, capsule, sphere, plot, rgb } from '../../../examples/hamlet/src/pixel';
+import { W, H, pix, zb, setView, configureRenderer, beginModel, captureModel, setFullModelScan, CachedModel, box, capsule, sphere, plot, rgb, setLighting, project, bakeAtlas, hashNumbers, hashText, headerKey, AtlasDef } from '../../../examples/hamlet/src/pixel';
 import { models, useModels, resetModels } from '../../../examples/hamlet/src/view/models';
 
 let failures = 0;
@@ -53,5 +53,33 @@ pix.fill(0); zb.fill(-1e9); round.drawAt(1, 2, 0);
 let stamped = true;
 for (let i = 0; i < pix.length; i++) if (pix[i] !== a[i] || zb[i] !== az[i]) { stamped = false; break; }
 check('a model from arrays stamps the same pixels', stamped);
+
+// the atlas: hash, stamp = live, fallback, invalidation
+check('the hash is stable and sensitive', hashNumbers([1, 2, 3]) === hashNumbers([1, 2, 3]) && hashNumbers([1, 2, 3]) !== hashNumbers([1, 2, 4]) && hashText('walk') !== hashText('walk2') && hashText('abc') === 440920331);
+const def: AtlasDef = { version: 1, season: 0, entries: [{ name: 'ball', variants: 2, yaws: 8, poses: 3, draw: (a, x, y, z): void => {
+  sphere(x + a.yaw8 * .1, y, z + .8 + a.pose * .2, .4 + a.variant * .1, [180, 90, 60], 'solid');
+} }] };
+const atlas = bakeAtlas(def);
+check('a missing name or axes bakes nothing', atlas.bake('nope', { variant: 0, yaw8: 0, pose: 0 }) === null && atlas.bake('ball', { variant: 2, yaw8: 0, pose: 0 }) === null && atlas.baked === 0);
+const ax = { variant: 1, yaw8: 3, pose: 2 };
+// a world point whose projection from the bake origin is a whole number of pixels: x = y = n / (R2 * SIN * S)
+const n = 8, px = n / (Math.SQRT2 * .5 * 10);
+pix.fill(0); zb.fill(-1e9); def.entries[0].draw(ax, px, px, 0); const live = pix.slice(), liveZ = zb.slice();
+pix.fill(0); zb.fill(-1e9); atlas.stamp('ball', ax, px, px, 0); const stampedOnce = pix.slice(), stampedZ = zb.slice();
+let diff = 0, depthDiff = 0;
+for (let i = 0; i < live.length; i++) { if (live[i] !== stampedOnce[i]) diff++; if (Math.abs(liveZ[i] - stampedZ[i]) > 1e-6) depthDiff++; }
+check('a stamp equals the live drawing (pixels ' + diff + ', depth ' + depthDiff + ')', diff === 0 && depthDiff === 0 && atlas.baked === 1);
+pix.fill(0); zb.fill(-1e9); atlas.stamp('ball', ax, px, px, 0, false);
+check('a baked frame is reused, not baked twice', atlas.baked === 1);
+const lazyOff = bakeAtlas(def);
+pix.fill(0); zb.fill(-1e9); lazyOff.stamp('ball', { variant: 0, yaw8: 1, pose: 1 }, 0, 0, 0, false);
+let drawn = 0; for (let i = 0; i < pix.length; i++) if (zb[i] > -1e8) drawn++;
+check('without a frame the live draw runs', drawn > 20 && lazyOff.baked === 0);
+check('the atlas is fresh, then stale after a lighting change', !atlas.stale() && headerKey(atlas.header) === headerKey(atlas.header));
+const before = atlas.header.lighting;
+setLighting([20, 20, 60], [255, 200, 120]);
+check('a new light stales the atlas (the hash differs)', atlas.stale() && atlas.header.lighting !== 0 && before !== 0);
+setLighting([46, 38, 84], [255, 232, 180]);
+check('the same light is fresh again', !atlas.stale());
 
 console.log(failures === 0 ? 'hamlet atlas: ALL PASS' : 'hamlet atlas: ' + failures + ' FAIL');
