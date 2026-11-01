@@ -37,6 +37,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 #### Fixed
 
+- `screen --live` of a still screen (the shell at rest) shows the screen at once and refreshes it every 2 seconds, instead of staying black until something moves; `ZINC_MIRROR_LOG=1` on the device says what the live stream sends.
 - A multi-touch screen keeps working after turning the Raspberry Pi's screen by 90 or 270 degrees: every touch used to land on the same spot.
 - `zinc device <pi> screen` and `screen --live` show the whole screen under the shell, the top bar and the app below it, and the live view follows the app in real time. An app under the shell no longer answers the screen request itself.
 
