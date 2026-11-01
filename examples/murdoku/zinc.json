@@ -1,0 +1,27 @@
+{
+  "name": "murdoku",
+  "entry": "src/main.tsx",
+  "app": {
+    "name": "Minuit au manoir",
+    "id": "dev.zinc.murdoku",
+    "version": "0.3.0",
+    "orientation": "landscape"
+  },
+  "targets": {
+    "macos": {
+      "width": 1320,
+      "height": 900,
+      "resize": "fill"
+    }
+  },
+  "permissions": [],
+  "scheme": "light",
+  "text": "shaped",
+  "icons": [
+    "x",
+    "pencil",
+    "undo-2",
+    "lightbulb",
+    "check"
+  ]
+}

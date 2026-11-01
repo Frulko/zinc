@@ -1,0 +1,90 @@
+{
+  "man_1": {
+    "scaleX": 1.2,
+    "scaleY": 1.05,
+    "layers": {
+      "clothes": {
+        "offsetX": 0.0,
+        "offsetY": -6.0
+      },
+      "hair": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      },
+      "facial": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      },
+      "hat": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      },
+      "accessory": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      }
+    }
+  },
+  "man_2": {
+    "scaleX": 1.21,
+    "scaleY": 1.05,
+    "layers": {
+      "clothes": {
+        "offsetX": 0.0,
+        "offsetY": -6.0
+      },
+      "hair": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      },
+      "facial": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      },
+      "hat": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      },
+      "accessory": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      }
+    }
+  },
+  "man_3": {
+    "scaleX": 0.9,
+    "scaleY": 1.0,
+    "layers": {
+      "clothes": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      },
+      "hair": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      },
+      "facial": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      },
+      "hat": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      },
+      "accessory": {
+        "offsetX": 0.0,
+        "offsetY": 0.0
+      }
+    }
+  },
+  "woman_1": {
+    "scaleX": 1.15,
+    "scaleY": 1.0,
+    "layers": {
+      "clothes": {
+        "offsetX": 0.0,
+        "offsetY": -8.0
+      }
+    }
+  }
+}

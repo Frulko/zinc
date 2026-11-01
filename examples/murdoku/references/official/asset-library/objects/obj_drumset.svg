@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" width="38.7" height="37.1" version="1.1" viewBox="0 0 38.7 37.1">
+  <!-- Generator: Adobe Illustrator 29.2.1, SVG Export Plug-In . SVG Version: 2.1.0 Build 116)  -->
+  <defs>
+    <style>
+      .st0 {
+        stroke-width: 1px;
+      }
+
+      .st0, .st1, .st2, .st3, .st4, .st5, .st6, .st7, .st8, .st9, .st10, .st11, .st12, .st13, .st14, .st15, .st16, .st17, .st18, .st19, .st20, .st21, .st22, .st23, .st24, .st25, .st26 {
+        stroke: #231f20;
+        stroke-miterlimit: 10;
+      }
+
+      .st0, .st8, .st9, .st15, .st17, .st19, .st21, .st24, .st26 {
+        fill: #fff792;
+      }
+
+      .st1 {
+        stroke-width: .8px;
+      }
+
+      .st1, .st2, .st4, .st7, .st11, .st14, .st16, .st18 {
+        fill: #fff8e6;
+      }
+
+      .st2 {
+        stroke-width: .6px;
+      }
+
+      .st3, .st5, .st10, .st13, .st25 {
+        fill: #e5af9e;
+      }
+
+      .st3, .st9 {
+        stroke-width: 1px;
+      }
+
+      .st4, .st12 {
+        stroke-width: 1.5px;
+      }
+
+      .st5, .st24 {
+        stroke-width: .8px;
+      }
+
+      .st6, .st11 {
+        stroke-width: .8px;
+      }
+
+      .st6, .st12, .st20, .st22, .st23 {
+        fill: none;
+      }
+
+      .st7 {
+        stroke-width: .6px;
+      }
+
+      .st27 {
+        fill: #494741;
+        opacity: .3;
+      }
+
+      .st8 {
+        stroke-width: .9px;
+      }
+
+      .st28 {
+        fill: #fff;
+      }
+
+      .st10 {
+        stroke-width: 1.5px;
+      }
+
+      .st13, .st26 {
+        stroke-width: .8px;
+      }
+
+      .st14, .st22 {
+        stroke-width: 1.4px;
+      }
+
+      .st15 {
+        stroke-width: 1px;
+      }
+
+      .st16 {
+        stroke-width: .7px;
+      }
+
+      .st17, .st25 {
+        stroke-width: 1px;
+      }
+
+      .st18, .st21 {
+        stroke-width: 1px;
+      }
+
+      .st19 {
+        stroke-width: 1px;
+      }
+
+      .st20 {
+        stroke-width: 1px;
+      }
+
+      .st29 {
+        fill: #efbf7f;
+      }
+    </style>
+  </defs>
+  <path class="st27" d="M33.8,22.4h-2.3c-.7,0-1.3.2-1.9.5-1.2-1.1-2.9-1.7-4.6-1.7h-10c-2.4,0-4.6,1.2-5.8,3.1-.7-.6-1.6-1-2.6-1h-2.3c-2.1,0-3.8,1.7-3.8,3.8s1.7,3.8,3.8,3.8h2.3c.6,0,1.2-.2,1.7-.4.9,2.8,3.6,4.8,6.7,4.8h10c3.3,0,6-2.2,6.8-5.3h2c2.1,0,3.8-1.7,3.8-3.8s-1.7-3.8-3.8-3.8Z"/>
+  <g>
+    <ellipse class="st8" cx="31.8" cy="12.3" rx="3.8" ry="5.4" transform="translate(19.4 44) rotate(-89.9)"/>
+    <line class="st19" x1="32.3" y1="27.6" x2="31.8" y2="12.4"/>
+    <polyline class="st20" points="28.9 27.1 32.1 24.2 35.7 27.1"/>
+    <ellipse class="st8" cx="31.7" cy="10.3" rx="3.8" ry="5.4" transform="translate(21.3 42) rotate(-89.9)"/>
+    <path class="st28" d="M31.9,9.5c0,.9-.9,3.3-.8,4.1,0,0,.9.1,1,.1.2,0,.9,0,.9-.2,0-.3-.9-3.2-1.1-4h0Z"/>
+    <path class="st29" d="M31.1,7c2.6-.3,5.6,1.3,5.6,3.5,0,.2,0,.4-.3.2-1.3-1.6-3.6-3-6-3.6"/>
+  </g>
+  <g>
+    <g>
+      <line class="st14" x1="13.9" y1="20.3" x2="13.9" y2="27.5"/>
+      <polyline class="st22" points="10.5 27 13.8 24.1 17.5 26.9"/>
+      <path class="st25" d="M18.8,16v-1.4c0-.4-.3-.7-.7-.7h-.9c-.9-.6-2-1-3.2-1s-2.3.4-3.2,1h-1.3c-.4,0-.7.3-.7.7v2.3c0,0,0,.2,0,.3,0,0,0,0,0,.2,0,2.4,2.3,4.4,5.1,4.4s5.1-2,5.1-4.4-.1-.9-.3-1.3Z"/>
+      <ellipse class="st17" cx="13.8" cy="14" rx="5.1" ry="4.6"/>
+    </g>
+    <ellipse class="st16" cx="13.9" cy="14" rx="3.7" ry="3.3"/>
+  </g>
+  <g>
+    <g>
+      <line class="st4" x1="24.6" y1="21.1" x2="24.6" y2="28.6"/>
+      <polyline class="st12" points="21.1 28 24.6 25 28.4 28"/>
+      <path class="st3" d="M29.8,16.7v-1.4c0-.4-.3-.7-.7-.7h-1c-.9-.6-2.1-1.1-3.4-1.1s-2.4.4-3.4,1.1h-1.3c-.4,0-.7.3-.7.7v2.4c0,.1,0,.2,0,.3,0,0,0,.1,0,.2,0,2.5,2.4,4.6,5.4,4.6s5.4-2.1,5.4-4.6-.1-1-.3-1.4Z"/>
+      <ellipse class="st9" cx="24.6" cy="14.6" rx="5.4" ry="4.8"/>
+    </g>
+    <ellipse class="st1" cx="24.7" cy="14.5" rx="3.8" ry="3.4"/>
+  </g>
+  <g>
+    <path class="st10" d="M26.8,23.4c-.5-3.1-3.6-5.5-7.3-5.5s-7.4,2.8-7.4,6.3,0,1.1.2,1.6v1.3c0,.5.4.9,1,.9h.2c1.3,1.6,3.5,2.6,6,2.6s4.6-1,6-2.6h.6c.5,0,1-.4,1-.9v-3.1c0-.2,0-.4-.2-.5Z"/>
+    <ellipse class="st21" cx="19.6" cy="28" rx="7.3" ry="6.3"/>
+    <ellipse class="st18" cx="19.6" cy="28.1" rx="5.1" ry="4.4"/>
+  </g>
+  <g>
+    <line class="st0" x1="4.7" y1="28.6" x2="4.3" y2="13.4"/>
+    <polyline class="st23" points="1.3 28.1 4.6 25.3 8.2 28.1"/>
+    <g>
+      <ellipse class="st15" cx="7.6" cy="9.5" rx="4.7" ry="5.5" transform="translate(-4.4 11.3) rotate(-60)"/>
+      <path class="st28" d="M8.3,8.6c-.5,1-2.8,3.1-3.3,4,0,0,.7.6.8.6.2.1.8.4,1,.2.1-.3,1.2-4,1.5-4.9h0Z"/>
+      <path class="st29" d="M9.1,5.6c2.4,1,4.1,4.2,2.7,6.6-.2.2-.3.4-.4,0-.2-2.4-1.2-5.1-3-6.9"/>
+    </g>
+    <polyline class="st0" points="5 12.9 3 15 .4 17.6"/>
+  </g>
+  <g>
+    <g>
+      <path class="st11" d="M10.8,27.5"/>
+      <path class="st11" d="M11.2,22.1"/>
+      <path class="st6" d="M13.8,27.3"/>
+      <path class="st6" d="M8.1,26.9"/>
+      <path class="st5" d="M15.5,19.2v-1c0-.3-.1-.5-.4-.5h-.8c-.7-.6-1.6-.9-2.6-1s-1.9.2-2.7.6h-1c-.3,0-.6.1-.6.4v1.7c-.1,0-.1.1,0,.2,0,0,0,0,0,.1-.1,1.8,1.6,3.4,3.9,3.6s4.3-1.2,4.4-3,0-.7-.1-1Z"/>
+      <ellipse class="st24" cx="11.5" cy="17.4" rx="3.5" ry="4.2" transform="translate(-6.6 27.6) rotate(-85.8)"/>
+    </g>
+    <ellipse class="st7" cx="11.6" cy="17.3" rx="2.5" ry="3" transform="translate(-6.5 27.6) rotate(-85.8)"/>
+  </g>
+  <g>
+    <g>
+      <path class="st13" d="M32.3,18.2l-.2-1.1c0-.3-.3-.5-.7-.4h-.8c-.8-.2-1.8-.4-2.9-.2s-1.9.6-2.6,1.2l-1.1.2c-.3,0-.5.3-.5.6l.3,1.8c0,0,0,.1,0,.2,0,0,0,0,0,.1.3,1.9,2.5,3.1,4.9,2.7s4.1-2.2,3.8-4.1-.2-.7-.4-1Z"/>
+      <ellipse class="st26" cx="27.8" cy="17.3" rx="4.4" ry="3.6" transform="translate(-2.3 4.4) rotate(-8.7)"/>
+    </g>
+    <ellipse class="st2" cx="27.9" cy="17.2" rx="3.2" ry="2.6" transform="translate(-2.3 4.4) rotate(-8.7)"/>
+  </g>
+</svg>

@@ -1,0 +1,967 @@
+{
+  "source": "https://murdoku.com/play/puzzle-24h-delivery-easy",
+  "retrieved": "2026-11-01",
+  "assets": [
+    {
+      "path": "sprites/logo-01-23cfda82.svg",
+      "category": "logo",
+      "sha256": "23cfda825ce8e042c4f4a1191df8239a10666ed3ad11d1f90d52a8d0a8e5a270",
+      "bytes": 3043,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-02-b5951f3e.svg",
+      "category": "portrait-layer",
+      "sha256": "b5951f3e93aa7f95f40a611c41bb40f9f46c8cb0135620cd79bab0bd6ae473db",
+      "bytes": 1937,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-03-97f2f4ae.svg",
+      "category": "portrait-layer",
+      "sha256": "97f2f4ae5b4391d19996057edbbbba0d049d53df4db3e98edab70c0ef6c36e51",
+      "bytes": 1331,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-04-294a42f4.svg",
+      "category": "portrait-layer",
+      "sha256": "294a42f48a0c8760556df52bc1774d490b91b508cceba9a6d394643c30febd89",
+      "bytes": 1573,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-05-9805487e.svg",
+      "category": "portrait-layer",
+      "sha256": "9805487e0a1784e5eda147c80d50ff29f0eb2409d9b06a62927dafd37d174df9",
+      "bytes": 2151,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-06-7a0cb48b.svg",
+      "category": "portrait-layer",
+      "sha256": "7a0cb48b4b91801a10f858b9199935960cb67d1355684338395db7a04ee93200",
+      "bytes": 1246,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-07-0e96e67b.svg",
+      "category": "portrait-layer",
+      "sha256": "0e96e67b27c2c33a29d1ec5bc36dca0aec151263999f1f941b8214c4c5ccf300",
+      "bytes": 1734,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-08-70ca14a5.svg",
+      "category": "portrait-layer",
+      "sha256": "70ca14a58e1dc44fab7736ab1d78815ae5e0e2cd024e8f8810e2eb99f5794c1b",
+      "bytes": 993,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-09-e02258b0.svg",
+      "category": "portrait-layer",
+      "sha256": "e02258b080f39e3041321b54fb72035887f94348ca5e3f28a05b19e55ba881a1",
+      "bytes": 2306,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-10-6ebf9bba.svg",
+      "category": "portrait-layer",
+      "sha256": "6ebf9bbac7b894b7476faad1bdc2b8910c33902777e304d1fa11947b58dc4012",
+      "bytes": 1208,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-11-72f11af9.svg",
+      "category": "portrait-layer",
+      "sha256": "72f11af9e246020b36f83adb7b42ec8d4dcb940da0d74a55b3ac0c954d4817d5",
+      "bytes": 2249,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-12-29fff602.svg",
+      "category": "portrait-layer",
+      "sha256": "29fff602de0684737669728d01cbc3670a3216782a588c63062affd0ade86251",
+      "bytes": 592,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-13-ac91de69.svg",
+      "category": "portrait-layer",
+      "sha256": "ac91de6919a1af038a4bd85fb272c096fc1ee56ec35187a7f46bdb2b33a94190",
+      "bytes": 1016,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-14-1afc758f.svg",
+      "category": "portrait-layer",
+      "sha256": "1afc758fe85276752f7a87fa6fc65c9aaabf77b49ab758f178a0832e256925bf",
+      "bytes": 3140,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-15-7cd9a18e.svg",
+      "category": "portrait-layer",
+      "sha256": "7cd9a18eb88d4ad69b94a97536c12ee42ba296b2e0948e0bf0131ce8354ff655",
+      "bytes": 901,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-16-b5c4a3f4.svg",
+      "category": "portrait-layer",
+      "sha256": "b5c4a3f4bc273cdbeecfde1665731eace9f3e711926e08abd598fb1b1718cb57",
+      "bytes": 895,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/portrait-layer-17-c491a6d6.svg",
+      "category": "portrait-layer",
+      "sha256": "c491a6d6c3da7c7fde0c07cd67130581cd3b6dd431865a99cc7606dd8cb676b1",
+      "bytes": 926,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-18-2d6e5612.svg",
+      "category": "furniture-layer",
+      "sha256": "2d6e5612ab6942e7e3de89b5672d2f011abdc03027b7698c05d282a2f818eee9",
+      "bytes": 2662,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-19-7c058504.svg",
+      "category": "furniture-layer",
+      "sha256": "7c058504b1ba32c2c2a237f8e5b6bc3ec45bda03313e893f7c6eabee80b400a7",
+      "bytes": 2517,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-20-9632cc2e.svg",
+      "category": "furniture-layer",
+      "sha256": "9632cc2e493fec5f796e8a51275e44d0437c199b085549810f5789959aef62a9",
+      "bytes": 3702,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-21-146e7884.svg",
+      "category": "furniture-layer",
+      "sha256": "146e78846de2d3d14b8c964ab3997fe636a1ce35ba69cffa98b75976e4d7e868",
+      "bytes": 2089,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-22-89ff2e42.svg",
+      "category": "furniture-layer",
+      "sha256": "89ff2e421cc2f50540f762b920fd650cd3be0f7e0b371a56986e3f27afa9339f",
+      "bytes": 797,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-23-5b788a28.svg",
+      "category": "furniture-layer",
+      "sha256": "5b788a28638a42032fec8e6a4eb0913463b8c841b4bb2f36251c979d90c4bac7",
+      "bytes": 570,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-24-e8e9ba93.svg",
+      "category": "furniture-layer",
+      "sha256": "e8e9ba93abbcbe770e71acb7e58508bf42b4842d58d3ec6381db5c8c85bd38fb",
+      "bytes": 712,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-25-c99293ea.svg",
+      "category": "furniture-layer",
+      "sha256": "c99293ea6b70aef63549494ddadc0e9e3b055eeb972cdb8a47671b24282cf0a3",
+      "bytes": 1413,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-26-78e70c12.svg",
+      "category": "furniture-layer",
+      "sha256": "78e70c12e89a09e8153c39d14fd1aee0d3d36ca3734c602601d8db6fb4392ff5",
+      "bytes": 793,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-27-d115c13b.svg",
+      "category": "furniture-layer",
+      "sha256": "d115c13b248c02a1347a2358e67062c1013a7ad06e26ea4dc12f27d6694097f9",
+      "bytes": 714,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-28-1757f18b.svg",
+      "category": "furniture-layer",
+      "sha256": "1757f18b7947ce5d09ae8d7266569ce3485e15fae659f9182825dc6aec0e619c",
+      "bytes": 1090,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-29-acaef9cc.svg",
+      "category": "furniture-layer",
+      "sha256": "acaef9ccb3af7cb69dd76e94ce406127edfcffe0f120a46ab6cae8780e69de5b",
+      "bytes": 1000,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-30-9f657bc4.svg",
+      "category": "furniture-layer",
+      "sha256": "9f657bc4098d2ae68e1c27948a5b7785175c9bbd4f2a042a40fd8424e7fdcd0a",
+      "bytes": 1511,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/furniture-layer-31-cd2f1036.svg",
+      "category": "furniture-layer",
+      "sha256": "cd2f10368a948963292654a6894dd9d25177c54c241db7943ef25f150daf190c",
+      "bytes": 591,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/icon-32-5ebadbda.svg",
+      "category": "icon",
+      "sha256": "5ebadbda361b5beb0444fbe43a6c92bafc2f7fbe177009aa61dad1fdad1725a1",
+      "bytes": 1334,
+      "source": "Embedded SVG data URI in the public page DOM"
+    },
+    {
+      "path": "sprites/obj_plant-lqsU7Mb1.svg",
+      "category": "furniture-layer",
+      "url": "https://murdoku.com/play/assets/obj_plant-lqsU7Mb1.svg",
+      "bytes": 12366,
+      "sha256": "f028094d01cd9af467a85804f7d258e220bee8d76691b9969f9635efe46af966"
+    },
+    {
+      "path": "sprites/obj_plant_02-B8FocpTF.svg",
+      "category": "furniture-layer",
+      "url": "https://murdoku.com/play/assets/obj_plant_02-B8FocpTF.svg",
+      "bytes": 10961,
+      "sha256": "906cc9d4b381bd48fc309e0fbba6daeade978d90bbd5bb1797a6f6d3d15a68ba"
+    },
+    {
+      "path": "sprites/obj_shrub-DZfZCPwd.svg",
+      "category": "furniture-layer",
+      "url": "https://murdoku.com/play/assets/obj_shrub-DZfZCPwd.svg",
+      "bytes": 4163,
+      "sha256": "5de37ce29dd5a09a197688a30b33f6fdbbb74ebdc3c9eebf1924a67ecb13bd5b"
+    },
+    {
+      "path": "sprites/obj_shrub_02-DmhRFGzb.svg",
+      "category": "furniture-layer",
+      "url": "https://murdoku.com/play/assets/obj_shrub_02-DmhRFGzb.svg",
+      "bytes": 8250,
+      "sha256": "3fb5ad14874e4e22312911f28c42045b8031bba550e94144467e6358c6c84286"
+    },
+    {
+      "path": "sprites/texture_floor_grass-n85FOBUF.svg",
+      "category": "texture",
+      "url": "https://murdoku.com/play/assets/texture_floor_grass-n85FOBUF.svg",
+      "bytes": 5819,
+      "sha256": "6fdd067eb41c4b2db08d4d4428740db4c0045855ec5460b84932e32cf4e28365"
+    },
+    {
+      "path": "styles/site.css",
+      "category": "stylesheet",
+      "url": "https://murdoku.com/play/assets/index-WQQE-9Ye.css",
+      "bytes": 33762,
+      "sha256": "0484bdda71058eab5b8eaffc44363530f7942fa0e6d884b2d5674f79a85f6ce4"
+    }
+  ],
+  "instances": [
+    {
+      "i": 0,
+      "alt": "Murdoku",
+      "style": "display: block; height: 32px; width: auto;",
+      "parentStyle": "margin: 0px; display: flex; align-items: center; cursor: pointer;",
+      "rect": {
+        "width": 147,
+        "height": 32
+      },
+      "computed": {
+        "filter": "none",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/logo-01-23cfda82.svg"
+    },
+    {
+      "i": 1,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:r0:-efba90\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 1; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Alexander",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:r0:-efba90\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-02-b5951f3e.svg"
+    },
+    {
+      "i": 2,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:r1:-7a71a4\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 2; pointer-events: none; transform: translate(0%, -6%) scale(1.21, 1.05); transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Alexander",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:r1:-7a71a4\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-03-97f2f4ae.svg"
+    },
+    {
+      "i": 3,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:r2:-5a535d\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 3; pointer-events: none; transform: scale(1.21, 1.05); transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Alexander",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:r2:-5a535d\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-04-294a42f4.svg"
+    },
+    {
+      "i": 4,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:r4:-95775e\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 1; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Bella",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:r4:-95775e\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-05-9805487e.svg"
+    },
+    {
+      "i": 5,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:r5:-b97676\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 2; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Bella",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:r5:-b97676\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-06-7a0cb48b.svg"
+    },
+    {
+      "i": 6,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:r6:-cbced3\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 3; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Bella",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:r6:-cbced3\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-07-0e96e67b.svg"
+    },
+    {
+      "i": 7,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:r8:-f7ccaa\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 1; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Carol",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:r8:-f7ccaa\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-05-9805487e.svg"
+    },
+    {
+      "i": 8,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:r9:-80bbba\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 2; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Carol",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:r9:-80bbba\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-08-70ca14a5.svg"
+    },
+    {
+      "i": 9,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:ra:-a85858\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 3; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Carol",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:ra:-a85858\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-09-e02258b0.svg"
+    },
+    {
+      "i": 10,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:rc:-c59d86\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 1; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Dalia",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:rc:-c59d86\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-05-9805487e.svg"
+    },
+    {
+      "i": 11,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:rd:-e38d40\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 2; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Dalia",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:rd:-e38d40\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-10-6ebf9bba.svg"
+    },
+    {
+      "i": 12,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:re:-2d2e37\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 3; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Dalia",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:re:-2d2e37\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-11-72f11af9.svg"
+    },
+    {
+      "i": 13,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:rg:-efba90\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 1; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Evangeline",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:rg:-efba90\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-05-9805487e.svg"
+    },
+    {
+      "i": 14,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:rh:-f26f7b\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 2; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Evangeline",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:rh:-f26f7b\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-12-29fff602.svg"
+    },
+    {
+      "i": 15,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:ri:-bf9e57\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 3; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Evangeline",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:ri:-bf9e57\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-13-ac91de69.svg"
+    },
+    {
+      "i": 16,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:rk:-efba90\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 1; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Viraj",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:rk:-efba90\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-14-1afc758f.svg"
+    },
+    {
+      "i": 17,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:rl:-80bbba\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 2; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Viraj",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:rl:-80bbba\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-15-7cd9a18e.svg"
+    },
+    {
+      "i": 18,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:rm:-2d2e37\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 3; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Viraj",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:rm:-2d2e37\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-16-b5c4a3f4.svg"
+    },
+    {
+      "i": 19,
+      "alt": "",
+      "style": "position: absolute; inset: 0px; width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; filter: url(\"#tint-:rn:-2d2e37\");",
+      "parentStyle": "position: absolute; inset: 0px; z-index: 4; pointer-events: none; transform-origin: center top; transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1);",
+      "owner": "Viraj",
+      "rect": {
+        "width": 92,
+        "height": 118
+      },
+      "computed": {
+        "filter": "url(\"#tint-:rn:-2d2e37\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/portrait-layer-17-c491a6d6.svg"
+    },
+    {
+      "i": 20,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-254-247-228\") drop-shadow(rgba(0, 0, 0, 0.35) 0px 2px 0px);",
+      "parentStyle": "position: absolute; left: calc(50% + 0px); top: calc(50% - 2px); transform: translate(-50%, -50%); width: 41.8px; height: 41.8px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 42,
+        "height": 42
+      },
+      "computed": {
+        "filter": "url(\"#tint-254-247-228\") drop-shadow(rgba(0, 0, 0, 0.35) 0px 2px 0px)",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-18-2d6e5612.svg"
+    },
+    {
+      "i": 21,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-251-213-146\");",
+      "parentStyle": "position: absolute; left: calc(50% + 0px); top: calc(50% - 2px); transform: translate(-50%, -50%); width: 41.8px; height: 41.8px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 42,
+        "height": 42
+      },
+      "computed": {
+        "filter": "url(\"#tint-251-213-146\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-19-7c058504.svg"
+    },
+    {
+      "i": 22,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-255-251-231\") drop-shadow(rgba(0, 0, 0, 0.35) 0px 2px 0px);",
+      "parentStyle": "position: absolute; left: 5px; top: -20px; width: 83.6px; height: 83.6px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 84,
+        "height": 84
+      },
+      "computed": {
+        "filter": "url(\"#tint-255-251-231\") drop-shadow(rgba(0, 0, 0, 0.35) 0px 2px 0px)",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-20-9632cc2e.svg"
+    },
+    {
+      "i": 23,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-255-217-142\");",
+      "parentStyle": "position: absolute; left: 5px; top: -20px; width: 83.6px; height: 83.6px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 84,
+        "height": 84
+      },
+      "computed": {
+        "filter": "url(\"#tint-255-217-142\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-21-146e7884.svg"
+    },
+    {
+      "i": 24,
+      "alt": "",
+      "style": "position: absolute; left: -0.5px; top: -0.5px; width: 51px; height: 51px; pointer-events: none; user-select: none; z-index: 1; filter: url(\"#tint-254-224-142\");",
+      "parentStyle": "position: relative; width: 50px; height: 50px; cursor: pointer; overflow: visible; box-sizing: border-box; background: rgb(254, 237, 166);",
+      "rect": {
+        "width": 51,
+        "height": 51
+      },
+      "computed": {
+        "filter": "url(\"#tint-254-224-142\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-22-89ff2e42.svg"
+    },
+    {
+      "i": 25,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-254-247-228\") drop-shadow(rgba(0, 0, 0, 0.35) 0px 2px 0px);",
+      "parentStyle": "position: absolute; left: calc(50% + 0px); top: calc(50% - 2px); transform: translate(-50%, -50%); width: 41.8px; height: 41.8px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 42,
+        "height": 42
+      },
+      "computed": {
+        "filter": "url(\"#tint-254-247-228\") drop-shadow(rgba(0, 0, 0, 0.35) 0px 2px 0px)",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-18-2d6e5612.svg"
+    },
+    {
+      "i": 26,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-251-213-146\");",
+      "parentStyle": "position: absolute; left: calc(50% + 0px); top: calc(50% - 2px); transform: translate(-50%, -50%); width: 41.8px; height: 41.8px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 42,
+        "height": 42
+      },
+      "computed": {
+        "filter": "url(\"#tint-251-213-146\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-19-7c058504.svg"
+    },
+    {
+      "i": 27,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-224-206-123\");",
+      "parentStyle": "position: absolute; left: -0.5px; top: -0.5px; width: 51px; height: 51px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 51,
+        "height": 51
+      },
+      "computed": {
+        "filter": "url(\"#tint-224-206-123\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-23-5b788a28.svg"
+    },
+    {
+      "i": 30,
+      "alt": "",
+      "style": "position: absolute; left: -0.5px; top: -0.5px; width: 51px; height: 51px; pointer-events: none; user-select: none; z-index: 1; filter: url(\"#tint-254-224-142\");",
+      "parentStyle": "position: relative; width: 50px; height: 50px; cursor: pointer; overflow: visible; box-sizing: border-box; background: rgb(254, 237, 166);",
+      "rect": {
+        "width": 51,
+        "height": 51
+      },
+      "computed": {
+        "filter": "url(\"#tint-254-224-142\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-24-e8e9ba93.svg"
+    },
+    {
+      "i": 31,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-254-247-228\") drop-shadow(rgba(0, 0, 0, 0.35) 0px 2px 0px);",
+      "parentStyle": "position: absolute; left: calc(50% + 0px); top: calc(50% - 2px); transform: translate(-50%, -50%); width: 41.8px; height: 41.8px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 42,
+        "height": 42
+      },
+      "computed": {
+        "filter": "url(\"#tint-254-247-228\") drop-shadow(rgba(0, 0, 0, 0.35) 0px 2px 0px)",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-18-2d6e5612.svg"
+    },
+    {
+      "i": 32,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-251-213-146\");",
+      "parentStyle": "position: absolute; left: calc(50% + 0px); top: calc(50% - 2px); transform: translate(-50%, -50%); width: 41.8px; height: 41.8px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 42,
+        "height": 42
+      },
+      "computed": {
+        "filter": "url(\"#tint-251-213-146\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-19-7c058504.svg"
+    },
+    {
+      "i": 33,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-224-206-123\");",
+      "parentStyle": "position: absolute; left: -0.5px; top: -0.5px; width: 51px; height: 51px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 51,
+        "height": 51
+      },
+      "computed": {
+        "filter": "url(\"#tint-224-206-123\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-25-c99293ea.svg"
+    },
+    {
+      "i": 34,
+      "alt": "",
+      "style": "position: absolute; left: -0.5px; top: -0.5px; width: 51px; height: 51px; pointer-events: none; user-select: none; z-index: 1; filter: url(\"#tint-254-224-142\");",
+      "parentStyle": "position: relative; width: 50px; height: 50px; cursor: pointer; overflow: visible; box-sizing: border-box; background: rgb(253, 229, 178);",
+      "rect": {
+        "width": 51,
+        "height": 51
+      },
+      "computed": {
+        "filter": "url(\"#tint-254-224-142\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-26-78e70c12.svg"
+    },
+    {
+      "i": 35,
+      "alt": "",
+      "style": "position: absolute; left: -0.5px; top: -0.5px; width: 51px; height: 51px; pointer-events: none; user-select: none; z-index: 1; filter: url(\"#tint-254-224-142\");",
+      "parentStyle": "position: relative; width: 50px; height: 50px; cursor: pointer; overflow: visible; box-sizing: border-box; background: rgb(253, 229, 178);",
+      "rect": {
+        "width": 51,
+        "height": 51
+      },
+      "computed": {
+        "filter": "url(\"#tint-254-224-142\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-27-d115c13b.svg"
+    },
+    {
+      "i": 38,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-224-206-123\");",
+      "parentStyle": "position: absolute; left: -0.5px; top: -0.5px; width: 51px; height: 51px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 51,
+        "height": 51
+      },
+      "computed": {
+        "filter": "url(\"#tint-224-206-123\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-28-1757f18b.svg"
+    },
+    {
+      "i": 39,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-224-206-123\");",
+      "parentStyle": "position: absolute; left: -0.5px; top: -0.5px; width: 51px; height: 51px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 51,
+        "height": 51
+      },
+      "computed": {
+        "filter": "url(\"#tint-224-206-123\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-29-acaef9cc.svg"
+    },
+    {
+      "i": 40,
+      "alt": "",
+      "style": "position: absolute; left: -0.5px; top: -0.5px; width: 51px; height: 51px; pointer-events: none; user-select: none; z-index: 1; filter: url(\"#tint-254-224-142\");",
+      "parentStyle": "position: relative; width: 50px; height: 50px; cursor: pointer; overflow: visible; box-sizing: border-box; background: rgb(219, 185, 143);",
+      "rect": {
+        "width": 51,
+        "height": 51
+      },
+      "computed": {
+        "filter": "url(\"#tint-254-224-142\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-26-78e70c12.svg"
+    },
+    {
+      "i": 41,
+      "alt": "",
+      "style": "position: absolute; left: -0.5px; top: -0.5px; width: 51px; height: 51px; pointer-events: none; user-select: none; z-index: 1; filter: url(\"#tint-254-224-142\");",
+      "parentStyle": "position: relative; width: 50px; height: 50px; cursor: pointer; overflow: visible; box-sizing: border-box; background: rgb(219, 185, 143);",
+      "rect": {
+        "width": 51,
+        "height": 51
+      },
+      "computed": {
+        "filter": "url(\"#tint-254-224-142\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-27-d115c13b.svg"
+    },
+    {
+      "i": 44,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-199-178-162\") drop-shadow(rgba(0, 0, 0, 0.35) 0px 2px 0px);",
+      "parentStyle": "position: absolute; left: calc(50% + 0px); top: calc(50% + 0px); transform: translate(-50%, -50%); width: 38px; height: 38px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 38,
+        "height": 38
+      },
+      "computed": {
+        "filter": "url(\"#tint-199-178-162\") drop-shadow(rgba(0, 0, 0, 0.35) 0px 2px 0px)",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-30-9f657bc4.svg"
+    },
+    {
+      "i": 45,
+      "alt": "",
+      "style": "position: absolute; top: 0px; left: 0px; width: 100%; height: 100%; user-select: none; filter: url(\"#tint-199-178-162\");",
+      "parentStyle": "position: absolute; left: calc(50% + 0px); top: calc(50% + 0px); transform: translate(-50%, -50%); width: 38px; height: 38px; pointer-events: none; z-index: 6;",
+      "rect": {
+        "width": 38,
+        "height": 38
+      },
+      "computed": {
+        "filter": "url(\"#tint-199-178-162\")",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-30-9f657bc4.svg"
+    },
+    {
+      "i": 48,
+      "alt": "X",
+      "style": "width: 24px; height: 24px; filter: var(--x-icon-filter);",
+      "parentStyle": "border: 2px solid var(--border); border-radius: 12px; padding: 12px 16px; font-size: 14px; font-weight: 900; background-color: var(--panel); background-image: none; color: var(--text); cursor: pointer; width: 100%; opacity: 1; display: flex; align-items: center; justify-content: center; pointer-events: auto;",
+      "owner": "",
+      "rect": {
+        "width": 24,
+        "height": 24
+      },
+      "computed": {
+        "filter": "drop-shadow(rgba(0, 0, 0, 0.3) 0px 1px 1px)",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/furniture-layer-31-cd2f1036.svg"
+    },
+    {
+      "i": 49,
+      "alt": "",
+      "style": "width: 24px; height: 24px; object-fit: contain;",
+      "parentStyle": "position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; line-height: 1.05;",
+      "owner": "hold to clear all squares",
+      "rect": {
+        "width": 24,
+        "height": 24
+      },
+      "computed": {
+        "filter": "none",
+        "opacity": "1",
+        "mixBlendMode": "normal"
+      },
+      "asset": "sprites/icon-32-5ebadbda.svg"
+    }
+  ]
+}

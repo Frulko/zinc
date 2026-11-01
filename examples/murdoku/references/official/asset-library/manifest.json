@@ -1,0 +1,4412 @@
+{
+  "retrieved": "2026-11-01",
+  "sources": [
+    "https://murdoku.com/play/assets/app-core--JsLR4BI.js",
+    "https://murdoku.com/play/assets/GameScreen-Bm8Aqj6V.js"
+  ],
+  "assets": [
+    {
+      "path": "objects/obj_barrel.svg",
+      "original": "./objects/obj_barrel.svg",
+      "source": "https://murdoku.com/play/assets/obj_barrel-BrivFWNA.svg",
+      "bytes": 5357,
+      "sha256": "9c41b8ec7eb81a47fb4a224ee2f3d328dfd2b60820964f6acedc605d6f41be52"
+    },
+    {
+      "path": "objects/obj_barrel_02.svg",
+      "original": "./objects/obj_barrel_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_barrel-BrivFWNA.svg",
+      "bytes": 5357,
+      "sha256": "9c41b8ec7eb81a47fb4a224ee2f3d328dfd2b60820964f6acedc605d6f41be52"
+    },
+    {
+      "path": "objects/obj_basket.svg",
+      "original": "./objects/obj_basket.svg",
+      "source": "https://murdoku.com/play/assets/obj_basket-bvbctuSK.svg",
+      "bytes": 5808,
+      "sha256": "29d358680f05719278cad369e5bd8bc071861859ce9e9010e29209105cccaded"
+    },
+    {
+      "path": "objects/obj_basket_02.svg",
+      "original": "./objects/obj_basket_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_basket-bvbctuSK.svg",
+      "bytes": 5808,
+      "sha256": "29d358680f05719278cad369e5bd8bc071861859ce9e9010e29209105cccaded"
+    },
+    {
+      "path": "objects/obj_bear.svg",
+      "original": "./objects/obj_bear.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2549,
+      "sha256": "71fcb7d7f1829fae11f7d98a4eac1e0a72608c2c411d5a38e2768fe5e61f2bdf"
+    },
+    {
+      "path": "objects/obj_bear_02.svg",
+      "original": "./objects/obj_bear_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2549,
+      "sha256": "71fcb7d7f1829fae11f7d98a4eac1e0a72608c2c411d5a38e2768fe5e61f2bdf"
+    },
+    {
+      "path": "objects/obj_bed.svg",
+      "original": "./objects/obj_bed.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3702,
+      "sha256": "9632cc2e493fec5f796e8a51275e44d0437c199b085549810f5789959aef62a9"
+    },
+    {
+      "path": "objects/obj_bed_02.svg",
+      "original": "./objects/obj_bed_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2089,
+      "sha256": "146e78846de2d3d14b8c964ab3997fe636a1ce35ba69cffa98b75976e4d7e868"
+    },
+    {
+      "path": "objects/obj_bed_top.svg",
+      "original": "./objects/obj_bed_top.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3155,
+      "sha256": "d074ef47eb9066c54dbd32b058f5368066c51defb83e4b12cc68707b185aa99a"
+    },
+    {
+      "path": "objects/obj_bed_top_02.svg",
+      "original": "./objects/obj_bed_top_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2179,
+      "sha256": "c9ce77c881b97ab05d50c144937ef397f22c6e014631cfe8d93f671df2e22df2"
+    },
+    {
+      "path": "objects/obj_bicycle.svg",
+      "original": "./objects/obj_bicycle.svg",
+      "source": "https://murdoku.com/play/assets/obj_bicycle-ArH4ipci.svg",
+      "bytes": 4559,
+      "sha256": "a65333bcf1f37111731fb8bd1c0e3308766eaf4c6d90d979f437ffe5e1533264"
+    },
+    {
+      "path": "objects/obj_bicycle_02.svg",
+      "original": "./objects/obj_bicycle_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 869,
+      "sha256": "246c9ad7e3ae7e2314f8a92b8bd13e3aa7049f574f81b8344c206b9cf7d7f14b"
+    },
+    {
+      "path": "objects/obj_blackcat.svg",
+      "original": "./objects/obj_blackcat.svg",
+      "source": "https://murdoku.com/play/assets/obj_blackcat-BV6ekho5.svg",
+      "bytes": 6793,
+      "sha256": "63910b63f996f6584a08db56c0e2dc4bd60d6335cf8687bca58309f093c9cfa1"
+    },
+    {
+      "path": "objects/obj_blackcat_02.svg",
+      "original": "./objects/obj_blackcat_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_blackcat-BV6ekho5.svg",
+      "bytes": 6793,
+      "sha256": "63910b63f996f6584a08db56c0e2dc4bd60d6335cf8687bca58309f093c9cfa1"
+    },
+    {
+      "path": "objects/obj_boar.svg",
+      "original": "./objects/obj_boar.svg",
+      "source": "https://murdoku.com/play/assets/obj_boar-CD77EEZv.svg",
+      "bytes": 5402,
+      "sha256": "4ff5c4bdbd41ec869f136a99e03ac88c7a4d4c2a57ca492f68a51073283bebc1"
+    },
+    {
+      "path": "objects/obj_boar_02.svg",
+      "original": "./objects/obj_boar_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_boar-CD77EEZv.svg",
+      "bytes": 5402,
+      "sha256": "4ff5c4bdbd41ec869f136a99e03ac88c7a4d4c2a57ca492f68a51073283bebc1"
+    },
+    {
+      "path": "objects/obj_boat.svg",
+      "original": "./objects/obj_boat.svg",
+      "source": "https://murdoku.com/play/assets/obj_boat-Cr-wrbuM.svg",
+      "bytes": 5398,
+      "sha256": "f203308c086eedf0922be72f210fc74a170b00ba6ce6e3fde0c1924a4735b1bd"
+    },
+    {
+      "path": "objects/obj_boat_02.svg",
+      "original": "./objects/obj_boat_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_boat-Cr-wrbuM.svg",
+      "bytes": 5398,
+      "sha256": "f203308c086eedf0922be72f210fc74a170b00ba6ce6e3fde0c1924a4735b1bd"
+    },
+    {
+      "path": "objects/obj_bonsai.svg",
+      "original": "./objects/obj_bonsai.svg",
+      "source": "https://murdoku.com/play/assets/obj_bonsai-C8BMonb_.svg",
+      "bytes": 4397,
+      "sha256": "40eefb59cf34e98bcfa7e5edf10940dc4622858758181738a26b75252b155484"
+    },
+    {
+      "path": "objects/obj_bonsai_02.svg",
+      "original": "./objects/obj_bonsai_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_bonsai-C8BMonb_.svg",
+      "bytes": 4397,
+      "sha256": "40eefb59cf34e98bcfa7e5edf10940dc4622858758181738a26b75252b155484"
+    },
+    {
+      "path": "objects/obj_boulder.svg",
+      "original": "./objects/obj_boulder.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1598,
+      "sha256": "8b600ba05372d749a562efa2aea268780766ce94ee08bdd1172771d3964f1f3b"
+    },
+    {
+      "path": "objects/obj_boulder_02.svg",
+      "original": "./objects/obj_boulder_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1813,
+      "sha256": "43616dea05a514f2f5ec86aa32274d50b9ac5bfeef46aecabbfd276a44dcdd7c"
+    },
+    {
+      "path": "objects/obj_box.svg",
+      "original": "./objects/obj_box.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1511,
+      "sha256": "9f657bc4098d2ae68e1c27948a5b7785175c9bbd4f2a042a40fd8424e7fdcd0a"
+    },
+    {
+      "path": "objects/obj_box_02.svg",
+      "original": "./objects/obj_box_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1511,
+      "sha256": "9f657bc4098d2ae68e1c27948a5b7785175c9bbd4f2a042a40fd8424e7fdcd0a"
+    },
+    {
+      "path": "objects/obj_bus.svg",
+      "original": "./objects/obj_bus.svg",
+      "source": "https://murdoku.com/play/assets/obj_bus-srO9TvG9.svg",
+      "bytes": 6471,
+      "sha256": "af608a1c3106260a6f3b42dc42122c91a95fcceffffc2441284be3b5fe229311"
+    },
+    {
+      "path": "objects/obj_bus_2.svg",
+      "original": "./objects/obj_bus_2.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1431,
+      "sha256": "06e71b31c65c6344ce4678ed4e243c663aef7ac6b2c947ec8885728581155d7d"
+    },
+    {
+      "path": "objects/obj_cactus.svg",
+      "original": "./objects/obj_cactus.svg",
+      "source": "https://murdoku.com/play/assets/obj_cactus-_wOuvqFt.svg",
+      "bytes": 4650,
+      "sha256": "df7d705d4bbca5881a06cb1072f0e3f7179a60159e75007da38182cbf8d7e097"
+    },
+    {
+      "path": "objects/obj_cactus_02.svg",
+      "original": "./objects/obj_cactus_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_cactus-_wOuvqFt.svg",
+      "bytes": 4650,
+      "sha256": "df7d705d4bbca5881a06cb1072f0e3f7179a60159e75007da38182cbf8d7e097"
+    },
+    {
+      "path": "objects/obj_camer _02.svg",
+      "original": "./objects/obj_camer _02.svg",
+      "source": "https://murdoku.com/play/assets/obj_camera-qOKUfWYf.svg",
+      "bytes": 4666,
+      "sha256": "18802848b045a78955827b287f2fdc6f53f6b804367a9b8b180aee66aa0cec88"
+    },
+    {
+      "path": "objects/obj_camera.svg",
+      "original": "./objects/obj_camera.svg",
+      "source": "https://murdoku.com/play/assets/obj_camera-qOKUfWYf.svg",
+      "bytes": 4666,
+      "sha256": "18802848b045a78955827b287f2fdc6f53f6b804367a9b8b180aee66aa0cec88"
+    },
+    {
+      "path": "objects/obj_car.svg",
+      "original": "./objects/obj_car.svg",
+      "source": "https://murdoku.com/play/assets/obj_car-Cd-1NVtt.svg",
+      "bytes": 5469,
+      "sha256": "6e0c9c61e1598e72890c14aa67b69062d5486d02831b46924bc4b22f35b7cb31"
+    },
+    {
+      "path": "objects/obj_car_02.svg",
+      "original": "./objects/obj_car_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3714,
+      "sha256": "d9313c3be55534a15f21e2aeada229e909cd9fdd5e26e815a408a8edb3c8a652"
+    },
+    {
+      "path": "objects/obj_car_reverse.svg",
+      "original": "./objects/obj_car_reverse.svg",
+      "source": "https://murdoku.com/play/assets/obj_car_reverse-D9KBA0Km.svg",
+      "bytes": 4330,
+      "sha256": "1ea65609692d9f95c0b7f4453fa94a4e391a2c519bd7e68d9e2675f76009aa96"
+    },
+    {
+      "path": "objects/obj_car_reverse_02.svg",
+      "original": "./objects/obj_car_reverse_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_car_reverse-D9KBA0Km.svg",
+      "bytes": 4330,
+      "sha256": "1ea65609692d9f95c0b7f4453fa94a4e391a2c519bd7e68d9e2675f76009aa96"
+    },
+    {
+      "path": "objects/obj_carpet.svg",
+      "original": "./objects/obj_carpet.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 671,
+      "sha256": "917b159dddf5c81234287f18c3fe97cd44f29231771b103a8016119c3e287c97"
+    },
+    {
+      "path": "objects/obj_carpet_02.svg",
+      "original": "./objects/obj_carpet_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 671,
+      "sha256": "917b159dddf5c81234287f18c3fe97cd44f29231771b103a8016119c3e287c97"
+    },
+    {
+      "path": "objects/obj_carriage.svg",
+      "original": "./objects/obj_carriage.svg",
+      "source": "https://murdoku.com/play/assets/obj_carriage-BKJq6l1f.svg",
+      "bytes": 7844,
+      "sha256": "b959747f3229d8a652be016dc1e16733baf8d49d4640c284c37f5732a7e58909"
+    },
+    {
+      "path": "objects/obj_carriage_02.svg",
+      "original": "./objects/obj_carriage_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_carriage-BKJq6l1f.svg",
+      "bytes": 7844,
+      "sha256": "b959747f3229d8a652be016dc1e16733baf8d49d4640c284c37f5732a7e58909"
+    },
+    {
+      "path": "objects/obj_casket.svg",
+      "original": "./objects/obj_casket.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2550,
+      "sha256": "2644b696d0b8aebe332b0df80884eca0a6dbe95ad825a9a525479422d3bd8f8f"
+    },
+    {
+      "path": "objects/obj_casket_02.svg",
+      "original": "./objects/obj_casket_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2378,
+      "sha256": "452ebf0197741eaf259ec8fd67a84cb2f08e178316b56449d430db212cc0e9f9"
+    },
+    {
+      "path": "objects/obj_cat.svg",
+      "original": "./objects/obj_cat.svg",
+      "source": "https://murdoku.com/play/assets/obj_cat-wT7G1vi-.svg",
+      "bytes": 5055,
+      "sha256": "a4a3e3e797c52adcaf398f08722128e610544c3696db222b33f2b15d60a6aa63"
+    },
+    {
+      "path": "objects/obj_cat_02.svg",
+      "original": "./objects/obj_cat_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 808,
+      "sha256": "35af75760dd05854a61ca187d9529dd099dc1019ab9b954d66058f96dfc36dd0"
+    },
+    {
+      "path": "objects/obj_catapult.svg",
+      "original": "./objects/obj_catapult.svg",
+      "source": "https://murdoku.com/play/assets/obj_catapult-ehLMXWCS.svg",
+      "bytes": 5413,
+      "sha256": "9d81c6135f89ecf3099c005e2310ce794a5de9a217d43a5c98f7a0661cde5f9d"
+    },
+    {
+      "path": "objects/obj_catapult_02.svg",
+      "original": "./objects/obj_catapult_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_catapult-ehLMXWCS.svg",
+      "bytes": 5413,
+      "sha256": "9d81c6135f89ecf3099c005e2310ce794a5de9a217d43a5c98f7a0661cde5f9d"
+    },
+    {
+      "path": "objects/obj_chair.svg",
+      "original": "./objects/obj_chair.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2662,
+      "sha256": "2d6e5612ab6942e7e3de89b5672d2f011abdc03027b7698c05d282a2f818eee9"
+    },
+    {
+      "path": "objects/obj_chair_02.svg",
+      "original": "./objects/obj_chair_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2517,
+      "sha256": "7c058504b1ba32c2c2a237f8e5b6bc3ec45bda03313e893f7c6eabee80b400a7"
+    },
+    {
+      "path": "objects/obj_cone.svg",
+      "original": "./objects/obj_cone.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1969,
+      "sha256": "be33d2f525df10fe3638acf5a8e17465f7ea564be9b6dec8b97e9083bb33398e"
+    },
+    {
+      "path": "objects/obj_cone_02.svg",
+      "original": "./objects/obj_cone_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1969,
+      "sha256": "be33d2f525df10fe3638acf5a8e17465f7ea564be9b6dec8b97e9083bb33398e"
+    },
+    {
+      "path": "objects/obj_crate.svg",
+      "original": "./objects/obj_crate.svg",
+      "source": "https://murdoku.com/play/assets/obj_crate-C9EwUpcm.svg",
+      "bytes": 5494,
+      "sha256": "52819519508f3c8805de72475628516d27d8b033715b0966a671657b77aa851e"
+    },
+    {
+      "path": "objects/obj_crate_02.svg",
+      "original": "./objects/obj_crate_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_crate-C9EwUpcm.svg",
+      "bytes": 5494,
+      "sha256": "52819519508f3c8805de72475628516d27d8b033715b0966a671657b77aa851e"
+    },
+    {
+      "path": "objects/obj_crocodile.svg",
+      "original": "./objects/obj_crocodile.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2342,
+      "sha256": "096b193af981ce4baf95d953fb2007b9927f179044e63e8d697d4a65d11cedaf"
+    },
+    {
+      "path": "objects/obj_crocodile_02.svg",
+      "original": "./objects/obj_crocodile_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2342,
+      "sha256": "096b193af981ce4baf95d953fb2007b9927f179044e63e8d697d4a65d11cedaf"
+    },
+    {
+      "path": "objects/obj_deer.svg",
+      "original": "./objects/obj_deer.svg",
+      "source": "https://murdoku.com/play/assets/obj_deer-C_ApoViu.svg",
+      "bytes": 7602,
+      "sha256": "dac5fa0a245316e5cd927d782ebf409ae9177d4427f04182b3c61e13c6367d27"
+    },
+    {
+      "path": "objects/obj_deer_02.svg",
+      "original": "./objects/obj_deer_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_deer-C_ApoViu.svg",
+      "bytes": 7602,
+      "sha256": "dac5fa0a245316e5cd927d782ebf409ae9177d4427f04182b3c61e13c6367d27"
+    },
+    {
+      "path": "objects/obj_drumset.svg",
+      "original": "./objects/obj_drumset.svg",
+      "source": "https://murdoku.com/play/assets/obj_drumset-BUFQo-r9.svg",
+      "bytes": 5800,
+      "sha256": "cd35674d40dd00175ac4c04a6e39d8ae9b9b1cf26ed0c1d892609df8e17418ef"
+    },
+    {
+      "path": "objects/obj_dumbbell.svg",
+      "original": "./objects/obj_dumbbell.svg",
+      "source": "https://murdoku.com/play/assets/obj_dumbbell-CWosubdw.svg",
+      "bytes": 6351,
+      "sha256": "a546a127543ff0d97f54ec6d58c8dc888d19301dfc86dd4708c96004714a2e0d"
+    },
+    {
+      "path": "objects/obj_easel.svg",
+      "original": "./objects/obj_easel.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3335,
+      "sha256": "71c7b62730e2d33b998e4cad21a4ea46036942468440d25a209c6ae227d78205"
+    },
+    {
+      "path": "objects/obj_easel_02.svg",
+      "original": "./objects/obj_easel_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3271,
+      "sha256": "421482fe647f5427cd3311c976866bc192a632e3bc79c92987e562c834b4a465"
+    },
+    {
+      "path": "objects/obj_elephant.svg",
+      "original": "./objects/obj_elephant.svg",
+      "source": "https://murdoku.com/play/assets/obj_elephant-DFmKgtSe.svg",
+      "bytes": 16297,
+      "sha256": "dea0c8b37080586b58e1219d256253580912c4269615e996e0060dc425461285"
+    },
+    {
+      "path": "objects/obj_elephant_02.svg",
+      "original": "./objects/obj_elephant_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_elephant-DFmKgtSe.svg",
+      "bytes": 16297,
+      "sha256": "dea0c8b37080586b58e1219d256253580912c4269615e996e0060dc425461285"
+    },
+    {
+      "path": "objects/obj_eraser-02.svg",
+      "original": "./objects/obj_eraser-02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1655,
+      "sha256": "b27c913b510996cd9b881814737025639b32e91378a875990e8b3d8272734554"
+    },
+    {
+      "path": "objects/obj_eraser-02_02.svg",
+      "original": "./objects/obj_eraser-02_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1655,
+      "sha256": "b27c913b510996cd9b881814737025639b32e91378a875990e8b3d8272734554"
+    },
+    {
+      "path": "objects/obj_eraser.svg",
+      "original": "./objects/obj_eraser.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1334,
+      "sha256": "5ebadbda361b5beb0444fbe43a6c92bafc2f7fbe177009aa61dad1fdad1725a1"
+    },
+    {
+      "path": "objects/obj_eraser_02.svg",
+      "original": "./objects/obj_eraser_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1334,
+      "sha256": "5ebadbda361b5beb0444fbe43a6c92bafc2f7fbe177009aa61dad1fdad1725a1"
+    },
+    {
+      "path": "objects/obj_fire.svg",
+      "original": "./objects/obj_fire.svg",
+      "source": "https://murdoku.com/play/assets/obj_fire-DqGVPq4Q.svg",
+      "bytes": 10401,
+      "sha256": "339de9b5ed42ec9aceb44d31dfd904999948de5931bd21d674b377612b41ce6f"
+    },
+    {
+      "path": "objects/obj_fire_02.svg",
+      "original": "./objects/obj_fire_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_fire-DqGVPq4Q.svg",
+      "bytes": 10401,
+      "sha256": "339de9b5ed42ec9aceb44d31dfd904999948de5931bd21d674b377612b41ce6f"
+    },
+    {
+      "path": "objects/obj_flowers.svg",
+      "original": "./objects/obj_flowers.svg",
+      "source": "https://murdoku.com/play/assets/obj_flowers-BAjKaP_H.svg",
+      "bytes": 12870,
+      "sha256": "d2116db99073fee0ad43a88b38104fe70541b33b2fcee467ab622e160d79efce"
+    },
+    {
+      "path": "objects/obj_flowers_02.svg",
+      "original": "./objects/obj_flowers_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_flowers_02-BVVkAQ2W.svg",
+      "bytes": 11610,
+      "sha256": "14af8a602c8450c2625a4532333407919af440246a1847a29bc64bc0c0f4d96a"
+    },
+    {
+      "path": "objects/obj_frigate.svg",
+      "original": "./objects/obj_frigate.svg",
+      "source": "https://murdoku.com/play/assets/obj_frigate-0dJC5sgl.svg",
+      "bytes": 13703,
+      "sha256": "c42f63b03a984f5300a6ba306e8ee0269809e28e0813dac46b85630c060e16a2"
+    },
+    {
+      "path": "objects/obj_frigate_02.svg",
+      "original": "./objects/obj_frigate_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_frigate-0dJC5sgl.svg",
+      "bytes": 13703,
+      "sha256": "c42f63b03a984f5300a6ba306e8ee0269809e28e0813dac46b85630c060e16a2"
+    },
+    {
+      "path": "objects/obj_galleon.svg",
+      "original": "./objects/obj_galleon.svg",
+      "source": "https://murdoku.com/play/assets/obj_galleon-D6yBjp64.svg",
+      "bytes": 21223,
+      "sha256": "27e2ef2219073abf57a826e484a03790b2a63636e915a82684bc39badf987b6c"
+    },
+    {
+      "path": "objects/obj_galleon_02.svg",
+      "original": "./objects/obj_galleon_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_galleon-D6yBjp64.svg",
+      "bytes": 21223,
+      "sha256": "27e2ef2219073abf57a826e484a03790b2a63636e915a82684bc39badf987b6c"
+    },
+    {
+      "path": "objects/obj_golf_cart.svg",
+      "original": "./objects/obj_golf_cart.svg",
+      "source": "https://murdoku.com/play/assets/obj_golf_cart-Dja72IuJ.svg",
+      "bytes": 6338,
+      "sha256": "d3e6f4c5f36b996dcc4ee452babdbeee11ec3f5ba9f6adc302a8ee3dd7d2eb0c"
+    },
+    {
+      "path": "objects/obj_golf_cart_02.svg",
+      "original": "./objects/obj_golf_cart_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_golf_cart-Dja72IuJ.svg",
+      "bytes": 6338,
+      "sha256": "d3e6f4c5f36b996dcc4ee452babdbeee11ec3f5ba9f6adc302a8ee3dd7d2eb0c"
+    },
+    {
+      "path": "objects/obj_grandfatherclock.svg",
+      "original": "./objects/obj_grandfatherclock.svg",
+      "source": "https://murdoku.com/play/assets/obj_grandfatherclock-C7wfCNkB.svg",
+      "bytes": 5949,
+      "sha256": "834ee24ff53915727037d7c4715d00a6634411add153c31d6ea5d0aae06596a5"
+    },
+    {
+      "path": "objects/obj_grandfatherclock_02.svg",
+      "original": "./objects/obj_grandfatherclock_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_grandfatherclock-C7wfCNkB.svg",
+      "bytes": 5949,
+      "sha256": "834ee24ff53915727037d7c4715d00a6634411add153c31d6ea5d0aae06596a5"
+    },
+    {
+      "path": "objects/obj_hammock.svg",
+      "original": "./objects/obj_hammock.svg",
+      "source": "https://murdoku.com/play/assets/obj_hammock-DWSyeo00.svg",
+      "bytes": 5540,
+      "sha256": "f4f6068735bd3101f65acb81af3ef424b41778775e81eb555a9da2ef25fe6e7e"
+    },
+    {
+      "path": "objects/obj_hammock_02.svg",
+      "original": "./objects/obj_hammock_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_hammock-DWSyeo00.svg",
+      "bytes": 5540,
+      "sha256": "f4f6068735bd3101f65acb81af3ef424b41778775e81eb555a9da2ef25fe6e7e"
+    },
+    {
+      "path": "objects/obj_hole.svg",
+      "original": "./objects/obj_hole.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1699,
+      "sha256": "2ff1180b19133aaedf7c1a64336de465c40ca97ae254cedf9e6e7bc0ac97591f"
+    },
+    {
+      "path": "objects/obj_hole_02.svg",
+      "original": "./objects/obj_hole_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1699,
+      "sha256": "2ff1180b19133aaedf7c1a64336de465c40ca97ae254cedf9e6e7bc0ac97591f"
+    },
+    {
+      "path": "objects/obj_horse.svg",
+      "original": "./objects/obj_horse.svg",
+      "source": "https://murdoku.com/play/assets/obj_horse-fbayuQse.svg",
+      "bytes": 4688,
+      "sha256": "518eef8492bc9c020c25d27305126ad2ef69ade5ee1d0c042cb920d7e05b23ce"
+    },
+    {
+      "path": "objects/obj_horse_02.svg",
+      "original": "./objects/obj_horse_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_horse-fbayuQse.svg",
+      "bytes": 4688,
+      "sha256": "518eef8492bc9c020c25d27305126ad2ef69ade5ee1d0c042cb920d7e05b23ce"
+    },
+    {
+      "path": "objects/obj_horse_reverse.svg",
+      "original": "./objects/obj_horse_reverse.svg",
+      "source": "https://murdoku.com/play/assets/obj_horse_reverse-DUhzo4tG.svg",
+      "bytes": 4681,
+      "sha256": "33498d940fd34e234033479c5700bb7da88550c61e39d8b26449ad78adb710e5"
+    },
+    {
+      "path": "objects/obj_horse_reverse_02.svg",
+      "original": "./objects/obj_horse_reverse_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_horse_reverse-DUhzo4tG.svg",
+      "bytes": 4681,
+      "sha256": "33498d940fd34e234033479c5700bb7da88550c61e39d8b26449ad78adb710e5"
+    },
+    {
+      "path": "objects/obj_house.svg",
+      "original": "./objects/obj_house.svg",
+      "source": "https://murdoku.com/play/assets/obj_house-DNGDwJ0-.svg",
+      "bytes": 7118,
+      "sha256": "773650d284851aa006c4dd4ca53b61fc8abf98c7cec013210d58b77c5d592de8"
+    },
+    {
+      "path": "objects/obj_house_02.svg",
+      "original": "./objects/obj_house_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_house-DNGDwJ0-.svg",
+      "bytes": 7118,
+      "sha256": "773650d284851aa006c4dd4ca53b61fc8abf98c7cec013210d58b77c5d592de8"
+    },
+    {
+      "path": "objects/obj_lamppost.svg",
+      "original": "./objects/obj_lamppost.svg",
+      "source": "https://murdoku.com/play/assets/obj_lamppost-Bjalz-5w.svg",
+      "bytes": 5639,
+      "sha256": "92f21d56cfdc5c5dc1b508361c779a49bd758aaa03d54a74e1f107b6adba5c22"
+    },
+    {
+      "path": "objects/obj_lamppost_02.svg",
+      "original": "./objects/obj_lamppost_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_lamppost-Bjalz-5w.svg",
+      "bytes": 5639,
+      "sha256": "92f21d56cfdc5c5dc1b508361c779a49bd758aaa03d54a74e1f107b6adba5c22"
+    },
+    {
+      "path": "objects/obj_lily_pad.svg",
+      "original": "./objects/obj_lily_pad.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1904,
+      "sha256": "4cd269b81c4e2ae6b9f927c8379f4f81178a4b585325d71d2d956f169ff56b99"
+    },
+    {
+      "path": "objects/obj_lily_pad_02.svg",
+      "original": "./objects/obj_lily_pad_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1904,
+      "sha256": "4cd269b81c4e2ae6b9f927c8379f4f81178a4b585325d71d2d956f169ff56b99"
+    },
+    {
+      "path": "objects/obj_lion.svg",
+      "original": "./objects/obj_lion.svg",
+      "source": "https://murdoku.com/play/assets/obj_lion-Bq_TmEPN.svg",
+      "bytes": 5157,
+      "sha256": "ac68dbf8d0d6ba42dfc014708b378c77faeb8453a172d7a019dd415aa4d4d802"
+    },
+    {
+      "path": "objects/obj_lion_02.svg",
+      "original": "./objects/obj_lion_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_lion-Bq_TmEPN.svg",
+      "bytes": 5157,
+      "sha256": "ac68dbf8d0d6ba42dfc014708b378c77faeb8453a172d7a019dd415aa4d4d802"
+    },
+    {
+      "path": "objects/obj_locker.svg",
+      "original": "./objects/obj_locker.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2539,
+      "sha256": "ba1b30ffac46cbaabaaf6abb68f63afeb1a628eb24dbb94b4ba7a6cfae4541bd"
+    },
+    {
+      "path": "objects/obj_locker_02.svg",
+      "original": "./objects/obj_locker_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2539,
+      "sha256": "ba1b30ffac46cbaabaaf6abb68f63afeb1a628eb24dbb94b4ba7a6cfae4541bd"
+    },
+    {
+      "path": "objects/obj_old_register.svg",
+      "original": "./objects/obj_old_register.svg",
+      "source": "https://murdoku.com/play/assets/obj_old_register-DedKXdpV.svg",
+      "bytes": 4807,
+      "sha256": "3a39d04ce30e0cf5c32730cb62634078b05c76cfd64c3d66cd481c746297487f"
+    },
+    {
+      "path": "objects/obj_old_register_02.svg",
+      "original": "./objects/obj_old_register_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_old_register-DedKXdpV.svg",
+      "bytes": 4807,
+      "sha256": "3a39d04ce30e0cf5c32730cb62634078b05c76cfd64c3d66cd481c746297487f"
+    },
+    {
+      "path": "objects/obj_ox.svg",
+      "original": "./objects/obj_ox.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3600,
+      "sha256": "50d26ab0b39545e962001c6ba31f5aa15e303c354431de87eb8f52c4f70d2c76"
+    },
+    {
+      "path": "objects/obj_ox_02.svg",
+      "original": "./objects/obj_ox_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3600,
+      "sha256": "50d26ab0b39545e962001c6ba31f5aa15e303c354431de87eb8f52c4f70d2c76"
+    },
+    {
+      "path": "objects/obj_painting.svg",
+      "original": "./objects/obj_painting.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1153,
+      "sha256": "1322e6c036d412fd6ce41093253595199cd53457491f0c0bdce9dacb9fbe7998"
+    },
+    {
+      "path": "objects/obj_painting_02.svg",
+      "original": "./objects/obj_painting_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1167,
+      "sha256": "954478a181cc27812bf8b4df1b6c46a82d962e8f736c6bc882421afd333b830b"
+    },
+    {
+      "path": "objects/obj_palmtree.svg",
+      "original": "./objects/obj_palmtree.svg",
+      "source": "https://murdoku.com/play/assets/obj_palmtree-DrP-_3J7.svg",
+      "bytes": 13101,
+      "sha256": "58df756c40e991f1cbd7cf0f6cbe51e7c33733dde1a050e3b28a9ba13db6f4cc"
+    },
+    {
+      "path": "objects/obj_palmtree_02.svg",
+      "original": "./objects/obj_palmtree_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_palmtree_02-C0jmsuJX.svg",
+      "bytes": 10844,
+      "sha256": "1aec5e7fa33d8cf998d4ea1b534ac4891e81e1fee8a890651f86fd68a89df6d6"
+    },
+    {
+      "path": "objects/obj_penguin.svg",
+      "original": "./objects/obj_penguin.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1436,
+      "sha256": "7c1844da605322a0437dd1fdcc8e17aaff64db978cf212da701923778f510dcf"
+    },
+    {
+      "path": "objects/obj_penguin_02.svg",
+      "original": "./objects/obj_penguin_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1436,
+      "sha256": "7c1844da605322a0437dd1fdcc8e17aaff64db978cf212da701923778f510dcf"
+    },
+    {
+      "path": "objects/obj_piano.svg",
+      "original": "./objects/obj_piano.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3078,
+      "sha256": "cbf252f83e195b2474552cd3608408bd01bcd7b0124487fbdf3ba5ad34b81362"
+    },
+    {
+      "path": "objects/obj_piano_02.svg",
+      "original": "./objects/obj_piano_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3078,
+      "sha256": "cbf252f83e195b2474552cd3608408bd01bcd7b0124487fbdf3ba5ad34b81362"
+    },
+    {
+      "path": "objects/obj_pig.svg",
+      "original": "./objects/obj_pig.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2921,
+      "sha256": "c20dc7723a5a285cf649138f3e7eece6bd2522a8ce64870b02eaeabc9f45d355"
+    },
+    {
+      "path": "objects/obj_pig_02.svg",
+      "original": "./objects/obj_pig_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2921,
+      "sha256": "c20dc7723a5a285cf649138f3e7eece6bd2522a8ce64870b02eaeabc9f45d355"
+    },
+    {
+      "path": "objects/obj_plant.svg",
+      "original": "./objects/obj_plant.svg",
+      "source": "https://murdoku.com/play/assets/obj_plant-lqsU7Mb1.svg",
+      "bytes": 12366,
+      "sha256": "f028094d01cd9af467a85804f7d258e220bee8d76691b9969f9635efe46af966"
+    },
+    {
+      "path": "objects/obj_plant_02.svg",
+      "original": "./objects/obj_plant_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_plant_02-B8FocpTF.svg",
+      "bytes": 10961,
+      "sha256": "906cc9d4b381bd48fc309e0fbba6daeade978d90bbd5bb1797a6f6d3d15a68ba"
+    },
+    {
+      "path": "objects/obj_portable_toilet.svg",
+      "original": "./objects/obj_portable_toilet.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2363,
+      "sha256": "2b534eaf0871b2629c5a464c5556b8c795e93547882daa2ead9fbff2d2d2a2f8"
+    },
+    {
+      "path": "objects/obj_present_02.svg",
+      "original": "./objects/obj_present_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_present_02-7tNpaSos.svg",
+      "bytes": 5773,
+      "sha256": "8b1b90c0c20e15aaac2b86586eb826f27d8f73ff88b6b00d313abf9c80f1098c"
+    },
+    {
+      "path": "objects/obj_present_02_02.svg",
+      "original": "./objects/obj_present_02_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_present_02-7tNpaSos.svg",
+      "bytes": 5773,
+      "sha256": "8b1b90c0c20e15aaac2b86586eb826f27d8f73ff88b6b00d313abf9c80f1098c"
+    },
+    {
+      "path": "objects/obj_puddle.svg",
+      "original": "./objects/obj_puddle.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 916,
+      "sha256": "9e8e0f05152beddeaf152b9d7ecb4795215d01476119f6df3e81a56cf0f9a937"
+    },
+    {
+      "path": "objects/obj_puddle_02.svg",
+      "original": "./objects/obj_puddle_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 934,
+      "sha256": "8e9066b29e0a4424c7da10e6cc574e63cc8d817608870d4bdd8284d3f089d738"
+    },
+    {
+      "path": "objects/obj_pumpkin.svg",
+      "original": "./objects/obj_pumpkin.svg",
+      "source": "https://murdoku.com/play/assets/obj_pumpkin-CIl3BQ8v.svg",
+      "bytes": 4685,
+      "sha256": "accfe3af9d508bc60ed123d846d91db312d0024de3c9bfc9802965035b8a559d"
+    },
+    {
+      "path": "objects/obj_pumpkin_02.svg",
+      "original": "./objects/obj_pumpkin_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_pumpkin-CIl3BQ8v.svg",
+      "bytes": 4685,
+      "sha256": "accfe3af9d508bc60ed123d846d91db312d0024de3c9bfc9802965035b8a559d"
+    },
+    {
+      "path": "objects/obj_punching_bag.svg",
+      "original": "./objects/obj_punching_bag.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1811,
+      "sha256": "7eb6fbd3aac1f250c6628889a7c7c546dd8ac097e37376052b21ff199ea19de9"
+    },
+    {
+      "path": "objects/obj_punching_bag_02.svg",
+      "original": "./objects/obj_punching_bag_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 467,
+      "sha256": "c18930f096aa9221248708ce8e36cdb576a48d76bec739eed8c168b84b40ae75"
+    },
+    {
+      "path": "objects/obj_pyrofire.svg",
+      "original": "./objects/obj_pyrofire.svg",
+      "source": "https://murdoku.com/play/assets/obj_pyrofire-Cj6b6F1I.svg",
+      "bytes": 4729,
+      "sha256": "3320c928c2e8cef60c969b09170dd91a293d640e2588dd1dc6cd5e9fe0d37231"
+    },
+    {
+      "path": "objects/obj_raft.svg",
+      "original": "./objects/obj_raft.svg",
+      "source": "https://murdoku.com/play/assets/obj_raft-BTZ7Bsn6.svg",
+      "bytes": 4858,
+      "sha256": "e7f37a811eafbf2399f6a72084c0e90b4bb06328f05ec284b1a9d26b93afc107"
+    },
+    {
+      "path": "objects/obj_raft_02.svg",
+      "original": "./objects/obj_raft_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 804,
+      "sha256": "12e136dfe17b163f51fd364541ba7811b0ba1979e01e0c10898e9b07a2c32a91"
+    },
+    {
+      "path": "objects/obj_register.svg",
+      "original": "./objects/obj_register.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2769,
+      "sha256": "c91a122fa10c9aa87b9568d5719643ab438fa19d2c9baf0ae15ecaf286948bbd"
+    },
+    {
+      "path": "objects/obj_register_02.svg",
+      "original": "./objects/obj_register_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2769,
+      "sha256": "c91a122fa10c9aa87b9568d5719643ab438fa19d2c9baf0ae15ecaf286948bbd"
+    },
+    {
+      "path": "objects/obj_rock.svg",
+      "original": "./objects/obj_rock.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2015,
+      "sha256": "1ed90eabb28aa489f8f59faa5718bda40ca34e0f526a090f067fa010e534c1b7"
+    },
+    {
+      "path": "objects/obj_rock_02.svg",
+      "original": "./objects/obj_rock_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2012,
+      "sha256": "ddf702a042133eacbb2089df31619d894163a40293c7d88a6e75ba6c2f49454a"
+    },
+    {
+      "path": "objects/obj_rope.svg",
+      "original": "./objects/obj_rope.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3833,
+      "sha256": "465c35e9a1ecaebe76b9354bbc55f11c4cf8b282f19922ae29704f50d289d7ae"
+    },
+    {
+      "path": "objects/obj_rope_02.svg",
+      "original": "./objects/obj_rope_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3833,
+      "sha256": "465c35e9a1ecaebe76b9354bbc55f11c4cf8b282f19922ae29704f50d289d7ae"
+    },
+    {
+      "path": "objects/obj_rowboat.svg",
+      "original": "./objects/obj_rowboat.svg",
+      "source": "https://murdoku.com/play/assets/obj_rowboat-CEmXtggY.svg",
+      "bytes": 4400,
+      "sha256": "b3b3d89674eb3f84de6da5b8e39e304eaf5137fcef7e9c4d1f99a2066fac252c"
+    },
+    {
+      "path": "objects/obj_rubble.svg",
+      "original": "./objects/obj_rubble.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3316,
+      "sha256": "2b0c3bf4a991b68811d5cf36f4c510dfc87832a5ba5d86eba49159afce70a638"
+    },
+    {
+      "path": "objects/obj_rubble_02.svg",
+      "original": "./objects/obj_rubble_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3316,
+      "sha256": "2b0c3bf4a991b68811d5cf36f4c510dfc87832a5ba5d86eba49159afce70a638"
+    },
+    {
+      "path": "objects/obj_sack.svg",
+      "original": "./objects/obj_sack.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3900,
+      "sha256": "b3807c81d5d338c117fa14baf5cebb333c3bb4981b5dac1736e60fff23882cf7"
+    },
+    {
+      "path": "objects/obj_sack_02.svg",
+      "original": "./objects/obj_sack_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3900,
+      "sha256": "b3807c81d5d338c117fa14baf5cebb333c3bb4981b5dac1736e60fff23882cf7"
+    },
+    {
+      "path": "objects/obj_safe.svg",
+      "original": "./objects/obj_safe.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3222,
+      "sha256": "14ce3c9dd61ac2b156bab80ae433747077ea0ec10858c6ed1597044113bfa4da"
+    },
+    {
+      "path": "objects/obj_safe_02.svg",
+      "original": "./objects/obj_safe_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3283,
+      "sha256": "ea95424e002b3736265386bf1e1d1ecce1411f3f471a3de166ffd1d045701a1c"
+    },
+    {
+      "path": "objects/obj_shark.svg",
+      "original": "./objects/obj_shark.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1345,
+      "sha256": "7bebff72525597f23c97912d2b274b42c795cfd8a5184d5c04f6a90a4d1b6e55"
+    },
+    {
+      "path": "objects/obj_shark_02.svg",
+      "original": "./objects/obj_shark_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1345,
+      "sha256": "7bebff72525597f23c97912d2b274b42c795cfd8a5184d5c04f6a90a4d1b6e55"
+    },
+    {
+      "path": "objects/obj_shelf.svg",
+      "original": "./objects/obj_shelf.svg",
+      "source": "https://murdoku.com/play/assets/obj_shelf-DW4s9BDU.svg",
+      "bytes": 5293,
+      "sha256": "657ca7c8257118df7f170ab32ab54b620d04194d0bc4cd49c09a4311552d4af5"
+    },
+    {
+      "path": "objects/obj_shelf_02.svg",
+      "original": "./objects/obj_shelf_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1804,
+      "sha256": "0f3758533a608fab37bbd55d734dc599853a6640492515b0022744de615dd8b0"
+    },
+    {
+      "path": "objects/obj_shell.svg",
+      "original": "./objects/obj_shell.svg",
+      "source": "https://murdoku.com/play/assets/obj_shell-CeZP6-gx.svg",
+      "bytes": 6688,
+      "sha256": "2c505290cc806d2416e8f2953b1f102c13d40807bb08421af39b775db6bd648d"
+    },
+    {
+      "path": "objects/obj_shell_02.svg",
+      "original": "./objects/obj_shell_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_shell-CeZP6-gx.svg",
+      "bytes": 6688,
+      "sha256": "2c505290cc806d2416e8f2953b1f102c13d40807bb08421af39b775db6bd648d"
+    },
+    {
+      "path": "objects/obj_shrub.svg",
+      "original": "./objects/obj_shrub.svg",
+      "source": "https://murdoku.com/play/assets/obj_shrub-DZfZCPwd.svg",
+      "bytes": 4163,
+      "sha256": "5de37ce29dd5a09a197688a30b33f6fdbbb74ebdc3c9eebf1924a67ecb13bd5b"
+    },
+    {
+      "path": "objects/obj_shrub_02.svg",
+      "original": "./objects/obj_shrub_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_shrub_02-DmhRFGzb.svg",
+      "bytes": 8250,
+      "sha256": "3fb5ad14874e4e22312911f28c42045b8031bba550e94144467e6358c6c84286"
+    },
+    {
+      "path": "objects/obj_sign.svg",
+      "original": "./objects/obj_sign.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3335,
+      "sha256": "71c7b62730e2d33b998e4cad21a4ea46036942468440d25a209c6ae227d78205"
+    },
+    {
+      "path": "objects/obj_sign_02.svg",
+      "original": "./objects/obj_sign_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3271,
+      "sha256": "421482fe647f5427cd3311c976866bc192a632e3bc79c92987e562c834b4a465"
+    },
+    {
+      "path": "objects/obj_sloop.svg",
+      "original": "./objects/obj_sloop.svg",
+      "source": "https://murdoku.com/play/assets/obj_sloop-C_KJfhhh.svg",
+      "bytes": 8465,
+      "sha256": "618de96c466d289aed9848f1bc8a1345baf89b8f0feb1fd77eb29352e6655ac0"
+    },
+    {
+      "path": "objects/obj_sloop_02.svg",
+      "original": "./objects/obj_sloop_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_sloop-C_KJfhhh.svg",
+      "bytes": 8465,
+      "sha256": "618de96c466d289aed9848f1bc8a1345baf89b8f0feb1fd77eb29352e6655ac0"
+    },
+    {
+      "path": "objects/obj_speaker.svg",
+      "original": "./objects/obj_speaker.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2028,
+      "sha256": "994910a234c9d68151725345e7c3aa35c8cc70d7b82897f8a3e3ee7948bb040e"
+    },
+    {
+      "path": "objects/obj_statue.svg",
+      "original": "./objects/obj_statue.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3688,
+      "sha256": "05e8ac0eb72e7661c0a6c7ec8e2d2a3d71324853f0859c12246904151fddbfa7"
+    },
+    {
+      "path": "objects/obj_statue_02.svg",
+      "original": "./objects/obj_statue_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3688,
+      "sha256": "05e8ac0eb72e7661c0a6c7ec8e2d2a3d71324853f0859c12246904151fddbfa7"
+    },
+    {
+      "path": "objects/obj_table.svg",
+      "original": "./objects/obj_table.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2336,
+      "sha256": "8d3051f2ffeee96d6b8ad7aeeb39e4729ec0c4795f710d2190408984ee72cd77"
+    },
+    {
+      "path": "objects/obj_table_02.svg",
+      "original": "./objects/obj_table_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2336,
+      "sha256": "8d3051f2ffeee96d6b8ad7aeeb39e4729ec0c4795f710d2190408984ee72cd77"
+    },
+    {
+      "path": "objects/obj_table_tile01.svg",
+      "original": "./objects/obj_table_tile01.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1953,
+      "sha256": "97a390f19ed482f876d7557553108266617ad51ede7982864f42635ea6a03f53"
+    },
+    {
+      "path": "objects/obj_table_tile01_02.svg",
+      "original": "./objects/obj_table_tile01_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1953,
+      "sha256": "97a390f19ed482f876d7557553108266617ad51ede7982864f42635ea6a03f53"
+    },
+    {
+      "path": "objects/obj_teddy_bear.svg",
+      "original": "./objects/obj_teddy_bear.svg",
+      "source": "https://murdoku.com/play/assets/obj_teddy_bear-DsZiE5Yz.svg",
+      "bytes": 7353,
+      "sha256": "2a482d1f4cd4d86f792cf03aedd6d527b5b34b900923bdafc0c76ec26a5113bf"
+    },
+    {
+      "path": "objects/obj_teddy_bear_02.svg",
+      "original": "./objects/obj_teddy_bear_02.svg",
+      "source": "https://murdoku.com/play/assets/obj_teddy_bear-DsZiE5Yz.svg",
+      "bytes": 7353,
+      "sha256": "2a482d1f4cd4d86f792cf03aedd6d527b5b34b900923bdafc0c76ec26a5113bf"
+    },
+    {
+      "path": "objects/obj_tee.svg",
+      "original": "./objects/obj_tee.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1145,
+      "sha256": "0aad044259345b520499c2dbe1b0ed6d2fb143ee0ad310c5357fca294ff8f374"
+    },
+    {
+      "path": "objects/obj_tee_02.svg",
+      "original": "./objects/obj_tee_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1145,
+      "sha256": "0aad044259345b520499c2dbe1b0ed6d2fb143ee0ad310c5357fca294ff8f374"
+    },
+    {
+      "path": "objects/obj_tombstone.svg",
+      "original": "./objects/obj_tombstone.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1919,
+      "sha256": "f186108dd1ff17e99f1d562b1ab9aacb5f0c297326bee6ea0337ccd2e0948711"
+    },
+    {
+      "path": "objects/obj_tombstone_02.svg",
+      "original": "./objects/obj_tombstone_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 551,
+      "sha256": "c80a49e52ebd6e3320c8f61cb419f56260440bb7274e952ef29f4025458a224d"
+    },
+    {
+      "path": "objects/obj_trashcan.svg",
+      "original": "./objects/obj_trashcan.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3830,
+      "sha256": "2ae01b8d691d8ffbbb11cf8172f50178811f81d421bbaa7530aaef8085e78af0"
+    },
+    {
+      "path": "objects/obj_trashcan_02.svg",
+      "original": "./objects/obj_trashcan_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3830,
+      "sha256": "2ae01b8d691d8ffbbb11cf8172f50178811f81d421bbaa7530aaef8085e78af0"
+    },
+    {
+      "path": "objects/obj_tree.svg",
+      "original": "./objects/obj_tree.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2210,
+      "sha256": "d9cf19cf887ea500bf32495cca7781c46cb066d1b1838daf160a848c2aac5558"
+    },
+    {
+      "path": "objects/obj_tree_02.svg",
+      "original": "./objects/obj_tree_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2354,
+      "sha256": "479e55e21ac0479c7f56901045862420823c5885a869a4d351574497499cb746"
+    },
+    {
+      "path": "objects/obj_tv.svg",
+      "original": "./objects/obj_tv.svg",
+      "source": "https://murdoku.com/play/assets/obj_tv-B-td_p6V.svg",
+      "bytes": 5973,
+      "sha256": "1c2c1650a320ac08dc6cb33365c7bb9998a146655ad794cac9e28430bf2e4b7f"
+    },
+    {
+      "path": "objects/obj_tv_02.svg",
+      "original": "./objects/obj_tv_02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3687,
+      "sha256": "209af731de422087730e64fc3f1d3b2677f7352d20f8cb3df3980cdd87f7952d"
+    },
+    {
+      "path": "objects/obj_void_show_back.svg",
+      "original": "./objects/obj_void_show_back.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 317,
+      "sha256": "c33938e4b1dd544b8610321ca4a24b1b611e0c28ab69da5bd24ada9974439094"
+    },
+    {
+      "path": "objects/obj_window.svg",
+      "original": "./objects/obj_window.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1065,
+      "sha256": "02c2426abb07ffe4208be6515af9ebeffab7ba37c5855a206fecfc69f2d55bc7"
+    },
+    {
+      "path": "objects/obj_x.svg",
+      "original": "./objects/obj_x.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 591,
+      "sha256": "cd2f10368a948963292654a6894dd9d25177c54c241db7943ef25f150daf190c"
+    },
+    {
+      "path": "objects/obj_x_blue.svg",
+      "original": "./objects/obj_x_blue.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 754,
+      "sha256": "874fbd21a8936580142de0104ba69551e31f0e22b5abf699dd069ec104a0e803"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile01.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile01.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 494,
+      "sha256": "0b930dbc822d333cfb4f41aafe8e1ff80f3d21a1997a363e074a9849a54de282"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile02.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 793,
+      "sha256": "78e70c12e89a09e8153c39d14fd1aee0d3d36ca3734c602601d8db6fb4392ff5"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile03.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile03.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 956,
+      "sha256": "b5b7ec5af88ec358b869e05c4fa1546da1c5b2041d4df4ae08ca5dbafc4f5115"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile04.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile04.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 511,
+      "sha256": "ed74da5dc4b9fb51375bf31ece9fab15e6f031937b1ca9c88335170147410ff1"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile05.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile05.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 976,
+      "sha256": "766580594002e43ecdea11c0662cb3db971385e291f2bb24081ea8fcdbba9642"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile06.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile06.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1215,
+      "sha256": "2545d6d58a3858dce2d2bbb6284ddcbfff6f48967e97aea82d05d84c11f2bb3e"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile07.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile07.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 301,
+      "sha256": "5eda298dc6866372362070238535a431e6b0872ad4f25e3684441b6153494620"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile08.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile08.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 797,
+      "sha256": "89ff2e421cc2f50540f762b920fd650cd3be0f7e0b371a56986e3f27afa9339f"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile09.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile09.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1253,
+      "sha256": "e63c9f910842226d3c8ba5f40ececd7c0e927bd278e52fefd9f9d26893d4ab91"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile10.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile10.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1636,
+      "sha256": "4bff582c7ca4335e2ca01f873b2a2c6f4c1604f8f769f918a13fc76212fcda3f"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile11.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile11.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 742,
+      "sha256": "41db7b8669f7fa559fd216911db1999abd99693efcb573b8807011bd0da9378a"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile12.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile12.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 511,
+      "sha256": "151a1a99212f986feff665b6e62babca18a277900d6e39aed02a821f60710906"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile13.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile13.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1410,
+      "sha256": "439fabff31d9f577381e3bf770d0bf8abde9f3a24d15457c579e45ba51acf0ee"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile14.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile14.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 714,
+      "sha256": "d115c13b248c02a1347a2358e67062c1013a7ad06e26ea4dc12f27d6694097f9"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile15.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile15.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 945,
+      "sha256": "127faf065cfc6df2935d3776d1429b2411245c0a710f88b76840de2deda9ce21"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile16.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile16.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1615,
+      "sha256": "1bf759fc17d5978e3ce4bab08bd747ce664a0534fea63c3f8588f1f0ac920abe"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile17.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile17.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2044,
+      "sha256": "d00a31f207111a5f7452cedf8745dc148d7e6ddbaa281eb5b1b59aa78b353eb6"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile18.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile18.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 937,
+      "sha256": "aaf803cc04680f5e16d69812d86b6abc8d6d03ab549ec00df1fcfda83afd85c5"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile19.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile19.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1219,
+      "sha256": "0c2fe95f45e9ba95393a2dea1578d9011c8f977722102829454c1bb0c7f6c9ca"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile20.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile20.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1194,
+      "sha256": "96f5e698903e59ceae11aeed0b2283fc97c569217b1498d3a0d5d7eb1af022ef"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile21.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile21.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 774,
+      "sha256": "5af9ff74ba66a66692b5759cf499c0dfea3616aacf4a76a68852584aaed05856"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile22.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile22.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 508,
+      "sha256": "14cfcf96e5a2f60d5c1c0124ca5aaccb52d202a6944aa1120c7519266dc639b0"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile23.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile23.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1065,
+      "sha256": "dce0d187e09e6dae33bd6acfa33ffc006e92f150ea9ab4466e67a5d2fd70e50e"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile24.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile24.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 931,
+      "sha256": "fa6973938b9c47192dac41140635c2132938c9bf3c938b7882b74f4eece668d0"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile25.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile25.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 622,
+      "sha256": "70ef6440ce7731cfb07fd8922a61836c55c2731a0d13907aa96838a04c25847f"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile26.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile26.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 720,
+      "sha256": "ce4b436f7fec2dddcea2b2f304ecc053a56daf4c0ec0f2d2e6ad11f97de45e96"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile27.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile27.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 768,
+      "sha256": "ebdcd8a1b07dafe5d9e6111f807a43c69840c7d742a20913f7bd0bef3ce82549"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile28.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile28.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 956,
+      "sha256": "384e740a504cb9761f0352e487fd306247b657719b862198f0b950f3d7ae0e58"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile29.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile29.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 974,
+      "sha256": "132a152f7b27f6762c8e8cb59664ad00a9164f7a415e3e432819308281e68f4b"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile30.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile30.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 514,
+      "sha256": "423e8579ad558201f7e9b8a040232939b6eebe78e62042225949a165b0c31dbc"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile31.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile31.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1652,
+      "sha256": "32218a56159744abe02e87eefe2cb634971228e822e4591e4080019a20ebc239"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile32.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile32.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1212,
+      "sha256": "e42f8b5ddcf7244fc429248992ebdd26ccf90e2fee5666e7f78544cf9c2c49d7"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile33.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile33.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 241,
+      "sha256": "d5f9c26095b9296bc9ab468ebb649434f6783c6a7565608dbbc3836da54a3ced"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile34.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile34.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1202,
+      "sha256": "8575bb787113b78f1e9b26e68844bfe9860e640773c2c926e22a910e5501602c"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile35.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile35.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1376,
+      "sha256": "f91fc1ce20d929d1546ebfd2318b616f07c27235eb0e02ff271dcdd4d4b15c5c"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile36.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile36.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 923,
+      "sha256": "2bc04320138cc8ce021f140f32a25833dff4dfc8eb88c3a1319fe293ef35f00b"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile37.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile37.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1421,
+      "sha256": "ce623388b4e77a1a69b78dbc253dd6e8e0f3b2db8d7cca71ee90a9a0f0a03c22"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile38.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile38.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1579,
+      "sha256": "d8705c4c9986b056ba3673609a6dc84f19f83e1ecab684a75c0cef337bb9ceda"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile39.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile39.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1368,
+      "sha256": "baac3154b7df5768aaa6b91f3e383d01521cca2ab87fafe23395f06c2ef11b8d"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile40.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile40.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1208,
+      "sha256": "74bb6757c127eaf46acb827de08022bf98ef9fab6db16e34e62dbe347aefbc93"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile41.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile41.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 776,
+      "sha256": "dd1e1141f7d771ffb75c481f204d3041d712ba5cd7eb672beff13580f85ce21a"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile42.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile42.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 719,
+      "sha256": "6d8d47eddc7e2f74251d2dbbca512d6c443a2cbc22c429f722200bc9ea28d3f6"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile43.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile43.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 241,
+      "sha256": "d5f9c26095b9296bc9ab468ebb649434f6783c6a7565608dbbc3836da54a3ced"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile44.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile44.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 712,
+      "sha256": "e8e9ba93abbcbe770e71acb7e58508bf42b4842d58d3ec6381db5c8c85bd38fb"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile45.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile45.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 773,
+      "sha256": "1b9b681f0484c74e572397fd36684fd20159ad4a7c7eea314a373c5ea93af2fc"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile46.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile46.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1373,
+      "sha256": "961ade571cf74f543151e02f5e6d00f88adf02a75f811e146e32774b2c4a9382"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile47.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile47.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1373,
+      "sha256": "60e64ef1a0aa4cdb15ce4953549bf73f262264caa395334cd8519f96d2facb26"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile48.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile48.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 724,
+      "sha256": "f77f33986a586ad4b0ae9b7a60352f31d8d0b86d07954edb7c0bb42fc4508b95"
+    },
+    {
+      "path": "objects/tile/carpet/obj_carpet_tile49.svg",
+      "original": "./objects/tile/carpet/obj_carpet_tile49.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1190,
+      "sha256": "81def463a63b45d92c721bc08fecedeaf397f7492ef8a4c0697adf8b30c314d1"
+    },
+    {
+      "path": "objects/tile/obj_table_tile01.svg",
+      "original": "./objects/tile/obj_table_tile01.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1390,
+      "sha256": "5b5ba58ae05f59019be498477d336e9669bebff8ce45757ca77a801d35dabea2"
+    },
+    {
+      "path": "objects/tile/obj_table_tile02.svg",
+      "original": "./objects/tile/obj_table_tile02.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1090,
+      "sha256": "1757f18b7947ce5d09ae8d7266569ce3485e15fae659f9182825dc6aec0e619c"
+    },
+    {
+      "path": "objects/tile/obj_table_tile03.svg",
+      "original": "./objects/tile/obj_table_tile03.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 790,
+      "sha256": "c45be866fb8157bf324183a16a868b8c955cd44ef50a9b9370dc6a3d54d628e9"
+    },
+    {
+      "path": "objects/tile/obj_table_tile04.svg",
+      "original": "./objects/tile/obj_table_tile04.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 401,
+      "sha256": "2d160762bc5d7f79894b2fb170ef32d8b802011a0611e12c6e8a8f7af00329c6"
+    },
+    {
+      "path": "objects/tile/obj_table_tile05.svg",
+      "original": "./objects/tile/obj_table_tile05.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 727,
+      "sha256": "a3811b3c178f410ce14b625379751e701d9648cb0aec279591387a1ff1da3be6"
+    },
+    {
+      "path": "objects/tile/obj_table_tile06.svg",
+      "original": "./objects/tile/obj_table_tile06.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 776,
+      "sha256": "fcb329db472d5cee20bdd58dceafb75086f2f4547f9e216b8c0b62698bc61afe"
+    },
+    {
+      "path": "objects/tile/obj_table_tile07.svg",
+      "original": "./objects/tile/obj_table_tile07.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 241,
+      "sha256": "d5f9c26095b9296bc9ab468ebb649434f6783c6a7565608dbbc3836da54a3ced"
+    },
+    {
+      "path": "objects/tile/obj_table_tile08.svg",
+      "original": "./objects/tile/obj_table_tile08.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 570,
+      "sha256": "5b788a28638a42032fec8e6a4eb0913463b8c841b4bb2f36251c979d90c4bac7"
+    },
+    {
+      "path": "objects/tile/obj_table_tile09.svg",
+      "original": "./objects/tile/obj_table_tile09.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 858,
+      "sha256": "a8f8fa0a59ac489f59aae4776824f37842ac5a5385de2c9b132a80ac0c4634d6"
+    },
+    {
+      "path": "objects/tile/obj_table_tile10.svg",
+      "original": "./objects/tile/obj_table_tile10.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1202,
+      "sha256": "d53ee673e590a78e903e9f2454a30f606775416fa59828cc25f1dea02f31b29c"
+    },
+    {
+      "path": "objects/tile/obj_table_tile11.svg",
+      "original": "./objects/tile/obj_table_tile11.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 733,
+      "sha256": "266e72fac678e4a56abdce1bc1f6ffd70e8b8720a410928f0d1e2fa37218aa9e"
+    },
+    {
+      "path": "objects/tile/obj_table_tile12.svg",
+      "original": "./objects/tile/obj_table_tile12.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 402,
+      "sha256": "bef5175f00f96d36f2eeddb16edc0177bfc9969a52494aeeb327a94d3fef9867"
+    },
+    {
+      "path": "objects/tile/obj_table_tile13.svg",
+      "original": "./objects/tile/obj_table_tile13.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 841,
+      "sha256": "81ddf059fee15e029392459f6d13ec8bdf2eaecd42c0f087aa2e55b84501fe8b"
+    },
+    {
+      "path": "objects/tile/obj_table_tile14.svg",
+      "original": "./objects/tile/obj_table_tile14.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1000,
+      "sha256": "acaef9ccb3af7cb69dd76e94ce406127edfcffe0f120a46ab6cae8780e69de5b"
+    },
+    {
+      "path": "objects/tile/obj_table_tile15.svg",
+      "original": "./objects/tile/obj_table_tile15.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 540,
+      "sha256": "44f2fa6af4f07264cf6ded5a41335587a9d3dc6e58d3ad5544113014e78543da"
+    },
+    {
+      "path": "objects/tile/obj_table_tile16.svg",
+      "original": "./objects/tile/obj_table_tile16.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1229,
+      "sha256": "31dfb9e5f542971c0aa18c6f7e0127c9aaf2e7cae7d83f3d0ea899361a518d14"
+    },
+    {
+      "path": "objects/tile/obj_table_tile17.svg",
+      "original": "./objects/tile/obj_table_tile17.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1467,
+      "sha256": "6b52c7df5cf4202bff9643e16205c30db8721e047f748574676bdb9ec7e5619c"
+    },
+    {
+      "path": "objects/tile/obj_table_tile18.svg",
+      "original": "./objects/tile/obj_table_tile18.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 720,
+      "sha256": "3f44093add085ed525d644b4d4f665e7b6ef71f147db810596d3bb9108fcae6f"
+    },
+    {
+      "path": "objects/tile/obj_table_tile19.svg",
+      "original": "./objects/tile/obj_table_tile19.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 839,
+      "sha256": "6aa23d3e419388a15a1a17cee09eb7c34a5bb021ef286af1a3cc366eb4fab302"
+    },
+    {
+      "path": "objects/tile/obj_table_tile20.svg",
+      "original": "./objects/tile/obj_table_tile20.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 563,
+      "sha256": "233abbfd6a63ed1cd445f51047a11364ccf90c0117183d6b044346c0d685ae42"
+    },
+    {
+      "path": "objects/tile/obj_table_tile21.svg",
+      "original": "./objects/tile/obj_table_tile21.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 466,
+      "sha256": "1819b5eeeadbb124fa3c1626a62f714f8dc911e59438603b90c4d48389cb31fd"
+    },
+    {
+      "path": "objects/tile/obj_table_tile22.svg",
+      "original": "./objects/tile/obj_table_tile22.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 395,
+      "sha256": "978ea5d8c2d55a2b1bfd9a30fff6a953c2b7f77215697c5f24b9c43644b9b9c5"
+    },
+    {
+      "path": "objects/tile/obj_table_tile23.svg",
+      "original": "./objects/tile/obj_table_tile23.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 597,
+      "sha256": "3b371c2316c5255223b01345bfad738c322c98a8dd577811df0bdf64c27fa8fc"
+    },
+    {
+      "path": "objects/tile/obj_table_tile24.svg",
+      "original": "./objects/tile/obj_table_tile24.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 525,
+      "sha256": "85276d095373492048cb7804cde9a515bf270b578c36e3bc77b4ea0e3857dfe0"
+    },
+    {
+      "path": "objects/tile/obj_table_tile25.svg",
+      "original": "./objects/tile/obj_table_tile25.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 475,
+      "sha256": "64d3d2067fa33acb6cd3fb2336595f9d37f18dd16de8af8ba00d4a686a23f58a"
+    },
+    {
+      "path": "objects/tile/obj_table_tile26.svg",
+      "original": "./objects/tile/obj_table_tile26.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 466,
+      "sha256": "b023c52fdc8d7f49fb46cd768e155b2a4a8342137b6bb1f1bd1982308effa167"
+    },
+    {
+      "path": "objects/tile/obj_table_tile27.svg",
+      "original": "./objects/tile/obj_table_tile27.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 723,
+      "sha256": "b0b3d92951f4e63698b3766c4c4247bfbd257e7f7ff253a5a88c66d1819a2660"
+    },
+    {
+      "path": "objects/tile/obj_table_tile28.svg",
+      "original": "./objects/tile/obj_table_tile28.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 780,
+      "sha256": "6749185f3ad20eac31cf4638140ca8f61d23a2048b41713a5ecfe6944b9bfa83"
+    },
+    {
+      "path": "objects/tile/obj_table_tile29.svg",
+      "original": "./objects/tile/obj_table_tile29.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 746,
+      "sha256": "21c22372d614451c0f29c694649533bc50ba9b373b12af51f5fd5f6f5182dc87"
+    },
+    {
+      "path": "objects/tile/obj_table_tile30.svg",
+      "original": "./objects/tile/obj_table_tile30.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 596,
+      "sha256": "a097ea5b8cc4a2a142ec69bdba21f39b947ecfe1b07723cd5623dabdf1be8884"
+    },
+    {
+      "path": "objects/tile/obj_table_tile31.svg",
+      "original": "./objects/tile/obj_table_tile31.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1196,
+      "sha256": "a861e729d3f8c502a1a57eacbb357c8afb8aebacae17004ec5c2036d2467cfd0"
+    },
+    {
+      "path": "objects/tile/obj_table_tile32.svg",
+      "original": "./objects/tile/obj_table_tile32.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 851,
+      "sha256": "894fe1640938a5bb9497751792ab4a35324243a6aee663fa90b9c30ad7b27c08"
+    },
+    {
+      "path": "objects/tile/obj_table_tile33.svg",
+      "original": "./objects/tile/obj_table_tile33.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 351,
+      "sha256": "2f4faed4c7456b7e5d44a8ffbdf3f781bea5cb03c1c4bdbfcda6d8bb2f13e04c"
+    },
+    {
+      "path": "objects/tile/obj_table_tile34.svg",
+      "original": "./objects/tile/obj_table_tile34.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 773,
+      "sha256": "29f459636d5e2045f9e2807d72b7a1eef218584633cc3a50167ca1a141aa66e1"
+    },
+    {
+      "path": "objects/tile/obj_table_tile35.svg",
+      "original": "./objects/tile/obj_table_tile35.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 787,
+      "sha256": "cf6aa923d157f524aaa7615793bb2ee469cb282aa42768658d6bff7a55ecbbb8"
+    },
+    {
+      "path": "objects/tile/obj_table_tile36.svg",
+      "original": "./objects/tile/obj_table_tile36.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1151,
+      "sha256": "97fbde0f5f5c521303cb6aca052bfbae46a7404d47818002db8da73fe87f5a01"
+    },
+    {
+      "path": "objects/tile/obj_table_tile37.svg",
+      "original": "./objects/tile/obj_table_tile37.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1193,
+      "sha256": "9253030b818a4b8792c85d2a768d9d4968978078acc8fdb1636f1fa5f13e6954"
+    },
+    {
+      "path": "objects/tile/obj_table_tile38.svg",
+      "original": "./objects/tile/obj_table_tile38.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1148,
+      "sha256": "8fb3c62928f687ebd8cfe2888fea06ca1abc3786f1d702da68dda1005aef02e0"
+    },
+    {
+      "path": "objects/tile/obj_table_tile39.svg",
+      "original": "./objects/tile/obj_table_tile39.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 841,
+      "sha256": "4bf637918f04f48d62584208ab0f6993a79a036eb6ecbc257226369dfb68c42d"
+    },
+    {
+      "path": "objects/tile/obj_table_tile40.svg",
+      "original": "./objects/tile/obj_table_tile40.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1035,
+      "sha256": "27c81ee362315a2a3b8fc4cd03e2839986650c88ecbb48efe34cddf6efe65ddd"
+    },
+    {
+      "path": "objects/tile/obj_table_tile41.svg",
+      "original": "./objects/tile/obj_table_tile41.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 948,
+      "sha256": "2dd73ef2a75edf6fb27cb95c53883b1dd11990c7e5d662e3dede849fd3e0321c"
+    },
+    {
+      "path": "objects/tile/obj_table_tile42.svg",
+      "original": "./objects/tile/obj_table_tile42.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 460,
+      "sha256": "9f86eb10cc28daaf6389ade5bee2beb7b58ff37c56d01179b309b3482efc0399"
+    },
+    {
+      "path": "objects/tile/obj_table_tile43.svg",
+      "original": "./objects/tile/obj_table_tile43.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 351,
+      "sha256": "1f4e711cac2d3fc8fc14cc2e250932895b2f9e8b19f0022580812e1b282b05b7"
+    },
+    {
+      "path": "objects/tile/obj_table_tile44.svg",
+      "original": "./objects/tile/obj_table_tile44.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1413,
+      "sha256": "c99293ea6b70aef63549494ddadc0e9e3b055eeb972cdb8a47671b24282cf0a3"
+    },
+    {
+      "path": "objects/tile/obj_table_tile45.svg",
+      "original": "./objects/tile/obj_table_tile45.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1064,
+      "sha256": "216638f5524793143c4dad9e7055b1f391c0bfef37385f58092fa88ddb37ce00"
+    },
+    {
+      "path": "objects/tile/obj_table_tile46.svg",
+      "original": "./objects/tile/obj_table_tile46.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 732,
+      "sha256": "8afd5202e10d5be7f0069861eb9b63b1fb942fcb0a395426f4abc7b670af2694"
+    },
+    {
+      "path": "objects/tile/obj_table_tile47.svg",
+      "original": "./objects/tile/obj_table_tile47.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 826,
+      "sha256": "4432789ea42f2063e37a9a918467880b2b90b2cb0276b519a4d8d0e1cc15d28c"
+    },
+    {
+      "path": "objects/tile/obj_table_tile48.svg",
+      "original": "./objects/tile/obj_table_tile48.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 670,
+      "sha256": "3fc1819d5ea156f3d81d860af473e3ddf49926f7f61162cde60826fbee774704"
+    },
+    {
+      "path": "objects/tile/obj_table_tile49.svg",
+      "original": "./objects/tile/obj_table_tile49.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 970,
+      "sha256": "c3615f405691efb14646db6b6077798541918ad701331e66a381a1fa689ea616"
+    },
+    {
+      "path": "textures/texture_floor_bigdiamond.svg",
+      "original": "./textures/texture_floor_bigdiamond.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 510,
+      "sha256": "664e76a5353e7e794c2a04b51329a4c7f2f105dbe85f8984c71cbaf1d880e0df"
+    },
+    {
+      "path": "textures/texture_floor_bigwood.svg",
+      "original": "./textures/texture_floor_bigwood.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 458,
+      "sha256": "a252e4cb53f38e397cd3e4750b7f1b984b6df53670f9192bcb111030349ec78c"
+    },
+    {
+      "path": "textures/texture_floor_brick_large.svg",
+      "original": "./textures/texture_floor_brick_large.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1566,
+      "sha256": "7193f3be3701402325d50107e1e2dba3accd3b6ba76e27aad9e84290c2c4403d"
+    },
+    {
+      "path": "textures/texture_floor_diamond.svg",
+      "original": "./textures/texture_floor_diamond.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 359,
+      "sha256": "6a66936d3011f0b6afa718f27af599167b79577ee4a700108258c1ce41f72d11"
+    },
+    {
+      "path": "textures/texture_floor_grass.svg",
+      "original": "./textures/texture_floor_grass.svg",
+      "source": "https://murdoku.com/play/assets/texture_floor_grass-n85FOBUF.svg",
+      "bytes": 5819,
+      "sha256": "6fdd067eb41c4b2db08d4d4428740db4c0045855ec5460b84932e32cf4e28365"
+    },
+    {
+      "path": "textures/texture_floor_grass_tall.svg",
+      "original": "./textures/texture_floor_grass_tall.svg",
+      "source": "https://murdoku.com/play/assets/texture_floor_grass_tall-BU8A12fG.svg",
+      "bytes": 6209,
+      "sha256": "51ef460c80aa3c7bc9f067f57f03435ce3228e5eab52e370ff45554b9007e3c5"
+    },
+    {
+      "path": "textures/texture_floor_limestone.svg",
+      "original": "./textures/texture_floor_limestone.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1670,
+      "sha256": "bef424dfee322267b8388811979de54b4ce245df005893f608e552278d04163d"
+    },
+    {
+      "path": "textures/texture_floor_minitiles.svg",
+      "original": "./textures/texture_floor_minitiles.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 954,
+      "sha256": "3c710267de5cd82ddb8c716a70f9e778e6af0b27c3d5ddc50c1fa94656143d79"
+    },
+    {
+      "path": "textures/texture_floor_rich.svg",
+      "original": "./textures/texture_floor_rich.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 603,
+      "sha256": "8bbd8998e4198c622b3fefde2dbb4043057cf7cb26c781df15e3da03262dfa32"
+    },
+    {
+      "path": "textures/texture_floor_rocks.svg",
+      "original": "./textures/texture_floor_rocks.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 3096,
+      "sha256": "103d4fc461b5e6b15e2152d5576cd5829e40e03edf4459a5925e6b9e95fc53c8"
+    },
+    {
+      "path": "textures/texture_floor_sand.svg",
+      "original": "./textures/texture_floor_sand.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2731,
+      "sha256": "6169a50ecfc4123b4d69fd016da834ede65ed29d1b40c79554c9add5f4fdf2df"
+    },
+    {
+      "path": "textures/texture_floor_smalltiles.svg",
+      "original": "./textures/texture_floor_smalltiles.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 497,
+      "sha256": "f6cd42f652791c364ccd53c3e85caa0af96d11e80bf335e9e72636d87013da25"
+    },
+    {
+      "path": "textures/texture_floor_squaretile.svg",
+      "original": "./textures/texture_floor_squaretile.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 478,
+      "sha256": "4c9daddd71bb7453612d821276acc858443ac273f6c0768f84814fa5f952b079"
+    },
+    {
+      "path": "textures/texture_floor_water.svg",
+      "original": "./textures/texture_floor_water.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 2401,
+      "sha256": "1a4b79d3730cc28b945477319223bbc92799bf1f041a281c21c04f2c99a0f69f"
+    },
+    {
+      "path": "textures/texture_floor_woodentile.svg",
+      "original": "./textures/texture_floor_woodentile.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 537,
+      "sha256": "6da4d4097c30eb09b3f4ac1d6038c001cdd52009c551c4394d95a8e1c913f9ea"
+    },
+    {
+      "path": "textures/texture_floor_woodentile_scrap.svg",
+      "original": "./textures/texture_floor_woodentile_scrap.svg",
+      "source": "embedded in app-core--JsLR4BI.js",
+      "bytes": 1196,
+      "sha256": "9365b391865a47f64b5e9d04767e2d68727339774ca5c4b8f54bf51988cb97e2"
+    },
+    {
+      "path": "portraits/portrait-man-template.svg",
+      "original": "../../portraits/portrait-man-template.svg",
+      "source": "https://murdoku.com/play/assets/portrait-man-template-wGNFaWwX.svg",
+      "bytes": 6929,
+      "sha256": "2e1412671c58bc30bc7ac66dd4f436f51f9665175ef26bd8664b5fbe3d5d9b65"
+    },
+    {
+      "path": "portraits/portrait-woman-template.svg",
+      "original": "../../portraits/portrait-woman-template.svg",
+      "source": "https://murdoku.com/play/assets/portrait-woman-template-D86-Xd8s.svg",
+      "bytes": 5015,
+      "sha256": "f33c8bf941d2933c6d4ba92c0a3668f7f3331adfd7d8eebac1c82854cfd90208"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory-100.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory-100.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1212,
+      "sha256": "b6bf21919c6efffadc9fd5986705acd279eebcd140acbcf32e44474b8108d3c0"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory_000.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory_000.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 241,
+      "sha256": "122fae20f6a62c669bef180a05513783115e3531c990590e54c8e9b4ec79eea1"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory_001.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1237,
+      "sha256": "deaa23fda0942ad498763634251fea44c157d2cda972d98e8c794e9330e33f7e"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory_002.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 574,
+      "sha256": "ab3ce816903ca08d0605da096d3999e0542f404df6e9a8301c7646ed0119d686"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory_003.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 574,
+      "sha256": "e565f11d26156de9e56efc3914743eb476e77b567691febf1f9345f485ee1a8a"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory_004.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1732,
+      "sha256": "b9f25a80dda745478c5ea615481f7bde51af88f45a89f388b81270ebb1371bec"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory_005.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2409,
+      "sha256": "855dca08a409ed8b3096c62f0066717f712e3edd8255974e2892103200d7fe06"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory_006.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory_006.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1416,
+      "sha256": "3099606d011137bc98c77c4c9ff667a2f815160bc533ceaf74483a00499c6dc8"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory_007.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory_007.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 733,
+      "sha256": "6a502ba6f888e8210e96328550e5b3bf9b62d13d50540ccc2e76d1462579d7b1"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory_008.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory_008.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1111,
+      "sha256": "a90b4a73d2405ea480e599d98e7e5bea7a0bcab033bc94471a20688d5394d83c"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory_009.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory_009.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1084,
+      "sha256": "bd2cbc5c4dbda6d28723020d5deebd3142b273db69a45aead0dd61ed9fb1836c"
+    },
+    {
+      "path": "portraits/theme-0/man/accessory/man_accessory_010.svg",
+      "original": "../../portraits/theme-0/man/accessory/man_accessory_010.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1415,
+      "sha256": "fa924b44f6852b6adb920a6232b6e64257c3f032a84539a0270a5f7a89c90862"
+    },
+    {
+      "path": "portraits/theme-0/man/body/man_body_000.svg",
+      "original": "../../portraits/theme-0/man/body/man_body_000.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3140,
+      "sha256": "1afc758fe85276752f7a87fa6fc65c9aaabf77b49ab758f178a0832e256925bf"
+    },
+    {
+      "path": "portraits/theme-0/man/body/man_body_001.svg",
+      "original": "../../portraits/theme-0/man/body/man_body_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1996,
+      "sha256": "3587e4f68ceee65f5267483c60362a21cd5cb298c5812cceb19631adfd0f3b39"
+    },
+    {
+      "path": "portraits/theme-0/man/body/man_body_002.svg",
+      "original": "../../portraits/theme-0/man/body/man_body_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1937,
+      "sha256": "b5951f3e93aa7f95f40a611c41bb40f9f46c8cb0135620cd79bab0bd6ae473db"
+    },
+    {
+      "path": "portraits/theme-0/man/body/man_body_003.svg",
+      "original": "../../portraits/theme-0/man/body/man_body_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2033,
+      "sha256": "d353150a3392a243a0d90e8d098721441df11f43afb94b023a3b5037a8cbcc97"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/_man_clothes_000-ref.svg",
+      "original": "../../portraits/theme-0/man/clothes/_man_clothes_000-ref.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2268,
+      "sha256": "8ae7d777fee09d4b511ae098b34e6a24d338eaf185bcee453d98bafd5059ba16"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_000-01.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_000-01.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2440,
+      "sha256": "b204391e742d8b08f417a52bac73d019df8b4af98bf2e61943245f9c24c7b4d7"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_000.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_000.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 241,
+      "sha256": "122fae20f6a62c669bef180a05513783115e3531c990590e54c8e9b4ec79eea1"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_001.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 901,
+      "sha256": "7cd9a18eb88d4ad69b94a97536c12ee42ba296b2e0948e0bf0131ce8354ff655"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_002.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1322,
+      "sha256": "58023fcfce963ece3ef0f4e070b1b770331ff4d055216bed467aab5c41fb9aec"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_003.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2218,
+      "sha256": "baf46189ee00bd991b8cf1487c44ba7769d5f08425fb8d5d6f8f3ebcde990c38"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_004.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2644,
+      "sha256": "12e1205364e58b3efaf05a8142a50a216c29dcbc1e3f968f10dd0547aaa38749"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_005.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2616,
+      "sha256": "b7257ffea334ad5a756bec6dbd2e9172d3f87b17e24e370a9c845f16a0c6b10d"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_006.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_006.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1415,
+      "sha256": "b9c6f203087979ef6ae7f1373931e6e0f396c58d613719073acf313923c93fcb"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_007.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_007.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2714,
+      "sha256": "9ffd995264138b5d09d7d5f600744208b08adf24fc563fafcfd702e00dcbac91"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_009.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_009.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 937,
+      "sha256": "60e4c5ee9f1b1c4ac5a1442434a7c4d475d6d1a861b2d9549bdf17cef900d204"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_010.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_010.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1100,
+      "sha256": "a46d161eb0aef1742986452350d5aff55932e1ac83d77d43daac02e69e26efca"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_011.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_011.svg",
+      "source": "https://murdoku.com/play/assets/man_clothes_011-DhsKg4up.svg",
+      "bytes": 5979,
+      "sha256": "dcb3c0a7f379833b65a05414dc79725a111ed1653623b0789dc7aba05e2379b5"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_012.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_012.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1076,
+      "sha256": "3324c8b3fef792d24bc16511e2cee4417a35decabd3e0b939ed37cff97f02cbb"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_013.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_013.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1652,
+      "sha256": "889bf9d00d52cb49395dde0759ce571321283d641597ff10a0037a5fd0679188"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_014.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_014.svg",
+      "source": "https://murdoku.com/play/assets/man_clothes_014-DWs6GNEG.svg",
+      "bytes": 5856,
+      "sha256": "c284de840c2c645f3b41d74cefd3ec89c1258bde479dbe33850d25a06609eda7"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_015.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_015.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2387,
+      "sha256": "37a2054b414ca61499327fe9b8e65b5289e750900cd3070e39eb5c12d5884e46"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_016.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_016.svg",
+      "source": "https://murdoku.com/play/assets/man_clothes_016-CRpQEuy-.svg",
+      "bytes": 6164,
+      "sha256": "f2e9b59d6956aa36204c6af3b87e6b402ec9a477b4da2c308fe543d0d3f648c0"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_017.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_017.svg",
+      "source": "https://murdoku.com/play/assets/man_clothes_017-DTM7RDcA.svg",
+      "bytes": 8367,
+      "sha256": "c6c9ff22e322a8971bfced7f8d404bfb39a5645de515b88dfcdf0a460df2f48e"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_018.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_018.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1638,
+      "sha256": "e54504085a00367189fd5b8db59ddd059ceebb54c323066068e0686f30dc1e63"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_019.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_019.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1487,
+      "sha256": "0e8dea09d4dbbab5089b472e9f0b614a78f02ab77e2ec5c9c4bbfb317b6a4da9"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_020.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_020.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1331,
+      "sha256": "97f2f4ae5b4391d19996057edbbbba0d049d53df4db3e98edab70c0ef6c36e51"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_021.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_021.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1315,
+      "sha256": "c89de2dbe04468f0e9fc1f97e5a26d95b786f948ff79b6980b6fa480be4395aa"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_022.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_022.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2387,
+      "sha256": "37a2054b414ca61499327fe9b8e65b5289e750900cd3070e39eb5c12d5884e46"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_023.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_023.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1289,
+      "sha256": "f701f495daac13ad410280aea33e522601dd5e3458e86e5799c8545ada6f2d65"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_024.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_024.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1546,
+      "sha256": "31b7f8fd81ab024124d08c4fde626514a16e44ef501d97986daa430609d17588"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_025.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_025.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1888,
+      "sha256": "5dcb4071458ab34d3b3819e0cebfa5d1baaf5cdea087175bc6caa6b2a4b2e64c"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_026.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_026.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1253,
+      "sha256": "6116fa4b79ea992c0f44299f42ab0873a6024a90e2b7507147f8cc918608435a"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_027.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_027.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2078,
+      "sha256": "22ff8952241ada1837fe1710bb7dca0d6014a674c9c536a36ad45aaee4095fe2"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_028.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_028.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1611,
+      "sha256": "bed5c33de8eb412e025efdd225dc7d1ce0f9a268469999d69792fc7b8813b34f"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_029.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_029.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 893,
+      "sha256": "0237b34c48d54850488cc8a9dd8b1c4b245708d7847cec134ad1c528e60f5785"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_030.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_030.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 715,
+      "sha256": "059f4bb4c1093bc7ccb7a8ad95f8266ef99add42ff6fa8085d39492bcedc2a3c"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_031.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_031.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1775,
+      "sha256": "f3b6c107c8472157dc821b30b62018e065b0df306eedb794f7329df9dba31c31"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_032.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_032.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1685,
+      "sha256": "a7bee2a60e3ac6c20f19adc5f7f8a92816bf0d522c07cec166e7a7efa646bfb9"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_100.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_100.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2268,
+      "sha256": "8ae7d777fee09d4b511ae098b34e6a24d338eaf185bcee453d98bafd5059ba16"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_superhero_001.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_superhero_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 879,
+      "sha256": "4295ec55182fbcedd9c611d13e7d74a87ed6b302af5463dd17950074c47d7af1"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_superhero_002.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_superhero_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 879,
+      "sha256": "8f1576d7260e5174d484f138b4cd78dc37b978a8f255b8a86f8b3b5eadfa38dc"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_superhero_003.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_superhero_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2092,
+      "sha256": "f9c27e57b831352be552463130749eeb0f8e75c08324895e4703d31fa53cb8f0"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_wildwest_001.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_wildwest_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2813,
+      "sha256": "1185adfe4d07f0c6abaf946354fbdd8b94fbd4a1d1a297b906ee1ba9ac4db628"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_wildwest_002.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_wildwest_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3185,
+      "sha256": "a1df4d8b01e05134f6f2270f59242000069c34f1ad13ab263a82ba2348db0202"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_wildwest_003.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_wildwest_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3335,
+      "sha256": "ea09ae851265924845f07988a1053a8c7fa22abdc6522fc8158d747ef0c84bb5"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_wildwest_004.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_wildwest_004.svg",
+      "source": "https://murdoku.com/play/assets/man_clothes_wildwest_004-CcOFkhIx.svg",
+      "bytes": 5977,
+      "sha256": "6883421521c0272477df370be3e214a234a986ecff2db7746b14842392c89238"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_wildwest_005.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_wildwest_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1705,
+      "sha256": "92fabc9413cef5395db111711564542f5efef6c1b6c77f2e828d04e73756a1dc"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_wildwest_006.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_wildwest_006.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3186,
+      "sha256": "7549730056e569aad8f1f6122099b497de1eb9c644068da2620103ea7eab3b12"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_wildwest_007.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_wildwest_007.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3186,
+      "sha256": "cb2a3db00510a2bdb5c646a65b490fd3eb625e42271a5342b429aae82bb3ebf4"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_wildwest_008.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_wildwest_008.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2371,
+      "sha256": "7aae2f8583f12a3a23141b33ad9a0dba5fd01babc034eba0b183040de01e4059"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_zombies_001.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_zombies_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1948,
+      "sha256": "658841dde3f8d443ae55c622f6f383892a1a764faf86e9352cab593823e9d551"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_zombies_002.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_zombies_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2968,
+      "sha256": "34280cc4a84c8db4865f5e22d66573790d05fff7933529f08d6131e16cf19722"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_zombies_003.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_zombies_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3154,
+      "sha256": "cfd49825a63ef50ccf851973c9a30bb74ae369bded9c0d420e978ef1041e3b24"
+    },
+    {
+      "path": "portraits/theme-0/man/clothes/man_clothes_zombies_004.svg",
+      "original": "../../portraits/theme-0/man/clothes/man_clothes_zombies_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2827,
+      "sha256": "670de6c7cbf46fb6b05a7fe62168525b6d90329dbf8969b395ae70fea7e37962"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_body_000-ref.svg",
+      "original": "../../portraits/theme-0/man/facial/man_body_000-ref.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1909,
+      "sha256": "dfbf8df8781f556fa4e47d5a3a683955308bbd0825b397c883bbd72782d8be7e"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_000.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_000.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 241,
+      "sha256": "122fae20f6a62c669bef180a05513783115e3531c990590e54c8e9b4ec79eea1"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_001.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 882,
+      "sha256": "eec0952162380279bb9c0a9dc0f5c056fcde8fd8a847b983ec40b0b8efb518b6"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_002.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 960,
+      "sha256": "3cf1c7b6f2fa1496aa980662a44f64cd6c3d3a69ff570091139b52c73896a6bb"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_003.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 949,
+      "sha256": "077c9f00cc13b1e538b329fea8ee90a11bc5d262499e47ad8c1c1b88f0f2bb8e"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_004.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 923,
+      "sha256": "ce72a7261f49d40714671216e10ea50cea40eced7abbb1f0b3766054a4c4ea35"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_005.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 603,
+      "sha256": "640401dc143c7c95398630e16f80139d18d1b60ea88cc723f70b37b92a38633d"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_006.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_006.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 869,
+      "sha256": "f7530386fe494a30b21e9d28ed41123237a41afd2dd4399fba4402c6a82a5d47"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_007.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_007.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1250,
+      "sha256": "c38d468bc2adb194bbb896cb80916868d07407292e16849805aae24ff0572bad"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_008.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_008.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 795,
+      "sha256": "312c6dfa8e77e0ebd60cdf079c513f26c3a6d17980839df2d0bc453a26b184df"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_009.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_009.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1060,
+      "sha256": "baeb932ce6be4b6c8b43f38a8c9211d260dbfeb5003a1f75eb7bfa6149e50acf"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_010.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_010.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 722,
+      "sha256": "0055fbf4935afb6d6aee7bc552f01e88f9e8ffb9ba3f1d390e6c41840c3a6e61"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_011.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_011.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 884,
+      "sha256": "5eaa291db82c93cb64f952eb0cab9e747730cd3d8d79e046869e22dd312cc349"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_012.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_012.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 497,
+      "sha256": "2cd708e4772f885412bb3c84de8eb914ac84408241a828761b9e268da1903f1f"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_013.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_013.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 881,
+      "sha256": "4bbe64737f5bcd1e6cc11b731dae0f08761b1b9c123f4e33559f9837ec842667"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_014.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_014.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 926,
+      "sha256": "c491a6d6c3da7c7fde0c07cd67130581cd3b6dd431865a99cc7606dd8cb676b1"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_015.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_015.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1425,
+      "sha256": "c85013187dc42905311dc5530ee2a9037801793b241febd26bc12d967824135e"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_016.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_016.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 944,
+      "sha256": "bfdf38bf175ae1890c6af526c1ccbf18d3781c5c8de07d53310e12e4010a2e2f"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_017.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_017.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1463,
+      "sha256": "bd7d7381a2c7460972958cd37e9322c294c15990f27eeaaade6631ddea1ee113"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_018.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_018.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 780,
+      "sha256": "8459ffc22b3b69727f6112a5f6345aa8382671574df8162f005e6bfb1dbfe559"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_019.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_019.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1257,
+      "sha256": "ff782f191805e2219525cafc55985e35ff024d6ed989c8db5bc7541598fd93b7"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_020.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_020.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1099,
+      "sha256": "61d166bfa261191e1a9000745f0331f4c36de6f5ceaaf52ad364add568273f4e"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_021.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_021.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 734,
+      "sha256": "ca8612607f25f46fb6a85722504ebeae3db464a981ceccb8ce49a8f63f788edb"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_022.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_022.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 708,
+      "sha256": "010fd7415ca6e9904b2260d2a8c0a6fa5fb76fbc05d75ae935ca2fe31cabb3b7"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_023.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_023.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1363,
+      "sha256": "b28c9102911c56fa277f41c806b5ca9c701d5080813d929a1fd88e1f2e1bee7e"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_024.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_024.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 441,
+      "sha256": "9c3508293eede592c9c29c3be84e53e58602e3e1bfc83b78516810b58142de3a"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_025.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_025.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1156,
+      "sha256": "2d1287df034b46f4ce8b6a85f2347e7f2d2266f91024dad50ab275abb15cf2b2"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_026.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_026.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1289,
+      "sha256": "f701f495daac13ad410280aea33e522601dd5e3458e86e5799c8545ada6f2d65"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_027.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_027.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 422,
+      "sha256": "148a69e9ce2755ffe30ea9f9fe3f1af81d4d33b9e6f040b2e4770c79a7b97959"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_028.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_028.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1461,
+      "sha256": "4934f5c98d5d5d121c24565c8e99d0eab2c0ebb18ddb569680c2daf816317c65"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_029.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_029.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1064,
+      "sha256": "f7dd2a1acfb62afda824f5abe062358a35c2215d2c7de850121f728f015d61b6"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_030.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_030.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1231,
+      "sha256": "e91c71bd5ca1990aedd08ff989a718f2a5e40c96b0587c0041128af5f374ee15"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_031.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_031.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 587,
+      "sha256": "d233e3820511172361efb02117aa4c118b404a38b830e5008612d009dbb4605c"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_032.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_032.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1489,
+      "sha256": "de6e7bf5e9535aae48be0d6f613118449199fbafc56216a62be738310a3694c3"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_033.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_033.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1299,
+      "sha256": "21c683314779798e4a61d91d0231e57b9c1affa0bcd3d5958664e6d773dbadf5"
+    },
+    {
+      "path": "portraits/theme-0/man/facial/man_facial_100.svg",
+      "original": "../../portraits/theme-0/man/facial/man_facial_100.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1904,
+      "sha256": "cbc20dbc89b6d7184205e954795a18946be7638e24bc460864d5a0f8f52fdb60"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_body_000-ref.svg",
+      "original": "../../portraits/theme-0/man/hair/man_body_000-ref.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3116,
+      "sha256": "5a042ff3004e9c47914db4894f3a1ce1145c66b1a4dacbfbb6c90dc255f51eac"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_000.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_000.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 241,
+      "sha256": "122fae20f6a62c669bef180a05513783115e3531c990590e54c8e9b4ec79eea1"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_001.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 862,
+      "sha256": "c7b5aa3c408f6d88f83f5dc79ec91c111e00a5d43afd1a32400ed14ef736b9e7"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_002.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 908,
+      "sha256": "b1e78527190e8188958e843bf53f8f3e32075a5237789827baf6f0e21a7017e6"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_003.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1019,
+      "sha256": "86669f34952b6e27183e982cc1254ab60a9029f628282fa12644a4985cc15eb8"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_004.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1148,
+      "sha256": "729957f5316e11cbbcc1cd15b30cc5dfe5c4e08c0237b3b5c71bb6a206320eaf"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_005.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 790,
+      "sha256": "a407d1b24f10b4f5adde3136b6832688d38a3f4c53e1dbf2fa98e6476d26a071"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_006.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_006.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 785,
+      "sha256": "fb7d25eb9319b3eb698aa9af2b8d260df3f5cd369d2dbc9fd7acf51347584eb7"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_007.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_007.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 895,
+      "sha256": "b5c4a3f4bc273cdbeecfde1665731eace9f3e711926e08abd598fb1b1718cb57"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_008.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_008.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 913,
+      "sha256": "a14426943ce731269676bcfa04e812f4e69623a5838363105ff64bf16c559a97"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_009.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_009.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 921,
+      "sha256": "9221ae34ca8301aee57df006e05c7c5637ab552a7460085c2452606d10a80bf9"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_010.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_010.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 989,
+      "sha256": "0549852704db75c162bef9055cfe1b73f6b423f853e774df80a5e70ee6e6d15d"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_011.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_011.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 662,
+      "sha256": "470cf5f72a97ff027a964c460626571906aeffd8a0c2c36e6e7037919de39ebb"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_012.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_012.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 712,
+      "sha256": "58e9dda2316a4c037cac5592f9160dab96dfe9b73fd3bb819d463060abcf35dc"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_013.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_013.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 702,
+      "sha256": "30ddd3ee21c142d2c7f9142d0a3de4d84964f1d0be646b9b522f30cff4cbe408"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_014.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_014.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 912,
+      "sha256": "09dbef2bd0d972a29c35b73ffdce883d43f024723bf9a6cd9f8ae25f0d247084"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_015.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_015.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1201,
+      "sha256": "00fe03201e42e57f94bc6d5b6d8738c102a29e2cee32d016193412ccb662fad9"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_016.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_016.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 773,
+      "sha256": "dc9979984f18755d17fe3ff60b2316071ae04a9ba3b51c108528cb3d5abdfbf5"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_017.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_017.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 699,
+      "sha256": "17e9043148bdd8fea151557fcab10c25f1734c7685e6c47522fed7596da4aca6"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_018.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_018.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1142,
+      "sha256": "9565bff5b8414e521cb5d0ca303044ca6f4a1d05031ebd54ab8484ac1fff8ebb"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_019.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_019.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 823,
+      "sha256": "f36034d2eda7fac1246bec3a1ecae546c46e80a1fbba7f3efc8e82ec9de27322"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_020.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_020.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 897,
+      "sha256": "34ad65d7e8d7647003ba340607d3fd74c39879cc8e9d4e2f83a1fd7047777d1b"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_021.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_021.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 914,
+      "sha256": "4598b899ca5af24eb9952311c45e9bfdf214cf96d888fde4ea030620b53340c2"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_022.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_022.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1448,
+      "sha256": "805c951538ca8b902b545840f96215542161392d443d8b7d0d5c7236c03925f8"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_023.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_023.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3535,
+      "sha256": "47034287d4eadb951956b6e0c47308ab61c9fa409443745a83c03b1fb8ce4798"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_024.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_024.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1101,
+      "sha256": "8259d2f72235f4c0dbae461ba394a723b4d5f6ce675bf7f375f8c6893d90f893"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_025.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_025.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 703,
+      "sha256": "dc7fc5f01b12f1dce9d789b3f0448475a74e17a8d8c8040aaf1ff5fd04894654"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_026.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_026.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1662,
+      "sha256": "167352b3a95108ea035739ac8fa2923b83d580b134bb7198b82a0798c56b9e1a"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_027.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_027.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1480,
+      "sha256": "a1a553a6e3737aa71675b62d5945aea672fe36c505230d3fd205f82743e86aea"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_028.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_028.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 938,
+      "sha256": "25fc5644b4523e7dcdb856758ec609b736277fc871e72e1bfba5c2e9c9c06c12"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_029.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_029.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1519,
+      "sha256": "1c4dd6d73712606bc97f7567d94b5c18e1c9a6b68241497b6df0fdc0a5c1596e"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_030.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_030.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 820,
+      "sha256": "d357b0f434ca832bbd04f33919bf2cdc403df7f43b395c3a276df5fee3a8b040"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_031.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_031.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 873,
+      "sha256": "a7945e13991e4d530e719e7806daa9e155a0bd51f142f466eaa444c7d8be14c2"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_032.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_032.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 680,
+      "sha256": "a469b5e7707bb5e39da5ec10d4a7c64d0267f32cd8603925d227d4107402fd60"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_033.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_033.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1438,
+      "sha256": "1c6dc57d83ffca6e38579daffc6720d44e6f6d04d8d1466669795830d2d55d1a"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_034.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_034.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 724,
+      "sha256": "0f6c2e09eeb4f55f40d3cd0cc794b4b5508acf407f2fc1532f5d46c2c2f7c85b"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_035.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_035.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 786,
+      "sha256": "6785a236be86f32876015806f7663bb540026f35f710c269bc6c746c137ec355"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_036.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_036.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1028,
+      "sha256": "00e9716a26fc9b10049c9de0e14bbd5799e585792710820b832483d01d386c3f"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_037.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_037.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1378,
+      "sha256": "6d2845d0045487b90d5d92a32f1415ecf3fb3027b8d843523cb0b7493cbe6b3d"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_038.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_038.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 993,
+      "sha256": "9632422d35ec0e1c7dba42db6e19165a781fb49256b0c3e37f08decc8c18a3ad"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_039.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_039.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1406,
+      "sha256": "0348ec1ba53003f0b21cc1a87ef19b39f3bbe2ef6ca3c7ecc3db4dd87a1e1002"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_040.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_040.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 934,
+      "sha256": "c0c9ff416c512c440819e6661c52d9d5f13b744cafe96b0ece2aac8f339982ff"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_041.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_041.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2663,
+      "sha256": "54ad8c3d9729882be7181f00d2af52c69eae7d3a02560ad55d1689ec4501dd28"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_042.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_042.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1416,
+      "sha256": "076044d751967d7e6e26b560d9f51cdf94c1f1fb1e7f9e67d39f60f7d7510388"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_043.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_043.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 779,
+      "sha256": "ebf60df4081ff8dba35959eea0c5b8c5e42ca1dfa05f045923a37a2d6c214a6c"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_044.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_044.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1178,
+      "sha256": "d951fc582cd1603c8b187e409aa1ac215309c5270a1ae19bafb054debbd3ed9c"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_045.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_045.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1573,
+      "sha256": "294a42f48a0c8760556df52bc1774d490b91b508cceba9a6d394643c30febd89"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_046.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_046.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1293,
+      "sha256": "442526ada2585c9a0d53afc7129098b7289218b71705a34a3bf4993b2d55a741"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_047.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_047.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1535,
+      "sha256": "6be57482718c8caccfd5a589d2651ffcc5b0cb7a9eb69cdbfe35f8cf34a853fe"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_048.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_048.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2707,
+      "sha256": "4e39a53ef70dd22ae5e0194e285b7a58ea6ec29b6d99003d1895e3e5487a7bb3"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_049.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_049.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1747,
+      "sha256": "02325eecf3aca0da2ffdd28ab6b68c4c6c106f8a0203a35e562763321e3fa736"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_050.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_050.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1040,
+      "sha256": "828a8455d0f4cc26cfc553e31d91aa57ca12c941feeb4efb2d3abddba057b491"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_051.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_051.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1182,
+      "sha256": "e37c289ef7fbc5c98e16a95e568544edde9a4eb45ca58b2e6cd7697de2c5e3dc"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_052.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_052.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 959,
+      "sha256": "0961b0999c7f2d1979ec00d50ae333e44b9065b0992912d53883a87d40085ca5"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_053.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_053.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1188,
+      "sha256": "53af8ae4c693e574f45c148cee89ea32a5c40b5eca4c90f3c3cc90119d62df08"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_053_back.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_053_back.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1056,
+      "sha256": "81a49922428d55f5016ac12de3a927aade31298217436dc4429a318d7150ad16"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_054.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_054.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1357,
+      "sha256": "a22a83ee1b401f2d129de36c7280b9d715b126d67cb5360efa9dc8daee4d14a3"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_055.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_055.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1656,
+      "sha256": "73f4020ee56069235d33c6d0cfe8a26f4f7175118ab7d3400fadf3fbd7c83220"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_056.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_056.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1632,
+      "sha256": "d1e18c2757f26ad7e930bae87464fb59a052676daaef9c0de65a51d57dd12c78"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_057.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_057.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1502,
+      "sha256": "8a4a2028b128728ccbfdc2321fd33d6f66b0fbb98472637af22c248a2ad83f95"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_058.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_058.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1279,
+      "sha256": "3423db2a08bf0f89a230c7b477121bc4b3c16aa582e247ae10a3138e76500212"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_059.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_059.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1715,
+      "sha256": "de410d2baab75d7a2145476597bdb26a604c415eafe432a1bf776e7d0549eb55"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_060.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_060.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 241,
+      "sha256": "122fae20f6a62c669bef180a05513783115e3531c990590e54c8e9b4ec79eea1"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_061.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_061.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1667,
+      "sha256": "3d77c4a2298a7c31738a839f94f1d5417b189ef1d4f9a07df498ff9b2e3df1ad"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_062.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_062.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1011,
+      "sha256": "680063d8bacdd7966d448d1b690954a4185d2511a9556bb6e2eb5fe1bc46081d"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_063.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_063.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1196,
+      "sha256": "800aafbfc72d2d06a9e73dd2cdfd3a82b6fd95842a1768ea1fe62e976576e693"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_064.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_064.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1254,
+      "sha256": "8e906d5dc8e7c2dc263d099ea16a5037ee7822e22f3efebd01659798b45fe6c4"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_064_back.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_064_back.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 898,
+      "sha256": "550394ac1c5c26febf46369b15999b9e3196f4e3d669f273fad302490474cc16"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_065.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_065.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 877,
+      "sha256": "f281e2edcab01a5017862fd26e8866745c0a6b9274b5b796b78be24c226f330f"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_066.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_066.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 847,
+      "sha256": "950e731b8a5e57726390f67f54abdba5cd09b47f5ff52dfd8c2c1c6338ca54e5"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_067.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_067.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 847,
+      "sha256": "950e731b8a5e57726390f67f54abdba5cd09b47f5ff52dfd8c2c1c6338ca54e5"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_068.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_068.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1019,
+      "sha256": "52245f9a7ab0348b1a752df0b54cb9d3d9f2f4bc5dd35f4382a426a3c229faf7"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_100.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_100.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1911,
+      "sha256": "053afc181f5cc895431430cd5a015cac36dcc40c1ef713f4069d5354b1e01afa"
+    },
+    {
+      "path": "portraits/theme-0/man/hair/man_hair_back_053.svg",
+      "original": "../../portraits/theme-0/man/hair/man_hair_back_053.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1056,
+      "sha256": "81a49922428d55f5016ac12de3a927aade31298217436dc4429a318d7150ad16"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_000.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_000.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 241,
+      "sha256": "122fae20f6a62c669bef180a05513783115e3531c990590e54c8e9b4ec79eea1"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_001.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2136,
+      "sha256": "e09e4fd9c9c91d6c8dd1752dd86992539d347cac2b015bb7af08422101285808"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_002.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1827,
+      "sha256": "41bc8191995eac5c3dbfd3e69eeb9f7178ea8e1fab84dd15a9bcc81f79f2b649"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_003.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1524,
+      "sha256": "51a4f410e546e2f0ca83edb9c47a2d2002ca6af897b096f021c46227ab37ebd6"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_004.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1546,
+      "sha256": "6ec530a7d466772519962bd686d01245fd393ca5f4ea7290134b1780937dddac"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_005.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2721,
+      "sha256": "a23e3b31e6ebd528ee2c38403d795e03bcf91a881a2173976cc2cf6b3e4388e3"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_006.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_006.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2721,
+      "sha256": "a23e3b31e6ebd528ee2c38403d795e03bcf91a881a2173976cc2cf6b3e4388e3"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_007.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_007.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1058,
+      "sha256": "715afbdbe7aeb3023834edb4bff1a4c2e430704f52983f519fe1ebc8fb7f8ecf"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_008.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_008.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1561,
+      "sha256": "2b9767e9a1489af1ce65f25cbbff39fd52b342f1a0069cd6915c513a830919e0"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_009.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_009.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 957,
+      "sha256": "1b62495e03f5d8ca601dd05294aae9d42c36e171c3f64106d96c62e7e563d11f"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_010.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_010.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1472,
+      "sha256": "f237be466b34d94ea9c30b4b45c92beafeeec26bb09e3d4822025c4817970ac3"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_100.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_100.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1283,
+      "sha256": "f071fe112f75adb729606482baff7d48b9d83df63bee43cdc9357ded7e033809"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_back_wildwest_001.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_back_wildwest_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 241,
+      "sha256": "122fae20f6a62c669bef180a05513783115e3531c990590e54c8e9b4ec79eea1"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_back_wildwest_002.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_back_wildwest_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 633,
+      "sha256": "3484f15a86a558f9ec262f0f362c45958c219219c5dc618373857a11c101b214"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_back_wildwest_003.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_back_wildwest_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 648,
+      "sha256": "ea4e7cdaca81e260388f572fa98f029854840359e4514f43a85080775cf675de"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_superhero_001.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_superhero_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1584,
+      "sha256": "556b929f2ba1c3df1ae7dbacae94b65ae3df2641f7407e32f374cf97ec9e6e95"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_template.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_template.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3057,
+      "sha256": "b8bf80cc87415d8cb46b81913142fa62f6d643ad3ddad25726fb32a0d14cdddb"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_wildwest_001.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_wildwest_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1693,
+      "sha256": "ad4154c32c89429836e1a0de2fa9395f9f4e3e9fae419e91c27415bb849402fb"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_wildwest_002.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_wildwest_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2883,
+      "sha256": "dc74c392fbeefed21c8d1e6fbb98966c9d7d4c99e5fd1897c77b1841b35a79a7"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_wildwest_003.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_wildwest_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1257,
+      "sha256": "8babbfce2d18a679795e2109209900c073b69f153890c6284e8795c6df8009ba"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_wildwest_004.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_wildwest_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1353,
+      "sha256": "86de5bd53982a0de42241e94bcfb8ac49bf66af86bb20e9327620615406addcb"
+    },
+    {
+      "path": "portraits/theme-0/man/hat/man_hat_wildwest_005.svg",
+      "original": "../../portraits/theme-0/man/hat/man_hat_wildwest_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1765,
+      "sha256": "2c1aae5df5d6d1271093df85854519732d1289adfcd6f10737dd55efc7017bb5"
+    },
+    {
+      "path": "portraits/theme-0/woman/accessory/woman_accessory_001.svg",
+      "original": "../../portraits/theme-0/woman/accessory/woman_accessory_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 292,
+      "sha256": "5798106a917723b0465c130d4ab74f27ba1d1bd76dd4c6fdd9be8ac2386b5c82"
+    },
+    {
+      "path": "portraits/theme-0/woman/accessory/woman_accessory_002.svg",
+      "original": "../../portraits/theme-0/woman/accessory/woman_accessory_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1356,
+      "sha256": "c744c6c4d3c37382121e802ab490bbd2164867f0dbc2f213666285d74eabb10e"
+    },
+    {
+      "path": "portraits/theme-0/woman/body/woman_body_000.svg",
+      "original": "../../portraits/theme-0/woman/body/woman_body_000.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2151,
+      "sha256": "9805487e0a1784e5eda147c80d50ff29f0eb2409d9b06a62927dafd37d174df9"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_body-ref.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_body-ref.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1544,
+      "sha256": "07908e59d1c8a817fa4e05aaee986ae048e7032f843e7174a951f27e1f3bcc70"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_000.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_000.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 993,
+      "sha256": "70ca14a58e1dc44fab7736ab1d78815ae5e0e2cd024e8f8810e2eb99f5794c1b"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_001.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 633,
+      "sha256": "9697c49626d2d242337ad233cf1ccb9299a531ac66859c99525e5c224aa248af"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_002.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 731,
+      "sha256": "68c0e149458236ab04040044d65372f19de1bc0943f9c37ede1d00b2d2caea61"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_003.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1195,
+      "sha256": "fe6086ac3b0859f5d1373b515035b77003a9dce3687c0a0c6041c1684f4787cd"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_004.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1273,
+      "sha256": "845e2d49906802393eb081d151c67a94560c46afd06a9de327ae0d863a528be9"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_005.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1293,
+      "sha256": "ddd1d42a422455363c9d4b0e640faba67790aed62895397754584c258c6594e8"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_006.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_006.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1595,
+      "sha256": "5afc506ab5b1631335f056c17877490d31bc16a73dc624ed85a3338a21a36ff4"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_007.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_007.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2596,
+      "sha256": "d8261a9006cca25c1130891f98df936c55aadb9fef69d08b54352624c0725d73"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_008.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_008.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1208,
+      "sha256": "6ebf9bbac7b894b7476faad1bdc2b8910c33902777e304d1fa11947b58dc4012"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_009.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_009.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1196,
+      "sha256": "9b89ed0ac6c63c5a19cafd1676431478498ec0d569682b88d1081ad59ca20002"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_010.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_010.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1257,
+      "sha256": "7126c0c2b8e9ae37b1b5ae5334fd1ecf32f30830269d22b66796a6d187cdb9d0"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_011.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_011.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1121,
+      "sha256": "d2b6e1b21fc34aa1b1f0121a4c0f2d644fcbdaf9d22dc771019b58e6c0ccd27a"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_012.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_012.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1236,
+      "sha256": "7a457b0efb2a5ed26702d55c44fa3510df4039fac028e396d4e4f48c9a206d9e"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_013.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_013.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1905,
+      "sha256": "15bba2a87629b6e750addaf50f6910c4faa7e55ee769a0c43fd329af53b5eb9a"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_014.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_014.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1580,
+      "sha256": "ce8fc93034774ebbe209680c5b5d7350df0f2509281eb9c5c02a0f31af892c9a"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_015.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_015.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1359,
+      "sha256": "fedcc2a0351cafa14ac4304b60390a3e51eab80288b1000c1ec6fa59e8d01712"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_016.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_016.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1495,
+      "sha256": "fbb7105ff3e2bb5ecf431083a6fa1b81ed4af02101fcba7ba64a156cee428ad8"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_017.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_017.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1243,
+      "sha256": "85fb326b29ff78f89e1522fde995491677c8b36f6cb38f8538180fff3a271b04"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_018.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_018.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1246,
+      "sha256": "7a0cb48b4b91801a10f858b9199935960cb67d1355684338395db7a04ee93200"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_019.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_019.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1154,
+      "sha256": "aa99d03770ff84deea0d0972ad8c3ecb83bd95e1a72e09a9788978fe61b6a04d"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_020.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_020.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2941,
+      "sha256": "a0f8ee2d67531045011d4bae8b31878ae0f74ca70699a40d7f334ae9f237a73d"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_021.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_021.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1538,
+      "sha256": "2f83742e3fc3d1ef1c6efa2e2e89529967f11a952127ec2fdb4da9b362b6fa99"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_022.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_022.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 592,
+      "sha256": "29fff602de0684737669728d01cbc3670a3216782a588c63062affd0ade86251"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_023.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_023.svg",
+      "source": "https://murdoku.com/play/assets/woman_clothes_023-CdTZ8_Xm.svg",
+      "bytes": 8406,
+      "sha256": "cf9c2b86b0d1d07bb08f8b30f621729bd4fb63c3d75cf34ed408a98e862b5d58"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_024.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_024.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2134,
+      "sha256": "78a03a56f09b0e97db155871523cbd407371724c6b01f92ee7bafe83a16890fc"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_025.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_025.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 913,
+      "sha256": "1d8cdf57c3730f242a19632975751c370a5dbcfc494d8c6c1f8535195e881a1d"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_026.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_026.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2045,
+      "sha256": "164502a4732ba61d7751ef711edabb3e3be3d3b4d7205557000960094992d986"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_027.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_027.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1939,
+      "sha256": "ec97588ed06afc850c1805d0d9031c9887d9091793d3cc54089894066078d814"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_028.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_028.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1049,
+      "sha256": "87bc83a56973193a019d2105950748ed7e7b95f8fea2bc1f93301ffd68732739"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_superhero_001.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_superhero_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2872,
+      "sha256": "01317aeaa50658828d24581945090d729e7799e3def7c2eec48f6a15e65e5a8d"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_superhero_002.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_superhero_002.svg",
+      "source": "https://murdoku.com/play/assets/woman_clothes_superhero_002-w10hd5G2.svg",
+      "bytes": 4562,
+      "sha256": "1a0ed370b00abeb84868ff1e43bcbb850505007f4b26bb2e76d04489b75c59ca"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_wildwest_001.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_wildwest_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2370,
+      "sha256": "1899d79db9dfa354459b0461c97e329c614a83db66a715cbde747f41fe077033"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_wildwest_002.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_wildwest_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1706,
+      "sha256": "879bd734763c12ef4891f3a9f436d52faf9ca2d924c0b59052f2d57664be4f4e"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_wildwest_003.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_wildwest_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2630,
+      "sha256": "5eafe5c09d85a9d4725db622b7b97f5a91f679db44c99b3bdefb03b554ae44eb"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_wildwest_004.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_wildwest_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1901,
+      "sha256": "10ee5748ef145e2a00a1b4ee7edcac6997fb6e0ddaa3fe1bc7abc58278cfd022"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_wildwest_005.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_wildwest_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3279,
+      "sha256": "01acd9baa84b6ca5c588b4de21dc733b461bda273a48746dd3cd41b9d93cde52"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_zombies_001.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_zombies_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1805,
+      "sha256": "6f6007e2cdfb71102ec63bf28b3a305b52d5c17db735d194ed1790ca76ec75e6"
+    },
+    {
+      "path": "portraits/theme-0/woman/clothes/woman_clothes_zombies_002.svg",
+      "original": "../../portraits/theme-0/woman/clothes/woman_clothes_zombies_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 772,
+      "sha256": "d11a89881343c4a60e8952b7ef54b3fa5ed61acba30565a855135eaabe459bb8"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_body_000_ref.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_body_000_ref.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2674,
+      "sha256": "1f2ad56b8b228a797b200d3134db26a070c89f73416c777bb79e9271205c8066"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_000-01.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_000-01.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1417,
+      "sha256": "058bc8b5de97a51f64107d5552382a5681b4a4062654ca7cf765b4d234988497"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_000.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_000.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2490,
+      "sha256": "75783d0386dfe3cf9c0969a0354cdbbdb238595f11cb4e51fcf2c7105f34ad78"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_001.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1226,
+      "sha256": "3f8183522e2500a51b6b76f046a66f7c58d4324691d32a04f18b4060801c5ff8"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_002.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1055,
+      "sha256": "9ca0b0f9172d11ac4e4082b1ec448d657862ab58acffe44a9e5c81595ffe4a2d"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_003.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1952,
+      "sha256": "df813f16643a195d489807b39312de25345ad70f435eb11bbc967356f11328f1"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_004.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1731,
+      "sha256": "de0ae3b48c835d4b5df0590354d44e8ccaf3d0501a94208499e0adf0d2ace308"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_005.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1575,
+      "sha256": "1d72ef7c5270ce1d72b7d416c5a9ccdb9dea9a42e1b4107829a20b3b8a3901b4"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_006.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_006.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1335,
+      "sha256": "fdf6e5aac4df68940950bb1553b429f159753f22f3cad6679991d91d9c15c9cb"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_007.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_007.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1420,
+      "sha256": "1d108a727597aee5b02cac1bd4a34364bed4411098aa8fd76d1c5acd77cd1f5f"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_008.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_008.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1790,
+      "sha256": "11abfe06744961b00c3608b12f6f6102b2766d810552b546cf834afd384b0585"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_009.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_009.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1869,
+      "sha256": "0cbbe3c8127f87be83b5b4082cf94acc46acd68a75a5d06d6b39f97441d2ef82"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_010.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_010.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1793,
+      "sha256": "ddfebf7cf967bfd880dd0692c1fac4896e2cd5aa34eb01d557970dd232719693"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_011.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_011.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1674,
+      "sha256": "06151c4550de3ebf3d9c8094e8f1a4697dfee4be6772ba6acc5c5778870a67f6"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_012.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_012.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1898,
+      "sha256": "2b03f70825a9db326b8aefd35ea8e12d7ea365c1eb50ad3e7be29300724379f6"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_013.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_013.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1457,
+      "sha256": "c23dec239fe8d8c0b3476db552ba61c6600d6d83a94556a7fb4f53aa7b30d0e6"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_014.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_014.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 724,
+      "sha256": "733dfb5a51d39bc0069c89c8460af8ad381f58d2ab3bc62b00dab9422f15332a"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_015.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_015.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1648,
+      "sha256": "93060497b09f9c8f2b014e0dec9db13c7603afd167fb825a73b922217bb6c9eb"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_016.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_016.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2490,
+      "sha256": "75783d0386dfe3cf9c0969a0354cdbbdb238595f11cb4e51fcf2c7105f34ad78"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_017.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_017.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2249,
+      "sha256": "72f11af9e246020b36f83adb7b42ec8d4dcb940da0d74a55b3ac0c954d4817d5"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_018.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_018.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1124,
+      "sha256": "2ca9b645848dd91be5c3dc24c1ce5a332ed81a6f7db7a70332f98421e7035ac2"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_019.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_019.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1698,
+      "sha256": "68f6bdc2359c3ad547804e74a652cb54dd8905e7d212c03aace559dc3c704a07"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_020.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_020.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1016,
+      "sha256": "ac91de6919a1af038a4bd85fb272c096fc1ee56ec35187a7f46bdb2b33a94190"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_021.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_021.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1509,
+      "sha256": "c87da4036683c6756b1f26ad56f5402f053073899065a0fd9cfbb146f15c2460"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_022.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_022.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1364,
+      "sha256": "8aa49a70d09a19576ab33d588970f897ccc5aef0a460ee06eab2fc29b5afe87f"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_023.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_023.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2011,
+      "sha256": "3e707ae8f40f41dde7b37952a1304fb632607365970453c56ad36e17a7251574"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_024.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_024.svg",
+      "source": "https://murdoku.com/play/assets/woman_hair_024-ZU51-7Hb.svg",
+      "bytes": 8608,
+      "sha256": "a6204f6dd3c3cc6bc0e3a86a57daaf6b51756ae7b29e731bf1c152231dd39068"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_025.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_025.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2096,
+      "sha256": "e92300f46dbb00a435e524b68fbc57d67499a72459fcde51d24276388a0afb22"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_026.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_026.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2605,
+      "sha256": "1ec3ddb9bc669ff2db4c416e2e5d131aa83321fd6a7cf44b27ab3dc8e7cc0649"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_027.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_027.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1601,
+      "sha256": "d27c7906b4be8c8b42cf9d8efbaa7a386bc8bfc4df746d2ea44e669a8d7f436d"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_028.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_028.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2208,
+      "sha256": "1f258cd4864ebe1d08c6fb25915c6a96dbd440cbd860654b6ec4f8dff0f0f5d6"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_029.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_029.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2306,
+      "sha256": "e02258b080f39e3041321b54fb72035887f94348ca5e3f28a05b19e55ba881a1"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_030.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_030.svg",
+      "source": "https://murdoku.com/play/assets/woman_hair_030-BRKCmO4J.svg",
+      "bytes": 4400,
+      "sha256": "07ce61b1bf0eed766ded7f953bac0b702eeb472aded416c651337a29b4e08157"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_031.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_031.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2124,
+      "sha256": "fc470f50a8bddaf4a4219ad914d3db67cfa8b185319057b88858f14d06f735d1"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_032.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_032.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1704,
+      "sha256": "03aa772160003aac5ea236defa4ad168abf397086d57da0ac709fdf676f513c0"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_033.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_033.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1532,
+      "sha256": "dade8411658fecb4da93f8046f36cada7ba62a78cec1023b84c0973c3c4a60e7"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_034.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_034.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1673,
+      "sha256": "9c0dfa57e459ba7e02c94b0b5cea226682a2f6c06173e8dbddd10ddb201ae687"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_035.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_035.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2423,
+      "sha256": "8586d56468f113164b8a41320fa44e2f04e4e92249755a599d034bfa071eebb9"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_036.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_036.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2596,
+      "sha256": "120c1506b50becaf4474e24e8856919cb43f4cebf3318ed007030d93d6f7d2c5"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_037.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_037.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1416,
+      "sha256": "e081c935a79d60c865e72ddf7fbed97c8894b93e875c7e45ce55e4fb18ca4661"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_038.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_038.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2053,
+      "sha256": "1dae25022ceaa5d288ead08f16bdbe83067168f837f198115c88081f77bf8926"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_039.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_039.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1478,
+      "sha256": "7060dea1548b679ad1f420f4d766570aeb9a8261608634961d1216001faeddc3"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_040.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_040.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2768,
+      "sha256": "4677405ac8c73658cc3aef5ec1ad2690941762bfe3a8b9d5ab839f48166d703c"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_041.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_041.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2601,
+      "sha256": "d20c9e6dae92926cd5f789d8b8ed3db9c69006bc6fbefd720112d9507911f1b8"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_042.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_042.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2101,
+      "sha256": "9936282c873fe55c2d47cfaef76a1344b388d7daa452d20a01cf9ee31b7955cc"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_043.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_043.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2594,
+      "sha256": "184878d64890be9677dba9a9f3f31d1c7ebbf2b23422372a9cd636a7c521b080"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_044.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_044.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1734,
+      "sha256": "0e96e67b27c2c33a29d1ec5bc36dca0aec151263999f1f941b8214c4c5ccf300"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_045.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_045.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2049,
+      "sha256": "2c960be7ff969cb23bbfc5ebac39dee7b8a609444d20f2248c85e19f47f422f6"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_046.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_046.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2587,
+      "sha256": "563795eff70fc370bf07b1c4512f5d77d0597c804582377e45595cfb2e1d777c"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_047.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_047.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1478,
+      "sha256": "089662499c7200cffe5211303d09f919e7e86234a77b82f6116285afa15a55f9"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_048.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_048.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1852,
+      "sha256": "d8e7527141a5745bf4af74b3aefcf7c2526fd2de8fc31f1b3782e6a1ee7c444d"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_049.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_049.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1334,
+      "sha256": "775caf23c412db0353d9cef58ef329405bf5f25cdf4d7667f54be323507c54f5"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_050.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_050.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1938,
+      "sha256": "b8af8104ce7f68cc5efcb133577e50d8989cb3c69bee1f7712eb0720f05c3be2"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_051.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_051.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2584,
+      "sha256": "7b5338afbdd5f7c3030f263815375a0dba2744aee135a9e06cd3a5682c7f8675"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_052.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_052.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1863,
+      "sha256": "231e92f59736a5c764e45e6b1184b46c4196e9aac9ebdba281cae989e6da77ea"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_053.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_053.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1274,
+      "sha256": "719de7993f591f3fe7e3b18505553a2c201a772d1d471f712e365af4ce64f781"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_054.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_054.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2310,
+      "sha256": "ad17b79267c2dd51f2edee8a421a40c1efffdcba0282ffc98dbdc838f787b19b"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_055.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_055.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1837,
+      "sha256": "1a4665e4775a317794ae6f72d4d2bdd59e4034d19a2634f09c36c6f6f791bea8"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_056.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_056.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2098,
+      "sha256": "8fcc69a9aa5e81395b40eb1832e78dad41d882958e7d9a8ae7616f3c1d591cd1"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_057.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_057.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1228,
+      "sha256": "51b75b733c6dcc8ae6c1aec0d5fb6241fc26f1b96ba49fa49de9487c259762b2"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_058.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_058.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2367,
+      "sha256": "2b5bbef8a69f05010bd832769b4769b64d537d29cac47462b0176f37b37dcb95"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_059.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_059.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1712,
+      "sha256": "82c1a6327b625eab59e754b4a5f968fef46ab2d6ca21e930566bbfe7154d80ce"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_060.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_060.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1848,
+      "sha256": "3927cf3ac1919ce99739fd5863d40db8f679cba3b7d6a5d6a30c6d9e8e903110"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_061.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_061.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1922,
+      "sha256": "a5d66bd674ed8ba05924dd41b39dbfab5d45aec3a385b42ff2f31d16dc5579e4"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_062.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_062.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1893,
+      "sha256": "493abd01d08bad45999d93208b0af4e6a6dc53220ecfc62e38defe128ccd8537"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_063.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_063.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2089,
+      "sha256": "7d9ccdbaa075a180fb1db5ff60b6b3e86351c6f0c4f8d58e81c9fedc1258b7ff"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_063_back.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_063_back.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1276,
+      "sha256": "3d6b1145791c1983b5adc19d161ebc39fb11795c6201e4ecad845ea89096f17b"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_064.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_064.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2185,
+      "sha256": "a977a57cbedc51c498dfd9918e09b594d7d90900f6115fada903ccf0416dff56"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_064_back.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_064_back.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1590,
+      "sha256": "e127d91d60901a529c40b6bf20ff1cda11569196063b5c41d38d9692852434a5"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_065.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_065.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1882,
+      "sha256": "aa17a441dacbb91be88e5e1e680b001d747ac8ba89a54a5a62f528ecd8af8ec8"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_065_back.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_065_back.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2181,
+      "sha256": "0e0885e6ae3c45cf3afe69c8377da08af2258c8ab7f2ba228428d0272d965675"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_066.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_066.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2827,
+      "sha256": "9652c04e3aa62c3c0ae8b620e61512c6577ea236c4190dec1a8b4fa9c68b15a4"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_067.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_067.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2513,
+      "sha256": "64de8449548a7e42435b20647be6bf17bfc8f1b6a3dd20551087135449d6029a"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_067_back.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_067_back.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2407,
+      "sha256": "06c975b7f9d91503e4207b4149badcdacf2e5ab8c1e1ca7c373dc689274659ff"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_068.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_068.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1468,
+      "sha256": "8c3fd2d52efe3c56847530f4eeb686f3c1d914ce241bdaf0d79d7a920ace7d4e"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_068_back.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_068_back.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 856,
+      "sha256": "a7be1d4d83f5a7bd1de4aea1210f96a7e0de4ff2be4b8a4229dd2f32cf4068a0"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_069.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_069.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1350,
+      "sha256": "5c0ba0f1b177dfd98388ce2ee2955b5445f3a62baf5615d162be54882867523d"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_069_back.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_069_back.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1505,
+      "sha256": "3b68f9b05ac517dd46bbba747742abb111f2daae194a1d8da0b7be702a064637"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_070.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_070.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1913,
+      "sha256": "8d4919d90d749817d87509296ede0c57217b29cfbe60601ee7b88da3140e188a"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_070_back.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_070_back.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3019,
+      "sha256": "6adee274ba73b7c0366b0324a76e2ce57957cd1e7f5e9707fe46d322f77f5dbb"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_071.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_071.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1576,
+      "sha256": "6851bb1219a23555e5950263c66254f2dce198989bda78dc9c96e3dd394d301a"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_071_back.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_071_back.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2035,
+      "sha256": "39381e6fd0097b4ffbbac40542da209c6f98a7c177d84f83ab729470b523b8ce"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_072.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_072.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1656,
+      "sha256": "46dbf3d136311ac3edc06dfbb6f1ebeeee04ff23357a2b393b03dc62b16d6c74"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_073.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_073.svg",
+      "source": "https://murdoku.com/play/assets/woman_hair_073-B4kJGboc.svg",
+      "bytes": 4587,
+      "sha256": "cc4683d9fabcba6ce1acfda2c1a19e48546fca639d3578b81d950259b598bdaa"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_073_back.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_073_back.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 838,
+      "sha256": "b9fa46dd5034acc2af4c5da9efca21c288cf8f6a2cea56e23e140d20bd2ea4c2"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_back_063.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_back_063.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1276,
+      "sha256": "3d6b1145791c1983b5adc19d161ebc39fb11795c6201e4ecad845ea89096f17b"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_001.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 3386,
+      "sha256": "d4a989cd87a8e0413668450374b1d59c3cd343d3dcdbde1a162bdf69bdc1577e"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_002.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1424,
+      "sha256": "a7657a24268fd8656d7d7b688b2dfacfd414c1870ce8c7a59959c4204f6a6069"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_003.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2886,
+      "sha256": "e962fbf2d795a45262e4bc16a7992c9e5530a8344d8ee9301a863cea053987cd"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_004.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1489,
+      "sha256": "439f22923813a3a31bd5f0b12a73166992955e4fd34f01875c2e90a9937df065"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_005.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1745,
+      "sha256": "77ddd54e257a5c6398c117678999c711db3366b17451409c2891a6d73fbf3b8c"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_006.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_006.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2277,
+      "sha256": "1febba8b8875b7f2ba5e3ffc6fc5ca86692e3e0c3bc88c4ff487d108bd01fc02"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_back_001.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_back_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1852,
+      "sha256": "1bb97543a3cadebca3886564ca6f5991810d87493286623fc089ac1ecc16b163"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_back_002.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_back_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1211,
+      "sha256": "58d6dc9203c333e7baf2037dd2516060f216609660bb8fcc6777f713d11dd52a"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_back_003.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_back_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1211,
+      "sha256": "58d6dc9203c333e7baf2037dd2516060f216609660bb8fcc6777f713d11dd52a"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_back_004.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_back_004.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1765,
+      "sha256": "cdcc74c3d80d122eb6abe97ee61b7f396856b0c44dac820e398fda6e0a68ebc3"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_back_005.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_back_005.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1613,
+      "sha256": "1e6eba16e41be62ac98b31152819178285f395d69d7ff1c55bb9e28b19dd8531"
+    },
+    {
+      "path": "portraits/theme-0/woman/hair/woman_hair_wildwest_back_006.svg",
+      "original": "../../portraits/theme-0/woman/hair/woman_hair_wildwest_back_006.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1338,
+      "sha256": "bc342db5362c6d23b655c8ec926c83cf18243baf5fef73b5382c85335ab1c3fe"
+    },
+    {
+      "path": "portraits/theme-0/woman/hat/woman_hat_000.svg",
+      "original": "../../portraits/theme-0/woman/hat/woman_hat_000.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 292,
+      "sha256": "5798106a917723b0465c130d4ab74f27ba1d1bd76dd4c6fdd9be8ac2386b5c82"
+    },
+    {
+      "path": "portraits/theme-0/woman/hat/woman_hat_001.svg",
+      "original": "../../portraits/theme-0/woman/hat/woman_hat_001.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 1577,
+      "sha256": "3aa13b72de9d194f327bfef897130e9b587a2d40a028f71a3a27d9ad1c4d3316"
+    },
+    {
+      "path": "portraits/theme-0/woman/hat/woman_hat_002.svg",
+      "original": "../../portraits/theme-0/woman/hat/woman_hat_002.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2258,
+      "sha256": "4d6b4144f40a94077a5048d904e3c9725c116cc92248a013df680d62fd7789a8"
+    },
+    {
+      "path": "portraits/theme-0/woman/hat/woman_hat_003.svg",
+      "original": "../../portraits/theme-0/woman/hat/woman_hat_003.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2271,
+      "sha256": "1f7a88e26b277934133286f660d8d9e27634229108e103dc32d41c65a47952c9"
+    },
+    {
+      "path": "portraits/theme-0/woman/hat/woman_hat_100.svg",
+      "original": "../../portraits/theme-0/woman/hat/woman_hat_100.svg",
+      "source": "embedded in GameScreen-Bm8Aqj6V.js",
+      "bytes": 2670,
+      "sha256": "b30e5d8d90b21e9ea4631699762a175913cd916c3c8ef6b2c15dbe139c7a1d1e"
+    }
+  ]
+}

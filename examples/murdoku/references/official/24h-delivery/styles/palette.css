@@ -1,0 +1,27 @@
+:root {
+  --bg: #f2f0f7;
+  --panel: #f8f7fb;
+  --panel2: #fbfbfd;
+  --panel-soft: #f0eef6;
+  --modal-surface: #f7f6f5;
+  --modal-band: #edece9;
+  --border: #000000;
+  --border-soft: #cccccc;
+  --text: #191922;
+  --text-muted: rgba(25, 25, 34, 0.7);
+  --accent: #c79f2a;
+  --accent-bg: #f3e7c4;
+  --cell-base: #fbfbfd;
+  --cell-placed: #f0eef6;
+  --wall-thin: #000000;
+  --wall-thick: #000000;
+  --x-overlay: rgba(25, 25, 34, 0.25);
+  --select-primary: rgba(94, 140, 200, 0.95);
+  --shadow-flat: rgba(0, 0, 0, 0.4);
+  --select-secondary: rgba(70, 120, 180, 0.95);
+  --hover-preview: rgba(60, 140, 220, 0.5);
+  --portrait-name-bg: #ffffff;
+  --portrait-name-text: #000000;
+  --portrait-inner-border: inset 0 0 0 3px #ffffff;
+  --x-icon-filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
+}

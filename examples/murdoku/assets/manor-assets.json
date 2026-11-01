@@ -1,0 +1,525 @@
+{
+  "source": "https://murdoku.com/play/",
+  "objects": [
+    "plant",
+    "chair",
+    "shelf",
+    "statue",
+    "flowers",
+    "carpet",
+    "table",
+    "safe",
+    "piano",
+    "fire",
+    "bed",
+    "hammock",
+    "bonsai",
+    "grandfatherclock",
+    "easel",
+    "locker",
+    "basket",
+    "painting"
+  ],
+  "portraits": [
+    {
+      "sex": "man",
+      "skin": 0,
+      "hair": 0,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_001.svg",
+      "outfit": "man_clothes_001.svg",
+      "colors": [
+        "#efba90",
+        "#2d2e37",
+        "#2ebfbc"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 0,
+      "hair": 1,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_005.svg",
+      "outfit": "man_clothes_002.svg",
+      "colors": [
+        "#efba90",
+        "#855f48",
+        "#a579bf"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 0,
+      "hair": 2,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_012.svg",
+      "outfit": "man_clothes_003.svg",
+      "colors": [
+        "#efba90",
+        "#bf9e57",
+        "#f1adc0"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 0,
+      "hair": 3,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_020.svg",
+      "outfit": "man_clothes_004.svg",
+      "colors": [
+        "#efba90",
+        "#cbced3",
+        "#a8a9c6"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 1,
+      "hair": 0,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_001.svg",
+      "outfit": "man_clothes_005.svg",
+      "colors": [
+        "#95775e",
+        "#2d2e37",
+        "#b97676"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 1,
+      "hair": 1,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_005.svg",
+      "outfit": "man_clothes_006.svg",
+      "colors": [
+        "#95775e",
+        "#855f48",
+        "#9be9c9"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 1,
+      "hair": 2,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_012.svg",
+      "outfit": "man_clothes_007.svg",
+      "colors": [
+        "#95775e",
+        "#bf9e57",
+        "#5e9745"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 1,
+      "hair": 3,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_020.svg",
+      "outfit": "man_clothes_009.svg",
+      "colors": [
+        "#95775e",
+        "#cbced3",
+        "#7a71a4"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 2,
+      "hair": 0,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_001.svg",
+      "outfit": "man_clothes_010.svg",
+      "colors": [
+        "#c59d86",
+        "#2d2e37",
+        "#c5e2e2"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 2,
+      "hair": 1,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_005.svg",
+      "outfit": "man_clothes_011.svg",
+      "colors": [
+        "#c59d86",
+        "#855f48",
+        "#f26f7b"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 2,
+      "hair": 2,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_012.svg",
+      "outfit": "man_clothes_012.svg",
+      "colors": [
+        "#c59d86",
+        "#bf9e57",
+        "#2ebfbc"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 2,
+      "hair": 3,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_020.svg",
+      "outfit": "man_clothes_013.svg",
+      "colors": [
+        "#c59d86",
+        "#cbced3",
+        "#a579bf"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 3,
+      "hair": 0,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_001.svg",
+      "outfit": "man_clothes_014.svg",
+      "colors": [
+        "#f7ccaa",
+        "#2d2e37",
+        "#2a2a2a"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 3,
+      "hair": 1,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_005.svg",
+      "outfit": "man_clothes_015.svg",
+      "colors": [
+        "#f7ccaa",
+        "#855f48",
+        "#618fbf"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 3,
+      "hair": 2,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_012.svg",
+      "outfit": "man_clothes_016.svg",
+      "colors": [
+        "#f7ccaa",
+        "#bf9e57",
+        "#b97676"
+      ]
+    },
+    {
+      "sex": "man",
+      "skin": 3,
+      "hair": 3,
+      "body": "man_body_003.svg",
+      "hairstyle": "man_hair_020.svg",
+      "outfit": "man_clothes_017.svg",
+      "colors": [
+        "#f7ccaa",
+        "#cbced3",
+        "#9be9c9"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 0,
+      "hair": 0,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_001.svg",
+      "outfit": "woman_clothes_000.svg",
+      "colors": [
+        "#efba90",
+        "#2d2e37",
+        "#2ebfbc"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 0,
+      "hair": 1,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_005.svg",
+      "outfit": "woman_clothes_001.svg",
+      "colors": [
+        "#efba90",
+        "#855f48",
+        "#a579bf"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 0,
+      "hair": 2,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_012.svg",
+      "outfit": "woman_clothes_002.svg",
+      "colors": [
+        "#efba90",
+        "#bf9e57",
+        "#f1adc0"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 0,
+      "hair": 3,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_020.svg",
+      "outfit": "woman_clothes_003.svg",
+      "colors": [
+        "#efba90",
+        "#cbced3",
+        "#a8a9c6"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 1,
+      "hair": 0,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_001.svg",
+      "outfit": "woman_clothes_004.svg",
+      "colors": [
+        "#95775e",
+        "#2d2e37",
+        "#b97676"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 1,
+      "hair": 1,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_005.svg",
+      "outfit": "woman_clothes_005.svg",
+      "colors": [
+        "#95775e",
+        "#855f48",
+        "#9be9c9"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 1,
+      "hair": 2,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_012.svg",
+      "outfit": "woman_clothes_006.svg",
+      "colors": [
+        "#95775e",
+        "#bf9e57",
+        "#5e9745"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 1,
+      "hair": 3,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_020.svg",
+      "outfit": "woman_clothes_007.svg",
+      "colors": [
+        "#95775e",
+        "#cbced3",
+        "#7a71a4"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 2,
+      "hair": 0,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_001.svg",
+      "outfit": "woman_clothes_008.svg",
+      "colors": [
+        "#c59d86",
+        "#2d2e37",
+        "#c5e2e2"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 2,
+      "hair": 1,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_005.svg",
+      "outfit": "woman_clothes_009.svg",
+      "colors": [
+        "#c59d86",
+        "#855f48",
+        "#f26f7b"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 2,
+      "hair": 2,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_012.svg",
+      "outfit": "woman_clothes_010.svg",
+      "colors": [
+        "#c59d86",
+        "#bf9e57",
+        "#2ebfbc"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 2,
+      "hair": 3,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_020.svg",
+      "outfit": "woman_clothes_011.svg",
+      "colors": [
+        "#c59d86",
+        "#cbced3",
+        "#a579bf"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 3,
+      "hair": 0,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_001.svg",
+      "outfit": "woman_clothes_012.svg",
+      "colors": [
+        "#f7ccaa",
+        "#2d2e37",
+        "#2a2a2a"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 3,
+      "hair": 1,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_005.svg",
+      "outfit": "woman_clothes_013.svg",
+      "colors": [
+        "#f7ccaa",
+        "#855f48",
+        "#618fbf"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 3,
+      "hair": 2,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_012.svg",
+      "outfit": "woman_clothes_014.svg",
+      "colors": [
+        "#f7ccaa",
+        "#bf9e57",
+        "#b97676"
+      ]
+    },
+    {
+      "sex": "woman",
+      "skin": 3,
+      "hair": 3,
+      "body": "woman_body_000.svg",
+      "hairstyle": "woman_hair_020.svg",
+      "outfit": "woman_clothes_015.svg",
+      "colors": [
+        "#f7ccaa",
+        "#cbced3",
+        "#9be9c9"
+      ]
+    }
+  ],
+  "layers": [
+    "objects/obj_basket.svg",
+    "objects/obj_basket_02.svg",
+    "objects/obj_bed.svg",
+    "objects/obj_bed_02.svg",
+    "objects/obj_bonsai.svg",
+    "objects/obj_bonsai_02.svg",
+    "objects/obj_carpet.svg",
+    "objects/obj_carpet_02.svg",
+    "objects/obj_chair.svg",
+    "objects/obj_chair_02.svg",
+    "objects/obj_easel.svg",
+    "objects/obj_easel_02.svg",
+    "objects/obj_fire.svg",
+    "objects/obj_fire_02.svg",
+    "objects/obj_flowers.svg",
+    "objects/obj_flowers_02.svg",
+    "objects/obj_grandfatherclock.svg",
+    "objects/obj_grandfatherclock_02.svg",
+    "objects/obj_hammock.svg",
+    "objects/obj_hammock_02.svg",
+    "objects/obj_locker.svg",
+    "objects/obj_locker_02.svg",
+    "objects/obj_painting.svg",
+    "objects/obj_painting_02.svg",
+    "objects/obj_piano.svg",
+    "objects/obj_piano_02.svg",
+    "objects/obj_plant.svg",
+    "objects/obj_plant_02.svg",
+    "objects/obj_safe.svg",
+    "objects/obj_safe_02.svg",
+    "objects/obj_shelf.svg",
+    "objects/obj_shelf_02.svg",
+    "objects/obj_statue.svg",
+    "objects/obj_statue_02.svg",
+    "objects/obj_table.svg",
+    "objects/obj_table_02.svg",
+    "portraits/theme-0/man/body/man_body_003.svg",
+    "portraits/theme-0/man/clothes/man_clothes_001.svg",
+    "portraits/theme-0/man/clothes/man_clothes_002.svg",
+    "portraits/theme-0/man/clothes/man_clothes_003.svg",
+    "portraits/theme-0/man/clothes/man_clothes_004.svg",
+    "portraits/theme-0/man/clothes/man_clothes_005.svg",
+    "portraits/theme-0/man/clothes/man_clothes_006.svg",
+    "portraits/theme-0/man/clothes/man_clothes_007.svg",
+    "portraits/theme-0/man/clothes/man_clothes_009.svg",
+    "portraits/theme-0/man/clothes/man_clothes_010.svg",
+    "portraits/theme-0/man/clothes/man_clothes_011.svg",
+    "portraits/theme-0/man/clothes/man_clothes_012.svg",
+    "portraits/theme-0/man/clothes/man_clothes_013.svg",
+    "portraits/theme-0/man/clothes/man_clothes_014.svg",
+    "portraits/theme-0/man/clothes/man_clothes_015.svg",
+    "portraits/theme-0/man/clothes/man_clothes_016.svg",
+    "portraits/theme-0/man/clothes/man_clothes_017.svg",
+    "portraits/theme-0/man/hair/man_hair_001.svg",
+    "portraits/theme-0/man/hair/man_hair_005.svg",
+    "portraits/theme-0/man/hair/man_hair_012.svg",
+    "portraits/theme-0/man/hair/man_hair_020.svg",
+    "portraits/theme-0/woman/body/woman_body_000.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_000.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_001.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_002.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_003.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_004.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_005.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_006.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_007.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_008.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_009.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_010.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_011.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_012.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_013.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_014.svg",
+    "portraits/theme-0/woman/clothes/woman_clothes_015.svg",
+    "portraits/theme-0/woman/hair/woman_hair_001.svg",
+    "portraits/theme-0/woman/hair/woman_hair_005.svg",
+    "portraits/theme-0/woman/hair/woman_hair_012.svg",
+    "portraits/theme-0/woman/hair/woman_hair_020.svg",
+    "textures/texture_floor_bigwood.svg",
+    "textures/texture_floor_rich.svg",
+    "textures/texture_floor_smalltiles.svg",
+    "textures/texture_floor_woodentile.svg"
+  ]
+}

@@ -1,0 +1,259 @@
+{
+  "page": "https://murdoku.com/play/",
+  "retrieved": "2026-11-01",
+  "selection": "42 English puzzle JSON URLs requested by the public page, excluding other catalogue entries.",
+  "files": [
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-24h-delivery-easy.json",
+      "path": "puzzles/en/puzzle-24h-delivery-easy.json",
+      "bytes": 34357,
+      "sha256": "0fda0e48847ea8dd253a955dfb5c4f90ee67412a02ca49802bdf2960e3d6501e"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-a-messy-situation-hard.json",
+      "path": "puzzles/en/puzzle-a-messy-situation-hard.json",
+      "bytes": 24017,
+      "sha256": "7d56de8a8a6af1f301ecf0f0ed9dfb1c716bdbf43461fe7e96dc369dfd5c3383"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-backyard-garden-easy.json",
+      "path": "puzzles/en/puzzle-backyard-garden-easy.json",
+      "bytes": 47531,
+      "sha256": "6e289c1fcf05c8e1902a1b9f26648e13af5f8d787f0e8726110b7667ddf45bb8"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-book-club-very-easy.json",
+      "path": "puzzles/en/puzzle-book-club-very-easy.json",
+      "bytes": 12392,
+      "sha256": "dd16b4e85e1aef16b23102138d0f5a7d41aa051d48d4d1a1c15c5b483d80b972"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-car-repair-easy.json",
+      "path": "puzzles/en/puzzle-car-repair-easy.json",
+      "bytes": 16900,
+      "sha256": "d60ea18a504ecfe094a1d778e334c674687ea480490170c09838ab36a76d6bee"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-fireside-beach-very-easy.json",
+      "path": "puzzles/en/puzzle-fireside-beach-very-easy.json",
+      "bytes": 10298,
+      "sha256": "7677cdb64b17428b00e3105650ba2b23f98edd6da9939bf3824a7dd0455edf50"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-frontier-town-hard.json",
+      "path": "puzzles/en/puzzle-frontier-town-hard.json",
+      "bytes": 26102,
+      "sha256": "bf00d562feeac0f52d75c656e7df73d85871c67c3f0b8614c15d27768219bb12"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-grizzly-night-hard.json",
+      "path": "puzzles/en/puzzle-grizzly-night-hard.json",
+      "bytes": 22874,
+      "sha256": "0a28704819b2b8a93ff5b7b6c2a837267429c43c62994ba624e32484988d7bef"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-hoarders-easy.json",
+      "path": "puzzles/en/puzzle-hoarders-easy.json",
+      "bytes": 22983,
+      "sha256": "ca0008184f55871d8788cdc9f7008839f882aac893cb0f33a64bfc0902ae163e"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-horse-with-no-name-easy.json",
+      "path": "puzzles/en/puzzle-horse-with-no-name-easy.json",
+      "bytes": 13974,
+      "sha256": "5ffd4049eabe65ddeb654b168a2b15978ab555089aa4c5ca38b5bd9bfcb1bb61"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-lake-fishing-medium.json",
+      "path": "puzzles/en/puzzle-lake-fishing-medium.json",
+      "bytes": 20259,
+      "sha256": "d2060a2609baafbc5c9d5fb8416b8c15b2dc562242e8ed79e9a0d7793833bde3"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-main-street-expert.json",
+      "path": "puzzles/en/puzzle-main-street-expert.json",
+      "bytes": 38933,
+      "sha256": "366d3c855e7c3d5c7bd28d51ab2403711ae0c0bce93ba822c69c60756af0104b"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-midnight-rain-easy.json",
+      "path": "puzzles/en/puzzle-midnight-rain-easy.json",
+      "bytes": 15637,
+      "sha256": "6595758f865bc179f9f536d3eda67c2711335d033030d1f527794c89700bd931"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-minigolf-hard.json",
+      "path": "puzzles/en/puzzle-minigolf-hard.json",
+      "bytes": 27687,
+      "sha256": "ee4ad96d11de665a1c35afb5a9eae1c0ff165315834a1be6a61c7073a847644f"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-neighbour-dispute-medium.json",
+      "path": "puzzles/en/puzzle-neighbour-dispute-medium.json",
+      "bytes": 19315,
+      "sha256": "0864d060701f4d89f0e1c53951ce3e43e6740465f48b37da73c00000e1eb5a00"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-netflix-and-kill-easy.json",
+      "path": "puzzles/en/puzzle-netflix-and-kill-easy.json",
+      "bytes": 32562,
+      "sha256": "85ab4c4e8da2e8a2c6e161f2c0103cc5053fe18b52c9ca32776eb1ca80003fd8"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-outdoor-painting-very-easy.json",
+      "path": "puzzles/en/puzzle-outdoor-painting-very-easy.json",
+      "bytes": 14179,
+      "sha256": "d1dcf6af483452ba06e160e406fcce1a5b27e192b78702db310f9d0c1e5baad8"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-piano-lesson-easy.json",
+      "path": "puzzles/en/puzzle-piano-lesson-easy.json",
+      "bytes": 12770,
+      "sha256": "cb1f830b729087c706db26d45ef2c3744257d51a509523ba9ef0a28f12c91afc"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-preppers-medium.json",
+      "path": "puzzles/en/puzzle-preppers-medium.json",
+      "bytes": 50939,
+      "sha256": "9521e2a8555f64816f8da39c3c94c4a84bbcc75190f4ebac8e738690973eeaf2"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-remote-village-hard.json",
+      "path": "puzzles/en/puzzle-remote-village-hard.json",
+      "bytes": 22582,
+      "sha256": "b382bc2034c933ad039dfbf025509d250d9c0120b881966850ab747f7997c42e"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-river-crossing-hard.json",
+      "path": "puzzles/en/puzzle-river-crossing-hard.json",
+      "bytes": 23091,
+      "sha256": "f2032da53ff5b26511d9ffbe8b6673bd9b9f9a967bc273425c9528c695fefc79"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-surprise-visitors-medium.json",
+      "path": "puzzles/en/puzzle-surprise-visitors-medium.json",
+      "bytes": 22168,
+      "sha256": "14f4cdaabfc396de3e83f02be8c457cf5b2a3734dbf7ec956d24c9274896423f"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-abandoned-museum-hard.json",
+      "path": "puzzles/en/puzzle-the-abandoned-museum-hard.json",
+      "bytes": 27240,
+      "sha256": "4b0fcbaaf56923d4c94a690636e60bd5fed035553c537f89f89a512671705ea2"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-art-museum-heist-medium.json",
+      "path": "puzzles/en/puzzle-the-art-museum-heist-medium.json",
+      "bytes": 24032,
+      "sha256": "6943f355ec398538f53a0311abefc79d0d57369caccd77860d6d2cf31e36959d"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-beach-easy.json",
+      "path": "puzzles/en/puzzle-the-beach-easy.json",
+      "bytes": 15836,
+      "sha256": "be3e98323fcb3f550c20e0f105b3cee181a601952a8e50f00fa55d4c2f02c661"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-bus-stop-easy.json",
+      "path": "puzzles/en/puzzle-the-bus-stop-easy.json",
+      "bytes": 15273,
+      "sha256": "47ed2697b22704c97e3674c33db5efd9e101b2a2785c25a43e622daee80fad96"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-ceos-office-expert.json",
+      "path": "puzzles/en/puzzle-the-ceos-office-expert.json",
+      "bytes": 55205,
+      "sha256": "33975af7eadbd71d6c0d1d775680659b59f7081617155e963688dcc4a2115cd7"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-donut-house-hard.json",
+      "path": "puzzles/en/puzzle-the-donut-house-hard.json",
+      "bytes": 22799,
+      "sha256": "91614990572d6bb4e027155faa393d774ba7ca90c17fa9a3ee68aba0cc96fb4f"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-flower-store-easy.json",
+      "path": "puzzles/en/puzzle-the-flower-store-easy.json",
+      "bytes": 16948,
+      "sha256": "ff2f80427af8349558466d18a389df366ca6ca6fac6abce78d0e9f7a00bed091"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-french-restaurant-medium.json",
+      "path": "puzzles/en/puzzle-the-french-restaurant-medium.json",
+      "bytes": 24523,
+      "sha256": "8eb40fdb5cb01cffea77dd9cdb8dc68b5b6ff0a26c5293472466c8141b933ae9"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-garage-band-easy.json",
+      "path": "puzzles/en/puzzle-the-garage-band-easy.json",
+      "bytes": 16234,
+      "sha256": "ef66e0849b8a71761689cb87b5855e3d7a694313bea0bf4063fe5630f1304e14"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-golf-expert.json",
+      "path": "puzzles/en/puzzle-the-golf-expert.json",
+      "bytes": 60780,
+      "sha256": "4cae1d89f0032bbea44d0bb4aa8c5c84936fcd947cc7ffaee316f8dee90d7bae"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-library-medium.json",
+      "path": "puzzles/en/puzzle-the-library-medium.json",
+      "bytes": 21791,
+      "sha256": "4b6f1e83ac05708d4c9a3a718b10ebb8c071fa02ed41ec0377ac466755969a78"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-panic-room-hard.json",
+      "path": "puzzles/en/puzzle-the-panic-room-hard.json",
+      "bytes": 27056,
+      "sha256": "65b9e0ebbc3aa611375572447bdb2d320eda72a6e0ad651006dc2e8923343bb9"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-picnic-easy.json",
+      "path": "puzzles/en/puzzle-the-picnic-easy.json",
+      "bytes": 15428,
+      "sha256": "c1e93f5879b051dcaf997922beaa982bc2fc2980e1162685360554bef226f3f2"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-pigsty-very-easy.json",
+      "path": "puzzles/en/puzzle-the-pigsty-very-easy.json",
+      "bytes": 10162,
+      "sha256": "78cd130dab596180952b471b8255c00eae21b8fd6ce7df4fa69f0d1e21062652"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-retirement-community-medium.json",
+      "path": "puzzles/en/puzzle-the-retirement-community-medium.json",
+      "bytes": 26442,
+      "sha256": "ed89703e9ce2a33da38e0a018c70429ff9683e8e47c9bfa2b7c98d387b0e7af4"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-riding-lesson-easy.json",
+      "path": "puzzles/en/puzzle-the-riding-lesson-easy.json",
+      "bytes": 21202,
+      "sha256": "13f1b2e1cefd4fd1b07367363b075e87e0837d8cb1a3d698c86cb11d4b38e792"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-terracotta-courtyard-medium.json",
+      "path": "puzzles/en/puzzle-the-terracotta-courtyard-medium.json",
+      "bytes": 22801,
+      "sha256": "fb2712057f318faeae690948ad5553c6266a40a119b908524978c299be0b6f5e"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-wine-cellar-hard.json",
+      "path": "puzzles/en/puzzle-the-wine-cellar-hard.json",
+      "bytes": 22565,
+      "sha256": "7ed1ea3ac5f1ce522d1822d521455a8e959ea40e1b82fba4c6c098e9973e02d0"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-the-zoo-expert.json",
+      "path": "puzzles/en/puzzle-the-zoo-expert.json",
+      "bytes": 108210,
+      "sha256": "c786f0501e5a7f996c65c674cc99b71273deef57c8b874a5d6e49db4993b8ee0"
+    },
+    {
+      "url": "https://murdoku.com/play_puzzles/en/puzzle-white-wedding-medium.json",
+      "path": "puzzles/en/puzzle-white-wedding-medium.json",
+      "bytes": 21756,
+      "sha256": "68eb9acc05063d231744004b73c1efe6d8dc64d3e63ba5cbb2015406dbd280dd"
+    }
+  ]
+}

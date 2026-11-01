@@ -1,0 +1,896 @@
+[
+  {
+    "id": 0,
+    "name": "Window",
+    "occupiable": null,
+    "file": "obj_window.svg"
+  },
+  {
+    "id": 1,
+    "name": "Plant",
+    "occupiable": false,
+    "file": "obj_plant.svg"
+  },
+  {
+    "id": 2,
+    "name": "Chair",
+    "occupiable": true,
+    "file": "obj_chair.svg"
+  },
+  {
+    "id": 3,
+    "name": "TV",
+    "occupiable": false,
+    "file": "obj_tv.svg"
+  },
+  {
+    "id": 4,
+    "name": "Table",
+    "occupiable": false,
+    "file": "obj_table.svg"
+  },
+  {
+    "id": 5,
+    "name": "Carpet",
+    "occupiable": true,
+    "file": "obj_carpet.svg"
+  },
+  {
+    "id": 6,
+    "name": "Bed",
+    "occupiable": true,
+    "file": "obj_bed.svg"
+  },
+  {
+    "id": 7,
+    "name": "Bed",
+    "occupiable": true,
+    "file": "obj_bed_top.svg"
+  },
+  {
+    "id": 8,
+    "name": "Void",
+    "occupiable": null,
+    "file": "obj_void.svg"
+  },
+  {
+    "id": 9,
+    "name": "Crate",
+    "occupiable": false,
+    "file": "obj_crate.svg"
+  },
+  {
+    "id": 10,
+    "name": "Tree",
+    "occupiable": false,
+    "file": "obj_tree.svg"
+  },
+  {
+    "id": 11,
+    "name": "Tree",
+    "occupiable": false,
+    "file": "obj_palmtree.svg"
+  },
+  {
+    "id": 12,
+    "name": "Fire",
+    "occupiable": false,
+    "file": "obj_fire.svg"
+  },
+  {
+    "id": 13,
+    "name": "Shelf",
+    "occupiable": false,
+    "file": "obj_shelf.svg"
+  },
+  {
+    "id": 14,
+    "name": "Trashcan",
+    "occupiable": false,
+    "file": "obj_trashcan.svg"
+  },
+  {
+    "id": 15,
+    "name": "Horse",
+    "occupiable": true,
+    "file": "obj_horse.svg"
+  },
+  {
+    "id": 16,
+    "name": "Cactus",
+    "occupiable": false,
+    "file": "obj_cactus.svg"
+  },
+  {
+    "id": 17,
+    "name": "Cow",
+    "occupiable": false,
+    "file": "obj_cow.svg"
+  },
+  {
+    "id": 18,
+    "name": "Door",
+    "occupiable": null,
+    "file": "obj_door.svg"
+  },
+  {
+    "id": 19,
+    "name": "Painting",
+    "occupiable": true,
+    "file": "obj_painting.svg"
+  },
+  {
+    "id": 20,
+    "name": "Statue",
+    "occupiable": false,
+    "file": "obj_statue.svg"
+  },
+  {
+    "id": 21,
+    "name": "Car",
+    "occupiable": true,
+    "file": "obj_car.svg"
+  },
+  {
+    "id": 22,
+    "name": "Car",
+    "occupiable": true,
+    "file": "obj_car_reverse.svg"
+  },
+  {
+    "id": 23,
+    "name": "Rubble",
+    "occupiable": false,
+    "file": "obj_rubble.svg"
+  },
+  {
+    "id": 24,
+    "name": "Sand",
+    "occupiable": true,
+    "file": "obj_sand.svg"
+  },
+  {
+    "id": 25,
+    "name": "Rowboat",
+    "occupiable": true,
+    "file": "obj_rowboat.svg"
+  },
+  {
+    "id": 26,
+    "name": "Shark",
+    "occupiable": false,
+    "file": "obj_shark.svg"
+  },
+  {
+    "id": 27,
+    "name": "House",
+    "occupiable": true,
+    "file": "obj_house.svg"
+  },
+  {
+    "id": 28,
+    "name": "Register",
+    "occupiable": false,
+    "file": "obj_register.svg"
+  },
+  {
+    "id": 29,
+    "name": "Present",
+    "occupiable": false,
+    "file": "obj_present.svg"
+  },
+  {
+    "id": 30,
+    "name": "Present",
+    "occupiable": false,
+    "file": "obj_present_02.svg"
+  },
+  {
+    "id": 31,
+    "name": "Present",
+    "occupiable": false,
+    "file": "obj_present_03.svg"
+  },
+  {
+    "id": 32,
+    "name": "Barrel",
+    "occupiable": false,
+    "file": "obj_barrel.svg"
+  },
+  {
+    "id": 33,
+    "name": "Void show Back",
+    "occupiable": null,
+    "file": "obj_void_show_back.svg"
+  },
+  {
+    "id": 34,
+    "name": "Puddle",
+    "occupiable": true,
+    "file": "obj_puddle.svg"
+  },
+  {
+    "id": 35,
+    "name": "Boar",
+    "occupiable": false,
+    "file": "obj_boar.svg"
+  },
+  {
+    "id": 36,
+    "name": "Weapons",
+    "occupiable": false,
+    "file": "obj_weapons.svg"
+  },
+  {
+    "id": 37,
+    "name": "Shrub",
+    "occupiable": false,
+    "file": "obj_shrub.svg"
+  },
+  {
+    "id": 38,
+    "name": "Jar",
+    "occupiable": false,
+    "file": "obj_jar.svg"
+  },
+  {
+    "id": 39,
+    "name": "Catapult",
+    "occupiable": false,
+    "file": "obj_catapult.svg"
+  },
+  {
+    "id": 40,
+    "name": "Camel",
+    "occupiable": true,
+    "file": "obj_camel.svg"
+  },
+  {
+    "id": 41,
+    "name": "Pumpkin",
+    "occupiable": false,
+    "file": "obj_pumpkin.svg"
+  },
+  {
+    "id": 42,
+    "name": "Box",
+    "occupiable": false,
+    "file": "obj_box.svg"
+  },
+  {
+    "id": 43,
+    "name": "Boulder",
+    "occupiable": false,
+    "file": "obj_boulder.svg"
+  },
+  {
+    "id": 44,
+    "name": "Bonsai",
+    "occupiable": false,
+    "file": "obj_bonsai.svg"
+  },
+  {
+    "id": 45,
+    "name": "Locker",
+    "occupiable": false,
+    "file": "obj_locker.svg"
+  },
+  {
+    "id": 46,
+    "name": "Punching Bag",
+    "occupiable": false,
+    "file": "obj_punching_bag.svg"
+  },
+  {
+    "id": 47,
+    "name": "Lion",
+    "occupiable": false,
+    "file": "obj_lion.svg"
+  },
+  {
+    "id": 48,
+    "name": "Pig",
+    "occupiable": false,
+    "file": "obj_pig.svg"
+  },
+  {
+    "id": 49,
+    "name": "Gas Pump",
+    "occupiable": false,
+    "file": "obj_gas_pump.svg"
+  },
+  {
+    "id": 50,
+    "name": "Cat",
+    "occupiable": true,
+    "file": "obj_cat.svg"
+  },
+  {
+    "id": 51,
+    "name": "Grain",
+    "occupiable": false,
+    "file": "obj_grain.svg"
+  },
+  {
+    "id": 52,
+    "name": "Crocodile",
+    "occupiable": false,
+    "file": "obj_crocodile.svg"
+  },
+  {
+    "id": 53,
+    "name": "Bear",
+    "occupiable": false,
+    "file": "obj_bear.svg"
+  },
+  {
+    "id": 54,
+    "name": "Elephant",
+    "occupiable": false,
+    "file": "obj_elephant.svg"
+  },
+  {
+    "id": 55,
+    "name": "Penguin",
+    "occupiable": false,
+    "file": "obj_penguin.svg"
+  },
+  {
+    "id": 56,
+    "name": "Bus",
+    "occupiable": true,
+    "file": "obj_bus.svg"
+  },
+  {
+    "id": 57,
+    "name": "Cone",
+    "occupiable": false,
+    "file": "obj_cone.svg"
+  },
+  {
+    "id": 58,
+    "name": "Flag",
+    "occupiable": true,
+    "file": "obj_hole.svg"
+  },
+  {
+    "id": 59,
+    "name": "Mammoth",
+    "occupiable": true,
+    "file": "obj_mammoth.svg"
+  },
+  {
+    "id": 60,
+    "name": "Basket",
+    "occupiable": false,
+    "file": "obj_basket.svg"
+  },
+  {
+    "id": 61,
+    "name": "Bow",
+    "occupiable": true,
+    "file": "obj_bow.svg"
+  },
+  {
+    "id": 62,
+    "name": "Fish",
+    "occupiable": true,
+    "file": "obj_fish.svg"
+  },
+  {
+    "id": 63,
+    "name": "Berries",
+    "occupiable": true,
+    "file": "obj_berries.svg"
+  },
+  {
+    "id": 64,
+    "name": "Wolf",
+    "occupiable": true,
+    "file": "obj_wolf.svg"
+  },
+  {
+    "id": 65,
+    "name": "Tool",
+    "occupiable": true,
+    "file": "obj_tool.svg"
+  },
+  {
+    "id": 66,
+    "name": "Stump",
+    "occupiable": false,
+    "file": "obj_stump.svg"
+  },
+  {
+    "id": 67,
+    "name": "Bones",
+    "occupiable": false,
+    "file": "obj_bones.svg"
+  },
+  {
+    "id": 68,
+    "name": "Sabertooth",
+    "occupiable": false,
+    "file": "obj_sabertooth.svg"
+  },
+  {
+    "id": 69,
+    "name": "Tree",
+    "occupiable": false,
+    "file": "obj_tree_hollow.svg"
+  },
+  {
+    "id": 70,
+    "name": "Shell",
+    "occupiable": false,
+    "file": "obj_shell.svg"
+  },
+  {
+    "id": 71,
+    "name": "Golf Cart",
+    "occupiable": true,
+    "file": "obj_golf_cart.svg"
+  },
+  {
+    "id": 72,
+    "name": "Water",
+    "occupiable": false,
+    "file": "obj_water.svg"
+  },
+  {
+    "id": 73,
+    "name": "Sloop",
+    "occupiable": true,
+    "file": "obj_sloop.svg"
+  },
+  {
+    "id": 74,
+    "name": "Frigate",
+    "occupiable": true,
+    "file": "obj_frigate.svg"
+  },
+  {
+    "id": 75,
+    "name": "Boulder",
+    "occupiable": false,
+    "file": "obj_rock.svg"
+  },
+  {
+    "id": 76,
+    "name": "Boat",
+    "occupiable": true,
+    "file": "obj_boat.svg"
+  },
+  {
+    "id": 77,
+    "name": "Sloop",
+    "occupiable": true,
+    "file": "obj_sloop_template.svg"
+  },
+  {
+    "id": 78,
+    "name": "Tee",
+    "occupiable": true,
+    "file": "obj_tee.svg"
+  },
+  {
+    "id": 79,
+    "name": "Lily Pad",
+    "occupiable": false,
+    "file": "obj_lily_pad.svg"
+  },
+  {
+    "id": 80,
+    "name": "Flowers",
+    "occupiable": false,
+    "file": "obj_flowers.svg"
+  },
+  {
+    "id": 81,
+    "name": "Easel",
+    "occupiable": false,
+    "file": "obj_easel.svg"
+  },
+  {
+    "id": 82,
+    "name": "Camera",
+    "occupiable": false,
+    "file": "obj_camera.svg"
+  },
+  {
+    "id": 83,
+    "name": "Safe",
+    "occupiable": false,
+    "file": "obj_safe.svg"
+  },
+  {
+    "id": 84,
+    "name": "Buffalo",
+    "occupiable": false,
+    "file": "obj_buffalo.svg"
+  },
+  {
+    "id": 85,
+    "name": "Tombstone",
+    "occupiable": false,
+    "file": "obj_tombstone.svg"
+  },
+  {
+    "id": 86,
+    "name": "Piano",
+    "occupiable": false,
+    "file": "obj_piano.svg"
+  },
+  {
+    "id": 87,
+    "name": "Hay",
+    "occupiable": false,
+    "file": "obj_hay.svg"
+  },
+  {
+    "id": 88,
+    "name": "Coal",
+    "occupiable": false,
+    "file": "obj_coal.svg"
+  },
+  {
+    "id": 89,
+    "name": "Sack",
+    "occupiable": false,
+    "file": "obj_sack.svg"
+  },
+  {
+    "id": 90,
+    "name": "Carriage",
+    "occupiable": true,
+    "file": "obj_carriage.svg"
+  },
+  {
+    "id": 91,
+    "name": "Ox",
+    "occupiable": true,
+    "file": "obj_ox.svg"
+  },
+  {
+    "id": 92,
+    "name": "Safe",
+    "occupiable": false,
+    "file": "obj_safe.svg"
+  },
+  {
+    "id": 93,
+    "name": "Dynamite",
+    "occupiable": false,
+    "file": "obj_dynamite.svg"
+  },
+  {
+    "id": 94,
+    "name": "Register",
+    "occupiable": false,
+    "file": "obj_register.svg"
+  },
+  {
+    "id": 141,
+    "name": "Old Register",
+    "occupiable": false,
+    "file": "obj_old_register.svg"
+  },
+  {
+    "id": 95,
+    "name": "Treasure",
+    "occupiable": false,
+    "file": "obj_treasure.svg"
+  },
+  {
+    "id": 96,
+    "name": "Monkey",
+    "occupiable": true,
+    "file": "obj_monkey.svg"
+  },
+  {
+    "id": 97,
+    "name": "Gold Vein",
+    "occupiable": false,
+    "file": "obj_gold_vein.svg"
+  },
+  {
+    "id": 98,
+    "name": "Mining Cart",
+    "occupiable": false,
+    "file": "obj_mining_cart.svg"
+  },
+  {
+    "id": 99,
+    "name": "Tree",
+    "occupiable": false,
+    "file": "obj_palm_tree.svg"
+  },
+  {
+    "id": 100,
+    "name": "Tree",
+    "occupiable": false,
+    "file": "obj_palm_tree_02.svg"
+  },
+  {
+    "id": 101,
+    "name": "Obelisk",
+    "occupiable": false,
+    "file": "obj_obelisk.svg"
+  },
+  {
+    "id": 102,
+    "name": "Column",
+    "occupiable": false,
+    "file": "obj_column.svg"
+  },
+  {
+    "id": 103,
+    "name": "Block",
+    "occupiable": false,
+    "file": "obj_block.svg"
+  },
+  {
+    "id": 104,
+    "name": "Lilypad",
+    "occupiable": false,
+    "file": "obj_lilypad.svg"
+  },
+  {
+    "id": 105,
+    "name": "Statue",
+    "occupiable": false,
+    "file": "obj_canopic_jars.svg"
+  },
+  {
+    "id": 106,
+    "name": "Sarcophagus",
+    "occupiable": false,
+    "file": "obj_sarcophagus.svg"
+  },
+  {
+    "id": 107,
+    "name": "Sarcophagus",
+    "occupiable": false,
+    "file": "obj_sarcophagus_top.svg"
+  },
+  {
+    "id": 108,
+    "name": "Anubis Symbol",
+    "occupiable": true,
+    "file": "obj_anubis_symbol.svg"
+  },
+  {
+    "id": 109,
+    "name": "Ra Symbol",
+    "occupiable": true,
+    "file": "obj_ra_symbol.svg"
+  },
+  {
+    "id": 110,
+    "name": "Brig",
+    "occupiable": true,
+    "file": "obj_brig.svg"
+  },
+  {
+    "id": 111,
+    "name": "Galleon",
+    "occupiable": true,
+    "file": "obj_galleon.svg"
+  },
+  {
+    "id": 112,
+    "name": "Frigate",
+    "occupiable": true,
+    "file": "obj_frigate_vertical.svg"
+  },
+  {
+    "id": 113,
+    "name": "Sloop",
+    "occupiable": true,
+    "file": "obj_galleon_vertical.svg"
+  },
+  {
+    "id": 114,
+    "name": "Statue",
+    "occupiable": false,
+    "file": "obj_canopic_jar_ra.svg"
+  },
+  {
+    "id": 115,
+    "name": "Weapons Rack",
+    "occupiable": false,
+    "file": "obj_weapons_rack.svg"
+  },
+  {
+    "id": 116,
+    "name": "Sphinx",
+    "occupiable": false,
+    "file": "obj_sphinx.svg"
+  },
+  {
+    "id": 117,
+    "name": "Chest",
+    "occupiable": false,
+    "file": "obj_chest_egypt.svg"
+  },
+  {
+    "id": 118,
+    "name": "Chest",
+    "occupiable": false,
+    "file": "obj_chest_pirate.svg"
+  },
+  {
+    "id": 119,
+    "name": "Bed",
+    "occupiable": true,
+    "file": "obj_bed_egypt.svg"
+  },
+  {
+    "id": 120,
+    "name": "Bed",
+    "occupiable": true,
+    "file": "obj_bed_egypt_top.svg"
+  },
+  {
+    "id": 121,
+    "name": "Papyrus",
+    "occupiable": false,
+    "file": "obj_papyrus.svg"
+  },
+  {
+    "id": 122,
+    "name": "Chair",
+    "occupiable": true,
+    "file": "obj_chair_egypt.svg"
+  },
+  {
+    "id": 123,
+    "name": "Rope",
+    "occupiable": false,
+    "file": "obj_rope.svg"
+  },
+  {
+    "id": 124,
+    "name": "Raft",
+    "occupiable": true,
+    "file": "obj_raft.svg"
+  },
+  {
+    "id": 125,
+    "name": "Cannon",
+    "occupiable": false,
+    "file": "obj_cannon.svg"
+  },
+  {
+    "id": 126,
+    "name": "Cannon",
+    "occupiable": false,
+    "file": "obj_cannon_02.svg"
+  },
+  {
+    "id": 127,
+    "name": "Cannon",
+    "occupiable": false,
+    "file": "obj_cannon_down.svg"
+  },
+  {
+    "id": 128,
+    "name": "Cannon",
+    "occupiable": false,
+    "file": "obj_cannon_04.svg"
+  },
+  {
+    "id": 129,
+    "name": "Hammock",
+    "occupiable": true,
+    "file": "obj_hammock.svg"
+  },
+  {
+    "id": 130,
+    "name": "Hammock",
+    "occupiable": true,
+    "file": "obj_hammock_02.svg"
+  },
+  {
+    "id": 131,
+    "name": "Column",
+    "occupiable": false,
+    "file": "obj_column_short.svg"
+  },
+  {
+    "id": 132,
+    "name": "Chest",
+    "occupiable": false,
+    "file": "obj_chest_gold.svg"
+  },
+  {
+    "id": 133,
+    "name": "Barrel",
+    "occupiable": false,
+    "file": "obj_barrel_water.svg"
+  },
+  {
+    "id": 134,
+    "name": "Time Machine",
+    "occupiable": false,
+    "file": "obj_time_machine.svg"
+  },
+  {
+    "id": 135,
+    "name": "Teddy Bear",
+    "occupiable": false,
+    "file": "obj_teddy_bear.svg"
+  },
+  {
+    "id": 136,
+    "name": "Something",
+    "occupiable": false,
+    "file": "obj_time_machine.svg"
+  },
+  {
+    "id": 137,
+    "name": "Horse",
+    "occupiable": true,
+    "file": "obj_horse_reverse.svg"
+  },
+  {
+    "id": 138,
+    "name": "Oil Slick",
+    "occupiable": true,
+    "file": "obj_puddle.svg"
+  },
+  {
+    "id": 139,
+    "name": "Paint Spill",
+    "occupiable": true,
+    "file": "obj_puddle.svg"
+  },
+  {
+    "id": 140,
+    "name": "Path",
+    "occupiable": true,
+    "file": null
+  },
+  {
+    "id": 145,
+    "name": "Drum Set",
+    "occupiable": false,
+    "file": "obj_drumset.svg"
+  },
+  {
+    "id": 146,
+    "name": "Pyro Fire",
+    "occupiable": false,
+    "file": "obj_pyrofire.svg"
+  },
+  {
+    "id": 147,
+    "name": "Portable Toilet",
+    "occupiable": true,
+    "file": "obj_portable_toilet.svg"
+  },
+  {
+    "id": 148,
+    "name": "Speaker",
+    "occupiable": false,
+    "file": "obj_speaker.svg"
+  },
+  {
+    "id": 149,
+    "name": "Sign",
+    "occupiable": false,
+    "file": "obj_sign.svg"
+  },
+  {
+    "id": 150,
+    "name": "Lamppost",
+    "occupiable": false,
+    "file": "obj_lamppost.svg"
+  },
+  {
+    "id": 151,
+    "name": "Black Cat",
+    "occupiable": true,
+    "file": "obj_blackcat.svg"
+  }
+]
