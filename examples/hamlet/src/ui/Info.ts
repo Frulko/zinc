@@ -1,3 +1,4 @@
+import { Cursor } from 'zinc:gfx';
 import { world, tileX, tileY, tileIndex } from '../world/world';
 import { economy } from '../world/economy';
 import { housingReport } from '../rules/housing';
@@ -60,9 +61,23 @@ export function whyIdle(id: number): string {
 }
 
 const WIN_W = 330;
+let infoX = -1, infoY = -1, grabDX = 0, grabDY = 0, grabbed = false;   // where the window was dragged to (-1: its default place)
+function origin(): { x: number; y: number } {
+  const vp = viewport();
+  return infoX < 0 ? { x: vp.x + 22, y: vp.y + 22 } : { x: infoX, y: infoY };
+}
+/** Dragging the window by its title bar. */
+export function infoDragStart(x: number, y: number): void { const o = origin(); grabDX = x - o.x; grabDY = y - o.y; grabbed = true; }
+export function infoDragging(): boolean { return grabbed; }
+export function infoDragMove(x: number, y: number): void {
+  if (!grabbed) return;
+  const vp = viewport();
+  infoX = Math.max(vp.x, Math.min(vp.x + vp.w - WIN_W, x - grabDX)); infoY = Math.max(vp.y, Math.min(vp.y + vp.h - 40, y - grabDY));
+}
+export function infoDragEnd(): void { grabbed = false; }
 export function drawInfo(): void {
   if (ui.window !== WIN_INFO) return;
-  const vp = viewport(), x = vp.x + 22, y = vp.y + 22;
+  const o = origin(), x = o.x, y = o.y;
   if (ui.selKind === 1) building(x, y);
   else if (ui.selKind === 2) person(x, y);
 }
@@ -76,7 +91,7 @@ function building(x: number, y: number): void {
   const stocks: number[] = [];
   for (let k = 0; k < economy.resources.length; k++) if (b.stock[k] > 0) stocks.push(k);
   h += whyLines.length * lh + report.length * lh + stocks.length * 20 + (def.workers > 0 ? 24 : 0) + 40;
-  window_(x, y, WIN_W, h, def.label); block(x - 6, y - 6, WIN_W + 12, h + 12);
+  window_(x, y, WIN_W, h, def.label); block(x - 6, y - 6, WIN_W + 12, h + 12); addHit('info:drag', x, y, WIN_W - 28, 24, 'Glisser pour déplacer', Cursor.Grab);
   glyphButton('info:close', x + WIN_W - 24, y + 2, 20, 18, 'close', 'Fermer [Échap]');
   drawBuilding(b.type, x + 8, y + 30, 64);
   text(kit.body, x + 82, y + 32, def.hint !== '' ? '' : '', col('ink'));
@@ -94,7 +109,7 @@ function person(x: number, y: number): void {
   const p = world.people[ui.selId];
   if (p === undefined) { closeInfo(); return; }
   const lh = kit.lineH, home = p.home >= 0 ? world.buildings[p.home] : undefined, job = p.job >= 0 ? world.buildings[p.job] : undefined;
-  window_(x, y, WIN_W, 150, roleLabel(p.role)); block(x - 6, y - 6, WIN_W + 12, 162);
+  window_(x, y, WIN_W, 150, roleLabel(p.role)); block(x - 6, y - 6, WIN_W + 12, 162); addHit('info:drag', x, y, WIN_W - 28, 24, 'Glisser pour déplacer', Cursor.Grab);
   glyphButton('info:close', x + WIN_W - 24, y + 2, 20, 18, 'close', 'Fermer [Échap]');
   drawGlyph('person', x + 12, y + 32, 36);
   text(kit.body, x + 60, y + 32, stateText(p.state), col('ink'));

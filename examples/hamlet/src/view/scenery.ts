@@ -10,7 +10,7 @@ import { settings } from '../settings';
 import { camera, ZOOM_SCALES, DEFAULT_ZOOM, artLevel, windowWidth, windowHeight, scaleOf, layerWidth, layerHeight, layerOriginX, layerOriginY, applyCamera, centerOn, centerPoint, panBy } from './camera';
 
 const KIND_SAND = 1, KIND_WATER = 2, KIND_ROAD = 4;
-const WHITE = rgb(255, 255, 255);
+const WHITE = rgb(44, 41, 35);          // outside the village: the dark stone of the interface (the dissolved border fades into it)
 
 /** The ground of the whole village at one zoom level, in layer pixels (the camera's window slides over it). */
 class Layer {
@@ -328,7 +328,17 @@ export function bakeVillage(): void {
   forceFull = true;
   for (let i = 0; i < layers.length; i++) layers[i] = null;
   ensureLevel(camera.level);
-  centerOn(0, 0);
+  const start = startPoint();
+  centerOn(start.x, start.y);
+  rebakeStatic();
+}
+/** Where a new village opens: between the gate and the middle, so the gate and the first houses are in view. */
+export function startPoint(): { x: number; y: number } { return { x: tileX(world.gate) * .8, y: tileY(world.gate) * .8 }; }
+/** The area for the map changed (the window was resized): the picture window follows it, keeping the same centre. */
+export function resizeWindow(): void {
+  const centre = centerPoint();
+  ensureLevel(camera.level);
+  centerOn(centre.x, centre.y);
   rebakeStatic();
 }
 
@@ -345,7 +355,7 @@ export function setZoom(level: number): void {
 /** One step of zoom: +1 closer, -1 farther (the levels are indexed from the closest). */
 export function stepZoom(direction: number): void { setZoom(camera.level - direction); }
 /** The normal zoom, centred on the village. */
-export function resetView(): void { setZoom(DEFAULT_ZOOM); centerOn(0, 0); rebakeStatic(); }
+export function resetView(): void { setZoom(DEFAULT_ZOOM); const start = startPoint(); centerOn(start.x, start.y); rebakeStatic(); }
 /** Pans the camera and redoes the static picture if it moved. */
 export function moveCamera(dx: number, dy: number): boolean {
   if (!panBy(dx, dy)) return false;

@@ -9,14 +9,23 @@ import { world } from '../world/world';
 export const ZOOM_SCALES: number[] = [20, 18, 16, 14, 12, 10, 10, 10, 10, 10, 10];
 export const ZOOM_VIEW: number[] = [1, 1, 1, 1, 1, 1, 1.2, 1.5, 1.8, 2.1, 2.4];
 export const DEFAULT_ZOOM = 5;
-const BASE_WIDTH = 340, BASE_HEIGHT = 226, MARGIN_LEFT = 10, MARGIN_TOP_ROWS = 22, MARGIN_RIGHT = 10, MARGIN_BOTTOM_ROWS = 32;   // the visible crop of the normal window
+const MARGIN_LEFT = 10, MARGIN_TOP_ROWS = 22, MARGIN_RIGHT = 10, MARGIN_BOTTOM_ROWS = 32;   // pixels kept around the visible crop (shadows and tall models reach in from outside)
+/** The screen area the map fills and the whole-number scale (screen pixels per picture pixel) of the normal view: the window follows the area, so the map always fills it. */
+export const fit = { vw: 1020, vh: 678, s0: 3 };
+export function setFit(vw: number, vh: number): void {
+  fit.vw = Math.max(64, Math.floor(vw)); fit.vh = Math.max(64, Math.floor(vh));
+  fit.s0 = Math.max(1, Math.round(Math.min(fit.vw / 340, fit.vh / 226)));
+}
+/** The picture's visible size at a level: what fills the area at that level's screen scale (the normal scale divided by the window's growth). */
+export function cropWidth(level: number): number { return Math.ceil(fit.vw * ZOOM_VIEW[level] / fit.s0); }
+export function cropHeight(level: number): number { return Math.ceil(fit.vh * ZOOM_VIEW[level] / fit.s0); }
 /** Levels that draw at the same scale share one baked ground and one set of models. */
 export function artLevel(level: number): number { return Math.min(level, DEFAULT_ZOOM); }
-export function windowWidth(level: number): number { return Math.round(BASE_WIDTH * ZOOM_VIEW[level]) + MARGIN_LEFT + MARGIN_RIGHT; }
-export function windowHeight(level: number): number { return Math.round(BASE_HEIGHT * ZOOM_VIEW[level]) + MARGIN_TOP_ROWS + MARGIN_BOTTOM_ROWS; }
+export function windowWidth(level: number): number { return cropWidth(level) + MARGIN_LEFT + MARGIN_RIGHT; }
+export function windowHeight(level: number): number { return cropHeight(level) + MARGIN_TOP_ROWS + MARGIN_BOTTOM_ROWS; }
 export function cropX(): number { return MARGIN_LEFT; }
 export function cropY(): number { return MARGIN_TOP_ROWS; }
-const MARGIN_X = 24, MARGIN_TOP = 60, MARGIN_BOTTOM = 24;   // room around the diamond for the dissolved border and for tall buildings
+const MARGIN_X = 200, MARGIN_TOP = 140, MARGIN_BOTTOM = 110;   // room around the diamond: the dissolved border, tall buildings, and the dark space the camera may show beyond the village
 
 export const camera = { level: DEFAULT_ZOOM, x: 0, y: 0 };
 

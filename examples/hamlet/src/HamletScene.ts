@@ -1,9 +1,11 @@
 import {
   width, height, rect, quit, clip, unclip, keyCount, keyKind, keyMods, Mod, keyName, buttonEventCount, buttonEventButton, buttonEventDown,
-  buttonEventX, buttonEventY, pointerDown, pointerX, pointerY, KeyKind, windowCtl, wheel, pinch, scrollDX, scrollDY, scrollPhase, Cursor,
+  buttonEventX, buttonEventY, pointerDown, pointerX, pointerY, KeyKind, windowCtl, wheel, pinch, scrollDX, scrollDY, scrollPhase, Cursor, escapeByApp,
 } from 'zinc:gfx';
 import { Sprite, uiState } from 'zinc:stage';
-import { PixelSurface, PixelGame, unproject, sound, setAmbience, toggleSound, pauseSound, muted } from './pixel';
+import { PixelSurface, PixelGame, unproject } from './pixel';
+import { season } from './ui/clock';
+import { sound, setAmbience, toggleSound, pauseSound, muted, ambientTick } from './audio';
 import {
   TICK, TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE, MIN_SIZE, MAX_SIZE, PLACE_OK, ROLE_NAMES,
 } from './constants';
@@ -15,7 +17,7 @@ import { saveGame, loadGame, eraseSave } from './world/save';
 import { parseSeedRequest, randomSeed } from './world/seed';
 import { checkTool, applyTool } from './rules/build';
 import { stepWorld } from './engine/simulate';
-import { bakeVillage, rebakeStatic, moveCamera, setZoom, stepZoom, resetView } from './view/scenery';
+import { bakeVillage, rebakeStatic, moveCamera, setZoom, stepZoom, resetView, resizeWindow } from './view/scenery';
 import { drawVillage, frameDirty } from './view/frame';
 import { adviceLine } from './hud';
 import { settings } from './settings';
@@ -26,7 +28,7 @@ import { loadKit, col, beginFrame, hitAt, track, pointer, drawTooltip, updateCur
 import { ui, act, viewport, SPEEDS, mapView } from './ui/state';
 import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
-import { drawInfo, pickAt, closeInfo } from './ui/Info';
+import { drawInfo, pickAt, closeInfo, infoDragging, infoDragStart, infoDragMove, infoDragEnd } from './ui/Info';
 import { look, record, beginGroup, endGroup, undo, drawPlacementLabel, reasonText } from './ui/Placement';
 import { WIN_INFO, WIN_MAIN, WIN_ADVISOR, WIN_NONE } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
@@ -35,7 +37,7 @@ import { drawOverlay, drawReach, drawOverlayMenu, drawLegend } from './ui/Overla
 import { drawAdvisors, sampleHistory, openAdvisor } from './ui/Advisors';
 import { drawMenus, isModal, closeMenus, openNew, openMenu, typeKey } from './ui/Menu';
 import { refreshModels, jumpTo } from './view/scenery';
-import { camera, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY } from './view/camera';
+import { camera, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY, fit, setFit, windowWidth, windowHeight } from './view/camera';
 import { W, H } from './pixel';
 
 const PAN_SPEED = 240;                  // source pixels per second with the keys           // screen rows kept for the title row and for the toolbar and texts
@@ -58,6 +60,13 @@ export class HamletScene extends Sprite {
   private panRight: boolean = false;
   private panUp: boolean = false;
   private panDown: boolean = false;
+  private rightX: number = 0;
+  private rightY: number = 0;
+  private rightMoved: boolean = true;
+  private grabbing: boolean = false;      // left button down with no tool: a drag moves the map, a click picks
+  private grabMoved: boolean = false;
+  private grabX: number = 0;
+  private grabY: number = 0;
   private panning: boolean = false;       // dragging the map with the right or middle button
   private panX: number = 0;
   private panY: number = 0;
@@ -81,7 +90,7 @@ export class HamletScene extends Sprite {
   constructor() {
     super('Hamlet');
     loadEconomy(assets.readText('economy.json'), MODEL_IDS, ROLE_NAMES);
-    loadKit(); loadPrefs(); ui.tool = TOOL_ROAD;
+    loadKit(); loadPrefs(); ui.tool = TOOL_NONE; escapeByApp(true);   // no tool at the start; Escape drops the tool or opens the menu, it never quits
     this.frame.cropX = 10; this.frame.cropY = 22; this.frame.cropWidth = 340; this.frame.cropHeight = 226;
     const built = buildSettingsPanel({
       zoom: (): number => DEFAULT_ZOOM - camera.level,
@@ -123,13 +132,12 @@ export class HamletScene extends Sprite {
     // Zooming out shows a wider window with smaller pixels: the buffer follows the level, the picture is scaled by the normal integer scale divided by the window's growth.
     this.syncBuffer();
     const vp = viewport();
+    setFit(vp.w, vp.h);
+    if (windowWidth(camera.level) !== W || windowHeight(camera.level) !== H) { resizeWindow(); this.baked = world.revision; this.syncBuffer(); }
     this.frame.cropX = cropX(); this.frame.cropY = cropY(); this.frame.cropWidth = W - 20; this.frame.cropHeight = H - 54;
     this.surface.layout(this.frame);
-    const k = ZOOM_VIEW[camera.level];
-    const s = Math.min(vp.w / 340, vp.h / 226) / k;
-    this.surface.scale = s;
-    this.surface.x = vp.x + Math.floor((vp.w - this.frame.cropWidth * s) / 2);
-    this.surface.y = vp.y + Math.floor((vp.h - this.frame.cropHeight * s) / 2);
+    this.surface.scale = fit.s0 / ZOOM_VIEW[camera.level];
+    this.surface.x = vp.x; this.surface.y = vp.y;
   }
 
   private tileUnder(x: number, y: number): number {
@@ -150,8 +158,8 @@ export class HamletScene extends Sprite {
   private act(t: number): void {
     if (this.tool === TOOL_NONE) return;
     const before = look(t), code = applyTool(this.tool, t);
-    if (code === PLACE_OK) { record(this.tool, t, before); sound(this.tool === TOOL_ERASE ? 'soft' : 'wood', .5); return; }
-    if (this.tool !== TOOL_ROAD && t >= 0) { sound('soft', .4); this.say(reasonText(this.tool, code)); }
+    if (code === PLACE_OK) { record(this.tool, t, before); sound(this.tool === TOOL_ERASE ? 'erase' : this.tool === TOOL_ROAD ? 'road' : 'place', .6); return; }
+    if (this.tool !== TOOL_ROAD && t >= 0) { sound('error', .5); this.say(reasonText(this.tool, code)); }
   }
   private key(name: string, down: boolean): void {
     if (name === 'ArrowLeft' || name === 'a' || name === 'A') this.panLeft = down;
@@ -180,23 +188,36 @@ export class HamletScene extends Sprite {
   }
   private press(x: number, y: number, down: boolean): void {
     if (!down) {
-      this.panel.release(); this.onMap = false;
-      if (pointer.down !== '') { const hit = hitAt(x, y); if (hit !== null && hit.id === pointer.down && hit.id !== 'map') hudClick(hit.id); pointer.down = ''; }
+      this.panel.release(); this.onMap = false; infoDragEnd();
+      if (this.grabbing) {                // a click that never became a drag picks what is under the pointer
+        this.grabbing = false; this.panning = false;
+        if (!this.grabMoved && !this.paused && this.surface.contains(x, y)) { const g = unproject(this.surface.sourceXAt(x), this.surface.sourceYAt(y)); if (!pickAt(g.x, g.y, tileAt(g.x, g.y))) closeInfo(); }
+      }
+      if (pointer.down !== '') { const hit = hitAt(x, y); if (hit !== null && hit.id === pointer.down && hit.id !== 'map') { sound('click', .5); hudClick(hit.id); } pointer.down = ''; }
     }
     if (down) {
       if (this.panel.press(x, y)) { uiState.dirty = true; return; }
       const hit = hitAt(x, y);
       if (hit !== null) {
         pointer.down = hit.id;
+        if (hit.id === 'info:drag') infoDragStart(x, y);
         if (hit.id === 'map') { this.onMap = true; minimapClick(x, y); this.baked = world.revision; }
         uiState.dirty = true; return;
       }
       if (this.paused || !this.surface.contains(x, y)) return;
-      if (this.tool === TOOL_NONE) { const g = unproject(this.surface.sourceXAt(x), this.surface.sourceYAt(y)); if (!pickAt(g.x, g.y, tileAt(g.x, g.y))) closeInfo(); uiState.dirty = true; return; }
+      if (this.tool === TOOL_NONE) { this.grabbing = true; this.grabMoved = false; this.grabX = x; this.grabY = y; uiState.dirty = true; return; }   // no tool: drag moves the map, a click picks
       this.dragging = true; this.lastPaint = -1; beginGroup();
     }
     if (down) this.drag(x, y, true); else { this.dragging = false; endGroup(); }
     uiState.dirty = true;
+  }
+  /** A right click: info on the building or person under the pointer, else it backs out of the current window, menu or tool. */
+  private rightClick(x: number, y: number): void {
+    if (hitAt(x, y) === null && !this.paused && this.surface.contains(x, y)) {
+      const g = unproject(this.surface.sourceXAt(x), this.surface.sourceYAt(y));
+      if (pickAt(g.x, g.y, tileAt(g.x, g.y))) return;
+    }
+    if (ui.window === WIN_INFO) closeInfo(); else if (ui.category >= 0) ui.category = -1; else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE;
   }
   /** Roads and demolition are painted by dragging; a building is placed once, on the press. */
   private drag(x: number, y: number, first: boolean): void {
@@ -205,6 +226,16 @@ export class HamletScene extends Sprite {
     if (t < 0 || t === this.lastPaint) return;
     this.lastPaint = t;
     if (first || this.tool === TOOL_ROAD || this.tool === TOOL_ERASE) this.act(t);
+  }
+
+  private forestAt = -99; private forestNow = 0;
+  /** The share of tiles under trees, counted every few seconds: it only picks the ambience. */
+  private forest(): number {
+    if (ui.time - this.forestAt < 5) return this.forestNow;
+    this.forestAt = ui.time; let n = 0;
+    for (let i = 0; i < world.tree.length; i++) if (world.tree[i] > 0) n++;
+    this.forestNow = n / Math.max(1, world.tree.length);
+    return this.forestNow;
   }
 
   override onUpdate(dt: number): void {
@@ -219,13 +250,18 @@ export class HamletScene extends Sprite {
     let events = 0;
     for (let i = 0; i < buttonEventCount(); i++) {
       if (buttonEventButton(i) !== 0) {                    // the other buttons drag the map; a right click also closes a window
-        if (buttonEventDown(i) && buttonEventButton(i) === 2) { if (ui.window === WIN_INFO) closeInfo(); else if (ui.category >= 0) ui.category = -1; else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; uiState.dirty = true; }
+        if (buttonEventButton(i) === 2) {
+          if (buttonEventDown(i)) { this.rightX = buttonEventX(i); this.rightY = buttonEventY(i); this.rightMoved = false; }
+          else if (!this.rightMoved) this.rightClick(buttonEventX(i), buttonEventY(i));     // a right click that never dragged
+          uiState.dirty = true;
+        }
         this.panning = buttonEventDown(i); this.panX = buttonEventX(i); this.panY = buttonEventY(i);
         continue;
       }
       this.press(buttonEventX(i), buttonEventY(i), buttonEventDown(i)); events++;
     }
     const held = pointerDown(), x = pointerX(), y = pointerY();
+    if (held && infoDragging()) { infoDragMove(x, y); uiState.dirty = true; }
     if (events === 0 && held !== this.held) this.press(x, y, held);
     else if (events === 0 && held && this.dragging) this.drag(x, y, false);
     if (held && this.panel.dragging()) { this.panel.drag(x); uiState.dirty = true; }
@@ -233,6 +269,7 @@ export class HamletScene extends Sprite {
     const where = x * 10000 + y;
     if (this.pointerStart < 0) this.pointerStart = where; else if (where !== this.pointerStart) this.pointerMoved = true;
     ui.time += dt;
+    ambientTick(dt, season(), (world.tick * TICK / 20) % 1 > .72 ? 1 : 0, this.forest());
     if (track(x, y)) uiState.dirty = true;
     this.moveView(dt, x, y);
     this.hover = this.paused || this.tool === TOOL_NONE || hitAt(x, y) !== null ? -1 : this.tileUnder(x, y);
@@ -260,7 +297,9 @@ export class HamletScene extends Sprite {
     if (scrollPhase() !== 0) { dx -= scrollDX() / this.surface.scale; dy -= scrollDY() / this.surface.scale; }
     else if (wheel() !== 0) { stepZoom(wheel() > 0 ? 1 : -1); this.baked = world.revision; uiState.dirty = true; }
     if (pinch() !== 1) { stepZoom(pinch() > 1 ? 1 : -1); this.baked = world.revision; uiState.dirty = true; }
-    if (settings.edgePan && this.pointerMoved && !this.panel.contains(x, y) && hitAt(x, y) === null) {
+    if (this.panning && !this.rightMoved && !this.grabbing && Math.abs(x - this.rightX) + Math.abs(y - this.rightY) > 6) this.rightMoved = true;
+    if (this.grabbing && pointerDown() && !this.grabMoved && Math.abs(x - this.grabX) + Math.abs(y - this.grabY) > 6) { this.grabMoved = true; this.panning = true; this.panX = x; this.panY = y; }
+    if (settings.edgePan && this.pointerMoved) {   // the window's own edge, even where the interface sits on it
       const band = 8;
       dx += ((x >= width() - band ? 1 : 0) - (x < band ? 1 : 0)) * PAN_SPEED * dt; dy += ((y >= height() - band ? 1 : 0) - (y < band ? 1 : 0)) * PAN_SPEED * dt;
     }

@@ -1,3 +1,4 @@
+import { sound } from '../audio';
 import { world, tileX, tileY } from '../world/world';
 import { computeHints, hintText } from '../rules/hints';
 import { population } from '../engine/villagers';
@@ -16,6 +17,7 @@ export function post(kind: number, message: string, tile: number): void {
   for (let i = 0; i < log.length && i < 8; i++) if (log[i].text === message && log[i].tile === tile) return;   // the same event again: one line
   const m = new Message(); m.kind = kind; m.text = message; m.tile = tile; log.unshift(m);
   if (log.length > 40) log.pop();
+  sound(kind === MSG_URGENT ? 'alarm' : kind === MSG_WARN ? 'notify' : 'tick', .6);
   if (kind === MSG_URGENT) { banner.text = message; banner.until = ui.time + 6; banner.tile = tile; }
 }
 export function unread(): number { let n = 0; for (const m of log) if (!m.read) n++; return n; }

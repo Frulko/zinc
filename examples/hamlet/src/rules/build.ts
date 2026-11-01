@@ -22,7 +22,7 @@ function lodeNear(t: number, k: number): boolean {
 /** Why a tool cannot act on a tile (PLACE_OK when it can). */
 export function checkTool(tool: number, t: number): number {
   if (t < 0) return PLACE_BLOCKED;
-  if (tool === TOOL_ERASE) return ((world.build[t] >= 0 && !world.buildings[world.build[t]].fixed) || (world.road[t] && t !== world.gate)) ? PLACE_OK : PLACE_BLOCKED;
+  if (tool === TOOL_ERASE) return ((world.build[t] >= 0 && !world.buildings[world.build[t]].fixed) || (world.road[t] && t !== world.gate) || world.tree[t] > 0) ? PLACE_OK : PLACE_BLOCKED;   // a tree can be razed: it brings nothing
   if (!isOpen(t)) return PLACE_BLOCKED;
   if (tool === TOOL_ROAD) return PLACE_OK;
   const def = economy.buildings[tool - TOOL_HOUSE];
@@ -45,7 +45,7 @@ export function applyTool(tool: number, t: number): number {
   const code = checkTool(tool, t);
   if (code !== PLACE_OK) return code;
   if (tool === TOOL_ERASE) {
-    if (world.build[t] >= 0) destroyBuilding(world.build[t]); else world.road[t] = 0;
+    if (world.build[t] >= 0) destroyBuilding(world.build[t]); else if (world.road[t]) world.road[t] = 0; else { world.tree[t] = 0; world.claimed[t] = 0; }
   } else if (tool === TOOL_ROAD) {
     world.road[t] = 1; world.deco[t] = 0;
   } else {
