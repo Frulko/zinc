@@ -46,6 +46,15 @@ static int fd = -1, tty = -1;
 static uint8_t* fbmem;
 static size_t fblen;
 static int fw, fh, bpp, pitch;
+// ZINC_ROTATE=0|90|180|270 (the shell's Rotation setting): the picture turns clockwise by that much on the screen. The surface, the letterbox
+// and the scaling work on the turned ("logical") screen, lw x lh (fw x fh, or fh x fw for a quarter turn); the turn happens where a row is
+// stored (put_row), and a touch or a mouse is turned back (to_surface, EV_REL). Hardware layers are off while it turns.
+static int rot, lw, lh;            // quarter turns clockwise (0..3), the logical screen
+static int rotation_env() {
+  const char* e = getenv("ZINC_ROTATE");
+  const int d = e ? atoi(e) : 0;
+  return d == 90 ? 1 : d == 180 ? 2 : d == 270 ? 3 : 0;
+}
 static int W, H, dx, dy, dw, dh;   // surface size and its rectangle on the framebuffer
 static int *xmap, *ymap;           // framebuffer column/row -> surface column/row
 static uint32_t* surf;             // rendered surface (0x00RRGGBB)
@@ -93,12 +102,16 @@ static void conv_row(const uint32_t* s, uint8_t* row, int x0, int n) {
 /** Framebuffer row y from the surface row `src`, columns x0..x1 (framebuffer coordinates); xm maps them when scaled. */
 static void put_row(int y, int x0, int x1, const uint32_t* src, const int* xm) {
   uint8_t* row = fbmem + (size_t)y * pitch;
-  if (!xm && !cursor_row(y)) { conv_row(src + (x0 - dx), row, x0, x1 - x0); return; }
+  if (!xm && !rot && !cursor_row(y)) { conv_row(src + (x0 - dx), row, x0, x1 - x0); return; }
   static thread_local std::vector<uint32_t> tmp;   // scaled: gather the columns, then convert them in one go
   if ((int)tmp.size() < x1 - x0) tmp.resize(x1 - x0);
   const int sy = xm ? ymap[y - dy] : y;
   for (int x = x0; x < x1; x++) { const int sx = xm ? xm[x - dx] : x - dx; tmp[x - x0] = cursor_pixel(sx, sy, src[sx]); }
-  conv_row(tmp.data(), row, x0, x1 - x0);
+  if (!rot) { conv_row(tmp.data(), row, x0, x1 - x0); return; }
+  for (int x = x0; x < x1; x++) {   // turned: each pixel goes to its place on the screen
+    const int X = rot == 1 ? lh - 1 - y : rot == 2 ? lw - 1 - x : y, Y = rot == 1 ? x : rot == 2 ? lh - 1 - y : lw - 1 - x;
+    conv_row(&tmp[x - x0], fbmem + (size_t)Y * pitch, X, 1);
+  }
 }
 
 #include "keyboard.h"
@@ -203,6 +216,7 @@ static uint32_t button_of(int code) {
 /** Device coordinates -> surface coordinates (through the letterbox). */
 static void to_surface(const Dev& d, int32_t vx, int32_t vy, float* sx, float* sy) {
   float fx = (vx - d.minx) * (float)fw / (d.maxx - d.minx + 1), fy = (vy - d.miny) * (float)fh / (d.maxy - d.miny + 1);
+  if (rot) { const float ox = fx, oy = fy; fx = rot == 1 ? oy : rot == 2 ? fw - ox : fh - oy; fy = rot == 1 ? fw - ox : rot == 2 ? fh - oy : ox; }   // back from the screen to the turned one
   *sx = (fx - dx) * W / dw; *sy = (fy - dy) * H / dh;
 }
 static bool read_dev(Dev& d, HalInput* in) {
@@ -231,8 +245,8 @@ static bool read_dev(Dev& d, HalInput* in) {
         } else if (v.code == BTN_TOUCH) { touch_btn.set(v.value != 0); cursor_visible = false; }
       } else if (v.type == EV_REL) {
         cursor_visible = true;
-        if (v.code == REL_X) px += v.value;
-        else if (v.code == REL_Y) py += v.value;
+        if (v.code == REL_X) { if (rot == 0) px += v.value; else if (rot == 2) px -= v.value; else py += rot == 1 ? -v.value : v.value; }
+        else if (v.code == REL_Y) { if (rot == 0) py += v.value; else if (rot == 2) py -= v.value; else px += rot == 1 ? v.value : -v.value; }
         else if (v.code == REL_WHEEL) wheel += v.value;
         else if (v.code == REL_HWHEEL) wheel_x += v.value;
         px = px < 0 ? 0 : px > W - 1 ? W - 1 : px; py = py < 0 ? 0 : py > H - 1 ? H - 1 : py;
@@ -642,6 +656,7 @@ static void fb_native(int32_t* w, int32_t* h) {
     if (!ok) return;
     sw = var.xres; sh = var.yres;
   }
+  if (rotation_env() & 1) std::swap(sw, sh);
   if (sw > 0 && sh > 0) { *w = sw; *h = sh; }
 }
 
@@ -675,11 +690,13 @@ static int fb_init(const HalConfig* cfg) {
   rl = var.red.length; gl = var.green.length; bl = var.blue.length;
   amask = var.transp.length ? ((1u << var.transp.length) - 1) << var.transp.offset : 0;
   W = cfg->width; H = cfg->height;
+  rot = rotation_env();
+  lw = rot & 1 ? fh : fw; lh = rot & 1 ? fw : fh;
   surf = (uint32_t*)calloc((size_t)W * H, 4);
-  if (W == fw && H == fh) { dx = dy = 0; dw = W; dh = H; }
+  if (W == lw && H == lh) { dx = dy = 0; dw = W; dh = H; }
   else {  // ponytail: nearest-neighbour scaling; match zinc.json width/height to the framebuffer for 1:1 copies
-    double k = (double)fw / W < (double)fh / H ? (double)fw / W : (double)fh / H;
-    dw = (int)(W * k); dh = (int)(H * k); dx = (fw - dw) / 2; dy = (fh - dh) / 2;
+    double k = (double)lw / W < (double)lh / H ? (double)lw / W : (double)lh / H;
+    dw = (int)(W * k); dh = (int)(H * k); dx = (lw - dw) / 2; dy = (lh - dh) / 2;
     xmap = (int*)malloc(sizeof(int) * dw); ymap = (int*)malloc(sizeof(int) * dh);
     for (int x = 0; x < dw; x++) xmap[x] = (int)((x + 0.5) * W / dw);
     for (int y = 0; y < dh; y++) ymap[y] = (int)((y + 0.5) * H / dh);
@@ -704,6 +721,7 @@ static int fb_init(const HalConfig* cfg) {
   auto on = [](const char* n) { const char* e = getenv(n); return e && *e && *e != '0'; };
   skip_s = getenv("ZINC_FBDEV_SKIP_S") ? atof(getenv("ZINC_FBDEV_SKIP_S")) : 0;
   stats = on("ZINC_FBDEV_STATS"); crc_on = on("ZINC_FBDEV_CRC"); fuse = on("ZINC_FBDEV_FUSE");
+  if (rot) fprintf(stderr, "fbdev: turned %d degrees clockwise (ZINC_ROTATE), hardware layers off\n", rot * 90);
   fprintf(stderr, "fbdev: %s %dx%d %d bpp, surface %dx%d at %d,%d size %dx%d, %d input device(s)\n", ZP_DISPLAY_FBDEV_DEVICE, fw, fh, bpp, W, H, dx, dy, dw, dh, ndev);
 #ifdef ZP_FBDEV_KMS
   // When the screen's compositor has the planes, every frame goes to them (kms::flip, the file stays open) and hardware layers are
@@ -714,7 +732,7 @@ static int fb_init(const HalConfig* cfg) {
   const char* pl = getenv("ZINC_FBDEV_PLANES");
   const uint64_t k0 = now_us();
   const char* fl = getenv("ZINC_FBDEV_FLIP");
-  const bool layers = !xmap && !(pl && *pl == '0'), flip = !(fl && *fl == '0');
+  const bool layers = !xmap && !rot && !(pl && *pl == '0'), flip = !(fl && *fl == '0');
   const char* why = sim_fb ? nullptr : flip ? "no KMS plane to take" : "ZINC_FBDEV_FLIP=0";
   if (!sim_fb && hal_display && hal_display->init == fb_init && (layers || flip) && kms::open_file()) {
     if (layers) {

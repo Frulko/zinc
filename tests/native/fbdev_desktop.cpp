@@ -137,6 +137,32 @@ int main(int argc, char** argv) {
     if (depth == 32) stream_session(frame);
     fb_shutdown();
   }
+  // ZINC_ROTATE: the picture turns clockwise on the screen; a touch is turned back to the surface.
+  for (int deg : {90, 180, 270}) {
+    setenv("ZINC_ROTATE", std::to_string(deg).c_str(), 1);
+    setenv("ZINC_FBDEV_SIM_FORMAT", "800x480x32", 1);
+    int32_t w = 320, h = 240; fb_native(&w, &h);
+    const bool quarter = deg != 180;
+    assert(w == (quarter ? 480 : 800) && h == (quarter ? 800 : 480));
+    HalConfig config{w, h, "rotated", 1}; assert(fb_init(&config));
+    assert(!xmap && W == w && H == h && fw == 800 && fh == 480);
+    auto marks = [](uint32_t* rows, int32_t a, int32_t b) {   // red top-left, blue top-right, green bottom-left
+      for (int y = a; y < b; y++) for (int x = 0; x < W; x++) rows[(y - a) * W + x] = x == 0 && y == 0 ? 0xff0000 : x == W - 1 && y == 0 ? 0x0000ff : x == 0 && y == H - 1 ? 0x00ff00 : 0x345678;
+    };
+    HalFrame frame{w, h, 0, 0, w, h, marks}; fb_present(&frame);
+    // where the surface's top-left, top-right and bottom-left corners land on the screen
+    const int tl[3][2] = {{799, 0}, {799, 479}, {0, 479}}, tr[3][2] = {{799, 479}, {0, 479}, {0, 0}}, bl[3][2] = {{0, 0}, {0, 0}, {799, 479}};
+    const int k = deg / 90 - 1;
+    assert(pixel(tl[k][0], tl[k][1]) == 0xff0000 && pixel(tr[k][0], tr[k][1]) == 0x0000ff);
+    if (deg == 90) assert(pixel(0, 0) == 0x00ff00 && pixel(400, 240) == 0x345678);
+    // a touch at the screen's top-left corner is the surface's bottom-left (90), bottom-right (180), top-right (270)
+    Dev d{-1, 0, 799, 0, 479, true, true};
+    float sx, sy; to_surface(d, 0, 0, &sx, &sy);
+    const float ex[3] = {0, (float)W, (float)W}, ey[3] = {(float)H, (float)H, 0};
+    assert(std::abs(sx - ex[k]) < 1.5f && std::abs(sy - ey[k]) < 1.5f);
+    fb_shutdown();
+  }
+  unsetenv("ZINC_ROTATE");
   // No event device at startup; it appears after the window is running.
   setenv("ZINC_FBDEV_SIM_FORMAT", "800x480x16", 1);
   HalConfig config{800, 480, "input", 1}; assert(fb_init(&config)); assert(ndev == 0);

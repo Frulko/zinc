@@ -10,6 +10,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Raspberry Pi and the shell
 
+#### New
+
+- Screen rotation for the Pi: *Settings, Display* turns the whole screen (top bar, app and touch) by 0, 90, 180 or 270 degrees, the image builder has a *Rotation* choice, and `zinc-admin rotation <degrees>` or `ZINC_ROTATE` in `/etc/zinc/session.conf` does the same. Apps run without the shell turn too.
+
 #### Fixed
 
 - `zinc device <pi> screen` and `screen --live` show the app running under the shell, not only the top bar, and the live view follows the app in real time.

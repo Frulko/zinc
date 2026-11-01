@@ -467,6 +467,20 @@ export function setSshEnabled(isOn: boolean): void {
   });
 }
 
+/** The screen turn in degrees clockwise (ZINC_ROTATE, which the session gives the player). */
+export function screenRotation(): number {
+  const degrees = parseInt(sys.env('ZINC_ROTATE'), 10);
+  return degrees === 90 || degrees === 180 || degrees === 270 ? degrees : 0;
+}
+
+/** Saves the rotation in session.conf; the session starts again, so the player comes back turned. */
+export function setScreenRotation(degrees: number): void {
+  if (degrees === screenRotation()) return;
+  runAction('rotation', ['rotation', degrees + ''], '', (result: AdminResult) => {
+    reportFailure(result);
+  });
+}
+
 export function restartNetwork(): void {
   appState.pendingPowerAction = '';
   runAction('network', ['network-restart'], '', (result: AdminResult) => {

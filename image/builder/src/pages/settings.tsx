@@ -10,7 +10,10 @@ import { catalog, profile, editProfile, toggleLibrary, chooseApp, useMySshKey, n
 
 const [boardListOpen, setBoardListOpen] = createSignal<boolean>(false);
 const [displayListOpen, setDisplayListOpen] = createSignal<boolean>(false);
+const [rotationListOpen, setRotationListOpen] = createSignal<boolean>(false);
 const [advancedOpen, setAdvancedOpen] = createSignal<boolean>(false);
+
+const ROTATIONS: string[] = ['0°', '90°', '180°', '270°'];
 
 function labelsOf(choices: Choice[]): string[] { return choices.map((c: Choice) => c.label); }
 
@@ -40,6 +43,11 @@ function DevicePage(): i32 {
         <Select items={labelsOf(catalog.displays)} modelValue={() => labelOf(catalog.displays, profile().display)}
           onUpdate={(label: string) => editProfile((p: Profile) => { p.display = keyOf(catalog.displays, label); })}
           open={displayListOpen} onOpen={setDisplayListOpen} className="w-full" />
+      </Row>
+      <Row label="Rotation" hint="Turns the whole screen clockwise, touch included (also in Settings, Display)">
+        <Select items={ROTATIONS} modelValue={() => profile().rotation + '°'}
+          onUpdate={(label: string) => editProfile((p: Profile) => { p.rotation = parseInt(label, 10); })}
+          open={rotationListOpen} onOpen={setRotationListOpen} className="w-full" />
       </Row>
       <Toggle label="Bluetooth" hint="For keyboards, game controllers and speakers" value={() => profile().bluetooth} onChange={(on: boolean) => editProfile((p: Profile) => { p.bluetooth = on; })} />
     </Group>

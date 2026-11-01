@@ -46,6 +46,7 @@ export const PAGE_HUB = 'hub';
 export const SECTION_WIFI = 'wifi';
 export const SECTION_REMOTE = 'remote';
 export const SECTION_PREFERENCES = 'preferences';
+export const SECTION_DISPLAY = 'display';
 export const SECTION_SYSTEM = 'system';
 export const SECTION_UPDATES = 'updates';
 

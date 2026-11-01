@@ -24,5 +24,6 @@
   "app": "",
   "growMiB": 1536,
   "ab": false,
-  "shell": false
+  "shell": false,
+  "rotation": 0
 }
