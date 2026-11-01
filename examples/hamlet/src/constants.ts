@@ -115,6 +115,8 @@ export const BATCH = 4;                // most a porter carries at once
 // ---- no-limit mode: nature refills itself below a threshold ----
 export const TREE_MIN = 18;             // below this many trees, one grows back every TREE_REGROW seconds
 export const TREE_REGROW = 10;
+export const TREE_REGROW_SLOW = 14;    // normal mode: seconds between two new trees (the forest recovers, slowly) ...
+export const TREE_CAP_SLOW = 1.5;      // ... up to this many times the no-limit threshold
 
 // ---- deer ----
 export const DEER_START = 5;

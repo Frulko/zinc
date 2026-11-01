@@ -2,6 +2,7 @@ import { HOUSE, BS_IDLE } from '../constants';
 import { world, Alert, random, recount, tileI, tileJ, tileIndex } from '../world/world';
 import { economy } from '../world/economy';
 import { population, removeResidents, releaseWorkers } from './villagers';
+import { level } from '../rules/difficulty';
 
 // Risks: fire, collapse and petty theft, from the daily counters of each building (economy.json "risk" per building, "risks" for the rules). The numbers follow the classic
 // city builders as a calibration only: a building's fire counter rises on its own day (one day in `slots`), wear every day, and a safety walker passing within two tiles
@@ -78,10 +79,10 @@ export function dailyRisks(): void {
     if (!b.alive || b.fixed || isRuin(b.type)) continue;
     const w = economy.buildings[b.type].risk;
     if (w === null || (b.type === HOUSE && b.residents === 0)) continue;
-    const mine = slotOf(id) === today;
-    if (mine) b.fire += fireWeight(b);
-    if (!(b.type === HOUSE && b.level === 0)) b.damage += (mine ? 3 : 1) * w.collapse;      // a hut does not wear out
-    b.crime += w.crime * crimeRate;
+    const mine = slotOf(id) === today, pace = level().risk / 100;      // the difficulty scales how fast every counter rises
+    if (mine) b.fire += fireWeight(b) * pace;
+    if (!(b.type === HOUSE && b.level === 0)) b.damage += (mine ? 3 : 1) * w.collapse * pace;      // a hut does not wear out
+    b.crime += w.crime * crimeRate * pace;
   }
   for (let id = 0; id < world.buildings.length; id++) {
     const b = world.buildings[id];

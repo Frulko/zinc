@@ -98,7 +98,7 @@ updateNature(.1);   // called alone: the lumberjacks would cut a new tree as fas
 check('no-limit mode regrows trees below the threshold', world.tree.some((v) => v > 0));
 world.unlimited = false; world.treeTimer = 0; const forest = world.tree.filter((v) => v > 0).length;
 run(60);
-check('normal mode does not regrow', world.tree.filter((v) => v > 0).length <= forest);
+check('normal mode regrows slowly: a tree every 14 s at most', world.tree.filter((v) => v > 0).length <= forest + 5);
 world.unlimited = true;
 const text = snapshot();
 const roads = world.road.filter((v) => v === 1).length;
@@ -162,7 +162,7 @@ generate(1234, 16);
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; world.rock[t] = 0; }
 for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, at(i, 8));
 check('the start stock lets the player build the first village', applyTool(TOOL_HOUSE, at(2, 7)) === PLACE_OK && applyTool(TOOL_HOUSE, at(4, 7)) === PLACE_OK && applyTool(toolOf('lumberhut'), at(3, 9)) === PLACE_OK && applyTool(TOOL_SAWMILL, at(5, 9)) === PLACE_OK);
-check('the hut is paid in planks and logs', world.stock[PLANK] === 0 && world.stock[WOOD] === 20 - 2 - 6);
+check('the hut is paid in planks and logs', world.stock[PLANK] === economy.start[PLANK] - 10 && world.stock[WOOD] === economy.start[WOOD] - 2 - 6);
 run(150);
 console.log('hamlet chain 1: after 150 s from the start stock: ' + world.stock[PLANK] + ' planks, ' + world.stock[WOOD] + ' logs, ' + world.felledCount + ' trees felled');
 check('the first chain makes at least 5 planks', world.stock[PLANK] >= 5);
@@ -383,7 +383,7 @@ world.progression = true;
 generate(1234, 16); clearRow();
 const LODGE_T = economy.typeOf('lodge'), SAWMILL_T = economy.typeOf('sawmill'), HUT_T = economy.typeOf('lumberhut');
 const goalIx = (id: string): number => economy.goals.findIndex((g) => g.id === id);
-check('buildings a goal unlocks start locked, with the goal that opens them in words', applyTool(TOOL_LODGE, at(3, 9)) === PLACE_LOCKED && lockText(LODGE_T).indexOf('Des planches') >= 0 && lockText(HUT_T) === '' && applyTool(TOOL_SAWMILL, at(5, 9)) === PLACE_LOCKED);
+check('buildings a goal unlocks start locked, with the goal that opens them in words', applyTool(TOOL_LODGE, at(3, 9)) === PLACE_LOCKED && lockText(LODGE_T).indexOf('Des planches') >= 0 && lockText(HUT_T) === '' && lockText(SAWMILL_T) === '');   // the sawmill is open from the start: a village with no planks and no sawmill could never grow
 const gh = addBuilding(HOUSE, at(2, 7)); createResident(gh); createResident(gh); world.buildings[gh].residents = 2; world.buildings[gh].timer = 1e9;
 const logsBefore = world.stock[WOOD];
 applyTool(toolOf('lumberhut'), at(3, 9));
@@ -748,7 +748,7 @@ check('feelings: worst first', feelFrom(10, 0, true, true, true) === FEEL_ANGRY 
 check('thoughts are said in French', thoughtOf(FEEL_HUNGRY, '') === 'J’ai faim.' && thoughtOf(FEEL_JOBLESS, '') === 'Pas de travail pour moi.');
 idler.mood = 20; idler.fatigue = 90; worker.mood = 80; worker.fatigue = 0;
 check('discontent and tiredness slow the work', workPace(idler) < .6 && workPace(worker) === 1);
-check('newcomers: faster when happy, none when unhappy', arrivalFactor(80) < 1 && arrivalFactor(55) === 1 && arrivalFactor(45) === 0);
+check('newcomers: faster when happy, none when unhappy', arrivalFactor(80) < 1 && arrivalFactor(55) === 1 && arrivalFactor(40) === 0 && arrivalFactor(45) === 1);
 check('nobody leaves a small or content village; the unhappy leave', leavingToday(10, 5) === 0 && leavingToday(60, 40) === 0 && leavingToday(25, 40) >= 1);
 { // the daily round: sleep at home at night, up at dawn
   world.tick = 0; for (const p of world.people) { p.fatigue = 0; p.mood = 60; }
@@ -797,17 +797,17 @@ console.log('hamlet rules: moodhash ' + moodHash + ':' + world.rng);        // c
   for (const h of houses) world.buildings[h].residents = 0;                           // a hamlet of six: the grace period
   world.buildings[houses[0]].residents = 2; world.buildings[houses[1]].residents = 2; world.buildings[houses[2]].residents = 2;
   for (let d = 0; d < 20; d++) dailyRisks();
-  check('below ten people the risks sleep', world.buildings.every((b) => b.fire === 0 && b.damage === 0 && b.crime === 0) && world.rng === rngBefore);
-  for (const h of houses) world.buildings[h].residents = 3;                             // twelve
+  check('below risks.minPopulation people the risks sleep', world.buildings.every((b) => b.fire === 0 && b.damage === 0 && b.crime === 0) && world.rng === rngBefore);
+  for (const h of houses) world.buildings[h].residents = 5;                             // twenty: above the grace of risks.minPopulation
   world.mood = 40;
   for (let d = 0; d < 12; d++) dailyRisks();
   check('then the counters rise: fire on a slot day, wear and theft every day', world.buildings[mill].fire > 0 && world.buildings[mill].damage >= 12 && world.buildings[forge].crime === 24 && world.buildings[houses[0]].fire > 0);
   check('a hut does not wear out, the hall never burns', world.buildings[houses[0]].damage === 0 && world.buildings.every((b) => !b.fixed || (b.fire === 0 && b.damage === 0)));
   // a fire: the building becomes a burning ruin, its people flee, its goods are lost, an alert goes out
-  fresh(); world.buildings[houses[3]].fire = 99; const people = world.people.length;
+  fresh(); world.buildings[houses[3]].fire = economy.risk.fireAt + 1; const people = world.people.length;
   const hid = world.buildings[houses[3]].residents; dailyRisks();
   const burnt = world.buildings[houses[3]];
-  check('past the threshold the building burns down to a ruin', burnt.type === RUIN && burnt.burn === economy.risk.burnDays && burnt.alive && burnt.residents === 0 && world.people.length === people - 2 && hid === 3);
+  check('past the threshold the building burns down to a ruin', burnt.type === RUIN && burnt.burn === economy.risk.burnDays && burnt.alive && burnt.residents === 0 && world.people.length === people - 2 && hid === 5);
   check('the fire is announced in French as urgent', world.alerts.length === 1 && world.alerts[0].kind === 'fire' && world.alerts[0].text.indexOf('Incendie') === 0 && world.alerts[0].tile === at(8, 7));
   // it spreads to the neighbours and leaves rubble after burnDays; the rubble is demolished like any building
   world.alerts = []; for (const b of world.buildings) if (!isRuin(b.type)) b.fire = 0;

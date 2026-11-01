@@ -17,6 +17,7 @@ export const FEEL_WORDS: string[] = ['Content', 'Ça va', 'Affamé', 'Fatigué',
 /** The free-time places: a person with nothing to do walks to the nearest and comes back a little lifted. */
 export const FREE_PLACES: string[] = ['market', 'well', 'tavern'];
 
+export const MOOD_BASE = 60;          // what a house offers its people before food, services and the neighbourhood add or take (the classic 'fair' start)
 export const HAPPY_STEP = 2;          // most a house's contentment moves in a day
 export const MOOD_STEP = 4;           // most a person's mood moves in a day
 export const TIRED_AT = 80;           // fatigue from which a person is tired
@@ -40,7 +41,7 @@ export class HouseNeeds { target: number = 0; lack: string = ''; hungry: boolean
 /** What a house offers its people: food variety, its level, the neighbourhood, the services that reach it, minus the village's unemployment. `lack` is the worst gap (a service id, `food`, `jobs`, or ''). */
 export function houseNeeds(b: Building, offered: number[]): HouseNeeds {
   const out = new HouseNeeds(), h = economy.buildings[HOUSE].housing as Housing, tile = b.j * world.size + b.i;
-  let target = 52, worst = 0;
+  let target = MOOD_BASE, worst = 0;
   const note = (id: string, cost: number): void => { if (cost > worst) { worst = cost; out.lack = id; } };
   const have = foodKinds(b), want = levelOf(b).foods, expected = h.mealsFrom < 0 || offered[h.mealsFrom] === 1;
   if (expected && have === 0) { target -= 22; out.hungry = true; note('food', 22); }
@@ -101,10 +102,10 @@ export function workPace(p: Person): number {
   return pace;
 }
 /** Settlers come faster in a happy village and not at all in an unhappy one (the multiplier of the interval between two arrivals; 0: nobody comes). */
-export function arrivalFactor(mood: number): number { return mood >= 70 ? .6 : mood >= 60 ? .85 : mood >= 50 ? 1 : 0; }
+export function arrivalFactor(mood: number): number { return mood >= 70 ? .6 : mood >= 60 ? .85 : mood >= 45 ? 1 : 0; }
 /** People leaving each day, by the village's mood: a share of the population, at least one, nobody while it is small. */
 export function leavingToday(mood: number, population: number): number {
-  if (population <= 6 || mood >= 40) return 0;
+  if (population <= 6 || mood >= 35) return 0;
   const share = mood <= 20 ? 25 : mood <= 30 ? 15 : 8;
   return Math.max(1, Math.floor(population * share / 100));
 }

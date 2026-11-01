@@ -6,9 +6,10 @@ import { addBuilding } from '../rules/build';
 import { createResident, dropPerson } from '../engine/villagers';
 import { spawnPeddler } from '../engine/trade';
 import { computeAppeal } from '../rules/appeal';
+import { defaultLevel } from '../rules/difficulty';
 import { stockWithCarried } from '../engine/transport';
 
-// One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock, cover, level, streak, meals and the risk counters fire|damage|crime|burn; lists with | between);trees(tile.variant);unlimited;tick;rng;priority;params;deposits(tile.value.left);goals done;buildings unlocked;peddler offers(resource.qty.side.coins.taken);days he stays;expeditions(adventure.days left.homes);progression;risks
+// One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock, cover, level, streak, meals and the risk counters fire|damage|crime|burn; lists with | between);trees(tile.variant);unlimited;tick;rng;priority;params;deposits(tile.value.left);goals done;buildings unlocked;peddler offers(resource.qty.side.coins.taken);days he stays;expeditions(adventure.days left.homes);progression;risks;difficulty
 function numbers(text: string): number[] {
   const out: number[] = [];
   if (text === '') return out;
@@ -32,7 +33,7 @@ export function snapshot(): string {
   for (let t = 0; t < tileCount(); t++) if (world.road[t]) roads.push(t);
   for (const b of world.buildings) if (b.alive) buildings.push(b.type + '.' + tileIndex(b.i, b.j) + '.' + b.residents + '.' + stockWithCarried(world.buildings.indexOf(b)).join('|') + '.' + b.cover.join('|') + '.' + b.level + '.' + b.streak + '.' + b.fed.join('|') + '.' + [b.fire, b.damage, b.crime, b.burn].join('|'));
   for (let t = 0; t < tileCount(); t++) { if (world.tree[t] > 0) trees.push(t + '.' + world.tree[t]); if (world.rock[t] >= ROCK_DEPOSIT) lodes.push(t + '.' + world.rock[t] + '.' + world.lode[t]); }
-  return [SAVE_VERSION, String(world.seed), String(world.size), roads.join(','), buildings.join(','), trees.join(','), world.unlimited ? '1' : '0', String(world.tick), String(world.rng), world.priority.join(','), paramsText(), lodes.join(','), world.goals.join(''), world.unlocked.join(''), world.offers.map((o: Offer): string => [String(o.resource), String(o.qty), o.side, String(o.coins), o.taken ? '1' : '0'].join('.')).join(','), String(world.peddlerLeft), world.expeditions.map((e: Expedition): string => e.adventure + '.' + e.left + '.' + e.homes.join('|')).join(','), world.progression ? '1' : '0', world.risks ? '1' : '0'].join(';');
+  return [SAVE_VERSION, String(world.seed), String(world.size), roads.join(','), buildings.join(','), trees.join(','), world.unlimited ? '1' : '0', String(world.tick), String(world.rng), world.priority.join(','), paramsText(), lodes.join(','), world.goals.join(''), world.unlocked.join(''), world.offers.map((o: Offer): string => [String(o.resource), String(o.qty), o.side, String(o.coins), o.taken ? '1' : '0'].join('.')).join(','), String(world.peddlerLeft), world.expeditions.map((e: Expedition): string => e.adventure + '.' + e.left + '.' + e.homes.join('|')).join(','), world.progression ? '1' : '0', world.risks ? '1' : '0', String(world.difficulty)].join(';');
 }
 
 export function saveGame(): void {
@@ -50,7 +51,7 @@ function sized(text: string, length: number): number[] {
 }
 export function restore(text: string): boolean {
   const fields = text.split(';');
-  if (fields.length !== 19 || fields[0] !== SAVE_VERSION) return false;
+  if (fields.length < 19 || fields[0] !== SAVE_VERSION) return false;
   generate(Number(fields[1]), Number(fields[2]), paramsOf(fields[10]));
   for (const t of numbers(fields[3])) { world.road[t] = 1; world.deco[t] = 0; }
   if (fields[4] !== '') {
@@ -80,7 +81,7 @@ export function restore(text: string): boolean {
     o.resource = Number(parts[0]); o.qty = Number(parts[1]); o.side = parts[2]; o.coins = Number(parts[3]); o.taken = parts[4] === '1';
     world.offers.push(o);
   }
-  world.expeditions = []; world.progression = fields[17] === '1'; world.risks = fields[18] === '1';
+  world.expeditions = []; world.progression = fields[17] === '1'; world.risks = fields[18] === '1'; world.difficulty = fields.length > 19 ? Number(fields[19]) : world.progression ? defaultLevel() : -1;
   if (fields[16] !== '') for (const entry of fields[16].split(',')) {
     const parts = entry.split('.'), e = new Expedition();
     e.adventure = Number(parts[0]); e.left = Number(parts[1]); e.homes = parts[2] === '' ? [] : parts[2].split('|').map((v: string): number => Number(v));

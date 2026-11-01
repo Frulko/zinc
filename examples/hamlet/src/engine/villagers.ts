@@ -19,6 +19,7 @@ import { capacityOf } from '../rules/housing';
 import { startRoam, roamTick } from './services';
 import { routine, freeTime } from './routine';
 import { arrivalFactor, workPace } from '../rules/needs';
+import { level } from '../rules/difficulty';
 import { findLoad, haulOut, fetchInput, hasRoomFor, readyBatch, exportsOk, pickUp, putDown, cancelTransport } from './transport';
 
 const gap = (ax: number, ay: number, bx: number, by: number): number => Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
@@ -97,7 +98,7 @@ function updateSettlers(dt: number): void {
     settler.state = ST_WALK_IN;
     if (!planPath(settler, buildingTile(b))) { b.timer = 2; continue; }
     if (needsFood) take(food, 1);
-    b.residents++; b.timer = SETTLER_INTERVAL * arrival; world.people.push(settler); world.saveDirty = true;
+    b.residents++; b.timer = SETTLER_INTERVAL * arrival * 100 / level().arrival; world.people.push(settler); world.saveDirty = true;
   }
 }
 export function createResident(houseId: number): void {

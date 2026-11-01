@@ -52,7 +52,7 @@ export class Adventure { id: string = ''; title: string = ''; text: string = '';
 export class Economy {
   deposits: Deposit[] = []; goals: Goal[] = []; trade: Trade = new Trade(); adventures: Adventure[] = [];
   appeal: AppealSource[] = []; appealMax: number = 8; risk: RiskRules = new RiskRules();
-  resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
+  difficulties: Difficulty[] = []; resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
   typeOf(id: string): number { for (let k = 0; k < this.buildings.length; k++) if (this.buildings[k].id === id) return k; return -1; }
   serviceOf(id: string): number { for (let k = 0; k < this.services.length; k++) if (this.services[k].id === id) return k; return -1; }
   resourceOf(id: string): number { for (let k = 0; k < this.resources.length; k++) if (this.resources[k].id === id) return k; return -1; }
@@ -71,6 +71,9 @@ export class Condition { kind: string = ''; id: number = -1; count: number = 0; 
 export class Goal {
   id: string = ''; title: string = ''; text: string = ''; requires: number[] = []; when: Condition[] = []; unlock: number[] = []; give: number[] = []; final: boolean = false;
 }
+/** A difficulty of the new-village form (economy.json "difficulties"): what the village holds at the start (`start`, replacing the sandbox's top-level one) and, in percent of the normal pace, how fast
+ *  settlers come (`arrival`), how much the houses eat (`eat`) and how fast the risk counters rise (`risk`). The index is saved with the village (World.difficulty; -1: a sandbox, which has the top-level start). */
+export class Difficulty { id: string = ''; label: string = ''; hint: string = ''; start: number[] = []; arrival: number = 100; eat: number = 100; risk: number = 100; }
 export const GATHER_KINDS: string[] = ['', 'tree', 'deer', 'shore'];
 
 function num(obj: any, key: string, fallback: number, where: string, errors: string[]): number {
@@ -125,6 +128,14 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     ids.push(res.id); into.resources.push(res);
   }
   into.start = amounts(data.start, ids, 'start', errors);
+  into.difficulties = [];
+  for (const d of (data.difficulties === undefined ? [] : data.difficulties) as any[]) {
+    const lv = new Difficulty(), where = 'difficulty ' + String(d.id);
+    lv.id = String(d.id === undefined ? '' : d.id); lv.label = String(d.label === undefined ? lv.id : d.label); lv.hint = String(d.hint === undefined ? '' : d.hint);
+    lv.start = amounts(d.start, ids, where + '.start', errors); lv.arrival = num(d, 'arrival', 100, where, errors); lv.eat = num(d, 'eat', 100, where, errors); lv.risk = num(d, 'risk', 100, where, errors);
+    if (lv.id === '' || into.difficulties.some((o: Difficulty): boolean => o.id === lv.id) || lv.arrival < 10 || lv.arrival > 500 || lv.eat > 500 || lv.risk > 500) errors.push('bad-difficulty: ' + where + ' needs its own id, an arrival of 10 to 500 and an eat and risk of at most 500');
+    into.difficulties.push(lv);
+  }
   for (let k = 0; k < data.resources.length; k++) {   // harvest: once every resource id is known (a tool is a resource)
     const hv: any = (data.resources as any[])[k].harvest, r = into.resources[k];
     if (hv === undefined) continue;
@@ -338,7 +349,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
 export function loadEconomy(text: string, models: string[], roles: string[]): void {
   const next = new Economy(), errors = parseEconomy(text, models, roles, next);
   if (errors.length > 0) throw new Error('economy.json: ' + errors.join('; '));
-  economy.resources = next.resources; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.adventures = next.adventures; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall; economy.risk = next.risk;
+  economy.resources = next.resources; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.adventures = next.adventures; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.difficulties = next.difficulties; economy.hall = next.hall; economy.risk = next.risk;
 }
 
 /** One line per resource: who makes it and who uses it. The report of a chain, for the maker of the data. */

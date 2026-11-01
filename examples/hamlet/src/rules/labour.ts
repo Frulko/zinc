@@ -5,12 +5,14 @@ import { economy } from '../world/economy';
 // The labour pool: every workplace needs a fixed number of hands and the idle residents are handed out in the order of world.priority
 // (building types, first = staffed first). Without staff a building produces nothing. The order is the player's: movePriority changes it.
 
-/** Makes world.priority a permutation of the staffed building types (new types go last, in the order of the file). */
+/** Makes world.priority a permutation of the staffed building types (new types go last, in the toolbar order of economy.json: raw trades before their workshops). */
 export function normalizePriority(): number[] {
   const staffed: number[] = [];
   for (let type = 0; type < economy.buildings.length; type++) if (type !== HOUSE && economy.buildings[type].workers > 0) staffed.push(type);
   const kept: number[] = world.priority.filter((type: number): boolean => staffed.indexOf(type) >= 0);
-  for (const type of staffed) if (kept.indexOf(type) < 0) kept.push(type);
+  const fresh: number[] = staffed.filter((type: number): boolean => kept.indexOf(type) < 0);
+  fresh.sort((a: number, b: number): number => economy.buildings[a].order - economy.buildings[b].order || a - b);   // raw trades first, as the toolbar lists them
+  for (const type of fresh) kept.push(type);
   world.priority = kept;
   return kept;
 }

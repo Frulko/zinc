@@ -64,6 +64,7 @@ export interface World {
   offers: Offer[]; peddlerLeft: number;   // the peddler at the gate: his offers, and the days he still stays (0: not here)
   lode: number[];                   // what is left of the deposit on a tile (world.rock >= ROCK_DEPOSIT)
   params: TerrainParams;            // what the terrain generator was asked for (saved with the village)
+  difficulty: number;               // index in economy.difficulties chosen in the new-village form (rules/difficulty.ts); -1: a sandbox, which starts with the top-level `start`
   priority: number[];               // building types in the order idle residents are given work (rules/labour.ts)
 }
 
@@ -94,7 +95,7 @@ export const world: World = {
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), biome: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), priority: [],
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, priority: [],
 };
 
 // ---- tiles ----
@@ -163,6 +164,11 @@ export function spawnDeer(t: number, species: number = 0): Deer {
   return deer;
 }
 
+/** What the village holds at its entrance when it begins: the difficulty's start, or the file's top-level one in a sandbox. */
+export function startStock(): number[] {
+  const k = world.difficulty;
+  return k >= 0 && k < economy.difficulties.length ? economy.difficulties[k].start.slice() : economy.start.slice();
+}
 /** A new random village: forest, rocks, a pond, flowers and a few deer. */
 export function tileCount(): number { return world.size * world.size; }
 
@@ -189,7 +195,7 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
     const t = world.gate - size;
     world.terrain[t] = TERRAIN_GRASS; world.tree[t] = 0; world.rock[t] = 0; world.lode[t] = 0;
     const id = newBuilding(economy.hall, t);
-    world.buildings[id].fixed = true; world.buildings[id].stock = economy.start.slice();
+    world.buildings[id].fixed = true; world.buildings[id].stock = startStock();
   }
   recount();
   world.hasWater = world.terrain.some((v: number): boolean => v === TERRAIN_WATER);
