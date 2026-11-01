@@ -10,11 +10,10 @@ import { TERRAIN_WATER, TERRAIN_VOID, MIN_SIZE, MAX_SIZE, DEFAULT_SIZE } from '.
 import { settings } from '../settings';
 import { rgb } from '../pixel';
 import { muted, toggleSound, refreshVolume, sound } from '../audio';
-import { kit, col, setSkin, skinNames, window_, parchment, text, textC, labelButton, block, addHit, measure } from './kit';
+import { kit, col, setSkin, skinNames, window_, winOrigin, parchment, text, textC, labelButton, block, addHit, measure } from './kit';
 import { ui, act, WIN_NONE, WIN_MENU, WIN_OPTIONS, WIN_MAIN, WIN_SAVES, WIN_NEW } from './state';
 import { dateText } from './clock';
 import { savePrefs } from './prefs';
-
 import { PRESETS } from '../gen/presets';
 import { TerrainParams } from '../gen/terrain';
 
@@ -24,6 +23,7 @@ function copyParams(a: TerrainParams): TerrainParams {
   p.waterAmount = a.waterAmount; p.river = a.river; p.forestDensity = a.forestDensity; p.rockDensity = a.rockDensity; p.biome = a.biome; p.coast = a.coast; p.outcrop = a.outcrop; p.flowers = a.flowers; p.biomes = a.biomes;
   return p;
 }
+
 // The menus: the main menu at launch (when a village is waiting), the game menu, the options, the save slots and the new-village form.
 export const SLOTS = 3;
 class Slot { used: boolean = false; name: string = ''; clock: string = ''; people: number = 0; seed: number = 0; size: number = 0; thumb: string = ''; image: i32 = -1; }
@@ -91,8 +91,8 @@ function drawThumb(s: Slot, x: number, y: number, size: number): void {
 function modal(w: number, h: number, title: string): { x: number; y: number } {
   rrect(0, 0, width(), height(), 0, 0x000000, 130);
   block(0, 0, width(), height());
-  const x = Math.floor((width() - w) / 2), y = Math.floor((height() - h) / 2);
-  window_(x, y, w, h, title); block(x - 6, y - 6, w + 12, h + 12);
+  const o = winOrigin('modal', Math.floor((width() - w) / 2), Math.floor((height() - h) / 2), w, h), x = o.x, y = o.y;
+  window_(x, y, w, h, title, 'modal', ui.window === WIN_MAIN ? null : (): void => { closeMenus(); });
   return { x, y };
 }
 export function drawMenus(): void {

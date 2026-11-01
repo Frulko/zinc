@@ -6,7 +6,7 @@ import { isUnlocked, lockText } from '../rules/goals';
 import { harvestLines } from '../rules/harvest';
 import { buildingTip } from './BuildMenu';
 import { drawBuilding, drawResource } from './icons';
-import { kit, col, mix, window_, parchment, text, labelButton, glyphButton, block, addHit, pointer } from './kit';
+import { kit, col, mix, window_, winOrigin, parchment, text, labelButton, glyphButton, block, addHit, pointer } from './kit';
 import { ui, act, viewport, WIN_NONE, WIN_TREE } from './state';
 
 // The tree window: the economy drawn as a graph, left to right, read from economy.json (nothing here lists a building).
@@ -170,9 +170,8 @@ export function drawTree(): void {
   if (ui.window !== WIN_TREE) return;
   if (pointer.down !== 'tree:pan') { lastX = -1; lastY = -1; }
   rebuild(); paint();
-  const vp = viewport(), w = Math.min(W, vp.w - 16), h = Math.min(H, vp.h - 16), x = vp.x + Math.floor((vp.w - w) / 2), y = vp.y + Math.max(8, Math.floor((vp.h - h) / 2));
-  window_(x, y, w, h, 'Arbre de l’économie'); block(x - 6, y - 6, w + 12, h + 12);
-  glyphButton('tree:close', x + w - 24, y + 2, 20, 18, 'close', 'Fermer [Échap]');
+  const vp = viewport(), w = Math.min(W, vp.w - 16), h = Math.min(H, vp.h - 16), o = winOrigin('tree', vp.x + Math.floor((vp.w - w) / 2), vp.y + Math.max(8, Math.floor((vp.h - h) / 2)), w, h), x = o.x, y = o.y;
+  window_(x, y, w, h, 'Arbre de l’économie', 'tree', (): void => { ui.window = WIN_NONE; });
   for (let i = 0; i < TABS.length; i++) labelButton('tree:tab:' + i, x + 10 + i * 128, y + 30, 122, 26, TABS[i], '', true, tab === i);
   const cx = x + 10, cy = y + 62, cw = w - 20, ch = h - 72 - 22;
   parchment(cx, cy, cw, ch);
@@ -199,7 +198,6 @@ export function drawTree(): void {
   unclip();
 }
 export function treeClick(id: string): boolean {
-  if (id === 'tree:close') { ui.window = WIN_NONE; return true; }
   if (id === 'tree:pan') return true;
   if (id.startsWith('tree:tab:')) { tab = Number(id.slice(9)); signature = ''; return true; }
   if (id.startsWith('tree:n:')) {

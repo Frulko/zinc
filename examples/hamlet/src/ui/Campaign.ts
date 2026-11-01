@@ -5,7 +5,7 @@ import { offerLines, canTrade } from '../rules/trade';
 import { adventureLines, expeditionLines, canStart } from '../rules/adventure';
 import { issue } from '../rules/commands';
 import { sound } from '../audio';
-import { kit, col, window_, parchment, text, wrap, labelButton, glyphButton, block, addHit } from './kit';
+import { kit, col, window_, winOrigin, parchment, text, wrap, labelButton, glyphButton, block, addHit } from './kit';
 import { ui, viewport, WIN_NONE, WIN_CAMPAIGN } from './state';
 
 // The campaign window: goals, the peddler's offers and the adventures. Every action is a command (rules/commands.ts), so it is logged and replays.
@@ -15,9 +15,8 @@ let tab = 0;
 export function openCampaign(): void { ui.window = ui.window === WIN_CAMPAIGN ? WIN_NONE : WIN_CAMPAIGN; }
 export function drawCampaign(): void {
   if (ui.window !== WIN_CAMPAIGN) return;
-  const vp = viewport(), x = vp.x + Math.floor((vp.w - W) / 2), y = vp.y + Math.max(8, Math.floor((vp.h - H) / 2));
-  window_(x, y, W, H, 'Campagne'); block(x - 6, y - 6, W + 12, H + 12);
-  glyphButton('camp:close', x + W - 24, y + 2, 20, 18, 'close', 'Fermer [Échap]');
+  const vp = viewport(), o = winOrigin('campaign', vp.x + Math.floor((vp.w - W) / 2), vp.y + Math.max(8, Math.floor((vp.h - H) / 2)), W, H), x = o.x, y = o.y;
+  window_(x, y, W, H, 'Campagne', 'campaign', (): void => { ui.window = WIN_NONE; });
   for (let i = 0; i < TABS.length; i++) labelButton('camp:tab:' + i, x + 10 + i * 128, y + 30, 122, 26, TABS[i], '', true, tab === i);
   parchment(x + 10, y + 62, W - 20, H - 72);
   const px = x + 22, py = y + 72, lw = W - 44;
@@ -57,7 +56,6 @@ function adventures(x: number, y: number, w: number): void {
   for (const l of under) { text(kit.small, x + 12, cy, l, col('ink')); cy += kit.lineH; }
 }
 export function campaignClick(id: string): boolean {
-  if (id === 'camp:close') { ui.window = WIN_NONE; return true; }
   if (id.startsWith('camp:tab:')) { tab = Number(id.slice(9)); return true; }
   if (id.startsWith('camp:trade:')) { if (issue('trade', Number(id.slice(11)))) sound('coin', .6); else sound('error', .5); return true; }
   if (id.startsWith('camp:adv:')) { if (!issue('adventure_start', Number(id.slice(9)))) sound('error', .5); return true; }

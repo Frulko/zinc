@@ -6,7 +6,7 @@ import { housingReport, levelCount } from '../rules/housing';
 import { normalizePriority, movePriority } from '../rules/labour';
 import { HOUSE } from '../constants';
 import { drawResource, drawBuilding } from './icons';
-import { kit, col, window_, parchment, text, textR, textC, meter, labelButton, glyphButton, block, well } from './kit';
+import { kit, col, window_, winOrigin, parchment, text, textR, textC, meter, labelButton, glyphButton, block, well } from './kit';
 import { ui, viewport, WIN_NONE, WIN_ADVISOR } from './state';
 import { FEEL_WORDS, FEEL_CONTENT, houseNeeds, servicesOffered, villageWord, arrivalFactor, leavingToday } from '../rules/needs';
 import { monthIndex, year } from './clock';
@@ -26,9 +26,8 @@ export function openAdvisor(tab: number): void { ui.advisor = tab; ui.window = u
 const W = 540, H = 460;
 export function drawAdvisors(): void {
   if (ui.window !== WIN_ADVISOR) return;
-  const vp = viewport(), x = vp.x + Math.floor((vp.w - W) / 2), y = vp.y + Math.max(8, Math.floor((vp.h - H) / 2));
-  window_(x, y, W, H, 'Conseillers'); block(x - 6, y - 6, W + 12, H + 12);
-  glyphButton('adv:close', x + W - 24, y + 2, 20, 18, 'close', 'Fermer [Échap]');
+  const vp = viewport(), o = winOrigin('advisors', vp.x + Math.floor((vp.w - W) / 2), vp.y + Math.max(8, Math.floor((vp.h - H) / 2)), W, H), x = o.x, y = o.y;
+  window_(x, y, W, H, 'Conseillers', 'advisors', (): void => { ui.window = WIN_NONE; });
   for (let i = 0; i < TABS.length; i++) labelButton('adv:tab:' + i, x + 10 + i * 104, y + 30, 100, 26, TABS[i], '', true, ui.advisor === i);
   parchment(x + 10, y + 62, W - 20, H - 72);
   if (ui.advisor === 0) labour(x + 22, y + 72); else if (ui.advisor === 1) food(x + 22, y + 72); else if (ui.advisor === 2) housing(x + 22, y + 72); else if (ui.advisor === 3) mood(x + 22, y + 72); else chart(x + 22, y + 72);
@@ -136,7 +135,6 @@ function chart(x: number, y: number): void {
   text(kit.small, x, cy + ch + 8, 'Un point par mois, les trois dernières années.', col('muted'));
 }
 export function advisorClick(id: string): boolean {
-  if (id === 'adv:close') { ui.window = WIN_NONE; return true; }
   if (id.startsWith('adv:tab:')) { ui.advisor = Number(id.slice(8)); return true; }
   if (id.startsWith('prio:up:')) { movePriority(Number(id.slice(8)), -1); return true; }
   if (id.startsWith('prio:down:')) { movePriority(Number(id.slice(10)), 1); return true; }

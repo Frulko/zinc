@@ -3,6 +3,8 @@ import {
 } from 'zinc:gfx';
 import * as assets from 'zinc:assets';
 import { drawGlyph } from './icons';
+import { viewport } from './state';
+import { sound } from '../audio';
 
 // The pixel UI kit: carved stone and parchment, in the manner of the Sierra city builders. Colours are theme tokens (assets/ui-theme.json, one set per skin);
 // frames and buttons are drawn once into small images (one per size and state, dropped when the skin or the window changes) and then cost one draw call.
@@ -84,19 +86,80 @@ export function well(x: number, y: number, w: number, h: number): void {
     bevel(w, h, col('stoneDeep'), col('stoneLight'), 1);
   });
 }
-/** A window on parchment with a stone title strip. */
-export function window_(x: number, y: number, w: number, h: number, title: string): void {
+// ---- windows ----
+// One behaviour for every window: a stone title bar that drags the window (its place is remembered per id, clamped in the viewport, forgotten when the
+// window is resized), a close button, Esc for the topmost one. They are exclusive or stacked by draw order: the last drawn is on top and gets Esc first.
+class WinRec { x: number = 0; y: number = 0; w: number = 0; h: number = 0; close: (() => void) | null = null; }
+const winPos = new Map<string, number[]>();          // id -> [x, y] the player dragged it to
+const winShown = new Map<string, WinRec>();          // id -> where it was drawn this frame
+let winDrawn: string[] = [], winPrev: string[] = [], winSeenW = 0, winSeenH = 0, winGrab = '', winGrabDX = 0, winGrabDY = 0;
+function winClamp(x: number, y: number, w: number, h: number): number[] {
+  const vp = viewport();
+  return [Math.max(vp.x, Math.min(vp.x + vp.w - w, x)), Math.max(vp.y, Math.min(vp.y + vp.h - Math.min(h, 40), y))];
+}
+/** Where a window stands: its dragged place when it has one, else the default. Call before drawing it. */
+export function winOrigin(id: string, x: number, y: number, w: number, h: number): { x: number; y: number } {
+  const p = winPos.get(id);
+  if (p === undefined) return { x, y };
+  const c = winClamp(p[0], p[1], w, h);
+  return { x: c[0], y: c[1] };
+}
+/** A window on parchment with a stone title strip; with an id it also drags by the strip and closes with the [x] (`onClose`). */
+export function window_(x: number, y: number, w: number, h: number, title: string, id: string = '', onClose: (() => void) | null = null): void {
   slab(x - 6, y - 6, w + 12, h + 12);
   parchment(x, y, w, h);
   rect(x, y, w, 22, col('stoneDark')); rect(x, y + 22, w, 1, col('stoneDeep'));
   text(kit.body, x + 8, y + 3, title, col('barText'));
+  addHit('', x - 6, y - 6, w + 12, h + 12, '', Cursor.Default);       // the world below gets no click
+  if (id === '') return;
+  let rec = winShown.get(id);
+  if (rec === undefined) { rec = new WinRec(); winShown.set(id, rec); }
+  rec.x = x; rec.y = y; rec.w = w; rec.h = h; rec.close = onClose;
+  if (winPrev.indexOf(id) < 0) sound('open', .5);
+  winDrawn.push(id);
+  addHit('win:drag:' + id, x, y, w - (onClose !== null ? 28 : 0), 22, '', Cursor.Grab);
+  if (onClose !== null) glyphButton('win:close:' + id, x + w - 24, y + 2, 20, 18, 'close', 'Fermer');
+}
+/** A press on a window's title bar starts a drag. */
+export function winDragStart(id: string, px: number, py: number): void {
+  const rec = winShown.get(id);
+  if (rec === undefined) return;
+  winGrab = id; winGrabDX = px - rec.x; winGrabDY = py - rec.y;
+}
+export function winDragging(): boolean { return winGrab !== ''; }
+export function winDragMove(px: number, py: number): void {
+  const rec = winShown.get(winGrab);
+  if (rec === undefined) return;
+  winPos.set(winGrab, winClamp(px - winGrabDX, py - winGrabDY, rec.w, rec.h));
+}
+/** Ends a drag; true when a window was being dragged (its place is worth saving). */
+export function winDragEnd(): boolean { const was = winGrab !== ''; winGrab = ''; return was; }
+function winClose(id: string): boolean {
+  const rec = winShown.get(id);
+  if (rec === undefined || rec.close === null) return false;
+  sound('close', .5); rec.close(); return true;
+}
+/** Esc: closes the topmost closable window drawn last frame. */
+export function closeTopWindow(): boolean {
+  for (let i = winDrawn.length - 1; i >= 0; i--) if (winClose(winDrawn[i])) return true;
+  return false;
+}
+export function winClick(id: string): boolean { return id.startsWith('win:close:') && winClose(id.slice(10)); }
+/** The dragged places, for the saved options. */
+export function winExport(): any { const out: any = {}; for (const [id, p] of winPos) out[id] = p; return out; }
+export function winImport(data: any): void {
+  if (data === null || typeof data !== 'object') return;
+  for (const id of Object.keys(data)) { const p = data[id]; if (Array.isArray(p) && p.length === 2 && typeof p[0] === 'number' && typeof p[1] === 'number') winPos.set(id, [p[0] as number, p[1] as number]); }
 }
 
 // ---- hit testing and widgets ----
 export class Hit { x: number = 0; y: number = 0; w: number = 0; h: number = 0; id: string = ''; tip: string = ''; cursor: number = 0; }
 export const hits: Hit[] = [];
 export const pointer = { x: 0, y: 0, hover: '', down: '' };
-export function beginFrame(): void { hits.length = 0; }
+export function beginFrame(): void {
+  hits.length = 0; winPrev = winDrawn; winDrawn = [];
+  if (width() !== winSeenW || height() !== winSeenH) { if (winSeenW > 0) winPos.clear(); winSeenW = width(); winSeenH = height(); }
+}
 export function addHit(id: string, x: number, y: number, w: number, h: number, tip: string = '', cursor: number = Cursor.Pointer): void {
   const hit = new Hit(); hit.id = id; hit.x = x; hit.y = y; hit.w = w; hit.h = h; hit.tip = tip; hit.cursor = cursor; hits.push(hit);
 }

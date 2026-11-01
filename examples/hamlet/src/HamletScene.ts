@@ -26,11 +26,11 @@ import { settings } from './settings';
 import { Panel } from './ui/Panel';
 import { buildSettingsPanel } from './ui/SettingsPanel';
 import { minimapClick } from './ui/Minimap';
-import { loadKit, col, beginFrame, hitAt, track, pointer, drawTooltip, updateCursor, text, textC, window_, parchment, kit } from './ui/kit';
+import { loadKit, col, beginFrame, hitAt, track, pointer, drawTooltip, updateCursor, text, textC, window_, parchment, kit, winDragStart, winDragging, winDragMove, winDragEnd, closeTopWindow } from './ui/kit';
 import { ui, act, viewport, SPEEDS, mapView } from './ui/state';
 import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
-import { drawInfo, pickAt, closeInfo, infoDragging, infoDragStart, infoDragMove, infoDragEnd } from './ui/Info';
+import { drawInfo, pickAt, closeInfo } from './ui/Info';
 import { look, record, beginGroup, endGroup, undo, drawPlacementLabel, reasonText } from './ui/Placement';
 import { WIN_INFO, WIN_MAIN, WIN_ADVISOR, WIN_CAMPAIGN, WIN_TREE, WIN_NONE } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
@@ -176,7 +176,7 @@ export class HamletScene extends Sprite {
     if (name === '+' || name === '=') { stepZoom(1); this.baked = world.revision; }
     else if (name === '-' || name === '_') { stepZoom(-1); this.baked = world.revision; }
     else if (name === '0' || name === 'Home') { resetView(); this.baked = world.revision; }
-    else if (name === 'Escape') { if (closeMenus()) { /* a menu closed */ } else if (ui.overlayMenu) ui.overlayMenu = false; else if (ui.category >= 0) ui.category = -1; else if (ui.window === WIN_INFO) closeInfo(); else if (ui.window === WIN_ADVISOR || ui.window === WIN_CAMPAIGN || ui.window === WIN_TREE) ui.window = WIN_NONE; else if (this.panel.closeMenu()) { /* the dev panel's list closed */ } else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; else openMenu(); }
+    else if (name === 'Escape') { if (closeMenus()) { /* a menu closed */ } else if (ui.overlayMenu) ui.overlayMenu = false; else if (ui.category >= 0) ui.category = -1; else if (closeTopWindow()) { /* the topmost window closed */ } else if (this.panel.closeMenu()) { /* the dev panel's list closed */ } else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; else openMenu(); }
     else if (name === '[' || name === ']') { const i = this.tools.indexOf(this.tool); this.tool = this.tools[(Math.max(0, i) + (name === ']' ? 1 : this.tools.length - 1)) % this.tools.length]; }
     else if (name >= '1' && name <= '9' && Number(name) <= this.tools.length) this.tool = this.tools[Number(name) - 1];
     else if (name === 'p' || name === 'P') { this.paused = !this.paused; this.dragging = false; pauseSound(this.paused); }
@@ -198,7 +198,7 @@ export class HamletScene extends Sprite {
   }
   private press(x: number, y: number, down: boolean): void {
     if (!down) {
-      this.panel.release(); this.onMap = false; infoDragEnd();
+      this.panel.release(); this.onMap = false; if (winDragEnd()) savePrefs();
       if (this.grabbing) {                // a click that never became a drag picks what is under the pointer
         this.grabbing = false; this.panning = false;
         if (!this.grabMoved && !this.paused && this.surface.contains(x, y)) { const g = unproject(this.surface.sourceXAt(x), this.surface.sourceYAt(y)); if (!pickAt(g.x, g.y, tileAt(g.x, g.y))) closeInfo(); }
@@ -210,7 +210,7 @@ export class HamletScene extends Sprite {
       const hit = hitAt(x, y);
       if (hit !== null) {
         pointer.down = hit.id;
-        if (hit.id === 'info:drag') infoDragStart(x, y);
+        if (hit.id.startsWith('win:drag:')) winDragStart(hit.id.slice(9), x, y);
         if (hit.id === 'map') { this.onMap = true; minimapClick(x, y); this.baked = world.revision; }
         uiState.dirty = true; return;
       }
@@ -272,7 +272,7 @@ export class HamletScene extends Sprite {
       this.press(buttonEventX(i), buttonEventY(i), buttonEventDown(i)); events++;
     }
     const held = pointerDown(), x = pointerX(), y = pointerY();
-    if (held && infoDragging()) { infoDragMove(x, y); uiState.dirty = true; }
+    if (held && winDragging()) { winDragMove(x, y); uiState.dirty = true; }
     if (events === 0 && held !== this.held) this.press(x, y, held);
     else if (events === 0 && held && this.dragging) this.drag(x, y, false);
     if (held && this.panel.dragging()) { this.panel.drag(x); uiState.dirty = true; }

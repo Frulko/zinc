@@ -5,7 +5,7 @@ import { population } from '../engine/villagers';
 import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE } from '../constants';
 import { resourceShown } from '../hud';
 import { drawResource, drawGlyph, drawBuilding } from './icons';
-import { kit, col, slab, well, block, button, text, textR, textC, measure, glyphButton, labelButton, addHit, parchment, BTN_PRESSED } from './kit';
+import { kit, col, winClick, slab, well, block, button, text, textR, textC, measure, glyphButton, labelButton, addHit, parchment, BTN_PRESSED } from './kit';
 import { ui, act, WIN_MENU, WIN_TREE, TOP_H, STATUS_H, COL_W, COL_FOLDED, SPEEDS, columnX, viewport } from './state';
 import { drawMinimap } from './Minimap';
 import { categories, flyAnchor, buildClick } from './BuildMenu';
@@ -123,7 +123,7 @@ export function statusStrip(text_: string, color: number): void {
 
 /** A click on a widget of the frame (the id the widget registered). */
 export function hudClick(id: string): void {
-  if (buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id) || advisorClick(id) || campaignClick(id) || debugClick(id) || treeClick(id) || overlayClick(id)) return;
+  if (winClick(id) || buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id) || advisorClick(id) || campaignClick(id) || debugClick(id) || treeClick(id) || overlayClick(id)) return;
   if (id.startsWith('tool:')) { act.setTool(Number(id.slice(5))); ui.category = -1; return; }
   if (id.startsWith('cat:')) { const i = Number(id.slice(4)); ui.category = ui.category === i ? -1 : i; return; }
   if (id === 'win:advisor') { openAdvisor(ui.advisor); return; }

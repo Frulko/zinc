@@ -9,7 +9,7 @@ import {
   ST_SLEEP, ST_HOME, ST_FREE, ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_TO_SHORE, ST_FISH, ST_WORK, ST_FETCH, ST_BRING, ST_ROAM, ST_ROAM_BACK,
 } from '../constants';
 import { drawBuilding, drawResource, drawGlyph } from './icons';
-import { kit, col, window_, text, textR, wrap, meter, labelButton, glyphButton, block, addHit } from './kit';
+import { kit, col, window_, winOrigin, text, textR, wrap, meter, labelButton, glyphButton, block, addHit } from './kit';
 import { ui, act, WIN_NONE, WIN_INFO, viewport } from './state';
 import { thoughtOf, houseNeeds, servicesOffered, FEEL_WORDS, FEEL_CONTENT, FEEL_SOSO } from '../rules/needs';
 import { sleepsIndoors } from '../engine/routine';
@@ -77,27 +77,13 @@ function riskText(b: Building): string {
 }
 
 const WIN_W = 330;
-let infoX = -1, infoY = -1, grabDX = 0, grabDY = 0, grabbed = false;   // where the window was dragged to (-1: its default place)
-function origin(): { x: number; y: number } {
-  const vp = viewport();
-  return infoX < 0 ? { x: vp.x + 22, y: vp.y + 22 } : { x: infoX, y: infoY };
-}
-/** Dragging the window by its title bar. */
-export function infoDragStart(x: number, y: number): void { const o = origin(); grabDX = x - o.x; grabDY = y - o.y; grabbed = true; }
-export function infoDragging(): boolean { return grabbed; }
-export function infoDragMove(x: number, y: number): void {
-  if (!grabbed) return;
-  const vp = viewport();
-  infoX = Math.max(vp.x, Math.min(vp.x + vp.w - WIN_W, x - grabDX)); infoY = Math.max(vp.y, Math.min(vp.y + vp.h - 40, y - grabDY));
-}
-export function infoDragEnd(): void { grabbed = false; }
+function origin(h: number): { x: number; y: number } { const vp = viewport(); return winOrigin('info', vp.x + 22, vp.y + 22, WIN_W, h); }
 export function drawInfo(): void {
   if (ui.window !== WIN_INFO) return;
-  const o = origin(), x = o.x, y = o.y;
-  if (ui.selKind === 1) building(x, y);
-  else if (ui.selKind === 2) person(x, y);
+  if (ui.selKind === 1) building();
+  else if (ui.selKind === 2) person();
 }
-function building(x: number, y: number): void {
+function building(): void {
   const b = world.buildings[ui.selId];
   if (b === undefined || !b.alive) { closeInfo(); return; }
   const def = economy.buildings[b.type], lh = kit.lineH;
@@ -108,8 +94,8 @@ function building(x: number, y: number): void {
   const stocks: number[] = [];
   for (let k = 0; k < economy.resources.length; k++) if (b.stock[k] > 0) stocks.push(k);
   h += whyLines.length * lh + report.length * lh + gather.length * lh + (gather.length > 0 ? 6 : 0) + stocks.length * 20 + (def.workers > 0 ? 24 : 0) + 40;
-  window_(x, y, WIN_W, h, def.label); block(x - 6, y - 6, WIN_W + 12, h + 12); addHit('info:drag', x, y, WIN_W - 28, 24, 'Glisser pour déplacer', Cursor.Grab);
-  glyphButton('info:close', x + WIN_W - 24, y + 2, 20, 18, 'close', 'Fermer [Échap]');
+  const o = origin(h), x = o.x, y = o.y;
+  window_(x, y, WIN_W, h, def.label, 'info', closeInfo);
   drawBuilding(b.type, x + 8, y + 30, 64);
   text(kit.body, x + 82, y + 32, def.hint !== '' ? '' : '', col('ink'));
   let py = y + 34;
@@ -123,13 +109,13 @@ function building(x: number, y: number): void {
   for (const k of stocks) { drawResource(k, x + 12, py, 16); text(kit.body, x + 34, py + 1, economy.resources[k].label + ' : ' + b.stock[k], col('ink')); py += 20; }
   if (!b.fixed) labelButton('info:demolish', x + 12, y + h - 34, 110, 26, 'Démolir', 'Rendre la case au hameau');
 }
-function person(x: number, y: number): void {
+function person(): void {
   const p = world.people[ui.selId];
   if (p === undefined) { closeInfo(); return; }
   const lh = kit.lineH, home = p.home >= 0 ? world.buildings[p.home] : undefined, job = p.job >= 0 ? world.buildings[p.job] : undefined;
   const house = p.home >= 0 ? world.buildings[p.home] : undefined, thought = wrap('« ' + thoughtOf(p.feel, house !== undefined ? houseNeeds(house, servicesOffered()).lack : '') + ' »', WIN_W - 24), H = 190 + thought.length * lh;
-  window_(x, y, WIN_W, H, roleLabel(p.role)); block(x - 6, y - 6, WIN_W + 12, H + 12); addHit('info:drag', x, y, WIN_W - 28, 24, 'Glisser pour déplacer', Cursor.Grab);
-  glyphButton('info:close', x + WIN_W - 24, y + 2, 20, 18, 'close', 'Fermer [Échap]');
+  const o = origin(H), x = o.x, y = o.y;
+  window_(x, y, WIN_W, H, roleLabel(p.role), 'info', closeInfo);
   drawGlyph('person', x + 12, y + 32, 36);
   text(kit.body, x + 60, y + 32, stateText(p.state), col('ink'));
   text(kit.small, x + 60, y + 32 + lh, job !== undefined ? 'Travaille : ' + economy.buildings[job.type].label : 'Sans travail', col('muted'));
@@ -143,7 +129,6 @@ function person(x: number, y: number): void {
   labelButton('info:goto', x + 12, y + H - 32, 120, 24, 'Suivre', 'Centrer la carte sur lui');
 }
 export function infoClick(id: string): boolean {
-  if (id === 'info:close') { closeInfo(); return true; }
   if (id === 'info:goto') { const p = world.people[ui.selId]; if (p !== undefined) act.jump(p.x, p.y); return true; }
   if (id === 'info:demolish') {
     const b = world.buildings[ui.selId];

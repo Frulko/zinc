@@ -13,7 +13,7 @@ import { frameDirty } from '../view/frame';
 import { bakeStats, bakeCount } from '../view/scenery';
 import { fxStats } from '../view/fx';
 import { audioStats, muted } from '../audio';
-import { kit, col, window_, parchment, text, labelButton, glyphButton, block, hitAt, pointer } from './kit';
+import { kit, col, window_, winOrigin, parchment, text, labelButton, block, hitAt, pointer } from './kit';
 import { ui, viewport, mapView } from './state';
 import { dateText } from './clock';
 
@@ -145,9 +145,8 @@ export function drawDebug(): void {
     for (let i = 0; i < lines.length; i++) text(kit.small, x + 8, y + 6 + i * 14, lines[i], col('ink'));
     return;
   }
-  const x = vp.x + Math.floor((vp.w - WW) / 2), y = vp.y + Math.max(8, Math.floor((vp.h - WH) / 2));
-  window_(x, y, WW, WH, 'Informations techniques [F3]'); block(x - 6, y - 6, WW + 12, WH + 12);
-  glyphButton('dbg:close', x + WW - 24, y + 2, 20, 18, 'close', 'Fermer');
+  const o = winOrigin('debug', vp.x + Math.floor((vp.w - WW) / 2), vp.y + Math.max(8, Math.floor((vp.h - WH) / 2)), WW, WH), x = o.x, y = o.y;
+  window_(x, y, WW, WH, 'Informations techniques [F3]', 'debug', (): void => { debug.mode = 0; frames.length = 0; });
   for (let i = 0; i < TABS.length; i++) labelButton('dbg:tab:' + i, x + 8 + i * 82, y + 28, 78, 24, TABS[i], '', true, tab === i);
   parchment(x + 8, y + 56, WW - 16, WH - 110);
   const lines = tabLines(tab);
@@ -171,8 +170,7 @@ export function drawDebug(): void {
 export function debugClick(id: string): boolean {
   if (!id.startsWith('dbg:')) return false;
   const k = id.slice(4);
-  if (k === 'close') debug.mode = 0;
-  else if (k.startsWith('tab:')) tab = Number(k.slice(4));
+  if (k.startsWith('tab:')) tab = Number(k.slice(4));
   else if (k === '0') { const t = reportText(); console.log(t); setClipboardText(t); report = 'Rapport copié (' + t.length + ' caractères) et écrit dans la console.'; }
   else if (k === '1') { saveGame(); report = 'Sauvegardé.'; }
   else if (k === '2') { world.revision++; debugHooks.rebake(); report = 'Rebake demandé.'; }

@@ -1,7 +1,7 @@
 import * as storage from 'zinc:storage';
 import { settings } from '../settings';
 import { ui, SPEEDS } from './state';
-import { kit, setSkin } from './kit';
+import { kit, setSkin, winExport, winImport } from './kit';
 import { muted, toggleSound } from '../audio';
 
 // The player's options, kept between runs in their own storage key (the village has its own save). Developer-panel values are not saved.
@@ -21,9 +21,10 @@ export function loadPrefs(): void {
   if (typeof data.thoughts === 'boolean') settings.thoughts = data.thoughts as boolean;
   if (typeof data.ambience === 'number') settings.ambienceVolume = Math.max(0, Math.min(1, data.ambience as number));
   if (typeof data.sfx === 'number') settings.sfxVolume = Math.max(0, Math.min(1, data.sfx as number));
+  winImport(data.windows);
   if (typeof data.mute === 'boolean' && (data.mute as boolean) !== muted) toggleSound();
 }
 export function savePrefs(): void {
-  try { storage.set(KEY, JSON.stringify({ speed: ui.speed, skin: kit.skin, edgePan: settings.edgePan, hints: settings.hints, thoughts: settings.thoughts, fx: settings.fx, ambience: settings.ambienceVolume, sfx: settings.sfxVolume, mute: muted })); }
+  try { storage.set(KEY, JSON.stringify({ speed: ui.speed, skin: kit.skin, edgePan: settings.edgePan, hints: settings.hints, thoughts: settings.thoughts, fx: settings.fx, ambience: settings.ambienceVolume, sfx: settings.sfxVolume, mute: muted, windows: winExport() })); }
   catch (error) { console.warn('The options could not be saved: ' + error.message); }
 }
