@@ -675,6 +675,16 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: array mutation (`push`, `splice`, `sort`) and string methods on an `any` value are still refused (the new `any` array methods run on a copy).
 - ZN-next: a trap names its source location and values without `ZN_TRAP_TRACE` (file:line, `index 36, length 36`); today `runtime error: array index out of bounds` alone sent the owner a crash with nothing to chase (murdoku, 2026-11-01); needs a pc-to-line table in ZBC.
 - ZN-next: `zinc:ui/solid` batches every event handler and `onTick` by default (as Solid 2): a handler that sets several signals (murdoku `fresh`) renders no state in between; the unbatched writes made a bounds-checked crash only on the default engine, not on QuickJS.
+- ZN-?: `Map.get` of a missing key returns null instead of undefined on QuickJS (engine gap found by the ink agent, ZN-931 report): align with the interpreter and test.
+- ZN-?: `fs.readBytes` and `sys.utf8Encode` still cost one host call per byte; use the new `>B` host return (as `Response.bytes()` and `Request.rawBytes` do). Also `u8[]` takes 8 bytes an element in the interpreter and AOT (a 57 MB body is ~460 MB): a packed bytes type, or a host-side download-to-file path for the Hub's `downloadEngine`.
+- ZN-?: `examples/ipod-web/src/services/api.ts` (`fs.writeText(file, req.rawBody)`) and `examples/discord/tests/fake-discord.ts` read `rawBody` for binary uploads: use `rawBytes` and `fs.writeBytes` (strings lose 2 bytes per surrogate pair).
+- ZN-?: every engine bundle published to the hub must be checked to hold no `ED A0..AF xx ED B0..BF xx` pair until all deployed tablets run a client with the byte-exact `fetch().bytes()`; `tools/rmpp-engine --publish` could recompress by itself.
+- ZN-?: layer-cache has no auto-invalidation and no Solid wrapper; pattern fills cost one command per line (wrap them in a layer-cache); index signatures (Z0005) and Map inferred type arguments (Z0109) are unsupported; `priors` of zinc:ink as a Map.
+- ZN-?: simulator way to inject evdev Marker samples in `tests/native/rmpp/sim.cpp`, so pen strokes in landscape and docked can be tested end to end.
+- ZN-?: `rmpp_sim` fails on its notes and dashboard goldens (stale since the e-ink mode, ZN-929) and on `edge`, `dock`, `touch`: regenerate or fix.
+- ZN-?: zinc:ui ink lane (L1) strokes and the widget, dock and ghost-zoom rectangles of display-rmpp are in panel pixels, not scaled by the 2x surface; landscape plus K>1 on those paths is untested.
+- ZN-?: Murdoku e-ink: tool column variant for landscape; measure the portrait witness block on other seeds and levels; captions legibility on the panel; `tests/affected.json` mapping for examples/murdoku; Gallery 3 accent colour (crossed cells in red) instead of pure black and white.
+- ZN-?: Murdoku pen: tune the 450 ms debounce, the gap and 60% attribution thresholds on a real Marker; overlay mode loses pressure width; the two-finger tap also fires a normal tap for the first finger.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
@@ -1156,3 +1166,5 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-889: `zinc publish --target rpi --export` from the Mac, then on the Pi 3B+ install a .zapp and an export app from the hub over Wi-Fi, launch, Home; check that the `tar -h` player bundle of image/build.sh builds there.
 - D195 Pi A/B image: build an "ab": true image and its bundle (tools/pi-image keys, build, bundle); on a Pi 3B+ and a Pi 4/5 run zinc-system-update install: tryboot into B, mark-good commits config.txt, a failing session, pulled plug or watchdog in B returns to A; users, Wi-Fi, SSH keys, apps and pairing survive; verity bundles work on the Pi kernel.
 - ZN-?: Discord voice AEC: verify the `plugin.json` SpeexDSP defines on the Linux, Windows and Raspberry Pi builds.
+- ZN-?: check `plugins/ink` native (ink.abi.cpp) on wasm, rpi1 and rmpp; `refreshRect` on L2/rm2fb and the real qtfb (needs the AppLoad patch 0004).
+- ZN-?: run the Murdoku frames and `murdoku_pen` through the real rmpp driver in landscape and docked, on AOT and QuickJS; real Paper Pro: landscape rotation direction, `pen_rotate` per model, digitizer mapping, palm rejection delay (300 ms unproven), docked header height and tap offset in landscape, Move (954x1696) header and 2x ratio.
