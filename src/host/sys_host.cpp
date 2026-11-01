@@ -1293,6 +1293,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     case Rt::HostEvReady: r->i = zn::loop::eventReady() ? 1 : 0; break;
     case Rt::HostEvPayload: ret(r, gPayload); break;
+    case Rt::HostEvPayloadBytes: ret(r, gPayload); break;
     case Rt::HostEvPayloadSize: r->i = static_cast<int64_t>(gPayload.size()); break;
     case Rt::HostEvPayloadByte: { const size_t i = static_cast<size_t>(n(0)); r->i = i < gPayload.size() ? static_cast<unsigned char>(gPayload[i]) : -1; break; }
     case Rt::HostEvActive: r->i = zn::loop::active() ? 1 : 0; break;
@@ -1362,7 +1363,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     case Rt::HostHttpStatus: r->i = zn::http::fetchStatus(n(0)); break;
     case Rt::HostHttpHead: ret(r, zn::http::fetchHead(n(0))); break;
-    case Rt::HostHttpBody: ret(r, zn::http::fetchBody(n(0))); break;
+    case Rt::HostHttpBody: case Rt::HostHttpBodyBytes: ret(r, zn::http::fetchBody(n(0))); break;
+    case Rt::HostHttpBodySize: r->i = static_cast<int64_t>(zn::http::fetchBody(n(0)).size()); break;
     case Rt::HostHttpUrl: ret(r, zn::http::fetchUrl(n(0))); break;
     case Rt::HostHttpFree: zn::http::fetchFree(n(0)); break;
     case Rt::HostHttpServe: case Rt::HostHttpServeTls: case Rt::HostHttpServeAt: {   // listening needs "net" (or "net:*"): zinc.json permissions (ZN-322)

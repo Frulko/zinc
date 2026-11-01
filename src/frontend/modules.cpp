@@ -644,9 +644,10 @@ export class Response {
   url: string;
   headers: Headers = new Headers();
   body: string;
+  raw: u8[] | null = null;   // the body's bytes when a string cannot hold them (it joins two surrogate halves, repairs invalid UTF-8)
   constructor(status: i32, url: string, body: string) { this.status = status; this.ok = status >= 200 && status < 300; this.url = url; this.body = body; }
   text(): Promise<string> { return Promise.resolve(this.body); }
-  bytes(): Promise<u8[]> { return Promise.resolve(utf8Encode(this.body)); }
+  bytes(): Promise<u8[]> { return Promise.resolve(this.raw !== null ? this.raw as u8[] : utf8Encode(this.body)); }
   json(): Promise<any> {
     try { return Promise.resolve(JSON.parse(this.body)); } catch (e) { return Promise.reject(e); }
   }
@@ -740,7 +741,7 @@ export function serving(port: i32): boolean { const i = __netPorts.indexOf(port)
 export function setCertificate(port: i32, cert: string, key: string): void {
   if (__host_httpSetCert(port, cert, key) === 0) throw new Error('net.setCertificate: ' + __host_httpError());
 }
-function __netPayloadBytes(): u8[] { const n = __host_evPayloadSize(); const r: u8[] = []; for (let i: i32 = 0; i < n; i++) r.push(__host_evPayloadByte(i) as u8); return r; }   // ponytail: a host call per byte, a bulk copy when binary traffic matters
+function __netPayloadBytes(): u8[] { return __host_evPayloadBytes(); }
 
 function __ctl(s: string): boolean { return s.indexOf('\r') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\u0000') >= 0; }
 function __headerLines(h: Headers): string {
@@ -811,6 +812,7 @@ function __netHook(): void {
         const head = __host_httpHead(h);
         const nl = head.indexOf('\n');
         const r = new Response(__host_httpStatus(h), __host_httpUrl(h), __host_httpBody(h));
+        if (__host_sysUtf8Len(r.body) !== __host_httpBodySize(h)) r.raw = __host_httpBodyBytes(h);
         r.statusText = head.slice(0, nl);
         __parseLines(head.slice(nl + 1), r.headers);
         __host_httpFree(h);

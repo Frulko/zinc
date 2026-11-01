@@ -801,6 +801,13 @@ bool gExitEndsRun = false;
 const char* gDeviceProfile = nullptr;
 
 // ---- the host (zinc:gfx, zinc:sys, zinc:fs...): arguments decoded by their letters, the work done through the installed call (zn/host.h)
+static const ClassRT* hostBytesClass(Machine& m) {   // the program's integer array class (u8[])
+  for (std::size_t c = 0; c < m.mod->classes.size(); ++c) {
+    const zbc::ClassInfo& ci = m.mod->classes[c];
+    if (ci.kind == zbc::CKind::Array && ci.elem.cls == zbc::Cls::I) return &m.classes[c];
+  }
+  return nullptr;
+}
 static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
   const RtInfo& ri = rtInfo(id);
   bool sys = isSysRow(id);
@@ -856,6 +863,15 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
     case 'd': a[0] = std::bit_cast<Slot>(res.d); break;
     case 'i': case 'b': a[0] = static_cast<Slot>(res.i); break;
     case 's': { StrObj* so = m.newStr(static_cast<const char*>(res.p), res.n); a[0] = P(so); break; }
+    case 'B': {   // bytes as they are (a string would join the halves of a surrogate pair)
+      const ClassRT* cls = hostBytesClass(m);
+      if (!cls) return "this program has no u8[] class";
+      ArrObj* out = m.newArr(cls);
+      const auto* b = static_cast<const std::uint8_t*>(res.p);
+      out->v.assign(b, b + res.n);
+      a[0] = P(out);
+      break;
+    }
     default: break;
   }
   return nullptr;

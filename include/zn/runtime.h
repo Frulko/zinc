@@ -406,6 +406,8 @@
   /* zinc:gfx updatePixels: new pixels for an image from one u32 a pixel (red in the low byte, then green, blue, alpha: the bytes of an RGBA picture), rows top first, alpha forced to 255 when `opaque`; */ \
   /* the packed form of gfxUpdateImage (a quarter of the array, no per-byte loop); graphics row, appended */ \
   X(HostGfxUpdatePixels, "host.gfxUpdatePixels", "iUb>n", 2) \
+  /* the bytes of an event payload and of a finished fetch's body in one call (a string joins two surrogate halves, so it cannot carry any bytes); system rows, appended */ \
+  X(HostEvPayloadBytes, "host.evPayloadBytes", ">B", 2) X(HostHttpBodySize, "host.httpBodySize", "i>i", 2) X(HostHttpBodyBytes, "host.httpBodyBytes", "i>B", 2) \
   /* Array.copyWithin(target, start, end?): the standard method, a block moved inside the array; appended */ \
   X(ArrCopyWithin, "Array.copyWithin", "aiij>a", 0)
 
@@ -448,7 +450,7 @@ inline constexpr bool isSysTailRow(Rt r) {
          (r >= Rt::HostFsSymlink && r <= Rt::HostOsNetField) ||   // zinc:fs symlink, readlink, chmod and zinc:os uid, gid, shell, cpus, networkInterfaces
          r == Rt::HostCrypto || r == Rt::HostCryptoError ||   // zinc:subtle
          (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostSysBytesToString || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes || (r >= Rt::HostHttpOption && r <= Rt::HostHttpSetCert) || r == Rt::HostHttpFetchFile ||   // zinc:net, its server too
-         r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync || r == Rt::HostFsAppendBytes;
+         r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync || r == Rt::HostFsAppendBytes || (r >= Rt::HostEvPayloadBytes && r <= Rt::HostHttpBodyBytes);
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
 inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::ArrCopyWithin || r == Rt::RecDecode || r == Rt::RecEncode; }

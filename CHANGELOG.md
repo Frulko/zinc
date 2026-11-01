@@ -75,6 +75,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The Pi image builder is redesigned: a calm, Apple-like window with a short guided flow (device, network and account, apps), basics first and the rest behind *Advanced*, and a live build view with every step, its progress and time left, a result card with the next steps, and the failed step with *Retry*. It also offers the Zinc shell (`"shell": true` in a profile boots to the shell), A/B system updates, the Zinc agent and the app to start at boot.
 #### Fixed
 - Under the shell, an app started with `zinc device run` comes to the screen even over another page, and `zinc device stop` or a newer app replacing it no longer leaves an "app stopped (exit -1)" page.
+- `fetch` returns a binary download byte for byte: `response.bytes()` and `arrayBuffer()` no longer lose two bytes where a gzip or an archive holds two surrogate halves side by side, and a server reads a large upload's bytes in one step.
 - A zinc:net server hands a binary upload over byte for byte: `Request.rawBytes` holds the body when a string cannot (a gzip or a `.zapp` with two surrogate halves side by side lost two bytes), so the hub no longer stores a damaged engine bundle.
 
 ### Calls and media

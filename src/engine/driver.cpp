@@ -131,6 +131,13 @@ napi_value hostFn(napi_env env, napi_callback_info info) {
     case 'i': return int32v(env, static_cast<std::int32_t>(res.i));
     case 'b': return boolean(env, res.i != 0);
     case 's': return string(env, static_cast<const char*>(res.p), res.n);
+    case 'B': {   // bytes as an array of numbers, as the program's u8[] is
+      napi_value arr;
+      napi_create_array(env, &arr);
+      const auto* b = static_cast<const std::uint8_t*>(res.p);
+      for (std::uint32_t i = 0; i < res.n; ++i) napi_set_element(env, arr, i, int32v(env, b[i]));
+      return arr;
+    }
     default: return nullptr;
   }
 }

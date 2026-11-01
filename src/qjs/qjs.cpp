@@ -153,6 +153,12 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
     case 'i': return JS_NewInt32(ctx, static_cast<int32_t>(res.i));
     case 'b': return JS_NewBool(ctx, res.i != 0);
     case 's': return JS_NewStringLen(ctx, static_cast<const char*>(res.p), res.n);
+    case 'B': {   // bytes as an array of numbers, as the program's u8[] is
+      JSValue arr = JS_NewArray(ctx);
+      const auto* b = static_cast<const std::uint8_t*>(res.p);
+      for (std::uint32_t i = 0; i < res.n; ++i) JS_SetPropertyUint32(ctx, arr, i, JS_NewInt32(ctx, b[i]));
+      return arr;
+    }
     default: return JS_UNDEFINED;
   }
 }
