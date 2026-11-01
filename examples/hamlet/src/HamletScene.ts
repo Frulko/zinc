@@ -1,15 +1,15 @@
 import {
-  width, height, rect, startTextInput, stopTextInput, keyCount, keyKind, keyName, buttonEventCount, buttonEventButton, buttonEventDown,
+  width, height, rect, startTextInput, stopTextInput, keyCount, keyKind, keyMods, Mod, keyName, buttonEventCount, buttonEventButton, buttonEventDown,
   buttonEventX, buttonEventY, pointerDown, pointerX, pointerY, KeyKind, windowCtl, wheel, pinch, scrollDX, scrollDY, scrollPhase, Cursor,
 } from 'zinc:gfx';
 import { Sprite, uiState } from 'zinc:stage';
 import { PixelSurface, PixelGame, unproject, sound, setAmbience, toggleSound, pauseSound, muted } from './pixel';
 import {
-  TICK, TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE, MIN_SIZE, MAX_SIZE, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, ROLE_NAMES,
+  TICK, TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE, MIN_SIZE, MAX_SIZE, PLACE_OK, ROLE_NAMES,
 } from './constants';
 import * as assets from 'zinc:assets';
 import { world, generate, tileAt } from './world/world';
-import { economy, loadEconomy, amountText } from './world/economy';
+import { economy, loadEconomy } from './world/economy';
 import { MODEL_IDS } from './view/models';
 import { saveGame, loadGame, eraseSave } from './world/save';
 import { parseSeedRequest, randomSeed } from './world/seed';
@@ -27,6 +27,7 @@ import { ui, act, viewport, SPEEDS } from './ui/state';
 import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
 import { drawInfo, pickAt, closeInfo } from './ui/Info';
+import { look, record, beginGroup, endGroup, undo, drawPlacementLabel, reasonText } from './ui/Placement';
 import { WIN_INFO } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
 import { loadPrefs, savePrefs } from './ui/prefs';
@@ -158,13 +159,9 @@ export class HamletScene extends Sprite {
   }
   private act(t: number): void {
     if (this.tool === TOOL_NONE) return;
-    const code = applyTool(this.tool, t);
-    if (code === PLACE_OK) { sound(this.tool === TOOL_ERASE ? 'soft' : 'wood', .5); return; }
-    if (this.tool !== TOOL_ROAD && t >= 0) {
-      sound('soft', .4);
-      const missing = this.tool >= TOOL_HOUSE && this.tool < TOOL_ERASE ? amountText(economy.buildings[this.tool - TOOL_HOUSE].cost, world.stock) : '';
-      this.say(code === PLACE_NO_WATER ? 'Ce bâtiment se pose au bord de l’étang.' : code === PLACE_NO_ROAD ? 'Il faut poser le bâtiment au bord d’une route.' : code === PLACE_NO_STOCK ? 'Il manque : ' + missing + '.' : 'Cette case n’est pas libre.');
-    }
+    const before = look(t), code = applyTool(this.tool, t);
+    if (code === PLACE_OK) { record(this.tool, t, before); sound(this.tool === TOOL_ERASE ? 'soft' : 'wood', .5); return; }
+    if (this.tool !== TOOL_ROAD && t >= 0) { sound('soft', .4); this.say(reasonText(this.tool, code)); }
   }
   private key(name: string, down: boolean): void {
     if (name === 'ArrowLeft' || name === 'a' || name === 'A') this.panLeft = down;
@@ -205,9 +202,9 @@ export class HamletScene extends Sprite {
       }
       if (this.paused || !this.surface.contains(x, y)) return;
       if (this.tool === TOOL_NONE) { const g = unproject(this.surface.sourceXAt(x), this.surface.sourceYAt(y)); if (!pickAt(g.x, g.y, tileAt(g.x, g.y))) closeInfo(); uiState.dirty = true; return; }
-      this.dragging = true; this.lastPaint = -1;
+      this.dragging = true; this.lastPaint = -1; beginGroup();
     }
-    if (down) this.drag(x, y, true); else this.dragging = false;
+    if (down) this.drag(x, y, true); else { this.dragging = false; endGroup(); }
     uiState.dirty = true;
   }
   /** Roads and demolition are painted by dragging; a building is placed once, on the press. */
@@ -225,6 +222,7 @@ export class HamletScene extends Sprite {
       const kind = keyKind(i);
       if (this.editing) { this.edit(kind, keyName(i)); continue; }
       if (kind === KeyKind.Text || kind === KeyKind.Repeat) continue;
+      if (kind === KeyKind.Down && (keyMods(i) & Mod.Ctrl) !== 0 && keyName(i).toLowerCase() === 'z') { const said = undo(); if (said !== '') this.say(said); this.baked = world.revision; uiState.dirty = true; continue; }
       this.key(keyName(i), kind !== KeyKind.Up);
     }
     let events = 0;
@@ -301,6 +299,7 @@ export class HamletScene extends Sprite {
       textC(kit.body, cx, cy + 32, 'un nombre ou un mot · mot@32 pour la taille (12 à 32)', col('muted'));
     }
     if (this.paused) { const cx = vp.x + vp.w / 2; parchment(cx - 70, vp.y + 14, 140, 34); textC(kit.big, cx, vp.y + 12, 'PAUSE', col('accent')); }
+    if (this.tool !== TOOL_NONE && !this.paused && hitAt(pointer.x, pointer.y) === null && this.surface.contains(pointer.x, pointer.y)) drawPlacementLabel(this.tool, this.hover, pointer.x, pointer.y);
     drawTooltip();
     updateCursor(this.panning ? Cursor.Grabbing : this.tool === TOOL_NONE ? Cursor.Default : this.tool === TOOL_ERASE ? Cursor.NotAllowed : Cursor.Crosshair);
   }
