@@ -12,7 +12,6 @@ import { camera, ZOOM_VIEW } from './camera';
 import { computeHints, Hint } from '../rules/hints';
 import { drainFx, fxDirty, drawFxBodies, drawFxSparks } from './fx';
 import { beesDirty, drawBees } from './bees';
-import { beesDirty, drawBees } from './bees';
 import { drawPerson, drawDeer, drawSmoke, actorAtlas } from './actors';
 
 const GRASS_LIT = GRASS.map((c: number[]): u32 => rgbColor(c));
@@ -133,7 +132,6 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
     const t = b.j * world.size + b.i, a = project(tileX(t) + CHIMNEY[b.type][0], tileY(t) + CHIMNEY[b.type][1], CHIMNEY[b.type][2] + 1.2);
     addRect(dirty, a.sx, a.sy, 1.6 * S, 2.4 * S, 1.6 * S, 2.4 * S);
   }
-  beesDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
   if (hover >= 0) { const a = project(tileX(hover), tileY(hover), 0); addRect(dirty, a.sx, a.sy, 2 * TILE * S, 5 * S, 2 * TILE * S, 1.2 * TILE * S); }
   beesDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
   drainFx(time);
@@ -163,7 +161,6 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   const atlas = settings.atlas ? actorAtlas() : null;
   for (const d of world.deer) drawDeer(d, time, atlas);
   for (const p of world.people) drawPerson(p, time, atlas);
-  drawBees(time);
   drawFxBodies(time);
   drawBees(time);
   if (preview >= 0 && hover >= 0 && Math.floor(time * 3) % 2 === 0) models[MODEL_HOUSE + preview].drawAt(tileX(hover), tileY(hover), 0);
