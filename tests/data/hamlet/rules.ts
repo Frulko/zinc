@@ -7,11 +7,11 @@ import { population, createResident } from '../../../examples/hamlet/src/engine/
 import { seedFromText, parseSeedRequest } from '../../../examples/hamlet/src/world/seed';
 import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
 import { stateHash } from '../../../examples/hamlet/src/world/hash';
-import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED } from '../../../examples/hamlet/src/constants';
+import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK } from '../../../examples/hamlet/src/constants';
 import * as fs from 'zinc:fs';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
-const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market'];
+const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well'];
 import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine/transport';
 import { adviceLine } from '../../../examples/hamlet/src/hud';
@@ -24,7 +24,7 @@ const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');   // th
 loadEconomy(ECONOMY_TEXT, MODEL_IDS, ROLE_NAMES);
 const TOOL_SAWMILL = toolOf('sawmill'), TOOL_LODGE = toolOf('lodge'), TOOL_FISHERY = toolOf('fishery');
 const PLANK = economy.resourceOf('plank'), WOOD = economy.resourceOf('log'), MEAT = economy.resourceOf('meat'), FISH = economy.resourceOf('fish');
-const rich = (): void => { setStock(WOOD, 100); setStock(PLANK, 100); };
+const rich = (): void => { setStock(WOOD, 100); setStock(PLANK, 100); setStock(economy.resourceOf('leather'), 100); };
 let failures = 0;
 function check(name: string, ok: boolean): void { console.log('hamlet rules: ' + name + (ok ? ' PASS' : ' FAIL')); if (!ok) failures++; }
 function run(seconds: number): void { for (let k = 0; k < seconds * 32; k++) stepWorld(); }
@@ -237,6 +237,20 @@ run(240);
 check('after the devolve days the house falls back and the surplus residents leave', cabin.level < 2 && cabin.residents <= capacityOf(cabin) && world.people.filter((p) => p.home === hh).length === cabin.residents);
 const saved = snapshot();
 check('the levels survive a save round trip', restore(saved) && snapshot() === saved);
+// ---- chain 4: the tannery turns hides into leather; the market stall needs leather; the well waters the houses within its radius ----
+generate(1234, 16); rich(); clearRow(); world.tree[at(12, 12)] = 0; world.rock[at(12, 12)] = 0; world.tree[at(4, 5)] = 0; world.rock[at(4, 5)] = 0; world.tree[at(3, 5)] = 0; world.rock[at(3, 5)] = 0; world.tree[at(6, 9)] = 0; world.rock[at(6, 9)] = 0;
+const LEATHER = economy.resourceOf('leather'), HIDE2 = economy.resourceOf('hide'), WATER2 = economy.serviceOf('water');
+const th = addBuilding(HOUSE, at(2, 7)); createResident(th); createResident(th); world.buildings[th].residents = 2; world.buildings[th].timer = 1e9;
+const far = addBuilding(HOUSE, at(12, 12)); createResident(far); world.buildings[far].residents = 1; world.buildings[far].timer = 1e9;
+setStock(economy.resourceOf('leather'), 0); setStock(HIDE2, 8);
+check('the market stall needs leather and says so', applyTool(toolOf('market'), at(6, 9)) === PLACE_NO_STOCK && economy.resources[LEATHER].price > 0);
+applyTool(toolOf('tannery'), at(5, 9));
+applyTool(toolOf('well'), at(3, 5));
+check('a well needs no road', checkTool(toolOf('well'), at(4, 5)) === PLACE_OK);
+run(70);
+check('the tannery makes leather from hides (2 hides -> 1 leather)', world.stock[LEATHER] + world.buildings[world.build[at(5, 9)]].stock[LEATHER] >= 2 && world.stock[HIDE2] <= 4);
+check('the well waters the houses within its radius, not the far one', world.buildings[th].cover[WATER2] > 0 && world.buildings[far].cover[WATER2] === 0);
+check('a house the well does not reach is flagged by a hint', computeHints().some((h) => h.reason === 'no_service:water' && h.tile === at(12, 12)));
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; }

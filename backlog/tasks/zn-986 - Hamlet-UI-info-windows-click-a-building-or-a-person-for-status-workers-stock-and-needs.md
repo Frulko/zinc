@@ -3,9 +3,10 @@ id: ZN-986
 title: >-
   Hamlet UI: info windows - click a building or a person for status, workers,
   stock and needs
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-11-01 14:25'
+updated_date: '2026-11-01 14:56'
 labels:
   - hamlet
   - demo
@@ -25,7 +26,7 @@ Clicking a building opens a parchment window with its model, state in plain word
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Building and person windows show live data from the simulation, not copies
-- [ ] #2 A building says in words why it is idle
-- [ ] #3 Windows close with right click and Escape and never block the map when closed
+- [x] #1 Building and person windows show live data from the simulation, not copies
+- [x] #2 A building says in words why it is idle
+- [x] #3 Windows close with right click and Escape and never block the map when closed
 <!-- AC:END -->

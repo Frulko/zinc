@@ -10,7 +10,7 @@ export const MODEL_SAWMILL = 1;
 export const MODEL_LODGE = 2;
 export const MODEL_FISHERY = 3;
 /** The model id of each building type, in the order of assets/economy.json (a building's model sits at its own index). */
-export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market'];
+export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well'];
 export const MODEL_GATE = MODEL_IDS.length;
 export const MODEL_TREE = MODEL_GATE + 1;            // 4 variants
 export const MODEL_ROCK = MODEL_TREE + 4;            // 2 variants
@@ -228,6 +228,26 @@ function market(): void {
   capsule([-1.1, .3, 0], [-1.1, .3, .45], .16, .16, flat([128, 92, 60]), 'rough');                // barrel
 }
 
+/** A tannery: an open timber shed with hides stretched on frames, a tanning vat and a pile of finished leather. */
+function tannery(): void {
+  box(-.8, -.55, 0, .3, .55, 1.15, [138, 106, 72]);
+  gableRoof(-.95, .45, -.7, .7, 1.1, .6, [102, 84, 66], 19);
+  gableWall(-.8, .3, .55, 1.15, .6, .7, [138, 106, 72]);
+  box(-.55, .54, 0, -.05, .6, .85, [66, 48, 36]);                           // wide door
+  for (const y of [-.45, 0, .45]) { box(.5, y - .02, 0, .56, y + .02, 1.1, WOOD_BROWN); box(.9, y - .02, 0, .96, y + .02, 1.1, WOOD_BROWN); box(.5, y - .03, 1.02, .96, y + .03, 1.1, WOOD_BROWN); box(.54, y - .01, .15, .92, y + .01, .98, [196, 150, 104]); }   // hide frames
+  capsule([-.1, .85, 0], [-.1, .85, .5], .3, .3, flat([112, 82, 56]), 'rough'); sphere(-.1, .85, .5, .26, [74, 92, 70], 'solid');   // vat with its brew
+  for (let k = 0; k < 3; k++) box(-.7, .75 + k * .06, .04 + k * .09, -.3, 1.15 - k * .04, .12 + k * .09, [150, 104, 64], k);   // leather
+}
+/** A well: a stone ring with a gabled roof on two posts, a crank and a bucket. */
+function well(): void {
+  capsule([0, 0, 0], [0, 0, .62], .5, .46, flat([180, 172, 154]), 'rough');
+  capsule([0, 0, .6], [0, 0, .66], .36, .36, flat([60, 112, 120]), 'solid');                // the water
+  for (const y of [-.5, .42]) box(-.06, y, .5, .06, y + .08, 1.7, WOOD_BROWN);               // posts
+  gableRoof(-.5, .5, -.62, .62, 1.65, .45, [150, 96, 70], 21);
+  capsule([0, -.46, 1.35], [0, .46, 1.35], .04, .04, flat(WOOD_HONEY), 'solid');             // crank beam
+  capsule([0, .1, 1.3], [0, .1, .9], .015, .015, flat([96, 76, 58]), 'solid'); capsule([0, .1, .9], [0, .1, .75], .09, .08, flat([128, 92, 60]), 'rough');   // rope and bucket
+}
+
 /** The entrance of the hamlet: two posts, a beam and a banner over the road (which runs along x). */
 function gate(): void {
   for (const y of [-.92, .78]) box(-.12, y, 0, .12, y + .16, 2.3, WOOD_BROWN);
@@ -312,7 +332,7 @@ export function resetModels(): void { for (let i = 0; i < levelAtlases.length; i
  * index of its first variant in this list, variants counted). They are baked through the atlas, so one cache and one invalidation serve all.
  */
 const MODEL_DEFS: [string, number, (variant: number) => void][] = [
-  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['gate', 1, gate], ['tree', 4, tree], ['rock', 2, rock], ['house2', 1, house2], ['house3', 1, house3],
+  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['tannery', 1, tannery], ['well', 1, well], ['gate', 1, gate], ['tree', 4, tree], ['rock', 2, rock], ['house2', 1, house2], ['house3', 1, house3],
 ];
 
 /** The atlas definition: one entry per model, one frame each (a static model has a single heading and pose). `reduceFrom` > 0 shrinks the sharp bake for the fixed-detail mode. */

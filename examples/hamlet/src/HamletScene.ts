@@ -26,6 +26,8 @@ import { loadKit, col, beginFrame, hitAt, track, pointer, drawTooltip, updateCur
 import { ui, act, viewport, SPEEDS } from './ui/state';
 import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
+import { drawInfo, pickAt, closeInfo } from './ui/Info';
+import { WIN_INFO } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
 import { loadPrefs, savePrefs } from './ui/prefs';
 import { refreshModels, jumpTo } from './view/scenery';
@@ -173,7 +175,7 @@ export class HamletScene extends Sprite {
     if (name === '+' || name === '=') { stepZoom(1); this.baked = world.revision; }
     else if (name === '-' || name === '_') { stepZoom(-1); this.baked = world.revision; }
     else if (name === '0' || name === 'Home') { resetView(); this.baked = world.revision; }
-    else if (name === 'Escape') { if (ui.category >= 0) ui.category = -1; else if (!this.panel.closeMenu()) this.tool = TOOL_NONE; }
+    else if (name === 'Escape') { if (ui.category >= 0) ui.category = -1; else if (ui.window === WIN_INFO) closeInfo(); else if (!this.panel.closeMenu()) this.tool = TOOL_NONE; }
     else if (name === '[' || name === ']') { const i = this.tools.indexOf(this.tool); this.tool = this.tools[(Math.max(0, i) + (name === ']' ? 1 : this.tools.length - 1)) % this.tools.length]; }
     else if (name >= '1' && name <= '9' && Number(name) <= this.tools.length) this.tool = this.tools[Number(name) - 1];
     else if (name === 'p' || name === 'P') { this.paused = !this.paused; this.dragging = false; pauseSound(this.paused); }
@@ -202,6 +204,7 @@ export class HamletScene extends Sprite {
         uiState.dirty = true; return;
       }
       if (this.paused || !this.surface.contains(x, y)) return;
+      if (this.tool === TOOL_NONE) { const g = unproject(this.surface.sourceXAt(x), this.surface.sourceYAt(y)); if (!pickAt(g.x, g.y, tileAt(g.x, g.y))) closeInfo(); uiState.dirty = true; return; }
       this.dragging = true; this.lastPaint = -1;
     }
     if (down) this.drag(x, y, true); else this.dragging = false;
@@ -226,7 +229,8 @@ export class HamletScene extends Sprite {
     }
     let events = 0;
     for (let i = 0; i < buttonEventCount(); i++) {
-      if (buttonEventButton(i) !== 0) {                    // the other buttons drag the map
+      if (buttonEventButton(i) !== 0) {                    // the other buttons drag the map; a right click also closes a window
+        if (buttonEventDown(i) && buttonEventButton(i) === 2) { if (ui.window === WIN_INFO) closeInfo(); else if (ui.category >= 0) ui.category = -1; else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; uiState.dirty = true; }
         this.panning = buttonEventDown(i); this.panX = buttonEventX(i); this.panY = buttonEventY(i);
         continue;
       }
@@ -242,7 +246,7 @@ export class HamletScene extends Sprite {
     ui.time += dt;
     if (track(x, y)) uiState.dirty = true;
     this.moveView(dt, x, y);
-    this.hover = this.paused || hitAt(x, y) !== null ? -1 : this.tileUnder(x, y);
+    this.hover = this.paused || this.tool === TOOL_NONE || hitAt(x, y) !== null ? -1 : this.tileUnder(x, y);
     this.held = held;
     const signature = camera.x * 7919 + camera.y * 31 + camera.level * 100003;
     if (signature !== this.cameraSignature) { this.cameraSignature = signature; this.sinceMove = 0; } else this.sinceMove += dt;
@@ -283,7 +287,7 @@ export class HamletScene extends Sprite {
     if (frameDirty.full) { this.surface.upload(); frameDirty.full = false; } else this.surface.uploadSpans(frameDirty.spans);
     this.surface.draw();
     beginFrame();
-    topBar(); column(); drawFlyout();
+    topBar(); column(); drawFlyout(); drawInfo();
     drawBanner(vp.x + vp.w / 2, vp.y + 8);
     const note = this.time < this.messageUntil;
     statusStrip(note ? this.message : adviceLine(), note ? col('gold') : 0);

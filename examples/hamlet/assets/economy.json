@@ -1,18 +1,19 @@
 {
   "version": 1,
   "resources": [
-    { "id": "log", "label": "Bois", "carry": "log" },
-    { "id": "meat", "label": "Gibier", "carry": "deer" },
-    { "id": "fish", "label": "Poisson", "carry": "fish" },
-    { "id": "plank", "label": "Planches", "carry": "plank" },
-    { "id": "hide", "label": "Peaux", "carry": "hide" },
-    { "id": "smoked_meat", "label": "Viande fumée", "carry": "ham" },
-    { "id": "wheat", "label": "Blé", "carry": "sack" },
-    { "id": "flour", "label": "Farine", "carry": "sack" },
-    { "id": "bread", "label": "Pain", "carry": "bread" }
+    { "id": "log", "label": "Bois", "carry": "log", "price": 1 },
+    { "id": "meat", "label": "Gibier", "carry": "deer", "price": 2 },
+    { "id": "fish", "label": "Poisson", "carry": "fish", "price": 2 },
+    { "id": "plank", "label": "Planches", "carry": "plank", "price": 2 },
+    { "id": "hide", "label": "Peaux", "carry": "hide", "price": 3 },
+    { "id": "smoked_meat", "label": "Viande fumée", "carry": "ham", "price": 4 },
+    { "id": "wheat", "label": "Blé", "carry": "sack", "price": 1 },
+    { "id": "flour", "label": "Farine", "carry": "sack", "price": 2 },
+    { "id": "bread", "label": "Pain", "carry": "bread", "price": 3 },
+    { "id": "leather", "label": "Cuir", "carry": "hide", "price": 6 }
   ],
   "services": [ { "id": "water", "label": "Eau" }, { "id": "market", "label": "Marché" } ],
-  "start": { "log": 20, "plank": 10 },
+  "start": { "log": 20, "plank": 10, "leather": 1 },
   "hall": "storehouse",
   "buildings": [
     { "id": "house", "label": "Maison", "order": 1, "model": "house", "cost": { "plank": 3 },
@@ -49,8 +50,16 @@
       "workers": 2, "role": "baker", "inputs": { "flour": 1 }, "outputs": { "bread": 2 }, "seconds": 6,
       "hint": "Une boulangerie cuit la farine en pain : les maisons le mangent." }
   ,
-    { "id": "market", "label": "Marché", "order": 11, "model": "market", "cost": { "plank": 4, "log": 2 },
+    { "id": "market", "label": "Marché", "order": 11, "model": "market", "cost": { "plank": 4, "log": 2, "leather": 1 },
       "workers": 1, "role": "vendor", "service": { "id": "market", "walker": true, "range": 18 },
-      "hint": "Un marché envoie un marchand sur les routes : les maisons qu’il croise sont servies." }
+      "hint": "Un marché (il faut du cuir) envoie un marchand sur les routes : les maisons qu’il croise sont servies." }
+  ,
+    { "id": "tannery", "label": "Tannerie", "order": 12, "model": "tannery", "cost": { "plank": 4, "log": 3 },
+      "workers": 2, "role": "tanner", "inputs": { "hide": 2 }, "outputs": { "leather": 1 }, "seconds": 8,
+      "hint": "Une tannerie change les peaux du chasseur en cuir : le marché en a besoin." }
+  ,
+    { "id": "well", "label": "Puits", "order": 13, "model": "well", "cost": { "plank": 3, "log": 2 }, "needsRoad": false,
+      "service": { "id": "water", "radius": 4 },
+      "hint": "Un puits donne de l’eau aux maisons dans un rayon de quatre cases." }
   ]
 }
