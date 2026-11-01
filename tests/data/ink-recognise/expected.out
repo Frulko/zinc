@@ -1,0 +1,18 @@
+A letter A 0.782640 circled=false box=221x183
+C letter C 0.663375 circled=false box=234x190
+E letter E 0.627185 circled=false box=275x211
+V letter V 0.699832 circled=false box=235x208
+circle shape circle 0.720754 circled=false box=223x189
+x shape x 0.530327 circled=false box=229x208
+tick shape tick 0.814076 circled=false box=275x190
+B circled after letter B 0.570861 circled=true box=325x325
+B circled before letter B 0.570861 circled=true box=325x325
+E among A-D,V B,C,D,A,V
+priors V V -> circle unknown
+scribble unknown
+reference true
+async true
+empty unknown
+loadModel missing false
+loadModel true
+model Z,L

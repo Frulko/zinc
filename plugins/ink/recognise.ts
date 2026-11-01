@@ -8,7 +8,7 @@ import { Distance, distances, distancesAsync, flat, parseExamples, setExamples }
 export interface Candidate { label: string; score: number }
 export class Box { x: number = 0; y: number = 0; w: number = 0; h: number = 0; }
 export class Recognition {
-  /** 'letter' (a one-character label), 'shape' (circle, x, tick, line) or 'unknown' (not sure enough: the app keeps the ink as it is). */
+  /** 'letter' (a letter or digit), 'shape' (circle, x, tick, line) or 'unknown' (not sure enough: the app keeps the ink as it is). */
   kind: string = 'unknown';
   /** Every class asked for, best first; score 0..1, higher is better (priors applied). Filled even when the kind is 'unknown'. */
   candidates: Candidate[] = [];
@@ -23,17 +23,21 @@ export interface RecogniseOptions {
   /** The closed set to choose from (Murdoku: A-E, V, circle, x); default every class of the templates. */
   classes?: string[];
   /** Multiplies the score of a class (a letter already placed: 0.2). Missing labels count 1. */
-  priors?: { [label: string]: number };
+  priors?: Map<string, number>;
   /** Run the TypeScript reference matcher instead of the native one (the same answer; for tests and engines without the native library). */
   reference?: boolean;
 }
 
-/** A distance of 0.25 (unit box) scores 0.5; the scale is fitted on the held-out writers of tools/ink-train. */
-export const DISTANCE_SCALE: number = 0.25;
+/** A distance of 0.3 (unit box) scores 0.5. DISTANCE_SCALE, MIN_SCORE and MIN_MARGIN were fitted on the held-out synthetic writers of
+ *  tools/ink-train: 95% of the marks accepted, none accepted wrongly, 2 of 56 scribbles accepted. Retune on real handwriting (docs/plugins/ink.md). */
+export const DISTANCE_SCALE: number = 0.3;
 /** The best score must reach this, or the answer is 'unknown'. */
 export const MIN_SCORE: number = 0.4;
 /** The best must beat the second by this much, or the answer is 'unknown' ("never guess"). */
-export const MIN_MARGIN: number = 0.15;
+export const MIN_MARGIN: number = 0.1;
+
+/** The labels of the shapes; any other label is a letter or digit. */
+export const SHAPES: string[] = ['circle', 'x', 'tick', 'line', 'scribble'];
 
 function boxOf(strokes: Stroke[]): Box {
   const b = new Box();
@@ -79,15 +83,16 @@ function classesOf(opts: RecogniseOptions | undefined): string {
 function finish(r: Recognition, d: Distance[], circled: boolean, opts: RecogniseOptions | undefined): Recognition {
   const out: Candidate[] = [];
   for (const x of d) {
-    if (circled && x.label.length !== 1) continue;   // inside a circle a letter is asked for, not a shape
-    const prior = opts !== undefined && opts.priors !== undefined && opts.priors[x.label] !== undefined ? opts.priors[x.label] : 1;
+    if (circled && SHAPES.indexOf(x.label) >= 0) continue;   // inside a circle a letter is asked for, not a shape
+    let prior = 1;
+    if (opts !== undefined && opts.priors !== undefined) { if (opts.priors.has(x.label)) prior = opts.priors.get(x.label) as number; }
     const q = x.d / DISTANCE_SCALE;
     out.push({ label: x.label, score: prior / (1 + q * q) });
   }
   out.sort((a: Candidate, b: Candidate): i32 => b.score > a.score ? 1 : b.score < a.score ? -1 : 0);
   r.candidates = out;
   r.circled = circled;
-  if (out.length > 0 && out[0].score >= MIN_SCORE && (out.length === 1 || out[0].score - out[1].score >= MIN_MARGIN)) r.kind = out[0].label.length === 1 ? 'letter' : 'shape';
+  if (out.length > 0 && out[0].score >= MIN_SCORE && (out.length === 1 || out[0].score - out[1].score >= MIN_MARGIN)) r.kind = SHAPES.indexOf(out[0].label) >= 0 ? 'shape' : 'letter';
   return r;
 }
 

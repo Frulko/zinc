@@ -15,6 +15,14 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Large software-rendered shadows reserve memory for the distinct alpha rows they use, instead of their entire area.
 - Compiled apps release the encoded module before execution and copy only the required arguments when calling native plugins. Native calls allocate temporary array storage only when they need it.
 
+### Plugins
+
+#### New
+- `zinc:ink` recognises handwriting on the device, with no cloud: `recognise(strokes)` names a mark as a letter (`A`-`E`, `V`), a circle, an `x`, a tick or a line, says when a letter is circled, and answers `unknown` rather than guess; `recogniseAsync` matches off the UI thread, `StrokeGrouper` collects the strokes of one mark, `loadModel` swaps in your own templates. The notes example for reMarkable has a Record mode to collect handwriting samples.
+
+#### Fixed
+- A plugin's native `Promise<T>` export written on the C ABI (`native/*.abi.c`) is no longer refused at load: `zinc native-gen --c` writes the result type of the promise.
+
 ### UI
 #### Fixed
 - Selecting text with `select-text` works across several lines and several `Text` blocks, like a browser: drag from one paragraph into the next (in a `ScrollView` too, the list scrolls near its edge), the whole span is highlighted and Cmd/Ctrl+C copies it with its line breaks.

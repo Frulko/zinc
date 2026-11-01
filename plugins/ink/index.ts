@@ -349,3 +349,4 @@ export function InkCanvas(props: InkProps): i32 {
 // Recognition (docs/plugins/ink.md): grouping the strokes of one mark, and the matcher that names it.
 export * from './group';
 export * from './matcher';
+export * from './recognise';
