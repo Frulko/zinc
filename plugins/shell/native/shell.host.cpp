@@ -37,6 +37,7 @@ static char** env_now() { return environ; }
 
 namespace zrt {
 extern int32_t surf_w, surf_h, frame_no;
+bool screen_watched();
 extern bool display_driver;
 extern void (*shell_input)(HalInput* in);
 }
@@ -414,7 +415,7 @@ struct HostShell : NativeShell, zrt::Poller {
   zrt::String title() override { return zs(shown.fd >= 0 ? shown.title : ""); }
   int32_t image() override { return shown.fd >= 0 ? shown.img : -1; }
   int32_t barHeight() override { return bar_height(); }
-  bool onPlane() override { return shown.fd >= 0 && shown.dmabuf && shown.img >= 0; }
+  bool onPlane() override { return shown.fd >= 0 && shown.dmabuf && shown.img >= 0 && !zrt::screen_watched(); }
   void setMode(int32_t m) override { mode = m; serial_no++; }
   bool responding() override { return shown.fd < 0 || now() - shown.pong_at < 6000; }
   int32_t serial() override { return (int32_t)serial_no; }

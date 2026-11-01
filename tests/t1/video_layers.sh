@@ -45,5 +45,23 @@ if px(a, 200, 133) == (0, 0, 0) or px(a, 200, 133) == px(a, 200, 120): ok = Fals
 if not ok: print("plain: the frame over the layer differs from the software one by up to %d levels (%d pixels differ; limit 2)" % (worst, differ))
 sys.exit(0 if ok else 1)
 PY
+# a screenshot asked of the screen (ZINC_SHOT_REQUEST, what zinc device screen sends): the layers go off first and the file is the software
+# frame, picture included, where it used to hold the layer's hole
+printf '%s\n' "$tmp/watched.bmp" >"$tmp/shot.request"
+env LAYERTEST=on LAYERTEST_OUT="$tmp/watched.ppm" ZINC_SHOT_REQUEST="$tmp/shot.request" ZINC_DISPLAY=layertest ZINC_LAYER_LOG=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_FRAMES=40 ZINC_RUN=interp \
+  timeout 120 "$ZINC" run -q tests/data/video_layers -- plain >"$tmp/watched.log" 2>&1
+[ -s "$tmp/watched.bmp" ] && [ ! -s "$tmp/shot.request" ] || { echo "watched: no screenshot answered: $(head -c 300 "$tmp/watched.log")"; fail=1; }
+python3 - "$tmp/watched.bmp" "$tmp/plain-off.ppm" <<'PY' || fail=1
+import struct, sys
+b = open(sys.argv[1], "rb").read()
+w, h = struct.unpack("<ii", b[18:26]); row = (w * 3 + 3) & ~3
+bmp = lambda x, y: (b[54 + (h - 1 - y) * row + x * 3 + 2], b[54 + (h - 1 - y) * row + x * 3 + 1], b[54 + (h - 1 - y) * row + x * 3])
+p = open(sys.argv[2], "rb").read().split(b"\n", 3)
+pw, ph = map(int, p[1].split()); d = p[3]
+ppm = lambda x, y: tuple(d[(y * pw + x) * 3:(y * pw + x) * 3 + 3])
+bad = [(x, y) for y in range(h) for x in range(w) if max(abs(u - v) for u, v in zip(bmp(x, y), ppm(x, y))) > 2]
+if (w, h) != (pw, ph) or bad: print("watched: the screenshot differs from the software frame at %d pixels (first %s)" % (len(bad), bad[:3])); sys.exit(1)
+PY
+grep -q "layertest: layers offered [1-9]" "$tmp/watched.log" || { echo "watched: the picture never went to a layer before the shot: $(grep layertest "$tmp/watched.log")"; fail=1; }
 [ $fail -eq 0 ] && echo "video layers: ok"
 exit $fail

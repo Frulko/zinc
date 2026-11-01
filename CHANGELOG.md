@@ -8,6 +8,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Raspberry Pi and the shell
+
+#### Fixed
+
+- `zinc device <pi> screen` and `screen --live` show the app running under the shell, not only the top bar, and the live view follows the app in real time.
+
 ## [0.10.13] - 2026-10-31
 
 ### UI
