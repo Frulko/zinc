@@ -29,6 +29,14 @@ The shared `RemarkableBar` shows local time, battery charge and **Quitter**. Qui
 
 Pages are saved to `/home/root/zinc-notes` on the tablet, `notes-data/` in the working directory elsewhere.
 
+## Record handwriting
+
+The **Record** button turns the page into a sample collector for `zinc:ink`'s recogniser: the bar names the class to write (`A`, `B`,
+`C`, `D`, `E`, `V`, a circle, an x, a tick, a line, a scribble; ten rounds), **Keep** stores the strokes as one sample and clears the page,
+**Redo** clears it. The samples go to `ink-<writer>.json` in the notes directory (`NOTES_RECORD=<name>` starts in record mode with that
+writer name). `tools/ink-train/make-dataset --real <dir>` adds such files to the training set, one writer per file, the last one held out.
+`NOTES_RECORD_DEMO=1` writes a few scripted samples and quits (`tests/t1/ink_recorder.sh`).
+
 ## What to look at
 
 | File | Role |

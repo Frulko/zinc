@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""Deterministic synthetic handwriting set for zinc:ink (ZN-931, docs/reports/murdoku-eink-handwriting.md s4).
+
+Strokes come from hand-written pen skeletons (single-line "stroke fonts": several ways to draw each class, as people do),
+bent by a per-writer style (slant, width, wobble, which variants the writer prefers, corner rounding) and a per-sample jitter
+(rotation, scale, point noise, drawing speed). The held-out split is by writer: the last writers are the test set.
+Real recordings (the notes app's record mode, examples/remarkable/notes) join with --real DIR: each file is one writer.
+
+  tools/ink-train/make-dataset [--out FILE] [--writers N] [--test N] [--per N] [--seed N] [--real DIR]
+
+The output is plain JSON (CC0, no third-party glyph data). Same arguments, same bytes.
+"""
+import argparse, glob, json, math, os, random
+
+CLASSES = ['A', 'B', 'C', 'D', 'E', 'V', 'circle', 'x', 'tick', 'line', 'scribble']
+
+
+def arc(cx, cy, rx, ry, a0, a1, n=14):
+    return [(cx + rx * math.cos(a0 + (a1 - a0) * i / n), cy + ry * math.sin(a0 + (a1 - a0) * i / n)) for i in range(n + 1)]
+
+
+# class -> list of variants; a variant is a list of strokes; a stroke is a list of (x, y) in a unit box, y down.
+def skeletons(rng):
+    d = math.radians
+    S = {}
+    S['A'] = [
+        [[(0, 1), (.5, 0), (1, 1)], [(.2, .65), (.8, .65)]],
+        [[(.5, 0), (0, 1)], [(.5, 0), (1, 1)], [(.2, .65), (.8, .65)]],
+        [[(.2, .65), (.8, .65)], [(0, 1), (.5, 0), (1, 1)]],
+        [[(.5, 0), (0, 1)], [(.5, 0), (1, 1)], [(.15, .7), (.85, .7)]],
+    ]
+    bump1 = [(0, 0), (.65, .02), (.85, .15), (.8, .38), (.55, .48), (0, .5)]
+    bump2 = [(0, .5), (.7, .52), (.95, .7), (.85, .9), (.6, 1), (0, 1)]
+    S['B'] = [
+        [[(0, 0), (0, 1)], bump1, bump2],
+        [[(0, 0), (0, 1)], bump1 + bump2[1:]],
+        [[(0, 1), (0, 0), (.65, .02), (.85, .15), (.8, .38), (.55, .48), (0, .5), (.7, .52), (.95, .7), (.85, .9), (.6, 1), (0, 1)]],
+    ]
+    S['C'] = [
+        [arc(.55, .5, .5, .5, d(-40), d(-320))],
+        [arc(.55, .5, .5, .5, d(-50), d(-310), 10)],
+        [[(1, .12), (.5, 0), (0, .3), (0, .7), (.5, 1), (1, .88)]],
+    ]
+    bowl = [(0, 0), (.65, .05), (.95, .3), (.95, .7), (.65, .95), (0, 1)]
+    S['D'] = [
+        [[(0, 0), (0, 1)], bowl],
+        [[(0, 0), (0, 1), (.65, .95), (.95, .7), (.95, .3), (.65, .05), (0, 0)]],
+        [[(0, 0), (0, 1)], [(0, .02)] + arc(.1, .5, .9, .48, d(-90), d(90), 10)[1:] + [(0, .98)]],
+    ]
+    S['E'] = [
+        [[(0, 0), (0, 1)], [(0, 0), (1, 0)], [(0, .5), (.8, .5)], [(0, 1), (1, 1)]],
+        [[(1, 0), (0, 0), (0, 1), (1, 1)], [(0, .5), (.8, .5)]],
+        [[(1, 0), (0, 0), (0, .5), (.8, .5), (0, .5), (0, 1), (1, 1)]],
+        [[(0, 0), (0, 1)], [(.05, .02), (.95, .0)], [(.05, .52), (.75, .5)], [(.05, 1), (1, .98)]],
+    ]
+    S['V'] = [
+        [[(0, 0), (.5, 1), (1, 0)]],
+        [[(0, 0), (.45, 1)], [(.45, 1), (1, 0)]],
+        [[(0, 0), (.3, .7), (.5, 1), (.7, .7), (1, 0)]],
+    ]
+    S['circle'] = [[arc(.5, .5, .5, .5, d(-90), d(270) - d(rng.uniform(-18, 28)), 24)]]
+    S['x'] = [
+        [[(0, 0), (1, 1)], [(1, 0), (0, 1)]],
+        [[(1, 0), (0, 1)], [(0, 0), (1, 1)]],
+        [[(0, 0), (1, 1), (.5, .5), (1, 0), (0, 1)]],
+        [[(.1, 0), (.9, 1)], [(.85, .05), (.1, .95)]],
+    ]
+    S['tick'] = [
+        [[(0, .55), (.35, 1), (1, 0)]],
+        [[(0, .6), (.3, .95), (1, .05)]],
+        [[(0, .5), (.4, 1), (1, 0)]],
+    ]
+    S['line'] = [[[(0, .5), (1, .5)]], [[(0, 0), (1, 1)]], [[(0, 0), (0, 1)]], [[(1, 0), (0, 1)]]]
+    n = rng.randint(5, 9)   # scribble: a random zigzag walk, a different one per call
+    S['scribble'] = [[[(rng.random(), rng.random()) for _ in range(n)]]]
+    return S
+
+
+def chaikin(pts, rounds):
+    for _ in range(rounds):
+        out = [pts[0]]
+        for a, b in zip(pts, pts[1:]):
+            out += [(.75 * a[0] + .25 * b[0], .75 * a[1] + .25 * b[1]), (.25 * a[0] + .75 * b[0], .25 * a[1] + .75 * b[1])]
+        pts = out + [pts[-1]]
+    return pts
+
+
+def resample(pts, spacing, rng, wob):
+    """Points every `spacing` along the polyline, the spacing itself varying like a pen's speed."""
+    out = [pts[0]]
+    carry = spacing * rng.uniform(.6, 1.4)
+    for a, b in zip(pts, pts[1:]):
+        seg = math.dist(a, b)
+        pos = 0.0
+        while seg > 0 and seg - pos >= carry:
+            pos += carry
+            t = pos / seg
+            out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
+            carry = spacing * rng.uniform(.6, 1.4)
+        carry -= seg - pos
+    if math.dist(out[-1], pts[-1]) > 1e-9:
+        out.append(pts[-1])
+    return [(x + rng.gauss(0, wob), y + rng.gauss(0, wob)) for x, y in out]
+
+
+def writer_style(rng):
+    return dict(slant=rng.uniform(-.3, .3), width=rng.uniform(.55, 1.25), wobble=rng.uniform(.004, .03), round=rng.choice([0, 0, 1, 2]),
+                spacing=rng.uniform(.04, .1), rot=rng.uniform(-6, 6), pref=[rng.random() ** 2 + .05 for _ in range(4)])
+
+
+def sample(cls, style, rng):
+    variants = skeletons(rng)[cls]
+    k = rng.choices(range(len(variants)), weights=[style['pref'][i % 4] for i in range(len(variants))])[0]
+    out = []
+    ang = math.radians(style['rot'] + rng.uniform(-7, 7))
+    sx, sy = style['width'] * rng.uniform(.9, 1.1), rng.uniform(.9, 1.1)
+    for stroke in variants[k]:
+        pts = chaikin(list(stroke), style['round']) if style['round'] and len(stroke) < 8 else list(stroke)
+        pts = resample(pts, style['spacing'], rng, style['wobble'])
+        res = []
+        for x, y in pts:
+            x, y = (x - .5) * sx, (y - .5) * sy
+            x += style['slant'] * -y
+            res.append((x * math.cos(ang) - y * math.sin(ang), x * math.sin(ang) + y * math.cos(ang)))
+        out.append(res)
+    ox, oy = rng.uniform(300, 600), rng.uniform(300, 600)
+    return [[int(round(v)) for x, y in s for v in (ox + x * 200, oy + y * 200)] for s in out]
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--out', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'ink-set.json'))
+    ap.add_argument('--writers', type=int, default=12)
+    ap.add_argument('--test', type=int, default=4)
+    ap.add_argument('--per', type=int, default=14, help='samples per class and writer')
+    ap.add_argument('--seed', type=int, default=931)
+    ap.add_argument('--real', help='directory of recorder files (one writer each) to add')
+    a = ap.parse_args()
+    writers, samples = [], []
+    for i in range(a.writers):
+        rng = random.Random(a.seed * 1000 + i)
+        style = writer_style(rng)
+        wid = 'syn%02d' % i
+        writers.append({'id': wid, 'split': 'test' if i >= a.writers - a.test else 'train', 'synthetic': True})
+        for c in CLASSES:
+            for _ in range(a.per):
+                samples.append({'w': wid, 'c': c, 's': sample(c, style, rng)})
+    if a.real:
+        files = sorted(glob.glob(os.path.join(a.real, '*.json')))
+        for n, f in enumerate(files):
+            rec = json.load(open(f))
+            wid = rec['writer']
+            writers.append({'id': wid, 'split': 'test' if n == len(files) - 1 else 'train', 'synthetic': False})
+            samples += [{'w': wid, 'c': s['c'], 's': s['s']} for s in rec['samples']]
+    doc = {'format': 1, 'license': 'CC0-1.0', 'classes': CLASSES, 'writers': writers, 'samples': samples}
+    text = json.dumps(doc, separators=(',', ':'))
+    os.makedirs(os.path.dirname(a.out), exist_ok=True)
+    with open(a.out, 'w') as f:
+        f.write(text + '\n')
+    print('%s: %d samples, %d writers, %d bytes' % (a.out, len(samples), len(writers), len(text)))
+
+
+main()

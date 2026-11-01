@@ -8,7 +8,8 @@ import { quit } from 'zinc:gfx';
 import { RemarkableBar, RemarkableApp } from 'zinc:remarkable';
 import { ink, loadPages, savePage } from './notebook';
 import { stepDemo } from './demo';
-import { DrawingBar, PageBar, DisplayBar } from './components/toolbar';
+import { stepRecorder } from './recorder';
+import { DrawingBar, PageBar, DisplayBar, RecordBar } from './components/toolbar';
 
 // the committed view: ink point p shows at (p - (ox, oy)) * z, kept inside the page
 const view = { ox: 0, oy: 0, z: 1, w: 0, h: 0 };
@@ -32,6 +33,7 @@ function App(): i32 {
     <Rule />
     <PageBar />
     <DisplayBar />
+    <RecordBar />
     <Rule />
     <ZoomView className="grow" zoom={() => view.z} maxZoom={4} draw={page} picture={() => ink.img} writing={() => ink.live !== null}
       onView={setView} />
@@ -39,4 +41,4 @@ function App(): i32 {
 }
 
 loadPages();
-render(() => <RemarkableApp app={App} />, 0xffffff, stepDemo);
+render(() => <RemarkableApp app={App} />, 0xffffff, (dt: number) => { stepDemo(dt); stepRecorder(); });

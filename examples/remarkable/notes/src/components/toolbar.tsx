@@ -1,11 +1,13 @@
 // The two toolbars. E-ink friendly: flat black and white, thick outlines, big touch targets, no transitions or
 // shadows (they ghost on e-paper); the active tool is inverted.
 import { refreshDisplay } from 'zinc:gfx';
+import { Show } from 'zinc:ui/solid';
 import {
   ink, COLORS, COLOR_NAMES, WIDTHS, WIDTH_NAMES, tool, color, penWidth, page, pageCount, status,
   pickTool, pickColor, pickWidth, goToPage, savePage,
   fastDrawing, displayBusy, pickDisplay, onTablet,
 } from '../notebook';
+import { recording, prompt, startRecording, stopRecording, keep, redo } from '../recorder';
 
 const OUTLINED = 'px-6 py-4 rounded-lg border-2 border-black bg-white focus:bg-white';
 const INVERTED = 'px-6 py-4 rounded-lg bg-black focus:bg-black';
@@ -65,5 +67,17 @@ export function DisplayBar(): i32 {
     <ToolButton label="Colour preview" active={() => !fastDrawing()} onPress={() => pickDisplay(false)} />
     <ToolButton label="Refresh" active={() => false} onPress={() => { refreshDisplay(); }} />
     <Text className="text-[26px] text-black">{!onTablet ? 'Desktop preview' : displayBusy() ? 'Switching display…' : fastDrawing() ? 'B&W screen · saved in colour' : 'Colour screen · slower drawing'}</Text>
+  </View>;
+}
+
+/** Record mode: collects handwriting samples for the recogniser (README "Record handwriting"). */
+export function RecordBar(): i32 {
+  return <View className="flex-row flex-wrap items-center gap-4 px-6 py-3">
+    <ToolButton label="Record" active={recording} onPress={() => (recording() ? stopRecording() : startRecording())} />
+    <Show when={recording()}>
+      <Text className="text-[34px] text-black">{prompt()}</Text>
+      <ToolButton label="Keep" active={never} onPress={() => { keep(); }} />
+      <ToolButton label="Redo" active={never} onPress={redo} />
+    </Show>
   </View>;
 }

@@ -6,7 +6,7 @@ import * as fs from 'zinc:fs';
 import * as sys from 'zinc:sys';
 import refresh from '../native/refresh.spec';
 
-const DIR = sys.platform() === 'rmpp' ? '/home/root/zinc-notes' : 'notes-data';
+export const DIR = sys.env('NOTES_DIR') !== '' ? sys.env('NOTES_DIR') : sys.platform() === 'rmpp' ? '/home/root/zinc-notes' : 'notes-data';   // NOTES_DIR: tests
 export const COLORS: i32[] = [0x000000, 0x6b7280, 0x1d4ed8, 0xdc2626, 0x15803d, 0xca8a04];
 export const COLOR_NAMES: string[] = ['Black', 'Grey', 'Blue', 'Red', 'Green', 'Gold'];
 export const WIDTHS: number[] = [3, 6, 12];
