@@ -1333,6 +1333,7 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     }
   }
   static const std::regex tag(R"RE(<Icon\b[^>]*?\bname=["']([a-z0-9-]+)["'])RE"), call(R"RE(\bicon\(\s*["']([a-z0-9-]+)["'])RE");
+  static const std::regex dyn(R"RE(<Icon\b[^>]*?\bname=\{([^}]*)\})RE"), lit(R"RE(["']([a-z0-9-]+)["'])RE");   // name={on ? 'a' : 'b'}: every literal of the expression
   std::error_code ec;
   for (fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, ec), end; it != end; it.increment(ec)) {
     const std::string leaf = it->path().filename().string();
@@ -1344,6 +1345,10 @@ std::string lucideModuleSource(const std::string& entry, const std::string& node
     const std::string text = ss.str();
     for (const std::regex* r : {&tag, &call})
       for (std::sregex_iterator m(text.begin(), text.end(), *r), e; m != e; ++m) names.insert((*m)[1].str());
+    for (std::sregex_iterator m(text.begin(), text.end(), dyn), e; m != e; ++m) {
+      const std::string ex = (*m)[1].str();
+      for (std::sregex_iterator l(ex.begin(), ex.end(), lit); l != e; ++l) names.insert((*l)[1].str());
+    }
   }
   std::ifstream in(nodesFile);
   std::stringstream ss; ss << in.rdbuf();
