@@ -32,6 +32,7 @@ export interface World {
   revision: number;                 // bumped when the baked scenery must be redone
   saveDirty: boolean; lastSave: number; autosave: boolean;
   deerTimer: number; waitingForFood: boolean;
+  priority: number[];               // building types in the order idle residents are given work (rules/labour.ts)
 }
 
 /** A new building of a type on a tile, empty. The rules add buildings the same way (rules/build.ts). */
@@ -54,7 +55,7 @@ export const world: World = {
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false,
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, priority: [],
 };
 
 // ---- tiles ----
@@ -117,7 +118,7 @@ export function generate(seed: number, size: number = DEFAULT_SIZE): void {
   world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.build = zeros(size); world.claimed = zeros(size);
   world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.stock = [];
   world.buildings = []; world.people = []; world.deer = []; world.felledCount = 0; world.treeTimer = 0;
-  world.deerTimer = 0; world.waitingForFood = false; world.lastSave = 0; world.saveDirty = false;
+  world.deerTimer = 0; world.waitingForFood = false; world.priority = []; world.lastSave = 0; world.saveDirty = false;
   seedRandom(seed);
   world.offsetX = hash(seed, 1) * 40; world.offsetY = hash(seed, 2) * 40;
   const pondI = Math.floor(size * (.42 + hash(seed, 3) * .33));

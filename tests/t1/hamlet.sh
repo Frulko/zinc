@@ -22,7 +22,7 @@ if grep -rnE 'Math\.(random|hypot|sin|cos|pow)|Date\.' examples/hamlet/src/world
 ZINC_SIZE=1100x900 ZINC_FRAMES=3200 ZINC_INPUT="$PWD/tests/data/hamlet/session.input" \
 ZINC_SHOT="$tmp/frame.png" ZINC_SHOT_FRAMES=300,2200,3150 timeout 300 "$ZINC" run examples/hamlet > "$tmp/out" 2> "$tmp/err"
 [ ! -s "$tmp/err" ] || { cat "$tmp/err"; exit 1; }
-grep -q '^hamlet:save	H7;3;24;' "$tmp/data/storage.kv"
+grep -Eq '^hamlet:save[[:space:]]H[0-9]+;3;24;' "$tmp/data/storage.kv"
 python3 - "$tmp" <<'CHECK'
 from pathlib import Path
 from PIL import Image, ImageChops

@@ -16,6 +16,8 @@ import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine/transport';
 import { adviceLine } from '../../../examples/hamlet/src/hud';
 import { toolOf } from '../../../examples/hamlet/src/rules/build';
+import { movePriority } from '../../../examples/hamlet/src/rules/labour';
+import { computeHints } from '../../../examples/hamlet/src/rules/hints';
 
 const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');   // the test runs from the repository root
 loadEconomy(ECONOMY_TEXT, MODEL_IDS, ROLE_NAMES);
@@ -174,6 +176,20 @@ check('totals are conserved: every felled tree is one wood somewhere', allWood()
 check('the hall received wood from the producers', world.stock[WOOD] > 40);
 const lone = world.buildings[world.build[at(12, 13)]];
 check('a building with no road to a store does not send', !exportsOk(lone) && lone.state === BS_ISOLATED && lone.stock[WOOD] >= 0 && world.buildings[world.build[at(5, 9)]].state !== BS_ISOLATED);
+// ---- labour pool: three workplaces, three idle residents; the priority decides who is staffed ----
+const labourVillage = (first: string): void => {
+  generate(1234, 16); rich(); clearRow(); world.tree[at(6, 9)] = 0; world.rock[at(6, 9)] = 0;
+  for (const [i, n] of [[2, 2], [4, 1]]) { const h = addBuilding(HOUSE, at(i, 7)); for (let k = 0; k < n; k++) createResident(h); world.buildings[h].residents = n; world.buildings[h].timer = 1e9; }   // no settler arrives: exactly three idle hands
+  applyTool(toolOf('lumberhut'), at(3, 9)); applyTool(TOOL_SAWMILL, at(5, 9)); applyTool(TOOL_LODGE, at(6, 9));
+  movePriority(economy.typeOf(first), -99);
+  run(15);
+};
+const staffed = (id: string): number => world.buildings.filter((b) => b.alive && b.type === economy.typeOf(id)).reduce((n, b) => n + b.workers, 0);
+labourVillage('lumberhut');
+check('priority: the first type is staffed in full, the next takes what is left, the last gets nobody', staffed('lumberhut') === 2 && staffed('sawmill') + staffed('lodge') === 1);
+labourVillage('lodge');
+check('priority: moving the lodge first staffs it first', staffed('lodge') === 2 && staffed('lumberhut') + staffed('sawmill') === 1);
+check('an unstaffed workplace says no_workers', computeHints().some((h) => h.kind === 'no_workers'));
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; }

@@ -11,6 +11,7 @@ import { sound } from '../audio';
 import { settings } from '../settings';
 import { economy } from '../world/economy';
 import { take } from '../rules/stock';
+import { rankOf } from '../rules/labour';
 import { findLoad, haulOut, fetchInput, hasRoomFor, readyBatch, exportsOk, pickUp, putDown, cancelTransport } from './transport';
 
 const gap = (ax: number, ay: number, bx: number, by: number): number => Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
@@ -103,7 +104,9 @@ function assignJobs(): void {
   }
   let producers = 0, vacancies = 0;
   for (const b of world.buildings) if (b.alive && b.type !== HOUSE && !economy.buildings[b.type].store) { producers++; vacancies += economy.buildings[b.type].workers - b.workers; }
-  for (let pass = 0; pass < 2; pass++) for (let id = 0; id < world.buildings.length; id++) {   // producers are staffed first; porters only once something produces and no producer lacks hands
+  const order: number[] = world.buildings.map((_b: Building, id: number): number => id);
+  order.sort((a: number, b: number): number => rankOf(world.buildings[a].type) - rankOf(world.buildings[b].type) || a - b);   // the player's priority, then the oldest first
+  for (let pass = 0; pass < 2; pass++) for (const id of order) {   // producers are staffed first; porters only once something produces and no producer lacks hands
     if (pass === 1 && (producers === 0 || vacancies > 0)) break;
     const site = world.buildings[id];
     if (!site.alive || site.type === HOUSE || economy.buildings[site.type].store !== (pass === 1)) continue;

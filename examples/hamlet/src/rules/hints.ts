@@ -8,6 +8,7 @@ export const HINT_IDLE_WORKERS = 'idle_workers';    // a site with no workers wh
 export const HINT_NO_INPUT = 'no_input';            // a producer waits for a resource that no store holds: build what makes it
 export const HINT_FULL_OUTPUT = 'full_output';      // a producer has no room left for its output
 export const HINT_DELIVER_HERE = 'deliver_here';    // a producer waits for a resource a store holds: the road is what it lacks, or a porter is on the way
+export const HINT_NO_WORKERS = 'no_workers';        // a workplace lacks hands and nobody is idle: more houses
 export const HINT_BUILD_NEXT = 'build_next';        // first run: the village has nothing but its hall, start at the gate
 export const MAX_HINTS = 12;
 
@@ -42,7 +43,7 @@ export function computeHints(): Hint[] {
     } else if (b.state === BS_FULL) out.push(make(HINT_FULL_OUTPUT, tile, HINT_FULL_OUTPUT, 2));
     if (def.workers > 0 && !b.fixed && b.workers < def.workers) {
       vacancies++;
-      if (idle > 0) out.push(make(HINT_IDLE_WORKERS, tile, HINT_IDLE_WORKERS + ':site', 1));
+      out.push(idle > 0 ? make(HINT_IDLE_WORKERS, tile, HINT_IDLE_WORKERS + ':site', 1) : make(HINT_NO_WORKERS, tile, HINT_NO_WORKERS, 2));
     }
   }
   if (idle > 0 && vacancies === 0 && firstIdleHome >= 0 && world.buildings[firstIdleHome] !== undefined) {
@@ -62,6 +63,7 @@ export function hintText(h: Hint): string {
   if (key === HINT_NO_INPUT) return 'Il manque : ' + label + '. Posez de quoi en produire.';
   if (key === HINT_DELIVER_HERE) return label + ' est en route : la route doit relier ce bâtiment à l’entrepôt.';
   if (key === HINT_FULL_OUTPUT) return 'Plein : posez un entrepôt au bord de la route.';
+  if (key === HINT_NO_WORKERS) return 'Personne pour travailler ici : posez une maison, ou donnez la priorité à ce bâtiment.';
   if (key === HINT_IDLE_WORKERS) return res === 'home' ? 'Des habitants n’ont pas de travail : posez un atelier.' : 'Ce chantier attend des bras.';
   return 'Tracez une route depuis la porte, puis posez une maison.';
 }
