@@ -1,6 +1,7 @@
 // zinc:audio on the null backend (ZN-390): the mixer runs without a device and mix() hands its samples back, so
 // what plays, at which level and for how long is checked exactly. The WAV files are written here, sample by sample;
 // the Vorbis, FLAC and MP3 ones are assets/blip.* (0.1 s of a 440 Hz sine).
+import { readBytes } from 'zinc:assets';
 import { decode, load, tone, mix, backend, SAMPLE_RATE, setVolume, volume, stopAll, Sound, stream } from 'zinc:audio';
 
 /** A 16-bit PCM WAV file: `frames` frames of the same value per channel (32768 is full scale). */
@@ -110,6 +111,18 @@ for (const name of ['blip.ogg', 'blip.flac', 'blip.mp3']) {
   console.log(`${name}: ok ${s.ok} ${Math.round(s.duration * 100) / 100} s heard ${peak(m) > 0.05 && peak(m) < 0.2} 440 Hz ${n >= 80 && n <= 200} playing ${s.playing}`);
   s.unload();
 }
+
+// a long file (blip.mp3 over and over: 280 KB, 70 s) is decoded on a thread: load returns with the whole length known and play() works at
+// once; what plays is the file's sound, heard once the decode is done (samples() waits for it)
+const blipBytes = readBytes('blip.mp3'), longBytes: u8[] = [];
+for (let i = 0; i < 450; i++) for (const b of blipBytes) longBytes.push(b);
+const long = decode(longBytes, 'long.mp3');
+long.play();
+const early = peak(mix(480));
+const all = long.samples(0).length;
+const heard = mix(9600);
+console.log(`long mp3: ok ${long.ok} ${Math.round(long.duration) > 60} frames ${all > 60 * long.sampleRate} heard ${Math.max(early, peak(heard)) > 0.05} 440 Hz ${crossings(heard) > 60} playing ${long.playing}`);
+long.unload();
 
 const missing = load('missing.wav');
 const broken = decode([82, 73, 70, 70, 1, 2, 3, 4], 'broken.wav');

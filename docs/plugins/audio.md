@@ -84,8 +84,9 @@ run `ZINC_AUDIO_LOG=1` prints each sound started and ended and when the mix held
 - **Voices.** 32 voices play at once. When all are busy, a new `play()` replaces the oldest one-shot sound; a looping
   sound (the music) gives way only when every voice loops.
 - **Memory.** A sound is decoded whole when it loads and kept as 32-bit float samples at the file's own rate and channel
-  count: 8 bytes per stereo frame, 21 MiB per minute at 44.1 kHz. Effects are small; keep music short or mono until
-  streaming exists (ZN-440). Up to 256 sounds are loaded at once: `unload()` the ones a level no longer needs.
+  count: 8 bytes per stereo frame, 21 MiB per minute at 44.1 kHz. Effects are small. A long compressed file (256 KB or more, not WAV) is decoded on a background thread:
+  `load()` returns at once, `play()` works at once and the sound plays as it is decoded (silence only if playback outruns the decoder); for music that
+  should not stay in memory, use `openMusic()`. Up to 256 sounds are loaded at once: `unload()` the ones a level no longer needs.
 - **Rates and channels.** The mix is 48 kHz stereo. A file at another rate is resampled while it plays (linear), mono
   plays on both speakers, and a device at another rate gets the mix converted by miniaudio. The mix is not limited:
   sounds that add up above full scale are clipped by the device, so leave headroom (`volume`) when many play together.
