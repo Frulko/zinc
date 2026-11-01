@@ -441,6 +441,7 @@ struct Verifier {
           switch (l) {
             case 'a': case 'm': case 't': break;  // the receiver, checked above
             case 'x': case 'D': case 'B': case 'U': ok = needRef(reg, "argument"); break;
+            case 'A': ok = rc && needRef(reg, "argument"); break;  // an array of the receiver's element type (the checker has matched it)
             case 's': case 'w': case 'y': ok = needType(reg, strT, "argument"); break;
             case 'i': case 'u': case 'j': case 'z': case 'b': ok = needCls(reg, Cls::I, "argument"); break;
             case 'd': ok = needCls(reg, Cls::D, "argument"); break;

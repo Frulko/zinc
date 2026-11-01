@@ -538,6 +538,17 @@ template<class T> struct Array {
     return *this;
   }
   Array copyWithin(int32_t t, int32_t s) const { return copyWithin(t, s, length()); }
+  void set(const Array& src, int32_t off, int32_t from, int32_t to) const {
+    int32_t n = length(), m = src.length(); off = clampi(off, n); from = clampi(from, m); to = clampi(to, m);
+    int32_t c = to - from < n - off ? to - from : n - off;
+    if (c <= 0) return;
+    if (src.a->data == a->data) { if (off != from) { T* d = a->data; if (off < from) for (int32_t i = 0; i < c; i++) d[off + i] = d[from + i]; else for (int32_t i = c - 1; i >= 0; i--) d[off + i] = d[from + i]; } return; }
+    T* d = a->data + off; const T* s = src.a->data + from;
+    for (int32_t i = 0; i < c; i++) d[i] = s[i];
+  }
+  void set(const Array& src, int32_t off, int32_t from) const { set(src, off, from, src.length()); }
+  void set(const Array& src, int32_t off) const { set(src, off, 0, src.length()); }
+  void set(const Array& src) const { set(src, 0, 0, src.length()); }
   Array concat(const Array& o) const { Array r = slice(); for (int32_t i = 0; i < o.length(); i++) r.push_raw(o.a->data[i]); return r; }
   Array fill(const T& v) const { for (int32_t i = 0; i < length(); i++) a->data[i] = v; return *this; }
   Array fill(const T& v, int32_t s) const { return fill(v, s, length()); }

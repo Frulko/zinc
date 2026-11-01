@@ -178,6 +178,8 @@ interface Array<T> {
   sort(cmp: (a: T, b: T) => number): T[];
   reverse(): T[];
   copyWithin(target: i32, start: i32, end?: i32): T[];
+  /** The elements of `source` (all, or `start` up to `end`) copied in as one block from `offset` (the TypedArray method with a range of the source): what does not fit is left out. */
+  set(source: T[], offset?: i32, start?: i32, end?: i32): void;
   join(sep?: string): string;
   concat(other: T[]): T[];
   fill(v: T, start?: i32, end?: i32): T[];

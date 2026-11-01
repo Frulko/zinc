@@ -7,6 +7,13 @@ namespace zn::qjs {
 const char* kPrelude = R"JS(
 (function (g) {
   const write = g.__host_sysWrite, writeErr = g.__host_sysWriteErr;
+  // Array.prototype.set(source, offset, start, end): the typed engine's block copy for any array (the TypedArray method, with a range of the source); what does not fit is left out
+  if (!Array.prototype.set) Object.defineProperty(Array.prototype, 'set', { writable: true, configurable: true, value: function set(src, off, from, to) {
+    const n = this.length, m = src.length, rel = (i, d, k) => { i = i === undefined ? d : i | 0; if (i < 0) { i += k; if (i < 0) i = 0; } return i > k ? k : i; };
+    off = rel(off, 0, n); from = rel(from, 0, m); to = rel(to, m, m);
+    const c = Math.min(to - from, n - off), block = src === this ? src.slice(from, from + c) : src, base = src === this ? 0 : from;
+    for (let i = 0; i < c; i++) this[off + i] = block[base + i];
+  } });
   // zinc:worker (D181): QuickJS installs its own (src/qjs/worker_js.cpp); the engines that share this prelude (JavaScriptCore, V8, Hermes) have none yet
   if (!g.__recSchemaOf) g.__recSchemaOf = function () { throw new Error('zinc:worker runs on the Zinc engine and QuickJS; this engine has no workers yet'); };
   function quote(s) {
