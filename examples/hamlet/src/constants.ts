@@ -121,7 +121,7 @@ export const BATCH = 4;                // most a porter carries at once
 // ---- no-limit mode: nature refills itself below a threshold ----
 export const TREE_MIN = 18;             // below this many trees, one grows back every TREE_REGROW seconds
 export const TREE_REGROW = 10;
-export const TREE_REGROW_SLOW = 7;     // normal mode: seconds between two new trees (the forest recovers, slowly) ...
+export const TREE_REGROW_SLOW = 4;     // normal mode: seconds between two new trees (the forest recovers, slowly) ...
 export const TREE_CAP_SLOW = 1.5;      // ... up to this many times the no-limit threshold
 
 // ---- deer ----
@@ -138,13 +138,13 @@ export const DEER_GONE = 4;             // free slot
 export const DEER_REST = 5;             // lying up: night, or the long rest between two moves
 export const DEER_DRINK = 6;            // at the water's edge
 export const DEER_ALERT = 7;            // head up, frozen: someone is near (a hunter being stalked stands here until the shot)
-
-// ---- save ----
 export const DEER_STALK = 9;            // a wolf creeping up on its prey, low and slow
 export const DEER_CHASE = 10;           // a wolf running its prey down
 export const DEER_EAT = 11;             // at a carcass
 export const DEER_HOWL = 12;            // a wolf with its head up, at night
 export const DEER_CHARGE = 8;           // a cornered boar runs at the person, a moment before it runs away
+
+// ---- save ----
 export const SAVE_KEY = 'hamlet:save';
 export const SAVE_VERSION = 'H19';
 export const SAVE_DELAY = 2;            // seconds between two writes

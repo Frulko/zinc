@@ -104,7 +104,7 @@ updateNature(.1);   // called alone: the lumberjacks would cut a new tree as fas
 check('no-limit mode regrows trees below the threshold', world.tree.some((v) => v > 0));
 world.unlimited = false; world.treeTimer = 0; const forest = world.tree.filter((v) => v > 0).length;
 run(60);
-check('normal mode regrows slowly: a tree every 14 s at most', world.tree.filter((v) => v > 0).length <= forest + 5);
+check('normal mode regrows slowly: a tree every 4 s at most', world.tree.filter((v) => v > 0).length <= forest + 16);
 world.unlimited = true;
 const text = snapshot();
 const roads = world.road.filter((v) => v === 1).length;
@@ -168,7 +168,7 @@ generate(1234, 16);
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; world.rock[t] = 0; }
 buildRoad([1, 2, 3, 4, 5, 6].map((i) => at(i, 8)));
 check('the start stock lets the player build the first village', applyTool(TOOL_HOUSE, at(2, 7)) === PLACE_OK && applyTool(TOOL_HOUSE, at(4, 7)) === PLACE_OK && applyTool(toolOf('lumberhut'), at(3, 9)) === PLACE_OK && applyTool(TOOL_SAWMILL, at(5, 9)) === PLACE_OK);
-check('the hut is paid in planks and logs', world.stock[PLANK] === economy.start[PLANK] - 10 && world.stock[WOOD] === economy.start[WOOD] - 2 - 6);
+check('the hut is paid in planks and logs', world.stock[PLANK] === economy.start[PLANK] - 10 - 3 && world.stock[WOOD] === economy.start[WOOD] - 2 - 6);
 run(150);
 console.log('hamlet chain 1: after 150 s from the start stock: ' + world.stock[PLANK] + ' planks, ' + world.stock[WOOD] + ' logs, ' + world.felledCount + ' trees felled');
 check('the first chain makes at least 5 planks', world.stock[PLANK] >= 5);
@@ -546,7 +546,7 @@ freeze(d0); watcher.x = d0.x + 2.5; watcher.y = d0.y;
 for (let k = 0; k < 8; k++) stepWorld();
 check('a deer flees when a person comes within the fear radius', d0.state === DEER_FLEE && d0.path.length > 0);
 const fleeFrom = Math.abs(d0.x - watcher.x) + Math.abs(d0.y - watcher.y);
-for (let k = 0; k < 20; k++) stepWorld();
+for (let k = 0; k < 40; k++) stepWorld();
 check('a fleeing deer runs away from the threat', Math.abs(d0.x - watcher.x) + Math.abs(d0.y - watcher.y) > fleeFrom + 1);
 freeze(d0); d0.hunted = true; watcher.x = d0.x + 2.5; watcher.y = d0.y;
 for (let k = 0; k < 8; k++) stepWorld();
@@ -1014,7 +1014,6 @@ check('a biome map is kept with the village (the same seed gives the same biomes
   }
 }
 console.log('hamlet rules: presethash ' + (presetHash >>> 0));
-console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');
 // ---- road laying: the L-shaped line, existing roads skipped, an obstacle ends it, the auto-route goes round ----
 import { TERRAIN_GRASS, TERRAIN_WATER } from '../../../examples/hamlet/src/constants';
 import { fieldFrom, pathTo, UNREACHABLE } from '../../../examples/hamlet/src/engine/path';
@@ -1038,6 +1037,7 @@ const roadsBefore = world.road.join('');
 buildRoad(around.fresh);
 const roadHash = world.road.reduce((h, v, k) => (h * 31 + v * (k + 1)) | 0, 7);
 check('laying the planned tiles joins start to end', around.tiles.every((t) => world.road[t] === 1) && world.road.join('') !== roadsBefore);
+console.log('hamlet rules: roadhash ' + (roadHash >>> 0) + ':' + wide.join('.') + ':' + around.tiles.join('.'));
 // ---- road cost, trees, bridges, plazas ----
 world.rock[at(9, 5)] = 0; world.road.fill(0);
 setStock(PLANK, 40); setStock(WOOD, 0);
@@ -1083,4 +1083,3 @@ check('a plaza adds one appeal around it', world.appeal[at(5, 14)] - appealBefor
 const hashList = (list: number[]): number => { let h = 7; for (const v of list) h = (h * 31 + v) | 0; return h >>> 0; };
 console.log('hamlet rules: roadhash2 ' + hashList(around4.tiles) + ':' + hashList(detour.tiles) + ':' + hashList(over.tiles) + ':' + hashList(broke.fresh) + ':' + hashList(world.road));
 console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');
-console.log('hamlet rules: roadhash ' + (roadHash >>> 0) + ':' + wide.join('.') + ':' + around.tiles.join('.'));

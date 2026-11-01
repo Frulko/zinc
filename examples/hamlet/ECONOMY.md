@@ -128,3 +128,10 @@ Fire, collapse and petty theft, modelled on the Augustus study (`docs/reports/ha
 - **Messages and sound** (French, from `world.alerts`, drained by `ui/Messages.ts`): `Incendie : ...` and `Effondrement : ...` are urgent (banner, alarm, then the `fire` roar or `collapse` crash of `audio.ts`), a theft is a warning, rubble and a fire put out are plain lines. A `crackle` ambience plays while a ruin burns; flames and smoke are drawn by `view/fire.ts` (view only, nothing saved).
 - **Gatherers with nothing in reach**: a lumber hut, quarry, fishery or lodge whose worker finds no tree, deposit, shore or game within `WORK_RADIUS` shows the state `BS_NO_SOURCE` (*Plus d'arbre à portée*) and a `no_source` hint, instead of the stale *Plein*: its own houses or rock can wall the road in, and the way out is the gomme (trees can be razed, they bring nothing), a longer road or another site. A gatherer clears a stale *full* as soon as it finds work.
 - **Save**: `H18` adds `fire|damage|crime|burn` to each building and the `risks` flag at the end of the line; an older save is not loaded and starts a new village.
+
+## Tuning notes (2026-11-01)
+
+- Start stock (Normal): 28 logs, 20 planks, 2 leather; Difficile 20 logs, 14 planks; roads cost planks, so the opening needs a plank reserve.
+- `TREE_REGROW_SLOW` is 4 s: a forest recovers within a game.
+- The honey, mead, light and leather goals ask for the building only: houses eat those goods, so a stock count was unreachable.
+- The bot (`tests/data/hamlet/bot.ts`) wins Normal on some seeds of every size 24 preset it was tried on; size 40 and some seeds still fail (see `backlog/later.md`).

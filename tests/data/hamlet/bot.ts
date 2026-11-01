@@ -11,9 +11,11 @@ import { population } from '../../../examples/hamlet/src/engine/villagers';
 import { buildRoad, costOf } from '../../../examples/hamlet/src/rules/roadplan';
 import { canPay } from '../../../examples/hamlet/src/rules/stock';
 import { isUnlocked, scenarioWon } from '../../../examples/hamlet/src/rules/goals';
-import { economy, loadEconomy } from '../../../examples/hamlet/src/world/economy';
+import { economy, loadEconomy, Bloom } from '../../../examples/hamlet/src/world/economy';
 import { PRESETS } from '../../../examples/hamlet/src/gen/presets';
-import { TOOL_ROAD, TOOL_ERASE, HOUSE, PLACE_OK, ROLE_NAMES, DAY_TICKS, DAY_SECONDS, BS_NO_SOURCE } from '../../../examples/hamlet/src/constants';
+import { TOOL_ROAD, TOOL_ERASE, HOUSE, PLACE_OK, ROLE_NAMES, DAY_TICKS, DAY_SECONDS, BS_NO_SOURCE, DEER_GONE } from '../../../examples/hamlet/src/constants';
+import { BI_PLAIN } from '../../../examples/hamlet/src/gen/terrain';
+import { movePriority } from '../../../examples/hamlet/src/rules/labour';
 import { capacityOf, housingReport } from '../../../examples/hamlet/src/rules/housing';
 
 const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');
@@ -39,12 +41,12 @@ const VERBOSE = env('BOT_VERBOSE') === '1';
 // ---- the plan: what the bot builds, in order. A house entry waits for the houses to fill; any other entry waits for its stock (and blocks the later ones) ----
 class Want { id: string = ''; count: number = 0; constructor(id: string, count: number) { this.id = id; this.count = count; } }
 const PLAN: Want[] = [
-  new Want('house', 2), new Want('lumberhut', 1), new Want('sawmill', 1), new Want('house', 4), new Want('fishery', 1), new Want('house', 6), new Want('lumberhut', 2), new Want('lodge', 1),
-  new Want('smokehouse', 1), new Want('market', 1), new Want('well', 1), new Want('tannery', 1), new Want('house', 8), new Want('firehouse', 1), new Want('farm', 1), new Want('mill', 1), new Want('bakery', 1),
-  new Want('storehouse', 1), new Want('house', 10), new Want('claypit', 1), new Want('mine', 1), new Want('forge', 1), new Want('quarry', 1), new Want('house', 12), new Want('forager', 1),
-  new Want('apiary', 1), new Want('chandlery', 1), new Want('meadery', 1), new Want('tavern', 1), new Want('sawmill', 2), new Want('house', 14), new Want('works', 1), new Want('watchpost', 1),
-  new Want('lumberhut', 3), new Want('house', 16), new Want('farm', 2), new Want('market', 2), new Want('firehouse', 2), new Want('fishery', 2), new Want('mill', 2), new Want('house', 20), new Want('well', 2),
-  new Want('smokehouse', 2), new Want('lodge', 2), new Want('bakery', 2), new Want('house', 24), new Want('market', 3), new Want('firehouse', 3), new Want('well', 3), new Want('farm', 3), new Want('house', 30), new Want('house', 36),
+  new Want('house', 2), new Want('lumberhut', 1), new Want('sawmill', 1), new Want('house', 4), new Want('fishery', 1), new Want('house', 6), new Want('lumberhut', 2), new Want('farm', 1), new Want('lodge', 1), new Want('tannery', 1),
+  new Want('smokehouse', 1), new Want('mill', 1), new Want('bakery', 1), new Want('market', 1), new Want('well', 1), new Want('house', 8), new Want('firehouse', 1),
+  new Want('storehouse', 1), new Want('house', 10), new Want('forager', 1), new Want('apiary', 1), new Want('works', 1), new Want('watchpost', 1), new Want('chandlery', 1), new Want('meadery', 1), new Want('tavern', 1),
+  new Want('house', 12), new Want('firehouse', 2), new Want('sawmill', 2), new Want('market', 2), new Want('well', 2), new Want('house', 14), new Want('lumberhut', 3), new Want('farm', 2), new Want('house', 16),
+  new Want('works', 2), new Want('watchpost', 2), new Want('firehouse', 3), new Want('fishery', 2), new Want('mill', 2), new Want('house', 20), new Want('bakery', 2), new Want('smokehouse', 2), new Want('lodge', 2),
+  new Want('apiary', 2), new Want('house', 24), new Want('market', 3), new Want('well', 3), new Want('farm', 3), new Want('house', 30), new Want('house', 36), new Want('claypit', 1), new Want('mine', 1), new Want('forge', 1), new Want('quarry', 1),
 ];
 
 class Reach { dist: number[] = []; par: number[] = []; }
@@ -70,6 +72,18 @@ function treesAround(t: number, rad: number): number {
   for (let j = tileJ(t) - rad; j <= tileJ(t) + rad; j++) for (let i = tileI(t) - rad; i <= tileI(t) + rad; i++) if (i >= 0 && j >= 0 && i < world.size && j < world.size && world.tree[tileIndex(i, j)] > 0) n++;
   return n;
 }
+/** Trees near the tile that a worker could walk up to: some open ground beside them is reached from the road (a forest behind rock or water is no wood). */
+let scoring: Reach = new Reach();
+function treesWithin(t: number, rad: number): number {
+  let n = 0;
+  for (let j = tileJ(t) - rad; j <= tileJ(t) + rad; j++) for (let i = tileI(t) - rad; i <= tileI(t) + rad; i++) {
+    if (i < 0 || j < 0 || i >= world.size || j >= world.size) continue;
+    const u = tileIndex(i, j);
+    if (world.tree[u] === 0) continue;
+    for (let d = 0; d < 4; d++) { const v = neighbor(u, d); if (v >= 0 && (scoring.dist[v] >= 0 || v === t)) { n++; break; } }
+  }
+  return n;
+}
 function housesAround(t: number, rad: number): number {
   let n = 0;
   for (const b of world.buildings) if (b.alive && b.type === HOUSE && Math.abs(b.i - tileI(t)) + Math.abs(b.j - tileJ(t)) <= rad) n++;
@@ -83,10 +97,22 @@ function centre(): number {
 function score(id: string, t: number, d: number): number {
   const c = centre();
   if (id === 'house') return -d * 6 - near(t, world.gate) * .5 + world.appeal[t] * 5;
-  if (id === 'lumberhut') return treesAround(t, 4) * 3 - d * 4 - near(t, world.gate) * .3;
+  if (id === 'lumberhut') return treesWithin(t, 5) * 3 - d * 4 - near(t, world.gate) * .3;
   if (id === 'well') return housesAround(t, 4) * 6 - d - near(t, c) * .2;
+  if (id === 'apiary') { const rad = (economy.buildings[economy.typeOf(id)].bloom as Bloom).radius; let n = 0; for (let j = tileJ(t) - rad; j <= tileJ(t) + rad; j++) for (let i = tileI(t) - rad; i <= tileI(t) + rad; i++) if (i >= 0 && j >= 0 && i < world.size && j < world.size && (world.deco[tileIndex(i, j)] === 1 || world.deco[tileIndex(i, j)] === 2)) n++; return n * 4 - d * 3; }   // hives want flowers
+  if (id === 'farm') { const rad = (economy.buildings[economy.typeOf(id)].soil as Bloom).radius; let n = 0; for (let j = tileJ(t) - rad; j <= tileJ(t) + rad; j++) for (let i = tileI(t) - rad; i <= tileI(t) + rad; i++) if (i >= 0 && j >= 0 && i < world.size && j < world.size && world.biome[tileIndex(i, j)] === BI_PLAIN) n++; return n * 1.5 - d * 3; }   // fields want fertile plain
   if (id === 'market') return -near(t, c) * 2 - d;
   return -d * 4 - near(t, world.gate) * .5 - (economy.buildings[economy.typeOf(id)].appeal.length > 0 && economy.buildings[economy.typeOf(id)].appeal[0] < 0 ? housesAround(t, 4) * 4 : 0);   // dirty trades keep away from homes
+}
+/** Open ground the road network can reach (tiles within 16 steps of a road). */
+function openCount(): number { const r = reach(); let n = 0; for (let t = 0; t < world.size * world.size; t++) if (r.dist[t] > 0) n++; return n; }
+/** True when a building on the tile would cut the road network off from most of the ground it could grow into (the village walled itself in on a mountain or in a forest). */
+function shutsIn(t: number, base: number): boolean {
+  if (base < 30) return false;
+  const was = world.build[t]; world.build[t] = 0;
+  const left = openCount();
+  world.build[t] = was;
+  return left < Math.min(base, 60) * .6;
 }
 /** True when a building on the tile would shut in a dead end of the road (the bot used to wall its own village in: no tree, no room, nothing reachable). */
 function sealsRoad(t: number): boolean {
@@ -103,15 +129,16 @@ function sealsRoad(t: number): boolean {
 function tryPlace(id: string): boolean {
   const type = economy.typeOf(id), tool = toolOf(id), def = economy.buildings[type];
   if (!isUnlocked(type) || !canPay(def.cost)) return false;
-  const r = reach();
+  const r = reach(); scoring = r;
   let best = -1e9, bt = -1;
+  const cands: number[][] = [];
   for (let t = 0; t < world.size * world.size; t++) {
     const d = r.dist[t];
     if (d < 1) continue;
     let ok: boolean;
     if (d === 1 || !def.needsRoad) ok = checkTool(tool, t) === PLACE_OK;
     else { const p = r.par[t]; world.road[p] = 1; ok = checkTool(tool, t) === PLACE_OK; world.road[p] = 0; }
-    if (!ok || sealsRoad(t)) continue;
+    if (!ok || (env("BOT_NOSEAL") !== "1" && sealsRoad(t))) continue;
     if (d > 1 && def.needsRoad) {                                            // the road to it is paid in planks too: the whole bill must be in the stores
       const chain: number[] = [];
       for (let p = r.par[t]; p >= 0 && world.road[p] === 0; p = r.par[p]) chain.push(p);
@@ -119,9 +146,11 @@ function tryPlace(id: string): boolean {
       const keep = id === 'lumberhut' && count('sawmill') === 0 ? 5 : 0;      // the first hut leaves a sawmill and a house to pay
       if (!canPay(def.cost.map((v: number, k: number): number => v + bill[k] + (k === economy.resourceOf('plank') ? keep : 0)))) continue;
     }
-    const s = score(id, t, d);
-    if (s > best) { best = s; bt = t; }
+    cands.push([score(id, t, d), t]);
   }
+  cands.sort((a: number[], b: number[]): number => b[0] - a[0] || a[1] - b[1]);
+  const base = openCount();
+  for (const c of cands) { if (!shutsIn(c[1], base)) { best = c[0]; bt = c[1]; break; } }
   if (bt < 0) return false;
   const laid: number[] = [];
   if (def.needsRoad) for (let p = r.par[bt]; p >= 0 && world.road[p] === 0; p = r.par[p]) laid.push(p);
@@ -181,11 +210,38 @@ function openForest(): void {
   }
 }
 
+const FOOD = ['tannery', 'farm', 'fishery', 'forager', 'lodge', 'smokehouse', 'mill', 'bakery'];
+/** The stores hold little to eat and nobody makes it yet at the pace of the village. */
+function foodShort(): boolean {
+  let n = 0;
+  for (const id of ['bread', 'fish', 'smoked_meat', 'meat', 'berries', 'honey']) n += world.stock[economy.resourceOf(id)];
+  return world.waitingForFood || n < 12;
+}
+/** The hands go to the food first (the Travail tab of the advisor does the same: farm, fishery, lodge and their mills at the top of the order). */
+function feedFirst(): void {
+  movePriority(economy.typeOf('tannery'), 100);                           // the tannery only has to stand: its hands go to food first
+  const order = ['farm', 'fishery', 'lodge', 'forager', 'mill', 'bakery', 'smokehouse'];
+  for (let k = order.length - 1; k >= 0; k--) { const type = economy.typeOf(order[k]); movePriority(type, -100); }
+}
+/** Deer that are alive on the map (the lodge's game). */
+function gameNear(): number { let n = 0; for (const d of world.deer) if (d.species === 0 && d.state !== DEER_GONE) n++; return n; }
+/** A gatherer that has found nothing for ten days is pulled down: its hands and its place are better used elsewhere (the plan builds it again where the game is). */
+const idleFor: number[] = [];
+function abandon(): void {
+  for (let id = 0; id < world.buildings.length; id++) {
+    while (idleFor.length <= id) idleFor.push(0);
+    const b = world.buildings[id];
+    if (b.alive && !b.fixed && b.state === BS_NO_SOURCE && economy.buildings[b.type].gather !== '') idleFor[id]++; else idleFor[id] = 0;
+    if (idleFor[id] > 40 && !(openCount() < 30 && economy.buildings[b.type].gather === 'tree')) { applyTool(TOOL_ERASE, tileIndex(b.i, b.j)); idleFor[id] = 0; if (VERBOSE) console.log('  day ' + Math.floor(world.tick / DAY_TICKS) + ' abandon ' + economy.buildings[b.type].id); }
+  }
+}
 let roadsLaid = false;
 function decide(): void {
   if (!roadsLaid) { { const east: number[] = []; for (let k = 0; k < 4 && isOpen(world.gate + 1 + k); k++) east.push(world.gate + 1 + k); buildRoad(east); /* a road east of the gate, as far as the ground is open */ } roadsLaid = true; }
   clearRuins();
+  abandon();
   openForest();
+  if (foodShort()) feedFirst();
   let blocker: number[] | null = null;
   for (const w of PLAN) {
     const type = economy.typeOf(w.id), def = economy.buildings[type];
@@ -193,7 +249,9 @@ function decide(): void {
     if (!isUnlocked(type)) { if (blocker === null && w.id !== 'house') blocker = def.cost; continue; }   // a goal will open it: save for it
     if (w.id === 'house' && (freeRoom() > 1 || (count('house') >= 3 && openJobs() <= idlePeople() && world.stock[economy.resourceOf('plank')] < 20))) continue;   // houses follow the jobs
     if (w.id === 'fishery' && !world.hasWater) continue;
-    if (w.id !== 'house' && def.workers > 0 && openJobs() > idlePeople() + 2) continue;      // people first: no new workplace while the ones built wait for hands
+    if (w.id === 'lodge' && gameNear() < 4) continue;                      // no deer around: a lodge would only hold two workers
+    if (w.id === 'smokehouse' && count('lodge') === 0) continue;
+    if (w.id !== 'house' && def.workers > 0 && openJobs() > idlePeople() + 2 && !(FOOD.indexOf(w.id) >= 0 && foodShort())) continue;   // food first: people come only where there is bread      // people first: no new workplace while the ones built wait for hands
     if (blocker !== null && touches(def.cost, blocker)) continue;
     if (tryPlace(w.id)) { if (VERBOSE) console.log('  day ' + Math.floor(world.tick / DAY_TICKS) + ' build ' + w.id + ' planks left ' + world.stock[economy.resourceOf('plank')]); continue; }
     if (!canPay(def.cost)) { if (blocker === null && w.id !== 'house') blocker = def.cost; }   // wait for the stock
@@ -213,7 +271,7 @@ function stockLine(): string {
 function play(seed: number, size: number, preset: number): Run {
   const run = new Run(), params = PRESETS[preset].params;   // the generator only sets its tile and clearing fields: the same every time
   world.autosave = false; world.unlimited = SANDBOX; world.difficulty = SANDBOX ? -1 : LEVEL; generate(seed, size, params);
-  world.progression = !SANDBOX; world.risks = !SANDBOX; roadsLaid = false;
+  world.progression = !SANDBOX; world.risks = !SANDBOX; roadsLaid = false; idleFor.length = 0;
   run.seed = seed; run.size = size; run.preset = preset;
   for (const g of economy.goals) run.goalDay.push(-1);
   let everPeople = false;
