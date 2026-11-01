@@ -12,6 +12,7 @@ import { settings } from '../settings';
 import { economy } from '../world/economy';
 import { take } from '../rules/stock';
 import { rankOf } from '../rules/labour';
+import { capacityOf } from '../rules/housing';
 import { startRoam, roamTick } from './services';
 import { findLoad, haulOut, fetchInput, hasRoomFor, readyBatch, exportsOk, pickUp, putDown, cancelTransport } from './transport';
 
@@ -67,7 +68,7 @@ function updateSettlers(dt: number): void {
   for (const b of world.buildings) {
     if (!b.alive || b.type !== HOUSE) continue;
     const housing = economy.buildings[HOUSE].housing as Housing;
-    if (b.residents >= housing.capacity || !isConnected(b)) continue;
+    if (b.residents >= capacityOf(b) || !isConnected(b)) continue;
     b.timer -= dt;
     if (b.timer > 0) continue;
     const needsFood = population() >= housing.free;
@@ -136,6 +137,17 @@ export function releaseWorkers(siteId: number): void {
     p.job = -1; p.role = ROLE_RESIDENT; p.carry = 0; p.load = 0; p.state = ST_IDLE; p.path = []; p.step = 0; p.timer = 1;
   }
   world.buildings[siteId].workers = 0;
+}
+/** A house lost a level: the people beyond `keep` leave. */
+export function evictResidents(houseId: number, keep: number): void {
+  const kept: Person[] = [];
+  let seen = 0;
+  for (const p of world.people) {
+    if (p.home !== houseId || seen++ < keep) { kept.push(p); continue; }
+    releaseClaims(p); cancelTransport(p);
+    if (p.job >= 0) world.buildings[p.job].workers--;
+  }
+  world.people = kept; world.buildings[houseId].residents = Math.min(world.buildings[houseId].residents, keep);
 }
 /** A house was torn down: its inhabitants leave. */
 export function removeResidents(houseId: number): void {

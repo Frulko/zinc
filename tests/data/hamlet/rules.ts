@@ -16,6 +16,7 @@ import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine/transport';
 import { adviceLine } from '../../../examples/hamlet/src/hud';
 import { toolOf } from '../../../examples/hamlet/src/rules/build';
+import { housingReport, capacityOf } from '../../../examples/hamlet/src/rules/housing';
 import { movePriority } from '../../../examples/hamlet/src/rules/labour';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
 
@@ -211,6 +212,31 @@ check('coverage over a fixed road layout is deterministic (same covers and state
 applyTool(TOOL_ERASE, at(5, 9));
 run(90);
 check('without the market the counters decay to zero, a day at a time', ids.every((h) => world.buildings[h].cover[MARKET] === 0));
+// ---- housing levels: needs, hysteresis, capacity, and the report in words ----
+generate(1234, 16); rich(); clearRow();
+const WATER = economy.serviceOf('water'), SMOKED2 = economy.resourceOf('smoked_meat'), BREAD2 = economy.resourceOf('bread');
+const hh = addBuilding(HOUSE, at(2, 7)), cabin = world.buildings[hh];
+createResident(hh); createResident(hh); cabin.residents = 2; cabin.timer = 1e9;
+check('a new house is level 0 and its report says what the next level lacks', cabin.level === 0 && housingReport(cabin).text.indexOf('marché') >= 0 && housingReport(cabin).missing.length >= 2);
+applyTool(toolOf('market'), at(5, 9));
+const kids = addBuilding(HOUSE, at(4, 7)); createResident(kids); createResident(kids); world.buildings[kids].residents = 2; world.buildings[kids].timer = 1e9;   // idle hands for the vendor
+setStock(SMOKED2, 60); setStock(BREAD2, 60); cabin.cover[WATER] = 9999;
+const stocked = world.stock[SMOKED2] + world.stock[BREAD2];
+run(200);
+check('the market and a meal lift the house to level 1: capacity grows', cabin.level === 1 && capacityOf(cabin) === 4 && world.stock[SMOKED2] + world.stock[BREAD2] < stocked);
+check('level 2 still lacks appeal, and the report says so', cabin.level === 1 && housingReport(cabin).text.indexOf('agréable') >= 0 && computeHints().some((h) => h.kind === 'house_needs' && h.tile === at(2, 7)));
+world.appeal[at(2, 7)] = 3;
+run(120);
+check('with water, two foods and appeal the house reaches level 2 (capacity 6)', cabin.level === 2 && capacityOf(cabin) === 6 && housingReport(cabin).top);
+cabin.timer = 0; run(10);
+applyTool(TOOL_ERASE, at(5, 9));
+run(60);
+check('hysteresis: three days without a market do not take the level away', cabin.level === 2);
+cabin.cover[WATER] = 9999; world.appeal[at(2, 7)] = 3;
+run(240);
+check('after the devolve days the house falls back and the surplus residents leave', cabin.level < 2 && cabin.residents <= capacityOf(cabin) && world.people.filter((p) => p.home === hh).length === cabin.residents);
+const saved = snapshot();
+check('the levels survive a save round trip', restore(saved) && snapshot() === saved);
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; }

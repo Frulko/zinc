@@ -5,7 +5,7 @@ import { addBuilding } from '../rules/build';
 import { createResident } from '../engine/villagers';
 import { stockWithCarried } from '../engine/transport';
 
-// One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock and cover with | between resources);trees(tile.variant);unlimited;tick;rng;priority
+// One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock, cover, level, streak and meals; lists with | between);trees(tile.variant);unlimited;tick;rng;priority
 function numbers(text: string): number[] {
   const out: number[] = [];
   if (text === '') return out;
@@ -16,7 +16,7 @@ function numbers(text: string): number[] {
 export function snapshot(): string {
   const roads: number[] = [], buildings: string[] = [], trees: string[] = [];
   for (let t = 0; t < tileCount(); t++) if (world.road[t]) roads.push(t);
-  for (const b of world.buildings) if (b.alive) buildings.push(b.type + '.' + tileIndex(b.i, b.j) + '.' + b.residents + '.' + stockWithCarried(world.buildings.indexOf(b)).join('|') + '.' + b.cover.join('|'));
+  for (const b of world.buildings) if (b.alive) buildings.push(b.type + '.' + tileIndex(b.i, b.j) + '.' + b.residents + '.' + stockWithCarried(world.buildings.indexOf(b)).join('|') + '.' + b.cover.join('|') + '.' + b.level + '.' + b.streak + '.' + b.fed.join('|'));
   for (let t = 0; t < tileCount(); t++) if (world.tree[t] > 0) trees.push(t + '.' + world.tree[t]);
   return [SAVE_VERSION, String(world.seed), String(world.size), roads.join(','), buildings.join(','), trees.join(','), world.unlimited ? '1' : '0', String(world.tick), String(world.rng), world.priority.join(',')].join(';');
 }
@@ -38,6 +38,7 @@ export function restore(text: string): boolean {
       const parts = entry.split('.'), type = Number(parts[0]), tile = Number(parts[1]);
       const id = world.build[tile] >= 0 ? world.build[tile] : addBuilding(type, tile);       // the hall already stands, empty of its start stock
       world.buildings[id].stock = parts[3].split('|').map((v: string): number => Number(v));
+      world.buildings[id].level = Number(parts[5]); world.buildings[id].streak = Number(parts[6]); world.buildings[id].fed = parts[7].split('|').map((v: string): number => Number(v));
       world.buildings[id].cover = parts[4].split('|').map((v: string): number => Number(v));
       if (type === HOUSE) {
         for (let n = 0; n < Number(parts[2]); n++) createResident(id);

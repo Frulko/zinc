@@ -5,7 +5,7 @@ import {
 import { TILE, TERRAIN_VOID } from '../constants';
 import { GRASS_TONES, WATER_TONES, SAND_TONES, ROAD_COLOR } from '../palettes';
 import { world, waterField, tileX, tileY, tileAt, tileCount, neighbor } from '../world/world';
-import { models, MODEL_HOUSE, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, resetModels, TREE_HEIGHT } from './models';
+import { models, modelOf, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, resetModels, TREE_HEIGHT } from './models';
 import { settings } from '../settings';
 import { camera, ZOOM_SCALES, DEFAULT_ZOOM, artLevel, windowWidth, windowHeight, scaleOf, layerWidth, layerHeight, layerOriginX, layerOriginY, applyCamera, centerOn, centerPoint, panBy } from './camera';
 
@@ -158,7 +158,7 @@ export function forceFullBake(): void { forceFull = true; }
 
 function tileSig(t: number): number {
   const b = world.build[t];
-  return (((world.tree[t] * 3 + world.rock[t]) * 3 + world.deco[t]) * 64 + (b >= 0 ? 1 + world.buildings[b].type : 0)) * 2 + world.road[t] + (world.terrain[t] === TERRAIN_VOID ? 100000 : 0);
+  return (((world.tree[t] * 3 + world.rock[t]) * 3 + world.deco[t]) * 256 + (b >= 0 ? 1 + world.buildings[b].type + 64 * world.buildings[b].level : 0)) * 2 + world.road[t] + (world.terrain[t] === TERRAIN_VOID ? 100000 : 0);
 }
 
 /** The window rectangle (x0, y0, x1, y1; x1, y1 excluded) that a tile can change: its ground, what stands on it, its shadow and its tall crown. */
@@ -235,7 +235,7 @@ function bakeRects(layer: Layer, rects: number[]): void {
       }
       if (world.rock[t] > 0) { models[MODEL_ROCK + world.rock[t] - 1].drawAt(x, y, 0); castShadow(x, y, .4, .6); }
       if (world.build[t] >= 0) {
-        models[MODEL_HOUSE + world.buildings[world.build[t]].type].drawAt(x, y, 0);
+        models[modelOf(world.buildings[world.build[t]].type, world.buildings[world.build[t]].level)].drawAt(x, y, 0);
         for (let z = .4; z < 2.6; z += .55) castShadow(x, y, z, .85);
       }
     }

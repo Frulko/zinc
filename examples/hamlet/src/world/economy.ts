@@ -6,7 +6,13 @@ export class Resource { id: string = ''; label: string = ''; carry: string = '';
 export class Service { id: string = ''; label: string = ''; }
 /** What a service building gives: a walker on a round of `range` steps over the roads, or (no walker) every house within `radius` tiles. */
 export class ServiceDef { service: number = -1; walker: boolean = false; range: number = 16; radius: number = 0; }
-export class Housing { capacity: number = 0; free: number = 0; eats: number[] = []; }
+/** What a house of a level holds and what it needs to reach (and to keep) that level. */
+export class HouseLevel { label: string = ''; capacity: number = 0; services: number[] = []; foods: number = 0; appeal: number = 0; }
+/** `capacity` is the first level's. A house gains a level after `evolveDays` days meeting the next one's needs and loses one after `devolveDays` days failing its own (needs slackened by `margin` appeal). */
+export class Housing {
+  capacity: number = 0; free: number = 0; eats: number[] = []; levels: HouseLevel[] = []; mealsFrom: number = -1;
+  evolveDays: number = 2; devolveDays: number = 4; margin: number = 1;
+}
 export class BuildingDef {
   id: string = ''; label: string = ''; short: string = ''; hint: string = ''; order: number = 0; model: string = '';
   cost: number[] = []; workers: number = 0; role: string = ''; roleId: number = -1;
@@ -88,6 +94,17 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
       h.capacity = num(b.housing, 'capacity', 2, where + '.housing', errors); h.free = num(b.housing, 'free', 0, where + '.housing', errors);
       const eats: string[] = b.housing.eats === undefined ? [] : b.housing.eats as string[];
       for (const e of eats) { const k = ids.indexOf(e); if (k < 0) errors.push('unknown-resource: ' + where + '.housing.eats uses "' + e + '"'); else h.eats.push(k); }
+      h.evolveDays = num(b.housing, 'evolveDays', 2, where + '.housing', errors); h.devolveDays = num(b.housing, 'devolveDays', 4, where + '.housing', errors); h.margin = num(b.housing, 'margin', 1, where + '.housing', errors);
+      if (b.housing.mealsFrom !== undefined) { h.mealsFrom = into.serviceOf(String(b.housing.mealsFrom)); if (h.mealsFrom < 0) errors.push('bad-service: ' + where + '.housing.mealsFrom names the unknown service "' + String(b.housing.mealsFrom) + '"'); }
+      const first = new HouseLevel(); first.label = d.label; first.capacity = h.capacity; h.levels.push(first);
+      for (const lv of (b.housing.levels === undefined ? [] : b.housing.levels) as any[]) {
+        const l = new HouseLevel(), needs: any = lv.needs === undefined ? {} : lv.needs;
+        l.label = String(lv.label === undefined ? d.label : lv.label); l.capacity = num(lv, 'capacity', h.capacity, where + '.housing.levels', errors);
+        l.foods = num(needs, 'foods', 0, where + '.housing.levels', errors); l.appeal = needs.appeal === undefined ? 0 : Number(needs.appeal);
+        for (const sid of (needs.services === undefined ? [] : needs.services) as string[]) { const k = into.serviceOf(sid); if (k < 0) errors.push('bad-service: ' + where + '.housing.levels needs the unknown service "' + sid + '"'); else l.services.push(k); }
+        if (l.capacity < h.levels[h.levels.length - 1].capacity) errors.push('negative-number: ' + where + '.housing.levels: capacity must not shrink from one level to the next');
+        h.levels.push(l);
+      }
       d.housing = h;
     }
     if (b.service !== undefined) {

@@ -1,6 +1,7 @@
 import { HOUSE, BS_WAITING, BS_FULL, BS_ISOLATED, ROLE_SETTLER, ROLE_RESIDENT } from '../constants';
 import { world, neighbor } from '../world/world';
 import { economy, ServiceDef, Service } from '../world/economy';
+import { housingReport } from './housing';
 
 // Attention hints: what the player should look at, as a pure function of the world (no drawing, no state). The view draws an arrow over each tile.
 export const HINT_NO_ROAD = 'no_road';              // a building that needs a road has none to a store: nothing leaves it and nothing comes
@@ -11,6 +12,7 @@ export const HINT_DELIVER_HERE = 'deliver_here';    // a producer waits for a re
 export const HINT_NO_WORKERS = 'no_workers';        // a workplace lacks hands and nobody is idle: more houses
 export const HINT_BUILD_NEXT = 'build_next';        // first run: the village has nothing but its hall, start at the gate
 export const HINT_NO_SERVICE = 'no_service';        // a house is outside the reach of a service the village does offer (`no_service:<service id>`)
+export const HINT_HOUSE_NEEDS = 'house_needs';      // a house lacks one thing for its next level, or is about to fall back: `housingReport(house).text` says what
 export const MAX_HINTS = 12;
 
 /** `reason` is a short key the HUD maps to text: the kind, or `kind:resource id` when a resource is concerned. */
@@ -36,7 +38,12 @@ export function computeHints(): Hint[] {
   for (let id = 0; id < world.buildings.length; id++) {
     const b = world.buildings[id];
     if (!b.alive) continue;
-    if (b.type === HOUSE && b.residents > 0) for (let k = 0; k < offered.length; k++) if (offered[k] === 1 && b.cover[k] === 0) { out.push(make(HINT_NO_SERVICE, b.j * world.size + b.i, HINT_NO_SERVICE + ':' + economy.services[k].id, 1)); break; }
+    if (b.type === HOUSE && b.residents > 0) {
+      let flagged = false;
+      for (let k = 0; k < offered.length && !flagged; k++) if (offered[k] === 1 && b.cover[k] === 0) { out.push(make(HINT_NO_SERVICE, b.j * world.size + b.i, HINT_NO_SERVICE + ':' + economy.services[k].id, 1)); flagged = true; }
+      const report = housingReport(b);          // a house one requirement short of the next level, or about to lose its own
+      if (!flagged && (report.atRisk || report.missing.length === 1)) out.push(make(HINT_HOUSE_NEEDS, b.j * world.size + b.i, HINT_HOUSE_NEEDS + ':' + (report.atRisk ? 'decline' : report.missing[0].id), 1));
+    }
     const def = economy.buildings[b.type], tile = b.j * world.size + b.i;
     if (!b.fixed) built++;
     if (def.needsRoad && !def.store && (b.state === BS_ISOLATED || !nextToRoad(tile))) { out.push(make(HINT_NO_ROAD, tile, HINT_NO_ROAD, 3)); continue; }
@@ -62,6 +69,7 @@ export function computeHints(): Hint[] {
 /** The sentence of a hint for the HUD (the advice line can show the first hint of computeHints). */
 export function hintText(h: Hint): string {
   const colon = h.reason.indexOf(':'), key = colon < 0 ? h.reason : h.reason.slice(0, colon), res = colon < 0 ? '' : h.reason.slice(colon + 1);
+  if (key === HINT_HOUSE_NEEDS) { const id = world.build[h.tile]; return id >= 0 ? housingReport(world.buildings[id]).text : ''; }
   const label = res === '' || res === 'site' || res === 'home' ? '' : key === HINT_NO_SERVICE ? economy.services[economy.serviceOf(res)].label : economy.resources[economy.resourceOf(res)].label;
   if (key === HINT_NO_ROAD) return 'Aucune route ne relie ce bâtiment à un entrepôt.';
   if (key === HINT_NO_INPUT) return 'Il manque : ' + label + '. Posez de quoi en produire.';

@@ -14,6 +14,9 @@ export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'sto
 export const MODEL_GATE = MODEL_IDS.length;
 export const MODEL_TREE = MODEL_GATE + 1;            // 4 variants
 export const MODEL_ROCK = MODEL_TREE + 4;            // 2 variants
+export const MODEL_HOUSE_UP = MODEL_ROCK + 2;         // the house at level 2 and 3 (level 1 is MODEL_HOUSE)
+/** The model of a building on the map: houses change with their level. */
+export function modelOf(type: number, level: number): number { return type === 0 && level > 0 ? MODEL_HOUSE_UP + Math.min(level, 2) - 1 : MODEL_HOUSE + type; }
 export const TREE_HEIGHT: number[] = [2.8, 3.3, 3.8, 3.2];
 /** The models of the zoom level in use. Each level has its own set, baked once (the stamp depends on pixels per unit). */
 export const models: CachedModel[] = [];
@@ -49,6 +52,31 @@ function house(): void {
   box(.71, -.34, .6, .76, .12, 1.12, [70, 96, 92]);                    // window
   box(.7, -.38, .55, .8, .16, .6, [148, 124, 94]);                     // sill
   box(.32, -.42, 1.7, .62, -.14, 2.55, [186, 170, 140]);               // chimney
+}
+
+/** The house at level 2: a taller stone house with an upper row of windows, a porch and a dormer. */
+function house2(): void {
+  box(-.74, -.74, 0, .74, .74, 2.05, STONE);
+  box(-.74, -.74, 1.0, .74, .74, 1.07, [176, 150, 112]);                    // floor band
+  gableRoof(-.94, .94, -.88, .88, 2.0, 1.1, TERRACOTTA, 0);
+  gableWall(-.74, .74, .74, 2.05, 1.1, .94, STONE);
+  box(-.2, .73, 0, .2, .79, .98, [112, 84, 56]);                           // door
+  box(-.5, .73, .1, .5, 1.0, .2, [148, 124, 94]);                           // porch step
+  box(.72, -.4, .5, .78, .1, 1.0, [70, 96, 92]); box(.72, -.4, 1.35, .78, .1, 1.85, [70, 96, 92]);   // windows, ground and upper
+  box(-.5, .73, 1.3, -.1, .78, 1.8, [70, 96, 92]);
+  box(.34, -.45, 2.4, .64, -.15, 3.3, [186, 170, 140]);                      // chimney
+}
+/** The house at level 3: a plastered manor with a slate roof, a balcony, two chimneys and a flower box. */
+function house3(): void {
+  box(-.78, -.78, 0, .78, .78, 2.1, [226, 208, 170]);
+  box(-.8, -.8, 0, .8, .8, .2, [150, 140, 126]);                            // stone plinth
+  gableRoof(-1.0, 1.0, -.92, .92, 2.05, 1.3, [96, 104, 118], 7);
+  gableWall(-.78, .78, .78, 2.1, 1.3, 1.0, [226, 208, 170]);
+  box(-.22, .77, .2, .22, .83, 1.05, [96, 62, 44]);                         // door
+  box(-.5, .77, 1.4, .5, 1.05, 1.5, WOOD_BROWN); box(-.5, 1.0, 1.5, .5, 1.05, 1.9, [150, 118, 82]);   // balcony
+  for (let k = 0; k < 5; k++) sphere(-.4 + k * .2, 1.02, 1.58, .07, k % 2 === 0 ? [214, 96, 96] : [236, 200, 90], 'rough');   // flower box
+  box(.76, -.5, .6, .82, .2, 1.2, [70, 96, 92]); box(.76, -.5, 1.4, .82, .2, 1.9, [70, 96, 92]);
+  box(.4, -.55, 2.5, .7, -.25, 3.5, [196, 170, 130]); box(-.6, -.5, 2.5, -.3, -.2, 3.4, [196, 170, 130]);
 }
 
 function sawmill(): void {
@@ -284,7 +312,7 @@ export function resetModels(): void { for (let i = 0; i < levelAtlases.length; i
  * index of its first variant in this list, variants counted). They are baked through the atlas, so one cache and one invalidation serve all.
  */
 const MODEL_DEFS: [string, number, (variant: number) => void][] = [
-  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['gate', 1, gate], ['tree', 4, tree], ['rock', 2, rock],
+  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['gate', 1, gate], ['tree', 4, tree], ['rock', 2, rock], ['house2', 1, house2], ['house3', 1, house3],
 ];
 
 /** The atlas definition: one entry per model, one frame each (a static model has a single heading and pose). `reduceFrom` > 0 shrinks the sharp bake for the fixed-detail mode. */

@@ -16,7 +16,11 @@
   "hall": "storehouse",
   "buildings": [
     { "id": "house", "label": "Maison", "order": 1, "model": "house", "cost": { "plank": 3 },
-      "housing": { "capacity": 2, "free": 4, "eats": ["smoked_meat", "bread", "fish"] } },
+      "housing": { "capacity": 2, "free": 4, "eats": ["smoked_meat", "bread", "fish"], "mealsFrom": "market",
+        "evolveDays": 2, "devolveDays": 4, "margin": 1,
+        "levels": [
+          { "label": "Maison", "capacity": 4, "needs": { "services": ["market"], "foods": 1 } },
+          { "label": "Demeure", "capacity": 6, "needs": { "services": ["market", "water"], "foods": 2, "appeal": 2 } } ] } },
     { "id": "sawmill", "label": "Scierie", "order": 3, "model": "sawmill", "cost": { "plank": 2, "log": 6 },
       "workers": 2, "role": "sawyer", "inputs": { "log": 2 }, "outputs": { "plank": 1 }, "seconds": 6,
       "hint": "Une scierie scie les troncs en planches : elles servent à construire." },

@@ -9,6 +9,7 @@ export class Mover { x: number = 0; y: number = 0; yaw: number = 0; path: number
 /** A building: what it holds (`stock`, per resource of economy.json) and what its workers are doing (`state`, and `waitFor`, the resource it lacks). */
 export class Building {
   type: number = 0; i: number = 0; j: number = 0; alive: boolean = true; residents: number = 0; workers: number = 0; timer: number = 2;
+  level: number = 0; streak: number = 0; fed: number[] = [];   // houses: level, days in a row meeting the next level (+) or failing this one (-), per food days of meals left
   cover: number[] = [];                                  // per service: days left of its coverage (houses only)
   stock: number[] = []; reserved: number[] = []; incoming: number[] = [];   // reserved: leaving with a porter; incoming: promised by one
   state: number = 0; waitFor: number = -1; fixed: boolean = false;       // fixed: stands from the start (the hall) and cannot be demolished
@@ -33,13 +34,14 @@ export interface World {
   revision: number;                 // bumped when the baked scenery must be redone
   saveDirty: boolean; lastSave: number; autosave: boolean;
   deerTimer: number; waitingForFood: boolean;
+  appeal: number[];                 // desirability per tile, recomputed daily (rules/appeal.ts)
   priority: number[];               // building types in the order idle residents are given work (rules/labour.ts)
 }
 
 /** A new building of a type on a tile, empty. The rules add buildings the same way (rules/build.ts). */
 export function newBuilding(type: number, t: number): number {
   const id = world.buildings.length, b = new Building(), none = (): number[] => economy.resources.map((_r: Resource): number => 0);
-  b.type = type; b.i = tileI(t); b.j = tileJ(t); b.cover = economy.services.map((_s: Service): number => 0); b.stock = none(); b.reserved = none(); b.incoming = none();
+  b.type = type; b.i = tileI(t); b.j = tileJ(t); b.fed = none(); b.cover = economy.services.map((_s: Service): number => 0); b.stock = none(); b.reserved = none(); b.incoming = none();
   world.buildings.push(b);
   world.build[t] = id; world.deco[t] = 0;
   return id;
@@ -56,7 +58,7 @@ export const world: World = {
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, priority: [],
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, appeal: [], priority: [],
 };
 
 // ---- tiles ----
@@ -119,7 +121,7 @@ export function generate(seed: number, size: number = DEFAULT_SIZE): void {
   world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.build = zeros(size); world.claimed = zeros(size);
   world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.stock = [];
   world.buildings = []; world.people = []; world.deer = []; world.felledCount = 0; world.treeTimer = 0;
-  world.deerTimer = 0; world.waitingForFood = false; world.priority = []; world.lastSave = 0; world.saveDirty = false;
+  world.deerTimer = 0; world.waitingForFood = false; world.priority = []; world.appeal = zeros(size); world.lastSave = 0; world.saveDirty = false;
   seedRandom(seed);
   world.offsetX = hash(seed, 1) * 40; world.offsetY = hash(seed, 2) * 40;
   const pondI = Math.floor(size * (.42 + hash(seed, 3) * .33));
