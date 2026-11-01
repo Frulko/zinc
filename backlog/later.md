@@ -669,6 +669,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-922: the screen-capture picker needs a `labels` option and its strings in the catalog (Go Live passes only its title and share label translated); Tooltip has no touch long-press; provider brand names stay as they are; French typographic apostrophes and the 12 French `_many` plural warnings of i18n-check; relative-time and date formats exist only for English and French (de/es/it catalogs absent, English fallback); `time(iso)` in MessageView and SidePane is not localized; tests that use `ui.find` with English labels depend on `ZINC_LANG=en` (set by tests/run); check by click that choosing the Slack theme in Settings works.
 - ZN-923: wrap the selection in the Slack formatting row (needs a selection API on `TextArea`: the buttons append markers); Slack's Apps section (bots in DMs), a hover time on grouped rows, Lato (OFL) if ever vendored, the workspace caret as a real menu, the truncated "Messages privés" header at 640 px; Teams right-aligned own bubbles in DMs, Files and Calendar items when data exists, the bottom icon row wrapping at 640 px.
 - ZN-923: `aria-label` on `VirtualList` is rejected by the compiler (Z0005): engine gap, small.
+- ZN-?: `.map(fn)` in JSX with a function imported from another file is not seen as a list of nodes (detection is per file, token level).
+- ZN-?: undo the Discord workarounds now that the gaps are fixed: the inline component for `{list.map(fn)}` and the loops over `any` in `state.ts` and `emoji.ts`.
+- ZN-?: `max-w-full` with a fixed `w-[N]` does not clamp inside an absolute `inset-0` root with padding (use `w-full max-w-[N]`), and `max-h-full` with a shrinking `h-[372]` ScrollView does not keep a centred absolute dialog inside the window height.
+- ZN-?: array mutation (`push`, `splice`, `sort`) and string methods on an `any` value are still refused (the new `any` array methods run on a copy).
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
@@ -979,6 +983,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-914: zinc:editor tokenizes only TS/JS, JSON, Markdown and CSS: add py, rust, c/cpp, go, sh, sql, html, diff (proven grammars, e.g. Prism or highlight.js) so the picker's other languages highlight; the code panel is a fixed 160 px (grow with its lines) and the folded block assumes 18 px lines.
 - ZN-915: the real minimum window size (`zinc.json` `minWidth`) and widths below 640 px are unverified; CallView and Settings were not reviewed at narrow widths.
 - ZN-916: Slack theme lacks square avatars, the Lato font and the 3-section sidebar (Channels / Direct messages / Apps) with a workspace menu; Teams lacks its left activity rail and the purple selected-channel bar.
+- ZN-?: Discord at 320 px: the composer should fold some buttons into a menu (the placeholder reads "Message #"), the Go Live dialog needs a smaller list on short windows (footer pushed off a 700 px window), the image viewer hides its caption.
+- ZN-?: Discord voice AEC: replace the `isHeadphones` name guess with the device type or transport that miniaudio/CoreAudio reports; add a T1 loopback with a simulated room in the fake microphone path.
 
 ## Cross-platform pass
 - ZN-918: check that `zn_webp_dec` links in the AOT and export builds on Windows and the cross targets (`tests/t0/webp_bytes.sh` runs AOT on the Mac only).
@@ -1147,3 +1153,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-888: a T1 test with the real player in shell mode (ZINC_FBDEV_SIM) and zinc device run/stop through the agent, instead of stand-in sockets.
 - ZN-889: `zinc publish --target rpi --export` from the Mac, then on the Pi 3B+ install a .zapp and an export app from the hub over Wi-Fi, launch, Home; check that the `tar -h` player bundle of image/build.sh builds there.
 - D195 Pi A/B image: build an "ab": true image and its bundle (tools/pi-image keys, build, bundle); on a Pi 3B+ and a Pi 4/5 run zinc-system-update install: tryboot into B, mark-good commits config.txt, a failing session, pulled plug or watchdog in B returns to A; users, Wi-Fi, SSH keys, apps and pairing survive; verity bundles work on the Pi kernel.
+- ZN-?: Discord voice AEC: verify the `plugin.json` SpeexDSP defines on the Linux, Windows and Raspberry Pi builds.
