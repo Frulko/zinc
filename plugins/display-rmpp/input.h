@@ -48,6 +48,8 @@ static bool pen_down = false;       // the Marker touches the glass: a stroke fo
 // Shown as a widget or hidden (AppLoad): evdev's Marker is in screen pixels and lands anywhere on xochitl, not on the app. Then the
 // app takes the pen only as AppLoad forwards it inside the widget card (already in framebuffer pixels), as a pointer: no ink samples.
 static bool pen_from_appload = false;
+static int pen_clip_top = 0;        // docked under xochitl's header: Marker samples above this panel row belong to the header, not the app
+static float pen_panel_y = 0;       // the panel row of the last place()
 enum { PEN_TOUCH_ID = -2 };         // AppLoad's pen, kept among the touches so it presses and releases like a finger
 // Palm rejection: a finger that lands while the Marker is in range (hover or down) or within palm_ms of it leaving is a palm, not a touch.
 // Its id is kept in `dropped` until it lifts, so its moves and release never reach the app either. ZINC_RMPP_PALM_MS overrides the 300 ms.
@@ -87,6 +89,7 @@ static void place(float u, float v, int rot, float* x, float* y) {
   float a = u, b = v;
   if (rot == 90) { a = 1 - v; b = u; } else if (rot == 180) { a = 1 - u; b = 1 - v; } else if (rot == 270) { a = v; b = 1 - u; }
   *x = a * (W - 1); *y = b * (H - 1);
+  pen_panel_y = *y;
   app_of(x, y);
 }
 /** evdev tilt to degrees: resolution is units/radian when the driver sets it, else the range maps to +-90. */
@@ -122,6 +125,7 @@ static void* reader(void*) {
         place(px, py, pen_rot, &s.x, &s.y);
         s.pressure = touching ? pp : 0; s.tilt_x = tx; s.tilt_y = ty;
         s.flags = (touching ? HAL_PEN_DOWN : (pen || rubber) ? HAL_PEN_HOVER : 0) | (rubber ? HAL_PEN_ERASER : 0);
+        if (pen_clip_top > 0 && pen_panel_y < pen_clip_top) s.flags = 0;   // over the header: a lifted pen
         push(s);
       }
     }

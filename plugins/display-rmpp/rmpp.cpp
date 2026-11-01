@@ -92,7 +92,8 @@ eink::Rect dock_rect() { return {0, std::min(std::max(dock_top, 0), panel.h), pa
 extern "C" void zn_hal_signal(const char* line);   // the host's system signals (src/host/hal_dispatch.cpp): zinc:ui's safe area
 // After a change of the window's state: where the pen and the top-edge swipe come from, and the safe area zinc:ui pads by
 void window_changed() {
-  rin::pen_from_appload = hidden || as_widget || docked;   // docked too: evdev's Marker would also write on xochitl's header
+  rin::pen_from_appload = hidden || as_widget;   // docked keeps evdev's Marker (ink, pressure, tilt): samples over xochitl's header are dropped
+  rin::pen_clip_top = docked ? dock_top : 0;
   if (rin::pen_from_appload) rin::touch_event(0x11, rin::PEN_TOUCH_ID, 0, 0);   // no stale press across the change
   rin::edge_top = hidden || as_widget ? -1 : docked ? dock_top : 0;
   // The header is a strip of the panel's physical top, in the app's logical pixels (panel / K): the top of a portrait surface, the left of a
