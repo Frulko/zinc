@@ -32,6 +32,8 @@ static bool layers_on = false;   // the driver was given layers at the last fram
 static bool shot_watch = false;   // a screenshot request waits for the frame to be drawn without hardware layers
 /** The screen is watched (a live viewer, a screenshot): hardware layers are off, so the frame has every pixel of the screen. */
 bool screen_watched() { return shot_watch || mirror_watching; }
+/** A picture in device memory is shown by a hardware layer now (the display has them, and nobody watches the screen). */
+bool layers_usable() { return display_driver && hal_display->layers && !screen_watched(); }
 static void present(const HalFrame* f) {
   if (display_driver) hal_display->present(f); else hal_present(f);
   if (mirror_present) mirror_present(f);
@@ -1333,7 +1335,7 @@ static void soft_pictures(Buf& b, uint32_t from) {
 }
 static void place_layers(Buf& b) {
   nlay = 0;
-  const bool can = display_driver && hal_display->layers && !screen_watched();
+  const bool can = layers_usable();
   HalLayer offer[HAL_MAX_LAYERS];
   int32_t n = 0;
   for (uint32_t i = 0; raster::dyn_pictures && i < b.ncmd; i++) {
