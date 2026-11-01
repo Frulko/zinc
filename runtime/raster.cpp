@@ -896,12 +896,35 @@ static void draw_smooth(const Target& t, const Cmd& c, const Tex& im, const Box&
   for (int32_t x = 1; x < n; x++) runs += col[x].i != col[x - 1].i;
   float* wt = runs * 4 <= n ? (float*)hal_alloc((size_t)n * 7 * sizeof(float)) : nullptr;   // w0..w3 then the stretched r, g, b, n floats each
   if (wt) for (int32_t x = 0; x < n; x++) for (int32_t k = 0; k < 4; k++) wt[k * n + x] = col[x].w[k];
+  // the source rows this call reads, as planar floats (rlo..rhi): the blend of four rows is then a vector loop over the texels of a row too
+  int32_t rlo = 0, rhi = -1;
+  float* pl = nullptr;
+  if (wt) {
+    const int32_t ya = ifloor_fast((b.y0 + 0.5f - m.y) * ky - 0.5f), yb = ifloor_fast((b.y1 - 1 + 0.5f - m.y) * ky - 0.5f);
+    rlo = clampi((ya < yb ? ya : yb) - 1, im.h);
+    rhi = clampi((ya < yb ? yb : ya) + 2, im.h);
+    pl = (float*)hal_alloc((size_t)(rhi - rlo + 1) * 3 * im.w * sizeof(float));
+    if (!pl) { hal_free(wt); wt = nullptr; }
+    else for (int32_t r = rlo; r <= rhi; r++)
+      for (int32_t x = 0; x < im.w; x++) {
+        const uint32_t p = texel(im, x, r);
+        for (int32_t ch = 0; ch < 3; ch++) pl[((size_t)(r - rlo) * 3 + ch) * im.w + x] = (float)((p >> (16 - 8 * ch)) & 255);
+      }
+  }
   for (int32_t y = b.y0; y < b.y1; y++) {
     const float fy = (y + 0.5f - m.y) * ky - 0.5f;
     const int32_t iy = ifloor_fast(fy);
     float wy[4];
     bspline(fy - iy, wy);
     const int32_t r0 = clampi(iy - 1, im.h), r1 = clampi(iy, im.h), r2 = clampi(iy + 1, im.h), r3 = clampi(iy + 2, im.h);
+    if (wt) {
+      for (int32_t ch = 0; ch < 3; ch++) {
+        const float* __restrict a0 = pl + ((size_t)(r0 - rlo) * 3 + ch) * im.w; const float* __restrict a1 = pl + ((size_t)(r1 - rlo) * 3 + ch) * im.w;
+        const float* __restrict a2 = pl + ((size_t)(r2 - rlo) * 3 + ch) * im.w; const float* __restrict a3 = pl + ((size_t)(r3 - rlo) * 3 + ch) * im.w;
+        float* __restrict o = row[ch] + 2;
+        for (int32_t x = 0; x < im.w; x++) o[x] = wy[0] * a0[x] + wy[1] * a1[x] + wy[2] * a2[x] + wy[3] * a3[x];
+      }
+    } else
     for (int32_t x = 0; x < im.w; x++) {
       const uint32_t p0 = texel(im, x, r0), p1 = texel(im, x, r1), p2 = texel(im, x, r2), p3 = texel(im, x, r3);
       for (int32_t ch = 0; ch < 3; ch++) {
@@ -944,6 +967,7 @@ static void draw_smooth(const Target& t, const Cmd& c, const Tex& im, const Box&
       if (c.alpha >= 255) dst[x] = out; else if (c.alpha) blend(dst[x], out, c.alpha);
     }
   }
+  hal_free(pl);
   hal_free(wt);
   hal_free(col);
 }
