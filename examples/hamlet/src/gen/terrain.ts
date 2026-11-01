@@ -25,13 +25,14 @@ export class TerrainParams {
   outcrop: number = 0;             // 0 none, up to 1: clusters of rock outcrops that displace the trees (mountain country)
   flowers: number = 0;             // 0 the default, up to 1: meadows full of flowers
   biomes: number = 1;              // 1: forests, meadows, marsh and rocky hills come from moisture, warmth and height fields (clumps and clearings); 0: the uniform scatter of the first villages
+  wolves: number = 0;              // 0 none; 1 a pack or two in forest country (and only there); 2 the same, and they can maul a villager alone at night
   edge: number = .985;             // beyond this superellipse radius the tiles are `outside` (the dissolved border of a diorama); 0 turns it off
 }
 /** A copy: the generator writes the entrance into the params it is given, so a shared set (a preset) must not be passed as is. */
 export function copyTerrainParams(p: TerrainParams): TerrainParams {
   const q = new TerrainParams();
   q.waterAmount = p.waterAmount; q.river = p.river; q.forestDensity = p.forestDensity; q.rockDensity = p.rockDensity; q.biome = p.biome; q.tile = p.tile; q.clearI = p.clearI; q.clearJ = p.clearJ; q.clearR = p.clearR;
-  q.coast = p.coast; q.outcrop = p.outcrop; q.flowers = p.flowers; q.biomes = p.biomes; q.edge = p.edge;
+  q.coast = p.coast; q.outcrop = p.outcrop; q.flowers = p.flowers; q.biomes = p.biomes; q.edge = p.edge; q.wolves = p.wolves;
   return q;
 }
 /** One value per tile, row after row (index = j * width + i). */

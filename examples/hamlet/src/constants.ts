@@ -79,6 +79,7 @@ export const ROAD_COST = 0.6;           // path cost of a road tile (grass is 1)
 export const AIM_SECONDS = 0.8;
 export const ARROW_SECONDS = 0.28;
 export const SHOOT_RANGE = 5.5;
+export const STALK_CROUCH = 9;          // a hunter this close to his quarry creeps (slower, low): engine/villagers.ts and the view
 export const ST_IDLE = 0;
 export const ST_STROLL = 1;
 export const ST_GO_WORK = 2;
@@ -131,6 +132,10 @@ export const DEER_DRINK = 6;            // at the water's edge
 export const DEER_ALERT = 7;            // head up, frozen: someone is near (a hunter being stalked stands here until the shot)
 
 // ---- save ----
+export const DEER_STALK = 9;            // a wolf creeping up on its prey, low and slow
+export const DEER_CHASE = 10;           // a wolf running its prey down
+export const DEER_EAT = 11;             // at a carcass
+export const DEER_HOWL = 12;            // a wolf with its head up, at night
 export const DEER_CHARGE = 8;           // a cornered boar runs at the person, a moment before it runs away
 export const SAVE_KEY = 'hamlet:save';
 export const SAVE_VERSION = 'H19';

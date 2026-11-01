@@ -17,8 +17,10 @@ import { camera, ZOOM_VIEW } from './camera';
 import { computeHints, Hint } from '../rules/hints';
 import { drainFx, fxDirty, drawFxBodies, drawFxSparks, drawSmoke, drawGlow } from './fx';
 import { beesDirty, drawBees } from './bees';
+import { wildlifeDirty, drawWildlife } from './wildlife';
 import { fireDirty, drawFire } from './fire';
 import { drawPerson, drawDeer, actorAtlas } from './actors';
+import { SP_RABBIT } from '../rules/species';
 
 const GRASS_LIT = GRASS.map((c: number[]): u32 => rgbColor(c));
 const GRASS_DARK = GRASS.map((c: number[]): u32 => rgb(c[0] * .54, c[1] * .52, c[2] * .72));
@@ -156,7 +158,10 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   if (seenBake !== bakeCount || edgedPix.length !== pix.length) prepare();
   const dirty: number[] = [], night = isNight();
   for (const p of world.people) { const a = project(p.x, p.y, 0); addRect(dirty, a.sx, a.sy, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 4.4 * S, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 2.4 * S); }
-  for (const d of world.deer) { const a = project(d.x, d.y, 0); addRect(dirty, a.sx, a.sy, 2.2 * S, 3.2 * S, 2.2 * S, 1.4 * S); }
+  for (const d of world.deer) {
+    const a = project(d.x, d.y, 0); addRect(dirty, a.sx, a.sy, 2.2 * S, 3.2 * S, 2.2 * S, 1.4 * S);
+    if (d.species === SP_RABBIT && d.home >= 0) { const b = project(tileX(d.home), tileY(d.home), 0); addRect(dirty, b.sx, b.sy, .6 * S, .5 * S, .6 * S, .4 * S); }   // its burrow
+  }
   if (settings.fx) for (const b of world.buildings) {
     if (!lit(b)) continue;
     const def = economy.buildings[b.type], t = b.j * world.size + b.i;
@@ -165,6 +170,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   }
   if (hover >= 0) { const a = project(tileX(hover), tileY(hover), 0); addRect(dirty, a.sx, a.sy, 2 * TILE * S, 5 * S, 2 * TILE * S, 1.2 * TILE * S); }
   beesDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
+  wildlifeDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S, time);
   fireDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
   drainFx(time);
   fxDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
@@ -208,6 +214,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   for (const p of world.people) drawPerson(p, time, atlas);
   drawFxBodies(time);
   drawBees(time);
+  drawWildlife(time);
   if (preview >= 0 && hover >= 0 && Math.floor(time * 3) % 2 === 0) models[MODEL_HOUSE + preview].drawAt(tileX(hover), tileY(hover), 0);
   if (settings.shadows) { flushShadows(); applyShadows(bakedZ); } else pendingShadows.length = 0;
   if (settings.edges) for (let k = 0; k < rects.length; k += 4) shadeEdgesRect(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);

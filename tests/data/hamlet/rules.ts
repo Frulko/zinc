@@ -11,7 +11,7 @@ import { stateHash } from '../../../examples/hamlet/src/world/hash';
 import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK, PLACE_NO_LODE, PLACE_LOCKED, ROLE_PEDDLER, ROCK_DEPOSIT, LODE_REACH } from '../../../examples/hamlet/src/constants';
 import * as fs from 'zinc:fs';
 import { parseBiomes } from '../../../examples/hamlet/src/world/biomes';
-import { BIOME_IDS, BI_PLAIN, BI_MARSH, DECO_REEDS, DECO_TRAIL } from '../../../examples/hamlet/src/gen/terrain';
+import { BIOME_IDS, BI_HILLS, BI_PLAIN, BI_MARSH, DECO_REEDS, DECO_TRAIL } from '../../../examples/hamlet/src/gen/terrain';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
 const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern', 'firehouse', 'works', 'watchpost', 'ruin'];
@@ -38,13 +38,13 @@ import { flowersAround, resting, workScale, soilAround } from '../../../examples
 import { MONTH_SECONDS } from '../../../examples/hamlet/src/rules/season';
 import { litBonus } from '../../../examples/hamlet/src/rules/housing';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
-import { dailyAnimals } from '../../../examples/hamlet/src/engine/deer';
-import { dailyMood } from '../../../examples/hamlet/src/engine/mood';
 import { isWalkable } from '../../../examples/hamlet/src/engine/path';
-import { SPECIES } from '../../../examples/hamlet/src/rules/species';
-import { Deer } from '../../../examples/hamlet/src/world/world';
+import { dailyAnimals, updateDeer } from '../../../examples/hamlet/src/engine/deer';
+import { dailyMood } from '../../../examples/hamlet/src/engine/mood';
+import { SPECIES, SP_WOLF, SP_RABBIT } from '../../../examples/hamlet/src/rules/species';
+import { Deer, spawnDeer, tileX } from '../../../examples/hamlet/src/world/world';
 import { personTarget, feelFrom, thoughtOf, workPace, arrivalFactor, leavingToday, FEEL_ANGRY, FEEL_HOMELESS, FEEL_HUNGRY, FEEL_TIRED, FEEL_JOBLESS, FEEL_CONTENT } from '../../../examples/hamlet/src/rules/needs';
-import { DEER_GRAZE, DEER_GONE, DEER_DEAD, DEER_ALERT, DEER_FLEE, DEER_REST, DEER_DRINK, ST_SLEEP, ST_HOME, DAY_TICKS } from '../../../examples/hamlet/src/constants';
+import { DEER_GRAZE, DEER_GONE, DEER_DEAD, DEER_ALERT, DEER_FLEE, DEER_REST, DEER_DRINK, DEER_STALK, DEER_CHASE, DEER_EAT, ST_SLEEP, ST_HOME, DAY_TICKS } from '../../../examples/hamlet/src/constants';
 
 const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');   // the test runs from the repository root
 loadEconomy(ECONOMY_TEXT, MODEL_IDS, ROLE_NAMES);
@@ -572,14 +572,6 @@ check('a thirsty deer walks to the water and drinks', drank);
   for (let day = 0; day < 30; day++) dailyAnimals();
   check('deer die of old age', world.deer.every((d) => d.state === DEER_GONE || d.state === DEER_DEAD));
 }
-// ---- residents: needs, mood, jobs, the daily round, newcomers and leavers ----
-generate(555, 16); rich(); world.progression = false;
-for (const t of [at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8), at(2, 7), at(4, 7), at(3, 9), at(5, 9)]) { world.tree[t] = 0; world.rock[t] = 0; }
-for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, tileIndex(i, 8));
-const hA = addBuilding(HOUSE, at(2, 7)), hB = addBuilding(HOUSE, at(4, 7));
-for (const h of [hA, hB]) { for (let n = 0; n < 4; n++) createResident(h); world.buildings[h].residents = 4; world.buildings[h].timer = 1e9; }
-dailyMood();
-check('people without a workplace anywhere are not jobless', world.jobless === 0 && world.people.every((p) => p.feel !== FEEL_JOBLESS));
 // ---- animal movement: never on a blocked tile, herds hold together, running is faster than walking, the heading turns at a limit ----
 {
   const live = (): Deer[] => world.deer.filter((d) => d.state !== DEER_GONE && d.state !== DEER_DEAD);
@@ -622,6 +614,129 @@ check('people without a workplace anywhere are not jobless', world.jobless === 0
   const hashes = live().map((d) => Math.round(d.x * 1000) * 31 + Math.round(d.y * 1000)).reduce((h, v) => (h * 31 + v) | 0, 7);
   console.log('hamlet rules: animalhash ' + (hashes >>> 0) + ':' + live().length);
 }
+const tileX2 = (i: number): number => (i + .5) * 2 - world.half;
+const isOpenBlocked = (t: number): boolean => !isOpen(t);
+// ---- wolves (opt-in packs), hunted game that bolts, rabbits and the winter ----
+{
+  const wolvesOf = (): Deer[] => world.deer.filter((d) => d.species === SP_WOLF && d.state !== DEER_GONE);
+  const withWolves = (mode: number, forest: number, seed: number): void => {
+    const p = new TerrainParams(); p.wolves = mode; p.forestDensity = forest; p.biomes = 0;
+    generate(seed, 24, p); world.people = []; world.progression = false; world.tick = 0;
+  };
+  generate(11, 24);
+  check('no wolf unless the village asks for them', wolvesOf().length === 0 && world.params.wolves === 0 && PRESETS[0].params.wolves === 0);
+  withWolves(1, 1, 11);
+  const pack = wolvesOf();
+  check('a pack of three to six with one alpha, in forest country', pack.length >= 3 && pack.length <= 6 && pack.filter((d) => d.stag).length === 1 && pack.filter((d) => d.leader >= 0).length === pack.length - 1);
+  withWolves(1, .05, 11);
+  check('the plain flag gives no wolf on open country', wolvesOf().length === 0);
+  withWolves(1, 1, 11);
+  const wtext = snapshot(), wfields = wtext.split(';');
+  check('the save keeps the wolves flag', restore(wtext) && world.params.wolves === 1 && wolvesOf().length >= 3);
+  const pf = wfields[10].split(',');
+  wfields[10] = pf.slice(0, 9).join(',');
+  check('a save from before the wolves has none', pf.length === 10 && restore(wfields.join(';')) && world.params.wolves === 0 && wolvesOf().length === 0);
+  // a wolf holds still to be looked at
+  withWolves(1, 1, 11);
+  const house1 = addBuilding(HOUSE, at(2, 7)); createResident(house1);
+  const watch = world.people[0]; watch.state = ST_SLEEP + 100;
+  const alpha = wolvesOf().filter((d) => d.stag)[0];
+  const still = (d: Deer): void => { d.state = DEER_GRAZE; d.timer = 1e6; d.path = []; d.step = 0; d.thirst = 0; d.leader = -1; d.hunger = 0; d.prey = -1; };
+  still(alpha); watch.x = alpha.x + 8; watch.y = alpha.y; world.tick = 0;
+  for (let k = 0; k < 8; k++) stepWorld();
+  check('a wolf freezes at a villager', alpha.state === DEER_ALERT);
+  watch.x = -1000; watch.y = -1000;
+  still(alpha); world.buildings[house1].burn = 5; const hx = (world.buildings[house1].i + .5) * 2 - world.half, hy = (world.buildings[house1].j + .5) * 2 - world.half;
+  alpha.x = hx + 10; alpha.y = hy; world.tick = 0;
+  for (let k = 0; k < 8; k++) stepWorld();
+  check('a wolf flees from a fire', alpha.state === DEER_FLEE);
+  world.buildings[house1].burn = 0;
+  // a villager alone at night: a fright, and only in the dangerous mode a mauling
+  for (const mode of [1, 2]) {
+    withWolves(mode, 1, 11);
+    const h = addBuilding(HOUSE, at(2, 7)); createResident(h);
+    const lone = world.people[0]; lone.state = ST_SLEEP + 100; lone.mood = 60;
+    const a = wolvesOf().filter((d) => d.stag)[0];
+    for (const w of wolvesOf()) w.leader = w === a ? -1 : a.id;
+    for (let j = 0; j < 24; j++) for (let i = 0; i < 24; i++) if (Math.abs(i - Math.floor((a.x + world.half) / 2)) < 7 && Math.abs(j - Math.floor((a.y + world.half) / 2)) < 5) world.tree[j * 24 + i] = 0;   // open ground between them
+    for (const d of world.deer) if (d.species !== SP_WOLF) d.state = DEER_GONE;      // nothing to hunt: only the villager is left
+    still(a); a.hunger = 100; a.cooldown = 0; lone.x = a.x - 8.5; lone.y = a.y; world.tick = Math.floor(DAY_TICKS * .8);
+    for (let k = 0; k < 32 * 30; k++) { world.tick = Math.floor(DAY_TICKS * .8) + (k % 40); stepWorld(); }
+    if (mode === 1) check('wolves frighten a villager alone at night, no one dies', lone.mood < 60 && world.people.length === 1 && world.news.some((n) => n.indexOf('suivi') >= 0));
+    else check('in the dangerous mode a villager alone at night can be lost', world.people.length === 0 && world.news.some((n) => n.indexOf('attaqué') >= 0));
+  }
+  // the hunt: stalk, chase, kill, feed; the herd flees; nobody on a blocked tile
+  withWolves(2, 1, 11);
+  const sawDead = new Set<number>();
+  let stalks = 0, chases = 0, eats = 0, flees = 0, blocked = 0, samples2 = 0;
+  const walkable2 = (d: Deer): boolean => { const t = tileAt(d.x, d.y); return t >= 0 && isWalkable(t); };
+  for (let k = 0; k < 32 * 300; k++) {
+    stepWorld();
+    if (k % 4 !== 0) continue;
+    for (const d of world.deer) {
+      if (d.state === DEER_GONE) continue;
+      if (d.state === DEER_DEAD) { if (d.errand === 9) sawDead.add(d.id); continue; }
+      if (d.species === SP_WOLF) { if (d.state === DEER_STALK) stalks++; if (d.state === DEER_CHASE) chases++; if (d.state === DEER_EAT) eats++; }
+      else if (d.species === 0 && d.state === DEER_FLEE) flees++;
+      samples2++; if (!walkable2(d)) blocked++;
+    }
+  }
+  check('wolves stalk, chase and feed (' + stalks + ', ' + chases + ', ' + eats + ' samples)', stalks > 0 && chases > 0 && eats > 0);
+  check('they bring a deer down (' + sawDead.size + ' kills) while the others flee', sawDead.size >= 1 && flees > 0);
+  check('no animal is on a blocked tile with wolves on (' + samples2 + ' samples)', blocked === 0 && samples2 > 1000);
+  const kills = world.deer.filter((d) => d.state === DEER_DEAD && d.errand === 9);
+  check('a kill is eaten away, it does not lie for ever', kills.every((d) => d.timer <= 26));
+  console.log('hamlet rules: wolfhash ' + (world.deer.map((d) => d.state + ':' + Math.round(d.x * 100) + ':' + Math.round(d.y * 100) + ':' + d.hunger.toFixed(1)).reduce((h2: number, v: string) => { let m = h2; for (let c = 0; c < v.length; c++) m = Math.imul(m ^ v.charCodeAt(c), 16777619); return m; }, 2166136261) >>> 0) + ':' + world.rng + ':' + stateHash());
+  // hungry or not, a pack keeps out of the village
+  withWolves(1, 1, 11);
+  const town = addBuilding(HOUSE, at(2, 7)); createResident(town);
+  for (const p of world.people) p.state = ST_SLEEP + 100;
+  let near = 0;
+  for (let k = 0; k < 32 * 120; k++) { for (const w of wolvesOf()) w.hunger = 0; stepWorld(); if (k % 4 === 0) for (const w of wolvesOf()) for (const b of world.buildings) if (b.alive && Math.abs(tileX2(b.i) - w.x) + Math.abs(tileX2(b.j) - w.y) < 5) near++; }
+  check('a fed pack keeps out of the village (' + near + ' samples within 5 units)', near === 0);
+  // a hunted deer notices a hunter who walks upright and bolts; one who stays out of its alert radius is not noticed
+  generate(4242, 16); world.people = [];
+  const hh = addBuilding(HOUSE, at(2, 7)); createResident(hh);
+  const hunter = world.people[0]; hunter.state = ST_SLEEP + 100;
+  const prey = world.deer.filter((d) => d.species === 0)[0];
+  const quarry = (d: Deer): void => { d.state = DEER_GRAZE; d.timer = 1e6; d.path = []; d.step = 0; d.thirst = 0; d.hunted = true; d.aware = 0; d.leader = -1; };
+  quarry(prey); hunter.x = prey.x + 9.5; hunter.y = prey.y; world.tick = 0;
+  for (let k = 0; k < 32 * 5; k++) stepWorld();
+  check('a hunter outside the alert radius is not noticed', prey.hunted && prey.state !== DEER_FLEE && prey.aware === 0);
+  quarry(prey); hunter.x = prey.x + 4.2; hunter.y = prey.y;
+  let bolted = false;
+  for (let k = 0; k < 32 * 4; k++) { stepWorld(); if (prey.state === DEER_FLEE) bolted = true; }
+  check('a hunted deer that has noticed its hunter bolts', !prey.hunted && bolted);
+  // rabbits keep to their burrow in winter, and the home range comes down from the hills
+  generate(4242, 16); world.people = [];
+  const rabbit = world.deer.filter((d) => d.species === SP_RABBIT)[0];
+  let burrow = -1;
+  for (let t = 0; t < world.size * world.size && burrow < 0; t++) if (isOpen(t) && Math.abs(tileI(t) - tileI(tileAt(rabbit.x, rabbit.y))) + Math.abs(tileJ(t) - tileJ(tileAt(rabbit.x, rabbit.y))) === 5 && !isOpenBlocked(t)) burrow = t;
+  rabbit.home = burrow; rabbit.state = DEER_GRAZE; rabbit.timer = 0; rabbit.path = []; rabbit.step = 0; rabbit.leader = -1; rabbit.thirst = 0; rabbit.moves = 0;
+  world.tick = 4800;
+  let inside = false;
+  for (let k = 0; k < 32 * 40 && !inside; k++) { world.tick = 4800 + (k % 100); stepWorld(); if (rabbit.state === DEER_REST && Math.abs(rabbit.x - tileX2(tileI(burrow))) + Math.abs(rabbit.y - tileX2(tileJ(burrow))) < 1.6) inside = true; }
+  check('in winter a rabbit goes to its burrow and rests there', inside);
+  world.biome[burrow] = BI_HILLS; rabbit.home = burrow; world.tick = 4800;
+  dailyAnimals();
+  check('in winter the home range comes down from the hills', world.biome[rabbit.home] !== BI_HILLS);
+  // what the animals cost: 200 of them with a pack, timed (printed, not asserted: it depends on the engine)
+  const cp = new TerrainParams(); cp.wolves = 1; cp.forestDensity = 1; cp.biomes = 0;
+  generate(5, 48, cp); world.people = [];
+  let extra = 0;
+  for (let t = 0; t < world.size * world.size && world.deer.filter((d) => d.state !== DEER_GONE).length < 200; t += 3) if (isOpen(t)) { spawnDeer(t, extra++ % 3); }
+  const t0 = Date.now();  // (0 under ZINC_DETERMINISTIC: the timing is read with the clock free)
+  for (let k = 0; k < 320; k++) { world.tick++; updateDeer(1 / 32); }
+  console.log('hamlet rules: animal update ' + ((Date.now() - t0) / 320).toFixed(3) + ' ms per tick for ' + world.deer.filter((d) => d.state !== DEER_GONE).length + ' animals, ' + wolvesOf().length + ' wolves');
+}
+// ---- residents: needs, mood, jobs, the daily round, newcomers and leavers ----
+generate(555, 16); rich(); world.progression = false;
+for (const t of [at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8), at(2, 7), at(4, 7), at(3, 9), at(5, 9)]) { world.tree[t] = 0; world.rock[t] = 0; }
+for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, tileIndex(i, 8));
+const hA = addBuilding(HOUSE, at(2, 7)), hB = addBuilding(HOUSE, at(4, 7));
+for (const h of [hA, hB]) { for (let n = 0; n < 4; n++) createResident(h); world.buildings[h].residents = 4; world.buildings[h].timer = 1e9; }
+dailyMood();
+check('people without a workplace anywhere are not jobless', world.jobless === 0 && world.people.every((p) => p.feel !== FEEL_JOBLESS));
 applyTool(toolOf('lumberhut'), at(3, 9)); run(4);
 dailyMood();
 check('with workplaces filled, the rest are jobless: 8 people, 4 posts (2 cutters, 2 porters)', world.jobless === 50 && world.people.filter((p) => p.feel === FEEL_JOBLESS).length === 4);

@@ -19,6 +19,7 @@ import { saveGame, loadGame, eraseSave } from './world/save';
 import { parseSeedRequest, randomSeed } from './world/seed';
 import { checkTool, applyTool } from './rules/build';
 import { stepWorld } from './engine/simulate';
+import { wolfCount } from './engine/deer';
 import { bakeVillage, rebakeStatic, moveCamera, setZoom, stepZoom, resetView, resizeWindow } from './view/scenery';
 import { drawVillage, frameDirty } from './view/frame';
 import { adviceLine } from './hud';
@@ -329,7 +330,7 @@ export class HamletScene extends Sprite {
     if (this.pointerStart < 0) this.pointerStart = where; else if (where !== this.pointerStart) this.pointerMoved = true;
     ui.time += dt;
     if (focus.tile >= 0 && ui.time - focus.since > 6) focus.tile = -1;
-    ambientTick(dt, season(), (world.tick * TICK / 20) % 1 > .72 ? 1 : 0, this.forest());
+    ambientTick(dt, season(), (world.tick * TICK / 20) % 1 > .72 ? 1 : 0, this.forest(), wolfCount() > 0);
     if (track(x, y)) uiState.dirty = true;
     this.moveView(dt, x, y);
     this.hover = this.paused || this.tool === TOOL_NONE || hitAt(x, y) !== null ? -1 : this.tileUnder(x, y);

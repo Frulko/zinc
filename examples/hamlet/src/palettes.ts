@@ -42,6 +42,7 @@ export const FUR = [158, 112, 72];
 export const FUR_DARK = [120, 84, 56];
 export const FUR_LIGHT = [214, 190, 150];
 export const RABBIT_FUR = [176, 150, 120], RABBIT_DARK = [112, 92, 72], RABBIT_LIGHT = [234, 226, 210];
+export const WOLF_FUR = [112, 110, 108], WOLF_DARK = [62, 60, 62], WOLF_LIGHT = [200, 194, 182], WOLF_WINTER = [176, 174, 170], WOLF_WINTER_DARK = [112, 110, 112], WOLF_ALPHA = [84, 82, 84];
 export const BOAR_FUR = [92, 70, 56], BOAR_DARK = [56, 42, 36], BOAR_LIGHT = [220, 206, 176];
 
 // HUD (screen space)

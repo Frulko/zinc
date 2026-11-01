@@ -4,7 +4,7 @@ import {
 import { noise } from './noise';
 import { terrain, TerrainParams, TerrainLayers, copyTerrainParams } from '../gen/terrain';
 import { placeDeposits, DepositRule } from '../gen/deposits';
-import { SPECIES } from '../rules/species';
+import { SPECIES, SP_WOLF } from '../rules/species';
 import { economy, Resource, Service, Goal, BuildingDef } from './economy';
 
 /** Anything that walks the tile grid. A class, not an interface: the walking code takes a Mover and must change the person itself (interfaces are copied records). */
@@ -40,6 +40,7 @@ export class Deer extends Mover {
   state: number = 0; timer: number = 0; hunted: boolean = false; stag: boolean = false;
   id: number = 0; species: number = 0; age: number = 0; leader: number = -1; thirst: number = 0; moves: number = 0; errand: number = 0; cooldown: number = 0; threatX: number = 0; threatY: number = 0;
   hx: number = 1; hy: number = 0; speed: number = 0; stuck: number = 0; home: number = -1; tx: number = 0; ty: number = 0;   // steering (engine/deer.ts): unit heading, current speed, seconds blocked, home tile (-1: not set yet), the herd or escape goal
+  prey: number = -1; hunger: number = 0; aware: number = 0; noted: boolean = false;   // a wolf's quarry (an animal id) and seconds since it ate, the seconds a hunted animal has noticed its hunter, the pack's warning was given
 }
 
 /** The whole game state: plain data, no drawing, no side effect at import. */
@@ -198,7 +199,6 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
       if (isOpen(t) && tileI(t) > 3) { spawnDeer(t); break; }
     }
   }
-  world.revision++;
   for (let sp = 1; sp < SPECIES.length; sp++) {                 // the smaller wild species: rabbits on open ground, boar by the trees
     for (let n = 0; n < Math.round(SPECIES[sp].start * size * size / REFERENCE_AREA); n++) {
       for (let tries = 0; tries < 40; tries++) {
@@ -213,6 +213,36 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
 function placeLodes(layers: TerrainLayers): void {
   const rules: DepositRule[] = [], kinds: number[] = [];
   for (let k = 0; k < economy.deposits.length; k++) {
+  if (params.wolves > 0) spawnPacks(size, params.wolves);
+  world.revision++;
+}
+
+/** Wolves, only when the village asks (TerrainParams.wolves): in forest country (a share of the land under trees), one pack of three to six on the far side from the gate per 24 x 24 tiles of map. No draw is made without the flag. */
+function spawnPacks(size: number, mode: number): void {
+  let land = 0, wood = 0;
+  for (let t = 0; t < size * size; t++) if (world.terrain[t] === TERRAIN_GRASS) { land++; if (world.tree[t] !== 0) wood++; }
+  if (mode < 2 && wood < land * .22) return;
+  const packs = Math.max(1, Math.round(size * size / 576));
+  for (let n = 0; n < packs; n++) {
+    let den = -1;
+    for (let tries = 0; tries < 80 && den < 0; tries++) {
+      const t = Math.floor(random() * size * size);
+      if (isOpen(t) && tileI(t) > size * .45 && treesAround(t) >= 3) den = t;
+    }
+    if (den < 0) return;
+    const alpha = spawnDeer(den, SP_WOLF), count = 3 + Math.floor(random() * 4);
+    alpha.stag = true; alpha.age = SPECIES[SP_WOLF].adultDays + 3; alpha.hunger = random() * 40;
+    for (let k = 1; k < count; k++) {
+      let spot = -1;
+      for (let tries = 0; tries < 20 && spot < 0; tries++) {
+        const t = tileIndex(Math.max(0, Math.min(size - 1, tileI(den) + Math.floor(random() * 5) - 2)), Math.max(0, Math.min(size - 1, tileJ(den) + Math.floor(random() * 5) - 2)));
+        if (isOpen(t)) spot = t;
+      }
+      if (spot < 0) continue;
+      const w = spawnDeer(spot, SP_WOLF);
+      w.leader = alpha.id; w.stag = false; w.hunger = random() * 40;
+    }
+  }
     const d = economy.deposits[k];
     if (!d.active) continue;
     const r = new DepositRule(); r.near = d.near; r.density = d.density; r.required = d.required;

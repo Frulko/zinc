@@ -2,13 +2,13 @@ import { winterCoat } from './seasons';
 import { Color, Palette, Pose, Vec3, figure, dynamicAdd, capsule, sphere, plot, rgb, lerp, castShadow, ripple, Atlas, AtlasAxes, AtlasEntry, AtlasDef, bakeAtlas, headerKey, headerOf } from '../pixel';
 import {
   ROLE_LUMBERJACK, ST_FISH, ST_CHOP, ST_MINE, ST_WORK, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
-  DEER_GRAZE, DEER_FLEE, DEER_DEAD, DEER_GONE, DEER_DRINK,
+  DEER_GRAZE, DEER_FLEE, DEER_CHASE, DEER_DEAD, DEER_GONE, DEER_DRINK, ST_STALK, STALK_CROUCH,
 } from '../constants';
 import { sleepsIndoors } from '../engine/routine';
-import { Person, Deer } from '../world/world';
+import { world, Person, Deer } from '../world/world';
 import { SPECIES } from '../rules/species';
-import { isMoving } from '../engine/path';
 import { beastEntries, drawBeast } from './beasts';
+import { isMoving } from '../engine/path';
 import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, FORAGER_PALETTE, SMITH_PALETTE, BEEKEEPER_PALETTE, CHANDLER_PALETTE, BREWER_PALETTE, INNKEEPER_PALETTE, FIREWARDEN_PALETTE, REPAIRMAN_PALETTE, WATCHMAN_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
 
 const SCALE = .62;
@@ -24,7 +24,7 @@ function paletteOf(role: number, hairTone: number): Palette {
 
 // What a person looks like is a pose (kind and animation angle), a role and a hair tone. The same code paints it live (every bone every frame) or once into the
 // atlas, from where it is stamped: a baked frame has the animation angle quantised to WALK_FRAMES or CHOP_FRAMES steps and the heading to eight directions.
-const KIND_WALK = 0, KIND_CHOP = 1, KIND_AIM = 2, KIND_FISH = 3, KIND_PICK = 4, KIND_IDLE = 5;
+const KIND_WALK = 0, KIND_CHOP = 1, KIND_AIM = 2, KIND_FISH = 3, KIND_PICK = 4, KIND_IDLE = 5, KIND_CREEP = 6;   // creeping up on game: painted live, never from the atlas
 const WALK_FRAMES = 8, CHOP_FRAMES = 6, YAW_STEPS = 8, TAU = Math.PI * 2;
 const SLOT_WALK = 0, SLOT_CHOP = WALK_FRAMES, SLOT_AIM = SLOT_CHOP + CHOP_FRAMES, SLOT_FISH = SLOT_AIM + 1, SLOT_PICK = SLOT_FISH + 1, SLOT_IDLE = SLOT_PICK + 1, PERSON_POSES = SLOT_IDLE + 1;
 const HAIRS = HAIR_TONES.length, ROLES = ROLE_PALETTES.length;
@@ -45,13 +45,22 @@ function lookOf(role: number, kind: number, a: number, idleZ: number): Look {
   } else if (kind === KIND_FISH) {
     pose.armR = 1.25; pose.armL = 1.1; pose.lean = .08; pose.crouch = .1; pose.stance = .14;
     fishing = true;
+  } else if (kind === KIND_CREEP) {
+    const swing = Math.sin(a);
+    pose.crouch = .5; pose.lean = .32; pose.stance = .1 + Math.abs(swing) * .1; pose.armR = .9 + swing * .25; pose.armL = .9 - swing * .25;
   } else if (kind === KIND_PICK) {
     pose.crouch = .5; pose.lean = .35; pose.armR = .9; pose.armL = .9;
   } else pose.z = idleZ;
   return { pose, axe: role === ROLE_LUMBERJACK && kind !== KIND_WALK, fishing };
 }
+/** A hunter close to his quarry creeps: low, slowly (the same distance engine/villagers.ts slows him at). */
+function creeping(p: Person): boolean {
+  if (p.state !== ST_STALK || p.target < 0 || p.target >= world.deer.length) return false;
+  const d = world.deer[p.target];
+  return Math.abs(d.x - p.x) + Math.abs(d.y - p.y) < STALK_CROUCH * 1.2;
+}
 function kindOf(p: Person): number {
-  if (isMoving(p)) return KIND_WALK;
+  if (isMoving(p)) return creeping(p) ? KIND_CREEP : KIND_WALK;
   return p.state === ST_CHOP || p.state === ST_WORK || p.state === ST_MINE ? KIND_CHOP : p.state === ST_AIM || p.state === ST_SHOT ? KIND_AIM : p.state === ST_FISH ? KIND_FISH : p.state === ST_PICK ? KIND_PICK : KIND_IDLE;
 }
 const stepOf = (angle: number, steps: number): number => { const k = Math.round(angle / TAU * steps) % steps; return k < 0 ? k + steps : k; };
@@ -152,7 +161,7 @@ function personEntry(): AtlasEntry {
     paintFigure(x, y, a.yaw8 * TAU / YAW_STEPS, Math.floor(a.variant / HAIRS), a.variant % HAIRS, lookOfSlot(Math.floor(a.variant / HAIRS), a.pose), solidBone);
   } };
 }
-const ACTOR_DEF_VERSION = 3;
+const ACTOR_DEF_VERSION = 4;
 export function actorAtlas(): Atlas {
   const def: AtlasDef = { version: ACTOR_DEF_VERSION, season: 0, entries: [personEntry(), deerEntry(), ...beastEntries()] };
   const key = headerKey(headerOf(def));
@@ -174,7 +183,7 @@ function personShadow(x: number, y: number): void {
 export function drawPerson(p: Person, time: number, atlas: Atlas | null): void {
   if (sleepsIndoors(p)) return;                                       // asleep in his house
   const kind = kindOf(p), hairTone = p.hair;
-  if (atlas === null) {
+  if (atlas === null || kind === KIND_CREEP) {
     const look = lookOf(p.role, kind, kind === KIND_CHOP ? p.phase * 4.2 : p.phase, Math.sin(time * 1.6 + p.hair * 2) * .01);
     paintProps(p, p.yaw, paintFigure(p.x, p.y, p.yaw, p.role, hairTone, look, dynamicAdd));
     return;
@@ -190,10 +199,11 @@ export function drawPerson(p: Person, time: number, atlas: Atlas | null): void {
 const WINTER_FUR: Color = [182, 158, 122], WINTER_DARK: Color = [142, 120, 94];
 const DM_WALK = 0, DM_FLEE = 1, DM_STILL = 2, DM_DEAD = 3;
 const DEER_WALK_FRAMES = 8, DEER_FLEE_FRAMES = 6, DEER_GRAZE_LEVELS = 4, GRAZE_HEAD = .6;
-const DSLOT_WALK = 0, DSLOT_FLEE = DEER_WALK_FRAMES, DSLOT_GRAZE = DSLOT_FLEE + DEER_FLEE_FRAMES, DSLOT_DEAD = DSLOT_GRAZE + DEER_GRAZE_LEVELS, DEER_POSES = DSLOT_DEAD + 1;
+const DM_FALL = 4, DEER_FALL_FRAMES = 3, FALL_SECONDS = .9;     // the collapse: the legs buckle, the body goes down on its side, the head drops
+const DSLOT_WALK = 0, DSLOT_FLEE = DEER_WALK_FRAMES, DSLOT_GRAZE = DSLOT_FLEE + DEER_FLEE_FRAMES, DSLOT_DEAD = DSLOT_GRAZE + DEER_GRAZE_LEVELS, DSLOT_DEAD2 = DSLOT_DEAD + 1, DSLOT_FALL = DSLOT_DEAD2 + 1, DEER_POSES = DSLOT_FALL + DEER_FALL_FRAMES;   // DEAD2: no arrow in it (a wolf's kill)
 
 /** One deer from the same capsules and spheres as the cat and the gull of the harbour. `a` is the stride angle, `head` how far the head is down to the grass. */
-function paintDeer(x: number, y: number, yaw: number, stag: boolean, mode: number, a: number, head: number, fawn: boolean = false, winter: boolean = false): void {
+function paintDeer(x: number, y: number, yaw: number, stag: boolean, mode: number, a: number, head: number, fawn: boolean = false, winter: boolean = false, arrow: boolean = true): void {
   const fx = Math.cos(yaw), fy = Math.sin(yaw), sx = -fy, sy = fx;
   const k = fawn ? .62 : 1;                         // a fawn is the same model smaller, about its own feet
   const T = (p: Vec3): Vec3 => [x + (p[0] - x) * k, y + (p[1] - y) * k, p[2] * k];
@@ -205,6 +215,19 @@ function paintDeer(x: number, y: number, yaw: number, stag: boolean, mode: numbe
     cap(P(-.4, 0, .26), P(.35, 0, .28), .26, .23, fur, 'solid');
     cap(P(.35, 0, .3), P(.75, .15, .2), .12, .08, fur, 'solid'); ball(x + fx * .85 + sx * .2, y + fy * .85 + sy * .2, .17, .1, winter ? WINTER_DARK : FUR_DARK, 'solid');
     for (const [u, v] of [[-.35, .26], [.3, .26]]) cap(P(u, v, .22), P(u + .1, v + .5, .16), .06, .04, dark, 'solid');
+    if (arrow) { cap(P(.05, -.12, .42), P(-.18, -.34, .86), .018, .014, solid(ARROW), 'solid'); cap(P(-.18, -.34, .86), P(-.26, -.4, .98), .03, .02, solid(STEEL), 'solid'); }   // the arrow stands in its flank
+    return;
+  }
+  if (mode === DM_FALL) {                                                // `a` is how far down it is, 0 to 1
+    const p = a, zb = .85 - .59 * p, hz = Math.max(.3, 1.42 - 1.15 * p);
+    cap(P(-.45, p * .12, zb + .02), P(.3, p * .12, zb + .02 - .03 * p), .27, .24, fur, 'solid');
+    const h = P(.68 + .17 * p, p * .22, hz);
+    cap(P(.3, p * .12, zb + .1), h, .13, .1, fur, 'solid'); ball(h[0], h[1], h[2], .12, winter ? WINTER_FUR : FUR, 'solid');
+    cap(h, P(.88 + .1 * p, p * .22, hz - .1), .08, .045, light, 'solid');
+    for (const [u, v, off] of [[.3, .12, 0], [.3, -.12, 1], [-.38, .12, 1], [-.38, -.12, 0]]) {   // the legs fold and splay to the side as it goes down
+      const hip = P(u, v + p * .12, zb - .05), foot = P(u + off * .08 * p, v + p * (.2 + .32 * (v < 0 ? 1.5 : 1)), .05 + p * .1), knee = P(u + .1 * p, v + p * .2, Math.max(.1, (zb + .05) * .55));
+      cap(hip, knee, .08, .05, dark, 'solid'); cap(knee, foot, .05, .035, dark, 'solid');
+    }
     return;
   }
   const flee = mode === DM_FLEE;
@@ -235,22 +258,25 @@ function deerEntry(): AtlasEntry {
     if (s < DSLOT_FLEE) paintDeer(x, y, yaw, stag, DM_WALK, (s - DSLOT_WALK) * TAU / DEER_WALK_FRAMES, 0, fawn, winter);
     else if (s < DSLOT_GRAZE) paintDeer(x, y, yaw, stag, DM_FLEE, (s - DSLOT_FLEE) * TAU / DEER_FLEE_FRAMES, 0, fawn, winter);
     else if (s < DSLOT_DEAD) paintDeer(x, y, yaw, stag, DM_STILL, 0, (s - DSLOT_GRAZE) / (DEER_GRAZE_LEVELS - 1) * GRAZE_HEAD, fawn, winter);
-    else paintDeer(x, y, yaw, stag, DM_DEAD, 0, 0, fawn, winter);
+    else if (s === DSLOT_DEAD) paintDeer(x, y, yaw, stag, DM_DEAD, 0, 0, fawn, winter, true);
+    else if (s === DSLOT_DEAD2) paintDeer(x, y, yaw, stag, DM_DEAD, 0, 0, fawn, winter, false);
+    else paintDeer(x, y, yaw, stag, DM_FALL, (s - DSLOT_FALL + 1) / (DEER_FALL_FRAMES + 1) * 1.15, 0, fawn, winter);
   } };
 }
 
 export function drawDeer(d: Deer, time: number, atlas: Atlas | null): void {
   if (d.state === DEER_GONE) return;
-  const dead = d.state === DEER_DEAD, flee = d.state === DEER_FLEE, grazing = d.state === DEER_GRAZE || d.state === DEER_DRINK;
-  const mode = dead ? DM_DEAD : flee ? DM_FLEE : !grazing && d.path.length > 0 ? DM_WALK : DM_STILL;
   if (d.species !== 0) { drawBeast(d, time, atlas); return; }
+  const dead = d.state === DEER_DEAD, flee = d.state === DEER_FLEE || d.state === DEER_CHASE, grazing = d.state === DEER_GRAZE || d.state === DEER_DRINK;
+  const falling = dead && d.timer < FALL_SECONDS, arrow = d.errand !== 9, down = Math.min(1, d.timer / FALL_SECONDS);   // d.timer is the time since it fell
+  const mode = falling ? DM_FALL : dead ? DM_DEAD : flee ? DM_FLEE : !grazing && d.path.length > 0 ? DM_WALK : DM_STILL;
   const head = grazing ? Math.max(0, Math.sin(time * .7 + d.phase)) * GRAZE_HEAD : 0;     // now and then the head goes down to the grass
   const fawn = d.age < SPECIES[d.species].adultDays;      // a young deer is drawn smaller
   const coat = winterCoat();
-  if (atlas === null) paintDeer(d.x, d.y, d.yaw, d.stag, mode, d.phase, head, fawn, coat);
+  if (atlas === null) paintDeer(d.x, d.y, d.yaw, d.stag, mode, mode === DM_FALL ? down * down * (3 - 2 * down) : d.phase, head, fawn, coat, arrow);
   else {
     const yaw8 = stepOf(d.yaw, YAW_STEPS);
-    const pose = mode === DM_DEAD ? DSLOT_DEAD : mode === DM_FLEE ? DSLOT_FLEE + stepOf(d.phase, DEER_FLEE_FRAMES) : mode === DM_WALK ? DSLOT_WALK + stepOf(d.phase, DEER_WALK_FRAMES)
+    const pose = mode === DM_FALL ? DSLOT_FALL + Math.min(DEER_FALL_FRAMES - 1, Math.floor(down * DEER_FALL_FRAMES)) : mode === DM_DEAD ? (arrow ? DSLOT_DEAD : DSLOT_DEAD2) : mode === DM_FLEE ? DSLOT_FLEE + stepOf(d.phase, DEER_FLEE_FRAMES) : mode === DM_WALK ? DSLOT_WALK + stepOf(d.phase, DEER_WALK_FRAMES)
       : DSLOT_GRAZE + Math.round(head / GRAZE_HEAD * (DEER_GRAZE_LEVELS - 1));
     atlas.stamp('deer', { variant: (fawn ? 2 : d.stag ? 1 : 0) + (coat ? 3 : 0), yaw8, pose }, d.x, d.y, 0);
   }

@@ -81,6 +81,8 @@ function build(): void {
   add('bird', make(.3, (t, p) => sine(3200 - 1500 * p, t) * Math.sin(Math.PI * p) * decay(p, 1.5), 1), .22);
   add('bird', make(.5, (t, p) => { const k = Math.floor(p * 4); return sine(2200 + k * 350 + 200 * Math.sin(p * 90), t) * Math.sin(Math.PI * ((p * 4) % 1)) * .8; }, 1), .20);
   add('gull', make(.7, (t, p) => sine(1500 + 500 * Math.sin(p * 9) * (1 - p), t) * Math.sin(Math.PI * p) * (.7 + .3 * noise()), 1), .16);
+  // The wolf: a long howl that climbs, holds with a slow vibrato and sinks (a few harmonics, a little breath); an ambient sound, heard from far away.
+  add('howl', make(2.6, (t, p) => { const hz = 300 + 190 * Math.min(1, p * 3.2) - 120 * Math.max(0, p - .75) * 4 + 9 * sine(5.5, t) * Math.min(1, p * 4); return (note(hz, t, 0, 0, 3) * .8 + noise() * .04) * Math.sin(Math.PI * Math.pow(p, .7)); }, 1), .22);
   add('cricket', make(.9, (t, p) => sine(4300, t) * (Math.sin(TAU * 28 * t) > .2 ? 1 : 0) * (Math.sin(p * Math.PI * 3) > 0 ? 1 : 0) * .5, 1), .10);
   add('owl', make(.9, (t, p) => (sine(390, t) * .8 + sine(780, t) * .2) * Math.sin(Math.PI * p) * (p < .45 || p > .55 ? 1 : .1), 1), .18);
   // Bees and the pour: a buzz (two detuned saw hums with a slow wobble, an ambient sound) and a liquid glug that rises in pitch as the jug fills.
@@ -130,7 +132,7 @@ export function sound(kind: string, amount: number = .6, pan: number = 0): void 
   s.voice(s.volume * (AMBIENT.has(name) ? settings.ambienceVolume : settings.sfxVolume) * Math.max(0, Math.min(1, amount)) * (.85 + rnd() * .3), .92 + rnd() * .16, Math.max(-1, Math.min(1, pan)), false);
 }
 
-const AMBIENT = new Set<string>(['bird', 'gull', 'cricket', 'owl', 'wind', 'buzz', 'crackle']);
+const AMBIENT = new Set<string>(['bird', 'gull', 'cricket', 'owl', 'howl', 'wind', 'buzz', 'crackle']);
 const LEVEL = .22;
 function level(): number { return muted || paused ? 0 : LEVEL * settings.ambienceVolume; }
 /** Applies the ambience volume at once (the options screen calls it while the slider moves). */
@@ -162,14 +164,14 @@ let until = 0;
  * The living background, called every frame with the elapsed seconds: it picks the loop of the place (forest near trees, water by a lake, wind in winter)
  * and, at random moments, a bird by day, a cricket or an owl by night, a gust. `season` 0..3 (spring..winter), `night` 0..1, `trees` 0..1 share of forest.
  */
-export function ambientTick(dt: number, season: number, night: number, trees: number): void {
+export function ambientTick(dt: number, season: number, night: number, trees: number, wolves: boolean = false): void {
   if (muted || paused) return;
   setAmbience(season === 3 ? 'winter' : trees > .25 ? 'forest' : 'meadow');
   until -= dt;
   if (until > 0) return;
   until = 1.2 + rnd() * 4.5 * (season === 3 ? 2 : 1);
   const pan = rnd() * 1.6 - .8;
-  if (night > .6) sound(rnd() < .75 ? 'cricket' : 'owl', .5 + rnd() * .4, pan);
+  if (night > .6) sound(wolves && rnd() < .12 ? 'howl' : rnd() < .75 ? 'cricket' : 'owl', .5 + rnd() * .4, pan);       // `wolves`: a pack lives on this map, far howls now and then
   else if (season === 3) { if (rnd() < .5) sound('wind', .6, pan); }
   else sound(rnd() < .12 ? 'wind' : rnd() < .1 ? 'gull' : 'bird', .4 + rnd() * .5, pan);
 }

@@ -1,7 +1,7 @@
 import {
   HOUSE, ST_TO_SHORE, ST_FISH, ROLE_SETTLER, ROLE_RESIDENT, ROLE_PEDDLER,
   ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_WORK, ST_FETCH, ST_BRING,
-  ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, WORK_RADIUS, SETTLER_INTERVAL,
+  ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, STALK_CROUCH, WORK_RADIUS, SETTLER_INTERVAL,
   DEER_DEAD, DEER_FLEE, DEER_GONE, WALK_SPEED,
 } from '../constants';
 import { Housing, BuildingDef, Harvest } from '../world/economy';
@@ -421,14 +421,14 @@ function updateWorker(p: Person, dt: number): void {
       break;
     case ST_STALK: {
       const deer = world.deer[p.target];
-      if (deer.state === DEER_DEAD || deer.state === DEER_GONE) { releaseClaims(p); p.state = ST_SEEK; p.timer = 0; break; }
+      if (deer.state === DEER_DEAD || deer.state === DEER_GONE || deer.state === DEER_FLEE) { releaseClaims(p); p.state = ST_SEEK; p.timer = 0; break; }   // a deer that bolted is let go
       if (gap(deer.x, deer.y, p.x, p.y) <= SHOOT_RANGE) {
         p.path = []; p.step = 0; p.state = ST_AIM; p.timer = AIM_SECONDS;
         p.yaw = Math.atan2(deer.y - p.y, deer.x - p.x);
         break;
       }
       p.timer -= dt;
-      if (walk(p, dt, speed) || p.timer <= 0) { p.timer = .9; if (!planPath(p, tileAt(deer.x, deer.y))) { releaseClaims(p); p.state = ST_SEEK; p.timer = 1; } }
+      if (walk(p, dt, gap(deer.x, deer.y, p.x, p.y) < STALK_CROUCH ? speed * .55 : speed) || p.timer <= 0) { p.timer = .9; if (!planPath(p, tileAt(deer.x, deer.y))) { releaseClaims(p); p.state = ST_SEEK; p.timer = 1; } }
       break;
     }
     case ST_AIM: {
@@ -446,7 +446,7 @@ function updateWorker(p: Person, dt: number): void {
       if (p.timer > 0) break;
       const deer = world.deer[p.target];
       if (succeeds(harvestOfSite(def, deer.stag ? 1 : 0))) {
-        deer.state = DEER_DEAD; deer.path = []; deer.step = 0;
+        deer.state = DEER_DEAD; deer.path = []; deer.step = 0; deer.timer = 0; deer.errand = 0;
         sound('hit', .6); emitFx(FX_CHIPS, deer.x, deer.y, deer.stag ? 14 : 9, 0, CHIP_DUST);
         p.state = ST_TO_BODY;
         if (!planPath(p, tileAt(deer.x, deer.y))) { deer.hunted = false; p.state = ST_SEEK; p.timer = 1; }
@@ -504,3 +504,11 @@ export function updatePeople(dt: number): void {
   for (const p of world.people) updatePerson(p, dt);
 }
 export { assignJobs };
+
+/** A villager is lost (maimed by wolves, far from the houses): his claims, his load and his place at home and at work are given back. */
+export function losePerson(p: Person): void {
+  releaseClaims(p); cancelTransport(p);
+  if (p.job >= 0) world.buildings[p.job].workers--;
+  if (p.home >= 0) world.buildings[p.home].residents = Math.max(0, world.buildings[p.home].residents - 1);
+  world.people = world.people.filter((q: Person): boolean => q !== p);
+}

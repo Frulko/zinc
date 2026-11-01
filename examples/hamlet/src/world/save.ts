@@ -17,12 +17,13 @@ function numbers(text: string): number[] {
 }
 
 /** The generator's request, as water,river,forest,rock,biome,coast,outcrop,flowers (numbers). */
-function paramsText(): string { const p = world.params; return [p.waterAmount, p.river ? 1 : 0, p.forestDensity, p.rockDensity, p.biome, p.coast, p.outcrop, p.flowers, p.biomes].join(','); }
+function paramsText(): string { const p = world.params; return [p.waterAmount, p.river ? 1 : 0, p.forestDensity, p.rockDensity, p.biome, p.coast, p.outcrop, p.flowers, p.biomes, p.wolves].join(','); }
 function paramsOf(text: string): TerrainParams {
   const p = new TerrainParams(), v = numbers(text);
   p.waterAmount = v[0]; p.river = v[1] === 1; p.forestDensity = v[2]; p.rockDensity = v[3]; p.biome = v[4];
   if (v.length >= 8) { p.coast = v[5]; p.outcrop = v[6]; p.flowers = v[7]; }
   p.biomes = v.length >= 9 ? v[8] : 0;          // saves from before the presets have five numbers
+  p.wolves = v.length >= 10 ? v[9] : 0;          // the wolves flag came later: older saves have none
   return p;
 }
 

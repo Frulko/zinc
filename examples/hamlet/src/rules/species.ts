@@ -1,6 +1,6 @@
 // The wild animals as data: one row per species, read by engine/deer.ts. A new species is a new row (and a model); `kind` picks its movement style.
 // Distances are world units (a tile is 2), times are seconds, ages and cooldowns are village days (a day is DAY_SECONDS, a year 9 days).
-export const KIND_GRAZER = 0, KIND_HOPPER = 1, KIND_BOAR = 2;
+export const KIND_GRAZER = 0, KIND_HOPPER = 1, KIND_BOAR = 2, KIND_WOLF = 3;
 export class Species {
   id: string = ''; label: string = ''; kind: number = KIND_GRAZER;
   walk: number = 1; flee: number = 3.4;       // speeds: walking, running (trot is walk * trot)
@@ -34,5 +34,13 @@ function boar(): Species {
   s.drinkEvery = 90; s.restEvery = 2;
   return s;
 }
-export const SPECIES: Species[] = [row('deer', 'Cerf'), rabbit(), boar()];
-export const SP_DEER = 0, SP_RABBIT = 1, SP_BOAR = 2;
+/** A wolf of a pack (only when the village asks for wolves, TerrainParams.wolves): `group` is the largest pack, `shy` how far it keeps from houses unless it starves; it does not breed (a pack is made at the start). */
+function wolf(): Species {
+  const s = row('wolf', 'Loup');
+  s.kind = KIND_WOLF; s.walk = 1.2; s.flee = 3.8; s.trot = 1.7; s.turn = 3.6; s.accel = 3.2; s.alert = 9; s.fear = 6; s.start = 0; s.perArea = 0;
+  s.adultDays = 4; s.lifeDays = 9999; s.breedSeasons = []; s.breedChance = 0; s.cooldownDays = 1; s.herdGap = 5; s.group = 6; s.shy = 6; s.cover = 1.6; s.homeR = 14;
+  s.drinkEvery = 90; s.restEvery = 3;
+  return s;
+}
+export const SPECIES: Species[] = [row('deer', 'Cerf'), rabbit(), boar(), wolf()];
+export const SP_DEER = 0, SP_RABBIT = 1, SP_BOAR = 2, SP_WOLF = 3;

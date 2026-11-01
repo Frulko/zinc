@@ -10,8 +10,8 @@ export const PRESETS: Preset[] = [
   preset('Plaine', (p: TerrainParams): void => { p.waterAmount = .25; p.forestDensity = .15; p.rockDensity = .3; p.biome = BIOME_MEADOW; p.flowers = .8; p.biomes = 1; }),
   preset('Rivière', (p: TerrainParams): void => { p.waterAmount = 0; p.river = true; p.forestDensity = .55; p.biome = BIOME_BIRCH; p.flowers = .3; p.biomes = 1; }),
   preset('Lac', (p: TerrainParams): void => { p.waterAmount = 2; p.forestDensity = .45; p.biome = BIOME_MIXED; p.biomes = 1; }),
-  preset('Forêt', (p: TerrainParams): void => { p.waterAmount = .3; p.forestDensity = 1; p.rockDensity = .3; p.biome = BIOME_PINE; p.biomes = 1; }),
-  preset('Montagne', (p: TerrainParams): void => { p.waterAmount = .3; p.forestDensity = .35; p.rockDensity = 1; p.outcrop = .8; p.biome = BIOME_PINE; p.biomes = 1; }),
+  preset('Forêt', (p: TerrainParams): void => { p.waterAmount = .3; p.forestDensity = 1; p.rockDensity = .3; p.biome = BIOME_PINE; p.biomes = 1; p.wolves = 1; }),
+  preset('Montagne', (p: TerrainParams): void => { p.waterAmount = .3; p.forestDensity = .35; p.rockDensity = 1; p.outcrop = .8; p.biome = BIOME_PINE; p.biomes = 1; p.wolves = 1; }),
   preset('Côte', (p: TerrainParams): void => { p.waterAmount = 0; p.coast = 1; p.forestDensity = .4; p.flowers = .4; p.biome = BIOME_MIXED; p.biomes = 1; }),
   preset('Classique', (p: TerrainParams): void => { p.biomes = 0; }),
 ];
