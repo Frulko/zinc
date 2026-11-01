@@ -1,0 +1,37 @@
+#!/bin/sh
+# Hamlet: the rules headless (three engines), then a scripted mouse session in a window-less run with a picture of the village.
+set -eu
+cd "$(dirname "$0")/../.."
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+export ZINC_HEADLESS=1 ZINC_BACKGROUND=1 ZINC_DETERMINISTIC=1 ZINC_APP_DATA="$tmp/data"
+for engine in "" "--interp" "--engine quickjs"; do
+  case "$engine" in
+    --interp) ZINC_FRAMES=1 "$ZINC" run --interp tests/data/hamlet/rules.ts > "$tmp/rules" 2> "$tmp/err" ;;
+    "") ZINC_FRAMES=1 "$ZINC" run tests/data/hamlet/rules.ts > "$tmp/rules" 2> "$tmp/err" ;;
+    *) ZINC_FRAMES=1 "$ZINC" run tests/data/hamlet/rules.ts --engine quickjs > "$tmp/rules" 2> "$tmp/err" ;;
+  esac
+  [ ! -s "$tmp/err" ] || { cat "$tmp/err"; exit 1; }
+  grep -q 'hamlet rules: ALL PASS' "$tmp/rules" || { cat "$tmp/rules"; exit 1; }
+done
+# the mouse session: roads by dragging, a house, a sawmill, a lodge; ZINC_INPUT must be an absolute path
+ZINC_SIZE=1100x900 ZINC_FRAMES=3200 ZINC_INPUT="$PWD/tests/data/hamlet/session.input" \
+ZINC_SHOT="$tmp/frame.png" ZINC_SHOT_FRAMES=300,2200,3150 timeout 300 "$ZINC" run examples/hamlet > "$tmp/out" 2> "$tmp/err"
+[ ! -s "$tmp/err" ] || { cat "$tmp/err"; exit 1; }
+grep -q '^hamlet:save	H4;7916;24;' "$tmp/data/storage.kv"
+python3 - "$tmp" <<'CHECK'
+from pathlib import Path
+from PIL import Image, ImageChops
+import sys
+p = Path(sys.argv[1])
+a, b = (Image.open(p / f'frame-{n}.png').convert('RGB') for n in (300, 3150))
+assert a.getpixel((0, 0)) == (255, 255, 255), 'window background is not white'
+assert ImageChops.difference(a, b).getbbox(), 'the village did not change'
+assert sum(min(px) < 200 for px in b.getdata()) > 150000, 'missing diorama'
+save = (p / 'data' / 'storage.kv').read_text()
+fields = save.split('\t')[1].split(';')
+assert fields[6] and fields[7], 'the session placed no road or building'
+assert fields[1] == '7916' and fields[2] == '24', 'the typed seed was not used'
+assert fields[7].count(',') >= 3, 'the session should place houses, a sawmill and a lodge'
+CHECK
+echo 'hamlet: rules on three engines, scripted mouse session and save PASS'

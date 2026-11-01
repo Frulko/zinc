@@ -1,0 +1,33 @@
+2 key g
+4 text 7916
+6 key Enter
+10 key ArrowLeft
+40 keyup ArrowLeft
+50 key 1
+52 move 443 213
+53 down
+55 move 486 234
+57 move 528 213
+59 move 571 234
+61 move 613 255
+63 move 655 277
+65 move 698 298
+67 move 740 319
+69 move 783 340
+73 up
+77 key 2
+79 move 613 213
+80 down
+82 up
+85 move 655 234
+86 down
+88 up
+91 key 3
+93 move 698 255
+94 down
+96 up
+1400 key 4
+1402 move 655 319
+1403 down
+1405 up
+2300 key -

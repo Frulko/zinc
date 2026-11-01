@@ -1,0 +1,126 @@
+import {
+  DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, START_WOOD, DEER_START, DEER_GRAZE, DEER_GONE,
+} from '../constants';
+import { hash, noise } from '../pixel';
+
+/** Anything that walks the tile grid. A class, not an interface: the walking code takes a Mover and must change the person itself (interfaces are copied records). */
+export class Mover { x: number = 0; y: number = 0; yaw: number = 0; path: number[] = []; step: number = 0; phase: number = 0; }
+export interface Building { type: number; i: number; j: number; alive: boolean; residents: number; workers: number; timer: number; }
+export class Person extends Mover {
+  role: number = 0; home: number = -1; job: number = -1; state: number = 0; timer: number = 0; target: number = -1; carry: number = 0; hair: number = 0;
+  shotX: number = 0; shotY: number = 0;
+}
+export class Deer extends Mover { state: number = 0; timer: number = 0; hunted: boolean = false; stag: boolean = false; }
+
+/** The whole game state: plain data, no drawing, no side effect at import. */
+export interface World {
+  seed: number; size: number; half: number; gate: number; time: number; wood: number; meat: number; fish: number; hasWater: boolean;
+  terrain: number[]; road: number[]; tree: number[]; rock: number[]; deco: number[]; build: number[]; claimed: number[];
+  felledCount: number;              // trees cut so far
+  unlimited: boolean;               // no-limit mode: trees and deer come back below a threshold
+  treeTimer: number;
+  buildings: Building[]; people: Person[]; deer: Deer[];
+  pondX: number; pondY: number; pondR: number; offsetX: number; offsetY: number;
+  revision: number;                 // bumped when the baked scenery must be redone
+  saveDirty: boolean; lastSave: number; autosave: boolean;
+  deerTimer: number; waitingForMeat: boolean;
+}
+
+const zeros = (size: number = DEFAULT_SIZE): number[] => Array.from({ length: size * size }, (): number => 0);
+export const world: World = {
+  seed: 1, size: DEFAULT_SIZE, half: DEFAULT_SIZE * TILE / 2, gate: Math.floor(DEFAULT_SIZE / 2) * DEFAULT_SIZE, time: 0, wood: START_WOOD, meat: 0, fish: 0, hasWater: false,
+  terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), build: zeros(), claimed: zeros(),
+  felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
+  pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForMeat: false,
+};
+
+// ---- tiles ----
+export const NEIGHBOR_DI: number[] = [1, -1, 0, 0];
+export const NEIGHBOR_DJ: number[] = [0, 0, 1, -1];
+export function tileIndex(i: number, j: number): number { return j * world.size + i; }
+export function tileI(t: number): number { return t % world.size; }
+export function tileJ(t: number): number { return Math.floor(t / world.size); }
+export function tileX(t: number): number { return (tileI(t) + .5) * TILE - world.half; }
+export function tileY(t: number): number { return (tileJ(t) + .5) * TILE - world.half; }
+/** The tile under a world point, or -1 outside the map. */
+export function tileAt(x: number, y: number): number {
+  const i = Math.floor((x + world.half) / TILE), j = Math.floor((y + world.half) / TILE);
+  return i < 0 || j < 0 || i >= world.size || j >= world.size ? -1 : tileIndex(i, j);
+}
+/** The tile next to t in direction d (0:+x 1:-x 2:+y 3:-y), or -1. */
+export function neighbor(t: number, d: number): number {
+  const i = tileI(t) + NEIGHBOR_DI[d], j = tileJ(t) + NEIGHBOR_DJ[d];
+  return i < 0 || j < 0 || i >= world.size || j >= world.size ? -1 : tileIndex(i, j);
+}
+
+// ---- random numbers: the game's own, so a seed replays ----
+let rng: u32 = 1;
+export function seedRandom(seed: number): void { rng = ((seed * 2654435761) >>> 0) as u32; }
+export function random(): number {
+  rng = (Math.imul(rng as i32, 1664525) + 1013904223) as u32;
+  return rng / 4294967296;
+}
+
+/** Below 1 inside the pond: an irregular blob, continuous so the shore is drawn per pixel. */
+export function waterField(x: number, y: number): number {
+  return Math.hypot((x - world.pondX) * .9, (y - world.pondY) * 1.1) / world.pondR + (noise(x * .35 + world.offsetX, y * .35 + world.offsetY) - .5) * .55;
+}
+
+/** A tile with a pond tile next to it (4 directions): where a fisher stands. Returns the water tile, or -1. */
+export function waterNeighbor(t: number): number {
+  for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && world.terrain[v] === TERRAIN_WATER) return v; }
+  return -1;
+}
+
+export function isOpen(t: number): boolean {
+  return world.terrain[t] === TERRAIN_GRASS && world.tree[t] === 0 && world.rock[t] === 0 && world.build[t] < 0 && world.road[t] === 0;
+}
+
+export function spawnDeer(t: number): void {
+  let slot = -1;
+  for (let k = 0; k < world.deer.length; k++) if (world.deer[k].state === DEER_GONE) { slot = k; break; }
+  const deer = new Deer();
+  deer.x = tileX(t); deer.y = tileY(t); deer.yaw = random() * 6.28; deer.phase = random() * 6;
+  deer.state = DEER_GRAZE; deer.timer = 1 + random() * 3; deer.stag = random() < .4;
+  if (slot < 0) world.deer.push(deer); else world.deer[slot] = deer;
+}
+
+/** A new random village: forest, rocks, a pond, flowers and a few deer. */
+export function tileCount(): number { return world.size * world.size; }
+
+export function generate(seed: number, size: number = DEFAULT_SIZE): void {
+  world.seed = seed; world.size = size; world.half = size * TILE / 2; world.gate = Math.floor(size / 2) * size + GATE_I;
+  world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.build = zeros(size); world.claimed = zeros(size);
+  world.seed = seed; world.time = 0; world.wood = START_WOOD; world.meat = 0; world.fish = 0;
+  world.buildings = []; world.people = []; world.deer = []; world.felledCount = 0; world.treeTimer = 0;
+  world.deerTimer = 0; world.waitingForMeat = false; world.lastSave = 0; world.saveDirty = false;
+  seedRandom(seed);
+  world.offsetX = hash(seed, 1) * 40; world.offsetY = hash(seed, 2) * 40;
+  const pondI = Math.floor(size * (.42 + hash(seed, 3) * .33));
+  const pondJ = hash(seed, 4) < .5 ? Math.floor(size * (.08 + hash(seed, 5) * .25)) : Math.floor(size * (.67 + hash(seed, 5) * .25));
+  world.pondX = tileX(tileIndex(pondI, pondJ)); world.pondY = tileY(tileIndex(pondI, pondJ));
+  world.pondR = 2.6 + hash(seed, 6) * 1.2;
+  for (let t = 0; t < size * size; t++) {
+    world.terrain[t] = TERRAIN_GRASS; world.road[t] = 0; world.tree[t] = 0; world.rock[t] = 0; world.deco[t] = 0; world.build[t] = -1; world.claimed[t] = 0;
+    const x = tileX(t), y = tileY(t), i = tileI(t), j = tileJ(t);
+    const edge = Math.pow(Math.pow(Math.abs(x) / world.half, 4) + Math.pow(Math.abs(y) / world.half, 4), .25);
+    if (edge > .985) { world.terrain[t] = TERRAIN_VOID; continue; }
+    if (waterField(x, y) < 1) { world.terrain[t] = TERRAIN_WATER; continue; }
+    if (Math.abs(i - GATE_I) + Math.abs(j - Math.floor(size / 2)) <= 2) continue;   // the entrance stays clear
+    const centre = i >= size * .25 && i <= size * .7 && j >= size * .25 && j <= size * .7;                // the middle stays mostly open
+    const forest = noise(i * .5 + world.offsetX, j * .5 + world.offsetY);
+    if (forest > (centre ? .74 : .56) && hash(i + seed, j) > .3) world.tree[t] = 1 + Math.floor(hash(i, j + seed) * 4);
+    else if (hash(i * 3 + seed, j * 7) > .94) world.rock[t] = 1 + Math.floor(hash(j, i) * 2);
+    else { const d = hash(i * 5, j * 11 + seed); world.deco[t] = d > .9 ? 2 : d > .78 ? 1 : 0; }
+  }
+  world.road[world.gate] = 1;
+  world.hasWater = world.terrain.some((v: number): boolean => v === TERRAIN_WATER);
+  for (let n = 0; n < Math.round(DEER_START * size * size / REFERENCE_AREA); n++) {
+    for (let tries = 0; tries < 30; tries++) {
+      const t = Math.floor(random() * size * size);
+      if (isOpen(t) && tileI(t) > 3) { spawnDeer(t); break; }
+    }
+  }
+  world.revision++;
+}

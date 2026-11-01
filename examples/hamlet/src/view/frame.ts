@@ -1,0 +1,139 @@
+import {
+  W, H, S, pix, zb, groundZ, kinds, bakedPix, bakedZ, shadowMask, pendingShadows, staticShadow, GRASS,
+  copyInto, flushShadows, applyShadows, shadeEdgesRect, setTrackShadows, shadowSpans, rgbColor, rgb, clamp, hash, project, drawDots, haloDots, waterPoint, KIND_GRASS,
+} from '../pixel';
+import { TILE, HOUSE, ROLE_FISHER } from '../constants';
+import { world, tileX, tileY } from '../world/world';
+import { tufts, bakeCount } from './scenery';
+import { settings } from '../settings';
+import { models, MODEL_HOUSE } from './models';
+import { drawPerson, drawDeer, drawSmoke } from './actors';
+
+const GRASS_LIT = GRASS.map((c: number[]): u32 => rgbColor(c));
+const GRASS_DARK = GRASS.map((c: number[]): u32 => rgb(c[0] * .54, c[1] * .52, c[2] * .72));
+const FOAM = rgb(143, 177, 146), PEBBLE = rgb(77, 139, 122);
+const OK = rgb(255, 214, 10), BAD = rgb(214, 84, 70);
+const CHIMNEY: number[][] = [[.47, -.28, 2.6], [.43, -.3, 2.5], [.43, -.3, 2.45], [.46, -.2, 1.9]];   // house, sawmill, lodge smoke origins (x, y, z)
+
+/** Pixels the wind redrew this frame, as one-pixel runs (row, column, column): put back from the static picture at the next frame. */
+const touched: number[] = [];
+function drawTufts(time: number): void {
+  for (const i of tufts) {
+    const ix = i % W, iy = Math.floor(i / W), phase = ix * .11 + iy * .19;
+    const gust = Math.sin(time * .8 + phase) + .5 * Math.sin(time * 2.1 + phase * 2.3);
+    const colors = staticShadow[i] ? GRASS_DARK : GRASS_LIT, height = 1 + (hash(ix, iy * 2) * 3 | 0);
+    for (let k = 1; k <= height; k++) {
+      const jx = ix + Math.round(gust * .95 * k / 3), j = (iy - k) * W + jx;
+      if (jx < 0 || jx >= W || iy - k < 0 || (kinds[j] !== KIND_GRASS && kinds[j] !== 0) || zb[j] !== groundZ[j]) continue;
+      pix[j] = colors[clamp(1 + k + (gust > 1 ? 1 : 0), 1, 4)];
+      touched.push(iy - k, jx, jx);
+    }
+  }
+}
+
+/** Slow glints on the pond: positions drift with time, so the water breathes without renewing noise everywhere. */
+function drawPond(time: number): void {
+  for (let k = 0; k < 90; k++) {
+    const a = hash(k, 21) * 6.283, r = Math.sqrt(hash(k, 22)) * world.pondR * .85;
+    const drift = (time * (.08 + hash(k, 23) * .12)) % 1;
+    waterPoint(world.pondX + Math.cos(a) * r + drift * .4, world.pondY + Math.sin(a) * r * .9, hash(k, 24) > .4 ? FOAM : PEBBLE);
+  }
+}
+
+function outline(t: number, color: u32): void {
+  const x0 = tileX(t) - TILE / 2, y0 = tileY(t) - TILE / 2, points: number[][] = [];
+  for (let k = 0; k <= 20; k++) {
+    const a = k / 20 * TILE;
+    for (const [x, y] of [[x0 + a, y0], [x0 + a, y0 + TILE], [x0, y0 + a], [x0 + TILE, y0 + a]]) { const p = project(x, y, .02); points.push([p.sx, p.sy]); }
+  }
+  haloDots(points); drawDots(points, color);
+}
+
+// The picture is built once per static bake (the ground, trees, rocks and buildings with their shadows and edges: `edgedPix`), then each frame only the parts
+// that move are put back and redrawn: rectangles around the people, deer, smoke, pond and pointer (restored from the unedged bake, drawn, edges redone), and runs
+// of pixels for the wind and the moving shadows (restored from `edgedPix`). The cost follows what moves, not the size of the window.
+let seenBake = -1;
+let edgedPix: u32[] = [];
+let prevRects: number[] = [];      // x0, y0, x1, y1 (x1, y1 excluded), four numbers each
+let prevLoose: number[] = [];      // runs: row, first column, last column
+/** What the scene must send to the screen: everything, or only these runs. */
+export const frameDirty = { full: true, spans: [] as number[] };
+
+function addRect(list: number[], sx: number, sy: number, left: number, up: number, right: number, down: number): void {
+  const x0 = Math.max(0, Math.floor(sx - left) - 2), y0 = Math.max(0, Math.floor(sy - up) - 2), x1 = Math.min(W, Math.ceil(sx + right) + 3), y1 = Math.min(H, Math.ceil(sy + down) + 3);
+  if (x1 > x0 && y1 > y0) list.push(x0, y0, x1, y1);
+}
+/** Overlapping rectangles become one, so no pixel is restored or edged twice. */
+function merge(rects: number[]): number[] {
+  const out: number[] = [];
+  for (let k = 0; k < rects.length; k += 4) {
+    let x0 = rects[k], y0 = rects[k + 1], x1 = rects[k + 2], y1 = rects[k + 3], again = true;
+    while (again) {
+      again = false;
+      for (let m = 0; m < out.length; m += 4) {
+        if (out[m] >= x1 || out[m + 2] <= x0 || out[m + 1] >= y1 || out[m + 3] <= y0) continue;
+        x0 = Math.min(x0, out[m]); y0 = Math.min(y0, out[m + 1]); x1 = Math.max(x1, out[m + 2]); y1 = Math.max(y1, out[m + 3]);
+        out.splice(m, 4); again = true; break;
+      }
+    }
+    out.push(x0, y0, x1, y1);
+  }
+  return out;
+}
+function restore(spans: number[]): void {
+  for (let k = 0; k < spans.length; k += 3) for (let i = spans[k] * W + spans[k + 1], end = spans[k] * W + spans[k + 2]; i <= end; i++) pix[i] = edgedPix[i];
+}
+function rectRows(rects: number[], into: number[]): void {
+  for (let k = 0; k < rects.length; k += 4) for (let y = rects[k + 1]; y < rects[k + 3]; y++) into.push(y, rects[k], rects[k + 2] - 1);
+}
+
+/** The static picture with its edges, kept for the frames that follow. */
+function prepare(): void {
+  if (edgedPix.length !== pix.length) edgedPix = Array.from({ length: pix.length }, (): u32 => 0);
+  copyInto(pix, bakedPix); copyInto(zb, bakedZ);
+  shadeEdgesRect(0, 0, W, H);
+  copyInto(edgedPix, pix);
+  seenBake = bakeCount; prevRects = []; prevLoose = []; frameDirty.full = true;
+}
+
+/** One picture of the village. `hover` is the tile under the pointer (-1 for none), `preview` the model to ghost on it (-1 for none). */
+export function drawVillage(time: number, hover: number, ok: boolean, preview: number): void {
+  if (seenBake !== bakeCount || edgedPix.length !== pix.length) prepare();
+  const dirty: number[] = [];
+  for (const p of world.people) { const a = project(p.x, p.y, 0); addRect(dirty, a.sx, a.sy, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 4.4 * S, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 2.4 * S); }
+  for (const d of world.deer) { const a = project(d.x, d.y, 0); addRect(dirty, a.sx, a.sy, 2.2 * S, 3.2 * S, 2.2 * S, 1.4 * S); }
+  for (const b of world.buildings) {
+    if (!b.alive || (b.type === HOUSE ? b.residents === 0 : b.workers === 0)) continue;
+    const t = b.j * world.size + b.i, a = project(tileX(t) + CHIMNEY[b.type][0], tileY(t) + CHIMNEY[b.type][1], CHIMNEY[b.type][2] + 1.2);
+    addRect(dirty, a.sx, a.sy, 1.6 * S, 2.4 * S, 1.6 * S, 2.4 * S);
+  }
+  if (hover >= 0) { const a = project(tileX(hover), tileY(hover), 0); addRect(dirty, a.sx, a.sy, 2 * TILE * S, 5 * S, 2 * TILE * S, 1.2 * TILE * S); }
+  const pond = project(world.pondX + .2, world.pondY, 0);
+  addRect(dirty, pond.sx, pond.sy, world.pondR * S * 1.5, world.pondR * S * .8, world.pondR * S * 1.5, world.pondR * S * .8);
+  const rects = merge(prevRects.concat(dirty));
+  const rows: number[] = [];
+  restore(prevLoose);
+  for (let k = 0; k < rects.length; k += 4) for (let y = rects[k + 1]; y < rects[k + 3]; y++) for (let i = y * W + rects[k], end = y * W + rects[k + 2]; i < end; i++) { pix[i] = bakedPix[i]; zb[i] = bakedZ[i]; }
+  rectRows(rects, rows);
+  touched.length = 0;
+  pendingShadows.length = 0;
+  if (settings.shadows) setTrackShadows(true); else { setTrackShadows(false); shadowMask.fill(0); }
+  drawTufts(time * settings.wind); drawPond(time * settings.wind);
+  const loose: number[] = touched.slice();
+  for (const d of world.deer) drawDeer(d, time);
+  for (const p of world.people) drawPerson(p, time);
+  if (preview >= 0 && hover >= 0 && Math.floor(time * 3) % 2 === 0) models[MODEL_HOUSE + preview].drawAt(tileX(hover), tileY(hover), 0);
+  if (settings.shadows) { flushShadows(); applyShadows(bakedZ); } else pendingShadows.length = 0;
+  if (settings.edges) for (let k = 0; k < rects.length; k += 4) shadeEdgesRect(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);
+  for (const b of world.buildings) {
+    if (!b.alive || (b.type === HOUSE ? b.residents === 0 : b.workers === 0)) continue;
+    const s = CHIMNEY[b.type];
+    drawSmoke(tileX(b.j * world.size + b.i) + s[0], tileY(b.j * world.size + b.i) + s[1], s[2], time, b.i * 7 + b.j);
+  }
+  if (hover >= 0) outline(hover, ok ? OK : BAD);
+  // what to send: the pixels restored from last frame's runs, plus every run and rectangle of this one
+  const spans = rows.concat(prevLoose).concat(loose).concat(shadowSpans);
+  prevLoose = loose.concat(shadowSpans); prevRects = dirty;
+  frameDirty.spans = spans;
+  setTrackShadows(false);
+}
