@@ -1,9 +1,10 @@
 ---
 id: ZN-988
 title: 'Hamlet UI: message log and event notifications with jump to location'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-11-01 14:25'
+updated_date: '2026-11-01 15:00'
 labels:
   - hamlet
   - demo
@@ -23,7 +24,13 @@ A scrolling message list: arrivals, shortages, fires, goals reached; each entry 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Events from the simulation append typed messages with a tile
-- [ ] #2 Clicking a message centres the camera on its tile
-- [ ] #3 Banner for urgent events and a blinking button for new ones
+- [x] #1 Events from the simulation append typed messages with a tile
+- [x] #2 Clicking a message centres the camera on its tile
+- [x] #3 Banner for urgent events and a blinking button for new ones
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Events: new hints of severity 2 or more (rules/hints.ts) and population milestones. Code landed with the control column commit.
+<!-- SECTION:NOTES:END -->
