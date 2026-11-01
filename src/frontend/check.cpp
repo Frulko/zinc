@@ -1757,6 +1757,7 @@ struct Checker {
           TypeId want = n(args[1]).kind == N::FuncExpr && rf != kNone && ty(out.syms[rf].type).k == TK::Func && ty(out.syms[rf].type).params.size() >= 3 ? ty(out.syms[rf].type).params[2] : kNoType;   // the callback of the prelude: its parameters are strings
           TypeId bt = expr(args[1], want);
           bool all = m == "replaceAll";
+          if (n(args[1]).kind == N::FuncExpr && !bad(bt)) rewritten.insert(args[1]);   // the rewrite below checks its arguments again: a second check of the lambda would declare its variables anew, and the calls rewritten inside would still point at the first
           if (bt == tStr) return rewrite(std::string("__reReplace(__H0, __H1, __H2, ") + (all ? "true" : "false") + ")", {{recv}, {args[0]}, {args[1]}});
           if (!bad(bt) && ty(bt).k == TK::Func) return rewrite(std::string("__reReplaceFn(__H0, __H1, __H2, ") + (all ? "true" : "false") + ")", {{recv}, {args[0]}, {args[1]}});
         } else if (isRe && m == "split" && args.size() <= 2) {
