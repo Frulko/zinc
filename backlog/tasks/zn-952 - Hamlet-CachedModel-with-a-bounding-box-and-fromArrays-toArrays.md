@@ -1,9 +1,10 @@
 ---
 id: ZN-952
 title: 'Hamlet: CachedModel with a bounding box and fromArrays/toArrays'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-11-01 13:02'
+updated_date: '2026-11-01 14:21'
 labels:
   - hamlet
   - demo
@@ -25,8 +26,14 @@ captureModel scans 100,800 px and beginModel clears two buffers: too slow for hu
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 beginModel/captureModel touch only the dirty box; same pixels as before (test: every current hamlet model equal before/after)
-- [ ] #2 CachedModel.toArrays() and CachedModel.fromArrays() round trip exactly (T0 test)
-- [ ] #3 Bake time of the 10 hamlet models measured before/after
-- [ ] #4 beginModel documents that it clobbers the live scene
+- [x] #1 beginModel/captureModel touch only the dirty box; same pixels as before (test: every current hamlet model equal before/after)
+- [x] #2 CachedModel.toArrays() and CachedModel.fromArrays() round trip exactly (T0 test)
+- [x] #3 Bake time of the 10 hamlet models measured before/after
+- [x] #4 beginModel documents that it clobbers the live scene
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Done. beginModel now bakes into a private scratch picture (the live pix/zb are never touched, so beginModel no longer clobbers the live scene: AC4 satisfied by removing the problem and documented in the renderer comment). The dirty box is tracked in sphere/box/plot. Box and whole-buffer reads proved equal for primitives and the 11 hamlet models (tests/t0/hamlet_atlas.sh). Bake of the hamlet models: ~100 ms reading the whole buffer (first version) vs ~26 ms with the box. Renderer files live in examples/pixel-plays/src/native/renderer.ts (untracked, not committed).
+<!-- SECTION:NOTES:END -->

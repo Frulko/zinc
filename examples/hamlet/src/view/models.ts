@@ -1,4 +1,4 @@
-import { W, H, pix, zb, setView, Color, CachedModel, rgb, beginModel, captureModel, box, capsule, sphere, plot, rampOf, hash, shadowMask, pine } from '../pixel';
+import { W, H, pix, zb, setView, Color, CachedModel, rgb, beginModel, captureModel, touchModelBuffer, box, capsule, sphere, plot, rampOf, hash, shadowMask, pine } from '../pixel';
 import { ZOOM_SCALES } from './camera';
 import { settings } from '../settings';
 import { STONE, WOOD_HONEY, WOOD_BROWN, BARK, TERRACOTTA } from '../palettes';
@@ -174,6 +174,7 @@ function reduceBuffer(f: number, ox: number, oy: number): void {
     reducedPix[j] = (c0 | (c1 << 8) | (c2 << 16) | (c3 << 24)) >>> 0; reducedDepth[j] = depth;
   }
   for (let i = 0; i < pix.length; i++) { pix[i] = reducedPix[i]; zb[i] = reducedDepth[i]; }
+  touchModelBuffer();
 }
 
 /** Forgets the baked sets (the detail mode changed). */
