@@ -1,8 +1,12 @@
-import { project, plot, sphere, capsule, castShadow, ripple, hash, rgb, Color } from '../pixel';
+import { project, plot, sphere, capsule, castShadow, ripple, hash, rgb, Color, S, R2, COS } from '../pixel';
 import { TREE_HEIGHT } from './models';
 import { fxQueue, FxEvent, FX_LEAVES, FX_FELL, FX_CHIPS, FX_SPLASH, CHIP_SPARK, CHIP_FLOUR } from '../world/fx';
 import { season } from '../rules/season';
 import { sound } from '../audio';
+import { settings } from '../settings';
+import { camera, ZOOM_VIEW } from './camera';
+import { world } from '../world/world';
+import { DAY_TICKS } from '../constants';
 
 // The transient layer of the village: what the work throws up. Each effect is a pure function of its age (no per-particle state): the event gives the origin
 // and a seed, a hash of the particle number gives its velocity. Effects live on the view's clock; the frame redraws only the rectangles around them.
@@ -47,11 +51,42 @@ const heading = (e: FxEvent): number => e.kind === FX_SPLASH ? e.a : e.n;
 const originX = (e: FxEvent): number => e.kind === FX_LEAVES || e.kind === FX_FELL ? treeX(e.n, e.x) : e.x + Math.cos(heading(e)) * inFront(e);
 const originY = (e: FxEvent): number => e.kind === FX_LEAVES || e.kind === FX_FELL ? treeY(e.n, e.y) : e.y + Math.sin(heading(e)) * inFront(e);
 
+/** What the view has played (a counter for the tests: events drained, trees felled, smoke and light spots drawn); nothing reads it in the game. */
+export const fxStats = { events: 0, felled: 0, stumps: 0, smoke: 0, glow: 0 };
+
+/** A felled tree leaves a stump and a log for STUMP_DAYS village days (view only: not saved, a reload clears them). */
+interface Stump { tile: number; x: number; y: number; a: number; until: number; }
+let stumps: Stump[] = [];
+const STUMP_DAYS = 2, STUMPS_MAX = 40;
+const CUT: Color = [200, 164, 112];
+const stumpGone = (s: Stump): boolean => world.tick >= s.until || world.tree[s.tile] !== 0 || world.build[s.tile] >= 0 || world.road[s.tile] !== 0;
+
+/** Pixels the particles take: one at the normal view, two when the window shows a wide area (the picture is shown with smaller pixels there). */
+const fatness = (): number => Math.round(ZOOM_VIEW[camera.level]);
+/** A particle: one pixel, or a block of 2 x 2 when zoomed out. */
+function dot(x: number, y: number, z: number, color: number): void {
+  plot(x, y, z, color);
+  if (fatness() < 2) return;
+  const a = R2 / (2 * S), up = 1 / (S * COS);
+  plot(x + a, y - a, z, color); plot(x, y, z + up, color); plot(x + a, y - a, z + up, color);
+}
+
 /** Takes what the simulation raised since last frame and forgets the effects that ended. */
 export function drainFx(time: number): void {
-  for (const e of fxQueue) live.push({ e, t0: time, sounded: false });
+  if (!settings.fx) { fxQueue.length = 0; live = []; stumps = []; return; }
+  for (const e of fxQueue) { live.push({ e, t0: time, sounded: false }); fxStats.events++; }
   fxQueue.length = 0;
-  live = live.filter((f: Live): boolean => { const age = time - f.t0; return age >= 0 && age < (f.e.kind === FX_FELL ? TREE_FX[f.e.m].delay + TREE_FX[f.e.m].fall + REST : LIFE[f.e.kind]); });
+  live = live.filter((f: Live): boolean => {
+    const age = time - f.t0, life = f.e.kind === FX_FELL ? TREE_FX[f.e.m].delay + TREE_FX[f.e.m].fall + REST : LIFE[f.e.kind];
+    if (age >= life && f.e.kind === FX_FELL) {
+      fxStats.felled++;
+      stumps.push({ tile: f.e.n, x: treeX(f.e.n, f.e.x), y: treeY(f.e.n, f.e.y), a: f.e.a, until: world.tick + STUMP_DAYS * DAY_TICKS });
+      if (stumps.length > STUMPS_MAX) stumps.shift();
+    }
+    return age >= 0 && age < life;
+  });
+  stumps = stumps.filter((s: Stump): boolean => !stumpGone(s));
+  fxStats.stumps = stumps.length;
 }
 
 /** The rectangles to redraw: `add(sx, sy, left, up, right, down)` in screen pixels around each effect. */
@@ -61,6 +96,7 @@ export function fxDirty(add: (sx: number, sy: number, left: number, up: number, 
     if (f.e.kind === FX_FELL) add(a.sx, a.sy, 3.8 * scale, 4.4 * scale, 3.8 * scale, 2.4 * scale);
     else add(a.sx, a.sy, 2 * scale, 3.4 * scale, 2 * scale, 1.6 * scale);
   }
+  for (const s of stumps) { const a = project(s.x, s.y, 0); add(a.sx, a.sy, 1.4 * scale, 1 * scale, 1.4 * scale, .6 * scale); }
 }
 
 /** Bits that fly from a point and fall back: `n` particles of `colors`, each a pixel (a leaf is two). */
@@ -72,13 +108,19 @@ function scatter(x: number, y: number, z: number, age: number, n: number, speed:
     if (pz < 0) continue;
     const c = colors[Math.floor(hash(k, seed + 3) * colors.length)], col = rgb(c[0], c[1], c[2]);
     const px = x + Math.cos(ang) * v * age + (flutter ? Math.sin(age * 7 + k) * .12 : 0), py = y + Math.sin(ang) * v * age;
-    plot(px, py, pz, col);
-    if (flutter) plot(px + .05, py, pz, col);
+    dot(px, py, pz, col);
+    if (flutter) dot(px + .05, py, pz, col);
   }
 }
 
 /** The solid parts, drawn with the actors (lit, shadowed, edged): the felled tree and the jumping fish. */
 export function drawFxBodies(time: number): void {
+  for (const s of stumps) {                                       // the stump with its pale cut, and the felled trunk's first log lying along the fall
+    capsule([s.x, s.y, 0], [s.x, s.y, .2], .17, .15, solid(WOOD), 'solid'); capsule([s.x, s.y, .2], [s.x, s.y, .23], .15, .13, solid(CUT), 'solid');
+    const lx = s.x + Math.cos(s.a) * .6, ly = s.y + Math.sin(s.a) * .6;
+    capsule([lx - Math.sin(s.a) * .3, ly + Math.cos(s.a) * .3, .1], [lx + Math.sin(s.a) * .3, ly - Math.cos(s.a) * .3, .1], .1, .1, solid(WOOD), 'solid');
+    castShadow(s.x, s.y, .2, .3);
+  }
   for (const f of live) {
     const e = f.e, age = time - f.t0, ox = originX(e), oy = originY(e);
     if (e.kind === FX_FELL) {
@@ -122,4 +164,21 @@ export function drawFxSparks(time: number): void {
       if (t > .1) scatter(ox, oy, .05, Math.max(0, age - .5), 9, .5, 1.6, [[230, 244, 240], [190, 220, 224]], seed, false);
     }
   }
+}
+
+/** Smoke over a chimney (kind 0) or steam from a pot (kind 1: whiter, lower, quicker): a few pixels that drift up and fade, out of phase. */
+export function drawSmoke(x: number, y: number, z: number, time: number, seed: number, kind: number): void {
+  fxStats.smoke++;
+  for (let k = 0; k < 5; k++) {
+    const age = (time * (kind === 1 ? .25 : .13) + k * .2 + seed * .37) % 1, c = kind === 1 ? 236 - age * 40 : 210 + age * 28;
+    dot(x + age * (kind === 1 ? .25 : .7) + Math.sin(time * .6 + seed) * .1, y - age * .2, z + age * (kind === 1 ? 1.1 : 2), rgb(c, c + 1, c + (kind === 1 ? -4 : -12) + age * 26));
+  }
+}
+
+/** A warm light (lantern, window, hearth): a bright core with four dimmer neighbours that flicker. */
+export function drawGlow(x: number, y: number, z: number, time: number, seed: number): void {
+  fxStats.glow++;
+  const f = .75 + .25 * Math.sin(time * 7 + seed * 2.3) * Math.sin(time * 3.1 + seed);
+  dot(x, y, z, rgb(255 * f, 214 * f, 120 * f));
+  for (const [dx, dz] of [[.07, 0], [-.07, 0], [0, .07], [0, -.07]]) plot(x + dx, y, z + dz, rgb(190 * f, 120 * f, 60 * f));
 }

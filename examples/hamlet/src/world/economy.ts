@@ -39,6 +39,8 @@ export class Trade { everyDays: number = 0; stayDays: number = 2; offers: number
 /** An adventure: `workers` villagers leave for `days` days, `cost` is paid at the start, each of them is lost with `risk` percent chance, and `rewards` come home with the survivors. */
 export class Adventure { id: string = ''; title: string = ''; text: string = ''; days: number = 1; workers: number = 1; risk: number = 0; cost: number[] = []; rewards: number[] = []; }
 export class Economy {
+  smoke: number[][] = []; glow: number[][] = [];   // view effects at a working building, in tile-local units: [x, y, z] chimney smoke ([x, y, z, 1]: steam), and warm lights shown at night
+  buildable: boolean = true; risk: RiskWeights | null = null;   // buildable false: a leftover (the ruin) the player cannot place, only demolish
   deposits: Deposit[] = []; goals: Goal[] = []; trade: Trade = new Trade(); adventures: Adventure[] = [];
   appeal: AppealSource[] = []; appealMax: number = 8;
   resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
@@ -204,6 +206,15 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
       const sd = new ServiceDef(), k = into.serviceOf(String(b.service.id));
       if (k < 0) errors.push('bad-service: ' + where + ' gives the unknown service "' + String(b.service.id) + '"');
       sd.service = k; sd.walker = b.service.walker === true; sd.range = num(b.service, 'range', 16, where + '.service', errors); sd.radius = num(b.service, 'radius', 0, where + '.service', errors);
+    for (const key of ['smoke', 'glow']) {
+      const list = b[key];
+      if (list === undefined) continue;
+      if (!Array.isArray(list)) { errors.push('bad-effect: ' + where + '.' + key + ' must be a list of [x, y, z]'); continue; }
+      for (const spot of list as number[][]) {
+        if (!Array.isArray(spot) || spot.length < 3 || spot.length > 4 || spot.some((v: number): boolean => typeof v !== 'number')) { errors.push('bad-effect: ' + where + '.' + key + ' holds [x, y, z] (smoke: a fourth 1 for steam)'); continue; }
+        (key === 'smoke' ? d.smoke : d.glow).push(spot.slice());
+      }
+    }
       if (!sd.walker && sd.radius <= 0) errors.push('bad-service: ' + where + ' has no walker and no radius: whom does it serve?');
       if (sd.walker && d.workers <= 0) errors.push('bad-service: ' + where + ' sends a walker but has no workers');
       d.service = sd;

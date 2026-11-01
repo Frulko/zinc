@@ -38,4 +38,22 @@ assert fields[3] and fields[4], 'the session placed no road or building'
 assert fields[1] == '2' and fields[2] == '24', 'the typed seed was not used'
 assert fields[4].count(',') >= 3, 'the session should place houses, a sawmill and a lodge'
 CHECK
+# the work session: a road from the gate, a house and a lumberhut beside it; the villagers cut trees (felling effects, stumps) and bring logs home
+rm -rf "$tmp/data"
+head -4 tests/data/hamlet/session-work.input > "$tmp/new.input"
+ZINC_SIZE=1100x900 ZINC_FRAMES=40 ZINC_INPUT="$tmp/new.input" timeout 120 "$ZINC" run examples/hamlet > "$tmp/out" 2> "$tmp/err"
+[ ! -s "$tmp/err" ] || { cat "$tmp/err"; exit 1; }
+cp "$tmp/data/storage.kv" "$tmp/before.kv"; rm -rf "$tmp/data"
+ZINC_SIZE=1100x900 ZINC_FRAMES=2600 ZINC_INPUT="$PWD/tests/data/hamlet/session-work.input" \
+ZINC_SHOT="$tmp/work.png" ZINC_SHOT_FRAMES=2500 timeout 120 "$ZINC" run examples/hamlet > "$tmp/out" 2> "$tmp/err"
+[ ! -s "$tmp/err" ] || { cat "$tmp/err"; exit 1; }
+python3 - "$tmp" <<'CHECK'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+def trees(name):
+    return len([t for t in (p / name).read_text().split('\t')[1].split(';')[5].split(',') if t])
+before, after = trees('before.kv'), trees('data/storage.kv')
+assert after < before, f'no tree was felled ({before} -> {after})'
+CHECK
 echo 'hamlet: rules on three engines, scripted mouse session and save PASS'

@@ -3,7 +3,9 @@ import {
   copyInto, flushShadows, applyShadows, shadeEdgesRect, setTrackShadows, shadowSpans, rgbColor, rgb, clamp, hash, project, drawDots, haloDots, drawArrow, waterPoint, KIND_GRASS,
 } from '../pixel';
 import { TILE, HOUSE, ROLE_FISHER } from '../constants';
-import { world, tileX, tileY } from '../world/world';
+import { world, tileX, tileY, Building } from '../world/world';
+import { economy } from '../world/economy';
+import { isNight } from '../rules/needs';
 import { tufts, bakeCount, bakeInfo, shiftColors } from './scenery';
 import { settings } from '../settings';
 import { appealMarks, drawMarks, bubbleColor, drawBubble } from './overlay';
@@ -11,9 +13,9 @@ import { ST_SLEEP } from '../constants';
 import { models, MODEL_HOUSE } from './models';
 import { camera, ZOOM_VIEW } from './camera';
 import { computeHints, Hint } from '../rules/hints';
-import { drainFx, fxDirty, drawFxBodies, drawFxSparks } from './fx';
+import { drainFx, fxDirty, drawFxBodies, drawFxSparks, drawSmoke, drawGlow } from './fx';
 import { beesDirty, drawBees } from './bees';
-import { drawPerson, drawDeer, drawSmoke, actorAtlas } from './actors';
+import { drawPerson, drawDeer, actorAtlas } from './actors';
 
 const GRASS_LIT = GRASS.map((c: number[]): u32 => rgbColor(c));
 const GRASS_DARK = GRASS.map((c: number[]): u32 => rgb(c[0] * .54, c[1] * .52, c[2] * .72));
@@ -28,7 +30,8 @@ function arrowTop(tile: number): { x: number; y: number; z: number } {
   const id = world.build[tile];
   return { x: tileX(tile), y: tileY(tile), z: (tile === world.gate && id < 0 ? GATE_TOP : id < 0 ? 1 : world.buildings[id].type < ROOF.length ? ROOF[world.buildings[id].type] : ROOF_DEFAULT) + .3 };
 }
-const CHIMNEY: number[][] = [[.47, -.28, 2.6], [.43, -.3, 2.5], [.43, -.3, 2.45], [.46, -.2, 1.9], [.5, -.3, 2.2], [.4, -.2, 2.25], [.47, -.34, 2.9], [.2, -.2, 2.0], [.2, -.2, 2.35], [.48, -.38, 2.8]];   // house, sawmill, lodge smoke origins (x, y, z)
+/** Whether a building shows its smoke and lights: a house with people in it, a workshop with workers. */
+const lit = (b: Building): boolean => b.alive && (b.type === HOUSE ? b.residents > 0 : b.workers > 0);
 
 /** Pixels the wind redrew this frame, as one-pixel runs (row, column, column): put back from the static picture at the next frame. */
 const touched: number[] = [];
@@ -125,13 +128,14 @@ function prepare(): void {
 /** One picture of the village. `hover` is the tile under the pointer (-1 for none), `preview` the model to ghost on it (-1 for none). */
 export function drawVillage(time: number, hover: number, ok: boolean, preview: number): void {
   if (seenBake !== bakeCount || edgedPix.length !== pix.length) prepare();
-  const dirty: number[] = [];
+  const dirty: number[] = [], night = isNight();
   for (const p of world.people) { const a = project(p.x, p.y, 0); addRect(dirty, a.sx, a.sy, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 4.4 * S, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 2.4 * S); }
   for (const d of world.deer) { const a = project(d.x, d.y, 0); addRect(dirty, a.sx, a.sy, 2.2 * S, 3.2 * S, 2.2 * S, 1.4 * S); }
-  for (const b of world.buildings) {
-    if (!b.alive || b.type >= CHIMNEY.length || (b.type === HOUSE ? b.residents === 0 : b.workers === 0)) continue;
-    const t = b.j * world.size + b.i, a = project(tileX(t) + CHIMNEY[b.type][0], tileY(t) + CHIMNEY[b.type][1], CHIMNEY[b.type][2] + 1.2);
-    addRect(dirty, a.sx, a.sy, 1.6 * S, 2.4 * S, 1.6 * S, 2.4 * S);
+  if (settings.fx) for (const b of world.buildings) {
+    if (!lit(b)) continue;
+    const def = economy.buildings[b.type], t = b.j * world.size + b.i;
+    for (const s of def.smoke) { const a = project(tileX(t) + s[0], tileY(t) + s[1], s[2] + 1.2); addRect(dirty, a.sx, a.sy, 1.6 * S, 2.4 * S, 1.6 * S, 2.4 * S); }
+    if (night) for (const s of def.glow) { const a = project(tileX(t) + s[0], tileY(t) + s[1], s[2]); addRect(dirty, a.sx, a.sy, .5 * S, .5 * S, .5 * S, .5 * S); }
   }
   if (hover >= 0) { const a = project(tileX(hover), tileY(hover), 0); addRect(dirty, a.sx, a.sy, 2 * TILE * S, 5 * S, 2 * TILE * S, 1.2 * TILE * S); }
   beesDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
@@ -176,10 +180,11 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   if (preview >= 0 && hover >= 0 && Math.floor(time * 3) % 2 === 0) models[MODEL_HOUSE + preview].drawAt(tileX(hover), tileY(hover), 0);
   if (settings.shadows) { flushShadows(); applyShadows(bakedZ); } else pendingShadows.length = 0;
   if (settings.edges) for (let k = 0; k < rects.length; k += 4) shadeEdgesRect(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);
-  for (const b of world.buildings) {
-    if (!b.alive || b.type >= CHIMNEY.length || (b.type === HOUSE ? b.residents === 0 : b.workers === 0)) continue;
-    const s = CHIMNEY[b.type];
-    drawSmoke(tileX(b.j * world.size + b.i) + s[0], tileY(b.j * world.size + b.i) + s[1], s[2], time, b.i * 7 + b.j);
+  if (settings.fx) for (const b of world.buildings) {
+    if (!lit(b)) continue;
+    const def = economy.buildings[b.type], t = b.j * world.size + b.i, seed = b.i * 7 + b.j;
+    for (const s of def.smoke) drawSmoke(tileX(t) + s[0], tileY(t) + s[1], s[2], time, seed, s.length > 3 ? s[3] : 0);
+    if (night) for (const s of def.glow) drawGlow(tileX(t) + s[0], tileY(t) + s[1], s[2], time, seed);
   }
   drawFxSparks(time);
   if (hover >= 0) outline(hover, ok ? OK : BAD);

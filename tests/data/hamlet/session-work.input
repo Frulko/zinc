@@ -1,0 +1,18 @@
+1 move 450 450
+2 key g
+4 text 2
+6 key Enter
+50 key 1
+52 move 300 398
+53 down
+55 move 338 417
+57 move 376 436
+61 up
+73 key 2
+75 move 376 398
+76 down
+78 up
+81 key 3
+83 move 300 436
+84 down
+86 up

@@ -5,6 +5,7 @@ import {
 } from '../constants';
 import { sleepsIndoors } from '../engine/routine';
 import { Person, Deer } from '../world/world';
+import { SPECIES } from '../rules/species';
 import { isMoving } from '../engine/path';
 import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, FORAGER_PALETTE, SMITH_PALETTE, BEEKEEPER_PALETTE, CHANDLER_PALETTE, BREWER_PALETTE, INNKEEPER_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
 
@@ -189,45 +190,49 @@ const DEER_WALK_FRAMES = 8, DEER_FLEE_FRAMES = 6, DEER_GRAZE_LEVELS = 4, GRAZE_H
 const DSLOT_WALK = 0, DSLOT_FLEE = DEER_WALK_FRAMES, DSLOT_GRAZE = DSLOT_FLEE + DEER_FLEE_FRAMES, DSLOT_DEAD = DSLOT_GRAZE + DEER_GRAZE_LEVELS, DEER_POSES = DSLOT_DEAD + 1;
 
 /** One deer from the same capsules and spheres as the cat and the gull of the harbour. `a` is the stride angle, `head` how far the head is down to the grass. */
-function paintDeer(x: number, y: number, yaw: number, stag: boolean, mode: number, a: number, head: number): void {
+function paintDeer(x: number, y: number, yaw: number, stag: boolean, mode: number, a: number, head: number, fawn: boolean = false): void {
   const fx = Math.cos(yaw), fy = Math.sin(yaw), sx = -fy, sy = fx;
+  const k = fawn ? .62 : 1;                         // a fawn is the same model smaller, about its own feet
+  const T = (p: Vec3): Vec3 => [x + (p[0] - x) * k, y + (p[1] - y) * k, p[2] * k];
+  const cap = (p: Vec3, q: Vec3, r1: number, r2: number, c: (z: number) => Color, m: string): void => capsule(T(p), T(q), r1 * k, r2 * k, c, m);
+  const ball = (px: number, py: number, pz: number, r: number, c: Color, m: string): void => sphere(x + (px - x) * k, y + (py - y) * k, pz * k, r * k, c, m);
   const P = (u: number, v: number, c: number): Vec3 => [x + fx * u + sx * v, y + fy * u + sy * v, c];
   const fur = solid(FUR), dark = solid(FUR_DARK), light = solid(FUR_LIGHT);
   if (mode === DM_DEAD) {
-    capsule(P(-.4, 0, .26), P(.35, 0, .28), .26, .23, fur, 'solid');
-    capsule(P(.35, 0, .3), P(.75, .15, .2), .12, .08, fur, 'solid'); sphere(x + fx * .85 + sx * .2, y + fy * .85 + sy * .2, .17, .1, FUR_DARK, 'solid');
-    for (const [u, v] of [[-.35, .26], [.3, .26]]) capsule(P(u, v, .22), P(u + .1, v + .5, .16), .06, .04, dark, 'solid');
+    cap(P(-.4, 0, .26), P(.35, 0, .28), .26, .23, fur, 'solid');
+    cap(P(.35, 0, .3), P(.75, .15, .2), .12, .08, fur, 'solid'); ball(x + fx * .85 + sx * .2, y + fy * .85 + sy * .2, .17, .1, FUR_DARK, 'solid');
+    for (const [u, v] of [[-.35, .26], [.3, .26]]) cap(P(u, v, .22), P(u + .1, v + .5, .16), .06, .04, dark, 'solid');
     return;
   }
   const flee = mode === DM_FLEE;
   const stride = flee ? .5 : .28, bob = Math.abs(Math.sin(a)) * (flee ? .08 : .03);
-  capsule(P(-.45, 0, .85 + bob), P(.3, 0, .88 + bob), .27, .24, fur, 'solid');
-  sphere(x + fx * .02, y + fy * .02, .72 + bob, .2, FUR_LIGHT, 'solid');
-  capsule(P(.3, 0, .95 + bob), P(.62, 0, 1.4 - head + bob), .13, .1, fur, 'solid');
+  cap(P(-.45, 0, .85 + bob), P(.3, 0, .88 + bob), .27, .24, fur, 'solid');
+  ball(x + fx * .02, y + fy * .02, .72 + bob, .2, FUR_LIGHT, 'solid');
+  cap(P(.3, 0, .95 + bob), P(.62, 0, 1.4 - head + bob), .13, .1, fur, 'solid');
   const h = P(.68, 0, 1.42 - head * 1.15 + bob);
-  sphere(h[0], h[1], h[2], .12, FUR, 'solid');
-  capsule(h, P(.88, 0, 1.3 - head * 1.15 + bob), .08, .045, light, 'solid');
-  for (const s of [-.1, .1]) capsule(P(.6, s, h[2] + .08), P(.58, s * 2.2, h[2] + .26), .05, .015, dark, 'solid');
+  ball(h[0], h[1], h[2], .12, FUR, 'solid');
+  cap(h, P(.88, 0, 1.3 - head * 1.15 + bob), .08, .045, light, 'solid');
+  for (const s of [-.1, .1]) cap(P(.6, s, h[2] + .08), P(.58, s * 2.2, h[2] + .26), .05, .015, dark, 'solid');
   if (stag) for (const s of [-.07, .07]) {
     const base = P(.62, s, h[2] + .1), tip = P(.55, s * 3.2, h[2] + .62);
-    capsule(base, tip, .02, .015, light, 'solid');
-    capsule(P(.585, s * 2, h[2] + .36), P(.74, s * 2.8, h[2] + .5), .015, .01, light, 'solid');
+    cap(base, tip, .02, .015, light, 'solid');
+    cap(P(.585, s * 2, h[2] + .36), P(.74, s * 2.8, h[2] + .5), .015, .01, light, 'solid');
   }
-  capsule(P(-.5, 0, .95 + bob), P(-.62, 0, 1.02 + bob), .07, .05, light, 'solid');
+  cap(P(-.5, 0, .95 + bob), P(-.62, 0, 1.02 + bob), .07, .05, light, 'solid');
   const legs: number[][] = [[.3, .12, 0], [.3, -.12, 3.14], [-.38, .12, 3.14], [-.38, -.12, 0]];
   for (const [u, v, off] of legs) {
     const swing = mode === DM_STILL ? 0 : Math.sin(a + off) * stride;
-    capsule(P(u, v, .78 + bob), P(u + swing * .5, v, .38 + bob * .5), .08, .05, dark, 'solid');
-    capsule(P(u + swing * .5, v, .38 + bob * .5), P(u + swing, v, .05), .05, .035, dark, 'solid');
+    cap(P(u, v, .78 + bob), P(u + swing * .5, v, .38 + bob * .5), .08, .05, dark, 'solid');
+    cap(P(u + swing * .5, v, .38 + bob * .5), P(u + swing, v, .05), .05, .035, dark, 'solid');
   }
 }
 function deerEntry(): AtlasEntry {
-  return { name: 'deer', variants: 2, yaws: YAW_STEPS, poses: DEER_POSES, draw: (a: AtlasAxes, x: number, y: number, z: number): void => {
-    const yaw = a.yaw8 * TAU / YAW_STEPS, stag = a.variant === 1, s = a.pose;
-    if (s < DSLOT_FLEE) paintDeer(x, y, yaw, stag, DM_WALK, (s - DSLOT_WALK) * TAU / DEER_WALK_FRAMES, 0);
-    else if (s < DSLOT_GRAZE) paintDeer(x, y, yaw, stag, DM_FLEE, (s - DSLOT_FLEE) * TAU / DEER_FLEE_FRAMES, 0);
-    else if (s < DSLOT_DEAD) paintDeer(x, y, yaw, stag, DM_STILL, 0, (s - DSLOT_GRAZE) / (DEER_GRAZE_LEVELS - 1) * GRAZE_HEAD);
-    else paintDeer(x, y, yaw, stag, DM_DEAD, 0, 0);
+  return { name: 'deer', variants: 3, yaws: YAW_STEPS, poses: DEER_POSES, draw: (a: AtlasAxes, x: number, y: number, z: number): void => {
+    const yaw = a.yaw8 * TAU / YAW_STEPS, stag = a.variant === 1, fawn = a.variant === 2, s = a.pose;
+    if (s < DSLOT_FLEE) paintDeer(x, y, yaw, stag, DM_WALK, (s - DSLOT_WALK) * TAU / DEER_WALK_FRAMES, 0, fawn);
+    else if (s < DSLOT_GRAZE) paintDeer(x, y, yaw, stag, DM_FLEE, (s - DSLOT_FLEE) * TAU / DEER_FLEE_FRAMES, 0, fawn);
+    else if (s < DSLOT_DEAD) paintDeer(x, y, yaw, stag, DM_STILL, 0, (s - DSLOT_GRAZE) / (DEER_GRAZE_LEVELS - 1) * GRAZE_HEAD, fawn);
+    else paintDeer(x, y, yaw, stag, DM_DEAD, 0, 0, fawn);
   } };
 }
 
@@ -236,20 +241,13 @@ export function drawDeer(d: Deer, time: number, atlas: Atlas | null): void {
   const dead = d.state === DEER_DEAD, flee = d.state === DEER_FLEE, grazing = d.state === DEER_GRAZE || d.state === DEER_DRINK;
   const mode = dead ? DM_DEAD : flee ? DM_FLEE : !grazing && d.path.length > 0 ? DM_WALK : DM_STILL;
   const head = grazing ? Math.max(0, Math.sin(time * .7 + d.phase)) * GRAZE_HEAD : 0;     // now and then the head goes down to the grass
-  if (atlas === null) paintDeer(d.x, d.y, d.yaw, d.stag, mode, d.phase, head);
+  const fawn = d.age < SPECIES[d.species].adultDays;      // a young deer is drawn smaller
+  if (atlas === null) paintDeer(d.x, d.y, d.yaw, d.stag, mode, d.phase, head, fawn);
   else {
     const yaw8 = stepOf(d.yaw, YAW_STEPS);
     const pose = mode === DM_DEAD ? DSLOT_DEAD : mode === DM_FLEE ? DSLOT_FLEE + stepOf(d.phase, DEER_FLEE_FRAMES) : mode === DM_WALK ? DSLOT_WALK + stepOf(d.phase, DEER_WALK_FRAMES)
       : DSLOT_GRAZE + Math.round(head / GRAZE_HEAD * (DEER_GRAZE_LEVELS - 1));
-    atlas.stamp('deer', { variant: d.stag ? 1 : 0, yaw8, pose }, d.x, d.y, 0);
+    atlas.stamp('deer', { variant: fawn ? 2 : d.stag ? 1 : 0, yaw8, pose }, d.x, d.y, 0);
   }
-  if (dead) castShadow(d.x, d.y, .3, .55); else castShadow(d.x, d.y, .5, .55);
-}
-
-/** Thin smoke over a chimney: a few pixels that drift up and fade, out of phase. */
-export function drawSmoke(x: number, y: number, z: number, time: number, seed: number): void {
-  for (let k = 0; k < 5; k++) {
-    const age = (time * .13 + k * .2 + seed * .37) % 1;
-    plot(x + age * .7 + Math.sin(time * .6 + seed) * .1, y - age * .2, z + age * 2, rgb(210 + age * 28, 211 + age * 25, 199 + age * 26));
-  }
+  if (dead) castShadow(d.x, d.y, .3, fawn ? .35 : .55); else castShadow(d.x, d.y, fawn ? .3 : .5, fawn ? .35 : .55);
 }
