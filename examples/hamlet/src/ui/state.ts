@@ -16,6 +16,7 @@ export const ui = {
   selId: -1,
   advisor: 0,               // tab of the advisor window
   time: 0,                  // seconds of real time, for blinking and flashes
+  back: 0,                  // the window a sub-menu returns to
   editing: false,           // typing in a text field (keys go to the field)
 };
 export const TOP_H = 34, STATUS_H = 26, COL_W = 188, COL_FOLDED = 20;
@@ -36,4 +37,5 @@ export const act = {
   newVillage: (seed: number, size: number): void => {},
   save: (): void => {},
   quit: (): void => {},
+  loaded: (): void => {},
 };

@@ -1,5 +1,5 @@
 import { Panel } from './Panel';
-import { settings, MINIMAP_CORNERS, MINIMAP_SIZES, LOD_MODES, RESAMPLE_MODES } from '../settings';
+import { settings, LOD_MODES, RESAMPLE_MODES } from '../settings';
 import { world } from '../world/world';
 import { MIN_SIZE, MAX_SIZE } from '../constants';
 
@@ -23,10 +23,6 @@ export function buildSettingsPanel(actions: PanelActions): { panel: Panel; fps: 
   panel.bool('Ombres', (): boolean => settings.shadows, (v: boolean): void => { settings.shadows = v; });
   panel.bool('Contours', (): boolean => settings.edges, (v: boolean): void => { settings.edges = v; });
   const fps = panel.monitor('FPS');
-  panel.folder('Minimap');
-  panel.list('Position', MINIMAP_CORNERS, (): number => settings.minimapCorner, (v: number): void => { settings.minimapCorner = v; });
-  panel.list('Pixels', MINIMAP_SIZES, (): number => settings.minimapSize, (v: number): void => { settings.minimapSize = v; });
-  panel.bool('Habitants', (): boolean => settings.minimapUnits, (v: boolean): void => { settings.minimapUnits = v; });
   panel.folder('Simulation');
   panel.number('Vitesse', (): number => settings.simSpeed, (v: number): void => { settings.simSpeed = v; }, .25, 6, .25);
   panel.number('Marche', (): number => settings.walkSpeed, (v: number): void => { settings.walkSpeed = v; }, .25, 4, .25);

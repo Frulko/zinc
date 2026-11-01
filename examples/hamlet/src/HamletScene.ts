@@ -1,5 +1,5 @@
 import {
-  width, height, rect, startTextInput, stopTextInput, keyCount, keyKind, keyMods, Mod, keyName, buttonEventCount, buttonEventButton, buttonEventDown,
+  width, height, rect, quit, keyCount, keyKind, keyMods, Mod, keyName, buttonEventCount, buttonEventButton, buttonEventDown,
   buttonEventX, buttonEventY, pointerDown, pointerX, pointerY, KeyKind, windowCtl, wheel, pinch, scrollDX, scrollDY, scrollPhase, Cursor,
 } from 'zinc:gfx';
 import { Sprite, uiState } from 'zinc:stage';
@@ -28,9 +28,10 @@ import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
 import { drawInfo, pickAt, closeInfo } from './ui/Info';
 import { look, record, beginGroup, endGroup, undo, drawPlacementLabel, reasonText } from './ui/Placement';
-import { WIN_INFO } from './ui/state';
+import { WIN_INFO, WIN_MAIN } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
 import { loadPrefs, savePrefs } from './ui/prefs';
+import { drawMenus, isModal, closeMenus, openNew, openMenu, typeKey } from './ui/Menu';
 import { refreshModels, jumpTo } from './view/scenery';
 import { camera, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY } from './view/camera';
 import { W, H } from './pixel';
@@ -55,8 +56,6 @@ export class HamletScene extends Sprite {
   private panRight: boolean = false;
   private panUp: boolean = false;
   private panDown: boolean = false;
-  private editing: boolean = false;       // typing a seed
-  private seedText: string = '';
   private panning: boolean = false;       // dragging the map with the right or middle button
   private panX: number = 0;
   private panY: number = 0;
@@ -93,10 +92,13 @@ export class HamletScene extends Sprite {
     });
     this.panel = built.panel; this.fpsRow = built.fps; this.panel.open = false;
     world.autosave = true;
-    if (!loadGame()) generate(randomSeed());
+    if (loadGame()) ui.window = WIN_MAIN; else generate(randomSeed());
     bakeVillage(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size;
     act.setTool = (tool: number): void => { this.tool = tool; uiState.dirty = true; };
     act.say = (message: string): void => this.say(message);
+    act.newVillage = (seed: number, size: number): void => this.createVillage(seed, size);
+    act.loaded = (): void => { this.loaded(); saveGame(); };
+    act.quit = (): void => quit();
     act.rebake = (): void => { uiState.dirty = true; };
     act.togglePause = (): void => this.key('p', true);
     act.setSpeed = (i: number): void => { ui.speed = i; settings.simSpeed = SPEEDS[i]; savePrefs(); uiState.dirty = true; };
@@ -134,29 +136,15 @@ export class HamletScene extends Sprite {
     return tileAt(p.x, p.y);
   }
 
-  private newVillage(): void {
-    if (this.time - this.newVillageAt > 3) { this.newVillageAt = this.time; this.say('Appuyez encore sur N pour recommencer un nouveau hameau.'); return; }
-    this.createVillage(randomSeed(), world.size);
-  }
   /** Replaces the village by the one a (seed, size) pair decides, and saves it as the current one. */
   private createVillage(seed: number, size: number): void {
-    eraseSave(); generate(seed, size); bakeVillage(); this.baked = world.revision; this.listTools(); this.pendingSize = size; saveGame();
+    eraseSave(); generate(seed, size); this.loaded(); saveGame();
     this.say('Nouveau hameau · graine ' + seed + ' · ' + size + '×' + size);
   }
-  /** The panel's "new map": the same seed on another grid size, after a second press (it replaces the village). */
-  private resizeVillage(): void {
-    const size = Math.max(MIN_SIZE, Math.min(MAX_SIZE, this.pendingSize));
-    if (this.time - this.newVillageAt > 3) { this.newVillageAt = this.time; this.say('Appuyez encore pour refaire la carte en ' + size + '×' + size + '.'); return; }
-    this.createVillage(world.seed, size);
-  }
-  /** Seed entry: typed text arrives as Text events; Enter creates, Escape cancels. */
-  private edit(kind: KeyKind, name: string): void {
-    if (kind === KeyKind.Text) { if (this.seedText.length < 24) this.seedText += name; }
-    else if (name === 'Backspace') this.seedText = this.seedText.slice(0, -1);
-    else if (name === 'Enter') { this.editing = false; stopTextInput(); const request = parseSeedRequest(this.seedText); this.createVillage(request.seed, request.size); }
-    else if (name === 'Escape') { this.editing = false; stopTextInput(); }
-    uiState.dirty = true;
-  }
+  /** A village was just made or loaded: bake it, rebuild the tools. */
+  private loaded(): void { bakeVillage(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size; ui.category = -1; closeInfo(); uiState.dirty = true; }
+  /** The panel's "new map": the same seed on another grid size. */
+  private resizeVillage(): void { this.createVillage(world.seed, Math.max(MIN_SIZE, Math.min(MAX_SIZE, this.pendingSize))); }
   private act(t: number): void {
     if (this.tool === TOOL_NONE) return;
     const before = look(t), code = applyTool(this.tool, t);
@@ -172,14 +160,13 @@ export class HamletScene extends Sprite {
     if (name === '+' || name === '=') { stepZoom(1); this.baked = world.revision; }
     else if (name === '-' || name === '_') { stepZoom(-1); this.baked = world.revision; }
     else if (name === '0' || name === 'Home') { resetView(); this.baked = world.revision; }
-    else if (name === 'Escape') { if (ui.category >= 0) ui.category = -1; else if (ui.window === WIN_INFO) closeInfo(); else if (!this.panel.closeMenu()) this.tool = TOOL_NONE; }
+    else if (name === 'Escape') { if (closeMenus()) { /* a menu closed */ } else if (ui.category >= 0) ui.category = -1; else if (ui.window === WIN_INFO) closeInfo(); else if (this.panel.closeMenu()) { /* the dev panel's list closed */ } else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; else openMenu(); }
     else if (name === '[' || name === ']') { const i = this.tools.indexOf(this.tool); this.tool = this.tools[(Math.max(0, i) + (name === ']' ? 1 : this.tools.length - 1)) % this.tools.length]; }
     else if (name >= '1' && name <= '9' && Number(name) <= this.tools.length) this.tool = this.tools[Number(name) - 1];
     else if (name === 'p' || name === 'P') { this.paused = !this.paused; this.dragging = false; pauseSound(this.paused); }
     else if (name === 'm' || name === 'M') toggleSound();
     else if (name === 'h' || name === 'H') settings.hints = !settings.hints;
-    else if (name === 'n' || name === 'N') this.newVillage();
-    else if (name === 'g' || name === 'G') { this.editing = true; this.seedText = ''; startTextInput(width() / 2 - 200, height() / 2, 400, 40); }
+    else if (name === 'n' || name === 'N' || name === 'g' || name === 'G') openNew();
     else if (name === 'F2') this.panel.open = !this.panel.open;
     else if (name === 'u' || name === 'U') {
       world.unlimited = !world.unlimited; world.saveDirty = true;
@@ -220,7 +207,7 @@ export class HamletScene extends Sprite {
     this.layoutSurface();
     for (let i = 0; i < keyCount(); i++) {
       const kind = keyKind(i);
-      if (this.editing) { this.edit(kind, keyName(i)); continue; }
+      if (ui.editing) { typeKey(kind, keyName(i)); uiState.dirty = true; continue; }
       if (kind === KeyKind.Text || kind === KeyKind.Repeat) continue;
       if (kind === KeyKind.Down && (keyMods(i) & Mod.Ctrl) !== 0 && keyName(i).toLowerCase() === 'z') { const said = undo(); if (said !== '') this.say(said); this.baked = world.revision; uiState.dirty = true; continue; }
       this.key(keyName(i), kind !== KeyKind.Up);
@@ -248,7 +235,7 @@ export class HamletScene extends Sprite {
     this.held = held;
     const signature = camera.x * 7919 + camera.y * 31 + camera.level * 100003;
     if (signature !== this.cameraSignature) { this.cameraSignature = signature; this.sinceMove = 0; } else this.sinceMove += dt;
-    if (!this.paused && (!settings.pauseOnMove || this.sinceMove > .3)) {
+    if (!this.paused && !isModal() && (!settings.pauseOnMove || this.sinceMove > .3)) {
       this.time += dt;
       this.acc += Math.min(.1, dt) * settings.simSpeed;
       while (this.acc >= TICK) { stepWorld(); this.acc -= TICK; }
@@ -290,16 +277,9 @@ export class HamletScene extends Sprite {
     const note = this.time < this.messageUntil;
     statusStrip(note ? this.message : adviceLine(), note ? col('gold') : 0);
     if (this.panel.open) { this.panel.x = w - this.panel.width - 200; this.panel.y = 48; this.panel.draw(); }
-    if (this.editing) {
-      const cx = vp.x + vp.w / 2, cy = vp.y + vp.h / 2;
-      window_(cx - 200, cy - 70, 400, 140, 'Graine du hameau');
-      parchment(cx - 180, cy - 30, 360, 30);
-      text(kit.body, cx - 172, cy - 24, this.seedText + (Math.floor(this.time * 2) % 2 === 0 ? '_' : ''), col('ink'));
-      textC(kit.body, cx, cy + 14, 'Entrée : créer · Échap : annuler · vide : au hasard', col('muted'));
-      textC(kit.body, cx, cy + 32, 'un nombre ou un mot · mot@32 pour la taille (12 à 32)', col('muted'));
-    }
     if (this.paused) { const cx = vp.x + vp.w / 2; parchment(cx - 70, vp.y + 14, 140, 34); textC(kit.big, cx, vp.y + 12, 'PAUSE', col('accent')); }
     if (this.tool !== TOOL_NONE && !this.paused && hitAt(pointer.x, pointer.y) === null && this.surface.contains(pointer.x, pointer.y)) drawPlacementLabel(this.tool, this.hover, pointer.x, pointer.y);
+    drawMenus();
     drawTooltip();
     updateCursor(this.panning ? Cursor.Grabbing : this.tool === TOOL_NONE ? Cursor.Default : this.tool === TOOL_ERASE ? Cursor.NotAllowed : Cursor.Crosshair);
   }

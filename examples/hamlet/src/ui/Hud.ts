@@ -6,11 +6,12 @@ import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE } from '../constants';
 import { resourceShown } from '../hud';
 import { drawResource, drawGlyph, drawBuilding } from './icons';
 import { kit, col, slab, well, block, button, text, textR, textC, measure, glyphButton, labelButton, addHit, parchment, BTN_PRESSED } from './kit';
-import { ui, act, TOP_H, STATUS_H, COL_W, COL_FOLDED, SPEEDS, columnX, viewport } from './state';
+import { ui, act, WIN_MENU, TOP_H, STATUS_H, COL_W, COL_FOLDED, SPEEDS, columnX, viewport } from './state';
 import { drawMinimap } from './Minimap';
 import { categories, flyAnchor, buildClick } from './BuildMenu';
 import { drawMessages, unread, messageClick } from './Messages';
 import { infoClick } from './Info';
+import { menuClick } from './Menu';
 import { dateText, SEASONS, season } from './clock';
 
 // The frame of the game: the top bar (what the village holds, its date, the speed) and the control column on the right (overview map, tools, messages).
@@ -108,9 +109,10 @@ export function statusStrip(text_: string, color: number): void {
 
 /** A click on a widget of the frame (the id the widget registered). */
 export function hudClick(id: string): void {
-  if (buildClick(id) || messageClick(id) || infoClick(id)) return;
+  if (buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id)) return;
   if (id.startsWith('tool:')) { act.setTool(Number(id.slice(5))); ui.category = -1; return; }
   if (id.startsWith('cat:')) { const i = Number(id.slice(4)); ui.category = ui.category === i ? -1 : i; return; }
+  if (id === 'win:menu') { ui.window = WIN_MENU; return; }
   if (id === 'col:fold') { ui.collapsed = !ui.collapsed; act.rebake(); return; }
   if (id === 'speed:pause') { act.togglePause(); return; }
   if (id.startsWith('speed:')) { act.setSpeed(Number(id.slice(6))); if (ui.paused) act.togglePause(); return; }
