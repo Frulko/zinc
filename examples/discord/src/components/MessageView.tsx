@@ -19,6 +19,7 @@ import { cdnPicture, avatarKey } from '../services/cdn';
 import { cannotSend, countdown } from '../safety/index';
 import { BG_MAIN, BG_INPUT, BG_SURFACE, BG_HOVER, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, TEXT_ERROR, avatarSize, ROW_ESTIMATE, OLDER_AT } from '../constants';
 import { color, rounded, textClass, compact, currentTheme, isSlack, isTeams } from '../theme';
+import { BackButton } from './BackButton';
 import { CodeInsert, CodePanel, sendWithCode } from './CodeInsert';
 import { Picker, PickerButtons, pickerTab, openPicker } from './Picker';
 
@@ -315,6 +316,7 @@ function PinsButton(p: { c: Channel }) {
 function Header(p: { c: Channel | null; title: string }) {
   const c = p.c;
   if (isSlack()) return <View className="h-[64] px-5 flex-row items-center gap-3 border-b border-[var(--dc-divider)]">
+    <BackButton />
     <View className="grow basis-0">
       <View className="flex-row items-center gap-1">
         <Text className={`text-[18px] font-bold ${TEXT_STRONG}`} numberOfLines={1}>{p.title}</Text>
@@ -330,6 +332,7 @@ function Header(p: { c: Channel | null; title: string }) {
   </View>;
   if (isTeams()) return <View className="border-b border-[var(--dc-divider)]">
     <View className="h-[48] px-4 flex-row items-center gap-2">
+      <BackButton />
       <Text className={`grow text-[18px] font-bold ${TEXT_STRONG}`} numberOfLines={1}>{p.title}</Text>
       {c !== null && c.guildId !== '' ? <MemberStack /> : null}
     </View>
@@ -340,7 +343,8 @@ function Header(p: { c: Channel | null; title: string }) {
         aria-label={tr('discord.pins.title')} onPress={() => { if (store.pane !== 'pins') store.togglePins(); }}>{tr('discord.pins.title')}</Text>
     </View> : null}
   </View>;
-  return <View className="h-[48] px-4 flex-row items-center border-b border-[var(--dc-divider)]">
+  return <View className="h-[48] px-4 flex-row items-center gap-2 border-b border-[var(--dc-divider)]">
+    <BackButton />
     <Text className={`grow font-semibold ${TEXT_STRONG}`} numberOfLines={1}>{p.title}</Text>
     {c !== null && !c.forum() ? <PinsButton c={c} /> : null}
   </View>;

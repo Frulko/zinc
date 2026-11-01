@@ -38,13 +38,15 @@ export const win = { w: 1200, h: 760 };
 /** The widths of the columns follow the theme's layout (theme.ts): Slack's rail is narrower and its sidebar wider, Teams' activity rail is a column of icons. */
 export const railW = (): i32 => isSlack() ? 64 : isTeams() ? 68 : RAIL_W;
 export const channelsW = (): i32 => win.w < 800 ? 176 : isSlack() ? 260 : 240;
+/** Under 640 px one column shows at a time: the servers and channels, or the conversation (state.ts navOpen; BackButton goes back). */
+export const narrow = (): boolean => win.w < 640;
 /** Only Discord's layout has a member list at the right (Slack and Teams show the members in the header). */
 export const membersShown = (): boolean => win.w >= 960 && layout() === 'discord';
 /** The avatar of a message: a 36 px rounded square in Slack, 32 px in Teams. */
 
 /** The pins or a thread beside the messages. */
 /** The width the messages have (a pane beside them takes more: popovers are clamped to it). */
-export const mainW = (): i32 => win.w - railW() - channelsW() - (membersShown() ? MEMBERS_W : 0);
+export const mainW = (): i32 => win.w - (narrow() ? 0 : railW() + channelsW()) - (membersShown() ? MEMBERS_W : 0);
 export const paneW = (): i32 => win.w < 960 ? 280 : 360;
 
 // The theme's colours, as classes (theme.ts: the scheme variables a theme file sets)

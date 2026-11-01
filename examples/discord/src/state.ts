@@ -101,6 +101,8 @@ export class Store implements GatewayHandler {
   presences: Map<string, Presence> = new Map<string, Presence>();
   /** The settings screen is open (in place of the messages). */
   settingsOpen = false;
+  /** Narrow windows: the servers and channels are shown (true) or the conversation (false). */
+  navOpen = true;
   /** The settings' pane: 'servers', 'voice' (Voice & audio) or 'appearance' (the themes). */
   settingsTab = 'servers';
   /** The servers shown, chosen in the settings and kept on this machine (zinc:storage), never sent to Discord: null until a choice is
@@ -427,9 +429,12 @@ export class Store implements GatewayHandler {
   showSettings(open: boolean): void {
     if (!open && this.allowed !== null) { for (const g of this.guilds) this.known.add(g.id); this.saveServers(); }
     this.settingsOpen = open;
+    this.navOpen = !open;
     this.call.meterOn(open && this.settingsTab === 'voice');
     this.changed();
   }
+  /** Narrow windows: back to the servers and channels (true) or into the conversation. */
+  showNav(open: boolean): void { this.navOpen = open; this.changed(); }
   showSettingsTab(tab: string): void {
     this.settingsTab = tab;
     this.call.meterOn(this.settingsOpen && tab === 'voice');
@@ -541,6 +546,7 @@ export class Store implements GatewayHandler {
   /** Shows a server's channels (or the DMs) without opening one: nothing is fetched or read until a conversation is chosen. */
   selectGuild(id: string): void {
     this.guildId = id;
+    this.navOpen = true;
     this.selectChannel('');
   }
   selectChannel(id: string): void {
@@ -550,6 +556,7 @@ export class Store implements GatewayHandler {
       this.pane = 'members'; this.threadId = '';                  // the pins or the thread beside were the last channel's
     }
     this.channelId = id;
+    if (id !== '') this.navOpen = false;
     this.subscribe(id);
     this.changed();
     const c = this.findChannel(id);

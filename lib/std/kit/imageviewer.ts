@@ -58,7 +58,7 @@ class Viewer {
     this.stage = this.el(ui.VIEW, 'absolute inset-0', this.root);
     this.img = this.el(ui.IMAGE, 'absolute left-0 top-0', this.stage);
     this.bar = this.el(ui.VIEW, `absolute left-0 top-0 right-0 h-[${BAR}] px-4 flex-row items-center gap-2 bg-[#000000]/45`, this.root); ui.setNumber(this.bar, 'opacity', 0);
-    const cap = this.el(ui.VIEW, 'grow flex-col', this.bar);
+    const cap = this.el(ui.VIEW, 'grow shrink min-w-0 flex-col overflow-hidden', this.bar);
     this.title = this.el(ui.TEXT, 'text-base font-semibold text-white', cap);
     this.detail = this.el(ui.TEXT, 'text-xs text-[#c4c9d4]', cap);
     this.count = this.el(ui.TEXT, 'px-2 text-sm text-[#c4c9d4]', this.bar);

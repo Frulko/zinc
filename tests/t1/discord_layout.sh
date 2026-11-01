@@ -37,4 +37,7 @@ run slack teams
 want slack 'layout teams switched' 'members false, tabs true, format true, channels false, huddles false, activity rail true'
 run teams discord-dark
 want teams 'layout discord switched' 'members true, tabs false, format false, channels false, huddles false, activity rail false'
+# a narrow window (320 px) shows one column at a time: the channel has its Back button and no sidebar
+DISCORD_THEME=discord-dark DISCORD_DEMO=layout ZINC_SIZE=320x700 timeout 90 "$ZINC" run . 2>&1 | grep '^layout ' > "$tmp/narrow"
+grep -qF 'layout discord channel: members false, tabs false, format false, channels false, huddles false, activity rail false, back true' "$tmp/narrow" || { echo "discord_layout: narrow: no Back button"; cat "$tmp/narrow"; fail=1; }
 exit $fail

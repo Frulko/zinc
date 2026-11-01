@@ -72,21 +72,21 @@ class Picker {
     const tabs = this.tabNames();
     this.tab = tabs.indexOf('apps') >= 0 && sources.some((s: CaptureSource) => s.kind === 'window') ? 'apps' : tabs[0];
     this.root = ui.createNode(ui.VIEW);
-    ui.setClass(this.root, 'absolute inset-0 items-center justify-center');
+    ui.setClass(this.root, 'absolute inset-0 items-center justify-center p-2');
     ui.setRole(this.root, 'dialog');
     ui.setLabel(this.root, o.title ?? 'Share your screen');
     this.body = ui.createNode(ui.VIEW);
     ui.insert(this.root, this.body, -1);
     const t = theme(), b = this.body;
-    ui.setClass(b, `flex-col gap-4 p-6 w-[720px] rounded-lg border border-${t.border} bg-${t.card} shadow-lg`);
+    ui.setClass(b, `flex-col gap-4 p-6 w-full max-w-[720px] max-h-full rounded-lg border border-${t.border} bg-${t.card} shadow-lg`);
     const head = this.el(ui.VIEW, 'flex-row items-center gap-4', b);
     this.text(o.title ?? 'Share your screen', `grow text-lg font-semibold tracking-tight text-${t.foreground}`, head);
-    const search = this.el(ui.INPUT, `w-[220] h-[32] px-3 rounded-md text-sm border border-${t.input} bg-${t.background} text-${t.foreground}`, head);
+    const search = this.el(ui.INPUT, `w-[220] shrink min-w-[96] h-[32] px-3 rounded-md text-sm border border-${t.input} bg-${t.background} text-${t.foreground}`, head);
     ui.setPlaceholder(search, 'Search');
     ui.setLabel(search, 'Search screens and windows');
     ui.onText(search, false, (v: string) => { this.query = v; this.build(); });
     this.tabsBox = this.el(ui.VIEW, `flex-row gap-1 p-1 rounded-lg bg-${t.background}`, b);
-    this.list = this.el(ui.SCROLL, 'h-[372] flex-col', b);
+    this.list = this.el(ui.SCROLL, 'h-[372] shrink min-h-[96] flex-col', b);
     this.rest = this.el(ui.VIEW, 'flex-col gap-4', b);
     this.build();
     ui.openLayer(this.root, { priority: 200, modal: true, backdrop: 0x000000, backdropAlpha: 128, motion: 'scale' });
@@ -184,7 +184,7 @@ class Picker {
       const ds = this.shownDevices();
       for (const d of ds) {
         const id = d.id, card = this.card(d.name, id === this.picked, grid);
-        const box = this.el(ui.VIEW, `w-[${THUMB_W}] h-[${THUMB_H}] rounded items-center justify-center bg-${t.muted}`, card);
+        const box = this.el(ui.VIEW, `w-[${THUMB_W}] max-w-full h-[${THUMB_H}] rounded items-center justify-center bg-${t.muted}`, card);
         this.text(d.name, `text-sm text-${t.mutedForeground}`, box);
         this.name(null, d.name, card);
         ui.listen(card, () => { this.picked = id; this.build(); });
@@ -194,7 +194,7 @@ class Picker {
       const shown = this.shown();
       for (const s of shown) {
         const id = s.id, card = this.card(s.name, id === this.picked, grid);
-        const img = this.el(ui.IMAGE, `w-[${THUMB_W}] h-[${THUMB_H}] rounded bg-black object-contain`, card);
+        const img = this.el(ui.IMAGE, `w-[${THUMB_W}] max-w-full h-[${THUMB_H}] rounded bg-black object-contain`, card);
         if (s.thumbnail >= 0) ui.setImageHandle(img, s.thumbnail);
         this.thumbs.set(id, img);
         this.name(s, s.name, card);
@@ -206,7 +206,7 @@ class Picker {
   }
   private card(name: string, on: boolean, parent: i32): i32 {
     const t = theme();
-    const card = this.el(ui.VIEW, `w-[${THUMB_W + 12}] flex-col gap-2 p-1 rounded-lg border-2 ${on ? `border-${t.primary}` : `border-${t.card} hover:bg-${t.muted}`}`, parent);
+    const card = this.el(ui.VIEW, `w-[${THUMB_W + 12}] max-w-full flex-col gap-2 p-1 rounded-lg border-2 ${on ? `border-${t.primary}` : `border-${t.card} hover:bg-${t.muted}`}`, parent);
     ui.setRole(card, 'option');
     ui.setLabel(card, `${name}${on ? ', selected' : ''}`);
     return card;
@@ -224,8 +224,8 @@ class Picker {
     ui.clearChildren(b);
     // the preset line: its name, what it means, resolution and rate; the SD/HD switch and the settings button
     const hdOk = this.ok(HD.res, HD.fps), isHd = this.res === HD.res && this.fps === HD.fps, isSd = this.res === SD.res && this.fps === SD.fps;
-    const line = this.el(ui.VIEW, 'flex-row items-center gap-4', b);
-    const info = this.el(ui.VIEW, 'grow flex-col gap-1', line);
+    const line = this.el(ui.VIEW, 'flex-row flex-wrap items-center gap-x-4 gap-y-2', b);
+    const info = this.el(ui.VIEW, 'grow min-w-[160] flex-col gap-1', line);
     this.text(isHd ? HD.name : isSd ? SD.name : 'Custom', `text-lg font-semibold text-${t.foreground}`, info);
     this.text(`${isHd ? HD.note + ' · ' : isSd ? SD.note + ' · ' : ''}${label(this.res)} · ${this.fps}fps`, `text-sm text-${t.mutedForeground}`, info);
     const sw = this.el(ui.VIEW, `flex-row gap-1 p-1 rounded-lg bg-${t.background}`, line);

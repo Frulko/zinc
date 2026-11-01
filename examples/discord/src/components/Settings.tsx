@@ -15,7 +15,8 @@ import { AccountSafety } from './AccountSafety';
 import { Appearance } from './Appearance';
 import { color } from '../theme';
 import { cdnPicture, iconKey } from '../services/cdn';
-import { BG_MAIN, BG_SURFACE, BG_HOVER, BG_SELECTED, BG_ACCENT, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG } from '../constants';
+import { BG_MAIN, BG_SURFACE, BG_HOVER, BG_SELECTED, BG_ACCENT, TEXT_MAIN, TEXT_MUTED, TEXT_STRONG, narrow } from '../constants';
+import { BackButton } from './BackButton';
 
 function Row(p: { g: Guild }) {
   const g = p.g;
@@ -99,7 +100,7 @@ function Voice() {
       <Volume label={tr('discord.settings.output_volume')} value={() => s.outputVolume} set={(n: number) => set((v: VoiceSettings): void => { v.outputVolume = n; })} />
     </View>
     <Heading text={tr('discord.settings.input_mode')} />
-    <Tabs items={[tr('discord.settings.voice_activity'), tr('discord.settings.push_to_talk')]} selected={() => s.mode === 'ptt' ? 1 : 0} onSelect={(i: i32) => set((v: VoiceSettings): void => { v.mode = i === 1 ? 'ptt' : 'voice'; })} className="w-[320]" />
+    <Tabs items={[tr('discord.settings.voice_activity'), tr('discord.settings.push_to_talk')]} selected={() => s.mode === 'ptt' ? 1 : 0} onSelect={(i: i32) => set((v: VoiceSettings): void => { v.mode = i === 1 ? 'ptt' : 'voice'; })} className="w-full max-w-[320]" />
     {s.mode === 'voice' ? <View>
       <Heading text={tr('discord.settings.sensitivity')} />
       <Text className={`pb-2 text-sm ${TEXT_MUTED}`}>{tr('discord.settings.sensitivity_hint', ['db', `${s.sensitivity}`])}</Text>
@@ -145,16 +146,17 @@ function Tab(p: { id: string; label: string }) {
 
 export function Settings() {
   const tab = store.settingsTab, voice = tab === 'voice', safety = tab === 'safety';
-  return <View className={`grow basis-0 flex-row ${BG_MAIN}`}>
-    <View className={`w-[180] px-2 py-4 gap-[2] ${BG_SURFACE}`}>
-      <Text className={`px-2.5 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>{tr('discord.channels.settings')}</Text>
+  return <View className={`grow basis-0 ${narrow() ? 'flex-col' : 'flex-row'} ${BG_MAIN}`}>
+    <View className={narrow() ? `px-2 py-2 flex-row flex-wrap gap-[2] ${BG_SURFACE}` : `w-[180] px-2 py-4 gap-[2] ${BG_SURFACE}`}>
+      {narrow() ? null : <Text className={`px-2.5 pb-1 text-xs font-bold uppercase ${TEXT_MUTED}`}>{tr('discord.channels.settings')}</Text>}
       <Tab id="servers" label={tr('discord.settings.servers')} />
       <Tab id="voice" label={tr('discord.settings.voice')} />
       <Tab id="safety" label={tr('discord.settings.safety')} />
       <Tab id="appearance" label={tr('discord.settings.appearance')} />
     </View>
     <View className="grow basis-0">
-      <View className="h-[48] px-4 flex-row items-center border-b border-[var(--dc-divider)]">
+      <View className="h-[48] px-4 flex-row items-center gap-2 border-b border-[var(--dc-divider)]">
+        <BackButton />
         <Text className={`grow font-semibold ${TEXT_STRONG}`}>{voice ? tr('discord.settings.voice') : safety ? tr('discord.settings.safety') : tab === 'appearance' ? tr('discord.settings.appearance') : tr('discord.settings.servers')}</Text>
         <Tooltip label={tr('discord.settings.close')} placement="bottom-end"><View className={`p-1 rounded ${BG_HOVER}`} onPress={() => store.showSettings(false)} aria-label={tr('discord.settings.close')}>
           <Icon name="x" size={20} color={MUTED} />

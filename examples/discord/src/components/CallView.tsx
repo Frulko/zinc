@@ -13,6 +13,7 @@ import { Avatar } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
 import { v, color } from '../theme';
 import { BG_STAGE, BG_TILE, BG_ACCENT, TEXT_MUTED, TEXT_SUCCESS, TEXT_WARNING, SPEAKING_RING, CALL_AVATAR, TILE_W, TILE_H, FULL_W, FULL_H } from '../constants';
+import { BackButton } from './BackButton';
 
 /** 75 -> "1:15", 3725 -> "1:02:05". */
 export function duration(seconds: number): string {
@@ -116,10 +117,11 @@ export function CallView(p: { compact: boolean }) {
   const time = call.since > 0 ? duration((Date.now() - call.since) / 1000) : '';
   return <View className={`${p.compact ? 'h-[320]' : 'grow basis-0'} ${BG_STAGE}`}>
     <View className="h-[48] px-4 flex-row items-center gap-2">
+      <BackButton />
       <Icon name="volume-2" size={20} color={() => 0x949ba4} />
       <Text className="grow font-semibold text-white" numberOfLines={1}>{c !== null ? c.name : ''}</Text>
       {call.state === 'connected' ? <Bars /> : null}
-      <Text className={`text-sm ${call.state === 'connected' ? TEXT_SUCCESS : TEXT_WARNING}`}>{label}</Text>
+      <Text className={`shrink text-sm ${call.state === 'connected' ? TEXT_SUCCESS : TEXT_WARNING}`} numberOfLines={1}>{label}</Text>
       <Text className="text-sm text-[#949ba4]" aria-label={tr('discord.call.duration')}>{time}</Text>
     </View>
     {call.focused ? <FullStream /> : <View className="grow basis-0 items-center justify-center px-4">

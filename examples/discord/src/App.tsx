@@ -13,7 +13,7 @@ import { Settings } from './components/Settings';
 import { CallView, StatsPanel } from './components/CallView';
 import { Transfer } from './components/Transfer';
 import { useWindowDimensions } from 'zinc:react-native';
-import { BG_MAIN, TEXT_MUTED, CH_VOICE, railW, win, membersShown } from './constants';
+import { BG_MAIN, TEXT_MUTED, CH_VOICE, railW, win, membersShown, narrow } from './constants';
 
 /** No conversation open: the server or the DMs are shown, one is chosen in the list. */
 function Pick() {
@@ -38,9 +38,10 @@ export default function App() {
   const callHere = call.channelId !== '' && call.channelId === store.channelId && !store.settingsOpen;
   const voiceRoom = open !== null && open.type === CH_VOICE;
   call.watch(callHere);
+  if (narrow() && store.navOpen && !store.settingsOpen) return <View className="grow flex-row"><GuildRail /><ChannelList /></View>;   // one column at a time
   return <View className="grow flex-row">
-    <GuildRail />
-    <ChannelList />
+    {narrow() ? null : <GuildRail />}
+    {narrow() ? null : <ChannelList />}
     {store.settingsOpen ? <Settings /> : voiceRoom ? (callHere ? <CallView compact={false} /> : <Pick />)
       : callHere ? <View className="grow basis-0"><CallView compact={true} /><MessageView /></View>
       : store.channelId === '' ? <Pick /> : <MessageView />}

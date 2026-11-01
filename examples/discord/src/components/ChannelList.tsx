@@ -9,7 +9,7 @@ import { tr } from '../i18n';
 import { store, Channel } from '../state';
 import { Avatar, Status } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
-import { CH_CATEGORY, CH_VOICE, CH_DM, CH_GROUP_DM, isThread, BG_SIDE, SB_SELECTED, SB_SELECTED_TEXT, SB_HOVER, SB_TEXT, SB_MUTED, SB_STRONG, TEXT_ERROR, TEXT_SUCCESS, TEXT_WARNING, BG_ACCENT, channelsW, MENTION_BG, SPEAKING_RING, VOICE_AVATAR } from '../constants';
+import { CH_CATEGORY, CH_VOICE, CH_DM, CH_GROUP_DM, isThread, BG_SIDE, SB_SELECTED, SB_SELECTED_TEXT, SB_HOVER, SB_TEXT, SB_MUTED, SB_STRONG, TEXT_ERROR, TEXT_SUCCESS, TEXT_WARNING, BG_ACCENT, channelsW, narrow, MENTION_BG, SPEAKING_RING, VOICE_AVATAR } from '../constants';
 import { color, isSlack, isTeams } from '../theme';
 import * as guard from '../safety/index';
 import { Bars } from './CallView';
@@ -142,7 +142,7 @@ function Header(p: { name: string }) {
 
 export function ChannelList() {
   const g = store.findGuild(store.guildId);
-  return <View className={`w-[${channelsW()}] ${BG_SIDE}`}>
+  return <View className={`${narrow() ? 'grow basis-0' : `w-[${channelsW()}]`} ${BG_SIDE}`}>
     <Header name={g !== null ? g.name : tr('discord.rail.dm')} />
     <ScrollView className="grow">
       <Rows all={store.channels().filter(listed)} />

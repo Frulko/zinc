@@ -26,7 +26,7 @@ async function shot(name: string): Promise<void> {
   if (env('DISCORD_SHOTS') !== '') capture(`${env('DISCORD_SHOTS')}/${name}.png`);
 }
 function report(where: string): void {
-  console.log(`layout ${layout()} ${where}: members ${memberList()}, tabs ${has('discord.layout.tab_posts')}, format ${has('discord.layout.bold')}, channels ${has('discord.layout.channels')}, huddles ${has('discord.layout.huddles')}, activity rail ${has('discord.layout.chat')}`);
+  console.log(`layout ${layout()} ${where}: members ${memberList()}, tabs ${has('discord.layout.tab_posts')}, format ${has('discord.layout.bold')}, channels ${has('discord.layout.channels')}, huddles ${has('discord.layout.huddles')}, activity rail ${has('discord.layout.chat')}, back ${has('discord.common.back')}`);
 }
 
 export async function layoutSession(): Promise<void> {
