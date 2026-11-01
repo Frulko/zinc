@@ -1,11 +1,12 @@
-import { TERRAIN_GRASS, ROAD_COST, WALK_SPEED, ROAD_SPEED } from '../constants';
+import { TERRAIN_GRASS, TERRAIN_WATER, ROAD_COST, WALK_SPEED, ROAD_SPEED } from '../constants';
 import { world, Mover, neighbor, tileAt, tileX, tileY } from '../world/world';
 
 export const UNREACHABLE = 1e9;
 export interface Field { dist: number[]; prev: number[]; }
 
+/** Grass, or water under a bridge (a road on water). */
 export function isWalkable(t: number): boolean {
-  return world.terrain[t] === TERRAIN_GRASS && world.tree[t] === 0 && world.rock[t] === 0 && world.build[t] < 0;
+  return (world.terrain[t] === TERRAIN_GRASS || (world.terrain[t] === TERRAIN_WATER && world.road[t] !== 0)) && world.tree[t] === 0 && world.rock[t] === 0 && world.build[t] < 0;
 }
 
 /** Cheapest walking cost from start to every tile (roads are cheaper than grass). `limit` stops the search at that cost (a wild animal looks a few tiles around, not the whole map). A binary heap on (cost, tile): ties go to the lowest tile, as the plain scan it replaced did, so paths do not change. */

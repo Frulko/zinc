@@ -1,9 +1,10 @@
-import { HOUSE, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_NO_LODE, PLACE_LOCKED, ROCK_DEPOSIT } from '../constants';
+import { TERRAIN_GRASS, HOUSE, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_NO_LODE, PLACE_LOCKED, ROCK_DEPOSIT } from '../constants';
 import { world, newBuilding, recount, tileIndex, tileI, tileJ, neighbor, isOpen, waterNeighbor } from '../world/world';
 import { economy } from '../world/economy';
 import { releaseWorkers, removeResidents } from '../engine/villagers';
 import { canPay, pay } from './stock';
 import { isUnlocked } from './goals';
+import { costOf, buildRoad, demolishRoad } from './roadplan';
 
 /** The tool that places a building type. */
 export function toolOf(id: string): number { return TOOL_HOUSE + economy.typeOf(id); }
@@ -23,8 +24,8 @@ function lodeNear(t: number, k: number): boolean {
 export function checkTool(tool: number, t: number): number {
   if (t < 0) return PLACE_BLOCKED;
   if (tool === TOOL_ERASE) return ((world.build[t] >= 0 && !world.buildings[world.build[t]].fixed) || (world.road[t] && t !== world.gate) || world.tree[t] > 0) ? PLACE_OK : PLACE_BLOCKED;   // a tree can be razed: it brings nothing
+  if (tool === TOOL_ROAD) return world.terrain[t] === TERRAIN_GRASS && world.rock[t] === 0 && world.build[t] < 0 && world.road[t] === 0 ? (canPay(costOf([t])) ? PLACE_OK : PLACE_NO_STOCK) : PLACE_BLOCKED;   // a tree is cleared by the road
   if (!isOpen(t)) return PLACE_BLOCKED;
-  if (tool === TOOL_ROAD) return PLACE_OK;
   const def = economy.buildings[tool - TOOL_HOUSE];
   if (!def.buildable) return PLACE_BLOCKED;
   if (def.gather === 'shore' && waterNeighbor(t) < 0) return PLACE_NO_WATER;
@@ -46,9 +47,9 @@ export function applyTool(tool: number, t: number): number {
   const code = checkTool(tool, t);
   if (code !== PLACE_OK) return code;
   if (tool === TOOL_ERASE) {
-    if (world.build[t] >= 0) destroyBuilding(world.build[t]); else if (world.road[t]) world.road[t] = 0; else { world.tree[t] = 0; world.claimed[t] = 0; }
+    if (world.build[t] >= 0) destroyBuilding(world.build[t]); else if (world.road[t]) demolishRoad([t]); else { world.tree[t] = 0; world.claimed[t] = 0; }
   } else if (tool === TOOL_ROAD) {
-    world.road[t] = 1; world.deco[t] = 0;
+    buildRoad([t]);
   } else {
     pay(economy.buildings[tool - TOOL_HOUSE].cost);
     addBuilding(tool - TOOL_HOUSE, t);

@@ -40,7 +40,8 @@
     { "id": "candle", "label": "Bougies", "carry": "sack", "price": 5 },
     { "id": "mead", "label": "Hydromel", "carry": "sack", "price": 7 }
   ],
-  "desirability": { "limit": 8, "terrain": [ { "kind": "tree", "rings": [1] }, { "kind": "water", "rings": [2, 1] } ] },
+  "desirability": { "limit": 8, "terrain": [ { "kind": "tree", "rings": [1] }, { "kind": "water", "rings": [2, 1] }, { "kind": "plaza", "rings": [1] } ] },
+  "roads": { "dirt": { "plank": 0.5 }, "bridge": { "plank": 3 }, "clear": { "plank": 0.25 }, "yield": { "log": 1 }, "refund": 50 },
   "goals": [
     { "id": "wood", "title": "Du bois", "text": "Posez une cabane de bûcheron au bord de la route : les habitants coupent les arbres.",
       "when": [ { "building": "lumberhut" } ], "give": { "log": 4 } },

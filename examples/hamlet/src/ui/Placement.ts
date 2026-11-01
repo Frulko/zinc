@@ -1,4 +1,5 @@
 import { width } from 'zinc:gfx';
+import { TERRAIN_WATER } from '../constants';
 import { world } from '../world/world';
 import { economy, amountText } from '../world/economy';
 import { TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_LOCKED, PLACE_NO_LODE } from '../constants';
@@ -8,7 +9,7 @@ import { lockText } from '../rules/goals';
 import { recount } from '../world/world';
 import { drawResource } from './icons';
 import { tint } from './Overlays';
-import { RoadPlan } from '../rules/roadplan';
+import { RoadPlan, costOf, unrefund } from '../rules/roadplan';
 import { kit, col, parchment, text, measure, wrap } from './kit';
 
 // Placement feedback: the label that follows the pointer (cost, why not), the count of a drag, and Ctrl+Z.
@@ -24,7 +25,12 @@ export function showLine(plan: RoadPlan | null, erase: number[] = []): void { li
 /** The ghost of the line: green where the road will go, pale where one already stands, red on the obstacle that ends it. */
 export function drawLine(): void {
   if (linePlan !== null) {
-    for (const t of linePlan.tiles) tint(t, t === linePlan.blocked ? 0xc8452f : world.road[t] !== 0 ? 0xe0b13c : 0x3f9a45, t === linePlan.blocked ? 190 : 140);
+    const fresh = linePlan.fresh;
+    for (const t of linePlan.tiles) {
+      const k = fresh.indexOf(t);
+      const color = t === linePlan.blocked ? 0xc8452f : world.road[t] !== 0 ? 0xd8d3a0 : k >= linePlan.built ? 0x8a8a8a : world.terrain[t] === TERRAIN_WATER ? 0x3f8fb0 : world.tree[t] > 0 ? 0xe08a2b : 0x3f9a45;   // grey: not paid for; blue: bridge; amber: a tree to clear
+      tint(t, color, t === linePlan.blocked ? 190 : 140);
+    }
   }
   for (const t of lineErase) tint(t, 0xc8452f, 150);
 }
@@ -48,16 +54,20 @@ export function record(tool: number, t: number, before: Snapshot): void {
 export function undo(): string {
   const group = groups.pop();
   if (group === undefined) return '';
+  const paid: number[] = [], taken: number[] = [];
   for (let i = group.length - 1; i >= 0; i--) {
     const a = group[i];
-    if (a.kind === A_ROAD) world.road[a.tile] = 0;
-    else if (a.kind === A_ERASE_ROAD) world.road[a.tile] = 1;
+    if (a.kind === A_ROAD) { world.road[a.tile] = 0; paid.push(a.tile); }
+    else if (a.kind === A_ERASE_ROAD) { world.road[a.tile] = 1; taken.push(a.tile); }
     else if (a.kind === A_BUILD) {
       if (world.build[a.tile] >= 0) destroyBuilding(world.build[a.tile]);
       const cost = economy.buildings[a.type].cost;
       for (let k = 0; k < cost.length; k++) if (cost[k] > 0) give(k, cost[k]);
     } else if (world.build[a.tile] < 0) addBuilding(a.type, a.tile);
   }
+  const back = costOf(paid);                                    // the roads laid by the drag are paid back whole (a felled tree stays felled)
+  for (let k = 0; k < back.length; k++) if (back[k] > 0) give(k, back[k]);
+  unrefund(taken);
   recount(); world.revision++; world.saveDirty = true;
   return group.length > 1 ? 'Annulé : ' + group.length + ' cases.' : 'Annulé.';
 }
@@ -76,20 +86,21 @@ export function drawPlacementLabel(tool: number, tile: number, px: number, py: n
   if (tile < 0 && !drag.active) return;
   const code = tile >= 0 ? checkTool(tool, tile) : 1, ok = code === PLACE_OK;
   const build = tool >= TOOL_HOUSE && tool < TOOL_ERASE, name = build ? economy.buildings[tool - TOOL_HOUSE].label : tool === TOOL_ROAD ? 'Route' : 'Démolir';
-  const line = linePlan !== null ? linePlan.fresh.length : lineErase.length > 0 ? lineErase.length : 0;
+  const line = linePlan !== null ? linePlan.built : lineErase.length > 0 ? lineErase.length : 0;
   const head = linePlan !== null && line > 0 ? name + ' · ' + line + (line > 1 ? ' cases' : ' case') : lineErase.length > 1 ? name + ' · ' + line + ' cases' : drag.active && drag.count > 1 ? name + ' · ' + drag.count + ' cases' : name;
   const stop = linePlan !== null && linePlan.blocked >= 0;
-  const reason = stop ? wrap('Un obstacle arrête la route.', 230) : !ok && tile >= 0 && (build || tool === TOOL_ERASE) && lineErase.length === 0 ? wrap(reasonText(tool, code), 230) : [];
+  const short = linePlan !== null && linePlan.built < linePlan.fresh.length;
+  const reason = stop ? wrap(linePlan !== null && world.terrain[linePlan.blocked] === TERRAIN_WATER ? 'Un pont ne passe pas plus de trois cases d’eau.' : 'Un obstacle arrête la route.', 230) : short && linePlan !== null ? wrap('Il manque : ' + amountText(costOf(linePlan.fresh), world.stock) + '.', 230) : !ok && tile >= 0 && (build || tool === TOOL_ERASE) && lineErase.length === 0 ? wrap(reasonText(tool, code), 230) : [];
+  const cost: number[] | null = build ? economy.buildings[tool - TOOL_HOUSE].cost : linePlan !== null && linePlan.cost.some((v: number): boolean => v > 0) ? linePlan.cost : null;
   let w = Math.max(measure(head), 70);
-  if (build) { let cw = 0; for (let k = 0; k < economy.resources.length; k++) if (economy.buildings[tool - TOOL_HOUSE].cost[k] > 0) cw += 26 + measure(String(economy.buildings[tool - TOOL_HOUSE].cost[k])); w = Math.max(w, cw); }
+  if (cost !== null) { let cw = 0; for (let k = 0; k < cost.length; k++) if (cost[k] > 0) cw += 26 + measure(String(cost[k])); w = Math.max(w, cw); }
   for (const l of reason) w = Math.max(w, measure(l));
-  w += 16; const h = 8 + kit.lineH + (build ? 20 : 0) + reason.length * kit.lineH + 4;
+  w += 16; const h = 8 + kit.lineH + (cost !== null ? 20 : 0) + reason.length * kit.lineH + 4;
   const x = Math.max(4, Math.min(width() - w - 200, px + 20)), y = py + 22;
   parchment(x, y, w, h);
-  text(kit.body, x + 8, y + 5, head, ok && !stop ? col('good') : col('bad'));
+  text(kit.body, x + 8, y + 5, head, ok && !stop && !short ? col('good') : col('bad'));
   let cy = y + 6 + kit.lineH;
-  if (build) {
-    const cost = economy.buildings[tool - TOOL_HOUSE].cost;
+  if (cost !== null) {
     let cx = x + 8;
     for (let k = 0; k < cost.length; k++) { if (cost[k] <= 0) continue; drawResource(k, cx, cy, 16); text(kit.small, cx + 18, cy + 1, String(cost[k]), world.stock[k] < cost[k] ? col('bad') : col('ink')); cx += 26 + measure(String(cost[k])); }
     cy += 20;

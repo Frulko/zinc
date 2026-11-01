@@ -7,7 +7,8 @@ import { WATER_TONES, SAND_TONES, ROAD_COLOR } from '../palettes';
 import { DECO_TRAIL, DECO_REEDS } from '../gen/terrain';
 import { ensureBiomes, monthStep, biomes, blend, groundTone, snowShare, flowerShare, reedColor, iceShare, tileMonth } from './seasons';
 import { world, waterField, tileX, tileY, tileAt, tileCount, neighbor } from '../world/world';
-import { models, modelOf, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, useTreeSeason, treeModel, warmTrees, resetModels, TREE_HEIGHT, prepareLevel, saveModels, restoreModels } from './models';
+import { models, modelOf, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, useTreeSeason, treeModel, bakeMirrors, mirrorOf, warmTrees, resetModels, TREE_HEIGHT, prepareLevel, saveModels, restoreModels } from './models';
+import { isPlaza } from '../rules/roadplan';
 import { settings } from '../settings';
 import { drawPerson, drawDeer, actorAtlas } from './actors';
 import { camera, ZOOM_SCALES, ZOOM_VIEW, DEFAULT_ZOOM, artLevel, windowWidth, windowHeight, scaleOf, layerWidth, layerHeight, layerOriginX, layerOriginY, applyCamera, centerOn, centerPoint, panBy } from './camera';
@@ -218,6 +219,9 @@ function paintDirt(t: number, layer: Layer): void {
   const x0 = tileX(t) - TILE / 2, y0 = tileY(t) - TILE / 2;
   const ramp = rampOf(ROAD_COLOR);
   const joins = [linked(t, 0), linked(t, 1), linked(t, 2), linked(t, 3)];
+  const bridge = world.terrain[t] === TERRAIN_WATER, plaza = isPlaza(t), alongX = joins[0] || joins[1];
+  const bulge = !bridge && !plaza && (joins[0] ? 1 : 0) + (joins[1] ? 1 : 0) + (joins[2] ? 1 : 0) + (joins[3] ? 1 : 0) >= 3 ? .07 : 0;      // a junction is a little wider
+  const deck = rampOf([150, 112, 72]), rail = rampOf([92, 62, 38]), stone = rampOf([172, 164, 150]);
   const a = project(x0, y0, 0), b = project(x0 + TILE, y0, 0), c = project(x0, y0 + TILE, 0), d = project(x0 + TILE, y0 + TILE, 0);
   const left = Math.max(CX0, Math.floor(Math.min(a.sx, b.sx, c.sx, d.sx))), right = Math.min(CX1 - 1, Math.ceil(Math.max(a.sx, b.sx, c.sx, d.sx)));
   const top = Math.max(CY0, Math.floor(Math.min(a.sy, b.sy, c.sy, d.sy))), bottom = Math.min(CY1 - 1, Math.ceil(Math.max(a.sy, b.sy, c.sy, d.sy)));
@@ -226,7 +230,20 @@ function paintDirt(t: number, layer: Layer): void {
     if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || layerTile(layer, bx, by) !== t) continue;
     const i = iy * W + ix, p = unproject(ix + .5, iy + .5);
     const lx = (p.x - x0) / TILE, ly = (p.y - y0) / TILE;
-    let dist = Math.hypot(lx - .5, ly - .5) - .04;
+    if (bridge) {                                                            // planks across the water, a rail on each side
+      const u = alongX ? lx : ly, v = Math.abs((alongX ? ly : lx) - .5);
+      if (v > .31) continue;
+      const rl = v > .25, plank = (u * 6) % 1 < .1;
+      pix[i] = rl ? rail[hash((ix + PX) * 3, (iy + PY) * 5) > .8 ? 1 : 3] : deck[plank ? 1 : clamp(Math.floor(2.4 + noise(p.x * 2.5, p.y * 2.5) * 1.6), 2, 4)];
+      kinds[i] = KIND_ROAD; continue;
+    }
+    if (plaza) {                                                             // paved: stone slabs with joints
+      if (Math.max(Math.abs(lx - .5), Math.abs(ly - .5)) > .5 - hash(ix + PX, iy + PY) * .02) continue;
+      const joint = (lx * 3) % 1 < .07 || (ly * 3) % 1 < .07;
+      pix[i] = joint ? stone[1] : stone[clamp(Math.floor(2.4 + noise(p.x * 2, p.y * 2) * 1.8 + (hash(ix + PX, iy + PY) - .5) * .5), 2, 4)];
+      kinds[i] = KIND_ROAD; continue;
+    }
+    let dist = Math.hypot(lx - .5, ly - .5) - .04 - bulge;
     for (let k = 0; k < 4; k++) {
       if (!joins[k]) continue;
       const sx = SEGMENT_X[k], sy = SEGMENT_Y[k];
@@ -267,9 +284,21 @@ export const bakeStats = { full: 0, partial: 0, lastMs: 0, chunks: 0, groundMs: 
 /** The next rebake is a full one (the models, the zoom or the village itself changed). */
 export function forceFullBake(): void { forceFull = true; }
 
+/** A building's door looks at its road: the art has it on the +y face, so a building whose road runs along +x (and has none on +y) is drawn mirrored. View only: nothing of the rules reads it. */
+function facesEast(t: number): boolean {
+  if (world.build[t] < 0) return false;
+  const e = neighbor(t, 0), s = neighbor(t, 2);
+  return e >= 0 && world.road[e] !== 0 && !(s >= 0 && world.road[s] !== 0);
+}
+/** The mirrored models the buildings of the village need, baked before a bake of the scene begins. */
+function mirrorsNeeded(): number[] {
+  const out: number[] = [];
+  for (let t = 0; t < tileCount(); t++) if (facesEast(t)) { const id = modelOf(world.buildings[world.build[t]].type, world.buildings[world.build[t]].level); if (out.indexOf(id) < 0) out.push(id); }
+  return out;
+}
 function tileSig(t: number): number {
   const b = world.build[t];
-  return (((world.tree[t] * 8 + world.rock[t]) * 5 + world.deco[t]) * 256 + (b >= 0 ? 1 + world.buildings[b].type + 64 * world.buildings[b].level : 0)) * 2 + world.road[t] + (world.terrain[t] === TERRAIN_VOID ? 100000 : 0);
+  return (((world.tree[t] * 8 + world.rock[t]) * 5 + world.deco[t]) * 256 + (b >= 0 ? 1 + world.buildings[b].type + 64 * world.buildings[b].level : 0)) * 8 + world.road[t] + (isPlaza(t) ? 2 : 0) + (facesEast(t) ? 4 : 0) + (world.terrain[t] === TERRAIN_VOID ? 100000 : 0);
 }
 
 /** The window rectangle (x0, y0, x1, y1; x1, y1 excluded) that a tile can change: its ground, what stands on it, its shadow and its tall crown. */
@@ -365,7 +394,8 @@ function bakeRects(layer: Layer, rects: number[]): void {
       }
       if (world.rock[t] > 0) { models[MODEL_ROCK + world.rock[t] - 1].drawAt(x, y, 0); castShadow(x, y, .4, .6); }
       if (world.build[t] >= 0) {
-        models[modelOf(world.buildings[world.build[t]].type, world.buildings[world.build[t]].level)].drawAt(x, y, 0);
+        const id = modelOf(world.buildings[world.build[t]].type, world.buildings[world.build[t]].level);
+        (facesEast(t) ? mirrorOf(id) : models[id]).drawAt(x, y, 0);
         for (let z = .4; z < 2.6; z += .55) castShadow(x, y, z, .85);
       }
     }
@@ -429,6 +459,7 @@ export function rebakeStatic(): void {
     if (rects.length === 0 && dx === 0 && dy === 0) return;
     if (area(rects) * 10 > W * H * 6) full = true;                 // most of the window anyway
   }
+  if (bakeMirrors(mirrorsNeeded())) applyCamera();                   // a frame baked here leaves the renderer's view at the bake's
   bakeCount++;
   bakeInfo.prepared = false;
   if (full) {

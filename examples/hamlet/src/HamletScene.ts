@@ -13,7 +13,7 @@ import {
 import * as assets from 'zinc:assets';
 import { world, generate, tileAt } from './world/world';
 import { TerrainParams } from './gen/terrain';
-import { economy, loadEconomy } from './world/economy';
+import { economy, loadEconomy, amountText } from './world/economy';
 import { MODEL_IDS } from './view/models';
 import { saveGame, loadGame, eraseSave } from './world/save';
 import { parseSeedRequest, randomSeed } from './world/seed';
@@ -34,8 +34,8 @@ import { ui, act, viewport, SPEEDS, mapView } from './ui/state';
 import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
 import { drawInfo, pickAt, closeInfo } from './ui/Info';
-import { look, record, beginGroup, endGroup, undo, drawPlacementLabel, reasonText, showLine, drawLine } from './ui/Placement';
-import { planRoad, linePath, RoadPlan } from './rules/roadplan';
+import { look, record, Snapshot, beginGroup, endGroup, undo, drawPlacementLabel, reasonText, showLine, drawLine } from './ui/Placement';
+import { planRoad, linePath, RoadPlan, buildRoad, demolishRoad, costOf } from './rules/roadplan';
 import { WIN_MAIN } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
 import { loadPrefs, savePrefs } from './ui/prefs';
@@ -271,7 +271,7 @@ export class HamletScene extends Sprite {
     if (this.tool !== TOOL_ROAD) this.anchor = -1;
     const start = this.dragging && this.lineStart >= 0 ? this.lineStart : this.anchor, end = this.hover;
     if (!this.isLine() || start < 0 || end < 0) { showLine(null); this.lineKey = ''; this.lineCount = -1; return; }
-    const key = start + ':' + end + ':' + this.flip + this.route + this.tool + ':' + world.revision;
+    const key = start + ':' + end + ':' + this.flip + this.route + this.tool + ':' + world.revision + ':' + world.stock.join(',');
     if (key === this.lineKey) return;
     this.lineKey = key; uiState.dirty = true;
     if (this.tool === TOOL_ROAD) {
@@ -288,15 +288,20 @@ export class HamletScene extends Sprite {
     if (this.tool === TOOL_ROAD && this.route && this.anchor < 0 && start === end) { this.anchor = start; return; }
     this.anchor = -1;
     const plan = this.linePlanFor(start, end);
-    const tiles = this.tool === TOOL_ROAD ? plan.fresh : linePath(start, end, this.flip);
     let done = 0;
-    for (const t of tiles) {
-      const before = look(t);
-      if (applyTool(this.tool, t) === PLACE_OK) { record(this.tool, t, before); done++; }
+    if (this.tool === TOOL_ROAD) {
+      const tiles = plan.fresh.slice(0, plan.built), before = tiles.map((t: number): Snapshot => look(t));
+      if (buildRoad(tiles) > 0) { tiles.forEach((t: number, k: number): void => record(this.tool, t, before[k])); done = tiles.length; }
+    } else {
+      const tiles = linePath(start, end, this.flip), roads = tiles.filter((t: number): boolean => world.road[t] !== 0 && t !== world.gate && world.build[t] < 0);
+      for (const t of tiles) if (roads.indexOf(t) < 0) { const before = look(t); if (applyTool(this.tool, t) === PLACE_OK) { record(this.tool, t, before); done++; } }
+      const before = roads.map((t: number): Snapshot => look(t));
+      if (demolishRoad(roads) > 0) { roads.forEach((t: number, k: number): void => record(this.tool, t, before[k])); done += roads.length; }
     }
     showLine(null); this.lineKey = '';
     if (done > 0) sound(this.tool === TOOL_ERASE ? 'erase' : 'place', .6);
-    else if (this.tool === TOOL_ROAD && plan.blocked >= 0) { sound('error', .5); this.say(reasonText(this.tool, 1)); }
+    if (this.tool === TOOL_ROAD && plan.built < plan.fresh.length) { sound('error', .5); this.say('Il manque : ' + amountText(costOf(plan.fresh), world.stock) + '.'); }
+    else if (done === 0 && this.tool === TOOL_ROAD && plan.blocked >= 0) { sound('error', .5); this.say(reasonText(this.tool, 1)); }
   }
   /** Roads and demolition are painted by dragging; a building is placed once, on the press. */
   private drag(x: number, y: number, first: boolean): void {

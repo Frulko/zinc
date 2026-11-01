@@ -1,4 +1,4 @@
-import { W, H, pix, zb, setView, Color, CachedModel, rgb, beginModel, captureModel, touchModelBuffer, box, capsule, sphere, plot, rampOf, hash, shadowMask, pine, Atlas, AtlasAxes, AtlasDef, AtlasEntry, bakeAtlas, hashNumbers } from '../pixel';
+import { W, H, pix, zb, setView, Color, Vec3, CachedModel, rgb, beginModel, captureModel, touchModelBuffer, box as rawBox, capsule as rawCapsule, sphere as rawSphere, plot as rawPlot, rampOf, hash, shadowMask, pine, Atlas, AtlasAxes, AtlasDef, AtlasEntry, bakeAtlas, hashNumbers } from '../pixel';
 import { ZOOM_SCALES } from './camera';
 import { settings } from '../settings';
 import { ROCK_VARIANTS } from '../constants';
@@ -28,6 +28,12 @@ const levelAtlases: (Atlas | null)[] = ZOOM_SCALES.map((_s: number): Atlas | nul
 
 /** The season the tree models are drawn in (0 spring .. 3 winter): summer is the art's own, the other three are baked by useTreeSeason. */
 let treeSeason = 4;                      // a month: 4 is mid-summer, the art's own colours
+/** A building drawn the other way round (its door on the +x face instead of +y): the same art with x and y swapped, a true mirror, lit by the same light. Set while a mirrored frame is baked. */
+let mirrored = false;
+function box(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, c: Color, seed: number = 0): void { if (mirrored) rawBox(y0, x0, z0, y1, x1, z1, c, seed); else rawBox(x0, y0, z0, x1, y1, z1, c, seed); }
+function capsule(a: Vec3, b: Vec3, r0: number, r1: number, colorOf: (z: number) => Color, mode: string = ''): void { if (mirrored) rawCapsule([a[1], a[0], a[2]], [b[1], b[0], b[2]], r0, r1, colorOf, mode); else rawCapsule(a, b, r0, r1, colorOf, mode); }
+function sphere(x: number, y: number, z: number, r: number, c: Color, mode: string = ''): void { if (mirrored) rawSphere(y, x, z, r, c, mode); else rawSphere(x, y, z, r, c, mode); }
+function plot(x: number, y: number, z: number, color: u32): void { if (mirrored) rawPlot(y, x, z, color); else rawPlot(x, y, z, color); }
 const flat = (c: Color): ((z: number) => Color) => (): Color => c;
 
 /** A gable roof: ridge along y, slopes facing -x and +x, shingles in staggered rows. */
@@ -517,13 +523,38 @@ const MODEL_DEFS: [string, number, (variant: number) => void][] = [
   ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['tannery', 1, tannery], ['well', 1, well], ['quarry', 1, quarry], ['claypit', 1, claypit], ['mine', 1, mine], ['forge', 1, forge], ['forager', 1, forager], ['apiary', 1, apiary], ['chandlery', 1, chandlery], ['meadery', 1, meadery], ['tavern', 1, tavern], ['firehouse', 1, firehouse], ['works', 1, works], ['watchpost', 1, watchpost], ['ruin', 1, ruin], ['gate', 1, gate], ['tree', 4, tree], ['rock', ROCK_VARIANTS, rock], ['house2', 1, house2], ['house3', 1, house3],
 ];
 
+const MODEL_FIXED: string[] = ['tree', 'rock', 'gate'];     // the models that never turn
+/** The name and variant of a model id (the order of `models`). */
+function nameOf(id: number): string { let n = 0; for (const m of MODEL_DEFS) { if (id < n + m[1]) return m[0]; n += m[1]; } return ''; }
+const mirrorFrames = new Map<number, { atlas: Atlas; frame: CachedModel }>();
+/** Bakes the mirrored frames of these models for the zoom level in use, the ones not baked yet (so the scene bake never has to). True when it baked: the caller points the renderer back at the camera. */
+export function bakeMirrors(ids: number[]): boolean {
+  const atlas = levelAtlases[lastLevel];
+  if (atlas === null || atlas.stale()) return false;
+  let baked = false;
+  for (const id of ids) {
+    const key = lastLevel * 1000 + id, have = mirrorFrames.get(key);
+    if (have !== undefined && have.atlas === atlas) continue;
+    const name = nameOf(id);
+    if (name === '' || MODEL_FIXED.indexOf(name) >= 0) continue;
+    if (!baked) setView(lastReduce > 0 ? lastReduce : lastScale, W / 2, H * .6);
+    const frame = atlas.bake(name, { variant: 0, yaw8: 1, pose: 0 });
+    if (frame !== null) { mirrorFrames.set(key, { atlas, frame }); baked = true; }
+  }
+  return baked;
+}
+/** The mirrored frame of a model, or the plain one when it is not baked. */
+export function mirrorOf(id: number): CachedModel {
+  const have = mirrorFrames.get(lastLevel * 1000 + id);
+  return have !== undefined && have.atlas === levelAtlases[lastLevel] ? have.frame : models[id];
+}
 /** The atlas definition: one entry per model, one frame each (a static model has a single heading and pose). `reduceFrom` > 0 shrinks the sharp bake for the fixed-detail mode. */
 function modelDef(scale: number, reduceFrom: number): AtlasDef {
   const entries: AtlasEntry[] = MODEL_DEFS.map((m: [string, number, (variant: number) => void]): AtlasEntry => ({
-    name: m[0], variants: m[1], yaws: 1, poses: 1,
+    name: m[0], variants: m[1], yaws: MODEL_FIXED.indexOf(m[0]) >= 0 ? 1 : 2, poses: 1,      // yaw 1 is the mirrored building
     // a static model is drawn at the bake origin; the stamp places it, so the position is not used
     draw: (a: AtlasAxes, _x: number, _y: number, _z: number): void => {
-      m[2](a.variant);
+      mirrored = a.yaw8 === 1; m[2](a.variant); mirrored = false;
       if (reduceFrom > 0) { reduceBuffer(scale / reduceFrom, W / 2, H * .6); setView(scale, W / 2, H * .6); }
       shadowMask.fill(0);                       // some models (pines) cast shadows while they are drawn
     },

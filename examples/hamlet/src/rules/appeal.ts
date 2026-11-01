@@ -1,6 +1,7 @@
 import { TERRAIN_WATER } from '../constants';
 import { world, tileIndex, tileI, tileJ } from '../world/world';
 import { economy, AppealSource } from '../world/economy';
+import { isPlaza } from './roadplan';
 
 // Desirability: a grid of numbers, one per tile. Trees and water raise it, industry lowers it, each as rings of decreasing value around its source (data:
 // economy.json "desirability" for the terrain, `appeal` on a building). It is recomputed in the daily slice, never per tick; houses read it to evolve.
@@ -21,7 +22,7 @@ export function computeAppeal(): void {
   const sources: AppealSource[] = economy.appeal;
   for (let t = 0; t < grid.length && sources.length > 0; t++) {
     for (const s of sources) {
-      const here = s.kind === 'tree' ? world.tree[t] > 0 : s.kind === 'water' ? world.terrain[t] === TERRAIN_WATER : world.rock[t] > 0;
+      const here = s.kind === 'tree' ? world.tree[t] > 0 : s.kind === 'water' ? world.terrain[t] === TERRAIN_WATER : s.kind === 'plaza' ? isPlaza(t) : world.rock[t] > 0;
       if (here) stamp(grid, tileI(t), tileJ(t), s.rings);
     }
   }

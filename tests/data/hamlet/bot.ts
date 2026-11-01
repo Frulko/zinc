@@ -8,6 +8,7 @@ import { world, generate, tileIndex, tileI, tileJ, isOpen, neighbor } from '../.
 import { applyTool, checkTool, toolOf } from '../../../examples/hamlet/src/rules/build';
 import { stepWorld } from '../../../examples/hamlet/src/engine/simulate';
 import { population } from '../../../examples/hamlet/src/engine/villagers';
+import { buildRoad, costOf } from '../../../examples/hamlet/src/rules/roadplan';
 import { canPay } from '../../../examples/hamlet/src/rules/stock';
 import { isUnlocked, scenarioWon } from '../../../examples/hamlet/src/rules/goals';
 import { economy, loadEconomy } from '../../../examples/hamlet/src/world/economy';
@@ -104,7 +105,11 @@ function tryPlace(id: string): boolean {
     if (s > best) { best = s; bt = t; }
   }
   if (bt < 0) return false;
-  if (def.needsRoad) for (let p = r.par[bt]; p >= 0 && world.road[p] === 0; p = r.par[p]) applyTool(TOOL_ROAD, p);
+  const laid: number[] = [];
+  if (def.needsRoad) for (let p = r.par[bt]; p >= 0 && world.road[p] === 0; p = r.par[p]) laid.push(p);
+  const road = costOf(laid);
+  if (!canPay(def.cost.map((c: number, k: number): number => c + road[k]))) return false;      // the road and the building are paid together
+  buildRoad(laid);
   return applyTool(tool, bt) === PLACE_OK;
 }
 const count = (id: string): number => { const type = economy.typeOf(id); let n = 0; for (const b of world.buildings) if (b.alive && b.type === type && !b.fixed) n++; return n; };
@@ -123,9 +128,41 @@ function clearRuins(): void {
 /** True when paying `cost` would leave too little for the building the bot is saving for. */
 function touches(cost: number[], blocker: number[]): boolean { for (let k = 0; k < cost.length; k++) if (cost[k] > 0 && world.stock[k] - cost[k] < blocker[k]) return true; return false; }
 
+/** The reachable ground has no tree at its edge: the bot's own houses wall the road in. A person bulldozes the nearest house that has the forest behind it. */
+function unwall(r: Reach): void {
+  let best = -1, bs = 1e9;
+  for (let id = 0; id < world.buildings.length; id++) {
+    const b = world.buildings[id];
+    if (!b.alive || b.fixed || b.type !== HOUSE) continue;
+    const t = tileIndex(b.i, b.j);
+    let road = false, forest = false;
+    for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v < 0) continue; if (world.road[v] !== 0) road = true; if (world.tree[v] > 0) forest = true; }
+    if (road && forest && b.residents < bs) { bs = b.residents; best = id; }
+  }
+  if (best >= 0) applyTool(TOOL_ERASE, tileIndex(world.buildings[best].i, world.buildings[best].j));
+}
+/** A gatherer walled in by its own buildings (BS_NO_SOURCE): razes the trees that touch the reachable ground, the ones with the most forest behind them (the gomme brings no wood). */
+function openForest(): void {
+  let stuck = false;
+  for (const b of world.buildings) if (b.alive && b.state === BS_NO_SOURCE && economy.buildings[b.type].gather === 'tree') stuck = true;
+  if (!stuck) return;
+  const r = reach();
+  for (let n = 0; n < 3; n++) {
+    let best = -1, bs = -1;
+    for (let t = 0; t < world.size * world.size; t++) {
+      if (world.tree[t] === 0) continue;
+      let touches = false;
+      for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && r.dist[v] >= 0 && isOpen(v) || v >= 0 && world.road[v] !== 0) touches = true; }
+      if (touches && treesAround(t, 2) > bs) { bs = treesAround(t, 2); best = t; }
+    }
+    if (best < 0) { unwall(r); return; }
+    applyTool(TOOL_ERASE, best);
+  }
+}
+
 let roadsLaid = false;
 function decide(): void {
-  if (!roadsLaid) { for (let k = 0; k < 4 && applyTool(TOOL_ROAD, world.gate + 1 + k) === PLACE_OK; k++) { /* a road east of the gate, as far as the ground is open */ } roadsLaid = true; }
+  if (!roadsLaid) { { const east: number[] = []; for (let k = 0; k < 4 && isOpen(world.gate + 1 + k); k++) east.push(world.gate + 1 + k); buildRoad(east); /* a road east of the gate, as far as the ground is open */ } roadsLaid = true; }
   clearRuins();
   let blocker: number[] | null = null;
   for (const w of PLAN) {

@@ -160,7 +160,7 @@ check('given input, the workers fetch it and make planks (2 logs -> 1 plank)', w
 // ---- chain 1: from the start stock, a hut, a sawmill and two houses make planks with no other input than building ----
 generate(1234, 16);
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; world.rock[t] = 0; }
-for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, at(i, 8));
+buildRoad([1, 2, 3, 4, 5, 6].map((i) => at(i, 8)));
 check('the start stock lets the player build the first village', applyTool(TOOL_HOUSE, at(2, 7)) === PLACE_OK && applyTool(TOOL_HOUSE, at(4, 7)) === PLACE_OK && applyTool(toolOf('lumberhut'), at(3, 9)) === PLACE_OK && applyTool(TOOL_SAWMILL, at(5, 9)) === PLACE_OK);
 check('the hut is paid in planks and logs', world.stock[PLANK] === economy.start[PLANK] - 10 && world.stock[WOOD] === economy.start[WOOD] - 2 - 6);
 run(150);
@@ -949,8 +949,9 @@ check('a biome map is kept with the village (the same seed gives the same biomes
 console.log('hamlet rules: presethash ' + (presetHash >>> 0));
 console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');
 // ---- road laying: the L-shaped line, existing roads skipped, an obstacle ends it, the auto-route goes round ----
-import { TERRAIN_GRASS } from '../../../examples/hamlet/src/constants';
-import { linePath, planRoad } from '../../../examples/hamlet/src/rules/roadplan';
+import { TERRAIN_GRASS, TERRAIN_WATER } from '../../../examples/hamlet/src/constants';
+import { fieldFrom, pathTo, UNREACHABLE } from '../../../examples/hamlet/src/engine/path';
+import { linePath, planRoad, costOf, refundOf, buildRoad, demolishRoad, isBridge, isPlaza } from '../../../examples/hamlet/src/rules/roadplan';
 generate(7916, 24);
 for (let j = 3; j <= 14; j++) for (let i = 3; i <= 14; i++) { const t = at(i, j); world.terrain[t] = TERRAIN_GRASS; world.tree[t] = 0; world.rock[t] = 0; world.build[t] = -1; world.road[t] = 0; }
 const wide = linePath(at(4, 5), at(10, 7), false), tall = linePath(at(4, 5), at(6, 11), false), flipped = linePath(at(4, 5), at(10, 7), true);
@@ -960,14 +961,59 @@ check('a line has no repeated tile and is one tile for a click', linePath(at(5, 
 world.road[at(6, 5)] = 1; world.road[at(7, 5)] = 1;
 const plan = planRoad(at(4, 5), at(10, 7), false, false);
 check('existing road tiles are on the line but cost nothing', plan.tiles.length === 9 && plan.fresh.length === 7 && plan.blocked < 0 && plan.fresh.indexOf(at(6, 5)) < 0);
-world.tree[at(9, 5)] = 1;
+world.rock[at(9, 5)] = 1;
 const cut = planRoad(at(4, 5), at(10, 7), false, false);
 check('a blocked tile ends the line and is marked', cut.blocked === at(9, 5) && cut.tiles[cut.tiles.length - 1] === at(9, 5) && cut.fresh.length === 3);
 const around = planRoad(at(4, 5), at(10, 7), false, true);
-check('the auto-route goes round the tree and reaches the end', around.blocked < 0 && around.tiles[around.tiles.length - 1] === at(10, 7) && around.tiles.indexOf(at(9, 5)) < 0);
+check('the auto-route goes round the rock and reaches the end', around.blocked < 0 && around.tiles[around.tiles.length - 1] === at(10, 7) && around.tiles.indexOf(at(9, 5)) < 0);
 for (let k = 1; k < around.tiles.length; k++) if (Math.abs(tileI(around.tiles[k]) - tileI(around.tiles[k - 1])) + Math.abs(tileJ(around.tiles[k]) - tileJ(around.tiles[k - 1])) !== 1) { check('the auto-route is a chain of neighbours', false); break; }
 const roadsBefore = world.road.join('');
-for (const t of around.fresh) applyTool(TOOL_ROAD, t);
+buildRoad(around.fresh);
 const roadHash = world.road.reduce((h, v, k) => (h * 31 + v * (k + 1)) | 0, 7);
 check('laying the planned tiles joins start to end', around.tiles.every((t) => world.road[t] === 1) && world.road.join('') !== roadsBefore);
+// ---- road cost, trees, bridges, plazas ----
+world.rock[at(9, 5)] = 0; world.road.fill(0);
+setStock(PLANK, 40); setStock(WOOD, 0);
+check('a road costs a fraction of a plank a tile, the total rounded up', costOf([at(3, 3), at(4, 3), at(5, 3), at(6, 3)])[PLANK] === 2 && costOf([at(3, 3), at(4, 3), at(5, 3)])[PLANK] === 2);
+world.tree[at(7, 3)] = 1;
+check('a tree on the line costs a little more and does not stop it', planRoad(at(3, 3), at(10, 3), false, false).blocked < 0 && costOf([at(7, 3)])[PLANK] === 1);
+const cleared = planRoad(at(3, 3), at(10, 3), false, false);
+const clearedCost = costOf(cleared.fresh)[PLANK];
+buildRoad(cleared.fresh.slice(0, cleared.built));
+check('the road clears the tree and brings its wood', world.tree[at(7, 3)] === 0 && world.road[at(7, 3)] === 1 && world.stock[WOOD] === 1 && world.stock[PLANK] === 40 - clearedCost);
+setStock(PLANK, 2);
+const broke = planRoad(at(3, 6), at(12, 6), false, false);
+check('the plan is capped by the stock: 4 tiles for 2 planks', broke.fresh.length === 10 && broke.built === 4 && broke.cost[PLANK] === 2);
+setStock(PLANK, 0);
+check('with no plank nothing is paid for', planRoad(at(3, 6), at(12, 6), false, false).built === 0 && checkTool(TOOL_ROAD, at(3, 6)) === PLACE_NO_STOCK);
+setStock(PLANK, 100);
+for (let j = 3; j <= 14; j++) for (let i = 8; i <= 10; i++) world.terrain[at(i, j)] = TERRAIN_WATER;
+const over = planRoad(at(4, 8), at(14, 8), false, false), wet = over.fresh.filter((t) => world.terrain[t] === TERRAIN_WATER);
+check('a road crosses water up to three tiles as a bridge', over.blocked < 0 && wet.length === 3 && costOf(wet)[PLANK] === 11);
+buildRoad(over.fresh);
+check('a bridge is a road on water that people can walk', isBridge(at(9, 8)) && !isBridge(at(7, 8)) && fieldFrom(at(4, 8)).dist[at(14, 8)] < UNREACHABLE && pathTo(fieldFrom(at(4, 8)), at(14, 8)).indexOf(at(9, 8)) >= 0);
+const plankBefore = world.stock[PLANK];
+demolishRoad(wet);
+check('demolishing the bridge refunds half and removes it', world.road[at(9, 8)] === 0 && world.stock[PLANK] - plankBefore === 5 && refundOf(wet)[PLANK] === 5 && !isWalkable(at(9, 8)));
+world.road.fill(0);
+for (let j = 3; j <= 14; j++) world.terrain[at(11, j)] = TERRAIN_WATER;
+const wide4 = planRoad(at(4, 8), at(14, 8), false, false);
+check('four tiles of water stop the line, marked on the first', wide4.blocked === at(8, 8) && wide4.tiles[wide4.tiles.length - 1] === at(8, 8));
+world.terrain[at(11, 8)] = TERRAIN_GRASS; for (let j = 3; j <= 14; j++) world.terrain[at(11, j)] = TERRAIN_GRASS;
+const detour = planRoad(at(4, 8), at(14, 8), false, true);
+check('the auto-route bridges when that is cheaper than a long way round', detour.blocked < 0 && detour.fresh.filter((t) => world.terrain[t] === TERRAIN_WATER).length === 3);
+for (let j = 3; j <= 14; j++) world.terrain[at(11, j)] = TERRAIN_WATER;
+const around4 = planRoad(at(4, 8), at(14, 8), false, true);
+check('a river too wide is gone round, never bridged', around4.blocked < 0 && around4.fresh.every((t) => world.terrain[t] !== TERRAIN_WATER) && around4.tiles.length > 11);
+for (let j = 3; j <= 14; j++) for (let i = 8; i <= 11; i++) world.terrain[at(i, j)] = TERRAIN_GRASS;
+buildRoad([at(4, 12), at(5, 12), at(6, 12)]);
+check('a straight road is no plaza', ![at(4, 12), at(5, 12), at(6, 12)].some((t) => isPlaza(t)));
+const appealBefore = (() => { computeAppeal(); return world.appeal[at(5, 14)]; })();
+buildRoad([at(4, 13), at(5, 13)]);
+check('a 2 x 2 block of road is a plaza, its neighbours are not', [at(4, 12), at(5, 12), at(4, 13), at(5, 13)].every((t) => isPlaza(t)) && !isPlaza(at(6, 12)));
+computeAppeal();
+check('a plaza adds one appeal around it', world.appeal[at(5, 14)] - appealBefore === 1 || world.appeal[at(5, 14)] === economy.appealMax);
+const hashList = (list: number[]): number => { let h = 7; for (const v of list) h = (h * 31 + v) | 0; return h >>> 0; };
+console.log('hamlet rules: roadhash2 ' + hashList(around4.tiles) + ':' + hashList(detour.tiles) + ':' + hashList(over.tiles) + ':' + hashList(broke.fresh) + ':' + hashList(world.road));
+console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');
 console.log('hamlet rules: roadhash ' + (roadHash >>> 0) + ':' + wide.join('.') + ':' + around.tiles.join('.'));

@@ -36,7 +36,8 @@ buildings[]  {
   buildable  false for a leftover the player cannot place, only demolish (the ruin)
   sound      played when a work cycle starts (`buzz`, `pour`...; a name of `audio.ts`)
 }
-desirability { limit, terrain[] { kind: tree|water|rock, rings[] } }   the grid is recomputed once a day; houses read it
+roads { dirt, bridge, clear, yield, refund }          per tile of road, per tile of bridge (on water), per tree cleared; what a tree brings; percent refunded on demolition
+desirability { limit, terrain[] { kind: tree|water|rock|plaza, rings[] } }   the grid is recomputed once a day; houses read it
 deposits[]   { resource, model, placement: any|rock|water|tree, density (per 100 tiles), amount, required, active }   scattered by the generator; `model` is one of DEPOSIT_MODELS (constants.ts)
 goals[]      { id, title, text, requires[], when[], unlock[], give{}, final }   when: { building, count } | { stock, count } | { population } | { houses, level }; checked daily, the reward is a logged command
 trade        { coin, everyDays, stayDays, offers, table[] { side: sell|buy, resource, qty } }   the peddler at the gate
