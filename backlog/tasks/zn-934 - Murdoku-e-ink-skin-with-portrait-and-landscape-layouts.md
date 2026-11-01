@@ -2,7 +2,8 @@
 id: ZN-934
 title: Murdoku e-ink skin with portrait and landscape layouts
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 12:12'
 labels:
   - demo
