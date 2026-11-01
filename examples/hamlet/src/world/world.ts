@@ -6,8 +6,13 @@ import { economy } from './economy';
 
 /** Anything that walks the tile grid. A class, not an interface: the walking code takes a Mover and must change the person itself (interfaces are copied records). */
 export class Mover { x: number = 0; y: number = 0; yaw: number = 0; path: number[] = []; step: number = 0; phase: number = 0; }
-export interface Building { type: number; i: number; j: number; alive: boolean; residents: number; workers: number; timer: number; }
+/** A building: what it holds (`stock`, per resource of economy.json) and what its workers are doing (`state`, and `waitFor`, the resource it lacks). */
+export class Building {
+  type: number = 0; i: number = 0; j: number = 0; alive: boolean = true; residents: number = 0; workers: number = 0; timer: number = 2;
+  stock: number[] = []; state: number = 0; waitFor: number = -1;
+}
 export class Person extends Mover {
+  load: number = 0; dst: number = -1;                       // the load in hand (carry: its resource + 1, load: how many) and the building it goes to
   role: number = 0; home: number = -1; job: number = -1; state: number = 0; timer: number = 0; target: number = -1; carry: number = 0; hair: number = 0;
   shotX: number = 0; shotY: number = 0;
 }

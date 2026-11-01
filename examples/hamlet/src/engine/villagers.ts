@@ -1,10 +1,10 @@
 import {
-  HOUSE, ROLE_FISHER, ST_TO_SHORE, ST_FISH, FISH_SECONDS, FISH_CATCH_CHANCE, ROLE_SETTLER, ROLE_RESIDENT, ROLE_LUMBERJACK, ROLE_HUNTER,
-  ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN,
-  CHOP_SECONDS, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, PICK_SECONDS, WORK_RADIUS, SETTLER_INTERVAL,
-  DEER_GRAZE, DEER_WALK, DEER_FLEE, DEER_DEAD, DEER_GONE, WALK_SPEED,
+  HOUSE, ST_TO_SHORE, ST_FISH, FISH_CATCH_CHANCE, ROLE_SETTLER, ROLE_RESIDENT,
+  ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_WORK, ST_FETCH, ST_BRING,
+  BS_IDLE, BS_WORKING, BS_WAITING, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, WORK_RADIUS, SETTLER_INTERVAL,
+  DEER_DEAD, DEER_FLEE, DEER_GONE, WALK_SPEED,
 } from '../constants';
-import { Housing } from '../world/economy';
+import { Housing, BuildingDef } from '../world/economy';
 import { world, Person, Building, random, tileAt, tileX, tileY, tileIndex, tileI, tileJ, neighbor, waterNeighbor } from '../world/world';
 import { fieldFrom, approachTile, pathTo, planPath, walk, isWalkable, isMoving, UNREACHABLE } from './path';
 import { sound } from '../pixel';
@@ -54,12 +54,6 @@ export function isConnected(b: Building): boolean {
 }
 
 // ---- arrivals and jobs ----
-function releaseClaims(p: Person): void {
-  if (p.role === ROLE_LUMBERJACK && p.target >= 0 && (p.state === ST_TO_TREE || p.state === ST_CHOP)) world.claimed[p.target] = 0;
-  if (p.role === ROLE_FISHER && p.target >= 0 && (p.state === ST_TO_SHORE || p.state === ST_FISH)) world.claimed[p.target] = 0;
-  if (p.role === ROLE_HUNTER && p.target >= 0 && p.state >= ST_STALK && p.state <= ST_PICK && p.state !== ST_TO_SITE) world.deer[p.target].hunted = false;
-  p.target = -1;
-}
 export function population(): number {
   let n = 0;
   for (const b of world.buildings) if (b.alive && b.type === HOUSE) n += b.residents;
@@ -118,7 +112,7 @@ export function releaseWorkers(siteId: number): void {
   for (const p of world.people) {
     if (p.job !== siteId) continue;
     releaseClaims(p);
-    p.job = -1; p.role = ROLE_RESIDENT; p.carry = 0; p.state = ST_IDLE; p.path = []; p.step = 0; p.timer = 1;
+    p.job = -1; p.role = ROLE_RESIDENT; p.carry = 0; p.load = 0; p.state = ST_IDLE; p.path = []; p.step = 0; p.timer = 1;
   }
   world.buildings[siteId].workers = 0;
 }
@@ -133,7 +127,9 @@ export function removeResidents(houseId: number): void {
   world.people = kept;
 }
 
-// ---- the daily life of one person ----
+// ---- the daily life of one person: what a worker does is read from the definition of its building (economy.json) ----
+const defOf = (site: Building): BuildingDef => economy.buildings[site.type];
+const kindOf = (p: Person): string => p.job >= 0 ? defOf(world.buildings[p.job]).gather : '';
 function nearestTree(p: Person): boolean {
   const field = fieldFrom(tileOf(p));
   let best = -1, bestCost = WORK_RADIUS;
@@ -179,33 +175,93 @@ function nearestGame(p: Person): boolean {
   deer.hunted = true; p.target = best; p.state = bestBody ? ST_TO_BODY : ST_STALK; p.timer = .9;
   return true;
 }
+/** The first thing a gathered load is: the resource drawn in the hands. */
+const firstOutput = (def: BuildingDef): number => { for (let k = 0; k < def.outputs.length; k++) if (def.outputs[k] > 0) return k; return -1; };
+function releaseClaims(p: Person): void {
+  const kind = kindOf(p);
+  if (kind === 'tree' && p.target >= 0 && (p.state === ST_TO_TREE || p.state === ST_CHOP)) world.claimed[p.target] = 0;
+  if (kind === 'shore' && p.target >= 0 && (p.state === ST_TO_SHORE || p.state === ST_FISH)) world.claimed[p.target] = 0;
+  if (kind === 'deer' && p.target >= 0 && p.state >= ST_STALK && p.state <= ST_PICK && p.state !== ST_TO_SITE) world.deer[p.target].hunted = false;
+  p.target = -1;
+}
+/** The gathered load goes to the workplace, which holds it. */
 function deliver(p: Person): void {
-  add(economy.buildings[world.buildings[p.job].type].outputs);
-  p.carry = 0; world.saveDirty = true;
+  const site = world.buildings[p.job];
+  add(defOf(site).outputs);
+  p.carry = 0; p.load = 0; world.saveDirty = true;
   sound('point', .3);
 }
 function goDeliver(p: Person): void {
+  const site = world.buildings[p.job];
+  p.carry = firstOutput(defOf(site)) + 1; p.load = 1;
   p.state = ST_TO_SITE;
-  if (!planPath(p, buildingTile(world.buildings[p.job]))) { p.carry = 0; p.state = ST_SEEK; p.timer = 1; }
+  if (!planPath(p, buildingTile(site))) { p.carry = 0; p.state = ST_SEEK; p.timer = 1; }
+}
+/** Takes the first missing input to the building: walk to where it lies, pick it up, bring it back. False when nothing can be fetched (the building waits for it). */
+function fetchInput(p: Person, site: Building, def: BuildingDef): boolean {
+  for (let k = 0; k < def.inputs.length; k++) {
+    if (def.inputs[k] === 0 || site.stock[k] >= def.inputs[k]) continue;
+    if (world.stock[k] < 1) { site.state = BS_WAITING; site.waitFor = k; return false; }
+    p.carry = k + 1; p.load = 0; p.dst = p.job;
+    if (!planPath(p, world.gate)) return false;
+    p.state = ST_FETCH;
+    return true;
+  }
+  return true;
+}
+function startWork(p: Person, site: Building, def: BuildingDef): boolean {
+  for (let k = 0; k < def.inputs.length; k++) if (site.stock[k] < def.inputs[k]) return false;
+  for (let k = 0; k < def.inputs.length; k++) site.stock[k] -= def.inputs[k];
+  site.state = BS_WORKING; site.waitFor = -1;
+  p.state = ST_WORK; p.timer = def.seconds; p.phase = 0;
+  return true;
 }
 
 function updateWorker(p: Person, dt: number): void {
-  const site = world.buildings[p.job];
+  const site = world.buildings[p.job], def = defOf(site);
   const speed = WALK_SPEED * settings.walkSpeed;
   switch (p.state) {
     case ST_GO_WORK:
       if (walk(p, dt, speed)) { p.state = ST_SEEK; p.timer = 0; }
       break;
-    case ST_SEEK:
+    case ST_SEEK: {
       p.timer -= dt;
       if (p.timer > 0) break;
-      const found = p.role === ROLE_LUMBERJACK ? nearestTree(p) : p.role === ROLE_FISHER ? nearestShore(p) : nearestGame(p);
+      let found = false;
+      if (def.gather === 'tree') found = nearestTree(p);
+      else if (def.gather === 'shore') found = nearestShore(p);
+      else if (def.gather === 'deer') found = nearestGame(p);
+      else {
+        site.state = BS_IDLE;
+        found = startWork(p, site, def) || fetchInput(p, site, def);
+      }
       if (!found) p.timer = 2;
+      break;
+    }
+    case ST_WORK:
+      p.phase += dt * 6.2;
+      p.timer -= dt;
+      if (p.timer > 0) break;
+      add(def.outputs); world.saveDirty = true; sound('point', .3);
+      site.state = BS_IDLE; p.state = ST_SEEK; p.timer = .2;
+      break;
+    case ST_FETCH:
+      if (!walk(p, dt, speed)) break;
+      p.load = Math.min(def.inputs[p.carry - 1] * 2 - site.stock[p.carry - 1], world.stock[p.carry - 1]);
+      if (p.load < 1) { p.carry = 0; p.state = ST_SEEK; p.timer = 1; break; }
+      world.stock[p.carry - 1] -= p.load;
+      p.state = ST_BRING;
+      if (!planPath(p, buildingTile(site))) { world.stock[p.carry - 1] += p.load; p.carry = 0; p.load = 0; p.state = ST_SEEK; p.timer = 1; }
+      break;
+    case ST_BRING:
+      if (!walk(p, dt, speed)) break;
+      site.stock[p.carry - 1] += p.load; p.carry = 0; p.load = 0;
+      p.state = ST_SEEK; p.timer = 0;
       break;
     case ST_TO_TREE:
       if (!walk(p, dt, speed)) break;
       if (world.tree[p.target] === 0 || !isNear(p, p.target)) { releaseClaims(p); p.state = ST_SEEK; p.timer = 0; break; }
-      faceTile(p, p.target); p.state = ST_CHOP; p.timer = CHOP_SECONDS;
+      faceTile(p, p.target); p.state = ST_CHOP; p.timer = def.seconds;
       break;
     case ST_CHOP: {
       const before = Math.floor(p.phase * 1.6);
@@ -216,14 +272,14 @@ function updateWorker(p: Person, dt: number): void {
       world.tree[p.target] = 0; world.claimed[p.target] = 0; world.felledCount++;
       world.revision++; world.saveDirty = true;
       sound('splash', .25);
-      p.target = -1; p.carry = 1; goDeliver(p);
+      p.target = -1; goDeliver(p);
       break;
     }
     case ST_TO_SHORE: {
       if (!walk(p, dt, speed)) break;
       const water = waterNeighbor(p.target);
       if (water < 0 || tileOf(p) !== p.target) { releaseClaims(p); p.state = ST_SEEK; p.timer = 0; break; }
-      faceTile(p, water); p.state = ST_FISH; p.timer = FISH_SECONDS; p.phase = 0;
+      faceTile(p, water); p.state = ST_FISH; p.timer = def.seconds; p.phase = 0;
       break;
     }
     case ST_FISH:
@@ -231,10 +287,10 @@ function updateWorker(p: Person, dt: number): void {
       p.timer -= dt;
       if (p.timer > 0) break;
       if (random() < FISH_CATCH_CHANCE) {
-        world.claimed[p.target] = 0; p.target = -1; p.carry = 3;
+        world.claimed[p.target] = 0; p.target = -1;
         sound('splash', .3);
         goDeliver(p);
-      } else p.timer = FISH_SECONDS * .6;     // nothing bit: the line goes back in
+      } else p.timer = def.seconds * .6;     // nothing bit: the line goes back in
       break;
     case ST_STALK: {
       const deer = world.deer[p.target];
@@ -277,18 +333,18 @@ function updateWorker(p: Person, dt: number): void {
       if (!walk(p, dt, speed)) break;
       const deer = world.deer[p.target];
       if (deer.state !== DEER_DEAD || !isNear(p, tileAt(deer.x, deer.y))) { deer.hunted = false; p.target = -1; p.state = ST_SEEK; p.timer = 0; break; }
-      p.yaw = Math.atan2(deer.y - p.y, deer.x - p.x); p.state = ST_PICK; p.timer = PICK_SECONDS;
+      p.yaw = Math.atan2(deer.y - p.y, deer.x - p.x); p.state = ST_PICK; p.timer = def.seconds;
       break;
     }
     case ST_PICK:
       p.timer -= dt;
       if (p.timer > 0) break;
       world.deer[p.target].state = DEER_GONE; world.deer[p.target].hunted = false;
-      p.target = -1; p.carry = 2; goDeliver(p);
+      p.target = -1; goDeliver(p);
       break;
     case ST_TO_SITE:
       if (!walk(p, dt, speed)) break;
-      if (isNear(p, buildingTile(site))) deliver(p); else p.carry = 0;
+      if (isNear(p, buildingTile(site))) deliver(p); else { p.carry = 0; p.load = 0; }
       p.state = ST_SEEK; p.timer = .3;
       break;
     default:

@@ -1,6 +1,6 @@
 import { HOUSE, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER } from '../constants';
-import { world, tileI, tileJ, tileIndex, neighbor, isOpen, waterNeighbor } from '../world/world';
-import { economy } from '../world/economy';
+import { world, Building, tileI, tileJ, tileIndex, neighbor, isOpen, waterNeighbor } from '../world/world';
+import { economy, Resource } from '../world/economy';
 import { releaseWorkers, removeResidents } from '../engine/villagers';
 import { canPay, pay } from './stock';
 
@@ -26,7 +26,9 @@ export function checkTool(tool: number, t: number): number {
 
 export function addBuilding(type: number, t: number): number {
   const id = world.buildings.length;
-  world.buildings.push({ type, i: tileI(t), j: tileJ(t), alive: true, residents: 0, workers: 0, timer: 2 });
+  const b = new Building();
+  b.type = type; b.i = tileI(t); b.j = tileJ(t); b.stock = economy.resources.map((_r: Resource): number => 0);
+  world.buildings.push(b);
   world.build[t] = id; world.deco[t] = 0;
   return id;
 }

@@ -42,12 +42,10 @@ export const ROLE_NAMES: string[] = ['settler', 'resident', 'lumberjack', 'hunte
 export const WALK_SPEED = 2.1;          // world units per second
 export const ROAD_SPEED = 1.35;         // multiplier on a road
 export const ROAD_COST = 0.6;           // path cost of a road tile (grass is 1)
-export const CHOP_SECONDS = 2.6;
 export const AIM_SECONDS = 0.8;
 export const ARROW_SECONDS = 0.28;
 export const SHOOT_RANGE = 5.5;
 export const HIT_CHANCE = 0.8;
-export const PICK_SECONDS = 1;
 export const ST_IDLE = 0;
 export const ST_STROLL = 1;
 export const ST_GO_WORK = 2;
@@ -63,7 +61,13 @@ export const ST_PICK = 11;
 export const ST_WALK_IN = 12;
 export const ST_TO_SHORE = 13;
 export const ST_FISH = 14;
-export const FISH_SECONDS = 4.5;
+export const ST_WORK = 15;             // a processing building's worker at work
+export const ST_FETCH = 16;            // walking to where a load lies
+export const ST_BRING = 17;            // carrying a load to where it is needed
+export const BS_IDLE = 0;              // building states: what its workers are doing, for the hints
+export const BS_WORKING = 1;
+export const BS_WAITING = 2;          // an input is missing (Building.waitFor)
+export const BS_FULL = 3;              // the output has no room
 export const FISH_CATCH_CHANCE = .85;
 
 // ---- no-limit mode: nature refills itself below a threshold ----

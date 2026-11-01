@@ -100,6 +100,23 @@ check('a text that is not JSON is refused', parseEconomy('{', MODEL_IDS, ROLE_NA
 const report = chainReport();
 check('the chain report lists makers and users', report.length === economy.resources.length && report[0].indexOf('wood: made by [sawmill] used by [house (cost)') === 0);
 for (const line of report) console.log('hamlet chain: ' + line);
+// ---- the generic job engine: a processing building fetches its input, works, makes its output; with no input it waits (and does not block) ----
+const withWorks = ECONOMY_TEXT.replace('{ "id": "fish", "label": "Poisson", "carry": "fish" }', '{ "id": "fish", "label": "Poisson", "carry": "fish" }, { "id": "plank", "label": "Planches", "carry": "plank" }');
+const cut2 = withWorks.lastIndexOf(']');
+loadEconomy(withWorks.slice(0, cut2) + ', { "id": "plankworks", "label": "Planches", "model": "plankworks", "cost": { "wood": 4 }, "workers": 2, "role": "lumberjack", "inputs": { "wood": 2 }, "outputs": { "plank": 1 }, "seconds": 3 }' + withWorks.slice(cut2), MODEL_IDS.concat(['plankworks']), ROLE_NAMES);
+const PLANK = economy.resourceOf('plank'), WORKS_ID = economy.typeOf('plankworks');
+generate(1234, 16);
+for (const t of [at(2, 7), at(4, 7), at(5, 9)]) { world.tree[t] = 0; world.rock[t] = 0; }
+for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, at(i, 8));
+applyTool(TOOL_HOUSE, at(2, 7)); applyTool(toolOf('plankworks'), at(5, 9));
+world.stock[WOOD] = 0;
+run(40);
+const works = world.buildings.filter((b) => b.type === WORKS_ID)[0];
+check('a building without input waits and says what it lacks', works.workers === 2 && works.state === 2 && works.waitFor === WOOD);
+world.stock[WOOD] = 12;
+run(60);
+check('given input, the workers fetch it and make planks (2 wood -> 1 plank)', world.stock[PLANK] >= 3 && world.stock[WOOD] <= 6);
+loadEconomy(ECONOMY_TEXT, MODEL_IDS, ROLE_NAMES);
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); world.stock[WOOD] = 100;
 for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, tileIndex(i, 8));
