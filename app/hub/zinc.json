@@ -2,6 +2,7 @@
   "name": "hub",
   "entry": "src/main.tsx",
   "description": "Install, update and remove Zinc apps and the Zinc engine on the reMarkable.",
+  "update": { "url": "http://10.11.99.2:8787/", "publicKey": "ba4ed440a34af456a3ee88dcb74930d6602b5023ad100dd937c9dcbf5a9bbc59" },
   "app": { "id": "dev.zinc.hub", "version": "0.1.13", "author": "Zinc", "icon": "icon.svg" },
   "display": { "driver": "rmpp" },
   "targets": {

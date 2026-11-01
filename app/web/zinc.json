@@ -2,6 +2,7 @@
   "name": "web",
   "entry": "src/main.tsx",
   "description": "Browse the web on the reMarkable through your relay, with tabs, a reading mode and ink notes.",
+  "update": { "url": "http://10.11.99.2:8787/", "publicKey": "63ade4d3b9daf9e19dced02fbdfdc4cede5c9ebe0bd0bd846a5919d2d68027c8" },
   "app": { "id": "dev.zinc.web", "version": "0.1.17", "author": "Zinc", "icon": "icon.svg" },
   "display": { "driver": "rmpp" },
   "targets": {
