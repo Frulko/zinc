@@ -686,6 +686,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: Murdoku e-ink: tool column variant for landscape; measure the portrait witness block on other seeds and levels; captions legibility on the panel; `tests/affected.json` mapping for examples/murdoku; Gallery 3 accent colour (crossed cells in red) instead of pure black and white.
 - ZN-?: Murdoku pen: tune the 450 ms debounce, the gap and 60% attribution thresholds on a real Marker; overlay mode loses pressure width; the two-finger tap also fires a normal tap for the first finger.
 
+- ZN-?: a cross-array bulk copy and fill native on every engine (`Array.prototype.set`-style: destination, source, start, count): the rectangle restores of Hamlet's frame (`pix[i] = bakedPix[i]` rows), `copyInto` and the pixel-plays buffers are loops, 5 times slower on the interpreter than AOT (docs/reports/hamlet-perf-2026-11-01.md).
+- ZN-?: Hamlet zoom step (90 to 190 ms AOT, 350 to 1200 ms interpreter): bake the next level in slices into the renderer's second buffer set and swap, or keep a baked window per neighbour level; warm the models of the neighbour levels at rest.
+- ZN-?: Hamlet idle frame: tight dirty rectangles for animals from the atlas frame bounds (44 x 46 px for a 20 x 12 sprite): with 55 or more animals in view the merged rectangle is the whole window every frame. A disjoint cover was tried: pixel-identical, 38 % less edge work on the interpreter, 5 % slower on AOT.
+- ZN-?: measure Hamlet windowed (Metal present, `ZINC_PRESENT_STATS=1`) on a quiet machine: the frame pacing and the present step were inconclusive under load.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.

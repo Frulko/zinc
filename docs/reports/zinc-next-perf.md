@@ -1374,3 +1374,18 @@ Bun 91.7k), wss 62.8k (Bun 74.2k); RSS AOT 4-9 MiB (Node 74-289, Bun 27-42). p50
 2026-10-31, audio on lossy links (ZN-899), Apple M1 Pro, `webrtc_impair` 20 s runs (load 5-12, approximate): burst 20% in runs of 3, two Zinc peers: concealed 8.0 -> 3.2% (2.8% second half), payload 37 -> 71 kbit/s, mouth-to-ear 200 -> 258 ms; 10% random loss 3.7 -> 1.0% (32.7 -> 62 kbit/s); without DRED (browser peer) 19.7%; thin link 10.2% unchanged. Echo cancellation (ZN-871, SpeexDSP): ERLE 25.8 dB (24.1 dB echo cancellation alone), second voice -2.2 dB, plugin +84 KB.
 
 2026-10-31, video on bad links (ZN-901/902), Apple M1 Pro, load 7-15 (not quiet): VP8 640x360 at 5% loss over 20 s: 2 freezes (max 665 ms, 23 PLIs) -> 0 freezes (max 315 ms, 0 PLIs); a 2 Mbit/s to 300 kbit/s step is under the cap in 1148 ms and back to full in 7880 ms (H.264 1105 / 8499). Encode at 1280x720, VP8 about 2.45 Mbit/s: one layer 10.4-11.9 ms per frame, two temporal layers 8.9-9.8 ms, simulcast 1280x720 (8.9 ms) plus 640x360 (2.4 ms), about 27% more.
+
+## Hamlet fluidity profile (2026-11-01)
+
+Machine: M1 Pro shared with other agents, every row taken at load 4 to 10 (rows above load 10 discarded). `ZINC_HAMLET_PERF` probe (examples/hamlet/src/ui/PerfTrace.ts), seed 3, scripted pan, drag and zoom, headless, frame p50 / p95 / p99 in ms. Full tables and the profile: docs/reports/hamlet-perf-2026-11-01.md.
+
+| engine, size | scenario | before | after |
+|---|---|---|---|
+| AOT 96 | zoom (20 notches) | 5.31 / 111 / 248 | 5.63 / 81.2 / 124 |
+| AOT 96 | pan | 7.02 / 12.1 / 14.6 | 5.87 / 11.2 / 13.5 |
+| AOT 64 | zoom | 4.99 / 99.2 / 186 | 5.22 / 78.4 / 119 |
+| interpreter 64 | pan | 39.1 / 56.1 / 68.5 | 28.5 / 45.8 / 55.8 |
+| interpreter 96 | pan | 43.2 / 67.0 / 71.5 | 32.1 / 55.4 / 59.7 |
+| interpreter 96 | zoom | 26.8 / 705 / 1257 | 30.1 / 489 / 777 |
+
+Resident memory after a zoom run at size 96 (AOT): 773 MB to 208 MB (ground kept by chunks). `copyWithin` of one 140 k array: 0.02 ms against 2.3 ms for the element loop, on the interpreter and AOT.
