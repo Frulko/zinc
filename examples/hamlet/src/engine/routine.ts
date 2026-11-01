@@ -10,8 +10,9 @@ const speed = (): number => WALK_SPEED * settings.walkSpeed;
 const homeTile = (p: Person): number => { const h = world.buildings[p.home]; return h === undefined || !h.alive ? -1 : tileIndex(h.i, h.j); };
 /** A sleeper beside his house is indoors: he is not drawn nor picked. */
 export function sleepsIndoors(p: Person): boolean {
+  if (p.state !== ST_SLEEP) return false;
   const t = homeTile(p);
-  return p.state === ST_SLEEP && t >= 0 && Math.abs(tileX(t) - p.x) + Math.abs(tileY(t) - p.y) < 4;
+  return t >= 0 && Math.abs(tileX(t) - p.x) + Math.abs(tileY(t) - p.y) < 4;
 }
 /** Nobody is carrying or claiming anything: the moment a person may stop for the night. */
 function canRest(p: Person): boolean {

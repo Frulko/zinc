@@ -8,6 +8,7 @@ import { economy } from '../world/economy';
 import { isNight } from '../rules/needs';
 import { tufts, bakeCount, bakeInfo, shiftColors } from './scenery';
 import { settings } from '../settings';
+import { focus } from './focus';
 import { appealMarks, drawMarks, bubbleColor, drawBubble } from './overlay';
 import { ST_SLEEP } from '../constants';
 import { models, MODEL_HOUSE } from './models';
@@ -15,15 +16,15 @@ import { camera, ZOOM_VIEW } from './camera';
 import { computeHints, Hint } from '../rules/hints';
 import { drainFx, fxDirty, drawFxBodies, drawFxSparks, drawSmoke, drawGlow } from './fx';
 import { beesDirty, drawBees } from './bees';
-import { drawPerson, drawDeer, actorAtlas } from './actors';
 import { fireDirty, drawFire } from './fire';
+import { drawPerson, drawDeer, actorAtlas } from './actors';
 
 const GRASS_LIT = GRASS.map((c: number[]): u32 => rgbColor(c));
 const GRASS_DARK = GRASS.map((c: number[]): u32 => rgb(c[0] * .54, c[1] * .52, c[2] * .72));
 const FOAM = rgb(143, 177, 146), PEBBLE = rgb(77, 139, 122);
 const OK = rgb(255, 214, 10), BAD = rgb(214, 84, 70);
 // Attention hints: a bobbing arrow over the tile, red for the severe, yellow, then teal. At most six, none in the far zoom-out levels (they would be specks).
-const ARROW_COLORS: u32[] = [rgb(120, 190, 200), rgb(120, 190, 200), rgb(255, 214, 10), rgb(214, 84, 70)];
+const ARROW_COLORS: u32[] = [rgb(120, 190, 200), rgb(120, 190, 200), rgb(255, 214, 10), rgb(214, 84, 70), rgb(255, 255, 255)];
 const ARROWS_MAX = 6, ARROWS_MAX_VIEW = 1.5, BUBBLES_MAX = 14;
 const ROOF: number[] = [2.9, 2.4, 2.8, 2.0];     // height of each building type's model (arrow tip sits above); other types use ROOF_DEFAULT
 const ROOF_DEFAULT = 2.7, GATE_TOP = 2.6;
@@ -140,8 +141,8 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   }
   if (hover >= 0) { const a = project(tileX(hover), tileY(hover), 0); addRect(dirty, a.sx, a.sy, 2 * TILE * S, 5 * S, 2 * TILE * S, 1.2 * TILE * S); }
   beesDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
-  drainFx(time);
   fireDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
+  drainFx(time);
   fxDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
   const pond = project(world.pondX + .2, world.pondY, 0);
   addRect(dirty, pond.sx, pond.sy, world.pondR * S * 1.5, world.pondR * S * .8, world.pondR * S * 1.5, world.pondR * S * .8);
@@ -152,6 +153,10 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
     if (a.sx < -8 || a.sx > W + 8 || a.sy < -4 || a.sy > H + 20) continue;
     arrowAt.push(a.sx, a.sy, h.severity);
     addRect(dirty, a.sx, a.sy, 9, 18, 9, 4);
+  }
+  if (focus.tile >= 0) {                                          // the tile a message pointed at: a white arrow, shown at every zoom
+    const top = arrowTop(focus.tile), a = project(top.x, top.y, top.z);
+    if (a.sx >= -8 && a.sx <= W + 8 && a.sy >= -4 && a.sy <= H + 20) { arrowAt.push(a.sx, a.sy, 4); addRect(dirty, a.sx, a.sy, 9, 18, 9, 4); }
   }
   const bubbleAt: number[] = [];                                  // sx, sy, colour of each thought bubble: the people who are not content, at most BUBBLES_MAX, in the near zoom levels only
   if (settings.thoughts && ZOOM_VIEW[camera.level] <= ARROWS_MAX_VIEW) for (const p of world.people) {
@@ -189,12 +194,12 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
     if (night) for (const s of def.glow) drawGlow(tileX(t) + s[0], tileY(t) + s[1], s[2], time, seed);
   }
   drawFxSparks(time);
+  drawFire(time);
   if (hover >= 0) outline(hover, ok ? OK : BAD);
   drawMarks(marks);
   for (let k = 0; k < bubbleAt.length; k += 3) drawBubble(bubbleAt[k], bubbleAt[k + 1], bubbleAt[k + 2]);
-  for (let k = 0; k < arrowAt.length; k += 3) drawArrow(arrowAt[k], arrowAt[k + 1], time, ARROW_COLORS[clamp(arrowAt[k + 2], 0, 3)]);
+  for (let k = 0; k < arrowAt.length; k += 3) drawArrow(arrowAt[k], arrowAt[k + 1], time, ARROW_COLORS[clamp(arrowAt[k + 2], 0, 4)]);
   // what to send: the pixels restored from last frame's runs, plus every run and rectangle of this one
-  drawFire(time);
   const spans = rows.concat(prevLoose).concat(loose).concat(shadowSpans);
   prevLoose = loose.concat(shadowSpans); prevRects = dirty;
   frameDirty.spans = spans;

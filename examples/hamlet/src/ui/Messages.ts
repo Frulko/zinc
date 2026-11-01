@@ -5,6 +5,8 @@ import { population } from '../engine/villagers';
 import { scenarioWon } from '../rules/goals';
 import { kit, col, parchment, text, wrap, addHit } from './kit';
 import { ui, act } from './state';
+import { focus } from '../view/focus';
+import { selectBuilding } from './Info';
 
 // The message log: typed events with the tile they happened on. A click on a message centres the camera there; urgent ones also raise a banner.
 export const MSG_INFO = 0, MSG_WARN = 1, MSG_URGENT = 2;
@@ -26,13 +28,13 @@ export function unread(): number { let n = 0; for (const m of log) if (!m.read) 
 export function scanEvents(): void {
   for (const line of world.news) { post(MSG_INFO, line, -1); if (line.startsWith('Objectif atteint')) sound('bell', .6); }   // goals, peddler, expeditions: said once, then cleared
   world.news = [];
-  const won = world.progression && scenarioWon() ? 1 : 0;
-  if (won === 1 && lastWon === 0) { post(MSG_URGENT, 'Victoire ! Le hameau est devenu un village prospère : tous les objectifs sont atteints.', world.gate); sound('fanfare', .9); }
   for (const a of world.alerts) {                                 // risks: fire and collapse are urgent (banner, alarm) and have their own sound
     post(a.kind === 'fire' || a.kind === 'collapse' ? MSG_URGENT : a.kind === 'theft' ? MSG_WARN : MSG_INFO, a.text, a.tile);
     if (a.kind === 'fire' || a.kind === 'collapse') sound(a.kind, .9);
   }
   world.alerts = [];
+  const won = world.progression && scenarioWon() ? 1 : 0;
+  if (won === 1 && lastWon === 0) { post(MSG_URGENT, 'Victoire ! Le hameau est devenu un village prospère : tous les objectifs sont atteints.', world.gate); sound('fanfare', .9); }
   lastWon = won;
   if (world.time - lastScan < 1 && world.time >= lastScan) return;
   lastScan = world.time;
@@ -50,7 +52,19 @@ export function openMessage(i: number): void {
   const m = log[i];
   if (m === undefined) return;
   m.read = true;
-  if (m.tile >= 0) act.jump(tileX(m.tile), tileY(m.tile));
+  if (m.tile >= 0) pointAt(m.tile);
+}
+let lastId = '', lastAt = -9;
+/** Centres the camera on the tile and bobs an arrow over it; a second click within half a second opens the building's window. */
+function pointAt(tile: number): void {
+  act.jump(tileX(tile), tileY(tile));
+  focus.tile = tile; focus.since = ui.time;
+  if (world.build[tile] >= 0 && world.buildings[world.build[tile]].alive) { if (doubled('tile:' + tile)) selectBuilding(world.build[tile]); }
+}
+function doubled(id: string): boolean {
+  const twice = id === lastId && ui.time - lastAt < .5;
+  lastId = id; lastAt = ui.time;
+  return twice;
 }
 /** The first unread message (the blinking button jumps to it). */
 export function openNewest(): void {
@@ -59,7 +73,7 @@ export function openNewest(): void {
 }
 export function messageClick(id: string): boolean {
   if (id === 'msg:new') { openNewest(); return true; }
-  if (id === 'msg:banner') { if (banner.tile >= 0) act.jump(tileX(banner.tile), tileY(banner.tile)); banner.until = 0; return true; }
+  if (id === 'msg:banner') { if (banner.tile >= 0) pointAt(banner.tile); banner.until = 0; return true; }
   if (!id.startsWith('msg:')) return false;
   openMessage(Number(id.slice(4))); return true;
 }

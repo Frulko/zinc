@@ -195,9 +195,9 @@ export function menuClick(id: string): boolean {
   if (id === 'opt:sound') { toggleSound(); savePrefs(); return true; }
   if (id === 'opt:edge') { settings.edgePan = !settings.edgePan; savePrefs(); return true; }
   if (id === 'opt:hints') { settings.hints = !settings.hints; savePrefs(); return true; }
+  if (id === 'opt:fx') { settings.fx = !settings.fx; savePrefs(); return true; }
   if (id === 'opt:thoughts') { settings.thoughts = !settings.thoughts; savePrefs(); return true; }
   if (id === 'opt:unlimited') { world.unlimited = !world.unlimited; world.saveDirty = true; return true; }
-  if (id === 'opt:fx') { settings.fx = !settings.fx; savePrefs(); return true; }
   if (id === 'opt:appeal') { settings.appeal = !settings.appeal; return true; }
   if (id === 'opt:skin') { setSkin((kit.skin + 1) % skinNames().length); savePrefs(); return true; }
   return false;

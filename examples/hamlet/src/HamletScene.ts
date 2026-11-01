@@ -5,6 +5,7 @@ import {
 import { Sprite, uiState } from 'zinc:stage';
 import { PixelSurface, PixelGame, unproject } from './pixel';
 import { season } from './ui/clock';
+import { focus } from './view/focus';
 import { sound, setAmbience, toggleSound, pauseSound, muted, ambientTick } from './audio';
 import {
   TICK, TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE, MIN_SIZE, MAX_SIZE, PLACE_OK, ROLE_NAMES,
@@ -275,6 +276,7 @@ export class HamletScene extends Sprite {
     const where = x * 10000 + y;
     if (this.pointerStart < 0) this.pointerStart = where; else if (where !== this.pointerStart) this.pointerMoved = true;
     ui.time += dt;
+    if (focus.tile >= 0 && ui.time - focus.since > 6) focus.tile = -1;
     ambientTick(dt, season(), (world.tick * TICK / 20) % 1 > .72 ? 1 : 0, this.forest());
     if (track(x, y)) uiState.dirty = true;
     this.moveView(dt, x, y);

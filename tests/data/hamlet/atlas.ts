@@ -123,7 +123,7 @@ check('people: stamps equal live figures, ' + personFrames + ' cases (pixels dif
 let deerDiff = 0, deerFrames = 0;
 for (let stag = 0; stag < 2; stag++) for (let yaw8 = 0; yaw8 < 8; yaw8++) for (let look = 0; look < 5; look++) {
   const d = new Deer();
-  d.x = gx; d.y = gy; d.yaw = yaw8 * Math.PI / 4; d.stag = stag === 1;
+  d.x = gx; d.y = gy; d.yaw = yaw8 * Math.PI / 4; d.stag = stag === 1; d.age = 1000000;     // grown: a young deer is drawn smaller, as a third variant
   if (look === 0) { d.state = DEER_WALK; d.path = [1, 2]; d.phase = 3 * Math.PI / 4; }
   else if (look === 1) { d.state = DEER_FLEE; d.path = [1, 2]; d.phase = 2 * Math.PI / 6 * 2; }
   else if (look === 2) { d.state = DEER_GRAZE; d.phase = 0; }
