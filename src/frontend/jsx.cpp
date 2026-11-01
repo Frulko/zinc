@@ -1237,7 +1237,8 @@ struct Lowering {
         if (b >= a + 3 && tx(b - 1) == "children" && isP(b - 2, ".") && dotted(a, b)) { out.push_back("_append(" + parent + ", " + rw(a, b) + "());"); continue; }
         std::size_t q = 0, colon = 0;
         const bool isTernary = ternary(a, b, q, colon);   // `c ? x : xs.map(...)` ends with a call too: not a list
-        if (open && !isTernary && callee.size() > 4 && callee.compare(callee.size() - 4, 4, ".map") == 0 && returnsJsx(open + 1, b - 1)) {
+        if (open && !isTernary && callee.size() > 4 && callee.compare(callee.size() - 4, 4, ".map") == 0
+            && (returnsJsx(open + 1, b - 1) || (b == open + 3 && t[open + 1].kind == Tok::Ident && jsxFunctions().count(tx(open + 1))))) {   // an arrow, or a function of this file that returns JSX by name
           bool oneArg = true;
           scan(open + 1, b - 1, [&](std::size_t, const std::string& x) { if (x == ",") oneArg = false; });
           if (oneArg) {
