@@ -811,7 +811,16 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
   auto px = [&im](int32_t x, int32_t y) { return im.px[y * im.stride + x]; };
   LinRows<decltype(px)> lr{nullptr, b.x1 - b.x0, px};
   if (!nearest && (!(lr.col = lin_columns(b.x0, lr.n, im.w, [&](int32_t x) { return (x + 0.5f - c.x) * im.w / c.w - 0.5f; })) || !lr.init())) return;
+  const bool inner_ok = c.r > 0 && c.r <= (hw < hh ? hw : hh);   // the interior test below assumes a radius that fits
   for (int32_t y = b.y0; y < b.y1; y++) {
+    // A rounded picture: the pixels well inside the box (the whole row of a square one) have full coverage, so only the corners and the edge
+    // pay for the distance (a 280 px cover: the corners are 3% of its pixels); the span is cut at 0.75 px inside, where the coverage is exactly 1
+    int32_t i0 = b.x0, i1 = c.r > 0 ? b.x0 : b.x1;
+    if (inner_ok) {
+      const Span in = row_span(y + 0.5f, cx, cy, hw, hh, c.r, -0.75f);
+      i0 = in.x0 > b.x0 ? in.x0 : b.x0; i1 = in.x1 < b.x1 ? in.x1 : b.x1;
+      if (i1 < i0) i1 = i0 = b.x0;
+    }
     if (nearest) {
       int32_t iy = (int32_t)(((int64_t)((y - c.y) * 65536)) * sy >> 32); if (iy < 0) iy = 0; if (iy >= im.h) iy = im.h - 1;
       const uint32_t* src = im.px + (size_t)iy * im.stride;
@@ -820,7 +829,7 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
       for (int32_t x = b.x0, fx = fx0; x < b.x1; x++, fx += sx) {
         int32_t ix = fx >> 16; if (ix >= im.w) ix = im.w - 1;
         uint32_t a = c.alpha;
-        if (c.r > 0) a = (uint32_t)(a * clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1));
+        if (c.r > 0 && (x < i0 || x >= i1)) a = (uint32_t)(a * clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1));
         if (a >= 255) at(t, x, y) = src[ix] & 0xFFFFFF; else if (a) blend(at(t, x, y), src[ix] & 0xFFFFFF, a);
       }
       continue;
@@ -836,7 +845,7 @@ static void draw_dyn(const Target& t, const Cmd& c, const Dyn& im) {
       for (int k = 0; k < 3; k++) v[k] = h0[k * lr.n] * uy + h1[k * lr.n] * ty;
       const uint32_t out = (uint32_t)v[0] | (uint32_t)v[1] << 8 | (uint32_t)v[2] << 16;
       float a = c.alpha;
-      if (c.r > 0) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1);
+      if (c.r > 0 && (x < i0 || x >= i1)) a *= clampf(0.5f - rr_sdf(x + 0.5f, y + 0.5f, cx, cy, hw, hh, c.r), 0, 1);
       if (a >= 255) at(t, x, y) = out; else if (a >= 1) blend(at(t, x, y), out, (uint32_t)a);
     }
   }
