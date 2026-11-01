@@ -12,6 +12,7 @@
     { "id": "bread", "label": "Pain", "carry": "bread", "price": 3 },
     { "id": "leather", "label": "Cuir", "carry": "hide", "price": 6 }
   ],
+  "desirability": { "limit": 8, "terrain": [ { "kind": "tree", "rings": [1] }, { "kind": "water", "rings": [2, 1] } ] },
   "services": [ { "id": "water", "label": "Eau" }, { "id": "market", "label": "Marché" } ],
   "start": { "log": 20, "plank": 10, "leather": 1 },
   "hall": "storehouse",
@@ -22,10 +23,10 @@
         "levels": [
           { "label": "Maison", "capacity": 4, "needs": { "services": ["market"], "foods": 1 } },
           { "label": "Demeure", "capacity": 6, "needs": { "services": ["market", "water"], "foods": 2, "appeal": 2 } } ] } },
-    { "id": "sawmill", "label": "Scierie", "order": 3, "model": "sawmill", "cost": { "plank": 2, "log": 6 },
+    { "id": "sawmill", "appeal": [-3, -2, -1], "label": "Scierie", "order": 3, "model": "sawmill", "cost": { "plank": 2, "log": 6 },
       "workers": 2, "role": "sawyer", "inputs": { "log": 2 }, "outputs": { "plank": 1 }, "seconds": 6,
       "hint": "Une scierie scie les troncs en planches : elles servent à construire." },
-    { "id": "lodge", "label": "Atelier de chasse", "short": "Chasse", "order": 4, "model": "lodge", "cost": { "plank": 3, "log": 3 },
+    { "id": "lodge", "appeal": [-2, -1], "label": "Atelier de chasse", "short": "Chasse", "order": 4, "model": "lodge", "cost": { "plank": 3, "log": 3 },
       "workers": 2, "role": "hunter", "gather": "deer", "outputs": { "meat": 3, "hide": 1 }, "seconds": 1,
       "hint": "Un atelier de chasse forme des chasseurs qui rapportent du gibier." },
     { "id": "fishery", "label": "Atelier de pêche", "short": "Pêche", "order": 6, "model": "fishery", "cost": { "plank": 3, "log": 3 },
@@ -37,7 +38,7 @@
       "workers": 2, "role": "lumberjack", "gather": "tree", "outputs": { "log": 1 }, "seconds": 2.6,
       "hint": "Les habitants ne font rien : posez une cabane de bûcheron pour qu’ils coupent du bois." }
   ,
-    { "id": "smokehouse", "label": "Fumoir", "order": 5, "model": "smokehouse", "cost": { "plank": 3, "log": 4 },
+    { "id": "smokehouse", "appeal": [-3, -2, -1], "label": "Fumoir", "order": 5, "model": "smokehouse", "cost": { "plank": 3, "log": 4 },
       "workers": 2, "role": "smoker", "inputs": { "meat": 2, "log": 1 }, "outputs": { "smoked_meat": 2 }, "seconds": 8,
       "hint": "Un fumoir transforme le gibier en viande fumée (il brûle du bois) : les maisons en réclament." }
   ,
@@ -50,15 +51,15 @@
       "workers": 2, "role": "baker", "inputs": { "flour": 1 }, "outputs": { "bread": 2 }, "seconds": 6,
       "hint": "Une boulangerie cuit la farine en pain : les maisons le mangent." }
   ,
-    { "id": "market", "label": "Marché", "order": 11, "model": "market", "cost": { "plank": 4, "log": 2, "leather": 1 },
+    { "id": "market", "appeal": [1], "label": "Marché", "order": 11, "model": "market", "cost": { "plank": 4, "log": 2, "leather": 1 },
       "workers": 1, "role": "vendor", "service": { "id": "market", "walker": true, "range": 18 },
       "hint": "Un marché (il faut du cuir) envoie un marchand sur les routes : les maisons qu’il croise sont servies." }
   ,
-    { "id": "tannery", "label": "Tannerie", "order": 12, "model": "tannery", "cost": { "plank": 4, "log": 3 },
+    { "id": "tannery", "appeal": [-4, -3, -2, -1], "label": "Tannerie", "order": 12, "model": "tannery", "cost": { "plank": 4, "log": 3 },
       "workers": 2, "role": "tanner", "inputs": { "hide": 2 }, "outputs": { "leather": 1 }, "seconds": 8,
       "hint": "Une tannerie change les peaux du chasseur en cuir : le marché en a besoin." }
   ,
-    { "id": "well", "label": "Puits", "order": 13, "model": "well", "cost": { "plank": 3, "log": 2 }, "needsRoad": false,
+    { "id": "well", "appeal": [1, 1], "label": "Puits", "order": 13, "model": "well", "cost": { "plank": 3, "log": 2 }, "needsRoad": false,
       "service": { "id": "water", "radius": 4 },
       "hint": "Un puits donne de l’eau aux maisons dans un rayon de quatre cases." }
   ]

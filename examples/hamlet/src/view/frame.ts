@@ -6,6 +6,7 @@ import { TILE, HOUSE, ROLE_FISHER } from '../constants';
 import { world, tileX, tileY } from '../world/world';
 import { tufts, bakeCount, bakeInfo, shiftColors } from './scenery';
 import { settings } from '../settings';
+import { appealMarks, drawMarks } from './overlay';
 import { models, MODEL_HOUSE } from './models';
 import { camera, ZOOM_VIEW } from './camera';
 import { computeHints, Hint } from '../rules/hints';
@@ -140,6 +141,8 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
     arrowAt.push(a.sx, a.sy, h.severity);
     addRect(dirty, a.sx, a.sy, 9, 18, 9, 4);
   }
+  const marks = settings.appeal ? appealMarks() : [];            // the desirability overlay
+  for (let k = 0; k < marks.length; k += 4) addRect(dirty, marks[k], marks[k + 1], 3, 3, 3, 3);
   const rects = merge(prevRects.concat(dirty));
   const rows: number[] = [];
   restore(prevLoose);
@@ -162,6 +165,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
     drawSmoke(tileX(b.j * world.size + b.i) + s[0], tileY(b.j * world.size + b.i) + s[1], s[2], time, b.i * 7 + b.j);
   }
   if (hover >= 0) outline(hover, ok ? OK : BAD);
+  drawMarks(marks);
   for (let k = 0; k < arrowAt.length; k += 3) drawArrow(arrowAt[k], arrowAt[k + 1], time, ARROW_COLORS[clamp(arrowAt[k + 2], 0, 3)]);
   // what to send: the pixels restored from last frame's runs, plus every run and rectangle of this one
   const spans = rows.concat(prevLoose).concat(loose).concat(shadowSpans);

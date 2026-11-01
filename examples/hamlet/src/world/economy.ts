@@ -18,9 +18,10 @@ export class BuildingDef {
   cost: number[] = []; workers: number = 0; role: string = ''; roleId: number = -1;
   inputs: number[] = []; outputs: number[] = []; seconds: number = 0; gather: string = '';
   stockCap: number = 8; store: boolean = false; needsRoad: boolean = true;
-  housing: Housing | null = null; service: ServiceDef | null = null;
+  housing: Housing | null = null; service: ServiceDef | null = null; appeal: number[] = [];   // appeal: the rings it adds around itself
 }
 export class Economy {
+  appeal: AppealSource[] = []; appealMax: number = 8;
   resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
   typeOf(id: string): number { for (let k = 0; k < this.buildings.length; k++) if (this.buildings[k].id === id) return k; return -1; }
   serviceOf(id: string): number { for (let k = 0; k < this.services.length; k++) if (this.services[k].id === id) return k; return -1; }
@@ -29,6 +30,9 @@ export class Economy {
 /** The loaded economy. Empty until loadEconomy runs (the scene at start-up, the tests); a building type is its index here. */
 export const economy = new Economy();
 
+/** A terrain source of desirability: every tile of this kind adds `rings[d - 1]` to the tiles at distance d (1 to rings.length). */
+export class AppealSource { kind: string = ''; rings: number[] = []; }
+export const APPEAL_KINDS: string[] = ['tree', 'water', 'rock'];
 export const GATHER_KINDS: string[] = ['', 'tree', 'deer', 'shore'];
 
 function num(obj: any, key: string, fallback: number, where: string, errors: string[]): number {
@@ -70,6 +74,16 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     if (sv.id === '' || into.serviceOf(sv.id) >= 0) errors.push('bad-id: service "' + sv.id + '" is empty or declared twice');
     into.services.push(sv);
   }
+  into.appeal = []; into.appealMax = 8;
+  if (data.desirability !== undefined) {
+    into.appealMax = num(data.desirability, 'limit', 8, 'desirability', errors);
+    for (const s of (data.desirability.terrain === undefined ? [] : data.desirability.terrain) as any[]) {
+      const src = new AppealSource(); src.kind = String(s.kind); src.rings = Array.isArray(s.rings) ? (s.rings as number[]).map((v: number): number => Number(v)) : [];
+      if (APPEAL_KINDS.indexOf(src.kind) < 0) errors.push('bad-appeal: desirability source "' + src.kind + '" is not one of ' + APPEAL_KINDS.join(', '));
+      if (src.rings.length === 0) errors.push('bad-appeal: desirability source "' + src.kind + '" has no rings');
+      into.appeal.push(src);
+    }
+  }
   const names: string[] = [];
   for (const b of data.buildings as any[]) {
     const d = new BuildingDef(), where = 'building ' + String(b.id);
@@ -107,6 +121,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
       }
       d.housing = h;
     }
+    if (b.appeal !== undefined) { if (Array.isArray(b.appeal)) d.appeal = (b.appeal as number[]).map((v: number): number => Number(v)); else errors.push('bad-appeal: ' + where + '.appeal must be a list of rings'); }
     if (b.service !== undefined) {
       const sd = new ServiceDef(), k = into.serviceOf(String(b.service.id));
       if (k < 0) errors.push('bad-service: ' + where + ' gives the unknown service "' + String(b.service.id) + '"');
@@ -140,7 +155,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
 export function loadEconomy(text: string, models: string[], roles: string[]): void {
   const next = new Economy(), errors = parseEconomy(text, models, roles, next);
   if (errors.length > 0) throw new Error('economy.json: ' + errors.join('; '));
-  economy.resources = next.resources; economy.services = next.services; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
+  economy.resources = next.resources; economy.services = next.services; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
 }
 
 /** One line per resource: who makes it and who uses it. The report of a chain, for the maker of the data. */

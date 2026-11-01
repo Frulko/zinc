@@ -17,6 +17,7 @@ import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine
 import { adviceLine } from '../../../examples/hamlet/src/hud';
 import { toolOf } from '../../../examples/hamlet/src/rules/build';
 import { housingReport, capacityOf } from '../../../examples/hamlet/src/rules/housing';
+import { computeAppeal, appealTiles } from '../../../examples/hamlet/src/rules/appeal';
 import { movePriority } from '../../../examples/hamlet/src/rules/labour';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
 
@@ -149,7 +150,7 @@ applyTool(TOOL_HOUSE, at(2, 7)); applyTool(toolOf('smokehouse'), at(5, 9));
 setStock(MEAT2, 10); setStock(WOOD, 0);
 run(40);
 const smoke = world.buildings.filter((b) => b.alive && b.type === economy.typeOf('smokehouse'))[0];
-check('without fuel the smokehouse stops and says what it lacks', smoke.state === 2 && smoke.waitFor === WOOD && adviceLine().indexOf('attend') >= 0 && world.stock[SMOKED] + smoke.stock[SMOKED] === 0);
+check('without fuel the smokehouse stops and says what it lacks', smoke.state === 2 && smoke.waitFor === WOOD && adviceLine().indexOf('Il manque : Bois') >= 0 && world.stock[SMOKED] + smoke.stock[SMOKED] === 0);
 // ---- chain 3: the farm makes wheat, the mill flour, the bakery bread ----
 generate(1234, 16); rich(); clearRow(); world.tree[at(7, 9)] = 0; world.rock[at(7, 9)] = 0;
 for (const i of [2, 4, 6]) { const h = addBuilding(HOUSE, at(i, 7)); createResident(h); createResident(h); world.buildings[h].residents = 2; }
@@ -221,18 +222,19 @@ check('a new house is level 0 and its report says what the next level lacks', ca
 applyTool(toolOf('market'), at(5, 9));
 const kids = addBuilding(HOUSE, at(4, 7)); createResident(kids); createResident(kids); world.buildings[kids].residents = 2; world.buildings[kids].timer = 1e9;   // idle hands for the vendor
 setStock(SMOKED2, 60); setStock(BREAD2, 60); cabin.cover[WATER] = 9999;
+for (const [ti, tj] of [[2, 6], [1, 7], [3, 7]]) { world.tree[at(ti, tj)] = 0; world.rock[at(ti, tj)] = 0; }
 const stocked = world.stock[SMOKED2] + world.stock[BREAD2];
 run(200);
 check('the market and a meal lift the house to level 1: capacity grows', cabin.level === 1 && capacityOf(cabin) === 4 && world.stock[SMOKED2] + world.stock[BREAD2] < stocked);
 check('level 2 still lacks appeal, and the report says so', cabin.level === 1 && housingReport(cabin).text.indexOf('agréable') >= 0 && computeHints().some((h) => h.kind === 'house_needs' && h.tile === at(2, 7)));
-world.appeal[at(2, 7)] = 3;
+for (const [ti, tj] of [[2, 6], [1, 7], [3, 7]]) world.tree[at(ti, tj)] = 1;      // three trees around the house: appeal 3 once the day slice counts them
 run(120);
 check('with water, two foods and appeal the house reaches level 2 (capacity 6)', cabin.level === 2 && capacityOf(cabin) === 6 && housingReport(cabin).top);
 cabin.timer = 0; run(10);
 applyTool(TOOL_ERASE, at(5, 9));
 run(60);
 check('hysteresis: three days without a market do not take the level away', cabin.level === 2);
-cabin.cover[WATER] = 9999; world.appeal[at(2, 7)] = 3;
+cabin.cover[WATER] = 9999;
 run(240);
 check('after the devolve days the house falls back and the surplus residents leave', cabin.level < 2 && cabin.residents <= capacityOf(cabin) && world.people.filter((p) => p.home === hh).length === cabin.residents);
 const saved = snapshot();
@@ -251,6 +253,23 @@ run(70);
 check('the tannery makes leather from hides (2 hides -> 1 leather)', world.stock[LEATHER] + world.buildings[world.build[at(5, 9)]].stock[LEATHER] >= 2 && world.stock[HIDE2] <= 4);
 check('the well waters the houses within its radius, not the far one', world.buildings[th].cover[WATER2] > 0 && world.buildings[far].cover[WATER2] === 0);
 check('a house the well does not reach is flagged by a hint', computeHints().some((h) => h.reason === 'no_service:water' && h.tile === at(12, 12)));
+// ---- desirability: rings of a constructed layout, recomputed once a day ----
+generate(1234, 16); world.tree.fill(0); world.rock.fill(0); rich();
+computeAppeal();
+const base = world.appeal.slice();
+world.tree[at(6, 6)] = 1;
+addBuilding(economy.typeOf('sawmill'), at(10, 10)); addBuilding(economy.typeOf('well'), at(10, 3));
+computeAppeal();
+const delta = (i: number, j: number): number => world.appeal[at(i, j)] - base[at(i, j)];
+check('a tree adds one to its four neighbours and nothing beyond', delta(5, 6) === 1 && delta(6, 7) === 1 && delta(4, 6) === 0 && delta(6, 6) === 0);
+check('the rings of an industry fall with distance (-3, -2, -1, then nothing)', delta(9, 10) === -3 && delta(8, 10) === -2 && delta(7, 10) === -1 && delta(6, 10) === 0);
+check('a well raises the tiles around it', delta(10, 4) === 1 && delta(10, 5) === 1 && delta(10, 6) === 0);
+check('the grid is clamped to the limit', (() => { for (let k = 0; k < 20; k++) addBuilding(economy.typeOf('sawmill'), at(2 + (k % 5), 12 + Math.floor(k / 5))); computeAppeal(); return world.appeal.every((v) => v >= -economy.appealMax && v <= economy.appealMax) && world.appeal.some((v) => v === -economy.appealMax); })());
+world.appeal = world.appeal.map((_v) => 77);
+run(10);
+check('the grid is not recomputed between two days', world.appeal.every((v) => v === 77));
+run(12);
+check('it is recomputed when the day turns', world.appeal.every((v) => v !== 77) && appealTiles().length > 0);
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; }

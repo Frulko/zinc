@@ -3,6 +3,7 @@ import { SAVE_KEY, SAVE_VERSION, HOUSE } from '../constants';
 import { world, generate, recount, tileIndex, tileCount } from './world';
 import { addBuilding } from '../rules/build';
 import { createResident } from '../engine/villagers';
+import { computeAppeal } from '../rules/appeal';
 import { stockWithCarried } from '../engine/transport';
 
 // One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock, cover, level, streak and meals; lists with | between);trees(tile.variant);unlimited;tick;rng;priority
@@ -51,7 +52,7 @@ export function restore(text: string): boolean {
   world.unlimited = fields[6] === '1';
   world.priority = numbers(fields[9]);
   world.tick = Number(fields[7]); world.rng = Number(fields[8]);    // last: rebuilding the residents drew random numbers
-  recount(); world.revision++;
+  computeAppeal(); recount(); world.revision++;
   return true;
 }
 
