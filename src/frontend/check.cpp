@@ -1408,10 +1408,10 @@ struct Checker {
     TypeId lt = expr(kids[1], func({V, K}, tVoid, 1));
     padCallbacks = true;
     if (bad(lt)) return tError;
-    if (ty(lt).k != TK::Func || ty(lt).params.empty() || ty(lt).params.size() > 2) { diag(kZNotAssignable, kids[1], "a function of 1-2 parameter(s) for 'forEach'"); return tError; }
+    if (ty(lt).k != TK::Func || ty(lt).params.size() > 2) { diag(kZNotAssignable, kids[1], "a function of 0-2 parameter(s) for 'forEach'"); return tError; }
     std::vector<TypeId> aliases{mt, lt, K, V};
     std::string val = isSet ? "k" : "m.get(k) as " + inspectAliasName(V);
-    std::string call = ty(lt).params.size() == 1 ? "f(" + val + ")" : "f(" + val + ", k)";
+    std::string call = ty(lt).params.empty() ? "f()" : ty(lt).params.size() == 1 ? "f(" + val + ")" : "f(" + val + ", k)";
     std::string key = "mapForEach," + std::to_string(mt) + "," + std::to_string(lt);
     std::uint32_t sym = helper(key, "function $F(m: " + inspectAliasName(mt) + ", f: " + inspectAliasName(lt) + "): void {\n  for (const k of m." + std::string(isSet ? "values" : "keys") + "()) " + call + ";\n}\n", aliases, i);
     std::uint32_t id = newNode(N::Ident, out.syms[sym].name, {}, i);
@@ -1543,7 +1543,7 @@ struct Checker {
       TypeId lt = expr(arg, func(ps, expectRet, 1));
       padCallbacks = true;
       if (bad(lt)) return tError;
-      if (ty(lt).k != TK::Func || ty(lt).params.empty() || ty(lt).params.size() > ps.size()) { diag(kZNotAssignable, arg, "a function of 1-" + std::to_string(ps.size()) + " parameter(s) for '" + m + "'"); return tError; }
+      if (ty(lt).k != TK::Func || ty(lt).params.size() > ps.size()) { diag(kZNotAssignable, arg, "a function of 0-" + std::to_string(ps.size()) + " parameter(s) for '" + m + "'"); return tError; }
       for (std::size_t k = 0; k < ty(lt).params.size(); ++k) if (!assignable(ps[k], ty(lt).params[k], kNone)) { diag(kZNotAssignable, arg, "callback parameter '" + name(ps[k]) + "' to '" + name(ty(lt).params[k]) + "'"); return tError; }
       arity = ty(lt).params.size();
       aliases.push_back(lt);
@@ -1594,7 +1594,7 @@ struct Checker {
       if (!assignable(ty(lt).elem, ut, kNone)) { diag(kZNotAssignable, args[0], "diag.detail.assign", {{"from", name(ty(lt).elem)}, {"to", name(ut)}}); return tError; }
       aliases.push_back(ut);
       std::string U = inspectAliasName(ut);
-      std::string call = arity == 2 ? "f(acc, a[k])" : "f(acc, a[k], k)";
+      std::string call = arity == 0 ? "f()" : arity == 1 ? "f(acc)" : arity == 2 ? "f(acc, a[k])" : "f(acc, a[k], k)";
       sig = "(a: " + A + ", f: " + inspectAliasName(ty(lt).k == TK::Func ? lt : lt) + ", init: " + U + "): " + U;
       body = "  let acc: " + U + " = init;\n  " + (m == "reduce" ? "for (let k: i32 = 0; k < a.length; k++)" : "for (let k: i32 = a.length - 1; k >= 0; k--)") + " acc = " + call + ";\n  return acc;\n";
       result = ut;
@@ -1612,7 +1612,7 @@ struct Checker {
       TypeId U = ty(lt).elem;
       if (boolRet && U != tBool) { diag(kZNotAssignable, args[0], "diag.detail.assign", {{"from", name(U)}, {"to", "boolean"}}); return tError; }
       std::string F = inspectAliasName(lt);
-      std::string call = arity == 1 ? "f(a[k])" : "f(a[k], k)";
+      std::string call = arity == 0 ? "f()" : arity == 1 ? "f(a[k])" : "f(a[k], k)";
       std::string fwd = "for (let k: i32 = 0; k < a.length; k++)", bwd = "for (let k: i32 = a.length - 1; k >= 0; k--)";
       key += "," + std::to_string(arity);
       if (m == "map") {

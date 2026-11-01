@@ -153,6 +153,7 @@
     {"paths": ["src/rt/rtcalls.cpp", "src/rt/machine.cpp", "src/host/sys_host.cpp", "bench/json_large.ts", "tests/t0/json_large.sh"], "tests": ["json_large"]},
     {"paths": ["tools/windows-cross", "tests/t2/cross_windows.sh", "src/tc/tc.cpp"], "tests": ["cross_windows", "release_workflow"]},
     {"paths": ["tools/build-linux", "tools/linux-sysroot", "cmake/zig-linux.cmake"], "tests": ["tc", "release_workflow"]},
+    {"paths": ["src/frontend/check.cpp", "tests/data/callback_fewer_params/", "tests/t0/callback_fewer_params.sh"], "tests": ["callback_fewer_params"]},
     {"paths": ["tests/t1/first_run.sh", "tests/golden/first-run/", "templates/", "src/frontend/diagnostics", "include/zn/diagnostics.h", "docs/guide/01-getting-started.md"], "tests": ["first_run"]},
     {"paths": ["learn/", "src/cli_examples.cpp", "tests/t1/examples_catalog.sh", "docs/learn/samples/", "app/atelier/components/Start.tsx", "app/atelier/app/workspace.ts"], "tests": ["examples_catalog", "atelier_styles"]},
     {"paths": ["plugins/3d/web/", "plugins/three/web/", "tests/t1/web_3d.sh"], "tests": ["web_3d"]},
