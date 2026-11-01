@@ -34,7 +34,9 @@ static bool shot_watch = false;   // a screenshot request waits for the frame to
 bool screen_watched() { return shot_watch || mirror_watching; }
 /** A picture in device memory is shown by a hardware layer now (the display has them, and nobody watches the screen). */
 bool layers_usable() { return display_driver && hal_display->layers && !screen_watched(); }
+bool idle_frame = false;
 static void present(const HalFrame* f) {
+  idle_frame = !f->move && (f->x1 <= f->x0 || f->y1 <= f->y0);
   if (display_driver) hal_display->present(f); else hal_present(f);
   if (mirror_present) mirror_present(f);
   if (first_present) { void (*f1)() = first_present; first_present = nullptr; f1(); }

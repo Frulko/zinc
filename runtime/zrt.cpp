@@ -923,6 +923,7 @@ void start(const HalConfig& cfg, int argc, char** argv) {
 namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); }
 
 // One iteration of the main loop; false when the program is finished (used by the wasm HAL too).
+extern bool idle_frame;   // runtime/gfx.cpp
 static uint64_t last_frame_us = 0;
 static bool in_frame = false;
 bool loop_once() {
@@ -962,7 +963,7 @@ bool loop_once() {
     hal_frame_end();
 #ifndef __EMSCRIPTEN__
     // cap the frame rate when presenting does not block on vsync (hidden window, fbdev): saves CPU, keeps dt sane
-    if (!det_mode && (display_driver || hal_fixed_dt() <= 0)) { uint64_t spent = hal_time_us() - t; if (spent < ZRT_MIN_FRAME_US) hal_sleep_us(ZRT_MIN_FRAME_US - spent); }
+    if (!det_mode && (display_driver || hal_fixed_dt() <= 0)) { uint64_t spent = hal_time_us() - t; const uint64_t period = idle_frame ? 16667 : ZRT_MIN_FRAME_US; if (spent < period) hal_sleep_us(period - spent); }
 #endif
     return true;
   }

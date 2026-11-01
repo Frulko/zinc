@@ -6,8 +6,9 @@
 // To never block an animation or a scroll:
 // 1. Requested pictures are downloaded in the background (4 at most in parallel).
 // 2. The received bytes are put in a queue (`readyQueue`).
-// 3. `decodeNextPicture()` decodes only one picture per frame, and only
-//    when no finger touches the screen and no list is scrolling.
+// 3. `decodeNextPicture()` hands them to the engine's decoder thread (zinc:gfx startImageDecode, two at a time)
+//    and installs the finished ones, only when no finger touches the screen and no list is scrolling:
+//    a frame pays for a pixel copy, never for a decode.
 // 4. Memory is capped at `MAX_CACHED_PICTURES` (60 pictures max, 400 px per side max)
 //    with LRU eviction (the least recently drawn picture is freed first).
 
@@ -15,7 +16,8 @@ import {
   drawImage,
   drawImageRect,
   rrect,
-  imageFromBytes,
+  startImageDecode,
+  pollImageDecode,
   destroyImage,
   createImage,
   beginImage,
@@ -203,31 +205,12 @@ async function downloadPictureBytes(url: string, isVisibleOnScreen: boolean): Pr
   activeDownloadsCount--;
 }
 
-/**
- * Decodes at most one pending picture per call.
- * Returns `true` if a new picture is ready (which triggers a screen refresh).
- */
-export function decodeNextPicture(allowBackground: boolean = true): boolean {
-  const isBackground = priorityDecodeQueue.length === 0;
-  // preloaded pictures one at a time, spaced out: each one holds the frame for as long as it takes to decode
-  if (isBackground && (!allowBackground || currentFrameTick < backgroundDecodeBlockedUntilTick)) return false;
-  const nextUrl =
-    priorityDecodeQueue.length > 0
-      ? (priorityDecodeQueue.shift() as string)
-      : backgroundDecodeQueue.length > 0
-      ? (backgroundDecodeQueue.shift() as string)
-      : '';
-  if (nextUrl === '') return false;
-  if (isBackground) backgroundDecodeBlockedUntilTick = currentFrameTick + 60;
+/** Decodes in flight on the engine's worker thread: the URL and the handle of its decode. */
+const decodesInFlight: { url: string; handle: i32 }[] = [];
+const MAX_DECODES_IN_FLIGHT = 2;
 
-  const rawBytes = pendingBytesByUrl.get(nextUrl);
-  pendingBytesByUrl.delete(nextUrl);
-
-  const startTime = performance.now();
-  const decodedImage = rawBytes !== undefined ? downscaleIfNeeded(imageFromBytes(rawBytes as u8[])) : -1;
-  totalDecodeDurationMs += performance.now() - startTime;
-  totalDecodedCount++;
-
+/** Puts a decoded picture (or `-1`) in the cache, evicting the least recently drawn one when the cache is full. */
+function storeDecodedPicture(url: string, decodedImage: i32): void {
   // LRU eviction if the cache has reached its maximum capacity
   if (cachedPicturesByUrl.size >= MAX_CACHED_PICTURES) {
     let oldestUrl = '';
@@ -249,11 +232,59 @@ export function decodeNextPicture(allowBackground: boolean = true): boolean {
     lastDrawnFrameByUrl.delete(oldestUrl);
     decodedTimestampByUrl.delete(oldestUrl);
   }
+  cachedPicturesByUrl.set(url, decodedImage);
+  lastDrawnFrameByUrl.set(url, currentFrameTick);
+  decodedTimestampByUrl.set(url, performance.now());
+}
 
-  cachedPicturesByUrl.set(nextUrl, decodedImage);
-  lastDrawnFrameByUrl.set(nextUrl, currentFrameTick);
-  decodedTimestampByUrl.set(nextUrl, performance.now());
-  return true;
+/**
+ * Hands the downloaded pictures to the engine's decoder thread (two at a time, the screen's own first) and installs the ones it has finished:
+ * no frame pays for a decode, only for a pixel copy. A picture not yet ready is drawn as its quiet placeholder (`getPicture` gives `-1`).
+ * Returns `true` if a new picture is ready (which triggers a screen refresh).
+ */
+export function decodeNextPicture(allowBackground: boolean = true): boolean {
+  let installed = false;
+  for (let i = decodesInFlight.length - 1; i >= 0; i--) {
+    const pending = decodesInFlight[i];
+    const startTime = performance.now();
+    const result = pollImageDecode(pending.handle);
+    if (result === -2) continue;
+    decodesInFlight.splice(i, 1);
+    storeDecodedPicture(pending.url, result >= 0 ? downscaleIfNeeded(result) : -1);
+    totalDecodeDurationMs += performance.now() - startTime;
+    totalDecodedCount++;
+    installed = true;
+  }
+
+  while (decodesInFlight.length < MAX_DECODES_IN_FLIGHT) {
+    const isBackground = priorityDecodeQueue.length === 0;
+    // preloaded pictures are spaced out and wait for a quiet moment: the worker thread shares the cores with the frame's own work
+    if (isBackground && (!allowBackground || currentFrameTick < backgroundDecodeBlockedUntilTick)) break;
+    const nextUrl =
+      priorityDecodeQueue.length > 0
+        ? (priorityDecodeQueue[0] as string)
+        : backgroundDecodeQueue.length > 0
+        ? (backgroundDecodeQueue[0] as string)
+        : '';
+    if (nextUrl === '') break;
+    const rawBytes = pendingBytesByUrl.get(nextUrl);
+    const handle = rawBytes !== undefined ? startImageDecode(rawBytes as u8[]) : -1;
+    if (handle === 0) break; // too much in flight: the same picture next time
+    if (isBackground) {
+      backgroundDecodeQueue.shift();
+      backgroundDecodeBlockedUntilTick = currentFrameTick + 30;
+    } else {
+      priorityDecodeQueue.shift();
+    }
+    pendingBytesByUrl.delete(nextUrl);
+    if (handle < 0) {
+      storeDecodedPicture(nextUrl, -1);
+      installed = true;
+    } else {
+      decodesInFlight.push({ url: nextUrl, handle });
+    }
+  }
+  return installed;
 }
 
 /**

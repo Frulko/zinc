@@ -8,8 +8,16 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Rendering and performance
+#### New
+- `startImageDecode`, `pollImageDecode` and `cancelImageDecode` in `zinc:gfx` decode a PNG, JPEG or WebP on a background thread, so a cover or a photo no longer holds a frame for 40 to 100 ms on a Raspberry Pi.
+
+#### Faster
+- A program that draws nothing now wakes 60 times a second instead of 125, which saves battery and CPU on idle screens and keeps the frames in step with the display.
+
 ### Apps and examples
 #### Faster
+- Musique (arbre) decodes covers and radio logos on a background thread: a new cover no longer freezes the screen for a moment.
 - Musique (arbre) no longer stalls while you touch it: covers and pages are prepared in the background only after a quiet second or two, one at a time, and the slide you swipe to is remembered a moment later instead of in the frame of the gesture.
 
 ## [0.10.16] - 2026-11-01

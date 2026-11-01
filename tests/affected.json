@@ -466,6 +466,7 @@
     {"paths": ["src/host/gfx_host.cpp", "src/res/"], "tests": ["zapp_photos", "zapp_fast_images"]},
     {"paths": ["tests/t0/zapp_fast_images.sh", "src/main.cpp"], "tests": ["zapp_fast_images"]},
     {"paths": ["tests/t0/read_bytes_image.sh", "src/qjs/qjs.cpp", "src/host/gfx_host.cpp"], "tests": ["read_bytes_image"]},
+    {"paths": ["tests/t0/image_decode_async.sh", "tests/data/image_decode/", "tests/data/image_decode_flat/", "src/host/image_decode.cpp", "src/host/image_decode.h", "src/host/gfx_host.cpp", "src/res/codec.cpp", "include/zn/runtime.h"], "tests": ["image_decode_async"]},
     {"paths": ["templates/plugin/", "tools/plugin-pack", ".github/workflows/plugin.yml"], "tests": ["plugin_starter", "templates", "templates_kickstart"]},
     {"paths": ["tests/data/plugins-table.txt"], "tests": ["plugin_manifest"]},
     {"paths": ["plugins/physics3d/", "src/qjs/native_js.cpp", "src/tc/plugin_build.cpp", "tests/data/physics3d/"], "tests": ["physics3d", "qjs_native", "pinball3d"]},
