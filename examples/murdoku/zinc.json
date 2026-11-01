@@ -4,7 +4,7 @@
   "app": {
     "name": "Minuit au manoir",
     "id": "dev.zinc.murdoku",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "orientation": "landscape"
   },
   "display": {
