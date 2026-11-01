@@ -49,8 +49,9 @@ export function houseNeeds(b: Building, offered: number[]): HouseNeeds {
   const here = world.appeal[tile] + litBonus(b);
   target += Math.max(-8, Math.min(14, here * 2)); if (here < 0) note('appeal', -here * 2);
   for (let k = 0; k < offered.length; k++) {
-    if (offered[k] !== 1) continue;
-    if (b.cover[k] > 0) target += 5; else { target -= 7; note(economy.services[k].id, 7); }
+    const sv = economy.services[k];
+    if (offered[k] !== 1 || (sv.risk !== '' && !world.risks)) continue;      // safety counts only in a village with risks
+    if (b.cover[k] > 0) target += 5 * sv.weight; else { target -= 7 * sv.weight; note(sv.id, 7 * sv.weight); }
   }
   const unemployment = Math.min(12, Math.max(0, (world.jobless - 8) * .4));
   target -= unemployment; note('jobs', unemployment);

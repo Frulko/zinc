@@ -24,6 +24,7 @@ export function categories(): Category[] {
   order.sort((a: number, b: number): number => economy.buildings[a].order - economy.buildings[b].order);
   for (const type of order) {
     const d = economy.buildings[type];
+    if (!d.buildable) continue;
     let hasIn = false, hasOut = false;
     for (let k = 0; k < economy.resources.length; k++) { if (d.inputs[k] > 0) hasIn = true; if (d.outputs[k] > 0) hasOut = true; }
     if (d.housing !== null) add(cats, 'Habitat', 'house', type);

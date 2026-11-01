@@ -84,6 +84,12 @@ function build(): void {
   // Bees and the pour: a buzz (two detuned saw hums with a slow wobble, an ambient sound) and a liquid glug that rises in pitch as the jug fills.
   add('buzz', make(1.1, (t, p) => { const saw = ((t * 232) % 1) * 2 - 1, saw2 = ((t * 241) % 1) * 2 - 1; return (saw + saw2) * .3 * (.55 + .45 * sine(34, t)) * Math.sin(Math.PI * p); }, 1), .16);
   add('pour', make(.7, (t, p) => { w += (noise() - w) * .25; return (w * .5 + sine(320 + 520 * p, t) * (sine(19, t) > 0 ? .35 : .15)) * Math.sin(Math.PI * Math.pow(p, .7)) * .8; }, 1), .32);
+  // Risks: a blaze (a low roar with crackling pops), a quieter crackle for the ambience over a burning ruin, and a collapse (a crash of stone and beams that settles into a rumble).
+  let fr = 0, fc = 0;
+  add('fire', make(1.6, (t, p) => { fr += (noise() - fr) * .06; return (fr * 2.2 + (rnd() < .02 ? noise() * 1.4 : 0)) * Math.sin(Math.PI * Math.pow(p, .5)) * (.8 + .2 * sine(7, t)); }, 1), .45);
+  add('crackle', make(.9, (t, p) => { fc += (noise() - fc) * .08; return (fc * 1.2 + (rnd() < .012 ? noise() : 0)) * Math.sin(Math.PI * p); }, 1), .22);
+  let cl = 0;
+  add('collapse', make(1.5, (t, p) => { cl += (noise() - cl) * (.4 - .3 * p); return cl * 2.4 * decay(p, 3.5) + sine(58 - 24 * p, t) * decay(p, 2.2) * .8 + ((t > .28 && t < .33) || (t > .55 && t < .58) ? noise() * .5 : 0); }, 1), .6);
   add('wind', make(2.2, (t, p) => { w += (noise() - w) * .02; return w * 3 * Math.sin(Math.PI * p); }, 1), .30);
 }
 
@@ -121,7 +127,7 @@ export function sound(kind: string, amount: number = .6, pan: number = 0): void 
   s.voice(s.volume * (AMBIENT.has(name) ? settings.ambienceVolume : settings.sfxVolume) * Math.max(0, Math.min(1, amount)) * (.85 + rnd() * .3), .92 + rnd() * .16, Math.max(-1, Math.min(1, pan)), false);
 }
 
-const AMBIENT = new Set<string>(['bird', 'gull', 'cricket', 'owl', 'wind', 'buzz']);
+const AMBIENT = new Set<string>(['bird', 'gull', 'cricket', 'owl', 'wind', 'buzz', 'crackle']);
 const LEVEL = .22;
 function level(): number { return muted || paused ? 0 : LEVEL * settings.ambienceVolume; }
 /** Applies the ambience volume at once (the options screen calls it while the slider moves). */

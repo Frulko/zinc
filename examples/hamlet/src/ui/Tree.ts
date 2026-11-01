@@ -149,12 +149,21 @@ function paint(): void {
     e.red = f.kind === 'res' && t.kind === 'bld' && world.stock[f.id] === 0 && count(t.id) > 0;
   }
 }
+/** A leftover the player cannot place (the ruin) is no part of the economy's tree. */
+function prune(): void {
+  const keep = nodes.map((n: TNode): boolean => !(n.kind === 'bld' && !economy.buildings[n.id].buildable)), remap: number[] = [];
+  let k = 0;
+  for (let i = 0; i < nodes.length; i++) remap.push(keep[i] ? k++ : -1);
+  edges = edges.filter((e: TEdge): boolean => keep[e.from] && keep[e.to]);
+  for (const e of edges) { e.from = remap[e.from]; e.to = remap[e.to]; }
+  nodes = nodes.filter((_n: TNode, i: number): boolean => keep[i]);
+}
 function rebuild(): void {
   const sig = tab + ':' + economy.buildings.length + ':' + economy.resources.length + ':' + economy.goals.length;
   if (sig === signature) return;
   signature = sig; nodes = []; edges = [];
   if (tab === 0) buildGoods(); else buildProgress();
-  place(); scrollX = 0; scrollY = 0;
+  prune(); place(); scrollX = 0; scrollY = 0;
 }
 
 export function drawTree(): void {

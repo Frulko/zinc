@@ -109,7 +109,7 @@ export class HamletScene extends Sprite {
     bakeVillage(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size;
     act.setTool = (tool: number): void => { this.tool = tool; uiState.dirty = true; };
     act.say = (message: string): void => this.say(message);
-    act.newVillage = (seed: number, size: number, campaign: boolean): void => this.createVillage(seed, size, campaign);
+    act.newVillage = (seed: number, size: number, campaign: boolean, risks: boolean): void => this.createVillage(seed, size, campaign, risks);
     act.loaded = (): void => { this.loaded(); saveGame(); };
     act.quit = (): void => quit();
     act.rebake = (): void => { uiState.dirty = true; };
@@ -149,14 +149,14 @@ export class HamletScene extends Sprite {
   }
 
   /** Replaces the village by the one a (seed, size) pair decides, and saves it as the current one. */
-  private createVillage(seed: number, size: number, campaign: boolean = false): void {
-    eraseSave(); generate(seed, size); world.progression = campaign; this.loaded(); saveGame();
+  private createVillage(seed: number, size: number, campaign: boolean = false, risks: boolean = false): void {
+    eraseSave(); generate(seed, size); world.progression = campaign; world.risks = risks; this.loaded(); saveGame();
     this.say('Nouveau hameau · graine ' + seed + ' · ' + size + '×' + size);
   }
   /** A village was just made or loaded: bake it, rebuild the tools. */
   private loaded(): void { bakeVillage(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size; ui.category = -1; closeInfo(); uiState.dirty = true; }
   /** The panel's "new map": the same seed on another grid size. */
-  private resizeVillage(): void { this.createVillage(world.seed, Math.max(MIN_SIZE, Math.min(MAX_SIZE, this.pendingSize)), world.progression); }
+  private resizeVillage(): void { this.createVillage(world.seed, Math.max(MIN_SIZE, Math.min(MAX_SIZE, this.pendingSize)), world.progression, world.risks); }
   private act(t: number): void {
     if (this.tool === TOOL_NONE) return;
     const before = look(t), code = applyTool(this.tool, t);

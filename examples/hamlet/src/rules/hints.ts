@@ -4,6 +4,8 @@ import { economy, ServiceDef, Service } from '../world/economy';
 import { housingReport } from './housing';
 import { worksites, servicesOffered, houseNeeds, HouseNeeds } from './needs';
 import { flowersAround } from './meadow';
+import { population } from '../engine/villagers';
+import { isRuin } from '../engine/risk';
 
 // Attention hints: what the player should look at, as a pure function of the world (no drawing, no state). The view draws an arrow over each tile.
 export const HINT_NO_ROAD = 'no_road';              // a building that needs a road has none to a store: nothing leaves it and nothing comes
@@ -18,6 +20,7 @@ export const HINT_HOUSE_NEEDS = 'house_needs';      // a house lacks one thing f
 export const HINT_NO_FLOWERS = 'no_flowers';        // a hive with no flower around it: the bees gather little
 export const HINT_JOBLESS = 'jobless';              // a quarter of the people or more have no work: more workplaces
 export const HINT_UNHAPPY = 'unhappy';              // the village's mood is low: newcomers stay away or people leave (`unhappy:<the gap most houses share>`)
+export const HINT_FIRE_RISK = 'fire_risk';          // risks on: a building's fire counter is high and no fire walker keeps it down (`fire_risk:none` no fire post at all, `fire_risk:rare` it passes too seldom)
 export const MAX_HINTS = 12;
 
 /** `reason` is a short key the HUD maps to text: the kind, or `kind:resource id` when a resource is concerned. */
@@ -45,7 +48,7 @@ export function computeHints(): Hint[] {
     if (!b.alive) continue;
     if (b.type === HOUSE && b.residents > 0) {
       let flagged = false;
-      for (let k = 0; k < offered.length && !flagged; k++) if (offered[k] === 1 && b.cover[k] === 0) { out.push(make(HINT_NO_SERVICE, b.j * world.size + b.i, HINT_NO_SERVICE + ':' + economy.services[k].id, 1)); flagged = true; }
+      for (let k = 0; k < offered.length && !flagged; k++) if (offered[k] === 1 && b.cover[k] === 0 && (economy.services[k].risk === '' || world.risks)) { out.push(make(HINT_NO_SERVICE, b.j * world.size + b.i, HINT_NO_SERVICE + ':' + economy.services[k].id, 1)); flagged = true; }
       const report = housingReport(b);          // a house one requirement short of the next level, or about to lose its own
       if (!flagged && (report.atRisk || report.missing.length === 1)) out.push(make(HINT_HOUSE_NEEDS, b.j * world.size + b.i, HINT_HOUSE_NEEDS + ':' + (report.atRisk ? 'decline' : report.missing[0].id), 1));
     }
@@ -80,6 +83,12 @@ export function computeHints(): Hint[] {
     }
     if (low >= 0) out.push(make(HINT_UNHAPPY, world.buildings[low].j * world.size + world.buildings[low].i, HINT_UNHAPPY + ':' + lack, 3));
   }
+  const fireK = economy.serviceOf('fire');
+  if (world.risks && fireK >= 0 && economy.risk.ruin >= 0 && population() >= economy.risk.minPopulation) {
+    let worst = -1, most = (offered[fireK] === 1 ? .7 : .25) * economy.risk.fireAt;
+    for (let id = 0; id < world.buildings.length; id++) { const b = world.buildings[id]; if (b.alive && !b.fixed && !isRuin(b.type) && b.fire > most) { most = b.fire; worst = id; } }
+    if (worst >= 0) out.push(make(HINT_FIRE_RISK, world.buildings[worst].j * world.size + world.buildings[worst].i, HINT_FIRE_RISK + ':' + (offered[fireK] === 1 ? 'rare' : 'none'), 2));
+  }
   if (built === 0) out.push(make(HINT_BUILD_NEXT, world.gate, HINT_BUILD_NEXT, 2));
   out.sort((a: Hint, b: Hint): number => b.severity - a.severity || a.tile - b.tile);
   return out.length > MAX_HINTS ? out.slice(0, MAX_HINTS) : out;
@@ -89,6 +98,7 @@ export function computeHints(): Hint[] {
 export function hintText(h: Hint): string {
   const colon = h.reason.indexOf(':'), key = colon < 0 ? h.reason : h.reason.slice(0, colon), res = colon < 0 ? '' : h.reason.slice(colon + 1);
   if (key === HINT_HOUSE_NEEDS) { const id = world.build[h.tile]; return id >= 0 ? housingReport(world.buildings[id]).text : ''; }
+  if (key === HINT_FIRE_RISK) return res === 'none' ? 'Ce bâtiment risque de prendre feu, et personne ne veille : posez un poste d’incendie au bord de la route.' : 'Ce bâtiment risque de prendre feu : les pompiers passent trop rarement par ici.';
   if (key === HINT_JOBLESS) return world.jobless + ' % des habitants n’ont pas de travail : posez de nouveaux ateliers, ou ils partiront.';
   if (key === HINT_UNHAPPY) {
     const k = res === '' || res === 'food' || res === 'jobs' || res === 'appeal' ? -1 : economy.serviceOf(res);

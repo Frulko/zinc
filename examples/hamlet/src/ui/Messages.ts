@@ -28,6 +28,11 @@ export function scanEvents(): void {
   world.news = [];
   const won = world.progression && scenarioWon() ? 1 : 0;
   if (won === 1 && lastWon === 0) { post(MSG_URGENT, 'Victoire ! Le hameau est devenu un village prospère : tous les objectifs sont atteints.', world.gate); sound('fanfare', .9); }
+  for (const a of world.alerts) {                                 // risks: fire and collapse are urgent (banner, alarm) and have their own sound
+    post(a.kind === 'fire' || a.kind === 'collapse' ? MSG_URGENT : a.kind === 'theft' ? MSG_WARN : MSG_INFO, a.text, a.tile);
+    if (a.kind === 'fire' || a.kind === 'collapse') sound(a.kind, .9);
+  }
+  world.alerts = [];
   lastWon = won;
   if (world.time - lastScan < 1 && world.time >= lastScan) return;
   lastScan = world.time;

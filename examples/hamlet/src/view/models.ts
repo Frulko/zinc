@@ -11,7 +11,7 @@ export const MODEL_SAWMILL = 1;
 export const MODEL_LODGE = 2;
 export const MODEL_FISHERY = 3;
 /** The model id of each building type, in the order of assets/economy.json (a building's model sits at its own index). */
-export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern'];
+export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern', 'firehouse', 'works', 'watchpost', 'ruin'];
 export const MODEL_GATE = MODEL_IDS.length;
 export const MODEL_TREE = MODEL_GATE + 1;            // 4 variants
 export const MODEL_ROCK = MODEL_TREE + 4;            // 2 variants
@@ -433,12 +433,71 @@ function reduceBuffer(f: number, ox: number, oy: number): void {
 /** Forgets the baked sets (the detail mode changed). */
 export function resetModels(): void { for (let i = 0; i < levelAtlases.length; i++) levelAtlases[i] = null; }
 
+/** The fire post: a plastered hall with red doors, a hose reel, water barrels and a bell tower on the roof ridge. */
+function firehouse(): void {
+  box(-.85, -.7, 0, .85, .7, 1.35, [222, 204, 170]);
+  box(-.88, -.73, 0, .88, .73, .16, [150, 140, 126]);                       // plinth
+  gableRoof(-1.0, 1.0, -.82, .82, 1.3, .85, [172, 80, 62], 13);
+  gableWall(-.85, .85, .7, 1.35, .85, 1.0, [222, 204, 170]);
+  box(-.45, .69, .16, .45, .75, 1.05, [176, 52, 44]); box(-.02, .74, .16, .02, .77, 1.05, [110, 30, 28]);   // the double doors
+  box(.86, -.4, .65, .9, .1, 1.1, [70, 96, 92]);                           // window
+  for (const x of [-.45, .45]) box(x - .05, -.45, 1.9, x + .05, -.35, 2.9, WOOD_BROWN);   // bell tower posts
+  box(-.55, -.5, 2.85, .55, -.3, 2.95, WOOD_BROWN);
+  gableRoof(-.6, .6, -.52, -.28, 2.9, .38, [172, 80, 62], 3);
+  sphere(0, -.4, 2.45, .16, [196, 160, 70], 'solid');                      // the bell
+  capsule([.95, .1, .12], [.95, .1, .65], .22, .22, flat([112, 120, 128]), 'rough');         // reel of hose
+  capsule([.95, .1, .65], [.95, .55, .65], .12, .12, flat([196, 160, 70]), 'rough');
+  for (const y of [-.2, .9]) { capsule([-.95, y, .1], [-.95, y, .6], .18, .18, flat([128, 92, 60]), 'rough'); sphere(-.95, y, .62, .15, [60, 90, 120], 'rough'); }   // water barrels
+}
+
+/** The repair works: an open timber shed with a trestle, planks and a ladder, a hammer on the bench and a heap of stones. */
+function works(): void {
+  box(-.9, -.8, 0, .9, .8, .12, WOOD_BROWN);                              // deck
+  for (const x of [-.8, .75]) for (const y of [-.7, .65]) box(x, y, .12, x + .12, y + .12, 1.5, WOOD_BROWN);
+  gableRoof(-.95, .95, -.85, .85, 1.5, .6, [150, 126, 92], 17);
+  box(-.55, -.45, .12, .35, .05, .55, WOOD_HONEY);                       // bench
+  for (let k = 0; k < 3; k++) box(-.5, -.4 + k * .1, .55 + k * .05, .3, -.32 + k * .1, .6 + k * .05, [214, 180, 120], k);
+  box(-.1, .15, .55, .06, .4, .72, [96, 98, 104]); capsule([.12, .28, .62], [.45, .28, .62], .03, .03, flat(WOOD_BROWN), 'solid');   // hammer
+  for (const y of [.5, .62]) capsule([.95, y, .1], [.95, y, 1.7], .03, .03, flat(WOOD_BROWN), 'solid');            // ladder rails
+  for (let z = .3; z < 1.7; z += .26) capsule([.95, .5, z], [.95, .62, z], .02, .02, flat(WOOD_BROWN), 'solid');
+  for (const [x, y, z, r] of [[.5, -.6, .14, .2], [.2, -.7, .12, .15], [.7, -.35, .1, .12]]) sphere(x, y, z, r, [190, 184, 168], 'rough');   // stones
+}
+
+/** The watch post: a timber tower on four legs, a railed platform with a pitched roof, a ladder and a lantern. */
+function watchpost(): void {
+  box(-.7, -.7, 0, .7, .7, .1, [150, 140, 126]);
+  for (const x of [-.55, .5]) for (const y of [-.55, .5]) box(x, y, .1, x + .1, y + .1, 2.1, WOOD_BROWN);
+  for (const z of [.8, 1.4]) { box(-.55, -.55, z, .6, -.45, z + .07, WOOD_BROWN); box(-.55, .5, z, .6, .6, z + .07, WOOD_BROWN); box(-.55, -.55, z, -.45, .6, z + .07, WOOD_BROWN); box(.5, -.55, z, .6, .6, z + .07, WOOD_BROWN); }
+  box(-.7, -.7, 2.05, .7, .7, 2.15, WOOD_HONEY);                         // platform
+  for (const k of [-.6, -.2, .2, .6]) { box(k - .03, -.7, 2.15, k + .03, -.66, 2.6, WOOD_BROWN); box(k - .03, .66, 2.15, k + .03, .7, 2.6, WOOD_BROWN); }
+  box(-.7, -.7, 2.55, .7, -.66, 2.62, WOOD_BROWN); box(-.7, .66, 2.55, .7, .7, 2.62, WOOD_BROWN);
+  for (const x of [-.62, .55]) for (const y of [-.62, .55]) box(x, y, 2.6, x + .07, y + .07, 3.4, WOOD_BROWN);
+  gableRoof(-.8, .8, -.8, .8, 3.35, .6, [96, 108, 124], 21);
+  sphere(.3, .3, 2.35, .1, [244, 200, 80], 'solid');                      // lantern
+  for (const y of [.15, .27]) capsule([.7, y, .1], [.5, y, 2.1], .03, .03, flat(WOOD_BROWN), 'solid');            // ladder
+}
+
+/** The ruin: a charred foundation with broken wall stumps, fallen beams, scattered stones and ash. Also what a collapse leaves. */
+function ruin(): void {
+  box(-.8, -.8, 0, .8, .8, .08, [70, 64, 60]);                            // burnt floor
+  for (let k = 0; k < 14; k++) {                                          // ash and scorch marks
+    const x = -.7 + hash(k, 41) * 1.4, y = -.7 + hash(k, 42) * 1.4;
+    box(x, y, .08, x + .2, y + .16, .1, k % 3 === 0 ? [40, 38, 38] : [96, 90, 84]);
+  }
+  box(-.8, -.8, .08, .8, -.68, .7, [120, 112, 100]); box(-.8, -.8, .08, -.68, .1, .5, [128, 120, 106]);   // wall stumps
+  box(.55, .5, .08, .8, .8, .9, [112, 104, 94]); box(.2, .72, .08, .5, .8, .3, [136, 126, 110]);
+  capsule([-.5, .1, .16], [.4, .4, .3], .08, .08, flat([48, 38, 32]), 'rough');                              // fallen beams
+  capsule([-.2, .55, .12], [.5, -.2, .2], .07, .07, flat([58, 46, 38]), 'rough');
+  capsule([.3, -.5, .5], [.6, -.1, .12], .06, .06, flat([40, 32, 28]), 'rough');
+  for (const [x, y, z, r] of [[-.3, -.4, .14, .18], [.1, -.15, .12, .14], [-.55, .5, .12, .16], [.35, .2, .14, .12], [.7, -.5, .12, .15]]) sphere(x, y, z, r, [150, 142, 128], 'rough');
+}
+
 /**
  * The static models, in model-id order: [name, variants, draw]. Add an object: write its draw function, add a line here and give it an id above (an id is the
  * index of its first variant in this list, variants counted). They are baked through the atlas, so one cache and one invalidation serve all.
  */
 const MODEL_DEFS: [string, number, (variant: number) => void][] = [
-  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['tannery', 1, tannery], ['well', 1, well], ['quarry', 1, quarry], ['claypit', 1, claypit], ['mine', 1, mine], ['forge', 1, forge], ['forager', 1, forager], ['apiary', 1, apiary], ['chandlery', 1, chandlery], ['meadery', 1, meadery], ['tavern', 1, tavern], ['gate', 1, gate], ['tree', 4, tree], ['rock', ROCK_VARIANTS, rock], ['house2', 1, house2], ['house3', 1, house3],
+  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['tannery', 1, tannery], ['well', 1, well], ['quarry', 1, quarry], ['claypit', 1, claypit], ['mine', 1, mine], ['forge', 1, forge], ['forager', 1, forager], ['apiary', 1, apiary], ['chandlery', 1, chandlery], ['meadery', 1, meadery], ['tavern', 1, tavern], ['firehouse', 1, firehouse], ['works', 1, works], ['watchpost', 1, watchpost], ['ruin', 1, ruin], ['gate', 1, gate], ['tree', 4, tree], ['rock', ROCK_VARIANTS, rock], ['house2', 1, house2], ['house3', 1, house3],
 ];
 
 /** The atlas definition: one entry per model, one frame each (a static model has a single heading and pose). `reduceFrom` > 0 shrinks the sharp bake for the fixed-detail mode. */

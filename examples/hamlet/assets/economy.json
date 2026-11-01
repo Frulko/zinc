@@ -73,7 +73,11 @@
     { "id": "mead", "title": "Une taverne", "text": "Faites de l’hydromel, puis ouvrez une taverne : elle l’achète et réjouit le voisinage.", "requires": ["honey"],
       "when": [ { "building": "meadery" }, { "stock": "mead", "count": 4 } ], "unlock": ["tavern"], "give": { "plank": 6 } },
     { "id": "tools", "title": "Des outils", "text": "La forge change le minerai en outils : la carrière en demande.", "requires": ["iron"],
-      "when": [ { "building": "forge" }, { "stock": "tools", "count": 2 } ], "give": { "plank": 6 } }
+      "when": [ { "building": "forge" }, { "stock": "tools", "count": 2 } ], "give": { "plank": 6 } },
+    { "id": "fire", "title": "Contre le feu", "text": "Dès dix habitants, le feu menace : posez un poste d’incendie au bord de la route, ses pompiers font la ronde.", "requires": ["street"],
+      "when": [ { "population": 10 } ], "unlock": ["firehouse"], "give": { "plank": 4 } },
+    { "id": "watch", "title": "Veiller sur le hameau", "text": "Un poste d’incendie en service, douze habitants : l’atelier répare les murs, le guet chasse les voleurs.", "requires": ["fire"],
+      "when": [ { "building": "firehouse" }, { "population": 12 } ], "unlock": ["works", "watchpost"], "give": { "plank": 6 } }
   ],
   "trade": { "coin": "coin", "everyDays": 5, "stayDays": 2, "offers": 3, "table": [
     { "side": "sell", "resource": "bread", "qty": 4 }, { "side": "sell", "resource": "smoked_meat", "qty": 4 }, { "side": "sell", "resource": "stone", "qty": 4 },
@@ -88,13 +92,15 @@
       "days": 2, "workers": 3, "risk": 10, "cost": { "smoked_meat": 2 }, "rewards": { "hide": 6, "smoked_meat": 4, "coin": 8 } },
     { "id": "prospect", "title": "Prospection", "text": "Quatre habitants partent trois jours chercher la pierre et le minerai : planches et pain pour la route, un vrai risque.",
       "days": 3, "workers": 4, "risk": 20, "cost": { "plank": 4, "bread": 2 }, "rewards": { "stone": 8, "iron_ore": 4, "coin": 20 } } ],
-  "services": [ { "id": "water", "label": "Eau" }, { "id": "market", "label": "Marché" } ],
+  "services": [ { "id": "water", "label": "Eau" }, { "id": "market", "label": "Marché" },
+    { "id": "fire", "label": "Pompiers", "risk": "fire", "weight": 0.8 }, { "id": "repair", "label": "Réparations", "risk": "collapse", "weight": 0.4 }, { "id": "watch", "label": "Guet", "risk": "crime", "weight": 0.5 } ],
   "start": { "log": 20, "plank": 10, "leather": 1, "stone": 2, "coin": 12 },
   "deposits": [
     { "resource": "stone", "model": "stone", "placement": "rock", "density": 1.6, "amount": 12, "required": true },
     { "resource": "clay", "model": "clay", "placement": "water", "density": 1.2, "amount": 12, "required": true },
     { "resource": "iron_ore", "model": "ore", "placement": "rock", "density": 0.8, "amount": 10, "required": true },
     { "resource": "berries", "model": "berries", "placement": "tree", "density": 1.4, "amount": 8 } ],
+  "risks": { "ruin": "ruin", "minPopulation": 10, "fireAt": 60, "collapseAt": 160, "crimeAt": 30, "burnDays": 2, "spread": 25, "slots": 8, "theft": 2 },
   "hall": "storehouse",
   "buildings": [
     { "id": "house", "risk": { "fire": [10, 6, 3], "collapse": 1 }, "smoke": [[0.47, -0.28, 2.6]], "label": "Maison", "order": 1, "model": "house", "cost": { "plank": 3 },
@@ -131,7 +137,7 @@
       "workers": 2, "role": "baker", "inputs": { "flour": 1 }, "outputs": { "bread": 2 }, "seconds": 6,
       "hint": "Une boulangerie cuit la farine en pain : les maisons le mangent." }
   ,
-    { "id": "market", "appeal": [1], "label": "Marché", "order": 11, "model": "market", "cost": { "plank": 4, "log": 2, "leather": 1 },
+    { "id": "market", "risk": { "fire": 6, "collapse": 1, "crime": 2 }, "appeal": [1], "label": "Marché", "order": 11, "model": "market", "cost": { "plank": 4, "log": 2, "leather": 1 },
       "workers": 1, "role": "vendor", "service": { "id": "market", "walker": true, "range": 18 },
       "hint": "Un marché (il faut du cuir) envoie un marchand sur les routes : les maisons qu’il croise sont servies." }
   ,
@@ -143,10 +149,10 @@
       "service": { "id": "water", "radius": 4 },
       "hint": "Un puits (il faut de la pierre) donne de l’eau aux maisons dans un rayon de quatre cases." }
   ,
-    { "id": "quarry", "appeal": [-3, -2, -1], "label": "Carrière", "order": 13, "model": "quarry", "cost": { "plank": 3, "log": 2, "tools": 1 },
+    { "id": "quarry", "risk": { "collapse": 2 }, "appeal": [-3, -2, -1], "label": "Carrière", "order": 13, "model": "quarry", "cost": { "plank": 3, "log": 2, "tools": 1 },
       "workers": 2, "role": "quarryman", "gather": "deposit:stone", "outputs": { "stone": 1 }, "seconds": 3.2,
       "hint": "Une carrière (il faut un outil de la forge) extrait la pierre des rochers veinés, posée à côté : elle sert à bâtir les puits." },
-    { "id": "claypit", "appeal": [-2, -1], "label": "Argilière", "order": 15, "model": "claypit", "cost": { "plank": 3, "log": 2 },
+    { "id": "claypit", "risk": { "collapse": 1 }, "appeal": [-2, -1], "label": "Argilière", "order": 15, "model": "claypit", "cost": { "plank": 3, "log": 2 },
       "workers": 2, "role": "quarryman", "gather": "deposit:clay", "outputs": { "clay": 1 }, "seconds": 3.4,
       "hint": "Une argilière creuse l’argile d’un banc au bord de l’eau, posée à côté : la forge est bâtie en briques." },
     { "id": "mine", "risk": { "fire": 2, "collapse": 2 }, "glow": [[0.16, 0.0, 0.8]], "appeal": [-3, -2, -1], "label": "Mine de fer", "short": "Mine", "order": 16, "model": "mine", "cost": { "plank": 4, "log": 3 },
@@ -158,7 +164,7 @@
     { "id": "forager", "risk": { "fire": 4, "collapse": 1 }, "smoke": [[0.0, 0.1, 0.4, 1]], "label": "Cueilleur", "order": 18, "model": "forager", "cost": { "plank": 2, "log": 2 },
       "workers": 2, "role": "forager", "gather": "deposit:berries", "outputs": { "berries": 2 }, "seconds": 3,
       "hint": "Un cueilleur ramasse les baies d’un buisson, posé à côté : les maisons les mangent, un aliment de plus." },
-    { "id": "apiary", "label": "Rucher", "order": 19, "model": "apiary", "cost": { "plank": 3, "log": 2 },
+    { "id": "apiary", "risk": { "fire": 4, "collapse": 1 }, "label": "Rucher", "order": 19, "model": "apiary", "cost": { "plank": 3, "log": 2 },
       "workers": 2, "role": "beekeeper", "outputs": { "honey": 2, "wax": 1 }, "seconds": 12,
       "bloom": { "radius": 4, "per": 0.1, "max": 6 }, "offSeasons": [3], "sound": "buzz",
       "hint": "Un rucher donne du miel et de la cire, plus vite avec des fleurs à quatre cases à la ronde ; les abeilles dorment en hiver." },
@@ -170,6 +176,17 @@
       "hint": "L’hydromellerie fait fermenter le miel et le blé en hydromel, que la taverne achète." },
     { "id": "tavern", "risk": { "fire": 8, "collapse": 1, "crime": 2 }, "smoke": [[0.47, -0.33, 2.9]], "glow": [[0.47, 0.78, 0.46], [-0.5, 0.78, 0.46]], "appeal": [2, 1], "label": "Taverne", "order": 22, "model": "tavern", "cost": { "plank": 5, "log": 3 },
       "workers": 2, "role": "innkeeper", "inputs": { "mead": 1 }, "outputs": { "coin": 4 }, "seconds": 9, "sound": "pour",
-      "hint": "Une taverne sert l’hydromel contre des pièces et rend le voisinage plus agréable." }
+      "hint": "Une taverne sert l’hydromel contre des pièces et rend le voisinage plus agréable." },
+    { "id": "firehouse", "risk": { "fire": 4, "collapse": 1 }, "appeal": [1], "label": "Poste d’incendie", "short": "Pompiers", "order": 23, "model": "firehouse", "cost": { "plank": 4, "log": 3 },
+      "workers": 1, "role": "firewarden", "service": { "id": "fire", "walker": true, "range": 14 },
+      "hint": "Un poste d’incendie envoie un pompier sur les routes : il remet à zéro le risque de feu des bâtiments qu’il croise et éteint les flammes." },
+    { "id": "works", "risk": { "fire": 8, "collapse": 1, "crime": 1 }, "appeal": [-1], "label": "Atelier de réparation", "short": "Réparations", "order": 24, "model": "works", "cost": { "plank": 4, "log": 4 },
+      "workers": 1, "role": "repairman", "service": { "id": "repair", "walker": true, "range": 14 },
+      "hint": "Le réparateur fait sa ronde et consolide les bâtiments qu’il croise : sans lui, les murs finissent par s’effondrer." },
+    { "id": "watchpost", "risk": { "fire": 4, "collapse": 1 }, "appeal": [1], "label": "Poste de guet", "short": "Guet", "order": 25, "model": "watchpost", "cost": { "plank": 3, "log": 3 },
+      "workers": 1, "role": "watchman", "service": { "id": "watch", "walker": true, "range": 14 },
+      "hint": "Le guetteur patrouille sur les routes : les voleurs évitent les bâtiments qu’il surveille." },
+    { "id": "ruin", "appeal": [-2, -1], "label": "Décombres", "short": "Décombres", "order": 90, "model": "ruin", "needsRoad": false, "buildable": false,
+      "hint": "Les restes d’un bâtiment détruit : démolissez-les pour libérer la case." }
   ]
 }

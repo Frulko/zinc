@@ -70,7 +70,7 @@ export function topBar(): void {
 /** The tools of the column, in the order of the file: road, the buildings, demolish. */
 export function toolList(): number[] {
   const out: number[] = [TOOL_ROAD], types: number[] = [];
-  for (let type = 0; type < economy.buildings.length; type++) if (economy.buildings[type].gather !== 'shore' || world.hasWater) types.push(type);
+  for (let type = 0; type < economy.buildings.length; type++) if (economy.buildings[type].buildable && (economy.buildings[type].gather !== 'shore' || world.hasWater)) types.push(type);
   types.sort((a: number, b: number): number => economy.buildings[a].order - economy.buildings[b].order);
   for (const type of types) out.push(TOOL_HOUSE + type);
   out.push(TOOL_ERASE);

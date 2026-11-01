@@ -24,6 +24,9 @@ export const BEEKEEPER_PALETTE: Palette = { shirt: [236, 232, 214], stripe: [226
 export const CHANDLER_PALETTE: Palette = { shirt: [214, 188, 132], stripe: [120, 86, 58], legs: [84, 70, 58], hair: HAIR_TONES[0], skin: SKIN };
 export const BREWER_PALETTE: Palette = { shirt: [150, 88, 52], stripe: [232, 196, 96], legs: [70, 60, 52], hair: HAIR_TONES[0], skin: SKIN };
 export const INNKEEPER_PALETTE: Palette = { shirt: [116, 54, 60], stripe: [236, 226, 200], legs: [66, 58, 54], hair: HAIR_TONES[0], skin: SKIN };
+export const FIREWARDEN_PALETTE: Palette = { shirt: [196, 78, 52], stripe: [236, 206, 120], legs: [70, 60, 56], hair: HAIR_TONES[1], skin: SKIN };
+export const REPAIRMAN_PALETTE: Palette = { shirt: [176, 140, 84], stripe: [92, 110, 130], legs: [72, 64, 56], hair: HAIR_TONES[2], skin: SKIN };
+export const WATCHMAN_PALETTE: Palette = { shirt: [78, 96, 128], stripe: [200, 190, 150], legs: [58, 56, 62], hair: HAIR_TONES[3], skin: SKIN };
 export const PEDDLER_PALETTE: Palette = { shirt: [64, 110, 124], stripe: [214, 176, 84], legs: [74, 62, 56], hair: HAIR_TONES[0], skin: SKIN };
 
 export const GRASS_TONES: number[][] = [[53, 78, 49], [76, 100, 52], [104, 124, 63], [138, 150, 85]];

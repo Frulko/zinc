@@ -12,7 +12,10 @@ import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLA
 import * as fs from 'zinc:fs';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
-const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern'];
+const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern', 'firehouse', 'works', 'watchpost', 'ruin'];
+import { dailyRisks, isRuin } from '../../../examples/hamlet/src/engine/risk';
+import { coverAround } from '../../../examples/hamlet/src/engine/services';
+import { houseNeeds, servicesOffered } from '../../../examples/hamlet/src/rules/needs';
 import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine/transport';
 import { adviceLine } from '../../../examples/hamlet/src/hud';
@@ -611,6 +614,96 @@ check('nobody leaves a small or content village; the unhappy leave', leavingToda
 }
 const moodHash = world.people.map((p) => Math.round(p.mood) + ':' + Math.round(p.fatigue)).join('.') + '|' + world.mood + '|' + world.jobless + '|' + world.deer.map((d) => d.state + ':' + d.age).join('.');
 console.log('hamlet rules: moodhash ' + moodHash + ':' + world.rng);        // compared across the three engines by hamlet.sh
+// ---- risks: fire, collapse and theft from daily counters; safety walkers reset them; none of it in a village without risks ----
+{
+  generate(777, 16); rich(); world.progression = false;
+  for (let i = 0; i <= 12; i++) { world.tree[at(i, 7)] = 0; world.tree[at(i, 8)] = 0; world.tree[at(i, 9)] = 0; }
+  for (let i = 1; i <= 12; i++) applyTool(TOOL_ROAD, at(i, 8));
+  const FIRE = economy.serviceOf('fire'), RUIN = economy.risk.ruin, houses: number[] = [];
+  for (const i of [2, 4, 6, 8]) { const h = addBuilding(HOUSE, at(i, 7)); for (let k = 0; k < 2; k++) createResident(h); world.buildings[h].residents = 2; world.buildings[h].timer = 1e9; houses.push(h); }
+  const mill = addBuilding(economy.typeOf('sawmill'), at(3, 9)), store = addBuilding(economy.typeOf('storehouse'), at(5, 9)), forge = addBuilding(economy.typeOf('forge'), at(10, 9));
+  const fresh = (): void => { for (const b of world.buildings) { b.fire = 0; b.damage = 0; b.crime = 0; } world.alerts = []; };
+  const rngBefore = world.rng;
+  for (let d = 0; d < 20; d++) dailyRisks();
+  check('without risks nothing is counted and no random number is drawn', world.buildings.every((b) => b.fire === 0 && b.damage === 0) && world.rng === rngBefore);
+  world.risks = true;
+  for (const h of houses) world.buildings[h].residents = 0;                           // a hamlet of six: the grace period
+  world.buildings[houses[0]].residents = 2; world.buildings[houses[1]].residents = 2; world.buildings[houses[2]].residents = 2;
+  for (let d = 0; d < 20; d++) dailyRisks();
+  check('below ten people the risks sleep', world.buildings.every((b) => b.fire === 0 && b.damage === 0 && b.crime === 0) && world.rng === rngBefore);
+  for (const h of houses) world.buildings[h].residents = 3;                             // twelve
+  world.mood = 40;
+  for (let d = 0; d < 12; d++) dailyRisks();
+  check('then the counters rise: fire on a slot day, wear and theft every day', world.buildings[mill].fire > 0 && world.buildings[mill].damage >= 12 && world.buildings[forge].crime === 24 && world.buildings[houses[0]].fire > 0);
+  check('a hut does not wear out, the hall never burns', world.buildings[houses[0]].damage === 0 && world.buildings.every((b) => !b.fixed || (b.fire === 0 && b.damage === 0)));
+  // a fire: the building becomes a burning ruin, its people flee, its goods are lost, an alert goes out
+  fresh(); world.buildings[houses[3]].fire = 99; const people = world.people.length;
+  const hid = world.buildings[houses[3]].residents; dailyRisks();
+  const burnt = world.buildings[houses[3]];
+  check('past the threshold the building burns down to a ruin', burnt.type === RUIN && burnt.burn === economy.risk.burnDays && burnt.alive && burnt.residents === 0 && world.people.length === people - 2 && hid === 3);
+  check('the fire is announced in French as urgent', world.alerts.length === 1 && world.alerts[0].kind === 'fire' && world.alerts[0].text.indexOf('Incendie') === 0 && world.alerts[0].tile === at(8, 7));
+  // it spreads to the neighbours and leaves rubble after burnDays; the rubble is demolished like any building
+  world.alerts = []; for (const b of world.buildings) if (!isRuin(b.type)) b.fire = 0;
+  world.buildings[store].stock[WOOD] = 5; world.buildings[store].fire = 0;
+  const neighbour = addBuilding(economy.typeOf('lumberhut'), at(9, 9)); world.buildings[neighbour].fire = 0;
+  world.build[at(9, 7)] = -1;
+  const next = addBuilding(economy.typeOf('claypit'), at(9, 7)); world.buildings[next].fire = 0;
+  dailyRisks();
+  check('a burning ruin sets its neighbours at risk', world.buildings[next].fire >= economy.risk.spread && world.buildings[houses[3]].burn === economy.risk.burnDays - 1);
+  dailyRisks(); dailyRisks();
+  check('it burns out, leaving rubble the demolish tool clears', burnt.burn === 0 && burnt.type === RUIN && world.alerts.some((a) => a.kind === 'rubble') && checkTool(TOOL_ERASE, at(8, 7)) === PLACE_OK && applyTool(TOOL_ERASE, at(8, 7)) === PLACE_OK && !burnt.alive && world.build[at(8, 7)] < 0);
+  check('a ruin cannot be built', checkTool(TOOL_HOUSE + RUIN, at(8, 7)) !== PLACE_OK);
+  // collapse and theft (the burnt house's people are gone: another house fills up again so the risks keep running)
+  world.buildings[houses[0]].residents = 9;
+  fresh(); world.buildings[mill].damage = 999; dailyRisks();
+  check('worn out, a building collapses at once into rubble', world.buildings[mill].type === RUIN && world.buildings[mill].burn === 0 && world.alerts.some((a) => a.kind === 'collapse' && a.text.indexOf('Effondrement') === 0));
+  fresh(); setStock(economy.resourceOf('tools'), 0); world.buildings[store].stock = world.buildings[store].stock.map((_v) => 0); world.buildings[store].stock[economy.resourceOf('coin')] = 6; world.buildings[store].crime = 99; world.mood = 40; const coins = world.buildings[store].stock[economy.resourceOf('coin')]; dailyRisks();
+  check('a theft takes a little of the dearest goods, and says so', world.buildings[store].stock[economy.resourceOf('coin')] === coins - economy.risk.theft && world.buildings[store].crime <= 2 && world.alerts.some((a) => a.kind === 'theft'));
+  world.mood = 80; fresh(); const before = world.buildings[store].crime; dailyRisks();
+  check('a very happy village has no theft', world.buildings[store].crime === before);
+  // the safety walkers: a fire walker's pass resets the counters within two tiles and puts a fire out
+  fresh(); world.mood = 60; world.buildings[forge].fire = 50; world.buildings[store].fire = 50; world.buildings[store].damage = 40; world.buildings[store].crime = 20;
+  coverAround(at(6, 8), FIRE);
+  check('a fire walker resets the fire counter around him (not wear, not crime)', world.buildings[store].fire === 0 && world.buildings[forge].fire === 50 && world.buildings[store].damage === 40 && world.buildings[store].crime === 20);
+  coverAround(at(10, 8), economy.serviceOf('repair')); coverAround(at(6, 8), economy.serviceOf('watch'));
+  check('the repairman resets wear and the watchman theft', world.buildings[forge].damage === 0 && world.buildings[store].damage === 40 && world.buildings[store].crime === 0);
+  const flames = addBuilding(economy.typeOf('claypit'), at(11, 9)); world.buildings[flames].type = RUIN; world.buildings[flames].burn = 2; world.alerts = [];
+  coverAround(at(11, 8), FIRE);
+  check('and puts out a burning ruin before it spreads', world.buildings[flames].burn === 0 && world.alerts.some((a) => a.kind === 'out'));
+  // mood: a village with risks wants the fire post; without risks it does not care
+  const offered = servicesOffered(); offered[FIRE] = 1;
+  const h0 = world.buildings[houses[0]]; h0.cover[FIRE] = 0; world.risks = true;
+  const bare = houseNeeds(h0, offered).target; h0.cover[FIRE] = 3; const covered = houseNeeds(h0, offered).target;
+  world.risks = false; h0.cover[FIRE] = 0; const sandbox = houseNeeds(h0, offered).target;
+  check('safety coverage feeds the mood only in a village with risks', bare < sandbox && sandbox < covered);
+  world.risks = true;
+  // hints: a high fire counter without a fire post asks for one, with one it says the walker comes too rarely
+  fresh(); world.buildings[forge].fire = 30;
+  const asks = computeHints().filter((h) => h.kind === 'fire_risk');
+  check('a risky building with no fire post gets the fire_risk hint', asks.length === 1 && asks[0].tile === at(10, 9) && asks[0].reason === 'fire_risk:none');
+  world.risks = false;
+  check('and none in a village without risks', computeHints().every((h) => h.kind !== 'fire_risk'));
+  world.risks = true;
+  // the save keeps the counters, the ruins and the flag; an older save is refused
+  world.buildings[forge].fire = 17; world.buildings[forge].damage = 5; world.buildings[forge].crime = 3; world.buildings[flames].burn = 1;
+  for (const h of houses) if (world.buildings[h].alive && world.buildings[h].type === HOUSE) world.buildings[h].residents = world.people.filter((p) => p.home === h).length;   // as many residents as people, as a save has
+  world.mood = 70;                                                                    // a loaded village starts at the neutral mood
+  const saved = snapshot(), keep = stateHash();
+  check('a save from before the risks is not loaded', !restore('H17' + saved.slice(saved.indexOf(';'))));
+  check('the save round trip keeps counters, burning ruins and the risks flag', restore(saved) && stateHash() === keep && world.risks && world.buildings.some((b) => b.type === RUIN && b.burn === 1) && world.buildings.some((b) => b.fire === 17 && b.damage === 5 && b.crime === 3));
+  check('the economy refuses a ruin that can be built and a safety service with no walker', bad('"buildable": false', '"buildable": true').join().indexOf('bad-risk') >= 0 && bad('"service": { "id": "fire", "walker": true, "range": 14 }', '"service": { "id": "fire", "radius": 4 }').join().indexOf('bad-service') >= 0);
+  // a whole village with risks, run for forty days: identical on the three engines
+  generate(2468, 16); rich(); world.risks = true;
+  for (let i = 0; i <= 12; i++) { world.tree[at(i, 7)] = 0; world.tree[at(i, 8)] = 0; world.tree[at(i, 9)] = 0; }
+  for (let i = 1; i <= 12; i++) applyTool(TOOL_ROAD, at(i, 8));
+  for (const i of [2, 4, 6, 8, 10]) { const h = addBuilding(HOUSE, at(i, 7)); for (let k = 0; k < 3; k++) createResident(h); world.buildings[h].residents = 3; world.buildings[h].timer = 1e9; }
+  addBuilding(economy.typeOf('sawmill'), at(3, 9)); addBuilding(economy.typeOf('forge'), at(7, 9)); addBuilding(economy.typeOf('storehouse'), at(5, 9));
+  for (let d = 0; d < 40; d++) { for (let k = 0; k < DAY_TICKS; k++) stepWorld(); }
+  let ruins = 0; for (const b of world.buildings) if (b.alive && isRuin(b.type)) ruins++;
+  console.log('hamlet rules: riskhash ' + stateHash() + ':' + world.rng + ':' + ruins + ':' + world.buildings.map((b) => b.fire + '/' + b.damage + '/' + b.crime).join(','));
+  check('forty days with risks keep the village going', world.tick === 40 * DAY_TICKS && population() >= 0);
+  world.risks = false;
+}
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; }

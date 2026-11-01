@@ -12,7 +12,16 @@ export class Harvest {
 }
 export class Resource { id: string = ''; label: string = ''; carry: string = ''; price: number = 0; harvest: Harvest | null = null; variants: Harvest[] = []; }
 /** A service the houses may lack (water, market...): `Building.cover[k]` counts the days a house stays covered. */
-export class Service { id: string = ''; label: string = ''; }
+/** `risk` (fire, collapse, crime) makes it a safety service: its walker resets that counter of every building beside its round (engine/risk.ts). `weight` scales its share of the houses' mood (1: like water). */
+export class Service { id: string = ''; label: string = ''; risk: string = ''; weight: number = 1; }
+export const RISK_KINDS: string[] = ['', 'fire', 'collapse', 'crime'];
+/** What a building adds to its counters each day (economy.json "risk"): `fire` on its slot day (a house: per level, the last repeating), `collapse` every day, `crime` every day. */
+export class RiskWeights { fire: number[] = [0]; collapse: number = 0; crime: number = 0; }
+/** The risk rules of the village (economy.json "risks"): the ruin a destroyed building leaves, the grace below `minPopulation` people, the counters' thresholds, days a fire burns, the
+ *  fire a burning neighbour adds each day, `slots` (a building's fire day comes 1 in `slots`), the units a theft takes. */
+export class RiskRules {
+  ruin: number = -1; minPopulation: number = 10; fireAt: number = 60; collapseAt: number = 120; crimeAt: number = 30; burnDays: number = 2; spread: number = 25; slots: number = 8; theft: number = 2;
+}
 /** What a service building gives: a walker on a round of `range` steps over the roads, or (no walker) every house within `radius` tiles. */
 export class ServiceDef { service: number = -1; walker: boolean = false; range: number = 16; radius: number = 0; }
 /** What a house of a level holds and what it needs to reach (and to keep) that level. */
@@ -30,6 +39,8 @@ export class BuildingDef {
   inputs: number[] = []; outputs: number[] = []; seconds: number = 0; gather: string = '';
   stockCap: number = 8; store: boolean = false; needsRoad: boolean = true;
   housing: Housing | null = null; service: ServiceDef | null = null; lode: number = -1; appeal: number[] = [];   // appeal: the rings it adds around itself
+  smoke: number[][] = []; glow: number[][] = [];   // view effects at a working building, in tile-local units: [x, y, z] chimney smoke ([x, y, z, 1]: steam), and warm lights shown at night
+  buildable: boolean = true; risk: RiskWeights | null = null;   // buildable false: a leftover (the ruin) the player cannot place, only demolish
   offSeasons: number[] = []; bloom: Bloom | null = null; startSound: string = '';   // seasons without work (0 spring..3 winter), flowers that speed it, the sound of a work cycle's start
 }
 /** One line of the peddler's table: he sells (`sell`: the village buys) or buys (`buy`: the village sells) `qty` of a resource. */
@@ -39,10 +50,8 @@ export class Trade { everyDays: number = 0; stayDays: number = 2; offers: number
 /** An adventure: `workers` villagers leave for `days` days, `cost` is paid at the start, each of them is lost with `risk` percent chance, and `rewards` come home with the survivors. */
 export class Adventure { id: string = ''; title: string = ''; text: string = ''; days: number = 1; workers: number = 1; risk: number = 0; cost: number[] = []; rewards: number[] = []; }
 export class Economy {
-  smoke: number[][] = []; glow: number[][] = [];   // view effects at a working building, in tile-local units: [x, y, z] chimney smoke ([x, y, z, 1]: steam), and warm lights shown at night
-  buildable: boolean = true; risk: RiskWeights | null = null;   // buildable false: a leftover (the ruin) the player cannot place, only demolish
   deposits: Deposit[] = []; goals: Goal[] = []; trade: Trade = new Trade(); adventures: Adventure[] = [];
-  appeal: AppealSource[] = []; appealMax: number = 8;
+  appeal: AppealSource[] = []; appealMax: number = 8; risk: RiskRules = new RiskRules();
   resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
   typeOf(id: string): number { for (let k = 0; k < this.buildings.length; k++) if (this.buildings[k].id === id) return k; return -1; }
   serviceOf(id: string): number { for (let k = 0; k < this.services.length; k++) if (this.services[k].id === id) return k; return -1; }
@@ -125,6 +134,8 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
   into.services = [];
   for (const s of (data.services === undefined ? [] : data.services) as any[]) {
     const sv = new Service(); sv.id = String(s.id === undefined ? '' : s.id); sv.label = String(s.label === undefined ? sv.id : s.label);
+    sv.risk = String(s.risk === undefined ? '' : s.risk); sv.weight = num(s, 'weight', 1, 'service ' + sv.id, errors);
+    if (RISK_KINDS.indexOf(sv.risk) < 0) errors.push('bad-risk: service "' + sv.id + '" has the risk "' + sv.risk + '", which is not one of ' + RISK_KINDS.join(', '));
     if (sv.id === '' || into.serviceOf(sv.id) >= 0) errors.push('bad-id: service "' + sv.id + '" is empty or declared twice');
     into.services.push(sv);
   }
@@ -195,17 +206,6 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     }
     if (b.appeal !== undefined) { if (Array.isArray(b.appeal)) d.appeal = (b.appeal as number[]).map((v: number): number => Number(v)); else errors.push('bad-appeal: ' + where + '.appeal must be a list of rings'); }
     for (const s of (b.offSeasons === undefined ? [] : b.offSeasons) as number[]) { if (typeof s !== 'number' || s < 0 || s > 3) errors.push('bad-season: ' + where + '.offSeasons holds 0 (spring) to 3 (winter)'); else d.offSeasons.push(s); }
-    if (b.bloom !== undefined) {
-      const bl = new Bloom();
-      bl.radius = num(b.bloom, 'radius', 4, where + '.bloom', errors); bl.per = num(b.bloom, 'per', .1, where + '.bloom', errors); bl.max = num(b.bloom, 'max', 6, where + '.bloom', errors);
-      if (bl.radius < 1 || bl.radius > 8) errors.push('bad-bloom: ' + where + '.bloom.radius is 1 to 8 tiles');
-      d.bloom = bl;
-    }
-    d.startSound = String(b.sound === undefined ? '' : b.sound);
-    if (b.service !== undefined) {
-      const sd = new ServiceDef(), k = into.serviceOf(String(b.service.id));
-      if (k < 0) errors.push('bad-service: ' + where + ' gives the unknown service "' + String(b.service.id) + '"');
-      sd.service = k; sd.walker = b.service.walker === true; sd.range = num(b.service, 'range', 16, where + '.service', errors); sd.radius = num(b.service, 'radius', 0, where + '.service', errors);
     for (const key of ['smoke', 'glow']) {
       const list = b[key];
       if (list === undefined) continue;
@@ -215,7 +215,27 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
         (key === 'smoke' ? d.smoke : d.glow).push(spot.slice());
       }
     }
+    if (b.bloom !== undefined) {
+      const bl = new Bloom();
+      bl.radius = num(b.bloom, 'radius', 4, where + '.bloom', errors); bl.per = num(b.bloom, 'per', .1, where + '.bloom', errors); bl.max = num(b.bloom, 'max', 6, where + '.bloom', errors);
+      if (bl.radius < 1 || bl.radius > 8) errors.push('bad-bloom: ' + where + '.bloom.radius is 1 to 8 tiles');
+      d.bloom = bl;
+    }
+    d.startSound = String(b.sound === undefined ? '' : b.sound); d.buildable = b.buildable !== false;
+    if (b.risk !== undefined) {
+      const rw = new RiskWeights(), f: any = b.risk.fire;
+      if (Array.isArray(f)) rw.fire = (f as number[]).map((v: number): number => Number(v));
+      else if (f !== undefined) rw.fire = [Number(f)];
+      rw.collapse = num(b.risk, 'collapse', 0, where + '.risk', errors); rw.crime = num(b.risk, 'crime', 0, where + '.risk', errors);
+      if (rw.fire.length === 0 || rw.fire.some((v: number): boolean => !(v >= 0))) errors.push('bad-risk: ' + where + '.risk.fire is a number or a list of numbers of 0 or more');
+      d.risk = rw;
+    }
+    if (b.service !== undefined) {
+      const sd = new ServiceDef(), k = into.serviceOf(String(b.service.id));
+      if (k < 0) errors.push('bad-service: ' + where + ' gives the unknown service "' + String(b.service.id) + '"');
+      sd.service = k; sd.walker = b.service.walker === true; sd.range = num(b.service, 'range', 16, where + '.service', errors); sd.radius = num(b.service, 'radius', 0, where + '.service', errors);
       if (!sd.walker && sd.radius <= 0) errors.push('bad-service: ' + where + ' has no walker and no radius: whom does it serve?');
+      if (sd.service >= 0 && into.services[sd.service].risk !== '' && !sd.walker) errors.push('bad-service: ' + where + ' gives a safety service but has no walker: only a walker resets the counters');
       if (sd.walker && d.workers <= 0) errors.push('bad-service: ' + where + ' sends a walker but has no workers');
       d.service = sd;
     }
@@ -280,6 +300,15 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     if (adv.days < 1 || adv.workers < 1 || adv.risk > 100) errors.push('bad-adventure: ' + where + ' needs days and workers of at least 1 and a risk of at most 100');
     into.adventures.push(adv);
   }
+  into.risk = new RiskRules();
+  if (data.risks !== undefined) {
+    const r = into.risk, rd: any = data.risks, where = 'risks';
+    r.ruin = names.indexOf(String(rd.ruin)); r.minPopulation = num(rd, 'minPopulation', 10, where, errors); r.fireAt = num(rd, 'fireAt', 60, where, errors); r.collapseAt = num(rd, 'collapseAt', 120, where, errors);
+    r.crimeAt = num(rd, 'crimeAt', 30, where, errors); r.burnDays = num(rd, 'burnDays', 2, where, errors); r.spread = num(rd, 'spread', 25, where, errors); r.slots = num(rd, 'slots', 8, where, errors); r.theft = num(rd, 'theft', 2, where, errors);
+    if (r.ruin < 0) errors.push('bad-risk: risks.ruin must name a building (the leftover of a fire or a collapse)');
+    else if (into.buildings[r.ruin].buildable) errors.push('bad-risk: risks.ruin "' + String(rd.ruin) + '" must have "buildable": false');
+    if (r.slots < 1 || r.fireAt < 1 || r.collapseAt < 1 || r.crimeAt < 1) errors.push('bad-risk: risks needs slots, fireAt, collapseAt and crimeAt of at least 1');
+  }
   if (data.hall !== undefined) { into.hall = names.indexOf(String(data.hall)); if (into.hall < 0 || !into.buildings[into.hall].store) errors.push('bad-hall: "hall" must name a building with "store": true'); }
   // a resource somebody needs must come, directly or through other buildings, from a building that takes nothing in (a raw source)
   const made = ids.map((_id: string): boolean => false);
@@ -303,7 +332,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
 export function loadEconomy(text: string, models: string[], roles: string[]): void {
   const next = new Economy(), errors = parseEconomy(text, models, roles, next);
   if (errors.length > 0) throw new Error('economy.json: ' + errors.join('; '));
-  economy.resources = next.resources; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.adventures = next.adventures; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
+  economy.resources = next.resources; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.adventures = next.adventures; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall; economy.risk = next.risk;
 }
 
 /** One line per resource: who makes it and who uses it. The report of a chain, for the maker of the data. */

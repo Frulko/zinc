@@ -8,7 +8,7 @@ version      1
 resources[]  { id, label, carry, price, harvest } carry: how a worker shows it in the hands (log, deer, fish, plank, ...); price: what the peddler's coins are measured in (the carry code on screen is the resource's index + 1, see `view/actors.ts`)
 harvest      (raw resources) { time, yield, percent, chance, depletion, seasons[4], tool { resource, bonus }, variants[] { label, ...overrides } }
              see "Harvests" below; `outputs` of a raw source only name what it makes (the number is derived from the harvest)
-services[]   { id, label }              what a house may lack: water, market (Building.cover counts the days left of its coverage)
+services[]   { id, label, risk, weight }  what a house may lack: water, market (Building.cover counts the days left of its coverage); `risk` (fire | collapse | crime) makes it a safety service, `weight` scales its share of the mood (default 1), see "Risks"
 start        { resource: amount }       what the village holds at the entrance when it begins
 hall         building id with "store": the storehouse that stands for free by the entrance (not before the stores task)
 buildings[]  {
@@ -30,6 +30,8 @@ buildings[]  {
   bloom      { radius, per, max }         every flower tile (`world.deco`) within `radius` tiles adds `per` to the work speed, at most `max` tiles; a building with a bloom and no flower gets a hint
   smoke      [[x, y, z], ...]             chimney smoke over a working building (tile-local units); a fourth number 1 makes it steam (whiter, lower); view only (`view/fx.ts`)
   glow       [[x, y, z], ...]             warm lights (lantern, window, hearth) shown at night on a working building; view only; `bad-effect` on a malformed spot
+  risk       { fire, collapse, crime }    what the building adds to its counters each day (`fire`: a number, or for a house a list per level); see "Risks"
+  buildable  false for a leftover the player cannot place, only demolish (the ruin)
   sound      played when a work cycle starts (`buzz`, `pour`...; a name of `audio.ts`)
 }
 desirability { limit, terrain[] { kind: tree|water|rock, rings[] } }   the grid is recomputed once a day; houses read it
@@ -37,6 +39,7 @@ deposits[]   { resource, model, placement: any|rock|water|tree, density (per 100
 goals[]      { id, title, text, requires[], when[], unlock[], give{}, final }   when: { building, count } | { stock, count } | { population } | { houses, level }; checked daily, the reward is a logged command
 trade        { coin, everyDays, stayDays, offers, table[] { side: sell|buy, resource, qty } }   the peddler at the gate
 adventures[] { id, title, text, days, workers, risk (percent per member), cost{}, rewards{} }
+risks        { ruin, minPopulation, fireAt, collapseAt, crimeAt, burnDays, spread, slots, theft }   the rules of fire, collapse and theft, see "Risks"
 ```
 
 Day-length things (service counters, evolution, goals, trade, adventures) run in the daily slice, `engine/day.ts` (a day is DAY_SECONDS of simulation).
@@ -101,3 +104,14 @@ Errors: `bad-harvest` (a yield of 0, a percent above 500, a chance outside 1 to 
 ## Wild animals
 
 `rules/species.ts` is a table (one row per species: speeds, `alert` and `fear` radii, population cap per 144 tiles, adult age and life span in days, breeding seasons, drinking, herd gap); `engine/deer.ts` is the one state machine: graze, walk (a hop, to the water when thirsty, toward the herd leader when it strayed), rest (a long rest every few moves, all night), alert (a person within `alert` freezes it), flee (within `fear`; the herd runs with it), drink, dead and gone. A hunter's quarry stands still until the shot (dead or running, as before). Once a day `dailyAnimals` ages the animals, lets old ones die, joins loose animals to a herd (the nearest older one) and lets adult does breed in the breeding seasons (a stag within 14 units, then a cooldown) while the herd is under the cap of the area. No-limit mode still brings deer back below `settings.deerMin`.
+
+## Risks
+
+Fire, collapse and petty theft, modelled on the Augustus study (`docs/reports/hamlet-augustus-reference-2026-11-01.md` section 7; its numbers are a calibration only, tuned here by play). They exist only in a village created with *Risques* (on with the campaign, off in free mode, saved with the village as `world.risks`): a sandbox, a test or an old habit sees nothing of them, and `dailyRisks` then draws no random number.
+
+- **Counters** (`Building.fire`, `damage`, `crime`, `burn`), raised once a day by `engine/risk.ts` from the building's `risk` weights, only from `risks.minPopulation` (10) people on (the first houses are safe) and never for the hall or an empty house. Each building has a fixed *slot* (one day in `risks.slots`, 8) and the day's slot is the only random draw: on its slot a building adds its `fire` weight (a house by level: a hut 10, then 6, 3; a forge 16, a bakery 14, a smokehouse 12, a sawmill 8...), wear grows `collapse` a day (x3 on its slot; a level-0 house never wears), theft grows by `crime` a day (x2 when the village mood is under 50, nothing at 75 or more).
+- **Events** past a threshold: `fire` above `fireAt` (60) turns the building into the ruin type (`risks.ruin`, `buildable: false`) *burning* for `burnDays` days: its people flee (a house loses its residents), its goods are lost, and each day the fire adds `spread` to every neighbour in the 8 tiles, which may catch in turn; when `burn` reaches 0 the rubble stays and the player demolishes it (it blocks the tile). `damage` above `collapseAt` (160) is a collapse: rubble at once, people gone. `crime` above `crimeAt` (30) is a theft: `theft` units (2) of the dearest goods the building holds free (not promised to a porter), at most; a building with no stock just resets.
+- **Services**: `fire` (*firehouse*, firewarden), `repair` (*works*, repairman), `watch` (*watchpost*, watchman) are services with `risk: fire | collapse | crime` and a walker. Each tile the walker enters resets that counter of every building within two tiles (`engine/services.ts`, `guard`), and a fire walker also puts out a burning ruin (no spread, the rubble stays). They unlock through the goals `fire` (ten people) and `watch` (a firehouse and twelve people) and appear in the Tree window with the other buildings.
+- **Mood and hints**: in a village with risks a house covered by a safety service gains 5 x `weight`, an uncovered one loses 7 x `weight` (the same term as water and the market, `houseNeeds`), and the `no_service:fire` hint names the gap. `fire_risk` points at the building with the highest fire counter when it is past a quarter of `fireAt` and no fire post exists (`fire_risk:none`) or past 70 % with one that passes too rarely (`fire_risk:rare`). The info window of a building says its level of risk; a ruin says *En flammes* or *Décombres*.
+- **Messages and sound** (French, from `world.alerts`, drained by `ui/Messages.ts`): `Incendie : ...` and `Effondrement : ...` are urgent (banner, alarm, then the `fire` roar or `collapse` crash of `audio.ts`), a theft is a warning, rubble and a fire put out are plain lines. A `crackle` ambience plays while a ruin burns; flames and smoke are drawn by `view/fire.ts` (view only, nothing saved).
+- **Save**: `H18` adds `fire|damage|crime|burn` to each building and the `risks` flag at the end of the line; an older save is not loaded and starts a new village.

@@ -1,5 +1,5 @@
 import { Cursor } from 'zinc:gfx';
-import { world, tileX, tileY, tileIndex } from '../world/world';
+import { world, tileX, tileY, tileIndex, Building } from '../world/world';
 import { economy } from '../world/economy';
 import { housingReport } from '../rules/housing';
 import { sourceOf, harvestLines } from '../rules/harvest';
@@ -66,6 +66,16 @@ export function whyIdle(id: number): string {
   return def.workers > 0 ? 'Au repos.' : '';
 }
 
+/** Where a building stands against fire, wear and theft, in a sentence ('' when the village has no risks or the building none). */
+function riskText(b: Building): string {
+  const r = economy.risk, def = economy.buildings[b.type];
+  if (!world.risks) return '';
+  if (b.type === r.ruin) return b.burn > 0 ? 'En flammes : le feu gagne les voisins.' : 'Décombres : démolissez-les pour libérer la case.';
+  if (def.risk === null) return '';
+  const level = (v: number, at: number): string => v < at * .35 ? 'faible' : v < at * .7 ? 'moyen' : 'élevé';
+  return 'Risque : incendie ' + level(b.fire, r.fireAt) + ', usure ' + level(b.damage, r.collapseAt) + (def.risk.crime > 0 ? ', vols ' + level(b.crime, r.crimeAt) : '') + '.';
+}
+
 const WIN_W = 330;
 let infoX = -1, infoY = -1, grabDX = 0, grabDY = 0, grabbed = false;   // where the window was dragged to (-1: its default place)
 function origin(): { x: number; y: number } {
@@ -93,7 +103,7 @@ function building(x: number, y: number): void {
   const def = economy.buildings[b.type], lh = kit.lineH;
   let h = 130;
   const why = whyIdle(ui.selId), whyLines = wrap(why, WIN_W - 24);
-  const report = def.housing !== null ? wrap(housingReport(b).text, WIN_W - 24) : [];
+  const report = (def.housing !== null ? wrap(housingReport(b).text, WIN_W - 24) : []).concat(wrap(riskText(b), WIN_W - 24));
   const src = sourceOf(def), gather = src >= 0 ? harvestLines(src, def) : [];
   const stocks: number[] = [];
   for (let k = 0; k < economy.resources.length; k++) if (b.stock[k] > 0) stocks.push(k);

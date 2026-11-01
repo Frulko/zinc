@@ -16,6 +16,7 @@ export class Building {
   level: number = 0; streak: number = 0; fed: number[] = [];   // houses: level, days in a row meeting the next level (+) or failing this one (-), per food days of meals left
   cover: number[] = [];                                  // per service: days left of its coverage (houses only)
   stock: number[] = []; reserved: number[] = []; incoming: number[] = [];   // reserved: leaving with a porter; incoming: promised by one
+  fire: number = 0; damage: number = 0; crime: number = 0; burn: number = 0;   // risks (engine/risk.ts): the counters of fire, wear and petty crime, and the days a burning ruin still burns
   state: number = 0; waitFor: number = -1; fixed: boolean = false;       // fixed: stands from the start (the hall) and cannot be demolished
 }
 export class Person extends Mover {
@@ -26,6 +27,8 @@ export class Person extends Mover {
   shotX: number = 0; shotY: number = 0;
   rate: number = 0; variant: number = -1;   // the swing's phase speed while working (rules/harvest.ts), and the variant of the source just worked (tree species, doe or stag)
 }
+/** A risk event for the message log (engine/risk.ts): `kind` fire, collapse, theft, rubble or out, its sentence and the tile it happened on. Not saved. */
+export class Alert { kind: string = ''; text: string = ''; tile: number = -1; }
 /** One line of the peddler's offer: he `sell`s qty of a resource to the village for `coins`, or `buy`s it from the village. */
 export class Offer { resource: number = 0; qty: number = 0; side: string = ''; coins: number = 0; taken: boolean = false; }
 /** An expedition under way: the adventure, the days left, and the house each member comes from (members leave the people list while away). */
@@ -54,7 +57,7 @@ export interface World {
   mood: number; jobless: number;    // the village's average satisfaction 0..100 and the share of people without work in percent (engine/mood.ts, daily)
   appeal: number[];                 // desirability per tile, recomputed daily (rules/appeal.ts)
   goals: number[];                  // per goal: 1 when done (rules/goals.ts); unlocked: per building type 1 when it may be built
-  unlocked: number[]; progression: boolean; news: string[]; log: Command[];   // progression: the campaign layers (locked buildings, the peddler, adventures) are on; the new-village flow turns it on, a plain sandbox or a test leaves it off; news: lines for the UI to show and clear; log: the commands issued
+  unlocked: number[]; progression: boolean; risks: boolean; news: string[]; alerts: Alert[]; log: Command[];   // progression: the campaign layers (locked buildings, the peddler, adventures) are on; the new-village flow turns it on, a plain sandbox or a test leaves it off; risks: fire, collapse and theft are on (engine/risk.ts), a choice of the new-village form, on with the campaign; news: lines for the UI to show and clear; log: the commands issued
   expeditions: Expedition[];
   offers: Offer[]; peddlerLeft: number;   // the peddler at the gate: his offers, and the days he still stays (0: not here)
   lode: number[];                   // what is left of the deposit on a tile (world.rock >= ROCK_DEPOSIT)
@@ -89,7 +92,7 @@ export const world: World = {
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], goals: [], unlocked: [], progression: false, news: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), priority: [],
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), priority: [],
 };
 
 // ---- tiles ----

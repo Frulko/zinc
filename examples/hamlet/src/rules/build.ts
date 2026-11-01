@@ -26,6 +26,7 @@ export function checkTool(tool: number, t: number): number {
   if (!isOpen(t)) return PLACE_BLOCKED;
   if (tool === TOOL_ROAD) return PLACE_OK;
   const def = economy.buildings[tool - TOOL_HOUSE];
+  if (!def.buildable) return PLACE_BLOCKED;
   if (def.gather === 'shore' && waterNeighbor(t) < 0) return PLACE_NO_WATER;
   if (!isUnlocked(tool - TOOL_HOUSE)) return PLACE_LOCKED;
   if (def.lode >= 0 && !lodeNear(t, def.lode)) return PLACE_NO_LODE;

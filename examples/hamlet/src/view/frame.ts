@@ -16,6 +16,7 @@ import { computeHints, Hint } from '../rules/hints';
 import { drainFx, fxDirty, drawFxBodies, drawFxSparks, drawSmoke, drawGlow } from './fx';
 import { beesDirty, drawBees } from './bees';
 import { drawPerson, drawDeer, actorAtlas } from './actors';
+import { fireDirty, drawFire } from './fire';
 
 const GRASS_LIT = GRASS.map((c: number[]): u32 => rgbColor(c));
 const GRASS_DARK = GRASS.map((c: number[]): u32 => rgb(c[0] * .54, c[1] * .52, c[2] * .72));
@@ -140,6 +141,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   if (hover >= 0) { const a = project(tileX(hover), tileY(hover), 0); addRect(dirty, a.sx, a.sy, 2 * TILE * S, 5 * S, 2 * TILE * S, 1.2 * TILE * S); }
   beesDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
   drainFx(time);
+  fireDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
   fxDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
   const pond = project(world.pondX + .2, world.pondY, 0);
   addRect(dirty, pond.sx, pond.sy, world.pondR * S * 1.5, world.pondR * S * .8, world.pondR * S * 1.5, world.pondR * S * .8);
@@ -192,6 +194,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   for (let k = 0; k < bubbleAt.length; k += 3) drawBubble(bubbleAt[k], bubbleAt[k + 1], bubbleAt[k + 2]);
   for (let k = 0; k < arrowAt.length; k += 3) drawArrow(arrowAt[k], arrowAt[k + 1], time, ARROW_COLORS[clamp(arrowAt[k + 2], 0, 3)]);
   // what to send: the pixels restored from last frame's runs, plus every run and rectangle of this one
+  drawFire(time);
   const spans = rows.concat(prevLoose).concat(loose).concat(shadowSpans);
   prevLoose = loose.concat(shadowSpans); prevRects = dirty;
   frameDirty.spans = spans;

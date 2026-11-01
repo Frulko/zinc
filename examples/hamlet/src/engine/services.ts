@@ -1,5 +1,5 @@
 import { HOUSE, COVER_DAYS, ST_ROAM } from '../constants';
-import { world, Person, Building, random, neighbor, tileIndex, tileAt } from '../world/world';
+import { world, Person, Building, Alert, random, neighbor, tileIndex, tileAt, tileI, tileJ } from '../world/world';
 import { economy } from '../world/economy';
 import { isWalkable, planPath } from './path';
 
@@ -10,7 +10,27 @@ const isHouse = (id: number): boolean => id >= 0 && world.buildings[id].alive &&
 /** Covers the houses on the four sides of a tile (the road a walker is on). */
 export function coverAround(t: number, service: number): void {
   for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && isHouse(world.build[v])) world.buildings[world.build[v]].cover[service] = COVER_DAYS; }
+  const kind = economy.services[service].risk;
+  if (kind !== '') guard(t, kind);
 }
+function alertOf(kind: string, text: string, tile: number): Alert { const a = new Alert(); a.kind = kind; a.text = text; a.tile = tile; return a; }
+/** A safety walker is at tile t: every building within two tiles gets its counter of that kind reset (a fire walker also puts out a burning ruin). */
+function guard(t: number, kind: string): void {
+  const ci = tileI(t), cj = tileJ(t);
+  for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) {
+    const i = ci + di, j = cj + dj;
+    if (i < 0 || j < 0 || i >= world.size || j >= world.size) continue;
+    const id = world.build[tileIndex(i, j)];
+    if (id < 0 || !world.buildings[id].alive) continue;
+    const b = world.buildings[id];
+    if (kind === 'fire') {
+      b.fire = 0;
+      if (b.burn > 0) { b.burn = 0; world.alerts.push(alertOf('out', 'Les pompiers ont maîtrisé l’incendie : le feu ne se propagera pas.', tileIndex(b.i, b.j))); }
+    } else if (kind === 'collapse') b.damage = 0;
+    else if (kind === 'crime') b.crime = 0;
+  }
+}
+
 /** A road tile next to the building (the walker's first step), or -1. */
 function roadBeside(b: Building): number {
   for (let d = 0; d < 4; d++) { const v = neighbor(tileIndex(b.i, b.j), d); if (v >= 0 && world.road[v] && isWalkable(v)) return v; }
