@@ -12,6 +12,7 @@ let frames: number[] = [], all: number[] = [];
 const slots: number[][] = [[], [], [], []];
 const cur: number[] = [0, 0, 0, 0];
 let mark = 0;
+const SLOW_MS = 40;       // a frame over this is named on the console with its split
 
 export function perfStart(): void { const n = Number(env('ZINC_HAMLET_PERF')); if (n > 0) { perf.on = true; every = n; } }
 /** Starts a slot's clock; perfEnd adds the time since. */
@@ -24,6 +25,7 @@ export function perfFrame(): void {
   if (!perf.on) return;
   const now = performance.now();
   if (last > 0) { frames.push(now - last); for (let k = 0; k < 4; k++) { slots[k].push(cur[k]); } }
+  if (last > 0 && now - last > SLOW_MS) console.log('perf-slow frame ' + count + ' z' + camera.level + ' ' + r(now - last) + ' ms | ' + SLOTS.map((n: string, k: number): string => n + ' ' + r(cur[k])).join(' | '));
   for (let k = 0; k < 4; k++) cur[k] = 0;
   last = now; count++;
   if (started === 0) started = now;
@@ -36,7 +38,7 @@ export function perfFrame(): void {
     for (const f of frames) all.push(f);
     const a = all.slice().sort((x: number, y: number): number => x - y), am = pct(a, .5);
     let ah = 0; for (const f of all) if (f > 2 * am) ah++;
-    console.log('perf-total n ' + a.length + ' p50 ' + r(am) + ' p95 ' + r(pct(a, .95)) + ' p99 ' + r(pct(a, .99)) + ' max ' + r(a[a.length - 1]) + ' hitches ' + ah + ' over50 ' + a.filter((f: number): boolean => f > 50).length);
+    console.log('perf-total n ' + a.length + ' p50 ' + r(am) + ' p95 ' + r(pct(a, .95)) + ' p99 ' + r(pct(a, .99)) + ' max ' + r(a[a.length - 1]) + ' hitches ' + ah + ' over17 ' + a.filter((f: number): boolean => f > 16.7).length + ' over34 ' + a.filter((f: number): boolean => f > 33.4).length + ' over50 ' + a.filter((f: number): boolean => f > 50).length);
     frames = []; for (let k = 0; k < 4; k++) slots[k] = [];
   }
 }

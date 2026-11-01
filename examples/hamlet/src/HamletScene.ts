@@ -46,10 +46,13 @@ import { drawTree, openTree, treeScroll, treeDrag } from './ui/Tree';
 import { perfBegin, perfEnd, perfFrame } from './ui/PerfTrace';
 import { drawDebug, cycleDebug, debugBegin, debugLap, debugHooks } from './ui/Debug';
 import { drawMenus, isModal, closeMenus, openNew, openMenu, typeKey } from './ui/Menu';
-import { refreshModels, jumpTo } from './view/scenery';
+import { refreshModels, aimAt, cancelAim, stepAim, aiming, zoomScale, zooming } from './view/scenery';
 import { camera, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY, fit, setFit, windowWidth, windowHeight } from './view/camera';
 import { W, H } from './pixel';
 
+const ACCEL_TAU = .09, COAST_TAU = .2, DRAG_TAU = .06, FLING_MIN = 40, STOP_BELOW = 6;   // seconds to reach about two thirds of the way to the wished speed; the speed below which a slide stops
+/** How much of the way to a target an exponential ease covers in `dt` seconds: the same curve at any frame rate. */
+function easing(dt: number, tau: number): number { return 1 - Math.exp(-Math.min(dt, .1) / tau); }
 const PAN_SPEED = 240;                  // source pixels per second with the keys           // screen rows kept for the title row and for the toolbar and texts
 
 export class HamletScene extends Sprite {
@@ -80,6 +83,13 @@ export class HamletScene extends Sprite {
   private panning: boolean = false;       // dragging the map with the right or middle button
   private panX: number = 0;
   private panY: number = 0;
+  private velX: number = 0;               // the camera's velocity in picture pixels a second (keys, edge, and what a drag leaves)
+  private velY: number = 0;
+  private restX: number = 0;              // the part of a pixel the camera has not moved yet
+  private restY: number = 0;
+  private dragVX: number = 0;
+  private dragVY: number = 0;
+  private wasDragging: boolean = false;
   private dragging: boolean = false;
   private lastPaint: number = -1;
   private lineStart: number = -1;         // road and demolition: the tile where the press began; the line runs from it to the pointer
@@ -131,7 +141,7 @@ export class HamletScene extends Sprite {
     act.rebake = (): void => { uiState.dirty = true; };
     act.togglePause = (): void => this.key('p', true);
     act.setSpeed = (i: number): void => { ui.speed = i; settings.simSpeed = SPEEDS[i]; savePrefs(); uiState.dirty = true; };
-    act.jump = (x: number, y: number): void => { jumpTo(x, y); this.baked = world.revision; uiState.dirty = true; };
+    act.jump = (x: number, y: number): void => { aimAt(x, y); uiState.dirty = true; };
     setAmbience('meadow');
     windowCtl(0, 3, 'Hameau', 0, 0);
   }
@@ -153,9 +163,13 @@ export class HamletScene extends Sprite {
     setFit(vp.w, vp.h);
     if (windowWidth(camera.level) !== W || windowHeight(camera.level) !== H) { resizeWindow(); this.baked = world.revision; this.syncBuffer(); }
     this.frame.cropX = cropX(); this.frame.cropY = cropY(); this.frame.cropWidth = W - 20; this.frame.cropHeight = H - 54;
+    const k = zoomScale(), base = fit.s0 / ZOOM_VIEW[camera.level], cw = this.frame.cropWidth, ch = this.frame.cropHeight;
+    if (k > 1) {                                                   // a zoom glide, closer: the middle of the picture fills the view
+      this.frame.cropX += cw * (1 - 1 / k) / 2; this.frame.cropY += ch * (1 - 1 / k) / 2; this.frame.cropWidth = cw / k; this.frame.cropHeight = ch / k;
+    }
     this.surface.layout(this.frame);
-    this.surface.scale = fit.s0 / ZOOM_VIEW[camera.level];
-    this.surface.x = vp.x; this.surface.y = vp.y;
+    this.surface.scale = base * k;
+    this.surface.x = vp.x + (k < 1 ? cw * base * (1 - k) / 2 : 0); this.surface.y = vp.y + (k < 1 ? ch * base * (1 - k) / 2 : 0);   // farther: the picture shrinks in the middle of the view
   }
 
   private tileUnder(x: number, y: number): number {
@@ -351,14 +365,21 @@ export class HamletScene extends Sprite {
       this.lastPose = pose;
     }
     if (this.baked !== world.revision) { rebakeStatic(); this.baked = world.revision; uiState.dirty = true; }
+    if (zooming()) uiState.dirty = true;                              // the glide advances in the drawing: draw every frame until it ends
     debugLap(0); perfEnd(0);
   }
 
   /** Camera: keys, right-button drag and trackpad scroll pan; the wheel, a pinch and + / - zoom. */
   private moveView(dt: number, x: number, y: number): void {
-    if (this.paused) return;
-    let dx = ((this.panRight ? 1 : 0) - (this.panLeft ? 1 : 0)) * PAN_SPEED * dt, dy = ((this.panDown ? 1 : 0) - (this.panUp ? 1 : 0)) * PAN_SPEED * dt;
-    if (this.panning) { dx += (this.panX - x) / this.surface.scale; dy += (this.panY - y) / this.surface.scale; this.panX = x; this.panY = y; }
+    if (this.paused) { if (stepAim(dt) || aiming()) uiState.dirty = true; return; }       // a jump asked while paused still glides
+    let wishX = ((this.panRight ? 1 : 0) - (this.panLeft ? 1 : 0)) * PAN_SPEED, wishY = ((this.panDown ? 1 : 0) - (this.panUp ? 1 : 0)) * PAN_SPEED;   // the velocity the keys and the edge ask for
+    let dx = 0, dy = 0;
+    if (this.panning) {                                            // dragging the map: it follows the pointer one to one, and remembers how fast it went
+      const mx = (this.panX - x) / this.surface.scale, my = (this.panY - y) / this.surface.scale, a = easing(dt, DRAG_TAU);
+      dx = mx; dy = my; this.panX = x; this.panY = y;
+      this.dragVX += (mx / Math.max(dt, .001) - this.dragVX) * a; this.dragVY += (my / Math.max(dt, .001) - this.dragVY) * a;
+      this.wasDragging = true; this.velX = 0; this.velY = 0;
+    } else if (this.wasDragging) { this.wasDragging = false; this.velX = Math.abs(this.dragVX) > FLING_MIN ? this.dragVX : 0; this.velY = Math.abs(this.dragVY) > FLING_MIN ? this.dragVY : 0; this.dragVX = 0; this.dragVY = 0; }   // let go: it carries on and slows down
     if (ui.window === WIN_TREE) { if (scrollPhase() !== 0) { treeScroll(-scrollDX(), -scrollDY()); uiState.dirty = true; } else if (wheel() !== 0) { treeScroll(0, -wheel() * 40); uiState.dirty = true; } return; }
     if (scrollPhase() !== 0) { dx -= scrollDX() / this.surface.scale; dy -= scrollDY() / this.surface.scale; }
     else if (wheel() !== 0) { stepZoom(wheel() > 0 ? 1 : -1); this.baked = world.revision; uiState.dirty = true; }
@@ -367,9 +388,23 @@ export class HamletScene extends Sprite {
     if (this.grabbing && pointerDown() && !this.grabMoved && Math.abs(x - this.grabX) + Math.abs(y - this.grabY) > 6) { this.grabMoved = true; this.panning = true; this.panX = x; this.panY = y; }
     if (settings.edgePan && this.pointerMoved) {   // the window's own edge, even where the interface sits on it
       const band = 8;
-      dx += ((x >= width() - band ? 1 : 0) - (x < band ? 1 : 0)) * PAN_SPEED * dt; dy += ((y >= height() - band ? 1 : 0) - (y < band ? 1 : 0)) * PAN_SPEED * dt;
+      wishX += ((x >= width() - band ? 1 : 0) - (x < band ? 1 : 0)) * PAN_SPEED; wishY += ((y >= height() - band ? 1 : 0) - (y < band ? 1 : 0)) * PAN_SPEED;
     }
-    if ((dx !== 0 || dy !== 0) && moveCamera(dx, dy)) uiState.dirty = true;
+    if (!this.panning) {                                           // keys and edge: the velocity eases towards the wish (it speeds up and slows down, whatever the frame rate), the rest of a move is kept for the next frame
+      const asked = wishX !== 0 || wishY !== 0;
+      if (asked) cancelAim();
+      const a = easing(dt, asked ? ACCEL_TAU : COAST_TAU);
+      this.velX += (wishX - this.velX) * a; this.velY += (wishY - this.velY) * a;
+      if (wishX === 0 && Math.abs(this.velX) < STOP_BELOW) this.velX = 0;
+      if (wishY === 0 && Math.abs(this.velY) < STOP_BELOW) this.velY = 0;
+      this.restX += this.velX * Math.min(dt, .1); this.restY += this.velY * Math.min(dt, .1);
+      const wholeX = Math.trunc(this.restX), wholeY = Math.trunc(this.restY);
+      this.restX -= wholeX; this.restY -= wholeY; dx += wholeX; dy += wholeY;
+    } else { this.restX = 0; this.restY = 0; cancelAim(); }
+    if (dx !== 0 || dy !== 0) {
+      if (moveCamera(dx, dy)) uiState.dirty = true; else { this.velX = 0; this.velY = 0; }        // the edge of the map stops it
+    } else if (stepAim(dt)) uiState.dirty = true;
+    if (aiming()) uiState.dirty = true;
   }
 
   override onDraw(w: number, h: number): void {

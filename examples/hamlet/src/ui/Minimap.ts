@@ -3,7 +3,7 @@ import { unproject, W, H } from '../pixel';
 import { world } from '../world/world';
 import { TERRAIN_WATER, TERRAIN_VOID, TILE } from '../constants';
 import { economy } from '../world/economy';
-import { jumpTo } from '../view/scenery';
+import { aimAt } from '../view/scenery';
 import { rgb } from '../pixel';
 import { ui } from './state';
 import { col, well } from './kit';
@@ -43,7 +43,7 @@ function refresh(): void {
 export function minimapContains(x: number, y: number): boolean { return x >= box.x - 3 && y >= box.y - 3 && x < box.x + box.w + 3 && y < box.y + box.h + 3; }
 export function minimapClick(x: number, y: number): void {
   const n = world.size, u = (x - box.x) / box.scale - n, v = (y - box.y) / box.scale * 2;
-  jumpTo(((u + v) / 2) * TILE - world.half, ((v - u) / 2) * TILE - world.half);
+  aimAt(((u + v) / 2) * TILE - world.half, ((v - u) / 2) * TILE - world.half);
 }
 /** Draws the map in a well of (size x size) pixels; the picture is centred in it at the largest whole scale. */
 export function drawMinimap(x: number, y: number, size: number): void {

@@ -1173,3 +1173,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: Discord voice AEC: verify the `plugin.json` SpeexDSP defines on the Linux, Windows and Raspberry Pi builds.
 - ZN-?: check `plugins/ink` native (ink.abi.cpp) on wasm, rpi1 and rmpp; `refreshRect` on L2/rm2fb and the real qtfb (needs the AppLoad patch 0004).
 - ZN-?: run the Murdoku frames and `murdoku_pen` through the real rmpp driver in landscape and docked, on AOT and QuickJS; real Paper Pro: landscape rotation direction, `pen_rotate` per model, digitizer mapping, palm rejection delay (300 ms unproven), docked header height and tap offset in landscape, Move (954x1696) header and 2x ratio.
+- ZN-?: measure `recognise` (the int8 net, 0.38 ms on the M1 Pro) on the rmpp (Cortex-A55) and the Pi (A53) with the cross-built engine.
+- ZN-hamlet-rects: tight per-kind sprite rects for the idle frame (animals, people) from the atlas frame bounds, with a coverage test; measure on AOT and interpreter at 24/64/96 (a disjoint cover was +5% on AOT).
+- ZN-hamlet-quiet: Hamlet windowed Metal and QuickJS fluidity numbers on a quiet machine.
+- ZN-hamlet-atlas-deer: `hamlet_atlas` deer stamps differ from live deer (1670 pixels) on develop; not from the fluidity pass.

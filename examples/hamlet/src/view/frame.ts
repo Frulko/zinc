@@ -1,13 +1,13 @@
 import {
   W, H, S, pix, zb, groundZ, kinds, bakedPix, bakedZ, shadowMask, pendingShadows, staticShadow, GRASS,
-  copyInto, flushShadows, applyShadows, shadeEdgesRect, setTrackShadows, shadowSpans, rgbColor, rgb, clamp, hash, project, drawDots, haloDots, drawArrow, waterPoint, KIND_GRASS,
+  flushShadows, applyShadows, shadeEdgesRect, setTrackShadows, shadowSpans, rgbColor, rgb, clamp, hash, project, drawDots, haloDots, drawArrow, waterPoint, KIND_GRASS,
 } from '../pixel';
 import { TILE, HOUSE, ROLE_FISHER } from '../constants';
 import { world, tileX, tileY, waterField, Building } from '../world/world';
 import { TERRAIN_WATER } from '../constants';
 import { economy } from '../world/economy';
 import { lightsOn, drawWeather } from './weather';
-import { tufts, bakeCount, bakeInfo, shiftColors, stepSeason } from './scenery';
+import { tufts, bakeCount, bakeInfo, shiftColors, stepSeason, clock } from './scenery';
 import { settings } from '../settings';
 import { focus } from './focus';
 import { appealMarks, drawMarks, bubbleColor, drawBubble } from './overlay';
@@ -126,7 +126,11 @@ function merge(rects: number[]): number[] {
   return out;
 }
 function restore(spans: number[]): void {
-  for (let k = 0; k < spans.length; k += 3) for (let i = spans[k] * W + spans[k + 1], end = spans[k] * W + spans[k + 2]; i <= end; i++) pix[i] = edgedPix[i];
+  for (let k = 0; k < spans.length; k += 3) {
+    const a = spans[k] * W + spans[k + 1], end = spans[k] * W + spans[k + 2];
+    if (end - a > 6) pix.set(edgedPix, a, a, end + 1);                // a block copy for a run; the one-pixel runs of the wind are cheaper as they are
+    else for (let i = a; i <= end; i++) pix[i] = edgedPix[i];
+  }
 }
 function rectRows(rects: number[], into: number[]): void {
   for (let k = 0; k < rects.length; k += 4) for (let y = rects[k + 1]; y < rects[k + 3]; y++) into.push(y, rects[k], rects[k + 2] - 1);
@@ -136,17 +140,18 @@ function rectRows(rects: number[], into: number[]): void {
 function prepare(): void {
   const whole = bakeInfo.full || edgedPix.length !== pix.length;
   if (edgedPix.length !== pix.length) edgedPix = Array.from({ length: pix.length }, (): u32 => 0);
-  copyInto(zb, bakedZ);
-  if (whole) { copyInto(pix, bakedPix); shadeEdgesRect(0, 0, W, H); copyInto(edgedPix, pix); }
+  zb.set(bakedZ);
+  if (bakeInfo.prepared) edgedPix.set(pix);                         // a zoom glide left the edged picture in the buffers
+  else if (whole) { pix.set(bakedPix); shadeEdgesRect(0, 0, W, H); edgedPix.set(pix); }
   else {
     if (bakeInfo.shiftX !== 0 || bakeInfo.shiftY !== 0) shiftColors(edgedPix, bakeInfo.shiftX, bakeInfo.shiftY);
     for (let k = 0; k < bakeInfo.rects.length; k += 4) {
       const x0 = bakeInfo.rects[k], y0 = bakeInfo.rects[k + 1], x1 = bakeInfo.rects[k + 2], y1 = bakeInfo.rects[k + 3];
-      for (let y = y0; y < y1; y++) for (let i = y * W + x0, end = y * W + x1; i < end; i++) pix[i] = bakedPix[i];
+      for (let y = y0; y < y1; y++) { const a = y * W + x0; pix.set(bakedPix, a, a, y * W + x1); }
       shadeEdgesRect(x0, y0, x1, y1);
-      for (let y = y0; y < y1; y++) for (let i = y * W + x0, end = y * W + x1; i < end; i++) edgedPix[i] = pix[i];
+      for (let y = y0; y < y1; y++) { const a = y * W + x0; edgedPix.set(pix, a, a, y * W + x1); }
     }
-    copyInto(pix, edgedPix);
+    pix.set(edgedPix);
   }
   bakeInfo.consumed = true;
   seenBake = bakeCount; prevRects = []; prevLoose = []; frameDirty.full = true;
@@ -154,6 +159,7 @@ function prepare(): void {
 
 /** One picture of the village. `hover` is the tile under the pointer (-1 for none), `preview` the model to ghost on it (-1 for none). */
 export function drawVillage(time: number, hover: number, ok: boolean, preview: number): void {
+  clock.time = time;
   stepSeason();
   if (seenBake !== bakeCount || edgedPix.length !== pix.length) prepare();
   const dirty: number[] = [], night = lightsOn();
@@ -202,7 +208,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   const rects = merge(prevRects.concat(dirty));
   const rows: number[] = [];
   restore(prevLoose);
-  for (let k = 0; k < rects.length; k += 4) for (let y = rects[k + 1]; y < rects[k + 3]; y++) for (let i = y * W + rects[k], end = y * W + rects[k + 2]; i < end; i++) { pix[i] = bakedPix[i]; zb[i] = bakedZ[i]; }
+  for (let k = 0; k < rects.length; k += 4) for (let y = rects[k + 1]; y < rects[k + 3]; y++) { const a = y * W + rects[k], b = y * W + rects[k + 2]; pix.set(bakedPix, a, a, b); zb.set(bakedZ, a, a, b); }
   rectRows(rects, rows);
   touched.length = 0;
   pendingShadows.length = 0;

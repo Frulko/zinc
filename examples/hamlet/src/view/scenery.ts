@@ -1,15 +1,16 @@
 import {
   W, H, R2, COS, SIN, pix, zb, ground, groundZ, kinds, bakedPix, bakedZ, shadowMask, staticShadow, KIND_GRASS,
-  configureRenderer, resizeBuffer, setView, copyInto, project, unproject, rgb, rgbColor, rampOf, noise, hash, clamp, castShadow, bakeOcclusion, applyShadows, sphere, capsule, PX, PY, S, setClip, clearClip, setPixelOrigin, CX0, CY0, CX1, CY1,
+  configureRenderer, pendingShadows, resizeBuffer, enterBake, leaveBake, shadeEdgesRect, setView, project, unproject, rgb, rgbColor, rampOf, noise, hash, clamp, castShadow, bakeOcclusion, applyShadows, sphere, capsule, PX, PY, S, setClip, clearClip, setPixelOrigin, CX0, CY0, CX1, CY1,
 } from '../pixel';
 import { TILE, TERRAIN_VOID, TERRAIN_WATER } from '../constants';
 import { WATER_TONES, SAND_TONES, ROAD_COLOR } from '../palettes';
 import { DECO_TRAIL, DECO_REEDS } from '../gen/terrain';
 import { ensureBiomes, monthStep, biomes, blend, groundTone, snowShare, flowerShare, reedColor, iceShare, tileMonth } from './seasons';
 import { world, waterField, tileX, tileY, tileAt, tileCount, neighbor } from '../world/world';
-import { models, modelOf, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, useTreeSeason, treeModel, warmTrees, resetModels, TREE_HEIGHT } from './models';
+import { models, modelOf, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, useTreeSeason, treeModel, warmTrees, resetModels, TREE_HEIGHT, prepareLevel, saveModels, restoreModels } from './models';
 import { settings } from '../settings';
-import { camera, ZOOM_SCALES, DEFAULT_ZOOM, artLevel, windowWidth, windowHeight, scaleOf, layerWidth, layerHeight, layerOriginX, layerOriginY, applyCamera, centerOn, centerPoint, panBy } from './camera';
+import { drawPerson, drawDeer, actorAtlas } from './actors';
+import { camera, ZOOM_SCALES, ZOOM_VIEW, DEFAULT_ZOOM, artLevel, windowWidth, windowHeight, scaleOf, layerWidth, layerHeight, layerOriginX, layerOriginY, applyCamera, centerOn, centerPoint, panBy } from './camera';
 
 const KIND_SAND = 1, KIND_WATER = 2, KIND_ROAD = 4;
 const WHITE = rgb(44, 41, 35);          // outside the village: the dark stone of the interface (the dissolved border fades into it)
@@ -253,8 +254,9 @@ function onScreen(x: number, y: number, margin: number): boolean {
 //   - a tile changed (a road, a building, a tree felled): only the rectangle around it, its neighbours' dirt included, is baked again.
 // A rectangle is made from the ground up with the renderer clipped to it, with the patterns anchored on the layer (setPixelOrigin), so it is made of the very
 // same pixels as a full bake at the same camera (tests/data/hamlet/chunks.ts proves it). `bakeInfo` tells the frame code which rectangles to redo its edges in.
-export const bakeInfo = { full: true, shiftX: 0, shiftY: 0, rects: [] as number[], consumed: false };   // consumed: the frame code has read it (a bake before that makes it a full one)
+export const bakeInfo = { full: true, shiftX: 0, shiftY: 0, rects: [] as number[], consumed: false, prepared: false };   // consumed: the frame code has read it (a bake before that makes it a full one); prepared: the buffers already hold the edged picture (a zoom glide made it), the frame code only keeps it
 export let bakeCount = 0;
+export const clock = { time: 0 };         // the time of the picture being drawn (frame.ts), for what a glide pre-bakes
 let bakedLevel = -1, bakedW = 0, bakedH = 0, bakedX = 0, bakedY = 0, bakedLayer: Layer | null = null, forceFull = true;
 let bakedSig: number[] = [];
 let nextBand: number[] | null = null, pendingBands: number[] = [], pendingChunks: number[] = [];     // the season changed: the window is painted again a band at a time, a band a frame
@@ -323,7 +325,7 @@ let boxBuffer: number[] = [];            // the window box of every tile, filled
 /** Bakes the given (disjoint) rectangles of the window from the ground up. Pixels outside them are left as they are. */
 function bakeRects(layer: Layer, rects: number[]): void {
   for (let k = 0; k < rects.length; k += 4) {                         // the neighbours the occlusion reads (four pixels around a rectangle) are the static ones
-    for (let y = Math.max(0, rects[k + 1] - 5); y < Math.min(H, rects[k + 3] + 5); y++) for (let i = y * W + Math.max(0, rects[k] - 5), end = y * W + Math.min(W, rects[k + 2] + 5); i < end; i++) { pix[i] = bakedPix[i]; zb[i] = bakedZ[i]; }
+    for (let y = Math.max(0, rects[k + 1] - 5); y < Math.min(H, rects[k + 3] + 5); y++) { const a = y * W + Math.max(0, rects[k] - 5), b = y * W + Math.min(W, rects[k + 2] + 5); pix.set(bakedPix, a, a, b); zb.set(bakedZ, a, a, b); }
   }
   shadowMask.fill(0);
   const count = tileCount(), box: number[] = [0, 0, 0, 0], visible: number[] = [];
@@ -372,13 +374,22 @@ function bakeRects(layer: Layer, rects: number[]): void {
   for (let k = 0; k < rects.length; k += 4) { setClip(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]); bakeOcclusion(); }    // phase 2: it reads every rectangle's depth
   for (let k = 0; k < rects.length; k += 4) {                        // phase 3: shadows on the ground, then keep the result
     setClip(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);
-    for (let y = rects[k + 1]; y < rects[k + 3]; y++) for (let i = y * W + rects[k], end = y * W + rects[k + 2]; i < end; i++) staticShadow[i] = shadowMask[i];
+    for (let y = rects[k + 1]; y < rects[k + 3]; y++) { const a = y * W + rects[k]; staticShadow.set(shadowMask, a, a, y * W + rects[k + 2]); }
     applyShadows(groundZ);
-    for (let y = rects[k + 1]; y < rects[k + 3]; y++) for (let i = y * W + rects[k], end = y * W + rects[k + 2]; i < end; i++) { bakedPix[i] = pix[i]; bakedZ[i] = zb[i]; }
+    for (let y = rects[k + 1]; y < rects[k + 3]; y++) { const a = y * W + rects[k], b = y * W + rects[k + 2]; bakedPix.set(pix, a, a, b); bakedZ.set(zb, a, a, b); }
   }
   clearClip();
 }
 
+/** The grass pixels the wind animates in a rectangle of the buffers (rows y0 to y1, excluded), added to `out`. */
+function collectTufts(layer: Layer, x0: number, y0: number, x1: number, y1: number, out: number[]): void {
+  for (let iy = y0; iy < y1; iy++) for (let ix = x0; ix < x1; ix++) {
+    const bx = ix + camera.x, by = iy + camera.y;
+    if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || (cellKind(layer, bx, by) & 8) === 0) continue;
+    const i = iy * W + ix;
+    if (kinds[i] === KIND_GRASS && bakedZ[i] === groundZ[i]) out.push(i);
+  }
+}
 /** The pixels of grass the wind animates. After a slide the old ones move with the picture; only the rebaked rectangles are searched again. */
 function findTufts(layer: Layer, rects: number[], slid: boolean, dx: number, dy: number): void {
   const found: number[] = [];
@@ -390,12 +401,7 @@ function findTufts(layer: Layer, rects: number[], slid: boolean, dx: number, dy:
     const x = i % W - dx, y = Math.floor(i / W) - dy;
     if (x >= 0 && x < W && y >= 0 && y < H && !inRects(x, y)) found.push(y * W + x);
   }
-  for (let k = 0; k < rects.length; k += 4) for (let iy = rects[k + 1]; iy < rects[k + 3]; iy++) for (let ix = rects[k]; ix < rects[k + 2]; ix++) {
-    const bx = ix + camera.x, by = iy + camera.y;
-    if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || (cellKind(layer, bx, by) & 8) === 0) continue;
-    const i = iy * W + ix;
-    if (kinds[i] === KIND_GRASS && bakedZ[i] === groundZ[i]) found.push(i);
-  }
+  for (let k = 0; k < rects.length; k += 4) collectTufts(layer, rects[k], rects[k + 1], rects[k + 2], rects[k + 3], found);
   tufts.length = 0;
   for (const i of found) tufts.push(i);
 }
@@ -424,6 +430,7 @@ export function rebakeStatic(): void {
     if (area(rects) * 10 > W * H * 6) full = true;                 // most of the window anyway
   }
   bakeCount++;
+  bakeInfo.prepared = false;
   if (full) {
     rects = [0, 0, W, H]; pendingBands = []; nextBand = null;
     bakeInfo.full = true; bakeInfo.shiftX = 0; bakeInfo.shiftY = 0;
@@ -468,6 +475,7 @@ function traceFrame(): void {
 }
 export function stepSeason(): void {
   if (trace.on) traceFrame();
+  stepGlide();
   if (trace.scrub > 0) world.tick += trace.scrub;          // debug: ZINC_HAMLET_SCRUB ticks more every frame, the year runs fast
   const s = monthStep();
   if (s !== curSeason) {
@@ -496,7 +504,7 @@ export function stepSeason(): void {
     }
     return;
   }
-  if (pendingBands.length === 0 && pendingChunks.length === 0) { warmTrees(curSeason); warmGround(); return; }
+  if (pendingBands.length === 0 && pendingChunks.length === 0) { if (pg === null) { if (warmTrees(curSeason)) applyCamera(); warmGround(); } return; }       // baking a month's trees leaves the renderer's view at the bake's: point it back at the camera
   if (pendingBands.length > 0) {
     const started = Date.now();
     nextBand = [0, pendingBands[0] - MARGIN_PX, W, pendingBands[1] + MARGIN_PX]; pendingBands = pendingBands.slice(2);      // a band is baked with the margin the occlusion reads, like a strip
@@ -506,13 +514,16 @@ export function stepSeason(): void {
   }
 }
 
+/** Makes `models` the set of a zoom level (each level keeps its own atlas, made at its own window size: the header holds the size, so a level shared by a wider window would rebake at every step). */
+function useLevelModels(level: number): void {
+  useModels(level, scaleOf(artLevel(level)), isFixed(level) ? scaleOf(DEFAULT_ZOOM) : 0);
+  useTreeSeason(curSeason);
+}
 /** Makes sure the models and the ground of a zoom level exist, and points the renderer at the camera. */
 function ensureLevel(level: number): void {
-  const fixed = isFixed(level);
   const art = artLevel(level);
   resizeBuffer(windowWidth(level), windowHeight(level));
-  useModels(art, scaleOf(art), fixed ? scaleOf(DEFAULT_ZOOM) : 0);
-  useTreeSeason(curSeason);
+  useLevelModels(level);
   forceFull = true;
   if (layers[art] === null) layers[art] = bakeLayer(art);
   applyCamera();
@@ -522,7 +533,7 @@ function ensureLevel(level: number): void {
 export function bakeVillage(): void {
   configureRenderer(8, 1.1, -.25);
   const t0 = Date.now();
-  ensureBiomes(); curSeason = monthStep(); pendingBands = []; pendingChunks = []; bakeStats.chunks = 0; bakeStats.groundMs = 0;
+  cancelGlide(); ensureBiomes(); curSeason = monthStep(); pendingBands = []; pendingChunks = []; bakeStats.chunks = 0; bakeStats.groundMs = 0;
   forceFull = true;
   for (let i = 0; i < layers.length; i++) layers[i] = null;
   ensureLevel(camera.level);
@@ -535,6 +546,7 @@ export function bakeVillage(): void {
 export function startPoint(): { x: number; y: number } { return { x: tileX(world.gate) * .65, y: tileY(world.gate) * .65 }; }
 /** The area for the map changed (the window was resized): the picture window follows it, keeping the same centre. */
 export function resizeWindow(): void {
+  cancelGlide();
   const centre = centerPoint();
   ensureLevel(camera.level);
   centerOn(centre.x, centre.y);
@@ -552,7 +564,7 @@ export function warmGround(): void {
   if (sig !== restSig) { restSig = sig; restFrames = 0; return; }
   if (++restFrames < WARM_REST) return;
   if (warmList.length === 0) {
-    if (warmSig === sig) return;                                   // everything next to this view is done
+    if (warmSig === sig) { warmModels(); return; }                 // the ground next to this view is done: its models next
     for (const near of [camera.level - 1, camera.level + 1]) {
       const art = artLevel(near);
       if (near < 0 || near >= ZOOM_SCALES.length || art === artLevel(camera.level) || isFixed(art)) continue;
@@ -577,8 +589,171 @@ export function warmGround(): void {
   }
 }
 
+
+/**
+ * The zoom glide. A zoom step used to rebake the whole window in one frame (90 to 190 ms on AOT, a second on the interpreter). Now the new level is baked a few ms a frame into the renderer's
+ * second set of buffers (enterBake: its models first, then the ground and the objects in bands that overlap by the margin a partial bake uses, then the edges), while the picture on screen
+ * stays the old one, still animated, shown scaled by `zoomScale()` (eased over GLIDE_MS) so the view glides to the new level; when the bake is done and the glide too, the second set is copied
+ * into the frame's buffers (one bulk copy a buffer) and the sharp picture replaces the scaled one. The bake follows the same code as a full bake, so the picture is the same one.
+ */
+const GLIDE_MS = 200, GLIDE_FRAMES = 30, SLICE_MS = 4, STAGE_MODELS = 0, STAGE_ACTORS = 1, STAGE_BAKE = 2, STAGE_EDGES = 3, STAGE_READY = 4;
+class Glide {
+  level: number = 0; w: number = 0; h: number = 0; cx: number = 0; cy: number = 0; camX: number = 0; camY: number = 0;
+  stage: number = STAGE_MODELS; actor: number = 0; row: number = 0; tuftRow: number = 0; msRow: number = .05; entered: boolean = false;
+  sig: number[] = []; tufts: number[] = []; season: number = 0;
+  kFrom: number = 1; kTo: number = 1; t0: number = 0; frames: number = 0;
+}
+let pg: Glide | null = null, glideK = 1;
+/** Screen pixels per world unit of a level, up to the one constant of the screen (fit.s0): ratios of two levels are what a glide shows. */
+function pixelsPerUnit(level: number): number { return ZOOM_SCALES[level] / ZOOM_VIEW[level]; }
+/** How much the picture on screen is scaled right now (1 when no glide runs): the scene shows the old picture by this factor. */
+export function zoomScale(): number { return glideK; }
+export function zooming(): boolean { return pg !== null; }
+export function cancelGlide(): void { pg = null; glideK = 1; }
+
+/** Asks for another zoom level: the picture glides there while the level is baked in the background. A glide in progress is retargeted from where the picture is now. */
+export function glideZoom(level: number): void {
+  if (level < 0 || level >= ZOOM_SCALES.length) return;
+  const shown = camera.level;
+  if (pg === null) {
+    if (level === shown) return;
+    if (isFixed(level) || isFixed(shown)) { setZoom(level); return; }           // the fixed detail mode resizes a whole layer: no slices for it
+    pg = new Glide();
+    const centre = centerPoint();
+    pg.cx = centre.x; pg.cy = centre.y; pg.season = curSeason;
+    pg.sig = []; for (let t = 0, n = tileCount(); t < n; t++) pg.sig.push(tileSig(t));
+    pg.level = shown;                                                            // nothing baked yet: the branch below starts it
+  } else if (isFixed(level)) { cancelGlide(); setZoom(level); return; }
+  const g = pg as Glide;
+  g.kFrom = glideK; g.kTo = pixelsPerUnit(level) / pixelsPerUnit(shown); g.t0 = performance.now(); g.frames = 0;
+  if (level === g.level) return;
+  g.level = level; g.w = windowWidth(level); g.h = windowHeight(level);
+  g.stage = STAGE_MODELS; g.actor = 0; g.row = 0; g.tuftRow = 0; g.entered = false; g.tufts = [];
+  const art = artLevel(level);
+  if (layers[art] === null) layers[art] = bakeLayer(art);
+}
+
+/** Runs `work` with the renderer on the target level's window (second buffer set, the target camera, its models), then puts the frame's own back. */
+function inGlideBake(g: Glide, work: () => void): void {
+  const keep = saveModels(), level = camera.level, cx = camera.x, cy = camera.y;
+  enterBake(g.w, g.h, g.entered);
+  camera.level = g.level;
+  if (!g.entered) { useLevelModels(g.level); centerOn(g.cx, g.cy); g.camX = camera.x; g.camY = camera.y; g.entered = true; }
+  else { useLevelModels(g.level); camera.x = g.camX; camera.y = g.camY; applyCamera(); }
+  work();
+  leaveBake();
+  camera.level = level; camera.x = cx; camera.y = cy;
+  restoreModels(keep);
+  applyCamera();
+}
+
+/** One slice of the bake, SLICE_MS at most (a band is the unit: its size follows the speed measured on the bands before). */
+function bakeSlice(g: Glide): void {
+  const t0 = performance.now();
+  const left = (): number => SLICE_MS - (performance.now() - t0);
+  if (g.stage === STAGE_MODELS) {
+    enterBake(g.w, g.h, g.entered); g.entered = true;       // the models are baked at the target's window size (their atlas header holds it)
+    const level = camera.level, cx = camera.x, cy = camera.y;
+    camera.level = g.level;
+    const art = artLevel(g.level);
+    const done = prepareLevel(g.level, scaleOf(art), isFixed(g.level) ? scaleOf(DEFAULT_ZOOM) : 0, curSeason, left());
+    leaveBake(); camera.level = level; camera.x = cx; camera.y = cy; applyCamera();
+    if (!done) return;
+    g.stage = STAGE_ACTORS; g.entered = false;
+    return;
+  }
+  if (g.stage === STAGE_ACTORS) {                          // the people and animals are stamped once at the new scale, so their frames are in the atlas before the first picture (baking them there was most of what a first visit cost)
+    inGlideBake(g, (): void => {
+      const atlas = settings.atlas ? actorAtlas() : null, people = world.people.length, total = people + world.deer.length;
+      while (g.actor < total && left() > 0) {
+        const i = g.actor++;
+        if (i < people) drawPerson(world.people[i], clock.time, atlas); else drawDeer(world.deer[i - people], clock.time, atlas);
+      }
+      pendingShadows.length = 0;
+      if (g.actor >= total) { g.stage = STAGE_BAKE; g.entered = false; }       // the buffers start clean for the ground
+    });
+    return;
+  }
+  inGlideBake(g, (): void => {
+    const layer = layers[artLevel(g.level)] as Layer;
+    if (g.stage === STAGE_BAKE) {
+      while (g.row < g.h && (g.row === 0 || left() > 0)) {
+        const rows = Math.min(g.h - g.row, Math.max(8, g.row === 0 ? 24 : Math.floor(Math.max(1, left()) / g.msRow)));
+        const y0 = Math.max(0, g.row - MARGIN_PX), y1 = g.row + rows, started = performance.now();
+        bakeRects(layer, [0, y0, g.w, y1]);
+        g.msRow = Math.max(.01, (g.msRow + (performance.now() - started) / (y1 - y0)) / 2);
+        const final = y1 >= g.h ? g.h : y1 - MARGIN_PX;           // the rows the next band does not touch again
+        collectTufts(layer, 0, g.tuftRow, g.w, final, g.tufts);
+        g.tuftRow = final; g.row = y1;
+      }
+      if (g.row >= g.h) { g.stage = STAGE_EDGES; g.row = 0; }
+    }
+    if (g.stage === STAGE_EDGES) {
+      while (g.row < g.h && left() > 0) {
+        const rows = Math.min(g.h - g.row, Math.max(16, Math.floor(Math.max(1, left()) / .02)));
+        shadeEdgesRect(0, g.row, g.w, g.row + rows); g.row += rows;
+      }
+      if (g.row >= g.h) g.stage = STAGE_READY;
+    }
+  });
+}
+
+/** Bulk copy of the second set into the frame's buffers: the new picture, its edges and its depth. */
+function glideCommit(g: Glide): void {
+  const art = artLevel(g.level), layer = layers[art] as Layer;
+  camera.level = g.level; camera.x = g.camX; camera.y = g.camY;
+  resizeBuffer(g.w, g.h);
+  const fp = pix, fz = zb, fbp = bakedPix, fbz = bakedZ, fg = ground, fgz = groundZ, fk = kinds, fs = staticShadow;
+  enterBake(g.w, g.h, true);
+  fp.set(pix); fz.set(zb); fbp.set(bakedPix); fbz.set(bakedZ); fg.set(ground); fgz.set(groundZ); fk.set(kinds); fs.set(staticShadow);
+  leaveBake();
+  useLevelModels(g.level);
+  for (let i = 0; i < layers.length; i++) if (i !== art && i !== artLevel(bakedLevel)) layers[i] = null;
+  applyCamera();
+  bakeCount++; bakeStats.full++;
+  bakeInfo.full = true; bakeInfo.shiftX = 0; bakeInfo.shiftY = 0; bakeInfo.rects = [0, 0, g.w, g.h]; bakeInfo.consumed = false; bakeInfo.prepared = true;
+  bakedSig = g.sig; pendingBands = []; nextBand = null;
+  tufts.length = 0; for (const i of g.tufts) tufts.push(i);
+  bakedLayer = layer; bakedLevel = g.level; bakedW = g.w; bakedH = g.h; bakedX = camera.x; bakedY = camera.y; forceFull = false;
+  pg = null; glideK = 1;
+  rebakeStatic();                                           // what changed on the map since the glide began (a tile edited, a season) is baked on top
+}
+
+/** Called once a frame: eases the scale of the picture, bakes a slice, and swaps when both are done. */
+function stepGlide(): void {
+  const g = pg;
+  if (g === null) return;
+  if (g.season !== curSeason) {                                     // a season change repainted the ground and the trees: bake the level again from the models on
+    g.season = curSeason; g.stage = STAGE_MODELS; g.actor = 0; g.row = 0; g.tuftRow = 0; g.entered = false; g.tufts = [];
+    const art = artLevel(g.level);
+    if (layers[art] === null) layers[art] = bakeLayer(art);
+  }
+  g.frames++;
+  const u = Math.min(1, Math.max((performance.now() - g.t0) / GLIDE_MS, g.frames / GLIDE_FRAMES)), e = u * u * (3 - 2 * u);
+  glideK = Math.exp(Math.log(g.kFrom) + (Math.log(g.kTo) - Math.log(g.kFrom)) * e);
+  if (g.level === camera.level) { if (u >= 1) cancelGlide(); return; }       // sent back to the level on screen
+  if (g.stage !== STAGE_READY) { const t = performance.now(), before = g.stage; bakeSlice(g); if (trace.on) console.log('hamlet: glide L' + g.level + ' stage ' + before + '->' + g.stage + ' row ' + g.row + ' slice ' + (performance.now() - t).toFixed(1) + ' ms'); }
+  if (g.stage === STAGE_READY && u >= 1) { const t = performance.now(); glideCommit(g); if (trace.on) console.log('hamlet: glide commit ' + (performance.now() - t).toFixed(1) + ' ms'); }
+}
+
+/** At rest: the models and trees of the levels next to this one, baked a little a frame in the second buffer set (a level's atlas header holds its window size). */
+let modelsWarmKey = '';
+function warmModels(): void {
+  const key = camera.level + ':' + curSeason + ':' + W + 'x' + H;
+  if (key === modelsWarmKey) return;                                // both neighbours are ready: an idle frame costs nothing more
+  for (const near of [camera.level - 1, camera.level + 1]) {
+    if (near < 0 || near >= ZOOM_SCALES.length || isFixed(near)) continue;
+    enterBake(windowWidth(near), windowHeight(near), true);
+    const done = prepareLevel(near, scaleOf(artLevel(near)), 0, curSeason, WARM_MS);
+    leaveBake(); applyCamera();
+    if (!done) return;
+  }
+  modelsWarmKey = key;
+}
+
 /** Switches the zoom level, keeping the same point at the centre of the window. */
 export function setZoom(level: number): void {
+  cancelGlide();
   if (level < 0 || level >= ZOOM_SCALES.length || level === camera.level) return;
   const centre = centerPoint(), previous = camera.level;
   camera.level = level;
@@ -587,12 +762,13 @@ export function setZoom(level: number): void {
   centerOn(centre.x, centre.y);
   rebakeStatic();
 }
-/** One step of zoom: +1 closer, -1 farther (the levels are indexed from the closest). */
-export function stepZoom(direction: number): void { setZoom(camera.level - direction); }
+/** One step of zoom: +1 closer, -1 farther (the levels are indexed from the closest). The picture glides there (see glideZoom); steps asked while it glides add up. */
+export function stepZoom(direction: number): void { const g = pg; glideZoom((g !== null ? g.level : camera.level) - direction); }
 /** The normal zoom, centred on the village. */
-export function resetView(): void { setZoom(DEFAULT_ZOOM); const start = startPoint(); centerOn(start.x, start.y); rebakeStatic(); }
+export function resetView(): void { cancelGlide(); setZoom(DEFAULT_ZOOM); const start = startPoint(); centerOn(start.x, start.y); rebakeStatic(); }
 /** Pans the camera and redoes the static picture if it moved. */
 export function moveCamera(dx: number, dy: number): boolean {
+  if (pg !== null) return false;                                   // the picture is gliding to another level: the pan waits
   if (!panBy(dx, dy)) return false;
   rebakeStatic();
   return true;
@@ -600,6 +776,8 @@ export function moveCamera(dx: number, dy: number): boolean {
 
 /** The detail mode changed: bake the models again (at the current level) and redo the picture. */
 export function refreshModels(): void {
+  modelsWarmKey = '';
+  cancelGlide();
   resetModels();
   for (let i = 0; i < layers.length; i++) layers[i] = null;
   ensureLevel(camera.level);
@@ -607,6 +785,31 @@ export function refreshModels(): void {
 }
 /** Puts the world point (x, y) at the centre of the window (the minimap's click). */
 export function jumpTo(x: number, y: number): void {
+  cancelGlide(); aim = null;
   centerOn(x, y);
   rebakeStatic();
+}
+/**
+ * The camera glides to a world point instead of jumping (the minimap, a message that points at a tile): each frame it covers a share of what is left (an ease out, the same at any frame rate),
+ * by at most a third of the window, so a long way is a run of strip bakes and never a full one; it ends exactly on the point. Any pan by hand cancels it; a zoom glide makes it wait.
+ */
+const AIM_TAU = .07;
+let aim: { x: number; y: number } | null = null;
+export function aimAt(x: number, y: number): void { aim = { x, y }; }
+export function cancelAim(): void { aim = null; }
+export function aiming(): boolean { return aim !== null; }
+/** One frame of the glide; true when the camera moved. */
+export function stepAim(dt: number): boolean {
+  const target = aim;
+  if (target === null || pg !== null) return false;
+  const level = camera.level, s = scaleOf(level);
+  const tx = layerOriginX(level) + (target.x - target.y) / R2 * s - W / 2, ty = layerOriginY(level) + (target.x + target.y) / R2 * SIN * s - H / 2;
+  const left = Math.max(Math.abs(tx - camera.x), Math.abs(ty - camera.y));
+  if (left < 1.5) { aim = null; centerOn(target.x, target.y); rebakeStatic(); return true; }
+  const k = 1 - Math.exp(-Math.min(dt, .1) / AIM_TAU);
+  const dx = clamp((tx - camera.x) * k, -W / 3, W / 3), dy = clamp((ty - camera.y) * k, -H / 3, H / 3);
+  const sx = Math.abs(dx) < 1 && tx !== camera.x ? Math.sign(tx - camera.x) : Math.round(dx), sy = Math.abs(dy) < 1 && ty !== camera.y ? Math.sign(ty - camera.y) : Math.round(dy);
+  if (moveCamera(sx, sy)) return true;
+  aim = null;                                                   // the edge of the map: it cannot go further
+  return false;
 }

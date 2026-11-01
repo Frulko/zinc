@@ -1,5 +1,5 @@
 import { winterCoat } from './seasons';
-import { Color, Palette, Pose, Vec3, figure, dynamicAdd, capsule, sphere, plot, rgb, lerp, castShadow, ripple, Atlas, AtlasAxes, AtlasEntry, AtlasDef, bakeAtlas, headerKey, headerOf } from '../pixel';
+import { Color, Palette, Pose, Vec3, figure, dynamicAdd, capsule, sphere, plot, rgb, lerp, castShadow, ripple, Atlas, AtlasAxes, AtlasEntry, AtlasDef, bakeAtlas, S, W, H, defHash, hashNumbers } from '../pixel';
 import {
   ROLE_LUMBERJACK, ST_FISH, ST_CHOP, ST_MINE, ST_WORK, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
   DEER_GRAZE, DEER_FLEE, DEER_CHASE, DEER_DEAD, DEER_GONE, DEER_DRINK, ST_STALK, STALK_CROUCH,
@@ -164,10 +164,10 @@ function personEntry(): AtlasEntry {
 const ACTOR_DEF_VERSION = 4;
 export function actorAtlas(): Atlas {
   const def: AtlasDef = { version: ACTOR_DEF_VERSION, season: 0, entries: [personEntry(), deerEntry(), ...beastEntries()] };
-  const key = headerKey(headerOf(def));
+  const key = hashNumbers([S, defHash(def), (W / 2) % 4, (H * .6) % 4]);   // a frame is offsets from the bake origin and the light never changes here: only the scale, the dither phase of the origin (the pattern is anchored on buffer pixels) and the definition make another atlas, a window's size does not
   const have = actorAtlases.get(key);
   if (have !== undefined) return have;
-  if (actorAtlases.size >= 3) actorAtlases.clear();
+  if (actorAtlases.size >= 24) actorAtlases.clear();                  // a few per art scale
   const made = bakeAtlas(def);
   actorAtlases.set(key, made);
   return made;

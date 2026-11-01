@@ -547,24 +547,59 @@ export function useModels(level: number, scale: number, reduceFrom: number): voi
   }
 }
 
+/** The set in use (the models, the three tree sets, the level they were made for), so a bake of another level can put it back. */
+export interface ModelState { list: CachedModel[]; sets: CachedModel[][]; level: number; scale: number; reduce: number; }
+export function saveModels(): ModelState { return { list: models.slice(), sets: treeSets.slice(), level: lastLevel, scale: lastScale, reduce: lastReduce }; }
+export function restoreModels(s: ModelState): void {
+  models.length = 0;
+  for (const m of s.list) models.push(m);
+  for (let o = 0; o < 3; o++) treeSets[o] = s.sets[o];
+  lastLevel = s.level; lastScale = s.scale; lastReduce = s.reduce;
+}
 /** The tree sets of the months around the current one: [0] the month before, [1] the month itself, [2] the month after (a tree turns a little earlier or later than its neighbour). */
 const treeSets: CachedModel[][] = [[], [], []];
-function bakeTreeMonth(m: number): Atlas {
-  const key = lastLevel * 12 + m;
+function bakeTreeMonthAt(level: number, scale: number, reduce: number, m: number): Atlas {
+  const key = level * 12 + m;
   let atlas = treeAtlases.get(key);
   if (atlas === undefined || atlas.stale()) {
-    setView(lastReduce > 0 ? lastReduce : lastScale, W / 2, H * .6);
-    const def: AtlasDef = { version: hashNumbers([3, lastScale, lastReduce, settings.resample]), season: m, entries: [{
+    setView(reduce > 0 ? reduce : scale, W / 2, H * .6);
+    const def: AtlasDef = { version: hashNumbers([3, scale, reduce, settings.resample]), season: m, entries: [{
       name: 'tree', variants: 4, yaws: 1, poses: 1,
       draw: (a: AtlasAxes, _x: number, _y: number, _z: number): void => {
         treeSeason = m; tree(a.variant); treeSeason = 4;
-        if (lastReduce > 0) { reduceBuffer(lastScale / lastReduce, W / 2, H * .6); setView(lastScale, W / 2, H * .6); }
+        if (reduce > 0) { reduceBuffer(scale / reduce, W / 2, H * .6); setView(scale, W / 2, H * .6); }
         shadowMask.fill(0);
       },
     }] };
     atlas = bakeAtlas(def); treeAtlases.set(key, atlas);
   }
   return atlas;
+}
+function bakeTreeMonth(m: number): Atlas { return bakeTreeMonthAt(lastLevel, lastScale, lastReduce, m); }
+/**
+ * Bakes the models and the trees of a zoom level a little at a time (until `budgetMs` has passed), so that using the level later finds everything cached. The buffers must
+ * be the level's own window size (the atlas header holds it): the caller is inside enterBake(windowWidth, windowHeight). True when everything is baked.
+ */
+let prepKey = '', prepStep = 0;
+export function prepareLevel(level: number, scale: number, reduce: number, month: number, budgetMs: number): boolean {
+  const started = performance.now(), key = level + ':' + month;
+  if (key !== prepKey) { prepKey = key; prepStep = 0; }
+  setView(reduce > 0 ? reduce : scale, W / 2, H * .6);
+  let atlas = levelAtlases[level];
+  if (atlas === null || atlas.stale()) { atlas = bakeAtlas(modelDef(scale, reduce)); levelAtlases[level] = atlas; prepStep = 0; }
+  let n = 0;
+  for (const m of MODEL_DEFS) for (let v = 0; v < m[1]; v++, n++) {
+    if (n < prepStep) continue;
+    if (performance.now() - started >= budgetMs) return false;
+    (atlas as Atlas).bake(m[0], { variant: v, yaw8: 0, pose: 0 }); prepStep = n + 1;
+  }
+  for (let o = 0; o < 3; o++) for (let v = 0; v < 4; v++, n++) {
+    if (n < prepStep) continue;
+    if (performance.now() - started >= budgetMs) return false;
+    const tm = bakeTreeMonthAt(level, scale, reduce, (month + 11 + o) % 12);
+    tm.bake('tree', { variant: v, yaw8: 0, pose: 0 }); prepStep = n + 1;
+  }
+  return true;
 }
 /** Puts the trees of a month (and its two neighbours) into `models` and the tree sets. The caller points the renderer back at the camera afterwards (applyCamera). */
 export function useTreeSeason(m: number): void {

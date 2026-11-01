@@ -91,3 +91,55 @@ Memory (resident, AOT, zoom run): size 24 181 MB to 132 MB; size 96 691 to 774 M
 - QuickJS frame times (clock steps of 50 ms in this mode); its outputs were compared (identical) through the existing tests only for the engine change.
 - A built village (roads, houses, people) and zoom levels 0 to 10 one by one: the scripted zoom walks levels 5 to 0 and back to 10 and then 5.
 - The first runs (load 15 to 70) are discarded.
+
+## Fluidity pass (2026-11-01, second part)
+
+Same method as above (headless, `ZINC_HAMLET="3,<size>,0"`, 100-frame windows, load 4 to 7). T0 is HEAD's view code, T1 the new code; both drive the same scripted input.
+
+### 1. Zoom step (AOT, scripted zoom walk 5 to 0 and back to 10 and 5)
+
+| Size | | p50 | p95 | p99 | max | frames over 50 ms |
+|---|---|---|---|---|---|---|
+| 24 | before | 4.24 | 7.22 | 71.3 | 106.2 | 13 |
+| 24 | after | 3.49 | 10.6 | 16.4 | 26.6 | 0 |
+| 64 | before | 8.05 | 17.1 | 96.7 | 176.3 | 19 |
+| 64 | after | 7.84 | 17.5 | 25.9 | 40.5 | 0 |
+| 96 | before | 8.18 | 20.8 | 102.3 | 189.5 | 18 |
+| 96 | after | 8.19 | 20.2 | 28.6 | 45.2 | 0 |
+
+The new level is baked in 4 ms slices into the second buffer set while the old picture is shown scaled and eased, then swapped; the neighbours' models are baked at idle (`warmModels`), once per level, season and window size. The frame count is higher after because the glide draws the frames it takes. Pixels: 20 shots over AOT 24, AOT 64 and interpreter 24, 0 differ. Interpreter, size 24: max 698.6 to 70.9 ms, over 50 ms 20 to 10 frames (p50 18.7 to 20.6, the glide frames are drawn).
+A first version re-entered the neighbour bake on every idle frame (idle p50 2.5 to 6.2 ms); the guard on a ready key brought idle back to 2.4 (24) and 4.1 (64) ms, as before.
+
+### 3. Camera easing (AOT)
+
+| Size | Scene | | p50 | p95 | max | frames over 17 ms |
+|---|---|---|---|---|---|---|
+| 24 | pan | before | 2.40 | 5.83 | 8.9 | 0 |
+| 24 | pan | after | 1.95 | 5.75 | 12.0 | 0 |
+| 24 | drag | before | 2.77 | 5.90 | 7.1 | 0 |
+| 24 | drag | after | 2.26 | 5.90 | 11.6 | 0 |
+| 64 | pan | before | 4.94 | 11.4 | 19.9 | 1 |
+| 64 | pan | after | 3.54 | 9.49 | 13.9 | 0 |
+| 64 | drag | before | 4.70 | 7.89 | 10.6 | 0 |
+| 64 | drag | after | 3.72 | 7.53 | 13.7 | 0 |
+
+Velocity and damping for keys and edge pan, inertia after a drag, eased jumps (minimap, messages), time-based so the frame rate does not change the motion. The pan moves in whole pixels (no shimmer) and `pauseOnMove` is kept.
+
+### 4. Bulk copy
+
+`Array.prototype.set(source, offset?)` on the interpreter, AOT, QuickJS (polyfill) and the checker; test `tests/t0/array_set.sh` on four engines; used in the bake and restore loops.
+
+### 2. Idle frame and the map size: not done
+
+No tight-rect change landed: the per-kind extents could not be separated from the other things drawn in a first probe, and a disjoint cover was +5% on AOT before. Left in `backlog/later.md`.
+
+### 5. Windowed (Metal), size 64, load 4 on a shared Mac (not quiet)
+
+| Scene | | p50 | p95 | max |
+|---|---|---|---|---|
+| zoom | before | 42.6 | 321 | 1149 |
+| zoom | after | 29.3 | 48.4 | 362 |
+| pan | before | 18.6 | 50.3 | 338 |
+| pan | after | 17.4 | 47.0 | 347 |
+
+The windowed frame is bound by the presentation, not the village; the max of 340 ms is the first frames (window and GPU setup). Not measured: QuickJS (its clock steps 50 ms) and a quiet machine.
