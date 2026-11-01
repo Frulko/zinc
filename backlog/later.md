@@ -673,6 +673,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: undo the Discord workarounds now that the gaps are fixed: the inline component for `{list.map(fn)}` and the loops over `any` in `state.ts` and `emoji.ts`.
 - ZN-?: `max-w-full` with a fixed `w-[N]` does not clamp inside an absolute `inset-0` root with padding (use `w-full max-w-[N]`), and `max-h-full` with a shrinking `h-[372]` ScrollView does not keep a centred absolute dialog inside the window height.
 - ZN-?: array mutation (`push`, `splice`, `sort`) and string methods on an `any` value are still refused (the new `any` array methods run on a copy).
+- ZN-next: a trap names its source location and values without `ZN_TRAP_TRACE` (file:line, `index 36, length 36`); today `runtime error: array index out of bounds` alone sent the owner a crash with nothing to chase (murdoku, 2026-11-01); needs a pc-to-line table in ZBC.
+- ZN-next: `zinc:ui/solid` batches every event handler and `onTick` by default (as Solid 2): a handler that sets several signals (murdoku `fresh`) renders no state in between; the unbatched writes made a bounds-checked crash only on the default engine, not on QuickJS.
 
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
