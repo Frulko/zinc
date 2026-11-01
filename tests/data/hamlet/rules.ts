@@ -7,7 +7,7 @@ import { population, createResident } from '../../../examples/hamlet/src/engine/
 import { seedFromText, parseSeedRequest } from '../../../examples/hamlet/src/world/seed';
 import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
 import { stateHash } from '../../../examples/hamlet/src/world/hash';
-import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK, PLACE_NO_LODE, ROCK_DEPOSIT, LODE_REACH } from '../../../examples/hamlet/src/constants';
+import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK, PLACE_NO_LODE, PLACE_LOCKED, ROCK_DEPOSIT, LODE_REACH } from '../../../examples/hamlet/src/constants';
 import * as fs from 'zinc:fs';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
@@ -19,6 +19,8 @@ import { toolOf } from '../../../examples/hamlet/src/rules/build';
 import { housingReport, capacityOf } from '../../../examples/hamlet/src/rules/housing';
 import { computeAppeal, appealTiles } from '../../../examples/hamlet/src/rules/appeal';
 import { terrain, TerrainParams, TerrainLayers } from '../../../examples/hamlet/src/gen/terrain';
+import { replayAt } from '../../../examples/hamlet/src/rules/commands';
+import { lockText, scenarioWon } from '../../../examples/hamlet/src/rules/goals';
 import { movePriority } from '../../../examples/hamlet/src/rules/labour';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
 
@@ -31,7 +33,7 @@ let failures = 0;
 function check(name: string, ok: boolean): void { console.log('hamlet rules: ' + name + (ok ? ' PASS' : ' FAIL')); if (!ok) failures++; }
 function run(seconds: number): void { for (let k = 0; k < seconds * 32; k++) stepWorld(); }
 
-world.autosave = false;
+world.autosave = false; world.progression = false;   // nothing is locked but in the goals block
 generate(7916, 12);
 const at = (i: number, j: number): number => tileIndex(i, j);
 for (const t of [at(1, 6), at(2, 6), at(3, 6), at(4, 6), at(5, 6), at(3, 5), at(2, 5), at(4, 7), at(5, 5)]) { world.tree[t] = 0; world.rock[t] = 0; }
@@ -319,6 +321,31 @@ check('quarrymen bring stone, one unit per trip, from the deposit', world.stock[
 check('the deposit survives a save round trip, partly worked', restore(snapshot()) && world.rock[at(7, 9)] === (world.lode[at(7, 9)] > 0 ? ROCK_DEPOSIT + STONE_K : 0) && snapshot().length > 0);
 run(60);
 check('a used-up deposit disappears and the scenery is redone', world.rock[at(7, 9)] === 0 && world.lode[at(7, 9)] === 0 && world.revision > rev && world.stock[STONE_R] + world.buildings[world.build[at(5, 9)]].stock[STONE_R] === 2);
+// ---- goals: locked buildings, conditions checked daily, rewards as commands that replay, progress in the save ----
+world.progression = true;
+generate(1234, 16); clearRow();
+const LODGE_T = economy.typeOf('lodge'), SAWMILL_T = economy.typeOf('sawmill'), HUT_T = economy.typeOf('lumberhut');
+const goalIx = (id: string): number => economy.goals.findIndex((g) => g.id === id);
+check('buildings a goal unlocks start locked, with the goal that opens them in words', applyTool(TOOL_LODGE, at(3, 9)) === PLACE_LOCKED && lockText(LODGE_T).indexOf('Des planches') >= 0 && lockText(HUT_T) === '' && applyTool(TOOL_SAWMILL, at(5, 9)) === PLACE_LOCKED);
+const gh = addBuilding(HOUSE, at(2, 7)); createResident(gh); createResident(gh); world.buildings[gh].residents = 2; world.buildings[gh].timer = 1e9;
+const logsBefore = world.stock[WOOD];
+applyTool(toolOf('lumberhut'), at(3, 9));
+run(25);
+check('a goal is reached in the daily slice: its reward unlocks the sawmill and gives wood', world.goals[goalIx('wood')] === 1 && applyTool(TOOL_SAWMILL, at(5, 9)) === PLACE_OK && world.news.length === 1 && world.news[0].indexOf('Du bois') >= 0);
+check('the reward went through the command log', world.log.length === 1 && world.log[0].kind === 'goal' && world.log[0].a === goalIx('wood') && world.log[0].tick > 0);
+check('the next goal waits for its conditions (planks)', world.goals[goalIx('planks')] === 0 && applyTool(TOOL_LODGE, at(6, 9)) === PLACE_LOCKED);
+setStock(PLANK, 15);
+run(22);
+check('wood, planks, then the lodge opens: the tutorial chain', world.goals[goalIx('planks')] === 1 && lockText(LODGE_T) === '' && world.log.length === 2);
+const logged = world.log.slice(), planksNow = world.stock[PLANK];
+const saveText = snapshot();
+check('goal progress and unlocks survive a save round trip', restore(saveText) && world.goals[goalIx('planks')] === 1 && lockText(LODGE_T) === '' && snapshot() === saveText);
+generate(1234, 16);
+check('a fresh village is locked again', world.goals.every((v) => v === 0) && lockText(LODGE_T) !== '');
+const next = replayAt(logged, 0, 1e9);
+check('replaying the log rebuilds the same progress without checking the conditions', next === 2 && world.goals[goalIx('wood')] === 1 && world.goals[goalIx('planks')] === 1 && lockText(LODGE_T) === '' && world.stock[PLANK] === economy.start[PLANK] + 6);
+check('the scenario is won when its final goal is done', !scenarioWon() && (() => { world.goals = world.goals.map((_v) => 1); return scenarioWon(); })());
+world.progression = false;
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; }

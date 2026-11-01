@@ -23,7 +23,7 @@ export class BuildingDef {
   housing: Housing | null = null; service: ServiceDef | null = null; lode: number = -1; appeal: number[] = [];   // appeal: the rings it adds around itself
 }
 export class Economy {
-  deposits: Deposit[] = [];
+  deposits: Deposit[] = []; goals: Goal[] = [];
   appeal: AppealSource[] = []; appealMax: number = 8;
   resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
   typeOf(id: string): number { for (let k = 0; k < this.buildings.length; k++) if (this.buildings[k].id === id) return k; return -1; }
@@ -38,6 +38,12 @@ export class AppealSource { kind: string = ''; rings: number[] = []; }
 export const APPEAL_KINDS: string[] = ['tree', 'water', 'rock'];
 /** A kind of deposit the generator scatters (economy.json "deposits"). `near` and the numbers are the generator's (gen/deposits.ts). */
 export class Deposit { resource: number = -1; model: number = 0; near: number = 0; density: number = 1; amount: number = 10; required: boolean = false; active: boolean = true; }
+/** One requirement of a goal: `kind` building (count of that type standing), stock (that resource in the stores), population, houses (count at level or above). */
+export class Condition { kind: string = ''; id: number = -1; count: number = 0; level: number = 0; }
+/** A goal: what must hold, and the reward (buildings unlocked, resources given). `requires` names earlier goals; `final` ends the scenario when done. */
+export class Goal {
+  id: string = ''; title: string = ''; text: string = ''; requires: number[] = []; when: Condition[] = []; unlock: number[] = []; give: number[] = []; final: boolean = false;
+}
 export const GATHER_KINDS: string[] = ['', 'tree', 'deer', 'shore'];
 
 function num(obj: any, key: string, fallback: number, where: string, errors: string[]): number {
@@ -79,7 +85,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     if (sv.id === '' || into.serviceOf(sv.id) >= 0) errors.push('bad-id: service "' + sv.id + '" is empty or declared twice');
     into.services.push(sv);
   }
-  into.appeal = []; into.appealMax = 8; into.deposits = [];
+  into.appeal = []; into.appealMax = 8; into.deposits = []; into.goals = [];
   if (data.desirability !== undefined) {
     into.appealMax = num(data.desirability, 'limit', 8, 'desirability', errors);
     for (const s of (data.desirability.terrain === undefined ? [] : data.desirability.terrain) as any[]) {
@@ -152,6 +158,28 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     }
     into.buildings.push(d);
   }
+  into.goals = [];
+  for (const g of (data.goals === undefined ? [] : data.goals) as any[]) {
+    const goal = new Goal(), where = 'goal ' + String(g.id);
+    goal.id = String(g.id === undefined ? '' : g.id); goal.title = String(g.title === undefined ? goal.id : g.title); goal.text = String(g.text === undefined ? '' : g.text); goal.final = g.final === true;
+    if (goal.id === '' || into.goals.some((o: Goal): boolean => o.id === goal.id)) errors.push('bad-id: ' + where + ' is empty or declared twice');
+    for (const r of (g.requires === undefined ? [] : g.requires) as string[]) {
+      const at = into.goals.findIndex((o: Goal): boolean => o.id === r);
+      if (at < 0) errors.push('bad-goal: ' + where + ' requires "' + r + '", which must be declared before it'); else goal.requires.push(at);
+    }
+    for (const w of (g.when === undefined ? [] : g.when) as any[]) {
+      const c = new Condition();
+      if (w.building !== undefined) { c.kind = 'building'; c.id = names.indexOf(String(w.building)); if (c.id < 0) errors.push('bad-goal: ' + where + ' counts the unknown building "' + String(w.building) + '"'); c.count = num(w, 'count', 1, where, errors); }
+      else if (w.stock !== undefined) { c.kind = 'stock'; c.id = ids.indexOf(String(w.stock)); if (c.id < 0) errors.push('unknown-resource: ' + where + ' counts "' + String(w.stock) + '"'); c.count = num(w, 'count', 1, where, errors); }
+      else if (w.population !== undefined) { c.kind = 'population'; c.count = num(w, 'population', 1, where, errors); }
+      else if (w.houses !== undefined) { c.kind = 'houses'; c.count = num(w, 'houses', 1, where, errors); c.level = num(w, 'level', 1, where, errors); }
+      else errors.push('bad-goal: ' + where + ' has a condition that is none of building, stock, population, houses');
+      goal.when.push(c);
+    }
+    for (const u of (g.unlock === undefined ? [] : g.unlock) as string[]) { const k = names.indexOf(u); if (k < 0) errors.push('bad-goal: ' + where + ' unlocks the unknown building "' + u + '"'); else goal.unlock.push(k); }
+    goal.give = amounts(g.give, ids, where + '.give', errors);
+    into.goals.push(goal);
+  }
   if (data.hall !== undefined) { into.hall = names.indexOf(String(data.hall)); if (into.hall < 0 || !into.buildings[into.hall].store) errors.push('bad-hall: "hall" must name a building with "store": true'); }
   // a resource somebody needs must come, directly or through other buildings, from a building that takes nothing in (a raw source)
   const made = ids.map((_id: string): boolean => false);
@@ -175,7 +203,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
 export function loadEconomy(text: string, models: string[], roles: string[]): void {
   const next = new Economy(), errors = parseEconomy(text, models, roles, next);
   if (errors.length > 0) throw new Error('economy.json: ' + errors.join('; '));
-  economy.resources = next.resources; economy.services = next.services; economy.deposits = next.deposits; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
+  economy.resources = next.resources; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
 }
 
 /** One line per resource: who makes it and who uses it. The report of a chain, for the maker of the data. */

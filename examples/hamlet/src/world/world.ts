@@ -4,7 +4,7 @@ import {
 import { noise } from './noise';
 import { terrain, TerrainParams, TerrainLayers } from '../gen/terrain';
 import { placeDeposits, DepositRule } from '../gen/deposits';
-import { economy, Resource, Service } from './economy';
+import { economy, Resource, Service, Goal, BuildingDef } from './economy';
 
 /** Anything that walks the tile grid. A class, not an interface: the walking code takes a Mover and must change the person itself (interfaces are copied records). */
 export class Mover { x: number = 0; y: number = 0; yaw: number = 0; path: number[] = []; step: number = 0; phase: number = 0; }
@@ -22,6 +22,8 @@ export class Person extends Mover {
   role: number = 0; home: number = -1; job: number = -1; state: number = 0; timer: number = 0; target: number = -1; carry: number = 0; hair: number = 0;
   shotX: number = 0; shotY: number = 0;
 }
+/** A decision applied to the village and logged with its tick (rules/commands.ts). */
+export class Command { tick: number = 0; kind: string = ''; a: number = 0; b: number = 0; }
 export class Deer extends Mover { state: number = 0; timer: number = 0; hunted: boolean = false; stag: boolean = false; }
 
 /** The whole game state: plain data, no drawing, no side effect at import. */
@@ -37,11 +39,20 @@ export interface World {
   saveDirty: boolean; lastSave: number; autosave: boolean;
   deerTimer: number; waitingForFood: boolean;
   appeal: number[];                 // desirability per tile, recomputed daily (rules/appeal.ts)
+  goals: number[];                  // per goal: 1 when done (rules/goals.ts); unlocked: per building type 1 when it may be built
+  unlocked: number[]; progression: boolean; news: string[]; log: Command[];   // progression off: nothing is locked (tests); news: lines for the UI to show and clear; log: the commands issued
   lode: number[];                   // what is left of the deposit on a tile (world.rock >= ROCK_DEPOSIT)
   params: TerrainParams;            // what the terrain generator was asked for (saved with the village)
   priority: number[];               // building types in the order idle residents are given work (rules/labour.ts)
 }
 
+/** Progress of a new village: no goal done, every building named by a goal's reward locked (rules/goals.ts). */
+export function resetGoals(): void {
+  world.goals = economy.goals.map((_g: Goal): number => 0);
+  world.unlocked = economy.buildings.map((_d: BuildingDef): number => 1);
+  for (const g of economy.goals) for (const k of g.unlock) world.unlocked[k] = 0;
+  world.news = []; world.log = [];
+}
 /** A new building of a type on a tile, empty. The rules add buildings the same way (rules/build.ts). */
 export function newBuilding(type: number, t: number): number {
   const id = world.buildings.length, b = new Building(), none = (): number[] => economy.resources.map((_r: Resource): number => 0);
@@ -62,7 +73,7 @@ export const world: World = {
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, appeal: [], lode: zeros(), params: new TerrainParams(), priority: [],
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, appeal: [], goals: [], unlocked: [], progression: true, news: [], log: [], lode: zeros(), params: new TerrainParams(), priority: [],
 };
 
 // ---- tiles ----
@@ -125,7 +136,7 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
   world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.build = zeros(size); world.claimed = zeros(size); world.lode = zeros(size);
   world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.stock = [];
   world.buildings = []; world.people = []; world.deer = []; world.felledCount = 0; world.treeTimer = 0;
-  world.deerTimer = 0; world.waitingForFood = false; world.priority = []; world.appeal = zeros(size); world.lastSave = 0; world.saveDirty = false;
+  world.deerTimer = 0; world.waitingForFood = false; world.priority = []; world.appeal = zeros(size); resetGoals(); world.lastSave = 0; world.saveDirty = false;
   seedRandom(seed);
   world.params = params;
   params.tile = TILE; params.clearI = GATE_I; params.clearJ = Math.floor(size / 2); params.clearR = 2;

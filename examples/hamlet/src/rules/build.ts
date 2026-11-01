@@ -1,8 +1,9 @@
-import { HOUSE, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_NO_LODE, ROCK_DEPOSIT } from '../constants';
+import { HOUSE, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_NO_LODE, PLACE_LOCKED, ROCK_DEPOSIT } from '../constants';
 import { world, newBuilding, recount, tileIndex, tileI, tileJ, neighbor, isOpen, waterNeighbor } from '../world/world';
 import { economy } from '../world/economy';
 import { releaseWorkers, removeResidents } from '../engine/villagers';
 import { canPay, pay } from './stock';
+import { isUnlocked } from './goals';
 
 /** The tool that places a building type. */
 export function toolOf(id: string): number { return TOOL_HOUSE + economy.typeOf(id); }
@@ -26,6 +27,7 @@ export function checkTool(tool: number, t: number): number {
   if (tool === TOOL_ROAD) return PLACE_OK;
   const def = economy.buildings[tool - TOOL_HOUSE];
   if (def.gather === 'shore' && waterNeighbor(t) < 0) return PLACE_NO_WATER;
+  if (!isUnlocked(tool - TOOL_HOUSE)) return PLACE_LOCKED;
   if (def.lode >= 0 && !lodeNear(t, def.lode)) return PLACE_NO_LODE;
   if (def.needsRoad && !hasRoadNeighbor(t)) return PLACE_NO_ROAD;
   return canPay(def.cost) ? PLACE_OK : PLACE_NO_STOCK;

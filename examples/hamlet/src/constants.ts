@@ -30,6 +30,7 @@ export const PLACE_BLOCKED = 1;
 export const PLACE_NO_ROAD = 2;
 export const PLACE_NO_STOCK = 3;
 export const PLACE_NO_WATER = 4;
+export const PLACE_LOCKED = 6;         // the building is unlocked by a goal not yet reached
 export const PLACE_NO_LODE = 5;        // a gatherer of a deposit with none of its kind near
 
 // ---- time ----
@@ -118,5 +119,5 @@ export const DEER_GONE = 4;             // free slot
 
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';
-export const SAVE_VERSION = 'H11';
+export const SAVE_VERSION = 'H12';
 export const SAVE_DELAY = 2;            // seconds between two writes

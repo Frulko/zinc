@@ -17,6 +17,28 @@
     { "id": "berries", "label": "Baies", "carry": "sack", "price": 2 }
   ],
   "desirability": { "limit": 8, "terrain": [ { "kind": "tree", "rings": [1] }, { "kind": "water", "rings": [2, 1] } ] },
+  "goals": [
+    { "id": "wood", "title": "Du bois", "text": "Posez une cabane de bûcheron au bord de la route : les habitants coupent les arbres.",
+      "when": [ { "building": "lumberhut" } ], "unlock": ["sawmill"], "give": { "log": 4 } },
+    { "id": "planks", "title": "Des planches", "text": "La scierie change le bois en planches : réunissez-en douze.", "requires": ["wood"],
+      "when": [ { "building": "sawmill" }, { "stock": "plank", "count": 12 } ], "unlock": ["lodge", "fishery"], "give": { "plank": 6 } },
+    { "id": "street", "title": "Une rue", "text": "Trois maisons le long de la route : le hameau prend forme.", "requires": ["planks"],
+      "when": [ { "building": "house", "count": 3 } ], "unlock": ["smokehouse", "farm"] },
+    { "id": "hunt", "title": "À la chasse", "text": "Un atelier de chasse rapporte du gibier et des peaux.", "requires": ["planks"],
+      "when": [ { "building": "lodge" } ], "unlock": ["tannery"], "give": { "log": 5 } },
+    { "id": "leather", "title": "Du cuir", "text": "La tannerie fait du cuir avec les peaux : il en faut pour le marché.", "requires": ["hunt"],
+      "when": [ { "building": "tannery" }, { "stock": "leather", "count": 2 } ], "unlock": ["quarry", "market"] },
+    { "id": "stone", "title": "De la pierre", "text": "Une carrière tire la pierre des rochers veinés : elle sert aux puits.", "requires": ["leather"],
+      "when": [ { "building": "quarry" } ], "unlock": ["well"] },
+    { "id": "bread", "title": "Du pain", "text": "La ferme donne du blé, le moulin de la farine, la boulangerie du pain.", "requires": ["street"],
+      "when": [ { "building": "farm" } ], "unlock": ["mill", "bakery"] },
+    { "id": "square", "title": "La place du marché", "text": "Un marchand parcourt les routes : les maisons qu’il croise sont servies.", "requires": ["leather"],
+      "when": [ { "building": "market" } ], "give": { "plank": 10 } },
+    { "id": "growth", "title": "Le hameau grandit", "text": "Deux maisons de niveau 2 : eau, marché et nourriture variée.", "requires": ["square"],
+      "when": [ { "houses": 2, "level": 1 } ], "give": { "plank": 10, "stone": 4 } },
+    { "id": "prosperity", "title": "Un village prospère", "text": "Quatorze habitants et une demeure de niveau 3 : le village est fondé.", "requires": ["growth"],
+      "when": [ { "population": 14 }, { "houses": 1, "level": 2 } ], "final": true }
+  ],
   "services": [ { "id": "water", "label": "Eau" }, { "id": "market", "label": "Marché" } ],
   "start": { "log": 20, "plank": 10, "leather": 1, "stone": 2 },
   "deposits": [
