@@ -108,25 +108,20 @@ function addRect(list: number[], sx: number, sy: number, left: number, up: numbe
   const x0 = Math.max(0, Math.floor(sx - left) - 2), y0 = Math.max(0, Math.floor(sy - up) - 2), x1 = Math.min(W, Math.ceil(sx + right) + 3), y1 = Math.min(H, Math.ceil(sy + down) + 3);
   if (x1 > x0 && y1 > y0) list.push(x0, y0, x1, y1);
 }
-/** Overlapping rectangles become disjoint ones covering the same pixels, so no pixel is restored or edged twice and nothing outside them is touched (the bounding box of a chain of overlaps grew to the whole window). */
+/** Overlapping rectangles become one, so no pixel is restored or edged twice. */
 function merge(rects: number[]): number[] {
   const out: number[] = [];
   for (let k = 0; k < rects.length; k += 4) {
-    let pieces: number[] = [rects[k], rects[k + 1], rects[k + 2], rects[k + 3]];
-    for (let m = 0; m < out.length && pieces.length > 0; m += 4) {
-      const e0 = out[m], e1 = out[m + 1], e2 = out[m + 2], e3 = out[m + 3], next: number[] = [];
-      for (let p = 0; p < pieces.length; p += 4) {
-        const a = pieces[p], b = pieces[p + 1], c = pieces[p + 2], d = pieces[p + 3];
-        if (e0 >= c || e2 <= a || e1 >= d || e3 <= b) { next.push(a, b, c, d); continue; }
-        if (b < e1) next.push(a, b, c, e1);
-        if (d > e3) next.push(a, e3, c, d);
-        const t = Math.max(b, e1), u = Math.min(d, e3);
-        if (a < e0) next.push(a, t, e0, u);
-        if (c > e2) next.push(e2, t, c, u);
+    let x0 = rects[k], y0 = rects[k + 1], x1 = rects[k + 2], y1 = rects[k + 3], again = true;
+    while (again) {
+      again = false;
+      for (let m = 0; m < out.length; m += 4) {
+        if (out[m] >= x1 || out[m + 2] <= x0 || out[m + 1] >= y1 || out[m + 3] <= y0) continue;
+        x0 = Math.min(x0, out[m]); y0 = Math.min(y0, out[m + 1]); x1 = Math.max(x1, out[m + 2]); y1 = Math.max(y1, out[m + 3]);
+        out.splice(m, 4); again = true; break;
       }
-      pieces = next;
     }
-    for (let p = 0; p < pieces.length; p++) out.push(pieces[p]);
+    out.push(x0, y0, x1, y1);
   }
   return out;
 }
