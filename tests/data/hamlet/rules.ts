@@ -748,3 +748,26 @@ for (const pr of PRESETS) for (const size of [24, 40]) {
 }
 console.log('hamlet rules: presethash ' + (presetHash >>> 0));
 console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');
+// ---- road laying: the L-shaped line, existing roads skipped, an obstacle ends it, the auto-route goes round ----
+import { TERRAIN_GRASS } from '../../../examples/hamlet/src/constants';
+import { linePath, planRoad } from '../../../examples/hamlet/src/rules/roadplan';
+generate(7916, 24);
+for (let j = 3; j <= 14; j++) for (let i = 3; i <= 14; i++) { const t = at(i, j); world.terrain[t] = TERRAIN_GRASS; world.tree[t] = 0; world.rock[t] = 0; world.build[t] = -1; world.road[t] = 0; }
+const wide = linePath(at(4, 5), at(10, 7), false), tall = linePath(at(4, 5), at(6, 11), false), flipped = linePath(at(4, 5), at(10, 7), true);
+check('the L runs along the longer side first, corner under the cursor', wide.length === 9 && wide[6] === at(10, 5) && wide[8] === at(10, 7) && tall[6] === at(4, 11) && tall[8] === at(6, 11));
+check('a flip takes the other side first', flipped[2] === at(4, 7) && flipped[8] === at(10, 7) && wide.every((t, k) => k === 0 || t !== wide[k - 1]));
+check('a line has no repeated tile and is one tile for a click', linePath(at(5, 5), at(5, 5), false).length === 1 && wide.every((t, k) => wide.indexOf(t) === k));
+world.road[at(6, 5)] = 1; world.road[at(7, 5)] = 1;
+const plan = planRoad(at(4, 5), at(10, 7), false, false);
+check('existing road tiles are on the line but cost nothing', plan.tiles.length === 9 && plan.fresh.length === 7 && plan.blocked < 0 && plan.fresh.indexOf(at(6, 5)) < 0);
+world.tree[at(9, 5)] = 1;
+const cut = planRoad(at(4, 5), at(10, 7), false, false);
+check('a blocked tile ends the line and is marked', cut.blocked === at(9, 5) && cut.tiles[cut.tiles.length - 1] === at(9, 5) && cut.fresh.length === 3);
+const around = planRoad(at(4, 5), at(10, 7), false, true);
+check('the auto-route goes round the tree and reaches the end', around.blocked < 0 && around.tiles[around.tiles.length - 1] === at(10, 7) && around.tiles.indexOf(at(9, 5)) < 0);
+for (let k = 1; k < around.tiles.length; k++) if (Math.abs(tileI(around.tiles[k]) - tileI(around.tiles[k - 1])) + Math.abs(tileJ(around.tiles[k]) - tileJ(around.tiles[k - 1])) !== 1) { check('the auto-route is a chain of neighbours', false); break; }
+const roadsBefore = world.road.join('');
+for (const t of around.fresh) applyTool(TOOL_ROAD, t);
+const roadHash = world.road.reduce((h, v, k) => (h * 31 + v * (k + 1)) | 0, 7);
+check('laying the planned tiles joins start to end', around.tiles.every((t) => world.road[t] === 1) && world.road.join('') !== roadsBefore);
+console.log('hamlet rules: roadhash ' + (roadHash >>> 0) + ':' + wide.join('.') + ':' + around.tiles.join('.'));

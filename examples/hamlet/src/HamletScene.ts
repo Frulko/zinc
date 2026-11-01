@@ -31,7 +31,8 @@ import { ui, act, viewport, SPEEDS, mapView } from './ui/state';
 import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
 import { drawInfo, pickAt, closeInfo } from './ui/Info';
-import { look, record, beginGroup, endGroup, undo, drawPlacementLabel, reasonText } from './ui/Placement';
+import { look, record, beginGroup, endGroup, undo, drawPlacementLabel, reasonText, showLine, drawLine } from './ui/Placement';
+import { planRoad, linePath, RoadPlan } from './rules/roadplan';
 import { WIN_INFO, WIN_MAIN, WIN_ADVISOR, WIN_CAMPAIGN, WIN_TREE, WIN_NONE } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
 import { loadPrefs, savePrefs } from './ui/prefs';
@@ -77,6 +78,13 @@ export class HamletScene extends Sprite {
   private panY: number = 0;
   private dragging: boolean = false;
   private lastPaint: number = -1;
+  private lineStart: number = -1;         // road and demolition: the tile where the press began; the line runs from it to the pointer
+  private anchor: number = -1;            // auto-route mode: the first click of a click-start, click-end road
+  private flip: boolean = false;          // the L of the line takes its shorter side first
+  private route: boolean = false;         // a blocked L goes round the obstacles
+  private lineKey: string = '';
+  private lineCount: number = -1;
+  private lineSoundAt: number = 0;
   private hover: number = -1;
   private message: string = '';
   private messageUntil: number = 0;
@@ -185,6 +193,8 @@ export class HamletScene extends Sprite {
     else if (name === 'f' || name === 'F') openAdvisor(ui.advisor);
     else if (name === 'c' || name === 'C') openCampaign();
     else if (name === 't' || name === 'T') openTree();
+    else if (name === 'x' || name === 'X') { this.flip = !this.flip; this.say(this.flip ? 'Route : le coude passe de l’autre côté.' : 'Route : le coude suit le côté le plus long.'); }
+    else if (name === 'r' || name === 'R') { this.route = !this.route; this.anchor = -1; this.say(this.route ? 'Route automatique : cliquez le départ, puis l’arrivée ; elle contourne les obstacles.' : 'Route à la main : glissez du départ à l’arrivée.'); }
     else if (name === 'v' || name === 'V') { settings.appeal = !settings.appeal; this.say(settings.appeal ? 'Désirabilité : points verts et rouges sur la carte.' : 'Désirabilité masquée.'); }
     else if (name === 'o' || name === 'O') ui.overlayMenu = !ui.overlayMenu;
     else if (name === 'n' || name === 'N' || name === 'g' || name === 'G') openNew();
@@ -217,8 +227,9 @@ export class HamletScene extends Sprite {
       if (this.paused || !this.surface.contains(x, y)) return;
       if (this.tool === TOOL_NONE) { this.grabbing = true; this.grabMoved = false; this.grabX = x; this.grabY = y; uiState.dirty = true; return; }   // no tool: drag moves the map, a click picks
       this.dragging = true; this.lastPaint = -1; beginGroup();
+      if (this.isLine()) this.lineStart = this.anchor >= 0 ? this.anchor : this.tileUnder(x, y);
     }
-    if (down) this.drag(x, y, true); else { this.dragging = false; endGroup(); }
+    if (down) this.drag(x, y, true); else { if (this.dragging && this.isLine()) this.commitLine(this.tileUnder(x, y)); this.dragging = false; endGroup(); }
     uiState.dirty = true;
   }
   /** A right click: info on the building or person under the pointer, else it backs out of the current window, menu or tool. */
@@ -229,12 +240,47 @@ export class HamletScene extends Sprite {
     }
     if (ui.window === WIN_INFO) closeInfo(); else if (ui.category >= 0) ui.category = -1; else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE;
   }
+  private isLine(): boolean { return this.tool === TOOL_ROAD || this.tool === TOOL_ERASE; }
+  /** The line a drag would act on: from the press (or the first click) to the tile under the pointer. */
+  private linePlanFor(start: number, end: number): RoadPlan { return planRoad(start, end, this.flip, this.route && this.tool === TOOL_ROAD); }
+  private updateLine(): void {
+    if (this.tool !== TOOL_ROAD) this.anchor = -1;
+    const start = this.dragging && this.lineStart >= 0 ? this.lineStart : this.anchor, end = this.hover;
+    if (!this.isLine() || start < 0 || end < 0) { showLine(null); this.lineKey = ''; this.lineCount = -1; return; }
+    const key = start + ':' + end + ':' + this.flip + this.route + this.tool + ':' + world.revision;
+    if (key === this.lineKey) return;
+    this.lineKey = key; uiState.dirty = true;
+    if (this.tool === TOOL_ROAD) {
+      const plan = this.linePlanFor(start, end); showLine(plan);
+      if (plan.fresh.length !== this.lineCount && this.dragging && ui.time - this.lineSoundAt > .06) { this.lineSoundAt = ui.time; sound('road', .25); }
+      this.lineCount = plan.fresh.length;
+    } else showLine(null, linePath(start, end, this.flip).filter((t) => checkTool(TOOL_ERASE, t) === PLACE_OK));
+  }
+  /** Lays or demolishes the line, all of it one step for Ctrl+Z; in auto-route mode a click on a single tile only sets the start. */
+  private commitLine(end: number): void {
+    const start = this.lineStart; this.lineStart = -1;
+    if (end < 0) end = this.hover;
+    if (start < 0 || end < 0) return;
+    if (this.tool === TOOL_ROAD && this.route && this.anchor < 0 && start === end) { this.anchor = start; return; }
+    this.anchor = -1;
+    const plan = this.linePlanFor(start, end);
+    const tiles = this.tool === TOOL_ROAD ? plan.fresh : linePath(start, end, this.flip);
+    let done = 0;
+    for (const t of tiles) {
+      const before = look(t);
+      if (applyTool(this.tool, t) === PLACE_OK) { record(this.tool, t, before); done++; }
+    }
+    showLine(null); this.lineKey = '';
+    if (done > 0) sound(this.tool === TOOL_ERASE ? 'erase' : 'place', .6);
+    else if (this.tool === TOOL_ROAD && plan.blocked >= 0) { sound('error', .5); this.say(reasonText(this.tool, 1)); }
+  }
   /** Roads and demolition are painted by dragging; a building is placed once, on the press. */
   private drag(x: number, y: number, first: boolean): void {
     if (this.tool === TOOL_NONE) return;
     const t = this.tileUnder(x, y);
     if (t < 0 || t === this.lastPaint) return;
     this.lastPaint = t;
+    if (this.isLine()) return;               // a line is laid on release
     if (first || this.tool === TOOL_ROAD || this.tool === TOOL_ERASE) this.act(t);
   }
 
@@ -287,6 +333,7 @@ export class HamletScene extends Sprite {
     this.moveView(dt, x, y);
     this.hover = this.paused || this.tool === TOOL_NONE || hitAt(x, y) !== null ? -1 : this.tileUnder(x, y);
     this.held = held;
+    this.updateLine();
     const signature = camera.x * 7919 + camera.y * 31 + camera.level * 100003;
     if (signature !== this.cameraSignature) { this.cameraSignature = signature; this.sinceMove = 0; } else this.sinceMove += dt;
     if (!this.paused && !isModal() && (!settings.pauseOnMove || this.sinceMove > .3)) {
@@ -334,7 +381,7 @@ export class HamletScene extends Sprite {
     beginFrame();
     mapView.x = this.surface.x; mapView.y = this.surface.y; mapView.scale = this.surface.scale; mapView.cropX = this.frame.cropX; mapView.cropY = this.frame.cropY;
     clip(this.surface.x, this.surface.y, this.frame.cropWidth * this.surface.scale, this.frame.cropHeight * this.surface.scale);
-    drawOverlay(); drawReach(this.tool, this.hover);
+    drawOverlay(); drawLine(); drawReach(this.tool, this.hover);
     unclip(); drawLegend();
     topBar(); column(); drawFlyout(); drawOverlayMenu(); drawInfo(); drawAdvisors(); drawCampaign(); drawTree();
     drawBanner(vp.x + vp.w / 2, vp.y + 8);

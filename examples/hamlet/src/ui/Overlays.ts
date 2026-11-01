@@ -21,7 +21,7 @@ export function overlayNames(): string[] {
 const labourIndex = (): number => 2 + serviceCount(), foodIndex = (): number => 3 + serviceCount();
 
 /** A tile as a tinted diamond on the map. */
-function tint(t: number, color: number, alpha: number): void {
+export function tint(t: number, color: number, alpha: number): void {
   const cx = tileX(t), cy = tileY(t), h = TILE / 2, pts: number[] = [];
   const corners = [[cx - h, cy], [cx, cy - h], [cx + h, cy], [cx, cy + h]];
   const vp = viewport();

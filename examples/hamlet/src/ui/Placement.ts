@@ -7,6 +7,8 @@ import { give } from '../rules/stock';
 import { lockText } from '../rules/goals';
 import { recount } from '../world/world';
 import { drawResource } from './icons';
+import { tint } from './Overlays';
+import { RoadPlan } from '../rules/roadplan';
 import { kit, col, parchment, text, measure, wrap } from './kit';
 
 // Placement feedback: the label that follows the pointer (cost, why not), the count of a drag, and Ctrl+Z.
@@ -15,6 +17,17 @@ class Action { kind: number = 0; tile: number = 0; type: number = 0; }
 const groups: Action[][] = [];
 let current: Action[] = [];
 export const drag = { active: false, count: 0 };
+/** The line a road or demolition drag would act on (null when no line is being drawn): drawn as a ghost, counted in the label. */
+export let linePlan: RoadPlan | null = null;
+export let lineErase: number[] = [];
+export function showLine(plan: RoadPlan | null, erase: number[] = []): void { linePlan = plan; lineErase = erase; }
+/** The ghost of the line: green where the road will go, pale where one already stands, red on the obstacle that ends it. */
+export function drawLine(): void {
+  if (linePlan !== null) {
+    for (const t of linePlan.tiles) tint(t, t === linePlan.blocked ? 0xc8452f : world.road[t] !== 0 ? 0xe0b13c : 0x3f9a45, t === linePlan.blocked ? 190 : 140);
+  }
+  for (const t of lineErase) tint(t, 0xc8452f, 150);
+}
 
 export function beginGroup(): void { current = []; drag.active = true; drag.count = 0; }
 export function endGroup(): void { if (current.length > 0) { groups.push(current); if (groups.length > 30) groups.shift(); } current = []; drag.active = false; }
@@ -63,15 +76,17 @@ export function drawPlacementLabel(tool: number, tile: number, px: number, py: n
   if (tile < 0 && !drag.active) return;
   const code = tile >= 0 ? checkTool(tool, tile) : 1, ok = code === PLACE_OK;
   const build = tool >= TOOL_HOUSE && tool < TOOL_ERASE, name = build ? economy.buildings[tool - TOOL_HOUSE].label : tool === TOOL_ROAD ? 'Route' : 'Démolir';
-  const head = drag.active && drag.count > 1 ? name + ' · ' + drag.count + ' cases' : name;
-  const reason = !ok && tile >= 0 && (build || tool === TOOL_ERASE) ? wrap(reasonText(tool, code), 230) : [];
+  const line = linePlan !== null ? linePlan.fresh.length : lineErase.length > 0 ? lineErase.length : 0;
+  const head = linePlan !== null && line > 0 ? name + ' · ' + line + (line > 1 ? ' cases' : ' case') : lineErase.length > 1 ? name + ' · ' + line + ' cases' : drag.active && drag.count > 1 ? name + ' · ' + drag.count + ' cases' : name;
+  const stop = linePlan !== null && linePlan.blocked >= 0;
+  const reason = stop ? wrap('Un obstacle arrête la route.', 230) : !ok && tile >= 0 && (build || tool === TOOL_ERASE) && lineErase.length === 0 ? wrap(reasonText(tool, code), 230) : [];
   let w = Math.max(measure(head), 70);
   if (build) { let cw = 0; for (let k = 0; k < economy.resources.length; k++) if (economy.buildings[tool - TOOL_HOUSE].cost[k] > 0) cw += 26 + measure(String(economy.buildings[tool - TOOL_HOUSE].cost[k])); w = Math.max(w, cw); }
   for (const l of reason) w = Math.max(w, measure(l));
   w += 16; const h = 8 + kit.lineH + (build ? 20 : 0) + reason.length * kit.lineH + 4;
   const x = Math.max(4, Math.min(width() - w - 200, px + 20)), y = py + 22;
   parchment(x, y, w, h);
-  text(kit.body, x + 8, y + 5, head, ok ? col('good') : col('bad'));
+  text(kit.body, x + 8, y + 5, head, ok && !stop ? col('good') : col('bad'));
   let cy = y + 6 + kit.lineH;
   if (build) {
     const cost = economy.buildings[tool - TOOL_HOUSE].cost;

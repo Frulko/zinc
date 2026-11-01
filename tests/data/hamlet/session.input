@@ -3,26 +3,23 @@
 4 text 2
 6 key Enter
 50 key 1
+51 key r
 52 move 355 380
 53 down
-55 move 394 399
-57 move 431 380
-59 move 470 399
-61 move 507 418
-63 move 545 437
-65 move 583 456
-67 move 621 475
-69 move 659 494
-73 up
+54 up
+56 move 659 494
+57 down
+58 up
+64 key r
 77 key 2
-79 move 507 380
+79 move 358 517
 80 down
 82 up
-85 move 545 399
+85 move 434 517
 86 down
 88 up
 91 key 3
-93 move 583 418
+93 move 396 536
 94 down
 96 up
 1400 key 4
