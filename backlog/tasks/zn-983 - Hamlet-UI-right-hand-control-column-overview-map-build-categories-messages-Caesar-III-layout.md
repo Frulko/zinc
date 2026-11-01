@@ -3,9 +3,10 @@ id: ZN-983
 title: >-
   Hamlet UI: right-hand control column - overview map, build categories,
   messages (Caesar III layout)
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-11-01 14:24'
+updated_date: '2026-11-01 14:54'
 labels:
   - hamlet
   - demo
@@ -25,7 +26,7 @@ The classic layout: a fixed column on the right with the minimap and its view bo
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The column replaces the bottom toolbar and keeps every tool reachable by mouse and hotkey
-- [ ] #2 The minimap sits at its top with the camera box and click to jump
-- [ ] #3 Layout adapts to window size and can be collapsed
+- [x] #1 The column replaces the bottom toolbar and keeps every tool reachable by mouse and hotkey
+- [x] #2 The minimap sits at its top with the camera box and click to jump
+- [x] #3 Layout adapts to window size and can be collapsed
 <!-- AC:END -->

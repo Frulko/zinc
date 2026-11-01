@@ -3,9 +3,10 @@ id: ZN-984
 title: >-
   Hamlet UI: build menu with categories, submenus, costs, tooltips and locked
   entries
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-11-01 14:24'
+updated_date: '2026-11-01 14:54'
 labels:
   - hamlet
   - demo
@@ -25,7 +26,7 @@ Pressing a category opens a flyout listing its buildings with the model icon, co
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Categories and entries come from the economy data, not code
-- [ ] #2 Tooltip shows cost, workers, inputs and outputs of the hovered building
-- [ ] #3 Locked and unaffordable entries are greyed with the reason
+- [x] #1 Categories and entries come from the economy data, not code
+- [x] #2 Tooltip shows cost, workers, inputs and outputs of the hovered building
+- [x] #3 Locked and unaffordable entries are greyed with the reason
 <!-- AC:END -->

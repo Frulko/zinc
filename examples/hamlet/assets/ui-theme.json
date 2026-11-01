@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "font": "PixelifySans",
+  "skins": [
+    { "id": "roman", "label": "Romain", "colors": {
+      "stone": "#8c8676", "stoneLight": "#bbb4a0", "stoneDark": "#4f4a40", "stoneDeep": "#2c2923",
+      "parchment": "#e6d6a8", "parchmentDark": "#c2aa72", "parchmentLight": "#f3e8c4",
+      "ink": "#3b2d1a", "muted": "#7d6e52", "accent": "#a2402b", "gold": "#e0b13c", "goldDark": "#8a6a1c",
+      "good": "#477a35", "bad": "#b03a2a", "warn": "#c98a24", "disabled": "#a39a82", "bar": "#26231d", "barText": "#f1e6c0" } },
+    { "id": "nile", "label": "Egyptien", "colors": {
+      "stone": "#b79a62", "stoneLight": "#dcc58a", "stoneDark": "#6b5426", "stoneDeep": "#3a2c12",
+      "parchment": "#efe2b6", "parchmentDark": "#cdb27a", "parchmentLight": "#faf1d2",
+      "ink": "#2a2418", "muted": "#7a6a46", "accent": "#1f5f86", "gold": "#f0c63a", "goldDark": "#8a6a10",
+      "good": "#3a7a4a", "bad": "#b8402e", "warn": "#cc8a20", "disabled": "#a89c78", "bar": "#2a2012", "barText": "#f6e8b8" } }
+  ]
+}
