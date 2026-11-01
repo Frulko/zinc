@@ -16,7 +16,10 @@
     "rmpp": {
       "width": 1620,
       "height": 2160,
-      "display": { "driver": "rmpp", "refresh_mode": "ui" }
+      "display": {
+        "driver": "rmpp",
+        "refresh_mode": "ui"
+      }
     }
   },
   "permissions": [],
@@ -28,5 +31,9 @@
     "undo-2",
     "lightbulb",
     "check"
-  ]
+  ],
+  "update": {
+    "url": "http://10.11.99.2:8787/",
+    "publicKey": "dedefd5ca59ea99581fdac24baf3bbd56dfb6639118b66ccda17aa99fb1fdd8c"
+  }
 }

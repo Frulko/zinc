@@ -398,7 +398,7 @@ async function main(): Promise<void> {
   hubKey = await subtle.importKey('raw-private', unhex(seedHex), { name: 'Ed25519' }, false, ['sign']);
   hubPublic = hex((hubKey as CryptoKey).data);
   publisherToken = secret('publisher.token');
-  serveAsync(port, handle);
+  serveAsync(port, handle, { maxBodyBytes: 256 * 1024 * 1024 });   // a package with many textures is over the 64 MB default
   console.log('hub: listening on port ' + port.toString() + ', data in ' + data);
   console.log('hub: server key ' + hubPublic);
   console.log('hub: publisher token in ' + data + '/publisher.token');
