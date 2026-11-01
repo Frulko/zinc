@@ -8,6 +8,26 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Hamlet city builder
+
+#### New
+
+- Build a village with `zinc run examples/hamlet`: roads laid by dragging with a live preview (`X` flips the corner, `R` auto-routes), houses that grow through three levels, production chains from wood and stone to bread, leather, tools, honey, candles and mead, a market, a tavern, and a campaign of goals that unlock buildings, with a peddler and adventures (`C`).
+- Seven landscapes (Vallée, Plaine, Rivière, Lac, Forêt, Montagne, Côte, Classique) with biomes, rivers, lakes and the sea, maps up to 128 × 128, and seasons that change the land gradually: blossom, russet leaves, snow, frozen water, falling leaves, rain, and light that follows the hour.
+- Villagers have moods, sleep at night, stroll to the market and show their thoughts; deer, rabbits and boar live in herds, wolves can roam forest maps, and birds, ducks and fish share the scene. Working a resource shows it: trees shiver and fall, rocks throw chips.
+- Fire, collapse and theft risks with a fire post, a repair works and a watch post; Easy, Normal and Hard difficulties.
+- The Tree window (`T`) draws the production chains; a technical window (`F3`) shows frame times, the world and the tile under the pointer; windows drag by their title bar and close with their button or `Esc`.
+- Message clicks point an arrow at the place, and a double click opens its window. Separate volumes for ambience and effects, with synthesised sounds.
+
+#### Changed
+
+- Every resource has its harvest time, yield and percentage in `economy.json`; the campaign is balanced to be winnable.
+- Hamlet saves from before this version start a new village.
+
+#### Faster
+
+- Large Hamlet maps open much faster and use much less memory, and panning is up to 40 % faster on the interpreter.
+
 ### Performance
 
 #### Faster
