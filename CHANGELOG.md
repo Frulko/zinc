@@ -26,6 +26,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### UI
 #### New
 - E-ink mode for `zinc:ui` (on a reMarkable, or `ZINC_EINK=1` on a Mac): colours snap to black, white and the panel's primaries, shadows, gradients and opacity are left out, and `pattern-hatch`, `pattern-cross`, `pattern-dots` and `pattern-stripes` fill a box with ink where a tint would be.
+- `layer-cache` keeps a box's children as one picture that is drawn again only after `invalidate(node)`, and `refreshRect(x, y, w, h, 'fast' | 'quality' | 'full')` of `zinc:gfx` names the e-ink waveform of a region (the reMarkable driver sends it that way).
 
 #### Fixed
 - Selecting text with `select-text` works across several lines and several `Text` blocks, like a browser: drag from one paragraph into the next (in a `ScrollView` too, the list scrolls near its edge), the whole span is highlighted and Cmd/Ctrl+C copies it with its line breaks.

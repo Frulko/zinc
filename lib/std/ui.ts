@@ -24,7 +24,7 @@ import { DOM, commit as domCommit } from 'zinc:ui/dom';   // the semantic DOM of
 // ---- e-ink style mode (ZN-929): on a panel (capabilities eink) or with ZINC_EINK=1 every colour snaps to black, white or a Gallery 3
 // primary, a command with alpha under half is dropped and any other is opaque, and gradients, shadows and opacity are not drawn (a
 // gradient is its first stop, flat). Tints are replaced by `pattern-hatch|cross|dots|stripes` (black ink). Apps do not branch: the same tree.
-export const EINK: boolean = EINK_CAP || env('ZINC_EINK') === '1';
+export const EINK: boolean = env('ZINC_EINK') === '1' || (EINK_CAP && env('ZINC_EINK') !== '0');   // ZINC_EINK=0 shows an e-ink app in colour
 const EINK_PAL: u32[] = [0xffffff, 0x000000, 0xff0000, 0x00aa00, 0x0000ff, 0xffff00];
 let einkDropped: i32 = 0;   // test hook: the shadows and the translucent commands left out
 export function einkSnap(c: u32): u32 {
@@ -447,6 +447,7 @@ export class UiNode {
   k: number = 1;                       // style scale: zooms the node and its subtree (origin: top-left corner)
   tf: TransformX | null = null;        // React Native's transform array: rotate, skew, scaleX/Y around the centre (ZN-361)
   cursor: i32 = -1;                    // cursor-* class (gfx Cursor), -1 inherited
+  cache: boolean = false; cImg: i32 = -1; cW: i32 = 0; cH: i32 = 0; cValid: boolean = false;   // layer-cache (ZN-930): the children kept as an image until invalidate()
   pattern: i32 = 0;                    // pattern-* class (ZN-929): 1 hatch, 2 cross, 3 dots, 4 stripes, drawn over the background in black ink
   
     // ring-* / outline-* (ZN-258)
@@ -665,6 +666,7 @@ export function destroy(h: i32): void { release(h); }
 function release(h: i32): void {
   const n = node(h);
   if (!n.alive) return;
+  if (n.cImg >= 0) { destroyImage(n.cImg); n.cImg = -1; n.cValid = false; }
   if (n.skey !== '') { if (!dropRestore(h)) keepScroll(n); n.skey = ''; }
   if (scrollWatch.indexOf(h) >= 0) forgetScrolls(h);   // its onScroll goes with it: the handle comes back as another node
   if (n.virt !== null) {   // a virtual list goes with its rows: what they made is let go as when they scroll out
@@ -2517,6 +2519,7 @@ function applyToken(n: UiNode, tok: string, variant: string): boolean {
     if (n.ed !== null) (n.ed as Edit).caretC = c;
     return true;
   }
+  if (tok === 'layer-cache') { n.cache = true; return true; }
   if (tok.startsWith('pattern-')) {   // a fill that works in black and white: lines or dots in place of a tint (e-ink mode, and anywhere)
     const i = PATTERNS.indexOf(tok.slice(8));
     if (i < 0) return false;
@@ -2899,7 +2902,7 @@ function resetStyle(n: UiNode): void {
   n.bg = -1; n.bgAlpha = 255; n.grad = 0; n.gradFrom = -1; n.gradTo = -1; n.radius = 0; n.borderW = 0; n.shadowLevel = 0; n.shX = 0; n.shY = 0; n.shBlur = 0; n.shColor = 0; n.shOpacity = 0; n.shAlpha = 255;
   n.tx = 0; n.ty = 0; n.k = 1; n.tf = null; n.z = 0; n.invisible = false; n.noPointer = false; n.rel = false; n.sticky = false; n.stat = false; n.contentBox = false; n.borderColor = BORDER_DEFAULT; n.borderAlpha = 255; n.fgAlpha = 255;
   n.opacity = 1; n.fg = -1; n.size = fontScale === 1 ? DEFAULT_TEXT : Math.round(DEFAULT_TEXT * fontScale); n.bold = false; n.weight = 0; n.italic = false; n.transform = 0; n.tsX = 0; n.tsY = 0; n.tsColor = -1; n.tsAlpha = 0; n.selBg = -1; n.selectable = false; n.group = false; n.peer = false; n.ws = 0; n.brk = 0; n.clamp = 0; n.ellipsis = false; n.balance = false; n.deco = 0; n.decoC = -1; n.wordSp = 0; n.vshift = 0; n.family = 'sans'; n.tracking = 0; n.letterSpace = UNSET; n.talign = 0; n.leading = 0;
-  n.cursor = -1; n.pattern = 0;
+  n.cursor = -1; n.pattern = 0; n.cache = false;
   if (n.ed !== null) { const e = n.ed as Edit; e.phC = -1; e.caretC = -1; }
   n.rg = DEF_RINGX; n.bd = DEF_BORDERX; n.sn = DEF_SNAPX; n.gx = DEF_GRADX; n.im = DEF_IMGX;   // the cold records: back to the shared defaults
   if (n.it !== DEF_INTERX) { const o = n.it; o.focusBg = -1; o.activeBg = -1; o.focusFg = -1; o.activeFg = -1; o.transMs = 0; o.hoverBg = -1; o.hoverFg = -1; o.hoverBorder = -1; o.focusBorder = -1; o.withinBg = -1; o.withinFg = -1; o.withinBorder = -1; o.transMask = -1; o.transDelay = 0; o.transEase = 7; }   // curBg, fromBg, transStart and the tr* fields stay: a transition goes on across a class change
@@ -4410,6 +4413,37 @@ function paintTiles(h: i32, n: UiNode, zp: i32[] | null, x: number, y: number, a
   for (const t of shown) drawImage(tImg[t], vx + tI[t] * TILE, vy + tJ[t] * TILE, TILE, TILE, ai, 0);
   return true;
 }
+let layerRecords: i32 = 0;
+/** A node with the class `layer-cache` keeps its children as one image (ZN-930): a frame draws that image, and the children are drawn again only
+ *  after invalidate(h) or when the node's size changes. For what is costly to draw and changes rarely (a board, a page of line art) on a panel
+ *  where every changed pixel is a refresh. */
+export function invalidate(h: i32): void { const n = node(h); if (n.cache && n.cValid) { n.cValid = false; paintDirty = true; } }
+/** How many times a cached layer was drawn into its image (a test hook). */
+export function layerRecordCount(): i32 { return layerRecords; }
+function paintCached(h: i32, n: UiNode, x: number, y: number, w: number, hh: number, ai: i32): boolean {
+  if (tileRec || n.scroll !== 0 || n.tf !== null || n.tag === FRAGMENT) return false;
+  const bg = solidBehind(h);
+  if (bg < 0) return false;
+  const iw: i32 = Math.ceil(w), ih: i32 = Math.ceil(hh);
+  if (iw < 1 || ih < 1) return false;
+  if (n.cImg < 0 || n.cW !== iw || n.cH !== ih) {
+    if (n.cImg >= 0) destroyImage(n.cImg);
+    n.cImg = createImage(iw, ih); n.cW = iw; n.cH = ih; n.cValid = false;
+  }
+  if (!n.cValid) {
+    beginImage(n.cImg);
+    clear(bg);
+    tileRec = true; tileSticky = false;
+    const zp = zSorted(n);
+    if (zp !== null) { for (const c of zp) paint(c, -n.x, -n.y, 1, 1); } else for (const c of n.children) paint(c, -n.x, -n.y, 1, 1);
+    tileRec = false;
+    endImage();
+    if (tileSticky) { n.cache = false; return false; }
+    n.cValid = true; layerRecords++;
+  }
+  drawImage(n.cImg, x, y, iw, ih, ai, 0);
+  return true;
+}
 const PATTERNS: string[] = ['hatch', 'cross', 'dots', 'stripes'];
 /** A pattern fill (ZN-929): 10 px apart, 2 px thick, black, inside the box (and its corners). ponytail: one command per line or dot (a cell is about 20); a Layer (ZN-930) caches it. */
 function paintPattern(kind: i32, x: number, y: number, w: number, hh: number, r: number, kk: number): void {
@@ -4537,6 +4571,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
   const zp = zSorted(n);
   const sty = n.ay !== null && !ANDROID_GLOW ? (n.ay as ScrollAxis).stretch : 0, stx = n.ax !== null && !ANDROID_GLOW ? (n.ax as ScrollAxis).stretch : 0;
   if (sty !== 0 || stx !== 0) paintStretched(n, zp, cx, cy, kk, a, stx, sty);
+  else if (n.cache && kk === 1 && paintCached(h, n, x, y, w, hh, ai)) { /* drawn from its image */ }
   else if (tilesOn && n.scroll !== 0 && !tileRec && kk === 1 && n.overflow && n.tag !== FRAGMENT && paintTiles(h, n, zp, x, y, ai)) { /* drawn from its tiles */ }
   else if (zp !== null) { for (const c of zp) paint(c, cx, cy, kk, a); } else for (const c of n.children) paint(c, cx, cy, kk, a);
   if (n.scroll !== 0) paintScrollbars(n, x, y, kk, a);

@@ -253,5 +253,13 @@ if run keys tests/fixtures/rmpp-keys 40 - "ZN_RMPP_SIM_KEYS=10:+$S,0x48,-$S,0x49
   has keys log 1 "typed \[Hi é!\]"; has keys log 2 "typed \[Hi é\]$"; has keys log 1 "^submit"; has keys log 0 "typed \[.*a"
 fi
 
+# zinc:gfx refreshRect (ZN-930): the app names the waveform of a region; the driver sends that rect in it (quality: the UI mode, fast: the pen's mode,
+# full: a full refresh) and refuses a mode it does not know. The app starts in the fast mode.
+if run rect tests/data/rmpp-refreshrect 500 - "$ferrari" ZINC_RMPP_REFRESH_MODE=fast ZN_RMPP_SIM_APPLOAD=0.6 ZN_RMPP_SIM_INSTANT=1; then
+  t=$(awk '/mode |update |full refresh/ && $1 > 0 { print $3, $4, $5, $6 }' "$tmp/rect/out/trace.txt" | tr '\n' '|')
+  case "$t" in *"mode UI"*"update PARTIAL 100,200 300x120"*"mode FAST"*"update PARTIAL 400,600 200x80"*"full refresh"*) ;; *) echo "rect: the requested modes per rect: $t"; fail=1 ;; esac
+  has rect log 1 "^quality true"; has rect log 1 "^fast true"; has rect log 1 "^full true"; has rect log 1 "^bad false"
+fi
+
 [ $fail -eq 0 ] && echo "rmpp sim: ok"
 exit $fail

@@ -153,6 +153,10 @@ export function refreshIntent(intent: string): void {
   intentNow = intent === 'interactive' ? intent : 'normal';
   __host_sysDevice('display.intent', intent);
 }
+/** Names the waveform of a region (ZN-930), the app's own call for what it knows: 'fast' the monochrome one for feedback under a pen or a finger,
+ *  'quality' the clean one without a flash (a letter that replaces the ink), 'full' the flashing refresh that clears the ghosts (a new puzzle,
+ *  a solved board). x, y, w, h in pixels of the display. false where the display cannot (a window, an LCD): nothing to do there. */
+export function refreshRect(x: i32, y: i32, w: i32, h: i32, mode: string): boolean { return __host_sysDevice('display.rect', `${x},${y},${w},${h},${mode}`) === '1'; }
 /** Minimizes the app's window and shows the system's screen while the app keeps running (AppLoad on a reMarkable, with the window-state patch). false when the host cannot: quit instead, with the state saved. */
 export function minimizeWindow(): boolean { return __host_sysDevice('window.minimize', '') === '1'; }
 /** Declares the app's widget: the rectangle of its screen (pixels) the system shows, 1:1, when the app is shown as a widget (w or h 0

@@ -124,7 +124,7 @@ bool header_wanted() {
   return access(flag, F_OK) == 0;
 }
 
-bool set_mode(int mode) {
+bool set_mode(int mode, bool reveal = true) {
   if (mode < 0 || mode > MODE_UI) return false;   // qtfb's UFAST 0, FAST 1 (DU), ANIMATE 2 (A2), CONTENT 3 (GC16), UI 4 (GL16)
   if (mode == refresh_mode) return true;
   uint64_t now = hal_time_us();
@@ -134,7 +134,7 @@ bool set_mode(int mode) {
   refresh_mode = mode;
   // qtfb sleeps 1 s on THIS connection (a few ms with AppLoad 0006). Keep input/rendering alive and send one latest frame afterwards.
   mode_ready_us = now + switch_pause();
-  pending = {0, 0, panel.w, panel.h}; // repaint unchanged RGB too, to reveal colours after FAST
+  if (reveal) pending = {0, 0, panel.w, panel.h}; // repaint unchanged RGB too, to reveal colours after FAST (not for a region the app named: only that region is sent)
   return true;
 }
 
@@ -180,6 +180,7 @@ int connect_qtfb(int key, int fmt) {
 // AppLoad patch 0004 (backlog/later.md): with its capability bit each MSG_UPDATE carries its own mode, no switch and no second of sleep;
 // then `gesture` picks the update's mode in rm_present instead of set_mode.
 bool gesture = false, intent_seen = false;
+int forced_mode = -1; bool forced_back = false;   // zinc:gfx refreshRect fast / quality (ZN-930): the qtfb mode of the next update, then the app's again
 uint64_t full_due = 0;   // the clean pass after a guessed gesture, once the app had time to draw its sharp picture
 // What went out in the fast waveform since the last clean pass: when the gesture settles it goes out again in the app's mode, a partial
 // update without the flash of a full refresh (KOReader's way); the full refreshes are left to the ghost count (full_after_pct).
@@ -553,8 +554,9 @@ void rm_present(const HalFrame* f) {
   }
   uint64_t now = hal_time_us();
   if (full_due && now >= full_due) { full_due = 0; eink::unite(pending, fast_area); fast_area = {}; }
-  const int want = gesture ? MODE_FAST : wanted_mode;
-  if (layer == L0 && refresh_mode != want && now >= mode_ready_us) set_mode(want);   // a gesture, or a switch asked during qtfb's second
+  const int want = gesture ? MODE_FAST : forced_mode >= 0 ? forced_mode : wanted_mode;
+  if (refresh_mode == wanted_mode) forced_back = false;
+  if (layer == L0 && refresh_mode != want && now >= mode_ready_us) set_mode(want, forced_mode < 0 && !forced_back);   // a gesture, or a switch asked during qtfb's second
   if (eink::empty(pending) && full_refresh_ok && !as_widget && now >= mode_ready_us && (full_asked || eink::ghost_due(ghost, eink::area({0, 0, panel.w, panel.h}), now, rin::pen_down))) {
     ClientMsg m = {}; m.type = MSG_FULL_REFRESH;
     if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof m) { ghost = {}; full_asked = false; mode_ready_us = now + switch_pause(); }  // qtfb sleeps 1 s on this connection (without 0006)
@@ -575,7 +577,7 @@ void rm_present(const HalFrame* f) {
     if (ghost_skip) ghost_skip = false; else if (!ghostv.on) eink::ghost_add(ghost, eink::area(pending), now);   // the ghost is cleaned after
     if (refresh_mode == MODE_FAST && wanted_mode != MODE_FAST) eink::unite(fast_area, pending);
     else if (pending.x0 <= fast_area.x0 && pending.y0 <= fast_area.y0 && pending.x1 >= fast_area.x1 && pending.y1 >= fast_area.y1) fast_area = {};
-    pending = {}; last_sent_us = now;
+    pending = {}; last_sent_us = now; if (forced_mode >= 0) forced_back = true; forced_mode = -1;
   }
   else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) rin::quit_flag = 1;
   // Unsent frames share one dirty region; the newest pixels survive socket backpressure.
@@ -672,6 +674,17 @@ const char* rm_device(const char* query, const char* arg) {
     if (strcmp(arg, "end") == 0) { if (ghostv.on) { ghostv.on = false; ghostv.hold = true; gesture = false; } return "1"; }   // the sharp page: app's mode
     if (strcmp(arg, "cancel") == 0) { if (ghostv.on || ghostv.hold) { ghostv.on = ghostv.hold = false; ghostv.restore = true; } return "1"; }
     return "0";
+  }
+  // "display.rect" "x,y,w,h,fast|quality|full" (zinc:gfx refreshRect, ZN-930): the region is sent again (its pixels may be unchanged) in the waveform
+  // the app names: FAST the pen's, QUALITY the UI one, FULL a full refresh of the page. "1" when taken.
+  if (strcmp(query, "display.rect") == 0) {
+    eink::Rect r; eink::Mode m;
+    if (!eink::parse_hint(panel, arg, r, m)) return "0";
+    if (layer == L2) { native::fast = m == eink::FAST; if (m == eink::FULL) native::full_now = true; return "1"; }
+    if (layer == RM2) { rm2fb::fast = m == eink::FAST; return "1"; }
+    eink::unite(pending, r);
+    if (m == eink::FULL) full_asked = true; else forced_mode = m == eink::FAST ? MODE_FAST : MODE_UI;
+    return "1";
   }
   if (strcmp(query, "display.intent") == 0) {
     if (!arg || (strcmp(arg, "interactive") && strcmp(arg, "settle") && strcmp(arg, "normal"))) return "0";
