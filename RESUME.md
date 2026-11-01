@@ -1,4 +1,84 @@
-# Resume — 2026-10-29 (iPod, zinc doc, plugin docs audit)
+# Resume — 2026-11-01
+
+## Owner Murdoku Edition 03 board and interface — 2026-11-01
+
+- Window polish: replaced thin blue wall marks with ivory-framed three-pane windows, highlights and interior sills. Orientation-aware drawing stays inside all four canvas edges. Check passed; Mac and 390×844 captures inspected (/tmp/murdoku-windows-mac.png, /tmp/murdoku-windows-phone.png). Window masks/clue semantics unchanged; physical phone not checked.
+
+- Replaced double-stroke walls and swinging door sketches with continuous 6/8-unit dark room boundaries, subtle cell grid and inset facade windows. Coordinates moved outside the plan; room names choose empty floor runs. Architecture/window constraints unchanged.
+- Desktop now has a two-column witness sidebar (larger portraits, stable letter colors, placed count/checks), enlarged center board and Lucide tool rail. Compact testimony reuses clueSummary with target badges; furniture row/column summaries retain same-room scope. Global clues always appear above the board. ? opens rules/level selection without consuming a hint; desktop hints use a closable overlay.
+- Mobile Plan scrolls board plus witness cards; Witnesses/Aide tabs remain. Touch letters and tools are fixed at the bottom, with status feedback and 44px+ touch targets. Safe-area test now checks tool and palette bounds as well as title/scroll views. Input fixtures measure accessibility-labelled controls instead of hardcoded layout coordinates. Added explicit manifest icon names because ToolButton receives dynamic icon names.
+- Captures inspected at /tmp/murdoku-edition03-desktop.png (1320×900) and /tmp/murdoku-edition03-phone.png (390×844). Full UI check passed interpreter/AOT/QuickJS (mouse, keyboard, restoration, touch palette, tabs and hints); safe-area checks passed portrait/landscape with fixed tools included. No generator/core changes, no physical device test, no deployment/commit/push.
+
+## Owner Murdoku Edition 02 integration — 2026-11-01
+
+- Integrated the archived official SVG artwork into the playable renderer: eighteen matching furniture types, four subdued floor textures, thirty-two composed faceless silhouettes. Reproducible librsvg/Pillow build: examples/murdoku/authoring/build_assets.py; recipes/sources: assets/manor-assets.json. New atlases total about 290 KiB compressed; old experiments retained but not loaded by the renderer. Provenance corrected in README and assets/README.
+- Architecture is generated from the actual irregular room footprint: symmetric interior doors link every adjacent room pair, sparse windows only on exterior edges/courtyard cutouts. Rendering and WINDOW predicates use the same masks. Furniture themes/names match the available glyphs. Edition 02 is visible in the header; app version 0.2.0. Runtime remains six people/four rooms, not all forty-two official formats.
+- Generator proof passed 60 QuickJS cases and six each interpreter/native, including doorway connectivity/symmetry, exterior windows, unique solutions and no-guess deductions. Reasoning and full UI proofs passed all three engines, including the corrected phone touch sequence. Captures inspected at 1320×900 (/tmp/murdoku-edition02.png) and 390×844 (/tmp/murdoku-edition02-phone.png). Phone input now measures the rendered A button because the legend wraps differently across grid sizes. Physical mobile not tested; no deployment/publication/commit/push.
+
+## Owner Murdoku references, reasoning and asset archive — 2026-11-01
+
+- Reviewed all five owner-linked repositories and the official game, How to Play/Advanced, puzzle-core bundle (static REA, one-file scope), then discovered the separate official generator bundle. Detailed sources/commits/limits: examples/murdoku/RESEARCH.md. No external algorithm code copied.
+- Murdoku deduction supports Hall pairs/triples on rows/columns (including rectangles), structured immediate people/removals, current-placement/manual-cross assumptions; contextual hints flag wrong placements or excluded required cells and skip placed people. No stored answer/search used. HelpPanel shows actual immediate dependencies.
+- Fixed the engine gap exposed by local function defaults: shared checker preparation puts captured named-function defaults into the callee body and preserves the optional signature marker. Existing unrelated checker/lowering changes retained. Host zinc rebuilt. Passed nested_defaults + defaults_pack on interpreter/AOT/QuickJS; murdoku_reasoning on all three; murdoku_ui; 60 QuickJS generator cases + 6 interpreter + 6 native (murdoku). Capture: /tmp/murdoku-contextual-hint.png.
+- Owner subsequently authorized retrieving official assets and the 42 visible public cases. Archived under examples/murdoku/references/official: 42 original JSONs (5 legacy, 37 v2), 629 SVGs (268 objects/tiles, 345 portrait layers, 16 textures), 149 object definitions, portrait colour/proportion tables, exact 24h palette/styles/layers and six rendered portrait captures. Sources/hashes retained; public catalogue includes 73 entries but only the 42 page-requested puzzle URLs downloaded. No secret/additional puzzle URLs fetched.
+- Local gallery index.html (search/filter/tint) inspected in agent-browser, 345 portrait results / 172 hair results, no broken loaded images. Archive/checksum/SVG + rectangular coordinate/BGR regression passed (murdoku_references). Offline analysis authoring/analyze_official.py records heuristic/subarea limits. Official assets are references, not wired to the game renderer, not published or deployed. Existing owner processes left alone. No commit/push.
+
+## Owner local feedback in shake menu — 2026-10-31
+
+- iPhone menu adds Ajouter une note on home/live/installed apps. Native UIKit sheet has multiline text, keyboard/safe-area constraints, Save/Cancel, write failure retains text, save confirmation; nested shake menu blocked while editing. Feedback storage separated in ios_feedback_store.mm (Foundation + CommonCrypto), atomic immutable JSON per UUID under `<player home>/feedback/<SHA256(app)>/`. Blank notes rejected; no sync/export per owner.
+- Context: app/source, UTC timestamp, local device ID, hardware model, iOS/engine version, locale, screen pixels, window points, scale, safe-area insets. No connection URL/token recorded. Authenticated LAN handshake now sends app metadata (older clients ignore it; older servers use source identity fallback). Existing owner LAN server left running, so its process still uses fallback until restarted.
+- Passed feedback_store (Unicode/multiline, same/different app grouping, timestamp, validation/path containment/write error), zinc_go and zinc_go_device. Host zinc/player rebuilt. iOS build/install/launch succeeded initially; final window-selection guard compiled and installed, launch refused because iPhone locked. Native form interaction and shake calibration need physical validation. No commit/push.
+
+## Owner Just go straight — 2026-10-31
+
+- Added `examples/just-go-straight`: upstream game ca9acbb8, original PNGs and GPL-3.0 license, four CommonJS modules wrapped locally, debug logs removed. QuickJS + native Canvas/audio, no browser/WebView, dependency or engine change. Run `build/zinc run examples/just-go-straight`.
+- Passed `tests/run --only just_go_straight`: scripted shovel pickup and treasure victory, exact final pixels, five distinct generated WAVs reach native audio. Native background window also captured successfully and exited. Strict `zinc check` rejects the upstream dynamic JavaScript; this example uses QuickJS automatically. Other endings/platforms not tested. No commit/push; preserve the existing dirty tree.
+
+## Owner iPhone safe area and return gesture — 2026-10-31
+
+- Shake follow-up: mobile SDL sensors were forced off despite player opening accelerometer. Enabled on iOS/Android only; actual iOS build confirms SDL_SENSOR=ON and SDL_SENSOR_COREMOTION=1. `dev_gestures.h` owns hold + shake detection (three distinct >1.8g peaks within 1s, hysteresis, 1.5s cooldown); real sensor is closed on background and reopened on foreground, filtered by accelerometer ID. Dev menu Reload now relaunches installed apps as well as refreshing LAN sessions. Deterministic hold/shake regression passes. Actual iOS build/install/launch succeeded; final menu changes installed and launched. Shake intensity still needs real-hand calibration.
+
+- Murdoku applies OS safe-area padding on all edges and sizes the board from the usable viewport; scanner keeps full-bleed video but puts its close/hint controls inside SafeAreaView. Existing Home SafeAreaView retained.
+- Three-finger hold (800 ms, described as one second) now returns directly home from live and installed apps. It fires once per hold; a lifted/fourth finger or background reset cancels. Dev menu (shake/Menu/Cmd+D) now offers Go home for installed apps too.
+- Passed: zinc check both demos; zinc_go_gesture; murdoku_safe_area (portrait/landscape geometry); zinc_go_device. Captures inspected: /tmp/murdoku-safe-iphone.png and /tmp/zinc-go-scanner-safe.png. Host player rebuilt; real iOS incremental build/install/launch succeeded. Physical three-finger gesture and margins still need user validation. Updated Murdoku deployed and started on ios-9dfa (82 MiB); existing owner LAN dev server left running. No commit/push.
+
+## Owner Zinc Go QR, input and pairing fixes — 2026-10-31
+
+- AVFoundation no longer copies a top-left corner when actual buffer dimensions differ: centre crop/scale preserves QR proportions and padded strides, continuous autofocus/exposure enabled. Scanner uses 720x1280 on iOS and closes pending/live cameras on unmount. Real camera scan remains unverified.
+- iOS UIKit replaceRange/deleteBackward send exact replacement ranges plus commit (including empty); controlled text changes and cursor/selection moves mirror to the OS. Home starts blank, disables autocorrect for URLs, offers Clear. iOS pairing address prefers active en0 Wi-Fi over VPN/default-route addresses.
+- Passed: zinc check examples/zinc-go, qr_code (larger portrait capture buffer with row padding decoded), zinc_go_home, ios_text_edits (interpreter/AOT/QuickJS), zinc_go_device. Its desktop linker fixture needed IOSurface, already used by the engine. text_touch frame hashes unchanged; mirror count updated 8 → 17 for newly synchronized cursor changes.
+- Real iOS incremental build succeeded and updated app installed; launch refused because phone locked. Configuration 388.3s before cache fix → 0.4s now. Final home/cursor update installed and launched successfully after unlock, including ui.select mirror update; ios_text_edits and text_touch pass. No commit/push; preserve unrelated dirty UI work.
+
+## Owner Zinc Go iPhone build feedback — 2026-10-31
+
+- Follow-up: fixed device discovery through devicectl JSON (connected iPhone/iPad only; unavailable no longer matches available, identifier is never a hostname). Real existing app installed and launched successfully on connected iPhone 17 Pro, bundle dev.zinc.go.d7svkmg863. iOS re-export now preserves `build-device` while cleaning other generated files; regression covers cache retention and stale-file removal. Host binary rebuilt; discovery/progress mocked test passed.
+
+- `tools/zinc-go-iphone` streams CMake/Xcode output with stage messages and retains `build-device.log`; pipe failures stop before install/launch, optional device/team discovery retains its fallback diagnostics.
+- Mobile export splits manifest vendor flag shell fragments with CMake `separate_arguments`, fixing the forced-header argument `-include impair.h` that Xcode interpreted as a header with a leading space. Host zinc rebuilt.
+- Passed: `export_ios` (generated project + actual host forced-header compilation), `zinc_go_iphone_progress` mocked live output/failure handling. Android export check hits an unrelated existing ZincActivity.java golden hash difference (92333f0afeff0984 vs 2b24d80f0334e3c4); golden left unchanged. No actual iOS build/install run. No commit/push.
+
+## Owner photo memory and black-flash fix — 2026-10-31
+
+- Continuous Metal is the safe default again; adaptive `ZINC_PRESENT=auto` stays experimental. Published surface contents survive resize. `surface_present` and `window_live_resize` pass.
+- Source runs/native bundles leave runtime-sized JPEG/WebP encoded and decode on demand; standalone builds retain embedded resources. Oversized photos keep their baked compatibility path. File cache validates image lifetime identities and full asset-root/name keys. Baked/file sampling now shares exact arithmetic; Museum goldens remain unchanged.
+- Museum prepares storyboard thumbnails when opened. Resource blob 92,376,618 → 16,780,031 B. Same continuous-Metal physical footprint snapshots: 209 → 161 MiB. Three native GL navigation cycles: startup photo payload 31,262,720 B (previously 75,596,032 baked), 50,728,192 B after visits; hidden targets/video buffers/sources zero at home. Named decoded photos remain cached until release/process exit.
+- Passed: museum_visit, museum_probe, surface_present, window_live_resize. `photo_files` passes on interpreter/AOT/QuickJS, standalone and bundle, including the oversized compatibility fixture. No cross-platform or quiet-machine CPU measurements. Report: `docs/reports/engine-assets-presentation-2026-10-31.md`. No commit/push; unrelated work remains in this tree.
+
+## Owner image memory pass — 2026-10-31
+
+- Shared `zinc:ui/image-cache` (byte/count LRU; live UI/inline/background images and external viewer reservations protected), Discord 16 MiB/512 decoded cache + async physical-size imageio decode + background trim, portable WebP decoder scaling. Fresh `ImageViewer.sharper()` results released on navigation/close/stale completion; caller thumbnails preserved. GL collects destroyed/reused image textures on active/idle frames using lifetime identities and a destruction epoch. QuickJS standard-module file/name aliases now share state (caught by the cache regression).
+- Museum: hidden camera outputs suspended after transitions; stopped films close decoders/sources. Five real native GL cycles including panorama: targets 31.68 MB CPU / 380.16 MB GPU estimate → zero at home; video buffers 8.1984 MB and two source contexts → zero. Final RSS 52.2 MiB; do not equate RSS with footprint or add GPU estimates. Baked image payload still 75.596 MB. Report: `docs/reports/engine-image-memory-2026-10-31.md`; raw `.logs/memory-pass3/`.
+- Passed: image_cache (interp/AOT/QuickJS), image_lifetime (real GL + idle/reuse), viewer_lifetime (interp/AOT/QuickJS), discord, discord_viewer (five round trips), imageio, qjs, museum_visit/video/panorama/probe, display_gl_scroll. Cross-platform/hardware not exercised. No commit/push: preserve unrelated working-tree changes.
+
+
+## Release 0.10 and the Pi shell — night of 2026-10-30 to 31
+
+- Release: **v0.10.13 is published** (https://github.com/Frulko/zinc/releases/tag/v0.10.13, CI all green). v0.10.0 to v0.10.12 were tagged but their CI failed one test at a time, so nothing was published for them except v0.10.6, which was published too. Releases are cut from the worktree `/Users/mowmow/Lab/zinc-release` (branch release-0.10, `git reset --hard develop` first, then `RELEASE_BRANCH=release-0.10 tools/release --bump patch --yes --no-watch`). SSH to GitHub goes through the 1Password agent: push over HTTPS with `GIT_CONFIG_COUNT=3 GIT_CONFIG_KEY_0=url.https://github.com/.insteadOf GIT_CONFIG_VALUE_0=git@github.com: GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1= GIT_CONFIG_KEY_2=credential.helper GIT_CONFIG_VALUE_2='!gh auth git-credential'`.
+- CI fixes of the night: worker in cross runtimes, zbc decode errors, canonical IR classes for functions with optional parameters (no machine-kind confusion: the fuzzer's i16/i32 case), opus `celt/x86/x86cpu.h` vendored (macOS x86_64), the inspector lays out before reading a node, Discord's fake server runs on the interpreter (it compiled natively for more than 60 s on a hosted runner).
+- CI policy (owner): a test that flakes on a hosted runner leaves the CI (`tests/ci/off.txt`, still run on the Mac). Off now: every browser-driven test, everything Discord, hub and WebRTC, plus qjs_demos, asset_reload, webenv_phaser, photo_sorter, headless_close, inspector_pause (a QuickJS hang after a pause, to find), device_screen. On the CI, `tests/run` reruns a failed test once and counts it as passed when it passes (`.logs/flaky.log`).
+- Spark Pi (zinc-player, 192.168.2.33): 0.10.6 installed, shell on (`zinc-admin shell on`), local dev engine removed. It stopped answering on the network at the end of the night: when it is back (`zinc device list`), run `zinc device zinc-player update` to install 0.10.13 (it carries the player fix: an app started with `zinc device run` is shown over any page, no "exit -1" page), then `zinc device zinc-player run museum-table` and look at `zinc device zinc-player screen`.
+- Also done: README rewritten (hero-wide.jpg, six showcase images), the Pi image builder redesigned as a guided flow with a live steps view and the `shell` profile option (`image/builder`, `"shell": true`), changelog kind headings (`#### New/Changed/Faster/Fixed`, tools/release-notes adapted). Not done: a Pi image was not built (workflow `Pi image`, manual: `engine_version=0.10.13`), no LICENSE file in the repo, dark theme of the builder.
+
 
 ## iPod, audio, zinc doc — night of 2026-10-28 to 29
 
@@ -75,3 +155,93 @@
 - Existing Pi last observed at 192.168.2.32; identity/SSH fingerprint matched read-only, spark administration login existed but the supplied password failed once. Boot report recorded all four cloud-init stages failed. Prior cleanup had removed useful settings; the original provisioning cause was not established. aec1fea3 fixes new images' hashed_passwd and failure cleanup, not the old card's password.
 - Dedicated manual Pi image workflow uses a verified published ARM64 package and uploads an Etcher/Imager image artifact with provenance; it now rejects incomplete pre-fix player/system packages. It has not been dispatched here. Instructions: image/README.md and docs/reports/zinc-next-pi-image-pipeline.md. Future RAUC A/B OS firmware is still a proposal.
 - No owner process or real Pi service was stopped. Usage: n/a for Codex. Owner handles push/release and physical validation.
+
+## PRO Threads adaptation — 2026-10-31
+
+- Owner request: `examples/pro-threads`, Kubai087 MIT original WebGL 2 shader/letters/palettes, local QuickJS web entry, nine palettes/seven effects, editable word/A–Z, pause, mouse/touch palette cycle. Sources and checksums in its README. No engine changes.
+- `tests/run --only pro_threads`: PASS (GPU pixels, palette/effect commands, animation, 300 paused frames); actual background Mac window captured and inspected. `zinc check` does not support this plain JS web entry (strict TS diagnostics); runtime compilation passed. Other platforms and performance unverified. Work remains uncommitted; no push/release.
+
+## macOS app identity — 2026-10-31
+
+- Owner could not find pro-threads in Activity Monitor: JS/WebGL launches bypassed the macOS dev bundle, and typed launches required nonempty permissions. Shared `launchDevBundle` now covers both engines for any manifest with app.id. Actual background launch reports LSDisplayName `PRO Threads / Zinc` and CFBundleIdentifier `dev.zinc.pro-threads` through lsappinfo. Existing owner window was left running; restart it with the rebuilt build/zinc to apply.
+- Targeted build passed; macos_bundle regression now covers permissionless typed and plain-JS launches. No cross-platform builds, push or release.
+
+## Shared engine RAM / CPU — 2026-10-31
+
+- Owner-requested pass, uncommitted: lazy distinct-row shadow cache (4.05 MiB → 184 KiB retained in probe), encoded AOT buffers moved/freed before execution, native argument copies bounded by signature, temporary native array owners use vectors. Empty window remains ~60 MiB/~0.7% CPU; no overall idle gain claimed.
+- New raster_scratch/program_buffers/aot_native_args/native_views and existing native_call/shadow_mirror/style_shadow/rn_idle/T0+T1 aot pass; interpreter/QuickJS shadow hashes agree. Report: docs/reports/engine-memory-cpu-2026-10-31.md. Other sessions' changes preserved; no cross build, push or release.
+
+## Idle presentation / heap attribution / HAL audit — 2026-10-31
+
+- Owner follow-up implemented: adaptive macOS immutable image at rest / Metal in animation, old views/drawables explicitly released; live builder screenshot inspected. Empty UI about60→29 MiB, builder about63→33 MiB; motion CPU about3.3–3.5% of one core, active→rest58.4→29.8 MiB in one process.
+- Named optimized heap traces prove local-thread storage145840→2456 B/thread (1.09 MiB saved across8 threads). Raster corner/spline and HTTP read scratch now lazy. display-gl drops unused software splash buffers on GPU activation; console/WASM entries release encoded temporary bytes before execution.
+- Builds and targeted surface/resize/image/style/network/GPU-scroll/native-console/WASM-ownership checks pass. Cross-target proof and 3DS/Vita candidates in later.md. Full evidence/limits: docs/reports/engine-memory-hal-2026-10-31.md. Uncommitted, no push/release; other sessions preserved.
+
+## Sonos / Last.fm server — 2026-10-31
+
+- Owner-requested port: `app/sonos-lastfm`, typed headless Zinc; coordinator-only Sonos SOAP/SSDP, observed listening, legitimate repeats, browser Last.fm auth, persistent outbox/rejected records, retries independent of monitoring, private loopback status API. Native Mac binary: `build/sonos-lastfm`. Setup/limits in app README; report `docs/reports/zinc-next-sonos-lastfm.md`.
+- Shared checker now accepts `String()` of dynamic JSON values through existing Dyn helper; targeted engine build/check and `dyn_string` pass on interpreter/AOT/QuickJS. `sonos_lastfm` uses local protocol fixtures plus native server smoke. No real speaker/account validation, NAS installation, cross build, push or release. Other sessions’ changes preserved; work uncommitted.
+
+- Sonos owner correction: removed app-local Sonos implementation; server imports `zinc:sonos` directly for discovery/topology/playback. Real read-only LAN discovery found 2 rooms/1 group. Preserve Last.fm JSON API errors even under HTTP 403, with a pending-authorization regression and useful authorization diagnostics. Feature test passes with actual plugin; native binary rebuilt at the same path.
+- Real plugin playback read also passes in interpreter and native AOT: PLAYING, valid duration, artist/title present. Native server build lists `socket, sonos`; no Sonos playback command or real Last.fm submission issued.
+
+- Sonos live logs: room/group, artist/title/album, state, position/duration, observed listening/threshold, source and Last.fm delivery state; repeated paused lines suppressed. Added output assertions to the existing feature check. Binary updated at the same path; user must restart their existing process.
+
+## Murdoku prototype — 2026-10-31
+
+- Owner-requested `examples/murdoku`: original French 6×6 detective puzzle; seeded four-room/furniture generation, unique-solution MRV solver, three fact-removal levels, portraits, placement, pencil candidates, undo, hints, verification and accusation. Stage manor in lazy Canvas beneath Solid JSX controls. No engine edits.
+- `zinc check` and `murdoku_ui` pass interpreter/AOT/QuickJS (actions + rendered smoke); demo `murdoku` passes 60 puzzles per engine. QuickJS capture inspected. Desktop 1320×900 only; no persistence, human difficulty calibration or end-to-end pointer proof. Uncommitted; other sessions preserved. Run: `build/zinc run examples/murdoku --engine quickjs --background`.
+
+- Sonos logs now report changes only (track/repeat, group, transport/source, delivery); advancing position/listening and unchanged topology are silent. Regression assertions added; native binary updated after validation. Internal scrobble sampling unchanged.
+
+- Murdoku owner visual correction: generated illustrated transparent furniture atlas replaces primitive shapes; 8–12 room-themed items, 24–28 empty cells, empty-cell testimony, softer floors, doorways/windows. Generator regression now checks density and circulation per room; 60 puzzles per engine pass. QuickJS updated render inspected.
+
+- Sonos readability pass: main.ts reduced to 74 lines; config/monitor/delivery/server own their responsibilities and state; tracker/store/client expanded for readability. Uses std toHex and URLSearchParams. No state schema or data migration. Feature regression passes on all three engines plus standalone server; validates CLI, actual outbox retry/ack persistence and HTTP token rejection. Binary rebuilt at same path, existing user process/data left alone.
+
+## Murdoku portraits, controls and inference — 2026-10-31
+
+- Owner steering implemented in `examples/murdoku`: named rooms; all testimonies visible; click cell then initial, V always victim, Shift notes, unshifted firm placement, Delete/undo. Procedural head/skin + eyes + hair + clothes + glasses/beard portraits replace emoji; 18 illustrated furniture props, four floor textures, eight room themes. Prompt set in assets README.
+- Revised clue generator: randomized person rows, legal furniture occupancy, row/column exclusions with disabled/crossed cells, spatial/relative clues, optional global counts/every-room clue; unique-solution MRV search and progressive help. Expert has no direct room or coordinate testimony. Shared official sample and CP references in `docs/reports/murdoku-prototype.md`.
+- `murdoku` semantics/60 seed-level cases pass interpreter/QuickJS; explicit native AOT 60-case run passes. `murdoku_ui` passes all three with explicit `--native` AOT: actions, rendered app, scripted actual mouse/V/Shift letter assertions. Latest QuickJS scripted frame inspected (`/tmp/murdoku-current.png`). No full suite, cross build, human difficulty calibration or save support. Uncommitted; other sessions preserved.
+
+## App/demo reuse and authoring skills — 2026-10-31
+
+- Owner-requested source audit inventoried 1,158 TS/TSX files (116 app, 1,042 examples), with deep reads on repeated services/persistence/UI helpers; findings/contracts and ordered promotions in `docs/reports/app-demo-reuse-audit-2026-10-31.md`. Existing std reuse gaps, missing small primitives and Last.fm/Hub domain sharing distinguished; iPod Last.fm ignored-batch acceptance mismatch recorded. No production migration or new backlog tasks.
+- Versioned `zinc-app`/`zinc-demo` skills under `.agents/skills`, provider map and quality bar; AGENTS routes new app/demo work to them. Demo layout clarified as needed responsibilities, not compulsory scaffolding. Skill metadata validation and independent forward check performed; no app/runtime/device/cross-platform tests or service actions for this documentation/workflow change.
+
+- Owner authoring standard strengthened: explicit one-component-per-file, feature folders when ownership warrants them, responsibility-based refactoring, meaningful comments/names and clear multiline control flow. Skills require stepping back before implementation and before delivery to challenge complexity and prove complete behavior. Both skills validated; demo guidelines aligned. Existing apps were not bulk-refactored.
+
+## Murdoku evidence rework — 2026-10-31
+
+- Owner rejects vague clues/creepy portraits: 400 authored French templates in 40 typed families (`assets/clue-dictionary.json`, compiler script, generated module), exclusivity/negation/scope/targets explicit. Half-board facts removed; concrete row/column and furniture-alignment anchors. Victim has no testimony, is not referenced by witness relations, varies in identity/order and is never the final roster card.
+- Independent deduction-only solver propagates testimony, pair supports, line ownership and counts; never reads the solution or calls search. Generator requires unique solution + complete logical trace, at least two crossed-constraint witness placements, and every witness’s evidence necessary. H explains the trace. New coherent 32-portrait atlases replace mismatched facial layers.
+- `murdoku` passes: semantic fixtures, 400 templates, 60 QuickJS cases, six interpreter/six explicit native AOT cases; checks silence, variability, sound secret-free deductions and useful evidence. `murdoku_ui` passes all three: actions, rendering, actual mouse/V/Shift/H events. Final report `docs/reports/murdoku-prototype.md`; no engine edits, cross build, push, save support or calibrated human difficulty. Uncommitted; other sessions preserved.
+
+- Murdoku manual elimination: select a square then X or Éliminer/Rétablir button toggles a red cross and blocks placement. Manual crosses remain selectable, preserve pencil notes, reset on new game, clear with Delete and share placement undo history. Automatic exclusions remain independent; occupied squares are protected. UI/action checks include actual X then mouse Restore.
+
+## Clear native demo — 2026-10-31
+
+- Owner-requested faithful Clear recreation: `examples/clear`, native Solid UI, provided icon and screenshot palettes, lists/tasks, typing, edit, swipe, long-press reorder, pull/pinch, keyboard, themes, local storage and undo. Start `build/zinc run examples/clear`; standalone `build/clear`. README and `docs/reports/zinc-next-clear.md` record controls/provenance/scope.
+- Shared fixes: indexed JSX rows refresh after moves (index-free keyed instances retained, custom helper ABI preserved, neutral kit forwards flag); hidden caret stops idle painting; storage propagates errors and replaces writes through a temporary file. Other sessions' changes in these files preserved.
+- Passed: `zinc check examples/clear`; T1 `clear` (interpreter/native/QuickJS pixels + 300-frame idle); demo `clear` (actual events, restart, failed-write recovery); `solid_index`, `storage_errors`, existing `jsx`, `app_storage`, `async_storage`. Engine rebuilt through tools/build. Source and standalone background macOS windows captured and exited. No cross build or physical touch hardware validation; no commit/push.
+
+## Pixel Plays / Balote — 2026-10-31
+
+- Owner-requested playable test: `examples/pixel-plays`, upstream MIT Balote renderer/scene/rules adapted to QuickJS Canvas 2D, full-window integer enlargement, score/help, mouse/keyboard/touch, pause and synthesized effects; no upstream music. Run `build/zinc run examples/pixel-plays --background`. Provenance/checksums and scope in its README.
+- Found/fixed shared web compatibility gap: native fingers now emit touch Pointer Events with stable distinct IDs, primary identity, buttons/pressure and release; suppress duplicate synthetic mouse movement. Existing event golden updated, dedicated `webenv_touch` regression added. No app-local touch workaround.
+- PASS `pixel_plays` (seeded scene golden, full round/bot/collision/rebound/rest/scoring/restart, real host mouse/keyboard/touch inputs, 300 stable paused frames), `webenv`, `webenv_touch`. Actual background Mac window captured/inspected and exited. Strict `zinc check` was attempted but does not validate plain JS/web entries; interpreter/AOT, physical touch, audio quality, narrow windows and cross-target performance unverified. No build needed, no commit/push; other sessions preserved.
+- Next creative direction proposed, not implemented: “Le dernier bateau”, five parcels thrown from a tiny quay into a passing boat, current/timing and missed-parcel splashes. Owner said test first, then invent a new game together.
+
+## Murdoku identity, organic rooms and clean responsive UI — 2026-10-31
+
+- Owner steering supersedes previous shuffled/silent-last policy: roster A–E without gaps, V last with a V first name, 48 seeded local names. Name/letter references and gendered portraits follow this identity mapping. Yellow active cell, firm-placement checks, short semantic hint rows with source/target badges.
+- `floorplan.ts`: balanced multi-source connected-region growth, interlocking/polyomino rooms, cut-out footprints/courtyards, 6–8 columns × six rows, six people. Extra columns need not be occupied; solver/logic/occupancy/window/wall/render/input geometry all use actual dimensions and region map. Silent victim must remain uniquely inferable.
+- Neutral white/grey/blue compact UI, smaller portraits/header, independent Plan/Témoins/Aide tabs on narrow/portrait screens; touch alphabet, choose witness→Plan, H→Aide. Local 390×844 touch placement/tab navigation/hint checks pass; 1320×900 and 768×1024 renders inspected. Physical iPhone/reMarkable not tested or deployed.
+- Generator test passes 60 QuickJS + six interpreter/six explicit native AOT cases: connected rooms, width/shape variety, legal occupancy, unique solution, secret-free logic, useful witnesses, alphabetic names/order and portrait repeatability. Desktop action/render/key/mouse checks pass all three; latest visual/tab checks documented below if further edits. Other sessions preserved; uncommitted, no push.
+
+## Le dernier bateau — living pixel-art study — 2026-10-31
+
+- Owner approved the original game direction and asked to preserve Pixel Plays' DA and a living scene. Created a concrete animated art study within the same collection: `build/zinc run examples/pixel-plays/harbor.js --background`. Original quay/boathouse/terracotta roof, parcels/bench/tree, cached red boat, jade current/wake/post ripples, flag, cat/gull/smoke and courier-to-sailor authored throw/wave. Space/tap rehearses, P pauses. Not aiming/scoring gameplay yet; no sound.
+- Shared original renderer reused, `plot` exported; existing view now exposes `presentScene()` so both entries share integer presentation/coordinate conversion. Art contract/palette/cadence/provenance/limits: examples/pixel-plays/ART-DIRECTION.md. Preview GIF: /tmp/last-boat-preview.gif.
+- Found native Retina presentation smoothed the pixel canvas. `lib/std/webenv.js` now honors canvas `image-rendering: pixelated` / `crisp-edges` with existing nearest-sprite sampling, retaining linear `auto`. Same collection requests pixelated. Small regression `webenv_pixelated` proves exact four-color quadrants at Retina 2× and linear auto.
+- PASS `last_boat_art` (scene golden, exact 2× blocks, host keyboard/mouse/touch rehearsal/cooldown, pause/resume and 300 paused frames with zero new scene writes), `pixel_plays`, `webenv_pixelated`. Real background Mac window captured/exited; exact 4× source blocks verified in Retina screenshot. Strict checker limitation remains plain JS/web; no cross build, physical touch, OS reduced-motion integration or measured performance. No build required, commit or push; other sessions preserved.
