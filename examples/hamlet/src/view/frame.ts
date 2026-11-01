@@ -4,7 +4,7 @@ import {
 } from '../pixel';
 import { TILE, HOUSE, ROLE_FISHER } from '../constants';
 import { world, tileX, tileY } from '../world/world';
-import { tufts, bakeCount } from './scenery';
+import { tufts, bakeCount, bakeInfo, shiftColors } from './scenery';
 import { settings } from '../settings';
 import { models, MODEL_HOUSE } from './models';
 import { camera, ZOOM_VIEW } from './camera';
@@ -98,12 +98,23 @@ function rectRows(rects: number[], into: number[]): void {
   for (let k = 0; k < rects.length; k += 4) for (let y = rects[k + 1]; y < rects[k + 3]; y++) into.push(y, rects[k], rects[k + 2] - 1);
 }
 
-/** The static picture with its edges, kept for the frames that follow. */
+/** The static picture with its edges, kept for the frames that follow: made whole after a full bake, else only the rectangles the bake redid (the rest slides with the camera). */
 function prepare(): void {
+  const whole = bakeInfo.full || edgedPix.length !== pix.length;
   if (edgedPix.length !== pix.length) edgedPix = Array.from({ length: pix.length }, (): u32 => 0);
-  copyInto(pix, bakedPix); copyInto(zb, bakedZ);
-  shadeEdgesRect(0, 0, W, H);
-  copyInto(edgedPix, pix);
+  copyInto(zb, bakedZ);
+  if (whole) { copyInto(pix, bakedPix); shadeEdgesRect(0, 0, W, H); copyInto(edgedPix, pix); }
+  else {
+    if (bakeInfo.shiftX !== 0 || bakeInfo.shiftY !== 0) shiftColors(edgedPix, bakeInfo.shiftX, bakeInfo.shiftY);
+    for (let k = 0; k < bakeInfo.rects.length; k += 4) {
+      const x0 = bakeInfo.rects[k], y0 = bakeInfo.rects[k + 1], x1 = bakeInfo.rects[k + 2], y1 = bakeInfo.rects[k + 3];
+      for (let y = y0; y < y1; y++) for (let i = y * W + x0, end = y * W + x1; i < end; i++) pix[i] = bakedPix[i];
+      shadeEdgesRect(x0, y0, x1, y1);
+      for (let y = y0; y < y1; y++) for (let i = y * W + x0, end = y * W + x1; i < end; i++) edgedPix[i] = pix[i];
+    }
+    copyInto(pix, edgedPix);
+  }
+  bakeInfo.consumed = true;
   seenBake = bakeCount; prevRects = []; prevLoose = []; frameDirty.full = true;
 }
 

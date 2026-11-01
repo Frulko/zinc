@@ -1,4 +1,4 @@
-import { W, H, SIN, R2, setView, unproject, clamp } from '../pixel';
+import { W, H, SIN, R2, setView, setPixelOrigin, unproject, clamp } from '../pixel';
 import { world } from '../world/world';
 
 // The renderer draws a W x H window. A village can be bigger: its ground is baked once into a larger "layer" per zoom level, and the camera
@@ -32,7 +32,8 @@ export function applyCamera(): void {
   const maxX = layerWidth(level) - W, maxY = layerHeight(level) - H;
   camera.x = Math.round(maxX <= 0 ? maxX / 2 : clamp(camera.x, 0, maxX));
   camera.y = Math.round(maxY <= 0 ? maxY / 2 : clamp(camera.y, 0, maxY));
-  setView(scaleOf(level), layerOriginX(level) - camera.x, layerOriginY(level) - camera.y);
+  setView(scaleOf(level), layerOriginX(level), layerOriginY(level));          // the window slides over the layer: the pixel origin is the camera, so every pattern stays on the layer
+  setPixelOrigin(camera.x, camera.y);
 }
 
 /** Puts the world point (x, y) at the centre of the window. */

@@ -1,6 +1,6 @@
 import {
   W, H, R2, COS, pix, zb, ground, groundZ, kinds, bakedPix, bakedZ, shadowMask, staticShadow, KIND_GRASS,
-  configureRenderer, resizeBuffer, setView, copyInto, project, unproject, rgb, rgbColor, rampOf, noise, hash, clamp, castShadow, bakeOcclusion, applyShadows, sphere,
+  configureRenderer, resizeBuffer, setView, copyInto, project, unproject, rgb, rgbColor, rampOf, noise, hash, clamp, castShadow, bakeOcclusion, applyShadows, sphere, PX, PY, S, setClip, clearClip, setPixelOrigin, CX0, CY0, CX1, CY1,
 } from '../pixel';
 import { TILE, TERRAIN_VOID } from '../constants';
 import { GRASS_TONES, WATER_TONES, SAND_TONES, ROAD_COLOR } from '../palettes';
@@ -69,7 +69,7 @@ function resizeLayer(base: Layer, level: number): Layer {
 function bakeLayer(level: number): Layer {
   if (isFixed(level)) return resizeLayer(bakeLayer(DEFAULT_ZOOM), level);
   const layer = new Layer(layerWidth(level), layerHeight(level));
-  setView(scaleOf(level), layerOriginX(level), layerOriginY(level));
+  setView(scaleOf(level), layerOriginX(level), layerOriginY(level)); setPixelOrigin(0, 0);
   const half = world.half;
   for (let iy = 0; iy < layer.height; iy++) for (let ix = 0; ix < layer.width; ix++) {
     const p = unproject(ix + .5, iy + .5), i = iy * layer.width + ix;
@@ -88,15 +88,14 @@ function bakeLayer(level: number): Layer {
   return layer;
 }
 
-/** Copies the part of the ground under the camera's window into the renderer's buffers. */
-function loadWindow(layer: Layer): void {
-  for (let wy = 0; wy < H; wy++) for (let wx = 0; wx < W; wx++) {
+/** Copies the ground under the camera's window into the renderer's buffers, for the pixels of a rectangle (x1, y1 excluded). */
+function loadRect(layer: Layer, x0: number, y0: number, x1: number, y1: number): void {
+  for (let wy = y0; wy < y1; wy++) for (let wx = x0; wx < x1; wx++) {
     const i = wy * W + wx, bx = wx + camera.x, by = wy + camera.y;
-    if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height) { pix[i] = WHITE; zb[i] = -1e9; kinds[i] = 0; ground[i] = 0; continue; }
+    if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height) { pix[i] = WHITE; zb[i] = -1e9; kinds[i] = 0; ground[i] = 0; groundZ[i] = -1e9; continue; }
     const bi = by * layer.width + bx;
-    pix[i] = layer.pix[bi]; zb[i] = layer.z[bi]; kinds[i] = layer.kind[bi]; ground[i] = layer.kind[bi] > 0 ? 1 : 0;
+    pix[i] = layer.pix[bi]; zb[i] = layer.z[bi]; kinds[i] = layer.kind[bi]; ground[i] = layer.kind[bi] > 0 ? 1 : 0; groundZ[i] = layer.z[bi];
   }
-  copyInto(groundZ, zb);
 }
 
 /** Does the dirt of tile t reach towards direction d? Roads join roads and buildings; a building joins roads; the gate opens outwards. */
@@ -112,8 +111,8 @@ function paintDirt(t: number, layer: Layer): void {
   const ramp = rampOf(ROAD_COLOR);
   const joins = [linked(t, 0), linked(t, 1), linked(t, 2), linked(t, 3)];
   const a = project(x0, y0, 0), b = project(x0 + TILE, y0, 0), c = project(x0, y0 + TILE, 0), d = project(x0 + TILE, y0 + TILE, 0);
-  const left = Math.max(0, Math.floor(Math.min(a.sx, b.sx, c.sx, d.sx))), right = Math.min(W - 1, Math.ceil(Math.max(a.sx, b.sx, c.sx, d.sx)));
-  const top = Math.max(0, Math.floor(Math.min(a.sy, b.sy, c.sy, d.sy))), bottom = Math.min(H - 1, Math.ceil(Math.max(a.sy, b.sy, c.sy, d.sy)));
+  const left = Math.max(CX0, Math.floor(Math.min(a.sx, b.sx, c.sx, d.sx))), right = Math.min(CX1 - 1, Math.ceil(Math.max(a.sx, b.sx, c.sx, d.sx)));
+  const top = Math.max(CY0, Math.floor(Math.min(a.sy, b.sy, c.sy, d.sy))), bottom = Math.min(CY1 - 1, Math.ceil(Math.max(a.sy, b.sy, c.sy, d.sy)));
   for (let iy = top; iy <= bottom; iy++) for (let ix = left; ix <= right; ix++) {
     const bx = ix + camera.x, by = iy + camera.y;
     if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || layer.tile[by * layer.width + bx] !== t) continue;
@@ -128,7 +127,7 @@ function paintDirt(t: number, layer: Layer): void {
     }
     if (dist > .27 + (noise(p.x * 3, p.y * 3) - .5) * .1) continue;
     const edge = dist > .22;
-    pix[i] = hash(ix * 5, iy * 3) > .94 ? ramp[4] : edge ? ramp[1] : ramp[clamp(Math.floor(2.2 + noise(p.x * 2.2, p.y * 2.2) * 1.8 + (hash(ix, iy) - .5) * .6), 1, 4)];
+    pix[i] = hash((ix + PX) * 5, (iy + PY) * 3) > .94 ? ramp[4] : edge ? ramp[1] : ramp[clamp(Math.floor(2.2 + noise(p.x * 2.2, p.y * 2.2) * 1.8 + (hash(ix + PX, iy + PY) - .5) * .6), 1, 4)];
     kinds[i] = KIND_ROAD;
   }
 }
@@ -141,42 +140,175 @@ function onScreen(x: number, y: number, margin: number): boolean {
   return p.sx > -margin && p.sx < W + margin && p.sy > -margin - 60 && p.sy < H + margin;
 }
 
-/** Everything that stands still (dirt, trees, rocks, flowers, buildings) is redone when the village or the camera changes, not every frame. */
-/** Counts the static bakes, so the frame code knows when its kept picture is out of date. */
+// The static picture (dirt, trees, rocks, flowers, buildings with their shadows and occlusion) is kept for the window as `bakedPix` / `bakedZ`. It is made once
+// for a camera and a village; after that only what changed is redone, never the whole window:
+//   - the camera moved by a few pixels: the kept arrays slide with it and only the strips the move uncovered are baked (panning never rebakes the rest);
+//   - a tile changed (a road, a building, a tree felled): only the rectangle around it, its neighbours' dirt included, is baked again.
+// A rectangle is made from the ground up with the renderer clipped to it, with the patterns anchored on the layer (setPixelOrigin), so it is made of the very
+// same pixels as a full bake at the same camera (tests/data/hamlet/chunks.ts proves it). `bakeInfo` tells the frame code which rectangles to redo its edges in.
+export const bakeInfo = { full: true, shiftX: 0, shiftY: 0, rects: [] as number[], consumed: false };   // consumed: the frame code has read it (a bake before that makes it a full one)
 export let bakeCount = 0;
-export function rebakeStatic(): void {
-  bakeCount++;
-  const layer = layers[artLevel(camera.level)] as Layer;
-  loadWindow(layer);
-  shadowMask.fill(0);
-  const count = tileCount();
-  for (let t = 0; t < count; t++) if ((world.road[t] || world.build[t] >= 0) && onScreen(tileX(t), tileY(t), 40)) paintDirt(t, layer);
-  for (let t = 0; t < count; t++) {
-    const x = tileX(t), y = tileY(t);
-    if (world.terrain[t] === TERRAIN_VOID || !onScreen(x, y, 40)) continue;
-    if (world.deco[t] === 1) { sphere(x - .3, y + .1, .22, .3, [74, 104, 62], 'rough'); sphere(x + .1, y - .2, .2, .26, [90, 118, 66], 'rough'); sphere(x - .05, y + .05, .5, .1, [186, 126, 102], 'solid'); }
-    if (world.deco[t] === 2) for (let k = 0; k < 6; k++) sphere(x + (hash(t, k) - .5) * 1.2, y + (hash(k, t) - .5) * 1.2, .08, .06, hash(k, t + 3) > .5 ? [250, 244, 224] : [232, 196, 100], 'solid');
-    if (world.tree[t] > 0) {
-      const v = world.tree[t] - 1, tx = x + (hash(t, 7) - .5) * .7, ty = y + (hash(t, 8) - .5) * .7;
-      models[MODEL_TREE + v].drawAt(tx, ty, 0); treeShadow(tx, ty, TREE_HEIGHT[v]);
+let bakedLevel = -1, bakedW = 0, bakedH = 0, bakedX = 0, bakedY = 0, bakedLayer: Layer | null = null, forceFull = true;
+let bakedSig: number[] = [];
+const MARGIN_PX = 6;                    // pixels re-baked around a strip or a change: the occlusion of a pixel reads four pixels around it
+export const bakeStats = { full: 0, partial: 0, lastMs: 0 };
+
+/** The next rebake is a full one (the models, the zoom or the village itself changed). */
+export function forceFullBake(): void { forceFull = true; }
+
+function tileSig(t: number): number {
+  const b = world.build[t];
+  return (((world.tree[t] * 3 + world.rock[t]) * 3 + world.deco[t]) * 64 + (b >= 0 ? 1 + world.buildings[b].type : 0)) * 2 + world.road[t] + (world.terrain[t] === TERRAIN_VOID ? 100000 : 0);
+}
+
+/** The window rectangle (x0, y0, x1, y1; x1, y1 excluded) that a tile can change: its ground, what stands on it, its shadow and its tall crown. */
+function tileBox(t: number, out: number[]): void {
+  const x0 = tileX(t) - TILE / 2, y0 = tileY(t) - TILE / 2;
+  const a = project(x0, y0, 0), b = project(x0 + TILE, y0, 0), c = project(x0, y0 + TILE, 0), d = project(x0 + TILE, y0 + TILE, 0);
+  out[0] = Math.floor(Math.min(a.sx, b.sx, c.sx, d.sx) - 3 * S); out[1] = Math.floor(Math.min(a.sy, b.sy, c.sy, d.sy) - 7 * S);
+  out[2] = Math.ceil(Math.max(a.sx, b.sx, c.sx, d.sx) + 6 * S); out[3] = Math.ceil(Math.max(a.sy, b.sy, c.sy, d.sy) + 3 * S);
+}
+/** Adds a window rectangle to a list of disjoint ones: only the part not covered yet (no pixel is baked twice: the occlusion tints in place). */
+function addRect(list: number[], x0: number, y0: number, x1: number, y1: number): void {
+  let pieces: number[] = [Math.max(0, x0), Math.max(0, y0), Math.min(W, x1), Math.min(H, y1)];
+  for (let m = 0; m < list.length && pieces.length > 0; m += 4) {
+    const e0 = list[m], e1 = list[m + 1], e2 = list[m + 2], e3 = list[m + 3], next: number[] = [];
+    for (let k = 0; k < pieces.length; k += 4) {
+      const a = pieces[k], b = pieces[k + 1], c = pieces[k + 2], d = pieces[k + 3];
+      if (c <= a || d <= b) continue;
+      if (e0 >= c || e2 <= a || e1 >= d || e3 <= b) { next.push(a, b, c, d); continue; }
+      if (b < e1) next.push(a, b, c, e1);                                 // above the covered part
+      if (d > e3) next.push(a, e3, c, d);                                 // below it
+      const t = Math.max(b, e1), u = Math.min(d, e3);
+      if (a < e0) next.push(a, t, e0, u);                                 // left of it
+      if (c > e2) next.push(e2, t, c, u);                                 // right of it
     }
-    if (world.rock[t] > 0) { models[MODEL_ROCK + world.rock[t] - 1].drawAt(x, y, 0); castShadow(x, y, .4, .6); }
-    if (world.build[t] >= 0) {
-      models[MODEL_HOUSE + world.buildings[world.build[t]].type].drawAt(x, y, 0);
-      for (let z = .4; z < 2.6; z += .55) castShadow(x, y, z, .85);
-    }
+    pieces = next;
   }
-  models[MODEL_GATE].drawAt(tileX(world.gate), tileY(world.gate), 0);
-  bakeOcclusion();
-  copyInto(staticShadow, shadowMask); applyShadows(groundZ);
-  copyInto(bakedPix, pix); copyInto(bakedZ, zb);
-  tufts.length = 0;
-  for (let iy = 0; iy < H; iy++) for (let ix = 0; ix < W; ix++) {
+  for (let k = 0; k < pieces.length; k++) list.push(pieces[k]);
+}
+function area(rects: number[]): number {
+  let n = 0;
+  for (let k = 0; k < rects.length; k += 4) n += (rects[k + 2] - rects[k]) * (rects[k + 3] - rects[k + 1]);
+  return n;
+}
+/**
+ * a'(x, y) = a(x + dx, y + dy), as one pass over the array shifted by dy * W + dx. The pixels that wrap from one row to the next (a few columns at the edge the picture
+ * slides away from) are garbage, and they lie inside the strip the caller bakes again. One function per element type: a generic one is three times slower.
+ */
+export function shiftNumbers(a: number[], dx: number, dy: number): void {
+  const k = dy * W + dx, n = a.length;
+  if (k > 0) for (let i = 0; i + k < n; i++) a[i] = a[i + k];
+  else if (k < 0) for (let i = n - 1; i + k >= 0; i--) a[i] = a[i + k];
+}
+export function shiftColors(a: u32[], dx: number, dy: number): void {
+  const k = dy * W + dx, n = a.length;
+  if (k > 0) for (let i = 0; i + k < n; i++) a[i] = a[i + k];
+  else if (k < 0) for (let i = n - 1; i + k >= 0; i--) a[i] = a[i + k];
+}
+function touches(box: number[], b: number, rect: number[], k: number): boolean {
+  return box[b] < rect[k + 2] && box[b + 2] > rect[k] && box[b + 1] < rect[k + 3] && box[b + 3] > rect[k + 1];
+}
+
+/** Bakes the given (disjoint) rectangles of the window from the ground up. Pixels outside them are left as they are. */
+function bakeRects(layer: Layer, rects: number[]): void {
+  for (let k = 0; k < rects.length; k += 4) {                         // the neighbours the occlusion reads (four pixels around a rectangle) are the static ones
+    for (let y = Math.max(0, rects[k + 1] - 5); y < Math.min(H, rects[k + 3] + 5); y++) for (let i = y * W + Math.max(0, rects[k] - 5), end = y * W + Math.min(W, rects[k + 2] + 5); i < end; i++) { pix[i] = bakedPix[i]; zb[i] = bakedZ[i]; }
+  }
+  shadowMask.fill(0);
+  const count = tileCount(), box: number[] = [0, 0, 0, 0], boxes: number[] = [], shown: boolean[] = [];
+  for (let t = 0; t < count; t++) { tileBox(t, box); boxes.push(box[0], box[1], box[2], box[3]); shown.push(onScreen(tileX(t), tileY(t), 40)); }
+  for (let k = 0; k < rects.length; k += 4) {                        // phase 1: ground, dirt, objects and their shadows
+    setClip(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);
+    loadRect(layer, rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);
+    for (let t = 0; t < count; t++) {
+      if ((world.road[t] || world.build[t] >= 0) && shown[t] && touches(boxes, t * 4, rects, k)) paintDirt(t, layer);
+    }
+    for (let t = 0; t < count; t++) {
+      const x = tileX(t), y = tileY(t);
+      if (world.terrain[t] === TERRAIN_VOID || !shown[t] || !touches(boxes, t * 4, rects, k)) continue;
+      if (world.deco[t] === 1) { sphere(x - .3, y + .1, .22, .3, [74, 104, 62], 'rough'); sphere(x + .1, y - .2, .2, .26, [90, 118, 66], 'rough'); sphere(x - .05, y + .05, .5, .1, [186, 126, 102], 'solid'); }
+      if (world.deco[t] === 2) for (let n = 0; n < 6; n++) sphere(x + (hash(t, n) - .5) * 1.2, y + (hash(n, t) - .5) * 1.2, .08, .06, hash(n, t + 3) > .5 ? [250, 244, 224] : [232, 196, 100], 'solid');
+      if (world.tree[t] > 0) {
+        const v = world.tree[t] - 1, tx = x + (hash(t, 7) - .5) * .7, ty = y + (hash(t, 8) - .5) * .7;
+        models[MODEL_TREE + v].drawAt(tx, ty, 0); treeShadow(tx, ty, TREE_HEIGHT[v]);
+      }
+      if (world.rock[t] > 0) { models[MODEL_ROCK + world.rock[t] - 1].drawAt(x, y, 0); castShadow(x, y, .4, .6); }
+      if (world.build[t] >= 0) {
+        models[MODEL_HOUSE + world.buildings[world.build[t]].type].drawAt(x, y, 0);
+        for (let z = .4; z < 2.6; z += .55) castShadow(x, y, z, .85);
+      }
+    }
+    models[MODEL_GATE].drawAt(tileX(world.gate), tileY(world.gate), 0);
+  }
+  for (let k = 0; k < rects.length; k += 4) { setClip(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]); bakeOcclusion(); }    // phase 2: it reads every rectangle's depth
+  for (let k = 0; k < rects.length; k += 4) {                        // phase 3: shadows on the ground, then keep the result
+    setClip(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);
+    for (let y = rects[k + 1]; y < rects[k + 3]; y++) for (let i = y * W + rects[k], end = y * W + rects[k + 2]; i < end; i++) staticShadow[i] = shadowMask[i];
+    applyShadows(groundZ);
+    for (let y = rects[k + 1]; y < rects[k + 3]; y++) for (let i = y * W + rects[k], end = y * W + rects[k + 2]; i < end; i++) { bakedPix[i] = pix[i]; bakedZ[i] = zb[i]; }
+  }
+  clearClip();
+}
+
+/** The pixels of grass the wind animates. After a slide the old ones move with the picture; only the rebaked rectangles are searched again. */
+function findTufts(layer: Layer, rects: number[], slid: boolean, dx: number, dy: number): void {
+  const found: number[] = [];
+  const inRects = (x: number, y: number): boolean => {
+    for (let k = 0; k < rects.length; k += 4) if (x >= rects[k] && x < rects[k + 2] && y >= rects[k + 1] && y < rects[k + 3]) return true;
+    return false;
+  };
+  if (slid) for (const i of tufts) {
+    const x = i % W - dx, y = Math.floor(i / W) - dy;
+    if (x >= 0 && x < W && y >= 0 && y < H && !inRects(x, y)) found.push(y * W + x);
+  }
+  for (let k = 0; k < rects.length; k += 4) for (let iy = rects[k + 1]; iy < rects[k + 3]; iy++) for (let ix = rects[k]; ix < rects[k + 2]; ix++) {
     const bx = ix + camera.x, by = iy + camera.y;
     if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || !layer.tuft[by * layer.width + bx]) continue;
     const i = iy * W + ix;
-    if (kinds[i] === KIND_GRASS && zb[i] === groundZ[i]) tufts.push(i);
+    if (kinds[i] === KIND_GRASS && bakedZ[i] === groundZ[i]) found.push(i);
   }
+  tufts.length = 0;
+  for (const i of found) tufts.push(i);
+}
+
+/** Brings the static picture to the current camera and village: a full bake the first time and whenever the zoom, the models or the window changed, else only strips and changed tiles. */
+export function rebakeStatic(): void {
+  const started = Date.now();
+  const layer = layers[artLevel(camera.level)] as Layer;
+  const dx = camera.x - bakedX, dy = camera.y - bakedY, count = tileCount();
+  let rects: number[] = [];
+  let full = forceFull || bakedLayer !== layer || bakedLevel !== camera.level || bakedW !== W || bakedH !== H || bakedSig.length !== count || Math.abs(dx) * 2 > W || Math.abs(dy) * 2 > H;
+  if (!full) {
+    if (dx !== 0) addRect(rects, dx > 0 ? W - dx - MARGIN_PX : 0, 0, dx > 0 ? W : -dx + MARGIN_PX, H);
+    if (dy !== 0) addRect(rects, 0, dy > 0 ? H - dy - MARGIN_PX : 0, W, dy > 0 ? H : -dy + MARGIN_PX);
+    const box: number[] = [0, 0, 0, 0];
+    for (let t = 0; t < count; t++) {
+      const sig = tileSig(t);
+      if (sig === bakedSig[t]) continue;
+      bakedSig[t] = sig;
+      tileBox(t, box); addRect(rects, box[0], box[1], box[2], box[3]);
+      for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0) { tileBox(v, box); addRect(rects, box[0], box[1], box[2], box[3]); } }
+    }
+    if (rects.length === 0 && dx === 0 && dy === 0) return;
+    if (area(rects) * 10 > W * H * 6) full = true;                 // most of the window anyway
+  }
+  bakeCount++;
+  if (full) {
+    rects = [0, 0, W, H];
+    bakeInfo.full = true; bakeInfo.shiftX = 0; bakeInfo.shiftY = 0;
+    bakedSig = []; for (let t = 0; t < count; t++) bakedSig.push(tileSig(t));
+    bakeStats.full++;
+  } else {
+    if (dx !== 0 || dy !== 0) { shiftColors(bakedPix, dx, dy); shiftNumbers(bakedZ, dx, dy); shiftNumbers(kinds, dx, dy); shiftNumbers(ground, dx, dy); shiftNumbers(groundZ, dx, dy); shiftNumbers(staticShadow, dx, dy); }
+    if (bakeInfo.consumed) { bakeInfo.full = false; bakeInfo.shiftX = dx; bakeInfo.shiftY = dy; } else bakeInfo.full = true;     // two bakes between two frames: the frame code redoes everything
+    bakeStats.partial++;
+  }
+  bakeInfo.rects = rects; bakeInfo.consumed = false;
+  bakeRects(layer, rects);
+  findTufts(layer, rects, !full, dx, dy);
+  bakedLayer = layer; bakedLevel = camera.level; bakedW = W; bakedH = H; bakedX = camera.x; bakedY = camera.y; forceFull = false;
+  bakeStats.lastMs = Date.now() - started;
 }
 
 /** Makes sure the models and the ground of a zoom level exist, and points the renderer at the camera. */
@@ -185,6 +317,7 @@ function ensureLevel(level: number): void {
   const art = artLevel(level);
   resizeBuffer(windowWidth(level), windowHeight(level));
   useModels(art, scaleOf(art), fixed ? scaleOf(DEFAULT_ZOOM) : 0);
+  forceFull = true;
   if (layers[art] === null) layers[art] = bakeLayer(art);
   applyCamera();
 }
@@ -192,6 +325,7 @@ function ensureLevel(level: number): void {
 /** Prepares the renderer, the models and the ground of the current village, centred on its middle. */
 export function bakeVillage(): void {
   configureRenderer(8, 1.1, -.25);
+  forceFull = true;
   for (let i = 0; i < layers.length; i++) layers[i] = null;
   ensureLevel(camera.level);
   centerOn(0, 0);
