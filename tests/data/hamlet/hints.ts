@@ -8,7 +8,7 @@ import { ROLE_NAMES, ROLE_SETTLER, BS_WAITING, BS_FULL } from '../../../examples
 import * as fs from 'zinc:fs';
 
 loadEconomy(fs.readText('examples/hamlet/assets/economy.json'), MODEL_IDS, ROLE_NAMES);   // the test runs from the repository root
-const HOUSE_TYPE = economy.typeOf('house'), SAWMILL = economy.typeOf('sawmill'), WOOD = economy.resourceOf('wood');
+const HOUSE_TYPE = economy.typeOf('house'), SAWMILL = economy.typeOf('sawmill'), WOOD = economy.resourceOf('log') >= 0 ? economy.resourceOf('log') : economy.resourceOf('wood');
 let failures = 0;
 function check(name: string, ok: boolean): void { console.log('hamlet hints: ' + name + (ok ? ' PASS' : ' FAIL')); if (!ok) failures++; }
 const kinds = (): string[] => computeHints().map((h: Hint): string => h.kind);

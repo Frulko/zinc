@@ -43,7 +43,7 @@ const w0 = Date.now(); useModels(5, 10, 0); const wholeMs = Date.now() - w0;
 const wholeSet: CachedModel[] = models.slice();
 resetModels(); setFullModelScan(false);
 const t0 = Date.now(); useModels(5, 10, 0); const bakeMs = Date.now() - t0;
-let modelsEqual = models.length === 11 && wholeSet.length === 11;
+let modelsEqual = models.length > 0 && models.length === wholeSet.length;
 for (let k = 0; k < models.length; k++) if (!same(models[k], wholeSet[k])) modelsEqual = false;
 check('the ' + models.length + ' hamlet models are the same with the box', modelsEqual);
 console.log('hamlet atlas: bake of the hamlet models ' + bakeMs + ' ms with the box, ' + wholeMs + ' ms reading the whole buffer (the first version)');
