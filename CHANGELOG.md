@@ -9,13 +9,18 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ## [Unreleased]
 
 ### Raspberry Pi and the shell
+#### New
+- The player fits a narrow screen (the Pi's panel turned to portrait): home tiles wrap into a grid, the cards stack their button under the text, Settings sections become a row of tabs, and a very small screen keeps the tiles only.
+- **Faster** An idle Pi shell costs less: the home animation rests after 20 seconds without a touch, an unchanged screen no longer asks the display for a refresh every frame, and a turned screen stores each changed pixel directly.
+
+## [0.10.15] - 2026-11-01
+
+### Raspberry Pi and the shell
 
 #### New
 
 - A Raspberry Pi with a weak power supply tells you: an amber bolt appears in the top bar while the Pi reports under-voltage (tap it for what to do), and *Settings, System* has a *Power* line. A small background service (`zinc-power-guard`) also lowers the CPU clock while the supply is too weak and restores it a minute after the last alarm; turn it off with `ZINC_POWER_GUARD=0` in `/etc/zinc/session.conf`. `zinc-admin status` adds `power=`.
 - The Pi keeps its logs across a power cut: the journal is stored on the card (40 MB at most) and written every 5 seconds, so `journalctl -b -1` shows what happened before the Pi lost power. Updates install this on existing Pis.
-- The player fits a narrow screen (the Pi's panel turned to portrait): home tiles wrap into a grid, the cards stack their button under the text, Settings sections become a row of tabs, and a very small screen keeps the tiles only.
-- **Faster** An idle Pi shell costs less: the home animation rests after 20 seconds without a touch, an unchanged screen no longer asks the display for a refresh every frame, and a turned screen stores each changed pixel directly.
 - The shell says an app is starting: until its first frame the area under the bar shows its icon, its name and a spinner, with a calmer line after 8 seconds on a slow start. Taps show at once: a pressed app tile shrinks and brightens, switches and colour swatches light up too.
 - Screen rotation for the Pi: *Settings, Display* turns the whole screen (top bar, app and touch) by 0, 90, 180 or 270 degrees, the image builder has a *Rotation* choice, and `zinc-admin rotation <degrees>` or `ZINC_ROTATE` in `/etc/zinc/session.conf` does the same. Apps run without the shell turn too.
 
@@ -1074,7 +1079,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.13...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.15...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -1098,3 +1103,4 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 [0.9.1]: https://github.com/Frulko/zinc/compare/v0.8.2...v0.9.1
 [0.10.6]: https://github.com/Frulko/zinc/compare/v0.9.1...v0.10.6
 [0.10.13]: https://github.com/Frulko/zinc/compare/v0.10.6...v0.10.13
+[0.10.15]: https://github.com/Frulko/zinc/compare/v0.10.13...v0.10.15
