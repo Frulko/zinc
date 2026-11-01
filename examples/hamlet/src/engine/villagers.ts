@@ -8,9 +8,11 @@ import { Housing, BuildingDef } from '../world/economy';
 import { world, recount, Person, Building, random, tileAt, tileX, tileY, tileIndex, tileI, tileJ, neighbor, waterNeighbor } from '../world/world';
 import { fieldFrom, approachTile, pathTo, planPath, walk, isWalkable, isMoving, UNREACHABLE } from './path';
 import { sound } from '../audio';
+import { emitFx, FX_LEAVES, FX_FELL, FX_CHIPS, FX_SPLASH, LODE_FX, CHIP_SPARK, CHIP_CHAFF, CHIP_SAWDUST, CHIP_FLOUR, CHIP_DUST } from '../world/fx';
 import { settings } from '../settings';
 import { economy } from '../world/economy';
 import { take } from '../rules/stock';
+import { resting, workScale } from '../rules/meadow';
 import { rankOf } from '../rules/labour';
 import { capacityOf } from '../rules/housing';
 import { startRoam, roamTick } from './services';
@@ -23,6 +25,18 @@ const faceTile = (p: Person, t: number): void => { p.yaw = Math.atan2(tileY(t) -
 function isNear(p: Person, t: number): boolean {
   const here = tileOf(p);
   return here >= 0 && Math.abs(tileI(here) - tileI(t)) + Math.abs(tileJ(here) - tileJ(t)) <= 1;
+}
+
+/** True when the swing of a worker passed its moment of impact (the axe is down) between two phases: sounds and effects are made on the blow itself. */
+const BLOW_ANGLE = 4.2, TAU = Math.PI * 2;
+const struck = (before: number, after: number): boolean => Math.floor((after * BLOW_ANGLE - Math.PI) / TAU) !== Math.floor((before * BLOW_ANGLE - Math.PI) / TAU);
+/** What a workshop throws up at each blow: the building's id, its particles and sound (a farm cuts, a sawmill saws, a forge strikes sparks, a mill dusts flour). */
+function workBlow(p: Person, site: Building): void {
+  const id = defOf(site).id;   // n: the heading, the view moves the effect in front of the worker
+  if (id === 'farm') { emitFx(FX_CHIPS, p.x, p.y, 6, p.yaw, CHIP_CHAFF); sound('whoosh', .3); }
+  else if (id === 'sawmill') { emitFx(FX_CHIPS, p.x, p.y, 5, p.yaw, CHIP_SAWDUST); sound('saw', .25); }
+  else if (id === 'forge') { emitFx(FX_CHIPS, p.x, p.y, 8, p.yaw, CHIP_SPARK); sound('hammer', .4); }
+  else if (id === 'mill') emitFx(FX_CHIPS, p.x, p.y, 5, p.yaw, CHIP_FLOUR);
 }
 
 export function newPerson(role: number, home: number, t: number): Person {
@@ -264,10 +278,12 @@ function goDeliver(p: Person): void {
   if (!planPath(p, buildingTile(site))) { p.carry = 0; p.state = ST_SEEK; p.timer = 1; }
 }
 function startWork(p: Person, site: Building, def: BuildingDef): boolean {
+  if (resting(def)) return false;                            // the hives sleep in winter
   for (let k = 0; k < def.inputs.length; k++) if (site.stock[k] < def.inputs[k]) return false;
   for (let k = 0; k < def.inputs.length; k++) site.stock[k] -= def.inputs[k];
   site.state = BS_WORKING; site.waitFor = -1;
-  p.state = ST_WORK; p.timer = def.seconds; p.phase = 0;
+  p.state = ST_WORK; p.timer = def.seconds / workScale(site, def); p.phase = 0;
+  if (def.startSound !== '') sound(def.startSound, .35);
   return true;
 }
 
@@ -297,14 +313,17 @@ function updateWorker(p: Person, dt: number): void {
       if (!found) p.timer = def.store ? 1.5 : 2;
       break;
     }
-    case ST_WORK:
+    case ST_WORK: {
+      const before = p.phase;
       p.phase += dt * 6.2;
+      if (struck(before, p.phase)) workBlow(p, site);
       p.timer -= dt;
       if (p.timer > 0) break;
       for (let k = 0; k < def.outputs.length; k++) site.stock[k] += def.outputs[k];
       world.saveDirty = true; sound('point', .3);
       site.state = BS_IDLE; p.state = ST_SEEK; p.timer = .2;
       break;
+    }
     case ST_ROAM:
       roamTick(p, site);
       if (walk(p, dt, speed)) { p.state = ST_ROAM_BACK; if (!planPath(p, buildingTile(site))) { p.state = ST_SEEK; p.timer = ROAM_REST; } }
@@ -325,14 +344,14 @@ function updateWorker(p: Person, dt: number): void {
       faceTile(p, p.target); p.state = ST_CHOP; p.timer = def.seconds;
       break;
     case ST_CHOP: {
-      const before = Math.floor(p.phase * 1.6);
+      const before = p.phase;
       p.phase += dt * 6.2;
-      if (Math.floor(p.phase * 1.6) !== before && p.phase * 1.6 > 0) sound('wood', .5);
+      if (struck(before, p.phase)) { emitFx(FX_LEAVES, tileX(p.target), tileY(p.target), 0, p.target, world.tree[p.target] - 1); sound('chop', .6); }
       p.timer -= dt;
       if (p.timer > 0) break;
+      emitFx(FX_FELL, tileX(p.target), tileY(p.target), p.yaw, p.target, world.tree[p.target] - 1);
       world.tree[p.target] = 0; world.claimed[p.target] = 0; world.felledCount++;
       world.revision++; world.saveDirty = true;
-      sound('splash', .25);
       p.target = -1; goDeliver(p);
       break;
     }
@@ -342,13 +361,13 @@ function updateWorker(p: Person, dt: number): void {
       faceTile(p, p.target); p.state = ST_MINE; p.timer = def.seconds;
       break;
     case ST_MINE: {
-      const before = Math.floor(p.phase * 1.6);
+      const before = p.phase;
       p.phase += dt * 6.2;
-      if (Math.floor(p.phase * 1.6) !== before && p.phase * 1.6 > 0) sound('wood', .4);
+      if (struck(before, p.phase)) { const fx = LODE_FX[def.lode]; emitFx(FX_CHIPS, tileX(p.target), tileY(p.target), fx.chips, p.target, fx.palette); sound(fx.sound, fx.volume); }
       p.timer -= dt;
       if (p.timer > 0) break;
       world.lode[p.target]--;
-      if (world.lode[p.target] <= 0) { world.rock[p.target] = 0; world.lode[p.target] = 0; world.revision++; }   // used up: the tile is free again and the baked scenery redone
+      if (world.lode[p.target] <= 0) { emitFx(FX_CHIPS, tileX(p.target), tileY(p.target), LODE_FX[def.lode].chips * 3, p.target, LODE_FX[def.lode].dust); world.rock[p.target] = 0; world.lode[p.target] = 0; world.revision++; }   // used up: the tile is free again and the baked scenery redone
       world.claimed[p.target] = 0; world.saveDirty = true;
       p.target = -1; goDeliver(p);
       break;
@@ -366,7 +385,8 @@ function updateWorker(p: Person, dt: number): void {
       if (p.timer > 0) break;
       if (random() < FISH_CATCH_CHANCE) {
         world.claimed[p.target] = 0; p.target = -1;
-        sound('splash', .3);
+        emitFx(FX_SPLASH, p.x, p.y, p.yaw, p.target);
+        sound('fish', .45);
         goDeliver(p);
       } else p.timer = def.seconds * .6;     // nothing bit: the line goes back in
       break;
@@ -398,7 +418,7 @@ function updateWorker(p: Person, dt: number): void {
       const deer = world.deer[p.target];
       if (random() < HIT_CHANCE) {
         deer.state = DEER_DEAD; deer.path = []; deer.step = 0;
-        sound('soft', .5);
+        sound('hit', .6); emitFx(FX_CHIPS, deer.x, deer.y, deer.stag ? 14 : 9, 0, CHIP_DUST);
         p.state = ST_TO_BODY;
         if (!planPath(p, tileAt(deer.x, deer.y))) { deer.hunted = false; p.state = ST_SEEK; p.timer = 1; }
       } else {

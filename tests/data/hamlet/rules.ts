@@ -1,6 +1,7 @@
 // Headless rules of the hamlet: roads, arrivals, jobs, wood, meat, demolition and the save round trip. No window.
 import { world, generate, tileIndex, tileI, tileJ, isOpen, waterNeighbor, neighbor } from '../../../examples/hamlet/src/world/world';
 import { applyTool, checkTool, addBuilding } from '../../../examples/hamlet/src/rules/build';
+import { fxQueue, FX_FELL, FX_LEAVES } from '../../../examples/hamlet/src/world/fx';
 import { stepWorld } from '../../../examples/hamlet/src/engine/simulate';
 import { updateNature } from '../../../examples/hamlet/src/engine/nature';
 import { population, createResident } from '../../../examples/hamlet/src/engine/villagers';
@@ -61,6 +62,7 @@ check('lumberjacks deliver wood and fell trees', world.stock[WOOD] > before && w
 rich(); applyTool(TOOL_HOUSE, at(4, 5)); world.tree[at(4, 5)] = 0;
 run(20);
 applyTool(TOOL_LODGE, at(5, 5));
+check('felling raises view events (a blow and a fall)', fxQueue.some((e) => e.kind === FX_FELL) || fxQueue.some((e) => e.kind === FX_LEAVES));
 run(20);
 check('the lodge takes the two others as hunters', world.people.filter((p) => p.role === ROLE_HUNTER).length === 2);
 run(300);

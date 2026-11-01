@@ -10,6 +10,8 @@ import { appealMarks, drawMarks } from './overlay';
 import { models, MODEL_HOUSE } from './models';
 import { camera, ZOOM_VIEW } from './camera';
 import { computeHints, Hint } from '../rules/hints';
+import { drainFx, fxDirty, drawFxBodies, drawFxSparks } from './fx';
+import { beesDirty, drawBees } from './bees';
 import { drawPerson, drawDeer, drawSmoke, actorAtlas } from './actors';
 
 const GRASS_LIT = GRASS.map((c: number[]): u32 => rgbColor(c));
@@ -131,6 +133,9 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
     addRect(dirty, a.sx, a.sy, 1.6 * S, 2.4 * S, 1.6 * S, 2.4 * S);
   }
   if (hover >= 0) { const a = project(tileX(hover), tileY(hover), 0); addRect(dirty, a.sx, a.sy, 2 * TILE * S, 5 * S, 2 * TILE * S, 1.2 * TILE * S); }
+  beesDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
+  drainFx(time);
+  fxDirty((sx: number, sy: number, l: number, u: number, r: number, d: number): void => addRect(dirty, sx, sy, l, u, r, d), S);
   const pond = project(world.pondX + .2, world.pondY, 0);
   addRect(dirty, pond.sx, pond.sy, world.pondR * S * 1.5, world.pondR * S * .8, world.pondR * S * 1.5, world.pondR * S * .8);
   const hints: Hint[] = settings.hints && ZOOM_VIEW[camera.level] <= ARROWS_MAX_VIEW ? computeHints().slice(0, ARROWS_MAX) : [];
@@ -156,6 +161,8 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   const atlas = settings.atlas ? actorAtlas() : null;
   for (const d of world.deer) drawDeer(d, time, atlas);
   for (const p of world.people) drawPerson(p, time, atlas);
+  drawFxBodies(time);
+  drawBees(time);
   if (preview >= 0 && hover >= 0 && Math.floor(time * 3) % 2 === 0) models[MODEL_HOUSE + preview].drawAt(tileX(hover), tileY(hover), 0);
   if (settings.shadows) { flushShadows(); applyShadows(bakedZ); } else pendingShadows.length = 0;
   if (settings.edges) for (let k = 0; k < rects.length; k += 4) shadeEdgesRect(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);
@@ -164,6 +171,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
     const s = CHIMNEY[b.type];
     drawSmoke(tileX(b.j * world.size + b.i) + s[0], tileY(b.j * world.size + b.i) + s[1], s[2], time, b.i * 7 + b.j);
   }
+  drawFxSparks(time);
   if (hover >= 0) outline(hover, ok ? OK : BAD);
   drawMarks(marks);
   for (let k = 0; k < arrowAt.length; k += 3) drawArrow(arrowAt[k], arrowAt[k + 1], time, ARROW_COLORS[clamp(arrowAt[k + 2], 0, 3)]);
