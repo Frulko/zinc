@@ -18,7 +18,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 #### Fixed
 
-- `zinc device <pi> screen` and `screen --live` show the app running under the shell, not only the top bar, and the live view follows the app in real time.
+- `zinc device <pi> screen` and `screen --live` show the whole screen under the shell, the top bar and the app below it, and the live view follows the app in real time. An app under the shell no longer answers the screen request itself.
 
 ### Performance
 

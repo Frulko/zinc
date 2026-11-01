@@ -39,12 +39,15 @@ with tempfile.TemporaryDirectory(prefix='zinc-shell-') as tmp:
         for name, display in (('a', ''), ('g', 'gl')):
             app = tmp / name; app.mkdir()
             if display: (app / 'zinc.json').write_text('{"name":"%s","display":"%s"}' % (name, display))
-            (app / 'run.sh').write_text('#!/bin/sh\necho "%s $ZINC_DISPLAY $ZINC_SHELL_SOCKET $ZINC_APP_NAME" >> "%s"\nexec sleep 60\n' % (name, events))
+            (app / 'run.sh').write_text('#!/bin/sh\necho "%s $ZINC_DISPLAY $ZINC_SHELL_SOCKET $ZINC_APP_NAME $ZINC_SHOT_REQUEST" >> "%s"\nexec sleep 60\n' % (name, events))
             dev('install', str(app), '--name', name)
         dev('run', 'a')
         until(lambda: events.read_text().startswith('a '), 'a did not start')
         line = events.read_text().splitlines()[0]
-        assert line == 'a shell %s a' % (run / 'shell.sock'), line
+        got = line.split()
+        assert got[:4] == ['a', 'shell', str(run / 'shell.sock'), 'a'], line
+        # the screen is the shell's: an app under it must not answer `zinc device screen` nor take the live viewer (both are named beside ZINC_SHOT_REQUEST)
+        assert len(got) == 5 and got[4].endswith('/run/app/shot.request'), 'an app under the shell shares the shell\'s screen request: ' + line
         assert not (run / 'device-screen').exists(), 'an app under the shell took the file lease'
         dev('stop', 'a')
         p = dev('run', 'g', ok=False)
