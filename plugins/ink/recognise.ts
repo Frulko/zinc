@@ -4,6 +4,7 @@
 import * as fs from 'zinc:fs';
 import { Stroke } from './index';
 import { Distance, distances, distancesAsync, flat, parseExamples, setExamples } from './matcher';
+import { netLoadFile, netLogits, netLogitsAsync, netProbs } from './net';
 
 export interface Candidate { label: string; score: number }
 export class Box { x: number = 0; y: number = 0; w: number = 0; h: number = 0; }
@@ -26,6 +27,8 @@ export interface RecogniseOptions {
   priors?: Map<string, number>;
   /** Run the TypeScript reference matcher instead of the native one (the same answer; for tests and engines without the native library). */
   reference?: boolean;
+  /** false: the closest-template matcher alone (stage A), without the letter net (stage B). Default true; ignored when the net has no model or does not know a class. */
+  net?: boolean;
 }
 
 /** A distance of 0.3 (unit box) scores 0.5. DISTANCE_SCALE, MIN_SCORE and MIN_MARGIN were fitted on the held-out synthetic writers of
@@ -35,6 +38,9 @@ export const DISTANCE_SCALE: number = 0.3;
 export const MIN_SCORE: number = 0.4;
 /** The best must beat the second by this much, or the answer is 'unknown' ("never guess"). */
 export const MIN_MARGIN: number = 0.1;
+
+/** With the net (stage B) the score of a class is NET_WEIGHT of the net's probability plus the rest of the template matcher's score (stage A). */
+export const NET_WEIGHT: number = 0.9;
 
 /** The labels of the shapes; any other label is a letter or digit. */
 export const SHAPES: string[] = ['circle', 'x', 'tick', 'line', 'scribble'];
@@ -66,11 +72,15 @@ function circleAround(strokes: Stroke[]): i32 {
     if (Math.hypot(c.pts[n - 3] - c.pts[0], c.pts[n - 2] - c.pts[1]) > 0.25 * pathLength(c)) continue;
     const mx = 0.1 * w, my = 0.1 * h;
     let holds = true;
+    let ix0 = 1e18, iy0 = 1e18, ix1 = -1e18, iy1 = -1e18;
     for (let j = 0; j < strokes.length && holds; j++) {
       if (j === i) continue;
       const o = strokes[j];
       holds = o.x0 >= c.x0 - mx && o.x1 <= c.x1 + mx && o.y0 >= c.y0 - my && o.y1 <= c.y1 + my;
+      ix0 = Math.min(ix0, o.x0); iy0 = Math.min(iy0, o.y0); ix1 = Math.max(ix1, o.x1); iy1 = Math.max(iy1, o.y1);
     }
+    // a circle leaves room around what it holds: the loop of a B drawn in two strokes does not "circle" the B's stem, which spans its whole height
+    if (holds && (ix1 - ix0 > 0.85 * w || iy1 - iy0 > 0.85 * h)) holds = false;
     if (holds) return i;
   }
   return -1;
@@ -80,14 +90,22 @@ function classesOf(opts: RecogniseOptions | undefined): string {
   return opts !== undefined && opts.classes !== undefined ? opts.classes.join(',') : '';
 }
 
-function finish(r: Recognition, d: Distance[], circled: boolean, opts: RecogniseOptions | undefined): Recognition {
+function useNet(opts: RecogniseOptions | undefined): boolean {
+  return opts === undefined || (opts.net !== false && opts.reference !== true);
+}
+
+function finish(r: Recognition, d: Distance[], circled: boolean, opts: RecogniseOptions | undefined, logits: number[]): Recognition {
   const out: Candidate[] = [];
+  const want: string[] = [];
+  for (const x of d) if (!(circled && SHAPES.indexOf(x.label) >= 0)) want.push(x.label);
+  const p = logits.length > 0 ? netProbs(logits, want) : null;
   for (const x of d) {
     if (circled && SHAPES.indexOf(x.label) >= 0) continue;   // inside a circle a letter is asked for, not a shape
     let prior = 1;
     if (opts !== undefined && opts.priors !== undefined) { if (opts.priors.has(x.label)) prior = opts.priors.get(x.label) as number; }
     const q = x.d / DISTANCE_SCALE;
-    out.push({ label: x.label, score: prior / (1 + q * q) });
+    const sa = 1 / (1 + q * q);
+    out.push({ label: x.label, score: prior * (p === null ? sa : NET_WEIGHT * (p.get(x.label) as number) + (1 - NET_WEIGHT) * sa) });
   }
   out.sort((a: Candidate, b: Candidate): i32 => b.score > a.score ? 1 : b.score < a.score ? -1 : 0);
   r.candidates = out;
@@ -103,7 +121,10 @@ export function recognise(strokes: Stroke[], opts?: RecogniseOptions): Recogniti
   r.box = boxOf(strokes);
   const c = circleAround(strokes);
   const inner = c < 0 ? strokes : strokes.filter((_s: Stroke, i: i32): boolean => i !== c);
-  if (inner.length > 0) finish(r, distances(flat(inner), classesOf(opts), opts !== undefined && opts.reference === true), c >= 0, opts);
+  if (inner.length > 0) {
+    const f = flat(inner);
+    finish(r, distances(f, classesOf(opts), opts !== undefined && opts.reference === true), c >= 0, opts, useNet(opts) ? netLogits(f) : []);
+  }
   r.ms = performance.now() - t0;
   return r;
 }
@@ -115,14 +136,21 @@ export async function recogniseAsync(strokes: Stroke[], opts?: RecogniseOptions)
   r.box = boxOf(strokes);
   const c = circleAround(strokes);
   const inner = c < 0 ? strokes : strokes.filter((_s: Stroke, i: i32): boolean => i !== c);
-  if (inner.length > 0) finish(r, await distancesAsync(flat(inner), classesOf(opts)), c >= 0, opts);
+  if (inner.length > 0) {
+    const f = flat(inner);
+    finish(r, await distancesAsync(f, classesOf(opts)), c >= 0, opts, useNet(opts) ? await netLogitsAsync(f) : []);
+  }
   r.ms = performance.now() - t0;
   return r;
 }
 
-/** Replaces the built-in templates by those of a file ([[label, [[x, y, x, y...], ...]], ...]: tools/ink-train/make-templates writes the format).
+/** Replaces the built-in model by the one in a file. A `.znm` file is a letter net (stage B, tools/ink-train/train writes one); any other file is a
+ *  template list (stage A):
+ *
+ *  Replaces the built-in templates by those of a file ([[label, [[x, y, x, y...], ...]], ...]: tools/ink-train/make-templates writes the format).
  *  false when the file cannot be read or is not that format; the built-in templates stay then. */
 export function loadModel(path: string): boolean {
+  if (path.endsWith('.znm')) return netLoadFile(path);
   try {
     const list = parseExamples(fs.readText(path));
     if (list.length === 0) return false;

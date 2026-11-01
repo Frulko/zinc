@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""Trains the tiny letter net of zinc:ink (ZN-936) with PyTorch on the synthetic strokes of tools/ink-train/make-dataset, quantises it to int8
+(post-training, per-channel weight scales, calibrated activations) and writes the .znm model and plugins/ink/model.ts (the same bytes in base64).
+
+  tools/ink-train/train [--set FILE] [--extra N] [--aug N] [--epochs N] [--out FILE] [--ts FILE] [--seed N]
+
+The train data are the train writers of the set plus --extra more synthetic writers (make-dataset with another seed, never the held-out ones),
+each mark augmented --aug times: rotation, shear, scale, a smooth warp, point noise, thinned points. Held-out accuracy is the test writers of the
+set, letters among A-E,V and shapes among circle, x, tick, line (the protocol of tests/data/ink-recog), measured on the int8 model through the
+integer reference (inknet.py), which the C kernels reproduce bit for bit.
+"""
+import argparse, base64, json, math, os, random, subprocess, sys, tempfile
+from multiprocessing import Pool
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+here = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, here)
+import inknet
+
+CLASSES = ['A', 'B', 'C', 'D', 'E', 'V', 'circle', 'x', 'tick', 'line', 'scribble']
+LETTERS = [0, 1, 2, 3, 4, 5]
+SHAPES = [6, 7, 8, 9]
+
+
+def augment(strokes, rng):
+    pts = [np.array(s, dtype=np.float64).reshape(-1, 2) for s in strokes]
+    allp = np.concatenate(pts)
+    c = (allp.min(0) + allp.max(0)) / 2
+    size = max(np.ptp(allp[:, 0]), np.ptp(allp[:, 1]), 1.0)
+    a = math.radians(rng.gauss(0, 7))
+    sh = rng.uniform(-0.2, 0.2)
+    sx, sy = rng.uniform(0.8, 1.25), rng.uniform(0.8, 1.25)
+    amp, fq, ph = rng.uniform(0, 0.04) * size, rng.uniform(1, 3), rng.uniform(0, 6.3)
+    out = []
+    for p in pts:
+        p = p - c
+        p = np.stack([p[:, 0] + sh * p[:, 1], p[:, 1]], 1) * [sx, sy]
+        p = p @ np.array([[math.cos(a), math.sin(a)], [-math.sin(a), math.cos(a)]])
+        p = p + amp * np.stack([np.sin(p[:, 1] / size * fq * 6.28 + ph), np.cos(p[:, 0] / size * fq * 6.28 + ph)], 1)
+        p = p + np.random.default_rng(rng.getrandbits(32)).normal(0, 0.008 * size, p.shape)
+        if len(p) > 4:
+            keep = [i for i in range(len(p)) if i in (0, len(p) - 1) or rng.random() > 0.2]
+            p = p[keep]
+        out.append(p.reshape(-1).tolist())
+    return out
+
+
+def one(job):
+    strokes, seed = job
+    return inknet.raster(strokes if seed < 0 else augment(strokes, random.Random(seed)))
+
+
+def make_rasters(samples, aug, seed, pool):
+    jobs = []
+    for i, s in enumerate(samples):
+        jobs.append((s['s'], -1))
+        for k in range(aug):
+            jobs.append((s['s'], seed * 1000003 + i * 97 + k))
+    ys = [CLASSES.index(s['c']) for s in samples for _ in range(aug + 1)]
+    xs = pool.map(one, jobs, chunksize=64)
+    return np.stack(xs), np.array(ys)
+
+
+class Net(nn.Module):
+    def __init__(self, k=len(CLASSES)):
+        super().__init__()
+        self.c1, self.c2, self.c3 = nn.Conv2d(3, 16, 3, padding=1), nn.Conv2d(16, 32, 3, padding=1), nn.Conv2d(32, 48, 3, padding=1)
+        self.d1, self.d2 = nn.Linear(48 * 3 * 3, 64), nn.Linear(64, k)
+        self.drop = nn.Dropout(0.3)
+
+    def forward(self, x, taps=None):
+        for i, c in enumerate((self.c1, self.c2, self.c3)):
+            x = F.relu(c(x))
+            if taps is not None:
+                taps.append(x)
+            x = F.max_pool2d(x, 2)
+        x = F.relu(self.d1(x.flatten(1)))
+        if taps is not None:
+            taps.append(x)
+        x = self.d2(self.drop(x))
+        if taps is not None:
+            taps.append(x)
+        return x
+
+
+def quantise(m, calib):
+    m.eval()
+    taps = []
+    with torch.no_grad():
+        m(torch.from_numpy(calib).float() / 127, taps)
+    sa = [1 / 127.0]
+    for i, t in enumerate(taps):
+        v = t.abs().flatten().numpy()
+        sa.append(float(np.percentile(v, 99.9)) / 127 if i < len(taps) - 1 else float(v.max()) / 127)
+    layers = []
+    specs = [(m.c1, 0, 1, 1), (m.c2, 0, 1, 1), (m.c3, 0, 1, 1), (m.d1, 1, 1, 0), (m.d2, 1, 0, 0)]
+    for i, (mod, kind, relu, pool) in enumerate(specs):
+        w = mod.weight.detach().numpy().astype(np.float64)
+        b = mod.bias.detach().numpy().astype(np.float64)
+        sw = np.abs(w.reshape(w.shape[0], -1)).max(1) / 127
+        wq = np.clip(np.round(w / sw.reshape(-1, *[1] * (w.ndim - 1))), -127, 127).astype(np.int8)
+        bq = np.round(b / (sw * sa[i])).astype(np.int64)
+        real = sw * sa[i] / sa[i + 1]
+        shift = int(math.floor(30 - math.log2(real.max())))
+        mult = np.round(real * 2.0 ** shift).astype(np.int64)
+        assert mult.max() < 2 ** 31 and 8 <= shift < 60, (mult.max(), shift)
+        layers.append(inknet.Layer(kind, w.shape[1], w.shape[0], relu, pool if kind == 0 else 0, wq, bq, mult, shift))
+    return inknet.Net(CLASSES, sa[-1], layers)
+
+
+def accuracy(net, rs, ys, subset):
+    lg = inknet.infer(net, rs).astype(np.int32)
+    ok = n = 0
+    for lg1, y in zip(lg, ys):
+        if y in subset:
+            n += 1
+            ok += int(subset[int(np.argmax(lg1[subset]))] == y)
+    return ok, n
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--set', default=os.path.join(here, 'data', 'ink-set.json'))
+    ap.add_argument('--extra', type=int, default=100, help='more synthetic train writers (seed 4242)')
+    ap.add_argument('--aug', type=int, default=5)
+    ap.add_argument('--epochs', type=int, default=40)
+    ap.add_argument('--seed', type=int, default=936)
+    ap.add_argument('--out', default=os.path.join(here, 'data', 'ink-net.znm'))
+    ap.add_argument('--ts', default=os.path.join(here, '..', '..', 'plugins', 'ink', 'model.ts'))
+    a = ap.parse_args()
+    torch.manual_seed(a.seed)
+    random.seed(a.seed)
+    d = json.load(open(a.set))
+    train_w = {w['id'] for w in d['writers'] if w['split'] == 'train'}
+    test_w = {w['id'] for w in d['writers'] if w['split'] == 'test'}
+    train = [s for s in d['samples'] if s['w'] in train_w]
+    test = [s for s in d['samples'] if s['w'] in test_w]
+    if a.extra:
+        tmp = tempfile.mktemp(suffix='.json')
+        subprocess.check_call([os.path.join(here, 'make-dataset'), '--out', tmp, '--writers', str(a.extra), '--test', '0', '--seed', '4242'], stdout=subprocess.DEVNULL)
+        train += json.load(open(tmp))['samples']
+        os.remove(tmp)
+    with Pool() as pool:
+        xtr, ytr = make_rasters(train, a.aug, a.seed, pool)
+        xte, yte = make_rasters(test, 0, 0, pool)
+    print('train', len(xtr), 'test', len(xte), flush=True)
+    m = Net()
+    opt = torch.optim.AdamW(m.parameters(), 2e-3, weight_decay=1e-3)
+    steps = a.epochs * math.ceil(len(xtr) / 128)
+    sched = torch.optim.lr_scheduler.OneCycleLR(opt, 6e-3, total_steps=steps)
+    X, Y = torch.from_numpy(xtr).float() / 127, torch.from_numpy(ytr)
+    for ep in range(a.epochs):
+        m.train()
+        perm = torch.randperm(len(X))
+        for i in range(0, len(X), 128):
+            idx = perm[i:i + 128]
+            loss = F.cross_entropy(m(X[idx]), Y[idx], label_smoothing=0.05)
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            sched.step()
+        if ep % 10 == 9 or ep == a.epochs - 1:
+            m.eval()
+            with torch.no_grad():
+                acc = (m(torch.from_numpy(xte).float() / 127).argmax(1).numpy() == yte).mean()
+            print('epoch', ep + 1, 'loss %.3f' % loss.item(), 'test acc (11 classes, float) %.3f' % acc, flush=True)
+    net = quantise(m, xtr[::7][:6000])
+    lets, shps = np.array(LETTERS), np.array(SHAPES)
+    for name, sub in (('letters', lets), ('shapes', shps)):
+        ok, n = accuracy(net, xte, yte, sub)
+        print('int8 %s %d/%d %.1f%%' % (name, ok, n, 100 * ok / n))
+    raw = inknet.write(net, a.out)
+    with open(a.ts, 'w') as f:
+        f.write('// Generated by tools/ink-train/train (ZN-936): the int8 letter net (.znm) in base64; do not edit.\n')
+        f.write('export const MODEL: string = ' + json.dumps(base64.b64encode(raw).decode()) + ';\n')
+    print('%s: %d bytes' % (a.out, len(raw)))
+
+
+if __name__ == '__main__':
+    main()

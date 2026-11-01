@@ -353,3 +353,4 @@ export function InkCanvas(props: InkProps): i32 {
 export * from './group';
 export * from './matcher';
 export * from './recognise';
+export * from './net';

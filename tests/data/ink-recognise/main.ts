@@ -47,8 +47,12 @@ async function main(): Promise<void> {
   console.log('priors V ' + plain.candidates[0].label + ' -> ' + penalised.candidates[0].label + ' ' + penalised.kind);
   const scribble = recognise(strokes(mine.filter((s: Sample): boolean => s.c === 'scribble')[0].s));
   console.log('scribble ' + scribble.kind);
-  const ref = recognise(first('D'), { reference: true }), nat = recognise(first('D'));
+  const ref = recognise(first('D'), { reference: true }), nat = recognise(first('D'), { net: false });   // reference = stage A in TypeScript: it agrees with stage A native (the net has no TypeScript twin)
   console.log('reference ' + (ref.candidates[0].label === nat.candidates[0].label && Math.abs(ref.candidates[0].score - nat.candidates[0].score) < 1e-9));
+  const twoStrokeB = strokes([[0, 0, 0, 100], [0, 0, 70, 2, 90, 20, 85, 45, 60, 50, 0, 50, 75, 55, 100, 75, 90, 95, 65, 100, 0, 100]]);   // a loop that starts at the stem's top and ends at its foot
+  const b2 = recognise(twoStrokeB);
+  console.log('B in two strokes circled=' + b2.circled + ' ' + b2.candidates[0].label);
+  console.log('stage A alone ' + recognise(first('E'), { net: false }).candidates[0].label + ' ' + recognise(first('E'), { net: false }).candidates[0].score.toFixed(6));
   const later = await recogniseAsync(first('A'));
   const now = recognise(first('A'));
   console.log('async ' + (later.kind === now.kind && later.candidates[0].label === now.candidates[0].label && later.candidates[0].score === now.candidates[0].score));

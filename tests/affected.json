@@ -295,6 +295,7 @@
     {"paths": ["tools/ink-train/", "tests/t0/ink_dataset.sh"], "tests": ["ink_dataset"]},
     {"paths": ["plugins/ink/", "tools/ink-train/", "tests/data/ink-recog/", "tests/t0/ink_recog.sh"], "tests": ["ink_recog"]},
     {"paths": ["plugins/ink/", "tools/ink-train/", "tests/data/ink-recognise/", "tests/t0/ink_recognise.sh"], "tests": ["ink_recognise"]},
+    {"paths": ["plugins/ink/", "tools/ink-train/", "tests/data/ink-net/", "tests/t0/ink_net.sh"], "tests": ["ink_net"]},
     {"paths": ["examples/murdoku/", "plugins/ink/", "lib/std/ui.ts", "tests/t1/murdoku_pen.sh"], "tests": ["murdoku_pen"]},
     {"paths": ["examples/remarkable/notes/", "tools/ink-train/make-dataset", "tests/t1/ink_recorder.sh"], "tests": ["ink_recorder"]},
     {"paths": ["app/markdown/", "plugins/markdown/", "tests/t1/markdown_reader.sh", "tests/t1/markdown_reader_notion.py"], "tests": ["markdown_reader"]},

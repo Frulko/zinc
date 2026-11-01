@@ -20,8 +20,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 #### New
 - Murdoku can be played with the pen on an e-ink tablet: a circled letter places that person, a bare letter is a pencil note, an X crosses a cell out, and a two-finger tap undoes. `zinc:ui` has `onTwoFingerTap` for that gesture and `zinc:ink`'s `Ink` can draw over a board with `overlay = true`.
 - `zinc:ink` recognises handwriting on the device, with no cloud: `recognise(strokes)` names a mark as a letter (`A`-`E`, `V`), a circle, an `x`, a tick or a line, says when a letter is circled, and answers `unknown` rather than guess; `recogniseAsync` matches off the UI thread, `StrokeGrouper` collects the strokes of one mark, `loadModel` swaps in your own templates. The notes example for reMarkable has a Record mode to collect handwriting samples.
+- `zinc:ink` reads letters with a small neural net as well (49 KB, int8, under half a millisecond a mark): it copes with slanted, stretched and shaky writing the template matcher misses, and says `unknown` for a scribble. `loadModel('letters.znm')` loads a net you trained with `tools/ink-train/train`; `recognise(strokes, { net: false })` keeps the template matcher alone.
 
 #### Fixed
+- `zinc:ink` no longer takes a `B` drawn as a stem and one looped stroke for a letter with a circle round it.
 - A plugin's native `Promise<T>` export written on the C ABI (`native/*.abi.c`) is no longer refused at load: `zinc native-gen --c` writes the result type of the promise.
 
 ### UI

@@ -1,7 +1,8 @@
 # ink plugin (`zinc:ink`)
 
 A handwriting surface for pen devices and a local recogniser for what is written on it. Everything runs on the device, with no cloud and
-no model download: the first stage names letters and shapes by matching them against a few hundred recorded examples.
+no model download: a first stage names letters and shapes by matching them against a few hundred recorded examples, and a 49 KB int8 neural net
+(second stage) reads them again, which is what copes with hands the templates never saw.
 
 - **Surface.** `Ink` turns pen samples into pressure strokes with a writing tool (ballpoint, fineliner, marker, pencil, calligraphy,
   highlighter), erasers, undo and redo, JSON and SVG export; `<InkCanvas ink={doc} />` draws it. `examples/remarkable/notes` is the
@@ -36,10 +37,11 @@ const later = await recogniseAsync(group);      // the same answer, matched on a
   frame must not wait (a tablet's CPU takes tens of milliseconds where a computer takes one).
 - `StrokeGrouper`: `add(stroke, nowMs)`, `poll(nowMs)`, `flush()`. A stroke whose box (grown by `gapPx`) touches the open group's joins it; one
   elsewhere closes the open group at once; a group with no new stroke for `debounceMs` is finished.
-- `loadModel(path)`: replaces the built-in templates by a file of `[label, strokes]` pairs, the format `tools/ink-train/make-templates` writes
+- `loadModel(path)`: a `.znm` file replaces the built-in letter net (below); any other file replaces the built-in templates by a file of `[label, strokes]` pairs, the format `tools/ink-train/make-templates` writes
   (`false` if the file is unreadable). Classes are whatever labels the file holds, so an app can teach it other letters or digits.
 
-Classes of the built-in set: `A B C D E V`, `circle`, `x`, `tick`, `line`.
+Classes of the built-in set: `A B C D E V`, `circle`, `x`, `tick`, `line` (and `scribble`, which only the net knows: it is how a mess is refused).
+`opts.net: false` runs the template matcher alone.
 
 ## How it works
 
@@ -51,6 +53,25 @@ is what lets an `E` drawn in one stroke or four match the same templates.
 
 The C++ matcher is `plugins/ink/native/ink.abi.cpp` (on the native ABI, so it runs the same under the interpreter, the AOT and QuickJS);
 `plugins/ink/recog.ts` is its TypeScript twin, step for step, and `tests/t0/ink_recog.sh` checks that they agree to 1e-9.
+
+## The letter net (second stage)
+
+The strokes of the mark are drawn into a 24 x 24 picture of three planes (ink, and the orientation of the line as cos 2t and sin 2t, so the
+direction a stroke was drawn in does not matter), and three conv 3x3 + ReLU + pool layers and two dense layers turn it into one score per class.
+Weights are int8 with an int32 multiplier per output channel, all arithmetic is integer: `plugins/ink/native/ink.abi.cpp` (C++, about 1.4 M multiply-adds,
+0.4 ms a mark on an M1 including the picture) gives the same logits as `tools/ink-train/inknet.py` bit for bit. `recognise` turns the logits into
+probabilities over the classes asked for plus `scribble`, and the score of a class is 0.9 of that probability and 0.1 of the template score
+(`NET_WEIGHT`); a mark the net takes for a scribble has no good score and stays `unknown`. With no model, or a class the model does not know
+(your own templates through `loadModel`), the template matcher answers alone.
+
+The model is `plugins/ink/model.ts` (base64 of `tools/ink-train/data/ink-net.znm`, 49 KB), written by `tools/ink-train/train` (PyTorch; the held-out
+writers never train it, nor do they pick its calibration): the train writers plus 100 more synthetic writers, each mark bent five times
+(rotation, shear, stretch, a smooth warp, noise, dropped points), post-training int8 quantisation with calibrated activations. The `.znm` format
+is in `tools/ink-train/inknet.py`. How far to trust the numbers: the data is synthetic (pen skeletons bent by a made-up hand, no real person
+wrote it). On the held-out synthetic writers the matcher already reads 99.7 % of the letters and the net 100 %; on the same marks bent harder than
+the training did (`inknet.py stress`) 95.4 % against 99.4 %. A real hand is harder than both. The next step is real pen data: the notes app's record mode
+(`NOTES_RECORD=<name>`) writes `ink-<writer>.json` in the notes directory, `zinc device` (or any file copy) brings the files off the tablet,
+`make-dataset --real <dir>` adds them as held-out and train writers, and `tools/ink-train/train` makes a new model.
 
 ## Templates and training data
 
