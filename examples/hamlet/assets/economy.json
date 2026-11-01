@@ -6,13 +6,16 @@
     { "id": "fish", "label": "Poisson", "carry": "fish" },
     { "id": "plank", "label": "Planches", "carry": "plank" },
     { "id": "hide", "label": "Peaux", "carry": "hide" },
-    { "id": "smoked_meat", "label": "Viande fumée", "carry": "ham" }
+    { "id": "smoked_meat", "label": "Viande fumée", "carry": "ham" },
+    { "id": "wheat", "label": "Blé", "carry": "sack" },
+    { "id": "flour", "label": "Farine", "carry": "sack" },
+    { "id": "bread", "label": "Pain", "carry": "bread" }
   ],
   "start": { "log": 20, "plank": 10 },
   "hall": "storehouse",
   "buildings": [
     { "id": "house", "label": "Maison", "order": 1, "model": "house", "cost": { "plank": 3 },
-      "housing": { "capacity": 2, "free": 4, "eats": ["smoked_meat", "fish"] } },
+      "housing": { "capacity": 2, "free": 4, "eats": ["smoked_meat", "bread", "fish"] } },
     { "id": "sawmill", "label": "Scierie", "order": 3, "model": "sawmill", "cost": { "plank": 2, "log": 6 },
       "workers": 2, "role": "sawyer", "inputs": { "log": 2 }, "outputs": { "plank": 1 }, "seconds": 6,
       "hint": "Une scierie scie les troncs en planches : elles servent à construire." },
@@ -31,5 +34,14 @@
     { "id": "smokehouse", "label": "Fumoir", "order": 5, "model": "smokehouse", "cost": { "plank": 3, "log": 4 },
       "workers": 2, "role": "smoker", "inputs": { "meat": 2, "log": 1 }, "outputs": { "smoked_meat": 2 }, "seconds": 8,
       "hint": "Un fumoir transforme le gibier en viande fumée (il brûle du bois) : les maisons en réclament." }
+  ,
+    { "id": "farm", "label": "Ferme", "order": 8, "model": "farm", "cost": { "plank": 4, "log": 2 },
+      "workers": 2, "role": "farmer", "outputs": { "wheat": 2 }, "seconds": 10,
+      "hint": "Une ferme récolte du blé, que le moulin change en farine." },
+    { "id": "mill", "label": "Moulin", "order": 9, "model": "mill", "cost": { "plank": 4, "log": 4 },
+      "workers": 2, "role": "miller", "inputs": { "wheat": 2 }, "outputs": { "flour": 1 }, "seconds": 6 },
+    { "id": "bakery", "label": "Boulangerie", "short": "Boulanger", "order": 10, "model": "bakery", "cost": { "plank": 4, "log": 4 },
+      "workers": 2, "role": "baker", "inputs": { "flour": 1 }, "outputs": { "bread": 2 }, "seconds": 6,
+      "hint": "Une boulangerie cuit la farine en pain : les maisons le mangent." }
   ]
 }

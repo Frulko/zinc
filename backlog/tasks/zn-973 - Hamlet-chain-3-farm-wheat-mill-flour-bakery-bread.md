@@ -4,6 +4,7 @@ title: 'Hamlet: chain 3: farm -> wheat -> mill -> flour -> bakery -> bread'
 status: Backlog
 assignee: []
 created_date: '2026-11-01 13:10'
+updated_date: '2026-11-01 14:42'
 labels:
   - hamlet
   - demo
@@ -24,7 +25,13 @@ Data plus three models; farms use cleared land (a field footprint of tiles). See
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 economy.json entries and models for farm, mill, bakery; fields drawn as tile decor
+- [x] #1 economy.json entries and models for farm, mill, bakery; fields drawn as tile decor
 - [ ] #2 Houses of level 2 may eat bread (see housing levels)
-- [ ] #3 Chain report shows no orphan resource; scripted run reaches bread
+- [x] #3 Chain report shows no orphan resource; scripted run reaches bread
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Farm (no input, 2 wheat / 10 s), mill (2 wheat -> 1 flour), bakery (1 flour -> 2 bread); houses eat smoked meat, bread or fish. Fields as tile decor not drawn (the farm model carries its own wheat rows). AC2 (houses of level 2) waits for housing levels ZN-977: houses simply accept bread now. Orphan check: hide has no consumer until the tannery (ZN-974).
+<!-- SECTION:NOTES:END -->

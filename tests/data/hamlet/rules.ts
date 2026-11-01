@@ -11,7 +11,7 @@ import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLA
 import * as fs from 'zinc:fs';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
-const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse'];
+const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery'];
 import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine/transport';
 import { adviceLine } from '../../../examples/hamlet/src/hud';
@@ -147,6 +147,15 @@ setStock(MEAT2, 10); setStock(WOOD, 0);
 run(40);
 const smoke = world.buildings.filter((b) => b.alive && b.type === economy.typeOf('smokehouse'))[0];
 check('without fuel the smokehouse stops and says what it lacks', smoke.state === 2 && smoke.waitFor === WOOD && adviceLine().indexOf('attend') >= 0 && world.stock[SMOKED] + smoke.stock[SMOKED] === 0);
+// ---- chain 3: the farm makes wheat, the mill flour, the bakery bread ----
+generate(1234, 16); rich(); clearRow(); world.tree[at(7, 9)] = 0; world.rock[at(7, 9)] = 0;
+for (const i of [2, 4, 6]) { const h = addBuilding(HOUSE, at(i, 7)); createResident(h); createResident(h); world.buildings[h].residents = 2; }
+applyTool(toolOf('farm'), at(3, 9)); applyTool(toolOf('mill'), at(5, 9)); applyTool(toolOf('bakery'), at(7, 9));
+run(300);
+const BREAD = economy.resourceOf('bread');
+console.log('hamlet chain 3: after 300 s: ' + world.stock[BREAD] + ' bread, ' + world.stock[economy.resourceOf('flour')] + ' flour, ' + world.stock[economy.resourceOf('wheat')] + ' wheat');
+check('the farm, the mill and the bakery make bread', world.stock[BREAD] > 0);
+console.log('hamlet chain orphans: ' + economy.resources.filter((r, k) => !economy.buildings.some((d) => d.outputs[k] > 0) || !economy.buildings.some((d) => d.inputs[k] > 0 || d.cost[k] > 0 || (d.housing !== null && d.housing.eats.indexOf(k) >= 0))).map((r) => r.id).join(','));
 // ---- stores and porters: two producers, one store (the hall): nothing is lost or made twice; a building with no road to a store does not send ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8), at(12, 12), at(12, 13)]) { world.tree[t] = 0; world.rock[t] = 0; }

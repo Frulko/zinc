@@ -10,7 +10,7 @@ export const MODEL_SAWMILL = 1;
 export const MODEL_LODGE = 2;
 export const MODEL_FISHERY = 3;
 /** The model id of each building type, in the order of assets/economy.json (a building's model sits at its own index). */
-export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse'];
+export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery'];
 export const MODEL_GATE = MODEL_IDS.length;
 export const MODEL_TREE = MODEL_GATE + 1;            // 4 variants
 export const MODEL_ROCK = MODEL_TREE + 4;            // 2 variants
@@ -151,6 +151,45 @@ function smokehouse(): void {
   for (let k = 0; k < 6; k++) capsule([-.5 + (k % 3) * .22, .85, .14 + Math.floor(k / 3) * .22], [-.5 + (k % 3) * .22, 1.3, .14 + Math.floor(k / 3) * .22], .09, .09, flat([142, 104, 68]), 'rough');   // fuel logs
 }
 
+/** A farm: a low timber barn with a hay loft and, beside it, a field of golden wheat in rows. */
+function farm(): void {
+  box(-.9, -.8, 0, -.1, .1, 1.0, [150, 118, 82]);
+  gableRoof(-1.0, 0, -.9, .2, 1.0, .6, [150, 96, 70], 15);
+  gableWall(-.9, -.1, .1, 1.0, .6, .5, [150, 118, 82]);
+  box(-.65, .09, 0, -.35, .14, .75, [76, 56, 40]);                         // door
+  for (let row = 0; row < 5; row++) for (let k = 0; k < 14; k++) {          // wheat: rows of thin golden stalks with a heavier head
+    const x = .15 + row * .2, y = -.85 + k * .12;
+    capsule([x, y, 0], [x + .02, y, .45 + hash(row, k) * .12], .025, .02, flat([214, 190, 96]), 'solid');
+    sphere(x + .02, y, .5 + hash(row, k) * .12, .045, [226, 200, 104], 'solid');
+  }
+  sphere(-.5, -.95, .2, .24, [220, 196, 120], 'rough');                      // a hay bale
+}
+/** A windmill: a round stone tower on a plinth with a cap and four sails facing the camera. */
+function mill(): void {
+  box(-.55, -.55, 0, .55, .55, .18, [150, 142, 126]);
+  capsule([0, 0, .15], [0, 0, 1.7], .5, .36, flat([196, 188, 168]), 'rough');
+  capsule([0, 0, 1.65], [0, 0, 2.1], .4, .08, flat([118, 82, 62]), 'rough');
+  box(-.14, .46, 0, .14, .56, .7, [66, 48, 36]);                           // door
+  for (let a = 0; a < 4; a++) {                                            // sails: four arms from the hub on the +y face
+    const ang = a * Math.PI / 2 + .35, hy = .5, hz = 1.55, dx = Math.cos(ang), dz = Math.sin(ang);
+    capsule([0, hy, hz], [dx * 1.1, hy + .08, hz + dz * 1.1], .04, .04, flat(WOOD_BROWN), 'solid');
+    for (let k = 1; k <= 5; k++) box(dx * k * .2 - .09, hy + .05, hz + dz * k * .2 - .09, dx * k * .2 + .09, hy + .09, hz + dz * k * .2 + .09, [232, 222, 196], k);
+  }
+  sphere(0, .5, 1.55, .09, [96, 70, 48], 'solid');
+  capsule([.55, -.2, .15], [.55, .35, .15], .17, .17, flat([226, 220, 204]), 'rough');   // flour sacks at the foot
+}
+/** A bakery: a warm plaster house with a big brick oven chimney and loaves cooling on a bench. */
+function bakery(): void {
+  box(-.7, -.65, 0, .7, .65, 1.35, [214, 176, 128]);
+  gableRoof(-.9, .9, -.8, .8, 1.3, .9, [150, 84, 62], 17);
+  gableWall(-.7, .7, .65, 1.35, .9, .9, [214, 176, 128]);
+  box(-.18, .64, 0, .18, .7, .9, [96, 62, 44]);                            // door
+  box(.71, -.4, .5, .78, .1, 1.1, [70, 96, 92]);                           // window
+  box(.3, -.55, 1.3, .66, -.2, 2.6, [176, 96, 72]);                        // brick chimney
+  box(.9, .1, .1, 1.3, .5, .55, WOOD_HONEY);                               // bench with loaves
+  for (let k = 0; k < 4; k++) capsule([1.0 + (k % 2) * .18, .2 + Math.floor(k / 2) * .16, .62], [1.0 + (k % 2) * .18, .3 + Math.floor(k / 2) * .16, .62], .07, .07, flat([196, 140, 82]), 'rough');
+}
+
 /** The entrance of the hamlet: two posts, a beam and a banner over the road (which runs along x). */
 function gate(): void {
   for (const y of [-.92, .78]) box(-.12, y, 0, .12, y + .16, 2.3, WOOD_BROWN);
@@ -235,7 +274,7 @@ export function resetModels(): void { for (let i = 0; i < levelAtlases.length; i
  * index of its first variant in this list, variants counted). They are baked through the atlas, so one cache and one invalidation serve all.
  */
 const MODEL_DEFS: [string, number, (variant: number) => void][] = [
-  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['gate', 1, gate], ['tree', 4, tree], ['rock', 2, rock],
+  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['gate', 1, gate], ['tree', 4, tree], ['rock', 2, rock],
 ];
 
 /** The atlas definition: one entry per model, one frame each (a static model has a single heading and pose). `reduceFrom` > 0 shrinks the sharp bake for the fixed-detail mode. */
