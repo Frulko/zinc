@@ -39,6 +39,7 @@ import { drawOverlay, drawReach, drawOverlayMenu, drawLegend } from './ui/Overla
 import { drawAdvisors, sampleHistory, openAdvisor } from './ui/Advisors';
 import { drawCampaign, openCampaign } from './ui/Campaign';
 import { drawTree, openTree, treeScroll, treeDrag } from './ui/Tree';
+import { drawDebug, cycleDebug, debugBegin, debugLap, debugHooks } from './ui/Debug';
 import { drawMenus, isModal, closeMenus, openNew, openMenu, typeKey } from './ui/Menu';
 import { refreshModels, jumpTo } from './view/scenery';
 import { camera, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY, fit, setFit, windowWidth, windowHeight } from './view/camera';
@@ -109,6 +110,7 @@ export class HamletScene extends Sprite {
     world.autosave = true;
     if (loadGame()) ui.window = WIN_MAIN; else generate(randomSeed());
     bakeVillage(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size;
+    debugHooks.devPanel = (): void => { this.panel.open = !this.panel.open; }; debugHooks.rebake = (): void => { this.baked = -1; };
     act.setTool = (tool: number): void => { this.tool = tool; uiState.dirty = true; };
     act.say = (message: string): void => this.say(message);
     act.newVillage = (seed: number, size: number, campaign: boolean, risks: boolean, params: TerrainParams): void => this.createVillage(seed, size, campaign, risks, params);
@@ -187,6 +189,7 @@ export class HamletScene extends Sprite {
     else if (name === 'o' || name === 'O') ui.overlayMenu = !ui.overlayMenu;
     else if (name === 'n' || name === 'N' || name === 'g' || name === 'G') openNew();
     else if (name === 'F2') this.panel.open = !this.panel.open;
+    else if (name === 'F3') cycleDebug();
     else if (name === 'u' || name === 'U') {
       world.unlimited = !world.unlimited; world.saveDirty = true;
       this.say(world.unlimited ? 'Mode sans limite : arbres et gibier repoussent quand il en manque.' : 'Mode normal : les ressources s’épuisent.');
@@ -246,6 +249,7 @@ export class HamletScene extends Sprite {
   }
 
   override onUpdate(dt: number): void {
+    debugBegin();
     this.layoutSurface();
     for (let i = 0; i < keyCount(); i++) {
       const kind = keyKind(i);
@@ -296,6 +300,7 @@ export class HamletScene extends Sprite {
       this.lastPose = pose;
     }
     if (this.baked !== world.revision) { rebakeStatic(); this.baked = world.revision; uiState.dirty = true; }
+    debugLap(0);
   }
 
   /** Camera: keys, right-button drag and trackpad scroll pan; the wheel, a pinch and + / - zoom. */
@@ -317,8 +322,10 @@ export class HamletScene extends Sprite {
   }
 
   override onDraw(w: number, h: number): void {
+    debugBegin();
     const ok = this.hover >= 0 && this.tool !== TOOL_NONE && checkTool(this.tool, this.hover) === PLACE_OK;
     drawVillage(Math.floor(this.time * settings.animFps) / settings.animFps, this.hover, ok, this.tool >= TOOL_HOUSE && this.tool < TOOL_ERASE && ok ? this.tool - TOOL_HOUSE : -1);
+    debugLap(1);
     this.syncBuffer(); this.layoutSurface();
     const vp = viewport();
     rect(0, 0, w, h, col('stoneDeep'));
@@ -336,6 +343,7 @@ export class HamletScene extends Sprite {
     if (this.panel.open) { this.panel.x = w - this.panel.width - 200; this.panel.y = 48; this.panel.draw(); }
     if (this.paused) { const cx = vp.x + vp.w / 2; parchment(cx - 70, vp.y + 14, 140, 34); textC(kit.big, cx, vp.y + 12, 'PAUSE', col('accent')); }
     if (this.tool !== TOOL_NONE && !this.paused && hitAt(pointer.x, pointer.y) === null && this.surface.contains(pointer.x, pointer.y)) drawPlacementLabel(this.tool, this.hover, pointer.x, pointer.y);
+    drawDebug();
     drawMenus();
     drawTooltip();
     updateCursor(this.panning ? Cursor.Grabbing : this.tool === TOOL_NONE ? Cursor.Default : this.tool === TOOL_ERASE ? Cursor.NotAllowed : Cursor.Crosshair);

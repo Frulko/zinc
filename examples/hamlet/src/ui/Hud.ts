@@ -15,6 +15,7 @@ import { menuClick } from './Menu';
 import { overlayClick } from './Overlays';
 import { advisorClick, openAdvisor } from './Advisors';
 import { campaignClick, openCampaign } from './Campaign';
+import { debugClick } from './Debug';
 import { treeClick, openTree } from './Tree';
 import { dateText, SEASONS, season } from './clock';
 import { villageWord } from '../rules/needs';
@@ -122,7 +123,7 @@ export function statusStrip(text_: string, color: number): void {
 
 /** A click on a widget of the frame (the id the widget registered). */
 export function hudClick(id: string): void {
-  if (buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id) || advisorClick(id) || campaignClick(id) || treeClick(id) || overlayClick(id)) return;
+  if (buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id) || advisorClick(id) || campaignClick(id) || debugClick(id) || treeClick(id) || overlayClick(id)) return;
   if (id.startsWith('tool:')) { act.setTool(Number(id.slice(5))); ui.category = -1; return; }
   if (id.startsWith('cat:')) { const i = Number(id.slice(4)); ui.category = ui.category === i ? -1 : i; return; }
   if (id === 'win:advisor') { openAdvisor(ui.advisor); return; }

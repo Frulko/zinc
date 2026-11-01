@@ -51,7 +51,7 @@ static void hold() {
 }
 
 // Scripted input for headless runs (ZINC_INPUT=file): one event per line, `<frame> <event>`, frames counted from 0 at each poll.
-//   move X Y | down | up | right-down | right-up | key NAME (a character, Space, Enter, Escape, Arrow*...) [shift|ctrl|alt|meta]... | keyup NAME [mods] (its release) |
+//   move X Y | down | up | right-down | right-up | key NAME (a character, Space, Enter, Escape, Arrow*, F1..F12...) [shift|ctrl|alt|meta]... | keyup NAME [mods] (its release) |
 //   hold MODS (modifiers held alone until the next hold: "hold shift", "hold" lets go of them all) | text WORD | text "several words" (\" and \\ inside) | wheel DX DY | scroll DX DY PHASE (precise pixels and
 //   the phase, as a trackpad's HAL reports them: HalInput.scroll_*) | pad NAME | padup NAME (the gamepad buttons Up Down Left Right A B X Y L R Start Select, held until padup)
 //   gamepad I [NAME...] (a gamepad is plugged in slot I, 0 to 3) | gamepadoff I | gbutton I B [VALUE] (button B of the W3C standard order,
@@ -151,6 +151,10 @@ int keyCode(const std::string& n) {
     {"Home", HAL_KEY_HOME}, {"End", HAL_KEY_END}, {"PageUp", HAL_KEY_PAGEUP}, {"PageDown", HAL_KEY_PAGEDOWN}, {"Space", ' '},
     {"BrowserHome", HAL_KEY_BROWSER_HOME}};
   for (auto& k : named) if (n == k.n) return k.code;
+  if (n.size() >= 2 && n.size() <= 3 && n[0] == 'F') {   // F1..F12
+    int f = std::atoi(n.c_str() + 1);
+    if (f >= 1 && f <= 12 && n == "F" + std::to_string(f)) return HAL_KEY_F1 + f - 1;
+  }
   return 0;
 }
 // The windows beside the main one in headless runs (ZN-663): their surfaces are the runtime's; the script drives their input.

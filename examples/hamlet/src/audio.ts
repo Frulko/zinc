@@ -8,6 +8,8 @@ const RATE: i32 = 22050;
 const TAU = Math.PI * 2;
 const bank = new Map<string, Sound[]>();
 const loops = new Map<string, Sound>();
+/** What the debug window reads (ui/Debug.ts): voices started, the last effect, the ambience playing. */
+export const audioStats = { voices: 0, last: '', ambience: '' };
 let ready = false, ambience: Sound | null = null, ambienceKind = '', paused = false;
 let seed: u32 = 2463534242;
 function rnd(): number { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) / 4294967296; }
@@ -123,6 +125,7 @@ export function sound(kind: string, amount: number = .6, pan: number = 0): void 
   if (!ready) build();
   const name = ALIAS.get(kind) ?? kind, list = bank.get(name);
   if (list === undefined) return;
+  audioStats.voices++; audioStats.last = name;
   const s = list[Math.floor(rnd() * list.length)];
   s.voice(s.volume * (AMBIENT.has(name) ? settings.ambienceVolume : settings.sfxVolume) * Math.max(0, Math.min(1, amount)) * (.85 + rnd() * .3), .92 + rnd() * .16, Math.max(-1, Math.min(1, pan)), false);
 }
@@ -137,7 +140,7 @@ export function setAmbience(kind: string): void {
   const key = kind === 'meadow' || kind === '' ? kind : kind;
   if (key === ambienceKind) return;
   if (ambience !== null) (ambience as Sound).stop();
-  ambienceKind = key;
+  ambienceKind = key; audioStats.ambience = key;
   if (key === '') { ambience = null; return; }
   let loop = loops.get(key);
   if (loop === undefined) { const created = loopOf(key); loops.set(key, created); loop = created; }

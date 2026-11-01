@@ -1,4 +1,5 @@
 import * as storage from 'zinc:storage';
+import { openDebug } from './Debug';
 import { width, height, rrect, createImage, updatePixels, drawImageRect, ImageFlag, KeyKind, startTextInput, stopTextInput } from 'zinc:gfx';
 import { world, tileCount } from '../world/world';
 import { economy } from '../world/economy';
@@ -152,7 +153,8 @@ function options(): void {
   toggle('opt:fx', 'Effets de travail, fumée et lumières', settings.fx, x, m.y + 298);
   volume('vol:ambience', 'Volume de l’ambiance', settings.ambienceVolume, x, m.y + 334);
   volume('vol:sfx', 'Volume des bruitages', settings.sfxVolume, x, m.y + 370);
-  textC(kit.small, m.x + 210, m.y + 410, 'F2 : réglages du développeur', col('muted'));
+  labelButton('opt:debug', x, m.y + 402, 210, 26, 'Informations techniques', 'Fenêtre technique [F3]');
+  text(kit.small, x + 222, m.y + 408, 'F2 : réglages du développeur', col('muted'));
   labelButton('menu:back', m.x + 12, m.y + 438, 100, 26, 'Retour');
 }
 function fresh(): void {
@@ -207,6 +209,7 @@ export function menuClick(id: string): boolean {
   if (id === 'opt:sound') { toggleSound(); savePrefs(); return true; }
   if (id === 'opt:edge') { settings.edgePan = !settings.edgePan; savePrefs(); return true; }
   if (id === 'opt:hints') { settings.hints = !settings.hints; savePrefs(); return true; }
+  if (id === 'opt:debug') { closeMenus(); openDebug(); return true; }
   if (id === 'opt:fx') { settings.fx = !settings.fx; savePrefs(); return true; }
   if (id === 'opt:thoughts') { settings.thoughts = !settings.thoughts; savePrefs(); return true; }
   if (id === 'opt:unlimited') { world.unlimited = !world.unlimited; world.saveDirty = true; return true; }
