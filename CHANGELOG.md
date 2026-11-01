@@ -28,6 +28,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - Large Hamlet maps open much faster and use much less memory, and panning is up to 40 % faster on the interpreter.
 
+#### Fixed
+
+- Zooming out in Hamlet no longer leaves the village as a small clipped rectangle in the dark while the new view is prepared; the picture stays until it can grow smaller.
+
 ### Performance
 
 #### Faster

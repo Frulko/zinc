@@ -759,8 +759,9 @@ function stepGlide(): void {
     const art = artLevel(g.level);
     if (layers[art] === null) layers[art] = bakeLayer(art);
   }
-  g.frames++;
-  const u = Math.min(1, Math.max((performance.now() - g.t0) / GLIDE_MS, g.frames / GLIDE_FRAMES)), e = u * u * (3 - 2 * u);
+  const hold = g.kTo < 1 && g.stage !== STAGE_READY && g.level !== camera.level;   // farther: the old picture only shrinks once the new one is baked, else it would sit as a small rectangle in the dark for the whole bake
+  if (hold) { g.t0 = performance.now(); g.frames = 0; } else g.frames++;
+  const u = hold ? 0 : Math.min(1, Math.max((performance.now() - g.t0) / GLIDE_MS, g.frames / GLIDE_FRAMES)), e = u * u * (3 - 2 * u);
   glideK = Math.exp(Math.log(g.kFrom) + (Math.log(g.kTo) - Math.log(g.kFrom)) * e);
   if (g.level === camera.level) { if (u >= 1) cancelGlide(); return; }       // sent back to the level on screen
   if (g.stage !== STAGE_READY) { const t = performance.now(), before = g.stage; bakeSlice(g); if (trace.on) console.log('hamlet: glide L' + g.level + ' stage ' + before + '->' + g.stage + ' row ' + g.row + ' slice ' + (performance.now() - t).toFixed(1) + ' ms'); }

@@ -72,4 +72,12 @@ for (const [size, level] of [[12, 4], [48, 2], [48, 9], [24, 0]]) {
   const direct = snap(false);
   check('a glide retargeted on the way ends on the last level, the same picture (' + diff(direct, retargeted) + ' differing pixels)', camera.level === 2 && diff(direct, retargeted) === 0);
 }
+// zooming out: the picture on screen must not shrink into a small rectangle while the new level is still baking (it shrinks only once the bake is ready)
+{
+  village(48);
+  glideZoom(9);
+  let early = 1, n = 0;
+  while (zooming() && n < 4000) { stepSeason(); n++; if (bakeInfo.consumed === false && n < 3) early = Math.min(early, zoomScale()); }
+  check('zooming out holds the picture while the level bakes (scale ' + early + ' after 2 frames)', early === 1 && camera.level === 9);
+}
 console.log(failures === 0 ? 'hamlet glide: ALL PASS' : 'hamlet glide: ' + failures + ' FAILED');
