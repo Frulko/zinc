@@ -54,7 +54,7 @@ export interface TooltipProps {
   children: () => i32;
 }
 /** A hint that shows while the pointer rests on its children (not while one is pressed: a button that opens a popover keeps the tip away)
- *  or the keyboard focus is on one of them. */
+ *  or the keyboard focus is on one of them; a long press (touch) shows it for 3 s. */
 export function Tooltip(props: TooltipProps): i32 {
   const wrap = createNodeRef(), tip = createNodeRef();
   const t = theme(), keys = shortcutOf(props.action);
@@ -62,7 +62,8 @@ export function Tooltip(props: TooltipProps): i32 {
   const node = <View ref={wrap} className={`flex-col ${props.className ?? ''}`}
     onPointerEnter={(e: ui.PointerEvent) => { if (timer >= 0) clearTimeout(timer); timer = setTimeout(() => { timer = -1; show(tip.node, true); }, props.delay ?? 500); }}
     onPointerLeave={(e: ui.PointerEvent) => { if (timer >= 0) clearTimeout(timer); timer = -1; show(tip.node, false); }}
-    onPointerDown={(e: ui.PointerEvent) => { if (timer >= 0) clearTimeout(timer); timer = -1; show(tip.node, false); }}>
+    onPointerDown={(e: ui.PointerEvent) => { if (timer >= 0) clearTimeout(timer); timer = -1; show(tip.node, false); }}
+    onLongPress={(e: ui.PointerEvent) => { show(tip.node, true); timer = setTimeout(() => { timer = -1; show(tip.node, false); }, 3000); }}>
     {props.children()}
     <View ref={tip} className={`flex-row items-center gap-2 px-2 py-1 rounded-md bg-${t.primary}`} hidden={1}>
       <Text className={`text-xs text-${t.primaryForeground}`}>{props.label}</Text>

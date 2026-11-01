@@ -1,9 +1,14 @@
-start: Save as false, Open it false
-pointer rests on the first: Save as true, Open it false
-pressed: Save as false, Open it false
+start: Save as false, Open it false, Plain false
+pointer rests on the first: Save as true, Open it false, Plain false
+pressed: Save as false, Open it false, Plain false
 first pressed
-pointer gone: Save as false, Open it false
-Tab 1: Save as false, Open it true
-Tab 2: Save as true, Open it false
+pointer gone: Save as false, Open it false, Plain false
+Tab 1: Save as false, Open it true, Plain false
+Tab 2: Save as true, Open it false, Plain false
 hint inside the window true
-Tab 3 (around again): Save as false, Open it true
+Tab 3 (around again): Save as false, Open it true, Plain false
+touch elsewhere: Save as false, Open it true, Plain false
+finger down, before the long press: Save as false, Open it true, Plain false
+long press: Save as false, Open it true, Plain true
+finger up: Save as false, Open it true, Plain true
+touch elsewhere: Save as false, Open it true, Plain false

@@ -1,5 +1,5 @@
 // zinc:ui/kit — a tooltip for a node made with zinc:ui's own calls (the ImageViewer's buttons), the same as <Tooltip> for a component: it shows
-// after `delay` ms of the pointer on the node (not while it is pressed) or at once when the keyboard puts the focus on it.
+// after `delay` ms of the pointer on the node (not while it is pressed) or at once when the keyboard puts the focus on it; a long press (touch) shows it for 3 s.
 import * as ui from 'zinc:ui';
 
 /** Gives `host` a hint with `label`; `placement` as zinc:ui's anchor ('top', 'bottom', 'left', 'right', with '-start' / '-end'). The hint is a child of `host`. */
@@ -18,5 +18,6 @@ export function attachTooltip(host: i32, label: string, placement: string = 'bot
   ui.onPointer(host, ui.PENTER, (e: ui.PointerEvent) => { if (timer >= 0) clearTimeout(timer); timer = setTimeout(() => { timer = -1; ui.setNumber(tip, 'hidden', 0); }, delay); });
   ui.onPointer(host, ui.PLEAVE, (e: ui.PointerEvent) => { stop(); });
   ui.onPointer(host, ui.PDOWN, (e: ui.PointerEvent) => { stop(); });
+  ui.onPointer(host, ui.PLONG, (e: ui.PointerEvent) => { ui.setNumber(tip, 'hidden', 0); timer = setTimeout(stop, 3000); });   // touch: a long press shows it for 3 s
   ui.onFocusWithin(host, (on: boolean) => { if (on) ui.setNumber(tip, 'hidden', 0); else stop(); });
 }

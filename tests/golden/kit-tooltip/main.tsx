@@ -9,6 +9,7 @@ function App(): i32 {
   return <View className="flex-row p-4 gap-3">
     <Tooltip label="Save as" delay={50}><View className="w-[40] h-[40] bg-[#3355aa]" onPress={() => console.log('first pressed')} aria-label="First" /></Tooltip>
     <Tooltip label="Open it" delay={50}><View className="w-[40] h-[40] bg-[#aa5533]" onPress={() => console.log('second pressed')} aria-label="Second" /></Tooltip>
+    <Tooltip label="Plain" delay={5000}><View className="w-[40] h-[40] bg-[#55aa33]" /></Tooltip>
   </View>;
 }
 /** Whether the hint with this text is on screen: the text node and the nodes above it are not hidden. */
@@ -26,7 +27,7 @@ render(App, 0xffffff, (dt: number) => {
   if (frame >= 2 && frame - 2 < steps.length) steps[frame - 2](); else if (frame >= 2) quit();
 });
 const box = (label: string): number[] => ui.screenBox(ui.find(label));
-const both = (): string => `Save as ${shown('Save as')}, Open it ${shown('Open it')}`;
+const both = (): string => `Save as ${shown('Save as')}, Open it ${shown('Open it')}, Plain ${shown('Plain')}`;
 steps.push(() => { log(`start: ${both()}`); ui.pointerAt(21, 21, false); });
 for (let i = 0; i < 6; i++) steps.push(() => {});
 steps.push(() => { log(`pointer rests on the first: ${both()}`); ui.pointerAt(21, 21, true); });
@@ -35,3 +36,12 @@ steps.push(() => { log(`pointer gone: ${both()}`); ui.keyDown(-1, 'Tab'); });
 steps.push(() => { log(`Tab 1: ${both()}`); ui.keyDown(-1, 'Tab'); });
 steps.push(() => { log(`Tab 2: ${both()}`); const b = box('Open it'); log(`hint inside the window ${b[0] >= 0 && b[1] >= 0 && b[0] + b[2] <= 400}`); ui.keyDown(-1, 'Tab'); });
 steps.push(() => { log(`Tab 3 (around again): ${both()}`); });
+// touch: a finger resting on a plain child shows nothing until the long press (LONG_MS), then the hint shows; the next touch elsewhere hides it
+steps.push(() => { ui.touchAt(1, 300, 150, 0); ui.touchAt(1, 300, 150, 2); });
+steps.push(() => { log(`touch elsewhere: ${both()}`); ui.touchAt(1, 140, 36, 0); });
+for (let i = 0; i < 6; i++) steps.push(() => {});
+steps.push(() => { log(`finger down, before the long press: ${both()}`); });
+for (let i = 0; i < 60; i++) steps.push(() => {});
+steps.push(() => { log(`long press: ${both()}`); ui.touchAt(1, 140, 36, 2); });
+steps.push(() => { log(`finger up: ${both()}`); ui.touchAt(1, 300, 150, 0); ui.touchAt(1, 300, 150, 2); });
+steps.push(() => { log(`touch elsewhere: ${both()}`); });
