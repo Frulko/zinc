@@ -81,3 +81,6 @@ std::vector<uint8_t> encodeBmp(const uint8_t* px, int w, int h, int comp) {
   return out;
 }
 }  // namespace zn::res
+
+// for plugins (zinc:imageio) that read files themselves: found with dlsym, as libwebp's functions are
+extern "C" uint8_t* zn_decode_fast_image(const uint8_t* d, size_t n, int* w, int* h) { return zn::res::decodeFastImage(d, n, w, h); }

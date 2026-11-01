@@ -9,6 +9,9 @@
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
 #endif
+#ifndef _WIN32
+#include <dlfcn.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -372,6 +375,21 @@ static bool push_attr(Doc& d, int32_t a, int32_t want, int32_t count, Nums out) 
 
 static int32_t decode_bytes(const uint8_t* p, uint32_t n) {
   int w, h, comp;
+  // a PNG that zinc pack stored as the fast-load image ("ZNI1"): the engine decodes it
+#ifndef _WIN32
+  using FastFn = uint8_t* (*)(const uint8_t*, size_t, int*, int*);
+  static FastFn fast = (FastFn)dlsym(RTLD_DEFAULT, "zn_decode_fast_image");
+  if (n > 12 && !memcmp(p, "ZNI1", 4) && fast) {
+    uint8_t* rgba = fast(p, n, &w, &h);
+    if (!rgba) { snprintf(err, sizeof err, "image: not a valid packed image"); return -1; }
+    int32_t id = raster::dyn_create(w, h);
+    uint32_t* px = raster::dyn_pixels(id);
+    if (px) for (int32_t i = 0; i < w * h; i++) px[i] = (uint32_t)rgba[i * 4] << 16 | (uint32_t)rgba[i * 4 + 1] << 8 | rgba[i * 4 + 2];
+    free(rgba);
+    if (id >= 0) raster::dyn_update(id, nullptr, 0);
+    return id;
+  }
+#endif
   // a few hundred bytes can declare a 16384 x 16384 image: at most 2^24 pixels (a 4096 x 4096 texture) are decoded
   if (!stbi_info_from_memory(p, (int)n, &w, &h, &comp)) { snprintf(err, sizeof err, "image: %s", stbi_failure_reason()); return -1; }
   if ((uint64_t)w * (uint64_t)h > (1u << 24)) { snprintf(err, sizeof err, "image: %dx%d is too large", w, h); return -1; }
