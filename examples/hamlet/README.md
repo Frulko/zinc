@@ -14,7 +14,9 @@ build/zinc run examples/hamlet --background
 |---|---|
 | `1` Road, `2` House, `3` Sawmill, `4` Hunting lodge, `5` Fishing hut (only when the map has a pond), last key Demolish (or click the toolbar) | choose the tool |
 | drag (road, demolish) / click (buildings) | act on the tile under the pointer |
-| `P` / `Esc`, `M`, `U`, `N` twice | pause, sound, no-limit mode, a new village |
+| `P` / `Esc`, `M`, `U`, `N` | pause, sound, no-limit mode, new village form (`G` too) |
+| `F` / `O` / `F2` / `Ctrl+Z` / `[` `]` | advisors, map overlays, developer panel, undo, previous or next tool |
+| right click / `Esc` | close a window, then drop the tool, then open the game menu |
 
 Rules: buildings stand next to a road and cost wood (`constants.ts`). A house is only settled when its road reaches the gate. The first four
 inhabitants come freely; later ones want one piece of game or fish each. A site employs two people from the idle residents.
@@ -25,7 +27,9 @@ inhabitants come freely; later ones want one piece of game or fish each. A site 
 src/
 ├── main.ts                 mounts the stage and the scene
 ├── HamletScene.ts          input (mouse, touch, keys), toolbar, texts, frame loop
-├── hud.ts                  resource line and the one sentence that says what to try next
+├── hud.ts                  resource line and the one sentence that says what to try next (the top hint)
+├── ui/                     the Sierra-style interface: kit.ts (stone and parchment frames, buttons, tooltips; tokens in assets/ui-theme.json), Hud.ts (top bar, control column),
+│                           BuildMenu.ts, Info.ts, Advisors.ts, Messages.ts, Overlays.ts, Placement.ts, Menu.ts, prefs.ts; Panel.ts is the F2 developer panel
 ├── constants.ts            every shared number: map, costs, speeds, states, save key
 ├── palettes.ts             every colour (diorama and HUD)
 ├── pixel.ts                the single door to the shared Pixel Plays renderer, audio and models
