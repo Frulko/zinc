@@ -18,6 +18,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### UI
 #### Fixed
 - Selecting text with `select-text` works across several lines and several `Text` blocks, like a browser: drag from one paragraph into the next (in a `ScrollView` too, the list scrolls near its edge), the whole span is highlighted and Cmd/Ctrl+C copies it with its line breaks.
+- `{list.map(row)}` with a named function that returns JSX shows the rows, as it does with an inline arrow, instead of printing numbers.
 
 ### Apps and examples
 #### New
@@ -64,6 +65,13 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Go Live from the Discord example sends its video the way Discord's servers read it (their native header-extension ids, the stream id on every packet, a sequence number for congestion control), asks to resume the stream as soon as it is created and each time Discord pauses it, and logs the stream's pause state with `DISCORD_LOG=1`; `DISCORD_VIDEO_EXT`, `DISCORD_VIDEO_PT`, `DISCORD_VIDEO_CODECS`, `DISCORD_VIDEO_ACTIVE` and `DISCORD_VIDEO_TYPE` switch the variants for experiments.
 #### Changed
 - Calls between two Zinc apps hold up on lossy links: under loss the voice gets more bits for its deep redundancy and the receiver waits for it, so a link losing a quarter of its packets in bursts loses about 3% of the sound instead of 8%.
+
+### Language
+
+#### Fixed
+
+- A regex `replace` whose replacer function calls `n.toString(16)`, `Math.max(...)` and the like compiles, instead of failing with an internal error.
+- Array methods on an `any` value (`data.codecs.map(...)`, `.filter`, `.join`, `.some`, `.includes`...) work, as in TypeScript, instead of failing with "cannot be called".
 
 ## [0.10.6] - 2026-10-31
 
