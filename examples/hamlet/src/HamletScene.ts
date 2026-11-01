@@ -40,6 +40,7 @@ import { drawOverlay, drawReach, drawOverlayMenu, drawLegend } from './ui/Overla
 import { drawAdvisors, sampleHistory, openAdvisor } from './ui/Advisors';
 import { drawCampaign, openCampaign } from './ui/Campaign';
 import { drawTree, openTree, treeScroll, treeDrag } from './ui/Tree';
+import { perfBegin, perfEnd, perfFrame } from './ui/PerfTrace';
 import { drawDebug, cycleDebug, debugBegin, debugLap, debugHooks } from './ui/Debug';
 import { drawMenus, isModal, closeMenus, openNew, openMenu, typeKey } from './ui/Menu';
 import { refreshModels, jumpTo } from './view/scenery';
@@ -295,7 +296,7 @@ export class HamletScene extends Sprite {
   }
 
   override onUpdate(dt: number): void {
-    debugBegin();
+    debugBegin(); perfBegin();
     this.layoutSurface();
     for (let i = 0; i < keyCount(); i++) {
       const kind = keyKind(i);
@@ -347,7 +348,7 @@ export class HamletScene extends Sprite {
       this.lastPose = pose;
     }
     if (this.baked !== world.revision) { rebakeStatic(); this.baked = world.revision; uiState.dirty = true; }
-    debugLap(0);
+    debugLap(0); perfEnd(0);
   }
 
   /** Camera: keys, right-button drag and trackpad scroll pan; the wheel, a pinch and + / - zoom. */
@@ -369,15 +370,15 @@ export class HamletScene extends Sprite {
   }
 
   override onDraw(w: number, h: number): void {
-    debugBegin();
+    debugBegin(); perfBegin();
     const ok = this.hover >= 0 && this.tool !== TOOL_NONE && checkTool(this.tool, this.hover) === PLACE_OK;
     drawVillage(Math.floor(this.time * settings.animFps) / settings.animFps, this.hover, ok, this.tool >= TOOL_HOUSE && this.tool < TOOL_ERASE && ok ? this.tool - TOOL_HOUSE : -1);
-    debugLap(1);
+    debugLap(1); perfEnd(1);
     this.syncBuffer(); this.layoutSurface();
     const vp = viewport();
     rect(0, 0, w, h, col('stoneDeep'));
     if (frameDirty.full) { this.surface.upload(); frameDirty.full = false; } else this.surface.uploadSpans(frameDirty.spans);
-    this.surface.draw();
+    this.surface.draw(); perfEnd(2);
     beginFrame();
     mapView.x = this.surface.x; mapView.y = this.surface.y; mapView.scale = this.surface.scale; mapView.cropX = this.frame.cropX; mapView.cropY = this.frame.cropY;
     clip(this.surface.x, this.surface.y, this.frame.cropWidth * this.surface.scale, this.frame.cropHeight * this.surface.scale);
@@ -394,5 +395,6 @@ export class HamletScene extends Sprite {
     drawMenus();
     drawTooltip();
     updateCursor(this.panning ? Cursor.Grabbing : this.tool === TOOL_NONE ? Cursor.Default : this.tool === TOOL_ERASE ? Cursor.NotAllowed : Cursor.Crosshair);
+    perfEnd(3); perfFrame();
   }
 }
