@@ -49,6 +49,9 @@ export class TradeEntry { side: string = ''; resource: number = -1; qty: number 
 export class Trade { everyDays: number = 0; stayDays: number = 2; offers: number = 3; table: TradeEntry[] = []; coin: number = -1; }
 /** An adventure: `workers` villagers leave for `days` days, `cost` is paid at the start, each of them is lost with `risk` percent chance, and `rewards` come home with the survivors. */
 export class Adventure { id: string = ''; title: string = ''; text: string = ''; days: number = 1; workers: number = 1; risk: number = 0; cost: number[] = []; rewards: number[] = []; }
+/** What roads cost (economy.json "roads"): per tile of dirt road, per tile of bridge (a road over water, on top of the dirt), per tree cleared; `refund` percent comes back on demolition,
+ *  `yield` is what a cleared tree brings. Amounts may be fractions: a plan pays the rounded-up total, not tile by tile. */
+export class RoadCosts { dirt: number[] = []; bridge: number[] = []; clear: number[] = []; yield: number[] = []; refund: number = 50; }
 export class Economy {
   deposits: Deposit[] = []; goals: Goal[] = []; trade: Trade = new Trade(); adventures: Adventure[] = [];
   appeal: AppealSource[] = []; appealMax: number = 8; risk: RiskRules = new RiskRules();
@@ -57,9 +60,6 @@ export class Economy {
   serviceOf(id: string): number { for (let k = 0; k < this.services.length; k++) if (this.services[k].id === id) return k; return -1; }
   resourceOf(id: string): number { for (let k = 0; k < this.resources.length; k++) if (this.resources[k].id === id) return k; return -1; }
 }
-/** What roads cost (economy.json "roads"): per tile of dirt road, per tile of bridge (a road over water, on top of the dirt), per tree cleared; `refund` percent comes back on demolition,
- *  `yield` is what a cleared tree brings. Amounts may be fractions: a plan pays the rounded-up total, not tile by tile. */
-export class RoadCosts { dirt: number[] = []; bridge: number[] = []; clear: number[] = []; yield: number[] = []; refund: number = 50; }
 /** The loaded economy. Empty until loadEconomy runs (the scene at start-up, the tests); a building type is its index here. */
 export const economy = new Economy();
 
