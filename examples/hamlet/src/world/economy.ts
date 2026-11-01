@@ -22,6 +22,12 @@ export class BuildingDef {
   stockCap: number = 8; store: boolean = false; needsRoad: boolean = true;
   housing: Housing | null = null; service: ServiceDef | null = null; lode: number = -1; appeal: number[] = [];   // appeal: the rings it adds around itself
 }
+/** One line of the peddler's table: he sells (`sell`: the village buys) or buys (`buy`: the village sells) `qty` of a resource. */
+export class TradeEntry { side: string = ''; resource: number = -1; qty: number = 0; }
+/** The peddler: every `everyDays` days he stays `stayDays` at the gate with `offers` lines drawn from the table. */
+export class Trade { everyDays: number = 0; stayDays: number = 2; offers: number = 3; table: TradeEntry[] = []; coin: number = -1; }
+/** An adventure: `workers` villagers leave for `days` days, `cost` is paid at the start, each of them is lost with `risk` percent chance, and `rewards` come home with the survivors. */
+export class Adventure { id: string = ''; title: string = ''; text: string = ''; days: number = 1; workers: number = 1; risk: number = 0; cost: number[] = []; rewards: number[] = []; }
 export class Economy {
   deposits: Deposit[] = []; goals: Goal[] = []; trade: Trade = new Trade(); adventures: Adventure[] = [];
   appeal: AppealSource[] = []; appealMax: number = 8;
@@ -44,12 +50,6 @@ export class Condition { kind: string = ''; id: number = -1; count: number = 0; 
 export class Goal {
   id: string = ''; title: string = ''; text: string = ''; requires: number[] = []; when: Condition[] = []; unlock: number[] = []; give: number[] = []; final: boolean = false;
 }
-/** One line of the peddler's table: he sells (`sell`: the village buys) or buys (`buy`: the village sells) `qty` of a resource. */
-export class TradeEntry { side: string = ''; resource: number = -1; qty: number = 0; }
-/** The peddler: every `everyDays` days he stays `stayDays` at the gate with `offers` lines drawn from the table. */
-export class Trade { everyDays: number = 0; stayDays: number = 2; offers: number = 3; table: TradeEntry[] = []; coin: number = -1; }
-/** An adventure: `workers` villagers leave for `days` days, `cost` is paid at the start, each of them is lost with `risk` percent chance, and `rewards` come home with the survivors. */
-export class Adventure { id: string = ''; title: string = ''; text: string = ''; days: number = 1; workers: number = 1; risk: number = 0; cost: number[] = []; rewards: number[] = []; }
 export const GATHER_KINDS: string[] = ['', 'tree', 'deer', 'shore'];
 
 function num(obj: any, key: string, fallback: number, where: string, errors: string[]): number {
