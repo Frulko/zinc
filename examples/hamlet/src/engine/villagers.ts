@@ -1,13 +1,16 @@
 import {
-  HOUSE, ROLE_OF_BUILDING, ROLE_FISHER, ST_TO_SHORE, ST_FISH, FISH_SECONDS, FISH_CATCH_CHANCE, FISH_PER_CATCH, ROLE_SETTLER, ROLE_RESIDENT, ROLE_LUMBERJACK, ROLE_HUNTER, WORKERS_PER_SITE, HOUSE_CAPACITY,
+  HOUSE, ROLE_FISHER, ST_TO_SHORE, ST_FISH, FISH_SECONDS, FISH_CATCH_CHANCE, ROLE_SETTLER, ROLE_RESIDENT, ROLE_LUMBERJACK, ROLE_HUNTER,
   ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN,
-  CHOP_SECONDS, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, PICK_SECONDS, WORK_RADIUS, MEAT_PER_DEER, SETTLER_INTERVAL, FREE_SETTLERS,
+  CHOP_SECONDS, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, PICK_SECONDS, WORK_RADIUS, SETTLER_INTERVAL,
   DEER_GRAZE, DEER_WALK, DEER_FLEE, DEER_DEAD, DEER_GONE, WALK_SPEED,
 } from '../constants';
+import { Housing } from '../world/economy';
 import { world, Person, Building, random, tileAt, tileX, tileY, tileIndex, tileI, tileJ, neighbor, waterNeighbor } from '../world/world';
 import { fieldFrom, approachTile, pathTo, planPath, walk, isWalkable, isMoving, UNREACHABLE } from './path';
 import { sound } from '../pixel';
 import { settings } from '../settings';
+import { economy } from '../world/economy';
+import { add } from '../rules/stock';
 
 const gap = (ax: number, ay: number, bx: number, by: number): number => Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
 const buildingTile = (b: Building): number => tileIndex(b.i, b.j);
@@ -63,17 +66,21 @@ export function population(): number {
   return n;
 }
 function updateSettlers(dt: number): void {
-  world.waitingForMeat = false;
+  world.waitingForFood = false;
   for (const b of world.buildings) {
-    if (!b.alive || b.type !== HOUSE || b.residents >= HOUSE_CAPACITY || !isConnected(b)) continue;
+    if (!b.alive || b.type !== HOUSE) continue;
+    const housing = economy.buildings[HOUSE].housing as Housing;
+    if (b.residents >= housing.capacity || !isConnected(b)) continue;
     b.timer -= dt;
     if (b.timer > 0) continue;
-    const needsMeat = population() >= FREE_SETTLERS;
-    if (needsMeat && world.meat + world.fish < 1) { world.waitingForMeat = true; b.timer = 1; continue; }
+    const needsFood = population() >= housing.free;
+    let food = -1;
+    for (const k of housing.eats) if (food < 0 && world.stock[k] >= 1) food = k;
+    if (needsFood && food < 0) { world.waitingForFood = true; b.timer = 1; continue; }
     const settler = newPerson(ROLE_SETTLER, world.buildings.indexOf(b), world.gate);
     settler.state = ST_WALK_IN;
     if (!planPath(settler, buildingTile(b))) { b.timer = 2; continue; }
-    if (needsMeat) { if (world.meat >= 1) world.meat -= 1; else world.fish -= 1; }
+    if (needsFood) world.stock[food] -= 1;
     b.residents++; b.timer = SETTLER_INTERVAL; world.people.push(settler); world.saveDirty = true;
   }
 }
@@ -90,7 +97,8 @@ function assignJobs(): void {
   for (let id = 0; id < world.buildings.length; id++) {
     const site = world.buildings[id];
     if (!site.alive || site.type === HOUSE) continue;
-    while (site.workers < WORKERS_PER_SITE) {
+    const def = economy.buildings[site.type];
+    while (site.workers < def.workers) {
       let best: Person | null = null, bestDist = 1e9;
       for (const p of world.people) {
         if (p.role !== ROLE_RESIDENT || p.job >= 0 || (p.state !== ST_IDLE && p.state !== ST_STROLL)) continue;
@@ -98,7 +106,7 @@ function assignJobs(): void {
         if (d < bestDist) { bestDist = d; best = p; }
       }
       if (best === null) break;
-      best.role = ROLE_OF_BUILDING[site.type];
+      best.role = def.roleId;
       best.job = id; site.workers++; best.state = ST_GO_WORK;
       if (!planPath(best, buildingTile(site))) best.timer = 0;
     }
@@ -172,9 +180,7 @@ function nearestGame(p: Person): boolean {
   return true;
 }
 function deliver(p: Person): void {
-  if (p.carry === 1) world.wood += 1;
-  else if (p.carry === 3) world.fish += FISH_PER_CATCH;
-  else if (p.carry === 2) world.meat += MEAT_PER_DEER;
+  add(economy.buildings[world.buildings[p.job].type].outputs);
   p.carry = 0; world.saveDirty = true;
   sound('point', .3);
 }

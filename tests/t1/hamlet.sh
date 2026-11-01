@@ -22,7 +22,7 @@ if grep -rnE 'Math\.(random|hypot|sin|cos|pow)|Date\.' examples/hamlet/src/world
 ZINC_SIZE=1100x900 ZINC_FRAMES=3200 ZINC_INPUT="$PWD/tests/data/hamlet/session.input" \
 ZINC_SHOT="$tmp/frame.png" ZINC_SHOT_FRAMES=300,2200,3150 timeout 300 "$ZINC" run examples/hamlet > "$tmp/out" 2> "$tmp/err"
 [ ! -s "$tmp/err" ] || { cat "$tmp/err"; exit 1; }
-grep -q '^hamlet:save	H5;3;24;' "$tmp/data/storage.kv"
+grep -q '^hamlet:save	H6;3;24;' "$tmp/data/storage.kv"
 python3 - "$tmp" <<'CHECK'
 from pathlib import Path
 from PIL import Image, ImageChops
@@ -34,8 +34,8 @@ assert ImageChops.difference(a, b).getbbox(), 'the village did not change'
 assert sum(min(px) < 200 for px in b.getdata()) > 150000, 'missing diorama'
 save = (p / 'data' / 'storage.kv').read_text()
 fields = save.split('\t')[1].split(';')
-assert fields[6] and fields[7], 'the session placed no road or building'
+assert fields[4] and fields[5], 'the session placed no road or building'
 assert fields[1] == '3' and fields[2] == '24', 'the typed seed was not used'
-assert fields[7].count(',') >= 3, 'the session should place houses, a sawmill and a lodge'
+assert fields[5].count(',') >= 3, 'the session should place houses, a sawmill and a lodge'
 CHECK
 echo 'hamlet: rules on three engines, scripted mouse session and save PASS'

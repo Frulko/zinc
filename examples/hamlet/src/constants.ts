@@ -12,36 +12,23 @@ export const TERRAIN_WATER = 1;
 export const TERRAIN_VOID = 2;          // the dissolved border of the diorama: not playable
 
 // ---- buildings and tools ----
-export const HOUSE = 0;
-export const SAWMILL = 1;
-export const LODGE = 2;                 // hunting lodge
-export const FISHERY = 3;               // fishing hut: stands on the shore of a pond
-export const BUILDING_NAMES: string[] = ['Maison', 'Scierie', 'Atelier de chasse', 'Atelier de pêche'];
-export const BUILDING_COST: number[] = [5, 8, 8, 8];   // wood
+// What the buildings are (names, costs, jobs) is data: assets/economy.json. A building type is its index in that file; a tool places the type TOOL_HOUSE + type.
+export const HOUSE = 0;                 // the first building of the file is always the house
 export const TOOL_ROAD = 0;
 export const TOOL_HOUSE = 1;
-export const TOOL_SAWMILL = 2;
-export const TOOL_LODGE = 3;
-export const TOOL_FISHERY = 4;
-export const TOOL_ERASE = 5;
-export const TOOL_NONE = -1;          // nothing selected (Escape): clicks place nothing
-export const TOOL_LABELS: string[] = ['Route', 'Maison', 'Scierie', 'Atelier de chasse', 'Atelier de pêche', 'Démolir'];
-export const HOUSE_CAPACITY = 2;
-export const WORKERS_PER_SITE = 2;
+export const TOOL_ERASE = 100;
+export const TOOL_NONE = -1;            // nothing selected (Escape): clicks place nothing
 export const PLACE_OK = 0;
 export const PLACE_BLOCKED = 1;
 export const PLACE_NO_ROAD = 2;
-export const PLACE_NO_WOOD = 3;
+export const PLACE_NO_STOCK = 3;
 export const PLACE_NO_WATER = 4;
 
 // ---- time ----
 export const TICK = 1 / 32;             // the simulation advances in whole ticks of this many seconds: the same ticks give the same village
 
 // ---- economy ----
-export const START_WOOD = 24;
 export const SETTLER_INTERVAL = 6;      // seconds between two arrivals at one house
-export const FREE_SETTLERS = 4;         // the first inhabitants come without game; later ones want meat
-export const MEAT_PER_DEER = 3;
 export const WORK_RADIUS = 14;          // path cost a worker accepts to reach a tree or a deer
 
 // ---- people ----
@@ -50,8 +37,8 @@ export const ROLE_RESIDENT = 1;
 export const ROLE_LUMBERJACK = 2;
 export const ROLE_HUNTER = 3;
 export const ROLE_FISHER = 4;
-/** Which job a workplace gives (index: building type; -1 for a house). Add a building, add its role here. */
-export const ROLE_OF_BUILDING: number[] = [-1, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_FISHER];
+/** The job names economy.json may give (index = ROLE_*). */
+export const ROLE_NAMES: string[] = ['settler', 'resident', 'lumberjack', 'hunter', 'fisher'];
 export const WALK_SPEED = 2.1;          // world units per second
 export const ROAD_SPEED = 1.35;         // multiplier on a road
 export const ROAD_COST = 0.6;           // path cost of a road tile (grass is 1)
@@ -78,7 +65,6 @@ export const ST_TO_SHORE = 13;
 export const ST_FISH = 14;
 export const FISH_SECONDS = 4.5;
 export const FISH_CATCH_CHANCE = .85;
-export const FISH_PER_CATCH = 2;
 
 // ---- no-limit mode: nature refills itself below a threshold ----
 export const TREE_MIN = 18;             // below this many trees, one grows back every TREE_REGROW seconds
@@ -98,5 +84,5 @@ export const DEER_GONE = 4;             // free slot
 
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';
-export const SAVE_VERSION = 'H5';
+export const SAVE_VERSION = 'H6';
 export const SAVE_DELAY = 2;            // seconds between two writes

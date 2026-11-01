@@ -1,8 +1,11 @@
-import {
-  HOUSE, FISHERY, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, BUILDING_COST, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_WOOD, PLACE_NO_WATER,
-} from '../constants';
+import { HOUSE, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER } from '../constants';
 import { world, tileI, tileJ, tileIndex, neighbor, isOpen, waterNeighbor } from '../world/world';
+import { economy } from '../world/economy';
 import { releaseWorkers, removeResidents } from '../engine/villagers';
+import { canPay, pay } from './stock';
+
+/** The tool that places a building type. */
+export function toolOf(id: string): number { return TOOL_HOUSE + economy.typeOf(id); }
 
 function hasRoadNeighbor(t: number): boolean {
   for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && world.road[v]) return true; }
@@ -15,10 +18,10 @@ export function checkTool(tool: number, t: number): number {
   if (tool === TOOL_ERASE) return (world.build[t] >= 0 || (world.road[t] && t !== world.gate)) ? PLACE_OK : PLACE_BLOCKED;
   if (!isOpen(t)) return PLACE_BLOCKED;
   if (tool === TOOL_ROAD) return PLACE_OK;
-  const type = tool - TOOL_HOUSE;
-  if (type === FISHERY && waterNeighbor(t) < 0) return PLACE_NO_WATER;
-  if (!hasRoadNeighbor(t)) return PLACE_NO_ROAD;
-  return world.wood >= BUILDING_COST[type] ? PLACE_OK : PLACE_NO_WOOD;
+  const def = economy.buildings[tool - TOOL_HOUSE];
+  if (def.gather === 'shore' && waterNeighbor(t) < 0) return PLACE_NO_WATER;
+  if (def.needsRoad && !hasRoadNeighbor(t)) return PLACE_NO_ROAD;
+  return canPay(def.cost) ? PLACE_OK : PLACE_NO_STOCK;
 }
 
 export function addBuilding(type: number, t: number): number {
@@ -42,9 +45,8 @@ export function applyTool(tool: number, t: number): number {
   } else if (tool === TOOL_ROAD) {
     world.road[t] = 1; world.deco[t] = 0;
   } else {
-    const type = tool - TOOL_HOUSE;
-    world.wood -= BUILDING_COST[type];
-    addBuilding(type, t);
+    pay(economy.buildings[tool - TOOL_HOUSE].cost);
+    addBuilding(tool - TOOL_HOUSE, t);
   }
   world.revision++; world.saveDirty = true;
   return PLACE_OK;

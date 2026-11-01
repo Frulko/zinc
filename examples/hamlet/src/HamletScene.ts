@@ -5,10 +5,13 @@ import {
 import { Sprite, uiState } from 'zinc:stage';
 import { PixelSurface, PixelGame, unproject, sound, setAmbience, toggleSound, pauseSound, muted } from './pixel';
 import {
-  TICK, TOOL_ROAD, TOOL_HOUSE, TOOL_SAWMILL, TOOL_LODGE, TOOL_FISHERY, TOOL_ERASE, TOOL_NONE, TOOL_LABELS, MIN_SIZE, MAX_SIZE, BUILDING_COST, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_WOOD, PLACE_NO_WATER,
+  TICK, TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE, MIN_SIZE, MAX_SIZE, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, ROLE_NAMES,
 } from './constants';
 import { HUD_INK, HUD_TEAL, HUD_MUTED, HUD_PAPER, HUD_WARM, HUD_ALERT, HUD_DISABLED } from './palettes';
+import * as assets from 'zinc:assets';
 import { world, generate, tileAt } from './world/world';
+import { economy, loadEconomy, amountText } from './world/economy';
+import { MODEL_IDS } from './view/models';
 import { saveGame, loadGame, eraseSave } from './world/save';
 import { parseSeedRequest, randomSeed } from './world/seed';
 import { checkTool, applyTool } from './rules/build';
@@ -70,6 +73,7 @@ export class HamletScene extends Sprite {
 
   constructor() {
     super('Hamlet');
+    loadEconomy(assets.readText('economy.json'), MODEL_IDS, ROLE_NAMES);
     this.small = font('mono', 11); this.body = font('mono', 14); this.titleFont = font('mono', 21);
     this.frame.cropX = 10; this.frame.cropY = 22; this.frame.cropWidth = 340; this.frame.cropHeight = 226;
     const built = buildSettingsPanel({
@@ -90,8 +94,11 @@ export class HamletScene extends Sprite {
   }
 
   private listTools(): void {
-    this.tools = [TOOL_ROAD, TOOL_HOUSE, TOOL_SAWMILL, TOOL_LODGE];
-    if (world.hasWater) this.tools.push(TOOL_FISHERY);
+    this.tools = [TOOL_ROAD];
+    const types: number[] = [];                                    // the buildings in the order of the file's "order"; the shore ones need a pond
+    for (let type = 0; type < economy.buildings.length; type++) if (economy.buildings[type].gather !== 'shore' || world.hasWater) types.push(type);
+    types.sort((a: number, b: number): number => economy.buildings[a].order - economy.buildings[b].order);
+    for (const type of types) this.tools.push(TOOL_HOUSE + type);
     this.tools.push(TOOL_ERASE);
     if (this.tool !== TOOL_NONE && this.tools.indexOf(this.tool) < 0) this.tool = TOOL_ROAD;
   }
@@ -151,7 +158,8 @@ export class HamletScene extends Sprite {
     if (code === PLACE_OK) { sound(this.tool === TOOL_ERASE ? 'soft' : 'wood', .5); return; }
     if (this.tool !== TOOL_ROAD && t >= 0) {
       sound('soft', .4);
-      this.say(code === PLACE_NO_WATER ? 'L’atelier de pêche se pose au bord de l’étang.' : code === PLACE_NO_ROAD ? 'Il faut poser le bâtiment au bord d’une route.' : code === PLACE_NO_WOOD ? 'Pas assez de bois.' : 'Cette case n’est pas libre.');
+      const missing = this.tool >= TOOL_HOUSE && this.tool < TOOL_ERASE ? amountText(economy.buildings[this.tool - TOOL_HOUSE].cost, world.stock) : '';
+      this.say(code === PLACE_NO_WATER ? 'Ce bâtiment se pose au bord de l’étang.' : code === PLACE_NO_ROAD ? 'Il faut poser le bâtiment au bord d’une route.' : code === PLACE_NO_STOCK ? 'Il manque : ' + missing + '.' : 'Cette case n’est pas libre.');
     }
   }
   private key(name: string, down: boolean): void {
@@ -275,12 +283,15 @@ export class HamletScene extends Sprite {
     this.centered(this.titleFont, 14, 'HAMEAU', HUD_INK);
     this.centered(this.body, 46, resourceLine(), HUD_TEAL);
     for (let i = 0; i < this.tools.length; i++) {
-      const tool = this.tools[i], cost = tool >= TOOL_HOUSE && tool < TOOL_ERASE ? BUILDING_COST[tool - TOOL_HOUSE] : 0;
-      const affordable = cost <= world.wood, selected = tool === this.tool;
-      const label = (i + 1) + ' ' + TOOL_LABELS[tool] + (cost > 0 ? ' · ' + cost : '');
+      const tool = this.tools[i], build = tool >= TOOL_HOUSE && tool < TOOL_ERASE, def = build ? economy.buildings[tool - TOOL_HOUSE] : null;
+      let affordable = true;
+      if (def !== null) for (let k = 0; k < def.cost.length; k++) if (def.cost[k] > world.stock[k]) affordable = false;
+      const selected = tool === this.tool, color = selected ? HUD_PAPER : affordable ? HUD_WARM : HUD_DISABLED;
+      const name = (i + 1) + ' ' + (def !== null ? def.short : tool === TOOL_ROAD ? 'Route' : 'Démolir'), cost = def !== null ? amountText(def.cost, null) : '';
       const bx = this.buttonX(i), bw = this.buttonWidth();
       if (selected) rect(bx, this.buttonY(), bw, 44, HUD_TEAL); else rect(bx, this.buttonY(), bw, 44, 0xefe8d4);
-      drawText(this.small, bx + (bw - textWidth(this.small, label, 0)) / 2, this.buttonY() + 17, label, selected ? HUD_PAPER : affordable ? HUD_WARM : HUD_DISABLED, 255, 0);
+      drawText(this.small, bx + (bw - textWidth(this.small, name, 0)) / 2, this.buttonY() + (cost === '' ? 17 : 8), name, color, 255, 0);
+      if (cost !== '') drawText(this.small, bx + (bw - textWidth(this.small, cost, 0)) / 2, this.buttonY() + 26, cost, color, 255, 0);
     }
     const text = this.time < this.messageUntil ? this.message : adviceLine();
     this.centered(this.body, h - 66, text, this.time < this.messageUntil ? HUD_ALERT : HUD_WARM);

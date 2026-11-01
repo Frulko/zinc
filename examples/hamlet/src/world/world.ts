@@ -1,7 +1,8 @@
 import {
-  DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, START_WOOD, DEER_START, DEER_GRAZE, DEER_GONE,
+  DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, DEER_START, DEER_GRAZE, DEER_GONE,
 } from '../constants';
 import { hash, noise } from './noise';
+import { economy } from './economy';
 
 /** Anything that walks the tile grid. A class, not an interface: the walking code takes a Mover and must change the person itself (interfaces are copied records). */
 export class Mover { x: number = 0; y: number = 0; yaw: number = 0; path: number[] = []; step: number = 0; phase: number = 0; }
@@ -14,7 +15,7 @@ export class Deer extends Mover { state: number = 0; timer: number = 0; hunted: 
 
 /** The whole game state: plain data, no drawing, no side effect at import. */
 export interface World {
-  seed: number; size: number; half: number; gate: number; time: number; tick: number; rng: number; jobTimer: number; wood: number; meat: number; fish: number; hasWater: boolean;
+  seed: number; size: number; half: number; gate: number; time: number; tick: number; rng: number; jobTimer: number; stock: number[]; hasWater: boolean;
   terrain: number[]; road: number[]; tree: number[]; rock: number[]; deco: number[]; build: number[]; claimed: number[];
   felledCount: number;              // trees cut so far
   unlimited: boolean;               // no-limit mode: trees and deer come back below a threshold
@@ -23,16 +24,16 @@ export interface World {
   pondX: number; pondY: number; pondR: number; offsetX: number; offsetY: number;
   revision: number;                 // bumped when the baked scenery must be redone
   saveDirty: boolean; lastSave: number; autosave: boolean;
-  deerTimer: number; waitingForMeat: boolean;
+  deerTimer: number; waitingForFood: boolean;
 }
 
 const zeros = (size: number = DEFAULT_SIZE): number[] => Array.from({ length: size * size }, (): number => 0);
 export const world: World = {
-  seed: 1, size: DEFAULT_SIZE, half: DEFAULT_SIZE * TILE / 2, gate: Math.floor(DEFAULT_SIZE / 2) * DEFAULT_SIZE, time: 0, tick: 0, rng: 1, jobTimer: 0, wood: START_WOOD, meat: 0, fish: 0, hasWater: false,
+  seed: 1, size: DEFAULT_SIZE, half: DEFAULT_SIZE * TILE / 2, gate: Math.floor(DEFAULT_SIZE / 2) * DEFAULT_SIZE, time: 0, tick: 0, rng: 1, jobTimer: 0, stock: [], hasWater: false,
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForMeat: false,
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false,
 };
 
 // ---- tiles ----
@@ -93,9 +94,9 @@ export function tileCount(): number { return world.size * world.size; }
 export function generate(seed: number, size: number = DEFAULT_SIZE): void {
   world.seed = seed; world.size = size; world.half = size * TILE / 2; world.gate = Math.floor(size / 2) * size + GATE_I;
   world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.build = zeros(size); world.claimed = zeros(size);
-  world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.wood = START_WOOD; world.meat = 0; world.fish = 0;
+  world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.stock = economy.start.slice();
   world.buildings = []; world.people = []; world.deer = []; world.felledCount = 0; world.treeTimer = 0;
-  world.deerTimer = 0; world.waitingForMeat = false; world.lastSave = 0; world.saveDirty = false;
+  world.deerTimer = 0; world.waitingForFood = false; world.lastSave = 0; world.saveDirty = false;
   seedRandom(seed);
   world.offsetX = hash(seed, 1) * 40; world.offsetY = hash(seed, 2) * 40;
   const pondI = Math.floor(size * (.42 + hash(seed, 3) * .33));

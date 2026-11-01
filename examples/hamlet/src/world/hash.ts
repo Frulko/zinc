@@ -5,7 +5,7 @@ export function stateHash(): number {
   let h = 2166136261;
   const mix = (v: number): void => { h = Math.imul(h ^ (v | 0), 16777619); };
   mix(world.seed); mix(world.size); mix(world.tick); mix(world.rng);
-  mix(world.wood); mix(world.meat); mix(world.fish);
+  for (const n of world.stock) mix(n);
   for (let t = 0; t < tileCount(); t++) mix(world.terrain[t] | (world.road[t] << 2) | (world.tree[t] << 3) | (world.rock[t] << 6));
   for (const b of world.buildings) if (b.alive) { mix(b.type); mix(b.i); mix(b.j); mix(b.residents); }
   let people = 0;

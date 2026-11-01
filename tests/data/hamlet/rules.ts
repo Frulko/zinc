@@ -7,8 +7,16 @@ import { population, createResident } from '../../../examples/hamlet/src/engine/
 import { seedFromText, parseSeedRequest } from '../../../examples/hamlet/src/world/seed';
 import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
 import { stateHash } from '../../../examples/hamlet/src/world/hash';
-import { TOOL_ROAD, TOOL_HOUSE, TOOL_SAWMILL, TOOL_LODGE, TOOL_ERASE, TOOL_FISHERY, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER } from '../../../examples/hamlet/src/constants';
+import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES } from '../../../examples/hamlet/src/constants';
+import * as fs from 'zinc:fs';
+import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
+import { MODEL_IDS } from '../../../examples/hamlet/src/view/models';
+import { toolOf } from '../../../examples/hamlet/src/rules/build';
 
+const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');   // the test runs from the repository root
+loadEconomy(ECONOMY_TEXT, MODEL_IDS, ROLE_NAMES);
+const TOOL_SAWMILL = toolOf('sawmill'), TOOL_LODGE = toolOf('lodge'), TOOL_FISHERY = toolOf('fishery');
+const WOOD = economy.resourceOf('wood'), MEAT = economy.resourceOf('meat'), FISH = economy.resourceOf('fish');
 let failures = 0;
 function check(name: string, ok: boolean): void { console.log('hamlet rules: ' + name + (ok ? ' PASS' : ' FAIL')); if (!ok) failures++; }
 function run(seconds: number): void { for (let k = 0; k < seconds * 32; k++) stepWorld(); }
@@ -21,9 +29,9 @@ for (const t of [at(1, 6), at(2, 6), at(3, 6), at(4, 6), at(5, 6), at(3, 5), at(
 check('a house needs a road', checkTool(TOOL_HOUSE, at(3, 5)) === PLACE_NO_ROAD);
 for (let i = 1; i <= 5; i++) applyTool(TOOL_ROAD, at(i, 6));
 check('a house beside a road is allowed', checkTool(TOOL_HOUSE, at(3, 5)) === PLACE_OK);
-const wood = world.wood;
+const wood = world.stock[WOOD];
 applyTool(TOOL_HOUSE, at(3, 5));
-check('a house costs wood', world.wood === wood - 5);
+check('a house costs wood', world.stock[WOOD] === wood - 5);
 run(20);
 check('settlers arrive and stay idle', population() === 2 && world.people.length === 2);
 applyTool(TOOL_HOUSE, at(2, 5));
@@ -33,14 +41,14 @@ check('idle residents have no job', world.people.every((p) => p.job < 0));
 applyTool(TOOL_SAWMILL, at(4, 7));
 run(5);
 check('the sawmill takes two idle residents', world.people.filter((p) => p.role === ROLE_LUMBERJACK).length === 2);
-const before = world.wood;
+const before = world.stock[WOOD];
 run(90);
-check('lumberjacks deliver wood and fell trees', world.wood > before && world.felledCount > 0);
+check('lumberjacks deliver wood and fell trees', world.stock[WOOD] > before && world.felledCount > 0);
 applyTool(TOOL_LODGE, at(5, 5));
 run(5);
 check('the lodge takes the two others as hunters', world.people.filter((p) => p.role === ROLE_HUNTER).length === 2);
 run(300);
-check('hunters bring game', world.meat > 0);
+check('hunters bring game', world.stock[MEAT] > 0);
 world.unlimited = true;
 world.tree.fill(0); world.treeTimer = 0;
 updateNature(.1);   // called alone: the lumberjacks would cut a new tree as fast as it grows
@@ -55,7 +63,7 @@ check('the save restores the same village (trees and mode)', restore(text) && wo
 applyTool(TOOL_ERASE, at(3, 5)); applyTool(TOOL_ERASE, at(2, 5));
 check('demolishing the houses sends their people away', population() === 0 && world.people.length === 0);
 // ---- the fishing hut: needs a pond, then fishers bring fish ----
-generate(7916, 12); world.wood = 100;
+generate(7916, 12); world.stock[WOOD] = 100;
 let shore = -1, inland = -1;
 for (let t = 0; t < 144 && (shore < 0 || inland < 0); t++) {
   if (!isOpen(t)) continue;
@@ -70,7 +78,7 @@ const home = addBuilding(HOUSE, homeTile);
 createResident(home); createResident(home); world.buildings[home].residents = 2;
 check('a fishing hut by the pond is allowed', applyTool(TOOL_FISHERY, shore) === PLACE_OK);
 run(120);
-check('fishers bring fish', world.fish > 0);
+check('fishers bring fish', world.stock[FISH] > 0);
 // ---- seeds: the same (seed, size) gives the same village; text seeds are hashed; name@size sets the size ----
 generate(424242, 24);
 const first = world.terrain.join('') + world.tree.join('') + world.rock.join('') + world.deco.join('') + world.deer.length + ':' + world.pondX;
@@ -81,8 +89,19 @@ check('another seed gives another village', world.terrain.join('') + world.tree.
 check('a text seed is hashed like Java hashCode', seedFromText('hello') === 99162322 && seedFromText('7916') === 7916);
 check('name@size sets the size, kept in range', parseSeedRequest('foret@32').size === 32 && parseSeedRequest('x@99').size === 32 && parseSeedRequest('x@3').size === 12 && parseSeedRequest('foret@32').seed === seedFromText('foret'));
 check('the default size is 24, the gate is in the middle of the west edge', parseSeedRequest('a').size === 24 && world.gate === 12 * 24 && world.size === 24);
+// ---- the economy file: every rule of the validator refuses a file that breaks it, and the chain report names makers and users ----
+const bad = (from: string, to: string): string[] => parseEconomy(ECONOMY_TEXT.split(from).join(to), MODEL_IDS, ROLE_NAMES, new Economy());
+check('the shipped economy is valid', parseEconomy(ECONOMY_TEXT, MODEL_IDS, ROLE_NAMES, new Economy()).length === 0);
+check('an unknown resource is refused', bad('"cost": { "wood": 5 }', '"cost": { "gold": 5 }').join().indexOf('unknown-resource') >= 0);
+check('a negative number is refused', bad('"cost": { "wood": 5 }', '"cost": { "wood": -5 }').join().indexOf('negative-number') >= 0);
+check('a building without a model is refused', bad('"model": "sawmill", ', '').join().indexOf('no-model') >= 0);
+check('a resource with no raw source is refused', bad('"gather": "tree", "outputs": { "wood": 1 }', '"inputs": { "wood": 1 }, "outputs": { "wood": 1 }').join().indexOf('cycle') >= 0);
+check('a text that is not JSON is refused', parseEconomy('{', MODEL_IDS, ROLE_NAMES, new Economy())[0].indexOf('bad-json') === 0);
+const report = chainReport();
+check('the chain report lists makers and users', report.length === economy.resources.length && report[0].indexOf('wood: made by [sawmill] used by [house (cost)') === 0);
+for (const line of report) console.log('hamlet chain: ' + line);
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
-generate(1234, 16); world.wood = 100;
+generate(1234, 16); world.stock[WOOD] = 100;
 for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, tileIndex(i, 8));
 applyTool(TOOL_HOUSE, tileIndex(2, 7)); applyTool(TOOL_HOUSE, tileIndex(4, 7)); applyTool(TOOL_SAWMILL, tileIndex(5, 9)); applyTool(TOOL_LODGE, tileIndex(3, 9));
 for (let k = 0; k < 600; k++) stepWorld();

@@ -9,6 +9,8 @@ export const MODEL_HOUSE = 0;
 export const MODEL_SAWMILL = 1;
 export const MODEL_LODGE = 2;
 export const MODEL_FISHERY = 3;
+/** The model id of each building type, in the order of assets/economy.json (a building's model sits at its own index). */
+export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery'];
 export const MODEL_GATE = 4;
 export const MODEL_TREE = 5;            // 4 variants: 5..8
 export const MODEL_ROCK = 9;            // 2 variants: 9..10
