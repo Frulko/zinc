@@ -23,9 +23,26 @@ def layer(path, color, x=0, y=0, w=128, h=128):
     matrix = f'{rgb[0]} 0 0 0 0 0 {rgb[1]} 0 0 0 0 0 {rgb[2]} 0 0 0 0 0 1 0'
     return f'<defs><filter id="{ident}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="{matrix}"/></filter></defs><image x="{x}" y="{y}" width="{w}" height="{h}" preserveAspectRatio="xMidYMin meet" filter="url(#{ident})" href="data:image/svg+xml;base64,{data}"/>'
 
-def render(content, w=128, h=128):
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}">{content}</svg>'
+def render(content, w=128, h=128, px=None):
+    px = px or w
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="{px}" height="{px}" viewBox="0 0 {w} {h}">{content}</svg>'
     return Image.open(io.BytesIO(subprocess.run(['rsvg-convert'], input=svg.encode(), stdout=subprocess.PIPE, check=True).stdout)).convert('RGBA')
+
+def ink(tile, hi=0.62, lo=0.30, outline=2, hatch=4):
+    """E-ink tone map: black below lo, white above hi, diagonal hatch between; a black outline around the silhouette. Pure black and white, opaque inside."""
+    from PIL import ImageFilter
+    a = tile.getchannel('A').point(lambda v: 255 if v > 100 else 0)
+    lum = Image.alpha_composite(Image.new('RGBA', tile.size, 'white'), tile).convert('L')
+    ring = a.filter(ImageFilter.MaxFilter(2*outline+1)) if outline else a
+    out = Image.new('RGBA', tile.size, (0,0,0,0)); px = out.load(); lp = lum.load(); ap = a.load(); rp = ring.load()
+    for y in range(tile.height):
+        for x in range(tile.width):
+            if ap[x,y]:
+                v = lp[x,y]/255
+                k = v < lo or (v < hi and (x+y) % hatch == 0)
+                px[x,y] = (0,0,0,255) if k else (255,255,255,255)
+            elif rp[x,y]: px[x,y] = (0,0,0,255)
+    return out
 
 def atlas(tiles, columns, name):
     w,h=tiles[0].size
@@ -36,20 +53,25 @@ def atlas(tiles, columns, name):
     result.save(OUT/name)
     print(f'{name}: {len(tiles)} sprites, {result.width} × {result.height}', flush=True)
 
-furniture=[]
+furniture=[]; ink_furniture=[]
+I=192
 for name,color in zip(OBJECTS,COLORS):
     content=layer(LIB/f'objects/obj_{name}.svg',color,12,12,104,104)
     overlay=LIB/f'objects/obj_{name}_02.svg'
     if overlay.exists(): content+=layer(overlay,'#f6ead2',12,12,104,104)
     furniture.append(render(content))
+    ink_furniture.append(ink(render(content,128,128,I)))
 atlas(furniture,6,'manor-objects.png')
+atlas(ink_furniture,6,'ink-objects.png')
 textures=['bigwood','woodentile','rich','smalltiles']
 atlas([render(layer(LIB/f'textures/texture_floor_{t}.svg','#a49a8b')) for t in textures],4,'manor-floors.png')
+# Floors in ink: the same outlines in black; the checkers' dark squares become a hatch so the people read on them.
+atlas([ink(render(layer(LIB/f'textures/texture_floor_{t}.svg','#a49a8b'),128,128,128),hi=0.99,lo=0.7 if t in ('bigwood','woodentile') else 0.0,outline=0,hatch=5) for t in textures],4,'ink-floors.png')
 
 palette=json.loads((LIB/'portrait-colors.json').read_text())
 recipes=[]
 for sex in ['man','woman']:
-    tiles=[]
+    tiles=[]; inks=[]
     folder=LIB/f'portraits/theme-0/{sex}'
     for skin in range(4):
         for hair in range(4):
@@ -66,6 +88,13 @@ for sex in ['man','woman']:
             content+=layer(outfit,outfit_color,64-64*sx,dy,128*sx,128)
             content+=layer(hairstyle,hair_color,64-64*sx,0,128*sx,128)
             tiles.append(render(content))
+            tone=[(body,skin_color,0.5),(outfit,outfit_color,0.62),(hairstyle,hair_color,0.72)]
+            box=[(0,0,128),(64-64*sx,dy,128*sx),(64-64*sx,0,128*sx)]
+            im=Image.new('RGBA',(160,160),(0,0,0,0))
+            for (f,c,hi),(x,y,w) in zip(tone,box):
+                im=Image.alpha_composite(im,ink(render(layer(f,c,x,y,w,128),128,128,160),hi=hi,outline=2,hatch=5))
+            inks.append(im)
             recipes.append(dict(sex=sex,skin=skin,hair=hair,body=body.name,hairstyle=hairstyle.name,outfit=outfit.name,colors=[skin_color,hair_color,outfit_color]))
     atlas(tiles,4,f'cast-{sex}.png')
+    atlas(inks,4,f'ink-cast-{sex}.png')
 (OUT/'manor-assets.json').write_text(json.dumps(dict(source='https://murdoku.com/play/',objects=OBJECTS,portraits=recipes,layers=sorted(set(RECIPES))),indent=2)+'\n')

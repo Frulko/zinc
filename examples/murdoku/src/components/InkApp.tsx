@@ -11,6 +11,7 @@ import { mobileTab, setMobileTab, inkWide, viewport, INK_SIDE } from '../layout'
 import { Board } from './Board';
 import { HelpPanel } from './HelpPanel';
 import { Rich } from './Rich';
+import { Portrait } from './Portrait';
 function Tool(props: { icon: string; label: string; onClick: () => void; on?: boolean; primary?: boolean }): i32 {
  return <Button onClick={props.onClick} aria-label={props.label} className={'grow basis-0 min-w-0 h-[60] rounded-[8] gap-[2] items-center justify-center '+(props.on ? 'bg-black border-[3] border-black' : props.primary ? 'bg-white border-[7] border-black' : 'bg-white border-[3] border-black')}>
   <Icon name={props.icon} size={22} strokeWidth={2.5} color={() => props.on ? 0xffffff : 0x000000}/>
@@ -25,10 +26,13 @@ function Letters(): i32 {
 function Witness(props: { a: number; width: number }): i32 {
  const a = props.a;
  return <Button onClick={() => choosePerson(a)} aria-label={personName(puzzle(),a)+(placements()[a] >= 0 ? ', déjà placé' : ', à placer')} style={{ width: props.width }} className={'rounded-[8] bg-white items-start justify-start px-2 py-[6] '+(selected() === a ? 'border-[7] border-black' : 'border-[3] border-black')}>
-  <View className="w-full gap-[2]">
-   <View className="flex-row items-center gap-2"><View className={'w-[32] h-[32] rounded-[6] items-center justify-center '+(selected() === a ? 'bg-black' : 'bg-white border-[3] border-black')}><Text className={'text-[16px] font-bold '+(selected() === a ? 'text-white' : 'text-black')}>{personLetter(puzzle(),a)}</Text></View><Text className="text-[20px] font-bold font-[Caveat] text-black">{personName(puzzle(),a)+(placements()[a] >= 0 ? ' ✓' : '')}</Text></View>
-   <For each={puzzle().clues.filter((c: Clue) => c.person === a)}>{(c: Clue) => <Rich text={clueSummary(puzzle(),c)} width={props.width-32} other={relational(c.kind) ? c.other : -1} className="text-[12px] text-black"/>}</For>
-   {a === puzzle().victim && <Rich text="**La victime.** Seul le meurtrier partageait sa pièce." width={props.width-32} other={-1} className="text-[12px] text-black"/>}
+  <View className="w-full flex-row items-start gap-2">
+   <Portrait person={a} size={52}/>
+   <View className="grow basis-0 min-w-0 gap-[2]">
+    <Text className="text-[20px] font-bold font-[Caveat] text-black">{personName(puzzle(),a)+(placements()[a] >= 0 ? ' ✓' : '')}</Text>
+    <For each={puzzle().clues.filter((c: Clue) => c.person === a)}>{(c: Clue) => <Rich text={clueSummary(puzzle(),c)} width={props.width-92} other={relational(c.kind) ? c.other : -1} className="text-[12px] text-black"/>}</For>
+    {a === puzzle().victim && <Rich text="**La victime.** Seul le meurtrier partageait sa pièce." width={props.width-92} other={-1} className="text-[12px] text-black"/>}
+   </View>
   </View>
  </Button>;
 }

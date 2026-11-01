@@ -38,7 +38,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Apps and examples
 #### New
-- Murdoku runs on the reMarkable (`targets.rmpp` in its `zinc.json`) in portrait and landscape: black and white only, a pattern for each room (hatching, dots, cross-hatching, stripes), line-art furniture and a letter token for each suspect; the Mac app looks as before.
+- Murdoku runs on the reMarkable (`targets.rmpp` in its `zinc.json`) in portrait and landscape: black and white only, with the same official artwork as the colour app (floor textures as hatching, furniture, suspect busts with their letter); the Mac app looks as before.
 - **New** A Discord client theme can choose a layout, not only colours: `"layout": "slack"` gives Slack's screen (workspace header with a compose button, folding Channels, Huddles and Direct messages sections, no member list, a header with the topic, a star and the member avatars, square avatars, a formatting row over the message box with a green Send button, day dividers) and `"layout": "teams"` Teams' (an activity rail, a selected-channel bar, Posts and Pinned tabs, message bubbles, a message box with its formatting row). Switching theme in Settings changes the layout at once.
 - `examples/pro-threads` runs Kubai’s animated light-thread lettering through native WebGL 2, with nine palettes, seven effects, editable letters and an alphabet view.
 - **Fixed** Discord video (camera and Go Live) from Zinc now opens in the web client: the video's parameter set carries the frame-reordering limits Chrome would otherwise add itself, which shifted the bytes the end-to-end encryption relies on and made the viewer drop every frame. `DISCORD_VIDEO_SPS=orig` goes back to the encoder's own.
