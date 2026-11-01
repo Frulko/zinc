@@ -22,6 +22,7 @@ import { historyList } from './components/MessageView';
 import { codecLine } from './components/CallView';
 import { memberList } from './components/MemberList';
 import { showcase } from './showcase';
+import { layoutSession } from './layout-session';
 import { startNotifications } from './services/notifications';
 import * as notifs from './services/notifications';
 import * as notification from 'zinc:system/notification';
@@ -175,6 +176,7 @@ if (fakeDiscord && env('DISCORD_DEMO') === 'showcase') showcase();
 if (fakeDiscord && env('DISCORD_DEMO') === 'code') codeSession();
 if (fakeDiscord && env('DISCORD_DEMO') === 'viewer') viewerSession();
 if (fakeDiscord && env('DISCORD_DEMO') === 'tips') tipsSession();
+if (fakeDiscord && env('DISCORD_DEMO') === 'layout') layoutSession();
 
 const speaking = (): string => Array.from(store.call.speaking).map((id: string) => store.userName(id)).sort().join(', ');
 const pause = (ms: i32): Promise<void> => new Promise<void>((done: () => void) => { setTimeout(done, ms); });

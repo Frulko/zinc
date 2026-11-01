@@ -13,5 +13,6 @@
   "radius": 4,
   "textSize": 14,
   "density": "compact",
-  "composerBorder": true
+  "composerBorder": true,
+  "layout": "teams"
 }

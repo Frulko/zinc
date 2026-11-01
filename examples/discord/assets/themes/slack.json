@@ -15,5 +15,6 @@
   "radius": 8,
   "textSize": 15,
   "density": "compact",
-  "composerBorder": true
+  "composerBorder": true,
+  "layout": "slack"
 }

@@ -13,7 +13,7 @@ import { Settings } from './components/Settings';
 import { CallView, StatsPanel } from './components/CallView';
 import { Transfer } from './components/Transfer';
 import { useWindowDimensions } from 'zinc:react-native';
-import { BG_MAIN, TEXT_MUTED, CH_VOICE, RAIL_W, win, membersShown } from './constants';
+import { BG_MAIN, TEXT_MUTED, CH_VOICE, railW, win, membersShown } from './constants';
 
 /** No conversation open: the server or the DMs are shown, one is chosen in the list. */
 function Pick() {
@@ -46,6 +46,6 @@ export default function App() {
       : store.channelId === '' ? <Pick /> : <MessageView />}
     {store.settingsOpen || store.channelId === '' ? null : store.pane !== 'members' ? (win.w < 800 ? <View className="absolute right-0 top-0 bottom-0 border-l border-[var(--dc-divider)]"><SidePane /></View> : <SidePane />) : store.guildId !== '' && membersShown() ? <MemberList /> : null}
     {store.transferPaths.length > 0 ? <Transfer /> : null}
-    {call.statsOpen && call.state === 'connected' && !callHere ? <StatsPanel at={`bottom-[112] left-[${RAIL_W + 8}]`} /> : null}
+    {call.statsOpen && call.state === 'connected' && !callHere ? <StatsPanel at={`bottom-[112] left-[${railW() + 8}]`} /> : null}
   </View>;
 }

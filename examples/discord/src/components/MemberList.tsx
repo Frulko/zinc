@@ -49,7 +49,7 @@ export function MemberList() {
       store.memberRows(Math.floor(ne.contentOffset.y / ROW), Math.floor((ne.contentOffset.y + ne.layoutMeasurement.height) / ROW));
     });
   }, []);
-  return <VirtualList ref={ref} count={rows.length} itemHeight={ROW} className={`w-[${MEMBERS_W}] px-2 ${BG_SIDE}`}>
+  return <View aria-label={tr('discord.members.title')}><VirtualList ref={ref} count={rows.length} itemHeight={ROW} className={`w-[${MEMBERS_W}] px-2 ${BG_SIDE}`}>
     {(i: i32) => <Row key={rows[i].known ? (rows[i].group !== '' ? `g${rows[i].group}` : rows[i].userId) : `b${i}`} r={rows[i]} />}
-  </VirtualList>;
+  </VirtualList></View>;
 }

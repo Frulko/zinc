@@ -1,7 +1,7 @@
 // Every literal used twice: endpoints, the client identity, colours and sizes. The endpoints can be moved by env for the tests (a fake
 // Discord on 127.0.0.1, tests/t1/discord.sh).
 import { env } from 'zinc:sys';
-import { v, runColor } from './theme';
+import { v, runColor, isSlack, isTeams, layout } from './theme';
 
 const or = (name: string, fallback: string): string => { const v = env(name); return v !== '' ? v : fallback; };
 
@@ -35,11 +35,16 @@ export const isThread = (type: i32): boolean => type >= CH_ANNOUNCEMENT_THREAD &
 export const RAIL_W = 72, MEMBERS_W = 240;
 /** The window's width, set by App at each render: the side columns give way to the messages as it narrows (nothing is ever cut). */
 export const win = { w: 1200, h: 760 };
-export const channelsW = (): i32 => win.w < 800 ? 176 : 240;
-export const membersShown = (): boolean => win.w >= 960;
+/** The widths of the columns follow the theme's layout (theme.ts): Slack's rail is narrower and its sidebar wider, Teams' activity rail is a column of icons. */
+export const railW = (): i32 => isSlack() ? 64 : isTeams() ? 68 : RAIL_W;
+export const channelsW = (): i32 => win.w < 800 ? 176 : isSlack() ? 260 : 240;
+/** Only Discord's layout has a member list at the right (Slack and Teams show the members in the header). */
+export const membersShown = (): boolean => win.w >= 960 && layout() === 'discord';
+/** The avatar of a message: a 36 px rounded square in Slack, 32 px in Teams. */
+
 /** The pins or a thread beside the messages. */
 /** The width the messages have (a pane beside them takes more: popovers are clamped to it). */
-export const mainW = (): i32 => win.w - RAIL_W - channelsW() - (membersShown() ? MEMBERS_W : 0);
+export const mainW = (): i32 => win.w - railW() - channelsW() - (membersShown() ? MEMBERS_W : 0);
 export const paneW = (): i32 => win.w < 960 ? 280 : 360;
 
 // The theme's colours, as classes (theme.ts: the scheme variables a theme file sets)
@@ -60,6 +65,7 @@ export const MENTION_BG = `bg-${v('badge')}`, TEXT_MENTION = runColor('mention')
 // Pictures (docs/reports/discord-client-research.md 3): the CDN's files are kept on disk (DISCORD_CACHE moves the folder, for the tests)
 export const CACHE_DIR = env('DISCORD_CACHE');
 export const AVATAR = 40, MEMBER_AVATAR = 32, EMOJI = 22, EMOJI_BIG = 48;
+export const avatarSize = (): i32 => isSlack() ? 36 : isTeams() ? 32 : AVATAR;
 export const MEDIA_MAX_W = 400, MEDIA_MAX_H = 300;
 
 // Voice (call.ts): who speaks has a green ring; the push-to-talk key, held

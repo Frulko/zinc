@@ -52,11 +52,14 @@ last second, a 429 waits `retry_after`, the gateway sends at most 110 messages a
 
 ## Themes
 
-Settings, **Appearance** lists the themes: Discord dark (the default) and light, a Slack look-alike (white window, aubergine sidebar) and its dark one, and a Teams-like light, look-alikes
-in colour and density only. A theme is a JSON file: `name`, `scheme` (`dark` or `light`: the colours left out and the switches of
+Settings, **Appearance** lists the themes: Discord dark (the default) and light, a Slack look-alike (white window, aubergine sidebar) and its dark one, and a Teams-like light, which also change the layout
+(`layout`, below). A theme is a JSON file: `name`, `scheme` (`dark` or `light`: the colours left out and the switches of
 Settings), `colors` (30 named colours as `#rrggbb`: `rail`, `sidebar`, `main`, `text`, `muted`, `accent`, `link`, `success`, `stage` (the
 call view)...; the switches, sliders, dialogs and call statistics take them too), `radius` (px of the
-message box and code blocks), `font` (a family the app ships, `assets/<Family>.ttf`), `textSize` and `density` (`cozy` or `compact`).
+message box and code blocks), `font` (a family the app ships, `assets/<Family>.ttf`), `textSize`, `density` (`cozy` or `compact`) and `layout`: `discord` (the default), `slack` (workspace header and
+folding sections in the sidebar, no member list, topic and member avatars in the header, a formatting row over the message box, day dividers)
+or `teams` (an activity rail, a selected bar, Posts and Pinned tabs, message bubbles). The layout is read at each render, so choosing a theme in
+Settings switches it live; the colours stay the theme's.
 [`assets/themes/theme.schema.json`](assets/themes/theme.schema.json) describes every field; the shipped files in `assets/themes/` are
 examples. Put your own in the folder the pane shows (`<data dir>/themes`; a file named like a shipped one replaces it) and press
 **Reload the themes**. A click uses a theme at once; the choice stays on this computer.

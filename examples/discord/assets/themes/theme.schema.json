@@ -55,6 +55,7 @@
     "radius": { "type": "integer", "minimum": 0, "maximum": 24, "default": 8, "description": "px of the rounded corners of the message box and code blocks." },
     "font": { "type": "string", "default": "", "description": "A font family the app ships (assets/<Family>.ttf) for messages; empty for the default." },
     "textSize": { "type": "integer", "minimum": 11, "maximum": 22, "default": 15, "description": "px of the text of messages." },
+    "layout": { "enum": ["discord", "slack", "teams"], "default": "discord", "description": "The structure of the screen: discord (servers, categories, member list), slack (workspace header, sections, no member list, a toolbar over the message box) or teams (activity rail, tabs, message bubbles). The colours are the theme's own." },
     "composerBorder": { "type": "boolean", "default": false, "description": "An outline around the message box (Slack's)." },
     "density": { "enum": ["cozy", "compact"], "default": "cozy", "description": "compact: closer messages." }
   }

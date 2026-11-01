@@ -55,6 +55,8 @@ export class Theme {
   density = 'cozy';
   /** The message box has an outline (Slack's). */
   composerBorder = false;
+  /** The structure of the screen: 'discord' (Discord's), 'slack' or 'teams' (layout.ts). The colours stay the theme's. */
+  layout = 'discord';
   /** shipped, or the user's own folder */
   own = false;
 }
@@ -86,6 +88,8 @@ export function parseTheme(id: string, text: string): Theme {
   if (j.density !== undefined && j.density !== 'cozy' && j.density !== 'compact') throw new Error(`${id}: "density" is "cozy" or "compact"`);
   if (j.density === 'compact') t.density = 'compact';
   if (j.composerBorder === true) t.composerBorder = true;
+  if (j.layout !== undefined && j.layout !== 'discord' && j.layout !== 'slack' && j.layout !== 'teams') throw new Error(`${id}: "layout" is "discord", "slack" or "teams"`);
+  if (j.layout === 'slack' || j.layout === 'teams') t.layout = j.layout;
   return t;
 }
 
@@ -149,3 +153,7 @@ export function rounded(): string { return `rounded-[${theme.radius}]`; }
 /** The size and font of a message's text. */
 export function textClass(): string { return `text-[${theme.textSize}px]${theme.font !== '' ? ` font-[${theme.font}]` : ''}`; }
 export function compact(): boolean { return theme.density === 'compact'; }
+/** The layout preset of the theme in use: the one place the components read to choose their structure. */
+export function layout(): string { return theme.layout; }
+export const isSlack = (): boolean => theme.layout === 'slack';
+export const isTeams = (): boolean => theme.layout === 'teams';

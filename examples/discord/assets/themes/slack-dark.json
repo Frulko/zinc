@@ -12,5 +12,6 @@
   },
   "radius": 6,
   "textSize": 15,
-  "density": "compact"
+  "density": "compact",
+  "layout": "slack"
 }

@@ -26,6 +26,8 @@ export class Channel {
   messageCount: i32 = 0; tags: string[] = []; tagNames: Map<string, string> = new Map<string, string>();
   /** A DM: the other person (their avatar and presence). */
   recipientId = '';
+  /** The channel's description (its topic), shown under the name by the Slack layout. */
+  topic = '';
   /** Text channels, threads and DMs open in the message view, forums as their list of posts; voice and categories are shown only. */
   readable(): boolean { return this.type === CH_TEXT || this.type === CH_ANNOUNCEMENT || this.type === CH_DM || this.type === CH_GROUP_DM || isThread(this.type) || this.forum(); }
   forum(): boolean { return this.type === CH_FORUM || this.type === CH_MEDIA; }
@@ -328,7 +330,7 @@ export class Store implements GatewayHandler {
   private channel(c: any, guildId: string): Channel {
     const out = new Channel();
     out.id = str(c.id); out.guildId = guildId; out.type = c.type; out.position = c.position ?? 0;
-    out.parentId = str(c.parent_id); out.lastMessageId = str(c.last_message_id); out.name = str(c.name);
+    out.parentId = str(c.parent_id); out.lastMessageId = str(c.last_message_id); out.name = str(c.name); out.topic = str(c.topic);
     out.messageCount = c.message_count ?? 0;
     if (Array.isArray(c.applied_tags)) for (const t of c.applied_tags) out.tags.push(str(t));
     if (Array.isArray(c.available_tags)) for (const t of c.available_tags) out.tagNames.set(str(t.id), str(t.name));

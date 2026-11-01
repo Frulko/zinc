@@ -40,6 +40,7 @@
     {"paths": ["examples/fatty/", "tests/data/fatty/", "tests/golden/fatty/", "tests/t1/fatty.sh", "tests/demo/fatty_logic.sh"], "tests": ["fatty", "fatty_logic"]},
     {"paths": ["examples/music-tree/", "tests/t1/music_tree_sonos.sh", "tests/t1/music_tree_responsive.sh", "tests/t0/music_layout.sh", "tests/data/music-tree/", "tests/golden/music-tree/"], "tests": ["music_layout", "music_tree_responsive", "music_tree_sonos"]},
     {"paths": ["lib/std/markdown", "examples/agents/src/services/markdown.ts", "examples/agents/src/components/Markdown.tsx", "tests/t0/markdown.sh"], "tests": ["markdown", "kanban", "agents_markdown"]},
+    {"paths": ["examples/discord/src/", "examples/discord/assets/themes/", "tests/t1/discord_layout.sh"], "tests": ["discord_layout"]},
     {"paths": ["examples/discord/src/", "i18n/en/discord.json", "i18n/fr/discord.json", "tools/discord-i18n-check", "tests/golden/discord-i18n/", "tests/t1/discord_i18n.sh"], "tests": ["discord_i18n"]},
     {"paths": ["lib/std/kit/overlays.tsx", "lib/std/kit/tooltip.ts", "tests/golden/kit-tooltip/", "tests/t1/kit_tooltip.sh"], "tests": ["kit_tooltip"]},
     {"paths": ["examples/discord/", "tests/golden/discord/", "tests/t1/discord.sh", "plugins/secure-store/"], "tests": ["discord", "discord_notify", "discord_ratelimit", "discord_login"]},

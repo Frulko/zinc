@@ -2,19 +2,20 @@
 // unread ones in white with their count of mentions, a DM with the person's avatar and presence; a voice channel joins its call when pressed (and shows it, CallView.tsx) and lists who is in it (a green ring:
 // speaking), a DM has a call button (green while it rings us). At the bottom the call bar while in a call, and the user with mute, deafen
 // and log out.
+import { useState } from 'zinc:ui/react';
 import { Icon } from 'zinc:icons';
 import { Tooltip } from 'zinc:ui/kit';
 import { tr } from '../i18n';
 import { store, Channel } from '../state';
 import { Avatar, Status } from './Avatar';
 import { cdnPicture, avatarKey } from '../services/cdn';
-import { CH_CATEGORY, CH_VOICE, CH_DM, CH_GROUP_DM, isThread, BG_SIDE, SB_SELECTED, SB_SELECTED_TEXT, SB_HOVER, SB_TEXT, SB_MUTED, SB_STRONG, TEXT_ERROR, TEXT_SUCCESS, TEXT_WARNING, channelsW, MENTION_BG, SPEAKING_RING, VOICE_AVATAR } from '../constants';
-import { color } from '../theme';
+import { CH_CATEGORY, CH_VOICE, CH_DM, CH_GROUP_DM, isThread, BG_SIDE, SB_SELECTED, SB_SELECTED_TEXT, SB_HOVER, SB_TEXT, SB_MUTED, SB_STRONG, TEXT_ERROR, TEXT_SUCCESS, TEXT_WARNING, BG_ACCENT, channelsW, MENTION_BG, SPEAKING_RING, VOICE_AVATAR } from '../constants';
+import { color, isSlack, isTeams } from '../theme';
 import * as guard from '../safety/index';
 import { Bars } from './CallView';
 
 function icon(c: Channel): string {
-  return c.type === CH_VOICE ? 'volume-2' : c.type === CH_GROUP_DM ? 'users' : c.type === CH_DM ? 'at-sign' : isThread(c.type) ? 'message-square' : c.forum() ? 'messages-square' : 'hash';
+  return c.type === CH_VOICE ? (isSlack() ? 'headphones' : 'volume-2') : c.type === CH_GROUP_DM ? 'users' : c.type === CH_DM ? 'at-sign' : isThread(c.type) ? 'message-square' : c.forum() ? 'messages-square' : 'hash';
 }
 /** A forum's posts are listed in the forum, not here. */
 export function listed(c: Channel): boolean { if (!isThread(c.type)) return true; const p = store.findChannel(c.parentId); return p === null || !p.forum(); }
@@ -38,10 +39,11 @@ function DmAvatar(p: { c: Channel }) {
 
 function Row(p: { c: Channel }) {
   const c = p.c;
-  if (c.type === CH_CATEGORY) return <Text className={`px-2 pt-4 pb-1 text-xs font-bold uppercase ${SB_MUTED}`}>{c.name}</Text>;
+  if (c.type === CH_CATEGORY) return <Text className={`px-2 pt-4 pb-1 text-xs font-bold ${isTeams() ? '' : 'uppercase'} ${SB_MUTED}`}>{c.name}</Text>;
   const on = c.id === store.channelId, open = c.readable(), unread = open && !on && store.unread(c.id), mentions = store.mentions(c.id);
-  return <View className={`mx-2 px-2 h-[32] flex-row items-center gap-1.5 rounded ${isThread(c.type) ? 'ml-6' : ''} ${on ? SB_SELECTED : SB_HOVER}`} aria-label={c.name}
+  return <View className={`mx-2 px-2 h-[${isSlack() ? 28 : 32}] flex-row items-center gap-1.5 rounded ${isThread(c.type) ? 'ml-6' : ''} ${on ? SB_SELECTED : SB_HOVER}`} aria-label={c.name}
     onPress={() => { if (open || c.type === CH_VOICE) store.selectChannel(c.id); if (c.type === CH_VOICE) store.joinCall(c.id, c.guildId); }}>
+    {isTeams() && on ? <View className={`absolute left-0 top-[5] bottom-[5] w-[3] rounded-full ${BG_ACCENT}`} /> : null}
     {c.type === CH_DM && c.recipientId !== '' ? <DmAvatar c={c} /> : <Icon name={icon(c)} size={18} color={MUTED} />}
     <Text className={`grow text-[15px] ${on ? `${SB_SELECTED_TEXT} font-semibold` : unread ? `${SB_STRONG} font-semibold` : open ? SB_TEXT : SB_MUTED}`} numberOfLines={1}>{c.name}</Text>
     {mentions > 0 ? <Badge n={mentions} /> : null}
@@ -99,15 +101,51 @@ function SafeMode() {
   </View></Tooltip>;
 }
 
+/** Slack's sections of the sidebar: a header that folds its rows. */
+function SectionHeader(p: { title: string; open: boolean; toggle: () => void }) {
+  return <View className={`mx-2 px-2 h-[28] flex-row items-center gap-1 rounded ${SB_HOVER}`} aria-label={p.title} onPress={p.toggle}>
+    <Icon name={p.open ? 'chevron-down' : 'chevron-right'} size={14} color={MUTED} />
+    <Text className={`text-[15px] ${SB_MUTED}`} numberOfLines={1}>{p.title}</Text>
+  </View>;
+}
+
+/** The rows of the list, by layout: Discord's and Teams' categories as they come; Slack's sections (Channels, Huddles for the voice channels,
+ *  or Direct messages), each folded by its header. */
+function Rows(p: { all: Channel[] }) {
+  const [closed, setClosed] = useState<string>('');
+  const fold = (k: string): void => { setClosed(closed.split(',').indexOf(k) >= 0 ? closed.split(',').filter((x: string) => x !== k).join(',') : `${closed},${k}`); };
+  const item = (c: Channel) => c.type === CH_VOICE ? <View key={c.id}><Row c={c} /><Voices c={c} /></View> : <Row key={c.id} c={c} />;
+  if (!isSlack()) return <View className="py-2 gap-[2]">{p.all.map((c: Channel) => item(c))}</View>;
+  const text = p.all.filter((c: Channel) => c.type !== CH_CATEGORY && c.type !== CH_VOICE), voice = p.all.filter((c: Channel) => c.type === CH_VOICE);
+  const sec = (k: string, title: string, rows: Channel[]) => rows.length === 0 ? <View key={k} /> : <View key={k}><SectionHeader title={title} open={closed.split(',').indexOf(k) < 0} toggle={() => fold(k)} />{closed.split(',').indexOf(k) < 0 ? rows.map((c: Channel) => item(c)) : null}</View>;
+  return <View className="py-2 gap-[2]">
+    {store.guildId === '' ? sec('dm', tr('discord.layout.direct_messages'), text) : sec('channels', tr('discord.layout.channels'), text)}
+    {sec('huddles', tr('discord.layout.huddles'), voice)}
+  </View>;
+}
+
+/** The top of the sidebar: Discord's server name; Slack's workspace menu (name, caret) with its compose button; Teams' bold title. */
+function Header(p: { name: string }) {
+  if (isSlack()) return <View className="h-[52] pl-4 pr-2 flex-row items-center gap-1 border-b border-[var(--dc-footer)]">
+    <View className={`grow basis-0 h-[36] px-2 flex-row items-center gap-1 rounded ${SB_HOVER}`} aria-label={tr('discord.layout.workspace_menu')} onPress={() => store.showSettings(!store.settingsOpen)}>
+      <Text className={`text-[18px] font-bold ${SB_STRONG}`} numberOfLines={1}>{p.name}</Text>
+      <Icon name="chevron-down" size={16} color={MUTED} />
+    </View>
+    <Tooltip label={tr('discord.layout.new_message')}><View className="w-[36] h-[36] items-center justify-center rounded-full bg-[var(--dc-sidebar-selected)]" aria-label={tr('discord.layout.new_message')} onPress={() => store.selectGuild('')}>
+      <Icon name="square-pen" size={18} color={() => color('sidebarStrong')} />
+    </View></Tooltip>
+  </View>;
+  return <View className={`${isTeams() ? 'h-[52]' : 'h-[48]'} px-4 justify-center border-b border-[var(--dc-footer)]`}>
+    <Text className={`${isTeams() ? 'text-[18px] font-bold' : 'font-semibold'} ${SB_STRONG}`} numberOfLines={1}>{p.name}</Text>
+  </View>;
+}
+
 export function ChannelList() {
   const g = store.findGuild(store.guildId);
   return <View className={`w-[${channelsW()}] ${BG_SIDE}`}>
-    <View className="h-[48] px-4 justify-center border-b border-[var(--dc-footer)]">
-      <Text className={`font-semibold ${SB_STRONG}`} numberOfLines={1}>{g !== null ? g.name : tr('discord.rail.dm')}</Text>
-    </View>
+    <Header name={g !== null ? g.name : tr('discord.rail.dm')} />
     <ScrollView className="grow">
-      <View className="py-2 gap-[2]">{store.channels().filter(listed).map((c: Channel) => c.type === CH_VOICE
-        ? <View key={c.id}><Row c={c} /><Voices c={c} /></View> : <Row key={c.id} c={c} />)}</View>
+      <Rows all={store.channels().filter(listed)} />
     </ScrollView>
     <CallBar />
     <View className="min-h-[52] px-3 py-2 flex-row flex-wrap items-center gap-1 bg-[var(--dc-footer)]">
