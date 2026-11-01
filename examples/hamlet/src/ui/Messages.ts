@@ -2,6 +2,7 @@ import { sound } from '../audio';
 import { world, tileX, tileY } from '../world/world';
 import { computeHints, hintText } from '../rules/hints';
 import { population } from '../engine/villagers';
+import { scenarioWon } from '../rules/goals';
 import { kit, col, parchment, text, wrap, addHit } from './kit';
 import { ui, act } from './state';
 
@@ -11,7 +12,7 @@ export class Message { kind: number = 0; text: string = ''; tile: number = -1; r
 export const log: Message[] = [];
 export const banner = { text: '', until: 0, tile: -1 };
 const known: string[] = [];
-let lastPeople = 0, lastScan = -10, lastMilestone = 0;
+let lastPeople = 0, lastScan = -10, lastMilestone = 0, lastWon = -1;   // lastWon: -1 before the first scan (a won save does not cheer again at load)
 
 export function post(kind: number, message: string, tile: number): void {
   for (let i = 0; i < log.length && i < 8; i++) if (log[i].text === message && log[i].tile === tile) return;   // the same event again: one line
@@ -23,8 +24,11 @@ export function post(kind: number, message: string, tile: number): void {
 export function unread(): number { let n = 0; for (const m of log) if (!m.read) n++; return n; }
 /** The simulation's events, once a second: new severe hints and the village growing. */
 export function scanEvents(): void {
-  for (const line of world.news) post(MSG_INFO, line, -1);   // goals, peddler, expeditions: said once, then cleared
+  for (const line of world.news) { post(MSG_INFO, line, -1); if (line.startsWith('Objectif atteint')) sound('bell', .6); }   // goals, peddler, expeditions: said once, then cleared
   world.news = [];
+  const won = world.progression && scenarioWon() ? 1 : 0;
+  if (won === 1 && lastWon === 0) { post(MSG_URGENT, 'Victoire ! Le hameau est devenu un village prospère : tous les objectifs sont atteints.', world.gate); sound('fanfare', .9); }
+  lastWon = won;
   if (world.time - lastScan < 1 && world.time >= lastScan) return;
   lastScan = world.time;
   const hints = computeHints(), now: string[] = [];

@@ -11,7 +11,7 @@ export const MODEL_SAWMILL = 1;
 export const MODEL_LODGE = 2;
 export const MODEL_FISHERY = 3;
 /** The model id of each building type, in the order of assets/economy.json (a building's model sits at its own index). */
-export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry'];
+export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager'];
 export const MODEL_GATE = MODEL_IDS.length;
 export const MODEL_TREE = MODEL_GATE + 1;            // 4 variants
 export const MODEL_ROCK = MODEL_TREE + 4;            // 2 variants
@@ -261,6 +261,39 @@ function quarry(): void {
   capsule([-.95, .5, .08], [-.95, .5, .5], .12, .12, flat([128, 92, 60]), 'rough');
 }
 
+/** A clay pit: a dug hollow with wet clay, a plank ramp, a barrow and a stack of drying bricks. */
+function claypit(): void {
+  box(-.8, -.6, 0, .1, .6, .1, [176, 108, 80]); sphere(-.35, 0, .1, .4, [150, 88, 66], 'rough');
+  box(.1, -.3, 0, .9, .3, .12, WOOD_HONEY);                                           // ramp
+  box(.45, .4, 0, .85, .85, .07, WOOD_BROWN); capsule([.65, .4, .25], [.65, .85, .25], .12, .12, flat([176, 108, 80]), 'rough');   // barrow
+  for (let k = 0; k < 3; k++) box(-.7 + k * .3, -.95, 0, -.45 + k * .3, -.7, .22, [190, 112, 78]);   // bricks
+}
+/** A mine: a timber-framed tunnel mouth in a dark mound, with an ore cart on rails. */
+function mine(): void {
+  sphere(-.3, 0, .3, .95, [104, 100, 104], 'rough');
+  for (const y of [-.38, .3]) box(.1, y, 0, .22, y + .08, .85, WOOD_BROWN);
+  box(.1, -.38, .8, .22, .38, .92, WOOD_BROWN); box(.14, -.3, 0, .2, .3, .78, [30, 28, 32]);
+  for (const y of [-.12, .12]) box(.2, y, 0, 1.1, y + .04, .05, [90, 90, 96]);
+  box(.7, -.22, .06, 1.0, .22, .34, [118, 82, 56]); sphere(.85, 0, .38, .17, [190, 112, 60], 'solid');
+}
+/** A forge: a stone hearth with a chimney, a bellows, an anvil on a stump and a rack of tools. */
+function forge(): void {
+  box(-.7, -.5, 0, .1, .5, .9, [176, 170, 154]); box(-.45, -.15, .9, -.15, .15, 1.9, [150, 144, 130]); box(-.55, -.3, .5, -.1, .3, .6, [200, 90, 50]);
+  gableRoof(-.8, .2, -.6, .6, .9, .2, [96, 84, 76], 29);
+  box(.45, -.12, 0, .75, .12, .45, WOOD_BROWN); box(.38, -.2, .45, .82, .2, .58, [74, 76, 84]);
+  box(.2, .55, .5, .22, .85, 1.0, WOOD_BROWN); box(.2, .55, .9, .22, .85, 1.0, [150, 156, 160]);
+  capsule([-.6, .55, .15], [-.3, .8, .35], .1, .16, flat([118, 82, 56]), 'rough');
+}
+/** A forager's lean-to: two posts and a thatch, a basket of berries and a drying rack. */
+function forager(): void {
+  for (const y of [-.4, .4]) box(-.6, y, 0, -.5, y + .08, 1.1, WOOD_BROWN);
+  gableRoof(-.75, -.1, -.55, .6, 1.05, .35, [196, 170, 100], 31);
+  capsule([.3, -.2, .02], [.3, -.2, .3], .26, .32, flat(WOOD_HONEY), 'rough');
+  for (const [x, y, z] of [[.22, -.25, .34], [.35, -.12, .36], [.3, -.3, .38]]) sphere(x, y, z, .07, [200, 52, 66], 'solid');
+  capsule([.3, .45, .9], [.75, .45, .9], .03, .03, flat(WOOD_BROWN), 'solid');
+  for (let k = 0; k < 3; k++) sphere(.4 + k * .15, .45, .8, .06, [150, 40, 70], 'solid');
+}
+
 /** The entrance of the hamlet: two posts, a beam and a banner over the road (which runs along x). */
 function gate(): void {
   for (const y of [-.92, .78]) box(-.12, y, 0, .12, y + .16, 2.3, WOOD_BROWN);
@@ -362,7 +395,7 @@ export function resetModels(): void { for (let i = 0; i < levelAtlases.length; i
  * index of its first variant in this list, variants counted). They are baked through the atlas, so one cache and one invalidation serve all.
  */
 const MODEL_DEFS: [string, number, (variant: number) => void][] = [
-  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['tannery', 1, tannery], ['well', 1, well], ['quarry', 1, quarry], ['gate', 1, gate], ['tree', 4, tree], ['rock', ROCK_VARIANTS, rock], ['house2', 1, house2], ['house3', 1, house3],
+  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['tannery', 1, tannery], ['well', 1, well], ['quarry', 1, quarry], ['claypit', 1, claypit], ['mine', 1, mine], ['forge', 1, forge], ['forager', 1, forager], ['gate', 1, gate], ['tree', 4, tree], ['rock', ROCK_VARIANTS, rock], ['house2', 1, house2], ['house3', 1, house3],
 ];
 
 /** The atlas definition: one entry per model, one frame each (a static model has a single heading and pose). `reduceFrom` > 0 shrinks the sharp bake for the fixed-detail mode. */

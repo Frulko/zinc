@@ -5,14 +5,14 @@ import {
 } from '../constants';
 import { Person, Deer } from '../world/world';
 import { isMoving } from '../engine/path';
-import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
+import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, FORAGER_PALETTE, SMITH_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
 
 const SCALE = .62;
 const PLANK: Color = [214, 180, 120], LOG: Color = [150, 112, 72], LOG_END: Color = [214, 186, 134], STEEL: Color = [176, 182, 180], ARROW: Color = [226, 212, 176];
 const solid = (c: Color): ((z: number) => Color) => (): Color => c;
 
 /** The palette of each role, indexed by ROLE_* (constants.ts). */
-const ROLE_PALETTES: Palette[] = [SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE];
+const ROLE_PALETTES: Palette[] = [SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, FORAGER_PALETTE, SMITH_PALETTE];
 function paletteOf(role: number, hairTone: number): Palette {
   const base = ROLE_PALETTES[role] === undefined ? RESIDENT_PALETTE : ROLE_PALETTES[role];
   return { shirt: base.shirt, stripe: base.stripe, legs: base.legs, skin: base.skin, hair: HAIR_TONES[hairTone] };
@@ -110,8 +110,8 @@ function paintProps(p: Person, yaw: number, hand: Vec3): void {
     capsule([p.x + fx * .45 + sx * .15, p.y + fy * .45 + sy * .15, .85], [p.x + fx * .45 - sx * .15, p.y + fy * .45 - sy * .15, .85], hide ? .13 : .1, hide ? .13 : .08, c, 'solid');
     if (!hide) sphere(p.x + fx * .45 - sx * .2, p.y + fy * .45 - sy * .2, .85, .12, [150, 78, 62], 'solid');
   }
-  if (p.carry >= 10 && p.carry <= 14) {                              // leather folded, a block of stone, clay or ore, a handful of berries (the order of economy.json)
-    const c: Color = p.carry === 10 ? [150, 104, 64] : p.carry === 11 ? [176, 170, 156] : p.carry === 12 ? [168, 98, 70] : p.carry === 13 ? [86, 86, 92] : [196, 56, 70];
+  if (p.carry >= 10 && p.carry <= 16) {                              // leather folded, a block of stone, clay or ore, a handful of berries (the order of economy.json)
+    const c: Color = p.carry === 10 ? [150, 104, 64] : p.carry === 11 ? [176, 170, 156] : p.carry === 12 ? [168, 98, 70] : p.carry === 13 ? [86, 86, 92] : p.carry === 16 ? [120, 126, 136] : [196, 56, 70];
     if (p.carry === 10) capsule([p.x + fx * .45 + sx * .15, p.y + fy * .45 + sy * .15, .85], [p.x + fx * .45 - sx * .15, p.y + fy * .45 - sy * .15, .85], .13, .13, solid(c), 'solid');
     else if (p.carry === 14) { for (let k = 0; k < 4; k++) sphere(p.x + fx * .45 + sx * (k - 1.5) * .07, p.y + fy * .45 + sy * (k - 1.5) * .07, .86 + (k % 2) * .05, .06, c, 'solid'); }
     else { sphere(p.x + fx * .42, p.y + fy * .42, .86, .17, c, 'solid'); sphere(p.x + fx * .5 + sx * .1, p.y + fy * .5 + sy * .1, .94, .1, [c[0] + 20, c[1] + 18, c[2] + 14], 'solid'); }

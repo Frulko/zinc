@@ -62,8 +62,10 @@ export const ROLE_VENDOR = 11;
 export const ROLE_TANNER = 12;
 export const ROLE_QUARRYMAN = 13;
 export const ROLE_PEDDLER = 14;
+export const ROLE_FORAGER = 15;
+export const ROLE_SMITH = 16;
 /** The job names economy.json may give (index = ROLE_*). */
-export const ROLE_NAMES: string[] = ['settler', 'resident', 'lumberjack', 'hunter', 'fisher', 'sawyer', 'smoker', 'porter', 'farmer', 'miller', 'baker', 'vendor', 'tanner', 'quarryman', 'peddler'];
+export const ROLE_NAMES: string[] = ['settler', 'resident', 'lumberjack', 'hunter', 'fisher', 'sawyer', 'smoker', 'porter', 'farmer', 'miller', 'baker', 'vendor', 'tanner', 'quarryman', 'peddler', 'forager', 'smith'];
 export const WALK_SPEED = 2.1;          // world units per second
 export const ROAD_SPEED = 1.35;         // multiplier on a road
 export const ROAD_COST = 0.6;           // path cost of a road tile (grass is 1)
@@ -119,5 +121,5 @@ export const DEER_GONE = 4;             // free slot
 
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';
-export const SAVE_VERSION = 'H15';
+export const SAVE_VERSION = 'H16';
 export const SAVE_DELAY = 2;            // seconds between two writes

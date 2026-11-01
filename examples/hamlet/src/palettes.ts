@@ -18,6 +18,8 @@ export const BAKER_PALETTE: Palette = { shirt: [236, 232, 220], stripe: [196, 12
 export const VENDOR_PALETTE: Palette = { shirt: [178, 70, 62], stripe: [236, 226, 200], legs: [88, 78, 68], hair: HAIR_TONES[0], skin: SKIN };
 export const TANNER_PALETTE: Palette = { shirt: [140, 100, 66], stripe: [188, 150, 104], legs: [66, 56, 48], hair: HAIR_TONES[0], skin: SKIN };
 export const QUARRYMAN_PALETTE: Palette = { shirt: [150, 148, 140], stripe: [190, 186, 174], legs: [84, 78, 70], hair: HAIR_TONES[0], skin: SKIN };
+export const FORAGER_PALETTE: Palette = { shirt: [92, 134, 84], stripe: [196, 70, 84], legs: [96, 80, 60], hair: HAIR_TONES[0], skin: SKIN };
+export const SMITH_PALETTE: Palette = { shirt: [70, 66, 72], stripe: [176, 96, 56], legs: [56, 52, 52], hair: HAIR_TONES[0], skin: SKIN };
 export const PEDDLER_PALETTE: Palette = { shirt: [64, 110, 124], stripe: [214, 176, 84], legs: [74, 62, 56], hair: HAIR_TONES[0], skin: SKIN };
 
 export const GRASS_TONES: number[][] = [[53, 78, 49], [76, 100, 52], [104, 124, 63], [138, 150, 85]];

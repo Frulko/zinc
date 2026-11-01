@@ -15,7 +15,8 @@
     { "id": "clay", "label": "Argile", "carry": "stone", "price": 2 },
     { "id": "iron_ore", "label": "Minerai", "carry": "stone", "price": 4 },
     { "id": "berries", "label": "Baies", "carry": "sack", "price": 2 },
-    { "id": "coin", "label": "Pièces", "carry": "sack", "price": 1 }
+    { "id": "coin", "label": "Pièces", "carry": "sack", "price": 1 },
+    { "id": "tools", "label": "Outils", "carry": "stone", "price": 8 }
   ],
   "desirability": { "limit": 8, "terrain": [ { "kind": "tree", "rings": [1] }, { "kind": "water", "rings": [2, 1] } ] },
   "goals": [
@@ -24,7 +25,7 @@
     { "id": "planks", "title": "Des planches", "text": "La scierie change le bois en planches : réunissez-en douze.", "requires": ["wood"],
       "when": [ { "building": "sawmill" }, { "stock": "plank", "count": 12 } ], "unlock": ["lodge", "fishery"], "give": { "plank": 6 } },
     { "id": "street", "title": "Une rue", "text": "Trois maisons le long de la route : le hameau prend forme.", "requires": ["planks"],
-      "when": [ { "building": "house", "count": 3 } ], "unlock": ["smokehouse", "farm"] },
+      "when": [ { "building": "house", "count": 3 } ], "unlock": ["smokehouse", "farm", "claypit", "forager", "mine"] },
     { "id": "hunt", "title": "À la chasse", "text": "Un atelier de chasse rapporte du gibier et des peaux.", "requires": ["planks"],
       "when": [ { "building": "lodge" } ], "unlock": ["tannery"], "give": { "log": 5 } },
     { "id": "leather", "title": "Du cuir", "text": "La tannerie fait du cuir avec les peaux : il en faut pour le marché.", "requires": ["hunt"],
@@ -38,11 +39,15 @@
     { "id": "growth", "title": "Le hameau grandit", "text": "Deux maisons de niveau 2 : eau, marché et nourriture variée.", "requires": ["square"],
       "when": [ { "houses": 2, "level": 1 } ], "give": { "plank": 10, "stone": 4 } },
     { "id": "prosperity", "title": "Un village prospère", "text": "Quatorze habitants et une demeure de niveau 3 : le village est fondé.", "requires": ["growth"],
-      "when": [ { "population": 14 }, { "houses": 1, "level": 2 } ], "final": true }
+      "when": [ { "population": 14 }, { "houses": 1, "level": 2 } ], "final": true },
+    { "id": "iron", "title": "Du fer", "text": "Une mine tire le minerai de la roche ; la forge (il faut de l’argile) en fait des outils.", "requires": ["street"],
+      "when": [ { "building": "mine" } ], "unlock": ["forge"], "give": { "log": 4 } },
+    { "id": "tools", "title": "Des outils", "text": "La forge change le minerai en outils : la carrière en demande.", "requires": ["iron"],
+      "when": [ { "building": "forge" }, { "stock": "tools", "count": 2 } ], "give": { "plank": 6 } }
   ],
   "trade": { "coin": "coin", "everyDays": 5, "stayDays": 2, "offers": 3, "table": [
     { "side": "sell", "resource": "bread", "qty": 4 }, { "side": "sell", "resource": "smoked_meat", "qty": 4 }, { "side": "sell", "resource": "stone", "qty": 4 },
-    { "side": "sell", "resource": "leather", "qty": 2 }, { "side": "sell", "resource": "plank", "qty": 8 },
+    { "side": "sell", "resource": "leather", "qty": 2 }, { "side": "sell", "resource": "clay", "qty": 6 }, { "side": "sell", "resource": "berries", "qty": 6 }, { "side": "sell", "resource": "plank", "qty": 8 },
     { "side": "buy", "resource": "plank", "qty": 6 }, { "side": "buy", "resource": "log", "qty": 10 }, { "side": "buy", "resource": "hide", "qty": 4 },
     { "side": "buy", "resource": "smoked_meat", "qty": 4 }, { "side": "buy", "resource": "bread", "qty": 4 }, { "side": "buy", "resource": "leather", "qty": 2 } ] },
   "adventures": [
@@ -56,13 +61,13 @@
   "start": { "log": 20, "plank": 10, "leather": 1, "stone": 2, "coin": 12 },
   "deposits": [
     { "resource": "stone", "model": "stone", "placement": "rock", "density": 1.6, "amount": 12, "required": true },
-    { "resource": "clay", "model": "clay", "placement": "water", "density": 1.2, "amount": 12, "active": false },
-    { "resource": "iron_ore", "model": "ore", "placement": "rock", "density": 0.8, "amount": 10, "active": false },
-    { "resource": "berries", "model": "berries", "placement": "tree", "density": 1.4, "amount": 8, "active": false } ],
+    { "resource": "clay", "model": "clay", "placement": "water", "density": 1.2, "amount": 12, "required": true },
+    { "resource": "iron_ore", "model": "ore", "placement": "rock", "density": 0.8, "amount": 10, "required": true },
+    { "resource": "berries", "model": "berries", "placement": "tree", "density": 1.4, "amount": 8 } ],
   "hall": "storehouse",
   "buildings": [
     { "id": "house", "label": "Maison", "order": 1, "model": "house", "cost": { "plank": 3 },
-      "housing": { "capacity": 2, "free": 4, "eats": ["smoked_meat", "bread", "fish"], "mealsFrom": "market",
+      "housing": { "capacity": 2, "free": 4, "eats": ["smoked_meat", "bread", "fish", "berries"], "mealsFrom": "market",
         "evolveDays": 2, "devolveDays": 4, "margin": 1,
         "levels": [
           { "label": "Maison", "capacity": 4, "needs": { "services": ["market"], "foods": 1 } },
@@ -107,8 +112,20 @@
       "service": { "id": "water", "radius": 4 },
       "hint": "Un puits (il faut de la pierre) donne de l’eau aux maisons dans un rayon de quatre cases." }
   ,
-    { "id": "quarry", "appeal": [-3, -2, -1], "label": "Carrière", "order": 13, "model": "quarry", "cost": { "plank": 3, "log": 2 },
+    { "id": "quarry", "appeal": [-3, -2, -1], "label": "Carrière", "order": 13, "model": "quarry", "cost": { "plank": 3, "log": 2, "tools": 1 },
       "workers": 2, "role": "quarryman", "gather": "deposit:stone", "outputs": { "stone": 1 }, "seconds": 3.2,
-      "hint": "Une carrière extrait la pierre des rochers veinés, posée à côté : elle sert à bâtir les puits." }
+      "hint": "Une carrière (il faut un outil de la forge) extrait la pierre des rochers veinés, posée à côté : elle sert à bâtir les puits." },
+    { "id": "claypit", "appeal": [-2, -1], "label": "Argilière", "order": 15, "model": "claypit", "cost": { "plank": 3, "log": 2 },
+      "workers": 2, "role": "quarryman", "gather": "deposit:clay", "outputs": { "clay": 1 }, "seconds": 3.4,
+      "hint": "Une argilière creuse l’argile d’un banc au bord de l’eau, posée à côté : la forge est bâtie en briques." },
+    { "id": "mine", "appeal": [-3, -2, -1], "label": "Mine de fer", "short": "Mine", "order": 16, "model": "mine", "cost": { "plank": 4, "log": 3 },
+      "workers": 2, "role": "quarryman", "gather": "deposit:iron_ore", "outputs": { "iron_ore": 1 }, "seconds": 4,
+      "hint": "Une mine tire le minerai d’un rocher veiné, posée à côté : la forge en fait des outils." },
+    { "id": "forge", "appeal": [-3, -2, -1], "label": "Forge", "order": 17, "model": "forge", "cost": { "plank": 3, "log": 2, "clay": 4 },
+      "workers": 2, "role": "smith", "inputs": { "iron_ore": 2, "log": 1 }, "outputs": { "tools": 1 }, "seconds": 8,
+      "hint": "Une forge (briques d’argile) fond le minerai en outils, qu’il faut pour une carrière." },
+    { "id": "forager", "label": "Cueilleur", "order": 18, "model": "forager", "cost": { "plank": 2, "log": 2 },
+      "workers": 2, "role": "forager", "gather": "deposit:berries", "outputs": { "berries": 2 }, "seconds": 3,
+      "hint": "Un cueilleur ramasse les baies d’un buisson, posé à côté : les maisons les mangent, un aliment de plus." }
   ]
 }

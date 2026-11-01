@@ -5,7 +5,7 @@ The only place a resource, a building or a production chain is added (plus one m
 
 ```text
 version      1
-resources[]  { id, label, carry, price } carry: how a worker shows it in the hands (log, deer, fish, plank, ...); price: what the peddler's coins are measured in
+resources[]  { id, label, carry, price } carry: how a worker shows it in the hands (log, deer, fish, plank, ...); price: what the peddler's coins are measured in (the carry code on screen is the resource's index + 1, see `view/actors.ts`)
 services[]   { id, label }              what a house may lack: water, market (Building.cover counts the days left of its coverage)
 start        { resource: amount }       what the village holds at the entrance when it begins
 hall         building id with "store": the storehouse that stands for free by the entrance (not before the stores task)
@@ -35,3 +35,16 @@ adventures[] { id, title, text, days, workers, risk (percent per member), cost{}
 Day-length things (service counters, evolution, goals, trade, adventures) run in the daily slice, `engine/day.ts` (a day is DAY_SECONDS of simulation).
 
 A `cycle` error means a resource someone needs cannot be made from a building that takes nothing in (a raw source: a gatherer).
+
+## The deposit chains
+
+A deposit is worked by a building with `gather: "deposit:<resource>"` standing next to it (the quarry's way); it is scattered only when `active` is not false, and `required: true` guarantees one within reach of the gate.
+
+| Deposit | Placement | Worked by | Used for |
+|---|---|---|---|
+| stone | rock, required | quarry (needs 1 `tools`) | wells |
+| clay | water, required | clay pit (`claypit`) | the forge costs 4 clay; the peddler sells it |
+| iron_ore | rock, required | mine (`mine`) | the forge turns 2 ore + 1 log into 1 `tools` |
+| berries | tree | forager (`forager`) | a fourth food of the houses (`eats`), more variety for level 2 and 3; the peddler sells it |
+
+`tools` are made only by the forge and are needed by the quarry. In the campaign the goals `iron` (mine built, opens the forge) and `tools` (forge built, two tools made) follow `street`, which also opens the clay pit, the forager and the mine, so the quarry's `tools` are never out of reach. The roles `forager` and `smith` are new (palettes in `palettes.ts`); the clay pit and the mine use `quarryman`. Saves are `H16`: older saves start a new village.

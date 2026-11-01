@@ -77,7 +77,7 @@ export function drawFlyout(): void {
     const type = c.types[i], d = economy.buildings[type], by = y + 8 + i * (ROW + 4), reason = lockReason(type), ok = reason === '';
     button('b:' + type, x + 8, by, FW - 16, ROW, buildingTip(type), ok, ui.tool === TOOL_HOUSE + type);
     drawBuilding(type, x + 12, by + 3, 40);
-    text(kit.body, x + 58, by + 4, d.label, ok ? col('barText') : col('disabled'));
+    text(kit.body, x + 58, by + 4, d.label, ok || lockText(type) !== '' ? col('barText') : col('disabled'));   // a locked building stays readable: the hatching and the word say it is shut
     let cx = x + 58;
     for (let k = 0; k < economy.resources.length; k++) {
       if (d.cost[k] <= 0) continue;

@@ -29,8 +29,8 @@ function goals(x: number, y: number, w: number): void {
   for (const g of goalList()) {
     const goal = economy.goals[g[0]], color = g[1] === 1 ? col('good') : g[1] === 0 ? col('ink') : col('muted');
     text(kit.body, x, cy, (g[1] === 1 ? '[x] ' : '[ ] ') + goal.title, color); cy += kit.lineH;
-    for (const l of wrap(goal.text, w - 24)) { text(kit.small, x + 24, cy, l, col('muted')); cy += kit.lineH - 2; }
-    cy += 8;
+    if (g[1] === 0) for (const l of wrap(goal.text, w - 24)) { text(kit.small, x + 24, cy, l, col('muted')); cy += kit.lineH - 2; }   // only the open goals say what to do: the list stays on the page
+    cy += 6;
   }
 }
 function peddler(x: number, y: number, w: number): void {
@@ -40,7 +40,7 @@ function peddler(x: number, y: number, w: number): void {
   for (let k = 0; k < lines.length; k++) {
     const by = y + 26 + k * 40, ok = canTrade(k);
     labelButton('camp:trade:' + k, x, by, w, 34, '', ok ? 'Conclure' : 'Impossible : il manque de quoi payer', ok);
-    text(kit.body, x + 10, by + 8, lines[k], ok ? col('barText') : col('disabled'));
+    text(kit.body, x + 10, by + 8, lines[k], ok ? col('barText') : col('ink'));
   }
 }
 function adventures(x: number, y: number, w: number): void {
@@ -50,7 +50,7 @@ function adventures(x: number, y: number, w: number): void {
     const by = y + 26 + k * 50, ok = canStart(k);
     labelButton('camp:adv:' + k, x, by, w, 44, '', economy.adventures[k].text, ok);
     const wr = wrap(lines[k], w - 20);
-    for (let j = 0; j < wr.length && j < 2; j++) text(kit.small, x + 10, by + 6 + j * kit.lineH, wr[j], ok ? col('barText') : col('disabled'));
+    for (let j = 0; j < wr.length && j < 2; j++) text(kit.small, x + 10, by + 6 + j * kit.lineH, wr[j], ok ? col('barText') : col('ink'));
   }
   let cy = y + 36 + lines.length * 50;
   text(kit.body, x, cy, under.length > 0 ? 'En route' : 'Personne n’est parti.', col('ink')); cy += kit.lineH + 4;
