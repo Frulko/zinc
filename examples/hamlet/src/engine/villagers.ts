@@ -1,7 +1,7 @@
 import {
   HOUSE, ST_TO_SHORE, ST_FISH, ROLE_SETTLER, ROLE_RESIDENT, ROLE_PEDDLER,
   ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_WORK, ST_FETCH, ST_BRING,
-  ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, STALK_CROUCH, WORK_RADIUS, SETTLER_INTERVAL,
+  ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, BS_NO_SOURCE, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, STALK_CROUCH, WORK_RADIUS, SETTLER_INTERVAL,
   DEER_DEAD, DEER_FLEE, DEER_GONE, WALK_SPEED,
 } from '../constants';
 import { Housing, BuildingDef, Harvest } from '../world/economy';
@@ -20,7 +20,7 @@ import { startRoam, roamTick } from './services';
 import { routine, freeTime } from './routine';
 import { arrivalFactor, workPace } from '../rules/needs';
 import { level } from '../rules/difficulty';
-import { findLoad, haulOut, fetchInput, hasRoomFor, readyBatch, exportsOk, pickUp, putDown, cancelTransport } from './transport';
+import { findLoad, haulOut, fetchInput, atTarget, hasRoomFor, readyBatch, exportsOk, pickUp, putDown, cancelTransport } from './transport';
 
 const gap = (ax: number, ay: number, bx: number, by: number): number => Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
 const buildingTile = (b: Building): number => tileIndex(b.i, b.j);
@@ -336,7 +336,10 @@ function updateWorker(p: Person, dt: number): void {
       else if (def.gather === 'deer') found = nearestGame(p);
       else {
         if (site.state === BS_FULL || site.state === BS_ISOLATED) site.state = BS_IDLE;
-        found = startWork(p, site, def) || fetchInput(p, p.job);
+        found = !atTarget(def) && (startWork(p, site, def) || fetchInput(p, p.job));
+      }
+      if (def.gather !== '' && !def.store && hasRoomFor(site, def.outputs)) {              // a gatherer says why it idles: nothing within reach, or a stale "full" cleared
+        if (found) { if (site.state === BS_FULL || site.state === BS_NO_SOURCE) site.state = BS_IDLE; } else site.state = BS_NO_SOURCE;
       }
       if (!found) p.timer = def.store ? 1.5 : 2;
       break;

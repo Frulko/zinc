@@ -164,6 +164,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   if (seenBake !== bakeCount || edgedPix.length !== pix.length) prepare();
   const dirty: number[] = [], night = lightsOn();
   for (const p of world.people) { const a = project(p.x, p.y, 0); addRect(dirty, a.sx, a.sy, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 4.4 * S, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 2.4 * S); }
+  for (const p of world.crime.outlaws) { const a = project(p.x, p.y, 0); addRect(dirty, a.sx, a.sy, 2.2 * S, 4.4 * S, 2.2 * S, 2.4 * S); }
   for (const d of world.deer) {
     const a = project(d.x, d.y, 0); addRect(dirty, a.sx, a.sy, 2.2 * S, 3.2 * S, 2.2 * S, 1.4 * S);
     if (d.species === SP_RABBIT && d.home >= 0) { const b = project(tileX(d.home), tileY(d.home), 0); addRect(dirty, b.sx, b.sy, .6 * S, .5 * S, .6 * S, .4 * S); }   // its burrow
@@ -218,6 +219,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   const atlas = settings.atlas ? actorAtlas() : null;
   for (const d of world.deer) drawDeer(d, time, atlas);
   for (const p of world.people) drawPerson(p, time, atlas);
+  for (const p of world.crime.outlaws) drawPerson(p, time, atlas);
   drawFxBodies(time);
   drawBees(time);
   drawWildlife(time);

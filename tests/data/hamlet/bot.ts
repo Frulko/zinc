@@ -13,7 +13,7 @@ import { canPay } from '../../../examples/hamlet/src/rules/stock';
 import { isUnlocked, scenarioWon } from '../../../examples/hamlet/src/rules/goals';
 import { economy, loadEconomy } from '../../../examples/hamlet/src/world/economy';
 import { PRESETS } from '../../../examples/hamlet/src/gen/presets';
-import { TOOL_ROAD, TOOL_ERASE, HOUSE, PLACE_OK, ROLE_NAMES, DAY_TICKS, DAY_SECONDS } from '../../../examples/hamlet/src/constants';
+import { TOOL_ROAD, TOOL_ERASE, HOUSE, PLACE_OK, ROLE_NAMES, DAY_TICKS, DAY_SECONDS, BS_NO_SOURCE } from '../../../examples/hamlet/src/constants';
 import { capacityOf, housingReport } from '../../../examples/hamlet/src/rules/housing';
 
 const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');
@@ -82,11 +82,22 @@ function centre(): number {
 }
 function score(id: string, t: number, d: number): number {
   const c = centre();
-  if (id === 'house') return -d * 3 - near(t, world.gate) * .5 + world.appeal[t] * 5;
-  if (id === 'lumberhut') return treesAround(t, 4) * 3 - d * 2 - near(t, world.gate) * .3;
+  if (id === 'house') return -d * 6 - near(t, world.gate) * .5 + world.appeal[t] * 5;
+  if (id === 'lumberhut') return treesAround(t, 4) * 3 - d * 4 - near(t, world.gate) * .3;
   if (id === 'well') return housesAround(t, 4) * 6 - d - near(t, c) * .2;
   if (id === 'market') return -near(t, c) * 2 - d;
-  return -d * 2 - near(t, world.gate) * .5 - (economy.buildings[economy.typeOf(id)].appeal.length > 0 && economy.buildings[economy.typeOf(id)].appeal[0] < 0 ? housesAround(t, 4) * 4 : 0);   // dirty trades keep away from homes
+  return -d * 4 - near(t, world.gate) * .5 - (economy.buildings[economy.typeOf(id)].appeal.length > 0 && economy.buildings[economy.typeOf(id)].appeal[0] < 0 ? housesAround(t, 4) * 4 : 0);   // dirty trades keep away from homes
+}
+/** True when a building on the tile would shut in a dead end of the road (the bot used to wall its own village in: no tree, no room, nothing reachable). */
+function sealsRoad(t: number): boolean {
+  for (let d = 0; d < 4; d++) {
+    const v = neighbor(t, d);
+    if (v < 0 || world.road[v] === 0) continue;
+    let links = 0, free = 0;
+    for (let e = 0; e < 4; e++) { const w = neighbor(v, e); if (w < 0) continue; if (world.road[w] !== 0) links++; else if (w !== t && isOpen(w)) free++; }
+    if (links <= 1 && free === 0) return true;
+  }
+  return false;
 }
 /** Places a building of the plan at the best tile, laying a road to it when needed. False when it cannot be afforded or has no place. */
 function tryPlace(id: string): boolean {
@@ -100,7 +111,14 @@ function tryPlace(id: string): boolean {
     let ok: boolean;
     if (d === 1 || !def.needsRoad) ok = checkTool(tool, t) === PLACE_OK;
     else { const p = r.par[t]; world.road[p] = 1; ok = checkTool(tool, t) === PLACE_OK; world.road[p] = 0; }
-    if (!ok) continue;
+    if (!ok || sealsRoad(t)) continue;
+    if (d > 1 && def.needsRoad) {                                            // the road to it is paid in planks too: the whole bill must be in the stores
+      const chain: number[] = [];
+      for (let p = r.par[t]; p >= 0 && world.road[p] === 0; p = r.par[p]) chain.push(p);
+      const bill = costOf(chain);
+      const keep = id === 'lumberhut' && count('sawmill') === 0 ? 5 : 0;      // the first hut leaves a sawmill and a house to pay
+      if (!canPay(def.cost.map((v: number, k: number): number => v + bill[k] + (k === economy.resourceOf('plank') ? keep : 0)))) continue;
+    }
     const s = score(id, t, d);
     if (s > best) { best = s; bt = t; }
   }
@@ -130,6 +148,9 @@ function touches(cost: number[], blocker: number[]): boolean { for (let k = 0; k
 
 /** The reachable ground has no tree at its edge: the bot's own houses wall the road in. A person bulldozes the nearest house that has the forest behind it. */
 function unwall(r: Reach): void {
+  let open = 0;
+  for (let t = 0; t < world.size * world.size; t++) if (r.dist[t] >= 0) open++;
+  if (open > 40) return;                                  // only a pocket is walled in: a wide village just waits for the trees to grow
   let best = -1, bs = 1e9;
   for (let id = 0; id < world.buildings.length; id++) {
     const b = world.buildings[id];
@@ -164,6 +185,7 @@ let roadsLaid = false;
 function decide(): void {
   if (!roadsLaid) { { const east: number[] = []; for (let k = 0; k < 4 && isOpen(world.gate + 1 + k); k++) east.push(world.gate + 1 + k); buildRoad(east); /* a road east of the gate, as far as the ground is open */ } roadsLaid = true; }
   clearRuins();
+  openForest();
   let blocker: number[] | null = null;
   for (const w of PLAN) {
     const type = economy.typeOf(w.id), def = economy.buildings[type];
@@ -173,7 +195,7 @@ function decide(): void {
     if (w.id === 'fishery' && !world.hasWater) continue;
     if (w.id !== 'house' && def.workers > 0 && openJobs() > idlePeople() + 2) continue;      // people first: no new workplace while the ones built wait for hands
     if (blocker !== null && touches(def.cost, blocker)) continue;
-    if (tryPlace(w.id)) { if (VERBOSE) console.log('  day ' + Math.floor(world.tick / DAY_TICKS) + ' build ' + w.id); continue; }
+    if (tryPlace(w.id)) { if (VERBOSE) console.log('  day ' + Math.floor(world.tick / DAY_TICKS) + ' build ' + w.id + ' planks left ' + world.stock[economy.resourceOf('plank')]); continue; }
     if (!canPay(def.cost)) { if (blocker === null && w.id !== 'house') blocker = def.cost; }   // wait for the stock
   }
 }
@@ -210,7 +232,7 @@ function play(seed: number, size: number, preset: number): Run {
     for (const a of world.alerts) { if (a.kind === 'fire') run.fires++; else if (a.kind === 'collapse') run.collapses++; else if (a.kind === 'theft') run.thefts++; if (VERBOSE) console.log('  day ' + day + ' ' + a.text); }
     world.news = []; world.alerts = [];
     if (VERBOSE && day % 30 === 0) { let best = -1; for (let id = 0; id < world.buildings.length; id++) { const b = world.buildings[id]; if (b.alive && b.type === HOUSE && (best < 0 || b.level > world.buildings[best].level)) best = id; } if (best >= 0) console.log('   best house: ' + housingReport(world.buildings[best]).text); const gaps: string[] = []; for (const b of world.buildings) if (b.alive && b.type === HOUSE && b.level === 1) for (const q of housingReport(b).missing) gaps.push(q.id); console.log('   level-1 houses lack: ' + gaps.join(',')); let lv = 0; for (const b of world.buildings) if (b.alive && b.type === HOUSE && b.level >= 2) lv++; console.log('   lvl2 houses ' + lv + ' ' + ['market', 'well', 'tavern', 'meadery', 'chandlery', 'bakery', 'farm', 'fishery', 'smokehouse', 'firehouse'].map((id: string): string => id + ' ' + count(id)).join(' ') + ' mead ' + world.stock[economy.resourceOf('mead')] + ' candle ' + world.stock[economy.resourceOf('candle')]); }
-    if (VERBOSE && day === 12) for (const b of world.buildings) console.log('   b ' + economy.buildings[b.type].id + ' @' + b.i + ',' + b.j + ' workers ' + b.workers + ' state ' + b.state + ' res ' + b.residents + ' stock ' + b.stock.join(','));
+    if (VERBOSE && (day === 12 || day === 60)) for (const b of world.buildings) console.log('   b ' + economy.buildings[b.type].id + ' @' + b.i + ',' + b.j + ' workers ' + b.workers + ' state ' + b.state + ' res ' + b.residents + ' stock ' + b.stock.join(','));
     if (VERBOSE && day % 10 === 0) console.log('  d' + day + ' pop ' + pop + ' mood ' + world.mood + ' jobless ' + world.jobless + '% houses ' + count('house') + ' trees ' + world.tree.filter((v: number): boolean => v > 0).length + ' felled ' + world.felledCount + ' ' + stockLine());
     if (!SANDBOX && scenarioWon()) { run.won = day; break; }
     if (everPeople && pop === 0) { run.dead = true; break; }

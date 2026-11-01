@@ -71,6 +71,8 @@ export const ROLE_INNKEEPER = 20;
 export const ROLE_FIREWARDEN = 21;
 export const ROLE_REPAIRMAN = 22;
 export const ROLE_WATCHMAN = 23;
+export const ROLE_ROBBER = 24;         // outlaws live in world.crime.outlaws, not in world.people (engine/crime.ts)
+export const ROLE_RIOTER = 25;
 /** The job names economy.json may give (index = ROLE_*). */
 export const ROLE_NAMES: string[] = ['settler', 'resident', 'lumberjack', 'hunter', 'fisher', 'sawyer', 'smoker', 'porter', 'farmer', 'miller', 'baker', 'vendor', 'tanner', 'quarryman', 'peddler', 'forager', 'smith', 'beekeeper', 'chandler', 'brewer', 'innkeeper', 'firewarden', 'repairman', 'watchman'];
 export const WALK_SPEED = 2.1;          // world units per second
@@ -105,17 +107,21 @@ export const ST_MINE = 21;             // working it        // ... on its way ho
 export const ST_SLEEP = 22;            // asleep at home (not drawn): night, rules/needs.ts
 export const ST_HOME = 23;             // walking home for the night
 export const ST_FREE = 24;             // walking to the market, the well or the tavern in free time
+export const ST_RAID = 25;             // an outlaw on his way to the building he will rob or wreck
+export const ST_WRECK = 26;            // rioters at work on a building
+export const ST_FLEE = 27;             // an outlaw running back to the gate
 export const BS_IDLE = 0;              // building states: what its workers are doing, for the hints
 export const BS_WORKING = 1;
 export const BS_WAITING = 2;          // an input is missing (Building.waitFor)
 export const BS_FULL = 3;              // the output has no room
 export const BS_ISOLATED = 4;          // no road leads from it to a store: nothing leaves it (and nothing comes)
+export const BS_NO_SOURCE = 5;         // a gatherer finds nothing within reach (no tree, deposit, shore or game): the road or the ground must change
 export const BATCH = 4;                // most a porter carries at once
 
 // ---- no-limit mode: nature refills itself below a threshold ----
 export const TREE_MIN = 18;             // below this many trees, one grows back every TREE_REGROW seconds
 export const TREE_REGROW = 10;
-export const TREE_REGROW_SLOW = 14;    // normal mode: seconds between two new trees (the forest recovers, slowly) ...
+export const TREE_REGROW_SLOW = 7;     // normal mode: seconds between two new trees (the forest recovers, slowly) ...
 export const TREE_CAP_SLOW = 1.5;      // ... up to this many times the no-limit threshold
 
 // ---- deer ----

@@ -15,7 +15,7 @@ import { ui, act, WIN_NONE, WIN_MENU, WIN_OPTIONS, WIN_MAIN, WIN_SAVES, WIN_NEW,
 import { dateText } from './clock';
 import { savePrefs } from './prefs';
 import { PRESETS } from '../gen/presets';
-import { defaultLevel } from '../rules/difficulty';
+import { defaultLevel, levelLabel } from '../rules/difficulty';
 import { TerrainParams } from '../gen/terrain';
 
 /** The generator keeps the object it is given (world.params): a new village gets its own copy of the preset. */
@@ -27,7 +27,7 @@ function copyParams(a: TerrainParams): TerrainParams {
 
 // The menus: the main menu at launch (when a village is waiting), the game menu, the options, the save slots and the new-village form.
 export const SLOTS = 3;
-class Slot { used: boolean = false; name: string = ''; clock: string = ''; people: number = 0; seed: number = 0; size: number = 0; thumb: string = ''; image: i32 = -1; }
+class Slot { used: boolean = false; name: string = ''; clock: string = ''; difficulty: string = ''; people: number = 0; seed: number = 0; size: number = 0; thumb: string = ''; image: i32 = -1; }
 const slots: Slot[] = [];
 for (let i = 0; i < SLOTS; i++) slots.push(new Slot());
 let loadMode = true;                       // the slot window: choosing a slot to load, or to save into
@@ -62,13 +62,13 @@ function refreshSlots(): void {
     if (meta === '') continue;
     try {
       const d: any = JSON.parse(meta);
-      s.name = String(d.name); s.clock = String(d.clock); s.people = d.people as number; s.seed = d.seed as number; s.size = d.size as number; s.thumb = String(d.thumb); s.used = true;
+      s.name = String(d.name); s.clock = String(d.clock); s.people = d.people as number; s.seed = d.seed as number; s.size = d.size as number; s.difficulty = d.difficulty === undefined ? '' : String(d.difficulty); s.thumb = String(d.thumb); s.used = true;
       if (s.image >= 0) { s.image = -1; }
     } catch (error) { s.used = false; }
   }
 }
 function saveSlot(i: number): void {
-  const meta = { name: 'Hameau ' + (i + 1), clock: dateText(), people: population(), seed: world.seed, size: world.size, thumb: thumbnail() };
+  const meta = { name: 'Hameau ' + (i + 1), clock: dateText(), people: population(), seed: world.seed, size: world.size, difficulty: levelLabel(), thumb: thumbnail() };
   try { storage.set('hamlet:slot:' + i, snapshot()); storage.set('hamlet:slot:' + i + ':meta', JSON.stringify(meta)); act.say('Hameau enregistré dans l’emplacement ' + (i + 1) + '.'); }
   catch (error) { act.say('L’enregistrement a échoué.'); }
   refreshSlots();
@@ -122,7 +122,7 @@ function saves(): void {
     if (s.used) {
       drawThumb(s, m.x + 18, y + 6, 68);
       text(kit.body, m.x + 96, y + 8, s.name + ' · graine ' + s.seed, col('ink'));
-      text(kit.small, m.x + 96, y + 30, s.clock + ' · ' + s.people + ' habitants', col('muted'));
+      text(kit.small, m.x + 96, y + 30, s.clock + ' · ' + s.people + ' habitants' + (s.difficulty === '' ? '' : ' · ' + s.difficulty), col('muted'));
     } else text(kit.body, m.x + 96, y + 30, 'Emplacement vide', col('muted'));
     if (loadMode) labelButton('slot:load:' + i, m.x + 330, y + 22, 106, 32, 'Charger', '', s.used);
     else labelButton('slot:save:' + i, m.x + 330, y + 22, 106, 32, 'Enregistrer');

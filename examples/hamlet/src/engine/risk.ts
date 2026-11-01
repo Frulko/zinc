@@ -3,6 +3,7 @@ import { world, Alert, random, recount, tileI, tileJ, tileIndex } from '../world
 import { economy } from '../world/economy';
 import { population, removeResidents, releaseWorkers } from './villagers';
 import { level } from '../rules/difficulty';
+import { sendRobber } from './crime';
 
 // Risks: fire, collapse and petty theft, from the daily counters of each building (economy.json "risk" per building, "risks" for the rules). The numbers follow the classic
 // city builders as a calibration only: a building's fire counter rises on its own day (one day in `slots`), wear every day, and a safety walker passing within two tiles
@@ -89,6 +90,6 @@ export function dailyRisks(): void {
     if (!b.alive || b.fixed || isRuin(b.type)) continue;
     if (b.fire > r.fireAt) ignite(id);
     else if (b.damage > r.collapseAt) collapse(id);
-    else if (b.crime > r.crimeAt) { b.crime = 0; steal(id); }
+    else if (b.crime > r.crimeAt) { b.crime = 0; if (!sendRobber(id)) steal(id); }
   }
 }

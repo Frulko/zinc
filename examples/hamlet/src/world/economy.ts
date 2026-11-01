@@ -10,7 +10,7 @@ export class Harvest {
   label: string = ''; time: number = 0; units: number = 1; percent: number = 100; chance: number = 100; depletion: number = 100;
   seasons: number[] = [100, 100, 100, 100]; tool: number = -1; toolBonus: number = 0;
 }
-export class Resource { id: string = ''; label: string = ''; carry: string = ''; price: number = 0; harvest: Harvest | null = null; variants: Harvest[] = []; }
+export class Resource { id: string = ''; label: string = ''; carry: string = ''; price: number = 0; target: number = 0; harvest: Harvest | null = null; variants: Harvest[] = []; }
 /** A service the houses may lack (water, market...): `Building.cover[k]` counts the days a house stays covered. */
 /** `risk` (fire, collapse, crime) makes it a safety service: its walker resets that counter of every building beside its round (engine/risk.ts). `weight` scales its share of the houses' mood (1: like water). */
 export class Service { id: string = ''; label: string = ''; risk: string = ''; weight: number = 1; }
@@ -19,7 +19,15 @@ export const RISK_KINDS: string[] = ['', 'fire', 'collapse', 'crime'];
 export class RiskWeights { fire: number[] = [0]; collapse: number = 0; crime: number = 0; }
 /** The risk rules of the village (economy.json "risks"): the ruin a destroyed building leaves, the grace below `minPopulation` people, the counters' thresholds, days a fire burns, the
  *  fire a burning neighbour adds each day, `slots` (a building's fire day comes 1 in `slots`), the units a theft takes. */
+/** Public order (economy.json "risks.peace"): the peace rating is 100 minus the unrest of a low mood (below `moodFloor`, x1.5), of joblessness (above `joblessFloor` percent, x0.7), of houses no watchman
+ *  passes (`gap` points when none does) and of the recent crimes (`heat`, each theft adds `theftHeat`, each riot `riotHeat`, and it fades by `fade` percent a day). Below `calm` a robber may come (at most one
+ *  every `robberEvery` days, he takes the `theft` units of the village's risks); a riot needs a mood below `riotMood` and a peace below `riotPeace` (every `riotEvery` days; it ruins `riotDamage` percent of a building's collapse counter). */
+export class PeaceRules {
+  calm: number = 70; moodFloor: number = 60; joblessFloor: number = 10; gap: number = 25; theftHeat: number = 10; riotHeat: number = 25; fade: number = 10;
+  robberEvery: number = 4; riotMood: number = 35; riotPeace: number = 40; riotEvery: number = 15; riotDamage: number = 60;
+}
 export class RiskRules {
+  peace: PeaceRules = new PeaceRules();
   ruin: number = -1; minPopulation: number = 10; fireAt: number = 60; collapseAt: number = 120; crimeAt: number = 30; burnDays: number = 2; spread: number = 25; slots: number = 8; theft: number = 2;
 }
 /** What a service building gives: a walker on a round of `range` steps over the roads, or (no walker) every house within `radius` tiles. */
@@ -126,7 +134,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
   into.resources = []; into.buildings = []; into.services = []; into.hall = -1;
   for (const r of data.resources as any[]) {
     const res = new Resource();
-    res.id = String(r.id === undefined ? '' : r.id); res.label = String(r.label === undefined ? res.id : r.label); res.carry = String(r.carry === undefined ? '' : r.carry); res.price = num(r, 'price', 0, 'resource ' + res.id, errors);
+    res.id = String(r.id === undefined ? '' : r.id); res.label = String(r.label === undefined ? res.id : r.label); res.carry = String(r.carry === undefined ? '' : r.carry); res.price = num(r, 'price', 0, 'resource ' + res.id, errors); res.target = num(r, 'target', 0, 'resource ' + res.id, errors);   // target: a workshop making only goods at their target stops (0: no target)
     if (res.id === '' || ids.indexOf(res.id) >= 0) errors.push('bad-id: resource "' + res.id + '" is empty or declared twice');
     ids.push(res.id); into.resources.push(res);
   }
@@ -329,6 +337,13 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     const r = into.risk, rd: any = data.risks, where = 'risks';
     r.ruin = names.indexOf(String(rd.ruin)); r.minPopulation = num(rd, 'minPopulation', 10, where, errors); r.fireAt = num(rd, 'fireAt', 60, where, errors); r.collapseAt = num(rd, 'collapseAt', 120, where, errors);
     r.crimeAt = num(rd, 'crimeAt', 30, where, errors); r.burnDays = num(rd, 'burnDays', 2, where, errors); r.spread = num(rd, 'spread', 25, where, errors); r.slots = num(rd, 'slots', 8, where, errors); r.theft = num(rd, 'theft', 2, where, errors);
+    if (rd.peace !== undefined) {
+      const pr = r.peace, pd: any = rd.peace, w2 = 'risks.peace';
+      pr.calm = num(pd, 'calm', pr.calm, w2, errors); pr.moodFloor = num(pd, 'moodFloor', pr.moodFloor, w2, errors); pr.joblessFloor = num(pd, 'joblessFloor', pr.joblessFloor, w2, errors); pr.gap = num(pd, 'gap', pr.gap, w2, errors);
+      pr.theftHeat = num(pd, 'theftHeat', pr.theftHeat, w2, errors); pr.riotHeat = num(pd, 'riotHeat', pr.riotHeat, w2, errors); pr.fade = num(pd, 'fade', pr.fade, w2, errors); pr.robberEvery = num(pd, 'robberEvery', pr.robberEvery, w2, errors);
+      pr.riotMood = num(pd, 'riotMood', pr.riotMood, w2, errors); pr.riotPeace = num(pd, 'riotPeace', pr.riotPeace, w2, errors); pr.riotEvery = num(pd, 'riotEvery', pr.riotEvery, w2, errors); pr.riotDamage = num(pd, 'riotDamage', pr.riotDamage, w2, errors);
+      if (pr.fade < 0 || pr.fade > 100 || pr.robberEvery < 1 || pr.riotEvery < 1) errors.push('bad-risk: risks.peace needs a fade of 0 to 100, robberEvery and riotEvery of at least 1');
+    }
     if (r.ruin < 0) errors.push('bad-risk: risks.ruin must name a building (the leftover of a fire or a collapse)');
     else if (into.buildings[r.ruin].buildable) errors.push('bad-risk: risks.ruin "' + String(rd.ruin) + '" must have "buildable": false');
     if (r.slots < 1 || r.fireAt < 1 || r.collapseAt < 1 || r.crimeAt < 1) errors.push('bad-risk: risks needs slots, fireAt, collapseAt and crimeAt of at least 1');

@@ -28,7 +28,7 @@ export function scanEvents(): void {
   for (const line of world.news) { post(MSG_INFO, line, -1); if (line.startsWith('Objectif atteint')) sound('bell', .6); }   // goals, peddler, expeditions: said once, then cleared
   world.news = [];
   for (const a of world.alerts) {                                 // risks: fire and collapse are urgent (banner, alarm) and have their own sound
-    post(a.kind === 'fire' || a.kind === 'collapse' ? MSG_URGENT : a.kind === 'theft' ? MSG_WARN : MSG_INFO, a.text, a.tile);
+    post(a.kind === 'fire' || a.kind === 'collapse' || a.kind === 'riot' ? MSG_URGENT : a.kind === 'theft' || a.kind === 'robber' ? MSG_WARN : MSG_INFO, a.text, a.tile);
     if (a.kind === 'fire' || a.kind === 'collapse') sound(a.kind, .9);
   }
   world.alerts = [];

@@ -14,4 +14,9 @@ maxpop=$(echo "$line" | sed -n 's/.*maxPop \([0-9]*\).*/\1/p')
 [ "$(at street)" != - ] && [ "$(at street)" -le 6 ] || { echo "street goal late: $line"; exit 1; }
 [ "$(at growth)" != - ] && [ "$(at growth)" -le 12 ] || { echo "growth goal late: $line"; exit 1; }
 [ "$maxpop" -ge 20 ] || { echo "the village did not grow: $line"; exit 1; }
+# seed 6 in the forest: the gate pocket is walled in by rock and the bot's own houses; the lumber hut used to say "full" with trees all around and the village stayed at 6 people
+BOT_SEEDS=6 BOT_SIZES=24 BOT_PRESETS=4 BOT_DAYS=40 ZINC_HEADLESS=1 ZINC_BACKGROUND=1 ZINC_DETERMINISTIC=1 ZINC_FRAMES=1 "$ZINC" run tests/data/hamlet/bot.ts > "$tmp/out6" 2> "$tmp/err"
+[ ! -s "$tmp/err" ] || { cat "$tmp/err"; exit 1; }
+line6=$(grep '^bot seed' "$tmp/out6")
+[ "$(echo "$line6" | sed -n 's/.*maxPop \([0-9]*\).*/\1/p')" -ge 20 ] || { echo "the forest village is stuck: $line6"; exit 1; }
 echo 'hamlet bot: goals on time and the village grows PASS'

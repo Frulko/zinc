@@ -27,6 +27,8 @@ export class Person extends Mover {
   shotX: number = 0; shotY: number = 0;
   rate: number = 0; variant: number = -1;   // the swing's phase speed while working (rules/harvest.ts), and the variant of the source just worked (tree species, doe or stag)
 }
+/** Public order (engine/crime.ts): the robbers and rioters on the roads (not in `people`: they are no villagers, not counted, not saved), the peace rating 0..100 (daily), the heat of recent crimes and the days of the last robbery and riot. */
+export class Crime { outlaws: Person[] = []; peace: number = 100; heat: number = 0; lastRobbery: number = -999; lastRiot: number = -999; caught: number = 0; robbed: number = 0; riots: number = 0; }
 /** A risk event for the message log (engine/risk.ts): `kind` fire, collapse, theft, rubble or out, its sentence and the tile it happened on. Not saved. */
 export class Alert { kind: string = ''; text: string = ''; tile: number = -1; }
 /** One line of the peddler's offer: he `sell`s qty of a resource to the village for `coins`, or `buy`s it from the village. */
@@ -65,6 +67,7 @@ export interface World {
   lode: number[];                   // what is left of the deposit on a tile (world.rock >= ROCK_DEPOSIT)
   params: TerrainParams;            // what the terrain generator was asked for (saved with the village)
   difficulty: number;               // index in economy.difficulties chosen in the new-village form (rules/difficulty.ts); -1: a sandbox, which starts with the top-level `start`
+  crime: Crime;                     // robbers, rioters and the peace rating (engine/crime.ts)
   priority: number[];               // building types in the order idle residents are given work (rules/labour.ts)
 }
 
@@ -95,7 +98,7 @@ export const world: World = {
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), biome: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, priority: [],
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, crime: new Crime(), priority: [],
 };
 
 // ---- tiles ----
@@ -176,7 +179,7 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
   world.seed = seed; world.size = size; world.half = size * TILE / 2; world.gate = Math.floor(size / 2) * size + GATE_I;
   world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.biome = zeros(size); world.build = zeros(size); world.claimed = zeros(size); world.lode = zeros(size);
   world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.stock = [];
-  world.buildings = []; world.people = []; world.deer = []; world.felledCount = 0; world.treeTimer = 0;
+  world.buildings = []; world.people = []; world.crime = new Crime(); world.deer = []; world.felledCount = 0; world.treeTimer = 0;
   world.deerTimer = 0; world.deerSeq = 0; world.mood = 70; world.jobless = 0; world.waitingForFood = false; world.priority = []; world.appeal = zeros(size); resetGoals(); world.lastSave = 0; world.saveDirty = false;
   seedRandom(seed);
   params = copyTerrainParams(params);

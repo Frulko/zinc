@@ -1,4 +1,4 @@
-import { HOUSE, BS_WAITING, BS_FULL, BS_ISOLATED, ROLE_SETTLER, ROLE_RESIDENT } from '../constants';
+import { HOUSE, BS_WAITING, BS_FULL, BS_ISOLATED, BS_NO_SOURCE, ROLE_SETTLER, ROLE_RESIDENT } from '../constants';
 import { world, neighbor } from '../world/world';
 import { economy, ServiceDef, Service } from '../world/economy';
 import { housingReport } from './housing';
@@ -21,6 +21,7 @@ export const HINT_NO_FLOWERS = 'no_flowers';        // a hive with no flower aro
 export const HINT_JOBLESS = 'jobless';              // a quarter of the people or more have no work: more workplaces
 export const HINT_UNHAPPY = 'unhappy';              // the village's mood is low: newcomers stay away or people leave (`unhappy:<the gap most houses share>`)
 export const HINT_FIRE_RISK = 'fire_risk';          // risks on: a building's fire counter is high and no fire walker keeps it down (`fire_risk:none` no fire post at all, `fire_risk:rare` it passes too seldom)
+export const HINT_NO_SOURCE = 'no_source';          // a gatherer finds nothing within reach (trees walled in by its own buildings, a deposit too far)
 export const MAX_HINTS = 12;
 
 /** `reason` is a short key the HUD maps to text: the kind, or `kind:resource id` when a resource is concerned. */
@@ -50,7 +51,7 @@ export function computeHints(): Hint[] {
       let flagged = false;
       for (let k = 0; k < offered.length && !flagged; k++) if (offered[k] === 1 && b.cover[k] === 0 && (economy.services[k].risk === '' || world.risks)) { out.push(make(HINT_NO_SERVICE, b.j * world.size + b.i, HINT_NO_SERVICE + ':' + economy.services[k].id, 1)); flagged = true; }
       const report = housingReport(b);          // a house one requirement short of the next level, or about to lose its own
-      if (!flagged && (report.atRisk || report.missing.length === 1)) out.push(make(HINT_HOUSE_NEEDS, b.j * world.size + b.i, HINT_HOUSE_NEEDS + ':' + (report.atRisk ? 'decline' : report.missing[0].id), 1));
+      if (!flagged && (report.atRisk || report.missing.length === 1 || (b.level >= 1 && report.missing.some((q: { id: string }): boolean => q.id === 'food' || economy.serviceOf(q.id) >= 0)))) out.push(make(HINT_HOUSE_NEEDS, b.j * world.size + b.i, HINT_HOUSE_NEEDS + ':' + (report.atRisk ? 'decline' : report.missing[0].id), 1));
     }
     const def = economy.buildings[b.type], tile = b.j * world.size + b.i;
     if (!b.fixed) built++;
@@ -59,7 +60,8 @@ export function computeHints(): Hint[] {
       const id2 = economy.resources[b.waitFor].id;
       if (world.stock[b.waitFor] > 0) out.push(make(HINT_DELIVER_HERE, tile, HINT_DELIVER_HERE + ':' + id2, 1));
       else out.push(make(HINT_NO_INPUT, tile, HINT_NO_INPUT + ':' + id2, 3));
-    } else if (b.state === BS_FULL) out.push(make(HINT_FULL_OUTPUT, tile, HINT_FULL_OUTPUT, 2));
+    } else if (b.state === BS_NO_SOURCE) out.push(make(HINT_NO_SOURCE, tile, HINT_NO_SOURCE, 3));
+    else if (b.state === BS_FULL) out.push(make(HINT_FULL_OUTPUT, tile, HINT_FULL_OUTPUT, 2));
     if (def.bloom !== null && flowersAround(b, def) === 0) out.push(make(HINT_NO_FLOWERS, tile, HINT_NO_FLOWERS, 1));
     if (def.workers > 0 && !b.fixed && b.workers < def.workers) {
       vacancies++;
@@ -106,6 +108,7 @@ export function hintText(h: Hint): string {
     return 'Le hameau est mécontent (' + why + ') : personne ne vient, certains partent.';
   }
   const label = res === '' || res === 'site' || res === 'home' ? '' : key === HINT_NO_SERVICE ? economy.services[economy.serviceOf(res)].label : economy.resources[economy.resourceOf(res)].label;
+  if (key === HINT_NO_SOURCE) return 'Rien à récolter à portée : abattez les arbres qui ferment la route (gomme), prolongez la route ou déplacez ce bâtiment.';
   if (key === HINT_NO_ROAD) return 'Aucune route ne relie ce bâtiment à un entrepôt.';
   if (key === HINT_NO_INPUT) return 'Il manque : ' + label + '. Posez de quoi en produire.';
   if (key === HINT_DELIVER_HERE) return label + ' est en route : la route doit relier ce bâtiment à l’entrepôt.';

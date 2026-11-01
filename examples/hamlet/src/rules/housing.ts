@@ -39,6 +39,23 @@ const allMet = (list: Requirement[]): boolean => list.every((r: Requirement): bo
 /** True when the house meets what the level asks. `slack` slackens the appeal (the margin a house keeps its level with). */
 export function meets(b: Building, level: number, slack: number): boolean { return allMet(requirements(b, housing().levels[level], slack)); }
 
+/** What to do about the first requirement a house lacks, as an instruction: a missing service names the building to raise (or the road a walker needs), a missing food kind names the
+ *  foods the village does not yet eat or hold. '' when nothing is missing or the lack is the neighbourhood (its own text already lists what helps). */
+export function adviceFor(b: Building, q: Requirement): string {
+  if (q.id === 'food') {
+    const known: string[] = [], absent: string[] = [];
+    for (const k of housing().eats) { if (b.fed[k] > 0) continue; (world.stock[k] > 0 ? known : absent).push(economy.resources[k].label.toLowerCase()); }
+    if (known.length > 0) return 'Il y a ' + known[0] + ' en réserve : le marchand doit passer devant cette maison pour le lui apporter.';
+    return 'Produisez une deuxième nourriture (' + absent.slice(0, 3).join(', ') + ') : pêcherie, fumoir, ferme et boulangerie y pourvoient.';
+  }
+  const k = economy.serviceOf(q.id);
+  if (k < 0) return '';
+  let walker = false, radius = 0, built = false;
+  for (const def of economy.buildings) if (def.service !== null && def.service.service === k) { walker = def.service.walker; radius = def.service.radius; for (const s of world.buildings) if (s.alive && economy.buildings[s.type] === def) built = true; }
+  const label = economy.services[k].label.toLowerCase();
+  if (!built) return 'Posez un bâtiment de service (' + label + ') : aucun n’existe encore.';
+  return walker ? 'Le passage de ' + label + ' ne va pas jusqu’ici : prolongez la route jusqu’à cette maison ou posez un second poste.' : 'Cette maison est hors de portée de ' + label + ' (' + radius + ' cases) : posez-en un plus près.';
+}
 export class HousingReport {
   level: number = 0; levelName: string = ''; top: boolean = false; capacity: number = 0; residents: number = 0;
   next: Requirement[] = [];     // what the next level asks, met or not
@@ -57,7 +74,11 @@ export function housingReport(b: Building): HousingReport {
   if (r.atRisk) text += '. Elle va reculer : ' + requirements(b, h.levels[r.level], h.margin).filter((q: Requirement): boolean => !q.met).map((q: Requirement): string => q.text).join(' ; ');
   else if (r.top) text += '. Niveau maximal.';
   else if (r.missing.length === 0) text += '. Elle s’agrandit bientôt.';
-  else text += '. Pour devenir ' + h.levels[r.level + 1].label + ' : ' + r.missing.map((q: Requirement): string => q.text).join(' ; ');
+  else {
+    text += '. Pour devenir ' + h.levels[r.level + 1].label + ' : ' + r.missing.map((q: Requirement): string => q.text).join(' ; ');
+    const advice = adviceFor(b, r.missing[0]);
+    if (advice !== '') text += '. ' + advice;
+  }
   r.text = text;
   return r;
 }

@@ -16,6 +16,11 @@ import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
 const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern', 'firehouse', 'works', 'watchpost', 'ruin'];
 import { dailyRisks, isRuin } from '../../../examples/hamlet/src/engine/risk';
+import { dailyCrime, updateOutlaws, sendRobber, computePeace, watchGap, peaceText } from '../../../examples/hamlet/src/engine/crime';
+import { BS_NO_SOURCE } from '../../../examples/hamlet/src/constants';
+import { whyIdle } from '../../../examples/hamlet/src/ui/Info';
+import { Person, tileY } from '../../../examples/hamlet/src/world/world';
+import { ROLE_WATCHMAN, ROLE_RIOTER, ROLE_ROBBER } from '../../../examples/hamlet/src/constants';
 import { coverAround } from '../../../examples/hamlet/src/engine/services';
 import { houseNeeds, servicesOffered } from '../../../examples/hamlet/src/rules/needs';
 import { setStock } from '../../../examples/hamlet/src/rules/stock';
@@ -37,6 +42,7 @@ import { movePriority } from '../../../examples/hamlet/src/rules/labour';
 import { flowersAround, resting, workScale, soilAround } from '../../../examples/hamlet/src/rules/meadow';
 import { MONTH_SECONDS } from '../../../examples/hamlet/src/rules/season';
 import { litBonus } from '../../../examples/hamlet/src/rules/housing';
+import { hintText } from '../../../examples/hamlet/src/rules/hints';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
 import { isWalkable } from '../../../examples/hamlet/src/engine/path';
 import { dailyAnimals, updateDeer } from '../../../examples/hamlet/src/engine/deer';
@@ -825,6 +831,7 @@ console.log('hamlet rules: moodhash ' + moodHash + ':' + world.rng);        // c
   fresh(); world.buildings[mill].damage = 999; dailyRisks();
   check('worn out, a building collapses at once into rubble', world.buildings[mill].type === RUIN && world.buildings[mill].burn === 0 && world.alerts.some((a) => a.kind === 'collapse' && a.text.indexOf('Effondrement') === 0));
   fresh(); setStock(economy.resourceOf('tools'), 0); world.buildings[store].stock = world.buildings[store].stock.map((_v) => 0); world.buildings[store].stock[economy.resourceOf('coin')] = 6; world.buildings[store].crime = 99; world.mood = 40; const coins = world.buildings[store].stock[economy.resourceOf('coin')]; dailyRisks();
+  for (let k = 0; k < 6000 && world.crime.outlaws.length > 0; k++) updateOutlaws(1 / 32);                // the theft is a robber walking in, taking, and running out
   check('a theft takes a little of the dearest goods, and says so', world.buildings[store].stock[economy.resourceOf('coin')] === coins - economy.risk.theft && world.buildings[store].crime <= 2 && world.alerts.some((a) => a.kind === 'theft'));
   world.mood = 80; fresh(); const before = world.buildings[store].crime; dailyRisks();
   check('a very happy village has no theft', world.buildings[store].crime === before);
@@ -869,6 +876,66 @@ console.log('hamlet rules: moodhash ' + moodHash + ':' + world.rng);        // c
   let ruins = 0; for (const b of world.buildings) if (b.alive && isRuin(b.type)) ruins++;
   console.log('hamlet rules: riskhash ' + stateHash() + ':' + world.rng + ':' + ruins + ':' + world.buildings.map((b) => b.fire + '/' + b.damage + '/' + b.crime).join(','));
   check('forty days with risks keep the village going', world.tick === 40 * DAY_TICKS && population() >= 0);
+  world.risks = false;
+}
+// ---- a gatherer with nothing in reach says so (it used to show "output full" with an empty hall) ----
+{
+  generate(1011, 16); rich(); world.progression = false; world.risks = false;
+  for (let j = 6; j <= 10; j++) for (let i = 0; i <= 7; i++) { const keep = (j === 8 && i <= 5) || (i === 2 && j === 7) || (i === 3 && j === 9); world.tree[at(i, j)] = 0; world.rock[at(i, j)] = keep ? 0 : 1; world.build[at(i, j)] = -1; }
+  for (let i = 1; i <= 5; i++) applyTool(TOOL_ROAD, at(i, 8));
+  const h = addBuilding(HOUSE, at(2, 7)); createResident(h); createResident(h); world.buildings[h].residents = 2; world.buildings[h].timer = 1e9;
+  const hut = addBuilding(economy.typeOf('lumberhut'), at(3, 9)); addBuilding(economy.typeOf('storehouse'), at(4, 7));
+  run(40);
+  check('a lumber hut walled in by rock reports that no tree is in reach, not "full"', world.buildings[hut].state === BS_NO_SOURCE && world.buildings[hut].stock.every((v) => v === 0) && whyIdle(hut).indexOf('Plus d’arbre') === 0);
+  check('and the hint says to raze the way or move', computeHints().some((x) => x.kind === 'no_source' && x.tile === at(3, 9)) && hintText(computeHints().filter((x) => x.kind === 'no_source')[0]).indexOf('abattez') >= 0);
+  world.rock[at(4, 9)] = 0; world.tree[at(4, 9)] = 1;               // a tree the road tile (4, 8) touches: the worker goes for it
+  run(40);
+  check('one tree in reach and the worker fells it, then reports the empty reach again', world.felledCount === 1 && world.buildings[hut].state === BS_NO_SOURCE);
+}
+// ---- public order: the peace rating, robbers a watchman catches, riots below a mood line, all gated by the risks flag ----
+{
+  generate(999, 16); rich(); world.progression = false; world.risks = true;
+  for (let i = 0; i <= 12; i++) { world.tree[at(i, 7)] = 0; world.tree[at(i, 8)] = 0; world.tree[at(i, 9)] = 0; }
+  for (let i = 1; i <= 12; i++) applyTool(TOOL_ROAD, at(i, 8));
+  const houses: number[] = [];
+  for (const i of [2, 4, 6, 8, 10]) { const h = addBuilding(HOUSE, at(i, 7)); for (let k = 0; k < 4; k++) createResident(h); world.buildings[h].residents = 4; world.buildings[h].timer = 1e9; houses.push(h); }
+  const store = addBuilding(economy.typeOf('storehouse'), at(7, 9)), coin = economy.resourceOf('coin'), stockOf = (): number => world.buildings[store].stock[coin];
+  world.buildings[store].stock[coin] = 20; world.mood = 70; world.jobless = 0; world.crime.heat = 0;
+  const calm = computePeace(), gap = watchGap();
+  check('with no guard post the whole village is a watch gap and costs peace', gap === 1 && calm === 100 - economy.risk.peace.gap);
+  const POST = economy.serviceOf('watch'); for (const h of houses) world.buildings[h].cover[POST] = 3;
+  addBuilding(economy.typeOf('watchpost'), at(3, 9));
+  check('a guard post that covers the houses gives the peace back', watchGap() === 0 && computePeace() === 100);
+  world.mood = 40; world.jobless = 50;
+  check('a low mood and joblessness lower the peace', computePeace() < 100 - 30 && peaceText().indexOf('Paix : ') === 0);
+  world.risks = false; dailyCrime();
+  check('a village without risks is at peace, whatever the mood', computePeace() === 100 && world.crime.outlaws.length === 0);
+  world.risks = true; world.mood = 70; world.jobless = 0;
+  // a robber with nobody on watch takes goods and gets away
+  check('a robber is sent for a building that holds goods', sendRobber(store) && world.crime.outlaws.length === 1 && world.crime.outlaws[0].role === ROLE_ROBBER);
+  for (let k = 0; k < 9000 && world.crime.outlaws.length > 0; k++) updateOutlaws(1 / 32);
+  check('the robber takes up to the loot, leaves by the gate, and the village feels it', stockOf() === 20 - economy.risk.theft && world.crime.outlaws.length === 0 && world.crime.robbed === 1 && world.crime.heat === economy.risk.peace.theftHeat);
+  // a watchman on the road stops him: the goods come back
+  world.buildings[store].stock[coin] = 20; world.alerts = []; world.news = [];
+  const guard = new Person(); guard.role = ROLE_WATCHMAN; guard.x = tileX(at(6, 8)); guard.y = tileY(at(6, 8)); world.people.push(guard);
+  check('a second robber is sent', sendRobber(store));
+  for (let k = 0; k < 9000 && world.crime.outlaws.length > 0; k++) updateOutlaws(1 / 32);
+  check('a watchman close to the road arrests him and the stock is whole', stockOf() === 20 && world.crime.caught === 1 && world.news.some((n) => n.indexOf('arrêté') >= 0));
+  world.people = world.people.filter((p) => p !== guard);
+  // riots: only when the mood is very low and the peace poor; one building is wrecked
+  world.mood = 50; world.jobless = 0; world.crime.heat = 0; world.crime.lastRiot = -999; world.crime.lastRobbery = world.tick; world.crime.outlaws = [];
+  for (const h of houses) world.buildings[h].cover[POST] = 0; world.tick += 40 * DAY_TICKS;
+  dailyCrime();
+  check('a bad mood that is not very low brings no riot', world.crime.outlaws.every((p) => p.role !== ROLE_RIOTER));
+  world.mood = 10; world.jobless = 60; world.crime.lastRobbery = world.tick;
+  dailyCrime();
+  check('a very low mood and a poor peace bring rioters, once', world.crime.outlaws.length === 1 && world.crime.outlaws[0].role === ROLE_RIOTER && world.crime.riots === 1);
+  const target = world.crime.outlaws[0].target, wearBefore = world.buildings[target].damage;
+  for (let k = 0; k < 9000 && world.crime.outlaws.length > 0; k++) updateOutlaws(1 / 32);
+  check('the rioters wreck their building and disperse', world.buildings[target].damage > wearBefore + 50 && world.crime.outlaws.length === 0 && world.alerts.some((a) => a.kind === 'riot'));
+  world.crime.lastRiot = -999; world.crime.outlaws = []; world.difficulty = -1;
+  world.risks = false; dailyCrime();
+  check('and none of it in a village without risks', world.crime.outlaws.length === 0 && world.crime.peace === 100);
   world.risks = false;
 }
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----

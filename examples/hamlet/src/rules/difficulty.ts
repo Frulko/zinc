@@ -10,6 +10,8 @@ export function level(): Difficulty {
   const k = world.difficulty;
   return k >= 0 && k < economy.difficulties.length ? economy.difficulties[k] : NEUTRAL;
 }
+/** The level's name for the screens: its label, or the sandbox's. */
+export const levelLabel = (): string => world.difficulty >= 0 && world.difficulty < economy.difficulties.length ? economy.difficulties[world.difficulty].label : 'Bac à sable';
 /** The normal level of the form (the one called "normal", else the middle one, else -1). */
 export function defaultLevel(): number {
   for (let k = 0; k < economy.difficulties.length; k++) if (economy.difficulties[k].id === 'normal') return k;

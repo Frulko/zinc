@@ -6,6 +6,7 @@ import { issue } from '../rules/commands';
 import { dailyTrade } from './trade';
 import { dailyMood } from './mood';
 import { dailyRisks } from './risk';
+import { dailyCrime } from './crime';
 import { dailyAnimals } from './deer';
 import { economy } from '../world/economy';
 import { world } from '../world/world';
@@ -17,6 +18,7 @@ export function stepDay(): void {
   dailyHousing();
   dailyMood();
   dailyRisks();               // after the services reset the counters of the day before
+  dailyCrime();               // the peace rating, then robbers and riots
   dailyAnimals();
   dailyTrade();
   if (world.progression) for (let i = world.expeditions.length - 1; i >= 0; i--) { world.expeditions[i].left--; if (world.expeditions[i].left <= 0) issue('adventure_return', i); }

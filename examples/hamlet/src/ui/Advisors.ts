@@ -10,6 +10,7 @@ import { kit, col, window_, winOrigin, parchment, text, textR, textC, meter, lab
 import { ui, viewport } from './state';
 import { FEEL_WORDS, FEEL_CONTENT, houseNeeds, servicesOffered, villageWord, arrivalFactor, leavingToday } from '../rules/needs';
 import { monthIndex, year } from './clock';
+import { peaceText } from '../engine/crime';
 
 // The advisors: labour, food, housing and a population chart, each reading the live world. Labour is also where the player orders who is staffed first.
 const TABS = ['Travail', 'Vivres', 'Logement', 'Humeur', 'Population'];
@@ -102,6 +103,7 @@ function mood(x: number, y: number): void {
     const at = lacks.indexOf(l); if (at < 0) { lacks.push(l); lackN.push(1); } else lackN[at]++;
   }
   text(kit.body, x, y, 'Humeur du hameau : ' + world.mood + ' % · ' + villageWord(world.mood) + ' · ' + world.jobless + ' % sans travail', world.mood >= 50 ? col('ink') : col('bad'));
+  text(kit.small, x, y + 36, peaceText(), world.crime.peace >= 50 || !world.risks ? col('muted') : col('bad'));
   const arrive = arrivalFactor(world.mood), leaving = leavingToday(world.mood, total);
   text(kit.small, x, y + 22, leaving > 0 ? 'Des habitants quittent le hameau.' : arrive === 0 ? 'Personne ne vient s’installer tant que le hameau est mécontent.' : arrive < 1 ? 'Les nouveaux venus arrivent vite.' : arrive === 1 ? 'Les nouveaux venus arrivent à un rythme normal.' : 'Les nouveaux venus se font attendre.', leaving > 0 || arrive === 0 ? col('bad') : col('muted'));
   for (let i = 0; i < FEEL_WORDS.length; i++) {

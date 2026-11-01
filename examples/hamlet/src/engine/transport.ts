@@ -1,6 +1,6 @@
 import { ST_FETCH, ST_BRING, ST_SEEK, BS_WAITING, BS_ISOLATED, BS_FULL, BATCH } from '../constants';
 import { world, Person, Building, tileIndex, tileAt, neighbor, recount } from '../world/world';
-import { economy } from '../world/economy';
+import { economy, BuildingDef } from '../world/economy';
 import { fieldFrom, approachTile, planPath, UNREACHABLE } from './path';
 
 // Goods move in loads: a worker (a porter, or a worker fetching an input or hauling its own output) walks to the building that holds them, takes a batch,
@@ -144,6 +144,17 @@ export function fetchInput(p: Person, siteId: number): boolean {
     return startTransport(p, best, siteId, k, Math.min(want, spare(world.buildings[best], k), BATCH));
   }
   return false;
+}
+/** True when every good the building makes has reached its stock target in the village's stores: the workshop idles and keeps its inputs where they are (a sawmill stops eating logs when the planks sit at the cap). */
+export function atTarget(def: BuildingDef): boolean {
+  let any = false;
+  for (let k = 0; k < def.outputs.length; k++) {
+    if (def.outputs[k] <= 0) continue;
+    const t = economy.resources[k].target;
+    if (t <= 0 || world.stock[k] < t) return false;
+    any = true;
+  }
+  return any;
 }
 /** Does the building have room for what one cycle makes? */
 export function hasRoomFor(b: Building, out: number[]): boolean {

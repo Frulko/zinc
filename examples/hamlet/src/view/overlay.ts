@@ -1,6 +1,8 @@
 import { drawDots, project, rgb } from '../pixel';
 import { appealTiles } from '../rules/appeal';
-import { tileX, tileY } from '../world/world';
+import { tileX, tileY, tileIndex, world } from '../world/world';
+import { economy } from '../world/economy';
+import { isRuin } from '../engine/risk';
 
 // The desirability overlay (settings.appeal): a tinted dot on each tile, green where it is pleasant to live, red where it is not; bigger for a stronger value.
 const GOOD = rgb(96, 206, 118), BAD = rgb(222, 82, 70);
@@ -17,6 +19,22 @@ export function drawMarks(marks: number[]): void {
     for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.abs(dx) + Math.abs(dy) <= r) pts.push([x + dx, y + dy]);
     drawDots(pts, marks[k + 2]);
   }
+}
+
+// The risk overlay (calque "Risques"): per building, the dearest of its fire, wear and theft counters against the line where the event happens. `kind` 0 fire, 1 collapse, 2 theft, 3 a ruin;
+// `level` 0 safe (under a third of the line), 1 rising, 2 close. Read from the same counters as engine/risk.ts, so the picture is the truth of the simulation.
+export const RISK_FIRE = 0, RISK_COLLAPSE = 1, RISK_CRIME = 2, RISK_RUIN = 3;
+export function riskTiles(): number[][] {
+  const out: number[][] = [], r = economy.risk;
+  if (!world.risks) return out;
+  for (const b of world.buildings) {
+    if (!b.alive || b.fixed || economy.buildings[b.type].risk === null && !isRuin(b.type)) continue;
+    const t = tileIndex(b.i, b.j);
+    if (isRuin(b.type)) { out.push([t, 2, RISK_RUIN]); continue; }
+    const f = b.fire / r.fireAt, c = b.damage / r.collapseAt, k = b.crime / r.crimeAt, top = Math.max(f, c, k);
+    out.push([t, top < .35 ? 0 : top < .7 ? 1 : 2, top === f ? RISK_FIRE : top === c ? RISK_COLLAPSE : RISK_CRIME]);
+  }
+  return out;
 }
 
 // The thought bubbles over the heads of people who are not content (settings.thoughts): a small speech bubble whose centre says what is wrong by its colour.

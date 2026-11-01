@@ -1,9 +1,10 @@
 import { polygon, rect, height } from 'zinc:gfx';
 import { project } from '../pixel';
-import { world, tileX, tileY, tileI, tileJ, neighbor } from '../world/world';
+import { world, tileX, tileY, tileI, tileJ, tileAt, neighbor } from '../world/world';
 import { economy } from '../world/economy';
 import { HOUSE, TILE, TOOL_HOUSE, TOOL_ERASE, TERRAIN_GRASS } from '../constants';
 import { appealTiles } from '../rules/appeal';
+import { riskTiles, RISK_RUIN } from '../view/overlay';
 import { foodKinds } from '../rules/housing';
 import { kit, col, window_, winOrigin, parchment, button, text, addHit, measure } from './kit';
 import { ui, mapView, viewport, columnX, STATUS_H } from './state';
@@ -15,10 +16,11 @@ function serviceCount(): number { return economy.services.length; }
 export function overlayNames(): string[] {
   const out: string[] = ['Aucun', 'Désirabilité'];
   for (const s of economy.services) out.push(s.label);
-  out.push('Travail'); out.push('Vivres');
+  out.push('Travail'); out.push('Vivres'); out.push('Risques');
   return out;
 }
-const labourIndex = (): number => 2 + serviceCount(), foodIndex = (): number => 3 + serviceCount();
+const labourIndex = (): number => 2 + serviceCount(), foodIndex = (): number => 3 + serviceCount(), riskIndex = (): number => 4 + serviceCount();
+const FIRE = 0xd9532f, WEAR = 0xb98a2e, THEFT = 0x7a4fb0, RISK_COLORS: number[] = [FIRE, WEAR, THEFT, 0x30303a];
 
 /** A tile as a tinted diamond on the map. */
 export function tint(t: number, color: number, alpha: number): void {
@@ -38,6 +40,7 @@ function legendFor(o: number): Entry[] {
   const e = (c: number, l: string): Entry => { const x = new Entry(); x.color = c; x.label = l; return x; };
   if (o === OV_APPEAL) return [e(GOOD, 'Agréable (arbres, eau)'), e(BAD, 'Désagréable (industrie)')];
   if (o === labourIndex()) return [e(GOOD, 'Tous les postes tenus'), e(WARN, 'Il manque des bras'), e(BAD, 'Personne n’y travaille')];
+  if (o === riskIndex()) return [e(GOOD, 'Sûr'), e(FIRE, 'Feu qui couve'), e(WEAR, 'Bâtiment usé (effondrement)'), e(THEFT, 'Vol : rien ne garde la route'), e(RISK_COLORS[RISK_RUIN], 'Décombres')];
   if (o === foodIndex()) return [e(GOOD, 'Nourrie'), e(BAD, 'Sans nourriture')];
   return [e(GOOD, 'Desservie'), e(BAD, 'Non desservie')];
 }
@@ -47,6 +50,9 @@ export function drawOverlay(): void {
   if (o === OV_NONE) return;
   if (o === OV_APPEAL) {
     for (const a of appealTiles()) tint(a[0], a[1] > 0 ? GOOD : BAD, Math.min(150, 40 + Math.abs(a[1]) * 18));
+  } else if (o === riskIndex()) {
+    for (const m of riskTiles()) tint(m[0], m[1] === 0 ? GOOD : RISK_COLORS[m[2]], m[1] === 0 ? 70 : m[1] === 1 ? 110 : 170);
+    for (const p of world.crime.outlaws) { const t = tileAt(p.x, p.y); if (t >= 0) tint(t, 0xe02020, 190); }
   } else {
     for (const b of world.buildings) {
       if (!b.alive) continue;
