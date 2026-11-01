@@ -5,7 +5,7 @@ import { applyTool } from '../../../examples/hamlet/src/rules/build';
 import { loadEconomy, economy } from '../../../examples/hamlet/src/world/economy';
 import { MODEL_IDS } from '../../../examples/hamlet/src/view/models';
 import { tufts, bakeVillage, rebakeStatic, moveCamera, setZoom, forceFullBake, bakeStats, bakeCount, stepSeason, pendingWork } from '../../../examples/hamlet/src/view/scenery';
-import { useBiomes } from '../../../examples/hamlet/src/view/seasons';
+import { useBiomes, tileMonth } from '../../../examples/hamlet/src/view/seasons';
 import { camera } from '../../../examples/hamlet/src/view/camera';
 import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, ROLE_NAMES } from '../../../examples/hamlet/src/constants';
 import * as fs from 'zinc:fs';
@@ -103,5 +103,9 @@ for (const [size, zoom] of [[12, 5], [48, 5], [48, 10]]) {
   }
   check('winter does not look like spring, spring comes back to the same picture, and a change took more than one bake', diff(spring, winter) > 1000 && diff(spring, snap()) === 0 && seen > 8);
   world.tick = 0;
+}
+{ // high and shaded ground turns a month early in autumn and winter, thaws a month late in spring, and never wraps winter into spring
+  const hills = 4;
+  check('tileMonth: hills are a month ahead in autumn, held at the last winter month, a month behind in spring, unchanged in summer', tileMonth(hills, 0, 7) === 8 && tileMonth(hills, 0, 11) === 11 && tileMonth(hills, 0, 1) === 0 && tileMonth(hills, 0, 4) === 4);
 }
 console.log(failures === 0 ? 'hamlet chunks: ALL PASS' : 'hamlet chunks: ' + failures + ' FAIL');

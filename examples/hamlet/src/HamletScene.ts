@@ -23,6 +23,8 @@ import { wolfCount } from './engine/deer';
 import { bakeVillage, rebakeStatic, moveCamera, setZoom, stepZoom, resetView, resizeWindow } from './view/scenery';
 import { drawVillage, frameDirty } from './view/frame';
 import { adviceLine } from './hud';
+import { drawSky, rainAmount } from './view/weather';
+import { dayFraction } from './rules/needs';
 import { settings } from './settings';
 import { Panel } from './ui/Panel';
 import { buildSettingsPanel } from './ui/SettingsPanel';
@@ -330,7 +332,7 @@ export class HamletScene extends Sprite {
     if (this.pointerStart < 0) this.pointerStart = where; else if (where !== this.pointerStart) this.pointerMoved = true;
     ui.time += dt;
     if (focus.tile >= 0 && ui.time - focus.since > 6) focus.tile = -1;
-    ambientTick(dt, season(), (world.tick * TICK / 20) % 1 > .72 ? 1 : 0, this.forest(), wolfCount() > 0);
+    ambientTick(dt, season(), (world.tick * TICK / 20) % 1 > .72 ? 1 : 0, this.forest(), wolfCount() > 0, rainAmount(), dayFraction());
     if (track(x, y)) uiState.dirty = true;
     this.moveView(dt, x, y);
     this.hover = this.paused || this.tool === TOOL_NONE || hitAt(x, y) !== null ? -1 : this.tileUnder(x, y);
@@ -379,7 +381,7 @@ export class HamletScene extends Sprite {
     const vp = viewport();
     rect(0, 0, w, h, col('stoneDeep'));
     if (frameDirty.full) { this.surface.upload(); frameDirty.full = false; } else this.surface.uploadSpans(frameDirty.spans);
-    this.surface.draw(); perfEnd(2);
+    this.surface.draw(); drawSky(this.surface.x, this.surface.y, this.frame.cropWidth * this.surface.scale, this.frame.cropHeight * this.surface.scale); perfEnd(2);
     beginFrame();
     mapView.x = this.surface.x; mapView.y = this.surface.y; mapView.scale = this.surface.scale; mapView.cropX = this.frame.cropX; mapView.cropY = this.frame.cropY;
     clip(this.surface.x, this.surface.y, this.frame.cropWidth * this.surface.scale, this.frame.cropHeight * this.surface.scale);

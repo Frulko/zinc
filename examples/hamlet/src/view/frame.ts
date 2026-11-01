@@ -6,7 +6,7 @@ import { TILE, HOUSE, ROLE_FISHER } from '../constants';
 import { world, tileX, tileY, waterField, Building } from '../world/world';
 import { TERRAIN_WATER } from '../constants';
 import { economy } from '../world/economy';
-import { isNight } from '../rules/needs';
+import { lightsOn, drawWeather } from './weather';
 import { tufts, bakeCount, bakeInfo, shiftColors, stepSeason } from './scenery';
 import { settings } from '../settings';
 import { focus } from './focus';
@@ -156,7 +156,7 @@ function prepare(): void {
 export function drawVillage(time: number, hover: number, ok: boolean, preview: number): void {
   stepSeason();
   if (seenBake !== bakeCount || edgedPix.length !== pix.length) prepare();
-  const dirty: number[] = [], night = isNight();
+  const dirty: number[] = [], night = lightsOn();
   for (const p of world.people) { const a = project(p.x, p.y, 0); addRect(dirty, a.sx, a.sy, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 4.4 * S, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 2.4 * S); }
   for (const d of world.deer) {
     const a = project(d.x, d.y, 0); addRect(dirty, a.sx, a.sy, 2.2 * S, 3.2 * S, 2.2 * S, 1.4 * S);
@@ -226,6 +226,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   }
   drawFxSparks(time);
   drawFire(time);
+  drawWeather(time, loose);
   if (hover >= 0) outline(hover, ok ? OK : BAD);
   drawMarks(marks);
   for (let k = 0; k < bubbleAt.length; k += 3) drawBubble(bubbleAt[k], bubbleAt[k + 1], bubbleAt[k + 2]);

@@ -10,7 +10,7 @@ const bank = new Map<string, Sound[]>();
 const loops = new Map<string, Sound>();
 /** What the debug window reads (ui/Debug.ts): voices started, the last effect, the ambience playing. */
 export const audioStats = { voices: 0, last: '', ambience: '' };
-let ready = false, ambience: Sound | null = null, ambienceKind = '', paused = false;
+let ready = false, ambienceKind = '', paused = false;
 let seed: u32 = 2463534242;
 function rnd(): number { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) / 4294967296; }
 function noise(): number { return rnd() * 2 - 1; }
@@ -83,6 +83,10 @@ function build(): void {
   add('gull', make(.7, (t, p) => sine(1500 + 500 * Math.sin(p * 9) * (1 - p), t) * Math.sin(Math.PI * p) * (.7 + .3 * noise()), 1), .16);
   // The wolf: a long howl that climbs, holds with a slow vibrato and sinks (a few harmonics, a little breath); an ambient sound, heard from far away.
   add('howl', make(2.6, (t, p) => { const hz = 300 + 190 * Math.min(1, p * 3.2) - 120 * Math.max(0, p - .75) * 4 + 9 * sine(5.5, t) * Math.min(1, p * 4); return (note(hz, t, 0, 0, 3) * .8 + noise() * .04) * Math.sin(Math.PI * Math.pow(p, .7)); }, 1), .22);
+  // The seasons' voices: a cicada's shrill pulsing, thunder (a long low rumble with a crack at the start).
+  add('cicada', make(1.3, (t, p) => sine(5600 + 300 * sine(3, t), t) * (.55 + .45 * sine(70, t)) * Math.sin(Math.PI * p) * .5, 1), .08);
+  let th = 0;
+  add('thunder', make(3.2, (t, p) => { th += (noise() - th) * (.05 + .06 * (1 - p)); return (th * 3.2 + sine(48 - 14 * p, t) * .5) * Math.min(1, t / .05) * decay(p, 1.7) * (.7 + .3 * sine(9, t)) + (p < .01 ? noise() * .6 : 0); }, 1), .5);
   add('cricket', make(.9, (t, p) => sine(4300, t) * (Math.sin(TAU * 28 * t) > .2 ? 1 : 0) * (Math.sin(p * Math.PI * 3) > 0 ? 1 : 0) * .5, 1), .10);
   add('owl', make(.9, (t, p) => (sine(390, t) * .8 + sine(780, t) * .2) * Math.sin(Math.PI * p) * (p < .45 || p > .55 ? 1 : .1), 1), .18);
   // Bees and the pour: a buzz (two detuned saw hums with a slow wobble, an ambient sound) and a liquid glug that rises in pitch as the jug fills.
@@ -102,10 +106,10 @@ function loopOf(kind: string): Sound {
   let a = 0, b = 0;
   for (let i = 0; i < n; i++) {
     const t = i / RATE, x = noise();
-    a += (x - a) * (kind === 'water' ? .06 : kind === 'winter' ? .012 : .02);
+    a += (x - a) * (kind === 'water' ? .06 : kind === 'winter' ? .012 : kind === 'rain' ? .3 : .02);
     b += (x - b) * .004;
     const gust = .6 + .25 * Math.sin(TAU * t / 4) + .15 * Math.sin(TAU * t / 2);   // a whole number of cycles over 4 s: the loop closes by itself
-    let v = (a * (kind === 'water' ? .55 : .4) + b * 2) * gust;
+    let v = kind === 'rain' ? a * .55 * (.85 + .15 * gust) + (rnd() < .0012 ? x * .3 : 0) : (a * (kind === 'water' ? .55 : .4) + b * 2) * gust * (kind === 'winter' ? .7 : 1);
     if (kind === 'forest') v += (Math.sin(TAU * 5 * t) > .98 ? x * .06 : 0);       // a leaf now and then
     if (kind === 'water') v += sine(640 + 80 * Math.sin(TAU * t / 2), t) * Math.sin(TAU * 6 * t) * .006;
     out.push(v);
@@ -132,51 +136,77 @@ export function sound(kind: string, amount: number = .6, pan: number = 0): void 
   s.voice(s.volume * (AMBIENT.has(name) ? settings.ambienceVolume : settings.sfxVolume) * Math.max(0, Math.min(1, amount)) * (.85 + rnd() * .3), .92 + rnd() * .16, Math.max(-1, Math.min(1, pan)), false);
 }
 
-const AMBIENT = new Set<string>(['bird', 'gull', 'cricket', 'owl', 'howl', 'wind', 'buzz', 'crackle']);
+const AMBIENT = new Set<string>(['bird', 'gull', 'cricket', 'owl', 'howl', 'wind', 'buzz', 'crackle', 'cicada', 'thunder']);
 const LEVEL = .22;
 function level(): number { return muted || paused ? 0 : LEVEL * settings.ambienceVolume; }
+/** The ambience is a few loops that crossfade: the place's bed (meadow, forest, winter) and the rain on top; each has a goal volume it eases toward over about a second and a half. */
+interface Layer { sound: Sound; v: number; goal: number; on: boolean; }
+const layers = new Map<string, Layer>();
+const BEDS = ['meadow', 'forest', 'winter'];
+function layerOf(key: string): Layer {
+  let l = layers.get(key);
+  if (l === undefined) {
+    let loop = loops.get(key);
+    if (loop === undefined) { const created = loopOf(key); loops.set(key, created); loop = created; }
+    l = { sound: loop as Sound, v: 0, goal: 0, on: false }; layers.set(key, l);
+  }
+  return l;
+}
+function applyLevels(): void { for (const l of layers.values()) if (l.on) l.sound.volume = level() * l.v; }
 /** Applies the ambience volume at once (the options screen calls it while the slider moves). */
-export function refreshVolume(): void { if (ambience !== null) (ambience as Sound).volume = level(); }
+export function refreshVolume(): void { applyLevels(); }
+function fade(dt: number): void {
+  for (const l of layers.values()) {
+    l.v += Math.max(-dt / 1.5, Math.min(dt / 1.5, l.goal - l.v));
+    if (l.v > .002 && !l.on) { l.on = true; l.sound.volume = level() * l.v; l.sound.play(); }
+    else if (l.v <= .002 && l.on) { l.on = false; l.v = 0; l.sound.stop(); }
+    else if (l.on) l.sound.volume = level() * l.v;
+  }
+}
 export function setAmbience(kind: string): void {
   if (!ready) build();
-  const key = kind === 'meadow' || kind === '' ? kind : kind;
-  if (key === ambienceKind) return;
-  if (ambience !== null) (ambience as Sound).stop();
-  ambienceKind = key; audioStats.ambience = key;
-  if (key === '') { ambience = null; return; }
-  let loop = loops.get(key);
-  if (loop === undefined) { const created = loopOf(key); loops.set(key, created); loop = created; }
-  ambience = loop as Sound;
-  (ambience as Sound).volume = level();
-  (ambience as Sound).play();
+  if (kind === ambienceKind) return;
+  ambienceKind = kind; audioStats.ambience = kind;
+  for (const bed of BEDS) { if (bed === kind) layerOf(bed).goal = 1; else { const l = layers.get(bed); if (l !== undefined) l.goal = 0; } }
+  if (kind === '') for (const l of layers.values()) l.goal = 0;
+  fade(0);
 }
 export function toggleSound(): void {
   muted = !muted;
-  if (ambience !== null) (ambience as Sound).volume = level();
+  applyLevels();
 }
 export function pauseSound(isPaused: boolean): void {
   paused = isPaused;
-  if (ambience !== null) (ambience as Sound).volume = level();
+  applyLevels();
 }
 
-let until = 0;
+let until = 0, thunderIn = 0;
 /**
  * The living background, called every frame with the elapsed seconds: it picks the loop of the place (forest near trees, water by a lake, wind in winter)
  * and, at random moments, a bird by day, a cricket or an owl by night, a gust. `season` 0..3 (spring..winter), `night` 0..1, `trees` 0..1 share of forest.
  */
-export function ambientTick(dt: number, season: number, night: number, trees: number, wolves: boolean = false): void {
+export function ambientTick(dt: number, season: number, night: number, trees: number, wolves: boolean = false, rain: number = 0, day: number = 0): void {
   if (muted || paused) return;
   setAmbience(season === 3 ? 'winter' : trees > .25 ? 'forest' : 'meadow');
+  layerOf('rain').goal = rain;                                                       // the rain loop swells and fades with the shower
+  fade(dt);
+  thunderIn -= dt;
   until -= dt;
   if (until > 0) return;
-  until = 1.2 + rnd() * 4.5 * (season === 3 ? 2 : 1);
-  const pan = rnd() * 1.6 - .8;
-  if (night > .6) sound(wolves && rnd() < .12 ? 'howl' : rnd() < .75 ? 'cricket' : 'owl', .5 + rnd() * .4, pan);       // `wolves`: a pack lives on this map, far howls now and then
-  else if (season === 3) { if (rnd() < .5) sound('wind', .6, pan); }
-  else sound(rnd() < .12 ? 'wind' : rnd() < .1 ? 'gull' : 'bird', .4 + rnd() * .5, pan);
+  until = (1.2 + rnd() * 4.5) * (season === 3 ? 2.5 : 1);
+  const pan = rnd() * 1.6 - .8, dusk = day > .58 && day <= .72;
+  if (rain > .6 && thunderIn <= 0 && rnd() < .12) { thunderIn = 25; sound('thunder', .5 + rnd() * .4, pan); return; }   // rare
+  if (rain > .15) { if (rnd() < .2) sound('bird', .2, pan); return; }
+  if (night > .6) {
+    if (season === 3) { if (rnd() < .3) sound(wolves && rnd() < .3 ? 'howl' : 'owl', .4, pan); return; }   // winter nights are nearly silent
+    sound(wolves && rnd() < .12 ? 'howl' : rnd() < .75 ? 'cricket' : 'owl', .5 + rnd() * .4, pan);       // `wolves`: a pack lives on this map, far howls now and then
+  } else if (season === 3) { if (rnd() < .4) sound('wind', .3, pan); }                                    // muffled gusts, little else
+  else if (season === 0) sound(rnd() < .8 ? 'bird' : 'gull', .5 + rnd() * .5, pan);                       // spring: birds everywhere
+  else if (season === 1) sound(dusk && rnd() < .6 ? 'cricket' : rnd() < .45 ? 'cicada' : rnd() < .12 ? 'wind' : 'bird', .35 + rnd() * .4, pan);
+  else sound(rnd() < .45 ? 'rustle' : rnd() < .3 ? 'wind' : 'bird', .3 + rnd() * .4, pan);               // autumn: wind through dry leaves
 }
 export function disposeAudio(): void {
   for (const list of bank.values()) for (const s of list) s.unload();
   for (const l of loops.values()) l.unload();
-  bank.clear(); loops.clear(); ambience = null; ready = false; ambienceKind = '';
+  bank.clear(); loops.clear(); layers.clear(); ready = false; ambienceKind = '';
 }

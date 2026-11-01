@@ -5,7 +5,7 @@ import {
 import { TILE, TERRAIN_VOID, TERRAIN_WATER } from '../constants';
 import { WATER_TONES, SAND_TONES, ROAD_COLOR } from '../palettes';
 import { DECO_TRAIL, DECO_REEDS } from '../gen/terrain';
-import { ensureBiomes, monthStep, biomes, blend, groundTone, snowShare, flowerShare, reedColor, iceShare } from './seasons';
+import { ensureBiomes, monthStep, biomes, blend, groundTone, snowShare, flowerShare, reedColor, iceShare, tileMonth } from './seasons';
 import { world, waterField, tileX, tileY, tileAt, tileCount, neighbor } from '../world/world';
 import { models, modelOf, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, useTreeSeason, treeModel, warmTrees, resetModels, TREE_HEIGHT } from './models';
 import { settings } from '../settings';
@@ -154,13 +154,14 @@ function paintChunk(layer: Layer, cx: number, cy: number, s: number): void {
       kind = KIND_GRASS;
       const bt = tileAt(clamp(px + (noise(px * .9 + 31, py * .9) - .5) * 1.6, -half + .01, half - .01), clamp(py + (noise(px * .9, py * .9 + 31) - .5) * 1.6, -half + .01, half - .01));
       const biome = bt < 0 ? 0 : world.biome[bt];
-      color = groundTone(biome, s, clamp(Math.floor(noise(px * .6, py * .7) * 3.5), 0, 3));
       const t = tileAt(clamp(px, -half + .01, half - .01), clamp(py, -half + .01, half - .01));
+      const tm = tileMonth(biome, t < 0 ? 0 : t, s);                                          // high and shaded ground turns first in autumn and thaws last
+      color = groundTone(biome, tm, clamp(Math.floor(noise(px * .6, py * .7) * 3.5), 0, 3));
       if (t >= 0 && world.deco[t] === DECO_TRAIL) {                                         // a game trail: bare earth, ragged at the edges
         const lx = (px - tileX(t)) / TILE, ly = (py - tileY(t)) / TILE;
         if (Math.sqrt(lx * lx + ly * ly) < .42 + (noise(px * 2.5, py * 2.5) - .5) * .4) color = blendTone(color, DIRT, .5 + hash(ix * 3, iy) * .25);
       }
-      const sn = snowShare(biome, s);
+      const sn = snowShare(biome, tm);
       if (sn > 0 && noise(px * .9, py * .9) * .55 + hash(ix * 7, iy * 13) * .45 < sn) { color = snow[clamp(Math.floor(noise(px * 1.4, py * 1.4) * snow.length + hash(ix, iy) * .5), 0, snow.length - 1)]; }
       else if (hash(ix * 3, iy * 5) < .14) kind |= 8;
     }

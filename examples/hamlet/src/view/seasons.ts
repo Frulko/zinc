@@ -3,6 +3,9 @@ import { BIOME_IDS } from '../gen/terrain';
 import { GRASS_TONES } from '../palettes';
 import { biomes, loadBiomes, Rgb } from '../world/biomes';
 import { monthIndex } from '../rules/season';
+import { hash } from '../pixel';
+
+const EARLY = new Set<number>([BIOME_IDS.indexOf('hills'), BIOME_IDS.indexOf('pine'), BIOME_IDS.indexOf('forest')]);
 
 // What the seasons paint (the numbers are assets/biomes.json): the ground's four greens per biome and season, the foliage of the trees, the ice. View only.
 let loaded = false;
@@ -31,6 +34,12 @@ export function ensureBiomes(): void { if (!loaded) useBiomes(assets.readText('b
 export function blend(a: Rgb, b: Rgb, k: number): Rgb { return [Math.round(a[0] + (b[0] - a[0]) * k), Math.round(a[1] + (b[1] - a[1]) * k), Math.round(a[2] + (b[2] - a[2]) * k)]; }
 /** The k-th green (0 dark .. 3 light) of a biome's ground in a month. */
 export function groundTone(biome: number, m: number, k: number): Rgb { return tones[biome][m][k]; }
+/** The month a tile's ground looks like: a month ahead in autumn and winter (a month behind in spring) on high or shaded ground (hills, pines, forest) and on one tile in four. */
+export function tileMonth(biome: number, tile: number, m: number): number {
+  const early = EARLY.has(biome) || hash(tile, 33) < .25;
+  if (!early) return m;
+  return m >= 6 ? Math.min(11, m + 1) : m <= 3 ? (m + 11) % 12 : m;
+}
 export function snowShare(biome: number, m: number): number { return mix(biomes.biomes[biome].snow, m); }
 export function flowerShare(biome: number, m: number): number { return mix(biomes.biomes[biome].flowers, m); }
 /** A pine's green in a month (frosted as winter comes). */
