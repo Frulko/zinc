@@ -834,7 +834,7 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
     switch (rtParam(ri, k)) {
       case 'd': h.d = std::bit_cast<double>(a[k]); break;
       case 's': { StrObj* s = S(a[k]); if (!s) return kNull; h.p = s->data(); h.n = s->len; break; }
-      case 'D': case 'B': { ArrObj* arr = reinterpret_cast<ArrObj*>(a[k]); if (!arr) return kNull; h.p = arr->v.data(); h.n = static_cast<std::uint32_t>(arr->v.size()); break; }
+      case 'D': case 'B': case 'U': { ArrObj* arr = reinterpret_cast<ArrObj*>(a[k]); if (!arr) return kNull; h.p = arr->v.data(); h.n = static_cast<std::uint32_t>(arr->v.size()); break; }
       case 'u': h.i = static_cast<std::int64_t>(static_cast<std::uint32_t>(a[k])); break;
       default: h.i = static_cast<std::int64_t>(a[k]); break;  // i (sign-extended), b
     }

@@ -221,6 +221,25 @@ static constexpr bool kAppShell = false;
 extern "C" __attribute__((weak)) void hal_set_window_config(const HalWindowConfig*) {}   // the SDL HAL overrides it; the headless HAL has none (a bare weak reference does not link on Mach-O)
 static void windowConfig() {
   const char* t = getenv("ZINC_WINDOW_CONFIG");
+// zinc:gfx updatePixels: one u32 a pixel, red in the low byte (the bytes of an RGBA picture), into the image's ARGB.
+static bool putPacked(int32_t id, const uint64_t* slots, uint32_t n, bool forceOpaque) {
+  const uint32_t* cur; int32_t w = 0, h = 0, stride = 0;
+  uint32_t* px = zrt::raster::dyn_pixels(id);
+  if (!px || !zrt::raster::dyn_view(id, &cur, &w, &h, &stride) || static_cast<uint64_t>(w) * h > n) return false;
+  uint32_t opaque = 0xFF000000u;
+  for (int32_t y = 0; y < h; y++) {
+    const uint64_t* row = slots + static_cast<size_t>(y) * w;
+    uint32_t* out = px + static_cast<size_t>(y) * stride;
+    for (int32_t x = 0; x < w; x++) {
+      const uint32_t c = static_cast<uint32_t>(row[x]);
+      out[x] = ((forceOpaque ? 0xFF000000u : c & 0xFF000000u) | (c & 0xFF00u)) | (c & 0xFF) << 16 | (c >> 16 & 0xFF);
+      opaque &= forceOpaque ? 0xFF000000u : c;
+    }
+  }
+  zrt::raster::dyn_set_alpha(id, (opaque >> 24) != 255);
+  zrt::raster::dyn_update(id, nullptr, 0);
+  return true;
+}
   if (!t || !*t) return;
   HalWindowConfig c = {};
   if (sscanf(t, "%d %d %d %d %d %d %d %d %d %d %d %u %f", &c.has_position, &c.x, &c.y, &c.min_w, &c.min_h, &c.max_w, &c.max_h, &c.borderless,
@@ -319,6 +338,7 @@ void call(int id, const HostArg* a, HostArg* r) {
       zrt::prev_input = zrt::input;
       zrt::input.wheel = 0; zrt::input.pinch = 1;
       hal_poll_input(&zrt::input);
+    case Rt::HostGfxUpdatePixels: putPacked(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n, a[2].i != 0); break;
       for (const HalGamepad& p : zrt::input.pad) zrt::input.buttons |= hal_gamepad_buttons(&p);   // a gamepad is also the zinc:gfx buttons (ZN-574)
       if (zrt::display_driver && hal_display->poll) hal_display->poll(&zrt::input);   // the driver's own input and its ZINC_FRAMES / ZINC_SHOT counting
       if (zrt::mirror_input) zrt::mirror_input(&zrt::input);   // zinc device screen --live (src/host/mirror.cpp)

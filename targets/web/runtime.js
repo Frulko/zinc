@@ -724,8 +724,23 @@ const rows = {
   gfxImageFromPixels: (rgbaBytes, w, h) => { const id = newImage(w, h); rows.gfxUpdateImage(id, rgbaBytes); return id; },
   gfxUpdateImage: (id, bytes) => {
     const im = images[id]; if (!im) return;
-    const c = im.canvas.getContext('2d'), a = Uint8ClampedArray.from(bytes);
-    if (a.length >= im.w * im.h * 4) c.putImageData(new ImageData(a.subarray(0, im.w * im.h * 4), im.w, im.h), 0, 0);
+    const n = im.w * im.h * 4;
+    if (bytes.length < n) return;
+    // one pixel buffer and one ImageData per image, refilled in place: a pose is a bulk copy, not a 400 000-element Uint8ClampedArray.from and a new ImageData
+    if (!im.px || im.px.length !== n) { im.px = new Uint8ClampedArray(n); im.data = new ImageData(im.px, im.w, im.h); im.ctx = im.canvas.getContext('2d'); }
+    im.px.set(bytes.length === n ? bytes : bytes.subarray ? bytes.subarray(0, n) : bytes.slice(0, n));
+    im.ctx.putImageData(im.data, 0, 0);
+    im.rev = (im.rev || 0) + 1;
+  },
+  gfxUpdatePixels: (id, px, opaque) => {   // one u32 a pixel: the buffer's own layout, so a typed array is a bulk copy and a plain array one tight loop
+    const im = images[id]; if (!im) return;
+    const n = im.w * im.h;
+    if (px.length < n) return;
+    if (!im.px || im.px.length !== n * 4) { im.px = new Uint8ClampedArray(n * 4); im.data = new ImageData(im.px, im.w, im.h); im.ctx = im.canvas.getContext('2d'); }
+    const u = new Uint32Array(im.px.buffer);
+    u.set(px.length === n ? px : px.subarray ? px.subarray(0, n) : px.slice(0, n));
+    if (opaque) for (let i = 0; i < n; i++) u[i] |= 0xFF000000;
+    im.ctx.putImageData(im.data, 0, 0);
     im.rev = (im.rev || 0) + 1;
   },
   gfxImageFromBytes: (bytes) => {   // the page decodes off the main thread: the image shows at the next repaint of the app
@@ -757,7 +772,7 @@ const rows = {
   gfxSetCursor: (c) => { input.cursor = c; if (!dom) canvas.style.cursor = CURSORS[c] || 'default'; },
   gfxEscapeByApp: () => {}, gfxEscapeDefault: () => {},
   gfxSignalCount: () => frameSignals.length, gfxSignalNext: () => frameSignals.shift() || '',
-  gfxOpenWindow: () => -1, gfxCloseWindow: () => {}, gfxWindowOpen: (i) => (i === 0 ? 1 : 0), gfxBeginWindow: () => {}, gfxEndWindow: () => {},
+  gfxWindowCtl: (id, op, str) => { if (id === 0 && op === 3) document.title = str; return 0; }, gfxOpenWindow: () => -1, gfxCloseWindow: () => {}, gfxWindowOpen: (i) => (i === 0 ? 1 : 0), gfxBeginWindow: () => {}, gfxEndWindow: () => {},
   // system
   sysFirst: () => {}, sysArgsCount: () => 0, sysArg: () => '', sysEnv: (n) => (CFG.env && CFG.env[n]) || '', sysExit: (c) => { quit = true; if (c) console.warn('zinc: exit ' + c); throw new ZnExit(c); },   // (stops the program where it stands, as process.exit does)
   sysPlatform: () => 'web', sysPid: () => 1, sysCwd: () => '/', sysChdir: () => true, sysSetEnv: (n, v) => { (CFG.env = CFG.env || {})[n] = v; }, sysUnsetEnv: (n) => { if (CFG.env) delete CFG.env[n]; },

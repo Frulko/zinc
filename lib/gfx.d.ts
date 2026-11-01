@@ -83,6 +83,8 @@ declare module 'zinc:gfx' {
   /** New RGBA pixels for a runtime image of imageFromPixels (as many bytes as it has pixels times four; fewer: nothing changes). The frames
    *  drawn after it show them; a GPU display uploads only this image again. */
   export function updateImage(image: i32, rgba: u8[]): void;
+  /** New pixels for an image of `createImage` from one `u32` a pixel (red in the low byte, then green, blue, alpha), rows top first. A quarter of the array of `updateImage` and no per-byte loop; `opaque` forces alpha 255. */
+  export function updatePixels(image: i32, pixels: u32[], opaque: boolean): void;
   /** A fragment program for drawShader, in GLSL ES 1.00 (WebGL 1's language): its main() sets gl_FragColor from `varying vec2 v_uv` (0..1
    *  across the box, top left first), `uniform vec2 u_size` (the box in pixels) and `uniform vec4 u_p[8]` (drawShader's uniforms, four a
    *  vector); mediump floats are enough on every GPU (the shader runs where fragment highp is missing). On Android the window puts a GPU

@@ -197,6 +197,8 @@ export function drawImageRect(img: i32, sx: number, sy: number, sw: number, sh: 
 export function imageFromBytes(bytes: u8[]): i32 { return __host_gfxImageFromBytes(bytes); }
 export function imageFromPixels(rgba: u8[], w: i32, h: i32): i32 { return __host_gfxImageFromPixels(rgba, w, h); }
 export function updateImage(img: i32, rgba: u8[]): void { __host_gfxUpdateImage(img, rgba); }
+/** New pixels for an image from one u32 a pixel (red in the low byte, then green, blue, alpha), rows top first; `opaque` forces alpha 255. A quarter of the array of updateImage and no per-byte loop. */
+export function updatePixels(img: i32, pixels: u32[], opaque: boolean): void { __host_gfxUpdatePixels(img, pixels, opaque); }
 export function shaderProgram(fragment: string, scale: i32 = 1): i32 { return __host_gfxShaderProgram(fragment, scale); }
 export function drawShader(program: i32, x: number, y: number, w: number, h: number, uniforms: number[]): void { __host_gfxDrawShader(program, x, y, w, h, uniforms); }
 export function shaderAvailable(): boolean { return __host_gfxShaderAvailable() !== 0; }

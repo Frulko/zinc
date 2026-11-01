@@ -125,7 +125,7 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
         h.p = strings[k].data(); h.n = static_cast<std::uint32_t>(n);
         break;
       }
-      case 'D': case 'B': {
+      case 'D': case 'B': case 'U': {
         JSValue len = JS_GetPropertyStr(ctx, v, "length");
         int32_t n = 0;
         JS_ToInt32(ctx, &n, len);
@@ -137,7 +137,7 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
           JS_ToFloat64(ctx, &d, e);
           JS_FreeValue(ctx, e);
           if (zn::rtParam(ri, k) == 'D') std::memcpy(&arrays[k][static_cast<size_t>(i)], &d, 8);
-          else arrays[k][static_cast<size_t>(i)] = static_cast<std::uint64_t>(static_cast<std::int64_t>(d)) & 0xFF;
+          else arrays[k][static_cast<size_t>(i)] = static_cast<std::uint64_t>(static_cast<std::int64_t>(d)) & (zn::rtParam(ri, k) == 'U' ? 0xFFFFFFFFull : 0xFF);
         }
         h.p = arrays[k].data(); h.n = static_cast<std::uint32_t>(n);
         break;
