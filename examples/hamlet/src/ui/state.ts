@@ -11,7 +11,8 @@ export const ui = {
   category: -1,             // the open build flyout (index of categories()), -1 none
   collapsed: false,         // the control column folded to a handle
   window: WIN_NONE,
-  overlay: 0,               // index of the overlay on the map (0: none)
+  overlay: 0,
+  overlayMenu: false,               // index of the overlay on the map (0: none)
   selKind: 0,               // 1 a building, 2 a person
   selId: -1,
   advisor: 0,               // tab of the advisor window
@@ -26,6 +27,8 @@ export function viewport(): { x: number; y: number; w: number; h: number } {
   return { x: 0, y: TOP_H, w: width() - cw, h: height() - TOP_H - STATUS_H };
 }
 export function columnX(): number { return width() - (ui.collapsed ? COL_FOLDED : COL_W); }
+/** Where the map is on screen (set by the scene each frame): buffer pixel (sx, sy) is at x + (sx - cropX) * scale. */
+export const mapView = { x: 0, y: 0, scale: 1, cropX: 0, cropY: 0 };
 /** What the scene lets the interface do (set once by the scene). */
 export const act = {
   setTool: (tool: number): void => {},

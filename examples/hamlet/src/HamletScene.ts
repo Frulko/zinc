@@ -1,5 +1,5 @@
 import {
-  width, height, rect, quit, keyCount, keyKind, keyMods, Mod, keyName, buttonEventCount, buttonEventButton, buttonEventDown,
+  width, height, rect, quit, clip, unclip, keyCount, keyKind, keyMods, Mod, keyName, buttonEventCount, buttonEventButton, buttonEventDown,
   buttonEventX, buttonEventY, pointerDown, pointerX, pointerY, KeyKind, windowCtl, wheel, pinch, scrollDX, scrollDY, scrollPhase, Cursor,
 } from 'zinc:gfx';
 import { Sprite, uiState } from 'zinc:stage';
@@ -23,7 +23,7 @@ import { Panel } from './ui/Panel';
 import { buildSettingsPanel } from './ui/SettingsPanel';
 import { minimapClick } from './ui/Minimap';
 import { loadKit, col, beginFrame, hitAt, track, pointer, drawTooltip, updateCursor, text, textC, window_, parchment, kit } from './ui/kit';
-import { ui, act, viewport, SPEEDS } from './ui/state';
+import { ui, act, viewport, SPEEDS, mapView } from './ui/state';
 import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
 import { drawInfo, pickAt, closeInfo } from './ui/Info';
@@ -31,6 +31,7 @@ import { look, record, beginGroup, endGroup, undo, drawPlacementLabel, reasonTex
 import { WIN_INFO, WIN_MAIN, WIN_ADVISOR, WIN_NONE } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
 import { loadPrefs, savePrefs } from './ui/prefs';
+import { drawOverlay, drawReach, drawOverlayMenu, drawLegend } from './ui/Overlays';
 import { drawAdvisors, sampleHistory, openAdvisor } from './ui/Advisors';
 import { drawMenus, isModal, closeMenus, openNew, openMenu, typeKey } from './ui/Menu';
 import { refreshModels, jumpTo } from './view/scenery';
@@ -161,13 +162,14 @@ export class HamletScene extends Sprite {
     if (name === '+' || name === '=') { stepZoom(1); this.baked = world.revision; }
     else if (name === '-' || name === '_') { stepZoom(-1); this.baked = world.revision; }
     else if (name === '0' || name === 'Home') { resetView(); this.baked = world.revision; }
-    else if (name === 'Escape') { if (closeMenus()) { /* a menu closed */ } else if (ui.category >= 0) ui.category = -1; else if (ui.window === WIN_INFO) closeInfo(); else if (ui.window === WIN_ADVISOR) ui.window = WIN_NONE; else if (this.panel.closeMenu()) { /* the dev panel's list closed */ } else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; else openMenu(); }
+    else if (name === 'Escape') { if (closeMenus()) { /* a menu closed */ } else if (ui.overlayMenu) ui.overlayMenu = false; else if (ui.category >= 0) ui.category = -1; else if (ui.window === WIN_INFO) closeInfo(); else if (ui.window === WIN_ADVISOR) ui.window = WIN_NONE; else if (this.panel.closeMenu()) { /* the dev panel's list closed */ } else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; else openMenu(); }
     else if (name === '[' || name === ']') { const i = this.tools.indexOf(this.tool); this.tool = this.tools[(Math.max(0, i) + (name === ']' ? 1 : this.tools.length - 1)) % this.tools.length]; }
     else if (name >= '1' && name <= '9' && Number(name) <= this.tools.length) this.tool = this.tools[Number(name) - 1];
     else if (name === 'p' || name === 'P') { this.paused = !this.paused; this.dragging = false; pauseSound(this.paused); }
     else if (name === 'm' || name === 'M') toggleSound();
     else if (name === 'h' || name === 'H') settings.hints = !settings.hints;
     else if (name === 'f' || name === 'F') openAdvisor(ui.advisor);
+    else if (name === 'o' || name === 'O') ui.overlayMenu = !ui.overlayMenu;
     else if (name === 'n' || name === 'N' || name === 'g' || name === 'G') openNew();
     else if (name === 'F2') this.panel.open = !this.panel.open;
     else if (name === 'u' || name === 'U') {
@@ -274,7 +276,11 @@ export class HamletScene extends Sprite {
     if (frameDirty.full) { this.surface.upload(); frameDirty.full = false; } else this.surface.uploadSpans(frameDirty.spans);
     this.surface.draw();
     beginFrame();
-    topBar(); column(); drawFlyout(); drawInfo(); drawAdvisors();
+    mapView.x = this.surface.x; mapView.y = this.surface.y; mapView.scale = this.surface.scale; mapView.cropX = this.frame.cropX; mapView.cropY = this.frame.cropY;
+    clip(this.surface.x, this.surface.y, this.frame.cropWidth * this.surface.scale, this.frame.cropHeight * this.surface.scale);
+    drawOverlay(); drawReach(this.tool, this.hover);
+    unclip(); drawLegend();
+    topBar(); column(); drawFlyout(); drawOverlayMenu(); drawInfo(); drawAdvisors();
     drawBanner(vp.x + vp.w / 2, vp.y + 8);
     const note = this.time < this.messageUntil;
     statusStrip(note ? this.message : adviceLine(), note ? col('gold') : 0);
