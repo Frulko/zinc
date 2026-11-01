@@ -41,7 +41,7 @@ static std::map<std::string, int32_t> made;   // the pack's images decoded so fa
 // zinc:gfx startImageDecode (src/host/image_decode.cpp, a worker thread): a console core has none, the decode is refused (0: not now)
 #include "host/image_decode.h"
 namespace zn::host {
-int32_t decodeStart(const uint64_t*, uint32_t) { return 0; }
+int32_t decodeStart(const uint64_t*, uint32_t, int32_t) { return 0; }
 int32_t decodeTake(int32_t, uint32_t**, int*, int*, bool*) { return -1; }
 void decodeCancel(int32_t) {}
 }

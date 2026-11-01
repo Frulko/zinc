@@ -191,7 +191,7 @@ export enum ImageFlag { FlipX = 1, FlipY = 2, Nearest = 4, Smooth = 8 }
 export enum Blend { Normal = 0, Add = 1, Multiply = 2, Screen = 3 }
 export function drawImageRect(img: i32, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number, alpha: i32 = 255, flags: i32 = 0, rotation: number = 0, tint: u32 = 0xFFFFFF, blend: i32 = 0): void { __host_gfxDrawImageRect(img, sx, sy, sw, sh, dx, dy, dw, dh, alpha, flags, rotation, tint, blend); }
 export function imageFromBytes(bytes: u8[]): i32 { return __host_gfxImageFromBytes(bytes); }
-export function startImageDecode(bytes: u8[]): i32 { return __host_gfxDecodeStart(bytes); }
+export function startImageDecode(bytes: u8[], maxSide: i32 = 0): i32 { return __host_gfxDecodeStart(bytes, maxSide); }
 export function pollImageDecode(handle: i32): i32 { return __host_gfxDecodePoll(handle); }
 export function cancelImageDecode(handle: i32): void { __host_gfxDecodeCancel(handle); }
 export function imageFromPixels(rgba: u8[], w: i32, h: i32): i32 { return __host_gfxImageFromPixels(rgba, w, h); }

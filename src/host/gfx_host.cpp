@@ -322,7 +322,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxDrawImage: g::drawImage(n(0), a[1].d, a[2].d, a[3].d, a[4].d, n(5), a[6].d); break;
     case Rt::HostGfxDrawImageRect: g::drawImageRect(n(0), a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, a[6].d, a[7].d, a[8].d, n(9), n(10), a[11].d, u(12), n(13)); break;
     case Rt::HostGfxImageFromBytes: r->i = imageFromBytes(static_cast<const uint64_t*>(a[0].p), a[0].n); break;
-    case Rt::HostGfxDecodeStart: r->i = zn::host::decodeStart(static_cast<const uint64_t*>(a[0].p), a[0].n); break;
+    case Rt::HostGfxDecodeStart: r->i = zn::host::decodeStart(static_cast<const uint64_t*>(a[0].p), a[0].n, n(1)); break;
     case Rt::HostGfxDecodePoll: r->i = decodePoll(n(0)); break;
     case Rt::HostGfxDecodeCancel: zn::host::decodeCancel(n(0)); break;
     case Rt::HostGfxImageFromPixels: r->i = imageFromPixels(static_cast<const uint64_t*>(a[0].p), a[0].n, n(1), n(2)); break;

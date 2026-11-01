@@ -250,7 +250,7 @@ export function decodeNextPicture(allowBackground: boolean = true): boolean {
     const result = pollImageDecode(pending.handle);
     if (result === -2) continue;
     decodesInFlight.splice(i, 1);
-    storeDecodedPicture(pending.url, result >= 0 ? downscaleIfNeeded(result) : -1);
+    storeDecodedPicture(pending.url, result);
     totalDecodeDurationMs += performance.now() - startTime;
     totalDecodedCount++;
     installed = true;
@@ -268,7 +268,7 @@ export function decodeNextPicture(allowBackground: boolean = true): boolean {
         : '';
     if (nextUrl === '') break;
     const rawBytes = pendingBytesByUrl.get(nextUrl);
-    const handle = rawBytes !== undefined ? startImageDecode(rawBytes as u8[]) : -1;
+    const handle = rawBytes !== undefined ? startImageDecode(rawBytes as u8[], MAX_PICTURE_DIMENSION) : -1;
     if (handle === 0) break; // too much in flight: the same picture next time
     if (isBackground) {
       backgroundDecodeQueue.shift();
@@ -285,30 +285,6 @@ export function decodeNextPicture(allowBackground: boolean = true): boolean {
     }
   }
   return installed;
-}
-
-/**
- * If the decoded picture exceeds `MAX_PICTURE_DIMENSION` (400 px), redraws it into a
- * smaller texture keeping its proportions and destroys the large texture.
- */
-function downscaleIfNeeded(sourceImage: i32): i32 {
-  if (sourceImage < 0) return sourceImage;
-  const sourceWidth = imageWidth(sourceImage);
-  const sourceHeight = imageHeight(sourceImage);
-  if (sourceWidth <= MAX_PICTURE_DIMENSION && sourceHeight <= MAX_PICTURE_DIMENSION) {
-    return sourceImage;
-  }
-  const scaleFactor = MAX_PICTURE_DIMENSION / Math.max(sourceWidth, sourceHeight);
-  const targetWidth = Math.max(1, Math.round(sourceWidth * scaleFactor)) as i32;
-  const targetHeight = Math.max(1, Math.round(sourceHeight * scaleFactor)) as i32;
-  const resizedImage = createImage(targetWidth, targetHeight);
-  if (resizedImage < 0) return sourceImage;
-
-  beginImage(resizedImage);
-  drawImage(sourceImage, 0, 0, targetWidth, targetHeight, 255, 0);
-  endImage();
-  destroyImage(sourceImage);
-  return resizedImage;
 }
 
 /**

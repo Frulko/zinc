@@ -405,7 +405,7 @@
   X(HostHttpFetchFile, "host.httpFetchFile", "ssssssii>i", 2) \
   /* zinc:gfx startImageDecode / pollImageDecode / cancelImageDecode: an image file decoded on a worker thread (the handle, 0 when too much is in flight); */ \
   /* the poll gives -2 pending, -1 failed, else the new runtime image; graphics rows, appended */ \
-  X(HostGfxDecodeStart, "host.gfxDecodeStart", "B>i", 2) X(HostGfxDecodePoll, "host.gfxDecodePoll", "i>i", 2) X(HostGfxDecodeCancel, "host.gfxDecodeCancel", "i>n", 2)
+  X(HostGfxDecodeStart, "host.gfxDecodeStart", "Bi>i", 2) X(HostGfxDecodePoll, "host.gfxDecodePoll", "i>i", 2) X(HostGfxDecodeCancel, "host.gfxDecodeCancel", "i>n", 2)
 
 namespace zn {
 

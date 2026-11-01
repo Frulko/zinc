@@ -19,6 +19,7 @@ export ZN_PNG="$tmp/a.png" ZN_JPG="$tmp/a.jpg" ZN_BIG="$tmp/big.png" ZINC_HEADLE
 run() { ZINC_SHOT="$2" "$ZINC" run tests/data/image_decode $3 2>&1 | grep -v '^$'; }
 want=$(run x "$tmp/i.png" --interp)
 echo "$want" | grep -q "^png 200x200 jpg [0-9]*x[0-9]* bad -1 many ok 40/40$" || { echo "interpreter: unexpected output: $want"; exit 1; }
+echo "$want" | grep -q "^shrunk 50x50 16x12 200x200$" || { echo "interpreter: maxSide: $want"; exit 1; }
 echo "$want" | grep -q "^spent handle -1 cancelled handle -1 unknown handle -1$" || { echo "interpreter: handles: $want"; exit 1; }
 [ "$(run x "$tmp/q.png" "--engine quickjs")" = "$want" ] || { echo "quickjs: another output"; exit 1; }
 "$ZINC" build tests/data/image_decode -o "$tmp/aot" > "$tmp/b.log" 2>&1 || { echo "build failed: $(head -c 300 "$tmp/b.log")"; exit 1; }

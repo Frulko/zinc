@@ -14,6 +14,9 @@ const hCancelled = startImageDecode(png);
 cancelImageDecode(hCancelled);
 const handles: i32[] = [hPng, hJpg, hBad];
 for (let i = 0; i < 40; i++) handles.push(startImageDecode(i % 2 === 0 ? png : jpg));   // many in flight
+handles.push(startImageDecode(png, 50));   // shrunk: 200 x 200 to 50 x 50
+handles.push(startImageDecode(jpg, 16));   // shrunk, proportions kept
+handles.push(startImageDecode(png, 500));  // already smaller: untouched
 const results: i32[] = [];
 for (let i = 0; i < handles.length; i++) results.push(-2);
 const syncPng = imageFromBytes(png);
@@ -31,11 +34,13 @@ onFrame((dt: number) => {
     spins++;
     if (pending > 0 && spins < 300000) return;
     let ok = 0;
-    for (let i = 3; i < results.length; i++) {
+    for (let i = 3; i < results.length - 3; i++) {
       const want = i % 2 === 1 ? syncPng : syncJpg;   // the many alternate png (even index of the loop = odd here), jpg
       if (results[i] >= 0 && imageWidth(results[i]) === imageWidth(want) && imageHeight(results[i]) === imageHeight(want)) ok++;
     }
-    console.log(`png ${imageWidth(results[0])}x${imageHeight(results[0])} jpg ${imageWidth(results[1])}x${imageHeight(results[1])} bad ${results[2]} many ok ${ok}/${results.length - 3}`);
+    console.log(`png ${imageWidth(results[0])}x${imageHeight(results[0])} jpg ${imageWidth(results[1])}x${imageHeight(results[1])} bad ${results[2]} many ok ${ok}/${results.length - 6}`);
+    const s = results.length - 3;
+    console.log(`shrunk ${imageWidth(results[s])}x${imageHeight(results[s])} ${imageWidth(results[s + 1])}x${imageHeight(results[s + 1])} ${imageWidth(results[s + 2])}x${imageHeight(results[s + 2])}`);
     console.log(`spent handle ${pollImageDecode(hPng)} cancelled handle ${pollImageDecode(hCancelled)} unknown handle ${pollImageDecode(987654)}`);
     stage = 1;
   }

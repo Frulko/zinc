@@ -6,8 +6,8 @@
 
 namespace zn::host {
 
-/** Queues the file (one byte per 64-bit slot, as the host calls hand a u8[]): a handle above 0, or 0 when too much is in flight to take more. */
-int32_t decodeStart(const uint64_t* slots, uint32_t n);
+/** Queues the file (one byte per 64-bit slot, as the host calls hand a u8[]; maxSide above 0: a larger picture is shrunk to it): a handle above 0, or 0 when too much is in flight to take more. */
+int32_t decodeStart(const uint64_t* slots, uint32_t n, int32_t maxSide);
 /** -2 still running; -1 failed, cancelled or unknown (the handle is spent); 0 done: *px holds w * h ARGB words (malloc'd, the caller frees them). */
 int32_t decodeTake(int32_t handle, uint32_t** px, int* w, int* h, bool* alpha);
 /** Gives up a decode: its file and its pixels are dropped. */

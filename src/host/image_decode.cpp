@@ -9,6 +9,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <algorithm>
 #include <stdlib.h>
 #if defined(__APPLE__)
 #include <pthread.h>
@@ -28,6 +29,7 @@ struct Job {
   int w = 0, h = 0;
   bool alpha = false, done = false, cancelled = false, running = false;
   size_t held = 0;   // bytes this job weighs in the pool: its file, then its pixels
+  int maxSide = 0;
 };
 struct Pool {
   std::mutex m;
@@ -60,6 +62,29 @@ uint32_t* toArgb(uint8_t* rgba, int w, int h, bool* alpha) {
   return px;
 }
 
+// The picture shrunk to nw x nh by averaging the source pixels each destination pixel covers (a box filter: the source is freed); the picture itself when
+// there is no room for the copy
+uint32_t* shrink(uint32_t* src, int w, int h, int nw, int nh) {
+  uint32_t* dst = static_cast<uint32_t*>(malloc(static_cast<size_t>(nw) * nh * 4));
+  if (!dst) return src;
+  for (int y = 0; y < nh; y++) {
+    const int y0 = static_cast<int>(static_cast<int64_t>(y) * h / nh), y1 = std::max(y0 + 1, static_cast<int>(static_cast<int64_t>(y + 1) * h / nh));
+    for (int x = 0; x < nw; x++) {
+      const int x0 = static_cast<int>(static_cast<int64_t>(x) * w / nw), x1 = std::max(x0 + 1, static_cast<int>(static_cast<int64_t>(x + 1) * w / nw));
+      uint32_t a = 0, r = 0, g = 0, b = 0;
+      for (int sy = y0; sy < y1; sy++)
+        for (int sx = x0; sx < x1; sx++) {
+          const uint32_t v = src[static_cast<size_t>(sy) * w + sx];
+          a += v >> 24; r += v >> 16 & 255; g += v >> 8 & 255; b += v & 255;
+        }
+      const uint32_t n = static_cast<uint32_t>((y1 - y0) * (x1 - x0)), h2 = n / 2;
+      dst[static_cast<size_t>(y) * nw + x] = (a + h2) / n << 24 | (r + h2) / n << 16 | (g + h2) / n << 8 | (b + h2) / n;
+    }
+  }
+  free(src);
+  return dst;
+}
+
 void worker() {
 #if defined(__APPLE__)
   pthread_set_qos_class_self_np(QOS_CLASS_UTILITY, 0);
@@ -74,12 +99,19 @@ void worker() {
     if (!j) { p.cv.wait(lk); continue; }
     if (j->cancelled) { drop(p, j); continue; }
     j->running = true;
+    const int maxSide = j->maxSide;
     std::vector<uint8_t> file = std::move(j->file);
     lk.unlock();
     int w = 0, h = 0;
     bool alpha = false;
     uint32_t* px = nullptr;
     if (uint8_t* rgba = zn::res::decodeRgbaAlloc(file.data(), file.size(), &w, &h)) px = toArgb(rgba, w, h, &alpha);
+    if (px && maxSide > 0 && std::max(w, h) > maxSide) {
+      const double k = static_cast<double>(maxSide) / std::max(w, h);
+      const int nw = std::max(1, static_cast<int>(w * k + 0.5)), nh = std::max(1, static_cast<int>(h * k + 0.5));
+      px = shrink(px, w, h, nw, nh);
+      if (px) { w = nw; h = nh; }
+    }
     file = std::vector<uint8_t>();
     lk.lock();
     j->running = false;
@@ -92,7 +124,7 @@ void worker() {
 }
 }  // namespace
 
-int32_t decodeStart(const uint64_t* slots, uint32_t n) {
+int32_t decodeStart(const uint64_t* slots, uint32_t n, int32_t maxSide) {
   Pool& p = pool();
   std::lock_guard<std::mutex> lk(p.m);
   if (p.held + n > kHeldMax) return 0;
@@ -100,6 +132,7 @@ int32_t decodeStart(const uint64_t* slots, uint32_t n) {
   j->file.resize(n);
   for (uint32_t i = 0; i < n; i++) j->file[i] = static_cast<uint8_t>(slots[i]);
   j->held = n;
+  j->maxSide = maxSide;
   p.held += n;
   j->handle = p.next++;
   if (p.next < 1) p.next = 1;

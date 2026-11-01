@@ -79,8 +79,9 @@ declare module 'zinc:gfx' {
   export function imageFromBytes(bytes: u8[]): i32;
   /** Starts decoding the bytes of a PNG, JPEG or WebP file on a worker thread (low priority, one at a time) and returns a handle, so no frame
    *  pays for the decode (a 400 px JPEG takes 40 to 100 ms on a Raspberry Pi 3). 0 when too much is already in flight (about 64 MB of
-   *  files and pixels): try again after some polls. The bytes are copied: the array may be reused. Poll the handle with pollImageDecode. */
-  export function startImageDecode(bytes: u8[]): i32;
+   *  files and pixels): try again after some polls. The bytes are copied: the array may be reused. `maxSide` (above 0): a picture larger than
+   *  that on its longer side is shrunk to it (proportions kept, an area average) on the worker too. Poll the handle with pollImageDecode. */
+  export function startImageDecode(bytes: u8[], maxSide?: i32): i32;
   /** The state of a decode: -2 still running, -1 failed (not an image, or no room for it), else the new runtime image (free it with
    *  destroyImage); the handle is then spent. Cheap: a pixel copy on the calling thread. */
   export function pollImageDecode(handle: i32): i32;
