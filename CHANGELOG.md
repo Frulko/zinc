@@ -8,11 +8,15 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+## [0.10.16] - 2026-11-01
+
 ### Raspberry Pi and the shell
 #### New
 - The player fits a narrow screen (the Pi's panel turned to portrait): home tiles wrap into a grid, the cards stack their button under the text, Settings sections become a row of tabs, and a very small screen keeps the tiles only.
 #### Faster
 - An idle Pi shell costs less: the home animation rests after 20 seconds without a touch, an unchanged screen no longer asks the display for a refresh every frame, and a turned screen stores each changed pixel directly.
+#### Fixed
+- `zinc device <pi> screen --live` shows a screen that does not move: while someone watches, the whole screen is sent again every 2 seconds, so a viewer that connects to a still screen sees it.
 
 ### Performance
 #### Faster
@@ -1099,7 +1103,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.15...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.16...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -1124,3 +1128,4 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 [0.10.6]: https://github.com/Frulko/zinc/compare/v0.9.1...v0.10.6
 [0.10.13]: https://github.com/Frulko/zinc/compare/v0.10.6...v0.10.13
 [0.10.15]: https://github.com/Frulko/zinc/compare/v0.10.13...v0.10.15
+[0.10.16]: https://github.com/Frulko/zinc/compare/v0.10.15...v0.10.16
