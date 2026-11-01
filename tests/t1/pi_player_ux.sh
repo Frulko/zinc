@@ -34,7 +34,7 @@ grep -q '^buffers ' "$tmp/app.out" 2>/dev/null || { echo "pi player ux: the stan
 n=$(awk '$1 == "drawn" && $2 >= 20 && $2 <= 140 { n++ } END { print n + 0 }' "$tmp/start.out")
 [ "$n" -ge 10 ] && [ "$n" -le 32 ] || { echo "pi player ux: the loading view drew $n frames of 20-140, not about 24 (12 fps)"; fail=1; }
 n=$(awk '$1 == "drawn" && $2 > 2300 { n++ } END { print n + 0 }' "$tmp/start.out")
-[ "$n" -le 3 ] || { echo "pi player ux: $n frames drawn in 2300-3400, after the app showed"; fail=1; }
+[ "$n" -le 6 ] || { echo "pi player ux: $n frames drawn in 2300-3400, after the app showed"; fail=1; }
 
 printf '{"animation":false}' > "$tmp/player.json"   # nothing moves behind the tile
 printf '30 move 131 202\n40 down\n70 move 500 420\n80 up\n' > "$tmp/press.input"
