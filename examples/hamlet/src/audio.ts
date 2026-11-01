@@ -1,6 +1,7 @@
 // The sound bank of Hamlet: every effect and ambience is synthesised once from a few lines of maths (no files), then played with a little pitch and
 // volume jitter so repeats never sound the same. Audio alone: the rules call `sound(kind, amount)` and run headless without the renderer.
 import { Sound, fromSamples } from 'zinc:audio';
+import { settings } from './settings';
 
 export let muted = false;
 const RATE: i32 = 22050;
@@ -114,10 +115,14 @@ export function sound(kind: string, amount: number = .6, pan: number = 0): void 
   const name = ALIAS.get(kind) ?? kind, list = bank.get(name);
   if (list === undefined) return;
   const s = list[Math.floor(rnd() * list.length)];
-  s.voice(s.volume * Math.max(0, Math.min(1, amount)) * (.85 + rnd() * .3), .92 + rnd() * .16, Math.max(-1, Math.min(1, pan)), false);
+  s.voice(s.volume * (AMBIENT.has(name) ? settings.ambienceVolume : settings.sfxVolume) * Math.max(0, Math.min(1, amount)) * (.85 + rnd() * .3), .92 + rnd() * .16, Math.max(-1, Math.min(1, pan)), false);
 }
 
+const AMBIENT = new Set<string>(['bird', 'gull', 'cricket', 'owl', 'wind']);
 const LEVEL = .22;
+function level(): number { return muted || paused ? 0 : LEVEL * settings.ambienceVolume; }
+/** Applies the ambience volume at once (the options screen calls it while the slider moves). */
+export function refreshVolume(): void { if (ambience !== null) (ambience as Sound).volume = level(); }
 export function setAmbience(kind: string): void {
   if (!ready) build();
   const key = kind === 'meadow' || kind === '' ? kind : kind;
@@ -128,16 +133,16 @@ export function setAmbience(kind: string): void {
   let loop = loops.get(key);
   if (loop === undefined) { const created = loopOf(key); loops.set(key, created); loop = created; }
   ambience = loop as Sound;
-  (ambience as Sound).volume = muted || paused ? 0 : LEVEL;
+  (ambience as Sound).volume = level();
   (ambience as Sound).play();
 }
 export function toggleSound(): void {
   muted = !muted;
-  if (ambience !== null) (ambience as Sound).volume = muted || paused ? 0 : LEVEL;
+  if (ambience !== null) (ambience as Sound).volume = level();
 }
 export function pauseSound(isPaused: boolean): void {
   paused = isPaused;
-  if (ambience !== null) (ambience as Sound).volume = muted || paused ? 0 : LEVEL;
+  if (ambience !== null) (ambience as Sound).volume = level();
 }
 
 let until = 0;

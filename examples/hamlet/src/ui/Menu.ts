@@ -7,7 +7,8 @@ import { parseSeedRequest, randomSeed } from '../world/seed';
 import { population } from '../engine/villagers';
 import { TERRAIN_WATER, TERRAIN_VOID, MIN_SIZE, MAX_SIZE, DEFAULT_SIZE } from '../constants';
 import { settings } from '../settings';
-import { muted, toggleSound, rgb } from '../pixel';
+import { rgb } from '../pixel';
+import { muted, toggleSound, refreshVolume, sound } from '../audio';
 import { kit, col, setSkin, skinNames, window_, parchment, text, textC, labelButton, block, addHit, measure } from './kit';
 import { ui, act, WIN_NONE, WIN_MENU, WIN_OPTIONS, WIN_MAIN, WIN_SAVES, WIN_NEW } from './state';
 import { dateText } from './clock';
@@ -121,9 +122,15 @@ function toggle(id: string, label: string, on: boolean, x: number, y: number): v
   labelButton(id, x, y, 56, 26, on ? 'Oui' : 'Non', '', true, on);
   text(kit.body, x + 66, y + 5, label, col('ink'));
 }
+function volume(id: string, label: string, v: number, x: number, y: number): void {
+  labelButton(id + ':down', x, y, 26, 26, '-', 'Moins fort');
+  textC(kit.body, x + 56, y + 5, Math.round(v * 100) + '%', col('ink'));
+  labelButton(id + ':up', x + 86, y, 26, 26, '+', 'Plus fort');
+  text(kit.body, x + 126, y + 5, label, col('ink'));
+}
 function options(): void {
-  const m = modal(420, 330, 'Options');
-  parchment(m.x + 12, m.y + 34, 396, 250);
+  const m = modal(420, 400, 'Options');
+  parchment(m.x + 12, m.y + 34, 396, 320);
   const x = m.x + 24;
   toggle('opt:sound', 'Son', !muted, x, m.y + 46);
   toggle('opt:edge', 'Défilement au bord de l’écran', settings.edgePan, x, m.y + 82);
@@ -132,8 +139,10 @@ function options(): void {
   labelButton('opt:skin', x, m.y + 190, 120, 26, skinNames()[kit.skin], 'Changer le style de l’interface');
   text(kit.body, x + 130, m.y + 195, 'Style de l’interface', col('ink'));
   toggle('opt:appeal', 'Désirabilité sur la carte [V]', settings.appeal, x, m.y + 226);
-  textC(kit.small, m.x + 210, m.y + 268, 'F2 : réglages du développeur', col('muted'));
-  labelButton('menu:back', m.x + 12, m.y + 296, 100, 26, 'Retour');
+  volume('vol:ambience', 'Volume de l’ambiance', settings.ambienceVolume, x, m.y + 262);
+  volume('vol:sfx', 'Volume des bruitages', settings.sfxVolume, x, m.y + 298);
+  textC(kit.small, m.x + 210, m.y + 338, 'F2 : réglages du développeur', col('muted'));
+  labelButton('menu:back', m.x + 12, m.y + 366, 100, 26, 'Retour');
 }
 function fresh(): void {
   const m = modal(420, 290, 'Nouveau hameau');
@@ -174,6 +183,11 @@ export function menuClick(id: string): boolean {
   if (id === 'new:bigger') { form.size = Math.min(MAX_SIZE, form.size + 2); return true; }
   if (id === 'new:campaign') { form.campaign = !form.campaign; return true; }
   if (id === 'new:create') { create(); return true; }
+  if (id.startsWith('vol:')) {
+    const step = id.endsWith(':up') ? .1 : -.1, v = Math.round(Math.max(0, Math.min(1, (id.startsWith('vol:ambience') ? settings.ambienceVolume : settings.sfxVolume) + step)) * 10) / 10;
+    if (id.startsWith('vol:ambience')) { settings.ambienceVolume = v; refreshVolume(); } else { settings.sfxVolume = v; sound('coin', .5); }
+    savePrefs(); return true;
+  }
   if (id === 'opt:sound') { toggleSound(); savePrefs(); return true; }
   if (id === 'opt:edge') { settings.edgePan = !settings.edgePan; savePrefs(); return true; }
   if (id === 'opt:hints') { settings.hints = !settings.hints; savePrefs(); return true; }

@@ -31,10 +31,12 @@ export interface Settings {
   minimapCorner: number;    // index in MINIMAP_CORNERS
   minimapSize: number;      // index in MINIMAP_SIZES
   minimapUnits: boolean;    // people and deer as dots
+  ambienceVolume: number;   // 0..1: the wind, forest and water loops and the birds, crickets and owls
+  sfxVolume: number;        // 0..1: every other sound (interface, building, work, signals)
 }
 
 export const settings: Settings = {
   simSpeed: 1, animFps: 24, wind: 1, shadows: true, atlas: true, hints: true, appeal: false, edges: true, walkSpeed: 1,
   treeMin: TREE_MIN, treeRegrow: TREE_REGROW, deerMin: DEER_MIN, deerRespawn: DEER_RESPAWN,
-  lod: 0, resample: 1, pauseOnMove: true, edgePan: true, minimapCorner: 3, minimapSize: 2, minimapUnits: true,
+  lod: 0, resample: 1, pauseOnMove: true, edgePan: true, minimapCorner: 3, minimapSize: 2, minimapUnits: true, ambienceVolume: 1, sfxVolume: 1,
 };
