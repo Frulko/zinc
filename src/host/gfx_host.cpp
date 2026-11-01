@@ -136,12 +136,16 @@ int32_t imageFromFile(const uint8_t* file, size_t n) {   // the bytes of a PNG, 
   if (!rgba) return -1;
   const int32_t id = zrt::raster::dyn_create(w, h);
   if (uint32_t* px = zrt::raster::dyn_pixels(id)) {
-    bool alpha = false;
+    // one pass over 32-bit words (a little-endian RGBA word to ARGB: swap the red and the blue byte); the alpha test is an AND of all the words,
+    // so the loop has no branch and the compiler vectorizes it (NEON on a Pi: 4M pixels of a 2048 x 2048 sheet cost a few milliseconds)
+    const uint32_t* src = reinterpret_cast<const uint32_t*>(rgba);   // malloc'd: aligned
+    uint32_t all = 0xFFFFFFFFu;
     for (size_t i = 0, k = static_cast<size_t>(w) * h; i < k; i++) {
-      const uint8_t* p = rgba + i * 4;
-      px[i] = static_cast<uint32_t>(p[3]) << 24 | static_cast<uint32_t>(p[0]) << 16 | static_cast<uint32_t>(p[1]) << 8 | p[2];
-      alpha |= p[3] != 255;
+      const uint32_t v = src[i];
+      all &= v;
+      px[i] = (v & 0xFF00FF00u) | (v & 0xFFu) << 16 | (v >> 16 & 0xFFu);
     }
+    const bool alpha = (all >> 24) != 255;
     zrt::raster::dyn_set_alpha(id, alpha);
     zrt::raster::dyn_update(id, nullptr, 0);
   }

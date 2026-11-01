@@ -27,6 +27,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 #### Faster
 
 - `zinc pack` (and `zinc device deploy`) turns the large PNG images of `assets/` into a fast-load format at the same path, so a Raspberry Pi 3 no longer shows a black screen for 20 seconds decoding sprite sheets. Your code and your files do not change; turn it off with `"assets": { "optimize": false }` or `zinc pack --no-optimize`.
+- On QuickJS, `readBytes()` of `zinc:fs` and `zinc:assets` hands over a file's bytes in one step instead of one call per byte, and `imageFromBytes()` converts the pixels in a single pass: loading a 2048 x 2048 sprite sheet is several times faster on a Raspberry Pi.
 - `load()` of `zinc:audio` returns at once for a long MP3, OGG or FLAC file: it is decoded in the background and plays as soon as the first seconds are ready, instead of freezing the start of the program (15 seconds for a 3-minute song on a Raspberry Pi 3).
 
 ## [0.10.13] - 2026-10-31

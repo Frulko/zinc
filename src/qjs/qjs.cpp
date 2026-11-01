@@ -134,8 +134,8 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
         for (int32_t i = 0; i < n; ++i) {
           JSValue e = JS_GetPropertyUint32(ctx, v, static_cast<uint32_t>(i));
           double d = 0;
-          JS_ToFloat64(ctx, &d, e);
-          JS_FreeValue(ctx, e);
+          if (JS_VALUE_GET_TAG(e) == JS_TAG_INT) d = JS_VALUE_GET_INT(e);   // the bytes of a file: small integers, no conversion call
+          else { JS_ToFloat64(ctx, &d, e); JS_FreeValue(ctx, e); }
           if (zn::rtParam(ri, k) == 'D') std::memcpy(&arrays[k][static_cast<size_t>(i)], &d, 8);
           else arrays[k][static_cast<size_t>(i)] = static_cast<std::uint64_t>(static_cast<std::int64_t>(d)) & 0xFF;
         }
@@ -157,8 +157,25 @@ JSValue hostFn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int m
   }
 }
 
+// __qjs_bytes(n): the file or asset loaded last (__host_fsLoad, __host_assetsLoad) as a JS array of its bytes. The modules read them with one host
+// call per byte (what a typed engine does); here the buffer is asked for once and the array is built in one go.
+JSValue loadedBytes(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+  HostArg a[1], r;
+  a[0].i = -1;
+  r.p = nullptr; r.n = 0;
+  if (!zn::host::hostSys) return JS_NewArray(ctx);
+  zn::host::hostSys(static_cast<int>(zn::Rt::HostFsByte), a, &r);
+  const auto* bytes = static_cast<const unsigned char*>(r.p);
+  int32_t want = 0;
+  if (argc > 0) JS_ToInt32(ctx, &want, argv[0]);
+  std::vector<JSValue> vals(bytes && want > 0 ? std::min<std::size_t>(r.n, static_cast<std::size_t>(want)) : 0);
+  for (std::size_t i = 0; i < vals.size(); ++i) vals[i] = JS_MKVAL(JS_TAG_INT, bytes[i]);
+  return JS_NewArrayFrom(ctx, static_cast<int>(vals.size()), vals.data());
+}
+
 void installHost(JSContext* ctx) {
   JSValue g = JS_GetGlobalObject(ctx);
+  JS_SetPropertyStr(ctx, g, "__qjs_bytes", JS_NewCFunction(ctx, loadedBytes, "__qjs_bytes", 0));
   for (unsigned i = static_cast<unsigned>(zn::Rt::HostGfxFrames); i < static_cast<unsigned>(zn::Rt::Count); ++i) {
     const bool loop = i >= static_cast<unsigned>(zn::Rt::HostLoopWait) && i <= static_cast<unsigned>(zn::Rt::HostLoopNow);   // the loader stage waits for its first jobs (ZN-447)
     if (i >= static_cast<unsigned>(zn::Rt::HostHostLast) && !loop && !zn::isLayoutRow(static_cast<zn::Rt>(i)) && !zn::isGfxTailRow(static_cast<zn::Rt>(i)) && !zn::isSysTailRow(static_cast<zn::Rt>(i))) continue;   // the rows past the host block that are host calls too: the layout engine (ZN-284.01), the zinc:gfx rows appended since (commands, resize, transform, sprites)
@@ -287,7 +304,11 @@ bool moduleText(Engine& e, const std::string& name, std::string& js, std::string
     if (name == "zinc:gfx") src = gfxSource();
     else if (name == "zinc:platform") src = zn::frontend::platformModule(e.stdRoot + "/../../targets/capabilities.json");
     else if (name == "zinc:icons/lucide") src = zn::frontend::lucideModule(e.entry, e.stdRoot + "/../../third_party/lucide/icon-nodes.json");
-    else if (const char* b = zn::frontend::builtinModuleSource(name)) src = b;
+    else if (const char* b = zn::frontend::builtinModuleSource(name)) {
+      src = b;
+      static const std::string loop = "for (let i: i32 = 0; i < n; i++) r.push(__host_fsByte(i) as u8);";   // readBytes of zinc:fs and zinc:assets
+      for (std::size_t at = src.find(loop); at != std::string::npos; at = src.find(loop, at)) src.replace(at, loop.size(), "return __qjs_bytes(n);");
+    }
     else if (std::string g = zn::frontend::generatedModuleSource(name); !g.empty()) src = std::move(g);
     else {
       std::string_view f = zn::frontend::stdModuleFile(name);

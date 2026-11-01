@@ -1056,7 +1056,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     case Rt::HostFsMkdir: if (denyByPermission("fs:write", s(0)) || denyByScope("mkdir", s(0))) { r->i = 0; break; } r->i = a[1].i ? mkdirs(s(0)) : mkdir(s(0).c_str(), 0777) == 0; break;
     case Rt::HostFsLoad: { if (readAll(s(0), gBytes, "cannot open")) r->i = static_cast<std::int64_t>(gBytes.size()); else r->i = 0; break; }
-    case Rt::HostFsByte: r->i = n(0) >= 0 && static_cast<size_t>(n(0)) < gBytes.size() ? gBytes[static_cast<size_t>(n(0))] : 0; break;
+    case Rt::HostFsByte:
+      if (n(0) == -1) { r->p = gBytes.data(); r->n = static_cast<std::uint32_t>(gBytes.size()); break; }   // -1: the whole buffer at once (QuickJS builds its array from it, src/qjs/qjs.cpp)
+      r->i = n(0) >= 0 && static_cast<size_t>(n(0)) < gBytes.size() ? gBytes[static_cast<size_t>(n(0))] : 0; break;
     case Rt::HostFsWriteBytes:
     case Rt::HostFsAppendBytes: {
       std::string data;
