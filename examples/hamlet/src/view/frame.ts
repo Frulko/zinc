@@ -1,18 +1,29 @@
 import {
   W, H, S, pix, zb, groundZ, kinds, bakedPix, bakedZ, shadowMask, pendingShadows, staticShadow, GRASS,
-  copyInto, flushShadows, applyShadows, shadeEdgesRect, setTrackShadows, shadowSpans, rgbColor, rgb, clamp, hash, project, drawDots, haloDots, waterPoint, KIND_GRASS,
+  copyInto, flushShadows, applyShadows, shadeEdgesRect, setTrackShadows, shadowSpans, rgbColor, rgb, clamp, hash, project, drawDots, haloDots, drawArrow, waterPoint, KIND_GRASS,
 } from '../pixel';
 import { TILE, HOUSE, ROLE_FISHER } from '../constants';
 import { world, tileX, tileY } from '../world/world';
 import { tufts, bakeCount } from './scenery';
 import { settings } from '../settings';
 import { models, MODEL_HOUSE } from './models';
+import { camera, ZOOM_VIEW } from './camera';
+import { computeHints, Hint } from '../rules/hints';
 import { drawPerson, drawDeer, drawSmoke, actorAtlas } from './actors';
 
 const GRASS_LIT = GRASS.map((c: number[]): u32 => rgbColor(c));
 const GRASS_DARK = GRASS.map((c: number[]): u32 => rgb(c[0] * .54, c[1] * .52, c[2] * .72));
 const FOAM = rgb(143, 177, 146), PEBBLE = rgb(77, 139, 122);
 const OK = rgb(255, 214, 10), BAD = rgb(214, 84, 70);
+// Attention hints: a bobbing arrow over the tile, red for the severe, yellow, then teal. At most six, none in the far zoom-out levels (they would be specks).
+const ARROW_COLORS: u32[] = [rgb(120, 190, 200), rgb(120, 190, 200), rgb(255, 214, 10), rgb(214, 84, 70)];
+const ARROWS_MAX = 6, ARROWS_MAX_VIEW = 1.5;
+const ROOF: number[] = [2.9, 2.4, 2.8, 2.0];     // height of each building type's model (arrow tip sits above); other types use ROOF_DEFAULT
+const ROOF_DEFAULT = 2.7, GATE_TOP = 2.6;
+function arrowTop(tile: number): { x: number; y: number; z: number } {
+  const id = world.build[tile];
+  return { x: tileX(tile), y: tileY(tile), z: (tile === world.gate && id < 0 ? GATE_TOP : id < 0 ? 1 : world.buildings[id].type < ROOF.length ? ROOF[world.buildings[id].type] : ROOF_DEFAULT) + .3 };
+}
 const CHIMNEY: number[][] = [[.47, -.28, 2.6], [.43, -.3, 2.5], [.43, -.3, 2.45], [.46, -.2, 1.9], [.5, -.3, 2.2]];   // house, sawmill, lodge smoke origins (x, y, z)
 
 /** Pixels the wind redrew this frame, as one-pixel runs (row, column, column): put back from the static picture at the next frame. */
@@ -110,6 +121,14 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   if (hover >= 0) { const a = project(tileX(hover), tileY(hover), 0); addRect(dirty, a.sx, a.sy, 2 * TILE * S, 5 * S, 2 * TILE * S, 1.2 * TILE * S); }
   const pond = project(world.pondX + .2, world.pondY, 0);
   addRect(dirty, pond.sx, pond.sy, world.pondR * S * 1.5, world.pondR * S * .8, world.pondR * S * 1.5, world.pondR * S * .8);
+  const hints: Hint[] = settings.hints && ZOOM_VIEW[camera.level] <= ARROWS_MAX_VIEW ? computeHints().slice(0, ARROWS_MAX) : [];
+  const arrowAt: number[] = [];                                   // sx, sy, colour of each arrow
+  for (const h of hints) {
+    const top = arrowTop(h.tile), a = project(top.x, top.y, top.z);
+    if (a.sx < -8 || a.sx > W + 8 || a.sy < -4 || a.sy > H + 20) continue;
+    arrowAt.push(a.sx, a.sy, h.severity);
+    addRect(dirty, a.sx, a.sy, 9, 18, 9, 4);
+  }
   const rects = merge(prevRects.concat(dirty));
   const rows: number[] = [];
   restore(prevLoose);
@@ -132,6 +151,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
     drawSmoke(tileX(b.j * world.size + b.i) + s[0], tileY(b.j * world.size + b.i) + s[1], s[2], time, b.i * 7 + b.j);
   }
   if (hover >= 0) outline(hover, ok ? OK : BAD);
+  for (let k = 0; k < arrowAt.length; k += 3) drawArrow(arrowAt[k], arrowAt[k + 1], time, ARROW_COLORS[clamp(arrowAt[k + 2], 0, 3)]);
   // what to send: the pixels restored from last frame's runs, plus every run and rectangle of this one
   const spans = rows.concat(prevLoose).concat(loose).concat(shadowSpans);
   prevLoose = loose.concat(shadowSpans); prevRects = dirty;

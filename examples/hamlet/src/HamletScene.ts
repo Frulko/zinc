@@ -175,6 +175,7 @@ export class HamletScene extends Sprite {
     else if (name >= '1' && name <= '9' && Number(name) <= this.tools.length) this.tool = this.tools[Number(name) - 1];
     else if (name === 'p' || name === 'P') { this.paused = !this.paused; this.dragging = false; pauseSound(this.paused); }
     else if (name === 'm' || name === 'M') toggleSound();
+    else if (name === 'h' || name === 'H') settings.hints = !settings.hints;
     else if (name === 'n' || name === 'N') this.newVillage();
     else if (name === 'g' || name === 'G') { this.editing = true; this.seedText = ''; startTextInput(width() / 2 - 200, height() / 2, 400, 40); }
     else if (name === 'Tab') this.panel.open = !this.panel.open;
