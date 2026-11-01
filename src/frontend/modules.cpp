@@ -2443,6 +2443,12 @@ function __arrayFromLength<T>(n: number, f: (v: i32, i: i32) => T): T[] {
   for (let i: i32 = 0; i < n; i++) r.push(f(0, i));
   return r;
 }
+// Array.from({ length: n }, () => literal): the callback is called once and its value fills the array (the checker picks this one only for a literal)
+function __arrayFilled<T>(n: number, f: (v: i32, i: i32) => T): T[] {
+  const r: T[] = [];
+  if (n > 0) { const v = f(0, 0); r.length = n; r.fill(v); }
+  return r;
+}
 )ZN";
 const char* kRandomPrelude = R"ZN(
 let __rng: u32 = 0x2545F491;

@@ -2118,7 +2118,15 @@ struct Checker {
       // Array.from(iterable[, f]) is [...iterable][.map(f)]; Array.from({ length: n }, f) fills n elements with f(0, i)
       std::uint32_t src = x.kids[1];
       if (n(src).kind == N::ObjectLit && n(src).kids.size() == 1 && n(n(src).kids[0]).text == "length" && x.kids.size() == 3) {
-        if (replaceWith(i, "__arrayFromLength(__H0, __H1)", {{n(n(src).kids[0]).kids[0]}, {x.kids[2]}})) return expr0(i, myExpected);
+        // a callback with no parameter that returns a literal (`(): u32 => 0`) gives every element the same value: filled in one block, called once
+        auto literalCallback = [&](std::uint32_t f) {
+          if (n(f).kind != N::FuncExpr || n(f).kids.size() != 2 || n(n(f).kids[1]).kind != N::Block || n(n(f).kids[1]).kids.size() != 1) return false;
+          const Node& ret = n(n(n(f).kids[1]).kids[0]);
+          if (ret.kind != N::Return || ret.kids.empty() || ret.kids[0] == kNone) return false;
+          const Node& v = n(ret.kids[0]);
+          return v.kind == N::Number || (v.kind == N::Literal && v.text != "null") || (v.kind == N::Unary && v.text == "-" && n(v.kids[0]).kind == N::Number);
+        };
+        if (replaceWith(i, literalCallback(x.kids[2]) ? "__arrayFilled(__H0, __H1)" : "__arrayFromLength(__H0, __H1)", {{n(n(src).kids[0]).kids[0]}, {x.kids[2]}})) return expr0(i, myExpected);
       } else if (x.kids.size() == 2 ? replaceWith(i, "[...__H0]", {{src}}) : replaceWith(i, "[...__H0].map(__H1)", {{src}, {x.kids[2]}})) return expr0(i, myExpected);
     }
     if (!isNew && x.kids.size() == 2 && n(x.kids[0]).kind == N::Member && n(x.kids[0]).text == "table" && n(n(x.kids[0]).kids[0]).kind == N::Ident && n(n(x.kids[0]).kids[0]).text == "console") {
