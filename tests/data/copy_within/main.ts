@@ -1,0 +1,12 @@
+const a: i32[] = [1, 2, 3, 4, 5, 6, 7, 8];
+a.copyWithin(0, 3);
+console.log(a.join(','));
+const b: i32[] = [1, 2, 3, 4, 5, 6, 7, 8];
+b.copyWithin(2, 0, 4);
+console.log(b.join(','));
+const c: i32[] = [1, 2, 3, 4, 5];
+c.copyWithin(-2, -4, -3);
+console.log(c.join(','));
+const d: string[] = ['a', 'b', 'c', 'd'];
+d.copyWithin(1, 2);
+console.log(d.join(','));

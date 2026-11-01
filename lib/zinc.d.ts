@@ -177,6 +177,7 @@ interface Array<T> {
   forEach(f: (v: T, i: i32) => void): void;
   sort(cmp: (a: T, b: T) => number): T[];
   reverse(): T[];
+  copyWithin(target: i32, start: i32, end?: i32): T[];
   join(sep?: string): string;
   concat(other: T[]): T[];
   fill(v: T, start?: i32, end?: i32): T[];

@@ -531,6 +531,13 @@ template<class T> struct Array {
     return *this;
   }
   Array reverse() const { int32_t n = length(); for (int32_t i = 0; i < n / 2; i++) { T t = a->data[i]; a->data[i] = a->data[n - 1 - i]; a->data[n - 1 - i] = t; } return *this; }
+  Array copyWithin(int32_t t, int32_t s, int32_t e) const {
+    int32_t n = length(); t = clampi(t, n); s = clampi(s, n); e = clampi(e, n);
+    int32_t c = e - s < n - t ? e - s : n - t;
+    if (c > 0 && t != s) { T* d = a->data; if (t < s) for (int32_t i = 0; i < c; i++) d[t + i] = d[s + i]; else for (int32_t i = c - 1; i >= 0; i--) d[t + i] = d[s + i]; }
+    return *this;
+  }
+  Array copyWithin(int32_t t, int32_t s) const { return copyWithin(t, s, length()); }
   Array concat(const Array& o) const { Array r = slice(); for (int32_t i = 0; i < o.length(); i++) r.push_raw(o.a->data[i]); return r; }
   Array fill(const T& v) const { for (int32_t i = 0; i < length(); i++) a->data[i] = v; return *this; }
   Array fill(const T& v, int32_t s) const { return fill(v, s, length()); }

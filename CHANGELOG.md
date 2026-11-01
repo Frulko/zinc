@@ -149,6 +149,10 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **New** Each app keeps its `zinc:storage` keys and its files in a folder of its own, `~/.zinc/apps/<name>/` (`dataDir()` of `zinc:sys`); keys an app had in the shared `~/.zinc/storage.kv` move there the first time it runs, and erasing that folder resets the app and nothing else. Programs on QuickJS, JavaScriptCore, V8 and Hermes (so every such program under `zinc dev`) keep their `zinc:storage` and AsyncStorage keys in `<zinc home>/apps/<zinc.json name>/storage.kv` too.
 - **New** Android: on a rooted device `setBacklight(false)` turns the backlight fully off instead of leaving the dimmest glow, and a touch still wakes it. The app asks for root the first time; without root it dims as before.
 - **New** Experimental Intel Mac runtime for macOS 10.12: run packed `zinc:gfx` programs in a software-rendered Cocoa window with game keys and mouse input. It builds separately (`targets/macos-legacy`); real Sierra compatibility is not verified yet.
+#### New
+
+- Arrays have the standard `copyWithin(target, start, end?)`: a block moved inside an array in one native call, the same on every engine.
+
 - **Fixed** macOS app bundles (development and exported) declare the engine's real deployment target instead of requiring macOS 11, and keep the macOS 11-only UniformTypeIdentifiers framework optional, so builds for Catalina no longer abort at start. Loading a prebuilt plugin no longer writes a cache into its folder, so a signed bundle stays valid after launch.
 - **Fixed** museum-table runs when sent to another machine: it imported the devtools plugin by a path outside the project, and now uses `zinc:devtools/cdp`.
 

@@ -1726,6 +1726,20 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       return nullptr;
     }
     case Rt::ArrReverse: { ArrObj* o = A(a[0]); NN(o); std::reverse(o->v.begin(), o->v.end()); m.retain(o); return nullptr; }
+    case Rt::ArrCopyWithin: {
+      ArrObj* o = A(a[0]);
+      NN(o);
+      std::int64_t n = static_cast<std::int64_t>(o->v.size()), to = clampRel(I(a[1]), n), from = clampRel(I(a[2]), n), end = clampRel(I(a[3]), n);
+      std::int64_t cnt = std::min(end - from, n - to);
+      if (cnt > 0) {
+        if (o->cls->elemRef) {
+          std::vector<Slot> src(o->v.begin() + from, o->v.begin() + from + cnt);
+          for (std::int64_t k = 0; k < cnt; ++k) { m.retain(reinterpret_cast<Obj*>(src[k])); m.release(reinterpret_cast<Obj*>(o->v[to + k])); o->v[to + k] = src[k]; }
+        } else std::memmove(&o->v[to], &o->v[from], static_cast<std::size_t>(cnt) * sizeof(Slot));
+      }
+      m.retain(o);
+      return nullptr;
+    }
     case Rt::ArrIndexOf: case Rt::ArrIncludes: {
       ArrObj* o = A(a[0]);
       NN(o);

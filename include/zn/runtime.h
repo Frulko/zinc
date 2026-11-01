@@ -405,7 +405,9 @@
   X(HostHttpFetchFile, "host.httpFetchFile", "ssssssii>i", 2) \
   /* zinc:gfx updatePixels: new pixels for an image from one u32 a pixel (red in the low byte, then green, blue, alpha: the bytes of an RGBA picture), rows top first, alpha forced to 255 when `opaque`; */ \
   /* the packed form of gfxUpdateImage (a quarter of the array, no per-byte loop); graphics row, appended */ \
-  X(HostGfxUpdatePixels, "host.gfxUpdatePixels", "iUb>n", 2)
+  X(HostGfxUpdatePixels, "host.gfxUpdatePixels", "iUb>n", 2) \
+  /* Array.copyWithin(target, start, end?): the standard method, a block moved inside the array; appended */ \
+  X(ArrCopyWithin, "Array.copyWithin", "aiij>a", 0)
 
 namespace zn {
 
@@ -449,7 +451,7 @@ inline constexpr bool isSysTailRow(Rt r) {
          r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync || r == Rt::HostFsAppendBytes;
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
-inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::RecDecode || r == Rt::RecEncode; }
+inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::ArrCopyWithin || r == Rt::RecDecode || r == Rt::RecEncode; }
 // zinc:worker's rows: declared as host functions (__host_worker*), served by the runtime's worker table (src/rt/worker.cpp).
 inline constexpr bool isWorkerRow(Rt r) { return r >= Rt::HostWorkerStart && r <= Rt::HostWorkerRead; }
 inline constexpr bool isHostRow(Rt r) { return ((r >= Rt::HostGfxFrames && r <= Rt::HostHostLast) || r >= Rt::HostLoopWait) && !isCoreTailRow(r); }
