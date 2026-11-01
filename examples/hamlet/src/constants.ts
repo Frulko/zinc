@@ -119,5 +119,5 @@ export const DEER_GONE = 4;             // free slot
 
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';
-export const SAVE_VERSION = 'H12';
+export const SAVE_VERSION = 'H13';
 export const SAVE_DELAY = 2;            // seconds between two writes

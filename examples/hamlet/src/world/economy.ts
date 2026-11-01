@@ -23,7 +23,7 @@ export class BuildingDef {
   housing: Housing | null = null; service: ServiceDef | null = null; lode: number = -1; appeal: number[] = [];   // appeal: the rings it adds around itself
 }
 export class Economy {
-  deposits: Deposit[] = []; goals: Goal[] = [];
+  deposits: Deposit[] = []; goals: Goal[] = []; trade: Trade = new Trade();
   appeal: AppealSource[] = []; appealMax: number = 8;
   resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
   typeOf(id: string): number { for (let k = 0; k < this.buildings.length; k++) if (this.buildings[k].id === id) return k; return -1; }
@@ -44,6 +44,10 @@ export class Condition { kind: string = ''; id: number = -1; count: number = 0; 
 export class Goal {
   id: string = ''; title: string = ''; text: string = ''; requires: number[] = []; when: Condition[] = []; unlock: number[] = []; give: number[] = []; final: boolean = false;
 }
+/** One line of the peddler's table: he sells (`sell`: the village buys) or buys (`buy`: the village sells) `qty` of a resource. */
+export class TradeEntry { side: string = ''; resource: number = -1; qty: number = 0; }
+/** The peddler: every `everyDays` days he stays `stayDays` at the gate with `offers` lines drawn from the table. */
+export class Trade { everyDays: number = 0; stayDays: number = 2; offers: number = 3; table: TradeEntry[] = []; coin: number = -1; }
 export const GATHER_KINDS: string[] = ['', 'tree', 'deer', 'shore'];
 
 function num(obj: any, key: string, fallback: number, where: string, errors: string[]): number {
@@ -85,7 +89,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     if (sv.id === '' || into.serviceOf(sv.id) >= 0) errors.push('bad-id: service "' + sv.id + '" is empty or declared twice');
     into.services.push(sv);
   }
-  into.appeal = []; into.appealMax = 8; into.deposits = []; into.goals = [];
+  into.appeal = []; into.appealMax = 8; into.deposits = []; into.goals = []; into.trade = new Trade();
   if (data.desirability !== undefined) {
     into.appealMax = num(data.desirability, 'limit', 8, 'desirability', errors);
     for (const s of (data.desirability.terrain === undefined ? [] : data.desirability.terrain) as any[]) {
@@ -180,6 +184,22 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     goal.give = amounts(g.give, ids, where + '.give', errors);
     into.goals.push(goal);
   }
+  into.trade = new Trade();
+  if (data.trade !== undefined) {
+    const t = into.trade;
+    t.everyDays = num(data.trade, 'everyDays', 5, 'trade', errors); t.stayDays = num(data.trade, 'stayDays', 2, 'trade', errors); t.offers = num(data.trade, 'offers', 3, 'trade', errors);
+    t.coin = ids.indexOf(String(data.trade.coin === undefined ? 'coin' : data.trade.coin));
+    if (t.coin < 0) errors.push('unknown-resource: trade.coin is not a resource');
+    for (const row of (data.trade.table === undefined ? [] : data.trade.table) as any[]) {
+      const x = new TradeEntry();
+      x.side = String(row.side); x.resource = ids.indexOf(String(row.resource)); x.qty = num(row, 'qty', 1, 'trade.table', errors);
+      if (x.side !== 'sell' && x.side !== 'buy') errors.push('bad-trade: a table line has the side "' + x.side + '" (sell or buy)');
+      if (x.resource < 0) errors.push('unknown-resource: trade.table uses "' + String(row.resource) + '"');
+      else if (x.resource === t.coin) errors.push('bad-trade: the coin itself cannot be traded');
+      t.table.push(x);
+    }
+    if (t.everyDays > 0 && t.table.length < t.offers) errors.push('bad-trade: the table has fewer lines than offers per visit');
+  }
   if (data.hall !== undefined) { into.hall = names.indexOf(String(data.hall)); if (into.hall < 0 || !into.buildings[into.hall].store) errors.push('bad-hall: "hall" must name a building with "store": true'); }
   // a resource somebody needs must come, directly or through other buildings, from a building that takes nothing in (a raw source)
   const made = ids.map((_id: string): boolean => false);
@@ -203,7 +223,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
 export function loadEconomy(text: string, models: string[], roles: string[]): void {
   const next = new Economy(), errors = parseEconomy(text, models, roles, next);
   if (errors.length > 0) throw new Error('economy.json: ' + errors.join('; '));
-  economy.resources = next.resources; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
+  economy.resources = next.resources; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
 }
 
 /** One line per resource: who makes it and who uses it. The report of a chain, for the maker of the data. */

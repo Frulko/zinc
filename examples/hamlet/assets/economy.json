@@ -14,7 +14,8 @@
     { "id": "stone", "label": "Pierre", "carry": "stone", "price": 3 },
     { "id": "clay", "label": "Argile", "carry": "stone", "price": 2 },
     { "id": "iron_ore", "label": "Minerai", "carry": "stone", "price": 4 },
-    { "id": "berries", "label": "Baies", "carry": "sack", "price": 2 }
+    { "id": "berries", "label": "Baies", "carry": "sack", "price": 2 },
+    { "id": "coin", "label": "Pièces", "carry": "sack", "price": 1 }
   ],
   "desirability": { "limit": 8, "terrain": [ { "kind": "tree", "rings": [1] }, { "kind": "water", "rings": [2, 1] } ] },
   "goals": [
@@ -39,8 +40,13 @@
     { "id": "prosperity", "title": "Un village prospère", "text": "Quatorze habitants et une demeure de niveau 3 : le village est fondé.", "requires": ["growth"],
       "when": [ { "population": 14 }, { "houses": 1, "level": 2 } ], "final": true }
   ],
+  "trade": { "coin": "coin", "everyDays": 5, "stayDays": 2, "offers": 3, "table": [
+    { "side": "sell", "resource": "bread", "qty": 4 }, { "side": "sell", "resource": "smoked_meat", "qty": 4 }, { "side": "sell", "resource": "stone", "qty": 4 },
+    { "side": "sell", "resource": "leather", "qty": 2 }, { "side": "sell", "resource": "plank", "qty": 8 },
+    { "side": "buy", "resource": "plank", "qty": 6 }, { "side": "buy", "resource": "log", "qty": 10 }, { "side": "buy", "resource": "hide", "qty": 4 },
+    { "side": "buy", "resource": "smoked_meat", "qty": 4 }, { "side": "buy", "resource": "bread", "qty": 4 }, { "side": "buy", "resource": "leather", "qty": 2 } ] },
   "services": [ { "id": "water", "label": "Eau" }, { "id": "market", "label": "Marché" } ],
-  "start": { "log": 20, "plank": 10, "leather": 1, "stone": 2 },
+  "start": { "log": 20, "plank": 10, "leather": 1, "stone": 2, "coin": 12 },
   "deposits": [
     { "resource": "stone", "model": "stone", "placement": "rock", "density": 1.6, "amount": 12, "required": true },
     { "resource": "clay", "model": "clay", "placement": "water", "density": 1.2, "amount": 12, "active": false },

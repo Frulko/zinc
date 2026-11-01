@@ -1,5 +1,6 @@
 import { world, Command } from '../world/world';
 import { applyGoal } from './goals';
+import { applyTrade } from './trade';
 
 // A command is a change of the village that comes from a decision (a goal's reward, a trade, an adventure) rather than from the clock: it is applied through
 // `issue`, which records it with its tick. Replaying the log on a village from the same seed (`replay`) rebuilds the same state, which is what lets a server
@@ -8,6 +9,7 @@ import { applyGoal } from './goals';
 /** Runs a command now and records it. False (and nothing recorded) when it was refused. */
 export function execute(c: Command): boolean {
   if (c.kind === 'goal') return applyGoal(c.a);
+  if (c.kind === 'trade') return applyTrade(c.a);
   return false;
 }
 export function issue(kind: string, a: number, b: number = 0): boolean {

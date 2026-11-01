@@ -12,6 +12,7 @@ export function stateHash(): number {
   let people = 0;
   for (const p of world.people) { const home = world.buildings[p.home]; people = (people + Math.imul((home.j * world.size + home.i) | 0, 2654435761 | 0) + 1) | 0; }
   for (const g of world.goals) mix(g);
+  mix(world.peddlerLeft); for (const o of world.offers) { mix(o.resource); mix(o.qty); mix(o.coins); mix(o.taken ? 1 : 0); }
   mix(world.people.length); mix(people);
   return h >>> 0;
 }

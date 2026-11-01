@@ -1,5 +1,5 @@
 import {
-  HOUSE, ST_TO_SHORE, ST_FISH, FISH_CATCH_CHANCE, ROLE_SETTLER, ROLE_RESIDENT,
+  HOUSE, ST_TO_SHORE, ST_FISH, FISH_CATCH_CHANCE, ROLE_SETTLER, ROLE_RESIDENT, ROLE_PEDDLER,
   ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_WORK, ST_FETCH, ST_BRING,
   ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, WORK_RADIUS, SETTLER_INTERVAL,
   DEER_DEAD, DEER_FLEE, DEER_GONE, WALK_SPEED,
@@ -413,6 +413,7 @@ function updateWorker(p: Person, dt: number): void {
 }
 
 function updatePerson(p: Person, dt: number): void {
+  if (p.role === ROLE_PEDDLER) return;                       // stands at the gate while his offers last (engine/trade.ts)
   if (p.role === ROLE_SETTLER) {
     if (walk(p, dt, WALK_SPEED * settings.walkSpeed)) { p.role = ROLE_RESIDENT; p.state = ST_IDLE; p.timer = 1 + random() * 3; }
   } else if (p.role === ROLE_RESIDENT) {

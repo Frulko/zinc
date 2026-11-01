@@ -22,6 +22,8 @@ export class Person extends Mover {
   role: number = 0; home: number = -1; job: number = -1; state: number = 0; timer: number = 0; target: number = -1; carry: number = 0; hair: number = 0;
   shotX: number = 0; shotY: number = 0;
 }
+/** One line of the peddler's offer: he `sell`s qty of a resource to the village for `coins`, or `buy`s it from the village. */
+export class Offer { resource: number = 0; qty: number = 0; side: string = ''; coins: number = 0; taken: boolean = false; }
 /** A decision applied to the village and logged with its tick (rules/commands.ts). */
 export class Command { tick: number = 0; kind: string = ''; a: number = 0; b: number = 0; }
 export class Deer extends Mover { state: number = 0; timer: number = 0; hunted: boolean = false; stag: boolean = false; }
@@ -41,6 +43,7 @@ export interface World {
   appeal: number[];                 // desirability per tile, recomputed daily (rules/appeal.ts)
   goals: number[];                  // per goal: 1 when done (rules/goals.ts); unlocked: per building type 1 when it may be built
   unlocked: number[]; progression: boolean; news: string[]; log: Command[];   // progression off: nothing is locked (tests); news: lines for the UI to show and clear; log: the commands issued
+  offers: Offer[]; peddlerLeft: number;   // the peddler at the gate: his offers, and the days he still stays (0: not here)
   lode: number[];                   // what is left of the deposit on a tile (world.rock >= ROCK_DEPOSIT)
   params: TerrainParams;            // what the terrain generator was asked for (saved with the village)
   priority: number[];               // building types in the order idle residents are given work (rules/labour.ts)
@@ -51,7 +54,7 @@ export function resetGoals(): void {
   world.goals = economy.goals.map((_g: Goal): number => 0);
   world.unlocked = economy.buildings.map((_d: BuildingDef): number => 1);
   for (const g of economy.goals) for (const k of g.unlock) world.unlocked[k] = 0;
-  world.news = []; world.log = [];
+  world.news = []; world.log = []; world.offers = []; world.peddlerLeft = 0;
 }
 /** A new building of a type on a tile, empty. The rules add buildings the same way (rules/build.ts). */
 export function newBuilding(type: number, t: number): number {
@@ -73,7 +76,7 @@ export const world: World = {
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, appeal: [], goals: [], unlocked: [], progression: true, news: [], log: [], lode: zeros(), params: new TerrainParams(), priority: [],
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, appeal: [], goals: [], unlocked: [], progression: true, news: [], log: [], offers: [], peddlerLeft: 0, lode: zeros(), params: new TerrainParams(), priority: [],
 };
 
 // ---- tiles ----

@@ -7,7 +7,7 @@ import { population, createResident } from '../../../examples/hamlet/src/engine/
 import { seedFromText, parseSeedRequest } from '../../../examples/hamlet/src/world/seed';
 import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
 import { stateHash } from '../../../examples/hamlet/src/world/hash';
-import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK, PLACE_NO_LODE, PLACE_LOCKED, ROCK_DEPOSIT, LODE_REACH } from '../../../examples/hamlet/src/constants';
+import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK, PLACE_NO_LODE, PLACE_LOCKED, ROLE_PEDDLER, ROCK_DEPOSIT, LODE_REACH } from '../../../examples/hamlet/src/constants';
 import * as fs from 'zinc:fs';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
@@ -19,7 +19,8 @@ import { toolOf } from '../../../examples/hamlet/src/rules/build';
 import { housingReport, capacityOf } from '../../../examples/hamlet/src/rules/housing';
 import { computeAppeal, appealTiles } from '../../../examples/hamlet/src/rules/appeal';
 import { terrain, TerrainParams, TerrainLayers } from '../../../examples/hamlet/src/gen/terrain';
-import { replayAt } from '../../../examples/hamlet/src/rules/commands';
+import { issue, replayAt } from '../../../examples/hamlet/src/rules/commands';
+import { offerLines, canTrade } from '../../../examples/hamlet/src/rules/trade';
 import { lockText, scenarioWon } from '../../../examples/hamlet/src/rules/goals';
 import { movePriority } from '../../../examples/hamlet/src/rules/labour';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
@@ -345,6 +346,45 @@ check('a fresh village is locked again', world.goals.every((v) => v === 0) && lo
 const next = replayAt(logged, 0, 1e9);
 check('replaying the log rebuilds the same progress without checking the conditions', next === 2 && world.goals[goalIx('wood')] === 1 && world.goals[goalIx('planks')] === 1 && lockText(LODGE_T) === '' && world.stock[PLANK] === economy.start[PLANK] + 6);
 check('the scenario is won when its final goal is done', !scenarioWon() && (() => { world.goals = world.goals.map((_v) => 1); return scenarioWon(); })());
+world.progression = false;
+// ---- trade: a peddler at the gate every five days with seeded offers; buying and selling are commands ----
+const COIN = economy.resourceOf('coin');
+const peddlers = (): number => world.people.filter((p) => p.role === ROLE_PEDDLER).length;
+const twentyDays = (): string[] => {
+  generate(1234, 16); world.progression = true;
+  const seen: string[] = [];
+  for (let day = 1; day <= 20; day++) {
+    run(20);
+    if (world.peddlerLeft === 2) seen.push(offerLines().join(' / '));
+    if (day === 6) seen.push('day6 peddlers ' + peddlers() + ' offers ' + world.offers.length);
+    if (day === 8) seen.push('day8 peddlers ' + peddlers() + ' offers ' + world.offers.length);
+  }
+  return seen;
+};
+const visits = twentyDays();
+console.log('hamlet trade: ' + visits.join(' || '));
+check('over 20 days the peddler comes on days 5, 10, 15 and 20 with three offers each', visits.filter((v) => v.indexOf('Le colporteur') === 0).length === 4 && visits.filter((v) => v.indexOf('Le colporteur') === 0).every((v) => v.split(' / ').length === 3));
+check('he stands at the gate while he stays and is gone after', visits.indexOf('day6 peddlers 1 offers 3') >= 0 && visits.indexOf('day8 peddlers 0 offers 0') >= 0);
+check('the offers are seeded: the same village draws the same visits', twentyDays().join('|') === visits.join('|'));
+generate(1234, 16); world.progression = true;
+run(100);
+const offered = world.offers.map((o) => o.side + o.resource), stockBefore = world.stock.slice();
+let sold = -1;
+for (let k = 0; k < world.offers.length; k++) if (sold < 0 && world.offers[k].side === 'buy' && canTrade(k)) sold = k;
+let bought = -1;
+for (let k = 0; k < world.offers.length; k++) if (bought < 0 && world.offers[k].side === 'sell' && canTrade(k)) bought = k;
+const logCount = world.log.length;
+const line = sold >= 0 ? world.offers[sold] : world.offers[bought];
+check('a trade is a command: it moves goods and coins, is logged, and cannot be taken twice', issue('trade', sold >= 0 ? sold : bought) && world.log.length === logCount + 1 && world.log[logCount].kind === 'trade' && line.taken
+  && (line.side === 'buy' ? world.stock[COIN] === stockBefore[COIN] + line.coins && world.stock[line.resource] === stockBefore[line.resource] - line.qty : world.stock[COIN] === stockBefore[COIN] - line.coins && world.stock[line.resource] === stockBefore[line.resource] + line.qty)
+  && !issue('trade', sold >= 0 ? sold : bought));
+setStock(COIN, 0);
+let poor = -1;
+for (let k = 0; k < world.offers.length; k++) if (world.offers[k].side === 'sell' && !world.offers[k].taken) poor = k;
+check('without the coins the village cannot buy', poor < 0 || (!canTrade(poor) && !issue('trade', poor)));
+const tradeSave = snapshot();
+check('the peddler and his offers survive a save round trip', restore(tradeSave) && snapshot() === tradeSave && peddlers() === 1 && world.offers.length === offered.length);
+check('the offer lines are plain words', offerLines().length === 3 && offerLines()[0].indexOf('Pièces') > 0);
 world.progression = false;
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
