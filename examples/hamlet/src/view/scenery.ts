@@ -5,10 +5,9 @@ import {
 import { TILE, TERRAIN_VOID, TERRAIN_WATER } from '../constants';
 import { WATER_TONES, SAND_TONES, ROAD_COLOR } from '../palettes';
 import { DECO_TRAIL, DECO_REEDS } from '../gen/terrain';
-import { season } from '../rules/season';
-import { ensureBiomes, biomes, blend, groundTone, snowShare, flowerShare, reedColor, iceShare } from './seasons';
+import { ensureBiomes, monthStep, biomes, blend, groundTone, snowShare, flowerShare, reedColor, iceShare } from './seasons';
 import { world, waterField, tileX, tileY, tileAt, tileCount, neighbor } from '../world/world';
-import { models, modelOf, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, useTreeSeason, resetModels, TREE_HEIGHT } from './models';
+import { models, modelOf, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, useTreeSeason, treeModel, warmTrees, resetModels, TREE_HEIGHT } from './models';
 import { settings } from '../settings';
 import { camera, ZOOM_SCALES, DEFAULT_ZOOM, artLevel, windowWidth, windowHeight, scaleOf, layerWidth, layerHeight, layerOriginX, layerOriginY, applyCamera, centerOn, centerPoint, panBy } from './camera';
 
@@ -23,15 +22,28 @@ const WHITE = rgb(44, 41, 35);          // outside the village: the dark stone o
 const CHUNK = 32;
 class Layer {
   width: number; height: number; level: number; columns: number;
-  pix: u32[]; kind: number[]; stamp: number[]; shore: number[]; lazy: boolean = true; rivers: boolean = false;
+  pix: u32[][]; kind: number[][]; stamp: number[]; shore: number[]; lazy: boolean = true; rivers: boolean = false;
+  /** The ground is kept by chunks of CHUNK x CHUNK pixels, each made when it is first painted or written: a layer of a big map is millions of pixels, the window reaches a few thousand chunks' worth. */
   constructor(level: number) {
     this.level = level; this.width = layerWidth(level); this.height = layerHeight(level);
-    const n = this.width * this.height;
-    this.pix = Array.from({ length: n }, (): u32 => WHITE); this.kind = Array.from({ length: n }, (): number => 0);
     this.columns = Math.ceil(this.width / CHUNK);
-    this.stamp = Array.from({ length: this.columns * Math.ceil(this.height / CHUNK) }, (): number => -1);
+    const chunks = this.columns * Math.ceil(this.height / CHUNK);
+    this.pix = Array.from({ length: chunks }, (): u32[] => []); this.kind = Array.from({ length: chunks }, (): number[] => []);
+    this.stamp = Array.from({ length: chunks }, (): number => -1);
     this.shore = [];
   }
+}
+/** Makes the arrays of chunk c (a chunk index) when it has none yet: empty ground (kind 0, white). */
+function openChunk(layer: Layer, c: number): void {
+  if (layer.kind[c].length > 0) return;
+  layer.kind[c] = Array.from({ length: CHUNK * CHUNK }, (): number => 0); layer.pix[c] = Array.from({ length: CHUNK * CHUNK }, (): u32 => WHITE);
+}
+/** The kind (0: no ground) and colour of layer pixel (x, y), which must be inside the layer. */
+function cellKind(layer: Layer, x: number, y: number): number { const k = layer.kind[(y >> 5) * layer.columns + (x >> 5)]; return k.length === 0 ? 0 : k[(y & 31) * CHUNK + (x & 31)]; }
+function cellPix(layer: Layer, x: number, y: number): u32 { return layer.pix[(y >> 5) * layer.columns + (x >> 5)][(y & 31) * CHUNK + (x & 31)]; }
+function setCell(layer: Layer, x: number, y: number, kind: number, color: u32): void {
+  const c = (y >> 5) * layer.columns + (x >> 5), l = (y & 31) * CHUNK + (x & 31);
+  openChunk(layer, c); layer.kind[c][l] = kind; layer.pix[c][l] = color;
 }
 /** The world point under the centre of layer pixel (ix, iy) of a level, and the ground's depth of its row. */
 function layerPoint(level: number, ix: number, iy: number, out: number[]): void {
@@ -48,7 +60,7 @@ function layerTile(layer: Layer, ix: number, iy: number): number {
 const layers: (Layer | null)[] = ZOOM_SCALES.map((_s: number): Layer | null => null);
 /** Pixels of grass that still show grass after the last rebake: the wind animates these. */
 export const tufts: number[] = [];
-let curSeason = 1;                       // the season the ground, the trees and the flowers are painted in (0 spring .. 3 winter)
+let curSeason = 4;                       // the month (0 March .. 11 February) the ground, the trees and the flowers are painted in: seasons blend from month to month
 
 /**
  * The detail modes when zooming in (settings.lod): 0 sharp (each level is painted at its own scale); 1 fixed (the normal-level art, enlarged). Zooming out never
@@ -66,23 +78,19 @@ function resizeLayer(base: Layer, level: number): Layer {
   for (let y = 0; y < layer.height; y++) for (let x = 0; x < layer.width; x++) {
     const sx = bx + (x - dx) / f, sy = by + (y - dy) / f, cx = Math.round(sx), cy = Math.round(sy);
     if (cx < 0 || cy < 0 || cx >= base.width || cy >= base.height) continue;
-    const c = cy * base.width + cx;
-    if (base.kind[c] === 0) continue;
-    const i = y * layer.width + x;
-    layer.kind[i] = base.kind[c];
+    const kind = cellKind(base, cx, cy);
+    if (kind === 0) continue;
     let r0 = 0, r1 = 0, r2 = 0, r3 = 0, n = 0;
     if (smooth && f < 1) {
       for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
         const px = Math.round(sx + a * r), py = Math.round(sy + b * r);
         if (px < 0 || py < 0 || px >= base.width || py >= base.height) continue;
-        const k = py * base.width + px;
-        if (base.kind[k] === 0) continue;
-        const col = base.pix[k];
+        if (cellKind(base, px, py) === 0) continue;
+        const col = cellPix(base, px, py);
         r0 += col & 255; r1 += (col >> 8) & 255; r2 += (col >> 16) & 255; r3 += (col >>> 24) & 255; n++;
       }
     }
-    if (n < 5) layer.pix[i] = base.pix[c];
-    else layer.pix[i] = (Math.round(r0 / n) | (Math.round(r1 / n) << 8) | (Math.round(r2 / n) << 16) | (Math.round(r3 / n) << 24)) >>> 0;
+    setCell(layer, x, y, kind, n < 5 ? cellPix(base, cx, cy) : (Math.round(r0 / n) | (Math.round(r1 / n) << 8) | (Math.round(r2 / n) << 16) | (Math.round(r3 / n) << 24)) >>> 0);
   }
   return layer;
 }
@@ -123,10 +131,13 @@ const DIRT: number[] = [154, 130, 92];
 function paintChunk(layer: Layer, cx: number, cy: number, s: number): void {
   const level = layer.level, half = world.half, p = probe, snow = biomes.snow, ice = biomes.iceTones, share = iceShare(s);
   const x0 = cx * CHUNK, y0 = cy * CHUNK, x1 = Math.min(layer.width, x0 + CHUNK), y1 = Math.min(layer.height, y0 + CHUNK);
+  const c = cy * layer.columns + cx;
+  openChunk(layer, c);
+  const chunkKinds = layer.kind[c], chunkPix = layer.pix[c];
   for (let iy = y0; iy < y1; iy++) for (let ix = x0; ix < x1; ix++) {
     layerPoint(level, ix, iy, p);
-    const px = p[0], py = p[1], i = iy * layer.width + ix;
-    layer.kind[i] = 0; layer.pix[i] = WHITE;
+    const px = p[0], py = p[1], i = (iy - y0) * CHUNK + (ix - x0);
+    chunkKinds[i] = 0; chunkPix[i] = WHITE;
     const ax = Math.abs(px) / half, ay = Math.abs(py) / half;
     if (ax > .7 || ay > .7) {                                                                    // the dissolved border (nothing to test well inside)
       const rough = Math.sqrt(Math.sqrt(ax * ax * ax * ax + ay * ay * ay * ay)) + (noise(px, py) - .5) * .07;
@@ -153,7 +164,7 @@ function paintChunk(layer: Layer, cx: number, cy: number, s: number): void {
       if (sn > 0 && noise(px * .9, py * .9) * .55 + hash(ix * 7, iy * 13) * .45 < sn) { color = snow[clamp(Math.floor(noise(px * 1.4, py * 1.4) * snow.length + hash(ix, iy) * .5), 0, snow.length - 1)]; }
       else if (hash(ix * 3, iy * 5) < .14) kind |= 8;
     }
-    layer.kind[i] = kind; layer.pix[i] = rgbColor(color);
+    chunkKinds[i] = kind; chunkPix[i] = rgbColor(color);
   }
   layer.stamp[cy * layer.columns + cx] = s;
 }
@@ -185,9 +196,10 @@ function loadRect(layer: Layer, x0: number, y0: number, x1: number, y1: number):
     const by = wy + camera.y, depth = by >= 0 && by < layer.height ? (by + .5 - layerOriginY(layer.level)) / (scaleOf(layer.level) * SIN) * COS : -1e9;
     for (let wx = x0; wx < x1; wx++) {
       const i = wy * W + wx, bx = wx + camera.x;
-      if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || layer.kind[by * layer.width + bx] === 0) { pix[i] = WHITE; zb[i] = -1e9; kinds[i] = 0; ground[i] = 0; groundZ[i] = -1e9; continue; }
-      const bi = by * layer.width + bx, k = layer.kind[bi] & 7;
-      pix[i] = layer.pix[bi]; zb[i] = depth; kinds[i] = k; ground[i] = 1; groundZ[i] = depth;
+      if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height) { pix[i] = WHITE; zb[i] = -1e9; kinds[i] = 0; ground[i] = 0; groundZ[i] = -1e9; continue; }
+      const c = (by >> 5) * layer.columns + (bx >> 5), li = (by & 31) * CHUNK + (bx & 31), ck = layer.kind[c];
+      if (ck.length === 0 || ck[li] === 0) { pix[i] = WHITE; zb[i] = -1e9; kinds[i] = 0; ground[i] = 0; groundZ[i] = -1e9; continue; }
+      pix[i] = layer.pix[c][li]; zb[i] = depth; kinds[i] = ck[li] & 7; ground[i] = 1; groundZ[i] = depth;
     }
   }
 }
@@ -246,7 +258,7 @@ let bakedLevel = -1, bakedW = 0, bakedH = 0, bakedX = 0, bakedY = 0, bakedLayer:
 let bakedSig: number[] = [];
 let nextBand: number[] | null = null, pendingBands: number[] = [], pendingChunks: number[] = [];     // the season changed: the window is painted again a band at a time, a band a frame
 const MARGIN_PX = 6;                    // pixels re-baked around a strip or a change: the occlusion of a pixel reads four pixels around it
-export const trace = { on: false };       // ZINC_HAMLET_TRACE=1 (debugStart.ts): the bake times go to the console
+export const trace = { on: false, scrub: 0 };       // ZINC_HAMLET_TRACE=1 (debugStart.ts): the bake times go to the console
 export const bakeStats = { full: 0, partial: 0, lastMs: 0, chunks: 0, groundMs: 0, seasonMs: 0 };
 
 /** The next rebake is a full one (the models, the zoom or the village itself changed). */
@@ -294,13 +306,13 @@ function area(rects: number[]): number {
  */
 export function shiftNumbers(a: number[], dx: number, dy: number): void {
   const k = dy * W + dx, n = a.length;
-  if (k > 0) for (let i = 0; i + k < n; i++) a[i] = a[i + k];
-  else if (k < 0) for (let i = n - 1; i + k >= 0; i--) a[i] = a[i + k];
+  if (k > 0) a.copyWithin(0, k);           // one block move (memmove), not a loop of n element copies: the same cells either way
+  else if (k < 0) a.copyWithin(-k, 0, n + k);
 }
 export function shiftColors(a: u32[], dx: number, dy: number): void {
   const k = dy * W + dx, n = a.length;
-  if (k > 0) for (let i = 0; i + k < n; i++) a[i] = a[i + k];
-  else if (k < 0) for (let i = n - 1; i + k >= 0; i--) a[i] = a[i + k];
+  if (k > 0) a.copyWithin(0, k);           // one block move (memmove), not a loop of n element copies: the same cells either way
+  else if (k < 0) a.copyWithin(-k, 0, n + k);
 }
 function touches(box: number[], b: number, rect: number[], k: number): boolean {
   return box[b] < rect[k + 2] && box[b + 2] > rect[k] && box[b + 1] < rect[k + 3] && box[b + 3] > rect[k + 1];
@@ -341,12 +353,12 @@ function bakeRects(layer: Layer, rects: number[]): void {
         for (let n = 0; n < 6; n++) {
           const rx = x + (hash(t, n + 20) - .5) * 1.5, ry = y + (hash(n + 20, t) - .5) * 1.5, h = .7 + hash(t + n, 5) * .5;
           capsule([rx, ry, 0], [rx + (hash(n, t + 7) - .5) * .25, ry, h], .035, .02, (): number[] => reed, 'solid');
-          if (n % 3 === 0 && curSeason !== 3) sphere(rx, ry, h, .06, [112, 78, 50], 'solid');
+          if (n % 3 === 0 && (curSeason < 9 || curSeason === 11 && false)) sphere(rx, ry, h, .06, [112, 78, 50], 'solid');
         }
       }
       if (world.tree[t] > 0) {
         const v = world.tree[t] - 1, tx = x + (hash(t, 7) - .5) * .7, ty = y + (hash(t, 8) - .5) * .7;
-        models[MODEL_TREE + v].drawAt(tx, ty, 0); treeShadow(tx, ty, TREE_HEIGHT[v]);
+        treeModel(v, Math.floor(hash(t, 11) * 3) - 1).drawAt(tx, ty, 0); treeShadow(tx, ty, TREE_HEIGHT[v]);
       }
       if (world.rock[t] > 0) { models[MODEL_ROCK + world.rock[t] - 1].drawAt(x, y, 0); castShadow(x, y, .4, .6); }
       if (world.build[t] >= 0) {
@@ -379,7 +391,7 @@ function findTufts(layer: Layer, rects: number[], slid: boolean, dx: number, dy:
   }
   for (let k = 0; k < rects.length; k += 4) for (let iy = rects[k + 1]; iy < rects[k + 3]; iy++) for (let ix = rects[k]; ix < rects[k + 2]; ix++) {
     const bx = ix + camera.x, by = iy + camera.y;
-    if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || (layer.kind[by * layer.width + bx] & 8) === 0) continue;
+    if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || (cellKind(layer, bx, by) & 8) === 0) continue;
     const i = iy * W + ix;
     if (kinds[i] === KIND_GRASS && bakedZ[i] === groundZ[i]) found.push(i);
   }
@@ -455,7 +467,8 @@ function traceFrame(): void {
 }
 export function stepSeason(): void {
   if (trace.on) traceFrame();
-  const s = season();
+  if (trace.scrub > 0) world.tick += trace.scrub;          // debug: ZINC_HAMLET_SCRUB ticks more every frame, the year runs fast
+  const s = monthStep();
   if (s !== curSeason) {
     const started = Date.now();
     curSeason = s;
@@ -482,6 +495,7 @@ export function stepSeason(): void {
     }
     return;
   }
+  if (pendingBands.length === 0 && pendingChunks.length === 0) { warmTrees(curSeason); return; }
   if (pendingBands.length > 0) {
     const started = Date.now();
     nextBand = [0, pendingBands[0] - MARGIN_PX, W, pendingBands[1] + MARGIN_PX]; pendingBands = pendingBands.slice(2);      // a band is baked with the margin the occlusion reads, like a strip
@@ -497,7 +511,7 @@ function ensureLevel(level: number): void {
   const art = artLevel(level);
   resizeBuffer(windowWidth(level), windowHeight(level));
   useModels(art, scaleOf(art), fixed ? scaleOf(DEFAULT_ZOOM) : 0);
-  if (curSeason !== 1) useTreeSeason(curSeason);
+  useTreeSeason(curSeason);
   forceFull = true;
   if (layers[art] === null) layers[art] = bakeLayer(art);
   applyCamera();
@@ -507,7 +521,7 @@ function ensureLevel(level: number): void {
 export function bakeVillage(): void {
   configureRenderer(8, 1.1, -.25);
   const t0 = Date.now();
-  ensureBiomes(); curSeason = season(); pendingBands = []; pendingChunks = []; bakeStats.chunks = 0; bakeStats.groundMs = 0;
+  ensureBiomes(); curSeason = monthStep(); pendingBands = []; pendingChunks = []; bakeStats.chunks = 0; bakeStats.groundMs = 0;
   forceFull = true;
   for (let i = 0; i < layers.length; i++) layers[i] = null;
   ensureLevel(camera.level);

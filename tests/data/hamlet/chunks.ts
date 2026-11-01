@@ -90,16 +90,18 @@ for (const [size, zoom] of [[12, 5], [48, 5], [48, 10]]) {
   village(48);
   const before = snap();
   let seen = 0, winter = before;
-  for (const month of [4, 7, 10, 1]) {            // summer, autumn, winter, spring
+  let spring = before;
+  for (const month of [1, 4, 7, 10, 1]) {         // spring, summer, autumn, winter, spring again
     world.tick = Math.round(month * 15 / (1 / 32)) + 8;
     const was = bakeCount;
     for (let n = 0; n < 200 && (n === 0 || pendingWork()); n++) stepSeason();
     seen += bakeCount - was;
     const d = againstFull();
     if (month === 10) winter = snap();
+    if (month === 1 && spring === before) spring = snap();
     check('season of month ' + month + ': the bands end on a full bake of the season (' + d + ' pixels differ)', d === 0);
   }
-  check('winter does not look like spring, spring comes back to the same picture, and a change took more than one bake', diff(before, winter) > 1000 && diff(before, snap()) === 0 && seen > 8);
+  check('winter does not look like spring, spring comes back to the same picture, and a change took more than one bake', diff(spring, winter) > 1000 && diff(spring, snap()) === 0 && seen > 8);
   world.tick = 0;
 }
 console.log(failures === 0 ? 'hamlet chunks: ALL PASS' : 'hamlet chunks: ' + failures + ' FAIL');

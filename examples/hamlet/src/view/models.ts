@@ -2,7 +2,7 @@ import { W, H, pix, zb, setView, Color, CachedModel, rgb, beginModel, captureMod
 import { ZOOM_SCALES } from './camera';
 import { settings } from '../settings';
 import { ROCK_VARIANTS } from '../constants';
-import { biomes, needleColor, ensureBiomes } from './seasons';
+import { broadAt, needleColor, ensureBiomes } from './seasons';
 import { STONE, WOOD_HONEY, WOOD_BROWN, BARK, TERRACOTTA } from '../palettes';
 
 // Every static object is lit and rasterised once into a CachedModel (same projection, light and ramps as the Pixel Plays games),
@@ -27,7 +27,7 @@ let lastLevel = 0, lastScale = 10, lastReduce = 0;
 const levelAtlases: (Atlas | null)[] = ZOOM_SCALES.map((_s: number): Atlas | null => null);
 
 /** The season the tree models are drawn in (0 spring .. 3 winter): summer is the art's own, the other three are baked by useTreeSeason. */
-let treeSeason = 1;
+let treeSeason = 4;                      // a month: 4 is mid-summer, the art's own colours
 const flat = (c: Color): ((z: number) => Color) => (): Color => c;
 
 /** A gable roof: ridge along y, slopes facing -x and +x, shingles in staggered rows. */
@@ -368,20 +368,22 @@ function tree(variant: number): void {
   ensureBiomes();
   const greens: Color[] = [[56, 92, 62], [48, 82, 58], [70, 104, 64]];
   if (variant < 3) { pine(0, 0, TREE_HEIGHT[variant], needleColor(greens[variant], treeSeason), false, variant * 7); return; }
-  const look = biomes.broad[treeSeason];
+  const look = broadAt(treeSeason);
   capsule([0, 0, 0], [.05, 0, 2.3], .13, .07, flat([216, 210, 192]), 'rough');          // birch
-  if (look.leaves === 0) {                                                               // bare: the twigs only
+  if (look.leaves < 1) {
     for (let k = 0; k < 7; k++) {
       const a = k * 2.4, h = 1.5 + (k % 3) * .35, r = .5 + (k % 2) * .25;
       capsule([.04, 0, h], [Math.cos(a) * r, Math.sin(a) * r, h + .85], .04, .015, flat([150, 138, 120]), 'solid');
     }
-    return;
   }
-  for (const [x, y, z, r] of [[0, 0, 2.7, .62], [.42, .2, 2.25, .46], [-.4, -.2, 2.35, .5], [0, .32, 3.05, .42]]) {
-    sphere(x, y, z, r, look.crown, 'rough');
-    sphere(x + .12, y - .1, z + .2, r * .6, look.light, 'rough');
+  const clumps = Math.ceil(look.leaves * 4 - .01);
+  const all: number[][] = [[0, 0, 2.7, .62], [.42, .2, 2.25, .46], [-.4, -.2, 2.35, .5], [0, .32, 3.05, .42]];
+  for (let k = 0; k < clumps; k++) {
+    const [x, y, z, r] = all[k], rr = r * (clumps === 1 || look.leaves > .9 ? 1 : .7 + look.leaves * .3);
+    sphere(x, y, z, rr, look.crown, 'rough');
+    sphere(x + .12, y - .1, z + .2, rr * .6, look.light, 'rough');
   }
-  if (look.blossom > 0) for (let k = 0; k < 9; k++) sphere(Math.cos(k * 2.1) * .6, Math.sin(k * 2.1) * .5, 2.2 + (k % 4) * .28, .09, [246, 214, 222], 'solid');
+  if (look.blossom > .02) for (let k = 0; k < Math.round(9 * look.blossom / .35); k++) sphere(Math.cos(k * 2.1) * .6, Math.sin(k * 2.1) * .5, 2.2 + (k % 4) * .28, .09, [246, 214, 222], 'solid');
 }
 /** Rock variants 0 and 1 are plain rocks; the others are deposits (constants.ts DEPOSIT_MODELS): stone blocks, a clay bank, veined ore, a berry bush. */
 function rock(variant: number): void {
@@ -545,21 +547,41 @@ export function useModels(level: number, scale: number, reduceFrom: number): voi
   }
 }
 
-/** Puts the trees of a season into `models` (baked once per zoom level and season, then kept). The caller points the renderer back at the camera afterwards (applyCamera). */
-export function useTreeSeason(s: number): void {
-  const key = lastLevel * 4 + s;
-  setView(lastReduce > 0 ? lastReduce : lastScale, W / 2, H * .6);
+/** The tree sets of the months around the current one: [0] the month before, [1] the month itself, [2] the month after (a tree turns a little earlier or later than its neighbour). */
+const treeSets: CachedModel[][] = [[], [], []];
+function bakeTreeMonth(m: number): Atlas {
+  const key = lastLevel * 12 + m;
   let atlas = treeAtlases.get(key);
   if (atlas === undefined || atlas.stale()) {
-    const def: AtlasDef = { version: hashNumbers([2, lastScale, lastReduce, settings.resample]), season: s, entries: [{
+    setView(lastReduce > 0 ? lastReduce : lastScale, W / 2, H * .6);
+    const def: AtlasDef = { version: hashNumbers([3, lastScale, lastReduce, settings.resample]), season: m, entries: [{
       name: 'tree', variants: 4, yaws: 1, poses: 1,
       draw: (a: AtlasAxes, _x: number, _y: number, _z: number): void => {
-        treeSeason = s; tree(a.variant); treeSeason = 1;
+        treeSeason = m; tree(a.variant); treeSeason = 4;
         if (lastReduce > 0) { reduceBuffer(lastScale / lastReduce, W / 2, H * .6); setView(lastScale, W / 2, H * .6); }
         shadowMask.fill(0);
       },
     }] };
     atlas = bakeAtlas(def); treeAtlases.set(key, atlas);
   }
-  for (let v = 0; v < 4; v++) { const frame = atlas.bake('tree', { variant: v, yaw8: 0, pose: 0 }); if (frame !== null) models[MODEL_TREE + v] = frame; }
+  return atlas;
+}
+/** Puts the trees of a month (and its two neighbours) into `models` and the tree sets. The caller points the renderer back at the camera afterwards (applyCamera). */
+export function useTreeSeason(m: number): void {
+  for (let o = 0; o < 3; o++) {
+    const atlas = bakeTreeMonth((m + 11 + o) % 12);
+    treeSets[o] = [];
+    for (let v = 0; v < 4; v++) { const frame = atlas.bake('tree', { variant: v, yaw8: 0, pose: 0 }); if (frame !== null) treeSets[o].push(frame); }
+  }
+  for (let v = 0; v < treeSets[1].length; v++) models[MODEL_TREE + v] = treeSets[1][v];
+}
+/** The model of tree variant v in the month, shifted by `off` of -1, 0 or 1 months. */
+export function treeModel(v: number, off: number): CachedModel { const set = treeSets[off + 1]; return set.length > v ? set[v] : models[MODEL_TREE + v]; }
+/** Bakes the tree set of one month ahead of need (one per call, 0 when all are ready): so a month change finds its trees cached. */
+export function warmTrees(m: number): boolean {
+  for (let o = 2; o <= 4; o++) {
+    const key = lastLevel * 12 + (m + o) % 12, have = treeAtlases.get(key);
+    if (have === undefined || have.stale()) { bakeTreeMonth((m + o) % 12); return true; }
+  }
+  return false;
 }
