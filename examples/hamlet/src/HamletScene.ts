@@ -30,11 +30,12 @@ import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
 import { drawInfo, pickAt, closeInfo, infoDragging, infoDragStart, infoDragMove, infoDragEnd } from './ui/Info';
 import { look, record, beginGroup, endGroup, undo, drawPlacementLabel, reasonText } from './ui/Placement';
-import { WIN_INFO, WIN_MAIN, WIN_ADVISOR, WIN_NONE } from './ui/state';
+import { WIN_INFO, WIN_MAIN, WIN_ADVISOR, WIN_CAMPAIGN, WIN_NONE } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
 import { loadPrefs, savePrefs } from './ui/prefs';
 import { drawOverlay, drawReach, drawOverlayMenu, drawLegend } from './ui/Overlays';
 import { drawAdvisors, sampleHistory, openAdvisor } from './ui/Advisors';
+import { drawCampaign, openCampaign } from './ui/Campaign';
 import { drawMenus, isModal, closeMenus, openNew, openMenu, typeKey } from './ui/Menu';
 import { refreshModels, jumpTo } from './view/scenery';
 import { camera, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY, fit, setFit, windowWidth, windowHeight } from './view/camera';
@@ -107,7 +108,7 @@ export class HamletScene extends Sprite {
     bakeVillage(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size;
     act.setTool = (tool: number): void => { this.tool = tool; uiState.dirty = true; };
     act.say = (message: string): void => this.say(message);
-    act.newVillage = (seed: number, size: number): void => this.createVillage(seed, size);
+    act.newVillage = (seed: number, size: number, campaign: boolean): void => this.createVillage(seed, size, campaign);
     act.loaded = (): void => { this.loaded(); saveGame(); };
     act.quit = (): void => quit();
     act.rebake = (): void => { uiState.dirty = true; };
@@ -147,14 +148,14 @@ export class HamletScene extends Sprite {
   }
 
   /** Replaces the village by the one a (seed, size) pair decides, and saves it as the current one. */
-  private createVillage(seed: number, size: number): void {
-    eraseSave(); generate(seed, size); this.loaded(); saveGame();
+  private createVillage(seed: number, size: number, campaign: boolean = false): void {
+    eraseSave(); generate(seed, size); world.progression = campaign; this.loaded(); saveGame();
     this.say('Nouveau hameau · graine ' + seed + ' · ' + size + '×' + size);
   }
   /** A village was just made or loaded: bake it, rebuild the tools. */
   private loaded(): void { bakeVillage(); this.baked = world.revision; this.listTools(); this.pendingSize = world.size; ui.category = -1; closeInfo(); uiState.dirty = true; }
   /** The panel's "new map": the same seed on another grid size. */
-  private resizeVillage(): void { this.createVillage(world.seed, Math.max(MIN_SIZE, Math.min(MAX_SIZE, this.pendingSize))); }
+  private resizeVillage(): void { this.createVillage(world.seed, Math.max(MIN_SIZE, Math.min(MAX_SIZE, this.pendingSize)), world.progression); }
   private act(t: number): void {
     if (this.tool === TOOL_NONE) return;
     const before = look(t), code = applyTool(this.tool, t);
@@ -170,13 +171,15 @@ export class HamletScene extends Sprite {
     if (name === '+' || name === '=') { stepZoom(1); this.baked = world.revision; }
     else if (name === '-' || name === '_') { stepZoom(-1); this.baked = world.revision; }
     else if (name === '0' || name === 'Home') { resetView(); this.baked = world.revision; }
-    else if (name === 'Escape') { if (closeMenus()) { /* a menu closed */ } else if (ui.overlayMenu) ui.overlayMenu = false; else if (ui.category >= 0) ui.category = -1; else if (ui.window === WIN_INFO) closeInfo(); else if (ui.window === WIN_ADVISOR) ui.window = WIN_NONE; else if (this.panel.closeMenu()) { /* the dev panel's list closed */ } else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; else openMenu(); }
+    else if (name === 'Escape') { if (closeMenus()) { /* a menu closed */ } else if (ui.overlayMenu) ui.overlayMenu = false; else if (ui.category >= 0) ui.category = -1; else if (ui.window === WIN_INFO) closeInfo(); else if (ui.window === WIN_ADVISOR || ui.window === WIN_CAMPAIGN) ui.window = WIN_NONE; else if (this.panel.closeMenu()) { /* the dev panel's list closed */ } else if (this.tool !== TOOL_NONE) this.tool = TOOL_NONE; else openMenu(); }
     else if (name === '[' || name === ']') { const i = this.tools.indexOf(this.tool); this.tool = this.tools[(Math.max(0, i) + (name === ']' ? 1 : this.tools.length - 1)) % this.tools.length]; }
     else if (name >= '1' && name <= '9' && Number(name) <= this.tools.length) this.tool = this.tools[Number(name) - 1];
     else if (name === 'p' || name === 'P') { this.paused = !this.paused; this.dragging = false; pauseSound(this.paused); }
     else if (name === 'm' || name === 'M') toggleSound();
     else if (name === 'h' || name === 'H') settings.hints = !settings.hints;
     else if (name === 'f' || name === 'F') openAdvisor(ui.advisor);
+    else if (name === 'c' || name === 'C') openCampaign();
+    else if (name === 'v' || name === 'V') { settings.appeal = !settings.appeal; this.say(settings.appeal ? 'Désirabilité : points verts et rouges sur la carte.' : 'Désirabilité masquée.'); }
     else if (name === 'o' || name === 'O') ui.overlayMenu = !ui.overlayMenu;
     else if (name === 'n' || name === 'N' || name === 'g' || name === 'G') openNew();
     else if (name === 'F2') this.panel.open = !this.panel.open;
@@ -319,7 +322,7 @@ export class HamletScene extends Sprite {
     clip(this.surface.x, this.surface.y, this.frame.cropWidth * this.surface.scale, this.frame.cropHeight * this.surface.scale);
     drawOverlay(); drawReach(this.tool, this.hover);
     unclip(); drawLegend();
-    topBar(); column(); drawFlyout(); drawOverlayMenu(); drawInfo(); drawAdvisors();
+    topBar(); column(); drawFlyout(); drawOverlayMenu(); drawInfo(); drawAdvisors(); drawCampaign();
     drawBanner(vp.x + vp.w / 2, vp.y + 8);
     const note = this.time < this.messageUntil;
     statusStrip(note ? this.message : adviceLine(), note ? col('gold') : 0);

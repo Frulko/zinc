@@ -23,6 +23,8 @@ export function post(kind: number, message: string, tile: number): void {
 export function unread(): number { let n = 0; for (const m of log) if (!m.read) n++; return n; }
 /** The simulation's events, once a second: new severe hints and the village growing. */
 export function scanEvents(): void {
+  for (const line of world.news) post(MSG_INFO, line, -1);   // goals, peddler, expeditions: said once, then cleared
+  world.news = [];
   if (world.time - lastScan < 1 && world.time >= lastScan) return;
   lastScan = world.time;
   const hints = computeHints(), now: string[] = [];

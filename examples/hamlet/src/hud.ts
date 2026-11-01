@@ -2,6 +2,7 @@ import { HOUSE } from './constants';
 import { computeHints, hintText, HINT_BUILD_NEXT } from './rules/hints';
 import { world } from './world/world';
 import { economy, BuildingDef, Housing } from './world/economy';
+import { isUnlocked } from './rules/goals';
 import { population, isConnected } from './engine/villagers';
 
 function count(type: number): number {
@@ -35,7 +36,7 @@ export function adviceLine(): string {
   byOrder.sort((a: number, b: number): number => economy.buildings[a].order - economy.buildings[b].order);
   for (const type of byOrder) {
     const def = economy.buildings[type];
-    if (type === HOUSE) continue;
+    if (type === HOUSE || !isUnlocked(type)) continue;
     if (def.hint !== '' && count(type) === 0 && (def.gather !== 'shore' || world.hasWater)) return def.hint;
   }
   for (const b of world.buildings) if (b.alive && b.type !== HOUSE) { open += economy.buildings[b.type].workers - b.workers; jobs += economy.buildings[b.type].workers; }

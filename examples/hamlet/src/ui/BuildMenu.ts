@@ -2,6 +2,7 @@ import { height } from 'zinc:gfx';
 import { world } from '../world/world';
 import { economy, amountText, BuildingDef } from '../world/economy';
 import { TOOL_HOUSE } from '../constants';
+import { lockText } from '../rules/goals';
 import { drawBuilding, drawResource } from './icons';
 import { kit, col, slab, parchment, block, button, text, textR, measure, BTN_DISABLED } from './kit';
 import { ui, act, columnX, TOP_H } from './state';
@@ -37,7 +38,8 @@ export function categories(): Category[] {
 
 /** Why a building cannot be chosen now ('' when it can): a pond it needs, or stock it lacks. */
 export function lockReason(type: number): string {
-  const d = economy.buildings[type];
+  const d = economy.buildings[type], locked = lockText(type);
+  if (locked !== '') return locked;
   if (d.gather === 'shore' && !world.hasWater) return 'Il faut un étang sur la carte.';
   const missing = amountText(d.cost, world.stock);
   return missing === '' ? '' : 'Il manque : ' + missing + '.';
@@ -84,7 +86,7 @@ export function drawFlyout(): void {
       text(kit.small, cx + 18, by + 25, String(d.cost[k]), lack ? col('bad') : col('barText'));
       cx += 22 + measure(String(d.cost[k]));
     }
-    if (!ok) textR(kit.small, x + FW - 14, by + 25, d.gather === 'shore' && !world.hasWater ? 'étang requis' : 'manque', col('warn'));
+    if (!ok) textR(kit.small, x + FW - 14, by + 25, lockText(type) !== '' ? 'verrouillé' : d.gather === 'shore' && !world.hasWater ? 'étang requis' : 'manque', col('warn'));
   }
 }
 export function buildClick(id: string): boolean {

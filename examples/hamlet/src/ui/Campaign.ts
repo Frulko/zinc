@@ -1,0 +1,65 @@
+import { world } from '../world/world';
+import { economy } from '../world/economy';
+import { goalList } from '../rules/goals';
+import { offerLines, canTrade } from '../rules/trade';
+import { adventureLines, expeditionLines, canStart } from '../rules/adventure';
+import { issue } from '../rules/commands';
+import { sound } from '../audio';
+import { kit, col, window_, parchment, text, wrap, labelButton, glyphButton, block, addHit } from './kit';
+import { ui, viewport, WIN_NONE, WIN_CAMPAIGN } from './state';
+
+// The campaign window: goals, the peddler's offers and the adventures. Every action is a command (rules/commands.ts), so it is logged and replays.
+const TABS = ['Objectifs', 'Colporteur', 'Aventures'];
+const W = 560, H = 440;
+let tab = 0;
+export function openCampaign(): void { ui.window = ui.window === WIN_CAMPAIGN ? WIN_NONE : WIN_CAMPAIGN; }
+export function drawCampaign(): void {
+  if (ui.window !== WIN_CAMPAIGN) return;
+  const vp = viewport(), x = vp.x + Math.floor((vp.w - W) / 2), y = vp.y + Math.max(8, Math.floor((vp.h - H) / 2));
+  window_(x, y, W, H, 'Campagne'); block(x - 6, y - 6, W + 12, H + 12);
+  glyphButton('camp:close', x + W - 24, y + 2, 20, 18, 'close', 'Fermer [Échap]');
+  for (let i = 0; i < TABS.length; i++) labelButton('camp:tab:' + i, x + 10 + i * 128, y + 30, 122, 26, TABS[i], '', true, tab === i);
+  parchment(x + 10, y + 62, W - 20, H - 72);
+  const px = x + 22, py = y + 72, lw = W - 44;
+  if (!world.progression) { text(kit.body, px, py, 'Ce hameau est en mode libre.', col('ink')); text(kit.small, px, py + 22, 'Choisissez « Campagne » en créant un nouveau hameau (N).', col('muted')); return; }
+  if (tab === 0) goals(px, py, lw); else if (tab === 1) peddler(px, py, lw); else adventures(px, py, lw);
+}
+function goals(x: number, y: number, w: number): void {
+  let cy = y;
+  for (const g of goalList()) {
+    const goal = economy.goals[g[0]], color = g[1] === 1 ? col('good') : g[1] === 0 ? col('ink') : col('muted');
+    text(kit.body, x, cy, (g[1] === 1 ? '[x] ' : '[ ] ') + goal.title, color); cy += kit.lineH;
+    for (const l of wrap(goal.text, w - 24)) { text(kit.small, x + 24, cy, l, col('muted')); cy += kit.lineH - 2; }
+    cy += 8;
+  }
+}
+function peddler(x: number, y: number, w: number): void {
+  const lines = offerLines();
+  if (lines.length === 0) { text(kit.body, x, y, 'Le colporteur est reparti. Il repasse tous les ' + economy.trade.everyDays + ' jours.', col('muted')); return; }
+  text(kit.small, x, y, 'Cliquez un marché pour le conclure.', col('muted'));
+  for (let k = 0; k < lines.length; k++) {
+    const by = y + 26 + k * 40, ok = canTrade(k);
+    labelButton('camp:trade:' + k, x, by, w, 34, '', ok ? 'Conclure' : 'Impossible : il manque de quoi payer', ok);
+    text(kit.body, x + 10, by + 8, lines[k], ok ? col('barText') : col('disabled'));
+  }
+}
+function adventures(x: number, y: number, w: number): void {
+  const lines = adventureLines(), under = expeditionLines();
+  text(kit.small, x, y, 'Cliquez une aventure pour envoyer des habitants.', col('muted'));
+  for (let k = 0; k < lines.length; k++) {
+    const by = y + 26 + k * 50, ok = canStart(k);
+    labelButton('camp:adv:' + k, x, by, w, 44, '', economy.adventures[k].text, ok);
+    const wr = wrap(lines[k], w - 20);
+    for (let j = 0; j < wr.length && j < 2; j++) text(kit.small, x + 10, by + 6 + j * kit.lineH, wr[j], ok ? col('barText') : col('disabled'));
+  }
+  let cy = y + 36 + lines.length * 50;
+  text(kit.body, x, cy, under.length > 0 ? 'En route' : 'Personne n’est parti.', col('ink')); cy += kit.lineH + 4;
+  for (const l of under) { text(kit.small, x + 12, cy, l, col('ink')); cy += kit.lineH; }
+}
+export function campaignClick(id: string): boolean {
+  if (id === 'camp:close') { ui.window = WIN_NONE; return true; }
+  if (id.startsWith('camp:tab:')) { tab = Number(id.slice(9)); return true; }
+  if (id.startsWith('camp:trade:')) { if (issue('trade', Number(id.slice(11)))) sound('coin', .6); else sound('error', .5); return true; }
+  if (id.startsWith('camp:adv:')) { if (!issue('adventure_start', Number(id.slice(9)))) sound('error', .5); return true; }
+  return false;
+}

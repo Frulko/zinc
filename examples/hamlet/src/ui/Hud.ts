@@ -14,6 +14,7 @@ import { infoClick } from './Info';
 import { menuClick } from './Menu';
 import { overlayClick } from './Overlays';
 import { advisorClick, openAdvisor } from './Advisors';
+import { campaignClick, openCampaign } from './Campaign';
 import { dateText, SEASONS, season } from './clock';
 
 // The frame of the game: the top bar (what the village holds, its date, the speed) and the control column on the right (overview map, tools, messages).
@@ -80,9 +81,9 @@ export function column(): void {
   addHit('map', x + pad, TOP_H + pad, inner, inner, '', Cursor.Crosshair);
   let y = TOP_H + pad + inner + 8;
   // the four windows: advisors, overlays, messages, game menu
-  const gw = (inner - 9) / 4, glyphs = ['advisor', 'eye', 'scroll', 'gear'], ids = ['win:advisor', 'win:overlay', 'msg:new', 'win:menu'];
-  const tips = ['Conseillers [F]', 'Calques de la carte [O]', 'Dernier message', 'Menu du jeu [Échap]'];
-  for (let i = 0; i < 4; i++) glyphButton(ids[i], x + pad + i * (gw + 3), y, gw, 28, glyphs[i], tips[i], true, (i === 1 && ui.overlay > 0) || (i === 2 && unread() > 0 && Math.floor(ui.time * 2) % 2 === 0));
+  const gw = (inner - 12) / 5, glyphs = ['advisor', 'eye', 'scroll', 'coin', 'gear'], ids = ['win:advisor', 'win:overlay', 'msg:new', 'win:campaign', 'win:menu'];
+  const tips = ['Conseillers [F]', 'Calques de la carte [O]', 'Dernier message', 'Campagne : objectifs, colporteur, aventures [C]', 'Menu du jeu [Échap]'];
+  for (let i = 0; i < 5; i++) glyphButton(ids[i], x + pad + i * (gw + 3), y, gw, 28, glyphs[i], tips[i], true, (i === 1 && ui.overlay > 0) || (i === 2 && unread() > 0 && Math.floor(ui.time * 2) % 2 === 0));
   y += 34;
   // categories and the direct tools: two columns
   const cats = categories(), bw = (inner - 6) / 2, items: string[] = [], labels: string[] = [], glyphs2: string[] = [];
@@ -111,10 +112,11 @@ export function statusStrip(text_: string, color: number): void {
 
 /** A click on a widget of the frame (the id the widget registered). */
 export function hudClick(id: string): void {
-  if (buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id) || advisorClick(id) || overlayClick(id)) return;
+  if (buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id) || advisorClick(id) || campaignClick(id) || overlayClick(id)) return;
   if (id.startsWith('tool:')) { act.setTool(Number(id.slice(5))); ui.category = -1; return; }
   if (id.startsWith('cat:')) { const i = Number(id.slice(4)); ui.category = ui.category === i ? -1 : i; return; }
   if (id === 'win:advisor') { openAdvisor(ui.advisor); return; }
+  if (id === 'win:campaign') { openCampaign(); return; }
   if (id === 'win:menu') { ui.window = WIN_MENU; return; }
   if (id === 'col:fold') { ui.collapsed = !ui.collapsed; act.rebake(); return; }
   if (id === 'speed:pause') { act.togglePause(); return; }

@@ -1,9 +1,10 @@
 import { width } from 'zinc:gfx';
 import { world } from '../world/world';
 import { economy, amountText } from '../world/economy';
-import { TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER } from '../constants';
+import { TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_LOCKED, PLACE_NO_LODE } from '../constants';
 import { checkTool, destroyBuilding, addBuilding } from '../rules/build';
 import { give } from '../rules/stock';
+import { lockText } from '../rules/goals';
 import { recount } from '../world/world';
 import { drawResource } from './icons';
 import { kit, col, parchment, text, measure, wrap } from './kit';
@@ -50,6 +51,8 @@ export function undo(): string {
 
 export function reasonText(tool: number, code: number): string {
   if (code === PLACE_NO_WATER) return 'Ce bâtiment se pose au bord de l’étang.';
+  if (code === PLACE_LOCKED) return lockText(tool - TOOL_HOUSE);
+  if (code === PLACE_NO_LODE) return 'Aucun gisement de ce genre à moins de huit cases : posez-le près de la roche ou du minerai.';
   if (code === PLACE_NO_ROAD) return 'Il faut poser le bâtiment au bord d’une route.';
   if (code === PLACE_NO_STOCK) return 'Il manque : ' + amountText(economy.buildings[tool - TOOL_HOUSE].cost, world.stock) + '.';
   return 'Cette case n’est pas libre.';

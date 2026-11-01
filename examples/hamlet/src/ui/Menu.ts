@@ -19,7 +19,7 @@ class Slot { used: boolean = false; name: string = ''; clock: string = ''; peopl
 const slots: Slot[] = [];
 for (let i = 0; i < SLOTS; i++) slots.push(new Slot());
 let loadMode = true;                       // the slot window: choosing a slot to load, or to save into
-const form = { seed: '', size: DEFAULT_SIZE };
+const form = { seed: '', size: DEFAULT_SIZE, campaign: false };
 
 export function isModal(): boolean { return ui.window >= WIN_MENU && ui.window <= WIN_NEW; }
 export function closeMenus(): boolean {
@@ -131,19 +131,21 @@ function options(): void {
   toggle('opt:unlimited', 'Arbres et gibier sans limite', world.unlimited, x, m.y + 154);
   labelButton('opt:skin', x, m.y + 190, 120, 26, skinNames()[kit.skin], 'Changer le style de l’interface');
   text(kit.body, x + 130, m.y + 195, 'Style de l’interface', col('ink'));
-  textC(kit.small, m.x + 210, m.y + 236, 'F2 : réglages du développeur', col('muted'));
+  toggle('opt:appeal', 'Désirabilité sur la carte [V]', settings.appeal, x, m.y + 226);
+  textC(kit.small, m.x + 210, m.y + 268, 'F2 : réglages du développeur', col('muted'));
   labelButton('menu:back', m.x + 12, m.y + 296, 100, 26, 'Retour');
 }
 function fresh(): void {
-  const m = modal(420, 250, 'Nouveau hameau');
+  const m = modal(420, 290, 'Nouveau hameau');
   text(kit.body, m.x + 24, m.y + 38, 'Graine (un nombre ou un mot, vide : au hasard)', col('ink'));
   parchment(m.x + 24, m.y + 62, 372, 30);
   text(kit.body, m.x + 32, m.y + 68, form.seed + (Math.floor(ui.time * 2) % 2 === 0 ? '_' : ''), col('ink'));
   text(kit.body, m.x + 24, m.y + 108, 'Taille de la carte', col('ink'));
   labelButton('new:smaller', m.x + 24, m.y + 132, 34, 28, '-'); labelButton('new:bigger', m.x + 126, m.y + 132, 34, 28, '+');
   textC(kit.body, m.x + 92, m.y + 137, form.size + ' × ' + form.size, col('ink'));
-  labelButton('new:create', m.x + 24, m.y + 190, 180, 32, 'Créer le hameau');
-  labelButton('menu:back', m.x + 216, m.y + 190, 180, 32, 'Annuler');
+  toggle('new:campaign', 'Campagne (objectifs, colporteur, aventures)', form.campaign, m.x + 24, m.y + 172);
+  labelButton('new:create', m.x + 24, m.y + 230, 180, 32, 'Créer le hameau');
+  labelButton('menu:back', m.x + 216, m.y + 230, 180, 32, 'Annuler');
 }
 
 // ---- input ----
@@ -156,7 +158,7 @@ export function typeKey(kind: KeyKind, name: string): void {
 }
 function create(): void {
   const request = form.seed === '' ? parseSeedRequest(String(randomSeed()) + '@' + form.size) : parseSeedRequest(form.seed.indexOf('@') < 0 ? form.seed + '@' + form.size : form.seed);
-  ui.window = WIN_NONE; ui.editing = false; stopTextInput(); act.newVillage(request.seed, request.size);
+  ui.window = WIN_NONE; ui.editing = false; stopTextInput(); act.newVillage(request.seed, request.size, form.campaign);
 }
 export function menuClick(id: string): boolean {
   if (id === 'menu:resume') { ui.window = WIN_NONE; return true; }
@@ -170,11 +172,13 @@ export function menuClick(id: string): boolean {
   if (id.startsWith('slot:save:')) { saveSlot(Number(id.slice(10))); closeMenus(); return true; }
   if (id === 'new:smaller') { form.size = Math.max(MIN_SIZE, form.size - 2); return true; }
   if (id === 'new:bigger') { form.size = Math.min(MAX_SIZE, form.size + 2); return true; }
+  if (id === 'new:campaign') { form.campaign = !form.campaign; return true; }
   if (id === 'new:create') { create(); return true; }
   if (id === 'opt:sound') { toggleSound(); savePrefs(); return true; }
   if (id === 'opt:edge') { settings.edgePan = !settings.edgePan; savePrefs(); return true; }
   if (id === 'opt:hints') { settings.hints = !settings.hints; savePrefs(); return true; }
   if (id === 'opt:unlimited') { world.unlimited = !world.unlimited; world.saveDirty = true; return true; }
+  if (id === 'opt:appeal') { settings.appeal = !settings.appeal; return true; }
   if (id === 'opt:skin') { setSkin((kit.skin + 1) % skinNames().length); savePrefs(); return true; }
   return false;
 }
