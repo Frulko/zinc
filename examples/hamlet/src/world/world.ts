@@ -44,7 +44,7 @@ export interface World {
   deerTimer: number; waitingForFood: boolean;
   appeal: number[];                 // desirability per tile, recomputed daily (rules/appeal.ts)
   goals: number[];                  // per goal: 1 when done (rules/goals.ts); unlocked: per building type 1 when it may be built
-  unlocked: number[]; progression: boolean; news: string[]; log: Command[];   // progression off: nothing is locked (tests); news: lines for the UI to show and clear; log: the commands issued
+  unlocked: number[]; progression: boolean; news: string[]; log: Command[];   // progression: the campaign layers (locked buildings, the peddler, adventures) are on; the new-village flow turns it on, a plain sandbox or a test leaves it off; news: lines for the UI to show and clear; log: the commands issued
   expeditions: Expedition[];
   offers: Offer[]; peddlerLeft: number;   // the peddler at the gate: his offers, and the days he still stays (0: not here)
   lode: number[];                   // what is left of the deposit on a tile (world.rock >= ROCK_DEPOSIT)
@@ -79,7 +79,7 @@ export const world: World = {
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, appeal: [], goals: [], unlocked: [], progression: true, news: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), priority: [],
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, appeal: [], goals: [], unlocked: [], progression: false, news: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), priority: [],
 };
 
 // ---- tiles ----
