@@ -1,7 +1,7 @@
 import {
   DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, START_WOOD, DEER_START, DEER_GRAZE, DEER_GONE,
 } from '../constants';
-import { hash, noise } from '../pixel';
+import { hash, noise } from './noise';
 
 /** Anything that walks the tile grid. A class, not an interface: the walking code takes a Mover and must change the person itself (interfaces are copied records). */
 export class Mover { x: number = 0; y: number = 0; yaw: number = 0; path: number[] = []; step: number = 0; phase: number = 0; }
@@ -14,7 +14,7 @@ export class Deer extends Mover { state: number = 0; timer: number = 0; hunted: 
 
 /** The whole game state: plain data, no drawing, no side effect at import. */
 export interface World {
-  seed: number; size: number; half: number; gate: number; time: number; wood: number; meat: number; fish: number; hasWater: boolean;
+  seed: number; size: number; half: number; gate: number; time: number; tick: number; rng: number; jobTimer: number; wood: number; meat: number; fish: number; hasWater: boolean;
   terrain: number[]; road: number[]; tree: number[]; rock: number[]; deco: number[]; build: number[]; claimed: number[];
   felledCount: number;              // trees cut so far
   unlimited: boolean;               // no-limit mode: trees and deer come back below a threshold
@@ -28,7 +28,7 @@ export interface World {
 
 const zeros = (size: number = DEFAULT_SIZE): number[] => Array.from({ length: size * size }, (): number => 0);
 export const world: World = {
-  seed: 1, size: DEFAULT_SIZE, half: DEFAULT_SIZE * TILE / 2, gate: Math.floor(DEFAULT_SIZE / 2) * DEFAULT_SIZE, time: 0, wood: START_WOOD, meat: 0, fish: 0, hasWater: false,
+  seed: 1, size: DEFAULT_SIZE, half: DEFAULT_SIZE * TILE / 2, gate: Math.floor(DEFAULT_SIZE / 2) * DEFAULT_SIZE, time: 0, tick: 0, rng: 1, jobTimer: 0, wood: START_WOOD, meat: 0, fish: 0, hasWater: false,
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
@@ -55,16 +55,17 @@ export function neighbor(t: number, d: number): number {
 }
 
 // ---- random numbers: the game's own, so a seed replays ----
-let rng: u32 = 1;
-export function seedRandom(seed: number): void { rng = ((seed * 2654435761) >>> 0) as u32; }
+// The generator's state lives in the world (saved, hashed), not in a module global: whoever replays the same ticks gets the same village.
+export function seedRandom(seed: number): void { world.rng = Math.imul(seed | 0, -1640531535) >>> 0; }
 export function random(): number {
-  rng = (Math.imul(rng as i32, 1664525) + 1013904223) as u32;
-  return rng / 4294967296;
+  world.rng = (Math.imul(world.rng | 0, 1664525) + 1013904223) >>> 0;
+  return world.rng / 4294967296;
 }
 
 /** Below 1 inside the pond: an irregular blob, continuous so the shore is drawn per pixel. */
 export function waterField(x: number, y: number): number {
-  return Math.hypot((x - world.pondX) * .9, (y - world.pondY) * 1.1) / world.pondR + (noise(x * .35 + world.offsetX, y * .35 + world.offsetY) - .5) * .55;
+  const dx = (x - world.pondX) * .9, dy = (y - world.pondY) * 1.1;
+  return Math.sqrt(dx * dx + dy * dy) / world.pondR + (noise(x * .35 + world.offsetX, y * .35 + world.offsetY) - .5) * .55;
 }
 
 /** A tile with a pond tile next to it (4 directions): where a fisher stands. Returns the water tile, or -1. */
@@ -92,7 +93,7 @@ export function tileCount(): number { return world.size * world.size; }
 export function generate(seed: number, size: number = DEFAULT_SIZE): void {
   world.seed = seed; world.size = size; world.half = size * TILE / 2; world.gate = Math.floor(size / 2) * size + GATE_I;
   world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.build = zeros(size); world.claimed = zeros(size);
-  world.seed = seed; world.time = 0; world.wood = START_WOOD; world.meat = 0; world.fish = 0;
+  world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.wood = START_WOOD; world.meat = 0; world.fish = 0;
   world.buildings = []; world.people = []; world.deer = []; world.felledCount = 0; world.treeTimer = 0;
   world.deerTimer = 0; world.waitingForMeat = false; world.lastSave = 0; world.saveDirty = false;
   seedRandom(seed);
@@ -104,7 +105,7 @@ export function generate(seed: number, size: number = DEFAULT_SIZE): void {
   for (let t = 0; t < size * size; t++) {
     world.terrain[t] = TERRAIN_GRASS; world.road[t] = 0; world.tree[t] = 0; world.rock[t] = 0; world.deco[t] = 0; world.build[t] = -1; world.claimed[t] = 0;
     const x = tileX(t), y = tileY(t), i = tileI(t), j = tileJ(t);
-    const edge = Math.pow(Math.pow(Math.abs(x) / world.half, 4) + Math.pow(Math.abs(y) / world.half, 4), .25);
+    const ex = x / world.half, ey = y / world.half, edge = Math.sqrt(Math.sqrt(ex * ex * ex * ex + ey * ey * ey * ey));
     if (edge > .985) { world.terrain[t] = TERRAIN_VOID; continue; }
     if (waterField(x, y) < 1) { world.terrain[t] = TERRAIN_WATER; continue; }
     if (Math.abs(i - GATE_I) + Math.abs(j - Math.floor(size / 2)) <= 2) continue;   // the entrance stays clear

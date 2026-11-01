@@ -13,12 +13,16 @@ for engine in "" "--interp" "--engine quickjs"; do
   esac
   [ ! -s "$tmp/err" ] || { cat "$tmp/err"; exit 1; }
   grep -q 'hamlet rules: ALL PASS' "$tmp/rules" || { cat "$tmp/rules"; exit 1; }
+  grep 'hamlet rules: statehash' "$tmp/rules" >> "$tmp/hashes"
 done
+[ "$(sort -u "$tmp/hashes" | wc -l)" -eq 1 ] || { echo 'the state hash differs between engines:'; cat "$tmp/hashes"; exit 1; }
+# the simulation never reads a clock or the system generator, and keeps to + - * / sqrt (no hypot, sin, cos, pow): determinism for replays and servers
+if grep -rnE 'Math\.(random|hypot|sin|cos|pow)|Date\.' examples/hamlet/src/world examples/hamlet/src/rules examples/hamlet/src/engine | grep -v 'randomSeed'; then echo 'nondeterministic call in the simulation'; exit 1; fi
 # the mouse session: roads by dragging, a house, a sawmill, a lodge; ZINC_INPUT must be an absolute path
 ZINC_SIZE=1100x900 ZINC_FRAMES=3200 ZINC_INPUT="$PWD/tests/data/hamlet/session.input" \
 ZINC_SHOT="$tmp/frame.png" ZINC_SHOT_FRAMES=300,2200,3150 timeout 300 "$ZINC" run examples/hamlet > "$tmp/out" 2> "$tmp/err"
 [ ! -s "$tmp/err" ] || { cat "$tmp/err"; exit 1; }
-grep -q '^hamlet:save	H4;7916;24;' "$tmp/data/storage.kv"
+grep -q '^hamlet:save	H5;3;24;' "$tmp/data/storage.kv"
 python3 - "$tmp" <<'CHECK'
 from pathlib import Path
 from PIL import Image, ImageChops
@@ -31,7 +35,7 @@ assert sum(min(px) < 200 for px in b.getdata()) > 150000, 'missing diorama'
 save = (p / 'data' / 'storage.kv').read_text()
 fields = save.split('\t')[1].split(';')
 assert fields[6] and fields[7], 'the session placed no road or building'
-assert fields[1] == '7916' and fields[2] == '24', 'the typed seed was not used'
+assert fields[1] == '3' and fields[2] == '24', 'the typed seed was not used'
 assert fields[7].count(',') >= 3, 'the session should place houses, a sawmill and a lodge'
 CHECK
 echo 'hamlet: rules on three engines, scripted mouse session and save PASS'

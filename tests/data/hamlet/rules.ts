@@ -6,11 +6,12 @@ import { updateNature } from '../../../examples/hamlet/src/engine/nature';
 import { population, createResident } from '../../../examples/hamlet/src/engine/villagers';
 import { seedFromText, parseSeedRequest } from '../../../examples/hamlet/src/world/seed';
 import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
+import { stateHash } from '../../../examples/hamlet/src/world/hash';
 import { TOOL_ROAD, TOOL_HOUSE, TOOL_SAWMILL, TOOL_LODGE, TOOL_ERASE, TOOL_FISHERY, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER } from '../../../examples/hamlet/src/constants';
 
 let failures = 0;
 function check(name: string, ok: boolean): void { console.log('hamlet rules: ' + name + (ok ? ' PASS' : ' FAIL')); if (!ok) failures++; }
-function run(seconds: number): void { for (let k = 0; k < seconds * 25; k++) stepWorld(.04); }
+function run(seconds: number): void { for (let k = 0; k < seconds * 32; k++) stepWorld(); }
 
 world.autosave = false;
 generate(7916, 12);
@@ -80,4 +81,14 @@ check('another seed gives another village', world.terrain.join('') + world.tree.
 check('a text seed is hashed like Java hashCode', seedFromText('hello') === 99162322 && seedFromText('7916') === 7916);
 check('name@size sets the size, kept in range', parseSeedRequest('foret@32').size === 32 && parseSeedRequest('x@99').size === 32 && parseSeedRequest('x@3').size === 12 && parseSeedRequest('foret@32').seed === seedFromText('foret'));
 check('the default size is 24, the gate is in the middle of the west edge', parseSeedRequest('a').size === 24 && world.gate === 12 * 24 && world.size === 24);
+// ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
+generate(1234, 16); world.wood = 100;
+for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, tileIndex(i, 8));
+applyTool(TOOL_HOUSE, tileIndex(2, 7)); applyTool(TOOL_HOUSE, tileIndex(4, 7)); applyTool(TOOL_SAWMILL, tileIndex(5, 9)); applyTool(TOOL_LODGE, tileIndex(3, 9));
+for (let k = 0; k < 600; k++) stepWorld();
+check('world.tick counts whole ticks', world.tick === 600 && Math.abs(world.time - 600 / 32) < 1e-6);
+const hashed = stateHash();
+console.log('hamlet rules: statehash ' + hashed);
+const rngBefore = world.rng;
+check('the save restores the state hash and the generator', restore(snapshot()) && stateHash() === hashed && world.rng === rngBefore);
 console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');

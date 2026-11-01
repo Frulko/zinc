@@ -5,7 +5,7 @@ import {
 import { Sprite, uiState } from 'zinc:stage';
 import { PixelSurface, PixelGame, unproject, sound, setAmbience, toggleSound, pauseSound, muted } from './pixel';
 import {
-  TOOL_ROAD, TOOL_HOUSE, TOOL_SAWMILL, TOOL_LODGE, TOOL_FISHERY, TOOL_ERASE, TOOL_NONE, TOOL_LABELS, MIN_SIZE, MAX_SIZE, BUILDING_COST, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_WOOD, PLACE_NO_WATER,
+  TICK, TOOL_ROAD, TOOL_HOUSE, TOOL_SAWMILL, TOOL_LODGE, TOOL_FISHERY, TOOL_ERASE, TOOL_NONE, TOOL_LABELS, MIN_SIZE, MAX_SIZE, BUILDING_COST, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_WOOD, PLACE_NO_WATER,
 } from './constants';
 import { HUD_INK, HUD_TEAL, HUD_MUTED, HUD_PAPER, HUD_WARM, HUD_ALERT, HUD_DISABLED } from './palettes';
 import { world, generate, tileAt } from './world/world';
@@ -35,6 +35,7 @@ export class HamletScene extends Sprite {
   private surface = new PixelSurface();
   private frame = new PixelGame('hamlet', 'Hameau', '');
   private time: number = 0;
+  private acc: number = 0;               // seconds the simulation still owes: it advances in whole ticks of TICK
   private lastPose: number = -1;
   private baked: number = -1;
   private held: boolean = false;
@@ -230,7 +231,8 @@ export class HamletScene extends Sprite {
     if (signature !== this.cameraSignature) { this.cameraSignature = signature; this.sinceMove = 0; } else this.sinceMove += dt;
     if (!this.paused && (!settings.pauseOnMove || this.sinceMove > .3)) {
       this.time += dt;
-      stepWorld(Math.min(.04, dt) * settings.simSpeed);
+      this.acc += Math.min(.1, dt) * settings.simSpeed;
+      while (this.acc >= TICK) { stepWorld(); this.acc -= TICK; }
       const pose = Math.floor(this.time * settings.animFps);
       this.panel.push(this.fpsRow, dt > 0 ? 1 / dt : 0);
       if (pose !== this.lastPose) uiState.dirty = true;

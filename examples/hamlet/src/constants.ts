@@ -34,6 +34,9 @@ export const PLACE_NO_ROAD = 2;
 export const PLACE_NO_WOOD = 3;
 export const PLACE_NO_WATER = 4;
 
+// ---- time ----
+export const TICK = 1 / 32;             // the simulation advances in whole ticks of this many seconds: the same ticks give the same village
+
 // ---- economy ----
 export const START_WOOD = 24;
 export const SETTLER_INTERVAL = 6;      // seconds between two arrivals at one house
@@ -95,5 +98,5 @@ export const DEER_GONE = 4;             // free slot
 
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';
-export const SAVE_VERSION = 'H4';
+export const SAVE_VERSION = 'H5';
 export const SAVE_DELAY = 2;            // seconds between two writes

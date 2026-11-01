@@ -9,6 +9,7 @@ import { fieldFrom, approachTile, pathTo, planPath, walk, isWalkable, isMoving, 
 import { sound } from '../pixel';
 import { settings } from '../settings';
 
+const gap = (ax: number, ay: number, bx: number, by: number): number => Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
 const buildingTile = (b: Building): number => tileIndex(b.i, b.j);
 const tileOf = (p: Person): number => tileAt(p.x, p.y);
 const faceTile = (p: Person, t: number): void => { p.yaw = Math.atan2(tileY(t) - p.y, tileX(t) - p.x); };
@@ -93,7 +94,7 @@ function assignJobs(): void {
       let best: Person | null = null, bestDist = 1e9;
       for (const p of world.people) {
         if (p.role !== ROLE_RESIDENT || p.job >= 0 || (p.state !== ST_IDLE && p.state !== ST_STROLL)) continue;
-        const d = Math.hypot(p.x - tileX(buildingTile(site)), p.y - tileY(buildingTile(site)));
+        const d = gap(p.x, p.y, tileX(buildingTile(site)), tileY(buildingTile(site)));
         if (d < bestDist) { bestDist = d; best = p; }
       }
       if (best === null) break;
@@ -232,7 +233,7 @@ function updateWorker(p: Person, dt: number): void {
     case ST_STALK: {
       const deer = world.deer[p.target];
       if (deer.state === DEER_DEAD || deer.state === DEER_GONE) { releaseClaims(p); p.state = ST_SEEK; p.timer = 0; break; }
-      if (Math.hypot(deer.x - p.x, deer.y - p.y) <= SHOOT_RANGE) {
+      if (gap(deer.x, deer.y, p.x, p.y) <= SHOOT_RANGE) {
         p.path = []; p.step = 0; p.state = ST_AIM; p.timer = AIM_SECONDS;
         p.yaw = Math.atan2(deer.y - p.y, deer.x - p.x);
         break;
@@ -244,7 +245,7 @@ function updateWorker(p: Person, dt: number): void {
     case ST_AIM: {
       const deer = world.deer[p.target];
       p.yaw = Math.atan2(deer.y - p.y, deer.x - p.x);
-      if (Math.hypot(deer.x - p.x, deer.y - p.y) > SHOOT_RANGE + 1.5) { p.state = ST_STALK; p.timer = 0; break; }
+      if (gap(deer.x, deer.y, p.x, p.y) > SHOOT_RANGE + 1.5) { p.state = ST_STALK; p.timer = 0; break; }
       p.timer -= dt;
       if (p.timer > 0) break;
       p.shotX = deer.x; p.shotY = deer.y; p.state = ST_SHOT; p.timer = ARROW_SECONDS;

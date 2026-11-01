@@ -70,7 +70,7 @@ export function walk(m: Mover, dt: number, speed: number): boolean {
   if (!isWalkable(t)) { m.path = []; m.step = 0; return true; }
   const here = tileAt(m.x, m.y);
   const pace = speed * (here >= 0 && world.road[here] ? ROAD_SPEED : 1);
-  const dx = tileX(t) - m.x, dy = tileY(t) - m.y, dist = Math.hypot(dx, dy), len = pace * dt;
+  const dx = tileX(t) - m.x, dy = tileY(t) - m.y, dist = Math.sqrt(dx * dx + dy * dy), len = pace * dt;
   m.phase += len * 3.2;
   if (dist <= len) { m.x = tileX(t); m.y = tileY(t); m.step++; return m.step >= m.path.length; }
   m.x += dx / dist * len; m.y += dy / dist * len;
