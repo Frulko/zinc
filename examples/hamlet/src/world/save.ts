@@ -39,6 +39,12 @@ export function saveGame(): void {
 }
 
 /** Rebuilds the village from a snapshot. False when there is none (or it is from another version). */
+/** A saved list made to the length the data has now (a resource or service added since the save reads as 0, one removed is dropped). */
+function sized(text: string, length: number): number[] {
+  const out: number[] = [], parts = text.split('|');
+  for (let n = 0; n < length; n++) out.push(n < parts.length ? Number(parts[n]) : 0);
+  return out;
+}
 export function restore(text: string): boolean {
   const fields = text.split(';');
   if (fields.length !== 18 || fields[0] !== SAVE_VERSION) return false;
@@ -48,9 +54,9 @@ export function restore(text: string): boolean {
     for (const entry of fields[4].split(',')) {
       const parts = entry.split('.'), type = Number(parts[0]), tile = Number(parts[1]);
       const id = world.build[tile] >= 0 ? world.build[tile] : addBuilding(type, tile);       // the hall already stands, empty of its start stock
-      world.buildings[id].stock = parts[3].split('|').map((v: string): number => Number(v));
-      world.buildings[id].level = Number(parts[5]); world.buildings[id].streak = Number(parts[6]); world.buildings[id].fed = parts[7].split('|').map((v: string): number => Number(v));
-      world.buildings[id].cover = parts[4].split('|').map((v: string): number => Number(v));
+      const b = world.buildings[id];
+      b.stock = sized(parts[3], b.stock.length); b.fed = sized(parts[7], b.fed.length); b.cover = sized(parts[4], b.cover.length);
+      b.level = Number(parts[5]); b.streak = Number(parts[6]);
       if (type === HOUSE) {
         for (let n = 0; n < Number(parts[2]); n++) createResident(id);
         world.buildings[id].residents = Number(parts[2]);
