@@ -7,7 +7,7 @@
 // name and a spinner, and after a while that it is slow (a Pi 3 can take 25 s). The spinner steps 12 times a second and
 // nothing runs once the first frame is there.
 
-import { drawImage, rect, rrect } from 'zinc:gfx';
+import { drawImage, rect, rrect, textWidth } from 'zinc:gfx';
 import * as shell from 'zinc:shell';
 import * as sys from 'zinc:sys';
 import { COLOR_TEXT_SECONDARY, COLOR_WHITE } from '../../constants';
@@ -15,7 +15,7 @@ import { Fonts } from '../../fonts';
 import { DisplayObject } from '../../core/display';
 import { uiState } from '../../core/input';
 import { appIconImage } from '../../services/apps';
-import { drawCenteredText, drawGlyph } from '../../components/primitives';
+import { drawCenteredText, drawGlyph, drawWrappedText } from '../../components/primitives';
 import { appState } from '../../state';
 
 const ICON_SIZE = 72;
@@ -96,7 +96,10 @@ export class AppPageNode extends DisplayObject {
         COLOR_WHITE, Math.max(40, 255 - age * 20));
     }
     if (this.waitedSeconds >= SLOW_START_SECONDS) {
-      drawCenteredText(Fonts.small, centerX, spinnerY + SPINNER_RADIUS + 18, 'This app takes a while to start on this Raspberry Pi', COLOR_TEXT_SECONDARY);
+      const width = Math.min(360, centerX * 2 - 40);   // wraps on a narrow screen
+      const slow = 'This app takes a while to start on this Raspberry Pi';
+      if (textWidth(Fonts.small, slow, 0) <= width) drawCenteredText(Fonts.small, centerX, spinnerY + SPINNER_RADIUS + 18, slow, COLOR_TEXT_SECONDARY);
+      else drawWrappedText(Fonts.small, centerX - width / 2, spinnerY + SPINNER_RADIUS + 18, slow, COLOR_TEXT_SECONDARY, width, 3, 20, 255);
     }
   }
 }

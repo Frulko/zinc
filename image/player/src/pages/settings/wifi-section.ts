@@ -24,6 +24,9 @@ function signalIconName(signal: i32): string {
   return 'wifi-zero';
 }
 
+/** Narrower than this the Scan and Restart buttons move under the heading. */
+const TIGHT_WIDTH = 330;
+
 export class WifiSectionNode extends DisplayObject {
   private listScroll: ScrollBox = new ScrollBox();
 
@@ -42,15 +45,19 @@ export class WifiSectionNode extends DisplayObject {
     drawSectionHeading(x, cursorY, 'Wi-Fi');
     const isManaged = appState.network.managed;
     const isBusy = appState.isScanning || appState.busyAction !== '' || !isManaged;
-    const scanWidth = measureButton('Scanning…', 'refresh-cw');
-    drawButton('wifi/scan', x + width - scanWidth, cursorY - 6, scanWidth, appState.isScanning ? 'Scanning…' : 'Scan', 'refresh-cw',
+    // a very narrow screen: the buttons have a line of their own under the heading, with shorter names
+    const isTight = width < TIGHT_WIDTH;
+    const buttonsY = isTight ? cursorY + 44 : cursorY - 6;
+    const scanLabel = appState.isScanning && !isTight ? 'Scanning…' : 'Scan';
+    const scanWidth = measureButton(isTight ? 'Scan' : 'Scanning…', 'refresh-cw');
+    drawButton('wifi/scan', x + width - scanWidth, buttonsY, scanWidth, scanLabel, 'refresh-cw',
       BUTTON_SECONDARY, () => scanWifi(true), !isBusy);
     const restarting = appState.pendingPowerAction === 'network';
-    const restartLabel = restarting ? 'Restart now?' : 'Restart network';
+    const restartLabel = restarting ? 'Restart now?' : isTight ? 'Restart' : 'Restart network';
     const restartWidth = measureButton(restartLabel, 'rotate-ccw');
-    drawButton('wifi/restart', x + width - scanWidth - restartWidth - 10, cursorY - 6, restartWidth, restartLabel, 'rotate-ccw',
+    drawButton('wifi/restart', x + width - scanWidth - restartWidth - 10, buttonsY, restartWidth, restartLabel, 'rotate-ccw',
       BUTTON_SECONDARY, restarting ? restartNetwork : () => askPowerAction('network'), appState.busyAction === '' && !appState.updates.isBusy());
-    cursorY += 60;
+    cursorY += isTight ? 108 : 60;
     if (restarting) {
       const cancelWidth = measureButton('Cancel', '');
       drawLabel(Fonts.small, x, cursorY - 8, 'This can disconnect remote sessions.', COLOR_TEXT_SECONDARY, width - cancelWidth - 12);

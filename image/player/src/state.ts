@@ -378,6 +378,14 @@ export function followConnectedApp(): void {
   navigateTo(PAGE_APP);
 }
 
+/** ZINC_PLAYER_START_PAGE=settings:<section> | apps | hub: opens that page at the start (tests, captures at other sizes). */
+export function openStartPage(): void {
+  const page = sys.env('ZINC_PLAYER_START_PAGE');
+  if (page.startsWith('settings:')) openSettings(page.substring(9));
+  else if (page === 'apps') navigateTo(PAGE_APPS);
+  else if (page === 'hub') navigateTo(PAGE_HUB);
+}
+
 /** The shell's start: zinc-session (ZINC_SHELL=1) leaves the boot app to it (ZINC_BOOT_APP=1, not during an update). */
 export function startShell(): void {
   if (!isShell) return;

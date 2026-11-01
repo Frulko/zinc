@@ -8,7 +8,7 @@ import { Fonts } from '../../fonts';
 import { DisplayObject } from '../../core/display';
 import { appState, screenRotation, setScreenRotation } from '../../state';
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, drawButton } from '../../components/buttons';
-import { drawLabel } from '../../components/primitives';
+import { drawLabel, drawWrappedText } from '../../components/primitives';
 import { drawMessage, drawSectionHeading } from '../../components/rows';
 
 const SECTION_PADDING = 24;
@@ -35,8 +35,8 @@ export class DisplaySectionNode extends DisplayObject {
       buttonX += buttonWidth + 10;
     }
     cursorY += 56;
-    drawLabel(Fonts.small, x, cursorY, 'Turns the screen clockwise, touch included. The shell restarts to apply it.', COLOR_TEXT_SECONDARY, width);
-    cursorY += 40;
+    drawWrappedText(Fonts.small, x, cursorY, 'Turns the screen clockwise, touch included. The shell restarts to apply it.', COLOR_TEXT_SECONDARY, width, 3, 20, 255);
+    cursorY += 64;
     drawMessage(x, cursorY, width, appState.message, appState.isMessageError);
   }
 }

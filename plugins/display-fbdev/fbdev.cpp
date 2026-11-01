@@ -108,6 +108,14 @@ static void put_row(int y, int x0, int x1, const uint32_t* src, const int* xm) {
   const int sy = xm ? ymap[y - dy] : y;
   for (int x = x0; x < x1; x++) { const int sx = xm ? xm[x - dx] : x - dx; tmp[x - x0] = cursor_pixel(sx, sy, src[sx]); }
   if (!rot) { conv_row(tmp.data(), row, x0, x1 - x0); return; }
+  if (fmt == FMT_8888) {   // the planes' buffers and most screens: one 32-bit store a pixel, walking the destination by its pitch
+    const int n = x1 - x0;
+    uint8_t* d = rot == 1 ? fbmem + (size_t)x0 * pitch + (size_t)(lh - 1 - y) * 4 : rot == 2 ? fbmem + (size_t)(lh - 1 - y) * pitch + (size_t)(lw - 1 - x0) * 4
+                                                                                       : fbmem + (size_t)(lw - 1 - x0) * pitch + (size_t)y * 4;
+    const ptrdiff_t step = rot == 1 ? (ptrdiff_t)pitch : rot == 2 ? -4 : -(ptrdiff_t)pitch;
+    for (int i = 0; i < n; i++, d += step) *(uint32_t*)d = tmp[i] | amask;
+    return;
+  }
   for (int x = x0; x < x1; x++) {   // turned: each pixel goes to its place on the screen
     const int X = rot == 1 ? lh - 1 - y : rot == 2 ? lw - 1 - x : y, Y = rot == 1 ? x : rot == 2 ? lh - 1 - y : lw - 1 - x;
     conv_row(&tmp[x - x0], fbmem + (size_t)Y * pitch, X, 1);
@@ -801,6 +809,13 @@ static void planes_present(const HalFrame* f, bool has) {
   if (behind.x1 > behind.x0) a = a.x1 > a.x0 ? Area{std::min(a.x0, behind.x0), std::min(a.y0, behind.y0), std::max(a.x1, behind.x1), std::max(a.y1, behind.y1)} : behind;
   if (full) { a = Area{0, 0, W, H}; full--; }
   const bool turn = a.x1 > a.x0 && a.y1 > a.y0;   // nothing to write: the buffer on the screen stays, only the pictures change
+  // an idle frame (nothing drawn, no picture now or just gone): the screen already shows it, so no commit and no refresh to wait for; the
+  // loop keeps its pace by sleeping (a commit a frame cost 5 to 15 % of a Pi 3's core for nothing)
+  if (!turn && !nlay && replaced.empty() && !pending && frames > 0) {
+    idle++;
+    usleep(1000000u / ZP_DISPLAY_FBDEV_FPS);
+    return;
+  }
   asked += (uint64_t)(now.x1 - now.x0) * (now.y1 - now.y0);
   if (turn) {
     wrote += (uint64_t)(a.x1 - a.x0) * (a.y1 - a.y0);

@@ -60,6 +60,7 @@ import {
   hideScreenKeyboard,
   isShell,
   startRefreshing,
+  openStartPage,
   startShell,
   followConnectedApp,
   submitForm,
@@ -266,6 +267,7 @@ if (sys.env('ZINC_PLAYER_HUB_INSTALL') !== '') installFromEnvironment(agentDirec
 escapeByApp(true);
 startRefreshing();
 startShell();
+openStartPage();
 let shownSerial = -1;
 
 let drawnImage = -1;   // the app image the last drawn frame showed (zinc:shell)

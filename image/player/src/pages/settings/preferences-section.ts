@@ -52,7 +52,7 @@ export class PreferencesSectionNode extends DisplayObject {
     }
     cursorY += SWATCH_HEIGHT + 40;
 
-    drawSettingRow('pref/animation-row', x, cursorY, width, 'Animation', 'Slow shapes behind the home page; off saves power on a Pi 3',
+    drawSettingRow('pref/animation-row', x, cursorY, width, 'Animation', 'Slow background shapes; off saves power',
       SWITCH_WIDTH);
     drawSwitch('pref/animation', x + width - 16 - SWITCH_WIDTH, cursorY + (ROW_HEIGHT - SWITCH_HEIGHT) / 2, appState.config.animation,
       () => setAnimationEnabled(!appState.config.animation));

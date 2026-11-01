@@ -178,6 +178,20 @@ int main(int argc, char** argv) {
       close(m.fd);
       slots[0] = {};
     }
+    // a partial update turns only its damage: every pixel of the screen is the full turn of (frame 2 inside the rectangle, frame 1 outside)
+    {
+      static int pattern = 0;
+      auto value = [](int x, int y, int k) { return (uint32_t)((x * 7 + y * 13 + k * 101) & 0xffffff); };
+      static auto at = value;
+      auto paint_pattern = [](uint32_t* rows, int32_t a, int32_t b) { for (int y = a; y < b; y++) for (int x = 0; x < W; x++) rows[(y - a) * W + x] = ((x * 7 + y * 13 + pattern * 101) & 0xffffff); };
+      pattern = 1; HalFrame one{w, h, 0, 0, w, h, paint_pattern}; fb_present(&one);
+      pattern = 2; HalFrame two{w, h, 90, 120, 260, 300, paint_pattern}; fb_present(&two);
+      for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+        const bool inside = x >= 90 && x < 260 && y >= 120 && y < 300;
+        const int X = deg == 90 ? H - 1 - y : deg == 180 ? W - 1 - x : y, Y = deg == 90 ? x : deg == 180 ? H - 1 - y : W - 1 - x;
+        assert(pixel(X, Y) == at(x, y, inside ? 2 : 1));
+      }
+    }
     fb_shutdown();
   }
   unsetenv("ZINC_ROTATE");
