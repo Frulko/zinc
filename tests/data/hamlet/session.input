@@ -4,30 +4,30 @@
 10 key ArrowLeft
 40 keyup ArrowLeft
 50 key 1
-52 move 443 213
+52 move 360 277
 53 down
-55 move 486 234
-57 move 528 213
-59 move 571 234
-61 move 613 255
-63 move 655 277
-65 move 698 298
-67 move 740 319
-69 move 783 340
+55 move 399 296
+57 move 436 277
+59 move 475 296
+61 move 512 315
+63 move 550 334
+65 move 588 353
+67 move 626 372
+69 move 664 391
 73 up
 77 key 2
-79 move 613 213
+79 move 512 277
 80 down
 82 up
-85 move 655 234
+85 move 550 296
 86 down
 88 up
 91 key 3
-93 move 698 255
+93 move 588 315
 94 down
 96 up
 1400 key 4
-1402 move 655 319
+1402 move 550 372
 1403 down
 1405 up
 2300 key -

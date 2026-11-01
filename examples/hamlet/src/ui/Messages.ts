@@ -13,6 +13,7 @@ const known: string[] = [];
 let lastPeople = 0, lastScan = -10, lastMilestone = 0;
 
 export function post(kind: number, message: string, tile: number): void {
+  for (let i = 0; i < log.length && i < 8; i++) if (log[i].text === message && log[i].tile === tile) return;   // the same event again: one line
   const m = new Message(); m.kind = kind; m.text = message; m.tile = tile; log.unshift(m);
   if (log.length > 40) log.pop();
   if (kind === MSG_URGENT) { banner.text = message; banner.until = ui.time + 6; banner.tile = tile; }
