@@ -12,6 +12,7 @@ import { categories, flyAnchor, buildClick } from './BuildMenu';
 import { drawMessages, unread, messageClick } from './Messages';
 import { infoClick } from './Info';
 import { menuClick } from './Menu';
+import { advisorClick, openAdvisor } from './Advisors';
 import { dateText, SEASONS, season } from './clock';
 
 // The frame of the game: the top bar (what the village holds, its date, the speed) and the control column on the right (overview map, tools, messages).
@@ -109,9 +110,10 @@ export function statusStrip(text_: string, color: number): void {
 
 /** A click on a widget of the frame (the id the widget registered). */
 export function hudClick(id: string): void {
-  if (buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id)) return;
+  if (buildClick(id) || messageClick(id) || infoClick(id) || menuClick(id) || advisorClick(id)) return;
   if (id.startsWith('tool:')) { act.setTool(Number(id.slice(5))); ui.category = -1; return; }
   if (id.startsWith('cat:')) { const i = Number(id.slice(4)); ui.category = ui.category === i ? -1 : i; return; }
+  if (id === 'win:advisor') { openAdvisor(ui.advisor); return; }
   if (id === 'win:menu') { ui.window = WIN_MENU; return; }
   if (id === 'col:fold') { ui.collapsed = !ui.collapsed; act.rebake(); return; }
   if (id === 'speed:pause') { act.togglePause(); return; }

@@ -3,9 +3,10 @@ id: ZN-987
 title: >-
   Hamlet UI: advisor screens - labour, food, housing, trade and population
   overview
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-11-01 14:25'
+updated_date: '2026-11-01 15:01'
 labels:
   - hamlet
   - demo
@@ -25,7 +26,13 @@ Modal advisor windows in the spirit of Caesar's advisors: a labour table (jobs, 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 At least labour, food and housing advisors open from the column and read live data
-- [ ] #2 The labour advisor lets the player change worker priorities
-- [ ] #3 A population chart draws the last years
+- [x] #1 At least labour, food and housing advisors open from the column and read live data
+- [x] #2 The labour advisor lets the player change worker priorities
+- [x] #3 A population chart draws the last years
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Population history is kept in memory (one sample a month, 36 shown), not saved. Minimap ground is now one cached image; zinc.json sets growDrawCommands for busy UI frames.
+<!-- SECTION:NOTES:END -->
