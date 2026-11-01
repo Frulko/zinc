@@ -140,7 +140,7 @@ export, publish to itch.io and run `zinc publish --key` again: a copy of 0.1.0 t
 | --- | --- |
 | `zinc new <template> <dir>` | a project from a template ([templates](../templates.md); `zinc new --list`) |
 | `zinc run`, `zinc test` | nothing: they run the project, its `*.test.ts` files ([testing](06-testing.md)) |
-| `zinc pack [-o file]` | `build/<name>.zapp`: one deterministic archive per app, run by `zinc run app.zapp` ([.zapp](../zapp.md)). Large PNGs of `assets/` are stored in a fast-load format at the same path (lossless, decoded in a few hundredths of a second on a Pi instead of seconds): `--no-optimize` or `"assets": { "optimize": false }` in `zinc.json` keeps them as they are. A program that hands an asset path to a native plugin which reads files itself (`zinc:imageio`) should turn it off. |
+| `zinc pack [-o file]` | `build/<name>.zapp`: one deterministic archive per app, run by `zinc run app.zapp` ([.zapp](../zapp.md)). Large PNGs of `assets/` are stored in a fast-load format at the same path (lossless, decoded in a few hundredths of a second on a Pi instead of seconds): `--no-optimize` or `"assets": { "optimize": false }` in `zinc.json` keeps them as they are.|
 | `zinc fuse app.zapp -o app` | one executable: this engine with the archive appended, for this machine's OS |
 | `zinc export --target <t>` | `dist/<name>-<t>/`: a native build (AOT) and what goes with it (below) |
 | `zinc update-keygen` | a key pair: `seed=` signs, `public=` checks |
