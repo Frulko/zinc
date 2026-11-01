@@ -20,6 +20,8 @@ export const APP_TILE_HEIGHT = APP_ICON_SIZE + NAME_GAP + 18;
 const BAND_COLOR: u32 = 0xffc53d;
 const BAND_TEXT_COLOR: u32 = 0x1c1e27;
 const DELETE_BUTTON_SIZE = 26;
+/** A pressed tile is drawn this much smaller on each side (about 0.92), and dimmer: the press shows in the frame it starts. */
+const PRESSED_INSET = 3;
 
 function drawTileName(x: number, y: number, slotWidth: number, text: string): void {
   const shown = fitTextToWidth(Fonts.small, text, slotWidth);
@@ -28,7 +30,8 @@ function drawTileName(x: number, y: number, slotWidth: number, text: string): vo
 
 /** The square of a tile: translucent white, lighter while pressed, its focus ring. */
 function drawIconSquare(zoneId: string, iconX: number, iconY: number): void {
-  rrect(iconX, iconY, APP_ICON_SIZE, APP_ICON_SIZE, ICON_RADIUS, COLOR_WHITE, isZonePressed(zoneId) ? 90 : 48);
+  const inset = isZonePressed(zoneId) ? PRESSED_INSET : 0;
+  rrect(iconX + inset, iconY + inset, APP_ICON_SIZE - inset * 2, APP_ICON_SIZE - inset * 2, ICON_RADIUS, COLOR_WHITE, inset > 0 ? 90 : 48);
   if (isZoneFocused(zoneId)) drawFocusRing(iconX, iconY, APP_ICON_SIZE, APP_ICON_SIZE, ICON_RADIUS);
 }
 
@@ -38,8 +41,9 @@ export function drawAppTile(app: InstalledApp, x: number, y: number, slotWidth: 
   const iconX = x + (slotWidth - APP_ICON_SIZE) / 2;
   drawIconSquare(zoneId, iconX, y);
   const image = appIconImage(app);
-  if (image >= 0) drawImage(image, iconX, y, APP_ICON_SIZE, APP_ICON_SIZE, isZonePressed(zoneId) ? 200 : 255, ICON_RADIUS);
-  else drawGlyph('app-window', iconX + (APP_ICON_SIZE - 36) / 2, y + (APP_ICON_SIZE - 36) / 2, 36, COLOR_WHITE);
+  const inset = isZonePressed(zoneId) ? PRESSED_INSET : 0;
+  if (image >= 0) drawImage(image, iconX + inset, y + inset, APP_ICON_SIZE - inset * 2, APP_ICON_SIZE - inset * 2, inset > 0 ? 200 : 255, ICON_RADIUS);
+  else drawGlyph('app-window', iconX + (APP_ICON_SIZE - 36) / 2, y + (APP_ICON_SIZE - 36) / 2, 36, COLOR_WHITE, inset > 0 ? 200 : 255);
   if (app.isDev) {
     // the band across the bottom of the icon: an app zinc dev sent, kept after its session
     const bandHeight = 18;
