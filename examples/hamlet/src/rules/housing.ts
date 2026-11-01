@@ -8,6 +8,8 @@ export function levelCount(): number { return housing().levels.length; }
 export function levelOf(b: Building): HouseLevel { return housing().levels[Math.min(b.level, levelCount() - 1)]; }
 /** How many people the house holds at its level. */
 export function capacityOf(b: Building): number { return levelOf(b).capacity; }
+/** The goods that light the house lately (candles): each adds `lamp` to the appeal its level is judged on. */
+export function litBonus(b: Building): number { let n = 0; for (const k of housing().uses) if (b.fed[k] > 0) n++; return n * housing().lamp; }
 /** The food kinds the house ate lately. */
 export function foodKinds(b: Building): number { let n = 0; for (const k of housing().eats) if (b.fed[k] > 0) n++; return n; }
 
@@ -26,8 +28,8 @@ function requirements(b: Building, lv: HouseLevel, slack: number): Requirement[]
     out.push(r);
   }
   if (lv.appeal > 0) {
-    const r = new Requirement(), here = world.appeal[b.j * world.size + b.i]; r.id = 'appeal'; r.met = here >= lv.appeal - slack;
-    r.text = r.met ? 'Quartier agréable (' + here + ')' : 'Il manque : un quartier plus agréable (' + here + ' sur ' + lv.appeal + '), des arbres, de l’eau, moins d’industrie';
+    const r = new Requirement(), here = world.appeal[b.j * world.size + b.i] + litBonus(b); r.id = 'appeal'; r.met = here >= lv.appeal - slack;
+    r.text = r.met ? 'Quartier agréable (' + here + ')' : 'Il manque : un quartier plus agréable (' + here + ' sur ' + lv.appeal + '), des arbres, de l’eau, des bougies, une taverne, moins d’industrie';
     out.push(r);
   }
   return out;

@@ -16,7 +16,11 @@
     { "id": "iron_ore", "label": "Minerai", "carry": "stone", "price": 4 },
     { "id": "berries", "label": "Baies", "carry": "sack", "price": 2 },
     { "id": "coin", "label": "Pièces", "carry": "sack", "price": 1 },
-    { "id": "tools", "label": "Outils", "carry": "stone", "price": 8 }
+    { "id": "tools", "label": "Outils", "carry": "stone", "price": 8 },
+    { "id": "honey", "label": "Miel", "carry": "sack", "price": 3 },
+    { "id": "wax", "label": "Cire", "carry": "sack", "price": 3 },
+    { "id": "candle", "label": "Bougies", "carry": "sack", "price": 5 },
+    { "id": "mead", "label": "Hydromel", "carry": "sack", "price": 7 }
   ],
   "desirability": { "limit": 8, "terrain": [ { "kind": "tree", "rings": [1] }, { "kind": "water", "rings": [2, 1] } ] },
   "goals": [
@@ -42,12 +46,21 @@
       "when": [ { "population": 14 }, { "houses": 1, "level": 2 } ], "final": true },
     { "id": "iron", "title": "Du fer", "text": "Une mine tire le minerai de la roche ; la forge (il faut de l’argile) en fait des outils.", "requires": ["street"],
       "when": [ { "building": "mine" } ], "unlock": ["forge"], "give": { "log": 4 } },
+    { "id": "bees", "title": "Des abeilles", "text": "Un cueilleur sait où fleurissent les prés : posez un rucher près des fleurs.", "requires": ["street"],
+      "when": [ { "building": "forager" } ], "unlock": ["apiary"], "give": { "plank": 4 } },
+    { "id": "honey", "title": "Du miel", "text": "Le rucher donne du miel (les maisons l’aiment) et de la cire ; la cire fait des bougies, le miel avec du blé fait de l’hydromel.", "requires": ["bees", "planks"],
+      "when": [ { "building": "apiary" }, { "stock": "honey", "count": 6 } ], "unlock": ["chandlery", "meadery"], "give": { "log": 4, "plank": 4 } },
+    { "id": "light", "title": "De la lumière", "text": "Les bougies éclairent les maisons : le quartier en devient plus agréable.", "requires": ["honey"],
+      "when": [ { "building": "chandlery" }, { "stock": "candle", "count": 4 } ], "give": { "plank": 4 } },
+    { "id": "mead", "title": "Une taverne", "text": "Faites de l’hydromel, puis ouvrez une taverne : elle l’achète et réjouit le voisinage.", "requires": ["honey"],
+      "when": [ { "building": "meadery" }, { "stock": "mead", "count": 4 } ], "unlock": ["tavern"], "give": { "plank": 6 } },
     { "id": "tools", "title": "Des outils", "text": "La forge change le minerai en outils : la carrière en demande.", "requires": ["iron"],
       "when": [ { "building": "forge" }, { "stock": "tools", "count": 2 } ], "give": { "plank": 6 } }
   ],
   "trade": { "coin": "coin", "everyDays": 5, "stayDays": 2, "offers": 3, "table": [
     { "side": "sell", "resource": "bread", "qty": 4 }, { "side": "sell", "resource": "smoked_meat", "qty": 4 }, { "side": "sell", "resource": "stone", "qty": 4 },
-    { "side": "sell", "resource": "leather", "qty": 2 }, { "side": "sell", "resource": "clay", "qty": 6 }, { "side": "sell", "resource": "berries", "qty": 6 }, { "side": "sell", "resource": "plank", "qty": 8 },
+    { "side": "sell", "resource": "leather", "qty": 2 }, { "side": "sell", "resource": "clay", "qty": 6 }, { "side": "sell", "resource": "berries", "qty": 6 }, { "side": "sell", "resource": "honey", "qty": 4 }, { "side": "sell", "resource": "plank", "qty": 8 },
+    { "side": "buy", "resource": "honey", "qty": 4 }, { "side": "buy", "resource": "wax", "qty": 4 }, { "side": "buy", "resource": "candle", "qty": 4 }, { "side": "buy", "resource": "mead", "qty": 2 },
     { "side": "buy", "resource": "plank", "qty": 6 }, { "side": "buy", "resource": "log", "qty": 10 }, { "side": "buy", "resource": "hide", "qty": 4 },
     { "side": "buy", "resource": "smoked_meat", "qty": 4 }, { "side": "buy", "resource": "bread", "qty": 4 }, { "side": "buy", "resource": "leather", "qty": 2 } ] },
   "adventures": [
@@ -67,7 +80,7 @@
   "hall": "storehouse",
   "buildings": [
     { "id": "house", "label": "Maison", "order": 1, "model": "house", "cost": { "plank": 3 },
-      "housing": { "capacity": 2, "free": 4, "eats": ["smoked_meat", "bread", "fish", "berries"], "mealsFrom": "market",
+      "housing": { "capacity": 2, "free": 4, "eats": ["smoked_meat", "bread", "fish", "berries", "honey"], "uses": ["candle"], "mealsFrom": "market",
         "evolveDays": 2, "devolveDays": 4, "margin": 1,
         "levels": [
           { "label": "Maison", "capacity": 4, "needs": { "services": ["market"], "foods": 1 } },
@@ -126,6 +139,19 @@
       "hint": "Une forge (briques d’argile) fond le minerai en outils, qu’il faut pour une carrière." },
     { "id": "forager", "label": "Cueilleur", "order": 18, "model": "forager", "cost": { "plank": 2, "log": 2 },
       "workers": 2, "role": "forager", "gather": "deposit:berries", "outputs": { "berries": 2 }, "seconds": 3,
-      "hint": "Un cueilleur ramasse les baies d’un buisson, posé à côté : les maisons les mangent, un aliment de plus." }
+      "hint": "Un cueilleur ramasse les baies d’un buisson, posé à côté : les maisons les mangent, un aliment de plus." },
+    { "id": "apiary", "label": "Rucher", "order": 19, "model": "apiary", "cost": { "plank": 3, "log": 2 },
+      "workers": 2, "role": "beekeeper", "outputs": { "honey": 2, "wax": 1 }, "seconds": 12,
+      "bloom": { "radius": 4, "per": 0.1, "max": 6 }, "offSeasons": [3], "sound": "buzz",
+      "hint": "Un rucher donne du miel et de la cire, plus vite avec des fleurs à quatre cases à la ronde ; les abeilles dorment en hiver." },
+    { "id": "chandlery", "appeal": [-1], "label": "Chandelier", "order": 20, "model": "chandlery", "cost": { "plank": 3, "log": 2 },
+      "workers": 2, "role": "chandler", "inputs": { "wax": 2 }, "outputs": { "candle": 2 }, "seconds": 7,
+      "hint": "Un chandelier coule la cire en bougies : les maisons éclairées jugent le quartier plus agréable." },
+    { "id": "meadery", "appeal": [-2, -1], "label": "Hydromellerie", "short": "Hydromel", "order": 21, "model": "meadery", "cost": { "plank": 4, "log": 4 },
+      "workers": 2, "role": "brewer", "inputs": { "honey": 2, "wheat": 2 }, "outputs": { "mead": 2 }, "seconds": 10, "sound": "pour",
+      "hint": "L’hydromellerie fait fermenter le miel et le blé en hydromel, que la taverne achète." },
+    { "id": "tavern", "appeal": [2, 1], "label": "Taverne", "order": 22, "model": "tavern", "cost": { "plank": 5, "log": 3 },
+      "workers": 2, "role": "innkeeper", "inputs": { "mead": 1 }, "outputs": { "coin": 4 }, "seconds": 9, "sound": "pour",
+      "hint": "Une taverne sert l’hydromel contre des pièces et rend le voisinage plus agréable." }
   ]
 }

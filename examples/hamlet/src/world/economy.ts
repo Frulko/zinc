@@ -3,7 +3,14 @@ import { DEPOSIT_MODELS } from '../constants';
 // The economy of the village: resources, buildings and what they make, read from assets/economy.json (schema in ECONOMY.md).
 // A building or a chain is added in that file and nowhere else (plus one model in view/models.ts). Classes, not interfaces: they are read and shared by reference.
 
-export class Resource { id: string = ''; label: string = ''; carry: string = ''; price: number = 0; }
+/** What gathering a raw resource gives, per source (`variants`: tree species, doe or stag) in economy.json "harvest": a cycle takes `time` game seconds (0: the building's `seconds`) and
+ *  brings `units` x `percent` / 100 (x the season's percent, x the tool bonus when `tool` is in the stores); the fraction is rolled. `chance` percent of the cycles succeed (a fish bites,
+ *  an arrow hits) and `depletion` percent of them use up one load of the deposit. */
+export class Harvest {
+  label: string = ''; time: number = 0; units: number = 1; percent: number = 100; chance: number = 100; depletion: number = 100;
+  seasons: number[] = [100, 100, 100, 100]; tool: number = -1; toolBonus: number = 0;
+}
+export class Resource { id: string = ''; label: string = ''; carry: string = ''; price: number = 0; harvest: Harvest | null = null; variants: Harvest[] = []; }
 /** A service the houses may lack (water, market...): `Building.cover[k]` counts the days a house stays covered. */
 export class Service { id: string = ''; label: string = ''; }
 /** What a service building gives: a walker on a round of `range` steps over the roads, or (no walker) every house within `radius` tiles. */
@@ -12,15 +19,18 @@ export class ServiceDef { service: number = -1; walker: boolean = false; range: 
 export class HouseLevel { label: string = ''; capacity: number = 0; services: number[] = []; foods: number = 0; appeal: number = 0; }
 /** `capacity` is the first level's. A house gains a level after `evolveDays` days meeting the next one's needs and loses one after `devolveDays` days failing its own (needs slackened by `margin` appeal). */
 export class Housing {
-  capacity: number = 0; free: number = 0; eats: number[] = []; levels: HouseLevel[] = []; mealsFrom: number = -1;
+  capacity: number = 0; free: number = 0; eats: number[] = []; uses: number[] = []; lamp: number = 1; levels: HouseLevel[] = []; mealsFrom: number = -1;
   evolveDays: number = 2; devolveDays: number = 4; margin: number = 1;
 }
+/** Flowers near a building speed its work: every flower tile (world.deco) within `radius` tiles adds `per` of speed, up to `max` tiles. */
+export class Bloom { radius: number = 4; per: number = .1; max: number = 6; }
 export class BuildingDef {
   id: string = ''; label: string = ''; short: string = ''; hint: string = ''; order: number = 0; model: string = '';
   cost: number[] = []; workers: number = 0; role: string = ''; roleId: number = -1;
   inputs: number[] = []; outputs: number[] = []; seconds: number = 0; gather: string = '';
   stockCap: number = 8; store: boolean = false; needsRoad: boolean = true;
   housing: Housing | null = null; service: ServiceDef | null = null; lode: number = -1; appeal: number[] = [];   // appeal: the rings it adds around itself
+  offSeasons: number[] = []; bloom: Bloom | null = null; startSound: string = '';   // seasons without work (0 spring..3 winter), flowers that speed it, the sound of a work cycle's start
 }
 /** One line of the peddler's table: he sells (`sell`: the village buys) or buys (`buy`: the village sells) `qty` of a resource. */
 export class TradeEntry { side: string = ''; resource: number = -1; qty: number = 0; }
@@ -70,6 +80,25 @@ function amounts(map: any, ids: string[], where: string, errors: string[]): numb
   return out;
 }
 
+/** One harvest block: `base` supplies what a variant does not state. Errors are named `bad-harvest`. */
+function readHarvest(src: any, base: Harvest | null, ids: string[], where: string, errors: string[]): Harvest {
+  const h = new Harvest();
+  if (base !== null) { h.time = base.time; h.units = base.units; h.percent = base.percent; h.chance = base.chance; h.depletion = base.depletion; h.seasons = base.seasons.slice(); h.tool = base.tool; h.toolBonus = base.toolBonus; h.label = base.label; }
+  if (src.label !== undefined) h.label = String(src.label);
+  h.time = num(src, 'time', h.time, where, errors); h.units = num(src, 'yield', h.units, where, errors); h.percent = num(src, 'percent', h.percent, where, errors);
+  h.chance = num(src, 'chance', h.chance, where, errors); h.depletion = num(src, 'depletion', h.depletion, where, errors);
+  if (h.units <= 0 || h.percent > 500 || h.chance > 100 || h.chance <= 0 || h.depletion > 100) errors.push('bad-harvest: ' + where + ' needs a yield above 0, a percent of at most 500, a chance of 1 to 100 and a depletion of at most 100');
+  if (src.seasons !== undefined) {
+    if (!Array.isArray(src.seasons) || src.seasons.length !== 4 || src.seasons.some((v: any): boolean => typeof v !== 'number' || v < 0 || v > 500)) errors.push('bad-harvest: ' + where + '.seasons holds four percents (spring, summer, autumn, winter) of 0 to 500');
+    else h.seasons = (src.seasons as number[]).map((v: number): number => Number(v));
+  }
+  if (src.tool !== undefined) {
+    h.tool = ids.indexOf(String(src.tool.resource)); h.toolBonus = num(src.tool, 'bonus', 0, where + '.tool', errors);
+    if (h.tool < 0) errors.push('unknown-resource: ' + where + '.tool uses "' + String(src.tool.resource) + '"');
+  }
+  return h;
+}
+
 /** Reads and checks the text. `models` is the list of model ids of the view (a building's model must sit at its own index), `roles` the job names. Returns the problems, each starting with its name. */
 export function parseEconomy(text: string, models: string[], roles: string[], into: Economy): string[] {
   const errors: string[] = [];
@@ -85,6 +114,12 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     ids.push(res.id); into.resources.push(res);
   }
   into.start = amounts(data.start, ids, 'start', errors);
+  for (let k = 0; k < data.resources.length; k++) {   // harvest: once every resource id is known (a tool is a resource)
+    const hv: any = (data.resources as any[])[k].harvest, r = into.resources[k];
+    if (hv === undefined) continue;
+    r.harvest = readHarvest(hv, null, ids, 'resource ' + r.id + '.harvest', errors);
+    for (const v of (hv.variants === undefined ? [] : hv.variants) as any[]) r.variants.push(readHarvest(v, r.harvest, ids, 'resource ' + r.id + '.harvest.variants', errors));
+  }
   into.services = [];
   for (const s of (data.services === undefined ? [] : data.services) as any[]) {
     const sv = new Service(); sv.id = String(s.id === undefined ? '' : s.id); sv.label = String(s.label === undefined ? sv.id : s.label);
@@ -140,6 +175,9 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
       h.capacity = num(b.housing, 'capacity', 2, where + '.housing', errors); h.free = num(b.housing, 'free', 0, where + '.housing', errors);
       const eats: string[] = b.housing.eats === undefined ? [] : b.housing.eats as string[];
       for (const e of eats) { const k = ids.indexOf(e); if (k < 0) errors.push('unknown-resource: ' + where + '.housing.eats uses "' + e + '"'); else h.eats.push(k); }
+      const uses: string[] = b.housing.uses === undefined ? [] : b.housing.uses as string[];
+      for (const e of uses) { const k = ids.indexOf(e); if (k < 0) errors.push('unknown-resource: ' + where + '.housing.uses uses "' + e + '"'); else h.uses.push(k); }
+      h.lamp = num(b.housing, 'lamp', 1, where + '.housing', errors);
       h.evolveDays = num(b.housing, 'evolveDays', 2, where + '.housing', errors); h.devolveDays = num(b.housing, 'devolveDays', 4, where + '.housing', errors); h.margin = num(b.housing, 'margin', 1, where + '.housing', errors);
       if (b.housing.mealsFrom !== undefined) { h.mealsFrom = into.serviceOf(String(b.housing.mealsFrom)); if (h.mealsFrom < 0) errors.push('bad-service: ' + where + '.housing.mealsFrom names the unknown service "' + String(b.housing.mealsFrom) + '"'); }
       const first = new HouseLevel(); first.label = d.label; first.capacity = h.capacity; h.levels.push(first);
@@ -154,6 +192,14 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
       d.housing = h;
     }
     if (b.appeal !== undefined) { if (Array.isArray(b.appeal)) d.appeal = (b.appeal as number[]).map((v: number): number => Number(v)); else errors.push('bad-appeal: ' + where + '.appeal must be a list of rings'); }
+    for (const s of (b.offSeasons === undefined ? [] : b.offSeasons) as number[]) { if (typeof s !== 'number' || s < 0 || s > 3) errors.push('bad-season: ' + where + '.offSeasons holds 0 (spring) to 3 (winter)'); else d.offSeasons.push(s); }
+    if (b.bloom !== undefined) {
+      const bl = new Bloom();
+      bl.radius = num(b.bloom, 'radius', 4, where + '.bloom', errors); bl.per = num(b.bloom, 'per', .1, where + '.bloom', errors); bl.max = num(b.bloom, 'max', 6, where + '.bloom', errors);
+      if (bl.radius < 1 || bl.radius > 8) errors.push('bad-bloom: ' + where + '.bloom.radius is 1 to 8 tiles');
+      d.bloom = bl;
+    }
+    d.startSound = String(b.sound === undefined ? '' : b.sound);
     if (b.service !== undefined) {
       const sd = new ServiceDef(), k = into.serviceOf(String(b.service.id));
       if (k < 0) errors.push('bad-service: ' + where + ' gives the unknown service "' + String(b.service.id) + '"');
@@ -163,6 +209,17 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
       d.service = sd;
     }
     into.buildings.push(d);
+  }
+  for (const d of into.buildings) {   // what a raw source's output holds in the stores' reckoning is the most a cycle can bring (the harvest is the truth, the number in the file a reminder)
+    let first = true;
+    for (let k = 0; k < ids.length; k++) if (d.outputs[k] > 0 && into.resources[k].harvest !== null && d.inputs.every((n: number): boolean => n === 0)) {
+      const r = into.resources[k];
+      let most = 0;
+      for (const h of [r.harvest as Harvest].concat(r.variants)) { let best = 0; for (const sp of h.seasons) best = Math.max(best, sp); most = Math.max(most, Math.ceil(h.units * h.percent * best * (1 + h.toolBonus / 100) / 10000)); }
+      d.outputs[k] = Math.max(1, most);
+      if (first && r.harvest !== null && (r.harvest as Harvest).time <= 0 && d.seconds <= 0) errors.push('bad-harvest: ' + d.id + ' gathers "' + r.id + '" with no harvest time and no seconds');
+      first = false;
+    }
   }
   into.goals = [];
   for (const g of (data.goals === undefined ? [] : data.goals) as any[]) {
@@ -226,7 +283,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
   }
   for (const d of into.buildings) {
     for (let k = 0; k < ids.length; k++) if ((d.inputs[k] > 0 || d.cost[k] > 0) && !made[k]) errors.push('cycle: "' + ids[k] + '" (needed by ' + d.id + ') has no raw source: nothing that takes nothing in can make it');
-    if (d.housing !== null) for (const k of d.housing.eats) if (!made[k]) errors.push('cycle: "' + ids[k] + '" (eaten in ' + d.id + ') has no raw source');
+    if (d.housing !== null) for (const k of d.housing.eats.concat(d.housing.uses)) if (!made[k]) errors.push('cycle: "' + ids[k] + '" (used in ' + d.id + ') has no raw source');
   }
   return errors;
 }
@@ -248,6 +305,7 @@ export function chainReport(): string[] {
       if (d.inputs[k] > 0) users.push(d.id + ' (input)');
       if (d.cost[k] > 0) users.push(d.id + ' (cost)');
       if (d.housing !== null && d.housing.eats.indexOf(k) >= 0) users.push(d.id + ' (food)');
+      if (d.housing !== null && d.housing.uses.indexOf(k) >= 0) users.push(d.id + ' (light)');
     }
     lines.push(economy.resources[k].id + ': made by [' + makers.join(', ') + '] used by [' + users.join(', ') + ']');
   }

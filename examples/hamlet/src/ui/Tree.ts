@@ -46,7 +46,7 @@ function conditionText(c: Condition): string {
 /** Tab 1: the chains of goods. A building sits one column right of the goods it takes; a good one column right of its makers. */
 function buildGoods(): void {
   const nb = economy.buildings.length, nr = economy.resources.length, bc: number[] = [], rc: number[] = [];
-  const takes = (b: number, k: number): boolean => economy.buildings[b].inputs[k] > 0 || (economy.buildings[b].housing !== null && economy.buildings[b].housing!.eats.indexOf(k) >= 0);
+  const takes = (b: number, k: number): boolean => economy.buildings[b].inputs[k] > 0 || (economy.buildings[b].housing !== null && (economy.buildings[b].housing!.eats.indexOf(k) >= 0 || economy.buildings[b].housing!.uses.indexOf(k) >= 0));
   for (let b = 0; b < nb; b++) bc.push(0);
   for (let k = 0; k < nr; k++) rc.push(1);
   for (let pass = 0; pass < 2 * (nb + nr); pass++) {   // the passes also end on a cycle of recipes: columns stop growing at the cap

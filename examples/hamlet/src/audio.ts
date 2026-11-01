@@ -81,6 +81,9 @@ function build(): void {
   add('gull', make(.7, (t, p) => sine(1500 + 500 * Math.sin(p * 9) * (1 - p), t) * Math.sin(Math.PI * p) * (.7 + .3 * noise()), 1), .16);
   add('cricket', make(.9, (t, p) => sine(4300, t) * (Math.sin(TAU * 28 * t) > .2 ? 1 : 0) * (Math.sin(p * Math.PI * 3) > 0 ? 1 : 0) * .5, 1), .10);
   add('owl', make(.9, (t, p) => (sine(390, t) * .8 + sine(780, t) * .2) * Math.sin(Math.PI * p) * (p < .45 || p > .55 ? 1 : .1), 1), .18);
+  // Bees and the pour: a buzz (two detuned saw hums with a slow wobble, an ambient sound) and a liquid glug that rises in pitch as the jug fills.
+  add('buzz', make(1.1, (t, p) => { const saw = ((t * 232) % 1) * 2 - 1, saw2 = ((t * 241) % 1) * 2 - 1; return (saw + saw2) * .3 * (.55 + .45 * sine(34, t)) * Math.sin(Math.PI * p); }, 1), .16);
+  add('pour', make(.7, (t, p) => { w += (noise() - w) * .25; return (w * .5 + sine(320 + 520 * p, t) * (sine(19, t) > 0 ? .35 : .15)) * Math.sin(Math.PI * Math.pow(p, .7)) * .8; }, 1), .32);
   add('wind', make(2.2, (t, p) => { w += (noise() - w) * .02; return w * 3 * Math.sin(Math.PI * p); }, 1), .30);
 }
 
@@ -118,7 +121,7 @@ export function sound(kind: string, amount: number = .6, pan: number = 0): void 
   s.voice(s.volume * (AMBIENT.has(name) ? settings.ambienceVolume : settings.sfxVolume) * Math.max(0, Math.min(1, amount)) * (.85 + rnd() * .3), .92 + rnd() * .16, Math.max(-1, Math.min(1, pan)), false);
 }
 
-const AMBIENT = new Set<string>(['bird', 'gull', 'cricket', 'owl', 'wind']);
+const AMBIENT = new Set<string>(['bird', 'gull', 'cricket', 'owl', 'wind', 'buzz']);
 const LEVEL = .22;
 function level(): number { return muted || paused ? 0 : LEVEL * settings.ambienceVolume; }
 /** Applies the ambience volume at once (the options screen calls it while the slider moves). */

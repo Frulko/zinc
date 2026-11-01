@@ -20,6 +20,10 @@ export const TANNER_PALETTE: Palette = { shirt: [140, 100, 66], stripe: [188, 15
 export const QUARRYMAN_PALETTE: Palette = { shirt: [150, 148, 140], stripe: [190, 186, 174], legs: [84, 78, 70], hair: HAIR_TONES[0], skin: SKIN };
 export const FORAGER_PALETTE: Palette = { shirt: [92, 134, 84], stripe: [196, 70, 84], legs: [96, 80, 60], hair: HAIR_TONES[0], skin: SKIN };
 export const SMITH_PALETTE: Palette = { shirt: [70, 66, 72], stripe: [176, 96, 56], legs: [56, 52, 52], hair: HAIR_TONES[0], skin: SKIN };
+export const BEEKEEPER_PALETTE: Palette = { shirt: [236, 232, 214], stripe: [226, 178, 52], legs: [96, 84, 66], hair: HAIR_TONES[0], skin: SKIN };
+export const CHANDLER_PALETTE: Palette = { shirt: [214, 188, 132], stripe: [120, 86, 58], legs: [84, 70, 58], hair: HAIR_TONES[0], skin: SKIN };
+export const BREWER_PALETTE: Palette = { shirt: [150, 88, 52], stripe: [232, 196, 96], legs: [70, 60, 52], hair: HAIR_TONES[0], skin: SKIN };
+export const INNKEEPER_PALETTE: Palette = { shirt: [116, 54, 60], stripe: [236, 226, 200], legs: [66, 58, 54], hair: HAIR_TONES[0], skin: SKIN };
 export const PEDDLER_PALETTE: Palette = { shirt: [64, 110, 124], stripe: [214, 176, 84], legs: [74, 62, 56], hair: HAIR_TONES[0], skin: SKIN };
 
 export const GRASS_TONES: number[][] = [[53, 78, 49], [76, 100, 52], [104, 124, 63], [138, 150, 85]];

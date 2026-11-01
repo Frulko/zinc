@@ -2,6 +2,7 @@ import { HOUSE, BS_WAITING, BS_FULL, BS_ISOLATED, ROLE_SETTLER, ROLE_RESIDENT } 
 import { world, neighbor } from '../world/world';
 import { economy, ServiceDef, Service } from '../world/economy';
 import { housingReport } from './housing';
+import { flowersAround } from './meadow';
 
 // Attention hints: what the player should look at, as a pure function of the world (no drawing, no state). The view draws an arrow over each tile.
 export const HINT_NO_ROAD = 'no_road';              // a building that needs a road has none to a store: nothing leaves it and nothing comes
@@ -13,6 +14,7 @@ export const HINT_NO_WORKERS = 'no_workers';        // a workplace lacks hands a
 export const HINT_BUILD_NEXT = 'build_next';        // first run: the village has nothing but its hall, start at the gate
 export const HINT_NO_SERVICE = 'no_service';        // a house is outside the reach of a service the village does offer (`no_service:<service id>`)
 export const HINT_HOUSE_NEEDS = 'house_needs';      // a house lacks one thing for its next level, or is about to fall back: `housingReport(house).text` says what
+export const HINT_NO_FLOWERS = 'no_flowers';        // a hive with no flower around it: the bees gather little
 export const MAX_HINTS = 12;
 
 /** `reason` is a short key the HUD maps to text: the kind, or `kind:resource id` when a resource is concerned. */
@@ -52,6 +54,7 @@ export function computeHints(): Hint[] {
       if (world.stock[b.waitFor] > 0) out.push(make(HINT_DELIVER_HERE, tile, HINT_DELIVER_HERE + ':' + id2, 1));
       else out.push(make(HINT_NO_INPUT, tile, HINT_NO_INPUT + ':' + id2, 3));
     } else if (b.state === BS_FULL) out.push(make(HINT_FULL_OUTPUT, tile, HINT_FULL_OUTPUT, 2));
+    if (def.bloom !== null && flowersAround(b, def) === 0) out.push(make(HINT_NO_FLOWERS, tile, HINT_NO_FLOWERS, 1));
     if (def.workers > 0 && !b.fixed && b.workers < def.workers) {
       vacancies++;
       out.push(idle > 0 ? make(HINT_IDLE_WORKERS, tile, HINT_IDLE_WORKERS + ':site', 1) : make(HINT_NO_WORKERS, tile, HINT_NO_WORKERS, 2));
@@ -76,6 +79,9 @@ export function hintText(h: Hint): string {
   if (key === HINT_DELIVER_HERE) return label + ' est en route : la route doit relier ce bâtiment à l’entrepôt.';
   if (key === HINT_FULL_OUTPUT) return 'Plein : posez un entrepôt au bord de la route.';
   if (key === HINT_NO_SERVICE) return 'Cette maison n’est pas desservie : ' + label.toLowerCase() + '.';
+  if (key === HINT_NO_FLOWERS) return 'Aucune fleur autour des ruches : les abeilles butinent peu. Posez-les près d’une prairie fleurie.';
+  const site = world.build[h.tile] >= 0 ? economy.buildings[world.buildings[world.build[h.tile]].type] : null;
+  if (key === HINT_NO_WORKERS && site !== null && site.bloom !== null) return 'Pas d’apiculteur : posez une maison, ou donnez la priorité au rucher.';
   if (key === HINT_NO_WORKERS) return 'Personne pour travailler ici : posez une maison, ou donnez la priorité à ce bâtiment.';
   if (key === HINT_IDLE_WORKERS) return res === 'home' ? 'Des habitants n’ont pas de travail : posez un atelier.' : 'Ce chantier attend des bras.';
   return 'Tracez une route depuis la porte, puis posez une maison.';

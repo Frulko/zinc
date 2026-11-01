@@ -12,7 +12,7 @@ import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLA
 import * as fs from 'zinc:fs';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
-const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager'];
+const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern'];
 import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine/transport';
 import { adviceLine } from '../../../examples/hamlet/src/hud';
@@ -25,6 +25,9 @@ import { canStart } from '../../../examples/hamlet/src/rules/adventure';
 import { offerLines, canTrade } from '../../../examples/hamlet/src/rules/trade';
 import { lockText, scenarioWon } from '../../../examples/hamlet/src/rules/goals';
 import { movePriority } from '../../../examples/hamlet/src/rules/labour';
+import { flowersAround, resting, workScale } from '../../../examples/hamlet/src/rules/meadow';
+import { MONTH_SECONDS } from '../../../examples/hamlet/src/rules/season';
+import { litBonus } from '../../../examples/hamlet/src/rules/housing';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
 
 const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');   // the test runs from the repository root
@@ -59,10 +62,10 @@ check('the hut takes two idle residents', world.people.filter((p) => p.role === 
 const before = world.stock[WOOD];
 run(90);
 check('lumberjacks deliver wood and fell trees', world.stock[WOOD] > before && world.felledCount > 0);
+check('felling raises view events (a blow and a fall)', fxQueue.some((e) => e.kind === FX_FELL) || fxQueue.some((e) => e.kind === FX_LEAVES));
 rich(); applyTool(TOOL_HOUSE, at(4, 5)); world.tree[at(4, 5)] = 0;
 run(20);
 applyTool(TOOL_LODGE, at(5, 5));
-check('felling raises view events (a blow and a fall)', fxQueue.some((e) => e.kind === FX_FELL) || fxQueue.some((e) => e.kind === FX_LEAVES));
 run(20);
 check('the lodge takes the two others as hunters', world.people.filter((p) => p.role === ROLE_HUNTER).length === 2);
 run(300);
@@ -325,6 +328,33 @@ check('quarrymen bring stone, one unit per trip, from the deposit', world.stock[
 check('the deposit survives a save round trip, partly worked', restore(snapshot()) && world.rock[at(7, 9)] === (world.lode[at(7, 9)] > 0 ? ROCK_DEPOSIT + STONE_K : 0) && snapshot().length > 0);
 run(60);
 check('a used-up deposit disappears and the scenery is redone', world.rock[at(7, 9)] === 0 && world.lode[at(7, 9)] === 0 && world.revision > rev && world.stock[STONE_R] + world.buildings[world.build[at(5, 9)]].stock[STONE_R] === 2);
+// ---- bees: flowers speed the hive, winter stops it, honey and wax come out, candles light a house ----
+generate(1234, 16); rich(); clearRow();
+const HONEY = economy.resourceOf('honey'), WAX = economy.resourceOf('wax'), CANDLE = economy.resourceOf('candle'), APIARY_T = economy.typeOf('apiary');
+const apiaryDef = economy.buildings[APIARY_T];
+for (const t of [at(5, 9), at(4, 9), at(6, 9), at(5, 10)]) { world.tree[t] = 0; world.rock[t] = 0; }
+for (let j = 5; j <= 13; j++) for (let i = 1; i <= 9; i++) world.deco[at(i, j)] = 0;
+const bh = addBuilding(HOUSE, at(2, 7)); createResident(bh); createResident(bh); world.buildings[bh].residents = 2; world.buildings[bh].timer = 1e9;
+setStock(HONEY, 0); setStock(WAX, 0);
+check('an apiary is placed', applyTool(toolOf('apiary'), at(5, 9)) === PLACE_OK);
+const hive = world.buildings[world.build[at(5, 9)]];
+check('no flower near the hive: none counted, normal speed, and a hint', flowersAround(hive, apiaryDef) === 0 && workScale(hive, apiaryDef) === 1 && computeHints().some((h) => h.reason === 'no_flowers'));
+for (const t of [at(4, 10), at(6, 10), at(3, 9), at(7, 9), at(5, 11), at(5, 7), at(6, 6), at(4, 12)]) world.deco[t] = 2;
+check('flowers within the radius speed the hive (capped at six)', flowersAround(hive, apiaryDef) === 6 && Math.abs(workScale(hive, apiaryDef) - 1.6) < 1e-9 && !computeHints().some((h) => h.reason === 'no_flowers'));
+world.tick = 0;
+check('spring: the hive works', !resting(apiaryDef));
+run(80);
+const sp = world.stock[HONEY] + hive.stock[HONEY] + stockWithCarried(world.build[at(5, 9)])[HONEY];
+check('in spring the beekeepers make honey and wax', sp >= 2 && world.stock[WAX] + hive.stock[WAX] >= 1);
+world.tick = Math.round(9 * MONTH_SECONDS * 32);   // December: winter lasts 45 s
+check('winter: the hive rests', resting(apiaryDef));
+run(15);   // finish the cycle under way (and let the porters deliver), then nothing more starts
+const w0 = world.stock[HONEY] + hive.stock[HONEY] + stockWithCarried(world.build[at(5, 9)])[HONEY];
+run(25);
+const w1 = world.stock[HONEY] + hive.stock[HONEY] + stockWithCarried(world.build[at(5, 9)])[HONEY];
+check('no honey is made in winter', w1 === w0);
+check('candles light a house only while lit', litBonus(world.buildings[bh]) === 0 && (world.buildings[bh].fed[CANDLE] = 2, litBonus(world.buildings[bh]) === 1));
+check('the new goods survive a save round trip', restore(snapshot()) && world.buildings.some((b) => b.alive && b.type === APIARY_T));
 // ---- goals: locked buildings, conditions checked daily, rewards as commands that replay, progress in the save ----
 world.progression = true;
 generate(1234, 16); clearRow();
@@ -371,6 +401,7 @@ check('he stands at the gate while he stays and is gone after', visits.indexOf('
 check('the offers are seeded: the same village draws the same visits', twentyDays().join('|') === visits.join('|'));
 generate(1234, 16); world.progression = true;
 run(100);
+for (let k = 0; k < economy.resources.length; k++) setStock(k, 60);   // whatever the table draws, something can be taken
 const offered = world.offers.map((o) => o.side + o.resource), stockBefore = world.stock.slice();
 let sold = -1;
 for (let k = 0; k < world.offers.length; k++) if (sold < 0 && world.offers[k].side === 'buy' && canTrade(k)) sold = k;

@@ -13,7 +13,7 @@ export function dailyHousing(): void {
   for (let id = 0; id < world.buildings.length; id++) {
     const b = world.buildings[id];
     if (!b.alive || b.type !== HOUSE) continue;
-    for (const k of h.eats) if (b.fed[k] > 0) b.fed[k]--;
+    for (const k of h.eats.concat(h.uses)) if (b.fed[k] > 0) b.fed[k]--;
     // a house buys its meals at the market that serves it: as many kinds as the next level (or its own) asks, one unit per two people for FOOD_DAYS days
     const reach = h.mealsFrom < 0 || b.cover[h.mealsFrom] > 0;
     if (b.residents > 0 && reach) {
@@ -26,6 +26,7 @@ export function dailyHousing(): void {
         take(k, Math.ceil(b.residents / 2)); b.fed[k] = FOOD_DAYS; have++;
       }
     }
+    if (b.residents > 0 && reach) for (const k of h.uses) if (b.fed[k] <= 0 && world.stock[k] >= 1) { take(k, Math.ceil(b.residents / 4)); b.fed[k] = FOOD_DAYS; }   // candles: lit for a few days
     // evolution: `evolveDays` days in a row meeting the next level, or `devolveDays` failing the own one (with the margin), moves one level
     if (b.level + 1 < levelCount() && meets(b, b.level + 1, 0)) {
       b.streak = Math.max(b.streak, 0) + 1;

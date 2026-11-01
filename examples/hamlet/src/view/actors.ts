@@ -5,14 +5,14 @@ import {
 } from '../constants';
 import { Person, Deer } from '../world/world';
 import { isMoving } from '../engine/path';
-import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, FORAGER_PALETTE, SMITH_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
+import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, FORAGER_PALETTE, SMITH_PALETTE, BEEKEEPER_PALETTE, CHANDLER_PALETTE, BREWER_PALETTE, INNKEEPER_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
 
 const SCALE = .62;
 const PLANK: Color = [214, 180, 120], LOG: Color = [150, 112, 72], LOG_END: Color = [214, 186, 134], STEEL: Color = [176, 182, 180], ARROW: Color = [226, 212, 176];
 const solid = (c: Color): ((z: number) => Color) => (): Color => c;
 
 /** The palette of each role, indexed by ROLE_* (constants.ts). */
-const ROLE_PALETTES: Palette[] = [SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, FORAGER_PALETTE, SMITH_PALETTE];
+const ROLE_PALETTES: Palette[] = [SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, FORAGER_PALETTE, SMITH_PALETTE, BEEKEEPER_PALETTE, CHANDLER_PALETTE, BREWER_PALETTE, INNKEEPER_PALETTE];
 function paletteOf(role: number, hairTone: number): Palette {
   const base = ROLE_PALETTES[role] === undefined ? RESIDENT_PALETTE : ROLE_PALETTES[role];
   return { shirt: base.shirt, stripe: base.stripe, legs: base.legs, skin: base.skin, hair: HAIR_TONES[hairTone] };
@@ -115,6 +115,13 @@ function paintProps(p: Person, yaw: number, hand: Vec3): void {
     if (p.carry === 10) capsule([p.x + fx * .45 + sx * .15, p.y + fy * .45 + sy * .15, .85], [p.x + fx * .45 - sx * .15, p.y + fy * .45 - sy * .15, .85], .13, .13, solid(c), 'solid');
     else if (p.carry === 14) { for (let k = 0; k < 4; k++) sphere(p.x + fx * .45 + sx * (k - 1.5) * .07, p.y + fy * .45 + sy * (k - 1.5) * .07, .86 + (k % 2) * .05, .06, c, 'solid'); }
     else { sphere(p.x + fx * .42, p.y + fy * .42, .86, .17, c, 'solid'); sphere(p.x + fx * .5 + sx * .1, p.y + fy * .5 + sy * .1, .94, .1, [c[0] + 20, c[1] + 18, c[2] + 14], 'solid'); }
+  }
+  if (p.carry >= 17 && p.carry <= 20) {                              // a honey jar, a block of wax, a candle, a mead jug (the order of economy.json)
+    const hx = p.x + fx * .45, hy = p.y + fy * .45;
+    if (p.carry === 17) { capsule([hx, hy, .8], [hx, hy, .96], .15, .14, solid([226, 160, 36]), 'solid'); capsule([hx, hy, .97], [hx, hy, 1.01], .12, .12, solid([150, 104, 60]), 'solid'); }
+    else if (p.carry === 18) capsule([hx + sx * .12, hy + sy * .12, .86], [hx - sx * .12, hy - sy * .12, .86], .13, .13, solid([240, 214, 128]), 'solid');
+    else if (p.carry === 19) { capsule([hx + sx * .1, hy + sy * .1, .8], [hx + sx * .1, hy + sy * .1, 1.02], .05, .05, solid([246, 238, 210]), 'solid'); capsule([hx - sx * .1, hy - sy * .1, .8], [hx - sx * .1, hy - sy * .1, .96], .05, .05, solid([246, 238, 210]), 'solid'); sphere(hx + sx * .1, hy + sy * .1, 1.06, .04, [255, 200, 80], 'solid'); }
+    else { capsule([hx, hy, .78], [hx, hy, .98], .15, .12, solid([158, 96, 52]), 'solid'); capsule([hx, hy, .99], [hx, hy, 1.06], .07, .07, solid([110, 70, 44]), 'solid'); }
   }
   if (p.carry === 4) {                                                // a bundle of planks held in front
     capsule([p.x + fx * .4 + sx * .2, p.y + fy * .4 + sy * .2, .85], [p.x + fx * .4 - sx * .2, p.y + fy * .4 - sy * .2, .85], .1, .1, solid(PLANK), 'solid');
