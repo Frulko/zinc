@@ -56,6 +56,7 @@ const backgroundDecodeQueue: string[] = [];
 const pendingBytesByUrl = new Map<string, u8[]>();
 
 let currentFrameTick: number = 0;
+let backgroundDecodeBlockedUntilTick: number = 0;
 let activeDownloadsCount: i32 = 0;
 let totalDecodedCount: number = 0;
 let totalDecodeDurationMs: number = 0;
@@ -206,7 +207,10 @@ async function downloadPictureBytes(url: string, isVisibleOnScreen: boolean): Pr
  * Decodes at most one pending picture per call.
  * Returns `true` if a new picture is ready (which triggers a screen refresh).
  */
-export function decodeNextPicture(): boolean {
+export function decodeNextPicture(allowBackground: boolean = true): boolean {
+  const isBackground = priorityDecodeQueue.length === 0;
+  // preloaded pictures one at a time, spaced out: each one holds the frame for as long as it takes to decode
+  if (isBackground && (!allowBackground || currentFrameTick < backgroundDecodeBlockedUntilTick)) return false;
   const nextUrl =
     priorityDecodeQueue.length > 0
       ? (priorityDecodeQueue.shift() as string)
@@ -214,6 +218,7 @@ export function decodeNextPicture(): boolean {
       ? (backgroundDecodeQueue.shift() as string)
       : '';
   if (nextUrl === '') return false;
+  if (isBackground) backgroundDecodeBlockedUntilTick = currentFrameTick + 60;
 
   const rawBytes = pendingBytesByUrl.get(nextUrl);
   pendingBytesByUrl.delete(nextUrl);

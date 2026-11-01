@@ -195,12 +195,22 @@ export function setLavaHintTimeline(timeline: Timeline | null): void {
 // Persistence of the slide, the clock face and the lava lamp palette
 // ----------------------------------------------------------------------------
 
+let preferencesSaveTimer: number = -1;
+
+/**
+ * Remembers the slide, the clock face and the lamp. The write is made a moment later, not in the frame of the gesture: it took 6 to 7 ms
+ * on a Raspberry Pi 3, which was the frame a slide's first image missed the display.
+ */
 export function saveCarouselAndClockPreferences(): void {
-  AsyncStorage.multiSet([
-    ['music.slide', '' + appState.targetSlideIndex],
-    ['music.face', '' + appState.targetClockFaceIndex],
-    ['music.lamp', '' + getLavaLampPaletteIndex()],
-  ]);
+  if (preferencesSaveTimer >= 0) clearTimeout(preferencesSaveTimer);
+  preferencesSaveTimer = setTimeout(() => {
+    preferencesSaveTimer = -1;
+    AsyncStorage.multiSet([
+      ['music.slide', '' + appState.targetSlideIndex],
+      ['music.face', '' + appState.targetClockFaceIndex],
+      ['music.lamp', '' + getLavaLampPaletteIndex()],
+    ]);
+  }, 1500) as number;
 }
 
 export async function restoreCarouselAndClockPreferences(): Promise<void> {
