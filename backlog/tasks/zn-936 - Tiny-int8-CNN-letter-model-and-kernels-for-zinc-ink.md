@@ -2,7 +2,8 @@
 id: ZN-936
 title: 'Tiny int8 CNN letter model and kernels for zinc:ink'
 status: Backlog
-assignee: []
+assignee:
+  - '@parallel'
 created_date: '2026-11-01 12:13'
 labels:
   - ink
