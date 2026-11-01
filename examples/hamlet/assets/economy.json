@@ -129,8 +129,8 @@
       "hint": "Un fumoir transforme le gibier en viande fumée (il brûle du bois) : les maisons en réclament." }
   ,
     { "id": "farm", "risk": { "fire": 6, "collapse": 1 }, "smoke": [[0.2, -0.2, 2.0]], "label": "Ferme", "order": 8, "model": "farm", "cost": { "plank": 4, "log": 2 },
-      "workers": 2, "role": "farmer", "outputs": { "wheat": 2 }, "seconds": 10,
-      "hint": "Une ferme récolte du blé, que le moulin change en farine." },
+      "workers": 2, "role": "farmer", "outputs": { "wheat": 2 }, "seconds": 10, "soil": { "radius": 3, "per": 0.05, "max": 8 },
+      "hint": "Une ferme récolte du blé, que le moulin change en farine ; elle va plus vite dans les plaines fertiles, près de l’eau." },
     { "id": "mill", "risk": { "fire": 10, "collapse": 1 }, "smoke": [[0.2, -0.2, 2.35]], "label": "Moulin", "order": 9, "model": "mill", "cost": { "plank": 4, "log": 4 },
       "workers": 2, "role": "miller", "inputs": { "wheat": 2 }, "outputs": { "flour": 1 }, "seconds": 6 },
     { "id": "bakery", "risk": { "fire": 14, "collapse": 1, "crime": 1 }, "smoke": [[0.48, -0.38, 2.8]], "glow": [[0.2, 0.5, 0.5]], "label": "Boulangerie", "short": "Boulanger", "order": 10, "model": "bakery", "cost": { "plank": 4, "log": 4 },

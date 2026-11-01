@@ -4,12 +4,14 @@ import { world, generate, tileIndex } from '../../../examples/hamlet/src/world/w
 import { applyTool } from '../../../examples/hamlet/src/rules/build';
 import { loadEconomy, economy } from '../../../examples/hamlet/src/world/economy';
 import { MODEL_IDS } from '../../../examples/hamlet/src/view/models';
-import { tufts, bakeVillage, rebakeStatic, moveCamera, setZoom, forceFullBake, bakeStats } from '../../../examples/hamlet/src/view/scenery';
+import { tufts, bakeVillage, rebakeStatic, moveCamera, setZoom, forceFullBake, bakeStats, bakeCount, stepSeason, pendingWork } from '../../../examples/hamlet/src/view/scenery';
+import { useBiomes } from '../../../examples/hamlet/src/view/seasons';
 import { camera } from '../../../examples/hamlet/src/view/camera';
 import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, ROLE_NAMES } from '../../../examples/hamlet/src/constants';
 import * as fs from 'zinc:fs';
 
 loadEconomy(fs.readText('examples/hamlet/assets/economy.json'), MODEL_IDS, ROLE_NAMES);
+useBiomes(fs.readText('examples/hamlet/assets/biomes.json'));
 let failures = 0;
 function check(name: string, ok: boolean): void { console.log('hamlet chunks: ' + name + (ok ? ' PASS' : ' FAIL')); if (!ok) failures++; }
 
@@ -82,5 +84,22 @@ for (const [size, zoom] of [[12, 5], [48, 5], [48, 10]]) {
   applyTool(TOOL_HOUSE, tileIndex(7, mid - 1)); const t0 = Date.now(); rebakeStatic(); const buildMs = Date.now() - t0;
   console.log('hamlet chunks: ' + size + 'x' + size + ' zoom ' + zoom + ' window ' + W + 'x' + H + ': build ' + buildMs + ' ms (' + (bakeStats.partial > g ? 'rectangles' : 'full') + ')');
   forceFullBake(); const f0 = Date.now(); rebakeStatic(); console.log('hamlet chunks: ' + size + 'x' + size + ' zoom ' + zoom + ' full bake ' + (Date.now() - f0) + ' ms');
+}
+// the seasons: every season change is baked a band at a time, and the picture it ends on equals a full bake of the new season (and differs from the old one)
+{
+  village(48);
+  const before = snap();
+  let seen = 0, winter = before;
+  for (const month of [4, 7, 10, 1]) {            // summer, autumn, winter, spring
+    world.tick = Math.round(month * 15 / (1 / 32)) + 8;
+    const was = bakeCount;
+    for (let n = 0; n < 200 && (n === 0 || pendingWork()); n++) stepSeason();
+    seen += bakeCount - was;
+    const d = againstFull();
+    if (month === 10) winter = snap();
+    check('season of month ' + month + ': the bands end on a full bake of the season (' + d + ' pixels differ)', d === 0);
+  }
+  check('winter does not look like spring, spring comes back to the same picture, and a change took more than one bake', diff(before, winter) > 1000 && diff(before, snap()) === 0 && seen > 8);
+  world.tick = 0;
 }
 console.log(failures === 0 ? 'hamlet chunks: ALL PASS' : 'hamlet chunks: ' + failures + ' FAIL');

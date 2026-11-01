@@ -1,5 +1,5 @@
 // Headless rules of the hamlet: roads, arrivals, jobs, wood, meat, demolition and the save round trip. No window.
-import { world, generate, tileIndex, tileI, tileJ, tileAt, isOpen, waterNeighbor, neighbor } from '../../../examples/hamlet/src/world/world';
+import { world, generate as generateWith, tileIndex, tileI, tileJ, tileAt, isOpen, waterNeighbor, neighbor } from '../../../examples/hamlet/src/world/world';
 import { applyTool, checkTool, addBuilding } from '../../../examples/hamlet/src/rules/build';
 import { fxQueue, FX_FELL, FX_LEAVES } from '../../../examples/hamlet/src/world/fx';
 import { stepWorld } from '../../../examples/hamlet/src/engine/simulate';
@@ -10,6 +10,8 @@ import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
 import { stateHash } from '../../../examples/hamlet/src/world/hash';
 import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK, PLACE_NO_LODE, PLACE_LOCKED, ROLE_PEDDLER, ROCK_DEPOSIT, LODE_REACH } from '../../../examples/hamlet/src/constants';
 import * as fs from 'zinc:fs';
+import { parseBiomes } from '../../../examples/hamlet/src/world/biomes';
+import { BIOME_IDS, BI_PLAIN, BI_MARSH, DECO_REEDS, DECO_TRAIL } from '../../../examples/hamlet/src/gen/terrain';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
 const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern', 'firehouse', 'works', 'watchpost', 'ruin'];
@@ -32,7 +34,7 @@ import { canStart } from '../../../examples/hamlet/src/rules/adventure';
 import { offerLines, canTrade } from '../../../examples/hamlet/src/rules/trade';
 import { lockText, scenarioWon } from '../../../examples/hamlet/src/rules/goals';
 import { movePriority } from '../../../examples/hamlet/src/rules/labour';
-import { flowersAround, resting, workScale } from '../../../examples/hamlet/src/rules/meadow';
+import { flowersAround, resting, workScale, soilAround } from '../../../examples/hamlet/src/rules/meadow';
 import { MONTH_SECONDS } from '../../../examples/hamlet/src/rules/season';
 import { litBonus } from '../../../examples/hamlet/src/rules/housing';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
@@ -54,6 +56,12 @@ function check(name: string, ok: boolean): void { console.log('hamlet rules: ' +
 function run(seconds: number): void { for (let k = 0; k < seconds * 32; k++) stepWorld(); }
 
 world.autosave = false; world.progression = false;   // nothing is locked but in the goals block
+/** The rules below were written on the uniform scatter of the first villages (Classique); the biome generator, the default now, has its own checks further down. */
+function generate(seed: number, size: number = 24, params: TerrainParams | null = null): void {
+  let p = params;
+  if (p === null) { p = new TerrainParams(); p.biomes = 0; }
+  generateWith(seed, size, p);
+}
 generate(7916, 12);
 const at = (i: number, j: number): number => tileIndex(i, j);
 for (const t of [at(1, 6), at(2, 6), at(3, 6), at(4, 6), at(5, 6), at(3, 5), at(2, 5), at(4, 7), at(5, 5)]) { world.tree[t] = 0; world.rock[t] = 0; }
@@ -123,7 +131,7 @@ check('the same seed and size give the same village', world.terrain.join('') + w
 generate(424243, 24);
 check('another seed gives another village', world.terrain.join('') + world.tree.join('') + world.rock.join('') + world.deco.join('') + world.deer.length + ':' + world.pondX !== first);
 check('a text seed is hashed like Java hashCode', seedFromText('hello') === 99162322 && seedFromText('7916') === 7916);
-check('name@size sets the size, kept in range', parseSeedRequest('foret@32').size === 32 && parseSeedRequest('x@999').size === 96 && parseSeedRequest('x@3').size === 12 && parseSeedRequest('foret@32').seed === seedFromText('foret'));
+check('name@size sets the size, kept in range', parseSeedRequest('foret@32').size === 32 && parseSeedRequest('x@999').size === 128 && parseSeedRequest('x@3').size === 12 && parseSeedRequest('foret@32').seed === seedFromText('foret'));
 check('the default size is 24, the gate is in the middle of the west edge', parseSeedRequest('a').size === 24 && world.gate === 12 * 24 && world.size === 24);
 // ---- the economy file: every rule of the validator refuses a file that breaks it, and the chain report names makers and users ----
 const bad = (from: string, to: string): string[] => parseEconomy(ECONOMY_TEXT.split(from).join(to), MODEL_IDS, ROLE_NAMES, new Economy());
@@ -313,7 +321,7 @@ check('params forest and rock density move the counts', sum(terrain(5, 24, 24, d
 check('param biome: pines only, or birches only', terrain(5, 24, 24, wood).forest.every((v) => v >= 0 && v <= 3) && sum(terrain(5, 24, 24, wood).forest) > 0 && terrain(5, 24, 24, birch).forest.every((v) => v === 0 || v === 4));
 let playable = true;
 for (let seed = 1; seed <= 20; seed++) {
-  generate(seed, 12);
+  generateWith(seed, 12);
   for (let t = 0; t < 144; t++) if (Math.abs(tileI(t) - 0) + Math.abs(tileJ(t) - 6) <= 2 && (world.tree[t] > 0 || world.rock[t] > 0 || world.terrain[t] !== 0)) playable = false;
 }
 check('generate() keeps the gate area clear', playable);
@@ -321,7 +329,7 @@ check('generate() keeps the gate area clear', playable);
 let reachOk = true, lodeCount = 0;
 const STONE_K = economy.deposits.findIndex((d) => economy.resources[d.resource].id === 'stone');
 for (const size of [12, 24, 32]) for (let seed = 1; seed <= 50; seed++) {
-  generate(seed, size);
+  generateWith(seed, size);
   let near = 0;
   for (let t = 0; t < size * size; t++) if (world.rock[t] === ROCK_DEPOSIT + STONE_K) { lodeCount++; if (Math.abs(tileI(t) - tileI(world.gate)) + Math.abs(tileJ(t) - tileJ(world.gate)) <= LODE_REACH && world.lode[t] > 0 && world.terrain[t] === 0) near++; }
   if (near === 0) reachOk = false;
@@ -788,6 +796,40 @@ for (const pr of PRESETS) for (const size of [24, 40]) {
   check('preset ' + pr.label + ' ' + size + ': required deposits reachable from the gate' + missing, missing === '');
   const before = stateHash(), p = world.params;
   check('preset ' + pr.label + ' ' + size + ': a save keeps the params', restore(snapshot()) && stateHash() === before && world.params.coast === p.coast && world.params.outcrop === p.outcrop && world.params.river === p.river && world.params.biomes === p.biomes && world.params.waterAmount === p.waterAmount);
+}
+// ---- biomes and seasons: the default village is the biome generator; reeds, trails, fertile plains; biomes.json is checked; flowers sleep in winter ----
+check('the default village is the biome generator, Classique the uniform scatter', new TerrainParams().biomes === 1 && PRESETS[PRESETS.length - 1].label === 'Classique' && PRESETS[PRESETS.length - 1].params.biomes === 0);
+const BIOMES_TEXT = fs.readText('examples/hamlet/assets/biomes.json');
+check('biomes.json is valid for the generator\'s biomes', parseBiomes(BIOMES_TEXT, BIOME_IDS).errors.length === 0);
+check('biomes.json: a missing biome, a bad colour and a short season list are named', parseBiomes(BIOMES_TEXT.replace('"marsh"', '"swamp"'), BIOME_IDS).errors.some((e) => e.startsWith('unknown-biome')) && parseBiomes(BIOMES_TEXT.replace('[120, 170, 70]', '[120, 170, 700]'), BIOME_IDS).errors.some((e) => e.startsWith('bad-color')) && parseBiomes(BIOMES_TEXT.replace('"flowers": [1, 1, 0.4, 0]', '"flowers": [1, 1, 0.4]'), BIOME_IDS).errors.some((e) => e.startsWith('bad-seasons')));
+let reedsOk = true, trailsOk = true, reeds = 0, trails = 0, plains = 0, plainsNearWater = true;
+for (const seed of [3, 11, 99]) {
+  const l = terrain(seed, 48, 48, new TerrainParams());
+  for (let t = 0; t < 48 * 48; t++) {
+    if (l.deco[t] === DECO_REEDS) { reeds++; if (l.wet[t] !== 2) reedsOk = false; }
+    if (l.deco[t] === DECO_TRAIL) { trails++; if (l.forest[t] > 0 || l.rock[t] > 0 || l.water[t] > 0) trailsOk = false; }
+    if (l.biome[t] === BI_PLAIN) { plains++; if (l.wet[t] === 2 || l.water[t] > 0) plainsNearWater = false; }
+  }
+}
+check('reeds stand on the shore only, trails on open ground only, and the map has some of each', reedsOk && trailsOk && reeds > 0 && trails > 0);
+check('fertile plains are open land, near water but not on the shore (marsh)', plains > 0 && plainsNearWater);
+generate(3, 40, new TerrainParams());
+check('a biome map is kept with the village (the same seed gives the same biomes)', world.biome.some((v) => v === BI_PLAIN || v === BI_MARSH) && world.biome.every((v) => v >= 0 && v < BIOME_IDS.length));
+{ // a farm on fertile plain works faster; flowers around a hive count 0 in winter
+  generate(3, 40, new TerrainParams()); rich();
+  const farmDef = economy.buildings[economy.typeOf('farm')];
+  const plain = world.biome.findIndex((v, t) => v === BI_PLAIN && world.build[t] < 0);
+  const farm = addBuilding(economy.typeOf('farm'), plain);
+  const fb = world.buildings[farm];
+  check('a farm beside fertile plain gets the soil bonus, none without it', soilAround(fb, farmDef) > 0 && Math.abs(workScale(fb, farmDef) - (1 + soilAround(fb, farmDef) * farmDef.soil!.per)) < 1e-9);
+  const hiveDef = economy.buildings[economy.typeOf('apiary')], meadow = world.deco.findIndex((v) => v === 1 || v === 2);
+  if (meadow >= 0) {
+    const hv = addBuilding(economy.typeOf('apiary'), meadow); world.tick = 0;
+    const warm = flowersAround(world.buildings[hv], hiveDef);
+    world.tick = Math.round(9 * 15 / (1 / 32));
+    check('flowers count in spring and not at all in winter', warm > 0 && flowersAround(world.buildings[hv], hiveDef) === 0);
+    world.tick = 0;
+  }
 }
 console.log('hamlet rules: presethash ' + (presetHash >>> 0));
 console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');

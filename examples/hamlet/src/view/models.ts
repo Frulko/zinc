@@ -2,6 +2,7 @@ import { W, H, pix, zb, setView, Color, CachedModel, rgb, beginModel, captureMod
 import { ZOOM_SCALES } from './camera';
 import { settings } from '../settings';
 import { ROCK_VARIANTS } from '../constants';
+import { biomes, needleColor, ensureBiomes } from './seasons';
 import { STONE, WOOD_HONEY, WOOD_BROWN, BARK, TERRACOTTA } from '../palettes';
 
 // Every static object is lit and rasterised once into a CachedModel (same projection, light and ramps as the Pixel Plays games),
@@ -21,8 +22,12 @@ export function modelOf(type: number, level: number): number { return type === 0
 export const TREE_HEIGHT: number[] = [2.8, 3.3, 3.8, 3.2];
 /** The models of the zoom level in use. Each level has its own set, baked once (the stamp depends on pixels per unit). */
 export const models: CachedModel[] = [];
+const treeAtlases = new Map<number, Atlas>();                 // the trees of each (zoom level, season)
+let lastLevel = 0, lastScale = 10, lastReduce = 0;
 const levelAtlases: (Atlas | null)[] = ZOOM_SCALES.map((_s: number): Atlas | null => null);
 
+/** The season the tree models are drawn in (0 spring .. 3 winter): summer is the art's own, the other three are baked by useTreeSeason. */
+let treeSeason = 1;
 const flat = (c: Color): ((z: number) => Color) => (): Color => c;
 
 /** A gable roof: ridge along y, slopes facing -x and +x, shingles in staggered rows. */
@@ -360,13 +365,23 @@ function deposit(kind: number): void {
   }
 }
 function tree(variant: number): void {
+  ensureBiomes();
   const greens: Color[] = [[56, 92, 62], [48, 82, 58], [70, 104, 64]];
-  if (variant < 3) { pine(0, 0, TREE_HEIGHT[variant], greens[variant], false, variant * 7); return; }
+  if (variant < 3) { pine(0, 0, TREE_HEIGHT[variant], needleColor(greens[variant], treeSeason), false, variant * 7); return; }
+  const look = biomes.broad[treeSeason];
   capsule([0, 0, 0], [.05, 0, 2.3], .13, .07, flat([216, 210, 192]), 'rough');          // birch
-  for (const [x, y, z, r] of [[0, 0, 2.7, .62], [.42, .2, 2.25, .46], [-.4, -.2, 2.35, .5], [0, .32, 3.05, .42]]) {
-    sphere(x, y, z, r, [118, 148, 76], 'rough');
-    sphere(x + .12, y - .1, z + .2, r * .6, [146, 168, 92], 'rough');
+  if (look.leaves === 0) {                                                               // bare: the twigs only
+    for (let k = 0; k < 7; k++) {
+      const a = k * 2.4, h = 1.5 + (k % 3) * .35, r = .5 + (k % 2) * .25;
+      capsule([.04, 0, h], [Math.cos(a) * r, Math.sin(a) * r, h + .85], .04, .015, flat([150, 138, 120]), 'solid');
+    }
+    return;
   }
+  for (const [x, y, z, r] of [[0, 0, 2.7, .62], [.42, .2, 2.25, .46], [-.4, -.2, 2.35, .5], [0, .32, 3.05, .42]]) {
+    sphere(x, y, z, r, look.crown, 'rough');
+    sphere(x + .12, y - .1, z + .2, r * .6, look.light, 'rough');
+  }
+  if (look.blossom > 0) for (let k = 0; k < 9; k++) sphere(Math.cos(k * 2.1) * .6, Math.sin(k * 2.1) * .5, 2.2 + (k % 4) * .28, .09, [246, 214, 222], 'solid');
 }
 /** Rock variants 0 and 1 are plain rocks; the others are deposits (constants.ts DEPOSIT_MODELS): stone blocks, a clay bank, veined ore, a berry bush. */
 function rock(variant: number): void {
@@ -431,7 +446,7 @@ function reduceBuffer(f: number, ox: number, oy: number): void {
 }
 
 /** Forgets the baked sets (the detail mode changed). */
-export function resetModels(): void { for (let i = 0; i < levelAtlases.length; i++) levelAtlases[i] = null; }
+export function resetModels(): void { for (let i = 0; i < levelAtlases.length; i++) levelAtlases[i] = null; treeAtlases.clear(); }
 
 /** The fire post: a plastered hall with red doors, a hose reel, water barrels and a bell tower on the roof ridge. */
 function firehouse(): void {
@@ -519,6 +534,7 @@ function modelDef(scale: number, reduceFrom: number): AtlasDef {
  * to shrink instead of lighting again at this level (0 = light it at its own scale). The caller points the renderer back at the camera afterwards.
  */
 export function useModels(level: number, scale: number, reduceFrom: number): void {
+  lastLevel = level; lastScale = scale; lastReduce = reduceFrom;
   setView(reduceFrom > 0 ? reduceFrom : scale, W / 2, H * .6);       // bake in the middle of the buffer; a stamp only keeps offsets from the origin
   let atlas = levelAtlases[level];
   if (atlas === null || atlas.stale()) { atlas = bakeAtlas(modelDef(scale, reduceFrom)); levelAtlases[level] = atlas; }
@@ -527,4 +543,23 @@ export function useModels(level: number, scale: number, reduceFrom: number): voi
     const frame = atlas.bake(m[0], { variant: v, yaw8: 0, pose: 0 });
     if (frame !== null) models.push(frame);
   }
+}
+
+/** Puts the trees of a season into `models` (baked once per zoom level and season, then kept). The caller points the renderer back at the camera afterwards (applyCamera). */
+export function useTreeSeason(s: number): void {
+  const key = lastLevel * 4 + s;
+  setView(lastReduce > 0 ? lastReduce : lastScale, W / 2, H * .6);
+  let atlas = treeAtlases.get(key);
+  if (atlas === undefined || atlas.stale()) {
+    const def: AtlasDef = { version: hashNumbers([2, lastScale, lastReduce, settings.resample]), season: s, entries: [{
+      name: 'tree', variants: 4, yaws: 1, poses: 1,
+      draw: (a: AtlasAxes, _x: number, _y: number, _z: number): void => {
+        treeSeason = s; tree(a.variant); treeSeason = 1;
+        if (lastReduce > 0) { reduceBuffer(lastScale / lastReduce, W / 2, H * .6); setView(lastScale, W / 2, H * .6); }
+        shadowMask.fill(0);
+      },
+    }] };
+    atlas = bakeAtlas(def); treeAtlases.set(key, atlas);
+  }
+  for (let v = 0; v < 4; v++) { const frame = atlas.bake('tree', { variant: v, yaw8: 0, pose: 0 }); if (frame !== null) models[MODEL_TREE + v] = frame; }
 }

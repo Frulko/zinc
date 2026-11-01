@@ -40,7 +40,7 @@ assert fields[4].count(',') >= 3, 'the session should place houses, a sawmill an
 CHECK
 # the work session: a road from the gate, a house and a lumberhut beside it; the villagers cut trees (felling effects, stumps) and bring logs home
 rm -rf "$tmp/data"
-head -4 tests/data/hamlet/session-work.input > "$tmp/new.input"
+head -7 tests/data/hamlet/session-work.input > "$tmp/new.input"
 ZINC_SIZE=1100x900 ZINC_FRAMES=40 ZINC_INPUT="$tmp/new.input" timeout 120 "$ZINC" run examples/hamlet > "$tmp/out" 2> "$tmp/err"
 [ ! -s "$tmp/err" ] || { cat "$tmp/err"; exit 1; }
 cp "$tmp/data/storage.kv" "$tmp/before.kv"; rm -rf "$tmp/data"

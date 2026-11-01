@@ -31,7 +31,7 @@ export class Housing {
   capacity: number = 0; free: number = 0; eats: number[] = []; uses: number[] = []; lamp: number = 1; levels: HouseLevel[] = []; mealsFrom: number = -1;
   evolveDays: number = 2; devolveDays: number = 4; margin: number = 1;
 }
-/** Flowers near a building speed its work: every flower tile (world.deco) within `radius` tiles adds `per` of speed, up to `max` tiles. */
+/** Flowers near a building (`bloom`: the flower tiles of world.deco) or fertile plain near a farm (`soil`: world.biome) speed its work: each tile within `radius` adds `per` of speed, up to `max` tiles. */
 export class Bloom { radius: number = 4; per: number = .1; max: number = 6; }
 export class BuildingDef {
   id: string = ''; label: string = ''; short: string = ''; hint: string = ''; order: number = 0; model: string = '';
@@ -41,7 +41,7 @@ export class BuildingDef {
   housing: Housing | null = null; service: ServiceDef | null = null; lode: number = -1; appeal: number[] = [];   // appeal: the rings it adds around itself
   smoke: number[][] = []; glow: number[][] = [];   // view effects at a working building, in tile-local units: [x, y, z] chimney smoke ([x, y, z, 1]: steam), and warm lights shown at night
   buildable: boolean = true; risk: RiskWeights | null = null;   // buildable false: a leftover (the ruin) the player cannot place, only demolish
-  offSeasons: number[] = []; bloom: Bloom | null = null; startSound: string = '';   // seasons without work (0 spring..3 winter), flowers that speed it, the sound of a work cycle's start
+  offSeasons: number[] = []; bloom: Bloom | null = null; soil: Bloom | null = null; startSound: string = '';   // seasons without work (0 spring..3 winter), flowers that speed it, the sound of a work cycle's start
 }
 /** One line of the peddler's table: he sells (`sell`: the village buys) or buys (`buy`: the village sells) `qty` of a resource. */
 export class TradeEntry { side: string = ''; resource: number = -1; qty: number = 0; }
@@ -220,6 +220,12 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
       bl.radius = num(b.bloom, 'radius', 4, where + '.bloom', errors); bl.per = num(b.bloom, 'per', .1, where + '.bloom', errors); bl.max = num(b.bloom, 'max', 6, where + '.bloom', errors);
       if (bl.radius < 1 || bl.radius > 8) errors.push('bad-bloom: ' + where + '.bloom.radius is 1 to 8 tiles');
       d.bloom = bl;
+    }
+    if (b.soil !== undefined) {
+      const sl = new Bloom();
+      sl.radius = num(b.soil, 'radius', 3, where + '.soil', errors); sl.per = num(b.soil, 'per', .1, where + '.soil', errors); sl.max = num(b.soil, 'max', 6, where + '.soil', errors);
+      if (sl.radius < 1 || sl.radius > 8) errors.push('bad-soil: ' + where + '.soil.radius is 1 to 8 tiles');
+      d.soil = sl;
     }
     d.startSound = String(b.sound === undefined ? '' : b.sound); d.buildable = b.buildable !== false;
     if (b.risk !== undefined) {

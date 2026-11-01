@@ -22,7 +22,7 @@ function paramsOf(text: string): TerrainParams {
   const p = new TerrainParams(), v = numbers(text);
   p.waterAmount = v[0]; p.river = v[1] === 1; p.forestDensity = v[2]; p.rockDensity = v[3]; p.biome = v[4];
   if (v.length >= 8) { p.coast = v[5]; p.outcrop = v[6]; p.flowers = v[7]; }
-  if (v.length >= 9) p.biomes = v[8];          // saves from before the presets have five numbers
+  p.biomes = v.length >= 9 ? v[8] : 0;          // saves from before the presets have five numbers
   return p;
 }
 

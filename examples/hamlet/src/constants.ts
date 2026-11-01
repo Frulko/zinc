@@ -3,7 +3,7 @@
 // ---- map ----
 export const DEFAULT_SIZE = 24;         // tiles per side of a new village (the size itself is world.size, saved with the village)
 export const MIN_SIZE = 12;             // smallest and largest village a seed may ask for
-export const MAX_SIZE = 96;
+export const MAX_SIZE = 128;
 export const TILE = 2;                  // world units per tile
 export const REFERENCE_AREA = 144;      // the 12 x 12 map the counts below were tuned on; they scale with the area
 export const GATE_I = 0;                // the entrance is on this column, in the middle of it: where settlers arrive
@@ -133,5 +133,5 @@ export const DEER_ALERT = 7;            // head up, frozen: someone is near (a h
 // ---- save ----
 export const DEER_CHARGE = 8;           // a cornered boar runs at the person, a moment before it runs away
 export const SAVE_KEY = 'hamlet:save';
-export const SAVE_VERSION = 'H18';
+export const SAVE_VERSION = 'H19';
 export const SAVE_DELAY = 2;            // seconds between two writes

@@ -1,7 +1,10 @@
 1 move 450 450
 2 key g
 4 text 2
-6 key Enter
+5 move 690 484
+5 down
+6 up
+7 key Enter
 50 key 1
 52 move 300 398
 53 down

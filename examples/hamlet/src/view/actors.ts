@@ -1,3 +1,4 @@
+import { winterCoat } from './seasons';
 import { Color, Palette, Pose, Vec3, figure, dynamicAdd, capsule, sphere, plot, rgb, lerp, castShadow, ripple, Atlas, AtlasAxes, AtlasEntry, AtlasDef, bakeAtlas, headerKey, headerOf } from '../pixel';
 import {
   ROLE_LUMBERJACK, ST_FISH, ST_CHOP, ST_MINE, ST_WORK, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
@@ -186,22 +187,23 @@ export function drawPerson(p: Person, time: number, atlas: Atlas | null): void {
 
 // A deer is walking, fleeing, grazing or standing, or dead. Like a person it is painted live or once into the atlas (heading in eight steps; the stride angle
 // of walking and fleeing in 8 and 6 steps, the head of grazing in 4 levels).
+const WINTER_FUR: Color = [182, 158, 122], WINTER_DARK: Color = [142, 120, 94];
 const DM_WALK = 0, DM_FLEE = 1, DM_STILL = 2, DM_DEAD = 3;
 const DEER_WALK_FRAMES = 8, DEER_FLEE_FRAMES = 6, DEER_GRAZE_LEVELS = 4, GRAZE_HEAD = .6;
 const DSLOT_WALK = 0, DSLOT_FLEE = DEER_WALK_FRAMES, DSLOT_GRAZE = DSLOT_FLEE + DEER_FLEE_FRAMES, DSLOT_DEAD = DSLOT_GRAZE + DEER_GRAZE_LEVELS, DEER_POSES = DSLOT_DEAD + 1;
 
 /** One deer from the same capsules and spheres as the cat and the gull of the harbour. `a` is the stride angle, `head` how far the head is down to the grass. */
-function paintDeer(x: number, y: number, yaw: number, stag: boolean, mode: number, a: number, head: number, fawn: boolean = false): void {
+function paintDeer(x: number, y: number, yaw: number, stag: boolean, mode: number, a: number, head: number, fawn: boolean = false, winter: boolean = false): void {
   const fx = Math.cos(yaw), fy = Math.sin(yaw), sx = -fy, sy = fx;
   const k = fawn ? .62 : 1;                         // a fawn is the same model smaller, about its own feet
   const T = (p: Vec3): Vec3 => [x + (p[0] - x) * k, y + (p[1] - y) * k, p[2] * k];
   const cap = (p: Vec3, q: Vec3, r1: number, r2: number, c: (z: number) => Color, m: string): void => capsule(T(p), T(q), r1 * k, r2 * k, c, m);
   const ball = (px: number, py: number, pz: number, r: number, c: Color, m: string): void => sphere(x + (px - x) * k, y + (py - y) * k, pz * k, r * k, c, m);
   const P = (u: number, v: number, c: number): Vec3 => [x + fx * u + sx * v, y + fy * u + sy * v, c];
-  const fur = solid(FUR), dark = solid(FUR_DARK), light = solid(FUR_LIGHT);
+  const fur = solid(winter ? WINTER_FUR : FUR), dark = solid(winter ? WINTER_DARK : FUR_DARK), light = solid(FUR_LIGHT);      // the winter coat is thicker and paler
   if (mode === DM_DEAD) {
     cap(P(-.4, 0, .26), P(.35, 0, .28), .26, .23, fur, 'solid');
-    cap(P(.35, 0, .3), P(.75, .15, .2), .12, .08, fur, 'solid'); ball(x + fx * .85 + sx * .2, y + fy * .85 + sy * .2, .17, .1, FUR_DARK, 'solid');
+    cap(P(.35, 0, .3), P(.75, .15, .2), .12, .08, fur, 'solid'); ball(x + fx * .85 + sx * .2, y + fy * .85 + sy * .2, .17, .1, winter ? WINTER_DARK : FUR_DARK, 'solid');
     for (const [u, v] of [[-.35, .26], [.3, .26]]) cap(P(u, v, .22), P(u + .1, v + .5, .16), .06, .04, dark, 'solid');
     return;
   }
@@ -211,7 +213,7 @@ function paintDeer(x: number, y: number, yaw: number, stag: boolean, mode: numbe
   ball(x + fx * .02, y + fy * .02, .72 + bob, .2, FUR_LIGHT, 'solid');
   cap(P(.3, 0, .95 + bob), P(.62, 0, 1.4 - head + bob), .13, .1, fur, 'solid');
   const h = P(.68, 0, 1.42 - head * 1.15 + bob);
-  ball(h[0], h[1], h[2], .12, FUR, 'solid');
+  ball(h[0], h[1], h[2], .12, winter ? WINTER_FUR : FUR, 'solid');
   cap(h, P(.88, 0, 1.3 - head * 1.15 + bob), .08, .045, light, 'solid');
   for (const s of [-.1, .1]) cap(P(.6, s, h[2] + .08), P(.58, s * 2.2, h[2] + .26), .05, .015, dark, 'solid');
   if (stag) for (const s of [-.07, .07]) {
@@ -228,12 +230,12 @@ function paintDeer(x: number, y: number, yaw: number, stag: boolean, mode: numbe
   }
 }
 function deerEntry(): AtlasEntry {
-  return { name: 'deer', variants: 3, yaws: YAW_STEPS, poses: DEER_POSES, draw: (a: AtlasAxes, x: number, y: number, z: number): void => {
-    const yaw = a.yaw8 * TAU / YAW_STEPS, stag = a.variant === 1, fawn = a.variant === 2, s = a.pose;
-    if (s < DSLOT_FLEE) paintDeer(x, y, yaw, stag, DM_WALK, (s - DSLOT_WALK) * TAU / DEER_WALK_FRAMES, 0, fawn);
-    else if (s < DSLOT_GRAZE) paintDeer(x, y, yaw, stag, DM_FLEE, (s - DSLOT_FLEE) * TAU / DEER_FLEE_FRAMES, 0, fawn);
-    else if (s < DSLOT_DEAD) paintDeer(x, y, yaw, stag, DM_STILL, 0, (s - DSLOT_GRAZE) / (DEER_GRAZE_LEVELS - 1) * GRAZE_HEAD, fawn);
-    else paintDeer(x, y, yaw, stag, DM_DEAD, 0, 0, fawn);
+  return { name: 'deer', variants: 6, yaws: YAW_STEPS, poses: DEER_POSES, draw: (a: AtlasAxes, x: number, y: number, z: number): void => {      // variants 0 to 2: doe, stag, fawn; 3 to 5 the same in the winter coat
+    const yaw = a.yaw8 * TAU / YAW_STEPS, kind = a.variant % 3, stag = kind === 1, fawn = kind === 2, winter = a.variant >= 3, s = a.pose;
+    if (s < DSLOT_FLEE) paintDeer(x, y, yaw, stag, DM_WALK, (s - DSLOT_WALK) * TAU / DEER_WALK_FRAMES, 0, fawn, winter);
+    else if (s < DSLOT_GRAZE) paintDeer(x, y, yaw, stag, DM_FLEE, (s - DSLOT_FLEE) * TAU / DEER_FLEE_FRAMES, 0, fawn, winter);
+    else if (s < DSLOT_DEAD) paintDeer(x, y, yaw, stag, DM_STILL, 0, (s - DSLOT_GRAZE) / (DEER_GRAZE_LEVELS - 1) * GRAZE_HEAD, fawn, winter);
+    else paintDeer(x, y, yaw, stag, DM_DEAD, 0, 0, fawn, winter);
   } };
 }
 
@@ -244,12 +246,13 @@ export function drawDeer(d: Deer, time: number, atlas: Atlas | null): void {
   if (d.species !== 0) { drawBeast(d, time, atlas); return; }
   const head = grazing ? Math.max(0, Math.sin(time * .7 + d.phase)) * GRAZE_HEAD : 0;     // now and then the head goes down to the grass
   const fawn = d.age < SPECIES[d.species].adultDays;      // a young deer is drawn smaller
-  if (atlas === null) paintDeer(d.x, d.y, d.yaw, d.stag, mode, d.phase, head, fawn);
+  const coat = winterCoat();
+  if (atlas === null) paintDeer(d.x, d.y, d.yaw, d.stag, mode, d.phase, head, fawn, coat);
   else {
     const yaw8 = stepOf(d.yaw, YAW_STEPS);
     const pose = mode === DM_DEAD ? DSLOT_DEAD : mode === DM_FLEE ? DSLOT_FLEE + stepOf(d.phase, DEER_FLEE_FRAMES) : mode === DM_WALK ? DSLOT_WALK + stepOf(d.phase, DEER_WALK_FRAMES)
       : DSLOT_GRAZE + Math.round(head / GRAZE_HEAD * (DEER_GRAZE_LEVELS - 1));
-    atlas.stamp('deer', { variant: fawn ? 2 : d.stag ? 1 : 0, yaw8, pose }, d.x, d.y, 0);
+    atlas.stamp('deer', { variant: (fawn ? 2 : d.stag ? 1 : 0) + (coat ? 3 : 0), yaw8, pose }, d.x, d.y, 0);
   }
   if (dead) castShadow(d.x, d.y, .3, fawn ? .35 : .55); else castShadow(d.x, d.y, fawn ? .3 : .5, fawn ? .35 : .55);
 }

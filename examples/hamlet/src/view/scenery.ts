@@ -1,34 +1,54 @@
 import {
-  W, H, R2, COS, pix, zb, ground, groundZ, kinds, bakedPix, bakedZ, shadowMask, staticShadow, KIND_GRASS,
-  configureRenderer, resizeBuffer, setView, copyInto, project, unproject, rgb, rgbColor, rampOf, noise, hash, clamp, castShadow, bakeOcclusion, applyShadows, sphere, PX, PY, S, setClip, clearClip, setPixelOrigin, CX0, CY0, CX1, CY1,
+  W, H, R2, COS, SIN, pix, zb, ground, groundZ, kinds, bakedPix, bakedZ, shadowMask, staticShadow, KIND_GRASS,
+  configureRenderer, resizeBuffer, setView, copyInto, project, unproject, rgb, rgbColor, rampOf, noise, hash, clamp, castShadow, bakeOcclusion, applyShadows, sphere, capsule, PX, PY, S, setClip, clearClip, setPixelOrigin, CX0, CY0, CX1, CY1,
 } from '../pixel';
 import { TILE, TERRAIN_VOID, TERRAIN_WATER } from '../constants';
-import { GRASS_TONES, WATER_TONES, SAND_TONES, ROAD_COLOR } from '../palettes';
+import { WATER_TONES, SAND_TONES, ROAD_COLOR } from '../palettes';
+import { DECO_TRAIL, DECO_REEDS } from '../gen/terrain';
+import { season } from '../rules/season';
+import { ensureBiomes, biomes, blend, groundTone, snowShare, flowerShare, reedColor, iceShare } from './seasons';
 import { world, waterField, tileX, tileY, tileAt, tileCount, neighbor } from '../world/world';
-import { models, modelOf, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, resetModels, TREE_HEIGHT } from './models';
+import { models, modelOf, MODEL_GATE, MODEL_TREE, MODEL_ROCK, useModels, useTreeSeason, resetModels, TREE_HEIGHT } from './models';
 import { settings } from '../settings';
 import { camera, ZOOM_SCALES, DEFAULT_ZOOM, artLevel, windowWidth, windowHeight, scaleOf, layerWidth, layerHeight, layerOriginX, layerOriginY, applyCamera, centerOn, centerPoint, panBy } from './camera';
 
 const KIND_SAND = 1, KIND_WATER = 2, KIND_ROAD = 4;
 const WHITE = rgb(44, 41, 35);          // outside the village: the dark stone of the interface (the dissolved border fades into it)
 
-/** The ground of the whole village at one zoom level, in layer pixels (the camera's window slides over it). */
+/**
+ * The ground of the whole village at one zoom level, in layer pixels (the camera's window slides over it). A pixel is a colour and a kind (KIND_* | 8 for a tuft the wind
+ * animates); its depth is a function of its row and its tile of its position, so neither is stored. The ground is painted per CHUNK, when the window first needs it (and
+ * again when the season changed), never for the whole map: a 128 x 128 village is never painted whole.
+ */
+const CHUNK = 32;
 class Layer {
-  width: number; height: number;
-  pix: u32[]; z: number[]; kind: number[]; tile: number[]; tuft: number[];
-  constructor(width: number, height: number) {
-    this.width = width; this.height = height;
-    const n = width * height;
-    this.pix = Array.from({ length: n }, (): u32 => WHITE);
-    this.z = Array.from({ length: n }, (): number => -1e9);
-    this.kind = Array.from({ length: n }, (): number => 0);
-    this.tile = Array.from({ length: n }, (): number => -1);
-    this.tuft = Array.from({ length: n }, (): number => 0);
+  width: number; height: number; level: number; columns: number;
+  pix: u32[]; kind: number[]; stamp: number[]; shore: number[]; lazy: boolean = true; rivers: boolean = false;
+  constructor(level: number) {
+    this.level = level; this.width = layerWidth(level); this.height = layerHeight(level);
+    const n = this.width * this.height;
+    this.pix = Array.from({ length: n }, (): u32 => WHITE); this.kind = Array.from({ length: n }, (): number => 0);
+    this.columns = Math.ceil(this.width / CHUNK);
+    this.stamp = Array.from({ length: this.columns * Math.ceil(this.height / CHUNK) }, (): number => -1);
+    this.shore = [];
   }
+}
+/** The world point under the centre of layer pixel (ix, iy) of a level, and the ground's depth of its row. */
+function layerPoint(level: number, ix: number, iy: number, out: number[]): void {
+  const sc = scaleOf(level), u = (ix + .5 - layerOriginX(level)) / sc, v = (iy + .5 - layerOriginY(level)) / (sc * SIN);
+  out[0] = (u + v) / R2; out[1] = (v - u) / R2; out[2] = v * COS;
+}
+const probe: number[] = [0, 0, 0];
+/** The tile under a layer pixel (-1 beyond the map), as the baked ground has always had it. */
+function layerTile(layer: Layer, ix: number, iy: number): number {
+  layerPoint(layer.level, ix, iy, probe);
+  const half = world.half;
+  return tileAt(clamp(probe[0], -half + .01, half - .01), clamp(probe[1], -half + .01, half - .01));
 }
 const layers: (Layer | null)[] = ZOOM_SCALES.map((_s: number): Layer | null => null);
 /** Pixels of grass that still show grass after the last rebake: the wind animates these. */
 export const tufts: number[] = [];
+let curSeason = 1;                       // the season the ground, the trees and the flowers are painted in (0 spring .. 3 winter)
 
 /**
  * The detail modes when zooming in (settings.lod): 0 sharp (each level is painted at its own scale); 1 fixed (the normal-level art, enlarged). Zooming out never
@@ -36,25 +56,27 @@ export const tufts: number[] = [];
  */
 function isFixed(level: number): boolean { return level < DEFAULT_ZOOM && settings.lod === 1; }
 
-/** The normal-level ground resized to another level's layer: pixels averaged (3 x 3 samples), the data of the centre sample kept; a pixel the ground covers less than half stays empty. */
+/** The normal-level ground resized to another level's layer: pixels averaged (3 x 3 samples), the kind of the centre sample kept; a pixel the ground covers less than half stays empty. The whole base is painted first. */
 function resizeLayer(base: Layer, level: number): Layer {
-  const layer = new Layer(layerWidth(level), layerHeight(level)), f = scaleOf(level) / scaleOf(DEFAULT_ZOOM);
+  paintAll(base);
+  const layer = new Layer(level), f = scaleOf(level) / scaleOf(DEFAULT_ZOOM);
+  layer.lazy = false;
   const bx = layerOriginX(DEFAULT_ZOOM), by = layerOriginY(DEFAULT_ZOOM), dx = layerOriginX(level), dy = layerOriginY(level);
   const smooth = settings.resample === 1, r = f < 1 ? .33 / f : 0;
   for (let y = 0; y < layer.height; y++) for (let x = 0; x < layer.width; x++) {
     const sx = bx + (x - dx) / f, sy = by + (y - dy) / f, cx = Math.round(sx), cy = Math.round(sy);
     if (cx < 0 || cy < 0 || cx >= base.width || cy >= base.height) continue;
     const c = cy * base.width + cx;
-    if (base.z[c] <= -1e8) continue;
+    if (base.kind[c] === 0) continue;
     const i = y * layer.width + x;
-    layer.kind[i] = base.kind[c]; layer.z[i] = base.z[c]; layer.tile[i] = base.tile[c]; layer.tuft[i] = base.tuft[c];
+    layer.kind[i] = base.kind[c];
     let r0 = 0, r1 = 0, r2 = 0, r3 = 0, n = 0;
     if (smooth && f < 1) {
       for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
         const px = Math.round(sx + a * r), py = Math.round(sy + b * r);
         if (px < 0 || py < 0 || px >= base.width || py >= base.height) continue;
         const k = py * base.width + px;
-        if (base.z[k] <= -1e8) continue;
+        if (base.kind[k] === 0) continue;
         const col = base.pix[k];
         r0 += col & 255; r1 += (col >> 8) & 255; r2 += (col >> 16) & 255; r3 += (col >>> 24) & 255; n++;
       }
@@ -65,7 +87,7 @@ function resizeLayer(base: Layer, level: number): Layer {
   return layer;
 }
 
-/** Per tile: 1 a water tile that is not the pond (river, sea), 2 a land tile next to one of those, else 0. Made once per bake: the ground is painted per pixel. */
+/** Per tile: 1 a water tile that is not the pond (river, sea), 2 a land tile next to one of those, else 0. Made once per layer: the ground is painted per pixel. */
 function shoreTiles(): number[] {
   const out: number[] = [], isRiver = (t: number): boolean => world.terrain[t] === TERRAIN_WATER && waterField(tileX(t), tileY(t)) >= 1;
   for (let t = 0; t < tileCount(); t++) {
@@ -89,36 +111,84 @@ function tileWater(shore: number[], x: number, y: number): number {
   return 9;
 }
 
-/** Bakes the ground of the current village at a zoom level: grass, sand and pond painted per pixel, with a dissolved border like the Pixel Plays dioramas. */
+/** Is this water pixel frozen in the season? The edge first (a bank within a step), then the open water as the cold deepens. */
+function frozen(layer: Layer, x: number, y: number, field: number, share: number): boolean {
+  if (share <= 0) return false;
+  if (!layer.rivers) return field > 1 - share * .55 + (noise(x * .6 + 4, y * .6) - .5) * .3 || noise(x * .5 + 7, y * .5) < share * .5;
+  const near = tileWater(layer.shore, x + .9, y) >= 1 || tileWater(layer.shore, x - .9, y) >= 1 || tileWater(layer.shore, x, y + .9) >= 1 || tileWater(layer.shore, x, y - .9) >= 1;
+  return near || field > 1 - share * .55 + (noise(x * .6 + 4, y * .6) - .5) * .3 || noise(x * .5 + 7, y * .5) < share * .5;
+}
+const DIRT: number[] = [154, 130, 92];
+/** Paints chunk (cx, cy) of the layer for the season: grass of the biome's tints (dusted with snow in winter), sand, water or ice, game trails, with a dissolved border like the Pixel Plays dioramas. */
+function paintChunk(layer: Layer, cx: number, cy: number, s: number): void {
+  const level = layer.level, half = world.half, p = probe, snow = biomes.snow, ice = biomes.iceTones, share = iceShare(s);
+  const x0 = cx * CHUNK, y0 = cy * CHUNK, x1 = Math.min(layer.width, x0 + CHUNK), y1 = Math.min(layer.height, y0 + CHUNK);
+  for (let iy = y0; iy < y1; iy++) for (let ix = x0; ix < x1; ix++) {
+    layerPoint(level, ix, iy, p);
+    const px = p[0], py = p[1], i = iy * layer.width + ix;
+    layer.kind[i] = 0; layer.pix[i] = WHITE;
+    const ax = Math.abs(px) / half, ay = Math.abs(py) / half;
+    if (ax > .7 || ay > .7) {                                                                    // the dissolved border (nothing to test well inside)
+      const rough = Math.sqrt(Math.sqrt(ax * ax * ax * ax + ay * ay * ay * ay)) + (noise(px, py) - .5) * .07;
+      if (rough > 1.03 || rough > .95 && hash(ix, iy) < (rough - .95) / .08) continue;
+    }
+    const field = Math.min(world.pondR < .01 ? 9 : waterField(px, py), layer.rivers ? tileWater(layer.shore, px, py) : 9);
+    let color: number[], kind: number;
+    if (field < 1) {
+      kind = KIND_WATER;
+      color = frozen(layer, px, py, field, share) ? ice[clamp(Math.floor(noise(px * .5, py * .45) * 2.4 + hash(ix, iy) * .6), 0, ice.length - 1)] : WATER_TONES[clamp(Math.floor(.8 + noise(px * .4, py * .35) * 2.3 + hash(ix, iy) * .2), 0, 3)];
+    }
+    else if (field < 1.2) { kind = KIND_SAND; color = SAND_TONES[clamp(Math.floor(noise(px * .8, py * .8) * 3 + hash(ix, iy) * .4), 0, 2)]; }
+    else {
+      kind = KIND_GRASS;
+      const bt = tileAt(clamp(px + (noise(px * .9 + 31, py * .9) - .5) * 1.6, -half + .01, half - .01), clamp(py + (noise(px * .9, py * .9 + 31) - .5) * 1.6, -half + .01, half - .01));
+      const biome = bt < 0 ? 0 : world.biome[bt];
+      color = groundTone(biome, s, clamp(Math.floor(noise(px * .6, py * .7) * 3.5), 0, 3));
+      const t = tileAt(clamp(px, -half + .01, half - .01), clamp(py, -half + .01, half - .01));
+      if (t >= 0 && world.deco[t] === DECO_TRAIL) {                                         // a game trail: bare earth, ragged at the edges
+        const lx = (px - tileX(t)) / TILE, ly = (py - tileY(t)) / TILE;
+        if (Math.sqrt(lx * lx + ly * ly) < .42 + (noise(px * 2.5, py * 2.5) - .5) * .4) color = blendTone(color, DIRT, .5 + hash(ix * 3, iy) * .25);
+      }
+      const sn = snowShare(biome, s);
+      if (sn > 0 && noise(px * .9, py * .9) * .55 + hash(ix * 7, iy * 13) * .45 < sn) { color = snow[clamp(Math.floor(noise(px * 1.4, py * 1.4) * snow.length + hash(ix, iy) * .5), 0, snow.length - 1)]; }
+      else if (hash(ix * 3, iy * 5) < .14) kind |= 8;
+    }
+    layer.kind[i] = kind; layer.pix[i] = rgbColor(color);
+  }
+  layer.stamp[cy * layer.columns + cx] = s;
+}
+const blendTone = (a: number[], b: number[], k: number): number[] => blend(a, b, k);
+/** Makes sure the layer pixels of a rectangle (layer coordinates, x1 and y1 excluded) are painted for the current season. */
+function paintRect(layer: Layer, x0: number, y0: number, x1: number, y1: number): void {
+  if (!layer.lazy) return;
+  if (layer.shore.length === 0) { layer.shore = shoreTiles(); layer.rivers = layer.shore.some((v: number): boolean => v === 1); }
+  const started = Date.now();
+  for (let cy = Math.max(0, Math.floor(y0 / CHUNK)); cy <= Math.min(Math.floor((layer.height - 1) / CHUNK), Math.floor((y1 - 1) / CHUNK)); cy++) {
+    for (let cx = Math.max(0, Math.floor(x0 / CHUNK)); cx <= Math.min(layer.columns - 1, Math.floor((x1 - 1) / CHUNK)); cx++) {
+      if (layer.stamp[cy * layer.columns + cx] !== curSeason) { paintChunk(layer, cx, cy, curSeason); bakeStats.chunks++; }
+    }
+  }
+  bakeStats.groundMs += Date.now() - started;
+}
+function paintAll(layer: Layer): void { paintRect(layer, 0, 0, layer.width, layer.height); }
+
+/** A new, empty ground for a zoom level: painted chunk by chunk as the window reaches it. */
 function bakeLayer(level: number): Layer {
   if (isFixed(level)) return resizeLayer(bakeLayer(DEFAULT_ZOOM), level);
-  const layer = new Layer(layerWidth(level), layerHeight(level));
-  setView(scaleOf(level), layerOriginX(level), layerOriginY(level)); setPixelOrigin(0, 0);
-  const half = world.half, shore = shoreTiles();
-  for (let iy = 0; iy < layer.height; iy++) for (let ix = 0; ix < layer.width; ix++) {
-    const p = unproject(ix + .5, iy + .5), i = iy * layer.width + ix;
-    const edge = Math.sqrt(Math.sqrt(Math.pow(Math.abs(p.x) / half, 4) + Math.pow(Math.abs(p.y) / half, 4)));
-    const rough = edge + (noise(p.x, p.y) - .5) * .07;
-    if (rough > 1.03 || rough > .95 && hash(ix, iy) < (rough - .95) / .08) continue;
-    const field = Math.min(waterField(p.x, p.y), tileWater(shore, p.x, p.y));
-    let color: number[], kind: number;
-    if (field < 1) { kind = KIND_WATER; color = WATER_TONES[clamp(Math.floor(.8 + noise(p.x * .4, p.y * .35) * 2.3 + hash(ix, iy) * .2), 0, 3)]; }
-    else if (field < 1.2) { kind = KIND_SAND; color = SAND_TONES[clamp(Math.floor(noise(p.x * .8, p.y * .8) * 3 + hash(ix, iy) * .4), 0, 2)]; }
-    else { kind = KIND_GRASS; color = GRASS_TONES[clamp(Math.floor(noise(p.x * .6, p.y * .7) * 3.5), 0, 3)]; }
-    layer.kind[i] = kind; layer.pix[i] = rgbColor(color); layer.z[i] = (p.x + p.y) / R2 * COS;
-    layer.tile[i] = tileAt(clamp(p.x, -half + .01, half - .01), clamp(p.y, -half + .01, half - .01));
-    if (kind === KIND_GRASS && hash(ix * 3, iy * 5) < .14) layer.tuft[i] = 1;
-  }
-  return layer;
+  return new Layer(level);
 }
 
 /** Copies the ground under the camera's window into the renderer's buffers, for the pixels of a rectangle (x1, y1 excluded). */
 function loadRect(layer: Layer, x0: number, y0: number, x1: number, y1: number): void {
-  for (let wy = y0; wy < y1; wy++) for (let wx = x0; wx < x1; wx++) {
-    const i = wy * W + wx, bx = wx + camera.x, by = wy + camera.y;
-    if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height) { pix[i] = WHITE; zb[i] = -1e9; kinds[i] = 0; ground[i] = 0; groundZ[i] = -1e9; continue; }
-    const bi = by * layer.width + bx;
-    pix[i] = layer.pix[bi]; zb[i] = layer.z[bi]; kinds[i] = layer.kind[bi]; ground[i] = layer.kind[bi] > 0 ? 1 : 0; groundZ[i] = layer.z[bi];
+  paintRect(layer, x0 + camera.x, y0 + camera.y, x1 + camera.x, y1 + camera.y);
+  for (let wy = y0; wy < y1; wy++) {
+    const by = wy + camera.y, depth = by >= 0 && by < layer.height ? (by + .5 - layerOriginY(layer.level)) / (scaleOf(layer.level) * SIN) * COS : -1e9;
+    for (let wx = x0; wx < x1; wx++) {
+      const i = wy * W + wx, bx = wx + camera.x;
+      if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || layer.kind[by * layer.width + bx] === 0) { pix[i] = WHITE; zb[i] = -1e9; kinds[i] = 0; ground[i] = 0; groundZ[i] = -1e9; continue; }
+      const bi = by * layer.width + bx, k = layer.kind[bi] & 7;
+      pix[i] = layer.pix[bi]; zb[i] = depth; kinds[i] = k; ground[i] = 1; groundZ[i] = depth;
+    }
   }
 }
 
@@ -139,7 +209,7 @@ function paintDirt(t: number, layer: Layer): void {
   const top = Math.max(CY0, Math.floor(Math.min(a.sy, b.sy, c.sy, d.sy))), bottom = Math.min(CY1 - 1, Math.ceil(Math.max(a.sy, b.sy, c.sy, d.sy)));
   for (let iy = top; iy <= bottom; iy++) for (let ix = left; ix <= right; ix++) {
     const bx = ix + camera.x, by = iy + camera.y;
-    if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || layer.tile[by * layer.width + bx] !== t) continue;
+    if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || layerTile(layer, bx, by) !== t) continue;
     const i = iy * W + ix, p = unproject(ix + .5, iy + .5);
     const lx = (p.x - x0) / TILE, ly = (p.y - y0) / TILE;
     let dist = Math.hypot(lx - .5, ly - .5) - .04;
@@ -174,15 +244,17 @@ export const bakeInfo = { full: true, shiftX: 0, shiftY: 0, rects: [] as number[
 export let bakeCount = 0;
 let bakedLevel = -1, bakedW = 0, bakedH = 0, bakedX = 0, bakedY = 0, bakedLayer: Layer | null = null, forceFull = true;
 let bakedSig: number[] = [];
+let nextBand: number[] | null = null, pendingBands: number[] = [], pendingChunks: number[] = [];     // the season changed: the window is painted again a band at a time, a band a frame
 const MARGIN_PX = 6;                    // pixels re-baked around a strip or a change: the occlusion of a pixel reads four pixels around it
-export const bakeStats = { full: 0, partial: 0, lastMs: 0 };
+export const trace = { on: false };       // ZINC_HAMLET_TRACE=1 (debugStart.ts): the bake times go to the console
+export const bakeStats = { full: 0, partial: 0, lastMs: 0, chunks: 0, groundMs: 0, seasonMs: 0 };
 
 /** The next rebake is a full one (the models, the zoom or the village itself changed). */
 export function forceFullBake(): void { forceFull = true; }
 
 function tileSig(t: number): number {
   const b = world.build[t];
-  return (((world.tree[t] * 8 + world.rock[t]) * 3 + world.deco[t]) * 256 + (b >= 0 ? 1 + world.buildings[b].type + 64 * world.buildings[b].level : 0)) * 2 + world.road[t] + (world.terrain[t] === TERRAIN_VOID ? 100000 : 0);
+  return (((world.tree[t] * 8 + world.rock[t]) * 5 + world.deco[t]) * 256 + (b >= 0 ? 1 + world.buildings[b].type + 64 * world.buildings[b].level : 0)) * 2 + world.road[t] + (world.terrain[t] === TERRAIN_VOID ? 100000 : 0);
 }
 
 /** The window rectangle (x0, y0, x1, y1; x1, y1 excluded) that a tile can change: its ground, what stands on it, its shadow and its tall crown. */
@@ -234,25 +306,44 @@ function touches(box: number[], b: number, rect: number[], k: number): boolean {
   return box[b] < rect[k + 2] && box[b + 2] > rect[k] && box[b + 1] < rect[k + 3] && box[b + 3] > rect[k + 1];
 }
 
+let boxBuffer: number[] = [];            // the window box of every tile, filled for the tiles near the window
 /** Bakes the given (disjoint) rectangles of the window from the ground up. Pixels outside them are left as they are. */
 function bakeRects(layer: Layer, rects: number[]): void {
   for (let k = 0; k < rects.length; k += 4) {                         // the neighbours the occlusion reads (four pixels around a rectangle) are the static ones
     for (let y = Math.max(0, rects[k + 1] - 5); y < Math.min(H, rects[k + 3] + 5); y++) for (let i = y * W + Math.max(0, rects[k] - 5), end = y * W + Math.min(W, rects[k + 2] + 5); i < end; i++) { pix[i] = bakedPix[i]; zb[i] = bakedZ[i]; }
   }
   shadowMask.fill(0);
-  const count = tileCount(), box: number[] = [0, 0, 0, 0], boxes: number[] = [], shown: boolean[] = [];
-  for (let t = 0; t < count; t++) { tileBox(t, box); boxes.push(box[0], box[1], box[2], box[3]); shown.push(onScreen(tileX(t), tileY(t), 40)); }
+  const count = tileCount(), box: number[] = [0, 0, 0, 0], visible: number[] = [];
+  let boxes: number[] = boxBuffer;     // only the tiles near the window are looked at: the box of the window's corners in tiles
+  if (boxes.length !== count * 4) { boxes = Array.from({ length: count * 4 }, (): number => 0); boxBuffer = boxes; }
+  const c0 = unproject(-40, -100), c1 = unproject(W + 40, -100), c2 = unproject(-40, H + 40), c3 = unproject(W + 40, H + 40), half = world.half, size = world.size;
+  const i0 = clamp(Math.floor((Math.min(c0.x, c1.x, c2.x, c3.x) + half) / TILE) - 1, 0, size - 1), i1 = clamp(Math.floor((Math.max(c0.x, c1.x, c2.x, c3.x) + half) / TILE) + 1, 0, size - 1);
+  const j0 = clamp(Math.floor((Math.min(c0.y, c1.y, c2.y, c3.y) + half) / TILE) - 1, 0, size - 1), j1 = clamp(Math.floor((Math.max(c0.y, c1.y, c2.y, c3.y) + half) / TILE) + 1, 0, size - 1);
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const t = j * size + i;
+    if (!onScreen(tileX(t), tileY(t), 40)) continue;
+    tileBox(t, box); boxes[t * 4] = box[0]; boxes[t * 4 + 1] = box[1]; boxes[t * 4 + 2] = box[2]; boxes[t * 4 + 3] = box[3]; visible.push(t);
+  }
   for (let k = 0; k < rects.length; k += 4) {                        // phase 1: ground, dirt, objects and their shadows
     setClip(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);
     loadRect(layer, rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);
-    for (let t = 0; t < count; t++) {
-      if ((world.road[t] || world.build[t] >= 0) && shown[t] && touches(boxes, t * 4, rects, k)) paintDirt(t, layer);
+    for (const t of visible) {
+      if ((world.road[t] || world.build[t] >= 0) && touches(boxes, t * 4, rects, k)) paintDirt(t, layer);
     }
-    for (let t = 0; t < count; t++) {
+    for (const t of visible) {
       const x = tileX(t), y = tileY(t);
-      if (world.terrain[t] === TERRAIN_VOID || !shown[t] || !touches(boxes, t * 4, rects, k)) continue;
-      if (world.deco[t] === 1) { sphere(x - .3, y + .1, .22, .3, [74, 104, 62], 'rough'); sphere(x + .1, y - .2, .2, .26, [90, 118, 66], 'rough'); sphere(x - .05, y + .05, .5, .1, [186, 126, 102], 'solid'); }
-      if (world.deco[t] === 2) for (let n = 0; n < 6; n++) sphere(x + (hash(t, n) - .5) * 1.2, y + (hash(n, t) - .5) * 1.2, .08, .06, hash(n, t + 3) > .5 ? [250, 244, 224] : [232, 196, 100], 'solid');
+      if (world.terrain[t] === TERRAIN_VOID || !touches(boxes, t * 4, rects, k)) continue;
+      const deco = world.deco[t], bloom = deco === 1 || deco === 2 ? hash(t, 9) < flowerShare(world.biome[t], curSeason) : false;     // flowers only in the warm seasons
+      if (deco === 1) { sphere(x - .3, y + .1, .22, .3, [74, 104, 62], 'rough'); sphere(x + .1, y - .2, .2, .26, [90, 118, 66], 'rough'); if (bloom) sphere(x - .05, y + .05, .5, .1, [186, 126, 102], 'solid'); }
+      if (deco === 2 && bloom) for (let n = 0; n < 6; n++) sphere(x + (hash(t, n) - .5) * 1.2, y + (hash(n, t) - .5) * 1.2, .08, .06, hash(n, t + 3) > .5 ? [250, 244, 224] : [232, 196, 100], 'solid');
+      if (deco === DECO_REEDS) {                                       // reeds and a few cattails at the water's edge, in the season's colour
+        const reed = reedColor(curSeason);
+        for (let n = 0; n < 6; n++) {
+          const rx = x + (hash(t, n + 20) - .5) * 1.5, ry = y + (hash(n + 20, t) - .5) * 1.5, h = .7 + hash(t + n, 5) * .5;
+          capsule([rx, ry, 0], [rx + (hash(n, t + 7) - .5) * .25, ry, h], .035, .02, (): number[] => reed, 'solid');
+          if (n % 3 === 0 && curSeason !== 3) sphere(rx, ry, h, .06, [112, 78, 50], 'solid');
+        }
+      }
       if (world.tree[t] > 0) {
         const v = world.tree[t] - 1, tx = x + (hash(t, 7) - .5) * .7, ty = y + (hash(t, 8) - .5) * .7;
         models[MODEL_TREE + v].drawAt(tx, ty, 0); treeShadow(tx, ty, TREE_HEIGHT[v]);
@@ -288,7 +379,7 @@ function findTufts(layer: Layer, rects: number[], slid: boolean, dx: number, dy:
   }
   for (let k = 0; k < rects.length; k += 4) for (let iy = rects[k + 1]; iy < rects[k + 3]; iy++) for (let ix = rects[k]; ix < rects[k + 2]; ix++) {
     const bx = ix + camera.x, by = iy + camera.y;
-    if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || !layer.tuft[by * layer.width + bx]) continue;
+    if (bx < 0 || by < 0 || bx >= layer.width || by >= layer.height || (layer.kind[by * layer.width + bx] & 8) === 0) continue;
     const i = iy * W + ix;
     if (kinds[i] === KIND_GRASS && bakedZ[i] === groundZ[i]) found.push(i);
   }
@@ -314,12 +405,14 @@ export function rebakeStatic(): void {
       tileBox(t, box); addRect(rects, box[0], box[1], box[2], box[3]);
       for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0) { tileBox(v, box); addRect(rects, box[0], box[1], box[2], box[3]); } }
     }
+    if (nextBand !== null) { addRect(rects, nextBand[0], nextBand[1], nextBand[2], nextBand[3]); nextBand = null; }
+    else if ((dx !== 0 || dy !== 0) && pendingBands.length > 0) pendingBands = seasonBands();      // the picture slid: what is still the old season may have moved into a band already done
     if (rects.length === 0 && dx === 0 && dy === 0) return;
     if (area(rects) * 10 > W * H * 6) full = true;                 // most of the window anyway
   }
   bakeCount++;
   if (full) {
-    rects = [0, 0, W, H];
+    rects = [0, 0, W, H]; pendingBands = []; nextBand = null;
     bakeInfo.full = true; bakeInfo.shiftX = 0; bakeInfo.shiftY = 0;
     bakedSig = []; for (let t = 0; t < count; t++) bakedSig.push(tileSig(t));
     bakeStats.full++;
@@ -335,12 +428,76 @@ export function rebakeStatic(): void {
   bakeStats.lastMs = Date.now() - started;
 }
 
+/** The window cut in bands, top to bottom: (y0, y1) pairs. */
+function seasonBands(): number[] {
+  const out: number[] = [], n = 16;
+  for (let k = 0; k < n; k++) out.push(Math.floor(H * k / n), Math.floor(H * (k + 1) / n));
+  return out;
+}
+/**
+ * One step of the seasons, called every frame: when the season changed, the trees of the new season replace the old ones and the ground is stamped stale (painted again, chunk by chunk,
+ * where the window looks); the window is then rebaked one band per frame, so no frame pays for the whole change.
+ */
+/** True while a season change is still being painted (chunks of ground, then the bands of the window). */
+export function pendingWork(): boolean { return pendingChunks.length > 0 || pendingBands.length > 0; }
+const intervals: number[] = [];
+let lastCall = 0, changing = false;
+/** ZINC_HAMLET_TRACE: the time between two frames, summed up every 300 frames (p50, p95, p99, worst). */
+function traceFrame(): void {
+  const now = performance.now();
+  if (lastCall > 0) intervals.push(now - lastCall);
+  lastCall = now;
+  if (pendingChunks.length > 0 || pendingBands.length > 0) changing = true;
+  if (intervals.length < 300) return;
+  const sorted = intervals.slice().sort((a: number, b: number): number => a - b), at = (q: number): string => sorted[Math.floor(sorted.length * q)].toFixed(1);
+  console.log('hamlet: frame ms' + (changing ? ' (season change)' : '') + ' p50 ' + at(.5) + ' p95 ' + at(.95) + ' p99 ' + at(.99) + ' worst ' + sorted[sorted.length - 1].toFixed(1) + ' (size ' + world.size + ')');
+  intervals.length = 0; changing = false;
+}
+export function stepSeason(): void {
+  if (trace.on) traceFrame();
+  const s = season();
+  if (s !== curSeason) {
+    const started = Date.now();
+    curSeason = s;
+    ensureBiomes();
+    for (let i = 0; i < layers.length; i++) { const l = layers[i]; if (l === null) continue; if (l.lazy) l.stamp.fill(-1); else layers[i] = null; }
+    if (layers[artLevel(camera.level)] === null) ensureLevel(camera.level);
+    useTreeSeason(curSeason); applyCamera();
+    pendingChunks = [];                                                   // the ground under the window, painted a few chunks a frame before the bands need it
+    const layer = layers[artLevel(camera.level)] as Layer;
+    for (let cy = Math.max(0, Math.floor(camera.y / CHUNK)); cy <= Math.min(Math.floor((layer.height - 1) / CHUNK), Math.floor((camera.y + H) / CHUNK)); cy++) {
+      for (let cx = Math.max(0, Math.floor(camera.x / CHUNK)); cx <= Math.min(layer.columns - 1, Math.floor((camera.x + W) / CHUNK)); cx++) pendingChunks.push(cx, cy);
+    }
+    pendingBands = seasonBands();
+    if (trace.on) console.log('hamlet: season ' + s + ' starts: trees ' + (Date.now() - started) + ' ms, ' + pendingChunks.length / 2 + ' chunks to paint');
+  }
+  const layer = layers[artLevel(camera.level)];
+  if (pendingChunks.length > 0 && layer !== null) {
+    const started = Date.now();
+    for (let n = 0; n < 6 && pendingChunks.length > 0 && Date.now() - started < 5; n++) {
+      const cx = pendingChunks[0], cy = pendingChunks[1];
+      pendingChunks = pendingChunks.slice(2);
+      if (layer.shore.length === 0) { layer.shore = shoreTiles(); layer.rivers = layer.shore.some((v: number): boolean => v === 1); }
+      if (layer.stamp[cy * layer.columns + cx] !== curSeason) { paintChunk(layer, cx, cy, curSeason); bakeStats.chunks++; }
+    }
+    return;
+  }
+  if (pendingBands.length > 0) {
+    const started = Date.now();
+    nextBand = [0, pendingBands[0] - MARGIN_PX, W, pendingBands[1] + MARGIN_PX]; pendingBands = pendingBands.slice(2);      // a band is baked with the margin the occlusion reads, like a strip
+    rebakeStatic();
+    bakeStats.seasonMs = Date.now() - started;
+    if (trace.on) console.log('hamlet: season ' + curSeason + ' band ' + (16 - pendingBands.length / 2) + ' ' + bakeStats.seasonMs + ' ms');
+  }
+}
+
 /** Makes sure the models and the ground of a zoom level exist, and points the renderer at the camera. */
 function ensureLevel(level: number): void {
   const fixed = isFixed(level);
   const art = artLevel(level);
   resizeBuffer(windowWidth(level), windowHeight(level));
   useModels(art, scaleOf(art), fixed ? scaleOf(DEFAULT_ZOOM) : 0);
+  if (curSeason !== 1) useTreeSeason(curSeason);
   forceFull = true;
   if (layers[art] === null) layers[art] = bakeLayer(art);
   applyCamera();
@@ -349,12 +506,15 @@ function ensureLevel(level: number): void {
 /** Prepares the renderer, the models and the ground of the current village, centred on its middle. */
 export function bakeVillage(): void {
   configureRenderer(8, 1.1, -.25);
+  const t0 = Date.now();
+  ensureBiomes(); curSeason = season(); pendingBands = []; pendingChunks = []; bakeStats.chunks = 0; bakeStats.groundMs = 0;
   forceFull = true;
   for (let i = 0; i < layers.length; i++) layers[i] = null;
   ensureLevel(camera.level);
   const start = startPoint();
   centerOn(start.x, start.y);
   rebakeStatic();
+  if (trace.on) console.log('hamlet: first bake ' + (Date.now() - t0) + ' ms, ' + bakeStats.chunks + ' chunks, ground ' + bakeStats.groundMs + ' ms, size ' + world.size);
 }
 /** Where a new village opens: between the gate and the middle, so the gate and the first houses are in view. */
 export function startPoint(): { x: number; y: number } { return { x: tileX(world.gate) * .65, y: tileY(world.gate) * .65 }; }

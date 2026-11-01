@@ -63,8 +63,33 @@ function touches(l: TerrainLayers, seen: number[], t: number): boolean {
   }
   return false;
 }
+const RING_I: number[] = [0, 1, 1, 1, 0, -1, -1, -1], RING_J: number[] = [-1, -1, 0, 1, 1, 1, 0, -1];   // the eight neighbours, clockwise from the north
+/**
+ * True when blocking t cannot split the walkable ground around it: the open neighbours of the ring (counting the four straight ones) form one arc, so a walker who
+ * went through t can go round it. A dead end or a corner is that case too. Most tiles of a map pass here, so the flood fills below run for the few that do not.
+ */
+function aroundOpen(l: TerrainLayers, placed: number[], t: number): boolean {
+  const w = l.width, h = l.height, i = t % w, j = Math.floor(t / w), open: boolean[] = [];
+  for (let k = 0; k < 8; k++) {
+    const a = i + RING_I[k], b = j + RING_J[k];
+    if (a < 0 || b < 0 || a >= w || b >= h) { open.push(false); continue; }
+    const u = b * w + a;
+    open.push(!(l.outside[u] === 1 || l.water[u] === 1 || l.rock[u] > 0 || l.forest[u] > 0 || placed[u] === 1));
+  }
+  let start = -1;
+  for (let k = 0; k < 8 && start < 0; k++) if (!open[k]) start = k;
+  if (start < 0) return true;                                                                    // the whole ring is open
+  let arcs = 0, straight = false, inRun = false;
+  for (let n = 1; n <= 8; n++) {                                                                // walk the ring from a closed cell, so no run is cut in two
+    const k = (start + n) % 8;
+    if (open[k]) { inRun = true; if (k % 2 === 0) straight = true; }
+    else if (inRun) { if (straight) arcs++; inRun = false; straight = false; }
+  }
+  return arcs <= 1;
+}
 /** Placing on t must not wall off part of the map from the gate: the walkable tiles reachable from it shrink by t alone. */
 function opens(l: TerrainLayers, placed: number[], t: number, gate: number): boolean {
+  if (aroundOpen(l, placed, t)) return true;
   const before = reach(l, placed, gate);
   placed[t] = 1;
   const after = reach(l, placed, gate);

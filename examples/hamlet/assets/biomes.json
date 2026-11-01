@@ -1,0 +1,24 @@
+{
+  "_doc": "Seasons by biome. Four entries per list: spring, summer, autumn, winter. A grass entry blends the ground's four greens toward `tint` by `mix` (0 keeps the green); `snow` is the share of the ground dusted with snow, `flowers` the share of the flower tiles in bloom. Names of biomes: gen/terrain.ts BIOME_IDS.",
+  "biomes": {
+    "meadow": { "grass": [ { "tint": [120, 170, 70], "mix": 0.25 }, { "tint": [0, 0, 0], "mix": 0 }, { "tint": [168, 142, 70], "mix": 0.4 }, { "tint": [150, 150, 120], "mix": 0.5 } ], "snow": [0, 0, 0, 0.35], "flowers": [1, 1, 0.4, 0] },
+    "forest": { "grass": [ { "tint": [90, 150, 70], "mix": 0.15 }, { "tint": [40, 70, 40], "mix": 0.2 }, { "tint": [140, 110, 60], "mix": 0.3 }, { "tint": [110, 120, 110], "mix": 0.45 } ], "snow": [0, 0, 0, 0.3], "flowers": [0.6, 0.8, 0.1, 0] },
+    "pine":   { "grass": [ { "tint": [60, 110, 70], "mix": 0.15 }, { "tint": [40, 80, 60], "mix": 0.25 }, { "tint": [70, 90, 60], "mix": 0.25 }, { "tint": [170, 185, 190], "mix": 0.5 } ], "snow": [0, 0, 0.05, 0.65], "flowers": [0.3, 0.5, 0, 0] },
+    "grove":  { "grass": [ { "tint": [140, 180, 90], "mix": 0.3 }, { "tint": [110, 150, 70], "mix": 0.2 }, { "tint": [200, 150, 60], "mix": 0.45 }, { "tint": [160, 150, 130], "mix": 0.5 } ], "snow": [0, 0, 0, 0.4], "flowers": [0.8, 1, 0.2, 0] },
+    "hills":  { "grass": [ { "tint": [120, 130, 90], "mix": 0.3 }, { "tint": [130, 130, 90], "mix": 0.3 }, { "tint": [140, 120, 90], "mix": 0.4 }, { "tint": [200, 208, 214], "mix": 0.6 } ], "snow": [0, 0, 0.1, 0.85], "flowers": [0.2, 0.4, 0, 0] },
+    "marsh":  { "grass": [ { "tint": [60, 110, 80], "mix": 0.3 }, { "tint": [50, 100, 70], "mix": 0.3 }, { "tint": [120, 110, 60], "mix": 0.35 }, { "tint": [120, 125, 110], "mix": 0.5 } ], "snow": [0, 0, 0, 0.2], "flowers": [0.8, 1, 0.2, 0] },
+    "plain":  { "grass": [ { "tint": [150, 190, 80], "mix": 0.3 }, { "tint": [180, 170, 70], "mix": 0.3 }, { "tint": [190, 150, 70], "mix": 0.4 }, { "tint": [170, 170, 150], "mix": 0.5 } ], "snow": [0, 0, 0, 0.45], "flowers": [1, 1, 0.3, 0] },
+    "coast":  { "grass": [ { "tint": [120, 170, 90], "mix": 0.2 }, { "tint": [0, 0, 0], "mix": 0 }, { "tint": [168, 150, 90], "mix": 0.3 }, { "tint": [160, 160, 140], "mix": 0.4 } ], "snow": [0, 0, 0, 0.2], "flowers": [0.5, 0.8, 0.1, 0] }
+  },
+  "broad": [
+    { "crown": [150, 170, 95], "light": [184, 196, 122], "blossom": 0.35, "leaves": 1 },
+    { "crown": [118, 148, 76], "light": [146, 168, 92], "blossom": 0, "leaves": 1 },
+    { "crown": [200, 132, 48], "light": [226, 170, 64], "blossom": 0, "leaves": 1 },
+    { "crown": [120, 100, 80], "light": [150, 130, 104], "blossom": 0, "leaves": 0 }
+  ],
+  "needle": [ { "tint": [70, 120, 80], "mix": 0.15 }, { "tint": [0, 0, 0], "mix": 0 }, { "tint": [60, 80, 50], "mix": 0.1 }, { "tint": [205, 220, 226], "mix": 0.55 } ],
+  "snow": [ [232, 238, 242], [214, 224, 232], [244, 247, 250] ],
+  "reeds": [ [110, 160, 80], [92, 140, 70], [176, 150, 80], [180, 160, 110] ],
+  "ice": { "tones": [ [176, 206, 214], [198, 222, 228], [226, 240, 244] ], "amount": [0, 0, 0, 0.9] },
+  "deer": { "coat": [0, 0, 0.1, 1] }
+}

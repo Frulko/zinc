@@ -1,10 +1,13 @@
 // Headless proofs of the hamlet's baked models and atlas (CachedModel box and round trip). No window.
 import { W, H, pix, zb, setView, configureRenderer, beginModel, captureModel, setFullModelScan, CachedModel, box, capsule, sphere, plot, rgb, setLighting, project, bakeAtlas, hashNumbers, hashText, headerKey, AtlasDef, pendingShadows, shadowMask } from '../../../examples/hamlet/src/pixel';
 import { Person, Deer } from '../../../examples/hamlet/src/world/world';
+import { useBiomes } from '../../../examples/hamlet/src/view/seasons';
+import * as fs from 'zinc:fs';
 import { drawPerson, drawDeer, actorAtlas } from '../../../examples/hamlet/src/view/actors';
 import { ST_CHOP, ST_AIM, ST_FISH, ST_PICK, ST_IDLE, DEER_GRAZE, DEER_WALK, DEER_FLEE, DEER_DEAD } from '../../../examples/hamlet/src/constants';
 import { models, useModels, resetModels } from '../../../examples/hamlet/src/view/models';
 
+useBiomes(fs.readText('examples/hamlet/assets/biomes.json'));
 let failures = 0;
 function check(name: string, ok: boolean): void { console.log('hamlet atlas: ' + name + (ok ? ' PASS' : ' FAIL')); if (!ok) failures++; }
 function same(a: CachedModel, b: CachedModel): boolean {

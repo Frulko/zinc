@@ -1,7 +1,7 @@
 # The economy file (`assets/economy.json`)
 
 The only place a resource, a building or a production chain is added (plus one model in `src/view/models.ts`, whose id list `MODEL_IDS` follows the order of `buildings`: a building type is its index).
-`loadEconomy` (`src/world/economy.ts`) checks the file and refuses to start the game on a mistake; the errors have names: `bad-json`, `bad-id`, `unknown-resource`, `negative-number`, `no-model`, `bad-gather`, `bad-role`, `bad-hall`, `bad-service`, `bad-appeal`, `bad-deposit`, `bad-goal`, `bad-trade`, `bad-adventure`, `bad-season`, `bad-bloom`, `bad-effect`, `cycle`.
+`loadEconomy` (`src/world/economy.ts`) checks the file and refuses to start the game on a mistake; the errors have names: `bad-json`, `bad-id`, `unknown-resource`, `negative-number`, `no-model`, `bad-gather`, `bad-role`, `bad-hall`, `bad-service`, `bad-appeal`, `bad-deposit`, `bad-goal`, `bad-trade`, `bad-adventure`, `bad-season`, `bad-bloom`, `bad-soil`, `bad-effect`, `cycle`.
 
 ```text
 version      1
@@ -27,7 +27,8 @@ buildings[]  {
   appeal     [rings]                      adds rings[d - 1] to the desirability of the tiles at distance d around the building
   needsRoad  false for a building that works without a road (the well)
   offSeasons [0..3]  seasons (0 spring to 3 winter) in which no work cycle starts: the building rests (`rules/meadow.ts`)
-  bloom      { radius, per, max }         every flower tile (`world.deco`) within `radius` tiles adds `per` to the work speed, at most `max` tiles; a building with a bloom and no flower gets a hint
+  bloom      { radius, per, max }         every flower tile (`world.deco` 1 or 2; none in winter) within `radius` tiles adds `per` to the work speed, at most `max` tiles; a building with a bloom and no flower gets a hint
+  soil       { radius, per, max }         every tile of fertile plain (`world.biome` = plain: open, damp ground near water) within `radius` tiles adds `per` to the work speed, at most `max` tiles (the farm)
   smoke      [[x, y, z], ...]             chimney smoke over a working building (tile-local units); a fourth number 1 makes it steam (whiter, lower); view only (`view/fx.ts`)
   glow       [[x, y, z], ...]             warm lights (lantern, window, hearth) shown at night on a working building; view only; `bad-effect` on a malformed spot
   risk       { fire, collapse, crime }    what the building adds to its counters each day (`fire`: a number, or for a house a list per level); see "Risks"
