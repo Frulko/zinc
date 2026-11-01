@@ -131,7 +131,7 @@ for (let stag = 0; stag < 2; stag++) for (let yaw8 = 0; yaw8 < 8; yaw8++) for (l
   else if (look === 1) { d.state = DEER_FLEE; d.path = [1, 2]; d.phase = 2 * Math.PI / 6 * 2; }
   else if (look === 2) { d.state = DEER_GRAZE; d.phase = 0; }
   else if (look === 3) { d.state = DEER_WALK; }
-  else d.state = DEER_DEAD;
+  else { d.state = DEER_DEAD; d.timer = 100; }     // lying: a fresh kill is still collapsing, drawn live between baked frames
   deerDiff += sceneDiff((): void => drawDeer(d, 0, null), (): void => drawDeer(d, 0, actors));
   deerFrames++;
 }
