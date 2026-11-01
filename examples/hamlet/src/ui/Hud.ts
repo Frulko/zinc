@@ -41,10 +41,9 @@ export function topBar(): void {
   addHit('top:pop', x, 5, pw, 24, 'Habitants');
   // right side: speed buttons, then the date and the season
   let r = w - 8;
-  const glyphs = ['play', 'play', 'fast', 'fastest'];
   r -= 30; glyphButton('speed:pause', r, 4, 30, 26, 'pause', 'Pause [P]', true, ui.paused);
   for (let i = SPEEDS.length - 1; i >= 0; i--) {
-    r -= 32; glyphButton('speed:' + i, r, 4, 30, 26, i === 0 ? 'left' : glyphs[i], 'Vitesse ×' + SPEEDS[i], true, !ui.paused && ui.speed === i);
+    r -= 36; labelButton('speed:' + i, r, 4, 34, 26, '×' + SPEEDS[i], 'Vitesse ×' + SPEEDS[i], true, !ui.paused && ui.speed === i);
   }
   const date = dateText(), season_ = SEASONS[season()], dw = measure(date) + 16;
   r -= dw + 8;

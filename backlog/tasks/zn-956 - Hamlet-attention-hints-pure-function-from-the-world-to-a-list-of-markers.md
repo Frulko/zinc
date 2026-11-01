@@ -4,7 +4,7 @@ title: 'Hamlet: attention hints: pure function from the world to a list of marke
 status: Review
 assignee: []
 created_date: '2026-11-01 13:04'
-updated_date: '2026-11-01 14:34'
+updated_date: '2026-11-01 14:55'
 labels:
   - hamlet
   - demo
@@ -29,7 +29,7 @@ What the player must look at: a placed building with no road to the gate, a hous
 - [x] #1 computeHints(world) returns [{kind, tile, reason, severity}] sorted by severity, capped at 12
 - [x] #2 Kinds: no_road, idle_workers, no_input, full_output, deliver_here, build_next (first-run hint after the gate)
 - [x] #3 T0 test per kind with a tiny constructed world
-- [ ] #4 Reasons are short English keys that hud.ts maps to text (the HUD advice line uses the top hint)
+- [x] #4 Reasons are short English keys that hud.ts maps to text (the HUD advice line uses the top hint)
 <!-- AC:END -->
 
 ## Implementation Notes

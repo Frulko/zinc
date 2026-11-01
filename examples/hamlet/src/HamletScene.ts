@@ -27,6 +27,7 @@ import { ui, act, viewport, SPEEDS } from './ui/state';
 import { topBar, column, statusStrip, toolList, hudClick } from './ui/Hud';
 import { drawFlyout } from './ui/BuildMenu';
 import { scanEvents, drawBanner } from './ui/Messages';
+import { loadPrefs, savePrefs } from './ui/prefs';
 import { refreshModels, jumpTo } from './view/scenery';
 import { camera, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY } from './view/camera';
 import { W, H } from './pixel';
@@ -76,7 +77,7 @@ export class HamletScene extends Sprite {
   constructor() {
     super('Hamlet');
     loadEconomy(assets.readText('economy.json'), MODEL_IDS, ROLE_NAMES);
-    loadKit(); ui.tool = TOOL_ROAD;
+    loadKit(); loadPrefs(); ui.tool = TOOL_ROAD;
     this.frame.cropX = 10; this.frame.cropY = 22; this.frame.cropWidth = 340; this.frame.cropHeight = 226;
     const built = buildSettingsPanel({
       zoom: (): number => DEFAULT_ZOOM - camera.level,
@@ -95,7 +96,7 @@ export class HamletScene extends Sprite {
     act.say = (message: string): void => this.say(message);
     act.rebake = (): void => { uiState.dirty = true; };
     act.togglePause = (): void => this.key('p', true);
-    act.setSpeed = (i: number): void => { ui.speed = i; settings.simSpeed = SPEEDS[i]; uiState.dirty = true; };
+    act.setSpeed = (i: number): void => { ui.speed = i; settings.simSpeed = SPEEDS[i]; savePrefs(); uiState.dirty = true; };
     act.jump = (x: number, y: number): void => { jumpTo(x, y); this.baked = world.revision; uiState.dirty = true; };
     setAmbience('meadow');
     windowCtl(0, 3, 'Hameau', 0, 0);
