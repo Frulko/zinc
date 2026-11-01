@@ -7035,9 +7035,17 @@ let settleHeld = false;
 /** In a pinch's end handler: the final picture comes later (an image rendered or fetched); the handler calls refreshIntent('settle') of
  *  zinc:gfx itself once it is drawn. */
 export function holdSettle(): void { settleHeld = true; }
+let tfAt: number = 0, tfX: number = 0, tfY: number = 0, tfMoved = false;
+const twoFingerHandlers: ((x: number, y: number) => void)[] = [];
+/** Global handler: a second finger touched and left within 400 ms without moving while another finger was down (undo on a tablet).
+ *  Not fired by a pinch (the fingers move). */
+export function onTwoFingerTap(f: (x: number, y: number) => void): void { twoFingerHandlers.push(f); }
 /** A finger other than the pointer one: phase 0 down, 1 move, 2 up. */
 function touchSecondary(id: i32, x: number, y: number, phase: i32): void {
   const i = fIds.indexOf(id);
+  if (phase === 0 && i < 0 && fIds.length === 0) { tfAt = clock; tfX = x; tfY = y; tfMoved = false; }
+  if (phase === 1 && i === 0 && Math.abs(x - tfX) + Math.abs(y - tfY) > 30) tfMoved = true;
+  if (phase === 2 && i === 0 && fIds.length === 1 && !tfMoved && clock - tfAt < 400) for (const f of twoFingerHandlers) f(x, y);
   if (phase === 0) { if (i < 0) { fIds.push(id); fXs.push(x); fYs.push(y); if (fIds.length === 1) secondFinger(); } return; }
   if (i < 0) return;
   fXs[i] = x; fYs[i] = y;

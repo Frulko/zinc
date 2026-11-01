@@ -11,6 +11,8 @@ import { WitnessList } from './components/WitnessList';
 import { HelpPanel } from './components/HelpPanel';
 import { MobileTabs } from './components/MobileTabs';
 import { GameControls } from './components/GameControls';
+import { penStep } from './pen';
+import { replayStep } from './replay';
 function App(): i32 {
  return <View className="w-full h-full bg-[#f2f0f7] flex-col pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
   <View className={compact() ? 'h-[56] px-3 flex-row items-center border-b border-[#e5e5ea] gap-3 shrink-0' + ink('border-black') : 'h-[64] px-6 flex-row items-center border-b border-[#e5e5ea] gap-6 shrink-0' + ink('border-black')}>
@@ -56,4 +58,5 @@ ui.onKey((e: ui.KeyEvent) => {
  if (k === 'h') { hint(); setMobileTab('aide'); }
  if (k === 'enter') { verify(); e.preventDefault(); }
 });
-render(App,INK ? 0xffffff : 0xf2f0f7,(dt: number) => { const safe = ui.safeArea(); const current = width()-safe[1]-safe[3]; if (current !== viewport()) setViewport(current); const currentHeight = height()-safe[0]-safe[2]; if (currentHeight !== viewportHeight()) setViewportHeight(currentHeight); });
+ui.onTwoFingerTap(() => undo());   // a two-finger tap takes the last move back, recognised pen marks included
+render(App,INK ? 0xffffff : 0xf2f0f7,(dt: number) => { replayStep(); penStep(dt); const safe = ui.safeArea(); const current = width()-safe[1]-safe[3]; if (current !== viewport()) setViewport(current); const currentHeight = height()-safe[0]-safe[2]; if (currentHeight !== viewportHeight()) setViewportHeight(currentHeight); });

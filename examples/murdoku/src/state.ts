@@ -18,10 +18,10 @@ export const [hintRule, setHintRule] = createSignal('');
 export const [hintError, setHintError] = createSignal(false);
 export const [hintDependencies, setHintDependencies] = createSignal<number[]>([]);
 export const [hints, setHints] = createSignal(0);
-class Move { placements: number[] = []; eliminated: number[] = []; }
+class Move { placements: number[] = []; eliminated: number[] = []; notes: number[] = []; }
 const history: Move[] = [];
 function remember(): void {
- const move = new Move(); move.placements = placements().slice(); move.eliminated = eliminated().slice(); history.push(move);
+ const move = new Move(); move.placements = placements().slice(); move.eliminated = eliminated().slice(); move.notes = notes().slice(); history.push(move);
 }
 // The new case takes about a second to generate: the UI shows a loader first, then generates; a second tap while busy is ignored.
 export const [busy, setBusy] = createSignal(false);
@@ -58,7 +58,7 @@ export function place(cell: number, pencil: boolean = draft()): void {
   if (blocked(cell)) { setMessage('Case indisponible : meuble non occupable, ligne ou colonne déjà prise, ou case éliminée.'); return; }
   const occupant = placements().indexOf(cell);
   if (occupant >= 0 && occupant !== a) { setMessage('Retirez d’abord la personne déjà présente.'); return; }
-  if (pencil) { const ns = notes().slice(); ns[cell] = ns[cell] ^ (1 << a); setNotes(ns); return; }
+  if (pencil) { remember(); const ns = notes().slice(); ns[cell] = ns[cell] ^ (1 << a); setNotes(ns); return; }
   const ps = placements().slice(); remember();
   for (let i = 0; i < 6; i++) if (ps[i] === cell && i !== a) ps[i] = -1;
   ps[a] = ps[a] === cell ? -1 : cell; setPlacements(ps); setMessage('Placement noté. Les témoignages restent à vérifier.');
@@ -104,7 +104,7 @@ export function clearCell(): void {
 }
 export function undo(): void {
  if (history.length === 0) return;
- const move = history.pop()!; setPlacements(move.placements); setEliminated(move.eliminated);
+ const move = history.pop()!; setPlacements(move.placements); setEliminated(move.eliminated); setNotes(move.notes);
 }
 export function hint(): void {
  const p = puzzle(), result = nextHint(p,placements(),eliminated());

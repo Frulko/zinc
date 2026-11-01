@@ -100,6 +100,8 @@ export class Ink {
   eraser: boolean = false;        // eraser tool, as tool 'eraser' (the Marker's eraser end always erases)
   eraserRadius: number = 12;
   background: i32 = 0xffffff;
+  /** Draws over what is under the canvas (a game board): no baked opaque image, every stroke is one polyline per frame. For a few strokes; a page of notes keeps the image. */
+  overlay: boolean = false;
   version: i32 = 0;               // bumps on every change (autosave, dirty flags)
   w: i32 = 0; h: i32 = 0;         // size of the last draw (toJSON, toSVG; a reader sets its page's before saving)
   iw: i32 = 0; ih: i32 = 0;       // size of the image
@@ -208,6 +210,7 @@ export class Ink {
 
   paint(x: i32, y: i32, w: i32, h: i32, ox: number, oy: number, z: number, key: number, bg: ((w: i32, h: i32) => void) | null): void {
     this.w = w; this.h = h;
+    if (this.overlay) { for (const s of this.strokes) whole(s, x, y, ox, oy, z); return; }
     if (w !== this.iw || h !== this.ih || this.img < 0) {
       if (this.img >= 0) destroyImage(this.img);
       this.img = createImage(w, h);

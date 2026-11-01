@@ -12,6 +12,8 @@ Click a cell, then type the person's letter. Witnesses are always listed alphabe
 
 With the mouse or a finger, pick a suspect (portrait card or letter in the bottom bar) and tap cells: each tap places them and the brush moves on to the next person still to place. Tapping a cell that already holds the brush person removes them. The pencil button switches the brush to notes. Clicking a cell first and then a portrait still works. No keyboard is needed.
 
+On a pen tablet (the e-ink skin) write on the plan: a letter in a circle places that person, a bare letter is a pencil note, an X crosses the cell out, and a two-finger tap undoes the last move. A mark that is not recognised stays as ink. The recognised mark is replaced by the typeset state of the cell.
+
 Placing a person crosses out their entire row and column. Those cells cannot be selected until the person is removed. Tables, bookcases, plants, pianos, clocks and other solid decor also block placement. Empty cells, armchairs, rugs, beds and hammocks can be occupied. A ◆ marks solid decor. To move someone within their current row or column, remove them first. Undo restores firm placements; pencil notes are toggled manually.
 
 All five testimonies and the silent victim are shown together. Room names appear inside the plan; colors are supplementary. A person can be in a room with others, or alone. Exactly one person shares the victim's room: that is the killer. Once the scene is reconstructed, choose their portrait and accuse them.

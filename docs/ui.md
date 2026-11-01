@@ -168,6 +168,7 @@ moves and gives vertical ones to the list, and a button inside a draggable card 
 | `onTap` | on release, when no gesture took the press, no long press fired and the pointer is still over the node |
 | `onLongPress` | after 500 ms held without a gesture; the click and the tap are dropped |
 | `onDrag` | phase 0 when it takes the grab, 1 on each move, 2 on release, 3 when a pinch takes over |
+| `ui.onTwoFingerTap(f)` | global: a second finger lands and lifts within 400 ms without moving while another finger is down (undo on a tablet); `f(x, y)`. A pinch does not fire it |
 | `onPinch` | when a second finger lands on it (or on the node under the first finger's press): the pinch takes the grab from anything else; 0 / 1 / 2 as the fingers land, move and lift |
 
 Multitouch: the first finger is the pointer (taps, scrolling, drags); the SDL HAL reports the other fingers of touch

@@ -18,6 +18,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Plugins
 
 #### New
+- Murdoku can be played with the pen on an e-ink tablet: a circled letter places that person, a bare letter is a pencil note, an X crosses a cell out, and a two-finger tap undoes. `zinc:ui` has `onTwoFingerTap` for that gesture and `zinc:ink`'s `Ink` can draw over a board with `overlay = true`.
 - `zinc:ink` recognises handwriting on the device, with no cloud: `recognise(strokes)` names a mark as a letter (`A`-`E`, `V`), a circle, an `x`, a tick or a line, says when a letter is circled, and answers `unknown` rather than guess; `recogniseAsync` matches off the UI thread, `StrokeGrouper` collects the strokes of one mark, `loadModel` swaps in your own templates. The notes example for reMarkable has a Record mode to collect handwriting samples.
 
 #### Fixed
