@@ -2,6 +2,7 @@ import { Cursor } from 'zinc:gfx';
 import { world, tileX, tileY, tileIndex } from '../world/world';
 import { economy } from '../world/economy';
 import { housingReport } from '../rules/housing';
+import { sourceOf, harvestLines } from '../rules/harvest';
 import { applyTool } from '../rules/build';
 import {
   TOOL_ERASE, BS_ISOLATED, BS_WAITING, BS_FULL, BS_WORKING, ROLE_NAMES,
@@ -90,9 +91,10 @@ function building(x: number, y: number): void {
   const report = def.housing !== null ? wrap(housingReport(b).text, WIN_W - 24) : [];
   const stocks: number[] = [];
   for (let k = 0; k < economy.resources.length; k++) if (b.stock[k] > 0) stocks.push(k);
-  h += whyLines.length * lh + report.length * lh + stocks.length * 20 + (def.workers > 0 ? 24 : 0) + 40;
+  h += whyLines.length * lh + report.length * lh + gather.length * lh + (gather.length > 0 ? 6 : 0) + stocks.length * 20 + (def.workers > 0 ? 24 : 0) + 40;
   window_(x, y, WIN_W, h, def.label); block(x - 6, y - 6, WIN_W + 12, h + 12); addHit('info:drag', x, y, WIN_W - 28, 24, 'Glisser pour déplacer', Cursor.Grab);
   glyphButton('info:close', x + WIN_W - 24, y + 2, 20, 18, 'close', 'Fermer [Échap]');
+  const src = sourceOf(def), gather = src >= 0 ? harvestLines(src, def) : [];
   drawBuilding(b.type, x + 8, y + 30, 64);
   text(kit.body, x + 82, y + 32, def.hint !== '' ? '' : '', col('ink'));
   let py = y + 34;
@@ -106,6 +108,7 @@ function building(x: number, y: number): void {
   if (!b.fixed) labelButton('info:demolish', x + 12, y + h - 34, 110, 26, 'Démolir', 'Rendre la case au hameau');
 }
 function person(x: number, y: number): void {
+  if (gather.length > 0) { py += 4; for (const line of gather) { text(kit.small, x + 12, py, line, col('muted')); py += lh; } }
   const p = world.people[ui.selId];
   if (p === undefined) { closeInfo(); return; }
   const lh = kit.lineH, home = p.home >= 0 ? world.buildings[p.home] : undefined, job = p.job >= 0 ? world.buildings[p.job] : undefined;

@@ -3,6 +3,7 @@ import { world } from '../world/world';
 import { economy, amountText, Goal, Condition } from '../world/economy';
 import { HOUSE, TOOL_HOUSE } from '../constants';
 import { isUnlocked, lockText } from '../rules/goals';
+import { harvestLines } from '../rules/harvest';
 import { buildingTip } from './BuildMenu';
 import { drawBuilding, drawResource } from './icons';
 import { kit, col, mix, window_, parchment, text, labelButton, glyphButton, block, addHit, pointer } from './kit';
@@ -123,7 +124,7 @@ function paint(): void {
       n.sub = String(have) + ' en réserve'; n.ink = have > 0 ? col('ink') : col('muted'); n.border = have > 0 ? col('good') : col('stoneDark');
       let makers = '', users = '';
       for (const d of economy.buildings) { if (d.outputs[n.id] > 0) makers += (makers === '' ? '' : ', ') + d.label; if (d.inputs[n.id] > 0 || d.cost[n.id] > 0) users += (users === '' ? '' : ', ') + d.label; }
-      n.tip = r.label + '\nEn réserve : ' + have + (r.price > 0 ? '\nValeur : ' + r.price : '') + (makers !== '' ? '\nFabriqué par : ' + makers : '') + (users !== '' ? '\nUtilisé par : ' + users : '');
+      n.tip = r.label + '\nEn réserve : ' + have + (r.price > 0 ? '\nValeur : ' + r.price : '') + (makers !== '' ? '\nFabriqué par : ' + makers : '') + (users !== '' ? '\nUtilisé par : ' + users : '') + harvestLines(n.id, null).map((l: string): string => '\n' + l).join('');
     } else if (n.kind === 'bld') {
       const d = economy.buildings[n.id], built = count(n.id), locked = !isUnlocked(n.id);
       n.sub = locked ? lockText(n.id).replace('Se débloque avec l’objectif : ', 'Objectif : ') : built > 0 ? 'x' + built + (d.workers > 0 ? '  ' + d.workers + ' ouvriers' : '') : amountText(d.cost, null);

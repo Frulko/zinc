@@ -17,6 +17,9 @@ import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine/transport';
 import { adviceLine } from '../../../examples/hamlet/src/hud';
 import { toolOf } from '../../../examples/hamlet/src/rules/build';
+import { harvested, harvestedOf, harvestFor, efficiency, meanUnits, rollUnits, succeeds, blowsOf, swingRate, BLOW_ANGLE, TAU } from '../../../examples/hamlet/src/rules/harvest';
+import { ST_CHOP } from '../../../examples/hamlet/src/constants';
+import { seedRandom } from '../../../examples/hamlet/src/world/world';
 import { housingReport, capacityOf } from '../../../examples/hamlet/src/rules/housing';
 import { computeAppeal, appealTiles } from '../../../examples/hamlet/src/rules/appeal';
 import { terrain, TerrainParams, TerrainLayers } from '../../../examples/hamlet/src/gen/terrain';
@@ -182,9 +185,9 @@ const allWood = (): number => {                    // every wood in the village:
   for (const p of world.people) if (p.carry === WOOD + 1 && p.state === ST_TO_SITE) n += p.load;
   return n;
 };
-const start = allWood(), felled = world.felledCount;
+const start = allWood(), felled = world.felledCount, gathered = harvestedOf(WOOD);
 run(80);
-check('totals are conserved: every felled tree is one wood somewhere', allWood() === start + world.felledCount - felled && world.felledCount > felled + 5);
+check('totals are conserved: the wood a harvest rolled is somewhere in the village', allWood() === start + (harvestedOf(WOOD)) - gathered && world.felledCount > felled + 5);
 check('the hall received wood from the producers', world.stock[WOOD] > 40);
 const lone = world.buildings[world.build[at(12, 13)]];
 check('a building with no road to a store does not send', !exportsOk(lone) && lone.state === BS_ISOLATED && lone.stock[WOOD] >= 0 && world.buildings[world.build[at(5, 9)]].state !== BS_ISOLATED);
@@ -322,6 +325,7 @@ check('a quarry needs a deposit of stone near it', applyTool(toolOf('quarry'), a
 world.rock[at(7, 9)] = ROCK_DEPOSIT + STONE_K; world.lode[at(7, 9)] = 2;
 const STONE_R = economy.resourceOf('stone'); setStock(STONE_R, 0);
 check('with a deposit near, the quarry is allowed', applyTool(toolOf('quarry'), at(5, 9)) === PLACE_OK);
+setStock(economy.resourceOf('tools'), 0);   // a tool in the stores would add its bonus: here one unit a trip
 const rev = world.revision, snap = snapshot();
 run(25);
 check('quarrymen bring stone, one unit per trip, from the deposit', world.stock[STONE_R] + world.buildings[world.build[at(5, 9)]].stock[STONE_R] >= 1 && world.lode[at(7, 9)] <= 1);
@@ -367,6 +371,7 @@ applyTool(toolOf('lumberhut'), at(3, 9));
 run(25);
 check('a goal is reached in the daily slice: its reward unlocks the sawmill and gives wood', world.goals[goalIx('wood')] === 1 && applyTool(TOOL_SAWMILL, at(5, 9)) === PLACE_OK && world.news.length === 1 && world.news[0].indexOf('Du bois') >= 0);
 check('the reward went through the command log', world.log.length === 1 && world.log[0].kind === 'goal' && world.log[0].a === goalIx('wood') && world.log[0].tick > 0);
+world.tree[at(6, 9)] = 0;
 check('the next goal waits for its conditions (planks)', world.goals[goalIx('planks')] === 0 && applyTool(TOOL_LODGE, at(6, 9)) === PLACE_LOCKED);
 setStock(PLANK, 15);
 run(22);
@@ -460,6 +465,48 @@ run(30);
 check('after the restore the expedition still comes home with its reward', world.expeditions.length === 0 && world.stock[HIDE3] >= 6 && world.people.length >= 3 && world.news.some((n) => n.indexOf('Retour') >= 0 || n.indexOf('pas revenue') >= 0));
 check('an adventure needs its people and cost', !canStart(HUNT) || (setStock(SMOKED3, 0), !canStart(HUNT)));
 world.progression = false;
+// ---- harvests: time, yield, percent and chance come from economy.json; the swing follows the time ----
+const harvestsOk = economy.resources.every((r) => r.harvest === null || [r.harvest].concat(r.variants).every((h) => h.units > 0 && h.percent >= 0 && h.percent <= 500 && h.chance > 0 && h.chance <= 100 && h.depletion <= 100 && h.seasons.length === 4 && h.time >= 0));
+check('every harvest block stays within its bounds', harvestsOk && economy.resources.filter((r) => r.harvest !== null).length >= 9);
+check('trees have four species and game two variants, a taller tree takes longer', economy.resources[WOOD].variants.length === 4 && economy.resources[MEAT].variants.length === 2 && (harvestFor(WOOD, 2)?.time ?? 0) > (harvestFor(WOOD, 0)?.time ?? 9) && (harvestFor(MEAT, 1)?.units ?? 0) > (harvestFor(MEAT, 0)?.units ?? 9));
+check('a bad percent, chance, season list or tool is refused', bad('"percent": 85 }', '"percent": 900 }').join().indexOf('bad-harvest') >= 0 && bad('"chance": 80,', '"chance": 0,').join().indexOf('bad-harvest') >= 0 && bad('"seasons": [60, 130, 150, 25]', '"seasons": [60, 130]').join().indexOf('bad-harvest') >= 0 && bad('"resource": "tools", "bonus": 15', '"resource": "gold", "bonus": 15').join().indexOf('unknown-resource') >= 0);
+check('blows follow the time: longer, more blows, evenly spread', blowsOf(2.2) === 4 && blowsOf(3.6) === 7 && blowsOf(.3) === 1 && Math.abs(swingRate(3.6) * 3.6 * BLOW_ANGLE / TAU - 7) < 1e-9);
+generate(4242, 20); rich(); world.tick = 0;
+const logH = harvestFor(WOOD, -1)!, toolsK = economy.resourceOf('tools');
+setStock(toolsK, 0); const plain = efficiency(logH); setStock(toolsK, 3);
+check('a tool in the stores raises the efficiency by its bonus', Math.abs(efficiency(logH) - plain * 1.2) < 1e-9);
+world.tick = Math.floor(MONTH_SECONDS * 9.5 * 32);
+check('the season scales the efficiency (winter fells less)', efficiency(logH) < plain * 1.2 - 1);
+world.tick = 0;
+const stag = harvestFor(MEAT, 1)!;
+const trial = (seed: number): number[] => { seedRandom(seed); let units = 0, wins = 0; for (let k = 0; k < 2000; k++) { if (succeeds(stag)) { wins++; units += rollUnits(MEAT, stag); } } return [units, wins]; };
+const t1 = trial(5), t2 = trial(5);
+check('rolls are deterministic for a seed', t1[0] === t2[0] && t1[1] === t2[1]);
+check('rolled units and success follow the percent and the chance', Math.abs(t1[1] / 2000 - stag.chance / 100) < .04 && Math.abs(t1[0] / t1[1] - meanUnits(stag)) < .1);
+clearRow();
+for (let i = 1; i <= 8; i++) applyTool(TOOL_ROAD, tileIndex(i, 8));
+world.unlocked.fill(1); world.people = [];
+for (const i of [2, 4]) { const h = addBuilding(HOUSE, at(i, 7)); createResident(h); createResident(h); createResident(h); createResident(h); world.buildings[h].residents = 4; world.buildings[h].timer = 1e9; }
+applyTool(toolOf('lumberhut'), at(6, 9)); applyTool(toolOf('lumberhut'), at(3, 9));
+const lastPhase: number[] = Array.from({ length: 64 }, () => 0), species: number[] = Array.from({ length: 64 }, () => -1);
+let chops = 0, timeOk = true, blowsOk = true;
+for (let k = 0; k < harvested.length; k++) harvested[k] = 0;
+for (let k = 0; k < 60 * 32; k++) {
+  stepWorld();
+  world.people.forEach((p, i) => {
+    if (p.state === ST_CHOP) {
+      if (species[i] < 0) { species[i] = world.tree[p.target] - 1; const want = harvestFor(WOOD, species[i])!.time; if (!(p.timer <= want && p.timer > want - .1)) timeOk = false; }
+      lastPhase[i] = p.phase;
+    } else if (species[i] >= 0) {
+      const done = Math.floor((lastPhase[i] * BLOW_ANGLE - Math.PI) / TAU) + 1;
+      if (done !== blowsOf(harvestFor(WOOD, species[i])!.time)) blowsOk = false;
+      species[i] = -1; chops++;
+    }
+  });
+}
+console.log('hamlet rules: harvesthash ' + harvested.join('.') + ':' + world.rng + ':' + world.stock.join('.'));   // compared across the three engines by hamlet.sh
+check('a felling cycle lasts the species time and strikes the blows of that time', chops >= 4 && timeOk && blowsOk);
+generate(1234, 16); rich(); seedRandom(11);
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; }

@@ -76,7 +76,6 @@ export const ROAD_COST = 0.6;           // path cost of a road tile (grass is 1)
 export const AIM_SECONDS = 0.8;
 export const ARROW_SECONDS = 0.28;
 export const SHOOT_RANGE = 5.5;
-export const HIT_CHANCE = 0.8;
 export const ST_IDLE = 0;
 export const ST_STROLL = 1;
 export const ST_GO_WORK = 2;
@@ -105,7 +104,6 @@ export const BS_WAITING = 2;          // an input is missing (Building.waitFor)
 export const BS_FULL = 3;              // the output has no room
 export const BS_ISOLATED = 4;          // no road leads from it to a store: nothing leaves it (and nothing comes)
 export const BATCH = 4;                // most a porter carries at once
-export const FISH_CATCH_CHANCE = .85;
 
 // ---- no-limit mode: nature refills itself below a threshold ----
 export const TREE_MIN = 18;             // below this many trees, one grows back every TREE_REGROW seconds

@@ -3,6 +3,7 @@ import { world } from '../world/world';
 import { economy, amountText, BuildingDef } from '../world/economy';
 import { TOOL_HOUSE } from '../constants';
 import { lockText } from '../rules/goals';
+import { sourceOf, harvestLines } from '../rules/harvest';
 import { drawBuilding, drawResource } from './icons';
 import { kit, col, slab, parchment, block, button, text, textR, measure, BTN_DISABLED } from './kit';
 import { ui, act, columnX, TOP_H } from './state';
@@ -57,7 +58,9 @@ export function buildingTip(type: number): string {
   if (d.housing !== null) lines.push('Loge ' + d.housing.capacity + ' habitants');
   const inputs = list(d.inputs), outputs = list(d.outputs);
   if (inputs !== '') lines.push('Consomme : ' + inputs);
-  if (outputs !== '') lines.push('Produit : ' + outputs + (d.seconds > 0 ? ' / ' + d.seconds + ' s' : ''));
+  const src = sourceOf(d);
+  if (src >= 0) { lines.push('Produit : ' + economy.resources[src].label); for (const l of harvestLines(src, d)) lines.push(l); }   // cycle time, yield and percent come from the harvest
+  else if (outputs !== '') lines.push('Produit : ' + outputs + (d.seconds > 0 ? ' / ' + d.seconds + ' s' : ''));
   if (d.store) lines.push('Stocke jusqu’à ' + d.stockCap + ' de chaque');
   if (d.hint !== '') lines.push(d.hint);
   const reason = lockReason(type);

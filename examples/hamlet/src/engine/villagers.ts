@@ -1,10 +1,10 @@
 import {
-  HOUSE, ST_TO_SHORE, ST_FISH, FISH_CATCH_CHANCE, ROLE_SETTLER, ROLE_RESIDENT, ROLE_PEDDLER,
+  HOUSE, ST_TO_SHORE, ST_FISH, ROLE_SETTLER, ROLE_RESIDENT, ROLE_PEDDLER,
   ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_WORK, ST_FETCH, ST_BRING,
-  ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, WORK_RADIUS, SETTLER_INTERVAL,
+  ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, WORK_RADIUS, SETTLER_INTERVAL,
   DEER_DEAD, DEER_FLEE, DEER_GONE, WALK_SPEED,
 } from '../constants';
-import { Housing, BuildingDef } from '../world/economy';
+import { Housing, BuildingDef, Harvest } from '../world/economy';
 import { world, recount, Person, Building, random, tileAt, tileX, tileY, tileIndex, tileI, tileJ, neighbor, waterNeighbor } from '../world/world';
 import { fieldFrom, approachTile, pathTo, planPath, walk, isWalkable, isMoving, UNREACHABLE } from './path';
 import { sound } from '../audio';
@@ -13,6 +13,7 @@ import { settings } from '../settings';
 import { economy } from '../world/economy';
 import { take } from '../rules/stock';
 import { resting, workScale } from '../rules/meadow';
+import { BLOW_ANGLE, TAU, harvestFor, sourceOf, cycleSeconds, succeeds, depletes, rollUnits, swingRate } from '../rules/harvest';
 import { rankOf } from '../rules/labour';
 import { capacityOf } from '../rules/housing';
 import { startRoam, roamTick } from './services';
@@ -28,7 +29,6 @@ function isNear(p: Person, t: number): boolean {
 }
 
 /** True when the swing of a worker passed its moment of impact (the axe is down) between two phases: sounds and effects are made on the blow itself. */
-const BLOW_ANGLE = 4.2, TAU = Math.PI * 2;
 const struck = (before: number, after: number): boolean => Math.floor((after * BLOW_ANGLE - Math.PI) / TAU) !== Math.floor((before * BLOW_ANGLE - Math.PI) / TAU);
 /** What a workshop throws up at each blow: the building's id, its particles and sound (a farm cuts, a sawmill saws, a forge strikes sparks, a mill dusts flour). */
 function workBlow(p: Person, site: Building): void {
@@ -264,25 +264,47 @@ function releaseClaims(p: Person): void {
   if (kind === 'deer' && p.target >= 0 && p.state >= ST_STALK && p.state <= ST_PICK && p.state !== ST_TO_SITE) world.deer[p.target].hunted = false;
   p.target = -1;
 }
-/** The gathered load goes to the workplace, which holds it until a porter (or the worker) takes it to a store. */
+/** The gathered load goes to the workplace, which holds it until a porter (or the worker) takes it to a store. The by-products (hides with the game) are rolled now. */
 function deliver(p: Person): void {
   const site = world.buildings[p.job], out = defOf(site).outputs;
-  for (let k = 0; k < out.length; k++) site.stock[k] += out[k];
+  for (let k = 0; k < out.length; k++) {
+    if (k === p.carry - 1) site.stock[k] += p.load;
+    else if (out[k] > 0) { const h = harvestFor(k, p.variant); site.stock[k] += h === null ? out[k] : rollUnits(k, h); }
+  }
   p.carry = 0; p.load = 0; world.saveDirty = true;
   sound('point', .3);
 }
-function goDeliver(p: Person): void {
-  const site = world.buildings[p.job];
-  p.carry = firstOutput(defOf(site)) + 1; p.load = 1;
+/** A gathering cycle ended on a source of `variant` (a tree species, a doe or a stag; -1 none): the worker carries what the harvest brought (`ok`: the cycle succeeded) to the workplace. */
+function goDeliver(p: Person, variant: number, ok: boolean = true): void {
+  const site = world.buildings[p.job], def = defOf(site), src = sourceOf(def), first = src >= 0 ? src : firstOutput(def);
+  const h = src >= 0 ? harvestFor(src, variant) : null;
+  p.variant = variant; p.carry = first + 1;
+  p.load = !ok ? 0 : h === null ? def.outputs[first] : rollUnits(src, h);
+  if (p.load <= 0) { p.carry = 0; p.state = ST_SEEK; p.timer = .3; return; }   // nothing came of it: back to the next source
   p.state = ST_TO_SITE;
-  if (!planPath(p, buildingTile(site))) { p.carry = 0; p.state = ST_SEEK; p.timer = 1; }
+  if (!planPath(p, buildingTile(site))) { p.carry = 0; p.load = 0; p.state = ST_SEEK; p.timer = 1; }
+}
+/** The harvest of the building's first raw output for a variant (a harvest that never fails and never ends when it has none). */
+const NONE = new Harvest();
+function harvestOfSite(def: BuildingDef, variant: number): Harvest { const src = sourceOf(def); return src < 0 ? NONE : harvestFor(src, variant) as Harvest; }
+/** Starts a swing: the worker's phase restarts and runs so that the blows of the harvest's time fall evenly (view/actors.ts draws the pose from it). */
+function beginSwing(p: Person, seconds: number): void { p.phase = 0; p.rate = swingRate(seconds); }
+/** A workshop cycle ends: a raw source (nothing taken in) gets what its harvest rolled, a processor its fixed outputs. */
+function produce(site: Building, def: BuildingDef): void {
+  const raw = def.inputs.every((n: number): boolean => n === 0), src = raw ? sourceOf(def) : -1;
+  const hit = src < 0 || succeeds(harvestFor(src, -1) as Harvest);
+  for (let k = 0; k < def.outputs.length; k++) {
+    if (def.outputs[k] <= 0) continue;
+    const h = raw && hit ? harvestFor(k, -1) : null;
+    site.stock[k] += !raw ? def.outputs[k] : !hit ? 0 : h === null ? def.outputs[k] : rollUnits(k, h);
+  }
 }
 function startWork(p: Person, site: Building, def: BuildingDef): boolean {
   if (resting(def)) return false;                            // the hives sleep in winter
   for (let k = 0; k < def.inputs.length; k++) if (site.stock[k] < def.inputs[k]) return false;
   for (let k = 0; k < def.inputs.length; k++) site.stock[k] -= def.inputs[k];
   site.state = BS_WORKING; site.waitFor = -1;
-  p.state = ST_WORK; p.timer = def.seconds / workScale(site, def); p.phase = 0;
+  p.state = ST_WORK; p.timer = cycleSeconds(harvestOfSite(def, -1), def) / workScale(site, def); beginSwing(p, p.timer);
   if (def.startSound !== '') sound(def.startSound, .35);
   return true;
 }
@@ -315,11 +337,11 @@ function updateWorker(p: Person, dt: number): void {
     }
     case ST_WORK: {
       const before = p.phase;
-      p.phase += dt * 6.2;
+      p.phase += dt * p.rate;
       if (struck(before, p.phase)) workBlow(p, site);
       p.timer -= dt;
       if (p.timer > 0) break;
-      for (let k = 0; k < def.outputs.length; k++) site.stock[k] += def.outputs[k];
+      produce(site, def);
       world.saveDirty = true; sound('point', .3);
       site.state = BS_IDLE; p.state = ST_SEEK; p.timer = .2;
       break;
@@ -341,54 +363,56 @@ function updateWorker(p: Person, dt: number): void {
     case ST_TO_TREE:
       if (!walk(p, dt, speed)) break;
       if (world.tree[p.target] === 0 || !isNear(p, p.target)) { releaseClaims(p); p.state = ST_SEEK; p.timer = 0; break; }
-      faceTile(p, p.target); p.state = ST_CHOP; p.timer = def.seconds;
+      faceTile(p, p.target); p.state = ST_CHOP; p.timer = cycleSeconds(harvestOfSite(def, world.tree[p.target] - 1), def); beginSwing(p, p.timer);
       break;
     case ST_CHOP: {
       const before = p.phase;
-      p.phase += dt * 6.2;
+      p.phase += dt * p.rate;
       if (struck(before, p.phase)) { emitFx(FX_LEAVES, tileX(p.target), tileY(p.target), 0, p.target, world.tree[p.target] - 1); sound('chop', .6); }
       p.timer -= dt;
       if (p.timer > 0) break;
-      emitFx(FX_FELL, tileX(p.target), tileY(p.target), p.yaw, p.target, world.tree[p.target] - 1);
+      const species = world.tree[p.target] - 1;
+      emitFx(FX_FELL, tileX(p.target), tileY(p.target), p.yaw, p.target, species);
       world.tree[p.target] = 0; world.claimed[p.target] = 0; world.felledCount++;
       world.revision++; world.saveDirty = true;
-      p.target = -1; goDeliver(p);
+      p.target = -1; goDeliver(p, species, succeeds(harvestOfSite(def, species)));
       break;
     }
     case ST_TO_LODE:
       if (!walk(p, dt, speed)) break;
       if (world.rock[p.target] !== ROCK_DEPOSIT + def.lode || !isNear(p, p.target)) { releaseClaims(p); p.state = ST_SEEK; p.timer = 0; break; }
-      faceTile(p, p.target); p.state = ST_MINE; p.timer = def.seconds;
+      faceTile(p, p.target); p.state = ST_MINE; p.timer = cycleSeconds(harvestOfSite(def, -1), def); beginSwing(p, p.timer);
       break;
     case ST_MINE: {
       const before = p.phase;
-      p.phase += dt * 6.2;
+      p.phase += dt * p.rate;
       if (struck(before, p.phase)) { const fx = LODE_FX[def.lode]; emitFx(FX_CHIPS, tileX(p.target), tileY(p.target), fx.chips, p.target, fx.palette); sound(fx.sound, fx.volume); }
       p.timer -= dt;
       if (p.timer > 0) break;
-      world.lode[p.target]--;
+      const lodeHarvest = harvestOfSite(def, -1), found = succeeds(lodeHarvest);
+      if (found && depletes(lodeHarvest)) world.lode[p.target]--;
       if (world.lode[p.target] <= 0) { emitFx(FX_CHIPS, tileX(p.target), tileY(p.target), LODE_FX[def.lode].chips * 3, p.target, LODE_FX[def.lode].dust); world.rock[p.target] = 0; world.lode[p.target] = 0; world.revision++; }   // used up: the tile is free again and the baked scenery redone
       world.claimed[p.target] = 0; world.saveDirty = true;
-      p.target = -1; goDeliver(p);
+      p.target = -1; goDeliver(p, -1, found);
       break;
     }
     case ST_TO_SHORE: {
       if (!walk(p, dt, speed)) break;
       const water = waterNeighbor(p.target);
       if (water < 0 || tileOf(p) !== p.target) { releaseClaims(p); p.state = ST_SEEK; p.timer = 0; break; }
-      faceTile(p, water); p.state = ST_FISH; p.timer = def.seconds; p.phase = 0;
+      faceTile(p, water); p.state = ST_FISH; p.timer = cycleSeconds(harvestOfSite(def, -1), def); p.phase = 0;
       break;
     }
     case ST_FISH:
       p.phase += dt;
       p.timer -= dt;
       if (p.timer > 0) break;
-      if (random() < FISH_CATCH_CHANCE) {
+      if (succeeds(harvestOfSite(def, -1))) {
         world.claimed[p.target] = 0; p.target = -1;
         emitFx(FX_SPLASH, p.x, p.y, p.yaw, p.target);
         sound('fish', .45);
-        goDeliver(p);
-      } else p.timer = def.seconds * .6;     // nothing bit: the line goes back in
+        goDeliver(p, -1);
+      } else p.timer = cycleSeconds(harvestOfSite(def, -1), def) * .6;     // nothing bit: the line goes back in
       break;
     case ST_STALK: {
       const deer = world.deer[p.target];
@@ -416,7 +440,7 @@ function updateWorker(p: Person, dt: number): void {
       p.timer -= dt;
       if (p.timer > 0) break;
       const deer = world.deer[p.target];
-      if (random() < HIT_CHANCE) {
+      if (succeeds(harvestOfSite(def, deer.stag ? 1 : 0))) {
         deer.state = DEER_DEAD; deer.path = []; deer.step = 0;
         sound('hit', .6); emitFx(FX_CHIPS, deer.x, deer.y, deer.stag ? 14 : 9, 0, CHIP_DUST);
         p.state = ST_TO_BODY;
@@ -431,20 +455,22 @@ function updateWorker(p: Person, dt: number): void {
       if (!walk(p, dt, speed)) break;
       const deer = world.deer[p.target];
       if (deer.state !== DEER_DEAD || !isNear(p, tileAt(deer.x, deer.y))) { deer.hunted = false; p.target = -1; p.state = ST_SEEK; p.timer = 0; break; }
-      p.yaw = Math.atan2(deer.y - p.y, deer.x - p.x); p.state = ST_PICK; p.timer = def.seconds;
+      p.yaw = Math.atan2(deer.y - p.y, deer.x - p.x); p.state = ST_PICK; p.timer = cycleSeconds(harvestOfSite(def, deer.stag ? 1 : 0), def);
       break;
     }
-    case ST_PICK:
+    case ST_PICK: {
       p.timer -= dt;
       if (p.timer > 0) break;
-      world.deer[p.target].state = DEER_GONE; world.deer[p.target].hunted = false;
-      p.target = -1; goDeliver(p);
+      const game = world.deer[p.target], kind = game.stag ? 1 : 0;
+      game.state = DEER_GONE; game.hunted = false;
+      p.target = -1; goDeliver(p, kind);
       break;
     case ST_TO_SITE:
       if (!walk(p, dt, speed)) break;
       if (isNear(p, buildingTile(site))) deliver(p); else { p.carry = 0; p.load = 0; }
       p.state = ST_SEEK; p.timer = .3;
       break;
+    }
     default:
       p.state = ST_SEEK;
   }

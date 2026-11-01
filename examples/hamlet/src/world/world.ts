@@ -24,6 +24,7 @@ export class Person extends Mover {
 }
 /** One line of the peddler's offer: he `sell`s qty of a resource to the village for `coins`, or `buy`s it from the village. */
 export class Offer { resource: number = 0; qty: number = 0; side: string = ''; coins: number = 0; taken: boolean = false; }
+  rate: number = 0; variant: number = -1;   // the swing's phase speed while working (rules/harvest.ts), and the variant of the source just worked (tree species, doe or stag)
 /** An expedition under way: the adventure, the days left, and the house each member comes from (members leave the people list while away). */
 export class Expedition { adventure: number = 0; left: number = 0; homes: number[] = []; }
 /** A decision applied to the village and logged with its tick (rules/commands.ts). */
