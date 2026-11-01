@@ -23,7 +23,7 @@ export class BuildingDef {
   housing: Housing | null = null; service: ServiceDef | null = null; lode: number = -1; appeal: number[] = [];   // appeal: the rings it adds around itself
 }
 export class Economy {
-  deposits: Deposit[] = []; goals: Goal[] = []; trade: Trade = new Trade();
+  deposits: Deposit[] = []; goals: Goal[] = []; trade: Trade = new Trade(); adventures: Adventure[] = [];
   appeal: AppealSource[] = []; appealMax: number = 8;
   resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
   typeOf(id: string): number { for (let k = 0; k < this.buildings.length; k++) if (this.buildings[k].id === id) return k; return -1; }
@@ -48,6 +48,8 @@ export class Goal {
 export class TradeEntry { side: string = ''; resource: number = -1; qty: number = 0; }
 /** The peddler: every `everyDays` days he stays `stayDays` at the gate with `offers` lines drawn from the table. */
 export class Trade { everyDays: number = 0; stayDays: number = 2; offers: number = 3; table: TradeEntry[] = []; coin: number = -1; }
+/** An adventure: `workers` villagers leave for `days` days, `cost` is paid at the start, each of them is lost with `risk` percent chance, and `rewards` come home with the survivors. */
+export class Adventure { id: string = ''; title: string = ''; text: string = ''; days: number = 1; workers: number = 1; risk: number = 0; cost: number[] = []; rewards: number[] = []; }
 export const GATHER_KINDS: string[] = ['', 'tree', 'deer', 'shore'];
 
 function num(obj: any, key: string, fallback: number, where: string, errors: string[]): number {
@@ -89,7 +91,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     if (sv.id === '' || into.serviceOf(sv.id) >= 0) errors.push('bad-id: service "' + sv.id + '" is empty or declared twice');
     into.services.push(sv);
   }
-  into.appeal = []; into.appealMax = 8; into.deposits = []; into.goals = []; into.trade = new Trade();
+  into.appeal = []; into.appealMax = 8; into.deposits = []; into.goals = []; into.trade = new Trade(); into.adventures = [];
   if (data.desirability !== undefined) {
     into.appealMax = num(data.desirability, 'limit', 8, 'desirability', errors);
     for (const s of (data.desirability.terrain === undefined ? [] : data.desirability.terrain) as any[]) {
@@ -200,6 +202,16 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     }
     if (t.everyDays > 0 && t.table.length < t.offers) errors.push('bad-trade: the table has fewer lines than offers per visit');
   }
+  into.adventures = [];
+  for (const a of (data.adventures === undefined ? [] : data.adventures) as any[]) {
+    const adv = new Adventure(), where = 'adventure ' + String(a.id);
+    adv.id = String(a.id === undefined ? '' : a.id); adv.title = String(a.title === undefined ? adv.id : a.title); adv.text = String(a.text === undefined ? '' : a.text);
+    adv.days = num(a, 'days', 1, where, errors); adv.workers = num(a, 'workers', 1, where, errors); adv.risk = num(a, 'risk', 0, where, errors);
+    adv.cost = amounts(a.cost, ids, where + '.cost', errors); adv.rewards = amounts(a.rewards, ids, where + '.rewards', errors);
+    if (adv.id === '' || into.adventures.some((o: Adventure): boolean => o.id === adv.id)) errors.push('bad-id: ' + where + ' is empty or declared twice');
+    if (adv.days < 1 || adv.workers < 1 || adv.risk > 100) errors.push('bad-adventure: ' + where + ' needs days and workers of at least 1 and a risk of at most 100');
+    into.adventures.push(adv);
+  }
   if (data.hall !== undefined) { into.hall = names.indexOf(String(data.hall)); if (into.hall < 0 || !into.buildings[into.hall].store) errors.push('bad-hall: "hall" must name a building with "store": true'); }
   // a resource somebody needs must come, directly or through other buildings, from a building that takes nothing in (a raw source)
   const made = ids.map((_id: string): boolean => false);
@@ -223,7 +235,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
 export function loadEconomy(text: string, models: string[], roles: string[]): void {
   const next = new Economy(), errors = parseEconomy(text, models, roles, next);
   if (errors.length > 0) throw new Error('economy.json: ' + errors.join('; '));
-  economy.resources = next.resources; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
+  economy.resources = next.resources; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.adventures = next.adventures; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
 }
 
 /** One line per resource: who makes it and who uses it. The report of a chain, for the maker of the data. */

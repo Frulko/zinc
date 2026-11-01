@@ -45,6 +45,13 @@
     { "side": "sell", "resource": "leather", "qty": 2 }, { "side": "sell", "resource": "plank", "qty": 8 },
     { "side": "buy", "resource": "plank", "qty": 6 }, { "side": "buy", "resource": "log", "qty": 10 }, { "side": "buy", "resource": "hide", "qty": 4 },
     { "side": "buy", "resource": "smoked_meat", "qty": 4 }, { "side": "buy", "resource": "bread", "qty": 4 }, { "side": "buy", "resource": "leather", "qty": 2 } ] },
+  "adventures": [
+    { "id": "forage", "title": "Cueillette en forêt", "text": "Deux habitants battent les bois un jour et rapportent du bois et des peaux.",
+      "days": 1, "workers": 2, "risk": 0, "rewards": { "log": 12, "hide": 2 } },
+    { "id": "hunt", "title": "Grande chasse", "text": "Trois chasseurs partent deux jours, avec des vivres : peaux, viande fumée, quelques pièces. Un risque de ne pas revenir.",
+      "days": 2, "workers": 3, "risk": 10, "cost": { "smoked_meat": 2 }, "rewards": { "hide": 6, "smoked_meat": 4, "coin": 8 } },
+    { "id": "prospect", "title": "Prospection", "text": "Quatre habitants partent trois jours chercher la pierre et le minerai : planches et pain pour la route, un vrai risque.",
+      "days": 3, "workers": 4, "risk": 20, "cost": { "plank": 4, "bread": 2 }, "rewards": { "stone": 8, "iron_ore": 4, "coin": 20 } } ],
   "services": [ { "id": "water", "label": "Eau" }, { "id": "market", "label": "Marché" } ],
   "start": { "log": 20, "plank": 10, "leather": 1, "stone": 2, "coin": 12 },
   "deposits": [

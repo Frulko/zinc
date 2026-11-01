@@ -1,14 +1,14 @@
 import * as storage from 'zinc:storage';
 import { SAVE_KEY, SAVE_VERSION, HOUSE, ROCK_DEPOSIT } from '../constants';
 import { TerrainParams } from '../gen/terrain';
-import { world, Offer, generate, recount, tileIndex, tileCount } from './world';
+import { world, Offer, Expedition, generate, recount, tileIndex, tileCount } from './world';
 import { addBuilding } from '../rules/build';
-import { createResident } from '../engine/villagers';
+import { createResident, dropPerson } from '../engine/villagers';
 import { spawnPeddler } from '../engine/trade';
 import { computeAppeal } from '../rules/appeal';
 import { stockWithCarried } from '../engine/transport';
 
-// One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock, cover, level, streak and meals; lists with | between);trees(tile.variant);unlimited;tick;rng;priority;params;deposits(tile.value.left);goals done;buildings unlocked;peddler offers(resource.qty.side.coins.taken);days he stays
+// One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock, cover, level, streak and meals; lists with | between);trees(tile.variant);unlimited;tick;rng;priority;params;deposits(tile.value.left);goals done;buildings unlocked;peddler offers(resource.qty.side.coins.taken);days he stays;expeditions(adventure.days left.homes)
 function numbers(text: string): number[] {
   const out: number[] = [];
   if (text === '') return out;
@@ -29,7 +29,7 @@ export function snapshot(): string {
   for (let t = 0; t < tileCount(); t++) if (world.road[t]) roads.push(t);
   for (const b of world.buildings) if (b.alive) buildings.push(b.type + '.' + tileIndex(b.i, b.j) + '.' + b.residents + '.' + stockWithCarried(world.buildings.indexOf(b)).join('|') + '.' + b.cover.join('|') + '.' + b.level + '.' + b.streak + '.' + b.fed.join('|'));
   for (let t = 0; t < tileCount(); t++) { if (world.tree[t] > 0) trees.push(t + '.' + world.tree[t]); if (world.rock[t] >= ROCK_DEPOSIT) lodes.push(t + '.' + world.rock[t] + '.' + world.lode[t]); }
-  return [SAVE_VERSION, String(world.seed), String(world.size), roads.join(','), buildings.join(','), trees.join(','), world.unlimited ? '1' : '0', String(world.tick), String(world.rng), world.priority.join(','), paramsText(), lodes.join(','), world.goals.join(''), world.unlocked.join(''), world.offers.map((o: Offer): string => [String(o.resource), String(o.qty), o.side, String(o.coins), o.taken ? '1' : '0'].join('.')).join(','), String(world.peddlerLeft)].join(';');
+  return [SAVE_VERSION, String(world.seed), String(world.size), roads.join(','), buildings.join(','), trees.join(','), world.unlimited ? '1' : '0', String(world.tick), String(world.rng), world.priority.join(','), paramsText(), lodes.join(','), world.goals.join(''), world.unlocked.join(''), world.offers.map((o: Offer): string => [String(o.resource), String(o.qty), o.side, String(o.coins), o.taken ? '1' : '0'].join('.')).join(','), String(world.peddlerLeft), world.expeditions.map((e: Expedition): string => e.adventure + '.' + e.left + '.' + e.homes.join('|')).join(',')].join(';');
 }
 
 export function saveGame(): void {
@@ -41,7 +41,7 @@ export function saveGame(): void {
 /** Rebuilds the village from a snapshot. False when there is none (or it is from another version). */
 export function restore(text: string): boolean {
   const fields = text.split(';');
-  if (fields.length !== 16 || fields[0] !== SAVE_VERSION) return false;
+  if (fields.length !== 17 || fields[0] !== SAVE_VERSION) return false;
   generate(Number(fields[1]), Number(fields[2]), paramsOf(fields[10]));
   for (const t of numbers(fields[3])) { world.road[t] = 1; world.deco[t] = 0; }
   if (fields[4] !== '') {
@@ -69,6 +69,13 @@ export function restore(text: string): boolean {
     const parts = entry.split('.'), o = new Offer();
     o.resource = Number(parts[0]); o.qty = Number(parts[1]); o.side = parts[2]; o.coins = Number(parts[3]); o.taken = parts[4] === '1';
     world.offers.push(o);
+  }
+  world.expeditions = [];
+  if (fields[16] !== '') for (const entry of fields[16].split(',')) {
+    const parts = entry.split('.'), e = new Expedition();
+    e.adventure = Number(parts[0]); e.left = Number(parts[1]); e.homes = parts[2] === '' ? [] : parts[2].split('|').map((v: string): number => Number(v));
+    for (const home of e.homes) dropPerson(home);                 // the members are away: the houses were rebuilt with all their people
+    world.expeditions.push(e);
   }
   if (world.peddlerLeft > 0) spawnPeddler();
   world.priority = numbers(fields[9]);

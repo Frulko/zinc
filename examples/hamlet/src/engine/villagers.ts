@@ -138,6 +138,24 @@ export function releaseWorkers(siteId: number): void {
   }
   world.buildings[siteId].workers = 0;
 }
+/** Takes `n` people out of the village for an expedition: idle residents first, then workers. Returns the house of each (empty when there are not enough). */
+export function takeForExpedition(n: number): number[] {
+  const taken: number[] = [];
+  for (let pass = 0; pass < 2 && taken.length < n; pass++) {
+    for (let k = world.people.length - 1; k >= 0 && taken.length < n; k--) {
+      const p = world.people[k];
+      if (p.role === ROLE_SETTLER || p.role === ROLE_PEDDLER || (pass === 0 ? p.job >= 0 || p.role !== ROLE_RESIDENT : p.job < 0)) continue;
+      releaseClaims(p); cancelTransport(p);
+      if (p.job >= 0) world.buildings[p.job].workers--;
+      taken.push(p.home); world.people.splice(k, 1);
+    }
+  }
+  return taken;
+}
+/** Removes one person of a house from the people list without touching its resident count (a member of an expedition after a restore). */
+export function dropPerson(houseId: number): void {
+  for (let k = 0; k < world.people.length; k++) if (world.people[k].home === houseId && world.people[k].role !== ROLE_PEDDLER) { world.people.splice(k, 1); return; }
+}
 /** A house lost a level: the people beyond `keep` leave. */
 export function evictResidents(houseId: number, keep: number): void {
   const kept: Person[] = [];

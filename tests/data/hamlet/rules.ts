@@ -20,6 +20,7 @@ import { housingReport, capacityOf } from '../../../examples/hamlet/src/rules/ho
 import { computeAppeal, appealTiles } from '../../../examples/hamlet/src/rules/appeal';
 import { terrain, TerrainParams, TerrainLayers } from '../../../examples/hamlet/src/gen/terrain';
 import { issue, replayAt } from '../../../examples/hamlet/src/rules/commands';
+import { canStart } from '../../../examples/hamlet/src/rules/adventure';
 import { offerLines, canTrade } from '../../../examples/hamlet/src/rules/trade';
 import { lockText, scenarioWon } from '../../../examples/hamlet/src/rules/goals';
 import { movePriority } from '../../../examples/hamlet/src/rules/labour';
@@ -385,6 +386,46 @@ check('without the coins the village cannot buy', poor < 0 || (!canTrade(poor) &
 const tradeSave = snapshot();
 check('the peddler and his offers survive a save round trip', restore(tradeSave) && snapshot() === tradeSave && peddlers() === 1 && world.offers.length === offered.length);
 check('the offer lines are plain words', offerLines().length === 3 && offerLines()[0].indexOf('Pièces') > 0);
+world.progression = false;
+// ---- adventures: people leave for days, come back with a reward, some may be lost; start and return are commands ----
+const HUNT = economy.adventures.findIndex((a) => a.id === 'hunt'), HIDE3 = economy.resourceOf('hide'), SMOKED3 = economy.resourceOf('smoked_meat');
+const expedition = (risk: number): string => {
+  generate(1234, 16); world.progression = true; rich(); clearRow(); world.tree[at(6, 9)] = 0; world.rock[at(6, 9)] = 0;
+  for (const i of [2, 4, 6]) { const h = addBuilding(HOUSE, at(i, 7)); createResident(h); createResident(h); world.buildings[h].residents = 2; world.buildings[h].timer = 1e9; }
+  applyTool(toolOf('lumberhut'), at(3, 9)); applyTool(TOOL_SAWMILL, at(5, 9)); world.unlocked.fill(1);
+  setStock(SMOKED3, 5); setStock(HIDE3, 0);
+  run(10);
+  const staffedBefore = world.buildings.reduce((n, b) => n + (b.alive && b.type !== HOUSE ? b.workers : 0), 0), peopleBefore = world.people.length;
+  economy.adventures[HUNT].risk = risk;
+  const ok = issue('adventure_start', HUNT);
+  const away = world.people.length, staffedAway = world.buildings.reduce((n, b) => n + (b.alive && b.type !== HOUSE ? b.workers : 0), 0);
+  const detail = [ok ? 1 : 0, peopleBefore, away, staffedBefore, staffedAway, world.stock[SMOKED3], world.expeditions.length].join(',');
+  run(45);
+  const back = [world.expeditions.length, world.people.length, world.stock[HIDE3], world.stock[SMOKED3], world.buildings.filter((b) => b.alive && b.type === HOUSE).reduce((n, b) => n + b.residents, 0), stateHash()].join(',');
+  economy.adventures[HUNT].risk = 10;
+  return detail + ' | ' + back;
+};
+const safe = expedition(0), again = expedition(0), doomed = expedition(100);
+console.log('hamlet adventure: ' + safe);
+const numbersOf = (text: string): number[] => text.split(',').map((v) => Number(v));
+const leaving = numbersOf(safe.split(' | ')[0]), returned = numbersOf(safe.split(' | ')[1]);
+check('starting an adventure pays its cost and takes three people out of the village', leaving[0] === 1 && leaving[1] - leaving[2] === 3 && leaving[5] === 3 && leaving[6] === 1);
+check('workers are absent from their jobs while away (idle residents go first, then workers)', leaving[4] < leaving[3] && leaving[3] - leaving[4] <= 3);
+check('they come back after two days with the reward: hides and smoked meat', returned[0] === 0 && returned[2] === 6 && returned[3] === 3 + 4 && returned[4] === 6 && returned[1] === 6);
+check('the result is deterministic for a seed', again === safe);
+const lost = numbersOf(doomed.split(' | ')[1]);
+check('with every member lost nobody returns, no reward comes and the houses lose them', lost[0] === 0 && lost[2] === 0 && lost[4] === 3 && lost[1] === 3);
+expedition(0);
+world.expeditions.length = 0; world.people = []; generate(1234, 16); world.progression = true; rich(); clearRow();
+for (const i of [2, 4, 6]) { const h = addBuilding(HOUSE, at(i, 7)); createResident(h); createResident(h); world.buildings[h].residents = 2; world.buildings[h].timer = 1e9; }
+world.unlocked.fill(1); setStock(SMOKED3, 5); setStock(HIDE3, 0);
+issue('adventure_start', HUNT);
+run(25);
+const midText = snapshot(), midPeople = world.people.length;
+check('a save in the middle of an adventure round trips: the members stay away', restore(midText) && snapshot() === midText && world.expeditions.length === 1 && world.people.length === midPeople);
+run(30);
+check('after the restore the expedition still comes home with its reward', world.expeditions.length === 0 && world.stock[HIDE3] >= 6 && world.people.length >= 3 && world.news.some((n) => n.indexOf('Retour') >= 0 || n.indexOf('pas revenue') >= 0));
+check('an adventure needs its people and cost', !canStart(HUNT) || (setStock(SMOKED3, 0), !canStart(HUNT)));
 world.progression = false;
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
