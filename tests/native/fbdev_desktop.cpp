@@ -7,6 +7,10 @@ HalDisplay* hal_display;
 static int default_escapes, app_escapes;
 extern "C" void hal_escape() { default_escapes++; }
 extern "C" void hal_escape_by_app(int32_t) { app_escapes++; }
+// the band pool reports its spans to the frame profiler (render_bands.h): no profiler in this test
+extern "C" int32_t zrt_profiling(void) { return 0; }
+extern "C" void zrt_prof_band(int32_t, uint64_t, uint64_t) {}
+extern "C" uint64_t hal_time_us(void) { return 0; }
 namespace zrt { bool display_driver = true; namespace gfx {
 #include "gfx_display_actions.h"
 static int captures;
