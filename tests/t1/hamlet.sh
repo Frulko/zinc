@@ -13,9 +13,9 @@ for engine in "" "--interp" "--engine quickjs"; do
   esac
   [ ! -s "$tmp/err" ] || { cat "$tmp/err"; exit 1; }
   grep -q 'hamlet rules: ALL PASS' "$tmp/rules" || { cat "$tmp/rules"; exit 1; }
-  grep 'hamlet rules: statehash' "$tmp/rules" >> "$tmp/hashes"
+  grep -E 'hamlet rules: [a-z]*hash' "$tmp/rules" >> "$tmp/hashes"
 done
-[ "$(sort -u "$tmp/hashes" | wc -l)" -eq 1 ] || { echo 'the state hash differs between engines:'; cat "$tmp/hashes"; exit 1; }
+[ -z "$(sort "$tmp/hashes" | uniq -c | awk '$1 != 3')" ] || { echo 'the state hash differs between engines:'; cat "$tmp/hashes"; exit 1; }
 # the simulation never reads a clock or the system generator, and keeps to + - * / sqrt (no hypot, sin, cos, pow): determinism for replays and servers
 if grep -rnE 'Math\.(random|hypot|sin|cos|pow)|Date\.' examples/hamlet/src/world examples/hamlet/src/rules examples/hamlet/src/engine | grep -v 'randomSeed'; then echo 'nondeterministic call in the simulation'; exit 1; fi
 # the mouse session: roads by dragging, a house, a sawmill, a lodge; ZINC_INPUT must be an absolute path
@@ -29,7 +29,7 @@ from PIL import Image, ImageChops
 import sys
 p = Path(sys.argv[1])
 a, b = (Image.open(p / f'frame-{n}.png').convert('RGB') for n in (300, 3150))
-assert a.getpixel((0, 0)) == (255, 255, 255), 'window background is not white'
+assert a.getpixel((1000, 600)) != (255, 255, 255), 'the control column is missing'
 assert ImageChops.difference(a, b).getbbox(), 'the village did not change'
 assert sum(min(px) < 200 for px in b.getdata()) > 150000, 'missing diorama'
 save = (p / 'data' / 'storage.kv').read_text()

@@ -1,7 +1,7 @@
 import {
   HOUSE, ST_TO_SHORE, ST_FISH, FISH_CATCH_CHANCE, ROLE_SETTLER, ROLE_RESIDENT,
   ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_WORK, ST_FETCH, ST_BRING,
-  ST_ROAM, ST_ROAM_BACK, ROAM_REST, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, WORK_RADIUS, SETTLER_INTERVAL,
+  ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, WORK_RADIUS, SETTLER_INTERVAL,
   DEER_DEAD, DEER_FLEE, DEER_GONE, WALK_SPEED,
 } from '../constants';
 import { Housing, BuildingDef } from '../world/economy';
@@ -176,6 +176,20 @@ function nearestTree(p: Person): boolean {
   world.claimed[best] = 1; p.target = best; p.state = ST_TO_TREE;
   return true;
 }
+/** The nearest deposit of kind k that nobody works: a gatherer walks next to it (the tile itself is blocked, like a tree). */
+function nearestLode(p: Person, k: number): boolean {
+  const field = fieldFrom(tileOf(p));
+  let best = -1, bestCost = WORK_RADIUS;
+  for (let t = 0; t < world.rock.length; t++) {
+    if (world.rock[t] !== ROCK_DEPOSIT + k || world.claimed[t]) continue;
+    const ap = approachTile(field, t);
+    if (ap >= 0 && field.dist[ap] < bestCost) { bestCost = field.dist[ap]; best = t; }
+  }
+  if (best < 0) return false;
+  p.path = pathTo(field, approachTile(field, best)); p.step = 0;
+  world.claimed[best] = 1; p.target = best; p.state = ST_TO_LODE;
+  return true;
+}
 /** The nearest free shore tile (walkable, next to the pond): where a fisher stands. */
 function nearestShore(p: Person): boolean {
   const field = fieldFrom(tileOf(p));
@@ -213,6 +227,7 @@ const firstOutput = (def: BuildingDef): number => { for (let k = 0; k < def.outp
 function releaseClaims(p: Person): void {
   const kind = kindOf(p);
   if (kind === 'tree' && p.target >= 0 && (p.state === ST_TO_TREE || p.state === ST_CHOP)) world.claimed[p.target] = 0;
+  if (kind.slice(0, 8) === 'deposit:' && p.target >= 0 && (p.state === ST_TO_LODE || p.state === ST_MINE)) world.claimed[p.target] = 0;
   if (kind === 'shore' && p.target >= 0 && (p.state === ST_TO_SHORE || p.state === ST_FISH)) world.claimed[p.target] = 0;
   if (kind === 'deer' && p.target >= 0 && p.state >= ST_STALK && p.state <= ST_PICK && p.state !== ST_TO_SITE) world.deer[p.target].hunted = false;
   p.target = -1;
@@ -253,6 +268,7 @@ function updateWorker(p: Person, dt: number): void {
       else if (!hasRoomFor(site, def.outputs)) { site.state = BS_FULL; found = haulOut(p, p.job); }   // full: the worker carries it to a store itself
       else if (readyBatch(site, def.outputs) && haulOut(p, p.job)) found = true;                       // a batch is ready and no porter came: carry it
       else if (def.service !== null && def.service.walker) found = startRoam(p, site);
+      else if (def.lode >= 0) found = nearestLode(p, def.lode);
       else if (def.gather === 'tree') found = nearestTree(p);
       else if (def.gather === 'shore') found = nearestShore(p);
       else if (def.gather === 'deer') found = nearestGame(p);
@@ -299,6 +315,23 @@ function updateWorker(p: Person, dt: number): void {
       world.tree[p.target] = 0; world.claimed[p.target] = 0; world.felledCount++;
       world.revision++; world.saveDirty = true;
       sound('splash', .25);
+      p.target = -1; goDeliver(p);
+      break;
+    }
+    case ST_TO_LODE:
+      if (!walk(p, dt, speed)) break;
+      if (world.rock[p.target] !== ROCK_DEPOSIT + def.lode || !isNear(p, p.target)) { releaseClaims(p); p.state = ST_SEEK; p.timer = 0; break; }
+      faceTile(p, p.target); p.state = ST_MINE; p.timer = def.seconds;
+      break;
+    case ST_MINE: {
+      const before = Math.floor(p.phase * 1.6);
+      p.phase += dt * 6.2;
+      if (Math.floor(p.phase * 1.6) !== before && p.phase * 1.6 > 0) sound('wood', .4);
+      p.timer -= dt;
+      if (p.timer > 0) break;
+      world.lode[p.target]--;
+      if (world.lode[p.target] <= 0) { world.rock[p.target] = 0; world.lode[p.target] = 0; world.revision++; }   // used up: the tile is free again and the baked scenery redone
+      world.claimed[p.target] = 0; world.saveDirty = true;
       p.target = -1; goDeliver(p);
       break;
     }

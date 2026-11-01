@@ -1,5 +1,5 @@
 // Headless rules of the hamlet: roads, arrivals, jobs, wood, meat, demolition and the save round trip. No window.
-import { world, generate, tileIndex, isOpen, waterNeighbor, neighbor } from '../../../examples/hamlet/src/world/world';
+import { world, generate, tileIndex, tileI, tileJ, isOpen, waterNeighbor, neighbor } from '../../../examples/hamlet/src/world/world';
 import { applyTool, checkTool, addBuilding } from '../../../examples/hamlet/src/rules/build';
 import { stepWorld } from '../../../examples/hamlet/src/engine/simulate';
 import { updateNature } from '../../../examples/hamlet/src/engine/nature';
@@ -7,17 +7,18 @@ import { population, createResident } from '../../../examples/hamlet/src/engine/
 import { seedFromText, parseSeedRequest } from '../../../examples/hamlet/src/world/seed';
 import { snapshot, restore } from '../../../examples/hamlet/src/world/save';
 import { stateHash } from '../../../examples/hamlet/src/world/hash';
-import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK } from '../../../examples/hamlet/src/constants';
+import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLACE_NO_ROAD, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_NAMES, ST_TO_SITE, BS_ISOLATED, PLACE_NO_STOCK, PLACE_NO_LODE, ROCK_DEPOSIT, LODE_REACH } from '../../../examples/hamlet/src/constants';
 import * as fs from 'zinc:fs';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
-const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well'];
+const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry'];
 import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine/transport';
 import { adviceLine } from '../../../examples/hamlet/src/hud';
 import { toolOf } from '../../../examples/hamlet/src/rules/build';
 import { housingReport, capacityOf } from '../../../examples/hamlet/src/rules/housing';
 import { computeAppeal, appealTiles } from '../../../examples/hamlet/src/rules/appeal';
+import { terrain, TerrainParams, TerrainLayers } from '../../../examples/hamlet/src/gen/terrain';
 import { movePriority } from '../../../examples/hamlet/src/rules/labour';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
 
@@ -25,7 +26,7 @@ const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');   // th
 loadEconomy(ECONOMY_TEXT, MODEL_IDS, ROLE_NAMES);
 const TOOL_SAWMILL = toolOf('sawmill'), TOOL_LODGE = toolOf('lodge'), TOOL_FISHERY = toolOf('fishery');
 const PLANK = economy.resourceOf('plank'), WOOD = economy.resourceOf('log'), MEAT = economy.resourceOf('meat'), FISH = economy.resourceOf('fish');
-const rich = (): void => { setStock(WOOD, 100); setStock(PLANK, 100); setStock(economy.resourceOf('leather'), 100); };
+const rich = (): void => { setStock(WOOD, 100); setStock(PLANK, 100); setStock(economy.resourceOf('leather'), 100); setStock(economy.resourceOf('stone'), 100); };
 let failures = 0;
 function check(name: string, ok: boolean): void { console.log('hamlet rules: ' + name + (ok ? ' PASS' : ' FAIL')); if (!ok) failures++; }
 function run(seconds: number): void { for (let k = 0; k < seconds * 32; k++) stepWorld(); }
@@ -270,6 +271,54 @@ run(10);
 check('the grid is not recomputed between two days', world.appeal.every((v) => v === 77));
 run(12);
 check('it is recomputed when the day turns', world.appeal.every((v) => v !== 77) && appealTiles().length > 0);
+// ---- the terrain generator: layers, params, determinism; deposits by rule; the quarry works one until it is gone ----
+const layerText = (l: TerrainLayers): string => [l.water, l.outside, l.wet, l.forest, l.rock, l.deco].map((a) => a.join('')).join('|') + l.pondX + ':' + l.pondR;
+const gp = (): TerrainParams => new TerrainParams();
+const t24 = layerText(terrain(424242, 24, 24, gp()));
+check('terrain(): the same seed, size and params give the same layers', layerText(terrain(424242, 24, 24, gp())) === t24 && layerText(terrain(424243, 24, 24, gp())) !== t24);
+let genHash = 2166136261;
+for (const seed of [1, 7, 99, 424242]) for (const l of [terrain(seed, 24, 24, gp())]) for (let t = 0; t < 576; t++) genHash = Math.imul(genHash ^ (l.water[t] + l.forest[t] * 2 + l.rock[t] * 16 + l.deco[t] * 64 + l.wet[t] * 256), 16777619);
+console.log('hamlet rules: genhash ' + (genHash >>> 0));
+const sum = (a: number[]): number => a.reduce((n, v) => n + (v > 0 ? 1 : 0), 0);
+const dry = gp(); dry.waterAmount = 0; const lake = gp(); lake.waterAmount = 1;
+check('param water_amount: none gives no water, more gives more', sum(terrain(5, 24, 24, dry).water) === 0 && sum(terrain(5, 24, 24, lake).water) > sum(terrain(5, 24, 24, gp()).water));
+const stream = gp(); stream.river = true; const withRiver = terrain(5, 24, 24, stream);
+check('param river: a stream crosses every row and the shore is wet', withRiver.riverI.length === 24 && sum(withRiver.water) > sum(terrain(5, 24, 24, gp()).water) && sum(withRiver.wet) > 0);
+const dense = gp(); dense.forestDensity = 1; const bare = gp(); bare.forestDensity = 0;
+const wood = gp(); wood.biome = 1; const birch = gp(); birch.biome = 2;
+check('params forest and rock density move the counts', sum(terrain(5, 24, 24, dense).forest) > sum(terrain(5, 24, 24, bare).forest));
+check('param biome: pines only, or birches only', terrain(5, 24, 24, wood).forest.every((v) => v >= 0 && v <= 3) && sum(terrain(5, 24, 24, wood).forest) > 0 && terrain(5, 24, 24, birch).forest.every((v) => v === 0 || v === 4));
+let playable = true;
+for (let seed = 1; seed <= 20; seed++) {
+  generate(seed, 12);
+  for (let t = 0; t < 144; t++) if (Math.abs(tileI(t) - 0) + Math.abs(tileJ(t) - 6) <= 2 && (world.tree[t] > 0 || world.rock[t] > 0 || world.terrain[t] !== 0)) playable = false;
+}
+check('generate() keeps the gate area clear', playable);
+// deposits: every size keeps a stone within reach of the gate, and none stands on water or in a wall of trees
+let reachOk = true, lodeCount = 0;
+const STONE_K = economy.deposits.findIndex((d) => economy.resources[d.resource].id === 'stone');
+for (const size of [12, 24, 32]) for (let seed = 1; seed <= 50; seed++) {
+  generate(seed, size);
+  let near = 0;
+  for (let t = 0; t < size * size; t++) if (world.rock[t] === ROCK_DEPOSIT + STONE_K) { lodeCount++; if (Math.abs(tileI(t) - tileI(world.gate)) + Math.abs(tileJ(t) - tileJ(world.gate)) <= LODE_REACH && world.lode[t] > 0 && world.terrain[t] === 0) near++; }
+  if (near === 0) reachOk = false;
+}
+check('150 villages (50 seeds, 3 sizes): a stone deposit always lies within reach of the gate', reachOk && lodeCount > 150);
+check('deposits of resources nobody works yet are not placed', economy.deposits.every((d, k) => d.active || world.rock.every((v) => v !== ROCK_DEPOSIT + k)));
+// the quarry: needs a deposit near, works it one unit per trip, the deposit disappears when used up and the scenery is redone
+generate(1234, 16); rich(); clearRow(); for (const t of [at(7, 9), at(6, 9)]) { world.tree[t] = 0; world.rock[t] = 0; world.lode[t] = 0; }
+const qh = addBuilding(HOUSE, at(2, 7)); createResident(qh); createResident(qh); world.buildings[qh].residents = 2; world.buildings[qh].timer = 1e9;
+for (let t = 0; t < 256; t++) if (world.rock[t] >= ROCK_DEPOSIT) { world.rock[t] = 0; world.lode[t] = 0; }
+check('a quarry needs a deposit of stone near it', applyTool(toolOf('quarry'), at(5, 9)) === PLACE_NO_LODE);
+world.rock[at(7, 9)] = ROCK_DEPOSIT + STONE_K; world.lode[at(7, 9)] = 2;
+const STONE_R = economy.resourceOf('stone'); setStock(STONE_R, 0);
+check('with a deposit near, the quarry is allowed', applyTool(toolOf('quarry'), at(5, 9)) === PLACE_OK);
+const rev = world.revision, snap = snapshot();
+run(25);
+check('quarrymen bring stone, one unit per trip, from the deposit', world.stock[STONE_R] + world.buildings[world.build[at(5, 9)]].stock[STONE_R] >= 1 && world.lode[at(7, 9)] <= 1);
+check('the deposit survives a save round trip, partly worked', restore(snapshot()) && world.rock[at(7, 9)] === (world.lode[at(7, 9)] > 0 ? ROCK_DEPOSIT + STONE_K : 0) && snapshot().length > 0);
+run(60);
+check('a used-up deposit disappears and the scenery is redone', world.rock[at(7, 9)] === 0 && world.lode[at(7, 9)] === 0 && world.revision > rev && world.stock[STONE_R] + world.buildings[world.build[at(5, 9)]].stock[STONE_R] === 2);
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; }

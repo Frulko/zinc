@@ -1,5 +1,5 @@
-import { HOUSE, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER } from '../constants';
-import { world, newBuilding, recount, tileIndex, neighbor, isOpen, waterNeighbor } from '../world/world';
+import { HOUSE, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_NO_LODE, ROCK_DEPOSIT } from '../constants';
+import { world, newBuilding, recount, tileIndex, tileI, tileJ, neighbor, isOpen, waterNeighbor } from '../world/world';
 import { economy } from '../world/economy';
 import { releaseWorkers, removeResidents } from '../engine/villagers';
 import { canPay, pay } from './stock';
@@ -12,6 +12,12 @@ function hasRoadNeighbor(t: number): boolean {
   return false;
 }
 
+/** A deposit of kind k within 8 tiles (Manhattan) of the tile: a gatherer built farther has nothing to work. */
+function lodeNear(t: number, k: number): boolean {
+  const i = tileI(t), j = tileJ(t);
+  for (let u = 0; u < world.rock.length; u++) if (world.rock[u] === ROCK_DEPOSIT + k && Math.abs(tileI(u) - i) + Math.abs(tileJ(u) - j) <= 8) return true;
+  return false;
+}
 /** Why a tool cannot act on a tile (PLACE_OK when it can). */
 export function checkTool(tool: number, t: number): number {
   if (t < 0) return PLACE_BLOCKED;
@@ -20,6 +26,7 @@ export function checkTool(tool: number, t: number): number {
   if (tool === TOOL_ROAD) return PLACE_OK;
   const def = economy.buildings[tool - TOOL_HOUSE];
   if (def.gather === 'shore' && waterNeighbor(t) < 0) return PLACE_NO_WATER;
+  if (def.lode >= 0 && !lodeNear(t, def.lode)) return PLACE_NO_LODE;
   if (def.needsRoad && !hasRoadNeighbor(t)) return PLACE_NO_ROAD;
   return canPay(def.cost) ? PLACE_OK : PLACE_NO_STOCK;
 }

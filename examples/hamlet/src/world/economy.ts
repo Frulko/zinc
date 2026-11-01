@@ -1,3 +1,5 @@
+import { DEPOSIT_MODELS } from '../constants';
+
 // The economy of the village: resources, buildings and what they make, read from assets/economy.json (schema in ECONOMY.md).
 // A building or a chain is added in that file and nowhere else (plus one model in view/models.ts). Classes, not interfaces: they are read and shared by reference.
 
@@ -18,9 +20,10 @@ export class BuildingDef {
   cost: number[] = []; workers: number = 0; role: string = ''; roleId: number = -1;
   inputs: number[] = []; outputs: number[] = []; seconds: number = 0; gather: string = '';
   stockCap: number = 8; store: boolean = false; needsRoad: boolean = true;
-  housing: Housing | null = null; service: ServiceDef | null = null; appeal: number[] = [];   // appeal: the rings it adds around itself
+  housing: Housing | null = null; service: ServiceDef | null = null; lode: number = -1; appeal: number[] = [];   // appeal: the rings it adds around itself
 }
 export class Economy {
+  deposits: Deposit[] = [];
   appeal: AppealSource[] = []; appealMax: number = 8;
   resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
   typeOf(id: string): number { for (let k = 0; k < this.buildings.length; k++) if (this.buildings[k].id === id) return k; return -1; }
@@ -33,6 +36,8 @@ export const economy = new Economy();
 /** A terrain source of desirability: every tile of this kind adds `rings[d - 1]` to the tiles at distance d (1 to rings.length). */
 export class AppealSource { kind: string = ''; rings: number[] = []; }
 export const APPEAL_KINDS: string[] = ['tree', 'water', 'rock'];
+/** A kind of deposit the generator scatters (economy.json "deposits"). `near` and the numbers are the generator's (gen/deposits.ts). */
+export class Deposit { resource: number = -1; model: number = 0; near: number = 0; density: number = 1; amount: number = 10; required: boolean = false; active: boolean = true; }
 export const GATHER_KINDS: string[] = ['', 'tree', 'deer', 'shore'];
 
 function num(obj: any, key: string, fallback: number, where: string, errors: string[]): number {
@@ -74,7 +79,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     if (sv.id === '' || into.serviceOf(sv.id) >= 0) errors.push('bad-id: service "' + sv.id + '" is empty or declared twice');
     into.services.push(sv);
   }
-  into.appeal = []; into.appealMax = 8;
+  into.appeal = []; into.appealMax = 8; into.deposits = [];
   if (data.desirability !== undefined) {
     into.appealMax = num(data.desirability, 'limit', 8, 'desirability', errors);
     for (const s of (data.desirability.terrain === undefined ? [] : data.desirability.terrain) as any[]) {
@@ -83,6 +88,17 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
       if (src.rings.length === 0) errors.push('bad-appeal: desirability source "' + src.kind + '" has no rings');
       into.appeal.push(src);
     }
+  }
+  into.deposits = [];
+  for (const dp of (data.deposits === undefined ? [] : data.deposits) as any[]) {
+    const d = new Deposit(), where = 'deposit ' + String(dp.resource);
+    d.resource = ids.indexOf(String(dp.resource)); d.model = DEPOSIT_MODELS.indexOf(String(dp.model));
+    d.near = ['any', 'rock', 'water', 'tree'].indexOf(String(dp.placement === undefined ? 'any' : dp.placement));
+    d.density = num(dp, 'density', 1, where, errors); d.amount = num(dp, 'amount', 10, where, errors); d.required = dp.required === true; d.active = dp.active !== false;
+    if (d.resource < 0) errors.push('unknown-resource: ' + where + ' is not a resource');
+    if (d.model < 0) errors.push('no-model: ' + where + ' has the model "' + String(dp.model) + '", which is not one of ' + DEPOSIT_MODELS.join(', '));
+    if (d.near < 0) errors.push('bad-deposit: ' + where + ' placement must be any, rock, water or tree');
+    into.deposits.push(d);
   }
   const names: string[] = [];
   for (const b of data.buildings as any[]) {
@@ -99,7 +115,11 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     d.seconds = num(b, 'seconds', 0, where, errors); d.stockCap = num(b, 'stockCap', 8, where, errors);
     d.cost = amounts(b.cost, ids, where + '.cost', errors); d.inputs = amounts(b.inputs, ids, where + '.inputs', errors); d.outputs = amounts(b.outputs, ids, where + '.outputs', errors);
     d.gather = String(b.gather === undefined ? '' : b.gather);
-    if (GATHER_KINDS.indexOf(d.gather) < 0) errors.push('bad-gather: ' + where + ' gathers "' + d.gather + '"');
+    if (d.gather.slice(0, 8) === 'deposit:') {
+      d.lode = -1;
+      for (let k = 0; k < into.deposits.length; k++) if (ids[into.deposits[k].resource] === d.gather.slice(8)) d.lode = k;
+      if (d.lode < 0) errors.push('bad-gather: ' + where + ' gathers "' + d.gather + '" but no deposit of that resource is declared');
+    } else if (GATHER_KINDS.indexOf(d.gather) < 0) errors.push('bad-gather: ' + where + ' gathers "' + d.gather + '"');
     d.role = String(b.role === undefined ? '' : b.role); d.roleId = roles.indexOf(d.role);
     if (d.workers > 0 && d.roleId < 0) errors.push('bad-role: ' + where + ' has workers but the role "' + d.role + '" does not exist');
     d.store = b.store === true; d.needsRoad = b.needsRoad !== false;
@@ -155,7 +175,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
 export function loadEconomy(text: string, models: string[], roles: string[]): void {
   const next = new Economy(), errors = parseEconomy(text, models, roles, next);
   if (errors.length > 0) throw new Error('economy.json: ' + errors.join('; '));
-  economy.resources = next.resources; economy.services = next.services; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
+  economy.resources = next.resources; economy.services = next.services; economy.deposits = next.deposits; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
 }
 
 /** One line per resource: who makes it and who uses it. The report of a chain, for the maker of the data. */

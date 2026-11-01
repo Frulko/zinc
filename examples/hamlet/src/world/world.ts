@@ -1,7 +1,9 @@
 import {
-  DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, DEER_START, DEER_GRAZE, DEER_GONE,
+  DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, DEER_START, DEER_GRAZE, DEER_GONE, ROCK_DEPOSIT, LODE_REACH,
 } from '../constants';
-import { hash, noise } from './noise';
+import { noise } from './noise';
+import { terrain, TerrainParams, TerrainLayers } from '../gen/terrain';
+import { placeDeposits, DepositRule } from '../gen/deposits';
 import { economy, Resource, Service } from './economy';
 
 /** Anything that walks the tile grid. A class, not an interface: the walking code takes a Mover and must change the person itself (interfaces are copied records). */
@@ -35,6 +37,8 @@ export interface World {
   saveDirty: boolean; lastSave: number; autosave: boolean;
   deerTimer: number; waitingForFood: boolean;
   appeal: number[];                 // desirability per tile, recomputed daily (rules/appeal.ts)
+  lode: number[];                   // what is left of the deposit on a tile (world.rock >= ROCK_DEPOSIT)
+  params: TerrainParams;            // what the terrain generator was asked for (saved with the village)
   priority: number[];               // building types in the order idle residents are given work (rules/labour.ts)
 }
 
@@ -58,7 +62,7 @@ export const world: World = {
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, appeal: [], priority: [],
+  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, appeal: [], lode: zeros(), params: new TerrainParams(), priority: [],
 };
 
 // ---- tiles ----
@@ -116,35 +120,27 @@ export function spawnDeer(t: number): void {
 /** A new random village: forest, rocks, a pond, flowers and a few deer. */
 export function tileCount(): number { return world.size * world.size; }
 
-export function generate(seed: number, size: number = DEFAULT_SIZE): void {
+export function generate(seed: number, size: number = DEFAULT_SIZE, params: TerrainParams = new TerrainParams()): void {
   world.seed = seed; world.size = size; world.half = size * TILE / 2; world.gate = Math.floor(size / 2) * size + GATE_I;
-  world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.build = zeros(size); world.claimed = zeros(size);
+  world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.build = zeros(size); world.claimed = zeros(size); world.lode = zeros(size);
   world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.stock = [];
   world.buildings = []; world.people = []; world.deer = []; world.felledCount = 0; world.treeTimer = 0;
   world.deerTimer = 0; world.waitingForFood = false; world.priority = []; world.appeal = zeros(size); world.lastSave = 0; world.saveDirty = false;
   seedRandom(seed);
-  world.offsetX = hash(seed, 1) * 40; world.offsetY = hash(seed, 2) * 40;
-  const pondI = Math.floor(size * (.42 + hash(seed, 3) * .33));
-  const pondJ = hash(seed, 4) < .5 ? Math.floor(size * (.08 + hash(seed, 5) * .25)) : Math.floor(size * (.67 + hash(seed, 5) * .25));
-  world.pondX = tileX(tileIndex(pondI, pondJ)); world.pondY = tileY(tileIndex(pondI, pondJ));
-  world.pondR = 2.6 + hash(seed, 6) * 1.2;
+  world.params = params;
+  params.tile = TILE; params.clearI = GATE_I; params.clearJ = Math.floor(size / 2); params.clearR = 2;
+  const layers = terrain(seed, size, size, params);
+  world.offsetX = layers.offsetX; world.offsetY = layers.offsetY; world.pondX = layers.pondX; world.pondY = layers.pondY; world.pondR = layers.pondR;
   for (let t = 0; t < size * size; t++) {
-    world.terrain[t] = TERRAIN_GRASS; world.road[t] = 0; world.tree[t] = 0; world.rock[t] = 0; world.deco[t] = 0; world.build[t] = -1; world.claimed[t] = 0;
-    const x = tileX(t), y = tileY(t), i = tileI(t), j = tileJ(t);
-    const ex = x / world.half, ey = y / world.half, edge = Math.sqrt(Math.sqrt(ex * ex * ex * ex + ey * ey * ey * ey));
-    if (edge > .985) { world.terrain[t] = TERRAIN_VOID; continue; }
-    if (waterField(x, y) < 1) { world.terrain[t] = TERRAIN_WATER; continue; }
-    if (Math.abs(i - GATE_I) + Math.abs(j - Math.floor(size / 2)) <= 2) continue;   // the entrance stays clear
-    const centre = i >= size * .25 && i <= size * .7 && j >= size * .25 && j <= size * .7;                // the middle stays mostly open
-    const forest = noise(i * .5 + world.offsetX, j * .5 + world.offsetY);
-    if (forest > (centre ? .74 : .56) && hash(i + seed, j) > .3) world.tree[t] = 1 + Math.floor(hash(i, j + seed) * 4);
-    else if (hash(i * 3 + seed, j * 7) > .94) world.rock[t] = 1 + Math.floor(hash(j, i) * 2);
-    else { const d = hash(i * 5, j * 11 + seed); world.deco[t] = d > .9 ? 2 : d > .78 ? 1 : 0; }
+    world.build[t] = -1; world.claimed[t] = 0;
+    world.terrain[t] = layers.outside[t] === 1 ? TERRAIN_VOID : layers.water[t] === 1 ? TERRAIN_WATER : TERRAIN_GRASS;
+    world.tree[t] = layers.forest[t]; world.rock[t] = layers.rock[t]; world.deco[t] = layers.deco[t];
   }
   world.road[world.gate] = 1;
+  placeLodes(layers);
   if (economy.hall >= 0) {                                    // the village store stands by the entrance, next to the gate road, holding what the village starts with
     const t = world.gate - size;
-    world.terrain[t] = TERRAIN_GRASS; world.tree[t] = 0; world.rock[t] = 0;
+    world.terrain[t] = TERRAIN_GRASS; world.tree[t] = 0; world.rock[t] = 0; world.lode[t] = 0;
     const id = newBuilding(economy.hall, t);
     world.buildings[id].fixed = true; world.buildings[id].stock = economy.start.slice();
   }
@@ -157,4 +153,20 @@ export function generate(seed: number, size: number = DEFAULT_SIZE): void {
     }
   }
   world.revision++;
+}
+
+/** Scatters the active deposits of the economy over the terrain (gen/deposits.ts): each lands in world.rock as ROCK_DEPOSIT + its kind, with its amount in world.lode. */
+function placeLodes(layers: TerrainLayers): void {
+  const rules: DepositRule[] = [], kinds: number[] = [];
+  for (let k = 0; k < economy.deposits.length; k++) {
+    const d = economy.deposits[k];
+    if (!d.active) continue;
+    const r = new DepositRule(); r.near = d.near; r.density = d.density; r.required = d.required;
+    rules.push(r); kinds.push(k);
+  }
+  if (rules.length === 0) return;
+  const keep: number[] = [];                                    // the entrance stays clear
+  for (let t = 0; t < world.size * world.size; t++) if (Math.abs(tileI(t) - tileI(world.gate)) + Math.abs(tileJ(t) - tileJ(world.gate)) <= 2) keep.push(t);
+  const placed = placeDeposits(layers, world.seed, rules, keep, world.gate, LODE_REACH);
+  for (let t = 0; t < placed.length; t++) if (placed[t] > 0) { const k = kinds[placed[t] - 1]; world.rock[t] = ROCK_DEPOSIT + k; world.lode[t] = economy.deposits[k].amount; world.deco[t] = 0; }
 }

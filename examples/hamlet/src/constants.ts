@@ -11,6 +11,13 @@ export const TERRAIN_GRASS = 0;
 export const TERRAIN_WATER = 1;
 export const TERRAIN_VOID = 2;          // the dissolved border of the diorama: not playable
 
+// ---- deposits: a tile object a gatherer can work. world.rock holds it as ROCK_DEPOSIT + the deposit kind; world.lode what is left ----
+export const ROCK_DEPOSIT = 3;          // rock values 1 and 2 are plain rocks
+/** The art of each deposit kind (variants of the rock model, after the two plain rocks): the `model` of a deposit in economy.json. */
+export const DEPOSIT_MODELS: string[] = ['stone', 'clay', 'ore', 'berries'];
+export const LODE_REACH = 12;          // a required deposit lies within this many tiles of the gate
+export const ROCK_VARIANTS = 2 + DEPOSIT_MODELS.length;
+
 // ---- buildings and tools ----
 // What the buildings are (names, costs, jobs) is data: assets/economy.json. A building type is its index in that file; a tool places the type TOOL_HOUSE + type.
 export const HOUSE = 0;                 // the first building of the file is always the house
@@ -23,6 +30,7 @@ export const PLACE_BLOCKED = 1;
 export const PLACE_NO_ROAD = 2;
 export const PLACE_NO_STOCK = 3;
 export const PLACE_NO_WATER = 4;
+export const PLACE_NO_LODE = 5;        // a gatherer of a deposit with none of its kind near
 
 // ---- time ----
 export const TICK = 1 / 32;             // the simulation advances in whole ticks of this many seconds: the same ticks give the same village
@@ -81,7 +89,9 @@ export const ST_WORK = 15;             // a processing building's worker at work
 export const ST_FETCH = 16;            // walking to where a load lies
 export const ST_BRING = 17;            // carrying a load to where it is needed
 export const ST_ROAM = 18;             // a service walker on its round of the roads
-export const ST_ROAM_BACK = 19;        // ... on its way home
+export const ST_ROAM_BACK = 19;
+export const ST_TO_LODE = 20;          // walking to a deposit
+export const ST_MINE = 21;             // working it        // ... on its way home
 export const BS_IDLE = 0;              // building states: what its workers are doing, for the hints
 export const BS_WORKING = 1;
 export const BS_WAITING = 2;          // an input is missing (Building.waitFor)
@@ -108,5 +118,5 @@ export const DEER_GONE = 4;             // free slot
 
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';
-export const SAVE_VERSION = 'H10';
+export const SAVE_VERSION = 'H11';
 export const SAVE_DELAY = 2;            // seconds between two writes

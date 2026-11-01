@@ -10,11 +10,20 @@
     { "id": "wheat", "label": "Blé", "carry": "sack", "price": 1 },
     { "id": "flour", "label": "Farine", "carry": "sack", "price": 2 },
     { "id": "bread", "label": "Pain", "carry": "bread", "price": 3 },
-    { "id": "leather", "label": "Cuir", "carry": "hide", "price": 6 }
+    { "id": "leather", "label": "Cuir", "carry": "hide", "price": 6 },
+    { "id": "stone", "label": "Pierre", "carry": "stone", "price": 3 },
+    { "id": "clay", "label": "Argile", "carry": "stone", "price": 2 },
+    { "id": "iron_ore", "label": "Minerai", "carry": "stone", "price": 4 },
+    { "id": "berries", "label": "Baies", "carry": "sack", "price": 2 }
   ],
   "desirability": { "limit": 8, "terrain": [ { "kind": "tree", "rings": [1] }, { "kind": "water", "rings": [2, 1] } ] },
   "services": [ { "id": "water", "label": "Eau" }, { "id": "market", "label": "Marché" } ],
-  "start": { "log": 20, "plank": 10, "leather": 1 },
+  "start": { "log": 20, "plank": 10, "leather": 1, "stone": 2 },
+  "deposits": [
+    { "resource": "stone", "model": "stone", "placement": "rock", "density": 1.6, "amount": 12, "required": true },
+    { "resource": "clay", "model": "clay", "placement": "water", "density": 1.2, "amount": 12, "active": false },
+    { "resource": "iron_ore", "model": "ore", "placement": "rock", "density": 0.8, "amount": 10, "active": false },
+    { "resource": "berries", "model": "berries", "placement": "tree", "density": 1.4, "amount": 8, "active": false } ],
   "hall": "storehouse",
   "buildings": [
     { "id": "house", "label": "Maison", "order": 1, "model": "house", "cost": { "plank": 3 },
@@ -59,8 +68,12 @@
       "workers": 2, "role": "tanner", "inputs": { "hide": 2 }, "outputs": { "leather": 1 }, "seconds": 8,
       "hint": "Une tannerie change les peaux du chasseur en cuir : le marché en a besoin." }
   ,
-    { "id": "well", "appeal": [1, 1], "label": "Puits", "order": 13, "model": "well", "cost": { "plank": 3, "log": 2 }, "needsRoad": false,
+    { "id": "well", "appeal": [1, 1], "label": "Puits", "order": 14, "model": "well", "cost": { "plank": 3, "stone": 2 }, "needsRoad": false,
       "service": { "id": "water", "radius": 4 },
-      "hint": "Un puits donne de l’eau aux maisons dans un rayon de quatre cases." }
+      "hint": "Un puits (il faut de la pierre) donne de l’eau aux maisons dans un rayon de quatre cases." }
+  ,
+    { "id": "quarry", "appeal": [-3, -2, -1], "label": "Carrière", "order": 13, "model": "quarry", "cost": { "plank": 3, "log": 2 },
+      "workers": 2, "role": "quarryman", "gather": "deposit:stone", "outputs": { "stone": 1 }, "seconds": 3.2,
+      "hint": "Une carrière extrait la pierre des rochers veinés, posée à côté : elle sert à bâtir les puits." }
   ]
 }

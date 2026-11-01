@@ -1,6 +1,7 @@
 import { W, H, pix, zb, setView, Color, CachedModel, rgb, beginModel, captureModel, touchModelBuffer, box, capsule, sphere, plot, rampOf, hash, shadowMask, pine, Atlas, AtlasAxes, AtlasDef, AtlasEntry, bakeAtlas, hashNumbers } from '../pixel';
 import { ZOOM_SCALES } from './camera';
 import { settings } from '../settings';
+import { ROCK_VARIANTS } from '../constants';
 import { STONE, WOOD_HONEY, WOOD_BROWN, BARK, TERRACOTTA } from '../palettes';
 
 // Every static object is lit and rasterised once into a CachedModel (same projection, light and ramps as the Pixel Plays games),
@@ -10,11 +11,11 @@ export const MODEL_SAWMILL = 1;
 export const MODEL_LODGE = 2;
 export const MODEL_FISHERY = 3;
 /** The model id of each building type, in the order of assets/economy.json (a building's model sits at its own index). */
-export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well'];
+export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry'];
 export const MODEL_GATE = MODEL_IDS.length;
 export const MODEL_TREE = MODEL_GATE + 1;            // 4 variants
 export const MODEL_ROCK = MODEL_TREE + 4;            // 2 variants
-export const MODEL_HOUSE_UP = MODEL_ROCK + 2;         // the house at level 2 and 3 (level 1 is MODEL_HOUSE)
+export const MODEL_HOUSE_UP = MODEL_ROCK + ROCK_VARIANTS;         // the house at level 2 and 3 (level 1 is MODEL_HOUSE)
 /** The model of a building on the map: houses change with their level. */
 export function modelOf(type: number, level: number): number { return type === 0 && level > 0 ? MODEL_HOUSE_UP + Math.min(level, 2) - 1 : MODEL_HOUSE + type; }
 export const TREE_HEIGHT: number[] = [2.8, 3.3, 3.8, 3.2];
@@ -248,6 +249,18 @@ function well(): void {
   capsule([0, .1, 1.3], [0, .1, .9], .015, .015, flat([96, 76, 58]), 'solid'); capsule([0, .1, .9], [0, .1, .75], .09, .08, flat([128, 92, 60]), 'rough');   // rope and bucket
 }
 
+/** A quarry: a small open shed, a pile of cut blocks and an iron-bound crane over a block being dressed. */
+function quarry(): void {
+  box(-.8, -.5, 0, -.1, .5, .12, WOOD_BROWN);
+  for (const y of [-.45, .4]) { box(-.8, y, .12, -.72, y + .08, 1.2, WOOD_BROWN); box(-.18, y, .12, -.1, y + .08, 1.2, WOOD_BROWN); }
+  gableRoof(-.9, 0, -.6, .6, 1.15, .45, [112, 100, 86], 23);
+  box(-.55, -.2, .12, -.25, .2, .5, WOOD_HONEY);                                   // work bench
+  box(.2, -.55, 0, .8, .1, .5, [190, 184, 168]); box(.3, -.45, .5, .75, .0, .85, [200, 194, 176]); box(.25, .2, 0, .8, .7, .32, [172, 166, 150]);   // blocks
+  box(.95, -.1, 0, 1.05, 0, 1.6, WOOD_BROWN); box(.5, -.1, 1.5, 1.05, 0, 1.6, WOOD_BROWN);                          // crane
+  capsule([.55, -.05, 1.5], [.55, -.05, .95], .02, .02, flat([96, 76, 58]), 'solid');
+  capsule([-.95, .5, .08], [-.95, .5, .5], .12, .12, flat([128, 92, 60]), 'rough');
+}
+
 /** The entrance of the hamlet: two posts, a beam and a banner over the road (which runs along x). */
 function gate(): void {
   for (const y of [-.92, .78]) box(-.12, y, 0, .12, y + .16, 2.3, WOOD_BROWN);
@@ -255,6 +268,21 @@ function gate(): void {
   box(-.04, -.4, 1.45, .04, .4, 2.1, [170, 90, 70]);
 }
 
+function deposit(kind: number): void {
+  if (kind === 0) {                                                                        // stone: pale blocks piled up, one cut square
+    box(-.55, -.4, 0, .1, .35, .5, [190, 184, 168]); box(.05, -.2, 0, .6, .45, .38, [172, 166, 150]); box(-.3, -.15, .5, .25, .3, .88, [200, 194, 176]);
+    sphere(.4, -.45, .18, .2, [158, 152, 134], 'rough'); sphere(-.5, .4, .15, .17, [148, 142, 126], 'rough');
+  } else if (kind === 1) {                                                                 // clay: a reddish wet mound
+    sphere(0, 0, .12, .62, [176, 108, 80], 'rough'); sphere(.3, .2, .12, .4, [190, 120, 88], 'rough'); sphere(-.3, -.2, .1, .34, [164, 98, 72], 'rough');
+    sphere(.1, -.1, .5, .18, [206, 148, 116], 'rough');
+  } else if (kind === 2) {                                                                 // ore: dark rock with rust veins
+    sphere(0, 0, .3, .55, [96, 94, 100], 'rough'); sphere(.4, .25, .2, .34, [84, 84, 92], 'rough'); sphere(-.3, .3, .18, .28, [104, 100, 104], 'rough');
+    for (const [x, y, z] of [[.2, -.4, .5], [-.1, -.5, .3], [.5, -.1, .35], [.1, .1, .8]]) sphere(x, y, z, .1, [190, 112, 60], 'solid');
+  } else {                                                                                 // berries: a green bush with red fruit
+    sphere(0, 0, .4, .5, [70, 110, 62], 'rough'); sphere(.3, .15, .35, .36, [84, 124, 70], 'rough'); sphere(-.25, -.2, .3, .3, [62, 100, 58], 'rough');
+    for (const [x, y, z] of [[.3, -.3, .45], [-.1, -.42, .55], [.5, .1, .6], [-.4, .1, .5], [.1, .35, .72], [-.2, -.05, .85]]) sphere(x, y, z, .07, [200, 52, 66], 'solid');
+  }
+}
 function tree(variant: number): void {
   const greens: Color[] = [[56, 92, 62], [48, 82, 58], [70, 104, 64]];
   if (variant < 3) { pine(0, 0, TREE_HEIGHT[variant], greens[variant], false, variant * 7); return; }
@@ -264,7 +292,9 @@ function tree(variant: number): void {
     sphere(x + .12, y - .1, z + .2, r * .6, [146, 168, 92], 'rough');
   }
 }
+/** Rock variants 0 and 1 are plain rocks; the others are deposits (constants.ts DEPOSIT_MODELS): stone blocks, a clay bank, veined ore, a berry bush. */
 function rock(variant: number): void {
+  if (variant >= 2) { deposit(variant - 2); return; }
   const grey: Color = variant === 0 ? [158, 152, 134] : [132, 128, 112];
   sphere(0, 0, .3, .55, grey, 'rough');
   sphere(.4, .25, .2, .35, [grey[0] + 14, grey[1] + 12, grey[2] + 10], 'rough');
@@ -332,7 +362,7 @@ export function resetModels(): void { for (let i = 0; i < levelAtlases.length; i
  * index of its first variant in this list, variants counted). They are baked through the atlas, so one cache and one invalidation serve all.
  */
 const MODEL_DEFS: [string, number, (variant: number) => void][] = [
-  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['tannery', 1, tannery], ['well', 1, well], ['gate', 1, gate], ['tree', 4, tree], ['rock', 2, rock], ['house2', 1, house2], ['house3', 1, house3],
+  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['tannery', 1, tannery], ['well', 1, well], ['quarry', 1, quarry], ['gate', 1, gate], ['tree', 4, tree], ['rock', ROCK_VARIANTS, rock], ['house2', 1, house2], ['house3', 1, house3],
 ];
 
 /** The atlas definition: one entry per model, one frame each (a static model has a single heading and pose). `reduceFrom` > 0 shrinks the sharp bake for the fixed-detail mode. */

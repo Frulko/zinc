@@ -158,7 +158,7 @@ export function forceFullBake(): void { forceFull = true; }
 
 function tileSig(t: number): number {
   const b = world.build[t];
-  return (((world.tree[t] * 3 + world.rock[t]) * 3 + world.deco[t]) * 256 + (b >= 0 ? 1 + world.buildings[b].type + 64 * world.buildings[b].level : 0)) * 2 + world.road[t] + (world.terrain[t] === TERRAIN_VOID ? 100000 : 0);
+  return (((world.tree[t] * 8 + world.rock[t]) * 3 + world.deco[t]) * 256 + (b >= 0 ? 1 + world.buildings[b].type + 64 * world.buildings[b].level : 0)) * 2 + world.road[t] + (world.terrain[t] === TERRAIN_VOID ? 100000 : 0);
 }
 
 /** The window rectangle (x0, y0, x1, y1; x1, y1 excluded) that a tile can change: its ground, what stands on it, its shadow and its tall crown. */

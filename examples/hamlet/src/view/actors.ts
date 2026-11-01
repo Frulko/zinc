@@ -1,6 +1,6 @@
 import { Color, Palette, Pose, Vec3, figure, dynamicAdd, capsule, sphere, plot, rgb, lerp, castShadow, ripple, Atlas, AtlasAxes, AtlasEntry, AtlasDef, bakeAtlas, headerKey, headerOf } from '../pixel';
 import {
-  ROLE_LUMBERJACK, ST_FISH, ST_CHOP, ST_WORK, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
+  ROLE_LUMBERJACK, ST_FISH, ST_CHOP, ST_MINE, ST_WORK, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
   DEER_GRAZE, DEER_FLEE, DEER_DEAD, DEER_GONE,
 } from '../constants';
 import { Person, Deer } from '../world/world';
@@ -48,7 +48,7 @@ function lookOf(role: number, kind: number, a: number, idleZ: number): Look {
 }
 function kindOf(p: Person): number {
   if (isMoving(p)) return KIND_WALK;
-  return p.state === ST_CHOP || p.state === ST_WORK ? KIND_CHOP : p.state === ST_AIM || p.state === ST_SHOT ? KIND_AIM : p.state === ST_FISH ? KIND_FISH : p.state === ST_PICK ? KIND_PICK : KIND_IDLE;
+  return p.state === ST_CHOP || p.state === ST_WORK || p.state === ST_MINE ? KIND_CHOP : p.state === ST_AIM || p.state === ST_SHOT ? KIND_AIM : p.state === ST_FISH ? KIND_FISH : p.state === ST_PICK ? KIND_PICK : KIND_IDLE;
 }
 const stepOf = (angle: number, steps: number): number => { const k = Math.round(angle / TAU * steps) % steps; return k < 0 ? k + steps : k; };
 function slotOf(p: Person, kind: number): number {
@@ -109,6 +109,12 @@ function paintProps(p: Person, yaw: number, hand: Vec3): void {
     const hide = p.carry === 5, c = solid(hide ? [186, 150, 108] : [168, 92, 72]);
     capsule([p.x + fx * .45 + sx * .15, p.y + fy * .45 + sy * .15, .85], [p.x + fx * .45 - sx * .15, p.y + fy * .45 - sy * .15, .85], hide ? .13 : .1, hide ? .13 : .08, c, 'solid');
     if (!hide) sphere(p.x + fx * .45 - sx * .2, p.y + fy * .45 - sy * .2, .85, .12, [150, 78, 62], 'solid');
+  }
+  if (p.carry >= 10 && p.carry <= 14) {                              // leather folded, a block of stone, clay or ore, a handful of berries (the order of economy.json)
+    const c: Color = p.carry === 10 ? [150, 104, 64] : p.carry === 11 ? [176, 170, 156] : p.carry === 12 ? [168, 98, 70] : p.carry === 13 ? [86, 86, 92] : [196, 56, 70];
+    if (p.carry === 10) capsule([p.x + fx * .45 + sx * .15, p.y + fy * .45 + sy * .15, .85], [p.x + fx * .45 - sx * .15, p.y + fy * .45 - sy * .15, .85], .13, .13, solid(c), 'solid');
+    else if (p.carry === 14) { for (let k = 0; k < 4; k++) sphere(p.x + fx * .45 + sx * (k - 1.5) * .07, p.y + fy * .45 + sy * (k - 1.5) * .07, .86 + (k % 2) * .05, .06, c, 'solid'); }
+    else { sphere(p.x + fx * .42, p.y + fy * .42, .86, .17, c, 'solid'); sphere(p.x + fx * .5 + sx * .1, p.y + fy * .5 + sy * .1, .94, .1, [c[0] + 20, c[1] + 18, c[2] + 14], 'solid'); }
   }
   if (p.carry === 4) {                                                // a bundle of planks held in front
     capsule([p.x + fx * .4 + sx * .2, p.y + fy * .4 + sy * .2, .85], [p.x + fx * .4 - sx * .2, p.y + fy * .4 - sy * .2, .85], .1, .1, solid(PLANK), 'solid');
