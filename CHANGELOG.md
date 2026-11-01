@@ -19,6 +19,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 #### Fixed
 - Selecting text with `select-text` works across several lines and several `Text` blocks, like a browser: drag from one paragraph into the next (in a `ScrollView` too, the list scrolls near its edge), the whole span is highlighted and Cmd/Ctrl+C copies it with its line breaks.
 - `{list.map(row)}` with a named function that returns JSX shows the rows, as it does with an inline arrow, instead of printing numbers.
+- `aria-label` and `role` work on `VirtualList`, and an icon name written in an expression (`<Icon name={on ? "heart" : "star"} />`) is included in the program without listing it in `zinc.json`.
+- A long press on a `Tooltip` shows its hint on touch screens.
 
 ### Apps and examples
 #### New
@@ -47,6 +49,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The Discord client cannot be talked into a quality Discord did not grant: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro), logs a clamp as "over the ceiling", and the example's tests simulate the over-tier announce a client mod would send.
 - **Fixed** Discord calls: a still screen in Go Live (or a stalled camera) keeps sending its last picture at least four times a second, nothing is sent before the call's encryption is keyed (the first picture the viewer gets is a key frame that opens), and in the ultra low data mode the call announces the reduced size and bitrate it really sends. `DISCORD_LOG=1` prints the size, frames, key frames and target of each outgoing video every second.
 - Discord calls: your camera and Go Live send a key frame every second (and again when the call's encryption key changes or someone starts watching) so the others no longer wait forever on a black tile; a third person joining no longer silences the people already there; a small tile shows the camera's lower quality layer; a Go Live you watch connects whichever of the two server messages comes first; and the call survives a network blip instead of ending with "voice gateway closed".
+- The Discord client fits windows narrower than 640 px: servers and channels, the conversation, the call and the settings show one at a time with a Back button. The screen-share dialog and the image viewer toolbar fit narrow windows too.
 
 ### Plugins and modules
 - **New** `zinc:webrtc` video holds up on bad links: a lost packet is asked for again (NACK) instead of freezing the picture until the next key frame, the receiver measures the link and tells the sender (REMB), and the sender steps its picture down a ladder (720p30, 360p30, 360p15, 180p15, 90p7) and back up as the rate allows. `getStats()` gains `nackCount` and `qualityLimitationReason`; `ZINC_WEBRTC_BWE_LOG=1` prints the rate decisions, and `ZINC_FAKE_CAMERA_NOISE` adds grain to the fake camera to test it.
