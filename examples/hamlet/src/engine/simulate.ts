@@ -3,7 +3,8 @@ import { updatePeople, assignJobs } from './villagers';
 import { updateDeer } from './deer';
 import { updateNature } from './nature';
 import { saveGame } from '../world/save';
-import { SAVE_DELAY, TICK } from '../constants';
+import { stepDay } from './day';
+import { SAVE_DELAY, TICK, DAY_TICKS } from '../constants';
 
 /** One tick (TICK seconds) of the whole village. Pure game state: drawing never calls it; the scene feeds it whole ticks from its own accumulator. */
 export function stepWorld(): void {
@@ -11,6 +12,7 @@ export function stepWorld(): void {
   world.time += TICK;
   world.jobTimer -= TICK;
   if (world.jobTimer <= 0) { world.jobTimer = 1; assignJobs(); }
+  if (world.tick % DAY_TICKS === 0) stepDay();
   updatePeople(TICK);
   updateDeer(TICK);
   updateNature(TICK);

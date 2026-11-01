@@ -10,7 +10,7 @@ export const MODEL_SAWMILL = 1;
 export const MODEL_LODGE = 2;
 export const MODEL_FISHERY = 3;
 /** The model id of each building type, in the order of assets/economy.json (a building's model sits at its own index). */
-export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery'];
+export const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market'];
 export const MODEL_GATE = MODEL_IDS.length;
 export const MODEL_TREE = MODEL_GATE + 1;            // 4 variants
 export const MODEL_ROCK = MODEL_TREE + 4;            // 2 variants
@@ -190,6 +190,16 @@ function bakery(): void {
   for (let k = 0; k < 4; k++) capsule([1.0 + (k % 2) * .18, .2 + Math.floor(k / 2) * .16, .62], [1.0 + (k % 2) * .18, .3 + Math.floor(k / 2) * .16, .62], .07, .07, flat([196, 140, 82]), 'rough');
 }
 
+/** A market stall: a counter under a striped awning on four posts, with crates and baskets of goods. */
+function market(): void {
+  box(-.8, -.45, 0, .8, .45, .55, WOOD_HONEY);                                                  // counter
+  for (const x of [-.85, .8]) for (const y of [-.5, .4]) box(x, y, 0, x + .08, y + .1, 1.75, WOOD_BROWN);   // posts
+  for (let k = 0; k < 8; k++) box(-.95 + k * .24, -.6, 1.7 - k * .02, -.95 + (k + 1) * .24, .6, 1.78 - k * .02, k % 2 === 0 ? [186, 74, 64] : [236, 226, 200]);   // striped awning
+  for (let k = 0; k < 5; k++) sphere(-.55 + k * .26, 0, .66, .12, k % 2 === 0 ? [204, 84, 62] : [220, 176, 72], 'rough');   // goods on the counter
+  box(.9, .1, 0, 1.3, .5, .4, [190, 148, 92]); sphere(1.1, .3, .5, .16, [136, 170, 84], 'rough');   // crate of greens
+  capsule([-1.1, .3, 0], [-1.1, .3, .45], .16, .16, flat([128, 92, 60]), 'rough');                // barrel
+}
+
 /** The entrance of the hamlet: two posts, a beam and a banner over the road (which runs along x). */
 function gate(): void {
   for (const y of [-.92, .78]) box(-.12, y, 0, .12, y + .16, 2.3, WOOD_BROWN);
@@ -274,7 +284,7 @@ export function resetModels(): void { for (let i = 0; i < levelAtlases.length; i
  * index of its first variant in this list, variants counted). They are baked through the atlas, so one cache and one invalidation serve all.
  */
 const MODEL_DEFS: [string, number, (variant: number) => void][] = [
-  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['gate', 1, gate], ['tree', 4, tree], ['rock', 2, rock],
+  ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['gate', 1, gate], ['tree', 4, tree], ['rock', 2, rock],
 ];
 
 /** The atlas definition: one entry per model, one frame each (a static model has a single heading and pose). `reduceFrom` > 0 shrinks the sharp bake for the fixed-detail mode. */

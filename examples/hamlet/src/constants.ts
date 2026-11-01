@@ -27,6 +27,12 @@ export const PLACE_NO_WATER = 4;
 // ---- time ----
 export const TICK = 1 / 32;             // the simulation advances in whole ticks of this many seconds: the same ticks give the same village
 
+// ---- the day: the slice of the simulation that runs once a day (counters decay, houses evolve, goals are checked) ----
+export const DAY_SECONDS = 20;
+export const DAY_TICKS = DAY_SECONDS * 32;
+export const COVER_DAYS = 3;         // days a walker's visit (or a well's reach) keeps a house covered
+export const ROAM_REST = 4;           // seconds a service walker rests at home between two rounds
+
 // ---- economy ----
 export const SETTLER_INTERVAL = 6;      // seconds between two arrivals at one house
 export const WORK_RADIUS = 14;          // path cost a worker accepts to reach a tree or a deer
@@ -43,8 +49,12 @@ export const ROLE_PORTER = 7;
 export const ROLE_FARMER = 8;
 export const ROLE_MILLER = 9;
 export const ROLE_BAKER = 10;
+export const ROLE_VENDOR = 11;
+export const ROLE_TANNER = 12;
+export const ROLE_QUARRYMAN = 13;
+export const ROLE_PEDDLER = 14;
 /** The job names economy.json may give (index = ROLE_*). */
-export const ROLE_NAMES: string[] = ['settler', 'resident', 'lumberjack', 'hunter', 'fisher', 'sawyer', 'smoker', 'porter', 'farmer', 'miller', 'baker'];
+export const ROLE_NAMES: string[] = ['settler', 'resident', 'lumberjack', 'hunter', 'fisher', 'sawyer', 'smoker', 'porter', 'farmer', 'miller', 'baker', 'vendor', 'tanner', 'quarryman', 'peddler'];
 export const WALK_SPEED = 2.1;          // world units per second
 export const ROAD_SPEED = 1.35;         // multiplier on a road
 export const ROAD_COST = 0.6;           // path cost of a road tile (grass is 1)
@@ -70,6 +80,8 @@ export const ST_FISH = 14;
 export const ST_WORK = 15;             // a processing building's worker at work
 export const ST_FETCH = 16;            // walking to where a load lies
 export const ST_BRING = 17;            // carrying a load to where it is needed
+export const ST_ROAM = 18;             // a service walker on its round of the roads
+export const ST_ROAM_BACK = 19;        // ... on its way home
 export const BS_IDLE = 0;              // building states: what its workers are doing, for the hints
 export const BS_WORKING = 1;
 export const BS_WAITING = 2;          // an input is missing (Building.waitFor)
@@ -96,5 +108,5 @@ export const DEER_GONE = 4;             // free slot
 
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';
-export const SAVE_VERSION = 'H8';
+export const SAVE_VERSION = 'H9';
 export const SAVE_DELAY = 2;            // seconds between two writes

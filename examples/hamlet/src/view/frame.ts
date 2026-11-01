@@ -125,7 +125,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   for (const p of world.people) { const a = project(p.x, p.y, 0); addRect(dirty, a.sx, a.sy, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 4.4 * S, (p.role === ROLE_FISHER ? 3.4 : 2.2) * S, 2.4 * S); }
   for (const d of world.deer) { const a = project(d.x, d.y, 0); addRect(dirty, a.sx, a.sy, 2.2 * S, 3.2 * S, 2.2 * S, 1.4 * S); }
   for (const b of world.buildings) {
-    if (!b.alive || (b.type === HOUSE ? b.residents === 0 : b.workers === 0)) continue;
+    if (!b.alive || b.type >= CHIMNEY.length || (b.type === HOUSE ? b.residents === 0 : b.workers === 0)) continue;
     const t = b.j * world.size + b.i, a = project(tileX(t) + CHIMNEY[b.type][0], tileY(t) + CHIMNEY[b.type][1], CHIMNEY[b.type][2] + 1.2);
     addRect(dirty, a.sx, a.sy, 1.6 * S, 2.4 * S, 1.6 * S, 2.4 * S);
   }
@@ -157,7 +157,7 @@ export function drawVillage(time: number, hover: number, ok: boolean, preview: n
   if (settings.shadows) { flushShadows(); applyShadows(bakedZ); } else pendingShadows.length = 0;
   if (settings.edges) for (let k = 0; k < rects.length; k += 4) shadeEdgesRect(rects[k], rects[k + 1], rects[k + 2], rects[k + 3]);
   for (const b of world.buildings) {
-    if (!b.alive || (b.type === HOUSE ? b.residents === 0 : b.workers === 0)) continue;
+    if (!b.alive || b.type >= CHIMNEY.length || (b.type === HOUSE ? b.residents === 0 : b.workers === 0)) continue;
     const s = CHIMNEY[b.type];
     drawSmoke(tileX(b.j * world.size + b.i) + s[0], tileY(b.j * world.size + b.i) + s[1], s[2], time, b.i * 7 + b.j);
   }

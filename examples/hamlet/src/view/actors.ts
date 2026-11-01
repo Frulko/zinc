@@ -1,18 +1,20 @@
 import { Color, Palette, Pose, Vec3, figure, dynamicAdd, capsule, sphere, plot, rgb, lerp, castShadow, ripple, Atlas, AtlasAxes, AtlasEntry, AtlasDef, bakeAtlas, headerKey, headerOf } from '../pixel';
 import {
-  ROLE_SETTLER, ROLE_LUMBERJACK, ROLE_HUNTER, ROLE_FISHER, ROLE_SAWYER, ROLE_SMOKER, ROLE_PORTER, ROLE_FARMER, ROLE_MILLER, ROLE_BAKER, ST_FISH, ST_CHOP, ST_WORK, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
+  ROLE_LUMBERJACK, ST_FISH, ST_CHOP, ST_WORK, ST_AIM, ST_SHOT, ST_PICK, ARROW_SECONDS, AIM_SECONDS,
   DEER_GRAZE, DEER_FLEE, DEER_DEAD, DEER_GONE,
 } from '../constants';
 import { Person, Deer } from '../world/world';
 import { isMoving } from '../engine/path';
-import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
+import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
 
 const SCALE = .62;
 const PLANK: Color = [214, 180, 120], LOG: Color = [150, 112, 72], LOG_END: Color = [214, 186, 134], STEEL: Color = [176, 182, 180], ARROW: Color = [226, 212, 176];
 const solid = (c: Color): ((z: number) => Color) => (): Color => c;
 
+/** The palette of each role, indexed by ROLE_* (constants.ts). */
+const ROLE_PALETTES: Palette[] = [SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE];
 function paletteOf(role: number, hairTone: number): Palette {
-  const base = role === ROLE_SETTLER ? SETTLER_PALETTE : role === ROLE_LUMBERJACK ? LUMBERJACK_PALETTE : role === ROLE_HUNTER ? HUNTER_PALETTE : role === ROLE_FISHER ? FISHER_PALETTE : role === ROLE_SAWYER ? SAWYER_PALETTE : role === ROLE_SMOKER ? SMOKER_PALETTE : role === ROLE_PORTER ? PORTER_PALETTE : role === ROLE_FARMER ? FARMER_PALETTE : role === ROLE_MILLER ? MILLER_PALETTE : role === ROLE_BAKER ? BAKER_PALETTE : RESIDENT_PALETTE;
+  const base = ROLE_PALETTES[role] === undefined ? RESIDENT_PALETTE : ROLE_PALETTES[role];
   return { shirt: base.shirt, stripe: base.stripe, legs: base.legs, skin: base.skin, hair: HAIR_TONES[hairTone] };
 }
 
@@ -21,7 +23,7 @@ function paletteOf(role: number, hairTone: number): Palette {
 const KIND_WALK = 0, KIND_CHOP = 1, KIND_AIM = 2, KIND_FISH = 3, KIND_PICK = 4, KIND_IDLE = 5;
 const WALK_FRAMES = 8, CHOP_FRAMES = 6, YAW_STEPS = 8, TAU = Math.PI * 2;
 const SLOT_WALK = 0, SLOT_CHOP = WALK_FRAMES, SLOT_AIM = SLOT_CHOP + CHOP_FRAMES, SLOT_FISH = SLOT_AIM + 1, SLOT_PICK = SLOT_FISH + 1, SLOT_IDLE = SLOT_PICK + 1, PERSON_POSES = SLOT_IDLE + 1;
-const HAIRS = HAIR_TONES.length, ROLES = 11;
+const HAIRS = HAIR_TONES.length, ROLES = ROLE_PALETTES.length;
 interface Look { pose: Pose; axe: boolean; fishing: boolean; }
 
 /** `a` is the walk phase for KIND_WALK and the chop angle (phase * 4.2) for KIND_CHOP; `idleZ` the breathing offset. */
@@ -133,7 +135,7 @@ function personEntry(): AtlasEntry {
     paintFigure(x, y, a.yaw8 * TAU / YAW_STEPS, Math.floor(a.variant / HAIRS), a.variant % HAIRS, lookOfSlot(Math.floor(a.variant / HAIRS), a.pose), solidBone);
   } };
 }
-const ACTOR_DEF_VERSION = 1;
+const ACTOR_DEF_VERSION = 2;
 export function actorAtlas(): Atlas {
   const def: AtlasDef = { version: ACTOR_DEF_VERSION, season: 0, entries: [personEntry(), deerEntry()] };
   const key = headerKey(headerOf(def));

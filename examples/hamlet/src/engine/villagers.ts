@@ -1,7 +1,7 @@
 import {
   HOUSE, ST_TO_SHORE, ST_FISH, FISH_CATCH_CHANCE, ROLE_SETTLER, ROLE_RESIDENT,
   ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_WORK, ST_FETCH, ST_BRING,
-  BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, WORK_RADIUS, SETTLER_INTERVAL,
+  ST_ROAM, ST_ROAM_BACK, ROAM_REST, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, HIT_CHANCE, WORK_RADIUS, SETTLER_INTERVAL,
   DEER_DEAD, DEER_FLEE, DEER_GONE, WALK_SPEED,
 } from '../constants';
 import { Housing, BuildingDef } from '../world/economy';
@@ -12,6 +12,7 @@ import { settings } from '../settings';
 import { economy } from '../world/economy';
 import { take } from '../rules/stock';
 import { rankOf } from '../rules/labour';
+import { startRoam, roamTick } from './services';
 import { findLoad, haulOut, fetchInput, hasRoomFor, readyBatch, exportsOk, pickUp, putDown, cancelTransport } from './transport';
 
 const gap = (ax: number, ay: number, bx: number, by: number): number => Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
@@ -239,6 +240,7 @@ function updateWorker(p: Person, dt: number): void {
       if (def.store) found = findLoad(p);                        // a porter
       else if (!hasRoomFor(site, def.outputs)) { site.state = BS_FULL; found = haulOut(p, p.job); }   // full: the worker carries it to a store itself
       else if (readyBatch(site, def.outputs) && haulOut(p, p.job)) found = true;                       // a batch is ready and no porter came: carry it
+      else if (def.service !== null && def.service.walker) found = startRoam(p, site);
       else if (def.gather === 'tree') found = nearestTree(p);
       else if (def.gather === 'shore') found = nearestShore(p);
       else if (def.gather === 'deer') found = nearestGame(p);
@@ -256,6 +258,14 @@ function updateWorker(p: Person, dt: number): void {
       for (let k = 0; k < def.outputs.length; k++) site.stock[k] += def.outputs[k];
       world.saveDirty = true; sound('point', .3);
       site.state = BS_IDLE; p.state = ST_SEEK; p.timer = .2;
+      break;
+    case ST_ROAM:
+      roamTick(p, site);
+      if (walk(p, dt, speed)) { p.state = ST_ROAM_BACK; if (!planPath(p, buildingTile(site))) { p.state = ST_SEEK; p.timer = ROAM_REST; } }
+      break;
+    case ST_ROAM_BACK:
+      roamTick(p, site);
+      if (walk(p, dt, speed)) { p.state = ST_SEEK; p.timer = ROAM_REST; p.target = -1; }
       break;
     case ST_FETCH:
       if (walk(p, dt, speed)) pickUp(p);

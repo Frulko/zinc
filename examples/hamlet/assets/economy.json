@@ -11,6 +11,7 @@
     { "id": "flour", "label": "Farine", "carry": "sack" },
     { "id": "bread", "label": "Pain", "carry": "bread" }
   ],
+  "services": [ { "id": "water", "label": "Eau" }, { "id": "market", "label": "Marché" } ],
   "start": { "log": 20, "plank": 10 },
   "hall": "storehouse",
   "buildings": [
@@ -43,5 +44,9 @@
     { "id": "bakery", "label": "Boulangerie", "short": "Boulanger", "order": 10, "model": "bakery", "cost": { "plank": 4, "log": 4 },
       "workers": 2, "role": "baker", "inputs": { "flour": 1 }, "outputs": { "bread": 2 }, "seconds": 6,
       "hint": "Une boulangerie cuit la farine en pain : les maisons le mangent." }
+  ,
+    { "id": "market", "label": "Marché", "order": 11, "model": "market", "cost": { "plank": 4, "log": 2 },
+      "workers": 1, "role": "vendor", "service": { "id": "market", "walker": true, "range": 18 },
+      "hint": "Un marché envoie un marchand sur les routes : les maisons qu’il croise sont servies." }
   ]
 }

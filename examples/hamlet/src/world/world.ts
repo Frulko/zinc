@@ -2,13 +2,14 @@ import {
   DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, DEER_START, DEER_GRAZE, DEER_GONE,
 } from '../constants';
 import { hash, noise } from './noise';
-import { economy, Resource } from './economy';
+import { economy, Resource, Service } from './economy';
 
 /** Anything that walks the tile grid. A class, not an interface: the walking code takes a Mover and must change the person itself (interfaces are copied records). */
 export class Mover { x: number = 0; y: number = 0; yaw: number = 0; path: number[] = []; step: number = 0; phase: number = 0; }
 /** A building: what it holds (`stock`, per resource of economy.json) and what its workers are doing (`state`, and `waitFor`, the resource it lacks). */
 export class Building {
   type: number = 0; i: number = 0; j: number = 0; alive: boolean = true; residents: number = 0; workers: number = 0; timer: number = 2;
+  cover: number[] = [];                                  // per service: days left of its coverage (houses only)
   stock: number[] = []; reserved: number[] = []; incoming: number[] = [];   // reserved: leaving with a porter; incoming: promised by one
   state: number = 0; waitFor: number = -1; fixed: boolean = false;       // fixed: stands from the start (the hall) and cannot be demolished
 }
@@ -38,7 +39,7 @@ export interface World {
 /** A new building of a type on a tile, empty. The rules add buildings the same way (rules/build.ts). */
 export function newBuilding(type: number, t: number): number {
   const id = world.buildings.length, b = new Building(), none = (): number[] => economy.resources.map((_r: Resource): number => 0);
-  b.type = type; b.i = tileI(t); b.j = tileJ(t); b.stock = none(); b.reserved = none(); b.incoming = none();
+  b.type = type; b.i = tileI(t); b.j = tileJ(t); b.cover = economy.services.map((_s: Service): number => 0); b.stock = none(); b.reserved = none(); b.incoming = none();
   world.buildings.push(b);
   world.build[t] = id; world.deco[t] = 0;
   return id;

@@ -11,7 +11,7 @@ import { TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, HOUSE, PLACE_NO_WATER, PLACE_OK, PLA
 import * as fs from 'zinc:fs';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
-const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery'];
+const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market'];
 import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { stockWithCarried, exportsOk } from '../../../examples/hamlet/src/engine/transport';
 import { adviceLine } from '../../../examples/hamlet/src/hud';
@@ -190,6 +190,27 @@ check('priority: the first type is staffed in full, the next takes what is left,
 labourVillage('lodge');
 check('priority: moving the lodge first staffs it first', staffed('lodge') === 2 && staffed('lumberhut') + staffed('sawmill') === 1);
 check('an unstaffed workplace says no_workers', computeHints().some((h) => h.kind === 'no_workers'));
+// ---- services: a market walker roams the roads and covers the houses it passes; coverage decays by the day ----
+const MARKET = economy.serviceOf('market');
+const coverVillage = (): number[] => {
+  generate(1234, 16); rich(); clearRow(); world.tree[at(12, 12)] = 0; world.rock[at(12, 12)] = 0;
+  const ids: number[] = [];
+  for (const i of [2, 4, 6, 12]) { const h = addBuilding(HOUSE, i === 12 ? at(12, 12) : at(i, 7)); if (i !== 6) { createResident(h); createResident(h); world.buildings[h].residents = 2; } world.buildings[h].timer = 1e9; ids.push(h); }
+  applyTool(toolOf('market'), at(5, 9));
+  run(80);
+  return ids;
+};
+let ids = coverVillage();
+const covers = (): string => ids.map((h) => world.buildings[h].cover[MARKET]).join();
+console.log('hamlet services: covers after 80 s ' + covers() + ' hash ' + stateHash());
+check('the market walker covers the houses beside its route', ids.slice(0, 3).every((h) => world.buildings[h].cover[MARKET] > 0));
+check('a house off the roads is not covered, and the hint says so', world.buildings[ids[3]].cover[MARKET] === 0 && computeHints().some((h) => h.reason === 'no_service:market' && h.tile === at(12, 12)));
+const firstCovers = covers(), firstHash = stateHash();
+ids = coverVillage();
+check('coverage over a fixed road layout is deterministic (same covers and state hash)', covers() === firstCovers && stateHash() === firstHash);
+applyTool(TOOL_ERASE, at(5, 9));
+run(90);
+check('without the market the counters decay to zero, a day at a time', ids.every((h) => world.buildings[h].cover[MARKET] === 0));
 // ---- determinism: ticks, the generator in the world, the state hash (hamlet.sh compares the printed hash across the three engines) ----
 generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8)]) { world.tree[t] = 0; }

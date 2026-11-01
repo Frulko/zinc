@@ -1,18 +1,23 @@
 // The economy of the village: resources, buildings and what they make, read from assets/economy.json (schema in ECONOMY.md).
 // A building or a chain is added in that file and nowhere else (plus one model in view/models.ts). Classes, not interfaces: they are read and shared by reference.
 
-export class Resource { id: string = ''; label: string = ''; carry: string = ''; }
+export class Resource { id: string = ''; label: string = ''; carry: string = ''; price: number = 0; }
+/** A service the houses may lack (water, market...): `Building.cover[k]` counts the days a house stays covered. */
+export class Service { id: string = ''; label: string = ''; }
+/** What a service building gives: a walker on a round of `range` steps over the roads, or (no walker) every house within `radius` tiles. */
+export class ServiceDef { service: number = -1; walker: boolean = false; range: number = 16; radius: number = 0; }
 export class Housing { capacity: number = 0; free: number = 0; eats: number[] = []; }
 export class BuildingDef {
   id: string = ''; label: string = ''; short: string = ''; hint: string = ''; order: number = 0; model: string = '';
   cost: number[] = []; workers: number = 0; role: string = ''; roleId: number = -1;
   inputs: number[] = []; outputs: number[] = []; seconds: number = 0; gather: string = '';
   stockCap: number = 8; store: boolean = false; needsRoad: boolean = true;
-  housing: Housing | null = null;
+  housing: Housing | null = null; service: ServiceDef | null = null;
 }
 export class Economy {
-  resources: Resource[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
+  resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
   typeOf(id: string): number { for (let k = 0; k < this.buildings.length; k++) if (this.buildings[k].id === id) return k; return -1; }
+  serviceOf(id: string): number { for (let k = 0; k < this.services.length; k++) if (this.services[k].id === id) return k; return -1; }
   resourceOf(id: string): number { for (let k = 0; k < this.resources.length; k++) if (this.resources[k].id === id) return k; return -1; }
 }
 /** The loaded economy. Empty until loadEconomy runs (the scene at start-up, the tests); a building type is its index here. */
@@ -45,14 +50,20 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
   try { data = JSON.parse(text); } catch (error) { return ['bad-json: economy.json is not valid JSON']; }
   if (data === null || data.version !== 1 || !Array.isArray(data.resources) || !Array.isArray(data.buildings)) return ['bad-json: economy.json needs "version": 1, "resources" and "buildings"'];
   const ids: string[] = [];
-  into.resources = []; into.buildings = []; into.hall = -1;
+  into.resources = []; into.buildings = []; into.services = []; into.hall = -1;
   for (const r of data.resources as any[]) {
     const res = new Resource();
-    res.id = String(r.id === undefined ? '' : r.id); res.label = String(r.label === undefined ? res.id : r.label); res.carry = String(r.carry === undefined ? '' : r.carry);
+    res.id = String(r.id === undefined ? '' : r.id); res.label = String(r.label === undefined ? res.id : r.label); res.carry = String(r.carry === undefined ? '' : r.carry); res.price = num(r, 'price', 0, 'resource ' + res.id, errors);
     if (res.id === '' || ids.indexOf(res.id) >= 0) errors.push('bad-id: resource "' + res.id + '" is empty or declared twice');
     ids.push(res.id); into.resources.push(res);
   }
   into.start = amounts(data.start, ids, 'start', errors);
+  into.services = [];
+  for (const s of (data.services === undefined ? [] : data.services) as any[]) {
+    const sv = new Service(); sv.id = String(s.id === undefined ? '' : s.id); sv.label = String(s.label === undefined ? sv.id : s.label);
+    if (sv.id === '' || into.serviceOf(sv.id) >= 0) errors.push('bad-id: service "' + sv.id + '" is empty or declared twice');
+    into.services.push(sv);
+  }
   const names: string[] = [];
   for (const b of data.buildings as any[]) {
     const d = new BuildingDef(), where = 'building ' + String(b.id);
@@ -79,6 +90,14 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
       for (const e of eats) { const k = ids.indexOf(e); if (k < 0) errors.push('unknown-resource: ' + where + '.housing.eats uses "' + e + '"'); else h.eats.push(k); }
       d.housing = h;
     }
+    if (b.service !== undefined) {
+      const sd = new ServiceDef(), k = into.serviceOf(String(b.service.id));
+      if (k < 0) errors.push('bad-service: ' + where + ' gives the unknown service "' + String(b.service.id) + '"');
+      sd.service = k; sd.walker = b.service.walker === true; sd.range = num(b.service, 'range', 16, where + '.service', errors); sd.radius = num(b.service, 'radius', 0, where + '.service', errors);
+      if (!sd.walker && sd.radius <= 0) errors.push('bad-service: ' + where + ' has no walker and no radius: whom does it serve?');
+      if (sd.walker && d.workers <= 0) errors.push('bad-service: ' + where + ' sends a walker but has no workers');
+      d.service = sd;
+    }
     into.buildings.push(d);
   }
   if (data.hall !== undefined) { into.hall = names.indexOf(String(data.hall)); if (into.hall < 0 || !into.buildings[into.hall].store) errors.push('bad-hall: "hall" must name a building with "store": true'); }
@@ -104,7 +123,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
 export function loadEconomy(text: string, models: string[], roles: string[]): void {
   const next = new Economy(), errors = parseEconomy(text, models, roles, next);
   if (errors.length > 0) throw new Error('economy.json: ' + errors.join('; '));
-  economy.resources = next.resources; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
+  economy.resources = next.resources; economy.services = next.services; economy.buildings = next.buildings; economy.start = next.start; economy.hall = next.hall;
 }
 
 /** One line per resource: who makes it and who uses it. The report of a chain, for the maker of the data. */
