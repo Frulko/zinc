@@ -36,7 +36,7 @@ done
 # Wi-Fi's driver is blacklisted from the boot (modprobe.d/zinc-defer.conf); NetworkManager loads it once it starts
 printf '[Service]\nExecStartPre=-/sbin/modprobe brcmfmac\n' >>/etc/systemd/system/NetworkManager.service.d/10-zinc-defer.conf
 
-systemctl enable zinc-shell.service zinc-firstboot.service zinc-agent.service zinc-report.service
+systemctl enable zinc-shell.service zinc-firstboot.service zinc-agent.service zinc-report.service zinc-power-guard.service
 
 # A runnable bundle for this engine; the source bundle is kept unchanged for later engine switches.
 runuser -u zinc -- env HOME=/var/lib/zinc ZINC_NO_UPDATE_CHECK=1 ZINC_DISPLAY=fbdev \

@@ -24,6 +24,7 @@ export const HOME_APPS_SHOWN = 6;
 export const SETTINGS_REFRESH_INTERVAL_MS = 4000;
 export const PAGE_REFRESH_INTERVAL_MS = 8000;
 /** How often the clock is looked at (it is redrawn only when its minute changes). */
+export const POWER_INTERVAL_MS = 2000;
 export const CLOCK_INTERVAL_MS = 1000;
 /** The home page's animation stops after this long without a touch, a click or a key, and starts again at the next. */
 export const ANIMATION_PAUSE_AFTER_IDLE_SECONDS = 60;
@@ -86,6 +87,7 @@ export const COLOR_SEPARATOR: u32 = 0x2a2f3a;
 export const COLOR_TEXT_PRIMARY: u32 = 0xf2f4f8;
 export const COLOR_TEXT_SECONDARY: u32 = 0x98a1b0;
 export const COLOR_ACCENT: u32 = 0x5b8cff;
+export const COLOR_AMBER: u32 = 0xf5a524;
 export const COLOR_DANGER: u32 = 0xf0506e;
 export const COLOR_SUCCESS: u32 = 0x34c77b;
 export const COLOR_FOCUS_RING: u32 = 0x8fb3ff;

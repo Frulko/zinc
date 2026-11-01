@@ -41,11 +41,22 @@ player start 200 199
 status=$?
 [ $status = 10 ] || { echo "pi-image player: Start the app ended the player with $status, not 10: $(tail -3 "$tmp/start.out")"; fail=1; }
 
+# Run 3: the Pi reports under-voltage (a fake sysfs, ZINC_POWER_SYSFS): an amber bolt in the home bar (frame 150), a tap on it
+# opens Settings > System with the Power line and what to do (350)
+mkdir -p "$tmp/sys/class/hwmon/hwmon1"; echo rpi_volt > "$tmp/sys/class/hwmon/hwmon1/name"; echo 1 > "$tmp/sys/class/hwmon/hwmon1/in0_lcrit_alarm"
+tap 160 146 28 > "$tmp/power.input"
+ZINC_POWER_SYSFS="$tmp/sys" player power 400 150,350 || { echo "pi-image player: run 3 failed: $(tail -5 "$tmp/power.out")"; exit 1; }
+
 [ -n "$KEEP" ] && mkdir -p "$KEEP" && cp "$tmp"/*.png "$KEEP/"
 for shot in wifi-150:home wifi-350:pairing wifi-600:wifi wifi-900:password wifi-1200:joined crash-100:crash crash-250:home-app; do
   frame=${shot%%:*}; name=${shot##*:}
   [ "${ZN_UPDATE_GOLDEN:-0}" = 1 ] && mkdir -p "$golden" && cp "$tmp/$frame.png" "$golden/$name.png"
   tools/pngdiff "$tmp/$frame.png" "$golden/$name.png" --crop 0,56,800,424 > /dev/null || { echo "pi-image player: frame $frame differs from $golden/$name.png"; fail=1; }
+done
+for shot in power-150:power-bolt:125,5,50,45 power-350:power-system:210,56,590,424; do
+  frame=${shot%%:*}; rest=${shot#*:}; name=${rest%%:*}; crop=${rest#*:}
+  [ "${ZN_UPDATE_GOLDEN:-0}" = 1 ] && cp "$tmp/$frame.png" "$golden/$name.png"
+  tools/pngdiff "$tmp/$frame.png" "$golden/$name.png" --crop "$crop" > /dev/null || { echo "pi-image player: frame $frame differs from $golden/$name.png"; fail=1; }
 done
 [ $fail = 0 ] && echo "pi-image player: ok"
 exit $fail

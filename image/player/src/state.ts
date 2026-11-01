@@ -12,6 +12,7 @@ import * as shell from 'zinc:shell';
 import {
   BACKGROUND_THEMES,
   CLOCK_INTERVAL_MS,
+  POWER_INTERVAL_MS,
   CRASH_REPORT_FILE,
   DEFAULT_ADMIN_PATH,
   DEFAULT_APP_PATH,
@@ -35,6 +36,7 @@ import { CrashReport, deleteCrashReport, readCrashReport } from './services/cras
 import { PairingState, readPairingState } from './services/pairing';
 import { AdminResult, SystemStatus, parseStatus, runAdmin, statusFromOs } from './services/system';
 import { PlayerConfig, loadConfig, saveConfig } from './services/config';
+import { PowerState, findAlarm, readPower } from './services/power';
 import { UpdateStatus } from './services/updates';
 import { InstalledApp, appsSignature, deleteInstalledApp, readInstalledApps } from './services/apps';
 
@@ -93,6 +95,8 @@ class AppState {
   /** The app whose deletion waits for its confirmation. */
   appToDelete: InstalledApp | null = null;
   status: SystemStatus = new SystemStatus();
+  /** The Pi's under-voltage alarm (nothing on other machines). */
+  power: PowerState = new PowerState();
   network: network.NetworkStatus = new network.NetworkStatus();
   pairing: PairingState = new PairingState();
   networks: network.WifiNetwork[] = [];
@@ -244,6 +248,13 @@ export function startRefreshing(): void {
     // while the boot starts, the home page follows what it is doing at the settings' pace
     if (appState.page === PAGE_SETTINGS || appState.status.isStarting() || refreshTicks % (PAGE_REFRESH_INTERVAL_MS / SETTINGS_REFRESH_INTERVAL_MS) === 0) refreshSystem();
   }, SETTINGS_REFRESH_INTERVAL_MS);
+  appState.power.alarmPath = findAlarm(fromEnv('ZINC_POWER_SYSFS', '/sys'));
+  if (appState.power.isPresent()) {
+    readPower(appState.power);
+    setInterval(() => {
+      if (readPower(appState.power)) uiState.dirty = true;
+    }, POWER_INTERVAL_MS);
+  }
   setInterval(() => {
     const text = currentClockText();
     if (text !== appState.clockText) {

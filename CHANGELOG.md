@@ -12,6 +12,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 #### New
 
+- **New** A Raspberry Pi with a weak power supply tells you: an amber bolt appears in the top bar while the Pi reports under-voltage (tap it for what to do), and *Settings, System* has a *Power* line. A small background service (`zinc-power-guard`) also lowers the CPU clock while the supply is too weak and restores it a minute after the last alarm; turn it off with `ZINC_POWER_GUARD=0` in `/etc/zinc/session.conf`. `zinc-admin status` adds `power=`.
+- **New** The Pi keeps its logs across a power cut: the journal is stored on the card (40 MB at most) and written every 5 seconds, so `journalctl -b -1` shows what happened before the Pi lost power. Updates install this on existing Pis.
 - Screen rotation for the Pi: *Settings, Display* turns the whole screen (top bar, app and touch) by 0, 90, 180 or 270 degrees, the image builder has a *Rotation* choice, and `zinc-admin rotation <degrees>` or `ZINC_ROTATE` in `/etc/zinc/session.conf` does the same. Apps run without the shell turn too.
 
 #### Fixed

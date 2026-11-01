@@ -64,6 +64,7 @@
     {"paths": ["image/builder/", "image/catalog.json", "tests/t1/pi_image_builder.sh", "tests/t1/pi_image_builder_log.sh", "tests/data/pi-image/", "tests/golden/pi-image-builder/"], "tests": ["pi_image_builder", "pi_image_builder_presets", "pi_image_builder_steps", "pi_image_presets", "pi_image_builder_log"]},
     {"paths": ["lib/std/nuxt/controls.tsx", "tests/t0/pi_image_presets.sh", "tests/t1/pi_image_builder_presets.sh"], "tests": ["pi_image_builder_presets", "pi_image_presets"]},
     {"paths": ["image/files/", "image/build.sh", "image/scripts/", "image/check.sh", "tools/pi-image", "tests/data/pi-image/test_updates.py", "tests/t0/pi_image_update.sh", "tools/package"], "tests": ["pi_image_update", "pi_image_updates"]},
+    {"paths": ["image/files/usr/lib/zinc/zinc-power-guard", "image/files/etc/systemd/system/zinc-power-guard.service", "image/files/etc/systemd/journald.conf.d/zinc.conf", "tests/t0/pi_power_guard.sh"], "tests": ["pi_power_guard"]},
     {"paths": ["image/files/usr/lib/zinc/zinc-session", "tests/t0/pi_session_agent.sh"], "tests": ["pi_session_agent"]},
     {"paths": ["image/files/usr/lib/zinc/zinc-session", "tests/t0/pi_session_shell.sh"], "tests": ["pi_session_shell"]},
     {"paths": ["image/files/usr/lib/zinc/zinc-admin", "tests/t0/pi_admin_rotation.sh"], "tests": ["pi_admin_rotation"]},

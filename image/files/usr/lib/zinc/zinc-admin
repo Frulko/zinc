@@ -5,7 +5,8 @@
 # The network itself (interfaces, addresses, the Wi-Fi networks, joining one) is zinc:network's (plugins/network), which
 # drives NetworkManager as the zinc user (/etc/polkit-1/rules.d/50-zinc-network.rules allows it).
 #   status                 key=value lines: hostname, model, os, kernel, uptime (minutes), temperature (degrees C),
-#                          memory and disk (available and total MiB), ssh and agent (on/off), country (Wi-Fi)
+#                          memory and disk (available and total MiB), ssh and agent (on/off), country (Wi-Fi), power (ok or
+#                          undervoltage; absent without the Pi's rpi_volt sensor), boot (systemd's state)
 #   wifi-country <CC>      the Wi-Fi country (two capital letters)
 #   ssh on|off             SSH now and at boot
 #   agent on|off           the Zinc agent now and at boot
@@ -90,6 +91,11 @@ PY_IDENTITY
     country=$(iw reg get 2>/dev/null | awk '/^country/ { sub(":", "", $2); print $2; exit }')
     [ "$country" = 00 ] && country=
     echo "country=$country"
+    for h in "${ZINC_POWER_SYSFS:-/sys}"/class/hwmon/hwmon*; do
+      if [ "$(cat "$h/name" 2>/dev/null)" = rpi_volt ] && v=$(cat "$h/in0_lcrit_alarm" 2>/dev/null); then
+        [ "$v" = 1 ] && echo "power=undervoltage" || echo "power=ok"
+      fi
+    done
     # the boot: "starting" with the job systemd runs (the home page says it), then "running" or "degraded"
     boot=$(systemctl is-system-running 2>/dev/null)
     echo "boot=$boot"

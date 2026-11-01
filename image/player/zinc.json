@@ -8,7 +8,7 @@
     "settings", "wifi", "wifi-off", "wifi-high", "wifi-low", "wifi-zero", "ethernet-port", "lock", "chevron-left",
     "refresh-cw", "play", "rotate-ccw", "house", "delete", "arrow-big-up", "keyboard-off", "eye", "eye-off", "laptop",
     "palette", "monitor", "cpu", "power", "triangle-alert", "circle-check", "download",
-    "app-window", "plus", "x", "trash", "pencil", "check"
+    "app-window", "plus", "x", "trash", "pencil", "check", "zap"
   ],
   "targets": {
     "linux": { "resize": "fill", "fullscreen": true },
