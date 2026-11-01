@@ -8,6 +8,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Apps and examples
+#### Faster
+- Musique (arbre) no longer stalls while you touch it: covers and pages are prepared in the background only after a quiet second or two, one at a time, and the slide you swipe to is remembered a moment later instead of in the frame of the gesture.
+
 ## [0.10.16] - 2026-11-01
 
 ### Raspberry Pi and the shell
@@ -25,7 +29,6 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Apps and examples
 #### Faster
 - The Musique (arbre) player slides and turns pages with about half the work on a Raspberry Pi 3: the blurred cover background and the covers are prepared once at their shown size instead of being scaled at every frame, and the pages are no longer prepared in the background twelve at a time.
-- Musique (arbre) no longer stalls while you touch it: covers and pages are prepared in the background only after a quiet second or two, one at a time, and the slide you swipe to is remembered a moment later instead of in the frame of the gesture.
 #### Fixed
 - The Musique (arbre) player fits the 7-inch Raspberry Pi screen under the shell: the volume bar is no longer cut at the bottom edge and the page no longer scrolls, the cover is a little larger, the times and the album line are easier to read, and the previous and next buttons light up when pressed.
 
