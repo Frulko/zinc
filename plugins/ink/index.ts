@@ -345,3 +345,7 @@ export function InkCanvas(props: InkProps): i32 {
   ui.draw(n, (x: i32, y: i32, w: i32, h: i32) => { ink.draw(x, y, w, h); });
   return n;
 }
+
+// Recognition (docs/plugins/ink.md): grouping the strokes of one mark, and the matcher that names it.
+export * from './group';
+export * from './matcher';

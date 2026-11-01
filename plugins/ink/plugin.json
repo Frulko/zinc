@@ -3,6 +3,6 @@
   "kind": "module",
   "module": "zinc:ink",
   "entry": "index.ts",
-  "description": "Handwriting surface: pressure strokes, eraser, undo, JSON/SVG export",
+  "description": "Handwriting surface (pressure strokes, writing tools, erasers, undo, JSON/SVG export) and a local recogniser for letters, circles, crosses and ticks (point-cloud matcher in C++, no cloud)",
   "targets": { "macos": {}, "linux": {}, "windows": {}, "rpi1": {}, "wasm": {}, "rmpp": {} }
 }

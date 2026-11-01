@@ -23,6 +23,7 @@ host=examples/native-module/native/sensor.host.cpp
 printf '#include "zinc_native_sensor_abi.h"\n' > "$tmp/c.c"
 cc -std=c99 -Wall -Wextra -Werror -pedantic -fsyntax-only -I include -I "$tmp" "$tmp/c.c" || { echo "the C header does not compile"; fail=1; }
 "$ZINC" native-gen --c plugins/script/native/quickjs.spec.ts "$tmp" >/dev/null 2>&1 && { echo "a spec with callbacks got a C header"; fail=1; }
+"$ZINC" native-gen --c plugins/ink/native/ink.spec.ts "$tmp" >/dev/null 2>&1 && grep -q '"matchAsync", "DIs>Ps"' "$tmp/zinc_native_ink_abi.h" || { echo "the C export of a Promise<string> has no result type (DIs>Ps)"; fail=1; }
 "$ZINC" native-gen --thunk plugins/sqlite/native/sqlite.spec.ts "$tmp" >/dev/null 2>&1 && grep -q "zn_module_Sqlite" "$tmp/zinc_native_sqlite_thunk.cpp" || { echo "no thunk for the sqlite spec"; fail=1; }
 "$ZINC" native-gen --thunk plugins/script/native/quickjs.spec.ts "$tmp" >/dev/null 2>&1 && { echo "a spec with unknown members got a thunk"; fail=1; }
 # the phone glue (ZN-628): the Java interface and JNI bridge, the Objective-C and Swift protocols and the Objective-C++ bridge of the fixture's spec

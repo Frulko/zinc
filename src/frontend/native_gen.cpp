@@ -567,7 +567,7 @@ bool generateNative(const std::string& specFile, const std::string& text, Native
       }
       if (cOk) {
         cdecl += "int32_t zn_" + lower + "_" + mname + "(void* self, ZnCtx* cx, const ZnVal* args, ZnVal* ret);\n";
-        ctable += std::string(ctable.empty() ? "" : ",\n") + "  {\"" + mname + "\", \"" + sig + ">" + rl + "\", zn_" + lower + "_" + mname + ", 0}";
+        ctable += std::string(ctable.empty() ? "" : ",\n") + "  {\"" + mname + "\", \"" + sig + ">" + rl + (rl == 'P' ? std::string(1, promiseOf) : std::string()) + "\", zn_" + lower + "_" + mname + ", 0}";
       } else if (cfail.empty()) cfail = "member '" + mname + "' uses a type the C ABI cannot carry yet (include/zn/native_sig.h)";
     } else if (m.kind == N::Field) {
       std::string t = g.cpp(m.kids.empty() ? kNone : m.kids[0]);
