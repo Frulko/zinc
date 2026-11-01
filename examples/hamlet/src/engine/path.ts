@@ -8,8 +8,8 @@ export function isWalkable(t: number): boolean {
   return world.terrain[t] === TERRAIN_GRASS && world.tree[t] === 0 && world.rock[t] === 0 && world.build[t] < 0;
 }
 
-/** Cheapest walking cost from start to every tile (roads are cheaper than grass). A binary heap on (cost, tile): ties go to the lowest tile, as the plain scan it replaced did, so paths do not change. */
-export function fieldFrom(start: number): Field {
+/** Cheapest walking cost from start to every tile (roads are cheaper than grass). `limit` stops the search at that cost (a wild animal looks a few tiles around, not the whole map). A binary heap on (cost, tile): ties go to the lowest tile, as the plain scan it replaced did, so paths do not change. */
+export function fieldFrom(start: number, limit: number = UNREACHABLE): Field {
   const n = world.size * world.size;
   const dist = Array.from({ length: n }, (): number => UNREACHABLE);
   const prev = Array.from({ length: n }, (): number => -1);
@@ -41,7 +41,7 @@ export function fieldFrom(start: number): Field {
       const v = neighbor(u, d);
       if (v < 0 || !isWalkable(v)) continue;
       const cost = dist[u] + (world.road[v] ? ROAD_COST : 1);
-      if (cost < dist[v]) { dist[v] = cost; prev[v] = u; push(cost, v); }
+      if (cost < dist[v] && cost <= limit) { dist[v] = cost; prev[v] = u; push(cost, v); }
     }
   }
   return { dist, prev };

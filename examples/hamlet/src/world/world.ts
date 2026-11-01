@@ -39,6 +39,7 @@ export class Command { tick: number = 0; kind: string = ''; a: number = 0; b: nu
 export class Deer extends Mover {
   state: number = 0; timer: number = 0; hunted: boolean = false; stag: boolean = false;
   id: number = 0; species: number = 0; age: number = 0; leader: number = -1; thirst: number = 0; moves: number = 0; errand: number = 0; cooldown: number = 0; threatX: number = 0; threatY: number = 0;
+  hx: number = 1; hy: number = 0; speed: number = 0; stuck: number = 0; home: number = -1; tx: number = 0; ty: number = 0;   // steering (engine/deer.ts): unit heading, current speed, seconds blocked, home tile (-1: not set yet), the herd or escape goal
 }
 
 /** The whole game state: plain data, no drawing, no side effect at import. */
@@ -138,13 +139,25 @@ export function isOpen(t: number): boolean {
   return world.terrain[t] === TERRAIN_GRASS && world.tree[t] === 0 && world.rock[t] === 0 && world.build[t] < 0 && world.road[t] === 0;
 }
 
-export function spawnDeer(t: number): Deer {
+/** Trees in the 3 x 3 around a tile. */
+export function treesAround(t: number): number {
+  let n = 0; const i = tileI(t), j = tileJ(t);
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    const a = i + di, b = j + dj;
+    if (a >= 0 && b >= 0 && a < world.size && b < world.size && world.tree[b * world.size + a] !== 0) n++;
+  }
+  return n;
+}
+
+export function spawnDeer(t: number, species: number = 0): Deer {
   let slot = -1;
   for (let k = 0; k < world.deer.length; k++) if (world.deer[k].state === DEER_GONE) { slot = k; break; }
-  const deer = new Deer();
+  const deer = new Deer(), sp = SPECIES[species];
   deer.x = tileX(t); deer.y = tileY(t); deer.yaw = random() * 6.28; deer.phase = random() * 6;
-  deer.state = DEER_GRAZE; deer.timer = 1 + random() * 3; deer.stag = random() < .4;
-  deer.id = world.deerSeq++; deer.age = SPECIES[0].adultDays + Math.floor(random() * SPECIES[0].lifeDays / 2); deer.thirst = random() * SPECIES[0].drinkEvery;
+  deer.state = DEER_GRAZE; deer.timer = 1 + random() * 3; deer.stag = random() < .4; deer.species = species;
+  deer.id = world.deerSeq++; deer.age = sp.adultDays + Math.floor(random() * sp.lifeDays / 2); deer.thirst = random() * sp.drinkEvery;
+  const hx = random() - .5, hy = random() - .5 + .01, hl = Math.sqrt(hx * hx + hy * hy);
+  deer.hx = hx / hl; deer.hy = hy / hl; deer.yaw = Math.atan2(deer.hy, deer.hx);
   if (slot < 0) world.deer.push(deer); else world.deer[slot] = deer;
   return deer;
 }
@@ -185,6 +198,14 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
     }
   }
   world.revision++;
+  for (let sp = 1; sp < SPECIES.length; sp++) {                 // the smaller wild species: rabbits on open ground, boar by the trees
+    for (let n = 0; n < Math.round(SPECIES[sp].start * size * size / REFERENCE_AREA); n++) {
+      for (let tries = 0; tries < 40; tries++) {
+        const t = Math.floor(random() * size * size);
+        if (isOpen(t) && tileI(t) > 3 && (SPECIES[sp].kind !== 2 || treesAround(t) >= 2)) { spawnDeer(t, sp); break; }
+      }
+    }
+  }
 }
 
 /** Scatters the active deposits of the economy over the terrain (gen/deposits.ts): each lands in world.rock as ROCK_DEPOSIT + its kind, with its amount in world.lode. */

@@ -131,6 +131,7 @@ export const DEER_DRINK = 6;            // at the water's edge
 export const DEER_ALERT = 7;            // head up, frozen: someone is near (a hunter being stalked stands here until the shot)
 
 // ---- save ----
+export const DEER_CHARGE = 8;           // a cornered boar runs at the person, a moment before it runs away
 export const SAVE_KEY = 'hamlet:save';
 export const SAVE_VERSION = 'H18';
 export const SAVE_DELAY = 2;            // seconds between two writes

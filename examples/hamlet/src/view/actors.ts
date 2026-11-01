@@ -7,6 +7,7 @@ import { sleepsIndoors } from '../engine/routine';
 import { Person, Deer } from '../world/world';
 import { SPECIES } from '../rules/species';
 import { isMoving } from '../engine/path';
+import { beastEntries, drawBeast } from './beasts';
 import { SETTLER_PALETTE, RESIDENT_PALETTE, LUMBERJACK_PALETTE, HUNTER_PALETTE, FISHER_PALETTE, SAWYER_PALETTE, SMOKER_PALETTE, PORTER_PALETTE, FARMER_PALETTE, MILLER_PALETTE, BAKER_PALETTE, VENDOR_PALETTE, TANNER_PALETTE, QUARRYMAN_PALETTE, PEDDLER_PALETTE, FORAGER_PALETTE, SMITH_PALETTE, BEEKEEPER_PALETTE, CHANDLER_PALETTE, BREWER_PALETTE, INNKEEPER_PALETTE, FIREWARDEN_PALETTE, REPAIRMAN_PALETTE, WATCHMAN_PALETTE, HAIR_TONES, FUR, FUR_DARK, FUR_LIGHT, BARK } from '../palettes';
 
 const SCALE = .62;
@@ -150,9 +151,9 @@ function personEntry(): AtlasEntry {
     paintFigure(x, y, a.yaw8 * TAU / YAW_STEPS, Math.floor(a.variant / HAIRS), a.variant % HAIRS, lookOfSlot(Math.floor(a.variant / HAIRS), a.pose), solidBone);
   } };
 }
-const ACTOR_DEF_VERSION = 2;
+const ACTOR_DEF_VERSION = 3;
 export function actorAtlas(): Atlas {
-  const def: AtlasDef = { version: ACTOR_DEF_VERSION, season: 0, entries: [personEntry(), deerEntry()] };
+  const def: AtlasDef = { version: ACTOR_DEF_VERSION, season: 0, entries: [personEntry(), deerEntry(), ...beastEntries()] };
   const key = headerKey(headerOf(def));
   const have = actorAtlases.get(key);
   if (have !== undefined) return have;
@@ -240,6 +241,7 @@ export function drawDeer(d: Deer, time: number, atlas: Atlas | null): void {
   if (d.state === DEER_GONE) return;
   const dead = d.state === DEER_DEAD, flee = d.state === DEER_FLEE, grazing = d.state === DEER_GRAZE || d.state === DEER_DRINK;
   const mode = dead ? DM_DEAD : flee ? DM_FLEE : !grazing && d.path.length > 0 ? DM_WALK : DM_STILL;
+  if (d.species !== 0) { drawBeast(d, time, atlas); return; }
   const head = grazing ? Math.max(0, Math.sin(time * .7 + d.phase)) * GRAZE_HEAD : 0;     // now and then the head goes down to the grass
   const fawn = d.age < SPECIES[d.species].adultDays;      // a young deer is drawn smaller
   if (atlas === null) paintDeer(d.x, d.y, d.yaw, d.stag, mode, d.phase, head, fawn);

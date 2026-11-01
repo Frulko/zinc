@@ -244,7 +244,7 @@ function nearestGame(p: Person): boolean {
   let best = -1, bestCost = WORK_RADIUS, bestBody = false;
   for (let k = 0; k < world.deer.length; k++) {
     const d = world.deer[k];
-    if (d.hunted || d.state === DEER_GONE) continue;
+    if (d.hunted || d.state === DEER_GONE || d.species !== 0) continue;   // only the deer are game
     const t = tileAt(d.x, d.y);
     if (t < 0) continue;
     const ap = approachTile(field, t);

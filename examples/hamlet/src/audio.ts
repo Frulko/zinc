@@ -117,7 +117,7 @@ function loopOf(kind: string): Sound {
 }
 
 const ALIAS = new Map<string, string>([['wood', 'place'], ['soft', 'erase'], ['point', 'coin'], ['throw', 'bow'], ['delivered', 'coin'], ['cheer', 'coin'], ['land', 'coin'],
-  ['whoosh', 'bow'], ['jump', 'bow'], ['rain', 'splash'], ['reel', 'tick'], ['line', 'bow'], ['milestone', 'fanfare'], ['settlers', 'horn'], ['warn', 'notify'], ['urgent', 'alarm']]);
+  ['whoosh', 'bow'], ['jump', 'bow'], ['rain', 'splash'], ['reel', 'tick'], ['line', 'bow'], ['milestone', 'fanfare'], ['settlers', 'horn'], ['warn', 'notify'], ['urgent', 'alarm'], ['hoof', 'tick'], ['rustle', 'wind']]);
 
 /** Plays an effect at `amount` (0..1); `pan` is -1..1. Unknown kinds are ignored. Pitch and volume change a little each time. */
 export function sound(kind: string, amount: number = .6, pan: number = 0): void {

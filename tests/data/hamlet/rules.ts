@@ -1,5 +1,5 @@
 // Headless rules of the hamlet: roads, arrivals, jobs, wood, meat, demolition and the save round trip. No window.
-import { world, generate, tileIndex, tileI, tileJ, isOpen, waterNeighbor, neighbor } from '../../../examples/hamlet/src/world/world';
+import { world, generate, tileIndex, tileI, tileJ, tileAt, isOpen, waterNeighbor, neighbor } from '../../../examples/hamlet/src/world/world';
 import { applyTool, checkTool, addBuilding } from '../../../examples/hamlet/src/rules/build';
 import { fxQueue, FX_FELL, FX_LEAVES } from '../../../examples/hamlet/src/world/fx';
 import { stepWorld } from '../../../examples/hamlet/src/engine/simulate';
@@ -38,6 +38,7 @@ import { litBonus } from '../../../examples/hamlet/src/rules/housing';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
 import { dailyAnimals } from '../../../examples/hamlet/src/engine/deer';
 import { dailyMood } from '../../../examples/hamlet/src/engine/mood';
+import { isWalkable } from '../../../examples/hamlet/src/engine/path';
 import { SPECIES } from '../../../examples/hamlet/src/rules/species';
 import { Deer } from '../../../examples/hamlet/src/world/world';
 import { personTarget, feelFrom, thoughtOf, workPace, arrivalFactor, leavingToday, FEEL_ANGRY, FEEL_HOMELESS, FEEL_HUNGRY, FEEL_TIRED, FEEL_JOBLESS, FEEL_CONTENT } from '../../../examples/hamlet/src/rules/needs';
@@ -547,19 +548,19 @@ let drank = !world.hasWater;
 for (let k = 0; k < 40 * 32 && !drank; k++) { stepWorld(); if (d0.state === DEER_DRINK) drank = true; world.tick = world.tick % 300; }
 check('a thirsty deer walks to the water and drinks', drank);
 { // breeding
-  const herd = world.deer.filter((d) => d.state !== DEER_GONE);
+  const herd = world.deer.filter((d) => d.state !== DEER_GONE && d.species === 0);
   herd.forEach((d, i) => { d.stag = i === 0; d.age = 20; d.cooldown = 0; d.x = herd[0].x; d.y = herd[0].y; });
   world.tick = 1;
-  const before = world.deer.filter((d) => d.state !== DEER_GONE).length;
+  const before = world.deer.filter((d) => d.state !== DEER_GONE && d.species === 0).length;
   for (let day = 0; day < 40; day++) dailyAnimals();
-  const after = world.deer.filter((d) => d.state !== DEER_GONE).length, cap = Math.round(SPECIES[0].perArea * world.size * world.size / 144);
+  const after = world.deer.filter((d) => d.state !== DEER_GONE && d.species === 0).length, cap = Math.round(SPECIES[0].perArea * world.size * world.size / 144);
   check('does breed in season, fawns follow the herd, up to the cap of the area', after > before && after <= cap && world.deer.some((d) => d.age === 0 || d.leader >= 0));
-  for (const d of world.deer) { d.age = 5; d.cooldown = 0; }
+  for (const d of world.deer.filter((q) => q.species === 0)) { d.age = 5; d.cooldown = 0; }
   world.tick = Math.floor(DAY_TICKS * 9 * 3 * 1.5);                    // a winter day: no breeding
-  const winter = world.deer.filter((d) => d.state !== DEER_GONE).length;
+  const winter = world.deer.filter((d) => d.state !== DEER_GONE && d.species === 0).length;
   for (let day = 0; day < 10; day++) dailyAnimals();
-  check('nothing breeds out of season', world.deer.filter((d) => d.state !== DEER_GONE).length <= winter);
-  for (const d of world.deer) d.age = SPECIES[0].lifeDays + 30;
+  check('nothing breeds out of season', world.deer.filter((d) => d.state !== DEER_GONE && d.species === 0).length <= winter);
+  for (const d of world.deer) d.age = SPECIES[d.species].lifeDays + 30;
   for (let day = 0; day < 30; day++) dailyAnimals();
   check('deer die of old age', world.deer.every((d) => d.state === DEER_GONE || d.state === DEER_DEAD));
 }
@@ -571,6 +572,48 @@ const hA = addBuilding(HOUSE, at(2, 7)), hB = addBuilding(HOUSE, at(4, 7));
 for (const h of [hA, hB]) { for (let n = 0; n < 4; n++) createResident(h); world.buildings[h].residents = 4; world.buildings[h].timer = 1e9; }
 dailyMood();
 check('people without a workplace anywhere are not jobless', world.jobless === 0 && world.people.every((p) => p.feel !== FEEL_JOBLESS));
+// ---- animal movement: never on a blocked tile, herds hold together, running is faster than walking, the heading turns at a limit ----
+{
+  const live = (): Deer[] => world.deer.filter((d) => d.state !== DEER_GONE && d.state !== DEER_DEAD);
+  let bad = 0, samples = 0, snap = 0, maxTurn = 0, inRange = 0, followers = 0, species = 0, panicBuilt = 0;
+  const walkable = (d: Deer): boolean => { const t = tileAt(d.x, d.y); return t >= 0 && isWalkable(t); };
+  const cases: number[][] = [[4242, 16, 0], [31, 24, 1], [7777, 32, 2], [90210, 24, 3]];
+  for (const c of cases) {
+    generate(c[0], c[1], PRESETS[c[2] % PRESETS.length].params); world.people = []; world.progression = false; world.tick = 0;
+    species += [0, 1, 2].filter((sp) => live().some((d) => d.species === sp)).length;
+    for (let k = 0; k < 3; k++) for (const d of live()) { d.leader = -1; }
+    for (let day = 0; day < 3; day++) dailyAnimals();
+    const last = new Map<number, number>();
+    for (let k = 0; k < 2000; k++) {
+      stepWorld();
+      if (k === 800) { const d = live()[0]; for (let dir = 0; dir < 4 && d !== undefined; dir++) { const v = neighbor(tileAt(d.x, d.y), dir); if (v >= 0 && isOpen(v)) { addBuilding(HOUSE, v); break; } } }
+      if (k % 4 === 0) for (const d of live()) {
+        samples++; if (k !== 800 && !walkable(d)) bad++;   // (a house built over an animal moves it out on the next tick)
+        const before = last.get(d.id);
+        const yaw = Math.atan2(d.hy, d.hx);
+        if (before !== undefined) { let dy = Math.abs(yaw - before); if (dy > Math.PI) dy = 2 * Math.PI - dy; if (dy > maxTurn && d.speed > 0) maxTurn = dy; }
+        last.set(d.id, yaw);
+      }
+    }
+    snap += live().length;
+    for (const d of live()) if (d.leader >= 0) { const l = world.deer.filter((o) => o.id === d.leader && o.state !== DEER_GONE)[0]; if (l !== undefined) { followers++; if (Math.abs(l.x - d.x) + Math.abs(l.y - d.y) < 36) inRange++; } }
+  }
+  check('no animal is ever on a water, tree, rock or building tile (' + samples + ' samples, ' + snap + ' alive at the end)', bad === 0 && samples > 1000);
+  check('rabbits and boar live next to the deer', species >= cases.length * 2);
+  check('the heading never snaps (at most ' + maxTurn.toFixed(2) + ' rad in 4 ticks)', maxTurn < 2.6);
+  check('herds stay near their leader (' + inRange + ' of ' + followers + ')', followers === 0 || inRange >= followers * .8);
+  check('running is faster than walking, for every species', SPECIES.every((sp) => sp.flee > sp.walk * 1.5));
+  generate(4242, 16); world.people = [];
+  const house = addBuilding(HOUSE, at(2, 7)); createResident(house);
+  const w = world.people[0]; w.state = ST_SLEEP + 100;
+  const run0 = world.deer.filter((d) => d.species === 0)[0];
+  run0.state = DEER_GRAZE; run0.timer = 1e6; run0.path = []; run0.step = 0; run0.hunted = false; run0.leader = -1; w.x = run0.x + 2.5; w.y = run0.y; world.tick = 0;
+  let top = 0;
+  for (let k = 0; k < 40; k++) { stepWorld(); if (run0.speed > top) top = run0.speed; }
+  check('a deer ramps up to a run (' + top.toFixed(2) + ' units/s, walking is ' + SPECIES[0].walk + ')', top > SPECIES[0].walk * 2);
+  const hashes = live().map((d) => Math.round(d.x * 1000) * 31 + Math.round(d.y * 1000)).reduce((h, v) => (h * 31 + v) | 0, 7);
+  console.log('hamlet rules: animalhash ' + (hashes >>> 0) + ':' + live().length);
+}
 applyTool(toolOf('lumberhut'), at(3, 9)); run(4);
 dailyMood();
 check('with workplaces filled, the rest are jobless: 8 people, 4 posts (2 cutters, 2 porters)', world.jobless === 50 && world.people.filter((p) => p.feel === FEEL_JOBLESS).length === 4);

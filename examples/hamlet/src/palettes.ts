@@ -41,6 +41,8 @@ export const TERRACOTTA = [176, 104, 76];
 export const FUR = [158, 112, 72];
 export const FUR_DARK = [120, 84, 56];
 export const FUR_LIGHT = [214, 190, 150];
+export const RABBIT_FUR = [176, 150, 120], RABBIT_DARK = [112, 92, 72], RABBIT_LIGHT = [234, 226, 210];
+export const BOAR_FUR = [92, 70, 56], BOAR_DARK = [56, 42, 36], BOAR_LIGHT = [220, 206, 176];
 
 // HUD (screen space)
 export const HUD_INK = 0x514b3e;
