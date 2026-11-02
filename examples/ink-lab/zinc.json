@@ -1,6 +1,7 @@
 {
   "name": "ink-lab",
   "entry": "src/main.tsx",
+  "update": { "url": "http://10.11.99.2:8787/", "publicKey": "89516989c958b0b7ab43d8e42185845b2bf167df58bb9c5d0d2fd7b21437e1ef" },
   "app": {
     "name": "Ink Lab",
     "id": "dev.zinc.inklab",
