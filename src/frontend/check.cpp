@@ -1619,7 +1619,7 @@ struct Checker {
         if (args.size() < 3) pad("2147483647");
         result = at;
         sig = "(a: " + A + ", x: " + Es + ", start: i32, end: i32): " + A;
-        body = "  let s: i32 = start < 0 ? a.length + start : start;\n  if (s < 0) s = 0;\n  let e: i32 = end < 0 ? a.length + end : end;\n  if (e > a.length) e = a.length;\n  for (let k: i32 = s; k < e; k++) a[k] = x;\n  return a;\n";
+        body = "  let s: i32 = start < 0 ? a.length + start : start;\n  if (s < 0) s = 0;\n  let e: i32 = end < 0 ? a.length + end : end;\n  if (e > a.length) e = a.length;\n  if (s < e) a.__fill(x, s, e);\n  return a;\n";
       }
     } else if (fold) {
       TypeId want = kNoType;  // an empty array literal takes the type its callback annotates for the accumulator

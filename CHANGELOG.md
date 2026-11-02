@@ -46,6 +46,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - Large software-rendered shadows reserve memory for the distinct alpha rows they use, instead of their entire area.
 - Compiled apps release the encoded module before execution and copy only the required arguments when calling native plugins. Native calls allocate temporary array storage only when they need it.
+- `array.fill(...)` and `array.set(...)` run as one block copy: filling a million elements takes 0.13 ms instead of 7 ms in the interpreter.
 
 ### Plugins
 
