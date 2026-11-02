@@ -127,13 +127,13 @@ export function planPath(m: Mover, goal: number, escape: number = ESCAPE, limit:
 }
 
 // The search budget: a big village asks for many searches, and a goal nobody can reach explores the whole network (20 000 tiles at size 256: 35 ms). Each tile a walker's search looks at is
-// owed; PATH_TILES_PER_TICK are paid off every tick, and while anything is owed the optional searches (a stroll, a visit, a porter looking for a load: pathBusy) wait; a trip that must be planned always is. The average cost per tick is bounded and a hitch is never more than one search;
-// a village whose searches are small never owes anything.
+// owed; PATH_TILES_PER_TICK are paid off every tick, and while more than one tick's budget is owed the optional searches (a stroll, a visit, a porter looking for a load: pathBusy) wait; a trip that must be planned always is. The average cost per tick is bounded and a hitch is never more than one search;
+// a village whose searches fit one budget (a 24-tile one: never above ~100 tiles owed) is never held back: the bot's village asks 995 times and waits 0.
 const PATH_TILES_PER_TICK = 6000;
 let debt = 0;
 export function payPathDebt(): void { debt = Math.max(0, debt - PATH_TILES_PER_TICK); }
 /** True while the walkers' searches of the last ticks are still owed: a caller that is about to start a big one (a porter looking for a load) waits for the next tick instead. */
-export function pathBusy(): boolean { return debt > 0; }
+export function pathBusy(): boolean { return debt > PATH_TILES_PER_TICK; }
 /** Books the tiles the last search looked at (planPath does it itself; the transport searches call it). */
 export function owePath(): void { debt += shared.count; }
 export function isMoving(m: Mover): boolean { return m.step < m.path.length; }
