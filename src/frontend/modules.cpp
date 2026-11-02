@@ -2782,6 +2782,7 @@ let __ids: i32 = 0;
 const __loopMode: i32 = __host_loopReal();   // bit 0: a real clock; bit 1: an app shell steps the program (zn_app_iterate, ZN-620)
 const __real: boolean = (__loopMode & 1) !== 0;
 const __appMode: boolean = (__loopMode & 2) !== 0;
+const __clockTick: f64 = (__loopMode >> 2) / 1000;   // ZINC_CLOCK_TICK (ms): a virtual clock moves by this much at each performance.now() read, so a time-sliced job meets its deadline inside one frame, the same on every run
 const __epoch: f64 = __real ? __host_loopEpoch() : 0;
 function __now(): f64 { if (__real) __clock = __host_loopNow(); return __clock; }
 function __addTimer(f: () => void, ms: f64, every: f64): i32 {
@@ -3157,7 +3158,7 @@ class Performance {
   timeOrigin: f64 = __epoch;
   markNames: string[] = [];
   markTimes: f64[] = [];
-  now(): f64 { return __now(); }
+  now(): f64 { if (!__real && __clockTick > 0) __clock += __clockTick; return __now(); }
   mark(name: string): f64 { const t = __now(); this.markNames.push(name); this.markTimes.push(t); return t; }
   // the time between two marks (the end defaults to now): the duration of the measure, 0 when a mark is unknown
   measure(name: string, startMark: string = '', endMark: string = ''): f64 {

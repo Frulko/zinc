@@ -120,6 +120,7 @@
     {"paths": ["src/rt/machine.cpp", "src/rt/rtcalls.cpp", "runtime/zrt.cpp", "tests/t0/str_surrogate_join.sh"], "tests": ["str_surrogate_join", "str_invalid_utf8"]},
     {"paths": ["src/rt/worker.cpp", "src/rt/worker.h", "lib/std/worker.ts", "src/zbc/", "tests/data/worker_basic/", "tests/data/worker_draw/", "tests/t0/worker_basic.sh"], "tests": ["worker_basic"]},
     {"paths": ["src/rt/worker.cpp", "lib/std/worker.ts", "include/zn/rec.h", "tests/data/worker_wire/", "tests/t0/worker_wire.sh"], "tests": ["worker_wire"]},
+    {"paths": ["src/host/sys_host.cpp", "src/qjs/prelude.cpp", "src/qjs/qjs.cpp", "src/frontend/modules.cpp", "tests/data/clock_tick/", "tests/t0/clock_tick.sh"], "tests": ["clock_tick"]},
     {"paths": ["src/zbc/emit.cpp", "tests/t0/register_limit.sh"], "tests": ["register_limit"]},
     {"paths": ["src/rt/worker.cpp", "lib/std/worker.ts", "src/frontend/check.cpp", "tests/data/worker_typed/", "tests/t0/worker_typed.sh"], "tests": ["worker_typed"]},
     {"paths": ["src/frontend/modules.cpp", "src/frontend/parser.cpp", "src/frontend/check.cpp", "src/main.cpp", "tests/data/import_type/", "tests/t0/import_type.sh"], "tests": ["import_type"]},

@@ -760,7 +760,8 @@ bool context(Engine& e, const std::string& mainDir) {
     const std::string caps = capsJson(e.stdRoot + "/../../targets/capabilities.json");
     const std::string defs = "globalThis.__ZINC_ENGINE__ = 'quickjs'; globalThis.__ZINC_CAPS__ = " + caps +
                              "; globalThis.__ZINC_TARGET__ = __ZINC_CAPS__.TARGET; globalThis.__ZINC_PROFILE__ = __ZINC_CAPS__.PROFILE;" +
-                             "globalThis.__zincWallBase = " + std::to_string(wallBaseMs()) + ";";
+                             "globalThis.__zincWallBase = " + std::to_string(wallBaseMs()) + ";" +
+                             "globalThis.__zincClockTick = " + std::to_string(std::getenv("ZINC_DETERMINISTIC") && std::getenv("ZINC_CLOCK_TICK") ? std::atof(std::getenv("ZINC_CLOCK_TICK")) : 0.0) + ";";
     JS_FreeValue(e.ctx, JS_Eval(e.ctx, defs.data(), defs.size(), "<defines>", JS_EVAL_TYPE_GLOBAL));
   }
   return true;

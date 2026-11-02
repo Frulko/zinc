@@ -63,6 +63,8 @@ ZINC_DETERMINISTIC=1 zinc run myapp --native > got.out
 diff -u expected.out got.out            # empty diff = behaviour matches
 ```
 
+The deterministic clock moves by 1/60 s at each frame of a program that draws, and by the next timer otherwise; inside one frame it is frozen, so a time-sliced job (`while (performance.now() < deadline)`) runs whole. `ZINC_CLOCK_TICK=<ms>` (for example `0.01`) moves it by that many milliseconds at each `performance.now()` read instead, the same on every run and every engine, so a slice ends after a fixed number of reads and a test can observe the slicing.
+
 For a UI app, bound the run with `ZINC_FRAMES`, drive it with the `ui` test hooks or a [recorded tape](#record-and-replay),
 then compare frames ([`zinc capture`](#captures)) or the inspector `dump()`. To try a program on a device you do not have,
 `zinc run --simulate <device>` runs it with that device's screen, battery, sensors and keys (the devices are in `devices/`).

@@ -42,6 +42,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Performance
 
+#### New
+
+- `ZINC_CLOCK_TICK=<ms>` makes the deterministic clock move at each `performance.now()` read, so tests can observe time-sliced work.
+
 #### Fixed
 
 - A function with more than 256 live values now fails with a message that names the function and says how to split it.
