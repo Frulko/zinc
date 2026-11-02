@@ -1,6 +1,6 @@
 {
  "version": 2,
- "generator": 2930064775,
+ "generator": 2869229903,
  "note": "Made by the export of src/cite/atlas.ts (ASSETS.md). Sizes and places are in 1x pixels; the 2x sheets hold every cell at twice the size, lit again at twice the scale. A group is a grid of w x h cells with 1 pixel between cells: a row a direction (or a season), a column a frame. anchor: the foot of the sprite in a cell. generator: a hash of the drawing code and its light; when it differs from the build the sheets are stale and the sprites are baked from the generators instead.",
  "sheets": [
   {
@@ -31,7 +31,7 @@
   {
    "name": "buildings",
    "w": 1024,
-   "h": 118
+   "h": 176
   },
   {
    "name": "people",
@@ -840,10 +840,48 @@
    ]
   },
   {
+   "name": "building/chapel",
+   "generator": "view/models.ts MODEL_DEFS chapel",
+   "sheet": "buildings",
+   "x": 727,
+   "y": 59,
+   "w": 64,
+   "h": 56,
+   "anchor": [
+    24,
+    47
+   ],
+   "frames": 1,
+   "directions": 1,
+   "chimney": [
+    3,
+    -24
+   ]
+  },
+  {
+   "name": "building/theatre",
+   "generator": "view/models.ts MODEL_DEFS theatre",
+   "sheet": "buildings",
+   "x": 793,
+   "y": 59,
+   "w": 64,
+   "h": 56,
+   "anchor": [
+    24,
+    47
+   ],
+   "frames": 1,
+   "directions": 1,
+   "chimney": [
+    -2,
+    -19
+   ]
+  },
+  {
    "name": "building/gate",
    "generator": "view/models.ts gate",
    "sheet": "buildings",
-   "x": 727,
+   "x": 859,
    "y": 59,
    "w": 64,
    "h": 56,
@@ -862,7 +900,7 @@
    "name": "building/house-2",
    "generator": "view/models.ts house2",
    "sheet": "buildings",
-   "x": 793,
+   "x": 925,
    "y": 59,
    "w": 64,
    "h": 56,
@@ -881,8 +919,8 @@
    "name": "building/house-3",
    "generator": "view/models.ts house3",
    "sheet": "buildings",
-   "x": 859,
-   "y": 59,
+   "x": 1,
+   "y": 117,
    "w": 64,
    "h": 56,
    "anchor": [
