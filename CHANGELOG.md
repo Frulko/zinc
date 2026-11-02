@@ -40,10 +40,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - The Hamlet top bar no longer scans every building each frame.
 - Large Hamlet maps open much faster and use much less memory, and panning is up to 40 % faster on the interpreter.
+- Hamlet maps of 512 tiles generate in 3 s instead of 12 s, and big villages no longer freeze for a second at a time when many villagers look for work or goods at once.
 - A Hamlet village of 500 people and 300 animals now steps in about 1.5 ms instead of 58 ms, on maps of 128 and 256 tiles.
 
 #### Fixed
 
+- Hamlet's Cite view never shows a black map while the camera moves: a whole-map overview is always drawn under the ground, and regions are baked ahead along the camera's direction.
 - Zooming out in Hamlet no longer leaves the village as a small clipped rectangle in the dark while the new view is prepared; the picture stays until it can grow smaller.
 - In a Hamlet city whose labour pool is under 100 %, people outside the pool no longer count as jobless (no permanent mood penalty, newcomers keep coming), and a scarce pool staffs every workshop once before filling any twice, so a sawmill is no longer left empty beside full lumber huts.
 - Hamlet no longer puts trees, rocks, deposits, flowers, animals or people on the dark border of the map: the outermost ring of tiles is border too (the entrance excepted), saves from before drop what stood there, and both views refuse to draw anything over it.
