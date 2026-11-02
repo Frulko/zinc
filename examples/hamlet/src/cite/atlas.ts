@@ -1,24 +1,42 @@
-import { createImage, updatePixels } from 'zinc:gfx';
-import { page, openPage, fillPolygon, strokeLine } from './raster';
+import { createImage, updatePixels, image } from 'zinc:gfx';
+import { env } from 'zinc:sys';
+import * as assets from 'zinc:assets';
+import { openPage, use, page, fillPolygon, strokeLine } from './raster';
 import { broadAt, needleColor } from '../view/seasons';
 import { BARK, STONE, WOOD_HONEY, WOOD_BROWN, FUR, FUR_DARK, FUR_LIGHT, RABBIT_FUR, RABBIT_DARK, RABBIT_LIGHT, WOLF_FUR, WOLF_DARK, WOLF_LIGHT, BOAR_FUR, BOAR_DARK, BOAR_LIGHT } from '../palettes';
 import * as P from '../palettes';
 import { MODEL_IDS } from '../view/models';
 import { Palette } from '../pixel';
 
-// The sprites of the Cité view, made by code at the first frames and drawn into one atlas page (one image, so the draws batch): trees per season and
-// sway frame, rocks and deposits, buildings per model, people per role in 8 directions x 4 frames, animals in 8 directions x 4 frames.
-// Each group is a job; the jobs run a few at a time (bakeStep) so the first frames do not stall; a sprite whose group is not ready is skipped.
-export const PAGE = 2048;
-export const sheet = { image: -1 as number, h: 0 };
-export const sx: number[] = [], sy: number[] = [], sw: number[] = [], sh: number[] = [], ox: number[] = [], oy: number[] = [];   // per sprite: its place in the page and where its foot is
-let cx = 1, cy = 1, rowH = 0;
-function reg(w: number, h: number, fx: number, fy: number): number {
-  if (cx + w + 1 > PAGE) { cx = 1; cy += rowH + 1; rowH = 0; }
-  const id = sx.length;
-  sx.push(cx); sy.push(cy); sw.push(w); sh.push(h); ox.push(fx); oy.push(fy);
-  cx += w + 1; rowH = Math.max(rowH, h);
-  return id;
+// The sprites of the Cite view. They are art in PNG sheets (assets/atlas, see ASSETS.md) when the files are there, else made by code at the first
+// frames: a group is a grid of cells (a row a direction or a season, a column a frame), groups are packed on a few sheets by kind, and a sheet is one
+// image so the draws batch. Two sets of sheets exist: 1x, and 2x (every sprite at double resolution) for a zoom above 2. A set made by code is baked
+// a few jobs a frame (bakeStep) so the first frames do not stall; a sprite whose group is not ready is skipped.
+export const SHEET_W = 1024;
+export const sheetNames = ['trees-spring', 'trees-summer', 'trees-autumn', 'trees-winter', 'props', 'buildings', 'people', 'animals'];
+/** A grid of `cols` x `rows` cells of cw x ch pixels (1 pixel between cells) at (x, y) of its sheet; ax, ay: where the foot is in a cell. Sprite ids run row by row from `first`. */
+export class Group { name: string = ''; sheet: number = 0; x: number = 0; y: number = 0; cw: number = 0; ch: number = 0; cols: number = 1; rows: number = 1; ax: number = 0; ay: number = 0; first: number = 0; }
+export const groups: Group[] = [];
+export const sheetH: number[] = [];
+export const sx: number[] = [], sy: number[] = [], sw: number[] = [], sh: number[] = [], ox: number[] = [], oy: number[] = [], sheetOf: number[] = [];   // per sprite, in 1x pixels: its place in its sheet and where its foot is
+let layoutDone = false;
+const pk: number[][] = [];      // per sheet: shelf packer [x, y, row height]
+function grp(name: string, sheet: number, cols: number, rows: number, cw: number, ch: number, ax: number, ay: number): number {
+  const g = new Group();
+  g.name = name; g.sheet = sheet; g.cols = cols; g.rows = rows; g.cw = cw; g.ch = ch; g.ax = ax; g.ay = ay; g.first = groups.length === 0 ? 0 : lastFirst();
+  const w = cols * (cw + 1), h = rows * (ch + 1), p = pk[sheet];
+  if (p[0] + w + 1 > SHEET_W) { p[0] = 1; p[1] += p[2] + 1; p[2] = 0; }
+  g.x = p[0]; g.y = p[1]; p[0] += w + 1; p[2] = Math.max(p[2], h);
+  groups.push(g);
+  return g.first;
+}
+function lastFirst(): number { const l = groups[groups.length - 1]; return l.first + l.cols * l.rows; }
+/** Fills the per-sprite arrays from the groups (again after index.json moved a group). */
+function fill(): void {
+  sx.length = 0; sy.length = 0; sw.length = 0; sh.length = 0; ox.length = 0; oy.length = 0; sheetOf.length = 0;
+  for (const g of groups) for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) {
+    sx.push(g.x + c * (g.cw + 1)); sy.push(g.y + r * (g.ch + 1)); sw.push(g.cw); sh.push(g.ch); ox.push(g.ax); oy.push(g.ay); sheetOf.push(g.sheet);
+  }
 }
 
 const rgb = (c: number[]): number => (Math.round(c[0]) << 16) | (Math.round(c[1]) << 8) | Math.round(c[2]);
@@ -33,8 +51,8 @@ function stroke(pts: number[], width: number, color: number, alpha: number, clos
 function ground(x: number, y: number, rx: number): void { blob(x, y, rx, rx * .45, 0x000000, 62); }
 
 // ---- ids ----
-export const SEASONS = 4, SWAYS = 2, TREE_KINDS = 4;
-export const treeBase: number[] = [];
+export const SEASONS = 4, SWAYS = 4, TREE_KINDS = 4;
+export const treeBase: number[] = [];       // per (variant, season): its first sprite, then one a sway frame
 export const rockIds: number[] = [];        // 2 plain rocks, then the deposits (stone, clay, ore, berries)
 export const buildIds: number[] = [];       // per model id of view/models.ts, then the gate, then the house at levels 2 and 3
 export const GATE_MODEL = MODEL_IDS.length;
@@ -42,20 +60,43 @@ export const personBase: number[] = [];     // per role
 export const animalBase: number[] = [];     // per kind: deer, stag, rabbit, boar, wolf
 export const ANIMAL_KINDS = 5, DIRS = 8, FRAMES = 4, ROLES = 26;
 export const carryId = { box: -1 };
-const jobs: (() => void)[] = [];
-export const ready = { trees: [false, false, false, false], rocks: false, buildings: false, people: [] as boolean[], animals: [false, false, false, false, false], all: false };
+export const fxId = { smoke: -1, ripple: -1, tuft: -1 };          // smoke: 4 puffs; ripple: 4 glints on water; tuft: per season, 4 sway frames
+export const chimney: number[][] = [];                             // per building sprite: where its chimney top is, from the foot, in 1x pixels (x, y)
+export const SMOKE_FRAMES = 4;
+const ROLE_NAMES = ['settler', 'resident', 'lumberjack', 'hunter', 'fisher', 'sawyer', 'smoker', 'porter', 'farmer', 'miller', 'baker', 'vendor', 'tanner', 'quarryman', 'peddler', 'forager', 'smith', 'beekeeper', 'chandler', 'brewer', 'innkeeper', 'firewarden', 'repairman', 'watchman', 'robber', 'rioter'];
+const ANIMAL_NAMES = ['doe', 'stag', 'rabbit', 'boar', 'wolf'];
+const SEASON_NAMES = ['spring', 'summer', 'autumn', 'winter'];
+const BUILD_EXTRA = ['gate', 'house-2', 'house-3'];
 
-export function treeId(variant: number, season: number, sway: number): number { return treeBase[(variant * SEASONS + season) * SWAYS + sway]; }
+class Ready { trees: boolean[] = [false, false, false, false]; rocks: boolean = false; buildings: boolean = false; people: boolean[] = []; animals: boolean[] = [false, false, false, false, false]; all: boolean = false; }
+/** One resolution of the atlas: its sheets (images), and the jobs that paint them when they are made by code. */
+export class AtlasSet {
+  k: number = 1; images: number[] = []; px: u32[][] = []; ready: Ready = new Ready(); jobs: (() => void)[] = []; next: number = 0; files: boolean = false; done: boolean = false; dirty: boolean[] = [];
+}
+export const sets: AtlasSet[] = [];
+/** The set that is drawn: k is its pixels per sprite pixel (1 or 2). */
+export const at = { k: 1, images: [] as number[], ready: new Ready() };
+let building: AtlasSet | null = null;
+export const stats = { source: '', bakeMs: 0, loadMs: 0, sheets: 0 };
+export const dumpDir: string = env('ZINC_HAMLET_ATLAS_DUMP');
+
+export function treeId(variant: number, season: number, sway: number): number { return treeBase[variant * SEASONS + season] + sway; }
 export function personId(role: number, dir: number, frame: number): number { return personBase[role] + dir * FRAMES + frame; }
 export function animalId(kind: number, dir: number, frame: number): number { return animalBase[kind] + dir * FRAMES + frame; }
 
 const REP_MONTH = [1, 4, 7, 10];
-function place(id: number): void { page.x = sx[id]; page.y = sy[id]; }
+let cur: AtlasSet | null = null;
+function place(id: number): void {
+  const s = cur as AtlasSet, sh = sheetOf[id];
+  use(s.px[sh], SHEET_W * s.k, sheetH[sh] * s.k);
+  page.x = sx[id] * s.k; page.y = sy[id] * s.k; page.k = s.k;
+  s.dirty[sh] = true;
+}
 
 // ---- trees ----
 function drawTree(id: number, v: number, season: number, sway: number): void {
   place(id);
-  const m = REP_MONTH[season], b = broadAt(m), s = [.82, 1, 1.12, .95][v], fx = 28, fy = 78, lean = (sway - .5) * 3;
+  const m = REP_MONTH[season], b = broadAt(m), s = [.82, 1, 1.12, .95][v], fx = 28, fy = 78, lean = Math.sin(sway * 1.5708) * 1.8;
   ground(fx, fy, 15 * s);
   if (v === 2) {                                                  // a pine: stacked cones
     const g = needleColor([46, 86, 60], m), snow = season === 3;
@@ -243,7 +284,7 @@ function drawAnimal(kind: number): void {
   for (let d = 0; d < DIRS; d++) for (let f = 0; f < FRAMES; f++) {
     const id = animalId(kind, d, f);
     place(id);
-    const a = d * Math.PI / 4, ux = Math.cos(a), uy = Math.sin(a) * .62, fx = 24, fy = 26;     // body axis on the screen (the ground is foreshortened)
+    const a = d * Math.PI / 4, ux = Math.cos(a), uy = Math.sin(a) * .62, sa = Math.sin(a), wy = .45 + .55 * Math.abs(ux), fx = 24, fy = 26;     // body axis on the screen (the ground is foreshortened)
     const ph = f / FRAMES * 6.2832, hop = kind === 2 ? Math.abs(Math.sin(ph)) * 3 : 0;
     blob(fx, fy, len + 3, (len + 3) * .45, 0x000000, 62);
     const bcx = fx, bcy = fy - legH - thick * .6 - hop;
@@ -253,10 +294,10 @@ function drawAnimal(kind: number): void {
       stroke([px, bcy + 2, px + sw * ux, py - hop * .3], 1.7, shade(rgbArr(dark), l & 1 ? .7 : 1), 255, false);
     }
     const pts: number[] = [];
-    for (let k = 0; k < 14; k++) { const t = k / 14 * 6.2832, lx = Math.cos(t) * len, ly = Math.sin(t) * thick; pts.push(bcx + lx * ux, bcy + lx * uy + ly); }
+    for (let k = 0; k < 14; k++) { const t = k / 14 * 6.2832, lx = Math.cos(t) * len, ly = Math.sin(t) * thick; pts.push(bcx + lx * ux - ly * sa, bcy + lx * uy + ly * wy); }
     poly(pts, rgb(fur));
     const pts2: number[] = [];
-    for (let k = 0; k < 14; k++) { const t = k / 14 * 6.2832, lx = Math.cos(t) * len * .7, ly = Math.sin(t) * thick * .5 + thick * .3; pts2.push(bcx + lx * ux, bcy + lx * uy + ly); }
+    for (let k = 0; k < 14; k++) { const t = k / 14 * 6.2832, lx = Math.cos(t) * len * .7, ly = Math.sin(t) * thick * .5 + thick * .3; pts2.push(bcx + lx * ux - ly * sa, bcy + lx * uy + ly * wy); }
     poly(pts2, rgb(light), 150);
     const hx = bcx + ux * (len + 1.5), hy = bcy + uy * (len + 1.5) - (kind <= 1 ? 4 : kind === 3 ? -.5 : 1);     // head
     if (kind <= 1) stroke([bcx + ux * len * .6, bcy + uy * len * .6 - 1, hx, hy], 2.6, rgb(fur), 255, false);
@@ -270,48 +311,153 @@ function drawAnimal(kind: number): void {
 }
 function rgbArr(c: number[]): number[] { return c; }
 
-// ---- the job list ----
-let next = 0;
-export function initAtlas(): void {
-  if (sheet.image >= 0) return;
-  cx = 1; cy = 1; rowH = 0;
-  for (let v = 0; v < TREE_KINDS; v++) for (let s = 0; s < SEASONS; s++) for (let w = 0; w < SWAYS; w++) treeBase.push(reg(56, 84, 28, 78));
-  for (let k = 0; k < 6; k++) rockIds.push(reg(40, 30, 20, 24));
-  for (let k = 0; k < MODEL_IDS.length + 3; k++) buildIds.push(reg(80, 96, 40, 78));
-  for (let r = 0; r < ROLES; r++) { personBase.push(sx.length); for (let k = 0; k < DIRS * FRAMES; k++) reg(20, 32, 10, 28); }
-  for (let k = 0; k < ANIMAL_KINDS; k++) { animalBase.push(sx.length); for (let n = 0; n < DIRS * FRAMES; n++) reg(48, 32, 24, 26); }
-  carryId.box = reg(10, 10, 5, 8);
-  const ph = cy + rowH + 2;
-  openPage(PAGE, ph);
-  sheet.image = createImage(PAGE, ph);
-  sheet.h = ph;
-  for (let s = 0; s < SEASONS; s++) {
-    jobs.push((): void => { for (let v = 0; v < TREE_KINDS; v++) for (let w = 0; w < SWAYS; w++) drawTree(treeId(v, s, w), v, s, w); ready.trees[s] = true; });
+// ---- effects: smoke, water glints, grass ----
+function drawSmoke(): void {
+  for (let f = 0; f < SMOKE_FRAMES; f++) {
+    place(fxId.smoke + f);
+    const r = 3 + f * 1.5, g = 232 - f * 14;
+    blob(12, 12, r, r * .9, (g << 16) | (g << 8) | (g - 6), 255);
+    blob(12 - r * .25, 12 - r * .3, r * .55, r * .5, 0xffffff, 110);
   }
-  jobs.push((): void => { for (let k = 0; k < 6; k++) drawRock(k); ready.rocks = true; });
-  jobs.push((): void => {
-    for (let k = 0; k < MODEL_IDS.length; k++) drawBuilding(buildIds[k], lookOf(k), 0);
+}
+function drawRipple(): void {
+  for (let f = 0; f < 4; f++) {
+    place(fxId.ripple + f);
+    const a = [90, 230, 150, 40][f], w = [5, 8, 10, 12][f];
+    blob(14, 7, w, w * .42, 0xdff0f4, a);
+    blob(14, 7, w - 2, (w - 2) * .42, 0x5a8aa0, a >> 1);
+  }
+}
+function drawTufts(): void {
+  for (let s = 0; s < SEASONS; s++) for (let w = 0; w < SWAYS; w++) {
+    place(fxId.tuft + s * SWAYS + w);
+    const b = broadAt(REP_MONTH[s]), lean = Math.sin(w * 1.5708) * 1.4, c = s === 3 ? [200, 206, 208] : s === 2 ? [150, 130, 70] : b.crown;
+    for (let k = -2; k <= 2; k++) {
+      const h = 7 + (k === 0 ? 3 : 0) - Math.abs(k), x = 8 + k * 1.8;
+      poly([x - 1, 15, x + lean * h / 8 * (k < 0 ? 1.2 : .8), 15 - h, x + 1, 15], shade(c, .8 + (k + 2) * .08));
+    }
+  }
+}
+
+// ---- the sets ----
+const SHEET_TREES = 0, SHEET_PROPS = 4, SHEET_BUILD = 5, SHEET_PEOPLE = 6, SHEET_ANIMALS = 7;
+/** The groups and their places, once: the same ids whatever the art comes from. */
+function layout(): void {
+  if (layoutDone) return;
+  layoutDone = true;
+  for (let n = 0; n < sheetNames.length; n++) pk.push([1, 1, 0]);
+  for (let v = 0; v < TREE_KINDS * SEASONS; v++) treeBase.push(0);
+  for (let s = 0; s < SEASONS; s++) for (let v = 0; v < TREE_KINDS; v++) treeBase[v * SEASONS + s] = grp('tree/' + v + '/' + SEASON_NAMES[s], SHEET_TREES + s, SWAYS, 1, 56, 84, 28, 78);
+  const rocks = grp('rock', SHEET_PROPS, 6, 1, 40, 30, 20, 24);
+  for (let k = 0; k < 6; k++) rockIds.push(rocks + k);
+  carryId.box = grp('carry-box', SHEET_PROPS, 1, 1, 10, 10, 5, 8);
+  fxId.smoke = grp('fx/smoke', SHEET_PROPS, SMOKE_FRAMES, 1, 24, 24, 12, 12);
+  fxId.ripple = grp('fx/ripple', SHEET_PROPS, 4, 1, 28, 14, 14, 7);
+  fxId.tuft = grp('fx/grass', SHEET_PROPS, SWAYS, SEASONS, 16, 16, 8, 15);
+  for (let k = 0; k < MODEL_IDS.length; k++) {
+    buildIds.push(grp('building/' + MODEL_IDS[k], SHEET_BUILD, 1, 1, 80, 96, 40, 78));
+    const lk = lookOf(k), hg = lk[2][0], kind = lk[2][1];
+    chimney.push(kind === 0 && k !== 0 ? [-8.5, -hg - 16] : kind === 6 ? [0, -hg - 16] : [0, -hg - 8]);
+  }
+  for (let k = 0; k < BUILD_EXTRA.length; k++) buildIds.push(grp('building/' + BUILD_EXTRA[k], SHEET_BUILD, 1, 1, 80, 96, 40, 78));
+  for (let r = 0; r < ROLES; r++) personBase.push(grp('person/' + ROLE_NAMES[r], SHEET_PEOPLE, FRAMES, DIRS, 20, 32, 10, 28));
+  for (let k = 0; k < ANIMAL_KINDS; k++) animalBase.push(grp('animal/' + ANIMAL_NAMES[k], SHEET_ANIMALS, FRAMES, DIRS, 48, 32, 24, 26));
+  fill();
+  for (let n = 0; n < sheetNames.length; n++) sheetH.push(pk[n][1] + pk[n][2] + 2);
+}
+
+/** index.json: the places of the groups, as an artist (or the dump) wrote them; applied when it lists the groups of this build in order. */
+function readIndex(): boolean {
+  if (!assets.exists('atlas/index.json')) return false;
+  const j = JSON.parse(assets.readText('atlas/index.json'));
+  if (j.version !== 1 || j.groups.length !== groups.length || j.sheets.length !== sheetNames.length) { console.log('atlas/index.json does not match this build: sprites made by code'); return false; }
+  for (let n = 0; n < groups.length; n++) if (j.groups[n].name !== groups[n].name || j.groups[n].frames !== groups[n].cols || j.groups[n].directions !== groups[n].rows) { console.log('atlas/index.json: group ' + j.groups[n].name + ' differs from ' + groups[n].name + ': sprites made by code'); return false; }
+  for (let n = 0; n < groups.length; n++) { const e = j.groups[n], g = groups[n]; g.sheet = sheetNames.indexOf(e.sheet); g.x = e.x; g.y = e.y; g.cw = e.w; g.ch = e.h; g.ax = e.anchor[0]; g.ay = e.anchor[1]; }
+  for (let n = 0; n < sheetH.length; n++) sheetH[n] = j.sheets[n].h;
+  fill();
+  return true;
+}
+
+function readyAll(): Ready { const r = new Ready(); r.trees = [true, true, true, true]; r.rocks = true; r.buildings = true; for (let q = 0; q < ROLES; q++) r.people.push(true); r.animals = [true, true, true, true, true]; r.all = true; return r; }
+function startSet(k: number, useFiles: boolean): AtlasSet {
+  const s = new AtlasSet();
+  s.k = k;
+  const t0 = performance.now();
+  if (useFiles) {
+    let ok = true;
+    for (let n = 0; n < sheetNames.length && ok; n++) { const im = image('atlas/' + k + 'x/' + sheetNames[n] + '.png'); if (im < 0) ok = false; else s.images.push(im); }
+    if (ok) { s.files = true; s.done = true; s.ready = readyAll(); stats.loadMs += performance.now() - t0; stats.source = 'files'; sets.push(s); return s; }
+    s.images.length = 0;
+  }
+  for (let n = 0; n < sheetNames.length; n++) {
+    s.px.push(openPage(SHEET_W * k, sheetH[n] * k)); s.images.push(createImage(SHEET_W * k, sheetH[n] * k)); s.dirty.push(false);
+  }
+  stats.source = 'code';
+  const R = s.ready;
+  for (let q = 0; q < SEASONS; q++) {
+    s.jobs.push((): void => { for (let v = 0; v < TREE_KINDS; v++) for (let w = 0; w < SWAYS; w++) drawTree(treeId(v, q, w), v, q, w); R.trees[q] = true; });
+  }
+  s.jobs.push((): void => { for (let q = 0; q < 6; q++) drawRock(q); R.rocks = true; });
+  s.jobs.push((): void => {
+    for (let q = 0; q < MODEL_IDS.length; q++) drawBuilding(buildIds[q], lookOf(q), 0);
     drawGate(buildIds[GATE_MODEL]);
     drawBuilding(buildIds[GATE_MODEL + 1], lookOf(0), 1); drawBuilding(buildIds[GATE_MODEL + 2], lookOf(0), 2);
-    ready.buildings = true;
+    R.buildings = true;
   });
-  for (let r = 0; r < ROLES; r++) { ready.people.push(false); jobs.push((): void => { drawRole(r); ready.people[r] = true; }); }
-  for (let k = 0; k < ANIMAL_KINDS; k++) jobs.push((): void => { drawAnimal(k); ready.animals[k] = true; });
-  jobs.push((): void => {
+  for (let r = 0; r < ROLES; r++) { R.people.push(false); s.jobs.push((): void => { drawRole(r); R.people[r] = true; }); }
+  for (let q = 0; q < ANIMAL_KINDS; q++) s.jobs.push((): void => { drawAnimal(q); R.animals[q] = true; });
+  s.jobs.push((): void => {
     place(carryId.box); poly([1, 3, 5, 1, 9, 3, 5, 5], 0xc8a068); poly([1, 3, 5, 5, 5, 9, 1, 7], 0x9a7648); poly([5, 5, 9, 3, 9, 7, 5, 9], 0xb08c58);
-    ready.all = true;
+    drawSmoke(); drawRipple(); drawTufts();
+    R.all = true;
   });
-  next = 0;
+  sets.push(s);
+  building = s;
+  return s;
 }
+function select(s: AtlasSet): void { at.k = s.k; at.images = s.images; at.ready = s.ready; }
+
+/** Makes the 1x set (from the PNG sheets of assets/atlas when they are there, else by code). A second call does nothing. */
+export function initAtlas(): void {
+  const t0 = performance.now();
+  if (sets.length > 0) return;
+  layout();
+  const files = dumpDir === '' && env('ZINC_HAMLET_ATLAS') !== 'code' && readIndex();   // ZINC_HAMLET_ATLAS=code: the sprites made by code, whatever assets/atlas holds
+  select(startSet(1, files));
+  if (env('ZINC_HAMLET_TRACE') === '1') console.log('atlas 1x ' + stats.source + ': sheets ready in ' + Math.round(performance.now() - t0) + ' ms');
+  stats.sheets = sheetNames.length;
+}
+let wanted = 1;
 /** Runs jobs until the budget (ms) is spent; true while some remain. The current season's trees go first. */
 export function bakeStep(budgetMs: number, firstSeason: number): boolean {
-  if (sheet.image < 0 || next >= jobs.length) return false;
-  if (next === 0 && firstSeason > 0) { const j = jobs[firstSeason]; jobs[firstSeason] = jobs[0]; jobs[0] = j; }
+  const s = building;
+  if (s === null) return false;
+  if (s.next === 0 && firstSeason > 0 && s.k === 1) { const j = s.jobs[firstSeason]; s.jobs[firstSeason] = s.jobs[0]; s.jobs[0] = j; }
+  cur = s;
   const t0 = performance.now();
-  while (next < jobs.length) {
-    jobs[next](); next++;
+  while (s.next < s.jobs.length) {
+    s.jobs[s.next](); s.next++;
     if (performance.now() - t0 > budgetMs) break;
   }
-  updatePixels(sheet.image, page.px, false);
-  return next < jobs.length;
+  for (let n = 0; n < s.images.length; n++) if (s.dirty[n]) { updatePixels(s.images[n], s.px[n], false); s.dirty[n] = false; }
+  stats.bakeMs += performance.now() - t0;
+  if (s.next >= s.jobs.length) { s.done = true; building = null; if (env('ZINC_HAMLET_TRACE') === '1') console.log('atlas ' + s.k + 'x baked by code: ' + Math.round(stats.bakeMs) + ' ms'); }
+  return !s.done;
+}
+/** The zoom decides the set: 2x above zoom 2 (made on the first need, drawn once it is complete), 1x again under 1.8. */
+export function chooseSet(zoom: number): void {
+  if (sets.length === 0) return;
+  if (zoom > 2 && wanted < 2) { wanted = 2; if (sets.length < 2) startSet(2, dumpDir === '' && sets[0].files); }
+  else if (zoom < 1.8 && wanted > 1) wanted = 1;
+  const s = wanted >= 2 && sets.length > 1 ? sets[1] : sets[0];
+  if (s.done && at.k !== s.k) select(s);
+}
+/** For the export: every job of a set made by code, at once; the pictures of its sheets stay in `px`. */
+export function dumpSet(k: number): AtlasSet {
+  const s = startSet(k, false);
+  cur = s;
+  while (s.next < s.jobs.length) { s.jobs[s.next](); s.next++; }
+  s.done = true; building = null;
+  for (let n = 0; n < s.images.length; n++) updatePixels(s.images[n], s.px[n], false);
+  return s;
 }

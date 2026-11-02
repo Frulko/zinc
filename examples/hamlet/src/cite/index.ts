@@ -2,7 +2,8 @@ import { env } from 'zinc:sys';
 import { world } from '../world/world';
 import { ensureBiomes, monthStep } from '../view/seasons';
 import { HW, cam, view, stats, measureHeights, tileFi, tileFj, centerOnTile, panPixels, zoomAt, stepZoom, clampCamera, HH } from './geom';
-import { initAtlas } from './atlas';
+import { initAtlas, dumpDir } from './atlas';
+import { dumpRun } from './atlasdump';
 import { resetGround } from './ground';
 import { drawMap, ghost, selection, tileDiamond, pickAt, pick } from './draw';
 import { TILE } from '../constants';
@@ -16,6 +17,7 @@ export const SCALE0 = HW * Math.SQRT2 / 2;      // renderer pixels per world uni
 /** A village was made or loaded: forget the cached ground, measure the heights, look at the gate. */
 export function citeReset(): void {
   ensureBiomes(); initAtlas();
+  if (dumpDir !== '') dumpRun();
   resetGround(); measureHeights();
   const g = world.gate;
   centerOnTile((g % world.size) + 6, Math.floor(g / world.size));

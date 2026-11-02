@@ -1,0 +1,1182 @@
+{
+ "version": 1,
+ "note": "Sizes and places are in 1x pixels; the 2x sheets hold every cell at twice the size. A group is a grid of w x h cells with 1 pixel between them: a row a direction (or a season), a column a frame. anchor: the foot of the sprite in a cell.",
+ "sheets": [
+  {
+   "name": "trees-spring",
+   "w": 1024,
+   "h": 88
+  },
+  {
+   "name": "trees-summer",
+   "w": 1024,
+   "h": 88
+  },
+  {
+   "name": "trees-autumn",
+   "w": 1024,
+   "h": 88
+  },
+  {
+   "name": "trees-winter",
+   "w": 1024,
+   "h": 88
+  },
+  {
+   "name": "props",
+   "w": 1024,
+   "h": 71
+  },
+  {
+   "name": "buildings",
+   "w": 1024,
+   "h": 296
+  },
+  {
+   "name": "people",
+   "w": 1024,
+   "h": 797
+  },
+  {
+   "name": "animals",
+   "w": 1024,
+   "h": 267
+  }
+ ],
+ "groups": [
+  {
+   "name": "tree/0/spring",
+   "sheet": "trees-spring",
+   "x": 1,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/1/spring",
+   "sheet": "trees-spring",
+   "x": 230,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/2/spring",
+   "sheet": "trees-spring",
+   "x": 459,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/3/spring",
+   "sheet": "trees-spring",
+   "x": 688,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/0/summer",
+   "sheet": "trees-summer",
+   "x": 1,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/1/summer",
+   "sheet": "trees-summer",
+   "x": 230,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/2/summer",
+   "sheet": "trees-summer",
+   "x": 459,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/3/summer",
+   "sheet": "trees-summer",
+   "x": 688,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/0/autumn",
+   "sheet": "trees-autumn",
+   "x": 1,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/1/autumn",
+   "sheet": "trees-autumn",
+   "x": 230,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/2/autumn",
+   "sheet": "trees-autumn",
+   "x": 459,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/3/autumn",
+   "sheet": "trees-autumn",
+   "x": 688,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/0/winter",
+   "sheet": "trees-winter",
+   "x": 1,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/1/winter",
+   "sheet": "trees-winter",
+   "x": 230,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/2/winter",
+   "sheet": "trees-winter",
+   "x": 459,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "tree/3/winter",
+   "sheet": "trees-winter",
+   "x": 688,
+   "y": 1,
+   "w": 56,
+   "h": 84,
+   "anchor": [
+    28,
+    78
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "rock",
+   "sheet": "props",
+   "x": 1,
+   "y": 1,
+   "w": 40,
+   "h": 30,
+   "anchor": [
+    20,
+    24
+   ],
+   "frames": 6,
+   "directions": 1
+  },
+  {
+   "name": "carry-box",
+   "sheet": "props",
+   "x": 248,
+   "y": 1,
+   "w": 10,
+   "h": 10,
+   "anchor": [
+    5,
+    8
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "fx/smoke",
+   "sheet": "props",
+   "x": 260,
+   "y": 1,
+   "w": 24,
+   "h": 24,
+   "anchor": [
+    12,
+    12
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "fx/ripple",
+   "sheet": "props",
+   "x": 361,
+   "y": 1,
+   "w": 28,
+   "h": 14,
+   "anchor": [
+    14,
+    7
+   ],
+   "frames": 4,
+   "directions": 1
+  },
+  {
+   "name": "fx/grass",
+   "sheet": "props",
+   "x": 478,
+   "y": 1,
+   "w": 16,
+   "h": 16,
+   "anchor": [
+    8,
+    15
+   ],
+   "frames": 4,
+   "directions": 4
+  },
+  {
+   "name": "building/house",
+   "sheet": "buildings",
+   "x": 1,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/sawmill",
+   "sheet": "buildings",
+   "x": 83,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/lodge",
+   "sheet": "buildings",
+   "x": 165,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/fishery",
+   "sheet": "buildings",
+   "x": 247,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/storehouse",
+   "sheet": "buildings",
+   "x": 329,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/lumberhut",
+   "sheet": "buildings",
+   "x": 411,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/smokehouse",
+   "sheet": "buildings",
+   "x": 493,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/farm",
+   "sheet": "buildings",
+   "x": 575,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/mill",
+   "sheet": "buildings",
+   "x": 657,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/bakery",
+   "sheet": "buildings",
+   "x": 739,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/market",
+   "sheet": "buildings",
+   "x": 821,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/tannery",
+   "sheet": "buildings",
+   "x": 903,
+   "y": 1,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/well",
+   "sheet": "buildings",
+   "x": 1,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/quarry",
+   "sheet": "buildings",
+   "x": 83,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/claypit",
+   "sheet": "buildings",
+   "x": 165,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/mine",
+   "sheet": "buildings",
+   "x": 247,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/forge",
+   "sheet": "buildings",
+   "x": 329,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/forager",
+   "sheet": "buildings",
+   "x": 411,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/apiary",
+   "sheet": "buildings",
+   "x": 493,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/chandlery",
+   "sheet": "buildings",
+   "x": 575,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/meadery",
+   "sheet": "buildings",
+   "x": 657,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/tavern",
+   "sheet": "buildings",
+   "x": 739,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/firehouse",
+   "sheet": "buildings",
+   "x": 821,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/works",
+   "sheet": "buildings",
+   "x": 903,
+   "y": 99,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/watchpost",
+   "sheet": "buildings",
+   "x": 1,
+   "y": 197,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/ruin",
+   "sheet": "buildings",
+   "x": 83,
+   "y": 197,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/gate",
+   "sheet": "buildings",
+   "x": 165,
+   "y": 197,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/house-2",
+   "sheet": "buildings",
+   "x": 247,
+   "y": 197,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "building/house-3",
+   "sheet": "buildings",
+   "x": 329,
+   "y": 197,
+   "w": 80,
+   "h": 96,
+   "anchor": [
+    40,
+    78
+   ],
+   "frames": 1,
+   "directions": 1
+  },
+  {
+   "name": "person/settler",
+   "sheet": "people",
+   "x": 1,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/resident",
+   "sheet": "people",
+   "x": 86,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/lumberjack",
+   "sheet": "people",
+   "x": 171,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/hunter",
+   "sheet": "people",
+   "x": 256,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/fisher",
+   "sheet": "people",
+   "x": 341,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/sawyer",
+   "sheet": "people",
+   "x": 426,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/smoker",
+   "sheet": "people",
+   "x": 511,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/porter",
+   "sheet": "people",
+   "x": 596,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/farmer",
+   "sheet": "people",
+   "x": 681,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/miller",
+   "sheet": "people",
+   "x": 766,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/baker",
+   "sheet": "people",
+   "x": 851,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/vendor",
+   "sheet": "people",
+   "x": 936,
+   "y": 1,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/tanner",
+   "sheet": "people",
+   "x": 1,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/quarryman",
+   "sheet": "people",
+   "x": 86,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/peddler",
+   "sheet": "people",
+   "x": 171,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/forager",
+   "sheet": "people",
+   "x": 256,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/smith",
+   "sheet": "people",
+   "x": 341,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/beekeeper",
+   "sheet": "people",
+   "x": 426,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/chandler",
+   "sheet": "people",
+   "x": 511,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/brewer",
+   "sheet": "people",
+   "x": 596,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/innkeeper",
+   "sheet": "people",
+   "x": 681,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/firewarden",
+   "sheet": "people",
+   "x": 766,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/repairman",
+   "sheet": "people",
+   "x": 851,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/watchman",
+   "sheet": "people",
+   "x": 936,
+   "y": 266,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/robber",
+   "sheet": "people",
+   "x": 1,
+   "y": 531,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "person/rioter",
+   "sheet": "people",
+   "x": 86,
+   "y": 531,
+   "w": 20,
+   "h": 32,
+   "anchor": [
+    10,
+    28
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "animal/doe",
+   "sheet": "animals",
+   "x": 1,
+   "y": 1,
+   "w": 48,
+   "h": 32,
+   "anchor": [
+    24,
+    26
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "animal/stag",
+   "sheet": "animals",
+   "x": 198,
+   "y": 1,
+   "w": 48,
+   "h": 32,
+   "anchor": [
+    24,
+    26
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "animal/rabbit",
+   "sheet": "animals",
+   "x": 395,
+   "y": 1,
+   "w": 48,
+   "h": 32,
+   "anchor": [
+    24,
+    26
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "animal/boar",
+   "sheet": "animals",
+   "x": 592,
+   "y": 1,
+   "w": 48,
+   "h": 32,
+   "anchor": [
+    24,
+    26
+   ],
+   "frames": 4,
+   "directions": 8
+  },
+  {
+   "name": "animal/wolf",
+   "sheet": "animals",
+   "x": 789,
+   "y": 1,
+   "w": 48,
+   "h": 32,
+   "anchor": [
+    24,
+    26
+   ],
+   "frames": 4,
+   "directions": 8
+  }
+ ]
+}
