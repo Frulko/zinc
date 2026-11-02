@@ -282,3 +282,8 @@ export function drawDeer(d: Deer, time: number, atlas: Atlas | null): void {
   }
   if (dead) castShadow(d.x, d.y, .3, fawn ? .35 : .55); else castShadow(d.x, d.y, fawn ? .3 : .5, fawn ? .35 : .55);
 }
+
+/** The load of a carrier at the world origin, facing `yaw` (the Cite atlas bakes it apart from the body). */
+export function paintCarry(carry: number, yaw: number): void { const p = new Person(); p.carry = carry; paintProps(p, yaw, [0, 0, 0]); }
+/** Forgets the baked frames of the actors (the Cite baker draws them live; a cached frame would be stamped instead). */
+export function forgetActorAtlases(): void { actorAtlases.clear(); }

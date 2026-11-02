@@ -1,28 +1,31 @@
 import { createImage, updatePixels, image } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import * as assets from 'zinc:assets';
-import { openPage, use, page, fillPolygon, strokeLine } from './raster';
-import { broadAt, needleColor } from '../view/seasons';
-import { BARK, STONE, WOOD_HONEY, WOOD_BROWN, FUR, FUR_DARK, FUR_LIGHT, RABBIT_FUR, RABBIT_DARK, RABBIT_LIGHT, WOLF_FUR, WOLF_DARK, WOLF_LIGHT, BOAR_FUR, BOAR_DARK, BOAR_LIGHT } from '../palettes';
-import * as P from '../palettes';
-import { MODEL_IDS } from '../view/models';
-import { Palette } from '../pixel';
+import { touchModelBuffer, castShadow, hashNumbers, hashText, rampOf } from '../pixel';
+import { broadAt } from '../view/seasons';
+import { MODEL_IDS, MODEL_GATE, MODEL_ROCK, MODEL_HOUSE_UP, TREE_HEIGHT, drawModelId, drawTreeMonth, models, useModels } from '../view/models';
+import { actorAtlas, paintCarry, forgetActorAtlases } from '../view/actors';
+import { Cell, S_ART, capture, shear, blit, disc, argb } from './bake';
 
-// The sprites of the Cite view. They are art in PNG sheets (assets/atlas, see ASSETS.md) when the files are there, else made by code at the first
-// frames: a group is a grid of cells (a row a direction or a season, a column a frame), groups are packed on a few sheets by kind, and a sheet is one
-// image so the draws batch. Two sets of sheets exist: 1x, and 2x (every sprite at double resolution) for a zoom above 2. A set made by code is baked
-// a few jobs a frame (bakeStep) so the first frames do not stall; a sprite whose group is not ready is skipped.
+// The sprites of the Cite view. They are the Pixel Plays art of the old view (the same models, figures, light, ramps, dither and shadows), baked into RGBA frames by
+// src/cite/bake.ts and packed on a few sheets. Two modes give the same frames: `computed` bakes them at the first frames from the generators (a few jobs a frame,
+// bakeStep), `files` loads the exported sheets of assets/atlas (PNG + index.json) and bakes nothing. The export (ZINC_HAMLET_ATLAS_DUMP) is the serialisation of
+// what `computed` makes, and index.json records a hash of the generators (`generator`): a stale export is detected and `computed` is used instead.
+// A group is a grid of cells (a row a direction or a season, a column a frame); a sheet is one image so the draws batch. Two sets exist: 1x (a tile is 64 pixels
+// across) and 2x (lit again at twice the scale, for a zoom above 2). A sprite whose group is not ready is skipped.
 export const SHEET_W = 1024;
 export const sheetNames = ['trees-spring', 'trees-summer', 'trees-autumn', 'trees-winter', 'props', 'buildings', 'people', 'animals'];
+export const GENERATOR_VERSION = 1;        // bumped when a change of the drawing code is not seen by the probe frames of generatorHash()
 /** A grid of `cols` x `rows` cells of cw x ch pixels (1 pixel between cells) at (x, y) of its sheet; ax, ay: where the foot is in a cell. Sprite ids run row by row from `first`. */
-export class Group { name: string = ''; sheet: number = 0; x: number = 0; y: number = 0; cw: number = 0; ch: number = 0; cols: number = 1; rows: number = 1; ax: number = 0; ay: number = 0; first: number = 0; }
+export class Group { name: string = ''; sheet: number = 0; x: number = 0; y: number = 0; cw: number = 0; ch: number = 0; cols: number = 1; rows: number = 1; ax: number = 0; ay: number = 0; first: number = 0; pose: string = ''; fps: number = 0; loop: boolean = false; }
 export const groups: Group[] = [];
 export const sheetH: number[] = [];
 export const sx: number[] = [], sy: number[] = [], sw: number[] = [], sh: number[] = [], ox: number[] = [], oy: number[] = [], sheetOf: number[] = [];   // per sprite, in 1x pixels: its place in its sheet and where its foot is
 let layoutDone = false;
 const pk: number[][] = [];      // per sheet: shelf packer [x, y, row height]
-function grp(name: string, sheet: number, cols: number, rows: number, cw: number, ch: number, ax: number, ay: number): number {
+function grp(name: string, sheet: number, cols: number, rows: number, cw: number, ch: number, ax: number, ay: number, pose: string = '', fps: number = 0, loop: boolean = false): number {
   const g = new Group();
+  g.pose = pose; g.fps = fps; g.loop = loop;
   g.name = name; g.sheet = sheet; g.cols = cols; g.rows = rows; g.cw = cw; g.ch = ch; g.ax = ax; g.ay = ay; g.first = groups.length === 0 ? 0 : lastFirst();
   const w = cols * (cw + 1), h = rows * (ch + 1), p = pk[sheet];
   if (p[0] + w + 1 > SHEET_W) { p[0] = 1; p[1] += p[2] + 1; p[2] = 0; }
@@ -39,16 +42,7 @@ function fill(): void {
   }
 }
 
-const rgb = (c: number[]): number => (Math.round(c[0]) << 16) | (Math.round(c[1]) << 8) | Math.round(c[2]);
 export function shade(c: number[], f: number): number { return (Math.min(255, Math.round(c[0] * f)) << 16) | (Math.min(255, Math.round(c[1] * f)) << 8) | Math.min(255, Math.round(c[2] * f)); }
-function blob(x: number, y: number, rx: number, ry: number, color: number, alpha: number = 255): void {
-  const pts: number[] = [];
-  for (let k = 0; k < 14; k++) { const a = k / 14 * 6.2832; pts.push(x + Math.cos(a) * rx, y + Math.sin(a) * ry); }
-  fillPolygon(pts, color, alpha);
-}
-function poly(pts: number[], color: number, alpha: number = 255): void { fillPolygon(pts, color, alpha); }
-function stroke(pts: number[], width: number, color: number, alpha: number, closed: boolean): void { strokeLine(pts, width, color, alpha); }
-function ground(x: number, y: number, rx: number): void { blob(x, y, rx, rx * .45, 0x000000, 62); }
 
 // ---- ids ----
 export const SEASONS = 4, SWAYS = 4, TREE_KINDS = 4;
@@ -56,10 +50,21 @@ export const treeBase: number[] = [];       // per (variant, season): its first 
 export const rockIds: number[] = [];        // 2 plain rocks, then the deposits (stone, clay, ore, berries)
 export const buildIds: number[] = [];       // per model id of view/models.ts, then the gate, then the house at levels 2 and 3
 export const GATE_MODEL = MODEL_IDS.length;
-export const personBase: number[] = [];     // per role
-export const animalBase: number[] = [];     // per kind: deer, stag, rabbit, boar, wolf
-export const ANIMAL_KINDS = 5, DIRS = 8, FRAMES = 4, ROLES = 26;
-export const carryId = { box: -1 };
+export const personBase: number[][] = [];   // per role, per pose of PERSON_POSES: its first sprite (a row a direction, a column a frame)
+export const animalBase: number[][] = [];   // per kind (deer, stag, rabbit, boar, wolf), per pose of ANIMAL_POSES[kind]
+export const carryBase: number[] = [];      // per load (carry 1 to CARRIES): 8 sprites, one a direction, drawn over the person
+export const ANIMAL_KINDS = 5, DIRS = 8, ROLES = 26, CARRIES = 20;
+/** A named animation of a group: `frames` of it play at `fps` frames a second, looping or holding the last; `slot` is the first pose of the old view's atlas entry it is baked from. */
+export class PoseDef { name: string = ''; frames: number = 1; fps: number = 0; loop: boolean = false; slot: number = 0; }
+function pd(name: string, frames: number, fps: number, loop: boolean, slot: number): PoseDef { const d = new PoseDef(); d.name = name; d.frames = frames; d.fps = fps; d.loop = loop; d.slot = slot; return d; }
+// the poses the old view plays (view/actors.ts SLOT_*, DSLOT_*, beasts.ts SLOT_*); the rates are those of its phases at the normal pace
+export const PERSON_POSES: PoseDef[] = [pd('walk', 8, 10, true, 0), pd('chop', 6, 8, true, 8), pd('aim', 1, 0, false, 14), pd('fish', 1, 0, false, 15), pd('pick', 1, 0, false, 16), pd('idle', 1, 0, true, 17)];
+export const P_WALK = 0, P_CHOP = 1, P_AIM = 2, P_FISH = 3, P_PICK = 4, P_IDLE = 5;
+const DEER_POSES: PoseDef[] = [pd('walk', 8, 8, true, 0), pd('flee', 6, 12, true, 8), pd('graze', 4, 0, false, 14), pd('dead', 1, 0, false, 18), pd('fall', 3, 6, false, 20)];
+const BEAST_POSES: PoseDef[] = [pd('walk', 8, 8, true, 0), pd('flee', 6, 12, true, 8), pd('graze', 2, 0, false, 14), pd('dead', 1, 0, false, 16)];
+const WOLF_POSES: PoseDef[] = [pd('walk', 8, 8, true, 0), pd('flee', 6, 12, true, 8), pd('graze', 2, 0, false, 14), pd('dead', 1, 0, false, 16), pd('crouch', 6, 4, true, 17), pd('howl', 1, 0, false, 23)];
+export const ANIMAL_POSES: PoseDef[][] = [DEER_POSES, DEER_POSES, BEAST_POSES, BEAST_POSES, WOLF_POSES];
+export const A_WALK = 0, A_FLEE = 1, A_GRAZE = 2, A_DEAD = 3;
 export const fxId = { smoke: -1, ripple: -1, tuft: -1 };          // smoke: 4 puffs; ripple: 4 glints on water; tuft: per season, 4 sway frames
 export const chimney: number[][] = [];                             // per building sprite: where its chimney top is, from the foot, in 1x pixels (x, y)
 export const SMOKE_FRAMES = 4;
@@ -69,7 +74,7 @@ const SEASON_NAMES = ['spring', 'summer', 'autumn', 'winter'];
 const BUILD_EXTRA = ['gate', 'house-2', 'house-3'];
 
 class Ready { trees: boolean[] = [false, false, false, false]; rocks: boolean = false; buildings: boolean = false; people: boolean[] = []; animals: boolean[] = [false, false, false, false, false]; all: boolean = false; }
-/** One resolution of the atlas: its sheets (images), and the jobs that paint them when they are made by code. */
+/** One resolution of the atlas: its sheets (images), and the jobs that paint them when they are made from the generators. */
 export class AtlasSet {
   k: number = 1; images: number[] = []; px: u32[][] = []; ready: Ready = new Ready(); jobs: (() => void)[] = []; next: number = 0; files: boolean = false; done: boolean = false; dirty: boolean[] = [];
 }
@@ -77,305 +82,177 @@ export const sets: AtlasSet[] = [];
 /** The set that is drawn: k is its pixels per sprite pixel (1 or 2). */
 export const at = { k: 1, images: [] as number[], ready: new Ready() };
 let building: AtlasSet | null = null;
-export const stats = { source: '', bakeMs: 0, loadMs: 0, sheets: 0 };
+export const stats = { source: '', bakeMs: 0, loadMs: 0, sheets: 0, generator: 0 };
 export const dumpDir: string = env('ZINC_HAMLET_ATLAS_DUMP');
+const onlyText: string = env('ZINC_HAMLET_ATLAS_ONLY');          // with the export: only the groups whose name starts with one of these (comma separated)
+const onlyList: string[] = onlyText === '' ? [] : onlyText.split(',');
+function wants(name: string): boolean { if (onlyList.length === 0) return true; for (const p of onlyList) if (name.indexOf(p) === 0) return true; return false; }
 
 export function treeId(variant: number, season: number, sway: number): number { return treeBase[variant * SEASONS + season] + sway; }
-export function personId(role: number, dir: number, frame: number): number { return personBase[role] + dir * FRAMES + frame; }
-export function animalId(kind: number, dir: number, frame: number): number { return animalBase[kind] + dir * FRAMES + frame; }
+export function personId(role: number, pose: number, dir: number, frame: number): number { return personBase[role][pose] + dir * PERSON_POSES[pose].frames + frame; }
+export function animalId(kind: number, pose: number, dir: number, frame: number): number { return animalBase[kind][pose] + dir * ANIMAL_POSES[kind][pose].frames + frame; }
+export function carryId(carry: number, dir: number): number { return carryBase[Math.min(carry, CARRIES) - 1] + dir; }
 
 const REP_MONTH = [1, 4, 7, 10];
 let cur: AtlasSet | null = null;
-function place(id: number): void {
-  const s = cur as AtlasSet, sh = sheetOf[id];
-  use(s.px[sh], SHEET_W * s.k, sheetH[sh] * s.k);
-  page.x = sx[id] * s.k; page.y = sy[id] * s.k; page.k = s.k;
-  s.dirty[sh] = true;
-}
 
-// ---- trees ----
-function drawTree(id: number, v: number, season: number, sway: number): void {
-  place(id);
-  const m = REP_MONTH[season], b = broadAt(m), s = [.82, 1, 1.12, .95][v], fx = 28, fy = 78, lean = Math.sin(sway * 1.5708) * 1.8;
-  ground(fx, fy, 15 * s);
-  if (v === 2) {                                                  // a pine: stacked cones
-    const g = needleColor([46, 86, 60], m), snow = season === 3;
-    poly([fx - 2, fy, fx + 2, fy, fx + 2, fy - 12 * s, fx - 2, fy - 12 * s], rgb(BARK));
-    for (let k = 0; k < 4; k++) {
-      const w = (17 - k * 3.4) * s, top = fy - (14 + k * 12) * s, bot = top + 20 * s, sh = lean * (k + 1) * .35;
-      poly([fx + sh - w, bot, fx + sh + w, bot, fx + sh, top - 5 * s], shade(g, .62 + k * .1));
-      poly([fx + sh, bot, fx + sh + w, bot, fx + sh, top - 5 * s], shade(g, .8 + k * .1));
-      if (snow) poly([fx + sh - w * .55, top + 9 * s, fx + sh + w * .55, top + 9 * s, fx + sh, top - 5 * s], 0xf2f5f8);
+// ---- baking ----
+/** The cell of group g at the scale of the set: art pixels, two to an atlas pixel of the 1x sheet. */
+function cellOf(g: Group, k: number, draw: () => void, shadow: (() => void) | null): Cell { return capture(draw, shadow, g.cw * k, g.ch * k, g.ax * k, g.ay * k, k); }
+function put(g: Group, col: number, row: number, c: Cell): void {
+  const s = cur as AtlasSet;
+  blit(c, s.px[g.sheet], SHEET_W * s.k, (g.x + col * (g.cw + 1)) * s.k, (g.y + row * (g.ch + 1)) * s.k);
+  s.dirty[g.sheet] = true;
+}
+function groupNamed(name: string): Group { for (const g of groups) if (g.name === name) return g; return groups[0]; }
+function groupAt(id: number): Group { for (let n = groups.length - 1; n >= 0; n--) if (groups[n].first <= id) return groups[n]; return groups[0]; }
+const treeShadow = (h: number): (() => void) => (): void => { for (let z = 1; z < h; z += .45) castShadow(0, 0, z, .6); };
+
+function bakeTrees(season: number, k: number): void {
+  for (let v = 0; v < TREE_KINDS; v++) {
+    const g = groupAt(treeBase[v * SEASONS + season]);
+    if (!wants(g.name)) continue;
+    const base = cellOf(g, k, (): void => drawTreeMonth(v, REP_MONTH[season]), treeShadow(TREE_HEIGHT[v]));
+    for (let w = 0; w < SWAYS; w++) put(g, w, 0, w === 0 || w === 2 ? base : shear(base, (w === 1 ? 1.6 : -1.6) * k));
+  }
+}
+function bakeRocks(k: number): void {
+  const g = groupNamed('rock');
+  if (!wants(g.name)) return;
+  for (let q = 0; q < 6; q++) put(g, q, 0, cellOf(g, k, (): void => { drawModelId(MODEL_ROCK + q); }, (): void => castShadow(0, 0, .4, .6)));
+}
+function bakeBuilding(g: Group, id: number, k: number, smokeAt: number[]): void {
+  if (!wants(g.name)) return;
+  const c = cellOf(g, k, (): void => { drawModelId(id); }, (): void => { for (let z = .4; z < 2.6; z += .55) castShadow(0, 0, z, .85); });
+  put(g, 0, 0, c);
+  if (k !== 1) return;
+  // the chimney: the highest lit pixel, from the foot, in 1x pixels (the smoke rises from it)
+  for (let y = 0; y < c.h; y++) {
+    let sum = 0, n = 0;
+    for (let x = 0; x < c.w; x++) if (c.depth[y * c.w + x] > -1e8) { sum += x; n++; }
+    if (n > 0) { smokeAt[0] = ((sum / n) - c.ax) / k; smokeAt[1] = (y - c.ay) / k + 2; return; }
+  }
+}
+function bakeBuildings(k: number): void {
+  for (let q = 0; q < MODEL_IDS.length + 3; q++) {
+    const id = q < MODEL_IDS.length ? q : q === MODEL_IDS.length ? MODEL_GATE : MODEL_HOUSE_UP + q - MODEL_IDS.length - 1;
+    bakeBuilding(groupAt(buildIds[q]), id, k, chimney[q]);
+  }
+}
+const YAW_OF_DIR = [7, 0, 1, 2, 3, 4, 5, 6];       // the screen direction of a sprite row (0: right, 2: down, clockwise) and the heading of the old view that faces it
+const personShadow = (): void => { castShadow(0, 0, .3, .13); castShadow(0, 0, .75, .16); castShadow(0, 0, 1.15, .15); castShadow(0, 0, 1.5, .13); castShadow(0, 0, 0, .2, 2, 0); };
+function bakeRole(role: number, k: number): void {
+  const aa = actorAtlas();
+  for (let p = 0; p < PERSON_POSES.length; p++) {
+    const g = groupAt(personBase[role][p]), pp = PERSON_POSES[p];
+    if (!wants(g.name)) continue;
+    for (let d = 0; d < DIRS; d++) for (let f = 0; f < pp.frames; f++) {
+      put(g, f, d, cellOf(g, k, (): void => { aa.stamp('person', { variant: role * 4, yaw8: YAW_OF_DIR[d], pose: pp.slot + f }, 0, 0, 0, false); }, personShadow));
     }
-    return;
-  }
-  poly([fx - 2.5, fy, fx + 2.5, fy, fx + 2, fy - 22 * s, fx - 2, fy - 22 * s], rgb(BARK));
-  const r = 16 * s, ccx = fx + lean, ccy = fy - 36 * s;
-  if (b.leaves < .35) {                                            // bare branches
-    for (let k = 0; k < 5; k++) { const a = -2.2 + k * .55; stroke([fx, fy - 20 * s, ccx + Math.cos(a) * r * .9, ccy + Math.sin(a) * r * .9], 1.4, rgb(BARK), 255, false); }
-    if (season === 3) blob(ccx, ccy - r * .5, r * .6, r * .22, 0xf2f5f8, 220);
-    return;
-  }
-  const dark = b.crown, light = b.light;
-  blob(ccx + 1, ccy + 3 * s, r, r * .86, shade(dark, .7));
-  blob(ccx, ccy, r * .94, r * .8, shade(dark, 1));
-  blob(ccx - r * .25, ccy - r * .3, r * .62, r * .5, shade(light, .92));
-  blob(ccx - r * .38, ccy - r * .42, r * .3, r * .24, shade(light, 1.1));
-  if (b.blossom > .3) for (let k = 0; k < 6; k++) blob(ccx + Math.cos(k * 2.1) * r * .6, ccy + Math.sin(k * 1.7) * r * .5, 1.8, 1.6, 0xf3d4dc);
-}
-
-// ---- rocks and deposits ----
-function drawRock(k: number): void {
-  const id = rockIds[k];
-  place(id);
-  const fx = 20, fy = 24;
-  ground(fx, fy, 14);
-  if (k < 2) {
-    const g = k === 0 ? [138, 136, 128] : [120, 118, 114];
-    poly([fx - 12, fy, fx - 9, fy - 11, fx - 1, fy - 15, fx + 8, fy - 11, fx + 12, fy - 1, fx + 4, fy + 3, fx - 8, fy + 3], shade(g, .82));
-    poly([fx - 9, fy - 11, fx - 1, fy - 15, fx + 8, fy - 11, fx + 1, fy - 7], shade(g, 1.15));
-    poly([fx + 1, fy - 7, fx + 8, fy - 11, fx + 12, fy - 1, fx + 4, fy + 3], shade(g, .66));
-    return;
-  }
-  const kind = k - 2;
-  if (kind === 0) {                                               // a stone outcrop, pale
-    for (let n = 0; n < 3; n++) { const x = fx - 8 + n * 8, h = 9 + (n === 1 ? 6 : 0); poly([x - 5, fy + 1, x - 3, fy - h, x + 3, fy - h + 1, x + 6, fy + 1], shade(STONE, .8 + n * .08)); poly([x - 3, fy - h, x + 3, fy - h + 1, x + 1, fy - h + 5, x - 3, fy - h + 4], shade(STONE, 1.05)); }
-  } else if (kind === 1) {                                        // a clay bank
-    blob(fx, fy - 3, 14, 7, rgb([176, 112, 78])); blob(fx - 2, fy - 6, 10, 5, rgb([204, 140, 98])); blob(fx + 4, fy - 4, 4, 2, rgb([140, 86, 60]));
-  } else if (kind === 2) {                                        // ore: dark rock with metal glints
-    poly([fx - 12, fy, fx - 8, fy - 13, fx + 2, fy - 16, fx + 11, fy - 9, fx + 12, fy, fx + 3, fy + 3, fx - 7, fy + 3], 0x4a4a52);
-    poly([fx - 8, fy - 13, fx + 2, fy - 16, fx + 11, fy - 9, fx, fy - 8], 0x6a6a74);
-    blob(fx - 2, fy - 7, 1.8, 1.6, 0xd9a43a); blob(fx + 5, fy - 4, 1.5, 1.4, 0x8fb8d8); blob(fx - 6, fy - 3, 1.4, 1.2, 0xd9a43a);
-  } else {                                                        // berries: a bush with red dots
-    blob(fx, fy - 8, 12, 9, 0x2f5a30); blob(fx - 3, fy - 11, 8, 6, 0x4a7a3a);
-    for (let n = 0; n < 7; n++) blob(fx - 8 + (n * 5) % 16, fy - 13 + ((n * 7) % 9), 1.5, 1.5, 0xc0303a);
   }
 }
-
-// ---- buildings ----
-// [wall colour, roof colour, wall height, kind, width]  kind: 0 house, 1 field (flat), 2 well, 3 awning, 4 pit, 5 tower, 6 mill
-// wall rgb, roof rgb, wall height, kind, width: one string, parsed on first use (a long literal at the top level would crowd the program's registers)
-const LOOK_TEXT = '222,208,172,176,104,76,20,0,24;190,148,92,122,94,62,24,0,26;150,112,72,84,110,76,22,0,24;120,140,150,92,128,146,16,0,24;206,190,150,140,100,76,30,0,27;150,112,72,96,76,58,16,0,20;120,92,70,70,60,56,22,0,22;190,170,90,160,90,70,20,1,26;232,228,216,150,70,60,34,6,22;236,226,200,196,96,72,20,0,24;200,170,122,196,70,62,14,3,26;140,100,66,100,76,56,18,0,25;150,150,144,110,90,70,12,2,12;168,164,152,100,98,96,10,4,24;176,112,78,96,76,58,10,4,24;96,92,100,80,70,64,14,4,24;110,106,112,70,66,70,22,0,24;120,150,90,90,120,70,14,0,18;210,180,80,180,140,60,10,1,22;214,188,132,120,86,58,20,0,22;220,170,80,150,90,60,22,0,24;200,170,120,150,74,56,26,0,28;196,78,52,120,60,50,22,0,24;150,140,130,96,90,86,22,0,26;140,120,100,84,78,74,40,5,16;86,82,80,60,56,54,10,4,20';
-function lookOf(k: number): number[][] {
-  const f = LOOK_TEXT.split(';')[Math.min(k, 25)].split(',').map((v: string): number => Number(v));
-  return [[f[0], f[1], f[2]], [f[3], f[4], f[5]], [f[6], f[7], f[8]]];
+function bakeCarry(c: number, k: number): void {
+  const g = groupAt(carryBase[c - 1]);
+  if (!wants(g.name)) return;
+  for (let d = 0; d < DIRS; d++) put(g, 0, d, cellOf(g, k, (): void => paintCarry(c, YAW_OF_DIR[d] * Math.PI / 4), null));
 }
-function drawBuilding(id: number, lk: number[][], extra: number): void {
-  place(id);
-  const wall: number[] = lk[0], roof: number[] = lk[1], kind: number = lk[2][1];
-  const hw: number = lk[2][2] + extra * 2, hg: number = lk[2][0] + extra * 7;
-  ground(40, 80, hw + 6);
-  if (kind === 1) buildField(wall, roof, hw);
-  else if (kind === 4) buildPit(wall, roof, hw);
-  else if (kind === 2) buildWell(wall, roof);
-  else if (kind === 3) buildMarket(wall, roof, hw);
-  else if (kind === 5) buildTower(wall, roof, hg);
-  else buildHouse(id, wall, roof, hw, hg, kind, extra);
-}
-function buildField(wall: number[], roof: number[], hw: number): void {          // a field / apiary: a tilled diamond with a small shed
-  const cxp = 40, by = 78, hd = hw / 2;
-  poly([cxp - hw - 4, by, cxp, by + hd + 2, cxp + hw + 4, by, cxp, by - hd - 2], shade([128, 96, 56], .9));
-  for (let k = -3; k <= 3; k++) { const o = k * 3.6; stroke([cxp - hw + 6 + o * .6, by - hd * .6 + o * .35, cxp + hw - 6 + o * .6, by + hd * .6 + o * .35], 1.6, rgb(wall), 255, false); }
-  const w2 = 9;
-  poly([cxp - w2, by - 4, cxp, by + w2 / 2 - 4, cxp, by + w2 / 2 - 16, cxp - w2, by - 16], shade(roof, .7));
-  poly([cxp, by + w2 / 2 - 4, cxp + w2, by - 4, cxp + w2, by - 16, cxp, by + w2 / 2 - 16], shade(roof, .9));
-  poly([cxp - w2 - 2, by - 16, cxp, by + w2 / 2 - 18, cxp + w2 + 2, by - 16, cxp, by - w2 / 2 - 22], shade(roof, 1.1));
-}
-function buildPit(wall: number[], roof: number[], hw: number): void {              // a pit: dark hole with a rim and a hut
-  const cxp = 40, by = 78, hd = hw / 2, w2 = 8;
-  poly([cxp - hw, by, cxp, by + hd, cxp + hw, by, cxp, by - hd], rgb(wall));
-  poly([cxp - hw + 5, by, cxp, by + hd - 3, cxp + hw - 5, by, cxp, by - hd + 3], 0x3a3028);
-  poly([cxp - hw + 9, by + 1, cxp, by + hd - 6, cxp + hw - 9, by + 1, cxp, by - hd + 5], 0x241c16);
-  poly([cxp + 8, by - 12, cxp + 8 + w2, by - 12 - w2 / 2 + 4, cxp + 8 + w2, by - 24, cxp + 8, by - 20], shade(roof, 1));
-  poly([cxp + 8 - w2, by - 12 - w2 / 2 + 4, cxp + 8, by - 12, cxp + 8, by - 20, cxp + 8 - w2, by - 24], shade(roof, .8));
-}
-function buildWell(wall: number[], roof: number[]): void {                         // a well: stone ring, roof on two posts
-  const cxp = 40, by = 78;
-  blob(cxp, by - 4, 11, 6, shade(wall, .8)); blob(cxp, by - 7, 11, 6, shade(wall, 1.05)); blob(cxp, by - 7, 7.5, 4, 0x2c4a58);
-  poly([cxp - 9, by - 8, cxp - 7, by - 8, cxp - 7, by - 26, cxp - 9, by - 26], rgb(WOOD_BROWN));
-  poly([cxp + 7, by - 8, cxp + 9, by - 8, cxp + 9, by - 26, cxp + 7, by - 26], rgb(WOOD_BROWN));
-  poly([cxp - 14, by - 25, cxp, by - 33, cxp + 14, by - 25, cxp, by - 20], shade(roof, 1));
-  poly([cxp - 14, by - 25, cxp, by - 20, cxp + 14, by - 25, cxp + 12, by - 23, cxp, by - 17, cxp - 12, by - 23], shade(roof, .7));
-}
-function buildMarket(wall: number[], roof: number[], hw: number): void {          // a market: awning with stripes over a stall
-  const cxp = 40, by = 78, hd = hw / 2;
-  poly([cxp - hw, by, cxp, by + hd, cxp + hw, by, cxp, by - hd], shade(wall, .95));
-  for (let k = 0; k < 4; k++) { const x0 = cxp - hw + 4 + k * (hw * .5); poly([x0, by - 18, x0 + hw * .5, by - 18 + hd * .25, x0 + hw * .5, by - 8, x0, by - 8 - hd * .25], k % 2 === 0 ? rgb(roof) : 0xf0e6d0); }
-  poly([cxp - 12, by - 2, cxp + 12, by - 2, cxp + 10, by - 9, cxp - 10, by - 9], rgb(WOOD_HONEY));
-  blob(cxp - 5, by - 11, 2.5, 2, 0xc0392b); blob(cxp + 2, by - 11, 2.5, 2, 0xe0b13c); blob(cxp + 8, by - 10, 2.2, 2, 0x6aa050);
-}
-function buildTower(wall: number[], roof: number[], hg: number): void {           // a watch tower: tall narrow box with a platform
-  const cxp = 40, by = 78;
-  poly([cxp - 9, by - 2, cxp, by + 3, cxp, by - hg, cxp - 9, by - hg - 4], shade(wall, .8)); poly([cxp, by + 3, cxp + 9, by - 2, cxp + 9, by - hg - 4, cxp, by - hg], shade(wall, .95));
-  poly([cxp - 13, by - hg - 4, cxp, by - hg + 3, cxp + 13, by - hg - 4, cxp, by - hg - 11], shade(roof, 1.1));
-  poly([cxp - 13, by - hg - 4, cxp, by - hg + 3, cxp + 13, by - hg - 4, cxp + 11, by - hg - 10, cxp, by - hg - 3, cxp - 11, by - hg - 10], shade(roof, .75));
-  poly([cxp - 3, by - hg - 7, cxp + 3, by - hg - 7, cxp + 3, by - hg - 16, cxp - 3, by - hg - 16], 0x6a5a40);
-}
-function buildHouse(id: number, wall: number[], roof: number[], hw: number, hg: number, kind: number, extra: number): void {
-  const cxp = 40, by = 78, hd = hw / 2;
-  poly([cxp - hw, by, cxp, by + hd, cxp, by + hd - hg, cxp - hw, by - hg], shade(wall, .8));
-  poly([cxp, by + hd, cxp + hw, by, cxp + hw, by - hg, cxp, by + hd - hg], shade(wall, .96));
-  const ry = (u: number): number => by + hd - u * hd / hw;           // the bottom edge of the right face at distance u from the centre corner
-  const d0 = cxp + hw * .3, w0 = cxp + hw * .65, l0 = cxp - hw * .55;
-  poly([d0, ry(hw * .3), d0 + 6, ry(hw * .3 + 6), d0 + 6, ry(hw * .3 + 6) - 12, d0, ry(hw * .3) - 12], 0x4a3626);
-  poly([w0, ry(hw * .65) - 8, w0 + 4, ry(hw * .65 + 4) - 8, w0 + 4, ry(hw * .65 + 4) - 13, w0, ry(hw * .65) - 13], 0xf0d890);
-  poly([l0, ry(hw * .55) - 8, l0 + 4, ry(hw * .55 - 4) - 8, l0 + 4, ry(hw * .55 - 4) - 13, l0, ry(hw * .55) - 13], 0xf0d890);
-  if (kind === 6) {                                               // a mill: peaked top and sails
-    poly([cxp - hw - 2, by - hg, cxp, by + hd + 2 - hg, cxp + hw + 2, by - hg, cxp, by - hd - 2 - hg, cxp, by - hg - 14], shade(roof, 1));
-    stroke([cxp, by - hg - 4, cxp - 20, by - hg - 26], 2, 0x6a5238, 255, false); stroke([cxp, by - hg - 4, cxp + 20, by - hg + 18], 2, 0x6a5238, 255, false);
-    stroke([cxp, by - hg - 4, cxp + 22, by - hg - 22], 2, 0x6a5238, 255, false); stroke([cxp, by - hg - 4, cxp - 20, by - hg + 14], 2, 0x6a5238, 255, false);
-    return;
-  }
-  const rise = 14 + extra * 3, e = 4;                             // hip roof with eaves
-  const lx = cxp - hw - e, rx = cxp + hw + e, ey = by - hg, byy = by + hd + e / 2 - hg, ty = by - hd - e / 2 - hg, ay = by - hg - rise;
-  poly([cxp, ty, lx, ey, cxp, ay], shade(roof, .6)); poly([rx, ey, cxp, ty, cxp, ay], shade(roof, .7));
-  poly([lx, ey, cxp, byy, cxp, ay], shade(roof, .86)); poly([cxp, byy, rx, ey, cxp, ay], shade(roof, 1.04));
-  if (id !== buildIds[0]) {                                       // a chimney on the workshops
-    poly([cxp - 12, by - hg - 4, cxp - 8, by - hg - 2, cxp - 8, by - hg - 14, cxp - 12, by - hg - 16], 0x5a4a44);
-    poly([cxp - 8, by - hg - 2, cxp - 5, by - hg - 4, cxp - 5, by - hg - 16, cxp - 8, by - hg - 14], 0x75635a);
-  }
-}
-function drawGate(id: number): void {
-  place(id);
-  const c = 40, b = 78;
-  ground(c, b + 2, 30);
-  poly([c - 26, b + 4, c - 20, b + 4, c - 20, b - 34, c - 26, b - 34], rgb(WOOD_BROWN)); poly([c + 20, b - 10, c + 26, b - 10, c + 26, b - 48, c + 20, b - 48], rgb(WOOD_BROWN));
-  poly([c - 28, b - 32, c + 28, b - 52, c + 28, b - 46, c - 28, b - 26], rgb(WOOD_HONEY));
-  poly([c - 20, b - 30, c + 20, b - 46, c + 20, b - 42, c - 20, b - 26], 0xc03a3a);
-}
-
-// ---- people ----
-function paletteOf(role: number): Palette {
-  const all: Palette[] = [P.SETTLER_PALETTE, P.RESIDENT_PALETTE, P.LUMBERJACK_PALETTE, P.HUNTER_PALETTE, P.FISHER_PALETTE, P.SAWYER_PALETTE, P.SMOKER_PALETTE, P.PORTER_PALETTE, P.FARMER_PALETTE, P.MILLER_PALETTE, P.BAKER_PALETTE, P.VENDOR_PALETTE, P.TANNER_PALETTE, P.QUARRYMAN_PALETTE, P.PEDDLER_PALETTE, P.FORAGER_PALETTE, P.SMITH_PALETTE, P.BEEKEEPER_PALETTE, P.CHANDLER_PALETTE, P.BREWER_PALETTE, P.INNKEEPER_PALETTE, P.FIREWARDEN_PALETTE, P.REPAIRMAN_PALETTE, P.WATCHMAN_PALETTE, P.ROBBER_PALETTE, P.RIOTER_PALETTE];
-  return all[Math.min(role, all.length - 1)];
-}
-function drawRole(role: number): void {
-  const pal = paletteOf(role);
-  const shirt = pal.shirt, legs = pal.legs, hair = pal.hair, skin = pal.skin;
-  for (let d = 0; d < DIRS; d++) for (let f = 0; f < FRAMES; f++) {
-    const id = personId(role, d, f);
-    place(id);
-    const a = d * Math.PI / 4, dx = Math.cos(a), dy = Math.sin(a), fx = 10, fy = 28;
-    const swing = Math.sin(f / FRAMES * 6.2832) * 3, bob = Math.abs(Math.sin(f / FRAMES * 6.2832)) * 1.2, sideways = Math.abs(dx) > .5;
-    blob(fx, fy, 6, 2.6, 0x000000, 70);
-    const lx = sideways ? swing * Math.sign(dx) : 0, wid = sideways ? 2.4 : 3.4;
-    poly([fx - wid - lx * .5 - 1, fy - 10 - bob * .5, fx - wid + lx - 1, fy, fx - wid + lx + 1.6, fy, fx - wid - lx * .5 + 1.4, fy - 10 - bob * .5], shade(legs, .85));
-    poly([fx + wid + lx * .5 - 1.4, fy - 10 - bob * .5, fx + wid - lx - 1.6, fy, fx + wid - lx + 1, fy, fx + wid + lx * .5 + 1, fy - 10 - bob * .5], shade(legs, 1.05));
-    const bx = dx * 1.2;
-    poly([fx - 5 + bx, fy - 10 - bob, fx + 5 + bx, fy - 10 - bob, fx + 4.5 + bx, fy - 19 - bob, fx - 4.5 + bx, fy - 19 - bob], rgb(shirt));
-    poly([fx - 5 + bx, fy - 12 - bob, fx + 5 + bx, fy - 12 - bob, fx + 5 + bx, fy - 14 - bob, fx - 5 + bx, fy - 14 - bob], rgb(pal.stripe));
-    const armSwing = sideways ? swing * .6 : 0;
-    poly([fx - 7 + bx, fy - 18 - bob, fx - 5 + bx, fy - 18 - bob, fx - 5.4 + bx + armSwing, fy - 10 - bob, fx - 7.4 + bx + armSwing, fy - 10 - bob], shade(shirt, .8));
-    poly([fx + 5 + bx, fy - 18 - bob, fx + 7 + bx, fy - 18 - bob, fx + 7.4 + bx - armSwing, fy - 10 - bob, fx + 5.4 + bx - armSwing, fy - 10 - bob], shade(shirt, .8));
-    const hx = fx + bx + dx * .8;
-    blob(hx, fy - 23 - bob, 3.6, 3.8, rgb(skin));
-    if (dy < -.3) blob(hx, fy - 23.6 - bob, 3.7, 3.7, rgb(hair));                                   // facing away: hair covers the head
-    else poly([hx - 3.7, fy - 24 - bob, hx + 3.7, fy - 24 - bob, hx + 3, fy - 27.5 - bob, hx - 3, fy - 27.5 - bob], rgb(hair));
-  }
-}
-
-// ---- animals ----
-function drawAnimal(kind: number): void {
-  // kind: 0 doe, 1 stag, 2 rabbit, 3 boar, 4 wolf
-  const fur = kind <= 1 ? FUR : kind === 2 ? RABBIT_FUR : kind === 3 ? BOAR_FUR : WOLF_FUR;
-  const dark = kind <= 1 ? FUR_DARK : kind === 2 ? RABBIT_DARK : kind === 3 ? BOAR_DARK : WOLF_DARK;
-  const light = kind <= 1 ? FUR_LIGHT : kind === 2 ? RABBIT_LIGHT : kind === 3 ? BOAR_LIGHT : WOLF_LIGHT;
-  const len = [9, 10, 4.5, 8, 8][kind], thick = [4.6, 5, 3, 5.2, 4][kind], legH = [8, 9, 3, 5, 7][kind];
-  for (let d = 0; d < DIRS; d++) for (let f = 0; f < FRAMES; f++) {
-    const id = animalId(kind, d, f);
-    place(id);
-    const a = d * Math.PI / 4, ux = Math.cos(a), uy = Math.sin(a) * .62, sa = Math.sin(a), wy = .45 + .55 * Math.abs(ux), fx = 24, fy = 26;     // body axis on the screen (the ground is foreshortened)
-    const ph = f / FRAMES * 6.2832, hop = kind === 2 ? Math.abs(Math.sin(ph)) * 3 : 0;
-    blob(fx, fy, len + 3, (len + 3) * .45, 0x000000, 62);
-    const bcx = fx, bcy = fy - legH - thick * .6 - hop;
-    for (let l = 0; l < 4; l++) {                                  // legs: front pair and rear pair, swinging
-      const along = (l < 2 ? 1 : -1) * len * .62, side = (l & 1 ? 1 : -1) * 2.2, sw = Math.sin(ph + (l === 1 || l === 2 ? 3.14 : 0)) * 2.2;
-      const px = fx + ux * along, py = fy + uy * along + side * .5 - 1;
-      stroke([px, bcy + 2, px + sw * ux, py - hop * .3], 1.7, shade(rgbArr(dark), l & 1 ? .7 : 1), 255, false);
-    }
-    const pts: number[] = [];
-    for (let k = 0; k < 14; k++) { const t = k / 14 * 6.2832, lx = Math.cos(t) * len, ly = Math.sin(t) * thick; pts.push(bcx + lx * ux - ly * sa, bcy + lx * uy + ly * wy); }
-    poly(pts, rgb(fur));
-    const pts2: number[] = [];
-    for (let k = 0; k < 14; k++) { const t = k / 14 * 6.2832, lx = Math.cos(t) * len * .7, ly = Math.sin(t) * thick * .5 + thick * .3; pts2.push(bcx + lx * ux - ly * sa, bcy + lx * uy + ly * wy); }
-    poly(pts2, rgb(light), 150);
-    const hx = bcx + ux * (len + 1.5), hy = bcy + uy * (len + 1.5) - (kind <= 1 ? 4 : kind === 3 ? -.5 : 1);     // head
-    if (kind <= 1) stroke([bcx + ux * len * .6, bcy + uy * len * .6 - 1, hx, hy], 2.6, rgb(fur), 255, false);
-    blob(hx, hy, kind === 2 ? 2.3 : kind === 3 ? 3.2 : 2.7, kind === 2 ? 2.2 : 2.5, rgb(fur));
-    if (uy > -.2) blob(hx + ux * 1.6, hy + .4, 1.1, 1, rgb(dark));
-    if (kind === 2) stroke([hx, hy - 1, hx - 1.5 * (ux >= 0 ? 1 : -1), hy - 6], 1.5, rgb(fur), 255, false);       // ears
-    if (kind === 1) { for (let s = -1; s <= 1; s += 2) { stroke([hx, hy - 2, hx + s * 3, hy - 7], 1.1, 0xe6d6b0, 255, false); stroke([hx + s * 2, hy - 5, hx + s * 4, hy - 9], 1, 0xe6d6b0, 255, false); } }
-    if (kind === 0) stroke([hx, hy - 1.5, hx - 1, hy - 4.5], 1.4, rgb(fur), 255, false);
-    blob(bcx - ux * (len + .5), bcy - uy * (len + .5) - 1, 1.6, 1.6, kind <= 1 ? rgb(light) : rgb(dark));   // tail
-  }
-}
-function rgbArr(c: number[]): number[] { return c; }
-
-// ---- effects: smoke, water glints, grass ----
-function drawSmoke(): void {
-  for (let f = 0; f < SMOKE_FRAMES; f++) {
-    place(fxId.smoke + f);
-    const r = 3 + f * 1.5, g = 232 - f * 14;
-    blob(12, 12, r, r * .9, (g << 16) | (g << 8) | (g - 6), 255);
-    blob(12 - r * .25, 12 - r * .3, r * .55, r * .5, 0xffffff, 110);
-  }
-}
-function drawRipple(): void {
-  for (let f = 0; f < 4; f++) {
-    place(fxId.ripple + f);
-    const a = [90, 230, 150, 40][f], w = [5, 8, 10, 12][f];
-    blob(14, 7, w, w * .42, 0xdff0f4, a);
-    blob(14, 7, w - 2, (w - 2) * .42, 0x5a8aa0, a >> 1);
-  }
-}
-function drawTufts(): void {
-  for (let s = 0; s < SEASONS; s++) for (let w = 0; w < SWAYS; w++) {
-    place(fxId.tuft + s * SWAYS + w);
-    const b = broadAt(REP_MONTH[s]), lean = Math.sin(w * 1.5708) * 1.4, c = s === 3 ? [200, 206, 208] : s === 2 ? [150, 130, 70] : b.crown;
-    for (let k = -2; k <= 2; k++) {
-      const h = 7 + (k === 0 ? 3 : 0) - Math.abs(k), x = 8 + k * 1.8;
-      poly([x - 1, 15, x + lean * h / 8 * (k < 0 ? 1.2 : .8), 15 - h, x + 1, 15], shade(c, .8 + (k + 2) * .08));
+function bakeAnimal(kind: number, k: number): void {
+  const a = actorAtlas(), name = kind <= 1 ? 'deer' : kind === 2 ? 'rabbit' : kind === 3 ? 'boar' : 'wolf', r = kind === 2 ? .15 : kind === 4 ? .32 : .4;
+  for (let p = 0; p < ANIMAL_POSES[kind].length; p++) {
+    const g = groupAt(animalBase[kind][p]), pp = ANIMAL_POSES[kind][p];
+    if (!wants(g.name)) continue;
+    for (let d = 0; d < DIRS; d++) for (let f = 0; f < pp.frames; f++) {
+      put(g, f, d, cellOf(g, k, (): void => { a.stamp(name, { variant: kind === 1 ? 1 : 0, yaw8: YAW_OF_DIR[d], pose: pp.slot + f }, 0, 0, 0, false); }, (): void => { if (kind <= 1) castShadow(0, 0, .5, .55); else castShadow(0, 0, r * .6, r); }));
     }
   }
 }
 
-// ---- the sets ----
+// ---- the small effects: smoke, water glints, grass ----
+function bakeFx(k: number): void {
+  let g = groupNamed('fx/smoke');
+  if (wants(g.name)) for (let f = 0; f < SMOKE_FRAMES; f++) {
+    const c = new Cell(g.cw * k, g.ch * k, g.ax * k, g.ay * k), r = (1.4 + f * .7) * k, grey = 232 - f * 12;
+    disc(c, c.ax, c.ay, r, r * .9, [grey, grey, grey - 8], 255, .7); put(g, f, 0, c);
+  }
+  g = groupNamed('fx/ripple');
+  if (wants(g.name)) for (let f = 0; f < 4; f++) {
+    const c = new Cell(g.cw * k, g.ch * k, g.ax * k, g.ay * k), w = [2.5, 4, 5, 6][f] * k, a = [90, 230, 150, 40][f];
+    for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) {
+      const dx = (x + .5 - c.ax) / w, dy = (y + .5 - c.ay) / (w * .42), n = dx * dx + dy * dy;
+      if (n < .5 || n > 1.1) continue;
+      if ((x + y) % 3 === 0) continue;
+      c.px[y * c.w + x] = argb(n < .8 ? [223, 240, 244] : [90, 138, 160], a);
+    }
+    put(g, f, 0, c);
+  }
+  g = groupNamed('fx/grass');
+  if (wants(g.name)) for (let s = 0; s < SEASONS; s++) for (let w = 0; w < SWAYS; w++) {
+    const c = new Cell(g.cw * k, g.ch * k, g.ax * k, g.ay * k);
+    const col: number[] = s === 3 ? [200, 206, 208] : s === 2 ? [150, 130, 70] : broadAt(REP_MONTH[s]).crown, ramp = rampOf(col), lean = Math.sin(w * 1.5708) * .9 * k;
+    for (let b = -2; b <= 2; b++) {
+      const h = (3 + (b === 0 ? 2 : 0) - Math.abs(b) * .6) * k, bx = c.ax + b * 1.3 * k;
+      for (let y = 0; y < h; y++) {
+        const px = Math.round(bx + lean * y / h), py = c.ay - 1 - y;
+        if (px < 0 || px >= c.w || py < 0 || py >= c.h) continue;
+        c.px[py * c.w + px] = y > h * .55 ? ramp[3] : ramp[1];
+      }
+    }
+    put(g, w, s, c);
+  }
+}
+
+// ---- the layout and the sets ----
 const SHEET_TREES = 0, SHEET_PROPS = 4, SHEET_BUILD = 5, SHEET_PEOPLE = 6, SHEET_ANIMALS = 7;
-/** The groups and their places, once: the same ids whatever the art comes from. */
+/** The groups and their places, once: the same ids whatever the art comes from. Sizes are in art pixels of the old view (S = 10): one atlas pixel, drawn ART map pixels wide. */
 function layout(): void {
   if (layoutDone) return;
   layoutDone = true;
   for (let n = 0; n < sheetNames.length; n++) pk.push([1, 1, 0]);
   for (let v = 0; v < TREE_KINDS * SEASONS; v++) treeBase.push(0);
-  for (let s = 0; s < SEASONS; s++) for (let v = 0; v < TREE_KINDS; v++) treeBase[v * SEASONS + s] = grp('tree/' + v + '/' + SEASON_NAMES[s], SHEET_TREES + s, SWAYS, 1, 56, 84, 28, 78);
-  const rocks = grp('rock', SHEET_PROPS, 6, 1, 40, 30, 20, 24);
+  for (let s = 0; s < SEASONS; s++) for (let v = 0; v < TREE_KINDS; v++) treeBase[v * SEASONS + s] = grp('tree/' + v + '/' + SEASON_NAMES[s], SHEET_TREES + s, SWAYS, 1, 50, 50, 16, 46);
+  const rocks = grp('rock', SHEET_PROPS, 6, 1, 32, 20, 12, 15);
   for (let k = 0; k < 6; k++) rockIds.push(rocks + k);
-  carryId.box = grp('carry-box', SHEET_PROPS, 1, 1, 10, 10, 5, 8);
-  fxId.smoke = grp('fx/smoke', SHEET_PROPS, SMOKE_FRAMES, 1, 24, 24, 12, 12);
-  fxId.ripple = grp('fx/ripple', SHEET_PROPS, 4, 1, 28, 14, 14, 7);
-  fxId.tuft = grp('fx/grass', SHEET_PROPS, SWAYS, SEASONS, 16, 16, 8, 15);
-  for (let k = 0; k < MODEL_IDS.length; k++) {
-    buildIds.push(grp('building/' + MODEL_IDS[k], SHEET_BUILD, 1, 1, 80, 96, 40, 78));
-    const lk = lookOf(k), hg = lk[2][0], kind = lk[2][1];
-    chimney.push(kind === 0 && k !== 0 ? [-8.5, -hg - 16] : kind === 6 ? [0, -hg - 16] : [0, -hg - 8]);
-  }
-  for (let k = 0; k < BUILD_EXTRA.length; k++) buildIds.push(grp('building/' + BUILD_EXTRA[k], SHEET_BUILD, 1, 1, 80, 96, 40, 78));
-  for (let r = 0; r < ROLES; r++) personBase.push(grp('person/' + ROLE_NAMES[r], SHEET_PEOPLE, FRAMES, DIRS, 20, 32, 10, 28));
-  for (let k = 0; k < ANIMAL_KINDS; k++) animalBase.push(grp('animal/' + ANIMAL_NAMES[k], SHEET_ANIMALS, FRAMES, DIRS, 48, 32, 24, 26));
+  fxId.smoke = grp('fx/smoke', SHEET_PROPS, SMOKE_FRAMES, 1, 12, 12, 6, 6);
+  fxId.ripple = grp('fx/ripple', SHEET_PROPS, 4, 1, 14, 8, 7, 4);
+  fxId.tuft = grp('fx/grass', SHEET_PROPS, SWAYS, SEASONS, 8, 8, 4, 8);
+  for (let k = 0; k < MODEL_IDS.length; k++) { buildIds.push(grp('building/' + MODEL_IDS[k], SHEET_BUILD, 1, 1, 64, 56, 24, 47)); chimney.push([0, -60]); }
+  for (let k = 0; k < BUILD_EXTRA.length; k++) { buildIds.push(grp('building/' + BUILD_EXTRA[k], SHEET_BUILD, 1, 1, 64, 56, 24, 47)); chimney.push([0, -60]); }
+  for (let r = 0; r < ROLES; r++) { const l: number[] = []; for (const pp of PERSON_POSES) l.push(grp('person/' + ROLE_NAMES[r] + '/' + pp.name, SHEET_PEOPLE, pp.frames, DIRS, 20, 20, 6, 18, pp.name, pp.fps, pp.loop)); personBase.push(l); }
+  for (let c = 1; c <= CARRIES; c++) carryBase.push(grp('carry/' + c, SHEET_PEOPLE, 1, DIRS, 20, 20, 6, 18));
+  for (let k = 0; k < ANIMAL_KINDS; k++) { const l: number[] = []; for (const pp of ANIMAL_POSES[k]) l.push(grp('animal/' + ANIMAL_NAMES[k] + '/' + pp.name, SHEET_ANIMALS, pp.frames, DIRS, 36, 28, 14, 22, pp.name, pp.fps, pp.loop)); animalBase.push(l); }
   fill();
   for (let n = 0; n < sheetNames.length; n++) sheetH.push(pk[n][1] + pk[n][2] + 2);
 }
 
-/** index.json: the places of the groups, as an artist (or the dump) wrote them; applied when it lists the groups of this build in order. */
-function readIndex(): boolean {
-  if (!assets.exists('atlas/index.json')) return false;
+/** A number that changes when the generators change: the layout, the light, and a digest of four probe frames (a house, a pine, a person, a deer) baked now. */
+export function generatorHash(): number {
+  layout();
+  const parts: number[] = [GENERATOR_VERSION, groups.length];
+  for (const g of groups) parts.push(hashText(g.name), g.cw, g.ch, g.ax, g.ay, g.cols, g.rows);
+  const saved = cur, probe = new AtlasSet();
+  cur = probe;
+  const cells: Cell[] = [
+    capture((): void => { drawModelId(0); }, null, 64, 56, 24, 47, 1),
+    capture((): void => drawTreeMonth(0, 4), null, 50, 50, 16, 46, 1),
+    capture((): void => { actorAtlas().stamp('person', { variant: 8, yaw8: 1, pose: 2 }, 0, 0, 0, false); }, personShadow, 20, 20, 6, 18, 1),
+    capture((): void => { actorAtlas().stamp('deer', { variant: 1, yaw8: 3, pose: 2 }, 0, 0, 0, false); }, null, 36, 28, 14, 22, 1),
+  ];
+  cur = saved;
+  for (const c of cells) { let h = 0; for (let n = 0; n < c.px.length; n++) h = (Math.imul(h, 31) + c.px[n]) | 0; parts.push(h); }
+  return hashNumbers(parts);
+}
+
+/** index.json: the places of the groups, as the export (or an artist) wrote them; applied when it lists the groups of this build in order. Returns it, or null. */
+function readIndex(): { generator: number } | null {
+  if (!assets.exists('atlas/index.json')) return null;
   const j = JSON.parse(assets.readText('atlas/index.json'));
-  if (j.version !== 1 || j.groups.length !== groups.length || j.sheets.length !== sheetNames.length) { console.log('atlas/index.json does not match this build: sprites made by code'); return false; }
-  for (let n = 0; n < groups.length; n++) if (j.groups[n].name !== groups[n].name || j.groups[n].frames !== groups[n].cols || j.groups[n].directions !== groups[n].rows) { console.log('atlas/index.json: group ' + j.groups[n].name + ' differs from ' + groups[n].name + ': sprites made by code'); return false; }
+  if (j.version !== 2 || j.groups.length !== groups.length || j.sheets.length !== sheetNames.length) { console.log('atlas/index.json does not match this build: sprites baked from the generators'); return null; }
+  for (let n = 0; n < groups.length; n++) if (j.groups[n].name !== groups[n].name || j.groups[n].frames !== groups[n].cols || j.groups[n].directions !== groups[n].rows) { console.log('atlas/index.json: group ' + j.groups[n].name + ' differs from ' + groups[n].name + ': sprites baked from the generators'); return null; }
   for (let n = 0; n < groups.length; n++) { const e = j.groups[n], g = groups[n]; g.sheet = sheetNames.indexOf(e.sheet); g.x = e.x; g.y = e.y; g.cw = e.w; g.ch = e.h; g.ax = e.anchor[0]; g.ay = e.anchor[1]; }
   for (let n = 0; n < sheetH.length; n++) sheetH[n] = j.sheets[n].h;
+  for (let n = 0; n < buildIds.length; n++) { const e = j.groups[groups.indexOf(groupAt(buildIds[n]))]; if (e.chimney !== undefined) chimney[n] = [e.chimney[0], e.chimney[1]]; }
   fill();
-  return true;
+  return { generator: j.generator };
 }
 
 function readyAll(): Ready { const r = new Ready(); r.trees = [true, true, true, true]; r.rocks = true; r.buildings = true; for (let q = 0; q < ROLES; q++) r.people.push(true); r.animals = [true, true, true, true, true]; r.all = true; return r; }
@@ -390,42 +267,53 @@ function startSet(k: number, useFiles: boolean): AtlasSet {
     s.images.length = 0;
   }
   for (let n = 0; n < sheetNames.length; n++) {
-    s.px.push(openPage(SHEET_W * k, sheetH[n] * k)); s.images.push(createImage(SHEET_W * k, sheetH[n] * k)); s.dirty.push(false);
+    s.px.push(Array.from({ length: SHEET_W * k * sheetH[n] * k }, (): u32 => 0)); s.images.push(createImage(SHEET_W * k, sheetH[n] * k)); s.dirty.push(false);
   }
-  stats.source = 'code';
+  stats.source = 'computed';
   const R = s.ready;
-  for (let q = 0; q < SEASONS; q++) {
-    s.jobs.push((): void => { for (let v = 0; v < TREE_KINDS; v++) for (let w = 0; w < SWAYS; w++) drawTree(treeId(v, q, w), v, q, w); R.trees[q] = true; });
-  }
-  s.jobs.push((): void => { for (let q = 0; q < 6; q++) drawRock(q); R.rocks = true; });
-  s.jobs.push((): void => {
-    for (let q = 0; q < MODEL_IDS.length; q++) drawBuilding(buildIds[q], lookOf(q), 0);
-    drawGate(buildIds[GATE_MODEL]);
-    drawBuilding(buildIds[GATE_MODEL + 1], lookOf(0), 1); drawBuilding(buildIds[GATE_MODEL + 2], lookOf(0), 2);
-    R.buildings = true;
-  });
-  for (let r = 0; r < ROLES; r++) { R.people.push(false); s.jobs.push((): void => { drawRole(r); R.people[r] = true; }); }
-  for (let q = 0; q < ANIMAL_KINDS; q++) s.jobs.push((): void => { drawAnimal(q); R.animals[q] = true; });
-  s.jobs.push((): void => {
-    place(carryId.box); poly([1, 3, 5, 1, 9, 3, 5, 5], 0xc8a068); poly([1, 3, 5, 5, 5, 9, 1, 7], 0x9a7648); poly([5, 5, 9, 3, 9, 7, 5, 9], 0xb08c58);
-    drawSmoke(); drawRipple(); drawTufts();
-    R.all = true;
-  });
+  for (let q = 0; q < SEASONS; q++) s.jobs.push((): void => { bakeTrees(q, k); R.trees[q] = true; });
+  s.jobs.push((): void => { bakeRocks(k); R.rocks = true; });
+  s.jobs.push((): void => { bakeBuildings(k); R.buildings = true; });
+  for (let r = 0; r < ROLES; r++) { R.people.push(false); s.jobs.push((): void => { bakeRole(r, k); R.people[r] = true; }); }
+  s.jobs.push((): void => { for (let c = 1; c <= CARRIES; c++) bakeCarry(c, k); });
+  for (let q = 0; q < ANIMAL_KINDS; q++) s.jobs.push((): void => { bakeAnimal(q, k); R.animals[q] = true; });
+  s.jobs.push((): void => { bakeFx(k); R.all = true; });
   sets.push(s);
   building = s;
   return s;
 }
 function select(s: AtlasSet): void { at.k = s.k; at.images = s.images; at.ready = s.ready; }
 
-/** Makes the 1x set (from the PNG sheets of assets/atlas when they are there, else by code). A second call does nothing. */
+/** The mode asked for: ZINC_HAMLET_ATLAS=files|computed (code is computed), else '' (files when they match the generators). */
+export let mode: string = env('ZINC_HAMLET_ATLAS') === 'code' ? 'computed' : env('ZINC_HAMLET_ATLAS');
+/** Makes the 1x set, from the files or from the generators. A second call does nothing. */
 export function initAtlas(): void {
   const t0 = performance.now();
   if (sets.length > 0) return;
   layout();
-  const files = dumpDir === '' && env('ZINC_HAMLET_ATLAS') !== 'code' && readIndex();   // ZINC_HAMLET_ATLAS=code: the sprites made by code, whatever assets/atlas holds
+  let files = false;
+  if (dumpDir === '' && mode !== 'computed') {
+    const idx = readIndex();
+    if (idx !== null) {
+      stats.generator = generatorHash();
+      files = mode === 'files' || idx.generator === stats.generator;
+      if (!files) console.log('atlas/index.json was exported by other generators (' + idx.generator + ', now ' + stats.generator + '): sprites baked from the generators');
+    }
+  }
+  if (env('ZINC_HAMLET_ATLAS_CHECK') === '1') { const r = checkFrames(); console.log('atlas check: ' + r[0] + ' lit pixels, ' + r[1] + ' differ from the old view frames'); }
   select(startSet(1, files));
   if (env('ZINC_HAMLET_TRACE') === '1') console.log('atlas 1x ' + stats.source + ': sheets ready in ' + Math.round(performance.now() - t0) + ' ms');
   stats.sheets = sheetNames.length;
+}
+/** Switches the mode while the game runs (the panel): the sets are made again. */
+export const ATLAS_MODES: string[] = ['Auto (fichiers si à jour)', 'Fichiers (PNG)', 'Calculé (générateurs)'];
+export function atlasModeIndex(): number { return mode === 'files' ? 1 : mode === 'computed' ? 2 : 0; }
+export function setMode(m: string): void {
+  if (sets.length === 0) { mode = m; return; }
+  if (m === mode && sets.length > 0) return;
+  mode = m; sets.length = 0; building = null; wanted = 1; stats.bakeMs = 0;
+  layoutDone = false; groups.length = 0; sheetH.length = 0; pk.length = 0; treeBase.length = 0; rockIds.length = 0; buildIds.length = 0; personBase.length = 0; animalBase.length = 0; carryBase.length = 0; chimney.length = 0;
+  initAtlas();
 }
 let wanted = 1;
 /** Runs jobs until the budget (ms) is spent; true while some remain. The current season's trees go first. */
@@ -441,7 +329,7 @@ export function bakeStep(budgetMs: number, firstSeason: number): boolean {
   }
   for (let n = 0; n < s.images.length; n++) if (s.dirty[n]) { updatePixels(s.images[n], s.px[n], false); s.dirty[n] = false; }
   stats.bakeMs += performance.now() - t0;
-  if (s.next >= s.jobs.length) { s.done = true; building = null; if (env('ZINC_HAMLET_TRACE') === '1') console.log('atlas ' + s.k + 'x baked by code: ' + Math.round(stats.bakeMs) + ' ms'); }
+  if (s.next >= s.jobs.length) { s.done = true; building = null; if (env('ZINC_HAMLET_TRACE') === '1') console.log('atlas ' + s.k + 'x baked from the generators: ' + Math.round(stats.bakeMs) + ' ms'); }
   return !s.done;
 }
 /** The zoom decides the set: 2x above zoom 2 (made on the first need, drawn once it is complete), 1x again under 1.8. */
@@ -452,7 +340,7 @@ export function chooseSet(zoom: number): void {
   const s = wanted >= 2 && sets.length > 1 ? sets[1] : sets[0];
   if (s.done && at.k !== s.k) select(s);
 }
-/** For the export: every job of a set made by code, at once; the pictures of its sheets stay in `px`. */
+/** For the export: every job of a set, at once; the pictures of its sheets stay in `px`. */
 export function dumpSet(k: number): AtlasSet {
   const s = startSet(k, false);
   cur = s;
@@ -460,4 +348,19 @@ export function dumpSet(k: number): AtlasSet {
   s.done = true; building = null;
   for (let n = 0; n < s.images.length; n++) updatePixels(s.images[n], s.px[n], false);
   return s;
+}
+/** For the test of the pipeline: a baked person frame and the same frame of the old view's own model capture, compared pixel by pixel (lit pixels only). Returns [pixels, differing]. */
+export function checkFrames(): number[] {
+  layout();
+  const c = capture((): void => { actorAtlas().stamp('person', { variant: 8, yaw8: 1, pose: 2 }, 0, 0, 0, false); }, null, 40, 40, 12, 36, 1);
+  const frame = actorAtlas().bake('person', { variant: 8, yaw8: 1, pose: 2 });
+  const d = capture((): void => { touchModelBuffer(); if (frame !== null) frame.drawAt(0, 0, 0); }, null, 40, 40, 12, 36, 1);
+  const h = capture((): void => { drawModelId(0); }, null, 64, 56, 24, 47, 1);      // the house: drawn now, and the cached model the old view stamps
+  useModels(0, S_ART, 0);
+  const o = capture((): void => { touchModelBuffer(); models[0].drawAt(0, 0, 0); }, null, 64, 56, 24, 47, 1);
+  let n = 0, diff = 0;
+  for (let i = 0; i < c.px.length; i++) { if (c.depth[i] > -1e8) n++; if (c.px[i] !== d.px[i]) diff++; }
+  for (let i = 0; i < h.px.length; i++) { if (h.depth[i] > -1e8) n++; if (h.px[i] !== o.px[i]) diff++; }
+  forgetActorAtlases();
+  return [n, diff];
 }

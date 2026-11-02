@@ -1,6 +1,6 @@
 import { drawImageRect, rect, polygon, stroke, clip, unclip } from 'zinc:gfx';
 import { world } from '../world/world';
-import { TILE, TERRAIN_VOID, TERRAIN_WATER, TERRAIN_GRASS, ST_SLEEP, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_TO_SITE, ST_STALK, ST_TO_BODY, ST_TO_SHORE, ST_FETCH, ST_BRING, ST_ROAM, ST_ROAM_BACK, ST_TO_LODE, ST_HOME, ST_FREE, ST_RAID, ST_FLEE, ST_WALK_IN, DEER_GONE, DEER_DEAD, DEER_WALK, DEER_FLEE, DEER_STALK, DEER_CHASE } from '../constants';
+import { TILE, TERRAIN_VOID, TERRAIN_WATER, TERRAIN_GRASS, ST_SLEEP, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_TO_SITE, ST_STALK, ST_TO_BODY, ST_TO_SHORE, ST_FETCH, ST_BRING, ST_ROAM, ST_ROAM_BACK, ST_TO_LODE, ST_HOME, ST_FREE, ST_RAID, ST_FLEE, ST_WALK_IN, DEER_GONE, DEER_DEAD, DEER_WALK, DEER_FLEE, DEER_STALK, DEER_CHASE, DEER_GRAZE, ST_CHOP, ST_WORK, ST_MINE, ST_AIM, ST_SHOT, ST_FISH, ST_PICK } from '../constants';
 import { monthStep } from '../view/seasons';
 import { hash } from '../world/noise';
 import { ui } from '../ui/state';
@@ -21,18 +21,21 @@ let head: number[] = [], nextA: number[] = [];
 function season(): number { const m = monthStep(); return Math.round(((m + 11) % 12) / 3) % 4; }
 
 const TINTS = [0xffffff, 0xf2ebe0, 0xe9eef2, 0xf5f0e8];       // a row of the same house is not the same colour twice
+// An atlas pixel is a pixel of the old view's picture (28.28 pixels across a tile there, 64 map pixels here): drawn ART map pixels wide, nearest, so at zoom 1.3258 it is
+// the 3 screen pixels the old view shows it in.
+const ART = 64 / (2 * Math.SQRT2 * 10);
 function spr(id: number, fi: number, fj: number, level: number, alpha: number, tint: number, flip: number = 0): void {
-  const z = cam.zoom, x = sx(fi, fj), y = sy(fi, fj, level), k = A.at.k;
-  drawImageRect(A.at.images[A.sheetOf[id]], A.sx[id] * k, A.sy[id] * k, A.sw[id] * k, A.sh[id] * k, Math.round(x - A.ox[id] * z), Math.round(y - A.oy[id] * z), A.sw[id] * z, A.sh[id] * z, alpha, flip, 0, tint, 0);
+  const z = cam.zoom * ART, x = sx(fi, fj), y = sy(fi, fj, level), k = A.at.k;
+  drawImageRect(A.at.images[A.sheetOf[id]], A.sx[id] * k, A.sy[id] * k, A.sw[id] * k, A.sh[id] * k, Math.round(x - (flip === 1 ? A.sw[id] - A.ox[id] : A.ox[id]) * z), Math.round(y - A.oy[id] * z), A.sw[id] * z, A.sh[id] * z, alpha, flip | 4, 0, tint, 0);       // nearest texel: the art is pixel art
   stats.sprites++;
 }
 /** Chimney smoke: three puffs a building, out of phase, rising and drifting with the wind while they swell and fade. */
 function smoke(fi: number, fj: number, level: number, model: number, time: number, seed: number): void {
-  const z = cam.zoom, c = A.chimney[Math.min(model, A.chimney.length - 1)], x = sx(fi, fj) + c[0] * z, y = sy(fi, fj, level) + c[1] * z;
+  const z = cam.zoom, c = A.chimney[Math.min(model, A.chimney.length - 1)], x = sx(fi, fj) + c[0] * z * ART, y = sy(fi, fj, level) + c[1] * z * ART;
   for (let p = 0; p < 3; p++) {
     const age = (time * .22 + p / 3 + seed * .37) % 1, f = Math.min(A.SMOKE_FRAMES - 1, Math.floor(age * A.SMOKE_FRAMES));
     const sid = A.fxId.smoke + f, px = x + (age * 9 + Math.sin(time * .5 + seed) * 2) * z, py = y - age * 30 * z;
-    drawImageRect(A.at.images[A.sheetOf[sid]], A.sx[sid] * A.at.k, A.sy[sid] * A.at.k, A.sw[sid] * A.at.k, A.sh[sid] * A.at.k, Math.round(px - A.ox[sid] * z * 1.5), Math.round(py - A.oy[sid] * z * 1.5), A.sw[sid] * z * 1.5, A.sh[sid] * z * 1.5, Math.round(215 * (1 - age)), 0, 0, 0xffffff, 0);
+    drawImageRect(A.at.images[A.sheetOf[sid]], A.sx[sid] * A.at.k, A.sy[sid] * A.at.k, A.sw[sid] * A.at.k, A.sh[sid] * A.at.k, Math.round(px - A.ox[sid] * z * ART * 1.5), Math.round(py - A.oy[sid] * z * ART * 1.5), A.sw[sid] * z * ART * 1.5, A.sh[sid] * z * ART * 1.5, Math.round(215 * (1 - age)), 4, 0, 0xffffff, 0);
     stats.sprites++;
   }
 }
@@ -84,8 +87,9 @@ function drawActor(k: number, time: number): void {
     if (!A.at.ready.animals[kind]) return;
     const fi = (d.x + world.half) / TILE, fj = (d.y + world.half) / TILE;
     const walking = d.state === DEER_WALK || d.state === DEER_FLEE || d.state === DEER_STALK || d.state === DEER_CHASE;
-    const fr = walking ? Math.floor(time * (d.state === DEER_FLEE || d.state === DEER_CHASE ? 11 : 6) + d.phase) & 3 : 0;
-    spr(A.animalId(kind, dirOf(d.yaw), fr), fi, fj, levelHere(fi, fj), 255, 0xffffff);
+    const fleeing = d.state === DEER_FLEE || d.state === DEER_CHASE, pose = fleeing ? A.A_FLEE : walking ? A.A_WALK : A.A_GRAZE, def = A.ANIMAL_POSES[kind][pose];
+    const fr = pose === A.A_GRAZE ? (d.state === DEER_GRAZE && Math.sin(time * .7 + d.phase) > .2 ? def.frames - 1 : 0) : Math.floor(time * def.fps + d.phase) % def.frames;
+    spr(A.animalId(kind, pose, dirOf(d.yaw), fr), fi, fj, levelHere(fi, fj), 255, 0xffffff);
   } else {
     const p = world.crime.outlaws[k - nP - nD];
     drawPerson(p.x, p.y, p.yaw, p.role, p.state, p.phase, p.carry, time);
@@ -95,9 +99,10 @@ function drawPerson(x: number, y: number, yaw: number, role: number, state: numb
   const r = Math.min(A.ROLES - 1, role);
   if (!A.at.ready.people[r]) return;
   const fi = (x + world.half) / TILE, fj = (y + world.half) / TILE, lv = levelHere(fi, fj);
-  const fr = walkState[state] === 1 ? Math.floor(time * 8 + phase * 2) & 3 : 0;
-  spr(A.personId(r, dirOf(yaw), fr), fi, fj, lv, 255, 0xffffff);
-  if (carry > 0 && A.at.ready.all) spr(A.carryId.box, fi, fj, lv + 1.9, 255, 0xffffff);
+  const pose = walkState[state] === 1 ? A.P_WALK : state === ST_CHOP || state === ST_WORK || state === ST_MINE ? A.P_CHOP : state === ST_AIM || state === ST_SHOT ? A.P_AIM : state === ST_FISH ? A.P_FISH : state === ST_PICK ? A.P_PICK : A.P_IDLE;
+  const def = A.PERSON_POSES[pose], fr = def.frames > 1 ? Math.floor(time * def.fps + phase * 2) % def.frames : 0;
+  spr(A.personId(r, pose, dirOf(yaw), fr), fi, fj, lv, 255, 0xffffff);
+  if (carry > 0 && A.at.ready.all) spr(A.carryId(carry, dirOf(yaw)), fi, fj, lv, 255, 0xffffff);
 }
 
 /** Draws the whole map for this frame. `time` drives the frame choice of every animation. */

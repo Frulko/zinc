@@ -1,1182 +1,4980 @@
 {
- "version": 1,
- "note": "Sizes and places are in 1x pixels; the 2x sheets hold every cell at twice the size. A group is a grid of w x h cells with 1 pixel between them: a row a direction (or a season), a column a frame. anchor: the foot of the sprite in a cell.",
+ "version": 2,
+ "generator": 2930064775,
+ "note": "Made by the export of src/cite/atlas.ts (ASSETS.md). Sizes and places are in 1x pixels; the 2x sheets hold every cell at twice the size, lit again at twice the scale. A group is a grid of w x h cells with 1 pixel between cells: a row a direction (or a season), a column a frame. anchor: the foot of the sprite in a cell. generator: a hash of the drawing code and its light; when it differs from the build the sheets are stale and the sprites are baked from the generators instead.",
  "sheets": [
   {
    "name": "trees-spring",
    "w": 1024,
-   "h": 88
+   "h": 54
   },
   {
    "name": "trees-summer",
    "w": 1024,
-   "h": 88
+   "h": 54
   },
   {
    "name": "trees-autumn",
    "w": 1024,
-   "h": 88
+   "h": 54
   },
   {
    "name": "trees-winter",
    "w": 1024,
-   "h": 88
+   "h": 54
   },
   {
    "name": "props",
    "w": 1024,
-   "h": 71
+   "h": 39
   },
   {
    "name": "buildings",
    "w": 1024,
-   "h": 296
+   "h": 118
   },
   {
    "name": "people",
    "w": 1024,
-   "h": 797
+   "h": 1861
   },
   {
    "name": "animals",
    "w": 1024,
-   "h": 267
+   "h": 1167
   }
  ],
  "groups": [
   {
    "name": "tree/0/spring",
+   "generator": "view/models.ts tree(0) in the spring colours, swayed by shear",
    "sheet": "trees-spring",
    "x": 1,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/1/spring",
+   "generator": "view/models.ts tree(1) in the spring colours, swayed by shear",
    "sheet": "trees-spring",
-   "x": 230,
+   "x": 206,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/2/spring",
+   "generator": "view/models.ts tree(2) in the spring colours, swayed by shear",
    "sheet": "trees-spring",
-   "x": 459,
+   "x": 411,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/3/spring",
+   "generator": "view/models.ts tree(3) in the spring colours, swayed by shear",
    "sheet": "trees-spring",
-   "x": 688,
+   "x": 616,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/0/summer",
+   "generator": "view/models.ts tree(0) in the summer colours, swayed by shear",
    "sheet": "trees-summer",
    "x": 1,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/1/summer",
+   "generator": "view/models.ts tree(1) in the summer colours, swayed by shear",
    "sheet": "trees-summer",
-   "x": 230,
+   "x": 206,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/2/summer",
+   "generator": "view/models.ts tree(2) in the summer colours, swayed by shear",
    "sheet": "trees-summer",
-   "x": 459,
+   "x": 411,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/3/summer",
+   "generator": "view/models.ts tree(3) in the summer colours, swayed by shear",
    "sheet": "trees-summer",
-   "x": 688,
+   "x": 616,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/0/autumn",
+   "generator": "view/models.ts tree(0) in the autumn colours, swayed by shear",
    "sheet": "trees-autumn",
    "x": 1,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/1/autumn",
+   "generator": "view/models.ts tree(1) in the autumn colours, swayed by shear",
    "sheet": "trees-autumn",
-   "x": 230,
+   "x": 206,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/2/autumn",
+   "generator": "view/models.ts tree(2) in the autumn colours, swayed by shear",
    "sheet": "trees-autumn",
-   "x": 459,
+   "x": 411,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/3/autumn",
+   "generator": "view/models.ts tree(3) in the autumn colours, swayed by shear",
    "sheet": "trees-autumn",
-   "x": 688,
+   "x": 616,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/0/winter",
+   "generator": "view/models.ts tree(0) in the winter colours, swayed by shear",
    "sheet": "trees-winter",
    "x": 1,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/1/winter",
+   "generator": "view/models.ts tree(1) in the winter colours, swayed by shear",
    "sheet": "trees-winter",
-   "x": 230,
+   "x": 206,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/2/winter",
+   "generator": "view/models.ts tree(2) in the winter colours, swayed by shear",
    "sheet": "trees-winter",
-   "x": 459,
+   "x": 411,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "tree/3/winter",
+   "generator": "view/models.ts tree(3) in the winter colours, swayed by shear",
    "sheet": "trees-winter",
-   "x": 688,
+   "x": 616,
    "y": 1,
-   "w": 56,
-   "h": 84,
+   "w": 50,
+   "h": 50,
    "anchor": [
-    28,
-    78
+    16,
+    46
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "rock",
+   "generator": "view/models.ts rock(0 to 5): two rocks, then the deposits",
    "sheet": "props",
    "x": 1,
    "y": 1,
-   "w": 40,
-   "h": 30,
+   "w": 32,
+   "h": 20,
    "anchor": [
-    20,
-    24
+    12,
+    15
    ],
    "frames": 6,
    "directions": 1
   },
   {
-   "name": "carry-box",
-   "sheet": "props",
-   "x": 248,
-   "y": 1,
-   "w": 10,
-   "h": 10,
-   "anchor": [
-    5,
-    8
-   ],
-   "frames": 1,
-   "directions": 1
-  },
-  {
    "name": "fx/smoke",
+   "generator": "cite/atlas.ts bakeFx smoke",
    "sheet": "props",
-   "x": 260,
+   "x": 200,
    "y": 1,
-   "w": 24,
-   "h": 24,
+   "w": 12,
+   "h": 12,
    "anchor": [
-    12,
-    12
+    6,
+    6
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "fx/ripple",
+   "generator": "cite/atlas.ts bakeFx ripple",
    "sheet": "props",
-   "x": 361,
+   "x": 253,
    "y": 1,
-   "w": 28,
-   "h": 14,
+   "w": 14,
+   "h": 8,
    "anchor": [
-    14,
-    7
+    7,
+    4
    ],
    "frames": 4,
    "directions": 1
   },
   {
    "name": "fx/grass",
+   "generator": "cite/atlas.ts bakeFx grass",
    "sheet": "props",
-   "x": 478,
+   "x": 314,
    "y": 1,
-   "w": 16,
-   "h": 16,
+   "w": 8,
+   "h": 8,
    "anchor": [
-    8,
-    15
+    4,
+    8
    ],
    "frames": 4,
    "directions": 4
   },
   {
    "name": "building/house",
+   "generator": "view/models.ts MODEL_DEFS house",
    "sheet": "buildings",
    "x": 1,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    5,
+    -23
+   ]
   },
   {
    "name": "building/sawmill",
+   "generator": "view/models.ts MODEL_DEFS sawmill",
    "sheet": "buildings",
-   "x": 83,
+   "x": 67,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    5,
+    -23
+   ]
   },
   {
    "name": "building/lodge",
+   "generator": "view/models.ts MODEL_DEFS lodge",
    "sheet": "buildings",
-   "x": 165,
+   "x": 133,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    6,
+    -23
+   ]
   },
   {
    "name": "building/fishery",
+   "generator": "view/models.ts MODEL_DEFS fishery",
    "sheet": "buildings",
-   "x": 247,
+   "x": 199,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    4,
+    -19
+   ]
   },
   {
    "name": "building/storehouse",
+   "generator": "view/models.ts MODEL_DEFS storehouse",
    "sheet": "buildings",
-   "x": 329,
+   "x": 265,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    5,
+    -19
+   ]
   },
   {
    "name": "building/lumberhut",
+   "generator": "view/models.ts MODEL_DEFS lumberhut",
    "sheet": "buildings",
-   "x": 411,
+   "x": 331,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    4,
+    -18
+   ]
   },
   {
    "name": "building/smokehouse",
+   "generator": "view/models.ts MODEL_DEFS smokehouse",
    "sheet": "buildings",
-   "x": 493,
+   "x": 397,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    5,
+    -24
+   ]
   },
   {
    "name": "building/farm",
+   "generator": "view/models.ts MODEL_DEFS farm",
    "sheet": "buildings",
-   "x": 575,
+   "x": 463,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    2,
+    -17
+   ]
   },
   {
    "name": "building/mill",
+   "generator": "view/models.ts MODEL_DEFS mill",
    "sheet": "buildings",
-   "x": 657,
+   "x": 529,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    -7,
+    -20
+   ]
   },
   {
    "name": "building/bakery",
+   "generator": "view/models.ts MODEL_DEFS bakery",
    "sheet": "buildings",
-   "x": 739,
+   "x": 595,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    6,
+    -22
+   ]
   },
   {
    "name": "building/market",
+   "generator": "view/models.ts MODEL_DEFS market",
    "sheet": "buildings",
-   "x": 821,
+   "x": 661,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    -3,
+    -19
+   ]
   },
   {
    "name": "building/tannery",
+   "generator": "view/models.ts MODEL_DEFS tannery",
    "sheet": "buildings",
-   "x": 903,
+   "x": 727,
    "y": 1,
-   "w": 80,
-   "h": 96,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    3,
+    -17
+   ]
   },
   {
    "name": "building/well",
+   "generator": "view/models.ts MODEL_DEFS well",
    "sheet": "buildings",
-   "x": 1,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 793,
+   "y": 1,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    4,
+    -19
+   ]
   },
   {
    "name": "building/quarry",
+   "generator": "view/models.ts MODEL_DEFS quarry",
    "sheet": "buildings",
-   "x": 83,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 859,
+   "y": 1,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    1,
+    -16
+   ]
   },
   {
    "name": "building/claypit",
+   "generator": "view/models.ts MODEL_DEFS claypit",
    "sheet": "buildings",
-   "x": 165,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 925,
+   "y": 1,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    2,
+    -6
+   ]
   },
   {
    "name": "building/mine",
+   "generator": "view/models.ts MODEL_DEFS mine",
    "sheet": "buildings",
-   "x": 247,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 1,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    -3,
+    -11
+   ]
   },
   {
    "name": "building/forge",
+   "generator": "view/models.ts MODEL_DEFS forge",
    "sheet": "buildings",
-   "x": 329,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 67,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    -3,
+    -17
+   ]
   },
   {
    "name": "building/forager",
+   "generator": "view/models.ts MODEL_DEFS forager",
    "sheet": "buildings",
-   "x": 411,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 133,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    1,
+    -14
+   ]
   },
   {
    "name": "building/apiary",
+   "generator": "view/models.ts MODEL_DEFS apiary",
    "sheet": "buildings",
-   "x": 493,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 199,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    -1,
+    -10
+   ]
   },
   {
    "name": "building/chandlery",
+   "generator": "view/models.ts MODEL_DEFS chandlery",
    "sheet": "buildings",
-   "x": 575,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 265,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    3,
+    -17
+   ]
   },
   {
    "name": "building/meadery",
+   "generator": "view/models.ts MODEL_DEFS meadery",
    "sheet": "buildings",
-   "x": 657,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 331,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    4,
+    -17
+   ]
   },
   {
    "name": "building/tavern",
+   "generator": "view/models.ts MODEL_DEFS tavern",
    "sheet": "buildings",
-   "x": 739,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 397,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    6,
+    -24
+   ]
   },
   {
    "name": "building/firehouse",
+   "generator": "view/models.ts MODEL_DEFS firehouse",
    "sheet": "buildings",
-   "x": 821,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 463,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    3,
+    -29
+   ]
   },
   {
    "name": "building/works",
+   "generator": "view/models.ts MODEL_DEFS works",
    "sheet": "buildings",
-   "x": 903,
-   "y": 99,
-   "w": 80,
-   "h": 96,
+   "x": 529,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    6,
+    -20
+   ]
   },
   {
    "name": "building/watchpost",
+   "generator": "view/models.ts MODEL_DEFS watchpost",
    "sheet": "buildings",
-   "x": 1,
-   "y": 197,
-   "w": 80,
-   "h": 96,
+   "x": 595,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    5,
+    -36
+   ]
   },
   {
    "name": "building/ruin",
+   "generator": "view/models.ts MODEL_DEFS ruin",
    "sheet": "buildings",
-   "x": 83,
-   "y": 197,
-   "w": 80,
-   "h": 96,
+   "x": 661,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    0,
+    -10
+   ]
   },
   {
    "name": "building/gate",
+   "generator": "view/models.ts gate",
    "sheet": "buildings",
-   "x": 165,
-   "y": 197,
-   "w": 80,
-   "h": 96,
+   "x": 727,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    5,
+    -23
+   ]
   },
   {
    "name": "building/house-2",
+   "generator": "view/models.ts house2",
    "sheet": "buildings",
-   "x": 247,
-   "y": 197,
-   "w": 80,
-   "h": 96,
+   "x": 793,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    5,
+    -28
+   ]
   },
   {
    "name": "building/house-3",
+   "generator": "view/models.ts house3",
    "sheet": "buildings",
-   "x": 329,
-   "y": 197,
-   "w": 80,
-   "h": 96,
+   "x": 859,
+   "y": 59,
+   "w": 64,
+   "h": 56,
    "anchor": [
-    40,
-    78
+    24,
+    47
    ],
    "frames": 1,
-   "directions": 1
+   "directions": 1,
+   "chimney": [
+    -1,
+    -32
+   ]
   },
   {
-   "name": "person/settler",
+   "name": "person/settler/walk",
+   "generator": "view/actors.ts person entry, role settler, pose walk",
    "sheet": "people",
    "x": 1,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
   },
   {
-   "name": "person/resident",
+   "name": "person/settler/chop",
+   "generator": "view/actors.ts person entry, role settler, pose chop",
    "sheet": "people",
-   "x": 86,
+   "x": 170,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
   },
   {
-   "name": "person/lumberjack",
+   "name": "person/settler/aim",
+   "generator": "view/actors.ts person entry, role settler, pose aim",
    "sheet": "people",
-   "x": 171,
+   "x": 297,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/hunter",
+   "name": "person/settler/fish",
+   "generator": "view/actors.ts person entry, role settler, pose fish",
    "sheet": "people",
-   "x": 256,
+   "x": 319,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/fisher",
+   "name": "person/settler/pick",
+   "generator": "view/actors.ts person entry, role settler, pose pick",
    "sheet": "people",
    "x": 341,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/sawyer",
+   "name": "person/settler/idle",
+   "generator": "view/actors.ts person entry, role settler, pose idle",
    "sheet": "people",
-   "x": 426,
+   "x": 363,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
   },
   {
-   "name": "person/smoker",
+   "name": "person/resident/walk",
+   "generator": "view/actors.ts person entry, role resident, pose walk",
    "sheet": "people",
-   "x": 511,
+   "x": 385,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
   },
   {
-   "name": "person/porter",
+   "name": "person/resident/chop",
+   "generator": "view/actors.ts person entry, role resident, pose chop",
    "sheet": "people",
-   "x": 596,
+   "x": 554,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
   },
   {
-   "name": "person/farmer",
+   "name": "person/resident/aim",
+   "generator": "view/actors.ts person entry, role resident, pose aim",
    "sheet": "people",
    "x": 681,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/miller",
+   "name": "person/resident/fish",
+   "generator": "view/actors.ts person entry, role resident, pose fish",
    "sheet": "people",
-   "x": 766,
+   "x": 703,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/baker",
+   "name": "person/resident/pick",
+   "generator": "view/actors.ts person entry, role resident, pose pick",
    "sheet": "people",
-   "x": 851,
+   "x": 725,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/vendor",
+   "name": "person/resident/idle",
+   "generator": "view/actors.ts person entry, role resident, pose idle",
    "sheet": "people",
-   "x": 936,
+   "x": 747,
    "y": 1,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
   },
   {
-   "name": "person/tanner",
+   "name": "person/lumberjack/walk",
+   "generator": "view/actors.ts person entry, role lumberjack, pose walk",
+   "sheet": "people",
+   "x": 769,
+   "y": 1,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/lumberjack/chop",
+   "generator": "view/actors.ts person entry, role lumberjack, pose chop",
    "sheet": "people",
    "x": 1,
-   "y": 266,
+   "y": 170,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
   },
   {
-   "name": "person/quarryman",
+   "name": "person/lumberjack/aim",
+   "generator": "view/actors.ts person entry, role lumberjack, pose aim",
    "sheet": "people",
-   "x": 86,
-   "y": 266,
+   "x": 128,
+   "y": 170,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/peddler",
+   "name": "person/lumberjack/fish",
+   "generator": "view/actors.ts person entry, role lumberjack, pose fish",
    "sheet": "people",
-   "x": 171,
-   "y": 266,
+   "x": 150,
+   "y": 170,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/forager",
+   "name": "person/lumberjack/pick",
+   "generator": "view/actors.ts person entry, role lumberjack, pose pick",
    "sheet": "people",
-   "x": 256,
-   "y": 266,
+   "x": 172,
+   "y": 170,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/smith",
+   "name": "person/lumberjack/idle",
+   "generator": "view/actors.ts person entry, role lumberjack, pose idle",
+   "sheet": "people",
+   "x": 194,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/hunter/walk",
+   "generator": "view/actors.ts person entry, role hunter, pose walk",
+   "sheet": "people",
+   "x": 216,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/hunter/chop",
+   "generator": "view/actors.ts person entry, role hunter, pose chop",
+   "sheet": "people",
+   "x": 385,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/hunter/aim",
+   "generator": "view/actors.ts person entry, role hunter, pose aim",
+   "sheet": "people",
+   "x": 512,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/hunter/fish",
+   "generator": "view/actors.ts person entry, role hunter, pose fish",
+   "sheet": "people",
+   "x": 534,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/hunter/pick",
+   "generator": "view/actors.ts person entry, role hunter, pose pick",
+   "sheet": "people",
+   "x": 556,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/hunter/idle",
+   "generator": "view/actors.ts person entry, role hunter, pose idle",
+   "sheet": "people",
+   "x": 578,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/fisher/walk",
+   "generator": "view/actors.ts person entry, role fisher, pose walk",
+   "sheet": "people",
+   "x": 600,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/fisher/chop",
+   "generator": "view/actors.ts person entry, role fisher, pose chop",
+   "sheet": "people",
+   "x": 769,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/fisher/aim",
+   "generator": "view/actors.ts person entry, role fisher, pose aim",
+   "sheet": "people",
+   "x": 896,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/fisher/fish",
+   "generator": "view/actors.ts person entry, role fisher, pose fish",
+   "sheet": "people",
+   "x": 918,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/fisher/pick",
+   "generator": "view/actors.ts person entry, role fisher, pose pick",
+   "sheet": "people",
+   "x": 940,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/fisher/idle",
+   "generator": "view/actors.ts person entry, role fisher, pose idle",
+   "sheet": "people",
+   "x": 962,
+   "y": 170,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/sawyer/walk",
+   "generator": "view/actors.ts person entry, role sawyer, pose walk",
+   "sheet": "people",
+   "x": 1,
+   "y": 339,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/sawyer/chop",
+   "generator": "view/actors.ts person entry, role sawyer, pose chop",
+   "sheet": "people",
+   "x": 170,
+   "y": 339,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/sawyer/aim",
+   "generator": "view/actors.ts person entry, role sawyer, pose aim",
+   "sheet": "people",
+   "x": 297,
+   "y": 339,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/sawyer/fish",
+   "generator": "view/actors.ts person entry, role sawyer, pose fish",
+   "sheet": "people",
+   "x": 319,
+   "y": 339,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/sawyer/pick",
+   "generator": "view/actors.ts person entry, role sawyer, pose pick",
    "sheet": "people",
    "x": 341,
-   "y": 266,
+   "y": 339,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/beekeeper",
+   "name": "person/sawyer/idle",
+   "generator": "view/actors.ts person entry, role sawyer, pose idle",
    "sheet": "people",
-   "x": 426,
-   "y": 266,
+   "x": 363,
+   "y": 339,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
   },
   {
-   "name": "person/chandler",
+   "name": "person/smoker/walk",
+   "generator": "view/actors.ts person entry, role smoker, pose walk",
    "sheet": "people",
-   "x": 511,
-   "y": 266,
+   "x": 385,
+   "y": 339,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
   },
   {
-   "name": "person/brewer",
+   "name": "person/smoker/chop",
+   "generator": "view/actors.ts person entry, role smoker, pose chop",
    "sheet": "people",
-   "x": 596,
-   "y": 266,
+   "x": 554,
+   "y": 339,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
   },
   {
-   "name": "person/innkeeper",
+   "name": "person/smoker/aim",
+   "generator": "view/actors.ts person entry, role smoker, pose aim",
    "sheet": "people",
    "x": 681,
-   "y": 266,
+   "y": 339,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/firewarden",
+   "name": "person/smoker/fish",
+   "generator": "view/actors.ts person entry, role smoker, pose fish",
    "sheet": "people",
-   "x": 766,
-   "y": 266,
+   "x": 703,
+   "y": 339,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/repairman",
+   "name": "person/smoker/pick",
+   "generator": "view/actors.ts person entry, role smoker, pose pick",
    "sheet": "people",
-   "x": 851,
-   "y": 266,
+   "x": 725,
+   "y": 339,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "person/watchman",
+   "name": "person/smoker/idle",
+   "generator": "view/actors.ts person entry, role smoker, pose idle",
    "sheet": "people",
-   "x": 936,
-   "y": 266,
+   "x": 747,
+   "y": 339,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
   },
   {
-   "name": "person/robber",
+   "name": "person/porter/walk",
+   "generator": "view/actors.ts person entry, role porter, pose walk",
+   "sheet": "people",
+   "x": 769,
+   "y": 339,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/porter/chop",
+   "generator": "view/actors.ts person entry, role porter, pose chop",
    "sheet": "people",
    "x": 1,
-   "y": 531,
+   "y": 508,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
   },
   {
-   "name": "person/rioter",
+   "name": "person/porter/aim",
+   "generator": "view/actors.ts person entry, role porter, pose aim",
    "sheet": "people",
-   "x": 86,
-   "y": 531,
+   "x": 128,
+   "y": 508,
    "w": 20,
-   "h": 32,
+   "h": 20,
    "anchor": [
-    10,
-    28
+    6,
+    18
    ],
-   "frames": 4,
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/porter/fish",
+   "generator": "view/actors.ts person entry, role porter, pose fish",
+   "sheet": "people",
+   "x": 150,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/porter/pick",
+   "generator": "view/actors.ts person entry, role porter, pose pick",
+   "sheet": "people",
+   "x": 172,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/porter/idle",
+   "generator": "view/actors.ts person entry, role porter, pose idle",
+   "sheet": "people",
+   "x": 194,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/farmer/walk",
+   "generator": "view/actors.ts person entry, role farmer, pose walk",
+   "sheet": "people",
+   "x": 216,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/farmer/chop",
+   "generator": "view/actors.ts person entry, role farmer, pose chop",
+   "sheet": "people",
+   "x": 385,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/farmer/aim",
+   "generator": "view/actors.ts person entry, role farmer, pose aim",
+   "sheet": "people",
+   "x": 512,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/farmer/fish",
+   "generator": "view/actors.ts person entry, role farmer, pose fish",
+   "sheet": "people",
+   "x": 534,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/farmer/pick",
+   "generator": "view/actors.ts person entry, role farmer, pose pick",
+   "sheet": "people",
+   "x": 556,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/farmer/idle",
+   "generator": "view/actors.ts person entry, role farmer, pose idle",
+   "sheet": "people",
+   "x": 578,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/miller/walk",
+   "generator": "view/actors.ts person entry, role miller, pose walk",
+   "sheet": "people",
+   "x": 600,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/miller/chop",
+   "generator": "view/actors.ts person entry, role miller, pose chop",
+   "sheet": "people",
+   "x": 769,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/miller/aim",
+   "generator": "view/actors.ts person entry, role miller, pose aim",
+   "sheet": "people",
+   "x": 896,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/miller/fish",
+   "generator": "view/actors.ts person entry, role miller, pose fish",
+   "sheet": "people",
+   "x": 918,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/miller/pick",
+   "generator": "view/actors.ts person entry, role miller, pose pick",
+   "sheet": "people",
+   "x": 940,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/miller/idle",
+   "generator": "view/actors.ts person entry, role miller, pose idle",
+   "sheet": "people",
+   "x": 962,
+   "y": 508,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/baker/walk",
+   "generator": "view/actors.ts person entry, role baker, pose walk",
+   "sheet": "people",
+   "x": 1,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/baker/chop",
+   "generator": "view/actors.ts person entry, role baker, pose chop",
+   "sheet": "people",
+   "x": 170,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/baker/aim",
+   "generator": "view/actors.ts person entry, role baker, pose aim",
+   "sheet": "people",
+   "x": 297,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/baker/fish",
+   "generator": "view/actors.ts person entry, role baker, pose fish",
+   "sheet": "people",
+   "x": 319,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/baker/pick",
+   "generator": "view/actors.ts person entry, role baker, pose pick",
+   "sheet": "people",
+   "x": 341,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/baker/idle",
+   "generator": "view/actors.ts person entry, role baker, pose idle",
+   "sheet": "people",
+   "x": 363,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/vendor/walk",
+   "generator": "view/actors.ts person entry, role vendor, pose walk",
+   "sheet": "people",
+   "x": 385,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/vendor/chop",
+   "generator": "view/actors.ts person entry, role vendor, pose chop",
+   "sheet": "people",
+   "x": 554,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/vendor/aim",
+   "generator": "view/actors.ts person entry, role vendor, pose aim",
+   "sheet": "people",
+   "x": 681,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/vendor/fish",
+   "generator": "view/actors.ts person entry, role vendor, pose fish",
+   "sheet": "people",
+   "x": 703,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/vendor/pick",
+   "generator": "view/actors.ts person entry, role vendor, pose pick",
+   "sheet": "people",
+   "x": 725,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/vendor/idle",
+   "generator": "view/actors.ts person entry, role vendor, pose idle",
+   "sheet": "people",
+   "x": 747,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/tanner/walk",
+   "generator": "view/actors.ts person entry, role tanner, pose walk",
+   "sheet": "people",
+   "x": 769,
+   "y": 677,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/tanner/chop",
+   "generator": "view/actors.ts person entry, role tanner, pose chop",
+   "sheet": "people",
+   "x": 1,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/tanner/aim",
+   "generator": "view/actors.ts person entry, role tanner, pose aim",
+   "sheet": "people",
+   "x": 128,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/tanner/fish",
+   "generator": "view/actors.ts person entry, role tanner, pose fish",
+   "sheet": "people",
+   "x": 150,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/tanner/pick",
+   "generator": "view/actors.ts person entry, role tanner, pose pick",
+   "sheet": "people",
+   "x": 172,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/tanner/idle",
+   "generator": "view/actors.ts person entry, role tanner, pose idle",
+   "sheet": "people",
+   "x": 194,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/quarryman/walk",
+   "generator": "view/actors.ts person entry, role quarryman, pose walk",
+   "sheet": "people",
+   "x": 216,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/quarryman/chop",
+   "generator": "view/actors.ts person entry, role quarryman, pose chop",
+   "sheet": "people",
+   "x": 385,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/quarryman/aim",
+   "generator": "view/actors.ts person entry, role quarryman, pose aim",
+   "sheet": "people",
+   "x": 512,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/quarryman/fish",
+   "generator": "view/actors.ts person entry, role quarryman, pose fish",
+   "sheet": "people",
+   "x": 534,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/quarryman/pick",
+   "generator": "view/actors.ts person entry, role quarryman, pose pick",
+   "sheet": "people",
+   "x": 556,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/quarryman/idle",
+   "generator": "view/actors.ts person entry, role quarryman, pose idle",
+   "sheet": "people",
+   "x": 578,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/peddler/walk",
+   "generator": "view/actors.ts person entry, role peddler, pose walk",
+   "sheet": "people",
+   "x": 600,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/peddler/chop",
+   "generator": "view/actors.ts person entry, role peddler, pose chop",
+   "sheet": "people",
+   "x": 769,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/peddler/aim",
+   "generator": "view/actors.ts person entry, role peddler, pose aim",
+   "sheet": "people",
+   "x": 896,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/peddler/fish",
+   "generator": "view/actors.ts person entry, role peddler, pose fish",
+   "sheet": "people",
+   "x": 918,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/peddler/pick",
+   "generator": "view/actors.ts person entry, role peddler, pose pick",
+   "sheet": "people",
+   "x": 940,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/peddler/idle",
+   "generator": "view/actors.ts person entry, role peddler, pose idle",
+   "sheet": "people",
+   "x": 962,
+   "y": 846,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/forager/walk",
+   "generator": "view/actors.ts person entry, role forager, pose walk",
+   "sheet": "people",
+   "x": 1,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/forager/chop",
+   "generator": "view/actors.ts person entry, role forager, pose chop",
+   "sheet": "people",
+   "x": 170,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/forager/aim",
+   "generator": "view/actors.ts person entry, role forager, pose aim",
+   "sheet": "people",
+   "x": 297,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/forager/fish",
+   "generator": "view/actors.ts person entry, role forager, pose fish",
+   "sheet": "people",
+   "x": 319,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/forager/pick",
+   "generator": "view/actors.ts person entry, role forager, pose pick",
+   "sheet": "people",
+   "x": 341,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/forager/idle",
+   "generator": "view/actors.ts person entry, role forager, pose idle",
+   "sheet": "people",
+   "x": 363,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/smith/walk",
+   "generator": "view/actors.ts person entry, role smith, pose walk",
+   "sheet": "people",
+   "x": 385,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/smith/chop",
+   "generator": "view/actors.ts person entry, role smith, pose chop",
+   "sheet": "people",
+   "x": 554,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/smith/aim",
+   "generator": "view/actors.ts person entry, role smith, pose aim",
+   "sheet": "people",
+   "x": 681,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/smith/fish",
+   "generator": "view/actors.ts person entry, role smith, pose fish",
+   "sheet": "people",
+   "x": 703,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/smith/pick",
+   "generator": "view/actors.ts person entry, role smith, pose pick",
+   "sheet": "people",
+   "x": 725,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/smith/idle",
+   "generator": "view/actors.ts person entry, role smith, pose idle",
+   "sheet": "people",
+   "x": 747,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/beekeeper/walk",
+   "generator": "view/actors.ts person entry, role beekeeper, pose walk",
+   "sheet": "people",
+   "x": 769,
+   "y": 1015,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/beekeeper/chop",
+   "generator": "view/actors.ts person entry, role beekeeper, pose chop",
+   "sheet": "people",
+   "x": 1,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/beekeeper/aim",
+   "generator": "view/actors.ts person entry, role beekeeper, pose aim",
+   "sheet": "people",
+   "x": 128,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/beekeeper/fish",
+   "generator": "view/actors.ts person entry, role beekeeper, pose fish",
+   "sheet": "people",
+   "x": 150,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/beekeeper/pick",
+   "generator": "view/actors.ts person entry, role beekeeper, pose pick",
+   "sheet": "people",
+   "x": 172,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/beekeeper/idle",
+   "generator": "view/actors.ts person entry, role beekeeper, pose idle",
+   "sheet": "people",
+   "x": 194,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/chandler/walk",
+   "generator": "view/actors.ts person entry, role chandler, pose walk",
+   "sheet": "people",
+   "x": 216,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/chandler/chop",
+   "generator": "view/actors.ts person entry, role chandler, pose chop",
+   "sheet": "people",
+   "x": 385,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/chandler/aim",
+   "generator": "view/actors.ts person entry, role chandler, pose aim",
+   "sheet": "people",
+   "x": 512,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/chandler/fish",
+   "generator": "view/actors.ts person entry, role chandler, pose fish",
+   "sheet": "people",
+   "x": 534,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/chandler/pick",
+   "generator": "view/actors.ts person entry, role chandler, pose pick",
+   "sheet": "people",
+   "x": 556,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/chandler/idle",
+   "generator": "view/actors.ts person entry, role chandler, pose idle",
+   "sheet": "people",
+   "x": 578,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/brewer/walk",
+   "generator": "view/actors.ts person entry, role brewer, pose walk",
+   "sheet": "people",
+   "x": 600,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/brewer/chop",
+   "generator": "view/actors.ts person entry, role brewer, pose chop",
+   "sheet": "people",
+   "x": 769,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/brewer/aim",
+   "generator": "view/actors.ts person entry, role brewer, pose aim",
+   "sheet": "people",
+   "x": 896,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/brewer/fish",
+   "generator": "view/actors.ts person entry, role brewer, pose fish",
+   "sheet": "people",
+   "x": 918,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/brewer/pick",
+   "generator": "view/actors.ts person entry, role brewer, pose pick",
+   "sheet": "people",
+   "x": 940,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/brewer/idle",
+   "generator": "view/actors.ts person entry, role brewer, pose idle",
+   "sheet": "people",
+   "x": 962,
+   "y": 1184,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/innkeeper/walk",
+   "generator": "view/actors.ts person entry, role innkeeper, pose walk",
+   "sheet": "people",
+   "x": 1,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/innkeeper/chop",
+   "generator": "view/actors.ts person entry, role innkeeper, pose chop",
+   "sheet": "people",
+   "x": 170,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/innkeeper/aim",
+   "generator": "view/actors.ts person entry, role innkeeper, pose aim",
+   "sheet": "people",
+   "x": 297,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/innkeeper/fish",
+   "generator": "view/actors.ts person entry, role innkeeper, pose fish",
+   "sheet": "people",
+   "x": 319,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/innkeeper/pick",
+   "generator": "view/actors.ts person entry, role innkeeper, pose pick",
+   "sheet": "people",
+   "x": 341,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/innkeeper/idle",
+   "generator": "view/actors.ts person entry, role innkeeper, pose idle",
+   "sheet": "people",
+   "x": 363,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/firewarden/walk",
+   "generator": "view/actors.ts person entry, role firewarden, pose walk",
+   "sheet": "people",
+   "x": 385,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/firewarden/chop",
+   "generator": "view/actors.ts person entry, role firewarden, pose chop",
+   "sheet": "people",
+   "x": 554,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/firewarden/aim",
+   "generator": "view/actors.ts person entry, role firewarden, pose aim",
+   "sheet": "people",
+   "x": 681,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/firewarden/fish",
+   "generator": "view/actors.ts person entry, role firewarden, pose fish",
+   "sheet": "people",
+   "x": 703,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/firewarden/pick",
+   "generator": "view/actors.ts person entry, role firewarden, pose pick",
+   "sheet": "people",
+   "x": 725,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/firewarden/idle",
+   "generator": "view/actors.ts person entry, role firewarden, pose idle",
+   "sheet": "people",
+   "x": 747,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/repairman/walk",
+   "generator": "view/actors.ts person entry, role repairman, pose walk",
+   "sheet": "people",
+   "x": 769,
+   "y": 1353,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/repairman/chop",
+   "generator": "view/actors.ts person entry, role repairman, pose chop",
+   "sheet": "people",
+   "x": 1,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/repairman/aim",
+   "generator": "view/actors.ts person entry, role repairman, pose aim",
+   "sheet": "people",
+   "x": 128,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/repairman/fish",
+   "generator": "view/actors.ts person entry, role repairman, pose fish",
+   "sheet": "people",
+   "x": 150,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/repairman/pick",
+   "generator": "view/actors.ts person entry, role repairman, pose pick",
+   "sheet": "people",
+   "x": 172,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/repairman/idle",
+   "generator": "view/actors.ts person entry, role repairman, pose idle",
+   "sheet": "people",
+   "x": 194,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/watchman/walk",
+   "generator": "view/actors.ts person entry, role watchman, pose walk",
+   "sheet": "people",
+   "x": 216,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/watchman/chop",
+   "generator": "view/actors.ts person entry, role watchman, pose chop",
+   "sheet": "people",
+   "x": 385,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/watchman/aim",
+   "generator": "view/actors.ts person entry, role watchman, pose aim",
+   "sheet": "people",
+   "x": 512,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/watchman/fish",
+   "generator": "view/actors.ts person entry, role watchman, pose fish",
+   "sheet": "people",
+   "x": 534,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/watchman/pick",
+   "generator": "view/actors.ts person entry, role watchman, pose pick",
+   "sheet": "people",
+   "x": 556,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/watchman/idle",
+   "generator": "view/actors.ts person entry, role watchman, pose idle",
+   "sheet": "people",
+   "x": 578,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/robber/walk",
+   "generator": "view/actors.ts person entry, role robber, pose walk",
+   "sheet": "people",
+   "x": 600,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/robber/chop",
+   "generator": "view/actors.ts person entry, role robber, pose chop",
+   "sheet": "people",
+   "x": 769,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/robber/aim",
+   "generator": "view/actors.ts person entry, role robber, pose aim",
+   "sheet": "people",
+   "x": 896,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/robber/fish",
+   "generator": "view/actors.ts person entry, role robber, pose fish",
+   "sheet": "people",
+   "x": 918,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/robber/pick",
+   "generator": "view/actors.ts person entry, role robber, pose pick",
+   "sheet": "people",
+   "x": 940,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/robber/idle",
+   "generator": "view/actors.ts person entry, role robber, pose idle",
+   "sheet": "people",
+   "x": 962,
+   "y": 1522,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/rioter/walk",
+   "generator": "view/actors.ts person entry, role rioter, pose walk",
+   "sheet": "people",
+   "x": 1,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 10,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/rioter/chop",
+   "generator": "view/actors.ts person entry, role rioter, pose chop",
+   "sheet": "people",
+   "x": 170,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "chop",
+    "frames": 6,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "person/rioter/aim",
+   "generator": "view/actors.ts person entry, role rioter, pose aim",
+   "sheet": "people",
+   "x": 297,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "aim",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/rioter/fish",
+   "generator": "view/actors.ts person entry, role rioter, pose fish",
+   "sheet": "people",
+   "x": 319,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "fish",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/rioter/pick",
+   "generator": "view/actors.ts person entry, role rioter, pose pick",
+   "sheet": "people",
+   "x": 341,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "pick",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "person/rioter/idle",
+   "generator": "view/actors.ts person entry, role rioter, pose idle",
+   "sheet": "people",
+   "x": 363,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "idle",
+    "frames": 1,
+    "fps": 0,
+    "loop": true
+   }
+  },
+  {
+   "name": "carry/1",
+   "generator": "view/actors.ts paintProps, carry 1",
+   "sheet": "people",
+   "x": 385,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
    "directions": 8
   },
   {
-   "name": "animal/doe",
+   "name": "carry/2",
+   "generator": "view/actors.ts paintProps, carry 2",
+   "sheet": "people",
+   "x": 407,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/3",
+   "generator": "view/actors.ts paintProps, carry 3",
+   "sheet": "people",
+   "x": 429,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/4",
+   "generator": "view/actors.ts paintProps, carry 4",
+   "sheet": "people",
+   "x": 451,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/5",
+   "generator": "view/actors.ts paintProps, carry 5",
+   "sheet": "people",
+   "x": 473,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/6",
+   "generator": "view/actors.ts paintProps, carry 6",
+   "sheet": "people",
+   "x": 495,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/7",
+   "generator": "view/actors.ts paintProps, carry 7",
+   "sheet": "people",
+   "x": 517,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/8",
+   "generator": "view/actors.ts paintProps, carry 8",
+   "sheet": "people",
+   "x": 539,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/9",
+   "generator": "view/actors.ts paintProps, carry 9",
+   "sheet": "people",
+   "x": 561,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/10",
+   "generator": "view/actors.ts paintProps, carry 10",
+   "sheet": "people",
+   "x": 583,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/11",
+   "generator": "view/actors.ts paintProps, carry 11",
+   "sheet": "people",
+   "x": 605,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/12",
+   "generator": "view/actors.ts paintProps, carry 12",
+   "sheet": "people",
+   "x": 627,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/13",
+   "generator": "view/actors.ts paintProps, carry 13",
+   "sheet": "people",
+   "x": 649,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/14",
+   "generator": "view/actors.ts paintProps, carry 14",
+   "sheet": "people",
+   "x": 671,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/15",
+   "generator": "view/actors.ts paintProps, carry 15",
+   "sheet": "people",
+   "x": 693,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/16",
+   "generator": "view/actors.ts paintProps, carry 16",
+   "sheet": "people",
+   "x": 715,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/17",
+   "generator": "view/actors.ts paintProps, carry 17",
+   "sheet": "people",
+   "x": 737,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/18",
+   "generator": "view/actors.ts paintProps, carry 18",
+   "sheet": "people",
+   "x": 759,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/19",
+   "generator": "view/actors.ts paintProps, carry 19",
+   "sheet": "people",
+   "x": 781,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "carry/20",
+   "generator": "view/actors.ts paintProps, carry 20",
+   "sheet": "people",
+   "x": 803,
+   "y": 1691,
+   "w": 20,
+   "h": 20,
+   "anchor": [
+    6,
+    18
+   ],
+   "frames": 1,
+   "directions": 8
+  },
+  {
+   "name": "animal/doe/walk",
+   "generator": "view/actors.ts deer entry / view/beasts.ts doe, pose walk",
    "sheet": "animals",
    "x": 1,
    "y": 1,
-   "w": 48,
-   "h": 32,
+   "w": 36,
+   "h": 28,
    "anchor": [
-    24,
-    26
+    14,
+    22
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 8,
+    "loop": true
+   }
   },
   {
-   "name": "animal/stag",
+   "name": "animal/doe/flee",
+   "generator": "view/actors.ts deer entry / view/beasts.ts doe, pose flee",
    "sheet": "animals",
-   "x": 198,
+   "x": 298,
    "y": 1,
-   "w": 48,
-   "h": 32,
+   "w": 36,
+   "h": 28,
    "anchor": [
-    24,
-    26
+    14,
+    22
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "flee",
+    "frames": 6,
+    "fps": 12,
+    "loop": true
+   }
   },
   {
-   "name": "animal/rabbit",
+   "name": "animal/doe/graze",
+   "generator": "view/actors.ts deer entry / view/beasts.ts doe, pose graze",
    "sheet": "animals",
-   "x": 395,
+   "x": 521,
    "y": 1,
-   "w": 48,
-   "h": 32,
+   "w": 36,
+   "h": 28,
    "anchor": [
-    24,
-    26
+    14,
+    22
    ],
    "frames": 4,
-   "directions": 8
+   "directions": 8,
+   "pose": {
+    "name": "graze",
+    "frames": 4,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "animal/boar",
+   "name": "animal/doe/dead",
+   "generator": "view/actors.ts deer entry / view/beasts.ts doe, pose dead",
    "sheet": "animals",
-   "x": 592,
+   "x": 670,
    "y": 1,
-   "w": 48,
-   "h": 32,
+   "w": 36,
+   "h": 28,
    "anchor": [
-    24,
-    26
+    14,
+    22
    ],
-   "frames": 4,
-   "directions": 8
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "dead",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   },
   {
-   "name": "animal/wolf",
+   "name": "animal/doe/fall",
+   "generator": "view/actors.ts deer entry / view/beasts.ts doe, pose fall",
    "sheet": "animals",
-   "x": 789,
+   "x": 708,
    "y": 1,
-   "w": 48,
-   "h": 32,
+   "w": 36,
+   "h": 28,
    "anchor": [
-    24,
-    26
+    14,
+    22
+   ],
+   "frames": 3,
+   "directions": 8,
+   "pose": {
+    "name": "fall",
+    "frames": 3,
+    "fps": 6,
+    "loop": false
+   }
+  },
+  {
+   "name": "animal/stag/walk",
+   "generator": "view/actors.ts deer entry / view/beasts.ts stag, pose walk",
+   "sheet": "animals",
+   "x": 1,
+   "y": 234,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "animal/stag/flee",
+   "generator": "view/actors.ts deer entry / view/beasts.ts stag, pose flee",
+   "sheet": "animals",
+   "x": 298,
+   "y": 234,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "flee",
+    "frames": 6,
+    "fps": 12,
+    "loop": true
+   }
+  },
+  {
+   "name": "animal/stag/graze",
+   "generator": "view/actors.ts deer entry / view/beasts.ts stag, pose graze",
+   "sheet": "animals",
+   "x": 521,
+   "y": 234,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
    ],
    "frames": 4,
-   "directions": 8
+   "directions": 8,
+   "pose": {
+    "name": "graze",
+    "frames": 4,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "animal/stag/dead",
+   "generator": "view/actors.ts deer entry / view/beasts.ts stag, pose dead",
+   "sheet": "animals",
+   "x": 670,
+   "y": 234,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "dead",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "animal/stag/fall",
+   "generator": "view/actors.ts deer entry / view/beasts.ts stag, pose fall",
+   "sheet": "animals",
+   "x": 708,
+   "y": 234,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 3,
+   "directions": 8,
+   "pose": {
+    "name": "fall",
+    "frames": 3,
+    "fps": 6,
+    "loop": false
+   }
+  },
+  {
+   "name": "animal/rabbit/walk",
+   "generator": "view/actors.ts deer entry / view/beasts.ts rabbit, pose walk",
+   "sheet": "animals",
+   "x": 1,
+   "y": 467,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "animal/rabbit/flee",
+   "generator": "view/actors.ts deer entry / view/beasts.ts rabbit, pose flee",
+   "sheet": "animals",
+   "x": 298,
+   "y": 467,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "flee",
+    "frames": 6,
+    "fps": 12,
+    "loop": true
+   }
+  },
+  {
+   "name": "animal/rabbit/graze",
+   "generator": "view/actors.ts deer entry / view/beasts.ts rabbit, pose graze",
+   "sheet": "animals",
+   "x": 521,
+   "y": 467,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 2,
+   "directions": 8,
+   "pose": {
+    "name": "graze",
+    "frames": 2,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "animal/rabbit/dead",
+   "generator": "view/actors.ts deer entry / view/beasts.ts rabbit, pose dead",
+   "sheet": "animals",
+   "x": 596,
+   "y": 467,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "dead",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "animal/boar/walk",
+   "generator": "view/actors.ts deer entry / view/beasts.ts boar, pose walk",
+   "sheet": "animals",
+   "x": 634,
+   "y": 467,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "animal/boar/flee",
+   "generator": "view/actors.ts deer entry / view/beasts.ts boar, pose flee",
+   "sheet": "animals",
+   "x": 1,
+   "y": 700,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "flee",
+    "frames": 6,
+    "fps": 12,
+    "loop": true
+   }
+  },
+  {
+   "name": "animal/boar/graze",
+   "generator": "view/actors.ts deer entry / view/beasts.ts boar, pose graze",
+   "sheet": "animals",
+   "x": 224,
+   "y": 700,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 2,
+   "directions": 8,
+   "pose": {
+    "name": "graze",
+    "frames": 2,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "animal/boar/dead",
+   "generator": "view/actors.ts deer entry / view/beasts.ts boar, pose dead",
+   "sheet": "animals",
+   "x": 299,
+   "y": 700,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "dead",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "animal/wolf/walk",
+   "generator": "view/actors.ts deer entry / view/beasts.ts wolf, pose walk",
+   "sheet": "animals",
+   "x": 337,
+   "y": 700,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 8,
+   "directions": 8,
+   "pose": {
+    "name": "walk",
+    "frames": 8,
+    "fps": 8,
+    "loop": true
+   }
+  },
+  {
+   "name": "animal/wolf/flee",
+   "generator": "view/actors.ts deer entry / view/beasts.ts wolf, pose flee",
+   "sheet": "animals",
+   "x": 634,
+   "y": 700,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "flee",
+    "frames": 6,
+    "fps": 12,
+    "loop": true
+   }
+  },
+  {
+   "name": "animal/wolf/graze",
+   "generator": "view/actors.ts deer entry / view/beasts.ts wolf, pose graze",
+   "sheet": "animals",
+   "x": 857,
+   "y": 700,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 2,
+   "directions": 8,
+   "pose": {
+    "name": "graze",
+    "frames": 2,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "animal/wolf/dead",
+   "generator": "view/actors.ts deer entry / view/beasts.ts wolf, pose dead",
+   "sheet": "animals",
+   "x": 932,
+   "y": 700,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "dead",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
+  },
+  {
+   "name": "animal/wolf/crouch",
+   "generator": "view/actors.ts deer entry / view/beasts.ts wolf, pose crouch",
+   "sheet": "animals",
+   "x": 1,
+   "y": 933,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 6,
+   "directions": 8,
+   "pose": {
+    "name": "crouch",
+    "frames": 6,
+    "fps": 4,
+    "loop": true
+   }
+  },
+  {
+   "name": "animal/wolf/howl",
+   "generator": "view/actors.ts deer entry / view/beasts.ts wolf, pose howl",
+   "sheet": "animals",
+   "x": 224,
+   "y": 933,
+   "w": 36,
+   "h": 28,
+   "anchor": [
+    14,
+    22
+   ],
+   "frames": 1,
+   "directions": 8,
+   "pose": {
+    "name": "howl",
+    "frames": 1,
+    "fps": 0,
+    "loop": false
+   }
   }
  ]
 }

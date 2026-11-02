@@ -1,44 +1,37 @@
-# Hamlet sprites: the atlas and how to replace a sprite
+# Hamlet art: the Cité sprite atlas
 
-The Cite view (`ZINC_HAMLET_VIEW=cite`) draws trees, rocks, buildings, people, animals, smoke, water glints and grass from PNG sheets in
-`assets/atlas/`. Without those files the same sprites are made by code (`src/cite/atlas.ts`) at the first frames, so the game always has art.
+The Cité view (`ZINC_HAMLET_VIEW=cite`) draws the old Pixel Plays look with GPU quads. Its sprites come from the same generators as the old view: the Pixel Plays
+renderer, `view/models.ts` (trees, rocks, buildings), `view/actors.ts` (people, deer, carried loads), `view/beasts.ts`, with the same light and ramps. They are baked at
+the art scale of the old view (1 atlas pixel = 1 art pixel, `S = 10`) and, for zoom 2 and above, again at twice the scale (re-lit, not upscaled). The ground is not
+sprites: `src/cite/ground.ts` paints region images per pixel with the old ground painting (`view/scenery.ts` `groundAt`).
 
-## Files
+## Two modes, same frames
 
-```
-assets/atlas/index.json        the groups: name, sheet, x, y, w, h, anchor, frames, directions (1x pixels)
-assets/atlas/1x/<sheet>.png    the sheets at normal size
-assets/atlas/2x/<sheet>.png    the same sheets at twice the size, used when the zoom is above 2
-```
+| Mode | What it does |
+|---|---|
+| `computed` | The sprites are baked at start from the generators and sliced over a few frames. |
+| `files` | The exported sheets `assets/atlas/{1x,2x}/*.png` and `index.json` are loaded, nothing is baked. |
 
-Sheets: `trees-spring`, `trees-summer`, `trees-autumn`, `trees-winter`, `props` (rocks and deposits, the carried box, smoke, water glints, grass),
-`buildings`, `people`, `animals`. `atlas-preview.png` (written by the export) is a labelled picture of all of them.
+Switch: `ZINC_HAMLET_ATLAS=computed|files` (`code` is an alias of `computed`), or the settings panel row "Atlas Cité". Default: `files` when `index.json` carries
+the hash of the current generators (`generator`), else `computed`. The hash covers the drawing code version, the group layout and a digest of probe frames (house, pine,
+person with shadow, deer): change a model or the light and the shipped sheets are stale, the view bakes instead, and `tests/t1/hamlet_atlas.sh` fails until you export again.
 
-A **group** is a grid of `w` x `h` cells with 1 transparent pixel between cells at (`x`, `y`) of its sheet: `frames` columns, `directions` rows.
-A person is 4 frames (columns) by 8 directions (rows); a tree group is 4 sway frames of one kind in one season; `fx/grass` is 4 sway frames by
-4 seasons. `anchor` is the foot of the sprite inside a cell (where it stands on its tile). The 2x sheets hold every cell at twice the size, at
-twice the coordinates.
+## Groups, poses and names
 
-## Replace a sprite
+`index.json` (version 2) lists groups: `name`, `generator` (what draws it), `sheet`, `x, y, w, h` (a cell, 1x pixels), `anchor` (the foot in a cell), `frames`
+(columns), `directions` (rows: 8 screen directions from the right, clockwise, or the seasons for trees), and for animated groups `pose: {name, frames, fps, loop}`.
+Names are stable: `tree/<species>/<season>`, `rock`, `building/<model>`, `person/<role>/<pose>`, `carry/<load>`, `animal/<kind>/<pose>`, `fx/<name>`.
+People: walk, chop, aim, fish, pick, idle. Deer: walk, flee, graze, dead, fall; rabbit, boar and wolf (crouch, howl) likewise. Not exported yet: a sleep pose,
+animated props (sails, flames), building footprints larger than 1x1.
 
-1. Open the PNG sheet (`1x/people.png`, say) in any editor and paint over the cell. Keep the cell's place and size, keep transparency, keep the
-   1 pixel gap. Do the same cell in `2x/` at twice the size if you want it sharp when zoomed in (the 2x sheet is used above zoom 2; the 1x
-   one is never stretched there, so an unedited 2x sheet shows the old art).
-2. To move or resize a group, edit its entry in `index.json` (`x`, `y`, `w`, `h`, `anchor`). The group names and their order must stay as they
-   are: when `index.json` does not match the build, the game says so on the console and uses the sprites made by code.
-3. Run `zinc run examples/hamlet` with `ZINC_HAMLET_VIEW=cite`. `ZINC_HAMLET_ATLAS=code` shows the generated sprites instead, to compare.
-
-## Export the generated sprites (the source of the shipped files)
+## Export
 
 ```sh
-ZINC_HEADLESS=1 ZINC_HAMLET_VIEW=cite ZINC_SIZE=2100x1250 \
-ZINC_HAMLET_ATLAS_DUMP=examples/hamlet/assets/atlas ZINC_HAMLET_ATLAS_PREVIEW=atlas-preview.png zinc run examples/hamlet
+ZINC_HEADLESS=1 ZINC_HAMLET_VIEW=cite ZINC_SIZE=3400x1500 ZINC_HAMLET_ATLAS_DUMP=<abs dir> zinc run --interp examples/hamlet
 ```
 
-It writes both scales (`ZINC_HAMLET_ATLAS_SCALES=1`: only 1x) and the contact sheet, then quits. The sheets are written by `src/cite/png.ts`
-(no module of the engine encodes pixels with their transparency yet; `zinc:gfx` `capture` saves the opaque screen only).
-
-## Animation, in the view
-
-Trees and grass sway by frame (4 frames, a different phase per tile), water tiles show glints that change frame, working buildings with a
-chimney smoke, and each building is mirrored and tinted a little by its tile so a row of houses is not a row of copies.
+(`--interp` because the native run enforces the fs permission.) It writes `<dir>/1x/*.png`, `<dir>/2x/*.png`, `index.json` and `atlas-preview.png` (the sheets plus
+people, houses, a pine and a deer at 6x). Options: `ZINC_HAMLET_ATLAS_SCALES=1` only 1x; `ZINC_HAMLET_ATLAS_ONLY=person/smith,tree/0` bakes only the groups whose name
+starts so, the other cells stay empty (there is no PNG decoder: merge such a partial export into the shipped sheets by hand); `ZINC_HAMLET_ATLAS_CHECK=1` prints
+the pixel check of a baked person and house against the old view's own frames (must say `0 differ`). To update the shipped sheets, export into
+`examples/hamlet/assets/atlas` and run `tests/t1/hamlet_atlas.sh`, which also checks that files and computed draw the same picture at zoom 1 and 2.5.

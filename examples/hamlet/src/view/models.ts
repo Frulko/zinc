@@ -523,6 +523,15 @@ const MODEL_DEFS: [string, number, (variant: number) => void][] = [
   ['house', 1, house], ['sawmill', 1, sawmill], ['lodge', 1, lodge], ['fishery', 1, fishery], ['storehouse', 1, storehouse], ['lumberhut', 1, lumberhut], ['smokehouse', 1, smokehouse], ['farm', 1, farm], ['mill', 1, mill], ['bakery', 1, bakery], ['market', 1, market], ['tannery', 1, tannery], ['well', 1, well], ['quarry', 1, quarry], ['claypit', 1, claypit], ['mine', 1, mine], ['forge', 1, forge], ['forager', 1, forager], ['apiary', 1, apiary], ['chandlery', 1, chandlery], ['meadery', 1, meadery], ['tavern', 1, tavern], ['firehouse', 1, firehouse], ['works', 1, works], ['watchpost', 1, watchpost], ['ruin', 1, ruin], ['gate', 1, gate], ['tree', 4, tree], ['rock', ROCK_VARIANTS, rock], ['house2', 1, house2], ['house3', 1, house3],
 ];
 
+/** Draws the static model of an id (the order of `models`) at the world origin, lit like the live scene: what the Cite atlas bakes into its sprites. False for an unknown id. */
+export function drawModelId(id: number): boolean {
+  let n = 0;
+  for (const m of MODEL_DEFS) { if (id < n + m[1]) { m[2](id - n); return true; } n += m[1]; }
+  return false;
+}
+/** Draws tree variant v (0 to 2 pines, 3 birch) as it looks in month m, at the world origin. */
+export function drawTreeMonth(v: number, m: number): void { treeSeason = m; tree(v); treeSeason = 4; }
+
 const MODEL_FIXED: string[] = ['tree', 'rock', 'gate'];     // the models that never turn
 /** The name and variant of a model id (the order of `models`). */
 function nameOf(id: number): string { let n = 0; for (const m of MODEL_DEFS) { if (id < n + m[1]) return m[0]; n += m[1]; } return ''; }

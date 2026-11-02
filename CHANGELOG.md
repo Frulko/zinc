@@ -21,7 +21,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Message clicks point an arrow at the place, and a double click opens its window. Separate volumes for ambience and effects, with synthesised sounds.
 - Hamlet villagers and carts now keep to the roads: a workshop whose road does not lead to the village entrance stays idle and says so, service walkers (market, fire, watch) go straight on and take turns at junctions, covering the houses within two tiles, and a store can be set to accept, refuse or only collect a good.
 - Hamlet land now has relief: hills, plateaus, rivers in valleys and, in the new Montagnes landscape, mountain ranges whose rock cannot be built on and which hold the ore. Houses need level ground, roads climb one level a tile at a higher cost, walkers slow down on slopes, and nothing crosses a cliff. The minimap is shaded by height.
-- Hamlet's Cite view draws its art from PNG sheets in `assets/atlas/` (replace any sprite by editing a PNG; see `examples/hamlet/ASSETS.md`), exports the generated sprites and a labelled preview with `ZINC_HAMLET_ATLAS_DUMP=<dir>`, switches to double-resolution sheets above zoom 2, and animates swaying trees and grass, water glints and chimney smoke, with mirrored and tinted houses so a street is not made of copies.
+- Hamlet's Cite view has the Pixel Plays look: sprites and ground are baked from the same models, figures, light and ramps as the old view, with walk, work and graze animations, at 1x and 2x. Choose `ZINC_HAMLET_ATLAS=computed|files` (or the settings panel): `files` loads the exported PNG sheets of `assets/atlas/` when they match the code, `computed` bakes them at start.
 
 #### Changed
 

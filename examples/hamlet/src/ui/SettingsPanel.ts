@@ -1,5 +1,6 @@
 import { Panel } from './Panel';
 import { settings, LOD_MODES, RESAMPLE_MODES } from '../settings';
+import { ATLAS_MODES, atlasModeIndex, setMode } from '../cite/atlas';
 import { world } from '../world/world';
 import { MIN_SIZE, MAX_SIZE } from '../constants';
 
@@ -17,6 +18,7 @@ export function buildSettingsPanel(actions: PanelActions): { panel: Panel; fps: 
   panel.bool('Pause si on bouge', (): boolean => settings.pauseOnMove, (v: boolean): void => { settings.pauseOnMove = v; });
   panel.bool('Bord défile', (): boolean => settings.edgePan, (v: boolean): void => { settings.edgePan = v; });
   panel.list('Modèles', LOD_MODES, (): number => settings.lod, (v: number): void => { settings.lod = v; actions.refreshModels(); });
+  panel.list('Atlas Cité', ATLAS_MODES, atlasModeIndex, (v: number): void => { setMode(v === 1 ? 'files' : v === 2 ? 'computed' : ''); });
   panel.list('Échelle', RESAMPLE_MODES, (): number => settings.resample, (v: number): void => { settings.resample = v; actions.refreshModels(); });
   panel.number('Poses/s', (): number => settings.animFps, (v: number): void => { settings.animFps = v; }, 4, 60, 1);
   panel.number('Vent', (): number => settings.wind, (v: number): void => { settings.wind = v; }, 0, 4, .1);

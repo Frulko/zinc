@@ -1,31 +1,36 @@
-import { createImage, beginImage, endImage, clear, polygon, drawImageRect, rect } from 'zinc:gfx';
-import { world, tileIndex } from '../world/world';
-import { TERRAIN_WATER, TERRAIN_VOID, TERRAIN_GRASS } from '../constants';
+import { createImage, updatePixels, drawImageRect } from 'zinc:gfx';
+import { world } from '../world/world';
+import { TERRAIN_WATER, TERRAIN_VOID, TILE } from '../constants';
 import { WATER_TONES, SAND_TONES, ROAD_COLOR, STONE } from '../palettes';
 import { groundTone, tileMonth, snowShare, monthStep, flowerShare, reedColor } from '../view/seasons';
-import { hash } from '../world/noise';
-import { economy } from '../world/economy';
+import { hash as thash } from '../world/noise';
+import { noise, hash, rampOf, bayerAt, rgb, GRASS } from '../pixel';
+import { groundAt, groundKind } from '../view/scenery';
 import { HW, HH, PXH, cam, view, stats, heightIJ, cornersOf, corner } from './geom';
 import { shade } from './atlas';
 
-// The ground of the map is cut into square regions of the map picture (iso pixels at zoom 1: x = (i - j) * 32, y = (i + j) * 16 - level * 9.8),
-// each baked once into an opaque image (the software raster of beginImage) and drawn as one quad. A region is rebuilt only when a tile it shows
+// The ground of the map is cut into square regions of the map picture (iso pixels at zoom 1: x = (i - j) * 32, y = (i + j) * 16 - level * 9.8), each baked once into
+// an opaque image and drawn as one quad. It is painted pixel by pixel the way the old view paints its ground (view/scenery.ts): tones of the biome picked by noise and
+// dithered with the Bayer pattern of the Pixel Plays renderer, in art pixels of 2 x 2 map pixels (sand, foam and pebbles at the water, dirt roads with their ramps, rock
+// and snow dithered in on the mountains), and slopes and cliff walls lit by the same light through the same colour ramps. A region is rebuilt only when a tile it shows
 // changed (a signature of its tiles, checked a few regions a frame) or the month moved on. Regions do not overlap, so the draw order does not matter.
-// Four levels of detail: the region image has 512 px whatever the level, so a far level covers more map and costs the same to bake and draw.
+// Four levels of detail: the region image has 512 px whatever the level, so a far level covers more map and costs the same to bake and draw. The far levels are flat tiles.
 const SIZE = 512, MARGIN = 1, TEX = SIZE + 2 * MARGIN;
-export const LOD_B: number[] = [2, 1, .5, .25];             // bake scale of each level: texture pixels per map pixel
-const BG = 0x151a17;
+const ART = 64 / (2 * Math.SQRT2 * 10);                     // map pixels of an art pixel of the old view (28.28 across a tile there, 64 here)
+export const LOD_B: number[] = [2 / ART, 1 / ART, .5, .25];   // bake scale of each level: texture pixels per map pixel; the near levels are one texture pixel an art pixel (of the old view's S = 20 and 10)
+const BG = 0xff171a15;
 const MAX_REGIONS = 56;
 
 /** A square of the map picture. `img` is what is drawn; a rebuild of a region that is shown goes into `back` and swaps in when done (no torn picture).
- *  `s` is the next tile diagonal to paint (-1: not under way): a region is baked a few diagonals a frame. */
+ *  `s` is the next tile diagonal to paint (-1: not under way): a region is baked a few diagonals a frame, into `buf` (its pixels, until it is complete). */
 class Region {
   id: number = -1; img: number = -1; back: number = -1; rx: number = 0; ry: number = 0; lod: number = 1; sig: number = 0; acc: number = 0; month: number = -1; rev: number = -1; used: number = 0;
-  ready: boolean = false; started: boolean = false; stale: boolean = false; s: number = -1; sMax: number = 0; ring: boolean = false;
+  ready: boolean = false; started: boolean = false; stale: boolean = false; s: number = -1; sMax: number = 0; ring: boolean = false; buf: u32[] = [];
 }
 const regions: Region[] = [];
 const index = new Map<number, Region>();
 const free: number[] = [];
+const bufs: u32[][] = [];
 let frameNo = 0;
 const pending: Region[] = [];
 
@@ -34,55 +39,148 @@ function span(lod: number): number { return SIZE / LOD_B[lod]; }
 
 // ---- tile colours ----
 function mixc(a: number[], b: number[], k: number): number[] { return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]; }
-const SNOW = [236, 240, 244], ROCK_LOW = [122, 112, 98], ROCK_HIGH = [150, 148, 144];
+const SNOW = [236, 240, 244], ROCK_LOW = [122, 112, 98], ROCK_HIGH = [150, 148, 144], DIRT = [154, 130, 92];
+const ROAD_RAMP = rampOf(ROAD_COLOR), DECK = rampOf([150, 112, 72]), RAIL = rampOf([92, 62, 38]);
+const clampi = (v: number, a: number, b: number): number => v < a ? a : v > b ? b : v;
+/** The flat colour of a tile (the far levels): the biome's tone, rock and snow by height, lit by the slope. */
 function groundColor(t: number, lightSlope: number, avgLevel: number): number {
-  const biome = world.biome[t], m = monthStep();
-  const mm = tileMonth(biome, t, m);
+  const biome = world.biome[t], mm = tileMonth(biome, t, monthStep());
   let c: number[];
-  if (biome === 7) c = SAND_TONES[(hash(t, 3) * 3) | 0];
-  else { const q = hash(t, 5); c = groundTone(biome, mm, q < .3 ? 1 : q < .75 ? 2 : q < .92 ? 3 : 0); }
+  if (biome === 7) c = SAND_TONES[(thash(t, 3) * 3) | 0];
+  else { const q = thash(t, 5); c = groundTone(biome, mm, q < .3 ? 1 : q < .75 ? 2 : q < .92 ? 3 : 0); }
   if (avgLevel >= 6.5) c = mixc(c, avgLevel >= 12 ? SNOW : avgLevel >= 9 ? ROCK_HIGH : ROCK_LOW, Math.min(1, (avgLevel - 6.5) / 2.5));
   else if (avgLevel >= 3) c = mixc(c, ROCK_LOW, (avgLevel - 3) / 14);
-  if (snowShare(biome, mm) * .6 > hash(t, 31)) c = mixc(c, SNOW, .5);
-  return shade(c, lightSlope * 1.12 * (.96 + hash(t, 9) * .08));
+  if (snowShare(biome, mm) * .6 > thash(t, 31)) c = mixc(c, SNOW, .5);
+  return rgbOf(shade(c, lightSlope * 1.12));
 }
-function darken(color: number, f: number): number { return shade([(color >> 16) & 255, (color >> 8) & 255, color & 255], f); }
+function rgbOf(c: number): u32 { return rgb((c >> 16) & 255, (c >> 8) & 255, c & 255); }
 
-// ---- drawing one tile into a region ----
-// Map pixels -> texture pixels: (X - ox) * b + MARGIN.
-let ox = 0, oy = 0, bs = 1;
-const qbuf: number[] = [0, 0, 0, 0, 0, 0, 0, 0];
-function quad(x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, color: number, grow: number): void {
-  // grown a little away from its centre so neighbours overlap (no seam between anti-aliased edges)
-  const cx = (x0 + x1 + x2 + x3) / 4, cy = (y0 + y1 + y2 + y3) / 4;
-  qbuf[0] = (x0 + (x0 > cx ? grow : -grow) - ox) * bs + MARGIN; qbuf[1] = (y0 + (y0 > cy ? grow : -grow) - oy) * bs + MARGIN;
-  qbuf[2] = (x1 + (x1 > cx ? grow : -grow) - ox) * bs + MARGIN; qbuf[3] = (y1 + (y1 > cy ? grow : -grow) - oy) * bs + MARGIN;
-  qbuf[4] = (x2 + (x2 > cx ? grow : -grow) - ox) * bs + MARGIN; qbuf[5] = (y2 + (y2 > cy ? grow : -grow) - oy) * bs + MARGIN;
-  qbuf[6] = (x3 + (x3 > cx ? grow : -grow) - ox) * bs + MARGIN; qbuf[7] = (y3 + (y3 > cy ? grow : -grow) - oy) * bs + MARGIN;
-  polygon(qbuf, color, 255);
+// ---- the pixel shader of a tile ----
+// State of the tile being painted (set by drawTile), read per pixel by groundPixel.
+let ti = 0, tj = 0, tt = 0, tAvg = 0, tLight = 1, tWater = false, tBiome = 0, tMonth = 0, tSnow = 0, tBloom = false;
+const wn = [false, false, false, false];        // water at the neighbours i - 1, i + 1, j - 1, j + 1
+const rn = [false, false, false, false];        // a road or building there
+let tRoad = false, tPlinth = false, tBridge = false, tDeco = 0;
+let tRockF = 0, tSnowF = 0;
+function waterAt(i: number, j: number): boolean { return i >= 0 && j >= 0 && i < world.size && j < world.size && world.terrain[j * world.size + i] === TERRAIN_WATER; }
+function roadAt(i: number, j: number): boolean { if (i < 0 || j < 0 || i >= world.size || j >= world.size) return false; const t = j * world.size + i; return world.road[t] !== 0 || world.build[t] >= 0; }
+function side(u: number, v: number, k: number): number { return k === 0 ? u : k === 1 ? 1 - u : k === 2 ? v : 1 - v; }
+function nearest(u: number, v: number, flags: boolean[], want: boolean): number { let d = 9; for (let k = 0; k < 4; k++) if (flags[k] === want) d = Math.min(d, side(u, v, k)); return d; }
+
+function roadPixel(u: number, v: number, px: number, py: number, cx: number, cy: number, bay: number): number {
+  const h = hash(cx, cy);
+  if (tBridge) {                                                                       // planks across the water with a rail on each side
+    const alongX = rn[0] || rn[1], a = alongX ? u : v, b = Math.abs((alongX ? v : u) - .5);
+    if (b > .31) return -1;
+    if (b > .25) return RAIL[h > .8 ? 1 : 3];
+    return DECK[(a * 6) % 1 < .1 ? 1 : clampi(Math.floor(2.4 + noise(px * 2.5, py * 2.5) * 1.6), 2, 4)];
+  }
+  const bulge = (rn[0] ? 1 : 0) + (rn[1] ? 1 : 0) + (rn[2] ? 1 : 0) + (rn[3] ? 1 : 0) >= 3 ? .07 : 0;
+  let dist = Math.hypot(u - .5, v - .5) - .04 - bulge;
+  for (let k = 0; k < 4; k++) {
+    if (!rn[k]) continue;
+    const ex = k === 0 ? 1 : k === 1 ? 0 : .5, ey = k === 2 ? 1 : k === 3 ? 0 : .5, dx = ex - .5, dy = ey - .5;
+    const w = clampi(((u - .5) * dx + (v - .5) * dy) / (dx * dx + dy * dy), 0, 1);
+    dist = Math.min(dist, Math.hypot(u - (.5 + dx * w), v - (.5 + dy * w)));
+  }
+  if (dist > .27 + (noise(px * 3, py * 3) - .5) * .1) return -1;
+  const lit = Math.round((tLight - 1) * 6);
+  const idx = h > .94 ? 4 : dist > .22 ? 1 : clampi(Math.floor(2.2 + noise(px * 2.2, py * 2.2) * 1.8 + (h - .5) * .6), 1, 4);
+  return ROAD_RAMP[clampi(idx + lit, 0, 4)];
 }
-function tri(x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, color: number, alpha: number = 255): void {
-  polygon([(x0 - ox) * bs + MARGIN, (y0 - oy) * bs + MARGIN, (x1 - ox) * bs + MARGIN, (y1 - oy) * bs + MARGIN, (x2 - ox) * bs + MARGIN, (y2 - oy) * bs + MARGIN], color, alpha);
+/** One art pixel of the ground of the tile: u, v in 0..1 across it, (cx, cy) its place in the grid of art pixels of the map. The colour is the old view's own painting of that
+ *  point (view/scenery.ts groundAt: biome tones, ponds, rivers, shore, ice, trails, snow), then roads, the mountain's rock, slope light and the wind's tufts. */
+function groundPixel(u: number, v: number, cx: number, cy: number): number {
+  const half = world.half, px = (ti + u) * TILE - half, py = (tj + v) * TILE - half, bay = bayerAt(cx, cy);
+  if (tRoad) { const r = roadPixel(u, v, px, py, cx, cy, bay); if (r !== -1) return r; }
+  if (tPlinth && u > .08 && u < .92 && v > .08 && v < .92) return rampOf(ROAD_COLOR)[clampi(Math.floor(1.8 + hash(cx, cy) * 1.2 + (tLight - 1) * 6), 1, 3)];
+  let c = groundAt(px, py, cx, cy, monthStep());
+  const kind = groundKind;
+  if (tWater || (kind & 7) === 2) return c;                                           // water keeps the old view's tones (ice included)
+  let rgbv: number[] = [c & 255, (c >> 8) & 255, (c >> 16) & 255];
+  if (tRockF > 0 && bay < tRockF) {                                                   // the mountain: rock dithered into the turf, snow on the heights
+    const hi = tAvg >= 9;
+    rgbv = mixc(hi ? ROCK_HIGH : ROCK_LOW, hi ? ROCK_LOW : ROCK_HIGH, noise(px * 1.3, py * 1.3)); c = 0;
+  }
+  if (tSnowF > 0 && bay + (hash(cx, cy) - .5) * .4 < tSnowF) { rgbv = SNOW; c = 0; }
+  if ((c === 0 || Math.abs(tLight - 1) > .02) && (kind & 7) !== 1) {                // slopes lit by the same ramps (a flat pixel keeps the old colour exactly)
+    const idx = clampi(Math.floor(3.5 + (tLight - 1) * 8 + (bay - .5) * .7), 0, 4);
+    return rampOf(rgbv)[idx];
+  }
+  if (c === 0) c = rgb(rgbv[0], rgbv[1], rgbv[2]);
+  if (tDeco === 3 && hash(cx * 3, cy * 5) < .12) return rampOf(rgbv)[4];              // reeds
+  if (tBloom && hash(cx, cy * 7) < .05) return hash(cx, cy) < .5 ? rgb(250, 246, 226) : rgb(240, 200, 84);       // flowers
+  // the wind's tufts (still): a blade of 1 to 3 pixels rises from a grass pixel 14% of the time, over the pixels above it
+  for (let k = 1; k <= 3; k++) {
+    if (hash(cx * 3, (cy + k) * 5) > .14) continue;
+    if (1 + ((hash(cx, (cy + k) * 2) * 3) | 0) < k) continue;
+    const g = GRASS[clampi(Math.round(noise(cx * .09, (cy + k) * .18) * 2.2) + k, 1, 4)];
+    return rgb(g[0], g[1], g[2]);
+  }
+  return c;
 }
-function blobAt(x: number, y: number, rx: number, ry: number, color: number, alpha: number = 255): void {
-  const pts: number[] = [];
-  for (let k = 0; k < 10; k++) { const a = k / 10 * 6.2832; pts.push((x + Math.cos(a) * rx - ox) * bs + MARGIN, (y + Math.sin(a) * ry - oy) * bs + MARGIN); }
-  polygon(pts, color, alpha);
+/** A cliff wall: rock in strata, the face toward the light a step lighter than the other. */
+function wallPixel(face: number, cx: number, cy: number): number {
+  const base = tAvg >= 9 ? ROCK_HIGH : tAvg >= 5 ? ROCK_LOW : [132, 104, 76], ramp = rampOf(base), bay = bayerAt(cx, cy);
+  const strata = hash(0, cy >> 1) > .72 ? 1 : 0;
+  return ramp[clampi(Math.floor((face === 0 ? 1.6 : 2.3) + strata * .8 + (bay - .5) * .9 + (hash(cx, cy) - .5) * .5), 0, 4)];
 }
-// tile-local point: u along i, v along j, both 0..1, with the bilinear level of the corners
-let tdx = 0, tsy = 0;
-function px(u: number, v: number): number { return tdx + (u - v) * HW; }
-function py(u: number, v: number): number {
-  const lv = corner[0] * (1 - u) * (1 - v) + corner[1] * u * (1 - v) + corner[2] * u * v + corner[3] * (1 - u) * v;
-  return tsy + (u + v) * HH - lv * PXH;
+
+// ---- the triangle filler ----
+let ox = 0, oy = 0, bs = 1, buf: u32[] = [];
+let mode = 0, flat = 0, wallFace = 0;
+const EPS = .04;
+/** Fills a triangle given in map pixels. Mode 0: the ground pixel shader with (u, v) at the corners; 1: a flat colour; 2: a cliff wall. */
+function tri(x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, u0: number, v0: number, u1: number, v1: number, u2: number, v2: number): void {
+  const ax = (x0 - ox) * bs + MARGIN, ay = (y0 - oy) * bs + MARGIN, bx = (x1 - ox) * bs + MARGIN, by = (y1 - oy) * bs + MARGIN, qx = (x2 - ox) * bs + MARGIN, qy = (y2 - oy) * bs + MARGIN;
+  const det = (by - qy) * (ax - qx) + (qx - bx) * (ay - qy);
+  if (Math.abs(det) < 1e-6) return;
+  const xa = Math.max(0, Math.floor(Math.min(ax, bx, qx))), xb = Math.min(TEX - 1, Math.ceil(Math.max(ax, bx, qx)));
+  const ya = Math.max(0, Math.floor(Math.min(ay, by, qy))), yb = Math.min(TEX - 1, Math.ceil(Math.max(ay, by, qy)));
+  const inv = 1 / det, e = mode === 1 ? 0 : EPS;
+  for (let y = ya; y <= yb; y++) {
+    const py = y + .5;
+    for (let x = xa; x <= xb; x++) {
+      const pxx = x + .5;
+      const w0 = ((by - qy) * (pxx - qx) + (qx - bx) * (py - qy)) * inv, w1 = ((qy - ay) * (pxx - qx) + (ax - qx) * (py - qy)) * inv, w2 = 1 - w0 - w1;
+      if (w0 < -e || w1 < -e || w2 < -e) continue;
+      if (mode === 1) { buf[y * TEX + x] = flat; continue; }
+      const cx = Math.floor((ox + (x + .5 - MARGIN) / bs) * bs) + 0, cy = Math.floor((oy + (y + .5 - MARGIN) / bs) * bs);       // the art pixel: one texture pixel
+      let c: number;
+      if (mode === 2) c = wallPixel(wallFace, cx, cy);
+      else c = groundPixel(clampi(w0 * u0 + w1 * u1 + w2 * u2, 0, 1), clampi(w0 * v0 + w1 * v1 + w2 * v2, 0, 1), cx, cy);
+      buf[y * TEX + x] = c;
+    }
+  }
 }
-function patch(u0: number, v0: number, u1: number, v1: number, color: number): void {
-  quad(px(u0, v0), py(u0, v0), px(u1, v0), py(u1, v0), px(u1, v1), py(u1, v1), px(u0, v1), py(u0, v1), color, .15);
+function flatTri(x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, color: number): void {
+  const m = mode; mode = 1; flat = color;
+  tri(x0, y0, x1, y1, x2, y2, 0, 0, 0, 0, 0, 0);
+  mode = m;
 }
-function isRoadish(i: number, j: number): boolean {
-  if (i < 0 || j < 0 || i >= world.size || j >= world.size) return false;
-  const t = j * world.size + i;
-  return world.road[t] !== 0 || world.build[t] >= 0;
+function flatQuad(x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, color: number): void {
+  flatTri(x0, y0, x1, y1, x2, y2, color); flatTri(x0, y0, x2, y2, x3, y3, color);
+}
+function flatBlob(x: number, y: number, rx: number, ry: number, color: number): void {
+  for (let k = 0; k < 10; k++) { const a = k / 10 * 6.2832, b = (k + 1) / 10 * 6.2832; flatTri(x, y, x + Math.cos(a) * rx, y + Math.sin(a) * ry, x + Math.cos(b) * rx, y + Math.sin(b) * ry, color); }
+}
+/** A wall under the front edge of a tile: a quad of the cliff, painted by wallPixel. */
+function wall(x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, face: number): void {
+  mode = 2; wallFace = face;
+  tri(x0, y0, x1, y1, x2, y2, 0, 0, 0, 0, 0, 0); tri(x0, y0, x2, y2, x3, y3, 0, 0, 0, 0, 0, 0);
+  mode = 0;
+}
+
+/** Far levels: the static things are painted into the ground (no sprites). */
+function drawFar(t: number, avg: number, tdx: number, tsy: number): void {
+  const cx = tdx, cy = tsy + HH - avg * PXH;
+  if (world.rock[t] > 0) flatBlob(cx, cy - 4, 8, 6, 0xff7a8385);
+  if (world.tree[t] > 0) { flatBlob(cx, cy - 12, 11, 12, 0xff345a2c); flatBlob(cx - 3, cy - 17, 6, 6, 0xff447c4a); }
+  if (world.build[t] >= 0) {
+    flatQuad(cx - 24, cy, cx, cy + 12, cx, cy - 8, cx - 24, cy - 20, rgbOf(shade(STONE, .78)));
+    flatQuad(cx, cy + 12, cx + 24, cy, cx + 24, cy - 20, cx, cy - 8, rgbOf(shade(STONE, .9)));
+    flatQuad(cx - 26, cy - 20, cx, cy - 8, cx + 26, cy - 20, cx, cy - 36, rgbOf(shade([176, 104, 76], 1)));
+  }
 }
 
 /** Light on a slope: surfaces rising toward the back-left face the sun. */
@@ -90,84 +188,51 @@ function slopeLight(): number {
   const f = ((corner[0] - corner[2]) + (corner[3] - corner[1])) * .5;
   return Math.max(.72, Math.min(1.22, 1 + f * .1));
 }
-
-/** The cliff walls under the two front edges of a tile (where a neighbour is lower). */
-function drawWalls(i: number, j: number, avg: number, t: number): void {
-  const n = world.size;
-  const ex = tdx + HW, ey = tsy + HH - corner[1] * PXH, sx2 = tdx, wx = tdx - HW, wy = tsy + HH - corner[3] * PXH, bottom = tsy + 2 * HH;
-  if (i + 1 < n) {
-    const c1 = corner[1], c2 = corner[2];
-    cornersOf(i + 1, j); const a = corner[0], b = corner[3]; cornersOf(i, j);
-    if (c1 > a + .01 || c2 > b + .01) quad(ex, ey, sx2, bottom - c2 * PXH, sx2, bottom - b * PXH, ex, tsy + HH - a * PXH, darken(wallColor(avg, t), .78), .3);
-  }
-  if (j + 1 < n) {
-    const c3 = corner[3], c2 = corner[2];
-    cornersOf(i, j + 1); const a = corner[0], b = corner[1]; cornersOf(i, j);
-    if (c3 > a + .01 || c2 > b + .01) quad(wx, wy, sx2, bottom - c2 * PXH, sx2, bottom - b * PXH, wx, tsy + HH - a * PXH, darken(wallColor(avg, t), .92), .3);
-  }
-}
-/** A few tufts, flowers, reeds and the game trail: the grain of the grass. */
-function drawGrain(t: number, avg: number): void {
-  const k = hash(t, 12), by0 = tsy + HH - avg * PXH;
-  if (k < .5) blobAt(tdx + (hash(t, 13) - .5) * 30, by0 + (hash(t, 14) - .5) * 14, 2.5, 1.1, shade([60, 92, 52], .9 + k * .4), 110);
-  const deco = world.deco[t];
-  if (deco === 1 || deco === 2) {
-    if (flowerShare(world.biome[t], monthStep()) > hash(t, 9)) for (let q = 0; q < 4; q++) blobAt(tdx + (hash(t, q + 20) - .5) * 26, by0 + (hash(t, q + 30) - .5) * 12, 1.3, 1, q % 2 === 0 ? 0xf6eee0 : 0xe8c868);
-  } else if (deco === 4) patch(.15, .15, .85, .85, shade([150, 118, 80], .85 + hash(t, 8) * .2));
-  else if (deco === 3) {
-    const r = reedColor(monthStep());
-    for (let q = 0; q < 5; q++) { const bx = tdx + (hash(t, q + 40) - .5) * 28, by = by0 + (hash(t, q + 50) - .5) * 12; tri(bx - 1, by, bx + 1, by, bx + (q - 2) * .6, by - 9 - hash(t, q) * 4, shade(r, .9 + q * .05)); }
-  }
-}
-/** The road of a tile: an edge, then the surface, with an arm toward each neighbour that is a road or a building. */
-function drawRoad(i: number, j: number, t: number): void {
-  const rc = shade(ROAD_COLOR, .86 + hash(t, 15) * .12), edge = shade(ROAD_COLOR, .66);
-  const e = isRoadish(i + 1, j), w = isRoadish(i - 1, j), so = isRoadish(i, j + 1), no = isRoadish(i, j - 1);
-  patch(.2, .2, .8, .8, edge);
-  if (e) patch(.8, .2, 1.02, .8, edge);
-  if (w) patch(-.02, .2, .2, .8, edge);
-  if (so) patch(.2, .8, .8, 1.02, edge);
-  if (no) patch(.2, -.02, .8, .2, edge);
-  patch(.26, .26, .74, .74, rc);
-  if (e) patch(.74, .26, 1.02, .74, rc);
-  if (w) patch(-.02, .26, .26, .74, rc);
-  if (so) patch(.26, .74, .74, 1.02, rc);
-  if (no) patch(.26, -.02, .74, .26, rc);
-}
-/** Far levels: the static things are painted into the ground (no sprites). */
-function drawFar(t: number, avg: number): void {
-  const cx = tdx, cy = tsy + HH - avg * PXH;
-  if (world.rock[t] > 0) blobAt(cx, cy - 4, 8, 6, 0x85837a);
-  if (world.tree[t] > 0) { blobAt(cx, cy - 12, 11, 12, 0x2c5a34); blobAt(cx - 3, cy - 17, 6, 6, 0x4a7c44); }
-  if (world.build[t] >= 0) {
-    quad(cx - 24, cy, cx, cy + 12, cx, cy - 8, cx - 24, cy - 20, shade(STONE, .78), 0);
-    quad(cx, cy + 12, cx + 24, cy, cx + 24, cy - 20, cx, cy - 8, shade(STONE, .9), 0);
-    quad(cx - 26, cy - 20, cx, cy - 8, cx + 26, cy - 20, cx, cy - 36, shade([176, 104, 76], 1), 0);
-  }
-}
 function drawTile(i: number, j: number, s: number, d: number, far: boolean): void {
   const n = world.size, t = j * n + i;
   if (world.terrain[t] === TERRAIN_VOID) return;
   cornersOf(i, j);
-  tdx = d * HW; tsy = s * HH;
+  const tdx = d * HW, tsy = s * HH;
   const water = world.terrain[t] === TERRAIN_WATER;
-  const avg = (corner[0] + corner[1] + corner[2] + corner[3]) / 4;
-  if (!water || avg > 0) drawWalls(i, j, avg, t);
-  const c0 = corner[0], c1 = corner[1], c2 = corner[2], c3 = corner[3];
-  if (water) {
-    quad(tdx, tsy - c0 * PXH, tdx + HW, tsy + HH - c1 * PXH, tdx, tsy + 2 * HH - c2 * PXH, tdx - HW, tsy + HH - c3 * PXH, shade(WATER_TONES[1 + ((hash(t, 4) * 2) | 0)], .9 + hash(t, 6) * .16), .7);
-    if (hash(t, 77) < .35) blobAt(tdx + (hash(t, 78) - .5) * 30, tsy + HH + (hash(t, 79) - .5) * 12, 6, 1.4, shade(WATER_TONES[3], 1.05), 120);
+  const c0 = corner[0], c1 = corner[1], c2 = corner[2], c3 = corner[3], avg = (c0 + c1 + c2 + c3) / 4;
+  const ex = tdx + HW, ey = tsy + HH - c1 * PXH, sx2 = tdx, wx = tdx - HW, wy = tsy + HH - c3 * PXH, bottom = tsy + 2 * HH;
+  tt = t; tAvg = avg;
+  if (!water || avg > 0) {                                                            // the cliff walls under the two front edges where a neighbour is lower
+    if (i + 1 < n) {
+      const e1 = c1, e2 = c2; cornersOf(i + 1, j); const a = corner[0], b = corner[3]; cornersOf(i, j);
+      if (e1 > a + .01 || e2 > b + .01) {
+        if (far) flatQuad(ex, ey, sx2, bottom - e2 * PXH, sx2, bottom - b * PXH, ex, tsy + HH - a * PXH, 0xff55607a);
+        else wall(ex, ey, sx2, bottom - e2 * PXH, sx2, bottom - b * PXH, ex, tsy + HH - a * PXH, 0);
+      }
+    }
+    if (j + 1 < n) {
+      const e3 = c3, e2 = c2; cornersOf(i, j + 1); const a = corner[0], b = corner[1]; cornersOf(i, j);
+      if (e3 > a + .01 || e2 > b + .01) {
+        if (far) flatQuad(wx, wy, sx2, bottom - e2 * PXH, sx2, bottom - b * PXH, wx, tsy + HH - a * PXH, 0xff6a7a90);
+        else wall(wx, wy, sx2, bottom - e2 * PXH, sx2, bottom - b * PXH, wx, tsy + HH - a * PXH, 1);
+      }
+    }
+  }
+  tLight = slopeLight();
+  if (far) {
+    const color = water ? rgbOf(shade(WATER_TONES[1 + ((thash(t, 4) * 2) | 0)], .9 + thash(t, 6) * .16)) : groundColor(t, tLight, avg);
+    flatQuad(tdx, tsy - c0 * PXH, tdx + HW, tsy + HH - c1 * PXH, tdx, tsy + 2 * HH - c2 * PXH, tdx - HW, tsy + HH - c3 * PXH, color);
+    if (!water && world.road[t] !== 0) flatQuad(tdx, tsy - c0 * PXH + 5, tdx + 18, tsy + HH - c1 * PXH, tdx, tsy + 2 * HH - c2 * PXH - 5, tdx - 18, tsy + HH - c3 * PXH, rgbOf(shade(ROAD_COLOR, .86)));
+    drawFar(t, avg, tdx, tsy);
     return;
   }
-  quad(tdx, tsy - c0 * PXH, tdx + HW, tsy + HH - c1 * PXH, tdx, tsy + 2 * HH - c2 * PXH, tdx - HW, tsy + HH - c3 * PXH, groundColor(t, slopeLight(), avg), .7);
-  if (!far && avg < 6.5) drawGrain(t, avg);
-  if (world.build[t] >= 0 || t === world.gate) patch(.08, .08, .92, .92, shade(ROAD_COLOR, .78));
-  if (world.road[t] !== 0) drawRoad(i, j, t);
-  if (far) drawFar(t, avg);
+  ti = i; tj = j; tWater = water; tBiome = world.biome[t]; tMonth = tileMonth(tBiome, t, monthStep()); tSnow = snowShare(tBiome, tMonth);
+  tRoad = world.road[t] !== 0; tBridge = tRoad && water; tPlinth = world.build[t] >= 0 || t === world.gate; tDeco = world.deco[t];
+  tBloom = (tDeco === 1 || tDeco === 2) && flowerShare(tBiome, monthStep()) > thash(t, 9);
+  tRockF = avg >= 3.5 ? Math.min(1, (avg - 3.5) / 4) : 0; tSnowF = avg >= 10 ? Math.min(1, (avg - 10) / 3) : 0;
+  wn[0] = waterAt(i - 1, j); wn[1] = waterAt(i + 1, j); wn[2] = waterAt(i, j - 1); wn[3] = waterAt(i, j + 1);
+  rn[0] = roadAt(i + 1, j); rn[1] = roadAt(i - 1, j); rn[2] = roadAt(i, j + 1); rn[3] = roadAt(i, j - 1);
+  const p0x = tdx, p0y = tsy - c0 * PXH, p1x = tdx + HW, p1y = tsy + HH - c1 * PXH, p2x = tdx, p2y = tsy + 2 * HH - c2 * PXH, p3x = tdx - HW, p3y = tsy + HH - c3 * PXH;
+  mode = 0;
+  tri(p0x, p0y, p1x, p1y, p2x, p2y, 0, 0, 1, 0, 1, 1);
+  tri(p0x, p0y, p2x, p2y, p3x, p3y, 0, 0, 1, 1, 0, 1);
 }
-function wallColor(avg: number, t: number): number {
-  return avg >= 9 ? shade(ROCK_HIGH, 1) : avg >= 5 ? shade(ROCK_LOW, 1) : shade([132, 104, 76], 1 + (hash(t, 2) - .5) * .1);
-}
+
 function signature(i: number, j: number): number {
   const n = world.size, t = j * n + i;
   let h = world.terrain[t] * 3 + world.tree[t] * 7 + world.rock[t] * 13 + world.road[t] * 17 + (world.build[t] + 2) * 23 + world.deco[t] * 29 + heightIJ(i, j) * 31;
@@ -175,6 +240,7 @@ function signature(i: number, j: number): number {
   if (b >= 0 && b < world.buildings.length) h += world.buildings[b].type * 37 + world.buildings[b].level * 41;
   return h;
 }
+
 
 /** Paints diagonals of a region until the deadline (at least one); true when it is complete. */
 function bake(r: Region, deadline: number): boolean {
@@ -188,10 +254,10 @@ function bake(r: Region, deadline: number): boolean {
     r.s = Math.max(0, Math.ceil((oy - 2 * HH - 20) / HH) - 1); r.sMax = Math.min(2 * n - 2, Math.floor((oy + TEX / bs + hl + 40) / HH)); r.acc = 0;
     if (r.ready) { if (r.back < 0) r.back = free.length > 0 ? (free.pop() as number) : createImage(TEX, TEX); }
     else if (r.img < 0) r.img = free.length > 0 ? (free.pop() as number) : createImage(TEX, TEX);
+    r.buf = bufs.length > 0 ? (bufs.pop() as u32[]) : Array.from({ length: TEX * TEX }, (): u32 => 0);
+    r.buf.fill(BG);
   }
-  const target = r.ready ? r.back : r.img;
-  beginImage(target);
-  if (first) clear(BG);
+  buf = r.buf;
   let s = r.s, acc = r.acc;
   for (; s <= r.sMax; s++) {
     let d = dMin; if (((d + s) & 1) !== 0) d++;
@@ -203,11 +269,12 @@ function bake(r: Region, deadline: number): boolean {
     }
     if (performance.now() > deadline) { s++; break; }
   }
-  endImage();
   r.s = s; r.acc = acc; r.started = true;
   const ms = performance.now() - t0;
   stats.bakeMs += ms; if (ms > stats.bakeMax) stats.bakeMax = ms;
   if (s <= r.sMax) return false;
+  updatePixels(r.ready ? r.back : r.img, r.buf, true);
+  bufs.push(r.buf); r.buf = [];
   if (r.ready) { const old = r.img; r.img = r.back; r.back = -1; free.push(old); }
   r.sig = acc; r.month = monthStep(); r.rev = world.revision; r.ready = true; r.stale = false; r.s = -1;
   stats.bakes++;
@@ -232,7 +299,7 @@ function signatureOf(r: Region): number {
 
 /** Forgets every region (a new village, a loaded one). */
 export function resetGround(): void {
-  for (const r of regions) { if (r.img >= 0) free.push(r.img); if (r.back >= 0) free.push(r.back); }
+  for (const r of regions) { if (r.img >= 0) free.push(r.img); if (r.back >= 0) free.push(r.back); if (r.buf.length > 0) bufs.push(r.buf); }
   regions.length = 0; index.clear(); pending.length = 0;
 }
 /** Marks what the world changed: regions are compared (a few a frame, in drawGround) with the signature of their tiles. */
@@ -309,6 +376,7 @@ function evict(): void {
   const r = regions[worst];
   if (r.img >= 0) free.push(r.img);
   if (r.back >= 0) free.push(r.back);
+  if (r.buf.length > 0) bufs.push(r.buf);
   index.delete(r.id); regions.splice(worst, 1);
 }
 function drawRegion(r: Region, under: boolean): void {
@@ -317,6 +385,6 @@ function drawRegion(r: Region, under: boolean): void {
   const x0 = Math.floor(view.x + view.w / 2 + (r.rx * sp - xc) * z), x1 = Math.floor(view.x + view.w / 2 + ((r.rx + 1) * sp - xc) * z);
   const y0 = Math.floor(view.y + view.h / 2 + (r.ry * sp - yc) * z), y1 = Math.floor(view.y + view.h / 2 + ((r.ry + 1) * sp - yc) * z);
   if (x1 < view.x || x0 > view.x + view.w || y1 < view.y || y0 > view.y + view.h) return;
-  drawImageRect(r.img, MARGIN, MARGIN, SIZE, SIZE, x0, y0, x1 - x0, y1 - y0, 255, 0);
+  drawImageRect(r.img, MARGIN, MARGIN, SIZE, SIZE, x0, y0, x1 - x0, y1 - y0, 255, 4);
   stats.quads++;
 }
