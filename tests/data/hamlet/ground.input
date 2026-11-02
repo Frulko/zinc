@@ -1,0 +1,18 @@
+1 move 550 450
+10 key ArrowRight
+130 keyup ArrowRight
+131 key ArrowDown
+250 keyup ArrowDown
+251 key ArrowLeft
+370 keyup ArrowLeft
+371 key ArrowUp
+490 keyup ArrowUp
+500 wheel 0 1
+504 wheel 0 1
+508 wheel 0 1
+520 wheel 0 -1
+522 wheel 0 -1
+524 wheel 0 -1
+526 wheel 0 -1
+528 wheel 0 -1
+530 wheel 0 -1

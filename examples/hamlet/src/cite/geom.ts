@@ -10,7 +10,7 @@ export const ZOOM_MIN = .2, ZOOM_MAX = 3;
 /** Where the map is drawn on screen and where the camera looks (tile space), with a smooth zoom. */
 export const cam = { ci: 12, cj: 12, zoom: 1, target: 1, ax: 0, ay: 0 };   // ax, ay: screen point the zoom is anchored on
 export const view = { x: 0, y: 0, w: 1100, h: 800 };
-export const stats = { chunks: 0, bakes: 0, quads: 0, sprites: 0, hmax: 0, bakeMs: 0, bakeMax: 0 };
+export const stats = { chunks: 0, bakes: 0, quads: 0, sprites: 0, hmax: 0, bakeMs: 0, bakeMax: 0, viewRegions: 0, missingRegions: 0 };
 
 // ---- heights ----
 /** The level of a tile, 0..15: the generator's heightmap. */

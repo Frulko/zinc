@@ -1,3 +1,4 @@
+import { env } from 'zinc:sys';
 import { createImage, updatePixels, drawImageRect } from 'zinc:gfx';
 import { world } from '../world/world';
 import { TERRAIN_WATER, TERRAIN_VOID, TILE } from '../constants';
@@ -19,13 +20,14 @@ const SIZE = 512, MARGIN = 1, TEX = SIZE + 2 * MARGIN;
 const ART = 64 / (2 * Math.SQRT2 * 10);                     // map pixels of an art pixel of the old view (28.28 across a tile there, 64 here)
 export const LOD_B: number[] = [2 / ART, 1 / ART, .5, .25];   // bake scale of each level: texture pixels per map pixel; the near levels are one texture pixel an art pixel (of the old view's S = 20 and 10)
 const BG = 0xff171a15;
+const DIAGS: number = env('ZINC_HAMLET_BAKE_DIAGS') === '' ? 0 : Number(env('ZINC_HAMLET_BAKE_DIAGS'));   // a test: a region is baked this many diagonals a call, whatever the clock says (the deterministic clock never reaches a deadline)
 const MAX_REGIONS = 56;
 
 /** A square of the map picture. `img` is what is drawn; a rebuild of a region that is shown goes into `back` and swaps in when done (no torn picture).
  *  `s` is the next tile diagonal to paint (-1: not under way): a region is baked a few diagonals a frame, into `buf` (its pixels, until it is complete). */
 class Region {
   id: number = -1; img: number = -1; back: number = -1; rx: number = 0; ry: number = 0; lod: number = 1; sig: number = 0; acc: number = 0; month: number = -1; rev: number = -1; used: number = 0;
-  ready: boolean = false; started: boolean = false; stale: boolean = false; s: number = -1; sMax: number = 0; ring: boolean = false; buf: u32[] = [];
+  want: number = 0; ready: boolean = false; started: boolean = false; stale: boolean = false; s: number = -1; sMax: number = 0; ring: boolean = false; buf: u32[] = [];
 }
 const regions: Region[] = [];
 const index = new Map<number, Region>();
@@ -267,7 +269,7 @@ function bake(r: Region, deadline: number): boolean {
       drawTile(i, j, s, d, far);
       acc = (Math.imul(acc, 31) + signature(i, j)) | 0;
     }
-    if (performance.now() > deadline) { s++; break; }
+    if (performance.now() > deadline || (DIAGS > 0 && s - r.s + 1 >= DIAGS)) { s++; break; }
   }
   r.s = s; r.acc = acc; r.started = true;
   const ms = performance.now() - t0;
@@ -300,7 +302,7 @@ function signatureOf(r: Region): number {
 /** Forgets every region (a new village, a loaded one). */
 export function resetGround(): void {
   for (const r of regions) { if (r.img >= 0) free.push(r.img); if (r.back >= 0) free.push(r.back); if (r.buf.length > 0) bufs.push(r.buf); }
-  regions.length = 0; index.clear(); pending.length = 0;
+  regions.length = 0; index.clear(); pending.length = 0; ovReady = false; ovNext = -1;
 }
 /** Marks what the world changed: regions are compared (a few a frame, in drawGround) with the signature of their tiles. */
 function lodFor(zoom: number, last: number): number {
@@ -323,12 +325,68 @@ function regionAt(rx: number, ry: number, lod: number, ring: boolean): Region {
   }
   return r;
 }
-/** Draws the ground: regions of the preferred level in view, baked a few diagonals a frame (the budget, in ms), with older levels under them while some are missing. */
+// ---- the overview: the whole map, one pixel a tile, always there ----
+// A region is baked a few diagonals a frame, so on a fast pan or a zoom the ground it needs may not exist yet. The overview is drawn first, under everything: the whole map as one small
+// image (a pixel a tile: biome tone, water, road, trees and houses as flat colours, lit by the level), so a region that is missing shows an approximation of itself, never black.
+// It is baked whole when a village is made (a pixel a tile: 0.3 s at size 256) and again, a slice a frame, when the month changes.
+const OV_FILL = 0xff171a15;
+let ovImg = -1, ovN = 0, ovW = 0, ovH = 0, ovBuf: u32[] = [], ovNext = -1, ovMonth = -1, ovReady = false;
+function ovPaint(t: number, i: number, j: number): void {
+  const n = world.size;
+  if (world.terrain[t] === TERRAIN_VOID) return;
+  const lv = world.height[t], water = world.terrain[t] === TERRAIN_WATER;
+  const light = 1 + Math.max(-.2, Math.min(.2, (heightIJ(i + 1, j) - heightIJ(i, j + 1)) * -.06));
+  let c: u32;
+  if (water && world.road[t] === 0) c = rgbOf(shade(WATER_TONES[1 + ((thash(t, 4) * 2) | 0)], .9 + thash(t, 6) * .16));
+  else if (world.build[t] >= 0) c = rgbOf(shade([176, 118, 84], 1));
+  else if (world.road[t] !== 0) c = rgbOf(shade(ROAD_COLOR, .86));
+  else if (world.tree[t] > 0) c = 0xff345a2c;
+  else if (world.rock[t] > 0) c = 0xff7a8385;
+  else c = groundColor(t, light, lv);
+  const py = Math.max(0, i + j - Math.round(lv * PXH / HH)), px = i - j + n;
+  ovBuf[py * ovW + px] = c; ovBuf[py * ovW + px + 1] = c;
+}
+/** Paints tiles of the overview until the deadline (ms); true when it is complete. */
+function ovStep(deadline: number): boolean {
+  const n = world.size;
+  if (ovNext < 0) {
+    ovN = n; ovW = 2 * n + 2; ovH = 2 * n + 1; ovMonth = monthStep();
+    if (ovBuf.length !== ovW * ovH) ovBuf = Array.from({ length: ovW * ovH }, (): u32 => OV_FILL); else ovBuf.fill(OV_FILL);
+    ovNext = 0;
+  }
+  let t = ovNext;
+  const last = n * n;
+  while (t < last) {
+    for (let e = Math.min(last, t + 512); t < e; t++) ovPaint(t, t % n, Math.floor(t / n));
+    if (performance.now() > deadline) break;
+  }
+  ovNext = t;
+  if (t < last) return false;
+  if (ovImg < 0 || ovN !== n) ovImg = createImage(ovW, ovH);
+  updatePixels(ovImg, ovBuf, true);
+  ovNext = -1; ovReady = true;
+  return true;
+}
+function drawOverview(xc: number, yc: number, z: number): void {
+  if (!ovReady) return;
+  const ex0 = Math.max(0, (xc - view.w / 2 / z) / HW + 1 + ovN), ex1 = Math.min(ovW, (xc + view.w / 2 / z) / HW + 1 + ovN);
+  const ey0 = Math.max(0, (yc - view.h / 2 / z) / HH - .5), ey1 = Math.min(ovH, (yc + view.h / 2 / z) / HH - .5);
+  if (ex1 <= ex0 || ey1 <= ey0) return;
+  const mx = (e: number): number => view.x + view.w / 2 + ((e - 1 - ovN) * HW - xc) * z, my = (e: number): number => view.y + view.h / 2 + ((e + .5) * HH - yc) * z;
+  drawImageRect(ovImg, ex0, ey0, ex1 - ex0, ey1 - ey0, mx(ex0), my(ey0), mx(ex1) - mx(ex0), my(ey1) - my(ey0), 255, 0);
+}
+
+let prevXc = 0, prevYc = 0, velX = 0, velY = 0;
+const LOOK_AHEAD = 24;                  // frames of the camera's velocity the prefetch looks ahead
+/** Draws the ground: the overview, then the regions of the preferred level in view, baked a few diagonals a frame (the budget, in ms; more while a region in view is missing), with older levels under them. */
 export function drawGround(budgetMs: number): void {
   frameNo++;
-  const t0 = performance.now(), deadline = t0 + budgetMs;
+  const t0 = performance.now();
   const lod = lodFor(cam.zoom, lastLod); lastLod = lod;
-  const sp = span(lod), z = cam.zoom, xc = (cam.ci - cam.cj) * HW, yc = (cam.ci + cam.cj) * HH;
+  const sp = span(lod), z = cam.zoom, xc = (cam.ci - cam.cj) * HW, yc = (cam.ci + cam.cj) * HH, n = world.size;
+  velX += ((xc - prevXc) - velX) * .25; velY += ((yc - prevYc) - velY) * .25; prevXc = xc; prevYc = yc;
+  if (!ovReady || ovNext >= 0 || ovMonth !== monthStep()) ovStep(t0 + (ovReady ? 2 : 1e9));
+  drawOverview(xc, yc, z);
   const x0 = xc - view.w / 2 / z, x1 = xc + view.w / 2 / z, y0 = yc - view.h / 2 / z, y1 = yc + view.h / 2 / z;
   const rx0 = Math.floor(x0 / sp), rx1 = Math.floor(x1 / sp), ry0 = Math.floor(y0 / sp), ry1 = Math.floor(y1 / sp);
   const month = monthStep();
@@ -336,29 +394,34 @@ export function drawGround(budgetMs: number): void {
   pending.length = 0;
   for (let ry = ry0; ry <= ry1; ry++) for (let rx = rx0; rx <= rx1; rx++) {
     const r = regionAt(rx, ry, lod, false);
-    r.used = frameNo;
+    r.used = frameNo; r.want = 0;
     if (!r.ready) { missing++; pending.push(r); }
     else if (r.stale || r.month !== month || r.s >= 0) pending.push(r);
   }
+  stats.viewRegions += (rx1 - rx0 + 1) * (ry1 - ry0 + 1); stats.missingRegions += missing;
   // an older level under the new one while regions are missing (no hole when the zoom crosses a threshold)
   if (missing > 0) for (const r of regions) if (r.ready && r.lod !== lod && r.used >= frameNo - 90) drawRegion(r, true);
-  pending.sort((a: Region, b: Region): number => (a.ready ? 1 : 0) - (b.ready ? 1 : 0) || dist(a, sp, xc, yc) - dist(b, sp, xc, yc));
+  const deadline = t0 + (missing > 0 ? Math.max(budgetMs, 6) : budgetMs);
+  // what the camera will need next: the view moved ahead by its velocity and the ring around both, those not on the map left out, the nearest to the middle (or to where it is heading) first
+  const px = xc + velX * LOOK_AHEAD, py = yc + velY * LOOK_AHEAD;
+  const ax0 = Math.floor((x0 + velX * LOOK_AHEAD) / sp), ax1 = Math.floor((x1 + velX * LOOK_AHEAD) / sp), ay0 = Math.floor((y0 + velY * LOOK_AHEAD) / sp), ay1 = Math.floor((y1 + velY * LOOK_AHEAD) / sp);
+  const bx0 = Math.min(rx0, ax0) - 1, bx1 = Math.max(rx1, ax1) + 1, by0 = Math.min(ry0, ay0) - 1, by1 = Math.max(ry1, ay1) + 1;
+  const mapX0 = -n * HW, mapX1 = n * HW, mapY0 = -stats.hmax * PXH - 2 * HH, mapY1 = 2 * n * HH + 2 * HH;
+  for (let ry = by0; ry <= by1; ry++) for (let rx = bx0; rx <= bx1; rx++) {
+    if (rx >= rx0 && rx <= rx1 && ry >= ry0 && ry <= ry1) continue;
+    if ((rx + 1) * sp < mapX0 || rx * sp > mapX1 || (ry + 1) * sp < mapY0 || ry * sp > mapY1) continue;
+    if (regions.length >= MAX_REGIONS - 4 && index.get(key(rx, ry, lod)) === undefined) continue;
+    const r = regionAt(rx, ry, lod, true);
+    r.used = frameNo;
+    if (!r.ready) { r.want = 1; pending.push(r); }
+  }
+  pending.sort((a: Region, b: Region): number => (a.ready ? 1 : 0) - (b.ready ? 1 : 0) || a.want - b.want
+    || Math.min(dist(a, sp, xc, yc), dist(a, sp, px, py)) - Math.min(dist(b, sp, xc, yc), dist(b, sp, px, py)));
   for (let k = 0; k < pending.length; k++) {
     if (k > 0 && performance.now() > deadline) break;
     bake(pending[k], deadline);
   }
-  for (let ry = ry0; ry <= ry1; ry++) for (let rx = rx0; rx <= rx1; rx++) { const r = index.get(key(rx, ry, lod)); if (r !== undefined && r.started) { r.used = frameNo; drawRegion(r, false); } }
-  // the ring of regions around the view is baked in what is left of the frame, so panning finds them ready
-  if (pending.length === 0 || performance.now() < deadline) {
-    let made = 0;
-    for (let ry = ry0 - 1; ry <= ry1 + 1 && made < 2; ry++) for (let rx = rx0 - 1; rx <= rx1 + 1 && made < 2; rx++) {
-      if (rx >= rx0 && rx <= rx1 && ry >= ry0 && ry <= ry1) continue;
-      if (regions.length >= MAX_REGIONS - 4 && index.get(key(rx, ry, lod)) === undefined) continue;
-      const r = regionAt(rx, ry, lod, true);
-      r.used = frameNo;
-      if (!r.ready && performance.now() < deadline) { bake(r, deadline); made++; }
-    }
-  }
+  for (let ry = ry0; ry <= ry1; ry++) for (let rx = rx0; rx <= rx1; rx++) { const r = index.get(key(rx, ry, lod)); if (r !== undefined && r.ready) { r.used = frameNo; drawRegion(r, false); } }
   // signature checks of regions that exist: two a frame, only when the world revision moved
   if (regions.length > 0) {
     for (let k = 0; k < 2; k++) {
