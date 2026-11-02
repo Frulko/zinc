@@ -685,7 +685,7 @@ void dyn_update_rect(int32_t id, int32_t x, int32_t y, int32_t w, int32_t h, con
   dyn_parts[dyn_nparts++ % 16] = DynPart{id, from, d->version, Rect{x, y, x + w, y + h}};
 }
 /** The part of image `id` (its pixels) that changed from version `from` to `to`, when only dyn_update_rect changed it in between. */
-static bool dyn_changed(int32_t id, uint32_t from, uint32_t to, Rect* out) {
+bool dyn_changed(int32_t id, uint32_t from, uint32_t to, Rect* out) {
   Rect u = {1 << 30, 1 << 30, -(1 << 30), -(1 << 30)};
   for (uint32_t cur = to; cur != from;) {   // versions only grow: the walk ends
     const DynPart* p = nullptr;

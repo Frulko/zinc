@@ -32,6 +32,13 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - Zooming out in Hamlet no longer leaves the village as a small clipped rectangle in the dark while the new view is prepared; the picture stays until it can grow smaller.
 
+### Graphics
+
+#### New
+
+- `createImage(w, h, true)` makes a transparent render target: sprites and boxes with partial alpha drawn between `beginImage` and `endImage` keep their transparency, so ground regions and sprite sheets can be composed with `drawImageRect` instead of pixel by pixel; `clearImage` empties it.
+- `updatePixelsRect` changes one rectangle of an image, and a GL display uploads only that part to the GPU.
+
 ### Performance
 
 #### Faster

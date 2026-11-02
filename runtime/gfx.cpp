@@ -2021,6 +2021,39 @@ void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alph
 /** Runtime image (black), drawable with drawImage and a render target for beginImage. */
 int32_t createImage(int32_t w, int32_t h) { return raster::dyn_create(w, h); }
 void destroyImage(int32_t i) { raster::dyn_destroy(i); }
+void clearImage(int32_t i) {
+  int32_t w, h; uint32_t* px = raster::dyn_pixels(i);
+  if (px && raster::image_size(i, &w, &h)) { __builtin_memset(px, 0, (size_t)w * h * 4); raster::dyn_update(i, nullptr, 0); }
+}
+void imageAlpha(int32_t i, bool on) { raster::dyn_set_alpha(i, on); }
+// A transparent target (straight alpha, 0xAARRGGBB). The rasterizer composites on opaque pixels only, so the frame is drawn twice, over the
+// image's own pixels on black and on white: a pixel of alpha A and colour C reads C*A on black and C*A + (255 - A) on white, so the two
+// give A (255 minus how much white shows through) and C back. Exact for Normal blending; Add, Multiply and Screen act on the backdrop
+// (black or white here) and so are not meaningful in a transparent target. ponytail: two extra passes and buffers; a rasterizer that
+// carries alpha would do one pass, when the cost shows.
+static void render_alpha(const raster::Frame& fr, uint32_t* px, int32_t w, int32_t h) {
+  const size_t n = (size_t)w * h;
+  uint32_t* bk = (uint32_t*)hal_alloc(n * 8);
+  if (!bk) return;
+  uint32_t* wh = bk + n;
+  for (size_t i = 0; i < n; i++) {
+    const uint32_t p = px[i], a = p >> 24;
+    const uint32_t r = ((p >> 16 & 255) * a + 127) / 255, g = ((p >> 8 & 255) * a + 127) / 255, b = ((p & 255) * a + 127) / 255;
+    bk[i] = r << 16 | g << 8 | b;
+    wh[i] = (r + 255 - a) << 16 | (g + 255 - a) << 8 | (b + 255 - a);
+  }
+  raster::render(fr, bk, w, 0, h, raster::Rect{0, 0, w, h});
+  raster::render(fr, wh, w, 0, h, raster::Rect{0, 0, w, h});
+  for (size_t i = 0; i < n; i++) {
+    const uint32_t k = bk[i], v = wh[i];
+    const int32_t d = ((int32_t)(v >> 16 & 255) - (int32_t)(k >> 16 & 255) + (int32_t)(v >> 8 & 255) - (int32_t)(k >> 8 & 255) + (int32_t)(v & 255) - (int32_t)(k & 255) + 1) / 3;
+    uint32_t a = d >= 255 ? 0 : 255 - (uint32_t)(d < 0 ? 0 : d);
+    if (!a) { px[i] = 0; continue; }
+    auto un = [&](uint32_t c) { const uint32_t u = (c * 255 + a / 2) / a; return u > 255 ? 255u : u; };
+    px[i] = a << 24 | un(k >> 16 & 255) << 16 | un(k >> 8 & 255) << 8 | un(k & 255);
+  }
+  hal_free(bk);
+}
 // Render-to-image: commands between beginImage and endImage are rasterized into the image instead of the screen
 // (cached map tiles, static layers). They never reach the frame diff.
 static uint32_t mark_cmd, mark_text, mark_pts;
@@ -2038,8 +2071,12 @@ void endImage() {
     soft_pictures(b, mark_cmd);
     raster::Frame fr{b.cmds + mark_cmd, b.ncmd - mark_cmd, b.text, b.pts};
     Drawn& d = drawn[(uint32_t)target_img % 256];
-    const uint32_t hsh = fr.count && fr.cmds[0].kind == raster::CLEAR ? raster::frame_hash(fr) | 1 : 0;   // 0: it draws over what is there
-    if (!hsh || d.img != target_img || d.hash != hsh || d.version != raster::image_version(target_img)) {
+    const bool translucent = raster::dyn_alpha(target_img);
+    const uint32_t hsh = !translucent && fr.count && fr.cmds[0].kind == raster::CLEAR ? raster::frame_hash(fr) | 1 : 0;   // 0: it draws over what is there
+    if (translucent) {
+      render_alpha(fr, px, w, h);
+      raster::dyn_update(target_img, nullptr, 0);
+    } else if (!hsh || d.img != target_img || d.hash != hsh || d.version != raster::image_version(target_img)) {
       raster::render(fr, px, w, 0, h, raster::Rect{0, 0, w, h});
       raster::dyn_set_alpha(target_img, false);   // the raster writes 0x00RRGGBB: a decoded image drawn into is opaque from now on
       raster::dyn_update(target_img, nullptr, 0);

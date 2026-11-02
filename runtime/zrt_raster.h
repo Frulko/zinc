@@ -117,6 +117,7 @@ struct Cmd {
 };
 
 struct Rect { int32_t x0, y0, x1, y1; };
+bool dyn_changed(int32_t id, uint32_t from, uint32_t to, Rect* out);   // only dyn_update_rect changed it from version `from` to `to`: the union of those rectangles
 
 /** An IMAGE with pad bit kImageBox draws part of its image (gfx::drawImageRect): x, y, w, h is the rectangle painted, and the box the
  *  whole image would cover is kept as four floats in s, c1, off and n, which an IMAGE has no other use for. The source rectangle is

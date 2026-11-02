@@ -109,7 +109,7 @@ static int nrc;
 static uint32_t clip_gen = 1;   // changes when the set of open rounded clips does: a program re-reads its uniforms
 static bool rclip_on;
 static uint32_t warned, unsupported;
-static struct { uint32_t frames, idle, occl_frames, draws, quads, glyphs, ptiles, blocks, decoded, progs, atlas_ups; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes; } st;
+static struct { uint32_t img_ups, img_part; uint64_t img_bytes; double img_us; uint32_t frames, idle, occl_frames, draws, quads, glyphs, ptiles, blocks, decoded, progs, atlas_ups; double us, cull_us, prog_us, glyph_us; uint64_t hidden, block_bytes; } st;
 // GPU time of the replays (ZINC_GL_STATS, ZN-679; ZINC_PROFILE=json publishes it). The sources, in the order they are tried, and the name each publishes as gl_timer_source:
 //   GL_TIME_ELAPSED          desktop core GL (macOS): a timer query per frame, read four frames later so the CPU never waits for the GPU
 //   EXT_disjoint_timer_query GLES 2 and 3 where the driver has the extension (found at run time through eglGetProcAddress): the same, plus the disjoint check
@@ -753,6 +753,7 @@ static Tex2* dyn_tex(int32_t id) {
   if (!t->id) { t->key = id; t->nearest = -1; }
   if (!t) return nullptr;
   const uint32_t* px; int32_t w, h, stride;
+  uint32_t bf0, bn0; const void* bd0; bool pre0;
   if (!dyn_view(id, &px, &w, &h, &stride)) return nullptr;
   uint32_t ver = image_version(id);
   if (!t->id || t->w != w || t->h != h) {
@@ -764,6 +765,21 @@ static Tex2* dyn_tex(int32_t id) {
   if (t->ver != ver || t->px != px) {
     GLR_TRACE("runtime image %d, %dx%d, version %u\n", id, w, h, ver);
     glBindTexture(GL_TEXTURE_2D, t->id);
+    const double up0 = now_us();
+    // only dyn_update_rect changed it since the texture was made: the union of those rectangles goes up, not the whole image
+    zrt::raster::Rect part;
+    if (t->px == px && !t->cmp && !dyn_blocks(id, &bf0, &bd0, &bn0, &pre0) && dyn_changed(id, t->ver, ver, &part)) {
+      const int32_t x0 = part.x0 < 0 ? 0 : part.x0, y0 = part.y0 < 0 ? 0 : part.y0, x1 = part.x1 > w ? w : part.x1, y1 = part.y1 > h ? h : part.y1;
+      if (x0 < x1 && y0 < y1) {
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+        if (x0 == 0 && x1 == w && stride == w) glTexSubImage2D(GL_TEXTURE_2D, 0, 0, y0, w, y1 - y0, GL_RGBA, GL_UNSIGNED_BYTE, px + (size_t)y0 * stride);
+        else for (int32_t y = y0; y < y1; y++) glTexSubImage2D(GL_TEXTURE_2D, 0, x0, y, x1 - x0, 1, GL_RGBA, GL_UNSIGNED_BYTE, px + (size_t)y * stride + x0);
+        st.img_ups++; st.img_part++; st.img_bytes += (uint64_t)(x1 - x0) * (y1 - y0) * 4; st.img_us += now_us() - up0;
+      }
+      glBindTexture(GL_TEXTURE_2D, cur_tex);
+      t->ver = ver;
+      return t;
+    }
     // a compressed texture (ZN-439): its blocks where the driver takes the format, else its decoded texels
     uint32_t bf, bn; const void* bd; bool pre;
     const bool blocks = dyn_blocks(id, &bf, &bd, &bn, &pre);
@@ -781,6 +797,7 @@ static Tex2* dyn_tex(int32_t id) {
     if (cf) {}
     else if (stride == w) glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px);
     else for (int32_t y = 0; y < h; y++) glTexSubImage2D(GL_TEXTURE_2D, 0, 0, y, w, 1, GL_RGBA, GL_UNSIGNED_BYTE, px + (size_t)y * stride);
+    st.img_ups++; st.img_bytes += cf ? t->bytes : (uint64_t)w * h * 4; st.img_us += now_us() - up0;
     glBindTexture(GL_TEXTURE_2D, cur_tex);
     t->ver = ver; t->px = px;
   }
@@ -2114,6 +2131,7 @@ static void gl_info_hook() {
   put("gl_cpu_submit_us", st.us / n, "%.0f"); put("gl_gpu_us", gpu_n ? gpu_us / gpu_n : 0.0, "%.0f"); zrt_prof_info("gl_timer_source", gpu_source); put("gl_gpu_samples", gpu_n, "%.0f"); put("gl_gpu_samples_lost", gpu_lost, "%.0f"); put("gl_programs_built", st.progs, "%.0f"); put("gl_program_build_ms", st.prog_us / 1e3, "%.1f");
   put("gl_occlusion_frames", st.occl_frames, "%.0f"); put("gl_depth_bits", occl_bits, "%.0f");
   put("gl_glyph_uploads", GLR_CORE ? st.glyphs : st.atlas_ups, "%.0f");
+  put("gl_image_uploads", st.img_ups, "%.0f"); put("gl_image_upload_bytes_per_frame", st.img_bytes / n, "%.0f"); put("gl_image_upload_us_per_frame", st.img_us / n, "%.0f");
 }
 static void report() {
   if (!getenv("ZINC_GL_STATS")) return;
@@ -2122,6 +2140,7 @@ static void report() {
           st.frames, st.idle, st.draws / n, st.quads / n, st.glyphs, unsupported, st.us / n, st.cull_us / n, (double)st.hidden / n, st.ptiles / n, zrt::raster::strokes_built / n, gpu_n ? gpu_us / gpu_n : 0.0,
           st.blocks, (unsigned long long)st.block_bytes, st.decoded);
   fprintf(stderr, "display-gl renderer gl: %u command programs, %.0f ms to build them and the two of the occlusion and stencil passes; %u uploads of new glyphs, %.0f ms\n", st.progs, st.prog_us / 1e3, GLR_CORE ? st.glyphs : st.atlas_ups, st.glyph_us / 1e3);
+  fprintf(stderr, "display-gl renderer gl: %u uploads of runtime images (%u of a rectangle only), %llu bytes, %.2f ms\n", st.img_ups, st.img_part, (unsigned long long)st.img_bytes, st.img_us / 1e3);
   if (mst.moves) fprintf(stderr, "display-gl renderer gl: %u scrolls moved on the GPU, %.0f pixels each\n", mst.moves, mst.px / mst.moves);
   fprintf(stderr, "display-gl renderer gl: the fringe quads of POLY cover %.0f pixels per frame in each of their passes (the surface has %d)\n", fringe_px / n, W * H);
 }

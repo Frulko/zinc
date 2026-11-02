@@ -199,6 +199,8 @@ export function imageFromPixels(rgba: u8[], w: i32, h: i32): i32 { return __host
 export function updateImage(img: i32, rgba: u8[]): void { __host_gfxUpdateImage(img, rgba); }
 /** New pixels for an image from one u32 a pixel (red in the low byte, then green, blue, alpha), rows top first; `opaque` forces alpha 255. A quarter of the array of updateImage and no per-byte loop. */
 export function updatePixels(img: i32, pixels: u32[], opaque: boolean): void { __host_gfxUpdatePixels(img, pixels, opaque); }
+/** Like updatePixels for the rectangle (x, y, w, h) of the image only, from an array of w x h pixels: only that part is damaged and uploaded again. */
+export function updatePixelsRect(img: i32, pixels: u32[], x: i32, y: i32, w: i32, h: i32): void { __host_gfxUpdateRect(img, pixels, x, y, w, h); }
 export function shaderProgram(fragment: string, scale: i32 = 1): i32 { return __host_gfxShaderProgram(fragment, scale); }
 export function drawShader(program: i32, x: number, y: number, w: number, h: number, uniforms: number[]): void { __host_gfxDrawShader(program, x, y, w, h, uniforms); }
 export function shaderAvailable(): boolean { return __host_gfxShaderAvailable() !== 0; }
@@ -214,7 +216,9 @@ export function translate(x: number, y: number): void { __host_gfxTranslate(x, y
 export function setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void { __host_gfxSetTransform(a, b, c, d, e, f); }
 export function resetTransform(): void { __host_gfxResetTransform(); }
 export function keep(): void { __host_gfxKeep(); }
-export function createImage(w: i32, h: i32): i32 { return __host_gfxCreateImage(w, h); }
+export function createImage(w: i32, h: i32, alpha?: boolean): i32 { const id = __host_gfxCreateImage(w, h); if (alpha && id >= 0) __host_gfxImageAlpha(id, true); return id; }
+/** Every pixel of the image transparent black (a transparent target drawn again from nothing). */
+export function clearImage(image: i32): void { __host_gfxClearImage(image); }
 export function destroyImage(image: i32): void { __host_gfxDestroyImage(image); }
 export function beginImage(image: i32): void { __host_gfxBeginImage(image); }
 export function endImage(): void { __host_gfxEndImage(); }
