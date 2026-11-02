@@ -948,7 +948,10 @@ EmitResult emit(const ir::Module& m) {
     zf.name = m.functions[i].name;
     FnEmitter e(m, m.functions[i], zf, tt);
     if (!e.run()) {
-      r.errors.push_back("@" + zf.name + ": " + e.error);
+      if (e.error.find("more than 256 registers") != std::string::npos)
+        r.errors.push_back("error: function '" + zf.name + "' keeps more than " + std::to_string(kMaxRegisters) + " values alive at once, and the interpreter and the compiled build have " + std::to_string(kMaxRegisters) +
+                           " registers a function (many locals, or a very long expression or inlined body). Split it into smaller functions, or keep the values in an array or a record.");
+      else r.errors.push_back("@" + zf.name + ": " + e.error);
       zf.code.clear();
     }
   }

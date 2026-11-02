@@ -44,6 +44,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 #### Fixed
 
+- A function with more than 256 live values now fails with a message that names the function and says how to split it.
 - `zinc run --native` compiles a program that does not draw too, instead of silently interpreting it.
 - The one-line "compiling for this machine" notice goes to a terminal only; a redirected stderr stays empty.
 
