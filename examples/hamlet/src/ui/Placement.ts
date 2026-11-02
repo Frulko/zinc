@@ -55,6 +55,7 @@ export function undo(): string {
   const group = groups.pop();
   if (group === undefined) return '';
   const paid: number[] = [], taken: number[] = [];
+  world.netRev++;
   for (let i = group.length - 1; i >= 0; i--) {
     const a = group[i];
     if (a.kind === A_ROAD) { world.road[a.tile] = 0; paid.push(a.tile); }

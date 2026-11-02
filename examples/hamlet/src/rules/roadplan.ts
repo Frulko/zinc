@@ -51,7 +51,7 @@ export function buildRoad(tiles: number[]): number {
   let trees = 0;
   for (const t of fresh) { if (world.tree[t] > 0) { trees++; world.tree[t] = 0; world.claimed[t] = 0; } world.road[t] = 1; world.deco[t] = 0; }
   for (let k = 0; k < economy.resources.length; k++) if (economy.roads.yield[k] > 0 && trees > 0) give(k, Math.floor(economy.roads.yield[k] * trees));
-  recount(); world.revision++; world.saveDirty = true;
+  recount(); world.revision++; world.netRev++; world.saveDirty = true;
   return fresh.length;
 }
 /** Demolishes road tiles (never the gate), refunding the share of their cost. Returns the tiles removed. */
@@ -61,7 +61,7 @@ export function demolishRoad(tiles: number[]): number {
   const back = refundOf(gone);
   for (const t of gone) world.road[t] = 0;
   for (let k = 0; k < back.length; k++) if (back[k] > 0) give(k, back[k]);
-  recount(); world.revision++; world.saveDirty = true;
+  recount(); world.revision++; world.netRev++; world.saveDirty = true;
   return gone.length;
 }
 /** Takes back a refund (an undone demolition). */

@@ -91,7 +91,7 @@ export function restore(text: string): boolean {
   if (world.peddlerLeft > 0) spawnPeddler();
   world.priority = numbers(fields[9]);
   world.tick = Number(fields[7]); world.rng = Number(fields[8]);    // last: rebuilding the residents drew random numbers
-  computeAppeal(); recount(); world.revision++;
+  computeAppeal(); recount(); world.revision++; world.netRev++;
   return true;
 }
 

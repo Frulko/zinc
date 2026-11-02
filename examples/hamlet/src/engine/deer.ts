@@ -1,6 +1,6 @@
 import { settings } from '../settings';
-import { REFERENCE_AREA, DEER_GRAZE, DEER_WALK, DEER_FLEE, DEER_DEAD, DEER_GONE, DEER_REST, DEER_DRINK, DEER_ALERT, DEER_CHARGE, DEER_STALK, DEER_CHASE, DEER_EAT, DEER_HOWL, ST_SLEEP, ST_STALK as ST_STALK_HUNT, ROLE_HUNTER } from '../constants';
-import { world, Deer, random, neighbor, tileAt, tileX, tileY, tileI, tileJ, tileCount, spawnDeer, waterNeighbor, treesAround } from '../world/world';
+import { REFERENCE_AREA, TILE, DEER_GRAZE, DEER_WALK, DEER_FLEE, DEER_DEAD, DEER_GONE, DEER_REST, DEER_DRINK, DEER_ALERT, DEER_CHARGE, DEER_STALK, DEER_CHASE, DEER_EAT, DEER_HOWL, ST_SLEEP, ST_STALK as ST_STALK_HUNT, ROLE_HUNTER } from '../constants';
+import { world, Deer, Building, random, neighbor, tileAt, tileX, tileY, tileI, tileJ, tileCount, spawnDeer, waterNeighbor, treesAround } from '../world/world';
 import { SPECIES, Species, KIND_HOPPER, KIND_BOAR, KIND_WOLF, SP_DEER } from '../rules/species';
 import { season } from '../rules/season';
 import { isNight, dayFraction } from '../rules/needs';
@@ -47,6 +47,24 @@ function index(): void {
     if (list === undefined) herds.set(r, [d]); else list.push(d);
   }
 }
+// The awake people by cell of CELL world units (a linked list per cell): an animal looks at the few people near it, not at the whole village.
+const CELL = 16;
+let cells = 0, cellHead: number[] = [], nextOf: number[] = [], burning: Building[] = [];
+function indexPeople(): void {
+  cells = Math.ceil(world.size * TILE / CELL) + 1;
+  if (cellHead.length !== cells * cells) cellHead = Array.from({ length: cells * cells }, (): number => -1);
+  else for (let c = 0; c < cellHead.length; c++) cellHead[c] = -1;
+  while (nextOf.length < world.people.length) nextOf.push(-1);
+  for (let k = 0; k < world.people.length; k++) {
+    const p = world.people[k];
+    if (p.state === ST_SLEEP) continue;
+    const c = Math.floor((p.y + world.half) / CELL) * cells + Math.floor((p.x + world.half) / CELL);
+    if (c < 0 || c >= cellHead.length) continue;
+    nextOf[k] = cellHead[c]; cellHead[c] = k;
+  }
+  burning = [];
+  for (const b of world.buildings) if (b.burn > 0) burning.push(b);
+}
 function leaderOf(d: Deer): Deer | null {
   if (d.leader < 0) return null;
   const o = byId.get(d.leader);
@@ -70,18 +88,20 @@ let byWolf = false;
  *  a hunter creeping up is seen from less far. */
 function nearestThreat(d: Deer): number {
   const sp = SPECIES[d.species], wolf = sp.kind === KIND_WOLF, starving = wolf && d.hunger > starveAt(), sharp = .8 + (d.id % 5) * .1;
-  let best = 1e9;
+  let best = 1e9, bestK = 1e9;
   byWolf = false;
-  for (const p of world.people) {
-    if (p.state === ST_SLEEP) continue;
-    if (wolf && d.prey === -2 && p.role !== ROLE_HUNTER) continue;           // it is going for a villager alone: only a hunter turns it
-    let g = dist(p.x, p.y, d.x, d.y);
-    if (wolf) g *= p.role === ROLE_HUNTER ? .6 : starving ? 1.8 : 1;
-    else if (d.hunted) g *= p.state === ST_STALK_HUNT ? 1.3 * sharp : sharp;           // the hunter's crouch hides him
-    if (g < best) { best = g; d.threatX = p.x; d.threatY = p.y; }
+  const reach = Math.ceil(sp.alert * 2 / .6 / CELL), cx = Math.floor((d.x + world.half) / CELL), cy = Math.floor((d.y + world.half) / CELL);   // beyond this nobody can matter (the scaling below is never under .6 and the calls compare with 2 x alert at most)
+  for (let cj = Math.max(0, cy - reach); cj <= Math.min(cells - 1, cy + reach); cj++) for (let ci = Math.max(0, cx - reach); ci <= Math.min(cells - 1, cx + reach); ci++) {
+    for (let k = cellHead[cj * cells + ci]; k >= 0; k = nextOf[k]) {
+      const p = world.people[k];
+      if (wolf && d.prey === -2 && p.role !== ROLE_HUNTER) continue;           // it is going for a villager alone: only a hunter turns it
+      let g = dist(p.x, p.y, d.x, d.y);
+      if (wolf) g *= p.role === ROLE_HUNTER ? .6 : starving ? 1.8 : 1;
+      else if (d.hunted) g *= p.state === ST_STALK_HUNT ? 1.3 * sharp : sharp;           // the hunter's crouch hides him
+      if (g < best || (g === best && k < bestK)) { best = g; bestK = k; d.threatX = p.x; d.threatY = p.y; }
+    }
   }
-  for (const b of world.buildings) {
-    if (b.burn <= 0) continue;
+  for (const b of burning) {
     const t = b.j * world.size + b.i, g = dist(tileX(t), tileY(t), d.x, d.y) * (wolf ? .3 : .35);   // a fire scares from farther than a person
     if (g < best) { best = g; d.threatX = tileX(t); d.threatY = tileY(t); }
   }
@@ -438,7 +458,7 @@ function update(d: Deer, dt: number): void {
 }
 
 export function updateDeer(dt: number): void {
-  index(); plans = 0;
+  index(); indexPeople(); plans = 0;
   const n = world.deer.length;
   let count = 0;
   for (let k = 0; k < n; k++) {

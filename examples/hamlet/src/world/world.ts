@@ -55,6 +55,7 @@ export interface World {
   buildings: Building[]; people: Person[]; deer: Deer[];
   pondX: number; pondY: number; pondR: number; offsetX: number; offsetY: number;
   revision: number;                 // bumped when the baked scenery must be redone
+  netRev: number;                   // bumped when the road network or the buildings on it change (engine/network.ts is rebuilt from it)
   saveDirty: boolean; lastSave: number; autosave: boolean;
   deerTimer: number; waitingForFood: boolean;
   deerSeq: number;                  // ids given to wild animals
@@ -83,7 +84,7 @@ export function newBuilding(type: number, t: number): number {
   const id = world.buildings.length, b = new Building(), none = (): number[] => economy.resources.map((_r: Resource): number => 0);
   b.type = type; b.i = tileI(t); b.j = tileJ(t); b.fed = none(); b.cover = economy.services.map((_s: Service): number => 0); b.stock = none(); b.reserved = none(); b.incoming = none();
   world.buildings.push(b);
-  world.build[t] = id; world.deco[t] = 0;
+  world.build[t] = id; world.deco[t] = 0; world.netRev++;
   return id;
 }
 /** world.stock: what the stores (every alive building that stores) hold, per resource. What a producer still holds or a porter carries is not counted yet. */
@@ -98,7 +99,7 @@ export const world: World = {
   terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), biome: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, crime: new Crime(), priority: [],
+  revision: 0, netRev: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, crime: new Crime(), priority: [],
 };
 
 // ---- tiles ----
@@ -216,14 +217,8 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
       }
     }
   }
-}
-
-/** Scatters the active deposits of the economy over the terrain (gen/deposits.ts): each lands in world.rock as ROCK_DEPOSIT + its kind, with its amount in world.lode. */
-function placeLodes(layers: TerrainLayers): void {
-  const rules: DepositRule[] = [], kinds: number[] = [];
-  for (let k = 0; k < economy.deposits.length; k++) {
   if (params.wolves > 0) spawnPacks(size, params.wolves);
-  world.revision++;
+  world.revision++; world.netRev++;
 }
 
 /** Wolves, only when the village asks (TerrainParams.wolves): in forest country (a share of the land under trees), one pack of three to six on the far side from the gate per 24 x 24 tiles of map. No draw is made without the flag. */
@@ -252,6 +247,12 @@ function spawnPacks(size: number, mode: number): void {
       w.leader = alpha.id; w.stag = false; w.hunger = random() * 40;
     }
   }
+}
+
+/** Scatters the active deposits of the economy over the terrain (gen/deposits.ts): each lands in world.rock as ROCK_DEPOSIT + its kind, with its amount in world.lode. */
+function placeLodes(layers: TerrainLayers): void {
+  const rules: DepositRule[] = [], kinds: number[] = [];
+  for (let k = 0; k < economy.deposits.length; k++) {
     const d = economy.deposits[k];
     if (!d.active) continue;
     const r = new DepositRule(); r.near = d.near; r.density = d.density; r.required = d.required;

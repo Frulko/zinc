@@ -1,7 +1,8 @@
 import { ST_FETCH, ST_BRING, ST_SEEK, BS_WAITING, BS_ISOLATED, BS_FULL, BATCH } from '../constants';
 import { world, Person, Building, tileIndex, tileAt, neighbor, recount } from '../world/world';
 import { economy, BuildingDef } from '../world/economy';
-import { fieldFrom, approachTile, planPath, UNREACHABLE } from './path';
+import { onStoreNetwork } from './network';
+import { fieldFrom, approachTile, planPath, UNREACHABLE, ESCAPE } from './path';
 
 // Goods move in loads: a worker (a porter, or a worker fetching an input or hauling its own output) walks to the building that holds them, takes a batch,
 // walks to the building that keeps them and puts them down. The batch is promised on both sides first (src.reserved, dst.incoming), so a load is never taken twice
@@ -10,37 +11,9 @@ import { fieldFrom, approachTile, planPath, UNREACHABLE } from './path';
 const tileOf = (b: Building): number => tileIndex(b.i, b.j);
 const isStore = (b: Building): boolean => economy.buildings[b.type].store;
 
-// ---- which buildings the road joins to a store ----
-let compRevision = -1;
-let comp: number[] = [];
-let storeComp: number[] = [];
-function components(): void {
-  if (compRevision === world.revision) return;
-  comp = world.road.map((_v: number): number => -1);
-  let count = 0;
-  for (let t = 0; t < world.road.length; t++) {
-    if (!world.road[t] || comp[t] >= 0) continue;
-    const queue: number[] = [t];
-    comp[t] = count;
-    while (queue.length > 0) {
-      const u = queue.pop() as number;
-      for (let d = 0; d < 4; d++) { const v = neighbor(u, d); if (v >= 0 && world.road[v] && comp[v] < 0) { comp[v] = count; queue.push(v); } }
-    }
-    count++;
-  }
-  storeComp = Array.from({ length: count }, (): number => 0);
-  for (const b of world.buildings) {
-    if (!b.alive || !isStore(b)) continue;
-    for (let d = 0; d < 4; d++) { const v = neighbor(tileOf(b), d); if (v >= 0 && comp[v] >= 0) storeComp[comp[v]] = 1; }
-  }
-  compRevision = world.revision;
-}
+// ---- which buildings the road joins to a store (engine/network.ts) ----
 /** True when a road leads from the building to a store (it can send and receive goods). */
-export function exportsOk(b: Building): boolean {
-  components();
-  for (let d = 0; d < 4; d++) { const v = neighbor(tileOf(b), d); if (v >= 0 && comp[v] >= 0 && storeComp[comp[v]] === 1) return true; }
-  return false;
-}
+export function exportsOk(b: Building): boolean { return onStoreNetwork(b); }
 
 // ---- loads ----
 const room = (b: Building, k: number): number => economy.buildings[b.type].stockCap - b.stock[k] - b.incoming[k];
@@ -81,7 +54,7 @@ export function putDown(p: Person): void {
 
 /** The store with room for k that the person reaches soonest (or -1). */
 function nearestStore(p: Person, k: number): number {
-  const field = fieldFrom(tileAt(p.x, p.y));
+  const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE);
   let best = -1, bestCost = UNREACHABLE;
   for (let id = 0; id < world.buildings.length; id++) {
     const b = world.buildings[id];
@@ -108,7 +81,7 @@ export function findLoad(p: Person): boolean {
   let any = false;
   for (const b of world.buildings) if (b.alive && !isStore(b)) for (let k = 0; k < b.stock.length; k++) if (economy.buildings[b.type].outputs[k] > 0 && spare(b, k) >= 1) any = true;
   if (!any) return false;
-  const field = fieldFrom(tileAt(p.x, p.y));
+  const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE);
   let bestId = -1, bestRes = -1, bestCost = UNREACHABLE;
   for (let id = 0; id < world.buildings.length; id++) {
     const b = world.buildings[id];
@@ -132,7 +105,7 @@ export function fetchInput(p: Person, siteId: number): boolean {
     const want = def.inputs[k] * 2 - site.stock[k] - site.incoming[k];
     if (def.inputs[k] === 0 || site.stock[k] >= def.inputs[k] || want < 1) continue;
     if (!exportsOk(site)) { site.state = BS_ISOLATED; return false; }
-    const field = fieldFrom(tileAt(p.x, p.y));
+    const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE);
     let best = -1, bestCost = UNREACHABLE;
     for (let id = 0; id < world.buildings.length; id++) {
       const b = world.buildings[id];

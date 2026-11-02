@@ -39,7 +39,7 @@ export function addBuilding(type: number, t: number): number { return newBuildin
 export function destroyBuilding(id: number): void {
   const b = world.buildings[id];
   if (b.type === HOUSE) removeResidents(id); else releaseWorkers(id);
-  b.alive = false; world.build[tileIndex(b.i, b.j)] = -1;
+  b.alive = false; world.build[tileIndex(b.i, b.j)] = -1; world.netRev++;
 }
 
 /** Applies a tool to a tile. Returns PLACE_OK when something changed, else the reason. */

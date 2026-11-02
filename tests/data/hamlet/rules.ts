@@ -895,7 +895,7 @@ console.log('hamlet rules: moodhash ' + moodHash + ':' + world.rng);        // c
 // ---- public order: the peace rating, robbers a watchman catches, riots below a mood line, all gated by the risks flag ----
 {
   generate(999, 16); rich(); world.progression = false; world.risks = true;
-  for (let i = 0; i <= 12; i++) { world.tree[at(i, 7)] = 0; world.tree[at(i, 8)] = 0; world.tree[at(i, 9)] = 0; }
+  for (let i = 0; i <= 12; i++) for (const j of [7, 8, 9]) { world.tree[at(i, j)] = 0; world.rock[at(i, j)] = 0; world.terrain[at(i, j)] = 0; }   // the street is whole: walkers keep to the roads
   for (let i = 1; i <= 12; i++) applyTool(TOOL_ROAD, at(i, 8));
   const houses: number[] = [];
   for (const i of [2, 4, 6, 8, 10]) { const h = addBuilding(HOUSE, at(i, 7)); for (let k = 0; k < 4; k++) createResident(h); world.buildings[h].residents = 4; world.buildings[h].timer = 1e9; houses.push(h); }
