@@ -2,7 +2,7 @@
 // deterministic (seeded, driven by the frame number, never by the clock) and draws the same commands on every backend, so a difference between
 // two runs is the renderer's, not the program's. The engine's own profiler measures the frames: ZINC_PROFILE=json ZINC_PROFILE_SKIP=<warm-up>
 // ZINC_FRAMES=<n> (tools/zbench sets them). ZB_SCENE=list prints the ids.
-import { quit, onFrame, clear, rect, rrect, border, shadow, clip, unclip, font, drawText, gradient, line, polygon, width, height, imageFromPixels, updateImage, drawImage, profSection, setTransform, resetTransform } from 'zinc:gfx';
+import { quit, onFrame, clear, rect, rrect, border, shadow, clip, unclip, font, drawText, gradient, line, polygon, width, height, imageFromPixels, updateImage, drawImage, drawImageRect, profSection, setTransform, resetTransform } from 'zinc:gfx';
 import * as sys from 'zinc:sys';
 import { startUi, startUiSequence } from './ui_scenes';
 import { openReport, closeSection } from './report';
@@ -14,6 +14,25 @@ function rnd(n: number): number { seed = (seed * 1103515245 + 12345) & 0x7ffffff
 let W = width(), H = height();
 const fonts = [font('sans', 12), font('sans', 16), font('sans-bold', 24)];
 
+// sprites: 16 x 16 frames of 4 sheets (64 x 16 each, translucent pixels), quads from random places; the mixed scene alternates the sheets by sprite,
+// the others draw one sheet (draw submission: calls a second, batches, texture switches)
+const sheets: number[] = [];
+function sheet(k: number): number {
+  if (sheets.length === 0) for (let j = 0; j < 4; j++) {
+    const px: u8[] = [];
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 64; x++) px.push((x * 4 + j * 60) as u8, (y * 16) as u8, 200 - j * 40, ((x & 15) > 1 && (x & 15) < 14 ? 220 : 0) as u8);
+    sheets.push(imageFromPixels(px, 64, 16));
+  }
+  return sheets[k];
+}
+function sprites(f: number, n: number, mixed: boolean): void {
+  clear(bg(0x203050, f));
+  for (let i = 0; i < n; i++) {
+    const k = i % N;
+    drawImageRect(sheet(mixed ? i & 3 : 0), (i & 3) * 16, 0, 16, 16, (qx[k] + f + i) % W, (qy[(k * 7) % N] + (i >> 4)) % H, 16 + (i & 7), 16 + (i & 7), 255, 0, 0, 0xffffff, 0);
+  }
+}
+
 // pre-computed so that the scene's own cost is the draw calls, not the random numbers
 const N = 10000;
 let qx: number[] = [], qy: number[] = [], qw: number[] = [], qh: number[] = [], qc: number[] = [];
@@ -23,7 +42,7 @@ function geometry(): void {
   for (let i = 0; i < N; i++) { qx.push(rnd(W)); qy.push(rnd(H)); qw.push(20 + rnd(40)); qh.push(20 + rnd(40)); qc.push(0x202020 + rnd(0xdfdfdf)); }
 }
 
-const ids: string[] = ['fill_opaque', 'fill_blend', 'quads_10k', 'rounded_shadow', 'gradients', 'text_static', 'text_churn', 'clip_nested', 'poly', 'scroll_list', 'image_update', 'card_small', 'card_big', 'card_zoom', 'image_fill_only', 'image_upload_only', 'damage_small', 'ui_scroll_fling', 'ui_scroll_wheel', 'ui_anim_transform', 'ui_anim_layout', 'ui_list_update'];
+const ids: string[] = ['fill_opaque', 'fill_blend', 'quads_10k', 'rounded_shadow', 'gradients', 'text_static', 'text_churn', 'clip_nested', 'poly', 'scroll_list', 'image_update', 'sprites_5k', 'sprites_20k', 'sprites_50k', 'sprites_20k_mixed', 'card_small', 'card_big', 'card_zoom', 'image_fill_only', 'image_upload_only', 'damage_small', 'ui_scroll_fling', 'ui_scroll_wheel', 'ui_anim_transform', 'ui_anim_layout', 'ui_list_update'];
 
 // texture upload: one 256 x 256 image changes every frame (a GPU display uploads only that image), drawn four times
 const pix: u8[] = [];
@@ -57,6 +76,10 @@ function scene(id: string, f: number): void {
     case 'fill_blend': clear(bg(0x203040, f)); for (let k = 0; k < 8; k++) rrect(0, 0, W, H, 0, 0xff8040 + k * 0x010203, 96); break;
     // command overhead: ten thousand small flat quads (B1)
     case 'quads_10k': clear(bg(0x101820, f)); for (let i = 0; i < N; i++) rect(qx[i], qy[i], qw[i], qh[i], qc[i]); break;
+    case 'sprites_5k': sprites(f, 5000, false); break;
+    case 'sprites_20k': sprites(f, 20000, false); break;
+    case 'sprites_50k': sprites(f, 50000, false); break;
+    case 'sprites_20k_mixed': sprites(f, 20000, true); break;
     // rounded corners, borders, shadows (the cost of anti-aliased shapes and blurs)
     case 'rounded_shadow':
       clear(bg(0xf0f0f0, f));
