@@ -1,6 +1,7 @@
 // E-ink style mode (ZN-929, run with ZINC_EINK=1): a card with a gradient, a shadow, an opacity, a tinted box and the four pattern fills.
 // Colours snap to black, white and the Gallery 3 primaries; no gradient, shadow or alpha command is issued.
-import { einkDroppedCount } from 'zinc:ui';
+import { einkDroppedCount, setEinkColour } from 'zinc:ui';
+import { env } from 'zinc:sys';
 import { render } from 'zinc:ui/solid';
 
 function App(): i32 {
@@ -18,5 +19,6 @@ function App(): i32 {
     </View>
   </View>;
 }
+if (env('EINK_CARD_COLOUR') === '1') setEinkColour(true);   // a colour panel: the colours pass unsnapped
 let frames = 0;
 render(App, 0xffffff, (dt: number) => { if (++frames === 3) console.log('dropped', einkDroppedCount()); });

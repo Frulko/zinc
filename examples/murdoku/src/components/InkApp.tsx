@@ -12,6 +12,7 @@ import { Board } from './Board';
 import { HelpPanel } from './HelpPanel';
 import { Rich } from './Rich';
 import { Portrait } from './Portrait';
+import { COLOUR_PANEL, colour, setColour } from '../skin';
 function Tool(props: { icon: string; label: string; onClick: () => void; on?: boolean; primary?: boolean }): i32 {
  return <Button onClick={props.onClick} aria-label={props.label} className={'grow basis-0 min-w-0 h-[60] rounded-[8] gap-[2] items-center justify-center '+(props.on ? 'bg-black border-[3] border-black' : props.primary ? 'bg-white border-[7] border-black' : 'bg-white border-[3] border-black')}>
   <Icon name={props.icon} size={22} strokeWidth={2.5} color={() => props.on ? 0xffffff : 0x000000}/>
@@ -65,6 +66,7 @@ export function InkApp(): i32 {
   <View className="h-[56] px-4 flex-row items-center border-b-[3] border-black gap-3 shrink-0">
    <View className="grow min-w-0"><Text className="text-[20px] font-black text-black whitespace-nowrap">Minuit au manoir</Text><Text className="text-[10px] text-black">{'Enquête '+puzzle().seed+' · '+['Découverte','Enquête','Expert'][puzzle().level]}</Text></View>
    <Button disabled={busy()} onClick={() => freshAsync(puzzle().level, () => setMobileTab('plan'))} className="px-4 h-[48] rounded-[8] border-[3] border-black bg-white items-center justify-center"><Text className="text-[13px] font-bold text-black">{busy() ? 'Génération…' : 'Nouvelle affaire'}</Text></Button>
+   {COLOUR_PANEL && <Button onClick={() => setColour(!colour())} aria-label="Couleur ou noir et blanc" className="px-4 h-[48] rounded-[8] border-[3] border-black bg-white items-center justify-center"><Text className="text-[13px] font-bold text-black">{colour() ? 'Mode N&B' : 'Mode couleur'}</Text></Button>}
    <Button onClick={() => setMobileTab(mobileTab() === 'aide' ? 'plan' : 'aide')} aria-label="Règles et niveau" className={'w-[48] h-[48] rounded-full border-[3] border-black items-center justify-center '+(mobileTab() === 'aide' ? 'bg-black' : 'bg-white')}><Text className={'text-[18px] font-bold '+(mobileTab() === 'aide' ? 'text-white' : 'text-black')}>?</Text></Button>
   </View>
   {inkWide() ? <View className="grow basis-0 min-h-0 flex-row">

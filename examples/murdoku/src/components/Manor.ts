@@ -3,7 +3,7 @@ import { rect, line, setTransform, image, drawImageRect } from 'zinc:gfx';
 import { puzzle } from '../state';
 import { room, EMPTY } from '../puzzle';
 import { neighbors } from '../architecture';
-import { INK } from '../skin';
+import { INK, bw } from '../skin';
 import { inkWindow } from './InkPlan';
 export const MANOR_BLEED = 20;
 // Official room colours, washed toward ivory so the furniture and people carry the eye.
@@ -16,7 +16,7 @@ function wall(x: number, y: number, side: number, window: boolean): void {
  if (vertical) rect(x-thickness/2,y-thickness/2,thickness,80+thickness,0x000000);
  else rect(x-thickness/2,y-thickness/2,80+thickness,thickness,0x000000);
  if (!window) return;
- if (INK) { inkWindow(x,y,vertical); return; }
+ if (bw()) { inkWindow(x,y,vertical); return; }
  // Frames straddle the wall center; only the sill changes to face the room.
  if (vertical) {
   const wx = x-6;
@@ -42,12 +42,14 @@ function wall(x: number, y: number, side: number, window: boolean): void {
 }
 class Floor extends Sprite {
  scale = 1;
- private atlas: i32 = -1;
- private floors: i32 = -1;
+ private atlas: i32[] = [-1,-1];   // colour, then black and white: each loads when its mode first draws
+ private floors: i32[] = [-1,-1];
  override onDraw(w: number, h: number): void {
   setTransform(this.scale,0,0,this.scale,uiState.offsetX+MANOR_BLEED,uiState.offsetY+MANOR_BLEED);
-  if (this.atlas < 0) this.atlas = image(INK ? 'ink-objects.png' : 'manor-objects.png');   // the same official SVG artwork; the e-ink skin's is baked in black and white (authoring/build_assets.py)
-  if (this.floors < 0) this.floors = image(INK ? 'ink-floors.png' : 'manor-floors.png');
+  const m = bw() ? 1 : 0;
+  if (this.atlas[m] < 0) this.atlas[m] = image(m === 1 ? 'ink-objects.png' : 'manor-objects.png');   // the same official SVG artwork; the e-ink skin's is baked in black and white (authoring/build_assets.py)
+  if (this.floors[m] < 0) this.floors[m] = image(m === 1 ? 'ink-floors.png' : 'manor-floors.png');
+  const atlas = this.atlas[m], floors = this.floors[m];
   const p = puzzle();
   const off = 14/this.scale;
   for (let c = 0; c < p.columns*p.rows; c++) if (room(p,c) >= 0 && !INK) rect(c%p.columns*80+off,Math.floor(c/p.columns)*80+off,80,80,0xc4c2cc);
@@ -55,17 +57,17 @@ class Floor extends Sprite {
    const r = room(p,c); if (r < 0) continue;
    const col = c%p.columns, row = Math.floor(c/p.columns), x = col*80, y = row*80;
    const tile = p.themes[r] === 2 ? 1 : p.themes[r] === 7 ? 3 : p.themes[r] === 4 ? 2 : 0;
-   const d = p.decor[c], t = INK ? 192 : 128;
-   if (INK) {
+   const d = p.decor[c], t = m === 1 ? 192 : 128;
+   if (m === 1) {
     rect(x,y,80,80,0xffffff);
-    if (this.floors >= 0) drawImageRect(this.floors,tile*128,0,128,128,x,y,80,80,255);
+    if (floors >= 0) drawImageRect(floors,tile*128,0,128,128,x,y,80,80,255);
     rect(x,y,80,0.8,0x000000); rect(x,y,0.8,80,0x000000);
    } else {
     rect(x,y,80,80,FLOOR_COLORS[r]);
-    if (this.floors >= 0) drawImageRect(this.floors,tile*128,0,128,128,x,y,80,80,36);
+    if (floors >= 0) drawImageRect(floors,tile*128,0,128,128,x,y,80,80,36);
     rect(x,y,80,2,0x3a3a32); rect(x,y,2,80,0x3a3a32);
    }
-   if (d !== EMPTY && this.atlas >= 0) drawImageRect(this.atlas,(d%6)*t,Math.floor(d/6)*t,t,t,x+2,y+2,76,76,255);
+   if (d !== EMPTY && atlas >= 0) drawImageRect(atlas,(d%6)*t,Math.floor(d/6)*t,t,t,x+2,y+2,76,76,255);
   }
   for (let c = 0; c < p.columns*p.rows; c++) {
    const r = room(p,c); if (r < 0) continue;

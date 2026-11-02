@@ -10,4 +10,6 @@ h=$(echo "$out" | grep framehash)
 [ "$h" = "$(cat $d/frame.hash)" ] || { echo "eink style: $h"; exit 1; }
 n=$(ZINC_FRAMEHASH=last "$ZINC" run $d 2>&1 | grep framehash)
 [ "$n" != "$h" ] || { echo "eink style: the colour frame equals the e-ink one"; exit 1; }
+c=$(EINK_CARD_COLOUR=1 ZINC_EINK=1 ZINC_FRAMEHASH=last "$ZINC" run $d 2>&1 | grep framehash)
+[ -n "$c" ] && [ "$c" != "$h" ] && [ "$c" != "$n" ] || { echo "eink style: setEinkColour left the colours snapped ($c)"; exit 1; }
 echo "eink style: ok"

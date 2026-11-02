@@ -7,9 +7,10 @@ import { quit } from 'zinc:gfx';
 import { touchAt } from 'zinc:ui';
 import { puzzle, placements, notes, eliminated } from './state';
 import { cellSize } from './layout';
+import { setColour } from './skin';
 import { ink, ox, oy, feedEnd } from './pen';
 
-interface Step { cell?: number; s?: number[][]; undo?: boolean; }
+interface Step { colour?: boolean; cell?: number; s?: number[][]; undo?: boolean; }
 interface Script { steps: Step[]; }
 
 const file = sys.env('MURDOKU_PEN_REPLAY');
@@ -27,6 +28,7 @@ export function replayStep(): void {
     quit(); return;
   }
   const st = script.steps[step];
+  if (st.colour !== undefined) { setColour(st.colour as boolean); step++; wait = 20; return; }   // the toggle's effect, as the button does it
   if (st.undo === true) {   // a two-finger tap: both down in one frame, both up in the next
     if (phase === 0) { crossed = eliminated().reduce((a: number, b: number) => a + b, 0); touchAt(1, 5, 5, 0); touchAt(2, 40, 5, 0); phase = 1; return; }
     touchAt(2, 40, 5, 2); touchAt(1, 5, 5, 2);

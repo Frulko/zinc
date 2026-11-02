@@ -18,6 +18,23 @@ PY
   if [ -n "${ZN_UPDATE_GOLDEN:-}" ]; then echo "$h" > "$d/$size.hash"; cp "$tmp/$size.png" "$d/$size.png"; continue; fi
   [ "$h" = "$(cat $d/$size.hash)" ] || { echo "murdoku eink $size: $h"; exit 1; }
 done
+# the colour mode (a colour panel: ZINC_EINK_COLOUR=1): the colour art in the same layout, with the toggle; the store is a temporary file, never the player's
+for size in 1080x810 1620x2160; do
+  out=$(ZINC_STORAGE="$tmp/store" ZINC_EINK_COLOUR=1 ZINC_EINK=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=$size ZINC_FRAMES=8 ZINC_FRAMEHASH=last ZINC_SHOT="$tmp/c$size.png" "$ZINC" run examples/murdoku 2>&1) || { echo "murdoku eink colour $size: $out"; exit 1; }
+  h=$(echo "$out" | grep framehash)
+  if [ -n "${ZN_UPDATE_GOLDEN:-}" ]; then echo "$h" > "$d/colour-$size.hash"; cp "$tmp/c$size.png" "$d/colour-$size.png"; continue; fi
+  [ "$h" = "$(cat $d/colour-$size.hash)" ] || { echo "murdoku eink colour $size: $h"; exit 1; }
+done
+# the toggle at run time: from colour back to black and white (the scripted step is the button's handler); the choice is stored for the next launch
+echo '{ "steps": [ { "colour": false } ] }' > "$tmp/toggle.json"
+MURDOKU_PEN_REPLAY="$tmp/toggle.json" ZINC_STORAGE="$tmp/store2" ZINC_EINK_COLOUR=1 ZINC_EINK=1 ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1080x810 ZINC_FRAMES=200 ZINC_SHOT="$tmp/toggle.png" "$ZINC" run examples/murdoku >/dev/null 2>&1 || { echo "murdoku eink toggle: run failed"; exit 1; }
+python3 - "$tmp/toggle.png" "$tmp/c1080x810.png" <<'PY' || { echo "murdoku eink toggle: the frame after the switch is not black and white (or the colour frame is)"; exit 1; }
+import sys
+from PIL import Image
+def tinted(f): return any(not (r == g == b) for r, g, b in Image.open(f).convert('RGB').getdata())
+sys.exit(1 if tinted(sys.argv[1]) or not tinted(sys.argv[2]) else 0)
+PY
+grep -q '^colour.0' "$tmp"/store2* || { echo "murdoku eink toggle: the choice was not kept"; exit 1; }
 c=$(ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SCALE=1 ZINC_SIZE=1620x2160 ZINC_FRAMES=8 ZINC_FRAMEHASH=last "$ZINC" run examples/murdoku 2>&1 | grep framehash)
 [ "$c" != "$(cat $d/1620x2160.hash)" ] || { echo "murdoku eink: the colour frame equals the e-ink one"; exit 1; }
 echo "murdoku eink: ok"

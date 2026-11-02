@@ -27,7 +27,11 @@ import { DOM, commit as domCommit } from 'zinc:ui/dom';   // the semantic DOM of
 export const EINK: boolean = env('ZINC_EINK') === '1' || (EINK_CAP && env('ZINC_EINK') !== '0');   // ZINC_EINK=0 shows an e-ink app in colour
 const EINK_PAL: u32[] = [0xffffff, 0x000000, 0xff0000, 0x00aa00, 0x0000ff, 0xffff00];
 let einkDropped: i32 = 0;   // test hook: the shadows and the translucent commands left out
+let einkColour: boolean = false;   // a colour panel (Gallery 3) shown in full colour by the app: colours pass, only translucency and effects stay out
+/** An e-ink app on a colour panel asks for its colours to pass unsnapped (false: the black, white and primaries snap). */
+export function setEinkColour(on: boolean): void { einkColour = on; }
 export function einkSnap(c: u32): u32 {
+  if (einkColour) return c;
   let best: u32 = 0xffffff, bd: i32 = 1 << 30;
   const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
   if (Math.max(r, g, b) - Math.min(r, g, b) < 90) return (r * 77 + g * 150 + b * 29) >> 8 < 140 ? 0x000000 : 0xffffff;   // greys and slates are not colours: black or white, never a green

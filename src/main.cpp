@@ -461,7 +461,9 @@ static void installDisplayDriver(const std::string& projectDir, const char* entr
     ss << in.rdbuf();
     const std::string text = ss.str();
     if (yyjson_doc* doc = yyjson_read(text.data(), text.size(), 0)) {
-      if (yyjson_is_true(yyjson_obj_get(yyjson_obj_get(yyjson_doc_get_root(doc), row.c_str()), "eink"))) setenv("ZINC_EINK", "1", 0);
+      yyjson_val* caps = yyjson_obj_get(yyjson_doc_get_root(doc), row.c_str());
+      if (yyjson_is_true(yyjson_obj_get(caps, "eink"))) setenv("ZINC_EINK", "1", 0);
+      if (yyjson_is_true(yyjson_obj_get(caps, "colour"))) setenv("ZINC_EINK_COLOUR", "1", 0);   // a colour panel: an e-ink app may draw in colour (ZINC_EINK_COLOUR)
       yyjson_doc_free(doc);
     }
   }
