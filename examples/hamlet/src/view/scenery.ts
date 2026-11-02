@@ -164,7 +164,7 @@ function paintChunk(layer: Layer, cx: number, cy: number, s: number, row0: numbe
         if (Math.sqrt(lx * lx + ly * ly) < .42 + (noise(px * 2.5, py * 2.5) - .5) * .4) color = blendTone(color, DIRT, .5 + hash(ix * 3, iy) * .25);
       }
       const sn = snowShare(biome, tm);
-      if (sn > 0 && noise(px * .9, py * .9) * .55 + hash(ix * 7, iy * 13) * .45 < sn) { color = snow[clamp(Math.floor(noise(px * 1.4, py * 1.4) * snow.length + hash(ix, iy) * .5), 0, snow.length - 1)]; }
+      if (sn > 0 && noise(px * .35, py * .35) * .85 + hash(ix * 7, iy * 13) * .15 < sn) { color = snow[clamp(Math.floor(noise(px * 1.4, py * 1.4) * snow.length + hash(ix, iy) * .5), 0, snow.length - 1)]; }
       else if (hash(ix * 3, iy * 5) < .14) kind |= 8;
     }
     chunkKinds[i] = kind; chunkPix[i] = rgbColor(color);
@@ -200,7 +200,7 @@ export function groundAt(px: number, py: number, ix: number, iy: number, s: numb
         if (Math.sqrt(lx * lx + ly * ly) < .42 + (noise(px * 2.5, py * 2.5) - .5) * .4) color = blendTone(color, DIRT, .5 + hash(ix * 3, iy) * .25);
       }
       const sn = snowShare(biome, tm);
-      if (sn > 0 && noise(px * .9, py * .9) * .55 + hash(ix * 7, iy * 13) * .45 < sn) { color = snow[clamp(Math.floor(noise(px * 1.4, py * 1.4) * snow.length + hash(ix, iy) * .5), 0, snow.length - 1)]; }
+      if (sn > 0 && noise(px * .35, py * .35) * .85 + hash(ix * 7, iy * 13) * .15 < sn) { color = snow[clamp(Math.floor(noise(px * 1.4, py * 1.4) * snow.length + hash(ix, iy) * .5), 0, snow.length - 1)]; }
       else if (hash(ix * 3, iy * 5) < .14) kind |= 8;
     }
   groundKind = kind;

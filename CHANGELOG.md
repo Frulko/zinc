@@ -56,6 +56,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 #### Fixed
 
+- Hamlet's late-winter snow lies in soft patches instead of dithered white noise.
 - Hamlet's Cite view never shows a black map while the camera moves: a whole-map overview is always drawn under the ground, and regions are baked ahead along the camera's direction.
 - Zooming out in Hamlet no longer leaves the village as a small clipped rectangle in the dark while the new view is prepared; the picture stays until it can grow smaller.
 - In a Hamlet city whose labour pool is under 100 %, people outside the pool no longer count as jobless (no permanent mood penalty, newcomers keep coming), and a scarce pool staffs every workshop once before filling any twice, so a sawmill is no longer left empty beside full lumber huts.
