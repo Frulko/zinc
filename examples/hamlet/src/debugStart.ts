@@ -36,7 +36,7 @@ export function debugStart(): void {
   if (v.length > 3) world.tick = Math.round(v[3] * MONTH_SECONDS / TICK) + 8;
 }
 
-/** ZINC_HAMLET_CROWD="people,animals": a built village for the view benchmarks (roads on a grid, buildings along them, walkers on the roads, herds on the grass). Not a game state. */
+/** ZINC_HAMLET_CROWD="people,animals[,buildings]": a built village for the view benchmarks (roads on a grid, buildings along them, walkers on the roads, herds on the grass). Not a game state. */
 function crowd(): void {
   const spec = env('ZINC_HAMLET_CROWD');
   if (spec === '') return;
@@ -47,21 +47,23 @@ function crowd(): void {
     if (i % 6 === 3 || j % 6 === 3) { world.road[t] = 1; world.tree[t] = 0; world.rock[t] = 0; world.deco[t] = 0; }
   }
   let type = 0;
+  const cap = want.length > 2 ? want[2] : 160;      // the third number: how many buildings (over 160 they spread over the whole map)
   const gi = world.gate % n, gj = Math.floor(world.gate / n);
-  for (let t = 0; t < n * n && type < 160; t++) {
+  for (let t = 0; t < n * n && type < cap; t++) {
     const i = t % n, j = Math.floor(t / n);
     if (world.terrain[t] !== TERRAIN_GRASS || world.road[t] !== 0 || world.build[t] >= 0 || i < 2 || j < 2 || i >= n - 2 || j >= n - 2) continue;
-    if (Math.abs(i - gi - 30) < 34 && Math.abs(j - gj) < 34 && (i % 6 === 4 || j % 6 === 4) && (i + j) % 2 === 0 && t !== world.gate - n) { world.tree[t] = 0; world.rock[t] = 0; newBuilding(type % 25, t); type++; }
+    if ((cap > 160 || (Math.abs(i - gi - 30) < 34 && Math.abs(j - gj) < 34)) && (i % 6 === 4 || j % 6 === 4) && (i + j) % 2 === 0 && t !== world.gate - n) { world.tree[t] = 0; world.rock[t] = 0; newBuilding(type % 25, t); type++; }
   }
   const roads: number[] = [];
   for (let t = 0; t < n * n; t++) if (world.road[t] !== 0) roads.push(t);
-  for (let k = 0; k < want[0] && roads.length > 0; k++) {
+  for (let k = 0; k < want[0] && roads.length > 0 && world.buildings.length > 0; k++) {   // every walker has a home and a workplace: the simulation indexes world.buildings[p.job]
     const p = new Person(), t = roads[Math.floor(random() * roads.length)];
-    p.x = tileX(t) + (random() - .5); p.y = tileY(t) + (random() - .5); p.yaw = random() * 6.28; p.phase = random() * 6; p.role = 1 + (k % 23); p.state = ST_STROLL; p.carry = k % 5 === 0 ? 1 : 0;
+    p.x = tileX(t) + (random() - .5); p.y = tileY(t) + (random() - .5); p.yaw = random() * 6.28; p.phase = random() * 6; p.role = 1 + (k % 23); p.state = ST_STROLL; p.carry = k % 5 === 0 ? 1 : 0; p.home = k % world.buildings.length; p.job = (k * 7 + 3) % world.buildings.length;
     world.people.push(p);
   }
+  if (want.length > 1) { world.deer.length = 0; world.deerSeq = 0; }   // the animals asked for, not those of the generator on top (they made a 20-animal crowd hundreds)
   for (let k = 0; k < (want.length > 1 ? want[1] : 0); k++) {
-    for (let tries = 0; tries < 30; tries++) { const t = Math.floor(random() * n * n); if (world.terrain[t] === TERRAIN_GRASS && world.tree[t] === 0 && world.road[t] === 0 && world.build[t] < 0) { spawnDeer(t, k % 4); break; } }
+    for (let tries = 0; tries < 30; tries++) { const t = Math.floor(random() * n * n); if (world.terrain[t] === TERRAIN_GRASS && world.tree[t] === 0 && world.road[t] === 0 && world.build[t] < 0) { spawnDeer(t, k % 4, true); break; } }
   }
   world.revision++;
   act.loaded();

@@ -5,7 +5,7 @@ import { SPECIES, Species, KIND_HOPPER, KIND_BOAR, KIND_WOLF, SP_DEER } from '..
 import { season } from '../rules/season';
 import { isNight, dayFraction } from '../rules/needs';
 import { sound } from '../audio';
-import { isWalkable, fieldFrom, approachTile, pathTo } from './path';
+import { isWalkable, fieldFrom, approachTile, pathTo, UNREACHABLE } from './path';
 import { BI_HILLS } from '../gen/terrain';
 import { losePerson } from './villagers';
 
@@ -203,7 +203,7 @@ function planNear(d: Deer, goal: number): boolean {
   const from = tileAt(d.x, d.y);
   if (from < 0) return false;
   plans++;
-  const field = fieldFrom(from, NEAR), target = approachTile(field, goal);
+  const field = fieldFrom(from, NEAR, UNREACHABLE, goal), target = approachTile(field, goal);      // towards the goal (A*): it stops there, it does not explore the whole radius
   if (target < 0) return false;
   d.path = pathTo(field, target); d.step = 0;
   return d.path.length > 0;
@@ -254,15 +254,28 @@ function startFlee(d: Deer, sp: Species, scatter: boolean = false): void {
   }
 }
 
+let shoreFor: number[] = [], shoreMask: number[] = [];
+/** 1 for a tile with water beside it (built once per generated map: the water never changes, the search tests it for every tile it settles). */
+function shore(t: number): number {
+  if (shoreFor !== world.terrain) {
+    shoreFor = world.terrain; shoreMask = [];
+    for (let u = 0; u < world.terrain.length; u++) shoreMask.push(waterNeighbor(u) >= 0 ? 1 : 0);
+  }
+  return shoreMask[t];
+}
+let failedFor: number[] = [], failedUntil: number[] = [];
+const NO_SHORE_TICKS = 32 * 60;     // a search that found no shore within reach is not repeated for the animals of the same 4x4 tiles for a minute (the herd asks one after the other, each explored the whole radius)
 function goDrink(d: Deer, sp: Species): boolean {
   const from = tileAt(d.x, d.y);
   if (from < 0) return false;
+  if (failedFor !== world.terrain) { failedFor = world.terrain; const c = (world.size + 3) >> 2; failedUntil = []; for (let k = 0; k < c * c; k++) failedUntil.push(0); }
+  const cell = (Math.floor(from / world.size) >> 2) * ((world.size + 3) >> 2) + ((from % world.size) >> 2);
+  if (failedUntil[cell] > world.tick) { d.thirst = sp.drinkEvery / 2; return false; }
   if (plans >= PLANS_PER_TICK) { d.timer = .5; return true; }              // the searches of this tick are taken: ask again in a moment
   plans++;
-  const field = fieldFrom(from, NEAR);
-  let best = -1, bestCost = NEAR;
-  for (let t = 0; t < field.dist.length; t++) if (field.dist[t] < bestCost && isWalkable(t) && waterNeighbor(t) >= 0) { bestCost = field.dist[t]; best = t; }
-  if (best < 0) { d.thirst = sp.drinkEvery / 2; return false; }            // no shore within reach: try again later
+  let best = -1;
+  const field = fieldFrom(from, NEAR, UNREACHABLE, -1, (t: number, cost: number): boolean => { if (cost < NEAR && shore(t) === 1 && isWalkable(t)) { best = t; return true; } return false; });   // the nearest shore: the search stops at the first one it settles (it explored the whole radius, then scanned it)
+  if (best < 0) { d.thirst = sp.drinkEvery / 2; failedUntil[cell] = world.tick + NO_SHORE_TICKS; return false; }            // no shore within reach: try again later
   d.path = pathTo(field, best); d.step = 0; d.errand = 1; d.state = DEER_WALK;
   return true;
 }

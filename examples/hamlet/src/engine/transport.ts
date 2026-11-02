@@ -3,7 +3,7 @@ import { world, Person, Building, tileIndex, tileAt, neighbor, recount } from '.
 import { economy, BuildingDef, Housing } from '../world/economy';
 import { accepts, gives } from '../rules/storage';
 import { onStoreNetwork } from './network';
-import { fieldFrom, approachTile, planPath, UNREACHABLE, ESCAPE } from './path';
+import { fieldFrom, approachTile, planPath, pathBusy, owePath, UNREACHABLE, ESCAPE } from './path';
 
 // Goods move in loads: a worker (a porter, or a worker fetching an input or hauling its own output) walks to the building that holds them, takes a batch,
 // walks to the building that keeps them and puts them down. The batch is promised on both sides first (src.reserved, dst.incoming), so a load is never taken twice
@@ -55,7 +55,7 @@ export function putDown(p: Person): void {
 
 /** The store with room for k that the person reaches soonest (or -1). */
 function nearestStore(p: Person, k: number): number {
-  const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE);
+  const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE); owePath();
   let best = -1, bestCost = UNREACHABLE;
   for (let id = 0; id < world.buildings.length; id++) {
     const b = world.buildings[id];
@@ -67,6 +67,7 @@ function nearestStore(p: Person, k: number): number {
 }
 /** The worker carries its own building's output to a store (the building is full). False when no store can take it. */
 export function haulOut(p: Person, siteId: number): boolean {
+  if (pathBusy()) return false;                      // see path.ts: the searches of the last ticks are still owed
   const site = world.buildings[siteId], def = economy.buildings[site.type];
   if (!exportsOk(site)) return false;
   for (let k = 0; k < def.outputs.length; k++) {
@@ -79,10 +80,11 @@ export function haulOut(p: Person, siteId: number): boolean {
 }
 /** A porter looks for a producer holding goods and a store with room: the nearest load. */
 export function findLoad(p: Person): boolean {
+  if (pathBusy()) return false;
   let any = false;
   for (const b of world.buildings) if (b.alive && !isStore(b)) for (let k = 0; k < b.stock.length; k++) if (economy.buildings[b.type].outputs[k] > 0 && spare(b, k) >= 1) any = true;
   if (!any) return fetchForStore(p);
-  const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE);
+  const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE); owePath();
   let bestId = -1, bestRes = -1, bestCost = UNREACHABLE;
   for (let id = 0; id < world.buildings.length; id++) {
     const b = world.buildings[id];
@@ -101,12 +103,13 @@ export function findLoad(p: Person): boolean {
 }
 /** A porter with no producer to empty serves the stores that "get" a resource: it carries it from the nearest other store that holds some and gives it. */
 function fetchForStore(p: Person): boolean {
+  if (pathBusy()) return false;
   for (let id = 0; id < world.buildings.length; id++) {
     const want = world.buildings[id];
     if (!want.alive || !isStore(want) || want.orders.length === 0 || !exportsOk(want)) continue;
     for (let k = 0; k < want.stock.length; k++) {
       if (want.orders[k] !== ORDER_GET || room(want, k) < 1) continue;
-      const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE);
+      const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE); owePath();
       let best = -1, bestCost = UNREACHABLE;
       for (let o = 0; o < world.buildings.length; o++) {
         const b = world.buildings[o];
@@ -121,7 +124,7 @@ function fetchForStore(p: Person): boolean {
 }
 /** The store that holds k and may give it, the one the person reaches soonest (or -1). */
 function nearestGiver(p: Person, k: number): number {
-  const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE);
+  const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE); owePath();
   let best = -1, bestCost = UNREACHABLE;
   for (let id = 0; id < world.buildings.length; id++) {
     const b = world.buildings[id];
@@ -149,6 +152,7 @@ export function restock(p: Person, siteId: number): boolean {
 }
 /** A worker fetches what its building lacks from the nearest store that has it. False when it cannot (the building waits: state and waitFor say why). */
 export function fetchInput(p: Person, siteId: number): boolean {
+  if (pathBusy()) return false;
   const site = world.buildings[siteId], def = economy.buildings[site.type];
   for (let k = 0; k < def.inputs.length; k++) {
     const want = def.inputs[k] * 2 - site.stock[k] - site.incoming[k];

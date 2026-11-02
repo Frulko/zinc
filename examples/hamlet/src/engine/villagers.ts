@@ -6,7 +6,7 @@ import {
 } from '../constants';
 import { Housing, BuildingDef, Harvest } from '../world/economy';
 import { world, recount, Person, Building, random, tileAt, tileX, tileY, tileIndex, tileI, tileJ, neighbor, waterNeighbor } from '../world/world';
-import { fieldFrom, approachTile, pathTo, planPath, walk, isWalkable, isMoving, UNREACHABLE, Field, ESCAPE } from './path';
+import { fieldFrom, approachTile, pathTo, planPath, walk, isWalkable, isMoving, payPathDebt, pathBusy, UNREACHABLE, Field, ESCAPE } from './path';
 import { sound } from '../audio';
 import { emitFx, FX_LEAVES, FX_FELL, FX_CHIPS, FX_SPLASH, LODE_FX, CHIP_SPARK, CHIP_CHAFF, CHIP_SAWDUST, CHIP_FLOUR, CHIP_DUST } from '../world/fx';
 import { settings } from '../settings';
@@ -504,10 +504,11 @@ function updatePerson(p: Person, dt: number): void {
     if (freeTime(p)) return;
     const home = world.buildings[p.home];
     const t = tileIndex(Math.max(0, Math.min(world.size - 1, home.i + Math.floor(random() * 5) - 2)), Math.max(0, Math.min(world.size - 1, home.j + Math.floor(random() * 5) - 2)));
-    if (isWalkable(t) && planPath(p, t, UNREACHABLE, STROLL_REACH)) p.state = ST_STROLL; else p.timer = 1 + random() * 2;
+    if (isWalkable(t) && !pathBusy() && planPath(p, t, UNREACHABLE, STROLL_REACH)) p.state = ST_STROLL; else p.timer = 1 + random() * 2;
   } else updateWorker(p, dt);
 }
 export function updatePeople(dt: number): void {
+  payPathDebt();
   updateSettlers(dt);
   for (const p of world.people) updatePerson(p, dt);
 }

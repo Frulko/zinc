@@ -176,9 +176,10 @@ export function treesAround(t: number): number {
   return n;
 }
 
-export function spawnDeer(t: number, species: number = 0): Deer {
+/** `append`: the caller knows no slot is free (a village being generated), so the search for one is skipped: it made generation quadratic in the animals. */
+export function spawnDeer(t: number, species: number = 0, append: boolean = false): Deer {
   let slot = -1;
-  for (let k = 0; k < world.deer.length; k++) if (world.deer[k].state === DEER_GONE) { slot = k; break; }
+  if (!append) for (let k = 0; k < world.deer.length; k++) if (world.deer[k].state === DEER_GONE) { slot = k; break; }
   const deer = new Deer(), sp = SPECIES[species];
   deer.x = tileX(t); deer.y = tileY(t); deer.yaw = random() * 6.28; deer.phase = random() * 6;
   deer.state = DEER_GRAZE; deer.timer = 1 + random() * 3; deer.stag = random() < .4; deer.species = species;
@@ -228,14 +229,14 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
   for (let n = 0; n < Math.round(DEER_START * size * size / REFERENCE_AREA); n++) {
     for (let tries = 0; tries < 30; tries++) {
       const t = Math.floor(random() * size * size);
-      if (isOpen(t) && tileI(t) > 3) { spawnDeer(t); break; }
+      if (isOpen(t) && tileI(t) > 3) { spawnDeer(t, 0, true); break; }
     }
   }
   for (let sp = 1; sp < SPECIES.length; sp++) {                 // the smaller wild species: rabbits on open ground, boar by the trees
     for (let n = 0; n < Math.round(SPECIES[sp].start * size * size / REFERENCE_AREA); n++) {
       for (let tries = 0; tries < 40; tries++) {
         const t = Math.floor(random() * size * size);
-        if (isOpen(t) && tileI(t) > 3 && (SPECIES[sp].kind !== 2 || treesAround(t) >= 2)) { spawnDeer(t, sp); break; }
+        if (isOpen(t) && tileI(t) > 3 && (SPECIES[sp].kind !== 2 || treesAround(t) >= 2)) { spawnDeer(t, sp, true); break; }
       }
     }
   }

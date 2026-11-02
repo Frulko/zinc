@@ -55,9 +55,9 @@ const touch = (t: number): void => { shared.reached[shared.count++] = t; };
 /** Cheapest walking cost from start to the tiles around it (roads are cheaper than grass), in the shared Field. `limit` stops the search at that cost (a wild animal looks a few tiles
  *  around, not the whole map). `escape`: a walker who is not working a source keeps to the road network: from where he stands he may cross open ground only for `escape` cost, until he first meets a road,
  *  and then stays on roads (a gatherer in his work radius, a stroll beside the house and an animal pass UNREACHABLE: free). `goal` ends the search once that tile, or for a blocked goal the first tile
- *  beside it, is settled (a trip to one place does not explore the map). A binary heap on (cost, tile): ties go to the lowest tile. */
+ *  beside it, is settled (a trip to one place does not explore the map). `until(t, cost)` ends it at the first settled tile it accepts (the nearest shore, the nearest thing of a kind). A binary heap on (cost, tile): ties go to the lowest tile. */
 export const ESCAPE = 14;    // how far over open ground a walker may go to reach a road (a gatherer's work radius): beyond it he is lost off the network
-export function fieldFrom(start: number, limit: number = UNREACHABLE, escape: number = UNREACHABLE, goal: number = -1): Field {
+export function fieldFrom(start: number, limit: number = UNREACHABLE, escape: number = UNREACHABLE, goal: number = -1, until: ((t: number, cost: number) => boolean) | null = null): Field {
   prepare();
   const dist = shared.dist, prev = shared.prev, size = world.size, ground = world.terrain, road = world.road, tree = world.tree, rock = world.rock, build = world.build, hgt = world.height;
   const goalOpen = goal >= 0 && isWalkable(goal);
@@ -71,6 +71,7 @@ export function fieldFrom(start: number, limit: number = UNREACHABLE, escape: nu
     if (done[u]) continue;
     done[u] = 1;
     if (goal >= 0 && (u === goal || (!goalOpen && near(u)))) break;
+    if (until !== null && until(u, dist[u])) break;                 // the first tile settled that the caller wants: the cheapest, the lowest tile on a tie
     const ui = u % size, uj = (u - ui) / size, du = dist[u], onRoad = via[u] === 1;
     for (let d = 0; d < 4; d++) {
       let vi = ui, vj = uj;
@@ -116,14 +117,25 @@ export function planPath(m: Mover, goal: number, escape: number = ESCAPE, limit:
   const from = tileAt(m.x, m.y);
   if (from < 0) return false;
   let field = fieldFrom(from, limit, escape, goal);
+  debt += shared.count;
   let target = approachTile(field, goal);
-  if (target < 0 && escape < UNREACHABLE && !roadBeside(goal)) { field = fieldFrom(from, limit, UNREACHABLE, goal); target = approachTile(field, goal); }   // a building with no road at its door (the well) is walked up to over the ground
+  if (target < 0 && escape < UNREACHABLE && !roadBeside(goal)) { field = fieldFrom(from, limit, UNREACHABLE, goal); debt += shared.count; target = approachTile(field, goal); }   // a building with no road at its door (the well) is walked up to over the ground
   if (target < 0) return false;
   m.path = pathTo(field, target);
   m.step = 0;
   return true;
 }
 
+// The search budget: a big village asks for many searches, and a goal nobody can reach explores the whole network (20 000 tiles at size 256: 35 ms). Each tile a walker's search looks at is
+// owed; PATH_TILES_PER_TICK are paid off every tick, and while anything is owed the optional searches (a stroll, a visit, a porter looking for a load: pathBusy) wait; a trip that must be planned always is. The average cost per tick is bounded and a hitch is never more than one search;
+// a village whose searches are small never owes anything.
+const PATH_TILES_PER_TICK = 6000;
+let debt = 0;
+export function payPathDebt(): void { debt = Math.max(0, debt - PATH_TILES_PER_TICK); }
+/** True while the walkers' searches of the last ticks are still owed: a caller that is about to start a big one (a porter looking for a load) waits for the next tick instead. */
+export function pathBusy(): boolean { return debt > 0; }
+/** Books the tiles the last search looked at (planPath does it itself; the transport searches call it). */
+export function owePath(): void { debt += shared.count; }
 export function isMoving(m: Mover): boolean { return m.step < m.path.length; }
 
 /** Advances along the path; true once it is finished (or blocked by a new obstacle). */
