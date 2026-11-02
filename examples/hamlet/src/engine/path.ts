@@ -52,7 +52,7 @@ const touch = (t: number): void => { shared.reached[shared.count++] = t; };
  *  around, not the whole map). `escape`: a walker who is not working a source keeps to the road network: from where he stands he may cross open ground only for `escape` cost, until he first meets a road,
  *  and then stays on roads (a gatherer in his work radius, a stroll beside the house and an animal pass UNREACHABLE: free). `goal` ends the search once that tile, or for a blocked goal the first tile
  *  beside it, is settled (a trip to one place does not explore the map). A binary heap on (cost, tile): ties go to the lowest tile. */
-export const ESCAPE = 6;     // how far over open ground a walker on the roads may start from, or step off to a door
+export const ESCAPE = 14;    // how far over open ground a walker may go to reach a road (a gatherer's work radius): beyond it he is lost off the network
 export function fieldFrom(start: number, limit: number = UNREACHABLE, escape: number = UNREACHABLE, goal: number = -1): Field {
   prepare();
   const dist = shared.dist, prev = shared.prev, size = world.size, ground = world.terrain, road = world.road, tree = world.tree, rock = world.rock, build = world.build;

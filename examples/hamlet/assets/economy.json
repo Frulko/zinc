@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "sim": { "labourShare": 100, "walkerReach": 2, "stopJobless": 40, "appealSlices": 32 },
   "resources": [
     { "id": "log", "label": "Bois", "carry": "log", "price": 1,
       "harvest": { "time": 2.6, "yield": 2, "percent": 100, "seasons": [100, 100, 100, 85], "tool": { "resource": "tools", "bonus": 20 },

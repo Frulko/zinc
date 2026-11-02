@@ -4,6 +4,8 @@ import { updateDeer } from './deer';
 import { updateNature } from './nature';
 import { saveGame } from '../world/save';
 import { stepDay } from './day';
+import { appealSlice } from '../rules/appeal';
+import { economy } from '../world/economy';
 import { updateOutlaws } from './crime';
 import { SAVE_DELAY, TICK, DAY_TICKS } from '../constants';
 
@@ -13,7 +15,9 @@ export function stepWorld(): void {
   world.time += TICK;
   world.jobTimer -= TICK;
   if (world.jobTimer <= 0) { world.jobTimer = 1; assignJobs(); }
-  if (world.tick % DAY_TICKS === 0) stepDay();
+  const slices = Math.min(economy.sim.appealSlices, DAY_TICKS), inDay = world.tick % DAY_TICKS;
+  if (inDay >= DAY_TICKS - slices) appealSlice(inDay - (DAY_TICKS - slices), slices);   // the desirability pass, spread over the last ticks of the day (rules/appeal.ts)
+  if (inDay === 0) stepDay();
   updatePeople(TICK);
   updateOutlaws(TICK);
   updateDeer(TICK);

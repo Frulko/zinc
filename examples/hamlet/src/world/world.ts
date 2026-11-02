@@ -17,6 +17,8 @@ export class Building {
   cover: number[] = [];                                  // per service: days left of its coverage (houses only)
   stock: number[] = []; reserved: number[] = []; incoming: number[] = [];   // reserved: leaving with a porter; incoming: promised by one
   fire: number = 0; damage: number = 0; crime: number = 0; burn: number = 0;   // risks (engine/risk.ts): the counters of fire, wear and petty crime, and the days a burning ruin still burns
+  turn: number = 0;                                      // service buildings: the junctions its walkers met so far, the rotating choice of the next one (engine/services.ts)
+  orders: number[] = [];                                 // stores: per resource ORDER_ACCEPT, ORDER_REFUSE or ORDER_GET (engine/transport.ts); empty: accept everything
   state: number = 0; waitFor: number = -1; fixed: boolean = false;       // fixed: stands from the start (the hall) and cannot be demolished
 }
 export class Person extends Mover {

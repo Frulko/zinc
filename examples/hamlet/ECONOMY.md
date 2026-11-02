@@ -1,7 +1,7 @@
 # The economy file (`assets/economy.json`)
 
 The only place a resource, a building or a production chain is added (plus one model in `src/view/models.ts`, whose id list `MODEL_IDS` follows the order of `buildings`: a building type is its index).
-`loadEconomy` (`src/world/economy.ts`) checks the file and refuses to start the game on a mistake; the errors have names: `bad-json`, `bad-id`, `unknown-resource`, `negative-number`, `no-model`, `bad-gather`, `bad-role`, `bad-hall`, `bad-service`, `bad-appeal`, `bad-deposit`, `bad-goal`, `bad-trade`, `bad-adventure`, `bad-difficulty`, `bad-season`, `bad-bloom`, `bad-soil`, `bad-effect`, `cycle`.
+`loadEconomy` (`src/world/economy.ts`) checks the file and refuses to start the game on a mistake; the errors have names: `bad-json`, `bad-id`, `unknown-resource`, `negative-number`, `no-model`, `bad-gather`, `bad-role`, `bad-hall`, `bad-service`, `bad-appeal`, `bad-deposit`, `bad-goal`, `bad-trade`, `bad-adventure`, `bad-difficulty`, `bad-sim`, `bad-season`, `bad-bloom`, `bad-soil`, `bad-effect`, `cycle`.
 
 ```text
 version      1
@@ -10,6 +10,7 @@ harvest      (raw resources) { time, yield, percent, chance, depletion, seasons[
              see "Harvests" below; `outputs` of a raw source only name what it makes (the number is derived from the harvest)
 services[]   { id, label, risk, weight }  what a house may lack: water, market (Building.cover counts the days left of its coverage); `risk` (fire | collapse | crime) makes it a safety service, `weight` scales its share of the mood (default 1), see "Risks"
 start        { resource: amount }       what a sandbox village holds at the entrance when it begins (a campaign takes its difficulty's start)
+sim          { labourShare, walkerReach, stopJobless, appealSlices }   the knobs of the city simulation, see "The city simulation" below; error `bad-sim`
 difficulties[] { id, label, hint, start { resource: amount }, arrival, eat, risk }  the levels of the new-village form (easy, normal, hard); arrival: percent of the normal settler pace, eat: percent of what houses eat, risk: percent of how fast fire, wear and theft counters rise; the index is saved (World.difficulty, -1 in a sandbox), see `rules/difficulty.ts`; error `bad-difficulty`
 hall         building id with "store": the storehouse that stands for free by the entrance (not before the stores task)
 buildings[]  {
@@ -135,3 +136,19 @@ Fire, collapse and petty theft, modelled on the Augustus study (`docs/reports/ha
 - `TREE_REGROW_SLOW` is 4 s: a forest recovers within a game.
 - The honey, mead, light and leather goals ask for the building only: houses eat those goods, so a stock count was unreachable.
 - The bot (`tests/data/hamlet/bot.ts`) wins Normal on some seeds of every size 24 preset it was tried on; size 40 and some seeds still fail (see `backlog/later.md`).
+
+## The city simulation (2026-11-02)
+
+The mechanics follow Augustus (mechanisms only, `docs/reports/hamlet-augustus-study-2026-11-01.md`); the numbers are Hamlet's own. `sim` in `economy.json` holds the knobs, everything else is the data above.
+
+- **Road networks** (`engine/network.ts`). Every connected piece of road has an id, a flood fill redone when `world.netRev` changes (a road or a building placed, demolished, burnt, a save loaded). A building belongs to the network of the road at its door. A building that needs a road and is not on the network of the gate is *off the network*: state `BS_OFF_NET`, it gets no worker (those it had go back to the pool), makes nothing, sends no walker, and its window says *Inactif : sa route ne mène pas à l'entrée du hameau*. Goods move only inside a network that holds a store (`exportsOk`).
+- **Walkers keep to the roads.** `planPath` searches on the road network (A* on shared buffers): over open ground a walker goes only to reach a road (`ESCAPE`, the work radius) and then stays on roads. Gatherers in their work radius, strolls beside the house, hunters and animals cross the land. A unit appears at the road tile at its door.
+- **Labour** (`rules/labour.ts`). Every workplace has a fixed number of jobs (`workers`); the pool is `labourShare` percent of the residents (100 keeps the opening of the campaign: the first villages have too few people to leave anyone out; a city mission sets about 60); the pool is handed out in the order of the player's priority; output follows staffing (each worker runs his own cycles), an unstaffed building makes nothing and sends no walker. `labourStats()` gives the numbers for the HUD: `pool`, `jobs`, `filled`, `unemployed` (pool without a place) and `shortage` (places nobody takes).
+- **Roamers** (`engine/services.ts`). A service building sends one walker at a time; it goes straight on where the road does and at a junction takes the way the building's own turn counter points at (`Building.turn`, rotating: the next walker takes another street), no dice; its round is `service.range` steps. Every tile it enters sets the coverage counter of the houses within `walkerReach` tiles to `COVER_DAYS`; the counter loses a day each day. A service with a `radius` and no walker covers the houses within it.
+- **Carts and storage orders** (`engine/transport.ts`, `rules/storage.ts`). A producer with output sends a worker carrying a batch to the nearest store with room (reservations `reserved`/`incoming` keep a load from being taken or promised twice). Each store has an order per resource: `accept`, `refuse` (carts bring none; what it holds is still handed out) or `get` (it takes it, keeps it, and its porters fetch it from the other stores). `setOrder(storeId, resource, order)`; not saved yet.
+- **Housing** (`engine/housing.ts`, `rules/housing.ts`): levels climb after `evolveDays` days meeting the next level's needs (services, food kinds, desirability) and fall after `devolveDays` days failing their own with the desirability slackened by `margin`; `housingReport(house)` lists what is missing, in words, for the UI.
+- **Migration** (`engine/villagers.ts`): settlers come through the gate and walk in; they come when the village is content (`arrivalFactor`), there is food past the first free settlers, the jobless share is under `stopJobless`, and a shortage of hands draws them faster; they leave when the mood is low (`leavingToday`). Nobody appears in a house.
+- **Slices.** The whole-map desirability pass is spread over the last `appealSlices` ticks of each day (`appealSlice`) and installed just before the day's slice reads it; the other daily passes (services, housing, mood, risks) are loops over buildings and people. No tick loops over the map.
+- **Cost.** `tests/data/hamlet/perf.ts` steps a village of 500 people and 300 animals (`HAMLET_SIZE`, `HAMLET_PEOPLE`, `HAMLET_ANIMALS`, `HAMLET_SPLIT=1` for the split by part): 1.6 ms a tick on a 128 map and 1.4 ms on 256 on this Mac (it was 58 ms).
+
+`sim` keys: `labourShare` (1 to 100), `walkerReach` (1 to 4 tiles), `stopJobless` (1 to 100 percent), `appealSlices` (1 to 600 ticks). Errors: `bad-sim`.

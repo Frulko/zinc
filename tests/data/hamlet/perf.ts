@@ -8,6 +8,7 @@ import { createResident, assignJobs, updatePeople } from '../../../examples/haml
 import { buildRoad } from '../../../examples/hamlet/src/rules/roadplan';
 import { economy, loadEconomy } from '../../../examples/hamlet/src/world/economy';
 import { setStock } from '../../../examples/hamlet/src/rules/stock';
+import { appealSlice } from '../../../examples/hamlet/src/rules/appeal';
 import { stepDay } from '../../../examples/hamlet/src/engine/day';
 import { updateDeer } from '../../../examples/hamlet/src/engine/deer';
 import { updateNature } from '../../../examples/hamlet/src/engine/nature';
@@ -57,7 +58,9 @@ function splitStep(): void {
   for (let k = 0; k < 5; k++) last[k] = 0;
   world.tick++; world.time += 1 / 32; world.jobTimer -= 1 / 32;
   if (world.jobTimer <= 0) { world.jobTimer = 1; part(0, assignJobs); }
-  if (world.tick % DAY_TICKS === 0) part(1, stepDay);
+  const inDay = world.tick % DAY_TICKS;
+  if (inDay >= DAY_TICKS - 32) part(1, () => appealSlice(inDay - (DAY_TICKS - 32), 32));
+  if (inDay === 0) part(1, stepDay);
   part(2, () => updatePeople(1 / 32)); updateOutlaws(1 / 32); part(3, () => updateDeer(1 / 32)); part(4, () => updateNature(1 / 32));
 }
 if (env('HAMLET_WARM') === '1') { const a = performance.now(); updateDeer(1 / 32); const b = performance.now(); updateDeer(1 / 32); console.log('deer first ' + (b - a) + ' second ' + (performance.now() - b)); }

@@ -18,6 +18,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Fire, collapse and theft risks with a fire post, a repair works and a watch post; Easy, Normal and Hard difficulties.
 - The Tree window (`T`) draws the production chains; a technical window (`F3`) shows frame times, the world and the tile under the pointer; windows drag by their title bar and close with their button or `Esc`.
 - Message clicks point an arrow at the place, and a double click opens its window. Separate volumes for ambience and effects, with synthesised sounds.
+- Hamlet villagers and carts now keep to the roads: a workshop whose road does not lead to the village entrance stays idle and says so, service walkers (market, fire, watch) go straight on and take turns at junctions, covering the houses within two tiles, and a store can be set to accept, refuse or only collect a good.
 
 #### Changed
 
@@ -27,6 +28,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 #### Faster
 
 - Large Hamlet maps open much faster and use much less memory, and panning is up to 40 % faster on the interpreter.
+- A Hamlet village of 500 people and 300 animals now steps in about 1.5 ms instead of 58 ms, on maps of 128 and 256 tiles.
 
 #### Fixed
 

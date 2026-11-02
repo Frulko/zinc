@@ -1,7 +1,7 @@
 import {
   HOUSE, ST_TO_SHORE, ST_FISH, ROLE_SETTLER, ROLE_RESIDENT, ROLE_PEDDLER,
   ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_WORK, ST_FETCH, ST_BRING,
-  ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, BS_NO_SOURCE, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, STALK_CROUCH, WORK_RADIUS, SETTLER_INTERVAL,
+  ST_ROAM, ST_ROAM_BACK, ROAM_REST, ST_TO_LODE, ST_MINE, ROCK_DEPOSIT, BS_IDLE, BS_WORKING, BS_FULL, BS_ISOLATED, BS_NO_SOURCE, BS_OFF_NET, AIM_SECONDS, ARROW_SECONDS, SHOOT_RANGE, STALK_CROUCH, WORK_RADIUS, SETTLER_INTERVAL,
   DEER_DEAD, DEER_FLEE, DEER_GONE, WALK_SPEED,
 } from '../constants';
 import { Housing, BuildingDef, Harvest } from '../world/economy';
@@ -14,11 +14,11 @@ import { economy } from '../world/economy';
 import { take } from '../rules/stock';
 import { resting, workScale } from '../rules/meadow';
 import { BLOW_ANGLE, TAU, harvestFor, sourceOf, cycleSeconds, succeeds, depletes, rollUnits, swingRate } from '../rules/harvest';
-import { rankOf } from '../rules/labour';
+import { rankOf, labourPool, employed, labourStats } from '../rules/labour';
 import { capacityOf } from '../rules/housing';
 import { startRoam, roamTick } from './services';
 import { routine, freeTime } from './routine';
-import { onGateNetwork } from './network';
+import { onGateNetwork, doorOf } from './network';
 import { arrivalFactor, workPace } from '../rules/needs';
 import { level } from '../rules/difficulty';
 import { findLoad, haulOut, fetchInput, atTarget, hasRoomFor, readyBatch, exportsOk, pickUp, putDown, cancelTransport } from './transport';
@@ -73,7 +73,10 @@ function updateSettlers(dt: number): void {
     const needsFood = population() >= housing.free;
     let food = -1;
     for (const k of housing.eats) if (food < 0 && world.stock[k] >= 1) food = k;
-    const arrival = arrivalFactor(world.mood);                // an unhappy village draws nobody
+    // what draws settlers: a content village (mood), places to work (a village where a third of the people have no job draws nobody), room to live and food; shortage of hands draws faster
+    let arrival = arrivalFactor(world.mood);
+    if (world.jobless >= economy.sim.stopJobless) arrival = 0;
+    else if (arrival > 0 && labourStats().shortage > 0) arrival *= .8;
     if (arrival === 0) { b.timer = 2; continue; }
     if (needsFood && food < 0) { world.waitingForFood = true; b.timer = 1; continue; }
     const settler = newPerson(ROLE_SETTLER, world.buildings.indexOf(b), world.gate);
@@ -87,7 +90,9 @@ export function createResident(houseId: number): void {
   const house = world.buildings[houseId];
   const t = buildingTile(house);
   let spot = t;
-  for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && isWalkable(v)) { spot = v; break; } }
+  const door = doorOf(house);                                  // people appear on the road at the door
+  if (door >= 0) spot = door;
+  else for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && isWalkable(v)) { spot = v; break; } }
   const p = newPerson(ROLE_RESIDENT, houseId, spot);
   p.state = ST_IDLE;
   world.people.push(p);
@@ -102,20 +107,28 @@ function reclaimPorter(): void {
   }
 }
 function assignJobs(): void {
-  for (const b of world.buildings) if (b.alive && b.type !== HOUSE && !economy.buildings[b.type].store) {   // the hint: no road to a store
-    if (!exportsOk(b)) b.state = BS_ISOLATED; else if (b.state === BS_ISOLATED) b.state = BS_IDLE;
+  for (let id = 0; id < world.buildings.length; id++) {
+    const b = world.buildings[id], def = economy.buildings[b.type];
+    if (!b.alive || b.type === HOUSE) continue;
+    if (def.needsRoad && !onGateNetwork(b)) {                  // off the gate's network: idle, and its people are given back to the pool
+      if (b.workers > 0) releaseWorkers(id);
+      b.state = BS_OFF_NET; continue;
+    }
+    if (b.state === BS_OFF_NET) b.state = BS_IDLE;
+    if (!def.store) { if (!exportsOk(b)) b.state = BS_ISOLATED; else if (b.state === BS_ISOLATED) b.state = BS_IDLE; }   // the hint: no road to a store
   }
   let producers = 0, vacancies = 0;
   for (const b of world.buildings) if (b.alive && b.type !== HOUSE && !economy.buildings[b.type].store) { producers++; vacancies += economy.buildings[b.type].workers - b.workers; }
   const order: number[] = world.buildings.map((_b: Building, id: number): number => id);
+  let free = labourPool() - employed();                        // the pool: only a share of the residents work, the rest are children, elders and carers
   const rank: number[] = economy.buildings.map((_d: BuildingDef, type: number): number => rankOf(type));
   order.sort((a: number, b: number): number => rank[world.buildings[a].type] - rank[world.buildings[b].type] || a - b);   // the player's priority, then the oldest first
   for (let pass = 0; pass < 2; pass++) for (const id of order) {   // producers are staffed first; porters only once something produces and no producer lacks hands
     if (pass === 1 && (producers === 0 || vacancies > 0)) break;
     const site = world.buildings[id];
-    if (!site.alive || site.type === HOUSE || economy.buildings[site.type].store !== (pass === 1)) continue;
+    if (!site.alive || site.type === HOUSE || economy.buildings[site.type].store !== (pass === 1) || site.state === BS_OFF_NET) continue;
     const def = economy.buildings[site.type];
-    while (site.workers < def.workers) {
+    while (site.workers < def.workers && free > 0) {
       let best: Person | null = null, bestDist = 1e9;
       if (pass === 0) reclaimPorter();                          // a producer lacking hands takes a porter back before it waits for a newcomer
       for (const p of world.people) {
@@ -125,7 +138,7 @@ function assignJobs(): void {
       }
       if (best === null) break;
       best.role = def.roleId;
-      best.job = id; site.workers++; best.state = ST_GO_WORK; if (pass === 0) vacancies--;
+      best.job = id; site.workers++; free--; best.state = ST_GO_WORK; if (pass === 0) vacancies--;
       if (!planPath(best, buildingTile(site))) best.timer = 0;
     }
   }

@@ -5,7 +5,7 @@ import { housingReport } from '../rules/housing';
 import { sourceOf, harvestLines } from '../rules/harvest';
 import { applyTool } from '../rules/build';
 import {
-  TOOL_ERASE, BS_ISOLATED, BS_WAITING, BS_FULL, BS_NO_SOURCE, BS_WORKING, ROLE_NAMES,
+  TOOL_ERASE, BS_ISOLATED, BS_OFF_NET, BS_WAITING, BS_FULL, BS_NO_SOURCE, BS_WORKING, ROLE_NAMES,
   ST_SLEEP, ST_HOME, ST_FREE, ST_IDLE, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_CHOP, ST_TO_SITE, ST_STALK, ST_AIM, ST_SHOT, ST_TO_BODY, ST_PICK, ST_WALK_IN, ST_TO_SHORE, ST_FISH, ST_WORK, ST_FETCH, ST_BRING, ST_ROAM, ST_ROAM_BACK,
 } from '../constants';
 import { drawBuilding, drawResource, drawGlyph } from './icons';
@@ -57,6 +57,7 @@ export function pickAt(gx: number, gy: number, tile: number): boolean {
 /** Why a workplace does not produce, in a sentence ('' when it works). */
 export function whyIdle(id: number): string {
   const b = world.buildings[id], def = economy.buildings[b.type];
+  if (b.state === BS_OFF_NET) return 'Inactif : sa route ne mène pas à l’entrée du hameau.';
   if (def.needsRoad && !def.store && b.state === BS_ISOLATED) return 'Inactif : aucune route ne le relie à un entrepôt.';
   if (def.workers > 0 && b.workers === 0) return 'Inactif : personne n’y travaille.';
   if (b.state === BS_WAITING && b.waitFor >= 0) return 'Attend : ' + economy.resources[b.waitFor].label.toLowerCase() + '.';

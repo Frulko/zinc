@@ -110,11 +110,13 @@ export const ST_FREE = 24;             // walking to the market, the well or the
 export const ST_RAID = 25;             // an outlaw on his way to the building he will rob or wreck
 export const ST_WRECK = 26;            // rioters at work on a building
 export const ST_FLEE = 27;             // an outlaw running back to the gate
+export const ORDER_ACCEPT = 0, ORDER_REFUSE = 1, ORDER_GET = 2;   // what a store does with a resource (rules/storage.ts)
 export const BS_IDLE = 0;              // building states: what its workers are doing, for the hints
 export const BS_WORKING = 1;
 export const BS_WAITING = 2;          // an input is missing (Building.waitFor)
 export const BS_FULL = 3;              // the output has no room
 export const BS_ISOLATED = 4;          // no road leads from it to a store: nothing leaves it (and nothing comes)
+export const BS_OFF_NET = 6;          // its road does not lead to the entrance: not part of the village, idle (engine/network.ts)
 export const BS_NO_SOURCE = 5;         // a gatherer finds nothing within reach (no tree, deposit, shore or game): the road or the ground must change
 export const BATCH = 4;                // most a porter carries at once
 

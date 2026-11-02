@@ -60,7 +60,10 @@ export class Adventure { id: string = ''; title: string = ''; text: string = '';
 /** What roads cost (economy.json "roads"): per tile of dirt road, per tile of bridge (a road over water, on top of the dirt), per tree cleared; `refund` percent comes back on demolition,
  *  `yield` is what a cleared tree brings. Amounts may be fractions: a plan pays the rounded-up total, not tile by tile. */
 export class RoadCosts { dirt: number[] = []; bridge: number[] = []; clear: number[] = []; yield: number[] = []; refund: number = 50; }
+/** The knobs of the city simulation (economy.json "sim"): `labourShare` percent of the residents who work (the labour pool), `walkerReach` tiles around a service walker whose houses it covers,  *  turns back at most (0: only its range), `stopJobless` jobless percent above which no settler comes, `appealSlices` ticks a day the desirability pass is spread over. */
+export class Sim { labourShare: number = 100; walkerReach: number = 1; stopJobless: number = 100; appealSlices: number = 32; }
 export class Economy {
+  sim: Sim = new Sim();
   deposits: Deposit[] = []; goals: Goal[] = []; trade: Trade = new Trade(); adventures: Adventure[] = [];
   appeal: AppealSource[] = []; appealMax: number = 8; risk: RiskRules = new RiskRules();
   roads: RoadCosts = new RoadCosts(); difficulties: Difficulty[] = []; resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
@@ -147,6 +150,13 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     if (lv.id === '' || into.difficulties.some((o: Difficulty): boolean => o.id === lv.id) || lv.arrival < 10 || lv.arrival > 500 || lv.eat > 500 || lv.risk > 500) errors.push('bad-difficulty: ' + where + ' needs its own id, an arrival of 10 to 500 and an eat and risk of at most 500');
     into.difficulties.push(lv);
   }
+  const sm: any = data.sim === undefined ? {} : data.sim;
+  into.sim = new Sim();
+  into.sim.labourShare = num(sm, 'labourShare', 100, 'sim', errors); into.sim.walkerReach = num(sm, 'walkerReach', 1, 'sim', errors); into.sim.stopJobless = num(sm, 'stopJobless', 100, 'sim', errors); into.sim.appealSlices = num(sm, 'appealSlices', 32, 'sim', errors);
+  if (into.sim.labourShare < 1 || into.sim.labourShare > 100) errors.push('bad-sim: sim.labourShare is a percent from 1 to 100');
+  if (into.sim.walkerReach < 1 || into.sim.walkerReach > 4) errors.push('bad-sim: sim.walkerReach is a distance in tiles from 1 to 4');
+  if (into.sim.stopJobless < 1 || into.sim.stopJobless > 100) errors.push('bad-sim: sim.stopJobless is a percent from 1 to 100');
+  if (into.sim.appealSlices < 1 || into.sim.appealSlices > 600) errors.push('bad-sim: sim.appealSlices is a number of ticks from 1 to 600');
   const rd: any = data.roads === undefined ? {} : data.roads;
   into.roads = new RoadCosts();
   into.roads.dirt = amounts(rd.dirt, ids, 'roads.dirt', errors); into.roads.bridge = amounts(rd.bridge, ids, 'roads.bridge', errors); into.roads.clear = amounts(rd.clear, ids, 'roads.clear', errors);
@@ -371,7 +381,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
 export function loadEconomy(text: string, models: string[], roles: string[]): void {
   const next = new Economy(), errors = parseEconomy(text, models, roles, next);
   if (errors.length > 0) throw new Error('economy.json: ' + errors.join('; '));
-  economy.resources = next.resources; economy.roads = next.roads; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.adventures = next.adventures; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.difficulties = next.difficulties; economy.hall = next.hall; economy.risk = next.risk;
+  economy.resources = next.resources; economy.roads = next.roads; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.adventures = next.adventures; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.difficulties = next.difficulties; economy.hall = next.hall; economy.risk = next.risk; economy.sim = next.sim;
 }
 
 /** One line per resource: who makes it and who uses it. The report of a chain, for the maker of the data. */

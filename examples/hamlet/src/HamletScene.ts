@@ -418,11 +418,6 @@ export class HamletScene extends Sprite {
     if (aiming()) uiState.dirty = true;
   }
 
-  override onDraw(w: number, h: number): void {
-    debugBegin(); perfBegin();
-    const ok = this.hover >= 0 && this.tool !== TOOL_NONE && checkTool(this.tool, this.hover) === PLACE_OK;
-    drawVillage(Math.floor(this.time * settings.animFps) / settings.animFps, this.hover, ok, this.tool >= TOOL_HOUSE && this.tool < TOOL_ERASE && ok ? this.tool - TOOL_HOUSE : -1);
-    debugLap(1); perfEnd(1);
   /** The dev panel (F2) on the window manager: drag by its title, [x], Esc, place remembered. */
   private drawPanel(): void {
     if (!this.panel.open) return;
@@ -431,6 +426,11 @@ export class HamletScene extends Sprite {
     winFrame(o.x, o.y, this.panel.width, this.panel.height(), 'panel', (): void => { this.panel.open = false; });
   }
 
+  override onDraw(w: number, h: number): void {
+    debugBegin(); perfBegin();
+    const ok = this.hover >= 0 && this.tool !== TOOL_NONE && checkTool(this.tool, this.hover) === PLACE_OK;
+    drawVillage(Math.floor(this.time * settings.animFps) / settings.animFps, this.hover, ok, this.tool >= TOOL_HOUSE && this.tool < TOOL_ERASE && ok ? this.tool - TOOL_HOUSE : -1);
+    debugLap(1); perfEnd(1);
     this.syncBuffer(); this.layoutSurface();
     const vp = viewport();
     rect(0, 0, w, h, col('stoneDeep'));

@@ -1,5 +1,5 @@
 // Headless rules of the hamlet: roads, arrivals, jobs, wood, meat, demolition and the save round trip. No window.
-import { world, generate as generateWith, tileIndex, tileI, tileJ, tileAt, isOpen, waterNeighbor, neighbor } from '../../../examples/hamlet/src/world/world';
+import { recount, world, generate as generateWith, tileIndex, tileI, tileJ, tileAt, isOpen, waterNeighbor, neighbor } from '../../../examples/hamlet/src/world/world';
 import { applyTool, checkTool, addBuilding } from '../../../examples/hamlet/src/rules/build';
 import { fxQueue, FX_FELL, FX_LEAVES } from '../../../examples/hamlet/src/world/fx';
 import { stepWorld } from '../../../examples/hamlet/src/engine/simulate';
@@ -17,7 +17,7 @@ import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../
 const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern', 'firehouse', 'works', 'watchpost', 'ruin'];
 import { dailyRisks, isRuin } from '../../../examples/hamlet/src/engine/risk';
 import { dailyCrime, updateOutlaws, sendRobber, computePeace, watchGap, peaceText } from '../../../examples/hamlet/src/engine/crime';
-import { BS_NO_SOURCE } from '../../../examples/hamlet/src/constants';
+import { BS_NO_SOURCE, BS_OFF_NET } from '../../../examples/hamlet/src/constants';
 import { whyIdle } from '../../../examples/hamlet/src/ui/Info';
 import { Person, tileY } from '../../../examples/hamlet/src/world/world';
 import { ROLE_WATCHMAN, ROLE_RIOTER, ROLE_ROBBER } from '../../../examples/hamlet/src/constants';
@@ -45,6 +45,13 @@ import { litBonus } from '../../../examples/hamlet/src/rules/housing';
 import { hintText } from '../../../examples/hamlet/src/rules/hints';
 import { computeHints } from '../../../examples/hamlet/src/rules/hints';
 import { isWalkable } from '../../../examples/hamlet/src/engine/path';
+import { buildRoad } from '../../../examples/hamlet/src/rules/roadplan';
+import { labourStats, employed } from '../../../examples/hamlet/src/rules/labour';
+import { startRoam, dailyServices } from '../../../examples/hamlet/src/engine/services';
+import { dailyHousing } from '../../../examples/hamlet/src/engine/housing';
+import { setOrder, orderOf } from '../../../examples/hamlet/src/rules/storage';
+import { ORDER_REFUSE, ORDER_GET, ORDER_ACCEPT, ROLE_SETTLER, COVER_DAYS } from '../../../examples/hamlet/src/constants';
+import { netAt, gateNetwork, onGateNetwork, networkCount } from '../../../examples/hamlet/src/engine/network';
 import { dailyAnimals, updateDeer } from '../../../examples/hamlet/src/engine/deer';
 import { dailyMood } from '../../../examples/hamlet/src/engine/mood';
 import { SPECIES, SP_WOLF, SP_RABBIT } from '../../../examples/hamlet/src/rules/species';
@@ -59,6 +66,18 @@ const PLANK = economy.resourceOf('plank'), WOOD = economy.resourceOf('log'), MEA
 const rich = (): void => { setStock(WOOD, 100); setStock(PLANK, 100); setStock(economy.resourceOf('leather'), 100); setStock(economy.resourceOf('stone'), 100); setStock(economy.resourceOf('tools'), 100); setStock(economy.resourceOf('clay'), 100); };
 let failures = 0;
 function check(name: string, ok: boolean): void { console.log('hamlet rules: ' + name + (ok ? ' PASS' : ' FAIL')); if (!ok) failures++; }
+/** Lays road from a road tile to the gate's network by the shortest open way (walkers keep to the roads, so a piece of street must be joined to the entrance). */
+function linkToGate(from: number): void {
+  const prev: number[] = world.terrain.map((): number => -2), q: number[] = [from];
+  prev[from] = -1;
+  let goal = -1;
+  for (let h = 0; h < q.length && goal < 0; h++) {
+    const u = q[h];
+    if (netAt(u) >= 0 && netAt(u) === gateNetwork()) { goal = u; break; }
+    for (let d = 0; d < 4; d++) { const v = neighbor(u, d); if (v >= 0 && prev[v] === -2 && world.terrain[v] === 0 && world.build[v] < 0) { prev[v] = u; q.push(v); } }
+  }
+  for (let t = goal; t >= 0; t = prev[t]) { world.tree[t] = 0; world.rock[t] = 0; world.lode[t] = 0; if (!world.road[t]) buildRoad([t]); }
+}
 function run(seconds: number): void { for (let k = 0; k < seconds * 32; k++) stepWorld(); }
 
 world.autosave = false; world.progression = false;   // nothing is locked but in the goals block
@@ -120,10 +139,11 @@ for (let t = 0; t < 144 && (shore < 0 || inland < 0); t++) {
 }
 check('the world has a pond', world.hasWater && shore >= 0);
 check('a fishing hut needs water', applyTool(TOOL_FISHERY, inland) === PLACE_NO_WATER);
-for (let d = 0; d < 4; d++) { const r = neighbor(shore, d); if (r >= 0 && isOpen(r)) { world.road[r] = 1; break; } }
+for (let d = 0; d < 4; d++) { const r = neighbor(shore, d); if (r >= 0 && isOpen(r)) { world.road[r] = 1; world.netRev++; linkToGate(r); break; } }
 let homeTile = -1;
 for (let t = 0; t < 144 && homeTile < 0; t++) if (isOpen(t) && waterNeighbor(t) < 0 && Math.abs(tileIndex(0, 0) - t) > 30) homeTile = t;
 const home = addBuilding(HOUSE, homeTile);
+for (let d = 0; d < 4; d++) { const r = neighbor(homeTile, d); if (r >= 0 && isOpen(r)) { world.road[r] = 1; world.netRev++; linkToGate(r); break; } }   // the house stands on a street that leads to the entrance
 createResident(home); createResident(home); world.buildings[home].residents = 2;
 for (let d = 0; d < 4; d++) { const r = neighbor(shore, d); if (r >= 0 && world.road[r]) for (let e = 0; e < 4; e++) { const v = neighbor(r, e); if (v >= 0 && v !== shore && isOpen(v) && waterNeighbor(v) < 0) { addBuilding(economy.typeOf('storehouse'), v); break; } } }
 check('a fishing hut by the pond is allowed', applyTool(TOOL_FISHERY, shore) === PLACE_OK);
@@ -146,6 +166,7 @@ check('an unknown resource is refused', bad('"cost": { "plank": 3 }', '"cost": {
 check('a negative number is refused', bad('"cost": { "plank": 3 }', '"cost": { "plank": -3 }').join().indexOf('negative-number') >= 0);
 check('a building without a model is refused', bad('"model": "sawmill", ', '').join().indexOf('no-model') >= 0);
 check('a resource with no raw source is refused', bad('"gather": "tree", "outputs": { "log": 1 }', '"inputs": { "plank": 1 }, "outputs": { "log": 1 }').join().indexOf('cycle') >= 0);
+check('a labour share of 0 or a walker reach of 9 is refused (bad-sim)', bad('"labourShare": 100', '"labourShare": 0').some((e) => e.indexOf('bad-sim') === 0) && bad('"walkerReach": 2', '"walkerReach": 9').some((e) => e.indexOf('bad-sim') === 0));
 check('a text that is not JSON is refused', parseEconomy('{', MODEL_IDS, ROLE_NAMES, new Economy())[0].indexOf('bad-json') === 0);
 const report = chainReport();
 check('the chain report lists makers and users', report.length === economy.resources.length && report[0].indexOf('log: made by [lumberhut] used by [sawmill (input)') === 0);
@@ -203,7 +224,7 @@ generate(1234, 16); rich();
 for (const t of [at(2, 7), at(4, 7), at(5, 9), at(3, 9), at(1, 8), at(2, 8), at(3, 8), at(4, 8), at(5, 8), at(6, 8), at(12, 12), at(12, 13)]) { world.tree[t] = 0; world.rock[t] = 0; }
 for (let i = 1; i <= 6; i++) applyTool(TOOL_ROAD, at(i, 8));
 applyTool(TOOL_HOUSE, at(2, 7)); applyTool(TOOL_HOUSE, at(4, 7)); applyTool(toolOf('lumberhut'), at(5, 9)); applyTool(toolOf('lumberhut'), at(3, 9));
-world.road[at(12, 12)] = 1; world.revision++; applyTool(toolOf('lumberhut'), at(12, 13));
+world.road[at(12, 12)] = 1; world.revision++; world.netRev++; applyTool(toolOf('lumberhut'), at(12, 13));
 const allWood = (): number => {                    // every wood in the village: stores, producers, loads in hand
   let n = 0;
   for (let id = 0; id < world.buildings.length; id++) if (world.buildings[id].alive) n += stockWithCarried(id)[WOOD];
@@ -215,7 +236,7 @@ run(80);
 check('totals are conserved: the wood a harvest rolled is somewhere in the village', allWood() === start + (harvestedOf(WOOD)) - gathered && world.felledCount > felled + 5);
 check('the hall received wood from the producers', world.stock[WOOD] > 40);
 const lone = world.buildings[world.build[at(12, 13)]];
-check('a building with no road to a store does not send', !exportsOk(lone) && lone.state === BS_ISOLATED && lone.stock[WOOD] >= 0 && world.buildings[world.build[at(5, 9)]].state !== BS_ISOLATED);
+check('a building whose road does not lead to the entrance is off the network: idle, no worker, no output, and says so', !exportsOk(lone) && !onGateNetwork(lone) && lone.state === BS_OFF_NET && lone.workers === 0 && whyIdle(world.build[at(12, 13)]).indexOf('entrée') > 0 && networkCount() >= 2 && lone.stock[WOOD] >= 0 && world.buildings[world.build[at(5, 9)]].state !== BS_ISOLATED);
 // ---- labour pool: three workplaces, three idle residents; the priority decides who is staffed ----
 const labourVillage = (first: string): void => {
   generate(1234, 16); rich(); clearRow(); world.tree[at(6, 9)] = 0; world.rock[at(6, 9)] = 0;
@@ -510,6 +531,7 @@ check('rolls are deterministic for a seed', t1[0] === t2[0] && t1[1] === t2[1]);
 check('rolled units and success follow the percent and the chance', Math.abs(t1[1] / 2000 - stag.chance / 100) < .04 && Math.abs(t1[0] / t1[1] - meanUnits(stag)) < .1);
 clearRow();
 for (let i = 1; i <= 8; i++) applyTool(TOOL_ROAD, tileIndex(i, 8));
+linkToGate(tileIndex(1, 8));
 world.unlocked.fill(1); world.people = [];
 for (const i of [2, 4]) { const h = addBuilding(HOUSE, at(i, 7)); createResident(h); createResident(h); createResident(h); createResident(h); world.buildings[h].residents = 4; world.buildings[h].timer = 1e9; }
 applyTool(toolOf('lumberhut'), at(6, 9)); applyTool(toolOf('lumberhut'), at(3, 9));
@@ -1017,7 +1039,7 @@ console.log('hamlet rules: presethash ' + (presetHash >>> 0));
 // ---- road laying: the L-shaped line, existing roads skipped, an obstacle ends it, the auto-route goes round ----
 import { TERRAIN_GRASS, TERRAIN_WATER } from '../../../examples/hamlet/src/constants';
 import { fieldFrom, pathTo, UNREACHABLE } from '../../../examples/hamlet/src/engine/path';
-import { linePath, planRoad, costOf, refundOf, buildRoad, demolishRoad, isBridge, isPlaza } from '../../../examples/hamlet/src/rules/roadplan';
+import { linePath, planRoad, costOf, refundOf, demolishRoad, isBridge, isPlaza } from '../../../examples/hamlet/src/rules/roadplan';
 generate(7916, 24);
 for (let j = 3; j <= 14; j++) for (let i = 3; i <= 14; i++) { const t = at(i, j); world.terrain[t] = TERRAIN_GRASS; world.tree[t] = 0; world.rock[t] = 0; world.build[t] = -1; world.road[t] = 0; }
 const wide = linePath(at(4, 5), at(10, 7), false), tall = linePath(at(4, 5), at(6, 11), false), flipped = linePath(at(4, 5), at(10, 7), true);
@@ -1080,6 +1102,113 @@ buildRoad([at(4, 13), at(5, 13)]);
 check('a 2 x 2 block of road is a plaza, its neighbours are not', [at(4, 12), at(5, 12), at(4, 13), at(5, 13)].every((t) => isPlaza(t)) && !isPlaza(at(6, 12)));
 computeAppeal();
 check('a plaza adds one appeal around it', world.appeal[at(5, 14)] - appealBefore === 1 || world.appeal[at(5, 14)] === economy.appealMax);
+// ---- the city at scale: road networks, the labour numbers, roamers, storage orders, housing hysteresis, the sliced desirability pass, determinism ----
+{
+  generate(1234, 16); rich(); clearRow();
+  for (let i = 1; i <= 7; i++) buildRoad([at(i, 8)]);
+  world.road[at(12, 2)] = 1; world.netRev++;
+  const gnet = gateNetwork();
+  check('a road joined to the gate is one network with it, a lone tile is a network of its own', gnet >= 0 && netAt(at(3, 8)) === gnet && netAt(at(12, 2)) >= 0 && netAt(at(12, 2)) !== gnet && networkCount() >= 2);
+  world.road[at(12, 2)] = 0; world.netRev++;
+  const h0 = addBuilding(HOUSE, at(3, 7));
+  run(4);
+  const settler = world.people.filter((q) => q.role === ROLE_SETTLER)[0];
+  check('a settler walks the road from the gate to the door, never across the land', settler !== undefined && settler.path.length > 2 && settler.path.every((t) => world.road[t] === 1));
+  check('a house on the gate network is connected, one with no road is not', onGateNetwork(world.buildings[h0]) && !onGateNetwork(world.buildings[addBuilding(HOUSE, at(10, 12))]));
+  // the labour numbers: a share of the residents is the pool, the rest is not asked to work
+  economy.sim.labourShare = 100;
+  labourVillage('lumberhut');
+  let lab = labourStats();
+  check('labour: three residents, six places: all three work, the empty places are a shortage and nobody is unemployed', lab.pool === 3 && lab.filled === 3 && lab.unemployed === 0 && lab.shortage === lab.jobs - 3 && lab.shortage > 0);
+  economy.sim.labourShare = 50;
+  labourVillage('lumberhut');
+  lab = labourStats();
+  check('labour: with half the residents in the pool one person works', lab.pool === 1 && employed() === 1 && lab.filled === 1);
+  economy.sim.labourShare = 100;
+  generate(1234, 16); rich(); clearRow(); world.tree[at(6, 9)] = 0;
+  for (const [i, n] of [[2, 2], [4, 2], [6, 2]]) { const h = addBuilding(HOUSE, at(i, 7)); for (let k = 0; k < n; k++) createResident(h); world.buildings[h].residents = n; world.buildings[h].timer = 1e9; }
+  applyTool(toolOf('lumberhut'), at(3, 9)); run(10);
+  lab = labourStats();
+  check('labour: six residents, a hut of two places and the hall\'s two porters: two are unemployed, no shortage', lab.pool === 6 && lab.filled === 4 && lab.unemployed === 2 && lab.shortage === 0);
+  // the roamer: straight on, a rotating choice at a junction, houses within two tiles covered, the counter decays by the day
+  generate(1234, 16); rich(); clearRow();
+  for (const t of [at(4, 9), at(4, 10), at(4, 11), at(4, 6), at(4, 5), at(4, 4), at(2, 5)]) { world.tree[t] = 0; world.rock[t] = 0; }
+  for (let i = 1; i <= 7; i++) buildRoad([at(i, 8)]);
+  buildRoad([at(4, 9), at(4, 10), at(4, 11)]);
+  const market = addBuilding(economy.typeOf('market'), at(6, 7)), MK = economy.serviceOf('market');
+  const walkRound = (): number[] => { const w = new Person(); w.x = tileX(at(6, 8)); w.y = tileY(at(6, 8)); w.path = []; w.step = 0; return startRoam(w, world.buildings[market]) ? w.path.slice() : []; };
+  const first = walkRound(), second = walkRound();
+  check('a roamer goes straight on at a junction on its first pass and the building rotates the choice for the next walker', first.length > 6 && first[0] === at(5, 8) && first[1] === at(4, 8) && first[2] === at(3, 8) && second.length > 6 && second[1] === at(4, 8) && second[2] === at(4, 9));
+  check('a round never leaves the roads and is as long as the service range', first.every((t) => world.road[t] === 1) && first.length === economy.buildings[economy.typeOf('market')].service!.range && second.every((t) => world.road[t] === 1));
+  const near = addBuilding(HOUSE, at(4, 6)), far = addBuilding(HOUSE, at(2, 5));
+  coverAround(at(4, 8), MK);
+  check('a walker covers the houses within two tiles of its road tile and no farther', world.buildings[near].cover[MK] === COVER_DAYS && world.buildings[far].cover[MK] === 0);
+  const seen: number[] = [];
+  for (let d = 0; d < COVER_DAYS + 1; d++) { seen.push(world.buildings[near].cover[MK]); dailyServices(); }
+  check('the coverage counter decays by one a day until the house is uncovered', seen.join(',') === COVER_DAYS + ',' + (COVER_DAYS - 1) + ',' + (COVER_DAYS - 2) + ',' + (COVER_DAYS - 3) && world.buildings[near].cover[MK] === 0);
+  // cart-pushers go to the nearest accepting store; storage orders redirect them
+  generate(1234, 16); rich(); clearRow(); world.tree[at(6, 9)] = 0; world.rock[at(6, 9)] = 0; world.tree[at(7, 9)] = 0; world.rock[at(7, 9)] = 0; world.tree[at(7, 8)] = 0; world.rock[at(7, 8)] = 0;
+  for (const i of [2, 4]) { const h = addBuilding(HOUSE, at(i, 7)); for (let k = 0; k < 4; k++) createResident(h); world.buildings[h].residents = 4; world.buildings[h].timer = 1e9; }
+  applyTool(toolOf('lumberhut'), at(3, 9));
+  const nearStore = addBuilding(economy.typeOf('storehouse'), at(4, 9)), farStore = addBuilding(economy.typeOf('storehouse'), at(7, 9));
+  const hallId = world.buildings.findIndex((b) => b.type === economy.hall);
+  for (const b of world.buildings) if (b.alive && b.type === economy.typeOf('storehouse')) b.stock[WOOD] = 0;
+  recount();
+  run(150);
+  const logsIn = (id: number): number => world.buildings[id].stock[WOOD];
+  check('the cart goes to the nearest store with room', logsIn(nearStore) > 0 && logsIn(nearStore) >= logsIn(farStore));
+  check('a store set to refuse a resource gets none of it while the others take it', setOrder(nearStore, WOOD, ORDER_REFUSE) && (() => { const before = logsIn(nearStore); run(150); return logsIn(nearStore) === before && logsIn(farStore) + logsIn(hallId) > 0; })());
+  check('a store set to get a resource is filled from the others and never handed out', setOrder(nearStore, WOOD, ORDER_GET) && setOrder(farStore, WOOD, ORDER_REFUSE) && setOrder(hallId, WOOD, ORDER_REFUSE) && (() => { world.buildings[nearStore].stock[WOOD] = 0; recount(); run(150); return logsIn(nearStore) > 0; })());
+  check('storage orders are for stores only', !setOrder(world.build[at(2, 7)], WOOD, ORDER_REFUSE) && orderOf(world.buildings[nearStore], WOOD) === ORDER_GET && orderOf(world.buildings[farStore], PLANK) === ORDER_ACCEPT);
+  // housing: evolve after evolveDays days meeting the next level, fall back only after devolveDays days failing the own one with the margin slackened
+  generate(1234, 16); rich();
+  const hs = economy.buildings[HOUSE].housing!, home = addBuilding(HOUSE, at(5, 5)), hb = world.buildings[home], WATER = economy.serviceOf('water');
+  const well = (on: boolean): void => { hb.cover[MK] = on ? 3 : 0; hb.cover[WATER] = on ? 3 : 0; };
+  hb.fed[hs.eats[0]] = 99; hb.fed[hs.eats[1]] = 99; hb.residents = 0; well(true);
+  world.appeal[at(5, 5)] = 3;
+  dailyHousing();
+  check('a house that meets the next level does not climb at once', hb.level === 0);
+  dailyHousing();
+  check('...it climbs after evolveDays days, and again after as many for the next level', hb.level === 1 && (() => { dailyHousing(); dailyHousing(); return hb.level === 2 && housingReport(hb).top; })());
+  world.appeal[at(5, 5)] = 1;
+  for (let d = 0; d < hs.devolveDays + 3; d++) dailyHousing();
+  check('hysteresis: a level kept inside the margin is not lost, however many days pass', hb.level === 2);
+  world.appeal[at(5, 5)] = 0; well(true);
+  for (let d = 0; d < hs.devolveDays - 1; d++) dailyHousing();
+  check('...failing the own level falls back only after devolveDays days', hb.level === 2 && housingReport(hb).atRisk);
+  dailyHousing();
+  check('...then the level is lost', hb.level === 1);
+  well(false);
+  check('"what is missing" names the service the house lacks', housingReport(hb).missing.some((q) => q.id === 'water'));
+  // the desirability pass spread over the day's last ticks gives what the pass at once gives
+  generate(1234, 16); rich(); clearRow();
+  for (const i of [2, 4, 6]) addBuilding(HOUSE, at(i, 7));
+  addBuilding(economy.typeOf('market'), at(5, 9));
+  run(20);
+  const sliced = world.appeal.join(',');
+  computeAppeal();
+  check('the sliced desirability pass equals the whole-map pass', sliced === world.appeal.join(',') && world.appeal.some((v) => v !== 0));
+  // determinism: the same ticks give the same village, on every engine (compared across the three by hamlet.sh)
+  const city = (): number => {
+    generate(77, 40); rich(); world.autosave = false;
+    const j = 20, row: number[] = [];
+    for (let i = 0; i <= 32; i++) { world.tree[at(i, j)] = 0; world.rock[at(i, j)] = 0; row.push(at(i, j)); }
+    for (const dj of [-1, 1]) for (let i = 2; i < 30; i++) { world.tree[at(i, j + dj)] = 0; world.rock[at(i, j + dj)] = 0; }
+    buildRoad(row);
+    let n = 0;
+    for (let i = 2; i < 30; i += 2) for (const dj of [-1, 1]) {
+      const t = at(i, j + dj);
+      if (n % 5 === 4) addBuilding(economy.typeOf(['lumberhut', 'sawmill', 'lodge', 'farm', 'storehouse', 'market'][Math.floor(n / 5) % 6]), t);
+      else { const h = addBuilding(HOUSE, t); createResident(h); createResident(h); world.buildings[h].residents = 2; world.buildings[h].timer = 1e9; }
+      n++;
+    }
+    run(65);
+    return stateHash();
+  };
+  const cityA = city(), cityB = city();
+  check('a city of houses and workshops replays to the same state hash', cityA === cityB && world.people.length > 20);
+  console.log('hamlet rules: cityhash ' + cityA + ':' + world.people.filter((q) => q.job >= 0).length + ':' + labourStats().jobs);
+}
 const hashList = (list: number[]): number => { let h = 7; for (const v of list) h = (h * 31 + v) | 0; return h >>> 0; };
 console.log('hamlet rules: roadhash2 ' + hashList(around4.tiles) + ':' + hashList(detour.tiles) + ':' + hashList(over.tiles) + ':' + hashList(broke.fresh) + ':' + hashList(world.road));
 console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');

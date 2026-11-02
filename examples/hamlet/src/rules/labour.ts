@@ -1,4 +1,4 @@
-import { HOUSE } from '../constants';
+import { HOUSE, ROLE_PEDDLER, BS_OFF_NET } from '../constants';
 import { world } from '../world/world';
 import { economy } from '../world/economy';
 
@@ -29,3 +29,25 @@ export function movePriority(type: number, delta: number): number {
 }
 /** The order as labels, for a panel. */
 export function priorityLabels(): string[] { return normalizePriority().map((type: number): string => economy.buildings[type].label); }
+
+/** The people who can be given work: a share of the residents (economy.json sim.labourShare). */
+export function labourPool(): number {
+  let n = 0;
+  for (const p of world.people) if (p.role !== ROLE_PEDDLER) n++;
+  return Math.floor(n * economy.sim.labourShare / 100);
+}
+/** How many people hold a job now. */
+export function employed(): number { let n = 0; for (const p of world.people) if (p.job >= 0) n++; return n; }
+/** The labour market in numbers, for the top bar and the advisors: `pool` can work, `jobs` the places that could be filled (a building off the gate's network offers none), `filled` the places held;
+ *  `unemployed` = pool left without a place, `shortage` = places nobody takes. One of the two is always 0. */
+export class Labour { pool: number = 0; jobs: number = 0; filled: number = 0; unemployed: number = 0; shortage: number = 0; }
+export function labourStats(): Labour {
+  const l = new Labour();
+  l.pool = labourPool();
+  for (const b of world.buildings) {
+    if (!b.alive || b.type === HOUSE || b.state === BS_OFF_NET) continue;
+    l.jobs += economy.buildings[b.type].workers; l.filled += b.workers;
+  }
+  l.unemployed = Math.max(0, l.pool - l.filled); l.shortage = Math.max(0, l.jobs - l.filled);
+  return l;
+}

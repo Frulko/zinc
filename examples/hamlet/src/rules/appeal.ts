@@ -16,20 +16,37 @@ function stamp(grid: number[], i: number, j: number, rings: number[]): void {
     if (x >= 0 && y >= 0 && x < size && y < size) grid[y * size + x] += rings[d - 1];
   }
 }
-/** Recomputes world.appeal from the terrain and the buildings. */
-export function computeAppeal(): void {
-  const grid: number[] = Array.from({ length: world.size * world.size }, (): number => 0);
+/** Stamps the terrain sources of tiles [from, to) into the grid. */
+function stampTiles(grid: number[], from: number, to: number): void {
   const sources: AppealSource[] = economy.appeal;
-  for (let t = 0; t < grid.length && sources.length > 0; t++) {
+  for (let t = from; t < to && sources.length > 0; t++) {
     for (const s of sources) {
       const here = s.kind === 'tree' ? world.tree[t] > 0 : s.kind === 'water' ? world.terrain[t] === TERRAIN_WATER : s.kind === 'plaza' ? isPlaza(t) : world.rock[t] > 0;
       if (here) stamp(grid, tileI(t), tileJ(t), s.rings);
     }
   }
+}
+/** The buildings' rings, then the clamp: the grid is final. */
+function finish(grid: number[]): void {
   for (const b of world.buildings) if (b.alive && economy.buildings[b.type].appeal.length > 0) stamp(grid, b.i, b.j, economy.buildings[b.type].appeal);
   const max = economy.appealMax;
   for (let t = 0; t < grid.length; t++) grid[t] = Math.max(-max, Math.min(max, grid[t]));
   world.appeal = grid;
+}
+/** Recomputes world.appeal from the terrain and the buildings, at once (a loaded village, a test). */
+export function computeAppeal(): void {
+  const grid: number[] = Array.from({ length: world.size * world.size }, (): number => 0);
+  stampTiles(grid, 0, grid.length);
+  finish(grid);
+}
+// The daily pass spread over the last `economy.sim.appealSlices` ticks of a day: slice k of n stamps its share of the tiles into a scratch grid, the last one adds the buildings and installs it, just before the
+// houses read it at the day's end. The result is the one computeAppeal gives; no tick pays for the whole map.
+let scratch: number[] = [];
+export function appealSlice(k: number, n: number): void {
+  const size = world.size * world.size;
+  if (k === 0 || scratch.length !== size) scratch = Array.from({ length: size }, (): number => 0);
+  stampTiles(scratch, Math.floor(size * k / n), Math.floor(size * (k + 1) / n));
+  if (k === n - 1) { const grid = scratch; scratch = []; finish(grid); }
 }
 /** The tiles worth showing in the overlay: their tile and value (positive pleasant, negative unpleasant). */
 export function appealTiles(): number[][] {

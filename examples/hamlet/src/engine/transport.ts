@@ -1,6 +1,7 @@
-import { ST_FETCH, ST_BRING, ST_SEEK, BS_WAITING, BS_ISOLATED, BS_FULL, BATCH } from '../constants';
+import { ST_FETCH, ST_BRING, ST_SEEK, BS_WAITING, BS_ISOLATED, BS_FULL, BATCH, ORDER_GET } from '../constants';
 import { world, Person, Building, tileIndex, tileAt, neighbor, recount } from '../world/world';
 import { economy, BuildingDef } from '../world/economy';
+import { accepts, gives } from '../rules/storage';
 import { onStoreNetwork } from './network';
 import { fieldFrom, approachTile, planPath, UNREACHABLE, ESCAPE } from './path';
 
@@ -58,7 +59,7 @@ function nearestStore(p: Person, k: number): number {
   let best = -1, bestCost = UNREACHABLE;
   for (let id = 0; id < world.buildings.length; id++) {
     const b = world.buildings[id];
-    if (!b.alive || !isStore(b) || room(b, k) < 1 || !exportsOk(b)) continue;
+    if (!b.alive || !isStore(b) || room(b, k) < 1 || !accepts(b, k) || !exportsOk(b)) continue;
     const a = approachTile(field, tileOf(b));
     if (a >= 0 && field.dist[a] < bestCost) { bestCost = field.dist[a]; best = id; }
   }
@@ -80,7 +81,7 @@ export function haulOut(p: Person, siteId: number): boolean {
 export function findLoad(p: Person): boolean {
   let any = false;
   for (const b of world.buildings) if (b.alive && !isStore(b)) for (let k = 0; k < b.stock.length; k++) if (economy.buildings[b.type].outputs[k] > 0 && spare(b, k) >= 1) any = true;
-  if (!any) return false;
+  if (!any) return fetchForStore(p);
   const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE);
   let bestId = -1, bestRes = -1, bestCost = UNREACHABLE;
   for (let id = 0; id < world.buildings.length; id++) {
@@ -93,10 +94,30 @@ export function findLoad(p: Person): boolean {
       bestCost = field.dist[a]; bestId = id; bestRes = k; break;
     }
   }
-  if (bestId < 0) return false;
+  if (bestId < 0) return fetchForStore(p);
   const src = world.buildings[bestId], dst = nearestStore(p, bestRes);
   if (dst < 0) { src.state = BS_FULL; return false; }
   return startTransport(p, bestId, dst, bestRes, Math.min(spare(src, bestRes), BATCH, room(world.buildings[dst], bestRes)));
+}
+/** A porter with no producer to empty serves the stores that "get" a resource: it carries it from the nearest other store that holds some and gives it. */
+function fetchForStore(p: Person): boolean {
+  for (let id = 0; id < world.buildings.length; id++) {
+    const want = world.buildings[id];
+    if (!want.alive || !isStore(want) || want.orders.length === 0 || !exportsOk(want)) continue;
+    for (let k = 0; k < want.stock.length; k++) {
+      if (want.orders[k] !== ORDER_GET || room(want, k) < 1) continue;
+      const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE);
+      let best = -1, bestCost = UNREACHABLE;
+      for (let o = 0; o < world.buildings.length; o++) {
+        const b = world.buildings[o];
+        if (o === id || !b.alive || !isStore(b) || spare(b, k) < 1 || !gives(b, k) || !exportsOk(b)) continue;
+        const a = approachTile(field, tileOf(b));
+        if (a >= 0 && field.dist[a] < bestCost) { bestCost = field.dist[a]; best = o; }
+      }
+      if (best >= 0) return startTransport(p, best, id, k, Math.min(spare(world.buildings[best], k), BATCH, room(want, k)));
+    }
+  }
+  return false;
 }
 /** A worker fetches what its building lacks from the nearest store that has it. False when it cannot (the building waits: state and waitFor say why). */
 export function fetchInput(p: Person, siteId: number): boolean {
@@ -109,7 +130,7 @@ export function fetchInput(p: Person, siteId: number): boolean {
     let best = -1, bestCost = UNREACHABLE;
     for (let id = 0; id < world.buildings.length; id++) {
       const b = world.buildings[id];
-      if (!b.alive || !isStore(b) || spare(b, k) < 1 || !exportsOk(b)) continue;
+      if (!b.alive || !isStore(b) || spare(b, k) < 1 || !gives(b, k) || !exportsOk(b)) continue;
       const a = approachTile(field, tileOf(b));
       if (a >= 0 && field.dist[a] < bestCost) { bestCost = field.dist[a]; best = id; }
     }

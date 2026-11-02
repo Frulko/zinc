@@ -1,5 +1,5 @@
 import { HOUSE, COVER_DAYS, ST_ROAM } from '../constants';
-import { world, Person, Building, Alert, random, neighbor, tileIndex, tileAt, tileI, tileJ } from '../world/world';
+import { world, Person, Building, Alert, neighbor, tileIndex, tileAt, tileI, tileJ } from '../world/world';
 import { economy } from '../world/economy';
 import { isWalkable, planPath } from './path';
 
@@ -7,9 +7,15 @@ import { isWalkable, planPath } from './path';
 // house within its radius. Either way the house keeps a counter of days (Building.cover[service]) that decays once a day: covered = counter > 0.
 
 const isHouse = (id: number): boolean => id >= 0 && world.buildings[id].alive && world.buildings[id].type === HOUSE;
-/** Covers the houses on the four sides of a tile (the road a walker is on). */
+/** Covers the houses within `economy.sim.walkerReach` tiles of a tile (the road a walker is on): their counter goes back to COVER_DAYS and decays by a day each day. */
 export function coverAround(t: number, service: number): void {
-  for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && isHouse(world.build[v])) world.buildings[world.build[v]].cover[service] = COVER_DAYS; }
+  const reach = economy.sim.walkerReach, ci = tileI(t), cj = tileJ(t);
+  for (let dj = -reach; dj <= reach; dj++) for (let di = -reach; di <= reach; di++) {
+    const i = ci + di, j = cj + dj;
+    if (i < 0 || j < 0 || i >= world.size || j >= world.size) continue;
+    const id = world.build[j * world.size + i];
+    if (isHouse(id)) world.buildings[id].cover[service] = COVER_DAYS;
+  }
   const kind = economy.services[service].risk;
   if (kind !== '') guard(t, kind);
 }
@@ -36,17 +42,26 @@ function roadBeside(b: Building): number {
   for (let d = 0; d < 4; d++) { const v = neighbor(tileIndex(b.i, b.j), d); if (v >= 0 && world.road[v] && isWalkable(v)) return v; }
   return -1;
 }
-/** A random walk over the road tiles: never straight back unless it is a dead end. Uses the world's generator, so the same ticks walk the same round. */
-function roamFrom(start: number, steps: number): number[] {
+/** The round of a roamer over the road tiles, with no dice: it goes straight on where the road does, and at a junction takes the way the building's own turn counter points at (the counter rotates, so
+ *  successive walkers of one building cover different streets); it turns back only at a dead end. Same ticks, same round. */
+function roamFrom(site: Building, start: number, steps: number): number[] {
   const out: number[] = [];
-  let at = start, from = -1;
+  let at = start, from = -1, heading = -1;
   for (let k = 0; k < steps; k++) {
-    const options: number[] = [];
-    for (let d = 0; d < 4; d++) { const v = neighbor(at, d); if (v >= 0 && world.road[v] && isWalkable(v) && v !== from) options.push(v); }
-    if (options.length === 0 && from >= 0) options.push(from);
-    if (options.length === 0) break;
-    const next = options[Math.floor(random() * options.length)];
-    out.push(next); from = at; at = next;
+    const dirs: number[] = [];
+    for (let d = 0; d < 4; d++) { const v = neighbor(at, d); if (v >= 0 && world.road[v] && isWalkable(v) && v !== from) dirs.push(d); }
+    let dir = -1;
+    if (dirs.length === 0) { if (from < 0) break; for (let d = 0; d < 4; d++) if (neighbor(at, d) === from) dir = d; }
+    else if (dirs.length === 1) dir = dirs[0];
+    else {
+      site.turn++;
+      const straight = heading >= 0 && dirs.indexOf(heading) >= 0;
+      if (straight && site.turn % 3 !== 0) dir = heading;
+      else { const others = dirs.filter((d: number): boolean => d !== heading || !straight); dir = others[site.turn % others.length]; }
+    }
+    if (dir < 0) break;
+    const next = neighbor(at, dir);
+    out.push(next); from = at; at = next; heading = dir;
   }
   return out;
 }
@@ -54,7 +69,7 @@ function roamFrom(start: number, steps: number): number[] {
 export function startRoam(p: Person, site: Building): boolean {
   const road = roadBeside(site), def = economy.buildings[site.type];
   if (road < 0 || def.service === null || !planPath(p, road)) return false;
-  p.path = p.path.concat(roamFrom(road, def.service.range));
+  p.path = p.path.concat(roamFrom(site, road, def.service.range));
   p.target = -1; p.state = ST_ROAM;
   return true;
 }
