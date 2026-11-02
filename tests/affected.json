@@ -523,6 +523,7 @@
     {"paths": ["src/dbg/", "src/zbc/zbc.cpp", "src/rt/worker.cpp", "tests/cdp_worker_check.mjs", "tests/data/worker_profile/", "tests/t1/debug_worker.sh"], "tests": ["debug_worker"]},
     {"paths": ["src/rt/rtcalls.cpp", "src/qjs/prelude.cpp", "runtime/zrt.h", "lib/zinc.d.ts", "tests/t0/array_set.sh", "tests/data/array_set/"], "tests": ["array_set"]},
     {"paths": ["examples/hamlet/src/view/", "tests/data/hamlet/glide.ts", "tests/t0/hamlet_glide.sh"], "tests": ["hamlet_glide"]},
-    {"paths": ["examples/hamlet/", "tests/data/hamlet/", "tests/t1/hamlet.sh", "tests/t1/hamlet_bot.sh"], "tests": ["hamlet", "hamlet_bot"]}
+    {"paths": ["examples/hamlet/", "tests/data/hamlet/", "tests/t1/hamlet.sh", "tests/t1/hamlet_bot.sh"], "tests": ["hamlet", "hamlet_bot"]},
+    {"paths": ["examples/hamlet/src/cite/", "tests/t1/hamlet_cite.sh", "tests/data/hamlet/cite.input"], "tests": ["hamlet_cite"]}
   ]
 }

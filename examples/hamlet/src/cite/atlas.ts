@@ -1,0 +1,317 @@
+import { createImage, updatePixels } from 'zinc:gfx';
+import { page, openPage, fillPolygon, strokeLine } from './raster';
+import { broadAt, needleColor } from '../view/seasons';
+import { BARK, STONE, WOOD_HONEY, WOOD_BROWN, FUR, FUR_DARK, FUR_LIGHT, RABBIT_FUR, RABBIT_DARK, RABBIT_LIGHT, WOLF_FUR, WOLF_DARK, WOLF_LIGHT, BOAR_FUR, BOAR_DARK, BOAR_LIGHT } from '../palettes';
+import * as P from '../palettes';
+import { MODEL_IDS } from '../view/models';
+import { Palette } from '../pixel';
+
+// The sprites of the Cité view, made by code at the first frames and drawn into one atlas page (one image, so the draws batch): trees per season and
+// sway frame, rocks and deposits, buildings per model, people per role in 8 directions x 4 frames, animals in 8 directions x 4 frames.
+// Each group is a job; the jobs run a few at a time (bakeStep) so the first frames do not stall; a sprite whose group is not ready is skipped.
+export const PAGE = 2048;
+export const sheet = { image: -1 as number, h: 0 };
+export const sx: number[] = [], sy: number[] = [], sw: number[] = [], sh: number[] = [], ox: number[] = [], oy: number[] = [];   // per sprite: its place in the page and where its foot is
+let cx = 1, cy = 1, rowH = 0;
+function reg(w: number, h: number, fx: number, fy: number): number {
+  if (cx + w + 1 > PAGE) { cx = 1; cy += rowH + 1; rowH = 0; }
+  const id = sx.length;
+  sx.push(cx); sy.push(cy); sw.push(w); sh.push(h); ox.push(fx); oy.push(fy);
+  cx += w + 1; rowH = Math.max(rowH, h);
+  return id;
+}
+
+const rgb = (c: number[]): number => (Math.round(c[0]) << 16) | (Math.round(c[1]) << 8) | Math.round(c[2]);
+export function shade(c: number[], f: number): number { return (Math.min(255, Math.round(c[0] * f)) << 16) | (Math.min(255, Math.round(c[1] * f)) << 8) | Math.min(255, Math.round(c[2] * f)); }
+function blob(x: number, y: number, rx: number, ry: number, color: number, alpha: number = 255): void {
+  const pts: number[] = [];
+  for (let k = 0; k < 14; k++) { const a = k / 14 * 6.2832; pts.push(x + Math.cos(a) * rx, y + Math.sin(a) * ry); }
+  fillPolygon(pts, color, alpha);
+}
+function poly(pts: number[], color: number, alpha: number = 255): void { fillPolygon(pts, color, alpha); }
+function stroke(pts: number[], width: number, color: number, alpha: number, closed: boolean): void { strokeLine(pts, width, color, alpha); }
+function ground(x: number, y: number, rx: number): void { blob(x, y, rx, rx * .45, 0x000000, 62); }
+
+// ---- ids ----
+export const SEASONS = 4, SWAYS = 2, TREE_KINDS = 4;
+export const treeBase: number[] = [];
+export const rockIds: number[] = [];        // 2 plain rocks, then the deposits (stone, clay, ore, berries)
+export const buildIds: number[] = [];       // per model id of view/models.ts, then the gate, then the house at levels 2 and 3
+export const GATE_MODEL = MODEL_IDS.length;
+export const personBase: number[] = [];     // per role
+export const animalBase: number[] = [];     // per kind: deer, stag, rabbit, boar, wolf
+export const ANIMAL_KINDS = 5, DIRS = 8, FRAMES = 4, ROLES = 26;
+export const carryId = { box: -1 };
+const jobs: (() => void)[] = [];
+export const ready = { trees: [false, false, false, false], rocks: false, buildings: false, people: [] as boolean[], animals: [false, false, false, false, false], all: false };
+
+export function treeId(variant: number, season: number, sway: number): number { return treeBase[(variant * SEASONS + season) * SWAYS + sway]; }
+export function personId(role: number, dir: number, frame: number): number { return personBase[role] + dir * FRAMES + frame; }
+export function animalId(kind: number, dir: number, frame: number): number { return animalBase[kind] + dir * FRAMES + frame; }
+
+const REP_MONTH = [1, 4, 7, 10];
+function place(id: number): void { page.x = sx[id]; page.y = sy[id]; }
+
+// ---- trees ----
+function drawTree(id: number, v: number, season: number, sway: number): void {
+  place(id);
+  const m = REP_MONTH[season], b = broadAt(m), s = [.82, 1, 1.12, .95][v], fx = 28, fy = 78, lean = (sway - .5) * 3;
+  ground(fx, fy, 15 * s);
+  if (v === 2) {                                                  // a pine: stacked cones
+    const g = needleColor([46, 86, 60], m), snow = season === 3;
+    poly([fx - 2, fy, fx + 2, fy, fx + 2, fy - 12 * s, fx - 2, fy - 12 * s], rgb(BARK));
+    for (let k = 0; k < 4; k++) {
+      const w = (17 - k * 3.4) * s, top = fy - (14 + k * 12) * s, bot = top + 20 * s, sh = lean * (k + 1) * .35;
+      poly([fx + sh - w, bot, fx + sh + w, bot, fx + sh, top - 5 * s], shade(g, .62 + k * .1));
+      poly([fx + sh, bot, fx + sh + w, bot, fx + sh, top - 5 * s], shade(g, .8 + k * .1));
+      if (snow) poly([fx + sh - w * .55, top + 9 * s, fx + sh + w * .55, top + 9 * s, fx + sh, top - 5 * s], 0xf2f5f8);
+    }
+    return;
+  }
+  poly([fx - 2.5, fy, fx + 2.5, fy, fx + 2, fy - 22 * s, fx - 2, fy - 22 * s], rgb(BARK));
+  const r = 16 * s, ccx = fx + lean, ccy = fy - 36 * s;
+  if (b.leaves < .35) {                                            // bare branches
+    for (let k = 0; k < 5; k++) { const a = -2.2 + k * .55; stroke([fx, fy - 20 * s, ccx + Math.cos(a) * r * .9, ccy + Math.sin(a) * r * .9], 1.4, rgb(BARK), 255, false); }
+    if (season === 3) blob(ccx, ccy - r * .5, r * .6, r * .22, 0xf2f5f8, 220);
+    return;
+  }
+  const dark = b.crown, light = b.light;
+  blob(ccx + 1, ccy + 3 * s, r, r * .86, shade(dark, .7));
+  blob(ccx, ccy, r * .94, r * .8, shade(dark, 1));
+  blob(ccx - r * .25, ccy - r * .3, r * .62, r * .5, shade(light, .92));
+  blob(ccx - r * .38, ccy - r * .42, r * .3, r * .24, shade(light, 1.1));
+  if (b.blossom > .3) for (let k = 0; k < 6; k++) blob(ccx + Math.cos(k * 2.1) * r * .6, ccy + Math.sin(k * 1.7) * r * .5, 1.8, 1.6, 0xf3d4dc);
+}
+
+// ---- rocks and deposits ----
+function drawRock(k: number): void {
+  const id = rockIds[k];
+  place(id);
+  const fx = 20, fy = 24;
+  ground(fx, fy, 14);
+  if (k < 2) {
+    const g = k === 0 ? [138, 136, 128] : [120, 118, 114];
+    poly([fx - 12, fy, fx - 9, fy - 11, fx - 1, fy - 15, fx + 8, fy - 11, fx + 12, fy - 1, fx + 4, fy + 3, fx - 8, fy + 3], shade(g, .82));
+    poly([fx - 9, fy - 11, fx - 1, fy - 15, fx + 8, fy - 11, fx + 1, fy - 7], shade(g, 1.15));
+    poly([fx + 1, fy - 7, fx + 8, fy - 11, fx + 12, fy - 1, fx + 4, fy + 3], shade(g, .66));
+    return;
+  }
+  const kind = k - 2;
+  if (kind === 0) {                                               // a stone outcrop, pale
+    for (let n = 0; n < 3; n++) { const x = fx - 8 + n * 8, h = 9 + (n === 1 ? 6 : 0); poly([x - 5, fy + 1, x - 3, fy - h, x + 3, fy - h + 1, x + 6, fy + 1], shade(STONE, .8 + n * .08)); poly([x - 3, fy - h, x + 3, fy - h + 1, x + 1, fy - h + 5, x - 3, fy - h + 4], shade(STONE, 1.05)); }
+  } else if (kind === 1) {                                        // a clay bank
+    blob(fx, fy - 3, 14, 7, rgb([176, 112, 78])); blob(fx - 2, fy - 6, 10, 5, rgb([204, 140, 98])); blob(fx + 4, fy - 4, 4, 2, rgb([140, 86, 60]));
+  } else if (kind === 2) {                                        // ore: dark rock with metal glints
+    poly([fx - 12, fy, fx - 8, fy - 13, fx + 2, fy - 16, fx + 11, fy - 9, fx + 12, fy, fx + 3, fy + 3, fx - 7, fy + 3], 0x4a4a52);
+    poly([fx - 8, fy - 13, fx + 2, fy - 16, fx + 11, fy - 9, fx, fy - 8], 0x6a6a74);
+    blob(fx - 2, fy - 7, 1.8, 1.6, 0xd9a43a); blob(fx + 5, fy - 4, 1.5, 1.4, 0x8fb8d8); blob(fx - 6, fy - 3, 1.4, 1.2, 0xd9a43a);
+  } else {                                                        // berries: a bush with red dots
+    blob(fx, fy - 8, 12, 9, 0x2f5a30); blob(fx - 3, fy - 11, 8, 6, 0x4a7a3a);
+    for (let n = 0; n < 7; n++) blob(fx - 8 + (n * 5) % 16, fy - 13 + ((n * 7) % 9), 1.5, 1.5, 0xc0303a);
+  }
+}
+
+// ---- buildings ----
+// [wall colour, roof colour, wall height, kind, width]  kind: 0 house, 1 field (flat), 2 well, 3 awning, 4 pit, 5 tower, 6 mill
+// wall rgb, roof rgb, wall height, kind, width: one string, parsed on first use (a long literal at the top level would crowd the program's registers)
+const LOOK_TEXT = '222,208,172,176,104,76,20,0,24;190,148,92,122,94,62,24,0,26;150,112,72,84,110,76,22,0,24;120,140,150,92,128,146,16,0,24;206,190,150,140,100,76,30,0,27;150,112,72,96,76,58,16,0,20;120,92,70,70,60,56,22,0,22;190,170,90,160,90,70,20,1,26;232,228,216,150,70,60,34,6,22;236,226,200,196,96,72,20,0,24;200,170,122,196,70,62,14,3,26;140,100,66,100,76,56,18,0,25;150,150,144,110,90,70,12,2,12;168,164,152,100,98,96,10,4,24;176,112,78,96,76,58,10,4,24;96,92,100,80,70,64,14,4,24;110,106,112,70,66,70,22,0,24;120,150,90,90,120,70,14,0,18;210,180,80,180,140,60,10,1,22;214,188,132,120,86,58,20,0,22;220,170,80,150,90,60,22,0,24;200,170,120,150,74,56,26,0,28;196,78,52,120,60,50,22,0,24;150,140,130,96,90,86,22,0,26;140,120,100,84,78,74,40,5,16;86,82,80,60,56,54,10,4,20';
+function lookOf(k: number): number[][] {
+  const f = LOOK_TEXT.split(';')[Math.min(k, 25)].split(',').map((v: string): number => Number(v));
+  return [[f[0], f[1], f[2]], [f[3], f[4], f[5]], [f[6], f[7], f[8]]];
+}
+function drawBuilding(id: number, lk: number[][], extra: number): void {
+  place(id);
+  const wall: number[] = lk[0], roof: number[] = lk[1], kind: number = lk[2][1];
+  const hw: number = lk[2][2] + extra * 2, hg: number = lk[2][0] + extra * 7;
+  ground(40, 80, hw + 6);
+  if (kind === 1) buildField(wall, roof, hw);
+  else if (kind === 4) buildPit(wall, roof, hw);
+  else if (kind === 2) buildWell(wall, roof);
+  else if (kind === 3) buildMarket(wall, roof, hw);
+  else if (kind === 5) buildTower(wall, roof, hg);
+  else buildHouse(id, wall, roof, hw, hg, kind, extra);
+}
+function buildField(wall: number[], roof: number[], hw: number): void {          // a field / apiary: a tilled diamond with a small shed
+  const cxp = 40, by = 78, hd = hw / 2;
+  poly([cxp - hw - 4, by, cxp, by + hd + 2, cxp + hw + 4, by, cxp, by - hd - 2], shade([128, 96, 56], .9));
+  for (let k = -3; k <= 3; k++) { const o = k * 3.6; stroke([cxp - hw + 6 + o * .6, by - hd * .6 + o * .35, cxp + hw - 6 + o * .6, by + hd * .6 + o * .35], 1.6, rgb(wall), 255, false); }
+  const w2 = 9;
+  poly([cxp - w2, by - 4, cxp, by + w2 / 2 - 4, cxp, by + w2 / 2 - 16, cxp - w2, by - 16], shade(roof, .7));
+  poly([cxp, by + w2 / 2 - 4, cxp + w2, by - 4, cxp + w2, by - 16, cxp, by + w2 / 2 - 16], shade(roof, .9));
+  poly([cxp - w2 - 2, by - 16, cxp, by + w2 / 2 - 18, cxp + w2 + 2, by - 16, cxp, by - w2 / 2 - 22], shade(roof, 1.1));
+}
+function buildPit(wall: number[], roof: number[], hw: number): void {              // a pit: dark hole with a rim and a hut
+  const cxp = 40, by = 78, hd = hw / 2, w2 = 8;
+  poly([cxp - hw, by, cxp, by + hd, cxp + hw, by, cxp, by - hd], rgb(wall));
+  poly([cxp - hw + 5, by, cxp, by + hd - 3, cxp + hw - 5, by, cxp, by - hd + 3], 0x3a3028);
+  poly([cxp - hw + 9, by + 1, cxp, by + hd - 6, cxp + hw - 9, by + 1, cxp, by - hd + 5], 0x241c16);
+  poly([cxp + 8, by - 12, cxp + 8 + w2, by - 12 - w2 / 2 + 4, cxp + 8 + w2, by - 24, cxp + 8, by - 20], shade(roof, 1));
+  poly([cxp + 8 - w2, by - 12 - w2 / 2 + 4, cxp + 8, by - 12, cxp + 8, by - 20, cxp + 8 - w2, by - 24], shade(roof, .8));
+}
+function buildWell(wall: number[], roof: number[]): void {                         // a well: stone ring, roof on two posts
+  const cxp = 40, by = 78;
+  blob(cxp, by - 4, 11, 6, shade(wall, .8)); blob(cxp, by - 7, 11, 6, shade(wall, 1.05)); blob(cxp, by - 7, 7.5, 4, 0x2c4a58);
+  poly([cxp - 9, by - 8, cxp - 7, by - 8, cxp - 7, by - 26, cxp - 9, by - 26], rgb(WOOD_BROWN));
+  poly([cxp + 7, by - 8, cxp + 9, by - 8, cxp + 9, by - 26, cxp + 7, by - 26], rgb(WOOD_BROWN));
+  poly([cxp - 14, by - 25, cxp, by - 33, cxp + 14, by - 25, cxp, by - 20], shade(roof, 1));
+  poly([cxp - 14, by - 25, cxp, by - 20, cxp + 14, by - 25, cxp + 12, by - 23, cxp, by - 17, cxp - 12, by - 23], shade(roof, .7));
+}
+function buildMarket(wall: number[], roof: number[], hw: number): void {          // a market: awning with stripes over a stall
+  const cxp = 40, by = 78, hd = hw / 2;
+  poly([cxp - hw, by, cxp, by + hd, cxp + hw, by, cxp, by - hd], shade(wall, .95));
+  for (let k = 0; k < 4; k++) { const x0 = cxp - hw + 4 + k * (hw * .5); poly([x0, by - 18, x0 + hw * .5, by - 18 + hd * .25, x0 + hw * .5, by - 8, x0, by - 8 - hd * .25], k % 2 === 0 ? rgb(roof) : 0xf0e6d0); }
+  poly([cxp - 12, by - 2, cxp + 12, by - 2, cxp + 10, by - 9, cxp - 10, by - 9], rgb(WOOD_HONEY));
+  blob(cxp - 5, by - 11, 2.5, 2, 0xc0392b); blob(cxp + 2, by - 11, 2.5, 2, 0xe0b13c); blob(cxp + 8, by - 10, 2.2, 2, 0x6aa050);
+}
+function buildTower(wall: number[], roof: number[], hg: number): void {           // a watch tower: tall narrow box with a platform
+  const cxp = 40, by = 78;
+  poly([cxp - 9, by - 2, cxp, by + 3, cxp, by - hg, cxp - 9, by - hg - 4], shade(wall, .8)); poly([cxp, by + 3, cxp + 9, by - 2, cxp + 9, by - hg - 4, cxp, by - hg], shade(wall, .95));
+  poly([cxp - 13, by - hg - 4, cxp, by - hg + 3, cxp + 13, by - hg - 4, cxp, by - hg - 11], shade(roof, 1.1));
+  poly([cxp - 13, by - hg - 4, cxp, by - hg + 3, cxp + 13, by - hg - 4, cxp + 11, by - hg - 10, cxp, by - hg - 3, cxp - 11, by - hg - 10], shade(roof, .75));
+  poly([cxp - 3, by - hg - 7, cxp + 3, by - hg - 7, cxp + 3, by - hg - 16, cxp - 3, by - hg - 16], 0x6a5a40);
+}
+function buildHouse(id: number, wall: number[], roof: number[], hw: number, hg: number, kind: number, extra: number): void {
+  const cxp = 40, by = 78, hd = hw / 2;
+  poly([cxp - hw, by, cxp, by + hd, cxp, by + hd - hg, cxp - hw, by - hg], shade(wall, .8));
+  poly([cxp, by + hd, cxp + hw, by, cxp + hw, by - hg, cxp, by + hd - hg], shade(wall, .96));
+  const ry = (u: number): number => by + hd - u * hd / hw;           // the bottom edge of the right face at distance u from the centre corner
+  const d0 = cxp + hw * .3, w0 = cxp + hw * .65, l0 = cxp - hw * .55;
+  poly([d0, ry(hw * .3), d0 + 6, ry(hw * .3 + 6), d0 + 6, ry(hw * .3 + 6) - 12, d0, ry(hw * .3) - 12], 0x4a3626);
+  poly([w0, ry(hw * .65) - 8, w0 + 4, ry(hw * .65 + 4) - 8, w0 + 4, ry(hw * .65 + 4) - 13, w0, ry(hw * .65) - 13], 0xf0d890);
+  poly([l0, ry(hw * .55) - 8, l0 + 4, ry(hw * .55 - 4) - 8, l0 + 4, ry(hw * .55 - 4) - 13, l0, ry(hw * .55) - 13], 0xf0d890);
+  if (kind === 6) {                                               // a mill: peaked top and sails
+    poly([cxp - hw - 2, by - hg, cxp, by + hd + 2 - hg, cxp + hw + 2, by - hg, cxp, by - hd - 2 - hg, cxp, by - hg - 14], shade(roof, 1));
+    stroke([cxp, by - hg - 4, cxp - 20, by - hg - 26], 2, 0x6a5238, 255, false); stroke([cxp, by - hg - 4, cxp + 20, by - hg + 18], 2, 0x6a5238, 255, false);
+    stroke([cxp, by - hg - 4, cxp + 22, by - hg - 22], 2, 0x6a5238, 255, false); stroke([cxp, by - hg - 4, cxp - 20, by - hg + 14], 2, 0x6a5238, 255, false);
+    return;
+  }
+  const rise = 14 + extra * 3, e = 4;                             // hip roof with eaves
+  const lx = cxp - hw - e, rx = cxp + hw + e, ey = by - hg, byy = by + hd + e / 2 - hg, ty = by - hd - e / 2 - hg, ay = by - hg - rise;
+  poly([cxp, ty, lx, ey, cxp, ay], shade(roof, .6)); poly([rx, ey, cxp, ty, cxp, ay], shade(roof, .7));
+  poly([lx, ey, cxp, byy, cxp, ay], shade(roof, .86)); poly([cxp, byy, rx, ey, cxp, ay], shade(roof, 1.04));
+  if (id !== buildIds[0]) {                                       // a chimney on the workshops
+    poly([cxp - 12, by - hg - 4, cxp - 8, by - hg - 2, cxp - 8, by - hg - 14, cxp - 12, by - hg - 16], 0x5a4a44);
+    poly([cxp - 8, by - hg - 2, cxp - 5, by - hg - 4, cxp - 5, by - hg - 16, cxp - 8, by - hg - 14], 0x75635a);
+  }
+}
+function drawGate(id: number): void {
+  place(id);
+  const c = 40, b = 78;
+  ground(c, b + 2, 30);
+  poly([c - 26, b + 4, c - 20, b + 4, c - 20, b - 34, c - 26, b - 34], rgb(WOOD_BROWN)); poly([c + 20, b - 10, c + 26, b - 10, c + 26, b - 48, c + 20, b - 48], rgb(WOOD_BROWN));
+  poly([c - 28, b - 32, c + 28, b - 52, c + 28, b - 46, c - 28, b - 26], rgb(WOOD_HONEY));
+  poly([c - 20, b - 30, c + 20, b - 46, c + 20, b - 42, c - 20, b - 26], 0xc03a3a);
+}
+
+// ---- people ----
+function paletteOf(role: number): Palette {
+  const all: Palette[] = [P.SETTLER_PALETTE, P.RESIDENT_PALETTE, P.LUMBERJACK_PALETTE, P.HUNTER_PALETTE, P.FISHER_PALETTE, P.SAWYER_PALETTE, P.SMOKER_PALETTE, P.PORTER_PALETTE, P.FARMER_PALETTE, P.MILLER_PALETTE, P.BAKER_PALETTE, P.VENDOR_PALETTE, P.TANNER_PALETTE, P.QUARRYMAN_PALETTE, P.PEDDLER_PALETTE, P.FORAGER_PALETTE, P.SMITH_PALETTE, P.BEEKEEPER_PALETTE, P.CHANDLER_PALETTE, P.BREWER_PALETTE, P.INNKEEPER_PALETTE, P.FIREWARDEN_PALETTE, P.REPAIRMAN_PALETTE, P.WATCHMAN_PALETTE, P.ROBBER_PALETTE, P.RIOTER_PALETTE];
+  return all[Math.min(role, all.length - 1)];
+}
+function drawRole(role: number): void {
+  const pal = paletteOf(role);
+  const shirt = pal.shirt, legs = pal.legs, hair = pal.hair, skin = pal.skin;
+  for (let d = 0; d < DIRS; d++) for (let f = 0; f < FRAMES; f++) {
+    const id = personId(role, d, f);
+    place(id);
+    const a = d * Math.PI / 4, dx = Math.cos(a), dy = Math.sin(a), fx = 10, fy = 28;
+    const swing = Math.sin(f / FRAMES * 6.2832) * 3, bob = Math.abs(Math.sin(f / FRAMES * 6.2832)) * 1.2, sideways = Math.abs(dx) > .5;
+    blob(fx, fy, 6, 2.6, 0x000000, 70);
+    const lx = sideways ? swing * Math.sign(dx) : 0, wid = sideways ? 2.4 : 3.4;
+    poly([fx - wid - lx * .5 - 1, fy - 10 - bob * .5, fx - wid + lx - 1, fy, fx - wid + lx + 1.6, fy, fx - wid - lx * .5 + 1.4, fy - 10 - bob * .5], shade(legs, .85));
+    poly([fx + wid + lx * .5 - 1.4, fy - 10 - bob * .5, fx + wid - lx - 1.6, fy, fx + wid - lx + 1, fy, fx + wid + lx * .5 + 1, fy - 10 - bob * .5], shade(legs, 1.05));
+    const bx = dx * 1.2;
+    poly([fx - 5 + bx, fy - 10 - bob, fx + 5 + bx, fy - 10 - bob, fx + 4.5 + bx, fy - 19 - bob, fx - 4.5 + bx, fy - 19 - bob], rgb(shirt));
+    poly([fx - 5 + bx, fy - 12 - bob, fx + 5 + bx, fy - 12 - bob, fx + 5 + bx, fy - 14 - bob, fx - 5 + bx, fy - 14 - bob], rgb(pal.stripe));
+    const armSwing = sideways ? swing * .6 : 0;
+    poly([fx - 7 + bx, fy - 18 - bob, fx - 5 + bx, fy - 18 - bob, fx - 5.4 + bx + armSwing, fy - 10 - bob, fx - 7.4 + bx + armSwing, fy - 10 - bob], shade(shirt, .8));
+    poly([fx + 5 + bx, fy - 18 - bob, fx + 7 + bx, fy - 18 - bob, fx + 7.4 + bx - armSwing, fy - 10 - bob, fx + 5.4 + bx - armSwing, fy - 10 - bob], shade(shirt, .8));
+    const hx = fx + bx + dx * .8;
+    blob(hx, fy - 23 - bob, 3.6, 3.8, rgb(skin));
+    if (dy < -.3) blob(hx, fy - 23.6 - bob, 3.7, 3.7, rgb(hair));                                   // facing away: hair covers the head
+    else poly([hx - 3.7, fy - 24 - bob, hx + 3.7, fy - 24 - bob, hx + 3, fy - 27.5 - bob, hx - 3, fy - 27.5 - bob], rgb(hair));
+  }
+}
+
+// ---- animals ----
+function drawAnimal(kind: number): void {
+  // kind: 0 doe, 1 stag, 2 rabbit, 3 boar, 4 wolf
+  const fur = kind <= 1 ? FUR : kind === 2 ? RABBIT_FUR : kind === 3 ? BOAR_FUR : WOLF_FUR;
+  const dark = kind <= 1 ? FUR_DARK : kind === 2 ? RABBIT_DARK : kind === 3 ? BOAR_DARK : WOLF_DARK;
+  const light = kind <= 1 ? FUR_LIGHT : kind === 2 ? RABBIT_LIGHT : kind === 3 ? BOAR_LIGHT : WOLF_LIGHT;
+  const len = [9, 10, 4.5, 8, 8][kind], thick = [4.6, 5, 3, 5.2, 4][kind], legH = [8, 9, 3, 5, 7][kind];
+  for (let d = 0; d < DIRS; d++) for (let f = 0; f < FRAMES; f++) {
+    const id = animalId(kind, d, f);
+    place(id);
+    const a = d * Math.PI / 4, ux = Math.cos(a), uy = Math.sin(a) * .62, fx = 24, fy = 26;     // body axis on the screen (the ground is foreshortened)
+    const ph = f / FRAMES * 6.2832, hop = kind === 2 ? Math.abs(Math.sin(ph)) * 3 : 0;
+    blob(fx, fy, len + 3, (len + 3) * .45, 0x000000, 62);
+    const bcx = fx, bcy = fy - legH - thick * .6 - hop;
+    for (let l = 0; l < 4; l++) {                                  // legs: front pair and rear pair, swinging
+      const along = (l < 2 ? 1 : -1) * len * .62, side = (l & 1 ? 1 : -1) * 2.2, sw = Math.sin(ph + (l === 1 || l === 2 ? 3.14 : 0)) * 2.2;
+      const px = fx + ux * along, py = fy + uy * along + side * .5 - 1;
+      stroke([px, bcy + 2, px + sw * ux, py - hop * .3], 1.7, shade(rgbArr(dark), l & 1 ? .7 : 1), 255, false);
+    }
+    const pts: number[] = [];
+    for (let k = 0; k < 14; k++) { const t = k / 14 * 6.2832, lx = Math.cos(t) * len, ly = Math.sin(t) * thick; pts.push(bcx + lx * ux, bcy + lx * uy + ly); }
+    poly(pts, rgb(fur));
+    const pts2: number[] = [];
+    for (let k = 0; k < 14; k++) { const t = k / 14 * 6.2832, lx = Math.cos(t) * len * .7, ly = Math.sin(t) * thick * .5 + thick * .3; pts2.push(bcx + lx * ux, bcy + lx * uy + ly); }
+    poly(pts2, rgb(light), 150);
+    const hx = bcx + ux * (len + 1.5), hy = bcy + uy * (len + 1.5) - (kind <= 1 ? 4 : kind === 3 ? -.5 : 1);     // head
+    if (kind <= 1) stroke([bcx + ux * len * .6, bcy + uy * len * .6 - 1, hx, hy], 2.6, rgb(fur), 255, false);
+    blob(hx, hy, kind === 2 ? 2.3 : kind === 3 ? 3.2 : 2.7, kind === 2 ? 2.2 : 2.5, rgb(fur));
+    if (uy > -.2) blob(hx + ux * 1.6, hy + .4, 1.1, 1, rgb(dark));
+    if (kind === 2) stroke([hx, hy - 1, hx - 1.5 * (ux >= 0 ? 1 : -1), hy - 6], 1.5, rgb(fur), 255, false);       // ears
+    if (kind === 1) { for (let s = -1; s <= 1; s += 2) { stroke([hx, hy - 2, hx + s * 3, hy - 7], 1.1, 0xe6d6b0, 255, false); stroke([hx + s * 2, hy - 5, hx + s * 4, hy - 9], 1, 0xe6d6b0, 255, false); } }
+    if (kind === 0) stroke([hx, hy - 1.5, hx - 1, hy - 4.5], 1.4, rgb(fur), 255, false);
+    blob(bcx - ux * (len + .5), bcy - uy * (len + .5) - 1, 1.6, 1.6, kind <= 1 ? rgb(light) : rgb(dark));   // tail
+  }
+}
+function rgbArr(c: number[]): number[] { return c; }
+
+// ---- the job list ----
+let next = 0;
+export function initAtlas(): void {
+  if (sheet.image >= 0) return;
+  cx = 1; cy = 1; rowH = 0;
+  for (let v = 0; v < TREE_KINDS; v++) for (let s = 0; s < SEASONS; s++) for (let w = 0; w < SWAYS; w++) treeBase.push(reg(56, 84, 28, 78));
+  for (let k = 0; k < 6; k++) rockIds.push(reg(40, 30, 20, 24));
+  for (let k = 0; k < MODEL_IDS.length + 3; k++) buildIds.push(reg(80, 96, 40, 78));
+  for (let r = 0; r < ROLES; r++) { personBase.push(sx.length); for (let k = 0; k < DIRS * FRAMES; k++) reg(20, 32, 10, 28); }
+  for (let k = 0; k < ANIMAL_KINDS; k++) { animalBase.push(sx.length); for (let n = 0; n < DIRS * FRAMES; n++) reg(48, 32, 24, 26); }
+  carryId.box = reg(10, 10, 5, 8);
+  const ph = cy + rowH + 2;
+  openPage(PAGE, ph);
+  sheet.image = createImage(PAGE, ph);
+  sheet.h = ph;
+  for (let s = 0; s < SEASONS; s++) {
+    jobs.push((): void => { for (let v = 0; v < TREE_KINDS; v++) for (let w = 0; w < SWAYS; w++) drawTree(treeId(v, s, w), v, s, w); ready.trees[s] = true; });
+  }
+  jobs.push((): void => { for (let k = 0; k < 6; k++) drawRock(k); ready.rocks = true; });
+  jobs.push((): void => {
+    for (let k = 0; k < MODEL_IDS.length; k++) drawBuilding(buildIds[k], lookOf(k), 0);
+    drawGate(buildIds[GATE_MODEL]);
+    drawBuilding(buildIds[GATE_MODEL + 1], lookOf(0), 1); drawBuilding(buildIds[GATE_MODEL + 2], lookOf(0), 2);
+    ready.buildings = true;
+  });
+  for (let r = 0; r < ROLES; r++) { ready.people.push(false); jobs.push((): void => { drawRole(r); ready.people[r] = true; }); }
+  for (let k = 0; k < ANIMAL_KINDS; k++) jobs.push((): void => { drawAnimal(k); ready.animals[k] = true; });
+  jobs.push((): void => {
+    place(carryId.box); poly([1, 3, 5, 1, 9, 3, 5, 5], 0xc8a068); poly([1, 3, 5, 5, 5, 9, 1, 7], 0x9a7648); poly([5, 5, 9, 3, 9, 7, 5, 9], 0xb08c58);
+    ready.all = true;
+  });
+  next = 0;
+}
+/** Runs jobs until the budget (ms) is spent; true while some remain. The current season's trees go first. */
+export function bakeStep(budgetMs: number, firstSeason: number): boolean {
+  if (sheet.image < 0 || next >= jobs.length) return false;
+  if (next === 0 && firstSeason > 0) { const j = jobs[firstSeason]; jobs[firstSeason] = jobs[0]; jobs[0] = j; }
+  const t0 = performance.now();
+  while (next < jobs.length) {
+    jobs[next](); next++;
+    if (performance.now() - t0 > budgetMs) break;
+  }
+  updatePixels(sheet.image, page.px, false);
+  return next < jobs.length;
+}

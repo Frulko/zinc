@@ -1,3 +1,4 @@
+import { env } from 'zinc:sys';
 import { TREE_MIN, TREE_REGROW, DEER_MIN, DEER_RESPAWN } from './constants';
 
 // Live settings: the panel (ui/SettingsPanel.ts) edits these while the game runs, the game reads them every frame or step.
@@ -35,10 +36,11 @@ export interface Settings {
   minimapUnits: boolean;    // people and deer as dots
   ambienceVolume: number;   // 0..1: the wind, forest and water loops and the birds, crickets and owls
   sfxVolume: number;        // 0..1: every other sound (interface, building, work, signals)
+  view: string;             // 'pixel' (the software renderer of src/view) or 'cite' (the GPU tile view of src/cite); ZINC_HAMLET_VIEW=cite picks it for a run
 }
 
 export const settings: Settings = {
   simSpeed: 1, animFps: 24, wind: 1, shadows: true, atlas: true, hints: true, thoughts: true, fx: true, appeal: false, edges: true, walkSpeed: 1,
   treeMin: TREE_MIN, treeRegrow: TREE_REGROW, deerMin: DEER_MIN, deerRespawn: DEER_RESPAWN,
-  lod: 0, resample: 1, pauseOnMove: true, edgePan: true, minimapCorner: 3, minimapSize: 2, minimapUnits: true, ambienceVolume: 1, sfxVolume: 1,
+  lod: 0, resample: 1, pauseOnMove: true, edgePan: true, minimapCorner: 3, minimapSize: 2, minimapUnits: true, ambienceVolume: 1, sfxVolume: 1, view: env('ZINC_HAMLET_VIEW') === 'cite' ? 'cite' : 'pixel',
 };
