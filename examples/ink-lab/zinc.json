@@ -1,0 +1,23 @@
+{
+  "name": "ink-lab",
+  "entry": "src/main.tsx",
+  "app": {
+    "name": "Ink Lab",
+    "id": "dev.zinc.inklab",
+    "version": "0.1.0",
+    "orientation": "landscape"
+  },
+  "display": {
+    "driver": "rmpp",
+    "refresh_mode": "ui",
+    "header": "remarkable"
+  },
+  "targets": {
+    "macos": { "width": 1320, "height": 900, "resize": "fill" },
+    "linux": { "width": 810, "height": 1080 }
+  },
+  "permissions": [],
+  "scheme": "light",
+  "text": "shaped",
+  "icons": ["rotate-ccw", "undo-2"]
+}

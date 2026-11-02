@@ -1,0 +1,7 @@
+lab-state marks=A ink=2 guess=A
+lab-state marks=A,E ink=6 guess=E
+lab-state marks=A,E,x,line ink=8 guess=line
+lab-state marks=A,E,x ink=7 guess=-
+lab-state marks= ink=0 guess=-
+lab-state marks=tick ink=1 guess=tick
+lab-state marks=?,V ink=2 guess=V
