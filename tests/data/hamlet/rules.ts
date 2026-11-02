@@ -33,7 +33,7 @@ import { seedRandom } from '../../../examples/hamlet/src/world/world';
 import { housingReport, capacityOf } from '../../../examples/hamlet/src/rules/housing';
 import { computeAppeal, appealTiles } from '../../../examples/hamlet/src/rules/appeal';
 import { PRESETS } from '../../../examples/hamlet/src/gen/presets';
-import { terrain, TerrainParams, TerrainLayers } from '../../../examples/hamlet/src/gen/terrain';
+import { terrain, TerrainParams, TerrainLayers, GEN_CLUSTERED } from '../../../examples/hamlet/src/gen/terrain';
 import { issue, replayAt } from '../../../examples/hamlet/src/rules/commands';
 import { canStart } from '../../../examples/hamlet/src/rules/adventure';
 import { offerLines, canTrade } from '../../../examples/hamlet/src/rules/trade';
@@ -976,7 +976,8 @@ console.log('hamlet rules: statehash ' + hashed);
 const rngBefore = world.rng;
 check('the save restores the state hash and the generator', restore(snapshot()) && stateHash() === hashed && world.rng === rngBefore);
 // ---- map presets: deterministic on every engine, a plain default, every required deposit reachable on foot from the gate, params kept by a save ----
-check('the first preset is the default village', JSON.stringify(PRESETS[0].params) === JSON.stringify(new TerrainParams()));
+const defaultVillage = new TerrainParams(); defaultVillage.genStyle = GEN_CLUSTERED;   // the presets use the clustered generator
+check('the first preset is the default village', JSON.stringify(PRESETS[0].params) === JSON.stringify(defaultVillage));
 let presetHash = 2166136261;
 for (const pr of PRESETS) for (const size of [24, 40]) {
   const copy = (): TerrainParams => { const q = new TerrainParams(); q.waterAmount = pr.params.waterAmount; q.river = pr.params.river; q.forestDensity = pr.params.forestDensity; q.rockDensity = pr.params.rockDensity; q.biome = pr.params.biome; q.coast = pr.params.coast; q.outcrop = pr.params.outcrop; q.flowers = pr.params.flowers; q.biomes = pr.params.biomes; return q; };
