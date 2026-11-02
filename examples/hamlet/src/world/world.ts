@@ -119,6 +119,8 @@ export function tileAt(x: number, y: number): number {
   const i = Math.floor((x + world.half) / TILE), j = Math.floor((y + world.half) / TILE);
   return i < 0 || j < 0 || i >= world.size || j >= world.size ? -1 : tileIndex(i, j);
 }
+/** A world point on the playable map: inside the grid and not on the dissolved border. What the views draw stands on such points only. */
+export function onMap(x: number, y: number): boolean { const t = tileAt(x, y); return t >= 0 && world.terrain[t] !== TERRAIN_VOID; }
 /** The tile next to t in direction d (0:+x 1:-x 2:+y 3:-y), or -1. */
 export function neighbor(t: number, d: number): number {
   const i = tileI(t) + NEIGHBOR_DI[d], j = tileJ(t) + NEIGHBOR_DJ[d];

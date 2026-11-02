@@ -90,6 +90,7 @@ function generate(seed: number, size: number = 24, params: TerrainParams | null 
 generate(7916, 12);
 const at = (i: number, j: number): number => tileIndex(i, j);
 for (const t of [at(1, 6), at(2, 6), at(3, 6), at(4, 6), at(5, 6), at(3, 5), at(2, 5), at(4, 7), at(5, 5)]) { world.tree[t] = 0; world.rock[t] = 0; }
+for (const t of [at(7, 8), at(8, 7), at(6, 9), at(5, 8), at(8, 9)]) if (world.terrain[t] === 0 && world.rock[t] === 0) world.tree[t] = 2;   // the ring of the map is border now: the wood this fixture used to find there is planted
 
 check('a house needs a road', checkTool(TOOL_HOUSE, at(3, 5)) === PLACE_NO_ROAD);
 for (let i = 1; i <= 5; i++) applyTool(TOOL_ROAD, at(i, 6));

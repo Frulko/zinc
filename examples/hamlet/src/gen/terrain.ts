@@ -75,7 +75,8 @@ export function terrain(seed: number, w: number, h: number, p: TerrainParams): T
   for (let t = 0; t < n; t++) {
     const i = t % w, j = Math.floor(t / w), x = (i + .5) * ts - halfX, y = (j + .5) * ts - halfY;
     const ex = x / halfX, ey = y / halfY, edge = Math.sqrt(Math.sqrt(ex * ex * ex * ex + ey * ey * ey * ey));
-    if (p.edge > 0 && edge > p.edge && !(p.clearR > 0 && Math.abs(i - p.clearI) + Math.abs(j - p.clearJ) <= p.clearR)) { l.outside[t] = 1; continue; }   // the entrance is never cut off by the border
+    const rim = i === 0 || j === 0 || i === w - 1 || j === h - 1;                                  // the outermost ring renders half out of the map: it is border too
+    if (p.edge > 0 && (edge > p.edge || rim) && !(p.clearR > 0 && Math.abs(i - p.clearI) + Math.abs(j - p.clearJ) <= p.clearR)) { l.outside[t] = 1; continue; }   // the entrance is never cut off by the border
     if (p.coast > 0 && j > h * (.9 - p.coast * .14) + (noise(i * .3 + l.offsetX, 7.7) - .5) * h * .1) { l.water[t] = 1; continue; }
     if (p.waterAmount > 0 && pondField(l, x, y) < 1) { l.water[t] = 1; continue; }
     if (p.clearR > 0 && Math.abs(i - p.clearI) + Math.abs(j - p.clearJ) <= p.clearR) continue;   // the entrance stays clear

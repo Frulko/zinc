@@ -1,5 +1,5 @@
 import * as storage from 'zinc:storage';
-import { SAVE_KEY, SAVE_VERSION, HOUSE, ROCK_DEPOSIT } from '../constants';
+import { SAVE_KEY, SAVE_VERSION, HOUSE, ROCK_DEPOSIT, TERRAIN_VOID } from '../constants';
 import { TerrainParams } from '../gen/terrain';
 import { world, Offer, Expedition, generate, recount, tileIndex, tileCount } from './world';
 import { addBuilding } from '../rules/build';
@@ -63,10 +63,11 @@ export function restore(text: string): boolean {
   const heights = fields.length > 20 ? fields[20] : '';
   if (fields[0] !== 'H19' && heights.length === world.size * world.size) for (let t = 0; t < heights.length; t++) world.height[t] = parseInt(heights.charAt(t), 16);
   else if (fields[0] === 'H19') world.height.fill(0);
-  for (const t of numbers(fields[3])) { world.road[t] = 1; world.deco[t] = 0; }
+  for (const t of numbers(fields[3])) if (world.terrain[t] !== TERRAIN_VOID) { world.road[t] = 1; world.deco[t] = 0; }   // what an older save holds on the border (the rim of a map) is dropped, never moved
   if (fields[4] !== '') {
     for (const entry of fields[4].split(',')) {
       const parts = entry.split('.'), type = Number(parts[0]), tile = Number(parts[1]);
+      if (world.terrain[tile] === TERRAIN_VOID) continue;
       const id = world.build[tile] >= 0 ? world.build[tile] : addBuilding(type, tile);       // the hall already stands, empty of its start stock
       const b = world.buildings[id];
       b.stock = sized(parts[3], b.stock.length); b.fed = sized(parts[7], b.fed.length); b.cover = sized(parts[4], b.cover.length);
@@ -80,10 +81,10 @@ export function restore(text: string): boolean {
     }
   }
   world.tree.fill(0);                                    // the saved list is the whole forest: felled and regrown trees included
-  if (fields[5] !== '') for (const entry of fields[5].split(',')) { const parts = entry.split('.'); world.tree[Number(parts[0])] = Number(parts[1]); }
+  if (fields[5] !== '') for (const entry of fields[5].split(',')) { const parts = entry.split('.'); if (world.terrain[Number(parts[0])] !== TERRAIN_VOID) world.tree[Number(parts[0])] = Number(parts[1]); }
   world.unlimited = fields[6] === '1';
   for (let t = 0; t < tileCount(); t++) if (world.rock[t] >= ROCK_DEPOSIT) { world.rock[t] = 0; world.lode[t] = 0; }   // the saved list is every deposit left, worked ones included
-  if (fields[11] !== '') for (const entry of fields[11].split(',')) { const parts = entry.split('.'); world.rock[Number(parts[0])] = Number(parts[1]); world.lode[Number(parts[0])] = Number(parts[2]); }
+  if (fields[11] !== '') for (const entry of fields[11].split(',')) { const parts = entry.split('.'); if (world.terrain[Number(parts[0])] === TERRAIN_VOID) continue; world.rock[Number(parts[0])] = Number(parts[1]); world.lode[Number(parts[0])] = Number(parts[2]); }
   for (let k = 0; k < world.goals.length; k++) world.goals[k] = fields[12].charAt(k) === '1' ? 1 : 0;
   for (let k = 0; k < world.unlocked.length; k++) world.unlocked[k] = fields[13].charAt(k) === '0' ? 0 : 1;
   world.offers = []; world.peddlerLeft = Number(fields[15]);

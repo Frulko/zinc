@@ -46,6 +46,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - Zooming out in Hamlet no longer leaves the village as a small clipped rectangle in the dark while the new view is prepared; the picture stays until it can grow smaller.
 - In a Hamlet city whose labour pool is under 100 %, people outside the pool no longer count as jobless (no permanent mood penalty, newcomers keep coming), and a scarce pool staffs every workshop once before filling any twice, so a sawmill is no longer left empty beside full lumber huts.
+- Hamlet no longer puts trees, rocks, deposits, flowers, animals or people on the dark border of the map: the outermost ring of tiles is border too (the entrance excepted), saves from before drop what stood there, and both views refuse to draw anything over it.
 
 ### Graphics
 

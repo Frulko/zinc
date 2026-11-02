@@ -1,5 +1,5 @@
 import { drawImageRect, rect, polygon, stroke, clip, unclip } from 'zinc:gfx';
-import { world } from '../world/world';
+import { world, onMap, Mover } from '../world/world';
 import { TILE, TERRAIN_VOID, TERRAIN_WATER, TERRAIN_GRASS, ST_SLEEP, ST_STROLL, ST_GO_WORK, ST_SEEK, ST_TO_TREE, ST_TO_SITE, ST_STALK, ST_TO_BODY, ST_TO_SHORE, ST_FETCH, ST_BRING, ST_ROAM, ST_ROAM_BACK, ST_TO_LODE, ST_HOME, ST_FREE, ST_RAID, ST_FLEE, ST_WALK_IN, DEER_GONE, DEER_DEAD, DEER_WALK, DEER_FLEE, DEER_STALK, DEER_CHASE, DEER_GRAZE, ST_CHOP, ST_WORK, ST_MINE, ST_AIM, ST_SHOT, ST_FISH, ST_PICK } from '../constants';
 import { monthStep } from '../view/seasons';
 import { hash } from '../world/noise';
@@ -56,6 +56,7 @@ function ensureBins(): void {
 }
 
 function tileThings(t: number, i: number, j: number, time: number, sea: number): void {
+  if (world.terrain[t] === TERRAIN_VOID) return;                  // nothing stands on the border
   const R = A.at.ready, v = world.tree[t], r = world.rock[t], id = world.build[t];
   if (R.all && v === 0 && r === 0 && id < 0) {                    // the ground's own life: glints on the water, grass that sways in the wind
     const q = hash(t, 21);
@@ -76,6 +77,8 @@ function tileThings(t: number, i: number, j: number, time: number, sea: number):
 }
 
 function drawActor(k: number, time: number): void {
+  const nA = world.people.length + world.deer.length, who: Mover = k < world.people.length ? world.people[k] : k < nA ? world.deer[k - world.people.length] : world.crime.outlaws[k - nA];
+  if (!onMap(who.x, who.y)) return;                                // an actor never shows over the border
   const nP = world.people.length, nD = world.deer.length;
   const z = cam.zoom;
   if (k < nP) {
