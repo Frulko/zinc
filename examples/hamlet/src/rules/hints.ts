@@ -1,4 +1,4 @@
-import { HOUSE, BS_WAITING, BS_FULL, BS_ISOLATED, BS_NO_SOURCE, ROLE_SETTLER, ROLE_RESIDENT } from '../constants';
+import { HOUSE, TOOL_ROAD, TOOL_HOUSE, BS_WAITING, BS_FULL, BS_ISOLATED, BS_NO_SOURCE, ROLE_SETTLER, ROLE_RESIDENT } from '../constants';
 import { world, neighbor } from '../world/world';
 import { economy, ServiceDef, Service } from '../world/economy';
 import { housingReport } from './housing';
@@ -6,6 +6,7 @@ import { worksites, servicesOffered, houseNeeds, HouseNeeds } from './needs';
 import { flowersAround } from './meadow';
 import { population } from '../engine/villagers';
 import { isRuin } from '../engine/risk';
+import { isUnlocked } from './goals';
 
 // Attention hints: what the player should look at, as a pure function of the world (no drawing, no state). The view draws an arrow over each tile.
 export const HINT_NO_ROAD = 'no_road';              // a building that needs a road has none to a store: nothing leaves it and nothing comes
@@ -120,4 +121,32 @@ export function hintText(h: Hint): string {
   if (key === HINT_NO_WORKERS) return 'Personne pour travailler ici : posez une maison, ou donnez la priorité à ce bâtiment.';
   if (key === HINT_IDLE_WORKERS) return res === 'home' ? 'Des habitants n’ont pas de travail : posez un atelier.' : 'Ce chantier attend des bras.';
   return 'Tracez une route depuis la porte, puis posez une maison.';
+}
+
+/** The guided start: four steps for a new player (a road from the gate, a house, a lumber hut, a well), each done when the village holds it. A step whose building is locked is skipped. */
+export class GuideStep { id: string = ''; tool: number = -1; title: string = ''; text: string = ''; done: boolean = false; }
+export function guideSteps(): GuideStep[] {
+  const out: GuideStep[] = [];
+  const step = (id: string, tool: number, title: string, text: string, done: boolean): void => { const s = new GuideStep(); s.id = id; s.tool = tool; s.title = title; s.text = text; s.done = done; out.push(s); };
+  let roads = 0;
+  for (let t = 0; t < world.road.length; t++) if (world.road[t] !== 0) roads++;
+  const has = (type: number): boolean => { for (const b of world.buildings) if (b.alive && b.type === type) return true; return false; };
+  let hut = -1, well = -1;
+  const water = economy.serviceOf('water');
+  for (let type = 0; type < economy.buildings.length; type++) {
+    const d = economy.buildings[type];
+    if (!d.buildable) continue;
+    if (hut < 0 && d.gather === 'tree' && d.workers > 0) hut = type;
+    if (well < 0 && water >= 0 && d.service !== null && d.service.service === water && !d.service.walker) well = type;
+  }
+  step('road', TOOL_ROAD, 'Une route', 'Choisissez Route puis glissez depuis la porte du hameau : tout part de là.', roads >= 3);
+  step('house', TOOL_HOUSE + HOUSE, 'Une maison', 'Posez une maison au bord de la route : les habitants arrivent par la porte.', has(HOUSE));
+  if (hut >= 0 && isUnlocked(hut)) step('hut', TOOL_HOUSE + hut, 'Du bois', 'Posez une cabane de bûcheron au bord de la route, près des arbres : elle donne le bois pour bâtir.', has(hut));
+  if (well >= 0 && isUnlocked(well)) step('well', TOOL_HOUSE + well, 'De l’eau', 'Posez un puits près des maisons : les maisons desservies s’agrandissent.', has(well));
+  return out;
+}
+/** The first step not done yet, or null when the guide is over. */
+export function guideNow(): GuideStep | null {
+  for (const s of guideSteps()) if (!s.done) return s;
+  return null;
 }

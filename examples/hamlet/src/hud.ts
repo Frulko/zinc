@@ -4,18 +4,37 @@ import { world } from './world/world';
 import { economy, BuildingDef, Housing } from './world/economy';
 import { isUnlocked } from './rules/goals';
 import { population, isConnected } from './engine/villagers';
+import { labourStats, Labour } from './rules/labour';
+import { ui } from './ui/state';
 
 function count(type: number): number {
   let n = 0;
   for (const b of world.buildings) if (b.alive && b.type === type) n++;
   return n;
 }
-/** A resource shows once the village holds some or a building that makes it stands. */
-export function resourceShown(k: number): boolean {
-  let made = false;
-  for (const b of world.buildings) if (b.alive && economy.buildings[b.type].outputs[k] > 0) made = true;
-  return world.stock[k] > 0 || made || economy.start[k] > 0;
+// The top bar and the advisors read the village through this snapshot, refreshed about once a second or when the map changes: the scans over buildings and people cost O(1) per frame.
+export class Summary { shown: number[] = []; matters: number[] = []; food: number[] = []; people: number = 0; labour: Labour = new Labour(); rev: number = -1; at: number = -100; }
+const snap = new Summary();
+/** The snapshot, refreshed when a second went by (real time) or the village changed. */
+export function summary(): Summary {
+  if (snap.rev === world.revision && ui.time - snap.at < 1 && ui.time >= snap.at) return snap;
+  snap.rev = world.revision; snap.at = ui.time;
+  snap.shown = []; snap.matters = [];
+  const made: boolean[] = economy.resources.map((): boolean => false), paid: boolean[] = economy.resources.map((): boolean => false);
+  for (const b of world.buildings) if (b.alive) { const d = economy.buildings[b.type]; for (let k = 0; k < made.length; k++) if (d.outputs[k] > 0) made[k] = true; }
+  for (const d of economy.buildings) if (d.buildable) for (let k = 0; k < paid.length; k++) if (d.cost[k] > 0) paid[k] = true;
+  const h = economy.buildings[HOUSE].housing as Housing;
+  snap.food = h.eats.slice();
+  for (let k = 0; k < economy.resources.length; k++) {
+    if (world.stock[k] > 0 || made[k] || economy.start[k] > 0) { snap.shown.push(k); if (paid[k] && snap.food.indexOf(k) < 0) snap.matters.push(k); }
+  }
+  snap.people = population(); snap.labour = labourStats();
+  return snap;
 }
+/** A resource shows once the village holds some or a building that makes it stands. */
+export function resourceShown(k: number): boolean { return summary().shown.indexOf(k) >= 0; }
+/** The stock of all the foods the houses eat. */
+export function foodStock(): number { let n = 0; for (const k of summary().food) n += world.stock[k]; return n; }
 export function resourceLine(): string {
   const parts: string[] = [];
   for (let k = 0; k < economy.resources.length; k++) if (resourceShown(k)) parts.push(economy.resources[k].label + ' ' + world.stock[k]);

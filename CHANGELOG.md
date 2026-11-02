@@ -17,7 +17,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Villagers have moods, sleep at night, stroll to the market and show their thoughts; deer, rabbits and boar live in herds, wolves can roam forest maps, and birds, ducks and fish share the scene. Working a resource shows it: trees shiver and fall, rocks throw chips.
 - Fire, collapse and theft risks with a fire post, a repair works and a watch post; Easy, Normal and Hard difficulties.
 - A GPU tile view for Hamlet (`ZINC_HAMLET_VIEW=cite`): isometric tiles with slopes, cliffs and snow by height, smooth pointer-anchored zoom, inertia panning and a placement ghost, drawing only what is on screen.
-- The Tree window (`T`) draws the production chains; a technical window (`F3`) shows frame times, the world and the tile under the pointer; windows drag by their title bar and close with their button or `Esc`.
+- A technical window (`F3`) shows frame times, the world and the tile under the pointer; windows drag by their title bar and close with their button or `Esc`.
 - Message clicks point an arrow at the place, and a double click opens its window. Separate volumes for ambience and effects, with synthesised sounds.
 - Hamlet villagers and carts now keep to the roads: a workshop whose road does not lead to the village entrance stays idle and says so, service walkers (market, fire, watch) go straight on and take turns at junctions, covering the houses within two tiles, and a store can be set to accept, refuse or only collect a good.
 - Hamlet land now has relief: hills, plateaus, rivers in valleys and, in the new Montagnes landscape, mountain ranges whose rock cannot be built on and which hold the ore. Houses need level ground, roads climb one level a tile at a higher cost, walkers slow down on slopes, and nothing crosses a cliff. The minimap is shaded by height.
@@ -27,9 +27,15 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - Every resource has its harvest time, yield and percentage in `economy.json`; the campaign is balanced to be winnable.
 - Hamlet saves from before this version start a new village.
+- The production-chain tree window is gone: Hamlet now explains itself, like Caesar III. The top bar shows population, jobs filled against places (with the unemployed or the empty posts), the goods that matter and the food; recipes and costs are in the build menu tooltips.
+- The advisors (`F`) are rewritten: Work, Housing (per house level, how many houses lack what, and what to build), Food and stores, Services, Safety and People, each problem line saying what to build.
+- Click any building: it says what it does, what it needs and, in one sentence, why it stands idle (no road, off the entrance network, no workers, missing input, store full). Stores get accept, refuse or fetch orders per good, and workplaces a labour priority.
+- Hamlet map overlays follow the slopes in the tile view, count the houses served or short, and show where a well reaches.
+- A four-step guided start (a road from the gate, a house, a lumber hut, a well) shows on a new village and can be dismissed with Pass.
 
 #### Faster
 
+- The Hamlet top bar no longer scans every building each frame.
 - Large Hamlet maps open much faster and use much less memory, and panning is up to 40 % faster on the interpreter.
 - A Hamlet village of 500 people and 300 animals now steps in about 1.5 ms instead of 58 ms, on maps of 128 and 256 tiles.
 

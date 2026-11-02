@@ -82,3 +82,17 @@ export function housingReport(b: Building): HousingReport {
   r.text = text;
   return r;
 }
+
+/** The buildings that give a service (their labels), for "posez : ..." lines. */
+export function providersOf(service: number): string[] {
+  const out: string[] = [];
+  for (const def of economy.buildings) if (def.service !== null && def.service.service === service && def.buildable) out.push(def.label);
+  return out;
+}
+/** What to build for an unmet requirement id (a service, 'food' or 'appeal'), as a short instruction. */
+export function buildAdvice(id: string): string {
+  if (id === 'food') return 'posez une ferme, une pêche ou une chasse, et un marché';
+  if (id === 'appeal') return 'plus d’agrément : puits, taverne, arbres, eau ; éloignez les ateliers';
+  const k = economy.serviceOf(id);
+  return k < 0 ? '' : 'posez : ' + providersOf(k).join(' ou ').toLowerCase();
+}

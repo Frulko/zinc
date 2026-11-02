@@ -38,11 +38,11 @@ import { look, record, Snapshot, beginGroup, endGroup, undo, drawPlacementLabel,
 import { planRoad, linePath, RoadPlan, buildRoad, demolishRoad, costOf } from './rules/roadplan';
 import { WIN_MAIN } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
+import { drawGuide } from './ui/Guide';
 import { loadPrefs, savePrefs } from './ui/prefs';
 import { drawOverlay, drawReach, drawOverlayMenu, drawLegend } from './ui/Overlays';
 import { drawAdvisors, sampleHistory, openAdvisor } from './ui/Advisors';
 import { drawCampaign, openCampaign } from './ui/Campaign';
-import { drawTree, openTree, treeScroll, treeDrag } from './ui/Tree';
 import { perfBegin, perfEnd, perfFrame } from './ui/PerfTrace';
 import { drawDebug, drawDebugWindow, cycleDebug, debugBegin, debugLap, debugHooks } from './ui/Debug';
 import { drawEnding, checkEnding, resetEnding } from './ui/Ending';
@@ -133,7 +133,7 @@ export class HamletScene extends Sprite {
       refreshModels: (): void => { refreshModels(); this.baked = world.revision; },
     });
     this.panel = built.panel; this.fpsRow = built.fps; this.panel.open = false;
-    winRegister('info', drawInfo); winRegister('campaign', drawCampaign); winRegister('tree', drawTree); winRegister('advisors', drawAdvisors);
+    winRegister('info', drawInfo); winRegister('campaign', drawCampaign); winRegister('advisors', drawAdvisors);
     winRegister('overlays', drawOverlayMenu); winRegister('debug', drawDebugWindow); winRegister('panel', (): void => this.drawPanel());
     world.autosave = true;
     if (loadGame()) ui.window = WIN_MAIN; else generate(randomSeed());
@@ -241,7 +241,6 @@ export class HamletScene extends Sprite {
     else if (name === 'h' || name === 'H') settings.hints = !settings.hints;
     else if (name === 'f' || name === 'F') openAdvisor(ui.advisor);
     else if (name === 'c' || name === 'C') openCampaign();
-    else if (name === 't' || name === 'T') openTree();
     else if (name === 'x' || name === 'X') { this.flip = !this.flip; this.say(this.flip ? 'Route : le coude passe de l’autre côté.' : 'Route : le coude suit le côté le plus long.'); }
     else if (name === 'r' || name === 'R') { this.route = !this.route; this.anchor = -1; this.say(this.route ? 'Route automatique : cliquez le départ, puis l’arrivée ; elle contourne les obstacles.' : 'Route à la main : glissez du départ à l’arrivée.'); }
     else if (name === 'v' || name === 'V') { settings.appeal = !settings.appeal; this.say(settings.appeal ? 'Désirabilité : points verts et rouges sur la carte.' : 'Désirabilité masquée.'); }
@@ -379,7 +378,6 @@ export class HamletScene extends Sprite {
     if (events === 0 && held !== this.held) this.press(x, y, held);
     else if (events === 0 && held && this.dragging) this.drag(x, y, false);
     if (held && this.panel.dragging()) { this.panel.drag(x); uiState.dirty = true; }
-    if (held && pointer.down === 'tree:pan') { treeDrag(x, y); uiState.dirty = true; }
     if (held && this.onMap) { minimapClick(x, y); uiState.dirty = true; }
     const where = x * 10000 + y;
     if (this.pointerStart < 0) this.pointerStart = where; else if (where !== this.pointerStart) this.pointerMoved = true;
@@ -421,7 +419,6 @@ export class HamletScene extends Sprite {
       this.dragVX += (mx / Math.max(dt, .001) - this.dragVX) * a; this.dragVY += (my / Math.max(dt, .001) - this.dragVY) * a;
       this.wasDragging = true; this.velX = 0; this.velY = 0;
     } else if (this.wasDragging) { this.wasDragging = false; this.velX = Math.abs(this.dragVX) > FLING_MIN ? this.dragVX : 0; this.velY = Math.abs(this.dragVY) > FLING_MIN ? this.dragVY : 0; this.dragVX = 0; this.dragVY = 0; }   // let go: it carries on and slows down
-    if (ui.tree && winAt(x, y) === 'tree') { if (scrollPhase() !== 0) { treeScroll(-scrollDX(), -scrollDY()); uiState.dirty = true; } else if (wheel() !== 0) { treeScroll(0, -wheel() * 40); uiState.dirty = true; } return; }
     if (scrollPhase() !== 0) { dx -= scrollDX() / this.surface.scale; dy -= scrollDY() / this.surface.scale; }
     else if (wheel() !== 0) this.zoomWheel(wheel() > 0 ? 1 : -1, x, y);
     if (pinch() !== 1) this.zoomWheel(pinch() > 1 ? 1 : -1, x, y);
@@ -479,7 +476,7 @@ export class HamletScene extends Sprite {
     drawOverlay(); drawLine(); drawReach(this.tool, this.hover);
     unclip(); drawLegend();
     topBar(); column(); drawFlyout(); drawWindows();
-    drawBanner(vp.x + vp.w / 2, vp.y + 8);
+    drawGuide(); drawBanner(vp.x + vp.w / 2, vp.y + 8);
     const note = this.time < this.messageUntil;
     statusStrip(note ? this.message : adviceLine(), note ? col('gold') : 0);
     if (this.paused) { const cx = vp.x + vp.w / 2; parchment(cx - 70, vp.y + 14, 140, 34); textC(kit.big, cx, vp.y + 12, 'PAUSE', col('accent')); }

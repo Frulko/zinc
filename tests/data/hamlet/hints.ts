@@ -1,7 +1,7 @@
 // Headless proofs of the attention hints: one tiny constructed village per kind. No window.
 import { world, generate, tileIndex, Person } from '../../../examples/hamlet/src/world/world';
 import { addBuilding } from '../../../examples/hamlet/src/rules/build';
-import { computeHints, Hint, MAX_HINTS, HINT_NO_ROAD, HINT_IDLE_WORKERS, HINT_NO_INPUT, HINT_FULL_OUTPUT, HINT_DELIVER_HERE, HINT_BUILD_NEXT } from '../../../examples/hamlet/src/rules/hints';
+import { computeHints, guideNow, guideSteps, Hint, MAX_HINTS, HINT_NO_ROAD, HINT_IDLE_WORKERS, HINT_NO_INPUT, HINT_FULL_OUTPUT, HINT_DELIVER_HERE, HINT_BUILD_NEXT } from '../../../examples/hamlet/src/rules/hints';
 import { economy, loadEconomy } from '../../../examples/hamlet/src/world/economy';
 import { MODEL_IDS } from '../../../examples/hamlet/src/view/models';
 import { ROLE_NAMES, ROLE_SETTLER, BS_WAITING, BS_FULL } from '../../../examples/hamlet/src/constants';
@@ -52,5 +52,15 @@ const many = computeHints();
 let sorted = true;
 for (let k = 1; k < many.length; k++) if (many[k].severity > many[k - 1].severity) sorted = false;
 check('at most ' + MAX_HINTS + ' hints, most severe first', many.length === MAX_HINTS && sorted);
+
+const stepId = (): string => { const g = guideNow(); return g === null ? '' : g.id; };
+fresh();
+check('the guided start opens on the road', stepId() === 'road');
+for (let k = 0; k < 4; k++) world.road[at(6, 3 + k)] = 1;
+check('three road tiles finish step one, the house is next', stepId() === 'house');
+addBuilding(HOUSE_TYPE, at(7, 4));
+check('a house finishes step two, the lumber hut is next', stepId() === 'hut');
+addBuilding(economy.typeOf('lumberhut'), at(7, 5)); addBuilding(economy.typeOf('well'), at(8, 5));
+check('hut and well finish the guide', guideNow() === null && guideSteps().length === 4 && guideSteps().every((s: { done: boolean }): boolean => s.done));
 
 console.log(failures === 0 ? 'hamlet hints: ALL PASS' : 'hamlet hints: ' + failures + ' FAIL');

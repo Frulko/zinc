@@ -525,6 +525,7 @@
     {"paths": ["examples/hamlet/src/view/", "tests/data/hamlet/glide.ts", "tests/t0/hamlet_glide.sh"], "tests": ["hamlet_glide"]},
     {"paths": ["examples/hamlet/", "tests/data/hamlet/", "tests/t1/hamlet.sh", "tests/t1/hamlet_bot.sh"], "tests": ["hamlet", "hamlet_bot"]},
     {"paths": ["examples/hamlet/src/cite/", "tests/t1/hamlet_cite.sh", "tests/data/hamlet/cite.input"], "tests": ["hamlet_cite", "hamlet_atlas"]},
-    {"paths": ["examples/hamlet/assets/atlas/", "examples/hamlet/ASSETS.md", "tests/t1/hamlet_atlas.sh"], "tests": ["hamlet_atlas"]}
+    {"paths": ["examples/hamlet/assets/atlas/", "examples/hamlet/ASSETS.md", "tests/t1/hamlet_atlas.sh"], "tests": ["hamlet_atlas"]},
+    {"paths": ["examples/hamlet/src/ui/", "examples/hamlet/src/hud.ts", "tests/t1/hamlet_advisors.sh", "tests/data/hamlet/advisors.input"], "tests": ["hamlet_advisors"]}
   ]
 }

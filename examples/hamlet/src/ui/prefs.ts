@@ -21,10 +21,11 @@ export function loadPrefs(): void {
   if (typeof data.thoughts === 'boolean') settings.thoughts = data.thoughts as boolean;
   if (typeof data.ambience === 'number') settings.ambienceVolume = Math.max(0, Math.min(1, data.ambience as number));
   if (typeof data.sfx === 'number') settings.sfxVolume = Math.max(0, Math.min(1, data.sfx as number));
+  if (typeof data.guide === 'boolean') ui.guide = data.guide as boolean;
   winImport(data.windows);
   if (typeof data.mute === 'boolean' && (data.mute as boolean) !== muted) toggleSound();
 }
 export function savePrefs(): void {
-  try { storage.set(KEY, JSON.stringify({ speed: ui.speed, skin: kit.skin, edgePan: settings.edgePan, hints: settings.hints, thoughts: settings.thoughts, fx: settings.fx, ambience: settings.ambienceVolume, sfx: settings.sfxVolume, mute: muted, windows: winExport() })); }
+  try { storage.set(KEY, JSON.stringify({ speed: ui.speed, skin: kit.skin, edgePan: settings.edgePan, hints: settings.hints, thoughts: settings.thoughts, fx: settings.fx, ambience: settings.ambienceVolume, sfx: settings.sfxVolume, mute: muted, guide: ui.guide, windows: winExport() })); }
   catch (error) { console.warn('The options could not be saved: ' + error.message); }
 }

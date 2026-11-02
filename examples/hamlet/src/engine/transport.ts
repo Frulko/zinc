@@ -164,6 +164,16 @@ export function readyBatch(b: Building, out: number[]): boolean {
 /** What a building holds counting the loads on their way to it in porters' hands (a save or a hash must not lose them). */
 export function stockWithCarried(id: number): number[] {
   const out = world.buildings[id].stock.slice();
-  for (const p of world.people) if (p.state === ST_BRING && p.dst === id && p.res >= 0) out[p.res] += p.load;
+  if (carriedTick !== world.tick || carriedPeople !== world.people.length) {       // one pass over the people per tick, not one per building
+    carriedTick = world.tick; carriedPeople = world.people.length; carriedLoads = new Map<number, number[]>();
+    for (const p of world.people) if (p.state === ST_BRING && p.res >= 0 && p.dst >= 0) {
+      let row = carriedLoads.get(p.dst);
+      if (row === undefined) { row = economy.resources.map((): number => 0); carriedLoads.set(p.dst, row); }
+      row[p.res] += p.load;
+    }
+  }
+  const row = carriedLoads.get(id);
+  if (row !== undefined) for (let k = 0; k < out.length; k++) out[k] += row[k];
   return out;
 }
+let carriedTick = -1, carriedPeople = -1, carriedLoads: Map<number, number[]> = new Map<number, number[]>();

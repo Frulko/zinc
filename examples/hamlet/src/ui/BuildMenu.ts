@@ -51,18 +51,42 @@ function list(amounts: number[]): string {
   for (let k = 0; k < amounts.length; k++) if (amounts[k] > 0) parts.push(economy.resources[k].label + ' ' + amounts[k]);
   return parts.join(', ');
 }
-/** The tooltip of a building: its cost, its workers, what it takes in and gives out. */
+function names(amounts: number[]): string {
+  const parts: string[] = [];
+  for (let k = 0; k < amounts.length; k++) if (amounts[k] > 0) parts.push(amounts[k] + ' ' + economy.resources[k].label.toLowerCase());
+  return parts.join(' + ');
+}
+/** What a building does, in one plain sentence. */
+export function doesText(d: BuildingDef): string {
+  const src = sourceOf(d), outputs = names(d.outputs), inputs = names(d.inputs);
+  if (d.housing !== null) return 'Loge jusqu’à ' + d.housing.capacity + ' habitants, qui travaillent et mangent.';
+  if (d.service !== null) return 'Dessert les maisons : ' + economy.services[d.service.service].label.toLowerCase() + (d.service.walker ? ' (un marcheur fait sa tournée sur les routes)' : ' (dans un rayon de ' + d.service.radius + ' cases)') + '.';
+  if (d.store) return 'Range et distribue les marchandises du hameau (jusqu’à ' + d.stockCap + ' de chaque).';
+  if (src >= 0) return 'Récolte : ' + economy.resources[src].label.toLowerCase() + '.';
+  if (inputs !== '' && outputs !== '') return 'Transforme ' + inputs + ' en ' + outputs + '.';
+  if (outputs !== '') return 'Produit : ' + outputs + '.';
+  return d.hint;
+}
+/** What a building needs to work, in one plain sentence ('' when nothing). */
+export function needsText(d: BuildingDef): string {
+  const parts: string[] = [];
+  if (d.workers > 0) parts.push(d.workers + ' ouvrier(s)');
+  if (d.needsRoad) parts.push('une route reliée à la porte' + (d.store ? '' : ' et un entrepôt'));
+  const inputs = names(d.inputs);
+  if (inputs !== '') parts.push(inputs + ' en réserve');
+  if (d.gather === 'shore') parts.push('le bord d’un étang');
+  return parts.length === 0 ? '' : parts.join(', ');
+}
+/** The tooltip of a building: what it does, what it needs, what it costs. */
 export function buildingTip(type: number): string {
   const d = economy.buildings[type], lines: string[] = [d.label];
+  lines.push(doesText(d));
+  const need = needsText(d);
+  if (need !== '') lines.push('Il lui faut : ' + need + '.');
   lines.push('Coût : ' + list(d.cost));
-  if (d.workers > 0) lines.push('Ouvriers : ' + d.workers);
-  if (d.housing !== null) lines.push('Loge ' + d.housing.capacity + ' habitants');
-  const inputs = list(d.inputs), outputs = list(d.outputs);
-  if (inputs !== '') lines.push('Consomme : ' + inputs);
   const src = sourceOf(d);
-  if (src >= 0) { lines.push('Produit : ' + economy.resources[src].label); for (const l of harvestLines(src, d)) lines.push(l); }   // cycle time, yield and percent come from the harvest
-  else if (outputs !== '') lines.push('Produit : ' + outputs + (d.seconds > 0 ? ' / ' + d.seconds + ' s' : ''));
-  if (d.store) lines.push('Stocke jusqu’à ' + d.stockCap + ' de chaque');
+  if (src >= 0) for (const l of harvestLines(src, d)) lines.push(l);   // cycle time, yield and percent come from the harvest
+  else if (d.seconds > 0 && list(d.outputs) !== '') lines.push('Un cycle : ' + d.seconds + ' s');
   if (d.hint !== '') lines.push(d.hint);
   const reason = lockReason(type);
   if (reason !== '') lines.push(reason);
