@@ -319,3 +319,32 @@ Details, switches and the full tables: [display-gl.md](../plugins/display-gl.md#
 - **Acceptance of this phase:** whole-surface animation and idle met; Home 53.5 fps, Kit 53.3, Forms 52.8: just under
   the 55 fps target (Home also lacks `LINE` / `POLY`); CPU share met everywhere (<= 25 %). Touch under the GL renderer
   and the software-overlay fallback on the Pi are unverified. Phase 2 (`LINE`) has **not** been started.
+
+## Metal backend for macOS (2026-11-02)
+
+`targets/macos/hal_metal.mm` replays the same command lists as the GL replay (`HalFrame.frames`: the seam is the list of `zrt::raster::Cmd` with
+their text and point pools), selected with `ZINC_RENDERER=metal` (the software raster through Metal stays the default until the matrix below is
+covered). It is not a port of `gl_replay.cpp`: Metal does not need the GL one's workarounds, so it is a small renderer of its own.
+
+- **One program, one instanced quad.** Every command is a 80-byte instance (rectangle, uv, box, radius, mode, packed colours, texture index); one
+  4-vertex strip is drawn instanced per batch. The GL replay writes four 64-byte vertices per quad. Instance buffers are a ring of three shared
+  `MTLBuffer`s guarded by a semaphore (the CPU never writes one the GPU reads: the "orphaning" question of the GL ring does not arise).
+- **No per-texture flush.** The fragment function takes `array<texture2d<float>, 16>` and each instance carries its index: sprites of up to 16 sheets
+  (plus the glyph atlas) share a draw call; a flush happens only on a blend mode, a clip, or the 17th texture.
+- **Render targets.** `beginImage/endImage` queue the commands as a pass (`zrt_passes`, `gfx.cpp`) when the display set `zrt_gpu_targets`; Metal draws
+  each pass into a BGRA8 `MTLTexture` before the frame, in the same command buffer. Alpha targets keep premultiplied texels, so blending into them
+  is the ordinary over operator, and `Blend.Add/Multiply/Screen` are meaningful. `raster.cpp` marks such images GPU-held (`dyn_gpu_*`): a CPU
+  rectangle update (`updatePixelsRect`) uploads only that rectangle with `replaceRegion`, a whole update returns the image to the CPU. Needs unified
+  memory (Apple silicon); elsewhere the CPU path stays.
+- **Refusal and fallback.** A frame that holds `POLY`, `STROKE`, `XFORM`, `SHADER`, a rounded `CLIP`, a smooth image or a hardware-layer picture is
+  refused before any GPU work; the host reads every GPU-held image back (`hal_mtl_readback`), draws the frame with the raster and presents it through the old
+  blit. Each of those is a later addition to the instance program, not a different design.
+- **User shaders.** `shaderProgram` takes GLSL ES 1.00 today. Options for Metal: (a) a small GLSL ES 1.00 to MSL translator (the dialect is tiny but a
+  translator is code to own); (b) glslang to SPIR-V and a vendored SPIRV-Cross to MSL (proven, 3 more libraries to pin: the repo rule's answer, and
+  what the web target already needs for WebGL); (c) MSL accepted natively on macOS next to GLSL (zero translation, a program per platform). Recommended:
+  (b) for one source on every display, with (c) as an escape hatch (`shaderProgram(msl)` when the string starts with `#include <metal_stdlib>`).
+  Not built in this pass.
+- **GPU time.** The completion handler of the command buffer reads `GPUEndTime - GPUStartTime` into `frameStat(6)` (microseconds) and the number of
+  passes into `frameStat(7)`; draw calls, quads, bytes and uploads are `frameStat(0..4)`, the present wait `frameStat(5)`.
+- **Test.** `tests/t1/metal_replay.sh`: the presented drawable (`ZINC_METAL_SHOT`, a BMP of it) against the software frame, at most 8 levels on a
+  channel and a mean error under 0.5 (measured: max 3, mae 0.012, with a transparent target drawn on the GPU).
