@@ -2,14 +2,14 @@ import { ST_FETCH, ST_BRING, ST_SEEK, BS_WAITING, BS_ISOLATED, BS_FULL, BATCH, O
 import { world, Person, Building, tileIndex, tileAt, neighbor, recount } from '../world/world';
 import { economy, BuildingDef, Housing } from '../world/economy';
 import { accepts, gives } from '../rules/storage';
-import { onStoreNetwork } from './network';
+import { onStoreNetwork, goalOf } from './network';
 import { fieldFrom, approachTile, planPath, pathBusy, owePath, UNREACHABLE, ESCAPE } from './path';
 
 // Goods move in loads: a worker (a porter, or a worker fetching an input or hauling its own output) walks to the building that holds them, takes a batch,
 // walks to the building that keeps them and puts them down. The batch is promised on both sides first (src.reserved, dst.incoming), so a load is never taken twice
 // and a store never promises more room than it has. Loads only leave and enter buildings joined by road to a store.
 
-const tileOf = (b: Building): number => tileIndex(b.i, b.j);
+const tileOf = (b: Building): number => goalOf(b);
 const isStore = (b: Building): boolean => economy.buildings[b.type].store;
 
 // ---- which buildings the road joins to a store (engine/network.ts) ----

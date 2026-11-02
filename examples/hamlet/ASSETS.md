@@ -22,7 +22,7 @@ person with shadow, deer): change a model or the light and the shipped sheets ar
 (columns), `directions` (rows: 8 screen directions from the right, clockwise, or the seasons for trees), and for animated groups `pose: {name, frames, fps, loop}`.
 Names are stable: `tree/<species>/<season>`, `rock`, `building/<model>`, `person/<role>/<pose>`, `carry/<load>`, `animal/<kind>/<pose>`, `fx/<name>`.
 People: walk, chop, aim, fish, pick, idle. Deer: walk, flee, graze, dead, fall; rabbit, boar and wolf (crouch, howl) likewise. Not exported yet: a sleep pose,
-animated props (sails, flames), building footprints larger than 1x1.
+animated props (sails, flames), building footprints other than uniform scales (a 2x1 is lit at 1.5x).
 
 ## Export
 
@@ -35,3 +35,9 @@ people, houses, a pine and a deer at 6x). Options: `ZINC_HAMLET_ATLAS_SCALES=1` 
 starts so, the other cells stay empty (there is no PNG decoder: merge such a partial export into the shipped sheets by hand); `ZINC_HAMLET_ATLAS_CHECK=1` prints
 the pixel check of a baked person and house against the old view's own frames (must say `0 differ`). To update the shipped sheets, export into
 `examples/hamlet/assets/atlas` and run `tests/t1/hamlet_atlas.sh`, which also checks that files and computed draw the same picture at zoom 1 and 2.5.
+
+## Footprints in the atlas
+
+`building/*` groups carry `fw, fh` (the footprint) in the code; the model is lit at (fw + fh) / 2 times the scale and the cell, anchor and chimney grow with it; the foot is the footprint centre.
+A bigger building is drawn once, from its front tile. `house-4` is the Manoir (2 x 2). The shipped sheets must be exported again (see Export) after this change. The old view draws every building
+at 1 x 1 on its anchor tile until it is retired.

@@ -2,6 +2,7 @@ import { HOUSE, COVER_DAYS, ST_ROAM } from '../constants';
 import { world, Person, Building, Alert, neighbor, tileIndex, tileAt, tileI, tileJ } from '../world/world';
 import { economy } from '../world/economy';
 import { isWalkable, planPath } from './path';
+import { edgeTiles } from './network';
 import { feed } from '../rules/housing';
 import { marketStocked } from './transport';
 
@@ -47,7 +48,7 @@ function guard(t: number, kind: string): void {
 
 /** A road tile next to the building (the walker's first step), or -1. */
 function roadBeside(b: Building): number {
-  for (let d = 0; d < 4; d++) { const v = neighbor(tileIndex(b.i, b.j), d); if (v >= 0 && world.road[v] && isWalkable(v)) return v; }
+  for (const v of edgeTiles(b)) if (world.road[v] && isWalkable(v)) return v;
   return -1;
 }
 /** The round of a roamer over the road tiles, with no dice: it goes straight on where the road does, and at a junction takes the way the building's own turn counter points at (the counter rotates, so
@@ -90,6 +91,8 @@ export function roamTick(p: Person, site: Building): void {
   if (def.market && !marketStocked(site)) return;      // a market with nothing to hand out covers nothing
   if (sd !== null && world.road[here]) coverAround(here, sd.service, def.market ? site : null);
 }
+/** The distance on one axis between the nearest tiles of two spans [a, a + aw) and [b, b + bw): the plain difference for two single tiles, 0 when they overlap. */
+export function spanGap(a: number, aw: number, b: number, bw: number): number { return b >= a + aw ? b - (a + aw - 1) : a >= b + bw ? a - (b + bw - 1) : 0; }
 /** The daily slice for services: counters decay by a day, then buildings with a radius cover the houses within it. */
 export function dailyServices(): void {
   for (const b of world.buildings) if (b.alive && b.type === HOUSE) for (let k = 0; k < b.cover.length; k++) if (b.cover[k] > 0) b.cover[k]--;
@@ -100,7 +103,7 @@ export function dailyServices(): void {
     const r = def.service.radius;
     for (const h of world.buildings) {
       if (!h.alive || h.type !== HOUSE) continue;
-      const dx = h.i - s.i, dy = h.j - s.j;
+      const dx = spanGap(h.i, h.w, s.i, s.w), dy = spanGap(h.j, h.h, s.j, s.h);      // from the nearest edge of the footprints
       if (dx * dx + dy * dy <= r * r) h.cover[def.service.service] = COVER_DAYS;
     }
   }

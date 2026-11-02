@@ -17,6 +17,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Villagers have moods, sleep at night, stroll to the market and show their thoughts; deer, rabbits and boar live in herds, wolves can roam forest maps, and birds, ducks and fish share the scene. Working a resource shows it: trees shiver and fall, rocks throw chips.
 - Fire, collapse and theft risks with a fire post, a repair works and a watch post; Easy, Normal and Hard difficulties.
 - A GPU tile view for Hamlet (`ZINC_HAMLET_VIEW=cite`): isometric tiles with slopes, cliffs and snow by height, smooth pointer-anchored zoom, inertia panning and a placement ghost, drawing only what is on screen.
+- Hamlet buildings can cover several tiles (`"size": [w, h]` in `economy.json`): the storehouse, market, mill and tavern are 2x2, the sawmill and chapel 2x1, the farm and theatre 3x3, and a house grows into a 2x2 Manoir when the ground around it is free.
 - A technical window (`F3`) shows frame times, the world and the tile under the pointer; windows drag by their title bar and close with their button or `Esc`.
 - Message clicks point an arrow at the place, and a double click opens its window. Separate volumes for ambience and effects, with synthesised sounds.
 - Hamlet villagers and carts now keep to the roads: a workshop whose road does not lead to the village entrance stays idle and says so, service walkers (market, fire, watch) go straight on and take turns at junctions, covering the houses within two tiles, and a store can be set to accept, refuse or only collect a good.

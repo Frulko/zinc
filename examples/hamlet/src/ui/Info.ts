@@ -1,5 +1,6 @@
 import { Cursor } from 'zinc:gfx';
-import { world, tileIndex, neighbor, Building } from '../world/world';
+import { world, tileIndex, Building } from '../world/world';
+import { edgeTiles } from '../engine/network';
 import { economy } from '../world/economy';
 import { housingReport } from '../rules/housing';
 import { sourceOf, harvestLines } from '../rules/harvest';
@@ -58,11 +59,7 @@ export function pickAt(gx: number, gy: number, tile: number): boolean {
   return false;
 }
 
-function roadBeside(b: Building): boolean {
-  const t = tileIndex(b.i, b.j);
-  for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && world.road[v] !== 0) return true; }
-  return false;
-}
+function roadBeside(b: Building): boolean { return edgeTiles(b).some((v: number): boolean => world.road[v] !== 0); }
 /** Why a building does not produce, in one plain sentence ('' when it works): the first thing that is wrong, with what to do. */
 export function whyIdle(id: number): string {
   const b = world.buildings[id], def = economy.buildings[b.type];

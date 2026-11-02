@@ -59,7 +59,8 @@ import { Deer, spawnDeer, tileX } from '../../../examples/hamlet/src/world/world
 import { personTarget, feelFrom, thoughtOf, workPace, arrivalFactor, leavingToday, FEEL_ANGRY, FEEL_HOMELESS, FEEL_HUNGRY, FEEL_TIRED, FEEL_JOBLESS, FEEL_CONTENT } from '../../../examples/hamlet/src/rules/needs';
 import { DEER_GRAZE, DEER_GONE, DEER_DEAD, DEER_ALERT, DEER_FLEE, DEER_REST, DEER_DRINK, DEER_STALK, DEER_CHASE, DEER_EAT, ST_SLEEP, ST_HOME, DAY_TICKS } from '../../../examples/hamlet/src/constants';
 
-const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');   // the test runs from the repository root
+// the rules are proven on one-tile buildings (the layouts below are packed): footprints have their own test, tests/data/hamlet/footprints.ts
+const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json').replace(/"size": \[[0-9, ]+\], ?/g, '');   // the test runs from the repository root
 loadEconomy(ECONOMY_TEXT, MODEL_IDS, ROLE_NAMES);
 const TOOL_SAWMILL = toolOf('sawmill'), TOOL_LODGE = toolOf('lodge'), TOOL_FISHERY = toolOf('fishery');
 const PLANK = economy.resourceOf('plank'), WOOD = economy.resourceOf('log'), MEAT = economy.resourceOf('meat'), FISH = economy.resourceOf('fish');

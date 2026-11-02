@@ -33,7 +33,7 @@ export class RiskRules {
 /** What a service building gives: a walker on a round of `range` steps over the roads, or (no walker) every house within `radius` tiles. */
 export class ServiceDef { service: number = -1; walker: boolean = false; range: number = 16; radius: number = 0; }
 /** What a house of a level holds and what it needs to reach (and to keep) that level. */
-export class HouseLevel { label: string = ''; capacity: number = 0; services: number[] = []; foods: number = 0; appeal: number = 0; }
+export class HouseLevel { label: string = ''; capacity: number = 0; services: number[] = []; foods: number = 0; appeal: number = 0; w: number = 1; h: number = 1; }   // w, h: the footprint of a house at this level ("size": [w, h]); it grows into free ground when a level asks for more
 /** `capacity` is the first level's. A house gains a level after `evolveDays` days meeting the next one's needs and loses one after `devolveDays` days failing its own (needs slackened by `margin` appeal). */
 export class Housing {
   capacity: number = 0; free: number = 0; eats: number[] = []; uses: number[] = []; lamp: number = 1; levels: HouseLevel[] = []; mealsFrom: number = -1;
@@ -48,6 +48,7 @@ export class BuildingDef {
   stockCap: number = 8; store: boolean = false; market: boolean = false; needsRoad: boolean = true;   // market: stocks the houses' goods, fetched from the stores by its vendor, and hands them out on its round
   housing: Housing | null = null; service: ServiceDef | null = null; lode: number = -1; appeal: number[] = [];   // appeal: the rings it adds around itself
   smoke: number[][] = []; glow: number[][] = [];   // view effects at a working building, in tile-local units: [x, y, z] chimney smoke ([x, y, z, 1]: steam), and warm lights shown at night
+  w: number = 1; h: number = 1;                       // footprint in tiles (economy.json "size": [w, h]); the building's tile is its top-left corner (lowest i and j)
   buildable: boolean = true; risk: RiskWeights | null = null;   // buildable false: a leftover (the ruin) the player cannot place, only demolish
   offSeasons: number[] = []; bloom: Bloom | null = null; soil: Bloom | null = null; startSound: string = '';   // seasons without work (0 spring..3 winter), flowers that speed it, the sound of a work cycle's start
 }
@@ -251,6 +252,11 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     d.role = String(b.role === undefined ? '' : b.role); d.roleId = roles.indexOf(d.role);
     if (d.workers > 0 && d.roleId < 0) errors.push('bad-role: ' + where + ' has workers but the role "' + d.role + '" does not exist');
     d.store = b.store === true; d.needsRoad = b.needsRoad !== false;
+    if (b.size !== undefined) {
+      const sz: any = b.size;
+      if (!Array.isArray(sz) || sz.length !== 2 || sz.some((v: any): boolean => typeof v !== 'number' || Math.floor(v) !== v || v < 1 || v > 4)) errors.push('bad-size: ' + where + '.size is [w, h], two whole numbers from 1 to 4');
+      else { d.w = Number(sz[0]); d.h = Number(sz[1]); }
+    }
     if (b.housing !== undefined) {
       const h = new Housing();
       h.capacity = num(b.housing, 'capacity', 2, where + '.housing', errors); h.free = num(b.housing, 'free', 0, where + '.housing', errors);
@@ -265,6 +271,12 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
       for (const lv of (b.housing.levels === undefined ? [] : b.housing.levels) as any[]) {
         const l = new HouseLevel(), needs: any = lv.needs === undefined ? {} : lv.needs;
         l.label = String(lv.label === undefined ? d.label : lv.label); l.capacity = num(lv, 'capacity', h.capacity, where + '.housing.levels', errors);
+        l.w = h.levels[h.levels.length - 1].w; l.h = h.levels[h.levels.length - 1].h;           // a level with no "size" keeps the footprint of the one before
+        if (lv.size !== undefined) {
+          if (!Array.isArray(lv.size) || lv.size.length !== 2 || lv.size.some((v: any): boolean => typeof v !== 'number' || Math.floor(v) !== v || v < 1 || v > 4)) errors.push('bad-size: ' + where + '.housing.levels size is [w, h], two whole numbers from 1 to 4');
+          else { l.w = Number(lv.size[0]); l.h = Number(lv.size[1]); }
+          if (l.w < h.levels[h.levels.length - 1].w || l.h < h.levels[h.levels.length - 1].h) errors.push('bad-size: ' + where + '.housing.levels size must not shrink from one level to the next');
+        }
         l.foods = num(needs, 'foods', 0, where + '.housing.levels', errors); l.appeal = needs.appeal === undefined ? 0 : Number(needs.appeal);
         for (const sid of (needs.services === undefined ? [] : needs.services) as string[]) { const k = into.serviceOf(sid); if (k < 0) errors.push('bad-service: ' + where + '.housing.levels needs the unknown service "' + sid + '"'); else l.services.push(k); }
         if (l.capacity < h.levels[h.levels.length - 1].capacity) errors.push('negative-number: ' + where + '.housing.levels: capacity must not shrink from one level to the next');

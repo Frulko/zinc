@@ -18,7 +18,7 @@ import { rankOf, labourPool, employed, labourStats, defaultPriority } from '../r
 import { capacityOf } from '../rules/housing';
 import { startRoam, roamTick } from './services';
 import { routine, freeTime } from './routine';
-import { onGateNetwork, doorOf } from './network';
+import { onGateNetwork, doorOf, goalOf } from './network';
 import { arrivalFactor, workPace } from '../rules/needs';
 import { level } from '../rules/difficulty';
 import { findLoad, haulOut, fetchInput, atTarget, hasRoomFor, readyBatch, exportsOk, restock, marketStocked, pickUp, putDown, cancelTransport } from './transport';
@@ -26,7 +26,7 @@ import { findLoad, haulOut, fetchInput, atTarget, hasRoomFor, readyBatch, export
 const STROLL_REACH = 10;   // path cost of a stroll beside the house: a spot walled off by neighbours is dropped, not searched for
 const HUNT_REACH = 40;   // path cost a hunter accepts to reach his game (a deer in a walled pocket is let go, not searched for over the whole map)
 const gap = (ax: number, ay: number, bx: number, by: number): number => Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
-const buildingTile = (b: Building): number => tileIndex(b.i, b.j);
+const buildingTile = (b: Building): number => goalOf(b);
 const tileOf = (p: Person): number => tileAt(p.x, p.y);
 const faceTile = (p: Person, t: number): void => { p.yaw = Math.atan2(tileY(t) - p.y, tileX(t) - p.x); };
 function isNear(p: Person, t: number): boolean {

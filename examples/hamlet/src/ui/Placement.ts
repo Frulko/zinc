@@ -44,7 +44,7 @@ export function look(t: number): Snapshot {
   s.type = s.building >= 0 ? world.buildings[s.building].type : -1; return s;
 }
 export function record(tool: number, t: number, before: Snapshot): void {
-  const a = new Action(); a.tile = t; drag.count++;
+  const a = new Action(); a.tile = before.building >= 0 ? world.buildings[before.building].j * world.size + world.buildings[before.building].i : t; drag.count++;      // a building is named by its anchor tile
   if (tool === TOOL_ROAD) a.kind = A_ROAD;
   else if (tool === TOOL_ERASE) { a.kind = before.building >= 0 ? A_ERASE_BUILDING : A_ERASE_ROAD; a.type = before.type; }
   else { a.kind = A_BUILD; a.type = tool - TOOL_HOUSE; }

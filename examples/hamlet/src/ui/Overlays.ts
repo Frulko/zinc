@@ -1,6 +1,7 @@
 import { polygon, rect, height } from 'zinc:gfx';
 import { project } from '../pixel';
-import { world, tileX, tileY, tileI, tileJ, tileAt, neighbor, heightAt } from '../world/world';
+import { world, tileX, tileY, tileI, tileJ, tileAt, neighbor, heightAt, footprint, rectEdge } from '../world/world';
+import { spanGap } from '../engine/services';
 import { settings } from '../settings';
 import { sx, sy } from '../cite/geom';
 import { tileDiamond } from '../cite/draw';
@@ -70,19 +71,19 @@ export function drawOverlay(): void {
         const def = economy.buildings[b.type];
         if (!b.alive || def.service === null || def.service.service !== o - 2 || def.service.walker) continue;
         const r = def.service.radius;
-        for (let j = Math.max(0, b.j - r); j <= Math.min(world.size - 1, b.j + r); j++) for (let i = Math.max(0, b.i - r); i <= Math.min(world.size - 1, b.i + r); i++) {
-          const t = j * world.size + i;
-          if ((i - b.i) * (i - b.i) + (j - b.j) * (j - b.j) <= r * r && world.terrain[t] === TERRAIN_GRASS) tint(t, GOLD, 55);
+        for (let j = Math.max(0, b.j - r); j <= Math.min(world.size - 1, b.j + b.h - 1 + r); j++) for (let i = Math.max(0, b.i - r); i <= Math.min(world.size - 1, b.i + b.w - 1 + r); i++) {
+          const t = j * world.size + i, dx = spanGap(i, 1, b.i, b.w), dy = spanGap(j, 1, b.j, b.h);
+          if (dx * dx + dy * dy <= r * r && world.terrain[t] === TERRAIN_GRASS) tint(t, GOLD, 55);
         }
       }
     }
     for (const b of world.buildings) {
       if (!b.alive) continue;
-      const def = economy.buildings[b.type], t = b.j * world.size + b.i;
-      if (o === labourIndex()) { if (def.workers > 0 && !b.fixed) { const s = b.workers >= def.workers ? 0 : b.workers > 0 ? 1 : 2; seen[s]++; tint(t, s === 0 ? GOOD : s === 1 ? WARN : BAD, 150); } }
+      const def = economy.buildings[b.type];
+      if (o === labourIndex()) { if (def.workers > 0 && !b.fixed) { const s = b.workers >= def.workers ? 0 : b.workers > 0 ? 1 : 2; seen[s]++; for (const u of footprint(b)) tint(u, s === 0 ? GOOD : s === 1 ? WARN : BAD, 150); } }
       else if (b.type === HOUSE) {
         const ok = o === foodIndex() ? foodKinds(b) > 0 : b.cover[o - 2] > 0;
-        seen[ok ? 0 : 2]++; tint(t, ok ? GOOD : BAD, 150);
+        seen[ok ? 0 : 2]++; for (const u of footprint(b)) tint(u, ok ? GOOD : BAD, 150);
       }
     }
   }
@@ -101,17 +102,18 @@ export function drawReach(tool: number, hover: number): void {
   if (hover < 0 || tool < TOOL_HOUSE || tool >= TOOL_ERASE) return;
   const def = economy.buildings[tool - TOOL_HOUSE];
   if (def.service === null) return;
+  const i0 = tileI(hover), j0 = tileJ(hover);
   if (!def.service.walker) {
-    const r = def.service.radius, i0 = tileI(hover), j0 = tileJ(hover);
+    const r = def.service.radius;
     for (let t = 0; t < world.size * world.size; t++) {
-      const dx = tileI(t) - i0, dy = tileJ(t) - j0;
+      const dx = spanGap(tileI(t), 1, i0, def.w), dy = spanGap(tileJ(t), 1, j0, def.h);
       if (dx * dx + dy * dy <= r * r && world.terrain[t] === TERRAIN_GRASS) tint(t, GOLD, 70);
     }
     return;
   }
   // a walker: the roads it can reach within its round, and the tiles beside them
   const seen: number[] = [], depth: number[] = [];
-  for (let d = 0; d < 4; d++) { const v = neighbor(hover, d); if (v >= 0 && world.road[v]) { seen.push(v); depth.push(1); } }
+  for (const v of rectEdge(i0, j0, def.w, def.h)) if (world.road[v] && seen.indexOf(v) < 0) { seen.push(v); depth.push(1); }
   for (let k = 0; k < seen.length; k++) {
     if (depth[k] >= def.service.range) continue;
     for (let d = 0; d < 4; d++) { const v = neighbor(seen[k], d); if (v >= 0 && world.road[v] && seen.indexOf(v) < 0) { seen.push(v); depth.push(depth[k] + 1); } }

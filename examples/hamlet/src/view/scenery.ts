@@ -427,7 +427,7 @@ function bakeRects(layer: Layer, rects: number[]): void {
         treeModel(v, Math.floor(hash(t, 11) * 3) - 1).drawAt(tx, ty, 0); treeShadow(tx, ty, TREE_HEIGHT[v]);
       }
       if (world.rock[t] > 0) { models[MODEL_ROCK + world.rock[t] - 1].drawAt(x, y, 0); castShadow(x, y, .4, .6); }
-      if (world.build[t] >= 0) {
+      if (world.build[t] >= 0 && t === world.buildings[world.build[t]].j * world.size + world.buildings[world.build[t]].i) {       // this view draws a building at 1 x 1 on its anchor tile (the Cite view draws its footprint)
         const id = modelOf(world.buildings[world.build[t]].type, world.buildings[world.build[t]].level);
         (facesEast(t) ? mirrorOf(id) : models[id]).drawAt(x, y, 0);
         for (let z = .4; z < 2.6; z += .55) castShadow(x, y, z, .85);

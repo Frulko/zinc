@@ -52,7 +52,7 @@ function crowd(): void {
   for (let t = 0; t < n * n && type < cap; t++) {
     const i = t % n, j = Math.floor(t / n);
     if (world.terrain[t] !== TERRAIN_GRASS || world.road[t] !== 0 || world.build[t] >= 0 || i < 2 || j < 2 || i >= n - 2 || j >= n - 2) continue;
-    if ((cap > 160 || (Math.abs(i - gi - 30) < 34 && Math.abs(j - gj) < 34)) && (i % 6 === 4 || j % 6 === 4) && (i + j) % 2 === 0 && t !== world.gate - n) { world.tree[t] = 0; world.rock[t] = 0; newBuilding(type % 25, t); type++; }
+    if ((cap > 160 || (Math.abs(i - gi - 30) < 34 && Math.abs(j - gj) < 34)) && (i % 6 === 4 || j % 6 === 4) && (i + j) % 2 === 0 && t !== world.gate - n) { world.tree[t] = 0; world.rock[t] = 0; newBuilding(type % 25, t, 1, 1); type++; }
   }
   const roads: number[] = [];
   for (let t = 0; t < n * n; t++) if (world.road[t] !== 0) roads.push(t);

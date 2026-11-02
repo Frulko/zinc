@@ -1,7 +1,7 @@
 import * as storage from 'zinc:storage';
 import { SAVE_KEY, SAVE_VERSION, HOUSE, ROCK_DEPOSIT, TERRAIN_VOID } from '../constants';
 import { TerrainParams } from '../gen/terrain';
-import { world, Offer, Expedition, generate, recount, tileIndex, tileCount } from './world';
+import { world, Offer, Expedition, generate, recount, tileIndex, tileCount, tileI, tileJ, growSpot, resizeBuilding, footprint } from './world';
 import { addBuilding } from '../rules/build';
 import { createResident, dropPerson } from '../engine/villagers';
 import { spawnPeddler } from '../engine/trade';
@@ -9,7 +9,7 @@ import { computeAppeal } from '../rules/appeal';
 import { defaultLevel } from '../rules/difficulty';
 import { applyMission } from './missions';
 import { stockWithCarried } from '../engine/transport';
-import { economy } from './economy';
+import { economy, Housing } from './economy';
 
 // One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock, cover, level, streak, meals and the risk counters fire|damage|crime|burn, storage orders, roamer turn; lists with | between);trees(tile.variant);unlimited;tick;rng;priority;params;deposits(tile.value.left);goals done;buildings unlocked;peddler offers(resource.qty.side.coins.taken);days he stays;expeditions(adventure.days left.homes);progression;risks;difficulty
 function numbers(text: string): number[] {
@@ -48,6 +48,16 @@ export function saveGame(): void {
   catch (error) { console.warn('The village could not be saved: ' + error.message); }
 }
 
+/** True when a footprint of w x h from the anchor tile is on the map, on grass, with no road, rock, building or other saved anchor on any of its other tiles. */
+function fitsFootprint(tile: number, w: number, h: number, anchors: number[]): boolean {
+  const i = tileI(tile), j = tileJ(tile);
+  if (i + w > world.size || j + h > world.size) return false;
+  for (let dj = 0; dj < h; dj++) for (let di = 0; di < w; di++) {
+    const u = tileIndex(i + di, j + dj);
+    if (world.terrain[u] !== 0 || world.road[u] !== 0 || world.rock[u] !== 0 || (u !== tile && (anchors[u] === 1 || world.build[u] >= 0))) return false;
+  }
+  return true;
+}
 /** Rebuilds the village from a snapshot. False when there is none (or it is from another version). */
 /** A saved list made to the length the data has now (a resource or service added since the save reads as 0, one removed is dropped). */
 function sized(text: string, length: number): number[] {
@@ -57,7 +67,7 @@ function sized(text: string, length: number): number[] {
 }
 export function restore(text: string): boolean {
   const fields = text.split(';');
-  if (fields.length < 19 || (fields[0] !== SAVE_VERSION && fields[0] !== 'H20' && fields[0] !== 'H19')) return false;     // H19: before the heights, loads flat; H20: before the storage orders
+  if (fields.length < 19 || (fields[0] !== SAVE_VERSION && fields[0] !== 'H21' && fields[0] !== 'H20' && fields[0] !== 'H19')) return false;     // H19: before the heights, loads flat; H20: before the storage orders; H21: before the footprints (a building may then have a neighbour where its footprint would go)
   applyMission(fields.length > 21 ? fields[21] : '');         // the mission's goals and knobs first: generate sizes the goal list from them
   generate(Number(fields[1]), Number(fields[2]), paramsOf(fields[10]));
   const heights = fields.length > 20 ? fields[20] : '';
@@ -65,10 +75,13 @@ export function restore(text: string): boolean {
   else if (fields[0] === 'H19') world.height.fill(0);
   for (const t of numbers(fields[3])) if (world.terrain[t] !== TERRAIN_VOID) { world.road[t] = 1; world.deco[t] = 0; }   // what an older save holds on the border (the rim of a map) is dropped, never moved
   if (fields[4] !== '') {
+    const anchors: number[] = Array.from({ length: tileCount() }, (): number => 0);          // a building is saved by its anchor tile: a footprint from the data of today must not cover another one
+    for (const entry of fields[4].split(',')) anchors[Number(entry.split('.')[1])] = 1;
     for (const entry of fields[4].split(',')) {
       const parts = entry.split('.'), type = Number(parts[0]), tile = Number(parts[1]);
       if (world.terrain[tile] === TERRAIN_VOID) continue;
-      const id = world.build[tile] >= 0 ? world.build[tile] : addBuilding(type, tile);       // the hall already stands, empty of its start stock
+      const def = economy.buildings[type], fit = fields[0] === SAVE_VERSION || def.w * def.h === 1 || fitsFootprint(tile, def.w, def.h, anchors);       // an old save may have a neighbour where the footprint would go: the building then stays 1 x 1
+      const id = world.build[tile] >= 0 ? world.build[tile] : addBuilding(type, tile, fit ? def.w : 1, fit ? def.h : 1);       // the hall already stands, empty of its start stock
       const b = world.buildings[id];
       b.stock = sized(parts[3], b.stock.length); b.fed = sized(parts[7], b.fed.length); b.cover = sized(parts[4], b.cover.length);
       b.level = Number(parts[5]); b.streak = Number(parts[6]);
@@ -82,6 +95,11 @@ export function restore(text: string): boolean {
   }
   world.tree.fill(0);                                    // the saved list is the whole forest: felled and regrown trees included
   if (fields[5] !== '') for (const entry of fields[5].split(',')) { const parts = entry.split('.'); if (world.terrain[Number(parts[0])] !== TERRAIN_VOID) world.tree[Number(parts[0])] = Number(parts[1]); }
+  for (let id = 0; id < world.buildings.length; id++) {                         // what the saved trees hold under a footprint is gone; a house gets the room of its level when it is there
+    const b = world.buildings[id];
+    for (const u of footprint(b)) world.tree[u] = 0;
+    if (b.type === HOUSE && b.alive) { const hs = economy.buildings[HOUSE].housing as Housing, lv = hs.levels[Math.min(b.level, hs.levels.length - 1)]; if (lv.w > b.w || lv.h > b.h) { const spot = growSpot(b, lv.w, lv.h); if (spot >= 0) resizeBuilding(id, lv.w, lv.h, spot); } }
+  }
   world.unlimited = fields[6] === '1';
   for (let t = 0; t < tileCount(); t++) if (world.rock[t] >= ROCK_DEPOSIT) { world.rock[t] = 0; world.lode[t] = 0; }   // the saved list is every deposit left, worked ones included
   if (fields[11] !== '') for (const entry of fields[11].split(',')) { const parts = entry.split('.'); if (world.terrain[Number(parts[0])] === TERRAIN_VOID) continue; world.rock[Number(parts[0])] = Number(parts[1]); world.lode[Number(parts[0])] = Number(parts[2]); }

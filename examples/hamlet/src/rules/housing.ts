@@ -1,4 +1,4 @@
-import { world, Building } from '../world/world';
+import { world, Building, growSpot } from '../world/world';
 import { economy, Housing, HouseLevel } from '../world/economy';
 import { level } from './difficulty';
 
@@ -31,11 +31,16 @@ export function feed(b: Building, from: (k: number, n: number) => number): void 
 }
 /** One requirement of a level: `met` now, with the words for it ("Il manque l’eau"). `id` is the service id, `food` or `appeal`. */
 export class Requirement { id: string = ''; met: boolean = false; text: string = ''; }
-function requirements(b: Building, lv: HouseLevel, slack: number): Requirement[] {
+function requirements(b: Building, lv: HouseLevel, slack: number, growing: boolean = false): Requirement[] {
   const out: Requirement[] = [];
   for (const k of lv.services) {
     const r = new Requirement(); r.id = economy.services[k].id; r.met = b.cover[k] > 0;
     r.text = r.met ? economy.services[k].label + ' : desservie' : 'Il manque : ' + economy.services[k].label.toLowerCase() + ' (aucun service ne passe ici)';
+    out.push(r);
+  }
+  if (growing && (lv.w > b.w || lv.h > b.h)) {                    // only the next level asks for room: a house that has the level keeps it
+    const r = new Requirement(); r.id = 'space'; r.met = growSpot(b, lv.w, lv.h) >= 0;
+    r.text = r.met ? 'Place : ' + lv.w + ' x ' + lv.h + ' cases libres' : 'Il manque : de la place (' + lv.w + ' x ' + lv.h + ' cases plates et libres autour de la maison)';
     out.push(r);
   }
   if (lv.foods > 0) {
@@ -53,7 +58,7 @@ function requirements(b: Building, lv: HouseLevel, slack: number): Requirement[]
 const allMet = (list: Requirement[]): boolean => list.every((r: Requirement): boolean => r.met);
 
 /** True when the house meets what the level asks. `slack` slackens the appeal (the margin a house keeps its level with). */
-export function meets(b: Building, level: number, slack: number): boolean { return allMet(requirements(b, housing().levels[level], slack)); }
+export function meets(b: Building, level: number, slack: number): boolean { return allMet(requirements(b, housing().levels[level], slack, level > b.level)); }
 
 /** What to do about the first requirement a house lacks, as an instruction: a missing service names the building to raise (or the road a walker needs), a missing food kind names the
  *  foods the village does not yet eat or hold. '' when nothing is missing or the lack is the neighbourhood (its own text already lists what helps). */
@@ -85,7 +90,7 @@ export function housingReport(b: Building): HousingReport {
   r.level = Math.min(b.level, h.levels.length - 1); r.levelName = h.levels[r.level].label; r.capacity = capacityOf(b); r.residents = b.residents;
   r.top = r.level >= h.levels.length - 1;
   if (r.level > 0) r.atRisk = !allMet(requirements(b, h.levels[r.level], h.margin));
-  if (!r.top) { r.next = requirements(b, h.levels[r.level + 1], 0); r.missing = r.next.filter((q: Requirement): boolean => !q.met); }
+  if (!r.top) { r.next = requirements(b, h.levels[r.level + 1], 0, true); r.missing = r.next.filter((q: Requirement): boolean => !q.met); }
   let text = r.levelName + ' (' + r.residents + '/' + r.capacity + ')';
   if (r.atRisk) text += '. Elle va reculer : ' + requirements(b, h.levels[r.level], h.margin).filter((q: Requirement): boolean => !q.met).map((q: Requirement): string => q.text).join(' ; ');
   else if (r.top) text += '. Niveau maximal.';

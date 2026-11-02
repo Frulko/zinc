@@ -1,7 +1,7 @@
 # The economy file (`assets/economy.json`)
 
 The only place a resource, a building or a production chain is added (plus one model in `src/view/models.ts`, whose id list `MODEL_IDS` follows the order of `buildings`: a building type is its index).
-`loadEconomy` (`src/world/economy.ts`) checks the file and refuses to start the game on a mistake; the errors have names: `bad-json`, `bad-id`, `unknown-resource`, `negative-number`, `no-model`, `bad-gather`, `bad-role`, `bad-hall`, `bad-service`, `bad-appeal`, `bad-deposit`, `bad-goal`, `bad-trade`, `bad-adventure`, `bad-difficulty`, `bad-sim`, `bad-season`, `bad-bloom`, `bad-soil`, `bad-effect`, `cycle`.
+`loadEconomy` (`src/world/economy.ts`) checks the file and refuses to start the game on a mistake; the errors have names: `bad-json`, `bad-id`, `unknown-resource`, `negative-number`, `no-model`, `bad-gather`, `bad-role`, `bad-hall`, `bad-service`, `bad-appeal`, `bad-deposit`, `bad-goal`, `bad-trade`, `bad-adventure`, `bad-difficulty`, `bad-sim`, `bad-size`, `bad-season`, `bad-bloom`, `bad-soil`, `bad-effect`, `cycle`.
 
 ```text
 version      1
@@ -155,3 +155,11 @@ The mechanics follow Augustus (mechanisms only, `docs/reports/hamlet-augustus-st
 - **Cost.** `tests/data/hamlet/perf.ts` steps a village of 500 people and 300 animals (`HAMLET_SIZE`, `HAMLET_PEOPLE`, `HAMLET_ANIMALS`, `HAMLET_SPLIT=1` for the split by part): 1.6 ms a tick on a 128 map and 1.4 ms on 256 on this Mac (it was 58 ms).
 
 `sim` keys: `labourShare` (1 to 100), `walkerReach` (1 to 4 tiles), `stopJobless` (1 to 100 percent), `appealSlices` (1 to 600 ticks). Errors: `bad-sim`.
+
+## Footprints (`size`)
+
+A building may carry `"size": [w, h]` (whole numbers 1 to 4; default 1 x 1; error `bad-size`). Its tile is the top-left corner (the anchor, saved); `world.build` points to it from every tile.
+Placement needs every tile open (no tree, rock, deposit, road, building, water), on one flat level and on the map, and a road on any edge tile. The door (`doorOf`, `goalOf` in `engine/network.ts`)
+is the lowest road tile beside the footprint; services reach houses by the distance from the footprint edge. A house level may carry `size` too (a level without one keeps the previous level's):
+the Manoir is 2 x 2 and a house grows into free flat ground (`growSpot`), waiting with the requirement `space` otherwise; it gives the tiles back when it falls. Saves from before H22 load a building
+as 1 x 1 when something stands where its footprint would go.

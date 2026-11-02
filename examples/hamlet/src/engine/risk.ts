@@ -57,9 +57,9 @@ function steal(id: number): void {
 /** The fire of a burning ruin passes to the buildings around it, and it burns down by a day. */
 function burnDown(id: number): void {
   const b = world.buildings[id], r = economy.risk;
-  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+  for (let dj = -1; dj <= b.h; dj++) for (let di = -1; di <= b.w; di++) {
     const i = b.i + di, j = b.j + dj;
-    if ((di === 0 && dj === 0) || i < 0 || j < 0 || i >= world.size || j >= world.size) continue;
+    if ((di >= 0 && di < b.w && dj >= 0 && dj < b.h) || i < 0 || j < 0 || i >= world.size || j >= world.size) continue;
     const n = world.build[tileIndex(i, j)];
     if (n >= 0 && world.buildings[n].alive && !world.buildings[n].fixed && !isRuin(world.buildings[n].type)) world.buildings[n].fire += r.spread;
   }

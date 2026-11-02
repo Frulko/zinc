@@ -4,10 +4,11 @@ import { world, Person, random, tileIndex, tileX, tileY } from '../world/world';
 import { economy } from '../world/economy';
 import { isNight, FREE_PLACES, SLEEP_RECOVERY } from '../rules/needs';
 import { planPath, walk, pathBusy } from './path';
+import { goalOf } from './network';
 
 // The daily round of a resident: work by day, home to sleep at night, free time at the market, the well or the tavern. Work itself stays in villagers.ts.
 const speed = (): number => WALK_SPEED * settings.walkSpeed;
-const homeTile = (p: Person): number => { const h = world.buildings[p.home]; return h === undefined || !h.alive ? -1 : tileIndex(h.i, h.j); };
+const homeTile = (p: Person): number => { const h = world.buildings[p.home]; return h === undefined || !h.alive ? -1 : goalOf(h); };
 /** A sleeper beside his house is indoors: he is not drawn nor picked. */
 export function sleepsIndoors(p: Person): boolean {
   if (p.state !== ST_SLEEP) return false;
@@ -49,7 +50,7 @@ let placesRev = -1, placesCount = -1, places: number[] = [];
 function freePlaces(): number[] {
   if (placesRev !== world.revision + world.netRev || placesCount !== world.buildings.length) {
     placesRev = world.revision + world.netRev; placesCount = world.buildings.length; places = [];
-    for (const b of world.buildings) if (b.alive && FREE_PLACES.indexOf(economy.buildings[b.type].id) >= 0) places.push(tileIndex(b.i, b.j));
+    for (const b of world.buildings) if (b.alive && FREE_PLACES.indexOf(economy.buildings[b.type].id) >= 0) places.push(goalOf(b));
   }
   return places;
 }

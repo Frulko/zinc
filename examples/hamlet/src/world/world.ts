@@ -11,7 +11,7 @@ import { economy, Resource, Service, Goal, BuildingDef } from './economy';
 export class Mover { x: number = 0; y: number = 0; yaw: number = 0; path: number[] = []; step: number = 0; phase: number = 0; }
 /** A building: what it holds (`stock`, per resource of economy.json) and what its workers are doing (`state`, and `waitFor`, the resource it lacks). */
 export class Building {
-  type: number = 0; i: number = 0; j: number = 0; alive: boolean = true; residents: number = 0; workers: number = 0; timer: number = 2;
+  type: number = 0; i: number = 0; j: number = 0; w: number = 1; h: number = 1; alive: boolean = true; residents: number = 0; workers: number = 0; timer: number = 2;
   happy: number = 60;                                    // houses: how content the people are, 0..100, moving at most 2 a day toward what the house offers (rules/needs.ts)
   level: number = 0; streak: number = 0; fed: number[] = [];   // houses: level, days in a row meeting the next level (+) or failing this one (-), per food days of meals left
   cover: number[] = [];                                  // per service: days left of its coverage (houses only)
@@ -84,13 +84,66 @@ export function resetGoals(): void {
   world.news = []; world.log = []; world.offers = []; world.peddlerLeft = 0; world.expeditions = [];
 }
 /** A new building of a type on a tile, empty. The rules add buildings the same way (rules/build.ts). */
-export function newBuilding(type: number, t: number): number {
+export function newBuilding(type: number, t: number, w: number = economy.buildings[type].w, h: number = economy.buildings[type].h): number {
   const id = world.buildings.length, b = new Building(), none = (): number[] => economy.resources.map((_r: Resource): number => 0);
-  b.type = type; b.i = tileI(t); b.j = tileJ(t); b.fed = none(); b.cover = economy.services.map((_s: Service): number => 0); b.stock = none(); b.reserved = none(); b.incoming = none();
+  b.type = type; b.i = tileI(t); b.j = tileJ(t); b.w = w; b.h = h; b.fed = none(); b.cover = economy.services.map((_s: Service): number => 0); b.stock = none(); b.reserved = none(); b.incoming = none();
   world.buildings.push(b);
-  world.build[t] = id; world.deco[t] = 0; world.netRev++;
+  claimTiles(id);
+  world.netRev++;
   return id;
 }
+/** The tiles a building stands on, row by row from its top-left tile (b.i, b.j). world.build points to the building from every one of them. */
+export function footprint(b: Building): number[] {
+  const out: number[] = [];
+  for (let dj = 0; dj < b.h; dj++) for (let di = 0; di < b.w; di++) out.push(tileIndex(b.i + di, b.j + dj));
+  return out;
+}
+/** The tiles beside a rectangle of w x h tiles at (i, j), outside it, grouped by direction (+x, -x, +y, -y). A 1 x 1 gives its four neighbours in that order. */
+export function rectEdge(i: number, j: number, w: number, h: number): number[] {
+  const out: number[] = [];
+  for (let d = 0; d < 4; d++) {
+    for (let dj = 0; dj < h; dj++) for (let di = 0; di < w; di++) {
+      const v = neighbor(tileIndex(i + di, j + dj), d);
+      if (v < 0) continue;
+      const vi = tileI(v), vj = tileJ(v);
+      if (vi >= i && vi < i + w && vj >= j && vj < j + h) continue;      // inside the rectangle
+      out.push(v);
+    }
+  }
+  return out;
+}
+/** Where a building of footprint w x h that covers its present one could stand: the top-left tile, or -1 when the ground around it is not free. The extra tiles must be open and flat on the same level (the
+ *  ground it grows into never has a road, a tree or a building); it grows toward +x and +y first, then the other ways. */
+export function growSpot(b: Building, w: number, h: number): number {
+  const lackI = w - b.w, lackJ = h - b.h;
+  if (lackI < 0 || lackJ < 0) return -1;
+  for (let oj = 0; oj <= lackJ; oj++) for (let oi = 0; oi <= lackI; oi++) {
+    const ai = b.i - oi, aj = b.j - oj;
+    if (ai < 0 || aj < 0 || ai + w > world.size || aj + h > world.size) continue;
+    let ok = true;
+    for (let j = aj; j < aj + h && ok; j++) for (let i = ai; i < ai + w && ok; i++) {
+      if (i >= b.i && i < b.i + b.w && j >= b.j && j < b.j + b.h) continue;      // already its own
+      const t = tileIndex(i, j);
+      ok = isOpen(t) && isFlat(t) && world.height[t] === world.height[tileIndex(b.i, b.j)];
+    }
+    if (ok) return tileIndex(ai, aj);
+  }
+  return -1;
+}
+/** A house takes the bigger footprint at a spot growSpot found, or gives tiles back to the ground when w x h is smaller (it keeps its top-left tile then). */
+export function resizeBuilding(id: number, w: number, h: number, anchor: number = -1): void {
+  const b = world.buildings[id];
+  for (const u of footprint(b)) if (world.build[u] === id) world.build[u] = -1;
+  if (anchor >= 0) { b.i = tileI(anchor); b.j = tileJ(anchor); }
+  b.w = w; b.h = h;
+  claimTiles(id); world.netRev++;
+}
+/** Points world.build at the building from every tile of its footprint (a new building, or a house that grew). */
+export function claimTiles(id: number): void {
+  const b = world.buildings[id];
+  for (const u of footprint(b)) { world.build[u] = id; world.deco[u] = 0; }
+}
+
 /** world.stock: what the stores (every alive building that stores) hold, per resource. What a producer still holds or a porter carries is not counted yet. */
 export function recount(): void {
   world.stock = economy.resources.map((_r: Resource): number => 0);
@@ -219,8 +272,11 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
   world.road[world.gate] = 1;
   placeLodes(layers);
   if (economy.hall >= 0) {                                    // the village store stands by the entrance, next to the gate road, holding what the village starts with
-    const t = world.gate - size;
-    world.terrain[t] = TERRAIN_GRASS; world.tree[t] = 0; world.rock[t] = 0; world.lode[t] = 0;
+    const hd = economy.buildings[economy.hall], t = world.gate - size * hd.h;           // its footprint is the rows above the gate row, from the entrance column: the gate road is its door
+    for (let dj = 0; dj < hd.h; dj++) for (let di = 0; di < hd.w; di++) {
+      const u = t + dj * size + di;
+      world.terrain[u] = TERRAIN_GRASS; world.tree[u] = 0; world.rock[u] = 0; world.lode[u] = 0; world.height[u] = world.height[world.gate];
+    }
     const id = newBuilding(economy.hall, t);
     world.buildings[id].fixed = true; world.buildings[id].stock = startStock();
   }

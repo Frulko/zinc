@@ -6,6 +6,7 @@ import { broadAt } from '../view/seasons';
 import { MODEL_IDS, MODEL_GATE, MODEL_ROCK, MODEL_HOUSE_UP, TREE_HEIGHT, drawModelId, drawTreeMonth, models, useModels } from '../view/models';
 import { actorAtlas, paintCarry, forgetActorAtlases } from '../view/actors';
 import { Cell, S_ART, capture, shear, blit, disc, argb } from './bake';
+import { economy } from '../world/economy';
 
 // The sprites of the Cite view. They are the Pixel Plays art of the old view (the same models, figures, light, ramps, dither and shadows), baked into RGBA frames by
 // src/cite/bake.ts and packed on a few sheets. Two modes give the same frames: `computed` bakes them at the first frames from the generators (a few jobs a frame,
@@ -17,7 +18,7 @@ export const SHEET_W = 1024;
 export const sheetNames = ['trees-spring', 'trees-summer', 'trees-autumn', 'trees-winter', 'props', 'buildings', 'people', 'animals'];
 export const GENERATOR_VERSION = 1;        // bumped when a change of the drawing code is not seen by the probe frames of generatorHash()
 /** A grid of `cols` x `rows` cells of cw x ch pixels (1 pixel between cells) at (x, y) of its sheet; ax, ay: where the foot is in a cell. Sprite ids run row by row from `first`. */
-export class Group { name: string = ''; sheet: number = 0; x: number = 0; y: number = 0; cw: number = 0; ch: number = 0; cols: number = 1; rows: number = 1; ax: number = 0; ay: number = 0; first: number = 0; pose: string = ''; fps: number = 0; loop: boolean = false; }
+export class Group { name: string = ''; sheet: number = 0; x: number = 0; y: number = 0; cw: number = 0; ch: number = 0; cols: number = 1; rows: number = 1; ax: number = 0; ay: number = 0; first: number = 0; pose: string = ''; fps: number = 0; loop: boolean = false; fw: number = 1; fh: number = 1; }   // fw, fh: the footprint a building sprite is made for, in tiles (its model is lit at (fw + fh) / 2 times the scale)
 export const groups: Group[] = [];
 export const sheetH: number[] = [];
 export const sx: number[] = [], sy: number[] = [], sw: number[] = [], sh: number[] = [], ox: number[] = [], oy: number[] = [], sheetOf: number[] = [];   // per sprite, in 1x pixels: its place in its sheet and where its foot is
@@ -71,7 +72,7 @@ export const SMOKE_FRAMES = 4;
 const ROLE_NAMES = ['settler', 'resident', 'lumberjack', 'hunter', 'fisher', 'sawyer', 'smoker', 'porter', 'farmer', 'miller', 'baker', 'vendor', 'tanner', 'quarryman', 'peddler', 'forager', 'smith', 'beekeeper', 'chandler', 'brewer', 'innkeeper', 'firewarden', 'repairman', 'watchman', 'robber', 'rioter'];
 const ANIMAL_NAMES = ['doe', 'stag', 'rabbit', 'boar', 'wolf'];
 const SEASON_NAMES = ['spring', 'summer', 'autumn', 'winter'];
-const BUILD_EXTRA = ['gate', 'house-2', 'house-3'];
+const BUILD_EXTRA = ['gate', 'house-2', 'house-3', 'house-4'];      // the gate, then the house at levels 1, 2 and 3 (the Manoir: the same model as level 2, lit for its 2 x 2 footprint)
 
 class Ready { trees: boolean[] = [false, false, false, false]; rocks: boolean = false; buildings: boolean = false; people: boolean[] = []; animals: boolean[] = [false, false, false, false, false]; all: boolean = false; }
 /** One resolution of the atlas: its sheets (images), and the jobs that paint them when they are made from the generators. */
@@ -98,7 +99,7 @@ let cur: AtlasSet | null = null;
 
 // ---- baking ----
 /** The cell of group g at the scale of the set: art pixels, two to an atlas pixel of the 1x sheet. */
-function cellOf(g: Group, k: number, draw: () => void, shadow: (() => void) | null): Cell { return capture(draw, shadow, g.cw * k, g.ch * k, g.ax * k, g.ay * k, k); }
+function cellOf(g: Group, k: number, draw: () => void, shadow: (() => void) | null): Cell { return capture(draw, shadow, g.cw * k, g.ch * k, g.ax * k, g.ay * k, k * (g.fw + g.fh) / 2); }
 function put(g: Group, col: number, row: number, c: Cell): void {
   const s = cur as AtlasSet;
   blit(c, s.px[g.sheet], SHEET_W * s.k, (g.x + col * (g.cw + 1)) * s.k, (g.y + row * (g.ch + 1)) * s.k);
@@ -134,8 +135,8 @@ function bakeBuilding(g: Group, id: number, k: number, smokeAt: number[]): void 
   }
 }
 function bakeBuildings(k: number): void {
-  for (let q = 0; q < MODEL_IDS.length + 3; q++) {
-    const id = q < MODEL_IDS.length ? q : q === MODEL_IDS.length ? MODEL_GATE : MODEL_HOUSE_UP + q - MODEL_IDS.length - 1;
+  for (let q = 0; q < MODEL_IDS.length + BUILD_EXTRA.length; q++) {
+    const id = q < MODEL_IDS.length ? q : q === MODEL_IDS.length ? MODEL_GATE : MODEL_HOUSE_UP + Math.min(q - MODEL_IDS.length, 2) - 1;
     bakeBuilding(groupAt(buildIds[q]), id, k, chimney[q]);
   }
 }
@@ -203,6 +204,14 @@ function bakeFx(k: number): void {
 
 // ---- the layout and the sets ----
 const SHEET_TREES = 0, SHEET_PROPS = 4, SHEET_BUILD = 5, SHEET_PEOPLE = 6, SHEET_ANIMALS = 7;
+/** The footprint [w, h] of the building sprite k (the models of economy.json in order, then the gate, then the house at its levels 2 and 3, see HouseLevel.w and h): a sprite is lit at (w + h) / 2 times the scale of a single tile's. */
+function footprintOf(k: number): number[] {
+  if (k < MODEL_IDS.length) { const d = economy.buildings[k]; return d === undefined ? [1, 1] : [d.w, d.h]; }
+  const lv = k - MODEL_IDS.length;                          // 0: the gate, 1 and 2: the house sprites of levels 1 and 2 (the house-4 sprite is the Manoir's)
+  const h = economy.buildings.length > 0 ? economy.buildings[0].housing : null;
+  if (lv < 1 || h === null || h.levels.length <= lv) return [1, 1];
+  return [h.levels[lv].w, h.levels[lv].h];
+}
 /** The groups and their places, once: the same ids whatever the art comes from. Sizes are in art pixels of the old view (S = 10): one atlas pixel, drawn ART map pixels wide. */
 function layout(): void {
   if (layoutDone) return;
@@ -215,8 +224,12 @@ function layout(): void {
   fxId.smoke = grp('fx/smoke', SHEET_PROPS, SMOKE_FRAMES, 1, 12, 12, 6, 6);
   fxId.ripple = grp('fx/ripple', SHEET_PROPS, 4, 1, 14, 8, 7, 4);
   fxId.tuft = grp('fx/grass', SHEET_PROPS, SWAYS, SEASONS, 8, 8, 4, 8);
-  for (let k = 0; k < MODEL_IDS.length; k++) { buildIds.push(grp('building/' + MODEL_IDS[k], SHEET_BUILD, 1, 1, 64, 56, 24, 47)); chimney.push([0, -60]); }
-  for (let k = 0; k < BUILD_EXTRA.length; k++) { buildIds.push(grp('building/' + BUILD_EXTRA[k], SHEET_BUILD, 1, 1, 64, 56, 24, 47)); chimney.push([0, -60]); }
+  for (let k = 0; k < MODEL_IDS.length + BUILD_EXTRA.length; k++) {
+    const f = footprintOf(k), s = (f[0] + f[1]) / 2, name = k < MODEL_IDS.length ? MODEL_IDS[k] : BUILD_EXTRA[k - MODEL_IDS.length];
+    buildIds.push(grp('building/' + name, SHEET_BUILD, 1, 1, Math.round(64 * s), Math.round(56 * s), Math.round(24 * s), Math.round(47 * s)));
+    const g = groups[groups.length - 1]; g.fw = f[0]; g.fh = f[1];
+    chimney.push([0, -60]);
+  }
   for (let r = 0; r < ROLES; r++) { const l: number[] = []; for (const pp of PERSON_POSES) l.push(grp('person/' + ROLE_NAMES[r] + '/' + pp.name, SHEET_PEOPLE, pp.frames, DIRS, 20, 20, 6, 18, pp.name, pp.fps, pp.loop)); personBase.push(l); }
   for (let c = 1; c <= CARRIES; c++) carryBase.push(grp('carry/' + c, SHEET_PEOPLE, 1, DIRS, 20, 20, 6, 18));
   for (let k = 0; k < ANIMAL_KINDS; k++) { const l: number[] = []; for (const pp of ANIMAL_POSES[k]) l.push(grp('animal/' + ANIMAL_NAMES[k] + '/' + pp.name, SHEET_ANIMALS, pp.frames, DIRS, 36, 28, 14, 22, pp.name, pp.fps, pp.loop)); animalBase.push(l); }

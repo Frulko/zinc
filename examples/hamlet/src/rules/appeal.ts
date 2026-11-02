@@ -1,5 +1,5 @@
 import { TERRAIN_WATER } from '../constants';
-import { world, tileIndex, tileI, tileJ } from '../world/world';
+import { world, Building, tileIndex, tileI, tileJ } from '../world/world';
 import { economy, AppealSource } from '../world/economy';
 import { isPlaza } from './roadplan';
 
@@ -16,6 +16,15 @@ function stamp(grid: number[], i: number, j: number, rings: number[]): void {
     if (x >= 0 && y >= 0 && x < size && y < size) grid[y * size + x] += rings[d - 1];
   }
 }
+/** Rings around a bigger building: every tile within n steps of the footprint gets the ring of its distance to the nearest footprint tile (none on the footprint itself). */
+function stampFootprint(grid: number[], b: Building, rings: number[]): void {
+  const n = rings.length, size = world.size;
+  for (let j = b.j - n; j < b.j + b.h + n; j++) for (let i = b.i - n; i < b.i + b.w + n; i++) {
+    if (i < 0 || j < 0 || i >= size || j >= size) continue;
+    const d = Math.max(b.i - i, i - (b.i + b.w - 1), 0) + Math.max(b.j - j, j - (b.j + b.h - 1), 0);
+    if (d >= 1 && d <= n) grid[j * size + i] += rings[d - 1];
+  }
+}
 /** Stamps the terrain sources of tiles [from, to) into the grid. */
 function stampTiles(grid: number[], from: number, to: number): void {
   const sources: AppealSource[] = economy.appeal;
@@ -28,7 +37,11 @@ function stampTiles(grid: number[], from: number, to: number): void {
 }
 /** The buildings' rings, then the clamp: the grid is final. */
 function finish(grid: number[]): void {
-  for (const b of world.buildings) if (b.alive && economy.buildings[b.type].appeal.length > 0) stamp(grid, b.i, b.j, economy.buildings[b.type].appeal);
+  for (const b of world.buildings) {
+    if (!b.alive || economy.buildings[b.type].appeal.length === 0) continue;
+    if (b.w * b.h === 1) stamp(grid, b.i, b.j, economy.buildings[b.type].appeal);
+    else stampFootprint(grid, b, economy.buildings[b.type].appeal);
+  }
   const max = economy.appealMax;
   for (let t = 0; t < grid.length; t++) grid[t] = Math.max(-max, Math.min(max, grid[t]));
   world.appeal = grid;

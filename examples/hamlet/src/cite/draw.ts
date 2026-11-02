@@ -69,10 +69,13 @@ function tileThings(t: number, i: number, j: number, time: number, sea: number):
   }
   if (r > 0 && R.rocks) spr(A.rockIds[Math.min(5, r - 1)], i + .5, j + .5, levelHere(i + .5, j + .5), 255, 0xffffff, hash(t, 9) < .5 ? 1 : 0);
   if (id >= 0 && R.buildings) {
-    const b = world.buildings[id], lv = levelHere(i + .5, j + .5), h = hash(t, 11);
-    const sid = b.type === 0 && b.level > 0 ? A.buildIds[A.GATE_MODEL + Math.min(b.level, 2)] : A.buildIds[Math.min(b.type, MODEL_IDS.length - 1)];
-    spr(sid, i + .5, j + .5, lv, 255, TINTS[Math.floor(hash(t, 12) * 4) & 3], h < .5 ? 1 : 0);
-    if (R.all && b.alive && (b.type === 0 ? b.residents > 0 : b.workers > 0) && economy.buildings[b.type].smoke.length > 0) smoke(i + .5, j + .5, lv, b.type, time, b.i * 7 + b.j);
+    const b = world.buildings[id];
+    if (i === b.i + b.w - 1 && j === b.j + b.h - 1) {              // a bigger building is drawn once, from its front tile (the last of the diagonal order), centred on its footprint
+      const fi = b.i + b.w / 2, fj = b.j + b.h / 2, lv = levelHere(fi, fj), h = hash(t, 11);
+      const sid = b.type === 0 && b.level > 0 ? A.buildIds[A.GATE_MODEL + Math.min(b.level, 3)] : A.buildIds[Math.min(b.type, MODEL_IDS.length - 1)];
+      spr(sid, fi, fj, lv, 255, TINTS[Math.floor(hash(t, 12) * 4) & 3], h < .5 ? 1 : 0);
+      if (R.all && b.alive && (b.type === 0 ? b.residents > 0 : b.workers > 0) && economy.buildings[b.type].smoke.length > 0) smoke(fi, fj, lv, b.type, time, b.i * 7 + b.j);
+    }
   } else if (t === world.gate && R.buildings) spr(A.buildIds[A.GATE_MODEL], i + .5, j + .5, levelHere(i + .5, j + .5), 255, 0xffffff);
 }
 
@@ -163,17 +166,17 @@ export function tileDiamond(t: number, color: number, alpha: number, ring: boole
 }
 export function ghost(t: number, type: number, ok: boolean): void {
   if (t < 0) return;
-  const n = world.size, i = t % n, j = Math.floor(t / n);
-  tileDiamond(t, ok ? 0x6ad06a : 0xd05a4a, ok ? 110 : 130, false);
+  const n = world.size, i = t % n, j = Math.floor(t / n), w = type >= 0 ? economy.buildings[type].w : 1, h = type >= 0 ? economy.buildings[type].h : 1;
+  for (let dj = 0; dj < h; dj++) for (let di = 0; di < w; di++) if (i + di < n && j + dj < n) tileDiamond((j + dj) * n + i + di, ok ? 0x6ad06a : 0xd05a4a, ok ? 110 : 130, false);
   if (type >= 0 && A.at.ready.buildings) {
     clip(view.x, view.y, view.w, view.h);
-    spr(A.buildIds[Math.min(type, MODEL_IDS.length - 1)], i + .5, j + .5, levelHere(i + .5, j + .5), 150, ok ? 0xffffff : 0xff9a8a);
+    spr(A.buildIds[Math.min(type, MODEL_IDS.length - 1)], i + w / 2, j + h / 2, levelHere(i + w / 2, j + h / 2), 150, ok ? 0xffffff : 0xff9a8a);
     unclip();
   }
 }
 export function selection(): void {
   clip(view.x, view.y, view.w, view.h);
-  if (ui.selKind === 1 && ui.selId >= 0 && ui.selId < world.buildings.length) { const b = world.buildings[ui.selId]; tileDiamond(b.j * world.size + b.i, 0xffd60a, 255, true); }
+  if (ui.selKind === 1 && ui.selId >= 0 && ui.selId < world.buildings.length) { const b = world.buildings[ui.selId]; for (let dj = 0; dj < b.h; dj++) for (let di = 0; di < b.w; di++) tileDiamond((b.j + dj) * world.size + b.i + di, 0xffd60a, 255, true); }
   else if (ui.selKind === 2 && ui.selId >= 0 && ui.selId < world.people.length) {
     const p = world.people[ui.selId], fi = (p.x + world.half) / TILE, fj = (p.y + world.half) / TILE, lv = levelHere(fi, fj), x = sx(fi, fj), y = sy(fi, fj, lv), r = 11 * cam.zoom;
     const pts: number[] = [];

@@ -4,6 +4,7 @@ import { world, Person, Alert, random, recount, tileI, tileJ, tileIndex, tileAt,
 import { economy } from '../world/economy';
 import { level } from '../rules/difficulty';
 import { planPath, walk } from './path';
+import { goalOf } from './network';
 
 // Public order: robbers and rioters. They are walkers on the roads, kept in world.crime.outlaws (no villagers: not counted, not saved, not in the mood).
 // A robber comes through the gate for a building that holds goods (a theft counter that passed its threshold sends one: engine/risk.ts; so does a low peace), takes a few units of the
@@ -161,9 +162,9 @@ export function updateOutlaws(dt: number): void {
     if (p.state === ST_RAID) {
       if (walk(p, dt, speed)) {
         const b = world.buildings[p.target], t = tileAt(p.x, p.y);
-        const near = b !== undefined && b.alive && t >= 0 && Math.abs(tileI(t) - b.i) + Math.abs(tileJ(t) - b.j) <= 1;
+        const near = b !== undefined && b.alive && t >= 0 && Math.max(b.i - tileI(t), tileI(t) - (b.i + b.w - 1), 0) + Math.max(b.j - tileJ(t), tileJ(t) - (b.j + b.h - 1), 0) <= 1;
         if (near) { if (p.role === ROLE_ROBBER) { rob(p); flee(p); } else { p.state = ST_WRECK; p.timer = RAMPAGE; } }
-        else if (++p.want > 3 || b === undefined || !b.alive || !planPath(p, tileIndex(b.i, b.j))) gone = true;
+        else if (++p.want > 3 || b === undefined || !b.alive || !planPath(p, goalOf(b))) gone = true;
       }
     } else if (p.state === ST_WRECK) {
       p.timer -= dt;
