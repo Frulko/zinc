@@ -1,6 +1,6 @@
 {
  "version": 2,
- "generator": 2869229903,
+ "generator": 364768335,
  "note": "Made by the export of src/cite/atlas.ts (ASSETS.md). Sizes and places are in 1x pixels; the 2x sheets hold every cell at twice the size, lit again at twice the scale. A group is a grid of w x h cells with 1 pixel between cells: a row a direction (or a season), a column a frame. anchor: the foot of the sprite in a cell. generator: a hash of the drawing code and its light; when it differs from the build the sheets are stale and the sprites are baked from the generators instead.",
  "sheets": [
   {
@@ -31,7 +31,7 @@
   {
    "name": "buildings",
    "w": 1024,
-   "h": 176
+   "h": 456
   },
   {
    "name": "people",
@@ -370,24 +370,24 @@
    "sheet": "buildings",
    "x": 67,
    "y": 1,
-   "w": 64,
-   "h": 56,
+   "w": 96,
+   "h": 84,
    "anchor": [
-    24,
-    47
+    36,
+    71
    ],
    "frames": 1,
    "directions": 1,
    "chimney": [
-    5,
-    -23
+    8,
+    -35
    ]
   },
   {
    "name": "building/lodge",
    "generator": "view/models.ts MODEL_DEFS lodge",
    "sheet": "buildings",
-   "x": 133,
+   "x": 165,
    "y": 1,
    "w": 64,
    "h": 56,
@@ -406,7 +406,7 @@
    "name": "building/fishery",
    "generator": "view/models.ts MODEL_DEFS fishery",
    "sheet": "buildings",
-   "x": 199,
+   "x": 231,
    "y": 1,
    "w": 64,
    "h": 56,
@@ -425,26 +425,26 @@
    "name": "building/storehouse",
    "generator": "view/models.ts MODEL_DEFS storehouse",
    "sheet": "buildings",
-   "x": 265,
+   "x": 297,
    "y": 1,
-   "w": 64,
-   "h": 56,
+   "w": 128,
+   "h": 112,
    "anchor": [
-    24,
-    47
+    48,
+    94
    ],
    "frames": 1,
    "directions": 1,
    "chimney": [
-    5,
-    -19
+    10,
+    -39
    ]
   },
   {
    "name": "building/lumberhut",
    "generator": "view/models.ts MODEL_DEFS lumberhut",
    "sheet": "buildings",
-   "x": 331,
+   "x": 427,
    "y": 1,
    "w": 64,
    "h": 56,
@@ -463,7 +463,7 @@
    "name": "building/smokehouse",
    "generator": "view/models.ts MODEL_DEFS smokehouse",
    "sheet": "buildings",
-   "x": 397,
+   "x": 493,
    "y": 1,
    "w": 64,
    "h": 56,
@@ -482,45 +482,45 @@
    "name": "building/farm",
    "generator": "view/models.ts MODEL_DEFS farm",
    "sheet": "buildings",
-   "x": 463,
+   "x": 559,
    "y": 1,
-   "w": 64,
-   "h": 56,
+   "w": 192,
+   "h": 168,
    "anchor": [
-    24,
-    47
+    72,
+    141
    ],
    "frames": 1,
    "directions": 1,
    "chimney": [
-    2,
-    -17
+    8,
+    -55
    ]
   },
   {
    "name": "building/mill",
    "generator": "view/models.ts MODEL_DEFS mill",
    "sheet": "buildings",
-   "x": 529,
+   "x": 753,
    "y": 1,
-   "w": 64,
-   "h": 56,
+   "w": 128,
+   "h": 112,
    "anchor": [
-    24,
-    47
+    48,
+    94
    ],
    "frames": 1,
    "directions": 1,
    "chimney": [
-    -7,
-    -20
+    -14,
+    -42
    ]
   },
   {
    "name": "building/bakery",
    "generator": "view/models.ts MODEL_DEFS bakery",
    "sheet": "buildings",
-   "x": 595,
+   "x": 883,
    "y": 1,
    "w": 64,
    "h": 56,
@@ -539,27 +539,27 @@
    "name": "building/market",
    "generator": "view/models.ts MODEL_DEFS market",
    "sheet": "buildings",
-   "x": 661,
-   "y": 1,
-   "w": 64,
-   "h": 56,
+   "x": 1,
+   "y": 171,
+   "w": 128,
+   "h": 112,
    "anchor": [
-    24,
-    47
+    48,
+    94
    ],
    "frames": 1,
    "directions": 1,
    "chimney": [
-    -3,
-    -19
+    -5,
+    -40
    ]
   },
   {
    "name": "building/tannery",
    "generator": "view/models.ts MODEL_DEFS tannery",
    "sheet": "buildings",
-   "x": 727,
-   "y": 1,
+   "x": 131,
+   "y": 171,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -577,8 +577,8 @@
    "name": "building/well",
    "generator": "view/models.ts MODEL_DEFS well",
    "sheet": "buildings",
-   "x": 793,
-   "y": 1,
+   "x": 197,
+   "y": 171,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -596,8 +596,8 @@
    "name": "building/quarry",
    "generator": "view/models.ts MODEL_DEFS quarry",
    "sheet": "buildings",
-   "x": 859,
-   "y": 1,
+   "x": 263,
+   "y": 171,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -615,8 +615,8 @@
    "name": "building/claypit",
    "generator": "view/models.ts MODEL_DEFS claypit",
    "sheet": "buildings",
-   "x": 925,
-   "y": 1,
+   "x": 329,
+   "y": 171,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -634,8 +634,8 @@
    "name": "building/mine",
    "generator": "view/models.ts MODEL_DEFS mine",
    "sheet": "buildings",
-   "x": 1,
-   "y": 59,
+   "x": 395,
+   "y": 171,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -653,8 +653,8 @@
    "name": "building/forge",
    "generator": "view/models.ts MODEL_DEFS forge",
    "sheet": "buildings",
-   "x": 67,
-   "y": 59,
+   "x": 461,
+   "y": 171,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -672,8 +672,8 @@
    "name": "building/forager",
    "generator": "view/models.ts MODEL_DEFS forager",
    "sheet": "buildings",
-   "x": 133,
-   "y": 59,
+   "x": 527,
+   "y": 171,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -691,8 +691,8 @@
    "name": "building/apiary",
    "generator": "view/models.ts MODEL_DEFS apiary",
    "sheet": "buildings",
-   "x": 199,
-   "y": 59,
+   "x": 593,
+   "y": 171,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -710,8 +710,8 @@
    "name": "building/chandlery",
    "generator": "view/models.ts MODEL_DEFS chandlery",
    "sheet": "buildings",
-   "x": 265,
-   "y": 59,
+   "x": 659,
+   "y": 171,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -729,8 +729,8 @@
    "name": "building/meadery",
    "generator": "view/models.ts MODEL_DEFS meadery",
    "sheet": "buildings",
-   "x": 331,
-   "y": 59,
+   "x": 725,
+   "y": 171,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -748,27 +748,27 @@
    "name": "building/tavern",
    "generator": "view/models.ts MODEL_DEFS tavern",
    "sheet": "buildings",
-   "x": 397,
-   "y": 59,
-   "w": 64,
-   "h": 56,
+   "x": 791,
+   "y": 171,
+   "w": 128,
+   "h": 112,
    "anchor": [
-    24,
-    47
+    48,
+    94
    ],
    "frames": 1,
    "directions": 1,
    "chimney": [
-    6,
-    -24
+    12,
+    -50
    ]
   },
   {
    "name": "building/firehouse",
    "generator": "view/models.ts MODEL_DEFS firehouse",
    "sheet": "buildings",
-   "x": 463,
-   "y": 59,
+   "x": 921,
+   "y": 171,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -786,8 +786,8 @@
    "name": "building/works",
    "generator": "view/models.ts MODEL_DEFS works",
    "sheet": "buildings",
-   "x": 529,
-   "y": 59,
+   "x": 1,
+   "y": 285,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -805,8 +805,8 @@
    "name": "building/watchpost",
    "generator": "view/models.ts MODEL_DEFS watchpost",
    "sheet": "buildings",
-   "x": 595,
-   "y": 59,
+   "x": 67,
+   "y": 285,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -824,8 +824,8 @@
    "name": "building/ruin",
    "generator": "view/models.ts MODEL_DEFS ruin",
    "sheet": "buildings",
-   "x": 661,
-   "y": 59,
+   "x": 133,
+   "y": 285,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -843,46 +843,46 @@
    "name": "building/chapel",
    "generator": "view/models.ts MODEL_DEFS chapel",
    "sheet": "buildings",
-   "x": 727,
-   "y": 59,
-   "w": 64,
-   "h": 56,
+   "x": 199,
+   "y": 285,
+   "w": 96,
+   "h": 84,
    "anchor": [
-    24,
-    47
+    36,
+    71
    ],
    "frames": 1,
    "directions": 1,
    "chimney": [
-    3,
-    -24
+    4,
+    -37
    ]
   },
   {
    "name": "building/theatre",
    "generator": "view/models.ts MODEL_DEFS theatre",
    "sheet": "buildings",
-   "x": 793,
-   "y": 59,
-   "w": 64,
-   "h": 56,
+   "x": 297,
+   "y": 285,
+   "w": 192,
+   "h": 168,
    "anchor": [
-    24,
-    47
+    72,
+    141
    ],
    "frames": 1,
    "directions": 1,
    "chimney": [
-    -2,
-    -19
+    -5,
+    -59
    ]
   },
   {
    "name": "building/gate",
    "generator": "view/models.ts gate",
    "sheet": "buildings",
-   "x": 859,
-   "y": 59,
+   "x": 491,
+   "y": 285,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -900,8 +900,8 @@
    "name": "building/house-2",
    "generator": "view/models.ts house2",
    "sheet": "buildings",
-   "x": 925,
-   "y": 59,
+   "x": 557,
+   "y": 285,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -919,8 +919,8 @@
    "name": "building/house-3",
    "generator": "view/models.ts house3",
    "sheet": "buildings",
-   "x": 1,
-   "y": 117,
+   "x": 623,
+   "y": 285,
    "w": 64,
    "h": 56,
    "anchor": [
@@ -932,6 +932,44 @@
    "chimney": [
     -1,
     -32
+   ]
+  },
+  {
+   "name": "building/house-4",
+   "generator": "view/models.ts house3, lit for the 2 x 2 Manoir",
+   "sheet": "buildings",
+   "x": 689,
+   "y": 285,
+   "w": 128,
+   "h": 112,
+   "anchor": [
+    48,
+    94
+   ],
+   "frames": 1,
+   "directions": 1,
+   "chimney": [
+    -2,
+    -65
+   ]
+  },
+  {
+   "name": "building/hall",
+   "generator": "view/models.ts storehouse on one tile",
+   "sheet": "buildings",
+   "x": 819,
+   "y": 285,
+   "w": 64,
+   "h": 56,
+   "anchor": [
+    24,
+    47
+   ],
+   "frames": 1,
+   "directions": 1,
+   "chimney": [
+    5,
+    -19
    ]
   },
   {

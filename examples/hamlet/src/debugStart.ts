@@ -2,7 +2,7 @@ import { env } from 'zinc:sys';
 import { world, newBuilding, tileX, tileY, spawnDeer, random, Person } from './world/world';
 import { economy } from './world/economy';
 import { TERRAIN_GRASS, ST_STROLL } from './constants';
-import { act } from './ui/state';
+import { act, ui, WIN_NONE } from './ui/state';
 import { PRESETS } from './gen/presets';
 import { TerrainParams } from './gen/terrain';
 import { TICK, TILE } from './constants';
@@ -30,6 +30,8 @@ export function debugStart(): void {
   params.coast = from.coast; params.outcrop = from.outcrop; params.flowers = from.flowers; params.biomes = from.biomes; params.wolves = from.wolves; params.relief = from.relief;
   act.newVillage(v[0], v.length > 1 ? v[1] : 24, false, false, params);
   crowd();
+  showcase();
+  ui.window = WIN_NONE;                                   // a debug start shows the village, not the main menu a saved game would open
   if (v.length > 5 && env('ZINC_HAMLET_VIEW') !== 'cite') jumpTo(v[4] * world.half, v[5] * world.half);
   const at = env('ZINC_HAMLET_CAM');                                    // "i,j,zoom" as for the Cité view: the old view looks at the same tile (its zoom stays the normal one: Cité zoom = 10 * fit.s0 / 22.63 matches it)
   if (at !== '' && env('ZINC_HAMLET_VIEW') !== 'cite') { const c = at.split(',').map((x: string): number => Number(x)); jumpTo(c[0] * TILE - world.half, c[1] * TILE - world.half); }
@@ -67,4 +69,30 @@ function crowd(): void {
   }
   world.revision++;
   act.loaded();
+}
+
+/** ZINC_HAMLET_SHOWCASE=1: a street east of the gate with one of each big building on both sides, on flattened ground (pictures of the footprints). Debug only. */
+function showcase(): void {
+  if (env('ZINC_HAMLET_SHOWCASE') !== '1') return;
+  const n = world.size, gi = world.gate % n, gj = Math.floor(world.gate / n);
+  const road = gj + 9;
+  for (let j = road - 8; j <= Math.min(n - 1, road + 8); j++) for (let i = 2; i < 36; i++) {
+    const t = j * n + i;
+    if (world.terrain[t] !== TERRAIN_GRASS) continue;
+    world.tree[t] = 0; world.rock[t] = 0; world.deco[t] = 0; world.height[t] = 0;
+  }
+  for (let i = gi; i < 36; i++) world.road[road * n + i] = 1;
+  for (let j = gj; j <= road; j++) world.road[j * n + gi] = 1;
+  const north: string[] = ['storehouse', 'farm', 'theatre', 'mill', 'chapel'], south: string[] = ['market', 'sawmill', 'tavern', 'house', 'house'];
+  let x = 3;
+  for (let k = 0; k < north.length; k++) { const t = economy.typeOf(north[k]), d = economy.buildings[t]; newBuilding(t, (road - d.h) * n + x); x += d.w + 1; }
+  x = 3;
+  for (let k = 0; k < south.length; k++) {
+    const t = economy.typeOf(south[k]), d = economy.buildings[t];
+    const id = newBuilding(t, (road + 1) * n + x);
+    if (k === 4) { world.buildings[id].level = 3; world.buildings[id].w = 2; world.buildings[id].h = 2; for (const u of [(road + 1) * n + x + 1, (road + 2) * n + x, (road + 2) * n + x + 1]) { world.build[u] = id; } }
+    if (k === 3) world.buildings[id].level = 1;
+    x += (k === 4 ? 2 : d.w) + 1;
+  }
+  world.netRev++; world.revision++;
 }
