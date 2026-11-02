@@ -135,6 +135,7 @@ export const TREE_CAP_SLOW = 1.5;      // ... up to this many times the no-limit
 
 // ---- deer ----
 export const DEER_START = 5;
+export const ANIMAL_CAP = 1500;         // the most animals a map places at the start, whatever its size
 export const DEER_MIN = 4;
 export const DEER_RESPAWN = 30;
 export const DEER_SPEED = 1.0;

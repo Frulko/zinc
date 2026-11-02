@@ -1,5 +1,5 @@
 import {
-  DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, DEER_START, DEER_GRAZE, DEER_GONE, ROCK_DEPOSIT, LODE_REACH,
+  DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, DEER_START, ANIMAL_CAP, DEER_GRAZE, DEER_GONE, ROCK_DEPOSIT, LODE_REACH,
 } from '../constants';
 import { noise } from './noise';
 import { terrain, TerrainParams, TerrainLayers, copyTerrainParams } from '../gen/terrain';
@@ -279,14 +279,17 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
   }
   recount();
   world.hasWater = world.terrain.some((v: number): boolean => v === TERRAIN_WATER);
-  for (let n = 0; n < Math.round(DEER_START * size * size / REFERENCE_AREA); n++) {
+  let planned = DEER_START;                                     // a big map is not a bigger crowd: the placed animals stop at ANIMAL_CAP (1024 x 1024 asked for 80000 and the steering cost grew with them)
+  for (let sp = 1; sp < SPECIES.length; sp++) planned += SPECIES[sp].start;
+  const thin = Math.min(1, ANIMAL_CAP * REFERENCE_AREA / (planned * size * size));
+  for (let n = 0; n < Math.round(DEER_START * size * size * thin / REFERENCE_AREA); n++) {
     for (let tries = 0; tries < 30; tries++) {
       const t = Math.floor(random() * size * size);
       if (isOpen(t) && tileI(t) > 3) { spawnDeer(t, 0, true); break; }
     }
   }
   for (let sp = 1; sp < SPECIES.length; sp++) {                 // the smaller wild species: rabbits on open ground, boar by the trees
-    for (let n = 0; n < Math.round(SPECIES[sp].start * size * size / REFERENCE_AREA); n++) {
+    for (let n = 0; n < Math.round(SPECIES[sp].start * size * size * thin / REFERENCE_AREA); n++) {
       for (let tries = 0; tries < 40; tries++) {
         const t = Math.floor(random() * size * size);
         if (isOpen(t) && tileI(t) > 3 && (SPECIES[sp].kind !== 2 || treesAround(t) >= 2)) { spawnDeer(t, sp, true); break; }
