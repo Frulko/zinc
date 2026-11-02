@@ -18,22 +18,26 @@ function numbers(text: string): number[] {
 }
 
 /** The generator's request, as water,river,forest,rock,biome,coast,outcrop,flowers (numbers). */
-function paramsText(): string { const p = world.params; return [p.waterAmount, p.river ? 1 : 0, p.forestDensity, p.rockDensity, p.biome, p.coast, p.outcrop, p.flowers, p.biomes, p.wolves].join(','); }
+function paramsText(): string { const p = world.params; return [p.waterAmount, p.river ? 1 : 0, p.forestDensity, p.rockDensity, p.biome, p.coast, p.outcrop, p.flowers, p.biomes, p.wolves, p.relief].join(','); }
 function paramsOf(text: string): TerrainParams {
   const p = new TerrainParams(), v = numbers(text);
   p.waterAmount = v[0]; p.river = v[1] === 1; p.forestDensity = v[2]; p.rockDensity = v[3]; p.biome = v[4];
   if (v.length >= 8) { p.coast = v[5]; p.outcrop = v[6]; p.flowers = v[7]; }
   p.biomes = v.length >= 9 ? v[8] : 0;          // saves from before the presets have five numbers
   p.wolves = v.length >= 10 ? v[9] : 0;          // the wolves flag came later: older saves have none
+  p.relief = v.length >= 11 ? v[10] : 0;         // saves before the relief are flat
   return p;
 }
+
+/** The height levels, one hex digit per tile; empty when the land is flat. */
+function heightText(): string { return world.height.some((v: number): boolean => v > 0) ? world.height.map((v: number): string => v.toString(16)).join('') : ''; }
 
 export function snapshot(): string {
   const roads: number[] = [], buildings: string[] = [], trees: string[] = [], lodes: string[] = [];
   for (let t = 0; t < tileCount(); t++) if (world.road[t]) roads.push(t);
   for (const b of world.buildings) if (b.alive) buildings.push(b.type + '.' + tileIndex(b.i, b.j) + '.' + b.residents + '.' + stockWithCarried(world.buildings.indexOf(b)).join('|') + '.' + b.cover.join('|') + '.' + b.level + '.' + b.streak + '.' + b.fed.join('|') + '.' + [b.fire, b.damage, b.crime, b.burn].join('|'));
   for (let t = 0; t < tileCount(); t++) { if (world.tree[t] > 0) trees.push(t + '.' + world.tree[t]); if (world.rock[t] >= ROCK_DEPOSIT) lodes.push(t + '.' + world.rock[t] + '.' + world.lode[t]); }
-  return [SAVE_VERSION, String(world.seed), String(world.size), roads.join(','), buildings.join(','), trees.join(','), world.unlimited ? '1' : '0', String(world.tick), String(world.rng), world.priority.join(','), paramsText(), lodes.join(','), world.goals.join(''), world.unlocked.join(''), world.offers.map((o: Offer): string => [String(o.resource), String(o.qty), o.side, String(o.coins), o.taken ? '1' : '0'].join('.')).join(','), String(world.peddlerLeft), world.expeditions.map((e: Expedition): string => e.adventure + '.' + e.left + '.' + e.homes.join('|')).join(','), world.progression ? '1' : '0', world.risks ? '1' : '0', String(world.difficulty)].join(';');
+  return [SAVE_VERSION, String(world.seed), String(world.size), roads.join(','), buildings.join(','), trees.join(','), world.unlimited ? '1' : '0', String(world.tick), String(world.rng), world.priority.join(','), paramsText(), lodes.join(','), world.goals.join(''), world.unlocked.join(''), world.offers.map((o: Offer): string => [String(o.resource), String(o.qty), o.side, String(o.coins), o.taken ? '1' : '0'].join('.')).join(','), String(world.peddlerLeft), world.expeditions.map((e: Expedition): string => e.adventure + '.' + e.left + '.' + e.homes.join('|')).join(','), world.progression ? '1' : '0', world.risks ? '1' : '0', String(world.difficulty), heightText()].join(';');
 }
 
 export function saveGame(): void {
@@ -51,8 +55,11 @@ function sized(text: string, length: number): number[] {
 }
 export function restore(text: string): boolean {
   const fields = text.split(';');
-  if (fields.length < 19 || fields[0] !== SAVE_VERSION) return false;
+  if (fields.length < 19 || (fields[0] !== SAVE_VERSION && fields[0] !== 'H19')) return false;     // H19: before the heights, loads flat
   generate(Number(fields[1]), Number(fields[2]), paramsOf(fields[10]));
+  const heights = fields.length > 20 ? fields[20] : '';
+  if (fields[0] === SAVE_VERSION && heights.length === world.size * world.size) for (let t = 0; t < heights.length; t++) world.height[t] = parseInt(heights.charAt(t), 16);
+  else if (fields[0] !== SAVE_VERSION) world.height.fill(0);
   for (const t of numbers(fields[3])) { world.road[t] = 1; world.deco[t] = 0; }
   if (fields[4] !== '') {
     for (const entry of fields[4].split(',')) {

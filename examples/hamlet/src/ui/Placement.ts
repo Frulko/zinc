@@ -2,7 +2,7 @@ import { width } from 'zinc:gfx';
 import { TERRAIN_WATER } from '../constants';
 import { world } from '../world/world';
 import { economy, amountText } from '../world/economy';
-import { TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_LOCKED, PLACE_NO_LODE } from '../constants';
+import { TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_LOCKED, PLACE_NO_LODE, PLACE_UNEVEN, PLACE_ROCKY } from '../constants';
 import { checkTool, destroyBuilding, addBuilding } from '../rules/build';
 import { give } from '../rules/stock';
 import { lockText } from '../rules/goals';
@@ -77,6 +77,8 @@ export function reasonText(tool: number, code: number): string {
   if (code === PLACE_NO_WATER) return 'Ce bâtiment se pose au bord de l’étang.';
   if (code === PLACE_LOCKED) return lockText(tool - TOOL_HOUSE);
   if (code === PLACE_NO_LODE) return 'Aucun gisement de ce genre à moins de huit cases : posez-le près de la roche ou du minerai.';
+  if (code === PLACE_UNEVEN) return 'Le terrain n’est pas plat : un bâtiment demande une case de niveau, sans pente ni falaise à côté.';
+  if (code === PLACE_ROCKY) return 'La montagne est trop haute et trop dure pour y bâtir.';
   if (code === PLACE_NO_ROAD) return 'Il faut poser le bâtiment au bord d’une route.';
   if (code === PLACE_NO_STOCK) return 'Il manque : ' + amountText(economy.buildings[tool - TOOL_HOUSE].cost, world.stock) + '.';
   return 'Cette case n’est pas libre.';

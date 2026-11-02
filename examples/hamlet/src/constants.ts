@@ -4,6 +4,11 @@
 export const DEFAULT_SIZE = 24;         // tiles per side of a new village (the size itself is world.size, saved with the village)
 export const MIN_SIZE = 12;             // smallest and largest village a seed may ask for
 export const MAX_SIZE = 128;
+export const HEIGHT_STEP = 0.5;        // world units per height level
+export const MAX_HEIGHT = 15;          // levels 0..15 per tile; water only at 0
+export const MOUNTAIN_LEVEL = 8;       // from this level the ground is rock: no building, no road, no walking
+export const SLOPE_COST = 1.5;         // a road laid on a slope costs this much more, a walker's path through one is this much dearer
+export const SLOPE_SPEED = 0.7;        // walking speed multiplier on a step that climbs or descends a level
 export const TILE = 2;                  // world units per tile
 export const REFERENCE_AREA = 144;      // the 12 x 12 map the counts below were tuned on; they scale with the area
 export const GATE_I = 0;                // the entrance is on this column, in the middle of it: where settlers arrive
@@ -31,6 +36,8 @@ export const PLACE_NO_ROAD = 2;
 export const PLACE_NO_STOCK = 3;
 export const PLACE_NO_WATER = 4;
 export const PLACE_LOCKED = 6;         // the building is unlocked by a goal not yet reached
+export const PLACE_UNEVEN = 7;        // the footprint is not flat: a slope, or a cliff beside it
+export const PLACE_ROCKY = 8;          // mountain rock (level MOUNTAIN_LEVEL and up): nothing is built there
 export const PLACE_NO_LODE = 5;        // a gatherer of a deposit with none of its kind near
 
 // ---- time ----
@@ -148,5 +155,5 @@ export const DEER_CHARGE = 8;           // a cornered boar runs at the person, a
 
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';
-export const SAVE_VERSION = 'H19';
+export const SAVE_VERSION = 'H20';
 export const SAVE_DELAY = 2;            // seconds between two writes

@@ -1,13 +1,17 @@
-import { TERRAIN_GRASS, TERRAIN_WATER, ROAD_COST, WALK_SPEED, ROAD_SPEED } from '../constants';
-import { world, Mover, neighbor, tileAt, tileX, tileY, tileI, tileJ } from '../world/world';
+import { TERRAIN_GRASS, TERRAIN_WATER, ROAD_COST, WALK_SPEED, ROAD_SPEED, MOUNTAIN_LEVEL, SLOPE_COST, SLOPE_SPEED } from '../constants';
+import { world, Mover, neighbor, tileAt, tileX, tileY, tileI, tileJ, isCliff } from '../world/world';
 
 export const UNREACHABLE = 1e9;
 export class Field { dist: number[] = []; prev: number[] = []; reached: number[] = []; count: number = 0; }
 
 /** Grass, or water under a bridge (a road on water). */
 export function isWalkable(t: number): boolean {
-  return (world.terrain[t] === TERRAIN_GRASS || (world.terrain[t] === TERRAIN_WATER && world.road[t] !== 0)) && world.tree[t] === 0 && world.rock[t] === 0 && world.build[t] < 0;
+  return (world.terrain[t] === TERRAIN_GRASS || (world.terrain[t] === TERRAIN_WATER && world.road[t] !== 0)) && world.tree[t] === 0 && world.rock[t] === 0 && world.build[t] < 0 && world.height[t] < MOUNTAIN_LEVEL;
 }
+/** A step from a to the adjacent tile b crosses a cliff (never on water: a bridge has no cliff). */
+function cliffStep(a: number, b: number): boolean { return world.terrain[a] === TERRAIN_GRASS && world.terrain[b] === TERRAIN_GRASS && isCliff(a, b); }
+/** A step that climbs or descends a level. */
+function climbs(a: number, b: number): boolean { return world.height[a] !== world.height[b] && world.terrain[a] === TERRAIN_GRASS && world.terrain[b] === TERRAIN_GRASS; }
 
 // One search at a time, in buffers that live as long as the map: a search costs the tiles it reaches, never the size of the map, and allocates nothing.
 // The Field it returns is the one shared object: use it (dist, approachTile, pathTo, `reached`) before the next search, never keep it.
@@ -55,7 +59,7 @@ const touch = (t: number): void => { shared.reached[shared.count++] = t; };
 export const ESCAPE = 14;    // how far over open ground a walker may go to reach a road (a gatherer's work radius): beyond it he is lost off the network
 export function fieldFrom(start: number, limit: number = UNREACHABLE, escape: number = UNREACHABLE, goal: number = -1): Field {
   prepare();
-  const dist = shared.dist, prev = shared.prev, size = world.size, ground = world.terrain, road = world.road, tree = world.tree, rock = world.rock, build = world.build;
+  const dist = shared.dist, prev = shared.prev, size = world.size, ground = world.terrain, road = world.road, tree = world.tree, rock = world.rock, build = world.build, hgt = world.height;
   const goalOpen = goal >= 0 && isWalkable(goal);
   const gi = goal >= 0 ? goal % size : 0, gj = goal >= 0 ? Math.floor(goal / size) : 0;
   const scale = goal >= 0 ? ROAD_COST * 1.002 : 0;      // A*: with a goal, the cost so far plus the cheapest rest of the way (a road tile per step), a hair over so that ties lean toward the goal
@@ -73,10 +77,11 @@ export function fieldFrom(start: number, limit: number = UNREACHABLE, escape: nu
       if (d === 0) vi++; else if (d === 1) vi--; else if (d === 2) vj++; else vj--;
       if (vi < 0 || vj < 0 || vi >= size || vj >= size) continue;
       const v = vj * size + vi, g = ground[v];
-      if (!((g === TERRAIN_GRASS || (g === TERRAIN_WATER && road[v] !== 0)) && tree[v] === 0 && rock[v] === 0 && build[v] < 0)) continue;
+      if (!((g === TERRAIN_GRASS || (g === TERRAIN_WATER && road[v] !== 0)) && tree[v] === 0 && rock[v] === 0 && build[v] < 0 && hgt[v] < MOUNTAIN_LEVEL)) continue;
+      if (g === TERRAIN_GRASS && ground[u] === TERRAIN_GRASS && hgt[u] !== hgt[v] && isCliff(u, v)) continue;
       const isRoad = road[v] !== 0;
       if (!isRoad && escape < UNREACHABLE && (onRoad || du + 1 > escape)) continue;
-      const cost = du + (isRoad ? ROAD_COST : 1);
+      const cost = du + (isRoad ? ROAD_COST : 1) * (climbs(u, v) ? SLOPE_COST : 1);
       if (cost < dist[v] && cost <= limit) {
         if (dist[v] === UNREACHABLE) touch(v);
         dist[v] = cost; prev[v] = u; via[v] = isRoad || onRoad ? 1 : 0; heapPush(cost + scale * (Math.abs(vi - gi) + Math.abs(vj - gj)), v);
@@ -127,7 +132,8 @@ export function walk(m: Mover, dt: number, speed: number): boolean {
   const t = m.path[m.step];
   if (!isWalkable(t)) { m.path = []; m.step = 0; return true; }
   const here = tileAt(m.x, m.y);
-  const pace = speed * (here >= 0 && world.road[here] ? ROAD_SPEED : 1);
+  if (here >= 0 && here !== t && cliffStep(here, t)) { m.path = []; m.step = 0; return true; }
+  const pace = speed * (here >= 0 && world.road[here] ? ROAD_SPEED : 1) * (here >= 0 && here !== t && climbs(here, t) ? SLOPE_SPEED : 1);
   const dx = tileX(t) - m.x, dy = tileY(t) - m.y, dist = Math.sqrt(dx * dx + dy * dy), len = pace * dt;
   m.phase += len * 3.2;
   if (dist <= len) { m.x = tileX(t); m.y = tileY(t); m.step++; return m.step >= m.path.length; }

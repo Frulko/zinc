@@ -1,6 +1,6 @@
 import { rect, border, createImage, destroyImage, updatePixels, drawImageRect, ImageFlag } from 'zinc:gfx';
 import { unproject, W, H } from '../pixel';
-import { world } from '../world/world';
+import { world, heightAt } from '../world/world';
 import { TERRAIN_WATER, TERRAIN_VOID, TILE } from '../constants';
 import { economy } from '../world/economy';
 import { aimAt } from '../view/scenery';
@@ -22,6 +22,13 @@ function tileOfPixel(px: number, py: number): number {
 function pictureX(x: number, y: number): number { return world.size + ((x - y) / TILE); }
 function pictureY(x: number, y: number): number { return (x + y + 2 * world.half) / TILE / 2; }
 
+/** Brightness of a tile out of 256: light from the north-west on the drop to its west and north neighbours, and a little lighter the higher it stands. 256 on flat ground. */
+function hillshade(t: number): number {
+  const n = world.size, i = t % n, h = heightAt(t);
+  const w = i > 0 ? heightAt(t - 1) : h, u = t >= n ? heightAt(t - n) : h, e = i < n - 1 ? heightAt(t + 1) : h, s = t < n * (n - 1) ? heightAt(t + n) : h;
+  return Math.max(150, Math.min(340, 256 + (w + u - e - s) * 18 + h * 5));
+}
+
 // The ground is one small picture, redone when the village changed and at most twice a second: a draw call, not a rectangle per tile.
 let image: i32 = -1, imageSize = 0, madeAt = -10, madeFor = -1;
 function refresh(): void {
@@ -34,7 +41,8 @@ function refresh(): void {
     const terrain = world.terrain[t], id = world.build[t];
     const color = terrain === TERRAIN_VOID ? 0 : terrain === TERRAIN_WATER ? WATER : world.road[t] !== 0 ? ROAD : id >= 0 ? (economy.buildings[world.buildings[id].type].housing !== null ? HOUSE : WORK)
       : world.tree[t] !== 0 ? TREE : world.rock[t] !== 0 ? ROCK : GRASS;
-    px.push(color === 0 ? 0 : rgb((color >> 16) & 255, (color >> 8) & 255, color & 255));
+    const shade = color === 0 || color === WATER ? 256 : hillshade(t);
+    px.push(color === 0 ? 0 : rgb(Math.min(255, ((color >> 16) & 255) * shade >> 8), Math.min(255, ((color >> 8) & 255) * shade >> 8), Math.min(255, (color & 255) * shade >> 8)));
   }
   updatePixels(image, px, false);
   madeAt = ui.time; madeFor = world.revision;

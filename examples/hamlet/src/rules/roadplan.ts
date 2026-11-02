@@ -1,5 +1,5 @@
-import { TERRAIN_GRASS, TERRAIN_WATER, ROAD_COST } from '../constants';
-import { world, tileIndex, tileI, tileJ, neighbor, recount } from '../world/world';
+import { TERRAIN_GRASS, TERRAIN_WATER, ROAD_COST, MOUNTAIN_LEVEL, SLOPE_COST } from '../constants';
+import { world, tileIndex, tileI, tileJ, neighbor, recount, isCliff, isSlope } from '../world/world';
 import { economy } from '../world/economy';
 import { canPay, pay, give, take } from './stock';
 
@@ -12,9 +12,13 @@ export function isBridge(t: number): boolean { return world.road[t] !== 0 && wor
 /** The longest bridge, in tiles. */
 export const BRIDGE_MAX = 3;
 const water = (t: number): boolean => world.terrain[t] === TERRAIN_WATER;
+/** A road on a slope costs SLOPE_COST times the dirt. */
+const slope = (t: number): number => !water(t) && isSlope(t) ? SLOPE_COST : 1;
+/** A cliff between two adjacent land tiles. */
+const cliff = (a: number, b: number): boolean => !water(a) && !water(b) && isCliff(a, b);
 /** A tile a road may take: bare ground, a tree (cleared on build) or, when `wet`, water. A rock, a building or the border never. */
 function roadable(t: number, wet: boolean): boolean {
-  if (world.rock[t] !== 0 || world.build[t] >= 0) return false;
+  if (world.rock[t] !== 0 || world.build[t] >= 0 || world.height[t] >= MOUNTAIN_LEVEL) return false;
   return world.terrain[t] === TERRAIN_GRASS || (wet && water(t));
 }
 
@@ -30,7 +34,7 @@ export function isPlaza(t: number): boolean {
 /** What laying these (new) tiles costs: the rounded-up total of dirt, bridge and tree clearing, per resource. */
 export function costOf(tiles: number[]): number[] {
   const c = economy.roads, sum = economy.resources.map((): number => 0);
-  for (const t of tiles) for (let k = 0; k < sum.length; k++) sum[k] += c.dirt[k] + (water(t) ? c.bridge[k] : 0) + (world.tree[t] > 0 ? c.clear[k] : 0);
+  for (const t of tiles) for (let k = 0; k < sum.length; k++) sum[k] += c.dirt[k] * slope(t) + (water(t) ? c.bridge[k] : 0) + (world.tree[t] > 0 ? c.clear[k] : 0);
   return sum.map((v: number): number => Math.ceil(v - 1e-9));
 }
 /** What a demolished stretch of road gives back: the refund share of its cost, rounded down. */
@@ -39,7 +43,7 @@ export function refundOf(tiles: number[]): number[] {
 }
 function sumDirt(tiles: number[], k: number): number {
   const c = economy.roads; let s = 0;
-  for (const t of tiles) s += c.dirt[k] + (water(t) ? c.bridge[k] : 0);
+  for (const t of tiles) s += c.dirt[k] * slope(t) + (water(t) ? c.bridge[k] : 0);
   return s;
 }
 
@@ -84,9 +88,11 @@ function firstStop(path: number[]): number {
   for (let k = 0; k < path.length; k++) {
     const t = path[k];
     if (!roadable(t, true)) return k;
+    if (k > 0 && cliff(path[k - 1], t)) return k;
     if (water(t)) {
       let e = k; while (e < path.length && water(path[e])) e++;
       if (e === path.length || e - k > BRIDGE_MAX) return k;
+      if (k > 0 && (isSlope(path[k - 1]) || isSlope(path[e]) || world.height[path[k - 1]] !== world.height[path[e]])) return k;   // a bridge stands on flat banks of one level
       k = e - 1;
     }
   }
@@ -123,10 +129,10 @@ function route(a: number, b: number): number[] {
     if (u === b && run === 0) { goal = s0; break; }
     for (let d = 0; d < 4; d++) {
       const v = neighbor(u, d);
-      if (v < 0 || !roadable(v, true)) continue;
+      if (v < 0 || !roadable(v, true) || cliff(u, v)) continue;
       const wet = water(v), nrun = wet ? run + 1 : 0;
-      if (nrun > BRIDGE_MAX) continue;
-      const step = wet ? 3.2 : world.road[v] !== 0 ? ROAD_COST : world.tree[v] > 0 ? 2.5 : 1;
+      if (nrun > BRIDGE_MAX || (wet !== water(u) && isSlope(wet ? u : v))) continue;      // a bridge starts and ends on a flat bank (firstStop checks the two banks are level)
+      const step = (wet ? 3.2 : world.road[v] !== 0 ? ROAD_COST : world.tree[v] > 0 ? 2.5 : 1) * (wet || world.height[u] === world.height[v] ? 1 : SLOPE_COST);
       const s = v * S + nrun, cost = k0 + step;
       if (cost < dist[s]) { dist[s] = cost; prev[s] = s0; push(cost, s); }
     }

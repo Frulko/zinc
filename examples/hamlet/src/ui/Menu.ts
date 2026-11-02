@@ -159,7 +159,7 @@ function options(): void {
   labelButton('menu:back', m.x + 12, m.y + 438, 100, 26, 'Retour');
 }
 function fresh(): void {
-  const m = modal(420, 452, 'Nouveau hameau');
+  const m = modal(420, 484, 'Nouveau hameau');
   text(kit.body, m.x + 24, m.y + 38, 'Graine (un nombre ou un mot, vide : au hasard)', col('ink'));
   parchment(m.x + 24, m.y + 62, 372, 30);
   text(kit.body, m.x + 32, m.y + 68, form.seed + (Math.floor(ui.time * 2) % 2 === 0 ? '_' : ''), col('ink'));
@@ -168,12 +168,12 @@ function fresh(): void {
   textC(kit.body, m.x + 92, m.y + 137, form.size + ' × ' + form.size, col('ink'));
   text(kit.body, m.x + 24, m.y + 172, 'Paysage', col('ink'));
   for (let k = 0; k < PRESETS.length; k++) labelButton('new:preset:' + k, m.x + 24 + (k % 4) * 94, m.y + 194 + Math.floor(k / 4) * 32, 88, 26, PRESETS[k].label, '', true, k === form.preset);
-  toggle('new:campaign', 'Campagne (objectifs, colporteur, aventures)', form.campaign, m.x + 24, m.y + 262);
-  toggle('new:risks', 'Risques (incendie, effondrement, vols)', form.risks, m.x + 24, m.y + 298);
-  text(kit.body, m.x + 24, m.y + 336, 'Difficulté (campagne)', col('ink'));
-  for (let k = 0; k < economy.difficulties.length; k++) labelButton('new:level:' + k, m.x + 24 + k * 124, m.y + 358, 118, 26, economy.difficulties[k].label, economy.difficulties[k].hint, true, k === form.difficulty);
-  labelButton('new:create', m.x + 24, m.y + 398, 180, 32, 'Créer le hameau');
-  labelButton('menu:back', m.x + 216, m.y + 398, 180, 32, 'Annuler');
+  toggle('new:campaign', 'Campagne (objectifs, colporteur, aventures)', form.campaign, m.x + 24, m.y + 294);
+  toggle('new:risks', 'Risques (incendie, effondrement, vols)', form.risks, m.x + 24, m.y + 330);
+  text(kit.body, m.x + 24, m.y + 368, 'Difficulté (campagne)', col('ink'));
+  for (let k = 0; k < economy.difficulties.length; k++) labelButton('new:level:' + k, m.x + 24 + k * 124, m.y + 390, 118, 26, economy.difficulties[k].label, economy.difficulties[k].hint, true, k === form.difficulty);
+  labelButton('new:create', m.x + 24, m.y + 430, 180, 32, 'Créer le hameau');
+  labelButton('menu:back', m.x + 216, m.y + 430, 180, 32, 'Annuler');
 }
 
 // ---- input ----

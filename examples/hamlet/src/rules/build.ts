@@ -1,5 +1,5 @@
-import { TERRAIN_GRASS, HOUSE, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_NO_LODE, PLACE_LOCKED, ROCK_DEPOSIT } from '../constants';
-import { world, newBuilding, recount, tileIndex, tileI, tileJ, neighbor, isOpen, waterNeighbor } from '../world/world';
+import { TERRAIN_GRASS, HOUSE, TOOL_ROAD, TOOL_ERASE, TOOL_HOUSE, PLACE_OK, PLACE_BLOCKED, PLACE_NO_ROAD, PLACE_NO_STOCK, PLACE_NO_WATER, PLACE_NO_LODE, PLACE_LOCKED, PLACE_UNEVEN, PLACE_ROCKY, MOUNTAIN_LEVEL, ROCK_DEPOSIT } from '../constants';
+import { world, newBuilding, recount, tileIndex, tileI, tileJ, neighbor, isOpen, waterNeighbor, heightAt, isFlat } from '../world/world';
 import { economy } from '../world/economy';
 import { releaseWorkers, removeResidents } from '../engine/villagers';
 import { canPay, pay } from './stock';
@@ -24,8 +24,10 @@ function lodeNear(t: number, k: number): boolean {
 export function checkTool(tool: number, t: number): number {
   if (t < 0) return PLACE_BLOCKED;
   if (tool === TOOL_ERASE) return ((world.build[t] >= 0 && !world.buildings[world.build[t]].fixed) || (world.road[t] && t !== world.gate) || world.tree[t] > 0) ? PLACE_OK : PLACE_BLOCKED;   // a tree can be razed: it brings nothing
-  if (tool === TOOL_ROAD) return world.terrain[t] === TERRAIN_GRASS && world.rock[t] === 0 && world.build[t] < 0 && world.road[t] === 0 ? (canPay(costOf([t])) ? PLACE_OK : PLACE_NO_STOCK) : PLACE_BLOCKED;   // a tree is cleared by the road
+  if (tool === TOOL_ROAD) return world.terrain[t] === TERRAIN_GRASS && heightAt(t) < MOUNTAIN_LEVEL && world.rock[t] === 0 && world.build[t] < 0 && world.road[t] === 0 ? (canPay(costOf([t])) ? PLACE_OK : PLACE_NO_STOCK) : PLACE_BLOCKED;   // a tree is cleared by the road
   if (!isOpen(t)) return PLACE_BLOCKED;
+  if (heightAt(t) >= MOUNTAIN_LEVEL) return PLACE_ROCKY;
+  if (!isFlat(t)) return PLACE_UNEVEN;
   const def = economy.buildings[tool - TOOL_HOUSE];
   if (!def.buildable) return PLACE_BLOCKED;
   if (def.gather === 'shore' && waterNeighbor(t) < 0) return PLACE_NO_WATER;

@@ -19,6 +19,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The Tree window (`T`) draws the production chains; a technical window (`F3`) shows frame times, the world and the tile under the pointer; windows drag by their title bar and close with their button or `Esc`.
 - Message clicks point an arrow at the place, and a double click opens its window. Separate volumes for ambience and effects, with synthesised sounds.
 - Hamlet villagers and carts now keep to the roads: a workshop whose road does not lead to the village entrance stays idle and says so, service walkers (market, fire, watch) go straight on and take turns at junctions, covering the houses within two tiles, and a store can be set to accept, refuse or only collect a good.
+- Hamlet land now has relief: hills, plateaus, rivers in valleys and, in the new Montagnes landscape, mountain ranges whose rock cannot be built on and which hold the ore. Houses need level ground, roads climb one level a tile at a higher cost, walkers slow down on slopes, and nothing crosses a cliff. The minimap is shaded by height.
 
 #### Changed
 

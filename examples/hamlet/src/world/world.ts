@@ -50,7 +50,7 @@ export class Deer extends Mover {
 /** The whole game state: plain data, no drawing, no side effect at import. */
 export interface World {
   seed: number; size: number; half: number; gate: number; time: number; tick: number; rng: number; jobTimer: number; stock: number[]; hasWater: boolean;
-  terrain: number[]; road: number[]; tree: number[]; rock: number[]; deco: number[]; biome: number[]; build: number[]; claimed: number[];
+  terrain: number[]; height: number[]; road: number[]; tree: number[]; rock: number[]; deco: number[]; biome: number[]; build: number[]; claimed: number[];
   felledCount: number;              // trees cut so far
   unlimited: boolean;               // no-limit mode: trees and deer come back below a threshold
   treeTimer: number;
@@ -98,7 +98,7 @@ export function recount(): void {
 const zeros = (size: number = DEFAULT_SIZE): number[] => Array.from({ length: size * size }, (): number => 0);
 export const world: World = {
   seed: 1, size: DEFAULT_SIZE, half: DEFAULT_SIZE * TILE / 2, gate: Math.floor(DEFAULT_SIZE / 2) * DEFAULT_SIZE, time: 0, tick: 0, rng: 1, jobTimer: 0, stock: [], hasWater: false,
-  terrain: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), biome: zeros(), build: zeros(), claimed: zeros(),
+  terrain: zeros(), height: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), biome: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
   revision: 0, netRev: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, crime: new Crime(), priority: [],
@@ -143,6 +143,21 @@ export function waterNeighbor(t: number): number {
   return -1;
 }
 
+/** Level of a tile, 0..MAX_HEIGHT (0: flat world, water). */
+export function heightAt(t: number): number { return world.height[t]; }
+/** A cliff between two adjacent tiles: a drop of two levels or more. Impassable. */
+export function isCliff(a: number, b: number): boolean { return Math.abs(world.height[a] - world.height[b]) >= 2; }
+/** A land tile with a land neighbour one level apart: passable, not buildable. Water and the border do not count. */
+export function isSlope(t: number): boolean {
+  for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && world.terrain[v] === TERRAIN_GRASS && Math.abs(world.height[v] - world.height[t]) === 1) return true; }
+  return false;
+}
+/** A flat footprint: every land neighbour is on the same level. */
+export function isFlat(t: number): boolean {
+  for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && world.terrain[v] === TERRAIN_GRASS && world.height[v] !== world.height[t]) return false; }
+  return true;
+}
+
 export function isOpen(t: number): boolean {
   return world.terrain[t] === TERRAIN_GRASS && world.tree[t] === 0 && world.rock[t] === 0 && world.build[t] < 0 && world.road[t] === 0;
 }
@@ -180,7 +195,7 @@ export function tileCount(): number { return world.size * world.size; }
 
 export function generate(seed: number, size: number = DEFAULT_SIZE, params: TerrainParams = new TerrainParams()): void {
   world.seed = seed; world.size = size; world.half = size * TILE / 2; world.gate = Math.floor(size / 2) * size + GATE_I;
-  world.terrain = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.biome = zeros(size); world.build = zeros(size); world.claimed = zeros(size); world.lode = zeros(size);
+  world.terrain = zeros(size); world.height = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.biome = zeros(size); world.build = zeros(size); world.claimed = zeros(size); world.lode = zeros(size);
   world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.stock = [];
   world.buildings = []; world.people = []; world.crime = new Crime(); world.deer = []; world.felledCount = 0; world.treeTimer = 0;
   world.deerTimer = 0; world.deerSeq = 0; world.mood = 70; world.jobless = 0; world.waitingForFood = false; world.priority = []; world.appeal = zeros(size); resetGoals(); world.lastSave = 0; world.saveDirty = false;
@@ -193,7 +208,7 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
   for (let t = 0; t < size * size; t++) {
     world.build[t] = -1; world.claimed[t] = 0;
     world.terrain[t] = layers.outside[t] === 1 ? TERRAIN_VOID : layers.water[t] === 1 ? TERRAIN_WATER : TERRAIN_GRASS;
-    world.tree[t] = layers.forest[t]; world.rock[t] = layers.rock[t]; world.deco[t] = layers.deco[t]; world.biome[t] = layers.biome[t];
+    world.tree[t] = layers.forest[t]; world.rock[t] = layers.rock[t]; world.deco[t] = layers.deco[t]; world.biome[t] = layers.biome[t]; world.height[t] = layers.level[t];
   }
   world.road[world.gate] = 1;
   placeLodes(layers);

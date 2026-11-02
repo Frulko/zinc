@@ -663,7 +663,7 @@ const isOpenBlocked = (t: number): boolean => !isOpen(t);
   check('the save keeps the wolves flag', restore(wtext) && world.params.wolves === 1 && wolvesOf().length >= 3);
   const pf = wfields[10].split(',');
   wfields[10] = pf.slice(0, 9).join(',');
-  check('a save from before the wolves has none', pf.length === 10 && restore(wfields.join(';')) && world.params.wolves === 0 && wolvesOf().length === 0);
+  check('a save from before the wolves has none', pf.length === 11 && restore(wfields.join(';')) && world.params.wolves === 0 && wolvesOf().length === 0);
   // a wolf holds still to be looked at
   withWolves(1, 1, 11);
   const house1 = addBuilding(HOUSE, at(2, 7)); createResident(house1);
@@ -1211,4 +1211,95 @@ check('a plaza adds one appeal around it', world.appeal[at(5, 14)] - appealBefor
 }
 const hashList = (list: number[]): number => { let h = 7; for (const v of list) h = (h * 31 + v) | 0; return h >>> 0; };
 console.log('hamlet rules: roadhash2 ' + hashList(around4.tiles) + ':' + hashList(detour.tiles) + ':' + hashList(over.tiles) + ':' + hashList(broke.fresh) + ':' + hashList(world.road));
+// ---- relief: seeded heights, flat footprints, slopes and cliffs for roads and walkers, bridges, saves ----
+import { heightAt, isSlope, isCliff } from '../../../examples/hamlet/src/world/world';
+import { PLACE_UNEVEN, PLACE_ROCKY, MOUNTAIN_LEVEL, MAX_HEIGHT, SLOPE_SPEED, TERRAIN_WATER as WATER_T, TERRAIN_GRASS as GRASS_T } from '../../../examples/hamlet/src/constants';
+import { walk } from '../../../examples/hamlet/src/engine/path';
+const MOUNTAINS = PRESETS[PRESETS.length - 3].params;
+const levelsOf = (seed: number, size: number): number[] => terrain(seed, size, size, MOUNTAINS).level;
+const lv1 = levelsOf(11, 64);
+check('relief: the same seed gives the same heights, another seed other ones', lv1.join('') === levelsOf(11, 64).join('') && lv1.join('') !== levelsOf(12, 64).join(''));
+check('relief: levels stay in 0..' + MAX_HEIGHT + ' and the mountains reach the rock', lv1.every((v) => v >= 0 && v <= MAX_HEIGHT) && Math.max(...lv1) >= MOUNTAIN_LEVEL + 2 && lv1.some((v) => v === 0));
+let reliefHash = 2166136261;
+for (const seed of [11, 12, 99]) for (const v of levelsOf(seed, 48)) reliefHash = Math.imul(reliefHash ^ v, 16777619);
+console.log('hamlet rules: reliefhash ' + (reliefHash >>> 0));
+const noRelief = new TerrainParams(); noRelief.relief = 0;
+check('relief: relief 0 is a flat world, the default only rises gently', terrain(11, 64, 64, noRelief).level.every((v) => v === 0) && terrain(11, 64, 64, new TerrainParams()).level.every((v) => v <= 4));
+generate(11, 64, MOUNTAINS);
+let waterUp = 0, steep = 0, gateFlat = true, deposits = 0, highDeposits = 0, high = 0, land = 0;
+for (let t = 0; t < 4096; t++) {
+  if (world.terrain[t] === WATER_T && world.height[t] !== 0) waterUp++;
+  if (world.terrain[t] === WATER_T) continue;
+  land++; if (world.height[t] >= 5) high++;
+  if (world.rock[t] >= ROCK_DEPOSIT) { deposits++; if (world.height[t] >= 5) highDeposits++; }
+  const i = tileI(t), j = tileJ(t);
+  for (const v of [i < 63 ? t + 1 : -1, j < 63 ? t + 64 : -1]) if (v >= 0 && world.terrain[v] !== WATER_T && world.height[t] < MOUNTAIN_LEVEL && world.height[v] < MOUNTAIN_LEVEL && isCliff(t, v)) steep++;
+  if (Math.abs(i - tileI(world.gate)) + Math.abs(j - tileJ(world.gate)) <= 3 && world.height[t] !== 0) gateFlat = false;
+}
+check('relief: water only at level 0, no cliff below the rock, the gate in a flat valley', waterUp === 0 && steep === 0 && gateFlat);
+check('relief: deposits crowd the mountains (' + highDeposits + ' of ' + deposits + ' on ' + high + ' of ' + land + ' tiles)', deposits >= 4 && highDeposits / deposits > high / land);
+console.log('hamlet relief: seed 11, 64 x 64, hex levels, ~ water, * deposit');
+for (let j = 0; j < 64; j++) { let row = ''; for (let i = 0; i < 64; i++) { const t = j * 64 + i; row += world.terrain[t] === WATER_T ? '~' : world.rock[t] >= ROCK_DEPOSIT ? '*' : world.height[t].toString(16); } console.log('hamlet relief: ' + row); }
+
+// rules on a hand-made relief: a flat 12 x 12 village, then heights set tile by tile
+generate(7916, 12);
+const lay = (): void => { world.height.fill(0); for (let t = 0; t < 144; t++) { world.tree[t] = 0; world.rock[t] = 0; world.terrain[t] = GRASS_T; world.road[t] = 0; world.build[t] = -1; } world.road[world.gate] = 1; };
+lay(); rich();
+buildRoad([at(3, 5), at(3, 6), at(3, 7)]);
+world.height[at(5, 5)] = 1;
+check('relief: heightAt, a slope is a step of one level', heightAt(at(5, 5)) === 1 && isSlope(at(4, 5)) && isSlope(at(5, 5)) && !isCliff(at(5, 5), at(4, 5)) && !isSlope(at(1, 1)) && !isCliff(at(1, 1), at(2, 1)));
+world.height[at(8, 8)] = 2;
+check('relief: a cliff is two levels or more, both ways', isCliff(at(8, 8), at(9, 8)) && isCliff(at(9, 8), at(8, 8)) && !isSlope(at(9, 8)));
+world.height[at(4, 5)] = 1;
+check('relief: no house on a slope', checkTool(TOOL_HOUSE, at(2, 5)) === PLACE_OK && checkTool(TOOL_HOUSE, at(4, 6)) === PLACE_UNEVEN && checkTool(TOOL_HOUSE, at(4, 5)) === PLACE_UNEVEN);
+check('relief: no house beside a cliff', checkTool(TOOL_HOUSE, at(9, 8)) === PLACE_UNEVEN && checkTool(TOOL_HOUSE, at(8, 8)) === PLACE_UNEVEN);
+lay(); buildRoad([at(8, 2)]);
+for (const t of [at(9, 2), at(9, 3), at(10, 2), at(10, 3), at(9, 1), at(9, 4), at(10, 1), at(10, 4), at(11, 2), at(11, 3), at(8, 2), at(8, 3), at(8, 1), at(8, 4)]) world.height[t] = 1;
+check('relief: a flat plateau takes a house even above the valley', checkTool(TOOL_HOUSE, at(9, 2)) === PLACE_OK && checkTool(TOOL_ROAD, at(9, 3)) === PLACE_OK);
+lay();
+for (const t of [at(1, 9), at(1, 10), at(2, 9), at(2, 10), at(0, 9), at(0, 10), at(1, 8), at(1, 11)]) world.height[t] = MOUNTAIN_LEVEL;
+check('relief: the rock of the mountains takes neither house nor road', checkTool(TOOL_HOUSE, at(1, 9)) === PLACE_ROCKY && checkTool(TOOL_ROAD, at(1, 9)) !== PLACE_OK && !isWalkable(at(1, 9)) && planRoad(at(1, 3), at(1, 9), false, false).blocked >= 0);
+lay();
+for (let i = 0; i < 12; i++) world.height[at(i, 2)] = Math.min(3, i);                           // a ramp: one level a tile up to level 3
+const noCliffs = (tiles: number[]): boolean => { for (let k = 1; k < tiles.length; k++) if (isCliff(tiles[k - 1], tiles[k])) return false; return true; };
+const rampPlan = planRoad(at(0, 2), at(8, 2), false, false);
+check('relief: a road climbs one level a tile', rampPlan.blocked < 0 && rampPlan.tiles.length === 9);
+world.height[at(1, 5)] = 1;
+check('relief: a road on a slope costs 1.5 times', costOf([at(8, 8), at(9, 8), at(10, 8), at(11, 8)])[PLANK] === 2 && costOf([at(1, 5), at(0, 5), at(2, 5), at(1, 4)])[PLANK] === 3);
+world.height[at(5, 2)] = 5;
+check('relief: no road across a cliff', planRoad(at(0, 2), at(8, 2), false, false).blocked === at(5, 2) && noCliffs(planRoad(at(0, 2), at(8, 2), false, true).fresh));
+lay();
+for (let j = 0; j < 12; j++) world.height[at(6, j)] = 2;                                         // a wall across the map
+const wall = fieldFrom(at(3, 5));
+check('relief: a walker does not cross a cliff', wall.dist[at(9, 5)] >= UNREACHABLE && wall.dist[at(5, 5)] < UNREACHABLE);
+world.height[at(6, 8)] = 1; world.height[at(5, 8)] = 1; world.height[at(7, 8)] = 1;
+const gap = fieldFrom(at(3, 5));
+lay();
+const open = fieldFrom(at(3, 5));
+check('relief: a ramp in the wall lets him through, the long way', gap.dist[at(9, 5)] < UNREACHABLE && gap.dist[at(9, 5)] > open.dist[at(9, 5)]);
+world.height[at(4, 5)] = 1;
+const up = fieldFrom(at(3, 5));
+check('relief: a step up a slope costs 1.5 times', up.dist[at(4, 5)] === open.dist[at(4, 5)] * 1.5);
+const mover = (): Person => { const m = new Person(); m.x = tileX(at(3, 5)); m.y = tileY(at(3, 5)); m.path = [at(4, 5)]; m.step = 0; return m; };
+lay(); const levelWalker = mover(); walk(levelWalker, .2, 2);
+world.height[at(4, 5)] = 1; const slopeWalker = mover(); walk(slopeWalker, .2, 2);
+check('relief: walkers are slower on a slope', slopeWalker.x > tileX(at(3, 5)) && slopeWalker.x - tileX(at(3, 5)) < (levelWalker.x - tileX(at(3, 5))) * (SLOPE_SPEED + .01));
+// bridges: flat banks only
+lay(); world.terrain[at(5, 6)] = WATER_T; world.terrain[at(6, 6)] = WATER_T;
+check('relief: a bridge between flat banks', planRoad(at(2, 6), at(9, 6), false, false).blocked < 0);
+world.height[at(3, 6)] = 1;
+check('relief: no bridge from a sloping bank', planRoad(at(2, 6), at(9, 6), false, false).blocked >= 0);
+lay(); world.terrain[at(5, 6)] = WATER_T; world.terrain[at(6, 6)] = WATER_T;
+for (let i = 7; i < 12; i++) for (let j = 4; j < 9; j++) world.height[at(i, j)] = 1;
+check('relief: no bridge between banks of two levels', planRoad(at(2, 6), at(9, 6), false, false).blocked >= 0);
+// the save keeps the heights; one from before them loads flat
+generate(21, 32, MOUNTAINS);
+world.height[at(4, 4)] = 3;
+const withRelief = snapshot(), savedHeights = world.height.slice();
+generate(1, 24, new TerrainParams());
+check('relief: the save round-trips the heights', restore(withRelief) && world.size === 32 && world.height.join('') === savedHeights.join('') && Math.max(...world.height) > 0 && world.height[at(4, 4)] === 3);
+const fields = withRelief.split(';');
+fields[0] = 'H19'; fields.pop(); fields[10] = fields[10].split(',').slice(0, 10).join(',');
+check('relief: a save from before the heights loads flat', restore(fields.join(';')) && world.size === 32 && world.height.every((v) => v === 0) && world.params.relief === 0);
+console.log('hamlet rules: reliefsavehash ' + (stateHash() >>> 0));
 console.log(failures === 0 ? 'hamlet rules: ALL PASS' : 'hamlet rules: ' + failures + ' FAIL');
