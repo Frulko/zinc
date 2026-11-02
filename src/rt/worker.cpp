@@ -264,6 +264,9 @@ Slot storeNum(double d, char st) {
   }
 }
 
+// A list of plain numbers (u32[], i32[], f32[], number[]): the items are written and read in one loop, with no call per item.
+bool dense(const Plan& k) { return !k.opt && !k.nullable && !k.box && (k.w == 'i' || k.w == 'u' || k.w == 'd') && k.kids.empty(); }
+
 bool encodeValue(Slot v, const Plan& p, rec::Writer& w, std::string& err) {
   if (v == 0 && (p.nullable || p.st == 's' || p.st == 'B' || p.st == '*' || p.st == '{')) {
     if (p.opt) { w.u8(0); return true; }
@@ -288,8 +291,20 @@ bool encodeValue(Slot v, const Plan& p, rec::Writer& w, std::string& err) {
     }
     case '*': {
       const auto* a = reinterpret_cast<const ArrObj*>(x);
-      w.u32(static_cast<std::uint32_t>(a->v.size()));
-      for (Slot e : a->v) if (!encodeValue(e, p.kids[0], w, err)) return false;
+      const std::size_t n = a->v.size();
+      w.u32(static_cast<std::uint32_t>(n));
+      const Plan& k = p.kids[0];
+      if (dense(k)) {
+        const std::size_t at = w.out.size(), sz = k.w == 'd' ? 8 : 4;
+        w.out.resize(at + n * sz);
+        std::uint8_t* o = w.out.data() + at;
+        for (std::size_t i = 0; i < n; ++i, o += sz) {
+          if (k.w == 'd') { const double d = numOf(a->v[i], k.st); std::memcpy(o, &d, 8); }
+          else { const std::uint32_t u = static_cast<std::uint32_t>(intOf(a->v[i], k.st)); std::memcpy(o, &u, 4); }   // little-endian host, as rec::Writer assumes
+        }
+        return true;
+      }
+      for (Slot e : a->v) if (!encodeValue(e, k, w, err)) return false;
       return true;
     }
     default: {
@@ -360,6 +375,20 @@ bool decodeValue(Machine& m, rec::Reader& r, const Plan& p, Slot& out) {
       if (!r.u32(n) || n > static_cast<std::uint64_t>(r.end - r.p)) return false;   // every item is at least one byte
       ArrObj* a = m.newArr(p.arr);
       a->v.reserve(n);
+      const Plan& k = p.kids[0];
+      if (dense(k)) {
+        const std::size_t sz = k.w == 'd' ? 8 : 4;
+        if (static_cast<std::uint64_t>(n) * sz > static_cast<std::uint64_t>(r.end - r.p)) { m.release(a); return false; }
+        const std::uint8_t* q = r.p;
+        for (std::uint32_t i = 0; i < n; ++i, q += sz) {
+          if (k.w == 'd') { double d; std::memcpy(&d, q, 8); a->v.push_back(storeNum(d, k.st)); }
+          else if (k.w == 'i') { std::int32_t v; std::memcpy(&v, q, 4); a->v.push_back(k.st == 'i' ? static_cast<Slot>(static_cast<std::int64_t>(v)) : storeNum(v, k.st)); }
+          else { std::uint32_t v; std::memcpy(&v, q, 4); a->v.push_back(k.st == 'u' ? static_cast<Slot>(v) : storeNum(v, k.st)); }
+        }
+        r.p = q;
+        x = reinterpret_cast<Slot>(a);
+        break;
+      }
       for (std::uint32_t i = 0; i < n; ++i) {
         Slot e;
         if (!decodeValue(m, r, p.kids[0], e)) { m.release(a); return false; }

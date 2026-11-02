@@ -1624,7 +1624,7 @@ std::string lowerWorkerEntries(const std::string& text, const std::string& path,
   }
   out += text.substr(from);
   if (path.find("lib/std/worker.ts") == std::string::npos) {   // and its event classes, which are not the web's (a generic MessageEvent<T>) when the file does not import them
-    std::string names = "__workerOnMessage, __workerPost";
+    std::string names = "__workerOnMessage, __workerPost, __workerSend";
     for (const char* nm : {"MessageEvent", "ErrorEvent"})
       if (std::regex_search(text, std::regex(std::string("\\b") + nm + "\\b")) && !std::regex_search(text, std::regex(std::string("import\\s*(type\\s*)?\\{[^}]*\\b") + nm + "\\b"))) names += std::string(", ") + nm;
     out += "\nimport { " + names + " } from 'zinc:worker';\n";

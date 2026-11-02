@@ -2230,6 +2230,11 @@ struct Checker {
         if (!replaceWith(i, argNodes.size() == 1 ? "__workerPost(__H0)" : "__workerPost(__H0, __H1)", holes)) return tError;
         return expr0(i, kNoType);
       }
+      if (!bad(ot) && argNodes.size() == 2 && lookup("__workerSend") != kNone && ty(ot).k == TK::Object && lookupMember(ty(ot).obj, "__zincWorker", false)) {   // worker.postMessage(v, [arrays]): any numeric array moves
+        std::vector<std::vector<std::uint32_t>> holes{{n(callee).kids[0]}, {argNodes[0]}, {argNodes[1]}};
+        if (!replaceWith(i, "__workerSend(__H0, __H1, __H2)", holes)) return tError;
+        return expr0(i, kNoType);
+      }
     }
     if (isNew) {
       const Node& c = n(callee);
