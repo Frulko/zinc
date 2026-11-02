@@ -2,6 +2,11 @@
 // Integer hash and value noise only (no sin): the same seed, size and params give the same layers on every engine and CPU.
 import { hash, noise } from '../world/noise';
 import { MAX_HEIGHT, MOUNTAIN_LEVEL } from '../constants';
+import { ensureStart } from './start';
+import { CoverField, coverPass, M_OPEN, M_BLOOM, M_EDGE, M_WOOD, M_SCREE, M_REED } from './cover';
+
+export const GEN_SCATTER = 0;     // the first generator: a dice per tile (old saves and the Classique preset)
+export const GEN_CLUSTERED = 1;   // groups: Wave Function Collapse ground cover, deposit patches, herds (gen/cover.ts, gen/deposits.ts)
 
 export const BIOME_MIXED = 0;      // pines and birches together
 export const BIOME_PINE = 1;
@@ -28,13 +33,14 @@ export class TerrainParams {
   biomes: number = 1;              // 1: forests, meadows, marsh and rocky hills come from moisture, warmth and height fields (clumps and clearings); 0: the uniform scatter of the first villages
   wolves: number = 0;              // 0 none; 1 a pack or two in forest country (and only there); 2 the same, and they can maul a villager alone at night
   relief: number = .3;            // 0 flat; .3 (the default) gentle rises on the hills; above, rolling plateaus and, up to 1, mountain ranges (levels 8+ are rock), a river valley and a flat valley at the gate
+  genStyle: number = GEN_SCATTER;  // GEN_SCATTER or GEN_CLUSTERED: how trees, flowers, deposits and animals are spread (the new villages and missions use the clustered one)
   edge: number = .985;             // beyond this superellipse radius the tiles are `outside` (the dissolved border of a diorama); 0 turns it off
 }
 /** A copy: the generator writes the entrance into the params it is given, so a shared set (a preset) must not be passed as is. */
 export function copyTerrainParams(p: TerrainParams): TerrainParams {
   const q = new TerrainParams();
   q.waterAmount = p.waterAmount; q.river = p.river; q.forestDensity = p.forestDensity; q.rockDensity = p.rockDensity; q.biome = p.biome; q.tile = p.tile; q.clearI = p.clearI; q.clearJ = p.clearJ; q.clearR = p.clearR;
-  q.coast = p.coast; q.outcrop = p.outcrop; q.flowers = p.flowers; q.biomes = p.biomes; q.edge = p.edge; q.wolves = p.wolves; q.relief = p.relief;
+  q.coast = p.coast; q.outcrop = p.outcrop; q.flowers = p.flowers; q.biomes = p.biomes; q.edge = p.edge; q.wolves = p.wolves; q.relief = p.relief; q.genStyle = p.genStyle;
   return q;
 }
 /** One value per tile, row after row (index = j * width + i). */
@@ -50,6 +56,8 @@ export class TerrainLayers {
   hilly: boolean = false;          // some tile is above level 0
   level: number[] = [];            // height level of every tile, 0..MAX_HEIGHT (all 0 without relief; water is always 0)
   pondX: number = 0; pondY: number = 0; pondR: number = 0; offsetX: number = 0; offsetY: number = 0;   // the pond's blob, for drawing its shore per pixel
+  wfcRestarts: number = 0; wfcForced: number = 0;   // the cover solver's repairs (clustered style): restarts, and cells that had to break a rule (always 0)
+  startRepair: number = 0;         // what the start guarantee had to do (gen/start.ts): 0 nothing, 1 cleared, 2 flattened, +4 grove planted, +8 fields made
   riverI: number[] = [];           // the column of the river in each row (empty without a river)
 }
 
@@ -105,6 +113,7 @@ export function terrain(seed: number, w: number, h: number, p: TerrainParams): T
     if (best === 2 && l.biome[t] === BI_MEADOW) l.biome[t] = BI_MARSH;
     if (best > 0 && p.coast > 0 && j > h * .7) { l.biome[t] = BI_COAST; if (l.deco[t] === DECO_REEDS) l.deco[t] = 0; }    // the sea shore is sand, not marsh
   }
+  if (p.clearR > 0) l.startRepair = ensureStart(l, seed, p.clearI, p.clearJ, BI_PLAIN);
   return l;
 }
 
@@ -138,7 +147,8 @@ function waterDistance(l: TerrainLayers, cap: number = 9): number[] {
 function biomePass(l: TerrainLayers, seed: number, p: TerrainParams): void {
   const w = l.width, h = l.height, dw = waterDistance(l), ox = l.offsetX, oy = l.offsetY;
   const cover = .62 - (p.forestDensity - .5) * .5 + (p.biome === BIOME_MEADOW ? .12 : 0);        // the patch noise above this is forest
-  const hills = .66 - (p.rockDensity - .5) * .3;
+  const hills = .66 - (p.rockDensity - .5) * .3, clustered = p.genStyle === GEN_CLUSTERED, f = new CoverField();
+  if (clustered) { const z = (): number[] => Array.from({ length: w * h }, (): number => 0); f.init = z(); f.patch = z(); f.bloom = z(); f.warm = z(); f.near = z(); f.cover = cover; f.flowers = p.flowers; f.pines = p.biome; f.reeds = DECO_REEDS; }
   for (let t = 0; t < w * h; t++) {
     if (l.outside[t] === 1 || l.water[t] === 1) continue;
     const i = t % w, j = Math.floor(t / w);
@@ -146,19 +156,28 @@ function biomePass(l: TerrainLayers, seed: number, p: TerrainParams): void {
     const moist = noise(i * .07 + ox + 100, j * .07 + oy), warm = noise(i * .06 + ox + 200, j * .06 + oy + 50), high = noise(i * .08 + ox + 300, j * .08 + oy + 80) + (p.outcrop > 0 ? p.outcrop * .12 : 0);
     const patch = noise(i * .16 + ox + 400, j * .16 + oy) * .7 + noise(i * .45 + ox, j * .45 + oy + 400) * .3 + (moist - .5) * .25 - (dw[t] <= 3 ? (4 - dw[t]) * .07 : 0);   // trees thin out toward water
     const near = dw[t];
-    if (near <= 1) {                                                                              // the shore and the marsh: open ground, reeds at the water's edge
+    if (clustered) { f.patch[t] = patch; f.warm[t] = warm; f.bloom[t] = noise(i * .22 + ox + 600, j * .22 + oy); f.near[t] = near <= 1 ? 1 : 0; }
+    if (near <= 1) {
+      if (clustered) { l.biome[t] = BI_MARSH; f.init[t] = M_OPEN | M_BLOOM | M_REED | M_EDGE; continue; }   // EDGE in every set: the glue a chunk seam always accepts                                                                              // the shore and the marsh: open ground, reeds at the water's edge
       l.biome[t] = BI_MARSH;
       if (near === 1) l.deco[t] = hash(i + seed, j * 3) > .55 ? DECO_REEDS : hash(i * 7, j + seed) > .85 ? 1 : 0;
       continue;
     }
     if (high > hills) {                                                                           // rocky hills: outcrops and scree
       l.biome[t] = BI_HILLS;
+      if (clustered) { f.init[t] = M_SCREE | M_OPEN | M_EDGE | (patch > cover + .08 ? M_WOOD : 0); continue; }
       if (noise(i * .4 + ox + 500, j * .4 + oy) > .5 && hash(i * 3 + seed, j * 7) > .45) l.rock[t] = 1 + Math.floor(hash(j, i) * 2);
       else if (patch > cover + .08 && hash(i + seed, j) > .6) l.forest[t] = p.biome === BIOME_BIRCH ? 4 : 1 + Math.floor(hash(i, j + seed) * 3);
       continue;
     }
     if (patch > cover - .03) l.biome[t] = p.biome === BIOME_PINE || warm < .38 && p.biome !== BIOME_BIRCH ? BI_PINE : p.biome === BIOME_BIRCH || warm > .62 ? BI_GROVE : BI_FOREST;   // the ground under a clump follows its trees
     else if (dw[t] >= 2 && dw[t] <= 5 && moist > .4 && high < hills - .08) l.biome[t] = BI_PLAIN;     // fertile plain: open, damp, near water (the farms like it)
+    if (clustered) {
+      const home = Math.abs(i - p.clearI) + Math.abs(j - p.clearJ) <= p.clearR + 2;                  // the village start: open ground around the gate (no dense wood within two tiles of the clear zone), the woods begin close behind it
+      if (home) { f.patch[t] = Math.min(patch, cover - .05); f.init[t] = M_OPEN | M_BLOOM | M_EDGE; }
+      else f.init[t] = patch > cover + .06 ? M_WOOD | M_EDGE : patch > cover - .06 ? M_EDGE | M_OPEN | M_WOOD : M_OPEN | M_BLOOM | M_EDGE;
+      continue;
+    }
     if (patch > cover && hash(i + seed, j) > (patch > cover + .08 ? .2 : .55)) {                  // forest: dense inside a clump, ragged on its edge
       const v = hash(i, j + seed);
       l.forest[t] = p.biome === BIOME_PINE ? 1 + Math.floor(v * 3) : p.biome === BIOME_BIRCH ? 4 : warm < .38 ? 1 + Math.floor(v * 3) : warm > .62 ? 4 : 1 + Math.floor(v * 4);
@@ -172,6 +191,7 @@ function biomePass(l: TerrainLayers, seed: number, p: TerrainParams): void {
       l.deco[t] = r < bloom * .35 ? 1 : r < bloom && moist > .3 ? 2 : 0;
     }
   }
+  if (clustered) { const wfc = coverPass(l, seed, f); l.wfcRestarts = wfc.restarts; l.wfcForced = wfc.forced; }
 }
 
 /**
