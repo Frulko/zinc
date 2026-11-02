@@ -44,6 +44,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 #### New
 
+- `zinc profile` opens with the wall-clock and CPU split and names closures by where they are (`outer/inner`, `Class.method/<anonymous>`).
 - `ZINC_CLOCK_TICK=<ms>` makes the deterministic clock move at each `performance.now()` read, so tests can observe time-sliced work.
 
 #### Fixed

@@ -718,6 +718,7 @@ struct Lowering {
   }
 
   std::string lambdaScope;   // collectLambdas: the generic instance being walked
+  std::string nameScope;     // collectLambdas: `Class.method` or `outer/inner` around the node, for the names of closures
   // `Box<i32>`, or a function's name and signature: a helper the checker generates per type is named with a type id (`__dynTo1476`),
   // which the next compile may give another type, so the id is left out and the signature tells the helpers apart
   std::string instanceName(std::uint32_t inst) const {
@@ -744,8 +745,11 @@ struct Lowering {
       li.scope = lambdaScope;
       Class cl;
       cl.name = "lambda" + std::to_string(lambdas.size());
-      if (auto ln = c.lambdaNames.find(i); ln != c.lambdaNames.end()) cl.name += ":" + ln->second;  // the runtime name of the function
-      else if (x.kind == N::Function) cl.name += ":" + std::string(x.text);
+      std::string own;   // the name the function takes (V8's inference): `const f = ...`, a property, a declaration; else none
+      if (auto ln = c.lambdaNames.find(i); ln != c.lambdaNames.end()) own = ln->second;  // the runtime name of the function
+      else if (x.kind == N::Function) own = std::string(x.text);
+      const std::string path = nameScope.empty() ? own : nameScope + "/" + (own.empty() ? "<anonymous>" : own);   // `Class.method/inner`, `outer/inner`: profiles name a closure by where it is
+      if (!path.empty()) cl.name += ":" + path;
       for (std::uint32_t sym : li.caps) {
         TypeId ft = irType(c.syms[sym].type, i);
         cl.fields.push_back({std::string(c.syms[sym].name), isCell(sym) ? m.refT(cellClass(ft)) : ft});
@@ -767,7 +771,13 @@ struct Lowering {
       jobs.push_back({li.fn, i, kNil, false, kNil, true});
       lambdas[i] = li;
     }
+    const std::string savedScope = nameScope;
+    if (x.kind == N::Class) nameScope = std::string(x.text);
+    else if (x.kind == N::Method) nameScope = (nameScope.empty() ? "" : nameScope + ".") + std::string(x.text);
+    else if (x.kind == N::Function) nameScope = nameScope.empty() ? std::string(x.text) : nameScope + "/" + std::string(x.text);
+    else if (x.kind == N::FuncExpr) { auto ln = c.lambdaNames.find(i); if (!nameScope.empty() || ln != c.lambdaNames.end()) nameScope += (nameScope.empty() ? "" : "/") + (ln != c.lambdaNames.end() ? ln->second : std::string("<anonymous>")); }
     for (std::uint32_t k : x.kids) collectLambdas(k, curObj);
+    nameScope = savedScope;
   }
 
   // A function used as a value gets a class whose `call` forwards to it.
