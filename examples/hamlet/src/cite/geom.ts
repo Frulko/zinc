@@ -1,6 +1,4 @@
-import { env } from 'zinc:sys';
 import { world } from '../world/world';
-import { noise } from '../world/noise';
 
 // The Cité view's geometry: iso diamond tiles of 64 x 32 px at zoom 1, one level of height = PXH px, a camera in tile units, a continuous zoom.
 // Tile space: (fi, fj) floats, tile (i, j) covers [i, i + 1) x [j, j + 1). The view reads the world and never writes it.
@@ -15,49 +13,35 @@ export const view = { x: 0, y: 0, w: 1100, h: 800 };
 export const stats = { chunks: 0, bakes: 0, quads: 0, sprites: 0, hmax: 0, bakeMs: 0, bakeMax: 0 };
 
 // ---- heights ----
-const testOn = env('ZINC_HAMLET_TEST_HEIGHT') === '1';
-let testHeights: number[] = [];
-let testSize = 0;
-function ridge(i: number, j: number): number { return 1 - Math.abs(noise(i * .09 + 7, j * .09 + 3) * 2 - 1); }       // ridged noise: ranges
-function hill(i: number, j: number): number { return noise(i * .2 + 40, j * .2 + 9); }
-/** The synthetic heightmap of ZINC_HAMLET_TEST_HEIGHT=1: ridges and hills, flat around the middle, water at 0. */
-function testLevel(i: number, j: number, n: number, t: number): number {
-  const r = ridge(i, j), h = hill(i, j);
-  const edge = Math.min(1, Math.min(i, j, n - 1 - i, n - 1 - j) / 4);
-  const dx = i - n / 2, dy = j - n / 2, centre = Math.min(1, Math.sqrt(dx * dx + dy * dy) / (n * .12));
-  const v = world.terrain[t] === 1 ? 0 : Math.round((r * r * 14 + h * 3 - 3) * centre * edge);
-  return Math.max(0, Math.min(MAX_LEVEL, v));
-}
-/** The level of a tile, 0..15. world.height (the generator's heightmap) when it exists; a synthetic one behind ZINC_HAMLET_TEST_HEIGHT=1. */
-export function heightAt(t: number): number {
-  // integration with item A (one line): `if (world.height.length === world.size * world.size) return world.height[t];`
-  // (a cast of `world` to a look-alike interface copies the whole record: do not read it by cast)
-  if (!testOn) return 0;
-  if (testSize !== world.size) {
-    testSize = world.size; testHeights = [];
-    const n = world.size;
-    for (let k = 0; k < n * n; k++) {
-      const i = k % n, j = Math.floor(k / n);
-      testHeights.push(testLevel(i, j, n, k));
-    }
-  }
-  return testHeights[t];
-}
+/** The level of a tile, 0..15: the generator's heightmap. */
+export function heightAt(t: number): number { return world.height[t]; }
 export function heightIJ(i: number, j: number): number {
   const n = world.size;
   return heightAt(Math.max(0, Math.min(n - 1, j)) * n + Math.max(0, Math.min(n - 1, i)));
 }
-/** Height of the grid vertex (a, b), the corner shared by tiles (a-1, b-1), (a, b-1), (a-1, b), (a, b): smooth on a slope (spread of 1 at most), nan next to a cliff. */
+/** Height of the grid vertex (a, b), the corner shared by tiles (a-1, b-1), (a, b-1), (a-1, b), (a, b): the average of the tiles of the 2x2 that join the tile `own` (0..3, in that order)
+ *  through edges where the levels differ by 1 at most (a slope is smooth); a cliff (2 or more) cuts the group, so the tiles on each side keep their own surface. Both tiles of a non-cliff edge
+ *  join the same group, so no seam opens between them. */
+const hv = [0, 0, 0, 0];
 export function vertexHeight(a: number, b: number, own: number): number {
-  const h0 = heightIJ(a - 1, b - 1), h1 = heightIJ(a, b - 1), h2 = heightIJ(a - 1, b), h3 = heightIJ(a, b);
-  const lo = Math.min(Math.min(h0, h1), Math.min(h2, h3)), hi = Math.max(Math.max(h0, h1), Math.max(h2, h3));
-  return hi - lo <= 1 ? (h0 + h1 + h2 + h3) / 4 : own;
+  hv[0] = heightIJ(a - 1, b - 1); hv[1] = heightIJ(a, b - 1); hv[2] = heightIJ(a - 1, b); hv[3] = heightIJ(a, b);
+  let mask = 1 << own, grew = true;
+  while (grew) {
+    grew = false;
+    for (let k = 0; k < 4; k++) {
+      if ((mask & (1 << k)) !== 0) continue;
+      const q = k ^ 1, r = k ^ 2;      // the two tiles that share an edge with k
+      if (((mask & (1 << q)) !== 0 && Math.abs(hv[k] - hv[q]) <= 1) || ((mask & (1 << r)) !== 0 && Math.abs(hv[k] - hv[r]) <= 1)) { mask |= 1 << k; grew = true; }
+    }
+  }
+  let sum = 0, cnt = 0;
+  for (let k = 0; k < 4; k++) if ((mask & (1 << k)) !== 0) { sum += hv[k]; cnt++; }
+  return sum / cnt;
 }
 /** The four corner levels of tile (i, j): north (i, j), east (i+1, j), south (i+1, j+1), west (i, j+1). */
 export const corner: number[] = [0, 0, 0, 0];
 export function cornersOf(i: number, j: number): void {
-  const own = heightIJ(i, j);
-  corner[0] = vertexHeight(i, j, own); corner[1] = vertexHeight(i + 1, j, own); corner[2] = vertexHeight(i + 1, j + 1, own); corner[3] = vertexHeight(i, j + 1, own);
+  corner[0] = vertexHeight(i, j, 3); corner[1] = vertexHeight(i + 1, j, 2); corner[2] = vertexHeight(i + 1, j + 1, 0); corner[3] = vertexHeight(i, j + 1, 1);
 }
 /** The level under the tile-space point (fi, fj): the corners interpolated. */
 export function levelAtPoint(fi: number, fj: number): number {
@@ -69,7 +53,6 @@ export function levelAtPoint(fi: number, fj: number): number {
 }
 /** The highest level of the map (the cull margins follow it); call when a village is made or loaded. */
 export function measureHeights(): void {
-  testSize = 0;
   let hi = 0;
   for (let t = 0; t < world.size * world.size; t++) { const h = heightAt(t); if (h > hi) hi = h; }
   stats.hmax = hi;

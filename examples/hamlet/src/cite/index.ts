@@ -20,6 +20,8 @@ export function citeReset(): void {
   const g = world.gate;
   centerOnTile((g % world.size) + 6, Math.floor(g / world.size));
   cam.zoom = 1; cam.target = 1;
+  const at = env('ZINC_HAMLET_CAM');                                    // "i,j,zoom": where to look (pictures and benchmarks)
+  if (at !== '') { const c = at.split(',').map((x: string): number => Number(x)); centerOnTile(c[0], c[1]); if (c.length > 2) { cam.zoom = c[2]; cam.target = c[2]; } }
 }
 export function citeLayout(x: number, y: number, w: number, h: number): void { view.x = x; view.y = y; view.w = w; view.h = h; }
 /** One step of the smooth zoom; true while it moves. */
