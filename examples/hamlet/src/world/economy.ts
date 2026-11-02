@@ -64,6 +64,8 @@ export class RoadCosts { dirt: number[] = []; bridge: number[] = []; clear: numb
 export class Sim { labourShare: number = 100; walkerReach: number = 1; stopJobless: number = 100; appealSlices: number = 32; }
 export class Economy {
   sim: Sim = new Sim();
+  campaignGoals: Goal[] = []; campaignSim: Sim = new Sim();       // what economy.json says; a mission replaces goals and sim for its village (world/missions.ts) and gives them back
+  startOverride: number[] = []; openAtStart: number[] = [];       // a mission's own start stock (empty: the difficulty's) and the building types open at the start (empty: all that no goal unlocks)
   deposits: Deposit[] = []; goals: Goal[] = []; trade: Trade = new Trade(); adventures: Adventure[] = [];
   appeal: AppealSource[] = []; appealMax: number = 8; risk: RiskRules = new RiskRules();
   roads: RoadCosts = new RoadCosts(); difficulties: Difficulty[] = []; resources: Resource[] = []; services: Service[] = []; buildings: BuildingDef[] = []; start: number[] = []; hall: number = -1;
@@ -79,8 +81,9 @@ export class AppealSource { kind: string = ''; rings: number[] = []; }
 export const APPEAL_KINDS: string[] = ['tree', 'water', 'rock', 'plaza'];
 /** A kind of deposit the generator scatters (economy.json "deposits"). `near` and the numbers are the generator's (gen/deposits.ts). */
 export class Deposit { resource: number = -1; model: number = 0; near: number = 0; density: number = 1; amount: number = 10; required: boolean = false; active: boolean = true; }
-/** One requirement of a goal: `kind` building (count of that type standing), stock (that resource in the stores), population, houses (count at level or above). */
-export class Condition { kind: string = ''; id: number = -1; count: number = 0; level: number = 0; }
+/** One requirement of a goal: `kind` building (count of that type standing), stock (that resource in the stores, held `days` days in a row when days > 0), population, houses (count at level or above),
+ *  jobs (places held by workers), peace (the peace rating), mood (the village's mood). */
+export class Condition { kind: string = ''; id: number = -1; count: number = 0; level: number = 0; days: number = 0; }
 /** A goal: what must hold, and the reward (buildings unlocked, resources given). `requires` names earlier goals; `final` ends the scenario when done. */
 export class Goal {
   id: string = ''; title: string = ''; text: string = ''; requires: number[] = []; when: Condition[] = []; unlock: number[] = []; give: number[] = []; final: boolean = false;
@@ -90,13 +93,13 @@ export class Goal {
 export class Difficulty { id: string = ''; label: string = ''; hint: string = ''; start: number[] = []; arrival: number = 100; eat: number = 100; risk: number = 100; }
 export const GATHER_KINDS: string[] = ['', 'tree', 'deer', 'shore'];
 
-function num(obj: any, key: string, fallback: number, where: string, errors: string[]): number {
+export function num(obj: any, key: string, fallback: number, where: string, errors: string[]): number {
   const v: any = obj[key];
   if (v === undefined) return fallback;
   if (typeof v !== 'number' || v < 0) { errors.push('negative-number: ' + where + '.' + key + ' must be a number of 0 or more'); return fallback; }
   return v as number;
 }
-function amounts(map: any, ids: string[], where: string, errors: string[]): number[] {
+export function amounts(map: any, ids: string[], where: string, errors: string[]): number[] {
   const out: number[] = ids.map((_id: string): number => 0);
   if (map === undefined || map === null) return out;
   for (const key of Object.keys(map)) {
@@ -127,6 +130,41 @@ function readHarvest(src: any, base: Harvest | null, ids: string[], where: strin
   return h;
 }
 
+/** The knobs of "sim" over `base` (a mission overrides some of them): each is range-checked, the problems are named `bad-sim`. */
+export function readSim(src: any, base: Sim, where: string, errors: string[]): Sim {
+  const sim = new Sim();
+  sim.labourShare = num(src, 'labourShare', base.labourShare, where, errors); sim.walkerReach = num(src, 'walkerReach', base.walkerReach, where, errors); sim.stopJobless = num(src, 'stopJobless', base.stopJobless, where, errors); sim.appealSlices = num(src, 'appealSlices', base.appealSlices, where, errors);
+  if (sim.labourShare < 1 || sim.labourShare > 100) errors.push('bad-sim: ' + where + '.labourShare is a percent from 1 to 100');
+  if (sim.walkerReach < 1 || sim.walkerReach > 4) errors.push('bad-sim: ' + where + '.walkerReach is a distance in tiles from 1 to 4');
+  if (sim.stopJobless < 1 || sim.stopJobless > 100) errors.push('bad-sim: ' + where + '.stopJobless is a percent from 1 to 100');
+  if (sim.appealSlices < 1 || sim.appealSlices > 600) errors.push('bad-sim: ' + where + '.appealSlices is a number of ticks from 1 to 600');
+  return sim;
+}
+/** One goal of a goal list (economy.json "goals", a mission's inline goals): `list` holds the goals before it (`requires` names them), `names` the building ids, `ids` the resource ids. Problems are named `bad-goal`. */
+export function readGoal(g: any, list: Goal[], names: string[], ids: string[], errors: string[]): Goal {
+  const goal = new Goal(), where = 'goal ' + String(g.id);
+  goal.id = String(g.id === undefined ? '' : g.id); goal.title = String(g.title === undefined ? goal.id : g.title); goal.text = String(g.text === undefined ? '' : g.text); goal.final = g.final === true;
+  if (goal.id === '' || list.some((o: Goal): boolean => o.id === goal.id)) errors.push('bad-id: ' + where + ' is empty or declared twice');
+  for (const r of (g.requires === undefined ? [] : g.requires) as string[]) {
+    const at = list.findIndex((o: Goal): boolean => o.id === r);
+    if (at < 0) errors.push('bad-goal: ' + where + ' requires "' + r + '", which must be declared before it'); else goal.requires.push(at);
+  }
+  for (const w of (g.when === undefined ? [] : g.when) as any[]) {
+    const c = new Condition();
+    if (w.building !== undefined) { c.kind = 'building'; c.id = names.indexOf(String(w.building)); if (c.id < 0) errors.push('bad-goal: ' + where + ' counts the unknown building "' + String(w.building) + '"'); c.count = num(w, 'count', 1, where, errors); }
+    else if (w.stock !== undefined) { c.kind = 'stock'; c.id = ids.indexOf(String(w.stock)); if (c.id < 0) errors.push('unknown-resource: ' + where + ' counts "' + String(w.stock) + '"'); c.count = num(w, 'count', 1, where, errors); c.days = num(w, 'days', 0, where, errors); }
+    else if (w.population !== undefined) { c.kind = 'population'; c.count = num(w, 'population', 1, where, errors); }
+    else if (w.houses !== undefined) { c.kind = 'houses'; c.count = num(w, 'houses', 1, where, errors); c.level = num(w, 'level', 1, where, errors); }
+    else if (w.jobs !== undefined) { c.kind = 'jobs'; c.count = num(w, 'jobs', 1, where, errors); }
+    else if (w.peace !== undefined) { c.kind = 'peace'; c.count = num(w, 'peace', 1, where, errors); }
+    else if (w.mood !== undefined) { c.kind = 'mood'; c.count = num(w, 'mood', 1, where, errors); }
+    else errors.push('bad-goal: ' + where + ' has a condition that is none of building, stock, population, houses, jobs, peace, mood');
+    goal.when.push(c);
+  }
+  for (const u of (g.unlock === undefined ? [] : g.unlock) as string[]) { const k = names.indexOf(u); if (k < 0) errors.push('bad-goal: ' + where + ' unlocks the unknown building "' + u + '"'); else goal.unlock.push(k); }
+  goal.give = amounts(g.give, ids, where + '.give', errors);
+  return goal;
+}
 /** Reads and checks the text. `models` is the list of model ids of the view (a building's model must sit at its own index), `roles` the job names. Returns the problems, each starting with its name. */
 export function parseEconomy(text: string, models: string[], roles: string[], into: Economy): string[] {
   const errors: string[] = [];
@@ -150,13 +188,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     if (lv.id === '' || into.difficulties.some((o: Difficulty): boolean => o.id === lv.id) || lv.arrival < 10 || lv.arrival > 500 || lv.eat > 500 || lv.risk > 500) errors.push('bad-difficulty: ' + where + ' needs its own id, an arrival of 10 to 500 and an eat and risk of at most 500');
     into.difficulties.push(lv);
   }
-  const sm: any = data.sim === undefined ? {} : data.sim;
-  into.sim = new Sim();
-  into.sim.labourShare = num(sm, 'labourShare', 100, 'sim', errors); into.sim.walkerReach = num(sm, 'walkerReach', 1, 'sim', errors); into.sim.stopJobless = num(sm, 'stopJobless', 100, 'sim', errors); into.sim.appealSlices = num(sm, 'appealSlices', 32, 'sim', errors);
-  if (into.sim.labourShare < 1 || into.sim.labourShare > 100) errors.push('bad-sim: sim.labourShare is a percent from 1 to 100');
-  if (into.sim.walkerReach < 1 || into.sim.walkerReach > 4) errors.push('bad-sim: sim.walkerReach is a distance in tiles from 1 to 4');
-  if (into.sim.stopJobless < 1 || into.sim.stopJobless > 100) errors.push('bad-sim: sim.stopJobless is a percent from 1 to 100');
-  if (into.sim.appealSlices < 1 || into.sim.appealSlices > 600) errors.push('bad-sim: sim.appealSlices is a number of ticks from 1 to 600');
+  into.sim = readSim(data.sim === undefined ? {} : data.sim, new Sim(), 'sim', errors);
   const rd: any = data.roads === undefined ? {} : data.roads;
   into.roads = new RoadCosts();
   into.roads.dirt = amounts(rd.dirt, ids, 'roads.dirt', errors); into.roads.bridge = amounts(rd.bridge, ids, 'roads.bridge', errors); into.roads.clear = amounts(rd.clear, ids, 'roads.clear', errors);
@@ -295,27 +327,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     }
   }
   into.goals = [];
-  for (const g of (data.goals === undefined ? [] : data.goals) as any[]) {
-    const goal = new Goal(), where = 'goal ' + String(g.id);
-    goal.id = String(g.id === undefined ? '' : g.id); goal.title = String(g.title === undefined ? goal.id : g.title); goal.text = String(g.text === undefined ? '' : g.text); goal.final = g.final === true;
-    if (goal.id === '' || into.goals.some((o: Goal): boolean => o.id === goal.id)) errors.push('bad-id: ' + where + ' is empty or declared twice');
-    for (const r of (g.requires === undefined ? [] : g.requires) as string[]) {
-      const at = into.goals.findIndex((o: Goal): boolean => o.id === r);
-      if (at < 0) errors.push('bad-goal: ' + where + ' requires "' + r + '", which must be declared before it'); else goal.requires.push(at);
-    }
-    for (const w of (g.when === undefined ? [] : g.when) as any[]) {
-      const c = new Condition();
-      if (w.building !== undefined) { c.kind = 'building'; c.id = names.indexOf(String(w.building)); if (c.id < 0) errors.push('bad-goal: ' + where + ' counts the unknown building "' + String(w.building) + '"'); c.count = num(w, 'count', 1, where, errors); }
-      else if (w.stock !== undefined) { c.kind = 'stock'; c.id = ids.indexOf(String(w.stock)); if (c.id < 0) errors.push('unknown-resource: ' + where + ' counts "' + String(w.stock) + '"'); c.count = num(w, 'count', 1, where, errors); }
-      else if (w.population !== undefined) { c.kind = 'population'; c.count = num(w, 'population', 1, where, errors); }
-      else if (w.houses !== undefined) { c.kind = 'houses'; c.count = num(w, 'houses', 1, where, errors); c.level = num(w, 'level', 1, where, errors); }
-      else errors.push('bad-goal: ' + where + ' has a condition that is none of building, stock, population, houses');
-      goal.when.push(c);
-    }
-    for (const u of (g.unlock === undefined ? [] : g.unlock) as string[]) { const k = names.indexOf(u); if (k < 0) errors.push('bad-goal: ' + where + ' unlocks the unknown building "' + u + '"'); else goal.unlock.push(k); }
-    goal.give = amounts(g.give, ids, where + '.give', errors);
-    into.goals.push(goal);
-  }
+  for (const g of (data.goals === undefined ? [] : data.goals) as any[]) into.goals.push(readGoal(g, into.goals, names, ids, errors));
   into.trade = new Trade();
   if (data.trade !== undefined) {
     const t = into.trade;
@@ -381,7 +393,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
 export function loadEconomy(text: string, models: string[], roles: string[]): void {
   const next = new Economy(), errors = parseEconomy(text, models, roles, next);
   if (errors.length > 0) throw new Error('economy.json: ' + errors.join('; '));
-  economy.resources = next.resources; economy.roads = next.roads; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.adventures = next.adventures; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.difficulties = next.difficulties; economy.hall = next.hall; economy.risk = next.risk; economy.sim = next.sim;
+  economy.resources = next.resources; economy.roads = next.roads; economy.services = next.services; economy.deposits = next.deposits; economy.goals = next.goals; economy.trade = next.trade; economy.adventures = next.adventures; economy.appeal = next.appeal; economy.appealMax = next.appealMax; economy.buildings = next.buildings; economy.start = next.start; economy.difficulties = next.difficulties; economy.hall = next.hall; economy.risk = next.risk; economy.sim = next.sim; economy.campaignGoals = next.goals; economy.campaignSim = next.sim; economy.startOverride = []; economy.openAtStart = [];
 }
 
 /** One line per resource: who makes it and who uses it. The report of a chain, for the maker of the data. */

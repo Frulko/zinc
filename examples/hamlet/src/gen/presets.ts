@@ -16,3 +16,5 @@ export const PRESETS: Preset[] = [
   preset('Côte', (p: TerrainParams): void => { p.waterAmount = 0; p.coast = 1; p.forestDensity = .4; p.flowers = .4; p.biome = BIOME_MIXED; p.biomes = 1; }),
   preset('Classique', (p: TerrainParams): void => { p.biomes = 0; }),
 ];
+/** The index of a preset by its label (a mission names its landscape), -1 when there is none. */
+export function presetIndex(label: string): number { for (let k = 0; k < PRESETS.length; k++) if (PRESETS[k].label === label) return k; return -1; }

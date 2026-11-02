@@ -1,0 +1,16 @@
+{
+  "id": "04-le-colporteur",
+  "title": "Le colporteur",
+  "briefing": "Un marchand passe à la porte tous les cinq jours. Il achète ce que vous produisez en trop et vend ce qui vous manque : de la cire, du miel, de la chandelle. Ouvrez un marché, apprenez à vendre votre pain et votre pierre, mettez des pièces de côté et lancez la production de miel.",
+  "map": { "preset": "Rivière", "seed": 4404, "size": 40 },
+  "difficulty": "normal",
+  "start": { "log": 30, "plank": 24, "leather": 2, "stone": 6, "coin": 10, "bread": 10, "tools": 1 },
+  "buildings": ["house", "lumberhut", "sawmill", "storehouse", "farm", "lodge", "fishery", "market", "tannery"],
+  "goals": [
+    { "id": "market", "title": "Le marché", "text": "Le colporteur ne s’arrête que devant un marché.", "when": [{ "building": "market" }, { "population": 10 }], "unlock": ["mill", "bakery", "forager"], "give": { "plank": 6 } },
+    { "id": "sell", "title": "Premières ventes", "text": "Amassez 60 pièces en vendant au colporteur (pain, cuir, bois, pierre).", "requires": ["market"], "when": [{ "stock": "coin", "count": 60 }], "unlock": ["apiary"] },
+    { "id": "hives", "title": "Des ruches", "text": "Une cueillette de baies et un rucher : le miel se vend bien.", "requires": ["sell"], "when": [{ "building": "forager" }, { "building": "apiary" }], "unlock": ["chandlery"], "give": { "plank": 6 } },
+    { "id": "candles", "title": "La chandellerie", "text": "La cire devient de la chandelle, les maisons l’allument.", "requires": ["hives"], "when": [{ "building": "chandlery" }, { "stock": "candle", "count": 4 }], "give": { "plank": 8 } },
+    { "id": "purse", "title": "La bourse pleine", "text": "Cent cinquante pièces gardées trois jours, vingt habitants.", "requires": ["candles"], "when": [{ "stock": "coin", "count": 150, "days": 3 }, { "population": 20 }], "final": true }
+  ]
+}

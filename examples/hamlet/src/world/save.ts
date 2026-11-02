@@ -7,6 +7,7 @@ import { createResident, dropPerson } from '../engine/villagers';
 import { spawnPeddler } from '../engine/trade';
 import { computeAppeal } from '../rules/appeal';
 import { defaultLevel } from '../rules/difficulty';
+import { applyMission } from './missions';
 import { stockWithCarried } from '../engine/transport';
 
 // One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock, cover, level, streak, meals and the risk counters fire|damage|crime|burn; lists with | between);trees(tile.variant);unlimited;tick;rng;priority;params;deposits(tile.value.left);goals done;buildings unlocked;peddler offers(resource.qty.side.coins.taken);days he stays;expeditions(adventure.days left.homes);progression;risks;difficulty
@@ -37,7 +38,7 @@ export function snapshot(): string {
   for (let t = 0; t < tileCount(); t++) if (world.road[t]) roads.push(t);
   for (const b of world.buildings) if (b.alive) buildings.push(b.type + '.' + tileIndex(b.i, b.j) + '.' + b.residents + '.' + stockWithCarried(world.buildings.indexOf(b)).join('|') + '.' + b.cover.join('|') + '.' + b.level + '.' + b.streak + '.' + b.fed.join('|') + '.' + [b.fire, b.damage, b.crime, b.burn].join('|'));
   for (let t = 0; t < tileCount(); t++) { if (world.tree[t] > 0) trees.push(t + '.' + world.tree[t]); if (world.rock[t] >= ROCK_DEPOSIT) lodes.push(t + '.' + world.rock[t] + '.' + world.lode[t]); }
-  return [SAVE_VERSION, String(world.seed), String(world.size), roads.join(','), buildings.join(','), trees.join(','), world.unlimited ? '1' : '0', String(world.tick), String(world.rng), world.priority.join(','), paramsText(), lodes.join(','), world.goals.join(''), world.unlocked.join(''), world.offers.map((o: Offer): string => [String(o.resource), String(o.qty), o.side, String(o.coins), o.taken ? '1' : '0'].join('.')).join(','), String(world.peddlerLeft), world.expeditions.map((e: Expedition): string => e.adventure + '.' + e.left + '.' + e.homes.join('|')).join(','), world.progression ? '1' : '0', world.risks ? '1' : '0', String(world.difficulty), heightText()].join(';');
+  return [SAVE_VERSION, String(world.seed), String(world.size), roads.join(','), buildings.join(','), trees.join(','), world.unlimited ? '1' : '0', String(world.tick), String(world.rng), world.priority.join(','), paramsText(), lodes.join(','), world.goals.join(''), world.unlocked.join(''), world.offers.map((o: Offer): string => [String(o.resource), String(o.qty), o.side, String(o.coins), o.taken ? '1' : '0'].join('.')).join(','), String(world.peddlerLeft), world.expeditions.map((e: Expedition): string => e.adventure + '.' + e.left + '.' + e.homes.join('|')).join(','), world.progression ? '1' : '0', world.risks ? '1' : '0', String(world.difficulty), heightText(), world.mission].join(';');
 }
 
 export function saveGame(): void {
@@ -56,6 +57,7 @@ function sized(text: string, length: number): number[] {
 export function restore(text: string): boolean {
   const fields = text.split(';');
   if (fields.length < 19 || (fields[0] !== SAVE_VERSION && fields[0] !== 'H19')) return false;     // H19: before the heights, loads flat
+  applyMission(fields.length > 21 ? fields[21] : '');         // the mission's goals and knobs first: generate sizes the goal list from them
   generate(Number(fields[1]), Number(fields[2]), paramsOf(fields[10]));
   const heights = fields.length > 20 ? fields[20] : '';
   if (fields[0] === SAVE_VERSION && heights.length === world.size * world.size) for (let t = 0; t < heights.length; t++) world.height[t] = parseInt(heights.charAt(t), 16);

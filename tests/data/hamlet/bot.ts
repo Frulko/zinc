@@ -31,6 +31,7 @@ function modelIds(): string[] {                 // the model of each building, i
   return out;
 }
 loadEconomy(ECONOMY_TEXT, modelIds(), ROLE_NAMES);
+if (env('BOT_LABOUR') !== '') { economy.sim.labourShare = Number(env('BOT_LABOUR')); economy.sim.stopJobless = Number(env('BOT_STOPJOBLESS') === '' ? '100' : env('BOT_STOPJOBLESS')); }      // the labour pool of a Cité mission (sim.labourShare), to see the opening still works
 
 const listOf = (name: string, fallback: string): number[] => (env(name) === '' ? fallback : env(name)).split(',').map((s: string): number => Number(s));
 const MAX_DAYS = listOf('BOT_DAYS', '400')[0];
@@ -241,6 +242,7 @@ function decide(): void {
   clearRuins();
   abandon();
   openForest();
+  if (economy.sim.labourShare < 100) movePriority(economy.typeOf('sawmill'), -100);   // a small labour pool (a Cité mission): the planks come before a second log hut; the food goes in front of it when short
   if (foodShort()) feedFirst();
   let blocker: number[] | null = null;
   for (const w of PLAN) {

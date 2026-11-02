@@ -71,6 +71,7 @@ export interface World {
   params: TerrainParams;            // what the terrain generator was asked for (saved with the village)
   difficulty: number;               // index in economy.difficulties chosen in the new-village form (rules/difficulty.ts); -1: a sandbox, which starts with the top-level `start`
   crime: Crime;                     // robbers, rioters and the peace rating (engine/crime.ts)
+  mission: string;                  // the id of the mission this village plays (world/missions.ts), '' in a sandbox
   priority: number[];               // building types in the order idle residents are given work (rules/labour.ts)
 }
 
@@ -78,6 +79,7 @@ export interface World {
 export function resetGoals(): void {
   world.goals = economy.goals.map((_g: Goal): number => 0);
   world.unlocked = economy.buildings.map((_d: BuildingDef): number => 1);
+  if (economy.openAtStart.length > 0) world.unlocked = economy.buildings.map((_d: BuildingDef, k: number): number => economy.openAtStart.indexOf(k) >= 0 ? 1 : 0);   // a mission names what is open at the start
   for (const g of economy.goals) for (const k of g.unlock) world.unlocked[k] = 0;
   world.news = []; world.log = []; world.offers = []; world.peddlerLeft = 0; world.expeditions = [];
 }
@@ -101,7 +103,7 @@ export const world: World = {
   terrain: zeros(), height: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), biome: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, netRev: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, crime: new Crime(), priority: [],
+  revision: 0, netRev: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], mission: '', goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, crime: new Crime(), priority: [],
 };
 
 // ---- tiles ----
@@ -188,6 +190,7 @@ export function spawnDeer(t: number, species: number = 0): Deer {
 /** What the village holds at its entrance when it begins: the difficulty's start, or the file's top-level one in a sandbox. */
 export function startStock(): number[] {
   const k = world.difficulty;
+  if (economy.startOverride.length > 0) return economy.startOverride.slice();     // a mission's own start
   return k >= 0 && k < economy.difficulties.length ? economy.difficulties[k].start.slice() : economy.start.slice();
 }
 /** A new random village: forest, rocks, a pond, flowers and a few deer. */

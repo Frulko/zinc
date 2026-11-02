@@ -1,0 +1,16 @@
+{
+  "id": "02-nourrir",
+  "title": "Nourrir le village",
+  "briefing": "La plaine est fertile mais les greniers se vident vite. Semez des champs, faites tourner un moulin, ouvrez une boulangerie : une maison qui mange à sa faim s’agrandit, une maison affamée se vide. Gardez du pain en réserve plusieurs jours avant que l’hiver ne vienne.",
+  "map": { "preset": "Plaine", "seed": 2202, "size": 40 },
+  "difficulty": "normal",
+  "start": { "log": 30, "plank": 26, "leather": 2, "stone": 4, "coin": 12, "bread": 8 },
+  "buildings": ["house", "lumberhut", "sawmill", "storehouse", "farm", "fishery"],
+  "goals": [
+    { "id": "fields", "title": "Deux champs", "text": "Bâtissez deux fermes près des terres fertiles, au bord de l’eau.", "when": [{ "building": "farm", "count": 2 }], "unlock": ["mill", "market"], "give": { "plank": 8 } },
+    { "id": "mill", "title": "Le moulin", "text": "Un moulin transforme le blé en farine.", "requires": ["fields"], "when": [{ "building": "mill" }], "unlock": ["bakery"] },
+    { "id": "oven", "title": "La boulangerie", "text": "Le boulanger fait le pain avec la farine du moulin.", "requires": ["mill"], "when": [{ "building": "bakery" }, { "building": "market" }], "give": { "plank": 8, "log": 6 } },
+    { "id": "reserve", "title": "Du pain en réserve", "text": "Gardez 30 pains dans les entrepôts pendant trois jours.", "requires": ["oven"], "when": [{ "stock": "bread", "count": 30, "days": 3 }], "give": { "plank": 10 } },
+    { "id": "fed", "title": "Un village nourri", "text": "Trente habitants, dont trois maisons agrandies.", "requires": ["reserve"], "when": [{ "population": 30 }, { "houses": 3, "level": 1 }], "final": true }
+  ]
+}

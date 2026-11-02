@@ -1,0 +1,19 @@
+{
+  "id": "06-survie",
+  "title": "Survivre",
+  "briefing": "Peu de provisions, des hivers rudes, des incendies et des voleurs. Les maisons de bois brûlent, les bâtiments s’usent, les bandes viennent la nuit. Bâtissez une caserne de pompiers, des ateliers de réparation, un poste de guet, et tenez : si la paix tombe trop bas, le village s’effondre.",
+  "map": { "preset": "Montagnes", "seed": 6606, "size": 40, "relief": 0.8 },
+  "difficulty": "hard",
+  "risks": true,
+  "sim": { "labourShare": 70, "stopJobless": 100 },
+  "limitYears": 45,
+  "lose": { "peace": 15 },
+  "buildings": ["house", "lumberhut", "sawmill", "storehouse", "farm", "lodge", "fishery", "market", "well"],
+  "goals": [
+    { "id": "roof", "title": "Un toit pour tous", "text": "Quinze habitants et du pain.", "when": [{ "population": 15 }, { "building": "farm" }], "unlock": ["firehouse", "mill", "bakery", "tannery"], "give": { "plank": 8 } },
+    { "id": "firewatch", "title": "Les pompiers", "text": "Une caserne de pompiers avant la première flamme.", "requires": ["roof"], "when": [{ "building": "firehouse" }, { "population": 20 }], "unlock": ["works", "watchpost"], "give": { "plank": 8, "log": 6 } },
+    { "id": "order", "title": "L’ordre", "text": "Un atelier de réparation et un poste de guet.", "requires": ["firewatch"], "when": [{ "building": "works" }, { "building": "watchpost" }], "give": { "plank": 10 } },
+    { "id": "calm", "title": "La paix", "text": "Une paix d’au moins 60 avec trente habitants.", "requires": ["order"], "when": [{ "peace": 60 }, { "population": 30 }], "give": { "plank": 10, "log": 10 } },
+    { "id": "survive", "title": "Tenir", "text": "Soixante habitants, une paix de 50 et une humeur de 50.", "requires": ["calm"], "when": [{ "population": 60 }, { "peace": 50 }, { "mood": 50 }], "final": true }
+  ]
+}
