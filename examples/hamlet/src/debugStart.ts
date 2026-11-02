@@ -5,7 +5,7 @@ import { TERRAIN_GRASS, ST_STROLL } from './constants';
 import { act } from './ui/state';
 import { PRESETS } from './gen/presets';
 import { TerrainParams } from './gen/terrain';
-import { TICK } from './constants';
+import { TICK, TILE } from './constants';
 import { trace, jumpTo } from './view/scenery';
 import { MONTH_SECONDS } from './rules/season';
 import { settings } from './settings';
@@ -31,6 +31,8 @@ export function debugStart(): void {
   act.newVillage(v[0], v.length > 1 ? v[1] : 24, false, false, params);
   crowd();
   if (v.length > 5 && env('ZINC_HAMLET_VIEW') !== 'cite') jumpTo(v[4] * world.half, v[5] * world.half);
+  const at = env('ZINC_HAMLET_CAM');                                    // "i,j,zoom" as for the Cité view: the old view looks at the same tile (its zoom stays the normal one: Cité zoom = 10 * fit.s0 / 22.63 matches it)
+  if (at !== '' && env('ZINC_HAMLET_VIEW') !== 'cite') { const c = at.split(',').map((x: string): number => Number(x)); jumpTo(c[0] * TILE - world.half, c[1] * TILE - world.half); }
   if (v.length > 3) world.tick = Math.round(v[3] * MONTH_SECONDS / TICK) + 8;
 }
 
