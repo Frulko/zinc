@@ -5,7 +5,7 @@
   "map": { "preset": "Montagnes", "seed": 6606, "size": 40, "relief": 0.8 },
   "difficulty": "hard",
   "risks": true,
-  "sim": { "labourShare": 70, "stopJobless": 100 },
+  "sim": { "labourShare": 70 },
   "limitYears": 45,
   "lose": { "peace": 15 },
   "buildings": ["house", "lumberhut", "sawmill", "storehouse", "farm", "lodge", "fishery", "market", "well"],

@@ -4,7 +4,7 @@
   "briefing": "Une vaste vallée, de quoi bâtir une vraie ville. Ici tout le monde ne travaille pas : seule une partie des habitants prend un poste, il faut donc beaucoup de maisons pour peu d’ateliers. Les quartiers qui ont un marché, de l’eau, une taverne et une table variée deviennent des demeures. Quatre cents habitants et des maisons de haut niveau : la cité est née.",
   "map": { "preset": "Vallée", "seed": 5505, "size": 64, "water": 0.5, "river": true },
   "difficulty": "easy",
-  "sim": { "labourShare": 60, "walkerReach": 2, "stopJobless": 100 },
+  "sim": { "labourShare": 60, "walkerReach": 2 },
   "limitYears": 90,
   "goals": [
     { "id": "town", "title": "Un bourg", "text": "Quarante habitants et quelques emplois pourvus.", "when": [{ "population": 40 }, { "jobs": 10 }], "give": { "plank": 20, "log": 12 } },
