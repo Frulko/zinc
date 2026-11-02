@@ -524,8 +524,9 @@
     {"paths": ["src/rt/rtcalls.cpp", "src/qjs/prelude.cpp", "runtime/zrt.h", "lib/zinc.d.ts", "tests/t0/array_set.sh", "tests/data/array_set/"], "tests": ["array_set"]},
     {"paths": ["examples/hamlet/src/view/", "tests/data/hamlet/glide.ts", "tests/t0/hamlet_glide.sh"], "tests": ["hamlet_glide"]},
     {"paths": ["examples/hamlet/assets/missions/", "examples/hamlet/src/world/missions.ts", "examples/hamlet/MISSIONS.md", "tests/data/hamlet/missions.ts", "tests/t0/hamlet_missions.sh"], "tests": ["hamlet_missions"]},
-    {"paths": ["examples/hamlet/", "tests/data/hamlet/", "tests/t1/hamlet.sh", "tests/t1/hamlet_bot.sh"], "tests": ["hamlet", "hamlet_bot", "hamlet_bounds"]},
+    {"paths": ["examples/hamlet/", "tests/data/hamlet/", "tests/t1/hamlet.sh", "tests/t1/hamlet_bot.sh"], "tests": ["hamlet", "hamlet_bot", "hamlet_bounds", "hamlet_ground"]},
     {"paths": ["tests/data/hamlet/bounds.ts", "tests/t0/hamlet_bounds.sh"], "tests": ["hamlet_bounds"]},
+    {"paths": ["examples/hamlet/src/cite/ground.ts", "tests/data/hamlet/ground.input", "tests/t1/hamlet_ground.sh"], "tests": ["hamlet_ground"]},
     {"paths": ["examples/hamlet/src/cite/", "tests/t1/hamlet_cite.sh", "tests/data/hamlet/cite.input"], "tests": ["hamlet_cite", "hamlet_atlas"]},
     {"paths": ["examples/hamlet/assets/atlas/", "examples/hamlet/ASSETS.md", "tests/t1/hamlet_atlas.sh"], "tests": ["hamlet_atlas"]},
     {"paths": ["examples/hamlet/src/ui/", "examples/hamlet/src/hud.ts", "tests/t1/hamlet_advisors.sh", "tests/data/hamlet/advisors.input"], "tests": ["hamlet_advisors"]}
