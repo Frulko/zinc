@@ -8,7 +8,7 @@ import { spawnPeddler } from '../engine/trade';
 import { computeAppeal } from '../rules/appeal';
 import { defaultLevel } from '../rules/difficulty';
 import { applyMission } from './missions';
-import { stockWithCarried } from '../engine/transport';
+import { stockWithCarried, forgetCarried } from '../engine/transport';
 import { economy, Housing } from './economy';
 
 // One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock, cover, level, streak, meals and the risk counters fire|damage|crime|burn, storage orders, roamer turn; lists with | between);trees(tile.variant);unlimited;tick;rng;priority;params;deposits(tile.value.left);goals done;buildings unlocked;peddler offers(resource.qty.side.coins.taken);days he stays;expeditions(adventure.days left.homes);progression;risks;difficulty
@@ -20,7 +20,7 @@ function numbers(text: string): number[] {
 }
 
 /** The generator's request, as water,river,forest,rock,biome,coast,outcrop,flowers (numbers). */
-function paramsText(): string { const p = world.params; return [p.waterAmount, p.river ? 1 : 0, p.forestDensity, p.rockDensity, p.biome, p.coast, p.outcrop, p.flowers, p.biomes, p.wolves, p.relief].join(','); }
+function paramsText(): string { const p = world.params; return [p.waterAmount, p.river ? 1 : 0, p.forestDensity, p.rockDensity, p.biome, p.coast, p.outcrop, p.flowers, p.biomes, p.wolves, p.relief, p.genStyle].join(','); }
 function paramsOf(text: string): TerrainParams {
   const p = new TerrainParams(), v = numbers(text);
   p.waterAmount = v[0]; p.river = v[1] === 1; p.forestDensity = v[2]; p.rockDensity = v[3]; p.biome = v[4];
@@ -28,6 +28,7 @@ function paramsOf(text: string): TerrainParams {
   p.biomes = v.length >= 9 ? v[8] : 0;          // saves from before the presets have five numbers
   p.wolves = v.length >= 10 ? v[9] : 0;          // the wolves flag came later: older saves have none
   p.relief = v.length >= 11 ? v[10] : 0;         // saves before the relief are flat
+  p.genStyle = v.length >= 12 ? v[11] : 0;       // saves before the clustered generator were made by the scatter one and load as they were
   return p;
 }
 
@@ -121,6 +122,7 @@ export function restore(text: string): boolean {
   if (world.peddlerLeft > 0) spawnPeddler();
   world.priority = numbers(fields[9]);
   world.tick = Number(fields[7]); world.rng = Number(fields[8]);    // last: rebuilding the residents drew random numbers
+  forgetCarried();
   computeAppeal(); recount(); world.revision++; world.netRev++;
   return true;
 }

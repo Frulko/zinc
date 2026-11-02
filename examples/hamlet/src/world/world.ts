@@ -1,8 +1,8 @@
 import {
-  DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, DEER_START, ANIMAL_CAP, DEER_GRAZE, DEER_GONE, ROCK_DEPOSIT, LODE_REACH,
+  DEFAULT_SIZE, TILE, REFERENCE_AREA, GATE_I, TERRAIN_GRASS, TERRAIN_WATER, TERRAIN_VOID, DEER_START, ANIMAL_CAP, DEER_GRAZE, DEER_GONE, ROCK_DEPOSIT, LODE_REACH, MOUNTAIN_LEVEL,
 } from '../constants';
 import { noise } from './noise';
-import { terrain, TerrainParams, TerrainLayers, copyTerrainParams } from '../gen/terrain';
+import { terrain, TerrainParams, TerrainLayers, copyTerrainParams, GEN_CLUSTERED } from '../gen/terrain';
 import { placeDeposits, DepositRule } from '../gen/deposits';
 import { SPECIES, SP_WOLF } from '../rules/species';
 import { economy, Resource, Service, Goal, BuildingDef } from './economy';
@@ -270,7 +270,7 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
     world.tree[t] = layers.forest[t]; world.rock[t] = layers.rock[t]; world.deco[t] = layers.deco[t]; world.biome[t] = layers.biome[t]; world.height[t] = layers.level[t];
   }
   world.road[world.gate] = 1;
-  placeLodes(layers);
+  placeLodes(layers, params.genStyle);
   if (economy.hall >= 0) {                                    // the village store stands by the entrance, next to the gate road, holding what the village starts with
     const t = world.gate - size;                              // the village store is one tile whatever its type's footprint: the first road and the guide start from the gate
     world.terrain[t] = TERRAIN_GRASS; world.tree[t] = 0; world.rock[t] = 0; world.lode[t] = 0;
@@ -282,6 +282,8 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
   let planned = DEER_START;                                     // a big map is not a bigger crowd: the placed animals stop at ANIMAL_CAP (1024 x 1024 asked for 80000 and the steering cost grew with them)
   for (let sp = 1; sp < SPECIES.length; sp++) planned += SPECIES[sp].start;
   const thin = Math.min(1, ANIMAL_CAP * REFERENCE_AREA / (planned * size * size));
+  if (params.genStyle === GEN_CLUSTERED) spawnHerds(size, thin);
+  else {
   for (let n = 0; n < Math.round(DEER_START * size * size * thin / REFERENCE_AREA); n++) {
     for (let tries = 0; tries < 30; tries++) {
       const t = Math.floor(random() * size * size);
@@ -296,12 +298,13 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
       }
     }
   }
-  if (params.wolves > 0) spawnPacks(size, params.wolves);
+  }
+  if (params.wolves > 0) spawnPacks(size, params.wolves, params.genStyle === GEN_CLUSTERED);
   world.revision++; world.netRev++;
 }
 
 /** Wolves, only when the village asks (TerrainParams.wolves): in forest country (a share of the land under trees), one pack of three to six on the far side from the gate per 24 x 24 tiles of map. No draw is made without the flag. */
-function spawnPacks(size: number, mode: number): void {
+function spawnPacks(size: number, mode: number, clustered: boolean): void {
   let land = 0, wood = 0;
   for (let t = 0; t < size * size; t++) if (world.terrain[t] === TERRAIN_GRASS) { land++; if (world.tree[t] !== 0) wood++; }
   if (mode < 2 && wood < land * .22) return;
@@ -310,7 +313,7 @@ function spawnPacks(size: number, mode: number): void {
     let den = -1;
     for (let tries = 0; tries < 80 && den < 0; tries++) {
       const t = Math.floor(random() * size * size);
-      if (isOpen(t) && tileI(t) > size * .45 && treesAround(t) >= 3) den = t;
+      if (isOpen(t) && tileI(t) > size * .45 && treesAround(t) >= 3 && (!clustered || (world.height[t] < MOUNTAIN_LEVEL && surroundings(t)[1] >= 8))) den = t;   // a clustered pack dens deep in a wood
     }
     if (den < 0) return;
     const alpha = spawnDeer(den, SP_WOLF), count = 3 + Math.floor(random() * 4);
@@ -329,7 +332,7 @@ function spawnPacks(size: number, mode: number): void {
 }
 
 /** Scatters the active deposits of the economy over the terrain (gen/deposits.ts): each lands in world.rock as ROCK_DEPOSIT + its kind, with its amount in world.lode. */
-function placeLodes(layers: TerrainLayers): void {
+function placeLodes(layers: TerrainLayers, style: number): void {
   const rules: DepositRule[] = [], kinds: number[] = [];
   for (let k = 0; k < economy.deposits.length; k++) {
     const d = economy.deposits[k];
@@ -340,6 +343,63 @@ function placeLodes(layers: TerrainLayers): void {
   if (rules.length === 0) return;
   const keep: number[] = [];                                    // the entrance stays clear
   for (let t = 0; t < world.size * world.size; t++) if (Math.abs(tileI(t) - tileI(world.gate)) + Math.abs(tileJ(t) - tileJ(world.gate)) <= 2) keep.push(t);
-  const placed = placeDeposits(layers, world.seed, rules, keep, world.gate, LODE_REACH);
-  for (let t = 0; t < placed.length; t++) if (placed[t] > 0) { const k = kinds[placed[t] - 1]; world.rock[t] = ROCK_DEPOSIT + k; world.lode[t] = economy.deposits[k].amount; world.deco[t] = 0; }
+  const richness: number[] = Array.from({ length: world.size * world.size }, (): number => 0);
+  const placed = placeDeposits(layers, world.seed, rules, keep, world.gate, LODE_REACH, style, richness);
+  for (let t = 0; t < placed.length; t++) if (placed[t] > 0) { const k = kinds[placed[t] - 1]; world.rock[t] = ROCK_DEPOSIT + k; world.lode[t] = richness[t] > 0 ? Math.max(1, Math.round(economy.deposits[k].amount * richness[t] / 100)) : economy.deposits[k].amount; world.deco[t] = 0; }
+}
+
+/** Open ground a herd may stand on (clustered style): free, and below the mountain rock. */
+function grazing(t: number): boolean { return isOpen(t) && tileI(t) > 3 && world.height[t] < MOUNTAIN_LEVEL; }
+/** What the 5 x 5 around a tile holds: open tiles and trees (the habitat of a herd). */
+function surroundings(t: number): number[] {
+  let open = 0, trees = 0, flowers = 0;
+  const ti = tileI(t), tj = tileJ(t);
+  for (let j = tj - 2; j <= tj + 2; j++) for (let i = ti - 2; i <= ti + 2; i++) {
+    if (i < 0 || j < 0 || i >= world.size || j >= world.size) continue;
+    const u = tileIndex(i, j);
+    if (isOpen(u)) open++;
+    if (world.tree[u] !== 0) trees++;
+    if (world.deco[u] === 1 || world.deco[u] === 2) flowers++;
+  }
+  return [open, trees, flowers];
+}
+/** How well a tile suits a herd of a species: deer on meadows at the edge of a wood, rabbits on flowery open ground, boar inside the woods, 0..1. */
+function herdHabitat(sp: number, t: number): number {
+  const [open, trees, flowers] = surroundings(t);
+  const kind = SPECIES[sp].kind;
+  if (kind === 2) return Math.min(1, trees / 8);
+  if (kind === 1) return Math.min(1, open / 25 * .7 + flowers / 4 * .3) * (trees > 0 ? 1 : .6);
+  return Math.min(1, open / 25) * (trees >= 2 ? 1 : .35) * (trees > 12 ? .3 : 1);
+}
+/**
+ * Wild animals in herds (clustered style): per species the same head count as the scatter style, split in herds of the species' `group` size; each herd has a leader (the others
+ * follow it from the first tick) and a centre chosen by dart throwing over the habitat, at least 6 tiles from the other centres; the members stand on open ground within three tiles.
+ */
+function spawnHerds(size: number, thin: number): void {
+  const centres: number[] = [];
+  for (let sp = 0; sp < SPECIES.length - 1; sp++) {
+    const total = Math.round((sp === 0 ? DEER_START : SPECIES[sp].start) * size * size * thin / REFERENCE_AREA), per = Math.max(2, Math.min(SPECIES[sp].group, 6));
+    for (let left = total; left > 0; left -= per) {
+      let best = -1, bestScore = -1;
+      for (let tries = 0; tries < 60; tries++) {
+        const t = Math.floor(random() * size * size);
+        if (!grazing(t)) continue;
+        let apart = true;
+        for (const c of centres) if ((tileI(c) - tileI(t)) * (tileI(c) - tileI(t)) + (tileJ(c) - tileJ(t)) * (tileJ(c) - tileJ(t)) < 36) { apart = false; break; }
+        const score = herdHabitat(sp, t) * (apart ? 1 : .2);
+        if (score > bestScore) { bestScore = score; best = t; }
+        if (random() < score) { best = t; break; }
+      }
+      if (best < 0) break;
+      centres.push(best);
+      const lead = spawnDeer(best, sp, true), count = Math.min(left, per);
+      lead.stag = true;
+      for (let m = 1; m < count; m++) {
+        for (let tries = 0; tries < 20; tries++) {
+          const t = tileIndex(Math.max(0, Math.min(size - 1, tileI(best) + Math.floor(random() * 7) - 3)), Math.max(0, Math.min(size - 1, tileJ(best) + Math.floor(random() * 7) - 3)));
+          if (grazing(t)) { const d = spawnDeer(t, sp, true); d.leader = lead.id; d.stag = false; break; }
+        }
+      }
+    }
+  }
 }

@@ -33,7 +33,7 @@ function readMap(m: any, into: Mission, errors: string[]): void {
   if (typeof m.size !== 'number' || m.size < MIN_SIZE || m.size > MAX_SIZE) errors.push('bad-map: ' + where + '.size is a number from ' + MIN_SIZE + ' to ' + MAX_SIZE);
   else into.size = m.size as number;
   const p = new TerrainParams(), q = PRESETS[into.preset].params;
-  p.waterAmount = q.waterAmount; p.river = q.river; p.forestDensity = q.forestDensity; p.rockDensity = q.rockDensity; p.biome = q.biome; p.coast = q.coast; p.outcrop = q.outcrop; p.flowers = q.flowers; p.biomes = q.biomes; p.wolves = q.wolves; p.relief = q.relief;
+  p.waterAmount = q.waterAmount; p.river = q.river; p.forestDensity = q.forestDensity; p.rockDensity = q.rockDensity; p.biome = q.biome; p.coast = q.coast; p.outcrop = q.outcrop; p.flowers = q.flowers; p.biomes = q.biomes; p.wolves = q.wolves; p.relief = q.relief; p.genStyle = q.genStyle;
   for (const key of Object.keys(m)) {
     if (key === 'preset' || key === 'seed' || key === 'size') continue;
     const v: any = m[key];

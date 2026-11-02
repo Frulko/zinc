@@ -212,4 +212,6 @@ export function stockWithCarried(id: number): number[] {
   if (row !== undefined) for (let k = 0; k < out.length; k++) out[k] += row[k];
   return out;
 }
+/** A new or restored village starts a fresh count: the loads cached for the same tick and head count of another village are not its own. */
+export function forgetCarried(): void { carriedTick = -1; }
 let carriedTick = -1, carriedPeople = -1, carriedLoads: Map<number, number[]> = new Map<number, number[]>();
