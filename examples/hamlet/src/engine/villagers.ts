@@ -6,7 +6,7 @@ import {
 } from '../constants';
 import { Housing, BuildingDef, Harvest } from '../world/economy';
 import { world, recount, Person, Building, random, tileAt, tileX, tileY, tileIndex, tileI, tileJ, neighbor, waterNeighbor } from '../world/world';
-import { fieldFrom, approachTile, pathTo, planPath, walk, isWalkable, isMoving, payPathDebt, pathBusy, UNREACHABLE, Field, ESCAPE } from './path';
+import { fieldFrom, approachTile, pathTo, planPath, planFromHub, walk, isWalkable, isMoving, payPathDebt, pathBusy, UNREACHABLE, Field, ESCAPE } from './path';
 import { sound } from '../audio';
 import { emitFx, FX_LEAVES, FX_FELL, FX_CHIPS, FX_SPLASH, LODE_FX, CHIP_SPARK, CHIP_CHAFF, CHIP_SAWDUST, CHIP_FLOUR, CHIP_DUST } from '../world/fx';
 import { settings } from '../settings';
@@ -81,7 +81,7 @@ function updateSettlers(dt: number): void {
     if (needsFood && food < 0) { world.waitingForFood = true; b.timer = 1; continue; }
     const settler = newPerson(ROLE_SETTLER, world.buildings.indexOf(b), world.gate);
     settler.state = ST_WALK_IN;
-    if (!planPath(settler, buildingTile(b))) { b.timer = 2; continue; }
+    if (!planFromHub(settler, world.gate, buildingTile(b))) { b.timer = 2; continue; }
     if (needsFood) take(food, 1);
     b.residents++; b.timer = SETTLER_INTERVAL * arrival * 100 / level().arrival; world.people.push(settler); world.saveDirty = true;
   }

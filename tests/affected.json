@@ -526,6 +526,7 @@
     {"paths": ["examples/hamlet/assets/missions/", "examples/hamlet/src/world/missions.ts", "examples/hamlet/MISSIONS.md", "tests/data/hamlet/missions.ts", "tests/t0/hamlet_missions.sh"], "tests": ["hamlet_missions"]},
     {"paths": ["examples/hamlet/", "tests/data/hamlet/", "tests/t1/hamlet.sh", "tests/t1/hamlet_bot.sh"], "tests": ["hamlet", "hamlet_bot", "hamlet_bounds", "hamlet_ground"]},
     {"paths": ["tests/data/hamlet/bounds.ts", "tests/t0/hamlet_bounds.sh"], "tests": ["hamlet_bounds"]},
+    {"paths": ["examples/hamlet/src/engine/path.ts", "examples/hamlet/src/engine/transport.ts", "tests/data/hamlet/fields.ts", "tests/t0/hamlet_fields.sh"], "tests": ["hamlet_fields"]},
     {"paths": ["examples/hamlet/src/world/world.ts", "examples/hamlet/src/rules/build.ts", "examples/hamlet/src/engine/network.ts", "examples/hamlet/src/world/save.ts", "tests/data/hamlet/footprints.ts", "tests/t0/hamlet_footprints.sh"], "tests": ["hamlet_footprints"]},
     {"paths": ["examples/hamlet/src/cite/ground.ts", "tests/data/hamlet/ground.input", "tests/t1/hamlet_ground.sh"], "tests": ["hamlet_ground"]},
     {"paths": ["examples/hamlet/src/cite/", "tests/t1/hamlet_cite.sh", "tests/data/hamlet/cite.input"], "tests": ["hamlet_cite", "hamlet_atlas"]},

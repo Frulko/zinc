@@ -3,7 +3,7 @@ import { world, Person, Building, tileIndex, tileAt, neighbor, recount } from '.
 import { economy, BuildingDef, Housing } from '../world/economy';
 import { accepts, gives } from '../rules/storage';
 import { onStoreNetwork, goalOf } from './network';
-import { fieldFrom, approachTile, planPath, pathBusy, owePath, UNREACHABLE, ESCAPE } from './path';
+import { fieldFrom, approachTile, planPath, planRoad, roadSpread, pathBusy, owePath, UNREACHABLE, ESCAPE, SPREAD_SLOTS } from './path';
 
 // Goods move in loads: a worker (a porter, or a worker fetching an input or hauling its own output) walks to the building that holds them, takes a batch,
 // walks to the building that keeps them and puts them down. The batch is promised on both sides first (src.reserved, dst.incoming), so a load is never taken twice
@@ -41,7 +41,7 @@ export function pickUp(p: Person): void {
   const got = src.alive ? Math.min(p.want, src.stock[p.res]) : 0;
   if (src.alive) { src.stock[p.res] -= got; src.reserved[p.res] -= p.want; }
   dst.incoming[p.res] -= p.want - got; p.want = got;
-  if (got < 1 || !dst.alive || !planPath(p, tileOf(dst))) { dst.incoming[p.res] -= got; if (src.alive) src.stock[p.res] += got; p.src = -1; p.dst = -1; p.res = -1; p.want = 0; p.state = ST_SEEK; p.carry = 0; p.load = 0; recount(); return; }
+  if (got < 1 || !dst.alive || !(isStore(dst) ? planRoad(p, tileOf(dst)) : planPath(p, tileOf(dst)))) { dst.incoming[p.res] -= got; if (src.alive) src.stock[p.res] += got; p.src = -1; p.dst = -1; p.res = -1; p.want = 0; p.state = ST_SEEK; p.carry = 0; p.load = 0; recount(); return; }
   p.carry = p.res + 1; p.load = got; p.state = ST_BRING;
   recount();
 }
@@ -53,17 +53,33 @@ export function putDown(p: Person): void {
   world.saveDirty = true; recount();
 }
 
-/** The store with room for k that the person reaches soonest (or -1). */
-function nearestStore(p: Person, k: number): number {
-  const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE); owePath();
+/** Of the buildings `ids` (in id order) the one the person reaches soonest, or -1. A person on a road reads the cached spread of each (path.ts roadSpread: one search per store per road change, shared by every cart); otherwise, or with more candidates than cached fields, one search from the person. */
+function nearestOf(p: Person, ids: number[]): number {
+  const here = tileAt(p.x, p.y);
   let best = -1, bestCost = UNREACHABLE;
-  for (let id = 0; id < world.buildings.length; id++) {
-    const b = world.buildings[id];
-    if (!b.alive || !isStore(b) || room(b, k) < 1 || !accepts(b, k) || !exportsOk(b)) continue;
-    const a = approachTile(field, tileOf(b));
+  if (ids.length === 0) return -1;
+  if (here >= 0 && world.road[here] !== 0 && ids.length <= SPREAD_SLOTS - 1) {
+    for (const id of ids) {
+      const sp = roadSpread(tileOf(world.buildings[id]));
+      if (sp !== null && sp.dist[here] < bestCost) { bestCost = sp.dist[here]; best = id; }
+    }
+    return best;
+  }
+  const field = fieldFrom(here, UNREACHABLE, ESCAPE); owePath();
+  for (const id of ids) {
+    const a = approachTile(field, tileOf(world.buildings[id]));
     if (a >= 0 && field.dist[a] < bestCost) { bestCost = field.dist[a]; best = id; }
   }
   return best;
+}
+/** The store with room for k that the person reaches soonest (or -1). */
+function nearestStore(p: Person, k: number): number {
+  const ids: number[] = [];
+  for (let id = 0; id < world.buildings.length; id++) {
+    const b = world.buildings[id];
+    if (b.alive && isStore(b) && room(b, k) >= 1 && accepts(b, k) && exportsOk(b)) ids.push(id);
+  }
+  return nearestOf(p, ids);
 }
 /** The worker carries its own building's output to a store (the building is full). False when no store can take it. */
 export function haulOut(p: Person, siteId: number): boolean {
@@ -109,14 +125,12 @@ function fetchForStore(p: Person): boolean {
     if (!want.alive || !isStore(want) || want.orders.length === 0 || !exportsOk(want)) continue;
     for (let k = 0; k < want.stock.length; k++) {
       if (want.orders[k] !== ORDER_GET || room(want, k) < 1) continue;
-      const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE); owePath();
-      let best = -1, bestCost = UNREACHABLE;
+      const ids: number[] = [];
       for (let o = 0; o < world.buildings.length; o++) {
         const b = world.buildings[o];
-        if (o === id || !b.alive || !isStore(b) || spare(b, k) < 1 || !gives(b, k) || !exportsOk(b)) continue;
-        const a = approachTile(field, tileOf(b));
-        if (a >= 0 && field.dist[a] < bestCost) { bestCost = field.dist[a]; best = o; }
+        if (o !== id && b.alive && isStore(b) && spare(b, k) >= 1 && gives(b, k) && exportsOk(b)) ids.push(o);
       }
+      const best = nearestOf(p, ids);
       if (best >= 0) return startTransport(p, best, id, k, Math.min(spare(world.buildings[best], k), BATCH, room(want, k)));
     }
   }
@@ -124,15 +138,12 @@ function fetchForStore(p: Person): boolean {
 }
 /** The store that holds k and may give it, the one the person reaches soonest (or -1). */
 function nearestGiver(p: Person, k: number): number {
-  const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE); owePath();
-  let best = -1, bestCost = UNREACHABLE;
+  const ids: number[] = [];
   for (let id = 0; id < world.buildings.length; id++) {
     const b = world.buildings[id];
-    if (!b.alive || !isStore(b) || spare(b, k) < 1 || !gives(b, k) || !exportsOk(b)) continue;
-    const a = approachTile(field, tileOf(b));
-    if (a >= 0 && field.dist[a] < bestCost) { bestCost = field.dist[a]; best = id; }
+    if (b.alive && isStore(b) && spare(b, k) >= 1 && gives(b, k) && exportsOk(b)) ids.push(id);
   }
-  return best;
+  return nearestOf(p, ids);
 }
 /** The goods a market keeps: the ones houses eat or burn. */
 const marketGoods = (): number[] => { const h = economy.buildings[HOUSE].housing as Housing; return h.eats.concat(h.uses); };

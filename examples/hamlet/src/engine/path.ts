@@ -92,6 +92,87 @@ export function fieldFrom(start: number, limit: number = UNREACHABLE, escape: nu
   return shared;
 }
 
+// ---- distance fields: many walkers that share a goal (every cart asking for the nearest store, every settler from the gate) read one cached spread instead of each searching the map ----
+/** The cost from a goal to every road tile joined to it (a Dijkstra over roads, the same step costs as fieldFrom), kept by (goal tile, world.netRev). The goal is a road tile, or the road tiles beside a building. */
+export class Spread { goal: number = -1; rev: number = -1; used: number = 0; dist: number[] = []; reached: number[] = []; count: number = 0; }
+export const SPREAD_SLOTS = 12;                      // the fields kept (least recently used out): a few stores and the gate; more candidates than slots search the old way
+const spreads: Spread[] = [];
+let spreadClock = 0;
+function fillSpread(sp: Spread, goal: number): void {
+  const n = world.size * world.size;
+  if (sp.dist.length !== n) { sp.dist = filled(n, UNREACHABLE); sp.reached = filled(n, 0); sp.count = 0; }
+  for (let k = 0; k < sp.count; k++) sp.dist[sp.reached[k]] = UNREACHABLE;
+  sp.count = 0; heapN = 0;
+  const dist = sp.dist, road = world.road;
+  const seed = (t: number): void => { if (t >= 0 && road[t] !== 0 && isWalkable(t) && dist[t] === UNREACHABLE) { dist[t] = 0; sp.reached[sp.count++] = t; heapPush(0, t); } };
+  seed(goal);
+  if (sp.count === 0) for (let d = 0; d < 4; d++) seed(neighbor(goal, d));
+  while (heapN > 0) {
+    if (heapK[0] > dist[heapT[0]]) { heapPop(); continue; }      // a stale entry: the tile was reached cheaper since
+    const u = heapPop();
+    for (let d = 0; d < 4; d++) {
+      const v = neighbor(u, d);
+      if (v < 0 || road[v] === 0 || !isWalkable(v) || cliffStep(u, v)) continue;
+      const cost = dist[u] + ROAD_COST * (climbs(u, v) ? SLOPE_COST : 1);
+      if (cost < dist[v]) { if (dist[v] === UNREACHABLE) sp.reached[sp.count++] = v; dist[v] = cost; heapPush(cost, v); }
+    }
+  }
+}
+/** The cached spread of a goal, built when missing or when the roads or buildings changed since; null when no road touches the goal. */
+export function roadSpread(goal: number): Spread | null {
+  let hit = -1, old = 0;
+  for (let k = 0; k < spreads.length; k++) { if (spreads[k].goal === goal) hit = k; if (spreads[k].used < spreads[old].used) old = k; }
+  if (hit < 0) {
+    if (spreads.length < SPREAD_SLOTS) { spreads.push(new Spread()); hit = spreads.length - 1; } else hit = old;
+    spreads[hit].goal = goal; spreads[hit].rev = -1;
+  }
+  const sp = spreads[hit];
+  sp.used = ++spreadClock;
+  if (sp.rev !== world.netRev || sp.dist.length !== world.size * world.size) { fillSpread(sp, goal); sp.rev = world.netRev; debt += sp.count; }
+  return sp.count > 0 ? sp : null;
+}
+/** The road tiles from `from` (excluded) down the spread to its goal: at each tile the neighbour with the lowest cost, ties to the lowest tile. */
+function descend(sp: Spread, from: number): number[] {
+  const out: number[] = [];
+  let u = from;
+  while (sp.dist[u] > 0) {
+    let best = -1, bd = UNREACHABLE;
+    for (let d = 0; d < 4; d++) {
+      const v = neighbor(u, d);
+      if (v < 0 || world.road[v] === 0 || sp.dist[v] > bd || sp.dist[v] >= sp.dist[u] || cliffStep(u, v) || !isWalkable(v)) continue;
+      if (best < 0 || sp.dist[v] < bd || (sp.dist[v] === bd && v < best)) { bd = sp.dist[v]; best = v; }
+    }
+    if (best < 0) break;
+    out.push(best); u = best;
+  }
+  return out;
+}
+/** planPath for a walker standing on a road, going to a goal on the road network: reads the goal's cached spread. Other cases take planPath. False when no road leads there. */
+export function planRoad(m: Mover, goal: number): boolean {
+  const from = tileAt(m.x, m.y);
+  if (from < 0 || world.road[from] === 0) return planPath(m, goal);
+  const sp = roadSpread(goal);
+  if (sp === null) return planPath(m, goal);
+  if (sp.dist[from] >= UNREACHABLE) return false;
+  m.path = descend(sp, from); m.step = 0;
+  return true;
+}
+/** A walker standing on the road tile `hub` (the gate) goes to a goal: the path is the reverse of the descent from the goal's door, so every walker from the hub shares the hub's one spread. */
+export function planFromHub(m: Mover, hub: number, goal: number): boolean {
+  const sp = world.road[hub] !== 0 ? roadSpread(hub) : null;
+  if (sp === null || tileAt(m.x, m.y) !== hub) return planPath(m, goal);
+  let end = -1;
+  const pick = (t: number): void => { if (t >= 0 && world.road[t] !== 0 && sp.dist[t] < UNREACHABLE && (end < 0 || sp.dist[t] < sp.dist[end] || (sp.dist[t] === sp.dist[end] && t < end))) end = t; };
+  if (world.road[goal] !== 0 && isWalkable(goal)) pick(goal); else for (let d = 0; d < 4; d++) pick(neighbor(goal, d));
+  if (end < 0) return false;
+  const down = descend(sp, end);                // end ... hub (inclusive)
+  const path: number[] = [];
+  for (let k = down.length - 2; k >= 0; k--) path.push(down[k]);
+  if (end !== hub) path.push(end);
+  m.path = path; m.step = 0;
+  return true;
+}
+
 /** The tile to walk to for reaching goal: the goal itself, or its cheapest walkable neighbour when it is blocked (a tree, a building). */
 export function approachTile(field: Field, goal: number): number {
   if (isWalkable(goal)) return field.dist[goal] < UNREACHABLE ? goal : -1;
