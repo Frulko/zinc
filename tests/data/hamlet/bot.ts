@@ -1,6 +1,7 @@
 // The Hamlet bot: a deterministic player that opens a village and works the campaign goals with plain heuristics, headless, at full simulation speed.
 // It uses the rules API only (applyTool, the daily goal rewards) and prints a timeline: the day each goal is reached, the population, the stocks,
 // who left, fires. A balance tool (docs/reports/hamlet-balance-2026-11-01.md) and the regression test of tests/t1/hamlet_bot.sh.
+// BOT_MISSION=02-nourrir plays that mission of assets/missions (its map, start, goals and time limit) to its final goal.
 // Settings by environment: BOT_SHARE=60 BOT_SEEDS="1,2,3" BOT_SIZES="24,40" BOT_PRESETS="0,3" BOT_DAYS=400 BOT_MODE=campaign|sandbox BOT_LEVEL=0|1|2 BOT_VERBOSE=1
 import { env } from 'zinc:sys';
 import * as fs from 'zinc:fs';
@@ -12,6 +13,8 @@ import { buildRoad, costOf } from '../../../examples/hamlet/src/rules/roadplan';
 import { canPay } from '../../../examples/hamlet/src/rules/stock';
 import { isUnlocked, scenarioWon } from '../../../examples/hamlet/src/rules/goals';
 import { economy, loadEconomy, Bloom } from '../../../examples/hamlet/src/world/economy';
+import { missions, loadMissions, applyMission, missionOf, missionLoss, Mission } from '../../../examples/hamlet/src/world/missions';
+import { copyTerrainParams } from '../../../examples/hamlet/src/gen/terrain';
 import { PRESETS } from '../../../examples/hamlet/src/gen/presets';
 import { TOOL_ROAD, TOOL_ERASE, HOUSE, PLACE_OK, ROLE_NAMES, DAY_TICKS, DAY_SECONDS, BS_NO_SOURCE, DEER_GONE } from '../../../examples/hamlet/src/constants';
 import { BI_PLAIN } from '../../../examples/hamlet/src/gen/terrain';
@@ -39,6 +42,8 @@ const MAX_DAYS = listOf('BOT_DAYS', '400')[0];
 const SANDBOX = env('BOT_MODE') === 'sandbox';
 const LEVEL = env('BOT_LEVEL') === '' ? 1 : Number(env('BOT_LEVEL'));       // economy.json difficulties: 0 easy, 1 normal, 2 hard
 const VERBOSE = env('BOT_VERBOSE') === '1';
+const MISSION = env('BOT_MISSION');
+if (MISSION !== '') loadMissions((path: string): string => fs.readText('examples/hamlet/assets/' + path));
 
 // ---- the plan: what the bot builds, in order. A house entry waits for the houses to fill; any other entry waits for its stock (and blocks the later ones) ----
 class Want { id: string = ''; count: number = 0; constructor(id: string, count: number) { this.id = id; this.count = count; } }
@@ -49,6 +54,7 @@ const PLAN: Want[] = [
   new Want('house', 12), new Want('firehouse', 2), new Want('sawmill', 2), new Want('market', 2), new Want('well', 2), new Want('house', 14), new Want('lumberhut', 3), new Want('farm', 2), new Want('house', 16),
   new Want('works', 2), new Want('watchpost', 2), new Want('firehouse', 3), new Want('fishery', 2), new Want('mill', 2), new Want('house', 20), new Want('bakery', 2), new Want('smokehouse', 2), new Want('lodge', 2),
   new Want('apiary', 2), new Want('house', 24), new Want('market', 3), new Want('well', 3), new Want('farm', 3), new Want('house', 30), new Want('house', 36), new Want('claypit', 1), new Want('mine', 1), new Want('forge', 1), new Want('quarry', 1),
+  new Want('chapel', 1), new Want('house', 44), new Want('theatre', 1), new Want('house', 56), new Want('market', 4), new Want('well', 4), new Want('chapel', 2), new Want('house', 72), new Want('farm', 4), new Want('mill', 3), new Want('bakery', 3), new Want('house', 90),   // the city: worship and a stage for the housing ladder (the Manoir)
 ];
 
 class Reach { dist: number[] = []; par: number[] = []; }
@@ -62,7 +68,7 @@ function reach(): Reach {
     if (r.dist[t] >= 16) continue;
     for (let d = 0; d < 4; d++) {
       const v = neighbor(t, d);
-      if (v < 0 || r.dist[v] >= 0 || !isOpen(v)) continue;
+      if (v < 0 || r.dist[v] >= 0 || !(isOpen(v) || (MISSION !== '' && checkTool(TOOL_ROAD, v) === PLACE_OK))) continue;   // a mission may sit on relief: the road climbs where the houses cannot stand
       r.dist[v] = r.dist[t] + 1; r.par[v] = t; queue.push(v);
     }
   }
@@ -133,6 +139,7 @@ function tryPlace(id: string): boolean {
   if (!isUnlocked(type) || !canPay(def.cost)) return false;
   const r = reach(); scoring = r;
   let best = -1e9, bt = -1;
+  if (VERBOSE && MISSION !== '' && id === 'house' && world.tick % (DAY_TICKS * 10) < 160) { const codes: number[] = [0, 0, 0, 0, 0, 0, 0, 0]; let near1 = 0; for (let t = 0; t < world.size * world.size; t++) if (r.dist[t] === 1) { near1++; const c = checkTool(tool, t); codes[Math.min(c, 7)]++; } console.log('   house sites beside a road ' + near1 + ' by check code ' + codes.join(',')); }
   const cands: number[][] = [];
   for (let t = 0; t < world.size * world.size; t++) {
     const d = r.dist[t];
@@ -243,6 +250,16 @@ function abandon(): void {
     if (idleFor[id] > 40 && !(openCount() < 30 && economy.buildings[b.type].gather === 'tree')) { applyTool(TOOL_ERASE, tileIndex(b.i, b.j)); idleFor[id] = 0; if (VERBOSE) console.log('  day ' + Math.floor(world.tick / DAY_TICKS) + ' abandon ' + economy.buildings[b.type].id); }
   }
 }
+/** What the open goals of the mission ask the bot to build: the buildings of their conditions, once the goals they require are done (the bot reads the mission, not only its own plan). */
+function missionWants(): Want[] {
+  const out: Want[] = [];
+  for (let k = 0; k < economy.goals.length; k++) {
+    const g = economy.goals[k];
+    if (world.goals[k] === 1 || g.requires.some((r: number): boolean => world.goals[r] !== 1)) continue;
+    for (const c of g.when) if (c.kind === 'building') out.push(new Want(economy.buildings[c.id].id, Math.max(1, c.count)));
+  }
+  return out;
+}
 let roadsLaid = false;
 function decide(): void {
   if (!roadsLaid) { { const east: number[] = []; for (let k = 0; k < 4 && isOpen(world.gate + 1 + k); k++) east.push(world.gate + 1 + k); buildRoad(east); /* a road east of the gate, as far as the ground is open */ } roadsLaid = true; }
@@ -250,9 +267,9 @@ function decide(): void {
   abandon();
   openForest();
   if (economy.sim.labourShare < 100) movePriority(economy.typeOf('sawmill'), -100);   // a small labour pool (a Cité mission): the planks come before a second log hut; the food goes in front of it when short
-  if (foodShort()) feedFirst();
+  if (foodShort() && (MISSION === '' || population() >= 10 || world.waitingForFood)) feedFirst();   // a mission starts with bread in hand: the first hands go to wood, or three farms eat the whole village and nobody saws
   let blocker: number[] | null = null;
-  for (const w of PLAN) {
+  for (const w of MISSION === '' ? PLAN : PLAN.slice(0, 4).concat(missionWants()).concat(PLAN.slice(4))) {
     const type = economy.typeOf(w.id), def = economy.buildings[type];
     if (count(w.id) >= w.count) continue;
     if (!isUnlocked(type)) { if (blocker === null && w.id !== 'house') blocker = def.cost; continue; }   // a goal will open it: save for it
@@ -264,27 +281,32 @@ function decide(): void {
     if (blocker !== null && touches(def.cost, blocker)) continue;
     if (tryPlace(w.id)) { if (VERBOSE) console.log('  day ' + Math.floor(world.tick / DAY_TICKS) + ' build ' + w.id + ' planks left ' + world.stock[economy.resourceOf('plank')]); continue; }
     if (!canPay(def.cost)) { if (blocker === null && w.id !== 'house') blocker = def.cost; }   // wait for the stock
+    if (VERBOSE && MISSION !== '' && world.tick % (DAY_TICKS * 10) < 160) console.log('   wants ' + w.id + ' x' + w.count + ' (' + count(w.id) + ' built) not placed, pay ' + canPay(def.cost));
   }
 }
 
 // ---- the run ----
 class Run {
   seed: number = 0; size: number = 0; preset: number = 0; won: number = -1; goalDay: number[] = []; maxPop: number = 0; left: number = 0; fires: number = 0; collapses: number = 0; thefts: number = 0;
-  hungryDays: number = 0; minMood: number = 100; popAt: number[] = []; endDay: number = 0; dead: boolean = false;
+  lost: string = ''; hungryDays: number = 0; minMood: number = 100; popAt: number[] = []; endDay: number = 0; dead: boolean = false;
 }
 function stockLine(): string {
   const out: string[] = [];
   for (const id of ['log', 'plank', 'meat', 'fish', 'bread', 'smoked_meat', 'stone', 'coin']) out.push(id + ' ' + world.stock[economy.resourceOf(id)]);
   return out.join(' ');
 }
+function limitDays(m: Mission): number { return Math.ceil(m.limitYears * 12 * 15 / DAY_SECONDS); }
 function play(seed: number, size: number, preset: number): Run {
   const run = new Run(), params = PRESETS[preset].params;   // the generator only sets its tile and clearing fields: the same every time
-  world.autosave = false; world.unlimited = SANDBOX; world.difficulty = SANDBOX ? -1 : LEVEL; generate(seed, size, params);
-  world.progression = !SANDBOX; world.risks = !SANDBOX; roadsLaid = false; idleFor.length = 0;
+  world.autosave = false; world.unlimited = SANDBOX; world.difficulty = SANDBOX ? -1 : LEVEL;
+  const mission: Mission | null = MISSION === '' ? null : missionOf(MISSION);
+  if (mission !== null) { applyMission(mission.id); world.difficulty = mission.difficulty; world.unlimited = false; generate(mission.seed, mission.size, copyTerrainParams(mission.params)); }
+  else { applyMission(''); generate(seed, size, params); }
+  world.progression = !SANDBOX; world.risks = mission !== null ? mission.risks : !SANDBOX; roadsLaid = false; idleFor.length = 0;
   run.seed = seed; run.size = size; run.preset = preset;
   for (const g of economy.goals) run.goalDay.push(-1);
   let everPeople = false;
-  const total = MAX_DAYS * DAY_TICKS;
+  const total = (mission !== null ? Math.max(MAX_DAYS, limitDays(mission) + 2) : MAX_DAYS) * DAY_TICKS;
   for (let k = 0; k < total; k++) {
     if (k % 160 === 0) decide();
     stepWorld();
@@ -302,6 +324,7 @@ function play(seed: number, size: number, preset: number): Run {
     if (VERBOSE && (day === 12 || day === 60)) for (const b of world.buildings) console.log('   b ' + economy.buildings[b.type].id + ' @' + b.i + ',' + b.j + ' workers ' + b.workers + ' state ' + b.state + ' res ' + b.residents + ' stock ' + b.stock.join(','));
     if (VERBOSE && day % 10 === 0) console.log('  d' + day + ' pop ' + pop + ' mood ' + world.mood + ' jobless ' + world.jobless + '% houses ' + count('house') + ' trees ' + world.tree.filter((v: number): boolean => v > 0).length + ' felled ' + world.felledCount + ' ' + stockLine());
     if (!SANDBOX && scenarioWon()) { run.won = day; break; }
+    if (mission !== null && missionLoss(false) !== '') { run.lost = missionLoss(false); break; }
     if (everPeople && pop === 0) { run.dead = true; break; }
   }
   return run;
@@ -310,7 +333,7 @@ const minutes = (day: number): string => day < 0 ? '-' : String(Math.round(day *
 function report(r: Run): void {
   let goals = '';
   for (let g = 0; g < economy.goals.length; g++) goals += ' ' + economy.goals[g].id + '@' + minutes(r.goalDay[g]);
-  console.log('bot seed ' + r.seed + ' size ' + r.size + ' preset ' + PRESETS[r.preset].label + ': ' + (r.won >= 0 ? 'WON at day ' + r.won + ' (' + minutes(r.won) + ' min)' : r.dead ? 'DEAD day ' + r.endDay : 'not won in ' + r.endDay + ' days') +
+  console.log('bot seed ' + r.seed + ' size ' + r.size + ' preset ' + PRESETS[r.preset].label + ': ' + (r.won >= 0 ? 'WON at day ' + r.won + ' (' + minutes(r.won) + ' min)' : r.lost !== '' ? 'LOST day ' + r.endDay + ': ' + r.lost : r.dead ? 'DEAD day ' + r.endDay : 'not won in ' + r.endDay + ' days') +
     ' | maxPop ' + r.maxPop + ' minMood ' + r.minMood + ' left ' + r.left + ' fires ' + r.fires + ' collapses ' + r.collapses + ' thefts ' + r.thefts + ' foodWait ' + r.hungryDays + ' | pop/15d ' + r.popAt.join(',') + ' | goals(min)' + goals);
 }
 let wins = 0, runs = 0;
