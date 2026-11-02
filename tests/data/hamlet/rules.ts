@@ -1273,13 +1273,13 @@ for (let j = 0; j < 12; j++) world.height[at(6, j)] = 2;                        
 const wall = fieldFrom(at(3, 5));
 check('relief: a walker does not cross a cliff', wall.dist[at(9, 5)] >= UNREACHABLE && wall.dist[at(5, 5)] < UNREACHABLE);
 world.height[at(6, 8)] = 1; world.height[at(5, 8)] = 1; world.height[at(7, 8)] = 1;
-const gap = fieldFrom(at(3, 5));
+const gapDist = fieldFrom(at(3, 5)).dist[at(9, 5)];                                                   // the Field is one shared object: read each search before the next
 lay();
 const open = fieldFrom(at(3, 5));
-check('relief: a ramp in the wall lets him through, the long way', gap.dist[at(9, 5)] < UNREACHABLE && gap.dist[at(9, 5)] > open.dist[at(9, 5)]);
+const openDist = open.dist[at(9, 5)], openStep = open.dist[at(4, 5)];
+check('relief: a ramp in the wall lets him through, the long way', gapDist < UNREACHABLE && gapDist > openDist);
 world.height[at(4, 5)] = 1;
-const up = fieldFrom(at(3, 5));
-check('relief: a step up a slope costs 1.5 times', up.dist[at(4, 5)] === open.dist[at(4, 5)] * 1.5);
+check('relief: a step up a slope costs 1.5 times', fieldFrom(at(3, 5)).dist[at(4, 5)] === openStep * 1.5);
 const mover = (): Person => { const m = new Person(); m.x = tileX(at(3, 5)); m.y = tileY(at(3, 5)); m.path = [at(4, 5)]; m.step = 0; return m; };
 lay(); const levelWalker = mover(); walk(levelWalker, .2, 2);
 world.height[at(4, 5)] = 1; const slopeWalker = mover(); walk(slopeWalker, .2, 2);
