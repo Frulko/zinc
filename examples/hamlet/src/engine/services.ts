@@ -2,19 +2,27 @@ import { HOUSE, COVER_DAYS, ST_ROAM } from '../constants';
 import { world, Person, Building, Alert, neighbor, tileIndex, tileAt, tileI, tileJ } from '../world/world';
 import { economy } from '../world/economy';
 import { isWalkable, planPath } from './path';
+import { feed } from '../rules/housing';
+import { marketStocked } from './transport';
 
 // Services reach houses two ways: a walker leaves its building and roams the roads (every house beside its route is covered), or a building covers every
 // house within its radius. Either way the house keeps a counter of days (Building.cover[service]) that decays once a day: covered = counter > 0.
 
 const isHouse = (id: number): boolean => id >= 0 && world.buildings[id].alive && world.buildings[id].type === HOUSE;
+/** The distributor of a market hands a house what the market holds of the goods it lacks. */
+function handOut(market: Building, house: Building): void {
+  feed(house, (k: number, n: number): number => { const got = Math.min(n, market.stock[k] - market.reserved[k]); if (got < 1) return 0; market.stock[k] -= got; return got; });
+}
 /** Covers the houses within `economy.sim.walkerReach` tiles of a tile (the road a walker is on): their counter goes back to COVER_DAYS and decays by a day each day. */
-export function coverAround(t: number, service: number): void {
+export function coverAround(t: number, service: number, market: Building | null = null): void {
   const reach = economy.sim.walkerReach, ci = tileI(t), cj = tileJ(t);
   for (let dj = -reach; dj <= reach; dj++) for (let di = -reach; di <= reach; di++) {
     const i = ci + di, j = cj + dj;
     if (i < 0 || j < 0 || i >= world.size || j >= world.size) continue;
     const id = world.build[j * world.size + i];
-    if (isHouse(id)) world.buildings[id].cover[service] = COVER_DAYS;
+    if (!isHouse(id)) continue;
+    world.buildings[id].cover[service] = COVER_DAYS;
+    if (market !== null) handOut(market, world.buildings[id]);
   }
   const kind = economy.services[service].risk;
   if (kind !== '') guard(t, kind);
@@ -78,8 +86,9 @@ export function roamTick(p: Person, site: Building): void {
   const here = tileAt(p.x, p.y);
   if (here < 0 || here === p.target) return;
   p.target = here;
-  const sd = economy.buildings[site.type].service;
-  if (sd !== null && world.road[here]) coverAround(here, sd.service);
+  const def = economy.buildings[site.type], sd = def.service;
+  if (def.market && !marketStocked(site)) return;      // a market with nothing to hand out covers nothing
+  if (sd !== null && world.road[here]) coverAround(here, sd.service, def.market ? site : null);
 }
 /** The daily slice for services: counters decay by a day, then buildings with a radius cover the houses within it. */
 export function dailyServices(): void {

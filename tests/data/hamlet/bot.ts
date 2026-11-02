@@ -1,7 +1,7 @@
 // The Hamlet bot: a deterministic player that opens a village and works the campaign goals with plain heuristics, headless, at full simulation speed.
 // It uses the rules API only (applyTool, the daily goal rewards) and prints a timeline: the day each goal is reached, the population, the stocks,
 // who left, fires. A balance tool (docs/reports/hamlet-balance-2026-11-01.md) and the regression test of tests/t1/hamlet_bot.sh.
-// Settings by environment: BOT_SEEDS="1,2,3" BOT_SIZES="24,40" BOT_PRESETS="0,3" BOT_DAYS=400 BOT_MODE=campaign|sandbox BOT_LEVEL=0|1|2 BOT_VERBOSE=1
+// Settings by environment: BOT_SHARE=60 BOT_SEEDS="1,2,3" BOT_SIZES="24,40" BOT_PRESETS="0,3" BOT_DAYS=400 BOT_MODE=campaign|sandbox BOT_LEVEL=0|1|2 BOT_VERBOSE=1
 import { env } from 'zinc:sys';
 import * as fs from 'zinc:fs';
 import { world, generate, tileIndex, tileI, tileJ, isOpen, neighbor } from '../../../examples/hamlet/src/world/world';
@@ -31,7 +31,7 @@ function modelIds(): string[] {                 // the model of each building, i
   return out;
 }
 loadEconomy(ECONOMY_TEXT, modelIds(), ROLE_NAMES);
-if (env('BOT_LABOUR') !== '') { economy.sim.labourShare = Number(env('BOT_LABOUR')); economy.sim.stopJobless = Number(env('BOT_STOPJOBLESS') === '' ? '100' : env('BOT_STOPJOBLESS')); }      // the labour pool of a Cité mission (sim.labourShare), to see the opening still works
+if (env('BOT_SHARE') !== '') economy.sim.labourShare = Number(env('BOT_SHARE'));   // BOT_SHARE=60: a city's labour pool
 
 const listOf = (name: string, fallback: string): number[] => (env(name) === '' ? fallback : env(name)).split(',').map((s: string): number => Number(s));
 const MAX_DAYS = listOf('BOT_DAYS', '400')[0];

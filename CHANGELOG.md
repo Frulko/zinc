@@ -24,6 +24,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Hamlet's Cite view has the Pixel Plays look: sprites and ground are baked from the same models, figures, light and ramps as the old view, with walk, work and graze animations, at 1x and 2x. Choose `ZINC_HAMLET_ATLAS=computed|files` (or the settings panel): `files` loads the exported PNG sheets of `assets/atlas/` when they match the code, `computed` bakes them at start.
 - Hamlet has six missions, from a first village to a mountain with mines, the peddler, a city of 400 people and a hard survival with fire and crime: each has a briefing, a map, goals that unlock buildings (with new kinds: jobs filled, mood, peace, a stock held for days) and sometimes a time limit, a win or lose ending and a next mission. Pick one in the new-village form (`N`); the goals window (`C`) follows it, and the village save remembers its mission.
 - A new Hamlet sandbox form: seed, size up to 256 × 256, landscape, lakes, forest, rock and relief steppers, river, infinite resources, risks and a start, with a small preview of the map the seed will make.
+- Hamlet markets keep a stock: the buyer fetches food and candles from the stores and the vendor hands them to the houses on the round; a market with nothing to sell serves nobody. A chapel (religion) and a festival ground (entertainment, with the tavern) join the services, and a house climbs to a fourth level, the Manoir, when all four services, three foods and a pleasant street reach it.
 
 #### Changed
 
@@ -44,6 +45,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 #### Fixed
 
 - Zooming out in Hamlet no longer leaves the village as a small clipped rectangle in the dark while the new view is prepared; the picture stays until it can grow smaller.
+- In a Hamlet city whose labour pool is under 100 %, people outside the pool no longer count as jobless (no permanent mood penalty, newcomers keep coming), and a scarce pool staffs every workshop once before filling any twice, so a sawmill is no longer left empty beside full lumber huts.
 
 ### Graphics
 

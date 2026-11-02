@@ -155,5 +155,5 @@ export const DEER_CHARGE = 8;           // a cornered boar runs at the person, a
 
 // ---- save ----
 export const SAVE_KEY = 'hamlet:save';
-export const SAVE_VERSION = 'H20';
+export const SAVE_VERSION = 'H21';
 export const SAVE_DELAY = 2;            // seconds between two writes

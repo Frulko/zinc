@@ -45,7 +45,7 @@ export class BuildingDef {
   id: string = ''; label: string = ''; short: string = ''; hint: string = ''; order: number = 0; model: string = '';
   cost: number[] = []; workers: number = 0; role: string = ''; roleId: number = -1;
   inputs: number[] = []; outputs: number[] = []; seconds: number = 0; gather: string = '';
-  stockCap: number = 8; store: boolean = false; needsRoad: boolean = true;
+  stockCap: number = 8; store: boolean = false; market: boolean = false; needsRoad: boolean = true;   // market: stocks the houses' goods, fetched from the stores by its vendor, and hands them out on its round
   housing: Housing | null = null; service: ServiceDef | null = null; lode: number = -1; appeal: number[] = [];   // appeal: the rings it adds around itself
   smoke: number[][] = []; glow: number[][] = [];   // view effects at a working building, in tile-local units: [x, y, z] chimney smoke ([x, y, z, 1]: steam), and warm lights shown at night
   buildable: boolean = true; risk: RiskWeights | null = null;   // buildable false: a leftover (the ruin) the player cannot place, only demolish
@@ -312,6 +312,7 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
       if (sd.service >= 0 && into.services[sd.service].risk !== '' && !sd.walker) errors.push('bad-service: ' + where + ' gives a safety service but has no walker: only a walker resets the counters');
       if (sd.walker && d.workers <= 0) errors.push('bad-service: ' + where + ' sends a walker but has no workers');
       d.service = sd;
+      if (b.market === true) { if (!sd.walker) errors.push('bad-service: ' + where + ' is a market but its service has no walker: who would hand the goods out?'); d.market = true; }
     }
     into.buildings.push(d);
   }

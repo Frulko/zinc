@@ -6,6 +6,7 @@ import { addBuilding } from '../../../examples/hamlet/src/rules/build';
 import { stepWorld } from '../../../examples/hamlet/src/engine/simulate';
 import { createResident, assignJobs, updatePeople } from '../../../examples/hamlet/src/engine/villagers';
 import { buildRoad } from '../../../examples/hamlet/src/rules/roadplan';
+import { warmAudio } from '../../../examples/hamlet/src/audio';
 import { economy, loadEconomy } from '../../../examples/hamlet/src/world/economy';
 import { setStock } from '../../../examples/hamlet/src/rules/stock';
 import { appealSlice } from '../../../examples/hamlet/src/rules/appeal';
@@ -49,6 +50,7 @@ world.deer.length = 0; world.deerSeq = 0;
 let animals = 0;
 for (let tries = 0; animals < ANIMALS && tries < 20000; tries++) { const t = Math.floor(((tries * 2654435761) % 4294967296) % (SIZE * SIZE)); if (isOpen(t)) { spawnDeer(t, animals % 9 === 0 ? 1 : 0); animals++; } }
 world.revision++;
+warmAudio();   // the scene does it at start: the first sound of the sim is not a hitch of a step
 console.log('perf setup: size ' + SIZE + ' people ' + world.people.length + ' buildings ' + world.buildings.length + ' animals ' + world.deer.length);
 const times: number[] = [];
 const SPLIT = env('HAMLET_SPLIT') === '1', parts: number[] = [0, 0, 0, 0, 0], names = ['jobs', 'day', 'people', 'deer', 'nature'];

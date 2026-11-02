@@ -163,8 +163,16 @@ function fade(dt: number): void {
     else if (l.on) l.sound.volume = level() * l.v;
   }
 }
-export function setAmbience(kind: string): void {
+/** Builds the whole bank and every ambience loop now (about 0.2 s): the scene calls it once at start, so no effect, season change or shower pays for the synthesis in the middle of a frame (the first `hoof` took 135 ms). */
+let warm = false;
+export function warmAudio(): void {
+  if (warm) return;
+  warm = true;
   if (!ready) build();
+  for (const key of BEDS.concat(['rain'])) layerOf(key);
+}
+export function setAmbience(kind: string): void {
+  warmAudio();
   if (kind === ambienceKind) return;
   ambienceKind = kind; audioStats.ambience = kind;
   for (const bed of BEDS) { if (bed === kind) layerOf(bed).goal = 1; else { const l = layers.get(bed); if (l !== undefined) l.goal = 0; } }
@@ -208,5 +216,5 @@ export function ambientTick(dt: number, season: number, night: number, trees: nu
 export function disposeAudio(): void {
   for (const list of bank.values()) for (const s of list) s.unload();
   for (const l of loops.values()) l.unload();
-  bank.clear(); loops.clear(); layers.clear(); ready = false; ambienceKind = '';
+  bank.clear(); loops.clear(); layers.clear(); ready = false; warm = false; ambienceKind = '';
 }

@@ -16,6 +16,12 @@ export function normalizePriority(): number[] {
   world.priority = kept;
   return kept;
 }
+/** True while the player has not moved any type: the order is the toolbar's. Then a scarce pool is spread (one hand to each workshop before a second to any); once he orders, the order is strict. */
+export function defaultPriority(): boolean {
+  const list = normalizePriority(), sorted = list.slice();
+  sorted.sort((a: number, b: number): number => economy.buildings[a].order - economy.buildings[b].order || a - b);
+  return list.every((type: number, k: number): boolean => type === sorted[k]);
+}
 /** Where a type stands in the order (0 = staffed first). */
 export function rankOf(type: number): number { const k = normalizePriority().indexOf(type); return k < 0 ? 1000 : k; }
 /** Moves a type up (delta < 0) or down in the order. Returns the new rank. */

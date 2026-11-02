@@ -69,9 +69,9 @@
     { "id": "honey", "title": "Du miel", "text": "Le rucher donne du miel (les maisons l’aiment) et de la cire ; la cire fait des bougies, le miel avec du blé fait de l’hydromel.", "requires": ["bees", "planks"],
       "when": [ { "building": "apiary" } ], "unlock": ["chandlery", "meadery"], "give": { "log": 4, "plank": 4 } },
     { "id": "light", "title": "De la lumière", "text": "Les bougies éclairent les maisons : le quartier en devient plus agréable.", "requires": ["honey"],
-      "when": [ { "building": "chandlery" } ], "give": { "plank": 4 } },
+      "when": [ { "building": "chandlery" } ], "unlock": ["chapel"], "give": { "plank": 4 } },
     { "id": "mead", "title": "Une taverne", "text": "Faites de l’hydromel, puis ouvrez une taverne : elle l’achète et réjouit le voisinage.", "requires": ["honey"],
-      "when": [ { "building": "meadery" } ], "unlock": ["tavern"], "give": { "plank": 6 } },
+      "when": [ { "building": "meadery" } ], "unlock": ["tavern", "theatre"], "give": { "plank": 6 } },
     { "id": "tools", "title": "Des outils", "text": "La forge change le minerai en outils : la carrière en demande.", "requires": ["iron"],
       "when": [ { "building": "forge" }, { "stock": "tools", "count": 2 } ], "unlock": ["quarry"], "give": { "plank": 6 } },
     { "id": "stone", "title": "De la pierre", "text": "Une carrière tire la pierre des rochers veinés, pour les puits et les gros chantiers.", "requires": ["tools"],
@@ -98,7 +98,7 @@
       "days": 2, "workers": 3, "risk": 10, "cost": { "smoked_meat": 2 }, "rewards": { "hide": 6, "smoked_meat": 4, "coin": 8 } },
     { "id": "prospect", "title": "Prospection", "text": "Quatre habitants partent trois jours chercher la pierre et le minerai : planches et pain pour la route, un vrai risque.",
       "days": 3, "workers": 4, "risk": 20, "cost": { "plank": 4, "bread": 2 }, "rewards": { "stone": 8, "iron_ore": 4, "coin": 20 } } ],
-  "services": [ { "id": "water", "label": "Eau" }, { "id": "market", "label": "Marché" },
+  "services": [ { "id": "water", "label": "Eau" }, { "id": "market", "label": "Marché" }, { "id": "religion", "label": "Culte", "weight": 0.5 }, { "id": "entertainment", "label": "Divertissement", "weight": 0.5 },
     { "id": "fire", "label": "Pompiers", "risk": "fire", "weight": 0.8 }, { "id": "repair", "label": "Réparations", "risk": "collapse", "weight": 0.4 }, { "id": "watch", "label": "Guet", "risk": "crime", "weight": 0.5 } ],
   "start": { "log": 30, "plank": 30, "leather": 3, "stone": 8, "coin": 40, "bread": 20, "tools": 2 },
   "difficulties": [
@@ -119,7 +119,8 @@
         "evolveDays": 2, "devolveDays": 4, "margin": 1,
         "levels": [
           { "label": "Maison", "capacity": 4, "needs": { "services": ["market"], "foods": 1 } },
-          { "label": "Demeure", "capacity": 6, "needs": { "services": ["market", "water"], "foods": 2, "appeal": 2 } } ] } },
+          { "label": "Demeure", "capacity": 6, "needs": { "services": ["market", "water"], "foods": 2, "appeal": 2 } },
+          { "label": "Manoir", "capacity": 8, "needs": { "services": ["market", "water", "religion", "entertainment"], "foods": 3, "appeal": 4 } } ] } },
     { "id": "sawmill", "risk": { "fire": 8, "collapse": 1 }, "smoke": [[0.43, -0.3, 2.5]], "appeal": [-3, -2, -1], "label": "Scierie", "order": 3, "model": "sawmill", "cost": { "plank": 2, "log": 6 },
       "workers": 2, "role": "sawyer", "inputs": { "log": 1 }, "outputs": { "plank": 1 }, "seconds": 5,
       "hint": "Une scierie scie les troncs en planches : elles servent à construire." },
@@ -149,8 +150,8 @@
       "hint": "Une boulangerie cuit la farine en pain : les maisons le mangent." }
   ,
     { "id": "market", "risk": { "fire": 6, "collapse": 1, "crime": 2 }, "appeal": [1], "label": "Marché", "order": 11, "model": "market", "cost": { "plank": 4, "log": 2, "leather": 1 },
-      "workers": 1, "role": "vendor", "service": { "id": "market", "walker": true, "range": 18 },
-      "hint": "Un marché (il faut du cuir) envoie un marchand sur les routes : les maisons qu’il croise sont servies." }
+      "workers": 1, "role": "vendor", "market": true, "stockCap": 12, "service": { "id": "market", "walker": true, "range": 18 },
+      "hint": "Un marché (il faut du cuir) garde des vivres et des bougies que son acheteur va chercher aux entrepôts ; son marchand les porte aux maisons qu’il croise. Un marché vide ne sert personne." }
   ,
     { "id": "tannery", "risk": { "fire": 6, "collapse": 1 }, "smoke": [[-0.1, 0.85, 0.6, 1]], "appeal": [-4, -3, -2, -1], "label": "Tannerie", "order": 12, "model": "tannery", "cost": { "plank": 4, "log": 3 },
       "workers": 2, "role": "tanner", "inputs": { "hide": 2 }, "outputs": { "leather": 1 }, "seconds": 8,
@@ -186,7 +187,7 @@
       "workers": 2, "role": "brewer", "inputs": { "honey": 2, "wheat": 2 }, "outputs": { "mead": 2 }, "seconds": 10, "sound": "pour",
       "hint": "L’hydromellerie fait fermenter le miel et le blé en hydromel, que la taverne achète." },
     { "id": "tavern", "risk": { "fire": 8, "collapse": 1, "crime": 2 }, "smoke": [[0.47, -0.33, 2.9]], "glow": [[0.47, 0.78, 0.46], [-0.5, 0.78, 0.46]], "appeal": [2, 1], "label": "Taverne", "order": 22, "model": "tavern", "cost": { "plank": 5, "log": 3 },
-      "workers": 2, "role": "innkeeper", "inputs": { "mead": 1 }, "outputs": { "coin": 4 }, "seconds": 9, "sound": "pour",
+      "workers": 2, "role": "innkeeper", "service": { "id": "entertainment", "radius": 4 }, "inputs": { "mead": 1 }, "outputs": { "coin": 4 }, "seconds": 9, "sound": "pour",
       "hint": "Une taverne sert l’hydromel contre des pièces et rend le voisinage plus agréable." },
     { "id": "firehouse", "risk": { "fire": 4, "collapse": 1 }, "appeal": [1], "label": "Poste d’incendie", "short": "Pompiers", "order": 23, "model": "firehouse", "cost": { "plank": 4, "log": 3 },
       "workers": 1, "role": "firewarden", "service": { "id": "fire", "walker": true, "range": 14 },
@@ -198,6 +199,12 @@
       "workers": 1, "role": "watchman", "service": { "id": "watch", "walker": true, "range": 14 },
       "hint": "Le guetteur patrouille sur les routes : les voleurs évitent les bâtiments qu’il surveille." },
     { "id": "ruin", "appeal": [-2, -1], "label": "Décombres", "short": "Décombres", "order": 90, "model": "ruin", "needsRoad": false, "buildable": false,
-      "hint": "Les restes d’un bâtiment détruit : démolissez-les pour libérer la case." }
+      "hint": "Les restes d’un bâtiment détruit : démolissez-les pour libérer la case." },
+    { "id": "chapel", "risk": { "fire": 6, "collapse": 1 }, "smoke": [[0.0, 0.0, 3.0]], "appeal": [2, 1], "label": "Chapelle", "order": 26, "model": "chapel", "cost": { "plank": 5, "log": 3 },
+      "workers": 1, "role": "chandler", "service": { "id": "religion", "walker": true, "range": 14 },
+      "hint": "Le desservant de la chapelle fait sa tournée : les maisons qu’il croise sont suivies par le culte, ce qu’il faut aux plus belles demeures." },
+    { "id": "theatre", "risk": { "fire": 6, "collapse": 1, "crime": 1 }, "appeal": [2, 1], "label": "Place des fêtes", "short": "Fêtes", "order": 27, "model": "theatre", "cost": { "plank": 6, "log": 4 },
+      "workers": 2, "role": "innkeeper", "service": { "id": "entertainment", "walker": true, "range": 14 },
+      "hint": "Des saltimbanques montés sur les planches de la place des fêtes parcourent les routes : les maisons qu’ils croisent sont divertis." }
   ]
 }

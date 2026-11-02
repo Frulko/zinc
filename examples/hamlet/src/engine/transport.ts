@@ -1,6 +1,6 @@
-import { ST_FETCH, ST_BRING, ST_SEEK, BS_WAITING, BS_ISOLATED, BS_FULL, BATCH, ORDER_GET } from '../constants';
+import { ST_FETCH, ST_BRING, ST_SEEK, BS_WAITING, BS_ISOLATED, BS_FULL, BATCH, ORDER_GET, HOUSE } from '../constants';
 import { world, Person, Building, tileIndex, tileAt, neighbor, recount } from '../world/world';
-import { economy, BuildingDef } from '../world/economy';
+import { economy, BuildingDef, Housing } from '../world/economy';
 import { accepts, gives } from '../rules/storage';
 import { onStoreNetwork } from './network';
 import { fieldFrom, approachTile, planPath, UNREACHABLE, ESCAPE } from './path';
@@ -119,6 +119,34 @@ function fetchForStore(p: Person): boolean {
   }
   return false;
 }
+/** The store that holds k and may give it, the one the person reaches soonest (or -1). */
+function nearestGiver(p: Person, k: number): number {
+  const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE);
+  let best = -1, bestCost = UNREACHABLE;
+  for (let id = 0; id < world.buildings.length; id++) {
+    const b = world.buildings[id];
+    if (!b.alive || !isStore(b) || spare(b, k) < 1 || !gives(b, k) || !exportsOk(b)) continue;
+    const a = approachTile(field, tileOf(b));
+    if (a >= 0 && field.dist[a] < bestCost) { bestCost = field.dist[a]; best = id; }
+  }
+  return best;
+}
+/** The goods a market keeps: the ones houses eat or burn. */
+const marketGoods = (): number[] => { const h = economy.buildings[HOUSE].housing as Housing; return h.eats.concat(h.uses); };
+/** True when the market holds some good to hand out. */
+export function marketStocked(b: Building): boolean { for (const k of marketGoods()) if (b.stock[k] - b.reserved[k] >= 1) return true; return false; }
+/** The buyer of a market (its vendor, between two rounds) fetches a good the market holds under half its cap from the nearest store that has it. False when nothing is wanted or to be had. */
+export function restock(p: Person, siteId: number): boolean {
+  const site = world.buildings[siteId], cap = economy.buildings[site.type].stockCap;
+  if (!exportsOk(site)) { site.state = BS_ISOLATED; return false; }
+  for (const k of marketGoods()) {
+    const have = site.stock[k] + site.incoming[k];
+    if (have * 2 >= cap) continue;
+    const from = nearestGiver(p, k);
+    if (from >= 0) return startTransport(p, from, siteId, k, Math.min(cap - have, spare(world.buildings[from], k), BATCH));
+  }
+  return false;
+}
 /** A worker fetches what its building lacks from the nearest store that has it. False when it cannot (the building waits: state and waitFor say why). */
 export function fetchInput(p: Person, siteId: number): boolean {
   const site = world.buildings[siteId], def = economy.buildings[site.type];
@@ -126,14 +154,7 @@ export function fetchInput(p: Person, siteId: number): boolean {
     const want = def.inputs[k] * 2 - site.stock[k] - site.incoming[k];
     if (def.inputs[k] === 0 || site.stock[k] >= def.inputs[k] || want < 1) continue;
     if (!exportsOk(site)) { site.state = BS_ISOLATED; return false; }
-    const field = fieldFrom(tileAt(p.x, p.y), UNREACHABLE, ESCAPE);
-    let best = -1, bestCost = UNREACHABLE;
-    for (let id = 0; id < world.buildings.length; id++) {
-      const b = world.buildings[id];
-      if (!b.alive || !isStore(b) || spare(b, k) < 1 || !gives(b, k) || !exportsOk(b)) continue;
-      const a = approachTile(field, tileOf(b));
-      if (a >= 0 && field.dist[a] < bestCost) { bestCost = field.dist[a]; best = id; }
-    }
+    const best = nearestGiver(p, k);
     if (best < 0) { site.state = BS_WAITING; site.waitFor = k; return false; }
     return startTransport(p, best, siteId, k, Math.min(want, spare(world.buildings[best], k), BATCH));
   }

@@ -14,14 +14,14 @@ import { economy } from '../world/economy';
 import { take } from '../rules/stock';
 import { resting, workScale } from '../rules/meadow';
 import { BLOW_ANGLE, TAU, harvestFor, sourceOf, cycleSeconds, succeeds, depletes, rollUnits, swingRate } from '../rules/harvest';
-import { rankOf, labourPool, employed, labourStats } from '../rules/labour';
+import { rankOf, labourPool, employed, labourStats, defaultPriority } from '../rules/labour';
 import { capacityOf } from '../rules/housing';
 import { startRoam, roamTick } from './services';
 import { routine, freeTime } from './routine';
 import { onGateNetwork, doorOf } from './network';
 import { arrivalFactor, workPace } from '../rules/needs';
 import { level } from '../rules/difficulty';
-import { findLoad, haulOut, fetchInput, atTarget, hasRoomFor, readyBatch, exportsOk, pickUp, putDown, cancelTransport } from './transport';
+import { findLoad, haulOut, fetchInput, atTarget, hasRoomFor, readyBatch, exportsOk, restock, marketStocked, pickUp, putDown, cancelTransport } from './transport';
 
 const STROLL_REACH = 10;   // path cost of a stroll beside the house: a spot walled off by neighbours is dropped, not searched for
 const HUNT_REACH = 40;   // path cost a hunter accepts to reach his game (a deer in a walled pocket is let go, not searched for over the whole map)
@@ -121,14 +121,15 @@ function assignJobs(): void {
   for (const b of world.buildings) if (b.alive && b.type !== HOUSE && !economy.buildings[b.type].store) { producers++; vacancies += economy.buildings[b.type].workers - b.workers; }
   const order: number[] = world.buildings.map((_b: Building, id: number): number => id);
   let free = labourPool() - employed();                        // the pool: only a share of the residents work, the rest are children, elders and carers
+  const spread = defaultPriority();
   const rank: number[] = economy.buildings.map((_d: BuildingDef, type: number): number => rankOf(type));
   order.sort((a: number, b: number): number => rank[world.buildings[a].type] - rank[world.buildings[b].type] || a - b);   // the player's priority, then the oldest first
-  for (let pass = 0; pass < 2; pass++) for (const id of order) {   // producers are staffed first; porters only once something produces and no producer lacks hands
+  for (let pass = 0; pass < 2; pass++) for (let cap = spread ? 1 : 4; cap <= 4; cap++) for (const id of order) {   // default order: one hand to each building, then a second to each...: a scarce pool starts every workshop instead of filling the first huts; an order the player set is strict   // producers are staffed first; porters only once something produces and no producer lacks hands
     if (pass === 1 && (producers === 0 || vacancies > 0)) break;
     const site = world.buildings[id];
     if (!site.alive || site.type === HOUSE || economy.buildings[site.type].store !== (pass === 1) || site.state === BS_OFF_NET) continue;
     const def = economy.buildings[site.type];
-    while (site.workers < def.workers && free > 0) {
+    while (site.workers < Math.min(def.workers, cap) && free > 0) {
       let best: Person | null = null, bestDist = 1e9;
       if (pass === 0) reclaimPorter();                          // a producer lacking hands takes a porter back before it waits for a newcomer
       for (const p of world.people) {
@@ -331,7 +332,8 @@ function updateWorker(p: Person, dt: number): void {
       if (def.store) found = findLoad(p);                        // a porter
       else if (!hasRoomFor(site, def.outputs)) { site.state = BS_FULL; found = haulOut(p, p.job); }   // full: the worker carries it to a store itself
       else if (readyBatch(site, def.outputs) && haulOut(p, p.job)) found = true;                       // a batch is ready and no porter came: carry it
-      else if (def.service !== null && def.service.walker) found = startRoam(p, site);
+      else if (def.market && restock(p, p.job)) found = true;                                         // a market's buyer fetches goods from a store
+      else if (def.service !== null && def.service.walker) found = (!def.market || marketStocked(site)) && startRoam(p, site);
       else if (def.lode >= 0) found = nearestLode(p, def.lode);
       else if (def.gather === 'tree') found = nearestTree(p);
       else if (def.gather === 'shore') found = nearestShore(p);

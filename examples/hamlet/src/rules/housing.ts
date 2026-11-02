@@ -1,5 +1,6 @@
 import { world, Building } from '../world/world';
 import { economy, Housing, HouseLevel } from '../world/economy';
+import { level } from './difficulty';
 
 // Housing levels: what a house holds, what it needs to climb, and the plain words for what it lacks. Pure functions of the world: the UI reads them, the daily slice acts on them.
 
@@ -13,6 +14,21 @@ export function litBonus(b: Building): number { let n = 0; for (const k of housi
 /** The food kinds the house ate lately. */
 export function foodKinds(b: Building): number { let n = 0; for (const k of housing().eats) if (b.fed[k] > 0) n++; return n; }
 
+export const FOOD_DAYS = 4;   // days one meal of a kind lasts; it is bought again with one day left (one meal every three days), so a vendor who passes every day or two never lets a kind lapse
+/** A house buys its meals from `from` (the market that serves it, or the stores): enough kinds with more than a day left for the next level (or its own), one unit per two people, and candles for the light (one unit per four people). */
+export function feed(b: Building, from: (k: number, n: number) => number): void {
+  const h = housing();
+  if (b.residents <= 0) return;
+  let wanted = 1, have = 0;
+  for (let l = 0; l <= Math.min(b.level + 1, levelCount() - 1); l++) wanted = Math.max(wanted, h.levels[l].foods);
+  for (const k of h.eats) if (b.fed[k] > 1) have++;
+  for (const k of h.eats) {
+    if (have >= wanted) break;
+    if (b.fed[k] > 1) continue;
+    if (from(k, Math.ceil(b.residents / 2 * level().eat / 100)) >= 1) { b.fed[k] = FOOD_DAYS; have++; }
+  }
+  for (const k of h.uses) if (b.fed[k] <= 1 && from(k, Math.ceil(b.residents / 4)) >= 1) b.fed[k] = FOOD_DAYS;
+}
 /** One requirement of a level: `met` now, with the words for it ("Il manque l’eau"). `id` is the service id, `food` or `appeal`. */
 export class Requirement { id: string = ''; met: boolean = false; text: string = ''; }
 function requirements(b: Building, lv: HouseLevel, slack: number): Requirement[] {

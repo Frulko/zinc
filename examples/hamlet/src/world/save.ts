@@ -9,8 +9,9 @@ import { computeAppeal } from '../rules/appeal';
 import { defaultLevel } from '../rules/difficulty';
 import { applyMission } from './missions';
 import { stockWithCarried } from '../engine/transport';
+import { economy } from './economy';
 
-// One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock, cover, level, streak, meals and the risk counters fire|damage|crime|burn; lists with | between);trees(tile.variant);unlimited;tick;rng;priority;params;deposits(tile.value.left);goals done;buildings unlocked;peddler offers(resource.qty.side.coins.taken);days he stays;expeditions(adventure.days left.homes);progression;risks;difficulty
+// One line of text, fields split by ';' and lists by ',': version;seed;size;roads;buildings(type.tile.residents.stock, cover, level, streak, meals and the risk counters fire|damage|crime|burn, storage orders, roamer turn; lists with | between);trees(tile.variant);unlimited;tick;rng;priority;params;deposits(tile.value.left);goals done;buildings unlocked;peddler offers(resource.qty.side.coins.taken);days he stays;expeditions(adventure.days left.homes);progression;risks;difficulty
 function numbers(text: string): number[] {
   const out: number[] = [];
   if (text === '') return out;
@@ -36,7 +37,7 @@ function heightText(): string { return world.height.some((v: number): boolean =>
 export function snapshot(): string {
   const roads: number[] = [], buildings: string[] = [], trees: string[] = [], lodes: string[] = [];
   for (let t = 0; t < tileCount(); t++) if (world.road[t]) roads.push(t);
-  for (const b of world.buildings) if (b.alive) buildings.push(b.type + '.' + tileIndex(b.i, b.j) + '.' + b.residents + '.' + stockWithCarried(world.buildings.indexOf(b)).join('|') + '.' + b.cover.join('|') + '.' + b.level + '.' + b.streak + '.' + b.fed.join('|') + '.' + [b.fire, b.damage, b.crime, b.burn].join('|'));
+  for (const b of world.buildings) if (b.alive) buildings.push(b.type + '.' + tileIndex(b.i, b.j) + '.' + b.residents + '.' + stockWithCarried(world.buildings.indexOf(b)).join('|') + '.' + b.cover.join('|') + '.' + b.level + '.' + b.streak + '.' + b.fed.join('|') + '.' + [b.fire, b.damage, b.crime, b.burn].join('|') + '.' + b.orders.join('|') + '.' + b.turn);
   for (let t = 0; t < tileCount(); t++) { if (world.tree[t] > 0) trees.push(t + '.' + world.tree[t]); if (world.rock[t] >= ROCK_DEPOSIT) lodes.push(t + '.' + world.rock[t] + '.' + world.lode[t]); }
   return [SAVE_VERSION, String(world.seed), String(world.size), roads.join(','), buildings.join(','), trees.join(','), world.unlimited ? '1' : '0', String(world.tick), String(world.rng), world.priority.join(','), paramsText(), lodes.join(','), world.goals.join(''), world.unlocked.join(''), world.offers.map((o: Offer): string => [String(o.resource), String(o.qty), o.side, String(o.coins), o.taken ? '1' : '0'].join('.')).join(','), String(world.peddlerLeft), world.expeditions.map((e: Expedition): string => e.adventure + '.' + e.left + '.' + e.homes.join('|')).join(','), world.progression ? '1' : '0', world.risks ? '1' : '0', String(world.difficulty), heightText(), world.mission].join(';');
 }
@@ -56,12 +57,12 @@ function sized(text: string, length: number): number[] {
 }
 export function restore(text: string): boolean {
   const fields = text.split(';');
-  if (fields.length < 19 || (fields[0] !== SAVE_VERSION && fields[0] !== 'H19')) return false;     // H19: before the heights, loads flat
+  if (fields.length < 19 || (fields[0] !== SAVE_VERSION && fields[0] !== 'H20' && fields[0] !== 'H19')) return false;     // H19: before the heights, loads flat; H20: before the storage orders
   applyMission(fields.length > 21 ? fields[21] : '');         // the mission's goals and knobs first: generate sizes the goal list from them
   generate(Number(fields[1]), Number(fields[2]), paramsOf(fields[10]));
   const heights = fields.length > 20 ? fields[20] : '';
-  if (fields[0] === SAVE_VERSION && heights.length === world.size * world.size) for (let t = 0; t < heights.length; t++) world.height[t] = parseInt(heights.charAt(t), 16);
-  else if (fields[0] !== SAVE_VERSION) world.height.fill(0);
+  if (fields[0] !== 'H19' && heights.length === world.size * world.size) for (let t = 0; t < heights.length; t++) world.height[t] = parseInt(heights.charAt(t), 16);
+  else if (fields[0] === 'H19') world.height.fill(0);
   for (const t of numbers(fields[3])) { world.road[t] = 1; world.deco[t] = 0; }
   if (fields[4] !== '') {
     for (const entry of fields[4].split(',')) {
@@ -71,6 +72,7 @@ export function restore(text: string): boolean {
       b.stock = sized(parts[3], b.stock.length); b.fed = sized(parts[7], b.fed.length); b.cover = sized(parts[4], b.cover.length);
       b.level = Number(parts[5]); b.streak = Number(parts[6]);
       const risk = sized(parts[8], 4); b.fire = risk[0]; b.damage = risk[1]; b.crime = risk[2]; b.burn = risk[3];
+      if (parts.length > 10) { b.orders = parts[9] === '' ? [] : sized(parts[9], economy.resources.length); b.turn = Number(parts[10]); }      // H21: storage orders and the roamer's turn counter
       if (type === HOUSE) {
         for (let n = 0; n < Number(parts[2]); n++) createResident(id);
         world.buildings[id].residents = Number(parts[2]);

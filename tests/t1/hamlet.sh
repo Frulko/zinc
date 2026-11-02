@@ -56,8 +56,9 @@ from pathlib import Path
 import sys
 p = Path(sys.argv[1])
 def trees(name):
-    return len([t for t in (p / name).read_text().split('\t')[1].split(';')[5].split(',') if t])
+    return {t.split('.')[0] for t in (p / name).read_text().split('\t')[1].split(';')[5].split(',') if t}
 before, after = trees('before.kv'), trees('data/storage.kv')
-assert after < before, f'no tree was felled ({before} -> {after})'
+# trees grow back during the session: a tree is felled when a tile that held one at the start holds none at the end
+assert before - after, f'no tree was felled ({len(before)} -> {len(after)})'
 CHECK
 echo 'hamlet: rules on three engines, scripted mouse session and save PASS'

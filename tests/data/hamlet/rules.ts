@@ -14,7 +14,7 @@ import { parseBiomes } from '../../../examples/hamlet/src/world/biomes';
 import { BIOME_IDS, BI_HILLS, BI_PLAIN, BI_MARSH, DECO_REEDS, DECO_TRAIL } from '../../../examples/hamlet/src/gen/terrain';
 import { economy, loadEconomy, parseEconomy, chainReport, Economy } from '../../../examples/hamlet/src/world/economy';
 // the model ids of view/models.ts (a building's model sits at its own index; the scene checks it against the real list at start-up)
-const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern', 'firehouse', 'works', 'watchpost', 'ruin'];
+const MODEL_IDS: string[] = ['house', 'sawmill', 'lodge', 'fishery', 'storehouse', 'lumberhut', 'smokehouse', 'farm', 'mill', 'bakery', 'market', 'tannery', 'well', 'quarry', 'claypit', 'mine', 'forge', 'forager', 'apiary', 'chandlery', 'meadery', 'tavern', 'firehouse', 'works', 'watchpost', 'ruin', 'chapel', 'theatre'];
 import { dailyRisks, isRuin } from '../../../examples/hamlet/src/engine/risk';
 import { dailyCrime, updateOutlaws, sendRobber, computePeace, watchGap, peaceText } from '../../../examples/hamlet/src/engine/crime';
 import { BS_NO_SOURCE, BS_OFF_NET } from '../../../examples/hamlet/src/constants';
@@ -247,7 +247,9 @@ const labourVillage = (first: string): void => {
 };
 const staffed = (id: string): number => world.buildings.filter((b) => b.alive && b.type === economy.typeOf(id)).reduce((n, b) => n + b.workers, 0);
 labourVillage('lumberhut');
-check('priority: the first type is staffed in full, the next takes what is left, the last gets nobody', staffed('lumberhut') === 2 && staffed('sawmill') + staffed('lodge') === 1);
+check('priority: the default order spreads three hands over three workshops', staffed('lumberhut') === 1 && staffed('sawmill') === 1 && staffed('lodge') === 1);
+labourVillage('sawmill');
+check('priority: an order the player sets is strict: the first type is staffed in full, the next takes what is left, the last gets nobody', staffed('sawmill') === 2 && staffed('lumberhut') === 1 && staffed('lodge') === 0);
 labourVillage('lodge');
 check('priority: moving the lodge first staffs it first', staffed('lodge') === 2 && staffed('lumberhut') + staffed('sawmill') === 1);
 check('an unstaffed workplace says no_workers', computeHints().some((h) => h.kind === 'no_workers'));
@@ -288,7 +290,7 @@ check('the market and a meal lift the house to level 1: capacity grows', cabin.l
 check('level 2 still lacks appeal, and the report says so', cabin.level === 1 && housingReport(cabin).text.indexOf('agréable') >= 0 && computeHints().some((h) => h.kind === 'house_needs' && h.tile === at(2, 7)));
 for (const [ti, tj] of [[2, 6], [1, 7], [3, 7]]) world.tree[at(ti, tj)] = 1;      // three trees around the house: appeal 3 once the day slice counts them
 run(120);
-check('with water, two foods and appeal the house reaches level 2 (capacity 6)', cabin.level === 2 && capacityOf(cabin) === 6 && housingReport(cabin).top);
+check('with water, two foods and appeal the house reaches level 2 (capacity 6)', cabin.level === 2 && capacityOf(cabin) === 6 && !housingReport(cabin).top);
 cabin.timer = 0; run(10);
 applyTool(TOOL_ERASE, at(5, 9));
 run(60);
@@ -1169,7 +1171,7 @@ check('a plaza adds one appeal around it', world.appeal[at(5, 14)] - appealBefor
   dailyHousing();
   check('a house that meets the next level does not climb at once', hb.level === 0);
   dailyHousing();
-  check('...it climbs after evolveDays days, and again after as many for the next level', hb.level === 1 && (() => { dailyHousing(); dailyHousing(); return hb.level === 2 && housingReport(hb).top; })());
+  check('...it climbs after evolveDays days, and again after as many for the next level', hb.level === 1 && (() => { dailyHousing(); dailyHousing(); return hb.level === 2 && !housingReport(hb).top; })());
   world.appeal[at(5, 5)] = 1;
   for (let d = 0; d < hs.devolveDays + 3; d++) dailyHousing();
   check('hysteresis: a level kept inside the margin is not lost, however many days pass', hb.level === 2);
@@ -1293,6 +1295,70 @@ lay(); world.terrain[at(5, 6)] = WATER_T; world.terrain[at(6, 6)] = WATER_T;
 for (let i = 7; i < 12; i++) for (let j = 4; j < 9; j++) world.height[at(i, j)] = 1;
 check('relief: no bridge between banks of two levels', planRoad(at(2, 6), at(9, 6), false, false).blocked >= 0);
 // the save keeps the heights; one from before them loads flat
+// ---- the market keeps a stock (fetched from the stores, handed out by its vendor), services of religion and entertainment, the fourth housing level, the save of orders and turns ----
+{
+  generate(1234, 16); rich(); clearRow();
+  const SM = economy.resourceOf('smoked_meat'), BR = economy.resourceOf('bread'), MKT = economy.serviceOf('market'), RELIGION = economy.serviceOf('religion'), FUN = economy.serviceOf('entertainment');
+  setStock(SM, 40); setStock(BR, 40);
+  for (const i of [2, 4]) { const h = addBuilding(HOUSE, at(i, 7)); for (let k = 0; k < 4; k++) createResident(h); world.buildings[h].residents = 4; world.buildings[h].timer = 1e9; }
+  const mk = addBuilding(economy.typeOf('market'), at(6, 7)), shop = world.buildings[mk], h1 = world.buildings[world.build[at(2, 7)]], h2 = world.buildings[world.build[at(4, 7)]];
+  check('market: a new market is empty and covers no house', shop.stock.every((v) => v === 0) && h1.cover[MKT] === 0 && h2.cover[MKT] === 0);
+  run(90);
+  check('market: its buyer fetched goods from the stores (the stock left them)', shop.stock[SM] + shop.stock[BR] > 0 && world.stock[SM] + world.stock[BR] < 80);
+  check('market: the vendor handed meals to the houses it passed, from the market and no store', h1.cover[MKT] > 0 && h1.fed[SM] + h1.fed[BR] > 0 && h2.fed[SM] + h2.fed[BR] > 0 && world.stock[SM] + world.stock[BR] + shop.stock[SM] + shop.stock[BR] >= 78 - 2 * 4);
+  setStock(SM, 0); setStock(BR, 0); shop.stock.fill(0); h1.cover[MKT] = 0; h2.cover[MKT] = 0; h1.fed.fill(0); h2.fed.fill(0);
+  run(60);
+  check('market: with nothing to sell it covers nothing and feeds nobody', h1.cover[MKT] === 0 && h2.cover[MKT] === 0 && h1.fed.every((v) => v === 0));
+  setStock(BR, 30); run(60);
+  check('market: stocked again from the stores, it covers again', h1.cover[MKT] > 0 && shop.stock[BR] > 0);
+  // religion and entertainment: a chapel's walker covers the houses it passes; the festival ground likewise; the tavern covers the houses within four tiles
+  const chapel = addBuilding(economy.typeOf('chapel'), at(5, 9)), fest = addBuilding(economy.typeOf('theatre'), at(3, 9));
+  for (const t of [at(5, 9), at(3, 9)]) { world.tree[t] = 0; }
+  for (const i of [6, 7]) { const h = addBuilding(HOUSE, at(i, 9)); world.tree[at(i, 9)] = 0; for (let k = 0; k < 2; k++) createResident(h); world.buildings[h].residents = 2; world.buildings[h].timer = 1e9; }
+  run(120);
+  check('services: a chapel covers the houses on its round with religion, the festival ground with entertainment', world.buildings[chapel].alive && h1.cover[RELIGION] > 0 && h1.cover[FUN] > 0 && h2.cover[RELIGION] > 0);
+  check('services: religion and entertainment are services of economy.json with their buildings', RELIGION >= 0 && FUN >= 0 && economy.buildings[economy.typeOf('chapel')].service!.service === RELIGION && economy.buildings[economy.typeOf('theatre')].service!.service === FUN && economy.buildings[economy.typeOf('tavern')].service!.service === FUN);
+  // the fourth level (Manoir) asks religion and entertainment on top of market, water, three foods and appeal 4
+  generate(1234, 16); rich();
+  const hs3 = economy.buildings[HOUSE].housing!, villa = addBuilding(HOUSE, at(5, 5)), vb = world.buildings[villa];
+  vb.residents = 0; vb.level = 2; world.appeal[at(5, 5)] = 4;
+  for (let k = 0; k < 3; k++) vb.fed[hs3.eats[k]] = 99;
+  for (const sv of [MKT, economy.serviceOf('water'), FUN]) vb.cover[sv] = 9;
+  check('housing: a fourth level exists, and the report names religion as what is missing', hs3.levels.length === 4 && housingReport(vb).missing.length === 1 && housingReport(vb).missing[0].id === 'religion' && housingReport(vb).text.indexOf('culte') >= 0);
+  dailyHousing(); dailyHousing();
+  check('housing: without religion the house stays a Demeure', vb.level === 2);
+  vb.cover[RELIGION] = 9; dailyHousing(); dailyHousing();
+  check('housing: with all four services, three foods and appeal 4 it becomes a Manoir (capacity 8) and is the top', vb.level === 3 && capacityOf(vb) === 8 && housingReport(vb).top);
+  // the save keeps the storage orders and the roamer's turn counter; H20 saves (no orders, no turns) still load
+  const hall = world.buildings.findIndex((b) => b.type === economy.hall);
+  setOrder(hall, WOOD, ORDER_REFUSE); vb.turn = 7;
+  const kept = snapshot(), hashKept = stateHash();
+  world.buildings[hall].orders = []; vb.turn = 0;
+  check('save: orders and turns round-trip', restore(kept) && snapshot() === kept && stateHash() === hashKept && orderOf(world.buildings[hall], WOOD) === ORDER_REFUSE && world.buildings[world.build[at(5, 5)]].turn === 7);
+  const old = kept.split(';'); old[0] = 'H20';
+  old[4] = old[4].split(',').map((e) => e.split('.').slice(0, 9).join('.')).join(',');
+  check('save: an H20 save loads with no orders and turn 0', restore(old.join(';')) && world.buildings[world.build[at(5, 5)]].turn === 0 && orderOf(world.buildings[hall], WOOD) === ORDER_ACCEPT);
+}
+// ---- labour pool below 100: the unemployed are the pool's adults without a job, never the whole village; a scarce pool starts every workshop ----
+{
+  const keepShare = economy.sim.labourShare;
+  economy.sim.labourShare = 60;
+  generate(1234, 16); rich(); clearRow();
+  for (const t of [at(5, 9), at(3, 9), at(6, 7), at(2, 7), at(4, 7)]) { world.tree[t] = 0; world.rock[t] = 0; }
+  for (const i of [2, 4, 6]) { const h = addBuilding(HOUSE, at(i, 7)); for (let k = 0; k < 2; k++) createResident(h); world.buildings[h].residents = 2; world.buildings[h].timer = 1e9; }
+  const hutA = addBuilding(economy.typeOf('lumberhut'), at(3, 9)), hutB = addBuilding(economy.typeOf('lumberhut'), at(5, 9)), mill = addBuilding(economy.typeOf('sawmill'), at(7, 9));
+  world.tree[at(7, 9)] = 0; world.rock[at(7, 9)] = 0;
+  run(10);
+  check('labour 60: the pool of three is spread, one hand to each workshop before a second to any', labourStats().pool === 3 && [hutA, hutB, mill].every((id) => world.buildings[id].workers === 1));
+  dailyMood();
+  const joblessNow = world.people.filter((p) => p.feel === FEEL_JOBLESS).length;
+  check('labour 60: nobody outside the pool is jobless (the pool is full: 0 unemployed, 0 %)', labourStats().unemployed === 0 && world.jobless === 0 && joblessNow === 0);
+  for (const i of [1, 3, 5, 7]) { world.tree[at(i, 7)] = 0; world.rock[at(i, 7)] = 0; const h = addBuilding(HOUSE, at(i, 7)); for (let k = 0; k < 3; k++) createResident(h); world.buildings[h].residents = 3; world.buildings[h].timer = 1e9; }
+  run(10); dailyMood();
+  const lost = labourStats();
+  check('labour 60: with eighteen people the unemployed are the pool without a place, not every idle person', lost.unemployed >= 1 && lost.unemployed === 2 && world.jobless === Math.round(100 * 2 / 18) && world.people.filter((p) => p.feel === FEEL_JOBLESS).length === lost.unemployed);
+  economy.sim.labourShare = keepShare;
+}
 generate(21, 32, MOUNTAINS);
 world.height[at(4, 4)] = 3;
 const withRelief = snapshot(), savedHeights = world.height.slice();

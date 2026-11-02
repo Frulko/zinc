@@ -2,12 +2,13 @@ import { HOUSE, ROLE_PEDDLER } from '../constants';
 import { world, Person } from '../world/world';
 import { servicesOffered, worksites, houseNeeds, HouseNeeds, approach, personTarget, feelFrom, isJobless, HAPPY_STEP, MOOD_STEP, leavingToday } from '../rules/needs';
 import { isConnected, evictResidents } from './villagers';
+import { labourPool, employed } from '../rules/labour';
 
 /** The daily slice for the residents' contentment: houses move toward what they offer, people toward their own round, the village average decides who leaves (and, in updateSettlers, who comes). */
 export function dailyMood(): void {
   const offered = servicesOffered(), jobs = worksites() > 0;
-  let pop = 0, jobless = 0;
-  for (const p of world.people) if (p.role !== ROLE_PEDDLER) { pop++; if (jobs && isJobless(p)) jobless++; }
+  let pop = 0, jobless = 0, slots = Math.max(0, labourPool() - employed());   // only the pool can be jobless: with labourShare 60 the rest are children, elders and carers, not unemployed
+  const out: boolean[] = world.people.map((p: Person): boolean => { if (p.role === ROLE_PEDDLER) return false; pop++; const j = jobs && isJobless(p) && slots > 0; if (j) { slots--; jobless++; } return j; });
   world.jobless = pop === 0 ? 0 : Math.round(100 * jobless / pop);
   const needs: HouseNeeds[] = world.buildings.map((b): HouseNeeds => b.alive && b.type === HOUSE ? houseNeeds(b, offered) : new HouseNeeds());
   for (let id = 0; id < world.buildings.length; id++) {
@@ -15,12 +16,12 @@ export function dailyMood(): void {
     if (b.alive && b.type === HOUSE && b.residents > 0) b.happy = approach(b.happy, needs[id].target, HAPPY_STEP);
   }
   let sum = 0, n = 0;
-  for (const p of world.people) {
-    const b = world.buildings[p.home];
+  for (let k = 0; k < world.people.length; k++) {
+    const p = world.people[k], b = world.buildings[p.home];
     if (p.role === ROLE_PEDDLER || b === undefined || !b.alive) continue;
-    p.mood = approach(p.mood, personTarget(p, b, jobs), MOOD_STEP);
+    p.mood = approach(p.mood, personTarget(p, b, out[k]), MOOD_STEP);
     if (p.fun > 0) p.fun--;
-    p.feel = feelFrom(p.mood, p.fatigue, jobs && isJobless(p), needs[p.home].hungry, !isConnected(b));
+    p.feel = feelFrom(p.mood, p.fatigue, out[k], needs[p.home].hungry, !isConnected(b));
     sum += p.mood; n++;
   }
   world.mood = n === 0 ? 70 : Math.round(sum / n);
