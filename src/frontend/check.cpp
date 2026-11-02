@@ -4500,6 +4500,9 @@ struct Checker {
       }
       return rec;
     }
+    // an interface of methods expected: its method types type the literal's parameters (`{ cb(x, y) { ... } }`)
+    const std::uint32_t ifx = expected != kNoType && !bad(expected) && ty(expected).k == TK::Object && out.objs[ty(expected).obj].isInterface && !out.objs[ty(expected).obj].isRecord ? ty(expected).obj : kNone;
+    if (ifx != kNone) ensureBuilt(ifx);
     std::vector<std::pair<std::string, TypeId>> shape;
     // an interface of methods expected: its method types type the literal's parameters (`{ cb(x, y) { ... } }`)
     const std::uint32_t ifx = expected != kNoType && !bad(expected) && ty(expected).k == TK::Object && out.objs[ty(expected).obj].isInterface && !out.objs[ty(expected).obj].isRecord ? ty(expected).obj : kNone;
