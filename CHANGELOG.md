@@ -22,6 +22,8 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Hamlet villagers and carts now keep to the roads: a workshop whose road does not lead to the village entrance stays idle and says so, service walkers (market, fire, watch) go straight on and take turns at junctions, covering the houses within two tiles, and a store can be set to accept, refuse or only collect a good.
 - Hamlet land now has relief: hills, plateaus, rivers in valleys and, in the new Montagnes landscape, mountain ranges whose rock cannot be built on and which hold the ore. Houses need level ground, roads climb one level a tile at a higher cost, walkers slow down on slopes, and nothing crosses a cliff. The minimap is shaded by height.
 - Hamlet's Cite view has the Pixel Plays look: sprites and ground are baked from the same models, figures, light and ramps as the old view, with walk, work and graze animations, at 1x and 2x. Choose `ZINC_HAMLET_ATLAS=computed|files` (or the settings panel): `files` loads the exported PNG sheets of `assets/atlas/` when they match the code, `computed` bakes them at start.
+- Hamlet has six missions, from a first village to a mountain with mines, the peddler, a city of 400 people and a hard survival with fire and crime: each has a briefing, a map, goals that unlock buildings (with new kinds: jobs filled, mood, peace, a stock held for days) and sometimes a time limit, a win or lose ending and a next mission. Pick one in the new-village form (`N`); the goals window (`C`) follows it, and the village save remembers its mission.
+- A new Hamlet sandbox form: seed, size up to 256 × 256, landscape, lakes, forest, rock and relief steppers, river, infinite resources, risks and a start, with a small preview of the map the seed will make.
 
 #### Changed
 

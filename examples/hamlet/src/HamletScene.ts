@@ -43,6 +43,7 @@ import { loadPrefs, savePrefs } from './ui/prefs';
 import { drawOverlay, drawReach, drawOverlayMenu, drawLegend } from './ui/Overlays';
 import { drawAdvisors, sampleHistory, openAdvisor } from './ui/Advisors';
 import { drawCampaign, openCampaign } from './ui/Campaign';
+import { loadMissions } from './world/missions';
 import { perfBegin, perfEnd, perfFrame } from './ui/PerfTrace';
 import { drawDebug, drawDebugWindow, cycleDebug, debugBegin, debugLap, debugHooks } from './ui/Debug';
 import { drawEnding, checkEnding, resetEnding } from './ui/Ending';
@@ -121,6 +122,7 @@ export class HamletScene extends Sprite {
   constructor() {
     super('Hamlet');
     loadEconomy(assets.readText('economy.json'), MODEL_IDS, ROLE_NAMES);
+    loadMissions((path: string): string => assets.readText(path));
     loadKit(); loadPrefs(); ui.tool = TOOL_NONE; escapeByApp(true);   // no tool at the start; Escape drops the tool or opens the menu, it never quits
     this.frame.cropX = 10; this.frame.cropY = 22; this.frame.cropWidth = 340; this.frame.cropHeight = 226;
     const built = buildSettingsPanel({

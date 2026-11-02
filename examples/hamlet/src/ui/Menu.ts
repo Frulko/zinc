@@ -10,20 +10,16 @@ import { TERRAIN_WATER, TERRAIN_VOID, MIN_SIZE, MAX_SIZE, DEFAULT_SIZE } from '.
 import { settings } from '../settings';
 import { rgb } from '../pixel';
 import { muted, toggleSound, refreshVolume, sound } from '../audio';
-import { kit, col, setSkin, skinNames, window_, winOrigin, parchment, text, textC, labelButton, block, addHit, measure } from './kit';
+import { kit, col, setSkin, skinNames, window_, winOrigin, parchment, text, textC, labelButton, block, addHit, measure, wrap } from './kit';
 import { ui, act, WIN_NONE, WIN_MENU, WIN_OPTIONS, WIN_MAIN, WIN_SAVES, WIN_NEW, WIN_END } from './state';
 import { dateText } from './clock';
 import { savePrefs } from './prefs';
 import { PRESETS } from '../gen/presets';
 import { defaultLevel, levelLabel } from '../rules/difficulty';
-import { TerrainParams } from '../gen/terrain';
-
-/** The generator keeps the object it is given (world.params): a new village gets its own copy of the preset. */
-function copyParams(a: TerrainParams): TerrainParams {
-  const p = new TerrainParams();
-  p.waterAmount = a.waterAmount; p.river = a.river; p.forestDensity = a.forestDensity; p.rockDensity = a.rockDensity; p.biome = a.biome; p.coast = a.coast; p.outcrop = a.outcrop; p.flowers = a.flowers; p.biomes = a.biomes;
-  return p;
-}
+import { TerrainParams, copyTerrainParams, terrain } from '../gen/terrain';
+import { missions, missionOf, applyMission, Mission } from '../world/missions';
+import { missionWon } from './prefs';
+import { TILE, GATE_I, MOUNTAIN_LEVEL } from '../constants';
 
 // The menus: the main menu at launch (when a village is waiting), the game menu, the options, the save slots and the new-village form.
 export const SLOTS = 3;
@@ -31,7 +27,8 @@ class Slot { used: boolean = false; name: string = ''; clock: string = ''; diffi
 const slots: Slot[] = [];
 for (let i = 0; i < SLOTS; i++) slots.push(new Slot());
 let loadMode = true;                       // the slot window: choosing a slot to load, or to save into
-const form = { seed: '', size: DEFAULT_SIZE, campaign: false, risks: false, preset: 0, difficulty: -1 };
+// The new-village form has two modes: the missions (0: a list, the briefing and the map of the selected one) and the sandbox (1: every option of the map, no goals, everything open).
+const form = { mode: 1, mission: 0, seed: '', rand: 1, size: DEFAULT_SIZE, risks: false, preset: 0, difficulty: -1, unlimited: false, params: new TerrainParams() };
 
 export function isModal(): boolean { return ui.window >= WIN_MENU && ui.window <= WIN_END; }
 export function closeMenus(): boolean {
@@ -41,7 +38,21 @@ export function closeMenus(): boolean {
   return true;
 }
 export function openMenu(): void { ui.window = WIN_MENU; }
-export function openNew(): void { ui.back = ui.window; form.seed = ''; form.preset = 0; if (form.difficulty < 0) form.difficulty = defaultLevel(); ui.window = WIN_NEW; ui.editing = true; startTextInput(width() / 2 - 180, height() / 2, 360, 30); }
+/** Opens the new-village form (mode 0 the missions, 1 the sandbox, -1 as it was last): ready to start with Enter, with a fresh random seed. */
+export function openNew(mode: number = -1): void {
+  ui.back = ui.window; if (mode >= 0) form.mode = mode;
+  form.seed = ''; form.rand = randomSeed(); form.params = copyTerrainParams(PRESETS[form.preset].params); previewKey = '';
+  ui.window = WIN_NEW; ui.editing = true; startTextInput(width() / 2 - 180, height() / 2, 360, 30);
+}
+/** Starts a mission: its goals, knobs and start stock go to the economy first, then the village is generated from its map. */
+export function startMission(id: string): void {
+  const m = missionOf(id);
+  if (m === null) return;
+  applyMission(m.id); world.difficulty = m.difficulty;
+  ui.window = WIN_NONE; ui.editing = false; stopTextInput();
+  act.newVillage(m.seed, m.size, true, m.risks, copyTerrainParams(m.params));
+  ui.campaign = true;                                     // the goals window opens with the briefing
+}
 function go(w: number): void { ui.back = ui.window; ui.window = w; }
 
 // ---- slots ----
@@ -105,14 +116,14 @@ function column(items: string[], ids: string[], x: number, y: number, w: number,
   return y + items.length * 38;
 }
 function menu(): void {
-  const m = modal(280, 330, 'Menu du jeu');
-  column(['Reprendre', 'Enregistrer', 'Charger', 'Options', 'Nouveau hameau', 'Quitter'], ['menu:resume', 'menu:save', 'menu:load', 'menu:options', 'menu:new', 'menu:quit'], m.x + 20, m.y + 36, 240, [true, true, true, true, true, true]);
+  const m = modal(280, 370, 'Menu du jeu');
+  column(['Reprendre', 'Enregistrer', 'Charger', 'Options', 'Missions', 'Bac à sable', 'Quitter'], ['menu:resume', 'menu:save', 'menu:load', 'menu:options', 'menu:missions', 'menu:new', 'menu:quit'], m.x + 20, m.y + 36, 240, [true, true, true, true, true, true, true]);
 }
 function main(): void {
-  const m = modal(320, 300, 'Hameau');
+  const m = modal(320, 340, 'Hameau');
   textC(kit.big, m.x + 160, m.y + 32, 'HAMEAU', col('accent'));
   textC(kit.small, m.x + 160, m.y + 66, 'Un petit village à bâtir', col('muted'));
-  column(['Continuer', 'Nouveau hameau', 'Charger', 'Options'], ['menu:resume', 'menu:new', 'menu:load', 'menu:options'], m.x + 30, m.y + 100, 260, [true, true, true, true]);
+  column(['Continuer', 'Missions', 'Bac à sable', 'Charger', 'Options'], ['menu:resume', 'menu:missions', 'menu:new', 'menu:load', 'menu:options'], m.x + 30, m.y + 100, 260, [true, true, true, true, true]);
 }
 function saves(): void {
   const m = modal(460, 330, loadMode ? 'Charger un hameau' : 'Enregistrer le hameau');
@@ -158,22 +169,90 @@ function options(): void {
   text(kit.small, x + 222, m.y + 408, 'F2 : réglages du développeur', col('muted'));
   labelButton('menu:back', m.x + 12, m.y + 438, 100, 26, 'Retour');
 }
+// The map preview: the generator's layers of the selected seed, sampled to PREVIEW cells (water, shaded land, forest, rock, the gate), recomputed only when the request changes.
+const PREVIEW = 128;
+let previewKey = '', previewImage = -1;
+function paintPreview(seed: number, size: number, params: TerrainParams): void {
+  const p = copyTerrainParams(params);
+  p.tile = TILE; p.clearI = GATE_I; p.clearJ = Math.floor(size / 2); p.clearR = 2;
+  const l = terrain(seed, size, size, p), px: u32[] = [];
+  for (let c = 0; c < PREVIEW * PREVIEW; c++) {
+    const i = Math.floor((c % PREVIEW) * size / PREVIEW), j = Math.floor(Math.floor(c / PREVIEW) * size / PREVIEW), t = j * size + i;
+    if (l.outside[t] === 1) { px.push(rgb(40, 41, 46)); continue; }
+    if (l.water[t] === 1) { px.push(rgb(74, 127, 166)); continue; }
+    const lv = l.level[t], nw = i > 0 && j > 0 ? l.level[t - size - 1] : lv, shade = (lv - nw) * 12;
+    let r = 95 + lv * 4, g = 122 + lv * 2, b = 63 + lv * 3;
+    if (l.forest[t] !== 0) { r = 47; g = 90 + lv * 2; b = 48; }
+    if (lv >= MOUNTAIN_LEVEL) { r = 120 + lv * 8; g = 118 + lv * 8; b = 114 + lv * 8; }
+    else if (l.rock[t] !== 0) { r = 138; g = 136; b = 128; }
+    px.push(rgb(Math.max(0, Math.min(255, r + shade)), Math.max(0, Math.min(255, g + shade)), Math.max(0, Math.min(255, b + shade))));
+  }
+  const gx = Math.floor(GATE_I * PREVIEW / size), gy = Math.floor(PREVIEW / 2);
+  for (let dy = -2; dy <= 2; dy++) for (let dx = 0; dx <= 4; dx++) if (gx + dx < PREVIEW) px[(gy + dy) * PREVIEW + gx + dx] = rgb(217, 105, 74);
+  if (previewImage < 0) previewImage = createImage(PREVIEW, PREVIEW);
+  updatePixels(previewImage, px, true);
+}
+function preview(seed: number, size: number, params: TerrainParams, x: number, y: number, side: number): void {
+  const key = seed + '|' + size + '|' + [params.waterAmount, params.river ? 1 : 0, params.forestDensity, params.rockDensity, params.biome, params.coast, params.outcrop, params.flowers, params.biomes, params.relief].join(',');
+  if (key !== previewKey) { previewKey = key; paintPreview(seed, size, params); }
+  parchment(x - 4, y - 4, side + 8, side + 8);
+  drawImageRect(previewImage, 0, 0, PREVIEW, PREVIEW, x, y, side, side, 255, ImageFlag.Nearest);
+}
+/** The seed and size the sandbox form stands for: the typed text (a number or a word, "name@size"), else the random seed shown in the preview. */
+function request(): { seed: number; size: number } {
+  if (form.seed === '') return { seed: form.rand, size: form.size };
+  return parseSeedRequest(form.seed.indexOf('@') < 0 ? form.seed + '@' + form.size : form.seed);
+}
+function stepper(id: string, label: string, value: string, x: number, y: number): void {
+  labelButton(id + ':down', x, y, 26, 26, '-'); textC(kit.body, x + 56, y + 5, value, col('ink')); labelButton(id + ':up', x + 86, y, 26, 26, '+');
+  text(kit.body, x + 126, y + 5, label, col('ink'));
+}
+const pct = (v: number): string => Math.round(v * 100) + ' %';
 function fresh(): void {
-  const m = modal(420, 484, 'Nouveau hameau');
-  text(kit.body, m.x + 24, m.y + 38, 'Graine (un nombre ou un mot, vide : au hasard)', col('ink'));
-  parchment(m.x + 24, m.y + 62, 372, 30);
-  text(kit.body, m.x + 32, m.y + 68, form.seed + (Math.floor(ui.time * 2) % 2 === 0 ? '_' : ''), col('ink'));
-  text(kit.body, m.x + 24, m.y + 108, 'Taille de la carte', col('ink'));
-  labelButton('new:smaller', m.x + 24, m.y + 132, 34, 28, '-'); labelButton('new:bigger', m.x + 126, m.y + 132, 34, 28, '+');
-  textC(kit.body, m.x + 92, m.y + 137, form.size + ' × ' + form.size, col('ink'));
-  text(kit.body, m.x + 24, m.y + 172, 'Paysage', col('ink'));
-  for (let k = 0; k < PRESETS.length; k++) labelButton('new:preset:' + k, m.x + 24 + (k % 4) * 94, m.y + 194 + Math.floor(k / 4) * 32, 88, 26, PRESETS[k].label, '', true, k === form.preset);
-  toggle('new:campaign', 'Campagne (objectifs, colporteur, aventures)', form.campaign, m.x + 24, m.y + 294);
-  toggle('new:risks', 'Risques (incendie, effondrement, vols)', form.risks, m.x + 24, m.y + 330);
-  text(kit.body, m.x + 24, m.y + 368, 'Difficulté (campagne)', col('ink'));
-  for (let k = 0; k < economy.difficulties.length; k++) labelButton('new:level:' + k, m.x + 24 + k * 124, m.y + 390, 118, 26, economy.difficulties[k].label, economy.difficulties[k].hint, true, k === form.difficulty);
-  labelButton('new:create', m.x + 24, m.y + 430, 180, 32, 'Créer le hameau');
-  labelButton('menu:back', m.x + 216, m.y + 430, 180, 32, 'Annuler');
+  const m = modal(640, 560, 'Nouveau hameau');
+  labelButton('new:mode:0', m.x + 20, m.y + 34, 150, 28, 'Missions', 'Des scénarios avec un but, un exposé et des objectifs', true, form.mode === 0);
+  labelButton('new:mode:1', m.x + 176, m.y + 34, 150, 28, 'Bac à sable', 'Tous les réglages de la carte, pas d’objectifs, tout est ouvert', true, form.mode === 1);
+  if (form.mode === 0) missionForm(m.x, m.y); else sandboxForm(m.x, m.y);
+  labelButton('new:create', m.x + 20, m.y + 512, 220, 32, form.mode === 0 ? 'Commencer la mission' : 'Créer le hameau');
+  labelButton('menu:back', m.x + 252, m.y + 512, 140, 32, 'Annuler');
+}
+function missionForm(x: number, y: number): void {
+  for (let k = 0; k < missions.length; k++) labelButton('new:mission:' + k, x + 20, y + 76 + k * 50, 220, 44, (k + 1) + '. ' + missions[k].title + (missionWon(missions[k].id) ? ' (réussie)' : ''), '', true, k === form.mission);
+  const m: Mission = missions[form.mission];
+  preview(m.seed, m.size, m.params, x + 268, y + 80, 160);
+  const fx = x + 448, lines = ['Carte ' + m.size + ' × ' + m.size, 'Paysage : ' + PRESETS[m.preset].label, 'Difficulté : ' + economy.difficulties[m.difficulty].label, m.goals.length + ' objectifs', m.limitYears > 0 ? 'Limite : ' + m.limitYears + ' ans' : 'Sans limite de temps', m.risks ? 'Incendies et vols' : 'Sans risques'];
+  for (let i = 0; i < lines.length; i++) text(i === 0 ? kit.body : kit.small, fx, y + 82 + i * 22, lines[i], col(i === 0 ? 'ink' : 'muted'));
+  parchment(x + 256, y + 260, 360, 236);
+  let cy = y + 270;
+  for (const l of wrap(m.briefing, 336)) { text(kit.small, x + 268, cy, l, col('ink')); cy += kit.lineH - 2; }
+  cy += 8; text(kit.small, x + 268, cy, 'Objectifs :', col('muted')); cy += kit.lineH - 2;
+  for (let k = 0; k < m.goals.length; k++) { text(kit.small, x + 280, cy, (k + 1) + '. ' + m.goals[k].title, col('muted')); cy += kit.lineH - 2; }
+}
+function sandboxForm(x: number, y: number): void {
+  const lx = x + 20, rx = x + 340;
+  text(kit.body, lx, y + 76, 'Graine (un nombre ou un mot, vide : au hasard)', col('ink'));
+  parchment(lx, y + 98, 200, 28);
+  text(kit.body, lx + 8, y + 103, form.seed + (Math.floor(ui.time * 2) % 2 === 0 ? '_' : ''), col('ink'));
+  labelButton('new:dice', lx + 208, y + 98, 80, 28, 'Hasard', 'Une autre graine');
+  text(kit.body, lx, y + 138, 'Taille de la carte', col('ink'));
+  labelButton('new:smaller', lx, y + 160, 34, 28, '-'); labelButton('new:bigger', lx + 102, y + 160, 34, 28, '+');
+  textC(kit.body, lx + 68, y + 165, form.size + ' × ' + form.size, col('ink'));
+  text(kit.body, lx, y + 202, 'Paysage', col('ink'));
+  for (let k = 0; k < PRESETS.length; k++) labelButton('new:preset:' + k, lx + (k % 3) * 98, y + 224 + Math.floor(k / 3) * 30, 92, 26, PRESETS[k].label, '', true, k === form.preset);
+  const p = form.params;
+  stepper('new:water', 'Lacs', pct(p.waterAmount / 2), lx, y + 324);
+  stepper('new:forest', 'Forêt', pct(p.forestDensity), lx, y + 356);
+  stepper('new:rock', 'Roche', pct(p.rockDensity), lx, y + 388);
+  stepper('new:relief', 'Relief', pct(p.relief), lx, y + 420);
+  toggle('new:river', 'Rivière', p.river, lx, y + 456);
+  const r = request();
+  preview(r.seed, r.size, form.params, rx + 50, y + 80, 190);
+  textC(kit.small, rx + 145, y + 282, 'graine ' + r.seed + ' · ' + r.size + ' × ' + r.size, col('muted'));
+  toggle('new:unlimited', 'Ressources infinies', form.unlimited, rx, y + 312);
+  toggle('new:risks', 'Risques (incendie, vols)', form.risks, rx, y + 348);
+  text(kit.body, rx, y + 392, 'Départ', col('ink'));
+  labelButton('new:level:-1', rx, y + 416, 62, 26, 'Libre', 'Le stock de départ du bac à sable', true, form.difficulty === -1);
+  for (let k = 0; k < economy.difficulties.length; k++) labelButton('new:level:' + k, rx + 68 + k * 76, y + 416, 70, 26, economy.difficulties[k].label, economy.difficulties[k].hint, true, k === form.difficulty);
 }
 
 // ---- input ----
@@ -185,25 +264,45 @@ export function typeKey(kind: KeyKind, name: string): void {
   else if (name === 'Escape') closeMenus();
 }
 function create(): void {
-  const request = form.seed === '' ? parseSeedRequest(String(randomSeed()) + '@' + form.size) : parseSeedRequest(form.seed.indexOf('@') < 0 ? form.seed + '@' + form.size : form.seed);
-  world.difficulty = form.campaign ? form.difficulty : -1;      // read by generate(): the start of the village
-  ui.window = WIN_NONE; ui.editing = false; stopTextInput(); act.newVillage(request.seed, request.size, form.campaign, form.risks, copyParams(PRESETS[form.preset].params));
+  if (form.mode === 0) { startMission(missions[form.mission].id); return; }
+  const r = request();
+  applyMission(''); world.difficulty = form.difficulty;      // the sandbox keeps economy.json's goals, locks and knobs; the difficulty is read by generate(): the start of the village
+  ui.window = WIN_NONE; ui.editing = false; stopTextInput();
+  act.newVillage(r.seed, r.size, false, form.risks, copyTerrainParams(form.params));
+  world.unlimited = form.unlimited; world.saveDirty = true;
+}
+/** The steppers of the sandbox map: water, forest, rock and relief, a tenth at a time (water a quarter of the lake scale). */
+function tune(id: string): boolean {
+  const up = id.endsWith(':up'), p = form.params, key = id.slice(4, id.lastIndexOf(':'));
+  const move = (v: number, step: number, top: number): number => Math.round(Math.max(0, Math.min(top, v + (up ? step : -step))) * 100) / 100;
+  if (key === 'water') p.waterAmount = move(p.waterAmount, .25, 2);
+  else if (key === 'forest') p.forestDensity = move(p.forestDensity, .1, 1);
+  else if (key === 'rock') p.rockDensity = move(p.rockDensity, .1, 1);
+  else if (key === 'relief') p.relief = move(p.relief, .1, 1);
+  else return false;
+  return true;
 }
 export function menuClick(id: string): boolean {
   if (id === 'menu:resume') { ui.window = WIN_NONE; return true; }
   if (id === 'menu:save') { refreshSlots(); loadMode = false; go(WIN_SAVES); return true; }
   if (id === 'menu:load') { refreshSlots(); loadMode = true; go(WIN_SAVES); return true; }
   if (id === 'menu:options') { go(WIN_OPTIONS); return true; }
-  if (id === 'menu:new') { openNew(); return true; }
+  if (id === 'menu:new') { openNew(1); return true; }
+  if (id === 'menu:missions') { openNew(0); return true; }
   if (id === 'menu:back') { closeMenus(); return true; }
   if (id === 'menu:quit') { act.quit(); return true; }
   if (id.startsWith('slot:load:')) { loadSlot(Number(id.slice(10))); return true; }
   if (id.startsWith('slot:save:')) { saveSlot(Number(id.slice(10))); closeMenus(); return true; }
-  if (id === 'new:smaller') { form.size = Math.max(MIN_SIZE, form.size - (form.size > 32 ? 8 : 2)); return true; }
-  if (id === 'new:bigger') { form.size = Math.min(MAX_SIZE, form.size + (form.size >= 32 ? 8 : 2)); return true; }
+  if (id === 'new:smaller') { form.size = Math.max(MIN_SIZE, form.size - (form.size > 128 ? 32 : form.size > 32 ? 8 : 2)); return true; }
+  if (id === 'new:bigger') { form.size = Math.min(MAX_SIZE, form.size + (form.size >= 128 ? 32 : form.size >= 32 ? 8 : 2)); return true; }
+  if (id === 'new:dice') { form.seed = ''; form.rand = randomSeed(); return true; }
+  if (id.startsWith('new:mode:')) { form.mode = Number(id.slice(9)); return true; }
+  if (id.startsWith('new:mission:')) { form.mission = Number(id.slice(12)); return true; }
+  if (id.startsWith('new:') && (id.endsWith(':up') || id.endsWith(':down'))) return tune(id);
   if (id.startsWith('new:level:')) { form.difficulty = Number(id.slice(10)); return true; }
-  if (id.startsWith('new:preset:')) { form.preset = Number(id.slice(11)); return true; }
-  if (id === 'new:campaign') { form.campaign = !form.campaign; form.risks = form.campaign; return true; }      // the campaign brings its risks, which can then be switched off
+  if (id.startsWith('new:preset:')) { form.preset = Number(id.slice(11)); form.params = copyTerrainParams(PRESETS[form.preset].params); return true; }
+  if (id === 'new:river') { form.params.river = !form.params.river; return true; }
+  if (id === 'new:unlimited') { form.unlimited = !form.unlimited; return true; }
   if (id === 'new:risks') { form.risks = !form.risks; return true; }
   if (id === 'new:create') { create(); return true; }
   if (id.startsWith('vol:')) {

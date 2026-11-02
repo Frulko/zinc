@@ -3,7 +3,7 @@
 // ---- map ----
 export const DEFAULT_SIZE = 24;         // tiles per side of a new village (the size itself is world.size, saved with the village)
 export const MIN_SIZE = 12;             // smallest and largest village a seed may ask for
-export const MAX_SIZE = 128;
+export const MAX_SIZE = 256;
 export const HEIGHT_STEP = 0.5;        // world units per height level
 export const MAX_HEIGHT = 15;          // levels 0..15 per tile; water only at 0
 export const MOUNTAIN_LEVEL = 8;       // from this level the ground is rock: no building, no road, no walking
