@@ -59,7 +59,7 @@ export interface World {
   revision: number;                 // bumped when the baked scenery must be redone
   netRev: number;                   // bumped when the road network or the buildings on it change (engine/network.ts is rebuilt from it)
   saveDirty: boolean; lastSave: number; autosave: boolean;
-  deerTimer: number; waitingForFood: boolean;
+  deerTimer: number; waitingForFood: boolean; watch: number; sleepers: number[]; sleeping: number;   // watch: the tile at the middle of the camera (-1: none); sleepers: per region and species the animals asleep as a count (engine/wild.ts), sleeping their total
   deerSeq: number;                  // ids given to wild animals
   mood: number; jobless: number;    // the village's average satisfaction 0..100 and the share of people without work in percent (engine/mood.ts, daily)
   appeal: number[];                 // desirability per tile, recomputed daily (rules/appeal.ts)
@@ -156,7 +156,7 @@ export const world: World = {
   terrain: zeros(), height: zeros(), road: zeros(), tree: zeros(), rock: zeros(), deco: zeros(), biome: zeros(), build: zeros(), claimed: zeros(),
   felledCount: 0, unlimited: false, treeTimer: 0, buildings: [], people: [], deer: [],
   pondX: 0, pondY: 0, pondR: 3, offsetX: 0, offsetY: 0,
-  revision: 0, netRev: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, deerSeq: 0, mood: 70, jobless: 0, appeal: [], mission: '', goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, crime: new Crime(), priority: [],
+  revision: 0, netRev: 0, saveDirty: false, lastSave: 0, autosave: true, deerTimer: 0, waitingForFood: false, watch: -1, sleepers: [], sleeping: 0, deerSeq: 0, mood: 70, jobless: 0, appeal: [], mission: '', goals: [], unlocked: [], progression: false, risks: false, news: [], alerts: [], log: [], offers: [], peddlerLeft: 0, expeditions: [], lode: zeros(), params: new TerrainParams(), difficulty: -1, crime: new Crime(), priority: [],
 };
 
 // ---- tiles ----
@@ -230,14 +230,14 @@ export function treesAround(t: number): number {
 }
 
 /** `append`: the caller knows no slot is free (a village being generated), so the search for one is skipped: it made generation quadratic in the animals. */
-export function spawnDeer(t: number, species: number = 0, append: boolean = false): Deer {
+export function spawnDeer(t: number, species: number = 0, append: boolean = false, rand: () => number = random): Deer {
   let slot = -1;
   if (!append) for (let k = 0; k < world.deer.length; k++) if (world.deer[k].state === DEER_GONE) { slot = k; break; }
   const deer = new Deer(), sp = SPECIES[species];
-  deer.x = tileX(t); deer.y = tileY(t); deer.yaw = random() * 6.28; deer.phase = random() * 6;
-  deer.state = DEER_GRAZE; deer.timer = 1 + random() * 3; deer.stag = random() < .4; deer.species = species;
-  deer.id = world.deerSeq++; deer.age = sp.adultDays + Math.floor(random() * sp.lifeDays / 2); deer.thirst = random() * sp.drinkEvery;
-  const hx = random() - .5, hy = random() - .5 + .01, hl = Math.sqrt(hx * hx + hy * hy);
+  deer.x = tileX(t); deer.y = tileY(t); deer.yaw = rand() * 6.28; deer.phase = rand() * 6;
+  deer.state = DEER_GRAZE; deer.timer = 1 + rand() * 3; deer.stag = rand() < .4; deer.species = species;
+  deer.id = world.deerSeq++; deer.age = sp.adultDays + Math.floor(rand() * sp.lifeDays / 2); deer.thirst = rand() * sp.drinkEvery;
+  const hx = rand() - .5, hy = rand() - .5 + .01, hl = Math.sqrt(hx * hx + hy * hy);
   deer.hx = hx / hl; deer.hy = hy / hl; deer.yaw = Math.atan2(deer.hy, deer.hx);
   if (slot < 0) world.deer.push(deer); else world.deer[slot] = deer;
   return deer;
@@ -257,7 +257,7 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
   world.terrain = zeros(size); world.height = zeros(size); world.road = zeros(size); world.tree = zeros(size); world.rock = zeros(size); world.deco = zeros(size); world.biome = zeros(size); world.build = zeros(size); world.claimed = zeros(size); world.lode = zeros(size);
   world.seed = seed; world.time = 0; world.tick = 0; world.jobTimer = 0; world.stock = [];
   world.buildings = []; world.people = []; world.crime = new Crime(); world.deer = []; world.felledCount = 0; world.treeTimer = 0;
-  world.deerTimer = 0; world.deerSeq = 0; world.mood = 70; world.jobless = 0; world.waitingForFood = false; world.priority = []; world.appeal = zeros(size); resetGoals(); world.lastSave = 0; world.saveDirty = false;
+  world.deerTimer = 0; world.deerSeq = 0; world.sleepers = []; world.sleeping = 0; world.mood = 70; world.jobless = 0; world.waitingForFood = false; world.priority = []; world.appeal = zeros(size); resetGoals(); world.lastSave = 0; world.saveDirty = false;
   seedRandom(seed);
   params = copyTerrainParams(params);
   world.params = params;

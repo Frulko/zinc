@@ -3,6 +3,7 @@ import { REFERENCE_AREA, TILE, DEER_GRAZE, DEER_WALK, DEER_FLEE, DEER_DEAD, DEER
 import { world, Deer, Building, random, neighbor, tileAt, tileX, tileY, tileI, tileJ, tileCount, spawnDeer, waterNeighbor, treesAround } from '../world/world';
 import { SPECIES, Species, KIND_HOPPER, KIND_BOAR, KIND_WOLF, SP_DEER } from '../rules/species';
 import { season } from '../rules/season';
+import { wakeNearCamera } from './wild';
 import { isNight, dayFraction } from '../rules/needs';
 import { sound } from '../audio';
 import { isWalkable, fieldFrom, approachTile, pathTo, UNREACHABLE } from './path';
@@ -471,6 +472,7 @@ function update(d: Deer, dt: number): void {
 }
 
 export function updateDeer(dt: number): void {
+  wakeNearCamera();
   index(); indexPeople(); plans = 0;
   const n = world.deer.length;
   let count = 0;

@@ -11,7 +11,7 @@ import {
   TICK, TOOL_ROAD, TOOL_HOUSE, TOOL_ERASE, TOOL_NONE, MIN_SIZE, MAX_SIZE, PLACE_OK, ROLE_NAMES,
 } from './constants';
 import * as assets from 'zinc:assets';
-import { world, generate, tileAt } from './world/world';
+import { world, generate, tileAt, tileIndex } from './world/world';
 import { TerrainParams } from './gen/terrain';
 import { economy, loadEconomy, amountText } from './world/economy';
 import { MODEL_IDS } from './view/models';
@@ -49,7 +49,7 @@ import { drawDebug, drawDebugWindow, cycleDebug, debugBegin, debugLap, debugHook
 import { drawEnding, checkEnding, resetEnding } from './ui/Ending';
 import { drawMenus, isModal, closeMenus, openNew, openMenu, typeKey } from './ui/Menu';
 import { refreshModels, aimAt, cancelAim, stepAim, aiming, zoomScale, zooming } from './view/scenery';
-import { camera, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY, fit, setFit, windowWidth, windowHeight } from './view/camera';
+import { camera, centerPoint, DEFAULT_ZOOM, ZOOM_VIEW, cropX, cropY, fit, setFit, windowWidth, windowHeight } from './view/camera';
 import { W, H } from './pixel';
 import { citeReset, citeLayout, citeStep, citeDraw, citeJump, citeProjection, zoomAt as citeZoomAt, panPixels as citePan, pickAt as citePick, pick as citePicked, cam as citeCam } from './cite';
 import { setView, setPixelOrigin } from './pixel';
@@ -393,6 +393,7 @@ export class HamletScene extends Sprite {
     this.hover = this.tool === TOOL_NONE ? -1 : this.under;
     this.held = held;
     this.updateLine();
+    world.watch = this.cite ? tileIndex(Math.max(0, Math.min(world.size - 1, Math.round(citeCam.ci))), Math.max(0, Math.min(world.size - 1, Math.round(citeCam.cj)))) : tileAt(centerPoint().x, centerPoint().y);   // the animals far from it sleep (engine/wild.ts)
     const signature = this.cite ? citeCam.ci * 7919 + citeCam.cj * 31 + citeCam.zoom * 100003 : camera.x * 7919 + camera.y * 31 + camera.level * 100003;
     if (signature !== this.cameraSignature) { this.cameraSignature = signature; this.sinceMove = 0; } else this.sinceMove += dt;
     if (!this.paused && !isModal() && (!settings.pauseOnMove || this.sinceMove > .3)) {
