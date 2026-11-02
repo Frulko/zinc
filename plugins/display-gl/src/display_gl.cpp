@@ -328,8 +328,24 @@ static void present(const HalFrame* f) {
     double tc = 0;
     if (tm) { glFinish(); tc = glr::now_us(); t_pas += tc - tb; }
     gpu_time(tm);
+    const double ts = glr::now_us();
     zgl_backend_swap();
+    const double swap_us = glr::now_us() - ts;
     first_mark("swap");
+    if (glr::zrt_frame_stats) {
+      glr::zrt_frame_stats[5] = (uint32_t)swap_us;   // gfx.frameStat(5): the swap, the wait for the display included
+      // ZINC_PRESENT_STATS=1: every 120 presented frames, the averages of what the GPU side did (the other columns of the line are the CPU window's)
+      static const bool ps = getenv("ZINC_PRESENT_STATS") && *getenv("ZINC_PRESENT_STATS") != '0';
+      static double s[5]; static int k;
+      if (ps) {
+        for (int i = 0; i < 5; i++) s[i] += i == 4 ? swap_us : (double)glr::zrt_frame_stats[i == 0 ? 0 : i == 1 ? 2 : i == 2 ? 3 : 4];
+        if (++k == 120) {
+          fprintf(stderr, "zinc present (gl): per frame %.1f draw calls, %.1f KB uploaded to image textures in %.1f uploads, %.2f ms uploading, present wait %.2f ms\n", s[0] / k, s[1] / k / 1024, s[2] / k, s[3] / k / 1000, s[4] / k / 1000);
+          for (double& v : s) v = 0;
+          k = 0;
+        }
+      }
+    }
     if (tm) { t_swp += glr::now_us() - tc; if (++t_n % 120 == 0) { time_report(); if (glr_state > 0) glr::report(); } }
     return;
   }

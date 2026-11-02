@@ -135,6 +135,10 @@ declare module 'zinc:gfx' {
    *  the backdrop that is not there, so draw those into the frame instead. Drawing into a target is rasterized by the CPU on every display; a
    *  transparent one is drawn twice (over black and over white) to recover the alpha, so it costs two passes. */
   export function createImage(w: i32, h: i32, alpha?: boolean): i32;
+  /** What the last presented frame cost the GPU side, for a game's own debug overlay: 0 draw calls, 1 quads, 2 bytes uploaded to image textures, 3 image
+   *  uploads, 4 microseconds spent uploading them, 5 microseconds the present waited (the swap, the wait for the display included). All 0 on the software
+   *  raster and headless. ZINC_PRESENT_STATS=1 prints the same every 120 frames (GL display), ZINC_GL_STATS=1 the totals at exit. */
+  export function frameStat(which: i32): i32;
   /** Every pixel of the image transparent black (an opaque image of createImage reads black again). */
   export function clearImage(image: i32): void;
   export function destroyImage(image: i32): void;

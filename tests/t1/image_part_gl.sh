@@ -9,6 +9,7 @@ h() { ZINC_HEADLESS=1 ZINC_DETERMINISTIC=1 ZINC_SIZE=200x200 ZINC_FRAMEHASH=last
 a=$(h --interp); [ -n "$a" ] && [ "$a" = "$(h '--engine quickjs')" ] || { echo "image_part: the engines draw different frames: $a"; exit 1; }
 ZINC_GL_STATS=1 ZINC_RENDERER=gl ZINC_DETERMINISTIC=1 ZINC_DISPLAY=gl ZINC_SIZE=200x200 ZINC_FRAMES=12 timeout 90 "$ZINC" run $d/main.ts >"$tmp/gl.log" 2>&1
 grep -q "renderer gl:" "$tmp/gl.log" || { echo "skipped: no GL window here"; exit 77; }
+grep -q "^stat 6 1 1024$" "$tmp/gl.log" || { echo "image_part: frameStat did not report one draw and 1024 bytes uploaded: $(grep '^stat' "$tmp/gl.log" | tr '\n' ' ')"; exit 1; }
 line=$(grep "uploads of runtime images" "$tmp/gl.log")
 python3 - "$line" <<'PY' || exit 1
 import re, sys

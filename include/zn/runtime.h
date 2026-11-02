@@ -407,7 +407,7 @@
   /* the packed form of gfxUpdateImage (a quarter of the array, no per-byte loop); graphics row, appended */ \
   X(HostGfxUpdatePixels, "host.gfxUpdatePixels", "iUb>n", 2) \
   /* zinc:gfx createImage(w, h, alpha) and updatePixelsRect: the image is a transparent render target (straight alpha); new pixels for the rectangle x y w h only (the array holds w x h of them); graphics rows, appended */ \
-  X(HostGfxImageAlpha, "host.gfxImageAlpha", "ib>n", 2) X(HostGfxUpdateRect, "host.gfxUpdateRect", "iUiiii>n", 2) X(HostGfxClearImage, "host.gfxClearImage", "i>n", 2) \
+  X(HostGfxImageAlpha, "host.gfxImageAlpha", "ib>n", 2) X(HostGfxUpdateRect, "host.gfxUpdateRect", "iUiiii>n", 2) X(HostGfxClearImage, "host.gfxClearImage", "i>n", 2) X(HostGfxFrameStat, "host.gfxFrameStat", "i>i", 2) \
   /* the bytes of an event payload and of a finished fetch's body in one call (a string joins two surrogate halves, so it cannot carry any bytes); system rows, appended */ \
   X(HostEvPayloadBytes, "host.evPayloadBytes", ">B", 2) X(HostHttpBodySize, "host.httpBodySize", "i>i", 2) X(HostHttpBodyBytes, "host.httpBodyBytes", "i>B", 2) \
   /* Array.copyWithin(target, start, end?): the standard method, a block moved inside the array; appended */ \
@@ -444,7 +444,7 @@ inline constexpr bool isGlRow(Rt r) { return r >= Rt::HostGlCreate && r <= Rt::H
 inline constexpr bool isGfxTailRow(Rt r) {
   return r == Rt::HostGfxCommands || r == Rt::HostGfxCommandsFree || r == Rt::HostGfxSetResize || r == Rt::HostGfxSetTransform || r == Rt::HostGfxResetTransform || r == Rt::HostGfxDrawImageRect || r == Rt::HostGfxImageFromBytes ||
          (r >= Rt::HostGfxOpenWindow && r <= Rt::HostGfxEndWindow) || r == Rt::HostGfxLoadFont || r == Rt::HostGfxGradientPaint || r == Rt::HostGfxImageFromPixels ||
-         r == Rt::HostGfxUpdateImage || (r >= Rt::HostGfxShaderProgram && r <= Rt::HostGfxProfSection) || r == Rt::HostGfxPaused || r == Rt::HostGfxWindowCtl || (r >= Rt::HostGfxUpdatePixels && r <= Rt::HostGfxClearImage);
+         r == Rt::HostGfxUpdateImage || (r >= Rt::HostGfxShaderProgram && r <= Rt::HostGfxProfSection) || r == Rt::HostGfxPaused || r == Rt::HostGfxWindowCtl || (r >= Rt::HostGfxUpdatePixels && r <= Rt::HostGfxFrameStat);
 }
 // The system rows appended after the gfx ones: the engines that install the host rows (QuickJS) add them too. zinc:osc and the loop's events it arrives by.
 inline constexpr bool isSysTailRow(Rt r) {
@@ -501,7 +501,7 @@ inline bool rtResultBorrowed(Rt id) { return id == Rt::MapGet; }
 // retained across them (ZN-413). The others only read their arguments: the string rows, the read-only Array, Map and Set members, the
 // graphics host (numbers, borrowed strings and arrays, no callbacks).
 inline bool rtMayRelease(Rt id) {
-  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont || id == Rt::HostGfxGradientPaint || id == Rt::HostGfxImageFromPixels || id == Rt::HostGfxUpdateImage || (id >= Rt::HostGfxShaderProgram && id <= Rt::HostGfxProfSection) || id == Rt::HostGfxWindowCtl || (id >= Rt::HostGfxUpdatePixels && id <= Rt::HostGfxClearImage)) return false;
+  if ((id >= Rt::HostGfxFrames && id < Rt::HostSysFirst) || isGlRow(id) || id == Rt::HostGfxDrawImageRect || id == Rt::HostGfxImageFromBytes || (id >= Rt::HostGfxOpenWindow && id <= Rt::HostGfxEndWindow) || id == Rt::HostGfxLoadFont || id == Rt::HostGfxGradientPaint || id == Rt::HostGfxImageFromPixels || id == Rt::HostGfxUpdateImage || (id >= Rt::HostGfxShaderProgram && id <= Rt::HostGfxProfSection) || id == Rt::HostGfxWindowCtl || (id >= Rt::HostGfxUpdatePixels && id <= Rt::HostGfxFrameStat)) return false;
   if (id >= Rt::StrConcat && id <= Rt::FromCharCode) return id == Rt::JsonParse || id == Rt::DynGetFast || id == Rt::DynAddFast;
   switch (id) {
     case Rt::ArrSlice: case Rt::ArrIndexOf: case Rt::ArrIncludes: case Rt::MapGet: case Rt::MapHas: case Rt::MapKeys: case Rt::MapValues: case Rt::MapSize:

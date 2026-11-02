@@ -229,6 +229,7 @@ static const GLenum A_IFMT = GL_LUMINANCE, A_FMT = GL_LUMINANCE;
 #endif
 
 // ---- the context's capability record (gl_caps.h), filled once by init(); the provider gives its EGL extensions first when it has EGL
+extern "C" __attribute__((weak)) uint32_t zrt_frame_stats[8];   // runtime/gfx.cpp
 extern "C" __attribute__((weak)) void zrt_prof_info(const char* key, const char* val);   // runtime/gfx.cpp
 extern "C" { extern void (*zrt_gl_info_hook)(); }   // runtime/gfx.cpp: ZINC_PROFILE=json asks the renderer for its counters
 static void gl_info_hook();
@@ -2119,6 +2120,11 @@ static void frame_in(const HalFrame* f, bool direct, Rect box, int32_t ty) {
   gpu_end();
   st.frames++;
   st.us += now_us() - t0;
+  if (zrt_frame_stats) {   // gfx.frameStat: this frame's own counts
+    static uint32_t pd, pq, pu; static uint64_t pb; static double pt;
+    zrt_frame_stats[0] = st.draws - pd; zrt_frame_stats[1] = st.quads - pq; zrt_frame_stats[2] = (uint32_t)(st.img_bytes - pb); zrt_frame_stats[3] = st.img_ups - pu; zrt_frame_stats[4] = (uint32_t)(st.img_us - pt);
+    pd = st.draws; pq = st.quads; pb = st.img_bytes; pu = st.img_ups; pt = st.img_us;
+  }
 }
 static void idle() { st.idle++; }
 // ZINC_PROFILE=json: what the GL renderer did, published just before the summary prints (runtime/gfx.cpp). gl_gpu_us is the GL_TIME_ELAPSED average where the GPU has the query (0: it has not).

@@ -353,6 +353,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxWidth: r->i = g::width(); break;
     case Rt::HostGfxHeight: r->i = g::height(); break;
     case Rt::HostGfxPixelScale: r->i = g::pixelScale(); break;
+    case Rt::HostGfxFrameStat: r->i = g::frameStat(n(0)); break;
     case Rt::HostGfxClearImage: g::clearImage(n(0)); break;
     case Rt::HostGfxImageAlpha: g::imageAlpha(n(0), a[1].i != 0); break;
     case Rt::HostGfxUpdateRect: putRect(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n, n(2), n(3), n(4), n(5)); break;

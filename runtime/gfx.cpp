@@ -629,6 +629,8 @@ int32_t commandsFree() {
 }
 void profMark(int32_t phase) { if (prof::active() && phase >= 0 && phase < prof::N) prof::mark(phase); }
 /** A display driver or renderer publishes a fact about the machine (the GPU's strings); ZINC_PROFILE=json prints them with the numbers. Kept only while profiling. */
+extern "C" uint32_t zrt_frame_stats[8];   // written per frame by the GL replay (0..4) and the window's present (5): see zrt::gfx::frameStat
+uint32_t zrt_frame_stats[8];
 extern "C" void zrt_prof_info(const char* key, const char* val) {
   if (!key || !val) return;
   uint32_t i = 0;
@@ -2021,6 +2023,7 @@ void stroke(const Array<double>& pts, double width, uint32_t color, int32_t alph
 /** Runtime image (black), drawable with drawImage and a render target for beginImage. */
 int32_t createImage(int32_t w, int32_t h) { return raster::dyn_create(w, h); }
 void destroyImage(int32_t i) { raster::dyn_destroy(i); }
+int32_t frameStat(int32_t which) { return which >= 0 && which < 8 ? (int32_t)zrt_frame_stats[which] : 0; }
 void clearImage(int32_t i) {
   int32_t w, h; uint32_t* px = raster::dyn_pixels(i);
   if (px && raster::image_size(i, &w, &h)) { __builtin_memset(px, 0, (size_t)w * h * 4); raster::dyn_update(i, nullptr, 0); }

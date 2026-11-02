@@ -217,6 +217,9 @@ export function setTransform(a: number, b: number, c: number, d: number, e: numb
 export function resetTransform(): void { __host_gfxResetTransform(); }
 export function keep(): void { __host_gfxKeep(); }
 export function createImage(w: i32, h: i32, alpha?: boolean): i32 { const id = __host_gfxCreateImage(w, h); if (alpha && id >= 0) __host_gfxImageAlpha(id, true); return id; }
+/** What the last presented frame cost the GPU side, for a game's own debug overlay: 0 draw calls, 1 quads, 2 bytes uploaded to image textures, 3 image
+ *  uploads, 4 microseconds spent uploading them, 5 microseconds the present waited (swap, vsync included). All 0 on the software raster and headless. */
+export function frameStat(which: i32): i32 { return __host_gfxFrameStat(which); }
 /** Every pixel of the image transparent black (a transparent target drawn again from nothing). */
 export function clearImage(image: i32): void { __host_gfxClearImage(image); }
 export function destroyImage(image: i32): void { __host_gfxDestroyImage(image); }

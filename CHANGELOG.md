@@ -38,6 +38,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - `createImage(w, h, true)` makes a transparent render target: sprites and boxes with partial alpha drawn between `beginImage` and `endImage` keep their transparency, so ground regions and sprite sheets can be composed with `drawImageRect` instead of pixel by pixel; `clearImage` empties it.
 - `updatePixelsRect` changes one rectangle of an image, and a GL display uploads only that part to the GPU.
+- `frameStat(n)` tells a game the last frame's draw calls, quads, bytes uploaded to image textures and present wait, and `ZINC_PRESENT_STATS=1` prints them with the GPU display's frame times.
 
 ### Performance
 
