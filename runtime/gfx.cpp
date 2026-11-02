@@ -2065,6 +2065,49 @@ static uint32_t mark_cmd, mark_text, mark_pts;
 // may have changed, and rasterized, uploaded and diffed only when something did.
 struct Drawn { int32_t img; uint32_t version, hash; };
 static Drawn drawn[256];   // by image id; ponytail: two cached images that share a slot draw every time, a map when a program keeps that many
+// GPU render targets: a display that draws images on the GPU (zrt_gpu_targets, set by its renderer) takes the commands between beginImage and
+// endImage as a pass over the image's texture instead of rasterizing them: the pass keeps its own copy of the commands (pools included, at their
+// own offsets) until the display runs it, which it does at its next present, damaged or not. The CPU pixels of the image are stale from then on
+// (raster::dyn_gpu_*); a frame the display draws in software reads them back first (zrt_gpu_targets_sync).
+extern "C" bool zrt_gpu_targets;
+bool zrt_gpu_targets = false;
+extern "C" void (*zrt_gpu_targets_sync)();
+void (*zrt_gpu_targets_sync)() = nullptr;
+struct GPass { int32_t img, w, h; bool alpha; uint32_t n, ntext, npts, t0, p0; Cmd* cmds; char* tbase; float* pbase; };
+static GPass* gpasses; static uint32_t ngp, gpcap; static size_t gpbytes;
+static bool in_window();
+static void queue_pass(int32_t img, int32_t w, int32_t h, bool alpha, const Buf& b, uint32_t c0, uint32_t t0, uint32_t p0) {
+  if (ngp == gpcap) {
+    GPass* a = (GPass*)hal_alloc(sizeof(GPass) * (gpcap ? gpcap * 2 : 64));
+    if (!a) return;
+    if (gpasses) { __builtin_memcpy((void*)a, gpasses, sizeof(GPass) * ngp); hal_free(gpasses); }
+    gpasses = a; gpcap = gpcap ? gpcap * 2 : 64;
+  }
+  GPass& g = gpasses[ngp];
+  g = GPass{img, w, h, alpha, b.ncmd - c0, b.ntext - t0, b.npts - p0, t0, p0, nullptr, nullptr, nullptr};
+  const size_t bytes = (size_t)g.n * sizeof(Cmd) + g.ntext + (size_t)g.npts * 4 + 16;
+  if (gpbytes + bytes > (256u << 20)) return;   // ponytail: a display that never presents lets passes pile up; past 256 MB they are dropped
+  g.cmds = (Cmd*)hal_alloc((size_t)g.n * sizeof(Cmd) + 1); g.tbase = (char*)hal_alloc(g.ntext + 1); g.pbase = (float*)hal_alloc((size_t)g.npts * 4 + 4);
+  if (!g.cmds || !g.tbase || !g.pbase) { if (g.cmds) hal_free(g.cmds); if (g.tbase) hal_free(g.tbase); if (g.pbase) hal_free(g.pbase); return; }
+  __builtin_memcpy((void*)g.cmds, b.cmds + c0, (size_t)g.n * sizeof(Cmd)); __builtin_memcpy(g.tbase, b.text + t0, g.ntext); __builtin_memcpy(g.pbase, b.pts + p0, (size_t)g.npts * 4);
+  gpbytes += bytes; ngp++;
+}
+/** The display takes the pending passes: their `text` and `pts` are shifted so the commands' own offsets index them; valid until zrt_passes_done. */
+struct ZrtPass { int32_t img, w, h; bool alpha; uint32_t count; const Cmd* cmds; const char* text; const float* pts; };
+extern "C" const ZrtPass* zrt_passes(uint32_t* n);
+static ZrtPass* gview; static uint32_t gviewcap;
+const ZrtPass* zrt_passes(uint32_t* n) {
+  *n = ngp;
+  if (!ngp) return nullptr;
+  if (gviewcap < ngp) { if (gview) hal_free(gview); gview = (ZrtPass*)hal_alloc(sizeof(ZrtPass) * ngp); gviewcap = gview ? ngp : 0; if (!gview) { *n = 0; return nullptr; } }
+  for (uint32_t i = 0; i < ngp; i++) { const GPass& g = gpasses[i]; gview[i] = ZrtPass{g.img, g.w, g.h, g.alpha, g.n, g.cmds, g.tbase - g.t0, g.pbase - g.p0}; }
+  return gview;
+}
+extern "C" void zrt_passes_done();
+void zrt_passes_done() {
+  for (uint32_t i = 0; i < ngp; i++) { hal_free(gpasses[i].cmds); hal_free(gpasses[i].tbase); hal_free(gpasses[i].pbase); }
+  ngp = 0; gpbytes = 0;
+}
 void beginImage(int32_t i) { Buf& b = bufs[cur]; target_img = i; mark_cmd = b.ncmd; mark_text = b.ntext; mark_pts = b.npts; }
 void endImage() {
   Buf& b = bufs[cur];
@@ -2075,6 +2118,16 @@ void endImage() {
     raster::Frame fr{b.cmds + mark_cmd, b.ncmd - mark_cmd, b.text, b.pts};
     Drawn& d = drawn[(uint32_t)target_img % 256];
     const bool translucent = raster::dyn_alpha(target_img);
+    if (zrt_gpu_targets && !in_window()) {   // the display draws it on the GPU (see queue_pass)
+      const uint32_t gh = !translucent && fr.count && fr.cmds[0].kind == raster::CLEAR ? raster::frame_hash(fr) | 1 : 0;
+      if (!gh || d.img != target_img || d.hash != gh || d.version != raster::image_version(target_img)) {
+        queue_pass(target_img, w, h, translucent, b, mark_cmd, mark_text, mark_pts);
+        raster::dyn_gpu_touch(target_img);
+        d = Drawn{target_img, raster::image_version(target_img), gh};
+      }
+      b.ncmd = mark_cmd; b.ntext = mark_text; b.npts = mark_pts; target_img = -1;
+      return;
+    }
     const uint32_t hsh = !translucent && fr.count && fr.cmds[0].kind == raster::CLEAR ? raster::frame_hash(fr) | 1 : 0;   // 0: it draws over what is there
     if (translucent) {
       render_alpha(fr, px, w, h);
@@ -2097,6 +2150,7 @@ void endImage() {
 struct Win { int32_t id; int32_t w, h, pw, ph; uint32_t* px; uint32_t hash; bool open; HalInput in, prev; char title[96]; };
 static Win wins[ZRT_MAX_WINDOWS];
 static Win* in_win = nullptr;   // the window being drawn
+static bool in_window() { return in_win != nullptr; }
 static int32_t win_ids = 0;
 static struct { int32_t w, h; float tx, ty; bool xf, kept; double m[6]; uint32_t cmd, text, pts, plugin; HalInput in, prev; } outer;
 static Win* win_of(int32_t id) { for (Win& x : wins) if (x.open && x.id == id) return &x; return nullptr; }

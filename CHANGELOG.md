@@ -8,6 +8,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
+### Rendering and performance
+
+#### New
+
+- `ZINC_RENDERER=metal` draws a macOS window on the GPU with Metal (sprites, boxes, text, images, render targets with transparency, one draw call for sprites from many sheets); frames it cannot draw yet still go through the software renderer.
+
 ### Hamlet city builder
 
 #### New

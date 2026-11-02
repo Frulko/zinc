@@ -91,6 +91,10 @@ extern "C" uint32_t* hal_mtl_pixels(int w, int h);
 extern "C" void hal_mtl_wait(void);
 extern "C" void hal_mtl_present(void);
 extern "C" void hal_mtl_close(void);
+// The Metal replay (hal_metal.mm): the frame's command lists drawn on the GPU, ZINC_RENDERER=metal; a frame it cannot draw goes through the raster
+extern "C" bool hal_mtl_replay(const HalCmdList* const* lists, int n, int pw, int ph);
+extern "C" void hal_mtl_readback(void);
+extern "C" bool hal_mtl_gpu_enable(void);
 static bool mtl_on;
 #else
 static const bool mtl_on = false;
@@ -1939,7 +1943,18 @@ static void present_frame(const HalFrame* f) {
 #endif
 #if defined(SDL_PLATFORM_IOS) || defined(SDL_PLATFORM_MACOS)
   if (mtl_on) {   // a frame without damage presents nothing: the layer keeps the last one and the display link paces the loop
-    if (f->y1 <= f->y0 || f->x1 <= f->x0) return;
+    static int gpu = -1; static bool gpu_drawn;   // the Metal replay: on by ZINC_RENDERER=metal; gpu_drawn: fb is older than the screen
+    if (gpu < 0) { const char* rr = getenv("ZINC_RENDERER"); gpu = rr && !strcmp(rr, "metal") && hal_mtl_gpu_enable(); if (zrt_prof_info) zrt_prof_info("renderer", gpu ? "metal" : "cpu"); }
+    const bool dmg = f->y1 > f->y0 && f->x1 > f->x0;
+    if (gpu && f->frames) {
+      const HalCmdList* L[8];
+      const int n = f->frames(L, 8);
+      const uint64_t t0 = hal_time_us();
+      if (hal_mtl_replay(L, dmg ? n : 0, PW, PH)) { gpu_drawn |= dmg; if (zrt_frame_stats) zrt_frame_stats[5] = (uint32_t)(hal_time_us() - t0); ps_end(); return; }
+      hal_mtl_readback();   // a frame the replay does not draw: the raster's, over pixels (of the images too) that are current
+      if (gpu_drawn) { hal_mtl_wait(); render_rows_parallel(f->render, 0, PH); gpu_drawn = false; ps_mark(PS_RASTER); hal_mtl_present(); ps_end(); return; }
+    }
+    if (!dmg) return;
     hal_mtl_wait();   // the GPU is still copying the previous frame out of fb: almost never, a blit takes a fraction of a frame
     ps_mark(PS_SWAP);
     if (f->move && f->render_box) apply_move(f, fb);
