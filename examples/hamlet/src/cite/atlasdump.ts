@@ -16,7 +16,7 @@ let preview = false, frames = 0, shot = '';
 function generatorOf(name: string): string {
   const p = name.split('/');
   if (p[0] === 'tree') return 'view/models.ts tree(' + p[1] + ') in the ' + p[2] + ' colours, swayed by shear';
-  if (p[0] === 'building') return p[1] === 'gate' ? 'view/models.ts gate' : p[1] === 'house-2' ? 'view/models.ts house2' : p[1] === 'house-3' ? 'view/models.ts house3' : p[1] === 'house-4' ? 'view/models.ts house3, lit for the 2 x 2 Manoir' : 'view/models.ts MODEL_DEFS ' + p[1];
+  if (p[0] === 'building') return p[1] === 'gate' ? 'view/models.ts gate' : p[1] === 'house-2' ? 'view/models.ts house2' : p[1] === 'house-3' ? 'view/models.ts house3' : p[1] === 'hall' ? 'view/models.ts storehouse on one tile' : p[1] === 'house-4' ? 'view/models.ts house3, lit for the 2 x 2 Manoir' : 'view/models.ts MODEL_DEFS ' + p[1];
   if (p[0] === 'person') return 'view/actors.ts person entry, role ' + p[1] + ', pose ' + p[2];
   if (p[0] === 'carry') return 'view/actors.ts paintProps, carry ' + p[1];
   if (p[0] === 'animal') return 'view/actors.ts deer entry / view/beasts.ts ' + p[1] + ', pose ' + p[2];

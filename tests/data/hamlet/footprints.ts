@@ -46,11 +46,11 @@ check('bad-size: a zero, a string, three numbers, a fraction and more than 4 are
 check('a level without a size keeps the one before; a level may not shrink', bad('"label": "Maison", "capacity": 4', '"label": "Maison", "size": [2, 2], "capacity": 4').length === 0 && bad('"label": "Demeure", "capacity": 6', '"label": "Demeure", "size": [1, 1], "capacity": 6').length === 0 && bad('"label": "Maison", "capacity": 4', '"label": "Maison", "size": [2, 2], "capacity": 4').length === 0 && bad('"label": "Demeure", "capacity": 6', '"label": "Demeure", "size": [3, 3], "capacity": 6').some((e: string): boolean => e.startsWith('bad-size')));
 check('the shipped file has no error', parseEconomy(TEXT, MODEL_IDS, ROLE_NAMES, new Economy()).length === 0);
 
-// the hall: its 2 x 2 footprint stands above the gate, the gate road is its door
+// the hall stays one tile above the gate whatever its type's footprint (the first road, the guide and the sessions start from the gate)
 fresh();
 {
-  const hall = world.buildings[world.build[world.gate - 24 * 2]];
-  check('the hall is a 2 x 2 above the entrance, every one of its tiles points to it', hall.w === 2 && hall.h === 2 && footprint(hall).length === 4 && footprint(hall).every((t: number): boolean => world.build[t] === world.buildings.indexOf(hall)) && doorOf(hall) === world.gate && onGateNetwork(hall));
+  const hall = world.buildings[world.build[world.gate - 24]];
+  check('the hall is one tile above the entrance and the gate road is its door', hall.w === 1 && hall.h === 1 && doorOf(hall) === world.gate && onGateNetwork(hall) && hall.fixed);
 }
 
 // placement

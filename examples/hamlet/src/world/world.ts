@@ -272,12 +272,9 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
   world.road[world.gate] = 1;
   placeLodes(layers);
   if (economy.hall >= 0) {                                    // the village store stands by the entrance, next to the gate road, holding what the village starts with
-    const hd = economy.buildings[economy.hall], t = world.gate - size * hd.h;           // its footprint is the rows above the gate row, from the entrance column: the gate road is its door
-    for (let dj = 0; dj < hd.h; dj++) for (let di = 0; di < hd.w; di++) {
-      const u = t + dj * size + di;
-      world.terrain[u] = TERRAIN_GRASS; world.tree[u] = 0; world.rock[u] = 0; world.lode[u] = 0; world.height[u] = world.height[world.gate];
-    }
-    const id = newBuilding(economy.hall, t);
+    const t = world.gate - size;                              // the village store is one tile whatever its type's footprint: the first road and the guide start from the gate
+    world.terrain[t] = TERRAIN_GRASS; world.tree[t] = 0; world.rock[t] = 0; world.lode[t] = 0;
+    const id = newBuilding(economy.hall, t, 1, 1);
     world.buildings[id].fixed = true; world.buildings[id].stock = startStock();
   }
   recount();

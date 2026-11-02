@@ -72,7 +72,7 @@ export const SMOKE_FRAMES = 4;
 const ROLE_NAMES = ['settler', 'resident', 'lumberjack', 'hunter', 'fisher', 'sawyer', 'smoker', 'porter', 'farmer', 'miller', 'baker', 'vendor', 'tanner', 'quarryman', 'peddler', 'forager', 'smith', 'beekeeper', 'chandler', 'brewer', 'innkeeper', 'firewarden', 'repairman', 'watchman', 'robber', 'rioter'];
 const ANIMAL_NAMES = ['doe', 'stag', 'rabbit', 'boar', 'wolf'];
 const SEASON_NAMES = ['spring', 'summer', 'autumn', 'winter'];
-const BUILD_EXTRA = ['gate', 'house-2', 'house-3', 'house-4'];      // the gate, then the house at levels 1, 2 and 3 (the Manoir: the same model as level 2, lit for its 2 x 2 footprint)
+const BUILD_EXTRA = ['gate', 'house-2', 'house-3', 'house-4', 'hall'];      // the gate, then the house at levels 1, 2 and 3 (the Manoir: the same model as level 2, lit for its 2 x 2 footprint), then the hall (the storehouse model on its single tile)
 
 class Ready { trees: boolean[] = [false, false, false, false]; rocks: boolean = false; buildings: boolean = false; people: boolean[] = []; animals: boolean[] = [false, false, false, false, false]; all: boolean = false; }
 /** One resolution of the atlas: its sheets (images), and the jobs that paint them when they are made from the generators. */
@@ -136,7 +136,7 @@ function bakeBuilding(g: Group, id: number, k: number, smokeAt: number[]): void 
 }
 function bakeBuildings(k: number): void {
   for (let q = 0; q < MODEL_IDS.length + BUILD_EXTRA.length; q++) {
-    const id = q < MODEL_IDS.length ? q : q === MODEL_IDS.length ? MODEL_GATE : MODEL_HOUSE_UP + Math.min(q - MODEL_IDS.length, 2) - 1;
+    const id = q < MODEL_IDS.length ? q : q === MODEL_IDS.length ? MODEL_GATE : q - MODEL_IDS.length === 4 ? 4 : MODEL_HOUSE_UP + Math.min(q - MODEL_IDS.length, 2) - 1;
     bakeBuilding(groupAt(buildIds[q]), id, k, chimney[q]);
   }
 }
@@ -207,7 +207,8 @@ const SHEET_TREES = 0, SHEET_PROPS = 4, SHEET_BUILD = 5, SHEET_PEOPLE = 6, SHEET
 /** The footprint [w, h] of the building sprite k (the models of economy.json in order, then the gate, then the house at its levels 2 and 3, see HouseLevel.w and h): a sprite is lit at (w + h) / 2 times the scale of a single tile's. */
 function footprintOf(k: number): number[] {
   if (k < MODEL_IDS.length) { const d = economy.buildings[k]; return d === undefined ? [1, 1] : [d.w, d.h]; }
-  const lv = k - MODEL_IDS.length;                          // 0: the gate, 1 and 2: the house sprites of levels 1 and 2 (the house-4 sprite is the Manoir's)
+  const lv = k - MODEL_IDS.length;
+  if (lv === 4) return [1, 1];                          // 0: the gate, 1 and 2: the house sprites of levels 1 and 2 (the house-4 sprite is the Manoir's)
   const h = economy.buildings.length > 0 ? economy.buildings[0].housing : null;
   if (lv < 1 || h === null || h.levels.length <= lv) return [1, 1];
   return [h.levels[lv].w, h.levels[lv].h];

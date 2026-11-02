@@ -18,7 +18,8 @@ import { BI_PLAIN } from '../../../examples/hamlet/src/gen/terrain';
 import { movePriority } from '../../../examples/hamlet/src/rules/labour';
 import { capacityOf, housingReport } from '../../../examples/hamlet/src/rules/housing';
 
-const ECONOMY_TEXT = fs.readText('examples/hamlet/assets/economy.json');
+// the balance runs on one-tile buildings (the tuned reference); BOT_FOOTPRINTS=1 plays the economy as shipped, with its footprints (a 2 x 2 hall and store cost roads and wood: that balance is still to tune)
+const ECONOMY_TEXT = env('BOT_FOOTPRINTS') === '1' ? fs.readText('examples/hamlet/assets/economy.json') : fs.readText('examples/hamlet/assets/economy.json').replace(/"size": \[[0-9, ]+\], ?/g, '');
 function modelIds(): string[] {                 // the model of each building, in file order (the part of the file after "buildings")
   const out: string[] = [];
   let at = ECONOMY_TEXT.indexOf('"buildings"');
@@ -138,7 +139,13 @@ function tryPlace(id: string): boolean {
     if (d < 1) continue;
     let ok: boolean;
     if (d === 1 || !def.needsRoad) ok = checkTool(tool, t) === PLACE_OK;
-    else { const p = r.par[t]; world.road[p] = 1; ok = checkTool(tool, t) === PLACE_OK; world.road[p] = 0; }
+    else {                                                                    // the road to it is laid first, all of it: it may not cross the footprint
+      const laid: number[] = [];
+      for (let p = r.par[t]; p >= 0 && world.road[p] === 0; p = r.par[p]) laid.push(p);
+      for (const p of laid) world.road[p] = 1;
+      ok = checkTool(tool, t) === PLACE_OK;
+      for (const p of laid) world.road[p] = 0;
+    }
     if (!ok || (env("BOT_NOSEAL") !== "1" && sealsRoad(t))) continue;
     if (d > 1 && def.needsRoad) {                                            // the road to it is paid in planks too: the whole bill must be in the stores
       const chain: number[] = [];

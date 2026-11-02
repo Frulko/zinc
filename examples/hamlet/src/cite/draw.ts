@@ -72,7 +72,7 @@ function tileThings(t: number, i: number, j: number, time: number, sea: number):
     const b = world.buildings[id];
     if (i === b.i + b.w - 1 && j === b.j + b.h - 1) {              // a bigger building is drawn once, from its front tile (the last of the diagonal order), centred on its footprint
       const fi = b.i + b.w / 2, fj = b.j + b.h / 2, lv = levelHere(fi, fj), h = hash(t, 11);
-      const sid = b.type === 0 && b.level > 0 ? A.buildIds[A.GATE_MODEL + Math.min(b.level, 3)] : A.buildIds[Math.min(b.type, MODEL_IDS.length - 1)];
+      const sid = b.type === 0 && b.level > 0 ? A.buildIds[A.GATE_MODEL + Math.min(b.level, 3)] : b.fixed && b.type === economy.hall ? A.buildIds[A.GATE_MODEL + 4] : A.buildIds[Math.min(b.type, MODEL_IDS.length - 1)];
       spr(sid, fi, fj, lv, 255, TINTS[Math.floor(hash(t, 12) * 4) & 3], h < .5 ? 1 : 0);
       if (R.all && b.alive && (b.type === 0 ? b.residents > 0 : b.workers > 0) && economy.buildings[b.type].smoke.length > 0) smoke(fi, fj, lv, b.type, time, b.i * 7 + b.j);
     }
