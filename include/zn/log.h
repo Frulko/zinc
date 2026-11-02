@@ -81,10 +81,10 @@ inline bool steps() {
   return !state().json && (!e || std::atoi(e) != 0);
 }
 // zinc run and zinc dev default to ZINC_STEPS=brief (ZN-774.32): no step lines, only the one line a person waits on (the first native build);
-// -v / --verbose or ZINC_STEPS=1 shows every step.
+// -v / --verbose or ZINC_STEPS=1 shows every step. Only to a terminal: a redirected stderr (a test, a script, a pipe) holds nothing but the program's own output.
 inline void brief(const std::string& msg) {
   const char* e = std::getenv("ZINC_STEPS");
-  if (e && !std::strcmp(e, "brief") && !state().json) std::fprintf(stderr, "zinc: %s\n", msg.c_str());
+  if (e && !std::strcmp(e, "brief") && !state().json && ::isatty(2)) std::fprintf(stderr, "zinc: %s\n", msg.c_str());
 }
 inline std::string duration(double ms) { char b[32]; if (ms < 1000) std::snprintf(b, sizeof b, "%.0f ms", ms); else std::snprintf(b, sizeof b, "%.1f s", ms / 1000); return b; }
 // "  compile    6 files                           35 ms"; `ms` < 0: no duration.

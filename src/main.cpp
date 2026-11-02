@@ -1455,8 +1455,10 @@ static int runCached(const std::string& entry, const std::string& projectDir, co
 static int runCompiled(zn::zbc::Module& zm, const std::string& entry, const std::string& projectDir, const std::vector<std::string>& progArgs) {
   namespace fs = std::filesystem;
   if (!runcache::wanted()) return -1;
-  if (!drawsOf(zm)) return -1;   // timers, files and processes alone stay interpreted (D43)
-  if (!canBuildNative()) return -1;
+  const char* mode = std::getenv("ZINC_RUN");
+  const bool forced = mode && !std::strcmp(mode, "native");   // --native asks for the compiled program, drawing or not
+  if (!forced && !drawsOf(zm)) return -1;   // timers, files and processes alone stay interpreted (D43)
+  if (!canBuildNative()) { if (forced) std::fprintf(stderr, "zinc: --native: no C++ compiler on this machine; interpreting\n"); return -1; }
   const std::string exe = zn::tc::executablePath();
   const fs::path dir = runcache::dirOf(entry), app = dir / "app", keyFile = dir / "key";
   std::error_code ec;

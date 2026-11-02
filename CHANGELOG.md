@@ -42,6 +42,11 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Performance
 
+#### Fixed
+
+- `zinc run --native` compiles a program that does not draw too, instead of silently interpreting it.
+- The one-line "compiling for this machine" notice goes to a terminal only; a redirected stderr stays empty.
+
 #### Faster
 
 - Large software-rendered shadows reserve memory for the distinct alpha rows they use, instead of their entire area.

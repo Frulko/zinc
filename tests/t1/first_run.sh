@@ -57,7 +57,11 @@ after=$(frame)
 # the first native run: one line; the next: none; --verbose: the steps
 quiet() { (cd "$g" && unset ZINC_STEPS && ZINC_HOME="$tmp/runhome" ZINC_FRAMES=1 "$Z" run --native "$@" 2>&1 >/dev/null); }
 out=$(quiet)
-[ "$out" = "zinc: compiling for this machine, once (a few seconds; the next runs start at once)" ] || { echo "the first native zinc run is not one line: $out"; fail=1; }
+[ -z "$out" ] || { echo "the first native zinc run prints on a redirected stderr: $out"; fail=1; }
+# on a terminal the first build says one line (a pty from script(1)), after the cache is cleared
+rm -rf "$tmp/runhome"
+out=$(cd "$g" && unset ZINC_STEPS && ZINC_HOME="$tmp/runhome" ZINC_FRAMES=1 script -q /dev/null "$Z" run --native 2>&1 | tr -d '\r' | grep -o 'zinc: compiling for this machine.*')
+[ "$out" = "zinc: compiling for this machine, once (a few seconds; the next runs start at once)" ] || { echo "the first native zinc run on a terminal is not that one line: $out"; fail=1; }
 out=$(quiet); [ -z "$out" ] || { echo "a cached zinc run prints: $out"; fail=1; }
 quiet --verbose | grep -q '^  run        native' || { echo "zinc run --verbose does not print the steps: $(quiet --verbose | head -3)"; fail=1; }
 
