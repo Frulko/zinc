@@ -510,7 +510,6 @@ struct Lowering {
           std::uint32_t sel = selectorFor(mem.name, mem.type);
           if (std::find(cl.selectors.begin(), cl.selectors.end(), sel) == cl.selectors.end()) cl.selectors.push_back(sel);
         }
-      std::vector<std::uint32_t> sels = m.classes[classOfObj[o]].selectors;
       if (c.objs[o].isClass)   // the methods of the interfaces `o` satisfies with fewer parameters: their selector gets an adapter (see `fill`)
         for (std::uint32_t i = 0; i < c.objs.size(); ++i) {
           if (i == o || !c.objs[i].isInterface || c.objs[i].isRecord || classOfObj[i] == kNil || !frontend::objAssignable(c, o, i)) continue;
@@ -523,6 +522,7 @@ struct Lowering {
               if (std::find(cl.selectors.begin(), cl.selectors.end(), sel) == cl.selectors.end()) cl.selectors.push_back(sel);
             }
         }
+      std::vector<std::uint32_t> sels = m.classes[classOfObj[o]].selectors;
       if (!m.classes[classOfObj[o]].isInterface) {  // the properties of the interfaces a class satisfies: read through a getter selector
         propertySelectors(o, false, sels);
         if (!litClassOfObj.empty() && c.objs[o].isClass && !c.objs[o].isRecord) propertySelectors(o, true, sels);
