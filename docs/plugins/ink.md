@@ -6,7 +6,7 @@ no model download: a first stage names letters and shapes by matching them again
 
 - **Surface.** `Ink` turns pen samples into pressure strokes with a writing tool (ballpoint, fineliner, marker, pencil, calligraphy,
   highlighter), erasers, undo and redo, JSON and SVG export; `<InkCanvas ink={doc} />` draws it. `examples/remarkable/notes` is the
-  worked app; `ink.overlay = true` draws the strokes as polylines over whatever is under the canvas (a game board, no opaque page image; for a few strokes); `docs/reports/ink-tools-and-annotation-formats.md` has the formats.
+  worked app; `ink.overlay = true` draws the strokes (segments with the pen's pressure width) over whatever is under the canvas (a game board, no opaque page image; for a few strokes); `docs/reports/ink-tools-and-annotation-formats.md` has the formats.
 - **Recognition.** `recognise`, `recogniseAsync`, `StrokeGrouper`, `loadModel` (below).
 
 ## Recognition

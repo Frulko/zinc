@@ -428,6 +428,27 @@ static void qsim_collapse() {
 // those frames, and one out-of-range sample the frame after (the palm rejection's input)
 static void qsim_marker() {
   static bool in_range = false;
+  // ZN_RMPP_SIM_STROKE=a-b:x,y[:per]: the Marker writes a wave from (x, y) (panel pixels) during frames a..b, `per` evdev samples (default 6, the
+  // digitizer's ~360 Hz at 60 frames) pushed at each poll, 3 px apart, pressure rising; a lifted sample ends it. "pen" lines log each push.
+  if (const char* st = getenv("ZN_RMPP_SIM_STROKE")) {
+    static int pushed = 0;
+    long a = 0, b = 0; int x0 = 0, y0 = 0, per = 6;
+    if (sscanf(st, "%ld-%ld:%d,%d:%d", &a, &b, &x0, &y0, &per) >= 4) {
+      const long f = (long)qsim::frames;
+      const bool down = f >= a && f < b;
+      if (down || f == b) {
+        for (int i = 0; i < per; i++) {
+          const int k = pushed++;
+          const float px = x0 + k * 3.0f, py = y0 + 80 * sinf(k * 0.02f);
+          HalPen pen = {}; rin::place(px / (rin::W - 1), py / (rin::H - 1), 0, &pen.x, &pen.y);
+          pen.flags = down ? HAL_PEN_DOWN : 0; pen.pressure = down ? 0.2f + 0.6f * (float)(f - a) / (float)(b - a) : 0;
+          rin::push(pen);
+          if (!down) break;
+        }
+        qsim::line("%8.1f ms pen samples to %d", qsim::virtualNow() / 1000.0, pushed);
+      }
+    }
+  }
   const char* names[2] = {"ZN_RMPP_SIM_HOVER", "ZN_RMPP_SIM_NIB"};
   int flags = 0;
   for (int k = 0; k < 2; k++) {

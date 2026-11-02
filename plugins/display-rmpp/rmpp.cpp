@@ -65,6 +65,8 @@ uint8_t* shm = nullptr;
 size_t shm_size = 0;
 int shm_key = 0;          // AppLoad's name for the buffer (/qtfb_<shm_key>): QTFB_KEY on 0.5, random since 0.6.0
 eink::Rect pending = {};
+uint64_t ink_until = 0;     // the Marker is writing, or was a moment ago (present_phys)
+bool ink_was = false, ink_fast = false;   // ink_fast: FAST was set for the pen, not by the app
 int refresh_mode = -1;
 uint64_t mode_ready_us = 0, last_sent_us = 0;
 eink::Ghost ghost;          // partial area since the last full refresh
@@ -576,9 +578,22 @@ void present_phys(const HalFrame* f) {
   }
   uint64_t now = hal_time_us();
   if (full_due && now >= full_due) { full_due = 0; eink::unite(pending, fast_area); fast_area = {}; }
-  const int want = gesture ? MODE_FAST : forced_mode >= 0 ? forced_mode : wanted_mode;
+  // The Marker writing, with an AppLoad that switches modes in a few ms (0006): the pen's own waveform for the stroke and a moment after it, whatever
+  // mode the app asked for (an app that never calls setPenMode, as Murdoku, would write at the UI waveform's 8 updates a second otherwise). What went
+  // out in it is sent again in the app's mode once the Marker has been away for ink_settle_us: the colours and the grey levels come back there.
+  static const uint64_t ink_settle_us = (uint64_t)(getenv("ZINC_RMPP_INK_SETTLE_MS") ? atoi(getenv("ZINC_RMPP_INK_SETTLE_MS")) : 350) * 1000;
+  static const uint64_t ink_us = (uint64_t)(getenv("ZINC_RMPP_INK_MS") ? atoi(getenv("ZINC_RMPP_INK_MS")) : 8) * 1000;   // between two pen updates
+  if (rin::pen_down) ink_until = now + ink_settle_us;
+  static const bool ink_auto = !getenv("ZINC_RMPP_INK_AUTO") || atoi(getenv("ZINC_RMPP_INK_AUTO")) != 0;   // 0: the app's mode alone (A/B in the simulator)
+  const bool inking = ink_auto && layer == L0 && instant_mode && wanted_mode != MODE_FAST && now < ink_until && forced_mode < 0;
+  if (ink_was && !inking) { eink::unite(pending, fast_area); fast_area = {}; }   // the stroke's box, once, in the app's mode
+  ink_was = inking;
+  const int want = gesture || inking ? MODE_FAST : forced_mode >= 0 ? forced_mode : wanted_mode;
   if (refresh_mode == wanted_mode) forced_back = false;
-  if (layer == L0 && refresh_mode != want && now >= mode_ready_us) set_mode(want, forced_mode < 0 && !forced_back);   // a gesture, or a switch asked during qtfb's second
+  if (layer == L0 && refresh_mode != want && now >= mode_ready_us) {   // a gesture, or a switch asked during qtfb's second
+    const bool reveal = forced_mode < 0 && !forced_back && !inking && !ink_fast;   // coming back from the pen's mode: only the stroke's box, above
+    if (set_mode(want, reveal)) ink_fast = inking;
+  }
   if (eink::empty(pending) && full_refresh_ok && !as_widget && now >= mode_ready_us && (full_asked || eink::ghost_due(ghost, eink::area({0, 0, panel.w, panel.h}), now, rin::pen_down))) {
     ClientMsg m = {}; m.type = MSG_FULL_REFRESH;
     if (send(sock, &m, sizeof m, MSG_DONTWAIT | MSG_NOSIGNAL) == sizeof m) { ghost = {}; full_asked = false; mode_ready_us = now + switch_pause(); }  // qtfb sleeps 1 s on this connection (without 0006)
@@ -586,7 +601,10 @@ void present_phys(const HalFrame* f) {
   // during a gesture the panel takes about 120 ms per fast update: one at a time, the newest picture, so they never queue up and lag
   // behind the fingers (ZINC_RMPP_GESTURE_MS)
   static const uint64_t gesture_us = (uint64_t)(getenv("ZINC_RMPP_GESTURE_MS") ? atoi(getenv("ZINC_RMPP_GESTURE_MS")) : 160) * 1000;
-  const uint64_t interval = gesture ? std::max(update_interval(), gesture_us) : update_interval();
+  // no instant mode switch (AppLoad before 0006): the stroke stays in the app's waveform, but its small updates go out at 30 Hz instead of the UI's 8
+  static const uint64_t ink_ui_us = (uint64_t)(getenv("ZINC_RMPP_INK_UI_MS") ? atoi(getenv("ZINC_RMPP_INK_UI_MS")) : 33) * 1000;
+  const bool slow_ink = ink_auto && layer == L0 && !instant_mode && rin::pen_down && refresh_mode != MODE_FAST;
+  const uint64_t interval = gesture ? std::max(update_interval(), gesture_us) : inking ? ink_us : slow_ink ? std::min(update_interval(), ink_ui_us) : update_interval();
   if (eink::empty(pending) || now < mode_ready_us || (last_sent_us && now - last_sent_us < interval)) {
     if (eink::empty(r)) rin::wait_input(8, sock);
     return;

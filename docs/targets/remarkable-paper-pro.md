@@ -393,6 +393,7 @@ dist/rmpp/deploy.sh root@10.11.99.1 notes.zapp notes.zapp --session   # /home/ro
   it) and loads display-rmpp's `rmpp` entry instead of the desktop emulator of `linux`, from `prebuilt/rmpp/`, which `tools/package` builds
   for aarch64 with the driver's default options. The options a project sets in `display` reach the prebuilt driver at launch as
   `ZINC_RMPP_<OPTION>` (`ZINC_RMPP_INK`, `ZINC_RMPP_REFRESH_MODE`, `ZINC_RMPP_FAST_HZ`, `ZINC_RMPP_COLOR_HZ`); a variable already set wins.
+  Pen ink on qtfb: while the Marker is down (and `ZINC_RMPP_INK_SETTLE_MS`, 350, after it) an AppLoad with instant mode switches (0006) puts the window in the pen waveform, sends each frame's new rectangle every `ZINC_RMPP_INK_MS` (8) and settles what it sent in the app's mode afterwards; without 0006 the stroke's updates go out every `ZINC_RMPP_INK_UI_MS` (33). `ZINC_RMPP_INK_AUTO=0` leaves the app's mode alone. `tests/t1/rmpp_ink_latency.sh` measures it in the simulator.
   The other plugins are the package's `prebuilt/linux/`. A project's own native module (`native/*.rmpp.cpp`) needs a compiler: on the
   tablet the program gets its `x.sim.ts` stand-in, with a warning (notes' **Colour preview** then switches nothing on the panel); export
   such an app with `zinc export --target rmpp` for its native code.

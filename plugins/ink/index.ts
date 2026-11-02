@@ -210,7 +210,13 @@ export class Ink {
 
   paint(x: i32, y: i32, w: i32, h: i32, ox: number, oy: number, z: number, key: number, bg: ((w: i32, h: i32) => void) | null): void {
     this.w = w; this.h = h;
-    if (this.overlay) { for (const s of this.strokes) whole(s, x, y, ox, oy, z); return; }
+    if (this.overlay) {   // the same segments as the baked image: the pen's pressure width, and a new sample only adds its own segment to the frame's damage
+      for (const s of this.strokes) {
+        if (s.tool === 'highlighter') whole(s, x, y, ox, oy, z);
+        else for (let i = 0; i < s.count(); i++) segment(s, i, x, y, ox, oy, z);   // ponytail: every segment each frame, for the few strokes of a board
+      }
+      return;
+    }
     if (w !== this.iw || h !== this.ih || this.img < 0) {
       if (this.img >= 0) destroyImage(this.img);
       this.img = createImage(w, h);

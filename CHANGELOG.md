@@ -129,8 +129,13 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Murdoku has its own reMarkable layout with nothing to scroll: in landscape the plan on the left with big suspect letters and tool buttons under it and the six testimonies in a column on the right, in portrait the plan on top and the testimonies below; selected things are filled or thick-bordered, and it docks under the tablet's own header.
 - Murdoku on the Paper Pro can be played in colour: the manor, rooms and portraits keep their colours in the same one-screen layout, a "Mode couleur / Mode N&B" button switches at any time, and the choice is remembered. An e-ink app on a colour panel can ask `zinc:ui` to stop snapping colours with `setEinkColour(true)`.
 
+#### Faster
+
+- Writing with the Marker on the Paper Pro follows the pen: with the current AppLoad the stroke is drawn in the pen waveform and sent as it grows, then redrawn cleanly a moment after you lift (`ZINC_RMPP_INK_AUTO=0` turns it off); with an older AppLoad it is sent 30 times a second instead of 8.
+
 #### Fixed
 
+- Ink drawn over a board (`Ink` with `overlay`) now keeps the pen's pressure width and no longer redraws the whole stroke as one line.
 - An app docked under the reMarkable header in landscape, or on a surface drawn at two pixels per pixel, now pads by the header's real size on the right side (it was a full-size top margin).
 - An app that names the `rmpp` display driver in `zinc.json` now gets the e-ink look on the Paper Pro even when it is published as a Linux or Pi build (Murdoku showed its desktop colours there); `ZINC_EINK=0` still shows the colour app.
 - A palm that lands while the Marker is near the glass, or in the 300 ms after it left, no longer reaches the app as a touch (`ZINC_RMPP_PALM_MS` changes the delay).
