@@ -35,6 +35,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Hamlet has six missions, from a first village to a mountain with mines, the peddler, a city of 400 people and a hard survival with fire and crime: each has a briefing, a map, goals that unlock buildings (with new kinds: jobs filled, mood, peace, a stock held for days) and sometimes a time limit, a win or lose ending and a next mission. Pick one in the new-village form (`N`); the goals window (`C`) follows it, and the village save remembers its mission.
 - A new Hamlet sandbox form: seed, size up to 256 × 256, landscape, lakes, forest, rock and relief steppers, river, infinite resources, risks and a start, with a small preview of the map the seed will make.
 - Hamlet markets keep a stock: the buyer fetches food and candles from the stores and the vendor hands them to the houses on the round; a market with nothing to sell serves nobody. A chapel (religion) and a festival ground (entertainment, with the tavern) join the services, and a house climbs to a fourth level, the Manoir, when all four services, three foods and a pleasant street reach it.
+- New Hamlet villages and the six missions are now generated in groups instead of by a dice per tile: woods and flower meadows with clearings, edges and one tree mix per grove, stone, clay, iron and berries in patches that are richest at their centre and richer farther from the gate, and deer, rabbits and boar in herds that follow a leader. Villages saved before keep the map they had, and the Classique landscape keeps the old spread.
 
 #### Changed
 
