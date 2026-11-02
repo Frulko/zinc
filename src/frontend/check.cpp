@@ -508,6 +508,7 @@ struct Checker {
     math.name = "Math";
     math.members.push_back({"PI", num(gNumber), true, false});
     math.members.push_back({"E", num(gNumber), true, false});
+    for (const char* k : {"LN10", "LN2", "LOG10E", "LOG2E", "SQRT1_2", "SQRT2"}) math.members.push_back({k, num(gNumber), true, false});
     for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "exp", "log", "cbrt", "log2", "log10", "log1p", "expm1", "asin", "acos", "sinh", "cosh", "tanh", "sign", "fround", "clz32"}) mathFn(f, 1, math);
     for (const char* f : {"pow", "atan2", "min", "max", "hypot"}) mathFn(f, 2, math);
     math.members.push_back({"imul", func({num(Num::i32), num(Num::i32)}, num(Num::i32), 2), true, true});
@@ -1890,6 +1891,7 @@ struct Checker {
         if (str) return rewrite("__H0", {{args[0]}});
         if (num_ || bl) return rewrite("`${__H0}`", {{args[0]}});
         if (arr) return rewrite("__H0.join(',')", {{args[0]}});
+        if (!rawDyn() && isDyn(at)) return rewrite("__dynString(__H0)", {{args[0]}});
         if (at == tNull) return rewrite((n(args[0]).flags & kFlagUndefined) ? "'undefined'" : "'null'", {});
         if (t.k == TK::Union && hasNull(at)) return rewrite("`${__H0}`", {{args[0]}});  // a nullable number, boolean or string: its text, or null / undefined
       } else if (nm == "Number") {
@@ -2070,6 +2072,12 @@ struct Checker {
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "random" && args.empty()) return rewrite("__mathRandom()", {});
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "seed" && args.size() == 1) return rewrite("__mathSeed(__H0)", {{args[0]}});
       const bool spread = std::any_of(args.begin(), args.end(), [&](std::uint32_t g) { return n(g).kind == N::Spread; });
+      if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "hypot" && args.size() > 2 && !spread) {   // hypot(a, b, c, ...): nested pairs
+        std::string text = "__H0";
+        std::vector<std::vector<std::uint32_t>> holes{{args[0]}};
+        for (std::size_t k = 1; k < args.size(); ++k) { text = "Math.hypot(" + text + ", __H" + std::to_string(k) + ")"; holes.push_back({args[k]}); }
+        return rewrite(text, holes);
+      }
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && (m == "min" || m == "max") && (args.size() != 2 || spread)) {
         std::string nm(m);
         for (std::uint32_t& g : args) {  // `...a`: the extreme of the array through a generated loop (Infinity or -Infinity when it is empty, as the spread gives)

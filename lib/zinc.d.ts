@@ -229,12 +229,13 @@ declare var Set: SetConstructor;
 
 // ---- Math ----
 interface Math {
-  readonly PI: number; readonly E: number;
+  readonly PI: number; readonly E: number; readonly LN10: number; readonly LN2: number;
+  readonly LOG10E: number; readonly LOG2E: number; readonly SQRT1_2: number; readonly SQRT2: number;
   abs(x: number): number; min(...values: number[]): number; max(...values: number[]): number;
   floor(x: number): number; ceil(x: number): number; round(x: number): number; trunc(x: number): number;
   sign(x: number): number; sqrt(x: number): number; pow(x: number, y: number): number;
   sin(x: number): number; cos(x: number): number; tan(x: number): number; atan2(y: number, x: number): number;
-  exp(x: number): number; log(x: number): number; hypot(a: number, b: number): number;
+  exp(x: number): number; log(x: number): number; hypot(...values: number[]): number;
   cbrt(x: number): number; log2(x: number): number; log10(x: number): number; log1p(x: number): number; expm1(x: number): number;
   asin(x: number): number; acos(x: number): number; sinh(x: number): number; cosh(x: number): number; tanh(x: number): number;
   fround(x: number): f32; imul(a: i32, b: i32): i32; clz32(x: i32): i32;

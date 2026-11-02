@@ -1946,7 +1946,7 @@ struct Lowering::FnLower {
         if (x.text == "name" && on.kind == N::Member && on.text == "constructor" && !(on.flags & frontend::kFlagOptional)) return className(on.kids[0]);
         std::uint32_t os = on.kind == N::Ident ? c.nodeSym[x.kids[0]] : kNil;
         if (os != kNil && c.syms[os].kind == SymKind::Builtin) {
-          return constNum(m.numT(static_cast<NumK>(frontend::numberAlias())), x.text == "PI" ? 3.14159265358979323846 : 2.71828182845904523536);
+          return constNum(m.numT(static_cast<NumK>(frontend::numberAlias())), x.text == "PI" ? 3.14159265358979323846 : x.text == "LN10" ? 2.30258509299404568402 : x.text == "LN2" ? 0.693147180559945309417 : x.text == "LOG10E" ? 0.434294481903251827651 : x.text == "LOG2E" ? 1.44269504088896340736 : x.text == "SQRT1_2" ? 0.707106781186547524401 : x.text == "SQRT2" ? 1.41421356237309504880 : 2.71828182845904523536);
         }
         if (os != kNil && c.syms[os].kind == SymKind::Class) {  // Class.staticField
           const frontend::Member* sm = frontend::lookupMember(c, c.types[c.syms[os].type].obj, x.text, true);
