@@ -1,4 +1,10 @@
 // Headless proof of the distance fields (engine/path.ts roadSpread, planRoad, planFromHub): a spread gives the cost a search from a walker on the road gives, paths follow it, the cache follows the roads. Prints the cost of both ways. No window.
+import { roamPreview } from '../../../examples/hamlet/src/engine/services';
+import { economy, loadEconomy } from '../../../examples/hamlet/src/world/economy';
+import { MODEL_IDS } from '../../../examples/hamlet/src/view/models';
+import { ROLE_NAMES } from '../../../examples/hamlet/src/constants';
+import * as fs from 'zinc:fs';
+import { newBuilding } from '../../../examples/hamlet/src/world/world';
 import { world, generate as generateWith, tileIndex, tileX, tileY, Mover } from '../../../examples/hamlet/src/world/world';
 import { fieldFrom, roadSpread, planRoad, planFromHub, planPath, approachTile, UNREACHABLE, ESCAPE } from '../../../examples/hamlet/src/engine/path';
 import { TerrainParams } from '../../../examples/hamlet/src/gen/terrain';
@@ -55,6 +61,11 @@ const d0 = before !== null ? before.dist[stores[0]] : -1;
 world.road[tileIndex(130, 128)] = 0; world.road[tileIndex(131, 128)] = 0; world.netRev++;
 const after = roadSpread(stores[4]);
 check('a changed road rebuilds the spread', after !== null && d0 >= 0 && after.dist[tileIndex(131, 128)] >= UNREACHABLE);
+// the roamer route preview: the market's next round over roads, without turning its counter
+loadEconomy(fs.readText('examples/hamlet/assets/economy.json'), MODEL_IDS, ROLE_NAMES);
+const shop = newBuilding(economy.typeOf('market'), tileIndex(20, 9), 1, 1), mb = world.buildings[shop];
+const turn0 = mb.turn, route = roamPreview(mb), again = roamPreview(mb);
+check('the roamer preview is a round of road tiles that leaves the counter alone', route.length > 1 && route.every((t: number): boolean => world.road[t] !== 0) && mb.turn === turn0 && route.join() === again.join());
 // the cost: 2000 walkers each asking which of 6 stores is nearest
 let t0 = performance.now(), sum = 0;
 for (const from of people) {

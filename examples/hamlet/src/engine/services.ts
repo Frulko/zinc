@@ -53,8 +53,9 @@ function roadBeside(b: Building): number {
 }
 /** The round of a roamer over the road tiles, with no dice: it goes straight on where the road does, and at a junction takes the way the building's own turn counter points at (the counter rotates, so
  *  successive walkers of one building cover different streets); it turns back only at a dead end. Same ticks, same round. */
-function roamFrom(site: Building, start: number, steps: number): number[] {
+function roamFrom(site: Building, start: number, steps: number, preview: boolean = false): number[] {
   const out: number[] = [];
+  let turn = site.turn;                                       // the preview reads the round without turning the counter
   let at = start, from = -1, heading = -1;
   for (let k = 0; k < steps; k++) {
     const dirs: number[] = [];
@@ -63,16 +64,23 @@ function roamFrom(site: Building, start: number, steps: number): number[] {
     if (dirs.length === 0) { if (from < 0) break; for (let d = 0; d < 4; d++) if (neighbor(at, d) === from) dir = d; }
     else if (dirs.length === 1) dir = dirs[0];
     else {
-      site.turn++;
+      turn++;
       const straight = heading >= 0 && dirs.indexOf(heading) >= 0;
-      if (straight && site.turn % 3 !== 0) dir = heading;
-      else { const others = dirs.filter((d: number): boolean => d !== heading || !straight); dir = others[site.turn % others.length]; }
+      if (straight && turn % 3 !== 0) dir = heading;
+      else { const others = dirs.filter((d: number): boolean => d !== heading || !straight); dir = others[turn % others.length]; }
     }
     if (dir < 0) break;
     const next = neighbor(at, dir);
     out.push(next); from = at; at = next; heading = dir;
   }
+  if (!preview) site.turn = turn;
   return out;
+}
+/** The road tiles the next walker of a service building will cover (for the hover preview): the tile beside it, then its round. Empty when the building has no walker or no road. */
+export function roamPreview(site: Building): number[] {
+  const road = roadBeside(site), def = economy.buildings[site.type];
+  if (road < 0 || def.service === null || !def.service.walker) return [];
+  return [road].concat(roamFrom(site, road, def.service.range, true));
 }
 /** The walker of a service building sets out: to the road beside the building, then a random round. False when there is no road. */
 export function startRoam(p: Person, site: Building): boolean {

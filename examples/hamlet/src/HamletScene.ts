@@ -40,7 +40,7 @@ import { WIN_MAIN } from './ui/state';
 import { scanEvents, drawBanner } from './ui/Messages';
 import { drawGuide } from './ui/Guide';
 import { loadPrefs, savePrefs } from './ui/prefs';
-import { drawOverlay, drawReach, drawOverlayMenu, drawLegend } from './ui/Overlays';
+import { drawOverlay, drawReach, drawRoute, drawOverlayMenu, drawLegend } from './ui/Overlays';
 import { drawAdvisors, sampleHistory, openAdvisor } from './ui/Advisors';
 import { drawCampaign, openCampaign } from './ui/Campaign';
 import { loadMissions } from './world/missions';
@@ -105,6 +105,7 @@ export class HamletScene extends Sprite {
   private lineCount: number = -1;
   private lineSoundAt: number = 0;
   private hover: number = -1;
+  private under: number = -1;                     // the tile under the pointer whatever the tool: the roamer route preview of a hovered service building
   private message: string = '';
   private messageUntil: number = 0;
   private newVillageAt: number = -100;
@@ -388,7 +389,8 @@ export class HamletScene extends Sprite {
     ambientTick(dt, season(), (world.tick * TICK / 20) % 1 > .72 ? 1 : 0, this.forest(), wolfCount() > 0, rainAmount(), dayFraction());
     if (track(x, y)) uiState.dirty = true;
     this.moveView(dt, x, y);
-    this.hover = this.paused || this.tool === TOOL_NONE || hitAt(x, y) !== null ? -1 : this.tileUnder(x, y);
+    this.under = this.paused || hitAt(x, y) !== null ? -1 : this.tileUnder(x, y);
+    this.hover = this.tool === TOOL_NONE ? -1 : this.under;
     this.held = held;
     this.updateLine();
     const signature = this.cite ? citeCam.ci * 7919 + citeCam.cj * 31 + citeCam.zoom * 100003 : camera.x * 7919 + camera.y * 31 + camera.level * 100003;
@@ -475,7 +477,7 @@ export class HamletScene extends Sprite {
     beginFrame();
     mapView.x = this.surface.x; mapView.y = this.surface.y; mapView.scale = this.surface.scale; mapView.cropX = this.frame.cropX; mapView.cropY = this.frame.cropY;
     clip(this.surface.x, this.surface.y, this.frame.cropWidth * this.surface.scale, this.frame.cropHeight * this.surface.scale);
-    drawOverlay(); drawLine(); drawReach(this.tool, this.hover);
+    drawOverlay(); drawLine(); drawReach(this.tool, this.hover); drawRoute(this.tool, this.under);
     unclip(); drawLegend();
     topBar(); column(); drawFlyout(); drawWindows();
     drawGuide(); drawBanner(vp.x + vp.w / 2, vp.y + 8);

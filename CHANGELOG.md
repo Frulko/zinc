@@ -19,6 +19,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A GPU tile view for Hamlet (`ZINC_HAMLET_VIEW=cite`): isometric tiles with slopes, cliffs and snow by height, smooth pointer-anchored zoom, inertia panning and a placement ghost, drawing only what is on screen.
 - Hamlet buildings can cover several tiles (`"size": [w, h]` in `economy.json`): the storehouse, market, mill and tavern are 2x2, the sawmill and chapel 2x1, the farm and theatre 3x3, and a house grows into a 2x2 Manoir when the ground around it is free.
 - Hamlet carts and settlers on big maps read one cached distance map per store and per gate instead of each searching the whole road network, so a 256 x 256 village with thousands of walkers no longer stalls when many ask where the nearest store is.
+- Hovering a market, tavern, chapel or other service building in Hamlet lights the road tiles its next walker will cover.
 - A technical window (`F3`) shows frame times, the world and the tile under the pointer; windows drag by their title bar and close with their button or `Esc`.
 - Message clicks point an arrow at the place, and a double click opens its window. Separate volumes for ambience and effects, with synthesised sounds.
 - Hamlet villagers and carts now keep to the roads: a workshop whose road does not lead to the village entrance stays idle and says so, service walkers (market, fire, watch) go straight on and take turns at junctions, covering the houses within two tiles, and a store can be set to accept, refuse or only collect a good.

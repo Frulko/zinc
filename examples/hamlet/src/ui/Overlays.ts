@@ -1,7 +1,7 @@
 import { polygon, rect, height } from 'zinc:gfx';
 import { project } from '../pixel';
 import { world, tileX, tileY, tileI, tileJ, tileAt, neighbor, heightAt, footprint, rectEdge } from '../world/world';
-import { spanGap } from '../engine/services';
+import { spanGap, roamPreview } from '../engine/services';
 import { settings } from '../settings';
 import { sx, sy } from '../cite/geom';
 import { tileDiamond } from '../cite/draw';
@@ -119,6 +119,14 @@ export function drawReach(tool: number, hover: number): void {
     for (let d = 0; d < 4; d++) { const v = neighbor(seen[k], d); if (v >= 0 && world.road[v] && seen.indexOf(v) < 0) { seen.push(v); depth.push(depth[k] + 1); } }
   }
   for (const t of seen) { tint(t, GOLD, 90); for (let d = 0; d < 4; d++) { const v = neighbor(t, d); if (v >= 0 && !world.road[v] && world.terrain[v] === TERRAIN_GRASS) tint(v, GOLD, 45); } }
+}
+
+/** Hovering a built service building with a walker: the road tiles its next walker will cover. */
+export function drawRoute(tool: number, hover: number): void {
+  if (hover < 0 || (tool >= TOOL_HOUSE && tool < TOOL_ERASE)) return;
+  const id = world.build[hover];
+  if (id < 0 || !world.buildings[id].alive) return;
+  for (const t of roamPreview(world.buildings[id])) tint(t, GOLD, 110);
 }
 
 /** The overlay chooser, level with its button. */
