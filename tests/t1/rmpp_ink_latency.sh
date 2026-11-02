@@ -22,7 +22,7 @@ J
   : > "$d/input"
   ( cd "$d" && env "ZINC_RMPP_MACHINE=reMarkable Ferrari" ZINC_EINK=1 ZN_RMPP_SIM_POLLS=1 ZN_RMPP_SIM_APPLOAD=dock ZINC_RMPP_HEADER=remarkable \
       "ZN_RMPP_SIM_STROKE=80-180:300,1000:4" ZN_RMPP_SIM_OUT="$d/out" ZINC_STORAGE="$d/storage.kv" ZINC_DISPLAY=rmpp-sim QTFB_KEY=7 ZINC_HEADLESS=1 \
-      ZINC_BACKGROUND=1 ZINC_INPUT="$d/input" ZINC_FRAMES=260 "$@" timeout 200 "$ZINC" run "$d" >"$tmp/$label.log" 2>&1 ) || { echo "$label: run failed: $(tail -c 400 "$tmp/$label.log")"; fail=1; return 1; }
+      ZINC_BACKGROUND=1 ZINC_DETERMINISTIC=0 ZINC_INPUT="$d/input" ZINC_FRAMES=260 "$@" timeout 200 "$ZINC" run "$d" >"$tmp/$label.log" 2>&1 ) || { echo "$label: run failed: $(tail -c 400 "$tmp/$label.log")"; fail=1; return 1; }
   grep -q " 0 errors" "$d/out/trace.txt" || { echo "$label: the model reports errors"; grep error "$d/out/trace.txt" | head -3; fail=1; return 1; }
 }
 # stats <label>: "<updates inside the stroke> <largest pixels> <largest gap in ms between two of them>", from the first update after the 20th sample
