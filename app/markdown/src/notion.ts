@@ -22,6 +22,7 @@ function sleep(ms: i32): Promise<void> { return new Promise<void>((resolve) => {
 export class Notion {
   token: string;
   requests: i32 = 0;
+  private fetched: Map<string, any[]> = new Map<string, any[]>();   // the children read ahead by blocks(), until they are used
   constructor(token: string) { this.token = token; }
 
   private async get(path: string): Promise<any> {
@@ -58,6 +59,25 @@ export class Notion {
     return out;
   }
 
+  /** The children read ahead, or read now. */
+  private async childrenOf(id: string): Promise<any[]> {
+    const kept = this.fetched.get(id);
+    if (kept !== undefined) { this.fetched.delete(id); return kept as any[]; }
+    return await this.children(id);
+  }
+
+  /** Reads the children of these blocks ahead, 3 a second: Notion's limit, its answers then come no slower than one after the other. */
+  private async readAhead(ids: string[]): Promise<void> {
+    for (let i: i32 = 0; i < ids.length; i += 3) {
+      const wave = ids.slice(i, i + 3);
+      const started = Date.now();
+      const lists = await Promise.all(wave.map((id: string): Promise<any[]> => this.children(id)));
+      for (let k: i32 = 0; k < wave.length; k++) this.fetched.set(wave[k], lists[k]);
+      const spent = Date.now() - started;
+      if (i + 3 < ids.length && spent < 1000) await sleep((1000 - spent) as i32);
+    }
+  }
+
   /** The page `id` as Markdown: '# title', then its blocks. */
   async page(id: string): Promise<string[]> {
     const p = await this.get('/pages/' + id);
@@ -73,7 +93,13 @@ export class Notion {
   }
 
   private async blocks(id: string, indent: string, depth: i32, out: string[]): Promise<void> {
-    const list = await this.children(id);
+    const list = await this.childrenOf(id);
+    const nestedIds: string[] = [];
+    for (let i: i32 = 0; i < list.length; i++) {
+      const t: string = '' + list[i].type;
+      if (list[i].has_children === true && depth < MAX_DEPTH && t !== 'child_page' && t !== 'child_database') nestedIds.push('' + list[i].id);
+    }
+    await this.readAhead(nestedIds);
     let num: i32 = 1;
     for (let i: i32 = 0; i < list.length; i++) {
       const b = list[i];
@@ -117,7 +143,7 @@ export class Notion {
   }
 
   private async table(id: string, indent: string, out: string[]): Promise<void> {
-    const rows = await this.children(id);
+    const rows = await this.childrenOf(id);
     for (let r: i32 = 0; r < rows.length; r++) {
       const cells = rows[r].table_row.cells;
       const cs: string[] = [];

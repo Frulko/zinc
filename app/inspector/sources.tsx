@@ -72,9 +72,10 @@ async function showFrame(i: i32): Promise<void> {
   const f = fs[i];
   if (f.script !== script()) await openScript(f.script);
   const lines: ScopeLine[] = [];
+  const scopes = await Promise.all(f.scopes.map((s: string): Promise<any> => call('Runtime.getProperties', `{"objectId":${JSON.stringify(s)}}`)));
   for (let k = 0; k < f.scopes.length; k++) {
     lines.push(scopeLine(0, f.scopeNames[k], '', '', false));
-    for (const p of propsOf(await call('Runtime.getProperties', `{"objectId":${JSON.stringify(f.scopes[k])}}`))) lines.push(scopeLine(1, p.name, p.value, p.objectId, false));
+    for (const p of propsOf(scopes[k])) lines.push(scopeLine(1, p.name, p.value, p.objectId, false));
   }
   setScope(lines);
   await evalWatches();
@@ -97,13 +98,9 @@ async function unfold(at: i32): Promise<void> {
 }
 async function evalWatches(): Promise<void> {
   if (conn.c === null || !paused() || frames().length === 0) { setWatchVals([]); return; }
-  const out: string[] = [];
   const id = frames()[frameIx()].id;
-  for (const w of watches()) {
-    const r = await call('Debugger.evaluateOnCallFrame', `{"callFrameId":${JSON.stringify(id)},"expression":${JSON.stringify(w)}}`);
-    out.push(r.exceptionDetails !== undefined ? 'error: ' + remoteText(r.result) : remoteText(r.result));
-  }
-  setWatchVals(out);
+  const answers = await Promise.all(watches().map((w: string): Promise<any> => call('Debugger.evaluateOnCallFrame', `{"callFrameId":${JSON.stringify(id)},"expression":${JSON.stringify(w)}}`)));   // evaluated in this order
+  setWatchVals(answers.map((r: any): string => r.exceptionDetails !== undefined ? 'error: ' + remoteText(r.result) : remoteText(r.result)));
 }
 
 function SourceLine(p: { n: i32; text: string }): i32 {

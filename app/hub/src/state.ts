@@ -120,15 +120,17 @@ function iconPath(id: string): string { return HUB_DIR + '/apps/' + id + '/icon.
 
 /** The icons of the catalog's apps, cached next to the installs (HUB_DIR/apps/<id>/icon.png). */
 async function syncIcons(): Promise<void> {
-  for (const a of apps) {
+  const one = async (a: CatalogApp): Promise<void> => {
     const ch = shownChannel(a);
     const path = iconPath(a.id);
     if (ch !== null && (ch as CatalogChannel).icon !== '') {
       fs.mkdir(HUB_DIR + '/apps/' + a.id, true);
-      if (await fetchIcon(config, ch as CatalogChannel, path)) continue;
+      if (await fetchIcon(config, ch as CatalogChannel, path)) return;
     }
     if (fs.exists(path)) fs.remove(path);   // no icon, or one that does not check: the placeholder
-  }
+  };
+  const all = apps.slice(0);
+  for (let i = 0; i < all.length; i += 4) await Promise.all(all.slice(i, i + 4).map((a: CatalogApp): Promise<void> => one(a)));
 }
 
 /** The rows from the last catalog and what is installed; at start, before the server answers, the installed apps alone. */

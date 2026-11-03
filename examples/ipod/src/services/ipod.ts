@@ -61,8 +61,9 @@ export async function openRemote(address: string, token: string): Promise<PodLib
   await closePod();
   remote.connect(address, token);
   try {
-    cache.useIpod(await remote.readRemote());
-    return await cachedLibrary();
+    const device = await remote.readRemote();
+    cache.useIpod(device);
+    return await cachedLibrary(device);
   } catch (e) { remote.disconnect(); throw e; }
 }
 
@@ -76,18 +77,27 @@ async function marker(): Promise<string> {
   return '';
 }
 
-async function cachedLibrary(): Promise<PodLibrary> {
+/** The photo albums, none when the Photo Database is damaged: the music is still shown. */
+async function photoAlbumsOrNone(): Promise<ipod.PhotoAlbum[]> {
+  try { return await ipod.photoAlbums(); } catch (e) { return []; }
+}
+
+async function cachedLibrary(known: ipod.Device | null = null): Promise<PodLibrary> {
   const snap = cache.readSnapshot();
   if (snap === null) return await readLibrary();
   const s = snap as cache.LibrarySnapshot;
-  const device = isRemote() ? await remote.readRemote() : await ipod.info();   // the free space measured again
-  const lib = new PodLibrary(device, s.tracks, s.playlists, s.specs, [], []);
-  if (isRemote()) lib.remote = remote.remoteAddress();
-  else {
-    try { lib.photoAlbums = await ipod.photoAlbums(); } catch (e) { /* a damaged Photo Database: the music is still shown */ }
-    lib.extras = await ipod.extras();
+  let lib: PodLibrary;
+  let now: string;
+  if (isRemote()) {
+    const [device, mark] = await Promise.all([known !== null ? Promise.resolve(known as ipod.Device) : remote.readRemote(), marker()]);   // the free space measured again
+    lib = new PodLibrary(device, s.tracks, s.playlists, s.specs, [], []);
+    lib.remote = remote.remoteAddress();
+    now = mark;
+  } else {   // in one queue: the worker keeps this order and answers them without a turn of the loop for each
+    const [device, photoAlbums, extras, mark] = await Promise.all([ipod.info(), photoAlbumsOrNone(), ipod.extras(), marker()]);
+    lib = new PodLibrary(device, s.tracks, s.playlists, s.specs, photoAlbums, extras);
+    now = mark;
   }
-  const now = await marker();
   lib.stale = now === '' || now !== s.marker;
   return lib;
 }
@@ -98,17 +108,11 @@ export async function readLibrary(): Promise<PodLibrary> {
   const before = await marker();   // taken first: a change while it reads leaves the cache stale, never wrong
   let lib: PodLibrary;
   if (isRemote()) {   // no photos nor notes over /api yet
-    const device = await remote.readRemote();
-    lib = new PodLibrary(device, await remote.tracks(), await remote.playlists(), await remote.specs(), [], []);
+    const [device, tracks, playlists, specs] = await Promise.all([remote.readRemote(), remote.tracks(), remote.playlists(), remote.specs()]);
+    lib = new PodLibrary(device, tracks, playlists, specs, [], []);
     lib.remote = remote.remoteAddress();
   } else {
-    const device = await ipod.info();
-    const tracks = await ipod.tracks();
-    const playlists = await ipod.playlists();
-    const specs = await ipod.specs();
-    let photoAlbums: ipod.PhotoAlbum[] = [];
-    try { photoAlbums = await ipod.photoAlbums(); } catch (e) { /* a damaged Photo Database: the music is still shown */ }
-    const extras = await ipod.extras();
+    const [device, tracks, playlists, specs, photoAlbums, extras] = await Promise.all([ipod.info(), ipod.tracks(), ipod.playlists(), ipod.specs(), photoAlbumsOrNone(), ipod.extras()]);
     lib = new PodLibrary(device, tracks, playlists, specs, photoAlbums, extras);
   }
   if (before !== '') cache.writeSnapshot({ marker: before, device: lib.device, tracks: lib.tracks, playlists: lib.playlists, specs: lib.specs });

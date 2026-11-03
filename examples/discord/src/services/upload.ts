@@ -23,10 +23,12 @@ export async function uploadFiles(channelId: string, files: Upload[], v: Verdict
   const r: any = await request(v, 'POST', `/channels/${channelId}/attachments`, { files: ask });
   const out: any[] = [];
   if (r === null || !Array.isArray(r.attachments)) throw new Error('no upload address');
-  for (const a of r.attachments) {
-    const i = parseInt(`${a.id}`), f = files[i];
-    const put = await storagePut(v, a.upload_url, Blob.fromBytes(f.bytes, 'application/octet-stream'));
-    if (!put.ok) throw new Error(`${f.filename}: HTTP ${put.status}`);
+  const puts: Promise<Response>[] = [];
+  for (const a of r.attachments) puts.push(storagePut(v, a.upload_url, Blob.fromBytes(files[parseInt(`${a.id}`)].bytes, 'application/octet-stream')));
+  const done = await Promise.all(puts);
+  for (let k = 0; k < done.length; k++) {
+    const a = r.attachments[k], i = parseInt(`${a.id}`), f = files[i];
+    if (!done[k].ok) throw new Error(`${f.filename}: HTTP ${done[k].status}`);
     out.push({ id: `${i}`, filename: f.filename, uploaded_filename: a.upload_filename });
   }
   return out;

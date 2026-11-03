@@ -125,8 +125,7 @@ export function infoSections(r: any, ws: ThreadInfo[], where: string): Section[]
 
 /** Asks the program again: its card and its workers. */
 export async function loadInfo(): Promise<void> {
-  const r = await call('Zinc.getProgramInfo', '{}');
-  await loadThreads();
+  const [r] = await Promise.all([call('Zinc.getProgramInfo', '{}'), loadThreads()]);
   setSections(infoSections(r, threads(), device()));
   setInfoLoads(infoLoads() + 1);
 }

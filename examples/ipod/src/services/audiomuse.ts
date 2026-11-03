@@ -247,17 +247,24 @@ export function pathOf(d: Deep, from: string, to: string): DeepPath | null { for
 
 /** Asks AudioMuse the `n` songs closest in sound to each of `ids` not asked since the last sync, into `d` (kept in `dir`); the number
  *  asked. Throws when it does not answer (what was asked is kept). */
+const NEAR_AT_ONCE: i32 = 4;
 export async function fetchNear(c: Muse, dir: string, d: Deep, tracks: ipod.Track[], ids: string[], n: i32 = 50): Promise<i32> {
   const map = new IdMap(tracks);
   let asked: i32 = 0;
   try {
-    for (const id of ids) {
+    const want = ids.filter((id: string, at: i32): boolean => {
       const old = nearOf(d, id);
-      if (old !== null && (old as Near).at >= d.syncedAt) continue;
-      let j: any = [];
+      return ids.indexOf(id) === at && (old === null || (old as Near).at < d.syncedAt);
+    });
+    const ask = async (id: string): Promise<any> => {
       // a song it has not analysed (or not indexed yet, while an analysis runs): no near list until the next sync, the others go on
-      try { j = await call(c, 'GET', `/api/similar_tracks?item_id=${encodeURIComponent('tr-' + id)}&n=${n}&eliminate_duplicates=true`); }
-      catch (e) { if (!isNotFound(e as Error)) throw e; }
+      try { return await call(c, 'GET', `/api/similar_tracks?item_id=${encodeURIComponent('tr-' + id)}&n=${n}&eliminate_duplicates=true`); }
+      catch (e) { if (!isNotFound(e as Error)) throw e; return []; }
+    };
+    // NEAR_AT_ONCE: AudioMuse is a small Flask server
+    for (let w = 0; w < want.length; w += NEAR_AT_ONCE) await Promise.all(want.slice(w, w + NEAR_AT_ONCE).map(async (id: string): Promise<void> => {
+      const j = await ask(id);
+      const old = nearOf(d, id);
       const near: Near = { id: id, at: Math.floor(Date.now() / 1000), ids: [], dist: [] };
       const list = Array.isArray(j) ? j : [];
       for (let i = 0; i < list.length; i++) {
@@ -268,7 +275,7 @@ export async function fetchNear(c: Muse, dir: string, d: Deep, tracks: ipod.Trac
       if (old !== null) d.near.splice(d.near.indexOf(old as Near), 1);
       d.near.push(near);
       asked++;
-    }
+    }));
   } finally { if (asked > 0) writeDeep(dir, d); }
   return asked;
 }

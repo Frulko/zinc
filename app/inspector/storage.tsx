@@ -67,16 +67,14 @@ kv.onDelete = (): void => { deleteSelected(); };
 
 /** Attached: the key/values (and their events from now on) and the open databases with their tables. */
 export async function loadStorage(): Promise<void> {
-  await call('DOMStorage.enable', '{}');
-  await readItems();
+  const [, , d] = await Promise.all([call('DOMStorage.enable', '{}'), readItems(), call('ZincSqlite.getDatabases', '{}')]);   // answered in this order
   if (items().filter((i: Item) => i.key.startsWith(ASYNC)).length === 0 && items().length > 0) setNode('kv:zinc');
-  const d = await call('ZincSqlite.getDatabases', '{}');
   const l: Db[] = [];
   if (d.databases !== undefined) for (const x of d.databases) { const b = new Db(); b.id = x.id; b.path = x.path; l.push(b); }
-  for (const b of l) {
+  await Promise.all(l.map(async (b: Db): Promise<void> => {
     const r = await query(b.id, "SELECT name FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY name", false, 1000);
     b.tables = r.rows.map((c: Cell[]) => c[0].text);
-  }
+  }));
   setDbs(l);
   if (l.length > 0) setDb(l[0].id);
 }
@@ -122,15 +120,14 @@ export async function deleteItem(k: string): Promise<boolean> {
 }
 /** The rows selected deleted (Delete key, the toolbar). */
 export async function deleteSelected(): Promise<boolean> {
-  let ok = true;
-  for (const k of kv.selected()) if (k !== NEW && !(await deleteItem(k))) ok = false;
+  const done = await Promise.all(kv.selected().filter((k: string) => k !== NEW).map((k: string): Promise<boolean> => deleteItem(k)));
   kv.setSelected([]);
-  return ok;
+  return done.indexOf(false) < 0;
 }
 /** The store shown cleared: its keys only (Chrome's Clear all), the other store kept. */
 export async function clearItems(): Promise<boolean> {
-  let ok = true;
-  for (const i of kvList()) if (i.key !== NEW && !(await deleteItem(i.key))) ok = false;
+  const done = await Promise.all(kvList().filter((i: Item) => i.key !== NEW).map((i: Item): Promise<boolean> => deleteItem(i.key)));
+  const ok = done.indexOf(false) < 0;
   setStatus(ok ? 'storage cleared' : 'storage not cleared');
   return ok;
 }

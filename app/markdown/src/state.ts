@@ -113,19 +113,21 @@ async function fetchPictures(tree: md.Node, path: string): Promise<void> {
   if (path !== '') say('Loading ' + want.length.toString() + ' picture' + (want.length === 1 ? '' : 's') + '…');
   fs.mkdir(DATA_DIR + '/pictures', true);
   let got: i32 = 0;
-  for (const u of want) {
+  const one = async (u: string): Promise<void> => {
     triedPictures.push(u);
     try {
       const r = await net.fetch(u, { timeoutMs: REQUEST_TIMEOUT_MS });
-      if (!r.ok) { console.log('read: picture ' + u + ': ' + r.status.toString()); continue; }
+      if (!r.ok) { console.log('read: picture ' + u + ': ' + r.status.toString()); return; }
       const b = await r.bytes();
-      if (b.length === 0 || b.length > MAX_PICTURE_BYTES) continue;
+      if (b.length === 0 || b.length > MAX_PICTURE_BYTES) return;
       const p = cachedPicture(u);
       fs.writeBytes(p + '.part', b);
       fs.rename(p + '.part', p);
       got++;
     } catch (e) { console.log('read: picture ' + u + ': ' + e.message); }
-  }
+  };
+  // 4 at once: at most 64 MB of pictures in memory on a small tablet
+  for (let i = 0; i < want.length; i += 4) await Promise.all(want.slice(i, i + 4).map((u: string): Promise<void> => one(u)));
   if (path !== '' && doc.path === path) {
     if (got > 0) relayout();
     say(got === want.length ? 'Pictures loaded.' : got.toString() + ' of ' + want.length.toString() + ' pictures loaded (no network?).');

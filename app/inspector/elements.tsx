@@ -187,19 +187,17 @@ export async function loadDocument(): Promise<void> {
   const m = new Map<i32, TNode>(), r: TNode[] = [];
   if (d.root !== undefined) build(d.root, null, m, r);
   byId = m; roots = r;
-  await refreshRendered(true);
-  await refreshStage();
+  await Promise.all([refreshRendered(true), refreshStage()]);
 }
 /** The selected zinc:stage node's values read again (DOM.getAttributes) with its box: a moving node's x, y... follow in the Styles pane. */
 export async function refreshStage(): Promise<void> {
   const id = target(), n = nodeOf(id);
   if (n === null || !(n as TNode).stage) return;
-  const r = await call('DOM.getAttributes', `{"nodeId":${id}}`);
+  const [r, b] = await Promise.all([call('DOM.getAttributes', `{"nodeId":${id}}`), call('DOM.getBoxModel', `{"nodeId":${id}}`)]);
   if (r.attributes === undefined) return;
   stageValues(n as TNode, r.attributes);
   const a = (n as TNode).attrs;
   if (a.join('\u0001') !== stageAttrs().join('\u0001')) setStageAttrs(a.slice(0));
-  const b = await call('DOM.getBoxModel', `{"nodeId":${id}}`);
   if (b.model !== undefined) { const w: number = b.model.width; const h: number = b.model.height; if (box() !== w + ' × ' + h) setBox(w + ' × ' + h); }
 }
 /** The nodes that draw nothing (Zinc.getUnrendered); the rows are built again when they changed (or when `always`). */
@@ -302,16 +300,17 @@ export async function select(at: i32): Promise<void> {
 export async function readStyles(): Promise<void> {
   const id = target();
   if (id < 0) { setStyles([]); setBox(''); setBoxLines([]); setRules([]); setClasses([]); setDecls([]); setStageAttrs([]); return; }
-  if (cssProps().length === 0) await loadCssProps();
   const sn = nodeOf(id);
   setStageAttrs(sn !== null && (sn as TNode).stage ? (sn as TNode).attrs.slice(0) : []);
-  const computed = await call('CSS.getComputedStyleForNode', `{"nodeId":${id}}`);
+  const [computed, b, m] = await Promise.all([
+    call('CSS.getComputedStyleForNode', `{"nodeId":${id}}`), call('DOM.getBoxModel', `{"nodeId":${id}}`), call('CSS.getMatchedStylesForNode', `{"nodeId":${id}}`),
+    cssProps().length === 0 ? loadCssProps() : Promise.resolve(), readChanges(),
+  ]);
+  if (target() !== id) return;   // another node was selected meanwhile: its own read fills the panes
   const lines = styleLines(computed);
   setStyles(lines);
-  const b = await call('DOM.getBoxModel', `{"nodeId":${id}}`);
   if (b.model !== undefined) { const w: number = b.model.width; const h: number = b.model.height; setBox(w + ' × ' + h); } else setBox('');
   setBoxLines(boxModel(lines, box()));
-  const m = await call('CSS.getMatchedStylesForNode', `{"nodeId":${id}}`);
   setRules(ruleLines(m));
   const i = inlineOf(m.inlineStyle);
   setInline(i);
@@ -319,7 +318,6 @@ export async function readStyles(): Promise<void> {
   setDecls((declsOf.get(id) as Decl[]).slice(0));
   const off = offClasses.get(id), on = onClasses();
   setClasses(on.concat(off !== undefined ? off : []));
-  await readChanges();
 }
 /** The box model as Chrome draws it, in lines: margin, border, padding, content. */
 function boxModel(lines: string[], size: string): string[] {

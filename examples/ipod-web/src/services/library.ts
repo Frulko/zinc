@@ -122,8 +122,9 @@ export function guidOf(d: ipod.Device): string {
 
 /** Reads the tracks and playlists of the open iPod again (after a change). */
 export async function load(): Promise<void> {
-  lib.tracks = await ipod.tracks();
-  lib.playlists = await ipod.playlists();
+  const [tracks, playlists] = await Promise.all([ipod.tracks(), ipod.playlists()]);
+  lib.tracks = tracks;
+  lib.playlists = playlists;
   indexLibrary();
 }
 

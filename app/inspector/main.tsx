@@ -253,17 +253,14 @@ async function attach(t: Target, again: string = ''): Promise<void> {
     setStatus('attached: set breakpoints, then Run');
     return;
   }
-  const info = await call('Zinc.getInfo', '{}');
+  const [info] = await Promise.all([call('Zinc.getInfo', '{}'), pauseApp('Zinc.getPaused', '{}')]);
   setDevRun(info.dev !== undefined && info.dev === true);
-  await pauseApp('Zinc.getPaused', '{}');
   setInfoDevice(t.device);   // the Info view first (a debugger target opens on Sources above)
   setView(again.length > 0 ? again : 'info');
   watchInfo();
-  await call('Network.enable', '{}');   // the requests made before the attach come too
   const sel = selected();
-  await loadDocument();
+  await Promise.all([call('Network.enable', '{}'), loadDocument(), loadStorage()]);   // Network: the requests made before the attach come too
   if (again.length > 0 && sel >= 0 && nodeOf(sel) !== null) await select(sel);   // the same node, when the new run has it
-  await loadStorage();
   if (again === 'screen') screen(true);
   setStatus(again.length > 0 ? 'attached again: ' + t.name() + ' restarted' : 'attached');
 }

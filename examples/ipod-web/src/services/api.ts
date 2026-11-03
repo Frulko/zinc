@@ -137,7 +137,7 @@ async function update(req: net.Request): Promise<net.Reply> {
   // the whitelist: a client never names a file of the daemon's disk (the song's file, its cover); JSON.parse keeps what the client sent
   const patch: ipod.TrackInput = { ...body.patch, file: '' };
   patch.artworkFile = undefined;
-  for (const id of body.ids) await ipod.update(id, patch);
+  await Promise.all(body.ids.map((id: string): Promise<ipod.Track> => ipod.update(id, patch)));   // the worker keeps this order
   await ipod.save();
   await load();
   return jsonReply(200, `{"updated": ${body.ids.length}}`);

@@ -52,9 +52,9 @@ export async function discover(ports: i32[], announced: boolean): Promise<Target
       } catch (e) { remove(path); }
     }
   } catch (e) { /* no folder yet */ }
-  const out: Target[] = [];
-  for (let i = 0; i < all.length; i++) {
+  const ask = async (i: i32): Promise<Target[]> => {   // a port that hangs delays nobody
     const port = all[i];
+    const out: Target[] = [];
     let found = false;
     try {
       const res = await fetch(`http://127.0.0.1:${port}/json/list`);
@@ -72,7 +72,12 @@ export async function discover(ports: i32[], announced: boolean): Promise<Target
       }
     } catch (e) { /* nothing there */ }
     if (!found && files[i].length > 0) remove(files[i]);
-  }
+    return out;
+  };
+  const asked: Promise<Target[]>[] = [];
+  for (let i = 0; i < all.length; i++) asked.push(ask(i));
+  const out: Target[] = [];
+  for (const l of await Promise.all(asked)) for (const t of l) out.push(t);
   return out;
 }
 

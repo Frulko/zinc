@@ -45,6 +45,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - Large software-rendered shadows reserve memory for the distinct alpha rows they use, instead of their entire area.
 - Compiled apps release the encoded module before execution and copy only the required arguments when calling native plugins. Native calls allocate temporary array storage only when they need it.
 - The Sonos plugin reads a group and its rooms in parallel, so polling takes a fraction of the time; a new `eachGroup` runs work over groups, three at a time.
+- The inspector, the Markdown reader's Notion sync and pictures, Zinc Hub's icons, Discord file uploads and iPod library loads no longer wait for one request at a time.
 
 #### Fixed
 

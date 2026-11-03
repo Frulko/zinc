@@ -217,13 +217,15 @@ async function show(v: View, fresh: boolean = false): Promise<string> {
   if (v.key() === shown && !fresh) return info;
   const again = v.key() === shown;
   shown = '';
-  await chrome.call('Emulation.setDeviceMetricsOverride', '{"width":' + Math.round(v.w / v.dpr).toString() + ',"height":' + Math.round(v.h / v.dpr).toString() +
-    ',"deviceScaleFactor":' + v.dpr.toString() + ',"mobile":false}');
-  // grey: what the page looks like to someone who sees no colour, which keeps the contrast of the colours (Chrome's achromatopsia)
-  await chrome.call('Emulation.setEmulatedVisionDeficiency', '{"type":' + (v.mode === 'grey' ? '"achromatopsia"' : '"none"') + '}');
-  // the e-ink style asks the page itself first: light scheme, no motion, more contrast (sites that honour these do it best)
-  await chrome.call('Emulation.setEmulatedMedia', v.style !== 'page' ? '{"features":[{"name":"prefers-color-scheme","value":"light"},' +
-    '{"name":"prefers-reduced-motion","value":"reduce"},{"name":"prefers-contrast","value":"more"}]}' : '{"features":[]}');
+  await Promise.all([
+    chrome.call('Emulation.setDeviceMetricsOverride', '{"width":' + Math.round(v.w / v.dpr).toString() + ',"height":' + Math.round(v.h / v.dpr).toString() +
+      ',"deviceScaleFactor":' + v.dpr.toString() + ',"mobile":false}'),
+    // grey: what the page looks like to someone who sees no colour, which keeps the contrast of the colours (Chrome's achromatopsia)
+    chrome.call('Emulation.setEmulatedVisionDeficiency', '{"type":' + (v.mode === 'grey' ? '"achromatopsia"' : '"none"') + '}'),
+    // the e-ink style asks the page itself first: light scheme, no motion, more contrast (sites that honour these do it best)
+    chrome.call('Emulation.setEmulatedMedia', v.style !== 'page' ? '{"features":[{"name":"prefers-color-scheme","value":"light"},' +
+      '{"name":"prefers-reduced-motion","value":"reduce"},{"name":"prefers-contrast","value":"more"}]}' : '{"features":[]}'),
+  ]);
   const loaded = chrome.event('Page.loadEventFired', LOAD_TIMEOUT_MS);
   const nav = await chrome.call(again ? 'Page.reload' : 'Page.navigate', again ? '{"ignoreCache":true}' : '{"url":' + JSON.stringify(v.url) + '}');
   if (nav.errorText !== undefined && ('' + nav.errorText) !== '') throw new Error('cannot load ' + v.url + ': ' + ('' + nav.errorText));
