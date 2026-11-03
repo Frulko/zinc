@@ -27,7 +27,16 @@ extern void (*mirror_present)(const HalFrame* f);
 extern void (*first_present)();
 extern void (*dev_restart)();
 extern int32_t (*wall_minute)();
+extern bool mirror_watching;   // a live viewer is connected (src/host/mirror.cpp)
+static bool layers_on = false;   // the driver was given layers at the last frame
+static bool shot_watch = false;   // a screenshot request waits for the frame to be drawn without hardware layers
+/** The screen is watched (a live viewer, a screenshot): hardware layers are off, so the frame has every pixel of the screen. */
+bool screen_watched() { return shot_watch || mirror_watching; }
+/** A picture in device memory is shown by a hardware layer now (the display has them, and nobody watches the screen). */
+bool layers_usable() { return display_driver && hal_display->layers && !screen_watched(); }
+bool idle_frame = false;
 static void present(const HalFrame* f) {
+  idle_frame = !f->move && (f->x1 <= f->x0 || f->y1 <= f->y0);
   if (display_driver) hal_display->present(f); else hal_present(f);
   if (mirror_present) mirror_present(f);
   if (first_present) { void (*f1)() = first_present; first_present = nullptr; f1(); }
@@ -1198,14 +1207,17 @@ static void after_present() {
   // ZINC_SHOT_REQUEST=<file> (zinc device screen): the file names where to write the frame shown now, as PNG; emptied once written. Read
   // every 10 frames, idle ones included (a retained frame is presented too), so the screen answers however still it is.
   static const char* request = hal_env("ZINC_SHOT_REQUEST");
-  if (request && *request && n % 10 == 0) {
+  static int32_t shot_at = -1;
+  if (request && *request && (n % 10 == 0 || shot_at >= 0)) {
     char to[1024];
     size_t got = 0;
     if (void* f = zrt_host_open(request, "rb")) { got = zrt_host_io(f, to, sizeof to - 1, 0); zrt_host_close(f); }
     while (got && (to[got - 1] == '\n' || to[got - 1] == '\r')) got--;
-    if (got) {
+    if (got && layers_on && shot_at < 0) { shot_watch = true; shot_at = n + 3; }   // layers off first: the frame redrawn in software is what is saved
+    else if (got && n >= shot_at) {
       to[got] = 0;
       save(to);
+      shot_watch = false; shot_at = -1;
       if (void* f = zrt_host_open(request, "wb")) zrt_host_close(f);   // done: the agent waits for an empty request
     }
   }
@@ -1300,7 +1312,6 @@ static void to_physical(Buf& b, uint32_t from = 0) {   // from: the first plugin
 // without layers) is the software one, from the picture's pixels, which its owner fills when asked: the frame is the same either way.
 // ZINC_LAYER_LOG=1 says on stderr where each picture goes, at each change.
 static struct { uint32_t cmd; HalLayer at; raster::Picture* pic; } lay[HAL_MAX_LAYERS];
-static bool layers_on = false;   // the driver was given layers at the last frame
 static bool is_picture(const Buf& b, const Cmd& c) { return c.kind == raster::IMAGE || (c.kind == raster::XFORM && (uint8_t)b.pts[c.off] == raster::IMAGE); }
 static void layer_log(const char* where) {
   static const bool on = hal_env("ZINC_LAYER_LOG") != nullptr;
@@ -1326,7 +1337,7 @@ static void soft_pictures(Buf& b, uint32_t from) {
 }
 static void place_layers(Buf& b) {
   nlay = 0;
-  const bool can = display_driver && hal_display->layers;
+  const bool can = layers_usable();
   HalLayer offer[HAL_MAX_LAYERS];
   int32_t n = 0;
   for (uint32_t i = 0; raster::dyn_pictures && i < b.ncmd; i++) {
@@ -1360,7 +1371,7 @@ static bool layers_again(Buf& b) {
   HalLayer offer[HAL_MAX_LAYERS];
   bool same = true;
   for (int32_t k = 0; k < nlay; k++) { offer[k] = lay[k].at; if (raster::dyn_picture(b.cmds[lay[k].cmd].res) != lay[k].pic) same = false; }
-  if (same && nlay && hal_display->layers(offer, nlay) == (1u << nlay) - 1) return false;
+  if (!screen_watched() && same && nlay && hal_display->layers(offer, nlay) == (1u << nlay) - 1) return false;
   hal_display->layers(offer, 0);
   layers_on = false; nlay = 0;
   for (uint32_t i = 0; i < b.ncmd; i++) if (b.cmds[i].kind == raster::IMAGE && (b.cmds[i].pad & raster::kImageLayer)) {

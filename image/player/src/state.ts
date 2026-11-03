@@ -12,6 +12,7 @@ import * as shell from 'zinc:shell';
 import {
   BACKGROUND_THEMES,
   CLOCK_INTERVAL_MS,
+  POWER_INTERVAL_MS,
   CRASH_REPORT_FILE,
   DEFAULT_ADMIN_PATH,
   DEFAULT_APP_PATH,
@@ -35,6 +36,7 @@ import { CrashReport, deleteCrashReport, readCrashReport } from './services/cras
 import { PairingState, readPairingState } from './services/pairing';
 import { AdminResult, SystemStatus, parseStatus, runAdmin, statusFromOs } from './services/system';
 import { PlayerConfig, loadConfig, saveConfig } from './services/config';
+import { PowerState, findAlarm, readPower } from './services/power';
 import { UpdateStatus } from './services/updates';
 import { InstalledApp, appsSignature, deleteInstalledApp, readInstalledApps } from './services/apps';
 
@@ -93,6 +95,8 @@ class AppState {
   /** The app whose deletion waits for its confirmation. */
   appToDelete: InstalledApp | null = null;
   status: SystemStatus = new SystemStatus();
+  /** The Pi's under-voltage alarm (nothing on other machines). */
+  power: PowerState = new PowerState();
   network: network.NetworkStatus = new network.NetworkStatus();
   pairing: PairingState = new PairingState();
   networks: network.WifiNetwork[] = [];
@@ -244,6 +248,13 @@ export function startRefreshing(): void {
     // while the boot starts, the home page follows what it is doing at the settings' pace
     if (appState.page === PAGE_SETTINGS || appState.status.isStarting() || refreshTicks % (PAGE_REFRESH_INTERVAL_MS / SETTINGS_REFRESH_INTERVAL_MS) === 0) refreshSystem();
   }, SETTINGS_REFRESH_INTERVAL_MS);
+  appState.power.alarmPath = findAlarm(fromEnv('ZINC_POWER_SYSFS', '/sys'));
+  if (appState.power.isPresent()) {
+    readPower(appState.power);
+    setInterval(() => {
+      if (readPower(appState.power)) uiState.dirty = true;
+    }, POWER_INTERVAL_MS);
+  }
   setInterval(() => {
     const text = currentClockText();
     if (text !== appState.clockText) {
@@ -367,6 +378,14 @@ export function followConnectedApp(): void {
   navigateTo(PAGE_APP);
 }
 
+/** ZINC_PLAYER_START_PAGE=settings:<section> | apps | hub: opens that page at the start (tests, captures at other sizes). */
+export function openStartPage(): void {
+  const page = sys.env('ZINC_PLAYER_START_PAGE');
+  if (page.startsWith('settings:')) openSettings(page.substring(9));
+  else if (page === 'apps') navigateTo(PAGE_APPS);
+  else if (page === 'hub') navigateTo(PAGE_HUB);
+}
+
 /** The shell's start: zinc-session (ZINC_SHELL=1) leaves the boot app to it (ZINC_BOOT_APP=1, not during an update). */
 export function startShell(): void {
   if (!isShell) return;
@@ -463,6 +482,20 @@ export function setAgentEnabled(isOn: boolean): void {
 
 export function setSshEnabled(isOn: boolean): void {
   runAction('ssh', ['ssh', isOn ? 'on' : 'off'], '', (result: AdminResult) => {
+    reportFailure(result);
+  });
+}
+
+/** The screen turn in degrees clockwise (ZINC_ROTATE, which the session gives the player). */
+export function screenRotation(): number {
+  const degrees = parseInt(sys.env('ZINC_ROTATE'), 10);
+  return degrees === 90 || degrees === 180 || degrees === 270 ? degrees : 0;
+}
+
+/** Saves the rotation in session.conf; the session starts again, so the player comes back turned. */
+export function setScreenRotation(degrees: number): void {
+  if (degrees === screenRotation()) return;
+  runAction('rotation', ['rotation', degrees + ''], '', (result: AdminResult) => {
     reportFailure(result);
   });
 }

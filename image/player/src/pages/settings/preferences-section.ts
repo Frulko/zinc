@@ -2,7 +2,7 @@
 // pages/settings/preferences-section.ts — The home page's background and animation, the keyboard's letters
 // ============================================================================
 
-import { border, gradient } from 'zinc:gfx';
+import { border, gradient, rrect } from 'zinc:gfx';
 import {
   BACKGROUND_THEMES,
   COLOR_FOCUS_RING,
@@ -14,7 +14,7 @@ import {
 } from '../../constants';
 import { Fonts } from '../../fonts';
 import { DisplayObject } from '../../core/display';
-import { isZoneFocused, registerTapZone } from '../../core/input';
+import { isZoneFocused, isZonePressed, registerTapZone } from '../../core/input';
 import { appState, setAnimationEnabled, setBackgroundTheme, setKeyboardLayout } from '../../state';
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, SWITCH_HEIGHT, SWITCH_WIDTH, drawButton, drawSwitch } from '../../components/buttons';
 import { drawCenteredText, drawLabel } from '../../components/primitives';
@@ -44,6 +44,7 @@ export class PreferencesSectionNode extends DisplayObject {
       const swatchX = x + index * (SWATCH_WIDTH + SWATCH_GAP);
       const zoneId = 'pref/theme/' + index;
       gradient(swatchX, cursorY, SWATCH_WIDTH, SWATCH_HEIGHT, 12, theme.topColor, theme.bottomColor, true, 255);
+      if (isZonePressed(zoneId)) rrect(swatchX, cursorY, SWATCH_WIDTH, SWATCH_HEIGHT, 12, 0x000000, 70);
       if (appState.config.backgroundTheme === index) border(swatchX - 4, cursorY - 4, SWATCH_WIDTH + 8, SWATCH_HEIGHT + 8, 15, 3, COLOR_TEXT_PRIMARY, 255);
       else if (isZoneFocused(zoneId)) border(swatchX - 4, cursorY - 4, SWATCH_WIDTH + 8, SWATCH_HEIGHT + 8, 15, 2, COLOR_FOCUS_RING, 255);
       drawCenteredText(Fonts.small, swatchX + SWATCH_WIDTH / 2, cursorY + SWATCH_HEIGHT + 8, theme.name, COLOR_TEXT_SECONDARY);
@@ -51,7 +52,7 @@ export class PreferencesSectionNode extends DisplayObject {
     }
     cursorY += SWATCH_HEIGHT + 40;
 
-    drawSettingRow('pref/animation-row', x, cursorY, width, 'Animation', 'Slow shapes behind the home page; off saves power on a Pi 3',
+    drawSettingRow('pref/animation-row', x, cursorY, width, 'Animation', 'Slow background shapes; off saves power',
       SWITCH_WIDTH);
     drawSwitch('pref/animation', x + width - 16 - SWITCH_WIDTH, cursorY + (ROW_HEIGHT - SWITCH_HEIGHT) / 2, appState.config.animation,
       () => setAnimationEnabled(!appState.config.animation));

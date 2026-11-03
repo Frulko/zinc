@@ -66,6 +66,11 @@ using WebPInfoFn = int (*)(const uint8_t*, size_t, int*, int*);
 using WebPDecodeFn = uint8_t* (*)(const uint8_t*, size_t, int*, int*);
 WebPInfoFn webpInfo() { static auto f = reinterpret_cast<WebPInfoFn>(dlsym(RTLD_DEFAULT, "WebPGetInfo")); return f; }
 WebPDecodeFn webpDecode() { static auto f = reinterpret_cast<WebPDecodeFn>(dlsym(RTLD_DEFAULT, "WebPDecodeRGBA")); return f; }
+// the fast-load image zinc pack makes of a large PNG (src/res/codec.cpp, "ZNI1"): the engine decodes it, this plugin asks it to
+using FastDecodeFn = uint8_t* (*)(const uint8_t*, size_t, int*, int*);
+FastDecodeFn fastDecode() { static auto f = reinterpret_cast<FastDecodeFn>(dlsym(RTLD_DEFAULT, "zn_decode_fast_image")); return f; }
+bool isZni(const uint8_t* d, size_t n) { return n > 12 && !memcmp(d, "ZNI1", 4); }
+bool isZniFile(const std::string& path) { uint8_t h[4] = {0}; FILE* f = fopen(path.c_str(), "rb"); if (!f) return false; const size_t n = fread(h, 1, 4, f); fclose(f); return n == 4 && !memcmp(h, "ZNI1", 4); }
 void webpFree(void* p) { static auto f = reinterpret_cast<void (*)(void*)>(dlsym(RTLD_DEFAULT, "WebPFree")); if (f) f(p); else free(p); }
 
 // the portable reader first: in a deterministic run (the same pixels on every machine), or when ZINC_IMAGEIO=portable; ZINC_IMAGEIO=system
@@ -98,6 +103,7 @@ bool readFile(const std::string& path, std::vector<uint8_t>& out, size_t limit =
   return true;
 }
 std::string sniff(const uint8_t* d, size_t n) {
+  if (isZni(d, n)) return "png";   // a packed PNG: still a PNG for the program, whatever the container
   if (n >= 3 && d[0] == 0xFF && d[1] == 0xD8 && d[2] == 0xFF) return "jpeg";
   if (n >= 8 && !memcmp(d, "\x89PNG\r\n\x1a\n", 8)) return "png";
   if (n >= 6 && (!memcmp(d, "GIF87a", 6) || !memcmp(d, "GIF89a", 6))) return "gif";
@@ -143,6 +149,10 @@ bool portableInfo(const uint8_t* d, size_t n, Meta& m) {
       p += 8 + len + (len & 1);
     }
     return true;
+  }
+  if (isZni(d, n)) {   // the size is in the header; a pack keeps no metadata of the PNG
+    m.w = (int)le32(d + 4); m.h = (int)le32(d + 8);
+    return m.w > 0 && m.h > 0;
   }
   if (m.format != "jpeg" && m.format != "png" && m.format != "gif" && m.format != "bmp") return false;
   if (!stbi_info_from_memory(d, (int)std::min<size_t>(n, 0x7fffffff), &m.w, &m.h, &c)) return false;
@@ -306,7 +316,7 @@ bool readInfo(const std::string& path, Meta& m) {
   if (stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) return false;
   m.size = (long long)st.st_size;
 #ifdef __APPLE__
-  if (!portableFirst()) return appleInfo(path, m);
+  if (!portableFirst() && !isZniFile(path)) return appleInfo(path, m);
 #endif
   std::vector<uint8_t> head;
   if (!readFile(path, head, 1 << 20)) return false;   // the header and the EXIF block lie in the first megabyte
@@ -355,11 +365,12 @@ bool portableDecode(const std::string& path, int side, Pixels& out, std::string&
   Meta m;
   if (!portableInfo(f.data(), f.size(), m)) { why = "imageio: not an image it can read: " + path; return false; }
   uint8_t* d = nullptr;
-  if (m.format == "webp") d = webpDecode() ? webpDecode()(f.data(), f.size(), &out.w, &out.h) : nullptr;
+  if (isZni(f.data(), f.size())) d = fastDecode() ? fastDecode()(f.data(), f.size(), &out.w, &out.h) : nullptr;
+  else if (m.format == "webp") d = webpDecode() ? webpDecode()(f.data(), f.size(), &out.w, &out.h) : nullptr;
   else { int c = 0; d = stbi_load_from_memory(f.data(), (int)f.size(), &out.w, &out.h, &c, 4); }
   if (!d) { why = "imageio: cannot decode " + path; return false; }
   out.rgba.assign(d, d + (size_t)out.w * out.h * 4);
-  if (m.format == "webp") webpFree(d); else stbi_image_free(d);
+  if (isZni(f.data(), f.size())) free(d); else if (m.format == "webp") webpFree(d); else stbi_image_free(d);
   fit(out, side);
   orient(out, m.orient);
   return true;
@@ -390,7 +401,7 @@ bool portableFrames(const std::string& path, int side, int most, std::vector<Pix
 }
 bool decodeFrames(const std::string& path, int side, int most, std::vector<Pixels>& out, std::vector<int>& delays, std::string& why) {
 #ifdef __APPLE__
-  if (!portableFirst()) return appleFrames(path, side, most, out, delays, why);
+  if (!portableFirst() && !isZniFile(path)) return appleFrames(path, side, most, out, delays, why);
   return portableFrames(path, side, most, out, delays, why) || appleFrames(path, side, most, out, delays, why);
 #else
   return portableFrames(path, side, most, out, delays, why);
@@ -398,7 +409,7 @@ bool decodeFrames(const std::string& path, int side, int most, std::vector<Pixel
 }
 bool decode(const std::string& path, int side, Pixels& out, std::string& why) {
 #ifdef __APPLE__
-  if (!portableFirst()) return appleDecode(path, side, out, why);
+  if (!portableFirst() && !isZniFile(path)) return appleDecode(path, side, out, why);
   return portableDecode(path, side, out, why) || appleDecode(path, side, out, why);
 #else
   return portableDecode(path, side, out, why);

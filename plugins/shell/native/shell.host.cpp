@@ -37,6 +37,7 @@ static char** env_now() { return environ; }
 
 namespace zrt {
 extern int32_t surf_w, surf_h, frame_no;
+bool layers_usable();
 extern bool display_driver;
 extern void (*shell_input)(HalInput* in);
 }
@@ -145,7 +146,8 @@ bool dumb_buffers(Client& c, int32_t w, int32_t h) {
   if (dri == -2) {
     dri = -1;
     const char* e = getenv("ZINC_SHELL_DMABUF");
-    const bool off = e && *e == '0';
+    const char* r = getenv("ZINC_ROTATE");
+    const bool off = (e && *e == '0') || (r && (r[0] == '9' || r[0] == '1' || r[0] == '2'));   // a turned screen has no plane to show them: shared memory
     for (int k = 0; k < 4 && dri < 0 && !off; k++) {
       char path[32];
       snprintf(path, sizeof path, "/dev/dri/card%d", k);
@@ -414,7 +416,7 @@ struct HostShell : NativeShell, zrt::Poller {
   zrt::String title() override { return zs(shown.fd >= 0 ? shown.title : ""); }
   int32_t image() override { return shown.fd >= 0 ? shown.img : -1; }
   int32_t barHeight() override { return bar_height(); }
-  bool onPlane() override { return shown.fd >= 0 && shown.dmabuf && shown.img >= 0; }
+  bool onPlane() override { return shown.fd >= 0 && shown.dmabuf && shown.img >= 0 && zrt::layers_usable(); }
   void setMode(int32_t m) override { mode = m; serial_no++; }
   bool responding() override { return shown.fd < 0 || now() - shown.pong_at < 6000; }
   int32_t serial() override { return (int32_t)serial_no; }

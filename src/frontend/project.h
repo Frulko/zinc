@@ -18,6 +18,7 @@ struct AssetRule { std::string match, as; std::map<std::string, std::string> opt
 struct AssetGroup { std::string name; std::vector<std::string> include, exclude; int priority = 0; };
 struct Assets {
   std::string dir = "assets";                       // `"assets": "dir"` or `assets.dir`
+  bool optimize = true;                             // `assets.optimize`: zinc pack turns large PNGs into fast-load images (res/codec.h)
   std::vector<AssetRule> rules;
   std::vector<AssetGroup> groups;                   // in the manifest's order: the first group that includes an asset takes it
   std::map<std::string, AssetProfile> profiles;

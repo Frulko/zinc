@@ -108,6 +108,7 @@ bool launch(Program& p, const std::string& self, const std::string& dir, const s
     vars.emplace_back("ZINC_DISPLAY", "shell");
     vars.emplace_back("ZINC_SHELL_SOCKET", shell);
     vars.emplace_back("ZINC_APP_NAME", name.empty() ? "dev" : name);
+    if (const char* shot = std::getenv("ZINC_SHOT_REQUEST"); shot && *shot) vars.emplace_back("ZINC_SHOT_REQUEST", fs::path(shot).parent_path().string() + "/app/shot.request");   // the screen is the shell's (see startApp)
   }
   std::vector<std::string> env = environment(vars);
   const std::vector<char*> argvp = pointers(argv), envp = pointers(env);

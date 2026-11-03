@@ -155,6 +155,7 @@ bool parseGameKeys(yyjson_val* root, const std::string& text, Project& out, std:
     if (yyjson_is_obj(as)) yyjson_obj_foreach(as, i, n, k, v) {
       const std::string key = yyjson_get_str(k);
       if (key == "dir") { if (str(v).empty()) return fail(key, "assets.dir must be the assets directory, relative to the project"); a.dir = str(v); }
+      else if (key == "optimize") { if (!yyjson_is_bool(v)) return fail(key, "assets.optimize must be true or false"); a.optimize = yyjson_get_bool(v); }
       else if (key == "rules") {
         if (!yyjson_is_arr(v)) return fail(key, "assets.rules must be an array of { \"match\", \"as\", options... }");
         size_t ri, rn; yyjson_val* r;

@@ -13,6 +13,7 @@
 #include "zrt_raster.h"
 #include "zn/alloc_stats.h"
 #include "gl/webgl_js.h"
+#include "host/image_decode.h"
 
 extern "C" int zn_ui_log_on(void);             // src/host/ui_log.cpp (ZN-368): this file includes zrt.h, which keeps the C++ library out
 extern "C" void zn_ui_log_mark(int phase);
@@ -21,6 +22,7 @@ namespace zrt {
 extern int32_t frame_no;
 extern HalInput input, prev_input;
 extern bool quit_requested;
+extern bool idle_frame;   // the last frame drew nothing new (runtime/gfx.cpp)
 namespace gfx { void begin_frame(); void end_frame(); void sync_surface(); void pause_badge(bool on); extern bool grow_enabled;
   extern uint8_t* (*png_encoder)(const uint32_t*, int32_t, int32_t, size_t*, void* (*)(size_t)); }
 }
@@ -136,12 +138,16 @@ int32_t imageFromFile(const uint8_t* file, size_t n) {   // the bytes of a PNG, 
   if (!rgba) return -1;
   const int32_t id = zrt::raster::dyn_create(w, h);
   if (uint32_t* px = zrt::raster::dyn_pixels(id)) {
-    bool alpha = false;
+    // one pass over 32-bit words (a little-endian RGBA word to ARGB: swap the red and the blue byte); the alpha test is an AND of all the words,
+    // so the loop has no branch and the compiler vectorizes it (NEON on a Pi: 4M pixels of a 2048 x 2048 sheet cost a few milliseconds)
+    const uint32_t* src = reinterpret_cast<const uint32_t*>(rgba);   // malloc'd: aligned
+    uint32_t all = 0xFFFFFFFFu;
     for (size_t i = 0, k = static_cast<size_t>(w) * h; i < k; i++) {
-      const uint8_t* p = rgba + i * 4;
-      px[i] = static_cast<uint32_t>(p[3]) << 24 | static_cast<uint32_t>(p[0]) << 16 | static_cast<uint32_t>(p[1]) << 8 | p[2];
-      alpha |= p[3] != 255;
+      const uint32_t v = src[i];
+      all &= v;
+      px[i] = (v & 0xFF00FF00u) | (v & 0xFFu) << 16 | (v >> 16 & 0xFFu);
     }
+    const bool alpha = (all >> 24) != 255;
     zrt::raster::dyn_set_alpha(id, alpha);
     zrt::raster::dyn_update(id, nullptr, 0);
   }
@@ -173,6 +179,23 @@ int32_t photoFromAssets(const char* name, uint32_t n) {
   const int32_t id = read ? imageFromFile(file, static_cast<size_t>(size)) : -1;
   free(file);
   if (id >= 0 && count < 64) { memcpy(seen[count].name, name, n); seen[count].name[n] = 0; seen[count++].id = id; }
+  return id;
+}
+// zinc:gfx pollImageDecode: the pixels the decoder thread made (src/host/image_decode.cpp) become a runtime image here, on the program's thread:
+// -2 still running, -1 failed or no room, else the image
+static int32_t decodePoll(int32_t handle) {
+  uint32_t* src = nullptr; int w = 0, h = 0; bool alpha = false;
+  const int32_t r = zn::host::decodeTake(handle, &src, &w, &h, &alpha);
+  if (r != 0) return r;
+  const int32_t id = zrt::raster::dyn_create(w, h);
+  if (id >= 0) {
+    if (uint32_t* px = zrt::raster::dyn_pixels(id)) {
+      memcpy(px, src, static_cast<size_t>(w) * h * 4);   // the stride of a runtime image is its width
+      zrt::raster::dyn_set_alpha(id, alpha);
+      zrt::raster::dyn_update(id, nullptr, 0);
+    }
+  }
+  free(src);
   return id;
 }
 int32_t imageFromBytes(const uint64_t* slots, uint32_t n) {
@@ -285,9 +308,9 @@ void call(int id, const HostArg* a, HostArg* r) {
       zrt::frame_no++;
       zn::rt::gStampFrame = zrt::frame_no;
       hal_frame_end();
-      if (!kAppShell && hal_fixed_dt() <= 0) {  // a window: keep to about 125 frames per second when presenting does not wait for the display
-        uint64_t spent = hal_time_us() - frameStartUs;
-        if (spent < 8000) hal_sleep_us(8000 - spent);
+      if (!kAppShell && hal_fixed_dt() <= 0) {  // a window: keep to about 125 frames per second when presenting does not wait for the display, to 60 when nothing was drawn (no panel is faster, and nothing waited for one)
+        const uint64_t period = zrt::idle_frame ? 16667 : 8000, spent = hal_time_us() - frameStartUs;
+        if (spent < period) hal_sleep_us(period - spent);
       }
       break;
     }
@@ -319,6 +342,9 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxDrawImage: g::drawImage(n(0), a[1].d, a[2].d, a[3].d, a[4].d, n(5), a[6].d); break;
     case Rt::HostGfxDrawImageRect: g::drawImageRect(n(0), a[1].d, a[2].d, a[3].d, a[4].d, a[5].d, a[6].d, a[7].d, a[8].d, n(9), n(10), a[11].d, u(12), n(13)); break;
     case Rt::HostGfxImageFromBytes: r->i = imageFromBytes(static_cast<const uint64_t*>(a[0].p), a[0].n); break;
+    case Rt::HostGfxDecodeStart: r->i = zn::host::decodeStart(static_cast<const uint64_t*>(a[0].p), a[0].n, n(1)); break;
+    case Rt::HostGfxDecodePoll: r->i = decodePoll(n(0)); break;
+    case Rt::HostGfxDecodeCancel: zn::host::decodeCancel(n(0)); break;
     case Rt::HostGfxImageFromPixels: r->i = imageFromPixels(static_cast<const uint64_t*>(a[0].p), a[0].n, n(1), n(2)); break;
     case Rt::HostGfxUpdateImage: putRgba(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n); break;
     case Rt::HostGfxShaderProgram: r->i = g::shaderProgram(str(a[0]), n(1)); zn_hal_sdl_gpu_layers(); break;   // a window that can still put a GPU layer under its frame does

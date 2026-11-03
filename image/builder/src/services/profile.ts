@@ -23,6 +23,8 @@ export class Profile {
   debugConsole: boolean = false;
   /** Boot into the Zinc shell (top bar, app hub, store): ZINC_SHELL=1 in /etc/zinc/session.conf. */
   shell: boolean = false;
+  /** The screen turned clockwise, in degrees (0, 90, 180, 270): ZINC_ROTATE in /etc/zinc/session.conf. */
+  rotation: number = 0;
   /** Two system slots and safe updates (RAUC). */
   ab: boolean = false;
   /** Free space added to the system partition, in MiB. */
@@ -71,6 +73,8 @@ export function decodeProfile(text: string): Profile {
   profile.agent = booleanOf(o, 'agent', false);
   profile.debugConsole = booleanOf(o, 'debug', false);
   profile.shell = booleanOf(o, 'shell', false);
+  const turn: number = typeof o.rotation === 'number' ? o.rotation : 0;
+  profile.rotation = turn === 90 || turn === 180 || turn === 270 ? turn : 0;
   profile.ab = booleanOf(o, 'ab', false);
   profile.growMiB = numberText(o, 'growMiB', profile.growMiB);
   profile.libraries = stringsOf(o, 'libraries');
@@ -104,6 +108,7 @@ export function encodeProfile(profile: Profile, previousText: string): string {
   o.agent = profile.agent;
   o.debug = profile.debugConsole;
   o.shell = profile.shell;
+  o.rotation = profile.rotation;
   o.ab = profile.ab;
   const grow = parseInt(profile.growMiB);
   o.growMiB = grow > 0 ? grow : 1536;

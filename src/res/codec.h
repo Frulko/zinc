@@ -13,6 +13,12 @@ std::vector<uint8_t> encodeBmp(const uint8_t* px, int w, int h, int comp);
 // Decodes a PNG or a JPEG file to w*h RGBA pixels (malloc: free() them); null for anything else and for more than 2^24 pixels.
 uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h);
 
+// The fast-load container zinc pack makes of a large PNG ("ZNI1": size and zstd planes of the RGBA pixels, decoded at memory speed):
+// lossless and deterministic; decodeRgbaAlloc and decodeRgba read it as they read a PNG.
+bool isFastImage(const uint8_t* data, size_t size);
+std::vector<uint8_t> encodeFastImage(const uint8_t* rgba, int w, int h, int level = 19);
+uint8_t* decodeFastImage(const uint8_t* data, size_t size, int* w, int* h);   // malloc'd RGBA, null when not a container
+
 std::vector<uint8_t> encodeWebp(const uint8_t* px, int w, int h, int comp, bool lossless = true, float quality = 90);   // libwebp
 // Decodes PNG, JPEG, BMP, GIF (first frame) or WebP to RGBA; false for anything else.
 bool decodeRgba(const uint8_t* data, size_t size, int& w, int& h, std::vector<uint8_t>& rgba);

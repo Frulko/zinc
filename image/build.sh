@@ -119,6 +119,8 @@ cp -r --preserve=mode,timestamps /src/image/files/. "$R/"
 mkdir -p "$R/usr/lib/zinc/versions/factory/engine" "$R/var/lib/zinc" "$R/etc/zinc"
 # the shell (a top bar, the app hub, the store): the session reads ZINC_SHELL from here (zinc-admin shell on|off changes it later)
 [ "$(q '.shell // false')" != true ] || { echo ZINC_SHELL=1 >"$R/etc/zinc/session.conf"; chmod 644 "$R/etc/zinc/session.conf"; }
+# the screen turned clockwise (zinc-admin rotation changes it later); zinc-session exports it to the shell and the apps
+case $(q '.rotation // 0') in 90|180|270) echo "ZINC_ROTATE=$(q '.rotation')" >>"$R/etc/zinc/session.conf"; chmod 644 "$R/etc/zinc/session.conf" ;; esac
 ln -s versions/factory "$R/usr/lib/zinc/current"
 ln -s current/engine "$R/usr/lib/zinc/engine"
 tar xzf "$ZINC" -C "$R/usr/lib/zinc/engine" --strip-components=1 --no-same-owner

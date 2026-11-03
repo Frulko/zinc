@@ -4,6 +4,10 @@
 #include "fbdev.cpp"
 #include "chip_common.h"
 HalDisplay* hal_display;
+// the band pool reports its spans to the frame profiler (render_bands.h): no profiler in this test
+extern "C" int32_t zrt_profiling(void) { return 0; }
+extern "C" void zrt_prof_band(int32_t, uint64_t, uint64_t) {}
+extern "C" uint64_t hal_time_us(void) { return 0; }
 namespace zrt::gfx { uint8_t* capture_png(size_t*, int32_t, int32_t) { return nullptr; } }   // ZINC_SHOT is not set here
 void hal_free(void* p) { free(p); }
 

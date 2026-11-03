@@ -331,6 +331,44 @@ class UpdatesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'incomplete'):
             worker.prepare_system(broken)
 
+    @patch.object(update.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0))
+    def test_power_guard_and_journal_files_arrive_by_update(self, systemctl):
+        # A Pi installed before the power guard has none of the newer files: the update snapshots what exists, installs the
+        # release's new files, and enables the guard and restarts journald (best effort).
+        root, system = self.root / 'zinc', self.root / 'system'
+        (root / 'versions/factory').mkdir(parents=True)
+        (root / 'current').symlink_to('versions/factory')
+        for name, (relative, _) in update.SYSTEM_FILES.items():
+            if name not in update.NEWER_FILES:
+                (system / relative).parent.mkdir(parents=True, exist_ok=True)
+                (system / relative).write_text('factory ' + name)
+        worker = TransactionUpdater(root, self.root / 'state', system_root=system)
+        worker.calls = []
+        next_generation = root / 'versions/next'
+        payload = next_generation / 'engine/share/zinc/image'
+        payload.mkdir(parents=True)
+        for name in update.SYSTEM_FILES:
+            (payload / name).write_text('release ' + name)
+        (payload / 'player-source.tar.gz').write_bytes(b'x')
+        worker.prepare_system(next_generation)
+        worker.apply_system(next_generation)
+        self.assertEqual((system / 'etc/systemd/journald.conf.d/zinc.conf').read_text(), 'release zinc-journal.conf')
+        self.assertEqual((system / 'usr/lib/zinc/zinc-power-guard').read_text(), 'release zinc-power-guard')
+        self.assertTrue((system / 'usr/lib/zinc/zinc-power-guard').stat().st_mode & 0o111)
+        commands = [list(call) for call in worker.calls]
+        self.assertIn(['systemctl', 'enable', '--now', 'zinc-power-guard.service'], commands)
+        self.assertIn(['systemctl', 'restart', 'systemd-journald'], commands)
+        # A release made before them still installs and keeps what is there.
+        old = root / 'versions/old'
+        old_payload = old / 'engine/share/zinc/image'
+        old_payload.mkdir(parents=True)
+        for name in update.SYSTEM_FILES:
+            if name not in update.NEWER_FILES:
+                (old_payload / name).write_text('older ' + name)
+        (old_payload / 'player-source.tar.gz').write_bytes(b'x')
+        worker.prepare_system(old)
+        self.assertEqual((old / 'system/zinc-admin').read_text(), 'older zinc-admin')
+
     def test_old_system_snapshot_is_extended_before_activation(self):
         generation = self.root / 'current'
         directory = generation / 'system'

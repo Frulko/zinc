@@ -1044,10 +1044,13 @@ onFrame((deltaSeconds: number) => {
     // a song's notification shows its cover on the sleeping screen
     if (decodeNextPicture()) uiState.dirty = true;
   } else if (!pointerDown() && !isAnyScrollMoving && !appState.screenPower.asleep) {
-    if (decodeNextPicture()) {
+    // a picture of the screen decodes at once, a preloaded one only after a quiet second: a decode takes 40 to 100 ms on a Raspberry Pi 3
+    if (decodeNextPicture(pointerIdleSeconds > 1)) {
       uiState.dirty = true;
-    } else if (pointerIdleSeconds > 1 && warmRenderQueue.length > 0) {
+    } else if (pointerIdleSeconds > 5 && warmRenderQueue.length > 0) {
       warmRenderSinglePageOffscreen(screenWidth, screenHeight);
+      // one page, then a pause: a page costs 60 to 160 ms on a Raspberry Pi 3 (a touch during it waits): only after 5 quiet seconds, the next one 2 s later
+      pointerIdleSeconds = 3;
     } else if (pointerIdleSeconds > 1.5) {
       prefetchNextIdleArtwork();
     }

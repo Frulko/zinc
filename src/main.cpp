@@ -698,7 +698,27 @@ static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, st
   return true;
 }
 
-static std::vector<std::string> gHostImports;   // the host modules ('zinc:gfx', 'zinc:sys'...) the last program compiled imports, directly or through the standard modules
+// zinc pack: a large PNG of the assets becomes the fast-load image (res/codec.h), at the same path: a Pi 3 decodes a 2048 x 2048 PNG in four
+// seconds, the container in a few hundredths. The source file is never touched, the output is deterministic, small images and files that would
+// grow too much stay as they are. "assets": { "optimize": false } or --no-optimize keeps every file as it is.
+struct AssetOptimizer {
+  bool on = true;
+  int count = 0;
+  std::uint64_t before = 0, after = 0;
+  void apply(const std::string& rel, std::string& bytes) {
+    if (!on || rel.size() < 5 || strcasecmp(rel.c_str() + rel.size() - 4, ".png")) return;
+    const auto* d = reinterpret_cast<const std::uint8_t*>(bytes.data());
+    int w = 0, h = 0;
+    std::vector<std::uint8_t> rgba;
+    if (!zn::res::imageSize(d, bytes.size(), w, h) || static_cast<long long>(w) * h < 65536 || static_cast<long long>(w) * h > (1 << 24) || !zn::res::decodeRgba(d, bytes.size(), w, h, rgba)) return;
+    const std::vector<std::uint8_t> fast = zn::res::encodeFastImage(rgba.data(), w, h);
+    if (fast.empty() || fast.size() > bytes.size() * 3) return;
+    before += bytes.size(); after += fast.size(); ++count;
+    bytes.assign(fast.begin(), fast.end());
+  }
+  void report() const { if (count) std::printf("optimized %d PNG image%s for a fast start (%s -> %s; --no-optimize keeps them)\n", count, count == 1 ? "" : "s", humanSize(before).c_str(), humanSize(after).c_str()); }
+};
+static std::vector<std::string> gHostImports;  // the host modules ('zinc:gfx', 'zinc:sys'...) the last program compiled imports, directly or through the standard modules
 static void scanHostImports(const zn::frontend::Program& prog) {
   gHostImports.clear();
   for (const auto& f : prog.files) {
@@ -2375,12 +2395,14 @@ int main(int argc, char** argv) {
     namespace fs = std::filesystem;
     std::string dir = ".", outPath, packTarget;
     bool inspect = false;   // the program with the inspector in front, as zinc dev runs it (zinc device deploy --inspect)
+    AssetOptimizer optimizer;
     for (int k = 2; k < argc; ++k) {
-      if (!std::strcmp(argv[k], "-o") && k + 1 < argc) outPath = argv[++k];
+      if (!std::strcmp(argv[k], "--no-optimize")) optimizer.on = false;
+      else if (!std::strcmp(argv[k], "-o") && k + 1 < argc) outPath = argv[++k];
       else if (!std::strcmp(argv[k], "--inspect")) inspect = true;
       else if (!std::strcmp(argv[k], "--target") && k + 1 < argc) packTarget = argv[++k];
       else if (argv[k][0] != '-') dir = argv[k];
-      else { std::fprintf(stderr, "zinc pack: unknown option %s\nusage: zinc pack [dir] [-o app.zapp] [--inspect] [--target <linux target>]\n", argv[k]); return 2; }
+      else { std::fprintf(stderr, "zinc pack: unknown option %s\nusage: zinc pack [dir] [-o app.zapp] [--inspect] [--no-optimize] [--target <linux target>]\n", argv[k]); return 2; }
     }
     // --target: a .zapp for another Linux machine (a Pi): compiled here, its plugins' native code cross-built with the pinned zig as the
     // shared libraries that machine's engine loads (zinc device deploy, as the ESP32's app is built here and its core runs it)
@@ -2404,6 +2426,7 @@ int main(int argc, char** argv) {
     if (entry.empty()) { std::fprintf(stderr, "zinc pack: %s has no zinc.json entry nor src/main.ts[x]\n", projDir.c_str()); return 2; }
     if (inspect) entry = zn::cli::inspectEntry(projDir, entry);
     std::string name = have && !project.name.empty() ? project.name : fs::path(projDir).filename().string();
+    if (have && !project.assets.optimize) optimizer.on = false;
     const bool jsEntry = entry.size() > 3 && (entry.compare(entry.size() - 3, 3, ".js") == 0 || (entry.size() > 4 && entry.compare(entry.size() - 4, 4, ".mjs") == 0));
     const std::string engine = have && !project.engine.empty() ? project.engine : jsEntry ? "quickjs" : "";   // a .js entry runs on QuickJS (ZN-719)
     if (!engine.empty() && engine != "zinc") {   // a project on a JavaScript engine: its sources, run there as `zinc run <dir> --engine` runs them
@@ -2417,6 +2440,7 @@ int main(int argc, char** argv) {
         if (!it->is_regular_file() || it->path().extension() == ".zapp") continue;
         std::ifstream f(it->path(), std::ios::binary); std::stringstream b; b << f.rdbuf();
         files[rel] = b.str();
+        if (rel.rfind((have ? project.assets.dir : std::string("assets")) + "/", 0) == 0) optimizer.apply(rel, files[rel]);
       }
       // importmap.json's files outside the project (examples/js-three maps `three` to the repository's third_party/three): their folders ride
       // along as vendor/<n>/, and the packed map points there
@@ -2461,6 +2485,7 @@ int main(int argc, char** argv) {
       std::ofstream out(outPath, std::ios::binary);
       out.write(archive.data(), static_cast<std::streamsize>(archive.size()));
       if (!out) { std::fprintf(stderr, "zinc pack: cannot write %s\n", outPath.c_str()); return 1; }
+      optimizer.report();
       std::printf("packed %s (%zu files, %s, on %s)\n", zn::log::shortPath(fs::absolute(outPath).string()).c_str(), files.size() + 1, humanSize(archive.size()).c_str(), engine.c_str());
       return 0;
     }
@@ -2539,6 +2564,7 @@ int main(int argc, char** argv) {
         if (!it->is_regular_file() || rel.find("/.") != std::string::npos) continue;   // hidden files (.gitkeep, .DS_Store) stay out
         std::ifstream af(it->path(), std::ios::binary); std::stringstream as; as << af.rdbuf();
         files[rel] = as.str();
+        optimizer.apply(rel, files[rel]);
       }
     if (have && !project.app.icon.empty()) {   // zinc.json app.icon, outside assets/ too: a device's launcher shows it (ZN-820)
       const std::string rel = fs::path(project.app.icon).lexically_normal().generic_string();
@@ -2558,6 +2584,7 @@ int main(int argc, char** argv) {
     std::ofstream out(outPath, std::ios::binary);
     out.write(archive.data(), static_cast<std::streamsize>(archive.size()));
     if (!out) { std::fprintf(stderr, "zinc pack: cannot write %s\n", outPath.c_str()); return 1; }
+    optimizer.report();
     std::printf("packed %s (%zu files, %s)\n", zn::log::shortPath(fs::absolute(outPath).string()).c_str(), files.size() + 1, humanSize(archive.size()).c_str());
     return 0;
   }

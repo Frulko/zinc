@@ -763,6 +763,13 @@ bool rasterizeSvg(const std::string& svg, int width, int& w, int& h, std::vector
 
 bool decodeRgba(const uint8_t* data, size_t size, int& w, int& h, std::vector<uint8_t>& rgba) {
   int n = 0;
+  if (isFastImage(data, size)) {   // a pack's optimized PNG
+    std::uint8_t* q = decodeFastImage(data, size, &w, &h);
+    if (!q) return false;
+    rgba.assign(q, q + static_cast<size_t>(w) * h * 4);
+    free(q);
+    return true;
+  }
   if (isWebp(data, size)) {
     std::uint8_t* q = WebPDecodeRGBA(data, size, &w, &h);
     if (!q) return false;

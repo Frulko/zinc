@@ -21,7 +21,12 @@ ENV = {'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'HOME': '/root', 'ZINC_NO_UPDATE
 SYSTEM_FILES = {'zinc-session': ('usr/lib/zinc/zinc-session', 0o755),
                 'zinc-agent.service': ('etc/systemd/system/zinc-agent.service', 0o644),
                 'zinc-admin': ('usr/lib/zinc/zinc-admin', 0o755),
-                'zinc-shell.service': ('etc/systemd/system/zinc-shell.service', 0o644)}
+                'zinc-shell.service': ('etc/systemd/system/zinc-shell.service', 0o644),
+                'zinc-power-guard': ('usr/lib/zinc/zinc-power-guard', 0o755),
+                'zinc-power-guard.service': ('etc/systemd/system/zinc-power-guard.service', 0o644),
+                'zinc-journal.conf': ('etc/systemd/journald.conf.d/zinc.conf', 0o644)}
+# Added after the first releases: a system without them (or a release payload without them) is not an error.
+NEWER_FILES = ('zinc-power-guard', 'zinc-power-guard.service', 'zinc-journal.conf')
 
 
 def version(value):
@@ -247,7 +252,7 @@ class Updater:
         if directory.exists():
             # An older updater snapshotted only the session and agent unit.
             for name, (relative, mode) in SYSTEM_FILES.items():
-                if not (directory / name).exists():
+                if not (directory / name).exists() and (self.system_root / relative).exists():
                     target = directory / name
                     temporary = directory / ('.' + name + '-next')
                     shutil.copyfile(self.system_root / relative, temporary)
@@ -262,6 +267,8 @@ class Updater:
         temporary.mkdir()
         try:
             for name, (relative, mode) in SYSTEM_FILES.items():
+                if name in NEWER_FILES and not (self.system_root / relative).exists():
+                    continue
                 target = temporary / name
                 shutil.copyfile(self.system_root / relative, target)
                 target.chmod(mode)
@@ -278,7 +285,7 @@ class Updater:
         baseline = self.root / 'system-baseline'
         if baseline.exists():
             for name in SYSTEM_FILES:
-                if not (baseline / name).exists():
+                if not (baseline / name).exists() and (self.root / 'current/system' / name).exists():
                     temporary = baseline / ('.' + name + '-next')
                     shutil.copyfile(self.root / 'current/system' / name, temporary)
                     self.sync_file(temporary)
@@ -290,7 +297,8 @@ class Updater:
                 shutil.rmtree(temporary)
             shutil.copytree(self.root / 'current/system', temporary)
             for name in SYSTEM_FILES:
-                self.sync_file(temporary / name)
+                if (temporary / name).exists():
+                    self.sync_file(temporary / name)
             self.sync_directory(temporary)
             os.replace(temporary, baseline)
             self.sync_directory(self.root)
@@ -302,6 +310,8 @@ class Updater:
             self.run(['/bin/bash', '-n', str(payload / 'zinc-session')])
             if (payload / 'player-source.tar.gz').exists():
                 for name in SYSTEM_FILES:
+                    if name in NEWER_FILES and not (payload / name).exists():
+                        continue
                     if not (payload / name).is_file() or (payload / name).is_symlink():
                         raise ValueError('The release has an incomplete Pi system payload.')
         else:
@@ -313,6 +323,8 @@ class Updater:
             source = payload / name
             if source.is_symlink():
                 raise ValueError('The release has an invalid Pi system payload.')
+            if name in NEWER_FILES and not source.is_file() and not (baseline / name).is_file():
+                continue
             shutil.copyfile(source if source.is_file() else baseline / name, directory / name)
         self.run(['/bin/bash', '-n', str(directory / 'zinc-admin')])
 
@@ -321,9 +333,10 @@ class Updater:
         if not directory.exists():
             return  # An interrupted transaction written by an older updater has no system snapshot.
         for name, (relative, mode) in SYSTEM_FILES.items():
-            if name in ('zinc-admin', 'zinc-shell.service') and not (directory / name).exists():
+            if (name in NEWER_FILES or name in ('zinc-admin', 'zinc-shell.service')) and not (directory / name).exists():
                 continue  # Recovery of a journal made before these optional files were supported.
             target = self.system_root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
             temporary = target.with_name(target.name + '.zinc-next')
             temporary.unlink(missing_ok=True)
             with (directory / name).open('rb') as source, temporary.open('xb') as out:
@@ -333,6 +346,12 @@ class Updater:
             os.replace(temporary, target)
             self.sync_directory(target.parent)
         self.run(['systemctl', 'daemon-reload'])
+        # The power guard and the persistent journal (a power cut keeps its logs): best effort, never fails an update.
+        for command in (['systemctl', 'restart', 'systemd-journald'], ['systemctl', 'enable', '--now', 'zinc-power-guard.service']):
+            try:
+                self.run(command)
+            except Exception:
+                pass
 
     def activate(self, target):
         old = os.readlink(self.root / 'current')

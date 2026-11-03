@@ -22,6 +22,7 @@ pan -1: left 0.5 right 0; pan 1: left 0 right 0.5; pan 0: left 0.5 right 0.5
 blip.ogg: ok true 0.1 s heard true 440 Hz true playing false
 blip.flac: ok true 0.1 s heard true 440 Hz true playing false
 blip.mp3: ok true 0.16 s heard true 440 Hz true playing false
+long mp3: ok true true frames true heard true 440 Hz true playing true
 missing: ok false playing false (missing.wav: no such asset)
 broken: ok false 0 s (broken.wav: not a WAV, FLAC, MP3 or Ogg Vorbis file)
 unloaded: ok false playing false 0 0

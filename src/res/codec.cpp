@@ -10,6 +10,9 @@
 #define STBI_NO_STDIO
 #include "stb_image.h"
 #include "webp/decode.h"
+#include "zstd.h"
+#include <cstdlib>
+#include <cstring>
 
 namespace zn::res {
 namespace {
@@ -28,8 +31,37 @@ uint8_t* encodePngAlloc(const uint8_t* px, int w, int h, int comp, size_t* n, vo
   if (out) { __builtin_memcpy(out, png.data(), png.size()); *n = png.size(); }
   return out;
 }
+// "ZNI1" w h (u32 little endian), then one zstd frame of the four planes R, G, B, A (planar: runs of one channel compress far better than interleaved bytes)
+bool isFastImage(const uint8_t* d, size_t n) { return n > 12 && !__builtin_memcmp(d, "ZNI1", 4); }
+std::vector<uint8_t> encodeFastImage(const uint8_t* rgba, int w, int h, int level) {
+  const size_t px = static_cast<size_t>(w) * h;
+  std::vector<uint8_t> planes(px * 4), out(12 + ZSTD_compressBound(px * 4));
+  for (size_t i = 0; i < px; i++) for (int c = 0; c < 4; c++) planes[c * px + i] = rgba[i * 4 + c];
+  __builtin_memcpy(out.data(), "ZNI1", 4);
+  for (int k = 0; k < 4; k++) { out[4 + k] = static_cast<uint8_t>(w >> (8 * k)); out[8 + k] = static_cast<uint8_t>(h >> (8 * k)); }
+  const size_t n = ZSTD_compress(out.data() + 12, out.size() - 12, planes.data(), planes.size(), level);
+  if (ZSTD_isError(n)) return {};
+  out.resize(12 + n);
+  return out;
+}
+uint8_t* decodeFastImage(const uint8_t* d, size_t n, int* w, int* h) {
+  if (!isFastImage(d, n)) return nullptr;
+  uint32_t W = 0, H = 0;
+  for (int k = 0; k < 4; k++) { W |= static_cast<uint32_t>(d[4 + k]) << (8 * k); H |= static_cast<uint32_t>(d[8 + k]) << (8 * k); }
+  if (!W || !H || static_cast<uint64_t>(W) * H > (1u << 24)) return nullptr;
+  const size_t px = static_cast<size_t>(W) * H;
+  uint8_t* planes = static_cast<uint8_t*>(malloc(px * 4));
+  uint8_t* out = static_cast<uint8_t*>(malloc(px * 4));
+  if (!planes || !out || ZSTD_decompress(planes, px * 4, d + 12, n - 12) != px * 4) { free(planes); free(out); return nullptr; }
+  const uint8_t *r = planes, *g = planes + px, *b = planes + 2 * px, *a = planes + 3 * px;
+  for (size_t i = 0; i < px; i++) { out[i * 4] = r[i]; out[i * 4 + 1] = g[i]; out[i * 4 + 2] = b[i]; out[i * 4 + 3] = a[i]; }
+  free(planes);
+  *w = static_cast<int>(W); *h = static_cast<int>(H);
+  return out;
+}
 uint8_t* decodeRgbaAlloc(const uint8_t* data, size_t size, int* w, int* h) {
   int comp = 0;
+  if (isFastImage(data, size)) return decodeFastImage(data, size, w, h);
   if (size >= 12 && !__builtin_memcmp(data, "RIFF", 4) && !__builtin_memcmp(data + 8, "WEBP", 4)) {   // WebP: libwebp (what the media proxy of a CDN sends)
     if (size > 0x7fffffff || !WebPGetInfo(data, size, w, h) || static_cast<uint64_t>(*w) * static_cast<uint64_t>(*h) > (1u << 24)) return nullptr;
     return WebPDecodeRGBA(data, size, w, h);   // libwebp's allocator is malloc: the caller frees it
@@ -49,3 +81,6 @@ std::vector<uint8_t> encodeBmp(const uint8_t* px, int w, int h, int comp) {
   return out;
 }
 }  // namespace zn::res
+
+// for plugins (zinc:imageio) that read files themselves: found with dlsym, as libwebp's functions are
+extern "C" uint8_t* zn_decode_fast_image(const uint8_t* d, size_t n, int* w, int* h) { return zn::res::decodeFastImage(d, n, w, h); }

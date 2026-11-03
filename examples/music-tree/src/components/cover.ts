@@ -13,7 +13,7 @@ import {
 } from '../constants';
 import { Fonts } from '../fonts';
 import { registerTapZone, isZonePressed } from 'zinc:stage';
-import { getPicture, getPictureFadeAlpha, drawPictureContained, isPictureOnItsWay } from '../core/pictures';
+import { getPicture, getPictureAtSize, getPictureFadeAlpha, drawPictureContained, isPictureOnItsWay } from '../core/pictures';
 import { drawCenteredText, drawGlyph, drawLabel } from './primitives';
 import { drawActivitySpinner } from './slider';
 
@@ -44,10 +44,21 @@ export function drawCoverArt(
   const fadeAlpha = imageId >= 0 ? getPictureFadeAlpha(imageUrl) : 0;
 
   if (imageId >= 0 && fadeAlpha === 255 && !isStationLogo) {
-    drawImage(imageId, x, y, size, size, 255, cornerRadius);
+    // snapped to whole pixels so the copy at the shown size is drawn one texel per pixel (a row copy)
+    const shownSize = Math.round(size) as i32;
+    drawImage(getPictureAtSize(imageUrl, imageId, shownSize), Math.round(x), Math.round(y), shownSize, shownSize, 255, cornerRadius);
     return;
   }
   if (imageId >= 0 && isStationLogo) {
+    if (fadeAlpha === 255) {
+      // the logo and its light tile are one copy at the shown size, as the cover below is
+      const tileSize = Math.round(size) as i32;
+      const tile = getPictureAtSize(imageUrl, imageId, tileSize, true);
+      if (tile !== imageId) {
+        drawImage(tile, Math.round(x), Math.round(y), tileSize, tileSize, 255, cornerRadius);
+        return;
+      }
+    }
     rrect(x, y, size, size, cornerRadius, 0xf2f2f7, fadeAlpha);
     drawPictureContained(imageId, x + size * 0.14, y + size * 0.14, size * 0.72, size * 0.72, 4);
     return;

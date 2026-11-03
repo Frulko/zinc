@@ -54,76 +54,58 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Plugins
 
 #### New
+
 - Murdoku can be played with the pen on an e-ink tablet: a circled letter places that person, a bare letter is a pencil note, an X crosses a cell out, and a two-finger tap undoes. `zinc:ui` has `onTwoFingerTap` for that gesture and `zinc:ink`'s `Ink` can draw over a board with `overlay = true`.
 - `zinc:ink` recognises handwriting on the device, with no cloud: `recognise(strokes)` names a mark as a letter (`A`-`E`, `V`), a circle, an `x`, a tick or a line, says when a letter is circled, and answers `unknown` rather than guess; `recogniseAsync` matches off the UI thread, `StrokeGrouper` collects the strokes of one mark, `loadModel` swaps in your own templates. The notes example for reMarkable has a Record mode to collect handwriting samples.
 - `zinc:ink` reads letters with a small neural net as well (49 KB, int8, under half a millisecond a mark): it copes with slanted, stretched and shaky writing the template matcher misses, and says `unknown` for a scribble. `loadModel('letters.znm')` loads a net you trained with `tools/ink-train/train`; `recognise(strokes, { net: false })` keeps the template matcher alone.
 - `examples/ink-lab`: write on a rectangle and watch what `zinc:ink` recognises beside it, live while the pen is down: best candidates with scores, the boxed marks, a letters / shapes / all switch, Undo and Restart.
 
 #### Fixed
+
 - `zinc:ink` no longer takes a `B` drawn as a stem and one looped stroke for a letter with a circle round it.
 - A plugin's native `Promise<T>` export written on the C ABI (`native/*.abi.c`) is no longer refused at load: `zinc native-gen --c` writes the result type of the promise.
 
 ### UI
+
 #### New
+
 - E-ink mode for `zinc:ui` (on a reMarkable, or `ZINC_EINK=1` on a Mac): colours snap to black, white and the panel's primaries, shadows, gradients and opacity are left out, and `pattern-hatch`, `pattern-cross`, `pattern-dots` and `pattern-stripes` fill a box with ink where a tint would be.
 - `layer-cache` keeps a box's children as one picture that is drawn again only after `invalidate(node)`, and `refreshRect(x, y, w, h, 'fast' | 'quality' | 'full')` of `zinc:gfx` names the e-ink waveform of a region (the reMarkable driver sends it that way).
 
 #### Fixed
+
 - `Icon` follows e-ink mode: its strokes take the panel's black, white or primary instead of a near-grey tint.
-- Selecting text with `select-text` works across several lines and several `Text` blocks, like a browser: drag from one paragraph into the next (in a `ScrollView` too, the list scrolls near its edge), the whole span is highlighted and Cmd/Ctrl+C copies it with its line breaks.
 - `{list.map(row)}` with a named function that returns JSX shows the rows, as it does with an inline arrow, instead of printing numbers.
 - `aria-label` and `role` work on `VirtualList`, and an icon name written in an expression (`<Icon name={on ? "heart" : "star"} />`) is included in the program without listing it in `zinc.json`.
 - A long press on a `Tooltip` shows its hint on touch screens.
 
 ### Apps and examples
+
 #### New
+
 - Murdoku runs on the reMarkable (`targets.rmpp` in its `zinc.json`) in portrait and landscape: black and white only, with the same official artwork as the colour app (floor textures as hatching, furniture, suspect busts with their letter); the Mac app looks as before.
 - **New** A Discord client theme can choose a layout, not only colours: `"layout": "slack"` gives Slack's screen (workspace header with a compose button, folding Channels, Huddles and Direct messages sections, no member list, a header with the topic, a star and the member avatars, square avatars, a formatting row over the message box with a green Send button, day dividers) and `"layout": "teams"` Teams' (an activity rail, a selected-channel bar, Posts and Pinned tabs, message bubbles, a message box with its formatting row). Switching theme in Settings changes the layout at once.
 - `examples/pro-threads` runs Kubai’s animated light-thread lettering through native WebGL 2, with nine palettes, seven effects, editable letters and an alphabet view.
 - **Fixed** Discord video (camera and Go Live) from Zinc now opens in the web client: the video's parameter set carries the frame-reordering limits Chrome would otherwise add itself, which shifted the bytes the end-to-end encryption relies on and made the viewer drop every frame. `DISCORD_VIDEO_SPS=orig` goes back to the encoder's own.
 - **New** The Discord client speaks English and French (system language, or the *Language* row of Settings > Appearance, kept between runs), and every icon-only button has a tooltip, also when you reach it with Tab. In `zinc:ui/kit` a `Tooltip` shows on keyboard focus and hides on press, `ImageViewer` and `CallStats` take a `labels` map for their words, and `attachTooltip` gives a tooltip to a node made by code.
 - Discord calls cancel the echo of your speakers before your microphone is sent (`setEchoCancellation` of `zinc:discord-voice`, the SpeexDSP canceller of `zinc:microphone`): on by default with speakers and off with headphones, with a switch in Settings > Voice & audio.
-- The Discord client has a faithful Slack theme (white window, aubergine sidebar with a blue open channel, outlined message box, light code cards; the old dark one is *Slack dark*), and themes can now colour the channel list, member list and cards apart (`sidebarText`, `sidebarMuted`, `sidebarStrong`, `sidebarHover`, `sidebarSelected`, `sidebarSelectedText`, `surface`, `composerBorder`). The Teams theme gets its outlined white message box.
-- The Discord code button opens a real editor (the shared `zinc:editor`) above the message box, with a language choice, highlighting, copy and paste; sending joins your message and the code as a fenced block with its language. Long code blocks you read are folded by default with a "Show code" row that unfolds them smoothly, and keep their copy button.
-- The Discord example has a safe mode switch in the user bar, opens the call's quality details (score, loss, round trip, jitter, bit rates, codecs) from the signal bars beside "Voice Connected", and its themes now colour the switches, dialogs and call view too (new `success`, `warning`, `stage` colours).
-- **New** `ImageViewer` in `zinc:ui/kit` (`openImageViewer`): a picture opens over the app the way PhotoSwipe does it, growing from the thumbnail and going back on close (Escape, a click outside, a drag down), with wheel and pinch zoom around the pointer, drag to pan, double click to zoom, Left and Right (keys, buttons, swipe) through the pictures, a caption and copy and save buttons. In the Discord client, click a picture to open it over the pictures of the channel.
 - `examples/ipod-rescue` adds a recovery workshop with read-only Mac diagnostics, local firmware inspection, metadata backups and a restoration simulator.
   Physical erase and firmware writes stay locked until qualified.
 - The iPod recovery workshop shows Classic specifications and known firmware branches, and compares SysCFG dumps against a supplied reference.
   It distinguishes reported identity and comparison evidence from an authenticated factory state.
-#### Changed
-- The screen-share dialog keeps its place while you scroll the screens and windows, and has a search field to find one by name.
-- The screen-share dialog (Discord's Go Live, the call example) looks like Discord's: tabs Applications and Entire screen, a two-column grid of large previews with the application's icon and name under each, and a preset line (SD 720p 30 fps or HD 1080p 60 fps) with an SD/HD switch and a settings button for the resolution, frame rate and pointer. Apps can add a Devices tab for cameras.
+
 #### Fixed
+
 - On macOS, apps with an `app.id` use their own application name in system tools even without permissions, including JavaScript and WebGL apps.
-- **Fixed** pictures sent to a Discord conversation (and the ones you upload) no longer stay an empty grey block: the app could not read the WebP that Discord's image proxy sends (`imageFromBytes` of `zinc:gfx` now decodes WebP everywhere), a picture shows a box of its own shape while it loads, and an error message with an icon when it cannot load.
-- The previews of the screen-share dialog no longer flash black every time they refresh.
-- The Discord client no longer cuts anything at narrow widths: the side columns shrink or give way to the messages (the member list hides under 960 px, the pins and threads open over the messages under 800 px), the emoji and GIF picker and the cards, polls and pictures fit the room they have, and the user bar wraps its buttons.
-- Closing the Discord client during a call leaves the call, stops your Go Live and the stream you watch first, so nobody sees you stuck in the channel.
 - The Discord client cannot be talked into a quality Discord did not grant: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro), logs a clamp as "over the ceiling", and the example's tests simulate the over-tier announce a client mod would send.
-- **Fixed** Discord calls: a still screen in Go Live (or a stalled camera) keeps sending its last picture at least four times a second, nothing is sent before the call's encryption is keyed (the first picture the viewer gets is a key frame that opens), and in the ultra low data mode the call announces the reduced size and bitrate it really sends. `DISCORD_LOG=1` prints the size, frames, key frames and target of each outgoing video every second.
-- Discord calls: your camera and Go Live send a key frame every second (and again when the call's encryption key changes or someone starts watching) so the others no longer wait forever on a black tile; a third person joining no longer silences the people already there; a small tile shows the camera's lower quality layer; a Go Live you watch connects whichever of the two server messages comes first; and the call survives a network blip instead of ending with "voice gateway closed".
 - The Discord client fits windows narrower than 640 px: servers and channels, the conversation, the call and the settings show one at a time with a Back button. The screen-share dialog and the image viewer toolbar fit narrow windows too.
 
-### Plugins and modules
-- **New** `zinc:webrtc` video holds up on bad links: a lost packet is asked for again (NACK) instead of freezing the picture until the next key frame, the receiver measures the link and tells the sender (REMB), and the sender steps its picture down a ladder (720p30, 360p30, 360p15, 180p15, 90p7) and back up as the rate allows. `getStats()` gains `nackCount` and `qualityLimitationReason`; `ZINC_WEBRTC_BWE_LOG=1` prints the rate decisions, and `ZINC_FAKE_CAMERA_NOISE` adds grain to the fake camera to test it.
-- **New** `zinc:webrtc` simulcast for a media server such as Galène: `addTransceiver(track, { sendEncodings: [{ rid: 'h' }, { rid: 'l', scaleResolutionDownBy: 2 }] })` sends a full and a small stream, and `scalabilityMode: 'L1T2'` sends VP8 in two temporal layers, so the server can give each viewer the stream its link carries.
-
 ### Raspberry Pi and the shell
-#### New
-- The Pi image builder is redesigned: a calm, Apple-like window with a short guided flow (device, network and account, apps), basics first and the rest behind *Advanced*, and a live build view with every step, its progress and time left, a result card with the next steps, and the failed step with *Retry*. It also offers the Zinc shell (`"shell": true` in a profile boots to the shell), A/B system updates, the Zinc agent and the app to start at boot.
+
 #### Fixed
-- Under the shell, an app started with `zinc device run` comes to the screen even over another page, and `zinc device stop` or a newer app replacing it no longer leaves an "app stopped (exit -1)" page.
+
 - `fetch` returns a binary download byte for byte: `response.bytes()` and `arrayBuffer()` no longer lose two bytes where a gzip or an archive holds two surrogate halves side by side, and a server reads a large upload's bytes in one step.
 - A zinc:net server hands a binary upload over byte for byte: `Request.rawBytes` holds the body when a string cannot (a gzip or a `.zapp` with two surrogate halves side by side lost two bytes), so the hub no longer stores a damaged engine bundle.
-
-### Calls and media
-#### New
-- Calls without headphones: a microphone opened with `echoCancellation`, `noiseSuppression` and `autoGainControl` takes the far end's voice coming out of the speakers away (give it zinc:audio's `played` as `reference`), quiets steady noise and levels the voice. The call example uses it.
-#### Fixed
-- Go Live from the Discord example sends its video the way Discord's servers read it (their native header-extension ids, the stream id on every packet, a sequence number for congestion control), asks to resume the stream as soon as it is created and each time Discord pauses it, and logs the stream's pause state with `DISCORD_LOG=1`; `DISCORD_VIDEO_EXT`, `DISCORD_VIDEO_PT`, `DISCORD_VIDEO_CODECS`, `DISCORD_VIDEO_ACTIVE` and `DISCORD_VIDEO_TYPE` switch the variants for experiments.
-#### Changed
-- Calls between two Zinc apps hold up on lossy links: under loss the voice gets more bits for its deep redundancy and the receiver waits for it, so a link losing a quarter of its packets in bursts loses about 3% of the sound instead of 8%.
 
 ### Language
 
@@ -155,6 +137,115 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - An app docked under the reMarkable header in landscape, or on a surface drawn at two pixels per pixel, now pads by the header's real size on the right side (it was a full-size top margin).
 - An app that names the `rmpp` display driver in `zinc.json` now gets the e-ink look on the Paper Pro even when it is published as a Linux or Pi build (Murdoku showed its desktop colours there); `ZINC_EINK=0` still shows the colour app.
 - A palm that lands while the Marker is near the glass, or in the 300 ms after it left, no longer reaches the app as a touch (`ZINC_RMPP_PALM_MS` changes the delay).
+
+## [0.10.18] - 2026-11-01
+
+### Rendering and performance
+#### New
+- `startImageDecode`, `pollImageDecode` and `cancelImageDecode` in `zinc:gfx` decode a PNG, JPEG or WebP on a background thread, so a cover or a photo no longer holds a frame for 40 to 100 ms on a Raspberry Pi.
+
+#### Faster
+- The smooth stretch of a small picture over a large area (the lava lamp clock of Musique) draws noticeably faster on a Raspberry Pi (a full-screen lamp took 14 ms of drawing, now under 10).
+- A program that draws nothing now wakes 60 times a second instead of 125, which saves battery and CPU on idle screens and keeps the frames in step with the display.
+
+### Apps and examples
+#### Faster
+- Musique (arbre) decodes covers and radio logos on a background thread: a new cover no longer freezes the screen for a moment.
+- Musique (arbre) no longer stalls while you touch it: covers and pages are prepared in the background only after a quiet second or two, one at a time, and the slide you swipe to is remembered a moment later instead of in the frame of the gesture.
+
+## [0.10.16] - 2026-11-01
+
+### Raspberry Pi and the shell
+#### New
+- The player fits a narrow screen (the Pi's panel turned to portrait): home tiles wrap into a grid, the cards stack their button under the text, Settings sections become a row of tabs, and a very small screen keeps the tiles only.
+#### Faster
+- An idle Pi shell costs less: the home animation rests after 20 seconds without a touch, an unchanged screen no longer asks the display for a refresh every frame, and a turned screen stores each changed pixel directly.
+#### Fixed
+- `zinc device <pi> screen --live` shows a screen that does not move: while someone watches, the whole screen is sent again every 2 seconds, so a viewer that connects to a still screen sees it.
+
+### Performance
+#### Faster
+- Rounded pictures (`drawImage` with a radius) cost little more than square ones: only the corners are tested, so a cover grid or a player cover is several times cheaper on a Raspberry Pi 3.
+
+### Apps and examples
+#### Faster
+- The Musique (arbre) player slides and turns pages with about half the work on a Raspberry Pi 3: the blurred cover background and the covers are prepared once at their shown size instead of being scaled at every frame, and the pages are no longer prepared in the background twelve at a time.
+#### Fixed
+- The Musique (arbre) player fits the 7-inch Raspberry Pi screen under the shell: the volume bar is no longer cut at the bottom edge and the page no longer scrolls, the cover is a little larger, the times and the album line are easier to read, and the previous and next buttons light up when pressed.
+
+## [0.10.15] - 2026-11-01
+
+### Raspberry Pi and the shell
+
+#### New
+
+- A Raspberry Pi with a weak power supply tells you: an amber bolt appears in the top bar while the Pi reports under-voltage (tap it for what to do), and *Settings, System* has a *Power* line. A small background service (`zinc-power-guard`) also lowers the CPU clock while the supply is too weak and restores it a minute after the last alarm; turn it off with `ZINC_POWER_GUARD=0` in `/etc/zinc/session.conf`. `zinc-admin status` adds `power=`.
+- The Pi keeps its logs across a power cut: the journal is stored on the card (40 MB at most) and written every 5 seconds, so `journalctl -b -1` shows what happened before the Pi lost power. Updates install this on existing Pis.
+- The shell says an app is starting: until its first frame the area under the bar shows its icon, its name and a spinner, with a calmer line after 8 seconds on a slow start. Taps show at once: a pressed app tile shrinks and brightens, switches and colour swatches light up too.
+- Screen rotation for the Pi: *Settings, Display* turns the whole screen (top bar, app and touch) by 0, 90, 180 or 270 degrees, the image builder has a *Rotation* choice, and `zinc-admin rotation <degrees>` or `ZINC_ROTATE` in `/etc/zinc/session.conf` does the same. Apps run without the shell turn too.
+
+#### Fixed
+
+- `screen --live` of a still screen (the shell at rest) shows the screen at once and refreshes it every 2 seconds, instead of staying black until something moves; `ZINC_MIRROR_LOG=1` on the device says what the live stream sends.
+- A multi-touch screen keeps working after turning the Raspberry Pi's screen by 90 or 270 degrees: every touch used to land on the same spot.
+- `zinc device <pi> screen` and `screen --live` show the whole screen under the shell, the top bar and the app below it, and the live view follows the app in real time. An app under the shell no longer answers the screen request itself.
+
+### Performance
+
+#### Faster
+
+- `zinc pack` (and `zinc device deploy`) turns the large PNG images of `assets/` into a fast-load format at the same path, so a Raspberry Pi 3 no longer shows a black screen for 20 seconds decoding sprite sheets. Your code and your files do not change; turn it off with `"assets": { "optimize": false }` or `zinc pack --no-optimize`.
+- On QuickJS, `readBytes()` of `zinc:fs` and `zinc:assets` hands over a file's bytes in one step instead of one call per byte, and `imageFromBytes()` converts the pixels in a single pass: loading a 2048 x 2048 sprite sheet is several times faster on a Raspberry Pi.
+- `load()` of `zinc:audio` returns at once for a long MP3, OGG or FLAC file: it is decoded in the background and plays as soon as the first seconds are ready, instead of freezing the start of the program (15 seconds for a 3-minute song on a Raspberry Pi 3).
+
+### Apps and examples
+
+#### Faster
+
+
+#### Fixed
+
+
+## [0.10.13] - 2026-10-31
+
+### UI
+#### Fixed
+- Selecting text with `select-text` works across several lines and several `Text` blocks, like a browser: drag from one paragraph into the next (in a `ScrollView` too, the list scrolls near its edge), the whole span is highlighted and Cmd/Ctrl+C copies it with its line breaks.
+
+### Apps and examples
+#### New
+- The Discord client has a faithful Slack theme (white window, aubergine sidebar with a blue open channel, outlined message box, light code cards; the old dark one is *Slack dark*), and themes can now colour the channel list, member list and cards apart (`sidebarText`, `sidebarMuted`, `sidebarStrong`, `sidebarHover`, `sidebarSelected`, `sidebarSelectedText`, `surface`, `composerBorder`). The Teams theme gets its outlined white message box.
+- The Discord code button opens a real editor (the shared `zinc:editor`) above the message box, with a language choice, highlighting, copy and paste; sending joins your message and the code as a fenced block with its language. Long code blocks you read are folded by default with a "Show code" row that unfolds them smoothly, and keep their copy button.
+- The Discord example has a safe mode switch in the user bar, opens the call's quality details (score, loss, round trip, jitter, bit rates, codecs) from the signal bars beside "Voice Connected", and its themes now colour the switches, dialogs and call view too (new `success`, `warning`, `stage` colours).
+- **New** `ImageViewer` in `zinc:ui/kit` (`openImageViewer`): a picture opens over the app the way PhotoSwipe does it, growing from the thumbnail and going back on close (Escape, a click outside, a drag down), with wheel and pinch zoom around the pointer, drag to pan, double click to zoom, Left and Right (keys, buttons, swipe) through the pictures, a caption and copy and save buttons. In the Discord client, click a picture to open it over the pictures of the channel.
+#### Changed
+- The screen-share dialog keeps its place while you scroll the screens and windows, and has a search field to find one by name.
+- The screen-share dialog (Discord's Go Live, the call example) looks like Discord's: tabs Applications and Entire screen, a two-column grid of large previews with the application's icon and name under each, and a preset line (SD 720p 30 fps or HD 1080p 60 fps) with an SD/HD switch and a settings button for the resolution, frame rate and pointer. Apps can add a Devices tab for cameras.
+#### Fixed
+- **Fixed** pictures sent to a Discord conversation (and the ones you upload) no longer stay an empty grey block: the app could not read the WebP that Discord's image proxy sends (`imageFromBytes` of `zinc:gfx` now decodes WebP everywhere), a picture shows a box of its own shape while it loads, and an error message with an icon when it cannot load.
+- The previews of the screen-share dialog no longer flash black every time they refresh.
+- The Discord client no longer cuts anything at narrow widths: the side columns shrink or give way to the messages (the member list hides under 960 px, the pins and threads open over the messages under 800 px), the emoji and GIF picker and the cards, polls and pictures fit the room they have, and the user bar wraps its buttons.
+- Closing the Discord client during a call leaves the call, stops your Go Live and the stream you watch first, so nobody sees you stuck in the channel.
+- **Fixed** Discord calls: a still screen in Go Live (or a stalled camera) keeps sending its last picture at least four times a second, nothing is sent before the call's encryption is keyed (the first picture the viewer gets is a key frame that opens), and in the ultra low data mode the call announces the reduced size and bitrate it really sends. `DISCORD_LOG=1` prints the size, frames, key frames and target of each outgoing video every second.
+- Discord calls: your camera and Go Live send a key frame every second (and again when the call's encryption key changes or someone starts watching) so the others no longer wait forever on a black tile; a third person joining no longer silences the people already there; a small tile shows the camera's lower quality layer; a Go Live you watch connects whichever of the two server messages comes first; and the call survives a network blip instead of ending with "voice gateway closed".
+
+### Plugins and modules
+- **New** `zinc:webrtc` video holds up on bad links: a lost packet is asked for again (NACK) instead of freezing the picture until the next key frame, the receiver measures the link and tells the sender (REMB), and the sender steps its picture down a ladder (720p30, 360p30, 360p15, 180p15, 90p7) and back up as the rate allows. `getStats()` gains `nackCount` and `qualityLimitationReason`; `ZINC_WEBRTC_BWE_LOG=1` prints the rate decisions, and `ZINC_FAKE_CAMERA_NOISE` adds grain to the fake camera to test it.
+- **New** `zinc:webrtc` simulcast for a media server such as Galène: `addTransceiver(track, { sendEncodings: [{ rid: 'h' }, { rid: 'l', scaleResolutionDownBy: 2 }] })` sends a full and a small stream, and `scalabilityMode: 'L1T2'` sends VP8 in two temporal layers, so the server can give each viewer the stream its link carries.
+
+### Raspberry Pi and the shell
+#### New
+- The Pi image builder is redesigned: a calm, Apple-like window with a short guided flow (device, network and account, apps), basics first and the rest behind *Advanced*, and a live build view with every step, its progress and time left, a result card with the next steps, and the failed step with *Retry*. It also offers the Zinc shell (`"shell": true` in a profile boots to the shell), A/B system updates, the Zinc agent and the app to start at boot.
+#### Fixed
+- Under the shell, an app started with `zinc device run` comes to the screen even over another page, and `zinc device stop` or a newer app replacing it no longer leaves an "app stopped (exit -1)" page.
+
+### Calls and media
+#### New
+- Calls without headphones: a microphone opened with `echoCancellation`, `noiseSuppression` and `autoGainControl` takes the far end's voice coming out of the speakers away (give it zinc:audio's `played` as `reference`), quiets steady noise and levels the voice. The call example uses it.
+#### Fixed
+- Go Live from the Discord example sends its video the way Discord's servers read it (their native header-extension ids, the stream id on every packet, a sequence number for congestion control), asks to resume the stream as soon as it is created and each time Discord pauses it, and logs the stream's pause state with `DISCORD_LOG=1`; `DISCORD_VIDEO_EXT`, `DISCORD_VIDEO_PT`, `DISCORD_VIDEO_CODECS`, `DISCORD_VIDEO_ACTIVE` and `DISCORD_VIDEO_TYPE` switch the variants for experiments.
+#### Changed
+- Calls between two Zinc apps hold up on lossy links: under loss the voice gets more bits for its deep redundancy and the receiver waits for it, so a link losing a quarter of its packets in bursts loses about 3% of the sound instead of 8%.
 
 ## [0.10.6] - 2026-10-31
 
@@ -1165,7 +1256,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
   window shows, and a photo appears at once while its PNG is saved in the background.
 - A `truncate` text in a row that shrinks it (a long name beside a badge) ends with "…" at its final width instead of running over its neighbours.
 
-[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.6...HEAD
+[Unreleased]: https://github.com/Frulko/zinc/compare/v0.10.18...HEAD
 [0.6.2]: https://github.com/Frulko/zinc/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Frulko/zinc/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Frulko/zinc/compare/v0.5.2...v0.6.0
@@ -1188,3 +1279,7 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 [0.8.2]: https://github.com/Frulko/zinc/compare/v0.8.0...v0.8.2
 [0.9.1]: https://github.com/Frulko/zinc/compare/v0.8.2...v0.9.1
 [0.10.6]: https://github.com/Frulko/zinc/compare/v0.9.1...v0.10.6
+[0.10.13]: https://github.com/Frulko/zinc/compare/v0.10.6...v0.10.13
+[0.10.15]: https://github.com/Frulko/zinc/compare/v0.10.13...v0.10.15
+[0.10.16]: https://github.com/Frulko/zinc/compare/v0.10.15...v0.10.16
+[0.10.18]: https://github.com/Frulko/zinc/compare/v0.10.16...v0.10.18
