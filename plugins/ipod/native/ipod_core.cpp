@@ -98,6 +98,7 @@ Space space(const std::string& mp) {
   r.free = (double)v.f_bavail * v.f_frsize;
   r.readOnly = (v.f_flag & ST_RDONLY) != 0;
   r.ok = true;
+  if (const char* t = getenv("ZINC_IPOD_TOTAL_BYTES")) r.total = atof(t);   // tests: a fake iPod is a folder on the machine's disk, and frame hashes must not follow that disk
   if (const char* f = getenv("ZINC_IPOD_FREE_BYTES")) r.free = atof(f);   // tests: a nearly full iPod
   return r;
 }

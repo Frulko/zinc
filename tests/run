@@ -30,6 +30,7 @@ export ZINC_LANG=en   # the goldens are English, whatever the language of this m
 export ZINC_BACKGROUND=${ZINC_BACKGROUND:-1}   # the tests that open a window do not take the focus from the person working (ZINC_BACKGROUND=0 to watch one)
 export ZINC_DETERMINISTIC=1   # the goldens read the virtual clock; tests/t0/clock_real.sh checks both clocks itself
 export ZINC_STEPS=${ZINC_STEPS:-0}   # tests opt into command progress when they assert it
+export ZINC_IPOD_TOTAL_BYTES=${ZINC_IPOD_TOTAL_BYTES:-80000000000} ZINC_IPOD_FREE_BYTES=${ZINC_IPOD_FREE_BYTES:-20000000000}   # a fake iPod is a folder on this disk: its size must not show in a frame hash
 command -v timeout >/dev/null || export PATH="$root/tools/compat:$PATH"   # a stock macOS has no GNU timeout (ZN-609)
 # plugins build with the pinned zig (ZN-332): tests that make their own ZINC_HOME reuse this one (fetched once here if missing) instead of downloading 50 MB each
 if [ -z "$ZINC_ZIG" ] && [ -x "$ZINC" ]; then
