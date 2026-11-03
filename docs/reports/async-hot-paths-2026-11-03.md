@@ -82,7 +82,7 @@ The saving is the hops through the job queue, not parallelism. Its size is unkno
 
 ## Applied, and what changed from this list
 
-- **Engine gap:** `const [a, b] = await Promise.all([pa, pb])` was refused when the types differ (Z0103). It now works on the three engines, up to six promises, destructured or as a statement (`tests/t1/promise_all_mixed.sh`). `const r = await Promise.all([pa, pb])` with `r[0]` is still refused for mixed types: it needs the checker to tell an array from a tuple.
+- **Engine gap:** `const [a, b] = await Promise.all([pa, pb])` was refused when the types differ (Z0103). It now works on the three engines, up to six promises, destructured, as a statement, as `r[0]` or from a tuple value (`tests/t1/promise_all_mixed.sh`). The `Promise.all` exception of `std_surface` is gone.
 - **iPod, corrected:** "no gain" above is wrong for the wait. The worker still runs one call at a time, but sending them together removes one turn of the event loop per call. So no native `snapshot()` or `updateMany` was added: `Promise.all` over the calls keeps their order on the queue.
 - **Spotify, a defect the fix would have exposed:** two calls finding an expired token each refreshed it, and Spotify rotates refresh tokens. `Spotify.call` now shares one refresh.
 - **Notion:** read-ahead of children keeps to 3 requests a second, Notion's limit, so the gain is small on a slow network.

@@ -691,6 +691,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: Hamlet idle frame: tight dirty rectangles for animals from the atlas frame bounds (44 x 46 px for a 20 x 12 sprite): with 55 or more animals in view the merged rectangle is the whole window every frame. A disjoint cover was tried: pixel-identical, 38 % less edge work on the interpreter, 5 % slower on AOT.
 - ZN-?: measure Hamlet windowed (Metal present, `ZINC_PRESENT_STATS=1`) on a quiet machine: the frame pacing and the present step were inconclusive under load.
 
+- async-hot-paths: `Promise.all` of promises of different types stops at six (`__all2` to `__all6` of the prelude); above that the error is still Z0103, which should name the limit.
+- async-hot-paths: `plugins/sonos/index.ts` has UPnP event subscriptions; music-tree could use them instead of its 2 s and 4 s polls, which would save more than reading in parallel.
+- zinc-dev: `tests/t1/dev_mode.sh` waits 2 s for the reload and fails when the load average is above the core count (seen at 14); it passes on a quiet machine.
+
 ## Demos
 - D178: ipod-web's `/api/devices` gives the volume name, not the iPod's (the master playlist's), so the Mac app shows "ZINCPOD" for a remote iPod; `/api/add` takes no media kind (a podcast added remotely keeps the file's tags); photos and notes are not served.
 - D178: ipod-web streams uploads to disk instead of holding the whole body in memory (`req.rawBody`), so a Pi with little RAM takes large files from the page.
@@ -1004,6 +1008,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: Discord voice AEC: replace the `isHeadphones` name guess with the device type or transport that miniaudio/CoreAudio reports; add a T1 loopback with a simulated room in the fake microphone path.
 
 ## Cross-platform pass
+- async-hot-paths: the parallel Sonos reads (7 SOAP calls at once, `update` and `readVolumes`) on the TouchPad; measured only from the Mac, one group of 3 rooms (32 to 50 ms, no failure).
 - ZN-918: check that `zn_webp_dec` links in the AOT and export builds on Windows and the cross targets (`tests/t0/webp_bytes.sh` runs AOT on the Mac only).
 - ZN-871: SpeexDSP and the `played` tap on Linux, the Pi and iOS; the speaker-to-microphone delay on Bluetooth and on the Pi, and a real call on laptop speakers.
 - ZN-892/893: zinc:net server, WebSocket and ACME on Linux and Windows (net_limits, net_ws, net_acme with a Pebble for that OS).
