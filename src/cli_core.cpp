@@ -3664,10 +3664,14 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     else std::fprintf(stderr, "zinc dev: %s\n", out.c_str());
   };
   Stamps seen = snapshot(p.dir);
+  {
+    const std::string at = zn::log::shortPath(fs::absolute(p.dir, ec).lexically_normal().string());
+    zn::log::step("watch", std::to_string(seen.size()) + " files in " + (at.empty() ? "." : at));
+  }
   if (remote) startRemote(Clock::now()); else startProgram(0, false, {});
   {   // what to do now, once (ZN-774.03): the file to change, that a save shows it, how to stop
     const std::string rel = fs::path(p.entry).lexically_relative(p.dir).generic_string();
-    std::fprintf(stderr, "%s\n", zn::i18n::tr("cli.dev.hint", {{"file", rel.empty() || rel.rfind("..", 0) == 0 ? p.entry : rel}}).c_str());
+    std::fprintf(stderr, "zinc dev: change %s and save: the program updates at once. Ctrl+C stops.\n", (rel.empty() || rel.rfind("..", 0) == 0 ? p.entry : rel).c_str());
     std::fflush(stderr);
   }
   while (!gStop) {
@@ -3702,6 +3706,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     std::string why;
     const std::string saved = savedFiles(p.dir, was, now, why);
     lastSaved = saved;
+    zn::log::step("change", saved.empty() ? "files changed" : saved);
     if (child > 0 && hotFd >= 0) {
       std::string line;
       while (!hotReady && hotOff.empty() && hotLine(hotFd, hotBuf, line, 0)) {
@@ -3710,6 +3715,7 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
       }
       if (why.empty() && !hotReady) why = hotOff.empty() ? "the program has no frame loop" : hotOff;
       if (why.empty()) {
+        zn::log::step("swap", "the running program compiles the save and swaps it in");
         const bool sent = write(hotFd, "reload\n", 7) == 7;
         if (!sent || !hotLine(hotFd, hotBuf, line, 5000)) why = "the program did not answer";
         else if (line.rfind("ok", 0) == 0) {
@@ -3735,12 +3741,14 @@ int dev(const std::vector<std::string>& args, const DevRemote* remote) {
     if (!why.empty() && child > 0) std::fprintf(stderr, "zinc dev: restart: %s\n", why.c_str());
     const fs::path out = devDir / "check.txt";
     const std::string cmd = q(exe) + " check --check " + q(p.entry) + " > " + q(out.string()) + " 2>&1";
+    const auto checkAt = Clock::now();
     const int rc = status(std::system(cmd.c_str()));
+    zn::log::step("check", rc == 0 ? "types and imports, no errors" : "errors", msSince(checkAt));
     if (rc != 0) {
       std::vector<std::string> lines;
       std::istringstream is(readAll(out));
       std::string line;
-      while (std::getline(is, line)) if (!line.empty()) lines.push_back(line);
+      while (std::getline(is, line)) if (!line.empty() && line.rfind("  ", 0) != 0) lines.push_back(line);   // not the indented steps of zinc check
       std::fprintf(stderr, "zinc dev: compile error: %s\n", lines.empty() ? "check failed" : lines[0].c_str());
       startProgram(msSince(t0), true, lines);
     } else startProgram(msSince(t0), false, {});

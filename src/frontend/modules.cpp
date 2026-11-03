@@ -2148,7 +2148,7 @@ struct Loader {
         if (read(simPath, text)) {
           std::string specText;
           if (read(base + ".ts", specText)) specOf[simPath] = std::move(specText);  // the Spec the sim implements: the calls are checked against it
-          prog.nativeFallbacks.push_back({requireNativeName(specText0), isSim ? "simulation" : "Next implementation", whyNot});
+          prog.nativeFallbacks.push_back({requireNativeName(specText0), isSim ? "simulation" : "its Zinc implementation", whyNot});
           if (haveSpec) {   // the records the plugin imports from the spec, which is now the sim: the sim passes on those of the spec it does not declare itself
             auto types = [](const std::string& src, bool exportedOnly) {   // the top-level interfaces and type aliases of a file
               std::set<std::string> names;

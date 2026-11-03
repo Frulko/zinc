@@ -840,7 +840,10 @@ static zn::rt::Result runHot(std::unique_ptr<zn::dev::hot::Unit> unit, zn::zbc::
     zn::dev::hot::finish(u);
 #ifdef ZN_HOST_GFX
     std::string err;
-    if (drawsOf(u.zbc) && !bakeResources(entry.c_str(), u.resources, err)) { errors = err; return false; }
+    if (drawsOf(u.zbc)) {
+      zn::log::Phase ph("build", "bake fonts and images", "resources", "fonts and images baked in");
+      if (!bakeResources(entry.c_str(), u.resources, err)) { errors = err; return false; }
+    }
 #endif
     return true;
   };
@@ -1965,8 +1968,6 @@ int main(int argc, char** argv) {
     argc -= drop;
     --k;
   }
-  // zinc run and zinc dev print one progress line at most (ZN-774.32): the details are behind -v / --verbose (or ZINC_STEPS=1)
-  if (argc >= 2 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "dev"))) setenv("ZINC_STEPS", "brief", 0);
   { char e[256]; zn_register_module(zn_module_QuickJS(), e, sizeof e); zn_register_module(zn_module_QuickJSFast(), e, sizeof e); }
 #ifdef ZN_NATIVE_FIXTURE
   { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }   // a test module in C99 (tests/native/fixture.c): what the native-call fixtures call
@@ -2801,7 +2802,10 @@ int main(int argc, char** argv) {
       std::error_code rec;
       if (fromCache && !zbccache::gResources.empty()) blob = std::move(zbccache::gResources);
       else if (gSources.empty() && std::filesystem::exists(baked, rec)) { std::ifstream rf(baked, std::ios::binary); blob.assign(std::istreambuf_iterator<char>(rf), std::istreambuf_iterator<char>()); }
-      else if (!bakeResources(absPath.c_str(), blob, err)) blob.clear();
+      else {
+        zn::log::Phase ph("build", "bake fonts and images", "resources", "fonts and images baked in");
+        if (!bakeResources(absPath.c_str(), blob, err)) blob.clear();
+      }
       if (blob.empty() || !zn::host::installResources(blob.data(), blob.size())) { std::fprintf(stderr, "zinc: cannot prepare the fonts and images: %s\n", err.c_str()); return 1; }
     }
 #endif
@@ -2817,6 +2821,7 @@ int main(int argc, char** argv) {
 #endif
     printPlugins();
     zn::log::step("run", "interpreter");
+    const auto runStarted = std::chrono::steady_clock::now();
     auto res = [&] {
       zn::log::Phase ph("run", "program");
       if (hotRun) return runHot(std::move(hotUnit), zm, blob, absPath, out, trace, std::atoi(hotFd));
@@ -2839,7 +2844,9 @@ int main(int argc, char** argv) {
     }();
     if (gDebug && !res.ok && res.error.rfind("stopped by the debugger", 0) == 0) { std::fwrite(out.data(), 1, out.size(), stdout); return 0; }   // q in zinc debug
     if (!gTrialDir.empty() && !res.ok) std::_Exit(zn::rt::report(res, out, trace));   // failed on trial: leave `trial` for the next launch to roll back
-    return zn::rt::report(res, out, trace);
+    const int runCode = zn::rt::report(res, out, trace);
+    zn::log::step("exit", "code " + std::to_string(runCode), zn::log::since(runStarted));
+    return runCode;
   }
   if (argc >= 3 && !std::strcmp(argv[1], "sim")) {   // zinc sim <scenario.yaml> [--out DIR] [--update-goldens]: the steps of a scenario against the program it names (ZN-295)
     namespace fs = std::filesystem;

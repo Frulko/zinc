@@ -1,6 +1,5 @@
 ﻿#include "tc/plugin_build.h"
 #include "tc/policy.h"
-#include "i18n/i18n.h"
 #include "zn/log.h"
 #include "tc/tlog.h"
 #include "tc/tuf.h"
@@ -622,7 +621,7 @@ bool buildPluginSlow(const frontend::FoundPlugin& p, const std::string& engineRo
   fs::create_directories(dir, ec);
   if (!fs::exists(out.shared) || !fs::exists(out.archive)) fetchPrebuilt(m.name, keyHex, gCross.on ? gCross.name : target, engineRoot, dir, vdir, out);   // ZN-337: a published binary first
   bool told = false;   // ZN-774.03: a first build takes 5 to 20 s; the person is told before it starts, once, which plugin and that it is once
-  auto tell = [&] { if (!told) { const std::string msg = i18n::tr("cli.run.plugin_build", {{"plugin", m.name}}); log::step("plugin", msg); log::brief(msg); } told = true; };   // brief: zinc run and zinc dev say it too
+  auto tell = [&] { if (!told) { const std::string msg = "building " + m.name + ", once (5 to 20 s); the next runs start at once"; log::step("plugin", msg); log::brief(msg); } told = true; };   // brief: zinc run and zinc dev say it too
   std::vector<Job> jobs;   // the vendored libraries' and the plugin's own compiles, run at once below
   std::string vendorObjs;
   const bool buildVendor = !vendored.empty() && !fs::exists(out.vendor);

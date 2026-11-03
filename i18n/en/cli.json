@@ -181,8 +181,6 @@
   "cli.doctor.more": "The full report, with every hash and every plugin: {command}",
   "cli.check.ok_one": "ok: {entry} checked (types and imports), no errors",
   "cli.check.ok_other": "ok: {entry} and its imports checked ({count} files), no errors",
-  "cli.run.plugin_build": "building the plugin {plugin}, once (5 to 20 s); the next runs start at once",
-  "cli.dev.hint": "zinc dev: change {file} and save: the program updates at once. Ctrl+C stops.",
   "cli.tour.title": "Zinc tour: eight short steps in a real project. q stops at any time, and zinc tour goes on from there.",
   "cli.tour.step": "Step {n} of {total}: {title}",
   "cli.tour.s1": "Make a project",

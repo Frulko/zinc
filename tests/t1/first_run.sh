@@ -42,8 +42,8 @@ echo "$out" | grep -Eqx 'ok: src/main.ts (checked \(types and imports\)|and its 
 dev=$!
 n=0; while [ $n -lt 200 ] && ! grep -q "program exited" "$tmp/dev.log"; do sleep 0.05; n=$((n + 1)); done
 kill $dev 2>/dev/null; wait $dev 2>/dev/null
-[ "$(grep -c '^zinc dev: v1 started' "$tmp/dev.log")" = 1 ] && ! grep -Eq '^  [a-z]|^zinc run |^zinc: plugins|using Next implementation' "$tmp/dev.log" \
-  || { echo "zinc dev prints more than one progress line: $(head -12 "$tmp/dev.log")"; fail=1; }
+[ "$(grep -c '^zinc dev: v1 started' "$tmp/dev.log")" = 1 ] && grep -q '^  watch ' "$tmp/dev.log" && grep -q '^  run ' "$tmp/dev.log" \
+  || { echo "zinc dev does not print its steps: $(head -12 "$tmp/dev.log")"; fail=1; }
 grep -qx "zinc dev: change src/main.ts and save: the program updates at once. Ctrl+C stops." "$tmp/dev.log" && ! grep -q "after the save" "$tmp/dev.log" \
   || { echo "zinc dev does not start with what to do: $(head -5 "$tmp/dev.log")"; fail=1; }
 cp "$g/src/main.ts" "$tmp/main.ts"
@@ -54,12 +54,15 @@ grep -q 'hello from me' "$g/src/main.ts" || { echo "the game template has no 'ar
 after=$(frame)
 [ -n "$before" ] && [ -n "$after" ] && [ "$before" != "$after" ] || { echo "a changed text does not change the frame: $before, $after"; fail=1; }
 
-# the first native run: one line; the next: none; --verbose: the steps
+# the first native run: says it builds; the next: from the cache; -q: nothing; ZINC_STEPS=brief: the one line
 quiet() { (cd "$g" && unset ZINC_STEPS && ZINC_HOME="$tmp/runhome" ZINC_FRAMES=1 "$Z" run --native "$@" 2>&1 >/dev/null); }
 out=$(quiet)
-[ "$out" = "zinc: compiling for this machine, once (a few seconds; the next runs start at once)" ] || { echo "the first native zinc run is not one line: $out"; fail=1; }
-out=$(quiet); [ -z "$out" ] || { echo "a cached zinc run prints: $out"; fail=1; }
-quiet --verbose | grep -q '^  run        native' || { echo "zinc run --verbose does not print the steps: $(quiet --verbose | head -3)"; fail=1; }
+echo "$out" | grep -q '^  build      first run of this version' && echo "$out" | grep -q '^  run        native' || { echo "the first native zinc run does not print its steps: $out"; fail=1; }
+out=$(quiet); echo "$out" | grep -q '^  run        native, cached build' || { echo "a cached zinc run does not say so: $out"; fail=1; }
+out=$(quiet -q); [ -z "$out" ] || { echo "zinc run -q prints: $out"; fail=1; }
+rm -rf "$tmp/runhome"
+out=$(cd "$g" && ZINC_STEPS=brief ZINC_HOME="$tmp/runhome" ZINC_FRAMES=1 "$Z" run --native 2>&1 >/dev/null)
+[ "$out" = "zinc: compiling for this machine, once (a few seconds; the next runs start at once)" ] || { echo "ZINC_STEPS=brief is not one line: $out"; fail=1; }
 
 # the six mistakes: mistake <name> <project> <zinc arguments...>, after the files were edited
 mistake() {

@@ -32,6 +32,12 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 - Zooming out in Hamlet no longer leaves the village as a small clipped rectangle in the dark while the new view is prepared; the picture stays until it can grow smaller.
 
+### Developer tools
+
+#### Changed
+
+- `zinc run` and `zinc dev` show every step again, as `zinc build` does and in English: engine, cache, compile, plugins, resources, run and exit. `zinc dev` adds `watch`, `change`, `swap` and `check`. `-q` hides them, `ZINC_STEPS=brief` keeps only the first-build line.
+
 ### Performance
 
 #### Faster

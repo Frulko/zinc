@@ -327,7 +327,11 @@ name QuickJS and show preparation, entry loading, execution and exit status. Nat
 C++ units came from the cache, completed jobs and elapsed time; a terminal animates the current stage while
 the compiler or linker runs. A stage announces itself before it starts, so a long operation is visible.
 
-`-q` or `ZINC_STEPS=0` hides progress. `-v` adds detailed module timings; `--log-format json -v` keeps stderr
+`zinc run` and `zinc dev` print the same steps as `zinc build`, in English: `engine`, `cache`, `compile`, `plugin`, `resources`, then
+`run` and `exit` for a run (a native program replaces the `zinc` process when it starts, so it has no `exit` line). `zinc dev` adds its own:
+`watch` (the files it follows), `change` (what a save touched), `swap` (the running program compiles and swaps it) or `check` before a restart.
+
+`-q` or `ZINC_STEPS=0` hides progress, and `ZINC_STEPS=brief` keeps only the line of a first native build or download. `-v` adds detailed module timings; `--log-format json -v` keeps stderr
 as JSON. Program stdout is separate. Tests set `ZINC_STEPS=0` unless they check these messages.
 
 When an automatic native-plugin build or load fails, Zinc warns with the module, cause and selected

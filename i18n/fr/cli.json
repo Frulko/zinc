@@ -184,8 +184,6 @@
   "cli.check.ok_one": "ok : {entry} vérifié (types et imports), aucune erreur",
   "cli.check.ok_many": "ok : {entry} et ses imports vérifiés ({count} fichiers), aucune erreur",
   "cli.check.ok_other": "ok : {entry} et ses imports vérifiés ({count} fichiers), aucune erreur",
-  "cli.run.plugin_build": "compilation du plugin {plugin}, une seule fois (5 à 20 s) ; les prochains lancements démarrent tout de suite",
-  "cli.dev.hint": "zinc dev : modifiez {file} et enregistrez : le programme se met à jour aussitôt. Ctrl+C arrête.",
   "cli.tour.title": "Visite guidée de Zinc : huit petites étapes dans un vrai projet. q arrête à tout moment, et zinc tour reprend là.",
   "cli.tour.step": "Étape {n} sur {total} : {title}",
   "cli.tour.s1": "Créer un projet",

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Command steps (ZN-720): all engines report stages, also into a pipe (zinc run and zinc dev with ZINC_STEPS=1 or -v: they print one line by default, ZN-774.32); -q explicitly hides progress.
+# Command steps (ZN-720): all engines report stages, also into a pipe; -q explicitly hides progress.
 cd "$(dirname "$0")/../.." || exit 2
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 fail=0
@@ -10,6 +10,8 @@ for s in "zinc build" "  compile " "  resources " "  C++ " "  native " "  cache 
 grep -q 'completed, .* running' "$t/b" || { echo 'build: no live C++ progress'; fail=1; }
 ZINC_STEPS=1 ZINC_HEADLESS=1 ZINC_FRAMES=1 "$ZINC" --interp run tests/data/run_compiled/main.ts 2>"$t/r" >/dev/null
 grep -q "^  run        interpreter" "$t/r" || { echo "run: no interpreter step"; cat "$t/r"; fail=1; }
+ZINC_HEADLESS=1 ZINC_FRAMES=1 "$ZINC" --interp run tests/data/run_compiled/main.ts 2>"$t/d" >/dev/null
+for s in "zinc run" "  engine " "  run " "  exit "; do grep -q "^$s" "$t/d" || { echo "default run: no '$s' line"; cat "$t/d"; fail=1; }; done
 "$ZINC" build tests/data/run_compiled/main.ts -o "$t/app" 2>"$t/p" >/dev/null
 [ -s "$t/p" ] || { echo "no steps printed into a pipe"; fail=1; }
 ZINC_STEPS=1 "$ZINC" -q build tests/data/run_compiled/main.ts -o "$t/app" 2>"$t/q" >/dev/null

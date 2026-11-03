@@ -80,8 +80,8 @@ inline bool steps() {
   const char* e = std::getenv("ZINC_STEPS");
   return !state().json && (!e || std::atoi(e) != 0);
 }
-// zinc run and zinc dev default to ZINC_STEPS=brief (ZN-774.32): no step lines, only the one line a person waits on (the first native build);
-// -v / --verbose or ZINC_STEPS=1 shows every step.
+// ZINC_STEPS=brief, on request: no step lines, only the line a person waits on (a first native build, a download). Every command, zinc run and
+// zinc dev included, prints its steps by default (owner, 2026-11-03: they say what runs; the one-line default of ZN-774.32 hid it).
 inline void brief(const std::string& msg) {
   const char* e = std::getenv("ZINC_STEPS");
   if (e && !std::strcmp(e, "brief") && !state().json) std::fprintf(stderr, "zinc: %s\n", msg.c_str());
