@@ -6,7 +6,7 @@ import { Clue, fact, ROOM, ROW, COLUMN, ON, NEAR, NOT_NEAR, ALONE, ONLY_ON, ONLY
 import { family, phrase } from './phrases';
 import { solutions } from './solver';
 import { deduce } from './deduction';
-export { Puzzle, N, names, rooms, objects, EMPTY, room, occupiable, personLetter, personName, characterFor, domains, validScene } from './model';
+export { Puzzle, N, names, rooms, objects, EMPTY, room, labelRun, occupiable, personLetter, personName, characterFor, domains, validScene } from './model';
 export { solve, solutions } from './solver';
 function attempt(seed: number, level: number): Puzzle | null {
  let state = (Math.floor(seed)%2147483646)+1;

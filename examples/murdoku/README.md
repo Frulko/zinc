@@ -20,6 +20,15 @@ All five testimonies and the silent victim are shown together. Room names appear
 
 H recomputes the next logical step from current placements and manual crosses: testimony, eliminated candidates, row/column consequences, crossed evidence and resulting placements. It never reads the hidden scene to invent a hint. Enter checks the scene; Space toggles mouse pencil mode; Cmd/Ctrl+Z undoes. Keyboard letter repeat is ignored to avoid repeated toggling.
 
+## On paper
+
+`src/ticket.ts` draws an investigation as a till receipt, 576 dots wide (80 mm paper, about 20 cm long): plan, testimonies, and the solution upside down at the end. `authoring/print_ticket.py` captures it and sends ESC/POS to a printer or bridge over raw TCP; it needs Pillow.
+
+```sh
+python3 examples/murdoku/authoring/print_ticket.py --seed 7919 --level 1 --host ticket-printer.local
+python3 examples/murdoku/authoring/print_ticket.py --preview ticket.png
+```
+
 ## Generation and constraints
 
 A seeded multi-source growth algorithm builds four connected, interlocking room regions on footprints of 6–8 columns and six rows. Corner cutouts and optional courtyards leave absent cells. Four of eight room themes supply sparse furniture; at least half each room stays free. The scene still contains six people, so wider grids have unused columns. The scene samples a legal row/column permutation and shuffles the people, so no character has a fixed row. The victim is selected from a room with exactly two people.

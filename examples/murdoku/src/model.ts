@@ -34,6 +34,17 @@ export function room(p: Puzzle, cell: number): number {
  if (p.roomMap.length > 0) return p.roomMap[cell];
  return (cell%p.columns < p.splitX ? 0 : 1)+(Math.floor(cell/p.columns) < p.splitY ? 0 : 2);
 }
+// Where a room's name goes: an empty floor run near the bottom, so it never covers a bed or a chair. [first cell, length]
+export function labelRun(p: Puzzle, r: number): number[] {
+ let cell = p.labelCells[r], length = p.labelWidths[r], best = -1;
+ for (let c = 0; c < p.columns*p.rows; c++) if (room(p,c) === r && p.decor[c] === EMPTY) {
+  let run = 0;
+  while (c%p.columns+run < p.columns && room(p,c+run) === r && p.decor[c+run] === EMPTY) run++;
+  const score = run*10+Math.floor(c/p.columns);
+  if (run >= 2 && score > best) { cell = c; length = run; best = score; }
+ }
+ return [cell,length];
+}
 export function occupiable(p: Puzzle, cell: number): boolean {
  if (cell < 0 || cell >= p.columns*p.rows) return false;
  if (room(p,cell) < 0) return false;
