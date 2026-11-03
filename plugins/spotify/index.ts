@@ -112,6 +112,7 @@ export class Spotify {
   file: string;
   clientId: string = '';
   private refreshToken: string = '';
+  private refreshing: Promise<void> | null = null;
   private token: string = '';
   private expires: number = 0;
   userId: string = '';
@@ -169,10 +170,17 @@ export class Spotify {
   }
 
   /** One API call; the parsed answer, or null for an empty one (204). Retries once on an expired token. @throws SpotifyError */
+  /** One refresh for all the calls that find the token expired: Spotify rotates the refresh token, so a second one at once could fail. */
+  private async refreshOnce(): Promise<void> {
+    if (this.refreshing !== null) { await (this.refreshing as Promise<void>); return; }
+    this.refreshing = this.refresh();
+    try { await (this.refreshing as Promise<void>); } finally { this.refreshing = null; }
+  }
+
   async call(method: string, path: string, body: string = ''): Promise<any> {
     if (!this.ready()) throw new SpotifyError(this.problem, 0);
     for (let attempt = 0; attempt < 2; attempt++) {
-      if (this.token === '' || Date.now() > this.expires) await this.refresh();
+      if (this.token === '' || Date.now() > this.expires) await this.refreshOnce();
       const init: any = { method, timeoutMs: TIMEOUT_MS, headers: [['Authorization', 'Bearer ' + this.token], ['Content-Type', 'application/json']] };
       if (body !== '' || method === 'PUT' || method === 'POST') init.body = body;
       const r = await fetch(API + path, init);
@@ -267,9 +275,14 @@ export class Spotify {
    *  (Spotify gives an app in development mode no other's items, since February 2026: the speakers still play it whole). */
   async playlist(id: string, offset: i32 = 0): Promise<Item[]> {
     const out: Item[] = [];
-    if (offset === 0) out.push(listItem(await this.call('GET', `/playlists/${id}`)));
+    const items = async (): Promise<any> => {   // the first page may be refused: the playlist's card still shows
+      try { return await this.call('GET', `/playlists/${id}/items?limit=50&offset=${offset}`); } catch (e) { if (offset > 0) throw e; return null; }
+    };
+    const parts = await Promise.all(offset === 0 ? [items(), this.call('GET', `/playlists/${id}`)] : [items()]);
+    if (offset === 0) out.push(listItem(parts[1]));
+    const j = parts[0];
+    if (j === null) return out;
     try {
-      const j = await this.call('GET', `/playlists/${id}/items?limit=50&offset=${offset}`);
       for (let i = 0; i < j.items.length; i++) {
         const e = j.items[i], t = e.item !== undefined && e.item !== null ? e.item : e.track;
         if (t === undefined || t === null) continue;

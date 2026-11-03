@@ -221,6 +221,12 @@ export async function soap(address: string, service: string, path: string, actio
   return answer !== null ? answer : new El('');
 }
 
+/** `work` on every group, GROUPS_AT_ONCE at a time: different speakers answer in parallel, without a burst that slows an old device. */
+const GROUPS_AT_ONCE: i32 = 3;
+export async function eachGroup(groups: Group[], work: (g: Group) => Promise<void>): Promise<void> {
+  for (let i = 0; i < groups.length; i += GROUPS_AT_ONCE) await Promise.all(groups.slice(i, i + GROUPS_AT_ONCE).map((g: Group): Promise<void> => work(g)));
+}
+
 /** An absolute URL of a cover: a speaker's own path ('/getaa?...') gets its address. */
 export function artUri(address: string, art: string): string { return art.startsWith('/') ? `http://${hostPort(address)}${art}` : art; }
 
@@ -355,24 +361,21 @@ export class System {
 
   /** Reads what a group plays: transport state, track, position, source, play mode, group volume and mute. */
   async update(g: Group): Promise<void> {
-    const info = await avt(g, 'GetTransportInfo');
+    const [info, pos, media, actions, settings, vol, mute] = await Promise.all([
+      avt(g, 'GetTransportInfo'), avt(g, 'GetPositionInfo'), avt(g, 'GetMediaInfo'), avt(g, 'GetCurrentTransportActions'), avt(g, 'GetTransportSettings'),
+      grc(g, 'GetGroupVolume'), grc(g, 'GetGroupMute'),
+    ]);
     g.state = info.textOf('CurrentTransportState');
     const status = info.textOf('CurrentTransportStatus');
     g.status = status !== '' ? status : 'OK';
-    const pos = await avt(g, 'GetPositionInfo');
-    const media = await avt(g, 'GetMediaInfo');
     g.media = new Media();
     g.media.uri = media.textOf('CurrentURI'); g.media.meta = media.textOf('CurrentURIMetaData');
     g.media.nrTracks = (parseInt(media.textOf('NrTracks')) || 0) as i32;
     g.track = this.trackOf(g, pos.textOf('TrackURI'), pos.textOf('TrackMetaData'), pos.textOf('TrackDuration'), (parseInt(pos.textOf('Track')) || 0) as i32);
     g.track.position = seconds(pos.textOf('RelTime'));
-    const actions = await avt(g, 'GetCurrentTransportActions');
     g.actions = actions.textOf('Actions');
-    const settings = await avt(g, 'GetTransportSettings');
     g.playMode = settings.textOf('PlayMode');
-    const vol = await grc(g, 'GetGroupVolume');
     g.volume = parseInt(vol.textOf('CurrentVolume')) as i32;
-    const mute = await grc(g, 'GetGroupMute');
     g.muted = mute.textOf('CurrentMute') === '1';
   }
 
@@ -402,13 +405,11 @@ export class System {
 
   /** Reads the volume and mute of every room of a group. */
   async readVolumes(g: Group): Promise<void> {
-    for (let i = 0; i < g.members.length; i++) {   // ponytail: an index loop, `for (const s of ...)` with an await and a field write fails to compile (Z0108)
-      const s = g.members[i];
-      const v = await rc(s, 'GetVolume', '<Channel>Master</Channel>');
-      const m = await rc(s, 'GetMute', '<Channel>Master</Channel>');
+    await Promise.all(g.members.map(async (s: Speaker): Promise<void> => {
+      const [v, m] = await Promise.all([rc(s, 'GetVolume', '<Channel>Master</Channel>'), rc(s, 'GetMute', '<Channel>Master</Channel>')]);
       s.volume = parseInt(v.textOf('CurrentVolume')) as i32;
       s.muted = m.textOf('CurrentMute') === '1';
-    }
+    }));
   }
 
   async play(g: Group): Promise<void> { await avt(g, 'Play', '<Speed>1</Speed>'); g.state = 'PLAYING'; }

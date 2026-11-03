@@ -5,7 +5,7 @@ import { onFrame, width, height, keep, clear, rect, rrect, gradient, setTransfor
 import { exists, readText, writeText, appendText, stat } from 'zinc:fs';
 import { udp } from 'zinc:socket';
 import { utf8Decode, device, platform } from 'zinc:sys';
-import { discover, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify, queueSpotify } from 'zinc:sonos';
+import { discover, eachGroup, System, Group, Speaker, serviceId, accountOf, playSpotify as sonosSpotify, queueSpotify } from 'zinc:sonos';
 import { Spotify, Item, Playback, Login, sharedLoginFile } from 'zinc:spotify';
 import { SPOTIFY_CLIENT_ID } from './spotify-client';
 import { SpotifyPage, SpotifyHost } from './spotify-ui';
@@ -229,7 +229,7 @@ async function find(): Promise<void> {
     sys = s;
     if (cfg.seed !== s.seed) { cfg.seed = s.seed; saveConfig(); }
     pickGroup();
-    for (const g of s.groups) { try { await s.update(g); } catch (e) { /* asleep speaker: the next poll */ } }
+    await eachGroup(s.groups, async (g: Group): Promise<void> => { try { await s.update(g); } catch (e) { /* asleep speaker: the next poll */ } });
     if (group !== null) { posBase = (group as Group).track.position; posAt = now(); }
     status = '';
   } catch (e) { status = 'Aucune enceinte Sonos trouvée sur ce réseau'; logError(`find: ${e.message}`); }
@@ -273,9 +273,13 @@ async function pollRooms(): Promise<void> {
   if (volsBusy || sys === null) return;
   volsBusy = true;
   const s = sys as System;
-  for (let i = 0; i < s.groups.length; i++) {
-    try { await s.readVolumes(s.groups[i]); if (s.groups[i] !== group) await s.update(s.groups[i]); } catch (e) { /* next time */ }
-  }
+  await eachGroup(s.groups.slice(0), async (g: Group): Promise<void> => {
+    try {
+      const reads = [s.readVolumes(g)];
+      if (g !== group) reads.push(s.update(g));
+      await Promise.all(reads);
+    } catch (e) { /* next time */ }
+  });
   volsBusy = false; ui.dirty = true;
 }
 /** The rooms of the group under control (the popover's sliders): the Rooms page reads every group, this page only that one. */
@@ -374,7 +378,7 @@ function playSpotify(it: Item): void {
     } else await playThroughSonos(s, gg, it);
     toast(`${it.name} sur ${gg.name()}`);
     home();
-    await sleep(800); await pollGroup(); await pollSpotify();
+    await sleep(800); await Promise.all([pollGroup(), pollSpotify()]);
   });
 }
 // "Reprendre ici" (owner 2026-10-19): the account plays on another device (a Mac, an iPhone, the speakers of the other house): the player
@@ -415,7 +419,7 @@ function resumeHere(): void {
     }
     handoffSkip = pb.item.uri;
     toast(`${pb.item.name} sur ${gg.name()}`);
-    await sleep(800); await pollGroup(); await pollSpotify();
+    await sleep(800); await Promise.all([pollGroup(), pollSpotify()]);
   });
 }
 // The queue of Spotify songs on the speakers goes on like Spotify (owner 2026-10-19: "it goes into songs I do not have, that is what is

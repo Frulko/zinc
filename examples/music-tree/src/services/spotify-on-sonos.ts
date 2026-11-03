@@ -60,8 +60,7 @@ export function playSpotifyItem(item: Item): void {
     showToast(`${item.name} sur ${group.name()}`);
     navigateToHomePlayer();
     await sleepMilliseconds(800);
-    await pollActiveSonosGroup();
-    await pollSpotifyPlaybackState();
+    await Promise.all([pollActiveSonosGroup(), pollSpotifyPlaybackState()]);
   });
 }
 
@@ -215,9 +214,8 @@ export function resumeHere(): void {
 
   runSafeNetworkAction('Reprendre', async (): Promise<void> => {
     const client = appState.spotifyClient;
-    const playback = await client.playback(); // now: the song may have moved on since the last look
+    const [playback, connectDevice] = await Promise.all([client.playback(), client.device(group.coordinator.name)]); // now: the song may have moved on since the last look
     if (!playback.active || playback.item.uri === '') throw new Error('plus rien ne joue sur Spotify');
-    const connectDevice = await client.device(group.coordinator.name);
     if (connectDevice !== null && !connectDevice.restricted) {
       await client.transfer(connectDevice.id, true); // Spotify Connect: the queue moves along
     } else {
@@ -233,8 +231,7 @@ export function resumeHere(): void {
     dismissedHandoffSongUri = playback.item.uri;
     showToast(`${playback.item.name} sur ${group.name()}`);
     await sleepMilliseconds(800);
-    await pollActiveSonosGroup();
-    await pollSpotifyPlaybackState();
+    await Promise.all([pollActiveSonosGroup(), pollSpotifyPlaybackState()]);
   });
 }
 

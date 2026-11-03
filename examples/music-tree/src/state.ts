@@ -7,7 +7,7 @@
 // whose names say what they do, without duplicating the logic.
 
 import { exists, appendText, stat } from 'zinc:fs';
-import { discover, System, Group, Speaker } from 'zinc:sonos';
+import { discover, eachGroup, System, Group, Speaker } from 'zinc:sonos';
 import { Spotify, Item, Playback } from 'zinc:spotify';
 import { openPort } from 'zinc:webos';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -422,13 +422,13 @@ export async function discoverSonosSystem(): Promise<void> {
       saveAppConfig(appState.config);
     }
     pickDefaultSonosGroup();
-    for (let index = 0; index < discoveredSystem.groups.length; index++) {
+    await eachGroup(discoveredSystem.groups, async (group: Group): Promise<void> => {
       try {
-        await discoveredSystem.update(discoveredSystem.groups[index]);
+        await discoveredSystem.update(group);
       } catch (error) {
         /* speaker asleep: read on the next cycle */
       }
-    }
+    });
     if (appState.activeGroup !== null) {
       appState.trackPositionBaseSeconds = (appState.activeGroup as Group).track.position;
       appState.trackPositionTimestampSeconds = appState.elapsedAppClockSeconds;
@@ -559,16 +559,15 @@ export async function pollAllRoomVolumes(): Promise<void> {
   appState.isPollingVolumes = true;
   const shownBefore = sonosShownSignature();
   const system = appState.sonosSystem as System;
-  for (let index = 0; index < system.groups.length; index++) {
+  await eachGroup(system.groups.slice(0), async (group: Group): Promise<void> => {
     try {
-      await system.readVolumes(system.groups[index]);
-      if (system.groups[index] !== appState.activeGroup) {
-        await system.update(system.groups[index]);
-      }
+      const reads = [system.readVolumes(group)];
+      if (group !== appState.activeGroup) reads.push(system.update(group));
+      await Promise.all(reads);
     } catch (error) {
       /* next cycle */
     }
-  }
+  });
   appState.isPollingVolumes = false;
   if (sonosShownSignature() !== shownBefore) uiState.dirty = true;
 }
