@@ -291,6 +291,11 @@ interface PromiseConstructor {
   resolve(): Promise<void>;
   reject<T = never>(e: Error): Promise<T>;
   all<T>(ps: Promise<T>[]): Promise<T[]>;
+  all<A,B>(ps: [Promise<A>, Promise<B>]): Promise<[A, B]>;
+  all<A,B,C>(ps: [Promise<A>, Promise<B>, Promise<C>]): Promise<[A, B, C]>;
+  all<A,B,C,D>(ps: [Promise<A>, Promise<B>, Promise<C>, Promise<D>]): Promise<[A, B, C, D]>;
+  all<A,B,C,D,E>(ps: [Promise<A>, Promise<B>, Promise<C>, Promise<D>, Promise<E>]): Promise<[A, B, C, D, E]>;
+  all<A,B,C,D,E,F>(ps: [Promise<A>, Promise<B>, Promise<C>, Promise<D>, Promise<E>, Promise<F>]): Promise<[A, B, C, D, E, F]>;
   allSettled<T>(ps: Promise<T>[]): Promise<PromiseSettledResult<T>[]>;
   race<T>(ps: Promise<T>[]): Promise<T>;
   any<T>(ps: Promise<T>[]): Promise<T>;

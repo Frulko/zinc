@@ -3571,6 +3571,57 @@ function __all<T>(ps: Promise<T>[]): Promise<T[]> {
   return st.result;
 }
 
+// all of promises of different types, destructured at once (desugar.cpp): the tuple of their values
+class AllTuple<R> {
+  left: i32 = 0;
+  result: Promise<R> = __newPromise<R>();
+  done: () => void = (): void => {};
+}
+class AllTupleJob<R> extends Job {
+  constructor(public p: PromiseBase, public st: AllTuple<R>) { super(); }
+  run(): void {
+    const err = this.p.error;
+    if (err !== null) { this.st.result.rejectWith(err); return; }
+    this.st.left--;
+    if (this.st.left === 0) this.st.done();
+  }
+}
+function __all2<A,B>(a: Promise<A>, b: Promise<B>): Promise<[A, B]> {
+  const st = new AllTuple<[A, B]>();
+  st.left = 2;
+  st.done = (): void => { st.result.resolveWith([a.value, b.value]); };
+  a.subscribe(new AllTupleJob<[A, B]>(a, st)); b.subscribe(new AllTupleJob<[A, B]>(b, st));
+  return st.result;
+}
+function __all3<A,B,C>(a: Promise<A>, b: Promise<B>, c: Promise<C>): Promise<[A, B, C]> {
+  const st = new AllTuple<[A, B, C]>();
+  st.left = 3;
+  st.done = (): void => { st.result.resolveWith([a.value, b.value, c.value]); };
+  a.subscribe(new AllTupleJob<[A, B, C]>(a, st)); b.subscribe(new AllTupleJob<[A, B, C]>(b, st)); c.subscribe(new AllTupleJob<[A, B, C]>(c, st));
+  return st.result;
+}
+function __all4<A,B,C,D>(a: Promise<A>, b: Promise<B>, c: Promise<C>, d: Promise<D>): Promise<[A, B, C, D]> {
+  const st = new AllTuple<[A, B, C, D]>();
+  st.left = 4;
+  st.done = (): void => { st.result.resolveWith([a.value, b.value, c.value, d.value]); };
+  a.subscribe(new AllTupleJob<[A, B, C, D]>(a, st)); b.subscribe(new AllTupleJob<[A, B, C, D]>(b, st)); c.subscribe(new AllTupleJob<[A, B, C, D]>(c, st)); d.subscribe(new AllTupleJob<[A, B, C, D]>(d, st));
+  return st.result;
+}
+function __all5<A,B,C,D,E>(a: Promise<A>, b: Promise<B>, c: Promise<C>, d: Promise<D>, e: Promise<E>): Promise<[A, B, C, D, E]> {
+  const st = new AllTuple<[A, B, C, D, E]>();
+  st.left = 5;
+  st.done = (): void => { st.result.resolveWith([a.value, b.value, c.value, d.value, e.value]); };
+  a.subscribe(new AllTupleJob<[A, B, C, D, E]>(a, st)); b.subscribe(new AllTupleJob<[A, B, C, D, E]>(b, st)); c.subscribe(new AllTupleJob<[A, B, C, D, E]>(c, st)); d.subscribe(new AllTupleJob<[A, B, C, D, E]>(d, st)); e.subscribe(new AllTupleJob<[A, B, C, D, E]>(e, st));
+  return st.result;
+}
+function __all6<A,B,C,D,E,F>(a: Promise<A>, b: Promise<B>, c: Promise<C>, d: Promise<D>, e: Promise<E>, f: Promise<F>): Promise<[A, B, C, D, E, F]> {
+  const st = new AllTuple<[A, B, C, D, E, F]>();
+  st.left = 6;
+  st.done = (): void => { st.result.resolveWith([a.value, b.value, c.value, d.value, e.value, f.value]); };
+  a.subscribe(new AllTupleJob<[A, B, C, D, E, F]>(a, st)); b.subscribe(new AllTupleJob<[A, B, C, D, E, F]>(b, st)); c.subscribe(new AllTupleJob<[A, B, C, D, E, F]>(c, st)); d.subscribe(new AllTupleJob<[A, B, C, D, E, F]>(d, st)); e.subscribe(new AllTupleJob<[A, B, C, D, E, F]>(e, st)); f.subscribe(new AllTupleJob<[A, B, C, D, E, F]>(f, st));
+  return st.result;
+}
+
 // reject, race, any, allSettled, withResolvers
 function __rejectedP<T>(e: Error): Promise<T> {
   const p = __newPromise<T>();

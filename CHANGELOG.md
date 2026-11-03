@@ -126,6 +126,10 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A regex `replace` whose replacer function calls `n.toString(16)`, `Math.max(...)` and the like compiles, instead of failing with an internal error.
 - Array methods on an `any` value (`data.codecs.map(...)`, `.filter`, `.join`, `.some`, `.includes`...) work, as in TypeScript, instead of failing with "cannot be called".
 
+#### New
+
+- `const [a, b] = await Promise.all([pa, pb])` accepts promises of different types, up to six, as does `await Promise.all([...])` on its own line. Keeping the result in one variable (`r[0]`) still needs promises of one type.
+
 ### reMarkable
 
 #### New

@@ -508,6 +508,25 @@ struct Desugar {
 
   void run() {
     auto count = static_cast<Id>(a.nodes.size());
+    for (Id i = 0; i < count; ++i) {  // `const [a, b] = await Promise.all([pa, pb])`, or the await as a statement: its promises may differ in type, as in TypeScript, so it is a tuple helper
+      const bool destructured = n(i).kind == N::Declarator && n(i).kids.size() >= 3 && n(i).kids[2] != kNone && n(n(i).kids[2]).kind == N::ArrayPattern && n(i).kids[1] != kNone && n(n(i).kids[1]).kind == N::Await;
+      const bool statement = n(i).kind == N::ExprStmt && n(n(i).kids[0]).kind == N::Await;
+      if (!destructured && !statement) continue;
+      const Id call = n(destructured ? n(i).kids[1] : n(i).kids[0]).kids[0];
+      if (n(call).kind != N::Call || n(call).kids.size() != 2 || n(n(call).kids[1]).kind != N::Array) continue;
+      const Id callee = n(call).kids[0];
+      if (n(callee).kind != N::Member || n(callee).text != "all" || n(n(callee).kids[0]).kind != N::Ident || n(n(callee).kids[0]).text != "Promise") continue;
+      const std::vector<Id> elems = n(n(call).kids[1]).kids;
+      if (elems.size() < 2 || elems.size() > 6) continue;
+      bool spread = false;
+      for (Id e : elems) spread = spread || e == kNone || n(e).kind == N::Spread;
+      if (spread) continue;
+      Node& m = n(callee);
+      static const char* const helpers[] = {"__all2", "__all3", "__all4", "__all5", "__all6"};   // literals: a node's text outlives this pass
+      m.kind = N::Ident; m.text = helpers[elems.size() - 2]; m.kids.clear();
+      n(call).kids = {callee};
+      n(call).kids.insert(n(call).kids.end(), elems.begin(), elems.end());
+    }
     for (Id i = 0; i < count; ++i) {  // the types and static calls first
       Node& x = n(i);
       if (x.kind == N::Call && n(x.kids[0]).kind == N::Member && n(n(x.kids[0]).kids[0]).kind == N::Ident && n(n(x.kids[0]).kids[0]).text == "Promise") {

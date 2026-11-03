@@ -9,3 +9,4 @@ String.search the probe has no RegExp in its program, so the regular expression 
 String.replace the declaration is an overload pair (string or RegExp), the probe picks the wrong signature; covered by tests/golden/run/regexp_corpus.ts
 StringConstructor.raw only as a tag (String.raw`...`, rewritten by the parser), never called with an array
 Array.push the probe calls it with no argument (the rest parameter); one value or one spread `push(...b)` is what the engine takes (ZN-160)
+PromiseConstructor.all the tuple overloads: a literal array destructured at once, or an awaited statement (desugar.cpp); the probe passes a value
