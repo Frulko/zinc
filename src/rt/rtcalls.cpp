@@ -1741,7 +1741,6 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       a[0] = P(r);
       return nullptr;
     }
-    case Rt::ArrReverse: { ArrObj* o = A(a[0]); NN(o); std::reverse(o->v.begin(), o->v.end()); m.retain(o); return nullptr; }
     case Rt::ArrCopyWithin: {
       ArrObj* o = A(a[0]);
       NN(o);

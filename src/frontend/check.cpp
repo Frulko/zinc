@@ -4502,6 +4502,9 @@ struct Checker {
     }
     std::vector<std::pair<std::string, TypeId>> shape;
     bool bad_ = false;
+    // an interface of methods expected: its method types type the literal's parameters (`{ cb(x, y) { ... } }`)
+    const std::uint32_t ifx = expected != kNoType && !bad(expected) && ty(expected).k == TK::Object && out.objs[ty(expected).obj].isInterface && !out.objs[ty(expected).obj].isRecord ? ty(expected).obj : kNone;
+    if (ifx != kNone) ensureBuilt(ifx);
     for (std::uint32_t p : props) {
       const Node& pn = n(p);
       const Member* ctx = ifx != kNone ? lookupMember(ifx, pn.text, false) : nullptr;
@@ -4511,9 +4514,6 @@ struct Checker {
       bool dup = false;
       for (auto& e : shape) dup = dup || e.first == pn.text;
       if (dup) { diag(kZDuplicateDeclaration, p, "property '" + std::string(pn.text) + "'"); bad_ = true; continue; }
-    // an interface of methods expected: its method types type the literal's parameters (`{ cb(x, y) { ... } }`)
-    const std::uint32_t ifx = expected != kNoType && !bad(expected) && ty(expected).k == TK::Object && out.objs[ty(expected).obj].isInterface && !out.objs[ty(expected).obj].isRecord ? ty(expected).obj : kNone;
-    if (ifx != kNone) ensureBuilt(ifx);
       shape.push_back({std::string(pn.text), vt});
     }
     return bad_ ? tError : recordOf(shape);
@@ -5668,14 +5668,6 @@ const Member* lookupMember(const Checked& c, std::uint32_t obj, std::string_view
   return nullptr;
 }
 
-// Structural check against an interface: every method of the interface, with the same type, is public on `obj`.
-static bool structuralMatch(const Checked& c, std::uint32_t obj, std::uint32_t iface) {
-  for (const Member& im : c.objs[iface].members) {
-    if (im.isStatic || im.ifaceSetter) continue;
-    const Member* m = lookupMember(c, obj, im.name, false);
-    if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && c.types[im.type].elem == m->type) continue;  // a property satisfied by a field
-    if (!m || !m->method || (m->type != im.type && !fewerParams(c, m->type, im.type)) || m->access != 0) return false;
-  }
 bool fewerParams(const Checked& c, TypeId impl, TypeId want) {
   if (impl == want || impl == kNoType || want == kNoType) return false;
   const Type &f = c.types[impl], &t = c.types[want];
@@ -5684,6 +5676,14 @@ bool fewerParams(const Checked& c, TypeId impl, TypeId want) {
   return true;
 }
 
+// Structural check against an interface: every method of the interface, with the same type, is public on `obj`.
+static bool structuralMatch(const Checked& c, std::uint32_t obj, std::uint32_t iface) {
+  for (const Member& im : c.objs[iface].members) {
+    if (im.isStatic || im.ifaceSetter) continue;
+    const Member* m = lookupMember(c, obj, im.name, false);
+    if (im.getter && m && !m->method && !m->isStatic && m->access == 0 && c.types[im.type].elem == m->type) continue;  // a property satisfied by a field
+    if (!m || !m->method || (m->type != im.type && !fewerParams(c, m->type, im.type)) || m->access != 0) return false;
+  }
   return true;
 }
 
