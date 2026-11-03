@@ -830,11 +830,13 @@ static zn::rt::Result runHot(std::unique_ptr<zn::dev::hot::Unit> unit, zn::zbc::
     const int saved = dup(2);
     if (tf) dup2(fileno(tf), 2);
     gHotUnit = &u;
+    const auto compileAt = std::chrono::steady_clock::now();
     const int rc = compileToZbc(entry.c_str(), u.zbc);
     gHotUnit = nullptr;
     std::fflush(stderr);
     dup2(saved, 2);
     close(saved);
+    if (!rc) zn::log::step("compile", "the save", zn::log::since(compileAt));
     if (tf) { std::rewind(tf); char b[4096]; for (std::size_t n; (n = std::fread(b, 1, sizeof b, tf)) > 0;) errors.append(b, n); std::fclose(tf); }
     if (rc) return false;
     zn::dev::hot::finish(u);
