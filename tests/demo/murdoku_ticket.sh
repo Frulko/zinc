@@ -1,5 +1,5 @@
 #!/bin/sh
-# The Murdoku receipt: an 8-column plan fits 576 dots, the ESC/POS encoding sets a bit for a black dot and declares each band.
+# Murdoku on paper. The receipt: an 8-column plan fits 576 dots, the ESC/POS encoding sets a bit for a black dot and declares each band. The sheet: two lossless A4 pages at 300 dpi.
 set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT HUP INT TERM
@@ -20,4 +20,9 @@ second = 10 + 72 * BAND
 assert d[second:second + 8] == b'\x1dv0\x00\x48\x00\x01\x00'
 assert trim(image).height == 9
 P
+ZINC="$ZINC" python3 examples/murdoku/authoring/print_sheet.py "$tmp/s.pdf" --seed 47514 --level 0 --mono > /dev/null 2>&1
+grep -aq '/Count 2' "$tmp/s.pdf"
+grep -aq '841.92' "$tmp/s.pdf"
+grep -aq '/Width 2480 /Height 3508' "$tmp/s.pdf"
+! grep -aq 'DCTDecode' "$tmp/s.pdf"
 echo ok

@@ -1,35 +1,19 @@
 // The investigation as a till receipt: 576 dots wide (80 mm paper at 203 dpi), black on white, drawn for a pen. authoring/print_ticket.py captures it and sends it to the printer.
-import { onFrame, clear, rect, setTransform, image, imageWidth, imageHeight, drawImageRect, loadFont, drawText, textWidth, lineHeight } from 'zinc:gfx';
+import { onFrame, clear, rect, setTransform, image, drawImageRect, loadFont, drawText, textWidth, lineHeight } from 'zinc:gfx';
 import { env } from 'zinc:sys';
 import { generate, room, occupiable, labelRun, personLetter, Puzzle, EMPTY } from './puzzle';
 import { neighbors } from './architecture';
+import { paragraph, portrait } from './paper';
 
 const W = 576, M = 8, K: u32 = 0x000000, WHITE: u32 = 0xffffff;
 const LEVELS = ['Découverte','Enquête','Expert'];
 const seed = parseInt(env('MURDOKU_SEED') || '7919'), level = parseInt(env('MURDOKU_LEVEL') || '0');
 const p: Puzzle = generate(seed,level);
 const title = loadFont('Caveat.ttf',64), body = loadFont('sans',24), small = loadFont('sans',18), bold = loadFont('sans-bold',26);
-const objects = image('ink-objects.png'), cast = [image('ink-cast-man.png'),image('ink-cast-woman.png')];
+const objects = image('ink-objects.png');
 
 function centered(f: i32, s: string, y: number): void { drawText(f,(W-textWidth(f,s,0))/2,y,s,K,255,0); }
 function rule(y: number): void { for (let x = M; x < W-M; x += 12) rect(x,y,7,2,K); }
-function wrap(f: i32, s: string, width: number): string[] {
- const lines: string[] = []; let line = '';
- for (const word of s.replace('« ','«\u00a0').replace(' »','\u00a0»').split(' ')) {
-  const next = line === '' ? word : line+' '+word;
-  if (textWidth(f,next,0) > width && line !== '') { lines.push(line); line = word; } else line = next;
- }
- if (line !== '') lines.push(line);
- return lines;
-}
-function paragraph(f: i32, s: string, x: number, y: number): number {
- for (const l of wrap(f,s,W-M-x)) { drawText(f,x,y,l,K,255,0); y += lineHeight(f); }
- return y;
-}
-function portrait(a: number, x: number, y: number, size: number): void {
- const c = p.characters[a], atlas = cast[c.sex], sw = imageWidth(atlas)/4, sh = imageHeight(atlas)/4;
- drawImageRect(atlas,c.hair*sw,c.skin*sh,sw,sh,x,y,size,size,255);
-}
 function plan(y: number): number {
  const cell = Math.min(84,Math.floor((W-2*M-24)/p.columns)), x0 = Math.floor((W-cell*p.columns+24)/2);
  for (let x = 0; x < p.columns; x++) drawText(small,x0+x*cell+cell/2-5,y,String(x+1),K,255,0);
@@ -68,20 +52,20 @@ function draw(): void {
  centered(title,'Minuit au manoir',y); y += lineHeight(title);
  centered(small,'REÇU D’ENQUÊTE N° '+seed+' · '+LEVELS[level].toUpperCase(),y); y += 30; rule(y); y += 12;
  y = plan(y)+10;
- y = paragraph(small,'■ décor plein : personne dessus. Une personne par ligne et par colonne. Le meurtrier est seul avec la victime dans sa pièce.',M,y)+8;
+ y = paragraph(small,'■ décor plein : personne dessus. Une personne par ligne et par colonne. Le meurtrier est seul avec la victime dans sa pièce.',M,y,W-M)+8;
  rule(y); y += 12;
  for (const a of p.castOrder) if (a !== p.victim) {
-  portrait(a,M,y,84);
+  portrait(p,a,M,y,84,true);
   rect(M+96,y,34,34,K); drawText(bold,M+105,y+1,personLetter(p,a),WHITE,255,0);
   drawText(bold,M+140,y+1,p.personNames[a],K,255,0);
   let bottom = y+40;
-  for (const c of p.clues) if (c.person === a) bottom = paragraph(body,c.text,M+96,bottom);
+  for (const c of p.clues) if (c.person === a) bottom = paragraph(body,c.text,M+96,bottom,W-M);
   y = Math.max(bottom,y+84)+14;
  }
  const globals = p.clues.filter((c) => c.person < 0);
- if (globals.length > 0) { rule(y); y += 10; for (const c of globals) y = paragraph(body,c.text,M,y); y += 8; }
+ if (globals.length > 0) { rule(y); y += 10; for (const c of globals) y = paragraph(body,c.text,M,y,W-M); y += 8; }
  rule(y); y += 12;
- portrait(p.victim,M,y,84); rect(M+96,y,34,34,K); drawText(bold,M+105,y+1,'V',WHITE,255,0);
+ portrait(p,p.victim,M,y,84,true); rect(M+96,y,34,34,K); drawText(bold,M+105,y+1,'V',WHITE,255,0);
  drawText(bold,M+140,y+1,p.personNames[p.victim],K,255,0); drawText(body,M+96,y+42,'La victime. Plus un mot.',K,255,0); y += 96;
  rule(y); y += 10;
  drawText(body,M,y,'TOTAL',K,255,0); const t = '1 meurtre'; drawText(bold,W-M-textWidth(bold,t,0),y,t,K,255,0); y += 32;

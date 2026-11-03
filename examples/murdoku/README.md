@@ -29,6 +29,12 @@ python3 examples/murdoku/authoring/print_ticket.py --seed 7919 --level 1 --host 
 python3 examples/murdoku/authoring/print_ticket.py --preview ticket.png
 ```
 
+`src/sheet.ts` draws it as an A4 sheet at 300 dpi, the solution and its reasoning on the back; `authoring/print_sheet.py` makes the two-page lossless PDF, with the pale black and white floors of `--mono` for a laser printer. The sheet draws the `print-*` atlases (`build_assets.py --print`). An investigation too long for its page stops the export.
+
+```sh
+python3 examples/murdoku/authoring/print_sheet.py enquete.pdf --seed 7919 --level 1
+```
+
 ## Generation and constraints
 
 A seeded multi-source growth algorithm builds four connected, interlocking room regions on footprints of 6–8 columns and six rows. Corner cutouts and optional courtyards leave absent cells. Four of eight room themes supply sparse furniture; at least half each room stays free. The scene still contains six people, so wider grids have unused columns. The scene samples a legal row/column permutation and shuffles the people, so no character has a fixed row. The victim is selected from a room with exactly two people.

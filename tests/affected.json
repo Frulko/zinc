@@ -298,6 +298,7 @@
     {"paths": ["plugins/ink/", "tools/ink-train/", "tests/data/ink-recognise/", "tests/t0/ink_recognise.sh"], "tests": ["ink_recognise"]},
     {"paths": ["plugins/ink/", "tools/ink-train/", "tests/data/ink-net/", "tests/t0/ink_net.sh"], "tests": ["ink_net"]},
     {"paths": ["examples/murdoku/", "plugins/ink/", "lib/std/ui.ts", "tests/t1/murdoku_pen.sh"], "tests": ["murdoku_pen"]},
+    {"paths": ["examples/murdoku/src/ticket.ts", "examples/murdoku/src/sheet.ts", "examples/murdoku/src/paper.ts", "examples/murdoku/src/components/plan.ts", "examples/murdoku/authoring/print_ticket.py", "examples/murdoku/authoring/print_sheet.py", "tests/demo/murdoku_ticket.sh"], "tests": ["murdoku_ticket"]},
     {"paths": ["examples/ink-lab/", "plugins/ink/", "tests/golden/ink-lab/", "tests/t1/ink_lab.sh"], "tests": ["ink_lab"]},
     {"paths": ["examples/remarkable/notes/", "tools/ink-train/make-dataset", "tests/t1/ink_recorder.sh"], "tests": ["ink_recorder"]},
     {"paths": ["app/markdown/", "plugins/markdown/", "tests/t1/markdown_reader.sh", "tests/t1/markdown_reader_notion.py"], "tests": ["markdown_reader"]},

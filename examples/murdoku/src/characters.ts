@@ -7,3 +7,5 @@ export function character(seed: number, person: number): Character {
  c.skin = Math.floor(tile/4); c.hair = tile%4; return c;
 }
 export function characterSignature(c: Character): string { return c.sex+':'+c.skin+':'+c.hair; }
+/** The stable colour of a witness's letter, the victim's in red. */
+export function letterColor(letter: string): i32 { return [0xa95e4b,0x40815c,0x3e929d,0x667db8,0x9978a5,0xc0392b][letter === 'V' ? 5 : letter.charCodeAt(0)-65]; }
