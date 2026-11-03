@@ -6,7 +6,7 @@
 - A clean tree of `develop` still needs uncommitted work: `examples/pixel-plays/` is untracked and Hamlet imports it (the four `hamlet_*` T0 tests fail without it). `console_core` does not link and `method_fewer_params` fails on AOT there too; they pass in this tree, cause not looked for. The rest of the clean tree's T0 failures are unbuilt test targets.
 - The iPod frame hashes followed the free space of the Mac's disk (`ipod_remote` and five others): a fake iPod is a folder, and `statvfs` read the real disk. `tests/run` pins the size with `ZINC_IPOD_TOTAL_BYTES` and `ZINC_IPOD_FREE_BYTES`; goldens rewritten after looking at the frames.
 - `zinc run` and `zinc dev` print every step (D204). Sequential awaits fixed: `docs/reports/async-hot-paths-2026-11-03.md`.
-- `origin/develop` has diverged (release-0.10 line): the merge is on the branch `merge/origin-develop`; see the end of this session's report for its state.
+- `origin/develop` has diverged (release-0.10 line): the merge is on the branch `merge/origin-develop`, one fast-forward from `develop`. It builds, and T0 fails the same 24 tests as the clean tree of `develop`. 23 files the merge changes hold uncommitted work in the main tree, so commit that work first, then `git merge --ff-only merge/origin-develop`.
 
 ## Owner Murdoku Edition 03 board and interface — 2026-11-01
 
