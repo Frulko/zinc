@@ -13,6 +13,15 @@ async function main(): Promise<void> {
   const [x, y] = await Promise.all([str(), str()]);
   console.log(x + y);
   await Promise.all([str(), obj(), none()]);
+  const r = await Promise.all([str(), obj()]);
+  console.log(r[0], r[1].n);
+  const pair: [Promise<string>, Promise<D>] = [str(), obj()];
+  const t = await Promise.all(pair);
+  console.log(t[0], t[1].n);
+  const [l, o] = await Promise.all([(async (): Promise<string> => 'lambda')(), obj()]);
+  console.log(l, o.n);
+  const same = await Promise.all([str(), str()]);
+  console.log(same.map((v: string): string => v + '!').join(','));
   try { const [p, q] = await Promise.all([bad(), obj()]); console.log(p, q.n); } catch (err) { console.log('caught', err.message); }
   try { const [p, q] = await Promise.all([str(), late()]); console.log(p, q.n); } catch (err) { console.log('caught', err.message); }
 }

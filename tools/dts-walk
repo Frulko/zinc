@@ -66,6 +66,7 @@ def value(t):
         names = ", ".join("a%d" % k for k in range(nparams))
         return "(%s) => %s" % (names, value(ret) if ret != "void" else "{}")
     if t.endswith("[]"): return "[" + value(t[:-2]) + "]"
+    if t.startswith("[") and t.endswith("]"): return "[" + ", ".join(value(e) for e in split_params(t[1:-1])) + "]"
     if t in ("number", "f64", "i32", "u32", "f32", "u8", "i64", "u64"): return "1"
     if t == "string": return '"a"'
     if t == "boolean": return "true"

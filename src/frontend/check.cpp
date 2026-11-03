@@ -2144,6 +2144,34 @@ struct Checker {
       if (at == tStr) { if (replaceWith(i, "new Date(Date.parse(__H0))", {{x.kids[1]}})) return expr0(i, myExpected); }
       else if (!bad(at) && ty(at).k == TK::Object && out.objs[ty(at).obj].name == "Date") { if (replaceWith(i, "new Date(__H0.getTime())", {{x.kids[1]}})) return expr0(i, myExpected); }
     }
+    if (!isNew && x.kids.size() == 2 && n(x.kids[0]).kind == N::Ident && n(x.kids[0]).text == "__all") {   // Promise.all of promises of different types is the tuple of their values, as in TypeScript (the prelude's __all2 to __all6)
+      const std::uint32_t arg = x.kids[1];
+      const std::size_t before = out.diags.size();
+      std::vector<TypeId> es;
+      std::vector<std::vector<std::uint32_t>> holes;
+      bool tupleValue = false;
+      if (n(arg).kind == N::Array) {
+        const std::vector<std::uint32_t> elems = n(arg).kids;
+        bool plain = elems.size() >= 2 && elems.size() <= 6;
+        for (std::uint32_t e : elems) plain = plain && e != kNone && n(e).kind != N::Spread;
+        if (plain) for (std::uint32_t e : elems) { es.push_back(expr(e)); holes.push_back({e}); }
+      } else if (n(arg).kind == N::Ident) {
+        const TypeId at = expr(arg);
+        if (!bad(at) && isTupleType(at) && out.objs[ty(at).obj].members.size() >= 2 && out.objs[ty(at).obj].members.size() <= 6) {
+          tupleValue = true;
+          for (const Member& m : out.objs[ty(at).obj].members) es.push_back(m.type);
+        }
+      }
+      bool promises = !es.empty(), mixed = tupleValue;
+      for (TypeId e : es) { promises = promises && !bad(e) && promiseKind(e) != 0; mixed = mixed || e != es[0]; }
+      if (out.diags.size() > before) out.diags.resize(before);   // reported again by the call that follows
+      if (promises && mixed) {
+        std::string call = "__all" + std::to_string(es.size()) + "(";
+        for (std::size_t k = 0; k < es.size(); ++k) call += (k ? ", " : "") + (tupleValue ? "__H0[" + std::to_string(k) + "]" : "__H" + std::to_string(k));
+        if (tupleValue) holes = {{arg}};
+        if (replaceWith(i, call + ")", holes)) return expr0(i, myExpected);
+      }
+    }
     auto optionalArgMethod = [&](const Node& cal) {  // the library methods whose trailing arguments may be written `undefined`
       if (cal.kind != N::Member) return false;
       for (std::string_view m : {"padEnd", "padStart", "slice", "substring", "indexOf", "lastIndexOf", "includes", "startsWith", "endsWith", "split", "join", "fill", "toFixed"}) if (cal.text == m) return true;

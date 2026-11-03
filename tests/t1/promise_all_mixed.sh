@@ -4,6 +4,10 @@ cd "$(dirname "$0")/../.." || exit 2
 want='1 1 true
 x 1
 xx
+x 1
+x 1
+lambda 1
+x!,x!
 caught boom
 caught late'
 fail=0

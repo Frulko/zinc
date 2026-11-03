@@ -3571,7 +3571,7 @@ function __all<T>(ps: Promise<T>[]): Promise<T[]> {
   return st.result;
 }
 
-// all of promises of different types, destructured at once (desugar.cpp): the tuple of their values
+// all of promises of different types (the checker's callExpr): the tuple of their values
 class AllTuple<R> {
   left: i32 = 0;
   result: Promise<R> = __newPromise<R>();

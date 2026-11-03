@@ -134,7 +134,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 #### New
 
-- `const [a, b] = await Promise.all([pa, pb])` accepts promises of different types, up to six, as does `await Promise.all([...])` on its own line. Keeping the result in one variable (`r[0]`) still needs promises of one type.
+- `const [a, b] = await Promise.all([pa, pb])` accepts promises of different types, up to six, however the result is kept: destructured, as `r[0]`, or not at all.
 
 ### reMarkable
 
