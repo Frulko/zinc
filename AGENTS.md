@@ -185,3 +185,9 @@ How it reads (owner, 2026-10-31): well-written Markdown that a person reads with
 ## The development machine
 
 An Apple M1 Pro Mac (arm64, 10 cores: 8 performance and 2 efficiency, 16 GB, macOS 15; until 2026-10 it was an Intel i7-9750H, and the build times and heat figures of older reports were measured there): builds through `tools/build`; ccache is `~/.local/bin/ccache`; Homebrew lives in `/opt/homebrew`; Node 24, pnpm and `backlog` live in `~/.local`; `timeout` is a link to gtimeout; `ZINC_QEMU` is set in `~/.zshrc`. 16 GB is the limit when several trees build: keep to the three building trees of "Several tasks at once". Known machine-specific test failures are listed in `RESUME.md`.
+
+## App and demo authoring skills
+
+Before building or substantially refactoring a Zinc app, read [.agents/skills/zinc-app/SKILL.md](.agents/skills/zinc-app/SKILL.md). For a demo under `examples/`, also read [.agents/skills/zinc-demo/SKILL.md](.agents/skills/zinc-demo/SKILL.md). Small fixes use the relevant guidance without scaffolding or unrelated refactors. These skills require looking up existing std/plugin/app providers and checking readable ownership before adding infrastructure; they do not replace the binding rules above.
+
+Measured reuse needs and migration boundaries: [app/demo reuse audit](docs/reports/app-demo-reuse-audit-2026-10-31.md). Proposed APIs in that report are not implemented exports.

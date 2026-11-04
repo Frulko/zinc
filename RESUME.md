@@ -10,6 +10,8 @@
 
 ## Owner Murdoku Edition 03 board and interface — 2026-11-01
 
+- Owner spotted the clipped/misaligned walls: stage.drawIn clipped the centered strokes to the exact grid rectangle, halving exterior edge widths, in addition to the intentional 8/6 thickness difference. Unified thickness to 8; window frames now straddle the wall center. Expanded the board Canvas by 8 screen pixels per edge and inset stage drawing by the same amount, preserving all cell coordinates/hit boxes. Updated UI regression checks actual Canvas bounds around all four exterior strokes. New captures inspected: /tmp/murdoku-walls-fixed.png and /tmp/murdoku-walls-fixed-phone.png. Measured uninterrupted exterior/interior strokes at 10px each in the Mac capture; full UI regression passed interpreter/AOT/QuickJS, including the Canvas margin assertion and touch sequence. Top coordinates lifted clear of centered window frames.
+
 - Window polish: replaced thin blue wall marks with ivory-framed three-pane windows, highlights and interior sills. Orientation-aware drawing stays inside all four canvas edges. Check passed; Mac and 390×844 captures inspected (/tmp/murdoku-windows-mac.png, /tmp/murdoku-windows-phone.png). Window masks/clue semantics unchanged; physical phone not checked.
 
 - Replaced double-stroke walls and swinging door sketches with continuous 6/8-unit dark room boundaries, subtle cell grid and inset facade windows. Coordinates moved outside the plan; room names choose empty floor runs. Architecture/window constraints unchanged.

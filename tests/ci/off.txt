@@ -88,3 +88,6 @@ webrtc_quality         # hub / WebRTC
 webrtc_simulcast       # hub / WebRTC
 voice_aec              # hub / WebRTC
 discord_voice_dave     # hub / WebRTC
+
+gl_paint_cache         # needs a real GPU for Retina cached/uncached pixel comparisons
+ui_canvas_fractional   # needs a real GPU and shared renderer texture cache

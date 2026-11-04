@@ -5,6 +5,12 @@ to take or a check on another target is one line here, not a task. `- ZN-n: what
 The next backlog review turns lines into tasks or deletes them.
 
 ## Engine and tools
+- `void expr` is refused by the compiled build (`operator 'void'`, Z0005) while `zinc check` accepts it: valid TypeScript that `zinc export` stops on; found by app/lumen.
+- A native spec cannot carry `Promise<...>` through the plugin thunk (Z5011 "no thunk") although docs/guide/05-plugins.md shows one: zinc:monitors uses a callback instead; found by app/lumen.
+
+- Owner audit 2026-10-31: promote proven app/demo primitives (delay, atomic text replacement, key/value config, native token comparison, CLI) and Last.fm/Hub domain services with real consumers; reconcile acceptance, permissions, units and ownership first. Evidence and order: `docs/reports/app-demo-reuse-audit-2026-10-31.md`.
+
+- Owner memory pass 2026-10-31: measure portable JPEG subsampling and safe bounded residency for shared named asset handles; JPEG/WebP source/bundle storage is now lazy, while decoded named handles remain cached and stb JPEG still has full-size temporary decode peaks.
 
 - zinc:system simulator: `ZINC_SYSTEM_SCRIPT` splits a line's arguments on spaces, so `dialog-answer /Users/me/Pictures/Trieur test` answers `/Users/me/Pictures/Trieur`; a quoted or rest-of-line path would let a test pick a folder with a space.
 - QuickJS: no Intl, so `toLocaleDateString('fr-FR', { month: 'long' })` gives the en-US form; examples/photo-sorter names its months itself (a `ponytail:` comment marks it).
@@ -675,6 +681,7 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: array mutation (`push`, `splice`, `sort`) and string methods on an `any` value are still refused (the new `any` array methods run on a copy).
 - ZN-next: a trap names its source location and values without `ZN_TRAP_TRACE` (file:line, `index 36, length 36`); today `runtime error: array index out of bounds` alone sent the owner a crash with nothing to chase (murdoku, 2026-11-01); needs a pc-to-line table in ZBC.
 - ZN-next: `zinc:ui/solid` batches every event handler and `onTick` by default (as Solid 2): a handler that sets several signals (murdoku `fresh`) renders no state in between; the unbatched writes made a bounds-checked crash only on the default engine, not on QuickJS.
+- ZN-typed-arrays: real typed arrays (`Uint32Array`, `Float64Array`... with `set(src, offset)`, `subarray`, `fill`) as the standard JS API; a block copy between two arrays is one native call (`dst.set(src.subarray(a, b), off)`, the form engines document as the fast one), and the data is dense on small boards. Pixel Plays copies its frame buffers element by element in the interpreter (19 ms against 3 ms in AOT); `copyWithin` (done) covers only one array.
 - ZN-?: `Map.get` of a missing key returns null instead of undefined on QuickJS (engine gap found by the ink agent, ZN-931 report): align with the interpreter and test.
 - ZN-?: `fs.readBytes` and `sys.utf8Encode` still cost one host call per byte; use the new `>B` host return (as `Response.bytes()` and `Request.rawBytes` do). Also `u8[]` takes 8 bytes an element in the interpreter and AOT (a 57 MB body is ~460 MB): a packed bytes type, or a host-side download-to-file path for the Hub's `downloadEngine`.
 - ZN-?: `examples/ipod-web/src/services/api.ts` (`fs.writeText(file, req.rawBody)`) and `examples/discord/tests/fake-discord.ts` read `rawBody` for binary uploads: use `rawBytes` and `fs.writeBytes` (strings lose 2 bytes per surrogate pair).
@@ -685,6 +692,8 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: zinc:ui ink lane (L1) strokes and the widget, dock and ghost-zoom rectangles of display-rmpp are in panel pixels, not scaled by the 2x surface; landscape plus K>1 on those paths is untested.
 - ZN-?: Murdoku e-ink: tool column variant for landscape; measure the portrait witness block on other seeds and levels; captions legibility on the panel; `tests/affected.json` mapping for examples/murdoku; Gallery 3 accent colour (crossed cells in red) instead of pure black and white.
 - ZN-?: Murdoku pen: tune the 450 ms debounce, the gap and 60% attribution thresholds on a real Marker; overlay mode loses pressure width; the two-finger tap also fires a normal tap for the first finger.
+- ZN-?: retrain and retune `NET_WEIGHT`, `MIN_SCORE` and `MIN_MARGIN` of zinc:ink on real Marker data from the notes recorder (`NOTES_RECORD=<name>`, `make-dataset --real <dir>`, `tools/ink-train/train`); the synthetic set is saturated (stage A 99.7%, net 100%).
+- ZN-?: zinc:ink net: a TypeScript twin of the kernels so `reference: true` and engines without the native library can run stage B; NEON path if the Cortex-A55 time is above 5 ms; more classes (digits, A-Z) once real data exists; quantisation-aware training if real data opens an int8 loss.
 
 - ZN-?: a cross-array bulk copy and fill native on every engine (`Array.prototype.set`-style: destination, source, start, count): the rectangle restores of Hamlet's frame (`pix[i] = bakedPix[i]` rows), `copyInto` and the pixel-plays buffers are loops, 5 times slower on the interpreter than AOT (docs/reports/hamlet-perf-2026-11-01.md).
 - ZN-?: Hamlet zoom step (90 to 190 ms AOT, 350 to 1200 ms interpreter): bake the next level in slices into the renderer's second buffer set and swap, or keep a baked window per neighbour level; warm the models of the neighbour levels at rest.
@@ -1008,7 +1017,10 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-?: Discord voice AEC: replace the `isHeadphones` name guess with the device type or transport that miniaudio/CoreAudio reports; add a T1 loopback with a simulated room in the fake microphone path.
 
 ## Cross-platform pass
+- Pi sleep (image/player, display-fbdev `backlight`): on the Pi, prove a touch wakes the dark DSI screen, then the DPMS path on HDMI (output off and back, an app on a plane, a USB touch screen); on the Mac only the fade, the input swallowed and the settings are proven.
 - async-hot-paths: the parallel Sonos reads (7 SOAP calls at once, `update` and `readVolumes`) on the TouchPad; measured only from the Mac, one group of 3 rooms (32 to 50 ms, no failure).
+- zinc:webview on Linux: on-screen on a real X session (GPU compositing, window resize, a window manager's focus), SDL's window from a native Linux build, XWayland, WebKitGTK 4.0, and a test that runs on Linux (done by hand under Xvfb on Debian 12: bridge, assets, keys, clip, hide).
+- ZN-764: validate lazy raster/HTTP scratch, display-gl splash-buffer release and encoded-input lifetime on Windows, iOS/Android, KMS/webOS, consoles and actual WASM; measure pixels, CPU and RAM. Audit 3DS/Vita software-only rows/framebuffer allocation against GPU fallback and diagnostic frames (see engine-memory-hal-2026-10-31.md).
 - ZN-918: check that `zn_webp_dec` links in the AOT and export builds on Windows and the cross targets (`tests/t0/webp_bytes.sh` runs AOT on the Mac only).
 - ZN-871: SpeexDSP and the `played` tap on Linux, the Pi and iOS; the speaker-to-microphone delay on Bluetooth and on the Pi, and a real call on laptop speakers.
 - ZN-892/893: zinc:net server, WebSocket and ACME on Linux and Windows (net_limits, net_ws, net_acme with a Pebble for that OS).
@@ -1175,6 +1187,11 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-888: a T1 test with the real player in shell mode (ZINC_FBDEV_SIM) and zinc device run/stop through the agent, instead of stand-in sockets.
 - ZN-889: `zinc publish --target rpi --export` from the Mac, then on the Pi 3B+ install a .zapp and an export app from the hub over Wi-Fi, launch, Home; check that the `tar -h` player bundle of image/build.sh builds there.
 - D195 Pi A/B image: build an "ab": true image and its bundle (tools/pi-image keys, build, bundle); on a Pi 3B+ and a Pi 4/5 run zinc-system-update install: tryboot into B, mark-good commits config.txt, a failing session, pulled plug or watchdog in B returns to A; users, Wi-Fi, SSH keys, apps and pairing survive; verity bundles work on the Pi kernel.
+
+- ZN-462: cache stable Canvas/subtree contents in bounded GPU textures during transform animations, with correct transparency and invalidation; iPhone 4 Motion still costs about 43 ms GPU at 320×480 after the measured shader/occlusion improvements (iphone4-ios7-bringup.md).
+
+- Owner memory pass 2026-10-31: verify shared UI image-cache ownership, WebP scaled decode and destroyed-image GPU collection on Windows/Linux/mobile during the cross-platform pass; exercised locally on macOS with interpreter/AOT/QuickJS.
+- Clear shared storage fix: verify temporary-file replacement and error propagation on Windows/Linux/mobile in the cross-platform pass; native macOS interpreter/AOT/QuickJS regression covered. Validate Clear gestures on physical touch hardware.
 - ZN-?: Discord voice AEC: verify the `plugin.json` SpeexDSP defines on the Linux, Windows and Raspberry Pi builds.
 - ZN-?: check `plugins/ink` native (ink.abi.cpp) on wasm, rpi1 and rmpp; `refreshRect` on L2/rm2fb and the real qtfb (needs the AppLoad patch 0004).
 - ZN-?: run the Murdoku frames and `murdoku_pen` through the real rmpp driver in landscape and docked, on AOT and QuickJS; real Paper Pro: landscape rotation direction, `pen_rotate` per model, digitizer mapping, palm rejection delay (300 ms unproven), docked header height and tap offset in landscape, Move (954x1696) header and 2x ratio.
@@ -1182,3 +1199,4 @@ The next backlog review turns lines into tasks or deletes them.
 - ZN-hamlet-rects: tight per-kind sprite rects for the idle frame (animals, people) from the atlas frame bounds, with a coverage test; measure on AOT and interpreter at 24/64/96 (a disjoint cover was +5% on AOT).
 - ZN-hamlet-quiet: Hamlet windowed Metal and QuickJS fluidity numbers on a quiet machine.
 - ZN-hamlet-atlas-deer: `hamlet_atlas` deer stamps differ from live deer (1670 pixels) on develop; not from the fluidity pass.
+- Lumen: a box's `shadow-*` is painted under its whole box, so it shows through a translucent background; CSS clips it to the outside. Lumen's glass cards have no shadow because of it.

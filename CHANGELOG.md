@@ -8,44 +8,58 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ## [Unreleased]
 
-### Hamlet city builder
+### Games
 
 #### New
 
-- Build a village with `zinc run examples/hamlet`: roads laid by dragging with a live preview (`X` flips the corner, `R` auto-routes), houses that grow through three levels, production chains from wood and stone to bread, leather, tools, honey, candles and mead, a market, a tavern, and a campaign of goals that unlock buildings, with a peddler and adventures (`C`).
-- Seven landscapes (Vallée, Plaine, Rivière, Lac, Forêt, Montagne, Côte, Classique) with biomes, rivers, lakes and the sea, maps up to 128 × 128, and seasons that change the land gradually: blossom, russet leaves, snow, frozen water, falling leaves, rain, and light that follows the hour.
-- Villagers have moods, sleep at night, stroll to the market and show their thoughts; deer, rabbits and boar live in herds, wolves can roam forest maps, and birds, ducks and fish share the scene. Working a resource shows it: trees shiver and fall, rocks throw chips.
-- Fire, collapse and theft risks with a fire post, a repair works and a watch post; Easy, Normal and Hard difficulties.
-- The Tree window (`T`) draws the production chains; a technical window (`F3`) shows frame times, the world and the tile under the pointer; windows drag by their title bar and close with their button or `Esc`.
-- Message clicks point an arrow at the place, and a double click opens its window. Separate volumes for ambience and effects, with synthesised sounds.
+- Play the pirate game Just go straight with `zinc run examples/just-go-straight`, with native rendering and sound, without a browser.
+- Pixel Plays has a ninth game, Droit devant (`9`): the pirate game redrawn as lit pixel dioramas, with a beach, a jungle that changes scene behind a drifting mist, a gull, swells, a pirate boat and the four endings.
+- Pixel Plays has three more games: Arrêt au stand (`0`), a racing pit stop where you brake onto the box, the crew changes the four wheels and you leave on the green light; Odyssée (`-`), a floating spaceship turning above the Earth that you can switch between an explorer, a starship and a round freighter with `S`; and Objectif Lune (`=`), a moon rocket on its launch pad where you count down and press Space with the sync needle in the green zone to lift off, by day or by night (`S`).
+- Murdoku investigations print on paper: `examples/murdoku/authoring/print_ticket.py --host <printer>` makes a till receipt on an 80 mm ESC/POS printer, and `print_sheet.py enquete.pdf` a two-page A4 PDF at 300 dpi with the solution on the back (`--mono` for a black and white printer).
 
 #### Changed
 
-- Every resource has its harvest time, yield and percentage in `economy.json`; the campaign is balanced to be winnable.
-- Hamlet saves from before this version start a new village.
-
-#### Faster
-
-- Large Hamlet maps open much faster and use much less memory, and panning is up to 40 % faster on the interpreter.
-
-#### Fixed
-
-- Zooming out in Hamlet no longer leaves the village as a small clipped rectangle in the dark while the new view is prepared; the picture stays until it can grow smaller.
+- Murdoku uses new furniture and composed character artwork, with clear continuous room walls and facade windows shared by the drawing and clues. Witness cards use two columns, letter badges clarify relations, and mobile tools stay accessible while scrolling.
+- Murdoku windows have ivory frames, blue panes, reflections and interior sills. Walls use a consistent thickness, with windows centered on them and a drawing margin that prevents edge clipping.
+- Murdoku deductions use pairs and triples of reserved rows or columns. Hints now account for current placements and crossed-out cells and flag contradictions before revealing another position.
 
 ### Developer tools
 
 #### Changed
 
 - `zinc run` and `zinc dev` show every step again, as `zinc build` does and in English: engine, cache, compile, plugins, resources, run and exit. `zinc dev` adds `watch`, `change`, `swap` and `check`. `-q` hides them, `ZINC_STEPS=brief` keeps only the first-build line.
+- `tools/zinc-go-iphone` shows export, configuration, compilation, installation and launch progress directly in the terminal while keeping the build log.
+
+#### Fixed
+- A program that sets its window title (`windowCtl`) now runs in the browser, where it sets the page title, instead of stopping with an error.
+
+- Mobile exports correctly pass plugin compiler options with arguments, fixing the ` impair.h` missing-header error when building Zinc Go for iPhone.
+- iPhone rebuilds preserve their native compilation cache, and the helper selects a connected device instead of matching unavailable discovery entries.
+- Zinc Go uses the iPhone’s Wi-Fi address for pairing and starts with an empty, clearable link field. iOS text fields correctly replace and delete selected text and keep the keyboard’s cursor in sync.
+- The Apple camera backend scales rotated capture buffers correctly and enables continuous autofocus; Zinc Go scans with a portrait camera format on iPhone.
+- Hold three fingers for one second to return directly to Zinc Go from live or installed apps. Murdoku and the scanner’s controls respect iPhone safe areas in portrait and landscape.
+- Shake the phone to open Zinc Go’s Reload / Go home menu, including installed apps. Mobile builds enable the accelerometer backend, and motion detection pauses while the app is in the background.
+- On iPhone, choose “Ajouter une note” in Zinc Go’s shake menu to save feedback locally per app, with a timestamp, device and system details, Zinc version, resolution and safe-area information.
+- `zinc export` and `zinc build --bundle` on macOS accept an SVG `app.icon`; the export used to fail on it.
 
 ### Performance
 
 #### Faster
+- On the web, pictures that a program redraws every frame (a pixel scene, a software-rendered canvas) upload without re-allocating their buffer: about 15% less script time per frame on the Pixel Plays demos.
+- New `updatePixels(image, pixels, opaque)` in `zinc:gfx` shows a computed picture from one `u32` a pixel instead of four bytes: a quarter of the array and no per-byte loop, on every engine and on the web. Pixel Plays uses it and now spends 5 to 30% less script time per frame in the browser than before, and less than the JavaScript original on all five shared demos.
+
+- Source runs and app bundles load JPEG/WebP assets on demand from their compressed files instead of baking all decoded pixels; standalone executables keep their embedded assets. Museum prepares storyboard pictures when the map opens.
+
+- `zinc:ui/image-cache` bounds unused decoded pictures while protecting images held by UI nodes and viewers. Discord uses it with background cleanup and off-thread decoding at display size; portable WebP thumbnails resize during decoding.
+- Museum releases hidden 3D output buffers and stopped video decoders after navigation, recreating them when needed.
 
 - Large software-rendered shadows reserve memory for the distinct alpha rows they use, instead of their entire area.
 - Compiled apps release the encoded module before execution and copy only the required arguments when calling native plugins. Native calls allocate temporary array storage only when they need it.
+- `ZINC_PRESENT=auto` enables experimental idle display snapshots on macOS; the default uses continuous Metal presentation to avoid flashes when the renderer changes.
+- Raster and HTTP scratch buffers are allocated when needed, reducing memory used by each rendering thread. GPU display drivers release unused software buffers, and console/browser runners release decoded input bytes before execution.
 - The Sonos plugin reads a group and its rooms in parallel, so polling takes a fraction of the time; a new `eachGroup` runs work over groups, three at a time.
 - The inspector, the Markdown reader's Notion sync and pictures, Zinc Hub's icons, Discord file uploads and iPod library loads no longer wait for one request at a time.
+
 
 #### Fixed
 
@@ -54,11 +68,16 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Plugins
 
 #### New
+- `zinc:sf-symbols` gives a program Apple's SF Symbols as images to tint: `<Image image={symbol('sun.max', 16, 12)} className="tint-[#3a3a3c]" />`.
+- `zinc:monitors` controls the Mac's displays: resolutions and HiDPI, brightness, contrast, volume and input over DDC, dimming and warmth, XDR boost, arrangement, mirroring, rotation, connection and virtual displays.
+- `tray.bounds()` tells where a menu bar icon is, `window.onBlur()` tells when the window loses the keyboard, and `window.setVibrancy(material, radius)` rounds the blur of a frameless window: together they make a menu bar panel.
+- `window.setFrame(x, y, w, h)` moves and resizes the window in one step, for a panel that follows its content while it animates.
 - Murdoku can be played with the pen on an e-ink tablet: a circled letter places that person, a bare letter is a pencil note, an X crosses a cell out, and a two-finger tap undoes. `zinc:ui` has `onTwoFingerTap` for that gesture and `zinc:ink`'s `Ink` can draw over a board with `overlay = true`.
-- Murdoku investigations print on paper: `examples/murdoku/authoring/print_ticket.py --host <printer>` makes a till receipt on an 80 mm ESC/POS printer, and `print_sheet.py enquete.pdf` a two-page A4 PDF at 300 dpi with the solution on the back (`--mono` for a black and white printer).
 - `zinc:ink` recognises handwriting on the device, with no cloud: `recognise(strokes)` names a mark as a letter (`A`-`E`, `V`), a circle, an `x`, a tick or a line, says when a letter is circled, and answers `unknown` rather than guess; `recogniseAsync` matches off the UI thread, `StrokeGrouper` collects the strokes of one mark, `loadModel` swaps in your own templates. The notes example for reMarkable has a Record mode to collect handwriting samples.
 - `zinc:ink` reads letters with a small neural net as well (49 KB, int8, under half a millisecond a mark): it copes with slanted, stretched and shaky writing the template matcher misses, and says `unknown` for a scribble. `loadModel('letters.znm')` loads a net you trained with `tools/ink-train/train`; `recognise(strokes, { net: false })` keeps the template matcher alone.
 - `examples/ink-lab`: write on a rectangle and watch what `zinc:ink` recognises beside it, live while the pen is down: best candidates with scores, the boxed marks, a letters / shapes / all switch, Undo and Restart.
+- `zinc:webview` runs on Linux desktops with WebKitGTK: same code, same `<NativeView>`, `zinc://` assets, `postMessage` and `invoke`. Install `libwebkit2gtk-4.1-0`; on a screen with no desktop, `create` says so.
+- A program that draws, exported with `zinc export --target x86_64-linux`, now opens a window on a desktop (the size of its `sim` target when it names no Linux size) and takes the screen without one, instead of showing nothing.
 
 #### Fixed
 - `zinc:ink` no longer takes a `B` drawn as a stem and one looped stroke for a letter with a circle round it.
@@ -66,20 +85,33 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### UI
 #### New
+- A transparent window without `transparentColor` has a real alpha per pixel: `bg-white/10` over `window.setVibrancy` shows the blurred desktop through it, for glass panels.
 - E-ink mode for `zinc:ui` (on a reMarkable, or `ZINC_EINK=1` on a Mac): colours snap to black, white and the panel's primaries, shadows, gradients and opacity are left out, and `pattern-hatch`, `pattern-cross`, `pattern-dots` and `pattern-stripes` fill a box with ink where a tint would be.
 - `layer-cache` keeps a box's children as one picture that is drawn again only after `invalidate(node)`, and `refreshRect(x, y, w, h, 'fast' | 'quality' | 'full')` of `zinc:gfx` names the e-ink waveform of a region (the reMarkable driver sends it that way).
 
 #### Fixed
+- `border-transparent` no longer draws a white line.
+- JavaScript games using Pointer Events receive finger presses, movement and releases with stable touch identities. Canvas presentation also respects `image-rendering: pixelated` and `crisp-edges`, keeping pixel art sharp on Retina displays.
+- List rows using a numeric JSX index update correctly after reordering; invisible text inputs no longer repaint to blink a hidden caret.
+- macOS keeps Metal presentation continuous by default and retains the last snapshot during resize, avoiding empty frames from adaptive renderer transitions.
+- Image viewers release their high-resolution copies on navigation and close, including late loads. GL renderers release textures of destroyed runtime images, and QuickJS shares standard-module state across relative and `zinc:` imports.
 - `Icon` follows e-ink mode: its strokes take the panel's black, white or primary instead of a near-grey tint.
 - Selecting text with `select-text` works across several lines and several `Text` blocks, like a browser: drag from one paragraph into the next (in a `ScrollView` too, the list scrolls near its edge), the whole span is highlighted and Cmd/Ctrl+C copies it with its line breaks.
 - `{list.map(row)}` with a named function that returns JSX shows the rows, as it does with an inline arrow, instead of printing numbers.
 - `aria-label` and `role` work on `VirtualList`, and an icon name written in an expression (`<Icon name={on ? "heart" : "star"} />`) is included in the program without listing it in `zinc.json`.
 - A long press on a `Tooltip` shows its hint on touch screens.
-
+- A program that resizes its window on every frame keeps showing its frames: they were all dropped until the window stopped moving.
+- `zinc build` and `zinc export` keep the window's size and `zoom` from `targets.<platform>` in `zinc.json`, as `zinc run` does: a small window no longer came out at double size.
 ### Apps and examples
 #### New
+- `app/lumen`: display control in the menu bar in the spirit of BetterDisplay, on a translucent menu that follows the system's light or dark look, with SF Symbols: resolution slider, DDC, virtual displays, HiDPI, picture in picture and arrangement. Its sections unfold with an animation, and the panel follows.
 - Murdoku runs on the reMarkable (`targets.rmpp` in its `zinc.json`) in portrait and landscape: black and white only, with the same official artwork as the colour app (floor textures as hatching, furniture, suspect busts with their letter); the Mac app looks as before.
 - **New** A Discord client theme can choose a layout, not only colours: `"layout": "slack"` gives Slack's screen (workspace header with a compose button, folding Channels, Huddles and Direct messages sections, no member list, a header with the topic, a star and the member avatars, square avatars, a formatting row over the message box with a green Send button, day dividers) and `"layout": "teams"` Teams' (an activity rail, a selected-channel bar, Posts and Pinned tabs, message bubbles, a message box with its formatting row). Switching theme in Settings changes the layout at once.
+- `examples/pixel-plays` brings Pixel Plays’ Balote diorama to Zinc, with mouse, keyboard and touch throws, a bot opponent and pause. Its `harbor.js` entry previews an original living quay, with a drifting boat, water, vegetation, small animal motions and a rehearsed parcel throw.
+- `examples/clear` recreates classic Clear with heat-map lists, typing, swipe actions, drag reordering, palettes, undo and local saves.
+- `examples/murdoku` generates detective puzzles with 400 clue formulations and interlocking furnished rooms on cut-out plans. Every scene has one solution and a deduction path without guessing.
+- Its alphabetic witness badges, placement checks, X elimination and visual hints use a compact neutral interface, with touch letters and Plan / Witnesses / Help tabs on small or portrait screens.
+- The iPod demo can create a playlist named after each chosen or dropped folder with **One playlist per folder**.
 - `examples/pro-threads` runs Kubai’s animated light-thread lettering through native WebGL 2, with nine palettes, seven effects, editable letters and an alphabet view.
 - **Fixed** Discord video (camera and Go Live) from Zinc now opens in the web client: the video's parameter set carries the frame-reordering limits Chrome would otherwise add itself, which shifted the bytes the end-to-end encryption relies on and made the viewer drop every frame. `DISCORD_VIDEO_SPS=orig` goes back to the encoder's own.
 - **New** The Discord client speaks English and French (system language, or the *Language* row of Settings > Appearance, kept between runs), and every icon-only button has a tooltip, also when you reach it with Tab. In `zinc:ui/kit` a `Tooltip` shows on keyboard focus and hides on press, `ImageViewer` and `CallStats` take a `labels` map for their words, and `attachTooltip` gives a tooltip to a node made by code.
@@ -88,6 +120,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - The Discord code button opens a real editor (the shared `zinc:editor`) above the message box, with a language choice, highlighting, copy and paste; sending joins your message and the code as a fenced block with its language. Long code blocks you read are folded by default with a "Show code" row that unfolds them smoothly, and keep their copy button.
 - The Discord example has a safe mode switch in the user bar, opens the call's quality details (score, loss, round trip, jitter, bit rates, codecs) from the signal bars beside "Voice Connected", and its themes now colour the switches, dialogs and call view too (new `success`, `warning`, `stage` colours).
 - **New** `ImageViewer` in `zinc:ui/kit` (`openImageViewer`): a picture opens over the app the way PhotoSwipe does it, growing from the thumbnail and going back on close (Escape, a click outside, a drag down), with wheel and pinch zoom around the pointer, drag to pan, double click to zoom, Left and Right (keys, buttons, swipe) through the pictures, a caption and copy and save buttons. In the Discord client, click a picture to open it over the pictures of the channel.
+- `app/sonos-lastfm` uses `zinc:sonos` to scrobble playback, including Spotify Connect, with browser authorization, a persistent retry queue, group-aware listening time and a terminal log of track, playback and scrobble status changes.
 - `examples/ipod-rescue` adds a recovery workshop with read-only Mac diagnostics, local firmware inspection, metadata backups and a restoration simulator.
   Physical erase and firmware writes stay locked until qualified.
 - The iPod recovery workshop shows Classic specifications and known firmware branches, and compares SysCFG dumps against a supplied reference.
@@ -110,13 +143,21 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - **New** `zinc:webrtc` video holds up on bad links: a lost packet is asked for again (NACK) instead of freezing the picture until the next key frame, the receiver measures the link and tells the sender (REMB), and the sender steps its picture down a ladder (720p30, 360p30, 360p15, 180p15, 90p7) and back up as the rate allows. `getStats()` gains `nackCount` and `qualityLimitationReason`; `ZINC_WEBRTC_BWE_LOG=1` prints the rate decisions, and `ZINC_FAKE_CAMERA_NOISE` adds grain to the fake camera to test it.
 - **New** `zinc:webrtc` simulcast for a media server such as Galène: `addTransceiver(track, { sendEncodings: [{ rid: 'h' }, { rid: 'l', scaleResolutionDownBy: 2 }] })` sends a full and a small stream, and `scalabilityMode: 'L1T2'` sends VP8 in two temporal layers, so the server can give each viewer the stream its link carries.
 
+#### Fixed
+
+- `zinc:storage` reports read/write failures and preserves existing data when a replacement write fails.
+
 ### Raspberry Pi and the shell
 #### New
 - The Pi image builder is redesigned: a calm, Apple-like window with a short guided flow (device, network and account, apps), basics first and the rest behind *Advanced*, and a live build view with every step, its progress and time left, a result card with the next steps, and the failed step with *Retry*. It also offers the Zinc shell (`"shell": true` in a profile boots to the shell), A/B system updates, the Zinc agent and the app to start at boot.
+- The Pi screen now sleeps when nobody uses it: after a delay it fades to black and turns off, and the next touch wakes it without pressing anything. *Settings > Screen* sets the delay (5 minutes by default, or never) and the transition. An app that must stay visible keeps it on with `navigator.wakeLock.request('screen')`, and kiosk apps always do.
+
 #### Fixed
 - Under the shell, an app started with `zinc device run` comes to the screen even over another page, and `zinc device stop` or a newer app replacing it no longer leaves an "app stopped (exit -1)" page.
 - `fetch` returns a binary download byte for byte: `response.bytes()` and `arrayBuffer()` no longer lose two bytes where a gzip or an archive holds two surrogate halves side by side, and a server reads a large upload's bytes in one step.
 - A zinc:net server hands a binary upload over byte for byte: `Request.rawBytes` holds the body when a string cannot (a gzip or a `.zapp` with two surrogate halves side by side lost two bytes), so the hub no longer stores a damaged engine bundle.
+- Animations under the Pi shell are smooth: an app now draws one frame per screen refresh, instead of bursts where one frame in three was never shown.
+- `zinc device screen --live` no longer freezes on its first image.
 
 ### Calls and media
 #### New
@@ -128,14 +169,18 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 
 ### Language
 
-#### Fixed
-
-- A regex `replace` whose replacer function calls `n.toString(16)`, `Math.max(...)` and the like compiles, instead of failing with an internal error.
-- Array methods on an `any` value (`data.codecs.map(...)`, `.filter`, `.join`, `.some`, `.includes`...) work, as in TypeScript, instead of failing with "cannot be called".
-
 #### New
 
 - `const [a, b] = await Promise.all([pa, pb])` accepts promises of different types, up to six, however the result is kept: destructured, as `r[0]`, or not at all.
+- Arrays have the standard `copyWithin(target, start, end?)`: a block moved inside an array in one native call, the same on every engine.
+
+#### Fixed
+
+- Captured local functions apply their default arguments correctly, including fresh arrays and defaults that refer to earlier parameters.
+
+- `String()` accepts dynamic JSON values, including arrays, objects, `null` and missing fields.
+- A regex `replace` whose replacer function calls `n.toString(16)`, `Math.max(...)` and the like compiles, instead of failing with an internal error.
+- Array methods on an `any` value (`data.codecs.map(...)`, `.filter`, `.join`, `.some`, `.includes`...) work, as in TypeScript, instead of failing with "cannot be called".
 
 ### reMarkable
 
@@ -145,6 +190,14 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 - A reMarkable app can run in landscape: set `"orientation": "landscape"` in `app` of `zinc.json` and the app draws on the panel turned a quarter (`ZINC_RMPP_ROTATE=270` for the other side), with the Marker and the fingers following the turn.
 - Murdoku has its own reMarkable layout with nothing to scroll: in landscape the plan on the left with big suspect letters and tool buttons under it and the six testimonies in a column on the right, in portrait the plan on top and the testimonies below; selected things are filled or thick-bordered, and it docks under the tablet's own header.
 - Murdoku on the Paper Pro can be played in colour: the manor, rooms and portraits keep their colours in the same one-screen layout, a "Mode couleur / Mode N&B" button switches at any time, and the choice is remembered. An e-ink app on a colour panel can ask `zinc:ui` to stop snapping colours with `setEinkColour(true)`.
+- `setWaveform(mode, colour)` of `zinc:remarkable` names the panel's raw refresh mode under an ink session; the new `examples/remarkable/quill-lab` shows the demos of Quill with it, `quill-originals` runs the real ones.
+
+#### Changed
+
+- Handwriting is read far better: `zinc:ink`'s net now learns from real writers (UJI Pen Characters, CC BY 4.0), so on 20 writers it never saw 94.5 % of letters and marks read right instead of 75 %, and it accepts far fewer letters that are not asked for. Murdoku uses it, and Ink Lab can switch between `new net` and `old net` to read the same marks with both.
+- A letter or a cross written in several strokes now reads as one mark: `StrokeGrouper` waits 900 ms after the pen lifts by default, so a pause between two strokes no longer turns them into separate lines.
+- Ink Lab writes on the Pen waveform in an ink session, with its own bar to leave, and its canvas only redraws when the Marker moves; Murdoku's writing layer is redrawn the same way.
+- Quill mode on the reMarkable: an app opened in an ink session now leads to the Hub when you close it, the Hub opens other apps without restarting xochitl, and closing the Hub brings xochitl back. Turn it on per app in Store › Installed.
 
 #### Faster
 
@@ -191,8 +244,22 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **Fixed** On a Pi without a desktop, an app whose display driver cannot start falls back to the framebuffer instead of stopping; GL plugins build on the Pi itself; `zinc device run` no longer ends the shell when it starts an app; an app under the shell keeps 60 frames a second where it fell to 40 (four buffers instead of three).
 
 ### Legacy iPhone
+
 #### New
+
 - `tools/build-ios-legacy --aot` builds an experimental app for a jailbroken iPhone 4 on iOS 7.1.2, with GLES2 graphics, touch and the native keyboard. `tools/ios-legacy-device` provides USB deployment, app input, screenshots and profiling. `rn-showcase` runs, but animations and scrolling still need optimization.
+
+#### Changed
+
+- The experimental legacy iPhone host renders at logical pixel density to reduce GPU load, with less fine detail than Retina.
+
+#### Faster
+
+- GLES2 scrolling reuses the previous image and redraws the exposed areas. Opaque screens use a simpler copy shader, and elements fully inside rounded clips avoid redundant shader calculations. Rounded clip calculations on SGX535 are confined to the borders of large cards. Hidden opaque card interiors skip drawing the surfaces behind them.
+
+#### Fixed
+
+- Single-line mobile inputs dismiss the keyboard on Return by default; React Native inputs support `submitBehavior` and `blurOnSubmit`. The legacy iPhone keyboard has a Done button and selects the keyboard for the focused field. Keyboard avoidance uses the native transition duration.
 
 ### Devices, deploy and packaging
 - **Changed** `zinc device deploy` to a Raspberry Pi builds the app on your computer (a `.zapp` with its plugins cross-built for the Pi) and the Pi just runs it. An app compiled by a newer zinc says so when it starts there, with the way out (`zinc device <pi> update --local`); `--source` sends the sources as before.
@@ -205,10 +272,6 @@ Under the hood, Zinc accepts much more of the TypeScript people actually write, 
 - **New** Each app keeps its `zinc:storage` keys and its files in a folder of its own, `~/.zinc/apps/<name>/` (`dataDir()` of `zinc:sys`); keys an app had in the shared `~/.zinc/storage.kv` move there the first time it runs, and erasing that folder resets the app and nothing else. Programs on QuickJS, JavaScriptCore, V8 and Hermes (so every such program under `zinc dev`) keep their `zinc:storage` and AsyncStorage keys in `<zinc home>/apps/<zinc.json name>/storage.kv` too.
 - **New** Android: on a rooted device `setBacklight(false)` turns the backlight fully off instead of leaving the dimmest glow, and a touch still wakes it. The app asks for root the first time; without root it dims as before.
 - **New** Experimental Intel Mac runtime for macOS 10.12: run packed `zinc:gfx` programs in a software-rendered Cocoa window with game keys and mouse input. It builds separately (`targets/macos-legacy`); real Sierra compatibility is not verified yet.
-#### New
-
-- Arrays have the standard `copyWithin(target, start, end?)`: a block moved inside an array in one native call, the same on every engine.
-
 - **Fixed** macOS app bundles (development and exported) declare the engine's real deployment target instead of requiring macOS 11, and keep the macOS 11-only UniformTypeIdentifiers framework optional, so builds for Catalina no longer abort at start. Loading a prebuilt plugin no longer writes a cache into its folder, so a signed bundle stays valid after launch.
 - **Fixed** museum-table runs when sent to another machine: it imported the devtools plugin by a path outside the project, and now uses `zinc:devtools/cdp`.
 
