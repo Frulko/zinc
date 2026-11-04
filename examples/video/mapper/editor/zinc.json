@@ -1,7 +1,7 @@
 {
   "name": "mapper-editor",
   "entry": "src/main.tsx",
-  "icons": ["monitor", "square-dashed", "ruler", "box", "volume-2", "clapperboard", "clock", "settings", "move", "grid-3x3", "blend", "film", "layers", "plus", "arrow-up", "arrow-down", "trash", "square", "chevron-up", "chevron-down", "undo-2", "redo-2", "upload", "folder-up", "x", "play", "rotate-ccw", "link", "unlink", "info", "crosshair", "activity"],
+  "icons": ["monitor", "square-dashed", "ruler", "box", "volume-2", "clapperboard", "clock", "settings", "move", "grid-3x3", "blend", "film", "layers", "plus", "arrow-up", "arrow-down", "trash", "square", "chevron-up", "chevron-down", "undo-2", "redo-2", "upload", "folder-up", "x", "play", "rotate-ccw", "link", "unlink", "info", "crosshair", "activity", "spline"],
   "app": { "name": "Mapper editor", "id": "dev.zinc.mapper-editor", "version": "0.1.0" },
   "permissions": ["net", "dialog", "deep-link", "fs"],
   "targets": {

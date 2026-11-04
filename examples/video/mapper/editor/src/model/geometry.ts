@@ -139,7 +139,8 @@ export function insidePolygon(outline: number[], x: number, y: number): boolean 
 const MASK_HEADER: i32 = 2;   // feather and invert come before the points
 
 /** Puts a point in a mask's outline on the edge nearest to it, so that clicking around a shape never makes the outline cross itself. */
-export function insertMaskPoint(mask: number[], x: number, y: number): void {
+/** Returns the place of the new point. */
+export function insertMaskPoint(mask: number[], x: number, y: number): i32 {
   const count: i32 = ((mask.length - MASK_HEADER) / 2) as i32;
   let bestEdge: i32 = count - 1, bestDistance = Infinity;
   for (let edge: i32 = 0; edge < count; edge++) {
@@ -156,4 +157,34 @@ export function insertMaskPoint(mask: number[], x: number, y: number): void {
     }
   }
   mask.splice(MASK_HEADER + (bestEdge + 1) * 2, 0, x, y);
+  return bestEdge + 1;
+}
+
+const CURVE_LINES: i32 = 16;
+
+/** The outline of a mask's points (x y ...) with their handles (in x y, out x y from each point): what the mapper fills. */
+export function maskOutline(points: number[], curve: number[]): number[] {
+  const count: i32 = (points.length / 2) as i32;
+  const out: number[] = [];
+  const handle = (at: i32): number => at < curve.length ? curve[at] : 0;
+  for (let i: i32 = 0; i < count; i++) {
+    const j: i32 = (i + 1) % count;
+    const ax = points[i * 2], ay = points[i * 2 + 1], bx = points[j * 2], by = points[j * 2 + 1];
+    const ox = handle(i * 4 + 2), oy = handle(i * 4 + 3), ix = handle(j * 4), iy = handle(j * 4 + 1);
+    const lines: i32 = ox === 0 && oy === 0 && ix === 0 && iy === 0 ? 1 : CURVE_LINES;
+    for (let k: i32 = 0; k < lines; k++) {
+      const t = k / lines, u = 1 - t;
+      const w0 = u * u * u, w1 = 3 * u * u * t, w2 = 3 * u * t * t, w3 = t * t * t;
+      out.push(w0 * ax + w1 * (ax + ox) + w2 * (bx + ix) + w3 * bx, w0 * ay + w1 * (ay + oy) + w2 * (by + iy) + w3 * by);
+    }
+  }
+  return out;
+}
+
+/** Handles along the line from the point before to the point after: a smooth curve through the point. */
+export function smoothHandles(points: number[], at: i32): number[] {
+  const count: i32 = (points.length / 2) as i32;
+  const before: i32 = (at + count - 1) % count, after: i32 = (at + 1) % count;
+  const dx = (points[after * 2] - points[before * 2]) / 6, dy = (points[after * 2 + 1] - points[before * 2 + 1]) / 6;
+  return [-dx, -dy, dx, dy];
 }

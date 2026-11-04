@@ -93,6 +93,7 @@ UDP port given to `listen` (9000 in the example). Numbers may be `i`, `f` or `d`
 | `/layer/<n>/edgedir` | `left right top bottom` | which way each side's `edge` gradient goes from the edge: `0` inside (default), `1` outside, past the surface, where it continues the source, `2` both; outside, `inset` brings the gradient's far end back toward the edge |
 | `/layer/<n>/edgeoffset` | `left right top bottom` | moves where each side's gradient starts, in surface units: positive into the layer, negative past its edge; the layer's corners do not move, and a side with no `edge` ignores it |
 | `/layer/<n>/mask/<k>` | `feather invert x0 y0 x1 y1 ...` | polygon mask k (0..3, 3..32 points, surface space); invert 0 = show inside, 1 = hide inside; fewer than 3 points removes it |
+| `/layer/<n>/maskcurve/<k>` | `inx iny outx outy ...` | Bézier handles of mask k: for each of its points, two offsets from the point (all zero: a straight side). Send it after `mask/<k>`; it is saved under the same key |
 | `/layer/<n>/maskimage` | `id` (−1: none) | multiplies by the image's luminance (updates with the image) |
 | `/layer/<n>/grid` | `0/1` | calibration grid (mesh lines + border) |
 | `/layer/<n>/reset` | | defaults, keeps the name |

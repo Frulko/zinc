@@ -47,7 +47,7 @@ is the status card, F fullscreen, Esc quits. Options: `--media <folder>`, `--por
 1. **Pin the surfaces.** In *Output*, click a zone to select it and drag its corners onto the real object while watching the wall. Click a point: the
    arrows move it by one pixel of the output, with Shift by ten, and Tab goes to the next point. Curved or uneven surface? Open
    *Deformation grid*, pick 3 x 3 up to 9 x 9, and move any point of the grid, as in Resolume.
-2. **Cut the shapes.** In *Masks*, add a polygon mask and click around the shape; set its feather, or invert it. Crop and edge
+2. **Cut the shapes.** In *Masks*, add a mask and click around the shape; **Curve** turns a point (or all of them) into a Bézier point with two handles, **feather** softens its edge (0 is sharp), and you can invert it. Crop and edge
    blend are in the same view, for two projectors that overlap.
 3. **Measure, then make the media.** In *Calibration*, each layer tells how many pixels it really covers on the output, and the
    size to give a media so that it is neither stretched nor wasted. Download a template (see below), compose over it in your tool,

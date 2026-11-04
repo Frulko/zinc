@@ -7,7 +7,7 @@ import { MASK_SLOTS, currentLayer, loadState, maskValues, pointRevision, revisio
 import { CalibrationPanel } from './CalibrationPanel';
 import { DragGhost, Dashboard } from './Dashboard';
 import { HistoryPanel } from './HistoryPanel';
-import { Heading, IconButton, IconTabs } from './Field';
+import { Heading, IconButton, IconTabs, Row, ValueSlider } from './Field';
 import { Library } from './Library';
 import { EdgeControls } from './EdgeControls';
 import { MODE_CORNERS, MODE_EDGES, MODE_MESH, OutputCanvas, isLinking, outputMode, selectedCornerIsLinked, selectedPointText, setOutputMode, startLinking, unlinkSelectedCorner } from './OutputCanvas';
@@ -18,13 +18,14 @@ import { ScenePanel } from './ScenePanel';
 import { SoundPanel } from './SoundPanel';
 import { StatusBar } from './StatusBar';
 import { TransferDialog } from './TransferDialog';
-import { SurfaceCanvas, currentMask, selectMask } from './SurfaceCanvas';
+import { SurfaceCanvas, curveChosenPoints, currentMask, selectMask } from './SurfaceCanvas';
 import { Rebuilt } from './Rebuilt';
 
 const VIEWS: string[] = ['Output', 'Masks', 'Calibration', 'Room', 'Sound', 'Scenes', 'History', 'Options'];
 const VIEW_ICONS: string[] = ['monitor', 'square-dashed', 'ruler', 'box', 'volume-2', 'clapperboard', 'clock', 'settings'];
 const MESH_PRESETS: i32[] = [3, 4, 6, 9];
-const NEW_MASK: number[] = [0.05, 0, 0.3, 0.3, 0.7, 0.3, 0.7, 0.7, 0.3, 0.7];
+const NEW_MASK: number[] = [0, 0, 0.3, 0.3, 0.7, 0.3, 0.7, 0.7, 0.3, 0.7];
+const MAX_FEATHER = 0.3;
 
 function resizeGrid(size: i32): void {
   if (currentLayer() === null) return;
@@ -90,11 +91,18 @@ function MaskTools(): i32 {
       setLayer(`mask/${currentMask()}`, mask);
       touch();
     }} />}
-    {mask.length >= 8 && <Button size="sm" variant="ghost" label="Delete" onClick={() => {
+    {mask.length >= 8 && <IconButton icon="spline" variant="secondary" label="Curve" onClick={() => { curveChosenPoints(true); touch(); }} />}
+    {mask.length >= 8 && <IconButton icon="square" variant="secondary" label="Corner" onClick={() => { curveChosenPoints(false); touch(); }} />}
+    {mask.length >= 8 && <IconButton icon="trash" label="Delete" onClick={() => {
       layer[`mask/${currentMask()}`] = [];
+      layer[`maskcurve/${currentMask()}`] = [];
       send(`/layer/${store.selected}/mask/${currentMask()}`, []);
       touch();
     }} />}
+    {mask.length >= 8 && <View className="w-[260]"><Row label="feather"><ValueSlider min={0} max={MAX_FEATHER} read={() => mask[0]} write={(v: number) => {
+      mask[0] = v;
+      setLayer(`mask/${currentMask()}`, mask);
+    }} /></Row></View>}
   </View>;
 }
 
@@ -102,7 +110,7 @@ function MasksView(): i32 {
   return <View className="p-3 gap-2">
     <Heading text="Masks, crop, edge blend" />
     <Rebuilt make={MaskTools} />
-    <Text className="text-xs text-zinc-400">Click empty space to add a point to the mask, shift-click a point to take it out. The two crop corners are points too.</Text>
+    <Text className="text-xs text-zinc-400">Click empty space to add a point to the mask, shift-click a point to take it out. Curve bends the chosen points, or all of them; drag their handles. The two crop corners are points too.</Text>
     <SurfaceCanvas />
   </View>;
 }

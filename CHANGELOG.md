@@ -164,6 +164,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - `zinc:system` opens and saves files in a web export (the browser's picker, a download) and reports files dropped on the page, and `uploadFile` of `zinc:web/fetch` sends a file of any size with its progress, in the browser and natively.
 - `zinc:link` announces a short public text (`advertise({ info })`, `Peer.info`), and a web export builds with it: each call answers that a page has no sockets.
 - `zinc:mapping`: `/layer/<n>/edgeoffset` moves where each side's gradient starts, and `/layer/<n>/picture` moves, turns and fades the picture inside its zone.
+- `zinc:mapping`: `/layer/<n>/maskcurve/<k>` gives a polygon mask Bézier handles.
 
 #### Changed
 - `zinc:net`: a program can serve several ports at once, each with its own handler (`serve`/`serveAsync` again on another port no longer replaces the first server), and `stop(port)` stops one; `stop()` still stops them all. The Spotify login now stops only its own callback server.
@@ -181,6 +182,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - A program that draws, exported with `zinc export --target x86_64-linux`, now opens a window on a desktop (the size of its `sim` target when it names no Linux size) and takes the screen without one, instead of showing nothing.
 - On the web, `zinc:system/dialog` can pick a folder, and a folder dropped on the page gives the files in it.
 - `zinc:mapping`: the `cover` fit deformed the picture instead of cutting what exceeds; `/layer/<n>/fit` also takes `width` and `height`, and `/layer/<n>/frame` slides and zooms the picture.
+- `zinc:mapping`: a mask with no feather has a clean edge at the size it is shown, and drawing one no longer costs a slow graphics chip a shader per pixel.
 
 ### iPod
 
@@ -388,6 +390,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - In the video mapper, a second click on a clip or a column stops it and an empty column stops everything; clips have an **x**, the panels resize, **Send a folder** and a closable transfer window follow what you send, and a bottom bar shows the device and what runs on it.
 - In the video mapper, a clip says what its fit does to the picture; **width** and **height** make that side span the zone, and you drag the visible part and zoom to choose what shows.
 - In the video mapper, a soft edge has an **offset** that slides where its gradient starts, from -10 % to +10 %, and a clip has its own **x**, **y**, **scale**, **rotation** and **opacity**.
+- In the video mapper, a mask point can become a curve with two handles (**Curve**, **Corner**), and **feather** sets how soft its edge is, sharp by default.
 
 #### Changed
 - Discord: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro) and logs a clamp as "over the ceiling".

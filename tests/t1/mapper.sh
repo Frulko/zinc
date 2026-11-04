@@ -43,6 +43,32 @@ want = {"inside": (.175, {.48: 255, .55: 128, .595: 0, .65: 0}), "outside": (.49
 problems = [f"{name} at x={x}: {light(x, y)}, not {v}" for name, (y, row) in want.items() for x, v in row.items() if abs(light(x, y) - v) > 40]
 if problems: print("edge direction: " + "; ".join(problems)); sys.exit(1)
 PY
+# masks: an ellipse by Bézier handles with a clean edge on the left half, a feathered square on the right
+masks="$tmp/masks"; cp -R "$project" "$masks"
+python3 - >"$masks/mapping.json" <<'PY'
+import json
+def half(left): return {"name": ["half"], "source": ["solid"], "color": [1, 1, 1], "corners": [left, 0, left + .5, 0, left + .5, 1, left, 1]}
+curved = half(0); curved["mask/0"] = [0, 0, .3, .5, .5, .2, .7, .5, .5, .8]
+curved["maskcurve/0"] = [0, .165, 0, -.165, -.11, 0, .11, 0, 0, -.165, 0, .165, .11, 0, -.11, 0]
+soft = half(.5); soft["mask/0"] = [.1, 0, .25, .25, .75, .25, .75, .75, .25, .75]
+print(json.dumps({"version": [1], "layers": [curved, soft]}))
+PY
+ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 ZINC_SHOT="$tmp/k.bmp" timeout 120 "$ZINC" run "$masks/src/main.ts" -- --port 0 --web off >"$tmp/masks.log" 2>&1
+python3 - "$tmp/k.bmp" <<'PY' || fail=1
+import struct, sys
+b = open(sys.argv[1], "rb").read()
+start = struct.unpack("<I", b[10:14])[0]; w, h = struct.unpack("<ii", b[18:26]); depth = struct.unpack("<H", b[28:30])[0] // 8
+stride = (w * depth + 3) & ~3
+def light(x, y): return b[start + (h - 1 - int(y * h)) * stride + int(x * w) * depth]
+problems = []
+# surface x / 2 on the left half: outside the diamond of the four points, inside the ellipse through them; then outside the ellipse
+if light(.62 / 2, .32) < 215: problems.append(f"a curve does not bulge: {light(.62 / 2, .32)}")
+if light(.68 / 2, .25) > 40: problems.append(f"a curve is not cut: {light(.68 / 2, .25)}")
+between = lambda x0, x1: sum(1 for x in range(int(x0 * w), int(x1 * w)) if 20 < light(x / w, .5) < 235)
+if between(.3, .4) > 4: problems.append(f"the edge of a mask with no feather is {between(.3, .4)} pixels wide")
+if between(.55, .7) < w * .03: problems.append(f"a feather is {between(.55, .7)} pixels wide of {w}")
+if problems: print("masks: " + "; ".join(problems)); sys.exit(1)
+PY
 # a picture 2:1 of four bands (red, green, blue, white) in square zones: what each fit shows of it
 fits="$tmp/fits"; cp -R "$project" "$fits"; mkdir -p "$fits/media"
 python3 - "$fits" <<'PY'

@@ -23,7 +23,8 @@ namespace {
 namespace raster = zrt::raster;
 
 enum { MAX_LAYERS = 16, MAX_MESH = 16, MAX_MASKS = 4, MAX_PTS = 32, MAX_ARGS = 2 + MAX_MESH * MAX_MESH * 2, MAX_STRS = 4,
-       MASK_PX = 512, GRID = 32 };
+       MASK_MIN_PX = 512, MASK_MAX_PX = 2048, MASK_SUBLINES = 4, GRID = 32,
+       MIN_CURVE_STEPS = 8, MAX_CURVE_STEPS = 48, CURVE_STEPS_PER_UNIT = 48, MAX_FLAT = MAX_PTS * MAX_CURVE_STEPS };
 enum { PATTERN, SOLID, GRADIENT, IMAGE, BAKED, EXTERNAL, NPROG };  // BAKED: IMAGE from a baked (RGBA) asset; EXTERNAL: the decoder's pictures
 enum { STRETCH, CONTAIN, COVER, FIT_WIDTH, FIT_HEIGHT };
 enum { NORMAL, ADD, MULTIPLY, SCREEN };
@@ -33,7 +34,7 @@ const char* BLEND_NAMES[] = {"normal", "add", "multiply", "screen"};
 const char* FIT_NAMES[] = {"stretch", "contain", "cover", "width", "height"};
 typedef char Str[64];
 
-struct Mask { int n; float feather, invert, pts[MAX_PTS * 2]; };
+struct Mask { int n; float feather, invert, pts[MAX_PTS * 2], curve[MAX_PTS * 4]; };   // curve: per point, its two handles (in x y, out x y) from the point; zero is a straight side
 struct Tex { GLuint id; int32_t image, w, h; uint32_t version; bool rgba; };
 struct Layer {
   char name[32];
@@ -98,7 +99,7 @@ void defaults(Layer& l, int idx) {
   l.frame[2] = 1;
   l.picture[3] = 1;
   l.volume = 1; l.loop = 1; l.fit = STRETCH; l.media[0] = 0;
-  for (Mask& m : l.masks) m.n = 0;
+  for (Mask& m : l.masks) { m.n = 0; memset(m.curve, 0, sizeof m.curve); }
   l.cols = l.rows = 2;
   identity_mesh(l);
   l.mask_dirty = true;
@@ -328,24 +329,8 @@ const char* MASK_VS = R"(attribute vec2 a_pos; uniform vec4 u_range; varying vec
 void main() { v_uv = u_range.xy + a_pos * u_range.zw; gl_Position = vec4(a_pos * 2.0 - 1.0, 0.0, 1.0); }
 )";
 // Feathered polygon: signed distance to the outline (even-odd inside test), smoothstep over the feather width.
-const char* POLY_FS = R"(varying vec2 v_uv;
-uniform vec2 u_p[32]; uniform vec2 u_last; uniform float u_n; uniform float u_feather;
-void main() {
-  vec2 p = v_uv, a = u_last;
-  float d = 1e6, inside = 0.0;
-  for (int i = 0; i < 32; i++) {
-    if (float(i) < u_n) {
-      vec2 b = u_p[i], e = b - a, w = p - a;
-      vec2 q = w - e * clamp(dot(w, e) / max(dot(e, e), 1e-8), 0.0, 1.0);
-      d = min(d, dot(q, q));
-      if ((a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = 1.0 - inside;
-      a = b;
-    }
-  }
-  float f = max(u_feather, 0.002);
-  gl_FragColor = vec4(vec3(smoothstep(-0.5 * f, 0.5 * f, (inside > 0.5 ? 1.0 : -1.0) * sqrt(d))), 1.0);
-}
-)";
+const char* COPY_FS = R"(varying vec2 v_uv; uniform sampler2D u_tex;
+void main() { gl_FragColor = vec4(texture2D(u_tex, v_uv).rgb, 1.0); })";
 // Crop rectangle (feathered inwards), edge blending ramps (smoothstep ^ 1/gamma, so overlapping projectors sum to
 // constant light; 0 up to u_lo and 1 from u_hi, in distance from each side) and the image mask's luminance.
 const char* CROP_FS = R"(varying vec2 v_uv;
@@ -362,7 +347,7 @@ void main() {
 }
 )";
 
-GLuint progs[NPROG * 32], poly_prog, crop_prog, quad, white;  // white: bound to samplers a variant does not read
+GLuint progs[NPROG * 32], copy_prog, poly_tex, crop_prog, quad, white;  // white: bound to samplers a variant does not read
 
 // A program per source and per step the layer really uses: what a neutral step costs is not small on a modest GPU, where a shader runs both
 // sides of its branches (Mali-400).
@@ -419,39 +404,175 @@ void draw_quad() {
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
+// Masks are drawn on the processor, once per change: any number of points, a clean antialiased edge at any feather, and it costs a slow GPU nothing per pixel.
+int mask_px = 0;              // the side of a mask texture: about what the output shows of it
+uint8_t* mask_one, *mask_tmp, *mask_all, *mask_rgba;
+
+void choose_mask_size() {
+  if (mask_px) return;
+  mask_px = MASK_MIN_PX;
+  while (mask_px < MASK_MAX_PX && mask_px < outputW) mask_px *= 2;
+  size_t area = (size_t)mask_px * mask_px;
+  mask_one = (uint8_t*)malloc(area);
+  mask_tmp = (uint8_t*)malloc(area);
+  mask_all = (uint8_t*)malloc(area);
+  mask_rgba = (uint8_t*)malloc(area * 4);
+}
+
+// The outline of a mask, with its curves as short lines; `out` holds MAX_FLAT points.
+int flatten_mask(const Mask& m, float* out) {
+  int count = 0;
+  for (int i = 0; i < m.n; i++) {
+    const int j = (i + 1) % m.n;
+    const float* a = m.pts + i * 2, *b = m.pts + j * 2;
+    const float ox = m.curve[i * 4 + 2], oy = m.curve[i * 4 + 3], ix = m.curve[j * 4], iy = m.curve[j * 4 + 1];
+    int steps = 1;
+    if (ox != 0 || oy != 0 || ix != 0 || iy != 0) {
+      const float length = hypotf(ox, oy) + hypotf(ix, iy) + hypotf(b[0] - a[0], b[1] - a[1]);
+      steps = (int)(length * CURVE_STEPS_PER_UNIT);
+      steps = steps < MIN_CURVE_STEPS ? MIN_CURVE_STEPS : steps > MAX_CURVE_STEPS ? MAX_CURVE_STEPS : steps;
+    }
+    for (int k = 0; k < steps; k++) {
+      const float t = (float)k / steps, u = 1 - t;
+      const float w0 = u * u * u, w1 = 3 * u * u * t, w2 = 3 * u * t * t, w3 = t * t * t;
+      out[count * 2] = w0 * a[0] + w1 * (a[0] + ox) + w2 * (b[0] + ix) + w3 * b[0];
+      out[count * 2 + 1] = w0 * a[1] + w1 * (a[1] + oy) + w2 * (b[1] + iy) + w3 * b[1];
+      count++;
+    }
+  }
+  return count;
+}
+
+// Fills an outline even-odd into mask_one, four lines per row and the exact share of each pixel along them.
+void fill_outline(const float* points, int count, const float range[4]) {
+  static float cross[MAX_FLAT];
+  static int row[MASK_MAX_PX + 1];
+  const int px = mask_px;
+  memset(mask_one, 0, (size_t)px * px);
+  float top = 1e9f, bottom = -1e9f;
+  for (int i = 0; i < count; i++) {
+    const float y = (points[i * 2 + 1] - range[1]) / range[3] * px;
+    top = y < top ? y : top;
+    bottom = y > bottom ? y : bottom;
+  }
+  const int first = top < 0 ? 0 : (int)top, last = bottom >= px ? px - 1 : (int)bottom;
+  for (int y = first; y <= last; y++) {
+    memset(row, 0, sizeof(int) * (px + 1));
+    for (int sub = 0; sub < MASK_SUBLINES; sub++) {
+      const float line = y + (sub + 0.5f) / MASK_SUBLINES;
+      int found = 0;
+      for (int i = 0; i < count; i++) {
+        const int j = (i + 1) % count;
+        const float ay = (points[i * 2 + 1] - range[1]) / range[3] * px, by = (points[j * 2 + 1] - range[1]) / range[3] * px;
+        if ((ay > line) == (by > line)) continue;
+        const float ax = (points[i * 2] - range[0]) / range[2] * px, bx = (points[j * 2] - range[0]) / range[2] * px;
+        float x = ax + (bx - ax) * (line - ay) / (by - ay);
+        int at = found++;
+        while (at > 0 && cross[at - 1] > x) { cross[at] = cross[at - 1]; at--; }
+        cross[at] = x;
+      }
+      for (int k = 0; k + 1 < found; k += 2) {
+        const float from = cross[k] < 0 ? 0 : cross[k], to = cross[k + 1] > px ? px : cross[k + 1];
+        if (to <= from) continue;
+        const int a = (int)from, b = (int)to;
+        const int share = 256 / MASK_SUBLINES;
+        if (a == b) { row[a] += (int)((to - from) * share); continue; }
+        row[a] += (int)((a + 1 - from) * share);
+        for (int x = a + 1; x < b; x++) row[x] += share;
+        row[b] += (int)((to - b) * share);
+      }
+    }
+    uint8_t* out = mask_one + (size_t)y * px;
+    for (int x = 0; x < px; x++) out[x] = (uint8_t)(row[x] > 255 ? 255 : row[x]);
+  }
+}
+
+// One box blur along one axis: `step` between neighbours, `lines` lines of `length`, `next` between lines.
+void box_blur(const uint8_t* from, uint8_t* to, int radius, int step, int next, int length, int lines) {
+  const int width = radius * 2 + 1;
+  for (int line = 0; line < lines; line++) {
+    const uint8_t* in = from + (size_t)line * next;
+    uint8_t* out = to + (size_t)line * next;
+    int sum = in[0] * (radius + 1);
+    for (int i = 1; i <= radius; i++) sum += in[(i < length ? i : length - 1) * step];
+    for (int i = 0; i < length; i++) {
+      out[i * step] = (uint8_t)(sum / width);
+      const int add = i + radius + 1, drop = i - radius;
+      sum += in[(add < length ? add : length - 1) * step] - in[(drop > 0 ? drop : 0) * step];
+    }
+  }
+}
+
+// Three boxes make a soft ramp about as wide as the feather, centred on the outline.
+void feather_mask(float feather, const float range[4]) {
+  const int rx = (int)(feather / range[2] * mask_px / 4), ry = (int)(feather / range[3] * mask_px / 4);
+  for (int pass = 0; pass < 3; pass++) {
+    if (rx > 0) { box_blur(mask_one, mask_tmp, rx, 1, mask_px, mask_px, mask_px); memcpy(mask_one, mask_tmp, (size_t)mask_px * mask_px); }
+    if (ry > 0) { box_blur(mask_one, mask_tmp, ry, mask_px, 1, mask_px, mask_px); memcpy(mask_one, mask_tmp, (size_t)mask_px * mask_px); }
+  }
+}
+
+// What the layer's polygon masks leave: shows united, then hides cut out.
+void draw_masks(const Layer& l, const float range[4]) {
+  static float flat[MAX_FLAT * 2];
+  const size_t area = (size_t)mask_px * mask_px;
+  bool include = false;
+  for (const Mask& m : l.masks) include |= m.n >= 3 && m.invert < 0.5f;
+  memset(mask_all, include ? 0 : 255, area);
+  for (int pass = 0; pass < 2; pass++)
+    for (const Mask& m : l.masks) {
+      if (m.n < 3 || (m.invert >= 0.5f) != (pass == 1)) continue;
+      fill_outline(flat, flatten_mask(m, flat), range);
+      if (m.feather > 0) feather_mask(m.feather, range);
+      for (size_t i = 0; i < area; i++) {
+        const int all = mask_all[i], one = mask_one[i];
+        mask_all[i] = (uint8_t)(pass == 0 ? all + one - all * one / 255 : all * (255 - one) / 255);
+      }
+    }
+  for (size_t i = 0; i < area; i++) {
+    uint8_t* out = mask_rgba + i * 4;
+    out[0] = out[1] = out[2] = mask_all[i];
+    out[3] = 255;
+  }
+}
+
 void build_mask(Layer& l) {
+  choose_mask_size();
   if (!l.mfbo) {
     glGenTextures(1, &l.mtex.id);
     tex_params(l.mtex.id);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, MASK_PX, MASK_PX, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, mask_px, mask_px, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glGenFramebuffers(1, &l.mfbo);
     glBindFramebuffer(GL_FRAMEBUFFER, l.mfbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, l.mtex.id, 0);
   }
   glBindFramebuffer(GL_FRAMEBUFFER, l.mfbo);
-  glViewport(0, 0, MASK_PX, MASK_PX);
+  glViewport(0, 0, mask_px, mask_px);
   float range[4];
   drawn_range(l, range);
-  bool include = false;
-  for (const Mask& m : l.masks) include |= m.n >= 3 && m.invert < 0.5f;
-  const float bg = include ? 0.f : 1.f;
-  glClearColor(bg, bg, bg, 1);
-  glClear(GL_COLOR_BUFFER_BIT);
-  glEnable(GL_BLEND);
-  glUseProgram(poly_prog);
-  glUniform4fv(glGetUniformLocation(poly_prog, "u_range"), 1, range);
-  // includes are united (screen), then excludes cut out (multiply by 1 - coverage)
-  for (int pass = 0; pass < 2; pass++)
-    for (const Mask& m : l.masks) {
-      if (m.n < 3 || (m.invert >= 0.5f) != (pass == 1)) continue;
-      if (pass == 0) glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE);
-      else glBlendFunc(GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
-      glUniform2fv(glGetUniformLocation(poly_prog, "u_p"), m.n, m.pts);
-      glUniform2f(glGetUniformLocation(poly_prog, "u_last"), m.pts[m.n * 2 - 2], m.pts[m.n * 2 - 1]);
-      glUniform1f(glGetUniformLocation(poly_prog, "u_n"), (float)m.n);
-      glUniform1f(glGetUniformLocation(poly_prog, "u_feather"), m.feather);
-      draw_quad();
+  bool any = false;
+  for (const Mask& m : l.masks) any |= m.n >= 3;
+  if (any) {
+    draw_masks(l, range);
+    if (!poly_tex) {
+      glGenTextures(1, &poly_tex);
+      tex_params(poly_tex);
+      glBindTexture(GL_TEXTURE_2D, poly_tex);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, mask_px, mask_px, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     }
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, poly_tex);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, mask_px, mask_px, GL_RGBA, GL_UNSIGNED_BYTE, mask_rgba);
+    glDisable(GL_BLEND);
+    glUseProgram(copy_prog);
+    glUniform4f(glGetUniformLocation(copy_prog, "u_range"), 0, 0, 1, 1);
+    glUniform1i(glGetUniformLocation(copy_prog, "u_tex"), 0);
+    draw_quad();
+  } else {
+    glClearColor(1, 1, 1, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+  }
+  glEnable(GL_BLEND);
   glBlendFunc(GL_ZERO, GL_SRC_COLOR);
   glUseProgram(crop_prog);
   glUniform4fv(glGetUniformLocation(crop_prog, "u_range"), 1, range);
@@ -562,7 +683,7 @@ void draw(int32_t w, int32_t h) {
     glGenBuffers(1, &quad);
     glBindBuffer(GL_ARRAY_BUFFER, quad);
     glBufferData(GL_ARRAY_BUFFER, sizeof q, q, GL_STATIC_DRAW);
-    poly_prog = zgl_program("", MASK_VS, POLY_FS);
+    copy_prog = zgl_program("", MASK_VS, COPY_FS);
     crop_prog = zgl_program("", MASK_VS, CROP_FS);
     const uint32_t px = 0xFFFFFFFF;
     glGenTextures(1, &white);
@@ -731,6 +852,15 @@ bool apply(Layer& l, const char* key, const double* v, int nn, const Str* s, int
     m.n = nn >= 8 ? (nn - 2) / 2 : 0;
     if (m.n > MAX_PTS) m.n = MAX_PTS;
     if (m.n) { m.feather = (float)v[0]; m.invert = (float)v[1]; for (int i = 0; i < m.n * 2; i++) m.pts[i] = (float)v[2 + i]; }
+    else memset(m.curve, 0, sizeof m.curve);
+    l.mask_dirty = true;
+    return true;
+  }
+  if (!strncmp(key, "maskcurve/", 10)) {  // maskcurve/<k> inx iny outx outy ... per point of mask k
+    int k = atoi(key + 10);
+    if (k < 0 || k >= MAX_MASKS) return false;
+    Mask& m = l.masks[k];
+    for (int i = 0; i < MAX_PTS * 4; i++) m.curve[i] = i < nn ? (float)v[i] : 0;
     l.mask_dirty = true;
     return true;
   }
@@ -804,6 +934,11 @@ void layer_json(Out& o, const Layer& l) {
     char key[16];
     snprintf(key, sizeof key, "mask/%d", k);
     o.key(key); o.num(m.feather); o.str(","); o.num(m.invert); o.str(","); o.nums(m.pts, m.n * 2); o.str("]");
+    bool curved = false;
+    for (int i = 0; i < m.n * 4; i++) curved |= m.curve[i] != 0;
+    if (!curved) continue;
+    snprintf(key, sizeof key, "maskcurve/%d", k);
+    o.key(key); o.nums(m.curve, m.n * 4); o.str("]");
   }
   o.str("}");
 }

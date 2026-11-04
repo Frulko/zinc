@@ -41,7 +41,7 @@ function movedWhole(before: any, after: any): boolean {
 function wordsOf(keys: string[]): string {
   return keys.slice(0, 2).map((key: string): string => {
     const known = WORDS.find((pair: string[]) => pair[0] === key);
-    return known === undefined ? key.replace('mask/', 'mask ') : (known as string[])[1];
+    return known === undefined ? key.replace('maskcurve/', 'mask curve ').replace('mask/', 'mask ') : (known as string[])[1];
   }).join(', ');
 }
 
