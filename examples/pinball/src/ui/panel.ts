@@ -34,7 +34,7 @@ export class Panel {
       cy += Math.round(h * 0.02);
       this.missionBox(x + pad, cy, w - pad * 2, h - cy - pad - this.helpHeight());
     }
-    this.help(x + pad, h - pad - this.helpHeight());
+    if (this.helpHeight() > 0) this.help(x + pad, h - pad - this.helpHeight());
   }
 
   /** A vertical screen has no room for the panel: player and ball, the score, and the mission or the message of the moment, in one strip. */
@@ -228,7 +228,8 @@ export class Panel {
     }
   }
 
-  private helpHeight(): number { return lineHeight(font('sans', 12)) * 4 + 4; }
+  /** A short panel leaves the help to the menu: the mission needs the room. */
+  private helpHeight(): number { return this.h < 520 ? 0 : lineHeight(font('sans', 12)) * 4 + 4; }
 
   private help(x: number, y: number): void {
     const f = font('sans', 12);
