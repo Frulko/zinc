@@ -180,6 +180,8 @@ int32_t hal_pixel_scale(void);
 // The window the program draws into, for plugins that attach native views (plugins/webview): the SDL_Window* on
 // macOS/Linux, null when there is none (headless, display plugins) or on HALs without windows (not defined there).
 void* hal_window_handle(void);
+// The X11 window id of the program's window, whichever host opened it (the SDL HAL, display-gl); 0 when it has none (macOS, Wayland, KMS, headless).
+extern uintptr_t hal_x11_window;
 // Implemented by the runtime: draws one frame now with the current surface size (HALs call it while the OS blocks
 // the event loop, e.g. during a live window resize on macOS). Ignored when called re-entrantly.
 void zrt_redraw(void);

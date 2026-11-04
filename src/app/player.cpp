@@ -3,7 +3,7 @@
 // the package: zinc/home.unit); a zinc:// link (the home screen's QR scan or typed URL, a deep link, `adb shell am start -d`, `xcrun simctl
 // openurl`) connects to zinc dev, which sends the project compiled in hot mode for this phone's profile; the interpreter runs it, and each
 // save on the desktop sends the program again, swapped in place by Fast Refresh (src/dev/hot_swap.cpp: same machine, state kept) or started
-// again when the swap cannot be done. The dev menu (a shake, a three-finger long press, the Menu key): reload, back home.
+// again when the swap cannot be done. Hold three fingers to go home; shake or press Menu for the dev menu (reload, back home).
 //
 // The protocol, one TCP connection, lines and length-prefixed blobs:
 //   player: zinc-go 1 <token> <profile> <device>            zinc dev: unit <n>\n<n bytes>   (hot::save)    or  no <why>
@@ -30,6 +30,8 @@
 #include <unistd.h>
 #ifdef __APPLE__
 #include <TargetConditionals.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #endif
 
 #include <chrono>
@@ -43,6 +45,7 @@
 #include <vector>
 
 #include "agent/player.h"
+#include "app/dev_gestures.h"
 #include "agent/wire.h"
 #include "app/app_core.h"
 #include "dev/hot.h"
@@ -117,7 +120,7 @@ DNSServiceRef gBonjour = nullptr;
 // ---- the connection to zinc dev
 
 struct Link {
-  std::string url, host, token;
+  std::string url, host, token, app;
   int port = 0;
   int fd = -1;
   bool connected = false;
@@ -249,6 +252,18 @@ void multicastLock(bool on) {
 
 // The address the workstation reaches this phone at: the one the default route leaves from (a UDP connect sends nothing)
 std::string localAddress() {
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  // A VPN/default route can name a tunnel or cellular address; pairing is reached over Wi-Fi (en0 on iOS).
+  ifaddrs* list = nullptr;
+  std::string wifi;
+  if (getifaddrs(&list) == 0) {
+    for (ifaddrs* i = list; i; i = i->ifa_next)
+      if (i->ifa_addr && i->ifa_addr->sa_family == AF_INET && (i->ifa_flags & IFF_UP) && std::strcmp(i->ifa_name, "en0") == 0)
+        wifi = inet_ntoa(reinterpret_cast<sockaddr_in*>(i->ifa_addr)->sin_addr);
+    freeifaddrs(list);
+  }
+  if (!wifi.empty()) return wifi;
+#endif
   const int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
   sockaddr_in to{}, me{};
   to.sin_family = AF_INET;
@@ -408,6 +423,18 @@ void agentPoll() {
 // iOS lets no app put an icon on the home screen, but a configuration profile can: the player writes one (the app's title and zinc.json
 // app.icon), serves it once on the loopback and hands its address to Safari, which offers to install it (Settings > Profile Downloaded).
 // The clip opens zinc://open/<app>: Zinc Go comes up on that app, its splash first. No paid account, no web site.
+// The PNG an app of this phone arrived with, for its tile and its shortcut: zinc.json app.icon (full size), else the pack's icon.png; "" when none.
+std::string appIconPath(const std::string& name) {
+  const std::string dir = gAgent.home + "/apps/" + name;
+  const auto exists = [](const std::string& f) { return SDL_GetPathInfo(f.c_str(), nullptr); };
+  if (size_t n = 0; void* b = SDL_LoadFile((dir + "/zinc.json").c_str(), &n)) {
+    const std::string json(static_cast<const char*>(b), n);
+    SDL_free(b);
+    for (const auto& [k, v] : zn::agent::Doc(json).pairs("app"))
+      if (k == "icon" && v.find("..") == std::string::npos && v.size() > 4 && v.compare(v.size() - 4, 4, ".png") == 0 && exists(dir + "/" + v)) return dir + "/" + v;
+  }
+  return exists(dir + "/icon.png") ? dir + "/icon.png" : "";
+}
 std::string xmlText(const std::string& v) {
   std::string o;
   for (const char ch : v) o += ch == '&' ? "&amp;" : ch == '<' ? "&lt;" : ch == '>' ? "&gt;" : std::string(1, ch);
@@ -473,14 +500,23 @@ std::string serveOnce(const std::string& file, std::string body) {
 extern "C" void zn_ios_keep_running(int seconds);   // ios_glue.mm: Safari asks while Zinc Go is in the background
 #endif
 void addShortcut(const std::string& name) {
-  std::string title, project, icon;
+  std::string title, icon;
   if (gAgentOn) for (const auto& [n, t] : zn::agent::playerApps(gAgent)) if (n == name) title = t;
   if (title.empty()) { goHome("No app named " + name + " on this phone"); return; }
   const std::string dir = gAgent.home + "/apps/" + name;
-  if (size_t n = 0; void* b = SDL_LoadFile((dir + "/zinc.json").c_str(), &n)) { project.assign(static_cast<const char*>(b), n); SDL_free(b); }
-  for (const auto& [k, v] : zn::agent::Doc(project.empty() ? "{}" : project).pairs("app"))   // app.icon, a PNG the pack carried
-    if (k == "icon" && v.find("..") == std::string::npos && v.size() > 4 && v.compare(v.size() - 4, 4, ".png") == 0)
-      if (size_t n = 0; void* b = SDL_LoadFile((dir + "/" + v).c_str(), &n)) { icon.assign(static_cast<const char*>(b), n); SDL_free(b); }
+  // the icon the app arrived with: zinc.json app.icon (full size, a PNG the deployment carried), else the icon.png of the pack (150 px), else app.json's
+  const auto load = [&](const std::string& file, std::string& into) {
+    size_t n = 0;
+    void* b = SDL_LoadFile(file.c_str(), &n);
+    if (b) { into.assign(static_cast<const char*>(b), n); SDL_free(b); }
+    return b != nullptr;
+  };
+  const auto png = [](const std::string& v) { return v.find("..") == std::string::npos && v.size() > 4 && v.compare(v.size() - 4, 4, ".png") == 0; };
+  std::string a;
+  if (load(dir + "/zinc.json", a)) for (const auto& [k, v] : zn::agent::Doc(a).pairs("app")) if (k == "icon" && png(v) && load(dir + "/" + v, icon)) break;
+  if (icon.empty() && load(dir + "/app.json", a)) { const std::string kept = zn::agent::Doc(a).str("icon"); if (png(kept)) load(dir + "/" + kept, icon); }
+  if (icon.empty()) load(dir + "/icon.png", icon);
+  std::fprintf(stderr, "zinc go: shortcut of %s, icon %zu bytes\n", name.c_str(), icon.size());
   const std::string url = serveOnce(name + ".mobileconfig", webClip(name, title, icon));
 #if defined(__APPLE__) && TARGET_OS_IPHONE
   if (!url.empty()) zn_ios_keep_running(60);
@@ -507,7 +543,7 @@ void startHome() {
   if (!last.empty()) { args.push_back("--last"); args.push_back(last); }
   if (gLink.fd >= 0) { args.push_back("--connecting"); args.push_back(gLink.url); }
   for (const std::string& a : agentArgs()) args.push_back(a);
-  if (gAgentOn) for (const auto& [name, title] : zn::agent::playerApps(gAgent)) { args.push_back("--app"); args.push_back(name + "\t" + title); }   // the tiles
+  if (gAgentOn) for (const auto& [name, title] : zn::agent::playerApps(gAgent)) { args.push_back("--app"); args.push_back(name + "\t" + title + "\t" + appIconPath(name)); }   // the tiles
   if (!gOpening.empty()) { args.push_back("--opening"); args.push_back(gOpeningTitle); }
   if (!gMessage.empty()) std::fprintf(stderr, "zinc go: %s\n", gMessage.c_str());
   gMessage.clear();
@@ -603,6 +639,7 @@ void pollLink() {
       continue;
     }
     gLink.in.erase(0, nl + 1);
+    if (line.rfind("app ", 0) == 0) { zn::agent::Doc meta(line.substr(4)); if (meta.ok()) gLink.app = meta.str("name"); }
     if (line.rfind("no ", 0) == 0) { goHome("zinc dev refused: " + line.substr(3)); return; }
   }
 }
@@ -644,36 +681,82 @@ static void pollIntentIn(JNIEnv* env) {
 
 // ---- the dev menu
 
-int gFingers = 0;
-Clock::time_point gFingersSince;
+zn::app::HomeHold gHomeHold;
 bool gMenuAsked = false;
-double gShake = 0;
+zn::app::Shake gShake;
+SDL_Sensor* gAccelerometer = nullptr;
+
+void openAccelerometer() {
+  if (gAccelerometer) return;
+  int count = 0;
+  if (SDL_SensorID* ids = SDL_GetSensors(&count)) {
+    for (int i = 0; i < count; ++i) if (SDL_GetSensorTypeForID(ids[i]) == SDL_SENSOR_ACCEL) { gAccelerometer = SDL_OpenSensor(ids[i]); break; }
+    SDL_free(ids);
+  }
+}
+void closeAccelerometer() {
+  if (gAccelerometer) SDL_CloseSensor(gAccelerometer);
+  gAccelerometer = nullptr;
+  gShake.reset();
+}
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+extern "C" bool zn_ios_feedback_active();
+extern "C" void zn_ios_feedback(const char* app, const char* source, const char* device, const char* engine, const char* root);
+void addFeedback() {
+  std::string app = "zinc-go";
+  if (gAgentRunning) app = gAgent.current;
+  else if (gRemote) {
+    app = gLink.app;
+    // Older dev servers have no app metadata: retain the app's source identity rather than its token-bearing connection URL.
+    if (app.empty() && gCur) for (const auto& module : gCur->modules) if (!module.library) app = module.path;
+    if (app.empty()) app = "live-project";
+  }
+  zn_ios_feedback(app.c_str(), gRemote ? "live" : gAgentRunning ? "installed" : "home", gAgent.name.c_str(), kVersion, gAgent.home.c_str());
+}
+#endif
 
 void devMenu() {
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  if (zn_ios_feedback_active()) return;
+#endif
+  gHomeHold.reset();
   const SDL_MessageBoxButtonData buttons[] = {
       {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Reload"},
       {0, 2, "Go home"},
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+      {0, 3, "Ajouter une note"},
+#endif
       {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Cancel"},
   };
-  const std::string text = gRemote ? gLink.url : "The home screen";
-  const SDL_MessageBoxData box{SDL_MESSAGEBOX_INFORMATION, nullptr, "Zinc Go", text.c_str(), gRemote ? 3 : 1, gRemote ? buttons : buttons + 2, nullptr};
+  const bool canGoHome = gRemote || gAgentRunning;
+  const std::string text = gRemote ? gLink.url : gAgentRunning ? gAgent.current : "The home screen";
+  const SDL_MessageBoxData box{SDL_MESSAGEBOX_INFORMATION, nullptr, "Zinc Go", text.c_str(), static_cast<int>(sizeof buttons / sizeof buttons[0]) - (canGoHome ? 0 : 2), canGoHome ? buttons : buttons + 2, nullptr};
   int which = 0;
   if (!SDL_ShowMessageBox(&box, &which)) return;
   if (which == 1 && gRemote) { gLink.fresh = true; sendLine("reload\n"); std::fprintf(stderr, "zinc go: reload\n"); }
+  if (which == 1 && gAgentRunning) {
+    const std::string name = gAgent.current;
+    if (!zn::agent::playerLaunch(gAgent, name)) goHome("Could not reload " + name);
+  }
   if (which == 2) goHome("");
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  if (which == 3) addFeedback();
+#endif
 }
 
 bool onEvent(const void* ev) {
   const SDL_Event& e = *static_cast<const SDL_Event*>(ev);
   if (e.type == SDL_EVENT_DROP_FILE && e.drop.data && std::strncmp(e.drop.data, "zinc://", 7) == 0) { gPendingUrl = e.drop.data; return true; }   // iOS's openURL
   if (e.type == SDL_EVENT_KEY_DOWN && (e.key.key == SDLK_MENU || (e.key.key == SDLK_D && (e.key.mod & SDL_KMOD_GUI)))) { gMenuAsked = true; return true; }   // Android's Menu (adb shell input keyevent 82), Cmd+D in a simulator
-  if (e.type == SDL_EVENT_FINGER_DOWN && ++gFingers == 3) gFingersSince = Clock::now();
-  if (e.type == SDL_EVENT_FINGER_UP || e.type == SDL_EVENT_FINGER_CANCELED) gFingers = gFingers > 0 ? gFingers - 1 : 0;
-  if (e.type == SDL_EVENT_SENSOR_UPDATE) {   // the accelerometer: a shake is three swings above 2.5 g in a second
+  if (e.type == SDL_EVENT_FINGER_DOWN) gHomeHold.down(SDL_GetTicks());
+  if (e.type == SDL_EVENT_FINGER_UP || e.type == SDL_EVENT_FINGER_CANCELED) gHomeHold.up();
+  if (e.type == SDL_EVENT_WILL_ENTER_BACKGROUND) { gHomeHold.reset(); closeAccelerometer(); gMenuAsked = false; }
+  if (e.type == SDL_EVENT_DID_ENTER_FOREGROUND) openAccelerometer();
+  if (e.type == SDL_EVENT_SENSOR_UPDATE && gAccelerometer && e.sensor.which == SDL_GetSensorID(gAccelerometer)) {
     const float* d = e.sensor.data;
     const double g = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) / SDL_STANDARD_GRAVITY;
-    gShake = gShake * 0.9 + (g > 2.5 ? 1 : 0);
-    if (gShake > 2.5) { gShake = 0; gMenuAsked = true; }
+    if (gShake.sample(g, SDL_GetTicks())) { gMenuAsked = true; std::fprintf(stderr, "zinc go: shake, dev menu\n"); }
   }
   return false;
 }
@@ -689,10 +772,8 @@ int tick() {
     if (url == "zinc://pair") { if (gAgentOn) zn::agent::playerNewCode(gAgent); }   // the home screen's "New pairing code": agentPoll shows it
     else if (url.rfind("zinc://open/", 0) == 0) {   // a tile of the home screen or a shortcut: an app zinc device sent, started again here
       const std::string name = url.substr(12);
-      gOpeningTitle.clear();
-      if (gAgentOn) for (const auto& [n, title] : zn::agent::playerApps(gAgent)) if (n == name) gOpeningTitle = title;
-      if (gOpeningTitle.empty()) goHome("No app named " + name + " on this phone");
-      else { gOpening = name; gOpeningFrames = 3; startHome(); }   // its splash for a few frames, then it starts (below)
+      // the app starts at once: no screen of Zinc Go in between (a shortcut or a tile is the app itself)
+      if (!gAgentOn || !zn::agent::playerLaunch(gAgent, name)) goHome("No app named " + name + " on this phone");
     } else if (url.rfind("zinc://shortcut/", 0) == 0) addShortcut(url.substr(16));
     else if (url.rfind("zinc://delete/", 0) == 0) {
       if (gAgentOn) zn::agent::playerRemove(gAgent, url.substr(14));
@@ -702,7 +783,10 @@ int tick() {
   }
   pollLink();
   agentPoll();
-  if (gFingers >= 3 && Clock::now() - gFingersSince > std::chrono::milliseconds(800)) { gFingers = 0; gMenuAsked = true; }
+  if (gHomeHold.poll(SDL_GetTicks()) && (gRemote || gAgentRunning)) {
+    std::fprintf(stderr, "zinc go: three-finger hold, back home\n");
+    goHome("");
+  }
   if (gMenuAsked) { gMenuAsked = false; devMenu(); }
   if (!gOpening.empty() && (!zn::rt::appMachine() || --gOpeningFrames <= 0)) {   // its splash was drawn (or there is no home screen): the app replaces it
     const std::string name = std::move(gOpening);
@@ -734,6 +818,10 @@ int tick() {
 
 }  // namespace
 
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+extern "C" void zn_player_open(const char* url) { if (url) gPendingUrl = url; }   // plugins/system/native/system.ios.mm: a zinc:// link of the home screen
+#endif
+
 // The player's entry: zn_app_init, as an AOT program's main would be. argv[1] or ZINC_GO_URL may be a zinc:// link; ZINC_GO_HOME the home
 // screen's unit (else zinc/home.unit of the package: the APK's assets, the iOS bundle).
 extern "C" int zn_app_init(int argc, char** argv) {
@@ -743,12 +831,7 @@ extern "C" int zn_app_init(int argc, char** argv) {
   zn_player_modules();
   zn::rt::gAppHooks.tick = tick;
   zn::rt::gAppHooks.event = onEvent;
-  SDL_InitSubSystem(SDL_INIT_SENSOR);
-  int count = 0;
-  if (SDL_SensorID* ids = SDL_GetSensors(&count)) {
-    for (int i = 0; i < count; ++i) if (SDL_GetSensorTypeForID(ids[i]) == SDL_SENSOR_ACCEL) { SDL_OpenSensor(ids[i]); break; }
-    SDL_free(ids);
-  }
+  if (SDL_InitSubSystem(SDL_INIT_SENSOR)) openAccelerometer();
   std::string homePath = std::getenv("ZINC_GO_HOME") ? std::getenv("ZINC_GO_HOME") : "zinc/home.unit";
 #if defined(__APPLE__) && TARGET_OS_IPHONE
   if (!std::getenv("ZINC_GO_HOME")) homePath = std::string(SDL_GetBasePath()) + homePath;   // the bundle (the working directory is the app's data)

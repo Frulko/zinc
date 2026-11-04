@@ -62,9 +62,9 @@ struct Compiled { std::string key; const unsigned char* packed; std::size_t size
 std::vector<Compiled>& compiled() { static std::vector<Compiled> v; return v; }   // filled by static initialisers, before main
 std::mutex gOutMu;                                  // a worker's console lines go out whole, between the main program's
 
-thread_local std::vector<std::shared_ptr<W>> tOwned;   // the workers this thread started: handle = index + 1
-thread_local W* tSelf = nullptr;                       // on a worker's thread: its own record
-thread_local void* tWake = nullptr;                    // this thread's wake-up
+auto& tOwned() { struct State { std::vector<std::shared_ptr<W>> value{}; }; return zn::threadLocal<State>().value; }   // the workers this thread started: handle = index + 1
+auto& tSelf() { struct State { W* value = nullptr; }; return zn::threadLocal<State>().value; }                       // on a worker's thread: its own record
+auto& tWake() { struct State { void* value = nullptr; }; return zn::threadLocal<State>().value; }                    // this thread's wake-up
 
 double threadCpuMs() {   // this thread's CPU time
 #ifdef CLOCK_THREAD_CPUTIME_ID
@@ -76,9 +76,9 @@ double threadCpuMs() {   // this thread's CPU time
 double nowMs() { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
 void trace(Event e, const W& w, std::size_t bytes = 0) { if (TraceHook h = traceHook) h(e, w.id, w.entry.c_str(), bytes, nowMs()); }
 void wake(void* h) { if (h && loopBridge.wakeSend) loopBridge.wakeSend(h); }
-void* myWake() { if (!tWake && loopBridge.wakeNew) tWake = loopBridge.wakeNew(); return tWake; }
+void* myWake() { if (!tWake() && loopBridge.wakeNew) tWake() = loopBridge.wakeNew(); return tWake(); }
 bool deterministic() { static const bool d = std::getenv("ZINC_DETERMINISTIC") && !std::getenv("ZINC_REALTIME"); return d; }
-W* owned(Slot h) { std::int64_t i = static_cast<std::int64_t>(h); return i >= 1 && static_cast<std::size_t>(i) <= tOwned.size() ? tOwned[static_cast<std::size_t>(i - 1)].get() : nullptr; }
+W* owned(Slot h) { std::int64_t i = static_cast<std::int64_t>(h); return i >= 1 && static_cast<std::size_t>(i) <= tOwned().size() ? tOwned()[static_cast<std::size_t>(i - 1)].get() : nullptr; }
 
 // ---- the typed wire: a message is encoded from the sender's own objects and decoded into the receiver's, by the record schema (the D173 wire,
 // include/zn/rec.h: the sender's field names, in declared order) matched once against the program's layout of the type (the lowering's
@@ -409,8 +409,8 @@ void* body(void* arg) {
     pthread_setname_np(pthread_self(), name.substr(0, 15).c_str());
 #endif
   }
-  gOnWorker = true;
-  tSelf = w.get();
+  gOnWorker() = true;
+  tSelf() = w.get();
   { std::lock_guard<std::mutex> g(w->mu); w->wakeWorker = myWake(); }
   if (loopBridge.active) loopBridge.active(1);   // the parent's port keeps the worker's loop running until terminate() or self.close()
   std::string out;
@@ -451,7 +451,7 @@ bool spawn(const std::shared_ptr<W>& w, std::string& err);
 const char* start(Machine& m, Slot* a, std::string& err) {
   auto str = [](Slot s) { auto* o = reinterpret_cast<StrObj*>(s); return o ? std::string(o->data(), o->len) : std::string(); };
   std::string key = str(a[0]);
-  if (gOnWorker) { err = "a worker cannot start another worker yet (start it from the main program)"; return nullptr; }
+  if (gOnWorker()) { err = "a worker cannot start another worker yet (start it from the main program)"; return nullptr; }
   if (!loopBridge.wakeNew) { err = "workers need the system host (an event loop) in this build"; return nullptr; }
   const Compiled* comp = nullptr;
   for (const Compiled& c : compiled()) if (c.key == key) comp = &c;
@@ -486,7 +486,7 @@ const char* start(Machine& m, Slot* a, std::string& err) {
 }
 
 bool spawn(const std::shared_ptr<W>& w, std::string& err) {   // its thread started, the worker is this thread's next handle
-  w->id = static_cast<int>(tOwned.size()) + 1;
+  w->id = static_cast<int>(tOwned().size()) + 1;
   w->wakeMain = myWake();
   pthread_attr_t at;
   pthread_attr_init(&at);
@@ -495,7 +495,7 @@ bool spawn(const std::shared_ptr<W>& w, std::string& err) {   // its thread star
   int rc = pthread_create(&w->th, &at, body, arg);
   pthread_attr_destroy(&at);
   if (rc != 0) { delete arg; err = "the system refused a thread for the worker '" + w->entry + "'"; return false; }
-  tOwned.push_back(w);
+  tOwned().push_back(w);
   { std::lock_guard<std::mutex> g(gRegMu); gAll.push_back(w); }
   if (loopBridge.active) loopBridge.active(1);   // a running worker keeps the main program's loop running, as in Node and Deno
   trace(Start, *w);
@@ -539,12 +539,12 @@ std::string errorOf(Slot h) {   // main side: "" while it runs (or its end was a
   return w->error.empty() ? "<ended>" : w->error;
 }
 
-thread_local std::vector<std::uint8_t> tCurrent;   // the message HostWorkerNext took, read by HostWorkerRead
+auto& tCurrent() { struct State { std::vector<std::uint8_t> value{}; }; return zn::threadLocal<State>().value; }   // the message HostWorkerNext took, read by HostWorkerRead
 
 const char* post(Slot h, std::vector<std::uint8_t>&& b) {   // a message's bytes onto its queue (handle 0: a worker to its parent), the receiver woken
   const std::size_t n = b.size();
   if (h == 0) {
-    W* w = tSelf;
+    W* w = tSelf();
     if (!w) return "postMessage: this program is not a worker (use a Worker's postMessage)";
     void* wm;
     { std::lock_guard<std::mutex> g(w->mu); if (w->terminated) return nullptr; w->toMain.push_back(std::move(b)); wm = w->wakeMain; }
@@ -569,10 +569,10 @@ const char* post(Slot h, std::vector<std::uint8_t>&& b) {   // a message's bytes
   return nullptr;
 }
 
-thread_local std::string tStartError;   // why the last start failed: workerError(0) on the main side
+auto& tStartError() { struct State { std::string value{}; }; return zn::threadLocal<State>().value; }   // why the last start failed: workerError(0) on the main side
 
 bool nextBytes(std::int64_t h, std::vector<std::uint8_t>& out) {   // Rt::HostWorkerNext: the next message's bytes, or false when none waits
-  W* w = h == 0 ? tSelf : owned(static_cast<Slot>(h));
+  W* w = h == 0 ? tSelf() : owned(static_cast<Slot>(h));
   bool got = false;
   if (w) {
     std::lock_guard<std::mutex> g(w->mu);
@@ -584,31 +584,31 @@ bool nextBytes(std::int64_t h, std::vector<std::uint8_t>& out) {   // Rt::HostWo
   if (got) trace(h == 0 ? ReceiveInWorker : ReceiveInMain, *w, out.size());
   return got;
 }
-std::string errorText(std::int64_t h) { return h == 0 ? tStartError : errorOf(static_cast<Slot>(h)); }
+std::string errorText(std::int64_t h) { return h == 0 ? tStartError() : errorOf(static_cast<Slot>(h)); }
 void closeWorker(std::int64_t h) {
   if (h == 0) {   // self.close(): the worker's loop ends once it has nothing else to do
-    W* w = tSelf;
+    W* w = tSelf();
     if (w && !w->closedSelf) { w->closedSelf = true; if (loopBridge.active) loopBridge.active(-1); }
     return;
   }
   if (W* w = owned(static_cast<Slot>(h))) terminate(*w);
 }
-std::string schemaText(int which) { W* w = tSelf; return !w ? std::string() : which == 0 ? w->sIn : w->sOut; }   // a worker's schemas, as its parent declared them
+std::string schemaText(int which) { W* w = tSelf(); return !w ? std::string() : which == 0 ? w->sIn : w->sOut; }   // a worker's schemas, as its parent declared them
 void markHandler(std::int64_t h, int phase) {   // onmessage begins (1) or ends (2): trace spans only
   if (!traceHook) return;
-  W* w = h == 0 ? tSelf : owned(static_cast<Slot>(h));
+  W* w = h == 0 ? tSelf() : owned(static_cast<Slot>(h));
   if (w) trace(phase == 1 ? HandlerBegin : HandlerEnd, *w);
 }
 int startRunner(const std::string& entry, const std::string& sIn, const std::string& sOut, bool (*run)(const std::string&, std::string&), std::string& err) {
-  tStartError.clear();
-  if (tSelf) err = "a worker cannot start another worker yet (start it from the main program)";
+  tStartError().clear();
+  if (tSelf()) err = "a worker cannot start another worker yet (start it from the main program)";
   else if (!loopBridge.wakeNew) err = "workers need the system host (an event loop) in this build";
   else {
     auto w = std::make_shared<W>();
     w->entry = entry; w->sIn = sIn; w->sOut = sOut; w->runner = run;
     if (spawn(w, err)) return w->id;
   }
-  tStartError = err;
+  tStartError() = err;
   return 0;
 }
 
@@ -618,33 +618,33 @@ void addCompiled(const char* key, const unsigned char* packed, std::size_t size,
   compiled().push_back({key, packed, size, natives, count});
 }
 
-bool stopping() { return tSelf && tSelf->stop.load(std::memory_order_relaxed); }
+bool stopping() { return tSelf() && tSelf()->stop.load(std::memory_order_relaxed); }
 
 void idleWait() {
-  W* w = tSelf;
+  W* w = tSelf();
   if (!w) return;
   std::lock_guard<std::mutex> g(w->mu);
   if (w->toWorker.empty()) w->idle.store(true, std::memory_order_release);
 }
 
 void deliver() {
-  if (W* w = tSelf) {
-    w->live.store(gAllocs - gFrees, std::memory_order_relaxed);
+  if (W* w = tSelf()) {
+    w->live.store(gAllocs() - gFrees(), std::memory_order_relaxed);
     w->cpuMs.store(threadCpuMs(), std::memory_order_relaxed);
     bool any;
     { std::lock_guard<std::mutex> g(w->mu); any = !w->toWorker.empty() && !w->notifiedWorker; if (any) w->notifiedWorker = true; }
     if (any && loopBridge.push) loopBridge.push(0, 70);
     return;
   }
-  if (tOwned.empty()) return;
+  if (tOwned().empty()) return;
   if (deterministic())   // every worker answers within the turn: what it posted is read at the same turn on every run
-    for (auto& w : tOwned)
+    for (auto& w : tOwned())
       for (;;) {
         { std::lock_guard<std::mutex> g(w->mu); if (w->ended || w->terminated || (w->idle.load(std::memory_order_acquire) && w->toWorker.empty())) break; }
         std::this_thread::sleep_for(std::chrono::microseconds(100));
       }
-  for (std::size_t i = 0; i < tOwned.size(); ++i) {
-    W& w = *tOwned[i];
+  for (std::size_t i = 0; i < tOwned().size(); ++i) {
+    W& w = *tOwned()[i];
     bool any;
     {
       std::lock_guard<std::mutex> g(w.mu);
@@ -657,7 +657,7 @@ void deliver() {
 }
 
 const char* call(Machine& m, Rt id, Slot* a) {
-  std::string& startError = tStartError;
+  std::string& startError = tStartError();
   auto retStr = [&](const std::string& s) { a[0] = reinterpret_cast<Slot>(m.newStr(s.data(), s.size())); };
   switch (id) {
     case Rt::HostWorkerStart: {
@@ -667,10 +667,10 @@ const char* call(Machine& m, Rt id, Slot* a) {
       return nullptr;
     }
     case Rt::HostWorkerPostRec: {   // (handle, value, schema, layout): the value's bytes onto the receiver's queue
-      thread_local std::string err;
+      ZN_THREAD_LOCAL(std::string, err, {});
       err.clear();
       const Plan* p = planFor(m, reinterpret_cast<const StrObj*>(a[2]), reinterpret_cast<const StrObj*>(a[3]), false, err);
-      thread_local std::size_t lastSize = 0;   // the size of the last message: a program posts alike messages, so one allocation usually holds the next
+      ZN_THREAD_LOCAL(std::size_t, lastSize, = 0);   // the size of the last message: a program posts alike messages, so one allocation usually holds the next
       rec::Writer w;
       w.out.reserve(lastSize + lastSize / 8);
       if (!p || !encodeValue(a[1], *p, w, err)) { err = "postMessage: " + err; return err.c_str(); }
@@ -678,17 +678,17 @@ const char* call(Machine& m, Rt id, Slot* a) {
       return post(a[0], std::move(w.out));
     }
     case Rt::HostWorkerNext:   // the next message becomes the current one (HostWorkerRead decodes it): true, or false when none waits
-      a[0] = nextBytes(static_cast<std::int64_t>(a[0]), tCurrent);
+      a[0] = nextBytes(static_cast<std::int64_t>(a[0]), tCurrent());
       return nullptr;
     case Rt::HostWorkerRead: {   // (schema, layout, a null of the receiver's type): the current message as a value of that type
-      thread_local std::string err;
+      ZN_THREAD_LOCAL(std::string, err, {});
       err.clear();
       const Plan* p = planFor(m, reinterpret_cast<const StrObj*>(a[0]), reinterpret_cast<const StrObj*>(a[1]), true, err);
       if (!p) { err = "onmessage: " + err; return err.c_str(); }
-      rec::Reader r{tCurrent.data(), tCurrent.data() + tCurrent.size()};
+      rec::Reader r{tCurrent().data(), tCurrent().data() + tCurrent().size()};
       Slot v;
       const bool ok = decodeValue(m, r, *p, v);
-      std::vector<std::uint8_t>().swap(tCurrent);   // its bytes are not kept past the read
+      std::vector<std::uint8_t>().swap(tCurrent());   // its bytes are not kept past the read
       if (!ok) return "onmessage: the message's bytes do not match its type";
       a[0] = v;
       return nullptr;
@@ -702,10 +702,10 @@ const char* call(Machine& m, Rt id, Slot* a) {
 }
 
 void shutdown() {   // the main program returned: its workers are stopped and their threads joined (a worker busy in a loop finishes it first)
-  if (gOnWorker) return;
-  for (auto& w : tOwned) terminate(*w);
-  for (auto& w : tOwned) join(*w);
-  tOwned.clear();
+  if (gOnWorker()) return;
+  for (auto& w : tOwned()) terminate(*w);
+  for (auto& w : tOwned()) join(*w);
+  tOwned().clear();
 }
 
 std::vector<Info> snapshot() {
@@ -754,7 +754,7 @@ std::string jq(const std::string& s) {
 // One event of traceHook: slices and flow steps on the track of the thread it happens on (a flow binds to the slice around it).
 void collect(Event e, int id, const char* entry, std::size_t bytes, double) {
   Collector& c = gTrace;
-  const bool onWorker = tSelf != nullptr;
+  const bool onWorker = tSelf() != nullptr;
   const int tid = onWorker ? 100 + id : 1;
   std::lock_guard<std::mutex> g(c.mu);
   if (!c.clock || c.count > 400000) return;   // ponytail: a bounded trace; a ring when long recordings need their end
@@ -840,6 +840,6 @@ const WorkerBridge workerBridge = {
   zn::rt::worker::startRunner,
   [](std::int64_t h, std::vector<std::uint8_t>&& b) { return zn::rt::worker::post(static_cast<zn::rt::Slot>(h), std::move(b)); },
   zn::rt::worker::nextBytes, zn::rt::worker::errorText, zn::rt::worker::closeWorker, zn::rt::worker::schemaText, zn::rt::worker::markHandler,
-  [] { return zn::rt::worker::tSelf != nullptr; }, zn::rt::worker::stopping, zn::rt::worker::deliver, zn::rt::worker::idleWait, zn::rt::worker::shutdown,
+  [] { return zn::rt::worker::tSelf() != nullptr; }, zn::rt::worker::stopping, zn::rt::worker::deliver, zn::rt::worker::idleWait, zn::rt::worker::shutdown,
 };
 }

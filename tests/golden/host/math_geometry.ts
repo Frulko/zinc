@@ -1,0 +1,20 @@
+import { ok as assert, equal } from 'zinc:assert';
+assert(Math.abs(Math.SQRT2 * Math.SQRT2 - 2) < 1e-14);
+assert(Math.abs(Math.SQRT1_2 * Math.SQRT2 - 1) < 1e-14);
+assert(Math.abs(Math.exp(Math.LN2) - 2) < 1e-14);
+assert(Math.abs(Math.exp(Math.LN10) - 10) < 1e-13);
+assert(Math.abs(Math.LOG2E * Math.LN2 - 1) < 1e-14);
+assert(Math.abs(Math.LOG10E * Math.LN10 - 1) < 1e-14);
+equal(Math.hypot(3, 4, 12), 13);
+equal(Math.hypot(), 0);
+equal(Math.hypot(-4), 4);
+const axes = [3, 4, 12];
+equal(Math.hypot(...axes), 13);
+equal(Math.hypot(0, ...axes, 0), 13);
+assert(Math.hypot(1e200, 1e200, 1e200) < Infinity);
+equal(Math.hypot(NaN, Infinity, 2), Infinity);
+let calls = 0;
+function component(): number { calls++; return 4; }
+equal(Math.hypot(component()), 4);
+equal(calls, 1);
+console.log('math_geometry: constants, stable 3D norm, spread, empty and single evaluation PASS');

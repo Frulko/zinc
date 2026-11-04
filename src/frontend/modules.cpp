@@ -466,10 +466,11 @@ export function unwatch(id: i32): void {
 )ZN";
 
 const char* kStorageModule = R"ZN(
-export function get(key: string): string { return __host_storageGet(key); }
-export function set(key: string, value: string): void { __host_storageSet(key, value); }
-export function remove(key: string): void { __host_storageRemove(key); }
-export function keys(): string[] { const r: string[] = []; const n = __host_storageKeysCount(); for (let i: i32 = 0; i < n; i++) r.push(__host_storageKey(i)); return r; }
+function check(): void { if (__host_fsFailed()) throw new Error(__host_fsError()); }
+export function get(key: string): string { const value = __host_storageGet(key); check(); return value; }
+export function set(key: string, value: string): void { __host_storageSet(key, value); check(); }
+export function remove(key: string): void { __host_storageRemove(key); check(); }
+export function keys(): string[] { const r: string[] = []; const n = __host_storageKeysCount(); check(); for (let i: i32 = 0; i < n; i++) r.push(__host_storageKey(i)); return r; }
 )ZN";
 
 const char* kAssetsModule = R"ZN(
@@ -1858,9 +1859,9 @@ std::uint32_t hotMeta(Ast& A, std::uint32_t from, std::uint32_t file, const std:
 // The standard modules written in Zinc: their files under lib/std, and the web target's own versions (docs/targets/web.md: the page has these APIs).
 struct StdModule { std::string_view spec, file, browser; };
 constexpr StdModule kStdModules[] = {
-    {"zinc:ui", "ui.ts", {}}, {"zinc:gl", "gl.ts", {}}, {"zinc:web", "web.ts", "web.browser.ts"}, {"zinc:web/fetch", "fetch.ts", "fetch.browser.ts"},
+    {"zinc:ui", "ui.ts", {}}, {"zinc:ui/image-cache", "image-cache.ts", {}}, {"zinc:gl", "gl.ts", {}}, {"zinc:web", "web.ts", "web.browser.ts"}, {"zinc:web/fetch", "fetch.ts", "fetch.browser.ts"},
     {"zinc:subtle", "subtle.ts", "subtle.browser.ts"}, {"zinc:ui/dom", "ui-dom.ts", "ui-dom.browser.ts"}, {"zinc:ui/solid", "solid.ts", {}},
-    {"zinc:ui/react", "react.ts", {}}, {"zinc:ui/kit", "kit/index.ts", {}}, {"zinc:icons", "icons.tsx", {}}, {"zinc:ui/animated", "animated.ts", {}},
+    {"zinc:ui/react", "react.ts", {}}, {"zinc:ui/kit", "kit/index.ts", {}}, {"zinc:ui/kit/host", "kit/host.ts", {}}, {"zinc:icons", "icons.tsx", {}}, {"zinc:ui/animated", "animated.ts", {}},
     {"zinc:ui/dnd", "dnd.ts", {}}, {"zinc:react-native", "react-native.tsx", {}}, {"zinc:react-native/linking", "react-native-linking.ts", {}},
     {"zinc:ui/nuxt", "nuxt/index.ts", {}}, {"zinc:ui/platform", "platform/index.ts", {}}, {"zinc:ui/navigation", "navigation.tsx", {}}, {"zinc:ui/history", "history.ts", {}},
     {"zinc:haptics", "haptics.ts", {}}, {"zinc:device-info", "device-info.ts", {}}, {"zinc:hardware", "hardware.ts", {}}, {"zinc:signals", "signals.ts", {}},
@@ -2264,7 +2265,7 @@ struct Loader {
       const std::set<std::string> classTags = classTagsOf(path, text);
       original = text;
       text = lowerJsx(text, prog.diags, fi, &classTags, &map, hot && !libraryModule(path), dev && !libraryModule(path) ? shownPath(path) : std::string(),
-                      projectReact && !libraryModule(path));
+                      projectReact && !libraryModule(path), libraryModule(path));
       if (map.empty()) original.clear();
       else for (std::size_t k = diagsAtStart; k < prog.diags.size(); ++k) if (prog.diags[k].file == fi) prog.diags[k].pos = loweredOffset(map, prog.diags[k].pos);   // in the lowered text, as the parser's
       if (const char* d = std::getenv("ZN_DUMP_JSX")) if (path.find(d) != std::string::npos) std::fprintf(stderr, "=== %s (JSX lowered)\n%s\n", path.c_str(), text.c_str());  // debugging: the plain code a .tsx file became

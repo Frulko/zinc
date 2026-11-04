@@ -361,6 +361,15 @@ char* normalizeName(JSContext* ctx, const char* base, const char* name, void* op
     if (!b.file.empty()) r = b.file;
     if (b.package) e.packageFiles.insert(b.file);
   }
+  // A standard module imported by file and by zinc: name must share its state (UI nodes, image reservations, signals).
+  if (!e.stdRoot.empty() && r.rfind(normalize(e.stdRoot) + "/", 0) == 0) {
+    for (const std::string_view spec : zn::frontend::stdModuleSpecs()) {
+      if (r != normalize(e.stdRoot + "/" + std::string(zn::frontend::stdModuleFile(spec)))) continue;
+      const auto& plugins = e.res.plugins(from);
+      if (!plugins.count(std::string(spec))) r = spec;
+      break;
+    }
+  }
   char* out = static_cast<char*>(js_malloc(ctx, r.size() + 1));
   std::memcpy(out, r.c_str(), r.size() + 1);
   return out;

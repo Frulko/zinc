@@ -10,12 +10,14 @@
 import * as ui from 'zinc:ui';
 import { icon } from 'zinc:icons';
 import { Svg } from 'zinc:svg';
+import { destroyImage } from 'zinc:gfx';
+import { retainCachedImage, releaseCachedImage } from '../image-cache';
 import { attachTooltip } from './tooltip';
 
 export interface ViewerItem {
   image: i32; width: i32; height: i32;
   title?: string; detail?: string;
-  /** A sharper copy of the picture (the thumbnail is what `image` holds): resolves with its image, or -1. Asked when the picture is shown. */
+  /** A fresh sharper copy, owned and released by the viewer, or -1. The thumbnail in `image` remains caller-owned. */
   sharper?: () => Promise<i32>;
   copy?: () => void;
   save?: () => void;
@@ -50,9 +52,11 @@ class Viewer {
   startPanX = 0; startPanY = 0; startZoom = 1; dragX = 0; dragY = 0; mode = 0;   // mode: 0 none, 1 pan, 2 dismiss, 3 swipe
   closing = false; opened = false;
   token = 0;
+  sharperImage: i32 = -1;
 
   constructor(o: ViewerOptions) {
     this.o = o; this.at = Math.max(0, Math.min(o.items.length - 1, o.index));
+    for (const it of o.items) retainCachedImage(it.image);
     this.root = ui.createNode(ui.VIEW); ui.setClass(this.root, 'absolute inset-0 overflow-hidden'); ui.setRole(this.root, 'dialog'); ui.setLabel(this.root, this.word('viewer', 'Image viewer'));
     this.back = this.el(ui.VIEW, 'absolute inset-0 bg-black', this.root); ui.setNumber(this.back, 'opacity', 0);
     this.stage = this.el(ui.VIEW, 'absolute inset-0', this.root);
@@ -110,10 +114,15 @@ class Viewer {
     this.token++;
     this.zoom = 1; this.panX = 0; this.panY = 0;
     ui.setImageHandle(this.img, it.image);
+    this.releaseSharper();
     ui.setText(this.title, it.title ?? ''); ui.setText(this.detail, it.detail ?? ''); ui.setText(this.count, this.o.items.length > 1 ? `${this.at + 1} / ${this.o.items.length}` : '');
     this.sizeImage();
     const t = this.token, s = it.sharper;
-    if (s !== undefined) s().then((n: i32) => { if (n >= 0 && t === this.token && current === this) { ui.setImageHandle(this.img, n); } });
+    if (s !== undefined) s().then((n: i32) => {
+      if (n < 0) return;
+      if (t !== this.token || current !== this || this.closing) { destroyImage(n); return; }
+      ui.setImageHandle(this.img, n); this.sharperImage = n;
+    });
     if (grow) this.grow();
   }
   sizeImage(): void {
@@ -244,7 +253,12 @@ class Viewer {
   finish(): void {
     if (current === this) current = null;
     ui.closeLayer(this.root); ui.destroy(this.root);
+    this.releaseSharper();
+    for (const it of this.o.items) releaseCachedImage(it.image);
     const f = this.o.onClose; if (f !== undefined) f();
+  }
+  releaseSharper(): void {
+    if (this.sharperImage >= 0) { destroyImage(this.sharperImage); this.sharperImage = -1; }
   }
 }
 

@@ -134,6 +134,7 @@ static std::vector<zn::tc::PluginLib> gPlugins;  // the native plugins built and
 static std::string gProjectDir = ".";
 // the transformed modules of --engine quickjs, one directory per build of the engine (a build stamp compiled in would break reproducible builds)
 static std::string qjsCacheDir() { return zn::tc::home() + "/cache/qjs/" + std::to_string(std::hash<std::string>{}(zn::cli::engineBuild())); }
+static std::string gWindowSize;   // "WxH" of a desktop window when the project names no size for the target
 static std::string gBakedSize;   // "WxH" of the board, for the main of a program zinc build writes
 static const zn::frontend::Profile* gProfile = nullptr;   // --profile / zinc.json "profile"
 // the target whose zinc.json adjustments ("targets.<name>.permissions") a run uses: the profile's, else this machine's OS
@@ -494,7 +495,8 @@ static std::string appWindowConfig(const std::string& json, zn::frontend::Target
   bool b = false, frame = true;
   if (yyjson_val* tc = yyjson_obj_get(w, "transparentColor"); tc && yyjson_is_str(tc)) c.transparent_key = static_cast<unsigned>(std::strtoul(yyjson_get_str(tc) + (yyjson_get_str(tc)[0] == '#' ? 1 : 0), nullptr, 16));   // "#rrggbb": the colour that is see-through
   if (flag("alwaysOnTop", b)) c.always_on_top = b;
-  if (flag("transparent", b)) c.transparent = b;
+  // Without a key colour a transparent window has an alpha per pixel (2): translucent layers show what is behind the window.
+  if (flag("transparent", b)) c.transparent = !b ? 0 : yyjson_obj_get(w, "transparentColor") ? 1 : 2;
   if (flag("resizable", b)) c.not_resizable = !b;
   if (flag("frame", frame) && !frame) c.borderless = 1;
   if (yyjson_val* tb = yyjson_obj_get(w, "titleBar"); tb && yyjson_is_str(tb) && !std::strcmp(yyjson_get_str(tb), "none")) c.borderless = 1;
@@ -682,11 +684,11 @@ static bool bakeResources(const char* entry, std::vector<std::uint8_t>& blob, st
   if (!o.assetsDir.empty() && std::any_of(rules.begin(), rules.end(), [](const zn::assets::Rule& r) { return r.as == "texture"; }))
     for (auto it = fs::recursive_directory_iterator(o.assetsDir, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
       if (const std::string rel = it->path().lexically_relative(o.assetsDir).generic_string(); it->is_regular_file(ec) && zn::assets::importerFor(rel, rules) == "texture") o.leave.push_back(rel);
-  if (gPhotosAsFiles && !o.assetsDir.empty())
+  if ((gPhotosAsFiles || !gBundleOut.empty()) && !gProfile && !hotMode() && !o.assetsDir.empty())
     for (auto it = fs::recursive_directory_iterator(o.assetsDir, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
       std::string ext = it->path().extension().string();
       for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-      if (it->is_regular_file(ec) && (ext == ".jpg" || ext == ".jpeg" || ext == ".webp")) o.leave.push_back(it->path().lexically_relative(o.assetsDir).generic_string());
+      if (it->is_regular_file(ec) && (ext == ".jpg" || ext == ".jpeg" || ext == ".webp") && zn::res::canLoadImageFile(it->path().string())) o.leave.push_back(it->path().lexically_relative(o.assetsDir).generic_string());
     }
   std::sort(o.leave.begin(), o.leave.end());
   o.leave.erase(std::unique(o.leave.begin(), o.leave.end()), o.leave.end());
@@ -1052,13 +1054,22 @@ static int buildNative(const char* argv0, const char* entry, const char* out, zn
     zn::frontend::Project proj;
     std::string perr;
     if (!pf.empty()) { std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf(); zn::frontend::parseProject(ss.str(), proj, perr); }
-    {   // zinc.json targets.<this machine>.resize, as zinc run passes it: a built program keeps the project's choice (ZN-608)
+    {   // zinc.json targets.<this machine> (the window's size, zoom and how it follows), as windowEnv passes them to zinc run: a built program keeps the project's choice (ZN-608)
       auto t = proj.targets.find(zn::plat::osName());
-      if (t != proj.targets.end() && !t->second.resize.empty()) {
+      if (t != proj.targets.end()) {
+        const zn::frontend::TargetOptions& w = t->second;
+        std::string env;
+        auto keep = [&](const char* name, const std::string& value) { env += std::string("  setenv(\"") + name + "\", \"" + value + "\", 0);   // zinc.json\n"; };
+        if (w.width > 0 && w.height > 0) keep("ZINC_SIZE", std::to_string(w.width) + "x" + std::to_string(w.height));
+        if (w.zoom > 0) keep("ZINC_ZOOM", std::to_string(w.zoom));
+        if (!w.resize.empty()) keep("ZINC_RESIZE", w.resize);
+        if (!w.pixelScale.empty()) keep("ZINC_PIXEL_SCALE", w.pixelScale);
+        if (w.fullscreen) keep("ZINC_FULLSCREEN", "1");
+        if (w.kiosk) keep("ZINC_KIOSK", "1");
         std::string text;
         { std::ifstream in(cpp); std::stringstream ss; ss << in.rdbuf(); text = ss.str(); }
         std::size_t at = text.find("{\n", text.find("int main("));
-        if (at != std::string::npos) { text.insert(at + 2, "  setenv(\"ZINC_RESIZE\", \"" + t->second.resize + "\", 0);   // zinc.json resize\n"); std::ofstream o(cpp); o << text; }
+        if (!env.empty() && at != std::string::npos) { text.insert(at + 2, env); std::ofstream o(cpp); o << text; }
       }
     }
 #ifdef ZN_HOST_GFX
@@ -1630,6 +1641,31 @@ static std::vector<std::string> gFusedArgs;
 static std::vector<char*> gFusedArgv;
 static std::vector<std::string> gOriginalArgs;   // argv as the user typed it: the dev bundle starts the engine again with it
 
+static void launchDevBundle(const zn::frontend::Project& project, const std::string& projectDir) {
+#ifdef __APPLE__
+  if (!project.app.id.empty() && !std::getenv("ZINC_DEVAPP") && !std::getenv("ZINC_HEADLESS") && !std::getenv("ZINC_DETERMINISTIC")) {
+    // Every identified app uses its bundle name in macOS, including apps that request no permissions.
+    std::string engine = zn::tc::executablePath(), app, berr;
+    bool refreshed = false;
+    auto t0 = std::chrono::steady_clock::now();
+    if (!engine.empty() && zn::tc::ensureDevBundle(bundleSpecOf(project, projectDir), engine, zn::tc::home() + "/cache/macos/devapp", app, refreshed, berr)) {
+      if (std::getenv("ZINC_DEVAPP_SELFTEST")) std::fprintf(stderr, "devapp: %s %s in %.1f ms\n", refreshed ? "refreshed" : "up to date", app.c_str(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+      setenv("ZINC_DEVAPP", app.c_str(), 1);
+      setenv("ZINC_ROOT", gRoot.c_str(), 0);
+      std::vector<char*> av;
+      for (std::string& a : gOriginalArgs) av.push_back(a.data());
+      av.push_back(nullptr);
+      std::string exe = app + "/Contents/MacOS/zinc";
+      execv(exe.c_str(), av.data());
+      std::fprintf(stderr, "zinc: cannot start the dev bundle %s: %s\n", app.c_str(), std::strerror(errno));
+    } else if (!berr.empty()) std::fprintf(stderr, "zinc: no dev bundle (%s); running without a bundle id\n", berr.c_str());
+  }
+#else
+  (void)project;
+  (void)projectDir;
+#endif
+}
+
 // WebGL lives in a module beside zinc (ZN-330.01): libzn_webgl.dylib / .so (or $ZINC_WEBGL_LIB), loaded the first time a QuickJS context is made or a zinc:gl row is
 // called; zinc carries no WebGL, glad or glslang. Without the module, QuickJS programs run without `document` (and zinc.json "webgl" says why).
 #ifdef ZN_WINDOW_MODULE
@@ -1970,6 +2006,9 @@ int main(int argc, char** argv) {
     argc -= drop;
     --k;
   }
+  if (argc >= 2 && (!std::strcmp(argv[1], "run") || !std::strcmp(argv[1], "dev"))) {
+    gPhotosAsFiles = !std::strcmp(argv[1], "run");   // hot reload retains its replaceable resource tables
+  }
   { char e[256]; zn_register_module(zn_module_QuickJS(), e, sizeof e); zn_register_module(zn_module_QuickJSFast(), e, sizeof e); }
 #ifdef ZN_NATIVE_FIXTURE
   { char e[256]; zn_register_module(fixture_module(), e, sizeof e); }   // a test module in C99 (tests/native/fixture.c): what the native-call fixtures call
@@ -2269,6 +2308,7 @@ int main(int argc, char** argv) {
       std::ifstream in(pf); std::stringstream ss; ss << in.rdbuf();
       zn::frontend::Project sp; std::string perr;
       if (zn::frontend::parseProject(ss.str(), sp, perr)) {
+        launchDevBundle(sp, std::filesystem::path(pf).parent_path().string());
         windowEnv(hostWindow(sp));   // the size and window settings of zinc.json, as `zinc run` gives the typed engines
         if (sp.perfHud) setenv("ZINC_PERF_HUD", "1", 0);
         splashEnv(sp, std::filesystem::path(pf).parent_path().string(), zn::tc::pluginTarget().c_str());
@@ -2663,25 +2703,7 @@ int main(int argc, char** argv) {
           }
         }
       }
-#ifdef __APPLE__
-      if (have && !project.app.id.empty() && !project.permissions.empty() && !std::getenv("ZINC_DEVAPP") && !std::getenv("ZINC_HEADLESS") && !std::getenv("ZINC_DETERMINISTIC")) {
-        // a program that uses the system modules runs from a dev bundle (own bundle id, name and icon): the process then behaves as the shipped app does (ZN-234)
-        std::string engine = zn::tc::executablePath(), app, berr;
-        bool refreshed = false;
-        auto t0 = std::chrono::steady_clock::now();
-        if (!engine.empty() && zn::tc::ensureDevBundle(bundleSpecOf(project, projectDir), engine, zn::tc::home() + "/cache/macos/devapp", app, refreshed, berr)) {
-          if (std::getenv("ZINC_DEVAPP_SELFTEST")) std::fprintf(stderr, "devapp: %s %s in %.1f ms\n", refreshed ? "refreshed" : "up to date", app.c_str(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
-          setenv("ZINC_DEVAPP", app.c_str(), 1);
-          setenv("ZINC_ROOT", gRoot.c_str(), 0);
-          std::vector<char*> av;
-          for (std::string& a : gOriginalArgs) av.push_back(a.data());
-          av.push_back(nullptr);
-          std::string exe = app + "/Contents/MacOS/zinc";
-          execv(exe.c_str(), av.data());
-          std::fprintf(stderr, "zinc: cannot start the dev bundle %s: %s\n", app.c_str(), std::strerror(errno));
-        } else if (!berr.empty()) std::fprintf(stderr, "zinc: no dev bundle (%s); running without a bundle id\n", berr.c_str());
-      }
-#endif
+      if (have) launchDevBundle(project, projectDir);
       std::error_code ec;
       if (fs::is_directory(path, ec)) {  // `zinc run examples/breakout`: its zinc.json entry, or src/main.ts[x]
         std::error_code eq;   // `zinc run .` too: lexically_normal keeps a trailing slash on "./", so compare the directories themselves
@@ -3109,8 +3131,11 @@ int main(int argc, char** argv) {
       // webOS: the program is a full-screen card on the GPU unless its zinc.json says otherwise under "webos" (the size it names for Linux is a desktop window's)
       const bool webos = std::strstr(target->name, "-webos") != nullptr;
       auto sel = zn::frontend::selectDisplay(pdir, gRoot, webos ? "webos" : "linux");
-      if (webos && sel.driver.empty()) sel.driver = "gl";
+      const bool defaultScreen = sel.driver.empty();
+      if (defaultScreen) sel.driver = "gl";   // a program that draws has a screen: a window on a desktop, KMS without one
       if (sel.width > 0 && sel.height > 0) gBakedSize = std::to_string(sel.width) + "x" + std::to_string(sel.height);
+      // no Linux size: on a desktop the window of the project's "sim" target, as zinc run gives it there; a screen stays the screen's own size
+      if (const auto win = zn::frontend::selectDisplay(pdir, gRoot, "sim"); gBakedSize.empty() && !webos && win.width > 0 && win.height > 0) gWindowSize = std::to_string(win.width) + "x" + std::to_string(win.height);
       // the native code of the plugins the program calls, built again for the target (the desktop ones, dlopen'ed to compile, are for this machine)
       std::vector<std::string> problems;
       auto found = zn::frontend::discoverPlugins(gRoot, pdir, problems);
@@ -3128,7 +3153,9 @@ int main(int argc, char** argv) {
         const zn::frontend::FoundPlugin* hit = nullptr;
         for (const auto& f : found) if (f.manifest.name == host.plugin) hit = &f;
         zn::tc::PluginLib lib;
-        if (!hit || !zn::tc::buildPlugin(*hit, gRoot, pdir, entryOf(*hit), lib, err)) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: plugin '%s' for %s: %s\n", host.plugin.c_str(), argv[3], err.c_str()); return 1; }
+        const bool built = hit && zn::tc::buildPlugin(*hit, gRoot, pdir, entryOf(*hit), lib, err);
+        if (!built && defaultScreen && !webos) std::fprintf(stderr, "zinc: no screen in this build, the program runs headless (display-gl for %s: %s)\n", argv[3], err.c_str());   // the sysroot has no EGL
+        else if (!built) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: plugin '%s' for %s: %s\n", host.plugin.c_str(), argv[3], err.c_str()); return 1; }
         crossPlugins.push_back(lib);
       }
       if (!sel.driver.empty()) {   // the display driver zinc.json names for Linux (fbdev on a Pi), linked whole like the modules; none: the program runs headless on the null HAL
@@ -3136,7 +3163,7 @@ int main(int argc, char** argv) {
         for (const auto& f : found) if (f.manifest.kind == "display" && (f.manifest.name == sel.driver || f.manifest.name == "display-" + sel.driver)) hit = &f;
         zn::tc::PluginLib lib;
         if (!hit || !zn::tc::buildPlugin(*hit, gRoot, pdir, entryOf(*hit), lib, err)) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: display driver '%s' for %s: %s\n", sel.driver.c_str(), argv[3], hit ? err.c_str() : "not found (zinc plugins lists them)"); return 1; }
-        crossPlugins.push_back(lib);
+        else crossPlugins.push_back(lib);
       }
       zn::tc::clearCrossTarget();
     }
@@ -3144,6 +3171,7 @@ int main(int argc, char** argv) {
     const std::string resFile = writeResourcesFile(argv[6], blob, resFailed);
     if (resFailed) return 1;
     { std::ofstream o(cpp); std::string text = zn::aot::emitCpp(zm, blob.empty() || !resFile.empty() ? nullptr : &blob, (zn::frontend::uiLayout() == "rn" || zn::frontend::directLayoutUse()), resFile);
+      if (draws && !gWindowSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  if (getenv(\"DISPLAY\")) setenv(\"ZINC_SIZE\", \"" + gWindowSize + "\", 0);   // the project's window\n"); }
       if (draws && !gBakedSize.empty()) { std::size_t at = text.find("{\n", text.find("int main(")); if (at != std::string::npos) text.insert(at + 2, "  setenv(\"ZINC_SIZE\", \"" + gBakedSize + "\", 0);   // the project's surface\n"); }
       o << text; if (!o) { std::fprintf(stderr, "cannot write %s\n", cpp.string().c_str()); return 2; } }
     if (draws) injectPermissions(cpp.string(), argv[4], std::string(argv[3]).find("macos") != std::string::npos ? "macos" : "linux");   // ZN-322.03

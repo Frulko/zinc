@@ -21,6 +21,7 @@ int main(int argc, char** argv) {
   if (!zn::zbc::decode(bytes, m, err)) { std::fprintf(stderr, "%s: %s\n", argv[1], err.c_str()); return 1; }
   err = zn::zbc::verify(m);
   if (!err.empty()) { std::fprintf(stderr, "%s: invalid ZBC: %s\n", argv[1], err.c_str()); return 1; }
+  std::vector<std::uint8_t>().swap(bytes);   // the decoded module owns its tables
   std::string out;
   auto res = zn::vm::run(m, out, false);
   return zn::rt::report(res, out, false);

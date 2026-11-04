@@ -44,6 +44,19 @@ static int32_t f_reverse(void* self, ZnCtx* cx, const ZnVal* a, ZnVal* r) {
   r->v.n = a[0].v.n;
   return ZN_OK;
 }
+static int32_t f_views(void* self, ZnCtx* cx, const ZnVal* a, ZnVal* r) {
+  uint32_t k, i, j;
+  (void)self; (void)cx;
+  r->i = 0;
+  for (k = 0; k < 2; ++k)
+    for (i = 0; i < a[k].v.n; ++i) r->i += ((const uint8_t*)a[k].v.p)[i];
+  for (k = 2; k < 4; ++k) {
+    const ZnStr* strings = (const ZnStr*)a[k].v.p;
+    for (i = 0; i < a[k].v.n; ++i)
+      for (j = 0; j < strings[i].n; ++j) r->i += (unsigned char)strings[i].p[j];
+  }
+  return ZN_OK;
+}
 static int32_t f_set_callback(void* self, ZnCtx* cx, const ZnVal* a, ZnVal* r) {
   (void)self; (void)cx; (void)r;
   if (gCallback) H->cb_release(gCallback);
@@ -138,6 +151,7 @@ static int32_t f_finalized(void* self, ZnCtx* cx, const ZnVal* a, ZnVal* r) { (v
 static int32_t f_fail(void* self, ZnCtx* cx, const ZnVal* a, ZnVal* r) { (void)self; (void)a; (void)r; H->set_error(cx, "the fixture failed on purpose"); return ZN_ERROR; }
 
 static const ZnExport kExports[] = {
+  {"views", "BBSS>i", f_views, 0},
   {"add", "ii>i", f_add, ZN_PURE_SCALAR}, {"scale", "dd>d", f_scale, ZN_PURE_SCALAR}, {"greet", "s>s", f_greet, 0}, {"sum", "B>i", f_sum, 0}, {"reverse", "B>B", f_reverse, 0},
   {"setCallback", "c(is>n)>n", f_set_callback, 0}, {"fire", "i>n", f_fire, 0}, {"callSum", "c(id>d)>d", f_call_sum, 0}, {"later", "i>Pi", f_later, 0}, {"laterFail", ">Pi", f_later_fail, 0},
   {"postFromThread", ">n", f_post_from_thread, 0}, {"open", "i>R0", f_open, 0}, {"get", "R0>i", f_get, 0}, {"close", "R0>n", f_close, 0}, {"finalized", ">i", f_finalized, 0},

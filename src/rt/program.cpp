@@ -24,7 +24,7 @@ Result runModuleHooked(const zbc::Module& mod, std::string& out, bool traceFree,
   std::string err;
   if (!m.load(mod, err)) { res.ok = false; res.error = err; return res; }
 #ifndef ZN_NO_MIMALLOC   // the sanitizer build keeps ASan's allocator, without the budget of src/rt/alloc.cpp
-  if (mod.heapBytes && !gOnWorker) setHeapBudget(mod.heapBytes);   // the target profile's heap, carried by the program (ZN-229); a worker counts against it
+  if (mod.heapBytes && !gOnWorker()) setHeapBudget(mod.heapBytes);   // the target profile's heap, carried by the program (ZN-229); a worker counts against it
 #endif
   if (setup) setup(m, setupData);
   const bool ran = m.exec(&m.funcs[0], m.stack);
@@ -62,24 +62,28 @@ void bind(Machine& m, const void* data) {
 }
 }  // namespace
 
-int runProgramPacked(const unsigned char* packed, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count) {
-  std::vector<std::uint8_t> bytes;
-  if (!zbc::unpackRuns(packed, size, bytes)) { std::fprintf(stderr, "embedded module: damaged\n"); return 1; }
-  return runProgram(bytes.data(), bytes.size(), natives, count);
-}
-
-int runProgram(const unsigned char* zbcBytes, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count) {
+static int runProgramBytes(std::vector<std::uint8_t> bytes, int (*const* natives)(Machine&, Slot*), std::size_t count) {
   zbc::Module mod;
   std::string err;
-  std::vector<std::uint8_t> bytes(zbcBytes, zbcBytes + size);
   if (!zbc::decode(bytes, mod, err)) { std::fprintf(stderr, "embedded module: %s\n", err.c_str()); return 1; }
   err = zbc::verify(mod);
   if (!err.empty()) { std::fprintf(stderr, "embedded module: invalid ZBC: %s\n", err.c_str()); return 1; }
+  std::vector<std::uint8_t>().swap(bytes);   // decode owns its tables; the encoded module is no longer needed during the app loop
   std::string out;
   bool trace = std::getenv("ZN_TRACE_FREE") != nullptr;
   Natives n{natives, count};
   Result res = runModule(mod, out, trace, bind, &n);
   return report(res, out, trace);
+}
+
+int runProgramPacked(const unsigned char* packed, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count) {
+  std::vector<std::uint8_t> bytes;
+  if (!zbc::unpackRuns(packed, size, bytes)) { std::fprintf(stderr, "embedded module: damaged\n"); return 1; }
+  return runProgramBytes(std::move(bytes), natives, count);
+}
+
+int runProgram(const unsigned char* zbcBytes, std::size_t size, int (*const* natives)(Machine&, Slot*), std::size_t count) {
+  return runProgramBytes(std::vector<std::uint8_t>(zbcBytes, zbcBytes + size), natives, count);
 }
 
 }  // namespace zn::rt

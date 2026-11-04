@@ -9,6 +9,7 @@
 #define STBI_NO_STDIO
 #include "hb-subset.h"
 #include "res/res.h"
+#include "zn/image_limits.h"
 #include "res/codec.h"
 #include "rt/unicode.h"
 
@@ -746,6 +747,16 @@ bool bake(const std::vector<std::string>& sources, const Options& opt, std::vect
     blob.insert(blob.end(), bytes.begin(), bytes.end());
   }
   return true;
+}
+
+bool canLoadImageFile(const std::string& path) {
+  std::vector<uint8_t> bytes;
+  if (!readFile(path, bytes) || bytes.size() > 0x7fffffff) return false;
+  int w = 0, h = 0, channels = 0;
+  const bool ok = isWebp(bytes.data(), bytes.size()) ? WebPGetInfo(bytes.data(), bytes.size(), &w, &h) != 0
+      : stbi_info_from_memory(bytes.data(), static_cast<int>(bytes.size()), &w, &h, &channels) != 0;
+  return ok && w > 0 && h > 0 && w <= zn::kRuntimeImageMaxSide && h <= zn::kRuntimeImageMaxSide &&
+      static_cast<uint64_t>(w) * h <= zn::kDecodedImageMaxPixels;
 }
 
 bool bakerReads(const std::string& ext) {   // the texts of the scan, the TrueType files, the images (keep in step with bake above)

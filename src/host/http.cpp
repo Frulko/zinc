@@ -14,6 +14,7 @@
 #include <map>
 #include <string_view>
 #include <memory>
+#include <new>
 #include <vector>
 
 #include "crypto.h"
@@ -612,8 +613,9 @@ void onSTimer(uv_timer_t* t) {
   if (c->st == St::Reading && !c->answered) quick(c, 408); else closeConn(c);
 }
 void sAlloc(uv_handle_t*, size_t, uv_buf_t* b) {   // the bytes are parsed (or copied into TLS) before the next read: one buffer serves them all
-  thread_local char buf[64 << 10];
-  *b = uv_buf_init(buf, sizeof buf);
+  thread_local std::unique_ptr<char[]> buf;
+  if (!buf) buf.reset(new (std::nothrow) char[64 << 10]);
+  *b = uv_buf_init(buf.get(), buf ? 64 << 10 : 0);
 }
 void onSRead(uv_stream_t* s, ssize_t n, const uv_buf_t* buf) {
   auto* c = static_cast<SConn*>(s->data);

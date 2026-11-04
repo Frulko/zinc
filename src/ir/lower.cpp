@@ -14,6 +14,7 @@
 #include "frontend/inspect.h"
 #include "ir/ir.h"
 #include "zn/native_sig.h"
+#include "zn/math_constants.h"
 
 namespace zn::ir {
 namespace {
@@ -293,8 +294,8 @@ struct Lowering {
       if (!instantiated[k] || !frontend::objAssignable(c, k, recvObj)) continue;
       std::uint32_t fn = resolveMethod(k, name);
       if (fn == kNil) return false;
-      if (found != kNil && found != fn) return false;
       if (const frontend::Member* rm = frontend::lookupMember(c, recvObj, name, false); rm && c.types[rm->type].k == frontend::TK::Func && m.functions[fn].params.size() != c.types[rm->type].params.size() + 1) return false;   // an implementation that ignores trailing arguments is called through its adapter
+      if (found != kNil && found != fn) return false;
       found = fn;
     }
     fnOut = found;
@@ -448,7 +449,6 @@ struct Lowering {
     f.blocks[0].insts.push_back(std::move(ret));
     return fn;
   }
-  // The open records an instance of class `o` can be shared as (Checked::openRecords)
   // A vtable entry for a method that takes fewer parameters than its selector (an implementation or override that ignores trailing arguments):
   // it receives them all and calls `target` with the first ones.
   std::uint32_t arityAdapter(std::uint32_t cls, std::uint32_t target, const Selector& s) {
@@ -478,6 +478,7 @@ struct Lowering {
     f.blocks[0].insts.push_back(std::move(ret));
     return fn;
   }
+  // The open records an instance of class `o` can be shared as (Checked::openRecords)
   std::vector<std::uint32_t> openRecordsOf(std::uint32_t o) const {
     std::vector<std::uint32_t> r;
     for (const auto& [rec, lit] : litClassOfObj)
@@ -510,7 +511,6 @@ struct Lowering {
           std::uint32_t sel = selectorFor(mem.name, mem.type);
           if (std::find(cl.selectors.begin(), cl.selectors.end(), sel) == cl.selectors.end()) cl.selectors.push_back(sel);
         }
-      std::vector<std::uint32_t> sels = m.classes[classOfObj[o]].selectors;
       if (c.objs[o].isClass)   // the methods of the interfaces `o` satisfies with fewer parameters: their selector gets an adapter (see `fill`)
         for (std::uint32_t i = 0; i < c.objs.size(); ++i) {
           if (i == o || !c.objs[i].isInterface || c.objs[i].isRecord || classOfObj[i] == kNil || !frontend::objAssignable(c, o, i)) continue;
@@ -523,6 +523,7 @@ struct Lowering {
               if (std::find(cl.selectors.begin(), cl.selectors.end(), sel) == cl.selectors.end()) cl.selectors.push_back(sel);
             }
         }
+      std::vector<std::uint32_t> sels = m.classes[classOfObj[o]].selectors;
       if (!m.classes[classOfObj[o]].isInterface) {  // the properties of the interfaces a class satisfies: read through a getter selector
         propertySelectors(o, false, sels);
         if (!litClassOfObj.empty() && c.objs[o].isClass && !c.objs[o].isRecord) propertySelectors(o, true, sels);
@@ -539,8 +540,8 @@ struct Lowering {
       for (std::uint32_t sel : std::vector<std::uint32_t>(m.classes[cls].selectors)) {
         const Selector s = m.selectors[sel];
         std::uint32_t fn = resolveMethod(o, s.name);
-        const bool set = s.name.rfind("__set_", 0) == 0;
         if (fn != kNil && m.functions[fn].params.size() < s.params.size() + 1) fn = arityAdapter(cls, fn, s);
+        const bool set = s.name.rfind("__set_", 0) == 0;
         if (fn == kNil) fn = set ? accessor(o, cls, s.name.substr(6), true, s.params.empty() ? s.ret : s.params[0]) : accessor(o, cls, s.name, false, s.ret);
         m.classes[cls].vtable[sel] = fn;
       }
@@ -1936,7 +1937,9 @@ struct Lowering::FnLower {
         if (x.text == "name" && on.kind == N::Member && on.text == "constructor" && !(on.flags & frontend::kFlagOptional)) return className(on.kids[0]);
         std::uint32_t os = on.kind == N::Ident ? c.nodeSym[x.kids[0]] : kNil;
         if (os != kNil && c.syms[os].kind == SymKind::Builtin) {
-          return constNum(m.numT(static_cast<NumK>(frontend::numberAlias())), x.text == "PI" ? 3.14159265358979323846 : 2.71828182845904523536);
+          for (const auto& constant : zn::mathConstants) {
+            if (x.text == constant.name) return constNum(m.numT(static_cast<NumK>(frontend::numberAlias())), constant.value);
+          }
         }
         if (os != kNil && c.syms[os].kind == SymKind::Class) {  // Class.staticField
           const frontend::Member* sm = frontend::lookupMember(c, c.types[c.syms[os].type].obj, x.text, true);

@@ -70,10 +70,13 @@ void dyn_update_rect(int32_t id, int32_t x, int32_t y, int32_t w, int32_t h, con
 uint32_t* dyn_pixels(int32_t id);
 void dyn_resize(int32_t id, int32_t w, int32_t h);                             // runtime-owned buffers only
 void dyn_destroy(int32_t id);
+extern uint32_t dyn_releases;   // changes when a runtime image is destroyed; each renderer collects its own textures
 void dyn_set_alpha(int32_t id, bool on);                                       // the top byte of each pixel is its alpha
+void dyn_set_asset(int32_t id);                                               // same sampling as embedded immutable assets
 bool dyn_alpha(int32_t id);
 bool image_size(int32_t id, int32_t* w, int32_t* h);
 uint32_t image_version(int32_t id);
+uint32_t image_identity(int32_t id);
 /** Current pixels of a runtime image (GPU compositors upload them when the version changes). */
 bool dyn_view(int32_t id, const uint32_t** px, int32_t* w, int32_t* h, int32_t* stride);
 /** GPU blocks of the same texels (ZN-439: a compressed texture of a pack): `gl` its OpenGL internal format, `premultiplied` its alpha. A GPU
@@ -145,6 +148,8 @@ inline uint32_t image_blend(const Cmd& c) { return (uint32_t)(c.pad >> kBlendShi
 constexpr uint8_t kImageLayer = 64;
 /** What this thread's rasterizer writes in the holes from now on: HAL_LAYER_HOLE, unless a driver asks for rows over another colour. */
 void set_layer_fill(uint32_t color);
+/** A window with an alpha per pixel: CLEAR writes the holes' fill, so the two renders of a frame tell what is transparent. */
+extern bool clear_holes;
 /** Where the picture `p` of an IMAGE's runtime image (iw x ih pixels) lies on the frame: whole pixels, as the hole and the layer need. */
 Rect layer_rect(const Cmd& c, const Picture& p, int32_t iw, int32_t ih);
 

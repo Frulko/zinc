@@ -22,8 +22,9 @@ namespace zn::frontend {
 // what the inspector's component tree shows. Empty: nothing is recorded, the program has no trace of it.
 // `projectReact`: the project's entry uses the React model, so a file that imports neither model (a component file of a React app, which
 // React's automatic JSX runtime lets go without `import React`) is lowered in it too, as tsconfig's jsxImportSource does for tsc.
+// `modelNeutral`: a library without an explicit UI model uses the existing shared kit helpers, preserving React node ownership.
 std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags = nullptr, std::vector<SrcPiece>* map = nullptr,
-                     bool hot = false, const std::string& devFile = "", bool projectReact = false);
+                     bool hot = false, const std::string& devFile = "", bool projectReact = false, bool modelNeutral = false);
 // Whether a file's imports choose the React model (zinc:ui/react, react, inferno).
 bool importsReact(std::string_view src);   // classTags: components declared as classes (this file or a relative import), lowered to _cc in the React model
 

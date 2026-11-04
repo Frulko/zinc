@@ -359,7 +359,7 @@ bool toJavaScript(std::string_view src, const std::string& file, std::string& ou
     const bool hot = hotWeb && hotWeb[0] == '1' && file.rfind("zinc:", 0) != 0 && file.find("/lib/std/") == std::string::npos;
     const char* dev = std::getenv("ZINC_DEV");   // a dev run: component names for the inspector, as the typed loader records them (jsx.h devFile)
     const bool devNames = dev && std::string(dev) == "1" && !libraryModule(file);
-    text = lowerJsx(text, diags, 0, &classTags, &map, hot, devNames ? file : std::string());
+    text = lowerJsx(text, diags, 0, &classTags, &map, hot, devNames ? file : std::string(), false, libraryModule(file));
   }
   if (!diags.empty()) {   // the lowering's own positions are in the source the user wrote
     err.clear();

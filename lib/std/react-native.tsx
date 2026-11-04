@@ -341,6 +341,7 @@ export type TextInputProps = {
   value?: string; defaultValue?: string; onChangeText?: (text: string) => void; onSubmitEditing?: () => void; placeholder?: string;
   keyboardType?: string; secureTextEntry?: boolean; multiline?: boolean; editable?: boolean; maxLength?: number; autoFocus?: boolean;
   autoCapitalize?: string; autoCorrect?: boolean; returnKeyType?: string; textContentType?: string; autoComplete?: string;
+  blurOnSubmit?: boolean; submitBehavior?: string;
   name?: string; required?: boolean; pattern?: string; minLength?: number; enterKeyHint?: string;   // the page's form attributes (web target); ignored elsewhere
   placeholderTextColor?: string; selectionColor?: string; cursorColor?: string;
   style?: ui.Style; testID?: string; accessibilityLabel?: string;
@@ -351,7 +352,14 @@ function inputTraits(p: TextInputProps): string {
   const fill = p.autoComplete ?? p.textContentType ?? '';
   if (fill !== '') t += ' autofill=' + fill;
   if (p.maxLength !== undefined) t += ' maxlength=' + p.maxLength;
+  t += ' submit=' + inputSubmitMode(p);
   return t;
+}
+function inputSubmitMode(p: TextInputProps): string {
+  if (p.submitBehavior === 'submit' || p.submitBehavior === 'blurAndSubmit') return p.submitBehavior as string;
+  if (p.submitBehavior === 'newline') return p.multiline === true ? 'newline' : 'blurAndSubmit';
+  if (p.blurOnSubmit !== undefined) return p.blurOnSubmit ? 'blurAndSubmit' : p.multiline === true ? 'newline' : 'submit';
+  return p.multiline === true ? 'newline' : 'blurAndSubmit';
 }
 /** A zinc:ui text field (a TextArea when multiline). Controlled through value + onChangeText as in React Native; maxLength cuts what is typed past it;
  *  onSubmitEditing on Enter (single line); keyboardType picks the on-screen keyboard (numeric 'numeric' / 'number-pad', 'decimal-pad', 'phone-pad',
@@ -373,7 +381,7 @@ export function TextInput(p: TextInputProps): i32 {
     if (max >= 0 && v.length > max) { v = v.substring(0, max); ui.setValue(field.current, v); }
     const f = p.onChangeText; if (f !== undefined) f(v);
   };
-  const key = (e: ui.KeyEvent): void => { if (e.key === 'Enter' && p.multiline !== true) { const f = p.onSubmitEditing; if (f !== undefined) f(); } };
+  const key = (e: ui.KeyEvent): void => { if (e.key === 'Enter' && inputSubmitMode(p) !== 'newline') { const f = p.onSubmitEditing; if (f !== undefined) f(); } };
   useEffect((): void => {
     ui.setInputTraits(field.current, inputTraits(p));
     if (started.current) return;
@@ -381,7 +389,7 @@ export function TextInput(p: TextInputProps): i32 {
     if (p.autoFocus === true) ui.focusNode(field.current);
   }, null);
   if (p.multiline === true)
-    return <TextArea ref={field} style={[p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} aria-label={p.accessibilityLabel ?? ''}
+    return <TextArea ref={field} style={[p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} onKeyDown={key} aria-label={p.accessibilityLabel ?? ''}
       name={p.name ?? ''} required={p.required === true} minLength={p.minLength ?? 0} />;
   return <Input ref={field} style={[p.style ?? NONE, flags]} value={text} placeholder={p.placeholder ?? ''} onInput={typed} onKeyDown={key} aria-label={p.accessibilityLabel ?? ''}
     name={p.name ?? ''} required={p.required === true} pattern={p.pattern ?? ''} minLength={p.minLength ?? 0} enterKeyHint={p.enterKeyHint ?? ''} />;
@@ -397,8 +405,8 @@ export class KeyboardCoordinates { screenX: number = 0; screenY: number = 0; wid
 export class KeyboardEvent { endCoordinates: KeyboardCoordinates = new KeyboardCoordinates(); duration: number = 0; easing: string = 'keyboard'; }
 const kbFns: ((e: KeyboardEvent) => void)[] = [], kbKinds: string[] = [];
 let kbShown: number = 0;
-function kbEvent(h: number): KeyboardEvent { const e = new KeyboardEvent(); const c = e.endCoordinates; c.width = width(); c.height = h; c.screenY = height() - h; return e; }
-/** Watches zinc:ui's keyboard inset each frame while someone listens: Did and Will events fire together (there is no animation to anticipate). */
+function kbEvent(h: number): KeyboardEvent { const e = new KeyboardEvent(); e.duration = ui.keyboardAnimationDuration(); e.easing = ui.keyboardAnimationEasing(); const c = e.endCoordinates; c.width = width(); c.height = h; c.screenY = height() - h; return e; }
+/** Watches zinc:ui's keyboard inset each frame while someone listens: Did and Will events currently fire together; the event carries the native animation duration and curve. */
 const kbStep: () => void = (): void => {
   const now = ui.keyboardInset();
   if (now === kbShown) return;
@@ -431,6 +439,7 @@ export function KeyboardAvoidingView(p: KeyboardAvoidingViewProps): i32 {
   const [inset, setInset] = useState<number>(ui.keyboardInset());
   const subscribed = useRef<boolean>(false);
   const self = useRef<i32>(-1);
+  const previousRoom = useRef<number>(-1);
   // as React Native's: the part of this view the keyboard covers (a tab bar below the view is covered first), not the keyboard's whole height
   const covered = (kb: number): number => {
     if (kb <= 0 || self.current < 0) return kb;
@@ -445,6 +454,9 @@ export function KeyboardAvoidingView(p: KeyboardAvoidingViewProps): i32 {
     Keyboard.addListener('keyboardDidHide', (e: KeyboardEvent): void => setInset(0));
   }, []);
   const room = p.enabled === false ? 0 : Math.max(0, inset - (p.keyboardVerticalOffset ?? 0));
+  if (previousRoom.current >= 0 && room !== previousRoom.current && p.behavior !== undefined && ui.keyboardAnimationDuration() > 0)
+    ui.LayoutAnimation.configureNext({ duration: ui.keyboardAnimationDuration(), update: { type: ui.keyboardAnimationEasing() } });
+  previousRoom.current = room;
   const lift = p.behavior === 'position' ? new ui.Style(['translateY'], [-room]) : p.behavior !== undefined ? new ui.Style(['paddingBottom'], [room]) : NONE;
   const h = <View style={[p.style ?? NONE, lift]}>{renderChildren(p.children)}</View>;
   self.current = h;

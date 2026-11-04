@@ -1,5 +1,6 @@
 #include "frontend/check.h"
 #include "zn/native_sig.h"
+#include "zn/math_constants.h"
 
 #include <algorithm>
 #include <cctype>
@@ -314,7 +315,6 @@ struct Checker {
     }
     return differs;
   }
-  // `DynFunction` (the alias of the Dyn prelude): a typed function passed where it is expected, e.g. `(r: i32, name: string) => void`, gets an adapter that converts each
   // An object literal (or any record) where an interface of methods is expected, as TypeScript allows: each method of the interface is a function
   // property of the record (taking the interface's parameters, or fewer). The record is wrapped in a class that implements the interface and
   // forwards each call, so later changes to the record's properties are seen.
@@ -345,6 +345,7 @@ struct Checker {
     wrapNode(node, sym);
     return true;
   }
+  // `DynFunction` (the alias of the Dyn prelude): a typed function passed where it is expected, e.g. `(r: i32, name: string) => void`, gets an adapter that converts each
   // argument JavaScript-style (ToNumber then the machine type, String(x), truthiness; `unknown` as it is; a missing argument is undefined) and boxes the result.
   bool isDynFunction(TypeId t) {
     std::uint32_t al = lookup("DynFunction");
@@ -422,8 +423,8 @@ struct Checker {
       return true;
     }
     if (node != kNone && dynFunctionAdapter(from, to, node)) return true;
-    if (node != kNone && recordWidenable(from, to) && (out.objs[ty(from).obj].isTemplate || out.objs[ty(to).obj].isTemplate)) return true;   // checked over type parameters, lowered per instance
     if (node != kNone && recordAsInterface(from, to, node)) return true;
+    if (node != kNone && recordWidenable(from, to) && (out.objs[ty(from).obj].isTemplate || out.objs[ty(to).obj].isTemplate)) return true;   // checked over type parameters, lowered per instance
     if (node != kNone && recordWidenable(from, to)) {   // a record with more fields where a record with fewer is expected: a copy of the fields asked for
       std::string body;
       for (const Member& m : out.objs[ty(to).obj].members) {
@@ -506,8 +507,7 @@ struct Checker {
     };
     ObjInfo math;
     math.name = "Math";
-    math.members.push_back({"PI", num(gNumber), true, false});
-    math.members.push_back({"E", num(gNumber), true, false});
+    for (const auto& constant : zn::mathConstants) math.members.push_back({std::string(constant.name), num(gNumber), true, false});
     for (const char* f : {"sqrt", "abs", "floor", "ceil", "round", "trunc", "sin", "cos", "tan", "exp", "log", "cbrt", "log2", "log10", "log1p", "expm1", "asin", "acos", "sinh", "cosh", "tanh", "sign", "fround", "clz32"}) mathFn(f, 1, math);
     for (const char* f : {"pow", "atan2", "min", "max", "hypot"}) mathFn(f, 2, math);
     math.members.push_back({"imul", func({num(Num::i32), num(Num::i32)}, num(Num::i32), 2), true, true});
@@ -1887,6 +1887,7 @@ struct Checker {
       const Type t = ty(at);
       bool num_ = t.k == TK::Num, str = t.k == TK::Str, bl = at == tBool, arr = t.k == TK::Array;
       if (nm == "String") {
+        if (!rawDyn() && isDyn(at)) return rewrite("__dynString(__H0)", {{args[0]}});
         if (str) return rewrite("__H0", {{args[0]}});
         if (num_ || bl) return rewrite("`${__H0}`", {{args[0]}});
         if (arr) return rewrite("__H0.join(',')", {{args[0]}});
@@ -2070,25 +2071,26 @@ struct Checker {
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "random" && args.empty()) return rewrite("__mathRandom()", {});
       if (on == "Math" && isBuiltin(cn.kids[0], "Math") && m == "seed" && args.size() == 1) return rewrite("__mathSeed(__H0)", {{args[0]}});
       const bool spread = std::any_of(args.begin(), args.end(), [&](std::uint32_t g) { return n(g).kind == N::Spread; });
-      if (on == "Math" && isBuiltin(cn.kids[0], "Math") && (m == "min" || m == "max") && (args.size() != 2 || spread)) {
+      if (on == "Math" && isBuiltin(cn.kids[0], "Math") && (m == "min" || m == "max" || m == "hypot") && (args.size() != 2 || spread)) {
         std::string nm(m);
+        const std::string initial = nm == "hypot" ? "0" : nm == "max" ? "-Infinity" : "Infinity";
         for (std::uint32_t& g : args) {  // `...a`: the extreme of the array through a generated loop (Infinity or -Infinity when it is empty, as the spread gives)
           if (n(g).kind != N::Spread) continue;
           const std::uint32_t e = n(g).kids[0];
           const TypeId at = expr(e);
           if (bad(at)) return tError;
           if (ty(at).k != TK::Array || !isNum(ty(at).elem)) { diag(kZUnsupported, g, "spread of '" + name(at) + "' in Math." + nm); return tError; }
-          if (isFx(gNumber)) { diag(kZFixedUnrepresentable, g, "Math." + nm + "(...a) starts from " + (nm == "max" ? "-" : "") + "Infinity, which fixed point cannot represent"); return tError; }
-          const std::uint32_t sym = helper(nm + "Of," + std::to_string(at), "function $F(a: " + inspectAliasName(at) + "): number {\n  let r: number = " + (nm == "max" ? "-" : "") + "Infinity;\n  for (let i: i32 = 0; i < a.length; i++) r = Math." + nm + "(r, a[i]);\n  return r;\n}\n", {at}, g);
+          if (nm != "hypot" && isFx(gNumber)) { diag(kZFixedUnrepresentable, g, "Math." + nm + "(...a) starts from " + (nm == "max" ? "-" : "") + "Infinity, which fixed point cannot represent"); return tError; }
+          const std::uint32_t sym = helper(nm + "Of," + std::to_string(at), "function $F(a: " + inspectAliasName(at) + "): number {\n  let r: number = " + initial + ";\n  for (let i: i32 = 0; i < a.length; i++) r = Math." + nm + "(r, a[i]);\n  return r;\n}\n", {at}, g);
           g = callGenerated(sym, {e}, g);
           rewritten.insert(g);
         }
         if (args.size() == 1 && spread) { a.nodes[i] = a.nodes[args[0]]; rewritten.insert(i); out.nodeType[i] = out.nodeType[args[0]]; return out.nodeType[i]; }  // Math.max(...a)
         if (args.empty()) {
-          if (isFx(gNumber)) { diag(kZFixedUnrepresentable, i, "Math." + nm + "() is " + (nm == "max" ? "-" : "") + "Infinity, which fixed point cannot represent"); return tError; }
-          return rewrite(nm == "min" ? "Infinity" : "-Infinity", {});
+          if (nm != "hypot" && isFx(gNumber)) { diag(kZFixedUnrepresentable, i, "Math." + nm + "() is " + (nm == "max" ? "-" : "") + "Infinity, which fixed point cannot represent"); return tError; }
+          return rewrite(initial, {});
         }
-        if (args.size() == 1) return rewrite("Math." + nm + "(__H0, __H0)", {{args[0]}});
+        if (args.size() == 1) return nm == "hypot" ? rewrite("Math.abs(__H0)", {{args[0]}}) : rewrite("Math." + nm + "(__H0, __H0)", {{args[0]}});
         std::string text = "__H0";
         std::vector<std::vector<std::uint32_t>> holes{{args[0]}};
         for (std::size_t k = 1; k < args.size(); ++k) { text = "Math." + nm + "(" + text + ", __H" + std::to_string(k) + ")"; holes.push_back({args[k]}); }
@@ -4095,19 +4097,8 @@ struct Checker {
     if (!nestedBuilt) { nestedBuilt = true; markNested(a.root, false); for (std::uint32_t pre : a.prelude) markNested(pre, false); }
     return nestedFuncs.count(node) != 0;
   }
-  std::uint32_t iifeLambda = kNone;  // the arrow function of `(() => ...)()` being checked (callExpr sets it, funcExpr reads it)
-  bool padCallbacks = true;  // a function with fewer parameters than the function type it is given to gets unused ones; off for the arguments of the library's array methods, which keep their arity
-  TypeId funcExpr(std::uint32_t i, TypeId expected) {
-    if (a.tparams.count(i)) { diag(kZUnsupported, i, "generic arrow functions"); return tError; }
-    Type et;
-    if (expected != kNoType && ty(expected).k == TK::Union) {  // `(() => void) | null` (an optional callback): the function type is what the lambda is checked against
-      TypeId only = kNoType;
-      for (TypeId m : ty(expected).params) { if (m == tNull) continue; if (only != kNoType || ty(m).k != TK::Func) { only = kNoType; break; } only = m; }
-      if (only != kNoType) expected = only;
-    }
-    bool haveExpected = expected != kNoType && ty(expected).k == TK::Func && !isDynFunction(expected);   // a lambda for a DynFunction has its own type: the adapter converts
-    if (haveExpected) et = ty(expected);
-    // Defaults on lambda parameters: the parameter takes `T | null` (an argument left out is null) and the body starts by replacing null with the default
+  std::size_t prepareClosureDefaults(std::uint32_t i, bool keepOptional) {
+    // Defaults on closure parameters: the parameter takes `T | null` (an argument left out is null) and the body starts by replacing null with the default
     std::size_t lambdaMin = static_cast<std::size_t>(-1);
     {
       std::vector<std::uint32_t> prologue;
@@ -4132,7 +4123,8 @@ struct Checker {
           out.nodeSym.resize(a.nodes.size(), kNone);
           for (std::uint32_t s : st) prologue.push_back(s);
         }
-        a.nodes[p].kids[1] = kNone;
+        // Named declarations keep an optional marker for signature(); the real default is now in the body.
+        a.nodes[p].kids[1] = keepOptional ? newNode(N::Literal, "null", {}, p) : kNone;
       }
       if (required < n(i).kids.size() - 2) lambdaMin = required;  // some parameter is optional (padding for callbacks comes after it and stays required)
       else lambdaMin = static_cast<std::size_t>(-1);
@@ -4141,6 +4133,21 @@ struct Checker {
         body.insert(body.begin(), prologue.begin(), prologue.end());
       }
     }
+    return lambdaMin;
+  }
+  std::uint32_t iifeLambda = kNone;  // the arrow function of `(() => ...)()` being checked (callExpr sets it, funcExpr reads it)
+  bool padCallbacks = true;  // a function with fewer parameters than the function type it is given to gets unused ones; off for the arguments of the library's array methods, which keep their arity
+  TypeId funcExpr(std::uint32_t i, TypeId expected) {
+    if (a.tparams.count(i)) { diag(kZUnsupported, i, "generic arrow functions"); return tError; }
+    Type et;
+    if (expected != kNoType && ty(expected).k == TK::Union) {  // `(() => void) | null` (an optional callback): the function type is what the lambda is checked against
+      TypeId only = kNoType;
+      for (TypeId m : ty(expected).params) { if (m == tNull) continue; if (only != kNoType || ty(m).k != TK::Func) { only = kNoType; break; } only = m; }
+      if (only != kNoType) expected = only;
+    }
+    bool haveExpected = expected != kNoType && ty(expected).k == TK::Func && !isDynFunction(expected);   // a lambda for a DynFunction has its own type: the adapter converts
+    if (haveExpected) et = ty(expected);
+    const std::size_t lambdaMin = prepareClosureDefaults(i, false);
     // `() => expr` where a function returning nothing is expected: the value is dropped, as in TypeScript
     if (haveExpected && et.elem == tVoid && n(i).kids[0] == kNone && n(n(i).kids[1]).kids.size() == 1 && n(n(n(i).kids[1]).kids[0]).kind == N::Return && !n(n(n(i).kids[1]).kids[0]).kids.empty() && n(n(n(i).kids[1]).kids[0]).kids[0] != kNone)
       a.nodes[n(n(i).kids[1]).kids[0]].kind = N::ExprStmt;
@@ -5430,6 +5437,7 @@ struct Checker {
     if (!h.shaped) { linkShapes(h); buildShapes(h); }
     for (std::uint32_t s : stmts) {
       if (n(s).kind != N::Function || a.tparams.count(s)) continue;
+      if (isNestedFunction(s)) prepareClosureDefaults(s, true);
       std::vector<std::uint32_t> ps;
       inferReturns = true; sigNeedsInfer = false;
       TypeId sig = signature(s, 2, false, ps);

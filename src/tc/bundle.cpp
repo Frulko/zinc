@@ -132,13 +132,13 @@ bool writeBundle(const BundleSpec& spec, const std::string& exe, const std::stri
   bool hasIcon = false;
   if (!spec.icon.empty()) {
     if (!fs::exists(spec.icon)) { err = "app.icon " + spec.icon + " does not exist"; return false; }
-    // an iconset of the sizes macOS asks for (sips scales the PNG, iconutil packs them): `sips -s format icns` alone refuses PNGs that are not exactly one icon size
+    // an iconset of the sizes macOS asks for (sips scales the PNG or draws the SVG, iconutil packs them): `sips -s format icns` alone refuses PNGs that are not exactly one icon size
     fs::path set = fs::temp_directory_path() / ("zinc-icon-" + std::to_string(::getpid()) + ".iconset");
     fs::remove_all(set, ec);
     fs::create_directories(set, ec);
     static const struct { int px; const char* name; } sizes[] = {{16, "icon_16x16"}, {32, "icon_16x16@2x"}, {32, "icon_32x32"}, {64, "icon_32x32@2x"}, {128, "icon_128x128"}, {256, "icon_128x128@2x"}, {256, "icon_256x256"}, {512, "icon_256x256@2x"}, {512, "icon_512x512"}, {1024, "icon_512x512@2x"}};
     for (const auto& z : sizes)
-      if (!run("sips -z " + std::to_string(z.px) + " " + std::to_string(z.px) + " " + q(spec.icon) + " --out " + q((set / (std::string(z.name) + ".png")).string()), err, "sips (scaling the icon)")) { fs::remove_all(set, ec); return false; }
+      if (!run("sips -s format png -z " + std::to_string(z.px) + " " + std::to_string(z.px) + " " + q(spec.icon) + " --out " + q((set / (std::string(z.name) + ".png")).string()), err, "sips (scaling the icon)")) { fs::remove_all(set, ec); return false; }
     bool ok = run("iconutil -c icns " + q(set.string()) + " -o " + q((res / "icon.icns").string()), err, "iconutil");
     fs::remove_all(set, ec);
     if (!ok) return false;

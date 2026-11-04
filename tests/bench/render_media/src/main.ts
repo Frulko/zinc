@@ -21,9 +21,12 @@ if (id === 'list' || id.length === 0) {
   p.play();
   let f = 0;
   console.log('ZB_SCENE ' + id + ' ' + W + 'x' + H);
+  const seconds = parseFloat(sys.env('ZB_SECONDS') || '0');   // real time, for a stream or a machine under test (ZINC_FRAMES does not wait for the clock)
+  const t0 = Date.now();
   onFrame((dt: number) => {
     clear(0x000000);
     p.draw(0, 0, W, H);
     if (++f % 30 === 0) console.log('ZB_VIDEO ' + p.decoder + ' frames=' + p.frames + ' dropped=' + p.dropped + ' position=' + p.position);
+    if (seconds > 0 && Date.now() - t0 >= seconds * 1000) { console.log('ZB_VIDEO ' + p.decoder + ' frames=' + p.frames + ' dropped=' + p.dropped + ' position=' + p.position + ' drawn=' + f); quit(); }
   });
 }

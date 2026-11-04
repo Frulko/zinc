@@ -150,20 +150,30 @@ int32_t imageFromFile(const uint8_t* file, size_t n) {   // the bytes of a PNG, 
 }
 // A JPEG or WebP of the assets directory that was left as its file (zinc pack and the Linux exports bake no photographs: decoded pixels
 // weigh ten times the file, museum-table's 87 MB): decoded at its first image() call and kept, as a baked image is.
-// ponytail: 64 names, a linear scan; a map when a program shows more photographs than that
+struct Photo { Photo* next; char* name; size_t n; int32_t id; uint32_t identity; };
+static Photo* photos;
 int32_t photoFromAssets(const char* name, uint32_t n) {
-  static struct { char name[192]; int32_t id; } seen[64];
-  static int count = 0;
+  Photo* known = nullptr;
   const char* dot = nullptr;
   for (uint32_t i = 0; i < n; i++) if (name[i] == '.') { if (i + 1 < n && name[i + 1] == '.') return -1; dot = name + i; }   // no "..": the assets only
-  if (!dot || n >= sizeof seen[0].name) return -1;
+  if (!dot || !n || name[0] == '/' || name[0] == '\\') return -1;
+  for (uint32_t i = 0; i < n; ++i) if (name[i] == ':' || name[i] == '\\' || !name[i]) return -1;
   const size_t el = n - static_cast<size_t>(dot - name);
   if (!(el == 4 && !strncasecmp(dot, ".jpg", 4)) && !(el == 5 && (!strncasecmp(dot, ".jpeg", 5) || !strncasecmp(dot, ".webp", 5)))) return -1;
-  for (int i = 0; i < count; i++) if (!strncmp(seen[i].name, name, n) && !seen[i].name[n]) return seen[i].id;
-  char path[1024];
-  if (snprintf(path, sizeof path, "%s/%.*s", zn::host::assetsRoot(), static_cast<int>(n), name) >= static_cast<int>(sizeof path)) return -1;
+  const char* root = zn::host::assetsRoot();
+  const size_t rootSize = strlen(root);
+  if (rootSize > SIZE_MAX - 2 || n > SIZE_MAX - rootSize - 2) return -1;
+  const size_t length = rootSize + 1 + n;
+  for (Photo* p = photos; p; p = p->next) if (p->n == length && !memcmp(p->name, root, rootSize) && p->name[rootSize] == '/' && !memcmp(p->name + rootSize + 1, name, n)) {
+    known = p;
+    if (zrt::raster::image_identity(p->id) == p->identity) return p->id;
+    break;
+  }
+  char* path = static_cast<char*>(malloc(length + 1));
+  if (!path) return -1;
+  memcpy(path, root, rootSize); path[rootSize] = '/'; memcpy(path + rootSize + 1, name, n); path[length] = 0;
   FILE* f = fopen(path, "rb");
-  if (!f) return -1;
+  if (!f) { free(path); return -1; }
   fseek(f, 0, SEEK_END);
   const long size = ftell(f);
   fseek(f, 0, SEEK_SET);
@@ -172,7 +182,16 @@ int32_t photoFromAssets(const char* name, uint32_t n) {
   fclose(f);
   const int32_t id = read ? imageFromFile(file, static_cast<size_t>(size)) : -1;
   free(file);
-  if (id >= 0 && count < 64) { memcpy(seen[count].name, name, n); seen[count].name[n] = 0; seen[count++].id = id; }
+  if (id >= 0) {
+    zrt::raster::dyn_set_asset(id);
+    if (!known) {
+      known = static_cast<Photo*>(malloc(sizeof(Photo)));
+      if (!known) { free(path); zrt::raster::dyn_destroy(id); return -1; }
+      *known = Photo{photos, path, length, id, 0}; photos = known; path = nullptr;
+    }
+    known->id = id; known->identity = zrt::raster::image_identity(id);
+  }
+  free(path);
   return id;
 }
 int32_t imageFromBytes(const uint64_t* slots, uint32_t n) {
@@ -202,13 +221,6 @@ static bool putRgba(int32_t id, const uint64_t* slots, uint32_t n) {
   zrt::raster::dyn_update(id, nullptr, 0);
   return true;
 }
-int32_t imageFromPixels(const uint64_t* slots, uint32_t n, int32_t w, int32_t h) {
-  if (w <= 0 || h <= 0 || w > 16384 || h > 16384 || static_cast<uint64_t>(w) * h * 4 > n) return -1;
-  const int32_t id = zrt::raster::dyn_create(w, h);
-  if (id >= 0 && !putRgba(id, slots, n)) { zrt::gfx::destroyImage(id); return -1; }
-  return id;
-}
-
 // zinc:gfx updatePixels: one u32 a pixel, red in the low byte (the bytes of an RGBA picture), into the image's ARGB.
 static bool putPacked(int32_t id, const uint64_t* slots, uint32_t n, bool forceOpaque) {
   const uint32_t* cur; int32_t w = 0, h = 0, stride = 0;
@@ -227,6 +239,12 @@ static bool putPacked(int32_t id, const uint64_t* slots, uint32_t n, bool forceO
   zrt::raster::dyn_set_alpha(id, (opaque >> 24) != 255);
   zrt::raster::dyn_update(id, nullptr, 0);
   return true;
+}
+int32_t imageFromPixels(const uint64_t* slots, uint32_t n, int32_t w, int32_t h) {
+  if (w <= 0 || h <= 0 || w > 16384 || h > 16384 || static_cast<uint64_t>(w) * h * 4 > n) return -1;
+  const int32_t id = zrt::raster::dyn_create(w, h);
+  if (id >= 0 && !putRgba(id, slots, n)) { zrt::gfx::destroyImage(id); return -1; }
+  return id;
 }
 
 static void (*frameEnd[4])();   // zn::host::onFrameEnd
@@ -287,7 +305,8 @@ void call(int id, const HostArg* a, HostArg* r) {
       hal_frame_end();
       if (!kAppShell && hal_fixed_dt() <= 0) {  // a window: keep to about 125 frames per second when presenting does not wait for the display
         uint64_t spent = hal_time_us() - frameStartUs;
-        if (spent < 8000) hal_sleep_us(8000 - spent);
+        static const bool uncapped = getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0;   // ZINC_VSYNC=0: as fast as the frames come (measurements), as in runtime/zrt.cpp
+        if (!uncapped && spent < 8000) hal_sleep_us(8000 - spent);
       }
       break;
     }
@@ -311,7 +330,6 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxImage: {   // baked, else an image entry of the mounted packs (a page of a sprite atlas, ZN-438)
       r->i = g::image(str(a[0]));
       if (r->i < 0) r->i = zn_asset_image(static_cast<const char*>(a[0].p), a[0].n);
-      if (r->i < 0) r->i = photoFromAssets(static_cast<const char*>(a[0].p), a[0].n);   // a photograph left as its file (zinc pack)
       break;
     }
     case Rt::HostGfxImageWidth: r->i = g::imageWidth(n(0)); break;
@@ -321,6 +339,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxImageFromBytes: r->i = imageFromBytes(static_cast<const uint64_t*>(a[0].p), a[0].n); break;
     case Rt::HostGfxImageFromPixels: r->i = imageFromPixels(static_cast<const uint64_t*>(a[0].p), a[0].n, n(1), n(2)); break;
     case Rt::HostGfxUpdateImage: putRgba(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n); break;
+    case Rt::HostGfxUpdatePixels: putPacked(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n, a[2].i != 0); break;
     case Rt::HostGfxShaderProgram: r->i = g::shaderProgram(str(a[0]), n(1)); zn_hal_sdl_gpu_layers(); break;   // a window that can still put a GPU layer under its frame does
     case Rt::HostGfxDrawShader: g::drawShader(n(0), a[1].d, a[2].d, a[3].d, a[4].d, static_cast<const double*>(a[5].p), a[5].n); break;
     case Rt::HostGfxShaderAvailable: r->i = g::shaders_drawn ? 1 : 0; break;
@@ -334,7 +353,6 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostGfxWidth: r->i = g::width(); break;
     case Rt::HostGfxHeight: r->i = g::height(); break;
     case Rt::HostGfxPixelScale: r->i = g::pixelScale(); break;
-    case Rt::HostGfxUpdatePixels: putPacked(n(0), static_cast<const uint64_t*>(a[1].p), a[1].n, a[2].i != 0); break;
     case Rt::HostGfxPoll: {  // the start of a frame as the runtime's loop does it: input, then the time step (fixed headless, measured with a window)
       hal_frame_begin();
       zrt::prev_input = zrt::input;
@@ -452,6 +470,12 @@ void call(int id, const HostArg* a, HostArg* r) {
 
 }  // namespace
 
+extern "C" int zn_asset_photo(const char* name, uint32_t n) { return photoFromAssets(name, n); }
+extern "C" void zn_asset_photo_free(int id) {
+  for (Photo* p = photos; p; p = p->next)
+    if (p->id == id && p->identity == zrt::raster::image_identity(id)) { zrt::raster::dyn_destroy(id); return; }
+}
+
 namespace zn::host {
 void startGfx() { startSurface(); }
 bool replayScene(const char* scene, const char* out) { return zrt::gfx::scene_replay(scene, out); }
@@ -491,9 +515,9 @@ static const char* gEngine = "AOT";   // an AOT program's; zinc run names the in
 static const char* hudInfo() {   // the perf panel's engine line (ZN-375): the runtime allocator's blocks and allocations since the previous frame (ZN-192)
   static char line[64];
   static std::uint64_t last = 0;
-  const std::uint64_t a = zn::rt::gAllocs;
+  const std::uint64_t a = zn::rt::gAllocs();
   if (!strcmp(gEngine, "QuickJS")) snprintf(line, sizeof line, "%s", gEngine);   // its objects are not the runtime allocator's
-  else snprintf(line, sizeof line, "%s %llu blk +%llu/f", gEngine, (unsigned long long)(a - zn::rt::gFrees), (unsigned long long)(last ? a - last : 0));
+  else snprintf(line, sizeof line, "%s %llu blk +%llu/f", gEngine, (unsigned long long)(a - zn::rt::gFrees()), (unsigned long long)(last ? a - last : 0));
   last = a;
   return line;
 }

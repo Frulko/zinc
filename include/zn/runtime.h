@@ -452,7 +452,7 @@ inline constexpr bool isSysTailRow(Rt r) {
          (r >= Rt::HostFsSymlink && r <= Rt::HostOsNetField) ||   // zinc:fs symlink, readlink, chmod and zinc:os uid, gid, shell, cpus, networkInterfaces
          r == Rt::HostCrypto || r == Rt::HostCryptoError ||   // zinc:subtle
          (r >= Rt::HostHttpFetch && r <= Rt::HostHttpServeTls) || r == Rt::HostHttpError || r == Rt::HostEvPayload || r == Rt::HostSysBytesToString || r == Rt::HostHttpReplyFile || r == Rt::HostHttpFetchBytes || (r >= Rt::HostHttpOption && r <= Rt::HostHttpSetCert) || r == Rt::HostHttpFetchFile ||   // zinc:net, its server too
-         r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync || r == Rt::HostFsAppendBytes || (r >= Rt::HostEvPayloadBytes && r <= Rt::HostHttpBodyBytes);
+         r == Rt::HostFsWriteAsync || r == Rt::HostFsReadAsync || r == Rt::HostFsAppendBytes || r == Rt::HostResourceStats || (r >= Rt::HostEvPayloadBytes && r <= Rt::HostHttpBodyBytes);
 }
 // Runtime rows appended after the host ones (ids are kept in bytecode, so a new row goes at the end): the runtime runs them, not a host.
 inline constexpr bool isCoreTailRow(Rt r) { return r == Rt::StrJsonQuote || r == Rt::ArrCopyWithin || r == Rt::ArrSet || r == Rt::RecDecode || r == Rt::RecEncode; }

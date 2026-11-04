@@ -56,8 +56,8 @@ export function _show(parent: i32, when: () => boolean, render: () => i32, fallb
 }
 
 /** {items.map(...)}: a keyed list under Solid, every item rendered in order under React. */
-export function _for<T>(parent: i32, each: () => T[], render: (item: T, i: i32) => i32): void {
-  if (fineGrained()) { solid._for(parent, each, render); return; }
+export function _for<T>(parent: i32, each: () => T[], render: (item: T, i: i32) => i32, indexed: boolean = false): void {
+  if (fineGrained()) { solid._for(parent, each, render, indexed); return; }
   const frag = react._el(ui.FRAGMENT);
   ui.insert(parent, frag, -1);
   const items = each();

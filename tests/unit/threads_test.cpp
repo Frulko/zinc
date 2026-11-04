@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
   if (!zn::zbc::decode(bytes, mod, err) || !(err = zn::zbc::verify(mod)).empty()) { std::fprintf(stderr, "threads_test: %s\n", err.c_str()); return 2; }
   zn::host::installSys();
   auto run = [&](std::string& out) {
-    zn::rt::gOnWorker = true;   // a worker's thread: no native registry, no window
+    zn::rt::gOnWorker() = true;   // a worker's thread: no native registry, no window
     zn::rt::Result r = zn::rt::runModuleHooked(mod, out, false, nullptr, nullptr, nullptr, nullptr, 0, 0, false);   // the output kept, not written
     if (!r.ok) out += "\nerror: " + r.error;
   };

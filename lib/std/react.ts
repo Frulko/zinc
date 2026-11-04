@@ -47,6 +47,7 @@ export function _active(): boolean { return instances.length > 0; }
 
 function rerender(inst: Instance): void {
   if (inst.dead) return;
+  ui.beginChildUpdate();
   inst.index = 0;
   inst.effects = [];
   inst.cursor = 0; inst.kidCursor = 0;
@@ -62,6 +63,7 @@ function rerender(inst: Instance): void {
   inst.nodes = inst.nextNodes; inst.tags = inst.nextTags; inst.kids = inst.nextKids;
   ui.detachChildren(inst.host);
   if (node !== null) ui.insert(inst.host, node, -1);
+  ui.endChildUpdate();
   for (const e of inst.effects) e();  // useLayoutEffect/useEffect: after the tree is committed
 }
 function unmount(inst: Instance): void {

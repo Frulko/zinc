@@ -11,7 +11,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <deque>
 
 #include "rt/rt.h"
 #include "rt/unicode.h"
@@ -391,7 +390,8 @@ std::string toFixed(double v, int digits) {
   for (int i = 0; i < digits && i < 22; i++) p *= 10;
   double y = m * p;  // an exact tie gives exactly k + 0.5 here
   if (digits <= 22 && y < 4503599627370496.0 && y - static_cast<double>(static_cast<long long>(y)) != 0.5) return b;
-  thread_local char ex[1100];
+  using FixedDigits = char[1100];
+  ZN_THREAD_LOCAL(FixedDigits, ex, {});
   int en = std::snprintf(ex, sizeof ex, "%.1074f", m);
   const char* dot = std::strchr(ex, '.');
   if (en <= 0 || en >= static_cast<int>(sizeof ex) || !dot) return b;
@@ -796,7 +796,7 @@ void redrawFrame() {
 }  // namespace
 
 const char* gStop = nullptr;
-thread_local bool gOnWorker = false;
+bool& gOnWorker() { struct State { bool value = false; }; return zn::threadLocal<State>().value; }
 bool gExitEndsRun = false;
 const char* gDeviceProfile = nullptr;
 
@@ -817,10 +817,10 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
   if (gStop) return gStop;
   if (id == Rt::HostSysExit) {
     m.flushOut();
-    if (gExitEndsRun || gOnWorker) { thread_local std::string why; why ="exit " + std::to_string(static_cast<std::int32_t>(a[0])); return why.c_str(); }
+    if (gExitEndsRun || gOnWorker()) { ZN_THREAD_LOCAL(std::string, why, {}); why ="exit " + std::to_string(static_cast<std::int32_t>(a[0])); return why.c_str(); }
     std::exit(static_cast<int>(static_cast<std::int32_t>(a[0])));
   }
-  if (gOnWorker) {
+  if (gOnWorker()) {
     if (worker::stopping()) return "terminated";   // terminate(): the worker's program ends at its next host call
     if (!sys || isLayoutRow(id) || isGlRow(id)) return "this module draws or lays out: it is not available in a worker (do the drawing on the main side and post the result)";
   }
@@ -830,7 +830,7 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
   if (id == Rt::HostEvReady) worker::deliver();     // the messages of zinc:worker become events of this loop
   else if (id == Rt::HostLoopWait) worker::idleWait();
   if (!call && gDeviceProfile) {
-    thread_local std::string why;
+    ZN_THREAD_LOCAL(std::string, why, {});
     why = std::string(isLayoutRow(id) ? "the rn layout engine" : isGlRow(id) ? "zinc:gl" : sys ? "the system modules" : "zinc:gfx") + " is not available on this device (profile " + gDeviceProfile + ")";
     return why.c_str();
   }
@@ -853,7 +853,7 @@ static const char* hostRt(Machine& m, Rt id, Slot* a, Slot* scratch) {
     call(static_cast<int>(id), args, &res);
     gRedraw = saved;
     if (!gRedrawError.empty()) {
-      thread_local std::string msg;
+      ZN_THREAD_LOCAL(std::string, msg, {});
       msg = gRedrawError.rfind("panic: ", 0) == 0 ? gRedrawError.substr(7) : gRedrawError;
       gRedrawError.clear();
       return msg.c_str();
@@ -891,18 +891,18 @@ struct CbEntry {
 };
 struct PromiseEntry { std::uint64_t resolve, reject; char of; };
 
-thread_local std::unordered_map<std::uint64_t, CbEntry> gCbs;   // per thread: each worker runs its own Machine (D181)
-thread_local std::unordered_map<std::uint64_t, PromiseEntry> gPromises;
-thread_local std::uint64_t gCbNext = 1;
-thread_local std::string gCbError;   // the message of the last closure that threw
-const char* cbError(void*) { return gCbError.c_str(); }
-thread_local Machine* gMachine = nullptr;
-thread_local Slot* gScratch = nullptr;   // the frame above the running call: where a callback's own frame goes
+auto& gCbs() { struct State { std::unordered_map<std::uint64_t, CbEntry> value{}; }; return zn::threadLocal<State>().value; }   // per thread: each worker runs its own Machine (D181)
+auto& gPromises() { struct State { std::unordered_map<std::uint64_t, PromiseEntry> value{}; }; return zn::threadLocal<State>().value; }
+auto& gCbNext() { struct State { std::uint64_t value = 1; }; return zn::threadLocal<State>().value; }
+auto& gCbError() { struct State { std::string value{}; }; return zn::threadLocal<State>().value; }   // the message of the last closure that threw
+const char* cbError(void*) { return gCbError().c_str(); }
+auto& gMachine() { struct State { Machine* value = nullptr; }; return zn::threadLocal<State>().value; }
+auto& gScratch() { struct State { Slot* value = nullptr; }; return zn::threadLocal<State>().value; }   // the frame above the running call: where a callback's own frame goes
 
 void cbUnref(std::uint64_t h) {
-  auto it = gCbs.find(h);
-  if (it == gCbs.end()) return;
-  if (--it->second.rc == 0) { Obj* fn = it->second.fn; gCbs.erase(it); if (gMachine) gMachine->release(fn); }
+  auto it = gCbs().find(h);
+  if (it == gCbs().end()) return;
+  if (--it->second.rc == 0) { Obj* fn = it->second.fn; gCbs().erase(it); if (gMachine()) gMachine()->release(fn); }
 }
 
 const ClassRT* arrayClassFor(Machine& m, char letter) {   // the array class whose elements are integers (B, I) or f64 (D)
@@ -937,23 +937,23 @@ bool toSlot(Machine& m, char letter, const ZnVal& v, Slot& out) {
 
 // Runs closure `h` with the arguments of the module; false when it traps (the message is in the machine's error).
 std::int32_t runClosure(void*, std::uint64_t h, const ZnVal* args, std::uint32_t n, ZnVal* ret) {
-  auto it = gCbs.find(h);
-  if (it == gCbs.end() || !gMachine || !gScratch || !it->second.call) return -1;
+  auto it = gCbs().find(h);
+  if (it == gCbs().end() || !gMachine() || !gScratch() || !it->second.call) return -1;
   CbEntry e = it->second;   // a copy: the table may change while the closure runs
-  Machine& m = *gMachine;
+  Machine& m = *gMachine();
   m.retain(e.fn);
-  Slot* frame = gScratch;
+  Slot* frame = gScratch();
   frame[0] = reinterpret_cast<Slot>(e.fn);
   for (std::uint32_t k = 0; k < n && k < e.params.size(); ++k) if (!toSlot(m, e.params[k], args[k], frame[1 + k])) return -1;
-  Slot* saved = gScratch;
-  gScratch = frame + 1 + e.params.size() + 8;   // a nested call (the closure calls a native that calls back) starts above this frame
+  Slot* saved = gScratch();
+  gScratch() = frame + 1 + e.params.size() + 8;   // a nested call (the closure calls a native that calls back) starts above this frame
   std::size_t depth = m.depth;
   bool ok = m.exec(e.call, frame);
-  gScratch = saved;
+  gScratch() = saved;
   if (!ok) {   // the closure threw: its message goes to the module, which may turn it into an error of its own; the machine carries on
     std::string msg = m.error;
     if (msg.rfind("panic: ", 0) == 0) msg = msg.substr(7);
-    gCbError = msg;
+    gCbError() = msg;
     m.error.clear();
     m.depth = depth;
     return -1;
@@ -964,21 +964,21 @@ std::int32_t runClosure(void*, std::uint64_t h, const ZnVal* args, std::uint32_t
       case 'i': ret->i = static_cast<std::int32_t>(frame[0]); break;
       case 'u': ret->i = static_cast<std::uint32_t>(frame[0]); break;
       case 'b': ret->i = frame[0] != 0; break;
-      case 's': { StrObj* s = S(frame[0]); thread_local std::string keep; keep.assign(s ? s->data() : "", s ? s->len : 0); ret->s.p = keep.data(); ret->s.n = static_cast<std::uint32_t>(keep.size()); m.releaseSlot(frame[0]); break; }
+      case 's': { StrObj* s = S(frame[0]); ZN_THREAD_LOCAL(std::string, keep, {}); keep.assign(s ? s->data() : "", s ? s->len : 0); ret->s.p = keep.data(); ret->s.n = static_cast<std::uint32_t>(keep.size()); m.releaseSlot(frame[0]); break; }
       default: break;
     }
   }
   return 0;
 }
 
-void sinkHold(void*, std::uint64_t h) { auto it = gCbs.find(h); if (it != gCbs.end()) ++it->second.rc; }
+void sinkHold(void*, std::uint64_t h) { auto it = gCbs().find(h); if (it != gCbs().end()) ++it->second.rc; }
 void sinkRelease(void*, std::uint64_t h) { cbUnref(h); }
 
 void settle(std::uint64_t promise, bool ok, const ZnVal* v, const char* message) {
-  auto it = gPromises.find(promise);
-  if (it == gPromises.end()) return;
+  auto it = gPromises().find(promise);
+  if (it == gPromises().end()) return;
   PromiseEntry pe = it->second;
-  gPromises.erase(it);
+  gPromises().erase(it);
   ZnVal arg{};
   if (ok) {
     if (pe.of != 'n' && v) runClosure(nullptr, pe.resolve, v, 1, nullptr);
@@ -995,8 +995,8 @@ void sinkResolve(void*, std::uint64_t p, const ZnVal* v) { settle(p, true, v, nu
 void sinkReject(void*, std::uint64_t p, const char* msg) { settle(p, false, nullptr, msg); }
 
 void installSink(Machine& m) {
-  if (gMachine == &m) return;
-  gMachine = &m;
+  if (gMachine() == &m) return;
+  gMachine() = &m;
   ZnSink sink{&m, sinkResolve, sinkReject, runClosure, sinkRelease, cbError, sinkHold};
   zn_native_set_sink(&sink);
 }
@@ -1013,15 +1013,15 @@ std::uint64_t cbRegister(Machine& m, Obj* fn, const std::string& inner) {
     if (m.mod->selectors[sel].name == "call" && m.mod->selectors[sel].params.size() == params.size() && c.method(sel)) call = c.method(sel);
   if (!call) return 0;
   m.retain(fn);
-  std::uint64_t h = gCbNext++;
-  gCbs[h] = CbEntry{fn, call, params, result, 1};
+  std::uint64_t h = gCbNext()++;
+  gCbs()[h] = CbEntry{fn, call, params, result, 1};
   return h;
 }
 
 }  // namespace
 
 void rebindCallbacks(Machine& m) {
-  for (auto& [h, e] : gCbs) {
+  for (auto& [h, e] : gCbs()) {
     const ClassRT& c = *e.fn->cls;
     e.call = nullptr;
     for (std::uint32_t sel : m.mod->classes[c.id].selectors)
@@ -1030,54 +1030,54 @@ void rebindCallbacks(Machine& m) {
 }
 
 void nativeEnd(Machine& m) {
-  if (gMachine != &m) return;
-  for (auto& kv : gPromises) { cbUnref(kv.second.resolve); cbUnref(kv.second.reject); }
-  gPromises.clear();
+  if (gMachine() != &m) return;
+  for (auto& kv : gPromises()) { cbUnref(kv.second.resolve); cbUnref(kv.second.reject); }
+  gPromises().clear();
   zn_native_drop_callbacks();
   std::vector<std::uint64_t> rest;
-  for (auto& kv : gCbs) rest.push_back(kv.first);
-  for (std::uint64_t h : rest) { auto it = gCbs.find(h); if (it != gCbs.end()) { it->second.rc = 1; cbUnref(h); } }
-  gMachine = nullptr;
-  gScratch = nullptr;
+  for (auto& kv : gCbs()) rest.push_back(kv.first);
+  for (std::uint64_t h : rest) { auto it = gCbs().find(h); if (it != gCbs().end()) { it->second.rc = 1; cbUnref(h); } }
+  gMachine() = nullptr;
+  gScratch() = nullptr;
   zn_native_set_sink(nullptr);
 }
 
 // The loop's turn for the native modules: their pollers, the queued posts and completions (the callbacks run here); whether native work is still pending.
 std::int32_t nativePoll(Machine& m, Slot* scratch, bool run) {
-  if (gOnWorker) return 0;   // the native registry (its sink, queue and resources) is the main program's: no plugin runs in a worker yet (D181)
+  if (gOnWorker()) return 0;   // the native registry (its sink, queue and resources) is the main program's: no plugin runs in a worker yet (D181)
   installSink(m);
-  gScratch = scratch;
+  gScratch() = scratch;
   if (run) {
     zn_native_poll(0); zn_native_drain();
     // A deterministic run has no wall clock to race: an asynchronous native call (a camera scan on a thread) completes before the next frame, as it does in the prototype's runtime.
     // ZN-223: bounded by a budget for the whole run, so a promise that waits for the outside world cannot stall every frame.
     static const bool det = std::getenv("ZINC_DETERMINISTIC") && !std::getenv("ZINC_REALTIME");
     static std::int64_t budgetMs = 3000;   // the main thread's only (workers return above)
-    for (; det && !gPromises.empty() && budgetMs > 0; --budgetMs) {
+    for (; det && !gPromises().empty() && budgetMs > 0; --budgetMs) {
 #ifndef __wasi__
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
 #endif
       zn_native_poll(0); zn_native_drain();
     }
   }
-  return zn_native_pending() > 0 || !gPromises.empty() ? 1 : 0;
+  return zn_native_pending() > 0 || !gPromises().empty() ? 1 : 0;
 }
 
 const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch) {
   const zbc::Native& nt = m.mod->natives[idx];
-  if (gOnWorker) { m.error = "native " + nt.module + "." + nt.name + ": native modules run on the main thread only, not in a worker"; return m.error.c_str(); }
+  if (gOnWorker()) { m.error = "native " + nt.module + "." + nt.name + ": native modules run on the main thread only, not in a worker"; return m.error.c_str(); }
   nsig::Sig sg;
   nsig::parse(nt.sig.c_str(), sg);   // the verifier checked the signature
   installSink(m);
-  Slot* savedScratch = gScratch;
-  gScratch = scratch;
+  Slot* savedScratch = gScratch();
+  gScratch() = scratch;
   const std::string& ps = sg.params;
   ZnVal args[16], ret;
-  std::deque<std::vector<std::uint8_t>> packed;   // u8 and i32 arrays are packed for the call
-  std::deque<std::vector<ZnStr>> strViews;        // string[] arguments
+  std::vector<std::vector<std::uint8_t>> packed;   // moving a vector preserves its array's address; scalar calls allocate nothing here
+  std::vector<std::vector<ZnStr>> strViews;        // string[] arguments
   std::vector<std::uint64_t> handles;             // the closures of this call: its own reference ends when it returns
   std::size_t cbi = 0;
-  auto fail = [&](const char* msg) { for (std::uint64_t h : handles) cbUnref(h); gScratch = savedScratch; return msg; };
+  auto fail = [&](const char* msg) { for (std::uint64_t h : handles) cbUnref(h); gScratch() = savedScratch; return msg; };
   for (std::size_t k = 0; k < ps.size() && k < 12; ++k) {
     ZnVal& v = args[k];
     switch (ps[k]) {
@@ -1139,9 +1139,9 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch) {
       else arr->v.push_back(static_cast<Slot>(static_cast<std::int64_t>(static_cast<const std::int32_t*>(args[k].v.p)[j])));
     }
   }
-  gScratch = savedScratch;
+  gScratch() = savedScratch;
   if (sg.result == 'P') {
-    if (st == ZN_PENDING) { gPromises[zn_native_last_promise()] = PromiseEntry{resolveH, rejectH, sg.promiseOf}; return nullptr; }
+    if (st == ZN_PENDING) { gPromises()[zn_native_last_promise()] = PromiseEntry{resolveH, rejectH, sg.promiseOf}; return nullptr; }
     cbUnref(resolveH);
     cbUnref(rejectH);
     if (st == ZN_OK) return "native: an export with a promise result did not take its promise";
@@ -1170,7 +1170,8 @@ const char* nativeCall(Machine& m, std::uint32_t idx, Slot* a, Slot* scratch) {
 // as bytes. The spec's wrapper converts the tree to the declared type (the checked Dyn conversion), and gives a typed value as a Dyn view to encode.
 namespace {
 const rec::Schema* recSchema(const StrObj* text) {   // parsed once per schema text of the program
-  thread_local std::unordered_map<std::string, rec::Schema> cache;   // per thread: workers decode their messages by it
+  using Schemas = std::unordered_map<std::string, rec::Schema>;
+  ZN_THREAD_LOCAL(Schemas, cache, {});   // per thread: workers decode their messages by it
   std::string k(text->data(), text->len);
   auto it = cache.find(k);
   if (it != cache.end()) return &it->second;
@@ -1649,7 +1650,7 @@ const char* rtCall(Machine& m, Rt id, Slot* a, Slot* scratch) {
       }
       RecDyn d{m, 0, {}};
       rec::Writer w;
-      thread_local std::string err;
+      ZN_THREAD_LOCAL(std::string, err, {});
       if (!d.encode(a[0], *s, w, err, "")) { err = "native record: " + err; return err.c_str(); }
       const ClassRT* cls = arrayClassFor(m, 'B');
       if (!cls) return "native record: the program has no u8[] class";

@@ -92,7 +92,7 @@ struct ResourceProvider { const char* name; ZnResourceStatsFn read; void* owner;
 ResourceProvider resourceProviders[64];
 unsigned resourceProviderCount;
 ZnResourceStats assetStats(void*) { return {0, (uint64_t)zn::host::assets::stat(0), 0, 0, (uint64_t)zn::host::assets::stat(5)}; }
-ZnResourceStats runtimeStats(void*) { return {zn::rt::gAllocs - zn::rt::gFrees, 0, 0, 0, 0}; }
+ZnResourceStats runtimeStats(void*) { return {zn::rt::gAllocs() - zn::rt::gFrees(), 0, 0, 0, 0}; }
 std::string resourceSnapshot() {
   static ZnResourceStatsRegistration runtimeStatsRegistration("runtime.blocks", runtimeStats);
   static ZnResourceStatsRegistration assetsStats("assets.resident", assetStats);
@@ -846,7 +846,12 @@ std::string esc(const std::string& s) { std::string r; for (char c : s) { if (c 
 std::string unesc(const std::string& s) { std::string r; for (size_t i = 0; i < s.size(); ++i) { if (s[i] == '\\' && i + 1 < s.size()) { char c = s[++i]; r += c == 't' ? '\t' : c == 'n' ? '\n' : c; } else r += s[i]; } return r; }
 std::map<std::string, std::string> storageRead(const std::string& path) {
   std::map<std::string, std::string> m;
-  std::ifstream in(path);
+  std::string contents;
+  if (const int error = readFile(path, contents)) {
+    if (error != ENOENT) fail("read storage", path, error);
+    return m;
+  }
+  std::istringstream in(contents);
   std::string line;
   while (std::getline(in, line)) { size_t t = line.find('\t'); if (t != std::string::npos) m[unesc(line.substr(0, t))] = unesc(line.substr(t + 1)); }
   return m;
@@ -868,7 +873,7 @@ std::map<std::string, std::string> storageLoad() {
       for (auto it = shared.begin(); it != shared.end();) {
         if (it->first.compare(0, prefix.size(), prefix) == 0) { m[it->first] = it->second; it = shared.erase(it); moved = true; } else ++it;
       }
-      if (moved) { storageWrite(p, m); storageWrite(legacyStoragePath(), shared); }
+      if (moved) { storageWrite(p, m); if (!gFailed) storageWrite(legacyStoragePath(), shared); }
     }
   }
   return m;
@@ -876,9 +881,26 @@ std::map<std::string, std::string> storageLoad() {
 void storageSave(const std::map<std::string, std::string>& m) { storageWrite(storagePath(), m); }
 void storageWrite(const std::string& p, const std::map<std::string, std::string>& m) {
   size_t slash = p.find_last_of('/');
-  if (slash != std::string::npos) mkdirs(p.substr(0, slash));
-  std::ofstream out(p, std::ios::trunc);
-  for (auto& [k, v] : m) out << esc(k) << '\t' << esc(v) << '\n';
+  if (slash != std::string::npos && !mkdirs(p.substr(0, slash))) { fail("mkdir storage", p); return; }
+  std::string contents;
+  for (auto& [k, v] : m) contents += esc(k) + '\t' + esc(v) + '\n';
+  std::string pattern = p + ".tmp.XXXXXX";
+  std::vector<char> temporary(pattern.begin(), pattern.end());
+  temporary.push_back('\0');
+  const int fd = mkstemp(temporary.data());
+  if (fd < 0) { fail("write storage", p); return; }
+  std::FILE* out = fdopen(fd, "wb");
+  if (!out) {
+    const int error = errno;
+    close(fd);
+    unlink(temporary.data());
+    fail("write storage", p, error);
+    return;
+  }
+  int error = std::fwrite(contents.data(), 1, contents.size(), out) == contents.size() ? 0 : (errno ? errno : EIO);
+  if (std::fclose(out) != 0 && !error) error = errno ? errno : EIO;
+  if (!error && rename(temporary.data(), p.c_str()) != 0) error = errno;
+  if (error) { unlink(temporary.data()); fail("write storage", p, error); }
 }
 
 // The directory zinc:assets reads. ZINC_ASSETS decides (zinc run sets it to the project's assets; an override while developing). A program built ahead
@@ -991,8 +1013,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysEnv: { const char* v = getenv(s(0).c_str()); ret(r, v ? v : ""); break; }
     case Rt::HostSysPlatform: ret(r, zn::runPlatform()); break;   // android and ios on the phones; ZINC_PLATFORM forces it (zn/platform.h)
     case Rt::HostSysPid: r->i = getpid(); break;
-    case Rt::HostSysAllocations: r->d = static_cast<double>(zn::rt::gAllocs); break;
-    case Rt::HostSysLiveBlocks: r->d = static_cast<double>(zn::rt::gAllocs - zn::rt::gFrees); break;
+    case Rt::HostSysAllocations: r->d = static_cast<double>(zn::rt::gAllocs()); break;
+    case Rt::HostSysLiveBlocks: r->d = static_cast<double>(zn::rt::gAllocs() - zn::rt::gFrees()); break;
     case Rt::HostSysCwd: { char b[4096]; ret(r, getcwd(b, sizeof b) ? b : ""); break; }
     case Rt::HostSysLaunchDir: { const char* d = getenv("ZINC_LAUNCH_DIR"); ret(r, d && *d ? std::string(d) : startDir()); break; }   // zinc run sets it before entering the project
     case Rt::HostSysLocale: ret(r, systemLocale()); break;
@@ -1122,8 +1144,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     }
     // ---- zinc:storage
     case Rt::HostStorageGet: { auto m = storageLoad(); auto it = m.find(s(0)); ret(r, it == m.end() ? "" : it->second); break; }
-    case Rt::HostStorageSet: { auto m = storageLoad(); m[s(0)] = s(1); storageSave(m); break; }
-    case Rt::HostStorageRemove: { auto m = storageLoad(); m.erase(s(0)); storageSave(m); break; }
+    case Rt::HostStorageSet: { auto m = storageLoad(); if (gFailed) break; m[s(0)] = s(1); storageSave(m); break; }
+    case Rt::HostStorageRemove: { auto m = storageLoad(); if (gFailed) break; m.erase(s(0)); storageSave(m); break; }
     case Rt::HostStorageKeysCount: { gNames.clear(); for (auto& kv : storageLoad()) gNames.push_back(kv.first); r->i = static_cast<std::int64_t>(gNames.size()); break; }
     case Rt::HostStorageKey: ret(r, n(0) >= 0 && static_cast<size_t>(n(0)) < gNames.size() ? gNames[static_cast<size_t>(n(0))] : ""); break;
     // ---- zinc:assets: the data entries of the mounted packs first (src/host/assets_host.h, ZN-436), then a directory on disk (assetsDir)
@@ -1652,12 +1674,14 @@ static int32_t packImage(const std::string& key, int32_t id) {
   if (blocks) zrt::raster::dyn_set_blocks(id, f->gl, data, static_cast<uint32_t>(zn::zim::levelBytes(*f, w, h)), premultiplied);   // level 0: the 2D renderers draw no mipmaps
   return id;
 }
+extern "C" int zn_asset_photo(const char*, uint32_t) __attribute__((weak));
+extern "C" void zn_asset_photo_free(int) __attribute__((weak));
 extern "C" int zn_asset_image(const char* name, uint32_t n) {
   const std::string key(name, n);
   if (auto it = gPackImages.find(key); it != gPackImages.end()) return it->second;
   const int32_t id = packImage(key, -1);
   if (id >= 0) gPackImages[key] = id;
-  return id;
+  return id >= 0 || !zn_asset_photo ? id : zn_asset_photo(name, n);
 }
 // Whether an asset can be had without waiting: always on a desktop (the packs are in memory or on a fast disk); a console with an SD pack waits.
 extern "C" int zn_asset_ready(const char*, uint32_t) { return 1; }
@@ -1665,6 +1689,7 @@ extern "C" int zn_asset_ready(const char*, uint32_t) { return 1; }
 extern "C" void zn_asset_image_free(int id) {
   for (auto it = gPackImages.begin(); it != gPackImages.end(); ++it)
     if (it->second == id) { zrt::raster::dyn_destroy(id); gPackImages.erase(it); return; }
+  if (zn_asset_photo_free) zn_asset_photo_free(id);
 }
 // zinc:assets readBytes for a native module (zinc:3d's models): the whole entry in one call, a malloc'd copy the caller frees; null when
 // it is in no pack and not in assetsDir.

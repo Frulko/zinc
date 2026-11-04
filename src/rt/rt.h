@@ -32,13 +32,13 @@ void heapAccount(void* p, bool add);
 
 // Object memory: mimalloc, except in sanitizer builds (ZN_NO_MIMALLOC), where the plain allocator keeps ASan's checks.
 #ifdef ZN_NO_MIMALLOC
-inline void* allocRaw(std::size_t n) { ++gAllocs; return std::malloc(n); }
-inline void* allocZero(std::size_t n) { ++gAllocs; return std::calloc(1, n); }
-inline void freeRaw(void* p) { if (p) ++gFrees; std::free(p); }
+inline void* allocRaw(std::size_t n) { ++gAllocs(); return std::malloc(n); }
+inline void* allocZero(std::size_t n) { ++gAllocs(); return std::calloc(1, n); }
+inline void freeRaw(void* p) { if (p) ++gFrees(); std::free(p); }
 #else
-inline void* allocRaw(std::size_t n) { ++gAllocs; void* p = mi_malloc(n); if (gHeapBudgetOn) heapAccount(p, true); return p; }
-inline void* allocZero(std::size_t n) { ++gAllocs; void* p = mi_zalloc(n); if (gHeapBudgetOn) heapAccount(p, true); return p; }
-inline void freeRaw(void* p) { if (p) ++gFrees; if (gHeapBudgetOn) heapAccount(p, false); mi_free(p); }
+inline void* allocRaw(std::size_t n) { ++gAllocs(); void* p = mi_malloc(n); if (gHeapBudgetOn) heapAccount(p, true); return p; }
+inline void* allocZero(std::size_t n) { ++gAllocs(); void* p = mi_zalloc(n); if (gHeapBudgetOn) heapAccount(p, true); return p; }
+inline void freeRaw(void* p) { if (p) ++gFrees(); if (gHeapBudgetOn) heapAccount(p, false); mi_free(p); }
 #endif
 
 // An allocator over allocRaw for the containers of the runtime's objects (arrays, Maps, Sets): the objects stay on mimalloc without replacing the global operator new,
@@ -306,7 +306,7 @@ std::int32_t nativePoll(Machine& m, Slot* scratch, bool run);
 // The program ended: pending promises and the callbacks that modules still hold are released, so that nothing of the program outlives it.
 void nativeEnd(Machine& m);
 // True on the thread of a worker (zinc:worker, D181): its Machine has no native modules, no window and no redraw hook.
-extern thread_local bool gOnWorker;
+bool& gOnWorker();
 // The machine's code was replaced (zinc dev's Fast Refresh, ZN-742): the callbacks native modules hold find their `call` method again in it.
 void rebindCallbacks(Machine& m);
 

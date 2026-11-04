@@ -21,6 +21,7 @@ __attribute__((export_name("zn_run"))) int zn_run(const std::uint8_t* zbc, int l
   if (!zn::zbc::decode(bytes, m, err)) { std::fprintf(stderr, "%s\n", err.c_str()); return 1; }
   err = zn::zbc::verify(m);
   if (!err.empty()) { std::fprintf(stderr, "invalid ZBC: %s\n", err.c_str()); return 1; }
+  std::vector<std::uint8_t>().swap(bytes);   // the decoded module owns its tables
   std::string out;
   auto res = zn::vm::run(m, out, false);
   return zn::rt::report(res, out, false);

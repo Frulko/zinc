@@ -205,9 +205,15 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
     set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
     set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
     set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
-    foreach(sub AUDIO CAMERA GPU HAPTIC SENSOR POWER DIALOG TRAY VULKAN RENDER_D3D RENDER_D3D11 RENDER_D3D12 DIRECTX)   # what the HAL does not use: video, events, clipboard, touch, pen, GL, and for gamepads joysticks with HIDAPI, as SDL builds them by default (ZN-574); the Direct3D render drivers are Windows-only and not vendored (docs/targets/windows.md)
+    foreach(sub AUDIO CAMERA GPU HAPTIC POWER DIALOG TRAY VULKAN RENDER_D3D RENDER_D3D11 RENDER_D3D12 DIRECTX)   # what the HAL does not use: video, events, clipboard, touch, pen, GL, and for gamepads joysticks with HIDAPI, as SDL builds them by default (ZN-574); the Direct3D render drivers are Windows-only and not vendored (docs/targets/windows.md)
       set(SDL_${sub} OFF CACHE BOOL "" FORCE)
     endforeach()
+    # Zinc Go opens the mobile accelerometer for its shake menu; compiling it does not activate it in ordinary apps.
+    if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
+      set(SDL_SENSOR ON CACHE BOOL "" FORCE)
+    else()
+      set(SDL_SENSOR OFF CACHE BOOL "" FORCE)
+    endif()
     foreach(sub JOYSTICK HIDAPI VIRTUAL_JOYSTICK)   # forced on: a build directory older than ZN-574 has them cached off
       set(SDL_${sub} ON CACHE BOOL "" FORCE)
     endforeach()
@@ -287,7 +293,7 @@ if(ZN_HOST_GFX AND EXISTS ${ZN_RUNTIME_DIR}/gfx.cpp)
       if(ZN_SDL_VENDORED_BUILD)
         target_link_libraries(zn_window PRIVATE "-Wl,-force_load,${CMAKE_CURRENT_BINARY_DIR}/third_party/SDL3/libSDL3.a")
         add_dependencies(zn_window SDL3-static)
-        foreach(fw Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore AppKit CoreFoundation CoreGraphics CoreServices GameController CoreHaptics ForceFeedback)
+        foreach(fw Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore IOSurface AppKit CoreFoundation CoreGraphics CoreServices GameController CoreHaptics ForceFeedback)
           target_link_libraries(zn_window PRIVATE "-framework ${fw}")
         endforeach()
         target_link_libraries(zn_window PRIVATE "-weak_framework UniformTypeIdentifiers")   # SDL guards its macOS 11+ APIs; Catalina has no such framework
@@ -340,7 +346,7 @@ set_target_properties(zn_webp PROPERTIES C_STANDARD 99 POSITION_INDEPENDENT_CODE
 target_compile_options(zn_webp PRIVATE -w -O2)
 add_library(zn_res STATIC src/res/res.cpp)
 add_library(zn_codec STATIC src/res/codec.cpp)   # encoders (stb_image_write); screenshots and zinc capture use it
-target_include_directories(zn_codec PUBLIC src PRIVATE third_party/stb)
+target_include_directories(zn_codec PUBLIC src PRIVATE include third_party/stb)
 target_link_libraries(zn_codec PUBLIC zn_webp_dec)   # decodeRgbaAlloc reads WebP too
 set_target_properties(zn_codec PROPERTIES CXX_STANDARD 20 POSITION_INDEPENDENT_CODE ON)
 target_compile_options(zn_codec PRIVATE -w -O2)
@@ -634,7 +640,7 @@ if(TARGET zn_host_gfx)
     endif()
     if(ZN_SDL_VENDORED_BUILD)   # what the static archive needs from the system, repeated by `zinc build` (the frameworks SDL's cocoa/metal build links)
       if(APPLE)
-        foreach(fw Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore AppKit CoreFoundation CoreGraphics CoreServices CoreHaptics GameController ForceFeedback AudioToolbox AVFoundation CoreAudio CoreBluetooth CoreMotion OpenGL)
+        foreach(fw Cocoa CoreMedia CoreVideo IOKit Carbon Foundation Metal QuartzCore IOSurface AppKit CoreFoundation CoreGraphics CoreServices CoreHaptics GameController ForceFeedback AudioToolbox AVFoundation CoreAudio CoreBluetooth CoreMotion OpenGL)
           set(ZN_HOST_LIBS_LINE "${ZN_HOST_LIBS_LINE} -framework ${fw}")
         endforeach()
         set(ZN_HOST_LIBS_LINE "${ZN_HOST_LIBS_LINE} -weak_framework UniformTypeIdentifiers")
@@ -763,7 +769,7 @@ if(TARGET zn_host_gfx AND SDL3_FOUND)
   endif()
   target_link_libraries(zn_app_host PUBLIC zn_uv zn_llhttp zn_mbedtls zn_regexp zn_codec zn_zpk SDL3::SDL3)
   if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")   # macOS: hal_sdl.cpp presents with OpenGL there (ZN_HAL_GL); iOS is APPLE too and has no OpenGL.framework
-    target_link_libraries(zn_app_host PUBLIC "-framework OpenGL" "-framework Metal" "-framework QuartzCore")   # and Metal: hal_metal.mm
+    target_link_libraries(zn_app_host PUBLIC "-framework OpenGL" "-framework Metal" "-framework QuartzCore" "-framework IOSurface")   # and Metal: hal_metal.mm
   elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")   # hal_metal.mm
     target_link_libraries(zn_app_host PUBLIC "-framework Metal" "-framework QuartzCore" "-framework Security")   # Security: tls.cpp's verifier
   elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -780,8 +786,8 @@ if(TARGET zn_host_gfx AND SDL3_FOUND)
   if(ANDROID)   # a phone's system signals and commands (docs/ui.md "System signals"); the shell calls zn_mobile_glue_init
     target_sources(zn_app PRIVATE src/app/android_glue.cpp)
   elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
-    target_sources(zn_app PRIVATE src/app/ios_glue.mm src/app/ios_a11y.mm)
-    set_source_files_properties(src/app/ios_glue.mm src/app/ios_a11y.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    target_sources(zn_app PRIVATE src/app/ios_glue.mm src/app/ios_a11y.mm src/app/ios_feedback.mm src/app/ios_feedback_store.mm)
+    set_source_files_properties(src/app/ios_glue.mm src/app/ios_a11y.mm src/app/ios_feedback.mm src/app/ios_feedback_store.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
     target_link_libraries(zn_app PUBLIC "-framework UIKit")
   endif()
   set_target_properties(zn_app PROPERTIES POSITION_INDEPENDENT_CODE ON)

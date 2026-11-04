@@ -1,6 +1,7 @@
 #include "cli_web.h"
 #include "cli_core.h"
 #include "cli_pm.h"
+#include "agent/wire.h"
 #include "i18n/i18n.h"
 
 #include <cstdio>
@@ -1401,8 +1402,13 @@ static bool appPluginsCmake(const std::vector<std::string>& names, const fs::pat
     for (const std::string& s : ps.vendored) if (fs::path(s).extension() != ".c") vcxx += " " + path(s);
     if (!vcxx.empty() && !ps.vendorFlags.empty()) {
       std::string opts;
-      for (const std::string& f : ps.vendorFlags) opts += (opts.empty() ? "" : ";") + f;
-      out.cmake += "set_source_files_properties(" + vcxx.substr(1) + " PROPERTIES COMPILE_OPTIONS \"" + opts + "\")\n";
+      // Manifests hold shell fragments; CMake source options need one list item per argument.
+      for (const std::string& f : ps.vendorFlags) {
+        if (!opts.empty()) opts += ' ';
+        for (char c : f) { if (c == '\\' || c == '"') opts += '\\'; opts += c; }
+      }
+      out.cmake += "separate_arguments(_zn_vendor_options UNIX_COMMAND \"" + opts + "\")\n";
+      out.cmake += "set_source_files_properties(" + vcxx.substr(1) + " PROPERTIES COMPILE_OPTIONS \"${_zn_vendor_options}\")\n";
     }
     if (!ps.libs.empty() || !ps.frameworks.empty()) {   // the system libraries (camera2ndk, mediandk, sqlite3...) and frameworks of the entry
       out.cmake += "target_link_libraries(" + lib + " PUBLIC";
@@ -2137,7 +2143,11 @@ int exportApp(const std::vector<std::string>& args, const std::string& engineRoo
   if (pack.dry && !pack.aab && !pack.apk && !pack.ipa) { std::fprintf(stderr, "zinc export: --dry-run goes with --aab, --apk or --ipa (--print lists the commands of a plain export)\n"); return 2; }
   fs::path out = o.v.count("-o") ? fs::path(o.v["-o"]) : fs::path(p.dir) / "dist" / (p.name + "-" + target);
   std::error_code ec;
-  fs::remove_all(out, ec);
+  // Keep the iPhone helper's native build cache when regenerating its project.
+  if (target == "ios" && fs::is_directory(out, ec)) {
+    for (const auto& entry : fs::directory_iterator(out))
+      if (entry.path().filename() != "build-device") fs::remove_all(entry.path(), ec);
+  } else fs::remove_all(out, ec);
   fs::create_directories(out, ec);
   if (!buildAssets(p.dir, target, true, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return 1; }   // the release packs, build/assets/<target> (ZN-434)
   if (target == "wasm") return exportWasm(p, out, engineRoot);
@@ -3478,6 +3488,7 @@ int devLan(const ProjectInfo& p, const fs::path& devDir, int port) {
           if (tok != token) { sendAll(pl.fd, "no wrong code: scan the QR code zinc dev prints again\n"); drop(pl, "had a wrong code"); break; }
           if (!zn::frontend::findProfile(pl.profile)) { sendAll(pl.fd, "no unknown profile " + pl.profile + "\n"); drop(pl, "has an unknown profile"); break; }
           if (pl.device.empty()) pl.device = pl.profile;
+          if (!sendAll(pl.fd, "app " + zn::agent::Obj().str("name", p.name).done() + "\n")) { drop(pl, "is gone"); break; }
           pl.hello = true;
           std::fprintf(stderr, "zinc dev: %s connected (profile %s)\n", pl.device.c_str(), pl.profile.c_str());
           saved = Clock::now();

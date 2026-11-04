@@ -364,6 +364,19 @@ from its first to its last colour along the nearest axis, a conic as the average
 with `imageFromPixels`, or handed by a plugin (a cover, a camera frame). It follows a signal like any prop; the program keeps the
 image and calls `destroyImage` once no node shows it.
 
+For a collection of immutable decoded pictures, `ImageCache` from `zinc:ui/image-cache` owns the handles. Construct it with a pixel-byte
+budget and an optional entry limit (512 by default), transfer each fresh image with `put(key, image)`, and borrow it with `get(key)`
+(`-1` when absent). `trim()` evicts unused entries in least-recently-used order; `trim(0)` clears unused pictures on background or after
+navigation. Call it from a maintenance timer or navigation event, rather than during rendering. A fresh entry gets 250 ms to reach its
+first UI commit before ordinary budget eviction; an explicit `trim(0)` has no grace period.
+
+Live UI nodes protect their images, including inline text pictures, backgrounds, detached trees and layers. The visible working set can
+exceed the budget. A borrowed handle kept outside those nodes needs `retainCachedImage(image)` and a balanced `releaseCachedImage(image)`;
+the kit's image viewer does this for its thumbnails. Do not destroy cache-owned images yourself, or put mutable surfaces or animation
+frames into this cache. Keep original compressed files on disk and reload a missing entry with `zinc:imageio.load(path, physicalWidth,
+physicalHeight)`: the decoder works off the UI thread and does not enlarge the picture. Pixel bytes exclude driver storage and allocator
+overhead. Destroyed runtime images lose their replay textures on the renderer's next frame, including an idle frame.
+
 How an `<Image>` fills its box, and background images on any node (ZN-262), with Tailwind v4's names and CSS's geometry:
 
 | Class | Style key | Effect |

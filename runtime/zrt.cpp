@@ -2,7 +2,7 @@
 #include "zrt.h"
 #include <setjmp.h>
 
-extern "C" { HalDisplay* hal_display = nullptr; HalOverlays* hal_overlays = nullptr; }
+extern "C" { HalDisplay* hal_display = nullptr; HalOverlays* hal_overlays = nullptr; uintptr_t hal_x11_window = 0; }
 // Optional HAL hook (targets/common/hal_posix.cpp): routes fatal signals of the main thread to `on_fault`.
 extern "C" __attribute__((weak)) void hal_trap_faults(void (*on_fault)(const char* what));
 extern "C" __attribute__((weak)) int hal_heap_region_more(int, void**, size_t*) { return 0; }
@@ -961,7 +961,8 @@ bool loop_once() {
     hal_frame_end();
 #ifndef __EMSCRIPTEN__
     // cap the frame rate when presenting does not block on vsync (hidden window, fbdev): saves CPU, keeps dt sane
-    if (!det_mode && (display_driver || hal_fixed_dt() <= 0)) { uint64_t spent = hal_time_us() - t; if (spent < ZRT_MIN_FRAME_US) hal_sleep_us(ZRT_MIN_FRAME_US - spent); }
+    static const bool uncapped = getenv("ZINC_VSYNC") && atoi(getenv("ZINC_VSYNC")) == 0;   // ZINC_VSYNC=0: as fast as the frames come (measurements)
+    if (!det_mode && !uncapped && (display_driver || hal_fixed_dt() <= 0)) { uint64_t spent = hal_time_us() - t; if (spent < ZRT_MIN_FRAME_US) hal_sleep_us(ZRT_MIN_FRAME_US - spent); }
 #endif
     return true;
   }

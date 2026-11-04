@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "zn/bytecode.h"
+#include "zn/native_sig.h"
 #include "zn/ops.h"
 
 namespace zn::aot {
@@ -282,7 +283,12 @@ struct FnEmitter {
       else if (nm == "Rt" && D == static_cast<unsigned>(zn::Rt::MapSet)) line("{ const char* e = op::mapSet(m, " + r(A) + ", " + r(A + 1) + ", " + r(A + 2) + "); " + rtFail() + " }");
       else if (nm == "Rt" && D == static_cast<unsigned>(zn::Rt::SetAdd)) line("{ const char* e = op::setAdd(m, " + r(A) + ", " + r(A + 1) + "); " + rtFail() + " }");
       else if (nm == "Rt") line("{ " + toWin(A, rtArity(D)) + "const char* e = rtCall(m, (zn::Rt)" + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + fromWin(A, std::max(1u, rtArity(D))) + rtFail() + " }");
-      else if (nm == "CallNative") line("{ " + toWin(A, f.nregs > A ? f.nregs - A : 1) + "const char* e = nativeCall(m, " + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + fromWin(A, f.nregs > A ? f.nregs - A : 1) + rtFail() + " }");
+      else if (nm == "CallNative") {
+        nsig::Sig sig;
+        const unsigned n = D < m.natives.size() && nsig::parse(m.natives[D].sig.c_str(), sig)
+            ? std::max(1u, static_cast<unsigned>(sig.arity())) : (f.nregs > A ? f.nregs - A : 1);
+        line("{ " + toWin(A, n) + "const char* e = nativeCall(m, " + std::to_string(D) + ", " + frame(A) + ", " + frame(f.nregs) + "); " + fromWin(A, n) + rtFail() + " }");
+      }
       else if (nm == "LogStr") line(checked("op::logStr(m, " + r(A) + ")"));
       else if (nm == "LogI") line("*m.out += std::to_string(static_cast<std::int64_t>(" + r(A) + "));");
       else if (nm == "LogU") line("*m.out += std::to_string(" + r(A) + ");");

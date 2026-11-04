@@ -1246,7 +1246,11 @@ struct Lowering {
           if (oneArg) {
             std::string list = rw(a, open - 2), fn = rw(open + 1, b - 1);
             if (react) out.push_back("for (const __c of " + rw(a, b) + ") _append(" + parent + ", __c);");
-            else out.push_back("_for(" + parent + ", () => (" + list + "), " + fn + ");");
+            else {
+              bool indexed = false;
+              if (isP(open + 1, "(")) scan(open + 2, match(open + 1), [&](std::size_t, const std::string& token) { if (token == ",") indexed = true; });
+              out.push_back("_for(" + parent + ", () => (" + list + "), " + fn + ((indexed && (lib == "zinc:ui/solid" || lib == "zinc:ui/kit/host")) ? ", true" : "") + ");");
+            }
             continue;
           }
         }
@@ -1341,7 +1345,9 @@ struct Lowering {
       const Child* c = kids.empty() ? nullptr : kids[0];
       const Attr* each = find("each");
       if (!c || c->kind != 1 || c->ee <= c->eb || !each) fail(e.begin, "<For> expects each and a function child: {(item, i) => <...>}");
-      out.push_back("_for(" + v + ", () => (" + valueOf(*each) + "), " + rw(c->eb, c->ee) + ");");
+      bool indexed = false;
+      if (isP(c->eb, "(")) scan(c->eb + 1, match(c->eb), [&](std::size_t, const std::string& token) { if (token == ",") indexed = true; });
+      out.push_back("_for(" + v + ", () => (" + valueOf(*each) + "), " + rw(c->eb, c->ee) + ((indexed && (lib == "zinc:ui/solid" || lib == "zinc:ui/kit/host")) ? ", true" : "") + ");");
     } else {
       std::vector<std::string> props;
       const Attr* key = find("key");
@@ -1712,7 +1718,7 @@ bool importsReact(std::string_view src) {
   return react;
 }
 
-std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags, std::vector<SrcPiece>* map, bool hot, const std::string& devFile, bool projectReact) {
+std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32_t file, const std::set<std::string>* classTags, std::vector<SrcPiece>* map, bool hot, const std::string& devFile, bool projectReact, bool modelNeutral) {
   std::size_t lt = src.find('<');
   bool maybe = false;
   for (; lt != std::string_view::npos && lt + 1 < src.size(); lt = src.find('<', lt + 1))
@@ -1728,13 +1734,13 @@ std::string lowerJsx(std::string_view src, std::vector<Diag>& diags, std::uint32
   try {
     // imports: names to modules (a kit component's explicit import wins over the host tag of the same name); the model
     L.imported = jsxImports(src, L.t, &L.react);
+    bool solid = false;
+    for (const auto& kv : L.imported) if (kv.second == "zinc:ui/solid" || kv.second == "solid-js") solid = true;
     if (!L.react && projectReact) {
-      bool solid = false;
-      for (const auto& kv : L.imported) if (kv.second == "zinc:ui/solid" || kv.second == "solid-js") solid = true;
       L.react = !solid;
     }
     std::size_t pr = src.find("@jsxHelpers");
-    L.lib = L.react ? "zinc:ui/react" : "zinc:ui/solid";
+    L.lib = L.react ? "zinc:ui/react" : modelNeutral && !solid ? "zinc:ui/kit/host" : "zinc:ui/solid";
     if (pr != std::string_view::npos) {
       std::size_t a = pr + 11;
       while (a < src.size() && std::isspace(static_cast<unsigned char>(src[a]))) ++a;

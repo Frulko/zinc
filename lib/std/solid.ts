@@ -238,10 +238,10 @@ export function _show(parent: i32, when: () => boolean, render: () => i32, fallb
     else if (fallback !== null) ui.insert(frag, rendered(r, fallback), -1);
   });
 }
-/** <For each={...}>{(item, i) => ...}</For> — ponytail: re-renders the list on change (unkeyed). */
 /** <For each={...}>: keyed by item identity like Solid's mapArray — kept items keep their nodes and effects, new
- *  items render once, removed items are disposed, moves reorder nodes. ponytail: O(n·m) matching, fine for UI lists. */
-export function _for<T>(parent: i32, each: () => T[], render: (item: T, i: i32) => i32): void {
+ *  items render once, removed items are disposed, moves reorder nodes. Numeric-index callbacks refresh moved rows
+ *  so their captured positions stay correct. shortcut: O(n·m) matching, replace when large non-virtual lists need it. */
+export function _for<T>(parent: i32, each: () => T[], render: (item: T, i: i32) => i32, indexed: boolean = false): void {
   const frag = ui.createNode(ui.FRAGMENT);
   ui.insert(parent, frag, -1);
   let keys: T[] = [];
@@ -256,7 +256,7 @@ export function _for<T>(parent: i32, each: () => T[], render: (item: T, i: i32) 
     for (let i = 0; i < items.length; i++) {
       let j = -1;
       for (let k = 0; k < keys.length; k++) if (!used[k] && keys[k] === items[i]) { j = k; break; }
-      if (j >= 0) { used[j] = true; nk.push(keys[j]); nn.push(nodes[j]); nr.push(roots[j]); continue; }
+      if (j >= 0 && (!indexed || j === i)) { used[j] = true; nk.push(keys[j]); nn.push(nodes[j]); nr.push(roots[j]); continue; }
       // a new item renders under its own root, not owned by this effect (which re-runs on every change)
       const root = newRoot(scope);
       const item = items[i];

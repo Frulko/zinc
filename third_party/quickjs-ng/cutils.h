@@ -1864,7 +1864,7 @@ static inline void js_mutex_unlock(js_mutex_t *mutex) {
 }
 
 static inline void js_cond_init(js_cond_t *cond) {
-#if defined(__APPLE__) && defined(__MACH__)
+#if (defined(__APPLE__) && defined(__MACH__)) || (defined(__ANDROID__) && __ANDROID_API__ < 21)
     if (pthread_cond_init(cond, NULL))
         abort();
 #else
@@ -1960,6 +1960,9 @@ static inline int js_cond_timedwait(js_cond_t *cond, js_mutex_t *mutex, uint64_t
     ts.tv_nsec = timeout % NANOSEC;
 #if defined(__APPLE__) && defined(__MACH__)
     r = pthread_cond_timedwait_relative_np(cond, mutex, &ts);
+#elif defined(__ANDROID__) && __ANDROID_API__ < 21
+    /* Old Bionic has a monotonic wait, but no condition attribute clock setter. */
+    r = pthread_cond_timedwait_monotonic_np(cond, mutex, &ts);
 #else
     r = pthread_cond_timedwait(cond, mutex, &ts);
 #endif

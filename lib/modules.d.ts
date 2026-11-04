@@ -112,7 +112,7 @@ declare module 'zinc:fs' {
 }
 
 declare module 'zinc:storage' {
-  /** Persistent key/value store (file on hosts, NVS on esp32). "" when missing. */
+  /** Persistent key/value store (file on hosts, NVS on esp32). "" when missing. Host I/O errors throw. */
   export function get(key: string): string;
   export function set(key: string, value: string): void;
   export function remove(key: string): void;

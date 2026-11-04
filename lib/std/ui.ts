@@ -564,6 +564,21 @@ const free: i32[] = [];
 const DEAD: UiNode = new UiNode(0);
 DEAD.alive = false;
 let layoutDirty = true;
+let traceLayout = false, layoutCause = '';
+let childUpdateDepth: i32 = 0;
+const childUpdateNodes: i32[] = [], childUpdateBefore: i32[][] = [];
+/** Internal React commit: rebuilding an identical child list does not invalidate layout. */
+export function beginChildUpdate(): void { childUpdateDepth++; }
+export function endChildUpdate(): void {
+  childUpdateDepth--;
+  if (childUpdateDepth !== 0) return;
+  for (let i = 0; i < childUpdateNodes.length; i++) {
+    const after = nodes[childUpdateNodes[i]].children, before = childUpdateBefore[i];
+    if (after.length !== before.length) { layoutDirty = true; if (traceLayout) layoutCause = 'children ' + childUpdateNodes[i]; }
+    else for (let k = 0; k < after.length; k++) if (after[k] !== before[k]) { layoutDirty = true; if (traceLayout) layoutCause = 'order ' + childUpdateNodes[i] + ' ' + before.join(',') + ' -> ' + after.join(','); }
+  }
+  childUpdateNodes.length = 0; childUpdateBefore.length = 0;
+}
 let paintDirty = true;
 let scrollDirty = false;   // a scroll offset moved: the frame is painted again, with the same content (the tiles of paintTiles stay)
 let canvases: i32 = 0;
@@ -584,7 +599,7 @@ function defaults(n: UiNode): void {
 }
 
 export function createNode(tag: i32): i32 {
-  layoutDirty = true;
+  layoutDirty = true; if (traceLayout) layoutCause = 'create ' + tag;
   const n = new UiNode(tag);
   defaults(n);
   if (tag === INPUT || tag === TEXTAREA) n.ed = new Edit(tag === TEXTAREA);
@@ -601,7 +616,7 @@ export function createText(s: string): i32 {
 }
 export function setText(h: i32, s: string): void {
   const n = node(h);
-  if (n.text !== s) { n.text = s; layoutDirty = true; if (tsNode === h || tsEnd === h) tsNode = -1; }
+  if (n.text !== s) { n.text = s; layoutDirty = true; if (traceLayout) layoutCause = 'text ' + h; if (tsNode === h || tsEnd === h) tsNode = -1; }
 }
 /** Style of a run of setTextRuns: bold, italic, monospace, underlined, struck through (an or of them; 0 the text's own). */
 export const RUN_BOLD: i32 = 1, RUN_ITALIC: i32 = 2, RUN_MONO: i32 = 4, RUN_UNDERLINE: i32 = 8, RUN_STRIKE: i32 = 16;
@@ -631,7 +646,7 @@ export function insert(parent: i32, child: i32, before: i32): void {
     for (let k = p.children.length - 1; k > i; k--) p.children[k] = p.children[k - 1];
     p.children[i] = child;
   }
-  layoutDirty = true;
+  if (childUpdateDepth === 0 || childUpdateNodes.indexOf(parent) < 0) { layoutDirty = true; if (traceLayout) layoutCause = 'insert ' + parent; }
 }
 export function remove(parent: i32, child: i32): void {
   const p = node(parent);
@@ -665,7 +680,14 @@ export function detach(parent: i32, child: i32): void {
   if (i >= 0) { p.children.splice(i, 1); layoutDirty = true; }
 }
 /** Empties a node's child list without destroying the children (the React reconciler re-appends them). */
-export function detachChildren(h: i32): void { const n = node(h); if (n.children.length > 0) { n.children = []; layoutDirty = true; } }
+export function detachChildren(h: i32): void {
+  const n = node(h);
+  if (n.children.length === 0) return;
+  if (childUpdateDepth > 0) {
+    if (childUpdateNodes.indexOf(h) < 0) { childUpdateNodes.push(h); childUpdateBefore.push(n.children); }
+  } else layoutDirty = true;
+  n.children = [];
+}
 export function destroy(h: i32): void { release(h); }
 function release(h: i32): void {
   const n = node(h);
@@ -929,6 +951,19 @@ export function setFocusable(h: i32, on: boolean): void { node(h).focusable = on
 export function setImage(h: i32, name: string): void { node(h).img = image(name); node(h).src = name; layoutDirty = true; }
 /** Shows a runtime image (imageFromBytes, a plugin's picture; -1 shows none). The program owns it: destroyImage once no node shows it. */
 export function setImageHandle(h: i32, img: i32): void { const n = node(h); if (n.img === img && n.src === '') return; n.img = img; n.src = ''; layoutDirty = true; }
+/** Images referenced by live nodes, including detached/hidden trees, backgrounds and inline text pictures. */
+export function referencedImages(): Set<i32> {
+  const out = new Set<i32>();
+  for (const n of nodes) {
+    if (!n.alive) continue;
+    if (n.img >= 0) out.add(n.img);
+    if (n.im.bg >= 0) out.add(n.im.bg);
+    const runs = n.runs;
+    if (runs !== null) for (let i = 0; i + 2 < runs.length; i += 3)
+      if ((runs[i + 1] & RUN_PICTURE) !== 0 && runs[i + 2] >= 0) out.add(runs[i + 2]);
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------- event handlers and text fields (host ABI)
 function handlers(h: i32): Handlers {
@@ -1040,6 +1075,7 @@ export function setValue(h: i32, v: string): void {
   e.value = v;
   if (e.caret > v.length) e.caret = v.length;
   if (e.anchor > v.length) e.anchor = v.length;
+  if (h === focus) mirrorIme(e);
   paintDirty = true;
 }
 export function getValue(h: i32): string { return editOf(h).value; }
@@ -1054,7 +1090,7 @@ export function caretOf(h: i32): i32 { return editOf(h).caret; }
 export function anchorOf(h: i32): i32 { return editOf(h).anchor; }
 export function selectedText(h: i32): string { const e = editOf(h); return e.value.slice(imin(e.caret, e.anchor), imax(e.caret, e.anchor)); }
 /** Selects [a, b) of a field (caret at b). */
-export function select(h: i32, a: i32, b: i32): void { const e = editOf(h); e.anchor = clampI(a, 0, e.value.length); e.caret = clampI(b, 0, e.value.length); e.reveal = true; paintDirty = true; }
+export function select(h: i32, a: i32, b: i32): void { const e = editOf(h); e.anchor = clampI(a, 0, e.value.length); e.caret = clampI(b, 0, e.value.length); e.reveal = true; if (h === focus) mirrorIme(e); paintDirty = true; }
 function imin(a: i32, b: i32): i32 { return a < b ? a : b; }
 function imax(a: i32, b: i32): i32 { return a > b ? a : b; }
 function clampI(v: i32, a: i32, b: i32): i32 { return v < a ? a : v > b ? b : v; }
@@ -1423,7 +1459,7 @@ function writeProp(n: UiNode, id: i32, key: string, v: number): void {
   else if (id === P_MIN_WIDTH) n.minW = iv; else if (id === P_MAX_WIDTH) n.maxW = iv;   // (ZN-359; -1: none)
   else if (id === P_MIN_HEIGHT) n.minH = iv; else if (id === P_MAX_HEIGHT) n.maxH = iv;
   else if (id === P_ASPECT) n.aspect = v;
-  layoutDirty = true;
+  layoutDirty = true; if (traceLayout) layoutCause = 'property ' + n.id + ' ' + key;
 }
 function isColorProp(id: i32): boolean { return id === P_BACKGROUND_COLOR || id === P_BORDER_COLOR || id === P_COLOR || id === P_SHADOW_COLOR || (id >= P_BORDER_TOP_COLOR && id <= P_BORDER_LEFT_COLOR); }
 /** A colour property as an i32 (a `number` cannot hold 24 bits on fx12 profiles). */
@@ -2177,6 +2213,7 @@ function a11yScroll(arg: string): void {
 // ---- media and container queries, env() lengths (ZN-272)
 let envUsed = false, varUsed = false, coarse = platform() !== 'macos' && platform() !== 'linux' && platform() !== 'windows' && platform() !== 'wasm', cqAny = false, inSettle = false, settlePasses: i32 = 0;
 let kbInset: number = 0, safeT: number = 0, safeR: number = 0, safeB: number = 0, safeL: number = 0;
+let kbDuration: number = 0, kbCurve: i32 = 0;
 function envValue(name: string): number {
   return name === 'keyboard-inset' ? kbInset : name === 'safe-area-inset-top' ? safeT : name === 'safe-area-inset-right' ? safeR : name === 'safe-area-inset-bottom' ? safeB : name === 'safe-area-inset-left' ? safeL : 0;
 }
@@ -2223,8 +2260,14 @@ export function schemeRestyled(): i32 { return schemeCount; }
 /** Called by the host when the operating system's preference changes. */
 export function setSystemScheme(name: string): void { systemScheme = name; if (schemeMode === 'auto') applyScheme(name); }
 /** The room an on-screen keyboard takes at the bottom of the surface, readable in classes as `pb-[env(keyboard-inset)]`. */
-export function setKeyboardInset(px: number): void { if (px === kbInset) return; kbInset = px; restyleMedia(8); focusShown = -1; }   // the focused field is revealed again once the room is made
+export function setKeyboardInset(px: number, duration: number = 0, curve: i32 = 0): void {
+  if (px === kbInset) return;
+  kbDuration = duration > 0 ? Math.min(1000, duration) : 0; kbCurve = curve;
+  kbInset = px; restyleMedia(8); focusShown = -1;
+}
 export function keyboardInset(): number { return kbInset; }
+export function keyboardAnimationDuration(): number { return kbDuration; }
+export function keyboardAnimationEasing(): string { return kbCurve === 1 ? 'easeIn' : kbCurve === 2 ? 'easeOut' : kbCurve === 3 ? 'linear' : 'easeInEaseOut'; }
 let revealRuns = -1;   // the layout the focused field was last revealed after, while the keyboard is up
 /** Safe-area insets (notches, rounded corners): `env(safe-area-inset-top|right|bottom|left)`. */
 export function setSafeArea(t: number, r: number, b: number, l: number): void { if (t === safeT && r === safeR && b === safeB && l === safeL) return; safeT = t; safeR = r; safeB = b; safeL = l; restyleMedia(8); }
@@ -2277,11 +2320,12 @@ export function systemSignal(line: string): void {
   const a = arg.split(' ');
   if (kind === 'safearea' && a.length >= 4) setSafeArea(parseFloat(a[0]), parseFloat(a[1]), parseFloat(a[2]), parseFloat(a[3]));
   else if (kind === 'theme') setSystemScheme(arg === 'dark' ? 'dark' : 'light');
+  else if (kind === 'layouttrace') traceLayout = arg === 'on';
   else if (kind === 'fontscale') setFontScale(parseFloat(arg));
   else if (kind === 'reducemotion') reduceMotion = arg === '1' || arg === 'true';
   else if (kind === 'background' || kind === 'foreground') appActive = kind === 'foreground';
   else if (kind === 'focus') windowFocus = arg === '1';
-  else if (kind === 'keyboard') setKeyboardInset(Math.max(0, parseFloat(arg)));
+  else if (kind === 'keyboard') setKeyboardInset(Math.max(0, parseFloat(a[0])), a.length > 1 ? parseFloat(a[1]) : 0, a.length > 2 ? parseInt(a[2]) : 0);
   else if (kind === 'compose') composeText(arg);
   else if (kind === 'commit') { if (focus >= 0) typeInto(focus, arg); }
   else if (kind === 'imedelete' || kind === 'imeselect' || kind === 'imeaction') imeEdit(kind, a);
@@ -2952,7 +2996,7 @@ function rebuildStyle(n: UiNode): void {
   if (devStyles.size > 0) { const d = devStyles.get(n.id); if (d !== undefined) for (let i = 0; i < d.keys.length; i++) applyProp(n, d.ids[i], d.keys[i], d.values[i]); }
   replaceVirtRow(n);
   if (n.ed !== null) (n.ed as Edit).rowsW = -1;
-  layoutDirty = true;
+  layoutDirty = true; if (traceLayout) layoutCause = 'style shape ' + n.id;
   transSpec(n);
   if (n.it.trMask !== 0 && n.ov !== null) syncState(n.id);   // the states on the new classes now: a transition never sees the bare base
   inStyle = was;
@@ -3880,6 +3924,7 @@ function rnLayout(r: UiNode, w: number, h: number): void {
 export function layout(): void {
   if (root < 0) return;
   layoutRuns++;
+  if (traceLayout) { console.log('zinc layout', layoutRuns, layoutCause); layoutCause = ''; }
   // the root always fills the surface (which follows the window in fill mode)
   const r = node(root);
   r.w = width(); r.h = height();
@@ -4495,7 +4540,7 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     const focused = h === focus;
     let bc = focused && n.it.focusBorder >= 0 ? n.it.focusBorder : focused && n.ed !== null ? 0x3b82f6 : n.it.withinBorder >= 0 && focus >= 0 && isAncestor(h, focus) ? n.it.withinBorder : n.hovered && n.it.hoverBorder >= 0 ? n.it.hoverBorder : n.borderColor;
     const bw = n.borderW < 0 ? 1 : n.borderW;
-    const bai: i32 = n.borderAlpha === 255 ? ai : Math.round(ai * n.borderAlpha / 255);
+    const bai: i32 = bc === -1 ? 0 : n.borderAlpha === 255 ? ai : Math.round(ai * n.borderAlpha / 255);   // -1: border-transparent keeps the width and draws nothing
     if (bc === -3) bc = textFg(h);   // border-current
     if (n.bd.borderStyle !== 0 || n.bd.bcT >= 0 || n.bd.bcR >= 0 || n.bd.bcB >= 0 || n.bd.bcL >= 0 || n.bd.crTL >= 0 || n.bd.crTR >= 0 || n.bd.crBR >= 0 || n.bd.crBL >= 0) paintBorderExt(n, x, y, w, hh, kk, r, bc, bai, bw);
     else if (n.bd.bT >= 0 || n.bd.bR >= 0 || n.bd.bB >= 0 || n.bd.bL >= 0) {
@@ -4560,7 +4605,13 @@ function paint(h: i32, ox: number, oy: number, k: number, alpha: number): void {
     }
     if (n.ed !== null) paintEdit(h, n, n.ed as Edit, x, y, kk, ai);
     const d = n.onDraw;
-    if (d !== null) { drawing = h; d(Math.round(x), Math.round(y), Math.round(w), Math.round(hh)); drawing = -1; }
+    if (d !== null) {
+      const ix = Math.round(x), iy = Math.round(y);
+      // Preserve integer callback coordinates while moving its pixels with the Canvas's fractional origin.
+      if (x !== ix || y !== iy) setTf(1, 0, 0, 1, x - ix, y - iy);
+      drawing = h; d(ix, iy, Math.round(w), Math.round(hh)); drawing = -1;
+      if (x !== ix || y !== iy) unsetTf();
+    }
     if (n.overflow) {
       // children stay inside the border and its rounded corners, like CSS overflow: hidden (the padding box)
       const bw = n.borderW < 0 ? 1 : n.borderW;
@@ -4945,6 +4996,7 @@ function commit(e: Edit): void {
 function moveTo(e: Edit, off: i32, extend: boolean): void {
   e.caret = clampI(off, 0, e.value.length);
   if (!extend) e.anchor = e.caret;
+  mirrorIme(e);
   e.reveal = true; e.blinkAt = clock; e.typing = false; paintDirty = true;
 }
 function wordLeft(v: string, i: i32): i32 {
@@ -5011,7 +5063,8 @@ function editKey(h: i32, n: UiNode, e: Edit, ev: KeyEvent): boolean {
     return true;
   }
   if (key === 'Enter') {
-    if (!e.multi) { commit(e); return true; }
+    const behavior = inputSubmitBehavior(e);
+    if (behavior !== 0) { commit(e); if (behavior === 2 && focus === h) setFocusTo(-1); return true; }
     // code editors keep the indentation of the current line
     let ind: i32 = 0;
     if (codeMode(n, e)) { const ls = lineStart(v, s0); while (ls + ind < s0 && v.charCodeAt(ls + ind) === 32) ind++; }
@@ -5872,6 +5925,7 @@ function touchSelDrag(px: number, py: number): void {
   const lh = lineHeightOf(n), lx = (px - boxX) / boxK, ly = (py - boxY) / boxK - (handleDrag === 2 ? lh / 2 : -lh / 2);
   const off = offAt(n, e, lx, ly), lo = imin(e.caret, e.anchor), hi = imax(e.caret, e.anchor);
   if (handleDrag === 1) { e.anchor = hi; e.caret = imin(off, hi); } else { e.anchor = lo; e.caret = imax(off, lo); }
+  mirrorIme(e);
   e.blinkAt = clock; paintDirty = true;
 }
 /** Cut, Copy, Paste, Select All of the edit menu. */
@@ -5879,7 +5933,7 @@ function editAction(h: i32, e: Edit, label: string): void {
   if (label === 'Copy' || label === 'Cut') setClipboardText(editSelected(e));
   if (label === 'Cut') replaceSel(e, '', false);
   if (label === 'Paste') replaceSel(e, clipboardText(), false);
-  if (label === 'Select All') { e.anchor = 0; e.caret = e.value.length; menuOpen = true; paintDirty = true; return; }
+  if (label === 'Select All') { e.anchor = 0; e.caret = e.value.length; mirrorIme(e); menuOpen = true; paintDirty = true; return; }
   menuOpen = false; paintDirty = true;
 }
 /** Each frame while a finger is down on a field: held long enough without moving, it selects the word under it and opens the menu. */
@@ -6241,6 +6295,12 @@ function composeText(t: string): void {
   mirrorIme(e);
 }
 /** The rest of an input connection's calls on the focused field: delete around the caret, set the selection, the return key's action. */
+function inputSubmitBehavior(e: Edit): i32 {
+  if (e.traits.indexOf('submit=blurAndSubmit') >= 0) return 2;
+  if (e.traits.indexOf('submit=submit') >= 0) return 1;
+  if (e.multi) return 0;
+  return platform() === 'ios' || platform() === 'android' ? 2 : 1;
+}
 function imeEdit(kind: string, a: string[]): void {
   if (focus < 0 || nodes[focus].ed === null) return;
   const e = nodes[focus].ed as Edit, len = e.value.length;
@@ -6252,12 +6312,17 @@ function imeEdit(kind: string, a: string[]): void {
     e.compA = -1; e.compB = -1;
   } else if (kind === 'imeselect') {   // setSelection(start, end)
     e.anchor = imax(0, imin(len, parseInt(a[0]))); e.caret = imax(0, imin(len, parseInt(a.length > 1 ? a[1] : a[0]))); e.blinkAt = clock; e.reveal = true;
-  } else if (kind === 'imeaction') dispatchKey('Enter', 0, false);   // performEditorAction (done, go, next, search, send): the return key
+  } else if (kind === 'imeaction') {
+    const h = focus;
+    if (a[0] === 'done' && e.multi && inputSubmitBehavior(e) === 0) { commit(e); setFocusTo(-1); }
+    else { dispatchKey('Enter', 0, false); if (a[0] === 'done' && focus === h) setFocusTo(-1); }
+  }
 }
 /** The composing run of the focused field as [start, end), or [-1, -1]. */
 export function composingRange(): i32[] { const e = focus >= 0 ? nodes[focus].ed : null; return e !== null ? [e.compA, e.compB] : [-1, -1]; }
 /** Key down: the focused node's (or nearest ancestor's) onKeyDown, text field editing, then the global handlers. */
 function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
+  const keyFocus = focus;
   const ev = new KeyEvent(key, mods, repeat);
   for (let p = focus; p >= 0; p = nodes[p].parent) {
     const s = nodes[p].hs;
@@ -6265,10 +6330,10 @@ function dispatchKey(key: string, mods: i32, repeat: boolean): KeyEvent {
   }
   if (!ev.handled && key === 'Escape' && overlays.length > 0 && dismissTop()) ev.handled = true;
   if (!ev.handled && keymap.length > 0 && (mods & (CTRL | META)) !== 0) ev.handled = runKeymap(key, mods);
-  if (!ev.handled && key === 'Enter' && focus >= 0 && nodes[focus].ed !== null && !(nodes[focus].ed as Edit).multi) submitFrom(focus);   // Enter in a field submits its form (the field still commits its value below)
+  if (!ev.handled && key === 'Enter' && focus === keyFocus && focus >= 0 && nodes[focus].ed !== null && inputSubmitBehavior(nodes[focus].ed as Edit) !== 0) submitFrom(focus);
   if (!ev.handled && ev.primary && key === 'c' && !(focus >= 0 && nodes[focus].ed !== null) && tsSelected().length > 0) { setClipboardText(tsSelected()); ev.handled = true; }
   let byApp = ev.handled;
-  if (!ev.handled && focus >= 0 && nodes[focus].ed !== null) ev.handled = editKey(focus, nodes[focus], nodes[focus].ed as Edit, ev);
+  if (!ev.handled && focus === keyFocus && focus >= 0 && nodes[focus].ed !== null) ev.handled = editKey(focus, nodes[focus], nodes[focus].ed as Edit, ev);
   if (!ev.handled && keymap.length > 0 && (mods & (CTRL | META)) === 0 && runKeymap(key, mods)) { ev.handled = true; byApp = true; }
   const before = ev.handled;
   for (const f of keyHandlers) { if (ev.handled) break; f(ev); }
@@ -6414,7 +6479,7 @@ export function frame(dt: number, background: i32): void {
     if (want >= 0) { boxOf(want); device('keyboard-traits', keyboardTraits(want)); mirrorIme(nodes[want].ed as Edit); startTextInput(boxX, boxY, nodes[want].lw * boxK, nodes[want].lh * boxK); } else { device('keyboard-traits', ''); stopTextInput(); }   // no traits: no field (iOS's input view resigns)
     textOn = want;
   }
-  if (ed !== null) { const ph = Math.floor((clock - (ed as Edit).blinkAt) / 530); if (ph !== blinkShown) { blinkShown = ph; paintDirty = true; } }
+  if (want >= 0 && layerAlpha(want) > 0) { const ph = Math.floor((clock - (ed as Edit).blinkAt) / 530); if (ph !== blinkShown) { blinkShown = ph; paintDirty = true; } }
   if (prof) profMark(PROF_INPUT);
   for (const h of virtuals()) syncVirtual(h, node(h));
   if (autoFields.length > 0) settleFields();
