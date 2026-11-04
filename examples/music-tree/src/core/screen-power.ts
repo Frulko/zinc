@@ -48,6 +48,7 @@ export class ScreenPowerManager {
   veilOpacity: number = 0;
 
   private remainingFadeOutSeconds: number = 0;
+  private sleepRequested: boolean = false;
   private awakeActivityTimer: number = 0;
   private totalElapsedSeconds: number = 0;
   private nextGlanceTimestamp: number = 0;
@@ -67,6 +68,7 @@ export class ScreenPowerManager {
    */
   onUserTouch(): boolean {
     this.idleSeconds = 0;
+    this.sleepRequested = false;
     this.nextGlanceTimestamp = 0;
     this.remainingFadeOutSeconds = 0;
 
@@ -123,6 +125,11 @@ export class ScreenPowerManager {
     }
   }
 
+  /** The sleep button of the status bar: fades out and turns the backlight off now, whatever the delay (even "never"). */
+  sleepNow(): void {
+    this.sleepRequested = true;
+  }
+
   private effectiveIdleLimit(): number {
     return this.standbyMode ? STANDBY_OFF_SECONDS : this.delaySeconds;
   }
@@ -149,7 +156,7 @@ export class ScreenPowerManager {
       return false;
     }
 
-    if (this.delaySeconds <= 0) return false;
+    if (this.delaySeconds <= 0 && !this.sleepRequested) return false;
 
     if (this.asleep) {
       if (
@@ -171,7 +178,7 @@ export class ScreenPowerManager {
     }
 
     this.idleSeconds += deltaSeconds;
-    if (this.idleSeconds < this.effectiveIdleLimit()) return false;
+    if (this.idleSeconds < this.effectiveIdleLimit() && !this.sleepRequested) return false;
 
     // Fade-out before the hardware turn-off
     if (FADE_DURATION_SECONDS > 0) {
@@ -188,6 +195,7 @@ export class ScreenPowerManager {
 
     this.veilOpacity = 1;
     this.asleep = true;
+    this.sleepRequested = false;
     if (this.nextGlanceTimestamp === 0) {
       this.nextGlanceTimestamp = this.totalElapsedSeconds + GLANCE_INTERVAL_SECONDS;
     }

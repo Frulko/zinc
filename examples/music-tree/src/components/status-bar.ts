@@ -22,7 +22,7 @@ import {
   WEEKDAYS_SHORT,
 } from '../constants';
 import { Fonts } from '../fonts';
-import { DisplayObject, registerTapZone, uiState } from 'zinc:stage';
+import { DisplayObject, isZonePressed, registerTapZone, uiState } from 'zinc:stage';
 import {
   drawGlyph,
   drawLabel,
@@ -162,7 +162,12 @@ export class StatusBarNode extends DisplayObject {
       0
     );
 
-    const availableRightX = drawBatteryStatusIndicator(screenWidth - 20, textTopY);
+    let availableRightX = drawBatteryStatusIndicator(screenWidth - 20, textTopY);
+
+    // The sleep button: the screen off now rather than after the delay
+    drawGlyph('moon', availableRightX - 18, (STATUS_BAR_HEIGHT - 18) / 2, 18, isZonePressed('status/sleep') ? COLOR_TEXT_PRIMARY : COLOR_TEXT_SECONDARY);
+    registerTapZone('status/sleep', availableRightX - 30, 0, 42, STATUS_BAR_HEIGHT, () => appState.screenPower.sleepNow());
+    availableRightX -= 40;
 
     // Carousel page indicators in the centre of the bar
     if (appState.currentPage === PAGE_NOW_PLAYING) {

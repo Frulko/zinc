@@ -1027,7 +1027,8 @@ onFrame((deltaSeconds: number) => {
     if (
       appState.currentPage === PAGE_NOW_PLAYING &&
       appState.activeGroup !== null &&
-      (appState.activeGroup as Group).playing()
+      (appState.activeGroup as Group).playing() &&
+      !appState.screenPower.asleep   // the progress bar: a sleeping screen draws nothing, so the engine can idle (it waits for an event)
     ) {
       uiState.dirty = true;
     }
