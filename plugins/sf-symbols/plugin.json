@@ -1,0 +1,10 @@
+{
+  "name": "sf-symbols",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:sf-symbols",
+  "entry": "index.ts",
+  "description": "Apple's SF Symbols as runtime images, white to be tinted (macOS)",
+  "native": { "impl": { "macos": "native/symbols.macos.mm" } },
+  "targets": { "macos": { "frameworks": ["AppKit", "CoreGraphics", "Foundation"] } }
+}

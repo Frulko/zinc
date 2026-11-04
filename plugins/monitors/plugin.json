@@ -1,0 +1,12 @@
+{
+  "name": "monitors",
+  "kind": "module",
+  "deterministic": true,
+  "module": "zinc:monitors",
+  "entry": "index.ts",
+  "description": "Control the machine's displays: modes and HiDPI, brightness, DDC (contrast, volume, input), dimming and warmth, XDR boost, arrangement, mirroring, rotation, connection, virtual displays (macOS); two fake displays for tests",
+  "native": { "impl": { "macos": "native/monitors.macos.mm" } },
+  "targets": {
+    "macos": { "frameworks": ["AppKit", "CoreGraphics", "IOKit", "Metal", "QuartzCore", "Foundation"] }
+  }
+}
