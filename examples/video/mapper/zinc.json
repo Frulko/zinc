@@ -4,6 +4,7 @@
   "display": "gl",
   "targets": {
     "macos": { "width": 1280, "height": 720 },
-    "rpi1": { "width": 1280, "height": 720 }
+    "rpi1": { "width": 1280, "height": 720 },
+    "android": { "width": 1280, "height": 720, "fullscreen": true, "renderer": "gl" }
   }
 }

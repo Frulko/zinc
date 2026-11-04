@@ -48,6 +48,7 @@ void _Exit(int status) { _exit(status); }
 void android_set_abort_message(const char* msg) { (void)msg; }
 int getpagesize(void) { return (int)sysconf(_SC_PAGESIZE); }
 int rand(void) { return (int)(lrand48() & 0x7fffffff); }
+int rand_r(unsigned* seed) { *seed = *seed * 1103515245u + 12345u; return (int)((*seed >> 16) & 0x7fff); }
 double atof(const char* s) { return strtod(s, NULL); }
 float strtof(const char* s, char** end) { return (float)strtod(s, end); }
 long double strtold(const char* s, char** end) { return strtod(s, end); }   // long double is double on arm32

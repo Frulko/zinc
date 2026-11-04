@@ -1,4 +1,4 @@
-// zinc:video on Android: the MediaCodec backend of player.h (NDK, API 24). See docs/plugins/video.md.
+// zinc:video on Android: the MediaCodec backend of player.h (NDK, API 24; none below). See docs/plugins/video.md.
 //
 // The worker demuxes with AMediaExtractor (the file opened here, handed over as a descriptor) and decodes with AMediaCodec, the device's
 // own decoder (hardware when it has one). The decoder renders into an AImageReader of YUV_420_888: the layout every decoder must give
@@ -19,6 +19,67 @@
 #if __has_include("zn/resource_stats.h")
 #include "zn/resource_stats.h"
 #endif
+
+// libmediandk is opened at run time: Android 4.4 has none (it came with API 21), and a library linked against it would not even load there, so the
+// rest of the app would be lost with the videos. Without it a player finds no video.
+#define ZV_MEDIA(X) X(AImage_delete) X(AImage_getCropRect) X(AImage_getHeight) X(AImage_getPlaneData) X(AImage_getPlanePixelStride) X(AImage_getPlaneRowStride) X(AImage_getWidth) X(AImageReader_acquireLatestImage) X(AImageReader_delete) X(AImageReader_getWindow) X(AImageReader_new) X(AMediaCodec_configure) X(AMediaCodec_createDecoderByType) X(AMediaCodec_delete) X(AMediaCodec_dequeueInputBuffer) X(AMediaCodec_dequeueOutputBuffer) X(AMediaCodec_getInputBuffer) X(AMediaCodec_getOutputBuffer) X(AMediaCodec_getOutputFormat) X(AMediaCodec_queueInputBuffer) X(AMediaCodec_releaseOutputBuffer) X(AMediaCodec_start) X(AMediaCodec_stop) X(AMediaExtractor_advance) X(AMediaExtractor_delete) X(AMediaExtractor_getSampleTime) X(AMediaExtractor_getTrackCount) X(AMediaExtractor_getTrackFormat) X(AMediaExtractor_new) X(AMediaExtractor_readSampleData) X(AMediaExtractor_selectTrack) X(AMediaExtractor_setDataSourceFd) X(AMediaFormat_delete) X(AMediaFormat_getInt32) X(AMediaFormat_getInt64) X(AMediaFormat_getString)
+#define ZV_DECL(n) static decltype(&n) zv_##n;
+ZV_MEDIA(ZV_DECL)
+static bool media_load() {
+  static int state;   // 0 not tried, 1 there, -1 missing
+  if (!state) {
+    void* lib = dlopen("libmediandk.so", RTLD_NOW);
+    bool ok = lib != nullptr;
+#define ZV_LOAD(n) ok = ok && (zv_##n = (decltype(&n))dlsym(lib, #n)) != nullptr;
+    ZV_MEDIA(ZV_LOAD)
+    state = ok ? 1 : -1;
+  }
+  return state > 0;
+}
+#define AImage_delete zv_AImage_delete
+#define AImage_getCropRect zv_AImage_getCropRect
+#define AImage_getHeight zv_AImage_getHeight
+#define AImage_getPlaneData zv_AImage_getPlaneData
+#define AImage_getPlanePixelStride zv_AImage_getPlanePixelStride
+#define AImage_getPlaneRowStride zv_AImage_getPlaneRowStride
+#define AImage_getWidth zv_AImage_getWidth
+#define AImageReader_acquireLatestImage zv_AImageReader_acquireLatestImage
+#define AImageReader_delete zv_AImageReader_delete
+#define AImageReader_getWindow zv_AImageReader_getWindow
+#define AImageReader_new zv_AImageReader_new
+#define AMediaCodec_configure zv_AMediaCodec_configure
+#define AMediaCodec_createDecoderByType zv_AMediaCodec_createDecoderByType
+#define AMediaCodec_delete zv_AMediaCodec_delete
+#define AMediaCodec_dequeueInputBuffer zv_AMediaCodec_dequeueInputBuffer
+#define AMediaCodec_dequeueOutputBuffer zv_AMediaCodec_dequeueOutputBuffer
+#define AMediaCodec_getInputBuffer zv_AMediaCodec_getInputBuffer
+#define AMediaCodec_getOutputBuffer zv_AMediaCodec_getOutputBuffer
+#define AMediaCodec_getOutputFormat zv_AMediaCodec_getOutputFormat
+#define AMediaCodec_queueInputBuffer zv_AMediaCodec_queueInputBuffer
+#define AMediaCodec_releaseOutputBuffer zv_AMediaCodec_releaseOutputBuffer
+#define AMediaCodec_start zv_AMediaCodec_start
+#define AMediaCodec_stop zv_AMediaCodec_stop
+#define AMediaExtractor_advance zv_AMediaExtractor_advance
+#define AMediaExtractor_delete zv_AMediaExtractor_delete
+#define AMediaExtractor_getSampleTime zv_AMediaExtractor_getSampleTime
+#define AMediaExtractor_getTrackCount zv_AMediaExtractor_getTrackCount
+#define AMediaExtractor_getTrackFormat zv_AMediaExtractor_getTrackFormat
+#define AMediaExtractor_new zv_AMediaExtractor_new
+#define AMediaExtractor_readSampleData zv_AMediaExtractor_readSampleData
+#define AMediaExtractor_selectTrack zv_AMediaExtractor_selectTrack
+#define AMediaExtractor_setDataSourceFd zv_AMediaExtractor_setDataSourceFd
+#define AMediaFormat_delete zv_AMediaFormat_delete
+#define AMediaFormat_getInt32 zv_AMediaFormat_getInt32
+#define AMediaFormat_getInt64 zv_AMediaFormat_getInt64
+#define AMediaFormat_getString zv_AMediaFormat_getString
+// the format keys are data of the same library: the values the platform has always given them
+#define AMEDIAFORMAT_KEY_COLOR_FORMAT "color-format"
+#define AMEDIAFORMAT_KEY_DURATION "durationUs"
+#define AMEDIAFORMAT_KEY_FRAME_RATE "frame-rate"
+#define AMEDIAFORMAT_KEY_HEIGHT "height"
+#define AMEDIAFORMAT_KEY_MIME "mime"
+#define AMEDIAFORMAT_KEY_STRIDE "stride"
+#define AMEDIAFORMAT_KEY_WIDTH "width"
 
 struct Held {};
 // The scale to the player's box, kept from picture to picture: where each output column and row reads in the visible picture.
@@ -89,6 +150,7 @@ static void backend_init() { force_buffers = getenv("ZINC_VIDEO_BYTEBUFFER") != 
 
 /** The extractor over `path` with its first video track selected; its format in *fmt (owned by the caller). */
 static AMediaExtractor* open_track(const char* path, int* fd, AMediaFormat** fmt) {
+  if (!media_load()) return nullptr;
   *fd = open(path, O_RDONLY | O_CLOEXEC);
   struct stat st;
   if (*fd < 0 || fstat(*fd, &st) != 0) { if (*fd >= 0) close(*fd); *fd = -1; return nullptr; }

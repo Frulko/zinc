@@ -202,16 +202,24 @@ vec3 source(vec2 st) {
 #endif
 }
 void main() {
-  vec3 c = (u_cm * vec4(source(v_uv), 1.0)).rgb;
+  vec3 c = source(v_uv);
+#if COLOR
+  c = clamp((u_cm * vec4(c, 1.0)).rgb, 0.0, 1.0);
+#endif
+#if GAMMA
   c = pow(clamp(c, 0.0, 1.0), vec3(u_ig));
-  float a = u_alpha * texture2D(u_mask, v_uv).r;
+#endif
+  float a = u_alpha;
+#if MASK
+  a *= texture2D(u_mask, v_uv).r;
+#endif
 #if SRC == 4
   a *= texture2D(u_tex, v_uv).a;
 #endif
-  if (u_grid.z > 0.5) {
-    vec2 g = abs(fract(v_uv * u_grid.xy + 0.5) - 0.5) / u_grid.xy;
-    if (min(g.x, g.y) < 0.002 || min(v_uv.x, v_uv.y) < 0.004 || max(v_uv.x, v_uv.y) > 0.996) { c = vec3(1.0, 0.85, 0.1); a = 1.0; }
-  }
+#if GRID
+  vec2 g = abs(fract(v_uv * u_grid.xy + 0.5) - 0.5) / u_grid.xy;
+  if (min(g.x, g.y) < 0.002 || min(v_uv.x, v_uv.y) < 0.004 || max(v_uv.x, v_uv.y) > 0.996) { c = vec3(1.0, 0.85, 0.1); a = 1.0; }
+#endif
   gl_FragColor = vec4(c * a, a);
 }
 )";
@@ -253,11 +261,22 @@ void main() {
 }
 )";
 
-GLuint progs[NPROG], poly_prog, crop_prog, quad, white;  // white: bound to samplers a variant does not read
+GLuint progs[NPROG * 16], poly_prog, crop_prog, quad, white;  // white: bound to samplers a variant does not read
 
-GLuint layer_prog(int src) {
-  if (!progs[src]) { char def[32]; snprintf(def, sizeof def, "#define SRC %d\n", src); progs[src] = zgl_program(def, LAYER_VS, LAYER_FS); }
-  return progs[src];
+// A program per source and per step the layer really uses: what a neutral step costs is not small on a modest GPU, where a shader runs both
+// sides of its branches (Mali-400).
+GLuint layer_prog(int src, const Layer& l, bool grid) {
+  const bool color = l.brightness != 0 || l.contrast != 1 || l.saturation != 1 || l.hue != 0 || l.gain[0] != 1 || l.gain[1] != 1 || l.gain[2] != 1;
+  bool mask = l.maskimage >= 0 || l.crop[0] != 0 || l.crop[1] != 0 || l.crop[2] != 1 || l.crop[3] != 1 || l.edge[0] != 0 || l.edge[1] != 0 || l.edge[2] != 0 || l.edge[3] != 0;
+  for (const Mask& m : l.masks) mask = mask || m.n >= 3;
+  const bool gamma = l.gamma != 1;
+  GLuint& p = progs[src * 16 + (color ? 1 : 0) + (gamma ? 2 : 0) + (mask ? 4 : 0) + (grid ? 8 : 0)];
+  if (!p) {
+    char def[96];
+    snprintf(def, sizeof def, "#define SRC %d\n#define COLOR %d\n#define GAMMA %d\n#define MASK %d\n#define GRID %d\n", src, color, gamma, mask, grid);
+    p = zgl_program(def, LAYER_VS, LAYER_FS);
+  }
+  return p;
 }
 
 void tex_params(GLuint id) {
@@ -370,7 +389,8 @@ void draw(int32_t w, int32_t h) {
     }
     int src = l.source;
     if (src == IMAGE) src = sync_tex(l.tex, l.image) < 0 ? PATTERN : l.tex.rgba ? BAKED : IMAGE;  // missing image: test pattern
-    GLuint p = layer_prog(src);
+    const bool grid = l.grid > 0.5f || i == selected;
+    GLuint p = layer_prog(src, l, grid);
     if (!p) continue;
     glUseProgram(p);
     float m[9], cm[16];
@@ -384,7 +404,7 @@ void draw(int32_t w, int32_t h) {
     glUniform3f(glGetUniformLocation(p, "u_c2"), l.color2[0], l.color2[1], l.color2[2]);
     float a = l.angle * 3.14159265f / 180;
     glUniform2f(glGetUniformLocation(p, "u_dir"), cosf(a), sinf(a));
-    glUniform3f(glGetUniformLocation(p, "u_grid"), (float)(l.cols - 1), (float)(l.rows - 1), (l.grid > 0.5f || i == selected) ? 1.f : 0.f);
+    glUniform3f(glGetUniformLocation(p, "u_grid"), (float)(l.cols - 1), (float)(l.rows - 1), 1.f);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, src >= IMAGE ? l.tex.id : white);
     glUniform1i(glGetUniformLocation(p, "u_tex"), 0);

@@ -12,7 +12,7 @@
     "windows": { "pkg": ["libavformat", "libavcodec", "libavutil", "libswscale"] },
     "rpi1": { "pkg": ["libavformat", "libavcodec", "libavutil", "libswscale"], "packages": ["ffmpeg-dev"], "linkFlags": ["-pthread"] },
     "webos": { "linkFlags": ["-ldl", "-pthread"] },
-    "android": { "libs": ["mediandk", "android", "log"] },
+    "android": { "libs": ["android", "log"], "linkFlags": ["-ldl"] },
     "ios": { "frameworks": ["AVFoundation", "CoreMedia", "CoreVideo", "Foundation"] }
   },
   "web": { "entry": "web/index.ts" }

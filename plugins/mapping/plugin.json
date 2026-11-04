@@ -7,6 +7,7 @@
   "targets": {
     "macos": {},
     "rpi1": {},
-    "linux": {}
+    "linux": {},
+    "android": { "libs": ["GLESv2"], "flags": ["-I${ZINC_ENGINE}/plugins/display-gl"] }
   }
 }

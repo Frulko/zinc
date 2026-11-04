@@ -140,7 +140,12 @@ static bool zgl_load() {
 }
 #endif
 #include "zrt_raster.h"
-static GLuint zgl_program(const char* defines, const char* vs, const char* fs) {   // GLSL ES 1.00 sources as GLSL 1.50 core
+#ifdef ZGL_ES
+extern "C"   // zinc:mapping links it on Android, as it links display-gl's elsewhere (plugins/display-gl/zgl.h)
+#else
+static
+#endif
+GLuint zgl_program(const char* defines, const char* vs, const char* fs) {   // GLSL ES 1.00 sources as GLSL 1.50 core
 #ifdef ZGL_ES   // the sources as they are, with display-gl's precision (Tegra 3 has no fragment highp)
   static const char* pre_vs = "#version 100\n";
   static const char* pre_fs = "#version 100\n#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n";
@@ -1644,8 +1649,62 @@ static void layers_present(const HalFrame* f, int dw, int dh) {
 }
 #endif
 static void gl_mark(int step);
+#ifdef ZGL_ES
+// zinc:mapping on Android: this window is the GL context display-gl gives it elsewhere (plugins/display-gl/zgl.h), with the same contract: its
+// layers are drawn first, then the frame over them, its black see-through (display-gl's key colour 0).
+extern "C" {
+void (*zgl_layers)(int32_t w, int32_t h);
+void zgl_logical_size(int32_t* w, int32_t* h) { *w = W; *h = H; }
+}
+static void gl_show_layers(GLuint src, float bgr, int dw, int dh) {
+  static const char* kKeyFS = "varying vec2 v_uv; uniform sampler2D u_tex; uniform float u_bgr;\n"
+    "void main() { vec4 t = texture2D(u_tex, v_uv); vec3 c = u_bgr > 0.5 ? t.bgr : t.rgb; float a = dot(c, c) < 0.0001 ? 0.0 : 1.0; gl_FragColor = vec4(c * a, a); }\n";
+  static GLuint prog = zgl_program("", kPresentVS, kKeyFS);
+  // ZINC_BUFFER=WxH: the window's buffers at the panel's own size where the system says more than it shows (a Toumei C800 tells apps 1280x720 and
+  // shows 854x480): the compositor stretches them over the same picture, and the GPU fills only the pixels that exist.
+  static int buf_w, buf_h;
+  static const bool buf_on = getenv("ZINC_BUFFER") && sscanf(getenv("ZINC_BUFFER"), "%dx%d", &buf_w, &buf_h) == 2 && buf_w > 0 && buf_h > 0;
+  if (buf_on) {
+    static ANativeWindow* sized;
+    ANativeWindow* nw = (ANativeWindow*)SDL_GetPointerProperty(SDL_GetWindowProperties(win), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
+    if (nw && nw != sized) { ANativeWindow_setBuffersGeometry(nw, buf_w, buf_h, ANativeWindow_getFormat(nw)); sized = nw; }   // its format, not 0: that one is the surface's default, RGB 565 (banding)
+    dw = buf_w; dh = buf_h;
+  }
+  if (src == glr::texture() && glr::ring_off) glr::unrotate();
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glDisable(GL_SCISSOR_TEST); glDisable(GL_DEPTH_TEST); glDisable(GL_BLEND);
+  glViewport(0, 0, dw, dh);
+  glClearColor(0, 0, 0, 1);
+  glClear(GL_COLOR_BUFFER_BIT);
+  zgl_layers(dw, dh);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glViewport(0, 0, dw, dh);
+  glUseProgram(prog);
+  glUniform2f(glGetUniformLocation(prog, "u_rot"), 1, 0);
+  glUniform4f(glGetUniformLocation(prog, "u_src"), 0, 0, 1, 1);
+  glUniform1i(glGetUniformLocation(prog, "u_tex"), 0);
+  glUniform1f(glGetUniformLocation(prog, "u_bgr"), bgr);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, src);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glBindBuffer(GL_ARRAY_BUFFER, gl_quad);
+  glEnableVertexAttribArray(0);
+  glDisableVertexAttribArray(1);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glDisable(GL_BLEND);
+  glDisableVertexAttribArray(0);
+  gl_mark(PS_DRAW);
+  SDL_GL_SwapWindow(win);
+}
+#endif
 /** The texture `src` over the window (letterboxed, turned), then the swap. */
 static void gl_show(GLuint src, float bgr, int dw, int dh) {
+#ifdef ZGL_ES
+  if (zgl_layers) { gl_show_layers(src, bgr, dw, dh); return; }
+#endif
   const float sc = SDL_min((float)dw / turned_w(), (float)dh / turned_h());
   const int vw = (int)(turned_w() * sc + 0.5f), vh = (int)(turned_h() * sc + 0.5f);
   // a scroll area whose rows the texture keeps turned (glr::scroll): drawn in pieces when the window is the surface, else put back first
@@ -1782,7 +1841,8 @@ static void gl_present(const HalFrame* f) {
     // GLES 2 (Android, ZN-741): only the damage is replayed, into the texture that keeps the frame (glr::dmg_default); a frame without damage
     // draws and posts nothing (the window keeps the last one), a sleep paces it
     glr::dmg_default = true;
-    if (!damaged && gl_tex_ok) {
+    if (!damaged && gl_tex_ok && zgl_layers) glr::idle();   // the frame stands still, the GPU layers under it may not
+    else if (!damaged && gl_tex_ok) {
       static uint64_t idle_at;
       glr::warm();   // a program the next frames may need, built while nothing changes on the screen
       const uint64_t now = SDL_GetTicksNS();
@@ -1791,7 +1851,7 @@ static void gl_present(const HalFrame* f) {
       glr::idle();
       return;
     }
-    if (!gl_moved(f)) { glr::frame(f, false, gl_tex_ok ? glr::Rect{f->x0, f->y0, f->x1, f->y1} : glr::Rect{0, 0, PW, PH}); gl_mark(PS_RASTER); }
+    else if (!gl_moved(f)) { glr::frame(f, false, gl_tex_ok ? glr::Rect{f->x0, f->y0, f->x1, f->y1} : glr::Rect{0, 0, PW, PH}); gl_mark(PS_RASTER); }
     gl_tex_ok = true;
 #else
     if (fb) {   // two surface-sized buffers (13.7 MB each for 1180x760 at density 2) the replay never reads. ponytail: a program that alternates

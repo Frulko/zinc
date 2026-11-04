@@ -1374,6 +1374,7 @@ static bool appPluginsCmake(const std::vector<std::string>& names, const fs::pat
       return false;
     }
     const zn::frontend::PluginTarget& ts = entry->second;
+    if (hit->manifest.kind == "display" && ts.sources.empty()) continue;   // nothing to compile: the app's own window is this display (display-gl on Android: hal_sdl.cpp)
     zn::tc::PluginSource ps;
     if (!zn::tc::pluginSource(*hit, engine.string(), p.dir, platform, (copyDir / nm).string(), ps, err)) { std::fprintf(stderr, "zinc export: %s\n", err.c_str()); return false; }
     const std::string lib = "zn_app_plugin_" + nm, pdir = fs::path(hit->dir).lexically_normal().string();
