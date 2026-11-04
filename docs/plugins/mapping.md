@@ -3,7 +3,7 @@
 Video mapping on the GPU: layers of video, images or generated content, each warped onto a physical surface (corner
 pin, mesh warp), masked, edge-blended and colour-corrected in shaders, and controlled over OSC. Plugin:
 `plugins/mapping/` (module `zinc:mapping`). It draws through [display-gl](display-gl.md), so the project needs
-`"display": "gl"`. Example: `examples/video/mapper/` with its web companion.
+`"display": "gl"`. Example: `examples/video/mapper/` with its editor.
 
 ```ts
 import * as gfx from 'zinc:gfx';
@@ -22,13 +22,15 @@ gfx.onFrame(() => { if (p.image >= 0) mapping.setImage(0, p.image); gfx.clear(0)
 ```
 
 API: `command(address, numbers, strings)`, `addLayer(source, name)`, `set(layer, key, numbers)`,
-`setImage(layer, imageId)`, `layerCount()`, `toJson()`, `fromJson(json)`, `save(path)`, `load(path)`, `listen(port)`.
+`setImage(layer, imageId)`, `layerCount()`, `toJson()`, `layerJson(layer)`, `info()`, `playsMedia()`, `fromJson(json)`,
+`save(path)`, `load(path)`, `listen(port)`, `isFileName(name)`.
 
 ## Support matrix
 
 | target | status | notes |
 |---|---|---|
-| macos | supported, verified | driven over OSC and through the companion, screenshots before/after (warp, masks, colour, blend, video layer, save/load) |
+| macos | supported, verified | driven over OSC and through the editor, screenshots before/after (warp, masks, colour, blend, video layer, save/load) |
+| android | supported, verified on Android 4.4 (RK3128, Mali-400) with the patch of `docs/reports/hardware/toumei-c800-api19.sh` | plays `/layer/<n>/media` itself (`MediaPlayer` into a texture: hardware decoding, sound); newer devices not tried |
 | rpi1 on Pi 4 / 5 (32-bit OS) | builds in docker; **not run on hardware** | GLES 2 on Mesa v3d; 1080p output with a few layers is the expected sweet spot |
 | rpi1 on Pi 3B+ | builds; **not run on hardware** | Mesa vc4 (VideoCore IV): keep to 720p/1080p30 and 2–3 layers; video uploads (`glTexSubImage2D` of every new frame) are the bottleneck, decode small (`new Player(640, 360)`) |
 | rpi1 on Pi 1 / Zero | not supported | same GPU, but the ARMv6 CPU cannot feed texture uploads and decoding at the same time |
@@ -56,6 +58,10 @@ UDP port given to `listen` (9000 in the example). Numbers may be `i`, `f` or `d`
 | `/select` | `n` (−1: none) | shows the calibration grid on layer n |
 | `/save`, `/load` | `[path]` (default `mapping.json`) | whole setup as JSON (`zinc:fs`) |
 | `/sync` | `host port` | replies to host:port with `/state/info {json}` then `/state/layer i {json}` per layer |
+| `/layer/<n>/media` | `file` (empty: none) | Android: plays a file of the media folder, with its sound. Elsewhere it is stored, and the program plays it (`playsMedia()`) |
+| `/layer/<n>/fit` | `stretch`, `contain`, `cover` | how the media takes the layer's zone |
+| `/layer/<n>/inputRect` | `x y w h` | the part of the source shown, 0..1 |
+| `/layer/<n>/volume`, `loop` | 0..1, `0/1` | the media's sound and looping |
 | `/layer/<n>/name` | `s` | |
 | `/layer/<n>/visible` | `0/1` | |
 | `/layer/<n>/source` | `kind [imageId]` | `image` shows `image` (any runtime image id: video player, camera, `gfx.createImage`; or a baked asset); a missing image shows the test card |
@@ -89,7 +95,7 @@ to an older version are ignored. Image ids are saved as numbers: they refer to t
 creates its images in the same order (the example does).
 
 Incoming OSC datagrams are limited to 2048 bytes (`zinc:osc`), so a 16×16 mesh cannot be sent in one `/mesh`
-message: send `/mesh cols rows` then `/point` per point (the companion does).
+message: send `/mesh cols rows` then `/point` per point.
 
 ## Rendering
 
@@ -106,24 +112,24 @@ message: send `/mesh cols rows` then `/point` per point (the companion does).
   when `image_version` changes.
 - **UI**: the program's `zinc:gfx` frame is the overlay; `gfx.clear(0)` leaves it transparent (display-gl key colour).
 
-## Companion
+## Editor
 
-`examples/video/mapper/companion/`: `node server.mjs --app <pi-ip>:9000` serves the editor on
-`http://<this machine>:8080` and relays it to the app as OSC; no npm dependencies. Layer list, drag corner pins or mesh
-points over the output preview, masks/crop/edge blend on the surface view, colour and transform sliders, save/load.
-`node demo.mjs <url>` drives a running app through the same HTTP API and checks the state it reports back. The server
-listens on `127.0.0.1` (`--host 0.0.0.0` for a tablet on the LAN) and its API needs the token it prints in the editor
-URL (`http://host:8080/?token=...`, header `x-zinc-token`; `--token` or `ZINC_COMPANION_TOKEN` to fix one), which also
-keeps other web pages open in the same browser from driving the app.
+`examples/video/mapper/editor/` is a Zinc app, exported for the web and served by the mapper itself (`src/services/web.ts`), and it
+runs natively as well (`zinc run examples/video/mapper/editor -- --app <url>`). Corner pins and deformation grid, masks, crop and edge
+blend, colour and transform, media upload, columns, calibration, and a three.js view of the room. Its HTTP API needs the token printed
+in the address (`?token=...`, header `x-zinc-token`), which also keeps other pages open in the same browser from driving the app:
+`/state`, `/osc` (`[[address, ...args], ...]`), `/media`, `/media/<name>` and `/show`. Two more commands exist on that route and on
+OSC, handled by the program: `/column n` and `/hud 0|1`.
 
 The app's OSC port has no authentication (UDP senders can be spoofed): `listen(port)` binds every interface unless
-`ZINC_BIND=127.0.0.1` restricts it (the companion then runs on the same machine). Over OSC, `/save` and `/load` take a
+`ZINC_BIND=127.0.0.1` restricts it. Over OSC, `/save` and `/load` take a
 plain file name in the working directory (`show.json`, no directories), and `/sync` answers at most 10 times per second.
 `save(path)` / `load(path)` from the program itself accept any path.
 
 ## Not done
 
-- Source crop (showing part of a video on a layer) and per-layer content transform; soft edge on the mesh border
-  (use crop feather).
+- Per-layer content transform; soft edge on the mesh border (use crop feather).
 - Masks are 8-bit: very wide, very soft edge blends can band.
 - Multiple outputs/projectors from one program; output colour calibration (LUT).
+- Sound on a computer: the program's `zinc:video` players show the picture only.
+- Several devices in sync: studied in `docs/reports/mapper-fleet-sync.md`, not built.

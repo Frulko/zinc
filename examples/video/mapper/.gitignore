@@ -1,0 +1,9 @@
+# what a run leaves in its project folder
+media/
+mapping.json
+show.json
+web-token.txt
+# the editor built for the page the app serves (README): zinc export editor --target web -o assets/editor
+assets/editor/
+editor/build/
+editor/dist/

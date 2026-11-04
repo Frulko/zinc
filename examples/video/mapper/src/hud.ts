@@ -1,6 +1,7 @@
 // Status card over the mapped output, in the light zinc:ui/kit look. On display-gl the zinc:gfx frame is an overlay:
 // black is the key colour (the GPU layers show through), so only the card covers them.
-import { height, shadow, rrect, border, drawText, font, textWidth } from 'zinc:gfx';
+import { height, shadow, rect, rrect, border, drawText, font, textWidth } from 'zinc:gfx';
+import { encode, QrCode } from 'zinc:qrcode';
 
 // The build bakes the Tailwind text sizes named in the sources (gfx.font picks the nearest baked one):
 // text-sm for the title and values, text-xs for labels.
@@ -33,4 +34,22 @@ export function drawHud(stats: HudStat[], hint: string): void {
     drawText(VALUE, cx, y + 49, s.value, STRONG, 255, 0);
     cx += Math.max(textWidth(LABEL, s.label, 0), textWidth(VALUE, s.value, 0)) + gap;
   }
+}
+
+let code: QrCode | null = null;
+
+/** The editor's address over the card: as text, and as a QR code for a phone. */
+export function drawAddress(url: string): void {
+  if (code === null) code = encode(url);
+  const qr = code as QrCode;
+  const module = 3, pad = 12, qrSize = qr.size * module;
+  const w = Math.max(qrSize, textWidth(LABEL, url, 0)) + pad * 2, h = qrSize + 22 + pad * 2;
+  const x = 16, y = height() - 16 - 72 - 12 - h;
+  rrect(x, y, w, h, 12, 0xffffff, 245);
+  border(x, y, w, h, 12, 1, 0xe4e4e7, 255);
+  for (let row: i32 = 0; row < qr.size; row++) {
+    const runs = qr.runs(row);
+    for (let i: i32 = 0; i < runs.length; i += 2) rect(x + pad + runs[i] * module, y + pad + row * module, runs[i + 1] * module, module, STRONG);
+  }
+  drawText(LABEL, x + pad, y + pad + qrSize + 6, url, STRONG, 255, 0);
 }

@@ -1,0 +1,10 @@
+{
+  "name": "mapper-editor",
+  "entry": "src/main.tsx",
+  "app": { "name": "Mapper editor", "id": "dev.zinc.mapper-editor", "version": "0.1.0" },
+  "permissions": ["net", "dialog", "deep-link", "fs"],
+  "targets": {
+    "macos": { "width": 1280, "height": 800 },
+    "web": { "title": "Mapper", "themeColor": "#111418", "backgroundColor": "#111418", "pwa": false }
+  }
+}

@@ -1,17 +1,17 @@
-// mapper: GPU video mapping (zinc:mapping on display-gl) controlled over OSC. The web companion
-// (companion/server.mjs) serves the editor and relays it to this app as OSC.
-// Usage: mapper [--media DIR] [--port N]   (default: media, 9000). Keys: Tab status card, F fullscreen, Esc quit.
-// Any runtime image id can feed a layer (video player, camera, gfx.createImage), also over OSC:
-// /layer/<n>/source "image" <id>. Player image ids are stable per player, so saved setups keep their videos.
+// mapper: GPU video mapping (zinc:mapping on display-gl). Any browser edits it live through the web editor the app serves (services/web.ts); OSC desks reach the same commands.
+// Usage: mapper [--media DIR] [--port N] [--web N|off]   (default: media, 9000, 8080). Keys: Tab status card, Left/Right columns, F fullscreen, Esc quit.
 import * as gfx from 'zinc:gfx';
 import * as mapping from 'zinc:mapping';
-import { Player, EXTENSIONS, LOOP } from 'zinc:video';
 import { args } from 'zinc:sys';
+import { DEFAULT_MEDIA_DIR, DEFAULT_OSC_PORT, DEFAULT_WEB_PORT, SETUP_FILE } from './constants';
+import { drawHud, drawAddress } from './hud';
 import { createDemoLayers } from './layers';
 import { liveImage, paintLiveImage } from './live';
-import { drawHud } from './hud';
-
-const SETUP_FILE = 'mapping.json';   // written by the companion's "save", read at start
+import { isHudShown, listenOsc, setHudShown } from './services/control';
+import { bindDecodedVideos, followLayerMedia, useMediaFolder } from './services/layerMedia';
+import { openMediaFolder, videoCount } from './services/mediaStore';
+import { loadShow, resumeShow, stepColumn } from './services/show';
+import { startWebEditor } from './services/web';
 
 /** The value after --name, else the fallback. */
 function option(name: string, fallback: string): string {
@@ -20,37 +20,43 @@ function option(name: string, fallback: string): string {
   return at >= 0 && at + 1 < argv.length ? argv[at + 1] : fallback;
 }
 
-const OSC_PORT: i32 = parseInt(option('port', '9000'));
+const mediaDir = option('media', DEFAULT_MEDIA_DIR);
+openMediaFolder(mediaDir);
+useMediaFolder(mediaDir);
 
-// the videos of the folder, looped on one layer
-const player = new Player(640, 360);
-player.repeat = LOOP;
-const videos = player.addFolder(option('media', 'media'), EXTENSIONS);
-if (videos > 0) player.play();
+// a saved setup starts as it was left, with a clean picture; a first start shows the demo layers and how to reach the editor
+const hadSetup = mapping.load(SETUP_FILE);
+if (!hadSetup) createDemoLayers(liveImage);
+setHudShown(!hadSetup);
+loadShow();
+followLayerMedia();
+resumeShow();
 
-// a saved setup, else the demo layers
-let videoLayer = -1;   // bound to the player image once the player knows its frame size
-if (!mapping.load(SETUP_FILE)) videoLayer = createDemoLayers(liveImage, videos > 0);
-mapping.listen(OSC_PORT);
-console.log(`mapper: OSC on udp ${OSC_PORT}, ${mapping.layerCount()} layers (Tab: status, F: fullscreen, Esc: quit)`);
+const oscPort: i32 = parseInt(option('port', DEFAULT_OSC_PORT));
+const oscOn = listenOsc(oscPort);
+const webPort = option('web', DEFAULT_WEB_PORT);
+const editorUrl = webPort === 'off' ? '' : startWebEditor(parseInt(webPort));
+console.log(`mapper: ${oscOn ? `OSC on udp ${oscPort}` : 'no OSC'}, ${mapping.layerCount()} layers (Tab: status, F: fullscreen, Esc: quit)`);
+if (editorUrl !== '') console.log(`mapper: editor at ${editorUrl}`);
 
-let showHud = true;
 let t = 0, fps = 60;
 
 gfx.onFrame((dt: number) => {
   t += dt;
   if (dt > 0) fps = fps * 0.95 + (1 / dt) * 0.05;
-  if (gfx.wasPressed(gfx.Btn.Select)) showHud = !showHud;
-  if (videoLayer >= 0 && player.image >= 0) { mapping.setImage(videoLayer, player.image); videoLayer = -1; }
+  if (gfx.wasPressed(gfx.Btn.Select)) setHudShown(!isHudShown());
+  if (gfx.wasPressed(gfx.Btn.Right)) stepColumn(1);
+  if (gfx.wasPressed(gfx.Btn.Left)) stepColumn(-1);
+  bindDecodedVideos();
   paintLiveImage(t);
 
   gfx.clear(0);   // display-gl key colour: the GPU layers show through, only the status card covers them
-  if (showHud) {
-    drawHud([
-      { label: 'OSC', value: `udp ${OSC_PORT}` },
-      { label: 'Layers', value: `${mapping.layerCount()}` },
-      { label: 'Videos', value: `${videos}` },
-      { label: 'Frame rate', value: `${Math.round(fps)} fps` },
-    ], 'Tab hides');
-  }
+  if (!isHudShown()) return;
+  drawHud([
+    { label: 'OSC', value: oscOn ? `udp ${oscPort}` : 'off' },
+    { label: 'Layers', value: `${mapping.layerCount()}` },
+    { label: 'Videos', value: `${videoCount()}` },
+    { label: 'Frame rate', value: `${Math.round(fps)} fps` },
+  ], 'Tab hides');
+  if (editorUrl !== '') drawAddress(editorUrl);
 });

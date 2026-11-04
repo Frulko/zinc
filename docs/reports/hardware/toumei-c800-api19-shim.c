@@ -7,12 +7,15 @@
 #include <ifaddrs.h>
 #include <limits.h>
 #include <locale.h>
+#include <net/if.h>
+#include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <sys/ioctl.h>
 #include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
@@ -43,7 +46,8 @@ struct cmsghdr* __cmsg_nxthdr(struct msghdr* msg, struct cmsghdr* cmsg) {
   return (size_t)((char*)(p + 1) - (char*)msg->msg_control) > msg->msg_controllen ? NULL : p;
 }
 size_t __ctype_get_mb_cur_max(void) { return 1; }
-ssize_t __read_chk(int fd, void* buf, size_t count, size_t size) { if (count > size) abort(); return read(fd, buf, count); }
+// the syscall, not read(): a fortified read() is this very function, which would call itself forever at the first read of a socket
+ssize_t __read_chk(int fd, void* buf, size_t count, size_t size) { if (count > size) abort(); return syscall(__NR_read, fd, buf, count); }
 void _Exit(int status) { _exit(status); }
 void android_set_abort_message(const char* msg) { (void)msg; }
 int getpagesize(void) { return (int)sysconf(_SC_PAGESIZE); }
@@ -165,8 +169,34 @@ size_t wcsnrtombs(char* dst, const wchar_t** src, size_t nwc, size_t len, mbstat
 FILE* fopen64(const char* p, const char* m) { return fopen(p, m); }
 int fseeko64(FILE* f, off64_t o, int w) { return fseeko(f, (off_t)o, w); }
 off64_t ftello64(FILE* f) { return ftello(f); }
-int getifaddrs(struct ifaddrs** a) { *a = NULL; errno = ENOSYS; return -1; }
-void freeifaddrs(struct ifaddrs* a) { (void)a; }
+// the IPv4 interfaces, as the kernel lists them (bionic 4.4 has no getifaddrs); one block per interface
+struct if_block { struct ifaddrs ifa; struct sockaddr_in addr, mask; char name[IFNAMSIZ]; };
+int getifaddrs(struct ifaddrs** a) {
+  *a = NULL;
+  int fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (fd < 0) return -1;
+  struct ifreq reqs[16];
+  struct ifconf conf = {.ifc_len = sizeof reqs, .ifc_req = reqs};
+  if (ioctl(fd, SIOCGIFCONF, &conf) < 0) { close(fd); return -1; }
+  for (int i = conf.ifc_len / (int)sizeof(struct ifreq) - 1; i >= 0; i--) {
+    struct if_block* b = calloc(1, sizeof *b);
+    if (!b) break;
+    memcpy(b->name, reqs[i].ifr_name, IFNAMSIZ);
+    memcpy(&b->addr, &reqs[i].ifr_addr, sizeof b->addr);
+    struct ifreq q = reqs[i];
+    if (ioctl(fd, SIOCGIFNETMASK, &q) == 0) memcpy(&b->mask, &q.ifr_netmask, sizeof b->mask);
+    q = reqs[i];
+    if (ioctl(fd, SIOCGIFFLAGS, &q) == 0) b->ifa.ifa_flags = (unsigned)q.ifr_flags;
+    b->ifa.ifa_name = b->name;
+    b->ifa.ifa_addr = (struct sockaddr*)&b->addr;
+    b->ifa.ifa_netmask = (struct sockaddr*)&b->mask;
+    b->ifa.ifa_next = *a;
+    *a = &b->ifa;
+  }
+  close(fd);
+  return 0;
+}
+void freeifaddrs(struct ifaddrs* a) { while (a) { struct ifaddrs* next = a->ifa_next; free(a); a = next; } }
 iconv_t iconv_open(const char* to, const char* from) { (void)to; (void)from; errno = EINVAL; return (iconv_t)-1; }
 size_t iconv(iconv_t c, char** in, size_t* inl, char** out, size_t* outl) { (void)c; (void)in; (void)inl; (void)out; (void)outl; errno = EBADF; return (size_t)-1; }
 int iconv_close(iconv_t c) { (void)c; return 0; }
