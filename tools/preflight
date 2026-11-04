@@ -4,7 +4,8 @@ set -eu
 cd "$(dirname "$0")/.."
 tools/build zinc assets_test board_test codec_test gl_caps_test gltf_check \
   i18n_test ir_test layout_test layout_yoga_test napi_test native_test ops_test \
-  platform_test qr_test scenario_test segment_test sim_test yoga_test zbc_test zpk_test
+  platform_test qr_test scenario_test segment_test sim_test yoga_test zbc_test zpk_test fx_test tls_ticket_test \
+  zn_app zn_app_host project_test threads_test
 if [ "$#" -gt 0 ]; then
   exec tests/run --changed-from "$1" --fail-fast
 fi
