@@ -9,7 +9,7 @@
 #include "zrt_raster.h"
 #include "hal.h"
 #include "mod/sock.h"
-#include "remote_proto.h"   // a link to display-remote's wire, so a copy of this plugin alone builds
+#include "remote_pads.h"    // links to display-remote's wire (with remote_proto.h), so a copy of this plugin alone builds
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/un.h>
@@ -639,6 +639,8 @@ void forward_input(HalInput* in) {
   put_u16(m, nkeys); m += keys;
   put_u16(m, nb); m += btns;
   m += (char)nt; m += touches;
+  pads_put(m, in->pad);
+  for (HalGamepad& p : in->pad) p = HalGamepad{};   // as the buttons below: the app's while one is shown
   const bool events = nkeys || nb || (to_app && (in->wheel != 0 || in->wheel_x != 0));
   in->buttons = 0;   // the keys' and the gamepads' buttons are the app's
   if (to_app) { in->wheel = 0; in->wheel_x = 0; in->scroll_dx = in->scroll_dy = 0; in->scroll_phase = 0; }

@@ -6,7 +6,7 @@
 // INPUT is the app's pointer, keys, wheel and touches; QUIT and the socket closing end the app. The wire: plugins/display-remote/remote_proto.h.
 #include "render_bands.h"
 #include "hal.h"
-#include "../display-remote/remote_proto.h"
+#include "../display-remote/remote_pads.h"
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -48,6 +48,7 @@ struct {
   bool active; float x, y; uint8_t down, pbuttons; uint32_t mods, buttons; float wheel, wheelX;
   std::vector<HalKey> keys; std::string text; std::vector<HalButtonEvent> btn;
   int ntouch; HalTouch touch[HAL_MAX_TOUCH];
+  RemotePads pads;
 } rem;
 
 void fail(const char* why) { fprintf(stderr, "display-shell: %s\n", why); gone = true; }
@@ -97,7 +98,7 @@ void buffers(const uint8_t* p, uint32_t n) {
 }
 // INPUT: mirror.cpp's payload (x f32, y f32 in 0..1 of the surface, negative: not over it; down u8, pbuttons u8, mods u32, buttons u32,
 // wheel f32, wheel_x f32, u16 keys of {key i32, mods u32, kind i32, text u16 + bytes}, u16 button events of {x f32, y f32, button i32, down i32}),
-// then u8 touches of {id u8, x f32, y f32}, x and y in 0..1 too
+// then u8 touches of {id u8, x f32, y f32}, x and y in 0..1 too, then the gamepads (remote_pads.h)
 void input(const uint8_t* p, uint32_t n) {
   if (n < 30) return;
   const float x = f32(p), y = f32(p + 4);
@@ -123,6 +124,7 @@ void input(const uint8_t* p, uint32_t n) {
   rem.ntouch = 0;
   for (int i = 0; i < t && o + 9 <= n; i++, o += 9)
     if (rem.ntouch < HAL_MAX_TOUCH) rem.touch[rem.ntouch++] = HalTouch{p[o], f32(p + o + 1), f32(p + o + 5)};
+  if (o < n) pads_get(rem.pads, p + o, n - o);
 }
 /** Reads what the shell sent and acts on each whole message; `block`: waits for at least one read first. */
 void pump(bool block) {
@@ -267,6 +269,7 @@ void s_poll(HalInput* i) {
   rem.keys.clear(); rem.text.clear(); rem.btn.clear();
   i->ntouch = rem.ntouch;
   for (int k = 0; k < rem.ntouch; k++) i->touch[k] = HalTouch{rem.touch[k].id, rem.touch[k].x * sx, rem.touch[k].y * sy};
+  pads_merge(rem.pads, i);
   if (gone || quit) i->quit = 1;
 }
 void s_shutdown() { unmap(); if (fd >= 0) close(fd); fd = -1; }

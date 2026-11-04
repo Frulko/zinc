@@ -69,6 +69,7 @@ while time.time() < end:
             if not sent:   # after the first frame (a still screen sends no other): INPUT: x y down pbuttons mods buttons wheel wheel_x, 1 key (TEXT é), 0 clicks
                 t8 = "é".encode()
                 body = struct.pack("<ffBBIIff", 0.5, 0.5, 1, 1, 0, 0, 0, 0) + struct.pack("<H", 1) + struct.pack("<IIiH", 0, 0, 3, len(t8)) + t8 + struct.pack("<H", 0)
+                body += struct.pack("<BIffffffB", 1, 1 << 14, 0, 0, 0, 0, 0, 0, 3) + b"Pad"   # a gamepad holding d-pad left
                 c.sendall(bytes([22]) + struct.pack("<I", len(body)) + body); sent = True
             if sent and mid == bytes([0x33, 0x33, 0xcc]):
                 print(W, H, "red after", frames); sys.exit(0)
@@ -77,7 +78,7 @@ PY
 )
 [ "${got%% after*}" = "64 48 red" ] || { echo "live, the program's side: $got"; fail=1; }
 sleep 0.3
-grep -q "down at 32 24" "$tmp/input.log" && grep -q "typed é" "$tmp/input.log" || { echo "the viewer's input did not reach the program: $(cat "$tmp/input.log")"; fail=1; }
+grep -q "down at 32 24" "$tmp/input.log" && grep -q "typed é" "$tmp/input.log" && grep -q "pad Pad 16384 left" "$tmp/input.log" || { echo "the viewer's input did not reach the program: $(cat "$tmp/input.log")"; fail=1; }
 
 # --live through the agent: a headless viewer receives the frames of the program on the screen and says what it saw
 kill $ppid 2>/dev/null; wait $ppid 2>/dev/null

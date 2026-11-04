@@ -5,7 +5,7 @@
 // input comes back as INPUT messages, merged into what the HAL and the display driver read. Nothing runs while no viewer asks.
 #include "hal.h"
 #ifndef _WIN32
-#include "../../plugins/display-remote/remote_proto.h"
+#include "../../plugins/display-remote/remote_pads.h"
 #include "zn/log.h"
 #include <cerrno>
 #include <chrono>
@@ -53,11 +53,12 @@ bool logging;                   // ZINC_MIRROR_LOG=1: what the mirror sends and 
 std::string out, in;
 // the viewer's input not yet given to the program, and the pointer it holds
 struct Remote { bool active; float x, y; int32_t down; uint32_t pbuttons, mods, buttons; float wheel, wheelX; std::vector<HalKey> keys; std::string text; std::vector<HalButtonEvent> btn; } rem;
+RemotePads pads;   // not in rem: the slots they hold are given back after the viewer left
 float localX = -1, localY = -1, wroteX = -1, wroteY = -1;   // the screen's own pointer last seen, and the viewer's last written
 int32_t localDown, wroteDown;
 bool localSeen;
 
-void drop() { if (fd >= 0) ::close(fd); fd = -1; zrt::mirror_watching = false; out.clear(); in.clear(); rem = Remote{}; }
+void drop() { if (fd >= 0) ::close(fd); fd = -1; zrt::mirror_watching = false; out.clear(); in.clear(); rem = Remote{}; pads.n = 0; }
 void msg(uint8_t type, const void* p, uint32_t n) {
   uint8_t h[5] = {type};
   put32(h + 1, n);
@@ -103,7 +104,8 @@ void check() {
 }
 float f32(const uint8_t* p) { float v; std::memcpy(&v, p, 4); return v; }
 // INPUT: x f32, y f32 (0..1 of the screen; negative: the pointer is not over it), down u8, pbuttons u8, mods u32, buttons u32, wheel f32,
-// wheel_x f32, then u16 keys of {key i32, mods u32, kind i32, text u16 + bytes}, then u16 button events of {x f32, y f32, button i32, down i32}
+// wheel_x f32, then u16 keys of {key i32, mods u32, kind i32, text u16 + bytes}, then u16 button events of {x f32, y f32, button i32, down i32},
+// then the gamepads (remote_pads.h)
 void input(const uint8_t* p, uint32_t n) {
   if (n < 30) return;
   const float x = f32(p), y = f32(p + 4);
@@ -124,6 +126,7 @@ void input(const uint8_t* p, uint32_t n) {
   o += 2;
   for (uint16_t i = 0, k = get16(p + o - 2); i < k && o + 16 <= n; ++i, o += 16)
     rem.btn.push_back(HalButtonEvent{f32(p + o), f32(p + o + 4), static_cast<int32_t>(get32(p + o + 8)), static_cast<int32_t>(get32(p + o + 12))});
+  if (o < n) pads_get(pads, p + o, n - o);
 }
 void receive() {
   char b[4096];
@@ -192,6 +195,7 @@ void present(const HalFrame* f) {
 // The viewer's pointer holds until the screen's own pointer moves (a touch, a mouse on the device); keys, clicks and wheel are added.
 void merge(HalInput* i) {
   receive();
+  pads_merge(pads, i);
   if (fd < 0) return;
   const bool kept = i->px == wroteX && i->py == wroteY && i->pdown == wroteDown;   // a HAL that writes the pointer only when it moves
   if (!kept && (i->px != localX || i->py != localY || i->pdown != localDown)) {

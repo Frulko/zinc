@@ -18,6 +18,7 @@
 #include <unistd.h>
 #ifdef ZN_HOST_GFX
 #include "hal.h"
+#include "../../plugins/display-remote/remote_pads.h"
 #endif
 
 namespace zn::agent {
@@ -200,7 +201,7 @@ int cmdLive(Device& d) {
     // what changed since the last message: the pointer (0..1 of the screen), the keys, the wheel, the clicks
     const bool over = hi.px >= 0 && hi.py >= 0 && hi.px < sw && hi.py < sh;
     const bool moved = (over || hi.pdown) && (hi.px != sent.px || hi.py != sent.py);
-    if (moved || hi.pdown != sent.pdown || hi.pbuttons != sent.pbuttons || hi.mods != sent.mods || hi.buttons != sent.buttons || hi.nkeys || hi.nbtn || hi.wheel || hi.wheel_x) {
+    if (moved || hi.pdown != sent.pdown || hi.pbuttons != sent.pbuttons || hi.mods != sent.mods || hi.buttons != sent.buttons || hi.nkeys || hi.nbtn || hi.wheel || hi.wheel_x || std::memcmp(hi.pad, sent.pad, sizeof hi.pad)) {
       {
         std::string m;
         f32(m, over || hi.pdown ? hi.px / sw : -1); f32(m, over || hi.pdown ? hi.py / sh : -1);
@@ -214,6 +215,7 @@ int cmdLive(Device& d) {
         }
         u16(m, static_cast<uint16_t>(hi.nbtn));
         for (int i = 0; i < hi.nbtn; ++i) { f32(m, hi.btn[i].x / sw); f32(m, hi.btn[i].y / sh); u32(m, static_cast<uint32_t>(hi.btn[i].button)); u32(m, static_cast<uint32_t>(hi.btn[i].down)); }
+        pads_put(m, hi.pad);
         if (!send(*c, kIn, message(INPUT, m.data(), static_cast<uint32_t>(m.size())))) break;
         sent = hi;
       }

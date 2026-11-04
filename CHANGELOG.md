@@ -13,6 +13,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 #### New
 ### Added
 - `zinc device <device> screen --live`: a key or gamepad button you let go no longer stays pressed for an app under the player shell or on a display driver; games stopped responding because of it.
+- `zinc device <device> screen --live` also sends the gamepads of your computer to the device; a program sees them as its own, and an app under the player shell now gets the gamepads, those plugged into the device too.
 - `zinc dev --target web`: `zinc:socket` (TCP, UDP, servers) works in the page through the dev bridge, and the events of `zinc:net`'s fetch, `zinc:osc` and the other host services reach the page (the music demo's UDP remote).
 - `zinc dev --target web`: a `zinc:net` server (`serve`, `serveAsync`) of the page listens on your machine through the dev bridge and answers with the page's handler (ipod-web, modules-showcase).
 - `zinc profile` samples every thread of a program with workers: one table per thread, one speedscope profile per thread, the worker's stacks under its name in `--folded`, and `--trace file.json`, a Chrome trace (Perfetto, chrome://tracing) with a named track per thread and each message drawn as an arrow from `postMessage` to the handler that ran it. `ZINC_TRACE` and the Performance panel get the worker tracks and arrows too.

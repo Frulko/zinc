@@ -936,6 +936,7 @@ bool loop_once() {
     hal_poll_input(&input);
     if (display_driver && hal_display->poll) hal_display->poll(&input);
     if (mirror_input) mirror_input(&input);
+    for (const HalGamepad& p : input.pad) input.buttons |= hal_gamepad_buttons(&p);   // a gamepad is also the zinc:gfx buttons (ZN-574)
     if (shell_input) shell_input(&input);
     if (input.quit) return false;
     if (det_mode) det_input();

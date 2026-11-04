@@ -408,9 +408,9 @@ void call(int id, const HostArg* a, HostArg* r) {
       zrt::prev_input = zrt::input;
       zrt::input.wheel = 0; zrt::input.pinch = 1;
       hal_poll_input(&zrt::input);
-      for (const HalGamepad& p : zrt::input.pad) zrt::input.buttons |= hal_gamepad_buttons(&p);   // a gamepad is also the zinc:gfx buttons (ZN-574)
       if (zrt::display_driver && hal_display->poll) hal_display->poll(&zrt::input);   // the driver's own input and its ZINC_FRAMES / ZINC_SHOT counting
       if (zrt::mirror_input) zrt::mirror_input(&zrt::input);   // zinc device screen --live (src/host/mirror.cpp)
+      for (const HalGamepad& p : zrt::input.pad) zrt::input.buttons |= hal_gamepad_buttons(&p);   // a gamepad is also the zinc:gfx buttons (ZN-574), wherever it came from
       if (zrt::shell_input) zrt::shell_input(&zrt::input);     // zinc:shell: what goes to the program it shows (plugins/shell)
       if (zrt::input.quit) quitFlag = true;
       devShortcut();
