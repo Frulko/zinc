@@ -3,10 +3,11 @@ import * as dialog from 'zinc:system/dialog';
 import * as fs from 'zinc:fs';
 import { on } from 'zinc:system';
 import { platform } from 'zinc:sys';
+import { tr } from '../i18n';
 
 export async function pickMedia(): Promise<string[]> {
   const options = new dialog.OpenOptions();
-  options.title = 'Media to send to the mapper';
+  options.title = tr('mapper.files.media');
   options.multiple = true;
   const paths = await dialog.open(options);
   return paths === null ? [] : paths as string[];
@@ -15,7 +16,7 @@ export async function pickMedia(): Promise<string[]> {
 /** What a folder holds, on a page as the files in it, in a native client as its path (expandFolders). */
 export async function pickFolder(): Promise<string[]> {
   const options = new dialog.OpenOptions();
-  options.title = 'Folder of media to send to the mapper';
+  options.title = tr('mapper.files.folder');
   options.directory = true;
   const paths = await dialog.open(options);
   return paths === null ? [] : paths as string[];
@@ -36,7 +37,7 @@ export function expandFolders(paths: string[]): string[] {
 
 export async function pickScene(): Promise<string | null> {
   const options = new dialog.OpenOptions();
-  options.title = 'Scene file to bring to the mapper';
+  options.title = tr('mapper.files.scene');
   const paths = await dialog.open(options);
   return paths === null || (paths as string[]).length === 0 ? null : (paths as string[])[0];
 }
@@ -49,7 +50,7 @@ export function onFileDropped(handler: (path: string) => void): void {
 
 async function askWhere(name: string): Promise<string | null> {
   const options = new dialog.SaveOptions();
-  options.title = `Save ${name}`;
+  options.title = tr('mapper.files.save', ['name', name]);
   options.defaultPath = name;
   return await dialog.save(options);
 }

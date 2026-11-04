@@ -10,6 +10,7 @@ import { PANEL_GRID, afterLayerChange, clipAt, fireCell, fireColumn, holdPanels,
 import { ClipThumb } from './ClipThumb';
 import { IconButton, ValueSlider } from './Field';
 import { Rebuilt } from './Rebuilt';
+import { tr } from '../i18n';
 
 const [dropCell, setDropCell] = createSignal('');
 const [ghost, setGhost] = createSignal<number[]>([]);   // x, y of the tile being dragged
@@ -105,10 +106,10 @@ function CellBox(props: { column: i32; layer: i32; rowSelected: boolean }): i32 
     {!empty && <ClipThumb clip={clip} className="absolute left-0 top-0 right-0 bottom-0" />}
     {!empty && <Text className="absolute left-0 right-0 bottom-0 px-1 bg-black/60 text-[10px] text-zinc-100" numberOfLines={1}>{clip.label}</Text>}
     {playing && <View className="absolute left-[2] top-[2] w-[18] h-[18] items-center justify-center rounded bg-black/60"><Icon name="play" size={12} color={() => PLAYING_ICON} /></View>}
-    {!empty && <View className="absolute right-[2] top-[2] w-[18] h-[18] items-center justify-center rounded bg-black/60 cursor-pointer" role="button" aria-label="Remove clip"
+    {!empty && <View className="absolute right-[2] top-[2] w-[18] h-[18] items-center justify-center rounded bg-black/60 cursor-pointer" role="button" aria-label={tr('mapper.dashboard.removeClip')}
       onPress={() => removeClip(props.column, props.layer)}><Icon name="x" size={12} color={() => X_ICON} /></View>}
     {dropCell() === key && <View className="absolute left-0 top-0 right-0 bottom-0 items-center justify-center bg-orange-500/40 pointer-events-none">
-      <Text className="text-xs text-white">{empty ? 'Drop here' : 'Replace'}</Text>
+      <Text className="text-xs text-white">{empty ? tr('mapper.dashboard.dropHere') : tr('mapper.dashboard.replace')}</Text>
     </View>}
   </View>;
 }
@@ -118,7 +119,7 @@ function LayerHead(props: { layer: i32 }): i32 {
   const selected = props.layer === store.selected;
   return <View className={`w-[196] h-[63] px-2 justify-center rounded overflow-hidden cursor-pointer ${selected ? 'bg-orange-600' : 'bg-zinc-800'}`} onPress={() => selectLayer(props.layer)}>
     <View className="flex-row items-center gap-2">
-      <Switch checked={() => numbers(layer, 'visible')[0] > 0} accessibilityLabel="visible" onChange={(on: boolean) => {
+      <Switch checked={() => numbers(layer, 'visible')[0] > 0} accessibilityLabel={tr('mapper.dashboard.visible')} onChange={(on: boolean) => {
         layer.visible = [on ? 1 : 0];
         send(`/layer/${props.layer}/visible`, [on ? 1 : 0]);
         touch();
@@ -190,14 +191,14 @@ function removeSelected(): void {
 
 function Toolbar(): i32 {
   return <View className="flex-row items-center gap-1">
-    <Text className="text-[11px] uppercase text-zinc-500 mr-2">Layers</Text>
-    <IconButton icon="plus" variant="secondary" label="Add" onClick={addLayer} />
-    <IconButton icon="arrow-up" variant="secondary" label="Up" onClick={() => moveSelected(1)} />
-    <IconButton icon="arrow-down" variant="secondary" label="Down" onClick={() => moveSelected(-1)} />
-    <IconButton icon="trash" variant="secondary" label="Delete" onClick={removeSelected} />
+    <Text className="text-[11px] uppercase text-zinc-500 mr-2">{tr('mapper.dashboard.layers')}</Text>
+    <IconButton icon="plus" variant="secondary" label={tr('mapper.dashboard.add')} onClick={addLayer} />
+    <IconButton icon="arrow-up" variant="secondary" label={tr('mapper.dashboard.up')} onClick={() => moveSelected(1)} />
+    <IconButton icon="arrow-down" variant="secondary" label={tr('mapper.dashboard.down')} onClick={() => moveSelected(-1)} />
+    <IconButton icon="trash" variant="secondary" label={tr('mapper.dashboard.delete')} onClick={removeSelected} />
     <View className="grow" />
-    <Text className="text-[11px] text-zinc-500 mr-2">A click plays a clip, a second one stops it; a column's title plays or stops the column; an empty column stops everything.</Text>
-    <IconButton icon="square" variant="secondary" label="Stop all" onClick={stopAll} />
+    <Text className="text-[11px] text-zinc-500 mr-2">{tr('mapper.dashboard.hint')}</Text>
+    <IconButton icon="square" variant="secondary" label={tr('mapper.dashboard.stopAll')} onClick={stopAll} />
   </View>;
 }
 
@@ -214,7 +215,7 @@ export function Dashboard(): i32 {
         <View className="w-0 grow"><Toolbar /></View>
         <Button size="sm" variant="ghost" onClick={() => setOpen(!open())}><View className="flex-row items-center gap-1">
           {open() ? <Icon name="chevron-down" size={14} color={() => X_ICON} /> : <Icon name="chevron-up" size={14} color={() => X_ICON} />}
-          <Text className="text-xs text-zinc-200">{open() ? 'Hide grid' : 'Show grid'}</Text>
+          <Text className="text-xs text-zinc-200">{open() ? tr('mapper.dashboard.hideGrid') : tr('mapper.dashboard.showGrid')}</Text>
         </View></Button>
       </View>
       {open() && <ScrollView ref={down} style={{ height: panelSize(PANEL_GRID) }}><Rebuilt make={Grid} /></ScrollView>}

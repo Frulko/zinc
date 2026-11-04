@@ -6,6 +6,7 @@ import { getJson } from '../services/link';
 import { store } from '../state';
 import { SENDING, Transfer, WAITING, transfers } from '../transfers';
 import { TransferRow } from './TransferDialog';
+import { tr, trn } from '../i18n';
 
 interface DeviceTask { kind: string; name: string; done: number; total: number }
 interface Device { name: string; address: string; system: string; fps: number; freeMemory: number; totalMemory: number; load: number; uptime: number; layers: number; mediaFiles: number; mediaBytes: number; tasks: DeviceTask[] }
@@ -14,20 +15,20 @@ const REFRESH_MS = 1000;
 const BUSY: i32 = 0xfb923c, IDLE: i32 = 0xa1a1aa;
 const [device, setDevice] = createSignal<Device | null>(null);
 
-function megabytes(bytes: number): string { return `${Math.round(bytes / 1048576)} MB`; }
+function megabytes(bytes: number): string { return tr('mapper.unit.mb', ['n', `${Math.round(bytes / 1048576)}`]); }
 
 function duration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
-  return hours > 0 ? `${hours} h ${Math.floor(seconds / 60) % 60} min` : `${Math.floor(seconds / 60)} min`;
+  return hours > 0 ? tr('mapper.time.hoursMinutes', ['hours', `${hours}`, 'minutes', `${Math.floor(seconds / 60) % 60}`]) : tr('mapper.time.minutes', ['minutes', `${Math.floor(seconds / 60)}`]);
 }
 
 function facts(): string {
   const known = device();
-  if (known === null) return 'the mapper does not answer';
+  if (known === null) return tr('mapper.status.noAnswer');
   const d = known as Device;
-  return [d.name, d.address, d.system, `${store.pixels[0]} x ${store.pixels[1]}`, `${d.fps} fps`, `${d.layers} layers`,
-    `${d.mediaFiles} media, ${megabytes(d.mediaBytes)}`, `memory ${megabytes(d.totalMemory - d.freeMemory)} of ${megabytes(d.totalMemory)}`,
-    `load ${d.load.toFixed(1)}`, `up ${duration(d.uptime)}`].join('   ');
+  return [d.name, d.address, d.system, `${store.pixels[0]} x ${store.pixels[1]}`, `${d.fps} fps`, trn('mapper.status.layers', d.layers),
+    tr('mapper.status.media', ['count', `${d.mediaFiles}`, 'size', megabytes(d.mediaBytes)]), tr('mapper.status.memory', ['used', megabytes(d.totalMemory - d.freeMemory), 'total', megabytes(d.totalMemory)]),
+    tr('mapper.status.load', ['value', d.load.toFixed(1)]), tr('mapper.status.up', ['time', duration(d.uptime)])].join('   ');
 }
 
 function isMine(task: DeviceTask): boolean {
@@ -56,7 +57,7 @@ function TaskRow(props: { task: DeviceTask }): i32 {
 
 function Tasks(): i32 {
   return <View className="gap-3">
-    {busyCount() === 0 && <Text className="text-xs text-zinc-400">Nothing is running on the device.</Text>}
+    {busyCount() === 0 && <Text className="text-xs text-zinc-400">{tr('mapper.status.nothing')}</Text>}
     <For each={myTransfers()}>{(transfer: Transfer) => <TransferRow transfer={transfer} />}</For>
     <For each={deviceTasks()}>{(task: DeviceTask) => <TaskRow task={task} />}</For>
   </View>;
@@ -81,8 +82,8 @@ export function StatusBar(): i32 {
     <Text className="w-0 grow text-[11px] text-zinc-400" numberOfLines={1}>{facts()}</Text>
     {busyCount() > 0 && <View className="flex-row items-center gap-1">
       <View className="w-[8] h-[8] rounded-full bg-orange-500" />
-      <Text className="text-[11px] text-orange-300">{`${busyCount()} running`}</Text>
+      <Text className="text-[11px] text-orange-300">{tr('mapper.status.running', ['count', `${busyCount()}`])}</Text>
     </View>}
-    <Popover label="What runs on the device" placement="top-end" className="w-[360]" trigger={() => <View className="p-1"><Icon name={busyCount() > 0 ? 'activity' : 'info'} size={16} color={() => busyCount() > 0 ? BUSY : IDLE} /></View>}><Tasks /></Popover>
+    <Popover label={tr('mapper.status.popover')} placement="top-end" className="w-[360]" trigger={() => <View className="p-1"><Icon name={busyCount() > 0 ? 'activity' : 'info'} size={16} color={() => busyCount() > 0 ? BUSY : IDLE} /></View>}><Tasks /></Popover>
   </View>;
 }

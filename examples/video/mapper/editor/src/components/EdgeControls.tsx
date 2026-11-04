@@ -4,9 +4,11 @@ import { createSignal } from 'zinc:ui/solid';
 import { currentLayer, numbers, setLayer, touch } from '../state';
 import { IconButton, Row, ValueSlider } from './Field';
 import { MODE_EDGES, currentEdge, outputMode } from './OutputCanvas';
+import { tr } from '../i18n';
 
-const SIDE_NAMES: string[] = ['left', 'right', 'top', 'bottom'];
-const DIRECTIONS: string[] = ['Inside', 'Outside', 'Both'];
+const SIDE_KEYS: string[] = ['left', 'right', 'top', 'bottom'];
+
+function directions(): string[] { return [tr('mapper.edge.inside'), tr('mapper.edge.outside'), tr('mapper.edge.both')]; }
 const CURVE_INDEX: i32 = 4;
 const MAX_CUT = 0.25, MAX_GRADIENT = 0.5, MIN_CURVE = 0.4, MAX_CURVE = 3;
 const MAX_OFFSET = 0.1, OFFSET_STEP = 0.001;
@@ -23,25 +25,25 @@ export function EdgeControls(): i32 {
   const [shift, setShift] = createSignal<number>(offset[side]);
   const [fade, setFade] = createSignal<i32>(direction[side] as i32);
   return <View className="max-w-[560] gap-1">
-    <Text className="text-xs text-zinc-300">{`Soft edge, ${SIDE_NAMES[side]} side. Blue: where the gradient ends. Red: where the cut puts its end, or hides up to.`}</Text>
-    <Tabs items={DIRECTIONS} selected={fade} onSelect={(i: i32) => {
+    <Text className="text-xs text-zinc-300">{tr('mapper.edge.hint', ['side', tr(`mapper.side.${SIDE_KEYS[side]}`)])}</Text>
+    <Tabs items={directions()} selected={fade} onSelect={(i: i32) => {
       setFade(i);
       direction[side] = i;
       setLayer('edgedir', direction);
     }} />
-    <Row label="cut">
+    <Row label={tr('mapper.edge.cut')}>
       <ValueSlider min={0} max={MAX_CUT} read={() => inset[side]} write={(v: number) => {
         inset[side] = v;
         setLayer('inset', inset);
       }} />
     </Row>
-    <Row label="gradient">
+    <Row label={tr('mapper.edge.gradient')}>
       <ValueSlider min={0} max={MAX_GRADIENT} read={() => edge[side]} write={(v: number) => {
         edge[side] = v;
         setLayer('edge', edge);
       }} />
     </Row>
-    <Row label="offset">
+    <Row label={tr('mapper.edge.offset')}>
       <View className="flex-row items-center gap-2">
         <View className="w-0 grow"><ValueSlider min={-MAX_OFFSET} max={MAX_OFFSET} step={OFFSET_STEP} read={() => offset[side]} write={(v: number) => {
           offset[side] = v;
@@ -56,7 +58,7 @@ export function EdgeControls(): i32 {
         }} />
       </View>
     </Row>
-    <Row label="curve">
+    <Row label={tr('mapper.edge.curve')}>
       <ValueSlider min={MIN_CURVE} max={MAX_CURVE} read={() => edge[CURVE_INDEX]} write={(v: number) => {
         edge[CURVE_INDEX] = v;
         setLayer('edge', edge);

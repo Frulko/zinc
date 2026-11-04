@@ -4,6 +4,7 @@ import { onCleanup, onMount } from 'zinc:ui/solid';
 import { loadHistory, stepHistory, store } from '../state';
 import { Heading } from './Field';
 import { Rebuilt } from './Rebuilt';
+import { tr } from '../i18n';
 
 const REFRESH_MS = 1000;
 
@@ -24,8 +25,8 @@ export function HistoryPanel(): i32 {
   });
   onCleanup(() => { clearInterval(timer); });
   return <View className="p-3 gap-2">
-    <Heading text="History" />
-    <Text className="text-xs text-zinc-400">Click an action to go back to it. What plays stays as it is.</Text>
+    <Heading text={tr('mapper.history.heading')} />
+    <Text className="text-xs text-zinc-400">{tr('mapper.history.hint')}</Text>
     <Rebuilt make={Entries} />
   </View>;
 }

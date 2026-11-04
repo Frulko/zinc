@@ -8,6 +8,7 @@ import { Placement } from './model/geometry';
 import { EDGE_OUTSIDE, SETTLE_MS } from './constants';
 import { deleteJson, getJson, getText, postJson, putJson, send, sendFile } from './services/link';
 import { mediaName, saveText } from './services/files';
+import { tr, trn } from './i18n';
 
 // `revision`: what the panels list changed, they are built again. `pointRevision`: a point moved, only its readout follows (the canvases redraw at each frame).
 export const [revision, setRevision] = createSignal(0);
@@ -31,7 +32,7 @@ export function touchPoint(): void { setPointRevision(pointRevision() + 1); }
 export const [roomRevision, setRoomRevision] = createSignal(0);
 export function touchRoom(): void { setRoomRevision(roomRevision() + 1); }
 
-export const [status, setStatus] = createSignal('connecting');
+export const [status, setStatus] = createSignal(tr('mapper.state.connecting'));
 export const [connected, setConnected] = createSignal(false);
 
 export interface MediaFile { name: string; bytes: number }
@@ -191,7 +192,7 @@ export async function loadState(): Promise<void> {
     store.playsMedia = state.playsMedia as boolean;
     store.selected = Math.min(store.selected, store.layers.length - 1) as i32;
     if (store.selected < 0 && store.layers.length > 0) store.selected = 0;
-    setStatus(`${store.layers.length} layers, ${store.pixels[0]} x ${store.pixels[1]} pixels`);
+    setStatus(trn('mapper.state.loaded', store.layers.length, ['pixels', `${store.pixels[0]} x ${store.pixels[1]}`]));
     setConnected(true);
     touch();
   } catch (e) {
@@ -222,7 +223,7 @@ async function putShow(json: string): Promise<void> {
   try {
     await putJson('/show', json);
   } catch (e) {
-    setStatus('the mapper does not answer: the columns are not saved');
+    setStatus(tr('mapper.state.notSaved'));
   }
 }
 
@@ -367,7 +368,7 @@ export async function stepHistory(step: string): Promise<void> {
     store.history = await postJson(`/history/${step}`) as HistoryList;
     await afterLayerChange();
   } catch (e) {
-    setStatus(step === 'undo' ? 'nothing to undo' : step === 'redo' ? 'nothing to redo' : `${e}`);
+    setStatus(step === 'undo' ? tr('mapper.state.nothingUndo') : step === 'redo' ? tr('mapper.state.nothingRedo') : `${e}`);
   }
 }
 
@@ -391,16 +392,16 @@ export async function saveSceneAs(name: string): Promise<void> {
   saveShow();
   await new Promise<void>((resolve: () => void) => { setTimeout(resolve, SETTLE_MS); });
   store.scenes = await postJson(`/scenes/${name}`) as string[];
-  setStatus(`scene ${name} saved`);
+  setStatus(tr('mapper.state.sceneSaved', ['name', name]));
   touch();
 }
 
 export async function loadSceneNamed(name: string): Promise<void> {
-  await afterSceneChange(await postJson(`/scenes/${name}/load`), name, `scene ${name} is on`);
+  await afterSceneChange(await postJson(`/scenes/${name}/load`), name, tr('mapper.state.sceneOn', ['name', name]));
 }
 
 export async function startNewScene(): Promise<void> {
-  await afterSceneChange(await postJson('/new-scene'), '', 'a new empty scene');
+  await afterSceneChange(await postJson('/new-scene'), '', tr('mapper.state.sceneNew'));
 }
 
 export async function removeScene(name: string): Promise<void> {
@@ -416,9 +417,9 @@ export async function importScene(path: string): Promise<void> {
   const name = mediaName(path).replace(/\.mapper\.json$|\.json$/, '').replace(/[^A-Za-z0-9_-]/g, '-');
   try {
     store.scenes = await sendFile(`/scenes/${name}`, path, (part: number) => {}) as string[];
-    setStatus(`scene ${name} arrived`);
+    setStatus(tr('mapper.state.sceneArrived', ['name', name]));
   } catch (e) {
-    setStatus(`${name} is not a scene: ${e}`);
+    setStatus(tr('mapper.state.notScene', ['name', name, 'problem', `${e}`]));
   }
   touch();
 }

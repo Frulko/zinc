@@ -4,6 +4,7 @@ import { EMPTY_CLIP } from './model/clips';
 import { expandFolders, mediaName } from './services/files';
 import { sendFile } from './services/link';
 import { placeClipAndPlay, setStatus, store, touch } from './state';
+import { tr, trn } from './i18n';
 
 export interface Transfer { name: string; path: string; part: number; state: string; problem: string }
 export const WAITING = 'waiting', SENDING = 'sending', DONE = 'done', FAILED = 'failed';
@@ -46,14 +47,14 @@ async function sendAll(): Promise<void> {
   const all = transfers();
   if (all.length === 1 && all[0].state === DONE && store.selected >= 0) await placeClipAndPlay({ ...EMPTY_CLIP, label: all[0].name, media: all[0].name });
   const failed = all.filter((t: Transfer): boolean => t.state === FAILED).length;
-  setStatus(failed > 0 ? `${failed} of ${all.length} files did not arrive` : `${all.length} sent to the mapper`);
+  setStatus(failed > 0 ? trn('mapper.transfer.failed', all.length, ['failed', `${failed}`]) : trn('mapper.transfer.sent', all.length));
 }
 
 /** Files or folders of the person; what is on its way goes on, a finished list makes room for the new one. */
 export function sendFiles(paths: string[]): void {
   const files = expandFolders(paths).filter((path: string): boolean => MEDIA.test(path));
   if (files.length === 0) {
-    setStatus('no media in what you sent');
+    setStatus(tr('mapper.transfer.noMedia'));
     return;
   }
   if (!running) {

@@ -4,6 +4,7 @@ import * as link from 'zinc:link';
 import { createSignal } from 'zinc:ui/solid';
 import { platform } from 'zinc:sys';
 import { postOpen } from './link';
+import { tr } from '../i18n';
 
 const SERVICE = 'zinc-mapper';
 
@@ -23,7 +24,7 @@ export function findMappers(): void {
 export function stopFinding(): void { if (canBrowse()) link.stopBrowsing(); }
 
 function reasonOf(status: i32): string {
-  return status === 429 ? 'Asked a moment ago: the code is coming, or try again in a few seconds.' : `The mapper answered ${status}.`;
+  return status === 429 ? tr('mapper.discovery.wait') : tr('mapper.discovery.answered', ['status', `${status}`]);
 }
 
 /** Asks the mapper to show a code; what to tell the person, '' when it does. */
@@ -49,7 +50,7 @@ export async function pairWith(peer: link.Peer, code: string): Promise<link.Peer
 export async function pairPage(webBase: string, code: string, onProblem: (message: string) => void): Promise<string> {
   const reply = await postOpen(`${webBase}/pair`, code);
   if (reply.status !== 200) {
-    onProblem('Wrong code, or no code on the mapper. Three wrong ones close it: ask for a new one.');
+    onProblem(tr('mapper.discovery.wrongCode'));
     return '';
   }
   return `${webBase}/?token=${JSON.parse(reply.text).token as string}`;

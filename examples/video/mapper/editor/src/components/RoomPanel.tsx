@@ -6,6 +6,7 @@ import { currentLayer, numbers, placementOf, saveShow, store, surfaceOf, touchRo
 import { Heading, NumberField, Row } from './Field';
 import { RoomView } from './RoomView';
 import { Rebuilt } from './Rebuilt';
+import { tr } from '../i18n';
 
 function solvedRoom(): (SolvedSurface | null)[] {
   const surfaces: RoomSurface[] = store.layers.map((layer: any): RoomSurface => ({ name: word(layer, 'name'), placement: placementOf(layer), typed: surfaceOf(layer) }));
@@ -45,19 +46,19 @@ function SizeFields(): i32 {
   if (layer === null) return <View />;
   const size = sizeOf(layer);
   return <View>
-    <Row label="width m"><NumberField label="surface width in metres" value={() => Math.round(size[0] * 100) / 100} onChange={(v: number) => setSelectedSize(0, v)} /></Row>
-    <Row label="height m"><NumberField label="surface height in metres" value={() => Math.round(size[1] * 100) / 100} onChange={(v: number) => setSelectedSize(1, v)} /></Row>
+    <Row label={tr('mapper.room.width')}><NumberField label={tr('mapper.room.widthLabel')} value={() => Math.round(size[0] * 100) / 100} onChange={(v: number) => setSelectedSize(0, v)} /></Row>
+    <Row label={tr('mapper.room.height')}><NumberField label={tr('mapper.room.heightLabel')} value={() => Math.round(size[1] * 100) / 100} onChange={(v: number) => setSelectedSize(1, v)} /></Row>
   </View>;
 }
 
 export function RoomPanel(): i32 {
   return <View className="p-3">
-    <Heading text="Room" />
+    <Heading text={tr('mapper.room.heading')} />
     <Rebuilt make={SizeFields} />
-    <Row label="throw"><NumberField label="throw ratio, distance over picture width" value={() => store.lens.throwRatio} onChange={(v: number) => { if (v > 0) { store.lens.throwRatio = v; saveShow(); touchRoom(); } }} /></Row>
-    <Row label="lens shift"><NumberField label="lens shift, in picture heights" value={() => store.lens.shiftY} onChange={(v: number) => { store.lens.shiftY = v; saveShow(); touchRoom(); }} /></Row>
+    <Row label={tr('mapper.room.throw')}><NumberField label={tr('mapper.room.throwLabel')} value={() => store.lens.throwRatio} onChange={(v: number) => { if (v > 0) { store.lens.throwRatio = v; saveShow(); touchRoom(); } }} /></Row>
+    <Row label={tr('mapper.room.shift')}><NumberField label={tr('mapper.room.shiftLabel')} value={() => store.lens.shiftY} onChange={(v: number) => { store.lens.shiftY = v; saveShow(); touchRoom(); }} /></Row>
     <RoomView className="w-full h-[420] mt-2" surfaces={sceneSurfaces} lens={() => store.lens} aspect={() => store.aspect} />
-    <View className="mt-2"><Button size="sm" variant="secondary" label="Scene GLB" onClick={() => { saveBytes('mapper-scene.glb', sceneGlb(sceneSurfaces())); }} /></View>
-    <Text className="text-[11px] text-zinc-500 mt-1">Shapes come from the corners and the lens. Link the corners two faces share (in Output) to join them; one real size sets the scale of what is linked to it. Metres, projector at the origin. The GLB opens in three.js, model-viewer, Blender.</Text>
+    <View className="mt-2"><Button size="sm" variant="secondary" label={tr('mapper.room.glb')} onClick={() => { saveBytes('mapper-scene.glb', sceneGlb(sceneSurfaces())); }} /></View>
+    <Text className="text-[11px] text-zinc-500 mt-1">{tr('mapper.room.hint')}</Text>
   </View>;
 }

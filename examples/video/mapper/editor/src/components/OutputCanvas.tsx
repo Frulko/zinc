@@ -7,6 +7,7 @@ import { EditablePoint, PointEditor } from '../model/pointEditor';
 import { send } from '../services/link';
 import { currentLayer, numbers, placementOf, saveShow, selectLayer, store, touch, word } from '../state';
 import { PointCanvas } from './PointCanvas';
+import { tr } from '../i18n';
 
 const LINK_RING = 3, OTHER_CORNER_RADIUS = 5, SELECTED_EDGE_WIDTH = 3;
 
@@ -350,15 +351,15 @@ function draw(x: i32, y: i32, w: i32, h: i32): void {
 }
 
 export function selectedPointText(): string {
-  if (linkFrom !== null) return 'Click a corner of another layer: it joins this point and they move together.';
-  if (mode === MODE_EDGES) return selectedEdge < 0 ? 'Click an edge of a layer to soften it.' : '';
-  if (store.layers.length === 0) return 'An empty scene: Add makes a layer that covers the whole output.';
+  if (linkFrom !== null) return tr('mapper.output.pointLinking');
+  if (mode === MODE_EDGES) return selectedEdge < 0 ? tr('mapper.output.pointEdges') : '';
+  if (store.layers.length === 0) return tr('mapper.output.pointEmpty');
   const all = outputPoints();
-  if (outputEditor.selection.length === 0) return 'Click a zone to select it; drag it or use the arrows to move it whole. Click a point; the arrows move it by 1 pixel, with Shift by 10; Tab goes to the next one.';
+  if (outputEditor.selection.length === 0) return tr('mapper.output.pointHint');
   const first = all[outputEditor.selection[0]];
   if (first === undefined) return '';
-  const many = outputEditor.selection.length > 1 ? `${outputEditor.selection.length} points, first at ` : '';
-  return `${many}${(first.x * store.pixels[0]).toFixed(1)}, ${(first.y * store.pixels[1]).toFixed(1)} px`;
+  const x = (first.x * store.pixels[0]).toFixed(1), y = (first.y * store.pixels[1]).toFixed(1);
+  return outputEditor.selection.length > 1 ? tr('mapper.output.pointsFirst', ['count', `${outputEditor.selection.length}`, 'x', x, 'y', y]) : tr('mapper.output.point', ['x', x, 'y', y]);
 }
 
 export function OutputCanvas(): i32 {

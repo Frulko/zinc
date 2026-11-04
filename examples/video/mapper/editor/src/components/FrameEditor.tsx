@@ -8,15 +8,13 @@ import { send } from '../services/link';
 import { isPlaying, numbers, saveShow, store, touch } from '../state';
 import { thumbnailOf } from '../services/thumbnails';
 import { IconButton, Row, ValueSlider } from './Field';
+import { tr } from '../i18n';
 
 const MIN_ZOOM = 0.1, MAX_ZOOM = 4, MAX_MOVE = 1, MAX_TURN = 180, DIM: i32 = 170, FRAME_WIDTH = 2;
 const EPSILON = 0.005;
 
 function fitText(fit: string): string {
-  if (fit === 'stretch') return 'The whole picture, deformed to the zone.';
-  if (fit === 'contain') return 'The whole picture, with bars where it does not reach.';
-  if (fit === 'cover') return 'The zone is full; what exceeds is cut.';
-  return fit === 'width' ? 'The width of the picture spans the zone.' : 'The height of the picture spans the zone.';
+  return tr(`mapper.frame.${fit}`);
 }
 
 function percent(part: number): string { return `${Math.round(part * 100)}%`; }
@@ -24,11 +22,14 @@ function percent(part: number): string { return `${Math.round(part * 100)}%`; }
 /** What is cut and where the bars are. */
 function outcome(part: number[]): string {
   const words: string[] = [];
-  if (part[2] < 1 - EPSILON) words.push(`shows ${percent(part[2])} of its width`);
-  if (part[3] < 1 - EPSILON) words.push(`shows ${percent(part[3])} of its height`);
-  if (part[2] > 1 + EPSILON) words.push('bars left and right');
-  if (part[3] > 1 + EPSILON) words.push('bars above and below');
-  return words.length === 0 ? 'Nothing is cut.' : `It ${words.join(', ')}.`.replace('It bars', 'Bars');
+  if (part[2] < 1 - EPSILON) words.push(tr('mapper.frame.showsWidth', ['part', percent(part[2])]));
+  if (part[3] < 1 - EPSILON) words.push(tr('mapper.frame.showsHeight', ['part', percent(part[3])]));
+  if (part[2] > 1 + EPSILON) words.push(tr('mapper.frame.barsSides'));
+  if (part[3] > 1 + EPSILON) words.push(tr('mapper.frame.barsAbove'));
+  if (words.length === 0) return tr('mapper.frame.nothingCut');
+  const list = words.join(', ');
+  if (part[2] < 1 - EPSILON || part[3] < 1 - EPSILON) return tr('mapper.frame.outcome', ['list', list]);
+  return tr('mapper.frame.outcomeFirst', ['list', list.charAt(0).toUpperCase() + list.slice(1)]);
 }
 
 function clamp(value: number, low: number, high: number): number { return Math.max(low, Math.min(high, value)); }
@@ -100,15 +101,15 @@ export function FrameEditor(props: { clip: Clip; layer: any }): i32 {
       saveShow();
       touch();
     }} onDraw={draw} />}
-    {!known && <Text className="text-[11px] text-zinc-500">This device gives no picture of this media: the sliders still work.</Text>}
-    {!known && <Row label="across"><ValueSlider min={-1} max={1} read={() => clip.frame[0]} write={(v: number) => { clip.frame[0] = v; follow(); saveShow(); }} /></Row>}
-    {!known && <Row label="down"><ValueSlider min={-1} max={1} read={() => clip.frame[1]} write={(v: number) => { clip.frame[1] = v; follow(); saveShow(); }} /></Row>}
-    <Row label="scale"><ValueSlider min={MIN_ZOOM} max={MAX_ZOOM} read={() => clip.frame[2]} write={(v: number) => { clip.frame[2] = v; follow(); saveShow(); }} /></Row>
-    <Row label="x"><ValueSlider min={-MAX_MOVE} max={MAX_MOVE} read={() => clip.picture[0]} write={(v: number) => setPicture(0, v)} /></Row>
-    <Row label="y"><ValueSlider min={-MAX_MOVE} max={MAX_MOVE} read={() => clip.picture[1]} write={(v: number) => setPicture(1, v)} /></Row>
-    <Row label="rotation"><ValueSlider min={-MAX_TURN} max={MAX_TURN} read={() => clip.picture[2]} write={(v: number) => setPicture(2, v)} /></Row>
-    <Row label="opacity"><ValueSlider min={0} max={1} read={() => clip.picture[3]} write={(v: number) => setPicture(3, v)} /></Row>
-    <View className="items-start"><IconButton icon="crosshair" label="Reset the picture" onClick={() => {
+    {!known && <Text className="text-[11px] text-zinc-500">{tr('mapper.frame.noPicture')}</Text>}
+    {!known && <Row label={tr('mapper.frame.across')}><ValueSlider min={-1} max={1} read={() => clip.frame[0]} write={(v: number) => { clip.frame[0] = v; follow(); saveShow(); }} /></Row>}
+    {!known && <Row label={tr('mapper.frame.down')}><ValueSlider min={-1} max={1} read={() => clip.frame[1]} write={(v: number) => { clip.frame[1] = v; follow(); saveShow(); }} /></Row>}
+    <Row label={tr('mapper.frame.scale')}><ValueSlider min={MIN_ZOOM} max={MAX_ZOOM} read={() => clip.frame[2]} write={(v: number) => { clip.frame[2] = v; follow(); saveShow(); }} /></Row>
+    <Row label={tr('mapper.frame.x')}><ValueSlider min={-MAX_MOVE} max={MAX_MOVE} read={() => clip.picture[0]} write={(v: number) => setPicture(0, v)} /></Row>
+    <Row label={tr('mapper.frame.y')}><ValueSlider min={-MAX_MOVE} max={MAX_MOVE} read={() => clip.picture[1]} write={(v: number) => setPicture(1, v)} /></Row>
+    <Row label={tr('mapper.frame.rotation')}><ValueSlider min={-MAX_TURN} max={MAX_TURN} read={() => clip.picture[2]} write={(v: number) => setPicture(2, v)} /></Row>
+    <Row label={tr('mapper.frame.opacity')}><ValueSlider min={0} max={1} read={() => clip.picture[3]} write={(v: number) => setPicture(3, v)} /></Row>
+    <View className="items-start"><IconButton icon="crosshair" label={tr('mapper.frame.reset')} onClick={() => {
       clip.frame = [0, 0, 1];
       clip.picture = [0, 0, 0, 1];
       follow();

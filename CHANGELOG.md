@@ -391,6 +391,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - In the video mapper, a clip says what its fit does to the picture; **width** and **height** make that side span the zone, and you drag the visible part and zoom to choose what shows.
 - In the video mapper, a soft edge has an **offset** that slides where its gradient starts, from -10 % to +10 %, and a clip has its own **x**, **y**, **scale**, **rotation** and **opacity**.
 - In the video mapper, a mask point can become a curve with two handles (**Curve**, **Corner**), and **feather** sets how soft its edge is, sharp by default.
+- The video mapper editor speaks French: choose the language in *Options*, its texts live in `assets/i18n/<lang>.json`, and a new language is a new file.
 
 #### Changed
 - Discord: `zinc:discord-voice` clamps every camera and Go Live quality announce to a ceiling (the free tier's 720p 30 by default, Go Live's 1080p 60 only with Nitro) and logs a clamp as "over the ceiling".

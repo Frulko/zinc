@@ -9,22 +9,25 @@ import { MediaFile, PANEL_LIBRARY, panelSize, removeMedia, resizePanel, store, t
 import { ClipThumb } from './ClipThumb';
 import { Heading, IconButton } from './Field';
 import { Rebuilt } from './Rebuilt';
+import { tr } from '../i18n';
 
 const MIN_WIDTH = 140, MAX_WIDTH = 560;
 
 function source(label: string, kind: string, color: number[]): Clip { return { ...EMPTY_CLIP, label, source: kind, color }; }
 
-const SOURCES: Clip[] = [
-  source('Test pattern', 'pattern', []),
-  source('Gradient', 'gradient', [1, 1, 1]),
-  source('White', 'solid', [1, 1, 1]),
-  source('Red', 'solid', [1, 0, 0]),
-  source('Green', 'solid', [0, 1, 0]),
-  source('Blue', 'solid', [0, 0, 1]),
-];
+function sources(): Clip[] {
+  return [
+    source(tr('mapper.library.testPattern'), 'pattern', []),
+    source(tr('mapper.library.gradient'), 'gradient', [1, 1, 1]),
+    source(tr('mapper.library.white'), 'solid', [1, 1, 1]),
+    source(tr('mapper.library.red'), 'solid', [1, 0, 0]),
+    source(tr('mapper.library.green'), 'solid', [0, 1, 0]),
+    source(tr('mapper.library.blue'), 'solid', [0, 0, 1]),
+  ];
+}
 
 function size(bytes: number): string {
-  return bytes < 1048576 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
+  return bytes < 1048576 ? tr('mapper.unit.kb', ['n', `${Math.ceil(bytes / 1024)}`]) : tr('mapper.unit.mb', ['n', (bytes / 1048576).toFixed(1)]);
 }
 
 async function pickAndSend(): Promise<void> { sendFiles(await pickMedia()); }
@@ -50,30 +53,30 @@ function Tile(props: { clip: Clip; detail: string }): i32 {
 function MediaTiles(): i32 {
   const armed = store.armed.media;
   return <View className="gap-2">
-    {store.media.length === 0 && <Text className="text-[11px] text-zinc-500">Nothing on the mapper yet.</Text>}
+    {store.media.length === 0 && <Text className="text-[11px] text-zinc-500">{tr('mapper.library.empty')}</Text>}
     <View className="flex-row flex-wrap gap-2">
       {store.media.map((file: MediaFile) => <Tile clip={{ ...EMPTY_CLIP, label: file.name, media: file.name }} detail={size(file.bytes)} />)}
     </View>
-    {armed !== '' && <IconButton icon="trash" label={`Delete ${armed}`} onClick={() => { removeMedia(armed); }} />}
+    {armed !== '' && <IconButton icon="trash" label={tr('mapper.library.deleteMedia', ['name', armed])} onClick={() => { removeMedia(armed); }} />}
   </View>;
 }
 
 function SourceTiles(): i32 {
-  return <View className="flex-row flex-wrap gap-2">{SOURCES.map((clip: Clip) => <Tile clip={clip} detail="source" />)}</View>;
+  return <View className="flex-row flex-wrap gap-2">{sources().map((clip: Clip) => <Tile clip={clip} detail={tr('mapper.library.source')} />)}</View>;
 }
 
 export function Library(): i32 {
   return <View className="flex-row"><ScrollView className="p-3 bg-zinc-900 gap-1" style={{ width: panelSize(PANEL_LIBRARY) }}>
-    <Heading text="Media" />
+    <Heading text={tr('mapper.library.media')} />
     <Rebuilt make={MediaTiles} />
     <View className="mt-2 flex-row flex-wrap gap-1">
-      <IconButton icon="upload" variant="default" label="Send files" onClick={() => { pickAndSend(); }} />
-      <IconButton icon="folder-up" variant="secondary" label="Send a folder" onClick={() => { pickFolderAndSend(); }} />
+      <IconButton icon="upload" variant="default" label={tr('mapper.library.sendFiles')} onClick={() => { pickAndSend(); }} />
+      <IconButton icon="folder-up" variant="secondary" label={tr('mapper.library.sendFolder')} onClick={() => { pickFolderAndSend(); }} />
     </View>
-    <Text className="text-[11px] text-zinc-500 mt-1">Or drop them on this window: they play on the selected layer.</Text>
-    <Heading text="Sources" />
+    <Text className="text-[11px] text-zinc-500 mt-1">{tr('mapper.library.dropHint')}</Text>
+    <Heading text={tr('mapper.library.sources')} />
     <Rebuilt make={SourceTiles} />
-    <Text className="text-[11px] text-zinc-500 mt-2">Drag a tile onto a cell of the grid, or click it and then click cells.</Text>
+    <Text className="text-[11px] text-zinc-500 mt-2">{tr('mapper.library.dragHint')}</Text>
   </ScrollView>
   <ResizeHandle vertical size={() => panelSize(PANEL_LIBRARY)} min={MIN_WIDTH} max={MAX_WIDTH} onResize={(px: number) => resizePanel(PANEL_LIBRARY, px)} /></View>;
 }

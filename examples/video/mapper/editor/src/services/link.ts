@@ -1,6 +1,7 @@
 // The link to the mapper: its HTTP API, the same from a page it served and from a native client. Commands are coalesced and sent 30 times a second.
 import { fetch, Headers, uploadFile } from 'zinc:web/fetch';
 import { SEND_INTERVAL_MS } from '../constants';
+import { tr } from '../i18n';
 
 let base = '';
 let token = '';
@@ -54,7 +55,7 @@ async function postCommands(body: string): Promise<void> {
   try {
     await fetch(`${base}/osc`, { method: 'POST', body, headers: auth() });
   } catch (e) {
-    onLost('the mapper does not answer');
+    onLost(tr('mapper.link.noAnswer'));
   }
 }
 
@@ -71,8 +72,8 @@ export function startSending(): void {
 
 export async function getJson(path: string): Promise<any> {
   const reply = await fetch(`${base}${path}`, { headers: auth() });
-  if (reply.status === 401) throw new Error('not paired with this mapper yet');
-  if (!reply.ok) throw new Error(`the mapper answered ${reply.status}`);
+  if (reply.status === 401) throw new Error(tr('mapper.link.notPaired'));
+  if (!reply.ok) throw new Error(tr('mapper.link.answered', ['status', `${reply.status}`]));
   return JSON.parse(await reply.text());
 }
 
@@ -99,13 +100,13 @@ export async function deleteJson(path: string): Promise<any> {
 
 export async function postJson(path: string): Promise<any> {
   const reply = await fetch(`${base}${path}`, { method: 'POST', body: '', headers: auth() });
-  if (!reply.ok) throw new Error(`the mapper answered ${reply.status}`);
+  if (!reply.ok) throw new Error(tr('mapper.link.answered', ['status', `${reply.status}`]));
   return JSON.parse(await reply.text());
 }
 
 export async function getText(path: string): Promise<string> {
   const reply = await fetch(`${base}${path}`, { headers: auth() });
-  if (!reply.ok) throw new Error(`the mapper answered ${reply.status}`);
+  if (!reply.ok) throw new Error(tr('mapper.link.answered', ['status', `${reply.status}`]));
   return await reply.text();
 }
 
