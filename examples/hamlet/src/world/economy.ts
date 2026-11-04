@@ -139,6 +139,10 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     ids.push(res.id); into.resources.push(res);
   }
   into.start = amounts(data.start, ids, 'start', errors);
+  const rd: any = data.roads === undefined ? {} : data.roads;
+  into.roads = new RoadCosts();
+  into.roads.dirt = amounts(rd.dirt, ids, 'roads.dirt', errors); into.roads.bridge = amounts(rd.bridge, ids, 'roads.bridge', errors); into.roads.clear = amounts(rd.clear, ids, 'roads.clear', errors);
+  into.roads.yield = amounts(rd.yield, ids, 'roads.yield', errors); into.roads.refund = num(rd, 'refund', 50, 'roads', errors);
   into.difficulties = [];
   for (const d of (data.difficulties === undefined ? [] : data.difficulties) as any[]) {
     const lv = new Difficulty(), where = 'difficulty ' + String(d.id);
@@ -147,10 +151,6 @@ export function parseEconomy(text: string, models: string[], roles: string[], in
     if (lv.id === '' || into.difficulties.some((o: Difficulty): boolean => o.id === lv.id) || lv.arrival < 10 || lv.arrival > 500 || lv.eat > 500 || lv.risk > 500) errors.push('bad-difficulty: ' + where + ' needs its own id, an arrival of 10 to 500 and an eat and risk of at most 500');
     into.difficulties.push(lv);
   }
-  const rd: any = data.roads === undefined ? {} : data.roads;
-  into.roads = new RoadCosts();
-  into.roads.dirt = amounts(rd.dirt, ids, 'roads.dirt', errors); into.roads.bridge = amounts(rd.bridge, ids, 'roads.bridge', errors); into.roads.clear = amounts(rd.clear, ids, 'roads.clear', errors);
-  into.roads.yield = amounts(rd.yield, ids, 'roads.yield', errors); into.roads.refund = num(rd, 'refund', 50, 'roads', errors);
   for (let k = 0; k < data.resources.length; k++) {   // harvest: once every resource id is known (a tool is a resource)
     const hv: any = (data.resources as any[])[k].harvest, r = into.resources[k];
     if (hv === undefined) continue;

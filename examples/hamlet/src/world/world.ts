@@ -216,12 +216,6 @@ export function generate(seed: number, size: number = DEFAULT_SIZE, params: Terr
       }
     }
   }
-}
-
-/** Scatters the active deposits of the economy over the terrain (gen/deposits.ts): each lands in world.rock as ROCK_DEPOSIT + its kind, with its amount in world.lode. */
-function placeLodes(layers: TerrainLayers): void {
-  const rules: DepositRule[] = [], kinds: number[] = [];
-  for (let k = 0; k < economy.deposits.length; k++) {
   if (params.wolves > 0) spawnPacks(size, params.wolves);
   world.revision++;
 }
@@ -252,6 +246,12 @@ function spawnPacks(size: number, mode: number): void {
       w.leader = alpha.id; w.stag = false; w.hunger = random() * 40;
     }
   }
+}
+
+/** Scatters the active deposits of the economy over the terrain (gen/deposits.ts): each lands in world.rock as ROCK_DEPOSIT + its kind, with its amount in world.lode. */
+function placeLodes(layers: TerrainLayers): void {
+  const rules: DepositRule[] = [], kinds: number[] = [];
+  for (let k = 0; k < economy.deposits.length; k++) {
     const d = economy.deposits[k];
     if (!d.active) continue;
     const r = new DepositRule(); r.near = d.near; r.density = d.density; r.required = d.required;
