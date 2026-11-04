@@ -8,7 +8,7 @@ command -v cmake >/dev/null 2>&1 || { echo "console core: no cmake"; exit 77; }
 B=${ZN_CONSOLE_BUILD:-build/console-core}
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 fail=0
-{ [ -f "$B/CMakeCache.txt" ] || cmake -S targets/console -B "$B"; } >"$tmp/build.log" 2>&1 && cmake --build "$B" -j 4 >>"$tmp/build.log" 2>&1 || { echo "console core: the core does not build"; tail -20 "$tmp/build.log"; exit 1; }
+{ [ -f "$B/CMakeCache.txt" ] || cmake -S targets/console -B "$B"; } >"$tmp/build.log" 2>&1 && BUILD_DIR="$B" tools/build zinc-core >>"$tmp/build.log" 2>&1 || { echo "console core: the core does not build"; tail -20 "$tmp/build.log"; exit 1; }
 core=$PWD/$B/zinc-core
 same() {   # same <example>: the packed program on the core prints what zinc run prints, frame hashes included
   mkdir -p "$tmp/$1"

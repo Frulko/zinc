@@ -25,6 +25,9 @@ extern "C" void zn_console_assets_reset(void);                                  
 
 extern "C" void zn_console_set_args(int argc, const char* const* argv);   // host_console.cpp
 extern "C" void zn_console_install_host(void);
+#ifdef ZN_CONSOLE_WITH_LAYOUT
+namespace zn::host { void installLayout(); }
+#endif
 extern "C" const char* zn_console_data_dir(void);
 extern "C" const unsigned char* zn_console_player_font;   // the player's generated player_font.c
 extern "C" unsigned long zn_console_player_font_size;
@@ -209,7 +212,11 @@ int runOne(std::string path, int argc, char** argv, int first) {
   if (!zn::zbc::decode(bytes, m, err)) { logErr("zinc: " + path + ": " + err + "\n"); return 2; }
   err = zn::zbc::verify(m);
   if (!err.empty()) { logErr("zinc: " + path + ": invalid ZBC: " + err + "\n"); return 2; }
+  std::vector<std::uint8_t>().swap(bytes);   // the decoded module owns its tables
   zn_console_set_args(argc - first, argv + first);
+#ifdef ZN_CONSOLE_WITH_LAYOUT
+  zn::host::installLayout();
+#endif
 #ifdef ZN_CONSOLE_WITH_GFX
   if (!res.empty() && !zn::host::installResources(res.data(), res.size())) { logErr("zinc: " + dirOf(path) + "resources.bin: not a resource blob\n"); return 2; }
   zn::host::installGfx();   // the graphics host and, through installSys, the console system host

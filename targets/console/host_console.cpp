@@ -73,6 +73,8 @@ std::vector<unsigned char> gBytes;
 std::vector<std::string> gKeys;
 bool gVirtual = false;
 double gVirtualNow = 0;
+bool gClockHeld = false;
+double gHeldAt = 0, gClockLag = 0;
 std::uint64_t gStartUs = 0;
 
 void ret(HostArg* r, std::string s) { gOut = std::move(s); r->p = gOut.data(); r->n = static_cast<std::uint32_t>(gOut.size()); }
@@ -217,7 +219,8 @@ bool assetRead(const std::string& name, std::string& out) {
   return packRead(name, 0, out) || (zn_console_side_read && zn_console_side_read(name, 0, out)) || assetFile(name, out);
 }
 
-double nowMs() { return gVirtual ? gVirtualNow : static_cast<double>(hal_time_us() - gStartUs) / 1000.0; }
+double rawNowMs() { return gVirtual ? gVirtualNow : static_cast<double>(hal_time_us() - gStartUs) / 1000.0; }
+double nowMs() { return gClockHeld ? gHeldAt : rawNowMs() - gClockLag; }
 void waitMs(double ms) {
   if (!(ms > 0)) return;
   if (gVirtual) { gVirtualNow += ms; return; }
@@ -238,7 +241,7 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysArgsCount: r->i = static_cast<std::int64_t>(gArgs.size()); break;
     case Rt::HostSysArg: ret(r, n(0) >= 0 && static_cast<std::size_t>(n(0)) < gArgs.size() ? gArgs[static_cast<std::size_t>(n(0))] : ""); break;
     case Rt::HostSysEnv: { const char* v = hal_env(str(a[0]).c_str()); ret(r, v ? v : ""); break; }
-    case Rt::HostSysPlatform: ret(r, ZN_CONSOLE_PLATFORM); break;
+    case Rt::HostSysPlatform: { const char* p = hal_device("platform", ""); ret(r, p ? p : ZN_CONSOLE_PLATFORM); break; }
     case Rt::HostSysPid: r->i = 1; break;
     case Rt::HostSysCwd: case Rt::HostSysLaunchDir: ret(r, dataDir()); break;
     case Rt::HostSysLocale: ret(r, "en-US"); break;
@@ -250,8 +253,8 @@ void call(int id, const HostArg* a, HostArg* r) {
     case Rt::HostSysUtf8Byte: r->i = static_cast<std::uint32_t>(n(1)) < a[0].n ? static_cast<unsigned char>(static_cast<const char*>(a[0].p)[n(1)]) : 0; break;
     case Rt::HostSysUtf8Decode: ret(r, utf8Decode(static_cast<const std::uint64_t*>(a[0].p), a[0].n)); break;
     case Rt::HostSysBytesToString: ret(r, bytesOf(a[0])); break;
-    case Rt::HostSysAllocations: r->d = static_cast<double>(zn::rt::gAllocs); break;
-    case Rt::HostSysLiveBlocks: r->d = static_cast<double>(zn::rt::gAllocs - zn::rt::gFrees); break;
+    case Rt::HostSysAllocations: r->d = static_cast<double>(zn::rt::gAllocs()); break;
+    case Rt::HostSysLiveBlocks: r->d = static_cast<double>(zn::rt::gAllocs() - zn::rt::gFrees()); break;
     case Rt::HostSysDevice: {   // storage: where zinc:storage keeps its keys (the PS2's memory card)
       const std::string q = str(a[0]);
       const char* d = hal_device(q.c_str(), str(a[1]).c_str());
@@ -329,8 +332,21 @@ extern "C" void zn_console_install_host(void) {
   gVirtual = envSet("ZINC_DETERMINISTIC") || (clock && !std::strcmp(clock, "virtual"));
   if (clock && !std::strcmp(clock, "real")) gVirtual = false;
   gStartUs = hal_time_us();
+  gClockHeld = false; gHeldAt = gClockLag = 0;
   std::srand(static_cast<unsigned>(gStartUs));
   zn::host::hostSys = call;
 }
 // the graphics host's installGfx installs the system host through this (src/host/sys_host.cpp on the desktop)
 void zn::host::installSys() { zn_console_install_host(); }
+
+namespace zn::host {
+const char* assetsRoot() { static std::string root; root = at("assets"); return root.c_str(); }
+}
+namespace zn::loop {
+void holdClock(bool on) {
+  if (on == gClockHeld) return;
+  if (on) gHeldAt = nowMs(); else gClockLag = rawNowMs() - gHeldAt;
+  gClockHeld = on;
+}
+void stepClock(double ms) { if (gClockHeld) gHeldAt += ms; }
+}

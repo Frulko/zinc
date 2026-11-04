@@ -39,7 +39,7 @@ void begin(bool first, bool stereo) {
   current.gap = previous ? (uint32_t)(now - previous) : 0;
   current.stereo = stereo;
   previous = start = now;
-  allocStart = zn::rt::gAllocs; freeStart = zn::rt::gFrees;
+  allocStart = zn::rt::gAllocs(); freeStart = zn::rt::gFrees();
   stepStart = zn_physics2d_step_count ? zn_physics2d_step_count() : 0;
 }
 void phases() {
@@ -52,8 +52,8 @@ void add(Metric metric, uint32_t value) { if (on) current.metric[metric] += valu
 void end(bool complete) {
   if (!on || !complete || !start) return;
   current.elapsed = (uint32_t)(tick() - start);
-  current.allocs = (uint32_t)(zn::rt::gAllocs - allocStart);
-  current.frees = (uint32_t)(zn::rt::gFrees - freeStart);
+  current.allocs = (uint32_t)(zn::rt::gAllocs() - allocStart);
+  current.frees = (uint32_t)(zn::rt::gFrees() - freeStart);
   current.physicsSteps = zn_physics2d_step_count ? (uint32_t)(zn_physics2d_step_count() - stepStart) : 0;
   samples[count++ % Capacity] = current;
 }

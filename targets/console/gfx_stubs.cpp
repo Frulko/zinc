@@ -88,8 +88,8 @@ void zn_asset_image_free(int id) {
     if (it->second == id) { zrt::raster::dyn_destroy(id); made.erase(it); return; }
 }
 int zn_hal_is_live(void) { return ZN_CONSOLE_LIVE; }
-int zn_hal_signal_count(void) { return 0; }
-const char* zn_hal_signal_next(void) { return ""; }
+__attribute__((weak)) int zn_hal_signal_count(void) { return 0; }
+__attribute__((weak)) const char* zn_hal_signal_next(void) { return ""; }
 int zn_ui_log_on(void) { return 0; }
 void zn_ui_log_mark(int) {}
 int zn_asset_font(const char*, uint32_t) { return -1; }
@@ -108,7 +108,10 @@ void zn_resource_stats_register(const char*, ZnResourceStatsFn, void*) {}
 __attribute__((weak)) void hal_set_resize(int32_t) {}   // a console's HAL may follow the program's onResize
 }
 
-namespace zn::host { void installMirror() {} }   // src/host/mirror.cpp (a device's screen watched over a socket) stays out of the core
+namespace zn::host {
+void installMirror() {}   // desktop screen streaming stays out of the core
+void installScreencast() {}
+}
 
 namespace zn::res {   // src/res/codec.cpp (stb) stays out of the core: imageFromBytes answers -1, captures use the runtime's PNG writer
 uint8_t* encodePngAlloc(const uint8_t*, int, int, int, size_t*, void* (*)(size_t)) { return nullptr; }

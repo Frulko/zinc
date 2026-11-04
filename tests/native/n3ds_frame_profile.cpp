@@ -19,10 +19,10 @@ int main(int argc, char**) {
     const bool stereo = i >= 4;
     begin(true, stereo);
     phases(); add(Wait, 10000); add(GpuSurfaces, 2); add(Vblanks, 1);
-    zn::rt::gAllocs += 10; nativeSteps += 2;
+    zn::rt::gAllocs() += 10; nativeSteps += 2;
     if (stereo) {
       now += 8000; end(false); begin(false, true);
-      phases(); add(GpuSurfaces, 1); zn::rt::gAllocs += 10; nativeSteps++;
+      phases(); add(GpuSurfaces, 1); zn::rt::gAllocs() += 10; nativeSteps++;
       now += 8715;
     } else now += 16715;
     end(true);

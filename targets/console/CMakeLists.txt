@@ -109,6 +109,26 @@ if(ZN_CONSOLE_GFX)
   target_link_libraries(zinc-core PRIVATE zn_console_gfx)
   target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_WITH_GFX)
 endif()
+# The UI layout and vector plugins are opt-in on hosts that have room for them.
+option(ZN_CONSOLE_LAYOUT "link the React Native layout engine" OFF)
+if(ZN_CONSOLE_LAYOUT)
+  file(GLOB_RECURSE ZN_YOGA_SRC ${ZN_NEXT}/third_party/yoga/yoga/*.cpp)
+  add_library(zn_console_layout STATIC ${ZN_YOGA_SRC} ${ZN_NEXT}/src/host/layout_host.cpp
+    ${ZN_NEXT}/src/host/layout_yoga.cpp ${ZN_NEXT}/src/host/text_wrap.cpp)
+  target_include_directories(zn_console_layout PRIVATE ${ZN_NEXT}/include ${ZN_NEXT}/src ${ZN_RUNTIME} ${ZN_RUNTIME}/include ${ZN_NEXT}/third_party/yoga)
+  set_target_properties(zn_console_layout PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+  target_link_libraries(zinc-core PRIVATE zn_console_layout)
+  target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_WITH_LAYOUT)
+endif()
+set(ZN_CONSOLE_VECTOR_GEN "" CACHE PATH "generated native SVG and Lottie bindings")
+if(ZN_CONSOLE_VECTOR_GEN)
+  set(ZN_VECTOR_SRC ${ZN_NEXT}/plugins/svg/native/svg.host.cpp ${ZN_NEXT}/plugins/lottie/native/lottie.host.cpp
+    ${ZN_CONSOLE_VECTOR_GEN}/zinc_native_svgengine_thunk.cpp ${ZN_CONSOLE_VECTOR_GEN}/zinc_native_lottie_thunk.cpp)
+  target_sources(zinc-core PRIVATE ${ZN_VECTOR_SRC})
+  set_source_files_properties(${ZN_VECTOR_SRC} PROPERTIES COMPILE_OPTIONS "-fno-rtti;-fno-exceptions")
+  target_include_directories(zinc-core PRIVATE ${ZN_CONSOLE_VECTOR_GEN} ${ZN_RUNTIME})
+  target_compile_definitions(zinc-core PRIVATE ZN_CONSOLE_WITH_VECTOR)
+endif()
 # zinc:3d (its native module Render3D) when tools/build-console-core generated its bindings (ZN_CONSOLE_GEN): the console's GPU renderer,
 # plugins/3d/native/render3d.<console>.cpp (it includes the software one and falls back to it), else the software renderer alone
 set(ZN_CONSOLE_GEN "" CACHE PATH "the zinc:3d bindings made by zinc native-gen (zinc_native_render3d.h and its thunk)")

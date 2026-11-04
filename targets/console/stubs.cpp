@@ -16,6 +16,10 @@ extern "C" const ZnModule* zn_module_Render3D(void);   // zinc:3d, the thunk zin
 #ifdef ZN_CONSOLE_WITH_PHYSICS2D
 extern "C" const ZnModule* zn_module_Physics2D(void);
 #endif
+#ifdef ZN_CONSOLE_WITH_VECTOR
+extern "C" const ZnModule* zn_module_SvgEngine(void);
+extern "C" const ZnModule* zn_module_Lottie(void);
+#endif
 
 namespace {
 // What a call of the core's modules can ask of the engine: the error it throws and scratch for its string and array results (an array argument the
@@ -29,7 +33,7 @@ ZnHostApi makeApi() { ZnHostApi h{}; h.size = sizeof h; h.set_error = apiSetErro
 const ZnHostApi gApi = makeApi();
 
 const ZnModule* moduleOf(const char* name) {
-  static const ZnModule* modules[4];
+  static const ZnModule* modules[6];
   static int count = -1;
   if (count < 0) {   // once: a module made by the thunk starts its implementation in init
     count = 0;
@@ -44,6 +48,12 @@ const ZnModule* moduleOf(const char* name) {
     const ZnModule* physics = zn_module_Physics2D();
     void* physicsSelf = nullptr;
     if (!physics->init || physics->init(&gApi, &physicsSelf) == ZN_OK) modules[count++] = physics;
+#endif
+#ifdef ZN_CONSOLE_WITH_VECTOR
+    for (const ZnModule* vector : {zn_module_SvgEngine(), zn_module_Lottie()}) {
+      void* self = nullptr;
+      if (!vector->init || vector->init(&gApi, &self) == ZN_OK) modules[count++] = vector;
+    }
 #endif
   }
   for (int i = 0; i < count; i++) if (!std::strcmp(modules[i]->name, name)) return modules[i];
