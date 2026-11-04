@@ -16,7 +16,7 @@ credited in `assets/kenney/SOURCE.txt`; the remaining art is drawn in code.
 ## Run it
 
 ```sh
-zinc run examples/pinball                        # macOS window, 960x600 (letterboxed when resized)
+zinc run examples/pinball                        # macOS window, 960x600 (follows the window; taller than wide: the table alone)
 zinc run examples/pinball --profile rpi1         # the Pi build's layout and effect budget, on the host
 ZINC_DEMO=multiball zinc run examples/pinball    # a scripted state (below)
 ```
@@ -27,7 +27,7 @@ ZINC_DEMO=multiball zinc run examples/pinball    # a scripted state (below)
 | --- | --- | --- | --- |
 | left flipper | Z, Left, A | L, D-pad left | left half of the table |
 | right flipper | / (slash), Right, D | R, D-pad right | right half of the table |
-| plunger (hold, release) | Space, Down | A, D-pad down | the side panel |
+| plunger (hold, release) | Space, Down | A, D-pad down | the side panel (on a vertical screen: the bottom middle) |
 | bump the table | X (from the left), . (from the right), Up | B, Y, D-pad up | – |
 | start / add a player | Enter (Space and the plunger also start) | Start | tap |
 | menu | Esc or P (Enter during play) | Start | – |

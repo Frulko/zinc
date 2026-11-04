@@ -39,7 +39,11 @@ let prevLeft = false, prevRight = false, prevTouching = false;
 function key(name: string): boolean { return held.get(name) === true; }
 function btnEdge(b: Btn, now: i32): boolean { return ((now >> (b as i32)) & 1) === 1 && ((prevButtons >> (b as i32)) & 1) === 0; }
 
-/** `tableRight`: the x where the side panel starts (touches beyond it pull the plunger). */
+let zoneX0: number = 0, zoneY0: number = 0, zoneX1: number = 0, zoneY1: number = 0;
+/** Where a touch pulls the plunger: the side panel, or a place at the bottom of a vertical screen, which has none. */
+export function setPlungerZone(x0: number, y0: number, x1: number, y1: number): void { zoneX0 = x0; zoneY0 = y0; zoneX1 = x1; zoneY1 = y1; }
+
+/** `tableRight`: the x where the table ends (its halves are the flippers). */
 export function readControls(c: Controls, tableRight: number): void {
   let pressedKey = false;
   c.nudgeLeft = false; c.nudgeRight = false; c.pause = false; c.start = false; c.back = false; c.confirm = false;
@@ -74,11 +78,11 @@ export function readControls(c: Controls, tableRight: number): void {
   const n = touchCount();
   const touching = n > 0 || pointerDown();
   for (let i: i32 = 0; i <= n; i++) {
-    let x: number = 0;
-    if (i < n) x = touchX(i);
-    else if (n === 0 && pointerDown()) x = pointerX();
+    let x: number = 0, y: number = 0;
+    if (i < n) { x = touchX(i); y = touchY(i); }
+    else if (n === 0 && pointerDown()) { x = pointerX(); y = pointerY(); }
     else continue;
-    if (x >= tableRight) tp = true;
+    if (x >= zoneX0 && x < zoneX1 && y >= zoneY0 && y < zoneY1) tp = true;
     else if (x < tableRight / 2) tl = true;
     else tr = true;
   }

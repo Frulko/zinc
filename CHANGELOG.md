@@ -11,6 +11,7 @@ How to add a line: see "Changelog" in `AGENTS.md`.
 ### Games
 
 #### New
+- The pinball demo follows its window or screen; on a vertical screen, like a Pi player turned on its side, the table takes the whole screen under a one-line score.
 ### Added
 - `zinc device <device> screen --live`: a key or gamepad button you let go no longer stays pressed for an app under the player shell or on a display driver; games stopped responding because of it.
 - `zinc device <device> screen --live` also sends the gamepads of your computer to the device; a program sees them as its own, and an app under the player shell now gets the gamepads, those plugged into the device too.

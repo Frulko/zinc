@@ -37,6 +37,29 @@ export class Panel {
     this.help(x + pad, h - pad - this.helpHeight());
   }
 
+  /** A vertical screen has no room for the panel: player and ball, the score, and the mission or the message of the moment, in one strip. */
+  drawStrip(): void {
+    const g = this.game, p = g.player, x = this.x, y = this.y, w = this.w, h = this.h;
+    const small = font('sans-bold', 14);
+    gradient(x, y, w, h, 0, 0x101e30, 0x050c16, true, 255);
+    const attract = g.phase === PH_ATTRACT;
+    drawText(small, x + 10, y + 7, attract ? 'NOVA PATROL' : `PLAYER ${g.current + 1}  BALL ${Math.min(p.ball, BALLS_PER_GAME)}${p.extraBalls > 0 ? ' +EB' : ''}`, C_GOLD, 255, 1);
+    const m = MISSIONS[p.mission];
+    const line = attract ? 'PRESS START' : g.messageT > 0 ? g.message : `${m.name} ${p.progress} / ${m.count}`;
+    drawText(small, x + 10, y + h - lineHeight(small) - 7, line, g.messageT > 0 ? 0xffffff : C_CYAN, 255, 1);
+    const sw = Math.round(w * 0.46), sh = h - 16;
+    rrect(x + w - sw - 8, y + 4, sw, h - 8, 6, 0x020604, 255);
+    this.sevenSeg(x + w - sw - 2, y + 8, sw - 12, sh, p.score);
+  }
+
+  /** Where to touch for the plunger on a vertical screen, with a word so it can be found. */
+  drawPlungerHint(x: number, y: number, w: number, h: number): void {
+    const small = font('sans-bold', 14), t = 'LAUNCH';
+    const bw = textWidth(small, t, 1) + 20, bh = lineHeight(small) + 8, bx = x + (w - bw) / 2, by = y + h - bh - 6;
+    rrect(bx, by, bw, bh, bh / 2, 0x07111f, 170);
+    drawText(small, bx + 10, by + 4, t, C_CYAN, 220, 1);
+  }
+
   private emblem(x: number, y: number, w: number): number {
     const title = font('sans-bold', 40), sub = font('sans-bold', 16);
     const cx = x + w / 2;

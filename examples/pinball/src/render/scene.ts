@@ -80,6 +80,9 @@ export class Scene {
     for (let i: i32 = 0; i < t.world.balls.length; i++) this.trails.push(new Trail());
   }
 
+  /** Frees the baked art: the screen changed size, another Scene takes over. */
+  dispose(): void { if (this.image >= 0) destroyImage(this.image); this.image = -1; }
+
   /** Bakes the static art at the current pixel density (again if the window moved to another screen). */
   private bake(): void {
     const s = pixelScale();
