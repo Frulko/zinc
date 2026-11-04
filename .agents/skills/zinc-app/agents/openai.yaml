@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zinc App"
+  short_description: "Build readable Zinc apps using existing modules"
+  default_prompt: "Use $zinc-app to build or simplify this Zinc application."

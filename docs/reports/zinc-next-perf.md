@@ -1375,6 +1375,78 @@ Bun 91.7k), wss 62.8k (Bun 74.2k); RSS AOT 4-9 MiB (Node 74-289, Bun 27-42). p50
 
 2026-10-31, video on bad links (ZN-901/902), Apple M1 Pro, load 7-15 (not quiet): VP8 640x360 at 5% loss over 20 s: 2 freezes (max 665 ms, 23 PLIs) -> 0 freezes (max 315 ms, 0 PLIs); a 2 Mbit/s to 300 kbit/s step is under the cap in 1148 ms and back to full in 7880 ms (H.264 1105 / 8499). Encode at 1280x720, VP8 about 2.45 Mbit/s: one layer 10.4-11.9 ms per frame, two temporal layers 8.9-9.8 ms, simulcast 1280x720 (8.9 ms) plus 640x360 (2.4 ms), about 27% more.
 
+2026-10-31, owner iPhone 4 / iOS 7.1.2 bring-up: unmodified bouncing-ball, CPU raster into UIKit, 320x480. HUD snapshot at frame 120 showed 47 fps (not a controlled benchmark; no performance claim). Deterministic frame 120 matches the Mac exactly, hash bd21d35ce981f6d6, 0 differing pixels. Details: docs/reports/iphone4-ios7-bringup.md.
+
+### 2026-10-31 — iPhone 4 interactive GLES2 diagnosis
+
+On the real iPhone3,1/iOS 7.1.2, AOT rn-showcase uses PowerVR SGX535. A remote Forms drag with synchronized GL replay/copy/swap timing records 135–148 ms replay at 640×960 (one 371 ms spike), versus 43–48 ms at 320×480 (one 221 ms spike); post-completion swap is about 0.2 ms. The synchronization alters normal pipeline timing; these are diagnostic samples, not fps percentiles. Lean shaders alone did not materially improve the same interaction and their SGX tuning change was reverted. The scale-1 interim app remains too slow; no responsiveness fix is claimed. Remote GPU timing is off after the trace. See `docs/reports/iphone4-ios7-bringup.md` for the source-backed renderer improvement priorities.
+
+## 2026-10-31 — owner-requested empty UI / Pi Image Builder baseline
+
+Existing local build, M1 Pro/macOS, actual background windows, 1180x780 logical, default CPU raster/Metal presentation; no rebuild or engine changes. One preliminary passage per case, 8 s warm-up followed by eight ps samples at roughly 1 s intervals; footprint after sampling. Initial on-demand AOT/plugin compilation occurred; retained samples contain only the launched app, not compiler processes. Machine load before run: 3.66/4.84/5.77; no controlled benchmark claim.
+
+| Case | Physical footprint | Last RSS | CPU time delta over ~7 s |
+|---|---:|---:|---:|
+| Empty Solid UI, one View | 60.1 MiB | 53.7 MiB | 0.05 s (~0.7% of one core) |
+| image/builder, untouched initial screen | 71.1 MiB | 60.3 MiB | 0.07 s (~1.0% of one core) |
+
+Raw local evidence and minimal source: `.logs/idle-footprint/results.json`, `empty/main.tsx`, per-case logs and footprint snapshots. CPU derived from ps cumulative CPU-time endpoints (0.01 s resolution); not an energy measurement. Footprint includes app process accounting, not separately measured WindowServer. Empty AOT executable: 4.7 MiB; CLI build/zinc: ~17 MiB; build directory: 6.9 GiB (build artifacts, not runtime RAM). Probe processes stopped. No GL comparison, long-run leak test, allocation attribution or optimization gain established.
+
+## 2026-10-31 — shared engine memory / AOT pass
+
+See `engine-memory-cpu-2026-10-31.md` for methods, raw-file names and limits. Shadow retained/peak scratch 4,251,648/4,251,648 → 188,416/253,952 B; equal pixels. Seven short process passages, 30 draws: median 18.66 → 17.91 ms. Scalar native-call temporary-container change, 500k calls, seven alternating passages: process CPU median 47.24 → 45.23 ms (microprobe only; baseline already has bounded AOT copies). Builder: 166 → 42 emitted register assignments at 13 native sites. Encoded-module copies released before execution: at least 76,290 B for empty UI, 396,030 B for builder. Actual empty background window footprint 62,458,624 → 62,557,184 B and CPU 0.6994 → 0.6991%: no meaningful total idle-app gain established. No cross-platform or energy claim.
+
+### Idle footprint attribution (same date)
+
+Uninstrumented empty UI 1180×780/Retina: footprint 62,737,408 B (59.832 MiB), of which IOSurface 28.188 MiB, IOAccelerator 14.609 MiB, malloc+metadata 10.250 MiB, writable data 3.446 MiB, stacks 0.359 MiB, page tables 0.769 MiB, other 2.211 MiB. Same binary at 640×480: 32,803,776 B (31.284 MiB). Observed reduction 28.548 MiB, three RGBA buffers predict 28.070 MiB. Malloc live payload about6.55 MiB, allocator-zone slack about3.37 MiB (not all reclaimable). Diagnostic stacklogging runs excluded; full attribution to Zinc functions remains incomplete because application frames are unsymbolicated. Methods and limits in engine-memory-cpu-2026-10-31.md; raw footprint/vmmap/heap in .logs/memory-breakdown/. No engine change, no cross-target or GPU-latency claim.
+
+### 2026-10-31 — iPhone 4 retained scroll and simplified shaders
+
+Real SGX535/iOS 7.1.2, AOT rn-showcase Forms, restored native Retina 640×960: the shared driver's retained circular scroll, opaque copy shader and conservative redundant-clip elimination record 24.226 ms median synchronized total across 12 diagnostic samples (14.287 ms replay, 9.660 ms copy; maximum total 48.306 ms). Earlier full replay was approximately 140 ms; the generic keyed copy alone cost about 60 ms before its opaque specialization. These are small diagnostic traces with GL completion barriers, not steady fps or p95/p99. An actual drawable capture of a held/settled scroll equals a full replay in every RGB pixel; a moving-frame texture check differs by at most 1/255. Raw artifacts: `build/ios-legacy/evidence/render-scroll/`; implementation and limitations: `docs/reports/iphone4-ios7-bringup.md`. No 60 fps guarantee; shader/content-dependent spikes remain.
+
+## 2026-10-31 — idle image / named thread storage / HAL buffers
+
+Owner follow-up to the shared engine pass. Report `engine-memory-hal-2026-10-31.md`; raw `.logs/memory-pass2/`. Real1180×780/Retina background windows: empty baseline63,327,104 B (60.4 MiB); final verified automatic30,116,672 B (28.7 MiB),0.67% of one core. Builder forced Metal65,768,384 B (62.7 MiB), final auto34,163,648 B (32.6 MiB), about1% CPU. Short six-second CPU intervals after5 s warm-up, one passage; no statistical guarantee or system-wide memory claim. Forced always-snapshot motion cost15.65% CPU versus3.33% Metal and was rejected as the default. Adaptive motion after detach-flush fix: forced Metal61,279,104 B,3.33% CPU; auto61,442,944 B,3.49% CPU. One counter tick explains0.17 percentage points. Actual single-process active→rest proof after scoped autorelease-pool fix:61,246,336→31,247,232 B (58.4→29.8 MiB). Native builder screenshot inspected; no focus taken.
+
+Named optimized allocation traces: executable thread block145840→2456 B per thread, eight observed blocks1,166,720→19,648 B (1,147,072 B /1.09 MiB saved). Thread bss145816→2432 B. These are requested sizes, not a separate additive footprint estimate. Other named live owners:240000 B Machine::load frame table; about984320 B Metal/CoreFSCache groups and265600 B SkyLight display dictionaries. Instrumented footprint excluded. Shared scratch lazy; display-gl releases unused software splash buffers after GPU init; console/WASM entries free temporary encoded bytes. Host tests only for portable entries; target hardware proof deferred in later.md.
+
+
+### 2026-10-31 — iPhone 4 Motion: GPU bottleneck and input corrections
+
+Real iPhone3,1/iOS 7.1.2, SGX535, rn-showcase AOT. Last ten animated samples per synchronized diagnostic trace: replay median 485.101 ms initially at 640×960; 144.480 ms after transform bands, lean clipped shaders, sampled corner coverage, centre/rim splitting and cached polygon coverage. Legacy scale 1 reduces replay to 46.140 ms; conservative opaque interior depth writes reduce it to 39.044 ms, plus 3.283 ms copy and 0.193 ms swap. These are short completion-time diagnostics, not sustained FPS/p95. Lower density sacrifices Retina detail. Motion remains below smooth 60 fps; GPU subtree caching is still absent. Circle coverage caching measured 39.846 ms and was removed. Shader pixel/transform regressions pass; settled actual drawable oracle reports zero differences. Native Return/Done/email keyboard proof and full explanation: `docs/reports/iphone4-ios7-bringup.md`; artifacts `build/ios-legacy/evidence/motion-input/`.
+
+## Image cache and Museum lifecycle — 2026-10-31
+
+Shared byte/count LRU for immutable UI images, used by Discord (16 MiB / 512 entries), async target-size decoding through imageio, scaled portable WebP, explicit viewer ownership and GL destruction collection. Image-cache regression passes 100 navigation/unmount cycles on interpreter, AOT and QuickJS. See [implementation and limits](engine-image-memory-2026-10-31.md).
+
+Museum AOT, real background GL window and FFmpeg, Retina 3840×2160: five cycles home → model → video → panorama → home, 2 s dwell, no screenshots. Before, every return retained 2 targets (31,680,000 B CPU / 380,160,000 B GPU estimate), 8,198,400 B video buffers and 2 source contexts. After target suspension at transition end and decoder close, all these counts/bytes are zero at every return. Replay textures fall from 66,222,080 B / 11 objects to 32,902,400 B / 8. Model/panorama view objects remain 1 / 1 and recreate targets on return.
+
+Home RSS over cycles: before 73.9, 71.9, 71.9, 69.9, 55.7 MiB; after 70.0, 55.3, 53.8, 53.8, 52.2 MiB. RSS is affected by paging/compression and is not physical footprint; GPU estimates must not be added to it. No speed claim: CPU timing/system pressure uncontrolled. Baked image payload remains 75,596,032 B. Raw data: `.logs/memory-pass3/museum-full` and `museum-after`; reproduction and detailed table in the report above.
+
+## Museum encoded photos and stable Metal — 2026-10-31
+
+Same final program and continuous Metal presenter, sequential background `tools/window-memory --wait 8` snapshots: embedded control **209 MiB**, encoded-photo bundle **161 MiB** (48 MiB/about 23% lower physical footprint). Resource blob 92,376,618 → 16,780,031 B. Native GL three-cycle navigation starts with 31,262,720 B / 7 decoded photos, ends with 50,728,192 B / 10; old baked payload 75,596,032 B. Hidden targets and video buffers/source contexts return to zero. Named decoded photos remain cached. No controlled CPU benchmark or cross-platform claim; adaptive presentation is experimental opt-in after the black-flash report. [Method, limits and regression checks](engine-assets-presentation-2026-10-31.md); evidence `.logs/memory-pass4/`.
+
+## Clear hidden caret — 2026-10-31
+
+Native UI Clear scene, headless macOS M1 Pro, 420×760, deterministic input, 300 idle frames with `ZINC_PROFILE=1`: before the visible-layer caret guard, paint p99 was 0.09 ms; after, paint p50/p99 are both 0.00 ms at profiler precision. The focused transparent typing input remains functional. This establishes quiet idle painting, not zero CPU use or a controlled overall speedup. Reproduce with `tests/run --tier t1 --only clear`.
+
+## Web export: pixel upload and Pixel Plays against the JavaScript original — 2026-11-01
+
+Headless Chrome (tools/cdp.py), JavaScript time of every `requestAnimationFrame` callback over 8 s after 2.5 s of warm-up, one run per demo, dev Mac. CPU = callback time / wall time. Original = github.com/amirmushichge/pixel-plays (5 demos in common).
+
+| demo | original | `zinc dev` | export before | export after |
+|---|---|---|---|---|
+| balote | 3.9 % | 6.0 % | 5.1 % | 4.1 % |
+| stari-most | 7.3 % | 8.5 % | 6.8 % | 6.4 % |
+| laundry | 8.2 % | 9.1 % | 6.7 % | 6.4 % |
+| tie-break | 6.0 % | 9.3 % | 5.6 % | 4.9 % |
+| mini-ramp | 8.2 % | 9.4 % | 6.1 % | 5.8 % |
+
+`gfxUpdateImage` (targets/web/runtime.js) now keeps one pixel buffer and one ImageData per image. Remaining gap on Balote, and the irregular frame cost (median 0.1 ms, p95 2 to 3 ms against 1.5 ms for the original) come from the 24 poses per second and the per-pose `pix` to RGBA loop in `PixelSurface.upload`. Not measured: native, AOT, other browsers.
+
+Second step, same method: `zinc:gfx updatePixels(image, pixels: u32[], opaque)` (one u32 a pixel, `host.gfxUpdatePixels` row appended at the end of the table; the verifier, the typed engines and QuickJS accept a `u32[]` parameter) replaces the per-byte RGBA conversion of `PixelSurface.upload`. Export CPU, balote 3.6 %, stari-most 5.8 %, laundry 5.4 %, tie-break 4.3 %, mini-ramp 5.0 % (original: 3.9, 7.3, 8.2, 6.0, 8.2). Native/AOT: not measured; `tests/t0/update_pixels.sh` checks the same picture on the interpreter, the default engine and QuickJS.
+
 ## Hamlet fluidity profile (2026-11-01)
 
 Machine: M1 Pro shared with other agents, every row taken at load 4 to 10 (rows above load 10 discarded). `ZINC_HAMLET_PERF` probe (examples/hamlet/src/ui/PerfTrace.ts), seed 3, scripted pan, drag and zoom, headless, frame p50 / p95 / p99 in ms. Full tables and the profile: docs/reports/hamlet-perf-2026-11-01.md.
@@ -1389,3 +1461,55 @@ Machine: M1 Pro shared with other agents, every row taken at load 4 to 10 (rows 
 | interpreter 96 | zoom | 26.8 / 705 / 1257 | 30.1 / 489 / 777 |
 
 Resident memory after a zoom run at size 96 (AOT): 773 MB to 208 MB (ground kept by chunks). `copyWithin` of one 140 k array: 0.02 ms against 2.3 ms for the element loop, on the interpreter and AOT.
+
+## 2026-11-03: render suite, 17 scenes, Atom x5-Z8350 (Intel HD CHV, Mesa 22.3.6, Debian 12)
+
+Capped: the two 125 fps limits (`runtime/zrt.cpp`, `src/host/gfx_host.cpp`) still applied, so an interval near 8.3 ms says nothing about the machine; see the uncapped table below.
+
+deblab, GPU renderer through KMS at 1440x900, no vsync, 3 runs, 240 frames per scene, working tree of 2026-11-03 (dirty). Xorg holds the DRM master, so nothing reaches the screen: GPU and CPU costs, no scanout. Kiosk stopped and XFCE frozen; home services still running (load 0.67 idle). `gl_gpu_us` is not trusted (6.9 ms on `image_fill_only`, which has 0 draws).
+
+| Scene | Work ms | Present ms | Interval p50 ms | fps |
+|---|---|---|---|---|
+| fill_opaque | 0.04 | 0.97 | 8.30 | 120.4 |
+| fill_blend | 0.04 | 12.74 | 12.90 | 77.5 |
+| quads_10k | 3.29 | 3.82 | 8.21 | 121.8 |
+| rounded_shadow | 0.34 | 11.34 | 11.74 | 85.2 |
+| gradients | 0.14 | 33.96 | 34.22 | 29.2 |
+| text_static | 0.63 | 4.51 | 8.51 | 117.5 |
+| text_churn | 0.95 | 3.35 | 8.61 | 116.1 |
+| clip_nested | 0.82 | 14.19 | 15.10 | 66.2 |
+| poly | 1.04 | 2.27 | 8.59 | 116.5 |
+| scroll_list | 0.28 | 9.28 | 9.39 | 106.5 |
+| image_update | 6.02 | 0.81 | 8.39 | 119.2 |
+| card_small | 0.06 | 1.52 | 8.63 | 115.9 |
+| card_big | 0.06 | 1.45 | 8.63 | 115.9 |
+| card_zoom | 0.06 | 1.46 | 8.64 | 115.8 |
+| image_fill_only | 5.85 | 0.36 | 8.61 | 116.1 |
+| image_upload_only | 2.26 | 3.17 | 8.61 | 116.1 |
+| damage_small | 0.37 | 1.47 | 8.63 | 115.9 |
+
+Uncapped (`ZINC_VSYNC=0` now lifts both limits), same machine and surface, 2 runs, median interval in ms, nothing on screen (Xorg holds the DRM master, GPU clock free between 200 and 500 MHz, so differences under about 10% are noise). "Lean and depth off": `ZINC_GL_LEAN=0 ZINC_GL_CLIP_DEPTH=0` on the same build, the one-clear and ES 3 changes still in, so it is not the code before these changes.
+
+| Scene | Lean and depth off | Now |
+|---|---|---|
+| fill_opaque | 1.86 | 1.94 |
+| fill_blend | 11.46 | 11.65 |
+| quads_10k | 6.74 | 6.94 |
+| rounded_shadow | 13.17 | 11.50 |
+| gradients | 32.92 | 5.23 |
+| text_static | 2.82 | 2.81 |
+| text_churn | 2.18 | 2.23 |
+| clip_nested | 7.05 | 6.24 |
+| poly | 2.22 | 2.22 |
+| scroll_list | 8.64 | 8.62 |
+| image_update | 6.45 | 6.39 |
+| card_small | 2.69 | 2.44 |
+| card_big | 6.56 | 4.76 |
+| card_zoom | 6.45 | 4.72 |
+| image_fill_only | 5.36 | 5.28 |
+| image_upload_only | 2.41 | 2.36 |
+| damage_small | 1.89 | 1.93 |
+
+The ES 3 path (vertex array, unsynchronized ring), before the fix of the double depth draw: clip_nested 9.09 -> 7.15 ms, gradients 6.12 -> 5.25, the other scenes within noise.
+
+zinc:video on the same machine, `render_media`, 30 s real time, H.264 720p25 drawn at 1440x900, software decode, no audio, nothing on screen: local file 747 frames, 0 dropped, 139% of a core; HLS stream 577 frames, 0 dropped, 98% of a core, about 7 s before the first frame counts. ffmpeg alone: 219 fps on 4 threads, 85 fps on one.

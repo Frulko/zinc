@@ -1,0 +1,291 @@
+{
+ "schema": "zbench/1",
+ "suite": "render",
+ "date": "2026-10-31T01:08:41",
+ "tool": {
+  "rev": "3d08d08a9",
+  "dirty": true
+ },
+ "device": {
+  "id": "agent",
+  "before": {
+   "ok": true,
+   "id": "68d0359980bc62d3",
+   "name": "zinc-player",
+   "engine": "0.9.1+747.g3d08d08a9",
+   "os": "linux",
+   "osVersion": "6.18.50+rpt-rpi-v8",
+   "arch": "aarch64",
+   "kind": "Raspberry Pi 3 Model B Plus Rev 1.3",
+   "localEngine": true,
+   "home": "/var/lib/zinc/.zinc/agent",
+   "cores": 4,
+   "load1": 6.49,
+   "load5": 4.21,
+   "load15": 3.5,
+   "cpu": "Raspberry Pi 3 Model B Plus Rev 1.3",
+   "memTotal": 948994048,
+   "memFree": 759898112,
+   "mhz": 1400,
+   "tempC": 48.31,
+   "uptime": 16755,
+   "diskTotal": 29859622912,
+   "diskFree": 23338545152,
+   "user": "zinc",
+   "shell": true,
+   "apps": [
+    {
+     "name": "bouncing-ball",
+     "kind": "zapp",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "carplay",
+     "kind": "export",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "marble",
+     "kind": "zapp",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "museum-table",
+     "kind": "zapp",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "sidecar-screen",
+     "kind": "export",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "zbench_render",
+     "kind": "zapp",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "zinc-player",
+     "kind": "zapp",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    }
+   ],
+   "model": "Raspberry Pi 3 Model B Plus Rev 1.3"
+  },
+  "after": {
+   "ok": true,
+   "id": "68d0359980bc62d3",
+   "name": "zinc-player",
+   "engine": "0.9.1+747.g3d08d08a9",
+   "os": "linux",
+   "osVersion": "6.18.50+rpt-rpi-v8",
+   "arch": "aarch64",
+   "kind": "Raspberry Pi 3 Model B Plus Rev 1.3",
+   "localEngine": true,
+   "home": "/var/lib/zinc/.zinc/agent",
+   "cores": 4,
+   "load1": 0.29,
+   "load5": 2.32,
+   "load15": 2.99,
+   "cpu": "Raspberry Pi 3 Model B Plus Rev 1.3",
+   "memTotal": 948994048,
+   "memFree": 775245824,
+   "mhz": 1400,
+   "tempC": 47.24,
+   "uptime": 17158,
+   "diskTotal": 29859622912,
+   "diskFree": 23334559744,
+   "user": "zinc",
+   "shell": true,
+   "apps": [
+    {
+     "name": "bouncing-ball",
+     "kind": "zapp",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "carplay",
+     "kind": "export",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "marble",
+     "kind": "zapp",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "museum-table",
+     "kind": "zapp",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "sidecar-screen",
+     "kind": "export",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "zbench_render",
+     "kind": "zapp",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    },
+    {
+     "name": "zinc-player",
+     "kind": "zapp",
+     "dev": false,
+     "running": false,
+     "pid": 0
+    }
+   ],
+   "model": "Raspberry Pi 3 Model B Plus Rev 1.3"
+  }
+ },
+ "config": {
+  "engine": "aot",
+  "set": {
+   "ZINC_DISPLAY": "gl"
+  },
+  "frames": 120,
+  "skip": 20,
+  "runs": 1,
+  "modes": [
+   "uncapped"
+  ],
+  "size": "native"
+ },
+ "modes": {
+  "uncapped": {
+   "scenes": {
+    "card_small": {
+     "runs": 1,
+     "ok_runs": 0
+    },
+    "card_big": {
+     "runs": 1,
+     "ok_runs": 0
+    },
+    "fill_blend": {
+     "runs": 1,
+     "ok_runs": 0
+    },
+    "rounded_shadow": {
+     "runs": 1,
+     "ok_runs": 0
+    },
+    "quads_10k": {
+     "runs": 1,
+     "ok_runs": 0
+    }
+   },
+   "problems": [
+    {
+     "scene": "card_small",
+     "kind": "run_failed",
+     "detail": "1 of 1 runs produced no profile (a timeout on a Mac usually means the window was covered or the display asleep: macOS stops drawing it)"
+    },
+    {
+     "scene": "card_big",
+     "kind": "run_failed",
+     "detail": "1 of 1 runs produced no profile (a timeout on a Mac usually means the window was covered or the display asleep: macOS stops drawing it)"
+    },
+    {
+     "scene": "fill_blend",
+     "kind": "run_failed",
+     "detail": "1 of 1 runs produced no profile (a timeout on a Mac usually means the window was covered or the display asleep: macOS stops drawing it)"
+    },
+    {
+     "scene": "rounded_shadow",
+     "kind": "run_failed",
+     "detail": "1 of 1 runs produced no profile (a timeout on a Mac usually means the window was covered or the display asleep: macOS stops drawing it)"
+    },
+    {
+     "scene": "quads_10k",
+     "kind": "run_failed",
+     "detail": "1 of 1 runs produced no profile (a timeout on a Mac usually means the window was covered or the display asleep: macOS stops drawing it)"
+    }
+   ],
+   "raw": {
+    "card_small": [
+     {
+      "scene": "card_small",
+      "first_failure": [
+       "ZB_TIMEOUT"
+      ],
+      "raw_tail": [
+       "ZB_TIMEOUT"
+      ]
+     }
+    ],
+    "card_big": [
+     {
+      "scene": "card_big",
+      "first_failure": [
+       "ZB_TIMEOUT"
+      ],
+      "raw_tail": [
+       "ZB_TIMEOUT"
+      ]
+     }
+    ],
+    "fill_blend": [
+     {
+      "scene": "fill_blend",
+      "first_failure": [
+       "ZB_TIMEOUT"
+      ],
+      "raw_tail": [
+       "ZB_TIMEOUT"
+      ]
+     }
+    ],
+    "rounded_shadow": [
+     {
+      "scene": "rounded_shadow",
+      "first_failure": [
+       "ZB_TIMEOUT"
+      ],
+      "raw_tail": [
+       "ZB_TIMEOUT"
+      ]
+     }
+    ],
+    "quads_10k": [
+     {
+      "scene": "quads_10k",
+      "first_failure": [
+       "ZB_TIMEOUT"
+      ],
+      "raw_tail": [
+       "ZB_TIMEOUT"
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

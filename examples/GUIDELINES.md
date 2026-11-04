@@ -19,7 +19,7 @@ The bar every demo of `examples/` meets, new or changed. The reference is `examp
 ```text
 src/
 ├── main.ts          # mounts the stage, routes input, the frame loop; no business logic
-├── constants.ts     # colours, sizes, ports, ids, limits: every literal used twice
+├── constants.ts     # named shared colours, sizes, ports, ids and policy limits
 ├── fonts.ts         # named fonts
 ├── state.ts         # the app's state and its actions (what a page calls); no drawing, no side effect at import
 ├── core/            # what the app adds to zinc:stage: pictures cache, screen power
@@ -28,9 +28,13 @@ src/
 └── pages/<page>/    # one node per page or slide
 ```
 
-- One concern per file; a file above ~500 lines is split.
+The tree names responsibilities, not compulsory scaffolding: create only the files and folders the demo actually needs.
+
+- One concern per file; around 500 lines is a prompt to review its responsibilities, not a reason to invent another layer.
+- One named UI component per file. Screens compose imported components; keep feature-only components beside their page and group related files in subfolders when a flat directory hides ownership. Supporting types and small non-component helpers may stay local.
+- Prefer explicit operation names, readable multi-line control flow and comments explaining non-obvious choices or invariants. Reconsider a design that needs more flags, adapters or unrelated state to finish the requested behavior.
 - Names say what they hold: `COLOR_TEXT_SECONDARY`, `navigateToPage`, `volumeBarLocalX`; no `TEXT2`, `sc`, `gg`.
-- Config is a typed class with defaults, loaded and saved by `services/config.ts`; saving keeps the keys it does not know.
+- When the demo has persisted configuration, keep its typed defaults and schema in `services/config.ts`; saving keeps the keys it does not know. Do not create a config layer for an app with no such settings.
 - A page loads its data in one place (`onAddedToStage`), not also in the navigation code.
 - Comments, README and identifiers in English. Text shown to the user can be in its language.
 

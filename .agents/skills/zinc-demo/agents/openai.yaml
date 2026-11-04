@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zinc Demo"
+  short_description: "Build Zinc demos that prove a clear user experience"
+  default_prompt: "Use $zinc-demo to build or improve this Zinc demo."
