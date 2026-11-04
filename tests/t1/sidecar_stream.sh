@@ -5,7 +5,7 @@
 # whole page is drawn again, then a full refresh.
 cd "$(dirname "$0")/../.." || exit 2
 root=$(pwd)
-tmp=$(mktemp -d); trap 'kill $app 2>/dev/null; rm -rf "$tmp"' EXIT
+tmp=$(mktemp -d); trap 'kill -9 $app 2>/dev/null; rm -rf "$tmp"' EXIT
 proj=$tmp/sidecar; mkdir -p "$proj/plugins/display-rmpp-sim" "$proj/out"
 ln -s "$root/app/sidecar/src" "$proj/src"
 sed -e 's/"driver": "rmpp"/"driver": "rmpp-sim"/' app/sidecar/zinc.json > "$proj/zinc.json"
@@ -17,7 +17,7 @@ cat > "$proj/plugins/display-rmpp-sim/plugin.json" <<J
 J
 port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
 ( cd "$proj" && ZN_RMPP_SIM_OUT="$proj/out" ZINC_RMPP_MACHINE="reMarkable Ferrari" ZN_RMPP_SIM_APPLOAD=dock ZN_RMPP_SIM_RESTORE=0 ZINC_RMPP_HEADER=remarkable ZINC_SIDECAR_PORT=$port ZN_RMPP_SIM_TAP="100:300,520;140:300,520;180:300,520;220:300,520;260:300,520;300:300,520;340:300,520;380:300,520;420:300,520;460:300,520;500:300,520;540:300,520;580:300,520;620:300,520;660:300,520;700:300,520;740:300,520;780:300,520;820:300,520;860:300,520;900:300,520;940:300,520;980:300,520;1020:300,520;1060:300,520;1100:300,520;1140:300,520;1180:300,520;1220:300,520;1260:300,520;1300:300,520;1340:300,520;1380:300,520;1420:300,520;1460:300,520;1500:300,520;1540:300,520;1580:300,520;1620:300,520;1660:300,520;1700:300,520;1740:300,520;1780:300,520;1820:300,520;1860:300,520;1900:300,520;1940:300,520;1980:300,520" ZINC_STORAGE="$proj/kv" \
-    ZINC_DISPLAY=rmpp-sim QTFB_KEY=7 ZINC_HEADLESS=1 ZINC_FRAMES=900 "$ZINC" run "$proj" >"$tmp/app.log" 2>&1 ) & app=$!
+    ZINC_DISPLAY=rmpp-sim QTFB_KEY=7 ZINC_HEADLESS=1 ZINC_FRAMES=900 exec "$ZINC" run "$proj" >"$tmp/app.log" 2>&1 ) & app=$!
 timeout 60 python3 tests/native/sidecar/send.py $port > "$tmp/mac.log" 2>&1 || { echo "sidecar: the Mac's side failed: $(cat "$tmp/mac.log") $(tail -c 300 "$tmp/app.log")"; exit 1; }
 wait $app || { echo "sidecar: the app failed: $(tail -c 400 "$tmp/app.log")"; exit 1; }
 t=$proj/out/trace.txt

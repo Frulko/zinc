@@ -291,7 +291,12 @@ static int zn_connect(int s, const struct sockaddr* a, socklen_t) {
   *server = pair[1];
   return 0;
 }
-static ssize_t zn_send(int s, const void* b, size_t n, int flags) { std::lock_guard<std::recursive_mutex> g(model); ssize_t r = send(s, b, n, flags & ~MSG_NOSIGNAL); pump(); return r; }
+static ssize_t zn_send(int s, const void* b, size_t n, int flags) {
+  // the sidecar's TCP connection has no model behind it and stays out of the lock: stream::send16 sends holding its own mutex, and the frame hooks, holding the model's, call stream::input, which takes it
+  sockaddr_storage a; socklen_t l = sizeof a;
+  if (getsockname(s, (sockaddr*)&a, &l) == 0 && a.ss_family == AF_INET) return send(s, b, n, flags & ~MSG_NOSIGNAL);
+  std::lock_guard<std::recursive_mutex> g(model); ssize_t r = send(s, b, n, flags & ~MSG_NOSIGNAL); pump(); return r;
+}
 static ssize_t zn_recv(int s, void* b, size_t n, int flags) { return recv(s, b, n, flags); }
 }  // namespace qsim
 
