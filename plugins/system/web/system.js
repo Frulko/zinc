@@ -22,7 +22,34 @@ if (dark && dark.addEventListener) dark.addEventListener('change', (e) => emit('
 const store = (k, v) => { try { if (v === undefined) return g.localStorage.getItem('zinc:window:' + k); g.localStorage.setItem('zinc:window:' + k, v); } catch { return null; } return null; };
 let lastClip = { text: '', html: '' };
 
+// A file the person gave the page has no path: it gets a made-up one, which zinc:web/fetch's uploadFile can send. A save is a download, made when the program writes the path.
+const picked = (Z.pickedFiles = new Map());
+let pickedCount = 0;
+const pathOf = (file) => { const path = `picked/${++pickedCount}/${file.name}`; picked.set(path, file); return path; };
+g.addEventListener('dragover', (e) => e.preventDefault());
+g.addEventListener('drop', (e) => {
+  e.preventDefault();
+  for (const file of e.dataTransfer.files) emit('drop', pathOf(file));
+});
+let dialogCount = 0;
+
 const ops = {
+  'dialog.open': (a) => {
+    if (a.directory) return unsupported('dialog.open for a folder');
+    const token = `web-${++dialogCount}`;
+    const input = g.document.createElement('input');
+    input.type = 'file';
+    input.multiple = !!a.multiple;
+    input.onchange = () => emit('dialog-result', token, JSON.stringify([...input.files].map(pathOf)));
+    input.oncancel = () => emit('dialog-result', token, 'null');
+    input.click();
+    return ok({ pending: token });
+  },
+  'dialog.save': (a) => {
+    const name = String(a.defaultPath || 'download').split('/').pop();
+    Z.downloadOnWrite(name);
+    return ok({ path: name });
+  },
   'notification.backend': () => ok({ backend: g.Notification ? 'native' : 'none' }),
   'notification.requestPermission': () => {
     if (!g.Notification) return ok({ state: 'unsupported' });

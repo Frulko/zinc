@@ -158,6 +158,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - `zinc:lastfm`, the Last.fm scrobbler, as a plugin.
 - Native plugins: a spec can declare interfaces and pass them, in lists, optional or nested, as parameters, results and promise results; the generated C++ header has a plain struct per record with `zn::rec::encode`/`decode`, safe on a worker thread, and fields appended later stay readable both ways. `zinc:gphoto2`'s `detect()` uses it.
 - A stand-in `x.sim.ts` can `import type { ... } from './x.spec'` to use its spec's records instead of copying them, and the plugin still imports them from the spec.
+- `zinc:system` opens and saves files in a web export (the browser's picker, a download) and reports files dropped on the page, and `uploadFile` of `zinc:web/fetch` sends a file of any size with its progress, in the browser and natively.
 
 #### Changed
 - `zinc:net`: a program can serve several ports at once, each with its own handler (`serve`/`serveAsync` again on another port no longer replaces the first server), and `stop(port)` stops one; `stop()` still stops them all. The Spotify login now stops only its own callback server.

@@ -418,3 +418,11 @@ async function run(url: string, ni: net.RequestInit, resolve: (r: Response) => v
   setDone();
   resolve(Response.fromNet(n, bytes, url));
 }
+
+/** POSTs the file at `path` as it is read, however large, with its progress. A path from zinc:system/dialog or a drop works on every target, the web too. */
+export async function uploadFile(url: string, path: string, headers: [string, string][], onProgress: (sent: number, total: number) => void): Promise<{ status: number; body: string }> {
+  const lines = new net.Headers();
+  for (const h of headers) lines.set(h[0], h[1]);
+  const reply = await net.fetch(url, { method: 'POST', bodyFile: path, headers: lines, onProgress, timeoutMs: 0 });
+  return { status: reply.status, body: reply.body };
+}

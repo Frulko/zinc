@@ -676,6 +676,17 @@ function assetBytes(name) {
   return b ? new Uint8Array(b) : null;
 }
 const fileBytes = (p) => memfs.get(normName(p)) || assetBytes(p);
+const downloads = new Set();   // the paths zinc:system/dialog's save gave: writing one downloads it
+Z.downloadOnWrite = (name) => downloads.add(normName(name));
+function written(p) {
+  const name = normName(p);
+  if (!downloads.delete(name)) return;
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([memfs.get(name)]));
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
 const store = (() => {
   const prefix = 'zinc:' + (CFG.id || CFG.name) + ':';
   const mem = new Map();
@@ -808,10 +819,10 @@ const rows = {
   // files: the assets are read only, what the app writes lives in memory for the page's life; storage is the page's localStorage
   fsFailed: () => fsErr !== '', fsError: () => fsErr,
   fsReadText: (p) => { fsErr = ''; const b = fileBytes(p); if (!b) { fsErr = 'ENOENT: readText ' + p; return ''; } return dec.decode(b); },
-  fsWriteText: (p, s) => { fsErr = ''; memfs.set(normName(p), enc.encode(s)); },
+  fsWriteText: (p, s) => { fsErr = ''; memfs.set(normName(p), enc.encode(s)); written(p); },
   fsAppendText: (p, s) => { fsErr = ''; const o = fileBytes(p) || new Uint8Array(0), a = enc.encode(s), r = new Uint8Array(o.length + a.length); r.set(o); r.set(a, o.length); memfs.set(normName(p), r); },
   fsExists: (p) => !!fileBytes(p) || assetUrl(p) !== '', fsLoad: (p) => { fsErr = ''; const b = fileBytes(p); if (!b) { fsErr = 'ENOENT: readBytes ' + p; return 0; } lastBytes = b; return b.length; },
-  fsByte: (i) => lastBytes[i] || 0, fsWriteBytes: (p, b) => { fsErr = ''; memfs.set(normName(p), Uint8Array.from(b)); },
+  fsByte: (i) => lastBytes[i] || 0, fsWriteBytes: (p, b) => { fsErr = ''; memfs.set(normName(p), Uint8Array.from(b)); written(p); },
   fsAppendBytes: (p, b) => { fsErr = ''; const o = fileBytes(p) || new Uint8Array(0), r = new Uint8Array(o.length + b.length); r.set(o); r.set(b, o.length); memfs.set(normName(p), r); },
   fsRemove: (p) => memfs.delete(normName(p)), fsMkdir: () => true, fsTmpdir: () => '/tmp',
   fsListCount: (d) => { const pre = normName(d).replace(/\/?$/, '/'); const set = new Set(); for (const k of [...memfs.keys(), ...assets.keys()]) if (k.startsWith(pre === '/' ? '' : pre)) set.add(k.slice(pre === '/' ? 0 : pre.length).split('/')[0]); listing = [...set]; return listing.length; },
