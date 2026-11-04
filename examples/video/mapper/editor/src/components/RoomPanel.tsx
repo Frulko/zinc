@@ -25,7 +25,7 @@ function sceneSurfaces(): SceneSurface[] {
     const solved = room[index];
     if (solved === null || numbers(layer, 'visible')[0] <= 0) return;
     const placed = solved as SolvedSurface;
-    surfaces.push({ name: word(layer, 'name').replace(/[^ -~]/g, '?'), colour: numbers(layer, 'color'), grid: surfaceGrid(numbers(layer, 'mesh'), placed.pose, placed.size[0], placed.size[1]) });
+    surfaces.push({ name: word(layer, 'name').replace(/[^ -~]/g, '?'), colour: numbers(layer, 'color'), grid: surfaceGrid(numbers(layer, 'mesh'), placed.corners) });
   });
   return surfaces;
 }

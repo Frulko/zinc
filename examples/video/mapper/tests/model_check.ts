@@ -31,7 +31,8 @@ else {
   near('y', pose.position[1], -0.5, 1e-6);
   near('turn', pose.r1[2], Math.sin(angle), 1e-6);
   near('upright', pose.r2[1], 1, 1e-6);
-  const grid = surfaceGrid(placement.mesh, pose, 2, 1);
+  const at = (x: number, y: number): Vec3 => [0, 1, 2].map((k: i32): number => pose.r1[k] * x + pose.r2[k] * y + pose.position[k]);
+  const grid = surfaceGrid(placement.mesh, [at(0, 0), at(2, 0), at(2, 1), at(0, 1)]);
   const last = grid.points[grid.points.length - 1];
   near('far corner', last[2], origin[2] + right[2] * 2, 1e-6);
   const glb = sceneGlb([{ name: 'wall', colour: [1, 0, 0], grid }]);
@@ -102,6 +103,12 @@ const room = solveRoom([{ name: 'front', placement: front, typed: [Math.hypot(2,
 const sideSolved = room[1] as SolvedSurface;
 near('the link gives the side its size', sideSolved.size[0], 1, 0.03);
 near('the link puts the side at its place', sideSolved.pose.position[2], 3.8, 0.05);
+// two linked corners that disagree on their depth: the faces still join, on the projector's rays
+const frontSolved = room[0] as SolvedSurface;
+for (const link of boxLinks) {
+  const one = (link.a === 'front' ? frontSolved : sideSolved).corners[link.cornerA], other = (link.b === 'front' ? frontSolved : sideSolved).corners[link.cornerB];
+  near('linked corners are one point', Math.hypot(one[0] - other[0], one[1] - other[1], one[2] - other[2]), 0, 1e-3);
+}
 
 // links reach through each other, and go
 const chain: Link[] = [];

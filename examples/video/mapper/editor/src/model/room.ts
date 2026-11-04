@@ -1,6 +1,7 @@
 // The room in 3D: the projector's lens and a surface's real size give where the surface stands, by decomposing its homography (Zhang's method).
 // In the projector's axes: x right, y down, z forward; web axes (y up, z towards the viewer) are made at the end.
 import { Placement, Point, placementMatrix, warp } from './geometry';
+import { CornerRef, linkedCorners } from './links';
 
 export type Vec3 = number[];
 export interface Lens { throwRatio: number; shiftY: number }
@@ -45,7 +46,7 @@ export function surfaceShape(p: Placement, aspect: number, lens: Lens): number {
 export interface RoomSurface { name: string; placement: Placement; typed: number[] }
 /** Corner `cornerA` of the surface named `a` is the same physical point as corner `cornerB` of `b`. Corners in corner-pin order. */
 export interface Link { a: string; cornerA: i32; b: string; cornerB: i32 }
-export interface SolvedSurface { size: number[]; pose: Pose }
+export interface SolvedSurface { size: number[]; pose: Pose; corners: Vec3[] }   // corners: where it stands; linked ones are one point
 
 const CORNER_UV: number[][] = [[0, 0], [1, 0], [1, 1], [0, 1]];
 
@@ -55,45 +56,74 @@ function cornerAt(surface: SolvedSurface, corner: i32): Vec3 {
   return [p.r1[0] * x + p.r2[0] * y + p.position[0], p.r1[1] * x + p.r2[1] * y + p.position[1], p.r1[2] * x + p.r2[2] * y + p.position[2]];
 }
 
-/** Places every surface: its shape comes from its corners and the lens, its scale from a typed size, or from a link to a placed surface. Linked
- *  corners sit on one ray of the projector, so a link fixes how far the second surface stands. ponytail: scale only, each surface keeps its own
- *  corners; a global least-squares fit when linked loops disagree visibly. */
+/** Linked corners sit on one ray of the projector: they become one point on it, at their mean distance, so the picture from the projector stays the same and the faces join. */
+function weldCorners(surfaces: RoomSurface[], solved: (SolvedSurface | null)[], links: Link[], indexOf: (name: string) => i32): void {
+  const original: Vec3[][] = solved.map((surface: SolvedSurface | null): Vec3[] => surface === null ? [] : (surface as SolvedSurface).corners.slice());
+  surfaces.forEach((surface: RoomSurface, index: i32) => {
+    if (solved[index] === null) return;
+    for (let corner: i32 = 0; corner < 4; corner++) {
+      let sum = norm(original[index][corner]), count: i32 = 1;
+      for (const other of linkedCorners(links, { layer: surface.name, corner })) {
+        const at: i32 = indexOf((other as CornerRef).layer);
+        if (at < 0 || solved[at] === null) continue;
+        sum += norm(original[at][(other as CornerRef).corner]);
+        count++;
+      }
+      const point = original[index][corner];
+      (solved[index] as SolvedSurface).corners[corner] = scaled(point, sum / count / norm(point));
+    }
+  });
+}
+
+/** Places every surface: its shape comes from its corners and the lens, its scale from a typed size, or from its links to placed surfaces, the mean of what each says. */
 export function solveRoom(surfaces: RoomSurface[], links: Link[], aspect: number, lens: Lens): (SolvedSurface | null)[] {
   const solved: (SolvedSurface | null)[] = surfaces.map((surface: RoomSurface): SolvedSurface | null => {
     const shape = surfaceShape(surface.placement, aspect, lens);
     const size = surface.typed[0] > 0 && surface.typed[1] > 0 ? surface.typed : [1, shape];
     const pose = surfacePose(surface.placement, aspect, size[0], size[1], lens);
-    return pose === null ? null : { size, pose };
+    if (pose === null) return null;
+    const placed: SolvedSurface = { size, pose, corners: [] };
+    placed.corners = [0, 1, 2, 3].map((corner: i32): Vec3 => cornerAt(placed, corner));
+    return placed;
   });
   const indexOf = (name: string): i32 => surfaces.findIndex((surface: RoomSurface) => surface.name === name) as i32;
   const fixed: boolean[] = surfaces.map((surface: RoomSurface) => surface.typed[0] > 0);
   if (fixed.indexOf(true) < 0 && fixed.length > 0) fixed[0] = true;
   // from what is fixed outwards; a surface with neither link nor typed size keeps its one metre
   for (let pass: i32 = 0; pass < surfaces.length; pass++) {
-    for (const link of links) {
-      const a: i32 = indexOf(link.a), b: i32 = indexOf(link.b);
-      if (a < 0 || b < 0 || solved[a] === null || solved[b] === null || fixed[a] === fixed[b]) continue;
-      const from: i32 = fixed[a] ? a : b, to: i32 = fixed[a] ? b : a;
-      const fromCorner: i32 = fixed[a] ? link.cornerA : link.cornerB, toCorner: i32 = fixed[a] ? link.cornerB : link.cornerA;
+    surfaces.forEach((surface: RoomSurface, to: i32) => {
+      if (fixed[to] || solved[to] === null) return;
       const target = solved[to] as SolvedSurface;
-      const k = norm(cornerAt(solved[from] as SolvedSurface, fromCorner)) / norm(cornerAt(target, toCorner));
-      solved[to] = { size: [target.size[0] * k, target.size[1] * k], pose: { r1: target.pose.r1, r2: target.pose.r2, position: scaled(target.pose.position, k) } };
+      let ratios = 0, count: i32 = 0;
+      for (const link of links) {
+        const a: i32 = indexOf(link.a), b: i32 = indexOf(link.b);
+        if (a < 0 || b < 0 || (a !== to && b !== to)) continue;
+        const from: i32 = a === to ? b : a;
+        if (solved[from] === null || !fixed[from]) continue;
+        const fromCorner: i32 = a === to ? link.cornerB : link.cornerA, toCorner: i32 = a === to ? link.cornerA : link.cornerB;
+        ratios += norm((solved[from] as SolvedSurface).corners[fromCorner]) / norm(target.corners[toCorner]);
+        count++;
+      }
+      if (count === 0) return;
+      const k = ratios / count;
+      solved[to] = { size: [target.size[0] * k, target.size[1] * k], pose: { r1: target.pose.r1, r2: target.pose.r2, position: scaled(target.pose.position, k) }, corners: target.corners.map((point: Vec3): Vec3 => scaled(point, k)) };
       fixed[to] = true;
-    }
+    });
   }
+  weldCorners(surfaces, solved, links, indexOf);
   return solved;
 }
 
 /** The surface as a grid of points in the projector's axes, following the deformation grid. */
-export function surfaceGrid(mesh: number[], pose: Pose, width: number, height: number): SurfaceGrid {
+export function surfaceGrid(mesh: number[], corners: Vec3[]): SurfaceGrid {
   const points: Vec3[] = [];
   const uvs: Point[] = [];
   for (let j: i32 = 0; j <= GRID_STEPS; j++) {
     for (let i: i32 = 0; i <= GRID_STEPS; i++) {
       const s = i / GRID_STEPS, t = j / GRID_STEPS;
       const w = warp(mesh, s, t);
-      const x = w[0] * width, y = w[1] * height;
-      points.push([pose.r1[0] * x + pose.r2[0] * y + pose.position[0], pose.r1[1] * x + pose.r2[1] * y + pose.position[1], pose.r1[2] * x + pose.r2[2] * y + pose.position[2]]);
+      const x = w[0], y = w[1];
+      points.push([0, 1, 2].map((k: i32): number => (1 - y) * ((1 - x) * corners[0][k] + x * corners[1][k]) + y * (x * corners[2][k] + (1 - x) * corners[3][k])));
       uvs.push([s, t]);
     }
   }

@@ -405,6 +405,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - The video mapper runs on Android, down to 4.4 and a Mali-400: `zinc:mapping` draws in the app's window, a layer pays only for the colour, gamma, mask and grid steps it uses, and `ZINC_BUFFER=854x480` renders at a panel's real size when the system announces a larger one. A player finds no video where the system has no `libmediandk` instead of the app failing to start. The mapper demo takes `--port` for the OSC port, and its editor tells a stale token from an app that does not answer.
 - `zinc:mapping` plays a video or an image file straight on a layer on Android: `/layer/<n>/media clip.mp4` with its sound and hardware decoding (`/layer/<n>/volume`, `/layer/<n>/loop`), the new file taking over at its first picture. `/layer/<n>/fit` (`stretch`, `contain`, `cover`) and `/layer/<n>/inputRect` fit any source into a smaller zone.
 - In the video mapper, a layer always shows the clip its row plays: moving a playing clip takes its picture with it, and a layer left showing a stray media is emptied at start.
+- In the video mapper room, two faces linked by several corners meet at those corners in 3D and in the exported scene, even when the corners and the lens disagree a little.
 
 ### Mobile and Zinc Go
 
