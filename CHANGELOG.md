@@ -76,6 +76,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 - Array methods on an `any` value (`data.codecs.map(...)`, `.filter`, `.join`, `.some`, `.includes`...) work, as in TypeScript, instead of failing with "cannot be called".
 - `{list.map(row)}` with a named function that returns JSX shows the rows, as it does with an inline arrow, instead of printing numbers.
 - `fetch` returns a binary download byte for byte: `response.bytes()` and `arrayBuffer()` no longer lose two bytes where a gzip or an archive holds two surrogate halves side by side, and a server reads a large upload's bytes in one step.
+- `serveAsync` and `listen` with `requestTimeoutMs: 0` wait as long as a request needs, as documented: the connection was closed at once.
 
 ### UI
 

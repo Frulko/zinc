@@ -28,7 +28,7 @@ requests per second than Node 24 (`tools/bench-http` compares it with Node and B
 | `maxConnectionsPerIp` | 256 | the connection is closed |
 | `requestsPerSecondPerIp` | 0 (no limit) | 429 with `Retry-After: 1` |
 | `headersTimeoutMs` | 10 s from a request's first byte to the end of its headers (a client that trickles them) | 408 |
-| `requestTimeoutMs` | 10 s, the longest pause while a body arrives | 408 |
+| `requestTimeoutMs` | 10 s, the longest pause while a body arrives (0: no limit) | 408 |
 | `keepAliveTimeoutMs` | 5 s without a request | the connection is closed |
 | `streamBody` | false | the body comes as `req.bodyStream` instead of `req.body` |
 | `maxPayloadBytes` | 16 MiB, a WebSocket message | the socket closes with 1009 |

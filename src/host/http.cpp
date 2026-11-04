@@ -448,7 +448,10 @@ void closeConn(SConn* c) {
   uv_close(reinterpret_cast<uv_handle_t*>(&c->tcp), onSClosed);
 }
 void onSTimer(uv_timer_t* t);
-void arm(SConn* c, uint64_t ms) { uv_timer_start(&c->timer, onSTimer, ms, 0); }
+void arm(SConn* c, uint64_t ms) {
+  if (ms == 0) { uv_timer_stop(&c->timer); return; }   // a limit of 0: none (a zero-length timer would close the connection at once)
+  uv_timer_start(&c->timer, onSTimer, ms, 0);
+}
 
 // The Date header, made again when the second changes (RFC 9110 asks an origin server with a clock for it).
 const std::string& dateLine() {

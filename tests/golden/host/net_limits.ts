@@ -35,5 +35,5 @@ const streamed = async (req: Request): Promise<Reply> => {
     },
   };
 };
-serveAsync(parseInt(a[2]) as i32, streamed, { streamBody: true });
+serveAsync(parseInt(a[2]) as i32, streamed, { streamBody: true, requestTimeoutMs: 0 });   // 0: no limit, the pieces of the upload still arrive
 console.log('ready');
