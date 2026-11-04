@@ -8,6 +8,7 @@
     "macos": { "sources": ["vendor/qrcodegen.c"] },
     "linux": { "sources": ["vendor/qrcodegen.c"] },
     "windows": { "sources": ["vendor/qrcodegen.c"] },
+    "android": { "sources": ["vendor/qrcodegen.c"] },
     "esp32": { "sources": ["vendor/qrcodegen.c"] }
   }
 }

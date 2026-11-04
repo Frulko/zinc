@@ -78,7 +78,7 @@ export const SLIDE_COUNT: i32 = 5;
 // ----------------------------------------------------------------------------
 export const CLOCK_FACE_ANALOG: i32 = 0;
 export const CLOCK_FACE_DIGITAL: i32 = 1;
-export const CLOCK_FACE_RINGS: i32 = 2;
+export const CLOCK_FACE_COVER: i32 = 2;
 export const CLOCK_FACE_LAVA: i32 = 3;
 export const CLOCK_FACE_ODOMETER: i32 = 4;
 export const CLOCK_FACE_COUNT: i32 = 5;

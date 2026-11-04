@@ -1,0 +1,18 @@
+[Unit]
+Description=Zinc Sonos to Last.fm scrobbler
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/zinc/app/sonos-lastfm
+EnvironmentFile=%h/.config/sonos-lastfm.env
+ExecStart=%h/zinc/build/zinc run --interp %h/zinc/app/sonos-lastfm -- --data %h/.local/share/sonos-lastfm
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

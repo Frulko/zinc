@@ -32,6 +32,9 @@ export class AppConfig {
   showBatteryIndicator: boolean = true;
   showBatteryPercentage: boolean = true;
 
+  /** How soft the cover behind the player is: 0 = sharp, 1 = light, 2 = medium, 3 = strong (`blur`). */
+  backdropBlur: i32 = 3;
+
   /** The clock slide's glances: the sleeping screen lights up every few minutes on the clock (`glances`). */
   clockGlancesEnabled: boolean = true;
 
@@ -56,6 +59,7 @@ export function loadAppConfig(): AppConfig {
     if (parsed.full !== undefined) config.fullScreenPlayer = parsed.full === true;
     if (parsed.battery !== undefined) config.showBatteryIndicator = parsed.battery === true;
     if (parsed.batteryPct !== undefined) config.showBatteryPercentage = parsed.batteryPct === true;
+    if (parsed.blur !== undefined) config.backdropBlur = Math.max(0, Math.min(3, parsed.blur as i32)) as i32;
     if (parsed.glances !== undefined) config.clockGlancesEnabled = parsed.glances === true;
     if (parsed.notify !== undefined) config.macNotificationsShown = parsed.notify === true;
     if (parsed.lat !== undefined && parsed.lon !== undefined) {
@@ -93,6 +97,7 @@ export function saveAppConfig(config: AppConfig): void {
     stored.city = config.weatherCityName;
     stored.battery = config.showBatteryIndicator;
     stored.batteryPct = config.showBatteryPercentage;
+    stored.blur = config.backdropBlur;
     stored.glances = config.clockGlancesEnabled;
     stored.notify = config.macNotificationsShown;
     writeText(CONFIG_FILE_PATH, JSON.stringify(stored) + '\n');

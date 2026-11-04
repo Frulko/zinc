@@ -2,12 +2,13 @@
 // pages/home/clock-slide.ts — Slide 1: StandBy clock with 5 faces
 // ============================================================================
 // The user swipes vertically to choose one of the 5 faces:
-// 0 = Analog, 1 = Giant digital, 2 = Activity rings,
+// 0 = Analog, 1 = Giant digital, 2 = The cover, slowly drawing nearer,
 // 3 = Interactive lava lamp, 4 = Rolling-flap odometer.
 // Each face is itself a child `DisplayObject` positioned vertically!
 
-import { rrect, fontAscent, setTransform } from 'zinc:gfx';
+import { clip, rrect, fontAscent, setTransform, unclip, width, height } from 'zinc:gfx';
 import { Group } from 'zinc:sonos';
+import { isBridgeStream } from '../../services/airplay-bridge';
 import gsap, { Timeline } from 'gsap';
 import {
   CLOCK_FACE_ANALOG,
@@ -15,12 +16,11 @@ import {
   CLOCK_FACE_DIGITAL,
   CLOCK_FACE_LAVA,
   CLOCK_FACE_ODOMETER,
-  CLOCK_FACE_RINGS,
+  CLOCK_FACE_COVER,
   COLOR_ACCENT,
   COLOR_TEXT_PRIMARY,
   COLOR_TEXT_SECONDARY,
   MONTHS_LONG,
-  RING_COLORS,
   SLIDE_PLAYER,
   WEEKDAYS_LONG,
 } from '../../constants';
@@ -34,11 +34,12 @@ import {
   measureTabularWidth,
 } from '../../components/primitives';
 import { drawCoverArt } from '../../components/cover';
+import { drawLivingBackdrop, getPicture } from '../../core/pictures';
+import { coverHidesScreen, drawCoverShow, floatingHourOffset } from './cover-show';
 import {
   drawAnalogWatchFace,
   drawLavaLampBackground,
   drawOdometerDigits,
-  drawRingArc,
   getLavaLampPaletteIndex,
   LAVA_PALETTE_NAMES,
   setLavaLampPaletteIndex,
@@ -116,6 +117,7 @@ function drawCompactNowPlayingCard(x: number, y: number, width: number): void {
 
   const playButtonX = isNarrow ? x + width / 2 : x + width - 98;
   const playButtonY = isNarrow ? y + 118 : y + 46;
+  if (isBridgeStream(group)) return;   // "Arrêter AirPlay" is on the player
   drawTransportIcon(
     'prev',
     playButtonX - 60,
@@ -161,6 +163,8 @@ function drawCompactNowPlayingCard(x: number, y: number, width: number): void {
 class SingleClockFaceNode extends DisplayObject {
   faceKind: i32;
   private lastSeenLavaTimestamp: number = -10;
+  private coverUrl: string = '';
+  private coverStart: number = 0;
 
   constructor(faceKind: i32) {
     super(`ClockFace_${faceKind}`);
@@ -172,8 +176,8 @@ class SingleClockFaceNode extends DisplayObject {
       this.drawAnalog(viewWidth, viewHeight);
     } else if (this.faceKind === CLOCK_FACE_DIGITAL) {
       this.drawDigital(viewWidth, viewHeight);
-    } else if (this.faceKind === CLOCK_FACE_RINGS) {
-      this.drawRings(viewWidth, viewHeight);
+    } else if (this.faceKind === CLOCK_FACE_COVER) {
+      this.drawCover(viewWidth, viewHeight);
     } else if (this.faceKind === CLOCK_FACE_LAVA) {
       this.drawLava(viewWidth, viewHeight);
     } else if (this.faceKind === CLOCK_FACE_ODOMETER) {
@@ -230,58 +234,37 @@ class SingleClockFaceNode extends DisplayObject {
     drawCompactNowPlayingCard((viewWidth - cardWidth) / 2, viewHeight - (cardWidth < 440 ? 180 : 150), cardWidth);
   }
 
-  private drawRings(viewWidth: number, viewHeight: number): void {
+  /** The cover in slow motion (cover-show.ts) with the hour floating; a new song starts over. Without a cover, the digital face. */
+  private drawCover(viewWidth: number, viewHeight: number): void {
+    const group = appState.activeGroup;
+    const url = group !== null ? getGroupArtworkUrl(group as Group) : '';
+    const image = url !== '' ? getPicture(url) : -1;
+    if (image < 0) {
+      this.drawDigital(viewWidth, viewHeight);
+      return;
+    }
+    if (url !== this.coverUrl) {
+      this.coverUrl = url;
+      this.coverStart = appState.elapsedAppClockSeconds;
+    }
+    const spent = appState.elapsedAppClockSeconds - this.coverStart;
+    const statusBarHeight = height() - viewHeight;
+    clip(0, -statusBarHeight, width(), height());   // the backdrop and some scenes are wider than the page: nothing spills on the next page during a slide
+    if (!coverHidesScreen(spent)) drawLivingBackdrop(url, width(), height(), statusBarHeight, appState.config.backdropBlur, spent);
+    drawCoverShow(image, viewWidth, viewHeight, spent, 110);
+    unclip();
+
     const nowDate = new Date();
-    const hours = nowDate.getHours();
     const minutes = nowDate.getMinutes();
-    const seconds = nowDate.getSeconds();
+    const float = floatingHourOffset(spent);
+    drawLabel(Fonts.hero, 44 + float[0], viewHeight - 76 + float[1], `${nowDate.getHours()}:${minutes < 10 ? '0' : ''}${minutes}`, COLOR_TEXT_PRIMARY, 200);
 
-    const stacked = viewWidth < 700;
-    const compact = viewWidth < 900 || viewHeight < 600;
-    const outerRadius = stacked ? Math.max(30, Math.min(viewWidth * 0.26, (viewHeight - 250) / 2)) : Math.min(250, viewHeight * 0.34, compact ? viewWidth * 0.24 : 250);
-    const centerX = stacked ? viewWidth / 2 : (compact ? 32 : 72) + outerRadius;
-    const centerY = stacked ? 40 + outerRadius : viewHeight / 2;
-    const ringThickness = compact ? Math.min(46, outerRadius / 6) : 46;
-    const ringGap = 8;
-
-    const ringFractions = [
-      ((hours % 12) + minutes / 60) / 12,
-      (minutes + seconds / 60) / 60,
-      seconds / 60,
-    ];
-
-    for (let ringIndex = 0; ringIndex < 3; ringIndex++) {
-      const radius = outerRadius - ringThickness / 2 - ringIndex * (ringThickness + ringGap);
-      drawRingArc(centerX, centerY, radius, ringThickness, 1, RING_COLORS[ringIndex], 60);
-      drawRingArc(
-        centerX,
-        centerY,
-        radius,
-        ringThickness,
-        Math.max(0.01, ringFractions[ringIndex]),
-        RING_COLORS[ringIndex],
-        255
-      );
-    }
-
-    const timeString = `${hours}:${minutes < 10 ? '0' : ''}${minutes}`;
-    drawCenteredText(
-      Fonts.hero,
-      centerX,
-      centerY - fontAscent(Fonts.hero) / 2 - 2,
-      timeString,
-      COLOR_TEXT_PRIMARY
-    );
-
-    if (stacked) {
-      drawCenteredText(Fonts.smallBold, viewWidth / 2, 12, `${WEEKDAYS_LONG[nowDate.getDay()]} ${nowDate.getDate()} ${MONTHS_LONG[nowDate.getMonth()]}`, COLOR_ACCENT);
-      drawCompactNowPlayingCard(20, viewHeight - 180, viewWidth - 40);
-    } else {
-      const rightColumnX = centerX + outerRadius + (compact ? 32 : 72);
-      const rightColumnWidth = viewWidth - rightColumnX - (compact ? 24 : 56);
-      drawDateBlock(rightColumnX, centerY - 120, rightColumnWidth);
-      drawCompactNowPlayingCard(rightColumnX, centerY + 40, rightColumnWidth);
-    }
+    const cardWidth = Math.min(480, viewWidth - 40);
+    const cardX = (viewWidth - cardWidth) / 2;
+    const cardY = viewHeight - (cardWidth < 440 ? 180 : 116);
+    rrect(cardX, cardY, cardWidth, cardWidth < 440 ? 156 : 92, 18, 0x000000, 130);   // the card is a light veil, and a cover can be bright behind it
+    drawCompactNowPlayingCard(cardX, cardY, cardWidth);
+    uiState.animating = true;
   }
 
   private drawLava(viewWidth: number, viewHeight: number): void {

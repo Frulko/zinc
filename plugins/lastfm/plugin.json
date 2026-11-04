@@ -1,0 +1,16 @@
+{
+  "name": "lastfm",
+  "kind": "module",
+  "module": "zinc:lastfm",
+  "entry": "index.ts",
+  "description": "Last.fm scrobbling: counts what was really heard, a saved outbox with retries, signed API calls; written in Zinc on fetch and zinc:fs",
+  "requires": ["net"],
+  "targets": {
+    "macos": {},
+    "linux": {},
+    "windows": {},
+    "android": {},
+    "ios": {},
+    "rpi1": {}
+  }
+}

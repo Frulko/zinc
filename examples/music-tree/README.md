@@ -58,6 +58,8 @@ src/
 │   ├── remote-udp.ts                # Physical remote commands over UDP on port 7777
 │   ├── weather-service.ts           # Open-Meteo forecasts and city geocoding
 │   ├── spotify-account.ts           # Spotify account: log in from a Mac, check, log out
+│   ├── listening-log.ts             # every listen in private/listening.db (SQLite): mode, room, hours, power
+│   ├── listening-page.ts            # its charts, served on demand from the settings (port 8767, one-time code)
 │   ├── spotify-on-sonos.ts          # Spotify on the speakers: play, "Reprendre ici", queue, radios
 │   ├── spotify-catalog.ts           # Spotify API answers kept by key, next pages, search after typing stops
 │   └── notify-service.ts            # macOS notification relay (zinc:link) and icon cache

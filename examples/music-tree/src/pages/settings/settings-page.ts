@@ -10,7 +10,7 @@
 // layout engine computes the positions and flexible widths automatically
 // (`flex = 1`), with no manual `x` or `y` coordinate computation!
 
-import { System } from 'zinc:sonos';
+import { System, localAddressFor } from 'zinc:sonos';
 import {
   COLOR_DANGER,
   COLOR_FILL,
@@ -52,9 +52,12 @@ import {
 import {
   appState,
   discoverSonosSystem,
+  runSafeNetworkAction,
   formatPlural,
 } from '../../state';
 import { CitySearchSubpageNode } from './city-search-page';
+import { QrCodeNode } from '../../components/qr-code-node';
+import { BRIDGE_MODES, bridge, sendBridgeCommand } from '../../services/airplay-bridge';
 
 const SLEEP_DELAY_OPTIONS_SECONDS: number[] = [30, 60, 120, 300, 600, 0];
 const SLEEP_DELAY_LABELS: string[] = [
@@ -96,6 +99,7 @@ export class SettingsPageNode extends DisplayObject {
   private readonly batteryIconNode: IconNode;
   private readonly batteryVisibilitySegmented: SegmentedControlNode;
   private readonly batteryPercentSegmented: SegmentedControlNode;
+  private readonly backdropBlurSegmented: SegmentedControlNode;
   private readonly weatherCityLabel: LabelNode;
   private readonly spotifyIconNode: IconNode;
   private readonly spotifyStatusLabel: LabelNode;
@@ -105,6 +109,24 @@ export class SettingsPageNode extends DisplayObject {
   private readonly spotifyLogoutButton: PillButtonNode;
   private readonly spotifyCheckResultRow: HBox;
   private readonly spotifyCheckResultLabel: LabelNode;
+  private readonly airplayCard: CardBox;
+  private readonly airplayLabel: LabelNode;
+  private readonly airplayModes: SegmentedControlNode;
+  private readonly lastfmLabel: LabelNode;
+  private readonly lastfmSetupButton: PillButtonNode;
+  private readonly lastfmLogoutButton: PillButtonNode;
+  private lastfmLogoutAskedAt: number = 0;
+  private readonly setupRow: HBox;
+  private readonly listeningCard: CardBox;
+  private readonly listeningLabel: LabelNode;
+  private readonly listeningButton: PillButtonNode;
+  private readonly listeningRow: HBox;
+  private readonly listeningQr: QrCodeNode;
+  private readonly listeningUrlLabel: LabelNode;
+  private readonly setupQr: QrCodeNode;
+  private readonly setupCodeLabel: LabelNode;
+  private readonly setupUrlLabel: LabelNode;
+  private readonly remoteCard: CardBox;
   private readonly sonosIconNode: IconNode;
   private readonly sonosStatusLabel: LabelNode;
 
@@ -220,6 +242,22 @@ export class SettingsPageNode extends DisplayObject {
     batterySection.addChild(this.batteryCard);
     this.scrollContainer.contentBox.addChild(batterySection);
 
+    const coverSection = new VBox(8, 'CoverSection');
+    coverSection.addChild(createSectionHeader('FOND DE LA POCHETTE'));
+    const coverCard = new CardBox('row', 64, 'CoverCard');
+    coverCard.setPaddingSymmetric(20, 0);
+    this.backdropBlurSegmented = new SegmentedControlNode(
+      'set/blur',
+      ['Net', 'Léger', 'Moyen', 'Fort'],
+      (chosenIndex: i32) => {
+        appState.config.backdropBlur = chosenIndex;
+        saveAppConfig(appState.config);
+      }
+    );
+    coverCard.addChild(this.backdropBlurSegmented);
+    coverSection.addChild(coverCard);
+    this.scrollContainer.contentBox.addChild(coverSection);
+
     // ---- 3. WEATHER section ----
     const weatherSection = new VBox(8, 'WeatherSection');
     weatherSection.addChild(createSectionHeader('MÉTÉO'));
@@ -279,6 +317,112 @@ export class SettingsPageNode extends DisplayObject {
     this.spotifyCard.addChild(this.spotifyCheckResultRow);
     spotifySection.addChild(this.spotifyCard);
     this.scrollContainer.contentBox.addChild(spotifySection);
+
+    // ---- AIRPLAY section ----
+    const airplaySection = new VBox(8, 'AirplaySection');
+    airplaySection.addChild(createSectionHeader('AIRPLAY'));
+    this.airplayCard = new CardBox('column', 112, 'AirplayCard');
+    this.airplayCard.setPaddingSymmetric(20, 16);
+    this.airplayCard.gap = 12;
+    this.airplayLabel = new LabelNode(Fonts.label, '', COLOR_TEXT_PRIMARY, 24);
+    this.airplayCard.addChild(this.airplayLabel);
+    this.airplayModes = new SegmentedControlNode('set/airplay', ['Sans coupure', 'Texte', 'Rechargement', 'Source'], (chosenIndex: i32) => {
+      runSafeNetworkAction('Mode AirPlay', async (): Promise<void> => {
+        await sendBridgeCommand(`/api/mode?set=${BRIDGE_MODES[chosenIndex]}`);
+        if (bridge.status !== null) bridge.status.mode = BRIDGE_MODES[chosenIndex];
+      });
+    });
+    this.airplayCard.addChild(this.airplayModes);
+    airplaySection.addChild(this.airplayCard);
+    this.scrollContainer.contentBox.addChild(airplaySection);
+
+    // ---- LAST.FM section: the keys and the bridge's token are typed on a phone ----
+    const lastfmSection = new VBox(8, 'LastfmSection');
+    lastfmSection.addChild(createSectionHeader('LAST.FM'));
+    this.remoteCard = new CardBox('column', 64, 'LastfmCard');
+    this.remoteCard.setPaddingSymmetric(20, 0);
+    const lastfmRow = new HBox(14, 'LastfmRow');
+    lastfmRow.height = 64;
+    lastfmRow.autoHeight = false;
+    lastfmRow.alignItems = 'center';
+    this.lastfmLabel = new LabelNode(Fonts.label, '', COLOR_TEXT_PRIMARY, 24);
+    this.lastfmLabel.flex = 1;
+    this.lastfmSetupButton = new PillButtonNode('set/lastfm/setup', 'Configurer', '', () => {
+      const setup = appState.remoteSetup;
+      if (setup.isOpen()) {
+        setup.close();
+        return;
+      }
+      const seed = appState.sonosSystem !== null ? (appState.sonosSystem as System).seed : '';
+      setup.open(localAddressFor(seed.split(':')[0]));
+    });
+    this.lastfmLogoutButton = new PillButtonNode('set/lastfm/logout', 'Déconnecter', '', () => {
+      const now = appState.elapsedAppClockSeconds;
+      if (now - this.lastfmLogoutAskedAt <= 5) {
+        appState.scrobbles.disconnect();
+        this.lastfmLogoutAskedAt = 0;
+      } else {
+        this.lastfmLogoutAskedAt = now;
+      }
+    });
+    lastfmRow.addChild(this.lastfmLabel);
+    lastfmRow.addChild(this.lastfmSetupButton);
+    lastfmRow.addChild(this.lastfmLogoutButton);
+    this.remoteCard.addChild(lastfmRow);
+    this.setupRow = new HBox(20, 'LastfmSetupRow');
+    this.setupRow.height = 220;
+    this.setupRow.autoHeight = false;
+    this.setupQr = new QrCodeNode(200);
+    const setupText = new VBox(8, 'LastfmSetupText');
+    setupText.flex = 1;
+    setupText.addChild(new LabelNode(Fonts.small, 'Scannez avec un téléphone sur le même réseau.', COLOR_TEXT_SECONDARY, 20));
+    this.setupCodeLabel = new LabelNode(Fonts.label, '', COLOR_TEXT_PRIMARY, 24);
+    this.setupUrlLabel = new LabelNode(Fonts.small, '', COLOR_TEXT_SECONDARY, 20);
+    setupText.addChild(this.setupCodeLabel);
+    setupText.addChild(this.setupUrlLabel);
+    this.setupRow.addChild(this.setupQr);
+    this.setupRow.addChild(setupText);
+    this.remoteCard.addChild(this.setupRow);
+    lastfmSection.addChild(this.remoteCard);
+    this.scrollContainer.contentBox.addChild(lastfmSection);
+
+    // ---- Listening log: the charts, for a phone or a computer ----
+    const listeningSection = new VBox(8, 'ListeningSection');
+    listeningSection.addChild(createSectionHeader('MES ÉCOUTES'));
+    this.listeningCard = new CardBox('column', 64, 'ListeningCard');
+    this.listeningCard.setPaddingSymmetric(20, 0);
+    const listeningTop = new HBox(12, 'ListeningTop');
+    listeningTop.height = 64;
+    listeningTop.autoHeight = false;
+    listeningTop.alignItems = 'center';
+    this.listeningLabel = new LabelNode(Fonts.label, '', COLOR_TEXT_PRIMARY, 24);
+    this.listeningLabel.flex = 1;
+    this.listeningButton = new PillButtonNode('set/listening', 'Voir les graphiques', '', () => {
+      const page = appState.listeningPage;
+      if (page.isOpen()) {
+        page.close();
+        return;
+      }
+      const seed = appState.sonosSystem !== null ? (appState.sonosSystem as System).seed : '';
+      page.open(localAddressFor(seed.split(':')[0]));
+    });
+    listeningTop.addChild(this.listeningLabel);
+    listeningTop.addChild(this.listeningButton);
+    this.listeningCard.addChild(listeningTop);
+    this.listeningRow = new HBox(20, 'ListeningPageRow');
+    this.listeningRow.height = 220;
+    this.listeningRow.autoHeight = false;
+    this.listeningQr = new QrCodeNode(200);
+    const listeningText = new VBox(8, 'ListeningPageText');
+    listeningText.flex = 1;
+    listeningText.addChild(new LabelNode(Fonts.small, 'Sur le même réseau. Se ferme après une heure.', COLOR_TEXT_SECONDARY, 20));
+    this.listeningUrlLabel = new LabelNode(Fonts.small, '', COLOR_TEXT_PRIMARY, 20);
+    listeningText.addChild(this.listeningUrlLabel);
+    this.listeningRow.addChild(this.listeningQr);
+    this.listeningRow.addChild(listeningText);
+    this.listeningCard.addChild(this.listeningRow);
+    listeningSection.addChild(this.listeningCard);
+    this.scrollContainer.contentBox.addChild(listeningSection);
 
     // ---- 5. SONOS section ----
     const sonosSection = new VBox(8, 'SonosSection');
@@ -412,6 +556,8 @@ export class SettingsPageNode extends DisplayObject {
       ? 0
       : 1;
 
+    this.backdropBlurSegmented.selectedIndex = appState.config.backdropBlur;
+
     // 3. Weather city
     const currentPlaceName = getWeatherCityName();
     const hasCustomCoordinates =
@@ -449,6 +595,56 @@ export class SettingsPageNode extends DisplayObject {
     this.spotifyCheckResultLabel.color =
       !isCheckingSpotify && spotifyCheckText.startsWith('Tout est bon') ? COLOR_GREEN : COLOR_TEXT_SECONDARY;
     this.spotifyCard.height = hasCheckResult ? 100 : 64;
+
+    // AirPlay
+    const status = bridge.status;
+    this.airplayLabel.text = bridge.host === ''
+      ? 'Aucun flux AirPlay vu pour le moment'
+      : status === null
+      ? `Le pont ${bridge.host} ne répond pas`
+      : `Pont ${status.version} sur ${bridge.host}` + (bridge.token === '' ? ' · jeton absent' : '');
+    this.airplayModes.visible = bridge.token !== '' && status !== null;
+    this.airplayCard.height = this.airplayModes.visible ? 112 : 56;
+    if (status !== null) this.airplayModes.selectedIndex = Math.max(0, BRIDGE_MODES.indexOf(status.mode)) as i32;
+
+    // Last.fm and the page for the phone
+    const scrobbles = appState.scrobbles;
+    const setup = appState.remoteSetup;
+    const hasKeys = scrobbles.api !== null;
+    this.lastfmLabel.text = scrobbles.connected()
+      ? `Connecté : ${scrobbles.account()}`
+      : hasKeys
+      ? 'Connexion révoquée : reconfigurer'
+      : scrobbles.problem !== ''
+      ? `Erreur : ${scrobbles.problem}`
+      : setup.message !== ''
+      ? setup.message
+      : 'Non connecté';
+    this.lastfmSetupButton.label = setup.isOpen() ? 'Fermer' : 'Configurer';
+    this.lastfmLogoutButton.visible = hasKeys;
+    const logoutAsked = appState.elapsedAppClockSeconds - this.lastfmLogoutAskedAt <= 5 && this.lastfmLogoutAskedAt > 0;
+    this.lastfmLogoutButton.label = logoutAsked ? 'Confirmer' : 'Déconnecter';
+    this.lastfmLogoutButton.foregroundColor = logoutAsked ? 0xffffff : COLOR_TEXT_PRIMARY;
+    this.lastfmLogoutButton.backgroundColor = logoutAsked ? COLOR_DANGER : COLOR_FILL;
+    this.setupRow.visible = setup.isOpen();
+    this.remoteCard.height = setup.isOpen() ? 300 : 64;
+    this.setupQr.show(setup.url);
+    this.setupCodeLabel.text = setup.isOpen() ? `Code : ${setup.code}` : '';
+    this.setupUrlLabel.text = setup.url;
+
+    // Listening log
+    const listening = appState.listeningPage;
+    const listens = appState.listeningLog.count();
+    this.listeningLabel.text = appState.listeningLog.problem !== ''
+      ? `Erreur : ${appState.listeningLog.problem}`
+      : listening.message !== ''
+      ? listening.message
+      : formatPlural(listens, 'écoute') + ' enregistrée' + (listens > 1 ? 's' : '');
+    this.listeningButton.label = listening.isOpen() ? 'Fermer' : 'Voir les graphiques';
+    this.listeningRow.visible = listening.isOpen();
+    this.listeningCard.height = listening.isOpen() ? 300 : 64;
+    this.listeningQr.show(listening.url);
+    this.listeningUrlLabel.text = listening.url;
 
     // 5. Sonos
     this.sonosIconNode.color =

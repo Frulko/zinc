@@ -287,9 +287,18 @@ function hms(s: number): string {
   return `${Math.floor(t / 3600)}:${two((Math.floor(t / 60) as i32) % 60)}:${two(t % 60)}`;
 }
 
+/** The host:port of the AirPlay bridge (airplay2-sonos-bridge) whose stream a transport URI names, '' for anything else. */
+export function airplayBridge(uri: string): string {
+  const at = uri.lastIndexOf('http://');
+  if (at < 0) return '';
+  const rest = uri.slice(at + 7), slash = rest.indexOf('/');
+  return slash > 0 && /^\/ap2-[0-9a-f]+(-\d+)?\.\w+$/.test(rest.slice(slash)) ? rest.slice(0, slash) : '';
+}
+
 /** The kind of source a transport URI names. */
 export function sourceOf(uri: string): string {
   if (uri === '') return 'none';
+  if (airplayBridge(uri) !== '') return 'airplay';
   if (uri.indexOf('spotify') >= 0 && (uri.startsWith('x-sonos-vli:') || uri.startsWith('x-sonos-spotify:'))) return 'spotify';
   if (uri.startsWith('x-rincon-queue:')) return 'queue';
   if (uri.startsWith('x-sonos-htastream:')) return 'tv';
@@ -297,6 +306,14 @@ export function sourceOf(uri: string): string {
   if (uri.startsWith('x-sonos-vli:') && uri.indexOf('airplay') >= 0) return 'airplay';
   if (uri.startsWith('x-rincon-mp3radio:') || uri.startsWith('x-sonosapi-stream:') || uri.startsWith('x-sonosapi-radio:') || uri.startsWith('aac:') || uri.startsWith('x-sonosapi-hls:')) return 'radio';
   return 'stream';
+}
+
+/** How a group plays Spotify, from its current URI and its song's: 'connect' (Spotify commands the speakers, its apps see them), 'sonos'
+ *  (the speakers' own Spotify service, which Spotify's apps do not see), '' when it is not Spotify. */
+export function spotifyRoute(current: string, trackUri: string): string {
+  if (current.startsWith('x-sonos-vli:') && current.indexOf('spotify') >= 0) return 'connect';
+  if (current.startsWith('x-sonos-spotify:')) return 'sonos';
+  return current.startsWith('x-rincon-queue:') && trackUri.startsWith('x-sonos-spotify:') ? 'sonos' : '';
 }
 
 /** The household: every room and group, refreshed with refresh(). */
@@ -395,7 +412,7 @@ export class System {
     t.source = sourceOf(current !== '' ? current : t.uri);
     const cmeta = didl(g.media.meta);
     t.station = cmeta.textOf('dc:title');
-    if (t.source === 'radio' || t.source === 'stream') {
+    if (t.source === 'radio' || t.source === 'stream' || t.source === 'airplay') {
       if (t.title === '' || t.title === t.uri || t.title.startsWith('x-')) { t.title = t.station; t.artist = ''; }
       if (t.art === '') t.art = cmeta.textOf('upnp:albumArtURI');
     }

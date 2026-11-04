@@ -5,3 +5,4 @@ notifications.json
 notif-icons/
 node_modules/
 build/
+private/

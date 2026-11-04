@@ -7,7 +7,7 @@
 // whose names say what they do, without duplicating the logic.
 
 import { exists, appendText, stat } from 'zinc:fs';
-import { discover, eachGroup, System, Group, Speaker } from 'zinc:sonos';
+import { discover, eachGroup, spotifyRoute, System, Group, Speaker } from 'zinc:sonos';
 import { Spotify, Item, Playback } from 'zinc:spotify';
 import { openPort } from 'zinc:webos';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,6 +27,11 @@ import {
 import { ScrollBox, uiState } from 'zinc:stage';
 import { ScreenPowerManager } from './core/screen-power';
 import { AppConfig, loadAppConfig, saveAppConfig } from './services/config';
+import { bridge, bridgeSessionOfRoom, isBridgeStream, readBridgeIntoGroup, sendBridgeCommand } from './services/airplay-bridge';
+import { RemoteSetup } from './services/remote-setup';
+import { ListeningLog, SeenSong } from './services/listening-log';
+import { ListeningPage } from './services/listening-page';
+import { ScrobbleService } from './services/scrobble-service';
 import {
   RadioStation,
   loadMyRadioStations,
@@ -121,6 +126,10 @@ class ApplicationState {
 
   // ---- Spotify state ----
   spotifyClient: Spotify = new Spotify('spotify.json');
+  scrobbles: ScrobbleService = new ScrobbleService('private');
+  remoteSetup: RemoteSetup = new RemoteSetup(this.scrobbles);
+  listeningLog: ListeningLog = new ListeningLog('private/listening.db');
+  listeningPage: ListeningPage = new ListeningPage(this.listeningLog);
   spotifyUserName: string = '';
   spotifyPlayback: Playback = new Playback();
   isCurrentTrackLiked: boolean = false;
@@ -195,12 +204,22 @@ export function setLavaHintTimeline(timeline: Timeline | null): void {
 // Persistence of the slide, the clock face and the lava lamp palette
 // ----------------------------------------------------------------------------
 
+let preferencesSaveTimer: number = -1;
+
+/**
+ * Remembers the slide, the clock face and the lamp. The write is made a moment later, not in the frame of the gesture: it took 6 to 7 ms
+ * on a Raspberry Pi 3, which was the frame a slide's first image missed the display.
+ */
 export function saveCarouselAndClockPreferences(): void {
-  AsyncStorage.multiSet([
-    ['music.slide', '' + appState.targetSlideIndex],
-    ['music.face', '' + appState.targetClockFaceIndex],
-    ['music.lamp', '' + getLavaLampPaletteIndex()],
-  ]);
+  if (preferencesSaveTimer >= 0) clearTimeout(preferencesSaveTimer);
+  preferencesSaveTimer = setTimeout(() => {
+    preferencesSaveTimer = -1;
+    AsyncStorage.multiSet([
+      ['music.slide', '' + appState.targetSlideIndex],
+      ['music.face', '' + appState.targetClockFaceIndex],
+      ['music.lamp', '' + getLavaLampPaletteIndex()],
+    ]);
+  }, 1500) as number;
 }
 
 export async function restoreCarouselAndClockPreferences(): Promise<void> {
@@ -311,12 +330,18 @@ export function navigateToPage(targetPageId: i32): void {
 
 export function getTrackSourceLabel(group: Group): string {
   const source = group.track.source;
+  const route = spotifyRoute(group.media.uri, group.track.uri);
+  if (route === 'connect') return 'SPOTIFY CONNECT';
+  if (route === 'sonos') return 'SPOTIFY · SONOS';
   if (source === 'spotify') return 'SPOTIFY';
   if (source === 'radio') return 'RADIO';
   if (source === 'tv') return 'TÉLÉVISION';
   if (source === 'line-in') return 'ENTRÉE LIGNE';
   if (source === 'queue') return "FILE D'ATTENTE";
-  if (source === 'airplay') return 'AIRPLAY';
+  if (source === 'airplay') {
+    const session = bridgeSessionOfRoom(bridge.status, group.coordinator.name);
+    return session !== null && session.source !== '' ? `AIRPLAY · ${session.source.toUpperCase()}` : 'AIRPLAY';
+  }
   if (source === 'none') return '';
   return 'FLUX';
 }
@@ -330,6 +355,19 @@ export function isOurSpeakers(deviceName: string): boolean {
     if (speakers[index].name.toLowerCase() === roomName) return true;
   }
   return false;
+}
+
+/** A reading of a group for the listening log: the song Spotify Connect plays comes from the account, the speakers do not tell it. */
+export function logListening(group: Group): void {
+  const song = getConnectSongOfGroup(group);
+  let seen: SeenSong | null = null;
+  if (song !== null) {
+    seen = new SeenSong();
+    seen.artist = song.subtitle;
+    seen.title = song.name;
+    seen.duration = appState.spotifyPlayback.durationMs / 1000;
+  }
+  appState.listeningLog.note(group, !appState.screenPower.asleep, seen);
 }
 
 /** The account's song when the group plays it through Spotify Connect: the speakers then tell neither its title nor its cover. */
@@ -470,6 +508,8 @@ export async function pollActiveSonosGroup(): Promise<void> {
 
   try {
     await (appState.sonosSystem as System).update(group);
+    if (isBridgeStream(group)) await readBridgeIntoGroup(group);
+    appState.scrobbles.note(group);
     appState.consecutivePollFailures = 0;
     const currentSignature = group.track.uri + group.track.title;
     if (
@@ -615,6 +655,8 @@ function spotifyPlaybackSignature(): string {
 // Playback and volume commands
 // ----------------------------------------------------------------------------
 
+const BRIDGE_REFUSES: string[] = ['Précédent', 'Suivant', 'Avance', 'Pause', 'Aléatoire', 'Répétition'];
+
 export function executeGroupCommand(
   commandLabel: string,
   commandCallback: (system: System, group: Group) => Promise<void>
@@ -625,6 +667,7 @@ export function executeGroupCommand(
   }
   const system = appState.sonosSystem as System;
   const group = appState.activeGroup as Group;
+  if (isBridgeStream(group) && BRIDGE_REFUSES.indexOf(commandLabel) >= 0) return;   // the sender decides: Sonos can only break the stream
   runSafeNetworkAction(commandLabel, async (): Promise<void> => {
     await commandCallback(system, group);
     await sleepMilliseconds(400);
@@ -635,6 +678,7 @@ export function executeGroupCommand(
 /** Plays the previous (`direction` -1) or next (+1) track of any group, then reads that group back. */
 export function skipGroupTrack(group: Group, direction: i32): void {
   if (appState.sonosSystem === null) return;
+  if (isBridgeStream(group)) return;
   const system = appState.sonosSystem as System;
   runSafeNetworkAction(direction < 0 ? 'Précédent' : 'Suivant', async (): Promise<void> => {
     if (direction < 0) {
@@ -650,6 +694,10 @@ export function skipGroupTrack(group: Group, direction: i32): void {
 export function togglePlayPause(): void {
   if (appState.activeGroup === null) return;
   const group = appState.activeGroup as Group;
+  if (isBridgeStream(group)) {
+    stopAirplay(group);
+    return;
+  }
   if (group.playing()) {
     group.state = 'PAUSED_PLAYBACK';
     appState.trackPositionBaseSeconds = getInterpolatedTrackPositionSeconds();
@@ -659,6 +707,16 @@ export function togglePlayPause(): void {
     executeGroupCommand('Lecture', (system, targetGroup) => system.play(targetGroup));
   }
   uiState.dirty = true;
+}
+
+/** "Pause" on the bridge's stream: Sonos pausing it would disconnect the sender anyway. Hidden without the bridge's token. */
+export function stopAirplay(group: Group): void {
+  if (bridge.token === '') return;
+  runSafeNetworkAction('Arrêter AirPlay', async (): Promise<void> => {
+    await sendBridgeCommand(`/api/stop?room=${encodeURIComponent(group.coordinator.name)}`);
+    await sleepMilliseconds(400);
+    await pollActiveSonosGroup();
+  });
 }
 
 let volumeGestureSnapshotGroup: Group | null = null;
