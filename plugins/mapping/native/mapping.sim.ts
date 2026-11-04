@@ -5,6 +5,6 @@ export default {
   toJson(): string { return '{"version":1,"layers":[]}'; },
   fromJson(_json: string): boolean { return false; },
   layerJson(_layer: number): string { return '{}'; },
-  info(): string { return `{"layers":${count},"selected":-1,"aspect":1.333}`; },
+  info(): string { return `{"layers":${count},"selected":-1,"aspect":1.333,"pixels":[640,480],"playsMedia":false}`; },
   layerCount(): number { return count; },
 };

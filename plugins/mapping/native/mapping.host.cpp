@@ -56,6 +56,7 @@ struct Layer {
 Layer L[MAX_LAYERS];
 int nl = 0, selected = -1;
 float aspect = 16.f / 9.f;
+int outputW, outputH;   // the pixels of the last frame: what a calibration is measured in
 
 // Plain float parameters: key = OSC address leaf = JSON key. dirty: 2 = mask texture.
 struct Field { const char* key; size_t off; int n, dirty; };
@@ -494,6 +495,7 @@ void draw(int32_t w, int32_t h) {
     tex_params(white);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &px);
   }
+  outputW = w; outputH = h;
   if (h > 0 && fabsf((float)w / h - aspect) > 1e-3f) { aspect = (float)w / h; for (int i = 0; i < nl; i++) L[i].geom_dirty = true; }
   for (int i = 0; i < nl; i++) {
     Layer& l = L[i];
@@ -823,8 +825,13 @@ struct Mapping : NativeMapping {
     return take(o);
   }
   zrt::String info() override {
-    char t[96];
-    int n = snprintf(t, sizeof t, "{\"layers\":%d,\"selected\":%d,\"aspect\":%.5g}", nl, selected, aspect);
+#ifdef ZN_MAPPING_MEDIA
+    const char* playsMedia = "true";
+#else
+    const char* playsMedia = "false";
+#endif
+    char t[128];
+    int n = snprintf(t, sizeof t, "{\"layers\":%d,\"selected\":%d,\"aspect\":%.5g,\"pixels\":[%d,%d],\"playsMedia\":%s}", nl, selected, aspect, outputW, outputH, playsMedia);
     return zrt::String::from(t, (uint32_t)n);
   }
   int32_t layerCount() override { return nl; }

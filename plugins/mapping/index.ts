@@ -9,7 +9,7 @@ export function command(address: string, numbers: number[], strings: string[]): 
   // commands arrive over the network (listen): /save and /load take a file name in the working directory, not a path
   if (address === '/save' || address === '/load') {
     const file = strings.length > 0 ? strings[0] : 'mapping.json';
-    if (!plainName(file)) return false;
+    if (!isFileName(file)) return false;
     return address === '/save' ? save(file) : load(file);
   }
   if (address === '/sync') {
@@ -28,14 +28,14 @@ export function command(address: string, numbers: number[], strings: string[]): 
     return true;
   }
   // commands arrive over the network: a media is a file name of the media folder, not a path
-  if (address.endsWith('/media') && strings.length > 0 && strings[0].length > 0 && !plainName(strings[0])) return false;
+  if (address.endsWith('/media') && strings.length > 0 && strings[0].length > 0 && !isFileName(strings[0])) return false;
   return Native.command(address, numbers, strings);
 }
 
 let lastSync = -1e9;
 let syncHost = '', syncPort = 0;   // a /sync waiting for its turn ('' : none)
 /** A file name without directories ("show.json"): no separator, no "..", not hidden. */
-function plainName(f: string): boolean {
+export function isFileName(f: string): boolean {
   if (f.length === 0 || f.length > 64 || f.startsWith('.')) return false;
   for (let i = 0; i < f.length; i++) {
     const c = f.charCodeAt(i);
@@ -63,6 +63,12 @@ export function setImage(layer: i32, image: i32): boolean {
 
 export function layerCount(): i32 { return Native.layerCount(); }
 export function toJson(): string { return Native.toJson(); }
+/** One layer, as in toJson. */
+export function layerJson(layer: i32): string { return Native.layerJson(layer); }
+/** {"layers","selected","aspect","pixels":[w,h],"playsMedia"} */
+export function info(): string { return Native.info(); }
+/** Whether the compositor plays /layer/<n>/media itself (Android); elsewhere the program does, with zinc:video. */
+export function playsMedia(): boolean { return JSON.parse(Native.info()).playsMedia as boolean; }
 export function fromJson(json: string): boolean { return Native.fromJson(json); }
 
 export function save(path: string): boolean {

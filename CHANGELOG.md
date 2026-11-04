@@ -164,6 +164,7 @@ This version makes Zinc a better place to build and debug real apps: a documenta
 #### Changed
 - `zinc:net`: a program can serve several ports at once, each with its own handler (`serve`/`serveAsync` again on another port no longer replaces the first server), and `stop(port)` stops one; `stop()` still stops them all. The Spotify login now stops only its own callback server.
 - `zinc:fs` `copyFile` keeps the source file's modification time and permissions, so a picture copied to another disk keeps its date.
+- `zinc:mapping` adds `info()`, `layerJson(layer)`, `playsMedia()` and `isFileName(name)`, and its state gives the output in pixels.
 
 #### Fixed
 - `zinc:storage` reports read/write failures and preserves existing data when a replacement write fails.

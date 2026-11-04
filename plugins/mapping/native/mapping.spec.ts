@@ -10,7 +10,7 @@ export interface Spec extends NativeModule {
   fromJson(json: string): boolean;
   /** One layer, same shape as in toJson (OSC state replies stay small). */
   layerJson(layer: i32): string;
-  /** {"layers":n,"selected":i,"aspect":w/h} */
+  /** {"layers":n,"selected":i,"aspect":w/h,"pixels":[w,h],"playsMedia":bool} */
   info(): string;
   layerCount(): i32;
 }
