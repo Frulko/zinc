@@ -61,7 +61,8 @@ export function startPairing(port: i32, editorToken: string, name: string): void
   webPort = port;
   token = editorToken;
   try {
-    link.init({ name: name !== '' ? name : `${os.hostname()} mapper` });
+    const host = os.hostname();   // Android says localhost: the list shows the address beside the name
+    link.init({ name: name !== '' ? name : host === 'localhost' || host === '' ? 'Mapper' : `${host} mapper` });
     link.onPairing((state: string) => { if (state === 'closed' || state === 'paired') closeCode(); });
     link.onPaired((peer: link.Peer) => { closeCode(); });
     link.onConnection((channel: link.Channel) => {

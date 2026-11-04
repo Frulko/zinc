@@ -673,7 +673,11 @@ bool command(const char* a, const double* v, int nn, const Str* s, int ns) {
 #ifdef ZN_MAPPING_MEDIA
   if (!strcmp(a, "/thumbnail")) {
     if (ns < 2) return false;
-    media_thumbnail(s[0], s[1]);
+    char cwd[192], path[280], out[280];   // a system service opens the file: it has no working directory of ours
+    if (!getcwd(cwd, sizeof cwd)) return false;
+    snprintf(path, sizeof path, "%s%s%s", s[0][0] == '/' ? "" : cwd, s[0][0] == '/' ? "" : "/", s[0]);
+    snprintf(out, sizeof out, "%s%s%s", s[1][0] == '/' ? "" : cwd, s[1][0] == '/' ? "" : "/", s[1]);
+    media_thumbnail(path, out);
     return true;
   }
 #endif
