@@ -379,13 +379,14 @@ export async function toggleSession(id: string): Promise<void> {
 }
 
 /** Open: the hub quits and its tile's launcher runs the app in this window (ZINC_NEXT, zinc-tile), then brings the hub back. An app with its
- *  ink session opens outside xochitl instead: the lease stops xochitl (and this hub) and brings it back when the app ends. */
+ *  ink session opens outside xochitl instead: the lease stops xochitl (and this hub); closing the app shows the Hub in that session, closing
+ *  the Hub brings xochitl back. Inside a session every app opens the plain way, on the panel the session already owns. */
 export async function openApp(id: string): Promise<void> {
   const i = installed(id);
   if (i === null) { say(id + ' is not installed.'); return; }
-  if (hasSession(i.name)) {
+  if (hasSession(i.name) && sys.env('ZINC_LEASE') === '') {
     await run('Opening ' + i.name + ' outside xochitl', async (): Promise<string> => {
-      progress('xochitl stops and ' + i.name + ' takes the whole panel; closing it brings xochitl back.');
+      progress('xochitl stops and ' + i.name + ' takes the whole panel; closing it shows the Hub, closing the Hub brings xochitl back.');
       await launchSession(i.name);
       return 'Opening ' + i.name + ' outside xochitl.';
     });

@@ -57,7 +57,7 @@ function InstalledRow(props: { row: AppRow }): i32 {
       {r.canRollback ? <OutlineButton label={`Rollback to ${r.previous}`} onClick={() => rollbackApp(r.id)} /> : null}
       {r.inCatalog && (r.channels.indexOf(other) >= 0 || r.channel !== STABLE) ? <OutlineButton label={`Channel: ${r.channel}`} onClick={() => setChannel(r.id, other)} /> : null}
       {!self ? <OutlineButton label={r.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'} onClick={() => togglePin(r.id)} /> : null}
-      {!self ? <OutlineButton label={r.session ? 'Ink session: on' : 'Ink session: off'} onClick={() => toggleSession(r.id)} /> : null}
+      {!self ? <OutlineButton label={r.session ? 'Quill mode: on' : 'Quill mode: off'} onClick={() => toggleSession(r.id)} /> : null}
       {!self ? <OutlineButton label={armed() === 'reset:' + r.id ? 'Confirm reset' : 'Reset data'} onClick={() => resetApp(r.id)} /> : null}
       {!self ? <OutlineButton label={armed() === r.id ? 'Confirm uninstall' : 'Uninstall'} onClick={() => uninstallApp(r.id)} /> : null}
     </View>

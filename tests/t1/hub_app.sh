@@ -297,7 +297,7 @@ grep -qx -- "$live --session" "$tmp/tile.log" || { echo "Ink session did not cal
 s=$ZINC_APPLOAD/zinc-notes-session; mkdir -p "$s"   # what zinc-tile --session makes on the tablet
 printf '#!/bin/sh\necho "lease: refused: xochitl was restarted 2 times in the last 10 minutes (at most 2)" >&2\nexit 1\n' > "$s/launch.sh"; chmod 755 "$s/launch.sh"
 app "store installed"
-python3 tools/scene-texts "$tmp/scene.bin" | grep -qx 'Ink session: on' || { echo "an app with its ink session does not say so in Installed"; fail=1; }
+python3 tools/scene-texts "$tmp/scene.bin" | grep -qx 'Quill mode: on' || { echo "an app with its ink session does not say so in Installed"; fail=1; }
 app "page apps"
 python3 tools/scene-texts "$tmp/scene.bin" | grep -qx 'INK' || { echo "the home grid has no INK badge"; fail=1; }
 app "open com.example.notes"
