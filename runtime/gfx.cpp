@@ -87,12 +87,15 @@ static HalMove move;
 static int32_t slot;
 static uint64_t r0, r1, prev_r0;   // the last render's span, the start of the one before
 // The compositor's ticks (step 6): while the script is late with its next frame, the render thread presents the frame on screen again with
-// its animated layers moved on. A tick waits for a frame's time after the last present began (an eighth more after a frame of the script,
-// whose next commit would otherwise race the tick for the display), then each present paces the next. `hold` stops the ticks from the
+// its animated layers moved on. The first tick waits for a frame's time after the last present began, and an eighth more (the script's next
+// commit would otherwise race it for the display). Then the present paces the ticks: its wait for a free drawable or the swap is the display's
+// own clock, so the timer stays under a frame, a floor for a present that does not wait (a covered window's). A timer cannot be the clock:
+// macOS wakes a timed wait up to 25% late (timer coalescing: a 16667 us wait woke at 19 to 20.8 ms, 50 ticks a second). `hold` stops the ticks from the
 // moment the script waits for this thread (zrt_render_idle: it is about to change what a present reads) until it hands the next frame
 // over; a frame presented on the script thread (a live resize) leaves them stopped.
 static bool hold = true, ticked = false;
 static constexpr uint64_t kTickUs = 16667;   // ponytail: 60 Hz; the display's refresh once a HAL reports it
+static constexpr uint64_t kTickFloorUs = kTickUs * 3 / 4;   // woken at most 25% late: 15.6 ms, still before the display's next frame
 static void wait_until(uint64_t due, uint64_t now) {   // on mu: until `due` (hal_time_us) or a signal
   const uint64_t d = due - now;
   struct timespec ts;
@@ -120,7 +123,7 @@ static void* loop(void*) {
     while (!busy) {
       const uint64_t now = hal_time_us();
       if (hold || !gfx::comp_live(now)) { pthread_cond_wait(&cv, &mu); continue; }
-      const uint64_t due = prev_r0 + kTickUs + (ticked ? 0 : kTickUs / 8);
+      const uint64_t due = prev_r0 + (ticked ? kTickFloorUs : kTickUs + kTickUs / 8);
       if (now >= due) { busy = tick = true; break; }
       wait_until(due, now);
     }
