@@ -8,7 +8,8 @@ import { ColumnGrid } from './ColumnGrid';
 import { Heading } from './Field';
 import { LayerList } from './LayerList';
 import { MediaBin } from './MediaBin';
-import { OutputCanvas, inMeshMode, selectedPointText, setMeshMode } from './OutputCanvas';
+import { EdgeControls } from './EdgeControls';
+import { MODE_CORNERS, MODE_EDGES, MODE_MESH, OutputCanvas, isLinking, outputMode, selectedCornerIsLinked, selectedPointText, setOutputMode, startLinking, unlinkSelectedCorner } from './OutputCanvas';
 import { PropsPanel } from './PropsPanel';
 import { OptionsPanel } from './OptionsPanel';
 import { RoomPanel } from './RoomPanel';
@@ -24,12 +25,20 @@ const NEW_MASK: number[] = [0.05, 0, 0.3, 0.3, 0.7, 0.3, 0.7, 0.7, 0.3, 0.7];
 function resizeGrid(size: i32): void {
   if (currentLayer() === null) return;
   send(`/layer/${store.selected}/mesh`, [size, size]);
-  setMeshMode(true);
+  setOutputMode(MODE_MESH);
   loadState();
 }
 
 function ModeTabs(): i32 {
-  return <Tabs items={['Corner pin', 'Deformation grid']} selected={() => (inMeshMode() ? 1 : 0) as i32} onSelect={(i: i32) => { setMeshMode(i === 1); touch(); }} />;
+  return <Tabs items={['Corner pin', 'Deformation grid', 'Edges']} selected={outputMode} onSelect={setOutputMode} />;
+}
+
+function LinkTools(): i32 {
+  if (outputMode() !== MODE_CORNERS) return <View />;
+  return <View className="flex-row gap-1 items-center">
+    <Button size="sm" variant={isLinking() ? 'default' : 'secondary'} label="Link point" onClick={startLinking} />
+    {selectedCornerIsLinked() && <Button size="sm" variant="ghost" label="Unlink" onClick={unlinkSelectedCorner} />}
+  </View>;
 }
 
 function pointText(version: i32): string { return selectedPointText(); }
@@ -45,7 +54,9 @@ function OutputView(): i32 {
       }} />
       <Button size="sm" variant="ghost" label="Reset corners" onClick={() => { setLayer('corners', [0, 0, 1, 0, 1, 1, 0, 1]); touch(); }} />
     </View>
+    <Rebuilt make={LinkTools} />
     <OutputCanvas />
+    <Rebuilt make={EdgeControls} />
     <Text className="text-xs text-zinc-400">{pointText(pointRevision() + revision())}</Text>
   </View>;
 }

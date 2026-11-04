@@ -2,7 +2,7 @@
 import { createSignal } from 'zinc:ui/solid';
 import { Mask, TemplateLayer } from './model/templates';
 import * as storage from 'zinc:storage';
-import { Lens } from './model/room';
+import { Lens, Link } from './model/room';
 import { Placement } from './model/geometry';
 import { SETTLE_MS } from './constants';
 import { deleteJson, getJson, getText, postJson, putJson, send, sendFile } from './services/link';
@@ -49,6 +49,7 @@ export const store = {
   activeColumn: -1 as i32,
   surfaces: {} as any,
   lens: { throwRatio: 1.4, shiftY: 0 } as Lens,
+  links: [] as Link[],
   armedMedia: '',      // the media a click on a cell puts there
   hudShown: true,
   card: 'off',
@@ -157,6 +158,7 @@ export async function loadShow(): Promise<void> {
   store.activeColumn = show.active as i32;
   if (show.surfaces !== undefined) store.surfaces = show.surfaces;
   if (show.lens !== undefined) store.lens = show.lens as Lens;
+  store.links = show.links !== undefined ? show.links as Link[] : [];
   store.sceneName = typeof show.scene === 'string' ? show.scene as string : '';
   touch();
 }
@@ -170,7 +172,7 @@ async function putShow(json: string): Promise<void> {
 }
 
 export function saveShow(): void {
-  putShow(JSON.stringify({ columns: store.columns, active: store.activeColumn, surfaces: store.surfaces, lens: store.lens, scene: store.sceneName }));
+  putShow(JSON.stringify({ columns: store.columns, active: store.activeColumn, surfaces: store.surfaces, lens: store.lens, links: store.links, scene: store.sceneName }));
 }
 
 export function fireColumn(index: i32): void {

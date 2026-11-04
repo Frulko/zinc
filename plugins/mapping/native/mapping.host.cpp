@@ -39,7 +39,7 @@ struct Layer {
   int source, blend, cols, rows, image, maskimage, fit;
   int card;   // a runtime image shown instead of the source and the media while calibrating (-1: none); not saved
   float visible, color[3], color2[3], angle, corners[8], position[2], scale, rotation, opacity;
-  float brightness, contrast, saturation, hue, gamma, gain[3], crop[5], edge[5], grid;
+  float brightness, contrast, saturation, hue, gamma, gain[3], crop[5], edge[5], inset[4], grid;  // inset: what each side hides outright, its edge ramp starts after it
   float inputRect[4], volume, loop;  // inputRect: the part of the source shown (x y w h in 0..1)
   char media[64], mediaOpened[64];   // a file of the media folder ("" none), and the one asked of the player
   float mesh[MAX_MESH * MAX_MESH * 2];
@@ -66,7 +66,7 @@ struct Field { const char* key; size_t off; int n, dirty; };
 const Field FIELDS[] = {
   F(visible, 1, 0), F(color, 3, 0), F(color2, 3, 0), F(angle, 1, 0), F(corners, 8, 0), F(position, 2, 0), F(scale, 1, 0),
   F(rotation, 1, 0), F(opacity, 1, 0), F(brightness, 1, 0), F(contrast, 1, 0), F(saturation, 1, 0), F(hue, 1, 0),
-  F(gamma, 1, 0), F(gain, 3, 0), F(crop, 5, 2), F(edge, 5, 2), F(grid, 1, 0),
+  F(gamma, 1, 0), F(gain, 3, 0), F(crop, 5, 2), F(edge, 5, 2), F(inset, 4, 2), F(grid, 1, 0),
   F(inputRect, 4, 0), F(volume, 1, 0), F(loop, 1, 0)};
 #undef F
 
@@ -87,6 +87,7 @@ void defaults(Layer& l, int idx) {
   l.brightness = 0; l.contrast = 1; l.saturation = 1; l.hue = 0; l.gamma = 1; l.gain[0] = l.gain[1] = l.gain[2] = 1;
   const float crop[5] = {0, 0, 1, 1, 0}, edge[5] = {0, 0, 0, 0, 2.2f};
   memcpy(l.crop, crop, sizeof crop); memcpy(l.edge, edge, sizeof edge);
+  for (float& side : l.inset) side = 0;
   l.grid = 0;
   const float wholeSource[4] = {0, 0, 1, 1};
   memcpy(l.inputRect, wholeSource, sizeof wholeSource);
@@ -306,14 +307,14 @@ void main() {
 // Crop rectangle (feathered inwards), edge blending ramps (smoothstep ^ 1/gamma, so overlapping projectors sum to
 // constant light) and the image mask's luminance.
 const char* CROP_FS = R"(varying vec2 v_uv;
-uniform vec4 u_crop; uniform float u_cf; uniform vec4 u_edge; uniform float u_eg; uniform sampler2D u_img; uniform float u_hasimg;
-float ramp(float x, float w) { return w > 0.0 ? pow(smoothstep(0.0, 1.0, clamp(x / w, 0.0, 1.0)), 1.0 / u_eg) : 1.0; }
+uniform vec4 u_crop; uniform float u_cf; uniform vec4 u_edge; uniform vec4 u_inset; uniform float u_eg; uniform sampler2D u_img; uniform float u_hasimg;
+float ramp(float x, float w, float hidden) { if (x < hidden) return 0.0; return w > 0.0 ? pow(smoothstep(0.0, 1.0, clamp((x - hidden) / w, 0.0, 1.0)), 1.0 / u_eg) : 1.0; }
 void main() {
   vec2 p = v_uv;
   float f = max(u_cf, 0.0001);
   float c = smoothstep(u_crop.x, u_crop.x + f, p.x) * smoothstep(u_crop.y, u_crop.y + f, p.y)
           * (1.0 - smoothstep(u_crop.z - f, u_crop.z, p.x)) * (1.0 - smoothstep(u_crop.w - f, u_crop.w, p.y));
-  c *= ramp(p.x, u_edge.x) * ramp(1.0 - p.x, u_edge.y) * ramp(p.y, u_edge.z) * ramp(1.0 - p.y, u_edge.w);
+  c *= ramp(p.x, u_edge.x, u_inset.x) * ramp(1.0 - p.x, u_edge.y, u_inset.y) * ramp(p.y, u_edge.z, u_inset.z) * ramp(1.0 - p.y, u_edge.w, u_inset.w);
   if (u_hasimg > 0.5) { vec3 m = texture2D(u_img, p).rgb; c *= (m.r + m.g + m.b) / 3.0; }
   gl_FragColor = vec4(vec3(c), 1.0);
 }
@@ -325,7 +326,7 @@ GLuint progs[NPROG * 32], poly_prog, crop_prog, quad, white;  // white: bound to
 // sides of its branches (Mali-400).
 GLuint layer_prog(int src, const Layer& l, bool grid, bool clip) {
   const bool color = l.brightness != 0 || l.contrast != 1 || l.saturation != 1 || l.hue != 0 || l.gain[0] != 1 || l.gain[1] != 1 || l.gain[2] != 1;
-  bool mask = l.maskimage >= 0 || l.crop[0] != 0 || l.crop[1] != 0 || l.crop[2] != 1 || l.crop[3] != 1 || l.edge[0] != 0 || l.edge[1] != 0 || l.edge[2] != 0 || l.edge[3] != 0;
+  bool mask = l.maskimage >= 0 || l.crop[0] != 0 || l.crop[1] != 0 || l.crop[2] != 1 || l.crop[3] != 1 || l.edge[0] != 0 || l.edge[1] != 0 || l.edge[2] != 0 || l.edge[3] != 0 || l.inset[0] != 0 || l.inset[1] != 0 || l.inset[2] != 0 || l.inset[3] != 0;
   for (const Mask& m : l.masks) mask = mask || m.n >= 3;
   const bool gamma = l.gamma != 1;
   GLuint& p = progs[src * 32 + (color ? 1 : 0) + (gamma ? 2 : 0) + (mask ? 4 : 0) + (grid ? 8 : 0) + (clip ? 16 : 0)];
@@ -411,6 +412,7 @@ void build_mask(Layer& l) {
   glUniform4f(glGetUniformLocation(crop_prog, "u_crop"), l.crop[0], l.crop[1], l.crop[2], l.crop[3]);
   glUniform1f(glGetUniformLocation(crop_prog, "u_cf"), l.crop[4]);
   glUniform4f(glGetUniformLocation(crop_prog, "u_edge"), l.edge[0], l.edge[1], l.edge[2], l.edge[3]);
+  glUniform4f(glGetUniformLocation(crop_prog, "u_inset"), l.inset[0], l.inset[1], l.inset[2], l.inset[3]);
   glUniform1f(glGetUniformLocation(crop_prog, "u_eg"), l.edge[4] > 0.1f ? l.edge[4] : 1.f);
   glActiveTexture(GL_TEXTURE0);
   bool img = l.maskimage >= 0 && l.mimg.id && l.mimg.image == l.maskimage;

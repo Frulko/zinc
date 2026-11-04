@@ -1,6 +1,7 @@
 // The editor's maths without its interface: a surface placed in a known spot comes back from its corners, media sizes, the GLB's shape.
 import { Point, footprint, insertMaskPoint, insidePolygon, mediaSize } from '../editor/src/model/geometry';
-import { Lens, Vec3, sceneGlb, surfaceGrid, surfacePose } from '../editor/src/model/room';
+import { Lens, Link, SolvedSurface, Vec3, sceneGlb, solveRoom, surfaceGrid, surfaceShape, surfacePose } from '../editor/src/model/room';
+import { addLink, linkedCorners, removeLinksOf } from '../editor/src/model/links';
 import { PointEditor } from '../editor/src/model/pointEditor';
 
 let failures = 0;
@@ -65,5 +66,34 @@ near('next corner keeps its place', mask[8], 0.7, 0);
 const zone: number[] = [0.1, 0.1, 0.5, 0.2, 0.4, 0.9, 0.05, 0.8];
 near('inside', insidePolygon(zone, 0.3, 0.5) ? 1 : 0, 1, 0);
 near('outside', insidePolygon(zone, 0.48, 0.8) ? 1 : 0, 0, 0);
+
+// two faces of a real box, 2 x 1.5 and 1 x 1.5 metres, sharing an edge, seen from a known spot: the shape comes back from the corners alone, and links join them
+const boxLens: Lens = { throwRatio: 1.4, shiftY: 0 };
+const boxAspect = 16 / 9;
+function onOutput(p: Vec3): number[] { return [0.5 + boxLens.throwRatio * p[0] / p[2], 0.5 + boxLens.throwRatio * boxAspect * p[1] / p[2]]; }
+function faceOf(points: Vec3[]): any {
+  const corners: number[] = [];
+  for (const p of points) corners.push(onOutput(p)[0], onOutput(p)[1]);
+  return { corners, position: [0, 0], scale: 1, rotation: 0, mesh: [2, 2, 0, 0, 1, 0, 0, 1, 1, 1] };
+}
+const front = faceOf([[-1, -0.75, 4.2], [1, -0.75, 3.8], [1, 0.75, 3.8], [-1, 0.75, 4.2]]);
+const side = faceOf([[1, -0.75, 3.8], [1.6, -0.75, 4.6], [1.6, 0.75, 4.6], [1, 0.75, 3.8]]);
+near('front shape', surfaceShape(front, boxAspect, boxLens), 1.5 / Math.hypot(2, 0.4), 0.02);
+near('side shape', surfaceShape(side, boxAspect, boxLens), 1.5, 0.02);
+const boxLinks: Link[] = [{ a: 'front', cornerA: 1, b: 'side', cornerB: 0 }, { a: 'front', cornerA: 2, b: 'side', cornerB: 3 }];
+const room = solveRoom([{ name: 'front', placement: front, typed: [Math.hypot(2, 0.4), 1.5] }, { name: 'side', placement: side, typed: [0, 0] }], boxLinks, boxAspect, boxLens);
+const sideSolved = room[1] as SolvedSurface;
+near('the link gives the side its size', sideSolved.size[0], 1, 0.03);
+near('the link puts the side at its place', sideSolved.pose.position[2], 3.8, 0.05);
+
+// links reach through each other, and go
+const chain: Link[] = [];
+addLink(chain, { layer: 'a', corner: 0 }, { layer: 'b', corner: 1 });
+addLink(chain, { layer: 'b', corner: 1 }, { layer: 'c', corner: 2 });
+addLink(chain, { layer: 'a', corner: 0 }, { layer: 'c', corner: 2 });
+near('no double link', chain.length, 2, 0);
+near('linked through', linkedCorners(chain, { layer: 'a', corner: 0 }).length, 2, 0);
+removeLinksOf(chain, { layer: 'b', corner: 1 });
+near('unlinked', linkedCorners(chain, { layer: 'a', corner: 0 }).length, 0, 0);
 
 console.log(failures === 0 ? 'ok' : `${failures} failed`);

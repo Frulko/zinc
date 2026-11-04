@@ -80,6 +80,12 @@ what counts on small hardware.
 | **Stage SVG** | the whole output as the projector draws it: every surface where it is, for a piece that crosses several |
 | **calibration.json** | the snapshot of the setting: sizes in pixels, corners, grids, for a script or another tool |
 
+### Light that spills past an edge
+
+A low-resolution projector bleeds past the edge of a shape, onto what stands behind it. In *Output*, choose **Edges** and click a side of
+a layer: its **cut** hides a strip outright, its **gradient** fades what follows, its **curve** shapes that fade. It follows the warp, and
+the lines on the canvas show where each one ends.
+
 ### The room in 3D
 
 Enter a surface's real size and the projector's throw ratio in *Room*: the editor works out where each surface stands in the room
@@ -89,7 +95,9 @@ for Blender.
 
 ![The room](../../../docs/img/mapper-room.png)
 
-The size you type is what fixes the scale: the corners alone give the shape, not the metres.
+The corners and the lens give each surface its shape. A scale needs one more fact: the size you type, or a link. In *Output*, select a
+corner, press **Link point**, then click the corner of another layer that is the same physical point. They now move together, and
+the 3D view joins the two surfaces there, so one typed size scales everything linked to it. **Unlink** separates them.
 
 ### Sound
 

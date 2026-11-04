@@ -1,8 +1,8 @@
 // The mixer: the master volume of the mapper, and each layer's. The media of a layer goes on sounding when the layer is hidden.
-import { Slider, Switch } from 'zinc:ui/kit';
+import { Switch } from 'zinc:ui/kit';
 import { send } from '../services/link';
 import { numbers, store, touch, word } from '../state';
-import { Heading, Row } from './Field';
+import { Heading, Row, ValueSlider } from './Field';
 import { Rebuilt } from './Rebuilt';
 
 const VOLUME_STEP = 0.01;
@@ -10,7 +10,7 @@ const VOLUME_STEP = 0.01;
 function Master(): i32 {
   return <View className="gap-1">
     <Row label="master">
-      <Slider min={0} max={1} step={VOLUME_STEP} value={() => store.masterVolume} onChange={(v: number) => {
+      <ValueSlider min={0} max={1} step={VOLUME_STEP} read={() => store.masterVolume} write={(v: number) => {
         store.masterVolume = v;
         send('/volume', [v]);
       }} />
@@ -31,7 +31,7 @@ function LayerVolume(props: { index: i32 }): i32 {
   return <View className="gap-1 mt-1">
     <Text className="text-xs text-zinc-300">{`${props.index}. ${word(layer, 'name')}: ${media === '' ? 'no media, no sound' : media}`}</Text>
     <Row label="volume">
-      <Slider min={0} max={1} step={VOLUME_STEP} value={() => numbers(layer, 'volume')[0]} onChange={(v: number) => {
+      <ValueSlider min={0} max={1} step={VOLUME_STEP} read={() => numbers(layer, 'volume')[0]} write={(v: number) => {
         layer.volume = [v];
         send(`/layer/${props.index}/volume`, [v]);
       }} />

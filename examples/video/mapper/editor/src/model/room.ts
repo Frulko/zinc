@@ -32,6 +32,58 @@ export function surfacePose(p: Placement, aspect: number, width: number, height:
   return { r1, r2: cross(r3, r1), position: scaled(a3, k) };
 }
 
+/** Height over width of a real rectangle seen with these four corners: the lens tells it, whatever the picture's slant. */
+export function surfaceShape(p: Placement, aspect: number, lens: Lens): number {
+  const M = placementMatrix(p, aspect);
+  const cy = 0.5 + lens.shiftY;
+  const across = Math.hypot((M[0] - 0.5 * M[6]) / lens.throwRatio, (M[3] - cy * M[6]) / aspect / lens.throwRatio, M[6]);
+  const down = Math.hypot((M[1] - 0.5 * M[7]) / lens.throwRatio, (M[4] - cy * M[7]) / aspect / lens.throwRatio, M[7]);
+  return across > 1e-9 ? down / across : 1;
+}
+
+/** A surface for the solver: its sizes in metres, [0, 0] when nobody typed them. */
+export interface RoomSurface { name: string; placement: Placement; typed: number[] }
+/** Corner `cornerA` of the surface named `a` is the same physical point as corner `cornerB` of `b`. Corners in corner-pin order. */
+export interface Link { a: string; cornerA: i32; b: string; cornerB: i32 }
+export interface SolvedSurface { size: number[]; pose: Pose }
+
+const CORNER_UV: number[][] = [[0, 0], [1, 0], [1, 1], [0, 1]];
+
+function cornerAt(surface: SolvedSurface, corner: i32): Vec3 {
+  const x = CORNER_UV[corner][0] * surface.size[0], y = CORNER_UV[corner][1] * surface.size[1];
+  const p = surface.pose;
+  return [p.r1[0] * x + p.r2[0] * y + p.position[0], p.r1[1] * x + p.r2[1] * y + p.position[1], p.r1[2] * x + p.r2[2] * y + p.position[2]];
+}
+
+/** Places every surface: its shape comes from its corners and the lens, its scale from a typed size, or from a link to a placed surface. Linked
+ *  corners sit on one ray of the projector, so a link fixes how far the second surface stands. ponytail: scale only, each surface keeps its own
+ *  corners; a global least-squares fit when linked loops disagree visibly. */
+export function solveRoom(surfaces: RoomSurface[], links: Link[], aspect: number, lens: Lens): (SolvedSurface | null)[] {
+  const solved: (SolvedSurface | null)[] = surfaces.map((surface: RoomSurface): SolvedSurface | null => {
+    const shape = surfaceShape(surface.placement, aspect, lens);
+    const size = surface.typed[0] > 0 && surface.typed[1] > 0 ? surface.typed : [1, shape];
+    const pose = surfacePose(surface.placement, aspect, size[0], size[1], lens);
+    return pose === null ? null : { size, pose };
+  });
+  const indexOf = (name: string): i32 => surfaces.findIndex((surface: RoomSurface) => surface.name === name) as i32;
+  const fixed: boolean[] = surfaces.map((surface: RoomSurface) => surface.typed[0] > 0);
+  if (fixed.indexOf(true) < 0 && fixed.length > 0) fixed[0] = true;
+  // from what is fixed outwards; a surface with neither link nor typed size keeps its one metre
+  for (let pass: i32 = 0; pass < surfaces.length; pass++) {
+    for (const link of links) {
+      const a: i32 = indexOf(link.a), b: i32 = indexOf(link.b);
+      if (a < 0 || b < 0 || solved[a] === null || solved[b] === null || fixed[a] === fixed[b]) continue;
+      const from: i32 = fixed[a] ? a : b, to: i32 = fixed[a] ? b : a;
+      const fromCorner: i32 = fixed[a] ? link.cornerA : link.cornerB, toCorner: i32 = fixed[a] ? link.cornerB : link.cornerA;
+      const target = solved[to] as SolvedSurface;
+      const k = norm(cornerAt(solved[from] as SolvedSurface, fromCorner)) / norm(cornerAt(target, toCorner));
+      solved[to] = { size: [target.size[0] * k, target.size[1] * k], pose: { r1: target.pose.r1, r2: target.pose.r2, position: scaled(target.pose.position, k) } };
+      fixed[to] = true;
+    }
+  }
+  return solved;
+}
+
 /** The surface as a grid of points in the projector's axes, following the deformation grid. */
 export function surfaceGrid(mesh: number[], pose: Pose, width: number, height: number): SurfaceGrid {
   const points: Vec3[] = [];

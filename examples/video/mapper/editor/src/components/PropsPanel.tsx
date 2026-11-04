@@ -1,8 +1,8 @@
 // The selected layer's settings: what it shows, how a media fits, its sound and its colour.
-import { Button, Slider, Switch } from 'zinc:ui/kit';
+import { Button, Switch } from 'zinc:ui/kit';
 import { send } from '../services/link';
 import { currentLayer, loadState, numbers, setLayer, setWord, store, touch, word } from '../state';
-import { Heading, Row } from './Field';
+import { Heading, Row, ValueSlider } from './Field';
 import { Rebuilt } from './Rebuilt';
 
 const SOURCES: string[] = ['pattern', 'solid', 'gradient', 'image'];
@@ -19,10 +19,10 @@ const GROUPS: [string, SliderDef[]][] = [
   ['Edge blend', [s('edge', 0, 0, 0.5, 'left'), s('edge', 1, 0, 0.5, 'right'), s('edge', 2, 0, 0.5, 'top'), s('edge', 3, 0, 0.5, 'bottom'), s('edge', 4, 1, 3, 'gamma')]],
 ];
 
-function ValueSlider(props: { layer: any; def: SliderDef }): i32 {
+function PropSlider(props: { layer: any; def: SliderDef }): i32 {
   const values = numbers(props.layer, props.def.key);
   return <Row label={props.def.label}>
-    <Slider min={props.def.min} max={props.def.max} step={(props.def.max - props.def.min) / 200} value={() => values[props.def.index]} onChange={(v: number) => {
+    <ValueSlider min={props.def.min} max={props.def.max} read={() => values[props.def.index]} write={(v: number) => {
       values[props.def.index] = v;
       send(`/layer/${store.selected}/${props.def.key}`, values);
     }} />
@@ -43,7 +43,7 @@ function LayerProps(props: { layer: any }): i32 {
     <Heading text="Media" />
     <Row label="file"><Text className="text-xs text-zinc-100">{word(layer, 'media') === '' ? '(none)' : word(layer, 'media')}</Text></Row>
     <Choice label="fit" options={FITS} layer={layer} property="fit" />
-    <ValueSlider layer={layer} def={s('volume', 0, 0, 1, 'volume')} />
+    <PropSlider layer={layer} def={s('volume', 0, 0, 1, 'volume')} />
     <Row label="loop"><Switch checked={() => numbers(layer, 'loop')[0] > 0} onChange={(on: boolean) => { setLayer('loop', [on ? 1 : 0]); touch(); }} /></Row>
     <Heading text="Without a media" />
     <Choice label="source" options={SOURCES} layer={layer} property="source" />
@@ -51,7 +51,7 @@ function LayerProps(props: { layer: any }): i32 {
     <Row label="grid"><Switch checked={() => numbers(layer, 'grid')[0] > 0} onChange={(on: boolean) => { setLayer('grid', [on ? 1 : 0]); touch(); }} /></Row>
     {GROUPS.map((group: [string, SliderDef[]]) => <View>
       <Heading text={group[0]} />
-      {group[1].map((def: SliderDef) => <ValueSlider layer={layer} def={def} />)}
+      {group[1].map((def: SliderDef) => <PropSlider layer={layer} def={def} />)}
     </View>)}
     <View className="mt-3"><Button size="sm" variant="secondary" label="Reset layer" onClick={() => {
       send(`/layer/${store.selected}/reset`, []);

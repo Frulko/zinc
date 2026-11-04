@@ -10,7 +10,7 @@ export interface PointCanvasProps {
   points: () => EditablePoint[];
   pixelSize: () => number[];          // what 1.0 is worth in pixels, for the arrows
   draw: (x: i32, y: i32, w: i32, h: i32) => void;
-  onEmpty?: (x: number, y: number) => void;
+  onEmpty?: (x: number, y: number, w: number, h: number) => void;
   onShiftPoint?: (index: i32) => void;   // replaces the selection on a shift-click (a mask takes the point out)
 }
 
@@ -25,7 +25,7 @@ export function PointCanvas(props: PointCanvasProps): i32 {
     const shift = (e.mods & ui.SHIFT) !== 0;
     if (hit < 0) {
       if (!shift) props.editor.clear();
-      if (props.onEmpty !== undefined) (props.onEmpty as (x: number, y: number) => void)(x, y);
+      if (props.onEmpty !== undefined) (props.onEmpty as (x: number, y: number, w: number, h: number) => void)(x, y, w, h);
     } else if (shift && props.onShiftPoint !== undefined) {
       (props.onShiftPoint as (index: i32) => void)(hit);
       props.editor.clear();
