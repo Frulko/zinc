@@ -25,7 +25,9 @@ import json
 def band(top, direction):
     return {"name": ["band"], "source": ["solid"], "color": [1, 1, 1], "corners": [.2, top, .6, top, .6, top + .25, .2, top + .25], "edge": [0, .25, 0, 0, 1], "edgedir": [0, direction, 0, 0]}
 cut = band(.37, 1); cut["corners"] = [.75, .37, .85, .37, .85, .62, .75, .62]; cut["edge"] = [0, .5, 0, 0, 1]; cut["inset"] = [0, .25, 0, 0]   # outside, a cut brings the far end back: .05 past the edge becomes .025
-print(json.dumps({"version": [1], "layers": [band(.05, 0), band(.37, 1), band(.69, 2), cut]}))
+def moved(top, direction, offset):   # a band .1 wide, a gradient worth .05 of the output, its start moved by .025
+    b = band(top, direction); b["corners"] = [.75, top, .85, top, .85, top + .25, .75, top + .25]; b["edge"] = [0, .5, 0, 0, 1]; b["edgeoffset"] = [0, offset, 0, 0]; return b
+print(json.dumps({"version": [1], "layers": [band(.05, 0), band(.37, 1), band(.69, 2), cut, moved(.05, 0, .25), moved(.69, 1, -.25)]}))
 PY
 ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 ZINC_SHOT="$tmp/e.bmp" timeout 120 "$ZINC" run "$edges/src/main.ts" -- --port 0 --web off >"$tmp/edges.log" 2>&1
 python3 - "$tmp/e.bmp" <<'PY' || fail=1
@@ -36,7 +38,8 @@ stride = (w * depth + 3) & ~3
 def light(x, y):   # a BMP's rows go from the bottom up
     return b[start + (h - 1 - int(y * h)) * stride + int(x * w) * depth]
 want = {"inside": (.175, {.48: 255, .55: 128, .595: 0, .65: 0}), "outside": (.495, {.48: 255, .595: 255, .65: 128, .705: 0}), "both": (.815, {.48: 255, .6: 128, .705: 0}),
-        "outside cut": (.495, {.84: 255, .8625: 128, .89: 0})}
+        "outside cut": (.495, {.84: 255, .8625: 128, .89: 0}),
+        "inside, offset inward": (.175, {.77: 255, .8: 128, .83: 0}), "outside, offset outward": (.815, {.87: 255, .9: 128, .93: 0})}
 problems = [f"{name} at x={x}: {light(x, y)}, not {v}" for name, (y, row) in want.items() for x, v in row.items() if abs(light(x, y) - v) > 40]
 if problems: print("edge direction: " + "; ".join(problems)); sys.exit(1)
 PY
@@ -52,7 +55,10 @@ open(sys.argv[1] + "/media/bands.png", "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(
 def zone(left, fit, frame=(0, 0, 1)):
     x, y, side, tall = left, .25, .225, .4   # 16:9: square
     return {"name": ["z"], "media": ["bands.png"], "fit": [fit], "frame": list(frame), "corners": [x, y, x + side, y, x + side, y + tall, x, y + tall]}
-json.dump({"version": [1], "layers": [zone(.01, "cover"), zone(.26, "contain"), zone(.51, "height", (-1, 0, 1)), zone(.76, "width")]}, open(sys.argv[1] + "/mapping.json", "w"))
+def placed(left, picture):   # under the others, stretched: each band is a quarter of the width
+    z = zone(left, "stretch"); y, side, tall = .68, .1125, .2; z["corners"] = [left, y, left + side, y, left + side, y + tall, left, y + tall]; z["picture"] = list(picture); return z
+json.dump({"version": [1], "layers": [zone(.01, "cover"), zone(.26, "contain"), zone(.51, "height", (-1, 0, 1)), zone(.76, "width"),
+  placed(.01, (.5, 0, 0, 1)), placed(.26, (0, 0, 90, 1)), placed(.51, (0, 0, 0, .5))]}, open(sys.argv[1] + "/mapping.json", "w"))
 PY
 ZINC_NATIVE=real ZINC_DISPLAY=gl ZINC_DETERMINISTIC=1 ZINC_FRAMES=30 ZINC_SHOT="$tmp/f.bmp" timeout 120 "$ZINC" run "$fits/src/main.ts" -- --port 0 --web off >"$tmp/fits.log" 2>&1
 python3 - "$tmp/f.bmp" <<'PY' || fail=1
@@ -73,6 +79,12 @@ problems = []
 for name, left, y, c, along in want:
     got = colour(left + SIDE * along, y)
     if max(abs(got[k] - c[k]) for k in range(3)) > 60: problems.append(f"{name} at {along}: {got}, not {c}")
+# the picture in its zone: moved half a zone right (empty on the left, its first half on the right), a quarter turn (its left at the top), half its opacity
+for name, x, y, c in [("moved, empty", .01 + .1125 * .25, .78, K), ("moved, its first band", .01 + .1125 * .6, .78, R),
+                      ("turned, its left", .26 + .1125 * .5, .69, R), ("turned, its right", .26 + .1125 * .5, .87, W),
+                      ("half opacity", .51 + .1125 * .9, .78, (128, 128, 128))]:
+    got = colour(x, y)
+    if max(abs(got[k] - c[k]) for k in range(3)) > 60: problems.append(f"{name}: {got}, not {c}")
 if problems: print("fit: " + "; ".join(problems)); sys.exit(1)
 PY
 # a JavaScript engine loads the project's display driver too (zinc.json "display": "gl", which zinc:mapping draws through), with no ZINC_DISPLAY

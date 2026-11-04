@@ -40,8 +40,9 @@ struct Layer {
   int source, blend, cols, rows, image, maskimage, fit;
   int card;   // a runtime image shown instead of the source and the media while calibrating (-1: none); not saved
   float visible, color[3], color2[3], angle, corners[8], position[2], scale, rotation, opacity;
-  float brightness, contrast, saturation, hue, gamma, gain[3], crop[5], edge[5], inset[4], edgedir[4], grid;  // edgedir: which way each side's ramp goes from its edge (0 inside, 1 outside, 2 across); inset: its cut, what is hidden before an inside ramp, what is taken from the far end of an outside one
+  float brightness, contrast, saturation, hue, gamma, gain[3], crop[5], edge[5], inset[4], edgedir[4], edgeoffset[4], grid;  // edgedir: which way each side's ramp goes from its edge (0 inside, 1 outside, 2 across); inset: its cut, what is hidden before an inside ramp, what is taken from the far end of an outside one
   float inputRect[4], volume, loop;  // inputRect: the part of the source shown (x y w h in 0..1)
+  float picture[4];  // the picture in its zone: moved (x y, shares of the zone), turned (degrees), its opacity
   float frame[3];  // what a fit shows of the picture: where it slides along each axis (-1 start, 0 middle, 1 end) and a zoom
   char media[64], mediaOpened[64];   // a file of the media folder ("" none), and the one asked of the player
   float mesh[MAX_MESH * MAX_MESH * 2];
@@ -68,8 +69,8 @@ struct Field { const char* key; size_t off; int n, dirty; };
 const Field FIELDS[] = {
   F(visible, 1, 0), F(color, 3, 0), F(color2, 3, 0), F(angle, 1, 0), F(corners, 8, 0), F(position, 2, 0), F(scale, 1, 0),
   F(rotation, 1, 0), F(opacity, 1, 0), F(brightness, 1, 0), F(contrast, 1, 0), F(saturation, 1, 0), F(hue, 1, 0),
-  F(gamma, 1, 0), F(gain, 3, 0), F(crop, 5, 2), F(edge, 5, 2), F(inset, 4, 2), F(edgedir, 4, 2), F(grid, 1, 0),
-  F(inputRect, 4, 0), F(frame, 3, 0), F(volume, 1, 0), F(loop, 1, 0)};
+  F(gamma, 1, 0), F(gain, 3, 0), F(crop, 5, 2), F(edge, 5, 2), F(inset, 4, 2), F(edgedir, 4, 2), F(edgeoffset, 4, 2), F(grid, 1, 0),
+  F(inputRect, 4, 0), F(frame, 3, 0), F(picture, 4, 0), F(volume, 1, 0), F(loop, 1, 0)};
 #undef F
 
 void identity_mesh(Layer& l) {
@@ -90,10 +91,12 @@ void defaults(Layer& l, int idx) {
   const float crop[5] = {0, 0, 1, 1, 0}, edge[5] = {0, 0, 0, 0, 2.2f};
   memcpy(l.crop, crop, sizeof crop); memcpy(l.edge, edge, sizeof edge);
   for (float& side : l.inset) side = 0;
+  for (float& side : l.edgeoffset) side = 0;
   l.grid = 0;
   const float wholeSource[4] = {0, 0, 1, 1};
   memcpy(l.inputRect, wholeSource, sizeof wholeSource);
   l.frame[2] = 1;
+  l.picture[3] = 1;
   l.volume = 1; l.loop = 1; l.fit = STRETCH; l.media[0] = 0;
   for (Mask& m : l.masks) m.n = 0;
   l.cols = l.rows = 2;
@@ -148,8 +151,21 @@ void warp(const Layer& l, float s, float t, float out[2]) {
   for (int k = 0; k < 2; k++) out[k] = cr(row[0][k], row[1][k], row[2][k], row[3][k], v);
 }
 
-// How far a side's fade goes past the surface: outside, the cut brings its far end back.
-float spill(const Layer& l, int side) { return l.edgedir[side] >= 0.5f && l.edge[side] > l.inset[side] ? l.edge[side] - l.inset[side] : 0; }
+// Where a side's fade runs, as a distance inward from its edge: hidden at lo, full at hi.
+// inside: hidden up to the cut, then the gradient. Outside: full up to the start, the gradient past it, ending where the cut brings it. Both: the two sides of the start.
+// The offset moves the start only: the layer's corners stay, and a side with no gradient has nothing to move.
+void fade_range(const Layer& l, int side, float& lo, float& hi) {
+  const bool outward = l.edgedir[side] >= 0.5f, inward = l.edgedir[side] < 0.5f || l.edgedir[side] >= 1.5f;
+  const float start = (l.edge[side] > 0 ? l.edgeoffset[side] : 0) + (outward ? 0 : l.inset[side]);
+  lo = outward ? start - fmaxf(0.f, l.edge[side] - l.inset[side]) : start;
+  hi = start + (inward ? l.edge[side] : 0);
+}
+// How far a side's fade goes past the surface.
+float spill(const Layer& l, int side) {
+  float lo, hi;
+  fade_range(l, side, lo, hi);
+  return fmaxf(0.f, -lo);
+}
 // The part of the surface a layer draws, x y w h: 0 0 1 1 unless a fade goes outside. The mesh and the mask texture both cover it.
 void drawn_range(const Layer& l, float r[4]) {
   r[0] = -spill(l, 0); r[1] = -spill(l, 2);
@@ -225,7 +241,7 @@ void color_matrix(const Layer& l, float out[16]) {
 
 // ---------- GPU ----------
 // v_st: where the surface reads its source (fit and input rectangle), v_uv: the surface itself, which masks and the grid follow.
-const char* LAYER_VS = R"(attribute vec2 a_pos; attribute vec2 a_uv; uniform mat3 u_m; uniform vec4 u_fit; varying vec2 v_uv; varying vec2 v_st;
+const char* LAYER_VS = R"(attribute vec2 a_pos; attribute vec2 a_uv; uniform mat3 u_m; uniform vec4 u_fit; uniform vec4 u_turn; uniform vec2 u_move; varying vec2 v_uv; varying vec2 v_st;
 #if SRC == 5
 uniform vec4 u_stm; varying vec2 v_tx;
 #endif
@@ -235,7 +251,8 @@ uniform vec4 u_range; varying vec2 v_m;
 void main() {
   vec3 q = u_m * vec3(a_pos, 1.0);
   v_uv = a_uv;
-  v_st = a_uv * u_fit.xy + u_fit.zw;
+  vec2 c = a_uv - 0.5 - u_move;
+  v_st = (vec2(dot(u_turn.xy, c), dot(u_turn.zw, c)) + 0.5) * u_fit.xy + u_fit.zw;
 #if SRC == 5
   v_tx = v_st * u_stm.xy + u_stm.zw;
 #endif
@@ -445,10 +462,7 @@ void build_mask(Layer& l) {
   glUniform1f(glGetUniformLocation(crop_prog, "u_cf"), l.crop[4]);
   float lo[4], hi[4];
   for (int side = 0; side < 4; side++) {
-    // inside: hidden up to the cut, then the gradient. Outside: full up to the edge, the gradient past it, ending where the cut brings it. Both: the two sides of the edge.
-    const bool outward = l.edgedir[side] >= 0.5f, inward = l.edgedir[side] < 0.5f || l.edgedir[side] >= 1.5f;
-    lo[side] = outward ? -spill(l, side) : l.inset[side];
-    hi[side] = (outward ? 0 : l.inset[side]) + (inward ? l.edge[side] : 0);
+    fade_range(l, side, lo[side], hi[side]);
   }
   glUniform4fv(glGetUniformLocation(crop_prog, "u_lo"), 1, lo);
   glUniform4fv(glGetUniformLocation(crop_prog, "u_hi"), 1, hi);
@@ -502,7 +516,7 @@ void sync_media(Layer& l) {
 
 // Where a surface reads its source, so a picture of any size fits the zone: scale (xy) and offset (zw) of u_fit. `clip` is true when a contained
 // picture leaves bars, which then show nothing rather than the picture's edge pixels.
-void fit_source(const Layer& l, int32_t sourceW, int32_t sourceH, float fit[4], float clip[4], bool* clipped) {
+void fit_source(const Layer& l, int32_t sourceW, int32_t sourceH, float fit[4], float clip[4], float turn[4], bool* clipped) {
   const float* c = l.corners;
   const float zoneW = (hypotf((c[2] - c[0]) * aspect, c[3] - c[1]) + hypotf((c[4] - c[6]) * aspect, c[5] - c[7])) / 2;
   const float zoneH = (hypotf((c[6] - c[0]) * aspect, c[7] - c[1]) + hypotf((c[4] - c[2]) * aspect, c[5] - c[3])) / 2;
@@ -530,6 +544,16 @@ void fit_source(const Layer& l, int32_t sourceW, int32_t sourceH, float fit[4], 
   if (scaleU <= 1) clip[2] = 8;
   if (scaleV <= 1) clip[3] = 8;
   *clipped = scaleU > 1 || scaleV > 1;
+  // turned in the zone's own proportions, so a square stays square
+  const float angle = l.picture[2] * 3.14159265f / 180, ratio = zoneH > 0 ? zoneW / zoneH : 1;
+  turn[0] = cosf(angle); turn[1] = sinf(angle) * ratio;
+  turn[2] = -sinf(angle) / ratio; turn[3] = cosf(angle);
+  // moved or turned, what the picture leaves shows nothing rather than its border pixels
+  if (l.picture[0] != 0 || l.picture[1] != 0 || l.picture[2] != 0) {
+    clip[2] = rect[2] / 2;
+    clip[3] = rect[3] / 2;
+    *clipped = true;
+  }
 }
 
 void draw(int32_t w, int32_t h) {
@@ -576,9 +600,9 @@ void draw(int32_t w, int32_t h) {
       sourceTex = l.mediaShownTex;
     }
 #endif
-    float fit[4], clip[4];
+    float fit[4], clip[4], turn[4];
     bool clipped;
-    fit_source(l, sourceW, sourceH, fit, clip, &clipped);
+    fit_source(l, sourceW, sourceH, fit, clip, turn, &clipped);
     const bool grid = l.grid > 0.5f || i == selected;
     GLuint p = layer_prog(src, l, grid, clipped);
     if (!p) continue;
@@ -589,7 +613,7 @@ void draw(int32_t w, int32_t h) {
     glUniformMatrix3fv(glGetUniformLocation(p, "u_m"), 1, GL_FALSE, m);
     glUniformMatrix4fv(glGetUniformLocation(p, "u_cm"), 1, GL_FALSE, cm);
     glUniform1f(glGetUniformLocation(p, "u_ig"), 1.f / (l.gamma > 0.01f ? l.gamma : 0.01f));
-    glUniform1f(glGetUniformLocation(p, "u_alpha"), emptied ? 0 : l.opacity > 1 ? 1 : l.opacity);
+    glUniform1f(glGetUniformLocation(p, "u_alpha"), emptied ? 0 : (l.opacity > 1 ? 1 : l.opacity) * l.picture[3]);
     glUniform3f(glGetUniformLocation(p, "u_c1"), l.color[0], l.color[1], l.color[2]);
     glUniform3f(glGetUniformLocation(p, "u_c2"), l.color2[0], l.color2[1], l.color2[2]);
     float a = l.angle * 3.14159265f / 180;
@@ -599,6 +623,8 @@ void draw(int32_t w, int32_t h) {
     glBindTexture(src == EXTERNAL ? GL_TEXTURE_EXTERNAL_OES : GL_TEXTURE_2D, sourceTex);
     glUniform1i(glGetUniformLocation(p, "u_tex"), 0);
     glUniform4fv(glGetUniformLocation(p, "u_fit"), 1, fit);
+    glUniform4fv(glGetUniformLocation(p, "u_turn"), 1, turn);
+    glUniform2f(glGetUniformLocation(p, "u_move"), l.picture[0], l.picture[1]);
     glUniform4fv(glGetUniformLocation(p, "u_clip"), 1, clip);
 #ifdef ZN_MAPPING_MEDIA
     // the decoder's picture has its first row at the end of the texture: the surface's top reads t = 1 of the player's matrix

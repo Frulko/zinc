@@ -9,7 +9,7 @@ import { isPlaying, numbers, saveShow, store, touch } from '../state';
 import { thumbnailOf } from '../services/thumbnails';
 import { IconButton, Row, ValueSlider } from './Field';
 
-const MIN_ZOOM = 0.5, MAX_ZOOM = 4, DIM: i32 = 170, FRAME_WIDTH = 2;
+const MIN_ZOOM = 0.1, MAX_ZOOM = 4, MAX_MOVE = 1, MAX_TURN = 180, DIM: i32 = 170, FRAME_WIDTH = 2;
 const EPSILON = 0.005;
 
 function fitText(fit: string): string {
@@ -44,7 +44,15 @@ export function FrameEditor(props: { clip: Clip; layer: any }): i32 {
   };
   const part = (): number[] => framedPart(clip.fit, ratio(), clip.frame);
   const follow = (): void => {
-    if (isPlaying(column, row)) send(`/layer/${row}/frame`, clip.frame);
+    if (isPlaying(column, row)) {
+      send(`/layer/${row}/frame`, clip.frame);
+      send(`/layer/${row}/picture`, clip.picture);
+    }
+  };
+  const setPicture = (index: i32, value: number): void => {
+    clip.picture[index] = value;
+    follow();
+    saveShow();
   };
   let pixelsPerPicture: number[] = [1, 1], lastX = 0, lastY = 0, pressed = false;
   const draw = (x: i32, y: i32, w: i32, h: i32): void => {
@@ -95,9 +103,14 @@ export function FrameEditor(props: { clip: Clip; layer: any }): i32 {
     {!known && <Text className="text-[11px] text-zinc-500">This device gives no picture of this media: the sliders still work.</Text>}
     {!known && <Row label="across"><ValueSlider min={-1} max={1} read={() => clip.frame[0]} write={(v: number) => { clip.frame[0] = v; follow(); saveShow(); }} /></Row>}
     {!known && <Row label="down"><ValueSlider min={-1} max={1} read={() => clip.frame[1]} write={(v: number) => { clip.frame[1] = v; follow(); saveShow(); }} /></Row>}
-    <Row label="zoom"><ValueSlider min={MIN_ZOOM} max={MAX_ZOOM} read={() => clip.frame[2]} write={(v: number) => { clip.frame[2] = v; follow(); saveShow(); }} /></Row>
-    <View className="items-start"><IconButton icon="crosshair" label="Centre" onClick={() => {
+    <Row label="scale"><ValueSlider min={MIN_ZOOM} max={MAX_ZOOM} read={() => clip.frame[2]} write={(v: number) => { clip.frame[2] = v; follow(); saveShow(); }} /></Row>
+    <Row label="x"><ValueSlider min={-MAX_MOVE} max={MAX_MOVE} read={() => clip.picture[0]} write={(v: number) => setPicture(0, v)} /></Row>
+    <Row label="y"><ValueSlider min={-MAX_MOVE} max={MAX_MOVE} read={() => clip.picture[1]} write={(v: number) => setPicture(1, v)} /></Row>
+    <Row label="rotation"><ValueSlider min={-MAX_TURN} max={MAX_TURN} read={() => clip.picture[2]} write={(v: number) => setPicture(2, v)} /></Row>
+    <Row label="opacity"><ValueSlider min={0} max={1} read={() => clip.picture[3]} write={(v: number) => setPicture(3, v)} /></Row>
+    <View className="items-start"><IconButton icon="crosshair" label="Reset the picture" onClick={() => {
       clip.frame = [0, 0, 1];
+      clip.picture = [0, 0, 0, 1];
       follow();
       saveShow();
       touch();

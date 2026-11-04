@@ -96,7 +96,7 @@ what counts on small hardware.
 
 A low-resolution projector bleeds past the edge of a shape, onto what stands behind it. In *Output*, choose **Edges** and click a side of
 a layer: its **cut** hides a strip outright, its **gradient** fades what follows, its **curve** shapes that fade. **Inside**, **Outside** or **Both** says which way the gradient goes
-from the edge: into the layer, past it onto what stands behind, or both. Outside, the **cut** brings the far end of the gradient back toward the edge. It follows the warp, and the lines on the
+from the edge: into the layer, past it onto what stands behind, or both. Outside, the **cut** brings the far end of the gradient back toward the edge. **Offset** slides where the gradient starts, from -10 % to +10 %, without moving the layer. It follows the warp, and the lines on the
 canvas show where each one ends.
 
 ### Sending media, following the device
@@ -109,7 +109,7 @@ edges between the library, the views, the inspector and the grid to resize them:
 
 A clip's **fit** says how its picture takes the zone: **stretch** fills it and deforms, **contain** shows it whole with bars, **cover**
 fills it and cuts what exceeds, **width** or **height** makes that side span the zone. The inspector says what is cut, and shows the
-picture with the part on screen: drag that part to choose what shows, and **zoom** to go closer.
+picture with the part on screen: drag that part to choose what shows, and **scale** to go closer or further. **x**, **y**, **rotation** and **opacity** place the picture in its zone, apart from the layer's own settings.
 
 ### Moving a zone, going back
 

@@ -267,13 +267,16 @@ function selectLayerAt(x: number, y: number): void {
 }
 
 function drawSideMarks(layer: any, x: i32, y: i32, w: i32, h: i32): void {
-  const edge = numbers(layer, 'edge'), inset = numbers(layer, 'inset'), direction = numbers(layer, 'edgedir');
+  const edge = numbers(layer, 'edge'), inset = numbers(layer, 'inset'), direction = numbers(layer, 'edgedir'), offset = numbers(layer, 'edgeoffset');
   const onCanvas = (line: Point[]): Point[] => line.map((p: Point): Point => [x + p[0] * w, y + p[1] * h]);
   for (let side: i32 = 0; side < 4; side++) {
     const outward = direction[side] !== EDGE_INSIDE, inward = direction[side] !== EDGE_OUTSIDE;
-    if (edge[side] > 0 && inward) drawLine(onCanvas(sideLine(layer, side, (outward ? 0 : inset[side]) + edge[side])), EDGE_BLEND);
-    if (edge[side] > 0 && outward && inset[side] === 0) drawLine(onCanvas(sideLine(layer, side, -edge[side])), EDGE_BLEND);
-    if (inset[side] > 0) drawLine(onCanvas(sideLine(layer, side, outward ? Math.min(0, inset[side] - edge[side]) : inset[side])), MASK_HIDE);
+    const start = (edge[side] > 0 ? offset[side] : 0) + (outward ? 0 : inset[side]);   // as fade_range in the mapping plugin
+    const hidden = outward ? start - Math.max(0, edge[side] - inset[side]) : start;
+    const full = start + (inward ? edge[side] : 0);
+    if (edge[side] > 0) drawLine(onCanvas(sideLine(layer, side, full)), EDGE_BLEND);
+    if (edge[side] > 0 && inset[side] === 0) drawLine(onCanvas(sideLine(layer, side, hidden)), EDGE_BLEND);
+    if (inset[side] > 0) drawLine(onCanvas(sideLine(layer, side, hidden)), MASK_HIDE);
   }
   if (selectedEdge >= 0) {
     const line = onCanvas(sideLine(layer, selectedEdge, 0));

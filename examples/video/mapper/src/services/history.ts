@@ -9,8 +9,8 @@ interface Entry { label: string; mapping: string; show: string }
 
 const MAX_ENTRIES: i32 = 50;
 const QUIET_MS = 800;   // long enough for the page to save what a scene it just loaded changes in the show
-const PLAYING_KEYS: string[] = ['source', 'image', 'media', 'fit', 'frame', 'loop', 'color'];
-const WORDS: string[][] = [['edgedir', 'edge direction'], ['inputRect', 'input'], ['maskimage', 'mask image']];
+const PLAYING_KEYS: string[] = ['source', 'image', 'media', 'fit', 'frame', 'picture', 'loop', 'color'];
+const WORDS: string[][] = [['edgedir', 'edge direction'], ['edgeoffset', 'edge offset'], ['inputRect', 'input'], ['maskimage', 'mask image']];
 const SAME = 1e-4;   // the file's precision
 
 const entries: Entry[] = [];

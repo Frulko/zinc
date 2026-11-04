@@ -288,7 +288,7 @@ export function stopAll(): void {
 /** Puts a clip in a cell, in place of what was there; the grid keeps a free column at its end. */
 export function placeClip(column: i32, layer: i32, clip: Clip): void {
   clipAt(column, layer);
-  store.columns[column].cells[layer] = { ...clip };
+  store.columns[column].cells[layer] = { ...clip, frame: clip.frame.slice(), picture: clip.picture.slice() };   // its sliders change its own
   store.columns = ensureColumns(store.columns);
   showClip(column, layer);
   saveShow();
@@ -334,6 +334,7 @@ export function changeClip(change: (clip: Clip) => void): void {
   if (isPlaying(store.clipColumn, store.clipLayer)) {
     send(`/layer/${store.clipLayer}/fit`, [], [clip.fit]);
     send(`/layer/${store.clipLayer}/frame`, clip.frame);
+    send(`/layer/${store.clipLayer}/picture`, clip.picture);
     send(`/layer/${store.clipLayer}/loop`, [clip.loop ? 1 : 0]);
   }
   saveShow();
