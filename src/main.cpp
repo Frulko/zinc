@@ -2181,6 +2181,10 @@ int main(int argc, char** argv) {
     }
   }
   if (gProfile) { zn::frontend::applyProfile(*gProfile); if (gProfile->strict && argc > 1 && !std::strcmp(argv[1], "build")) gStrict = true; }   // `run` keeps gradual typing on the host (the .f32 goldens run so); a build for the target is strict
+#ifdef __linux__
+  // a native build links with the system c++ and its libstdc++, which cannot resolve what a plugin compiled against zig's libc++ needs (std::thread, shared_ptr)
+  if (argc > 1 && !std::strcmp(argv[1], "build") && (std::getenv("CXX") || !std::system("command -v c++ >/dev/null 2>&1"))) setenv("ZINC_PLUGIN_CC", "system", 0);
+#endif
   if (argc >= 2 && !std::strcmp(argv[1], "doctor")) {   // zinc doctor: the engine, the renderer of this machine, the pinned tools, the host tools (ZN-138, ZN-175)
     const zn::frontend::Profile* hp = gProfile ? gProfile : zn::frontend::findProfile(
         zn::plat::osName()
@@ -3183,15 +3187,16 @@ int main(int argc, char** argv) {
         for (const auto& f : found) if (f.manifest.name == host.plugin) hit = &f;
         zn::tc::PluginLib lib;
         const bool built = hit && zn::tc::buildPlugin(*hit, gRoot, pdir, entryOf(*hit), lib, err);
-        if (!built && defaultScreen && !webos) std::fprintf(stderr, "zinc: no screen in this build, the program runs headless (display-gl for %s: %s)\n", argv[3], err.c_str());   // the sysroot has no EGL
-        else if (!built) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: plugin '%s' for %s: %s\n", host.plugin.c_str(), argv[3], err.c_str()); return 1; }
+        if (!built) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: plugin '%s' for %s: %s\n", host.plugin.c_str(), argv[3], err.c_str()); return 1; }
         crossPlugins.push_back(lib);
       }
       if (!sel.driver.empty()) {   // the display driver zinc.json names for Linux (fbdev on a Pi), linked whole like the modules; none: the program runs headless on the null HAL
         const zn::frontend::FoundPlugin* hit = nullptr;
         for (const auto& f : found) if (f.manifest.kind == "display" && (f.manifest.name == sel.driver || f.manifest.name == "display-" + sel.driver)) hit = &f;
         zn::tc::PluginLib lib;
-        if (!hit || !zn::tc::buildPlugin(*hit, gRoot, pdir, entryOf(*hit), lib, err)) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: display driver '%s' for %s: %s\n", sel.driver.c_str(), argv[3], hit ? err.c_str() : "not found (zinc plugins lists them)"); return 1; }
+        const bool built = hit && zn::tc::buildPlugin(*hit, gRoot, pdir, entryOf(*hit), lib, err);
+        if (!built && hit && defaultScreen && !webos) std::fprintf(stderr, "zinc: no screen in this build, the program runs headless (display-gl for %s: %s)\n", argv[3], err.c_str());   // the sysroot has no EGL
+        else if (!built) { zn::tc::clearCrossTarget(); std::fprintf(stderr, "zinc: display driver '%s' for %s: %s\n", sel.driver.c_str(), argv[3], hit ? err.c_str() : "not found (zinc plugins lists them)"); return 1; }
         else crossPlugins.push_back(lib);
       }
       zn::tc::clearCrossTarget();
